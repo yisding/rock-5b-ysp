@@ -75,8 +75,12 @@ A green `validate-combined.sh` shows `rkvenc-core0/1`, `rkvdec-core0/1`, and
 - The driver code is forward-ported from Rockchip's GPL-2.0 BSP MPP framework
   (`rockchip-kernel` `drivers/video/rockchip/mpp/`) and `airockchip/librga`'s
   kernel driver. It is GPL-2.0, like the kernel.
-- `librga`'s **userspace** library is a prebuilt binary blob from
-  `airockchip/librga` (Apache-2.0 headers; the `.so` is not source). See
+- `librga`'s **userspace** library **is** open source (Apache-2.0) — the
+  implementation is published in the JeffyCN mirror lineage
+  (`JeffyCN/mirrors:linux-rga-multi`, maintained as a buildable mirror at
+  `tsukumijima/librga-rockchip`). Rockchip's *official* `airockchip/librga` repo
+  confusingly ships only a prebuilt `.so` + headers + samples, so we linked its
+  prebuilt aarch64 `.so` for convenience — but you can build from source. See
   [`ffmpeg/README.md`](ffmpeg/README.md) and `docs/06`.
 - The mainline RGA-in-U-Boot / RGA-V4L2 context is courtesy of Collabora's
   RK3588 upstreaming work.

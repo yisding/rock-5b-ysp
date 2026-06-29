@@ -104,12 +104,17 @@ legacy codec blocks like VPU/VDPU1/jpeg).
 
 ## Userspace (ffmpeg-rockchip)
 
-**`librga` is a prebuilt blob.** `airockchip/librga` ships the `.so`, not source
-(Apache-2.0 headers only). It works because it shares the vendor BSP lineage with
-the kernel `/dev/rga` driver — the transcode test confirms the userspace↔kernel
-ABI matches. Buildable source exists in the JeffyCN mirror lineage if you ever
-need it. `rkrga` is optional in ffmpeg (`h264_rkmpp`/`hevc_rkmpp` work without it;
-you'd lose HW scale/CSC).
+**`airockchip/librga` ships a prebuilt `.so`, but librga source IS available.**
+The *official* `airockchip/librga` repo distributes only a prebuilt `.so` +
+headers + samples (no library source) — easy to mistake for closed. The real
+implementation is open (Apache-2.0) in the JeffyCN mirror lineage:
+`JeffyCN/mirrors:linux-rga-multi`, maintained as `tsukumijima/librga-rockchip`
+(full `core/` + `im2d_api/`, CMake/Meson, Debian packages) and
+`madisongh/rockchip-librga`. We linked airockchip's prebuilt aarch64 `.so` purely
+for convenience — it works because it shares the BSP lineage with the kernel
+`/dev/rga` driver (the transcode test confirms the ABI matches). Build from the
+JeffyCN source if you want a from-source userspace. `rkrga` is also optional in
+ffmpeg (`h264_rkmpp`/`hevc_rkmpp` work without it; you'd lose HW scale/CSC).
 
 **ffmpeg-rockchip fails to build on `vulkan_av1.c`.** The fork pins an older
 FFmpeg that uses the *provisional MESA* Vulkan-AV1 types; modern Vulkan headers

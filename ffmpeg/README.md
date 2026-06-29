@@ -13,7 +13,7 @@ rule).
 | Lib | Where it comes from | Form |
 |-----|---------------------|------|
 | `librockchip_mpp` (`>= 1.3.9`) | build `rockchip-linux/mpp` (the same userspace the codec tests use); the build dir has `librockchip_mpp.so.1` | built from source |
-| `librga` | `airockchip/librga` ships a **prebuilt** aarch64 `.so` at `libs/Linux/gcc-aarch64/librga.so` + headers in `include/` | **prebuilt blob** (see [`docs/06`](../docs/06-gotchas.md)) |
+| `librga` | we linked the **prebuilt** aarch64 `.so` from `airockchip/librga` (`libs/Linux/gcc-aarch64/librga.so` + `include/`); **buildable source** is at `tsukumijima/librga-rockchip` (JeffyCN lineage, Apache-2.0) | prebuilt for convenience; source available (see [`docs/06`](../docs/06-gotchas.md)) |
 | `libdrm` | distro (`libdrm-dev`) | distro |
 | meson/ninja/cmake | distro | distro (no `nasm` needed on arm64) |
 
@@ -81,9 +81,15 @@ See `../tests/transcode-test.sh` for the full two-way test. Note
 `scale_rkrga` keeps aspect ratio by default — add
 `:force_original_aspect_ratio=disable` for exact dimensions.
 
-## Don't want the blob?
+## Building librga from source, or avoiding it
 
-`rkrga` is optional: drop `--enable-rkrga` and you still get `h264_rkmpp` /
-`hevc_rkmpp` decode+encode (no HW scale/CSC). The fully-open path is the mainline
-**V4L2** RGA driver (RGA2 merged ~6.12; RGA3 under review) — subset features only.
-See [`docs/06`](../docs/06-gotchas.md) and `docs/05`.
+We linked airockchip's prebuilt `.so` for convenience, but librga is open source.
+If you want a from-source userspace, build it from the **JeffyCN lineage**
+(`tsukumijima/librga-rockchip` — a buildable mirror of
+`JeffyCN/mirrors:linux-rga-multi`, Apache-2.0, CMake/Meson + Debian packages) and
+stage *that* `.so`/headers into `$STAGE` instead.
+
+Or drop RGA entirely: `rkrga` is optional — `h264_rkmpp` / `hevc_rkmpp`
+decode+encode work without it (you lose HW scale/CSC). The fully-mainline path is
+the **V4L2** RGA driver (RGA2 merged ~6.12; RGA3 under review) — subset features
+only. See [`docs/06`](../docs/06-gotchas.md) and `docs/05`.
