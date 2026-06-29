@@ -1,0 +1,9 @@
+prefix=/path/to/your/ffmpeg-stack
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+Name: librga
+Description: Rockchip RGA 2D acceleration
+Version: 1.10.6
+Libs: -L${libdir} -lrga
+Cflags: -I${includedir}

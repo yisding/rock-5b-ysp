@@ -1,0 +1,16 @@
+# Rockchip RK3588 hardware video codec + 2D accelerator device permissions.
+# Lets users in the "video" group use the MPP encoder/decoder (/dev/mpp_service)
+# and the RGA 2D accelerator (/dev/rga) WITHOUT sudo -- e.g. for ffmpeg-rockchip.
+#
+# Install:
+#   sudo cp 99-rockchip-codec.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+# (or just reboot). Verify:  ls -l /dev/mpp_service /dev/rga  -> crw-rw---- root video
+#
+# The invoking user must be a member of "video" (the Rock 5B default user already is;
+# check with `id -nG`, add with `sudo usermod -aG video <user>` + re-login if not).
+
+KERNEL=="mpp_service", GROUP="video", MODE="0660"
+KERNEL=="rga",         GROUP="video", MODE="0660"
+# also cover the legacy/aux MPP nodes if present (iep, vpu) -- harmless if they don't exist
+KERNEL=="iep",         GROUP="video", MODE="0660"

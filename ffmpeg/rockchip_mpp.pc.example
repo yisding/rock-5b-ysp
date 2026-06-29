@@ -1,0 +1,9 @@
+prefix=/path/to/your/ffmpeg-stack
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+Name: rockchip_mpp
+Description: Rockchip Media Process Platform
+Version: 1.3.9
+Libs: -L${libdir} -lrockchip_mpp -lm
+Cflags: -I${includedir}

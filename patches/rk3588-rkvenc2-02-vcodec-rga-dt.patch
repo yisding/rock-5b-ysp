@@ -1,0 +1,395 @@
+From 5614909e58035e86228cab71fc0938eda4925591 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 28 Jun 2026 08:34:01 -0700
+Subject: [PATCH 2/2] arm64: dts: rockchip: rk3588: VEPU580 encoder, rkvdec2
+ decoder, RGA3 nodes
+
+Add vendor MPP encoder (fdbd0000/fdbe0000) + decoder (fdc38000/fdc40000)
+cores, their CCUs, the shared mpp_srv coordinator, and convert the RGA
+node to the vendor multi_rga binding, for the Radxa Rock 5B.
+
+The Rock 5B board file enables both accelerators as dual-core CCU
+clusters (encoder + decoder each: CCU + 2 cores + 2 IOMMUs), matching
+how the vendor MPP framework drives them: a "rkv*-core" node is always
+dispatched to the CCU-attaching probe, so the CCU must be enabled or the
+core hard-fails ("attach ccu failed"). rkvdec core1 uses the TRM-canonical
+fdc40000 base (the vendor BSP's fdc48000 is the same core mirrored +0x8000
+inside the 64 KiB window).
+---
+ arch/arm64/boot/dts/rockchip/rk3588-base.dtsi | 199 +++++++++++++++++-
+ .../boot/dts/rockchip/rk3588-rock-5b.dtsi     | 137 ++++++++++++
+ 2 files changed, 329 insertions(+), 7 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
+index e2500e31c434..8bd8122bf244 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
+@@ -21,6 +21,14 @@ / {
+ 	#size-cells = <2>;
+ 
+ 	aliases {
++		/* required: the MPP framework derives core_id via of_alias_get_id() */
++		rkvenc0 = &rkvenc0;
++		rkvenc1 = &rkvenc1;
++		/*
++		 * rkvdec0/rkvdec1 aliases are added in the board file (rk3588-rock-5b.dtsi):
++		 * the decoder cores are the mainline/Armbian vdec0/vdec1 nodes converted
++		 * in place to the vendor binding, so the aliases point at &vdec0/&vdec1.
++		 */
+ 		gpio0 = &gpio0;
+ 		gpio1 = &gpio1;
+ 		gpio2 = &gpio2;
+@@ -1262,14 +1270,71 @@ vpu121_mmu: iommu@fdb50800 {
+ 		#iommu-cells = <0>;
+ 	};
+ 
+-	rga: rga@fdb80000 {
+-		compatible = "rockchip,rk3588-rga", "rockchip,rk3288-rga";
+-		reg = <0x0 0xfdb80000 0x0 0x180>;
++	/*
++	 * Vendor Rockchip "multi_rga" (/dev/rga) controllers, forward-ported
++	 * from the RK3588 6.1 BSP for librga / ffmpeg-rockchip rkrga filters.
++	 * Two RGA3 cores (each with its own IOMMU) + one RGA2 core. The vendor
++	 * CONFIG_ROCKCHIP_MULTI_RGA driver registers one platform device per
++	 * core and aggregates them at runtime (no virtual/scheduler node).
++	 *
++	 * Note: rga2@fdb80000 replaces the mainline V4L2 rockchip-rga node that
++	 * previously sat at this address. librga cannot drive the V4L2 m2m
++	 * device, so the vendor RGA2 owns the register block instead (Option A).
++	 */
++	rga3_core0: rga@fdb60000 {
++		compatible = "rockchip,rga3_core0";
++		reg = <0x0 0xfdb60000 0x0 0x1000>;
++		interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH 0>;
++		interrupt-names = "rga3_core0_irq";
++		clocks = <&cru ACLK_RGA3_0>, <&cru HCLK_RGA3_0>,
++			 <&cru CLK_RGA3_0_CORE>;
++		clock-names = "aclk_rga3_0", "hclk_rga3_0", "clk_rga3_0";
++		power-domains = <&power RK3588_PD_RGA30>;
++		iommus = <&rga3_0_mmu>;
++	};
++
++	rga3_0_mmu: iommu@fdb60f00 {
++		compatible = "rockchip,rk3588-iommu", "rockchip,rk3568-iommu";
++		reg = <0x0 0xfdb60f00 0x0 0x100>;
++		interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH 0>;
++		interrupt-names = "rga3_0_mmu";
++		clocks = <&cru ACLK_RGA3_0>, <&cru HCLK_RGA3_0>;
++		clock-names = "aclk", "iface";
++		power-domains = <&power RK3588_PD_RGA30>;
++		#iommu-cells = <0>;
++	};
++
++	rga3_core1: rga@fdb70000 {
++		compatible = "rockchip,rga3_core1";
++		reg = <0x0 0xfdb70000 0x0 0x1000>;
++		interrupts = <GIC_SPI 115 IRQ_TYPE_LEVEL_HIGH 0>;
++		interrupt-names = "rga3_core1_irq";
++		clocks = <&cru ACLK_RGA3_1>, <&cru HCLK_RGA3_1>,
++			 <&cru CLK_RGA3_1_CORE>;
++		clock-names = "aclk_rga3_1", "hclk_rga3_1", "clk_rga3_1";
++		power-domains = <&power RK3588_PD_RGA31>;
++		iommus = <&rga3_1_mmu>;
++	};
++
++	rga3_1_mmu: iommu@fdb70f00 {
++		compatible = "rockchip,rk3588-iommu", "rockchip,rk3568-iommu";
++		reg = <0x0 0xfdb70f00 0x0 0x100>;
++		interrupts = <GIC_SPI 115 IRQ_TYPE_LEVEL_HIGH 0>;
++		interrupt-names = "rga3_1_mmu";
++		clocks = <&cru ACLK_RGA3_1>, <&cru HCLK_RGA3_1>;
++		clock-names = "aclk", "iface";
++		power-domains = <&power RK3588_PD_RGA31>;
++		#iommu-cells = <0>;
++	};
++
++	rga2: rga2@fdb80000 {
++		compatible = "rockchip,rga2_core0";
++		reg = <0x0 0xfdb80000 0x0 0x1000>;
+ 		interrupts = <GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH 0>;
+-		clocks = <&cru ACLK_RGA2>, <&cru HCLK_RGA2>, <&cru CLK_RGA2_CORE>;
+-		clock-names = "aclk", "hclk", "sclk";
+-		resets = <&cru SRST_RGA2_CORE>, <&cru SRST_A_RGA2>, <&cru SRST_H_RGA2>;
+-		reset-names = "core", "axi", "ahb";
++		interrupt-names = "rga2_irq";
++		clocks = <&cru ACLK_RGA2>, <&cru HCLK_RGA2>,
++			 <&cru CLK_RGA2_CORE>;
++		clock-names = "aclk_rga2", "hclk_rga2", "clk_rga2";
+ 		power-domains = <&power RK3588_PD_VDPU>;
+ 	};
+ 
+@@ -1366,6 +1431,126 @@ av1d: video-codec@fdc70000 {
+ 		resets = <&cru SRST_A_AV1>, <&cru SRST_P_AV1>, <&cru SRST_A_AV1_BIU>, <&cru SRST_P_AV1_BIU>;
+ 	};
+ 
++	/*
++	 * VEPU580 / rkvenc2 H.264 + H.265 hardware encoder
++	 * (forward-ported from the RK3588 6.1 vendor BSP MPP service
++	 * framework). Virtual mpp-service + ccu coordination nodes plus
++	 * two encoder cores (rkvenc0/rkvenc1) each behind its own IOMMU.
++	 * All nodes default to "disabled"; the board DT enables them.
++	 */
++	mpp_srv: mpp-srv {
++		compatible = "rockchip,mpp-service";
++		rockchip,taskqueue-count = <12>;
++		rockchip,resetgroup-count = <1>;
++		status = "disabled";
++	};
++
++	rkvenc_ccu: rkvenc-ccu {
++		compatible = "rockchip,rkv-encoder-v2-ccu";
++		status = "disabled";
++	};
++
++	rkvenc0: rkvenc-core@fdbd0000 {
++		compatible = "rockchip,rkv-encoder-v2-core";
++		reg = <0x0 0xfdbd0000 0x0 0x6000>;
++		interrupts = <GIC_SPI 101 IRQ_TYPE_LEVEL_HIGH 0>;
++		interrupt-names = "irq_rkvenc0";
++		clocks = <&cru ACLK_RKVENC0>, <&cru HCLK_RKVENC0>,
++			 <&cru CLK_RKVENC0_CORE>;
++		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core";
++		rockchip,normal-rates = <500000000>, <0>, <800000000>;
++		assigned-clocks = <&cru ACLK_RKVENC0>, <&cru CLK_RKVENC0_CORE>;
++		assigned-clock-rates = <500000000>, <800000000>;
++		resets = <&cru SRST_A_RKVENC0>, <&cru SRST_H_RKVENC0>,
++			 <&cru SRST_RKVENC0_CORE>;
++		reset-names = "video_a", "video_h", "video_core";
++		rockchip,skip-pmu-idle-request;
++		iommus = <&rkvenc0_mmu>;
++		rockchip,srv = <&mpp_srv>;
++		rockchip,ccu = <&rkvenc_ccu>;
++		rockchip,taskqueue-node = <7>;
++		rockchip,task-capacity = <8>;
++		power-domains = <&power RK3588_PD_VENC0>;
++		status = "disabled";
++	};
++
++	rkvenc0_mmu: iommu@fdbdf000 {
++		compatible = "rockchip,rk3588-iommu", "rockchip,rk3568-iommu";
++		reg = <0x0 0xfdbdf000 0x0 0x40>, <0x0 0xfdbdf040 0x0 0x40>;
++		interrupts = <GIC_SPI 99 IRQ_TYPE_LEVEL_HIGH 0>,
++			     <GIC_SPI 100 IRQ_TYPE_LEVEL_HIGH 0>;
++		interrupt-names = "irq_rkvenc0_mmu0", "irq_rkvenc0_mmu1";
++		clocks = <&cru ACLK_RKVENC0>, <&cru HCLK_RKVENC0>;
++		clock-names = "aclk", "iface";
++		power-domains = <&power RK3588_PD_VENC0>;
++		#iommu-cells = <0>;
++		status = "disabled";
++	};
++
++	rkvenc1: rkvenc-core@fdbe0000 {
++		compatible = "rockchip,rkv-encoder-v2-core";
++		reg = <0x0 0xfdbe0000 0x0 0x6000>;
++		interrupts = <GIC_SPI 104 IRQ_TYPE_LEVEL_HIGH 0>;
++		interrupt-names = "irq_rkvenc1";
++		clocks = <&cru ACLK_RKVENC1>, <&cru HCLK_RKVENC1>,
++			 <&cru CLK_RKVENC1_CORE>;
++		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core";
++		rockchip,normal-rates = <500000000>, <0>, <800000000>;
++		assigned-clocks = <&cru ACLK_RKVENC1>, <&cru CLK_RKVENC1_CORE>;
++		assigned-clock-rates = <500000000>, <800000000>;
++		resets = <&cru SRST_A_RKVENC1>, <&cru SRST_H_RKVENC1>,
++			 <&cru SRST_RKVENC1_CORE>;
++		reset-names = "video_a", "video_h", "video_core";
++		rockchip,skip-pmu-idle-request;
++		iommus = <&rkvenc1_mmu>;
++		rockchip,srv = <&mpp_srv>;
++		rockchip,ccu = <&rkvenc_ccu>;
++		rockchip,taskqueue-node = <7>;
++		rockchip,task-capacity = <8>;
++		power-domains = <&power RK3588_PD_VENC1>;
++		status = "disabled";
++	};
++
++	rkvenc1_mmu: iommu@fdbef000 {
++		compatible = "rockchip,rk3588-iommu", "rockchip,rk3568-iommu";
++		reg = <0x0 0xfdbef000 0x0 0x40>, <0x0 0xfdbef040 0x0 0x40>;
++		interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH 0>,
++			     <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH 0>;
++		interrupt-names = "irq_rkvenc1_mmu0", "irq_rkvenc1_mmu1";
++		clocks = <&cru ACLK_RKVENC1>, <&cru HCLK_RKVENC1>;
++		clock-names = "aclk", "iface";
++		power-domains = <&power RK3588_PD_VENC1>;
++		#iommu-cells = <0>;
++		status = "disabled";
++	};
++
++	/*
++	 * VDPU381 / rkvdec2 H.264 + H.265 + VP9 hardware decoder
++	 * (forward-ported from the RK3588 6.1 vendor BSP MPP service
++	 * framework). Shares the mpp_srv coordinator added with the rkvenc2
++	 * encoder. A CCU coordination node plus two decoder cores
++	 * (rkvdec0/rkvdec1) each behind its own IOMMU. All nodes default to
++	 * "disabled"; the board DT enables them. This is additive: mainline
++	 * v6.18 ships no node for this block (its only RK3588 decode is the
++	 * separate AV1 VPU @fdc70000 below).
++	 */
++	rkvdec_ccu: rkvdec-ccu@fdc30000 {
++		compatible = "rockchip,rkv-decoder-v2-ccu";
++		reg = <0x0 0xfdc30000 0x0 0x100>;
++		reg-names = "ccu";
++		clocks = <&cru ACLK_RKVDEC_CCU>;
++		clock-names = "aclk_ccu";
++		assigned-clocks = <&cru ACLK_RKVDEC_CCU>;
++		assigned-clock-rates = <600000000>;
++		resets = <&cru SRST_A_RKVDEC_CCU>;
++		reset-names = "video_ccu";
++		rockchip,skip-pmu-idle-request;
++		/* 1: soft ccu  2: hw ccu */
++		rockchip,ccu-mode = <1>;
++		power-domains = <&power RK3588_PD_RKVDEC0>;
++		status = "disabled";
++	};
++
+ 	vop: vop@fdd90000 {
+ 		compatible = "rockchip,rk3588-vop";
+ 		reg = <0x0 0xfdd90000 0x0 0x4200>, <0x0 0xfdd95000 0x0 0x1000>;
+diff --git a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
+index e5c474e4d02a..edce7285b10e 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi
+@@ -84,3 +84,140 @@ &vcc3v3_pcie2x1l0 {
+ 	pinctrl-0 = <&pcie2_0_vcc3v3_en>;
+ 	status = "okay";
+ };
++
++/*
++ * VEPU580 / rkvenc2 H.264 + H.265 hardware encoder (dual-core CCU).
++ *
++ * The vendor MPP encoder ALWAYS runs through the CCU: a core node is named
++ * "rkvenc-core...", so rkvenc_probe() dispatches it to rkvenc_core_probe(),
++ * which calls rkvenc_attach_ccu() and hard-fails ("attach ccu failed") if the
++ * CCU node is disabled -- there is no standalone path for a *core* node. So the
++ * CCU, both cores and both IOMMUs are enabled together, exactly like the
++ * rkvdec decoder below (both cores share taskqueue-node = <7>).
++ */
++&mpp_srv {
++	status = "okay";
++};
++
++&rkvenc_ccu {
++	status = "okay";
++};
++
++&rkvenc0 {
++	status = "okay";
++};
++
++&rkvenc0_mmu {
++	status = "okay";
++};
++
++&rkvenc1 {
++	status = "okay";
++};
++
++&rkvenc1_mmu {
++	status = "okay";
++};
++
++/*
++ * VDPU381 / rkvdec2 H.264 + H.265 + VP9 hardware decoder (dual-core CCU) --
++ * CONVERT-IN-PLACE packaging (zero edits to Armbian's built-in media-0001 patch).
++ *
++ * Armbian's mainline rkvdec patch already adds the decoder cores as V4L2 nodes:
++ * vdec0@fdc38000 / vdec1@fdc40000 (compatible "rockchip,rk3588-vdec") plus
++ * vdec0_mmu/vdec1_mmu and the vdec0_sram/vdec1_sram RCB pools. Instead of editing
++ * that patch, we CONVERT those nodes in place to the vendor MPP binding: retype
++ * the compatible (mpp_rkvdec2's probe dispatches by compatible, so the generic
++ * "video-codec" node name is fine), swap to the vendor reg/clock/reset layout,
++ * add the rockchip,* properties, and REUSE the existing IOMMU + SRAM nodes as-is
++ * (the vendor decoder reads rockchip,sram via of_address_to_resource, so media's
++ * pool/codec-sram nodes work untouched). Retyping the compatible also detaches
++ * the cores from the V4L2 "rockchip,rk3588-vdec" driver (mutually exclusive).
++ *
++ * The decoder always runs through the CCU, so the new rkvdec_ccu node + both
++ * converted cores + their IOMMUs are enabled together (shared taskqueue-node
++ * = <9>); mpp_srv is already enabled above by the rkvenc2 fragment.
++ */
++&rkvdec_ccu {
++	status = "okay";
++};
++
++&{/aliases} {
++	/* of_alias_get_id(np, "rkvdec") -> core_id; point at the converted nodes */
++	rkvdec0 = &vdec0;
++	rkvdec1 = &vdec1;
++};
++
++&vdec0 {
++	compatible = "rockchip,rkv-decoder-v2";
++	reg = <0x0 0xfdc38100 0x0 0x400>, <0x0 0xfdc38000 0x0 0x100>;
++	reg-names = "regs", "link";
++	interrupt-names = "irq_rkvdec0";
++	clocks = <&cru ACLK_RKVDEC0>, <&cru HCLK_RKVDEC0>,
++		 <&cru CLK_RKVDEC0_CORE>, <&cru CLK_RKVDEC0_CA>,
++		 <&cru CLK_RKVDEC0_HEVC_CA>;
++	clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core",
++		      "clk_cabac", "clk_hevc_cabac";
++	rockchip,normal-rates = <800000000>, <0>, <600000000>,
++				<600000000>, <1000000000>;
++	resets = <&cru SRST_A_RKVDEC0>, <&cru SRST_H_RKVDEC0>,
++		 <&cru SRST_RKVDEC0_CORE>, <&cru SRST_RKVDEC0_CA>,
++		 <&cru SRST_RKVDEC0_HEVC_CA>;
++	reset-names = "video_a", "video_h", "video_core",
++		      "video_cabac", "video_hevc_cabac";
++	rockchip,skip-pmu-idle-request;
++	rockchip,srv = <&mpp_srv>;
++	rockchip,ccu = <&rkvdec_ccu>;
++	rockchip,core-mask = <0x00010001>;
++	rockchip,task-capacity = <16>;
++	rockchip,taskqueue-node = <9>;
++	rockchip,sram = <&vdec0_sram>;
++	rockchip,rcb-iova = <0xFFF00000 0x100000>;
++	rockchip,rcb-info = <136 24576>, <137 49152>, <141 90112>, <140 49152>,
++			    <139 180224>, <133 49152>, <134 8192>, <135 4352>,
++			    <138 13056>, <142 291584>;
++	rockchip,rcb-min-width = <512>;
++	status = "okay";
++};
++
++&vdec0_mmu {
++	rockchip,disable-mmu-reset;
++	status = "okay";
++};
++
++&vdec1 {
++	compatible = "rockchip,rkv-decoder-v2";
++	reg = <0x0 0xfdc40100 0x0 0x400>, <0x0 0xfdc40000 0x0 0x100>;
++	reg-names = "regs", "link";
++	interrupt-names = "irq_rkvdec1";
++	clocks = <&cru ACLK_RKVDEC1>, <&cru HCLK_RKVDEC1>,
++		 <&cru CLK_RKVDEC1_CORE>, <&cru CLK_RKVDEC1_CA>,
++		 <&cru CLK_RKVDEC1_HEVC_CA>;
++	clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core",
++		      "clk_cabac", "clk_hevc_cabac";
++	rockchip,normal-rates = <800000000>, <0>, <600000000>,
++				<600000000>, <1000000000>;
++	resets = <&cru SRST_A_RKVDEC1>, <&cru SRST_H_RKVDEC1>,
++		 <&cru SRST_RKVDEC1_CORE>, <&cru SRST_RKVDEC1_CA>,
++		 <&cru SRST_RKVDEC1_HEVC_CA>;
++	reset-names = "video_a", "video_h", "video_core",
++		      "video_cabac", "video_hevc_cabac";
++	rockchip,skip-pmu-idle-request;
++	rockchip,srv = <&mpp_srv>;
++	rockchip,ccu = <&rkvdec_ccu>;
++	rockchip,core-mask = <0x00020002>;
++	rockchip,task-capacity = <16>;
++	rockchip,taskqueue-node = <9>;
++	rockchip,sram = <&vdec1_sram>;
++	rockchip,rcb-iova = <0xFFE00000 0x100000>;
++	rockchip,rcb-info = <136 24576>, <137 49152>, <141 90112>, <140 49152>,
++			    <139 180224>, <133 49152>, <134 8192>, <135 4352>,
++			    <138 13056>, <142 291584>;
++	rockchip,rcb-min-width = <512>;
++	status = "okay";
++};
++
++&vdec1_mmu {
++	rockchip,disable-mmu-reset;
++	status = "okay";
++};
+-- 
+2.53.0
+
