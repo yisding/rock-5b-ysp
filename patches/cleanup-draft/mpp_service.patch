@@ -1,0 +1,71 @@
+commit 56e403ede0812f31741b173c89aa8cf93f7f2a6c
+Author: rkvenc forward-port <forward-port@local>
+Date:   Mon Jun 29 02:14:51 2026 -0700
+
+    WIP: BSP audit cleanup edits (machine-generated, compile-tested)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
+index 6303756e0c24..7b70f54f73a0 100644
+--- a/drivers/video/rockchip/mpp/mpp_service.c
++++ b/drivers/video/rockchip/mpp/mpp_service.c
+@@ -149,6 +149,14 @@ static int mpp_register_service(struct mpp_service *srv,
+ 
+ 	srv->child_dev = device_create(srv->cls, dev, srv->dev_id,
+ 				       NULL, "%s", service_name);
++	if (IS_ERR(srv->child_dev)) {
++		ret = PTR_ERR(srv->child_dev);
++		srv->child_dev = NULL;
++		cdev_del(&srv->mpp_cdev);
++		unregister_chrdev_region(srv->dev_id, 1);
++		dev_err(dev, "create device failed\n");
++		return ret;
++	}
+ 
+ 	return 0;
+ }
+@@ -423,7 +431,8 @@ static int mpp_service_probe(struct platform_device *pdev)
+ 	if (srv->taskqueue_cnt > MPP_DEVICE_BUTT) {
+ 		dev_err(dev, "rockchip,taskqueue-count %d must less than %d\n",
+ 			srv->taskqueue_cnt, MPP_DEVICE_BUTT);
+-		return -EINVAL;
++		ret = -EINVAL;
++		goto fail_register;
+ 	}
+ 
+ 	for (i = 0; i < srv->taskqueue_cnt; i++) {
+@@ -434,6 +443,10 @@ static int mpp_service_probe(struct platform_device *pdev)
+ 		kthread_init_worker(&queue->worker);
+ 		queue->kworker_task = kthread_run(kthread_worker_fn, &queue->worker,
+ 						  "mpp_worker_%d", i);
++		if (IS_ERR(queue->kworker_task)) {
++			dev_err(dev, "failed to run mpp_worker_%d\n", i);
++			queue->kworker_task = NULL;
++		}
+ 		srv->task_queues[i] = queue;
+ 	}
+ 
+@@ -442,7 +455,8 @@ static int mpp_service_probe(struct platform_device *pdev)
+ 	if (srv->reset_group_cnt > MPP_DEVICE_BUTT) {
+ 		dev_err(dev, "rockchip,resetgroup-count %d must less than %d\n",
+ 			srv->reset_group_cnt, MPP_DEVICE_BUTT);
+-		return -EINVAL;
++		ret = -EINVAL;
++		goto fail_register;
+ 	}
+ 
+ 	if (srv->reset_group_cnt) {
+@@ -492,6 +506,14 @@ static int mpp_service_probe(struct platform_device *pdev)
+ 	return 0;
+ 
+ fail_register:
++	for (i = 0; i < srv->taskqueue_cnt; i++) {
++		queue = srv->task_queues[i];
++		if (queue && queue->kworker_task) {
++			kthread_flush_worker(&queue->worker);
++			kthread_stop(queue->kworker_task);
++			queue->kworker_task = NULL;
++		}
++	}
+ 	class_destroy(srv->cls);
+ 
+ 	return ret;

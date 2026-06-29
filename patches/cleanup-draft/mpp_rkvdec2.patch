@@ -1,0 +1,188 @@
+commit 56e403ede0812f31741b173c89aa8cf93f7f2a6c
+Author: rkvenc forward-port <forward-port@local>
+Date:   Mon Jun 29 02:14:51 2026 -0700
+
+    WIP: BSP audit cleanup edits (machine-generated, compile-tested)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index ce73e17e7215..f92e0e125237 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -315,8 +315,11 @@ static int rkvdec2_extract_task_msg(struct mpp_session *session,
+ 		case MPP_CMD_SET_RCB_INFO: {
+ 			struct rkvdec2_session_priv *priv = session->priv;
+ 
+-			if (priv)
+-				mpp_extract_rcb_info(&priv->rcb_inf, req);
++			if (priv) {
++				ret = mpp_extract_rcb_info(&priv->rcb_inf, req);
++				if (ret)
++					return ret;
++			}
+ 		} break;
+ 		default:
+ 			break;
+@@ -349,6 +352,10 @@ int mpp_set_rcbbuf(struct mpp_dev *mpp, struct mpp_session *session,
+ 		for (i = 0; i < rcb_inf->cnt; i++) {
+ 			reg_idx = rcb_inf->elem[i].index;
+ 			rcb_size = rcb_inf->elem[i].size;
++			if (reg_idx >= RKVDEC_REG_NUM) {
++				mpp_err("invalid rcb reg index %u\n", reg_idx);
++				continue;
++			}
+ 			if ((rcb_offset + rcb_size) > dec->rcb_size) {
+ 				mpp_debug(DEBUG_SRAM_INFO,
+ 					  "rcb: reg %d use original buffer\n", reg_idx);
+@@ -356,6 +363,7 @@ int mpp_set_rcbbuf(struct mpp_dev *mpp, struct mpp_session *session,
+ 			}
+ 			mpp_debug(DEBUG_SRAM_INFO, "rcb: reg %d offset %d, size %d\n",
+ 				  reg_idx, rcb_offset, rcb_size);
++			reg_idx = array_index_nospec(reg_idx, RKVDEC_REG_NUM);
+ 			task->reg[reg_idx] = dec->rcb_iova + rcb_offset;
+ 			rcb_offset += rcb_size;
+ 		}
+@@ -1775,14 +1783,18 @@ static int rkvdec2_ccu_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	ccu->aclk_info.clk = devm_clk_get(dev, "aclk_ccu");
+-	if (!ccu->aclk_info.clk)
++	if (IS_ERR(ccu->aclk_info.clk)) {
+ 		mpp_err("failed on clk_get ccu aclk\n");
++		ccu->aclk_info.clk = NULL;
++	}
+ 
+ 	ccu->rst_a = devm_reset_control_get(dev, "video_ccu");
+-	if (ccu->rst_a)
+-		mpp_safe_unreset(ccu->rst_a);
+-	else
++	if (IS_ERR(ccu->rst_a)) {
+ 		mpp_err("failed on clk_get ccu reset\n");
++		ccu->rst_a = NULL;
++	} else {
++		mpp_safe_unreset(ccu->rst_a);
++	}
+ 
+ 	/* power domain autosuspend delay 2s */
+ 	pm_runtime_set_autosuspend_delay(dev, 2000);
+@@ -1911,6 +1923,8 @@ static int rkvdec2_alloc_rcbbuf(struct platform_device *pdev, struct rkvdec2_dev
+ 	return ret;
+ }
+ 
++static int rkvdec2_free_rcbbuf(struct platform_device *pdev, struct rkvdec2_dev *dec);
++
+ static int rkvdec2_core_probe(struct platform_device *pdev)
+ {
+ 	int ret;
+@@ -1941,7 +1955,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 		dev_err(dev, "probe sub driver failed\n");
+ 		return ret;
+ 	}
+-	dec->mmu_base = ioremap(dec->mpp.io_base + 0x600, 0x80);
++	dec->mmu_base = devm_ioremap(dev, dec->mpp.io_base + 0x600, 0x80);
+ 	if (!dec->mmu_base)
+ 		dev_err(dev, "mmu base map failed!\n");
+ 
+@@ -1958,7 +1972,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 	/* set device for link */
+ 	ret = rkvdec2_ccu_link_init(pdev, dec);
+ 	if (ret)
+-		return ret;
++		goto err_free_rcb;
+ 
+ 	mpp->dev_ops->alloc_task = rkvdec2_ccu_alloc_task;
+ 	if (dec->ccu->ccu_mode == RKVDEC2_CCU_TASK_SOFT) {
+@@ -1970,7 +1984,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 			dec->link_dec->task_capacity = mpp->task_capacity;
+ 			ret = rkvdec2_ccu_alloc_table(dec, dec->link_dec);
+ 			if (ret)
+-				return ret;
++				goto err_free_rcb;
+ 		}
+ 		mpp->dev_ops->task_worker = rkvdec2_hard_ccu_worker;
+ 		irq_proc = rkvdec2_hard_ccu_irq;
+@@ -1983,7 +1997,8 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 					IRQF_SHARED, dev_name(dev), mpp);
+ 	if (ret) {
+ 		dev_err(dev, "register interrupter runtime failed\n");
+-		return -EINVAL;
++		ret = -EINVAL;
++		goto err_free_rcb;
+ 	}
+ 	/*make sure mpp->irq is startup then can be en/disable*/
+ 	mpp->is_irq_startup = true;
+@@ -1996,6 +2011,10 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 		mpp_dev_register_srv(mpp, mpp->srv);
+ 
+ 	return ret;
++
++err_free_rcb:
++	rkvdec2_free_rcbbuf(pdev, dec);
++	return ret;
+ }
+ 
+ static int rkvdec2_probe_default(struct platform_device *pdev)
+@@ -2030,6 +2049,7 @@ static int rkvdec2_probe_default(struct platform_device *pdev)
+ 	rkvdec2_alloc_rcbbuf(pdev, dec);
+ 	rkvdec2_link_init(pdev, dec);
+ 
++
+ 	irq_proc = mpp_dev_irq;
+ 	if (dec->link_dec && (mpp->task_capacity > 1)) {
+ 		irq_proc = rkvdec2_link_irq_proc;
+@@ -2044,6 +2064,7 @@ static int rkvdec2_probe_default(struct platform_device *pdev)
+ 					IRQF_SHARED, dev_name(dev), mpp);
+ 	if (ret) {
+ 		dev_err(dev, "register interrupter runtime failed\n");
++		rkvdec2_free_rcbbuf(pdev, dec);
+ 		return -EINVAL;
+ 	}
+ 
+@@ -2116,7 +2137,8 @@ static void rkvdec2_remove(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+ 
+-	if (strstr(dev_name(dev), "ccu")) {
++	if (of_device_is_compatible(pdev->dev.of_node, "rockchip,rkv-decoder-v2-ccu") ||
++	    strstr(dev_name(dev), "ccu")) {
+ 		dev_info(dev, "remove ccu device\n");
+ 		rkvdec2_ccu_remove(dev);
+ 	} else {
+@@ -2124,10 +2146,6 @@ static void rkvdec2_remove(struct platform_device *pdev)
+ 		struct rkvdec2_dev *dec = to_rkvdec2_dev(mpp);
+ 
+ 		dev_info(dev, "remove device\n");
+-		if (dec->mmu_base) {
+-			iounmap(dec->mmu_base);
+-			dec->mmu_base = NULL;
+-		}
+ 		rkvdec2_free_rcbbuf(pdev, dec);
+ 		mpp_dev_remove(mpp);
+ 		rkvdec2_procfs_remove(mpp);
+@@ -2139,13 +2157,15 @@ static void rkvdec2_shutdown(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+ 
+-	if (!strstr(dev_name(dev), "ccu"))
++	if (!(of_device_is_compatible(pdev->dev.of_node, "rockchip,rkv-decoder-v2-ccu") ||
++	      strstr(dev_name(dev), "ccu")))
+ 		mpp_dev_shutdown(pdev);
+ }
+ 
+ static int __maybe_unused rkvdec2_runtime_suspend(struct device *dev)
+ {
+-	if (strstr(dev_name(dev), "ccu")) {
++	if (of_device_is_compatible(dev->of_node, "rockchip,rkv-decoder-v2-ccu") ||
++	    strstr(dev_name(dev), "ccu")) {
+ 		struct rkvdec2_ccu *ccu = dev_get_drvdata(dev);
+ 
+ 		mpp_clk_safe_disable(ccu->aclk_info.clk);
+@@ -2179,7 +2199,8 @@ static int __maybe_unused rkvdec2_runtime_suspend(struct device *dev)
+ 
+ static int __maybe_unused rkvdec2_runtime_resume(struct device *dev)
+ {
+-	if (strstr(dev_name(dev), "ccu")) {
++	if (of_device_is_compatible(dev->of_node, "rockchip,rkv-decoder-v2-ccu") ||
++	    strstr(dev_name(dev), "ccu")) {
+ 		struct rkvdec2_ccu *ccu = dev_get_drvdata(dev);
+ 
+ 		mpp_clk_safe_enable(ccu->aclk_info.clk);

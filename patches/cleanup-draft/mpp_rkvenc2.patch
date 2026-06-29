@@ -1,0 +1,132 @@
+commit 56e403ede0812f31741b173c89aa8cf93f7f2a6c
+Author: rkvenc forward-port <forward-port@local>
+Date:   Mon Jun 29 02:14:51 2026 -0700
+
+    WIP: BSP audit cleanup edits (machine-generated, compile-tested)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 988151ebf488..31028c916e2c 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -955,6 +955,11 @@ static int rkvenc_extract_task_msg(struct mpp_session *session,
+ 					mpp_err("alloc class msg %d fail.\n", j);
+ 					goto fail;
+ 				}
++				if (task->w_req_cnt >= MPP_MAX_MSG_NUM) {
++					mpp_err("w_req_cnt %d overflow\n", task->w_req_cnt);
++					ret = -EINVAL;
++					goto fail;
++				}
+ 				wreq = &task->w_reqs[task->w_req_cnt];
+ 				rkvenc_update_req(task, j, req, wreq);
+ 				data = rkvenc_get_class_reg(task, wreq->offset);
+@@ -984,6 +989,11 @@ static int rkvenc_extract_task_msg(struct mpp_session *session,
+ 					mpp_err("alloc class msg reg %d fail.\n", j);
+ 					goto fail;
+ 				}
++				if (task->r_req_cnt >= MPP_MAX_MSG_NUM) {
++					mpp_err("r_req_cnt %d overflow\n", task->r_req_cnt);
++					ret = -EINVAL;
++					goto fail;
++				}
+ 				rreq = &task->r_reqs[task->r_req_cnt];
+ 				rkvenc_update_req(task, j, req, rreq);
+ 				task->reg[j].valid = 1;
+@@ -1006,13 +1016,13 @@ static int rkvenc_extract_task_msg(struct mpp_session *session,
+ 	mpp_debug(DEBUG_TASK_INFO, "w_req_cnt=%d, r_req_cnt=%d\n",
+ 		  task->w_req_cnt, task->r_req_cnt);
+ 
+-	mpp_debug_enter();
++	mpp_debug_leave();
+ 	return 0;
+ 
+ fail:
+ 	rkvenc_free_class_msg(task);
+ 
+-	mpp_debug_enter();
++	mpp_debug_leave();
+ 	return ret;
+ }
+ 
+@@ -1248,6 +1258,7 @@ static void *rkvenc_alloc_task(struct mpp_session *session,
+ 	/* free class register buffer */
+ 	rkvenc_free_class_msg(task);
+ free_task:
++	rkvenc_free_class_msg(task);
+ 	kfree(task);
+ 
+ 	return NULL;
+@@ -1788,11 +1799,6 @@ static int rkvenc_irq(struct mpp_dev *mpp)
+ 	return ret;
+ }
+ 
+-static int vepu540c_irq(struct mpp_dev *mpp)
+-{
+-	return rkvenc_irq(mpp);
+-}
+-
+ static int rkvenc_isr(struct mpp_dev *mpp)
+ {
+ 	struct rkvenc_task *task;
+@@ -2039,7 +2045,7 @@ static int rkvenc_dump_session(struct mpp_session *session, struct seq_file *seq
+ 		} else if (flag == CODEC_INFO_FLAG_STRING) {
+ 			const char *name = (const char *)&priv->codec_info[i].val;
+ 
+-			seq_printf(seq, "%8s|", name);
++			seq_printf(seq, "%8.8s|", name);
+ 		} else {
+ 			seq_printf(seq, "%8s|", (const char *)"null");
+ 		}
+@@ -2766,7 +2772,7 @@ static struct mpp_dev_ops vepu540c_dev_ops_v2 = {
+ 	.wait_result = rkvenc2_wait_result,
+ 	.alloc_task = rkvenc_alloc_task,
+ 	.run = rkvenc_run,
+-	.irq = vepu540c_irq,
++	.irq = rkvenc_irq,
+ 	.isr = rkvenc_isr,
+ 	.finish = rkvenc_finish,
+ 	.result = rkvenc_result,
+@@ -2964,8 +2970,9 @@ static int rkvenc_attach_ccu(struct device *dev, struct rkvenc_dev *enc)
+ 	enc->ccu = ccu;
+ 
+ 	dev_info(dev, "attach ccu as core %d\n", enc->mpp.core_id);
+-	mpp_debug_enter();
++	mpp_debug_leave();
+ 
++	put_device(&pdev->dev);
+ 	return 0;
+ }
+ 
+@@ -3139,8 +3146,9 @@ static int rkvenc_core_probe(struct platform_device *pdev)
+ 	/* attach core to ccu */
+ 	ret = rkvenc_attach_ccu(dev, enc);
+ 	if (ret) {
+-		dev_err(dev, "attach ccu failed\n");
+-		return ret;
++		if (ret != -EPROBE_DEFER)
++			dev_err(dev, "attach ccu failed\n");
++		goto failed;
+ 	}
+ 	rkvenc2_alloc_rcbbuf(pdev, enc);
+ 
+@@ -3151,7 +3159,8 @@ static int rkvenc_core_probe(struct platform_device *pdev)
+ 					dev_name(dev), mpp);
+ 	if (ret) {
+ 		dev_err(dev, "register interrupter runtime failed\n");
+-		return -EINVAL;
++		ret = -EINVAL;
++		goto failed;
+ 	}
+ 	mpp->session_max_buffers = RKVENC_SESSION_MAX_BUFFERS;
+ 	enc->hw_info = to_rkvenc_info(mpp->var->hw_info);
+@@ -3164,6 +3173,10 @@ static int rkvenc_core_probe(struct platform_device *pdev)
+ 		mpp_dev_register_srv(mpp, mpp->srv);
+ 
+ 	return 0;
++
++failed:
++	mpp_dev_remove(mpp);
++	return ret;
+ }
+ 
+ static int rkvenc_probe_default(struct platform_device *pdev)

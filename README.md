@@ -43,6 +43,8 @@ docs/
   04-armbian-packaging.md Armbian's media-0001 backport conflict + the convert-in-place fix
   05-vanilla-kernel.md    applying this to vanilla mainline (no Armbian)
   06-gotchas.md           every gotcha + workaround found during the port
+  08-bsp-audit.md         multi-agent audit of the BSP code: 89 verified bugs/cleanups
+patches/cleanup-draft/  machine-generated draft fixes for the audit findings (review before use)
 ```
 
 ## Quickstart (Armbian, ROCK 5B)

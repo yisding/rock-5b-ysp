@@ -1,0 +1,69 @@
+commit 56e403ede0812f31741b173c89aa8cf93f7f2a6c
+Author: rkvenc forward-port <forward-port@local>
+Date:   Mon Jun 29 02:14:51 2026 -0700
+
+    WIP: BSP audit cleanup edits (machine-generated, compile-tested)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index cdba2d3499d0..d56de12ecaf4 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -9,8 +9,8 @@
+  *
+  */
+ #include <linux/delay.h>
+-/* 6.18: <linux/dma-buf-cache.h> does not exist upstream; CONFIG_DMABUF_CACHE
+- * folds to 0 so the cache path is dead. Use the standard dma-buf header.
++/* 6.18: <linux/dma-buf-cache.h> does not exist upstream; use the standard
++ * dma-buf header.
+  */
+ #include <linux/dma-buf.h>
+ #include <linux/dma-mapping.h>
+@@ -52,6 +52,8 @@ mpp_dma_find_buffer_fd(struct mpp_dma_session *dma, int fd)
+ 		 */
+ 		if (buffer->dmabuf == dmabuf) {
+ 			out = buffer;
++			if (!kref_get_unless_zero(&buffer->ref))
++				out = NULL;
+ 			find = 1;
+ 			list_move_tail(&buffer->link, &buffer->dma->used_list);
+ 			break;
+@@ -66,6 +68,8 @@ mpp_dma_find_buffer_fd(struct mpp_dma_session *dma, int fd)
+ 			 */
+ 			if (buffer->dmabuf == dmabuf) {
+ 				out = buffer;
++				if (!kref_get_unless_zero(&buffer->ref))
++					out = NULL;
+ 				list_move_tail(&buffer->link, &buffer->dma->static_list);
+ 				break;
+ 			}
+@@ -211,16 +215,13 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 	}
+ 
+ 	/* remove the oldest before add buffer */
+-	if (!IS_ENABLED(CONFIG_DMABUF_CACHE))
+-		mpp_dma_remove_extra_buffer(dma);
++	mpp_dma_remove_extra_buffer(dma);
+ 
+ 	/* Check whether in dma session */
+ 	buffer = mpp_dma_find_buffer_fd(dma, fd);
+-	if (!IS_ERR_OR_NULL(buffer)) {
+-		if (kref_get_unless_zero(&buffer->ref))
+-			return buffer;
+-		dev_dbg(dma->dev, "missing the fd %d\n", fd);
+-	}
++	if (!IS_ERR_OR_NULL(buffer))
++		/* find already took the outside-user reference */
++		return buffer;
+ 
+ 	dmabuf = dma_buf_get(fd);
+ 	if (IS_ERR(dmabuf)) {
+@@ -266,7 +267,7 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 
+ 	kref_init(&buffer->ref);
+ 
+-	if (!static_use && !IS_ENABLED(CONFIG_DMABUF_CACHE))
++	if (!static_use)
+ 		/* Increase the reference for used outside the buffer pool */
+ 		kref_get(&buffer->ref);
+ 

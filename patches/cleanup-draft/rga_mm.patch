@@ -1,0 +1,223 @@
+commit 56e403ede0812f31741b173c89aa8cf93f7f2a6c
+Author: rkvenc forward-port <forward-port@local>
+Date:   Mon Jun 29 02:14:51 2026 -0700
+
+    WIP: BSP audit cleanup edits (machine-generated, compile-tested)
+
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index f6b1ff5b7ab2..6f447f11206b 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -499,7 +499,7 @@ static int rga_mm_map_dma_buffer(struct rga_external_buffer *external_buffer,
+ 
+ 	internal_buffer->dma_buffer = buffer;
+ 	internal_buffer->mm_flag = mm_flag;
+-	internal_buffer->phys_addr = phys_addr ? phys_addr : 0;
++	internal_buffer->phys_addr = phys_addr;
+ 	internal_buffer->size = buffer->size - buffer->offset;
+ 	internal_buffer->scheduler = scheduler;
+ 
+@@ -1249,11 +1249,11 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+ 
+ 	/* using third-address */
+ 	if (job_buf->uv_addr) {
+-		if (job_buf->y_addr->virt_addr != NULL)
++		if (job_buf->y_addr && job_buf->y_addr->virt_addr != NULL)
+ 			yrgb_offset = job_buf->y_addr->virt_addr->offset;
+-		if (job_buf->uv_addr->virt_addr != NULL)
++		if (job_buf->uv_addr && job_buf->uv_addr->virt_addr != NULL)
+ 			uv_offset = job_buf->uv_addr->virt_addr->offset;
+-		if (job_buf->v_addr->virt_addr != NULL)
++		if (job_buf->v_addr && job_buf->v_addr->virt_addr != NULL)
+ 			v_offset = job_buf->v_addr->virt_addr->offset;
+ 
+ 		yrgb_count = RGA_GET_PAGE_COUNT(yrgb_size + yrgb_offset);
+@@ -1269,7 +1269,7 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+ 
+ 		if (job->flags & RGA_JOB_USE_HANDLE) {
+ 			page_table = (uint32_t *)rga_get_free_pages(GFP_KERNEL | GFP_DMA32,
+-				&order, page_count * sizeof(uint32_t *));
++				&order, page_count * sizeof(*page_table));
+ 			if (page_table == NULL) {
+ 				rga_job_err(job, "%s can not alloc pages for page_table, order = %d\n",
+ 					__func__, order);
+@@ -1288,29 +1288,35 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+ 			mutex_unlock(&rga_drvdata->lock);
+ 		}
+ 
+-		sgt = rga_mm_lookup_sgt(job_buf->y_addr);
+-		if (sgt == NULL) {
+-			rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
+-			ret = -EINVAL;
+-			goto err_free_page_table;
++		if (job_buf->y_addr) {
++			sgt = rga_mm_lookup_sgt(job_buf->y_addr);
++			if (sgt == NULL) {
++				rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
++				ret = -EINVAL;
++				goto err_free_page_table;
++			}
++			rga_mm_sgt_to_page_table(sgt, page_table, yrgb_count, false);
+ 		}
+-		rga_mm_sgt_to_page_table(sgt, page_table, yrgb_count, false);
+ 
+-		sgt = rga_mm_lookup_sgt(job_buf->uv_addr);
+-		if (sgt == NULL) {
+-			rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
+-			ret = -EINVAL;
+-			goto err_free_page_table;
++		if (job_buf->uv_addr) {
++			sgt = rga_mm_lookup_sgt(job_buf->uv_addr);
++			if (sgt == NULL) {
++				rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
++				ret = -EINVAL;
++				goto err_free_page_table;
++			}
++			rga_mm_sgt_to_page_table(sgt, page_table + yrgb_count, uv_count, false);
+ 		}
+-		rga_mm_sgt_to_page_table(sgt, page_table + yrgb_count, uv_count, false);
+ 
+-		sgt = rga_mm_lookup_sgt(job_buf->v_addr);
+-		if (sgt == NULL) {
+-			rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
+-			ret = -EINVAL;
+-			goto err_free_page_table;
++		if (job_buf->v_addr) {
++			sgt = rga_mm_lookup_sgt(job_buf->v_addr);
++			if (sgt == NULL) {
++				rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
++				ret = -EINVAL;
++				goto err_free_page_table;
++			}
++			rga_mm_sgt_to_page_table(sgt, page_table + yrgb_count + uv_count, v_count, false);
+ 		}
+-		rga_mm_sgt_to_page_table(sgt, page_table + yrgb_count + uv_count, v_count, false);
+ 
+ 		img->yrgb_addr = yrgb_offset;
+ 		img->uv_addr = (yrgb_count << PAGE_SHIFT) + uv_offset;
+@@ -1328,7 +1334,7 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+ 
+ 		if (job->flags & RGA_JOB_USE_HANDLE) {
+ 			page_table = (uint32_t *)rga_get_free_pages(GFP_KERNEL | GFP_DMA32,
+-				&order, page_count * sizeof(uint32_t *));
++				&order, page_count * sizeof(*page_table));
+ 			if (page_table == NULL) {
+ 				rga_job_err(job, "%s can not alloc pages for page_table, order = %d\n",
+ 					__func__, order);
+@@ -1552,7 +1558,7 @@ static int rga_mm_get_buffer(struct rga_mm *mm,
+ 	if (ret < 0) {
+ 		rga_job_err(job, "handle[%ld] failed to get internal buffer info!\n",
+ 			(unsigned long)handle);
+-		return ret;
++		goto put_internal_buffer;
+ 	}
+ 
+ 	if (internal_buffer->size < require_size) {
+@@ -1583,6 +1589,7 @@ static int rga_mm_get_buffer(struct rga_mm *mm,
+ 	kref_put(&internal_buffer->refcount, rga_mm_kref_release_buffer);
+ 	mutex_unlock(&mm->lock);
+ 
++	*buf = NULL;
+ 	return ret;
+ 
+ }
+@@ -1611,15 +1618,23 @@ static void rga_mm_put_channel_handle_info(struct rga_mm *mm,
+ 					   struct rga_job_buffer *job_buf,
+ 					   enum dma_data_direction dir)
+ {
+-	if (job_buf->y_addr)
++	if (job_buf->y_addr) {
+ 		rga_mm_put_buffer(mm, job, job_buf->y_addr, dir);
+-	if (job_buf->uv_addr)
++		job_buf->y_addr = NULL;
++	}
++	if (job_buf->uv_addr) {
+ 		rga_mm_put_buffer(mm, job, job_buf->uv_addr, dir);
+-	if (job_buf->v_addr)
++		job_buf->uv_addr = NULL;
++	}
++	if (job_buf->v_addr) {
+ 		rga_mm_put_buffer(mm, job, job_buf->v_addr, dir);
++		job_buf->v_addr = NULL;
++	}
+ 
+-	if (job_buf->page_table)
++	if (job_buf->page_table) {
+ 		free_pages((unsigned long)job_buf->page_table, job_buf->order);
++		job_buf->page_table = NULL;
++	}
+ }
+ 
+ static int rga_mm_get_channel_handle_info(struct rga_mm *mm,
+@@ -1701,6 +1716,8 @@ static int rga_mm_get_channel_handle_info(struct rga_mm *mm,
+ 	return 0;
+ }
+ 
++static void rga_mm_put_handle_info(struct rga_job *job);
++
+ static int rga_mm_get_handle_info(struct rga_job *job)
+ {
+ 	int ret = 0;
+@@ -1764,7 +1781,7 @@ static int rga_mm_get_handle_info(struct rga_job *job)
+ 						     DMA_TO_DEVICE);
+ 		if (ret < 0) {
+ 			rga_job_err(job, "Can't get src buffer info from handle!\n");
+-			return ret;
++			goto err_put_handle_info;
+ 		}
+ 	}
+ 
+@@ -1774,7 +1791,7 @@ static int rga_mm_get_handle_info(struct rga_job *job)
+ 						     DMA_TO_DEVICE);
+ 		if (ret < 0) {
+ 			rga_job_err(job, "Can't get dst buffer info from handle!\n");
+-			return ret;
++			goto err_put_handle_info;
+ 		}
+ 	}
+ 
+@@ -1796,13 +1813,17 @@ static int rga_mm_get_handle_info(struct rga_job *job)
+ 		}
+ 		if (ret < 0) {
+ 			rga_job_err(job, "Can't get pat buffer info from handle!\n");
+-			return ret;
++			goto err_put_handle_info;
+ 		}
+ 	}
+ 
+ 	rga_mm_set_mmu_flag(job);
+ 
+ 	return 0;
++
++err_put_handle_info:
++	rga_mm_put_handle_info(job);
++	return ret;
+ }
+ 
+ static void rga_mm_put_handle_info(struct rga_job *job)
+@@ -2301,7 +2322,6 @@ int rga_mm_map_job_info(struct rga_job *job)
+ 				ktime_us_delta(ktime_get(), timestamp));
+ 
+ 		job->flags &= ~RGA_JOB_USE_HANDLE;
+-		job->flags |= RGA_JOB_DEBUG_FAKE_BUFFER;
+ 
+ 		return 0;
+ 	}
+@@ -2430,7 +2450,7 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 		ret = new_id;
+ 
+ 		mutex_unlock(&mm->lock);
+-		goto FREE_INTERNAL_BUFFER;
++		goto UNMAP_AND_FREE_BUFFER;
+ 	}
+ 
+ 	internal_buffer->handle = new_id;
+@@ -2449,6 +2469,8 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 
+ 	return internal_buffer->handle;
+ 
++UNMAP_AND_FREE_BUFFER:
++	rga_mm_unmap_buffer(internal_buffer);
+ FREE_INTERNAL_BUFFER:
+ 	kfree(internal_buffer);
+ 

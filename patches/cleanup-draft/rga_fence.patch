@@ -1,0 +1,33 @@
+commit 56e403ede0812f31741b173c89aa8cf93f7f2a6c
+Author: rkvenc forward-port <forward-port@local>
+Date:   Mon Jun 29 02:14:51 2026 -0700
+
+    WIP: BSP audit cleanup edits (machine-generated, compile-tested)
+
+diff --git a/drivers/video/rockchip/rga3/rga_fence.c b/drivers/video/rockchip/rga3/rga_fence.c
+index 9c663f3be5ca..cea0edf52827 100644
+--- a/drivers/video/rockchip/rga3/rga_fence.c
++++ b/drivers/video/rockchip/rga3/rga_fence.c
+@@ -54,6 +54,8 @@ struct dma_fence *rga_dma_fence_alloc(void)
+ {
+ 	struct rga_fence_context *fence_ctx = rga_drvdata->fence_ctx;
+ 	struct dma_fence *fence = NULL;
++	unsigned long flags;
++	unsigned int seqno;
+ 
+ 	if (fence_ctx == NULL) {
+ 		rga_err("fence_context is NULL!\n");
+@@ -64,8 +66,12 @@ struct dma_fence *rga_dma_fence_alloc(void)
+ 	if (!fence)
+ 		return ERR_PTR(-ENOMEM);
+ 
++	spin_lock_irqsave(&fence_ctx->spinlock, flags);
++	seqno = ++fence_ctx->seqno;
++	spin_unlock_irqrestore(&fence_ctx->spinlock, flags);
++
+ 	dma_fence_init(fence, &rga_fence_ops, &fence_ctx->spinlock,
+-		       fence_ctx->context, ++fence_ctx->seqno);
++		       fence_ctx->context, seqno);
+ 
+ 	return fence;
+ }

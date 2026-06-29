@@ -1,0 +1,96 @@
+commit 56e403ede0812f31741b173c89aa8cf93f7f2a6c
+Author: rkvenc forward-port <forward-port@local>
+Date:   Mon Jun 29 02:14:51 2026 -0700
+
+    WIP: BSP audit cleanup edits (machine-generated, compile-tested)
+
+diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
+index 95cc8097648b..f558950fe5da 100644
+--- a/drivers/video/rockchip/rga3/rga_debugger.c
++++ b/drivers/video/rockchip/rga3/rga_debugger.c
+@@ -79,7 +79,7 @@ static ssize_t rga_debug_write(struct file *file, const char __user *ubuf,
+ {
+ 	char buf[14];
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+@@ -282,7 +282,7 @@ static int rga_mm_session_show(struct seq_file *m, void *data)
+ 				break;
+ 
+ 			seq_puts(m, "dma_buffer:\n");
+-			seq_printf(m, "\t dma_buf = %p, iova = 0x%lxsgt = 0x%p, size = %ld, map_core = 0x%x\n",
++			seq_printf(m, "\t dma_buf = %p, iova = 0x%lx, sgt = 0x%p, size = %ld, map_core = 0x%x\n",
+ 				   dump_buffer->dma_buffer->dma_buf,
+ 				   (unsigned long)dump_buffer->dma_buffer->iova,
+ 				   dump_buffer->dma_buffer->sgt,
+@@ -375,7 +375,7 @@ static int rga_request_manager_show(struct seq_file *m, void *data)
+ 
+ 		seq_puts(m, "\t cmd dump:\n\n");
+ 
+-		for (i = 0; i < request->task_count; i++)
++		for (i = 0; i < task_count; i++)
+ 			rga_request_task_debug_info(m, &(task_list[i]));
+ 	}
+ 
+@@ -397,7 +397,7 @@ static ssize_t rga_dump_path_write(struct file *file, const char __user *ubuf,
+ {
+ 	char buf[100];
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+@@ -423,7 +423,7 @@ static ssize_t rga_dump_image_write(struct file *file, const char __user *ubuf,
+ 	int dump_count = 0;
+ 	char buf[14];
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+@@ -511,7 +511,7 @@ static ssize_t rga_reset_write(struct file *file, const char __user *ubuf,
+ 	int reset_done = false;
+ 	struct rga_scheduler_t *scheduler = NULL;
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+@@ -881,6 +881,12 @@ static int rga_dump_image_to_file(struct rga_internal_buffer *dump_buffer,
+ 	void *kvaddr = NULL;
+ 	void *kvaddr_origin = NULL;
+ 
++	size = dump_buffer->size;
++	if (size <= 0) {
++		pr_err("dump buffer size[%lx] is invalid!\n", (unsigned long)size);
++		return -EFAULT;
++	}
++
+ 	switch (dump_buffer->type) {
+ 	case RGA_DMA_BUFFER:
+ 	case RGA_DMA_BUFFER_PTR:
+@@ -924,18 +930,11 @@ static int rga_dump_image_to_file(struct rga_internal_buffer *dump_buffer,
+ 		return -EINVAL;
+ 	}
+ 
+-	size = dump_buffer->size;
+-
+ 	if (kvaddr == NULL) {
+ 		pr_err("dump addr is NULL!\n");
+ 		return -EFAULT;
+ 	}
+ 
+-	if (size <= 0) {
+-		pr_err("dump buffer size[%lx] is invalid!\n", (unsigned long)size);
+-		return -EFAULT;
+-	}
+-
+ 	if (dump_buffer->memory_parm.width == 0 &&
+ 	    dump_buffer->memory_parm.height == 0)
+ 		snprintf(file_name, 100, "%s/%d_core%d_%s_plane%d_%s_size%zu_%s.bin",
