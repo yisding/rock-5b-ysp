@@ -38,6 +38,7 @@ ffmpeg/         building ffmpeg-rockchip against the MPP + RGA libs (pkg-config 
 docs/
   09-how-the-drivers-work.md  ⭐ START HERE — illustrated tour of the KERNEL drivers (any audience)
   10-how-the-userspace-libs-work.md  the companion: how libmpp + librga work, app→kernel
+  11-dev-uapis.md         the /dev/mpp_service + /dev/rga ioctl ABIs (user-friendly + technical)
   01-status.md            what's done, what's skipped, known limitations
   02-vendor-forward-port.md  what we changed in the vendor code to build on 6.18
   07-vendor-delta.md      line-level accounting: ~98% Rockchip / ~2% ours, every change
