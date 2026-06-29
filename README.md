@@ -38,6 +38,7 @@ ffmpeg/         building ffmpeg-rockchip against the MPP + RGA libs (pkg-config 
 docs/
   01-status.md            what's done, what's skipped, known limitations
   02-vendor-forward-port.md  what we changed in the vendor code to build on 6.18
+  07-vendor-delta.md      line-level accounting: ~98% Rockchip / ~2% ours, every change
   03-device-tree.md       the DT design: addresses, aliases, CCU, SRAM/RCB
   04-armbian-packaging.md Armbian's media-0001 backport conflict + the convert-in-place fix
   05-vanilla-kernel.md    applying this to vanilla mainline (no Armbian)
