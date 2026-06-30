@@ -3,9 +3,8 @@ Author: rkvenc forward-port <forward-port@local>
 Date:   Mon Jun 29 02:14:51 2026 -0700
 
     WIP: BSP audit cleanup edits (machine-generated, compile-tested)
-
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index ce73e17e7215..f92e0e125237 100644
+index ce73e17e7215..fa2ef7c4d54d 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 @@ -315,8 +315,11 @@ static int rkvdec2_extract_task_msg(struct mpp_session *session,
@@ -73,7 +72,7 @@ index ce73e17e7215..f92e0e125237 100644
  static int rkvdec2_core_probe(struct platform_device *pdev)
  {
  	int ret;
-@@ -1941,7 +1955,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+@@ -1941,15 +1955,22 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
  		dev_err(dev, "probe sub driver failed\n");
  		return ret;
  	}
@@ -82,7 +81,24 @@ index ce73e17e7215..f92e0e125237 100644
  	if (!dec->mmu_base)
  		dev_err(dev, "mmu base map failed!\n");
  
-@@ -1958,7 +1972,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 	/* attach core to ccu */
+ 	ret = rkvdec2_attach_ccu(dev, dec);
+ 	if (ret) {
+-		dev_err(dev, "attach ccu failed\n");
+-		return ret;
++		if (ret != -EPROBE_DEFER)
++			dev_err(dev, "attach ccu failed\n");
++		/*
++		 * mpp_dev_probe() succeeded above; unwind it (pm_runtime, iommu,
++		 * service). Especially important on the normal -EPROBE_DEFER
++		 * retry, which would otherwise re-run mpp_dev_probe() and
++		 * imbalance pm_runtime.
++		 */
++		goto err_remove;
+ 	}
+ 
+ 	/* alloc rcb buffer */
+@@ -1958,7 +1979,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
  	/* set device for link */
  	ret = rkvdec2_ccu_link_init(pdev, dec);
  	if (ret)
@@ -91,7 +107,7 @@ index ce73e17e7215..f92e0e125237 100644
  
  	mpp->dev_ops->alloc_task = rkvdec2_ccu_alloc_task;
  	if (dec->ccu->ccu_mode == RKVDEC2_CCU_TASK_SOFT) {
-@@ -1970,7 +1984,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+@@ -1970,7 +1991,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
  			dec->link_dec->task_capacity = mpp->task_capacity;
  			ret = rkvdec2_ccu_alloc_table(dec, dec->link_dec);
  			if (ret)
@@ -100,7 +116,7 @@ index ce73e17e7215..f92e0e125237 100644
  		}
  		mpp->dev_ops->task_worker = rkvdec2_hard_ccu_worker;
  		irq_proc = rkvdec2_hard_ccu_irq;
-@@ -1983,7 +1997,8 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+@@ -1983,7 +2004,8 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
  					IRQF_SHARED, dev_name(dev), mpp);
  	if (ret) {
  		dev_err(dev, "register interrupter runtime failed\n");
@@ -110,18 +126,20 @@ index ce73e17e7215..f92e0e125237 100644
  	}
  	/*make sure mpp->irq is startup then can be en/disable*/
  	mpp->is_irq_startup = true;
-@@ -1996,6 +2011,10 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+@@ -1996,6 +2018,12 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
  		mpp_dev_register_srv(mpp, mpp->srv);
  
  	return ret;
 +
 +err_free_rcb:
 +	rkvdec2_free_rcbbuf(pdev, dec);
++err_remove:
++	mpp_dev_remove(mpp);
 +	return ret;
  }
  
  static int rkvdec2_probe_default(struct platform_device *pdev)
-@@ -2030,6 +2049,7 @@ static int rkvdec2_probe_default(struct platform_device *pdev)
+@@ -2030,6 +2058,7 @@ static int rkvdec2_probe_default(struct platform_device *pdev)
  	rkvdec2_alloc_rcbbuf(pdev, dec);
  	rkvdec2_link_init(pdev, dec);
  
@@ -129,15 +147,17 @@ index ce73e17e7215..f92e0e125237 100644
  	irq_proc = mpp_dev_irq;
  	if (dec->link_dec && (mpp->task_capacity > 1)) {
  		irq_proc = rkvdec2_link_irq_proc;
-@@ -2044,6 +2064,7 @@ static int rkvdec2_probe_default(struct platform_device *pdev)
+@@ -2044,6 +2073,9 @@ static int rkvdec2_probe_default(struct platform_device *pdev)
  					IRQF_SHARED, dev_name(dev), mpp);
  	if (ret) {
  		dev_err(dev, "register interrupter runtime failed\n");
 +		rkvdec2_free_rcbbuf(pdev, dec);
++		/* mpp_dev_probe() succeeded above; unwind it before failing */
++		mpp_dev_remove(mpp);
  		return -EINVAL;
  	}
  
-@@ -2116,7 +2137,8 @@ static void rkvdec2_remove(struct platform_device *pdev)
+@@ -2116,7 +2148,8 @@ static void rkvdec2_remove(struct platform_device *pdev)
  {
  	struct device *dev = &pdev->dev;
  
@@ -147,7 +167,7 @@ index ce73e17e7215..f92e0e125237 100644
  		dev_info(dev, "remove ccu device\n");
  		rkvdec2_ccu_remove(dev);
  	} else {
-@@ -2124,10 +2146,6 @@ static void rkvdec2_remove(struct platform_device *pdev)
+@@ -2124,10 +2157,6 @@ static void rkvdec2_remove(struct platform_device *pdev)
  		struct rkvdec2_dev *dec = to_rkvdec2_dev(mpp);
  
  		dev_info(dev, "remove device\n");
@@ -158,7 +178,7 @@ index ce73e17e7215..f92e0e125237 100644
  		rkvdec2_free_rcbbuf(pdev, dec);
  		mpp_dev_remove(mpp);
  		rkvdec2_procfs_remove(mpp);
-@@ -2139,13 +2157,15 @@ static void rkvdec2_shutdown(struct platform_device *pdev)
+@@ -2139,13 +2168,15 @@ static void rkvdec2_shutdown(struct platform_device *pdev)
  {
  	struct device *dev = &pdev->dev;
  
@@ -176,7 +196,7 @@ index ce73e17e7215..f92e0e125237 100644
  		struct rkvdec2_ccu *ccu = dev_get_drvdata(dev);
  
  		mpp_clk_safe_disable(ccu->aclk_info.clk);
-@@ -2179,7 +2199,8 @@ static int __maybe_unused rkvdec2_runtime_suspend(struct device *dev)
+@@ -2179,7 +2210,8 @@ static int __maybe_unused rkvdec2_runtime_suspend(struct device *dev)
  
  static int __maybe_unused rkvdec2_runtime_resume(struct device *dev)
  {

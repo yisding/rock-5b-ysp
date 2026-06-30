@@ -7,10 +7,11 @@ produced by the multi-agent audit. They apply on top of the forward-port
 > **✅ Adversarially verified + corrected — read [`VERIFICATION.md`](VERIFICATION.md) first.**
 > Every hunk was reviewed against the real source (verifiers told to *try to
 > break* the fix). The review found 2 rejects + 1 hold + 3 incomplete fixes (two
-> rejects *compiled clean* — "it builds" is not verification); **all have now been
-> corrected and re-verified SAFE**, so all 15 patches apply. **One footgun:**
-> `mpp_iommu.patch` and `mpp_rkvenc2.patch` are an **atomic pair** (apply both or
-> neither — see VERIFICATION.md). Runtime regression is still the final gate.
+> rejects *compiled clean* — "it builds" is not verification); plus **5
+> pre-existing bugs beyond the audit's findings**. **All are now fixed and
+> re-verified SAFE**, so all 15 patches apply. **One footgun:** `mpp_iommu.patch`
+> and `mpp_rkvenc2.patch` are an **atomic pair** (apply both or neither — see
+> VERIFICATION.md). Runtime regression is still the final gate.
 
 ## ⚠️ These are a draft, not merge-ready
 

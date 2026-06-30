@@ -10,9 +10,11 @@ The cautionary tale: during the audit's own assembly, one fix once
 builds" is not verification.
 
 The first review found **2 rejects + 1 hold + 3 incomplete fixes** (two of which
-compiled clean and would have shipped real regressions). Those have now been
-**corrected**, and the corrections were **re-verified** by a second adversarial
-pass. This doc records the final state.
+compiled clean and would have shipped real regressions), and **5 pre-existing
+bugs beyond the audit's findings**. All of them have now been **fixed**, and every
+fix was **re-verified** by an independent adversarial pass (refcount/list
+arithmetic traced on every path) and a compile-gate. This doc records the final
+state.
 
 ## Verdict table (after corrections)
 
@@ -21,7 +23,7 @@ pass. This doc records the final state.
 | `mpp_common` | ✅ APPLY | `:250` kzalloc guard **+ the `:1580` `SET_SESSION_FD` companion NULL-guard** (the earlier incompleteness, now closed). |
 | `mpp_iommu` | ✅ APPLY **(corrected)** | was a REJECT — the `find_buffer_fd` +1 contract is now honored by **all 3 callers**. **Must apply together with `mpp_rkvenc2.patch`** (see below). |
 | `mpp_rkvdec2` | ✅ APPLY | OOB reg-index bounded one consistent way (`RKVDEC_REG_NUM`=360). |
-| `mpp_rkvdec2_link` | ✅ APPLY | `:2587` wrong-core fix correct. (Pre-existing `attach_ccu` success-path `pdev` leak still open — see Residuals.) |
+| `mpp_rkvdec2_link` | ✅ APPLY | `:2587` wrong-core fix **+ the `attach_ccu` success-path `pdev` put** (a pre-existing leak, now fixed — see Follow-up fixes). |
 | `mpp_rkvenc2` | ✅ APPLY | The `rkvenc_alloc_task` hunk is safe (idempotent free). **Now also carries the `bs_buf` ref-drop — must apply together with `mpp_iommu.patch`.** |
 | `mpp_service` | ✅ APPLY **(corrected)** | the `:426` taskqueue-count cleanup was a HOLD (OOB read) — now clamps `taskqueue_cnt=0` before the cleanup goto, so the loop is empty and `class_destroy` still runs. |
 | `rga_common` | ✅ APPLY **(corrected)** | `size_cal` `int`→`s64` **+ a `w/h ≤ 65535` upper bound** (closes the residual `s64` overflow the earlier fix left open). |
@@ -64,19 +66,24 @@ pass. This doc records the final state.
 | **Compile-gate** (safe set + the devfreq re-guard, OOT build vs 6.18 headers) | ✅ **PASS** — 0 errors, both modules link |
 | **Runtime codec regression** (encode/decode/transcode + targeted triggers) | ⏳ pending — needs a kernel/module rebuild + reboot |
 
-## Residual issues still open (pre-existing, the audit missed; NOT fixed here)
+## Follow-up fixes — pre-existing bugs the audit missed (now fixed, re-verified SAFE)
 
-The corrections closed the 3 incompletes **and** the `mpp_dma_find_buffer_fd` race
-(the mpp_iommu fix). These pre-existing bugs the verification surfaced remain
-**open follow-ups** — none is a regression from applying the safe set:
+The verification surfaced 5 bugs **beyond** the audit's 89 findings. All five are
+now fixed (folded into the per-file patches) and **re-verified by an independent
+adversarial pass** that traced the refcount/list arithmetic on every path:
 
-| Site | Bug |
-|------|-----|
-| `mpp_rkvdec2_link.c:rkvdec2_attach_ccu` | success-path `pdev` (`of_find_device_by_node`) leak — parity gap vs the fixed `rkvenc` analog. |
-| `mpp_rkvenc2.c:rkvenc_attach_ccu` | `np` (`of_node`) leak on the `!np \|\| !available` early-return. |
-| `mpp_rkvenc2.c:rkvenc_core_probe` | irq-failure path leaves `enc` on `ccu->core_list` while devm frees it → dangling entry. |
-| `mpp_rkvdec2.c` core/default probe | error paths don't unwind `mpp_dev_probe()` (pm_runtime / iommu / service). |
-| `rga_mm.c:rga_mm_set_mmu_base` | a *malformed* 3-plane request leaves some page-table entries uninitialized — bounded (in-allocation), not OOB. |
+| Site | Bug → fix | Re-verify |
+|------|-----------|-----------|
+| `mpp_rkvdec2_link.c:rkvdec2_attach_ccu` | success-path `pdev` leak → `put_device` on success (mirrors rkvenc) | SAFE — 4 mutually-exclusive returns, one put each |
+| `mpp_rkvenc2.c:rkvenc_attach_ccu` | `np` leak on the `!available` path → `of_node_put(np)` before the return | SAFE — np put exactly once on every path |
+| `mpp_rkvenc2.c:rkvenc_core_probe` | irq-failure leaves `enc` on `ccu->core_list` → `failed:` now detaches it (guarded by `enc->ccu`, set **only** on full attach) | SAFE — `enc->ccu ⟺ listed` invariant airtight; detach exactly inverts attach; right lock, no deadlock; `mpp_iommu_remove` frees no domain → no UAF |
+| `mpp_rkvdec2.c` core + default probe | error paths didn't unwind `mpp_dev_probe()` → route through `err_remove`/`mpp_dev_remove` (also balances the `-EPROBE_DEFER` retry) | SAFE — one unwind per path, correct order (free_rcb before remove) |
+| `rga_mm.c:rga_mm_set_mmu_base` | uninitialized page-table entries for a missing plane → reject the malformed request before alloc | SAFE — rejects no legitimate NV12/YUV420P request |
+
+The 6th residual — the `mpp_dma_find_buffer_fd` race — was already closed by the
+`mpp_iommu` correction. **No open residuals remain from the verification.** (The
+one item the audit itself left unapplied, the arm32-only `mpp_iommu.c:553`
+`WARN_ON`, is still out of scope for the arm64 target.)
 
 ## How to apply the safe set
 

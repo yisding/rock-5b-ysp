@@ -602,7 +602,8 @@ Per-file diffs are in [`cleanup-draft/`](../patches/cleanup-draft/). They apply 
 > **These drafts have been adversarially verified _and corrected_** — see
 > [`cleanup-draft/VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md).
 > The review found 2 rejects + 1 hold + 3 incomplete fixes (two rejects compiled
-> clean but introduced a new bug); **all are now fixed and re-verified SAFE**, so
-> all 15 patches apply and the safe set passes a compile-gate. One footgun:
-> `mpp_iommu.patch` + `mpp_rkvenc2.patch` are an **atomic pair**. Apply per
-> VERIFICATION.md; runtime regression is the remaining gate.
+> clean but introduced a new bug), plus **5 pre-existing bugs beyond these 89
+> findings**; **all are now fixed and re-verified SAFE**, so all 15 patches apply
+> and the safe set passes a compile-gate. One footgun: `mpp_iommu.patch` +
+> `mpp_rkvenc2.patch` are an **atomic pair**. Apply per VERIFICATION.md; runtime
+> regression is the remaining gate.

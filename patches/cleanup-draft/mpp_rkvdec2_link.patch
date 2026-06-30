@@ -3,9 +3,8 @@ Author: rkvenc forward-port <forward-port@local>
 Date:   Mon Jun 29 02:14:51 2026 -0700
 
     WIP: BSP audit cleanup edits (machine-generated, compile-tested)
-
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index f52df09f0547..5ca6fcf156e8 100644
+index f52df09f0547..759f19de83b5 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 @@ -427,7 +427,7 @@ static void rkvdec_link_reg_dump(const char *func, struct rkvdec_link_dev *dev)
@@ -44,10 +43,10 @@ index f52df09f0547..5ca6fcf156e8 100644
  	np = of_parse_phandle(dev->of_node, "rockchip,ccu", 0);
 -	if (!np || !of_device_is_available(np))
 +	if (!np)
-+		return -ENODEV;
+ 		return -ENODEV;
 +	if (!of_device_is_available(np)) {
 +		of_node_put(np);
- 		return -ENODEV;
++		return -ENODEV;
 +	}
  
  	pdev = of_find_device_by_node(np);
@@ -64,16 +63,23 @@ index f52df09f0547..5ca6fcf156e8 100644
  	dev_info(dev, "core_mask=%08x\n", dec->core_mask);
  
  	/* if not the main-core, then attach the main core domain to current */
-@@ -1586,7 +1595,7 @@ int rkvdec2_attach_ccu(struct device *dev, struct rkvdec2_dev *dec)
+@@ -1586,7 +1595,14 @@ int rkvdec2_attach_ccu(struct device *dev, struct rkvdec2_dev *dec)
  	dec->ccu = ccu;
  
  	dev_info(dev, "attach ccu as core %d\n", dec->mpp.core_id);
 -	mpp_debug_enter();
 +	mpp_debug_leave();
++
++	/*
++	 * Drop the of_find_device_by_node() lookup reference; the ccu device
++	 * stays alive via its own driver binding (dec->ccu is its drvdata).
++	 * Mirrors the rkvenc_attach_ccu() success path.
++	 */
++	put_device(&pdev->dev);
  
  	return 0;
  }
-@@ -2403,7 +2412,7 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+@@ -2403,7 +2419,7 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
  
  	/* reset and active core */
  	for (i = 0; i < queue->core_count; i++) {
@@ -82,7 +88,7 @@ index f52df09f0547..5ca6fcf156e8 100644
  		struct mpp_dev *mpp = queue->cores[i];
  		struct rkvdec2_dev *dec = to_rkvdec2_dev(mpp);
  
-@@ -2417,17 +2426,11 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+@@ -2417,17 +2433,11 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
  
  		{
  			/* soft reset */
@@ -100,7 +106,7 @@ index f52df09f0547..5ca6fcf156e8 100644
  		}
  #if IS_ENABLED(CONFIG_ROCKCHIP_SIP)
  		rockchip_dmcfreq_lock();
-@@ -2584,7 +2587,7 @@ static int rkvdec2_hard_ccu_enqueue(struct rkvdec2_ccu *ccu,
+@@ -2584,7 +2594,7 @@ static int rkvdec2_hard_ccu_enqueue(struct rkvdec2_ccu *ccu,
  			struct rkvdec2_dev *dec = to_rkvdec2_dev(core);
  			struct rkvdec_link_dev *link_dec = dec->link_dec;
  

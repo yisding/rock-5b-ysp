@@ -3,9 +3,8 @@ Author: rkvenc forward-port <forward-port@local>
 Date:   Mon Jun 29 02:14:51 2026 -0700
 
     WIP: BSP audit cleanup edits (machine-generated, compile-tested)
-
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index f6b1ff5b7ab2..6f447f11206b 100644
+index f6b1ff5b7ab2..3f5ffc971aee 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -499,7 +499,7 @@ static int rga_mm_map_dma_buffer(struct rga_external_buffer *external_buffer,
@@ -32,8 +31,24 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  			v_offset = job_buf->v_addr->virt_addr->offset;
  
  		yrgb_count = RGA_GET_PAGE_COUNT(yrgb_size + yrgb_offset);
-@@ -1269,7 +1269,7 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+@@ -1267,9 +1267,23 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+ 			return -EFAULT;
+ 		}
  
++		/*
++		 * The per-plane page counts come from the format/size, but a plane
++		 * is only populated when its handle > 0. If a needed plane is
++		 * missing, reject the (malformed) request rather than leave its
++		 * page_table entries uninitialized -- otherwise the RGA MMU would
++		 * map a stray IOVA for that plane.
++		 */
++		if ((yrgb_count && !job_buf->y_addr) ||
++		    (uv_count && !job_buf->uv_addr) ||
++		    (v_count && !job_buf->v_addr)) {
++			rga_job_err(job, "multi-plane format missing a plane buffer\n");
++			return -EINVAL;
++		}
++
  		if (job->flags & RGA_JOB_USE_HANDLE) {
  			page_table = (uint32_t *)rga_get_free_pages(GFP_KERNEL | GFP_DMA32,
 -				&order, page_count * sizeof(uint32_t *));
@@ -41,7 +56,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  			if (page_table == NULL) {
  				rga_job_err(job, "%s can not alloc pages for page_table, order = %d\n",
  					__func__, order);
-@@ -1288,29 +1288,35 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+@@ -1288,29 +1302,35 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
  			mutex_unlock(&rga_drvdata->lock);
  		}
  
@@ -95,7 +110,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  
  		img->yrgb_addr = yrgb_offset;
  		img->uv_addr = (yrgb_count << PAGE_SHIFT) + uv_offset;
-@@ -1328,7 +1334,7 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+@@ -1328,7 +1348,7 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
  
  		if (job->flags & RGA_JOB_USE_HANDLE) {
  			page_table = (uint32_t *)rga_get_free_pages(GFP_KERNEL | GFP_DMA32,
@@ -104,7 +119,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  			if (page_table == NULL) {
  				rga_job_err(job, "%s can not alloc pages for page_table, order = %d\n",
  					__func__, order);
-@@ -1552,7 +1558,7 @@ static int rga_mm_get_buffer(struct rga_mm *mm,
+@@ -1552,7 +1572,7 @@ static int rga_mm_get_buffer(struct rga_mm *mm,
  	if (ret < 0) {
  		rga_job_err(job, "handle[%ld] failed to get internal buffer info!\n",
  			(unsigned long)handle);
@@ -113,7 +128,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  	}
  
  	if (internal_buffer->size < require_size) {
-@@ -1583,6 +1589,7 @@ static int rga_mm_get_buffer(struct rga_mm *mm,
+@@ -1583,6 +1603,7 @@ static int rga_mm_get_buffer(struct rga_mm *mm,
  	kref_put(&internal_buffer->refcount, rga_mm_kref_release_buffer);
  	mutex_unlock(&mm->lock);
  
@@ -121,7 +136,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  	return ret;
  
  }
-@@ -1611,15 +1618,23 @@ static void rga_mm_put_channel_handle_info(struct rga_mm *mm,
+@@ -1611,15 +1632,23 @@ static void rga_mm_put_channel_handle_info(struct rga_mm *mm,
  					   struct rga_job_buffer *job_buf,
  					   enum dma_data_direction dir)
  {
@@ -149,7 +164,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  }
  
  static int rga_mm_get_channel_handle_info(struct rga_mm *mm,
-@@ -1701,6 +1716,8 @@ static int rga_mm_get_channel_handle_info(struct rga_mm *mm,
+@@ -1701,6 +1730,8 @@ static int rga_mm_get_channel_handle_info(struct rga_mm *mm,
  	return 0;
  }
  
@@ -158,7 +173,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  static int rga_mm_get_handle_info(struct rga_job *job)
  {
  	int ret = 0;
-@@ -1764,7 +1781,7 @@ static int rga_mm_get_handle_info(struct rga_job *job)
+@@ -1764,7 +1795,7 @@ static int rga_mm_get_handle_info(struct rga_job *job)
  						     DMA_TO_DEVICE);
  		if (ret < 0) {
  			rga_job_err(job, "Can't get src buffer info from handle!\n");
@@ -167,7 +182,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  		}
  	}
  
-@@ -1774,7 +1791,7 @@ static int rga_mm_get_handle_info(struct rga_job *job)
+@@ -1774,7 +1805,7 @@ static int rga_mm_get_handle_info(struct rga_job *job)
  						     DMA_TO_DEVICE);
  		if (ret < 0) {
  			rga_job_err(job, "Can't get dst buffer info from handle!\n");
@@ -176,7 +191,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  		}
  	}
  
-@@ -1796,13 +1813,17 @@ static int rga_mm_get_handle_info(struct rga_job *job)
+@@ -1796,13 +1827,17 @@ static int rga_mm_get_handle_info(struct rga_job *job)
  		}
  		if (ret < 0) {
  			rga_job_err(job, "Can't get pat buffer info from handle!\n");
@@ -195,7 +210,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  }
  
  static void rga_mm_put_handle_info(struct rga_job *job)
-@@ -2301,7 +2322,6 @@ int rga_mm_map_job_info(struct rga_job *job)
+@@ -2301,7 +2336,6 @@ int rga_mm_map_job_info(struct rga_job *job)
  				ktime_us_delta(ktime_get(), timestamp));
  
  		job->flags &= ~RGA_JOB_USE_HANDLE;
@@ -203,7 +218,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  
  		return 0;
  	}
-@@ -2430,7 +2450,7 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+@@ -2430,7 +2464,7 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
  		ret = new_id;
  
  		mutex_unlock(&mm->lock);
@@ -212,7 +227,7 @@ index f6b1ff5b7ab2..6f447f11206b 100644
  	}
  
  	internal_buffer->handle = new_id;
-@@ -2449,6 +2469,8 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+@@ -2449,6 +2483,8 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
  
  	return internal_buffer->handle;
  
