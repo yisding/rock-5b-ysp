@@ -82,3 +82,35 @@ before the label.)
    bound, and the several pre-existing leaks the series leaves behind (noted above).
 5. Then the **runtime regression** is the real gate: rebuild, reboot, and re-run
    `tests/` (encode + decode + transcode) plus the targeted triggers.
+
+## Residual & newly-surfaced issues (beyond the 89-finding audit)
+
+The verification didn't just judge the drafts — it surfaced bugs the audit's
+three lenses **missed**, and places where an APPLY'd fix is **incomplete**. These
+are open follow-ups, ordered by how much they matter; none is a regression *from
+applying the safe set* (several are pre-existing).
+
+### Incomplete draft fixes (safe to apply, but don't fully close the bug)
+| Site | Gap | Suggested close |
+|------|-----|-----------------|
+| `mpp_common.c:~1580` (`SET_SESSION_FD` path) | the `:250` `kzalloc`-NULL fix doesn't guard `get_task_msgs()` *here*, so alloc failure still NULL-derefs | `if (!msgs) { fdput(f); goto session_switch_done; }` |
+| `rga_job.c:572` (`!user_close_fence` → `-EFAULT`) | `rga_job.patch` J2 balances every fence path **except** this one → `acquire_fence` ref leaks | add `rga_dma_fence_put(acquire_fence);` before the return |
+| `rga_common.c:rga_image_size_cal` | the `int`→`s64` fix still overflows `s64` via the `uint32_t memory_parm` path (`width≈1.6e9, size=0`) | bound `w`/`h` (e.g. reject `>65535`), or check `w*h` before `*4` |
+
+### Pre-existing bugs the audit missed (no draft fixes them)
+| Site | Bug |
+|------|-----|
+| `mpp_iommu.c:mpp_dma_find_buffer_fd` | the **race is real** (returns a buffer with no ref; teardown runs under the same mutex) — but the only draft fix is **rejected**, so it remains **open**. Correct fix: take the ref under the lock *and* update all 3 callers (or add a `find_and_get` variant). |
+| `mpp_rkvdec2_link.c:rkvdec2_attach_ccu` | **success-path** `pdev` (`of_find_device_by_node`) ref leak — the `rkvenc` analog *is* fixed by `mpp_rkvenc2.patch`, so this is a parity gap. |
+| `mpp_rkvenc2.c:rkvenc_attach_ccu` | `np` (`of_node`) leak on the `!np \|\| !available` early-return path. |
+| `mpp_rkvenc2.c:rkvenc_core_probe` | the **irq-failure** path leaves `enc` on `ccu->core_list` while devm later frees it → a dangling list entry (potential UAF on a later CCU traversal). The `-EPROBE_DEFER` path (which `mpp_rkvenc2.patch` fixes) is clean; this irq path is not. |
+| `mpp_rkvdec2.c` core/default probe | error paths don't unwind `mpp_dev_probe()` (pm_runtime / iommu / service) on failure — broader than the rcb-leak finding the draft *does* fix. |
+
+### Minor / bounded
+| Site | Note |
+|------|------|
+| `rga_mm.c:rga_mm_set_mmu_base` | after the M2 NULL-plane guards, a *malformed* 3-plane request (V plane expected but `handle==0`) leaves some page-table entries uninitialized — bounded **within** the (correctly-sized) allocation, not OOB; only affects an already-invalid request that previously oopsed. |
+
+These came out of the fix-verification, so they belong with it rather than in the
+audit's finding tables; a future cleanup pass (or a v2 of these drafts) should
+fold in the three "incomplete" closes and tackle the `mpp_iommu` race correctly.
