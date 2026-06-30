@@ -15,13 +15,13 @@ but must exist. Keep all six.
 *after* userpatches, so for a same-name file **core wins**. A same-named empty
 userpatch will **not** shadow/disable a core patch (this is the opposite of the
 older bash `patching.sh`). To neutralize a core patch you must either edit it or
-work *around* its output (we chose convert-in-place — `docs/04`).
+work *around* its output (we chose convert-in-place — `docs/08`).
 
 **Two `base.dtsi` patches can collide on the same hunk.** Our encoder/`rkvdec_ccu`
 block and Armbian's `media-0001` `vdec` block both land in the
 `vepu121_3_mmu → av1d` gap, so we relocate ours to **after `av1d`** to stop the
 hunks overlapping. Exact `@@` anchors and reasoning in
-[`docs/04`](04-armbian-packaging.md) (§ the `av1d` relocation).
+[`docs/08`](08-armbian-packaging.md) (§ the `av1d` relocation).
 
 **ccache silently off if passed as an env var.** Armbian relaunches in Docker and
 only forwards parsed `KEY=VALUE` **cmdline** args (`ARMBIAN_CLI_RELAUNCH_PARAMS`,
@@ -66,7 +66,7 @@ left disabled while `rkvenc0` still referenced it.)
 **Probe ordering: defer, don't fail.** A core can probe before its CCU sets
 `drvdata`, or a secondary core before core 0. The BSP returned `-ENOMEM`/oopsed;
 we return `-EPROBE_DEFER` (and publish CCU `drvdata` last). Six sites — see
-`docs/02`.
+`docs/05`.
 
 **`iommu_set_fault_handler()` WARNs on 6.18.** New `cookie_type != IOMMU_COOKIE_NONE`
 assertion fires because the BSP sets a handler on the DMA default domain. Guard

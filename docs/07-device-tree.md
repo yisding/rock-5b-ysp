@@ -3,8 +3,8 @@
 `patches/rk3588-rkvenc2-02-vcodec-rga-dt.patch` touches two files:
 `rk3588-base.dtsi` (the nodes, all `status = "disabled"` by default) and
 `rk3588-rock-5b.dtsi` (the board enables them). The encoder and RGA are defined
-**inline**; the decoder is **convert-in-place** for Armbian (see `docs/04`) or
-inline for vanilla (see `docs/05`).
+**inline**; the decoder is **convert-in-place** for Armbian (see `docs/08`) or
+inline for vanilla (see `docs/09`).
 
 ## Address map (from the RK3588 TRM)
 
@@ -57,7 +57,7 @@ aliases {
 
 ### 2. Enable the CCU with the cores
 A node named `*-core@…` always dispatches to the CCU-attaching probe (see
-`docs/02`). Enable the CCU **and** both cores **and** both IOMMUs together, or you
+`docs/05`). Enable the CCU **and** both cores **and** both IOMMUs together, or you
 get `attach ccu failed` and nothing registers:
 
 ```dts
@@ -84,4 +84,4 @@ Each decoder core points at an on-chip SRAM pool via `rockchip,sram = <&vdecN_sr
 and an `rcb-iova`/`rcb-info` map. The driver translates the SRAM phandle with
 `of_address_to_resource()` and `iommu_map()`s the physical region as the RCB — it
 does **not** use a gen_pool, which is why the convert-in-place reuses Armbian's
-`pool;`-flavored SRAM nodes untouched (`docs/04`).
+`pool;`-flavored SRAM nodes untouched (`docs/08`).

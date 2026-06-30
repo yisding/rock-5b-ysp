@@ -13,7 +13,7 @@ rule).
 | Lib | Where it comes from | Form |
 |-----|---------------------|------|
 | `librockchip_mpp` (`>= 1.3.9`) | build `rockchip-linux/mpp` (the same userspace the codec tests use); the build dir has `librockchip_mpp.so.1` | built from source |
-| `librga` | we linked the **prebuilt** aarch64 `.so` from `airockchip/librga` (`libs/Linux/gcc-aarch64/librga.so` + `include/`); **buildable source** is at `tsukumijima/librga-rockchip` (JeffyCN lineage, Apache-2.0) | prebuilt for convenience; source available (see [`docs/06`](../docs/06-gotchas.md)) |
+| `librga` | we linked the **prebuilt** aarch64 `.so` from `airockchip/librga` (`libs/Linux/gcc-aarch64/librga.so` + `include/`); **buildable source** is at `tsukumijima/librga-rockchip` (JeffyCN lineage, Apache-2.0) | prebuilt for convenience; source available (see [`docs/10`](../docs/10-gotchas.md)) |
 | `libdrm` | distro (`libdrm-dev`) | distro |
 | meson/ninja/cmake | distro | distro (no `nasm` needed on arm64) |
 
@@ -92,4 +92,4 @@ stage *that* `.so`/headers into `$STAGE` instead.
 Or drop RGA entirely: `rkrga` is optional — `h264_rkmpp` / `hevc_rkmpp`
 decode+encode work without it (you lose HW scale/CSC). The fully-mainline path is
 the **V4L2** RGA driver (RGA2 merged ~6.12; RGA3 under review) — subset features
-only. See [`docs/06`](../docs/06-gotchas.md) and `docs/05`.
+only. See [`docs/10`](../docs/10-gotchas.md) and `docs/09`.

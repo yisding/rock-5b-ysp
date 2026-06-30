@@ -1,6 +1,6 @@
 # How the userspace libraries work — libmpp & librga
 
-The in-depth companion to [`docs/09`](09-how-the-drivers-work.md). That one
+The in-depth companion to [`docs/01`](01-how-the-drivers-work.md). That one
 explained the **kernel drivers**; this one explains the **userspace libraries**
 your application actually links against — what they hide, how they're structured,
 and exactly where they meet the kernel. Same format: **In plain terms**, then
@@ -14,7 +14,7 @@ and exactly where they meet the kernel. Same format: **In plain terms**, then
 
 ## 0. Where these libraries sit
 
-**In plain terms.** The kernel drivers (docs/09) are a low-level "front door":
+**In plain terms.** The kernel drivers (docs/01) are a low-level "front door":
 powerful but raw — you'd have to hand-build register tables, translate file
 descriptors to device addresses, and manage frame pools yourself. The **userspace
 libraries** are the experienced receptionists: your app says `decode this` or
@@ -27,7 +27,7 @@ flowchart TB
     mpp["<b>libmpp</b><br/>video encode/decode"]
     rga["<b>librga</b><br/>2D: resize/rotate/convert/blend"]
   end
-  subgraph K["kernel drivers — docs/09"]
+  subgraph K["kernel drivers — docs/01"]
     mppk["/dev/mpp_service"]
     rgak["/dev/rga"]
   end
@@ -37,7 +37,7 @@ flowchart TB
 
 **Under the hood.** The division of labour is sharp: **userspace decides *what* to
 do, parses the bitstream, manages the frame pool, and builds the exact register
-recipe; the kernel safely runs that recipe on the hardware.** docs/09 §9 said "the
+recipe; the kernel safely runs that recipe on the hardware.** docs/01 §9 said "the
 userspace library knows the recipe" — these libraries are where the recipe is
 built and where every `MPP_CMD_*` / `RGA_*` ioctl is issued. They exist (rather
 than using mainline V4L2) because Rockchip's stack exposes the full feature set:
@@ -111,7 +111,7 @@ flowchart TB
 | rate control | `mpp/codec/rc` (`h264e_rc.c`, `h265e_rc.c`, `rc.c`) | choose **QP/bitrate** per frame to hit the target bitrate |
 | HAL | `mpp/hal/rkenc`, `mpp/hal/rkdec` | per-codec **register builders** (`hal_h264e`, `hal_h265e`, `hal_h264d`, `hal_h265d`) — *the recipe* |
 | OSAL | `osal/` | buffers, threads, locks, time, SoC/platform detection |
-| driver client | `osal/driver/mpp_service.c` | issues `INIT_CLIENT_TYPE`, `SET_REG_WRITE/READ`, `POLL_HW_FINISH` (docs/09 §3) |
+| driver client | `osal/driver/mpp_service.c` | issues `INIT_CLIENT_TYPE`, `SET_REG_WRITE/READ`, `POLL_HW_FINISH` (docs/01 §3) |
 
 **Threading.** The context runs background workers so the API can be async: a
 **parse/control** step turns input into a hardware task, a **HAL** step submits it
@@ -134,7 +134,7 @@ sequenceDiagram
   T->>T: assign a frame slot (MppBufSlots), bind output dma-buf
   T->>H: build register recipe for this frame
   H->>K: INIT_CLIENT_TYPE once, SET_REG_WRITE (recipe) + buffer fds, POLL_HW_FINISH
-  Note over K: kernel patches IOVAs, programs VDPU381,<br/>hardware decodes, IRQ (docs/09 §3,§6,§9)
+  Note over K: kernel patches IOVAs, programs VDPU381,<br/>hardware decodes, IRQ (docs/01 §3,§6,§9)
   K-->>H: SET_REG_READ result registers
   H->>T: frame done → output port, release no-longer-needed references
   A->>M: decode_get_frame()
@@ -143,13 +143,13 @@ sequenceDiagram
 
 Encode is the mirror image: `encode_put_frame` (raw in) → **rate control** picks
 this frame's QP from the bitrate target → HAL builds the VEPU580 recipe → kernel
-runs it → `encode_get_packet` (bitstream out). The **key link to docs/09:** the
+runs it → `encode_get_packet` (bitstream out). The **key link to docs/01:** the
 HAL's register block *is* the `SET_REG_WRITE` payload the kernel `copy_from_user()`s
 into `task->reg[]` — libmpp **writes** the recipe; the kernel **runs** it.
 
 ## A5. Buffers — where the dma-bufs come from
 
-**In plain terms.** The big frame buffers that get shared zero-copy (docs/09 §5)
+**In plain terms.** The big frame buffers that get shared zero-copy (docs/01 §5)
 are allocated *here*, in libmpp's OSAL — and the decoder keeps a *pool* of them so
 it isn't allocating mid-stream.
 
@@ -167,7 +167,7 @@ it isn't allocating mid-stream.
 
 On this port the backend is **dma-heap** (`/dev/dma_heap/*`), and it's worth
 knowing exactly how MPP gets there, because it explains a non-obvious runtime
-requirement (the udev rule in docs/06) and a harmless `…failed!` log line.
+requirement (the udev rule in docs/10) and a harmless `…failed!` log line.
 
 **dma-heap is the normal modern path.** `mpp_allocator` supports three backends —
 **ION**, **DRM**, **dma-heap** — and picks at runtime. ION was deleted from
@@ -213,7 +213,7 @@ it buys nothing for correctness.
 so a non-root `video`-group user can't open `system` to allocate — and granting
 just `/dev/mpp_service` is **not** enough; MPP init dies at
 `MppBufferService get_group failed … type 1`. The fix is the
-`SUBSYSTEM=="dma_heap"` udev rule (docs/06), upstreamed as
+`SUBSYSTEM=="dma_heap"` udev rule (docs/10), upstreamed as
 [armbian/build#10085](https://github.com/armbian/build/pull/10085).
 
 ---
@@ -277,8 +277,8 @@ flowchart TB
 **Choosing the engine.** RGA isn't one device — it's RGA3 ×2 + RGA2, with
 *different* capabilities (max scale ratio, supported formats, tiling/AFBC).
 `NormalRga` checks the request's formats and limits and selects which engine class
-can do it; the **kernel's** scheduler (`rga3/rga_policy.c`, docs/09 §4) then picks
-a specific *idle* core of that class. (The `docs/08` audit found a real bug in that
+can do it; the **kernel's** scheduler (`rga3/rga_policy.c`, docs/01 §4) then picks
+a specific *idle* core of that class. (The `docs/11` audit found a real bug in that
 kernel core-selection — it could accept a core supporting only a subset of the
 requested features.)
 
@@ -294,7 +294,7 @@ sequenceDiagram
   L->>N: rga_buffer_t {fd|vaddr|phys|handle, w,h,wstride,format,rect}
   N->>N: validate + build rga_req (src/dst rects, scale, rotate, blend, color)
   N->>K: ioctl RGA_BLIT_SYNC (wait) — or RGA_BLIT_ASYNC (returns out_fence_fd)
-  Note over K: scheduler picks RGA3 core0/1 or RGA2,<br/>IOMMU-maps buffers, runs the op (docs/09 §4,§6)
+  Note over K: scheduler picks RGA3 core0/1 or RGA2,<br/>IOMMU-maps buffers, runs the op (docs/01 §4,§6)
   K-->>N: complete (sync) / release fence signals (async)
   N-->>A: IM_STATUS_SUCCESS
 ```
@@ -305,12 +305,12 @@ result. **Async** (`RGA_BLIT_ASYNC`) returns immediately with a **release fence*
 (`out_fence_fd`) you can wait on later — so the CPU keeps working and several RGA
 ops can pipeline. (`out_fence_fd` comes back `-1` if the kernel build lacks fence
 support.) This is the same dma-fence machinery the kernel side documents in
-docs/09; it's also where the audit found a leaked fence reference (`docs/08`).
+docs/01; it's also where the audit found a leaked fence reference (`docs/11`).
 
 ## B5. Describing memory, and batching jobs
 
 **Four ways to point at an image.** The fastest and most common is a dma-buf fd —
-zero-copy, same buffer as docs/09 §5:
+zero-copy, same buffer as docs/01 §5:
 
 | Mode | When | Helper |
 |------|------|--------|
@@ -367,15 +367,15 @@ encoder as an input fd. No frame ever touches the CPU. See
    the hardware recipe** (MPP's HAL / RGA's `NormalRga`).
 4. A thin ioctl client (`mpp_service.c` / `NormalRga`) speaks the kernel protocol
    (`SET_REG_WRITE`+`POLL_HW_FINISH` / `RGA_BLIT_SYNC`/`ASYNC`).
-5. The **kernel** (docs/09) patches IOVAs, picks a core (CCU/DCHS or RGA
+5. The **kernel** (docs/01) patches IOVAs, picks a core (CCU/DCHS or RGA
    scheduler), programs the hardware, and returns results (or signals a fence).
 6. Buffers are **dma-buf fds** throughout, so chaining decode → RGA → encode costs
    no copies.
 
 So: **userspace builds the recipe and manages the memory; the kernel runs it on
-silicon.** docs/09 + docs/10 together trace the complete path from your function
+silicon.** docs/01 + docs/02 together trace the complete path from your function
 call down to the hardware and back.
 
 > Provenance: librga's source is open (Apache-2.0) in the JeffyCN lineage above;
 > Rockchip's official `airockchip/librga` ships only prebuilt binaries (see
-> [`docs/06`](06-gotchas.md)). libmpp is open source (`rockchip-linux/mpp`).
+> [`docs/10`](10-gotchas.md)). libmpp is open source (`rockchip-linux/mpp`).

@@ -1,6 +1,6 @@
 # cleanup-draft/ — machine-generated BSP cleanup patches (REVIEW BEFORE USE)
 
-Per-file draft fixes for the issues in [`docs/08-bsp-audit.md`](../../docs/08-bsp-audit.md),
+Per-file draft fixes for the issues in [`docs/11-bsp-audit.md`](../../docs/11-bsp-audit.md),
 produced by the multi-agent audit. They apply on top of the forward-port
 (`../`) and target the **shipped `mpp/` + `rga3/` driver code**.
 
@@ -19,7 +19,7 @@ produced by the multi-agent audit. They apply on top of the forward-port
 ## What's here
 
 15 per-file patches (`mpp_*.patch`, `rga_*.patch`), each bundling that file's
-verified fixes. Severity/rationale per finding is in `docs/08-bsp-audit.md`.
+verified fixes. Severity/rationale per finding is in `docs/11-bsp-audit.md`.
 Start review with the **HIGH** items (type-confusion on `SET_SESSION_FD`, OOB
 writes via user-controlled register indices, a buffer overflow, refcount/fence
 leaks, a sleep-in-atomic, two logic bugs).
@@ -30,7 +30,7 @@ leaks, a sleep-in-atomic, two logic bugs).
 cd <linux-6.18-rkvenc>             # the forward-ported tree
 git checkout -b bsp-cleanup
 git apply --reject patches/cleanup-draft/mpp_iommu.patch   # one file at a time
-# read the diff, sanity-check each hunk against docs/08, build:
+# read the diff, sanity-check each hunk against docs/11, build:
 make ARCH=arm64 drivers/video/rockchip/
 ```
 

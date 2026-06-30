@@ -3,7 +3,7 @@
 A guided, in-depth tour of what the RK3588 video codec + RGA **kernel drivers**
 do — written so a curious user can follow the big picture, with enough mechanism
 and code pointers for kernel developers. Each section opens **In plain terms**,
-then goes **Under the hood**. Its companion, [`docs/10`](10-how-the-userspace-libs-work.md),
+then goes **Under the hood**. Its companion, [`docs/02`](02-how-the-userspace-libs-work.md),
 covers the userspace libraries.
 
 ---
@@ -36,7 +36,7 @@ Userspace does **not** use the mainline V4L2 stateless API here — it uses
 Rockchip's `librockchip_mpp` / `librga`, which is what `ffmpeg-rockchip` targets
 and what gives the full H.265-encode + full-feature-RGA capability (the mainline
 V4L2 path doesn't cover H.265 *encode*, and RGA3-via-V4L2 is a not-yet-merged
-subset — see [`docs/05`](05-vanilla-kernel.md)).
+subset — see [`docs/09`](09-vanilla-kernel.md)).
 
 ```mermaid
 flowchart TB
@@ -69,7 +69,7 @@ it possible to swap, say, ffmpeg for GStreamer without touching the kernel.
 ```mermaid
 flowchart TB
   app["<b>Application</b> — ffmpeg-rockchip, GStreamer, your program"]
-  lib["<b>Userspace library</b> — librockchip_mpp / librga (docs/10)"]
+  lib["<b>Userspace library</b> — librockchip_mpp / librga (docs/02)"]
   dev["<b>Device files</b> — /dev/mpp_service · /dev/rga"]
   fw["<b>Kernel framework</b> — MPP service core: sessions, tasks, queues, IOMMU"]
   drv["<b>Hardware driver</b> — rkvenc2 · rkvdec2 · rga"]
@@ -141,7 +141,7 @@ sequenceDiagram
   - `MPP_CMD_POLL_HW_FINISH` — block until the task completes.
 - The driver `copy_from_user()`s the register block into a fixed-size
   `task->reg[]`, **bounds-checking** each request's offset/size against the
-  register window (`mpp_check_req()` — the audit in `docs/08` found real bugs on
+  register window (`mpp_check_req()` — the audit in `docs/11` found real bugs on
   exactly this user→register edge).
 - A task walks a **state machine** (`TASK_STATE_*` in `mpp_common.h`):
   `PENDING → RUNNING → START → HANDLE → IRQ → FINISH → DONE`, with `TIMEOUT` and
@@ -195,13 +195,13 @@ data. Everyone operates on the one buffer in place.
 
 **Under the hood.** A buffer is imported into a session with `mpp_dma_import_fd()`
 (`mpp_iommu.c`): the driver `dma_buf_get()`s the fd, `dma_buf_attach()`es,
-`dma_buf_map_attachment_unlocked()`s it (the 6.18 unlocked variant — `docs/02`),
+`dma_buf_map_attachment_unlocked()`s it (the 6.18 unlocked variant — `docs/05`),
 and records it on the session's **used-list** keyed by the underlying `dma_buf`.
 Each import is **reference-counted** (`kref`); re-importing the same fd reuses the
 existing mapping and IOVA instead of re-mapping (`mpp_dma_find_buffer_fd()`), and
 an LRU trim (`mpp_dma_remove_extra_buffer()`) caps the cache. There's also a
 `static_list` for buffers that live for the session's lifetime. (The audit found
-refcount subtleties right here — `docs/08` — which is why these paths get extra
+refcount subtleties right here — `docs/11` — which is why these paths get extra
 scrutiny.) RGA does the equivalent in `rga_mm.c`/`rga_dma_buf.c`. This caching +
 refcounting is the zero-copy backbone of the transcode pipeline.
 
@@ -229,7 +229,7 @@ corrupting memory. Two RK3588-specific details:
   slot of the register image, so the recipe the hardware executes contains only
   IOVAs.
 - The forward-port had to guard `iommu_set_fault_handler()` for a 6.18 cookie-type
-  change and shadow `iommu_dma_cookie` for the `iovad`-offset change (`docs/02`).
+  change and shadow `iommu_dma_cookie` for the `iovad`-offset change (`docs/05`).
 
 ```mermaid
 flowchart LR
@@ -322,7 +322,7 @@ idle cores*."
 - A core node is always named `*-core@…`, so it always dispatches to the
   CCU-attaching probe and **must** attach to its (enabled) CCU or it won't register
   (`attach ccu failed`). That's why the device tree enables the CCU and both cores
-  together — see `docs/03`.
+  together — see `docs/07`.
 
 ---
 
@@ -341,7 +341,7 @@ giving it a playlist instead of pressing play for each song.
   which row-cache register fields go on-chip and how big each is). The driver
   resolves the pool with `of_address_to_resource()` and `iommu_map()`s the
   physical region as the row-cache-buffer — *not* a gen_pool, which is why the
-  Armbian convert-in-place reuses Armbian's SRAM nodes untouched (`docs/04`). If
+  Armbian convert-in-place reuses Armbian's SRAM nodes untouched (`docs/08`). If
   the RCB needs more than the SRAM holds, the overflow spills to a DRAM page mapped
   right after it in IOVA space.
 - **Link mode.** `mpp_rkvdec2_link.c` builds a coherent DMA **descriptor table**
@@ -392,7 +392,7 @@ result registers back ("how many bytes did you produce? any error?").
   requested result registers back to userspace.
 - This user→register path is the **security boundary**: it's where attacker-
   controlled offsets/indices meet a fixed-size kernel buffer, and it's exactly
-  where the `docs/08` audit found real bounds bugs (e.g. a clamp that computed an
+  where the `docs/11` audit found real bounds bugs (e.g. a clamp that computed an
   overflow amount instead of the remaining space).
 
 ---
@@ -417,7 +417,7 @@ That's the whole machine: a thin, fast path from a user command down to dedicate
 silicon and back, with the IOMMU keeping it safe, dma-buf keeping it cheap, and the
 CCU/DCHS keeping both cores busy.
 
-> Want to see it run? `tests/` exercises each path; `docs/01-status.md` has the
+> Want to see it run? `tests/` exercises each path; `docs/04-status.md` has the
 > measured results (encode 720p ~300–360 fps, decode ~1200–1600 fps, full
 > transcode 17–42× realtime). For the libraries on top, read
-> [`docs/10`](10-how-the-userspace-libs-work.md).
+> [`docs/02`](02-how-the-userspace-libs-work.md).

@@ -12,7 +12,7 @@ fixes found while validating on hardware.
 
 > This doc is the **narrative** — what each change is and *why*. For the
 > line-by-line accounting (how much is ours vs Rockchip's, plus the complete
-> per-change table), see [`docs/07`](07-vendor-delta.md).
+> per-change table), see [`docs/06`](06-vendor-delta.md).
 
 ---
 
@@ -74,7 +74,7 @@ from mainline trees.
 
 ### Build system — `Makefile`, `Kconfig`
 Converted to clean in-tree style (objects build into `rk_vcodec.ko`), and added
-Kconfig options (see `docs/04` for how the config is enabled with **zero**
+Kconfig options (see `docs/08` for how the config is enabled with **zero**
 built-in Armbian config edits).
 
 ---
@@ -103,7 +103,7 @@ Both `rkvenc_probe()` and `rkvdec2_probe()` **dispatch by node name**:
 (which *requires* the CCU). There is **no standalone path** for a node named
 `*-core@…`. So enabling a core without enabling its CCU yields
 `attach ccu failed` and the core never registers. Lesson baked into the DT
-(`docs/03`): always enable the CCU alongside the cores.
+(`docs/07`): always enable the CCU alongside the cores.
 
 ### Compatible-based dispatch (decoder) — enables convert-in-place
 We extended `rkvdec2_probe()` to dispatch by **compatible** first
@@ -111,7 +111,7 @@ We extended `rkvdec2_probe()` to dispatch by **compatible** first
 node-name `strstr`. This lets a decoder node keep a *generic* name (e.g.
 Armbian's mainline `video-codec@…` node, retyped in place to the vendor binding)
 and still reach `rkvdec2_core_probe()`. This is what makes the **zero-edit
-convert-in-place** packaging possible — see `docs/04`. It's also just more
+convert-in-place** packaging possible — see `docs/08`. It's also just more
 correct than dispatching on a substring of the node name. (Marker:
 `of_device_is_compatible`.)
 

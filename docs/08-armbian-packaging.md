@@ -53,7 +53,7 @@ only validates with full ~80-min builds. Abandoned.
 
 Two insights collapse the whole problem:
 
-1. **Dispatch by compatible** (the driver change in `docs/02`): once
+1. **Dispatch by compatible** (the driver change in `docs/05`): once
    `rkvdec2_probe()` dispatches on `of_device_is_compatible("rockchip,rkv-decoder-v2")`,
    a node may keep the generic name `video-codec@…` and still reach the vendor
    `core_probe`. So we don't need to *rename* or *replace* media's nodes — we
@@ -120,4 +120,4 @@ Armbian deb name changes accordingly, e.g. `C89d0` → `Cb831`.)
 Armbian's Docker relaunch silently drops bare env vars, so ccache stays **off**
 (`hit=0 miss=0`). `scripts/build-combined-kernel.sh` passes it correctly. Full
 explanation (and the `ARMBIAN_CLI_RELAUNCH_PARAMS` mechanism) in
-[`docs/06`](06-gotchas.md) (§ ccache).
+[`docs/10`](10-gotchas.md) (§ ccache).

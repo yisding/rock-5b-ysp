@@ -5,7 +5,7 @@ is Rockchip's, and precisely what our changes were and why.
 
 > This doc is the **quantitative** side — counts, percentages, and the complete
 > per-change table. For the narrative rationale (why each hunk exists, the
-> `compat/` and `hack/` story), see [`docs/02`](02-vendor-forward-port.md).
+> `compat/` and `hack/` story), see [`docs/05`](05-vendor-forward-port.md).
 
 ## Method
 
@@ -71,14 +71,14 @@ Four hunks (part of the ~180 in-place edits), surfaced by probing real hardware
 and relevant on any kernel: the `CONFIG_CPU_RK3588` of_match unguard, the
 `-EPROBE_DEFER` probe-ordering fixes (+ `put_device`), publishing CCU `drvdata`
 **last**, and compatible-based decoder dispatch. Narrated in full in
-[`docs/02`](02-vendor-forward-port.md) (§ C — Bring-up fixes) — not re-tabulated
+[`docs/05`](05-vendor-forward-port.md) (§ C — Bring-up fixes) — not re-tabulated
 here.
 
 ### 3. Devfreq / OPP de-noise — *the BSP DVFS stack isn't on mainline*
 
 The devfreq islands are `#ifdef`-gated off (`default n`), the `init_opp_table` /
 `add venc devfreq` `dev_err`s are downgraded to `dev_dbg`, and devfreq teardown is
-`NULL`-guarded. Narrated in [`docs/02`](02-vendor-forward-port.md) (§ B — OPP /
+`NULL`-guarded. Narrated in [`docs/05`](05-vendor-forward-port.md) (§ B — OPP /
 devfreq de-noised).
 
 ### 4. The `compat/` shim layer — *stand in for BSP-only SoC headers* (338 lines, all new)
@@ -88,14 +88,14 @@ Thin headers under `mpp/compat/` so the vendor `.c` files keep their original
 
 `rockchip_pmu_idle.h`, `rockchip_opp_select.h`, `rockchip_system_monitor.h`,
 `rockchip_iommu.h`, `rockchip_dmc.h`, `rockchip_ipa.h`, `rockchip_sip.h`,
-`rockchip_qos_compat.h`. See [`docs/02`](02-vendor-forward-port.md).
+`rockchip_qos_compat.h`. See [`docs/05`](05-vendor-forward-port.md).
 
 ### 5. Wiring — Kconfig / Makefile (63 lines)
 
 In-tree `obj-$(CONFIG_…)` rules and the menu structure, plus `default y` on
 `ROCKCHIP_MPP_SERVICE` / `ROCKCHIP_MULTI_RGA` and `select SYNC_FILE` (so the
-config travels in the patch — `docs/04`). The `hack/` files are restored
-verbatim from the BSP and **must not be deleted** ([`docs/06`](06-gotchas.md)).
+config travels in the patch — `docs/08`). The `hack/` files are restored
+verbatim from the BSP and **must not be deleted** ([`docs/10`](10-gotchas.md)).
 
 ---
 

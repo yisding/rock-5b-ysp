@@ -23,7 +23,7 @@ Rockchip `rockchip-linux/mpp` library — **not** V4L2) and to RGA via `/dev/rga
 > V4L2 drivers don't cover H.265 **encode**, and the RGA3 V4L2 driver is still
 > a subset (scale/CSC only) and not yet merged for RK3588. The vendor MPP +
 > RGA stack gives the full feature set today. See
-> [`docs/05-vanilla-kernel.md`](docs/05-vanilla-kernel.md) for the mainline-V4L2
+> [`docs/09-vanilla-kernel.md`](docs/09-vanilla-kernel.md) for the mainline-V4L2
 > alternative and its trade-offs.
 
 ## Repository map
@@ -32,40 +32,39 @@ Rockchip `rockchip-linux/mpp` library — **not** V4L2) and to RGA via `/dev/rga
 patches/        The two Armbian userpatches (the deliverable) + how they map to commits
   rk3588-rkvenc2-01-vcodec-rga-drivers.patch   vendor MPP + RGA drivers, forward-ported to 6.18 (58 files)
   rk3588-rkvenc2-02-vcodec-rga-dt.patch        device tree: encoder/decoder/RGA + convert-in-place
-  cleanup-draft/                               machine-generated draft fixes for the BSP audit (docs/08) — review before use
+  cleanup-draft/                               machine-generated draft fixes for the BSP audit (docs/11) — review before use
 scripts/        build / install / validate the combined kernel, + the udev rule
 packaging/      package the udev rule as a standalone .deb (+ alternatives)
 tests/          on-hardware smoke tests: decode, encode, full transcode
 ffmpeg/         building ffmpeg-rockchip against the MPP + RGA libs (pkg-config examples)
 docs/
-  09-how-the-drivers-work.md  ⭐ START HERE — illustrated tour of the KERNEL drivers (any audience)
-  10-how-the-userspace-libs-work.md  the companion: how libmpp + librga work, app→kernel
-  11-dev-uapis.md         the /dev/mpp_service + /dev/rga ioctl ABIs (user-friendly + technical)
-  01-status.md            what's done, what's skipped, known limitations
-  02-vendor-forward-port.md  what we changed in the vendor code to build on 6.18
-  07-vendor-delta.md      line-level accounting: ~98% Rockchip / ~2% ours, every change
-  03-device-tree.md       the DT design: addresses, aliases, CCU, SRAM/RCB
-  04-armbian-packaging.md Armbian's media-0001 backport conflict + the convert-in-place fix
-  05-vanilla-kernel.md    applying this to vanilla mainline (no Armbian)
-  06-gotchas.md           every gotcha + workaround found during the port
-  08-bsp-audit.md         multi-agent audit of the BSP code: 89 verified bugs/cleanups
+  01-how-the-drivers-work.md  ⭐ START HERE — illustrated tour of the KERNEL drivers (any audience)
+  02-how-the-userspace-libs-work.md  the companion: how libmpp + librga work, app→kernel
+  03-dev-uapis.md         the /dev/mpp_service + /dev/rga ioctl ABIs (user-friendly + technical)
+  04-status.md            what's done, what's skipped, known limitations
+  05-vendor-forward-port.md  what we changed in the vendor code to build on 6.18
+  06-vendor-delta.md      line-level accounting: ~98% Rockchip / ~2% ours, every change
+  07-device-tree.md       the DT design: addresses, aliases, CCU, SRAM/RCB
+  08-armbian-packaging.md Armbian's media-0001 backport conflict + the convert-in-place fix
+  09-vanilla-kernel.md    applying this to vanilla mainline (no Armbian)
+  10-gotchas.md           every gotcha + workaround found during the port
+  11-bsp-audit.md         multi-agent audit of the BSP code: 89 verified bugs/cleanups
 ```
 
-> Doc files are numbered in **authoring** order; the list above is the recommended
-> **reading** order — start with the how-it-works trio `09` → `10` → `11`, then the
-> rest. (So `ls docs/` and the README differ on purpose.)
+> Numbered in reading order — start at `01` and work down, or jump to what you
+> need. The how-it-works trio (`01`–`03`) is the recommended entry point.
 
 ## Quickstart (Armbian, ROCK 5B)
 
 The patches drop into an Armbian build tree as **userpatches** (zero edits to
-Armbian's own files — see [`docs/04`](docs/04-armbian-packaging.md)):
+Armbian's own files — see [`docs/08`](docs/08-armbian-packaging.md)):
 
 ```bash
 # 1. Place the patches in your Armbian build tree:
 cp patches/rk3588-rkvenc2-0*.patch \
    <armbian-build>/userpatches/kernel/archive/rockchip64-6.18/
 
-# 2. Build (ccache ON; USE_CCACHE must be an ARG, not an env var — see docs/06):
+# 2. Build (ccache ON; USE_CCACHE must be an ARG, not an env var — see docs/10):
 bash scripts/build-combined-kernel.sh        # wraps ./compile.sh ... USE_CCACHE=yes
 
 # 3. Install + reboot + validate on the board:
@@ -75,7 +74,7 @@ sudo bash scripts/validate-combined.sh       # checks /dev/mpp_service, 4 cores,
 
 # 4. (optional) run ffmpeg-rockchip without sudo — grants the `video` group
 #    /dev/mpp_service + /dev/dma_heap/* (rkmpp's buffer allocator) + /dev/rga.
-#    NB: dma_heap is required, not just mpp_service (see docs/06):
+#    NB: dma_heap is required, not just mpp_service (see docs/10):
 sudo cp scripts/99-rockchip-codec.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
@@ -91,7 +90,7 @@ A green `validate-combined.sh` shows `rkvenc-core0/1`, `rkvdec-core0/1`, and
 - `librga`'s **userspace** library **is** open source (Apache-2.0) — the official
   `airockchip/librga` repo only ships a prebuilt `.so`, so we link that for
   convenience, but the source is published (JeffyCN mirror lineage) and you can
-  build from it. Full lineage in [`docs/06`](docs/06-gotchas.md); build notes in
+  build from it. Full lineage in [`docs/10`](docs/10-gotchas.md); build notes in
   [`ffmpeg/README.md`](ffmpeg/README.md).
 - The mainline RGA-in-U-Boot / RGA-V4L2 context is courtesy of Collabora's
   RK3588 upstreaming work.

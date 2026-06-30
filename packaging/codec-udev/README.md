@@ -10,7 +10,7 @@ ship it, easiest-to-maintain first.
 > DMA-heap, so granting only `mpp_service` is **not enough** — the encoder still
 > dies at MPP init (`MppBufferService get_group failed ... type 1`) because it
 > can't open `/dev/dma_heap/system`. The rule grants the `video` group all three
-> device classes (`mpp_service`, `dma_heap`, `rga`). See [`docs/06`](../../docs/06-gotchas.md).
+> device classes (`mpp_service`, `dma_heap`, `rga`). See [`docs/10`](../../docs/10-gotchas.md).
 
 ## 1. A standalone `.deb` (recommended) — this directory
 
@@ -128,7 +128,7 @@ The one nuance: Armbian's *only* pre-existing dma-heap rule (Seeed reComputer,
 is why it picked `render`. On a reComputer board our `60-media.rules` (loaded
 after `50-mali-dma-heap.rules`) would set the heaps to `video`; harmless because
 the documented setup puts users in **both** `video` *and* `render` (Jellyfin tells
-you to join both). See [`docs/06`](../../docs/06-gotchas.md).
+you to join both). See [`docs/10`](../../docs/10-gotchas.md).
 
 ## Which to use
 

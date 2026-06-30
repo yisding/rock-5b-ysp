@@ -13,14 +13,14 @@ Validated build hash: `Pb6ab-Cb831` (and its functionally-identical predecessor
 | **RGA** (RGA3 ×2 + RGA2) | probes at boot, `/dev/rga` present, IOMMU bound; exercised functionally via `scale_rkrga` in the transcode (1080p→720p and 720p→480p). |
 | **Combined in-tree kernel** | all three accelerators `=y`, present at boot — **no overlay, no insmod**. |
 | **ffmpeg-rockchip** | built (`nyanmisaka` fork) with `h264_rkmpp`/`hevc_rkmpp` decode+encode and `scale_rkrga`. Full HW transcode passes both directions. |
-| **Zero-edit Armbian packaging** | `media-0001` backport patch + kernel config both **pristine**; everything lives in two userpatches (see `docs/04`). |
+| **Zero-edit Armbian packaging** | `media-0001` backport patch + kernel config both **pristine**; everything lives in two userpatches (see `docs/08`). |
 | **Quality-of-life** | udev rule for non-sudo `/dev/mpp_service` + `/dev/dma_heap/*` + `/dev/rga` (the dma-heap rule is **required** — rkmpp allocates buffers there, so `mpp_service` alone leaves the encoder dead; upstreamed as [armbian/build#10085](https://github.com/armbian/build/pull/10085)); ccache-correct build wrapper. |
 
 ## ⏭️ Skipped / deferred (intentionally)
 
 | Item | Why |
 |------|-----|
-| **Encoder/decoder DVFS** (`*_DEVFREQ`, OPP, system-monitor) | Vendor BSP-only services (PVTM voltage scaling, `rockchip_system_monitor`, `rockchip_opp_select`). The cores run at fixed DT `assigned-clock-rates` (enc 800 MHz, dec 800 MHz) — plenty fast. Tier-2 Kconfigs default `n`; the BSP OPP service is stubbed. See `docs/02`. |
+| **Encoder/decoder DVFS** (`*_DEVFREQ`, OPP, system-monitor) | Vendor BSP-only services (PVTM voltage scaling, `rockchip_system_monitor`, `rockchip_opp_select`). The cores run at fixed DT `assigned-clock-rates` (enc 800 MHz, dec 800 MHz) — plenty fast. Tier-2 Kconfigs default `n`; the BSP OPP service is stubbed. See `docs/05`. |
 | **VP9 decode** | The decoder driver builds VP9 support; we only validated H.264/H.265. Should work (same data path) but untested here. |
 | **JPEG encode/decode, AV1** | `mjpeg_rkmpp`/`av1_rkmpp` exist in ffmpeg but weren't a goal; the vendor JPEG encoder block isn't wired in the DT. |
 | **RGA standalone functional test** | RGA is validated *through* ffmpeg's `scale_rkrga`; no dedicated `librga` sample run. |
@@ -35,10 +35,10 @@ Validated build hash: `Pb6ab-Cb831` (and its functionally-identical predecessor
   it looks closed, but the real source is published (JeffyCN mirror lineage) and
   you *can* build a fully-from-source userspace. The kernel `/dev/rga` driver we
   ported *is* GPL source. Full lineage + repo pointers in
-  [`docs/06`](06-gotchas.md) (§ Userspace).
+  [`docs/10`](10-gotchas.md) (§ Userspace).
 - **The decoder DT is Armbian-specific in convert-in-place form.** It overrides
   Armbian's `media-0001` `vdec0/vdec1` nodes. For vanilla mainline (no
-  `media-0001`) use the inline-node form — see `docs/05`.
+  `media-0001`) use the inline-node form — see `docs/09`.
 - **API-pinned to ~6.18.** A few forward-port fixes track 6.18 kernel APIs
   (notably the IOMMU `cookie_type` guard). Newer kernels may need a re-check.
 - **Single static clock.** No thermal/DVFS management; sustained max-load

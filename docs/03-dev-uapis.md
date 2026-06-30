@@ -2,18 +2,18 @@
 
 A **uAPI** ("userspace API") is the contract between userspace and the kernel: the
 device files, the `ioctl()` commands, and the structs passed across. The
-libraries in [`docs/10`](10-how-the-userspace-libs-work.md) exist so you *don't*
+libraries in [`docs/02`](02-how-the-userspace-libs-work.md) exist so you *don't*
 have to use these directly — but understanding them is invaluable for **debugging**
 (what is ffmpeg actually asking the kernel to do?), **writing a minimal client**,
-and **security review** (this is the kernel's attack surface — the `docs/08` audit
+and **security review** (this is the kernel's attack surface — the `docs/11` audit
 lives right here). As always: **In plain terms**, then **Under the hood**.
 
 Two device files matter:
 
 | Device | Driver | Wrapped by | Purpose |
 |--------|--------|-----------|---------|
-| `/dev/mpp_service` | MPP framework (docs/09) | `librockchip_mpp` | video encode/decode |
-| `/dev/rga` | RGA driver (docs/09) | `librga` | 2D resize/rotate/convert/blend |
+| `/dev/mpp_service` | MPP framework (docs/01) | `librockchip_mpp` | video encode/decode |
+| `/dev/rga` | RGA driver (docs/01) | `librga` | 2D resize/rotate/convert/blend |
 
 ---
 
@@ -44,7 +44,7 @@ listed here because it shares the codec's permission story: all of these are
 [`scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules) udev rule
 relaxes `mpp_service`, `rga`, **and** `dma_heap` to `video` group `0660`. Granting
 the codec node without the heaps still fails — see
-[`docs/10` §A5.1](10-how-the-userspace-libs-work.md) for why MPP needs the heap and
+[`docs/02` §A5.1](02-how-the-userspace-libs-work.md) for why MPP needs the heap and
 which one it lands on.
 
 ---
@@ -79,10 +79,10 @@ The kernel dispatches on `cmd`, grouped by base value (`mpp_common.c`):
 | **QUERY** `0x000` | `QUERY_HW_SUPPORT`, `QUERY_HW_ID`, `QUERY_CMD_SUPPORT` | feature/capability negotiation |
 | **INIT** `0x100` | `INIT_CLIENT_TYPE` | declare encoder/decoder/jpeg/… — routes the session to a driver |
 | | `INIT_DRIVER_DATA`, `INIT_TRANS_TABLE` | driver-private setup, fd→iova translate table |
-| **SEND** `0x200` | `SET_REG_WRITE` | the **register recipe** for this task (docs/09 §9) |
+| **SEND** `0x200` | `SET_REG_WRITE` | the **register recipe** for this task (docs/01 §9) |
 | | `SET_REG_READ` | which result registers to read back |
 | | `SET_REG_ADDR_OFFSET` | where in the recipe to patch buffer IOVAs |
-| | `SET_RCB_INFO` | which row-cache fields go in on-chip SRAM (docs/09 §8) |
+| | `SET_RCB_INFO` | which row-cache fields go in on-chip SRAM (docs/01 §8) |
 | | `SET_SESSION_FD` | batch-start a task for a session |
 | **POLL** `0x300` | `POLL_HW_FINISH`, `POLL_HW_IRQ` | block until the task completes |
 | **CONTROL** `0x400` | `RESET_SESSION`, `TRANS_FD_TO_IOVA`, `RELEASE_FD`, `SEND_CODEC_INFO` | reset, fd↔iova, buffer release, codec hints |
@@ -103,12 +103,12 @@ sequenceDiagram
 ```
 
 **Under the hood / notes.**
-- Buffers cross as **fds**: the kernel imports them (docs/09 §5), maps them in the
+- Buffers cross as **fds**: the kernel imports them (docs/01 §5), maps them in the
   shared IOMMU, and `SET_REG_ADDR_OFFSET`/`TRANS_FD_TO_IOVA` patch the resulting
   **IOVA** into the recipe — userspace never sees physical addresses.
 - The recipe lands in a fixed-size `task->reg[]`; the kernel **bounds-checks** each
   `MppReqV1`'s `size`/`offset` (`mpp_check_req()`). This is the security boundary —
-  the `docs/08` audit found real OOB/clamp bugs exactly here, so treat any code
+  the `docs/11` audit found real OOB/clamp bugs exactly here, so treat any code
   that builds these requests as trusted-input-only.
 - `INIT_CLIENT_TYPE` is mandatory and first: without it the kernel doesn't know
   which hardware block (and which driver) the session targets.
@@ -191,17 +191,17 @@ sequenceDiagram
 
 **Under the hood / notes.**
 - `task_num > 1` lets one submit carry several chained ops — the kernel side of
-  IM2D's job batching (docs/10 §B5).
+  IM2D's job batching (docs/02 §B5).
 - async returns `release_fence_fd` (`-1` if the kernel lacks fence support); wait on
   it with the usual sync_file/`poll()` machinery.
-- The kernel scheduler then picks an idle RGA3/RGA2 core able to do the op (docs/09
-  §4); the buffers are IOMMU-mapped exactly like the codecs (docs/09 §6).
+- The kernel scheduler then picks an idle RGA3/RGA2 core able to do the op (docs/01
+  §4); the buffers are IOMMU-mapped exactly like the codecs (docs/01 §6).
 
 ---
 
 ## C. How the libraries map onto these
 
-This is the bottom edge of [`docs/10`](10-how-the-userspace-libs-work.md):
+This is the bottom edge of [`docs/02`](02-how-the-userspace-libs-work.md):
 
 | Library call | Becomes these ioctls |
 |--------------|----------------------|
@@ -233,7 +233,7 @@ dmesg -w | grep -iE 'mpp_|rkvenc|rkvdec|rga'
 
 Reading the raw ioctl stream is the fastest way to answer "is it really using the
 hardware?" and "where did it stall?" — and it's exactly the surface the audit in
-[`docs/08`](08-bsp-audit.md) scrutinised for memory-safety bugs.
+[`docs/11`](11-bsp-audit.md) scrutinised for memory-safety bugs.
 
 > The canonical definitions live in the kernel uAPI headers
 > (`drivers/video/rockchip/rga3/include/rga.h` for RGA; the `MppServiceCmdType`

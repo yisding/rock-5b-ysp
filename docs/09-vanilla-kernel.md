@@ -55,7 +55,7 @@ rkvdec0_mmu: iommu@fdc38700 { compatible="rockchip,rk3588-iommu","rockchip,rk356
 ```
 
 These exact node bodies are in the **commit history** of the dev tree (the state
-*before* the convert-in-place rewrite) and in `docs/03`/`docs/04`. The git commit
+*before* the convert-in-place rewrite) and in `docs/07`/`docs/08`. The git commit
 that introduced convert-in-place is the diff between the two forms.
 
 > Because mainline 6.18 itself has **no** node at `fdc38000`/`fdc40000`, the inline
@@ -73,7 +73,7 @@ Pick one stack. Either:
 
 ## Newer kernels (6.19+)
 
-Re-check the **6.18-specific API adaptations** in `docs/02`, especially:
+Re-check the **6.18-specific API adaptations** in `docs/05`, especially:
 - `iommu_set_fault_handler()` `cookie_type` guard (IOMMU core churns often),
 - any `iommu_map()` / `dma-buf` / devfreq signature drift.
 

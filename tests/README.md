@@ -36,5 +36,5 @@ The early bring-up used a **configfs DT overlay** + an out-of-tree `.ko`
 `run-encode-test.sh` in the original tree). That approach is **superseded** by the
 built-in combined kernel and is intentionally **not** included here — the overlay
 path hit an alias-resolution bug and a configfs-rmdir deadlock (see
-[`docs/06`](../docs/06-gotchas.md)). There is no standalone `librga` functional
+[`docs/10`](../docs/10-gotchas.md)). There is no standalone `librga` functional
 test; RGA is validated through `transcode-test.sh`.
