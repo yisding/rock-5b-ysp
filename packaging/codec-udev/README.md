@@ -67,16 +67,21 @@ KERNEL=="rga",    MODE="0660", GROUP="video"
 
 Two reasons they don't solve our case:
 
-1. **No `mpp_service`.** Those target the *older per-codec* vendor device model
-   (`vpu-service`, `hevc-service`) plus `rga`/`media*`. Our forward-port is from
-   the *newer unified MPP* BSP, which exposes a single **`mpp_service`** char
-   device — and `media*` doesn't match `mpp_service`. So the codec device is
-   uncovered (Armbian's rule *does* cover `rga`, so that half overlaps harmlessly).
-2. **They ship with the vendor/legacy BSP, not `current`.** This board runs the
-   `-current` branch; its `armbian-bsp-cli-rock-5b-current` installs only
-   power/wifi/net rules — the media rules aren't present at all (the `current`
-   kernel normally uses mainline V4L2, not vendor `mpp_service`). We're grafting
-   vendor MPP onto a `current` kernel, which Armbian doesn't anticipate.
+1. **No `mpp_service` — the rules never caught up to the device model.** The
+   `50-vpu`/`50-hevc` rules (`vpu-service`, `hevc-service`) are *legacy* — devices
+   from the old `vcodec_service` driver (Rockchip ~3.x/4.4 era, pre-MPP-service).
+   The current Rockchip BSP — including the 6.1 vendor kernel — replaced all of
+   that with the unified **`mpp_service`** device (`MPP_SERVICE_NAME="mpp_service"`,
+   no `vcodec_service.c` left). Armbian's rule set simply never added an
+   `mpp_service` line (`grep -r mpp_service` over the whole Armbian tree finds
+   nothing), and `KERNEL=="media*"` doesn't match it. So a 6.1-vendor Armbian image
+   would hit the *same* gap. (Armbian's `60-media.rules` *does* cover `rga`, so that
+   half overlaps harmlessly.)
+2. **And this board runs `-current` anyway.** Armbian's everyday rock-5b configs
+   (`rockchip64-current/edge`) are mainline-based and use V4L2, not `mpp_service`;
+   `armbian-bsp-cli-rock-5b-current` installs only power/wifi/net rules — no media
+   rules at all. We're grafting vendor MPP onto a `current` kernel, which Armbian
+   doesn't anticipate.
 
 Our rule uses Armbian's exact convention (`GROUP="video" MODE="0660"`) and simply
 adds the `mpp_service` line. The most *upstream-correct* fix would be a one-line
