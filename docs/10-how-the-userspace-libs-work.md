@@ -163,6 +163,59 @@ it isn't allocating mid-stream.
   tracks its reference/display state, so a frame isn't reused while it's still a
   motion-compensation reference or still queued for display.
 
+### A5.1 The dma-heap path — what backend actually serves the buffers
+
+On this port the backend is **dma-heap** (`/dev/dma_heap/*`), and it's worth
+knowing exactly how MPP gets there, because it explains a non-obvious runtime
+requirement (the udev rule in docs/06) and a harmless `…failed!` log line.
+
+**dma-heap is the normal modern path.** `mpp_allocator` supports three backends —
+**ION**, **DRM**, **dma-heap** — and picks at runtime. ION was deleted from
+mainline years ago, so on any 6.x kernel the live path is dma-heap (MPP buffer
+`type 1`). This is the same allocator Jellyfin / LibreELEC / ffmpeg-rockchip use;
+nothing here is exotic.
+
+**MPP asks for a heap by *property*, then remaps if it's missing.**
+`osal/allocator/allocator_dma_heap.c` carries a table of named heaps keyed by
+cacheable/DMA32/CMA flags; at init it `open()`s every `/dev/dma_heap/<name>` it
+can and, for any that are absent, **remaps** to a surviving heap by dropping the
+`uncached` then the `dma32` then the `cma` preference:
+
+| MPP wants (in order) | flags | present on *this* kernel? |
+|---|---|---|
+| `system-uncached` (its default) | — | ❌ |
+| `system-uncached-dma32` | DMA32 | ❌ |
+| **`system`** | CACHABLE | ✅ ← **remaps here** |
+| `cma`, `cma-uncached`, … | CMA (+…) | ❌ (`default_cma_region`/`reserved` exist but aren't named `cma`) |
+
+**Why the preferred heaps are missing — and why that's fine.** We forward-ported
+the *codec* drivers (mpp + rga), **not** the vendor *memory* drivers. The Rockchip
+6.1 BSP registers extra named heaps via `drivers/dma-buf/heaps/rk_system_heap.c`,
+`rk_cma_heap.c` and the `rk_dma_heap` core (`system-uncached`, `system-dma32`,
+`cma`, `cma-uncached`); mainline 6.18 ships only `DMABUF_HEAPS_SYSTEM` (→ `system`)
+and `DMABUF_HEAPS_CMA` (→ one heap per CMA region: `default_cma_region`,
+`reserved`). So on a full vendor kernel MPP opens `system-uncached` directly; on
+ours its first choices 404 and it lands on `system` — which is exactly the
+graceful fallback the remap table is built for, not a misconfiguration.
+
+**`system` is cacheable, so MPP does cache maintenance — correctly.** The one real
+difference: `system-uncached` is write-combine memory (no cache maintenance
+needed); `system` is cacheable. MPP marks it `CACHABLE` in the table, which means
+the framework issues explicit flush/invalidate (`osal/mpp_dmabuf.c`) around every
+hardware DMA. So coherency is handled and output is correct (our transcodes hit
+PSNR 47–62 dB on decodable streams). The only cost is a little cache-maintenance
+overhead per buffer versus uncached — negligible for HW-only pipelines
+(dec → rga → enc) where the CPU never touches the pixels. If you ever wanted
+byte-for-byte vendor behavior you'd also port `rk_system_heap`/`rk_dma_heap`, but
+it buys nothing for correctness.
+
+**Runtime consequence.** The kernel creates `/dev/dma_heap/*` as `root root 0600`,
+so a non-root `video`-group user can't open `system` to allocate — and granting
+just `/dev/mpp_service` is **not** enough; MPP init dies at
+`MppBufferService get_group failed … type 1`. The fix is the
+`SUBSYSTEM=="dma_heap"` udev rule (docs/06), upstreamed as
+[armbian/build#10085](https://github.com/armbian/build/pull/10085).
+
 ---
 
 # Part B — librga (2D acceleration)

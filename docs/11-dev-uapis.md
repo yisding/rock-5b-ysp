@@ -29,15 +29,23 @@ yourself only to poke around or build something minimal.
 
 ```bash
 ls -l /dev/mpp_service /dev/rga          # crw------- root root  (root-only unless the udev rule)
+ls -l /dev/dma_heap/                      # system, default_cma_region, reserved — MPP allocates buffers here
 ls /proc/mpp_service/                    # rkvenc-core0, rkvdec-core0/1, ... (one dir per bound core)
 cat /sys/kernel/debug/rkrga/*            # RGA load, version, scheduler state
 dmesg | grep -iE 'mpp|rkvdec|rkvenc|rga' # probe + per-op kernel logs
 strace -e ioctl -f ffmpeg …              # SEE the real ioctl stream the library issues
 ```
 
-Permissions are `crw------- root root` by default — that's why the tests need
-`sudo`; the [`scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules)
-udev rule relaxes them to `video` group `0660`.
+`/dev/dma_heap/*` isn't an `ioctl`-recipe device like the others — it's the
+**DMABUF-heaps** allocator MPP draws every frame/stream buffer from (one
+`DMA_HEAP_IOCTL_ALLOC` → a dma-buf fd it then hands to `/dev/mpp_service`). It's
+listed here because it shares the codec's permission story: all of these are
+`crw------- root root` by default — that's why the tests need `sudo`; the
+[`scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules) udev rule
+relaxes `mpp_service`, `rga`, **and** `dma_heap` to `video` group `0660`. Granting
+the codec node without the heaps still fails — see
+[`docs/10` §A5.1](10-how-the-userspace-libs-work.md) for why MPP needs the heap and
+which one it lands on.
 
 ---
 
