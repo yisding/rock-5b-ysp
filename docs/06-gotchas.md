@@ -92,9 +92,26 @@ wedge; unrecoverable without reboot). Apply once per boot; to reset, **reboot**.
 *running* kernel's KASAN/MODVERSIONS setting or it won't load. Moot once the
 driver is `=y` built-in.
 
-**`/dev/mpp_service` and `/dev/rga` are root-only (`crw------- root root`).**
-Install `scripts/99-rockchip-codec.rules` (`GROUP="video" MODE="0660"`) and be in
-the `video` group to run ffmpeg without sudo.
+**HW codec nodes are root-only — and the `mpp_service` rule alone isn't enough.**
+`/dev/mpp_service`, `/dev/rga`, *and* the DMA-heaps under `/dev/dma_heap/` all
+default to `crw------- root root`. The non-obvious trap: granting only the codec
+ioctl node (`mpp_service`) still leaves the encoder **dead**, because `rkmpp`
+allocates every frame/stream buffer from a DMA-heap (its allocator wants
+`system-uncached`, remaps down to `system`). Without dma-heap access, MPP init
+fails — even though `mpp_service` opens fine:
+
+```
+mpp_dma_heap: open dma heap ... failed!
+mpp_buffer:   MppBufferService get_group failed to get allocater ... type 1
+hal_h264e_vepu580: init vepu buffer failed ret: -1
+mpp: error found on mpp initialization        →  Conversion failed!
+```
+
+Install `scripts/99-rockchip-codec.rules`, which grants the **`video`** group all
+three: `KERNEL=="mpp_service"`, `KERNEL=="rga"`, and **`SUBSYSTEM=="dma_heap"`**
+(matched by subsystem because the heap node's kernel name is just `system`, not
+something codec-specific). Then be in the `video` group. Upstreamed to Armbian as
+PR [armbian/build#10085](https://github.com/armbian/build/pull/10085).
 
 **Benign boot noise** (not errors): `rkvdec2_init: No niu aclk/hclk reset resource
 define` (optional NIU resets absent from DT); `failed to init_opp_table` /

@@ -1,11 +1,13 @@
 # Rockchip RK3588 hardware video codec + 2D accelerator device permissions.
-# Lets users in the "video" group use the MPP encoder/decoder (/dev/mpp_service)
-# and the RGA 2D accelerator (/dev/rga) WITHOUT sudo -- e.g. for ffmpeg-rockchip.
+# Lets users in the "video" group use the MPP encoder/decoder (/dev/mpp_service),
+# its DMA-buffer heaps (/dev/dma_heap/*), and the RGA 2D accelerator (/dev/rga)
+# WITHOUT sudo -- e.g. for ffmpeg-rockchip / jellyfin-ffmpeg.
 #
 # Install:
 #   sudo cp 99-rockchip-codec.rules /etc/udev/rules.d/
 #   sudo udevadm control --reload-rules && sudo udevadm trigger
 # (or just reboot). Verify:  ls -l /dev/mpp_service /dev/rga  -> crw-rw---- root video
+#                            ls -l /dev/dma_heap/system        -> crw-rw---- root video
 #
 # The invoking user must be a member of "video" (the Rock 5B default user already is;
 # check with `id -nG`, add with `sudo usermod -aG video <user>` + re-login if not).
@@ -14,3 +16,8 @@ KERNEL=="mpp_service", GROUP="video", MODE="0660"
 KERNEL=="rga",         GROUP="video", MODE="0660"
 # also cover the legacy/aux MPP nodes if present (iep, vpu) -- harmless if they don't exist
 KERNEL=="iep",         GROUP="video", MODE="0660"
+# DMA-heap allocators the MPP userspace allocates frame/stream buffers from.
+# REQUIRED: without this the encoder fails at init ("MppBufferService get_group
+# failed ... type 1") even though /dev/mpp_service is already accessible, because
+# rkmpp allocates its buffers from /dev/dma_heap/* (it falls back to "system").
+SUBSYSTEM=="dma_heap",  GROUP="video", MODE="0660"

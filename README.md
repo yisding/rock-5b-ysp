@@ -69,7 +69,9 @@ sudo bash scripts/install-combined-kernel.sh # dpkg -i the image/dtb/headers deb
 sudo reboot
 sudo bash scripts/validate-combined.sh       # checks /dev/mpp_service, 4 cores, /dev/rga
 
-# 4. (optional) run ffmpeg-rockchip without sudo:
+# 4. (optional) run ffmpeg-rockchip without sudo — grants the `video` group
+#    /dev/mpp_service + /dev/dma_heap/* (rkmpp's buffer allocator) + /dev/rga.
+#    NB: dma_heap is required, not just mpp_service (see docs/06):
 sudo cp scripts/99-rockchip-codec.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```

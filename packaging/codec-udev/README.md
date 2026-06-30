@@ -1,9 +1,16 @@
 # Packaging the udev rule
 
-The udev rule that makes `/dev/mpp_service` + `/dev/rga` usable without root
+The udev rule that makes `/dev/mpp_service`, the DMA-heaps (`/dev/dma_heap/*`),
+and `/dev/rga` usable without root
 ([`scripts/99-rockchip-codec.rules`](../../scripts/99-rockchip-codec.rules)) is a
 **userspace** concern — it shouldn't ride inside the kernel deb. Three ways to
 ship it, easiest-to-maintain first.
+
+> **Why dma-heap too?** `rkmpp` allocates every frame/stream buffer from a kernel
+> DMA-heap, so granting only `mpp_service` is **not enough** — the encoder still
+> dies at MPP init (`MppBufferService get_group failed ... type 1`) because it
+> can't open `/dev/dma_heap/system`. The rule grants the `video` group all three
+> device classes (`mpp_service`, `dma_heap`, `rga`). See [`docs/06`](../../docs/06-gotchas.md).
 
 ## 1. A standalone `.deb` (recommended) — this directory
 
@@ -67,16 +74,17 @@ KERNEL=="rga",    MODE="0660", GROUP="video"
 
 Two reasons they don't solve our case:
 
-1. **No `mpp_service` — the rules never caught up to the device model.** The
-   `50-vpu`/`50-hevc` rules (`vpu-service`, `hevc-service`) are *legacy* — devices
-   from the old `vcodec_service` driver (Rockchip ~3.x/4.4 era, pre-MPP-service).
-   The current Rockchip BSP — including the 6.1 vendor kernel — replaced all of
-   that with the unified **`mpp_service`** device (`MPP_SERVICE_NAME="mpp_service"`,
-   no `vcodec_service.c` left). Armbian's rule set simply never added an
-   `mpp_service` line (`grep -r mpp_service` over the whole Armbian tree finds
-   nothing), and `KERNEL=="media*"` doesn't match it. So a 6.1-vendor Armbian image
-   would hit the *same* gap. (Armbian's `60-media.rules` *does* cover `rga`, so that
-   half overlaps harmlessly.)
+1. **No `mpp_service` and no `dma_heap` — the rules never caught up to the device
+   model.** The `50-vpu`/`50-hevc` rules (`vpu-service`, `hevc-service`) are
+   *legacy* — devices from the old `vcodec_service` driver (Rockchip ~3.x/4.4 era,
+   pre-MPP-service). The current Rockchip BSP — including the 6.1 vendor kernel —
+   replaced all of that with the unified **`mpp_service`** device
+   (`MPP_SERVICE_NAME="mpp_service"`, no `vcodec_service.c` left), and its userspace
+   allocates buffers from the **`dma_heap`** subsystem. Armbian's rule set never
+   added *either* line (`grep -r 'mpp_service\|dma_heap'` over the whole Armbian
+   tree finds nothing), and `KERNEL=="media*"` matches neither. So a 6.1-vendor
+   Armbian image would hit the *same* gap. (Armbian's `60-media.rules` *does* cover
+   `rga`, so that third overlaps harmlessly.)
 2. **And this board runs `-current` anyway.** Armbian's everyday rock-5b configs
    (`rockchip64-current/edge`) are mainline-based and use V4L2, not `mpp_service`;
    `armbian-bsp-cli-rock-5b-current` installs only power/wifi/net rules — no media
@@ -84,9 +92,10 @@ Two reasons they don't solve our case:
    doesn't anticipate.
 
 Our rule uses Armbian's exact convention (`GROUP="video" MODE="0660"`) and simply
-adds the `mpp_service` line. The most *upstream-correct* fix would be a one-line
-PR adding `KERNEL=="mpp_service", …` to Armbian's `60-media.rules`; this deb is the
-local equivalent until/unless that lands.
+adds the `mpp_service` and `dma_heap` lines. The *upstream-correct* fix — adding
+both to Armbian's `60-media.rules` — is submitted as
+[**armbian/build#10085**](https://github.com/armbian/build/pull/10085); this deb is
+the local equivalent until/unless that lands.
 
 ## Which to use
 

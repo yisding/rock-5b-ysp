@@ -14,7 +14,7 @@ Validated build hash: `Pb6ab-Cb831` (and its functionally-identical predecessor
 | **Combined in-tree kernel** | all three accelerators `=y`, present at boot — **no overlay, no insmod**. |
 | **ffmpeg-rockchip** | built (`nyanmisaka` fork) with `h264_rkmpp`/`hevc_rkmpp` decode+encode and `scale_rkrga`. Full HW transcode passes both directions. |
 | **Zero-edit Armbian packaging** | `media-0001` backport patch + kernel config both **pristine**; everything lives in two userpatches (see `docs/04`). |
-| **Quality-of-life** | udev rule for non-sudo `/dev/mpp_service` + `/dev/rga`; ccache-correct build wrapper. |
+| **Quality-of-life** | udev rule for non-sudo `/dev/mpp_service` + `/dev/dma_heap/*` + `/dev/rga` (the dma-heap rule is **required** — rkmpp allocates buffers there, so `mpp_service` alone leaves the encoder dead; upstreamed as [armbian/build#10085](https://github.com/armbian/build/pull/10085)); ccache-correct build wrapper. |
 
 ## ⏭️ Skipped / deferred (intentionally)
 
