@@ -133,10 +133,10 @@ sequenceDiagram
   T->>T: parse SPS/PPS/slice → picture info + reference list
   T->>T: assign a frame slot (MppBufSlots), bind output dma-buf
   T->>H: build register recipe for this frame
-  H->>K: INIT_CLIENT_TYPE once; SET_REG_WRITE (recipe) + buffer fds; POLL_HW_FINISH
+  H->>K: INIT_CLIENT_TYPE once, SET_REG_WRITE (recipe) + buffer fds, POLL_HW_FINISH
   Note over K: kernel patches IOVAs, programs VDPU381,<br/>hardware decodes, IRQ (docs/09 §3,§6,§9)
   K-->>H: SET_REG_READ result registers
-  H->>T: frame done → output port; release no-longer-needed references
+  H->>T: frame done → output port, release no-longer-needed references
   A->>M: decode_get_frame()
   M-->>A: raw NV12 frame (a dma-buf — ready for RGA/encode/display)
 ```

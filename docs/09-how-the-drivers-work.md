@@ -114,7 +114,7 @@ sequenceDiagram
   participant Drv as rkvenc2 / rkvdec2
   participant HW as Hardware + IOMMU
 
-  App->>Dev: open(); INIT_CLIENT_TYPE (encoder? decoder?)
+  App->>Dev: open() + INIT_CLIENT_TYPE (encoder or decoder)
   App->>Dev: import frame buffer (a dma-buf fd)
   Core->>HW: map buffer into the codec IOMMU → an "IOVA"
   App->>Dev: SET_REG_WRITE (register recipe) + SET_REG_READ + buffer refs
