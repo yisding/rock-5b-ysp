@@ -599,9 +599,10 @@ One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse
 
 Per-file diffs are in [`cleanup-draft/`](../patches/cleanup-draft/). They apply on top of the forward-port (`patches/`). All compile clean on arm64 (`make drivers/video/rockchip/`). **Review each before merging** — see [How to apply & verify a cleanup patch](#how-to-apply--verify-a-cleanup-patch) for the runnable recipe and the per-patch hunk→finding map; start with the HIGH-severity items above.
 
-> **These drafts have now been adversarially verified** — see
+> **These drafts have been adversarially verified _and corrected_** — see
 > [`cleanup-draft/VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md).
-> Two **must not** be applied (`cleanup-draft/rejected/mpp_iommu.patch`, and the
-> D1 hunk of `rga_drv.patch`) and one hunk is on hold (`mpp_service.patch:426`);
-> both rejects compiled clean but introduced a new bug. The remaining 12 passed a
-> compile-gate. Apply per VERIFICATION.md, not blindly.
+> The review found 2 rejects + 1 hold + 3 incomplete fixes (two rejects compiled
+> clean but introduced a new bug); **all are now fixed and re-verified SAFE**, so
+> all 15 patches apply and the safe set passes a compile-gate. One footgun:
+> `mpp_iommu.patch` + `mpp_rkvenc2.patch` are an **atomic pair**. Apply per
+> VERIFICATION.md; runtime regression is the remaining gate.

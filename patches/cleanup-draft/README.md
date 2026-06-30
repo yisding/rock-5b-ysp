@@ -4,13 +4,13 @@ Per-file draft fixes for the issues in [`docs/11-bsp-audit.md`](../../docs/11-bs
 produced by the multi-agent audit. They apply on top of the forward-port
 (`../`) and target the **shipped `mpp/` + `rga3/` driver code**.
 
-> **✅ Adversarially verified — read [`VERIFICATION.md`](VERIFICATION.md) first.**
-> Every hunk was reviewed against the real source (5 verifiers, each told to *try
-> to break* the fix). **2 must NOT be applied** — `rejected/mpp_iommu.patch`
-> (refcount leak at 2 of 3 callers) and the **D1 hunk** of `rga_drv.patch`
-> (success-path mass-free); **1 hunk on hold** — `mpp_service.patch:426`. The
-> remaining 12 passed (with notes), and the safe set passed a compile-gate. Both
-> rejects *compiled clean* — "it builds" is not verification.
+> **✅ Adversarially verified + corrected — read [`VERIFICATION.md`](VERIFICATION.md) first.**
+> Every hunk was reviewed against the real source (verifiers told to *try to
+> break* the fix). The review found 2 rejects + 1 hold + 3 incomplete fixes (two
+> rejects *compiled clean* — "it builds" is not verification); **all have now been
+> corrected and re-verified SAFE**, so all 15 patches apply. **One footgun:**
+> `mpp_iommu.patch` and `mpp_rkvenc2.patch` are an **atomic pair** (apply both or
+> neither — see VERIFICATION.md). Runtime regression is still the final gate.
 
 ## ⚠️ These are a draft, not merge-ready
 

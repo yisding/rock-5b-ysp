@@ -3,9 +3,8 @@ Author: rkvenc forward-port <forward-port@local>
 Date:   Mon Jun 29 02:14:51 2026 -0700
 
     WIP: BSP audit cleanup edits (machine-generated, compile-tested)
-
 diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
-index 6303756e0c24..7b70f54f73a0 100644
+index 6303756e0c24..e0eaf135f804 100644
 --- a/drivers/video/rockchip/mpp/mpp_service.c
 +++ b/drivers/video/rockchip/mpp/mpp_service.c
 @@ -149,6 +149,14 @@ static int mpp_register_service(struct mpp_service *srv,
@@ -23,17 +22,23 @@ index 6303756e0c24..7b70f54f73a0 100644
  
  	return 0;
  }
-@@ -423,7 +431,8 @@ static int mpp_service_probe(struct platform_device *pdev)
+@@ -423,7 +431,14 @@ static int mpp_service_probe(struct platform_device *pdev)
  	if (srv->taskqueue_cnt > MPP_DEVICE_BUTT) {
  		dev_err(dev, "rockchip,taskqueue-count %d must less than %d\n",
  			srv->taskqueue_cnt, MPP_DEVICE_BUTT);
 -		return -EINVAL;
++		/*
++		 * No task queues exist yet, and this oversized count would make
++		 * the fail_register cleanup loop read past task_queues[]. Zero it
++		 * so cleanup only class_destroy()s, then fail.
++		 */
++		srv->taskqueue_cnt = 0;
 +		ret = -EINVAL;
 +		goto fail_register;
  	}
  
  	for (i = 0; i < srv->taskqueue_cnt; i++) {
-@@ -434,6 +443,10 @@ static int mpp_service_probe(struct platform_device *pdev)
+@@ -434,6 +449,10 @@ static int mpp_service_probe(struct platform_device *pdev)
  		kthread_init_worker(&queue->worker);
  		queue->kworker_task = kthread_run(kthread_worker_fn, &queue->worker,
  						  "mpp_worker_%d", i);
@@ -44,7 +49,7 @@ index 6303756e0c24..7b70f54f73a0 100644
  		srv->task_queues[i] = queue;
  	}
  
-@@ -442,7 +455,8 @@ static int mpp_service_probe(struct platform_device *pdev)
+@@ -442,7 +461,8 @@ static int mpp_service_probe(struct platform_device *pdev)
  	if (srv->reset_group_cnt > MPP_DEVICE_BUTT) {
  		dev_err(dev, "rockchip,resetgroup-count %d must less than %d\n",
  			srv->reset_group_cnt, MPP_DEVICE_BUTT);
@@ -54,7 +59,7 @@ index 6303756e0c24..7b70f54f73a0 100644
  	}
  
  	if (srv->reset_group_cnt) {
-@@ -492,6 +506,14 @@ static int mpp_service_probe(struct platform_device *pdev)
+@@ -492,6 +512,14 @@ static int mpp_service_probe(struct platform_device *pdev)
  	return 0;
  
  fail_register:
