@@ -1,0 +1,2 @@
+*.deb
+root/usr/lib/udev/rules.d/*.rules

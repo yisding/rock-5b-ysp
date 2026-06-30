@@ -33,6 +33,7 @@ patches/        The two Armbian userpatches (the deliverable) + how they map to 
   rk3588-rkvenc2-01-vcodec-rga-drivers.patch   vendor MPP + RGA drivers, forward-ported to 6.18 (58 files)
   rk3588-rkvenc2-02-vcodec-rga-dt.patch        device tree: encoder/decoder/RGA + convert-in-place
 scripts/        build / install / validate the combined kernel, + the udev rule
+packaging/      package the udev rule as a standalone .deb (+ alternatives)
 tests/          on-hardware smoke tests: decode, encode, full transcode
 ffmpeg/         building ffmpeg-rockchip against the MPP + RGA libs (pkg-config examples)
 docs/
