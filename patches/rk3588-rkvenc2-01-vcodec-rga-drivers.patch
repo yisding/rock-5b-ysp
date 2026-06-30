@@ -12335,7 +12335,7 @@ index 000000000000..988151ebf488
 +#include <soc/rockchip/rockchip_system_monitor.h>
 +#include <soc/rockchip/rockchip_iommu.h>
 +
-+#ifdef CONFIG_PM_DEVFREQ
++#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ) /* governor.h: in-tree only */
 +#include "../../../devfreq/governor.h"
 +#endif
 +
@@ -12359,7 +12359,7 @@ index 000000000000..988151ebf488
 +#define to_rkvenc_dev(dev)		\
 +		container_of(dev, struct rkvenc_dev, mpp)
 +
-+#ifdef CONFIG_PM_DEVFREQ
++#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ) /* governor.h: in-tree only */
 +static DEFINE_MUTEX(venc_governor_mutex);
 +static int venc_governor_count;
 +#endif
@@ -12637,7 +12637,7 @@ index 000000000000..988151ebf488
 +
 +	u32 bs_overflow;
 +
-+#ifdef CONFIG_PM_DEVFREQ
++#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ) /* governor.h: in-tree only */
 +	struct devfreq *devfreq;
 +	unsigned long core_rate_hz;
 +	unsigned long core_current_rate_hz;
@@ -14436,7 +14436,7 @@ index 000000000000..988151ebf488
 +}
 +#endif
 +
-+#ifdef CONFIG_PM_DEVFREQ
++#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ) /* governor.h: in-tree only */
 +static int rkvenc_devfreq_target(struct device *dev,
 +				 unsigned long *freq, u32 flags)
 +{
@@ -14706,7 +14706,7 @@ index 000000000000..988151ebf488
 +	if (!enc->rst_core)
 +		mpp_err("No core reset resource define\n");
 +
-+#ifdef CONFIG_PM_DEVFREQ
++#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ) /* governor.h: in-tree only */
 +	ret = rkvenc_devfreq_init(mpp);
 +	if (ret)
 +		dev_dbg(mpp->dev, "venc devfreq not enabled (core clock pinned via DT)\n");
@@ -14717,7 +14717,7 @@ index 000000000000..988151ebf488
 +
 +static int rkvenc_exit(struct mpp_dev *mpp)
 +{
-+#ifdef CONFIG_PM_DEVFREQ
++#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ) /* governor.h: in-tree only */
 +	rkvenc_devfreq_remove(mpp);
 +#endif
 +
@@ -14760,7 +14760,7 @@ index 000000000000..988151ebf488
 +
 +	mpp_debug_enter();
 +
-+#ifdef CONFIG_PM_DEVFREQ
++#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ) /* governor.h: in-tree only */
 +	if (enc->devfreq)
 +		mutex_lock(&enc->devfreq->lock);
 +#endif
@@ -14792,7 +14792,7 @@ index 000000000000..988151ebf488
 +
 +	mpp_dbg_core("core %d reset idle %lx\n", mpp->core_id, queue->core_idle);
 +
-+#ifdef CONFIG_PM_DEVFREQ
++#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ) /* governor.h: in-tree only */
 +	if (enc->devfreq)
 +		mutex_unlock(&enc->devfreq->lock);
 +#endif
@@ -14831,7 +14831,7 @@ index 000000000000..988151ebf488
 +
 +	mpp_clk_set_rate(&enc->aclk_info, task->clk_mode);
 +
-+#ifdef CONFIG_PM_DEVFREQ
++#if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ) /* governor.h: in-tree only */
 +	if (enc->devfreq) {
 +		unsigned long core_rate_hz;
 +
