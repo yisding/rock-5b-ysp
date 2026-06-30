@@ -1,0 +1,18 @@
+Package: rk3588-vcodec-dkms
+Version: 1.0
+Section: kernel
+Priority: optional
+Architecture: arm64
+Depends: dkms (>= 2.2)
+Recommends: device-tree-compiler
+Maintainer: Yi Ding <yi.s.ding@gmail.com>
+Description: RK3588 vendor MPP video codec + RGA 2D accelerator (DKMS)
+ Out-of-tree DKMS build of the Rockchip RK3588 hardware video codec stack:
+ VEPU580 H.264/H.265 encoder + VDPU381 H.264/H.265/VP9 decoder (the MPP
+ framework -> rk_vcodec.ko, /dev/mpp_service) and the RGA3/RGA2 2D accelerator
+ (rga3.ko, /dev/rga). DKMS rebuilds both modules automatically on kernel updates.
+ .
+ For stock kernels (tested on 6.18; intended to track 6.18 -> 7.2) that do NOT
+ already have these drivers built in. A boot-time device-tree overlay that wires
+ up the codec/RGA nodes is installed to /boot/overlay-user/ -- enable it by adding
+ "rk3588-rock5b-vcodec" to user_overlays= in /boot/armbianEnv.txt, then reboot.

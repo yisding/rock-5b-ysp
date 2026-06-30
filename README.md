@@ -66,7 +66,7 @@ patches/        The two Armbian userpatches (the deliverable) + how they map to 
   rk3588-rkvenc2-02-vcodec-rga-dt.patch        device tree: encoder/decoder/RGA + convert-in-place
   cleanup-draft/                               machine-generated draft fixes for the BSP audit (docs/11) — review before use
 scripts/        build / install / validate the combined kernel, + the udev rule
-packaging/      package the udev rule as a standalone .deb (+ alternatives)
+packaging/      standalone .debs — codec-udev (the udev rule) + dkms (the drivers, for stock kernels 6.18-7.2)
 tests/          on-hardware smoke tests: decode, encode, full transcode
 ffmpeg/         building ffmpeg-rockchip against the MPP + RGA libs (pkg-config examples)
 docs/

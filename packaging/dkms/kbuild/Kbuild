@@ -1,0 +1,4 @@
+# rk3588-vcodec DKMS — out-of-tree build of the vendor MPP + RGA drivers.
+# Kbuild (this file) takes precedence over any Makefile in the same dir.
+obj-m += mpp/
+obj-m += rga3/
