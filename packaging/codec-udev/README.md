@@ -53,6 +53,36 @@ install -m0644 /tmp/overlay/99-rockchip-codec.rules /etc/udev/rules.d/
 Doesn't apply to the kernel-only `compile.sh kernel` flow (which produces debs,
 not an image), so it's the right answer only if you're rolling whole images.
 
+## Doesn't Armbian already ship these?
+
+Partly — but with a gap that's exactly our device. Armbian's BSP carries
+`packages/bsp/rockchip/{60-media,50-vpu,50-hevc,50-mali}.rules`, e.g.:
+
+```
+# 60-media.rules
+KERNEL=="media*", MODE="0660", GROUP="video"
+KERNEL=="rga",    MODE="0660", GROUP="video"
+# 50-vpu.rules:  KERNEL=="vpu-service" …    50-hevc.rules: KERNEL=="hevc-service" …
+```
+
+Two reasons they don't solve our case:
+
+1. **No `mpp_service`.** Those target the *older per-codec* vendor device model
+   (`vpu-service`, `hevc-service`) plus `rga`/`media*`. Our forward-port is from
+   the *newer unified MPP* BSP, which exposes a single **`mpp_service`** char
+   device — and `media*` doesn't match `mpp_service`. So the codec device is
+   uncovered (Armbian's rule *does* cover `rga`, so that half overlaps harmlessly).
+2. **They ship with the vendor/legacy BSP, not `current`.** This board runs the
+   `-current` branch; its `armbian-bsp-cli-rock-5b-current` installs only
+   power/wifi/net rules — the media rules aren't present at all (the `current`
+   kernel normally uses mainline V4L2, not vendor `mpp_service`). We're grafting
+   vendor MPP onto a `current` kernel, which Armbian doesn't anticipate.
+
+Our rule uses Armbian's exact convention (`GROUP="video" MODE="0660"`) and simply
+adds the `mpp_service` line. The most *upstream-correct* fix would be a one-line
+PR adding `KERNEL=="mpp_service", …` to Armbian's `60-media.rules`; this deb is the
+local equivalent until/unless that lands.
+
 ## Which to use
 
 - Shipping kernel debs + manual install (this project's flow) → **#1**, the
