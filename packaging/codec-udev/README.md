@@ -97,6 +97,39 @@ both to Armbian's `60-media.rules` — is submitted as
 [**armbian/build#10085**](https://github.com/armbian/build/pull/10085); this deb is
 the local equivalent until/unless that lands.
 
+## Which group — `video` or `render`?
+
+Granting the dma-heaps to a group is standard practice; distros just disagree on
+*which* group. The four patterns in the wild:
+
+| Approach | Used by | Headless services (Jellyfin/Plex)? |
+|----------|---------|:---:|
+| **`GROUP="video"`** (ours) | Jellyfin's Rockchip HWA docs, Raspberry Pi (picamera), postmarketOS | ✅ |
+| **`GROUP="render"`** | Armbian's Seeed reComputer (Mali GBM), some libcamera configs | ✅ |
+| **`TAG+="uaccess"`** | Fedora / desktop (systemd 257 does it natively for udmabuf) | ❌ logged-in seat user only |
+| **world-rw** (`0666` / `chmod a+rw`) | Rockchip vendor configs; Jellyfin's belt-and-suspenders line | ✅ (weakest) |
+
+We use **`video`** because:
+
+- It matches the sibling rules in the same file (`mpp_service`, `rga`, `media*`
+  are all `video`), so a codec user needs a single group.
+- [Jellyfin's Rockchip HWA guide](https://jellyfin.org/docs/general/post-install/transcoding/hardware-acceleration/rockchip/)
+  — the canonical rkmpp consumer, our exact use case — grants the `system*`
+  dma-heaps to `video` too. (Ours improves on it: one `SUBSYSTEM=="dma_heap"` line
+  covers every heap name vs. their enumerated `system*`, and a clean `0660` group
+  rule instead of `0666` + `chmod a+rw`.)
+- `uaccess` — the "modern" desktop direction (systemd now udmabuf-tags it
+  natively) — is deliberately **avoided**: it only grants the physically
+  logged-in seat user, so it does **not** cover a headless `jellyfin`/`plex`
+  service account, which is the usual consumer here.
+
+The one nuance: Armbian's *only* pre-existing dma-heap rule (Seeed reComputer,
+`render`) targets **Mali GBM** — a render-node concern, not codec buffers — which
+is why it picked `render`. On a reComputer board our `60-media.rules` (loaded
+after `50-mali-dma-heap.rules`) would set the heaps to `video`; harmless because
+the documented setup puts users in **both** `video` *and* `render` (Jellyfin tells
+you to join both). See [`docs/06`](../../docs/06-gotchas.md).
+
 ## Which to use
 
 - Shipping kernel debs + manual install (this project's flow) → **#1**, the
