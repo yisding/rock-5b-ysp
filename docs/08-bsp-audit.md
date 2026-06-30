@@ -401,4 +401,4 @@ These are **latent in the upstream Rockchip BSP** too — the forward-port kept 
 ---
 ## Draft patch series
 
-Per-file diffs are in [`cleanup-draft/`](cleanup-draft/). They apply on top of the forward-port (`patches/`). All compile clean on arm64 (`make drivers/video/rockchip/`). Review each before merging; start with the HIGH-severity items above.
+Per-file diffs are in [`cleanup-draft/`](../patches/cleanup-draft/). They apply on top of the forward-port (`patches/`). All compile clean on arm64 (`make drivers/video/rockchip/`). Review each before merging; start with the HIGH-severity items above.

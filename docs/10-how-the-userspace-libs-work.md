@@ -294,7 +294,7 @@ sequenceDiagram
   L->>N: rga_buffer_t {fd|vaddr|phys|handle, w,h,wstride,format,rect}
   N->>N: validate + build rga_req (src/dst rects, scale, rotate, blend, color)
   N->>K: ioctl RGA_BLIT_SYNC (wait) — or RGA_BLIT_ASYNC (returns out_fence_fd)
-  Note over K: scheduler picks RGA3 core0/1 or RGA2,<br/>IOMMU-maps buffers, runs the op (docs/09 §4,§6,§7)
+  Note over K: scheduler picks RGA3 core0/1 or RGA2,<br/>IOMMU-maps buffers, runs the op (docs/09 §4,§6)
   K-->>N: complete (sync) / release fence signals (async)
   N-->>A: IM_STATUS_SUCCESS
 ```

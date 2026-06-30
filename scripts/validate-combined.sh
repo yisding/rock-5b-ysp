@@ -2,8 +2,8 @@
 # =============================================================================
 # validate-combined.sh   -- run AFTER rebooting into the combined kernel.
 # Checks that all three vendor accelerators probed at boot (no overlay, no
-# insmod), and settles the open rkvdec1 address question (fdc48000 vs fdc40000)
-# now that the cores probe in the correct ccu->core0->core1 order.
+# insmod). rkvdec1 core 1 binds at its resolved address fdc40000 (TRM-canonical,
+# confirmed on hardware) once the cores probe in ccu->core0->core1 order.
 # =============================================================================
 set -uo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "Run as root:  sudo bash $0"; exit 1; }
@@ -32,7 +32,7 @@ echo
 
 echo "================= 3. boot-time probe dmesg (all three) ================="
 echo "--- encoder ---";  dmesg | grep -iE 'rkvenc' | grep -iE 'probe|core|ccu|attach|fail' | tail -6 | sed 's/^/    /'
-echo "--- decoder (does core1 @ fdc48000 fully probe? = address answer) ---"
+echo "--- decoder (core0 + core1 @ fdc40000 both probe) ---"
 dmesg | grep -iE 'rkvdec' | grep -iE 'probe|core|ccu|attach|hw_version|EBUSY|ioremap|fail|defer' | tail -10 | sed 's/^/    /'
 echo "--- rga ---";      dmesg | grep -iE 'rga' | grep -iE 'probe|version|fail|load' | tail -6 | sed 's/^/    /'
 echo "--- any iommu fault / oops / -EBUSY anywhere in the vcodec drivers? ---"

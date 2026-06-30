@@ -38,7 +38,7 @@ truth. The built `.deb` and the copied rule are gitignored — commit the *sourc
 If you only ever deploy via the install script, add two lines so the rule lands
 whenever you install the kernel:
 
-```sh
+```bash
 install -m0644 99-rockchip-codec.rules /etc/udev/rules.d/
 udevadm control --reload-rules && udevadm trigger
 ```

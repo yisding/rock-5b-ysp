@@ -10,7 +10,7 @@ The result is a single Armbian kernel with all three accelerators **built in
 
 | Accelerator | Block | Nodes | Status |
 |-------------|-------|-------|--------|
-| **Encoder** | VEPU580 / `rkvenc2` | `fdbd0000`, `fdbe0000` | ✅ H.264 + H.265, 256p + 720p, PSNR 47–62 dB |
+| **Encoder** | VEPU580 / `rkvenc2` | `fdbd0000`, `fdbe0000` | ✅ H.264 + H.265, 256² + 720p, PSNR 47–62 dB |
 | **Decoder** | VDPU381 / `rkvdec2` | CCU `fdc30000`, cores `fdc38000` / `fdc40000` | ✅ H.264 + H.265 decode, both cores |
 | **RGA** | RGA3 ×2 + RGA2 | `fdb60000`, `fdb70000`, `fdb80000` | ✅ probes + IOMMU + scale/CSC via ffmpeg |
 | **End-to-end** | ffmpeg-rockchip | `h264_rkmpp` / `hevc_rkmpp` / `scale_rkrga` | ✅ full HW transcode (decode → RGA → encode) |
@@ -32,6 +32,7 @@ Rockchip `rockchip-linux/mpp` library — **not** V4L2) and to RGA via `/dev/rga
 patches/        The two Armbian userpatches (the deliverable) + how they map to commits
   rk3588-rkvenc2-01-vcodec-rga-drivers.patch   vendor MPP + RGA drivers, forward-ported to 6.18 (58 files)
   rk3588-rkvenc2-02-vcodec-rga-dt.patch        device tree: encoder/decoder/RGA + convert-in-place
+  cleanup-draft/                               machine-generated draft fixes for the BSP audit (docs/08) — review before use
 scripts/        build / install / validate the combined kernel, + the udev rule
 packaging/      package the udev rule as a standalone .deb (+ alternatives)
 tests/          on-hardware smoke tests: decode, encode, full transcode
@@ -48,7 +49,6 @@ docs/
   05-vanilla-kernel.md    applying this to vanilla mainline (no Armbian)
   06-gotchas.md           every gotcha + workaround found during the port
   08-bsp-audit.md         multi-agent audit of the BSP code: 89 verified bugs/cleanups
-patches/cleanup-draft/  machine-generated draft fixes for the audit findings (review before use)
 ```
 
 ## Quickstart (Armbian, ROCK 5B)

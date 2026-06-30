@@ -6,6 +6,8 @@ Architecture: all
 Maintainer: Yi Ding <yi.s.ding@gmail.com>
 Description: udev rules for RK3588 hardware video codec + RGA device access
  Grants the "video" group read/write access to /dev/mpp_service (Rockchip MPP
- H.264/H.265 encoder + H.264/H.265/VP9 decoder) and /dev/rga (RGA 2D
- accelerator), so ffmpeg-rockchip / Jellyfin can use the hardware without root.
+ H.264/H.265 encoder + H.264/H.265/VP9 decoder), the DMA-heap allocators under
+ /dev/dma_heap/* (required -- rkmpp allocates frame/stream buffers there), and
+ /dev/rga (RGA 2D accelerator), so ffmpeg-rockchip / Jellyfin can use the
+ hardware without root.
  Users (e.g. the jellyfin service account) must be in the "video" group.

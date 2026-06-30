@@ -12,7 +12,7 @@ The build → install → validate trio for the combined kernel, plus the udev r
 | `build-combined-kernel.sh` | user | Wraps `./compile.sh kernel BOARD=rock-5b BRANCH=current KERNEL_CONFIGURE=no USE_CCACHE=yes`. Crucially passes `USE_CCACHE` as an **argument** (env var wouldn't reach the Docker build — see [`docs/06`](../docs/06-gotchas.md)). Prints ccache growth + the new `P####-C####` hash. |
 | `install-combined-kernel.sh` | root | Removes the obsolete `rkvdec2` boot overlay from `armbianEnv.txt` (backs it up), then `dpkg -i` the image + dtb + headers debs for the pinned `PHASH`. Old kernel stays selectable. |
 | `validate-combined.sh` | root | Post-reboot: checks `/dev/mpp_service`, the four cores under `/proc/mpp_service` (`rkvenc-core0/1`, `rkvdec-core0/1`), `/dev/rga`, and greps boot dmesg for clean probes / no faults. |
-| `99-rockchip-codec.rules` | (install to `/etc/udev/rules.d/`) | `GROUP="video" MODE="0660"` on `/dev/mpp_service` + `/dev/rga` so ffmpeg-rockchip runs **without sudo** (you must be in the `video` group). |
+| `99-rockchip-codec.rules` | (install to `/etc/udev/rules.d/`) | `GROUP="video" MODE="0660"` on `/dev/mpp_service`, `/dev/dma_heap/*`, and `/dev/rga` so ffmpeg-rockchip runs **without sudo** (you must be in the `video` group; the dma-heap line is **required** — rkmpp allocates buffers there, see [`docs/06`](../docs/06-gotchas.md)). |
 
 ## Typical flow
 

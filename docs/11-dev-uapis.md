@@ -37,7 +37,7 @@ strace -e ioctl -f ffmpeg …              # SEE the real ioctl stream the libra
 ```
 
 `/dev/dma_heap/*` isn't an `ioctl`-recipe device like the others — it's the
-**DMABUF-heaps** allocator MPP draws every frame/stream buffer from (one
+**DMA-heap** allocator MPP draws every frame/stream buffer from (one
 `DMA_HEAP_IOCTL_ALLOC` → a dma-buf fd it then hands to `/dev/mpp_service`). It's
 listed here because it shares the codec's permission story: all of these are
 `crw------- root root` by default — that's why the tests need `sudo`; the
