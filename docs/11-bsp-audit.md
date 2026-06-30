@@ -480,9 +480,9 @@ cd /path/to/linux-6.18-rkvenc          # the forward-ported tree
 git checkout -b bsp-cleanup
 
 # git apply with an absolute path to the patch:
-git apply --reject /home/yi/Code/rock-5b-ysp/patches/cleanup-draft/mpp_iommu.patch
+git apply --reject /home/yi/Code/rock-5b-ysp/patches/cleanup-draft/mpp_rkvdec2.patch
 #   …or git am to keep the commit message:
-git am /home/yi/Code/rock-5b-ysp/patches/cleanup-draft/mpp_iommu.patch
+git am /home/yi/Code/rock-5b-ysp/patches/cleanup-draft/mpp_rkvdec2.patch
 
 # build-check just the touched subtree:
 make ARCH=arm64 drivers/video/rockchip/
@@ -598,3 +598,10 @@ One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse
 ## Draft patch series
 
 Per-file diffs are in [`cleanup-draft/`](../patches/cleanup-draft/). They apply on top of the forward-port (`patches/`). All compile clean on arm64 (`make drivers/video/rockchip/`). **Review each before merging** — see [How to apply & verify a cleanup patch](#how-to-apply--verify-a-cleanup-patch) for the runnable recipe and the per-patch hunk→finding map; start with the HIGH-severity items above.
+
+> **These drafts have now been adversarially verified** — see
+> [`cleanup-draft/VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md).
+> Two **must not** be applied (`cleanup-draft/rejected/mpp_iommu.patch`, and the
+> D1 hunk of `rga_drv.patch`) and one hunk is on hold (`mpp_service.patch:426`);
+> both rejects compiled clean but introduced a new bug. The remaining 12 passed a
+> compile-gate. Apply per VERIFICATION.md, not blindly.

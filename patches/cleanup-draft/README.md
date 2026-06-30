@@ -4,6 +4,14 @@ Per-file draft fixes for the issues in [`docs/11-bsp-audit.md`](../../docs/11-bs
 produced by the multi-agent audit. They apply on top of the forward-port
 (`../`) and target the **shipped `mpp/` + `rga3/` driver code**.
 
+> **✅ Adversarially verified — read [`VERIFICATION.md`](VERIFICATION.md) first.**
+> Every hunk was reviewed against the real source (5 verifiers, each told to *try
+> to break* the fix). **2 must NOT be applied** — `rejected/mpp_iommu.patch`
+> (refcount leak at 2 of 3 callers) and the **D1 hunk** of `rga_drv.patch`
+> (success-path mass-free); **1 hunk on hold** — `mpp_service.patch:426`. The
+> remaining 12 passed (with notes), and the safe set passed a compile-gate. Both
+> rejects *compiled clean* — "it builds" is not verification.
+
 ## ⚠️ These are a draft, not merge-ready
 
 - **Machine-generated**, adversarially-LLM-verified, and **compile-tested on
