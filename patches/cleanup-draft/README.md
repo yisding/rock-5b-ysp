@@ -26,12 +26,33 @@ leaks, a sleep-in-atomic, two logic bugs).
 
 ## Suggested workflow
 
+These patches are `git show`-style single-commit slices (all 15 carved from
+commit `56e403e`), so `git am` / `git apply` work per file. **Heads-up:** the
+path `patches/cleanup-draft/…` only exists in *this* repo (`rock-5b-ysp`), not
+inside the kernel tree — so apply with an **absolute path** (or `git apply
+--directory`), otherwise `git apply` reports "No such file or directory".
+
 ```bash
-cd <linux-6.18-rkvenc>             # the forward-ported tree
+cd /path/to/linux-6.18-rkvenc      # the forward-ported tree
 git checkout -b bsp-cleanup
-git apply --reject patches/cleanup-draft/mpp_iommu.patch   # one file at a time
+
+# Absolute path to the patch (it lives in the rock-5b-ysp checkout, not here):
+git apply --reject /home/yi/Code/rock-5b-ysp/patches/cleanup-draft/mpp_iommu.patch
+#   …or, to keep the commit message:
+git am /home/yi/Code/rock-5b-ysp/patches/cleanup-draft/mpp_iommu.patch
+
 # read the diff, sanity-check each hunk against docs/11, build:
 make ARCH=arm64 drivers/video/rockchip/
+```
+
+Equivalently, run `git apply` from the **rock-5b-ysp** checkout and aim it at the
+kernel worktree:
+
+```bash
+cd /home/yi/Code/rock-5b-ysp
+git --git-dir=/path/to/linux-6.18-rkvenc/.git \
+    --work-tree=/path/to/linux-6.18-rkvenc \
+    apply --reject patches/cleanup-draft/mpp_iommu.patch
 ```
 
 Apply, review, and keep only the hunks you're confident in. The audit report is

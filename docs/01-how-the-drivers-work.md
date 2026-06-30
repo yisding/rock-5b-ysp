@@ -143,10 +143,57 @@ sequenceDiagram
   `task->reg[]`, **bounds-checking** each request's offset/size against the
   register window (`mpp_check_req()` — the audit in `docs/11` found real bugs on
   exactly this user→register edge).
-- A task walks a **state machine** (`TASK_STATE_*` in `mpp_common.h`):
-  `PENDING → RUNNING → START → HANDLE → IRQ → FINISH → DONE`, with `TIMEOUT` and
-  `ABORT` escape paths. The queue worker advances it; the threaded IRQ
-  (`mpp_dev_irq`) moves it from `START`→`IRQ`; completion wakes the poller.
+- A task's progress is recorded as **state flags**, *not* a single advancing
+  variable: `TASK_STATE_*` (`enum mpp_task_state`, `mpp_common.h` ~:389) are **bit
+  positions** set with `set_bit`/`test_bit` on one `unsigned long`. So `PENDING`(0),
+  `RUNNING`(1), `START`(2), `HANDLE`(3), `IRQ`(4), `FINISH`(5), `DONE`(7) — plus the
+  `TIMEOUT`(6) / `ABORT`(9) escape bits and `TASK_TIMING_*` debug bits (16+) — are
+  *accumulated* flags on one word: a completed task has `PENDING|RUNNING|…|FINISH|DONE`
+  all set at once. The queue worker advances it; when the hardware fires, the
+  **hardirq top-half** (`mpp_dev_irq`, `mpp_common.c` ~:2316) latches+clears the HW
+  status and hands off to a per-device `kthread_worker` that runs the result readback
+  (`dev_ops->isr`) and wakes the poller — detailed in §3a.
+
+### 3a. Completion, timeout & reset (for driver devs)
+
+**In plain terms.** Two things can end a task: the hardware finishes (good), or it
+hangs and a watchdog timer fires (bad). Both funnel through the *same* one-winner
+gate so the result is read back exactly once, and a hang forces a hardware reset
+before the next task runs.
+
+**Under the hood.** Work is split between the hardirq top-half and a per-device
+`kthread_worker` (the "bottom half" here is a kthread, *not* an IRQ thread — the
+threaded-IRQ registration uses a NULL thread_fn, see §9):
+
+- **Top-half.** `mpp_dev_irq` (`mpp_common.c` ~:2316) calls `dev_ops->irq` to latch
+  and clear the HW status, sets `TASK_STATE_IRQ`,
+  `cancel_delayed_work(&task->timeout_work)`, `mpp_iommu_dev_deactivate()`, then
+  `mpp_taskqueue_trigger_work()` → `kthread_queue_work()`. It does **no** result
+  readback.
+- **Bottom-half (kthread).** `try_process_running_task()` (~:887) runs `dev_ops->isr`
+  (~:911) to read the result registers, then `mpp_task_finish()` sets `FINISH`/`DONE`
+  and `wake_up(&task->wait)` (~:2049) — the poller is blocked in
+  `wait_event_interruptible(task->wait, TASK_STATE_DONE)` (~:989).
+- **The race gate.** Completion and timeout both attempt
+  `test_and_set_bit(TASK_STATE_HANDLE, …)` under `disable_irq(mpp->irq)` — whoever
+  sets it first owns the task; the loser bails. The two contenders are `mpp_dev_irq`
+  (~:2341) and `mpp_task_timeout_work` (~:552).
+- **Timeout → reset.** `task->timeout_work` is a **500 ms** delayed work
+  (`MPP_WORK_TIMEOUT_DELAY`, `mpp_common.h` ~:33; armed in `mpp_task_timeout_work`,
+  ~:533). On expiry it sets `TASK_STATE_TIMEOUT` (~:562); the worker then does
+  `atomic_inc(&mpp->reset_request)` + `mpp_iommu_dev_deactivate()` (~:903), and
+  `mpp_task_finish()` fires `mpp_dev_reset()` whenever `reset_request > 0` (~:2029).
+  The decoder's soft-CCU reset is gated so it only fires when **no** core is working
+  (`rkvdec2_soft_ccu_worker` ~:2117, guarded by `rkvdec2_core_working` ~:2098, both
+  in `mpp_rkvdec2_link.c`) — an in-flight core is never yanked out from under itself.
+
+> **A session's life.** `open()` → `mpp_session_init()` (`mpp_common.c` ~:367) makes
+> an empty session. The first `INIT_CLIENT_TYPE` ioctl (~:1288) is what *routes* it:
+> it creates `session->dma` (the per-session dma-buf import cache), binds
+> `session->mpp` to the chosen driver, and attaches the session to that block's
+> taskqueue. `close()` → `mpp_dev_release()` (~:1772) takes one of two paths: if work
+> is still in flight (`session->mpp || task_count`) it **detaches to a workqueue** to
+> drain outstanding tasks first, otherwise it **deinits immediately**.
 
 ---
 
@@ -243,8 +290,10 @@ flowchart LR
 ## 7. Key concept: multi-core coordination — the CCU and the DCHS
 
 **In plain terms.** The encoder and decoder each have **two** identical hardware
-cores, so two frames can be worked on at once. Something has to decide *which*
-core takes *which* job and keep the two out of each other's way. Is that
+cores, so two frames can be worked on at once. Two cores aren't only about raw
+throughput — they **hide latency**: while core 0 finishes frame N, core 1 is already
+setting up frame N+1, so neither core stalls waiting on the other. Something has to
+decide *which* core takes *which* job and keep the two out of each other's way. Is that
 "something" hardware or software? The honest answer is **both — and it's a
 switch.** There's a real coordinator block on the chip, but this port runs it in a
 **software-dispatch** mode: the *driver* picks the core, the *hardware* runs the
@@ -308,6 +357,13 @@ bits). Each task carries a `dchs_id` with 2-bit **txid/rxid** channel numbers:
   delay) so consecutive tasks across the two cores **pipeline with a dependency
   hand-off** instead of racing — a session's frames flow across both cores
   cooperatively, synchronized in silicon.
+
+> **Worked example (one frame across the pipeline).** A 1080p NV12 frame is
+> 1920 × 1080 × 1.5 = **3 110 400 bytes** — and it lives in DDR as a *single*
+> dma-buf (§5), referenced by one fd. The expensive thing (3 MB of pixels) is never
+> copied between cores; the cross-core hand-off is the cheap thing — a 2-bit DCHS
+> channel id (decoder side: a task pointer to an idle core). That's the whole point
+> of the zero-copy design: move the ticket, not the frame.
 
 So the encoder's split is "*software assigns the rendezvous channels; hardware does
 the rendezvous*"; the decoder's (soft mode) is "*software assigns whole tasks to
@@ -388,12 +444,20 @@ result registers back ("how many bytes did you produce? any error?").
 - Submission: `SET_REG_WRITE` carries the write classes, `SET_REG_READ` names the
   result registers; `mpp_check_req()` bounds-checks every offset/size against the
   window before `copy_from_user()` into `task->reg[]`. The driver then writes the
-  bank, requests a **threaded IRQ** (`mpp_dev_irq`), and on completion copies the
-  requested result registers back to userspace.
+  bank and arms the interrupt. Note the IRQ shape: `mpp_dev_irq` is registered via
+  `devm_request_threaded_irq(… mpp_dev_irq, NULL, IRQF_ONESHOT …)` (`mpp_rkvenc2.c`
+  ~:3147) with a **NULL `thread_fn`**, so `mpp_dev_irq` is the *hardirq top-half*,
+  not a threaded handler — it latches status and hands the result readback off to a
+  `kthread_worker` (§3a), which copies the requested result registers back.
 - This user→register path is the **security boundary**: it's where attacker-
-  controlled offsets/indices meet a fixed-size kernel buffer, and it's exactly
-  where the `docs/11` audit found real bounds bugs (e.g. a clamp that computed an
-  overflow amount instead of the remaining space).
+  controlled offsets/indices meet a fixed-size kernel buffer. The cleanest example
+  the [`docs/11`](11-bsp-audit.md) audit flagged is the overflow clamp in
+  `mpp_check_req()` (`mpp_common.c` ~:1943): when a request runs past the window the
+  kernel sets `req->size = req_off + req->size - max_size` — i.e. the **overflow
+  amount**, when the safe value is the **remaining space** `max_size - req_off`. A
+  one-character class of bug, on exactly the edge userspace controls — which is why
+  [`docs/11`](11-bsp-audit.md) scrutinises this path and you should treat anything
+  building these requests as trusted-input-only.
 
 ---
 
@@ -408,8 +472,9 @@ result registers back ("how many bytes did you produce? any error?").
    (§7); the **driver** patches IOVAs (§6) and programs the registers.
 6. The **hardware** DMAs through its shared **IOMMU** (§6), using on-chip **SRAM**
    scratch and optionally **link mode** (§8).
-7. A **threaded IRQ** advances the task's state machine to `DONE`; results flow
-   back up and the poller wakes (§3).
+7. The **hardirq top-half** latches the "done" status and a **kthread_worker** reads
+   the results back and sets the task's `DONE` flag; results flow up and the poller
+   wakes (§3, §3a).
 8. For a transcode, the output dma-buf of one stage is the input of the next (§4)
    — decode → RGA → encode, all on hardware, all zero-copy.
 

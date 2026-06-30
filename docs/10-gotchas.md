@@ -15,7 +15,9 @@ but must exist. Keep all six.
 *after* userpatches, so for a same-name file **core wins**. A same-named empty
 userpatch will **not** shadow/disable a core patch (this is the opposite of the
 older bash `patching.sh`). To neutralize a core patch you must either edit it or
-work *around* its output (we chose convert-in-place — `docs/08`).
+work *around* its output (we chose **convert-in-place** — overriding Armbian's
+existing DT nodes where they sit instead of replacing them — see
+[`docs/08`](08-armbian-packaging.md)).
 
 **Two `base.dtsi` patches can collide on the same hunk.** Our encoder/`rkvdec_ccu`
 block and Armbian's `media-0001` `vdec` block both land in the
@@ -34,14 +36,17 @@ re-patching churns mtimes and defeats Armbian's *worktree-incremental*, but
 content-addressed ccache survives it.
 
 **Config-hash component changes legitimately.** Moving config into Kconfig
-defaults and reverting the built-in config changes the Armbian deb name's `C####`
-component (e.g. `C89d0` → `Cb831`). Update `install-combined-kernel.sh`'s `PHASH`.
+defaults and reverting the built-in config changes the `C####` component of the
+Armbian deb name (the config-content hash — `docs/04` explains the `P####-C####`
+deb-name scheme; e.g. `C89d0` → `Cb831`). Update the `PHASH` pin in
+`scripts/install-combined-kernel.sh` so the installer matches the new deb.
 
 ## Device tree
 
 **Missing aliases → no `core_id` → crash.** `of_alias_get_id(np,"rkvenc"/"rkvdec")`
-must resolve. Without `aliases { rkvenc0 = …; rkvdec0 = …; }`, cores get bad
-`core_id`, none becomes core 0, decoder defers/oopses.
+(`mpp_rkvenc2.c:3132`, `mpp_rkvdec2.c:1936`) must resolve. Without
+`aliases { rkvenc0 = …; rkvdec0 = …; }`, cores get bad `core_id`, none becomes
+core 0, decoder defers/oopses.
 
 **DT-overlay aliases resolve to the wrong path.** In a configfs/overlay DT, an
 alias resolves to `/fragment@0/__overlay__/rkvdec-core@…`, not the merged node, so
@@ -53,33 +58,60 @@ TRM-canonical (and mainline/Armbian) is `fdc40000` — the BSP address is the
 
 **Reg/unit-address "mismatch" warnings are benign.** Node is `…@fdc38000` but
 `reg[0]` starts at `fdc38100` (the function window). DTC warns; it's harmless and
-pre-exists in mainline's own nodes.
+pre-exists in mainline's own nodes. (The *runtime* register-window bounds check is
+a separate thing: `mpp_check_req` (`mpp_common.c:1914`) validates each request
+against its window — and the BSP audit flags a latent clamp-arithmetic bug there
+at `mpp_common.c:1943`, where the over-size path stores the overflow amount
+instead of the remaining space. See [`docs/11`](11-bsp-audit.md).)
 
 ## Driver / probe
 
+> These are forward-port traps **we introduced or hit** porting to 6.18. For
+> latent *pre-existing* BSP defects in the same files (`mpp_iommu.c`,
+> `mpp_rkvdec2.c`, `mpp_rkvenc2.c`, `mpp_common.c`) — bugs that predate this work
+> — see [`docs/11`](11-bsp-audit.md), the BSP audit. Two entries below overlap it
+> and link across.
+
 **A `*-core@…` node *requires* its CCU.** Both encoder and decoder dispatch by
-`strstr(np->name,"core")` to a CCU-attaching probe with no standalone fallback.
-Enable the CCU with the cores or you get `attach ccu failed` and an absent core.
-(We spent a build discovering this when the encoder regressed: `rkvenc_ccu` was
-left disabled while `rkvenc0` still referenced it.)
+`strstr(np->name,"core")` (`rkvenc_probe`, `mpp_rkvenc2.c:3226-3228`;
+`rkvdec2_probe`, `mpp_rkvdec2.c:2083-2090`) to a CCU-attaching probe with no
+standalone fallback. Enable the CCU with the cores or `*_attach_ccu()` logs
+`attach ccu failed` (`mpp_rkvenc2.c:3142`, `mpp_rkvdec2.c:1951`) and the core
+never registers. (We spent a build discovering this when the encoder regressed:
+`rkvenc_ccu` was left disabled while `rkvenc0` still referenced it.)
 
 **Probe ordering: defer, don't fail.** A core can probe before its CCU sets
 `drvdata`, or a secondary core before core 0. The BSP returned `-ENOMEM`/oopsed;
-we return `-EPROBE_DEFER` (and publish CCU `drvdata` last). Six sites — see
-`docs/05`.
+we return `-EPROBE_DEFER` (`rkvenc_attach_ccu`, `mpp_rkvenc2.c:2931`;
+`rkvdec2_attach_ccu` in `mpp_rkvdec2.c`) and publish CCU `drvdata` last. Six sites,
+enumerated in `docs/05`.
 
-**`iommu_set_fault_handler()` WARNs on 6.18.** New `cookie_type != IOMMU_COOKIE_NONE`
-assertion fires because the BSP sets a handler on the DMA default domain. Guard
-the call with `domain->cookie_type == IOMMU_COOKIE_NONE`.
+**`iommu_set_fault_handler()` WARNs on 6.18.** The new
+`WARN_ON(!domain || domain->cookie_type != IOMMU_COOKIE_NONE)` inside
+`iommu_set_fault_handler` (`drivers/iommu/iommu.c:2015`) fires because the BSP sets
+a handler on the DMA default domain, which already owns a cookie. Guard the call
+with `domain->cookie_type == IOMMU_COOKIE_NONE` in `mpp_iommu_dev_activate`
+(`mpp_iommu.c:669-671`).
 
 **`CONFIG_CPU_RK3588` is never defined** in mainline/Armbian configs, so the BSP's
 guarded `of_device_id` entries don't register. Make the RK3588 match entries
-unconditional.
+unconditional — the `mpp_rkvdec2_dt_match[]` table (`mpp_rkvdec2.c:1683`) and
+`mpp_rkvenc_dt_match[]` (`mpp_rkvenc2.c:2828`), specifically the
+`rockchip,rkv-*-v2-ccu`/`-v2-core` entries that the BSP wrapped in
+`#ifdef CONFIG_CPU_RK3588`.
 
-**Node-name dispatch blocks node *reuse*.** Because dispatch keys off the node
-*name*, you can't rename Armbian's `video-codec@…` nodes via a label override.
-Solution: also dispatch by **compatible** (`of_device_is_compatible`), which lets
-the generic-named node reach `core_probe` — the enabler for convert-in-place.
+**Node-name dispatch blocks node *reuse*.** Because probe dispatch keys off the
+node *name* (`strstr(np->name,"core")`/`"ccu"`), you can't rename Armbian's
+`video-codec@…` nodes via a label override. Solution: in `rkvdec2_probe`
+(`mpp_rkvdec2.c:2083-2090`) also dispatch by **compatible**
+(`of_device_is_compatible`), which lets the generic-named node reach
+`rkvdec2_core_probe` — the enabler for convert-in-place (see
+[`docs/08`](08-armbian-packaging.md)). **Caveat (latent BSP asymmetry):** only the
+*probe* path learned the compatible check; `rkvdec2_remove`/`shutdown`/runtime-PM
+still dispatch by `strstr(dev_name,"ccu")` (`mpp_rkvdec2.c:2119`, `:2142`, `:2148`,
+`:2182`), and `rkvenc_probe` (`mpp_rkvenc2.c:3226-3228`) never gained it at all —
+flagged in [`docs/11`](11-bsp-audit.md) as the `mpp_rkvdec2.c:2119`
+dispatch-asymmetry finding.
 
 ## Runtime
 

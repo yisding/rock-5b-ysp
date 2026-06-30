@@ -87,6 +87,28 @@ styles that bottom out in the same engine:
   **`MppBuffer`** (a dma-buf-backed allocation), **`MppTask`** (a unit of work on a
   port), **`MppCtx`** (the instance, decoder *or* encoder per `MppCtxType`).
 
+**Worked example — the advanced port cycle.** This is the hardest API to picture, so
+here is the actual shape (decoder, modelled on `test/mpi_dec_multi_test.c`). You
+borrow an `MppTask` from the **input port**, attach *your own* dma-buf-backed frame
+as its output, submit, then reap it from the **output port**:
+
+```c
+mpi->poll   (ctx, MPP_PORT_INPUT,  MPP_POLL_BLOCK);   // wait for a free input slot
+mpi->dequeue(ctx, MPP_PORT_INPUT,  &task);            // borrow an MppTask
+mpp_task_meta_set_packet(task, KEY_INPUT_PACKET, packet);
+mpp_task_meta_set_frame (task, KEY_OUTPUT_FRAME, frame); // attach YOUR dma-buf
+mpi->enqueue(ctx, MPP_PORT_INPUT,  task);             // hand it to the hardware
+// …later, reap it:
+mpi->poll   (ctx, MPP_PORT_OUTPUT, MPP_POLL_BLOCK);
+mpi->dequeue(ctx, MPP_PORT_OUTPUT, &task);            // the finished task
+mpp_task_meta_get_frame (task, KEY_OUTPUT_FRAME, &out);
+mpi->enqueue(ctx, MPP_PORT_OUTPUT, task);             // recycle the slot
+```
+
+Because *you* supply the buffer bound to each `MppTask`, the decode→RGA→encode chain
+can cycle **one** dma-buf through all three stages instead of copying — this explicit
+control is exactly what the zero-copy transcode (Part C) is built on.
+
 ## A3. The layers inside libmpp
 
 **In plain terms.** Your call descends through: the public API → a context running
@@ -108,7 +130,7 @@ flowchart TB
 | MPI + context | `inc/`, `mpp/mpi.c`, `mpp/mpp.c` | public API; spawns worker thread(s); owns the input/output ports |
 | codec — decode | `mpp/codec/dec` | per-format **parsers** (H.264/H.265/VP9): turn a packet into picture info + a reference list |
 | codec — encode | `mpp/codec/enc` | encoder **control**: config, header generation, slice setup |
-| rate control | `mpp/codec/rc` (`h264e_rc.c`, `h265e_rc.c`, `rc.c`) | choose **QP/bitrate** per frame to hit the target bitrate |
+| rate control | `mpp/codec/rc` (`h264e_rc.c`, `h265e_rc.c`, `rc.c`) | choose each frame's **QP** (quantization parameter — the quality/size knob) and bitrate to hit the target |
 | HAL | `mpp/hal/rkenc`, `mpp/hal/rkdec` | per-codec **register builders** (`hal_h264e`, `hal_h265e`, `hal_h264d`, `hal_h265d`) — *the recipe* |
 | OSAL | `osal/` | buffers, threads, locks, time, SoC/platform detection |
 | driver client | `osal/driver/mpp_service.c` | issues `INIT_CLIENT_TYPE`, `SET_REG_WRITE/READ`, `POLL_HW_FINISH` (docs/01 §3) |
@@ -145,7 +167,11 @@ Encode is the mirror image: `encode_put_frame` (raw in) → **rate control** pic
 this frame's QP from the bitrate target → HAL builds the VEPU580 recipe → kernel
 runs it → `encode_get_packet` (bitstream out). The **key link to docs/01:** the
 HAL's register block *is* the `SET_REG_WRITE` payload the kernel `copy_from_user()`s
-into `task->reg[]` — libmpp **writes** the recipe; the kernel **runs** it.
+into `task->reg[]` — libmpp **writes** the recipe; the kernel **runs** it. That block
+doesn't cross as loose ioctls either: the OSAL client packs `SET_REG_WRITE` +
+`SET_REG_READ` + the buffer-offset messages into a **batched array of `MppReqV1`** and
+issues the whole array in **one** `MPP_IOC_CFG_V1` ioctl (last message flagged to
+start the task). [`docs/03`](03-dev-uapis.md) documents that wire format.
 
 ## A5. Buffers — where the dma-bufs come from
 
@@ -161,7 +187,11 @@ it isn't allocating mid-stream.
 - Buffers live in **`MppBufferGroup`s** (pools), so the decoder recycles a fixed
   set of output frames. **`MppBufSlots`** maps each decoded picture to a slot and
   tracks its reference/display state, so a frame isn't reused while it's still a
-  motion-compensation reference or still queued for display.
+  motion-compensation reference or still queued for display. This userspace pool
+  **mirrors** the kernel side: every frame still held as a reference here stays
+  **imported and refcounted** on that session's used-list ([`docs/01` §5](01-how-the-drivers-work.md)),
+  keeping its IOVA mapping alive — userspace won't recycle the slot, and the kernel
+  won't drop the mapping, until the reference is released.
 
 ### A5.1 The dma-heap path — what backend actually serves the buffers
 

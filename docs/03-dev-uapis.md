@@ -72,7 +72,27 @@ typedef struct mppReqV1_t {
 } MppReqV1;
 ```
 
-The kernel dispatches on `cmd`, grouped by base value (`mpp_common.c`):
+The **top-level ioctl** that carries these is **`MPP_IOC_CFG_V1`** — magic `'v'`,
+`_IOW('v', 1, unsigned int)` → **`0x40047601`** (`rk-mpp.h` ~:15). Its `arg` is a
+*packed array* of `MppReqV1`; the kernel walks it one entry at a time
+(`msg += sizeof(msg_v1)`, `mpp_common.c` ~:1526). This array-in-one-syscall is the
+batching mechanism, driven by the `flag` field:
+
+| `MPP_FLAGS_*` (`rk-mpp.h` ~:58) | value | meaning |
+|---|---|---|
+| `MULTI_MSG` | `0x1` | this syscall carries several messages — keep walking |
+| `LAST_MSG` | `0x2` | the final message of the batch — *now* start the task |
+| `REG_FD_NO_TRANS` | `0x4` | don't fd→iova-translate the register block |
+| `SCL_FD_NO_TRANS` | `0x8` | don't translate the scaling-list fd |
+| `REG_NO_OFFSET` | `0x10` | register addresses carry no patch offset |
+| `SECURE_MODE` | `0x10000` | secure-memory path |
+
+(`MPP_IOC_CFG_V2` = `0x40047602` exists too — `rk-mpp.h` ~:16 — but `mpp_collect_msgs`
+rejects anything `!= MPP_IOC_CFG_V1` (`mpp_common.c` ~:1516), so V2 is reserved/unused
+on this path.)
+
+The kernel dispatches on each message's inner `cmd`, grouped by base value
+(`mpp_common.c`):
 
 | Group (base) | Command | What it does |
 |--------------|---------|--------------|
@@ -83,9 +103,25 @@ The kernel dispatches on `cmd`, grouped by base value (`mpp_common.c`):
 | | `SET_REG_READ` | which result registers to read back |
 | | `SET_REG_ADDR_OFFSET` | where in the recipe to patch buffer IOVAs |
 | | `SET_RCB_INFO` | which row-cache fields go in on-chip SRAM (docs/01 §8) |
-| | `SET_SESSION_FD` | batch-start a task for a session |
+| | `SET_SESSION_FD` | **switch to another session** mid-batch (*not* a task-start — see below) |
 | **POLL** `0x300` | `POLL_HW_FINISH`, `POLL_HW_IRQ` | block until the task completes |
 | **CONTROL** `0x400` | `RESET_SESSION`, `TRANS_FD_TO_IOVA`, `RELEASE_FD`, `SEND_CODEC_INFO` | reset, fd↔iova, buffer release, codec hints |
+
+**`SET_SESSION_FD` — switching sessions mid-batch (easy to misread).** This does
+*not* start a task. Inside one batched ioctl that spans **several sessions**, it tells
+the kernel "the messages that follow belong to *this* session instead," carried by:
+
+```c
+struct mpp_bat_msg {     /* rk-mpp.h ~:76 */
+    __u64 flag;          /* MPP_BAT_MSG_DONE (0x1) skips an already-finished slot */
+    __u32 fd;            /* fd of the session to switch to                        */
+    __s32 ret;           /* out: per-slot error code                              */
+};
+```
+
+The kernel `fdget`s the target session and flips the active `msgs->session`
+(`mpp_common.c` ~:1542). It's how libmpp drives multiple codec contexts through a
+single syscall.
 
 ### The flow
 
@@ -112,6 +148,46 @@ sequenceDiagram
   that builds these requests as trusted-input-only.
 - `INIT_CLIENT_TYPE` is mandatory and first: without it the kernel doesn't know
   which hardware block (and which driver) the session targets.
+- `MPP_CMD_QUERY_CMD_SUPPORT` is the feature-probe: pass a *group base* (e.g.
+  `0x200`) and the kernel returns that group's `*_BUTT` ceiling — the highest command
+  number that base supports — via `mpp_get_cmd_butt()` (`mpp_common.c` ~:1206). A
+  client can then tell which commands this kernel honours without trial and error.
+- `MPP_CMD_RESET_SESSION` is the clean recovery path for a wedged session: it waits
+  (with `readx_poll_timeout`, up to **500 ms**) for the session's `task_count` to
+  drain to 0, then tears down `session->dma` (`mpp_common.c` ~:1385).
+
+### A minimal MPP client (the syscall shape)
+
+This doc promises "writing a minimal client," so here is the bare bones — open the
+device, declare the session type, then submit one task as a batched array and poll.
+Error handling and the actual register image are elided; the point is the *shape*:
+
+```c
+int fd = open("/dev/mpp_service", O_RDWR);
+
+/* 1. declare which block this session drives (one MppReqV1 = one ioctl) */
+RK_U32 client_type = VPU_CLIENT_RKVDEC;          /* = 9; RKVENC = 16 */
+MppReqV1 init = { .cmd = MPP_CMD_INIT_CLIENT_TYPE,
+                  .size = sizeof(client_type),
+                  .data_ptr = (RK_U64)(uintptr_t)&client_type };
+ioctl(fd, MPP_IOC_CFG_V1, &init);
+
+/* 2. one task = a batched ARRAY of MppReqV1 in a single ioctl:
+ *    write the register recipe, then poll for completion.            */
+MppReqV1 batch[2] = {
+  { .cmd = MPP_CMD_SET_REG_WRITE,  .flag = MPP_FLAGS_MULTI_MSG,
+    .size = reg_size, .data_ptr = (RK_U64)(uintptr_t)reg_image },
+  { .cmd = MPP_CMD_POLL_HW_FINISH,
+    .flag = MPP_FLAGS_MULTI_MSG | MPP_FLAGS_LAST_MSG },   /* LAST_MSG starts it */
+};
+ioctl(fd, MPP_IOC_CFG_V1, batch);                /* whole batch, one syscall */
+close(fd);
+```
+
+The two things newcomers miss: **every** call is the *same* ioctl request
+(`MPP_IOC_CFG_V1`); and a "task" is a **batch** — the kernel walks the array until it
+sees `LAST_MSG`, then runs the hardware. Real clients also send `SET_REG_READ` and
+`SET_REG_ADDR_OFFSET` in the same batch; see `osal/driver/mpp_service.c`.
 
 ---
 
@@ -163,6 +239,7 @@ the clip window, and MMU info.
 | `RGA_IOC_REQUEST_CREATE` | 0x5 | returns `id` | open a request |
 | `RGA_IOC_REQUEST_CONFIG` | 0x7 | `rga_user_request` | attach task(s) to the request |
 | `RGA_IOC_REQUEST_SUBMIT` | 0x6 | `rga_user_request` | run it (sync or async) |
+| `RGA_IOC_REQUEST_CANCEL` | 0x8 | `uint32_t` (request id) | drop a created-but-unsubmitted request |
 
 ```c
 struct rga_user_request {
@@ -172,6 +249,7 @@ struct rga_user_request {
     uint32_t sync_mode;         /* RGA_BLIT_SYNC / RGA_BLIT_ASYNC   */
     uint32_t release_fence_fd;  /* out: the fence (async)           */
     uint32_t mpi_config_flags;
+    uint32_t acquire_fence_fd;  /* in: wait on this fence before running */
 };
 ```
 
@@ -208,9 +286,18 @@ This is the bottom edge of [`docs/02`](02-how-the-userspace-libs-work.md):
 | `mpi->decode_put_packet` / `encode_put_frame` (libmpp) | `INIT_CLIENT_TYPE` once, then `SET_REG_WRITE`+`SET_REG_READ`+`SET_REG_ADDR_OFFSET`, then `POLL_HW_FINISH` (`osal/driver/mpp_service.c`) |
 | `imresize` / `c_RkRgaBlit` (librga) | `RGA_BLIT_SYNC/ASYNC` (legacy) or `REQUEST_CREATE`→`CONFIG`→`SUBMIT` (modern) in `core/NormalRga.cpp` |
 
-So when `strace` shows ffmpeg issuing a burst of `ioctl(…, 0x200, …)` (that's
-`SET_REG_WRITE`) followed by `0x300` (`POLL_HW_FINISH`), that's one frame being
-encoded/decoded; `0x5017`/`RGA_IOC_REQUEST_SUBMIT` is one 2D op.
+**A trap when reading `strace`.** Under MPP, **every** message for *every* codec
+shows up as the *same* request number: `ioctl(fd, MPP_IOC_CFG_V1, …)` =
+**`0x40047601`**. The `0x200`/`0x300` codes (`SET_REG_WRITE`, `POLL_HW_FINISH`) are
+**not** ioctl request numbers — they are the inner `cmd` field of each `mpp_msg_v1`
+*inside the payload buffer*, which the kernel copies from userspace separately
+(`mpp_collect_msgs`, `mpp_common.c` ~:1523). So `grep 0x200` finds **nothing** on the
+codec path; that is the single most common mistake reading an MPP trace. To see the
+inner `SET_REG_WRITE`/`POLL_HW_FINISH` stream you need `strace -X`/a buffer dump, the
+driver's own `mpp_dev_debug` module param (`mpp_service.c` ~:50), or
+`/proc/mpp_service/supports-cmd` (`mpp_service.c` ~:260). RGA is the opposite:
+`RGA_BLIT_SYNC` = `0x5017` and `RGA_IOC_REQUEST_SUBMIT` *are* real ioctl request
+numbers, so a single 2D op **does** show directly in `strace`.
 
 ---
 
@@ -220,9 +307,13 @@ encoded/decoded; `0x5017`/`RGA_IOC_REQUEST_SUBMIT` is one 2D op.
 # Which cores are bound and serving requests right now:
 ls /proc/mpp_service/ ; cat /proc/mpp_service/rkvdec-core0/* 2>/dev/null
 
-# Watch the exact ioctl conversation a real workload has with the kernel:
+# Watch the exact ioctl conversation a real workload has with the kernel.
+# NOTE: MPP codec ops ALL appear as MPP_IOC_CFG_V1 / 0x40047601 — the inner
+# SET_REG_WRITE/POLL_HW_FINISH cmds live INSIDE those buffers (see §C), so don't
+# grep for 0x200/0x300. RGA ops (0x5017 / RGA_IOC_*) do show as real requests.
 sudo strace -e trace=ioctl,openat -f \
-  ffmpeg -hwaccel rkmpp -i in.h264 -c:v hevc_rkmpp out.mp4 2>&1 | grep -E '/dev/(mpp_service|rga)|0x(200|300|5017)'
+  ffmpeg -hwaccel rkmpp -i in.h264 -c:v hevc_rkmpp out.mp4 2>&1 \
+  | grep -E '/dev/(mpp_service|rga)|MPP_IOC_CFG_V1|0x40047601|0x5017|RGA_IOC'
 
 # RGA load / version / scheduler:
 cat /sys/kernel/debug/rkrga/load /sys/kernel/debug/rkrga/*version* 2>/dev/null
@@ -235,7 +326,11 @@ Reading the raw ioctl stream is the fastest way to answer "is it really using th
 hardware?" and "where did it stall?" — and it's exactly the surface the audit in
 [`docs/11`](11-bsp-audit.md) scrutinised for memory-safety bugs.
 
-> The canonical definitions live in the kernel uAPI headers
-> (`drivers/video/rockchip/rga3/include/rga.h` for RGA; the `MppServiceCmdType`
-> enum + `MppReqV1` in MPP's `osal/inc/mpp_service.h`, mirrored kernel-side). Treat
-> those as the source of truth; this doc is the map.
+> The canonical definitions live in the kernel uAPI headers. For RGA:
+> `drivers/video/rockchip/rga3/include/rga.h`. For MPP the **kernel ABI source of
+> truth is `include/uapi/linux/rk-mpp.h`** — `enum MPP_DEV_COMMAND_TYPE`, `struct
+> mpp_request {cmd, flags, size, offset, void __user *data}`, and the
+> `MPP_IOC_CFG_V*` macros; the struct the kernel actually parses off the wire is
+> `struct mpp_msg_v1` (`mpp_common.c` ~:40). Userspace mirrors these in MPP's
+> `osal/inc/mpp_service.h` (the `MppServiceCmdType` enum + `MppReqV1`). Treat the
+> headers as the source of truth; this doc is the map.

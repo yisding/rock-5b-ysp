@@ -27,36 +27,191 @@ nodes**, so those `&vdec0 { … }` overrides reference an undefined label and wo
 compile. For vanilla you need the **inline** form: define the decoder cores
 directly, like the encoder and RGA already are.
 
-Concretely, in `rk3588-base.dtsi`, instead of overriding `&vdec0/&vdec1`, define:
+Scope check: **only the decoder needs hand-authoring.** The encoder
+(`rkvenc0`/`rkvenc1` + `rkvenc_ccu` + `mpp_srv`) and the RGA cores are already
+written **inline** in `base.dtsi` by the same DT patch (they had no `media-0001`
+counterpart to convert), so they apply to vanilla 6.18 unchanged. Everything
+below is decoder-only.
+
+### What the inline form must add that convert-in-place inherited
+
+The convert-in-place form (`docs/08`) inherits four things from `media-0001`'s
+nodes. The inline form has no node to inherit from, so it must **declare them
+itself**:
+
+- **`interrupts`** on every core *and* MMU — convert-in-place sets only
+  `interrupt-names`. The SPI numbers come from the **BSP/TRM**; this repo has no
+  in-tree source for them (see the warning below).
+- **`iommus`** and the **`rkvdecN_mmu`** iommu nodes — convert-in-place reuses
+  media's `vdecN_mmu`.
+- **`power-domains`** on each core/MMU.
+- the **`vdecN_sram`** RCB pools (children of `system_sram2@ff001000`) —
+  convert-in-place reuses media's pool nodes untouched.
+
+> **Verify the SPI numbers.** The `interrupts = <GIC_SPI 95 …>` below (and the MMU
+> IRQs) are **placeholders**. Because convert-in-place *inherits* `interrupts`
+> from `media-0001`, **no source in this repo confirms them** for the inline
+> decoder. Treat every decoder `GIC_SPI` value here as **"verify against
+> BSP/TRM,"** not known-good. (The encoder IRQs *are* in-tree and verified — see
+> `docs/07` — but the decoder's are not.)
+
+### Complete inline decoder DT (copy-pasteable)
+
+Drop this into `rk3588-base.dtsi` (cores/CCU/MMUs as siblings of `av1d@fdc70000`)
+plus the `&system_sram2` / `&{/aliases}` fragments. Lines marked `DIFF` differ
+from the convert-in-place form. Clock/reset macro names, `core-mask`, `rcb-*`,
+`taskqueue-node`, and base addresses are all verified against the driver + DT
+patch; only the `GIC_SPI` numbers and the exact MMU `reg`-window layout need
+BSP/TRM confirmation.
 
 ```dts
-rkvdec_ccu: rkvdec-ccu@fdc30000 { compatible = "rockchip,rkv-decoder-v2-ccu"; ... };
-
-rkvdec0: rkvdec-core@fdc38000 {
-    compatible = "rockchip,rkv-decoder-v2";
-    reg = <0x0 0xfdc38100 0x0 0x400>, <0x0 0xfdc38000 0x0 0x100>;  reg-names = "regs","link";
-    interrupts = <GIC_SPI 95 ...>;  interrupt-names = "irq_rkvdec0";
-    clocks = <&cru ACLK_RKVDEC0>, <&cru HCLK_RKVDEC0>, <&cru CLK_RKVDEC0_CORE>,
-             <&cru CLK_RKVDEC0_CA>, <&cru CLK_RKVDEC0_HEVC_CA>;
-    clock-names = "aclk_vcodec","hclk_vcodec","clk_core","clk_cabac","clk_hevc_cabac";
-    resets = <&cru SRST_A_RKVDEC0>, ...;  reset-names = "video_a","video_h","video_core","video_cabac","video_hevc_cabac";
-    iommus = <&rkvdec0_mmu>;
-    rockchip,srv = <&mpp_srv>;  rockchip,ccu = <&rkvdec_ccu>;
-    rockchip,core-mask = <0x00010001>;  rockchip,taskqueue-node = <9>;
-    rockchip,sram = <&vdec0_sram>;
-    rockchip,rcb-iova = <0xFFF00000 0x100000>;  rockchip,rcb-info = <...>;
+rkvdec_ccu: rkvdec-ccu@fdc30000 {
+    compatible = "rockchip,rkv-decoder-v2-ccu";
+    reg = <0x0 0xfdc30000 0x0 0x100>;
+    reg-names = "ccu";
+    clocks = <&cru ACLK_RKVDEC_CCU>;
+    clock-names = "aclk_ccu";
+    assigned-clocks = <&cru ACLK_RKVDEC_CCU>;
+    assigned-clock-rates = <600000000>;
+    resets = <&cru SRST_A_RKVDEC_CCU>;
+    reset-names = "video_ccu";
+    rockchip,skip-pmu-idle-request;
+    rockchip,ccu-mode = <1>;                 /* 1 = soft CCU, 2 = hw CCU */
     power-domains = <&power RK3588_PD_RKVDEC0>;
     status = "okay";
 };
-rkvdec0_mmu: iommu@fdc38700 { compatible="rockchip,rk3588-iommu","rockchip,rk3568-iommu"; ...; rockchip,disable-mmu-reset; #iommu-cells=<0>; };
-/* rkvdec1 @ fdc40000 + rkvdec1_mmu @ fdc40700, core-mask 0x00020002, rcb-iova 0xFFE00000 */
-/* vdecN_sram pools under system_sram2@ff001000 */
-/* aliases: rkvdec0 = &rkvdec0; rkvdec1 = &rkvdec1; */
+
+rkvdec0: rkvdec-core@fdc38000 {              /* DIFF: full node (convert form is `&vdec0 { … }`) */
+    compatible = "rockchip,rkv-decoder-v2";
+    reg = <0x0 0xfdc38100 0x0 0x400>,        /* "regs" at core+0x100 -> io_base; MMU = io_base+0x600 = fdc38700 */
+          <0x0 0xfdc38000 0x0 0x100>;        /* "link" at core+0x000 */
+    reg-names = "regs", "link";
+    interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH 0>;  /* DIFF: present (inherited in convert). SPI# UNVERIFIED -- confirm vs BSP/TRM */
+    interrupt-names = "irq_rkvdec0";
+    clocks = <&cru ACLK_RKVDEC0>, <&cru HCLK_RKVDEC0>, <&cru CLK_RKVDEC0_CORE>,
+             <&cru CLK_RKVDEC0_CA>, <&cru CLK_RKVDEC0_HEVC_CA>;
+    clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core",
+                  "clk_cabac", "clk_hevc_cabac";
+    rockchip,normal-rates = <800000000>, <0>, <600000000>, <600000000>, <1000000000>;
+    resets = <&cru SRST_A_RKVDEC0>, <&cru SRST_H_RKVDEC0>, <&cru SRST_RKVDEC0_CORE>,
+             <&cru SRST_RKVDEC0_CA>, <&cru SRST_RKVDEC0_HEVC_CA>;
+    reset-names = "video_a", "video_h", "video_core",
+                  "video_cabac", "video_hevc_cabac";
+    iommus = <&rkvdec0_mmu>;                  /* DIFF: present (inherited in convert) */
+    rockchip,skip-pmu-idle-request;
+    rockchip,srv = <&mpp_srv>;
+    rockchip,ccu = <&rkvdec_ccu>;
+    rockchip,core-mask = <0x00010001>;
+    rockchip,taskqueue-node = <9>;
+    rockchip,task-capacity = <16>;            /* recommended: default 1 = no link-mode batching */
+    rockchip,sram = <&vdec0_sram>;
+    rockchip,rcb-iova = <0xFFF00000 0x100000>;
+    rockchip,rcb-info = <136 24576>, <137 49152>, <141 90112>, <140 49152>,
+                        <139 180224>, <133 49152>, <134 8192>, <135 4352>,
+                        <138 13056>, <142 291584>;
+    rockchip,rcb-min-width = <512>;
+    power-domains = <&power RK3588_PD_RKVDEC0>; /* DIFF: present (inherited in convert) */
+    status = "okay";
+};
+
+rkvdec0_mmu: iommu@fdc38700 {                 /* DIFF: full node (convert reuses media's vdec0_mmu) */
+    compatible = "rockchip,rk3588-iommu", "rockchip,rk3568-iommu";
+    reg = <0x0 0xfdc38700 0x0 0x40>, <0x0 0xfdc38740 0x0 0x40>;  /* reg-window count + IRQ per BSP/media vdecN_mmu -- verify */
+    interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH 0>;             /* UNVERIFIED -- confirm vs BSP/TRM */
+    clocks = <&cru ACLK_RKVDEC0>, <&cru HCLK_RKVDEC0>;
+    clock-names = "aclk", "iface";
+    power-domains = <&power RK3588_PD_RKVDEC0>;
+    rockchip,disable-mmu-reset;
+    #iommu-cells = <0>;
+    status = "okay";
+};
+
+rkvdec1: rkvdec-core@fdc40000 {
+    compatible = "rockchip,rkv-decoder-v2";
+    reg = <0x0 0xfdc40100 0x0 0x400>, <0x0 0xfdc40000 0x0 0x100>;
+    reg-names = "regs", "link";
+    interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH 0>;  /* UNVERIFIED -- confirm vs BSP/TRM */
+    interrupt-names = "irq_rkvdec1";
+    clocks = <&cru ACLK_RKVDEC1>, <&cru HCLK_RKVDEC1>, <&cru CLK_RKVDEC1_CORE>,
+             <&cru CLK_RKVDEC1_CA>, <&cru CLK_RKVDEC1_HEVC_CA>;
+    clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core",
+                  "clk_cabac", "clk_hevc_cabac";
+    rockchip,normal-rates = <800000000>, <0>, <600000000>, <600000000>, <1000000000>;
+    resets = <&cru SRST_A_RKVDEC1>, <&cru SRST_H_RKVDEC1>, <&cru SRST_RKVDEC1_CORE>,
+             <&cru SRST_RKVDEC1_CA>, <&cru SRST_RKVDEC1_HEVC_CA>;
+    reset-names = "video_a", "video_h", "video_core",
+                  "video_cabac", "video_hevc_cabac";
+    iommus = <&rkvdec1_mmu>;
+    rockchip,skip-pmu-idle-request;
+    rockchip,srv = <&mpp_srv>;
+    rockchip,ccu = <&rkvdec_ccu>;
+    rockchip,core-mask = <0x00020002>;        /* core1 bitmask */
+    rockchip,taskqueue-node = <9>;            /* same queue as core0 */
+    rockchip,task-capacity = <16>;
+    rockchip,sram = <&vdec1_sram>;
+    rockchip,rcb-iova = <0xFFE00000 0x100000>;/* core1 RCB window */
+    rockchip,rcb-info = <136 24576>, <137 49152>, <141 90112>, <140 49152>,
+                        <139 180224>, <133 49152>, <134 8192>, <135 4352>,
+                        <138 13056>, <142 291584>;
+    rockchip,rcb-min-width = <512>;
+    power-domains = <&power RK3588_PD_RKVDEC1>;
+    status = "okay";
+};
+
+rkvdec1_mmu: iommu@fdc40700 {
+    compatible = "rockchip,rk3588-iommu", "rockchip,rk3568-iommu";
+    reg = <0x0 0xfdc40700 0x0 0x40>, <0x0 0xfdc40740 0x0 0x40>;  /* verify vs BSP */
+    interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH 0>;             /* UNVERIFIED -- confirm vs BSP/TRM */
+    clocks = <&cru ACLK_RKVDEC1>, <&cru HCLK_RKVDEC1>;
+    clock-names = "aclk", "iface";
+    power-domains = <&power RK3588_PD_RKVDEC1>;
+    rockchip,disable-mmu-reset;
+    #iommu-cells = <0>;
+    status = "okay";
+};
 ```
 
-These exact node bodies are in the **commit history** of the dev tree (the state
-*before* the convert-in-place rewrite) and in `docs/07`/`docs/08`. The git commit
-that introduced convert-in-place is the diff between the two forms.
+```dts
+/* DIFF: SRAM RCB pools defined here (convert-in-place reuses media's). */
+/* system_sram2@ff001000 has #address-cells=<1> #size-cells=<1>, ranges 0..0xef000. */
+&system_sram2 {
+    vdec0_sram: sram@0 {
+        reg = <0x0 0x78000>;
+        pool;                                 /* media marks it a pool; the vendor reads it raw via */
+                                              /* of_address_to_resource -- so `pool;` is harmless either way */
+    };
+    vdec1_sram: sram@78000 {
+        reg = <0x78000 0x77000>;              /* 0x78000 + 0x77000 = 0xef000 = system_sram2 size */
+        pool;
+    };
+};
+
+/* DIFF: aliases point at the inline labels (convert points at &vdec0/&vdec1). MANDATORY: */
+/* of_alias_get_id(np, "rkvdec") -> core_id; without these no core becomes core 0. */
+&{/aliases} {
+    rkvdec0 = &rkvdec0;
+    rkvdec1 = &rkvdec1;
+};
+```
+
+Verified-good above (against the driver + the shipped DT patch): all base
+addresses, the `regs`/`link` split, the 5 clock + 5 reset macro names for both
+cores, `core-mask` (`0x00010001` / `0x00020002`), `taskqueue-node = <9>`,
+`rcb-iova`, `rcb-info`, `rcb-min-width`, `ccu-mode`, and the SRAM `@0`/`@78000`
+arithmetic. **Unverified — confirm against BSP/TRM:** every decoder `GIC_SPI`
+number and the exact MMU `reg`-window count. These same vendor node bodies also
+live in the **commit history** of the dev tree (the state *before* the
+convert-in-place rewrite); the convert-in-place commit is precisely the diff
+between this inline form and the `&vdec0 { … }` form (`docs/08`).
+
+### Don't ship a working-but-degraded node
+
+A copied core probes even if you drop the *optional* tuning properties, but you
+lose throughput silently. In particular set **`rockchip,task-capacity`** (the
+example uses `16`): it defaults to `1` (`mpp_common.c:2177`), and `1` disables
+link-mode batching, so the decoder runs one task at a time. Also keep
+`rockchip,skip-pmu-idle-request` and the `rockchip,rcb-*` set to match the shipped
+profile.
 
 > Because mainline 6.18 itself has **no** node at `fdc38000`/`fdc40000`, the inline
 > form is purely additive — no conflict, no `/delete-node/`. The convert-in-place

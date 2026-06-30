@@ -28,6 +28,11 @@ mmus at `…700`, same SRAM pools). Two nodes at one address, two drivers fighti
 for the same MMIO → you must remove one set. The whole question is *how*, without
 editing `media-0001`.
 
+Note the scope: **only the decoder collides.** The encoder (`fdbd0000`/`fdbe0000`)
+and the RGA cores (`fdb60000`/`fdb70000`/`fdb80000`) have no `media-0001`
+counterpart, so they are added **inline / additively** in `base.dtsi` with no
+conflict. Convert-in-place is a decoder-only dance.
+
 ## Attempt 1 — edit `media-0001` (the "hybrid"). Works, but a built-in edit.
 
 `sed`-delete the `vdpu381` vdec sub-block out of the built-in patch, then let our
@@ -59,9 +64,12 @@ Two insights collapse the whole problem:
    `core_probe`. So we don't need to *rename* or *replace* media's nodes — we
    **override them in place**.
 2. **SRAM is consumed by raw reg, not gen_pool.** The vendor decoder reads
-   `rockchip,sram` via `of_address_to_resource()` + `iommu_map()` — it never uses
-   the SRAM as a gen_pool and never `request_mem_region()`s it. So media's
-   `pool;`/`codec-sram@` nodes are **reused untouched**.
+   `rockchip,sram` via `of_address_to_resource()` (`mpp_rkvdec2.c:1834`) +
+   `iommu_map()` (`:1852`) — it maps the raw physical SRAM into the codec IOMMU at
+   the reserved RCB IOVA, never using the SRAM as a gen_pool and never
+   `request_mem_region()`-ing it. So it does **not** conflict with media's
+   `mmio-sram` driver owning the same `pool;`, and media's `pool;`/`codec-sram@`
+   nodes are **reused untouched**.
 
 The convert (in `patches/...-02-...dt.patch`, applied in `rk3588-rock-5b.dtsi`):
 
@@ -84,6 +92,46 @@ Result: **no `/delete-node/`, no relabels, no duplicate addresses**, because we
 modify the *same* nodes. Retyping `compatible` also detaches them from the V4L2
 `rockchip,rk3588-vdec` driver (mutually exclusive), so `CONFIG_VIDEO_ROCKCHIP_VDEC`
 can stay `=m` and simply binds nothing.
+
+### The convert-in-place delta — provided vs overridden vs inherited
+
+A converted core (`&vdec0` in `rk3588-rock-5b.dtsi:151`) is a three-way merge of
+the `media-0001` node and our override. Knowing which is which matters: anything
+in the **inherited** column does *not* appear in our patch, so it silently
+disappears if you copy this block to a board that lacks `media-0001`. (The three
+columns are independent lists, not row-aligned.)
+
+| `media-0001` provides | our override **changes** | **inherited** (kept as-is) |
+|-----------------------|--------------------------|----------------------------|
+| `video-codec@fdc38000` node + label `vdec0` | `compatible` → `rockchip,rkv-decoder-v2` | the node **name/unit-address** |
+| `compatible = "rockchip,rk3588-vdec"` | `reg`/`reg-names` → vendor `regs`+`link` layout | **`interrupts`** (we set only `interrupt-names`!) |
+| `reg`, `interrupts`, `iommus`, `power-domains` | `clocks`/`clock-names`, `resets`/`reset-names` | **`iommus = <&vdec0_mmu>`** |
+| `vdec0_mmu` iommu node | all `rockchip,*` (`srv`/`ccu`/`core-mask`/`taskqueue-node`/`sram`/`rcb-*`) | **`power-domains`** |
+| `vdec0_sram` / `vdec1_sram` RCB pools | `status` → `okay` | `vdec0_sram` / `vdec1_sram` (reused untouched) |
+
+The **load-bearing inheritance is `interrupts`**: the converted `&vdec0` sets only
+`interrupt-names = "irq_rkvdec0"` (`rk3588-rock-5b.dtsi:155`) and **inherits the
+actual `interrupts`** from `media-0001`'s node. Copy this convert block to a board
+**without** `media-0001` and the core has **no IRQ** —
+`platform_get_irq(pdev, 0)` (`mpp_common.c:2206`) fails and the core never
+probes. That is exactly why the vanilla/inline form (`docs/09`) must spell
+`interrupts` out. The `vdecN_mmu` nodes are reused with a one-line delta
+(`rockchip,disable-mmu-reset` + `status`); the `vdecN_sram` pools are reused with
+no delta at all.
+
+### Three forms of the same node
+
+The decoder core appears in **three shapes** across these docs — same hardware,
+different packaging:
+
+| Form | Where | Looks like | Caveat |
+|------|-------|-----------|--------|
+| **Overlay alias** | `docs/07` | a fragment that re-aliases the cores | overlay aliases resolve to the fragment-internal path, so `of_alias_get_id` fails — why we went built-in |
+| **Convert-in-place** | `docs/08` (this doc) | `&vdec0 { … }` retype of `media-0001`'s node | inherits `interrupts`/`iommus`/`power-domains` — Armbian-only |
+| **Inline** | `docs/09` | a full `rkvdec-core@fdc38000 { … }` node | purely additive; must add `interrupts` + the `vdecN_sram` pools itself |
+
+If a property is "missing" in one form, check whether the other form **inherited**
+it rather than declaring it.
 
 ### Patch-hunk collision — the `av1d` relocation
 Our encoder + `rkvdec_ccu` block and media's `vdec` block both naturally land in
