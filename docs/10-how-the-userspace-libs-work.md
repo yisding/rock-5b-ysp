@@ -336,7 +336,7 @@ imendJob(job);     // one submission for the whole chain (imcancelJob to drop it
 
 ---
 
-## C. How they fit together — the transcode
+# Part C — How they fit together (the transcode)
 
 **In plain terms.** A hardware transcode is just these two libraries handing the
 *same* dma-buf back and forth (zero copies), each calling its own kernel driver:
@@ -358,7 +358,7 @@ encoder as an input fd. No frame ever touches the CPU. See
 
 ---
 
-## D. Mental model
+# Part D — Mental model
 
 1. Your app links **libmpp** and/or **librga** (directly or via ffmpeg).
 2. You call a friendly function (`decode_get_frame`, `imresize`).

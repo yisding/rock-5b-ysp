@@ -18,12 +18,14 @@ older bash `patching.sh`). To neutralize a core patch you must either edit it or
 work *around* its output (we chose convert-in-place — `docs/04`).
 
 **Two `base.dtsi` patches can collide on the same hunk.** Our encoder/`rkvdec_ccu`
-block and Armbian's `media-0001` `vdec` block both target the
-`vepu121_3_mmu → av1d` gap (`@@ -1353,6`). Same anchor → the second fails to apply.
-Fix: relocate our block to **after `av1d`** so the hunks don't overlap.
+block and Armbian's `media-0001` `vdec` block both land in the
+`vepu121_3_mmu → av1d` gap, so we relocate ours to **after `av1d`** to stop the
+hunks overlapping. Exact `@@` anchors and reasoning in
+[`docs/04`](04-armbian-packaging.md) (§ the `av1d` relocation).
 
 **ccache silently off if passed as an env var.** Armbian relaunches in Docker and
-only forwards parsed `KEY=VALUE` **cmdline** args; `USE_CCACHE=yes ./compile.sh`
+only forwards parsed `KEY=VALUE` **cmdline** args (`ARMBIAN_CLI_RELAUNCH_PARAMS`,
+parsed in `lib/functions/cli/utils-cli.sh`); `USE_CCACHE=yes ./compile.sh`
 (env var) is dropped → `Ccache result: hit=0 miss=0 (0%)`. Pass it as an
 **argument**: `./compile.sh kernel BOARD=rock-5b … USE_CCACHE=yes`
 (`scripts/build-combined-kernel.sh` does this). First build is cold (~80–90 min,

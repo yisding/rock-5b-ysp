@@ -116,9 +116,8 @@ Armbian deb name changes accordingly, e.g. `C89d0` → `Cb831`.)
 
 ## The ccache gotcha (build wrapper)
 
-`USE_CCACHE` must be a compile.sh **command-line argument**, not a shell env var.
-Armbian relaunches the build in Docker and only forwards parsed `KEY=VALUE`
-cmdline args (`ARMBIAN_CLI_RELAUNCH_PARAMS` in `lib/functions/cli/utils-cli.sh`)
-into the container; a bare `USE_CCACHE=yes ./compile.sh` is silently dropped and
-ccache stays **off** (we got `Ccache result: hit=0 miss=0 (0%)` that way).
-`scripts/build-combined-kernel.sh` passes it correctly.
+`USE_CCACHE` must be a compile.sh **command-line argument**, not a shell env var —
+Armbian's Docker relaunch silently drops bare env vars, so ccache stays **off**
+(`hit=0 miss=0`). `scripts/build-combined-kernel.sh` passes it correctly. Full
+explanation (and the `ARMBIAN_CLI_RELAUNCH_PARAMS` mechanism) in
+[`docs/06`](06-gotchas.md) (§ ccache).

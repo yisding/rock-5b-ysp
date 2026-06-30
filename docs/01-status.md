@@ -31,14 +31,11 @@ Validated build hash: `Pb6ab-Cb831` (and its functionally-identical predecessor
 ## ⚠️ Known limitations
 
 - **We link `airockchip/librga`'s prebuilt `.so` for convenience — but librga is
-  open source.** Rockchip's *official* `airockchip/librga` repo ships only a
-  prebuilt `.so` + headers + samples (no library source), which makes it look
-  closed. The actual library source is published (Apache-2.0) in the JeffyCN
-  mirror lineage — `JeffyCN/mirrors:linux-rga-multi`, maintained as
-  `tsukumijima/librga-rockchip` (full `core/` + `im2d_api/`, CMake/Meson, Debian
-  packages) and `madisongh/rockchip-librga`. So you *can* build a fully-from-source
-  userspace; we just linked the prebuilt because it works as-is. The kernel
-  `/dev/rga` driver we ported *is* GPL source. See `docs/06`.
+  open source** (Apache-2.0): the *official* repo just ships a prebuilt `.so`, so
+  it looks closed, but the real source is published (JeffyCN mirror lineage) and
+  you *can* build a fully-from-source userspace. The kernel `/dev/rga` driver we
+  ported *is* GPL source. Full lineage + repo pointers in
+  [`docs/06`](06-gotchas.md) (§ Userspace).
 - **The decoder DT is Armbian-specific in convert-in-place form.** It overrides
   Armbian's `media-0001` `vdec0/vdec1` nodes. For vanilla mainline (no
   `media-0001`) use the inline-node form — see `docs/05`.

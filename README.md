@@ -51,6 +51,10 @@ docs/
   08-bsp-audit.md         multi-agent audit of the BSP code: 89 verified bugs/cleanups
 ```
 
+> Doc files are numbered in **authoring** order; the list above is the recommended
+> **reading** order — start with the how-it-works trio `09` → `10` → `11`, then the
+> rest. (So `ls docs/` and the README differ on purpose.)
+
 ## Quickstart (Armbian, ROCK 5B)
 
 The patches drop into an Armbian build tree as **userpatches** (zero edits to
@@ -84,13 +88,11 @@ A green `validate-combined.sh` shows `rkvenc-core0/1`, `rkvdec-core0/1`, and
 - The driver code is forward-ported from Rockchip's GPL-2.0 BSP MPP framework
   (`rockchip-kernel` `drivers/video/rockchip/mpp/`) and `airockchip/librga`'s
   kernel driver. It is GPL-2.0, like the kernel.
-- `librga`'s **userspace** library **is** open source (Apache-2.0) — the
-  implementation is published in the JeffyCN mirror lineage
-  (`JeffyCN/mirrors:linux-rga-multi`, maintained as a buildable mirror at
-  `tsukumijima/librga-rockchip`). Rockchip's *official* `airockchip/librga` repo
-  confusingly ships only a prebuilt `.so` + headers + samples, so we linked its
-  prebuilt aarch64 `.so` for convenience — but you can build from source. See
-  [`ffmpeg/README.md`](ffmpeg/README.md) and `docs/06`.
+- `librga`'s **userspace** library **is** open source (Apache-2.0) — the official
+  `airockchip/librga` repo only ships a prebuilt `.so`, so we link that for
+  convenience, but the source is published (JeffyCN mirror lineage) and you can
+  build from it. Full lineage in [`docs/06`](docs/06-gotchas.md); build notes in
+  [`ffmpeg/README.md`](ffmpeg/README.md).
 - The mainline RGA-in-U-Boot / RGA-V4L2 context is courtesy of Collabora's
   RK3588 upstreaming work.
 

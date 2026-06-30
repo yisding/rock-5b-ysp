@@ -3,6 +3,10 @@
 A line-level accounting of the forward-port: how much of the shipped driver code
 is Rockchip's, and precisely what our changes were and why.
 
+> This doc is the **quantitative** side — counts, percentages, and the complete
+> per-change table. For the narrative rationale (why each hunk exists, the
+> `compat/` and `hack/` story), see [`docs/02`](02-vendor-forward-port.md).
+
 ## Method
 
 We diff every forward-ported file against its **original in the Rockchip 6.1 BSP
@@ -63,22 +67,19 @@ These are pure "the kernel API moved" fixes. Each is commented in-tree.
 
 ### 2. Bring-up / correctness fixes — *make the cores actually bind on RK3588*
 
-Surfaced by probing real hardware; they matter on any kernel.
-
-| Change | File(s) | Why |
-|--------|---------|-----|
-| Remove `CONFIG_CPU_RK3588` guard on the RK3588 `of_device_id` entries | `mpp_rkvenc2.c`, `mpp_rkvdec2.c` | mainline/Armbian configs never define `CONFIG_CPU_RK3588`, so the cores would never bind. Made unconditional (harmless elsewhere — no matching DT nodes) |
-| `attach_ccu` returns **`-EPROBE_DEFER`** (was `-ENOMEM`/oops) when the CCU isn't probed yet; **`-EPROBE_DEFER`** if core 0 isn't ready when a secondary core attaches; `put_device()` on the defer path | `mpp_rkvenc2.c`, `mpp_rkvdec2_link.c` | probe order is only guaranteed for a built-in driver; a module (or different boot order) can probe a core before its CCU/core 0, which hard-failed or NULL-deref'd `queue->cores[0]` |
-| Publish CCU `drvdata` **last** (after `mutex_init`/list init) | `mpp_rkvenc2.c` (+ decoder) | so a core's "`drvdata != NULL` ⇒ CCU ready" test can't observe a half-initialised CCU |
-| Dispatch by **compatible** first (`of_device_is_compatible`), fall back to node-name `strstr` | `mpp_rkvdec2.c` | lets a generic-named node (Armbian's `video-codec@…`, retyped in place) reach `core_probe` — the enabler for the zero-edit convert-in-place packaging (`docs/04`) |
+Four hunks (part of the ~180 in-place edits), surfaced by probing real hardware
+and relevant on any kernel: the `CONFIG_CPU_RK3588` of_match unguard, the
+`-EPROBE_DEFER` probe-ordering fixes (+ `put_device`), publishing CCU `drvdata`
+**last**, and compatible-based decoder dispatch. Narrated in full in
+[`docs/02`](02-vendor-forward-port.md) (§ C — Bring-up fixes) — not re-tabulated
+here.
 
 ### 3. Devfreq / OPP de-noise — *the BSP DVFS stack isn't on mainline*
 
-| Change | File(s) | Why |
-|--------|---------|-----|
-| `RKVENC2_DEVFREQ` / `RKVDEC2_DEVFREQ` `#ifdef`-gated (default `n`) | `mpp_rkvenc2.c`, `mpp_rkvdec2.c` | the devfreq islands pull BSP-only governor headers; off by default |
-| `dev_err` → `dev_dbg` for `init_opp_table` / `add venc devfreq` | `mpp_rkvenc2.c` | with OPP stubbed, these aren't errors — the core runs at fixed DT `assigned-clock-rates` |
-| Guard devfreq teardown on `enc->devfreq != NULL` | `mpp_rkvenc2.c` | otherwise a symmetric `--governor_count` underflows a counter that was never incremented |
+The devfreq islands are `#ifdef`-gated off (`default n`), the `init_opp_table` /
+`add venc devfreq` `dev_err`s are downgraded to `dev_dbg`, and devfreq teardown is
+`NULL`-guarded. Narrated in [`docs/02`](02-vendor-forward-port.md) (§ B — OPP /
+devfreq de-noised).
 
 ### 4. The `compat/` shim layer — *stand in for BSP-only SoC headers* (338 lines, all new)
 

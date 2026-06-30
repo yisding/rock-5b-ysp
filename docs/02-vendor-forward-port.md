@@ -10,6 +10,10 @@ The changes fall into three buckets: **(A)** a compatibility shim layer for
 vendor-only headers, **(B)** specific 6.18 API adaptations, and **(C)** bring-up
 fixes found while validating on hardware.
 
+> This doc is the **narrative** — what each change is and *why*. For the
+> line-by-line accounting (how much is ours vs Rockchip's, plus the complete
+> per-change table), see [`docs/07`](07-vendor-delta.md).
+
 ---
 
 ## A. The `compat/` shim layer
