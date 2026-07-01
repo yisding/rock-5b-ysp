@@ -59,9 +59,12 @@ dma-buf to the encoder zero-copy.
 ## mainline FFmpeg `h264_rkmpp` vs the ffmpeg-rockchip fork ⭐
 
 There are **two independent** `h264_rkmpp` encoders with the same name. Knowing
-which one you have explains everything else on this page.
+which one you have explains everything else on this page. The detailed
+source-level comparison lives in
+[`../ffmpeg/IMPLEMENTATION-COMPARISON.md`](../ffmpeg/IMPLEMENTATION-COMPARISON.md);
+this table is the GRD-relevant subset.
 
-| Capability | **mainline** FFmpeg 8.1.x (`libavcodec/rkmppenc.c`) | **ffmpeg-rockchip** fork |
+| Capability | **mainline** FFmpeg (`libavcodec/rkmppenc.c`; GRD packages 8.1.2) | **ffmpeg-rockchip** fork |
 |---|:---:|:---:|
 | Rate control | `-rc vbr / cbr / avbr` only | vbr / cbr / avbr / **fixqp** |
 | Fixed QP (`qp_init`, `qp_min/max`) | ✗ never set on MPP | ✅ `qp_init ≥ 0 → MPP FIXQP` (constant quality) |

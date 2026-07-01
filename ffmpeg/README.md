@@ -4,6 +4,13 @@ How to build [`ffmpeg-rockchip`](https://github.com/nyanmisaka/ffmpeg-rockchip)
 against the vendor **MPP** + **RGA** libraries so you get `h264_rkmpp` /
 `hevc_rkmpp` HW decode+encode and the `scale_rkrga` filter.
 
+For the implementation-level difference between this fork and mainline FFmpeg's
+upstream rkmpp code, see
+[`IMPLEMENTATION-COMPARISON.md`](IMPLEMENTATION-COMPARISON.md). Short version:
+the fork is the full Rockchip CLI pipeline (RKMPP hwcontext + RGA filters +
+encoder QP/profile/IDR controls); mainline is the ABI-friendly codec bridge used
+by the GRD package and needs application-side workarounds for quality and IDR.
+
 This needs **no system install and no sudo to build** — everything goes into an
 isolated staging prefix; only *running* it needs device access (root, or the udev
 rule).

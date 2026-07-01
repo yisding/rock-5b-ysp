@@ -60,6 +60,10 @@ it also satisfies the `ffmpeg-rockchip` fork if you build that too. `librga` had
 The goal was a **drop-in** over Ubuntu's `ffmpeg` so every app gets rkmpp. 8.1.2
 and 8.0.1 are both FFmpeg 8.x, so the seven library SONAME majors are identical
 (`libavcodec.so.62`, `libavutil.so.60`, …) → ABI-compatible.
+The trade-off versus `ffmpeg-rockchip` is documented in
+[`../ffmpeg/IMPLEMENTATION-COMPARISON.md`](../ffmpeg/IMPLEMENTATION-COMPARISON.md):
+mainline keeps ABI compatibility but lacks the fork's RGA filters and richer
+rkmpp encoder controls.
 
 ```bash
 apt-get source ffmpeg                      # Ubuntu 7:8.0.1-3ubuntu2 (no debian/patches to rebase)
