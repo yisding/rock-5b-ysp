@@ -4,12 +4,15 @@ How to build [`ffmpeg-rockchip`](https://github.com/nyanmisaka/ffmpeg-rockchip)
 against the vendor **MPP** + **RGA** libraries so you get `h264_rkmpp` /
 `hevc_rkmpp` HW decode+encode and the `scale_rkrga` filter.
 
-For the implementation-level difference between this fork and mainline FFmpeg's
-upstream rkmpp code, see
-[`IMPLEMENTATION-COMPARISON.md`](IMPLEMENTATION-COMPARISON.md). Short version:
-the fork is the full Rockchip CLI pipeline (RKMPP hwcontext + RGA filters +
-encoder QP/profile/IDR controls); mainline is the ABI-friendly codec bridge used
-by the GRD package and needs application-side workarounds for quality and IDR.
+Companion docs:
+
+- [`HOW-FFMPEG-WORKS.md`](HOW-FFMPEG-WORKS.md) explains FFmpeg's demux ->
+  decode -> filter -> encode -> mux model and where MPP/RGA plug in.
+- [`IMPLEMENTATION-COMPARISON.md`](IMPLEMENTATION-COMPARISON.md) compares
+  upstream FFmpeg 8.1.2 with ffmpeg-rockchip. Short version: ffmpeg-rockchip is
+  the full Rockchip CLI pipeline (RKMPP hwcontext + RGA filters + richer encoder
+  controls); upstream FFmpeg 8.1.2 is the ABI-friendly codec bridge used by the
+  GRD package and needs application-side workarounds for quality and IDR.
 
 This needs **no system install and no sudo to build** — everything goes into an
 isolated staging prefix; only *running* it needs device access (root, or the udev
@@ -30,7 +33,8 @@ rule).
 
 ## Stage the deps
 
-Create a prefix (e.g. `~/ffmpeg-stack`) with the header *layout* the fork expects:
+Create a prefix (e.g. `~/ffmpeg-stack`) with the header *layout* ffmpeg-rockchip
+expects:
 
 ```bash
 STAGE=~/ffmpeg-stack
@@ -68,7 +72,7 @@ PKG_CONFIG_PATH=$STAGE/lib/pkgconfig ./configure \
 make -j"$(nproc)"
 ```
 
-- **`--disable-vulkan` is required** — the fork's `vulkan_av1.c` uses provisional
+- **`--disable-vulkan` is required** — ffmpeg-rockchip's `vulkan_av1.c` uses provisional
   *MESA* Vulkan-AV1 types that modern Vulkan headers replaced with *KHR* ones, and
   it fails to compile. Unrelated to the rk codecs.
 - The `-Wl,-rpath,$STAGE/lib` makes the resulting `./ffmpeg` find

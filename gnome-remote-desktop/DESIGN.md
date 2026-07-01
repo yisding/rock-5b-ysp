@@ -45,16 +45,17 @@ which is the difference between a few-percent-CPU desktop and this one.
   low-latency session genuinely works, so it can never turn a working software
   desktop into a broken hardware one.
 
-### The mainline-vs-fork sub-decision
+### The upstream-vs-fork sub-decision
 
 There are **two** FFmpeg `h264_rkmpp` encoders (see the table in
-[`README.md`](README.md)). We picked **mainline 8.1** over the
-[`ffmpeg-rockchip` fork](../ffmpeg/) for one reason: mainline is an **ABI drop-in**
-over the distro's `ffmpeg`, so it upgrades the whole system cleanly, while the
-fork has its own ABI and vendoring. The cost is that mainline's encoder is thin
-(no QP/profile/forced-IDR knobs) — which is exactly what the two runtime fixes in
-[`README.md`](README.md) work around. The fork remains the better choice if you
-only care about GRD and want reference-grade fixed-QP quality out of the box.
+[`README.md`](README.md)). We picked **upstream FFmpeg 8.1.2** over
+[`ffmpeg-rockchip`](../ffmpeg/) for one reason: upstream FFmpeg 8.1.2 is an
+**ABI drop-in** over the distro's `ffmpeg`, so it upgrades the whole system
+cleanly, while ffmpeg-rockchip has its own ABI and vendoring. The cost is that
+upstream's encoder is thin (no QP/profile/forced-IDR knobs) — which is exactly
+what the two runtime fixes in [`README.md`](README.md) work around.
+ffmpeg-rockchip remains the better choice if you only care about GRD and want
+reference-grade fixed-QP quality out of the box.
 
 ## The backend, fail-closed and narrow
 
@@ -123,6 +124,6 @@ thread and traffic — not just trust the session-created log line.
 | panvk base modifier list (unblocks the Mali device) | [`0004`](patches/) | this file §journey |
 | dma-heap NV12 surfaces (+64-align) | [`0005`](patches/) | this file §journey |
 | HOST_CACHED readback fallback | [`0006`](patches/) | this file §journey |
-| mainline rkmpp: first-frame IDR + VBR quality | [`0007`](patches/) | [`README.md`](README.md) #1, #2 |
+| upstream rkmpp: first-frame IDR + VBR quality | [`0007`](patches/) | [`README.md`](README.md) #1, #2 |
 | greeter device permissions | — (udev) | [`../packaging/gdm-hwenc/`](../packaging/gdm-hwenc/), [`README.md`](README.md) #3 |
 | handover reconnect revert | — (packaging) | [`README.md`](README.md), [`../ppa/`](../ppa/) |

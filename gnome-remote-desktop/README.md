@@ -40,7 +40,7 @@ stack for a Launchpad PPA.
   │    GrdRdpViewCreatorAVC  ── RGB→NV12 on the Mali GPU  │→ /dev/dri/renderD128 (panvk)
   │    GrdEncodeSessionFfmpeg ── NV12 → H.264             │
   └─────┬───────────────────────────────────────────────┘
-        │  FFmpeg h264_rkmpp  (MAINLINE 8.1.2, not the fork — see below)
+        │  FFmpeg h264_rkmpp  (upstream FFmpeg 8.1.2, not ffmpeg-rockchip)
         │  librockchip_mpp
    ┌────┴─────────────┬──────────────────────┐
    │ /dev/mpp_service │ /dev/dma_heap/system  │   ← this repo's kernel drivers
@@ -55,21 +55,24 @@ the **Mali GPU** (`/dev/dri/renderD128`, mesa/panvk — *not* from this repo), d
 the RGB→NV12 colour conversion in a Vulkan compute shader before handing the NV12
 dma-buf to the encoder zero-copy.
 
-> **Which FFmpeg?** GRD here links the **mainline** FFmpeg `h264_rkmpp`
+> **Which FFmpeg?** GRD here links **upstream FFmpeg 8.1.2**'s `h264_rkmpp`
 > (`8.1.2+rk1`, an ABI-compatible drop-in over Ubuntu's `ffmpeg`), **not** the
 > [`ffmpeg-rockchip` fork](../ffmpeg/) this repo otherwise recommends. That choice
-> drove every bug below — mainline's rkmpp encoder is far thinner than the fork's.
+> drove every bug below — upstream FFmpeg 8.1.2's rkmpp encoder is far thinner
+> than ffmpeg-rockchip's.
 > See the table.
 
-## mainline FFmpeg `h264_rkmpp` vs the ffmpeg-rockchip fork ⭐
+## upstream FFmpeg 8.1.2 `h264_rkmpp` vs ffmpeg-rockchip ⭐
 
 There are **two independent** `h264_rkmpp` encoders with the same name. Knowing
 which one you have explains everything else on this page. The detailed
 source-level comparison lives in
 [`../ffmpeg/IMPLEMENTATION-COMPARISON.md`](../ffmpeg/IMPLEMENTATION-COMPARISON.md);
-this table is the GRD-relevant subset.
+[`../ffmpeg/HOW-FFMPEG-WORKS.md`](../ffmpeg/HOW-FFMPEG-WORKS.md) explains the
+FFmpeg data model around packets, frames, DRM PRIME, and hardware filters. This
+table is the GRD-relevant subset.
 
-| Capability | **mainline** FFmpeg (`libavcodec/rkmppenc.c`; GRD packages 8.1.2) | **ffmpeg-rockchip** fork |
+| Capability | **upstream FFmpeg 8.1.2** (`libavcodec/rkmppenc.c`) | **ffmpeg-rockchip** |
 |---|:---:|:---:|
 | Rate control | `-rc vbr / cbr / avbr` only | vbr / cbr / avbr / **fixqp** |
 | Fixed QP (`qp_init`, `qp_min/max`) | ✗ never set on MPP | ✅ `qp_init ≥ 0 → MPP FIXQP` (constant quality) |
@@ -78,14 +81,15 @@ this table is the GRD-relevant subset.
 | `bps_max` (VBR ceiling) | only from `avctx->rc_max_rate`, else MPP's **~2.5 Mbps** default | same (plus the QP path) |
 
 The RK3588 VPU and libmpp support fixed QP, High profile, and forced IDR — it's
-purely mainline's FFmpeg *glue* that doesn't wire them up. On the fork, GRD's
-existing `qp_init=22` already yields constant-quality output and forced IDR just
-works; **both fixes below are mainline-only workarounds, harmless on the fork.**
+purely upstream FFmpeg 8.1.2's glue that doesn't wire them up. On
+ffmpeg-rockchip, GRD's existing `qp_init=22` already yields constant-quality
+output and forced IDR just works; **both fixes below are upstream-only
+workarounds, harmless on ffmpeg-rockchip.**
 
 ## The three bugs we hit (and fixed)
 
 Getting from "compiles" to "live, crisp remote desktop" took three fixes. Each is
-a good worked example of a mainline-rkmpp gotcha.
+a good worked example of an upstream-rkmpp gotcha.
 
 ### 1. The frozen desktop — no IDR in the stream
 
@@ -104,13 +108,14 @@ the client decoded nothing and never acknowledged a frame. GRD's RDPGFX **frame
 controller** then did exactly what it's designed to: after
 `activate_throttling_th = MAX(2, MIN(rtt_frames+2, fps))` = **2** unacknowledged
 frames on a LAN, it throttled `total_frame_slots` to **0** and stopped producing —
-a permanent freeze. Why no IDR? Two things compounded, both mainline-specific:
+a permanent freeze. Why no IDR? Two things compounded, both upstream-specific:
 
 1. rkmpp only emits a real IDR access unit (SPS+PPS+IDR) for the **first frame
    after the encoder is opened**; and
 2. the backend's start-up **smoke encode** (a throwaway frame that proves
-   zero-copy DRM-PRIME import works) *consumed* that one natural IDR — and mainline
-   ignores the `pict_type=I` request that was supposed to force the next one.
+   zero-copy DRM-PRIME import works) *consumed* that one natural IDR — and
+   upstream FFmpeg 8.1.2 ignores the `pict_type=I` request that was supposed to
+   force the next one.
 
 **Fix.** Recreate the encoder immediately after the smoke test, so the first
 *real* frame is a fresh natural IDR. `avcodec_flush_buffers()` was ruled out — it
@@ -127,10 +132,10 @@ that outlive the encoder, so tearing it down and reopening is safe.
 ceiling. A standalone test confirmed it: a complex full-screen frame capped at
 ~6 Mbps without `rc_max_rate` vs ~26 Mbps with it.
 
-**Root cause.** Mainline's `rkmppenc.c` sets MPP's `bps_max` **only** from
+**Root cause.** Upstream FFmpeg 8.1.2's `rkmppenc.c` sets MPP's `bps_max` **only** from
 `avctx->rc_max_rate`, and GRD left that unset — so MPP kept its ~2.5 Mbps default
 ceiling and quantised every frame hard to stay under it. With **no QP knob on
-mainline**, bitrate *is* the only quality control.
+upstream FFmpeg 8.1.2**, bitrate *is* the only quality control.
 
 **Fix.** Set `rc_max_rate` (`bps_max` = target×3) and `rc_min_rate`
 (`bps_min` = target÷8), and raise the target to ~0.25 bpp. VBR still keeps static
@@ -138,9 +143,9 @@ frames near-free (idle ≈ 0), but active/detailed frames can now spend the bits
 need — measured peaks ~67 Mbps under heavy motion on a LAN, and the artifacts are
 gone. → [`patches/0002`](patches/), `create_encoder()`.
 
-> On the **fork** this whole bug is moot: `qp_init=22` selects MPP FIXQP and you
+> On **ffmpeg-rockchip** this whole bug is moot: `qp_init=22` selects MPP FIXQP and you
 > get constant-quality output with no bitrate tuning at all. The bitrate triplet
-> is the mainline substitute for a QP knob.
+> is the upstream FFmpeg 8.1.2 substitute for a QP knob.
 
 ### 3. The login screen stayed software — the greeter's dynamic user
 
@@ -201,9 +206,9 @@ codec consumer:
   acking."
 - **`getfacl` / `udevadm info`**: the whole greeter bug is visible in one
   `getfacl /dev/dma_heap/system`.
-- **Standalone `ffmpeg` CLI + reading `rkmppenc.c`** (both trees) to establish
-  what the encoder *actually* does vs. what the API asked for — this is how the
-  mainline/fork table got nailed down.
+- **Standalone `ffmpeg` CLI + reading `rkmppenc.c`** (upstream FFmpeg 8.1.2 and
+  ffmpeg-rockchip) to establish what the encoder *actually* does vs. what the API
+  asked for — this is how the comparison table got nailed down.
 
 ## The patches
 
@@ -211,7 +216,7 @@ The **full backend patch set** — seven commits that add the rkmpp encode backe
 to a pristine GRD 50.1 — is in [`patches/`](patches/) (verified to `git am` on
 upstream). Patches `0001`–`0003` are the backend, `0004`–`0006` are the
 panvk/hardware-enablement fixes (the "looked like a Mesa bug" journey — see
-[`DESIGN.md`](DESIGN.md)), and `0007` is the two mainline-rkmpp runtime fixes
+[`DESIGN.md`](DESIGN.md)), and `0007` is the two upstream-rkmpp runtime fixes
 above (#1 IDR, #2 bitrate). Full map: [`patches/README.md`](patches/README.md).
 
 Bug **#3** (greeter access) is not a code change — it's the udev package in
@@ -253,10 +258,11 @@ order — is in [`../ppa/`](../ppa/).
   `ffmpeg-rkmpp-encode-backend` of the GNOME `yding/` fork. The backend is a
   sibling of GRD's existing VA-API path and reuses its design (fixed QP 22 intent,
   the Vulkan view-creator, the frame controller).
-- It links **mainline** FFmpeg `8.1.2+rk1` (GPL-3 via `--enable-version3`, for
-  rkmpp), an ABI drop-in over Ubuntu's `ffmpeg`. This repo's [`ffmpeg/`](../ffmpeg/)
-  documents the *fork*; GRD uses mainline for the in-place upgrade. Either works —
-  the fork gives better default quality (fixed QP), mainline needs the bitrate fix.
+- It links **upstream FFmpeg 8.1.2** `8.1.2+rk1` (GPL-3 via `--enable-version3`,
+  for rkmpp), an ABI drop-in over Ubuntu's `ffmpeg`. This repo's
+  [`ffmpeg/`](../ffmpeg/) documents ffmpeg-rockchip too; GRD uses upstream FFmpeg
+  8.1.2 for the in-place upgrade. Either works — ffmpeg-rockchip gives better
+  default quality (fixed QP), upstream FFmpeg 8.1.2 needs the bitrate fix.
 - `gnome-remote-desktop-gdm-hwenc` is a few lines of udev + a tiny package; GPL-2+.
 
 This directory is the *integration + the debugging story*; the remote-desktop

@@ -55,15 +55,15 @@ it also satisfies the `ffmpeg-rockchip` fork if you build that too. `librga` had
 > Both were proven by encoding 60 frames through the built libs with our system
 > FFmpeg (`ffprobe`-clean), before packaging.
 
-### 3. `ffmpeg` — mainline 8.1.2 + rkmpp, as an in-place upgrade
+### 3. `ffmpeg` — upstream FFmpeg 8.1.2 + rkmpp, as an in-place upgrade
 
 The goal was a **drop-in** over Ubuntu's `ffmpeg` so every app gets rkmpp. 8.1.2
 and 8.0.1 are both FFmpeg 8.x, so the seven library SONAME majors are identical
 (`libavcodec.so.62`, `libavutil.so.60`, …) → ABI-compatible.
 The trade-off versus `ffmpeg-rockchip` is documented in
 [`../ffmpeg/IMPLEMENTATION-COMPARISON.md`](../ffmpeg/IMPLEMENTATION-COMPARISON.md):
-mainline keeps ABI compatibility but lacks the fork's RGA filters and richer
-rkmpp encoder controls.
+upstream FFmpeg 8.1.2 keeps ABI compatibility but lacks ffmpeg-rockchip's RGA
+filters and richer rkmpp encoder controls.
 
 ```bash
 apt-get source ffmpeg                      # Ubuntu 7:8.0.1-3ubuntu2 (no debian/patches to rebase)
@@ -93,7 +93,7 @@ branch as the upstream**:
   `libavcodec-dev`/`libavutil-dev (>= 7:8.1.2~)` to `Build-Depends` (stock Ubuntu
   builds GRD with the ffmpeg feature *off*); switched fdk-aac on.
 - The **backend lives in the `orig`**; only the two runtime changes ride as
-  `debian/patches` (`3.0 quilt`): the **mainline-rkmpp fix** and a **revert** of a
+  `debian/patches` (`3.0 quilt`): the **upstream-rkmpp fix** and a **revert** of a
   cherry-picked handover-reconnect change that broke GDM→session handover. (That
   revert exists only because the `orig` snapshot happened to include the
   cherry-pick — see the [patches note](../gnome-remote-desktop/patches/README.md).)

@@ -1,160 +1,328 @@
 # FFmpeg implementation comparison
 
-This compares the two local source trees used while working on this repo:
+This compares **upstream FFmpeg 8.1.2** with **ffmpeg-rockchip** for the parts
+that matter to this ROCK 5B codec stack. Read
+[`HOW-FFMPEG-WORKS.md`](HOW-FFMPEG-WORKS.md) first if you want the FFmpeg mental
+model before the source-level differences.
 
-| Tree | Checked-out point | Role in this repo |
-|------|-------------------|-------------------|
-| `../FFmpeg` | `n8.2-dev-2058-g87bd15dc3c` (`87bd15dc3c21`, 2026-06-28) | Mainline FFmpeg's upstream rkmpp implementation. The packaged GRD stack uses the same mainline encoder shape, though pinned to FFmpeg 8.1.2. |
-| `../ffmpeg-rockchip` | `40c412daccf0` (`40c412d`, 2026-04-23) | NyanMisaka's Rockchip-focused fork: full MPP + RGA pipeline for CLI transcoding. |
+Comparison points:
 
-Both trees were clean when inspected. This is a source-code comparison, not a new
-runtime benchmark.
+| Implementation | Source point | Why it matters here |
+|----------------|--------------|---------------------|
+| upstream FFmpeg 8.1.2 | release tag `n8.1.2` (`38b88335f99e`, 2026-06-17) | ABI-friendly base used by the packaged GNOME Remote Desktop stack. |
+| ffmpeg-rockchip | `40c412daccf0` (`40c412d`, 2026-04-23) | Rockchip-focused fork used for full CLI hardware transcode validation. |
 
-## Executive summary
+This is a source-code comparison, not a new runtime benchmark.
 
-Mainline FFmpeg has a small, upstreamable rkmpp codec bridge. It exposes MPP
-decode/encode through generic DRM PRIME frames, covers the common H.264/HEVC
-encoder path plus H.264/HEVC/VP8/VP9 decode, and intentionally leaves most
-Rockchip-specific pipeline features out.
+## 0. Summary
 
-`ffmpeg-rockchip` is a platform integration fork. It adds an RKMPP hardware
-device/context, broader codec coverage, many more MPP encoder controls, and RGA
-filters (`scale_rkrga`, `vpp_rkrga`, `overlay_rkrga`) so decode -> RGA ->
-encode can stay inside dma-buf hardware frames.
+Both implementations use Rockchip's **libmpp** for codecs. They differ in how
+much of the Rockchip hardware pipeline they expose through FFmpeg.
 
-The practical rule for this repo:
+```mermaid
+flowchart LR
+  subgraph U["upstream FFmpeg 8.1.2"]
+    udec["rkmpp decoders"]
+    udrm["generic DRM PRIME frames"]
+    uenc["rkmpp encoders"]
+  end
 
-- Use `ffmpeg-rockchip` for CLI validation and hardware transcode tests that need
-  `scale_rkrga` or fixed-QP quality.
-- Use mainline FFmpeg when ABI compatibility with the distro matters, as in the
-  GNOME Remote Desktop package. Then compensate for its thinner encoder glue in
-  the application: set `rc_max_rate`/`rc_min_rate`, do not rely on QP/profile
-  options, and recreate the encoder when a fresh first-frame IDR is required.
+  subgraph F["ffmpeg-rockchip"]
+    fdev["RKMPP hwdevice"]
+    fdec["more rkmpp decoders"]
+    frga["RGA filters"]
+    fenc["richer rkmpp encoders"]
+  end
 
-## Build integration
+  udec --> udrm --> uenc
+  fdev --> fdec --> frga --> fenc
+```
 
-| Area | Mainline `../FFmpeg` | `../ffmpeg-rockchip` |
-|------|----------------------|----------------------|
-| Configure switches | `--enable-rkmpp` only. Requires `--enable-libdrm`. | `--enable-rkmpp` plus `--enable-rkrga`; `rkrga` requires `rkmpp`. |
-| MPP dependency | `rockchip_mpp >= 1.3.8`, headers `rockchip/rk_mpi.h` and `rockchip/mpp_buffer.h`, symbols including `mpp_create` and `mpp_buffer_sync_begin_f`. | `rockchip_mpp >= 1.3.9`, `rockchip/rk_mpi.h`, `mpp_create`. |
-| RGA dependency | None. | `librga`, requiring `rga/RgaApi.h` (`c_RkRgaBlit`) and `rga/im2d.h` (`querystring`). |
-| New libavutil hwcontext | None. Uses existing DRM hwcontext. | Adds `libavutil/hwcontext_rkmpp.c` and `AV_HWDEVICE_TYPE_RKMPP`. |
-| New filters | None. | Adds `rkrga_common.c`, `vf_vpp_rkrga.c`, and `vf_overlay_rkrga.c`. |
+Upstream FFmpeg 8.1.2 is a compact codec bridge:
 
-## Hardware-frame model
+- decode H.264/HEVC/VP8/VP9 through MPP;
+- encode H.264/HEVC through MPP;
+- pass frames as generic DRM PRIME descriptors;
+- keep the public ABI close to distro FFmpeg;
+- omit Rockchip RGA filters and most MPP encoder controls.
 
-Mainline has no `AV_HWDEVICE_TYPE_RKMPP`. Its decoder declares
-`HW_CONFIG_INTERNAL(DRM_PRIME)` and sets `avctx->pix_fmt = AV_PIX_FMT_DRM_PRIME`.
-Its encoder accepts `HW_CONFIG_ENCODER_FRAMES(DRM_PRIME, DRM)`. In practice,
-rkmpp frames are generic DRM PRIME descriptors and the encoder imports their fds
-with `mpp_buffer_import()`.
+ffmpeg-rockchip is a full platform pipeline:
 
-The fork adds a real RKMPP hwdevice:
+- broader MPP codec list;
+- RKMPP hardware device and MPP-backed frame pools;
+- RGA filters for scale, crop, color conversion, transpose, and overlay;
+- more encoder controls: fixed QP, profile, level, CABAC, forced IDR, SEI, AFBC,
+  async depth, and more formats.
+
+The practical choice in this repo:
+
+| Need | Best fit | Why |
+|------|----------|-----|
+| Full command-line hardware transcode with scale/CSC | ffmpeg-rockchip | It has `scale_rkrga`/`vpp_rkrga` and keeps frames in dma-buf form. |
+| Distro-style FFmpeg upgrade for applications | upstream FFmpeg 8.1.2 with rkmpp enabled | It is ABI-compatible with the FFmpeg 8.x package set used by Ubuntu/Armbian. |
+| GRD hardware H.264 encode | upstream FFmpeg 8.1.2 plus GRD workarounds | GRD already supplies NV12 DRM PRIME frames; it only needs the encoder bridge. |
+| Constant-quality H.264/HEVC from the CLI | ffmpeg-rockchip | It exposes MPP fixed-QP mode. |
+
+## 1. Build and registration
+
+| Area | upstream FFmpeg 8.1.2 | ffmpeg-rockchip |
+|------|-----------------------|-----------------|
+| Configure switches | `--enable-rkmpp`; requires `--enable-libdrm`. | `--enable-rkmpp --enable-rkrga --enable-libdrm`; `rkrga` requires `rkmpp`. |
+| MPP pkg-config | `rockchip_mpp >= 1.3.8`; checks `rockchip/rk_mpi.h`, `rockchip/mpp_buffer.h`, `mpp_create`, and `mpp_buffer_sync_begin_f`. | `rockchip_mpp >= 1.3.9`; checks `rockchip/rk_mpi.h` and `mpp_create`. |
+| RGA pkg-config | None. | `librga`; checks `rga/RgaApi.h` (`c_RkRgaBlit`) and `rga/im2d.h` (`querystring`). |
+| libavutil additions | None for Rockchip. | Adds `hwcontext_rkmpp.c` and `hwcontext_rkmpp.h`; registers `AV_HWDEVICE_TYPE_RKMPP`. |
+| libavfilter additions | None for Rockchip. | Adds `rkrga_common.c`, `vf_vpp_rkrga.c`, and `vf_overlay_rkrga.c`. |
+
+Source footprint:
+
+| Implementation | Rockchip-specific FFmpeg files |
+|----------------|--------------------------------|
+| upstream FFmpeg 8.1.2 | `libavcodec/rkmppdec.c`, `libavcodec/rkmppenc.c` |
+| ffmpeg-rockchip | `rkmppdec.c/.h`, `rkmppenc.c/.h`, `hwcontext_rkmpp.c/.h`, `rkrga_common.c/.h`, `vf_vpp_rkrga.c`, `vf_overlay_rkrga.c` |
+
+That file list explains the difference in ambition. Upstream only wraps libmpp
+codecs. The fork also builds a Rockchip hardware-frame and RGA post-processing
+world inside FFmpeg.
+
+## 2. Hardware-frame model
+
+### Upstream FFmpeg 8.1.2
+
+Upstream uses FFmpeg's existing DRM hardware-frame model:
+
+```mermaid
+flowchart LR
+  dec["rkmpp decoder"]
+  frame["AVFrame<br/>AV_PIX_FMT_DRM_PRIME"]
+  drm["AVDRMFrameDescriptor<br/>dma-buf fd"]
+  enc["rkmpp encoder"]
+
+  dec --> frame --> drm --> enc
+```
+
+Important details:
+
+- The decoder sets `avctx->pix_fmt = AV_PIX_FMT_DRM_PRIME`.
+- The decoder advertises an internal DRM PRIME hardware config.
+- The encoder accepts DRM PRIME frames from a DRM frames context.
+- For DRM PRIME encode input, upstream requires `hwframes->sw_format == NV12`.
+- The encoder imports the dma-buf fd with `mpp_buffer_import()`.
+
+This is simple and upstream-friendly, but it leaves allocation and post-processing
+mostly outside Rockchip-specific FFmpeg code.
+
+### ffmpeg-rockchip
+
+The fork adds an RKMPP hardware device:
+
+```mermaid
+flowchart LR
+  dev["AV_HWDEVICE_TYPE_RKMPP"]
+  pool["AVRKMPPFramesContext<br/>MppBufferGroup"]
+  desc["AVRKMPPDRMFrameDescriptor<br/>DRM desc + MppBuffer refs"]
+  users["decoder / RGA filters / encoder"]
+
+  dev --> pool --> desc --> users
+```
+
+Important details:
 
 - `AV_HWDEVICE_TYPE_RKMPP` is registered under the name `rkmpp`.
 - `AVRKMPPFramesContext` owns an MPP buffer group and optional preallocated frame
   descriptors.
-- `AVRKMPPDRMFrameDescriptor` embeds an `AVDRMFrameDescriptor` plus the
-  `MppBuffer` references that keep the MPP allocations alive.
-- The hwcontext implements frame allocation, transfer-to/from, and mapping with
-  `DMA_BUF_IOCTL_SYNC`. CPU mapping is limited to linear frames.
+- `AVRKMPPDRMFrameDescriptor` embeds the normal `AVDRMFrameDescriptor` and keeps
+  `MppBuffer` references alive.
+- The hwcontext implements allocation, CPU map/unmap for linear frames,
+  transfer-to/from, and `DMA_BUF_IOCTL_SYNC`.
 
-That is why the fork can build hardware-frame pools for decode, RGA, and encode,
-while mainline treats rkmpp primarily as a codec wrapper over generic DRM PRIME.
+The result is a coherent hardware-frame model for decode -> RGA -> encode. The
+fork can allocate frames that MPP and RGA both understand, while still presenting
+them to FFmpeg as hardware frames.
 
-## Decoder comparison
+## 3. Decoder behavior
 
-| Capability | Mainline `../FFmpeg` | `../ffmpeg-rockchip` |
-|------------|----------------------|----------------------|
-| Source files | One file: `libavcodec/rkmppdec.c` (582 lines). | `rkmppdec.c` plus `rkmppdec.h` (1418 lines total). |
-| Registered decoders | `h264_rkmpp`, `hevc_rkmpp`, `vp8_rkmpp`, `vp9_rkmpp`. | `av1_rkmpp`, `h263_rkmpp`, `h264_rkmpp`, `hevc_rkmpp`, `mjpeg_rkmpp`, `mpeg1_rkmpp`, `mpeg2_rkmpp`, `mpeg4_rkmpp`, `vp8_rkmpp`, `vp9_rkmpp`. |
-| Output model | Always DRM PRIME. The frame context advertises NV12 when the MPP format maps to DRM `NV12`; otherwise the software format may be unknown. | Offers software-format negotiation for `NV12`, `NV16`, `NV15`, `NV20`, or DRM PRIME. Stores the selected format in `avctx->sw_pix_fmt` when returning DRM PRIME. |
-| Decoder options | None in the class. | `deint`, `afbc=off/on/rga`, `fast_parse`, and `buf_mode=half/ext`. |
-| Compressed modifiers | Minimal DRM-format mapping. | Explicit AFBC/RFBC helpers and modifier-aware DRM descriptors. |
-| Buffer modes | Internal decoder-owned flow. | Half-internal or pure-external MPP buffer mode, backed by the RKMPP hwcontext. |
+| Capability | upstream FFmpeg 8.1.2 | ffmpeg-rockchip |
+|------------|-----------------------|-----------------|
+| Registered rkmpp decoders | H.264, HEVC, VP8, VP9. | AV1, H.263, H.264, HEVC, MJPEG, MPEG-1, MPEG-2, MPEG-4, VP8, VP9. |
+| Output frames | DRM PRIME only. | DRM PRIME or negotiated software formats (`NV12`, `NV16`, `NV15`, `NV20`) through the RKMPP frame model. |
+| Decoder options | No Rockchip decoder options exposed. | `deint`, `afbc=off/on/rga`, `fast_parse`, `buf_mode=half/ext`. |
+| AFBC/RFBC awareness | Minimal DRM fourcc/modifier handling. | Explicit AFBC/RFBC helpers and modifier-aware descriptors. |
+| Buffer ownership | Internal MPP decoder flow, exposed as generic DRM PRIME. | Half-internal or pure-external MPP buffer mode; external mode can use RKMPP frame pools. |
 
-The fork's codec list is broader than this repo's validated hardware goal. This
-repo validated H.264/H.265 decode and encode plus RGA on RK3588. Other advertised
-fork codecs still depend on matching MPP support and kernel/device-tree wiring.
+In plain terms: upstream can hardware-decode the common formats, but it does not
+try to be the whole Rockchip frame-management environment. ffmpeg-rockchip does.
 
-## Encoder comparison
+The fork's broader codec list is not the same thing as this repo validating every
+listed codec on RK3588. This repo's hardware goal and tests are H.264/H.265
+decode, H.264/H.265 encode, and RGA scale/CSC.
 
-| Capability | Mainline `../FFmpeg` | `../ffmpeg-rockchip` |
-|------------|----------------------|----------------------|
-| Source files | One file: `libavcodec/rkmppenc.c` (584 lines). | `rkmppenc.c` plus `rkmppenc.h` (1632 lines total). |
-| Registered encoders | `h264_rkmpp`, `hevc_rkmpp`. | `h264_rkmpp`, `hevc_rkmpp`, `mjpeg_rkmpp`. |
-| Accepted H.26x input formats | `DRM_PRIME`, `NV12`, `YUV420P`. | Many YUV, semi-planar, packed YUV, RGB/BGR, and `DRM_PRIME` formats. |
-| Rate-control option | `-rc vbr|cbr|avbr`, default `vbr`. | `-rc_mode VBR|CBR|CQP|AVBR`, default auto (`MPP_ENC_RC_MODE_BUTT`). |
-| Fixed QP | Not exposed. No `rc:qp_*` values are set. | `qp_init >= 0` selects fixed-QP mode in auto RC; `CQP` is explicit too. Wires `rc:qp_init`, `qp_min/max`, and I-frame QP bounds. |
-| H.264 profile/level/coder | Not exposed; MPP defaults apply. On RK3588 this yields constrained-baseline behavior in the GRD case. | Exposes H.264 profile, level, CABAC/CAVLC, 8x8 transform, user-data SEI, and prefix mode. Default profile is High. |
-| HEVC profile/tier/level | Not exposed. | Exposes HEVC profile, tier, and level. |
-| Forced IDR | Ignores `frame->pict_type`. | If an H.264/HEVC input frame has `pict_type == I`, calls `MPP_ENC_SET_IDR_FRAME` before submit. |
-| Bitrate bounds | Sets `rc:bps_target` only when `bit_rate > 0`; sets `rc:bps_max` only from `avctx->rc_max_rate`; sets `rc:bps_min` only from `avctx->rc_min_rate`. If max is unset, MPP's own ceiling can remain in effect. | Always computes and sets target/min/max for bitrate modes. VBR/AVBR use wide bounds; CBR uses narrow bounds. Fixed-QP mode skips bitrate setup. |
-| Stride/config update | Starts with 16-byte alignment; DRM PRIME input can update MPP stride from the descriptor. | Starts with 64-byte alignment, can defer final prep config until the first DRM frame, and validates linear/AFBC modifiers. |
-| Async behavior | Simple receive loop around `ff_encode_get_frame()` and MPP put/get. | Tracks submitted frames, uses nonblocking output for H.26x/MJPEG unless low-delay is requested, and records average QP side data from `KEY_ENC_AVERAGE_QP`. |
-| Flush | Implements FFmpeg encoder flush by `mpi->reset()` and `eof_sent = true`. | Uses the older encode callback style and explicit close/reset cleanup. |
+## 4. Encoder behavior
 
-This is the source of the GRD mainline workarounds:
+Encoder differences are the most important application-facing differences.
 
-- `qp_init=22` is meaningful on the fork, but ignored by mainline because the
-  option does not exist there.
-- `frame->pict_type = I` forces an IDR on the fork, but not on mainline.
-- On mainline, setting only `bit_rate` is not enough for quality; applications
-  should set `rc_max_rate` and usually `rc_min_rate` too.
+| Capability | upstream FFmpeg 8.1.2 | ffmpeg-rockchip |
+|------------|-----------------------|-----------------|
+| Registered rkmpp encoders | H.264, HEVC. | H.264, HEVC, MJPEG. |
+| H.264/HEVC input formats | `DRM_PRIME`, `NV12`, `YUV420P`; DRM PRIME must describe NV12. | Many YUV, semi-planar, packed YUV, RGB/BGR, and DRM PRIME formats. |
+| Rate-control option | `rc=vbr/cbr/avbr`; default is VBR. | `rc_mode=VBR/CBR/CQP/AVBR`; default is auto. |
+| Fixed QP | Not exposed and no `rc:qp_*` values are written. | Exposed through `CQP` and through auto mode when `qp_init >= 0`. |
+| Bitrate bounds | Writes `rc:bps_target` from `bit_rate`; writes `rc:bps_max` only from `rc_max_rate`; writes `rc:bps_min` only from `rc_min_rate`. | Computes and writes target/min/max for bitrate modes. Fixed-QP mode skips bitrate setup. |
+| H.264 profile/level/coder | Not exposed. MPP defaults apply. In the GRD case this behaved as constrained baseline. | Exposes profile, level, CABAC/CAVLC, 8x8 transform, user-data SEI, and prefix mode. Default H.264 profile is High. |
+| HEVC profile/tier/level | Not exposed. | Exposes profile, tier, and level. |
+| Forced IDR | Does not inspect `frame->pict_type`; cannot turn an FFmpeg I-frame request into an MPP IDR request. | Calls `MPP_ENC_SET_IDR_FRAME` when an H.264/HEVC input frame has `pict_type == I`. |
+| Header/extradata | Can emit global header or header on each IDR through MPP header mode. | Same concept, plus more SEI/header controls. |
+| Packet metadata | Marks keyframes from `KEY_OUTPUT_INTRA`. | Marks keyframes and attaches average-QP encoder stats from `KEY_ENC_AVERAGE_QP`. |
+| Async behavior | Simple receive loop around FFmpeg's encode queue and MPP put/get. | Tracks submitted frames, uses nonblocking output for H.26x/MJPEG unless low-delay is requested, and supports deeper frame parallelism. |
 
-## RGA filters
+### Why GRD needed workarounds on upstream FFmpeg 8.1.2
 
-Mainline FFmpeg has no Rockchip RGA filters. Any scale, crop, colorspace, or
-overlay operation in a mainline-only CLI pipeline must use software, another
-hardware API, or application-side work such as GRD's Vulkan RGB -> NV12 pass.
+GNOME Remote Desktop's VA-API path was designed around fixed-QP intent: "encode
+this desktop at roughly constant quality." That maps well to ffmpeg-rockchip, but
+not to upstream FFmpeg 8.1.2.
 
-The fork adds three filters, all requiring DRM PRIME hardware frames:
+```mermaid
+flowchart TB
+  intent["GRD intent<br/>constant quality + first frame IDR"]
+  qp["qp_init = 22"]
+  pict["frame->pict_type = I"]
+  fork["ffmpeg-rockchip<br/>honors both"]
+  up["upstream FFmpeg 8.1.2<br/>ignores both for rkmpp"]
+  workaround["GRD workaround<br/>set VBR min/max + recreate encoder after smoke test"]
 
-| Filter | Purpose | Key options |
-|--------|---------|-------------|
-| `scale_rkrga` | Resize and pixel-format conversion. | `w`, `h`, `format`, `force_original_aspect_ratio` (default `decrease`), `force_divisible_by` (default `2`), common RGA options. |
-| `vpp_rkrga` | Scale, crop, and transpose. | `w`, `h`, `cw`, `ch`, `cx`, `cy`, `format`, `transpose`, common RGA options. |
-| `overlay_rkrga` | Two-input compositor. | `x`, `y`, `alpha`, `alpha_format`, `format`, framesync EOF options, common RGA options. |
-
-Common RGA options include `force_yuv`, `force_chroma`, `core`, `async_depth`
-(default `2`), and `afbc`.
-
-`rkrga_common.c` is not a thin wrapper. It maps FFmpeg pixel formats to librga
-formats, checks RGA2/RGA3 feature constraints, handles AFBC/RFBC modifiers,
-allocates output hardware frames, submits async blits, and synchronizes returned
-fences. The fork also queries `librga` via `querystring(RGA_VERSION)` to decide
-which RGA cores and feature subsets are actually present.
-
-One gotcha from the source matters in this repo's tests: `scale_rkrga` defaults
-`force_original_aspect_ratio=decrease`, so exact dimensions require
-`force_original_aspect_ratio=disable`.
-
-## Pipeline consequences
-
-For this repo's full transcode smoke test, the fork is the natural tool:
-
-```bash
-ffmpeg -hwaccel rkmpp -hwaccel_output_format drm_prime -i in.h264 \
-  -vf scale_rkrga=w=1280:h=720:format=nv12 \
-  -c:v hevc_rkmpp -b:v 4M out.mp4
+  intent --> qp --> fork
+  intent --> pict --> fork
+  qp --> up --> workaround
+  pict --> up --> workaround
 ```
 
-That path is decode -> DRM PRIME -> RGA -> DRM PRIME -> encode, with no software
-scale/CSC stage.
+The concrete consequences:
 
-Mainline can still be a good application dependency when the application already
-has a hardware frame producer or transform stage. GRD is exactly that case:
-Vulkan/panvk produces a linear NV12 dma-buf, then mainline `h264_rkmpp` imports it.
-The cost is that GRD must work around mainline's missing fixed-QP, missing forced
-IDR, and missing profile knobs in application code.
+- `qp_init=22` selects fixed-QP mode in ffmpeg-rockchip, but there is no upstream
+  option to set it.
+- `frame->pict_type = I` forces IDR in ffmpeg-rockchip, but upstream does not call
+  `MPP_ENC_SET_IDR_FRAME`.
+- Upstream only sets `rc:bps_max` when `AVCodecContext.rc_max_rate` is set. If an
+  application sets only `bit_rate`, MPP can retain its low default VBR ceiling.
+- Upstream does not set H.264 profile, so applications cannot ask it for High
+  profile through the rkmpp wrapper.
 
-## Keep in mind when resyncing
+That is why the GRD patch sets `rc_max_rate`/`rc_min_rate` and recreates the
+encoder after the startup smoke encode.
 
-- The two implementations use the same public codec names (`h264_rkmpp`,
-  `hevc_rkmpp`) for different control surfaces. Check the binary's source or
-  `ffmpeg -h encoder=h264_rkmpp` before assuming an option exists.
-- Mainline's `rkmppenc.c` has been moving quickly; refresh the comparison against
-  `../FFmpeg` before changing GRD workarounds.
-- The fork's RGA path depends on `librga` and `/dev/rga`; mainline rkmpp does not.
-- Codec names advertised by FFmpeg are necessary but not sufficient. MPP library
-  support, kernel device nodes, and DT wiring decide what works on the ROCK 5B.
+## 5. RGA filter behavior
+
+Upstream FFmpeg 8.1.2 has no Rockchip RGA filters. ffmpeg-rockchip adds three:
+
+| Filter | Purpose | Input/output model |
+|--------|---------|--------------------|
+| `scale_rkrga` | Resize and pixel-format conversion. | DRM PRIME -> DRM PRIME. |
+| `vpp_rkrga` | Scale, crop, and transpose. | DRM PRIME -> DRM PRIME. |
+| `overlay_rkrga` | Two-input composition. | DRM PRIME + DRM PRIME -> DRM PRIME. |
+
+Common RGA features in ffmpeg-rockchip:
+
+- pixel-format mapping from FFmpeg formats to librga formats;
+- RGA2/RGA3 feature checks;
+- multicore RGA scheduler-core selection;
+- async blits and fence synchronization;
+- AFBC output option;
+- AFBC/RFBC input modifier handling;
+- format forcing (`force_yuv`, `force_chroma`);
+- `async_depth` queueing.
+
+The important CLI-visible gotcha:
+
+```bash
+scale_rkrga=w=640:h=480
+```
+
+does **not** mean exact 640x480 by default. `scale_rkrga` defaults
+`force_original_aspect_ratio=decrease`, so exact dimensions require:
+
+```bash
+scale_rkrga=w=640:h=480:force_original_aspect_ratio=disable
+```
+
+## 6. Pipeline differences
+
+### ffmpeg-rockchip full hardware transcode
+
+```mermaid
+flowchart LR
+  h264["H.264 packet"]
+  dec["h264_rkmpp<br/>libmpp decode"]
+  f1["DRM PRIME NV12"]
+  rga["scale_rkrga<br/>librga"]
+  f2["DRM PRIME NV12"]
+  enc["hevc_rkmpp<br/>libmpp encode"]
+  hevc["HEVC packet"]
+
+  h264 --> dec --> f1 --> rga --> f2 --> enc --> hevc
+```
+
+This is what `tests/transcode-test.sh` validates. A pass means the decoder, RGA,
+encoder, dma-heap allocation, dma-buf import, and device permissions all worked.
+
+### Upstream FFmpeg 8.1.2 application encode
+
+```mermaid
+flowchart LR
+  app["application<br/>GRD / custom code"]
+  frame["linear NV12 dma-buf<br/>DRM PRIME"]
+  enc["h264_rkmpp<br/>upstream FFmpeg 8.1.2"]
+  mpp["libmpp encoder"]
+  out["H.264 packet"]
+
+  app --> frame --> enc --> mpp --> out
+```
+
+This is the GRD model. FFmpeg is not asked to scale or color-convert; GRD's
+Vulkan path already produced the NV12 frame.
+
+### Upstream FFmpeg 8.1.2 CLI with transforms
+
+```mermaid
+flowchart LR
+  dec["rkmpp decode"]
+  drm["DRM PRIME frame"]
+  need["need scale / CSC / overlay"]
+  sw["software or another API<br/>possible download/copy"]
+  enc["rkmpp encode"]
+
+  dec --> drm --> need --> sw --> enc
+```
+
+This is where upstream falls short for our validation use case: it has the codec
+bridge, but not Rockchip's hardware post-processing bridge.
+
+## 7. Which one do I have?
+
+The codec names overlap, so check the option surface:
+
+```bash
+ffmpeg -hide_banner -filters | grep rkrga
+ffmpeg -hide_banner -h encoder=h264_rkmpp
+ffmpeg -hide_banner -h decoder=h264_rkmpp
+ffmpeg -hide_banner -hwaccels | grep rkmpp
+```
+
+| Probe | upstream FFmpeg 8.1.2 | ffmpeg-rockchip |
+|-------|-----------------------|-----------------|
+| `grep rkrga` | no RGA filters | `scale_rkrga`, `vpp_rkrga`, `overlay_rkrga` |
+| H.264 encoder help | `rc` only; no QP/profile controls | `rc_mode`, QP, profile, level, coder, SEI controls |
+| Decoder help | no Rockchip-specific options | `deint`, `afbc`, `fast_parse`, `buf_mode` |
+| Hardware device list | no RKMPP hwdevice | RKMPP hwdevice support |
+
+## 8. Resync checklist
+
+When either implementation moves, re-check these exact points:
+
+- Does upstream still lack `AV_HWDEVICE_TYPE_RKMPP`?
+- Did upstream add any RGA filters?
+- Did upstream add QP/profile/forced-IDR support to `rkmppenc.c`?
+- Did upstream change the `rc:bps_max` behavior?
+- Did ffmpeg-rockchip change `scale_rkrga` defaults or option names?
+- Did libmpp change required pkg-config version or header layout?
+
+Those are the facts that affect this repo's tests, GRD workarounds, and packaging
+choices.

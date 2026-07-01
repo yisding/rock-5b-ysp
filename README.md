@@ -23,7 +23,8 @@ For a **real application** built on all of this, see
 [`gnome-remote-desktop/`](gnome-remote-desktop/): a hardware H.264 encode backend
 for GNOME Remote Desktop, so an RDP session is encoded on the VEPU580 — plus the
 three-bug debugging story (no-IDR freeze, the 2.5 Mbps quality ceiling, and the
-GDM greeter's device permissions) that maps mainline FFmpeg's `h264_rkmpp` quirks.
+GDM greeter's device permissions) that maps upstream FFmpeg 8.1.2's
+`h264_rkmpp` quirks.
 
 > **Why the vendor stack and not mainline V4L2?** Mainline's `hantro`/`rkvdec`
 > V4L2 drivers don't cover H.265 **encode**, and the RGA3 V4L2 driver is still
@@ -74,7 +75,7 @@ patches/        The two Armbian userpatches (the deliverable) + how they map to 
 scripts/        build / install / validate the combined kernel, + the udev rule
 packaging/      standalone .debs — codec-udev (video-group rule) + gdm-hwenc (greeter codec ACL for GRD) + dkms (the drivers, for stock kernels 6.18-7.2)
 tests/          on-hardware smoke tests: decode, encode, full transcode
-ffmpeg/         building ffmpeg-rockchip + mainline-vs-fork implementation comparison
+ffmpeg/         building ffmpeg-rockchip + FFmpeg architecture/comparison notes
 gnome-remote-desktop/  a real app on the stack: HW-accelerated RDP encode (VEPU580)
   README.md   the runtime story + the 3 shipping bugs (no-IDR freeze, bitrate ceiling, greeter perms)
   DESIGN.md   why FFmpeg (vs VA-API / direct MPP) + the panvk hardware-enablement journey
