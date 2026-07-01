@@ -75,7 +75,7 @@ patches/        The two Armbian userpatches (the deliverable) + how they map to 
 scripts/        build / install / validate the combined kernel, + the udev rule
 packaging/      standalone .debs — codec-udev (video-group rule) + gdm-hwenc (greeter codec ACL for GRD) + dkms (the drivers, for stock kernels 6.18-7.2)
 tests/          on-hardware smoke tests: decode, encode, full transcode
-ffmpeg/         building ffmpeg-rockchip + FFmpeg architecture/comparison notes
+ffmpeg/         building ffmpeg-rockchip + FFmpeg architecture/comparison/backport notes
 gnome-remote-desktop/  a real app on the stack: HW-accelerated RDP encode (VEPU580)
   README.md   the runtime story + the 3 shipping bugs (no-IDR freeze, bitrate ceiling, greeter perms)
   DESIGN.md   why FFmpeg (vs VA-API / direct MPP) + the panvk hardware-enablement journey

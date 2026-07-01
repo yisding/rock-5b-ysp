@@ -13,6 +13,9 @@ Companion docs:
   the full Rockchip CLI pipeline (RKMPP hwcontext + RGA filters + richer encoder
   controls); upstream FFmpeg 8.1.2 is the ABI-friendly codec bridge used by the
   GRD package and needs application-side workarounds for quality and IDR.
+- [`FIX-CANDIDATES.md`](FIX-CANDIDATES.md) records the 2026 rebase cleanup fixes
+  worth backporting to NyanMisaka's fork, and separates the small V4L2 pieces
+  that may be worth proposing to FFmpeg upstream.
 
 This needs **no system install and no sudo to build** — everything goes into an
 isolated staging prefix; only *running* it needs device access (root, or the udev
