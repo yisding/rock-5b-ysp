@@ -23,9 +23,12 @@ a few percent CPU instead of a laggy, CPU-bound one.
 **Companion docs:** [`DESIGN.md`](DESIGN.md) — why FFmpeg (vs VA-API / direct MPP)
 and the panvk hardware-enablement journey · [`BASELINE.md`](BASELINE.md) — the
 measured *before*: why the software path costs ~20 ms/frame (the `glReadPixels`
-readback) and why HW encode is the only real fix · [`patches/`](patches/) — the
-full 7-patch backend series · [`../ppa/`](../ppa/) — packaging the whole stack for
-a Launchpad PPA.
+readback) and why HW encode is the only real fix · [`CAPTURE-PATH.md`](CAPTURE-PATH.md)
+— the code map: view-creators, encode-session selection, PipeWire buffer
+negotiation, and where the backend plugs in · [`TESTING.md`](TESTING.md) — the
+benchmarking playbook (eviction hazard, env, HW-path checklist) · [`patches/`](patches/)
+— the full 7-patch backend series · [`../ppa/`](../ppa/) — packaging the whole
+stack for a Launchpad PPA.
 
 ## How it fits the stack
 

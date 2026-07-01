@@ -13,9 +13,15 @@ deciding that hardware encode (the rest of this repo) is the only real fix.
 > encoder needs the pixels in a CPU buffer, and hardware encode deletes it
 > outright by consuming the GPU dma-buf directly.
 
-All numbers below were measured on this box (Radxa ROCK 5B, Mali-G610, panfrost,
-Mesa 26) with the harness in [`bench/readback_bench.c`](bench/readback_bench.c),
-re-run live while writing this doc.
+All numbers below were measured on this box (Radxa ROCK 5B, Mali-G610 MC4,
+Panfrost, Mesa 26.0.3, OpenGL 3.1; full spec in [`TESTING.md`](TESTING.md) §0)
+with the harness in [`bench/readback_bench.c`](bench/readback_bench.c), re-run
+live while writing this doc.
+
+> **Companions.** [`CAPTURE-PATH.md`](CAPTURE-PATH.md) maps *where* in GRD's code
+> this readback lives (the view-creators, the encode-session selection, the
+> PipeWire negotiation). [`TESTING.md`](TESTING.md) is the playbook for measuring
+> it without evicting your session.
 
 ---
 
@@ -76,6 +82,32 @@ it is three CPU-side transforms on the way out:
 3. **Uncached reads.** The CPU mapping of the GPU buffer is write-combine /
    uncached, so the read itself is slow per byte relative to cached DRAM.
 
+### Which cost you pay depends on the modifier
+
+The detile cost is not one number — it depends entirely on the **DRM format
+modifier** of the surface mutter hands over. panfrost has **no** software AFBC
+routines (`pan_resource.c`), so the three cases are genuinely different code
+paths, not degrees of the same one:
+
+| Surface modifier | What panfrost does on readback | Relative cost |
+|---|---|---|
+| **AFBC / AFRC** (compressed) | GPU blit to a LINEAR staging texture **+ full pipeline stall** (`panfrost_bo_wait`, `INT64_MAX`) + copy — *no* CPU decompress | highest, and it stalls the GPU |
+| **Tiled** (u-interleaved) | scalar, single-threaded **CPU detile** loop (memcpy/pixel) | high (this is the ~19 ms case) |
+| **Linear** | direct pointer — no reorder | cheapest |
+
+The B↔R swizzle is a *separate* Mesa state-tracker pass on top of whichever of
+these runs — which is why the benchmark, reading a plain linear RGBA8 FBO, still
+shows an 8 → 20 ms jump between `RGBA` and `BGRA`.
+
+> **The one un-profiled question that decides the real bottleneck:** which
+> modifier does mutter's screencast dma-buf actually carry — AFBC, tiled, or
+> linear? Real GRD reads native `BGRA` from mutter's buffer, so it may *not* pay
+> the swizzle the benchmark shows; but if the buffer is AFBC it pays a GPU stall
+> the benchmark's linear FBO never triggers. Profiling that on the real path (see
+> [`TESTING.md`](TESTING.md)) is the highest-value open measurement. Forcing a
+> **LINEAR** capture surface would sidestep the detile entirely — the one
+> in-process lever that attacks the mechanism rather than relocating it.
+
 ### The root cause: a never-implemented Mesa capability
 
 panfrost could push the detile+swizzle onto the GPU's compute engine (which sits
@@ -96,6 +128,17 @@ deferred it ("exposed other problems"). The live upstream fix is MR **!38433**,
 *"panfrost: Enable hardware texture conversion"* (open; authors report ~60 %),
 which — if it lands — would speed up this readback on **stock Mesa with no GRD
 change at all**.
+
+> **What `MESA_COMPUTE_PBO=1` actually does.** It is the manual override of
+> exactly this gap. Mesa's `st_pbo.c` normally uses the compute path only when the
+> driver advertises `PIPE_TEXTURE_TRANSFER_COMPUTE` (the `texture_transfer_modes`
+> cap above) — which panfrost doesn't — but it also reads the `MESA_COMPUTE_PBO`
+> environment variable via `debug_get_option` and, when set, takes the compute
+> path regardless of the cap. So the env var force-enables the GPU-compute
+> detile+swizzle that the driver *could* do but never opts into. It is an
+> **internal/debug knob**, not a documented or supported user setting, which is
+> why there is essentially no documentation for it and why it can't be relied on
+> as a shipping configuration.
 
 ---
 
@@ -243,8 +286,12 @@ MESA_COMPUTE_PBO=1 ./readback_bench 1920 1080 60   # GPU-offloaded detile+swizzl
 ./readback_bench 1280 720                      # other resolutions
 ```
 
-Live A/B against the real daemon needs the headless harness (**no** other RDP
-client connected — mutter's RemoteDesktop API *evicts* an existing session, which
-disconnects a live client), driving motion on the captured `Meta-0` virtual
-monitor. See the two prototype worktrees (`grd-async-pbo-wt`, `grd-memfd-wt`) for
-the opt-in env toggles (`GRD_ASYNC_READBACK`, `GRD_FORCE_MEMFD`) referenced above.
+This micro-benchmark is safe on the live box (surfaceless — it never touches
+mutter). A **live A/B against the real daemon** is a different, hazardous
+exercise: mutter's RemoteDesktop API *evicts* an existing session, so it must be
+run with **no** other RDP client connected, and driving frames headlessly is
+unreliable. The full procedure — environment setup, swapping in a manual build,
+the eviction hazard, killing safely, and why the headless numbers are soft — is
+in [`TESTING.md`](TESTING.md). The two prototype worktrees (`grd-async-pbo-wt`,
+`grd-memfd-wt`) carry the opt-in env toggles (`GRD_ASYNC_READBACK`,
+`GRD_FORCE_MEMFD`) referenced above.
