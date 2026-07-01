@@ -19,6 +19,12 @@ Userspace talks to the vendor MPP framework via `/dev/mpp_service` (the
 Rockchip `rockchip-linux/mpp` library — **not** V4L2) and to RGA via `/dev/rga`
 (the prebuilt `librga`). This is the same stack `ffmpeg-rockchip` expects.
 
+For a **real application** built on all of this, see
+[`gnome-remote-desktop/`](gnome-remote-desktop/): a hardware H.264 encode backend
+for GNOME Remote Desktop, so an RDP session is encoded on the VEPU580 — plus the
+three-bug debugging story (no-IDR freeze, the 2.5 Mbps quality ceiling, and the
+GDM greeter's device permissions) that maps mainline FFmpeg's `h264_rkmpp` quirks.
+
 > **Why the vendor stack and not mainline V4L2?** Mainline's `hantro`/`rkvdec`
 > V4L2 drivers don't cover H.265 **encode**, and the RGA3 V4L2 driver is still
 > a subset (scale/CSC only) and not yet merged for RK3588. The vendor MPP +
@@ -66,9 +72,10 @@ patches/        The two Armbian userpatches (the deliverable) + how they map to 
   rk3588-rkvenc2-02-vcodec-rga-dt.patch        device tree: encoder/decoder/RGA + convert-in-place
   cleanup-draft/                               machine-generated draft fixes for the BSP audit (docs/11) — review before use
 scripts/        build / install / validate the combined kernel, + the udev rule
-packaging/      standalone .debs — codec-udev (the udev rule) + dkms (the drivers, for stock kernels 6.18-7.2)
+packaging/      standalone .debs — codec-udev (video-group rule) + gdm-hwenc (greeter codec ACL for GRD) + dkms (the drivers, for stock kernels 6.18-7.2)
 tests/          on-hardware smoke tests: decode, encode, full transcode
 ffmpeg/         building ffmpeg-rockchip against the MPP + RGA libs (pkg-config examples)
+gnome-remote-desktop/  a real app on the stack: HW-accelerated RDP encode (VEPU580) + the 3-bug debugging story
 docs/
   01-how-the-drivers-work.md  ⭐ START HERE — illustrated tour of the KERNEL drivers (any audience)
   02-how-the-userspace-libs-work.md  the companion: how libmpp + librga work, app→kernel

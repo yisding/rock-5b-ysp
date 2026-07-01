@@ -1,0 +1,151 @@
+From a59c904c99088235eb4de31ca340747d334494f3 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Tue, 30 Jun 2026 21:12:03 -0700
+Subject: [PATCH 2/2] encode-session-ffmpeg: make the mainline rkmpp encoder
+ produce a usable AVC420 stream
+
+Two fixes for mainline FFmpeg's h264_rkmpp (libavcodec/rkmppenc.c, shipped
+in 8.1.x). Unlike the ffmpeg-rockchip fork, mainline's encoder exposes no
+QP/profile knobs and does not honour per-frame forced IDR, so the backend
+needs two mainline-specific workarounds (both harmless on the fork):
+
+1. First-frame IDR. rkmpp only emits a full IDR access unit (SPS+PPS+IDR)
+   for the first frame after the encoder is opened, and the start-of-session
+   smoke encode consumes it. The fork recovers via force_next_idr
+   (pict_type=I -> MPP_ENC_SET_IDR_FRAME), but mainline ignores pict_type, so
+   every real frame went out as a bare P-slice with no parameter sets - the
+   client never decodes, never ACKs, and the RDPGFX frame controller throttles
+   to zero slots after two frames (a permanent freeze). Recreate the encoder
+   after the smoke test so the first real frame is a fresh natural IDR on any
+   build (avcodec_flush_buffers hangs rkmpp; surfaces outlive the encoder).
+
+2. VBR quality. The fork honours qp_init (>=0 -> FIXQP, constant quality like
+   the VA-API backend); mainline ignores it and has no QP knob, so quality is
+   governed by the VBR bitrate triplet. Mainline also only sets bps_max from
+   avctx->rc_max_rate, which GRD left unset, so MPP's ~2.5 Mbps default ceiling
+   capped every frame (heavy artifacts). Set rc_max_rate (bps_max = target x3)
+   and rc_min_rate (bps_min = target /8) and raise the target to ~0.25 bpp so
+   mainline's VBR keeps QP low on active frames.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EN9JjFVPvgho9JggxZbM7Y
+---
+ src/grd-encode-session-ffmpeg.c | 67 ++++++++++++++++++++++++++++-----
+ 1 file changed, 57 insertions(+), 10 deletions(-)
+
+diff --git a/src/grd-encode-session-ffmpeg.c b/src/grd-encode-session-ffmpeg.c
+index 2d5019b..c4ed356 100644
+--- a/src/grd-encode-session-ffmpeg.c
++++ b/src/grd-encode-session-ffmpeg.c
+@@ -61,13 +61,25 @@
+ #define QUALITY_VALUE 100
+ 
+ /*
+- * Fallback target bitrate (~0.1 bits per pixel per frame, capped) used only by
+- * FFmpeg builds whose rkmpp encoder lacks a fixed-QP rate-control mode - i.e.
+- * mainline's h264_rkmpp, which only offers vbr/cbr/avbr and no QP knob.
+- * ffmpeg-rockchip encodes at fixed QP (see create_encoder) and ignores this.
++ * Rate control spans both rkmpp encoders. GRD requests fixed QP via qp_init
++ * (see create_encoder): the ffmpeg-rockchip fork honours it (qp_init >= 0 selects
++ * MPP FIXQP -> constant quality, like the VA-API backend) and also honours
++ * profile and forced IDR. MAINLINE FFmpeg's h264_rkmpp (libavcodec/rkmppenc.c,
++ * shipped in 8.1.x) has none of that: it exposes only -rc {vbr,cbr,avbr} and
++ * never sets rc:qp_* or h264:profile, so qp_init and the profile are silently
++ * ignored and quality is governed entirely by the VBR bitrate triplet
++ * [bps_target : bps_max : bps_min] below:
++ *  - bps_target ~0.25 bpp/frame; on mainline a high target is what pulls the
++ *    encoder's QP down on active frames (static frames stay near-free).
++ *  - bps_max MUST be set via rc_max_rate, or mainline leaves MPP's ~2.5 Mbps
++ *    default ceiling in place, capping every frame -> blocking artifacts.
++ * On the fork FIXQP ignores the bitrate, so this triplet is a mainline-only path.
+  */
+-#define FALLBACK_BPP_DIVISOR 10
++#define FALLBACK_BPP_DIVISOR 4
+ #define FALLBACK_BITRATE_CAP_BPS 100000000
++/* bps_max = target x PEAK_RATE_FACTOR; bps_min = target / MIN_RATE_DIVISOR. */
++#define PEAK_RATE_FACTOR 3
++#define MIN_RATE_DIVISOR 8
+ 
+ /* High profile, matching VAProfileH264High / the NAL writer's profile_idc. */
+ #ifndef AV_PROFILE_H264_HIGH
+@@ -552,14 +564,22 @@ create_encoder (GrdEncodeSessionFfmpeg  *self,
+   self->avctx->flags |= AV_CODEC_FLAG_LOW_DELAY;
+ 
+   /*
+-   * Fallback rate control for builds without a fixed-QP mode (mainline). In
+-   * fixed-QP builds (ffmpeg-rockchip) this is ignored; there the QP set below
+-   * governs quality. Computed once from the surface geometry and refresh rate.
++   * VBR bitrate triplet for the mainline rkmpp encoder (the fork uses qp_init/
++   * FIXQP and ignores these). avctx->bit_rate -> MPP bps_target, rc_max_rate ->
++   * bps_max, rc_min_rate -> bps_min. Setting rc_max_rate is load-bearing on
++   * mainline: rkmppenc.c only sets bps_max from avctx->rc_max_rate, so leaving it
++   * unset keeps MPP's ~2.5 Mbps default ceiling and starves complex frames. A
++   * generous peak lets VBR pursue the target (keeping QP low) while still backing
++   * off toward bps_min on static frames.
+    */
+   self->avctx->bit_rate =
+     MIN ((int64_t) self->surface_width * self->surface_height *
+          self->refresh_rate / FALLBACK_BPP_DIVISOR,
+          (int64_t) FALLBACK_BITRATE_CAP_BPS);
++  self->avctx->rc_max_rate =
++    MIN ((int64_t) self->avctx->bit_rate * PEAK_RATE_FACTOR,
++         (int64_t) FALLBACK_BITRATE_CAP_BPS);
++  self->avctx->rc_min_rate = self->avctx->bit_rate / MIN_RATE_DIVISOR;
+ 
+   /*
+    * Best-effort DRM hw device + frames context. rkmpp imports DRM-PRIME
+@@ -668,6 +688,14 @@ allocate_surfaces (GrdEncodeSessionFfmpeg  *self,
+   return TRUE;
+ }
+ 
++static void
++destroy_encoder (GrdEncodeSessionFfmpeg *self)
++{
++  av_buffer_unref (&self->hw_frames_ctx);
++  av_buffer_unref (&self->hw_device_ctx);
++  avcodec_free_context (&self->avctx);
++}
++
+ static gboolean
+ run_smoke_test (GrdEncodeSessionFfmpeg  *self,
+                 NV12Surface             *surface,
+@@ -678,8 +706,7 @@ run_smoke_test (GrdEncodeSessionFfmpeg  *self,
+ 
+   /*
+    * Gate 5: prove that zero-copy DRM-PRIME import actually works by importing a
+-   * real dma-buf and running a single encode. Its (garbage) output is dropped;
+-   * the next, first real frame is forced to IDR so the stream starts clean.
++   * real dma-buf and running a single encode. Its (garbage) output is dropped.
+    */
+   frame = build_av_frame (self, surface, TRUE, error);
+   if (!frame)
+@@ -695,6 +722,26 @@ run_smoke_test (GrdEncodeSessionFfmpeg  *self,
+ 
+   av_packet_free (&packet);
+ 
++  /*
++   * Make the first real frame a clean IDR (SPS + PPS + IDR slice). rkmpp only
++   * emits a full IDR access unit for the first frame after the encoder is opened,
++   * and the smoke encode above consumed this encoder's one natural IDR. The
++   * ffmpeg-rockchip fork honours per-frame forced IDR (frame->pict_type = I ->
++   * MPP_ENC_SET_IDR_FRAME), so force_next_idr below would recover it there - but
++   * mainline FFmpeg's h264_rkmpp ignores pict_type entirely (verified with
++   * -force_key_frames on 8.1.x), so on mainline every later frame is a bare
++   * P-slice with no parameter sets. Tearing the encoder down and reopening it
++   * makes the next frame a fresh natural IDR on any build. Without a leading IDR
++   * the client never decodes, never sends RDPGFX_FRAME_ACKNOWLEDGE, and the frame
++   * controller throttles the surface to zero slots after two unacknowledged
++   * frames - a permanent freeze. (avcodec_flush_buffers() hangs the rkmpp
++   * encoder; the surfaces are standalone dma-buf descriptors that outlive the
++   * encoder, so recreating hw_frames_ctx here is safe.)
++   */
++  destroy_encoder (self);
++  if (!create_encoder (self, error))
++    return FALSE;
++
+   self->force_next_idr = TRUE;
+ 
+   return TRUE;
+-- 
+2.53.0
+

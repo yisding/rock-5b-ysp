@@ -1,0 +1,240 @@
+From afc8f55abaa5c2408b27e4c998b2cb5d63d67a30 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Tue, 30 Jun 2026 21:02:13 -0700
+Subject: [PATCH 1/2] Revert "rdp: make handover reconnect cleanup robust"
+
+This reverts commit 4e0d599c1d696d0b0681093c7b8e84b219151525.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EN9JjFVPvgho9JggxZbM7Y
+---
+ src/grd-daemon-handover.c |   2 +-
+ src/grd-daemon-system.c   | 135 ++------------------------------------
+ 2 files changed, 7 insertions(+), 130 deletions(-)
+
+diff --git a/src/grd-daemon-handover.c b/src/grd-daemon-handover.c
+index cf82509..709f14b 100644
+--- a/src/grd-daemon-handover.c
++++ b/src/grd-daemon-handover.c
+@@ -93,7 +93,7 @@ on_take_client_finished (GObject      *object,
+   GrdDBusRemoteDesktopRdpHandover *proxy;
+   GrdDaemonHandover *daemon_handover;
+   GrdRdpServer *rdp_server;
+-  g_autoptr (GSocketConnection) socket_connection = NULL;
++  GSocketConnection *socket_connection;
+ 
+   proxy = GRD_DBUS_REMOTE_DESKTOP_RDP_HANDOVER (object);
+   if (!grd_dbus_remote_desktop_rdp_handover_call_take_client_finish (
+diff --git a/src/grd-daemon-system.c b/src/grd-daemon-system.c
+index 64a6bf5..67654d0 100644
+--- a/src/grd-daemon-system.c
++++ b/src/grd-daemon-system.c
+@@ -65,7 +65,6 @@ typedef struct
+   gboolean is_client_mstsc;
+   gboolean use_system_credentials;
+   gboolean needs_handover;
+-  gboolean client_taken;
+ 
+   GrdDBusGdmRemoteDisplay *remote_display;
+ } GrdRemoteClient;
+@@ -122,53 +121,6 @@ disconnect_from_remote_display (GrdRemoteClient *remote_client)
+   g_clear_object (&remote_client->remote_display);
+ }
+ 
+-static void
+-clear_remote_client_socket_connection (GrdRemoteClient *remote_client)
+-{
+-  if (remote_client->socket_connection)
+-    grd_close_connection_and_notify (remote_client->socket_connection);
+-
+-  g_clear_object (&remote_client->socket_connection);
+-}
+-
+-static gboolean
+-remote_client_has_registered_remote_display (GrdRemoteClient *remote_client)
+-{
+-  g_autofree char *object_path = NULL;
+-  const char *session_id;
+-
+-  if (!remote_client->remote_display)
+-    return FALSE;
+-
+-  session_id =
+-    grd_dbus_gdm_remote_display_get_session_id (remote_client->remote_display);
+-  if (!session_id || g_str_equal (session_id, ""))
+-    return FALSE;
+-
+-  object_path = g_strdup_printf ("%s/session%s",
+-                                 REMOTE_DESKTOP_HANDOVERS_OBJECT_PATH,
+-                                 session_id);
+-
+-  return (remote_client->handover_src &&
+-          g_strcmp0 (remote_client->handover_src->object_path,
+-                     object_path) == 0) ||
+-         (remote_client->handover_dst &&
+-          g_strcmp0 (remote_client->handover_dst->object_path,
+-                     object_path) == 0);
+-}
+-
+-static void
+-clear_handover_waiting_state (GrdRemoteClient *remote_client)
+-{
+-  if (remote_client->handover_src)
+-    grd_dbus_remote_desktop_rdp_handover_set_handover_is_waiting (
+-      remote_client->handover_src->interface, FALSE);
+-
+-  if (remote_client->handover_dst)
+-    grd_dbus_remote_desktop_rdp_handover_set_handover_is_waiting (
+-      remote_client->handover_dst->interface, FALSE);
+-}
+-
+ static gboolean
+ grd_daemon_system_is_ready (GrdDaemon *daemon)
+ {
+@@ -225,16 +177,6 @@ on_handle_take_client (GrdDBusRemoteDesktopRdpHandover *interface,
+   g_debug ("[DaemonSystem] At: %s, received TakeClient call",
+            remote_client->handover_dst->object_path);
+ 
+-  if (!remote_client->socket_connection)
+-    {
+-      g_dbus_method_invocation_return_error_literal (invocation,
+-                                                     G_IO_ERROR,
+-                                                     G_IO_ERROR_CLOSED,
+-                                                     "No redirected client "
+-                                                     "connection to take");
+-      return G_DBUS_METHOD_INVOCATION_HANDLED;
+-    }
+-
+   socket = g_socket_connection_get_socket (remote_client->socket_connection);
+   fd = g_socket_get_fd (socket);
+ 
+@@ -247,9 +189,8 @@ on_handle_take_client (GrdDBusRemoteDesktopRdpHandover *interface,
+                                                              fd_list,
+                                                              fd_variant);
+ 
+-  remote_client->client_taken = TRUE;
+-
+-  clear_remote_client_socket_connection (remote_client);
++  grd_close_connection_and_notify (remote_client->socket_connection);
++  g_clear_object (&remote_client->socket_connection);
+   g_clear_handle_id (&remote_client->abort_handover_source_id, g_source_remove);
+ 
+   grd_dbus_remote_desktop_rdp_handover_set_handover_is_waiting (interface,
+@@ -264,45 +205,18 @@ abort_handover (gpointer user_data)
+   GrdRemoteClient *remote_client = user_data;
+   GrdDaemonSystem *daemon_system = remote_client->daemon_system;
+ 
+-  remote_client->abort_handover_source_id = 0;
+-
+-  g_warning ("[DaemonSystem] Aborting handover for remote client with "
++  g_warning ("[DaemonSystem] Aborting handover, removing remote client with "
+              "remote id %s", remote_client->id);
+ 
+-  clear_remote_client_socket_connection (remote_client);
+-
+   if (remote_client->session)
+     {
+       grd_session_rdp_notify_error (GRD_SESSION_RDP (remote_client->session),
+                                     GRD_SESSION_RDP_ERROR_SERVER_REDIRECTION);
+     }
+ 
+-  if (!remote_client->session &&
+-      remote_client_has_registered_remote_display (remote_client))
+-    {
+-      g_warning ("[DaemonSystem] Preserving remote client with remote id %s "
+-                 "for existing remote display after failed handover",
+-                 remote_client->id);
+-
+-      clear_handover_waiting_state (remote_client);
+-      return;
+-    }
+-
+-  g_warning ("[DaemonSystem] Removing remote client with remote id %s after "
+-             "failed handover", remote_client->id);
+   g_hash_table_remove (daemon_system->remote_clients, remote_client->id);
+ }
+ 
+-static void
+-arm_abort_handover_timer (GrdRemoteClient *remote_client)
+-{
+-  g_clear_handle_id (&remote_client->abort_handover_source_id, g_source_remove);
+-  remote_client->abort_handover_source_id =
+-    g_timeout_add_seconds_once (MAX_HANDOVER_WAIT_TIME_S,
+-                                abort_handover,
+-                                remote_client);
+-}
+-
+ static char *
+ get_id_from_routing_token (uint32_t routing_token)
+ {
+@@ -661,7 +575,9 @@ grd_remote_client_free (GrdRemoteClient *remote_client)
+ 
+   g_clear_pointer (&remote_client->id, g_free);
+   g_clear_pointer (&remote_client->hostname, g_free);
+-  clear_remote_client_socket_connection (remote_client);
++  if (remote_client->socket_connection)
++    grd_close_connection_and_notify (remote_client->socket_connection);
++  g_clear_object (&remote_client->socket_connection);
+   unregister_handover_iface (remote_client, remote_client->handover_src);
+   unregister_handover_iface (remote_client, remote_client->handover_dst);
+   g_clear_pointer (&remote_client->handover_src, handover_iface_free);
+@@ -762,12 +678,6 @@ on_create_remote_display_finished (GObject      *object,
+     {
+       g_warning ("[DaemonSystem] Error while calling CreateRemoteDisplay on "
+                  "DisplayMananger: %s", error->message);
+-      /* abort_handover() is normally the g_timeout_add_seconds_once() callback
+-       * and assumes its source is already gone (it clears the id without
+-       * removing it). Calling it directly here while the timer is still armed
+-       * would otherwise leave a live source that fires on the freed client. */
+-      g_clear_handle_id (&remote_client->abort_handover_source_id,
+-                         g_source_remove);
+       abort_handover (remote_client);
+     }
+ }
+@@ -812,43 +722,10 @@ on_incoming_redirected_connection (GrdRdpServer      *rdp_server,
+       return;
+     }
+ 
+-  /* The fd for this client was already handed to the destination. The routing
+-   * token is single-use, so any further connection on it is a stale duplicate
+-   * (e.g. mstsc opens several connections). Discard it instead of starting a
+-   * second handover, which would spawn a duplicate session. */
+-  if (remote_client->client_taken)
+-    {
+-      g_debug ("[DaemonSystem] Discarding duplicate redirected client "
+-               "connection for already handed-over remote id %s",
+-               remote_client->id);
+-      grd_close_connection_and_notify (connection);
+-      return;
+-    }
+-
+-  /* Retried redirected connections reuse the same routing token. Replace the
+-   * still-pending socket with the latest connection so stale sockets cannot
+-   * accumulate. TakeClientReady was already emitted for the first connection
+-   * and drives a single TakeClient that picks up whichever socket is current,
+-   * so a replacement must not emit it again - that would drive a second
+-   * TakeClient/GetSystemCredentials cycle and could clobber credentials. */
+-  if (remote_client->socket_connection)
+-    {
+-      g_debug ("[DaemonSystem] Replacing pending redirected client "
+-               "connection for remote id %s", remote_client->id);
+-      clear_remote_client_socket_connection (remote_client);
+-      remote_client->socket_connection = g_object_ref (connection);
+-      arm_abort_handover_timer (remote_client);
+-      return;
+-    }
+-
+   remote_client->socket_connection = g_object_ref (connection);
+   remote_client->use_system_credentials = remote_client->is_client_mstsc &&
+                                           !requested_rdstls;
+ 
+-  /* A fresh redirected connection is progress; restart the abort timer so a
+-   * retry arriving near the deadline is not torn down immediately. */
+-  arm_abort_handover_timer (remote_client);
+-
+   g_debug ("[DaemonSystem] At: %s, emitting TakeClientReady signal",
+            remote_client->handover_dst->object_path);
+ 
+-- 
+2.53.0
+
