@@ -16,6 +16,12 @@ and **NVENC** (NVIDIA). On an RK3588 **neither exists** — the encoder is the
 on this SoC means a laggy, CPU-bound desktop. The whole point of this repo's
 codec stack is to make that hardware usable; GRD is where it pays off.
 
+Just how CPU-bound, and why, is measured in [`BASELINE.md`](BASELINE.md): the
+software path burns **~20 ms per frame at 1080p** — ~90 % of the daemon — on a
+single `glReadPixels` GPU→CPU copy (a CPU-side detile + BGRA swizzle that
+panfrost never offloads to the GPU). Hardware encode deletes that copy outright,
+which is the difference between a few-percent-CPU desktop and this one.
+
 ## Options we weighed
 
 | Route | What it is | Verdict |

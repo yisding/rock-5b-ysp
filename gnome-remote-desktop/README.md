@@ -21,9 +21,11 @@ a few percent CPU instead of a laggy, CPU-bound one.
 > another `/dev/mpp_service` + `/dev/dma_heap` client.
 
 **Companion docs:** [`DESIGN.md`](DESIGN.md) — why FFmpeg (vs VA-API / direct MPP)
-and the panvk hardware-enablement journey · [`patches/`](patches/) — the full
-7-patch backend series · [`../ppa/`](../ppa/) — packaging the whole stack for a
-Launchpad PPA.
+and the panvk hardware-enablement journey · [`BASELINE.md`](BASELINE.md) — the
+measured *before*: why the software path costs ~20 ms/frame (the `glReadPixels`
+readback) and why HW encode is the only real fix · [`patches/`](patches/) — the
+full 7-patch backend series · [`../ppa/`](../ppa/) — packaging the whole stack for
+a Launchpad PPA.
 
 ## How it fits the stack
 
