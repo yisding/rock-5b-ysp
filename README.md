@@ -80,6 +80,11 @@ gnome-remote-desktop/  a real app on the stack: HW-accelerated RDP encode (VEPU5
   README.md   the runtime story + the 3 shipping bugs (no-IDR freeze, bitrate ceiling, greeter perms)
   DESIGN.md   why FFmpeg (vs VA-API / direct MPP) + the panvk hardware-enablement journey
   patches/    the full 7-patch backend series (applies on pristine GRD 50.1)
+mesa-panfrost-g610/    Mesa/Panfrost notes from Mali-G610 texture-transfer debugging
+  README.md            overview: why COMPUTE, not BLIT, for Panfrost transfers
+  blit-precision.md    root cause: LD_VAR_IMM ~2^-10 varying drift on integer TXF blits
+  validation.md        dEQP, build, and BLIT-vs-COMPUTE timing results
+  reproducers/         standalone C probes/benchmarks used on the ROCK 5B
 ppa/            building the userspace stack (MPP + RGA + FFmpeg 8.1.2 + GRD) as Launchpad source packages
 docs/
   01-how-the-drivers-work.md  ⭐ START HERE — illustrated tour of the KERNEL drivers (any audience)
