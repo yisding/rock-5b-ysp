@@ -75,7 +75,11 @@ scripts/        build / install / validate the combined kernel, + the udev rule
 packaging/      standalone .debs — codec-udev (video-group rule) + gdm-hwenc (greeter codec ACL for GRD) + dkms (the drivers, for stock kernels 6.18-7.2)
 tests/          on-hardware smoke tests: decode, encode, full transcode
 ffmpeg/         building ffmpeg-rockchip against the MPP + RGA libs (pkg-config examples)
-gnome-remote-desktop/  a real app on the stack: HW-accelerated RDP encode (VEPU580) + the 3-bug debugging story
+gnome-remote-desktop/  a real app on the stack: HW-accelerated RDP encode (VEPU580)
+  README.md   the runtime story + the 3 shipping bugs (no-IDR freeze, bitrate ceiling, greeter perms)
+  DESIGN.md   why FFmpeg (vs VA-API / direct MPP) + the panvk hardware-enablement journey
+  patches/    the full 7-patch backend series (applies on pristine GRD 50.1)
+ppa/            building the userspace stack (MPP + RGA + FFmpeg 8.1.2 + GRD) as Launchpad source packages
 docs/
   01-how-the-drivers-work.md  ⭐ START HERE — illustrated tour of the KERNEL drivers (any audience)
   02-how-the-userspace-libs-work.md  the companion: how libmpp + librga work, app→kernel
