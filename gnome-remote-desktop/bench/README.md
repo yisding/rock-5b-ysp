@@ -37,3 +37,10 @@ sync `RGBA` is ~8.4 ms in both, so **~11 ms of the default 19.9 ms is the B↔R
 swizzle alone.** The default async `t_fence`≈0 proves stock panfrost does the
 readback on the CPU (nothing to overlap on the GPU); `MESA_COMPUTE_PBO=1` is the
 only config that moves the heavy part onto the (idle) GPU.
+
+The Mesa follow-up is tracked in
+[`../MESA-PANFROST-TRANSFER.md`](../MESA-PANFROST-TRANSFER.md). In short, the
+sampled BLIT transfer path was rejected because Mali-G610 varying interpolation
+drifts by about `2^-10` on integer texel-coordinate readbacks; the COMPUTE path
+avoids that interpolator and was slightly faster than BLIT in the local transfer
+microbenchmarks.

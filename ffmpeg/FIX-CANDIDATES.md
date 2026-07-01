@@ -8,11 +8,11 @@ Source points from the audit:
 
 | Tree | Commit | Meaning |
 |------|--------|---------|
-| `ffmpeg-rockchip-81/main` | `9319172196` | Current rebased Rockchip stack with review cleanups. |
+| `ffmpeg-rockchip-81/main` | `1c73bd8e65` | Current rebased Rockchip stack with post-review cleanups. |
 | `origin/nyanmisaka` | `40c412dacc` | Older ffmpeg-rockchip fork point used by this repo's build notes. |
 | `upstream` | `87bd15dc3c` | Current FFmpeg branch used for the rebase comparison. |
 
-The useful range for the new cleanup work is mostly `def08a047f..9319172196`.
+The useful range for the new cleanup work is mostly `def08a047f..1c73bd8e65`.
 The older commits in `upstream..main` are the replayed Rockchip feature stack,
 not all fresh fixes. The recommendations below are grouped by where they are
 worth sending.
@@ -23,10 +23,10 @@ worth sending.
 |-----------|---------------------|--------------------------|-----|
 | V4L2 multi-planar packet accounting | Yes | Maybe, as a smaller port | It fixes real packet-size and data-offset handling. Upstream's V4L2 mplane path is narrower, so it needs a targeted version. |
 | V4L2 framerate fallback and `NV16`/`NV24` guards | Yes | Partly | The framerate fallback is generic. The guards are already present upstream, but useful for older fork code. |
-| Packed `NV15`/`NV20` swscale fixes | Yes | Not as a fix-only patch | Upstream does not have `AV_PIX_FMT_NV15` or `AV_PIX_FMT_NV20_PACKED`; this would need a pixel-format feature series first. |
-| RKMPP decoder ownership, MJPEG, EOS, and format fixes | Yes | No, unless replacing/extending upstream RKMPP | These fix the fork's RKMPP hwcontext based decoder. Upstream's RKMPP decoder is a different, smaller implementation. |
-| RKMPP encoder async, packet, DRM, and RC fixes | Yes | Mostly no | Some ideas overlap with upstream, but the code paths and option surface differ substantially. |
-| RKMPP hwcontext and RKRGA cleanup | Yes | No | Upstream has no `AV_HWDEVICE_TYPE_RKMPP` hwcontext and no RKRGA filters. |
+| Packed `NV15`/`NV20` swscale and descriptor fixes | Yes | Not as a fix-only patch | Upstream does not have `AV_PIX_FMT_NV15` or `AV_PIX_FMT_NV20_PACKED`; this would need a pixel-format feature series first. |
+| RKMPP decoder ownership, errinfo, MJPEG, EOS, and format fixes | Yes | No, unless replacing/extending upstream RKMPP | These fix the fork's RKMPP hwcontext based decoder. Upstream's RKMPP decoder is a different, smaller implementation. |
+| RKMPP encoder async, packet, DRM, submit-unwind, and RC fixes | Yes | Mostly no | Some ideas overlap with upstream, but the code paths and option surface differ substantially. |
+| RKMPP hwcontext, RKRGA lifetime, and build cleanup | Yes | No | Upstream has no `AV_HWDEVICE_TYPE_RKMPP` hwcontext and no RKRGA filters. |
 
 ## 1. V4L2 multi-planar packet accounting
 
@@ -124,9 +124,10 @@ Submission guidance:
 - Upstream already has the `NV16`/`NV24` guards. The `G_DV_TIMINGS` fallback can
   be considered upstream after style and edge-case review.
 
-## 3. Packed `NV15`/`NV20` swscale fixes
+## 3. Packed `NV15`/`NV20` swscale and descriptor fixes
 
-Relevant local commits: `021c7102d8`, `275f06843a`, `93891823df`.
+Relevant local commits: `021c7102d8`, `275f06843a`, `93891823df`,
+`1c73bd8e65`.
 
 Files/functions affected:
 
@@ -134,6 +135,7 @@ Files/functions affected:
 - `libswscale/swscale_unscaled.c:nv15_20ToPlanarWrapper()`
 - `libswscale/format.c` for `AV_PIX_FMT_NV20_PACKED` support in the new swscale
   format table
+- `libavutil/pixdesc.c` for the packed `NV20` descriptor name
 
 What it fixes:
 
@@ -156,6 +158,11 @@ height is odd for a subsampled format. The input helper also used a second
 shifted 16-bit load that is unnecessary and can contaminate the unpacked 10-bit
 sample near byte boundaries.
 
+The fork's compact `AV_PIX_FMT_NV20_PACKED` descriptor was also named `nv20`.
+That collides with FFmpeg's normal `NV20` name family and can make
+`av_get_pix_fmt("nv20")` resolve to the compact packed format rather than the
+ordinary endian `NV20` format.
+
 What the fix does:
 
 - Extracts each packed 10-bit sample by sample index instead of by fixed groups.
@@ -165,6 +172,8 @@ What the fix does:
 - Uses ceil division for chroma slice height: `(srcSliceH + vsub - 1) / vsub`.
 - Registers `AV_PIX_FMT_NV20_PACKED` as an input-capable swscale format in the
   current swscale format table.
+- Renames the packed descriptor to `nv20_packed` and updates the FATE references
+  that query pixel-format names.
 
 Why it matters here:
 
@@ -173,13 +182,17 @@ shows up as wrong colors, dropped right-edge pixels, or bad chroma on odd-sized
 content and cropped slices. These formats are also used when transferring RKMPP
 hardware frames back to software for debugging.
 
+The descriptor rename prevents command-line users, filters, and tests from
+confusing the fork-only packed format with FFmpeg's normal `NV20` spelling.
+
 Submission guidance:
 
 - Send to NyanMisaka. The old branch has the same helper shape and benefits from
   the same tail-sample fixes, although the file names and swscale internals differ.
 - Do not send this to upstream as a standalone bug fix. Upstream has endian
   `NV20LE/BE` but not the fork's compact `NV15`/`NV20_PACKED` formats. Upstream
-  would first need a pixel-format addition with tests and documentation.
+  would first need a pixel-format addition with tests and documentation, and the
+  compact format should keep the unambiguous `nv20_packed` name.
 
 ## 4. RKMPP decoder: MJPEG output buffer sizing
 
@@ -220,15 +233,16 @@ Submission guidance:
 - Not useful for upstream as-is. Upstream does not have the same MJPEG RKMPP
   decoder flow.
 
-## 5. RKMPP decoder: frame and packet ownership cleanup
+## 5. RKMPP decoder: frame ownership, info-change, and errinfo cleanup
 
-Relevant local commits: `383bd2a4f3`, `9319172196`.
+Relevant local commits: `383bd2a4f3`, `9319172196`, `1c73bd8e65`.
 
 Files/functions affected:
 
 - `libavcodec/rkmppdec.c:rkmpp_get_frame()`
 - `libavcodec/rkmppdec.c:rkmpp_decode_close()`
 - `libavcodec/rkmppdec.c:rkmpp_set_buffer_group()`
+- `libavcodec/rkmppdec.c:rkmpp_export_frame()`
 
 What it fixes:
 
@@ -242,6 +256,13 @@ The half-internal buffer mode also borrows the buffer group owned by the RKMPP
 hardware frames context. The decoder must not put that group directly after the
 frames context owns it.
 
+The latest review cleanup found three additional edge cases: export failures
+after an `MppFrame` is attached to an `AVFrame` can leak or double-free depending
+on which cleanup path runs; `info_change` was assigned the truth value of a
+larger expression rather than the exact MPP flag; and hardware errinfo frames
+were still ignored when the caller requested fail-fast behavior with
+`AV_EF_EXPLODE`.
+
 What the fix does:
 
 - Sets `mpp_frame = NULL` after successful `rkmpp_export_frame()` so the shared
@@ -251,12 +272,22 @@ What the fix does:
   avoiding a dangling pointer to a group owned by the frames context.
 - Avoids directly putting the half-internal group in the setup-failure path after
   ownership has moved to the frames context.
+- Makes `rkmpp_export_frame()` consume the `MppFrame` on both success and
+  failure, with `av_frame_unref()` handling callbacks after the frame buffer owns
+  the MPP frame and DRM descriptor.
+- Frees the temporary software-output frame if hardware export fails.
+- Stores the real `mpp_frame_get_info_change()` value in `r->info_change`.
+- Returns `AVERROR_INVALIDDATA` for errinfo frames when `AV_EF_EXPLODE` is set.
 
 Why it matters here:
 
 These are lifetime fixes. Without them, decode failures or close/flush edges can
 become double-free, stale-pointer, or leaked-packet bugs rather than clean FFmpeg
 errors.
+
+The `AV_EF_EXPLODE` handling also restores FFmpeg API expectations: users who
+ask the decoder to fail on damaged frames should not silently receive EAGAIN and
+continue through a hardware-reported decode error.
 
 Submission guidance:
 
@@ -369,9 +400,10 @@ Submission guidance:
 - Upstream has a simpler encoder with its own DRM handling; a similar validation
   idea could be reviewed separately, but this function is fork-specific.
 
-## 9. RKMPP encoder: async queue and EOS cleanup
+## 9. RKMPP encoder: async queue, submit-failure, and EOS cleanup
 
-Relevant local commits: `c44cc876db`, `5c0c56e8c8`, `275f06843a`, `9319172196`.
+Relevant local commits: `c44cc876db`, `5c0c56e8c8`, `275f06843a`,
+`9319172196`, `1c73bd8e65`.
 
 Files/functions affected:
 
@@ -379,6 +411,7 @@ Files/functions affected:
 - `libavcodec/rkmppenc.c:get_sent_frame_count()`
 - `libavcodec/rkmppenc.c:get_oldest_unsent_frame()`
 - `libavcodec/rkmppenc.c:rkmpp_encode_frame()`
+- `libavcodec/rkmppenc.c:rkmpp_submit_frame()`
 
 What it fixes:
 
@@ -388,6 +421,11 @@ mixed "queued in our list" with "actually sent to MPP". That can overfill the
 MPP input queue, repeatedly try to send the same frame, or mishandle EOS when the
 output side needs to be drained first.
 
+A later review found that `rkmpp_submit_frame()` could fail after reserving a
+frame-list entry and creating an MPP frame. Leaving that partially initialized
+entry queued lets the async path pick it later, send a bufferless frame to MPP,
+or leak the frame because the normal unused-frame cleanup cannot reclaim it.
+
 What the fix does:
 
 - Adds a monotonically increasing `order` and a `sent` flag to each tracked frame.
@@ -396,6 +434,10 @@ What the fix does:
 - On MPP input backpressure, switches to packet retrieval instead of spinning.
 - Queues EOS once and keeps draining until MPP returns EOF.
 - Resets async and EOS state on init/close.
+- Checks `av_frame_clone()` when the encoder receives DRM PRIME input directly.
+- On submit failure, releases any imported `MppBuffer`, deinitializes the
+  `MppFrame`, frees pending user-data SEI storage, frees the cloned frame, and
+  clears the queued/sent state so the failed entry cannot be sent later.
 
 Why it matters here:
 
@@ -409,9 +451,9 @@ Submission guidance:
 - Not directly upstreamable because upstream's encoder receive loop is much
   simpler and does not use this frame-list model.
 
-## 10. RKMPP encoder: packet pointer, empty packet, and extradata size
+## 10. RKMPP encoder: packet pointer, error cleanup, empty packet, and extradata size
 
-Relevant local commits: `c44cc876db`, `275f06843a`.
+Relevant local commits: `c44cc876db`, `275f06843a`, `1c73bd8e65`.
 
 Files/functions affected:
 
@@ -427,17 +469,30 @@ as `ENOMEM`, even though it represents no packet available in nonblocking mode.
 Finally, the H.26x global-header path set `extradata_size` to payload plus FFmpeg
 padding bytes.
 
+The async encoder also needs to reclaim the consumed input buffer once MPP
+returns the corresponding packet. Before the review cleanup, error exits after a
+packet was obtained could skip that reclamation and leave the input buffer pinned
+forever.
+
 What the fix does:
 
 - Copies packet bytes from `mpp_packet_get_pos()`.
 - Maps `!mpp_pkt` to `AVERROR(EAGAIN)`.
 - Sets `avctx->extradata_size` to the actual header length and still allocates
   zeroed FFmpeg padding after it.
+- Uses a single packet exit path that, when possible, looks up `KEY_INPUT_FRAME`
+  from packet metadata, gets its `MppBuffer`, marks that buffer unused with a
+  negative index, and calls `clear_unused_frames()` before deinitializing the
+  packet.
 
 Why it matters here:
 
 These fixes prevent subtle bitstream corruption and API contract violations. They
 also make nonblocking output behave as FFmpeg callers expect.
+
+The buffer-reclaim path is important under sustained async transcode load: a
+single failed packet post-processing step should not permanently reduce the
+available RKMPP input-buffer pool.
 
 Submission guidance:
 
@@ -480,13 +535,15 @@ Submission guidance:
 - Only the general divide-by-zero guard is conceptually upstream-relevant; the
   exact code does not match upstream.
 
-## 12. RKMPP hwcontext: cache sync and map cleanup
+## 12. RKMPP hwcontext: cache sync, pool sizing, and map cleanup
 
-Relevant local commits: `5c0c56e8c8`, `383bd2a4f3`, `9319172196`.
+Relevant local commits: `5c0c56e8c8`, `383bd2a4f3`, `9319172196`,
+`1c73bd8e65`.
 
 Files/functions affected:
 
 - `libavutil/hwcontext_rkmpp.c:rkmpp_frames_get_buffer_flags()`
+- `libavutil/hwcontext_rkmpp.c:rkmpp_drm_pool_alloc()`
 - `libavutil/hwcontext_rkmpp.c:rkmpp_map_frame()`
 - `libavutil/hwcontext_rkmpp.c:rkmpp_unmap_frame()`
 - `libavutil/hwcontext_rkmpp.c:rkmpp_map_from()`
@@ -499,6 +556,10 @@ levels. The old map/unmap path checked only the frames-context flags before doin
 could miss CPU/device synchronization. The non-linear mapping error path also
 leaked the just-allocated mapping object.
 
+The pool allocator also multiplied aligned width, aligned height, and padded
+bits-per-pixel in `int` before assigning to `size_t`. Very large dimensions can
+overflow the signed intermediate even though the destination type is wide enough.
+
 What the fix does:
 
 - Combines device and frames flags through `rkmpp_frames_get_buffer_flags()`.
@@ -507,6 +568,8 @@ What the fix does:
 - Frees the mapping descriptor before returning `ENOSYS` for non-linear frames.
 - Allows `map_from` callers with `dst->format == AV_PIX_FMT_NONE` by filling in
   the hardware frame context's software format.
+- Casts the aligned width to `size_t` before calculating the MPP pool buffer
+  size, avoiding signed overflow in the intermediate multiply.
 
 Why it matters here:
 
@@ -514,17 +577,22 @@ CPU mapping is mostly a debug or transfer path, but when it is used it must be
 cache coherent. Missing dma-buf sync can produce stale reads or lost writes on
 cacheable buffers.
 
+The size calculation hardening keeps bad or extreme frame dimensions from
+turning into undefined signed-overflow behavior during pool allocation.
+
 Submission guidance:
 
 - Send to NyanMisaka.
 - Not upstreamable directly because upstream has no RKMPP hardware context.
 
-## 13. RKRGA filter output metadata and active-rectangle cleanup
+## 13. RKRGA filter output lifetime, metadata, and active-rectangle cleanup
 
-Relevant local commits: `275f06843a`, `383bd2a4f3`.
+Relevant local commits: `275f06843a`, `383bd2a4f3`, `1c73bd8e65`.
 
 Files/functions affected:
 
+- `libavfilter/rkrga_common.c:submit_frame()`
+- `libavfilter/rkrga_common.c:ff_rkrga_filter_frame()`
 - `libavfilter/rkrga_common.c:query_frame()`
 
 What it fixes:
@@ -536,6 +604,12 @@ output describes a second crop to downstream filters or encoders. The old overla
 preprocess path also recomputed active width/height inline and checked RGA2 size
 limits against fields before the output rect was set.
 
+The async output path also called `ff_filter_frame()` and then freed the same
+frame on error. FFmpeg's filter API consumes the frame even when delivery fails,
+so that cleanup is a double-free/use-after-free risk. The input submission path
+also assumed `av_frame_clone()` succeeded before reading the cloned DRM
+descriptor.
+
 What the fix does:
 
 - Clears all four crop fields on the output frame after copying frame properties.
@@ -544,6 +618,10 @@ What the fix does:
 - Uses the computed active rectangle for the RGA2 4096x4096 limit check.
 - Uses the same active rectangle in `rga_set_rect()` for both normal and pattern
   preprocess output.
+- Checks `av_frame_clone()` before dereferencing the submitted DRM PRIME frame.
+- Sets the async destination frame pointer to `NULL` immediately after
+  `ff_filter_frame()` and decrements the queued count before returning an error,
+  because ownership has already transferred to the next filter.
 
 Why it matters here:
 
@@ -551,24 +629,61 @@ This prevents downstream double-cropping and makes overlay/preprocess dimensions
 match what is actually submitted to librga. It is directly relevant to the full
 hardware transcode and overlay validation path.
 
+The lifetime fix is also important for async RGA stability: delivery failures
+should propagate as filter errors, not corrupt the frame queue or free a frame
+that is no longer owned by the RKRGA filter.
+
 Submission guidance:
 
 - Send to NyanMisaka.
 - Not upstreamable directly because upstream has no RKRGA filters.
+
+## 14. RKMPP build hygiene: private headers and `checkheaders`
+
+Relevant local commit: `1c73bd8e65`.
+
+Files/functions affected:
+
+- `libavcodec/Makefile:SKIPHEADERS-$(CONFIG_RKMPP)`
+
+What it fixes:
+
+The RKMPP decoder and encoder headers include Rockchip MPP headers. They are
+private implementation headers, not public standalone FFmpeg headers, so
+`make checkheaders` should not require a system without MPP development files to
+preprocess them successfully.
+
+What the fix does:
+
+- Adds `rkmppdec.h` and `rkmppenc.h` to `SKIPHEADERS-$(CONFIG_RKMPP)`.
+
+Why it matters here:
+
+This keeps FFmpeg's header self-containment checks useful on generic build hosts
+while still allowing RKMPP-enabled builds to compile when the MPP SDK is
+available. It is a small fix, but it reduces noise for anyone reviewing or
+testing the fork.
+
+Submission guidance:
+
+- Send to NyanMisaka as build hygiene.
+- Not useful upstream unless upstream has equivalent private RKMPP headers that
+  include external SDK headers.
 
 ## Suggested patch split for NyanMisaka
 
 A good backport series would keep review surfaces small:
 
 1. `avdevice/v4l2: fix mplane payload accounting and framerate fallback`
-2. `swscale: fix compact NV15/NV20 unpacking tails`
-3. `avcodec/rkmppdec: fix MJPEG output sizing and decoder ownership`
+2. `swscale: fix compact NV15/NV20 unpacking tails and descriptor name`
+3. `avcodec/rkmppdec: fix MJPEG output sizing, decoder ownership, errinfo, and info-change`
 4. `avcodec/rkmppdec: handle EOS backpressure without spinning`
 5. `avcodec/rkmppenc: validate DRM descriptors before MPP import`
-6. `avcodec/rkmppenc: fix async frame accounting and EOS drain`
+6. `avcodec/rkmppenc: fix async frame accounting, submit failure unwind, packet buffer release, and EOS drain`
 7. `avcodec/rkmppenc: copy packets from MPP position and fix extradata size`
-8. `avutil/hwcontext_rkmpp: fix cache-sync flag propagation and map cleanup`
-9. `avfilter/rkrga: clear stale crop metadata and use clipped active rects`
+8. `avutil/hwcontext_rkmpp: fix cache-sync flag propagation, pool-size overflow, and map cleanup`
+9. `avfilter/rkrga: fix consumed-frame ownership, clear stale crop metadata, and use clipped active rects`
+10. `avcodec: skip private RKMPP headers in checkheaders`
 
 The older `origin/nyanmisaka` branch predates current FFmpeg internals, so these
 should be backported by behavior rather than blindly cherry-picked.
@@ -587,5 +702,8 @@ whole fork stack:
 
 The packed `NV15`/`NV20_PACKED` work could become upstream material only as a
 feature series that adds the pixel formats, imgutils/pixdesc coverage, swscale
-support, and tests. The RKMPP/RKRGA fixes should stay fork-side unless upstream
-accepts a larger RKMPP hardware-context and RGA-filter design.
+support, and tests. If that series is ever proposed, the compact 10-bit 4:2:2
+format should use an explicit name such as `nv20_packed` so `nv20` remains
+available for FFmpeg's ordinary endian `NV20` formats. The RKMPP/RKRGA fixes
+should stay fork-side unless upstream accepts a larger RKMPP hardware-context
+and RGA-filter design.

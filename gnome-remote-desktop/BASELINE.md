@@ -120,25 +120,35 @@ caps->texture_transfer_modes = 0;   // unconditional, since the 2019 driver stub
 ```
 
 This is **not an intentional disable** — it is inherited unchanged from the
-original driver skeleton, with no rationale comment and no MR that ever attempted
-`COMPUTE` for panfrost. The compute-shader prerequisite only reached GLES 3.1
-conformance on Mali-G610 in **mid-2024**, which explains the lag. The one related
-attempt, Mesa MR **!26739** (Collabora), tried the `BLIT` transfer cap and
-deferred it ("exposed other problems"). The live upstream fix is MR **!38433**,
-*"panfrost: Enable hardware texture conversion"* (open; authors report ~60 %),
-which — if it lands — would speed up this readback on **stock Mesa with no GRD
-change at all**.
+original driver skeleton, with no rationale comment. We investigated this in
+Mesa MR **!42563**. The first finding was a real Panfrost shader-image unbind
+bug exposed by GPU texture transfers; that is fixed separately in the MR. The
+second finding was that the tempting `BLIT` transfer cap is not safe on
+Mali-G610 for integer readback/format-conversion paths.
+
+The sampled `u_blitter` path compiled to the expected Mali varying load,
+`LD_VAR_IMM.slot0.v4.f32.center...`, followed by `F32_TO_S32.rtz` and
+`TEX_FETCH`. The problem is not an obvious compiler bug: the interpolated
+coordinate from `LD_VAR_IMM` drifts by about `2^-10`, so a 16307-wide integer
+readback selects previous texels for 15672/16307 samples. The fix direction is
+therefore **COMPUTE**, not BLIT: compute uses integer invocation coordinates and
+bypasses the varying interpolator. Full notes:
+[`MESA-PANFROST-TRANSFER.md`](MESA-PANFROST-TRANSFER.md).
 
 > **What `MESA_COMPUTE_PBO=1` actually does.** It is the manual override of
 > exactly this gap. Mesa's `st_pbo.c` normally uses the compute path only when the
 > driver advertises `PIPE_TEXTURE_TRANSFER_COMPUTE` (the `texture_transfer_modes`
-> cap above) — which panfrost doesn't — but it also reads the `MESA_COMPUTE_PBO`
+> cap above) — which stock panfrost did not — but it also reads the `MESA_COMPUTE_PBO`
 > environment variable via `debug_get_option` and, when set, takes the compute
 > path regardless of the cap. So the env var force-enables the GPU-compute
 > detile+swizzle that the driver *could* do but never opts into. It is an
 > **internal/debug knob**, not a documented or supported user setting, which is
 > why there is essentially no documentation for it and why it can't be relied on
 > as a shipping configuration.
+
+If Mesa !42563 lands in COMPUTE form, this debug override should no longer be
+needed for Panfrost texture transfers: the driver would advertise the compute
+path directly.
 
 ---
 
