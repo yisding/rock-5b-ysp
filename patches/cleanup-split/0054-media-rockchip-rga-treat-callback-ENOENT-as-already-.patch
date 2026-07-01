@@ -1,6 +1,6 @@
-From 2515eaea7376383df5063c369729012037933ae3 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:35:27 -0700
+From 86578222a825e72bb462d8ffc48f01066d6f3938 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:46 -0700
 Subject: [PATCH 54/65] media: rockchip: rga: treat callback ENOENT as already
  signaled
 
@@ -11,12 +11,13 @@ Kernel details:
 For rga_dma_fence_add_callback() == -ENOENT, drop the request and fence refs then return 1 so the caller handles it as already signaled.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_job.c | 9 ++++++---
  1 file changed, 6 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index 17407e0..58e707f 100644
+index 17407e05d224..58e707fbc9d5 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -597,9 +597,7 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,

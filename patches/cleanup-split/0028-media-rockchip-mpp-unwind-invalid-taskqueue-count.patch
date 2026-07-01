@@ -1,6 +1,6 @@
-From 3fb6ea588faee9e516077fa3da4a0f0c7bb7d410 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:05 -0700
+From 749a47714fe79a963404743d0e8c4a72cd253704 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:35 -0700
 Subject: [PATCH 28/65] media: rockchip: mpp: unwind invalid taskqueue count
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 Set taskqueue_cnt to 0 before jumping to fail_register so the cleanup loop is empty, then class_destroy() still runs.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_service.c | 9 ++++++++-
  1 file changed, 8 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
-index 34f2494..6c60ee3 100644
+index 07f3b84f1452..e78c2bd735a0 100644
 --- a/drivers/video/rockchip/mpp/mpp_service.c
 +++ b/drivers/video/rockchip/mpp/mpp_service.c
 @@ -431,7 +431,14 @@ static int mpp_service_probe(struct platform_device *pdev)

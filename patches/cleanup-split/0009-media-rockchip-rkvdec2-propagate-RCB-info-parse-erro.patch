@@ -1,6 +1,6 @@
-From e3d86d86ffe797e0ae8429bc07123dd3cf581966 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:18:28 -0700
+From 6083d715447d826ec8c75828c7486b7d05be072d Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:27 -0700
 Subject: [PATCH 09/65] media: rockchip: rkvdec2: propagate RCB info parse
  errors
 
@@ -11,12 +11,39 @@ Kernel details:
 rkvdec2_extract_task_msg() now returns mpp_extract_rcb_info() failures so stale or partial RCB info is not consumed later.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
- drivers/video/rockchip/mpp/mpp_rkvdec2.c | 7 +++++--
- 1 file changed, 5 insertions(+), 2 deletions(-)
+ drivers/video/rockchip/mpp/mpp_common.c       |  6 ++++++
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c      | 13 ++++++++-----
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c |  8 +++++++-
+ 3 files changed, 21 insertions(+), 6 deletions(-)
 
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index ed00dfa15a34..a171b10fbfa9 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -577,6 +577,7 @@ static int mpp_process_task_default(struct mpp_session *session,
+ 	struct mpp_dev *mpp = session->mpp;
+ 	u32 timing_en;
+ 	ktime_t on_create;
++	int ret;
+ 
+ 	if (unlikely(!mpp)) {
+ 		mpp_err("pid %d client %d found invalid process function\n",
+@@ -590,6 +591,11 @@ static int mpp_process_task_default(struct mpp_session *session,
+ 
+ 	if (mpp->dev_ops->alloc_task)
+ 		task = mpp->dev_ops->alloc_task(session, msgs);
++	if (IS_ERR(task)) {
++		ret = PTR_ERR(task);
++		mpp_err("alloc_task failed %d.\n", ret);
++		return ret;
++	}
+ 	if (!task) {
+ 		mpp_err("alloc_task failed.\n");
+ 		return -ENOMEM;
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index ce73e17..8d9db90 100644
+index ce73e17e7215..c88b55ce82d6 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 @@ -315,8 +315,11 @@ static int rkvdec2_extract_task_msg(struct mpp_session *session,
@@ -33,6 +60,59 @@ index ce73e17..8d9db90 100644
  		} break;
  		default:
  			break;
+@@ -436,7 +439,7 @@ void *rkvdec2_alloc_task(struct mpp_session *session,
+ 	ret = rkvdec2_task_init(session->mpp, session, task, msgs);
+ 	if (ret) {
+ 		kfree(task);
+-		return NULL;
++		return ERR_PTR(ret);
+ 	}
+ 	mpp_set_rcbbuf(session->mpp, session, &task->mpp_task);
+ 
+@@ -452,8 +455,8 @@ static void *rkvdec2_rk3568_alloc_task(struct mpp_session *session,
+ 	struct rkvdec2_task *task = NULL;
+ 
+ 	mpp_task = rkvdec2_alloc_task(session, msgs);
+-	if (!mpp_task)
+-		return NULL;
++	if (IS_ERR_OR_NULL(mpp_task))
++		return mpp_task;
+ 
+ 	task = to_rkvdec2_task(mpp_task);
+ 	reg_fmt = mpp_task->hw_info->reg_fmt;
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index f52df09f0547..a197feaf7785 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -1332,6 +1332,7 @@ static int mpp_session_pop_done(struct mpp_session *session,
+ int rkvdec2_link_process_task(struct mpp_session *session,
+ 			      struct mpp_task_msgs *msgs)
+ {
++	int ret;
+ 	struct mpp_task *task = NULL;
+ 	struct mpp_dev *mpp = session->mpp;
+ 	struct rkvdec_link_info *link_info = mpp->var->hw_info->link_info;
+@@ -1339,6 +1340,11 @@ int rkvdec2_link_process_task(struct mpp_session *session,
+ 	struct rkvdec_link_dev *link_dec = dec->link_dec;
+ 
+ 	task = rkvdec2_alloc_task(session, msgs);
++	if (IS_ERR(task)) {
++		ret = PTR_ERR(task);
++		mpp_err("alloc_task failed %d.\n", ret);
++		return ret;
++	}
+ 	if (!task) {
+ 		mpp_err("alloc_task failed.\n");
+ 		return -ENOMEM;
+@@ -1847,7 +1853,7 @@ void *rkvdec2_ccu_alloc_task(struct mpp_session *session,
+ 	ret = rkvdec2_task_init(session->mpp, session, task, msgs);
+ 	if (ret) {
+ 		kfree(task);
+-		return NULL;
++		return ERR_PTR(ret);
+ 	}
+ 
+ 	return &task->mpp_task;
 -- 
 2.53.0
 

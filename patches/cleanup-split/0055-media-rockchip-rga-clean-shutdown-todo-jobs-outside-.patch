@@ -1,6 +1,6 @@
-From bfb4061bb0372e121b4998fd8f97aa6475ce72fc Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:35:28 -0700
+From 6d8dac4440135494c2289efa0ac64e36580e9e2a Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:46 -0700
 Subject: [PATCH 55/65] media: rockchip: rga: clean shutdown todo jobs outside
  irq lock
 
@@ -11,12 +11,13 @@ Kernel details:
 Move todo jobs to a local list under scheduler->irq_lock, decrement job_count there, unlock, then unmap and signal outside the atomic section.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_job.c | 13 ++++++++++---
  1 file changed, 10 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index 58e707f..58ea26c 100644
+index 58e707fbc9d5..58ea26c4cfd6 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -657,6 +657,7 @@ void rga_request_scheduler_shutdown(struct rga_scheduler_t *scheduler)

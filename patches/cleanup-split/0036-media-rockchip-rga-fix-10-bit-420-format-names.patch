@@ -1,6 +1,6 @@
-From 8d2b8ed209e4240c51449bfa0057e747958212bd Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:27:46 -0700
+From 2a2a64f223eeed3969d50d4b389e14f3e4301855 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:38 -0700
 Subject: [PATCH 36/65] media: rockchip: rga: fix 10-bit 420 format names
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 rga_get_format_name() returned the YCrCb string for RGA_FORMAT_YCbCr_420_SP_10B and vice versa. Swap the two return strings.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_common.c | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_common.c b/drivers/video/rockchip/rga3/rga_common.c
-index d941107..09b6e7d 100644
+index d94110769ac6..09b6e7d9b9f5 100644
 --- a/drivers/video/rockchip/rga3/rga_common.c
 +++ b/drivers/video/rockchip/rga3/rga_common.c
 @@ -304,9 +304,9 @@ const char *rga_get_format_name(uint32_t format)

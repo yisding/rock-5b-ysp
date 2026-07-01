@@ -1,6 +1,6 @@
-From 6a675aa7951d43f2a36dc375305e732d46c85825 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:33:50 -0700
+From 7a6b7448233c54825aab96879cc69ccbbd84e295 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:42 -0700
 Subject: [PATCH 45/65] media: rockchip: rga: always put submitted requests
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 rga_request_config() returns a referenced request. Convert early returns in rga_ioctl_request_submit() to a shared err_put_request epilogue.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_drv.c | 10 +++++++---
  1 file changed, 7 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index bd601cf..da4736a 100644
+index bd601cf38bbf..da4736aa6adc 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -810,7 +810,8 @@ static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale)

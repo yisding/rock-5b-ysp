@@ -1,6 +1,6 @@
-From 926b4a19243fdeae1d6b93ad6216e9108926852e Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:18:28 -0700
+From 4ecd55ff9285be133e31f29d52faffd35518dffe Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:26 -0700
 Subject: [PATCH 08/65] media: rockchip: mpp: drop dead dma-buf cache guards
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 CONFIG_DMABUF_CACHE is not an upstream 6.18 symbol. Always run the non-cache paths and keep the import reference only for !static_use.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_iommu.c | 9 ++++-----
  1 file changed, 4 insertions(+), 5 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
-index 23891a5..aaa0546 100644
+index b4258bcfee2d..072c5d393b0b 100644
 --- a/drivers/video/rockchip/mpp/mpp_iommu.c
 +++ b/drivers/video/rockchip/mpp/mpp_iommu.c
 @@ -9,8 +9,8 @@
@@ -29,7 +30,7 @@ index 23891a5..aaa0546 100644
   */
  #include <linux/dma-buf.h>
  #include <linux/dma-mapping.h>
-@@ -223,8 +223,7 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+@@ -225,8 +225,7 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
  	}
  
  	/* remove the oldest before add buffer */
@@ -39,7 +40,7 @@ index 23891a5..aaa0546 100644
  
  	/* Check whether in dma session */
  	buffer = mpp_dma_find_buffer_fd(dma, fd);
-@@ -276,7 +275,7 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+@@ -278,7 +277,7 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
  
  	kref_init(&buffer->ref);
  

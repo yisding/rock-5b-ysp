@@ -1,6 +1,6 @@
-From 8d7c66afe8cb65e7d3ddb02afe8cdfc9bee1a2f5 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:15:08 -0700
+From dcfdc95ce03196827eb45490039b532298aaecb4 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:26 -0700
 Subject: [PATCH 06/65] media: rockchip: mpp: copy only validated offset
  elements
 
@@ -11,12 +11,13 @@ Kernel details:
 mpp_extract_reg_offset_info() bounds-checks cnt but copied req->size bytes. Copy cnt * sizeof(off_inf->elem[0]) instead.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_common.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index 2f05239..57cde00 100644
+index c9e45c162481..ed00dfa15a34 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -1984,7 +1984,7 @@ int mpp_extract_reg_offset_info(struct reg_offset_info *off_inf,

@@ -1,6 +1,6 @@
-From 01e828f02906f00276ae070053aaa095b8e4b426 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:05 -0700
+From 3aa4b65ae893474153e0092824a238d1cc5c4df0 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:33 -0700
 Subject: [PATCH 24/65] media: rockchip: rkvenc2: unwind core probe failures
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 Route attach/IRQ failures through a failed label. If enc->ccu is set, detach enc from ccu->core_list under lock before mpp_dev_remove() frees devres memory.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
- drivers/video/rockchip/mpp/mpp_rkvenc2.c | 31 +++++++++++++++++++++---
- 1 file changed, 28 insertions(+), 3 deletions(-)
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 32 +++++++++++++++++++++---
+ 1 file changed, 29 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 4554c94..4ca85ca 100644
+index 0b3ebbf19204..fcd6404ad471 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -3164,8 +3164,9 @@ static int rkvenc_core_probe(struct platform_device *pdev)
@@ -40,12 +41,13 @@ index 4554c94..4ca85ca 100644
  	}
  	mpp->session_max_buffers = RKVENC_SESSION_MAX_BUFFERS;
  	enc->hw_info = to_rkvenc_info(mpp->var->hw_info);
-@@ -3189,6 +3191,29 @@ static int rkvenc_core_probe(struct platform_device *pdev)
+@@ -3189,6 +3191,30 @@ static int rkvenc_core_probe(struct platform_device *pdev)
  		mpp_dev_register_srv(mpp, mpp->srv);
  
  	return 0;
 +
 +failed:
++	rkvenc2_free_rcbbuf(pdev, enc);
 +	/*
 +	 * If rkvenc_attach_ccu() fully succeeded it linked enc onto
 +	 * ccu->core_list (enc->ccu is set only on full success, and attach_ccu

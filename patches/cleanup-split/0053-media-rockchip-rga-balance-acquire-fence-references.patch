@@ -1,6 +1,6 @@
-From af22ab0e7d527394e76c8d11efba2f403e5dd25d Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:35:27 -0700
+From fa55e9026850869d0d7a418cbbab52669d9f76b5 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:45 -0700
 Subject: [PATCH 53/65] media: rockchip: rga: balance acquire-fence references
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 rga_get_dma_fence_from_fd() returns a referenced dma_fence. Put it on each early return and in the signaled callback.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_job.c | 9 +++++++++
  1 file changed, 9 insertions(+)
 
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index affa79f..17407e0 100644
+index affa79fa3f25..17407e05d224 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -569,6 +569,7 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,

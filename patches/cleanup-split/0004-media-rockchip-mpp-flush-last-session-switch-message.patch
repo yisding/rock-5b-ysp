@@ -1,6 +1,6 @@
-From 2f5a1200b5c4d07018c0df9d15389c9dc122651e Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:15:08 -0700
+From d4de010ac86938073641184697534804006cf84d Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:25 -0700
 Subject: [PATCH 04/65] media: rockchip: mpp: flush last session-switch message
 
 Plain-language impact:
@@ -10,15 +10,16 @@ Kernel details:
 Before the last-message return, handle a live msgs object: task_msgs_add() it if it has requests, otherwise put_task_msgs(), then clear the local pointer.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_common.c | 10 +++++++++-
  1 file changed, 9 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index f903aa0..6c5a5bb 100644
+index 1a2198ff6732..fd1f71c23eda 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
-@@ -1607,8 +1607,16 @@ next:
+@@ -1607,8 +1607,16 @@ static int mpp_collect_msgs(struct list_head *head, struct mpp_session *session,
  
  session_switch_done:
  		/* session id should NOT be the last message */

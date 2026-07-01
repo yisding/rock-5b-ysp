@@ -1,6 +1,6 @@
-From ff04dfb2cb4593cb06ea72cae06c27d142945dc3 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:38:30 -0700
+From ab42c10927c3eca524fded103f904dd66a74daab Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:49 -0700
 Subject: [PATCH 62/65] media: rockchip: rga: unmap buffer on id allocation
  failure
 
@@ -11,12 +11,13 @@ Kernel details:
 When idr_alloc_cyclic() fails in rga_mm_import_buffer(), jump to UNMAP_AND_FREE_BUFFER so rga_mm_unmap_buffer() runs before kfree(internal_buffer).
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_mm.c | 4 +++-
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index a738718..3f5ffc9 100644
+index a738718e90a1..3f5ffc971aee 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -2464,7 +2464,7 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,

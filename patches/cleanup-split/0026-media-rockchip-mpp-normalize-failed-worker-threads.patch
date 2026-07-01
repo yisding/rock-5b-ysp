@@ -1,6 +1,6 @@
-From 4e29ccb880e9a5361801c5d0582bdd57c9895d61 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:05 -0700
+From fa827ff4e5b95a8b78541cd67cdf320cf0970fab Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:34 -0700
 Subject: [PATCH 26/65] media: rockchip: mpp: normalize failed worker threads
 
 Plain-language impact:
@@ -10,21 +10,24 @@ Kernel details:
 Check IS_ERR() after kthread_run(), log the failure, and store NULL so cleanup skips that queue.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
- drivers/video/rockchip/mpp/mpp_service.c | 4 ++++
- 1 file changed, 4 insertions(+)
+ drivers/video/rockchip/mpp/mpp_service.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
-index 852c029..1eab6e5 100644
+index 852c0295b863..23601d651ae8 100644
 --- a/drivers/video/rockchip/mpp/mpp_service.c
 +++ b/drivers/video/rockchip/mpp/mpp_service.c
-@@ -442,6 +442,10 @@ static int mpp_service_probe(struct platform_device *pdev)
+@@ -442,6 +442,12 @@ static int mpp_service_probe(struct platform_device *pdev)
  		kthread_init_worker(&queue->worker);
  		queue->kworker_task = kthread_run(kthread_worker_fn, &queue->worker,
  						  "mpp_worker_%d", i);
 +		if (IS_ERR(queue->kworker_task)) {
++			ret = PTR_ERR(queue->kworker_task);
 +			dev_err(dev, "failed to run mpp_worker_%d\n", i);
 +			queue->kworker_task = NULL;
++			goto fail_register;
 +		}
  		srv->task_queues[i] = queue;
  	}

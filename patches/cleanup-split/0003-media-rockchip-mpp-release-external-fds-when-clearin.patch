@@ -1,6 +1,6 @@
-From 60847245ec4a330fb54ec29df20078f0456379f5 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:15:08 -0700
+From 7ead2026da55861f1fcb0b5dee947a3df40b519c Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:24 -0700
 Subject: [PATCH 03/65] media: rockchip: mpp: release external fds when
  clearing messages
 
@@ -11,12 +11,13 @@ Kernel details:
 clear_task_msgs() frees mpp_task_msgs objects. For messages with ext_fd >= 0, msgs->f owns an fdget() reference and must be released with fdput() before kfree().
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_common.c | 5 ++++-
  1 file changed, 4 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index 353c562..f903aa0 100644
+index 667e7dfc500e..1a2198ff6732 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -302,8 +302,11 @@ static void clear_task_msgs(struct mpp_session *session)

@@ -1,6 +1,6 @@
-From eeb8a52887208173959ac68d999a8a1d9f154aaa Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:34:16 -0700
+From af809e72867313aabd7e8ba438fa395d7935c525 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:43 -0700
 Subject: [PATCH 47/65] media: rockchip: rga: fix RGA3 scheduler error message
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 Correct the pr_err() string in the RGA3 init_scheduler() switch default.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_drv.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index a620cb3..dd67986 100644
+index a620cb338908..dd67986c72ec 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -1331,7 +1331,7 @@ static int init_scheduler(struct rga_scheduler_t *scheduler,

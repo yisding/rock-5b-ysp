@@ -1,6 +1,6 @@
-From 5dad046997c942008f4b5b00c4ab2a25f5168c87 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:05 -0700
+From 24f34aa04f78754094c8a9b85c7695fea5052337 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:32 -0700
 Subject: [PATCH 22/65] media: rockchip: rkvenc2: put disabled CCU node
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 Split !np from !of_device_is_available(np) in rkvenc_attach_ccu() and of_node_put(np) on the unavailable path.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_rkvenc2.c | 7 ++++++-
  1 file changed, 6 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 2a6d253..2c7a47a 100644
+index b78517285aac..5c0134aba09d 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -2929,8 +2929,13 @@ static int rkvenc_attach_ccu(struct device *dev, struct rkvenc_dev *enc)

@@ -1,6 +1,6 @@
-From 0adb523ca81eb760f546981d04561e96dc03a72c Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:33:50 -0700
+From 96cd26bf639ee98d5e2c3dce87f5ff6a050193e1 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:42 -0700
 Subject: [PATCH 46/65] media: rockchip: rga: zero hardware-version ioctl
  output
 
@@ -11,12 +11,13 @@ Kernel details:
 Initialize struct rga_hw_versions_t hw_versions to zero before filling active entries and copying the whole struct out.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_drv.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index da4736a..a620cb3 100644
+index da4736aa6adc..a620cb338908 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
 @@ -955,7 +955,7 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)

@@ -1,6 +1,6 @@
-From 0cc1f217892aeb8db0e08e850958e5e12d88fd95 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:05 -0700
+From dab45f8e1e253dcbadc4e6e07a842ca71f17a17c Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:34 -0700
 Subject: [PATCH 25/65] media: rockchip: mpp: check service device creation
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 mpp_register_service() checks IS_ERR(srv->child_dev), deletes the cdev, unregisters the chrdev region, and returns PTR_ERR().
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_service.c | 8 ++++++++
  1 file changed, 8 insertions(+)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
-index 6303756..852c029 100644
+index 6303756e0c24..852c0295b863 100644
 --- a/drivers/video/rockchip/mpp/mpp_service.c
 +++ b/drivers/video/rockchip/mpp/mpp_service.c
 @@ -149,6 +149,14 @@ static int mpp_register_service(struct mpp_service *srv,

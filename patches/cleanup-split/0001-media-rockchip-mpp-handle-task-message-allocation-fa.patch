@@ -1,6 +1,6 @@
-From 094b317cc7276fc99723d2587e8b274e5b92f3cd Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:15:08 -0700
+From 58ac55355b5953e3d014f2483ede8b79c1a22062 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:24 -0700
 Subject: [PATCH 01/65] media: rockchip: mpp: handle task message allocation
  failure
 
@@ -11,12 +11,13 @@ Kernel details:
 get_task_msgs() can now return NULL after kzalloc() failure. The SET_SESSION_FD path checks that return before dereferencing msgs and fdput()s the struct fd acquired for the session switch.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_common.c | 8 +++++++-
  1 file changed, 7 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index a66a51a..668a3f9 100644
+index a66a51a0efde..46677ee4d316 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
 @@ -248,6 +248,8 @@ static struct mpp_task_msgs *get_task_msgs(struct mpp_session *session)
@@ -28,7 +29,7 @@ index a66a51a..668a3f9 100644
  	task_msgs_init(msgs, session);
  	INIT_LIST_HEAD(&msgs->list_session);
  
-@@ -1578,7 +1580,11 @@ next:
+@@ -1578,7 +1580,11 @@ static int mpp_collect_msgs(struct list_head *head, struct mpp_session *session,
  		/* switch session */
  		session = fd_file(f)->private_data;
  		msgs = get_task_msgs(session);
@@ -36,7 +37,7 @@ index a66a51a..668a3f9 100644
 +		if (!msgs) {
 +			/* alloc failed: release the held fd, don't deref NULL */
 +			fdput(f);
-+			goto session_switch_done;
++			return -ENOMEM;
 +		}
  		if (fd_file(f)->private_data == session)
  			msgs->ext_fd = bat_msg.fd;

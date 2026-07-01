@@ -1,6 +1,6 @@
-From 139aa9af2d2117178a1e5381974860cdbf1da0ca Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:18:29 -0700
+From f083222a7ee700ed2a135cb4a4358841d2204b21 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:28 -0700
 Subject: [PATCH 12/65] media: rockchip: rkvdec2: devm-manage the MMU base
  mapping
 
@@ -11,15 +11,16 @@ Kernel details:
 Use devm_ioremap() for dec->mmu_base and remove the manual iounmap() path.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_rkvdec2.c | 6 +-----
  1 file changed, 1 insertion(+), 5 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index 0ed4877..4dc684c 100644
+index 08fd7fc6d5cd..eee5f5fc5d6c 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-@@ -1953,7 +1953,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+@@ -1962,7 +1962,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
  		dev_err(dev, "probe sub driver failed\n");
  		return ret;
  	}
@@ -28,7 +29,7 @@ index 0ed4877..4dc684c 100644
  	if (!dec->mmu_base)
  		dev_err(dev, "mmu base map failed!\n");
  
-@@ -2136,10 +2136,6 @@ static void rkvdec2_remove(struct platform_device *pdev)
+@@ -2145,10 +2145,6 @@ static void rkvdec2_remove(struct platform_device *pdev)
  		struct rkvdec2_dev *dec = to_rkvdec2_dev(mpp);
  
  		dev_info(dev, "remove device\n");

@@ -1,6 +1,6 @@
-From 6091d56ea0041b4080ddc18dbc1c7e7f64747022 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:34:46 -0700
+From be0805018c5da0690e26c0a29fe8764185f4ad4b Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:44 -0700
 Subject: [PATCH 49/65] media: rockchip: rga: serialize fence sequence numbers
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 Increment fence_ctx->seqno under fence_ctx->spinlock with irqsave and pass the saved seqno to dma_fence_init().
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_fence.c | 8 +++++++-
  1 file changed, 7 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_fence.c b/drivers/video/rockchip/rga3/rga_fence.c
-index 9c663f3..cea0edf 100644
+index 9c663f3be5ca..cea0edf52827 100644
 --- a/drivers/video/rockchip/rga3/rga_fence.c
 +++ b/drivers/video/rockchip/rga3/rga_fence.c
 @@ -54,6 +54,8 @@ struct dma_fence *rga_dma_fence_alloc(void)

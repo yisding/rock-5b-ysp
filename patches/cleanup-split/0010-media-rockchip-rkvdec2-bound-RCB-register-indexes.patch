@@ -1,6 +1,6 @@
-From a1dbc06d85891d9136a6710de4f4b72844dc0d04 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:18:28 -0700
+From 2c8d9adad85958539d6daf1aec52d22ee66d2a89 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:27 -0700
 Subject: [PATCH 10/65] media: rockchip: rkvdec2: bound RCB register indexes
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 mpp_set_rcbbuf() validates user-controlled RCB indexes against RKVDEC_REG_NUM and uses array_index_nospec() before task->reg[index].
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_rkvdec2.c | 5 +++++
  1 file changed, 5 insertions(+)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index 8d9db90..d759289 100644
+index c88b55ce82d6..c22d895df8c7 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 @@ -352,6 +352,10 @@ int mpp_set_rcbbuf(struct mpp_dev *mpp, struct mpp_session *session,

@@ -1,6 +1,6 @@
-From b7c99d3da6a375a4a08e7d034f98f098597951ae Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:29:41 -0700
+From 63e22e060655396d17d8cabc577a6f6ef92c44ed Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:40 -0700
 Subject: [PATCH 39/65] media: rockchip: rga: fix dma buffer dump formatting
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 Add the missing separator between iova and sgt in rga_mm_session_show().
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_debugger.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
-index 3e25bf9..ddce4b5 100644
+index 3e25bf998f00..ddce4b5385a5 100644
 --- a/drivers/video/rockchip/rga3/rga_debugger.c
 +++ b/drivers/video/rockchip/rga3/rga_debugger.c
 @@ -282,7 +282,7 @@ static int rga_mm_session_show(struct seq_file *m, void *data)

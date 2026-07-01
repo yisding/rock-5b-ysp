@@ -1,6 +1,6 @@
-From 5ac7ff0e0619a0af5907c87be9f8543f266ccf6a Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:15:08 -0700
+From 8a2e49f1a42cd7b307140a9f0620c961fb4242e8 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:24 -0700
 Subject: [PATCH 02/65] media: rockchip: mpp: validate session fds before
  switching sessions
 
@@ -11,15 +11,16 @@ Kernel details:
 MPP_CMD_SET_SESSION_FD used a tautological private_data check. Verify fd_file(f)->f_op == &rockchip_mpp_fops before using private_data as struct mpp_session, return -EBADF on mismatch, and remove the always-true guard.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_common.c | 15 ++++++++++++---
  1 file changed, 12 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
-index 668a3f9..353c562 100644
+index 46677ee4d316..667e7dfc500e 100644
 --- a/drivers/video/rockchip/mpp/mpp_common.c
 +++ b/drivers/video/rockchip/mpp/mpp_common.c
-@@ -1577,6 +1577,17 @@ next:
+@@ -1577,6 +1577,17 @@ static int mpp_collect_msgs(struct list_head *head, struct mpp_session *session,
  			msgs = NULL;
  		}
  
@@ -37,9 +38,9 @@ index 668a3f9..353c562 100644
  		/* switch session */
  		session = fd_file(f)->private_data;
  		msgs = get_task_msgs(session);
-@@ -1585,9 +1596,7 @@ next:
+@@ -1585,9 +1596,7 @@ static int mpp_collect_msgs(struct list_head *head, struct mpp_session *session,
  			fdput(f);
- 			goto session_switch_done;
+ 			return -ENOMEM;
  		}
 -		if (fd_file(f)->private_data == session)
 -			msgs->ext_fd = bat_msg.fd;

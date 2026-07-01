@@ -1,6 +1,6 @@
-From 559d0adb5bbd0b5fcb79c6c81e35ab4e9acf4178 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:05 -0700
+From be296f7ef9c16933df91ebe9f008f3a0bb6a51d1 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:31 -0700
 Subject: [PATCH 18/65] media: rockchip: rkvdec2-link: test per-core disable
  flag
 
@@ -11,15 +11,16 @@ Kernel details:
 rkvdec2_hard_ccu_enqueue() iterates queue->cores as core but tested the outer mpp->disable. Test core->disable instead.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index 0bfed23..d719b70 100644
+index 79984d51898a..3d0da24bdc56 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-@@ -2600,7 +2600,7 @@ static int rkvdec2_hard_ccu_enqueue(struct rkvdec2_ccu *ccu,
+@@ -2606,7 +2606,7 @@ static int rkvdec2_hard_ccu_enqueue(struct rkvdec2_ccu *ccu,
  			struct rkvdec2_dev *dec = to_rkvdec2_dev(core);
  			struct rkvdec_link_dev *link_dec = dec->link_dec;
  

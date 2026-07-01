@@ -1,6 +1,6 @@
-From 6ef5356352a4b8e3951109f04d75ef5bfac8c5e2 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:28:23 -0700
+From 29e6315c1d96dd65755824fd5395db471ddbb24d Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:39 -0700
 Subject: [PATCH 37/65] media: rockchip: rga: harden image size calculation
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 rga_image_size_cal() now validates dimensions, computes w*h products in s64 with explicit casts, and rejects totals larger than INT_MAX before assigning int outputs.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_common.c | 56 +++++++++++++++---------
  1 file changed, 35 insertions(+), 21 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_common.c b/drivers/video/rockchip/rga3/rga_common.c
-index 09b6e7d..65943e0 100644
+index 09b6e7d9b9f5..65943e0709f5 100644
 --- a/drivers/video/rockchip/rga3/rga_common.c
 +++ b/drivers/video/rockchip/rga3/rga_common.c
 @@ -754,9 +754,20 @@ void rga_swap_pd_mode(struct rga_req *req_rga)

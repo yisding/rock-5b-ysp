@@ -1,6 +1,6 @@
-From 3f8a37b284bb0a9ea3db25517faebe04a95ab746 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:38:30 -0700
+From 8c48b91ae69dbcb6a586fe521d11111e92d772be Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:50 -0700
 Subject: [PATCH 64/65] media: rockchip: rga: hoist rotation swap calculation
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 Compute need_swap once before the scheduler loop; the expression depends only on rga_base, not scheduler data.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_policy.c | 13 ++++++-------
  1 file changed, 6 insertions(+), 7 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_policy.c b/drivers/video/rockchip/rga3/rga_policy.c
-index 5b22551..5889d27 100644
+index 5b22551b679c..5889d27c281a 100644
 --- a/drivers/video/rockchip/rga3/rga_policy.c
 +++ b/drivers/video/rockchip/rga3/rga_policy.c
 @@ -327,6 +327,12 @@ int rga_job_assign(struct rga_job *job)

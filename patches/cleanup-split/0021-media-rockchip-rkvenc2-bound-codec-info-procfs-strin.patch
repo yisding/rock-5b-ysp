@@ -1,6 +1,6 @@
-From 3675ee5a95ed2a3c2b79e46ebce080123b1d0ec4 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:05 -0700
+From deacbc41e3e171d0e7309a8dfa82de8072599f92 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:32 -0700
 Subject: [PATCH 21/65] media: rockchip: rkvenc2: bound codec-info procfs
  strings
 
@@ -11,12 +11,13 @@ Kernel details:
 CODEC_INFO_FLAG_STRING values are not guaranteed NUL-terminated. Print at most eight bytes with %8.8s.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_rkvenc2.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index f781330..2a6d253 100644
+index c4cffb7b3a84..b78517285aac 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -2058,7 +2058,7 @@ static int rkvenc_dump_session(struct mpp_session *session, struct seq_file *seq

@@ -1,6 +1,6 @@
-From 4bbd2cc65d98bc8d754854bc0f06ce15989e692f Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:35:27 -0700
+From 080b74ff42133bedaad76eb5e0b8d2e961224c47 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:45 -0700
 Subject: [PATCH 52/65] media: rockchip: rga: compare scheduler timeout in
  milliseconds
 
@@ -11,12 +11,13 @@ Kernel details:
 ktime_ms_delta() returns milliseconds; convert RGA_JOB_TIMEOUT_DELAY from jiffies with jiffies_to_msecs() before comparing.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_job.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
-index 47d2034..affa79f 100644
+index 47d2034af90d..affa79fa3f25 100644
 --- a/drivers/video/rockchip/rga3/rga_job.c
 +++ b/drivers/video/rockchip/rga3/rga_job.c
 @@ -313,7 +313,7 @@ static void rga_job_scheduler_timeout_clean(struct rga_scheduler_t *scheduler)

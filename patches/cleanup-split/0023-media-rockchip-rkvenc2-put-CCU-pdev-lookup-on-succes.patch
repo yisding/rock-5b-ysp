@@ -1,6 +1,6 @@
-From bbba302824513fe8400c3710a3add6c1f4949ad9 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:05 -0700
+From ccc612df78a1955a0f1ad3c6953c7a2876bba6cc Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:33 -0700
 Subject: [PATCH 23/65] media: rockchip: rkvenc2: put CCU pdev lookup on
  success
 
@@ -11,12 +11,13 @@ Kernel details:
 Balance of_find_device_by_node() with put_device(&pdev->dev) after enc->ccu/list setup has completed.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_rkvenc2.c | 1 +
  1 file changed, 1 insertion(+)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 2c7a47a..4554c94 100644
+index 5c0134aba09d..0b3ebbf19204 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -2990,6 +2990,7 @@ static int rkvenc_attach_ccu(struct device *dev, struct rkvenc_dev *enc)

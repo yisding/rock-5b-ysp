@@ -1,6 +1,6 @@
-From 8d4c96a10dffb4ae8a7067be5eeaf1a3f5c643a9 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:30:02 -0700
+From 38264268dc5a87d04245bc10de34f1c757e76783 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:40 -0700
 Subject: [PATCH 41/65] media: rockchip: rga: validate dump size before mapping
  image
 
@@ -11,12 +11,13 @@ Kernel details:
 Move size assignment and size <= 0 validation before dma_buf_vmap()/vmap() in rga_dump_image_to_file().
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_debugger.c | 13 ++++++-------
  1 file changed, 6 insertions(+), 7 deletions(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
-index ae3c1c0..f558950 100644
+index ae3c1c0efed7..f558950fe5da 100644
 --- a/drivers/video/rockchip/rga3/rga_debugger.c
 +++ b/drivers/video/rockchip/rga3/rga_debugger.c
 @@ -881,6 +881,12 @@ static int rga_dump_image_to_file(struct rga_internal_buffer *dump_buffer,

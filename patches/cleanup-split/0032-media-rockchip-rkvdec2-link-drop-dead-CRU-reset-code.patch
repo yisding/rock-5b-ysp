@@ -1,6 +1,6 @@
-From 5615dca417e5b386b81097bdb5369fb4760afa30 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:06 -0700
+From cb75857e74213644d4cb66ca78cd7e090c1e78b9 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:36 -0700
 Subject: [PATCH 32/65] media: rockchip: rkvdec2-link: drop dead CRU reset code
 
 Plain-language impact:
@@ -10,15 +10,16 @@ Kernel details:
 Keep one u32 val declaration in the loop and delete the commented-out CRU reset block plus the shadowed inner val.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 8 +-------
  1 file changed, 1 insertion(+), 7 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-index c2c3672..759f19d 100644
+index c74356b8b94a..51a5ac1f1e2d 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
-@@ -2419,7 +2419,7 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+@@ -2425,7 +2425,7 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
  
  	/* reset and active core */
  	for (i = 0; i < queue->core_count; i++) {
@@ -27,7 +28,7 @@ index c2c3672..759f19d 100644
  		struct mpp_dev *mpp = queue->cores[i];
  		struct rkvdec2_dev *dec = to_rkvdec2_dev(mpp);
  
-@@ -2433,17 +2433,11 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+@@ -2439,17 +2439,11 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
  
  		{
  			/* soft reset */

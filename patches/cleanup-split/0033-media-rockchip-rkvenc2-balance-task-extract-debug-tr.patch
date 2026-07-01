@@ -1,6 +1,6 @@
-From b878015cf9e27379b6ab63e83ae5d222d19dd8b9 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:06 -0700
+From 3350e80fd3f76c57cce546b4ac0c6e5b6c22be80 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:37 -0700
 Subject: [PATCH 33/65] media: rockchip: rkvenc2: balance task extract debug
  trace
 
@@ -11,12 +11,13 @@ Kernel details:
 Replace success and failure mpp_debug_enter() calls in rkvenc_extract_task_msg() with mpp_debug_leave().
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_rkvenc2.c | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
-index 4ca85ca..1f2ff7f 100644
+index fcd6404ad471..4f1e30fe5836 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
 @@ -1016,13 +1016,13 @@ static int rkvenc_extract_task_msg(struct mpp_session *session,

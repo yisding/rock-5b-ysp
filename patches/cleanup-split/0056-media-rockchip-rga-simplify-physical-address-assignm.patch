@@ -1,6 +1,6 @@
-From c43f9dbef90555887be807eaf980db04f7fb0f33 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:36:54 -0700
+From 7a021074dfdb10b7afbec3b06555ddced7e00652 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:47 -0700
 Subject: [PATCH 56/65] media: rockchip: rga: simplify physical address
  assignment
 
@@ -11,12 +11,13 @@ Kernel details:
 internal_buffer->phys_addr = phys_addr ? phys_addr : 0 is equivalent to assigning phys_addr directly.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_mm.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
-index f6b1ff5..08283da 100644
+index f6b1ff5b7ab2..08283dabab4d 100644
 --- a/drivers/video/rockchip/rga3/rga_mm.c
 +++ b/drivers/video/rockchip/rga3/rga_mm.c
 @@ -499,7 +499,7 @@ static int rga_mm_map_dma_buffer(struct rga_external_buffer *external_buffer,

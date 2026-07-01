@@ -1,6 +1,6 @@
-From aecb34d1ec58407355ecb79a93aca77db6a58282 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:26:06 -0700
+From c9672e1c57334d2f1c37038b359bc0f3e7848f79 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:35 -0700
 Subject: [PATCH 29/65] media: rockchip: mpp: unwind invalid resetgroup count
 
 Plain-language impact:
@@ -10,15 +10,16 @@ Kernel details:
 Replace the bare return with ret = -EINVAL; goto fail_register so shared cleanup runs.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_service.c | 3 ++-
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
-index 6c60ee3..e0eaf13 100644
+index e78c2bd735a0..4c72374b75cb 100644
 --- a/drivers/video/rockchip/mpp/mpp_service.c
 +++ b/drivers/video/rockchip/mpp/mpp_service.c
-@@ -461,7 +461,8 @@ static int mpp_service_probe(struct platform_device *pdev)
+@@ -463,7 +463,8 @@ static int mpp_service_probe(struct platform_device *pdev)
  	if (srv->reset_group_cnt > MPP_DEVICE_BUTT) {
  		dev_err(dev, "rockchip,resetgroup-count %d must less than %d\n",
  			srv->reset_group_cnt, MPP_DEVICE_BUTT);

@@ -1,6 +1,6 @@
-From 67c064b4516ab29a303d7a5ca86d646b93980d43 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:33:05 -0700
+From d2bf793c3a3e955c4e261607f25a8942549ebb2e Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:42 -0700
 Subject: [PATCH 44/65] media: rockchip: rga: return request allocation errors
 
 Plain-language impact:
@@ -10,15 +10,16 @@ Kernel details:
 Store rga_request_alloc() in signed int, test id < 0, and return the errno before copy_to_user().
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_drv.c | 6 +++++-
  1 file changed, 5 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
-index 73d4417..bd601cf 100644
+index 73d44175b4d1..bd601cf38bbf 100644
 --- a/drivers/video/rockchip/rga3/rga_drv.c
 +++ b/drivers/video/rockchip/rga3/rga_drv.c
-@@ -753,7 +753,7 @@ err_free_external_buffer:
+@@ -753,7 +753,7 @@ static long rga_ioctl_release_buffer(unsigned long arg)
  
  static long rga_ioctl_request_create(unsigned long arg, struct rga_session *session)
  {

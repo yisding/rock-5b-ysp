@@ -1,6 +1,6 @@
-From b90101c7a08bebf5e6c3444e5ecf10e28f4a74a1 Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:34:46 -0700
+From d216a5d6a6766b8289dce88fa4c24926f68ed057 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:44 -0700
 Subject: [PATCH 50/65] media: rockchip: rga: drop dead user-memory check
  helper
 
@@ -11,12 +11,26 @@ Kernel details:
 rga_user_memory_check() has no callers. Delete the dead helper and its overflow/OOB-prone kmap() probing logic.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
- drivers/video/rockchip/rga3/rga_iommu.c | 38 -------------------------
- 1 file changed, 38 deletions(-)
+ .../video/rockchip/rga3/include/rga_iommu.h   |  1 -
+ drivers/video/rockchip/rga3/rga_iommu.c       | 38 -------------------
+ 2 files changed, 39 deletions(-)
 
+diff --git a/drivers/video/rockchip/rga3/include/rga_iommu.h b/drivers/video/rockchip/rga3/include/rga_iommu.h
+index b80a1f48bb25..1369034ca523 100644
+--- a/drivers/video/rockchip/rga3/include/rga_iommu.h
++++ b/drivers/video/rockchip/rga3/include/rga_iommu.h
+@@ -60,7 +60,6 @@ struct rga_mmu_base {
+ 	int32_t curr;
+ };
+ 
+-int rga_user_memory_check(struct page **pages, u32 w, u32 h, u32 format, int flag);
+ int rga_set_mmu_base(struct rga_job *job, struct rga2_req *req);
+ unsigned int *rga_mmu_buf_get(struct rga_mmu_base *mmu_base, uint32_t size);
+ 
 diff --git a/drivers/video/rockchip/rga3/rga_iommu.c b/drivers/video/rockchip/rga3/rga_iommu.c
-index 6b2fd5f..a985695 100644
+index 6b2fd5ff630f..a985695b5630 100644
 --- a/drivers/video/rockchip/rga3/rga_iommu.c
 +++ b/drivers/video/rockchip/rga3/rga_iommu.c
 @@ -12,44 +12,6 @@

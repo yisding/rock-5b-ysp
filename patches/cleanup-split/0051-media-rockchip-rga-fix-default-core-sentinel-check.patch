@@ -1,6 +1,6 @@
-From 60a8bf9a2d31b5cf4eac0e3462234b7a009ed4cf Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:34:46 -0700
+From fd7dd07425a12656beb57e6e9af92e00459aee76 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:45 -0700
 Subject: [PATCH 51/65] media: rockchip: rga: fix default-core sentinel check
 
 Plain-language impact:
@@ -10,12 +10,13 @@ Kernel details:
 another_index is initialized to -1. Compare another_index < 0 instead of comparing an index to the RGA_NONE_CORE bitmask constant.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/rga3/rga_iommu.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/video/rockchip/rga3/rga_iommu.c b/drivers/video/rockchip/rga3/rga_iommu.c
-index a985695..1cec62e 100644
+index a985695b5630..1cec62e8bb91 100644
 --- a/drivers/video/rockchip/rga3/rga_iommu.c
 +++ b/drivers/video/rockchip/rga3/rga_iommu.c
 @@ -337,7 +337,7 @@ int rga_iommu_bind(void)

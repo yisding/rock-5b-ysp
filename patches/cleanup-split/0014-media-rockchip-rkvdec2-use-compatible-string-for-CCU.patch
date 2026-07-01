@@ -1,6 +1,6 @@
-From c1a6d8399948193aba43faa5a0ea331f2436615c Mon Sep 17 00:00:00 2001
-From: Split <split@example.invalid>
-Date: Tue, 30 Jun 2026 22:22:02 -0700
+From b6faf12d112858d8e9610912fd593253fdc13e26 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 06:21:29 -0700
 Subject: [PATCH 14/65] media: rockchip: rkvdec2: use compatible string for CCU
  dispatch
 
@@ -11,15 +11,16 @@ Kernel details:
 Use of_device_is_compatible(..., "rockchip,rkv-decoder-v2-ccu") with the old dev_name() fallback, matching probe more closely than a name substring alone.
 
 Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
 ---
  drivers/video/rockchip/mpp/mpp_rkvdec2.c | 12 ++++++++----
  1 file changed, 8 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-index 1898c59..fa2ef7c 100644
+index 00b10c84c60a..3ab7b1699fe7 100644
 --- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
 +++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
-@@ -2148,7 +2148,8 @@ static void rkvdec2_remove(struct platform_device *pdev)
+@@ -2158,7 +2158,8 @@ static void rkvdec2_remove(struct platform_device *pdev)
  {
  	struct device *dev = &pdev->dev;
  
@@ -29,7 +30,7 @@ index 1898c59..fa2ef7c 100644
  		dev_info(dev, "remove ccu device\n");
  		rkvdec2_ccu_remove(dev);
  	} else {
-@@ -2167,13 +2168,15 @@ static void rkvdec2_shutdown(struct platform_device *pdev)
+@@ -2177,13 +2178,15 @@ static void rkvdec2_shutdown(struct platform_device *pdev)
  {
  	struct device *dev = &pdev->dev;
  
@@ -47,7 +48,7 @@ index 1898c59..fa2ef7c 100644
  		struct rkvdec2_ccu *ccu = dev_get_drvdata(dev);
  
  		mpp_clk_safe_disable(ccu->aclk_info.clk);
-@@ -2207,7 +2210,8 @@ static int __maybe_unused rkvdec2_runtime_suspend(struct device *dev)
+@@ -2217,7 +2220,8 @@ static int __maybe_unused rkvdec2_runtime_suspend(struct device *dev)
  
  static int __maybe_unused rkvdec2_runtime_resume(struct device *dev)
  {
