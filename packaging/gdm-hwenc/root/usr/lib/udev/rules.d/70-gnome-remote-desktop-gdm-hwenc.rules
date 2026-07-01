@@ -1,0 +1,22 @@
+# gnome-remote-desktop-gdm-hwenc: let the GDM greeter hardware-encode.
+#
+# gnome-remote-desktop can hardware-encode the RDP stream on Rockchip via the MPP
+# video codec. The base media rule (Armbian's 60-media.rules) grants the "video"
+# group access to the codec nodes, which covers the interactive login user. The
+# GDM greeter, however, runs as a DYNAMIC per-session user (gdm-greeter,
+# gdm-greeter-2, ...) that is only ever in group "gdm", never "video" - so without
+# this rule the greeter cannot open the codec nodes and GRD silently falls back to
+# software for the login screen.
+#
+# Grant the "gdm" group (shared by every greeter user) a persistent ACL on the
+# codec nodes. This is a deterministic alternative to TAG+="uaccess", which is
+# unreliable here: logind refreshes the DRM node ACL across the greeter's
+# dynamic-user churn but leaves these non-seat codec nodes with the first user.
+#
+# Runs after 60-media.rules (higher prefix). setfacl adds a group entry and does
+# not disturb logind's per-session user ACLs. Guarded on the gdm group existing so
+# it is a harmless no-op on systems without GDM.
+KERNEL=="mpp_service", RUN+="/bin/sh -c 'getent group gdm >/dev/null 2>&1 && /usr/bin/setfacl -m g:gdm:rw $devnode'"
+KERNEL=="rga",         RUN+="/bin/sh -c 'getent group gdm >/dev/null 2>&1 && /usr/bin/setfacl -m g:gdm:rw $devnode'"
+KERNEL=="iep",         RUN+="/bin/sh -c 'getent group gdm >/dev/null 2>&1 && /usr/bin/setfacl -m g:gdm:rw $devnode'"
+SUBSYSTEM=="dma_heap",  RUN+="/bin/sh -c 'getent group gdm >/dev/null 2>&1 && /usr/bin/setfacl -m g:gdm:rw $devnode'"

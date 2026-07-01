@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ] && command -v udevadm >/dev/null 2>&1; then
+    udevadm control --reload-rules || true
+    # Re-apply live: the setfacl RUN fires on trigger, so the active greeter
+    # session picks up the ACL with no reboot (GDM re-attempts on its next
+    # greeter session anyway).
+    udevadm trigger --subsystem-match=dma_heap || true
+    udevadm trigger /dev/mpp_service /dev/rga /dev/iep 2>/dev/null || true
+fi
+exit 0

@@ -1,0 +1,19 @@
+Package: gnome-remote-desktop-gdm-hwenc
+Version: 1.0
+Section: misc
+Priority: optional
+Architecture: all
+Maintainer: Yi Ding <yi.s.ding@gmail.com>
+Depends: acl
+Enhances: gnome-remote-desktop
+Description: hardware-accelerated encode for the GDM login screen (Rockchip)
+ gnome-remote-desktop hardware-encodes the RDP stream on Rockchip via the MPP
+ video codec. The base codec udev rule grants the "video" group access, which
+ covers the interactive login user but NOT the GDM greeter: the greeter runs as
+ a dynamic per-session user (gdm-greeter, gdm-greeter-2, ...) that is only ever
+ in group "gdm". This package grants the "gdm" group a persistent ACL on the
+ codec nodes (/dev/mpp_service, the DMA-heaps, /dev/rga) so the login screen is
+ hardware-encoded too, not just the logged-in session.
+ .
+ Separate / opt-in: it widens video-codec access to the whole "gdm" group, so it
+ is deliberately not pulled in by gnome-remote-desktop.
