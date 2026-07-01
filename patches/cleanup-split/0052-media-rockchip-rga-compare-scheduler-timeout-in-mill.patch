@@ -1,0 +1,33 @@
+From 4bbd2cc65d98bc8d754854bc0f06ce15989e692f Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:35:27 -0700
+Subject: [PATCH 52/65] media: rockchip: rga: compare scheduler timeout in
+ milliseconds
+
+Plain-language impact:
+The timeout check now compares values in the same units.
+
+Kernel details:
+ktime_ms_delta() returns milliseconds; convert RGA_JOB_TIMEOUT_DELAY from jiffies with jiffies_to_msecs() before comparing.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_job.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index 47d2034..affa79f 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -313,7 +313,7 @@ static void rga_job_scheduler_timeout_clean(struct rga_scheduler_t *scheduler)
+ 	}
+ 
+ 	job = scheduler->running_job;
+-	if (ktime_ms_delta(ktime_get(), job->timestamp.hw_execute) >= RGA_JOB_TIMEOUT_DELAY) {
++	if (ktime_ms_delta(ktime_get(), job->timestamp.hw_execute) >= jiffies_to_msecs(RGA_JOB_TIMEOUT_DELAY)) {
+ 		job->ret = rga_job_timeout_query_state(job, job->ret);
+ 
+ 		scheduler->running_job = NULL;
+-- 
+2.53.0
+

@@ -1,0 +1,40 @@
+From b878015cf9e27379b6ab63e83ae5d222d19dd8b9 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:06 -0700
+Subject: [PATCH 33/65] media: rockchip: rkvenc2: balance task extract debug
+ trace
+
+Plain-language impact:
+Task-message extraction now logs leave traces at both exits.
+
+Kernel details:
+Replace success and failure mpp_debug_enter() calls in rkvenc_extract_task_msg() with mpp_debug_leave().
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 4ca85ca..1f2ff7f 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -1016,13 +1016,13 @@ static int rkvenc_extract_task_msg(struct mpp_session *session,
+ 	mpp_debug(DEBUG_TASK_INFO, "w_req_cnt=%d, r_req_cnt=%d\n",
+ 		  task->w_req_cnt, task->r_req_cnt);
+ 
+-	mpp_debug_enter();
++	mpp_debug_leave();
+ 	return 0;
+ 
+ fail:
+ 	rkvenc_free_class_msg(task);
+ 
+-	mpp_debug_enter();
++	mpp_debug_leave();
+ 	return ret;
+ }
+ 
+-- 
+2.53.0
+

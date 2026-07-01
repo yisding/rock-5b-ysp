@@ -1,0 +1,63 @@
+From af22ab0e7d527394e76c8d11efba2f403e5dd25d Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:35:27 -0700
+Subject: [PATCH 53/65] media: rockchip: rga: balance acquire-fence references
+
+Plain-language impact:
+Acquire fences are no longer leaked on unsupported, error, already-signaled, callback-registration-failure, or callback paths.
+
+Kernel details:
+rga_get_dma_fence_from_fd() returns a referenced dma_fence. Put it on each early return and in the signaled callback.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_job.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index affa79f..17407e0 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -569,6 +569,7 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
+ #endif
+ #else
+ 		rga_req_err(request, "Please update the driver to v1.2.28 to prevent acquire_fence_fd leaks.");
++		rga_dma_fence_put(acquire_fence);
+ 		return -EFAULT;
+ #endif
+ 	}
+@@ -578,9 +579,11 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
+ 	if (ret < 0) {
+ 		rga_req_err(request, "%s: Current acquire fence unexpectedly has error status before signal\n",
+ 		       __func__);
++		rga_dma_fence_put(acquire_fence);
+ 		return ret;
+ 	} else if (ret > 0) {
+ 		/* has been signaled */
++		rga_dma_fence_put(acquire_fence);
+ 		return ret;
+ 	}
+ 
+@@ -600,6 +603,10 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
+ 		mutex_lock(&request_manager->lock);
+ 		rga_request_put(request);
+ 		mutex_unlock(&request_manager->lock);
++
++		/* The callback was not registered, so release our fence ref. */
++		rga_dma_fence_put(acquire_fence);
++
+ 		return ret;
+ 	}
+ 
+@@ -990,6 +997,8 @@ static void rga_request_acquire_fence_signaled_cb(struct dma_fence *fence,
+ 
+ 	queue_work(system_highpri_wq, &request->fence_work);
+ 	kfree(waiter);
++
++	dma_fence_put(fence);
+ }
+ 
+ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job *job)
+-- 
+2.53.0
+

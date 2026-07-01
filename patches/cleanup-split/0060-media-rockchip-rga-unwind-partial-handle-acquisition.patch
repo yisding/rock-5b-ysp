@@ -1,0 +1,97 @@
+From 55d07daebb149250c7f29345a1fc1f3dc56f8865 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:38:30 -0700
+Subject: [PATCH 60/65] media: rockchip: rga: unwind partial handle acquisition
+
+Plain-language impact:
+Already-acquired channel buffers are released if a later channel acquisition fails.
+
+Kernel details:
+Make rga_mm_put_channel_handle_info() idempotent by NULLing released pointers, add a forward declaration, and route src/dst/pat acquisition failures to err_put_handle_info.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_mm.c | 28 +++++++++++++++++++++-------
+ 1 file changed, 21 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 72da270..bde18f0 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -1632,15 +1632,23 @@ static void rga_mm_put_channel_handle_info(struct rga_mm *mm,
+ 					   struct rga_job_buffer *job_buf,
+ 					   enum dma_data_direction dir)
+ {
+-	if (job_buf->y_addr)
++	if (job_buf->y_addr) {
+ 		rga_mm_put_buffer(mm, job, job_buf->y_addr, dir);
+-	if (job_buf->uv_addr)
++		job_buf->y_addr = NULL;
++	}
++	if (job_buf->uv_addr) {
+ 		rga_mm_put_buffer(mm, job, job_buf->uv_addr, dir);
+-	if (job_buf->v_addr)
++		job_buf->uv_addr = NULL;
++	}
++	if (job_buf->v_addr) {
+ 		rga_mm_put_buffer(mm, job, job_buf->v_addr, dir);
++		job_buf->v_addr = NULL;
++	}
+ 
+-	if (job_buf->page_table)
++	if (job_buf->page_table) {
+ 		free_pages((unsigned long)job_buf->page_table, job_buf->order);
++		job_buf->page_table = NULL;
++	}
+ }
+ 
+ static int rga_mm_get_channel_handle_info(struct rga_mm *mm,
+@@ -1722,6 +1730,8 @@ static int rga_mm_get_channel_handle_info(struct rga_mm *mm,
+ 	return 0;
+ }
+ 
++static void rga_mm_put_handle_info(struct rga_job *job);
++
+ static int rga_mm_get_handle_info(struct rga_job *job)
+ {
+ 	int ret = 0;
+@@ -1785,7 +1795,7 @@ static int rga_mm_get_handle_info(struct rga_job *job)
+ 						     DMA_TO_DEVICE);
+ 		if (ret < 0) {
+ 			rga_job_err(job, "Can't get src buffer info from handle!\n");
+-			return ret;
++			goto err_put_handle_info;
+ 		}
+ 	}
+ 
+@@ -1795,7 +1805,7 @@ static int rga_mm_get_handle_info(struct rga_job *job)
+ 						     DMA_TO_DEVICE);
+ 		if (ret < 0) {
+ 			rga_job_err(job, "Can't get dst buffer info from handle!\n");
+-			return ret;
++			goto err_put_handle_info;
+ 		}
+ 	}
+ 
+@@ -1817,13 +1827,17 @@ static int rga_mm_get_handle_info(struct rga_job *job)
+ 		}
+ 		if (ret < 0) {
+ 			rga_job_err(job, "Can't get pat buffer info from handle!\n");
+-			return ret;
++			goto err_put_handle_info;
+ 		}
+ 	}
+ 
+ 	rga_mm_set_mmu_flag(job);
+ 
+ 	return 0;
++
++err_put_handle_info:
++	rga_mm_put_handle_info(job);
++	return ret;
+ }
+ 
+ static void rga_mm_put_handle_info(struct rga_job *job)
+-- 
+2.53.0
+

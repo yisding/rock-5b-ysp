@@ -1,0 +1,92 @@
+From d990b76f5b0c5441057fce8d8c26883fd6dfe8b4 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:18:28 -0700
+Subject: [PATCH 07/65] media: rockchip: mpp: reference DMA buffers returned by
+ fd lookup
+
+Plain-language impact:
+DMA buffers found by fd can no longer be freed before the caller is done with them.
+
+Kernel details:
+mpp_dma_find_buffer_fd() now takes a temporary kref under list_mutex. All callers in this series are adjusted: import consumes the lookup ref, RELEASE_FD drops lookup+import refs, and rkvenc_alloc_task() drops its temporary bs_buf lookup ref.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_iommu.c   | 20 +++++++++++++++-----
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c |  8 ++++++++
+ 2 files changed, 23 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index cdba2d3..23891a5 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -52,6 +52,8 @@ mpp_dma_find_buffer_fd(struct mpp_dma_session *dma, int fd)
+ 		 */
+ 		if (buffer->dmabuf == dmabuf) {
+ 			out = buffer;
++			if (!kref_get_unless_zero(&buffer->ref))
++				out = NULL;
+ 			find = 1;
+ 			list_move_tail(&buffer->link, &buffer->dma->used_list);
+ 			break;
+@@ -66,6 +68,8 @@ mpp_dma_find_buffer_fd(struct mpp_dma_session *dma, int fd)
+ 			 */
+ 			if (buffer->dmabuf == dmabuf) {
+ 				out = buffer;
++				if (!kref_get_unless_zero(&buffer->ref))
++					out = NULL;
+ 				list_move_tail(&buffer->link, &buffer->dma->static_list);
+ 				break;
+ 			}
+@@ -150,6 +154,14 @@ int mpp_dma_release_fd(struct mpp_dma_session *dma, int fd)
+ 	}
+ 
+ 	mutex_lock(&dma->list_mutex);
++	/*
++	 * mpp_dma_find_buffer_fd() returns the buffer with a temporary reference
++	 * (kref_get_unless_zero under list_mutex), so drop that here first, then
++	 * drop the outside import reference this RELEASE_FD is releasing. Safe:
++	 * find only succeeds on ref > 0, so ref >= 2 here and the first put can
++	 * never free the buffer.
++	 */
++	kref_put(&buffer->ref, mpp_dma_release_buffer);
+ 	kref_put(&buffer->ref, mpp_dma_release_buffer);
+ 	mutex_unlock(&dma->list_mutex);
+ 
+@@ -216,11 +228,9 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 
+ 	/* Check whether in dma session */
+ 	buffer = mpp_dma_find_buffer_fd(dma, fd);
+-	if (!IS_ERR_OR_NULL(buffer)) {
+-		if (kref_get_unless_zero(&buffer->ref))
+-			return buffer;
+-		dev_dbg(dma->dev, "missing the fd %d\n", fd);
+-	}
++	if (!IS_ERR_OR_NULL(buffer))
++		/* find already took the outside-user reference */
++		return buffer;
+ 
+ 	dmabuf = dma_buf_get(fd);
+ 	if (IS_ERR(dmabuf)) {
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 4356fce..5943fd1 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -1221,6 +1221,14 @@ static void *rkvenc_alloc_task(struct mpp_session *session,
+ 			if (bs_buf && task->offset_bs > 0)
+ 				mpp_dma_buf_sync(bs_buf, 0, task->offset_bs, DMA_TO_DEVICE, false);
+ 			task->bs_buf = bs_buf;
++			/*
++			 * mpp_dma_find_buffer_fd() now returns a temporary
++			 * reference; drop it. task->bs_buf stays valid via the
++			 * buffer's outside import reference (released when the
++			 * task is freed), exactly as before the find-refcount fix.
++			 */
++			if (bs_buf)
++				mpp_dma_release(session->dma, bs_buf);
+ 		}
+ 	}
+ 	rkvenc2_setup_task_id(session->index, task);
+-- 
+2.53.0
+

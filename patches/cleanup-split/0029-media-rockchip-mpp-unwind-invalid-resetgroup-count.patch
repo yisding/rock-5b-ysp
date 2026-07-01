@@ -1,0 +1,33 @@
+From aecb34d1ec58407355ecb79a93aca77db6a58282 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:06 -0700
+Subject: [PATCH 29/65] media: rockchip: mpp: unwind invalid resetgroup count
+
+Plain-language impact:
+An invalid resetgroup-count property now stops already-created workers and destroys the service class.
+
+Kernel details:
+Replace the bare return with ret = -EINVAL; goto fail_register so shared cleanup runs.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_service.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
+index 6c60ee3..e0eaf13 100644
+--- a/drivers/video/rockchip/mpp/mpp_service.c
++++ b/drivers/video/rockchip/mpp/mpp_service.c
+@@ -461,7 +461,8 @@ static int mpp_service_probe(struct platform_device *pdev)
+ 	if (srv->reset_group_cnt > MPP_DEVICE_BUTT) {
+ 		dev_err(dev, "rockchip,resetgroup-count %d must less than %d\n",
+ 			srv->reset_group_cnt, MPP_DEVICE_BUTT);
+-		return -EINVAL;
++		ret = -EINVAL;
++		goto fail_register;
+ 	}
+ 
+ 	if (srv->reset_group_cnt) {
+-- 
+2.53.0
+

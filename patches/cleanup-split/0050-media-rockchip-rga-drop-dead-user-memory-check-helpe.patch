@@ -1,0 +1,69 @@
+From b90101c7a08bebf5e6c3444e5ecf10e28f4a74a1 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:34:46 -0700
+Subject: [PATCH 50/65] media: rockchip: rga: drop dead user-memory check
+ helper
+
+Plain-language impact:
+Unused user-page probing debug code is removed.
+
+Kernel details:
+rga_user_memory_check() has no callers. Delete the dead helper and its overflow/OOB-prone kmap() probing logic.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_iommu.c | 38 -------------------------
+ 1 file changed, 38 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_iommu.c b/drivers/video/rockchip/rga3/rga_iommu.c
+index 6b2fd5f..a985695 100644
+--- a/drivers/video/rockchip/rga3/rga_iommu.c
++++ b/drivers/video/rockchip/rga3/rga_iommu.c
+@@ -12,44 +12,6 @@
+ #include "rga_common.h"
+ #include "rga_hw_config.h"
+ 
+-int rga_user_memory_check(struct page **pages, u32 w, u32 h, u32 format, int flag)
+-{
+-	int bits;
+-	void *vaddr = NULL;
+-	int taipage_num;
+-	int taidata_num;
+-	int *tai_vaddr = NULL;
+-
+-	bits = rga_get_format_bits(format);
+-	if (bits < 0)
+-		return -1;
+-
+-	taipage_num = w * h * bits / 8 / (1024 * 4);
+-	taidata_num = w * h * bits / 8 % (1024 * 4);
+-	if (taidata_num == 0) {
+-		vaddr = kmap(pages[taipage_num - 1]);
+-		tai_vaddr = (int *)vaddr + 1023;
+-	} else {
+-		vaddr = kmap(pages[taipage_num]);
+-		tai_vaddr = (int *)vaddr + taidata_num / 4 - 1;
+-	}
+-
+-	if (flag == 1) {
+-		rga_log("src user memory check\n");
+-		rga_log("tai data is %d\n", *tai_vaddr);
+-	} else {
+-		rga_log("dst user memory check\n");
+-		rga_log("tai data is %d\n", *tai_vaddr);
+-	}
+-
+-	if (taidata_num == 0)
+-		kunmap(pages[taipage_num - 1]);
+-	else
+-		kunmap(pages[taipage_num]);
+-
+-	return 0;
+-}
+-
+ int rga_set_mmu_base(struct rga_job *job, struct rga2_req *req)
+ {
+ 	if (job->src_buffer.page_table) {
+-- 
+2.53.0
+

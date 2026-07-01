@@ -1,0 +1,98 @@
+From 87747958a4d2207c8ff44bf515fb9b8fc24f1d73 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:31:07 -0700
+Subject: [PATCH 42/65] media: rockchip: rga: drop dead dma-buf memory check
+ helpers
+
+Plain-language impact:
+Unused debug helpers with unsafe memory probing are removed.
+
+Kernel details:
+rga_virtual_memory_check() and rga_dma_memory_check() have no in-tree callers; deleting them also removes unchecked memcpy() paths and a kzalloc failure path that returned success.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_dma_buf.c | 67 -----------------------
+ 1 file changed, 67 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_dma_buf.c b/drivers/video/rockchip/rga3/rga_dma_buf.c
+index 5867422..5d7ec84 100644
+--- a/drivers/video/rockchip/rga3/rga_dma_buf.c
++++ b/drivers/video/rockchip/rga3/rga_dma_buf.c
+@@ -11,73 +11,6 @@
+ #include "rga_job.h"
+ #include "rga_debugger.h"
+ 
+-int rga_virtual_memory_check(void *vaddr, u32 w, u32 h, u32 format, int fd)
+-{
+-	int bits = 32;
+-	int temp_data = 0;
+-	void *one_line = NULL;
+-
+-	bits = rga_get_format_bits(format);
+-	if (bits < 0)
+-		return -1;
+-
+-	one_line = kzalloc(w * 4, GFP_KERNEL);
+-	if (!one_line) {
+-		rga_err("kzalloc fail %s[%d]\n", __func__, __LINE__);
+-		return 0;
+-	}
+-
+-	temp_data = w * (h - 1) * bits >> 3;
+-	if (fd > 0) {
+-		rga_log("vaddr is%p, bits is %d, fd check\n", vaddr, bits);
+-		memcpy(one_line, (char *)vaddr + temp_data, w * bits >> 3);
+-		rga_log("fd check ok\n");
+-	} else {
+-		rga_log("vir addr memory check.\n");
+-		memcpy((void *)((char *)vaddr + temp_data), one_line,
+-			 w * bits >> 3);
+-		rga_log("vir addr check ok.\n");
+-	}
+-
+-	kfree(one_line);
+-	return 0;
+-}
+-
+-int rga_dma_memory_check(struct rga_dma_buffer *rga_dma_buffer, struct rga_img_info_t *img)
+-{
+-	int ret = 0;
+-	void *vaddr;
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+-	struct iosys_map map;
+-#endif
+-	struct dma_buf *dma_buf;
+-
+-	dma_buf = rga_dma_buffer->dma_buf;
+-
+-	if (!IS_ERR_OR_NULL(dma_buf)) {
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+-		ret = dma_buf_vmap(dma_buf, &map);
+-		vaddr = ret ? NULL : map.vaddr;
+-#else
+-		vaddr = dma_buf_vmap(dma_buf);
+-#endif
+-		if (vaddr) {
+-			ret = rga_virtual_memory_check(vaddr, img->vir_w,
+-				img->vir_h, img->format, img->yrgb_addr);
+-		} else {
+-			rga_err("can't vmap the dma buffer!\n");
+-			return -EINVAL;
+-		}
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+-		dma_buf_vunmap(dma_buf, &map);
+-#else
+-		dma_buf_vunmap(dma_buf, vaddr);
+-#endif
+-	}
+-
+-	return ret;
+-}
+-
+ int rga_dma_map_sgt(struct sg_table *sgt, struct rga_dma_buffer *buffer,
+ 		    enum dma_data_direction dir, struct device *map_dev)
+ {
+-- 
+2.53.0
+

@@ -1,0 +1,33 @@
+From 8d7c66afe8cb65e7d3ddb02afe8cdfc9bee1a2f5 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:15:08 -0700
+Subject: [PATCH 06/65] media: rockchip: mpp: copy only validated offset
+ elements
+
+Plain-language impact:
+Malformed offset-info sizes can no longer copy beyond the validated element count.
+
+Kernel details:
+mpp_extract_reg_offset_info() bounds-checks cnt but copied req->size bytes. Copy cnt * sizeof(off_inf->elem[0]) instead.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_common.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 2f05239..57cde00 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -1984,7 +1984,7 @@ int mpp_extract_reg_offset_info(struct reg_offset_info *off_inf,
+ 		return -EINVAL;
+ 	}
+ 	if (copy_from_user(&off_inf->elem[off_inf->cnt],
+-			   req->data, req->size)) {
++			   req->data, cnt * sizeof(off_inf->elem[0]))) {
+ 		mpp_err("copy_from_user failed\n");
+ 		return -EINVAL;
+ 	}
+-- 
+2.53.0
+

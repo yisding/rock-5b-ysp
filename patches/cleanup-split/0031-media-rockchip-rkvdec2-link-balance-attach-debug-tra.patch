@@ -1,0 +1,33 @@
+From 7e3e515824e869072a00d6b1f5ac05eecb8bc091 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:06 -0700
+Subject: [PATCH 31/65] media: rockchip: rkvdec2-link: balance attach debug
+ trace
+
+Plain-language impact:
+Successful CCU attach now logs a leave trace instead of another enter trace.
+
+Kernel details:
+Replace the exit-side mpp_debug_enter() in rkvdec2_attach_ccu() with mpp_debug_leave().
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index a438abc..c2c3672 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -1595,7 +1595,7 @@ int rkvdec2_attach_ccu(struct device *dev, struct rkvdec2_dev *dec)
+ 	dec->ccu = ccu;
+ 
+ 	dev_info(dev, "attach ccu as core %d\n", dec->mpp.core_id);
+-	mpp_debug_enter();
++	mpp_debug_leave();
+ 
+ 	/*
+ 	 * Drop the of_find_device_by_node() lookup reference; the ccu device
+-- 
+2.53.0
+

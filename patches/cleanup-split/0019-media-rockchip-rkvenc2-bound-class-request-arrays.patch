@@ -1,0 +1,47 @@
+From b0d0e656e294d1bd5f63f8b51a50799d57b98e0c Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:05 -0700
+Subject: [PATCH 19/65] media: rockchip: rkvenc2: bound class request arrays
+
+Plain-language impact:
+Malformed encoder requests can no longer overflow fixed per-task request arrays.
+
+Kernel details:
+Fan-out across register classes can exceed MPP_MAX_MSG_NUM. Check w_req_cnt/r_req_cnt before indexing task->w_reqs[]/r_reqs[].
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 5943fd1..3853b40 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -955,6 +955,11 @@ static int rkvenc_extract_task_msg(struct mpp_session *session,
+ 					mpp_err("alloc class msg %d fail.\n", j);
+ 					goto fail;
+ 				}
++				if (task->w_req_cnt >= MPP_MAX_MSG_NUM) {
++					mpp_err("w_req_cnt %d overflow\n", task->w_req_cnt);
++					ret = -EINVAL;
++					goto fail;
++				}
+ 				wreq = &task->w_reqs[task->w_req_cnt];
+ 				rkvenc_update_req(task, j, req, wreq);
+ 				data = rkvenc_get_class_reg(task, wreq->offset);
+@@ -984,6 +989,11 @@ static int rkvenc_extract_task_msg(struct mpp_session *session,
+ 					mpp_err("alloc class msg reg %d fail.\n", j);
+ 					goto fail;
+ 				}
++				if (task->r_req_cnt >= MPP_MAX_MSG_NUM) {
++					mpp_err("r_req_cnt %d overflow\n", task->r_req_cnt);
++					ret = -EINVAL;
++					goto fail;
++				}
+ 				rreq = &task->r_reqs[task->r_req_cnt];
+ 				rkvenc_update_req(task, j, req, rreq);
+ 				task->reg[j].valid = 1;
+-- 
+2.53.0
+

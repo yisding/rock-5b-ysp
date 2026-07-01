@@ -1,0 +1,32 @@
+From fdd370fa24bf858189ebb281c5ac48e04cbcd533 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:06 -0700
+Subject: [PATCH 34/65] media: rockchip: rkvenc2: balance attach debug trace
+
+Plain-language impact:
+Successful encoder CCU attach now logs a leave trace instead of another enter trace.
+
+Kernel details:
+Replace the exit-side mpp_debug_enter() in rkvenc_attach_ccu() with mpp_debug_leave().
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 1f2ff7f..53e2380 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -2988,7 +2988,7 @@ static int rkvenc_attach_ccu(struct device *dev, struct rkvenc_dev *enc)
+ 	enc->ccu = ccu;
+ 
+ 	dev_info(dev, "attach ccu as core %d\n", enc->mpp.core_id);
+-	mpp_debug_enter();
++	mpp_debug_leave();
+ 
+ 	put_device(&pdev->dev);
+ 	return 0;
+-- 
+2.53.0
+

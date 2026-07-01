@@ -1,0 +1,75 @@
+From 01e828f02906f00276ae070053aaa095b8e4b426 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:05 -0700
+Subject: [PATCH 24/65] media: rockchip: rkvenc2: unwind core probe failures
+
+Plain-language impact:
+Failed encoder core probes no longer leak mpp_dev_probe() state or leave stale CCU-list entries.
+
+Kernel details:
+Route attach/IRQ failures through a failed label. If enc->ccu is set, detach enc from ccu->core_list under lock before mpp_dev_remove() frees devres memory.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 31 +++++++++++++++++++++---
+ 1 file changed, 28 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 4554c94..4ca85ca 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -3164,8 +3164,9 @@ static int rkvenc_core_probe(struct platform_device *pdev)
+ 	/* attach core to ccu */
+ 	ret = rkvenc_attach_ccu(dev, enc);
+ 	if (ret) {
+-		dev_err(dev, "attach ccu failed\n");
+-		return ret;
++		if (ret != -EPROBE_DEFER)
++			dev_err(dev, "attach ccu failed\n");
++		goto failed;
+ 	}
+ 	rkvenc2_alloc_rcbbuf(pdev, enc);
+ 
+@@ -3176,7 +3177,8 @@ static int rkvenc_core_probe(struct platform_device *pdev)
+ 					dev_name(dev), mpp);
+ 	if (ret) {
+ 		dev_err(dev, "register interrupter runtime failed\n");
+-		return -EINVAL;
++		ret = -EINVAL;
++		goto failed;
+ 	}
+ 	mpp->session_max_buffers = RKVENC_SESSION_MAX_BUFFERS;
+ 	enc->hw_info = to_rkvenc_info(mpp->var->hw_info);
+@@ -3189,6 +3191,29 @@ static int rkvenc_core_probe(struct platform_device *pdev)
+ 		mpp_dev_register_srv(mpp, mpp->srv);
+ 
+ 	return 0;
++
++failed:
++	/*
++	 * If rkvenc_attach_ccu() fully succeeded it linked enc onto
++	 * ccu->core_list (enc->ccu is set only on full success, and attach_ccu
++	 * has no failure return after list_add_tail). The irq-request failure
++	 * path lands here with enc still listed, so detach it before
++	 * mpp_dev_remove() lets devres free enc -- otherwise the dangling list
++	 * entry use-after-frees in the ccu core_list walks (e.g. the iommu
++	 * fault handler).
++	 */
++	if (enc->ccu) {
++		mutex_lock(&enc->ccu->lock);
++		list_del(&enc->core_link);
++		enc->ccu->core_num--;
++		if (enc->ccu->main_core == &enc->mpp)
++			enc->ccu->main_core = NULL;
++		else if (enc->ccu->main_core)
++			enc->ccu->main_core->msgs_cap--;
++		mutex_unlock(&enc->ccu->lock);
++	}
++	mpp_dev_remove(mpp);
++	return ret;
+ }
+ 
+ static int rkvenc_probe_default(struct platform_device *pdev)
+-- 
+2.53.0
+

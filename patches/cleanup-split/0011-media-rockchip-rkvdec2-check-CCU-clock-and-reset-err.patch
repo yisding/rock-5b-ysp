@@ -1,0 +1,47 @@
+From 9b404606f8cf66b2385624f0223f2b9e876e5485 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:18:28 -0700
+Subject: [PATCH 11/65] media: rockchip: rkvdec2: check CCU clock and reset
+ errors
+
+Plain-language impact:
+Failed CCU clock/reset lookups are no longer stored as valid handles.
+
+Kernel details:
+devm_clk_get() and devm_reset_control_get() return ERR_PTR() on failure. Use IS_ERR(), clear the fields to NULL, and only unreset a valid reset control.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index d759289..0ed4877 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -1783,14 +1783,18 @@ static int rkvdec2_ccu_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	ccu->aclk_info.clk = devm_clk_get(dev, "aclk_ccu");
+-	if (!ccu->aclk_info.clk)
++	if (IS_ERR(ccu->aclk_info.clk)) {
+ 		mpp_err("failed on clk_get ccu aclk\n");
++		ccu->aclk_info.clk = NULL;
++	}
+ 
+ 	ccu->rst_a = devm_reset_control_get(dev, "video_ccu");
+-	if (ccu->rst_a)
+-		mpp_safe_unreset(ccu->rst_a);
+-	else
++	if (IS_ERR(ccu->rst_a)) {
+ 		mpp_err("failed on clk_get ccu reset\n");
++		ccu->rst_a = NULL;
++	} else {
++		mpp_safe_unreset(ccu->rst_a);
++	}
+ 
+ 	/* power domain autosuspend delay 2s */
+ 	pm_runtime_set_autosuspend_delay(dev, 2000);
+-- 
+2.53.0
+

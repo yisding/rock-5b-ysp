@@ -1,0 +1,38 @@
+From e3d86d86ffe797e0ae8429bc07123dd3cf581966 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:18:28 -0700
+Subject: [PATCH 09/65] media: rockchip: rkvdec2: propagate RCB info parse
+ errors
+
+Plain-language impact:
+Bad RCB metadata is rejected instead of silently ignored.
+
+Kernel details:
+rkvdec2_extract_task_msg() now returns mpp_extract_rcb_info() failures so stale or partial RCB info is not consumed later.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index ce73e17..8d9db90 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -315,8 +315,11 @@ static int rkvdec2_extract_task_msg(struct mpp_session *session,
+ 		case MPP_CMD_SET_RCB_INFO: {
+ 			struct rkvdec2_session_priv *priv = session->priv;
+ 
+-			if (priv)
+-				mpp_extract_rcb_info(&priv->rcb_inf, req);
++			if (priv) {
++				ret = mpp_extract_rcb_info(&priv->rcb_inf, req);
++				if (ret)
++					return ret;
++			}
+ 		} break;
+ 		default:
+ 			break;
+-- 
+2.53.0
+

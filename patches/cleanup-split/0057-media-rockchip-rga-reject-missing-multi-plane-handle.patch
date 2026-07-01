@@ -1,0 +1,114 @@
+From 7a6d8caf41597a9580fdcd89ce7507ba0ba45916 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:37:34 -0700
+Subject: [PATCH 57/65] media: rockchip: rga: reject missing multi-plane
+ handles
+
+Plain-language impact:
+Malformed multi-plane image requests fail cleanly instead of crashing or creating stray MMU mappings.
+
+Kernel details:
+Guard job_buf plane pointers before dereferencing or looking up SGTs, and reject formats whose computed plane page count requires a missing buffer.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_mm.c | 62 ++++++++++++++++++----------
+ 1 file changed, 41 insertions(+), 21 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 08283da..7ad1118 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -1249,11 +1249,11 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+ 
+ 	/* using third-address */
+ 	if (job_buf->uv_addr) {
+-		if (job_buf->y_addr->virt_addr != NULL)
++		if (job_buf->y_addr && job_buf->y_addr->virt_addr != NULL)
+ 			yrgb_offset = job_buf->y_addr->virt_addr->offset;
+-		if (job_buf->uv_addr->virt_addr != NULL)
++		if (job_buf->uv_addr && job_buf->uv_addr->virt_addr != NULL)
+ 			uv_offset = job_buf->uv_addr->virt_addr->offset;
+-		if (job_buf->v_addr->virt_addr != NULL)
++		if (job_buf->v_addr && job_buf->v_addr->virt_addr != NULL)
+ 			v_offset = job_buf->v_addr->virt_addr->offset;
+ 
+ 		yrgb_count = RGA_GET_PAGE_COUNT(yrgb_size + yrgb_offset);
+@@ -1267,6 +1267,20 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+ 			return -EFAULT;
+ 		}
+ 
++		/*
++		 * The per-plane page counts come from the format/size, but a plane
++		 * is only populated when its handle > 0. If a needed plane is
++		 * missing, reject the (malformed) request rather than leave its
++		 * page_table entries uninitialized -- otherwise the RGA MMU would
++		 * map a stray IOVA for that plane.
++		 */
++		if ((yrgb_count && !job_buf->y_addr) ||
++		    (uv_count && !job_buf->uv_addr) ||
++		    (v_count && !job_buf->v_addr)) {
++			rga_job_err(job, "multi-plane format missing a plane buffer\n");
++			return -EINVAL;
++		}
++
+ 		if (job->flags & RGA_JOB_USE_HANDLE) {
+ 			page_table = (uint32_t *)rga_get_free_pages(GFP_KERNEL | GFP_DMA32,
+ 				&order, page_count * sizeof(uint32_t *));
+@@ -1288,29 +1302,35 @@ static int rga_mm_set_mmu_base(struct rga_job *job,
+ 			mutex_unlock(&rga_drvdata->lock);
+ 		}
+ 
+-		sgt = rga_mm_lookup_sgt(job_buf->y_addr);
+-		if (sgt == NULL) {
+-			rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
+-			ret = -EINVAL;
+-			goto err_free_page_table;
++		if (job_buf->y_addr) {
++			sgt = rga_mm_lookup_sgt(job_buf->y_addr);
++			if (sgt == NULL) {
++				rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
++				ret = -EINVAL;
++				goto err_free_page_table;
++			}
++			rga_mm_sgt_to_page_table(sgt, page_table, yrgb_count, false);
+ 		}
+-		rga_mm_sgt_to_page_table(sgt, page_table, yrgb_count, false);
+ 
+-		sgt = rga_mm_lookup_sgt(job_buf->uv_addr);
+-		if (sgt == NULL) {
+-			rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
+-			ret = -EINVAL;
+-			goto err_free_page_table;
++		if (job_buf->uv_addr) {
++			sgt = rga_mm_lookup_sgt(job_buf->uv_addr);
++			if (sgt == NULL) {
++				rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
++				ret = -EINVAL;
++				goto err_free_page_table;
++			}
++			rga_mm_sgt_to_page_table(sgt, page_table + yrgb_count, uv_count, false);
+ 		}
+-		rga_mm_sgt_to_page_table(sgt, page_table + yrgb_count, uv_count, false);
+ 
+-		sgt = rga_mm_lookup_sgt(job_buf->v_addr);
+-		if (sgt == NULL) {
+-			rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
+-			ret = -EINVAL;
+-			goto err_free_page_table;
++		if (job_buf->v_addr) {
++			sgt = rga_mm_lookup_sgt(job_buf->v_addr);
++			if (sgt == NULL) {
++				rga_job_err(job, "rga2 cannot get sgt from internal buffer!\n");
++				ret = -EINVAL;
++				goto err_free_page_table;
++			}
++			rga_mm_sgt_to_page_table(sgt, page_table + yrgb_count + uv_count, v_count, false);
+ 		}
+-		rga_mm_sgt_to_page_table(sgt, page_table + yrgb_count + uv_count, v_count, false);
+ 
+ 		img->yrgb_addr = yrgb_offset;
+ 		img->uv_addr = (yrgb_count << PAGE_SHIFT) + uv_offset;
+-- 
+2.53.0
+

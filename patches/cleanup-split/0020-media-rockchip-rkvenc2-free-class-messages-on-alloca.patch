@@ -1,0 +1,32 @@
+From a162fff141908885b2ec9839073875605cc8de77 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:05 -0700
+Subject: [PATCH 20/65] media: rockchip: rkvenc2: free class messages on
+ allocation failure
+
+Plain-language impact:
+Failed task setup no longer leaks already allocated per-class register buffers.
+
+Kernel details:
+The free_task label can be reached after class-message allocation. Call rkvenc_free_class_msg(task) there before kfree(task); the helper is idempotent.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 3853b40..f781330 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -1266,6 +1266,7 @@ fail:
+ 	/* free class register buffer */
+ 	rkvenc_free_class_msg(task);
+ free_task:
++	rkvenc_free_class_msg(task);
+ 	kfree(task);
+ 
+ 	return NULL;
+-- 
+2.53.0
+

@@ -1,0 +1,32 @@
+From a831447933de5e75365b1bd6fa4cb3a64140e7cd Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:06 -0700
+Subject: [PATCH 30/65] media: rockchip: rkvdec2-link: fix register dump label
+
+Plain-language impact:
+The link register dump no longer prints two different fields as register 6.
+
+Kernel details:
+Change the iova_next diagnostic label from reg 6 to reg 7.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index d719b70..a438abc 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -427,7 +427,7 @@ static void rkvdec_link_reg_dump(const char *func, struct rkvdec_link_dev *dev)
+ 	mpp_err("reg 4 %08x - decoded num\n", dev->decoded_status);
+ 	mpp_err("reg 5 %08x - total num\n", dev->total);
+ 	mpp_err("reg 6 %08x - link mode en\n", dev->enabled);
+-	mpp_err("reg 6 %08x - next ltb addr\n", dev->iova_next);
++	mpp_err("reg 7 %08x - next ltb addr\n", dev->iova_next);
+ }
+ 
+ static void rkvdec_link_counter(const char *func, struct rkvdec_link_dev *dev)
+-- 
+2.53.0
+

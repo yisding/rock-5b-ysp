@@ -1,0 +1,39 @@
+From 3fb6ea588faee9e516077fa3da4a0f0c7bb7d410 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:05 -0700
+Subject: [PATCH 28/65] media: rockchip: mpp: unwind invalid taskqueue count
+
+Plain-language impact:
+An invalid taskqueue-count property now cleans up the service class without reading past task_queues[].
+
+Kernel details:
+Set taskqueue_cnt to 0 before jumping to fail_register so the cleanup loop is empty, then class_destroy() still runs.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_service.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
+index 34f2494..6c60ee3 100644
+--- a/drivers/video/rockchip/mpp/mpp_service.c
++++ b/drivers/video/rockchip/mpp/mpp_service.c
+@@ -431,7 +431,14 @@ static int mpp_service_probe(struct platform_device *pdev)
+ 	if (srv->taskqueue_cnt > MPP_DEVICE_BUTT) {
+ 		dev_err(dev, "rockchip,taskqueue-count %d must less than %d\n",
+ 			srv->taskqueue_cnt, MPP_DEVICE_BUTT);
+-		return -EINVAL;
++		/*
++		 * No task queues exist yet, and this oversized count would make
++		 * the fail_register cleanup loop read past task_queues[]. Zero it
++		 * so cleanup only class_destroy()s, then fail.
++		 */
++		srv->taskqueue_cnt = 0;
++		ret = -EINVAL;
++		goto fail_register;
+ 	}
+ 
+ 	for (i = 0; i < srv->taskqueue_cnt; i++) {
+-- 
+2.53.0
+

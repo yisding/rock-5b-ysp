@@ -1,0 +1,37 @@
+From 60847245ec4a330fb54ec29df20078f0456379f5 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:15:08 -0700
+Subject: [PATCH 03/65] media: rockchip: mpp: release external fds when
+ clearing messages
+
+Plain-language impact:
+Pending cross-session messages no longer leak file references during session cleanup.
+
+Kernel details:
+clear_task_msgs() frees mpp_task_msgs objects. For messages with ext_fd >= 0, msgs->f owns an fdget() reference and must be released with fdput() before kfree().
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_common.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 353c562..f903aa0 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -302,8 +302,11 @@ static void clear_task_msgs(struct mpp_session *session)
+ 
+ 	spin_unlock_irqrestore(&session->lock_msgs, flags);
+ 
+-	list_for_each_entry_safe(msgs, n, &list_to_free, list_session)
++	list_for_each_entry_safe(msgs, n, &list_to_free, list_session) {
++		if (msgs->ext_fd >= 0)
++			fdput(msgs->f);
+ 		kfree(msgs);
++	}
+ }
+ 
+ static void mpp_session_clear_pending(struct mpp_session *session)
+-- 
+2.53.0
+

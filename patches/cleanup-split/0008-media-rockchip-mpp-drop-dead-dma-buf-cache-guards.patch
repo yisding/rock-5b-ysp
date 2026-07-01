@@ -1,0 +1,53 @@
+From 926b4a19243fdeae1d6b93ad6216e9108926852e Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:18:28 -0700
+Subject: [PATCH 08/65] media: rockchip: mpp: drop dead dma-buf cache guards
+
+Plain-language impact:
+Removes obsolete branches for a dma-buf cache option that does not exist in the target kernel.
+
+Kernel details:
+CONFIG_DMABUF_CACHE is not an upstream 6.18 symbol. Always run the non-cache paths and keep the import reference only for !static_use.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_iommu.c | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index 23891a5..aaa0546 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -9,8 +9,8 @@
+  *
+  */
+ #include <linux/delay.h>
+-/* 6.18: <linux/dma-buf-cache.h> does not exist upstream; CONFIG_DMABUF_CACHE
+- * folds to 0 so the cache path is dead. Use the standard dma-buf header.
++/* 6.18: <linux/dma-buf-cache.h> does not exist upstream; use the standard
++ * dma-buf header.
+  */
+ #include <linux/dma-buf.h>
+ #include <linux/dma-mapping.h>
+@@ -223,8 +223,7 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 	}
+ 
+ 	/* remove the oldest before add buffer */
+-	if (!IS_ENABLED(CONFIG_DMABUF_CACHE))
+-		mpp_dma_remove_extra_buffer(dma);
++	mpp_dma_remove_extra_buffer(dma);
+ 
+ 	/* Check whether in dma session */
+ 	buffer = mpp_dma_find_buffer_fd(dma, fd);
+@@ -276,7 +275,7 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 
+ 	kref_init(&buffer->ref);
+ 
+-	if (!static_use && !IS_ENABLED(CONFIG_DMABUF_CACHE))
++	if (!static_use)
+ 		/* Increase the reference for used outside the buffer pool */
+ 		kref_get(&buffer->ref);
+ 
+-- 
+2.53.0
+

@@ -1,0 +1,32 @@
+From bbba302824513fe8400c3710a3add6c1f4949ad9 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:05 -0700
+Subject: [PATCH 23/65] media: rockchip: rkvenc2: put CCU pdev lookup on
+ success
+
+Plain-language impact:
+Successful encoder CCU attach no longer leaks the platform-device lookup reference.
+
+Kernel details:
+Balance of_find_device_by_node() with put_device(&pdev->dev) after enc->ccu/list setup has completed.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 2c7a47a..4554c94 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -2990,6 +2990,7 @@ static int rkvenc_attach_ccu(struct device *dev, struct rkvenc_dev *enc)
+ 	dev_info(dev, "attach ccu as core %d\n", enc->mpp.core_id);
+ 	mpp_debug_enter();
+ 
++	put_device(&pdev->dev);
+ 	return 0;
+ }
+ 
+-- 
+2.53.0
+

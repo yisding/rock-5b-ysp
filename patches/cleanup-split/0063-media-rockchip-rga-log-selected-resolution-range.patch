@@ -1,0 +1,37 @@
+From ef6abc10e9aa183a2870b69ee2b70cfee95b4cf3 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:38:30 -0700
+Subject: [PATCH 63/65] media: rockchip: rga: log selected resolution range
+
+Plain-language impact:
+Resolution-check diagnostics show the range actually tested.
+
+Kernel details:
+rga_check_channel() receives a range pointer that can refer to input or output limits. Log range->min/max instead of always data->input_range.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_policy.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_policy.c b/drivers/video/rockchip/rga3/rga_policy.c
+index 2554f4b..5b22551 100644
+--- a/drivers/video/rockchip/rga3/rga_policy.c
++++ b/drivers/video/rockchip/rga3/rga_policy.c
+@@ -196,10 +196,10 @@ static bool rga_check_channel(struct rga_job *job, const struct rga_hw_data *dat
+ 
+ 	if (!rga_check_resolution(range, w, h)) {
+ 		if (DEBUGGER_EN(MSG))
+-			rga_job_log(job, "%s resolution check error, input range[%dx%d ~ %dx%d], [w,h] = [%d, %d]\n",
++			rga_job_log(job, "%s resolution check error, range[%dx%d ~ %dx%d], [w,h] = [%d, %d]\n",
+ 				name,
+-				data->input_range.min.width, data->input_range.min.height,
+-				data->input_range.max.width, data->input_range.max.height,
++				range->min.width, range->min.height,
++				range->max.width, range->max.height,
+ 				w, h);
+ 
+ 		return false;
+-- 
+2.53.0
+

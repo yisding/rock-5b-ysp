@@ -1,0 +1,31 @@
+From 41a017d585cd1f19e8ba476062684da57a235307 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:38:30 -0700
+Subject: [PATCH 61/65] media: rockchip: rga: drop dead debug fake-buffer reset
+
+Plain-language impact:
+Removes a redundant debug flag assignment that has no effect.
+
+Kernel details:
+rga_mm_map_job_info() already has this debug fake-buffer state; delete the no-op flag re-set after clearing RGA_JOB_USE_HANDLE.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_mm.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index bde18f0..a738718 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -2336,7 +2336,6 @@ int rga_mm_map_job_info(struct rga_job *job)
+ 				ktime_us_delta(ktime_get(), timestamp));
+ 
+ 		job->flags &= ~RGA_JOB_USE_HANDLE;
+-		job->flags |= RGA_JOB_DEBUG_FAKE_BUFFER;
+ 
+ 		return 0;
+ 	}
+-- 
+2.53.0
+

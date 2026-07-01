@@ -1,0 +1,145 @@
+From 6ef5356352a4b8e3951109f04d75ef5bfac8c5e2 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:28:23 -0700
+Subject: [PATCH 37/65] media: rockchip: rga: harden image size calculation
+
+Plain-language impact:
+Impossible dimensions are rejected and buffer-size arithmetic cannot overflow silently.
+
+Kernel details:
+rga_image_size_cal() now validates dimensions, computes w*h products in s64 with explicit casts, and rejects totals larger than INT_MAX before assigning int outputs.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_common.c | 56 +++++++++++++++---------
+ 1 file changed, 35 insertions(+), 21 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_common.c b/drivers/video/rockchip/rga3/rga_common.c
+index 09b6e7d..65943e0 100644
+--- a/drivers/video/rockchip/rga3/rga_common.c
++++ b/drivers/video/rockchip/rga3/rga_common.c
+@@ -754,9 +754,20 @@ void rga_swap_pd_mode(struct rga_req *req_rga)
+ int rga_image_size_cal(int w, int h, int format,
+ 		       int *yrgb_size, int *uv_size, int *v_size)
+ {
+-	int yrgb = 0;
+-	int uv = 0;
+-	int v = 0;
++	s64 yrgb = 0;
++	s64 uv = 0;
++	s64 v = 0;
++
++	if (w <= 0 || h <= 0)
++		return -EINVAL;
++
++	/*
++	 * Bound the dimensions so (s64)w * h * 4 cannot overflow s64 (RGA tops
++	 * out far below this; 65535 is generous and well under the overflow
++	 * threshold of ~1.5e9 per side).
++	 */
++	if (w > 65535 || h > 65535)
++		return -EINVAL;
+ 
+ 	switch (format) {
+ 	case RGA_FORMAT_RGBA_8888:
+@@ -767,11 +778,11 @@ int rga_image_size_cal(int w, int h, int format,
+ 	case RGA_FORMAT_XRGB_8888:
+ 	case RGA_FORMAT_ABGR_8888:
+ 	case RGA_FORMAT_XBGR_8888:
+-		yrgb = w * h * 4;
++		yrgb = (s64)w * h * 4;
+ 		break;
+ 	case RGA_FORMAT_RGB_888:
+ 	case RGA_FORMAT_BGR_888:
+-		yrgb = w * h * 3;
++		yrgb = (s64)w * h * 3;
+ 		break;
+ 	case RGA_FORMAT_RGB_565:
+ 	case RGA_FORMAT_RGBA_5551:
+@@ -792,27 +803,27 @@ int rga_image_size_cal(int w, int h, int format,
+ 	case RGA_FORMAT_VYUY_420:
+ 	case RGA_FORMAT_YUYV_420:
+ 	case RGA_FORMAT_UYVY_420:
+-		yrgb = w * h * 2;
++		yrgb = (s64)w * h * 2;
+ 		break;
+ 	/* YUV FORMAT */
+ 	case RGA_FORMAT_YCbCr_444_SP:
+ 	case RGA_FORMAT_YCrCb_444_SP:
+-		yrgb = w * h;
+-		uv = w * h;
+-		v = w * h;
++		yrgb = (s64)w * h;
++		uv = (s64)w * h;
++		v = (s64)w * h;
+ 		break;
+ 	case RGA_FORMAT_YCbCr_422_SP:
+ 	case RGA_FORMAT_YCrCb_422_SP:
+ 	/* 10bit format stride is externally configured. */
+ 	case RGA_FORMAT_YCbCr_422_SP_10B:
+ 	case RGA_FORMAT_YCrCb_422_SP_10B:
+-		yrgb = w * h;
+-		uv = w * h;
++		yrgb = (s64)w * h;
++		uv = (s64)w * h;
+ 		break;
+ 	case RGA_FORMAT_YCbCr_422_P:
+ 	case RGA_FORMAT_YCrCb_422_P:
+-		yrgb = w * h;
+-		uv = (w * h) >> 1;
++		yrgb = (s64)w * h;
++		uv = ((s64)w * h) >> 1;
+ 		v = uv;
+ 		break;
+ 	case RGA_FORMAT_YCbCr_420_SP:
+@@ -820,36 +831,39 @@ int rga_image_size_cal(int w, int h, int format,
+ 	/* 10bit format stride is externally configured. */
+ 	case RGA_FORMAT_YCbCr_420_SP_10B:
+ 	case RGA_FORMAT_YCrCb_420_SP_10B:
+-		yrgb = w * h;
+-		uv = (w * h) >> 1;
++		yrgb = (s64)w * h;
++		uv = ((s64)w * h) >> 1;
+ 		break;
+ 	case RGA_FORMAT_YCbCr_420_P:
+ 	case RGA_FORMAT_YCrCb_420_P:
+-		yrgb = w * h;
+-		uv = (w * h) >> 2;
++		yrgb = (s64)w * h;
++		uv = ((s64)w * h) >> 2;
+ 		v = uv;
+ 		break;
+ 	case RGA_FORMAT_BPP8:
+ 	case RGA_FORMAT_YCbCr_400:
+ 	case RGA_FORMAT_A8:
+ 	case RGA_FORMAT_Y8:
+-		yrgb = w * h;
++		yrgb = (s64)w * h;
+ 		break;
+ 	case RGA_FORMAT_BPP4:
+ 	case RGA_FORMAT_Y4:
+-		yrgb = (w * h) >> 1;
++		yrgb = ((s64)w * h) >> 1;
+ 		break;
+ 	case RGA_FORMAT_BPP2:
+-		yrgb = (w * h) >> 2;
++		yrgb = ((s64)w * h) >> 2;
+ 		break;
+ 	case RGA_FORMAT_BPP1:
+-		yrgb = (w * h) >> 3;
++		yrgb = ((s64)w * h) >> 3;
+ 		break;
+ 	default:
+ 		rga_err("Unsuport format [0x%x]\n", format);
+ 		return -EFAULT;
+ 	}
+ 
++	if (yrgb + uv + v > INT_MAX)
++		return -EINVAL;
++
+ 	if (yrgb_size != NULL)
+ 		*yrgb_size = yrgb;
+ 	if (uv_size != NULL)
+-- 
+2.53.0
+

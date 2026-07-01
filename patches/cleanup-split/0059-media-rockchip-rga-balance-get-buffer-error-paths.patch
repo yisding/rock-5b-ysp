@@ -1,0 +1,40 @@
+From bab2403de64b3bed045fe4d4c900779dc0ad2409 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:38:30 -0700
+Subject: [PATCH 59/65] media: rockchip: rga: balance get-buffer error paths
+
+Plain-language impact:
+Buffer lookup failures no longer leave a leaked reference or dangling output pointer.
+
+Kernel details:
+After kref_get(), route rga_mm_get_buffer_info() failure through put_internal_buffer and clear *buf after kref_put().
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_mm.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 867ea73..72da270 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -1572,7 +1572,7 @@ static int rga_mm_get_buffer(struct rga_mm *mm,
+ 	if (ret < 0) {
+ 		rga_job_err(job, "handle[%ld] failed to get internal buffer info!\n",
+ 			(unsigned long)handle);
+-		return ret;
++		goto put_internal_buffer;
+ 	}
+ 
+ 	if (internal_buffer->size < require_size) {
+@@ -1603,6 +1603,7 @@ put_internal_buffer:
+ 	kref_put(&internal_buffer->refcount, rga_mm_kref_release_buffer);
+ 	mutex_unlock(&mm->lock);
+ 
++	*buf = NULL;
+ 	return ret;
+ 
+ }
+-- 
+2.53.0
+

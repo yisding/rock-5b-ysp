@@ -1,0 +1,33 @@
+From 97dbc1fb22b8f702462faf8d252e00da9044902e Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:29:41 -0700
+Subject: [PATCH 40/65] media: rockchip: rga: use snapshotted task count in
+ debug dump
+
+Plain-language impact:
+The request-manager dump now walks only the copied task entries.
+
+Kernel details:
+rga_request_manager_show() snapshots task_count under request->lock; iterate over that snapshot instead of live request->task_count.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_debugger.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
+index ddce4b5..ae3c1c0 100644
+--- a/drivers/video/rockchip/rga3/rga_debugger.c
++++ b/drivers/video/rockchip/rga3/rga_debugger.c
+@@ -375,7 +375,7 @@ static int rga_request_manager_show(struct seq_file *m, void *data)
+ 
+ 		seq_puts(m, "\t cmd dump:\n\n");
+ 
+-		for (i = 0; i < request->task_count; i++)
++		for (i = 0; i < task_count; i++)
+ 			rga_request_task_debug_info(m, &(task_list[i]));
+ 	}
+ 
+-- 
+2.53.0
+

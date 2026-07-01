@@ -1,0 +1,44 @@
+From 8e9105779d790427b9082f8880e5c1e5945830ac Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:06 -0700
+Subject: [PATCH 35/65] media: rockchip: rkvenc2: remove VEPU540C IRQ wrapper
+
+Plain-language impact:
+Removes a no-op wrapper around the encoder IRQ handler.
+
+Kernel details:
+Delete vepu540c_irq() and point vepu540c_dev_ops_v2.irq directly at rkvenc_irq.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 53e2380..9f00fef 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -1807,11 +1807,6 @@ static int rkvenc_irq(struct mpp_dev *mpp)
+ 	return ret;
+ }
+ 
+-static int vepu540c_irq(struct mpp_dev *mpp)
+-{
+-	return rkvenc_irq(mpp);
+-}
+-
+ static int rkvenc_isr(struct mpp_dev *mpp)
+ {
+ 	struct rkvenc_task *task;
+@@ -2785,7 +2780,7 @@ static struct mpp_dev_ops vepu540c_dev_ops_v2 = {
+ 	.wait_result = rkvenc2_wait_result,
+ 	.alloc_task = rkvenc_alloc_task,
+ 	.run = rkvenc_run,
+-	.irq = vepu540c_irq,
++	.irq = rkvenc_irq,
+ 	.isr = rkvenc_isr,
+ 	.finish = rkvenc_finish,
+ 	.result = rkvenc_result,
+-- 
+2.53.0
+

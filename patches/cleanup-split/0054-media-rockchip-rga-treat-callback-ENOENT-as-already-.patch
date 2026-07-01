@@ -1,0 +1,47 @@
+From 2515eaea7376383df5063c369729012037933ae3 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:35:27 -0700
+Subject: [PATCH 54/65] media: rockchip: rga: treat callback ENOENT as already
+ signaled
+
+Plain-language impact:
+A request is no longer failed when the acquire fence signals during callback registration.
+
+Kernel details:
+For rga_dma_fence_add_callback() == -ENOENT, drop the request and fence refs then return 1 so the caller handles it as already signaled.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_job.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index 17407e0..58e707f 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -597,9 +597,7 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
+ 
+ 	ret = rga_dma_fence_add_callback(acquire_fence, cb_func, (void *)request);
+ 	if (ret < 0) {
+-		if (ret != -ENOENT)
+-			rga_req_err(request, "%s: failed to add fence callback\n", __func__);
+-
++		/* The callback will not fire, so drop the ref taken above. */
+ 		mutex_lock(&request_manager->lock);
+ 		rga_request_put(request);
+ 		mutex_unlock(&request_manager->lock);
+@@ -607,6 +605,11 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
+ 		/* The callback was not registered, so release our fence ref. */
+ 		rga_dma_fence_put(acquire_fence);
+ 
++		if (ret == -ENOENT)
++			/* fence signaled in the race window: treat as already signaled */
++			return 1;
++
++		rga_req_err(request, "%s: failed to add fence callback\n", __func__);
+ 		return ret;
+ 	}
+ 
+-- 
+2.53.0
+

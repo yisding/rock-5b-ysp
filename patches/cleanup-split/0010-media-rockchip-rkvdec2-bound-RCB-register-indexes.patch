@@ -1,0 +1,42 @@
+From a1dbc06d85891d9136a6710de4f4b72844dc0d04 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:18:28 -0700
+Subject: [PATCH 10/65] media: rockchip: rkvdec2: bound RCB register indexes
+
+Plain-language impact:
+Malformed decoder requests can no longer write outside the task register array.
+
+Kernel details:
+mpp_set_rcbbuf() validates user-controlled RCB indexes against RKVDEC_REG_NUM and uses array_index_nospec() before task->reg[index].
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index 8d9db90..d759289 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -352,6 +352,10 @@ int mpp_set_rcbbuf(struct mpp_dev *mpp, struct mpp_session *session,
+ 		for (i = 0; i < rcb_inf->cnt; i++) {
+ 			reg_idx = rcb_inf->elem[i].index;
+ 			rcb_size = rcb_inf->elem[i].size;
++			if (reg_idx >= RKVDEC_REG_NUM) {
++				mpp_err("invalid rcb reg index %u\n", reg_idx);
++				continue;
++			}
+ 			if ((rcb_offset + rcb_size) > dec->rcb_size) {
+ 				mpp_debug(DEBUG_SRAM_INFO,
+ 					  "rcb: reg %d use original buffer\n", reg_idx);
+@@ -359,6 +363,7 @@ int mpp_set_rcbbuf(struct mpp_dev *mpp, struct mpp_session *session,
+ 			}
+ 			mpp_debug(DEBUG_SRAM_INFO, "rcb: reg %d offset %d, size %d\n",
+ 				  reg_idx, rcb_offset, rcb_size);
++			reg_idx = array_index_nospec(reg_idx, RKVDEC_REG_NUM);
+ 			task->reg[reg_idx] = dec->rcb_iova + rcb_offset;
+ 			rcb_offset += rcb_size;
+ 		}
+-- 
+2.53.0
+

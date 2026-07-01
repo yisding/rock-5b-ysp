@@ -1,0 +1,43 @@
+From 67c064b4516ab29a303d7a5ca86d646b93980d43 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:33:05 -0700
+Subject: [PATCH 44/65] media: rockchip: rga: return request allocation errors
+
+Plain-language impact:
+Request creation now returns the real failure code instead of a bogus unsigned id.
+
+Kernel details:
+Store rga_request_alloc() in signed int, test id < 0, and return the errno before copy_to_user().
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_drv.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index 73d4417..bd601cf 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -753,7 +753,7 @@ err_free_external_buffer:
+ 
+ static long rga_ioctl_request_create(unsigned long arg, struct rga_session *session)
+ {
+-	uint32_t id;
++	int id;
+ 	uint32_t flags;
+ 
+ 	if (copy_from_user(&flags, (void *)arg, sizeof(uint32_t))) {
+@@ -762,6 +762,10 @@ static long rga_ioctl_request_create(unsigned long arg, struct rga_session *sess
+ 	}
+ 
+ 	id = rga_request_alloc(flags, session);
++	if (id < 0) {
++		rga_err("%s request alloc failed!\n", __func__);
++		return id;
++	}
+ 
+ 	if (copy_to_user((void *)arg, &id, sizeof(uint32_t))) {
+ 		rga_err("%s failed to copy to user!\n", __func__);
+-- 
+2.53.0
+

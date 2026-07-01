@@ -1,0 +1,110 @@
+From f058b2251deb29688180d2b67ca20d9878eb6dfe Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:19:44 -0700
+Subject: [PATCH 13/65] media: rockchip: rkvdec2: unwind probe resources on
+ errors
+
+Plain-language impact:
+Failed decoder probes no longer leak runtime-PM, service, IOMMU, or RCB state.
+
+Kernel details:
+After mpp_dev_probe(), failures unwind through mpp_dev_remove(); after RCB allocation, later failures first call rkvdec2_free_rcbbuf(). Expected -EPROBE_DEFER is not logged as an error.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c | 30 ++++++++++++++++++++----
+ 1 file changed, 25 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index 4dc684c..1898c59 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -1923,6 +1923,8 @@ err_sram_map:
+ 	return ret;
+ }
+ 
++static int rkvdec2_free_rcbbuf(struct platform_device *pdev, struct rkvdec2_dev *dec);
++
+ static int rkvdec2_core_probe(struct platform_device *pdev)
+ {
+ 	int ret;
+@@ -1960,8 +1962,15 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 	/* attach core to ccu */
+ 	ret = rkvdec2_attach_ccu(dev, dec);
+ 	if (ret) {
+-		dev_err(dev, "attach ccu failed\n");
+-		return ret;
++		if (ret != -EPROBE_DEFER)
++			dev_err(dev, "attach ccu failed\n");
++		/*
++		 * mpp_dev_probe() succeeded above; unwind it (pm_runtime, iommu,
++		 * service). Especially important on the normal -EPROBE_DEFER
++		 * retry, which would otherwise re-run mpp_dev_probe() and
++		 * imbalance pm_runtime.
++		 */
++		goto err_remove;
+ 	}
+ 
+ 	/* alloc rcb buffer */
+@@ -1970,7 +1979,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 	/* set device for link */
+ 	ret = rkvdec2_ccu_link_init(pdev, dec);
+ 	if (ret)
+-		return ret;
++		goto err_free_rcb;
+ 
+ 	mpp->dev_ops->alloc_task = rkvdec2_ccu_alloc_task;
+ 	if (dec->ccu->ccu_mode == RKVDEC2_CCU_TASK_SOFT) {
+@@ -1982,7 +1991,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 			dec->link_dec->task_capacity = mpp->task_capacity;
+ 			ret = rkvdec2_ccu_alloc_table(dec, dec->link_dec);
+ 			if (ret)
+-				return ret;
++				goto err_free_rcb;
+ 		}
+ 		mpp->dev_ops->task_worker = rkvdec2_hard_ccu_worker;
+ 		irq_proc = rkvdec2_hard_ccu_irq;
+@@ -1995,7 +2004,8 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 					IRQF_SHARED, dev_name(dev), mpp);
+ 	if (ret) {
+ 		dev_err(dev, "register interrupter runtime failed\n");
+-		return -EINVAL;
++		ret = -EINVAL;
++		goto err_free_rcb;
+ 	}
+ 	/*make sure mpp->irq is startup then can be en/disable*/
+ 	mpp->is_irq_startup = true;
+@@ -2008,6 +2018,12 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 		mpp_dev_register_srv(mpp, mpp->srv);
+ 
+ 	return ret;
++
++err_free_rcb:
++	rkvdec2_free_rcbbuf(pdev, dec);
++err_remove:
++	mpp_dev_remove(mpp);
++	return ret;
+ }
+ 
+ static int rkvdec2_probe_default(struct platform_device *pdev)
+@@ -2042,6 +2058,7 @@ static int rkvdec2_probe_default(struct platform_device *pdev)
+ 	rkvdec2_alloc_rcbbuf(pdev, dec);
+ 	rkvdec2_link_init(pdev, dec);
+ 
++
+ 	irq_proc = mpp_dev_irq;
+ 	if (dec->link_dec && (mpp->task_capacity > 1)) {
+ 		irq_proc = rkvdec2_link_irq_proc;
+@@ -2056,6 +2073,9 @@ static int rkvdec2_probe_default(struct platform_device *pdev)
+ 					IRQF_SHARED, dev_name(dev), mpp);
+ 	if (ret) {
+ 		dev_err(dev, "register interrupter runtime failed\n");
++		rkvdec2_free_rcbbuf(pdev, dec);
++		/* mpp_dev_probe() succeeded above; unwind it before failing */
++		mpp_dev_remove(mpp);
+ 		return -EINVAL;
+ 	}
+ 
+-- 
+2.53.0
+

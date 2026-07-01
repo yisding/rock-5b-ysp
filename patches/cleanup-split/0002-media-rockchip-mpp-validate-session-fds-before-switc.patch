@@ -1,0 +1,53 @@
+From 5ac7ff0e0619a0af5907c87be9f8543f266ccf6a Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:15:08 -0700
+Subject: [PATCH 02/65] media: rockchip: mpp: validate session fds before
+ switching sessions
+
+Plain-language impact:
+Applications can no longer pass an unrelated fd and have the driver treat it as an MPP session.
+
+Kernel details:
+MPP_CMD_SET_SESSION_FD used a tautological private_data check. Verify fd_file(f)->f_op == &rockchip_mpp_fops before using private_data as struct mpp_session, return -EBADF on mismatch, and remove the always-true guard.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_common.c | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 668a3f9..353c562 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -1577,6 +1577,17 @@ next:
+ 			msgs = NULL;
+ 		}
+ 
++		/* validate the fd actually refers to an mpp device file */
++		if (fd_file(f)->f_op != &rockchip_mpp_fops) {
++			int ret = -EBADF;
++
++			mpp_err("fd %d is not an mpp session\n", bat_msg.fd);
++			fdput(f);
++			if (copy_to_user(&usr_cmd->ret, &ret, sizeof(usr_cmd->ret)))
++				mpp_err("copy_to_user failed.\n");
++			goto session_switch_done;
++		}
++
+ 		/* switch session */
+ 		session = fd_file(f)->private_data;
+ 		msgs = get_task_msgs(session);
+@@ -1585,9 +1596,7 @@ next:
+ 			fdput(f);
+ 			goto session_switch_done;
+ 		}
+-		if (fd_file(f)->private_data == session)
+-			msgs->ext_fd = bat_msg.fd;
+-
++		msgs->ext_fd = bat_msg.fd;
+ 		msgs->f = f;
+ 
+ 		mpp_debug(DEBUG_IOCTL, "fd %d, session %d msg_cnt %d\n",
+-- 
+2.53.0
+

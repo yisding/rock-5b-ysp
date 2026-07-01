@@ -1,0 +1,49 @@
+From caee48bf840d2d55025950c0ddb925b5e844337d Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:31:35 -0700
+Subject: [PATCH 43/65] media: rockchip: rga: release partial imports on
+ failure
+
+Plain-language impact:
+Already-imported handles are released if importing a buffer list fails halfway.
+
+Kernel details:
+Route import and copy_to_user failures to err_release_buffer, release handles [0, i), and jump over that release loop on success.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_drv.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index 3ecd7ff..73d4417 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -667,7 +667,7 @@ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *sessi
+ 			       rga_get_memory_type_str(external_buffer[i].type),
+ 			       external_buffer[i].type);
+ 
+-			goto err_free_external_buffer;
++			goto err_release_buffer;
+ 		}
+ 
+ 		external_buffer[i].handle = ret;
+@@ -679,9 +679,14 @@ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *sessi
+ 		rga_err("rga_buffer_pool external_buffer list copy_to_user failed\n");
+ 		ret = -EFAULT;
+ 
+-		goto err_free_external_buffer;
++		goto err_release_buffer;
+ 	}
+ 
++	/* success: hand the imported handles back, do NOT release them */
++	goto err_free_external_buffer;
++err_release_buffer:
++	while (i-- > 0)
++		rga_mm_release_buffer(external_buffer[i].handle);
+ err_free_external_buffer:
+ 	kfree(external_buffer);
+ 	return ret;
+-- 
+2.53.0
+

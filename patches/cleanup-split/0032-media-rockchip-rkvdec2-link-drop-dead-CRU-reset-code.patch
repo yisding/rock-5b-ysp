@@ -1,0 +1,50 @@
+From 5615dca417e5b386b81097bdb5369fb4760afa30 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:06 -0700
+Subject: [PATCH 32/65] media: rockchip: rkvdec2-link: drop dead CRU reset code
+
+Plain-language impact:
+Removes stale commented reset code from the hard-CCU reset path.
+
+Kernel details:
+Keep one u32 val declaration in the loop and delete the commented-out CRU reset block plus the shadowed inner val.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 8 +-------
+ 1 file changed, 1 insertion(+), 7 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index c2c3672..759f19d 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -2419,7 +2419,7 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+ 
+ 	/* reset and active core */
+ 	for (i = 0; i < queue->core_count; i++) {
+-		u32 val = 0;
++		u32 val;
+ 		struct mpp_dev *mpp = queue->cores[i];
+ 		struct rkvdec2_dev *dec = to_rkvdec2_dev(mpp);
+ 
+@@ -2433,17 +2433,11 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+ 
+ 		{
+ 			/* soft reset */
+-			u32 val;
+-
+ 			mpp_write(mpp, RKVDEC_REG_IMPORTANT_BASE, RKVDEC_SOFTREST_EN);
+ 			udelay(5);
+ 			val = mpp_read(mpp, RKVDEC_REG_INT_EN);
+ 			if (!(val & RKVDEC_SOFT_RESET_READY))
+ 				mpp_err("soft reset fail, int %08x\n", val);
+-
+-			// /* cru reset */
+-			// dev_info(mpp->dev, "cru reset\n");
+-			// rkvdec2_reset(mpp);
+ 		}
+ #if IS_ENABLED(CONFIG_ROCKCHIP_SIP)
+ 		rockchip_dmcfreq_lock();
+-- 
+2.53.0
+

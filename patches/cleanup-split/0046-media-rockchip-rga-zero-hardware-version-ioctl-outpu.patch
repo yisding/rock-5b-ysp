@@ -1,0 +1,33 @@
+From 0adb523ca81eb760f546981d04561e96dc03a72c Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:33:50 -0700
+Subject: [PATCH 46/65] media: rockchip: rga: zero hardware-version ioctl
+ output
+
+Plain-language impact:
+GET_HW_VERSION no longer copies uninitialized stack bytes to userspace.
+
+Kernel details:
+Initialize struct rga_hw_versions_t hw_versions to zero before filling active entries and copying the whole struct out.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_drv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index da4736a..a620cb3 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -955,7 +955,7 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
+ 	int major_version = 0, minor_version = 0;
+ 	char version[16] = { 0 };
+ 	struct rga_version_t driver_version;
+-	struct rga_hw_versions_t hw_versions;
++	struct rga_hw_versions_t hw_versions = { 0 };
+ 	struct rga_drvdata_t *rga = rga_drvdata;
+ 	struct rga_session *session = file->private_data;
+ 
+-- 
+2.53.0
+

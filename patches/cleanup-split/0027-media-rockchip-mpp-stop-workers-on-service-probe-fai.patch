@@ -1,0 +1,39 @@
+From bf2bd9e4668fd2753f55187649bf956ef6157c05 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:05 -0700
+Subject: [PATCH 27/65] media: rockchip: mpp: stop workers on service probe
+ failure
+
+Plain-language impact:
+Worker threads started during service probe are stopped if a later step fails.
+
+Kernel details:
+Add fail_register cleanup that flushes and stops each non-NULL kworker_task before class_destroy().
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_service.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
+index 1eab6e5..34f2494 100644
+--- a/drivers/video/rockchip/mpp/mpp_service.c
++++ b/drivers/video/rockchip/mpp/mpp_service.c
+@@ -504,6 +504,14 @@ static int mpp_service_probe(struct platform_device *pdev)
+ 	return 0;
+ 
+ fail_register:
++	for (i = 0; i < srv->taskqueue_cnt; i++) {
++		queue = srv->task_queues[i];
++		if (queue && queue->kworker_task) {
++			kthread_flush_worker(&queue->worker);
++			kthread_stop(queue->kworker_task);
++			queue->kworker_task = NULL;
++		}
++	}
+ 	class_destroy(srv->cls);
+ 
+ 	return ret;
+-- 
+2.53.0
+

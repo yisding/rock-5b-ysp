@@ -1,0 +1,62 @@
+From c1a6d8399948193aba43faa5a0ea331f2436615c Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:22:02 -0700
+Subject: [PATCH 14/65] media: rockchip: rkvdec2: use compatible string for CCU
+ dispatch
+
+Plain-language impact:
+Decoder CCU devices are classified consistently in remove, shutdown, and runtime PM paths.
+
+Kernel details:
+Use of_device_is_compatible(..., "rockchip,rkv-decoder-v2-ccu") with the old dev_name() fallback, matching probe more closely than a name substring alone.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index 1898c59..fa2ef7c 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -2148,7 +2148,8 @@ static void rkvdec2_remove(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+ 
+-	if (strstr(dev_name(dev), "ccu")) {
++	if (of_device_is_compatible(pdev->dev.of_node, "rockchip,rkv-decoder-v2-ccu") ||
++	    strstr(dev_name(dev), "ccu")) {
+ 		dev_info(dev, "remove ccu device\n");
+ 		rkvdec2_ccu_remove(dev);
+ 	} else {
+@@ -2167,13 +2168,15 @@ static void rkvdec2_shutdown(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+ 
+-	if (!strstr(dev_name(dev), "ccu"))
++	if (!(of_device_is_compatible(pdev->dev.of_node, "rockchip,rkv-decoder-v2-ccu") ||
++	      strstr(dev_name(dev), "ccu")))
+ 		mpp_dev_shutdown(pdev);
+ }
+ 
+ static int __maybe_unused rkvdec2_runtime_suspend(struct device *dev)
+ {
+-	if (strstr(dev_name(dev), "ccu")) {
++	if (of_device_is_compatible(dev->of_node, "rockchip,rkv-decoder-v2-ccu") ||
++	    strstr(dev_name(dev), "ccu")) {
+ 		struct rkvdec2_ccu *ccu = dev_get_drvdata(dev);
+ 
+ 		mpp_clk_safe_disable(ccu->aclk_info.clk);
+@@ -2207,7 +2210,8 @@ static int __maybe_unused rkvdec2_runtime_suspend(struct device *dev)
+ 
+ static int __maybe_unused rkvdec2_runtime_resume(struct device *dev)
+ {
+-	if (strstr(dev_name(dev), "ccu")) {
++	if (of_device_is_compatible(dev->of_node, "rockchip,rkv-decoder-v2-ccu") ||
++	    strstr(dev_name(dev), "ccu")) {
+ 		struct rkvdec2_ccu *ccu = dev_get_drvdata(dev);
+ 
+ 		mpp_clk_safe_enable(ccu->aclk_info.clk);
+-- 
+2.53.0
+

@@ -1,0 +1,32 @@
+From eeb8a52887208173959ac68d999a8a1d9f154aaa Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:34:16 -0700
+Subject: [PATCH 47/65] media: rockchip: rga: fix RGA3 scheduler error message
+
+Plain-language impact:
+A probe failure in the RGA3 scheduler path now reports RGA3, not RGA2.
+
+Kernel details:
+Correct the pr_err() string in the RGA3 init_scheduler() switch default.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_drv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index a620cb3..dd67986 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -1331,7 +1331,7 @@ static int init_scheduler(struct rga_scheduler_t *scheduler,
+ 			scheduler->core = RGA3_SCHEDULER_CORE1;
+ 			break;
+ 		default:
+-			pr_err("scheduler failed to match RGA2\n");
++			pr_err("scheduler failed to match RGA3\n");
+ 			return -EINVAL;
+ 		}
+ 
+-- 
+2.53.0
+

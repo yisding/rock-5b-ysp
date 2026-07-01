@@ -1,0 +1,55 @@
+From 6a675aa7951d43f2a36dc375305e732d46c85825 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:33:50 -0700
+Subject: [PATCH 45/65] media: rockchip: rga: always put submitted requests
+
+Plain-language impact:
+Submit and async-copy failures no longer leak the request object.
+
+Kernel details:
+rga_request_config() returns a referenced request. Convert early returns in rga_ioctl_request_submit() to a shared err_put_request epilogue.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_drv.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index bd601cf..da4736a 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -810,7 +810,8 @@ static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale)
+ 		ret = rga_request_submit(request);
+ 		if (ret < 0) {
+ 			rga_err("request[%d] submit failed!\n", user_request.id);
+-			return -EFAULT;
++			ret = -EFAULT;
++			goto err_put_request;
+ 		}
+ 
+ 		if (request->sync_mode == RGA_BLIT_ASYNC) {
+@@ -818,16 +819,19 @@ static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale)
+ 			if (copy_to_user((struct rga_req *)arg,
+ 					 &user_request, sizeof(user_request))) {
+ 				rga_err("copy_to_user failed\n");
+-				return -EFAULT;
++				ret = -EFAULT;
++				goto err_put_request;
+ 			}
+ 		}
+ 	}
+ 
++	ret = 0;
++err_put_request:
+ 	mutex_lock(&request_manager->lock);
+ 	rga_request_put(request);
+ 	mutex_unlock(&request_manager->lock);
+ 
+-	return 0;
++	return ret;
+ }
+ 
+ static long rga_ioctl_request_cancel(unsigned long arg)
+-- 
+2.53.0
+

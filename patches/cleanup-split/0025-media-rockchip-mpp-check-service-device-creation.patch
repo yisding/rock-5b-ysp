@@ -1,0 +1,38 @@
+From 0cc1f217892aeb8db0e08e850958e5e12d88fd95 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:05 -0700
+Subject: [PATCH 25/65] media: rockchip: mpp: check service device creation
+
+Plain-language impact:
+Service device-node creation failures are now reported and unwound.
+
+Kernel details:
+mpp_register_service() checks IS_ERR(srv->child_dev), deletes the cdev, unregisters the chrdev region, and returns PTR_ERR().
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_service.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
+index 6303756..852c029 100644
+--- a/drivers/video/rockchip/mpp/mpp_service.c
++++ b/drivers/video/rockchip/mpp/mpp_service.c
+@@ -149,6 +149,14 @@ static int mpp_register_service(struct mpp_service *srv,
+ 
+ 	srv->child_dev = device_create(srv->cls, dev, srv->dev_id,
+ 				       NULL, "%s", service_name);
++	if (IS_ERR(srv->child_dev)) {
++		ret = PTR_ERR(srv->child_dev);
++		srv->child_dev = NULL;
++		cdev_del(&srv->mpp_cdev);
++		unregister_chrdev_region(srv->dev_id, 1);
++		dev_err(dev, "create device failed\n");
++		return ret;
++	}
+ 
+ 	return 0;
+ }
+-- 
+2.53.0
+

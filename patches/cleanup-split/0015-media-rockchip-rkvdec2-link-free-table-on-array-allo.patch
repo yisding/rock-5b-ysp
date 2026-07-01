@@ -1,0 +1,45 @@
+From d12453ffc76ea4b7486d8590bd27bb08bf2d863e Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:24:19 -0700
+Subject: [PATCH 15/65] media: rockchip: rkvdec2-link: free table on array
+ allocation failure
+
+Plain-language impact:
+A failed table-array allocation no longer leaks the DMA link table allocated earlier.
+
+Kernel details:
+rkvdec2_link_init() routes table-array allocation failure through done and calls rkvdec2_link_remove() during error cleanup.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index f52df09..a49bd38 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -849,8 +849,10 @@ int rkvdec2_link_init(struct platform_device *pdev, struct rkvdec2_dev *dec)
+ 	/* alloc table pointer array */
+ 	table = devm_kmalloc_array(mpp->dev, mpp->task_capacity,
+ 				   sizeof(*table), GFP_KERNEL | __GFP_ZERO);
+-	if (!table)
+-		return -ENOMEM;
++	if (!table) {
++		ret = -ENOMEM;
++		goto done;
++	}
+ 
+ 	/* init table array */
+ 	link_dec->table_array = table;
+@@ -883,6 +885,7 @@ out:
+ done:
+ 	if (ret) {
+ 		if (link_dec) {
++			rkvdec2_link_remove(mpp, link_dec);
+ 			if (link_dec->reg_base) {
+ 				devm_iounmap(dev, link_dec->reg_base);
+ 				link_dec->reg_base = NULL;
+-- 
+2.53.0
+

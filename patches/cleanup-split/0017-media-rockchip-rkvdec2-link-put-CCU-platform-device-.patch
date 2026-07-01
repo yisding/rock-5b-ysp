@@ -1,0 +1,50 @@
+From c5c642791ab4c26656eb8e32632c666ee2cf450b Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:05 -0700
+Subject: [PATCH 17/65] media: rockchip: rkvdec2-link: put CCU platform-device
+ lookups
+
+Plain-language impact:
+CCU platform-device lookup references are released on both property-error and success paths.
+
+Kernel details:
+of_find_device_by_node() returns a referenced pdev. Balance it with put_device(&pdev->dev) on core-mask read failure and after successful attach.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index 7a8d7ec..0bfed23 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -1561,8 +1561,10 @@ int rkvdec2_attach_ccu(struct device *dev, struct rkvdec2_dev *dec)
+ 	}
+ 
+ 	ret = of_property_read_u32(dev->of_node, "rockchip,core-mask", &dec->core_mask);
+-	if (ret)
++	if (ret) {
++		put_device(&pdev->dev);
+ 		return ret;
++	}
+ 	dev_info(dev, "core_mask=%08x\n", dec->core_mask);
+ 
+ 	/* if not the main-core, then attach the main core domain to current */
+@@ -1595,6 +1597,13 @@ int rkvdec2_attach_ccu(struct device *dev, struct rkvdec2_dev *dec)
+ 	dev_info(dev, "attach ccu as core %d\n", dec->mpp.core_id);
+ 	mpp_debug_enter();
+ 
++	/*
++	 * Drop the of_find_device_by_node() lookup reference; the ccu device
++	 * stays alive via its own driver binding (dec->ccu is its drvdata).
++	 * Mirrors the rkvenc_attach_ccu() success path.
++	 */
++	put_device(&pdev->dev);
++
+ 	return 0;
+ }
+ 
+-- 
+2.53.0
+

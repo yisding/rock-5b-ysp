@@ -1,0 +1,33 @@
+From ba335976dbce371eaa9dc3c0af550e015f994804 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:15:08 -0700
+Subject: [PATCH 05/65] media: rockchip: mpp: clamp oversized register requests
+ correctly
+
+Plain-language impact:
+Oversized register requests are now trimmed to the valid remaining range.
+
+Kernel details:
+mpp_check_req() assigned the overflow amount to req->size. The valid length is max_size - req_off.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_common.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 6c5a5bb..2f05239 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -1966,7 +1966,7 @@ int mpp_check_req(struct mpp_request *req, int base,
+ 	if ((req_off + req->size) > max_size) {
+ 		mpp_err("error: req_off %x, req_size %x, max_size %x\n",
+ 			req_off, req->size, max_size);
+-		req->size = req_off + req->size - max_size;
++		req->size = max_size - req_off;
+ 	}
+ 
+ 	return 0;
+-- 
+2.53.0
+

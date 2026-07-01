@@ -1,0 +1,37 @@
+From 86f6e004cd327184ad71267363d1b6b881d70536 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:26:05 -0700
+Subject: [PATCH 16/65] media: rockchip: rkvdec2-link: put disabled CCU node
+
+Plain-language impact:
+Disabled CCU phandle nodes no longer leak a device-tree node reference.
+
+Kernel details:
+Split the NULL phandle case from the unavailable-node case and call of_node_put(np) before returning -ENODEV for the latter.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index a49bd38..7a8d7ec 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -1535,8 +1535,12 @@ int rkvdec2_attach_ccu(struct device *dev, struct rkvdec2_dev *dec)
+ 	mpp_debug_enter();
+ 
+ 	np = of_parse_phandle(dev->of_node, "rockchip,ccu", 0);
+-	if (!np || !of_device_is_available(np))
++	if (!np)
+ 		return -ENODEV;
++	if (!of_device_is_available(np)) {
++		of_node_put(np);
++		return -ENODEV;
++	}
+ 
+ 	pdev = of_find_device_by_node(np);
+ 	of_node_put(np);
+-- 
+2.53.0
+

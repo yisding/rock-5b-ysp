@@ -1,0 +1,46 @@
+From 6091d56ea0041b4080ddc18dbc1c7e7f64747022 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:34:46 -0700
+Subject: [PATCH 49/65] media: rockchip: rga: serialize fence sequence numbers
+
+Plain-language impact:
+Concurrent fence allocations can no longer receive the same sequence number.
+
+Kernel details:
+Increment fence_ctx->seqno under fence_ctx->spinlock with irqsave and pass the saved seqno to dma_fence_init().
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_fence.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_fence.c b/drivers/video/rockchip/rga3/rga_fence.c
+index 9c663f3..cea0edf 100644
+--- a/drivers/video/rockchip/rga3/rga_fence.c
++++ b/drivers/video/rockchip/rga3/rga_fence.c
+@@ -54,6 +54,8 @@ struct dma_fence *rga_dma_fence_alloc(void)
+ {
+ 	struct rga_fence_context *fence_ctx = rga_drvdata->fence_ctx;
+ 	struct dma_fence *fence = NULL;
++	unsigned long flags;
++	unsigned int seqno;
+ 
+ 	if (fence_ctx == NULL) {
+ 		rga_err("fence_context is NULL!\n");
+@@ -64,8 +66,12 @@ struct dma_fence *rga_dma_fence_alloc(void)
+ 	if (!fence)
+ 		return ERR_PTR(-ENOMEM);
+ 
++	spin_lock_irqsave(&fence_ctx->spinlock, flags);
++	seqno = ++fence_ctx->seqno;
++	spin_unlock_irqrestore(&fence_ctx->spinlock, flags);
++
+ 	dma_fence_init(fence, &rga_fence_ops, &fence_ctx->spinlock,
+-		       fence_ctx->context, ++fence_ctx->seqno);
++		       fence_ctx->context, seqno);
+ 
+ 	return fence;
+ }
+-- 
+2.53.0
+

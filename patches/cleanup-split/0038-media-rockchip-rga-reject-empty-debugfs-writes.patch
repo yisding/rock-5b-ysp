@@ -1,0 +1,59 @@
+From deb6860f46b1e497e7a6f7c15ffd5e587feee124 Mon Sep 17 00:00:00 2001
+From: Split <split@example.invalid>
+Date: Tue, 30 Jun 2026 22:29:41 -0700
+Subject: [PATCH 38/65] media: rockchip: rga: reject empty debugfs writes
+
+Plain-language impact:
+Zero-byte writes to RGA debugfs controls no longer write before a stack buffer.
+
+Kernel details:
+The handlers write a terminator at buf[len - 1]. Reject len == 0 in all four write handlers.
+
+Source: split from patches/cleanup-draft after docs/11-bsp-audit.md verification.
+---
+ drivers/video/rockchip/rga3/rga_debugger.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
+index 95cc809..3e25bf9 100644
+--- a/drivers/video/rockchip/rga3/rga_debugger.c
++++ b/drivers/video/rockchip/rga3/rga_debugger.c
+@@ -79,7 +79,7 @@ static ssize_t rga_debug_write(struct file *file, const char __user *ubuf,
+ {
+ 	char buf[14];
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+@@ -397,7 +397,7 @@ static ssize_t rga_dump_path_write(struct file *file, const char __user *ubuf,
+ {
+ 	char buf[100];
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+@@ -423,7 +423,7 @@ static ssize_t rga_dump_image_write(struct file *file, const char __user *ubuf,
+ 	int dump_count = 0;
+ 	char buf[14];
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+@@ -511,7 +511,7 @@ static ssize_t rga_reset_write(struct file *file, const char __user *ubuf,
+ 	int reset_done = false;
+ 	struct rga_scheduler_t *scheduler = NULL;
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+-- 
+2.53.0
+
