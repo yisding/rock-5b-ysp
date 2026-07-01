@@ -1,0 +1,239 @@
+From 6a7feaa82ce933d66ec31daf461c9009d7d78b14 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Mon, 29 Jun 2026 22:48:07 -0700
+Subject: [PATCH] encode-session-ffmpeg: Allocate NV12 surfaces from the
+ dma-heap
+
+panfrost's GBM cannot allocate NV12 buffers, so gbm_bo_create() failed
+on Mali and the backend declined. Allocate the NV12 encode surface from
+the system dma-heap instead: a single linear object holding a
+hand-laid-out Y plane followed by the interleaved UV plane,
+dual-imported into Vulkan (R8 + R8G8) and MPP exactly as before.
+
+Align the row stride to 64 bytes: panvk requires that for single-plane
+R8/R8G8 linear images on Valhall, and MPP independently aligns its input
+hor_stride to 64. Without it vkCreateImage() fails with
+VK_ERROR_INITIALIZATION_FAILED.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EN9JjFVPvgho9JggxZbM7Y
+---
+ src/grd-encode-session-ffmpeg.c | 115 +++++++++++++++-----------------
+ 1 file changed, 55 insertions(+), 60 deletions(-)
+
+diff --git a/src/grd-encode-session-ffmpeg.c b/src/grd-encode-session-ffmpeg.c
+index cd7d860..2d5019b 100644
+--- a/src/grd-encode-session-ffmpeg.c
++++ b/src/grd-encode-session-ffmpeg.c
+@@ -22,10 +22,13 @@
+ #include "grd-encode-session-ffmpeg.h"
+ 
+ #include <drm_fourcc.h>
++#include <fcntl.h>
+ #include <gbm.h>
+ #include <gio/gio.h>
+ #include <glib/gstdio.h>
+ #include <inttypes.h>
++#include <linux/dma-heap.h>
++#include <sys/ioctl.h>
+ #include <unistd.h>
+ #include <libavcodec/avcodec.h>
+ #include <libavutil/buffer.h>
+@@ -75,7 +78,6 @@ typedef struct
+ {
+   GrdEncodeSessionFfmpeg *encode_session_ffmpeg;
+ 
+-  struct gbm_bo *bo;
+   int fd;
+ 
+   GrdImageView *image_view;
+@@ -95,6 +97,7 @@ struct _GrdEncodeSessionFfmpeg
+   GrdVkDevice *vk_device;
+   struct gbm_device *gbm_device; /* Not owned */
+   int64_t drm_render_node;
++  int dma_heap_fd;
+ 
+   uint32_t surface_width;
+   uint32_t surface_height;
+@@ -136,10 +139,30 @@ nv12_surface_free (NV12Surface *surface)
+ {
+   g_clear_object (&surface->image_view);
+   g_clear_fd (&surface->fd, NULL);
+-  g_clear_pointer (&surface->bo, gbm_bo_destroy);
+   g_free (surface);
+ }
+ 
++static int
++alloc_dma_heap_buffer (int       dma_heap_fd,
++                       uint64_t  size,
++                       GError  **error)
++{
++  struct dma_heap_allocation_data data = {
++    .len = size,
++    .fd_flags = O_RDWR | O_CLOEXEC,
++  };
++
++  if (ioctl (dma_heap_fd, DMA_HEAP_IOCTL_ALLOC, &data) != 0)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Failed to allocate %" G_GUINT64_FORMAT " bytes from the "
++                   "dma-heap: %s", size, g_strerror (errno));
++      return -1;
++    }
++
++  return (int) data.fd;
++}
++
+ static NV12Surface *
+ nv12_surface_new (GrdEncodeSessionFfmpeg  *self,
+                   GError                 **error)
+@@ -150,71 +173,34 @@ nv12_surface_new (GrdEncodeSessionFfmpeg  *self,
+   g_autoptr (GrdVkImage) vk_uv_layer = NULL;
+   GrdImageViewNV12 *image_view_nv12;
+   NV12Surface *surface;
+-  struct gbm_bo *bo;
+   uint32_t offsets[2];
+   uint32_t strides[2];
+-  uint64_t modifier;
+-  int plane_count;
++  uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
+   int fd = -1;
+   off_t bo_size;
+ 
+   g_assert (width % 16 == 0 && width >= 16);
+   g_assert (height % 16 == 0 && height >= 16);
+ 
+-  bo = gbm_bo_create (self->gbm_device, width, height, GBM_FORMAT_NV12,
+-                      GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR);
+-  if (!bo)
+-    {
+-      bo = gbm_bo_create (self->gbm_device, width, height, GBM_FORMAT_NV12,
+-                          GBM_BO_USE_LINEAR);
+-    }
+-  if (!bo)
+-    {
+-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+-                   "Failed to allocate %ux%u linear NV12 GBM buffer",
+-                   width, height);
+-      return NULL;
+-    }
+-
+-  plane_count = gbm_bo_get_plane_count (bo);
+-  if (plane_count != 2)
+-    {
+-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+-                   "Unexpected NV12 GBM plane count %i (expected 2)",
+-                   plane_count);
+-      gbm_bo_destroy (bo);
+-      return NULL;
+-    }
+-
+-  modifier = gbm_bo_get_modifier (bo);
+-  if (modifier == DRM_FORMAT_MOD_INVALID)
+-    modifier = DRM_FORMAT_MOD_LINEAR;
+-  if (modifier != DRM_FORMAT_MOD_LINEAR)
+-    {
+-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+-                   "GBM returned non-linear NV12 modifier 0x%" PRIx64
+-                   "; only DRM_FORMAT_MOD_LINEAR is supported", modifier);
+-      gbm_bo_destroy (bo);
+-      return NULL;
+-    }
+-
+-  offsets[0] = gbm_bo_get_offset (bo, 0);
+-  offsets[1] = gbm_bo_get_offset (bo, 1);
+-  strides[0] = gbm_bo_get_stride_for_plane (bo, 0);
+-  strides[1] = gbm_bo_get_stride_for_plane (bo, 1);
++  /*
++   * panfrost's GBM cannot allocate NV12, so allocate the surface from the
++   * system dma-heap as a single linear object and lay out the NV12 planes by
++   * hand: the Y plane followed by the interleaved UV plane. The row stride is
++   * aligned to 64 bytes because panvk requires that for single-plane R8/R8G8
++   * LINEAR images (pan_linear_or_tiled_row_align_req's default) and MPP
++   * independently aligns its input hor_stride to 64. MPP back-derives
++   * ver_stride from planes[1].offset / planes[0].pitch, so this stays
++   * self-consistent.
++   */
++  strides[0] = grd_get_aligned_size (width, 64);
++  strides[1] = strides[0];
++  offsets[0] = 0;
++  offsets[1] = strides[0] * height;
++  bo_size = (off_t) offsets[1] + (off_t) strides[1] * (height / 2);
+ 
+-  fd = gbm_bo_get_fd (bo);
++  fd = alloc_dma_heap_buffer (self->dma_heap_fd, (uint64_t) bo_size, error);
+   if (fd < 0)
+-    {
+-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+-                   "Failed to export GBM buffer as a dma-buf");
+-      gbm_bo_destroy (bo);
+-      return NULL;
+-    }
+-
+-  bo_size = lseek (fd, 0, SEEK_END);
+-  if (bo_size <= 0)
+-    bo_size = (off_t) offsets[1] + (off_t) strides[1] * (height / 2);
++    return NULL;
+ 
+   /*
+    * Import the same dma-buf into Vulkan as two single-plane images, exactly
+@@ -229,7 +215,6 @@ nv12_surface_new (GrdEncodeSessionFfmpeg  *self,
+   if (!vk_y_layer)
+     {
+       g_clear_fd (&fd, NULL);
+-      gbm_bo_destroy (bo);
+       return NULL;
+     }
+ 
+@@ -241,7 +226,6 @@ nv12_surface_new (GrdEncodeSessionFfmpeg  *self,
+   if (!vk_uv_layer)
+     {
+       g_clear_fd (&fd, NULL);
+-      gbm_bo_destroy (bo);
+       return NULL;
+     }
+ 
+@@ -250,7 +234,6 @@ nv12_surface_new (GrdEncodeSessionFfmpeg  *self,
+ 
+   surface = g_new0 (NV12Surface, 1);
+   surface->encode_session_ffmpeg = self;
+-  surface->bo = bo;
+   surface->fd = fd;
+   surface->image_view = GRD_IMAGE_VIEW (image_view_nv12);
+ 
+@@ -741,6 +724,15 @@ grd_encode_session_ffmpeg_new (GrdVkDevice        *vk_device,
+   self->surface_width = grd_get_aligned_size (source_width, 16);
+   self->surface_height = grd_get_aligned_size (source_height, 16);
+ 
++  self->dma_heap_fd = g_open ("/dev/dma_heap/system", O_RDWR | O_CLOEXEC, 0);
++  if (self->dma_heap_fd < 0)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Failed to open /dev/dma_heap/system: %s",
++                   g_strerror (errno));
++      return NULL;
++    }
++
+   if (!create_encoder (self, error))
+     return NULL;
+ 
+@@ -772,6 +764,8 @@ grd_encode_session_ffmpeg_dispose (GObject *object)
+ 
+   g_clear_pointer (&self->surfaces, g_hash_table_unref);
+ 
++  g_clear_fd (&self->dma_heap_fd, NULL);
++
+   av_buffer_unref (&self->hw_frames_ctx);
+   av_buffer_unref (&self->hw_device_ctx);
+   avcodec_free_context (&self->avctx);
+@@ -796,6 +790,7 @@ grd_encode_session_ffmpeg_finalize (GObject *object)
+ static void
+ grd_encode_session_ffmpeg_init (GrdEncodeSessionFfmpeg *self)
+ {
++  self->dma_heap_fd = -1;
+   self->surfaces =
+     g_hash_table_new_full (NULL, NULL, NULL,
+                            (GDestroyNotify) nv12_surface_free);
+-- 
+2.53.0
+

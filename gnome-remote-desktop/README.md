@@ -20,6 +20,11 @@ a few percent CPU instead of a laggy, CPU-bound one.
 > validate script and `tests/` pass, the hard part is already done — GRD is just
 > another `/dev/mpp_service` + `/dev/dma_heap` client.
 
+**Companion docs:** [`DESIGN.md`](DESIGN.md) — why FFmpeg (vs VA-API / direct MPP)
+and the panvk hardware-enablement journey · [`patches/`](patches/) — the full
+7-patch backend series · [`../ppa/`](../ppa/) — packaging the whole stack for a
+Launchpad PPA.
+
 ## How it fits the stack
 
 ```
@@ -194,17 +199,16 @@ codec consumer:
 
 ## The patches
 
-The two source patches are in [`patches/`](patches/) (git-format-patch of the two
-commits on the GRD fork branch). They map 1:1 to the fixes above; see
-[`patches/README.md`](patches/README.md).
-
-| Patch | Fixes |
-|-------|-------|
-| `0001-Revert-rdp-make-handover-reconnect-cleanup-robust.patch` | a cherry-picked handover-reconnect change that broke the basic GDM→session handover (reverted) |
-| `0002-encode-session-ffmpeg-make-the-mainline-rkmpp-encode.patch` | bugs **#1** (IDR) and **#2** (bitrate) |
+The **full backend patch set** — seven commits that add the rkmpp encode backend
+to a pristine GRD 50.1 — is in [`patches/`](patches/) (verified to `git am` on
+upstream). Patches `0001`–`0003` are the backend, `0004`–`0006` are the
+panvk/hardware-enablement fixes (the "looked like a Mesa bug" journey — see
+[`DESIGN.md`](DESIGN.md)), and `0007` is the two mainline-rkmpp runtime fixes
+above (#1 IDR, #2 bitrate). Full map: [`patches/README.md`](patches/README.md).
 
 Bug **#3** (greeter access) is not a code change — it's the udev package in
-[`packaging/gdm-hwenc/`](../packaging/gdm-hwenc/).
+[`packaging/gdm-hwenc/`](../packaging/gdm-hwenc/). The design rationale (why FFmpeg
+at all, and the panvk enablement story) is in [`DESIGN.md`](DESIGN.md).
 
 ## Packaging & install
 
@@ -231,7 +235,8 @@ sudo apt install ./gnome-remote-desktop-gdm-hwenc_1.0_all.deb    # optional
 The full stack (codec libs + FFmpeg + GRD) is prepared as upload-ready Launchpad
 **PPA** source packages (a personal `resolute`/arm64 PPA); `gnome-remote-desktop`
 is `50.1+rkmpp-2` and `gnome-remote-desktop-gdm-hwenc` is an independent
-`Arch: all` add-on.
+`Arch: all` add-on. How all five source packages were built — and the upload
+order — is in [`../ppa/`](../ppa/).
 
 ## Provenance & licensing
 

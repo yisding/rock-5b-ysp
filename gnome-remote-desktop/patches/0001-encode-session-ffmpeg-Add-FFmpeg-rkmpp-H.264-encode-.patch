@@ -1,0 +1,1473 @@
+From 3bd70951e694836c07bbbc64cfc2d30694fa162e Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Sat, 27 Jun 2026 23:15:43 -0700
+Subject: [PATCH] encode-session-ffmpeg: Add FFmpeg/rkmpp H.264 encode backend
+
+Add a narrow FFmpeg encode-session backend as a sibling of the VA-API
+path. It is H.264-only, whitelists the h264_rkmpp encoder, and requires
+zero-copy DRM PRIME / NV12 surfaces, failing closed when low-latency
+zero-copy import/export is unavailable so VA-API stays the preferred
+path for proper VA-API drivers.
+
+Surfaces are allocated with GBM on the DRM render node (NV12, linear)
+and dual-imported into Vulkan and MPP, with a prebuilt
+AVDRMFrameDescriptor per surface for zero-copy submission. The encoder
+is configured for low latency with fixed QP, and a smoke encode at
+startup validates the zero-copy path before the backend is offered.
+
+The backend is wired in behind a new 'ffmpeg' meson feature (auto),
+which resolves to the RDP backend plus libavcodec/libavutil/gbm. The
+h264_rkmpp encoder itself is resolved at runtime, so only those
+libraries are needed at build time.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EN9JjFVPvgho9JggxZbM7Y
+---
+ config.h.meson                  |   3 +
+ docs/ffmpeg-rkmpp-backend.md    | 208 ++++++++
+ meson.build                     |  22 +
+ meson_options.txt               |   5 +
+ src/grd-encode-session-ffmpeg.c | 831 ++++++++++++++++++++++++++++++++
+ src/grd-encode-session-ffmpeg.h |  40 ++
+ src/grd-hwaccel-ffmpeg.c        | 152 ++++++
+ src/grd-hwaccel-ffmpeg.h        |  38 ++
+ src/grd-types.h                 |   1 +
+ src/meson.build                 |  15 +
+ 10 files changed, 1315 insertions(+)
+ create mode 100644 docs/ffmpeg-rkmpp-backend.md
+ create mode 100644 src/grd-encode-session-ffmpeg.c
+ create mode 100644 src/grd-encode-session-ffmpeg.h
+ create mode 100644 src/grd-hwaccel-ffmpeg.c
+ create mode 100644 src/grd-hwaccel-ffmpeg.h
+
+diff --git a/config.h.meson b/config.h.meson
+index cafba4e..7db99fe 100644
+--- a/config.h.meson
++++ b/config.h.meson
+@@ -15,6 +15,9 @@
+ /* Defined if VNC backend is enabled */
+ #mesondefine HAVE_VNC
+ 
++/* Defined if the FFmpeg H.264 encode backend (h264_rkmpp) is enabled */
++#mesondefine HAVE_FFMPEG
++
+ /* Path of the data dir */
+ #mesondefine GRD_DATA_DIR
+ 
+diff --git a/docs/ffmpeg-rkmpp-backend.md b/docs/ffmpeg-rkmpp-backend.md
+new file mode 100644
+index 0000000..fc87a7d
+--- /dev/null
++++ b/docs/ffmpeg-rkmpp-backend.md
+@@ -0,0 +1,208 @@
++# FFmpeg / `h264_rkmpp` encode-session backend
++
++A narrow, fail-closed FFmpeg encode backend for GNOME Remote Desktop, targeting
++the Rockchip RK3588 (`h264_rkmpp`). It is a sibling of the existing VA-API
++backend (`grd-encode-session-vaapi.c`), not a generic user-selectable encoder
++zoo.
++
++## Scope (deliberately narrow)
++
++* **H.264 only**, AVC420 only (no AVC444v2 yet).
++* **`h264_rkmpp` hard-whitelisted** — the encoder is looked up by name; nothing
++  else is accepted.
++* **Zero-copy only** — input frames are handed to the encoder as
++  `AV_PIX_FMT_DRM_PRIME` (`AVDRMFrameDescriptor`). NV12, `DRM_FORMAT_MOD_LINEAR`.
++* **Low-latency only** — no B-frames, single reference, `AV_CODEC_FLAG_LOW_DELAY`,
++  fixed QP where the encoder supports it (see D3).
++* **Fail closed** — if any of {encoder present, encoder opens with our settings,
++  no B-frames, zero-copy DRM-PRIME import actually works} cannot be guaranteed,
++  the session **declines** (returns `NULL`) and GRD falls through to the
++  already-preferred VA-API path (tried first) and then RFX. It never produces a
++  degraded (copy-based or non-low-latency) session.
++* **VA-API stays preferred.** FFmpeg is probed only *after* VA-API and only when
++  VA-API did not produce a session.
++
++## Pipeline (where this slots in)
++
++```
++capture ─▶ Vulkan RGB→NV12 compute (grd-rdp-view-creator-avc)
++            │   writes NV12 into a pool surface (GrdImageViewNV12)
++            ▼
++        grd-encode-session-ffmpeg   ── encode_frame()  [renderer thread]
++            │                           builds AVDRMFrameDescriptor, queues AVFrame
++            │                        ── lock_bitstream() [base encode thread]
++            │                           avcodec_send_frame + avcodec_receive_packet
++            ▼
++        GrdBitstream (Annex-B) + GrdAVCFrameInfo ─▶ RDPGFX AVC420
++```
++
++The encode-session contract is six vfuncs (`grd-encode-session.h:40-54`):
++`get_surface_size`, `get_image_views`, `has_pending_frames`, `encode_frame`,
++`lock_bitstream`, `unlock_bitstream`.
++
++## Key design decisions
++
++### D1 — GBM allocates the NV12 surfaces (not Vulkan, not VA-API, not dma-heap)
++
++The VA-API backend works because *VA-API* allocates the NV12 surface and exports
++it as a dma-buf, which Vulkan then imports. There is **no VkImage→dma-buf export
++path in the tree** (`grd_vk_dma_buf_image_new` is import-only;
++`vkGetMemoryFdKHR` is not wired), and MPP imports an externally-owned fd rather
++than allocating for us. So GRD must own the allocation.
++
++We allocate the NV12 buffer with **GBM on the DRM render node**, then import the
++*same* dma-buf fd into **both**:
++* Vulkan, via the existing `grd_vk_dma_buf_image_new` (Y as `R8_UNORM`, UV as
++  `R8G8_UNORM`), so the compute shader can write NV12 into it; and
++* MPP, via an `AVDRMFrameDescriptor`, for zero-copy encode.
++
++This mirrors VA-API's "external allocator owns, both sides import" pattern with
++minimal new code.
++
++*Why GBM and not dma-heap:* on the target board `/dev/dma_heap/*` is
++root-only (`crw-------`), while the render node carries a render-group ACL
++(`crw-rw----+`) that the daemon already uses for Vulkan/VA-API. GBM allocates on
++the render node, so it respects existing permissions, is guaranteed importable by
++the same-GPU Vulkan driver, and reports the real plane strides/offsets/modifier.
++
++### D2 — `DRM_FORMAT_MOD_LINEAR`, single source of truth for strides
++
++The buffer is forced linear (`GBM_BO_USE_LINEAR`). The per-plane `offset`,
++`pitch` and `modifier` come straight from GBM
++(`gbm_bo_get_offset` / `gbm_bo_get_stride_for_plane` / `gbm_bo_get_modifier`) and
++are used verbatim for *both* the Vulkan import and the MPP descriptor — so the two
++importers can never disagree on layout. MPP back-derives
++`ver_stride = planes[1].offset / planes[0].pitch`; because both planes use GBM's
++real values this is consistent by construction. Anything non-linear fails the
++Vulkan import and declines.
++
++### D3 — Fixed QP 22 (mirror VA-API), portable across both rkmpp encoders
++
++There are **two independent `h264_rkmpp` encoder implementations** with divergent
++option sets, and the backend must work on both:
++
++* **ffmpeg-rockchip** (nyanmisaka) — the long-standing fork. Has a fixed-QP
++  rate-control mode (its `rc_mode` constant is spelled **`CQP`** →
++  `MPP_ENC_RC_MODE_FIXQP`) and a `qp_init` option; with the mode left at its
++  default it auto-selects fixed QP as soon as `qp_init >= 0`.
++* **mainline FFmpeg** (`libavcodec/rkmppenc.c`, merged 2025-10, first released in
++  8.1) — has **no fixed-QP mode** (only `rc` = vbr/cbr/avbr) and **no `qp_init`**.
++
++VA-API uses `VA_RC_CQP` with `pic_init_qp = 22` and reports `qp = 22`,
++`quality = 100` in `GrdAVCFrameInfo`. We mirror the *reported* constants and steer
++the encoder to constant quality portably by setting **only `qp_init = 22`** and
++**never naming the rate-control mode**. Naming it is unsafe: passing an invalid
++value for a *known* option makes `avcodec_open2()` fail outright
++(`av_opt_set_dict2` returns `EINVAL`, not "ignored") — which is exactly what the
++old `rc_mode=fixqp` did on ffmpeg-rockchip, whose fixed-QP value is `CQP`, not
++`fixqp`. `qp_init` is unknown on mainline, so it is harmlessly ignored there. For
++mainline, which cannot do fixed QP, we additionally set a **fallback `bit_rate`**
++(~0.1 bits·pixel⁻¹·frame⁻¹, capped at 100 Mbit/s) so its VBR mode produces a sane
++stream; ffmpeg-rockchip ignores `bit_rate` in fixed-QP mode.
++
++`AV_CODEC_FLAG_LOW_DELAY` is also load-bearing here: without it ffmpeg-rockchip
++encodes asynchronously (buffering ~4 frames), which would break the strict
++1-in-1-out `lock_bitstream` model; with it the encoder blocks for each frame's
++packet. Mainline is 1-in-1-out regardless.
++
++### D4 — Threading: all `AVCodecContext` access on one thread
++
++The base class calls `lock_bitstream` on a dedicated encode thread while
++`encode_frame`/`unlock_bitstream` run on the renderer thread. FFmpeg forbids
++concurrent use of one `AVCodecContext`. So:
++* `encode_frame` (renderer thread) only builds the `AVFrame` (DRM descriptor from
++  the surface — no `avctx` access) and stashes it in a pending map.
++* `lock_bitstream` (encode thread) does **both** `avcodec_send_frame` and
++  `avcodec_receive_packet`.
++* `unlock_bitstream` (renderer thread) only frees the owned `AVPacket`.
++
++Two mutexes guard the pending-frames and bitstreams maps; no `avctx` mutex is
++needed. Because the encoder has no reordering (no B-frames, single ref) and the
++base class drains locks FIFO, output order == submission order.
++
++### D5 — Single initial IDR, then P-frames (mirror VA-API), validated by a smoke encode
++
++The first frame is forced to IDR; the rest are P-frames with an effectively
++infinite GOP. Client refresh is driven by render-context recreation (a new
++session ⇒ a new IDR), exactly as with VA-API.
++
++`grd_encode_session_ffmpeg_new` runs a **start-of-session smoke encode**: it
++imports one real GBM dma-buf and runs one `send_frame`+`receive_packet`. If that
++fails (e.g. `h264_rkmpp` present but `/dev/mpp_service` missing, or DRM-PRIME
++import rejected) the session declines — this is the definitive zero-copy gate.
++The throwaway packet is dropped and the next (first real) frame is forced to IDR
++so the client's stream starts clean.
++
++### D6 — Fail-closed gates (all in `grd_encode_session_ffmpeg_new`)
++
++1. `avcodec_find_encoder_by_name("h264_rkmpp")` is `NULL` ⇒ decline. (Covers
++   stock distro FFmpeg without `--enable-rkmpp`; the daemon then uses VA-API/RFX.)
++2. GBM/Vulkan surface allocation or import rejects the buffer ⇒ decline.
++3. `avcodec_open2` fails ⇒ decline.
++4. After open, `avctx->max_b_frames != 0` ⇒ decline (low-latency not honoured).
++5. Smoke encode fails ⇒ decline (zero-copy DRM-PRIME not actually working).
++
++Gate 1 also lives in `grd_hwaccel_ffmpeg_new`, so the `&& hwaccel_ffmpeg` guard
++in the selector short-circuits cleanly on machines without rkmpp.
++
++### D7 — Selection order and `vk_device` lifetime
++
++`create_hw_accelerated_encode_session` tries VA-API first, then FFmpeg, then RFX.
++`maybe_initialize_hardware_acceleration` previously destroyed `vk_device` when
++VA-API failed to initialize; that is changed so `vk_device` survives if *either*
++hardware encoder initializes — otherwise the FFmpeg path (which needs Vulkan for
++the NV12 compute) could never run on a board without VA-API.
++
++## Files
++
++* `src/grd-encode-session-ffmpeg.{c,h}` — the backend (GBM pool, Vulkan import,
++  DRM-PRIME descriptors, send/receive, gates).
++* `src/grd-hwaccel-ffmpeg.{c,h}` — thin object: gate 1, owns the GBM device on the
++  render node, creates sessions (parallels `GrdHwAccelVaapi`).
++* `src/grd-rdp-render-context.c` — `try_create_ffmpeg_session` (AVC420-only),
++  called after VA-API.
++* `src/grd-rdp-renderer.c` — create/hold/get/dispose `hwaccel_ffmpeg`; keep
++  `vk_device` alive if either encoder initialized.
++* `meson.build`, `meson_options.txt`, `config.h.meson`, `src/meson.build` —
++  `ffmpeg` feature (`auto`), `libavcodec`/`libavutil`/`gbm` deps, `HAVE_FFMPEG`.
++
++## Build & deploy
++
++```
++meson setup build -Dffmpeg=enabled
++ninja -C build
++```
++
++The `ffmpeg` feature is `auto`: it enables when `libavcodec`/`libavutil`/`gbm`
++are present. **`h264_rkmpp` (encoder) is resolved at runtime**, so the daemon
++links fine against any FFmpeg and simply declines the backend (gate 1) when the
++encoder is absent.
++
++To actually encode, the host needs an FFmpeg whose `h264_rkmpp` **encoder** is
++present (built `--enable-rkmpp`, with the Rockchip MPP userspace and a kernel
++exposing `/dev/mpp_service`). Either of:
++
++* **mainline FFmpeg ≥ 8.1** (or current `master`) — the encoder was merged
++  2025-10-07 and requires `rockchip_mpp >= 1.3.8`; or
++* **`nyanmisaka/ffmpeg-rockchip`** — the feature-rich fork (also the only option
++  on released FFmpeg ≤ 8.0, which is rkmpp **decode-only**).
++
++The backend was reconciled against both implementations' sources and is designed
++to run on either (see D3); it has not yet been runtime-tested on hardware.
++
++## On-hardware validation checklist (points that cannot be checked off-target)
++
++* Constant-quality behaviour per build — confirm ffmpeg-rockchip logs
++  `Rate Control mode is set to CQP` with QP 22 (from `qp_init`), and that mainline
++  produces a reasonably-sized VBR stream from the fallback `bit_rate`. (Option
++  names were reconciled against both sources; `qp_init` is the only AVOption set,
++  and unknown options are logged, not fatal — the smoke encode is the real gate.)
++* `hw_frames_ctx` — **mainline requires** a DRM `hw_frames_ctx` with `sw_format`
++  NV12 on DRM-PRIME input (`rkmpp_set_hw_frame` returns `EINVAL` without it); it is
++  created best-effort here, so if DRM hwcontext init fails on mainline the smoke
++  encode declines. ffmpeg-rockchip ignores the context (reads the DRM descriptor
++  directly) but needs `sw_pix_fmt` = NV12, which is set explicitly.
++* Color signalling — `color_range = MPEG` (limited); confirm it matches the
++  RGB→NV12 matrix used by `grd-rdp-view-creator-avc` if colors look off.
++* Width/height alignment — surfaces are 16-aligned (macroblock); RKVENC is happy
++  with 16. GBM stride/offset are used as-is for `hor_stride`/`ver_stride`.
+diff --git a/meson.build b/meson.build
+index e2d2e82..a189119 100644
+--- a/meson.build
++++ b/meson.build
+@@ -6,6 +6,8 @@ project('gnome-remote-desktop', 'c',
+ 
+ cuda_req = '>= 11.1.5.0'
+ epoxy_req = '>= 1.4'
++libavcodec_req = '>= 60.0.0'
++libavutil_req = '>= 58.0.0'
+ freerdp_req = '>= 3.22.0'
+ fuse_req = '>= 3.9.1'
+ polkit_req = '>= 122'
+@@ -40,6 +42,7 @@ xkbcommon_dep = dependency('xkbcommon', version: xkbcommon_req)
+ 
+ have_rdp = get_option('rdp')
+ have_vnc = get_option('vnc')
++have_ffmpeg = false
+ 
+ if not have_rdp and not have_vnc
+   error('Must enable at least one backend')
+@@ -64,6 +67,16 @@ if have_rdp
+   vulkan_dep = dependency('vulkan', version: vulkan_req)
+   winpr_dep = dependency('winpr3', version: freerdp_req)
+ 
++  # FFmpeg H.264 encode backend (h264_rkmpp). The encoder itself is resolved at
++  # runtime, so these libraries are all that is needed at build time. gbm is
++  # used to allocate the zero-copy NV12 surfaces on the render node.
++  libavcodec_dep = dependency('libavcodec', version: libavcodec_req,
++                              required: get_option('ffmpeg'))
++  libavutil_dep = dependency('libavutil', version: libavutil_req,
++                             required: get_option('ffmpeg'))
++  gbm_dep = dependency('gbm', required: get_option('ffmpeg'))
++  have_ffmpeg = libavcodec_dep.found() and libavutil_dep.found() and gbm_dep.found()
++
+   glslc = find_program('glslc', required: true)
+   spirv_opt = find_program('spirv-opt', required: true)
+ endif
+@@ -73,6 +86,14 @@ if have_vnc
+   libvncserver_dep = dependency('libvncserver')
+ endif
+ 
++# The FFmpeg/rkmpp encode backend is an RDP sub-feature (all encode-session
++# sources are gated behind the RDP backend). Fail loudly if it was explicitly
++# requested but cannot be built, instead of silently dropping it.
++if get_option('ffmpeg').enabled() and not have_ffmpeg
++  error('The ffmpeg feature was explicitly enabled but is unavailable ' +
++        '(it requires the RDP backend and libavcodec/libavutil/gbm)')
++endif
++
+ prefix = get_option('prefix')
+ libexecdir = join_paths(prefix, get_option('libexecdir'))
+ bindir = join_paths(prefix, get_option('bindir'))
+@@ -106,6 +127,7 @@ cdata.set_quoted('VERSION', meson.project_version())
+ cdata.set('HAVE_LIBSYSTEMD', libsystemd_dep.found())
+ cdata.set('HAVE_RDP', have_rdp)
+ cdata.set('HAVE_VNC', have_vnc)
++cdata.set('HAVE_FFMPEG', have_ffmpeg)
+ 
+ cdata.set_quoted('GRD_DATA_DIR', grd_datadir)
+ cdata.set_quoted('GRD_LIBEXEC_DIR', libexecdir)
+diff --git a/meson_options.txt b/meson_options.txt
+index c003176..9ff8567 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -18,6 +18,11 @@ option('vnc',
+        value: false,
+        description: 'Enable the VNC backend')
+ 
++option('ffmpeg',
++       type: 'feature',
++       value: 'auto',
++       description: 'Enable the FFmpeg H.264 encode backend (h264_rkmpp)')
++
+ option('systemd',
+        type: 'boolean',
+        value: true,
+diff --git a/src/grd-encode-session-ffmpeg.c b/src/grd-encode-session-ffmpeg.c
+new file mode 100644
+index 0000000..cd7d860
+--- /dev/null
++++ b/src/grd-encode-session-ffmpeg.c
+@@ -0,0 +1,831 @@
++/*
++ * Copyright (C) 2026 Yi Ding
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
++ * 02111-1307, USA.
++ */
++
++#include "config.h"
++
++#include "grd-encode-session-ffmpeg.h"
++
++#include <drm_fourcc.h>
++#include <gbm.h>
++#include <gio/gio.h>
++#include <glib/gstdio.h>
++#include <inttypes.h>
++#include <unistd.h>
++#include <libavcodec/avcodec.h>
++#include <libavutil/buffer.h>
++#include <libavutil/dict.h>
++#include <libavutil/error.h>
++#include <libavutil/frame.h>
++#include <libavutil/hwcontext.h>
++#include <libavutil/hwcontext_drm.h>
++#include <libavutil/pixfmt.h>
++
++#include "grd-avc-frame-info.h"
++#include "grd-bitstream.h"
++#include "grd-image-view-nv12.h"
++#include "grd-utils.h"
++#include "grd-vk-device.h"
++#include "grd-vk-image.h"
++#include "grd-vk-utils.h"
++
++#define GRD_RKMPP_ENCODER_NAME "h264_rkmpp"
++
++/*
++ * Mirrors the VA-API backend's source surface pool sizing rationale: one
++ * surface in flight in the encoder, one in the view creator, one for the
++ * submitted pending frame and one to prepare the next pending frame.
++ */
++#define N_SRC_SURFACES 8
++
++/* Mirror the VA-API backend's fixed QP and reported quality. */
++#define FIXED_QP 22
++#define QUALITY_VALUE 100
++
++/*
++ * Fallback target bitrate (~0.1 bits per pixel per frame, capped) used only by
++ * FFmpeg builds whose rkmpp encoder lacks a fixed-QP rate-control mode - i.e.
++ * mainline's h264_rkmpp, which only offers vbr/cbr/avbr and no QP knob.
++ * ffmpeg-rockchip encodes at fixed QP (see create_encoder) and ignores this.
++ */
++#define FALLBACK_BPP_DIVISOR 10
++#define FALLBACK_BITRATE_CAP_BPS 100000000
++
++/* High profile, matching VAProfileH264High / the NAL writer's profile_idc. */
++#ifndef AV_PROFILE_H264_HIGH
++#define AV_PROFILE_H264_HIGH FF_PROFILE_H264_HIGH
++#endif
++
++typedef struct
++{
++  GrdEncodeSessionFfmpeg *encode_session_ffmpeg;
++
++  struct gbm_bo *bo;
++  int fd;
++
++  GrdImageView *image_view;
++
++  /*
++   * Prebuilt descriptor handed to the encoder for every frame using this
++   * surface. It references the (persistent) dma-buf fd above, so it outlives
++   * any AVFrame that points at it.
++   */
++  AVDRMFrameDescriptor drm_desc;
++} NV12Surface;
++
++struct _GrdEncodeSessionFfmpeg
++{
++  GrdEncodeSession parent;
++
++  GrdVkDevice *vk_device;
++  struct gbm_device *gbm_device; /* Not owned */
++  int64_t drm_render_node;
++
++  uint32_t surface_width;
++  uint32_t surface_height;
++  uint32_t refresh_rate;
++
++  AVCodecContext *avctx;
++  AVBufferRef *hw_device_ctx; /* May be NULL */
++  AVBufferRef *hw_frames_ctx; /* May be NULL */
++
++  int64_t next_pts;
++  gboolean force_next_idr;
++
++  GHashTable *surfaces; /* GrdImageView -> NV12Surface */
++
++  GMutex pending_frames_mutex;
++  GHashTable *pending_frames; /* GrdImageView -> AVFrame */
++
++  GMutex bitstreams_mutex;
++  GHashTable *bitstreams; /* GrdBitstream -> AVPacket */
++};
++
++G_DEFINE_TYPE (GrdEncodeSessionFfmpeg, grd_encode_session_ffmpeg,
++               GRD_TYPE_ENCODE_SESSION)
++
++static void
++set_av_error (GError    **error,
++              int         av_errnum,
++              const char *message)
++{
++  char av_error[AV_ERROR_MAX_STRING_SIZE] = { 0 };
++
++  av_strerror (av_errnum, av_error, sizeof (av_error));
++  g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "%s: %s",
++               message, av_error);
++}
++
++static void
++nv12_surface_free (NV12Surface *surface)
++{
++  g_clear_object (&surface->image_view);
++  g_clear_fd (&surface->fd, NULL);
++  g_clear_pointer (&surface->bo, gbm_bo_destroy);
++  g_free (surface);
++}
++
++static NV12Surface *
++nv12_surface_new (GrdEncodeSessionFfmpeg  *self,
++                  GError                 **error)
++{
++  uint32_t width = self->surface_width;
++  uint32_t height = self->surface_height;
++  g_autoptr (GrdVkImage) vk_y_layer = NULL;
++  g_autoptr (GrdVkImage) vk_uv_layer = NULL;
++  GrdImageViewNV12 *image_view_nv12;
++  NV12Surface *surface;
++  struct gbm_bo *bo;
++  uint32_t offsets[2];
++  uint32_t strides[2];
++  uint64_t modifier;
++  int plane_count;
++  int fd = -1;
++  off_t bo_size;
++
++  g_assert (width % 16 == 0 && width >= 16);
++  g_assert (height % 16 == 0 && height >= 16);
++
++  bo = gbm_bo_create (self->gbm_device, width, height, GBM_FORMAT_NV12,
++                      GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR);
++  if (!bo)
++    {
++      bo = gbm_bo_create (self->gbm_device, width, height, GBM_FORMAT_NV12,
++                          GBM_BO_USE_LINEAR);
++    }
++  if (!bo)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Failed to allocate %ux%u linear NV12 GBM buffer",
++                   width, height);
++      return NULL;
++    }
++
++  plane_count = gbm_bo_get_plane_count (bo);
++  if (plane_count != 2)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Unexpected NV12 GBM plane count %i (expected 2)",
++                   plane_count);
++      gbm_bo_destroy (bo);
++      return NULL;
++    }
++
++  modifier = gbm_bo_get_modifier (bo);
++  if (modifier == DRM_FORMAT_MOD_INVALID)
++    modifier = DRM_FORMAT_MOD_LINEAR;
++  if (modifier != DRM_FORMAT_MOD_LINEAR)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
++                   "GBM returned non-linear NV12 modifier 0x%" PRIx64
++                   "; only DRM_FORMAT_MOD_LINEAR is supported", modifier);
++      gbm_bo_destroy (bo);
++      return NULL;
++    }
++
++  offsets[0] = gbm_bo_get_offset (bo, 0);
++  offsets[1] = gbm_bo_get_offset (bo, 1);
++  strides[0] = gbm_bo_get_stride_for_plane (bo, 0);
++  strides[1] = gbm_bo_get_stride_for_plane (bo, 1);
++
++  fd = gbm_bo_get_fd (bo);
++  if (fd < 0)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Failed to export GBM buffer as a dma-buf");
++      gbm_bo_destroy (bo);
++      return NULL;
++    }
++
++  bo_size = lseek (fd, 0, SEEK_END);
++  if (bo_size <= 0)
++    bo_size = (off_t) offsets[1] + (off_t) strides[1] * (height / 2);
++
++  /*
++   * Import the same dma-buf into Vulkan as two single-plane images, exactly
++   * like the VA-API backend does with its exported surface. grd_vk_dma_buf_image_new
++   * dups the fd internally, so the fd stays ours for the MPP descriptor.
++   */
++  vk_y_layer = grd_vk_dma_buf_image_new (self->vk_device, VK_FORMAT_R8_UNORM,
++                                         width, height,
++                                         VK_IMAGE_USAGE_STORAGE_BIT, fd,
++                                         offsets[0], strides[0], modifier,
++                                         error);
++  if (!vk_y_layer)
++    {
++      g_clear_fd (&fd, NULL);
++      gbm_bo_destroy (bo);
++      return NULL;
++    }
++
++  vk_uv_layer = grd_vk_dma_buf_image_new (self->vk_device, VK_FORMAT_R8G8_UNORM,
++                                          width / 2, height / 2,
++                                          VK_IMAGE_USAGE_STORAGE_BIT, fd,
++                                          offsets[1], strides[1], modifier,
++                                          error);
++  if (!vk_uv_layer)
++    {
++      g_clear_fd (&fd, NULL);
++      gbm_bo_destroy (bo);
++      return NULL;
++    }
++
++  image_view_nv12 = grd_image_view_nv12_new (g_steal_pointer (&vk_y_layer),
++                                             g_steal_pointer (&vk_uv_layer));
++
++  surface = g_new0 (NV12Surface, 1);
++  surface->encode_session_ffmpeg = self;
++  surface->bo = bo;
++  surface->fd = fd;
++  surface->image_view = GRD_IMAGE_VIEW (image_view_nv12);
++
++  surface->drm_desc.nb_objects = 1;
++  surface->drm_desc.objects[0].fd = fd;
++  surface->drm_desc.objects[0].size = bo_size;
++  surface->drm_desc.objects[0].format_modifier = modifier;
++  surface->drm_desc.nb_layers = 1;
++  surface->drm_desc.layers[0].format = DRM_FORMAT_NV12;
++  surface->drm_desc.layers[0].nb_planes = 2;
++  surface->drm_desc.layers[0].planes[0].object_index = 0;
++  surface->drm_desc.layers[0].planes[0].offset = offsets[0];
++  surface->drm_desc.layers[0].planes[0].pitch = strides[0];
++  surface->drm_desc.layers[0].planes[1].object_index = 0;
++  surface->drm_desc.layers[0].planes[1].offset = offsets[1];
++  surface->drm_desc.layers[0].planes[1].pitch = strides[1];
++
++  return surface;
++}
++
++static void
++drm_desc_buffer_noop_free (void    *opaque,
++                           uint8_t *data)
++{
++  /*
++   * The descriptor lives in its NV12Surface, which outlives every AVFrame that
++   * references it (a surface is only reused once its frame has been locked and
++   * unlocked). Nothing to free here.
++   */
++}
++
++static AVFrame *
++build_av_frame (GrdEncodeSessionFfmpeg  *self,
++                NV12Surface             *surface,
++                gboolean                 force_idr,
++                GError                 **error)
++{
++  AVFrame *frame;
++
++  frame = av_frame_alloc ();
++  if (!frame)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Failed to allocate AVFrame");
++      return NULL;
++    }
++
++  frame->format = AV_PIX_FMT_DRM_PRIME;
++  frame->width = self->surface_width;
++  frame->height = self->surface_height;
++  frame->pts = self->next_pts++;
++
++  frame->buf[0] = av_buffer_create ((uint8_t *) &surface->drm_desc,
++                                    sizeof (AVDRMFrameDescriptor),
++                                    drm_desc_buffer_noop_free, NULL,
++                                    AV_BUFFER_FLAG_READONLY);
++  if (!frame->buf[0])
++    {
++      av_frame_free (&frame);
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Failed to wrap DRM frame descriptor");
++      return NULL;
++    }
++  frame->data[0] = frame->buf[0]->data;
++
++  if (self->hw_frames_ctx)
++    frame->hw_frames_ctx = av_buffer_ref (self->hw_frames_ctx);
++
++  if (force_idr)
++    {
++      frame->pict_type = AV_PICTURE_TYPE_I;
++#ifdef AV_FRAME_FLAG_KEY
++      frame->flags |= AV_FRAME_FLAG_KEY;
++#else
++      frame->key_frame = 1;
++#endif
++    }
++
++  return frame;
++}
++
++/* Runs on the base-class encode thread (lock_bitstream) and, once, during
++ * construction (smoke test). Never concurrently with itself. */
++static AVPacket *
++encode_and_receive (GrdEncodeSessionFfmpeg  *self,
++                    AVFrame                 *frame,
++                    GError                 **error)
++{
++  AVPacket *packet;
++  int ret;
++
++  ret = avcodec_send_frame (self->avctx, frame);
++  if (ret < 0)
++    {
++      set_av_error (error, ret, "Failed to send frame to encoder");
++      return NULL;
++    }
++
++  packet = av_packet_alloc ();
++  if (!packet)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Failed to allocate AVPacket");
++      return NULL;
++    }
++
++  ret = avcodec_receive_packet (self->avctx, packet);
++  if (ret < 0)
++    {
++      av_packet_free (&packet);
++      if (ret == AVERROR (EAGAIN))
++        {
++          g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                       "Encoder produced no packet for the submitted frame "
++                       "(EAGAIN); h264_rkmpp must operate 1-in-1-out for "
++                       "low-latency encoding");
++        }
++      else
++        {
++          set_av_error (error, ret, "Failed to receive packet from encoder");
++        }
++      return NULL;
++    }
++
++  return packet;
++}
++
++static void
++grd_encode_session_ffmpeg_get_surface_size (GrdEncodeSession *encode_session,
++                                            uint32_t         *surface_width,
++                                            uint32_t         *surface_height)
++{
++  GrdEncodeSessionFfmpeg *self = GRD_ENCODE_SESSION_FFMPEG (encode_session);
++
++  g_assert (self->surface_width % 16 == 0 && self->surface_width >= 16);
++  g_assert (self->surface_height % 16 == 0 && self->surface_height >= 16);
++
++  *surface_width = self->surface_width;
++  *surface_height = self->surface_height;
++}
++
++static GList *
++grd_encode_session_ffmpeg_get_image_views (GrdEncodeSession *encode_session)
++{
++  GrdEncodeSessionFfmpeg *self = GRD_ENCODE_SESSION_FFMPEG (encode_session);
++
++  return g_hash_table_get_keys (self->surfaces);
++}
++
++static gboolean
++grd_encode_session_ffmpeg_has_pending_frames (GrdEncodeSession *encode_session)
++{
++  GrdEncodeSessionFfmpeg *self = GRD_ENCODE_SESSION_FFMPEG (encode_session);
++  g_autoptr (GMutexLocker) locker = NULL;
++
++  locker = g_mutex_locker_new (&self->pending_frames_mutex);
++  return g_hash_table_size (self->pending_frames) > 0;
++}
++
++static gboolean
++grd_encode_session_ffmpeg_encode_frame (GrdEncodeSession  *encode_session,
++                                        GrdEncodeContext  *encode_context,
++                                        GrdImageView      *image_view,
++                                        GError           **error)
++{
++  GrdEncodeSessionFfmpeg *self = GRD_ENCODE_SESSION_FFMPEG (encode_session);
++  NV12Surface *surface = NULL;
++  AVFrame *frame;
++  gboolean force_idr;
++
++  if (!g_hash_table_lookup_extended (self->surfaces, image_view,
++                                     NULL, (gpointer *) &surface))
++    g_assert_not_reached ();
++  g_assert (surface);
++
++  g_mutex_lock (&self->pending_frames_mutex);
++  g_assert (!g_hash_table_contains (self->pending_frames, image_view));
++  g_mutex_unlock (&self->pending_frames_mutex);
++
++  force_idr = self->force_next_idr;
++  self->force_next_idr = FALSE;
++
++  /*
++   * Only build the AVFrame here (renderer thread); the actual avcodec calls
++   * happen in lock_bitstream on the base-class encode thread, so the
++   * AVCodecContext is only ever touched from a single thread.
++   */
++  frame = build_av_frame (self, surface, force_idr, error);
++  if (!frame)
++    return FALSE;
++
++  g_mutex_lock (&self->pending_frames_mutex);
++  g_hash_table_insert (self->pending_frames, image_view, frame);
++  g_mutex_unlock (&self->pending_frames_mutex);
++
++  return TRUE;
++}
++
++static GrdBitstream *
++grd_encode_session_ffmpeg_lock_bitstream (GrdEncodeSession  *encode_session,
++                                          GrdImageView      *image_view,
++                                          GError           **error)
++{
++  GrdEncodeSessionFfmpeg *self = GRD_ENCODE_SESSION_FFMPEG (encode_session);
++  AVFrame *frame = NULL;
++  AVPacket *packet;
++  GrdBitstream *bitstream;
++  GrdAVCFrameInfo *avc_frame_info;
++  GrdAVCFrameType frame_type;
++
++  g_mutex_lock (&self->pending_frames_mutex);
++  if (!g_hash_table_steal_extended (self->pending_frames, image_view,
++                                    NULL, (gpointer *) &frame))
++    g_assert_not_reached ();
++  g_mutex_unlock (&self->pending_frames_mutex);
++  g_assert (frame);
++
++  packet = encode_and_receive (self, frame, error);
++  av_frame_free (&frame);
++  if (!packet)
++    return NULL;
++
++  frame_type = (packet->flags & AV_PKT_FLAG_KEY) ? GRD_AVC_FRAME_TYPE_I
++                                                 : GRD_AVC_FRAME_TYPE_P;
++
++  /* The packet owns the bitstream memory; keep it alive until unlock. */
++  bitstream = grd_bitstream_new (packet->data, packet->size);
++  avc_frame_info = grd_avc_frame_info_new (frame_type, FIXED_QP, QUALITY_VALUE);
++  grd_bitstream_set_avc_frame_info (bitstream, avc_frame_info);
++
++  g_mutex_lock (&self->bitstreams_mutex);
++  g_hash_table_insert (self->bitstreams, bitstream, packet);
++  g_mutex_unlock (&self->bitstreams_mutex);
++
++  return bitstream;
++}
++
++static gboolean
++grd_encode_session_ffmpeg_unlock_bitstream (GrdEncodeSession  *encode_session,
++                                            GrdBitstream      *bitstream,
++                                            GError           **error)
++{
++  GrdEncodeSessionFfmpeg *self = GRD_ENCODE_SESSION_FFMPEG (encode_session);
++  AVPacket *packet = NULL;
++
++  g_mutex_lock (&self->bitstreams_mutex);
++  if (!g_hash_table_steal_extended (self->bitstreams, bitstream,
++                                    NULL, (gpointer *) &packet))
++    g_assert_not_reached ();
++  g_mutex_unlock (&self->bitstreams_mutex);
++  g_assert (packet);
++
++  av_packet_free (&packet);
++  grd_bitstream_free (bitstream);
++
++  return TRUE;
++}
++
++static gboolean
++create_encoder (GrdEncodeSessionFfmpeg  *self,
++                GError                 **error)
++{
++  const AVCodec *codec;
++  AVDictionary *opts = NULL;
++  const AVDictionaryEntry *entry = NULL;
++  g_autofree char *render_node = NULL;
++  int ret;
++
++  /* Gate 1: only ever the rkmpp encoder, looked up by name. */
++  codec = avcodec_find_encoder_by_name (GRD_RKMPP_ENCODER_NAME);
++  if (!codec)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
++                   "FFmpeg encoder \"%s\" is not available",
++                   GRD_RKMPP_ENCODER_NAME);
++      return FALSE;
++    }
++
++  self->avctx = avcodec_alloc_context3 (codec);
++  if (!self->avctx)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Failed to allocate codec context");
++      return FALSE;
++    }
++
++  self->avctx->width = self->surface_width;
++  self->avctx->height = self->surface_height;
++  self->avctx->pix_fmt = AV_PIX_FMT_DRM_PRIME;
++  /*
++   * The DRM-PRIME surfaces wrap NV12. Declaring the software format explicitly
++   * is required by ffmpeg-rockchip, which maps avctx->sw_pix_fmt (not the DRM
++   * descriptor) to the MPP input format; on mainline it must simply agree with
++   * the hw_frames_ctx sw_format set below.
++   */
++  self->avctx->sw_pix_fmt = AV_PIX_FMT_NV12;
++  self->avctx->time_base = (AVRational) { 1, (int) self->refresh_rate };
++  self->avctx->framerate = (AVRational) { (int) self->refresh_rate, 1 };
++  /* Effectively infinite GOP: only the forced first frame is an IDR, the rest
++   * are P-frames, mirroring the VA-API backend. Client refresh is driven by
++   * render-context recreation. */
++  self->avctx->gop_size = (int) (MAX (self->refresh_rate, 1u) * 3600);
++  self->avctx->max_b_frames = 0;
++  self->avctx->refs = 1;
++  self->avctx->profile = AV_PROFILE_H264_HIGH;
++  self->avctx->color_range = AVCOL_RANGE_MPEG;
++  self->avctx->thread_count = 1;
++  /*
++   * Load-bearing for ffmpeg-rockchip: without AV_CODEC_FLAG_LOW_DELAY its
++   * encoder runs asynchronously (buffering several frames before the first
++   * packet), which would break our strict 1-in-1-out lock_bitstream model and
++   * the startup smoke encode. With the flag it submits and blocks for each
++   * frame's packet. Mainline's encoder is 1-in-1-out regardless; the flag is
++   * harmless there.
++   */
++  self->avctx->flags |= AV_CODEC_FLAG_LOW_DELAY;
++
++  /*
++   * Fallback rate control for builds without a fixed-QP mode (mainline). In
++   * fixed-QP builds (ffmpeg-rockchip) this is ignored; there the QP set below
++   * governs quality. Computed once from the surface geometry and refresh rate.
++   */
++  self->avctx->bit_rate =
++    MIN ((int64_t) self->surface_width * self->surface_height *
++         self->refresh_rate / FALLBACK_BPP_DIVISOR,
++         (int64_t) FALLBACK_BITRATE_CAP_BPS);
++
++  /*
++   * Best-effort DRM hw device + frames context. rkmpp imports DRM-PRIME
++   * descriptors directly, but some FFmpeg builds additionally want these set;
++   * if the DRM hwcontext cannot be initialized we fall back to feeding bare
++   * DRM-PRIME frames.
++   */
++  render_node = g_strdup_printf ("/dev/dri/renderD%" PRIi64,
++                                 self->drm_render_node);
++  if (av_hwdevice_ctx_create (&self->hw_device_ctx, AV_HWDEVICE_TYPE_DRM,
++                              render_node, NULL, 0) >= 0)
++    {
++      self->hw_frames_ctx = av_hwframe_ctx_alloc (self->hw_device_ctx);
++      if (self->hw_frames_ctx)
++        {
++          AVHWFramesContext *frames =
++            (AVHWFramesContext *) self->hw_frames_ctx->data;
++
++          frames->format = AV_PIX_FMT_DRM_PRIME;
++          frames->sw_format = AV_PIX_FMT_NV12;
++          frames->width = self->surface_width;
++          frames->height = self->surface_height;
++          frames->initial_pool_size = 0;
++
++          if (av_hwframe_ctx_init (self->hw_frames_ctx) < 0)
++            {
++              g_debug ("[HWAccel.FFmpeg] DRM hw frames context unavailable; "
++                       "feeding bare DRM-PRIME frames");
++              av_buffer_unref (&self->hw_frames_ctx);
++            }
++        }
++
++      self->avctx->hw_device_ctx = av_buffer_ref (self->hw_device_ctx);
++      if (self->hw_frames_ctx)
++        self->avctx->hw_frames_ctx = av_buffer_ref (self->hw_frames_ctx);
++    }
++  else
++    {
++      g_debug ("[HWAccel.FFmpeg] DRM hw device context unavailable; "
++               "feeding bare DRM-PRIME frames");
++    }
++
++  /*
++   * Constant-quality fixed QP, mirroring the VA-API backend.
++   *
++   * We set only "qp_init" and deliberately never name the rate-control mode:
++   *  - ffmpeg-rockchip: "qp_init" is a known option, and with the rate-control
++   *    mode left at its default the encoder auto-selects fixed QP (its "CQP"
++   *    mode) as soon as qp_init >= 0. Naming the mode would be fragile - its
++   *    fixed-QP constant is spelled "CQP", not "fixqp", and passing an invalid
++   *    value for a *known* option makes avcodec_open2() fail outright rather
++   *    than being ignored.
++   *  - mainline: the rkmpp encoder has neither a fixed-QP mode nor a "qp_init"
++   *    option, so this is an unknown option - tolerated (left in the dict and
++   *    logged below), with the fallback bit_rate above driving its rate control.
++   *
++   * Unknown options are only logged; the smoke encode is the authoritative
++   * low-latency / zero-copy gate.
++   */
++  av_dict_set_int (&opts, "qp_init", FIXED_QP, 0);
++
++  ret = avcodec_open2 (self->avctx, codec, &opts);
++  if (ret < 0)
++    {
++      av_dict_free (&opts);
++      set_av_error (error, ret, "Failed to open h264_rkmpp encoder");
++      return FALSE;
++    }
++
++  while ((entry = av_dict_get (opts, "", entry, AV_DICT_IGNORE_SUFFIX)))
++    {
++      g_debug ("[HWAccel.FFmpeg] Encoder ignored option \"%s\"=\"%s\"",
++               entry->key, entry->value);
++    }
++  av_dict_free (&opts);
++
++  /* Gate 4: the no-B-frame low-latency setting must have been honoured. */
++  if (self->avctx->max_b_frames != 0)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
++                   "Encoder did not honour the no-B-frame low-latency setting "
++                   "(max_b_frames=%i)", self->avctx->max_b_frames);
++      return FALSE;
++    }
++
++  return TRUE;
++}
++
++static gboolean
++allocate_surfaces (GrdEncodeSessionFfmpeg  *self,
++                   GError                 **error)
++{
++  uint32_t i;
++
++  for (i = 0; i < N_SRC_SURFACES; ++i)
++    {
++      NV12Surface *surface;
++
++      surface = nv12_surface_new (self, error);
++      if (!surface)
++        return FALSE;
++
++      g_hash_table_insert (self->surfaces, surface->image_view, surface);
++    }
++
++  return TRUE;
++}
++
++static gboolean
++run_smoke_test (GrdEncodeSessionFfmpeg  *self,
++                NV12Surface             *surface,
++                GError                 **error)
++{
++  AVFrame *frame;
++  AVPacket *packet;
++
++  /*
++   * Gate 5: prove that zero-copy DRM-PRIME import actually works by importing a
++   * real dma-buf and running a single encode. Its (garbage) output is dropped;
++   * the next, first real frame is forced to IDR so the stream starts clean.
++   */
++  frame = build_av_frame (self, surface, TRUE, error);
++  if (!frame)
++    return FALSE;
++
++  packet = encode_and_receive (self, frame, error);
++  av_frame_free (&frame);
++  if (!packet)
++    {
++      g_prefix_error (error, "Zero-copy DRM-PRIME smoke encode failed: ");
++      return FALSE;
++    }
++
++  av_packet_free (&packet);
++
++  self->force_next_idr = TRUE;
++
++  return TRUE;
++}
++
++GrdEncodeSessionFfmpeg *
++grd_encode_session_ffmpeg_new (GrdVkDevice        *vk_device,
++                               struct gbm_device  *gbm_device,
++                               int64_t             drm_render_node,
++                               uint32_t            source_width,
++                               uint32_t            source_height,
++                               uint32_t            refresh_rate,
++                               GError            **error)
++{
++  g_autoptr (GrdEncodeSessionFfmpeg) self = NULL;
++  NV12Surface *first_surface = NULL;
++  GHashTableIter iter;
++
++  g_assert (vk_device);
++  g_assert (gbm_device);
++
++  self = g_object_new (GRD_TYPE_ENCODE_SESSION_FFMPEG, NULL);
++  self->vk_device = vk_device;
++  self->gbm_device = gbm_device;
++  self->drm_render_node = drm_render_node;
++  self->refresh_rate = refresh_rate > 0 ? refresh_rate : 60;
++  self->surface_width = grd_get_aligned_size (source_width, 16);
++  self->surface_height = grd_get_aligned_size (source_height, 16);
++
++  if (!create_encoder (self, error))
++    return NULL;
++
++  if (!allocate_surfaces (self, error))
++    return NULL;
++
++  g_hash_table_iter_init (&iter, self->surfaces);
++  if (!g_hash_table_iter_next (&iter, NULL, (gpointer *) &first_surface))
++    g_assert_not_reached ();
++
++  if (!run_smoke_test (self, first_surface, error))
++    return NULL;
++
++  g_message ("[HWAccel.FFmpeg] Created h264_rkmpp encode session for surface "
++             "with size %ux%u (encoder dimensions %ux%u)",
++             source_width, source_height,
++             self->surface_width, self->surface_height);
++
++  return g_steal_pointer (&self);
++}
++
++static void
++grd_encode_session_ffmpeg_dispose (GObject *object)
++{
++  GrdEncodeSessionFfmpeg *self = GRD_ENCODE_SESSION_FFMPEG (object);
++
++  g_assert (g_hash_table_size (self->bitstreams) == 0);
++  g_assert (g_hash_table_size (self->pending_frames) == 0);
++
++  g_clear_pointer (&self->surfaces, g_hash_table_unref);
++
++  av_buffer_unref (&self->hw_frames_ctx);
++  av_buffer_unref (&self->hw_device_ctx);
++  avcodec_free_context (&self->avctx);
++
++  G_OBJECT_CLASS (grd_encode_session_ffmpeg_parent_class)->dispose (object);
++}
++
++static void
++grd_encode_session_ffmpeg_finalize (GObject *object)
++{
++  GrdEncodeSessionFfmpeg *self = GRD_ENCODE_SESSION_FFMPEG (object);
++
++  g_mutex_clear (&self->pending_frames_mutex);
++  g_mutex_clear (&self->bitstreams_mutex);
++
++  g_clear_pointer (&self->pending_frames, g_hash_table_unref);
++  g_clear_pointer (&self->bitstreams, g_hash_table_unref);
++
++  G_OBJECT_CLASS (grd_encode_session_ffmpeg_parent_class)->finalize (object);
++}
++
++static void
++grd_encode_session_ffmpeg_init (GrdEncodeSessionFfmpeg *self)
++{
++  self->surfaces =
++    g_hash_table_new_full (NULL, NULL, NULL,
++                           (GDestroyNotify) nv12_surface_free);
++  self->pending_frames = g_hash_table_new (NULL, NULL);
++  self->bitstreams = g_hash_table_new (NULL, NULL);
++
++  g_mutex_init (&self->pending_frames_mutex);
++  g_mutex_init (&self->bitstreams_mutex);
++}
++
++static void
++grd_encode_session_ffmpeg_class_init (GrdEncodeSessionFfmpegClass *klass)
++{
++  GObjectClass *object_class = G_OBJECT_CLASS (klass);
++  GrdEncodeSessionClass *encode_session_class =
++    GRD_ENCODE_SESSION_CLASS (klass);
++
++  object_class->dispose = grd_encode_session_ffmpeg_dispose;
++  object_class->finalize = grd_encode_session_ffmpeg_finalize;
++
++  encode_session_class->get_surface_size =
++    grd_encode_session_ffmpeg_get_surface_size;
++  encode_session_class->get_image_views =
++    grd_encode_session_ffmpeg_get_image_views;
++  encode_session_class->has_pending_frames =
++    grd_encode_session_ffmpeg_has_pending_frames;
++  encode_session_class->encode_frame =
++    grd_encode_session_ffmpeg_encode_frame;
++  encode_session_class->lock_bitstream =
++    grd_encode_session_ffmpeg_lock_bitstream;
++  encode_session_class->unlock_bitstream =
++    grd_encode_session_ffmpeg_unlock_bitstream;
++}
+diff --git a/src/grd-encode-session-ffmpeg.h b/src/grd-encode-session-ffmpeg.h
+new file mode 100644
+index 0000000..a5b2310
+--- /dev/null
++++ b/src/grd-encode-session-ffmpeg.h
+@@ -0,0 +1,40 @@
++/*
++ * Copyright (C) 2026 Yi Ding
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
++ * 02111-1307, USA.
++ */
++
++#pragma once
++
++#include <glib-object.h>
++#include <stdint.h>
++
++#include "grd-encode-session.h"
++#include "grd-types.h"
++
++struct gbm_device;
++
++#define GRD_TYPE_ENCODE_SESSION_FFMPEG (grd_encode_session_ffmpeg_get_type ())
++G_DECLARE_FINAL_TYPE (GrdEncodeSessionFfmpeg, grd_encode_session_ffmpeg,
++                      GRD, ENCODE_SESSION_FFMPEG, GrdEncodeSession)
++
++GrdEncodeSessionFfmpeg *grd_encode_session_ffmpeg_new (GrdVkDevice        *vk_device,
++                                                       struct gbm_device  *gbm_device,
++                                                       int64_t             drm_render_node,
++                                                       uint32_t            source_width,
++                                                       uint32_t            source_height,
++                                                       uint32_t            refresh_rate,
++                                                       GError            **error);
+diff --git a/src/grd-hwaccel-ffmpeg.c b/src/grd-hwaccel-ffmpeg.c
+new file mode 100644
+index 0000000..3973d1b
+--- /dev/null
++++ b/src/grd-hwaccel-ffmpeg.c
+@@ -0,0 +1,152 @@
++/*
++ * Copyright (C) 2026 Yi Ding
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
++ * 02111-1307, USA.
++ */
++
++#include "config.h"
++
++#include "grd-hwaccel-ffmpeg.h"
++
++#include <fcntl.h>
++#include <gbm.h>
++#include <gio/gio.h>
++#include <glib/gstdio.h>
++#include <inttypes.h>
++#include <libavcodec/avcodec.h>
++
++#include "grd-encode-session-ffmpeg.h"
++#include "grd-vk-device.h"
++
++/*
++ * h264_rkmpp is the only encoder this backend will ever drive. It is looked up
++ * by name (never inferred), so a stock FFmpeg without --enable-rkmpp simply
++ * fails this gate and GRD keeps using VA-API / RFX.
++ */
++#define GRD_RKMPP_ENCODER_NAME "h264_rkmpp"
++
++struct _GrdHwAccelFfmpeg
++{
++  GObject parent;
++
++  GrdVkDevice *vk_device;
++
++  int64_t drm_render_node;
++  int drm_fd;
++  struct gbm_device *gbm_device;
++};
++
++G_DEFINE_TYPE (GrdHwAccelFfmpeg, grd_hwaccel_ffmpeg, G_TYPE_OBJECT)
++
++GrdEncodeSession *
++grd_hwaccel_ffmpeg_create_encode_session (GrdHwAccelFfmpeg  *hwaccel_ffmpeg,
++                                          uint32_t           source_width,
++                                          uint32_t           source_height,
++                                          uint32_t           refresh_rate,
++                                          GError           **error)
++{
++  return (GrdEncodeSession *)
++    grd_encode_session_ffmpeg_new (hwaccel_ffmpeg->vk_device,
++                                   hwaccel_ffmpeg->gbm_device,
++                                   hwaccel_ffmpeg->drm_render_node,
++                                   source_width, source_height,
++                                   refresh_rate, error);
++}
++
++static gboolean
++open_gbm_device (GrdHwAccelFfmpeg  *hwaccel_ffmpeg,
++                 GError           **error)
++{
++  g_autofree char *render_node = NULL;
++
++  render_node = g_strdup_printf ("/dev/dri/renderD%" PRIi64,
++                                 hwaccel_ffmpeg->drm_render_node);
++
++  hwaccel_ffmpeg->drm_fd = g_open (render_node, O_RDWR | O_CLOEXEC, 0);
++  if (hwaccel_ffmpeg->drm_fd == -1)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Failed to open render node %s: %s",
++                   render_node, g_strerror (errno));
++      return FALSE;
++    }
++
++  hwaccel_ffmpeg->gbm_device = gbm_create_device (hwaccel_ffmpeg->drm_fd);
++  if (!hwaccel_ffmpeg->gbm_device)
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                   "Failed to create GBM device on %s", render_node);
++      return FALSE;
++    }
++
++  return TRUE;
++}
++
++GrdHwAccelFfmpeg *
++grd_hwaccel_ffmpeg_new (GrdVkDevice  *vk_device,
++                        GError      **error)
++{
++  g_autoptr (GrdHwAccelFfmpeg) hwaccel_ffmpeg = NULL;
++
++  g_assert (vk_device);
++
++  /* Gate 1: the rkmpp encoder must exist in this FFmpeg build. */
++  if (!avcodec_find_encoder_by_name (GRD_RKMPP_ENCODER_NAME))
++    {
++      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
++                   "FFmpeg encoder \"%s\" is not available",
++                   GRD_RKMPP_ENCODER_NAME);
++      return NULL;
++    }
++
++  hwaccel_ffmpeg = g_object_new (GRD_TYPE_HWACCEL_FFMPEG, NULL);
++  hwaccel_ffmpeg->vk_device = vk_device;
++  hwaccel_ffmpeg->drm_render_node =
++    grd_vk_device_get_drm_render_node (vk_device);
++
++  if (!open_gbm_device (hwaccel_ffmpeg, error))
++    return NULL;
++
++  g_message ("[HWAccel.FFmpeg] Initialized FFmpeg/rkmpp encode backend "
++             "(encoder \"%s\")", GRD_RKMPP_ENCODER_NAME);
++
++  return g_steal_pointer (&hwaccel_ffmpeg);
++}
++
++static void
++grd_hwaccel_ffmpeg_dispose (GObject *object)
++{
++  GrdHwAccelFfmpeg *hwaccel_ffmpeg = GRD_HWACCEL_FFMPEG (object);
++
++  g_clear_pointer (&hwaccel_ffmpeg->gbm_device, gbm_device_destroy);
++  g_clear_fd (&hwaccel_ffmpeg->drm_fd, NULL);
++
++  G_OBJECT_CLASS (grd_hwaccel_ffmpeg_parent_class)->dispose (object);
++}
++
++static void
++grd_hwaccel_ffmpeg_init (GrdHwAccelFfmpeg *hwaccel_ffmpeg)
++{
++  hwaccel_ffmpeg->drm_fd = -1;
++}
++
++static void
++grd_hwaccel_ffmpeg_class_init (GrdHwAccelFfmpegClass *klass)
++{
++  GObjectClass *object_class = G_OBJECT_CLASS (klass);
++
++  object_class->dispose = grd_hwaccel_ffmpeg_dispose;
++}
+diff --git a/src/grd-hwaccel-ffmpeg.h b/src/grd-hwaccel-ffmpeg.h
+new file mode 100644
+index 0000000..5cb91bb
+--- /dev/null
++++ b/src/grd-hwaccel-ffmpeg.h
+@@ -0,0 +1,38 @@
++/*
++ * Copyright (C) 2026 Yi Ding
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
++ * 02111-1307, USA.
++ */
++
++#pragma once
++
++#include <glib-object.h>
++#include <stdint.h>
++
++#include "grd-types.h"
++
++#define GRD_TYPE_HWACCEL_FFMPEG (grd_hwaccel_ffmpeg_get_type ())
++G_DECLARE_FINAL_TYPE (GrdHwAccelFfmpeg, grd_hwaccel_ffmpeg,
++                      GRD, HWACCEL_FFMPEG, GObject)
++
++GrdHwAccelFfmpeg *grd_hwaccel_ffmpeg_new (GrdVkDevice  *vk_device,
++                                          GError      **error);
++
++GrdEncodeSession *grd_hwaccel_ffmpeg_create_encode_session (GrdHwAccelFfmpeg  *hwaccel_ffmpeg,
++                                                            uint32_t           source_width,
++                                                            uint32_t           source_height,
++                                                            uint32_t           refresh_rate,
++                                                            GError           **error);
+diff --git a/src/grd-types.h b/src/grd-types.h
+index 32c7295..d186970 100644
+--- a/src/grd-types.h
++++ b/src/grd-types.h
+@@ -34,6 +34,7 @@ typedef struct _GrdCredentials GrdCredentials;
+ typedef struct _GrdEglThread GrdEglThread;
+ typedef struct _GrdEncodeContext GrdEncodeContext;
+ typedef struct _GrdEncodeSession GrdEncodeSession;
++typedef struct _GrdHwAccelFfmpeg GrdHwAccelFfmpeg;
+ typedef struct _GrdHwAccelNvidia GrdHwAccelNvidia;
+ typedef struct _GrdHwAccelVaapi GrdHwAccelVaapi;
+ typedef struct _GrdHwAccelVulkan GrdHwAccelVulkan;
+diff --git a/src/meson.build b/src/meson.build
+index dbf3529..cfa4134 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -268,6 +268,21 @@ if have_rdp
+     ]
+   endif
+ 
++  if have_ffmpeg
++    daemon_sources += files([
++      'grd-encode-session-ffmpeg.c',
++      'grd-encode-session-ffmpeg.h',
++      'grd-hwaccel-ffmpeg.c',
++      'grd-hwaccel-ffmpeg.h',
++    ])
++
++    deps += [
++      libavcodec_dep,
++      libavutil_dep,
++      gbm_dep,
++    ]
++  endif
++
+   deps += [
+     cuda_dep,
+     dl_dep,
+-- 
+2.53.0
+

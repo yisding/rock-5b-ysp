@@ -1,0 +1,57 @@
+From 809cc97ec9f0b2d37d77c4222f4891dca0749d0e Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Mon, 29 Jun 2026 22:59:52 -0700
+Subject: [PATCH] rdp-view-creator-avc: Fall back when HOST_CACHED memory is
+ unavailable
+
+The AVC view creator's damage/chroma state read-back buffer was allocated
+requiring HOST_VISIBLE | HOST_COHERENT | HOST_CACHED. HOST_CACHED is only
+a CPU-read optimization, and not every driver exposes a cached memory
+type: Mesa's panvk offers only DEVICE_LOCAL and
+HOST_VISIBLE|HOST_COHERENT. The exact-match memory type selection then
+failed ("Failed to find memory type index"), the view creator could not
+be created, and the hardware AVC path silently fell back to software RFX.
+
+Retry the host buffer without HOST_CACHED when the cached allocation
+fails. The buffer stays HOST_COHERENT, so the read-back remains correct.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EN9JjFVPvgho9JggxZbM7Y
+---
+ src/grd-rdp-view-creator-avc.c | 19 ++++++++++++++++---
+ 1 file changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/src/grd-rdp-view-creator-avc.c b/src/grd-rdp-view-creator-avc.c
+index 89f10c3..a72e893 100644
+--- a/src/grd-rdp-view-creator-avc.c
++++ b/src/grd-rdp-view-creator-avc.c
+@@ -693,10 +693,23 @@ create_state_buffer (GrdRdpViewCreatorAVC  *view_creator_avc,
+                                    VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+ 
+   *state_buffer_host = grd_vk_buffer_new (view_creator_avc->device,
+-                                          &buffer_descriptor,
+-                                          error);
++                                          &buffer_descriptor, NULL);
+   if (!(*state_buffer_host))
+-    return FALSE;
++    {
++      /*
++       * HOST_CACHED is only a CPU-read optimization for the damage/chroma
++       * state read back from this buffer, and not every driver exposes a
++       * cached memory type - panvk (Mali), for instance, offers only
++       * DEVICE_LOCAL and HOST_VISIBLE|HOST_COHERENT. Retry without it; the
++       * buffer stays HOST_COHERENT so the reads remain correct.
++       */
++      buffer_descriptor.memory_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
++                                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
++      *state_buffer_host = grd_vk_buffer_new (view_creator_avc->device,
++                                              &buffer_descriptor, error);
++      if (!(*state_buffer_host))
++        return FALSE;
++    }
+ 
+   memory = grd_vk_buffer_get_memory (*state_buffer_host);
+ 
+-- 
+2.53.0
+

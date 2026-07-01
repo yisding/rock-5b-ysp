@@ -1,0 +1,157 @@
+From 20f52d4ebe17d21f111799e3ea2b683175dd6349 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Sat, 27 Jun 2026 23:15:43 -0700
+Subject: [PATCH] rdp-render-context: Select the FFmpeg encode session after
+ VA-API
+
+When no VA-API encode session could be created and the client supports
+AVC420, try to create an FFmpeg/rkmpp encode session. VA-API remains the
+preferred path; the FFmpeg backend is only used as a fallback for
+hardware without a usable VA-API driver.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EN9JjFVPvgho9JggxZbM7Y
+---
+ src/grd-rdp-render-context.c | 112 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 112 insertions(+)
+
+diff --git a/src/grd-rdp-render-context.c b/src/grd-rdp-render-context.c
+index ae01d21..8c65fb8 100644
+--- a/src/grd-rdp-render-context.c
++++ b/src/grd-rdp-render-context.c
+@@ -26,6 +26,9 @@
+ #include "grd-context.h"
+ #include "grd-encode-session.h"
+ #include "grd-encode-session-ca-sw.h"
++#ifdef HAVE_FFMPEG
++#include "grd-hwaccel-ffmpeg.h"
++#endif
+ #include "grd-hwaccel-vaapi.h"
+ #include "grd-image-view.h"
+ #include "grd-rdp-buffer-info.h"
+@@ -506,6 +509,99 @@ try_create_vaapi_session (GrdRdpRenderContext *render_context,
+            "size %ux%u", surface_width, surface_height);
+ }
+ 
++#ifdef HAVE_FFMPEG
++static void
++try_create_ffmpeg_session (GrdRdpRenderContext *render_context,
++                           GrdRdpSurface       *rdp_surface)
++{
++  GrdVkDevice *vk_device =
++    grd_rdp_renderer_get_vk_device (render_context->renderer);
++  GrdRdpSurfaceRenderer *surface_renderer =
++    grd_rdp_surface_get_surface_renderer (rdp_surface);
++  GrdHwAccelFfmpeg *hwaccel_ffmpeg =
++    grd_rdp_renderer_get_hwaccel_ffmpeg (render_context->renderer);
++  GrdRdpBufferInfo *buffer_info =
++    grd_rdp_surface_renderer_get_buffer_info (surface_renderer);
++  uint32_t refresh_rate =
++    grd_rdp_surface_renderer_get_refresh_rate (surface_renderer);
++  uint32_t surface_width = grd_rdp_surface_get_width (rdp_surface);
++  uint32_t surface_height = grd_rdp_surface_get_height (rdp_surface);
++  g_autoptr (GrdEncodeSession) encode_session = NULL;
++  GrdRdpViewCreatorAVC *view_creator_avc;
++  uint32_t render_surface_width = 0;
++  uint32_t render_surface_height = 0;
++  g_autoptr (GError) error = NULL;
++  g_autoptr (GList) image_views = NULL;
++  GList *l;
++
++  g_assert (buffer_info->buffer_type == GRD_RDP_BUFFER_TYPE_DMA_BUF);
++
++  if (!buffer_info->has_vk_image)
++    return;
++  if (!buffer_info->has_syncobjs)
++    return;
++  if (buffer_info->drm_format_modifier == DRM_FORMAT_MOD_INVALID)
++    return;
++
++  /*
++   * Fail-closed: grd_hwaccel_ffmpeg_create_encode_session declines (returns
++   * NULL) unless h264_rkmpp is present and a zero-copy, low-latency session can
++   * actually be established. On failure GRD simply falls through to the RFX
++   * path, leaving VA-API (tried first) as the preferred backend.
++   */
++  encode_session =
++    grd_hwaccel_ffmpeg_create_encode_session (hwaccel_ffmpeg,
++                                              surface_width, surface_height,
++                                              refresh_rate, &error);
++  if (!encode_session)
++    {
++      g_debug ("[HWAccel.FFmpeg] Could not create rkmpp encode session: %s",
++               error->message);
++      return;
++    }
++
++  grd_encode_session_get_surface_size (encode_session,
++                                       &render_surface_width,
++                                       &render_surface_height);
++
++  g_assert (render_surface_width % 16 == 0);
++  g_assert (render_surface_height % 16 == 0);
++  g_assert (render_surface_width >= 16);
++  g_assert (render_surface_height >= 16);
++
++  view_creator_avc =
++    grd_rdp_view_creator_avc_new (vk_device,
++                                  render_surface_width,
++                                  render_surface_height,
++                                  surface_width,
++                                  surface_height,
++                                  &error);
++  if (!view_creator_avc)
++    {
++      g_debug ("[HWAccel.Vulkan] Failed to create view creator for FFmpeg "
++               "encode session: %s", error->message);
++      return;
++    }
++
++  image_views = grd_encode_session_get_image_views (encode_session);
++  for (l = image_views; l; l = l->next)
++    {
++      GrdImageView *image_view = l->data;
++
++      g_hash_table_add (render_context->image_views, image_view);
++    }
++
++  render_context->view_creator = GRD_RDP_VIEW_CREATOR (view_creator_avc);
++  render_context->encode_session = g_steal_pointer (&encode_session);
++
++  /* H.264-only backend: AVC420 exclusively (never AVC444v2). */
++  render_context->codec = GRD_RDP_CODEC_AVC420;
++
++  g_debug ("[HWAccel.FFmpeg] Created rkmpp encode session for surface with "
++           "size %ux%u", surface_width, surface_height);
++}
++#endif /* HAVE_FFMPEG */
++
+ static gboolean
+ create_egl_based_rfx_progressive_encode_session (GrdRdpRenderContext  *render_context,
+                                                  GrdRdpSurface        *rdp_surface,
+@@ -568,6 +664,22 @@ create_hw_accelerated_encode_session (GrdRdpRenderContext  *render_context,
+   if ((have_avc444 || have_avc420) && hwaccel_vaapi)
+     try_create_vaapi_session (render_context, rdp_surface, have_avc444);
+ 
++#ifdef HAVE_FFMPEG
++  /*
++   * VA-API stays the preferred path; the FFmpeg/rkmpp backend is only tried
++   * when VA-API did not produce a session. It is H.264-only, so it requires
++   * AVC420 support from the client.
++   */
++  if (!render_context->encode_session && have_avc420)
++    {
++      GrdHwAccelFfmpeg *hwaccel_ffmpeg =
++        grd_rdp_renderer_get_hwaccel_ffmpeg (render_context->renderer);
++
++      if (hwaccel_ffmpeg)
++        try_create_ffmpeg_session (render_context, rdp_surface);
++    }
++#endif
++
+   if (render_context->encode_session)
+     return TRUE;
+ 
+-- 
+2.53.0
+

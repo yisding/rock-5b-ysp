@@ -1,0 +1,105 @@
+From fcac7510a5492928b3b9966f63e1cd8716dc6ce5 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Sat, 27 Jun 2026 23:15:43 -0700
+Subject: [PATCH] rdp-renderer: Initialize the FFmpeg/rkmpp encode backend
+
+Create the GrdHwAccelFfmpeg alongside the VA-API hardware acceleration
+in the renderer, and expose it through a getter so the render context
+can select it. The shared GrdVkDevice is now only released when both
+the VA-API and FFmpeg backends fail to initialize, so the FFmpeg path
+keeps working on hardware (e.g. RK3588) where VA-API is absent.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EN9JjFVPvgho9JggxZbM7Y
+---
+ src/grd-rdp-renderer.c | 32 ++++++++++++++++++++++++++++----
+ src/grd-rdp-renderer.h |  2 ++
+ 2 files changed, 30 insertions(+), 4 deletions(-)
+
+diff --git a/src/grd-rdp-renderer.c b/src/grd-rdp-renderer.c
+index 9bce12d..4d8c340 100644
+--- a/src/grd-rdp-renderer.c
++++ b/src/grd-rdp-renderer.c
+@@ -23,6 +23,9 @@
+ 
+ #include "grd-context.h"
+ #include "grd-encode-session.h"
++#ifdef HAVE_FFMPEG
++#include "grd-hwaccel-ffmpeg.h"
++#endif
+ #include "grd-hwaccel-nvidia.h"
+ #include "grd-hwaccel-vaapi.h"
+ #include "grd-hwaccel-vulkan.h"
+@@ -57,6 +60,7 @@ struct _GrdRdpRenderer
+   GrdVkPhysicalDevice *vk_physical_device;
+   GrdVkDevice *vk_device;
+   GrdHwAccelVaapi *hwaccel_vaapi;
++  GrdHwAccelFfmpeg *hwaccel_ffmpeg;
+   GrdRdpSwEncoderCa *encoder_ca;
+ 
+   GThread *graphics_thread;
+@@ -120,6 +124,12 @@ grd_rdp_renderer_get_hwaccel_vaapi (GrdRdpRenderer *renderer)
+   return renderer->hwaccel_vaapi;
+ }
+ 
++GrdHwAccelFfmpeg *
++grd_rdp_renderer_get_hwaccel_ffmpeg (GrdRdpRenderer *renderer)
++{
++  return renderer->hwaccel_ffmpeg;
++}
++
+ GrdRdpSwEncoderCa *
+ grd_rdp_renderer_get_encoder_ca (GrdRdpRenderer *renderer)
+ {
+@@ -223,10 +233,23 @@ maybe_initialize_hardware_acceleration (GrdRdpRenderer   *renderer,
+   renderer->hwaccel_vaapi = grd_hwaccel_vaapi_new (renderer->vk_device,
+                                                    &error);
+   if (!renderer->hwaccel_vaapi)
+-    {
+-      g_message ("[RDP] Did not initialize VAAPI: %s", error->message);
+-      g_clear_object (&renderer->vk_device);
+-    }
++    g_message ("[RDP] Did not initialize VAAPI: %s", error->message);
++
++#ifdef HAVE_FFMPEG
++  g_clear_error (&error);
++  renderer->hwaccel_ffmpeg = grd_hwaccel_ffmpeg_new (renderer->vk_device,
++                                                     &error);
++  if (!renderer->hwaccel_ffmpeg)
++    g_message ("[RDP] Did not initialize FFmpeg/rkmpp: %s", error->message);
++#endif
++
++  /*
++   * Both hardware encode backends import their NV12 surfaces into this Vulkan
++   * device. Only drop it when neither backend initialized, so a board without
++   * VA-API can still use the FFmpeg/rkmpp path (and vice versa).
++   */
++  if (!renderer->hwaccel_vaapi && !renderer->hwaccel_ffmpeg)
++    g_clear_object (&renderer->vk_device);
+ 
+   return TRUE;
+ }
+@@ -740,6 +763,7 @@ grd_rdp_renderer_dispose (GObject *object)
+   g_assert (g_hash_table_size (renderer->surface_renderer_table) == 0);
+ 
+   g_clear_object (&renderer->encoder_ca);
++  g_clear_object (&renderer->hwaccel_ffmpeg);
+   g_clear_object (&renderer->hwaccel_vaapi);
+   g_clear_object (&renderer->vk_device);
+   g_clear_object (&renderer->vk_physical_device);
+diff --git a/src/grd-rdp-renderer.h b/src/grd-rdp-renderer.h
+index 4020bb4..6f8b4fc 100644
+--- a/src/grd-rdp-renderer.h
++++ b/src/grd-rdp-renderer.h
+@@ -47,6 +47,8 @@ GrdVkDevice *grd_rdp_renderer_get_vk_device (GrdRdpRenderer *renderer);
+ 
+ GrdHwAccelVaapi *grd_rdp_renderer_get_hwaccel_vaapi (GrdRdpRenderer *renderer);
+ 
++GrdHwAccelFfmpeg *grd_rdp_renderer_get_hwaccel_ffmpeg (GrdRdpRenderer *renderer);
++
+ GrdRdpSwEncoderCa *grd_rdp_renderer_get_encoder_ca (GrdRdpRenderer *renderer);
+ 
+ void grd_rdp_renderer_update_output_suppression_state (GrdRdpRenderer *renderer,
+-- 
+2.53.0
+

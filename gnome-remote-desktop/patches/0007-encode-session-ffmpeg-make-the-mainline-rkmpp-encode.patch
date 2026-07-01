@@ -1,7 +1,7 @@
 From a59c904c99088235eb4de31ca340747d334494f3 Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
 Date: Tue, 30 Jun 2026 21:12:03 -0700
-Subject: [PATCH 2/2] encode-session-ffmpeg: make the mainline rkmpp encoder
+Subject: [PATCH] encode-session-ffmpeg: make the mainline rkmpp encoder
  produce a usable AVC420 stream
 
 Two fixes for mainline FFmpeg's h264_rkmpp (libavcodec/rkmppenc.c, shipped
