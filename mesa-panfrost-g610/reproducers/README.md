@@ -12,6 +12,8 @@ directly, so run them on the board with a Mesa build that includes Panfrost.
 | [`repro_blit_off.c`](repro_blit_off.c) | Non-zero-offset variant: subregion readback at `x = X0`, exercising the blit affine's offset term in the fragcoord fix |
 | [`repro_blit_float.c`](repro_blit_float.c) | RG32F→RGBA32F float variant — the counter-example that disqualifies the integer-only state-tracker fallback |
 | [`repro_blit_flip.c`](repro_blit_flip.c) | Flipped `glBlitFramebuffer` probe (negative scale); caught the pixel-center-convention bug, revealed the power-of-two-extent exactness, and proved shipped drivers corrupt wide non-pow2 blits |
+| [`repro_blit_scissor.c`](repro_blit_scissor.c) | Scissored wide identity blit: verifies clipping doesn't shift the fragcoord mapping and untouched texels keep their sentinel |
+| [`repro_blit_array.c`](repro_blit_array.c) | 2D-array-layer readback: confirms array targets stay on the lossy path — a REGRESSION vs the CPU path once BLIT transfers are enabled |
 | [`probe_interp.c`](probe_interp.c) | Isolates varying interpolation from texture fetch (smooth / noperspective / gl_FragCoord modes) |
 | [`probe_const.c`](probe_const.c) | Constant-varying exactness probe: shows all-vertices-equal smooth varyings interpolate bit-exactly at every magnitude |
 | [`probe_wcorr.c`](probe_wcorr.c) | Shader-side recovery probe: disproves `gl_FragCoord.w` and `dFdx`-based correction |
@@ -29,6 +31,8 @@ cc -O2 -o repro_blit repro_blit.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o repro_blit_off repro_blit_off.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o repro_blit_float repro_blit_float.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o repro_blit_flip repro_blit_flip.c -lEGL -lGLESv2 -lgbm -lm
+cc -O2 -o repro_blit_scissor repro_blit_scissor.c -lEGL -lGLESv2 -lgbm -lm
+cc -O2 -o repro_blit_array repro_blit_array.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o probe_interp probe_interp.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o probe_const probe_const.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o probe_wcorr probe_wcorr.c -lEGL -lGLESv2 -lgbm -lm
@@ -245,6 +249,42 @@ returns **29498/32614 wrong texels** (first at x=1539, fetched 1538) in all
 four orientations — the corruption is reachable through plain
 `glBlitFramebuffer` today, independent of `texture_transfer_modes`. Verified
 on the final series build: all four modes exact at 12000x8 and 16307x2.
+
+## `repro_blit_scissor.c`
+
+Scissored wide-blit probe (added 2026-07-01). `glScissor` applies to
+`glBlitFramebuffer`; u_blitter forwards it as scissor state while the
+fragcoord path derives source texels purely from fragment position, so
+clipping must not shift the mapping. Identity blit of 16307x8 RG32UI with
+scissor `(5435,2 8153x4)`, destination pre-filled with a sentinel.
+
+Observed on the series build (2026-07-01): inside scissor **0/32612**
+mismatches; outside scissor **0/97844** sentinel overwrites.
+
+## `repro_blit_array.c`
+
+Array-target gating probe (added 2026-07-01). The fragcoord fix is gated to
+1D/2D/RECT; array targets stay on the interpolated-varying TXF path. This
+reads back a wide `RG32UI` **2D-array layer** (`glFramebufferTextureLayer`)
+through the format-changing staging blit.
+
+Observed at W=16307 (2026-07-01):
+
+```text
+series build (BLIT transfers on):  15672/16307 corrupt, first at 623
+system driver (transfer modes 0):      0/16307 (CPU path, exact)
+```
+
+So with BLIT transfers enabled, wide (> ~5000 px) non-pow2 array-layer
+readbacks are a **correctness regression vs. the CPU path** — the sampled
+blit is reachable where it previously wasn't. No dEQP/piglit case covers
+this shape (all suites green while this fails). It must either be fixed
+(extend the fragcoord path to array targets — the layer is constant per
+draw and constants interpolate exactly, but the attribute needs a 5th
+value, e.g. sign/layer packing or a 2D single-layer view in u_blitter) or
+explicitly disclosed in the MR as a known limitation. Note the *pre-existing*
+corruption via `glBlitFramebuffer` from wide array-layer attachments exists
+upstream regardless (same lossy path).
 
 ## `probe_const.c`
 

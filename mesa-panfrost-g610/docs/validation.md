@@ -291,9 +291,30 @@ green including flips at non-pow2 widths (`repro_blit_flip` 12000x8 and
 without the panfrost opt-in — 40884 wrong texels), perf A/B-equal vs the
 previous fragcoord build (16307x1 ~0.179 ms, 4096x1024 ~71 ms medians).
 
-Still needed before pushing the reworked MR: the dEQP/CTS list from the
-review comment (`mr42563-comment-failures.txt`), piglit
-getteximage/PBO/readpixels subsets (y-flip is now covered by
-`repro_blit_flip` and the u_tests flipped pass; scissor still isn't), and
-tests that arrays/3D/cube/MSAA stay on the old path (wide *array* TXF blits
-are a disclosed known gap).
+dEQP rerun on the series build (2026-07-01, surviving local
+`deqp-gles3` at `/tmp/deqp-gles-ci`, same invocation as above) — zero
+failures across 858 tests:
+
+```text
+MR-comment case list:                     24/25 Pass, 1 QualityWarning
+  (the warning is the known pre-existing acos.mediump_fragment.vec2,
+   reproduced on clean builds before this work)
+cases2.txt (MR 38433/42563 failures):     16/16 Pass
+precision.abs.*:                          24/24 Pass
+pbo.*:                                    54/54 Pass
+texture.specification.basic_teximage2d.*: 98/98 Pass
+fbo.blit.*:                               629/641 Pass, 12 NotSupported
+```
+
+Scissored wide blits verified exact (`repro_blit_scissor.c`: 0 mismatches
+inside the scissor, 0 sentinel overwrites outside).
+
+**Open finding — array-layer readbacks regress** (`repro_blit_array.c`):
+with BLIT transfers enabled, a wide non-pow2 readback from a 2D-array layer
+goes through the still-lossy array TXF path (15672/16307 corrupt), whereas
+the CPU path on unpatched drivers is exact. No dEQP/piglit case covers this
+shape. Resolve before pushing: extend the fragcoord path to array targets,
+or disclose explicitly in the MR.
+
+Still needed: piglit getteximage/PBO/readpixels subsets (no local piglit
+build on the board).
