@@ -237,13 +237,63 @@ preference would break or force-decompress AFBC resources. The correctness
 and timing results above remain valid evidence; the fix shape is being
 reworked. Candidate follow-ups (local branches, 2026-07-01):
 
-- `panfrost-transfer-fragcoord-blit` — make the sampled blit exact by deriving
-  the TXF coordinate from `gl_FragCoord` plus the blit affine (a
-  proof-of-concept gave 0/16307 errors; at time of writing the branch carried
-  `2d79844bd29` "u_blitter: use fragment position for unscaled TXF blits";
-  see [`blit-precision.md` § Options Considered](blit-precision.md)).
-- `panfrost-transfer-targeted-fallback` (`b475b5914de`) — keep
+- `panfrost-transfer-fragcoord-blit` (rebased to `2f6e8a6afcc`) — make the
+  sampled blit exact by deriving the TXF coordinate from `gl_FragCoord` plus
+  the blit affine
+  (see [`blit-precision.md` § Options Considered](blit-precision.md)).
+- `panfrost-transfer-targeted-fallback` (rebased to `6a292503585`) — keep
   `PIPE_TEXTURE_TRANSFER_BLIT` but route pure-integer format-changing
   transfers to the non-blit path in `st_cb_readpixels.c` and
-  `st_cb_texture.c` (`needs_integer_format_change_fallback()`:
-  `src_format != dst_format` and both pure-integer).
+  `st_cb_texture.c` (`src_format != dst_format` and both pure-integer).
+
+## Outcome (2026-07-01): fragcoord branch selected
+
+On-device verification decided between the two candidates — canonical
+write-up in
+[`blit-precision.md` § On-Device Verification](blit-precision.md), probes in
+[`../reproducers/`](../reproducers/README.md). Summary:
+
+```text
+repro_blit_float (RG32F -> RGBA32F via GL_RGBA+GL_FLOAT, W=16307)
+  targeted-fallback git-6a29250358:  15672/16307 corrupt (96.1%), first at 623
+  fragcoord         git-2f6e8a6afc:      0/16307
+repro_blit (RG32UI integer control)   both branches exact
+repro_blit_off (offsets 1..16000)     fragcoord exact
+probe_const (constant varying, K=1.0..16306.5)
+                                      bit-exact at every K
+repro_afbc (AFBC CPU-map staging path, unfixed Mesa 26.0.3)
+                                      clean — no pre-existing corruption
+```
+
+The float case corrupts through the targeted fallback's pure-integer gate —
+the drift is format-agnostic, so the fallback is under-inclusive and was
+dropped. Branch smoke numbers (both branches, `git diff --check` clean,
+driver identity verified via `GL_VERSION` git hash):
+
+```text
+panfrost-transfer-fragcoord-blit
+  repro_blit 16307:                  0 / 16307 mismatches
+  bench_transfer 16307x1 median:     0.1794 ms, 0 mismatches
+  bench_transfer 4096x1024 median:  49.9171 ms, 0 mismatches
+
+panfrost-transfer-targeted-fallback
+  repro_blit 16307:                  0 / 16307 mismatches
+  bench_transfer 16307x1 median:     0.1668 ms, 0 mismatches
+  bench_transfer 4096x1024 median:  47.6324 ms, 0 mismatches
+```
+
+The reworked 6-patch series was assembled locally on 2026-07-01
+(`panfrost-transfer-blit-update`, tip `993410a8f25`, not pushed — see
+[`README.md` § Status](../README.md)). Its validation: full probe battery
+green including flips at non-pow2 widths (`repro_blit_flip` 12000x8 and
+16307x2, all four orientations exact), `GALLIUM_TESTS`
+`test_unscaled_blit_precision` pass (and fail on a negative-control build
+without the panfrost opt-in — 40884 wrong texels), perf A/B-equal vs the
+previous fragcoord build (16307x1 ~0.179 ms, 4096x1024 ~71 ms medians).
+
+Still needed before pushing the reworked MR: the dEQP/CTS list from the
+review comment (`mr42563-comment-failures.txt`), piglit
+getteximage/PBO/readpixels subsets (y-flip is now covered by
+`repro_blit_flip` and the u_tests flipped pass; scissor still isn't), and
+tests that arrays/3D/cube/MSAA stay on the old path (wide *array* TXF blits
+are a disclosed known gap).

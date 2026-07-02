@@ -15,7 +15,7 @@ every shared figure, asm listing, and validation result is owned here.
 | Developer focus | Preserve the Mali-G610 transfer investigation: BLIT precision failure, COMPUTE correctness, AFBC limitation, benchmark results, dEQP validation, and reproducible probes. |
 | Owns | [`blit-precision.md`](./docs/blit-precision.md), [`validation.md`](./docs/validation.md), [`texture-query-levels.md`](./docs/texture-query-levels.md), and [`reproducers/`](reproducers/README.md). |
 | Depends on | Local Mesa/Panfrost worktrees and the GRD profiling context that exposed the readback cost. |
-| Current state | The COMPUTE-only direction was rejected upstream because it cannot write AFBC; surviving directions are local branches under active development. See [`../status.md`](../status.md). |
+| Current state | The COMPUTE-only direction was rejected upstream (cannot write AFBC). On-device verification 2026-07-01 then **disqualified the targeted integer fallback** (the drift also corrupts non-integer format changes — `repro_blit_float.c`) and **selected the `gl_FragCoord` u_blitter fix** (`panfrost-transfer-fragcoord-blit`, `2f6e8a6afcc`) as the upstream direction. See [`../status.md`](../status.md). |
 
 Hardware and software used for the local investigation:
 
@@ -50,12 +50,14 @@ Mesa MR
 | 2026-06-30 | Local retest of the BLIT path on G610 finds the integer-readback corruption; root cause isolated to varying interpolation ([`blit-precision.md`](./docs/blit-precision.md)). Local commits: mask fix + BLIT enable (`950d19686d8` + `e8cf2ae6daa`). |
 | 2026-07-01 | MR direction switched to COMPUTE-only; rebased series `37ce0f3111d` (mask fix, now carrying `Reviewed-by: Iago Toral Quiroga`) + `9d7f561cd9d` (COMPUTE cap + `is_compute_copy_faster`, benchmark numbers in the commit message) on branch `panfrost-transfer-blit-update`. |
 | 2026-07-01 | **Maintainer review rejects COMPUTE-only**: "Compute isn't the right solution. We can't write AFBC that way." The objection is correct — Panfrost cannot write AFBC payloads from shaders; see [`blit-precision.md` § The AFBC Constraint](./docs/blit-precision.md). |
-| 2026-07-01 | Remaining viable directions staged as local branches (**under active development** — re-check the tree before citing): `panfrost-transfer-fragcoord-blit` (fix the sampled blit's coordinate via `gl_FragCoord` + blit affine; at time of writing carried `2d79844bd29` "u_blitter: use fragment position for unscaled TXF blits" touching `u_blitter.c`/`u_simple_shaders.c` + re-enabling BLIT in `pan_screen.c`) and `panfrost-transfer-targeted-fallback` (`b475b5914de`: keep BLIT, route pure-integer format-changing transfers away from the blit in `st_cb_readpixels.c`/`st_cb_texture.c`). |
+| 2026-07-01 | Remaining viable directions staged as local branches: `panfrost-transfer-fragcoord-blit` (fix the sampled blit's coordinate via `gl_FragCoord` + blit affine; rebased to `2f6e8a6afcc` "u_blitter: use fragment position for unscaled TXF blits", opt-in `use_txf_fragcoord` flag) and `panfrost-transfer-targeted-fallback` (rebased to `6a292503585`: keep BLIT, route pure-integer format-changing transfers away from the blit in `st_cb_readpixels.c`/`st_cb_texture.c`). |
+| 2026-07-01 | **On-device verification selects the fragcoord branch** ([`blit-precision.md` § On-Device Verification](./docs/blit-precision.md)): (1) `repro_blit_float.c` (`RG32F -> RGBA32F` readback) corrupts 96.1% on the targeted-fallback build — its pure-integer gate is under-inclusive, **disqualifying B1**; (2) `probe_const.c` shows constant smooth varyings are bit-exact at every magnitude, clearing the fragcoord branch's scale/offset-through-varying design risk; (3) `repro_blit_off.c` shows subregion readbacks exact at offsets up to 16000; (4) `repro_afbc.c` finds **no pre-existing corruption** in shipped drivers via the AFBC CPU-map staging path. |
+| 2026-07-01 | MR discussions re-checked from the board via authenticated `glab api` (web UI remains bot-blocked; unauthenticated API returns 401 on notes). Both MRs still open. Reviewer asks to fold into the next series: add kusma's `Fixes: 72ff66c3d73` tag to the unbind fix (already R-b Iago), cherry-pick Joshua Watt's enablement commit for author credit, and validate the dEQP/CTS list from Iago's comment. Suggested MR shape: (1) unbind fix, (2) `u_blitter` fragcoord fix with probe evidence, (3) cherry-picked BLIT enablement + `use_txf_fragcoord` one-liner. Known gap to disclose: wide (>~1250 px) TXF blits of *array* textures stay on the lossy path (gate is 1D/2D/RECT); constants-exact + scale=+-1 make an array extension a feasible follow-up. |
 
-Neither !38433 nor !42563 had merged upstream as of the last local fetch
-(main `0983c72a7ed`, 2026-06-29). UNVERIFIED beyond that date: the GitLab MR
-pages could not be re-checked from the board on 2026-07-01 (anti-bot
-interstitial).
+| 2026-07-01 | **MR branch rebuilt locally as the fragcoord series** (local `panfrost-transfer-blit-update`, tip `993410a8f25`, **not yet pushed** to `yding:panfrost-transfer-blit`): (1) unbind fix (R-b Iago, Fixes tag), (2) `u_blitter: use fragment position for unscaled TXF blits`, (3) `panfrost: use fragment position for blitter TXF coordinates`, (4) cherry-picked Joshua Watt `panfrost: Enable hardware texture conversion` (authorship preserved, per-kusma), (5) `panfrost: hold a glsl_type singleton reference` (GALLIUM_TESTS crashed in `glsl_array_type` otherwise), (6) `u_tests: add a wide unscaled format-changing blit test` (16307x4, unflipped+flipped; proven: fail on unfixed path with 40884 wrong texels, pass on fixed). Testing surfaced and fixed a real bug: flipped blits broke under panfrost's integer pixel-center position convention; final shader computes `src = floor(pos)*scale + (offset + 0.5*scale)`. New root-cause refinement: drift only for **non-power-of-two** primitive extents (8192/16384 exact; 5000..16307 non-pow2 drift). Full probe battery green; perf unchanged (16307x1 ~0.179 ms, 4096x1024 ~71 ms A/B-equal vs old branch). Known separate issue: `util_test_constant_buffer` asserts in `panfrost_emit_const_buf` (pre-existing, resource-backed const buffers). |
+
+Neither !38433 nor !42563 had merged upstream as of the last check
+(2026-07-01, via `glab api`; both `state: opened`).
 
 ## Short Version
 
@@ -144,6 +146,25 @@ This list is a **summary**; the canonical, evidence-carrying copies live in
 - Compute transfer avoids `LD_VAR_IMM`, uses integer invocation IDs, and fixed
   the readback/precision failures in local testing — but compute cannot write
   AFBC, so COMPUTE-only was rejected upstream as the general fix.
+- The drift is **format-agnostic**: a wide `RG32F -> RGBA32F` float readback
+  corrupts identically (96.1%, first mismatch at x=623). Integer formats were
+  only where dEQP could detect it bit-exactly. This is what disqualified the
+  "avoid blit only for pure-integer format changes" workaround
+  (`repro_blit_float.c`, 2026-07-01).
+- A smooth varying that is **constant across the primitive** interpolates
+  **bit-exactly** at every magnitude tested (1.0 … 16306.5) — only varyings
+  that actually vary accumulate the ~2^-10 error (`probe_const.c`,
+  2026-07-01). This is why the fragcoord fix can pass the blit
+  `scale`/`offset` through an ordinary attribute.
+- The fragcoord branch is verified exact for subregion readbacks with source
+  offsets up to 16000 (`repro_blit_off.c`, 2026-07-01).
+- No pre-existing corruption was found in shipped drivers via the AFBC
+  CPU-map staging-blit path (`repro_afbc.c` clean on unfixed Mesa 26.0.3) —
+  the fix unblocks `PIPE_TEXTURE_TRANSFER_BLIT`; it is not a stable-branch
+  repair.
+- Panfrost's own FB preload shaders already use the exact pixel index
+  (`nir_load_pixel_coord`, `pan_fb_nir.c`) instead of varyings — internal
+  precedent for the fragcoord approach.
 - The only remaining dEQP warning in the MR rerun was
   `dEQP-GLES3.functional.shaders.builtin_functions.precision.acos.mediump_fragment.vec2`,
   and it reproduced in a clean run, so it was not introduced by the transfer

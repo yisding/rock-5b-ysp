@@ -278,8 +278,13 @@ readback/transfer such as `RG32UI -> RGBA32UI`):
   the risky readback lands on `_mesa_readpixels` (CPU). Smallest change,
   slow, covers only the paths where the condition is added. This was the
   stashed `st_cb_readpixels.c` workaround; a fresh variant exists as local
-  branch `panfrost-transfer-targeted-fallback` (`b475b5914de`, touching
-  `st_cb_readpixels.c` + `st_cb_texture.c`).
+  branch `panfrost-transfer-targeted-fallback` (rebased to `6a292503585`,
+  touching `st_cb_readpixels.c` + `st_cb_texture.c`).
+  **Disqualified on hardware 2026-07-01**: the drift affects every wide TXF
+  blit regardless of format, and a non-integer format-changing readback
+  (`RG32F -> RGBA32F`) corrupts identically through B1's gate — see
+  [§ On-Device Verification (2026-07-01)](#on-device-verification-2026-07-01)
+  below.
 - **A1/A2 — rewrite the u_blitter TXF coordinate around `gl_FragCoord`**:
   TXF blits are always **unscaled** (`util_blitter_blit_with_txf` requires
   `!is_scaled`), so fragment→source-texel is a pure translation and
@@ -291,10 +296,16 @@ readback/transfer such as `RG32UI -> RGBA32UI`):
   screen cap; A2 applies it unconditionally (`gl_FragCoord` is exact
   everywhere). Shared-code change, most subtle, and it mostly benefits
   Mali-class hardware. Local staging branch:
-  `panfrost-transfer-fragcoord-blit` — at time of writing (2026-07-01) it
-  carried `2d79844bd29` "u_blitter: use fragment position for unscaled TXF
-  blits" (`u_blitter.c` + `u_simple_shaders.c` + BLIT re-enabled in
-  `pan_screen.c`), i.e. this option is the one being actively pursued.
+  `panfrost-transfer-fragcoord-blit` — rebased to `2f6e8a6afcc` "u_blitter:
+  use fragment position for unscaled TXF blits" (opt-in
+  `blitter_context::use_txf_fragcoord` flag; `u_blitter.c` +
+  `u_simple_shaders.c`, BLIT re-enabled in `pan_screen.c`, flag set in
+  `pan_context.c` when `fs_position_is_sysval`), which plumbs the full
+  affine: `scale.xy`/`offset.zw` ride the generated coordinate attribute and
+  the FS reconstructs the TXF coordinate with a `MAD` from
+  `TGSI_SEMANTIC_POSITION` declared as a system value.
+  **Selected as the upstream direction 2026-07-01** after the on-device
+  verification below cleared its numerical design risks and disqualified B1.
 - **Panfrost NIR pass** — ruled out: a NIR pass cannot recover the exact
   coordinate without the src/dst offset, which only `u_blitter` has; doing it
   anyway needs draw-time blit detection, a shader variant, and a sysval.
@@ -372,16 +383,111 @@ The verified Fixes trailer for that first patch is:
 Fixes: 72ff66c3d73 ("gallium: add unbind_num_trailing_slots to set_shader_images")
 ```
 
+## On-Device Verification (2026-07-01)
+
+Four probes run on the ROCK 5B (all archived in
+[`../reproducers/`](../reproducers/README.md)) settled the choice between the
+surviving candidates. Builds: `git-2f6e8a6afc` = fragcoord branch,
+`git-6a29250358` = targeted-fallback branch, Mesa 26.0.3 = unfixed system
+driver.
+
+**1. The drift is format-agnostic; B1's integer gate is under-inclusive
+(disqualifying).** `repro_blit_float.c` reads an `RG32F` FBO
+(`source[i] = {i, i}`) back as `GL_RGBA` + `GL_FLOAT` — a format-changing
+(`RG32F -> RGBA32F` staging) but non-pure-integer readback, so B1's
+`util_format_is_pure_integer` gate does not fire:
+
+```text
+targeted-fallback git-6a29250358:  15672 / 16307 corrupt (96.1%), first at x=623
+fragcoord         git-2f6e8a6afc:      0 / 16307
+```
+
+That is the exact original bug signature. The integer control (`repro_blit`)
+passes on both builds, so B1's gate works as written — it is simply too
+narrow, and widening it to "any format change" would effectively disable the
+transfer blit. B1 is dead as a narrow workaround; only the failure mode dEQP
+happened to detect was integer.
+
+**2. Constant varyings interpolate bit-exactly (clears A1's design risk).**
+The fragcoord branch passes `scale`/`offset` through the ordinary
+smooth-interpolated attribute. `probe_const.c` shows an all-vertices-equal
+smooth varying survives interpolation with **0/16307 bit mismatches at every
+magnitude tested** (K = 1.0 … 16306.5). Only varyings that actually *vary*
+accumulate the ~2^-10 error, so per-draw constants of any magnitude are safe
+— no flat-interpolation rework needed, and with exact constants the FS `MAD`
+on the exact `gl_FragCoord` makes the whole path exact. This also means a
+layer index (another per-draw constant) is numerically safe, so extending
+the fix to 1D/2D arrays is a feasible follow-up.
+
+**3. Large source offsets are exact end-to-end.** `repro_blit_off.c` reads a
+subregion starting at `x = X0`, driving `offset_x = src_x1` through the new
+path: **0 mismatches at X0 = 1, 623, 8000, 16000** on the fragcoord branch.
+(The earlier PoC concern about non-zero-offset blits is resolved by the full
+affine plumbing; y flips and scissor still need explicit tests.)
+
+**4. No pre-existing corruption in shipped drivers (negative result).**
+`repro_afbc.c` probes the one path that could have hit this bug *before* any
+transfer-mode enablement — the AFBC CPU-map staging blit
+(`pan_blit_to_staging`) — via a wide RGBA8 FBO readback in the matching
+format, incl. `PAN_MESA_DEBUG=forcepack`: **clean on the unfixed Mesa 26.0.3
+system driver**. So the fragcoord fix should be pitched upstream as
+"unblocks `PIPE_TEXTURE_TRANSFER_BLIT`", not as a stable-branch repair.
+
+**5. The drift only occurs for non-power-of-two primitive extents
+(2026-07-01, `repro_blit_flip.c`).** Unfixed-path 1-row identity
+`glBlitFramebuffer`: widths 8192 and 16384 are **bit-exact**, while
+5000/7000/8191/8193/12000/16307 all drift (onset between 3000 and 5000;
+height irrelevant). So the "~2^-10 interpolation" is more precisely a
+low-precision reciprocal in the interpolator's plane-equation setup that is
+exact for power-of-two extents. Consequences: (a) common blit sizes mask the
+bug, explaining why wide-blit corruption was never reported; (b) any
+regression test must use a large **non-pow2** width — an 8192-wide test can
+never fail.
+
+**6. Panfrost's TGSI position system value is the integer pixel index, not
+x+0.5.** The first fragcoord branch assumed the half-integer convention and
+broke *flipped* blits (negative scale): with scale=+1 the missing half texel
+is hidden by the truncating f2i, with scale=-1 every fetch is one texel off
+and row/column 0 goes out of bounds. Fixed convention-independently in the
+final series: `src = floor(pos) * scale + (offset + 0.5 * scale)` — floor()
+yields the integer pixel index under either convention, and the half-texel
+bias moves into the constant offset (exact in f32).
+
+Two supporting facts for the upstream pitch, both verified in-tree:
+
+- Panfrost's own FB preload shaders already derive coordinates from the exact
+  pixel index (`nir_load_pixel_coord`, `src/panfrost/lib/pan_fb_nir.c`), so
+  the fragcoord blit fix makes u_blitter do what Panfrost's internal blit
+  machinery already does.
+- `blitter_context` already carries opt-in behavior flags
+  (`use_index_buffer`, `use_single_triangle`); `use_txf_fragcoord` follows
+  that pattern and defaults off, leaving the ten other drivers that advertise
+  `TRANSFER_BLIT` untouched.
+
+Upstream-context note: the GitLab web UI is bot-blocked from the board, but
+MR discussions are retrievable with the authenticated CLI
+(`glab api "projects/176/merge_requests/<iid>/notes"`). From !38433/!42563:
+kusma was positive on BLIT enablement in general ("I generally speaking think
+this is a good idea"), rejected only compute, supplied the `Fixes:` tag for
+the unbind fix, and asked that Joshua Watt's original enablement commit be
+cherry-picked for author credit. No prior art for the Mali varying-precision
+issue or a u_blitter fragcoord fix was found upstream (web + GitLab issue
+search), so the MR description must carry the full justification itself.
+
 ## Bottom Line
 
-For Mali-G610, sampled BLIT texture transfers are unsafe for integer
-format-changing paths that derive texel addresses from interpolated varyings.
-There is no local Panfrost compiler toggle that makes `LD_VAR_IMM` exact.
+For Mali-G610, sampled BLIT texture transfers are unsafe for **any** wide
+format-changing path that derives texel addresses from interpolated varyings
+— integer formats were merely where dEQP could detect it bit-exactly
+(`repro_blit_float.c` shows the identical failure on floats). There is no
+local Panfrost compiler toggle that makes `LD_VAR_IMM` exact.
 
 The exact-coordinate escapes are COMPUTE (measured safe and fast, but cannot
-write AFBC, so it cannot be the blanket answer) and `gl_FragCoord` (exact
-everywhere, but requires a shared u_blitter coordinate rewrite). The upstream
-fix, post-rejection, will be one of: the `gl_FragCoord` blit rewrite (A1/A2),
-or BLIT plus a layout-aware route/fallback for pure-integer format-changing
-transfers (B2/B1). See [`README.md` § Status](../README.md) for which branch
-carries each candidate.
+write AFBC, so it cannot be the blanket answer — maintainer-rejected) and
+`gl_FragCoord` (exact everywhere, verified including large offsets and
+constants). **The selected upstream direction (2026-07-01) is the
+`gl_FragCoord` blit rewrite (A1), branch `panfrost-transfer-fragcoord-blit`
+(`2f6e8a6afcc`)**; the state-tracker fallback (B1) was disqualified by the
+float counter-example above, and any compute route (B2) would additionally
+need to prove layout-awareness. See [`README.md` § Status](../README.md) for
+the MR shape and remaining test plan.
