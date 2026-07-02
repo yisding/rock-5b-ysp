@@ -31,7 +31,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 > validate script and `tests/` pass, the hard part is already done — GRD is just
 > another `/dev/mpp_service` + `/dev/dma_heap` client.
 
-**Companion docs:** [`docs/design.md`](docs/design.md) — why FFmpeg (vs VA-API / direct MPP)
+**Companion docs:** [`docs/design.md`](docs/design.md) — why FFmpeg (vs VA-API / GStreamer / direct MPP)
 and the panvk hardware-enablement journey · [`docs/baseline.md`](docs/baseline.md) — the
 measured *before*: why the software path costs ~20 ms/frame (the `glReadPixels`
 readback) and why HW encode is the only real fix ·

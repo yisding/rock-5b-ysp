@@ -15,7 +15,65 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
 | Owns | `abi-probe.sh`, `abi-probe.c`, `librga-smoke.sh`, `librga-smoke.cpp`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
-| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated; VP9 decode remains an unverified recipe. See [`../status.md`](../../status.md). |
+| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains an unverified recipe. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
+
+## Expanded conformance bundle
+
+The narrow in-repo tests are still the fast gate. For rewrite parity work, also
+use the external bundle at the dev-box path `../rockchip-conformance`
+(`/home/yi/Code/rockchip-conformance`). It is intentionally outside this repo
+because it contains shallow third-party source checkouts and generated build/log
+directories. Its own `README.md` is the operational guide; this section records
+why each piece matters and what we learned to test.
+
+Run it the same way under both kernels:
+
+```bash
+cd ../rockchip-conformance
+PROFILE=rewrite ./scripts/collect-system-info.sh
+# build on the RK3588 target userspace, then run smoke/real media cases
+PROFILE=rewrite ./scripts/run-mpp-smoke.sh
+PROFILE=rewrite ./scripts/run-librga-smoke.sh
+PROFILE=rewrite ./scripts/run-gstreamer-smoke.sh
+
+# reboot into the BSP forward-port kernel and repeat:
+PROFILE=forward-port ./scripts/collect-system-info.sh
+PROFILE=forward-port ./scripts/run-mpp-smoke.sh
+PROFILE=forward-port ./scripts/run-librga-smoke.sh
+PROFILE=forward-port ./scripts/run-gstreamer-smoke.sh
+```
+
+The important rule is that `assets/` and command lines stay identical between
+the rewrite and forward-port runs, with only `PROFILE` and the booted kernel
+changing. Compare `logs/rewrite/` against `logs/forward-port/`.
+
+| Bundle component | What it is | Why it belongs in conformance |
+|------------------|------------|-------------------------------|
+| `sources/jeffycn-gstreamer-rockchip` | JeffyCN's `gstreamer-rockchip` branch from `JeffyCN/mirrors` | Highest-value new target beyond FFmpeg/rkmpp/librga. GStreamer stresses MPP/RGA through caps negotiation, buffer pools, pipeline state changes, EOS/flush/seek/restart, dmabuf allocator negotiation, KMS/Wayland sinks, and multi-stream scheduling. |
+| `sources/rockchip-mpp` | Rockchip MPP library and official `test/` programs | Gives the canonical `mpp_info_test`, `mpi_dec_test`, `mpi_dec_mt_test`, `mpi_dec_multi_test`, `mpi_enc_test`, `mpi_enc_mt_test`, `mpi_rc2_test`, and `vpu_api_test` binaries. These hit sync/async decode, multi-instance and multi-thread paths, rate-control config, event/control paths, and the legacy VPU API more directly than FFmpeg. |
+| `sources/airockchip-librga` | Official librga repo and IM2D sample suite | Must be run as a *suite*, not just a copy/resize smoke. It covers allocator modes, async jobs, FBC/tile copies, alpha/colorkey/OSD, CSC, fill arrays, mosaic, ROP, transform, crop, resize, and padding. These map almost exactly to the rewrite's remaining RGA feature boundaries. |
+| `sources/mpp-linux-cpp-demo` | Linux MPP/RGA/DRM demo | Useful integration smoke because it chains MPP decode, RGA conversion, DRM display, and threading in one app. |
+| `sources/rkmediacodec-demo` | Android RKMediaCodecDemo | Lower priority for Linux, but it is the Android-style MediaCodec/allocator path to run if Android compatibility matters. The earlier request called this RKMediaCoreDemo; the public Rockchip demo we found and staged is RKMediaCodecDemo. |
+
+Suggested expanded matrix:
+
+- MPP: H.264/H.265 decode at 1080p/4K, H.264/H.265 encode from NV12 at
+  1080p/4K, multi-instance decode, multi-thread encode/decode, rate-control,
+  and `vpu_api_test`. VP9 remains a useful add-on because the forward-port docs
+  still mark it unverified.
+- RGA: `copy`, `resize`, `cvtcolor`, `fill`, `alpha`, `transform`, `async`, and
+  allocator samples first; then deliberately run `rop`, `mosaic`, `padding`,
+  FBC/tile, colorkey/OSD, and 10-bit/compressed cases to distinguish clean
+  `-EOPNOTSUPP` from real regressions.
+- GStreamer: decode to `fakesink`, decode to KMS/Wayland display, raw NV12
+  encode, transcode `decode -> convert/scale -> encode`, multi-stream jobs,
+  stop/seek/EOS/restart loops, and dmabuf zero-copy paths where the sink/source
+  supports them.
+
+The expected rewrite result is not universal pass today. For implemented paths,
+it should match the forward-port. For documented unsupported RGA profiles, it
+should fail cleanly, preferably with `-EOPNOTSUPP`, without kernel warnings,
+hangs, leaked fences, IOMMU fault storms, or stale async completions.
 
 **Privileges** (this differs per test):
 

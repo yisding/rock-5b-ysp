@@ -29,6 +29,7 @@ which is the difference between a few-percent-CPU desktop and this one.
 | **VA-API** (GRD's main HW path) | GRD already has `GrdEncodeSessionVaapi`; if a VA-API driver existed for the VEPU we'd get HW encode for free | ❌ no VA-API driver for the RK3588 encoder. `libva` loads `panthor_drv_video.so`, which has no encode — GRD logs `Did not initialize VAAPI: Failed to initialize VA display`. Dead end on this hardware. *(Observed 2026-06 during bring-up, GRD 50.1 / Mesa 26.0.x / libva 2.23 on Ubuntu 26.04 "resolute"; re-check this row if a VA driver for the VEPU ever appears.)* |
 | **Mainline V4L2 stateful encoder** | The kernel-standard encode API | ❌ GRD's target is H.264 encode, and Collabora's [RK3588 mainline-status note](https://gitlab.collabora.com/hardware-enablement/rockchip-3588/notes-for-rockchip-3588/-/blob/main/mainline-status.md) lists mainline encoder support as JPEG-only. GRD also has no V4L2 encode backend anyway. |
 | **Direct `librockchip_mpp`** | A new GRD encode session calling MPP directly | ⚠️ full control, but reinvents everything FFmpeg's `h264_rkmpp` already does (MPP setup, DRM-PRIME import, 1-in-1-out packet handling) and couples GRD to the MPP API. More code, more to maintain. |
+| **GStreamer Rockchip MPP** | A new GRD encode session around `appsrc -> rockchipmpp H.264 encoder -> appsink` | ⚠️ plausible as a second backend, especially for testing and GNOME-adjacent review, but not shorter for this repo: we would still keep GRD's PipeWire capture, Vulkan RGB→NV12 view-creator, RDPGFX pacing, packet handling, and fail-closed smoke test. The hard part becomes proving low-latency zero-copy dmabuf caps/allocator negotiation through the pipeline. |
 | **FFmpeg `h264_rkmpp`** | Wrap FFmpeg's rkmpp encoder in a GRD encode session | ✅ **chosen** — least code, reuses a maintained encoder, and FFmpeg 8.1 is an ABI drop-in that gives *every* app rkmpp, not just GRD. |
 
 ### Why FFmpeg won
@@ -44,6 +45,55 @@ which is the difference between a few-percent-CPU desktop and this one.
 - **Fail-closed.** The backend declines (returns `NULL`) unless a zero-copy,
   low-latency session genuinely works, so it can never turn a working software
   desktop into a broken hardware one.
+
+### Where GStreamer fits
+
+GStreamer is worth keeping as an experiment and conformance target, not as the
+shipping replacement for this backend yet. The clean version would be another
+`GrdEncodeSession` implementation:
+
+```
+PipeWire dma-buf capture
+  -> GRD Vulkan RGB->NV12 view-creator
+  -> NV12 dma-buf
+  -> GStreamer appsrc
+  -> Rockchip MPP H.264 encoder
+  -> appsink
+  -> GRD RDPGFX AVC420 packet path
+```
+
+That deliberately does **not** replace GRD's capture side with `pipewiresrc`.
+GRD's frame pacing, damage handling, RDP frame acknowledgements, failover policy,
+and session lifecycle are all already tied into its own PipeWire path; swapping
+that out would create a bigger integration project without making RK3588 encode
+more correct.
+
+The upside of GStreamer is a natural media graph, GNOME familiarity, and a good
+stress target for dmabuf caps, buffer pools, EOS/flush/restart, and multi-stream
+state changes. The downside is that GRD would need to prove every queue is
+one-buffer/low-latency, that SPS/PPS/IDR and rate-control behaviour match the RDP
+client's expectations, and that dmabuf ownership/sync survives caps renegotiation.
+Until that benchmark exists, FFmpeg remains the narrower production route.
+
+JeffyCN's Rockchip GStreamer branch is staged in the external conformance bundle
+(`../rockchip-conformance/sources/jeffycn-gstreamer-rockchip`) for exactly this:
+test the kernel and userspace stack hard, then only consider a GRD GStreamer
+backend if it beats the FFmpeg route on reliability, latency, or upstreamability.
+
+### VA-API status, rechecked 2026-07-02
+
+VA-API remains the canonical upstream-friendly GRD shape in principle, but not a
+working RK3588 encode route today. Mesa exposes Panfrost/PanVK as the Mali GPU
+OpenGL ES/Vulkan driver, while Mesa's VA-API frontend is separate plumbing; there
+is no Panfrost/PanVK video-encode backend for the VEPU580. Rockchip MPP's public
+docs still show `libva` as a conceptual layer above MPP, but the maintained paths
+we can actually use are MPP consumers such as FFmpeg, GStreamer plugins, and
+direct libmpp tests.
+
+A real VA-API solution would need either a maintained `rkvaapi_drv_video.so`
+implemented over MPP, or a mainline V4L2 H.264/H.265 encoder stack plus a VA-API
+V4L2 backend that GRD can use. We did not find evidence that either is close
+enough to plan this project around.
 
 ### The upstream-vs-fork sub-decision
 

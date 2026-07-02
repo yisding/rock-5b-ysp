@@ -17,8 +17,9 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local `rk3588-rewrite-6.18` @ `eb511697426e` + local `rk3588-rewrite-mainline` @ `180ee72a9a80` — **not yet public**, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local `rk3588-rewrite-6.18` @ `611f5fe047fd` + local `rk3588-rewrite-mainline` @ `9fb5f8bf7562` — **not yet public**, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | local `../linux/drivers/media/platform/rockchip/rga/` on `rk3588-rewrite-mainline` @ `180ee72a9a80`, see §9 |
+| 10 | Expanded Rockchip conformance bundle | [kernel-driver tests](../kernel-drivers/tests/README.md) "Expanded conformance bundle" | local `../rockchip-conformance`, see §10 |
 
 ---
 
@@ -193,10 +194,10 @@ dev-box-local kernel pins, both clean but not observed on a public branch as of
 2026-07-02:
 
 - `/home/yi/Code/linux-6.18-rkvenc`, branch `rk3588-rewrite-6.18`, commit
-  `eb511697426e` ("media: rockchip: lock down mpp compat parser"), seven commits
-  ahead of `linux-rock5b/rk3588-rewrite-6.18`.
+  `611f5fe047fd` ("media: rockchip: recover mpp jobs on iommu faults"), 35
+  commits ahead of `linux-rock5b/rk3588-rewrite-6.18`.
 - `/home/yi/Code/linux`, branch `rk3588-rewrite-mainline`, commit
-  `180ee72a9a80` (same tip subject), seven commits ahead of
+  `9fb5f8bf7562`, 35 commits ahead of
   `linux-rock5b/rk3588-rewrite-mainline`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -204,7 +205,9 @@ Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
 for rewrite-drivers.md's current rewrite-size snapshot; the mainline tree is the
 post-6.18 DT/wiring state. These are **not yet reconstructible from public
 sources** unless the local branches are pushed. Rewrite-drivers.md §6 carries
-the operational status and the TODO to publish a citable branch.
+the operational status and the TODO to publish a citable branch. The older
+`180ee72a9a80` mainline pin is still used by §9 for the upstream-style V4L2
+RGA3 comparison that was measured before the latest rewrite commits landed.
 
 ## 9. Upstream-style V4L2 RGA3 comparison tree
 
@@ -219,3 +222,25 @@ on 2026-07-02.
 The branch was clean but seven commits ahead of `linux-rock5b/rk3588-rewrite-mainline`
 when this note was written, so the comparison is a local-tree citation until the
 kernel branch is pushed.
+
+## 10. Expanded Rockchip conformance bundle
+
+The external conformance bundle lives at `/home/yi/Code/rockchip-conformance`
+(`../rockchip-conformance` from the kernel/YSP worktrees). It is **not** a git
+repo and is not vendored here because it contains third-party source checkouts,
+build directories, logs, and test assets. Its own `MANIFEST.tsv` records the
+exact shallow checkouts staged on 2026-07-02:
+
+| Component | Path inside bundle | Pin |
+|-----------|--------------------|-----|
+| JeffyCN GStreamer Rockchip plugins | `sources/jeffycn-gstreamer-rockchip` | `JeffyCN/mirrors.git`, branch `gstreamer-rockchip`, commit `dcbcd6454ef892e385b3a782600369eb6c0719db` |
+| Rockchip MPP official library/tests | `sources/rockchip-mpp` | `rockchip-linux/mpp.git`, branch `develop`, commit `c2c1ee502b3a26efebcf843f7a0aeb4d172c6237` |
+| Official librga + IM2D samples | `sources/airockchip-librga` | `airockchip/librga.git`, branch `main`, commit `2b32edcb97b601b25683e2941d888c8515da6d55` |
+| Linux MPP/RGA/DRM demo | `sources/mpp-linux-cpp-demo` | `WainDing/mpp_linux_cpp.git`, branch `master`, commit `3d7cca63c4f5f0febacef0b0d0cdb36394fb5ca0` |
+| Android RKMediaCodecDemo | `sources/rkmediacodec-demo` | `c-xh/RKMediaCodecDemo.git`, branch `master`, commit `38b85b3c160bf58f2237d5f49b601c1636d484a5` |
+
+The bundle adds helper scripts to build MPP, generate a local `librga.pc` shim,
+build librga samples, build JeffyCN's Meson-based GStreamer plugin tree, collect
+system/device state, and write per-profile logs under `logs/rewrite/` and
+`logs/forward-port/`. See [kernel-driver tests](../kernel-drivers/tests/README.md)
+for the test matrix and pass/fail interpretation.
