@@ -276,19 +276,16 @@ system driver (transfer modes 0):      0/16307 (CPU path, exact)
 ```
 
 This was a **correctness regression vs. the CPU path** that no dEQP/piglit
-case covers. **RESOLVED the same day** by series commit `u_blitter: blit
-single array layers through a layer view with use_txf_fragcoord`:
-single-layer array blits sample through a 1D/2D view of the selected layer
-(`first_layer == last_layer == z`, gated on
-`pipe_caps.sampler_view_target`), so the fragment-position path applies
-unchanged. After the fix this probe reports **0/16307**, and the u_tests
-case gained an array-layer pass that also proves the correct layer is
-selected. Multi-layer array blits and 3D keep the old path (disclosed MR
-limitation; only reachable for wide non-pow2 shapes via desktop-GL
-whole-array GetTexImage). The *pre-existing* corruption via
-`glBlitFramebuffer` from wide array-layer attachments existed upstream
-regardless (same lossy path) and is fixed by the same commit for the
-single-layer case.
+case covers. **RESOLVED the same day**, finally by generalizing the
+fragcoord mechanism to all single-sample TXF targets (1D/2D/RECT, arrays
+single- and multi-layer, 3D) with a sign-bits/layer/offsets attribute
+encoding — an interim single-layer-view commit was superseded. After the
+fix this probe reports **0/16307**, and the u_tests case grew to seven
+checks across 2D/flip/array/3D. Extending the mechanism also exposed a
+second bug in the earlier branch revision: the draw-side gate did not
+exclude **MSAA** sources (`fbo.msaa.*` 62/70 Fail -> 0 Fail after gating
+on `nr_samples <= 1`). The *pre-existing* `glBlitFramebuffer` corruption
+from wide array-layer attachments is fixed by the same mechanism.
 
 ## `probe_const.c`
 

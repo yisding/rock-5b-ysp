@@ -311,13 +311,30 @@ inside the scissor, 0 sentinel overwrites outside).
 
 Array-layer readbacks initially regressed (`repro_blit_array.c`:
 15672/16307 corrupt vs exact CPU path on unpatched drivers; no dEQP/piglit
-coverage). **Resolved the same day** by a new series commit that samples
-single-layer array blits through a 1D/2D layer view
-(`pipe_caps.sampler_view_target`-gated), making the fragment-position path
-apply: probe now 0/16307, u_tests gained an array pass, and the dEQP rerun
-stayed at zero failures (incl. `fbo.color.tex2darray.*` 36/36). Multi-layer
-array and 3D blits keep the old path (disclosed limitation). Final series
-tip: `2e50c2622aa` (7 commits).
+coverage). Resolved first via a single-layer 1D/2D view, then superseded
+the same day by **generalizing the fragcoord mechanism to all
+single-sample TXF targets** (1D/2D/RECT, 1D/2D arrays single- and
+multi-layer, 3D): the coordinate attribute now carries scale sign bits
+(scale is exactly +-1 for TXF), the layer/slice, and the biased offsets —
+all per-draw constants, which interpolate bit-exactly.
+
+While generalizing, a **second bug in the earlier branch revision** was
+found: the draw-side gate did not exclude MSAA sources, so every MSAA
+resolve fed sign/offset data to resolve shaders that expect texcoords —
+`dEQP-GLES3.functional.fbo.msaa.*` was **62/70 Fail**; fixed by gating on
+`nr_samples <= 1` (now 0 Fail, 66 Pass + 4 NotSupported).
+
+Final series tip: `628e599172c` (6 commits — the interim array-view commit
+was dropped as superseded). Final dEQP matrix, **zero failures across 1097
+tests**: MR-comment 24/25 + known `acos` QualityWarning; cases2 16/16;
+precision.abs 24/24; pbo 54/54; basic_teximage2d 98/98; fbo.blit 629/641 +
+12 NotSupported; fbo.msaa 66/70 + 4 NotSupported; fbo.color.tex2darray
+36/36; fbo.color.tex3d 36/36; basic_teximage3d 98/98. The u_tests case
+grew to seven checks (unflipped, flipped, single array layer, 2x
+multi-layer, 2x 3D slice); the negative control (series minus the panfrost
+opt-in) fails ALL seven with the drift signature (40884 wrong texels
+each), proving per-pass sensitivity. Probe battery and perf unchanged
+(16307x1 ~0.183 ms, 4096x1024 ~74 ms).
 
 Still needed: piglit getteximage/PBO/readpixels subsets (no local piglit
 build on the board).
