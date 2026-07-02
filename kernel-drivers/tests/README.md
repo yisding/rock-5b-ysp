@@ -13,7 +13,7 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 |-------|----------|
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
-| Owns | `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
+| Owns | `abi-probe.sh`, `abi-probe.c`, `librga-smoke.sh`, `librga-smoke.cpp`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
 | Current state | H.264/H.265 decode, encode, and full HW transcode have been validated; VP9 decode remains an unverified recipe. See [`../status.md`](../../status.md). |
 
@@ -35,12 +35,15 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 > | `FFDIR` | transcode | ffmpeg-rockchip build dir (`./ffmpeg`, `./ffprobe`) |
 > | `STAGE` | transcode | the MPP/RGA staging prefix from the ffmpeg README (e.g. `~/ffmpeg-stack`) |
 > | `IN` | transcode | 1080p H.264 Annex-B input (default `$STAGE/testdata/input-1080p.h264`; regeneration below) |
+> | `RUN_LIBRGA` | rewrite smoke | optional direct librga/im2d functional smoke (`0` by default; set `1` to run) |
 
 ## What each test proves
 
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
-| `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs decode, encode, and transcode gates below in one pass, and snapshots rewrite debugfs counters when present. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
+| `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Builds and runs a small C probe that records MPP/RGA ioctl numbers, struct sizes, safe query results, MPP client-type HW-ID replay, initialized MPP session controls (`INIT_DRIVER_DATA`, `SEND_CODEC_INFO`, `RESET_SESSION`, and advertised `SET_ERR_REF_HACK`), a safe two-message MPP init batch, RGA version tuples/strings, no-op ioctl return codes, RGA virtual-address import/release, and modern RGA request create/config/cancel with a handle-backed bitblit task. Use the same binary/log format on the forward port and rewrite, then diff the logs. Exit `77` means both device nodes are absent. |
+| `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ im2d client against staged `librga`: virtual-address imports plus `imcopy`, `imresize`, and `imfill`. This exercises the maintained librga request/import/submit path independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
+| `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates below in one pass, and snapshots rewrite debugfs counters when present. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
 | `test-decode.sh` | **decoder** (`rkvdec2`) | `mpi_dec_test` decodes *software-encoded* H.264 + H.265 320×240 clips to NV12 → exit 0 + non-empty output. Software-encoded input means a failure implicates the **decoder**, not our encoder. |
 | `encode-test-tiny.sh` | **encoder** (VEPU580) | `mpi_enc_test` H.264 + H.265 at 256² and 1280×720 → valid NAL-start bitstreams, exit 0, no IOMMU fault (dmesg-marker scheme with a real-fault regex that excludes benign warnings). Reports PSNR + fps. |
 | `transcode-test.sh` | **full pipeline** (both decoders, both encoders, RGA ×2) | ffmpeg-rockchip: `h264_rkmpp` → `scale_rkrga` 1080p→720p → `hevc_rkmpp`, then the reverse. `rkmpp`/`rkrga` have no SW fallback, so a pass *is* proof the hardware ran. Verifies each output with `ffprobe`. |
@@ -49,6 +52,8 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 
 ```bash
 bash rewrite-smoke.sh                 # one-command gate; use sudo when devices are present
+bash abi-probe.sh                     # fast non-submit ABI probe
+bash librga-smoke.sh                  # direct librga/im2d smoke
 bash test-decode.sh                  # decoder (device access is enough)
 sudo bash encode-test-tiny.sh        # encoder
 sudo bash transcode-test.sh          # end-to-end (needs ffmpeg-rockchip built — see ../ffmpeg)
@@ -132,6 +137,6 @@ The early bring-up used a **configfs DT overlay** + an out-of-tree `.ko`
 built-in combined kernel and is intentionally **not** included here — the overlay
 path hit an alias-resolution bug and a configfs-rmdir deadlock (see
 [gotchas](../../docs/gotchas.md)). The in-repo scripts have been scrubbed of
-the overlay-era instructions they were imported with (2026-07-01). There is no
-standalone `librga` functional test; RGA is validated through
-`transcode-test.sh`.
+the overlay-era instructions they were imported with (2026-07-01). The
+standalone `librga-smoke.sh` covers the maintained im2d API directly; the full
+hardware-frame RGA path is still validated through `transcode-test.sh`.
