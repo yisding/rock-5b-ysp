@@ -59,8 +59,10 @@ Mesa MR
 
 | 2026-07-01 | **Fragcoord mechanism generalized to arrays and 3D; MSAA bug found and fixed; final tip `628e599172c` (6 commits)**. Extending array support exposed that the earlier revision's draw-side gate did not exclude MSAA sources — every MSAA resolve was corrupted (`fbo.msaa.*` **62/70 Fail** -> 0 Fail after gating on `nr_samples <= 1`). Final mechanism covers 1D/2D/RECT + 1D/2D arrays (single- and multi-layer) + 3D via a sign-bits/layer/offsets attribute (all per-draw constants, bit-exact through the interpolator); the interim single-layer-view commit was dropped as superseded. Final dEQP matrix: **zero failures across 1097 tests** (incl. fbo.msaa 66/70+4 NS, fbo.color.tex2darray 36/36, fbo.color.tex3d 36/36, basic_teximage3d 98/98). u_tests case has seven checks; negative control fails all seven (per-pass sensitivity proven; 3D render targets confirmed working on panfrost). Probes and perf unchanged. |
 
-Neither !38433 nor !42563 had merged upstream as of the last check
-(2026-07-01, via `glab api`; both `state: opened`).
+| 2026-07-01 | **Pushed as a three-MR stack**: [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) reduced + retitled to the already-reviewed unbind fix (`833101f35ed`, force-pushed to `yding:panfrost-transfer-blit`); [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) "panfrost: enable blit-based texture transfers" = u_blitter fragcoord fix + panfrost opt-in + Joshua Watt's enablement (tip `51cb29834d1`, `yding:panfrost-blit-transfers`, depends on !42563); [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614) "u_tests: add a wide unscaled format-changing blit test" = glsl_type singleton + test (tip `628e599172c`, `yding:panfrost-blit-transfers-test`, depends on !42613). All opened with `allow_collaboration`, label `panfrost`. |
+
+Neither !38433 nor the new stack had merged upstream as of the last check
+(2026-07-01, via `glab api`; all `state: opened`).
 
 ## Short Version
 
