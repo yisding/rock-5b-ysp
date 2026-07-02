@@ -338,3 +338,81 @@ each), proving per-pass sensitivity. Probe battery and perf unchanged
 
 Still needed: piglit getteximage/PBO/readpixels subsets (no local piglit
 build on the board).
+
+## 2026-07-02 Revision: Self-Review Fixes And Revalidation
+
+A structured multi-angle review of the !42613 diff produced ten verified
+findings; all were fixed, folded into the original commits, and
+force-pushed (!42613 `51cb29834d1` -> `486b6f7002f`, !42614
+`628e599172c` -> `e9125bd526f`).
+
+Correctness fixes:
+
+1. **ZS<->color pack shaders / fs_override clobber.** The draw-side
+   fragcoord repacking fired whenever (target, samples, txf) matched,
+   but `blitter_get_fs_pack_color_zs` shaders and caller `fs_override`
+   shaders read the attribute as raw texel coordinates. The encoding
+   decision moved into `util_blitter_blit_generic`, next to fragment
+   shader selection, and is threaded through `do_blits` to the draw;
+   pack and override paths keep the plain layout. This also replaced
+   the hardcoded `nr_samples=1` at the shader-getter call sites with
+   the real sample count, so shader-side and draw-side predicates can
+   no longer diverge.
+2. **Midgard gating.** `texture_transfer_modes` was enabled for every
+   arch while the fragcoord fix only engaged on Bifrost+
+   (`fs_position_is_sysval`), leaving Midgard's transfers on the lossy
+   interpolated path. Both sites now gate on `arch >= 6`; Midgard's
+   position input goes through the same varying unit, so the fragcoord
+   path is not known to be exact there and stays off.
+3. **Zero-area blits.** `glCopyImageSubData` permits `width == 0`, and
+   `util_blitter_blit_with_txf`'s bounds test passes such boxes, so the
+   scale computation hit `0/0 = NaN` and the new
+   `assert(fabsf(scale_x) == 1.0f)` aborted debug builds. Degenerate
+   axes substitute scale 1 (no fragments are rasterized).
+
+Cleanups: POSITION declared as sysval **or FS input** per
+`pipe_caps.fs_position_is_sysval` inside `ureg_load_tex` (dropping the
+implicit sysval-only contract and the fragcoord parameter threading;
+`u_blitter.h` flag documented); attribute encoding simplified from
+sign-bits + F2I/AND/AND/I2F/MAD/MAD to `x = scale_x`,
+`y = scale_y * (layer + 0.25)` — decode is one SSG plus an abs source
+modifier, and the 0.25 bias truncates away for both integer array
+layers and half-integer 3D slice centers; `get_texcoords()` skipped
+(not overwritten) in the fragcoord path; the six-target allow-list
+collapsed to the same CUBE/CUBE_ARRAY exclusion
+`util_blitter_blit_with_txf` uses.
+
+Reviewed and rejected as non-issues: constant-varying exactness (the
+error term scales with vertex deltas, zero for constants; verified
+empirically on 2026-07-01), cube transfers (panfrost's
+`sampler_view_target` makes u_blitter sample cubes as 2D-array views,
+which take the exact path), and the zero-fill of unused coordinate
+channels (required: TXF reads `.w` as LOD and `coord.zw` carry large
+offsets).
+
+Revalidation (build `git-e9125bd526`, Rock 5B / Mali-G610):
+
+```text
+repro_blit 16307:                        0/16307
+repro_blit_off X0=8000:                  0 mismatches
+repro_blit_float 16307:                  0/16307
+repro_blit_array 16307:                  0/16307
+repro_blit_scissor:                      0/32612 inside, 0 sentinel hits
+repro_blit_flip 16307x8:                 0/130456 in all 4 orientations
+probe_const K=16000.25:                  0/16307 bit errors
+repro_afbc:                              0/65536
+GALLIUM_TESTS:                           test_unscaled_blit_precision pass (7/7 checks)
+bench_transfer 16307x1 (noreadpixcache): 0.578 ms median, 0 mismatches
+dEQP fbo.msaa.*:                         66 Pass / 4 NotSupported / 0 Fail
+dEQP precision.abs.*:                    24/24
+dEQP MR-comment list:                    22 Pass + known acos QualityWarning
+```
+
+**dEQP harness caveat:** the local dEQP at `/tmp/deqp-gles-ci` was
+rebuilt since 2026-07-01 and now fails 26 `pbo.*` and all 34 runnable
+`fbo.blit.default_framebuffer.*` cases with a **zero-pixel image
+difference judged against a negative threshold** (-9.3e-10). The same
+cases fail bit-identically on the unpatched series build and on shipped
+Mesa 26.0.3 (failure sets diffed: identical), so these are test-harness
+artifacts, not driver regressions. The 2026-07-01 "zero failures across
+1097 tests" matrix was produced by the previous dEQP build.
