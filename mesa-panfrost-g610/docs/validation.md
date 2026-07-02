@@ -283,7 +283,7 @@ panfrost-transfer-targeted-fallback
 ```
 
 The reworked 6-patch series was assembled locally on 2026-07-01
-(`panfrost-transfer-blit-update`, tip `993410a8f25`, not pushed — see
+(`panfrost-transfer-blit-update`, tip `7fedfca1204` (tree-identical to the validated `993410a8f25`), not pushed — see
 [`README.md` § Status](../README.md)). Its validation: full probe battery
 green including flips at non-pow2 widths (`repro_blit_flip` 12000x8 and
 16307x2, all four orientations exact), `GALLIUM_TESTS`

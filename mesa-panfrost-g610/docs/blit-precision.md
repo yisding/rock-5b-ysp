@@ -385,7 +385,7 @@ Fixes: 72ff66c3d73 ("gallium: add unbind_num_trailing_slots to set_shader_images
 
 ## On-Device Verification (2026-07-01)
 
-Four probes run on the ROCK 5B (all archived in
+The probes run on the ROCK 5B (all archived in
 [`../reproducers/`](../reproducers/README.md)) settled the choice between the
 surviving candidates. Builds: `git-2f6e8a6afc` = fragcoord branch,
 `git-6a29250358` = targeted-fallback branch, Mesa 26.0.3 = unfixed system
@@ -425,13 +425,18 @@ path: **0 mismatches at X0 = 1, 623, 8000, 16000** on the fragcoord branch.
 (The earlier PoC concern about non-zero-offset blits is resolved by the full
 affine plumbing; y flips and scissor still need explicit tests.)
 
-**4. No pre-existing corruption in shipped drivers (negative result).**
-`repro_afbc.c` probes the one path that could have hit this bug *before* any
-transfer-mode enablement — the AFBC CPU-map staging blit
-(`pan_blit_to_staging`) — via a wide RGBA8 FBO readback in the matching
-format, incl. `PAN_MESA_DEBUG=forcepack`: **clean on the unfixed Mesa 26.0.3
-system driver**. So the fragcoord fix should be pitched upstream as
-"unblocks `PIPE_TEXTURE_TRANSFER_BLIT`", not as a stable-branch repair.
+**4. Shipped drivers ARE corrupted via direct wide blits (the AFBC CPU-map
+path is clean).** `repro_afbc.c` probes the AFBC CPU-map staging blit
+(`pan_blit_to_staging`) via a wide RGBA8 FBO readback in the matching
+format, incl. `PAN_MESA_DEBUG=forcepack`: clean on the unfixed Mesa 26.0.3
+system driver. But `repro_blit_flip.c` later showed that a *direct* wide
+non-pow2 unscaled `glBlitFramebuffer` **is corrupt on shipped drivers**:
+16307x2 RG32UI on Mesa 26.0.3 returns 29498/32614 wrong texels (first at
+x=1539, fetched 1538) in all four orientations — no transfer-mode cap
+involved. So the fragcoord fix is a bugfix for an already-reachable path
+*and* the BLIT-transfer enabler. Real-world exposure is narrow (drift onset
+between 3000 and 5000 px; pow2 extents exact — see finding 5), which is why
+it went unreported.
 
 **5. The drift only occurs for non-power-of-two primitive extents
 (2026-07-01, `repro_blit_flip.c`).** Unfixed-path 1-row identity

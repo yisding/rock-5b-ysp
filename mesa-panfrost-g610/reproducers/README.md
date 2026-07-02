@@ -11,11 +11,11 @@ directly, so run them on the board with a Mesa build that includes Panfrost.
 | [`repro_blit.c`](repro_blit.c) | End-to-end failure repro: RG32UI→RGBA32UI `glReadPixels` through the u_blitter TXF staging blit |
 | [`repro_blit_off.c`](repro_blit_off.c) | Non-zero-offset variant: subregion readback at `x = X0`, exercising the blit affine's offset term in the fragcoord fix |
 | [`repro_blit_float.c`](repro_blit_float.c) | RG32F→RGBA32F float variant — the counter-example that disqualifies the integer-only state-tracker fallback |
-| [`repro_blit_flip.c`](repro_blit_flip.c) | Flipped `glBlitFramebuffer` probe (negative scale); caught the pixel-center-convention bug and revealed the power-of-two-extent exactness |
+| [`repro_blit_flip.c`](repro_blit_flip.c) | Flipped `glBlitFramebuffer` probe (negative scale); caught the pixel-center-convention bug, revealed the power-of-two-extent exactness, and proved shipped drivers corrupt wide non-pow2 blits |
 | [`probe_interp.c`](probe_interp.c) | Isolates varying interpolation from texture fetch (smooth / noperspective / gl_FragCoord modes) |
 | [`probe_const.c`](probe_const.c) | Constant-varying exactness probe: shows all-vertices-equal smooth varyings interpolate bit-exactly at every magnitude |
 | [`probe_wcorr.c`](probe_wcorr.c) | Shader-side recovery probe: disproves `gl_FragCoord.w` and `dFdx`-based correction |
-| [`repro_afbc.c`](repro_afbc.c) | Negative-result probe: wide RGBA8 FBO readback via the AFBC CPU-map staging path shows NO pre-existing corruption on unfixed drivers |
+| [`repro_afbc.c`](repro_afbc.c) | Scoped negative result: the AFBC CPU-map staging path is clean on unfixed drivers (direct wide blits are NOT — see `repro_blit_flip.c`) |
 | [`bench_transfer.c`](bench_transfer.c) | BLIT-vs-COMPUTE timing microbenchmark for the same readback shape |
 | [`mr42563-comment-failures.txt`](mr42563-comment-failures.txt) | The exact 25 dEQP-GLES3 case names from the MR !42563 review comment, rerun locally after the COMPUTE switch |
 
@@ -240,8 +240,11 @@ Two findings came out of this probe (both 2026-07-01, Mali-G610):
    is why common (pow2 or small) blit sizes never showed the bug, and why
    any regression test must use a large non-pow2 width.
 
-Verified on the final series build: all four modes exact at 12000x8 and
-16307x2.
+Shipped-driver result (Mesa 26.0.3, no series patches): 16307x2 RG32UI
+returns **29498/32614 wrong texels** (first at x=1539, fetched 1538) in all
+four orientations — the corruption is reachable through plain
+`glBlitFramebuffer` today, independent of `texture_transfer_modes`. Verified
+on the final series build: all four modes exact at 12000x8 and 16307x2.
 
 ## `probe_const.c`
 
@@ -312,11 +315,12 @@ Run (also try `PAN_MESA_DEBUG=forcepack`):
 ```
 
 Observed 2026-07-01: **0 mismatches** on both the unfixed system driver
-(Mesa 26.0.3) and the fragcoord branch build. So there is no evidence of
-pre-existing corruption in shipped drivers via this path (the FBO texture
-likely never takes an AFBC layout here, or the map demotes it first), and the
-fragcoord fix should be pitched as "unblocks `PIPE_TEXTURE_TRANSFER_BLIT`",
-**not** as a stable-branch repair.
+(Mesa 26.0.3) and the fragcoord branch build. So *this particular path* is
+clean in shipped drivers (the FBO texture likely never takes an AFBC layout
+here, or the map demotes it first). NOTE: this negative result initially led
+to a too-broad "shipped drivers are unaffected" conclusion — later
+`repro_blit_flip.c` testing showed direct wide non-pow2 `glBlitFramebuffer`
+**is** corrupt on shipped Mesa 26.0.3 (see that probe's section).
 
 ## `bench_transfer.c`
 
