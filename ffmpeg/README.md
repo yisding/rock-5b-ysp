@@ -26,6 +26,9 @@ Companion docs:
 - [`docs/fix-candidates.md`](docs/fix-candidates.md) records the 2026 rebase cleanup fixes
   worth backporting to NyanMisaka's fork, and separates the small V4L2 pieces
   that may be worth proposing to FFmpeg upstream.
+- [`docs/review-learnings.md`](docs/review-learnings.md) captures the review
+  lessons from hardening the `ffmpeg-rockchip-81` rebase: V4L2 fallback, RKMPP
+  AFBC/DRM, and RKRGA capability traps.
 - [`docs/rebase-notes.md`](docs/rebase-notes.md) reconciles all the tree pins, records how
   the fork was replayed onto FFmpeg master, and holds the submission ledger.
 - [`patches/`](patches/README.md) is the exported fix series behind
