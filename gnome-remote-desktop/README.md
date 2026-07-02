@@ -15,7 +15,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | Developer focus | Understand GRD's capture path, FFmpeg encode-session integration, RDP frame-ack behavior, zero-copy buffers, panvk RGB-to-NV12 conversion, and GDM greeter permissions. |
 | Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 7-patch GRD backend series. |
 | Depends on | Kernel drivers, userspace libraries, an rkmpp-enabled FFmpeg build, Mesa/Panfrost Vulkan support, and optional GDM codec ACL packaging. |
-| Current state | The patch series applies to GRD 50.1; the hardware path sustains 60 fps in the measured setup; upstream submission remains pending. See [`../STATUS.md`](../STATUS.md). |
+| Current state | The patch series applies to GRD 50.1; the hardware path sustains 60 fps in the measured setup; upstream submission remains pending. See [`../status.md`](../status.md). |
 
 | Piece | What | Status |
 |-------|------|--------|
@@ -23,24 +23,24 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | **RGB→NV12** | Vulkan (**panvk**) compute on the Mali GPU, explicit-sync dma-buf | ✅ cross-driver panfrost→panvk sync works |
 | **Login screen** | GDM greeter, same path | ✅ with the opt-in [`gdm-hwenc`](../packaging/gdm-hwenc/) package |
 | **Quality** | VBR, artifact-free at ~0.25 bpp target | ✅ after the bitrate fix (below) |
-| **Throughput** | sustained **60 fps** vsync-bound; MPP encode 1.26 ms median (~8 % of the frame budget) | ✅ measured — [`PROFILING.md`](PROFILING.md) |
+| **Throughput** | sustained **60 fps** vsync-bound; MPP encode 1.26 ms median (~8 % of the frame budget) | ✅ measured — [`docs/profiling.md`](docs/profiling.md) |
 
-> **This is the *consumer* layer.** The kernel drivers are in [`patches/`](../patches/),
-> libmpp/librga in [`docs/02`](../docs/02-how-the-userspace-libs-work.md), and the
+> **This is the *consumer* layer.** The kernel drivers are in [`../kernel-drivers/patches/`](../kernel-drivers/patches/),
+> libmpp/librga in [userspace library guide](../userspace-libraries/docs/how-the-userspace-libs-work.md), and the
 > FFmpeg build in [`ffmpeg/`](../ffmpeg/). GRD sits on top of all of it. If the
 > validate script and `tests/` pass, the hard part is already done — GRD is just
 > another `/dev/mpp_service` + `/dev/dma_heap` client.
 
-**Companion docs:** [`DESIGN.md`](DESIGN.md) — why FFmpeg (vs VA-API / direct MPP)
-and the panvk hardware-enablement journey · [`BASELINE.md`](BASELINE.md) — the
+**Companion docs:** [`docs/design.md`](docs/design.md) — why FFmpeg (vs VA-API / direct MPP)
+and the panvk hardware-enablement journey · [`docs/baseline.md`](docs/baseline.md) — the
 measured *before*: why the software path costs ~20 ms/frame (the `glReadPixels`
 readback) and why HW encode is the only real fix ·
-[`MESA-PANFROST-TRANSFER.md`](MESA-PANFROST-TRANSFER.md) — the Mesa/Panfrost
-texture-transfer investigation behind the compute-path finding · [`CAPTURE-PATH.md`](CAPTURE-PATH.md)
+[`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) — the Mesa/Panfrost
+texture-transfer investigation behind the compute-path finding · [`docs/capture-path.md`](docs/capture-path.md)
 — the code map: view-creators, encode-session selection, PipeWire buffer
-negotiation, and where the backend plugs in · [`TESTING.md`](TESTING.md) — the
+negotiation, and where the backend plugs in · [`docs/testing.md`](docs/testing.md) — the
 benchmarking playbook (eviction hazard, env, HW-path checklist) ·
-[`PROFILING.md`](PROFILING.md) — the measured *after*: per-stage timing of the
+[`docs/profiling.md`](docs/profiling.md) — the measured *after*: per-stage timing of the
 HW path (60 fps sustained, jitter breakdown, the working headless harness, the
 client-caps prerequisite, the verification-signal table) · [`patches/`](patches/)
 — the full 7-patch backend series · [`../packaging/ppa/`](../packaging/ppa/) — packaging the whole
@@ -60,7 +60,7 @@ stack for a Launchpad PPA.
         │  librockchip_mpp
    ┌────┴─────────────┬──────────────────────┐
    │ /dev/mpp_service │ /dev/dma_heap/system  │   ← this repo's kernel drivers
-   │  (VEPU580)       │  (frame/stream bufs)  │     (patches/01, docs/01)
+   │  (VEPU580)       │  (frame/stream bufs)  │     (kernel-drivers/patches, docs)
    └──────────────────┴───────────────────────┘
 ```
 
@@ -83,8 +83,8 @@ dma-buf to the encoder zero-copy.
 There are **two independent** `h264_rkmpp` encoders with the same name. Knowing
 which one you have explains everything else on this page. The detailed
 source-level comparison lives in
-[`../ffmpeg/IMPLEMENTATION-COMPARISON.md`](../ffmpeg/IMPLEMENTATION-COMPARISON.md);
-[`../ffmpeg/HOW-FFMPEG-WORKS.md`](../ffmpeg/HOW-FFMPEG-WORKS.md) explains the
+[`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md);
+[`../ffmpeg/docs/how-ffmpeg-works.md`](../ffmpeg/docs/how-ffmpeg-works.md) explains the
 FFmpeg data model around packets, frames, DRM PRIME, and hardware filters. This
 table is the GRD-relevant subset.
 
@@ -215,7 +215,7 @@ codec consumer:
   they exist in no shipped patch.** For verifying a running daemon, use the
   *shipped* signals instead: the `[HWAccel.FFmpeg]` journal lines, the
   `mpp_h264e` thread, and the device fds — the full greppable table is
-  [`PROFILING.md`](PROFILING.md) §7.
+  [`profiling.md`](./docs/profiling.md) §7.
 - **Dump the bitstream.** Writing the first few `AVPacket`s to `/tmp/*.h264` and
   parsing NAL units offline (`SPS=7 PPS=8 IDR=5 P=1`) is what proved "all
   P-slices, no IDR."
@@ -236,12 +236,12 @@ The **full backend patch set** — seven commits that add the rkmpp encode backe
 to a pristine GRD 50.1 — is in [`patches/`](patches/) (verified to `git am` on
 upstream). Patches `0001`–`0003` are the backend, `0004`–`0006` are the
 panvk/hardware-enablement fixes (the "looked like a Mesa bug" journey — see
-[`DESIGN.md`](DESIGN.md)), and `0007` is the two upstream-rkmpp runtime fixes
+[`design.md`](./docs/design.md)), and `0007` is the two upstream-rkmpp runtime fixes
 above (#1 IDR, #2 bitrate). Full map: [`patches/README.md`](patches/README.md).
 
 Bug **#3** (greeter access) is not a code change — it's the udev package in
 [`packaging/gdm-hwenc/`](../packaging/gdm-hwenc/). The design rationale (why FFmpeg
-at all, and the panvk enablement story) is in [`DESIGN.md`](DESIGN.md).
+at all, and the panvk enablement story) is in [`design.md`](./docs/design.md).
 
 ## Packaging & install
 
@@ -255,7 +255,7 @@ Three pieces, built from a vendored GRD fork (upstream 50.1 + the rkmpp backend)
 
 ```bash
 # 1. Codec stack first — kernel drivers + udev + system FFmpeg with rkmpp.
-#    (../INSTALL.md is the chooser + quickstart; ../packaging/codec-udev/ is
+#    (../install.md is the chooser + quickstart; ../packaging/codec-udev/ is
 #    the video-group udev rule.)
 
 # 2. GRD with the backend, + (optionally) the greeter access package:
@@ -264,7 +264,7 @@ sudo apt install ./gnome-remote-desktop-gdm-hwenc_1.0_all.deb    # optional
 
 # 3. Enable + connect an RDP client. Confirm it's on hardware:
 #    the session daemon has an "mpp_h264e" thread and an open /dev/mpp_service fd
-#    (full signal table: PROFILING.md §7; the client must advertise AVC420 — §5).
+#    (full signal table: profiling.md §7; the client must advertise AVC420 — §5).
 ```
 
 The full stack (codec libs + FFmpeg + GRD) is prepared as upload-ready Launchpad

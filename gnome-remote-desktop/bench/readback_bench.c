@@ -1,7 +1,7 @@
 // readback_bench.c — measure the GPU→CPU readback cost that dominates GRD's
 // software-RFX path on RK3588 (Mali-G610 / panfrost).
 //
-// This is the harness behind the numbers in ../BASELINE.md. It reproduces the
+// This is the harness behind the numbers in ../docs/baseline.md. It reproduces the
 // exact operation GRD performs once per frame in its EGL thread
 // (grd-egl-thread.c:963, `glReadPixels(0,0,w,h, GL_BGRA, GL_UNSIGNED_BYTE, dst)`)
 // and times it three ways:
@@ -14,14 +14,14 @@
 // It uses a *surfaceless* desktop-GL context (EGL_MESA_platform_surfaceless),
 // so it touches neither mutter nor any RDP session — safe to run on the live
 // box. It reads a plain RGBA8 FBO, NOT mutter's real AFBC/tiled dma-buf, so the
-// absolute numbers are a lower bound on the real path (see BASELINE.md, "What
+// absolute numbers are a lower bound on the real path (see docs/baseline.md, "What
 // this does and doesn't measure").
 //
 // Build:  cc -O2 -o readback_bench readback_bench.c -lEGL -lGL
 // Run:    ./readback_bench [width] [height] [iterations]
 //         MESA_COMPUTE_PBO=1 ./readback_bench    # route detile+swizzle to GPU
 //
-// The env var is the whole point of the experiment — see BASELINE.md §"levers".
+// The env var is the whole point of the experiment -- see docs/baseline.md "levers".
 
 #define _POSIX_C_SOURCE 199309L
 #include <EGL/egl.h>

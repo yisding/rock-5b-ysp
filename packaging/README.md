@@ -2,7 +2,7 @@
 
 Everything that turns this repo's kernel + userspace work into installable
 artifacts. If you just want codecs working, start with the delivery-model
-chooser in [`../INSTALL.md`](../INSTALL.md); this page is for people **building,
+chooser in [`../install.md`](../install.md); this page is for people **building,
 shipping, or operating** the artifacts.
 
 ## Package brief
@@ -12,14 +12,14 @@ shipping, or operating** the artifacts.
 | User outcome | Choose and operate an install path: combined kernel, DKMS, codec udev rule, GDM greeter ACL package, local debs, or future PPA packages. |
 | Developer focus | Keep deploy artifacts reproducible and auditable: DKMS source staging, udev policy, PPA source packages, rollback, binary publishing, and package boundaries. |
 | Owns | Packaging docs for `codec-udev/`, `gdm-hwenc/`, `dkms/`, `ppa/`, and the operations runbook for the rkmpp FFmpeg stack. |
-| Depends on | Kernel-driver artifacts, userspace libraries, FFmpeg/GRD package sources, and the status gates recorded in [`../STATUS.md`](../STATUS.md). |
+| Depends on | Kernel-driver artifacts, userspace libraries, FFmpeg/GRD package sources, and the status gates recorded in [`../status.md`](../status.md). |
 | Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only; PPA source packages built locally but have not been uploaded. |
 
 ## The four delivery channels
 
 | # | Channel | Lives in | What it delivers | Status |
 |---|---------|----------|------------------|--------|
-| 1 | **Combined Armbian kernel** (`=y`) | [`../scripts/`](../scripts/README.md) + [`../patches/`](../patches/README.md) | Kernel debs with the vendor MPP + RGA drivers built in | Hardware-validated (see [`../STATUS.md`](../STATUS.md)) |
+| 1 | **Combined Armbian kernel** (`=y`) | [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) + [`../kernel-drivers/patches/`](../kernel-drivers/patches/README.md) | Kernel debs with the vendor MPP + RGA drivers built in | Hardware-validated (see [`../status.md`](../status.md)) |
 | 2 | **DKMS on a stock kernel** | [`dkms/`](dkms/README.md) | `rk_vcodec.ko` + `rga3.ko` rebuilt on every kernel update, + a boot-time DT overlay | Compile-tested on 6.18; overlay dtc-validated, **not boot-validated** |
 | 3 | **Local `.debs`** | [`codec-udev/`](codec-udev/README.md), [`gdm-hwenc/`](gdm-hwenc/README.md), `dkms/build-deb.sh` | The udev/ACL rules and the DKMS deb, built on demand | Built + installed on the dev board |
 | 4 | **Launchpad PPA** (userspace) | [`ppa/`](ppa/README.md) | MPP + librga + FFmpeg 8.1.2+rkmpp + GRD as source packages Launchpad builds | Local arm64 binary builds succeeded 2026-06-30; **nothing `dput` yet** |
@@ -35,13 +35,13 @@ shipping, or operating** the artifacts.
 > that is [`codec-udev/`](codec-udev/README.md)'s job (or the same rule via the
 > other two ship methods it documents). Without the dma-heap grant the encoder
 > dies at MPP init even as root's group peer — see
-> [`../docs/10-gotchas.md`](../docs/10-gotchas.md).
+> [`../docs/gotchas.md`](../docs/gotchas.md).
 
 ## Directory index (hub contract)
 
 | Path | One-liner |
 |------|-----------|
-| [`codec-udev/`](codec-udev/README.md) | `rk3588-codec-udev` deb: the `video`-group udev rule for `mpp_service`/`dma_heap`/`rga` (canonical rule: [`../scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules), copied at build time) |
+| [`codec-udev/`](codec-udev/README.md) | `rk3588-codec-udev` deb: the `video`-group udev rule for `mpp_service`/`dma_heap`/`rga` (canonical rule: [`../kernel-drivers/scripts/99-rockchip-codec.rules`](../kernel-drivers/scripts/99-rockchip-codec.rules), copied at build time) |
 | [`dkms/`](dkms/README.md) | `rk3588-vcodec-dkms` deb: out-of-tree DKMS build of the vendor drivers + boot-time DT overlay, for **stock** kernels |
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | `gnome-remote-desktop-gdm-hwenc` deb: opt-in `setfacl g:gdm` udev rule so the **GDM greeter** hardware-encodes too |
 | [`ppa/`](ppa/README.md) | The five Launchpad source packages (mpp, librga, ffmpeg, GRD, gdm-hwenc): design, build notes, upload waves. *(Moved here from `ppa/` 2026-07.)* |
@@ -112,7 +112,7 @@ ffmpeg -f lavfi -i testsrc=size=1280x720:rate=30 -frames:v 60 -c:v h264_rkmpp ou
 ```
 
 Requires the [`codec-udev/`](codec-udev/README.md) rule and `video`-group
-membership; deeper tests in [`../tests/`](../tests/README.md).
+membership; deeper tests in [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md).
 
 ## History — packaging roads not taken
 
@@ -141,7 +141,7 @@ so nobody re-walks them:
    flavours can't break other apps but help only GRD and double the
    maintenance; the encoder-behaviour difference between the two is the
    ffmpeg-rockchip-vs-upstream comparison in
-   [`../ffmpeg/IMPLEMENTATION-COMPARISON.md`](../ffmpeg/IMPLEMENTATION-COMPARISON.md).
+   [`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md).
 4. **Final: system-wide ABI drop-in + PPA.** Upstream FFmpeg 8.1.2 with
    `--enable-rkmpp` has the same seven SONAME majors as Ubuntu's 8.0.1, so it
    replaces the system libs in place — first as local `+rkmpp1` debs, then as
@@ -160,11 +160,11 @@ points here).
   Kbuilds, overlay `.dts`); build artifacts on demand.
 - Built `.deb`s intended for others are published as **GitHub Releases
   assets** on [`yisding/rock-5b-ysp`](https://github.com/yisding/rock-5b-ysp),
-  tagged with the kernel `PHASH` (see [`../INSTALL.md`](../INSTALL.md)) or the
+  tagged with the kernel `PHASH` (see [`../install.md`](../install.md)) or the
   package version, with `sha256sum`s in the release notes, and linked from
   this README. *(None published yet — TODO when the first release is cut.)*
 - `dkms/build/` is disposable output: `bash dkms/build-deb.sh clean` removes it.
-- [`../scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules)
+- [`../kernel-drivers/scripts/99-rockchip-codec.rules`](../kernel-drivers/scripts/99-rockchip-codec.rules)
   stays the **single canonical** udev rule; `codec-udev/build-deb.sh` copies it
   at build time (the copy under `codec-udev/root/…` is gitignored). For
   reference, the substance of the rule:
@@ -184,16 +184,16 @@ the `UPLOAD.md` signing/dput runbook live in the **unversioned** `~/Code/grd-ppa
 [`ppa/README.md`](ppa/README.md)'s quoted fragments alone. **Plan:** import the
 five `debian/` trees + `UPLOAD.md` into `ppa/` (source-only — orig tarballs are
 fetched or `git archive`d per the recipes there). Tracked in
-[`../STATUS.md`](../STATUS.md); described in detail in
+[`../status.md`](../status.md); described in detail in
 [`ppa/README.md`](ppa/README.md) §Import plan.
 
 ## See also
 
-- [`../INSTALL.md`](../INSTALL.md) — the end-to-end chooser + quickstart.
-- [`../docs/08-armbian-packaging.md`](../docs/08-armbian-packaging.md) — the
+- [`../install.md`](../install.md) — the end-to-end chooser + quickstart.
+- [`armbian-packaging.md`](./docs/armbian-packaging.md) — the
   Armbian `media-0001` conflict and the convert-in-place DT trick that both
   kernel channels rely on.
-- [`../docs/12-resyncing.md`](../docs/12-resyncing.md) — the kernel-bump
+- [`../kernel-drivers/docs/resyncing.md`](../kernel-drivers/docs/resyncing.md) — the kernel-bump
   checklist; `dkms/` is a second consumer of every resync fix.
-- [`../GLOSSARY.md`](../GLOSSARY.md) — IEP, PHASH, "combined kernel" vs
+- [`../glossary.md`](../glossary.md) — IEP, PHASH, "combined kernel" vs
   "DKMS", and the rest of the vocabulary used above.

@@ -70,7 +70,7 @@ branch `panfrost-transfer-blit` of `github.com/yisding/mesa`).
 - The annotation block between the commit message and the diff (ignored by
   `git am`) records the full provenance and the
   `BIFROST_MESA_DEBUG=shaders` disassembly-capture method behind the asm
-  listings in [`../blit-precision.md`](../blit-precision.md).
+  listings in [`../blit-precision.md`](../docs/blit-precision.md).
 
 ## `repro_blit.c`
 
@@ -142,7 +142,7 @@ reserved word in GLSL ES, and the probe compiles its shaders as
 `#version 310 es`, so mode 1 fails at shader compile time
 (`illegal use of reserved word 'noperspective'` — observed 2026-07-01). The
 "noperspective is not exact on Mali" claim in
-[`../blit-precision.md`](../blit-precision.md) rests on the Panfrost lowering
+[`../blit-precision.md`](../docs/blit-precision.md) rests on the Panfrost lowering
 (`pan_nir_lower_noperspective.c` routes it through the same perspective
 machinery) and on the compiler-level `prefer_persp = false` experiment, not
 on this probe.
@@ -190,11 +190,11 @@ Useful dimensions from the local timing pass:
 ./bench_transfer 4096 256
 ```
 
-Recorded medians are in [`../validation.md`](../validation.md).
+Recorded medians are in [`../validation.md`](../docs/validation.md).
 
 ## `mr42563-comment-failures.txt`
 
 The exact 25 dEQP cases from the MR !42563 review comment that were rerun
 locally after switching the MR direction to COMPUTE (result: 24/25 Pass, 1
-pre-existing QualityWarning — [`../validation.md`](../validation.md), which
+pre-existing QualityWarning — [`../validation.md`](../docs/validation.md), which
 also records the exact dEQP invocation).

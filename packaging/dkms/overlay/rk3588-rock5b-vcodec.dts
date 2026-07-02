@@ -15,7 +15,7 @@
  *
  * STATUS: dtc-compiles cleanly. RUNTIME-VALIDATE on a stock kernel before relying
  * on it -- a boot-time overlay resolves /aliases differently from the in-tree DT,
- * and the MPP framework derives core_id via of_alias_get_id() (see docs/07,12).
+ * and the MPP framework derives core_id via of_alias_get_id() (see device-tree.md,12).
  * If a core comes up with the wrong core_id ("attach ccu"/core0 errors), the
  * alias fragment below is the thing to revisit.
  *

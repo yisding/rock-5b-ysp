@@ -1,6 +1,6 @@
 # gnome-remote-desktop/bench/
 
-Micro-benchmarks behind [`../BASELINE.md`](../BASELINE.md) — the measured case
+Micro-benchmarks behind [`../baseline.md`](../docs/baseline.md) — the measured case
 for why GRD's software path on RK3588 is CPU-bound and why hardware encode is the
 fix.
 
@@ -17,7 +17,7 @@ software path (`grd-egl-thread.c:963`, `glReadPixels(…, GL_BGRA, …)`), three
 It uses a **surfaceless** desktop-GL context (`EGL_MESA_platform_surfaceless`),
 so it touches neither mutter nor any RDP session — safe to run on the live box.
 It reads a plain RGBA8 FBO, not mutter's real AFBC/tiled capture surface, so
-treat the numbers as a bound rather than the exact in-situ cost (see BASELINE.md
+treat the numbers as a bound rather than the exact in-situ cost (see baseline.md
 §"What the benchmark does and does not measure").
 
 ```bash
@@ -39,7 +39,7 @@ readback on the CPU (nothing to overlap on the GPU); `MESA_COMPUTE_PBO=1` is the
 only config that moves the heavy part onto the (idle) GPU.
 
 The Mesa follow-up is tracked in
-[`../MESA-PANFROST-TRANSFER.md`](../MESA-PANFROST-TRANSFER.md). In short, the
+[`../mesa-panfrost-transfer.md`](../docs/mesa-panfrost-transfer.md). In short, the
 sampled BLIT transfer path was rejected because Mali-G610 varying interpolation
 drifts by about `2^-10` on integer texel-coordinate readbacks; the COMPUTE path
 avoids that interpolator and was slightly faster than BLIT in the local transfer

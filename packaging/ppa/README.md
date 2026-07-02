@@ -68,7 +68,7 @@ The goal was a **drop-in** over Ubuntu's `ffmpeg` so every app gets rkmpp. 8.1.2
 and 8.0.1 are both FFmpeg 8.x, so the seven library SONAME majors are identical
 (`libavcodec.so.62`, `libavutil.so.60`, …) → ABI-compatible.
 The trade-off versus `ffmpeg-rockchip` is documented in
-[`../../ffmpeg/IMPLEMENTATION-COMPARISON.md`](../../ffmpeg/IMPLEMENTATION-COMPARISON.md):
+[`../../ffmpeg/docs/implementation-comparison.md`](../../ffmpeg/docs/implementation-comparison.md):
 upstream FFmpeg 8.1.2 keeps ABI compatibility but lacks ffmpeg-rockchip's RGA
 filters and richer rkmpp encoder controls.
 
@@ -172,7 +172,7 @@ the mpv/VLC decoder-selection caveat are in
   source package.
 - **Not yet done:** no clean-chroot `sbuild` test of #3/#4; **nothing has been
   `dput`** — the PPA, GPG key, and upload are the maintainer's to run.
-  Project-wide snapshot: [`../../STATUS.md`](../../STATUS.md).
+  Project-wide snapshot: [`../../status.md`](../../status.md).
 
 ## Import plan — getting the `debian/` trees into this repo
 
@@ -196,4 +196,4 @@ per the [binary policy](../README.md#binary-policy): no orig tarballs, no
 mpp/librga/ffmpeg; `git archive` of the GRD fork branch for #4; native for #5),
 so `debian/` + this README + `UPLOAD.md` make the PPA work reproducible from a
 clone. Until that lands, the dev box remains a single point of failure for the
-PPA channel (tracked in [`../../STATUS.md`](../../STATUS.md)).
+PPA channel (tracked in [`../../status.md`](../../status.md)).

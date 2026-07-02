@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Build the rk3588-codec-udev .deb from the canonical rule in ../../scripts/.
+# Build the rk3588-codec-udev .deb from the canonical kernel-driver rule.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cp "$DIR/../../scripts/99-rockchip-codec.rules" \
+cp "$DIR/../../kernel-drivers/scripts/99-rockchip-codec.rules" \
    "$DIR/root/usr/lib/udev/rules.d/99-rockchip-codec.rules"
 chmod 0644 "$DIR/root/usr/lib/udev/rules.d/99-rockchip-codec.rules"
 chmod 0755 "$DIR/root/DEBIAN/postinst"

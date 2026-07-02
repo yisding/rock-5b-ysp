@@ -55,7 +55,7 @@ SUBSYSTEM=="dma_heap",  RUN+="…same…"
 ```
 
 > **`KERNEL=="iep"`**: IEP is the BSP's Image Enhancement Processor (video
-> post-processing — see [`GLOSSARY.md`](../../GLOSSARY.md)). This port ships no
+> post-processing — see [`glossary.md`](../../glossary.md)). This port ships no
 > IEP driver and **`/dev/iep` does not exist on the board** (verified
 > 2026-07-01, kernel `6.18.37-current-rockchip64` #7); the line only matters on
 > BSP/vendor kernels that create the node, mirroring the same forward-compat

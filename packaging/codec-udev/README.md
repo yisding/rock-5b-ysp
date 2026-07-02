@@ -2,7 +2,7 @@
 
 The udev rule that makes `/dev/mpp_service`, the DMA-heaps (`/dev/dma_heap/*`),
 and `/dev/rga` usable without root
-([`scripts/99-rockchip-codec.rules`](../../scripts/99-rockchip-codec.rules)) is a
+([`kernel-drivers/scripts/99-rockchip-codec.rules`](../../kernel-drivers/scripts/99-rockchip-codec.rules)) is a
 **userspace** concern — it shouldn't ride inside the kernel deb. Three ways to
 ship it, easiest-to-maintain first. (This rule is needed by **every** delivery
 channel — see the deploy hub, [`../README.md`](../README.md).)
@@ -11,10 +11,10 @@ channel — see the deploy hub, [`../README.md`](../README.md).)
 > DMA-heap, so granting only `mpp_service` is **not enough** — the encoder still
 > dies at MPP init (`MppBufferService get_group failed ... type 1`) because it
 > can't open `/dev/dma_heap/system`. The rule grants the `video` group all three
-> device classes (`mpp_service`, `dma_heap`, `rga`). See [`docs/10`](../../docs/10-gotchas.md).
+> device classes (`mpp_service`, `dma_heap`, `rga`). See [gotchas](../../docs/gotchas.md).
 
 > **What about the `KERNEL=="iep"` line?** IEP is the BSP's Image Enhancement
-> Processor (a video post-processing block — see [`GLOSSARY.md`](../../GLOSSARY.md));
+> Processor (a video post-processing block — see [`glossary.md`](../../glossary.md));
 > the rule covers it *if present*, but **this port does not include an IEP
 > driver and `/dev/iep` does not exist on the board** (verified 2026-07-01,
 > kernel `6.18.37-current-rockchip64` #7). The line is a harmless forward-compat
@@ -24,7 +24,7 @@ channel — see the deploy hub, [`../README.md`](../README.md).)
 
 | File | Role |
 |------|------|
-| `build-deb.sh` | Copies the canonical rule from [`../../scripts/99-rockchip-codec.rules`](../../scripts/99-rockchip-codec.rules) (relative path `../../scripts/` — still correct; `scripts/` did not move in the 2026-07 reorg) and builds the `.deb`. |
+| `build-deb.sh` | Copies the canonical rule from [`../../kernel-drivers/scripts/99-rockchip-codec.rules`](../../kernel-drivers/scripts/99-rockchip-codec.rules) and builds the `.deb`. |
 | `root/DEBIAN/control` | Package metadata (`rk3588-codec-udev`, `Architecture: all`). |
 | `root/DEBIAN/postinst` | `udevadm control --reload-rules && udevadm trigger` — rule takes effect without reboot. |
 | `root/usr/lib/udev/rules.d/99-rockchip-codec.rules` | *(gitignored)* the build-time copy of the canonical rule — never edit here. |
@@ -43,8 +43,8 @@ sudo dpkg -i rk3588-codec-udev_1.0_all.deb
 # postinst runs: udevadm control --reload-rules && udevadm trigger
 ```
 
-`build-deb.sh` copies the canonical rule from `scripts/` so there's one source of
-truth. The built `.deb` and the copied rule are gitignored — commit the *source*
+`build-deb.sh` copies the canonical rule from `kernel-drivers/scripts/` so
+there's one source of truth. The built `.deb` and the copied rule are gitignored — commit the *source*
 (`root/DEBIAN/*`, `build-deb.sh`), build the artifact on demand.
 
 > **Group membership still required.** The rule grants the **`video`** group
@@ -114,7 +114,7 @@ adds the `mpp_service` and `dma_heap` lines. The *upstream-correct* fix — addi
 both to Armbian's `60-media.rules` — is submitted as
 [**armbian/build#10085**](https://github.com/armbian/build/pull/10085); this deb is
 the local equivalent until/unless that lands. (PR status is a volatile external
-fact — last-checked date tracked in the [`STATUS.md`](../../STATUS.md) watchlist.)
+fact — last-checked date tracked in the [`status.md`](../../status.md) watchlist.)
 
 ## Which group — `video` or `render`?
 
@@ -147,7 +147,7 @@ The one nuance: Armbian's *only* pre-existing dma-heap rule (Seeed reComputer,
 is why it picked `render`. On a reComputer board our `60-media.rules` (loaded
 after `50-mali-dma-heap.rules`) would set the heaps to `video`; harmless because
 the documented setup puts users in **both** `video` *and* `render` (Jellyfin tells
-you to join both). See [`docs/10`](../../docs/10-gotchas.md).
+you to join both). See [gotchas](../../docs/gotchas.md).
 
 ## Which to use
 

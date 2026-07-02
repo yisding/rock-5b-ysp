@@ -10,26 +10,26 @@ against the vendor **MPP** + **RGA** libraries so you get `h264_rkmpp` /
 |-------|----------|
 | User outcome | Build or install an FFmpeg that can decode, encode, scale, and transcode through the RK3588 hardware stack. |
 | Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
-| Owns | The FFmpeg build recipe, [`HOW-FFMPEG-WORKS.md`](HOW-FFMPEG-WORKS.md), [`IMPLEMENTATION-COMPARISON.md`](IMPLEMENTATION-COMPARISON.md), rebase notes, fix candidates, and exported patch series. |
+| Owns | The FFmpeg build recipe, companion docs in [`docs/`](docs/how-ffmpeg-works.md), pkg-config examples, and exported patch series in [`patches/`](patches/README.md). |
 | Depends on | Working kernel nodes from [`../kernel-drivers/`](../kernel-drivers/README.md), staged or packaged libraries from [`../userspace-libraries/`](../userspace-libraries/README.md), and the codec udev rule for non-root use. |
-| Current state | The original `ffmpeg-rockchip` build path is hardware-validated; the rebased `ffmpeg-rockchip-81` tree and 9-patch fix series are documented but not what is installed on the board. See [`../STATUS.md`](../STATUS.md). |
+| Current state | The original `ffmpeg-rockchip` build path is hardware-validated; the rebased `ffmpeg-rockchip-81` tree and 9-patch fix series are documented but not what is installed on the board. See [`../status.md`](../status.md). |
 
 Companion docs:
 
-- [`HOW-FFMPEG-WORKS.md`](HOW-FFMPEG-WORKS.md) explains FFmpeg's demux ->
+- [`docs/how-ffmpeg-works.md`](docs/how-ffmpeg-works.md) explains FFmpeg's demux ->
   decode -> filter -> encode -> mux model and where MPP/RGA plug in.
-- [`IMPLEMENTATION-COMPARISON.md`](IMPLEMENTATION-COMPARISON.md) compares
+- [`docs/implementation-comparison.md`](docs/implementation-comparison.md) compares
   upstream FFmpeg 8.1.2 with ffmpeg-rockchip. Short version: ffmpeg-rockchip is
   the full Rockchip CLI pipeline (RKMPP hwcontext + RGA filters + richer encoder
   controls); upstream FFmpeg 8.1.2 is the ABI-friendly codec bridge used by the
   GRD package and needs application-side workarounds for quality and IDR.
-- [`FIX-CANDIDATES.md`](FIX-CANDIDATES.md) records the 2026 rebase cleanup fixes
+- [`docs/fix-candidates.md`](docs/fix-candidates.md) records the 2026 rebase cleanup fixes
   worth backporting to NyanMisaka's fork, and separates the small V4L2 pieces
   that may be worth proposing to FFmpeg upstream.
-- [`REBASE-NOTES.md`](REBASE-NOTES.md) reconciles all the tree pins, records how
+- [`docs/rebase-notes.md`](docs/rebase-notes.md) reconciles all the tree pins, records how
   the fork was replayed onto FFmpeg master, and holds the submission ledger.
 - [`patches/`](patches/README.md) is the exported fix series behind
-  FIX-CANDIDATES (`git format-patch` files + apply instructions).
+  [`docs/fix-candidates.md`](docs/fix-candidates.md) (`git format-patch` files + apply instructions).
 
 **Which tree is current:** this README's recipe builds the nyanmisaka fork at
 `40c412dacc` (2026-04-23) — the tree the kernel-port validation used. Since
@@ -37,8 +37,8 @@ then the whole stack was rebased onto FFmpeg master and given 9 review-fix
 commits: **`github.com/yisding/ffmpeg-rockchip-81`**, branch `main`
 (nyanmisaka upstream: `github.com/nyanmisaka/ffmpeg-rockchip`). If you are
 building fresh today, prefer the rebased tree — it carries the 14 documented
-fix groups ([`FIX-CANDIDATES.md`](FIX-CANDIDATES.md)) and no longer needs
-`--disable-vulkan`. See [`REBASE-NOTES.md`](REBASE-NOTES.md) §3 for what is
+fix groups ([`docs/fix-candidates.md`](docs/fix-candidates.md)) and no longer needs
+`--disable-vulkan`. See [`docs/rebase-notes.md`](docs/rebase-notes.md) §3 for what is
 actually installed/running on the board.
 
 This needs **no system install and no sudo to build** — everything goes into an
@@ -50,7 +50,7 @@ rule).
 | Lib | Where it comes from | Form |
 |-----|---------------------|------|
 | `librockchip_mpp` (`>= 1.3.9`) | build `rockchip-linux/mpp` (the same userspace the codec tests use); the build dir has `librockchip_mpp.so.1` | built from source |
-| `librga` | we linked the **prebuilt** aarch64 `.so` from `airockchip/librga` (`libs/Linux/gcc-aarch64/librga.so` + `include/`); **buildable source** is at `tsukumijima/librga-rockchip` (JeffyCN lineage, Apache-2.0) | prebuilt for convenience; source available (see [`docs/10`](../docs/10-gotchas.md)) |
+| `librga` | we linked the **prebuilt** aarch64 `.so` from `airockchip/librga` (`libs/Linux/gcc-aarch64/librga.so` + `include/`); **buildable source** is at `tsukumijima/librga-rockchip` (JeffyCN lineage, Apache-2.0) | prebuilt for convenience; source available (see [gotchas](../docs/gotchas.md)) |
 | `libdrm` | distro (`libdrm-dev`) | distro |
 | meson/ninja/cmake | distro | distro (no `nasm` needed on arm64) |
 
@@ -61,7 +61,7 @@ rule).
 ## Build MPP (the first input)
 
 The `<mpp-build>` consumed below — and the `mpi_enc_test`/`mpi_dec_test`
-binaries the [`../tests/`](../tests/README.md) smoke tests run — come from a
+binaries the [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) smoke tests run — come from a
 plain native CMake build of `rockchip-linux/mpp`. The build actually used
 (reconstructed 2026-07-01 from the dev-box `build_native/CMakeCache.txt`:
 `develop` branch @ `c2c1ee502b3a`, 2026-03-09, Release, system gcc, all
@@ -79,7 +79,7 @@ Outputs (all relative to `build_native/` = `<mpp-build>`):
 | Artifact | Notes |
 |----------|-------|
 | `mpp/librockchip_mpp.so*` | SONAME `librockchip_mpp.so.1`; on this build the real file is `.so.0` with `.so.1 -> .so.0` and `.so -> .so.1` symlinks — hence the `cp -P` below. |
-| `test/mpi_enc_test`, `test/mpi_dec_test` | The standalone codec smoke-test binaries [`../tests/`](../tests/README.md) uses. |
+| `test/mpi_enc_test`, `test/mpi_dec_test` | The standalone codec smoke-test binaries [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) uses. |
 | `rockchip_mpp.pc` | pkg-config `Version:` is **1.3.9** even on the 2026 `develop` tree — MPP's `.pc` version is decoupled from its release tags (the same source packaged in the PPA is tagged 1.5.0). Satisfies the fork's `>= 1.3.9` check. |
 
 (`build/linux/aarch64/make-Makefiles.bash` in the MPP tree is the vendor
@@ -132,7 +132,7 @@ make -j"$(nproc)"
   `vulkan_av1.c` uses provisional *MESA* Vulkan-AV1 types that modern Vulkan
   headers replaced with *KHR* ones, and it fails to compile. Unrelated to the
   rk codecs. The rebased `ffmpeg-rockchip-81` tree builds with Vulkan enabled
-  ([`REBASE-NOTES.md`](REBASE-NOTES.md) §3).
+  ([`docs/rebase-notes.md`](docs/rebase-notes.md) §3).
 - The `-Wl,-rpath,$STAGE/lib` makes the resulting `./ffmpeg` find
   `librockchip_mpp.so.1` + `librga.so` at runtime (verify with `ldd ./ffmpeg`).
 
@@ -146,7 +146,7 @@ make -j"$(nproc)"
   -vf scale_rkrga=w=1280:h=720:format=nv12 -c:v hevc_rkmpp -b:v 4M out.mp4
 ```
 
-See [`../tests/transcode-test.sh`](../tests/transcode-test.sh) for the full
+See [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) for the full
 two-way test. Note `scale_rkrga` keeps aspect ratio by default — add
 `:force_original_aspect_ratio=disable` for exact dimensions.
 
@@ -179,5 +179,5 @@ ffmpeg-rockchip's `configure` probes for.
 Or drop RGA entirely: `rkrga` is optional — `h264_rkmpp` / `hevc_rkmpp`
 decode+encode work without it (you lose HW scale/CSC). The fully-mainline path is
 the **V4L2** RGA driver (RGA2 merged ~6.12; RGA3 under review) — subset features
-only. See [`docs/10`](../docs/10-gotchas.md) and
-[`docs/09`](../docs/09-vanilla-kernel.md).
+only. See [gotchas](../docs/gotchas.md) and
+[vanilla-kernel guide](../kernel-drivers/docs/vanilla-kernel.md).
