@@ -16,13 +16,17 @@
 set -uo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "Run as root:  sudo bash $0"; exit 1; }
 
-FFDIR=/home/yi/Code/ffmpeg-rockchip
-STAGE=/home/yi/Code/rock5b-kernel-debug/ffmpeg-stack
+# Paths (env-overridable; defaults = the original dev box, see README.md):
+#   FFDIR = ffmpeg-rockchip build dir (./ffmpeg + ./ffprobe -- ../ffmpeg/README.md)
+#   STAGE = the MPP/RGA staging prefix from ../ffmpeg/README.md (e.g. ~/ffmpeg-stack)
+#   IN    = 1080p H.264 Annex-B input (regeneration recipe in README.md)
+FFDIR="${FFDIR:-/home/yi/Code/ffmpeg-rockchip}"
+STAGE="${STAGE:-/home/yi/Code/rock5b-kernel-debug/ffmpeg-stack}"
 FF="$FFDIR/ffmpeg"
 PROBE="$FFDIR/ffprobe"
 export LD_LIBRARY_PATH="$STAGE/lib"        # belt + suspenders (binary also has rpath)
 
-IN="$STAGE/testdata/input-1080p.h264"
+IN="${IN:-$STAGE/testdata/input-1080p.h264}"
 OUTDIR=/tmp/rk-transcode
 mkdir -p "$OUTDIR"
 OUT1="$OUTDIR/t1-720p.hevc.mp4"

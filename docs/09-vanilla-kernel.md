@@ -35,25 +35,34 @@ below is decoder-only.
 
 ### What the inline form must add that convert-in-place inherited
 
-The convert-in-place form (`docs/08`) inherits four things from `media-0001`'s
+The convert-in-place form ([`docs/08`](08-armbian-packaging.md)) inherits four things from `media-0001`'s
 nodes. The inline form has no node to inherit from, so it must **declare them
 itself**:
 
 - **`interrupts`** on every core *and* MMU — convert-in-place sets only
-  `interrupt-names`. The SPI numbers come from the **BSP/TRM**; this repo has no
-  in-tree source for them (see the warning below).
+  `interrupt-names`. The DT patch itself never pins the decoder SPI numbers, but
+  they are now **verified on the working board** (see the note below).
 - **`iommus`** and the **`rkvdecN_mmu`** iommu nodes — convert-in-place reuses
   media's `vdecN_mmu`.
 - **`power-domains`** on each core/MMU.
 - the **`vdecN_sram`** RCB pools (children of `system_sram2@ff001000`) —
   convert-in-place reuses media's pool nodes untouched.
 
-> **Verify the SPI numbers.** The `interrupts = <GIC_SPI 95 …>` below (and the MMU
-> IRQs) are **placeholders**. Because convert-in-place *inherits* `interrupts`
-> from `media-0001`, **no source in this repo confirms them** for the inline
-> decoder. Treat every decoder `GIC_SPI` value here as **"verify against
-> BSP/TRM,"** not known-good. (The encoder IRQs *are* in-tree and verified — see
-> `docs/07` — but the decoder's are not.)
+> **The decoder SPI numbers are board-verified.** Every decoder `GIC_SPI` value
+> and the MMU `reg`-window layout below were verified on the working ROCK 5B
+> (2026-07-01, kernel `6.18.37-current-rockchip64 #7`) against three agreeing
+> sources: `/proc/interrupts` (`GICv3 127/129` for the cores = SPI 95/97,
+> hwirq = SPI + 32; `GICv3 128` = SPI 96 for the IOMMUs), the live
+> `/proc/device-tree` node properties, and the text of Armbian's
+> `media-0001-Add-rkvdec-Support-v5.patch` (whose `interrupts` the running
+> convert-in-place build inherits). Full 5-minute re-verification procedure:
+> [`docs/07` § Interrupts](07-device-tree.md#interrupts-gic-spi).
+>
+> **One non-obvious fact:** the two decoder IOMMUs **share** `GIC_SPI 96` — one
+> interrupt line for both `iommu@fdc38700` and `iommu@fdc40700`
+> (`/proc/interrupts`: `GICv3 128 Level  fdc38700.iommu, fdc40700.iommu`). Don't
+> give `rkvdec1_mmu` its own number. (The encoder IRQs are additionally pinned
+> in-tree — see [`docs/07`](07-device-tree.md).)
 
 ### Complete inline decoder DT (copy-pasteable)
 
@@ -61,8 +70,8 @@ Drop this into `rk3588-base.dtsi` (cores/CCU/MMUs as siblings of `av1d@fdc70000`
 plus the `&system_sram2` / `&{/aliases}` fragments. Lines marked `DIFF` differ
 from the convert-in-place form. Clock/reset macro names, `core-mask`, `rcb-*`,
 `taskqueue-node`, and base addresses are all verified against the driver + DT
-patch; only the `GIC_SPI` numbers and the exact MMU `reg`-window layout need
-BSP/TRM confirmation.
+patch; the `GIC_SPI` numbers and the MMU `reg`-window layout are verified against
+the running board + `media-0001` (blockquote above).
 
 ```dts
 rkvdec_ccu: rkvdec-ccu@fdc30000 {
@@ -86,7 +95,7 @@ rkvdec0: rkvdec-core@fdc38000 {              /* DIFF: full node (convert form is
     reg = <0x0 0xfdc38100 0x0 0x400>,        /* "regs" at core+0x100 -> io_base; MMU = io_base+0x600 = fdc38700 */
           <0x0 0xfdc38000 0x0 0x100>;        /* "link" at core+0x000 */
     reg-names = "regs", "link";
-    interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH 0>;  /* DIFF: present (inherited in convert). SPI# UNVERIFIED -- confirm vs BSP/TRM */
+    interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH 0>;  /* DIFF: present (inherited in convert). Verified on board 2026-07-01 */
     interrupt-names = "irq_rkvdec0";
     clocks = <&cru ACLK_RKVDEC0>, <&cru HCLK_RKVDEC0>, <&cru CLK_RKVDEC0_CORE>,
              <&cru CLK_RKVDEC0_CA>, <&cru CLK_RKVDEC0_HEVC_CA>;
@@ -116,8 +125,8 @@ rkvdec0: rkvdec-core@fdc38000 {              /* DIFF: full node (convert form is
 
 rkvdec0_mmu: iommu@fdc38700 {                 /* DIFF: full node (convert reuses media's vdec0_mmu) */
     compatible = "rockchip,rk3588-iommu", "rockchip,rk3568-iommu";
-    reg = <0x0 0xfdc38700 0x0 0x40>, <0x0 0xfdc38740 0x0 0x40>;  /* reg-window count + IRQ per BSP/media vdecN_mmu -- verify */
-    interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH 0>;             /* UNVERIFIED -- confirm vs BSP/TRM */
+    reg = <0x0 0xfdc38700 0x0 0x40>, <0x0 0xfdc38740 0x0 0x40>;  /* two 0x40 windows -- verified vs live DT + media-0001 */
+    interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH 0>;             /* verified on board; SHARED with vdec1's MMU (one line for both) */
     clocks = <&cru ACLK_RKVDEC0>, <&cru HCLK_RKVDEC0>;
     clock-names = "aclk", "iface";
     power-domains = <&power RK3588_PD_RKVDEC0>;
@@ -130,7 +139,7 @@ rkvdec1: rkvdec-core@fdc40000 {
     compatible = "rockchip,rkv-decoder-v2";
     reg = <0x0 0xfdc40100 0x0 0x400>, <0x0 0xfdc40000 0x0 0x100>;
     reg-names = "regs", "link";
-    interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH 0>;  /* UNVERIFIED -- confirm vs BSP/TRM */
+    interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH 0>;  /* verified on board 2026-07-01 */
     interrupt-names = "irq_rkvdec1";
     clocks = <&cru ACLK_RKVDEC1>, <&cru HCLK_RKVDEC1>, <&cru CLK_RKVDEC1_CORE>,
              <&cru CLK_RKVDEC1_CA>, <&cru CLK_RKVDEC1_HEVC_CA>;
@@ -160,8 +169,8 @@ rkvdec1: rkvdec-core@fdc40000 {
 
 rkvdec1_mmu: iommu@fdc40700 {
     compatible = "rockchip,rk3588-iommu", "rockchip,rk3568-iommu";
-    reg = <0x0 0xfdc40700 0x0 0x40>, <0x0 0xfdc40740 0x0 0x40>;  /* verify vs BSP */
-    interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH 0>;             /* UNVERIFIED -- confirm vs BSP/TRM */
+    reg = <0x0 0xfdc40700 0x0 0x40>, <0x0 0xfdc40740 0x0 0x40>;  /* two 0x40 windows -- verified vs live DT + media-0001 */
+    interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH 0>;             /* verified on board: SAME line as vdec0's MMU (shared), NOT 98 */
     clocks = <&cru ACLK_RKVDEC1>, <&cru HCLK_RKVDEC1>;
     clock-names = "aclk", "iface";
     power-domains = <&power RK3588_PD_RKVDEC1>;
@@ -198,11 +207,15 @@ Verified-good above (against the driver + the shipped DT patch): all base
 addresses, the `regs`/`link` split, the 5 clock + 5 reset macro names for both
 cores, `core-mask` (`0x00010001` / `0x00020002`), `taskqueue-node = <9>`,
 `rcb-iova`, `rcb-info`, `rcb-min-width`, `ccu-mode`, and the SRAM `@0`/`@78000`
-arithmetic. **Unverified — confirm against BSP/TRM:** every decoder `GIC_SPI`
-number and the exact MMU `reg`-window count. These same vendor node bodies also
-live in the **commit history** of the dev tree (the state *before* the
-convert-in-place rewrite); the convert-in-place commit is precisely the diff
-between this inline form and the `&vdec0 { … }` form (`docs/08`).
+arithmetic. Verified-good against the **running board + `media-0001`**
+(2026-07-01, blockquote above): every decoder `GIC_SPI` number (95 / 97 cores,
+96 shared MMU line) and the two-window `0x40`+`0x40` MMU `reg` layout. Note
+`rockchip,disable-mmu-reset` on the MMU nodes matches the validated config too —
+the shipped DT patch's `&vdec0_mmu`/`&vdec1_mmu` overrides add it. To reproduce
+the exact trees these anchors resolve against (forward-port tree, `media-0001`
+source), see [`docs/00`](00-source-trees.md); the convert-in-place commit is
+precisely the diff between this inline form and the `&vdec0 { … }` form
+([`docs/08`](08-armbian-packaging.md)).
 
 ### Don't ship a working-but-degraded node
 
@@ -228,9 +241,15 @@ Pick one stack. Either:
 
 ## Newer kernels (6.19+)
 
-Re-check the **6.18-specific API adaptations** in `docs/05`, especially:
+**Read [`docs/12`](12-resyncing.md) first** — it is the dedicated resync
+playbook (the two shim-inclusion mechanisms and their opposite failure modes,
+the ranked forward-compat hazards, the delta re-measurement). In short, re-check
+the **6.18-specific API adaptations** in [`docs/05`](05-vendor-forward-port.md),
+especially:
 - `iommu_set_fault_handler()` `cookie_type` guard (IOMMU core churns often),
 - any `iommu_map()` / `dma-buf` / devfreq signature drift.
 
 The compat-shim + hack-file structure is designed to localize such churn; expect
-to touch `mpp_iommu.c` and the `compat/` headers, little else.
+to touch `mpp_iommu.c` and the `compat/` headers, little else. If your target is
+**mainline master** (which now carries its own `&vdec0`/`&vdec1` nodes), the DT
+side changes shape — see [`docs/13 § 5`](13-rewrite-drivers.md).

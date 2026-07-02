@@ -6,6 +6,13 @@ and code pointers for kernel developers. Each section opens **In plain terms**,
 then goes **Under the hood**. Its companion, [`docs/02`](02-how-the-userspace-libs-work.md),
 covers the userspace libraries.
 
+> **Anchors.** The `file:line` references in this doc (`mpp_common.c ~:2316`,
+> `mpp_common.h ~:389`, …) resolve against the **forward-port source tree**,
+> which lives in this repo only inside
+> [`patches/rk3588-rkvenc2-01-vcodec-rga-drivers.patch`](../patches/). To browse
+> it, reconstruct the tree per [`docs/00`](00-source-trees.md) (apply the patch
+> to mainline v6.18).
+
 ---
 
 ## 1. What problem do these solve?
@@ -252,6 +259,46 @@ refcount subtleties right here — `docs/11` — which is why these paths get ex
 scrutiny.) RGA does the equivalent in `rga_mm.c`/`rga_dma_buf.c`. This caching +
 refcounting is the zero-copy backbone of the transcode pipeline.
 
+## 5a. RGA's fences — ordering async work (dma-fence & sync_file)
+
+**In plain terms.** A *sync* RGA op blocks until the hardware finishes. An
+*async* op returns immediately — so how do you know when the result is ready,
+and how does the next stage avoid reading a half-written buffer? The kernel's
+answer is a **fence**: a tiny "this work is done" signal that travels as a file
+descriptor, just like a dma-buf. RGA hands you one when you submit async work
+(the **release fence**, `out_fence_fd`) and accepts one from you (the
+**acquire fence**) so it won't start until your producer has finished — stages
+synchronize on fences instead of CPU waits.
+
+**Under the hood** (`rga3/rga_fence.c` + `rga_job.c`; note the MPP codec driver
+has **no** fence path — its completion is the poll/wake of §3a):
+- **Driver-private fence context.** `rga_fence_context_init()` (`rga_fence.c`
+  ~:26) does `dma_fence_context_alloc(1)`; `rga_dma_fence_alloc()` (~:53) mints
+  each fence with a bumped per-context seqno.
+- **Export — the release fence.** On an `RGA_BLIT_ASYNC` submit,
+  `rga_request_submit()` allocates the release fence (`rga_job.c` ~:1244) and
+  `rga_dma_fence_get_fd()` (`rga_fence.c` ~:73) wraps it in a **sync_file**
+  (`sync_file_create()` + `fd_install()`) — that fd is the
+  `release_fence_fd`/`out_fence_fd` userspace gets back
+  ([`docs/02` §B4](02-how-the-userspace-libs-work.md), [`docs/03` §B](03-dev-uapis.md)).
+  On completion (or error) the driver signals it —
+  `rga_dma_fence_signal(request->release_fence, …)` (`rga_job.c` ~:836, ~:1048)
+  — and every waiter wakes.
+- **Import — the acquire fence.** If the submit carries `acquire_fence_fd > 0`,
+  the driver pulls the fence back out of its sync_file (`sync_file_get_fence()`,
+  `rga_fence.c` ~:96) and, rather than blocking, registers a **callback**
+  (`rga_request_add_acquire_fence_callback()`, `rga_job.c` ~:544): the job is
+  committed from a work item only *after* the producer's fence signals
+  (`rga_request_acquire_fence_work`, ~:954); an already-signaled fence commits
+  immediately.
+- **Build wiring.** The RGA Kconfig `select`s `SYNC_FILE` (`rga3/Kconfig:6`) so
+  the sync_file plumbing is always present — one of the wiring lines counted in
+  [`docs/06` §5](06-vendor-delta.md).
+- **Audit note.** The [`docs/11`](11-bsp-audit.md) audit found real bugs on
+  exactly this path: an acquire-fence `dma_fence` reference leaked on every path
+  (HIGH, `rga_job.c`) and an unlocked seqno increment (`rga_fence.c`) — fixes
+  staged in [`patches/cleanup-split/`](../patches/cleanup-split/).
+
 ---
 
 ## 6. Key concept: the IOMMU (and why the hardware sees "fake" addresses)
@@ -482,7 +529,8 @@ That's the whole machine: a thin, fast path from a user command down to dedicate
 silicon and back, with the IOMMU keeping it safe, dma-buf keeping it cheap, and the
 CCU/DCHS keeping both cores busy.
 
-> Want to see it run? `tests/` exercises each path; `docs/04-status.md` has the
-> measured results (encode 720p ~300–360 fps, decode ~1200–1600 fps, full
-> transcode 17–42× realtime). For the libraries on top, read
-> [`docs/02`](02-how-the-userspace-libs-work.md).
+> Want to see it run? `tests/` exercises each path; the raw observed numbers
+> live in [`tests/README.md`](../tests/README.md) and the validated-on-hardware
+> scorecard in [`docs/04`](04-status.md) (encode 720p ~297–359 fps, decode
+> ~1200–1600 fps @ 320×240, full transcode 17–42× realtime). For the libraries
+> on top, read [`docs/02`](02-how-the-userspace-libs-work.md).

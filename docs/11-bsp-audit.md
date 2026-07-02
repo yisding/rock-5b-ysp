@@ -2,6 +2,34 @@
 
 A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA driver code, and a **draft** cleanup patch series derived from it. This is *separate* from the conservative forward-port — none of it is applied to the shipped kernel.
 
+> **📦 How to consume the fixes.** Review and apply via
+> [`patches/cleanup-split/`](../patches/cleanup-split/) — **the** reviewable
+> series: 65 ordered per-issue mailbox patches (each commit message carries
+> `Plain-language impact:` + `Kernel details:` trailers). Byte-identity with
+> the verified per-file aggregate held for the `aa859ad` drop only — since
+> `808f7cb` the applied tree diverges in 8 files (deliberate strengthenings,
+> **not** covered by the adversarial verification) and the series currently
+> **fails to compile at patch 0024**; see
+> [`patches/cleanup-split/README.md` § History](../patches/cleanup-split/README.md)
+> for the accurate record and the one-line remedy.
+> [`patches/cleanup-draft/`](../patches/cleanup-draft/) is the *historical*
+> per-file bundle form, kept as the audit's assembly history together with
+> [`VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md), the verification
+> record both forms rest on.
+> **⏳ The runtime regression gate is PENDING** — the adversarial verification
+> and compile gate cover the draft/`aa859ad` content only (not the `808f7cb`
+> strengthenings), and the runtime codec regression
+> (encode/decode/transcode + the targeted triggers) has not been run; see
+> VERIFICATION.md's status table and the [`STATUS.md`](../STATUS.md) row before
+> shipping.
+>
+> **Upstreaming intent:** these defects are latent in the upstream Rockchip BSP
+> too, and the split series is deliberately written in upstream mailbox style.
+> Nothing has been submitted anywhere as of 2026-07-01; the submission target
+> (Rockchip BSP, Armbian, or mainline alongside the
+> [`docs/13`](13-rewrite-drivers.md) rewrite drivers) is **TODO: owner
+> decision**.
+
 ## How it was produced
 
 - **15** shipped driver files (`mpp/` + `rga3/`) reviewed through **3 lenses** (correctness, resource-safety, concurrency/security/cleanup) — 45 reviewers.
@@ -12,6 +40,15 @@ A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA drive
 ## ⚠️ Status — read before using the patches
 
 These patches are **machine-generated, adversarially-LLM-verified, and compile-tested on arm64 — but NOT human-merge-reviewed.** They are a *starting point*, not merge-ready.
+
+> **How this squares with "adversarially verified" below:** both are true, and the
+> resolution lives in [`cleanup-draft/VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md).
+> Every hunk *was* adversarially re-verified by independent LLM passes against the
+> real source — that review found and fixed 2 rejects + 1 hold + 3 incomplete
+> fixes plus 5 pre-existing bugs, and re-verified the corrections SAFE. What has
+> **not** happened is (a) a human merge review and (b) the runtime regression
+> gate. "LLM-verified" ≠ "human-reviewed" ≠ "runtime-proven"; the series currently
+> has the first only.
 
 > **Concrete proof review is required:** while assembling the series, one ambiguous text-match doubled a `kref_put` in `mpp_dma_release()` (a function that takes a buffer directly), introducing a **use-after-free** — the fix was meant for `mpp_dma_release_fd()`. It compiled fine. It was caught by hand and reverted. **Treat every refcount/bounds/security edit as needing review.** One arm32-only edit (`CONFIG_ARM_DMA_USE_IOMMU`) was left unapplied (untestable on arm64).
 
@@ -48,7 +85,7 @@ These patches are **machine-generated, adversarially-LLM-verified, and compile-t
 
 [^count]: **"89" is reviewer-findings across three lenses, not 89 distinct bugs.** Each file was reviewed by three independent agents (correctness / resource-safety / concurrency-security-cleanup), so the same defect is often reported 2–3×. After collapsing duplicates there are **~70 distinct `file:line` sites**, and they map to **15 patches** (one per file). Examples of double/triple-counting: `mpp_common.c:250` appears 3× (1 high + 2 low) for the one unchecked `kzalloc`; `mpp_rkvdec2.c:350` and `:359` are the **same** OOB write (the read of `reg_idx` and the write through it) counted as two HIGHs; `rga_mm.c:1555` appears 3× (all the same `rga_mm_get_buffer` refcount/out-param bug); `rga_drv.c:804` and `mpp_rkvenc2.c:3141`/`:3152` are each one bug counted twice. The per-file **Findings** column above counts reviewer rows; the [verification matrix](#appendix--finding--patch-status) collapses them to distinct sites.
 
-> **Line-number pin.** All `line:` numbers in this document are against the **forward-port HEAD *before* any cleanup patch is applied** (the parent of commit `56e403e`). They drift as soon as a patch lands in the same file — e.g. after `mpp_common.patch`'s first hunk, every later line in `mpp_common.c` shifts down by the lines it inserted. Re-derive against your working tree, or use the function name + nearby code as the stable anchor.
+> **Line-number pin.** All `line:` numbers in this document are against the **forward-port HEAD *before* any cleanup patch is applied** (the parent of commit `56e403e`). To reconstruct that exact tree from this repo alone — `git checkout v6.18` + `git am` the two `patches/rk3588-rkvenc2-*.patch` — see [`docs/00`](00-source-trees.md) § the audited-tree pin. Line numbers drift as soon as a patch lands in the same file — e.g. after `mpp_common.patch`'s first hunk, every later line in `mpp_common.c` shifts down by the lines it inserted. Re-derive against your working tree, or use the function name + nearby code as the stable anchor.
 
 These are **latent in the upstream Rockchip BSP** too — the forward-port kept the code ~98% as-is.
 
@@ -471,18 +508,26 @@ The only bound is an **upper** bound. A zero-length write (`write(fd, "", 0)`, t
 ---
 ## How to apply & verify a cleanup patch
 
-The drafts in [`cleanup-draft/`](../patches/cleanup-draft/) are **`git show`-style single-commit slices**: all 15 were carved from the one assembly commit `56e403e` ("WIP: BSP audit cleanup edits"), one file per patch, each carrying the full commit header plus that file's diff. Because every patch is self-contained and touches exactly one source file, both `git am` and `git apply` work per-file, in any order.
+**Preferred path:** apply the whole series from
+[`cleanup-split/`](../patches/cleanup-split/) (`git am` the 65 mailbox patches —
+see its README for the apply command, the cherry-picker warnings, and the atomic
+pairs). Each change arrives as one reviewable commit — but since `808f7cb` the
+tree is **no longer byte-identical** to applying the 15 per-file drafts below
+(8-file divergence, plus the 0024 compile defect; see that README § History).
+
+The per-file form: the drafts in [`cleanup-draft/`](../patches/cleanup-draft/) are **`git show`-style single-commit slices**: all 15 were carved from the one assembly commit `56e403e` ("WIP: BSP audit cleanup edits"), one file per patch, each carrying the full commit header plus that file's diff. Because every patch is self-contained and touches exactly one source file, both `git am` and `git apply` work per-file, in any order (except the `mpp_iommu` + `mpp_rkvenc2` **atomic pair** — see VERIFICATION.md).
 
 **The catch:** the relative path `patches/cleanup-draft/...` only exists in *this* repo (`rock-5b-ysp`), **not** inside the kernel tree. Apply with an **absolute path** (or `git apply --directory`). From the forward-ported kernel checkout:
 
 ```bash
 cd /path/to/linux-6.18-rkvenc          # the forward-ported tree
 git checkout -b bsp-cleanup
+YSP=/path/to/rock-5b-ysp               # this repo
 
 # git apply with an absolute path to the patch:
-git apply --reject /home/yi/Code/rock-5b-ysp/patches/cleanup-draft/mpp_rkvdec2.patch
+git apply --reject $YSP/patches/cleanup-draft/mpp_rkvdec2.patch
 #   …or git am to keep the commit message:
-git am /home/yi/Code/rock-5b-ysp/patches/cleanup-draft/mpp_rkvdec2.patch
+git am $YSP/patches/cleanup-draft/mpp_rkvdec2.patch
 
 # build-check just the touched subtree:
 make ARCH=arm64 drivers/video/rockchip/
@@ -525,15 +570,24 @@ Each patch has **fewer hunks than the per-file Findings column** (which counts r
 
 One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse to — `(×N)` marks how many rows fold in). Every site is in the shipped draft and **applied**, except the single arm32-only WARN_ON, which `mpp_iommu.patch` deliberately **leaves unapplied**. `sev`: H/M/L/C = high/medium/low/cleanup.
 
+> **"applied" ≠ "applied on the first try."** The adversarial verification pass
+> ([`VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md)) found **2
+> rejects + 1 hold + 3 incomplete fixes** among the machine-generated edits; all
+> six were corrected and re-verified SAFE before the shipped draft was cut. The
+> affected rows below are marked **applied (corrected)** — their first-draft fix
+> was wrong or incomplete, and the shipped hunk is the *corrected* one. The pass
+> also fixed 5 pre-existing bugs *beyond* these 89 findings (not in this table —
+> see VERIFICATION.md § Follow-up fixes).
+
 | file | function | line | sev | class | in draft? | verify-confidence |
 |------|----------|-----:|:---:|-------|-----------|-------------------|
 | mpp_common.c | get_task_msgs | 250 (×3) | H | null-deref | applied | high |
 | mpp_common.c | clear_task_msgs | 303 | M | fd/file leak | applied | high |
-| mpp_common.c | mpp_collect_msgs | 1582 | H | type-confusion | applied | high |
+| mpp_common.c | mpp_collect_msgs | 1582 | H | type-confusion | applied (corrected: + `:1580` `get_task_msgs` NULL-guard) | high |
 | mpp_common.c | mpp_collect_msgs | 1592 (×2) | M | fd/file leak | applied | high |
 | mpp_common.c | mpp_check_req | 1943 (×2) | M | logic (clamp) | applied | high |
 | mpp_common.c | mpp_extract_reg_offset_info | 1960 | M | security (copy len) | applied | high |
-| mpp_iommu.c | mpp_dma_find_buffer_fd | 78 | M | refcount-race-uaf | applied | high |
+| mpp_iommu.c | mpp_dma_find_buffer_fd | 78 | M | refcount-race-uaf | applied (corrected: was REJECT — +1 contract now honored by all 3 callers; **atomic pair** with `mpp_rkvenc2.patch`) | high |
 | mpp_iommu.c | mpp_dma_import_fd | 269 | C | dead `CONFIG_DMABUF_CACHE` | applied | high |
 | mpp_iommu.c | mpp_iommu_probe | 553 | L | null-deref (arm32) | **left-unapplied** | med (untestable on arm64) |
 | mpp_rkvdec2.c | rkvdec2_extract_task_msg | 319 | L | ignored return | applied | high |
@@ -557,18 +611,18 @@ One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse
 | mpp_rkvenc2.c | rkvenc_attach_ccu | 2969 | L | pdev ref leak | applied | high |
 | mpp_rkvenc2.c | rkvenc_core_probe | 3141+3152 (×2) | H | missing mpp_dev_remove | applied | high |
 | mpp_service.c | mpp_register_service | 150 (×2) | L | device_create unchecked | applied | high |
-| mpp_service.c | mpp_service_probe | 426 (×2) | M | class leak | applied | high |
+| mpp_service.c | mpp_service_probe | 426 (×2) | M | class leak | applied (corrected: was HOLD — cleanup loop OOB read; now clamps `taskqueue_cnt=0` first) | high |
 | mpp_service.c | mpp_service_probe | 435 (×2) | M | kthread_run ERR_PTR | applied | high |
 | mpp_service.c | mpp_service_probe | 445 (×2) | M | class/kthread leak | applied | high |
 | mpp_service.c | mpp_service_probe | 494 (×2) | M | fail_register leak | applied | high |
 | rga_common.c | rga_get_format_name | 307 (×2) | L | swapped names | applied | high |
-| rga_common.c | rga_image_size_cal | 770 | L | signed overflow | applied | high |
+| rga_common.c | rga_image_size_cal | 770 | L | signed overflow | applied (corrected: + `w/h ≤ 65535` bound closing the residual `s64` overflow) | high |
 | rga_debugger.c | rga_debug_write (+3) | 82 (×2) | M | OOB write `buf[-1]` | applied | high |
 | rga_debugger.c | rga_mm_session_show | 285 (×2) | C | format string | applied | high |
 | rga_debugger.c | rga_request_manager_show | 378 | L | task_count race | applied | high |
 | rga_debugger.c | rga_dump_image_to_file | 936 | M | vmap mapping leak | applied | high |
 | rga_dma_buf.c | rga_virtual/dma_memory_check | 14+27 | M | dead code + unchecked memcpy | applied (deleted) | high |
-| rga_drv.c | rga_ioctl_import_buffer | 670 | L | partial import orphan | applied | high |
+| rga_drv.c | rga_ioctl_import_buffer | 670 | L | partial import orphan | applied (corrected: was REJECT — first draft freed just-imported buffers on the success path) | high |
 | rga_drv.c | rga_ioctl_request_create | 751 | M | errno in u32 | applied | high |
 | rga_drv.c | rga_ioctl_request_submit | 804 (×2) | H | request ref leak | applied | high |
 | rga_drv.c | rga_ioctl (GET_HW_VERSION) | 945 | M | stack infoleak | applied | high |
@@ -580,7 +634,7 @@ One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse
 | rga_job.c | rga_job_scheduler_timeout_clean | 316 | L | jiffies vs ms | applied | high |
 | rga_job.c | rga_request_add_acquire_fence_callback | 603 | M | race treated fatal | applied | high |
 | rga_job.c | rga_request_scheduler_shutdown | 682 | H | sleep-in-atomic | applied | high |
-| rga_job.c | rga_request_acquire_fence_signaled_cb | 991 | H | fence ref leak | applied | high |
+| rga_job.c | rga_request_acquire_fence_signaled_cb | 991 | H | fence ref leak | applied (corrected: + the `:572` `-EFAULT`-path acquire-fence put the first draft missed) | high |
 | rga_mm.c | rga_mm_map_dma_buffer | 502 | C | redundant ternary | applied | high |
 | rga_mm.c | rga_mm_set_mmu_base | 1256 | H | NULL plane deref | applied | high |
 | rga_mm.c | rga_mm_set_mmu_base | 1272 | L | wrong elem size | applied | high |
@@ -595,9 +649,18 @@ One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse
 **Reading it:** every applied row's edit was traced to its `cleanup-draft/*.patch` hunk *and* the pre-cleanup source (line/function/mechanism confirmed) — that is the "high" confidence. The lone `mpp_iommu.c:553` row is the one **left-unapplied**: a real but arm32-only (`CONFIG_ARM_DMA_USE_IOMMU`) latent `mapping->domain` deref that cannot be exercised on the arm64 target.
 
 ---
-## Draft patch series
+## The cleanup patch series (two forms)
 
-Per-file diffs are in [`cleanup-draft/`](../patches/cleanup-draft/). They apply on top of the forward-port (`patches/`). All compile clean on arm64 (`make drivers/video/rockchip/`). **Review each before merging** — see [How to apply & verify a cleanup patch](#how-to-apply--verify-a-cleanup-patch) for the runnable recipe and the per-patch hunk→finding map; start with the HIGH-severity items above.
+- **[`cleanup-split/`](../patches/cleanup-split/)** — **the reviewable series**:
+  65 ordered per-issue mailbox patches. Consume the fixes here — noting the
+  post-`808f7cb` divergence from the draft aggregate and the 0024 compile
+  defect recorded in its README § History.
+- **[`cleanup-draft/`](../patches/cleanup-draft/)** — the historical per-file
+  bundles (15 patches, one per source file) plus
+  [`VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md), the verification
+  record. Kept as history; the hunk→finding map above indexes into it.
+
+Both apply on top of the forward-port (`patches/`). All compile clean on arm64 (`make drivers/video/rockchip/`). **Review each before merging** — see [How to apply & verify a cleanup patch](#how-to-apply--verify-a-cleanup-patch) for the runnable recipe and the per-patch hunk→finding map; start with the HIGH-severity items above.
 
 > **These drafts have been adversarially verified _and corrected_** — see
 > [`cleanup-draft/VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md).
@@ -605,5 +668,11 @@ Per-file diffs are in [`cleanup-draft/`](../patches/cleanup-draft/). They apply 
 > clean but introduced a new bug), plus **5 pre-existing bugs beyond these 89
 > findings**; **all are now fixed and re-verified SAFE**, so all 15 patches apply
 > and the safe set passes a compile-gate. One footgun: `mpp_iommu.patch` +
-> `mpp_rkvenc2.patch` are an **atomic pair**. Apply per VERIFICATION.md; runtime
-> regression is the remaining gate.
+> `mpp_rkvenc2.patch` are an **atomic pair** (in the split series, patch `0007`
+> carries that cross-file contract — never drop it while taking later rkvenc2
+> patches). Apply per VERIFICATION.md.
+>
+> **⏳ The runtime regression gate is PENDING** — encode/decode/transcode plus
+> the targeted triggers have not been re-run on a kernel carrying these fixes.
+> Track it in [`STATUS.md`](../STATUS.md); record the result in VERIFICATION.md
+> when run.

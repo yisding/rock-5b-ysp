@@ -18,5 +18,6 @@
 # it is a harmless no-op on systems without GDM.
 KERNEL=="mpp_service", RUN+="/bin/sh -c 'getent group gdm >/dev/null 2>&1 && /usr/bin/setfacl -m g:gdm:rw $devnode'"
 KERNEL=="rga",         RUN+="/bin/sh -c 'getent group gdm >/dev/null 2>&1 && /usr/bin/setfacl -m g:gdm:rw $devnode'"
+# iep = BSP Image Enhancement Processor; not created by this port (no /dev/iep) -- harmless if absent
 KERNEL=="iep",         RUN+="/bin/sh -c 'getent group gdm >/dev/null 2>&1 && /usr/bin/setfacl -m g:gdm:rw $devnode'"
 SUBSYSTEM=="dma_heap",  RUN+="/bin/sh -c 'getent group gdm >/dev/null 2>&1 && /usr/bin/setfacl -m g:gdm:rw $devnode'"

@@ -3,8 +3,12 @@
 `patches/rk3588-rkvenc2-02-vcodec-rga-dt.patch` touches two files:
 `rk3588-base.dtsi` (the nodes, all `status = "disabled"` by default) and
 `rk3588-rock-5b.dtsi` (the board enables them). The encoder and RGA are defined
-**inline**; the decoder is **convert-in-place** for Armbian (see `docs/08`) or
-inline for vanilla (see `docs/09`).
+**inline**; the decoder is **convert-in-place** for Armbian (see
+[`docs/08`](08-armbian-packaging.md)) or inline for vanilla (see
+[`docs/09`](09-vanilla-kernel.md)). A third variant exists for **post-6.18
+mainline-master**, where mainline itself defines `&vdec0`/`&vdec1` and the
+override targets *those* nodes (same `fdc38100`/`fdc38000` regs/link split) —
+see [`docs/13 § 5`](13-rewrite-drivers.md) for that bring-up DT.
 
 ## Glossary (terms used below)
 
@@ -62,20 +66,52 @@ vendor driver has zero hard-coded decoder addresses (all access is DT
 not address), so the move is purely a DT change.
 
 ### Interrupts (GIC SPI)
-Verified in-tree (`rk3588-base.dtsi`, encoder block):
 
-| Node | Core IRQ | MMU IRQ(s) |
-|------|----------|------------|
-| `rkvenc0` / `rkvenc0_mmu` | SPI 101 | SPI 99, SPI 100 |
-| `rkvenc1` / `rkvenc1_mmu` | SPI 104 | SPI 102, SPI 103 |
+All SPI numbers below are **verified live on the working board** (2026-07-01,
+kernel `6.18.37-current-rockchip64 #7`, combined kernel) via `/proc/interrupts`
+and the running `/proc/device-tree` — see the verification procedure below. The
+encoder rows are also pinned in-tree (`rk3588-base.dtsi`, encoder block of the DT
+patch); the decoder rows are **inherited**, not in-tree (next paragraph).
 
-The encoder MMU carries **two** IRQs (a dual read/write channel — see below). The
-**decoder** IRQs are *not* in this tree: the convert-in-place cores inherit
-`interrupts` from Armbian's `media-0001` node and override only `interrupt-names`
-(`"irq_rkvdec0"` / `"irq_rkvdec1"`), so no in-tree source pins the decoder SPI
-numbers. The inline (vanilla) form must supply them from the BSP/TRM (`docs/09`).
-Either way the IRQ is mandatory: `platform_get_irq(pdev, 0)` (`mpp_common.c:2206`)
-fails the probe if no `interrupts` resolves.
+| Node | Core IRQ | MMU IRQ(s) | Pinned by | Board hwirq (core / MMU) |
+|------|----------|------------|-----------|--------------------------|
+| `rkvenc0` / `rkvenc0_mmu` | SPI 101 | SPI 99, SPI 100 | in-tree (DT patch) | 133 / 131, 132 |
+| `rkvenc1` / `rkvenc1_mmu` | SPI 104 | SPI 102, SPI 103 | in-tree (DT patch) | 136 / 134, 135 |
+| `rkvdec0` / `vdec0_mmu` | SPI 95 | SPI 96 (**shared**) | inherited from `media-0001` | 127 / 128 |
+| `rkvdec1` / `vdec1_mmu` | SPI 97 | SPI 96 (**shared**) | inherited from `media-0001` | 129 / 128 |
+
+The encoder MMU carries **two** IRQs (a dual read/write channel — see below).
+The **two decoder IOMMUs share one line**: both `vdec0_mmu` and `vdec1_mmu`
+declare `GIC_SPI 96`, so `/proc/interrupts` shows a single row
+`GICv3 128 Level  fdc38700.iommu, fdc40700.iommu` (the rockchip-iommu driver
+requests it shared). Do **not** "fix" an inline DT to give `vdec1_mmu` its own
+number — SPI 96 for both is what the silicon (and `media-0001`, and the running
+board) has.
+
+The decoder IRQs are still *not pinned in this repo's DT patch*: the
+convert-in-place cores inherit `interrupts` from Armbian's `media-0001` node and
+override only `interrupt-names` (`"irq_rkvdec0"` / `"irq_rkvdec1"`). The inline
+(vanilla) form must supply them itself — the verified values live in
+[`docs/09`](09-vanilla-kernel.md)'s copy-pasteable block. Either way the IRQ is
+mandatory: `platform_get_irq(pdev, 0)` (`mpp_common.c:2206`) fails the probe if
+no `interrupts` resolves.
+
+**Verification procedure (5 minutes, on any board where the port runs):**
+
+```bash
+grep -E 'video-codec|iommu' /proc/interrupts
+#  GICv3 <hwirq>: for SPI interrupts, hwirq = GIC_SPI + 32
+#  → 127 = SPI 95 (fdc38100.video-codec), 129 = SPI 97 (fdc40100.video-codec),
+#    128 = SPI 96 (fdc38700.iommu, fdc40700.iommu — one shared row)
+
+od -A x -t x1z /proc/device-tree/video-codec@fdc38000/interrupts
+#  16 bytes = 4 be32 cells: 00000000 0000005f 00000004 00000000
+#  = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH 0>   (GIC_SPI = 0, IRQ_TYPE_LEVEL_HIGH = 4)
+```
+
+Cross-check: Armbian's `media-0001-Add-rkvdec-Support-v5.patch` declares exactly
+these values (`vdec0` SPI 95, `vdec1` SPI 97, both MMUs SPI 96) — the same node
+text the convert-in-place build inherits and the board runs.
 
 ## Encoder vs decoder differences
 
@@ -116,7 +152,7 @@ aliases {
 
 ### 2. Enable the CCU with the cores
 A node named `*-core@…` always dispatches to the CCU-attaching probe (see
-`docs/05`). Enable the CCU **and** both cores **and** both IOMMUs together, or you
+[`docs/05`](05-vendor-forward-port.md)). Enable the CCU **and** both cores **and** both IOMMUs together, or you
 get `attach ccu failed` and nothing registers:
 
 ```dts
@@ -166,7 +202,7 @@ rkvdec0: rkvdec-core@fdc38000 {              /* unit-addr = link window; name ha
     /* NB: no MMU reg here. The driver hardcodes ioremap(io_base + 0x600, 0x80)   */
     /* = 0xfdc38100 + 0x600 = 0xfdc38700 (mpp_rkvdec2.c:1944). Set idx0 to        */
     /* 0xfdc38000 by mistake and the MMU maps 0xfdc38600 -- the WRONG page.       */
-    interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH 0>;  /* SPI# from BSP/TRM -- UNVERIFIED in this tree (docs/09) */
+    interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH 0>;  /* verified on board 2026-07-01 -- see Interrupts table + docs/09 */
     interrupt-names = "irq_rkvdec0";
     clocks = <&cru ACLK_RKVDEC0>, <&cru HCLK_RKVDEC0>, <&cru CLK_RKVDEC0_CORE>,
              <&cru CLK_RKVDEC0_CA>, <&cru CLK_RKVDEC0_HEVC_CA>;        /* 5 clocks */
@@ -207,4 +243,4 @@ Each decoder core points at an on-chip SRAM pool via `rockchip,sram = <&vdecN_sr
 and an `rcb-iova`/`rcb-info` map. The driver translates the SRAM phandle with
 `of_address_to_resource()` and `iommu_map()`s the physical region as the RCB — it
 does **not** use a gen_pool, which is why the convert-in-place reuses Armbian's
-`pool;`-flavored SRAM nodes untouched (`docs/08`).
+`pool;`-flavored SRAM nodes untouched ([`docs/08`](08-armbian-packaging.md)).

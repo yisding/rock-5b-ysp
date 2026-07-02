@@ -109,12 +109,15 @@ flowchart TB
   hw --> heap
 ```
 
-The kernel and uAPI docs explain what happens after libmpp/librga issue their
-ioctls. This document is about the FFmpeg side of the handoff.
+The kernel docs ([`docs/01`](../docs/01-how-the-drivers-work.md)) and uAPI docs
+([`docs/03`](../docs/03-dev-uapis.md)) explain what happens after libmpp/librga
+issue their ioctls. This document is about the FFmpeg side of the handoff.
 
 ## 3. A full ffmpeg-rockchip transcode
 
-The repo's full transcode test is the cleanest FFmpeg example:
+The repo's full transcode test
+([`../tests/transcode-test.sh`](../tests/transcode-test.sh), documented in
+[`../tests/README.md`](../tests/README.md)) is the cleanest FFmpeg example:
 
 ```bash
 ffmpeg -hwaccel rkmpp -hwaccel_output_format drm_prime -i in.h264 \

@@ -21,20 +21,28 @@
 #   change a patch hit the content-addressed cache (survives the re-patch mtime
 #   churn that defeats Armbian's worktree-incremental) and finish in ~10-15 min.
 #
+# PREREQUISITE: an Armbian build tree at <repo>/armbian-build (sibling of this
+#   scripts/ dir): `git clone https://github.com/armbian/build <repo>/armbian-build`
+#   with the port patches in place -- see README.md and ../docs/08. Debs land in
+#   <repo>/armbian-build/output/debs, which is also where install-combined-kernel.sh
+#   looks by default.
+#
 # USAGE:
 #   bash build-combined-kernel.sh                 # build, ccache on
 #   nohup bash build-combined-kernel.sh &         # background (long build)
 #   bash build-combined-kernel.sh KERNEL_CONFIGURE=yes   # extra args pass through
 #
-# After it finishes, point combined-kernel/install-combined-kernel.sh PHASH at
+# After it finishes, point install-combined-kernel.sh (same directory) PHASH at
 # the new P####-C#### hash printed below, then install + reboot + validate.
 # =============================================================================
 set -euo pipefail
 
-BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../armbian-build" && pwd)"
+# <repo>/armbian-build -- resolved relative to this script so the friendly
+# error below (not a cryptic `cd` failure under set -e) fires when it's absent.
+BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/armbian-build"
 DEBS="$BUILD_DIR/output/debs"
 
-[ -x "$BUILD_DIR/compile.sh" ] || { echo "Missing Armbian build tree: $BUILD_DIR" >&2; exit 1; }
+[ -x "$BUILD_DIR/compile.sh" ] || { echo "Missing Armbian build tree: $BUILD_DIR -- clone https://github.com/armbian/build there (see README.md)" >&2; exit 1; }
 cd "$BUILD_DIR"
 
 echo ">>> Building combined Rock 5B kernel (ccache ON) in: $BUILD_DIR"

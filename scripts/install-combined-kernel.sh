@@ -17,10 +17,16 @@
 set -uo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "Run as root:  sudo bash $0"; exit 1; }
 
-DEBS=/home/yi/Code/rock5b-kernel-debug/armbian-build/output/debs
-ENV=/boot/armbianEnv.txt
-HASH='6.18.37'           # the just-built kernel
-PHASH='Pb6ab-Cb831'      # patch+config hash that identifies this exact build
+# Where build-combined-kernel.sh writes its debs: <repo>/armbian-build/output/debs.
+# All four knobs are env-overridable, e.g.  sudo DEBS=/path/to/debs bash $0
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEBS="${DEBS:-$REPO/armbian-build/output/debs}"
+ENV="${ENV:-/boot/armbianEnv.txt}"
+HASH="${HASH:-6.18.37}"            # kernel version of the just-built debs
+PHASH="${PHASH:-Pb6ab-Cb831}"      # patch+config hash pinning this exact build
+                                   # (printed by build-combined-kernel.sh -- update after each build)
+
+[ -d "$DEBS" ] || { echo "No deb dir: $DEBS -- run build-combined-kernel.sh first (or set DEBS=)"; exit 1; }
 
 echo "================= STEP 1: locate the just-built debs ================="
 IMG=$(ls -t "$DEBS"/linux-image-current-rockchip64_*"$HASH"*"$PHASH"*.deb 2>/dev/null | head -1)
@@ -60,7 +66,7 @@ echo
 echo "DONE.  Reboot into the combined kernel when ready:"
 echo "    sudo reboot"
 echo "After reboot, validate all three accelerators:"
-echo "    sudo bash /home/yi/Code/rock5b-kernel-debug/combined-kernel/validate-combined.sh"
+echo "    sudo bash $REPO/scripts/validate-combined.sh"
 echo
 echo "ROLLBACK (if needed): pick the previous kernel in the boot menu, or restore"
 echo "  $ENV.bak-precombined-* and re-run apt/dpkg for the old linux-image."

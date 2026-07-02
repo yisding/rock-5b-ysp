@@ -1,0 +1,324 @@
+From 021c7102d8e43f41e44bb2bd4de96a3b7ca4c0d7 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 09:30:17 -0700
+Subject: [PATCH 1/9] Fix RKMPP and V4L2 review regressions
+
+---
+ libavcodec/rkmppdec.c         | 27 +++++++++++----
+ libavcodec/rkmppenc.c         | 64 ++++++++++++++++++++++++++---------
+ libavcodec/rkmppenc.h         |  4 +++
+ libavdevice/v4l2-common.c     |  2 --
+ libavdevice/v4l2.c            |  4 +--
+ libswscale/swscale_unscaled.c | 35 ++++++++++++-------
+ 6 files changed, 97 insertions(+), 39 deletions(-)
+
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index 4a413c4237..c10e1af2bb 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -119,14 +119,19 @@ static int get_afbc_byte_stride(const AVPixFmtDescriptor *desc,
+ static void read_soc_name(AVCodecContext *avctx, char *name, int size)
+ {
+     const char *dt_path = "/proc/device-tree/compatible";
+-    int fd = open(dt_path, O_RDONLY);
++    int fd;
+ 
++    if (size <= 0)
++        return;
++
++    snprintf(name, size, "unknown");
++
++    fd = open(dt_path, O_RDONLY);
+     if (fd < 0) {
+         av_log(avctx, AV_LOG_VERBOSE, "Unable to open '%s' for reading SoC name\n", dt_path);
+     } else {
+         ssize_t soc_name_len = 0;
+ 
+-        snprintf(name, size - 1, "unknown");
+         soc_name_len = read(fd, name, size - 1);
+         if (soc_name_len > 0) {
+             name[soc_name_len] = '\0';
+@@ -977,9 +982,17 @@ static int rkmpp_send_eos(AVCodecContext *avctx)
+     }
+     mpp_packet_set_eos(mpp_pkt);
+ 
+-    do {
+-        ret = r->mapi->decode_put_packet(r->mctx, mpp_pkt);
+-    } while (ret != MPP_OK);
++    ret = r->mapi->decode_put_packet(r->mctx, mpp_pkt);
++    if (ret != MPP_OK) {
++        int log_level = (ret == MPP_NOK ||
++                         ret == MPP_ERR_BUFFER_FULL) ? AV_LOG_TRACE : AV_LOG_ERROR;
++        int err = (ret == MPP_NOK ||
++                   ret == MPP_ERR_BUFFER_FULL) ? AVERROR(EAGAIN) : AVERROR_EXTERNAL;
++
++        av_log(avctx, log_level, "Failed to put EOS packet to decoder input queue: %d\n", ret);
++        mpp_packet_deinit(&mpp_pkt);
++        return err;
++    }
+ 
+     r->draining = 1;
+ 
+@@ -1168,7 +1181,9 @@ static int rkmpp_decode_receive_frame(AVCodecContext *avctx, AVFrame *frame)
+             if (ret == AVERROR_EOF) {
+                 av_log(avctx, AV_LOG_DEBUG, "Decoder is at EOF\n");
+                 /* send EOS and start draining */
+-                rkmpp_send_eos(avctx);
++                ret = rkmpp_send_eos(avctx);
++                if (ret < 0 && ret != AVERROR(EAGAIN))
++                    goto exit;
+                 ret = rkmpp_get_frame(avctx, frame, MPP_TIMEOUT_BLOCK);
+                 goto exit;
+             } else if (ret == AVERROR(EAGAIN)) {
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index 1fe12e3eb6..be5c753b43 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -194,13 +194,12 @@ static int get_afbc_byte_stride(const AVPixFmtDescriptor *desc,
+     return (*stride > 0) ? 0 : AVERROR(EINVAL);
+ }
+ 
+-static unsigned get_used_frame_count(MPPEncFrame *list)
++static unsigned get_sent_frame_count(MPPEncFrame *list)
+ {
+     unsigned count = 0;
+ 
+     while (list) {
+-        if (list->queued == 1 &&
+-            (list->frame || list->mpp_frame))
++        if (list->queued && list->sent)
+             ++count;
+         list = list->next;
+     }
+@@ -208,6 +207,20 @@ static unsigned get_used_frame_count(MPPEncFrame *list)
+     return count;
+ }
+ 
++static MPPEncFrame *get_oldest_unsent_frame(MPPEncFrame *list)
++{
++    MPPEncFrame *out = NULL;
++
++    while (list) {
++        if (list->queued && !list->sent && list->mpp_frame &&
++            (!out || list->order < out->order))
++            out = list;
++        list = list->next;
++    }
++
++    return out;
++}
++
+ static void clear_unused_frames(MPPEncFrame *list)
+ {
+     while (list) {
+@@ -230,6 +243,7 @@ static void clear_unused_frames(MPPEncFrame *list)
+ 
+                 av_frame_free(&list->frame);
+                 list->queued = 0;
++                list->sent = 0;
+             }
+         }
+         list = list->next;
+@@ -737,6 +751,8 @@ static MPPEncFrame *rkmpp_submit_frame(AVCodecContext *avctx, AVFrame *frame)
+     mpp_enc_frame = get_free_frame(&r->frame_list);
+     if (!mpp_enc_frame)
+         return NULL;
++    mpp_enc_frame->sent = 0;
++    mpp_enc_frame->order = r->frame_order++;
+ 
+     if ((ret = mpp_frame_init(&mpp_frame)) != MPP_OK) {
+         av_log(avctx, AV_LOG_ERROR, "Failed to init MPP frame: %d\n", ret);
+@@ -1047,25 +1063,37 @@ static int rkmpp_encode_frame(AVCodecContext *avctx, AVPacket *packet,
+                    !(avctx->flags & AV_CODEC_FLAG_LOW_DELAY)
+                    ? MPP_TIMEOUT_NON_BLOCK : MPP_TIMEOUT_BLOCK;
+ 
+-    if (get_used_frame_count(r->frame_list) > r->async_frames)
+-        goto get;
++    if (!frame)
++        timeout = MPP_TIMEOUT_BLOCK;
+ 
+-    mpp_enc_frame = rkmpp_submit_frame(avctx, (AVFrame *)frame);
+-    if (!mpp_enc_frame) {
+-        av_log(avctx, AV_LOG_ERROR, "Failed to submit frame on input\n");
+-        return AVERROR(ENOMEM);
++    clear_unused_frames(r->frame_list);
++
++    if (frame || !r->eos_queued) {
++        mpp_enc_frame = rkmpp_submit_frame(avctx, (AVFrame *)frame);
++        if (!mpp_enc_frame) {
++            av_log(avctx, AV_LOG_ERROR, "Failed to submit frame on input\n");
++            return AVERROR(ENOMEM);
++        }
++        if (!frame)
++            r->eos_queued = 1;
+     }
+ 
+ send:
+-    ret = rkmpp_send_frame(avctx, mpp_enc_frame);
+-    if (ret == AVERROR(EAGAIN))
+-        goto send;
+-    else if (ret)
+-        return ret;
++    mpp_enc_frame = get_oldest_unsent_frame(r->frame_list);
++    if (mpp_enc_frame &&
++        get_sent_frame_count(r->frame_list) <= r->async_frames) {
++        ret = rkmpp_send_frame(avctx, mpp_enc_frame);
++        if (ret == AVERROR(EAGAIN))
++            goto get;
++        else if (ret)
++            return ret;
++        mpp_enc_frame->sent = 1;
++    }
+ 
+ get:
+     ret = rkmpp_get_packet(avctx, packet, timeout);
+-    if (!frame && ret == AVERROR(EAGAIN))
++    if (!frame && ret == AVERROR(EAGAIN) &&
++        get_oldest_unsent_frame(r->frame_list))
+         goto send;
+     if (ret == AVERROR_EOF ||
+         ret == AVERROR(EAGAIN))
+@@ -1083,6 +1111,8 @@ static av_cold int rkmpp_encode_close(AVCodecContext *avctx)
+     RKMPPEncContext *r = avctx->priv_data;
+ 
+     r->cfg_init = 0;
++    r->eos_queued = 0;
++    r->frame_order = 0;
+     r->async_frames = 0;
+ 
+     if (r->mcfg) {
+@@ -1145,6 +1175,8 @@ static av_cold int rkmpp_encode_init(AVCodecContext *avctx)
+     int ret;
+ 
+     r->cfg_init = 0;
++    r->eos_queued = 0;
++    r->frame_order = 0;
+     r->async_frames = 0;
+ 
+     if ((coding_type = rkmpp_get_coding_type(avctx)) == MPP_VIDEO_CodingUnused) {
+@@ -1252,7 +1284,7 @@ static av_cold int rkmpp_encode_init(AVCodecContext *avctx)
+             ret = AVERROR(ENOMEM);
+             goto fail;
+         }
+-        avctx->extradata_size = pkt_len + AV_INPUT_BUFFER_PADDING_SIZE;
++        avctx->extradata_size = pkt_len;
+         memcpy(avctx->extradata, pkt_pos, pkt_len);
+         memset(avctx->extradata + pkt_len, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+         mpp_packet_deinit(&mpp_pkt);
+diff --git a/libavcodec/rkmppenc.h b/libavcodec/rkmppenc.h
+index 4e300b5e50..a0169e7778 100644
+--- a/libavcodec/rkmppenc.h
++++ b/libavcodec/rkmppenc.h
+@@ -50,7 +50,9 @@ typedef struct MPPEncFrame {
+     MppFrame            mpp_frame;
+     MppEncUserDataSet   mpp_sei_set;
+     struct MPPEncFrame *next;
++    int64_t             order;
+     int                 queued;
++    int                 sent;
+ } MPPEncFrame;
+ 
+ typedef struct RKMPPEncContext {
+@@ -68,7 +70,9 @@ typedef struct RKMPPEncContext {
+     enum AVPixelFormat pix_fmt;
+ 
+     MPPEncFrame       *frame_list;
++    int64_t            frame_order;
+     int                async_frames;
++    int                eos_queued;
+ 
+     int                rc_mode;
+     int                qp_init;
+diff --git a/libavdevice/v4l2-common.c b/libavdevice/v4l2-common.c
+index f7b25e4afa..ebfd2b6d8d 100644
+--- a/libavdevice/v4l2-common.c
++++ b/libavdevice/v4l2-common.c
+@@ -49,8 +49,6 @@ const struct fmt_map ff_fmt_conversion_table[] = {
+ #ifdef V4L2_PIX_FMT_Z16
+     { AV_PIX_FMT_GRAY16LE,AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_Z16     },
+ #endif
+-    { AV_PIX_FMT_NV24,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV24    },
+-    { AV_PIX_FMT_NV16,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV16    },
+     { AV_PIX_FMT_NV12,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV12    },
+ #ifdef V4L2_PIX_FMT_NV16
+     { AV_PIX_FMT_NV16,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV16    },
+diff --git a/libavdevice/v4l2.c b/libavdevice/v4l2.c
+index 63d8a527da..f95b928f31 100644
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -860,8 +860,8 @@ static int v4l2_set_parameters(AVFormatContext *ctx)
+                 av_err2str(ret), tpf->denominator, tpf->numerator);
+         } else if (framerate_q.num && framerate_q.den) {
+             // use user defined framerate for further error cases.
+-            tpf->numerator   = framerate_q.num;
+-            tpf->denominator = framerate_q.den;
++            tpf->numerator   = framerate_q.den;
++            tpf->denominator = framerate_q.num;
+             av_log(ctx, AV_LOG_WARNING, "ioctl(VIDIOC_G_PARM): %s, using framerate %d/%d\n",
+                 av_err2str(ret), framerate_q.num, framerate_q.den);
+         } else {
+diff --git a/libswscale/swscale_unscaled.c b/libswscale/swscale_unscaled.c
+index 35cdcadf3c..0ad4a107a8 100644
+--- a/libswscale/swscale_unscaled.c
++++ b/libswscale/swscale_unscaled.c
+@@ -226,6 +226,23 @@ static int nv24ToPlanarWrapper(SwsInternal *c, const uint8_t *const src[],
+     return srcSliceH;
+ }
+ 
++static av_always_inline uint16_t nv15_20ToSample(const uint8_t *src,
++                                                 int sample, int shift)
++{
++    src += 5 * (sample >> 2);
++
++    switch (sample & 3) {
++    case 0:
++        return (((src[1] & 0x03) << 8) | (src[0] & 0xFF)) << shift;
++    case 1:
++        return (((src[2] & 0x0F) << 6) | ((src[1] >> 2) & 0x3F)) << shift;
++    case 2:
++        return (((src[3] & 0x3F) << 4) | ((src[2] >> 4) & 0x0F)) << shift;
++    default:
++        return (((src[4] & 0xFF) << 2) | ((src[3] >> 6) & 0x03)) << shift;
++    }
++}
++
+ static int nv15_20ToPlanarWrapper(SwsInternal *c, const uint8_t *const src[],
+                                   const int srcStride[], int srcSliceY,
+                                   int srcSliceH, uint8_t *const dstParam[],
+@@ -254,13 +271,8 @@ static int nv15_20ToPlanarWrapper(SwsInternal *c, const uint8_t *const src[],
+     for (y = srcSliceH; y > 0; y--) {
+         const uint8_t *tsrcY = srcY;
+         uint16_t *tdstY = dstY;
+-        for (x = c->opts.src_w / 4; x > 0; x--) {
+-            *tdstY++ = (((tsrcY[1] & 0x3 ) << 8) | (tsrcY[0]        & 0xFF)) << shift[0];
+-            *tdstY++ = (((tsrcY[2] & 0xF ) << 6) | ((tsrcY[1] >> 2) & 0x3F)) << shift[0];
+-            *tdstY++ = (((tsrcY[3] & 0x3F) << 4) | ((tsrcY[2] >> 4) & 0xF )) << shift[0];
+-            *tdstY++ = (((tsrcY[4] & 0xFF) << 2) | ((tsrcY[3] >> 6) & 0x3 )) << shift[0];
+-            tsrcY += 5;
+-        }
++        for (x = 0; x < c->opts.src_w; x++)
++            *tdstY++ = nv15_20ToSample(tsrcY, x, shift[0]);
+         srcY += srcStride[0];
+         dstY += dstStride[0] / sizeof(uint16_t);
+     }
+@@ -268,12 +280,9 @@ static int nv15_20ToPlanarWrapper(SwsInternal *c, const uint8_t *const src[],
+     for (y = srcSliceH / vsub; y > 0; y--) {
+         const uint8_t *tsrcUV = srcUV;
+         uint16_t *tdstU = dstU, *tdstV = dstV;
+-        for (x = c->chrSrcW / 2; x > 0; x--) {
+-            *tdstU++ = (((tsrcUV[1] & 0x3 ) << 8) | (tsrcUV[0]        & 0xFF)) << shift[1];
+-            *tdstV++ = (((tsrcUV[2] & 0xf ) << 6) | ((tsrcUV[1] >> 2) & 0x3F)) << shift[2];
+-            *tdstU++ = (((tsrcUV[3] & 0x3F) << 4) | ((tsrcUV[2] >> 4) & 0xF )) << shift[1];
+-            *tdstV++ = (((tsrcUV[4] & 0xFF) << 2) | ((tsrcUV[3] >> 6) & 0x3 )) << shift[2];
+-            tsrcUV += 5;
++        for (x = 0; x < c->chrSrcW; x++) {
++            *tdstU++ = nv15_20ToSample(tsrcUV, 2 * x,     shift[1]);
++            *tdstV++ = nv15_20ToSample(tsrcUV, 2 * x + 1, shift[2]);
+         }
+         srcUV += srcStride[1];
+         dstU += dstStride[1] / sizeof(uint16_t);
+
+base-commit: def08a047fe87cce6359b3204b3603db82a9a764
+-- 
+2.53.0
+

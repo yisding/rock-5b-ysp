@@ -84,7 +84,8 @@ batching mechanism, driven by the `flag` field:
 | `LAST_MSG` | `0x2` | the final message of the batch — *now* start the task |
 | `REG_FD_NO_TRANS` | `0x4` | don't fd→iova-translate the register block |
 | `SCL_FD_NO_TRANS` | `0x8` | don't translate the scaling-list fd |
-| `REG_NO_OFFSET` | `0x10` | register addresses carry no patch offset |
+| `REG_NO_OFFSET` | `0x10` | register addresses carry no patch offset — Rockchip's own userspace names this same bit **`MPP_FLAGS_REG_OFFSET_ALONE`** (libmpp `osal/inc/mpp_service.h:28`; set on `SET_REG_ADDR_OFFSET` messages and OR-ed onto every batch's last message, `osal/driver/mpp_service.c:451,:764`); the rewrite driver's header defines both names as aliases ([`docs/13`](13-rewrite-drivers.md)) |
+| `POLL_NON_BLOCK` | `0x20` | **defined by libmpp, not by this port's kernel header** (`osal/inc/mpp_service.h:29`; libmpp's batch server sets it on `POLL_HW_FINISH` requests, `osal/driver/mpp_server.c:460`). The forward-ported BSP driver never tests the bit — its poll always blocks. The rewrite driver honours it: a not-yet-done job returns `-EAGAIN` ([`docs/13`](13-rewrite-drivers.md)) |
 | `SECURE_MODE` | `0x10000` | secure-memory path |
 
 (`MPP_IOC_CFG_V2` = `0x40047602` exists too — `rk-mpp.h` ~:16 — but `mpp_collect_msgs`
@@ -106,6 +107,19 @@ The kernel dispatches on each message's inner `cmd`, grouped by base value
 | | `SET_SESSION_FD` | **switch to another session** mid-batch (*not* a task-start — see below) |
 | **POLL** `0x300` | `POLL_HW_FINISH`, `POLL_HW_IRQ` | block until the task completes |
 | **CONTROL** `0x400` | `RESET_SESSION`, `TRANS_FD_TO_IOVA`, `RELEASE_FD`, `SEND_CODEC_INFO` | reset, fd↔iova, buffer release, codec hints |
+| | `SET_ERR_REF_HACK` (`CONTROL_BASE + 4`) | **not implemented by this port** — see below |
+
+**`MPP_CMD_SET_ERR_REF_HACK` — one command past this kernel's ceiling.** libmpp
+defines a fifth CONTROL command, `MPP_CMD_SET_ERR_REF_HACK = MPP_CMD_CONTROL_BASE + 4`
+(`osal/inc/mpp_service.h:80`), an error-resilience toggle its VDPU382 H.264 HAL
+wants to send. It **probes before sending**: the HAL checks whether the kernel's
+CONTROL-group ceiling (from `QUERY_CMD_SUPPORT`, see below) exceeds the command
+number — `cap->ctrl_cmd > MPP_CMD_SET_ERR_REF_HACK`
+(`mpp/hal/rkdec/h264d/hal_h264d_vdpu382.c:553`) — and only then issues it. On
+this port's kernel `MPP_CMD_CONTROL_BUTT` *equals* `CONTROL_BASE + 4`, so the
+probe says "unsupported" and libmpp silently skips the command; the clean-room
+rewrite driver accepts it as a validated copy-in/discard for exactly this
+probing sequence ([`docs/13`](13-rewrite-drivers.md)).
 
 **`SET_SESSION_FD` — switching sessions mid-batch (easy to misread).** This does
 *not* start a task. Inside one batched ioctl that spans **several sessions**, it tells
@@ -165,7 +179,10 @@ Error handling and the actual register image are elided; the point is the *shape
 ```c
 int fd = open("/dev/mpp_service", O_RDWR);
 
-/* 1. declare which block this session drives (one MppReqV1 = one ioctl) */
+/* 1. declare which block this session drives (one MppReqV1 = one ioctl).
+ *    Full client-type enum: kernel `enum MPP_DEVICE_TYPE`, mpp/mpp_common.h
+ *    ~:48 (RKVDEC=9 ~:56, RKVENC=16 ~:60); userspace mirror: libmpp
+ *    `enum VPU_CLIENT_TYPE`, osal/inc/mpp_dev_defs.h.                     */
 RK_U32 client_type = VPU_CLIENT_RKVDEC;          /* = 9; RKVENC = 16 */
 MppReqV1 init = { .cmd = MPP_CMD_INIT_CLIENT_TYPE,
                   .size = sizeof(client_type),
@@ -234,7 +251,7 @@ the clip window, and MMU info.
 
 | ioctl | nr | payload | meaning |
 |-------|----|---------|---------|
-| `RGA_IOC_GET_DRVIER_VERSION` / `…_HW_VERSION` | 0x1 / 0x2 | version structs | capabilities |
+| `RGA_IOC_GET_DRVIER_VERSION` *(sic — the vendor header really misspells "DRIVER"; `rga3/include/rga.h:14`)* / `…_HW_VERSION` | 0x1 / 0x2 | version structs | capabilities |
 | `RGA_IOC_IMPORT_BUFFER` / `…_RELEASE_BUFFER` | 0x3 / 0x4 | `rga_buffer_pool` | register fds → reusable **handles** |
 | `RGA_IOC_REQUEST_CREATE` | 0x5 | returns `id` | open a request |
 | `RGA_IOC_REQUEST_CONFIG` | 0x7 | `rga_user_request` | attach task(s) to the request |
@@ -333,4 +350,8 @@ hardware?" and "where did it stall?" — and it's exactly the surface the audit 
 > `MPP_IOC_CFG_V*` macros; the struct the kernel actually parses off the wire is
 > `struct mpp_msg_v1` (`mpp_common.c` ~:40). Userspace mirrors these in MPP's
 > `osal/inc/mpp_service.h` (the `MppServiceCmdType` enum + `MppReqV1`). Treat the
-> headers as the source of truth; this doc is the map.
+> headers as the source of truth; this doc is the map. **Both headers exist in
+> this repo only inside the forward-port patch** — [`docs/00`](00-source-trees.md)
+> says exactly where they live in `patches/rk3588-rkvenc2-01…` and how to
+> reconstruct a browsable tree (that also covers the libmpp/librga pins the
+> userspace cites above resolve against).

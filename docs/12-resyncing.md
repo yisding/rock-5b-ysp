@@ -1,12 +1,20 @@
 # Re-syncing against a newer BSP / a newer kernel
 
-The maintenance view. When you bump the donor (a newer Rockchip BSP) or the host
-kernel (a newer mainline/Armbian), this is what to re-check and in what order.
-The forward-port deliberately keeps ~98% of the vendor code byte-identical
-([`docs/06`](06-vendor-delta.md)) and confines the deltas to a shim layer
-([`docs/05`](05-vendor-forward-port.md)), so re-syncing is mostly *re-applying a
-small, well-located set of changes* — but a few of them are fragile against
-kernel-internal churn. Read this before you start.
+The maintenance view. When you bump the donor (a newer Rockchip BSP), the host
+kernel (a newer mainline/Armbian), or Armbian's own patch stack, this is what to
+re-check and in what order. The forward-port deliberately keeps ~98% of the
+vendor code byte-identical ([`docs/06`](06-vendor-delta.md)) and confines the
+deltas to a shim layer ([`docs/05`](05-vendor-forward-port.md)), so re-syncing is
+mostly *re-applying a small, well-located set of changes* — but a few of them are
+fragile against kernel-internal churn. Read this before you start.
+
+> **Every fix here has two consumers.** The same driver source ships as (a) the
+> combined `=y` Armbian kernel (`scripts/`) and (b) the DKMS module
+> ([`packaging/dkms/`](../packaging/dkms/)), whose KSRC input is the identical
+> `v6.18` + patch-01 tree ([`docs/00`](00-source-trees.md)). Any shim/compat fix
+> you make while re-syncing must land in both; DKMS is actually the early-warning
+> channel — it re-builds on every `apt upgrade` kernel bump and surfaces API
+> breaks loudly, before you've re-built the combined kernel.
 
 ---
 
@@ -109,28 +117,75 @@ re-application.
 
 ---
 
-## 4. Residual TODOs (W-tags) — what's intentionally stubbed
+## 4. The Armbian-side resync — bump checklist
+
+The driver-code hazards above are only half the maintenance surface. The
+Armbian packaging ([`docs/08`](08-armbian-packaging.md)) leans on Armbian
+internals that drift on *their* schedule. **When Armbian bumps
+`rockchip64-current` (or you re-target a new Armbian release), check:**
+
+1. **Is `media-0001` still present, with the same nodes?**
+   (`patch/kernel/archive/rockchip64-<ver>/media-0001-Add-rkvdec-Support-v5.patch`.)
+   Convert-in-place *depends* on its `&vdec0`/`&vdec1` labels existing: if the
+   patch is dropped or the labels renamed, our `&vdec0 { … }` overrides reference
+   an undefined label and the DT build fails (loud). Subtler: if its
+   `interrupts`/`iommus`/`power-domains`/`sram` properties change, the converted
+   cores silently inherit the *new* values — re-verify against the board
+   ([`docs/07` § Interrupts](07-device-tree.md#interrupts-gic-spi): SPI 95/97
+   cores, shared 96 MMU line, verified 2026-07-01).
+2. **Does the `av1d` `@@` anchor still hold?** Our `base.dtsi` block is placed
+   *after* `av1d` precisely so our hunk anchors at `@@ -1366` while media's
+   anchors at `@@ -1353` ([`docs/08`](08-armbian-packaging.md) § the `av1d`
+   relocation). If Armbian's `rk3588-base.dtsi` gains/loses lines near there,
+   the two patches can collide again — re-check that both apply in either order.
+3. **Re-derive the `P####-C####` hash and update `PHASH`.** Any patch or config
+   change alters the Armbian deb-name hash;
+   `scripts/build-combined-kernel.sh` prints the new value (`:59`) — set it in
+   `scripts/install-combined-kernel.sh` (`PHASH=`, currently `Pb6ab-Cb831`) or
+   the installer refuses the new debs.
+4. **Kconfig `default y` still honored?** The zero-edit config trick relies on
+   Armbian running `make olddefconfig` over our patched Kconfig defaults
+   ([`docs/08`](08-armbian-packaging.md)); confirm the tristate parents still
+   land `=y` in the built config.
+5. **Python-patcher semantics unchanged?** The whole convert-in-place strategy
+   assumes `lib/tools/patching.py` stays last-write-wins with core patches
+   appended after userpatches ([`docs/10`](10-gotchas.md)).
+6. **udev PR [armbian/build#10085](https://github.com/armbian/build/pull/10085)
+   status.** Once merged, new Armbian images grant `video`-group access to
+   `mpp_service`/`rga`/dma-heaps out of the box and the local
+   `scripts/99-rockchip-codec.rules` install step becomes redundant there (it
+   stays necessary for the DKMS-on-stock-Ubuntu path).
+
+---
+
+## 5. Residual TODOs (W-tags) — what's intentionally stubbed
 
 These are **deliberate** stubs, tracked so a re-syncer doesn't mistake them for
-regressions. Same list as [`docs/06`](06-vendor-delta.md) § 6, framed for the
-production path:
+regressions. **The canonical W-tag table (W6, W15, iommu fault-mask,
+system-monitor) is [`docs/06` § 6](06-vendor-delta.md)** — one list, maintained
+there. Re-syncer-relevant addenda not in that table:
 
-- **W6 — dead / DVFS-off includes.** `rockchip_ipa.h` is a dead include
-  (`mpp_rkvenc2.c:31` references no `rockchip_ipa_*` symbol) and is deletable;
-  the devfreq islands are `default n`. Production: drop the dead include; only
-  enable devfreq once DVFS is genuinely wired.
-- **W15 — OPP voltage/leakage management absent.** `rockchip_init_opp_table()`
-  returns `-EOPNOTSUPP`, so `rkvenc_devfreq_init()` bails and the cores run at
-  fixed `assigned-clock-rates`. Production: port the OPP/PVTM voltage stack, or
-  drive voltage from a mainline regulator + devfreq governor.
-- **iommu fault-mask no-op.** `rockchip_iommu_mask_irq()` is a no-op stub, so the
-  pagefault-handler fault-storm guard and the `mpp_iommu_refresh()` re-attach are
-  inert. Production: a real mask path against the mainline `rockchip-iommu`
-  driver.
-- **system-monitor absent.** `rockchip_system_monitor_register()` returns
-  `ERR_PTR(-ENODEV)`; the encoder logs "without system monitor" and runs without
-  SoC-wide thermal/voltage coordination. Production: register the venc as a
-  mainline thermal-cooling device.
+- the iommu fault-mask no-op means **both** the pagefault-handler fault-storm
+  guard *and* the `mpp_iommu_refresh()` re-attach are inert;
+- with W15 stubbed (`rockchip_init_opp_table()` → `-EOPNOTSUPP`) the cores run at
+  fixed `assigned-clock-rates`, and the encoder's "without system monitor" boot
+  log line is expected, not a regression ([`docs/10`](10-gotchas.md) § benign
+  boot noise).
 
 None of these block the validated transcode path; they are the gap between this
 conservative forward-port and a full BSP-equivalent power/thermal stack.
+
+---
+
+## 6. Update propagation — when you touch X, update Y
+
+The repo's cross-cited facts drift unless edits propagate. The standing rules:
+
+| When you touch… | …also update |
+|-----------------|--------------|
+| `patches/rk3588-rkvenc2-01-…drivers.patch` (driver source) | re-derive `P####-C####` → `PHASH` in `scripts/install-combined-kernel.sh`; rebuild/retest [`packaging/dkms/`](../packaging/dkms/) (same source, second consumer); re-run `tests/`; re-measure the § 3 delta and [`docs/06`](06-vendor-delta.md)'s headline; note that [`docs/11`](11-bsp-audit.md)'s line pins are against the *pre-cleanup* tree ([`docs/00`](00-source-trees.md)) |
+| `patches/rk3588-rkvenc2-02-…dt.patch` (DT) | [`docs/07`](07-device-tree.md) tables + annotated node; [`docs/09`](09-vanilla-kernel.md)'s inline block; the DKMS overlay in [`packaging/dkms/`](../packaging/dkms/) (encodes the same nodes as string-path aliases) |
+| the host kernel version (mainline or Armbian bump) | § 1 shim mechanisms + § 2 hazards here; [`docs/06` § 1](06-vendor-delta.md) API table; DKMS rebuild (the loud early warning); if it's an Armbian bump, the full § 4 checklist above |
+| the donor BSP | § 3 delta re-measurement; [`docs/06`](06-vendor-delta.md); re-check the [`docs/11`](11-bsp-audit.md) findings still map (they're latent BSP bugs — a donor bump may fix or move them) |
+| `patches/cleanup-split/` (applying or editing the audit series) | the ⏳ runtime-gate row in [`cleanup-draft/VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md) and `STATUS.md`; [`docs/11`](11-bsp-audit.md)'s line-pin caveat |
+| any file you **add** to the repo | the owning directory's hub README (every README indexes every file/subdir), and the root `README.md` repository map if you added a *directory* — the root-map sync rule |

@@ -1,5 +1,12 @@
 # Verification of the cleanup-draft patches
 
+> **Review/apply via [`../cleanup-split/`](../cleanup-split/)** — this directory
+> is the per-file history + verification record. The verdicts below cover the
+> draft bundles and, by byte-identity, the initial (`aa859ad`) split series;
+> the current split series has since been strengthened beyond them (`808f7cb`)
+> — its README's divergence table lists exactly what this document does **not**
+> cover.
+
 The `cleanup-draft/` patches are fixes for the BSP audit findings (`docs/11`),
 originally **machine-generated**. Every hunk was put through an **adversarial
 review**: independent verifiers read the *real* source (callers, locks,
@@ -65,6 +72,15 @@ state.
 | Patches apply to fwport HEAD | ✅ all 15 apply clean |
 | **Compile-gate** (safe set + the devfreq re-guard, OOT build vs 6.18 headers) | ✅ **PASS** — 0 errors, both modules link |
 | **Runtime codec regression** (encode/decode/transcode + targeted triggers) | ⏳ pending — needs a kernel/module rebuild + reboot |
+
+### Runtime gate result — record here when run
+
+⏳ **Not yet run** (as of 2026-07-01). When the gate is executed, replace this
+placeholder with: date, kernel version + PHASH, which series was applied
+(`cleanup-split/` @ commit), the `tests/` results (encode/decode/transcode),
+and the outcome of each targeted trigger (OOB reg-index, `buf[-1]`, non-mpp fd
+to `SET_SESSION_FD`, `RELEASE_FD` + re-import, async RGA acquire-fence) — and
+update `STATUS.md`.
 
 ## Follow-up fixes — pre-existing bugs the audit missed (now fixed, re-verified SAFE)
 

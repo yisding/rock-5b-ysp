@@ -16,6 +16,15 @@ here that is unconditionally safe.
 | GRD | 50.1 |
 | Session | Wayland (gnome-shell/mutter), RDP on port 3389/3390 |
 
+> **Two Mesa builds appear in this section's numbers.** Everything measured
+> *through GRD* ([`BASELINE.md`](BASELINE.md), [`bench/`](bench/),
+> [`PROFILING.md`](PROFILING.md)) ran on the **system Mesa 26.0.3** above. The
+> Mesa/Panfrost texture-transfer investigation
+> ([`MESA-PANFROST-TRANSFER.md`](MESA-PANFROST-TRANSFER.md),
+> [`../mesa-panfrost-g610/`](../mesa-panfrost-g610/)) used a **26.2-devel local
+> build** (that's where the MR !42563 patches live). Don't compare timings
+> across the two without noting the build.
+
 ## 1. ⚠️ The cardinal rule: never run a second GRD against the same mutter
 
 Mutter's RemoteDesktop/ScreenCast D-Bus API is **single-tenant**. Starting a
@@ -100,6 +109,14 @@ Driving frames without a real client is fiddly, and the numbers are soft:
   the session: `100.7 %` daemon / `90.9 %` EGL thread at 1080p on the software
   path. Cite that, not the headless number.
 
+> **One headless configuration did work.** The hardware-path profiling ran a
+> *dedicated* `mutter --headless --wayland` + `grd --headless` + a
+> frame-counting AVC420 FreeRDP client + `eglgears_wayland`, and captured a
+> clean 60 fps with zero drops — see [`PROFILING.md`](PROFILING.md) §4. The
+> soft-numbers warning above is about driving frames on a client-created
+> virtual monitor inside the *live* session; the dedicated headless compositor
+> avoided both the eviction hazard (§1) and the idle-capture problem.
+
 ## 6. The safe micro-benchmark
 
 [`bench/readback_bench.c`](bench/readback_bench.c) isolates the readback in a
@@ -120,13 +137,28 @@ BASELINE §5).
 When validating the rkmpp backend (this repo), confirm the HW path really engaged
 rather than silently falling back to software RFX:
 
+- **Client caps first.** ⚠️ A client that doesn't advertise **AVC420** silently
+  negotiates RFX/`RDPGFX_CODECID_CAPROGRESSIVE` even when the server-side HW
+  path is healthy — every other check below can pass while you stream software
+  RFX to *that* client. Build FreeRDP with `-DWITH_OPENH264=ON`, or use the
+  macOS/Windows Microsoft clients, and check the **client** log for AVC420 vs
+  CAPROGRESSIVE surface commands — [`PROFILING.md`](PROFILING.md) §5.
 - **Threads:** the daemon has an `mpp_h264e` (or similar MPP) worker thread.
   `ps -T -p <pid>` / `top -H`.
 - **FDs:** it holds an open `/dev/mpp_service` (and `/dev/dma_heap/*`) fd.
   `ls -l /proc/<pid>/fd | grep -E 'mpp_service|dma_heap'`.
-- **Logs:** GRD's `g_debug`/`g_message` codec-selection tags show the chosen path
-  (`[HWAccel.VAAPI]`, and this repo's FFmpeg/rkmpp tags). `g_message` always
-  reaches the journal, no debug-env dance needed.
+- **Logs:** grep the journal for the shipped `[HWAccel.FFmpeg]` tags —
+  `Initialized FFmpeg/rkmpp encode backend` and
+  `Created h264_rkmpp encode session` are `g_message` (always reach the
+  journal, no debug-env dance); the failure lines are
+  `[RDP] Did not initialize FFmpeg/rkmpp: …` and (`g_debug`)
+  `[HWAccel.FFmpeg] Could not create rkmpp encode session: …`. Full signal
+  table with exact strings: [`PROFILING.md`](PROFILING.md) §7. (The
+  `[ACKDBG]`-style tags in [`README.md`](README.md)'s methodology section were
+  throwaway instrumentation — in no shipped patch, don't grep for them.)
+- **Multiple frames.** `Created … encode session` alone proves only the smoke
+  encode, not the view-creator — run several frames and re-check the
+  thread/fds ([`DESIGN.md`](DESIGN.md) §lesson).
 - **On the wire:** `ss -ti` on the RDP socket — `bytes_sent` growing in KB bursts
   = real frames flowing; flat = nothing (encoder stalled *or* client not acking —
   the bitstream dump distinguishes them, see [`README.md`](README.md) #1).
@@ -135,3 +167,36 @@ rather than silently falling back to software RFX:
   encode-session-*create* failure (a permission error on `/dev/mpp_service` /
   `/dev/dma_heap`, or a `vk_device` gate) — see [`CAPTURE-PATH.md`](CAPTURE-PATH.md)
   §3–4 and [`README.md`](README.md) #3.
+
+(The related open measurement — which DRM modifier mutter's screencast dma-buf
+actually carries — still has no verified procedure; the open item lives at
+[`PROFILING.md`](PROFILING.md) §8.)
+
+## 8. Verifying the *greeter* is on hardware (gdm-hwenc)
+
+The §7 checklist targets the logged-in **session** daemon. After installing
+[`../packaging/gdm-hwenc/`](../packaging/gdm-hwenc/), verify the **login
+screen** separately — the greeter runs its *own* GRD daemon as a dynamic
+`gdm-greeter-*` user ([`README.md`](README.md) #3), so your user journal and
+your session's pid are the wrong places to look:
+
+```bash
+# 1. The ACL grant is in place (a group grant, so it survives greeter churn):
+getfacl /dev/dma_heap/system /dev/mpp_service    # must list  group:gdm:rw-
+
+# 2. Log out (or restart GDM) so a fresh greeter starts, then from SSH find
+#    the greeter's own daemon — it runs as a gdm-greeter* user, not you:
+ps -eo pid,user:16,comm | grep -E 'gdm-greeter.*gnome-remote'
+
+# 3. Run the §7 signals against THAT pid (mpp_h264e thread, /dev/mpp_service
+#    fd), and grep the SYSTEM journal — the greeter daemon never writes to
+#    your user journal:
+journalctl -b -g 'HWAccel.FFmpeg'
+
+# 4. Connect an RDP client to the login screen and confirm AVC420
+#    client-side (PROFILING.md §5).
+```
+
+The [`gdm-hwenc` README](../packaging/gdm-hwenc/README.md) covers the
+package-side verify (the `getfacl` line and what the greeter should
+negotiate); this section is the daemon-side confirmation.

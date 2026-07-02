@@ -1,0 +1,66 @@
+From e8cf2ae6daaf86f0dea902760240345e5e5df085 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Tue, 30 Jun 2026 11:31:39 -0700
+Subject: [PATCH] panfrost: enable blit-based texture transfers
+
+Advertise PIPE_TEXTURE_TRANSFER_BLIT for Panfrost texture transfers.
+
+The previous commit keeps shader image masks in sync while unbinding.
+That avoids the NULL image crash seen while testing this path.
+
+Tested on a Rock 5B with Mali-G610/Panthor using Piglit getteximage,
+PBO, and readpixels coverage.
+
+Assisted-by: OpenAI Codex GPT-5.5
+---
+ARCHIVE ANNOTATION (not part of the commit; `git am` ignores this block)
+
+Purpose: REPRODUCTION ONLY, not for merging. This is the patch that makes
+Panfrost take the sampled-BLIT texture-transfer path, which is required to
+reproduce the BLIT failure in repro_blit.c and the BLIT column of the
+bench_transfer.c timing table in ../validation.md. Once upstream ships a
+non-BLIT default, this configuration cannot be rebuilt from upstream alone.
+
+Provenance:
+- Exported verbatim via `git format-patch -1 e8cf2ae6daa` from the local
+  Mesa working tree (/home/yi/Code/mesa, remote github.com/yisding/mesa),
+  branch panfrost-transfer-blit, on 2026-07-01.
+- It advertises PIPE_TEXTURE_TRANSFER_BLIT only (no local commit ever
+  advertised BLIT|COMPUTE). The COMPUTE side of every BLIT-vs-COMPUTE
+  comparison was produced on this same build by forcing the compute path
+  with MESA_COMPUTE_PBO=1 -- see ../validation.md and README.md here.
+- Base: applies on top of "panfrost: clear shader image mask on trailing
+  unbinds" (local 950d19686d8, Fixes: 72ff66c3d73), itself on Mesa main
+  c05334058d5 (2026-06-22, 26.2-devel). Without the mask fix, compute
+  transfer testing can hit a NULL image-resource dereference.
+- The commit message's "Tested ... Piglit" claim predates the discovery
+  that BLIT is NOT bit-exact for integer format-changing transfers on
+  Mali-G610 (see ../blit-precision.md). Do not read it as an endorsement.
+
+Disassembly capture: the Valhall asm listings in ../blit-precision.md and
+../README.md were captured from a build with this patch applied by running
+the failing case with BIFROST_MESA_DEBUG=shaders (src/panfrost/compiler/
+bifrost/bi_debug.c; dumps NIR, BIR, and the final packed Valhall asm to
+stderr) and taking the u_blitter TXF fragment shader (named "TTN1").
+Note: PAN_MESA_DEBUG is a different variable (driver-level toggles such as
+nofp16/linear/sync); the compiler dump flag is BIFROST_MESA_DEBUG=shaders.
+
+ src/gallium/drivers/panfrost/pan_screen.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/gallium/drivers/panfrost/pan_screen.c b/src/gallium/drivers/panfrost/pan_screen.c
+index 274053f6550..789b8de7e6c 100644
+--- a/src/gallium/drivers/panfrost/pan_screen.c
++++ b/src/gallium/drivers/panfrost/pan_screen.c
+@@ -826,7 +826,7 @@ panfrost_init_screen_caps(struct panfrost_screen *screen)
+ 
+    caps->max_vertex_element_src_offset = 0xffff;
+ 
+-   caps->texture_transfer_modes = 0;
++   caps->texture_transfer_modes = PIPE_TEXTURE_TRANSFER_BLIT;
+ 
+    caps->endianness = PIPE_ENDIAN_NATIVE;
+ 
+-- 
+2.53.0
+

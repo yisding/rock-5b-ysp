@@ -1,7 +1,24 @@
-# Gotchas & workarounds
+# Gotchas & workarounds — the whole-repo trap index
 
-Every trap we hit, with the fix. Roughly ordered build → DT → driver → runtime →
-userspace → infra.
+The kernel-port and ffmpeg-userspace traps are **canonical on this page**: every
+trap we hit during the port, with the fix, roughly ordered build → DT → driver →
+runtime → userspace → infra. The repo has since grown whole subsystems
+(`gnome-remote-desktop/`, `mesa-panfrost-g610/`, `packaging/`) whose traps are
+canonical in their own trees — the index table below points at each so this page
+stays the master list.
+
+## Traps that live elsewhere (one-line index)
+
+| Area | Trap | Canonical write-up |
+|------|------|--------------------|
+| GRD | Mutter's RemoteDesktop/ScreenCast D-Bus API is **single-tenant** — starting a second GRD instance evicts the live session, including the RDP client you may be connected through | [`gnome-remote-desktop/TESTING.md` § 1](../gnome-remote-desktop/TESTING.md) |
+| GRD | The backend's startup **smoke encode consumes the encoder's one natural IDR** → client decodes nothing, RDPGFX frame controller throttles to 0 slots → permanently frozen desktop | [`gnome-remote-desktop/README.md` § The three bugs](../gnome-remote-desktop/README.md) |
+| GRD | Headless/smoke-test numbers are soft — mutter often delivers nothing to the virtual monitor; validate with a **real client** plus the "is it actually on hardware?" checklist | [`gnome-remote-desktop/TESTING.md` §§ 5, 7](../gnome-remote-desktop/TESTING.md), [`PROFILING.md`](../gnome-remote-desktop/PROFILING.md) |
+| GRD | PipeWire buffer-negotiation `EINVAL`: mutter advertises `dataType = 1<<SPA_DATA_DmaBuf`, GRD demands `1<<SPA_DATA_MemFd` — a *reconciliation* failure, not an allocation one (and forcing MemFd needs explicit `SPA_PARAM_BUFFERS` shm geometry too) | [`gnome-remote-desktop/CAPTURE-PATH.md` § 1](../gnome-remote-desktop/CAPTURE-PATH.md), [`BASELINE.md` § 4](../gnome-remote-desktop/BASELINE.md) |
+| Mesa | **BLIT-based texture transfers are unsafe on Mali-G610** — the texel coordinate arrives through lossy `LD_VAR_IMM` interpolation, corrupting integer format-changing transfers; the COMPUTE-only fix direction was rejected in Mesa review 2026-07-01 (compute cannot write AFBC) — surviving directions in [`mesa-panfrost-g610/README.md` § Status](../mesa-panfrost-g610/README.md) | [`mesa-panfrost-g610/blit-precision.md`](../mesa-panfrost-g610/blit-precision.md), [`validation.md` § Current MR State](../mesa-panfrost-g610/validation.md) |
+| Packaging | **Combined (`=y`) kernel and the DKMS module are mutually exclusive** — building DKMS against a kernel that has the drivers built-in fails modpost with `'…' exported twice` | [`packaging/dkms/README.md` § Caveats](../packaging/dkms/README.md); chooser in [`INSTALL.md`](../INSTALL.md) |
+| Packaging | A future Ubuntu ffmpeg (`7:8.1.x`) silently supersedes the local `+rkmpp` debs — `apt-mark hold` them; exact-version rollback recipe exists | [`packaging/README.md` § Operations](../packaging/README.md) |
+| Debug kernels | Everything about capturing a crash (ramoops/pstore, KASAN, lockdep) without breaking vermagic | [`docs/14`](14-debug-kernel.md); the KASAN/vermagic collision entry below stays canonical here |
 
 ## Build / patching
 
@@ -124,7 +141,9 @@ wedge; unrecoverable without reboot). Apply once per boot; to reset, **reboot**.
 (KASAN) kernel and stock kernel share the same `uname -r`, so they collide in
 `/lib/modules` + `/usr/src`. A `.ko` must be built against headers matching the
 *running* kernel's KASAN/MODVERSIONS setting or it won't load. Moot once the
-driver is `=y` built-in.
+driver is `=y` built-in. The full debug-kernel workflow (pinning Armbian to an
+exact upstream tag so vermagic matches, ramoops/pstore capture, KASAN caveats)
+is [`docs/14`](14-debug-kernel.md).
 
 **HW codec nodes are root-only — and the `mpp_service` rule alone isn't enough.**
 `/dev/mpp_service`, `/dev/rga`, *and* the DMA-heaps under `/dev/dma_heap/` all

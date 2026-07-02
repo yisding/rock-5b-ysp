@@ -103,8 +103,10 @@ shows an 8 → 20 ms jump between `RGBA` and `BGRA`.
 > modifier does mutter's screencast dma-buf actually carry — AFBC, tiled, or
 > linear? Real GRD reads native `BGRA` from mutter's buffer, so it may *not* pay
 > the swizzle the benchmark shows; but if the buffer is AFBC it pays a GPU stall
-> the benchmark's linear FBO never triggers. Profiling that on the real path (see
-> [`TESTING.md`](TESTING.md)) is the highest-value open measurement. Forcing a
+> the benchmark's linear FBO never triggers. Profiling that on the real path is
+> the highest-value open measurement — no verified procedure exists yet; the
+> open item (and an untested candidate approach) is
+> [`PROFILING.md`](PROFILING.md) §8. Forcing a
 > **LINEAR** capture surface would sidestep the detile entirely — the one
 > in-process lever that attacks the mechanism rather than relocating it.
 
@@ -132,8 +134,10 @@ The sampled `u_blitter` path compiled to the expected Mali varying load,
 coordinate from `LD_VAR_IMM` drifts by about `2^-10`, so a 16307-wide integer
 readback selects previous texels for 15672/16307 samples. The fix direction is
 therefore **COMPUTE**, not BLIT: compute uses integer invocation coordinates and
-bypasses the varying interpolator. Full notes:
-[`MESA-PANFROST-TRANSFER.md`](MESA-PANFROST-TRANSFER.md).
+bypasses the varying interpolator. GRD-facing notes:
+[`MESA-PANFROST-TRANSFER.md`](MESA-PANFROST-TRANSFER.md); the canonical
+investigation — reproducers, `blit-precision.md`, dEQP validation, MR status —
+lives in [`../mesa-panfrost-g610/`](../mesa-panfrost-g610/).
 
 > **What `MESA_COMPUTE_PBO=1` actually does.** It is the manual override of
 > exactly this gap. Mesa's `st_pbo.c` normally uses the compute path only when the
@@ -215,8 +219,14 @@ what it *doesn't* buy:
   `dataType = 1<<SPA_DATA_DmaBuf`; GRD demands `1<<SPA_DATA_MemFd`;
   `8 & 4 = 0` → empty param intersection → libpipewire
   `error alloc buffers: Invalid argument`. The fix is to gate **both** blocks
-  (e.g. on `!g_getenv("GRD_FORCE_MEMFD")`), after which the session establishes
-  on the `gen-sw` (direct-mmap, no-readback) path.
+  (e.g. on `!g_getenv("GRD_FORCE_MEMFD")`).
+- **A second, distinct `EINVAL` hides behind the first.** When GRD forces
+  `SPA_DATA_MemFd` it must also advertise explicit shm buffer geometry in its
+  `SPA_PARAM_BUFFERS` pod — `blocks = 1`, `size = stride × height`, `stride`,
+  `align = 16` — or the *producer-side* buffer allocation fails with the same
+  `Invalid argument`. (For DMA-BUF the producer derives geometry itself; for
+  MemFd the consumer's pod is what sizes the shm pool.) With both fixes in,
+  the session establishes on the `gen-sw` (direct-mmap, no-readback) path.
 - But mutter's MemFd path fills the shm buffer with its **own** cogl/`glReadPixels`
   read, so the ~19 ms simply **moves into gnome-shell** (corroborated by mutter
   issue #2745 — the non-dmabuf screencast path *is* the slow readback on ARM, and
@@ -304,4 +314,9 @@ unreliable. The full procedure — environment setup, swapping in a manual build
 the eviction hazard, killing safely, and why the headless numbers are soft — is
 in [`TESTING.md`](TESTING.md). The two prototype worktrees (`grd-async-pbo-wt`,
 `grd-memfd-wt`) carry the opt-in env toggles (`GRD_ASYNC_READBACK`,
-`GRD_FORCE_MEMFD`) referenced above.
+`GRD_FORCE_MEMFD`) referenced above — ⚠️ both are **uncommitted diffs in
+local-only worktrees on the dev box** (async-PBO ≈ 506 lines in
+`grd-egl-thread.c` + the two pipewire-stream files; MemFd ≈ 21 lines), not
+archived anywhere citable. Their *conclusions* are fully recorded here and in
+[`CAPTURE-PATH.md`](CAPTURE-PATH.md) §5; TODO: export the two diffs as
+reference patches under this directory before the worktrees are lost.

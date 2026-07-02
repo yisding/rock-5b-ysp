@@ -23,8 +23,11 @@ So "ours" is *lines that differ*, which is why it reads higher than
 
 ### Reproduce the count
 
-The percentages are auditable against any future BSP with this loop
-(`BSP=…/rockchip-kernel/drivers/video/rockchip`, `OURS=…/linux-6.18-rkvenc/…`):
+The percentages are auditable against any future BSP with this loop.
+`BSP` = the Rockchip 6.1 BSP donor checkout, `OURS` = the forward-ported
+tree — both are pinned, with reconstruction recipes, in
+[`docs/00`](00-source-trees.md) (`$OURS` is reproducible from
+`patches/rk3588-rkvenc2-01…` on v6.18; you don't need the original dev box):
 
 ```sh
 for f in mpp/mpp_common.c mpp/mpp_iommu.c mpp/mpp_iommu.h mpp/mpp_service.c \
@@ -59,7 +62,7 @@ shim layer, ~140 are surgical in-place edits, and ~60 are build wiring. The big
 files are essentially untouched: `mpp_common.c` (2,691 lines) changed by **3**,
 `mpp_rkvdec2_link.c` (2,763) by **22**, `rga_mm.c` (2,556) by **21**.
 
-> Integers are the **measured** diff counts (see *Reproduce the count* below) and
+> Integers are the **measured** diff counts (see *Reproduce the count* above) and
 > will drift slightly against a future BSP; the **≈ 580 / 1.7% / 98% headline
 > holds** regardless.
 
@@ -154,6 +157,12 @@ them. See [`docs/12`](12-resyncing.md) for the maintenance view.
 The forward-port did **not** rewrite or "clean up" the vendor code — it kept
 ~98% byte-identical and adapted the ~2% that the 6.1→6.18 kernel API churn
 demanded, plus the minimum to bind on RK3588 and to package cleanly for Armbian.
-Any latent bugs or non-idiomatic patterns in the BSP code are *still there* — see
-the companion effort to audit and optionally clean the BSP code in a **separate**
-patch series (tracked outside this conservative forward-port).
+Any latent bugs or non-idiomatic patterns in the BSP code are *still there* —
+the companion audit-and-clean effort now lives **in this repo**:
+[`docs/11`](11-bsp-audit.md) is the audit (89 reviewer findings, 16 HIGH), the
+fixes are the reviewable 65-patch series in
+[`patches/cleanup-split/`](../patches/cleanup-split/) (with the per-file
+history and verification record in
+[`patches/cleanup-draft/`](../patches/cleanup-draft/)) — all kept **separate**
+from this conservative forward-port, and with the **runtime regression gate
+still PENDING** ([`VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md)).

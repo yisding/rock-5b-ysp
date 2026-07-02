@@ -1,5 +1,14 @@
 # FFmpeg implementation comparison
 
+> **A rebased successor to the fork column exists.** The `40c412d`
+> ffmpeg-rockchip tree compared below was later replayed onto FFmpeg master
+> (`87bd15dc3c`) and hardened with 14 documented fix groups:
+> **`github.com/yisding/ffmpeg-rockchip-81`** — see
+> [`FIX-CANDIDATES.md`](FIX-CANDIDATES.md) for the fixes and
+> [`REBASE-NOTES.md`](REBASE-NOTES.md) for the replay method. The
+> architectural comparison below (hwframe model, option surface, RGA filters)
+> still holds for the rebased tree; only the base-FFmpeg internals moved.
+
 This compares **upstream FFmpeg 8.1.2** with **ffmpeg-rockchip** for the parts
 that matter to this ROCK 5B codec stack. Read
 [`HOW-FFMPEG-WORKS.md`](HOW-FFMPEG-WORKS.md) first if you want the FFmpeg mental
@@ -11,6 +20,12 @@ Comparison points:
 |----------------|--------------|---------------------|
 | upstream FFmpeg 8.1.2 | release tag `n8.1.2` (`38b88335f99e`, 2026-06-17) | ABI-friendly base used by the packaged GNOME Remote Desktop stack. |
 | ffmpeg-rockchip | `40c412daccf0` (`40c412d`, 2026-04-23) | Rockchip-focused fork used for full CLI hardware transcode validation. |
+
+The `n8.1.2` pin here and the `87bd15dc3c` pin in
+[`FIX-CANDIDATES.md`](FIX-CANDIDATES.md) are siblings: `release/8.1` forked
+from master at `67c886222f` (2026-03-08), `n8.1.2` is that branch plus
+backports, and `87bd15dc3c` is master 3.5 months later
+([`REBASE-NOTES.md`](REBASE-NOTES.md) §1 reconciles all four pins in use).
 
 This is a source-code comparison, not a new runtime benchmark.
 

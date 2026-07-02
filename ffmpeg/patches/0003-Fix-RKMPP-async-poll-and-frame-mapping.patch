@@ -1,0 +1,73 @@
+From 5c0c56e8c84834cd68482a2d40c9a76d5d42e408 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 10:12:24 -0700
+Subject: [PATCH 3/9] Fix RKMPP async poll and frame mapping
+
+---
+ libavcodec/rkmppdec.c       | 3 ++-
+ libavcodec/rkmppenc.c       | 2 +-
+ libavutil/hwcontext_rkmpp.c | 7 ++++---
+ 3 files changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index c10e1af2bb..d2aa966743 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -693,7 +693,8 @@ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mp
+                                               (AVRational) { frame->width, frame->height });
+     }
+ 
+-    if (avctx->codec_id == AV_CODEC_ID_HEVC &&
++    if ((avctx->codec_id == AV_CODEC_ID_HEVC ||
++         avctx->codec_id == AV_CODEC_ID_AV1) &&
+         (frame->color_trc == AVCOL_TRC_SMPTE2084 ||
+          frame->color_trc == AVCOL_TRC_ARIB_STD_B67)) {
+         ret = rkmpp_export_mastering_display(avctx, frame, mpp_frame_get_mastering_display(mpp_frame));
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index 6ac2829ed1..b5d7e81011 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -1030,7 +1030,7 @@ static int rkmpp_get_packet(AVCodecContext *avctx, AVPacket *packet, int timeout
+         return ret;
+     }
+     if (!mpp_pkt)
+-        return AVERROR(ENOMEM);
++        return AVERROR(EAGAIN);
+ 
+     if (mpp_packet_get_eos(mpp_pkt)) {
+         av_log(avctx, AV_LOG_DEBUG, "Received an EOS packet\n");
+diff --git a/libavutil/hwcontext_rkmpp.c b/libavutil/hwcontext_rkmpp.c
+index 71ab10758a..c46c24bd52 100644
+--- a/libavutil/hwcontext_rkmpp.c
++++ b/libavutil/hwcontext_rkmpp.c
+@@ -197,7 +197,6 @@ static AVBufferRef *rkmpp_drm_pool_alloc(void *opaque, size_t size)
+     int ret;
+     AVHWFramesContext *hwfc = opaque;
+     AVRKMPPFramesContext *avfc = hwfc->hwctx;
+-    AVRKMPPDeviceContext *hwctx = hwfc->device_ctx->hwctx;
+     AVRKMPPDRMFrameDescriptor *desc;
+     AVDRMLayerDescriptor *layer;
+     AVBufferRef *ref;
+@@ -224,7 +223,7 @@ static AVBufferRef *rkmpp_drm_pool_alloc(void *opaque, size_t size)
+ 
+     ret = mpp_buffer_get(avfc->buf_group, &mpp_buf, mpp_buf_size);
+     if (ret != MPP_OK || !mpp_buf) {
+-        av_log(hwctx, AV_LOG_ERROR, "Failed to get MPP buffer: %d\n", ret);
++        av_log(hwfc, AV_LOG_ERROR, "Failed to get MPP buffer: %d\n", ret);
+         ret = AVERROR(ENOMEM);
+         goto fail;
+     }
+@@ -562,7 +561,9 @@ static int rkmpp_map_from(AVHWFramesContext *hwfc, AVFrame *dst,
+ {
+     int err;
+ 
+-    if (hwfc->sw_format != dst->format)
++    if (dst->format == AV_PIX_FMT_NONE)
++        dst->format = hwfc->sw_format;
++    if (dst->format != hwfc->sw_format)
+         return AVERROR(ENOSYS);
+ 
+     err = rkmpp_map_frame(hwfc, dst, src, flags);
+-- 
+2.53.0
+

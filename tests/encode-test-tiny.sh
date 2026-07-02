@@ -2,15 +2,20 @@
 # Encode smoke test for the forward-ported RK3588 rkvenc2 encoder.
 # Tiny-first (256x256), then auto-scales to 720p once the IOMMU path is proven.
 # Aborts only on a REAL IOMMU translation fault / oops / empty output — not on
-# benign warnings. Run AFTER probe-only.sh (driver loaded, /dev/mpp_service up).
+# benign warnings. Prereq: combined kernel booted (see ../scripts/) or the DKMS
+# module loaded, so /dev/mpp_service is up. Root required — the script writes
+# dmesg markers to /dev/kmsg and scans dmesg for faults.
 set -uo pipefail
 
-LIB=/home/yi/Code/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native/mpp
-ENC=/home/yi/Code/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native/test/mpi_enc_test
+# MPP_BUILD = cmake build dir of rockchip-linux/mpp (env-overridable; the
+# "<mpp-build>" of ../ffmpeg/README.md). Default = the original dev box.
+MPP_BUILD="${MPP_BUILD:-/home/yi/Code/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native}"
+LIB=$MPP_BUILD/mpp
+ENC=$MPP_BUILD/test/mpi_enc_test
 OUT=/tmp/rkvenc-test
 
 if [ "$(id -u)" -ne 0 ]; then echo "Run as root (sudo)."; exit 1; fi
-[ -c /dev/mpp_service ] || { echo "/dev/mpp_service missing — run probe-only.sh first."; exit 1; }
+[ -c /dev/mpp_service ] || { echo "/dev/mpp_service missing — boot the combined kernel first (see ../scripts/)."; exit 1; }
 [ -x "$ENC" ] || { echo "missing $ENC"; exit 1; }
 mkdir -p "$OUT"
 
@@ -41,7 +46,7 @@ run_one() {
   local f; f=$(real_faults "$mark")
   if [ -n "$f" ]; then
     echo ">>> REAL FAULT DETECTED — aborting:"; echo "$f"
-    echo ">>> Do NOT rmdir the overlay (can deadlock configfs). REBOOT to reset."; return 2
+    echo ">>> Inspect the fault above, then REBOOT to reset the hardware before retrying."; return 2
   fi
   if [ ! -s "$of" ]; then
     echo ">>> OUTPUT EMPTY/MISSING (exit $rc) — encode produced no bitstream. Aborting."; return 3
@@ -55,9 +60,13 @@ run_one() {
   return 0
 }
 
-echo "driver: $(lsmod | awk '/^rk_vcodec/{print $1, $2}')  |  $(modinfo "$(dirname "$0")/rk_vcodec.ko" 2>/dev/null | awk -F': *' '/srcversion/{print "srcversion "$2}')"
+# rk_vcodec is built into the combined kernel (=y), so lsmod only shows it on
+# the DKMS delivery path.
+echo "kernel: $(uname -r)   rk_vcodec: $(lsmod | grep -q '^rk_vcodec' && echo 'module (DKMS)' || echo 'built-in (combined kernel)')"
 echo
 
+# -t values are MppCodingType: 7 = MPP_VIDEO_CodingAVC,
+# 16777220 (0x01000004) = MPP_VIDEO_CodingHEVC -- see README.md.
 # Tiny first (proves the IOMMU/DMA path with minimal footprint)...
 run_one h264-tiny 7        h264 256 256 3  || exit $?
 echo
@@ -73,5 +82,5 @@ echo
 echo "================= ALL ENCODE TESTS PASSED ================="
 ls -l "$OUT"
 echo "Hardware H.264 + H.265 encode confirmed at 256x256 and 1280x720."
-echo "When done: 'sudo bash $(dirname "$0")/rollback.sh' unloads the driver only;"
-echo "for a full reset, REBOOT (never rmdir the configfs overlay)."
+echo "Nothing to unload -- the driver is built into the combined kernel."
+echo "Next: bash $(dirname "$0")/test-decode.sh, then sudo bash $(dirname "$0")/transcode-test.sh"

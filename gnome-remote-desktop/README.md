@@ -13,6 +13,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | **RGB→NV12** | Vulkan (**panvk**) compute on the Mali GPU, explicit-sync dma-buf | ✅ cross-driver panfrost→panvk sync works |
 | **Login screen** | GDM greeter, same path | ✅ with the opt-in [`gdm-hwenc`](../packaging/gdm-hwenc/) package |
 | **Quality** | VBR, artifact-free at ~0.25 bpp target | ✅ after the bitrate fix (below) |
+| **Throughput** | sustained **60 fps** vsync-bound; MPP encode 1.26 ms median (~8 % of the frame budget) | ✅ measured — [`PROFILING.md`](PROFILING.md) |
 
 > **This is the *consumer* layer.** The kernel drivers are in [`patches/`](../patches/),
 > libmpp/librga in [`docs/02`](../docs/02-how-the-userspace-libs-work.md), and the
@@ -28,8 +29,11 @@ readback) and why HW encode is the only real fix ·
 texture-transfer investigation behind the compute-path finding · [`CAPTURE-PATH.md`](CAPTURE-PATH.md)
 — the code map: view-creators, encode-session selection, PipeWire buffer
 negotiation, and where the backend plugs in · [`TESTING.md`](TESTING.md) — the
-benchmarking playbook (eviction hazard, env, HW-path checklist) · [`patches/`](patches/)
-— the full 7-patch backend series · [`../ppa/`](../ppa/) — packaging the whole
+benchmarking playbook (eviction hazard, env, HW-path checklist) ·
+[`PROFILING.md`](PROFILING.md) — the measured *after*: per-stage timing of the
+HW path (60 fps sustained, jitter breakdown, the working headless harness, the
+client-caps prerequisite, the verification-signal table) · [`patches/`](patches/)
+— the full 7-patch backend series · [`../packaging/ppa/`](../packaging/ppa/) — packaging the whole
 stack for a Launchpad PPA.
 
 ## How it fits the stack
@@ -123,7 +127,7 @@ a permanent freeze. Why no IDR? Two things compounded, both upstream-specific:
 *real* frame is a fresh natural IDR. `avcodec_flush_buffers()` was ruled out — it
 *hangs* the rkmpp encoder; the NV12 surfaces are standalone dma-buf descriptors
 that outlive the encoder, so tearing it down and reopening is safe.
-→ [`patches/0002`](patches/), `run_smoke_test()`.
+→ [`patches/0007`](patches/), `run_smoke_test()`.
 
 ### 2. Terrible quality — the 2.5 Mbps ceiling
 
@@ -143,7 +147,7 @@ upstream FFmpeg 8.1.2**, bitrate *is* the only quality control.
 (`bps_min` = target÷8), and raise the target to ~0.25 bpp. VBR still keeps static
 frames near-free (idle ≈ 0), but active/detailed frames can now spend the bits they
 need — measured peaks ~67 Mbps under heavy motion on a LAN, and the artifacts are
-gone. → [`patches/0002`](patches/), `create_encoder()`.
+gone. → [`patches/0007`](patches/), `create_encoder()`.
 
 > On **ffmpeg-rockchip** this whole bug is moot: `qp_init=22` selects MPP FIXQP and you
 > get constant-quality output with no bitrate tuning at all. The bitrate triplet
@@ -197,7 +201,11 @@ codec consumer:
 - **`g_message` instrumentation** at the pipeline seams (`[ACKDBG]`/`[SYNCDBG]`/
   `[GDMDBG]`): the encoded packet size + keyframe flag, the RDPGFX frame-ack
   callback, and the buffer-info gate values. `g_message` always reaches the
-  journal, so no debug-env dance.
+  journal, so no debug-env dance. **These tags were throwaway instrumentation —
+  they exist in no shipped patch.** For verifying a running daemon, use the
+  *shipped* signals instead: the `[HWAccel.FFmpeg]` journal lines, the
+  `mpp_h264e` thread, and the device fds — the full greppable table is
+  [`PROFILING.md`](PROFILING.md) §7.
 - **Dump the bitstream.** Writing the first few `AVPacket`s to `/tmp/*.h264` and
   parsing NAL units offline (`SPS=7 PPS=8 IDR=5 P=1`) is what proved "all
   P-slices, no IDR."
@@ -237,27 +245,30 @@ Three pieces, built from a vendored GRD fork (upstream 50.1 + the rkmpp backend)
 
 ```bash
 # 1. Codec stack first — kernel drivers + udev + system FFmpeg with rkmpp.
-#    (This repo's Quickstart + the video-group codec-udev rule.)
+#    (../INSTALL.md is the chooser + quickstart; ../packaging/codec-udev/ is
+#    the video-group udev rule.)
 
 # 2. GRD with the backend, + (optionally) the greeter access package:
 sudo apt install ./gnome-remote-desktop_50.1+rkmpp-2_arm64.deb
 sudo apt install ./gnome-remote-desktop-gdm-hwenc_1.0_all.deb    # optional
 
 # 3. Enable + connect an RDP client. Confirm it's on hardware:
-#    the session daemon has an "mpp_h264e" thread and an open /dev/mpp_service fd.
+#    the session daemon has an "mpp_h264e" thread and an open /dev/mpp_service fd
+#    (full signal table: PROFILING.md §7; the client must advertise AVC420 — §5).
 ```
 
 The full stack (codec libs + FFmpeg + GRD) is prepared as upload-ready Launchpad
 **PPA** source packages (a personal `resolute`/arm64 PPA); `gnome-remote-desktop`
 is `50.1+rkmpp-2` and `gnome-remote-desktop-gdm-hwenc` is an independent
 `Arch: all` add-on. How all five source packages were built — and the upload
-order — is in [`../ppa/`](../ppa/).
+order — is in [`../packaging/ppa/`](../packaging/ppa/).
 
 ## Provenance & licensing
 
 - **gnome-remote-desktop** is GPL-2.0+. The rkmpp encode backend is our addition
   on top of upstream **50.1**, on the branch
-  `ffmpeg-rkmpp-encode-backend` of the GNOME `yding/` fork. The backend is a
+  [`ffmpeg-rkmpp-encode-backend`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/ffmpeg-rkmpp-encode-backend)
+  of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`. The backend is a
   sibling of GRD's existing VA-API path and reuses its design (fixed QP 22 intent,
   the Vulkan view-creator, the frame controller).
 - It links **upstream FFmpeg 8.1.2** `8.1.2+rk1` (GPL-3 via `--enable-version3`,

@@ -1,16 +1,29 @@
 # FFmpeg fix candidates from the 2026 Rockchip rebase
 
-This records the fixes found while comparing the local `ffmpeg-rockchip-81`
-working branch against both `origin/nyanmisaka` and the local `upstream` FFmpeg
-branch.
+This records the fixes found while comparing the `ffmpeg-rockchip-81` working
+branch against both `origin/nyanmisaka` and the local `upstream` FFmpeg
+branch. The rebased tree is public — every commit hash cited below resolves
+in **`https://github.com/yisding/ffmpeg-rockchip-81`** (branch `main`; branch
+`upstream` = the FFmpeg base) — and the fix commits themselves are archived
+in-repo as [`patches/`](patches/README.md) (`git format-patch` export with a
+patch↔group map). Tree topology and replay method:
+[`REBASE-NOTES.md`](REBASE-NOTES.md).
 
 Source points from the audit:
 
 | Tree | Commit | Meaning |
 |------|--------|---------|
-| `ffmpeg-rockchip-81/main` | `1c73bd8e65` | Current rebased Rockchip stack with post-review cleanups. |
+| `ffmpeg-rockchip-81/main` | `1c73bd8e65` | Rebased Rockchip stack with post-review cleanups — the state this write-up audited. Tip has since moved to `b59509b609` (2026-07-01, exported as [`patches/0009`](patches/README.md)); its fixes are **not** yet folded into the groups below. |
 | `origin/nyanmisaka` | `40c412dacc` | Older ffmpeg-rockchip fork point used by this repo's build notes. |
-| `upstream` | `87bd15dc3c` | Current FFmpeg branch used for the rebase comparison. |
+| `upstream` | `87bd15dc3c` | FFmpeg **master** commit (2026-06-26) used as the rebase base. |
+
+How `87bd15dc3c` relates to the `n8.1.2` tag that
+[`IMPLEMENTATION-COMPARISON.md`](IMPLEMENTATION-COMPARISON.md) compares
+against: they are sibling branches of the same 8.x codebase — `release/8.1`
+(which carries `n8.1.2` = `38b88335f99e`, 2026-06-17) forked from master at
+`67c886222f` (2026-03-08), and `87bd15dc3c` is master ~3.5 months past that
+fork point. Details and all four pins in one table:
+[`REBASE-NOTES.md`](REBASE-NOTES.md) §1.
 
 The useful range for the new cleanup work is mostly `def08a047f..1c73bd8e65`.
 The older commits in `upstream..main` are the replayed Rockchip feature stack,
@@ -19,14 +32,18 @@ worth sending.
 
 ## Summary
 
-| Fix group | Send to NyanMisaka? | Send to FFmpeg upstream? | Why |
-|-----------|---------------------|--------------------------|-----|
-| V4L2 multi-planar packet accounting | Yes | Maybe, as a smaller port | It fixes real packet-size and data-offset handling. Upstream's V4L2 mplane path is narrower, so it needs a targeted version. |
-| V4L2 framerate fallback and `NV16`/`NV24` guards | Yes | Partly | The framerate fallback is generic. The guards are already present upstream, but useful for older fork code. |
-| Packed `NV15`/`NV20` swscale and descriptor fixes | Yes | Not as a fix-only patch | Upstream does not have `AV_PIX_FMT_NV15` or `AV_PIX_FMT_NV20_PACKED`; this would need a pixel-format feature series first. |
-| RKMPP decoder ownership, errinfo, MJPEG, EOS, and format fixes | Yes | No, unless replacing/extending upstream RKMPP | These fix the fork's RKMPP hwcontext based decoder. Upstream's RKMPP decoder is a different, smaller implementation. |
-| RKMPP encoder async, packet, DRM, submit-unwind, and RC fixes | Yes | Mostly no | Some ideas overlap with upstream, but the code paths and option surface differ substantially. |
-| RKMPP hwcontext, RKRGA lifetime, and build cleanup | Yes | No | Upstream has no `AV_HWDEVICE_TYPE_RKMPP` hwcontext and no RKRGA filters. |
+The "Submitted?" column is the per-group outcome record; the full dated ledger
+lives in [`REBASE-NOTES.md`](REBASE-NOTES.md) §6. **As of 2026-07-01 nothing
+has been sent to either destination.**
+
+| Fix group | Send to NyanMisaka? | Send to FFmpeg upstream? | Submitted? | Why |
+|-----------|---------------------|--------------------------|------------|-----|
+| V4L2 multi-planar packet accounting | Yes | Maybe, as a smaller port | No (2026-07-01) | It fixes real packet-size and data-offset handling. Upstream's V4L2 mplane path is narrower, so it needs a targeted version. |
+| V4L2 framerate fallback and `NV16`/`NV24` guards | Yes | Partly | No (2026-07-01) | The framerate fallback is generic. The guards are already present upstream, but useful for older fork code. |
+| Packed `NV15`/`NV20` swscale and descriptor fixes | Yes | Not as a fix-only patch | No (2026-07-01) | Upstream does not have `AV_PIX_FMT_NV15` or `AV_PIX_FMT_NV20_PACKED`; this would need a pixel-format feature series first. |
+| RKMPP decoder ownership, errinfo, MJPEG, EOS, and format fixes | Yes | No, unless replacing/extending upstream RKMPP | No (2026-07-01) | These fix the fork's RKMPP hwcontext based decoder. Upstream's RKMPP decoder is a different, smaller implementation. |
+| RKMPP encoder async, packet, DRM, submit-unwind, and RC fixes | Yes | Mostly no | No (2026-07-01) | Some ideas overlap with upstream, but the code paths and option surface differ substantially. |
+| RKMPP hwcontext, RKRGA lifetime, and build cleanup | Yes | No | No (2026-07-01) | Upstream has no `AV_HWDEVICE_TYPE_RKMPP` hwcontext and no RKRGA filters. |
 
 ## 1. V4L2 multi-planar packet accounting
 
@@ -672,7 +689,9 @@ Submission guidance:
 
 ## Suggested patch split for NyanMisaka
 
-A good backport series would keep review surfaces small:
+This split is a *re-slicing* of the as-committed review sweeps archived in
+[`patches/`](patches/README.md) (see the patch↔group map there). A good
+backport series would keep review surfaces small:
 
 1. `avdevice/v4l2: fix mplane payload accounting and framerate fallback`
 2. `swscale: fix compact NV15/NV20 unpacking tails and descriptor name`

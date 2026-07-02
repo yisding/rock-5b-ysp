@@ -4,13 +4,31 @@ The udev rule that makes `/dev/mpp_service`, the DMA-heaps (`/dev/dma_heap/*`),
 and `/dev/rga` usable without root
 ([`scripts/99-rockchip-codec.rules`](../../scripts/99-rockchip-codec.rules)) is a
 **userspace** concern — it shouldn't ride inside the kernel deb. Three ways to
-ship it, easiest-to-maintain first.
+ship it, easiest-to-maintain first. (This rule is needed by **every** delivery
+channel — see the deploy hub, [`../README.md`](../README.md).)
 
 > **Why dma-heap too?** `rkmpp` allocates every frame/stream buffer from a kernel
 > DMA-heap, so granting only `mpp_service` is **not enough** — the encoder still
 > dies at MPP init (`MppBufferService get_group failed ... type 1`) because it
 > can't open `/dev/dma_heap/system`. The rule grants the `video` group all three
 > device classes (`mpp_service`, `dma_heap`, `rga`). See [`docs/10`](../../docs/10-gotchas.md).
+
+> **What about the `KERNEL=="iep"` line?** IEP is the BSP's Image Enhancement
+> Processor (a video post-processing block — see [`GLOSSARY.md`](../../GLOSSARY.md));
+> the rule covers it *if present*, but **this port does not include an IEP
+> driver and `/dev/iep` does not exist on the board** (verified 2026-07-01,
+> kernel `6.18.37-current-rockchip64` #7). The line is a harmless forward-compat
+> no-op kept for BSP/vendor kernels where the node does appear.
+
+## What's here
+
+| File | Role |
+|------|------|
+| `build-deb.sh` | Copies the canonical rule from [`../../scripts/99-rockchip-codec.rules`](../../scripts/99-rockchip-codec.rules) (relative path `../../scripts/` — still correct; `scripts/` did not move in the 2026-07 reorg) and builds the `.deb`. |
+| `root/DEBIAN/control` | Package metadata (`rk3588-codec-udev`, `Architecture: all`). |
+| `root/DEBIAN/postinst` | `udevadm control --reload-rules && udevadm trigger` — rule takes effect without reboot. |
+| `root/usr/lib/udev/rules.d/99-rockchip-codec.rules` | *(gitignored)* the build-time copy of the canonical rule — never edit here. |
+| `rk3588-codec-udev_1.0_all.deb` | *(gitignored, on-disk build residue)* — see the [binary policy](../README.md#binary-policy). |
 
 ## 1. A standalone `.deb` (recommended) — this directory
 
@@ -95,7 +113,8 @@ Our rule uses Armbian's exact convention (`GROUP="video" MODE="0660"`) and simpl
 adds the `mpp_service` and `dma_heap` lines. The *upstream-correct* fix — adding
 both to Armbian's `60-media.rules` — is submitted as
 [**armbian/build#10085**](https://github.com/armbian/build/pull/10085); this deb is
-the local equivalent until/unless that lands.
+the local equivalent until/unless that lands. (PR status is a volatile external
+fact — last-checked date tracked in the [`STATUS.md`](../../STATUS.md) watchlist.)
 
 ## Which group — `video` or `render`?
 

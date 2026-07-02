@@ -1,0 +1,111 @@
+From 275f06843a3f8e078d683642701e63be6ed44974 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 10:35:03 -0700
+Subject: [PATCH 4/9] fix rockchip review issues
+
+---
+ libavcodec/rkmppenc.c      |  2 +-
+ libavfilter/rkrga_common.c | 16 ++++++++++++----
+ libswscale/format.c        |  1 +
+ libswscale/input.c         |  2 ++
+ 4 files changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index b5d7e81011..7848cee1fb 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -1047,7 +1047,7 @@ static int rkmpp_get_packet(AVCodecContext *avctx, AVPacket *packet, int timeout
+             av_log(avctx, AV_LOG_ERROR, "ff_get_encode_buffer failed: %d\n", ret);
+             goto exit;
+         }
+-        memcpy(packet->data, mpp_packet_get_data(mpp_pkt), mpp_pkt_length);
++        memcpy(packet->data, mpp_packet_get_pos(mpp_pkt), mpp_pkt_length);
+     }
+ 
+     packet->time_base.num = avctx->time_base.num;
+diff --git a/libavfilter/rkrga_common.c b/libavfilter/rkrga_common.c
+index 7d6a7457f1..146ad02546 100644
+--- a/libavfilter/rkrga_common.c
++++ b/libavfilter/rkrga_common.c
+@@ -557,6 +557,7 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+     AVBufferRef *hw_frame_ctx = pat_preproc ? r->pat_preproc_hwframes_ctx :
+                                               ff_filter_link(outlink)->hw_frames_ctx;
+     int w_stride = 0, h_stride = 0;
++    int act_w, act_h;
+     AVDRMFrameDescriptor *desc;
+     AVDRMLayerDescriptor *layer;
+     RGAFrame **frame_list = NULL;
+@@ -565,6 +566,14 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+     if (!out_info || !hw_frame_ctx)
+         return NULL;
+ 
++    if (pat_preproc) {
++        act_w = FFMIN(in0_info->act_w - in1_info->overlay_x, in1_info->act_w);
++        act_h = FFMIN(in0_info->act_h - in1_info->overlay_y, in1_info->act_h);
++    } else {
++        act_w = out_info->act_w;
++        act_h = out_info->act_h;
++    }
++
+     frame_list = pat_preproc ? &r->pat_frame_list : &r->dst_frame_list;
+ 
+     clear_unused_frames(*frame_list);
+@@ -607,7 +616,7 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+         goto fail;
+ 
+     if (r->is_rga2_used || out_info->scheduler_core == 0x4) {
+-        if (!r->has_rga2p && pat_preproc && (info.rect.width > 4096 || info.rect.height > 4096)) {
++        if (!r->has_rga2p && pat_preproc && (act_w > 4096 || act_h > 4096)) {
+             av_log(ctx, AV_LOG_ERROR, "Max supported output size of RGA2 (non-Pro) is 4096x4096\n");
+             goto fail;
+         }
+@@ -665,12 +674,11 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+ 
+     if (pat_preproc)
+         rga_set_rect(&info.rect, in1_info->overlay_x, in1_info->overlay_y,
+-                     FFMIN((in0_info->act_w - in1_info->overlay_x), in1_info->act_w),
+-                     FFMIN((in0_info->act_h - in1_info->overlay_y), in1_info->act_h),
++                     act_w, act_h,
+                      w_stride, h_stride, in1_info->rga_fmt);
+     else
+         rga_set_rect(&info.rect, out_info->act_x, out_info->act_y,
+-                     out_info->act_w, out_info->act_h,
++                     act_w, act_h,
+                      w_stride, h_stride, out_info->rga_fmt);
+ 
+     if (is_afbc) {
+diff --git a/libswscale/format.c b/libswscale/format.c
+index 88ef6a8f99..2dbdd531db 100644
+--- a/libswscale/format.c
++++ b/libswscale/format.c
+@@ -226,6 +226,7 @@ static const LegacyFormatEntry legacy_format_entries[] = {
+     [AV_PIX_FMT_AYUV64LE]       = { 1, 1},
+     [AV_PIX_FMT_AYUV64BE]       = { 1, 1 },
+     [AV_PIX_FMT_NV15]           = { 1, 0 },
++    [AV_PIX_FMT_NV20_PACKED]    = { 1, 0 },
+     [AV_PIX_FMT_P010LE]         = { 1, 1 },
+     [AV_PIX_FMT_P010BE]         = { 1, 1 },
+     [AV_PIX_FMT_P012LE]         = { 1, 1 },
+diff --git a/libswscale/input.c b/libswscale/input.c
+index efaa5379b8..4577196129 100644
+--- a/libswscale/input.c
++++ b/libswscale/input.c
+@@ -2106,6 +2106,7 @@ av_cold void ff_sws_init_input_funcs(SwsInternal *c,
+         *chrToYV12 = nv20LEToUV_c;
+         break;
+     case AV_PIX_FMT_NV15:
++    case AV_PIX_FMT_NV20_PACKED:
+         c->chrToYV12 = nv15_20ToUV_c;
+         break;
+     case AV_PIX_FMT_P010LE:
+@@ -2716,6 +2717,7 @@ av_cold void ff_sws_init_input_funcs(SwsInternal *c,
+         *lumToYV12 = nv20LEToY_c;
+         break;
+     case AV_PIX_FMT_NV15:
++    case AV_PIX_FMT_NV20_PACKED:
+         c->lumToYV12 = nv15_20ToY_c;
+         break;
+     case AV_PIX_FMT_P010LE:
+-- 
+2.53.0
+

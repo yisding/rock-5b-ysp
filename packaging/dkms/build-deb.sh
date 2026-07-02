@@ -6,6 +6,10 @@
 # Dev-box path below — adjust KSRC for your layout (the driver source is the
 # forward-port tree; equivalently you can extract it by applying patches/01 to a
 # pristine v6.18 and pointing KSRC at drivers/video/rockchip).
+#
+# Usage:
+#   KSRC=... bash build-deb.sh          # build  -> build/rk3588-vcodec-dkms_1.0_arm64.deb
+#   bash build-deb.sh clean             # remove build/ (staging tree + .deb/.dtbo)
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -15,6 +19,14 @@ KSRC="${KSRC:-/home/yi/Code/linux-6.18-rkvenc/drivers/video/rockchip}"
 OVERLAY=rk3588-rock5b-vcodec
 
 OUT="$DIR/build"
+
+# 'clean' target: build/ is disposable output, never committed
+# (see ../README.md "Binary policy").
+if [ "${1:-}" = "clean" ]; then
+  rm -rf "$OUT"
+  echo "cleaned: $OUT"
+  exit 0
+fi
 ROOT="$OUT/${NAME}-dkms_${VERSION}_arm64"
 SRC="$ROOT/usr/src/${NAME}-${VERSION}"
 rm -rf "$OUT"; mkdir -p "$SRC/mpp" "$SRC/rga3" "$ROOT/boot/overlay-user" "$ROOT/DEBIAN"

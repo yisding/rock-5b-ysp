@@ -1,0 +1,212 @@
+From 93891823df3a1b6906836e1f6ae802112ec38c64 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 11:05:21 -0700
+Subject: [PATCH 5/9] fix rkmpp review regressions
+
+---
+ libavcodec/rkmppdec.c         | 91 +++++++++++++++++++++++++++++++++--
+ libavcodec/rkmppdec.h         |  1 +
+ libavcodec/rkmppenc.c         |  9 +++-
+ libswscale/swscale_unscaled.c |  3 +-
+ 4 files changed, 99 insertions(+), 5 deletions(-)
+
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index d2aa966743..23256ec34e 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -28,11 +28,13 @@
+ #include "config.h"
+ #include "config_components.h"
+ 
++#include "libavutil/intreadwrite.h"
+ #include "libavutil/mem.h"
+ 
+ #include "rkmppdec.h"
+ 
+ #include <fcntl.h>
++#include <stdint.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+ #if CONFIG_RKRGA
+@@ -92,6 +94,85 @@ static uint32_t rkmpp_get_av_format(MppFrameFormat mpp_fmt)
+     }
+ }
+ 
++static int rkmpp_mjpeg_is_sof_marker(int marker)
++{
++    return marker >= 0xc0 && marker <= 0xcf &&
++           marker != 0xc4 && marker != 0xc8 && marker != 0xcc;
++}
++
++static int rkmpp_mjpeg_parse_dimensions(const uint8_t *buf, int buf_size,
++                                        int *width, int *height)
++{
++    const uint8_t *end = buf + buf_size;
++
++    while (buf + 1 < end) {
++        int marker, len;
++
++        while (buf < end && *buf != 0xff)
++            buf++;
++        if (buf + 1 >= end)
++            break;
++
++        buf++;
++        while (buf < end && *buf == 0xff)
++            buf++;
++        if (buf >= end)
++            break;
++
++        marker = *buf++;
++        if (marker == 0x00)
++            continue;
++        if (marker == 0xd8 || marker == 0xd9 || marker == 0x01 ||
++            (marker >= 0xd0 && marker <= 0xd7))
++            continue;
++        if (buf + 2 > end)
++            break;
++
++        len = AV_RB16(buf);
++        if (len < 2 || len > end - buf)
++            break;
++        if (rkmpp_mjpeg_is_sof_marker(marker)) {
++            if (len < 7)
++                break;
++            *height = AV_RB16(buf + 3);
++            *width  = AV_RB16(buf + 5);
++            return *width > 0 && *height > 0;
++        }
++        if (marker == 0xda)
++            break;
++
++        buf += len;
++    }
++
++    return 0;
++}
++
++static int rkmpp_mjpeg_output_buffer_size(AVCodecContext *avctx,
++                                          const AVPacket *pkt, size_t *buf_sz)
++{
++    int width = avctx->width > 0 ? avctx->width : avctx->coded_width;
++    int height = avctx->height > 0 ? avctx->height : avctx->coded_height;
++    uint64_t aligned_width, aligned_height;
++
++    if ((width <= 0 || height <= 0) && pkt->data && pkt->size > 0)
++        rkmpp_mjpeg_parse_dimensions(pkt->data, pkt->size, &width, &height);
++
++    if (width <= 0 || height <= 0) {
++        av_log(avctx, AV_LOG_ERROR, "Failed to determine MJPEG dimensions\n");
++        return AVERROR_INVALIDDATA;
++    }
++
++    aligned_width  = FFALIGN((uint64_t)width,  16);
++    aligned_height = FFALIGN((uint64_t)height, 16);
++    if (aligned_width > SIZE_MAX / 4 / aligned_height) {
++        av_log(avctx, AV_LOG_ERROR, "MJPEG output buffer size is too large\n");
++        return AVERROR(EINVAL);
++    }
++
++    *buf_sz = aligned_width * aligned_height * 4;
++    return 0;
++}
++
+ static int get_afbc_byte_stride(const AVPixFmtDescriptor *desc,
+                                 int *stride, int reverse)
+ {
+@@ -1001,14 +1082,14 @@ static int rkmpp_send_eos(AVCodecContext *avctx)
+     return 0;
+ }
+ 
+-static int rkmpp_mjpeg_put_packet(AVCodecContext *avctx, MppPacket mpp_pkt_with_buf)
++static int rkmpp_mjpeg_put_packet(AVCodecContext *avctx, MppPacket mpp_pkt_with_buf,
++                                  size_t buf_sz)
+ {
+     RKMPPDecContext *r = avctx->priv_data;
+     MppBufferGroup buf_group = r->buf_group ? r->buf_group : r->buf_group_misc;
+     MppBuffer mpp_buf = NULL;
+     MppFrame mpp_frame = NULL;
+     MppMeta pkt_meta = NULL;
+-    size_t buf_sz = FFALIGN(avctx->width, 16) * FFALIGN(avctx->height, 16) << 2;
+     int ret;
+ 
+     av_assert0(buf_group);
+@@ -1097,9 +1178,13 @@ static int rkmpp_send_packet(AVCodecContext *avctx, AVPacket *pkt)
+ 
+     if (avctx->codec_id == AV_CODEC_ID_MJPEG) {
+         MppBuffer mpp_buf = NULL;
++        size_t buf_sz;
+ 
+         av_assert0(r->buf_group_misc);
+ 
++        if ((ret = rkmpp_mjpeg_output_buffer_size(avctx, pkt, &buf_sz)) < 0)
++            return ret;
++
+         /* the input slot of the MJPEG decoder must be a DRM/DMA buffer,
+          * so borrow some from the frame buffer to write the pkt data */
+         if ((ret = mpp_buffer_get(r->buf_group_misc, &mpp_buf, pkt->size)) != MPP_OK) {
+@@ -1125,7 +1210,7 @@ static int rkmpp_send_packet(AVCodecContext *avctx, AVPacket *pkt)
+         mpp_buffer_put(mpp_buf);
+         mpp_packet_set_pts(mpp_pkt, mpp_pkt_pts);
+ 
+-        ret = rkmpp_mjpeg_put_packet(avctx, mpp_pkt);
++        ret = rkmpp_mjpeg_put_packet(avctx, mpp_pkt, buf_sz);
+         if (ret == MPP_ERR_UNKNOW) {
+             if (mpp_pkt)
+                 mpp_packet_deinit(&mpp_pkt);
+diff --git a/libavcodec/rkmppdec.h b/libavcodec/rkmppdec.h
+index 9950d5dd56..01ef2ba395 100644
+--- a/libavcodec/rkmppdec.h
++++ b/libavcodec/rkmppdec.h
+@@ -109,6 +109,7 @@ static const enum AVPixelFormat rkmpp_dec_pix_fmts[] = {
+     AV_PIX_FMT_NV16,
+     AV_PIX_FMT_NV15,
+     AV_PIX_FMT_NV20_PACKED,
++    AV_PIX_FMT_NV24,
+     AV_PIX_FMT_DRM_PRIME,
+     AV_PIX_FMT_NONE,
+ };
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index 7848cee1fb..206532e2bc 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -562,7 +562,14 @@ static int rkmpp_set_enc_cfg(AVCodecContext *avctx)
+         (rc_mode == MPP_ENC_RC_MODE_CBR ||
+          rc_mode == MPP_ENC_RC_MODE_VBR ||
+          rc_mode == MPP_ENC_RC_MODE_AVBR)) {
+-        int stats_time_in_sec = avctx->rc_buffer_size / max_bps;
++        int stats_time_in_sec;
++
++        if (max_bps <= 0) {
++            av_log(avctx, AV_LOG_ERROR,
++                   "Invalid bitrate max for rate control buffer size\n");
++            return AVERROR(EINVAL);
++        }
++        stats_time_in_sec = avctx->rc_buffer_size / max_bps;
+         if (stats_time_in_sec > 0) {
+             mpp_enc_cfg_set_u32(cfg, "rc:stats_time", stats_time_in_sec);
+             av_log(avctx, AV_LOG_VERBOSE, "Stats time is set to %d\n", stats_time_in_sec);
+diff --git a/libswscale/swscale_unscaled.c b/libswscale/swscale_unscaled.c
+index 0ad4a107a8..e3fc9a3b40 100644
+--- a/libswscale/swscale_unscaled.c
++++ b/libswscale/swscale_unscaled.c
+@@ -256,6 +256,7 @@ static int nv15_20ToPlanarWrapper(SwsInternal *c, const uint8_t *const src[],
+     uint16_t *dstV = (uint16_t*)(dstParam[2] + dstStride[2] * srcSliceY / vsub);
+     const uint8_t *srcY = src[0];
+     const uint8_t *srcUV = src[1];
++    int chrSrcSliceH = (srcSliceH + vsub - 1) / vsub;
+     int x, y;
+ 
+     /* Calculate net shift required for values. */
+@@ -277,7 +278,7 @@ static int nv15_20ToPlanarWrapper(SwsInternal *c, const uint8_t *const src[],
+         dstY += dstStride[0] / sizeof(uint16_t);
+     }
+ 
+-    for (y = srcSliceH / vsub; y > 0; y--) {
++    for (y = chrSrcSliceH; y > 0; y--) {
+         const uint8_t *tsrcUV = srcUV;
+         uint16_t *tdstU = dstU, *tdstV = dstV;
+         for (x = 0; x < c->chrSrcW; x++) {
+-- 
+2.53.0
+

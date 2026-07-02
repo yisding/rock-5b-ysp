@@ -1,5 +1,11 @@
 # Status — done, skipped, limitations
 
+> **Scope.** This doc is the scorecard for the **kernel codec forward-port**
+> only. The repo now spans much more — ffmpeg (two lineages), the
+> gnome-remote-desktop HW-encode backend, DKMS/PPA packaging, Mesa/Panfrost —
+> and the whole-project dated scoreboard is [`STATUS.md`](../STATUS.md) at the
+> repo root.
+
 Target: Radxa ROCK 5B (RK3588), Armbian, kernel **6.18.37** (`rockchip64-current`).
 Validated build hash: `Pb6ab-Cb831` (and its functionally-identical predecessor
 `P8c75`). That hash is baked into the Armbian `.deb` package name — `P####` hashes
@@ -11,11 +17,11 @@ the *exact* build we validated (the installer matches debs on it; see
 
 | Item | Evidence |
 |------|----------|
-| **H.264/H.265 encode** (VEPU580, both cores) | `mpi_enc_test`: 256² + 1280×720, PSNR 47–62 dB, NAL-correct, no IOMMU fault. Both cores `attach ccu as core 0/1` (CCU = the clock/coordination unit the paired cores share). |
+| **H.264/H.265 encode** (VEPU580, both cores) | `mpi_enc_test`: 256² + 1280×720, PSNR 47–62 dB overall, NAL-correct, no IOMMU fault. **At 720p: H.264 PSNR 53–55 dB @ ~359 fps; H.265 PSNR 60–62 dB @ ~297 fps** ([`tests/README.md`](../tests/README.md) § Observed results). Both cores `attach ccu as core 0/1` (CCU = the clock/coordination unit the paired cores share). |
 | **H.264/H.265 decode** (VDPU381/rkvdec2, both cores) | `mpi_dec_test`: decoded 30 frames each of software-encoded H.264 + H.265 to NV12, ~1200–1600 fps @ 320×240. Both `rkvdec-core0/1` bound at `fdc38000`/`fdc40000`. |
 | **RGA** (RGA3 ×2 + RGA2) | probes at boot, `/dev/rga` present, IOMMU bound; exercised functionally via `scale_rkrga` in the transcode (1080p→720p and 720p→480p). |
 | **Combined in-tree kernel** | all three accelerators `=y`, present at boot — **no overlay, no insmod**. |
-| **ffmpeg-rockchip** | built (`nyanmisaka` fork) with `h264_rkmpp`/`hevc_rkmpp` decode+encode and `scale_rkrga`. Full HW transcode passes both directions. |
+| **ffmpeg-rockchip** | built (`nyanmisaka` fork) with `h264_rkmpp`/`hevc_rkmpp` decode+encode and `scale_rkrga`. Full HW transcode passes both directions at **17–42× realtime**, no faults ([`tests/README.md`](../tests/README.md) § Observed results). |
 | **Zero-edit Armbian packaging** | `media-0001` (Armbian's mainline media/codec backport patch series) and the kernel config both stay **pristine**; everything lives in two userpatches (see `docs/08`). |
 | **Quality-of-life** | udev rule for non-sudo `/dev/mpp_service` + `/dev/dma_heap/*` + `/dev/rga` (the dma-heap rule is **required** — rkmpp allocates buffers there, so `mpp_service` alone leaves the encoder dead; upstreamed as [armbian/build#10085](https://github.com/armbian/build/pull/10085)); ccache-correct build wrapper. |
 
@@ -24,7 +30,7 @@ the *exact* build we validated (the installer matches debs on it; see
 | Item | Why |
 |------|-----|
 | **Encoder/decoder DVFS** (`*_DEVFREQ`, OPP, system-monitor) | DVFS (dynamic voltage/frequency scaling) here rides on vendor BSP-only services — PVTM (the on-chip process-voltage-temperature monitor that drives voltage scaling), `rockchip_system_monitor`, `rockchip_opp_select` — none of which exist upstream. The OPP (operating performance point — one voltage/frequency pair) service is stubbed, so the concrete loss is **no PVTM voltage/leakage scaling**: the cores stay at the fixed DT `assigned-clock-rates` (enc 800 MHz, dec 800 MHz), which is plenty fast and fine at every load we tested. The devfreq (the Linux dynamic-frequency framework) islands are tier-2 Kconfigs — the project's off-by-default "nice-to-have" tier — defaulting `n`. See `docs/05`. |
-| **VP9 decode** | The decoder driver builds VP9 support; we only validated H.264/H.265. Should work (same data path) but untested here. |
+| **VP9 decode** | The decoder driver builds VP9 support; we only validated H.264/H.265. Should work (same data path) but untested here — no VP9 clip was in the validation set, and the ffmpeg transcode pipeline we exercised is H.264/H.265-only. To make this row checkable: encode a `libvpx-vp9` IVF clip and decode with `mpi_dec_test -t 10 …` (`MPP_VIDEO_CodingVP9 = 10`, libmpp `inc/rk_type.h`) — full recipe in [`tests/README.md`](../tests/README.md) § VP9 decode. **TODO: run it and move this row to ✅.** |
 | **JPEG encode/decode, AV1** | `mjpeg_rkmpp`/`av1_rkmpp` exist in ffmpeg but weren't a goal; the vendor JPEG encoder block isn't wired in the DT. |
 | **RGA standalone functional test** | RGA is validated *through* ffmpeg's `scale_rkrga`; no dedicated `librga` sample run. |
 | **OPP/voltage scaling, RGA genpool** (`ROCKCHIP_RGA_GENPOOL`) | gen_pool (the kernel `genalloc` carved-out memory allocator) is an alternate RGA buffer path; not needed for correctness. |
@@ -33,6 +39,20 @@ the *exact* build we validated (the installer matches debs on it; see
 
 ## ⚠️ Known limitations
 
+- **The shipped drivers still carry every bug the BSP audit found.** This
+  forward-port is deliberately conservative (~98% byte-identical BSP —
+  [`docs/06`](06-vendor-delta.md)), so the [`docs/11`](11-bsp-audit.md) audit's
+  **16 HIGH-severity findings remain present in the code you boot** — including
+  memory-safety bugs reachable from an unprivileged ioctl (several "directly
+  exploitable by any process that can open the device node", per docs/11) and
+  the `mpp_check_req()` overflow-clamp bug that
+  [`docs/01` §9](01-how-the-drivers-work.md) documents. Treat `/dev/mpp_service`
+  and `/dev/rga` as **trusted-input-only** (the udev rule grants them to the
+  `video` group — that group is a security boundary). Fixes are staged as the
+  65-patch review series in [`patches/cleanup-split/`](../patches/cleanup-split/)
+  (verification record: [`patches/cleanup-draft/VERIFICATION.md`](../patches/cleanup-draft/VERIFICATION.md)),
+  but the **runtime regression gate is still PENDING** — the fixed series has
+  not yet been rebuilt, booted, and re-run through `tests/`.
 - **We link `airockchip/librga`'s prebuilt `.so` for convenience — but librga is
   open source** (Apache-2.0): the *official* repo just ships a prebuilt `.so`, so
   it looks closed, but the real source is published (JeffyCN mirror lineage) and

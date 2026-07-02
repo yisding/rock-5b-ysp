@@ -10,6 +10,18 @@ hardware-encoded too — needed only if you run
 It is a separate package on purpose: it widens video-codec access to the whole
 `gdm` group, which is a deliberate security choice rather than a default. GRD does
 **not** depend on it — without it the login screen simply falls back to software.
+(Delivery-channel context: the deploy hub, [`../README.md`](../README.md); it also
+ships as PPA source package #5, [`../ppa/`](../ppa/README.md).)
+
+## What's here
+
+| File | Role |
+|------|------|
+| `root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules` | The `setfacl g:gdm` udev rule — **tracked source** (unlike `codec-udev`, the rule is native to this package, not copied from `scripts/`). |
+| `build-deb.sh` | Assembles the `.deb` from `root/`. |
+| `root/DEBIAN/control` | Package metadata (`gnome-remote-desktop-gdm-hwenc`, `Depends: acl`, `Enhances: gnome-remote-desktop`). |
+| `root/DEBIAN/postinst` | `udevadm control --reload-rules && udevadm trigger` on the codec nodes. |
+| `gnome-remote-desktop-gdm-hwenc_1.0_all.deb` | *(gitignored, on-disk build residue)* — see the [binary policy](../README.md#binary-policy). |
 
 ## Why the greeter needs its own rule
 
@@ -38,9 +50,16 @@ isn't installed:
 # root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules
 KERNEL=="mpp_service", RUN+="/bin/sh -c 'getent group gdm >/dev/null 2>&1 && /usr/bin/setfacl -m g:gdm:rw $devnode'"
 KERNEL=="rga",         RUN+="…same…"
-KERNEL=="iep",         RUN+="…same…"
+KERNEL=="iep",         RUN+="…same…"    # BSP-only IEP node — not created by this port; no-op here (see below)
 SUBSYSTEM=="dma_heap",  RUN+="…same…"
 ```
+
+> **`KERNEL=="iep"`**: IEP is the BSP's Image Enhancement Processor (video
+> post-processing — see [`GLOSSARY.md`](../../GLOSSARY.md)). This port ships no
+> IEP driver and **`/dev/iep` does not exist on the board** (verified
+> 2026-07-01, kernel `6.18.37-current-rockchip64` #7); the line only matters on
+> BSP/vendor kernels that create the node, mirroring the same forward-compat
+> line in the base rule ([`codec-udev`](../codec-udev/)).
 
 Prefix `70-` so it loads **after** the base `60-media` / `99-rockchip-codec` rule
 that sets `GROUP="video"`. `setfacl` adds a group entry and does **not** disturb

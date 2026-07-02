@@ -8,7 +8,13 @@ and exactly where they meet the kernel. Same format: **In plain terms**, then
 
 > Sources studied: `rockchip-linux/mpp` (libmpp / `librockchip_mpp`, v1.3.9) and
 > the librga implementation from the JeffyCN lineage
-> (`tsukumijima/librga-rockchip` — the *real source*, not the prebuilt blob).
+> (`tsukumijima/librga-rockchip` — the *real source*, not the prebuilt blob),
+> pinned at commit `2cffdf6f332c` (v2.2.0, the 2026-01-21 merge of
+> `JeffyCN/mirrors:linux-rga-multi`) — every librga file/function reference in
+> this doc was re-verified against that commit (2026-07-01). Tree pins for all
+> cited sources: [`docs/00`](00-source-trees.md). To actually **build and
+> stage** these libraries (staging prefix, pkg-config layout, pinned versions),
+> follow [`ffmpeg/README.md`](../ffmpeg/README.md).
 
 ---
 
@@ -42,6 +48,17 @@ userspace library knows the recipe" — these libraries are where the recipe is
 built and where every `MPP_CMD_*` / `RGA_*` ioctl is issued. They exist (rather
 than using mainline V4L2) because Rockchip's stack exposes the full feature set:
 H.265 *encode*, all RGA ops, and the buffer model `ffmpeg-rockchip` expects.
+
+**Two FFmpeg lineages consume these libraries — differently.** This doc's
+running example is `ffmpeg-rockchip` (nyanmisaka fork), which uses *both*
+libraries: libmpp codecs plus librga-backed filters (`scale_rkrga`, …) and an
+RKMPP hwdevice with MPP-backed frame pools. But **upstream FFmpeg 8.1.2** also
+ships `rkmpp` support, as a compact **hwcontext bridge**: it drives libmpp for
+decode (H.264/HEVC/VP8/VP9) and encode (H.264/HEVC), passes frames as generic
+DRM PRIME descriptors, and uses **no librga at all** (no RGA filters, fewer
+encoder controls) — that leaner, ABI-friendly shape is what the packaged
+GNOME Remote Desktop / PPA stack builds on. The full source-level comparison
+is [`ffmpeg/IMPLEMENTATION-COMPARISON.md`](../ffmpeg/IMPLEMENTATION-COMPARISON.md).
 
 ---
 
@@ -277,7 +294,10 @@ c_RkRgaBlit(&src, &dst, NULL);
   `immosaic`, `imosd`, `imrop`, `immakeBorder`, `imgaussianBlur`, and the umbrella
   `improcess`. Each has a `*Task` variant for batching (§B5). `querystring` reports
   driver/hardware version + capabilities (ffmpeg calls this at probe to decide what
-  it can offload).
+  it can offload). The exact version tuples current librga's capability
+  probing expects back from an RK3588 kernel (RGA2E `3.2.63318`, RGA3
+  `3.0.76831`) are documented in [`docs/13`](13-rewrite-drivers.md) — any
+  alternative `/dev/rga` implementation has to report them.
 - **Legacy `RgaApi`/`RockchipRga`** (`core/`): `c_RkRgaInit`, `c_RkRgaBlit`,
   `RkRgaBlit`, the `RockchipRga` C++ singleton, with `NormalRga` as the engine.
   `ffmpeg-rockchip`'s `scale_rkrga` filter links `c_RkRgaBlit` (its `configure`
@@ -335,7 +355,9 @@ result. **Async** (`RGA_BLIT_ASYNC`) returns immediately with a **release fence*
 (`out_fence_fd`) you can wait on later — so the CPU keeps working and several RGA
 ops can pipeline. (`out_fence_fd` comes back `-1` if the kernel build lacks fence
 support.) This is the same dma-fence machinery the kernel side documents in
-docs/01; it's also where the audit found a leaked fence reference (`docs/11`).
+[`docs/01` §5a](01-how-the-drivers-work.md) (the sync_file export in
+`rga_fence.c`); it's also where the audit found a leaked acquire-fence
+reference (`docs/11`).
 
 ## B5. Describing memory, and batching jobs
 
@@ -406,6 +428,9 @@ So: **userspace builds the recipe and manages the memory; the kernel runs it on
 silicon.** docs/01 + docs/02 together trace the complete path from your function
 call down to the hardware and back.
 
-> Provenance: librga's source is open (Apache-2.0) in the JeffyCN lineage above;
-> Rockchip's official `airockchip/librga` ships only prebuilt binaries (see
+> Provenance: librga's source is open (Apache-2.0) in the JeffyCN lineage above
+> (pinned: `tsukumijima/librga-rockchip@2cffdf6f332c`, v2.2.0); Rockchip's
+> official `airockchip/librga` ships only prebuilt binaries (see
 > [`docs/10`](10-gotchas.md)). libmpp is open source (`rockchip-linux/mpp`).
+> Build/staging recipes: [`ffmpeg/README.md`](../ffmpeg/README.md); all tree
+> pins: [`docs/00`](00-source-trees.md).

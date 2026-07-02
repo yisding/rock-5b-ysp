@@ -1,0 +1,326 @@
+From b59509b6099053caab777e70db901ad6f449b1b4 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 16:12:47 -0700
+Subject: [PATCH 9/9] fix rkmpp/v4l2 code review issues
+
+- rkmppdec: return control to caller when the input queue is full
+  instead of looping forever (deadlock when all frames are held)
+- rkmppdec: track in-flight MJPEG frames so draining waits for them
+  instead of dropping them with a non-blocking poll
+- rkmppdec: send BSF-filtered extradata before the first packet so
+  out-of-band Annex B SPS/PPS reach MPP
+- rkmppdec: surface errinfo frames as AVERROR_INVALIDDATA instead of
+  a clean EOF; log tolerated drops at warning level
+- rkmppdec: reset last_pts and decoder state on flush
+- rkmppdec: fix AVERROR(EOF) evaluating to +1 (use AVERROR_EOF)
+- rkmppenc, rkrga: reject DRM descriptors with zero pitch before
+  dividing (SIGFPE)
+- v4l2: validate DV timings before estimating framerate; fix leak of
+  per-buffer arrays in mmap_free on partial allocation failure
+- hwcontext_rkmpp: parenthesize drm_is_afbc/drm_is_rfbc macro bodies
+- swscale: use out-params for NV15/NV20_PACKED input funcs
+- pixfmt: drop circular NV20 deprecation comment
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ libavcodec/rkmppdec.c       | 63 +++++++++++++++++++++++++++++++------
+ libavcodec/rkmppdec.h       |  3 ++
+ libavcodec/rkmppenc.c       |  3 ++
+ libavdevice/v4l2.c          | 25 +++++++++------
+ libavfilter/rkrga_common.c  |  3 ++
+ libavutil/hwcontext_rkmpp.h |  6 ++--
+ libavutil/pixfmt.h          |  4 +--
+ libswscale/input.c          |  4 +--
+ 8 files changed, 85 insertions(+), 26 deletions(-)
+
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index 7657f1ebe4..53b35d306f 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -888,8 +888,12 @@ static int rkmpp_get_frame(AVCodecContext *avctx, AVFrame *frame, int timeout)
+     if (r->eof)
+         return AVERROR_EOF;
+ 
+-    if (avctx->codec_id == AV_CODEC_ID_MJPEG)
+-        timeout = FFMAX(timeout, MPP_TIMEOUT_NON_BLOCK);
++    /* the MJPEG decoder is 1-in-1-out and never signals an EOS frame:
++     * a blocking drain poll would wait forever once the queue is empty,
++     * but a non-blocking one would drop frames still being decoded */
++    if (avctx->codec_id == AV_CODEC_ID_MJPEG && timeout == MPP_TIMEOUT_BLOCK)
++        timeout = r->frames_pending > 0 ? MPP_TIMEOUT_MAX
++                                        : MPP_TIMEOUT_NON_BLOCK;
+ 
+     if ((ret = r->mapi->control(r->mctx, MPP_SET_OUTPUT_TIMEOUT, (MppParam)&timeout)) != MPP_OK) {
+         av_log(avctx, AV_LOG_ERROR, "Failed to set output timeout: %d\n", ret);
+@@ -911,6 +915,8 @@ static int rkmpp_get_frame(AVCodecContext *avctx, AVFrame *frame, int timeout)
+             av_log(avctx, AV_LOG_DEBUG, "Timeout getting decoded frame\n");
+         return AVERROR(EAGAIN);
+     }
++    if (avctx->codec_id == AV_CODEC_ID_MJPEG && r->frames_pending > 0)
++        r->frames_pending--;
+     if (mpp_frame_get_eos(mpp_frame)) {
+         av_log(avctx, AV_LOG_DEBUG, "Received a 'EOS' frame\n");
+         /* EOS frame may contain valid data */
+@@ -930,7 +936,7 @@ static int rkmpp_get_frame(AVCodecContext *avctx, AVFrame *frame, int timeout)
+         int ignore_err = !explode &&
+                          ((avctx->codec_id != AV_CODEC_ID_MJPEG) ||
+                           (avctx->err_recognition & AV_EF_IGNORE_ERR));
+-        int log_level = ignore_err ? AV_LOG_DEBUG : AV_LOG_ERROR;
++        int log_level = ignore_err ? AV_LOG_WARNING : AV_LOG_ERROR;
+ 
+         av_log(avctx, log_level, "Received a 'errinfo' frame: %d\n", ret);
+         if (avctx->codec_id == AV_CODEC_ID_MJPEG)
+@@ -940,8 +946,12 @@ static int rkmpp_get_frame(AVCodecContext *avctx, AVFrame *frame, int timeout)
+             ret = AVERROR_INVALIDDATA;
+             goto exit;
+         }
+-        if (!ignore_err)
+-            r->eof = 1; /* bail out from the loop */
++        if (!ignore_err) {
++            /* bail out from the loop, surfacing the error instead of a clean EOF */
++            r->eof = 1;
++            ret = AVERROR_INVALIDDATA;
++            goto exit;
++        }
+         ret = AVERROR(EAGAIN);
+         goto exit;
+     }
+@@ -1188,7 +1198,33 @@ static int rkmpp_send_packet(AVCodecContext *avctx, AVPacket *pkt)
+ 
+     /* avoid sending new data after EOS */
+     if (r->draining)
+-        return AVERROR(EOF);
++        return AVERROR_EOF;
++
++    /* parameter sets may exist only out-of-band, e.g. Annex B SPS/PPS from
++     * RTSP sprop-parameter-sets, which the mp4toannexb BSF passes through
++     * without injecting: send the extradata before the first packet */
++    if (!r->extradata_sent && avctx->codec_id != AV_CODEC_ID_MJPEG) {
++        const uint8_t *extradata;
++        int extradata_size;
++
++        ff_decode_get_extradata(avctx, &extradata, &extradata_size);
++        if (extradata && extradata_size > 0) {
++            if ((ret = mpp_packet_init(&mpp_pkt, (void *)extradata,
++                                       extradata_size)) != MPP_OK) {
++                av_log(avctx, AV_LOG_ERROR, "Failed to init extradata packet: %d\n", ret);
++                return AVERROR_EXTERNAL;
++            }
++            ret = r->mapi->decode_put_packet(r->mctx, mpp_pkt);
++            mpp_packet_deinit(&mpp_pkt);
++            if (ret != MPP_OK) {
++                av_log(avctx, AV_LOG_TRACE, "Decoder buffer is full\n");
++                return AVERROR(EAGAIN);
++            }
++            av_log(avctx, AV_LOG_DEBUG, "Wrote %d bytes of extradata to decoder\n",
++                   extradata_size);
++        }
++        r->extradata_sent = 1;
++    }
+ 
+     /* do not skip non-key pkt until got any frame */
+     if (r->got_frame &&
+@@ -1274,6 +1310,9 @@ static int rkmpp_send_packet(AVCodecContext *avctx, AVPacket *pkt)
+             mpp_packet_deinit(&mpp_pkt);
+         return AVERROR(EAGAIN);
+     }
++    if (avctx->codec_id == AV_CODEC_ID_MJPEG)
++        r->frames_pending++;
++
+     /* update the last pts */
+     r->last_pts = pkt->pts == AV_NOPTS_VALUE ? last_pts : pkt->pts;
+ 
+@@ -1326,10 +1365,13 @@ static int rkmpp_decode_receive_frame(AVCodecContext *avctx, AVFrame *frame)
+             /* send pending data to decoder */
+             ret = rkmpp_send_packet(avctx, pkt);
+             if (ret == AVERROR(EAGAIN)) {
+-                /* some streams might need more packets to start returning frames */
++                /* some streams might need more packets to start returning frames,
++                 * but always hand control back to the caller afterwards: looping
++                 * here would deadlock if the caller still holds references to
++                 * all decoded frames (the buffer group is exhausted and the
++                 * caller can only release frames once we return) */
+                 ret = rkmpp_get_frame(avctx, frame, 100);
+-                if (ret != AVERROR(EAGAIN))
+-                    goto exit;
++                goto exit;
+             } else if (ret < 0) {
+                 av_log(avctx, AV_LOG_ERROR, "Decoder failed to send packet: %d\n", ret);
+                 goto exit;
+@@ -1359,6 +1401,9 @@ static av_cold void rkmpp_decode_flush(AVCodecContext *avctx)
+         r->draining = 0;
+         r->info_change = 0;
+         r->got_frame = 0;
++        r->last_pts = AV_NOPTS_VALUE;
++        r->extradata_sent = 0;
++        r->frames_pending = 0;
+ 
+         av_packet_unref(&r->last_pkt);
+     } else
+diff --git a/libavcodec/rkmppdec.h b/libavcodec/rkmppdec.h
+index f61093e833..877e55c839 100644
+--- a/libavcodec/rkmppdec.h
++++ b/libavcodec/rkmppdec.h
+@@ -32,6 +32,7 @@
+ 
+ #include "codec_internal.h"
+ #include "decode.h"
++#include "decode_bsf.h"
+ #include "hwconfig.h"
+ #include "internal.h"
+ 
+@@ -62,6 +63,8 @@ typedef struct RKMPPDecContext {
+     int            info_change;
+     int            got_frame;
+     int            use_rfbc;
++    int            extradata_sent;
++    int            frames_pending;
+ 
+     int            deint;
+     int            afbc;
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index 7585f27143..f20cdb8e8a 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -163,6 +163,9 @@ static int get_byte_stride(const AVDRMObjectDescriptor *object,
+     plane0 = &layer->planes[0];
+     plane1 = &layer->planes[1];
+ 
++    if (plane0->pitch <= 0)
++        return AVERROR(EINVAL);
++
+     *hs = plane0->pitch;
+     *vs = is_packed_fmt ?
+         ALIGN_DOWN(object->size / plane0->pitch, is_rgb ? 1 : 2) :
+diff --git a/libavdevice/v4l2.c b/libavdevice/v4l2.c
+index fd0d37ce64..1ebf93d7a6 100644
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -368,12 +368,11 @@ static void mmap_free(struct video_data *s, int n)
+         return;
+ 
+     for (int i = 0; i < n; i++) {
+-        if (!s->buf_data[i].start || !s->buf_data[i].len)
+-            continue;
+-
+-        for (int plane = 0; plane < s->plane_count; plane++) {
+-            if (s->buf_data[i].start[plane])
+-                v4l2_munmap(s->buf_data[i].start[plane], s->buf_data[i].len[plane]);
++        if (s->buf_data[i].start && s->buf_data[i].len) {
++            for (int plane = 0; plane < s->plane_count; plane++) {
++                if (s->buf_data[i].start[plane])
++                    v4l2_munmap(s->buf_data[i].start[plane], s->buf_data[i].len[plane]);
++            }
+         }
+         av_freep(&s->buf_data[i].start);
+         av_freep(&s->buf_data[i].len);
+@@ -857,13 +856,19 @@ static int v4l2_set_parameters(AVFormatContext *ctx)
+     streamparm.type = s->buf_type;
+     if (v4l2_ioctl(s->fd, VIDIOC_G_PARM, &streamparm) < 0) {
+         // for error cases, try to get frame rate from VIDIOC_G_DV_TIMINGS
+-        struct v4l2_dv_timings timings;
++        struct v4l2_dv_timings timings = { 0 };
++        int64_t total_pixels = 0;
+         ret = AVERROR(errno);
+-        if (v4l2_ioctl(s->fd, VIDIOC_G_DV_TIMINGS, &timings) == 0) {
++        if (v4l2_ioctl(s->fd, VIDIOC_G_DV_TIMINGS, &timings) == 0 &&
++            timings.type == V4L2_DV_BT_656_1120) {
+             const int total_width  = timings.bt.width  + timings.bt.hfrontporch + timings.bt.hsync + timings.bt.hbackporch;
+             const int total_height = timings.bt.height + timings.bt.vfrontporch + timings.bt.vsync + timings.bt.vbackporch;
++            total_pixels = (int64_t)total_width * total_height;
++        }
++        // no-signal or bogus timings may report zero dimensions/pixelclock
++        if (total_pixels > 0 && timings.bt.pixelclock > 0) {
+             int64_t framerate_den = 1001;
+-            int64_t framerate_num = av_rescale(timings.bt.pixelclock, framerate_den, (int64_t)total_width * total_height);
++            int64_t framerate_num = av_rescale(timings.bt.pixelclock, framerate_den, total_pixels);
+             framerate_num = ((framerate_num + 5) / 10) * 10; // round by 10
+             if (framerate_num % 1000 == 0) {
+                 tpf->numerator   = framerate_den;
+@@ -871,7 +876,7 @@ static int v4l2_set_parameters(AVFormatContext *ctx)
+             } else {
+                 int framerate_num_dst = 0, framerate_den_dst = 0;
+                 framerate_den = 1000;
+-                framerate_num = av_rescale(timings.bt.pixelclock, framerate_den, (int64_t)total_width * total_height);
++                framerate_num = av_rescale(timings.bt.pixelclock, framerate_den, total_pixels);
+                 framerate_num = ((framerate_num + 5) / 10) * 10; // round by 10
+                 av_reduce(&framerate_num_dst, &framerate_den_dst, framerate_num, framerate_den, INT_MAX);
+                 tpf->numerator   = framerate_den_dst;
+diff --git a/libavfilter/rkrga_common.c b/libavfilter/rkrga_common.c
+index 1632c56e05..6de71edbda 100644
+--- a/libavfilter/rkrga_common.c
++++ b/libavfilter/rkrga_common.c
+@@ -134,6 +134,9 @@ static int get_pixel_stride(const AVDRMObjectDescriptor *object,
+     plane0 = &layer->planes[0];
+     plane1 = &layer->planes[1];
+ 
++    if (plane0->pitch <= 0)
++        return AVERROR(EINVAL);
++
+     *ws = is_packed_fmt ?
+         (plane0->pitch / bytes_pp) :
+         plane0->pitch;
+diff --git a/libavutil/hwcontext_rkmpp.h b/libavutil/hwcontext_rkmpp.h
+index 75394699c3..bd38d8fa56 100644
+--- a/libavutil/hwcontext_rkmpp.h
++++ b/libavutil/hwcontext_rkmpp.h
+@@ -66,7 +66,7 @@
+ #endif
+ 
+ #define drm_is_afbc(mod) \
+-        ((mod >> 52) == (DRM_FORMAT_MOD_ARM_TYPE_AFBC | \
++        (((mod) >> 52) == (DRM_FORMAT_MOD_ARM_TYPE_AFBC | \
+                 (DRM_FORMAT_MOD_VENDOR_ARM << 4)))
+ 
+ /* Rockchip RFBC (64x4) */
+@@ -95,8 +95,8 @@
+ 	DRM_FORMAT_MOD_ROCKCHIP_CODE(DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC, mode)
+ 
+ #define drm_is_rfbc(mod) \
+-        (((mod >> 56) & 0xff) == DRM_FORMAT_MOD_VENDOR_ROCKCHIP) && \
+-        (((mod >> 52) & DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK) == DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC)
++        (((((mod) >> 56) & 0xff) == DRM_FORMAT_MOD_VENDOR_ROCKCHIP) && \
++         ((((mod) >> 52) & DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK) == DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC))
+ 
+ /**
+  * DRM Prime Frame descriptor for RKMPP HWDevice.
+diff --git a/libavutil/pixfmt.h b/libavutil/pixfmt.h
+index 3a1f2900d8..de183d88eb 100644
+--- a/libavutil/pixfmt.h
++++ b/libavutil/pixfmt.h
+@@ -196,8 +196,8 @@ enum AVPixelFormat {
+     AV_PIX_FMT_XYZ12LE,      ///< packed XYZ 4:4:4, 36 bpp, (msb) 12X, 12Y, 12Z (lsb), the 2-byte value for each X/Y/Z is stored as little-endian, the 4 lower bits are set to 0
+     AV_PIX_FMT_XYZ12BE,      ///< packed XYZ 4:4:4, 36 bpp, (msb) 12X, 12Y, 12Z (lsb), the 2-byte value for each X/Y/Z is stored as big-endian, the 4 lower bits are set to 0
+     AV_PIX_FMT_NV16,         ///< interleaved chroma YUV 4:2:2, 16bpp, (1 Cr & Cb sample per 2x1 Y samples)
+-    AV_PIX_FMT_NV20LE,       ///< interleaved chroma YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian, deprecated in favor of AV_PIX_FMT_NV20
+-    AV_PIX_FMT_NV20BE,       ///< interleaved chroma YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian, deprecated in favor of AV_PIX_FMT_NV20
++    AV_PIX_FMT_NV20LE,       ///< interleaved chroma YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian
++    AV_PIX_FMT_NV20BE,       ///< interleaved chroma YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian
+ 
+     AV_PIX_FMT_RGBA64BE,     ///< packed RGBA 16:16:16:16, 64bpp, 16R, 16G, 16B, 16A, the 2-byte value for each R/G/B/A component is stored as big-endian
+     AV_PIX_FMT_RGBA64LE,     ///< packed RGBA 16:16:16:16, 64bpp, 16R, 16G, 16B, 16A, the 2-byte value for each R/G/B/A component is stored as little-endian
+diff --git a/libswscale/input.c b/libswscale/input.c
+index 4577196129..b25fe7a698 100644
+--- a/libswscale/input.c
++++ b/libswscale/input.c
+@@ -2107,7 +2107,7 @@ av_cold void ff_sws_init_input_funcs(SwsInternal *c,
+         break;
+     case AV_PIX_FMT_NV15:
+     case AV_PIX_FMT_NV20_PACKED:
+-        c->chrToYV12 = nv15_20ToUV_c;
++        *chrToYV12 = nv15_20ToUV_c;
+         break;
+     case AV_PIX_FMT_P010LE:
+     case AV_PIX_FMT_P210LE:
+@@ -2718,7 +2718,7 @@ av_cold void ff_sws_init_input_funcs(SwsInternal *c,
+         break;
+     case AV_PIX_FMT_NV15:
+     case AV_PIX_FMT_NV20_PACKED:
+-        c->lumToYV12 = nv15_20ToY_c;
++        *lumToYV12 = nv15_20ToY_c;
+         break;
+     case AV_PIX_FMT_P010LE:
+     case AV_PIX_FMT_P210LE:
+-- 
+2.53.0
+

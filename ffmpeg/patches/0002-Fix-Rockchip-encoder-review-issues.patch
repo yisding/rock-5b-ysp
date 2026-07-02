@@ -1,0 +1,192 @@
+From c44cc876db768c8b44812cf8fc51f360c9900ea9 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 09:48:58 -0700
+Subject: [PATCH 2/9] Fix Rockchip encoder review issues
+
+---
+ libavcodec/rkmppenc.c | 47 +++++++++++++++++++++++++++++++++++++++++++
+ libavdevice/v4l2.c    | 37 ++++++++++++++++++++++++++--------
+ libswscale/input.c    |  3 +--
+ 3 files changed, 77 insertions(+), 10 deletions(-)
+
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index be5c753b43..6ac2829ed1 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -73,6 +73,7 @@ static MppFrameFormat rkmpp_get_mpp_fmt_h26x(enum AVPixelFormat pix_fmt)
+ static MppFrameFormat rkmpp_get_mpp_fmt_mjpeg(enum AVPixelFormat pix_fmt)
+ {
+     switch (pix_fmt) {
++    case AV_PIX_FMT_YUVJ420P:
+     case AV_PIX_FMT_YUV420P:   return MPP_FMT_YUV420P;
+     case AV_PIX_FMT_YUVJ422P:
+     case AV_PIX_FMT_YUV422P:   return MPP_FMT_YUV422P;     /* RK3576+ only */
+@@ -194,6 +195,44 @@ static int get_afbc_byte_stride(const AVPixFmtDescriptor *desc,
+     return (*stride > 0) ? 0 : AVERROR(EINVAL);
+ }
+ 
++static int rkmpp_check_drm_object0(AVCodecContext *avctx,
++                                   const AVDRMFrameDescriptor *desc)
++{
++    if (!desc ||
++        desc->nb_objects < 1 || desc->nb_objects > AV_DRM_MAX_PLANES ||
++        desc->nb_layers < 1 || desc->nb_layers > AV_DRM_MAX_PLANES) {
++        av_log(avctx, AV_LOG_ERROR, "Invalid DRM frame descriptor\n");
++        return AVERROR(EINVAL);
++    }
++
++    for (int i = 0; i < desc->nb_layers; i++) {
++        const AVDRMLayerDescriptor *layer = &desc->layers[i];
++
++        if (layer->nb_planes < 1 || layer->nb_planes > AV_DRM_MAX_PLANES) {
++            av_log(avctx, AV_LOG_ERROR, "Invalid DRM layer descriptor\n");
++            return AVERROR(EINVAL);
++        }
++
++        for (int j = 0; j < layer->nb_planes; j++) {
++            int object_index = layer->planes[j].object_index;
++
++            if (object_index < 0 || object_index >= desc->nb_objects) {
++                av_log(avctx, AV_LOG_ERROR,
++                       "Invalid DRM object index %d in layer %d plane %d\n",
++                       object_index, i, j);
++                return AVERROR(EINVAL);
++            }
++            if (object_index != 0) {
++                av_log(avctx, AV_LOG_ERROR,
++                       "DRM frames split across multiple objects are not supported\n");
++                return AVERROR(ENOSYS);
++            }
++        }
++    }
++
++    return 0;
++}
++
+ static unsigned get_sent_frame_count(MPPEncFrame *list)
+ {
+     unsigned count = 0;
+@@ -321,6 +360,9 @@ static int rkmpp_set_enc_cfg_prep(AVCodecContext *avctx, AVFrame *frame)
+         return AVERROR(EINVAL);
+ 
+     drm_desc = (AVDRMFrameDescriptor *)frame->data[0];
++    ret = rkmpp_check_drm_object0(avctx, drm_desc);
++    if (ret < 0)
++        return ret;
+     if (drm_desc->objects[0].fd < 0)
+         return AVERROR(ENOMEM);
+ 
+@@ -573,6 +615,8 @@ static int rkmpp_set_enc_cfg(AVCodecContext *avctx)
+             qp_init = r->qp_init >= 1 ? r->qp_init : 80;
+             qp_max = r->qp_max >= 1 ? r->qp_max : 99;
+             qp_min = r->qp_min >= 1 ? r->qp_min : 1;
++            qp_max_i = qp_max;
++            qp_min_i = qp_min;
+             /* jpeg use special codec config to control qtable */
+             mpp_enc_cfg_set_s32(cfg, "jpeg:q_factor", qp_init);
+             mpp_enc_cfg_set_s32(cfg, "jpeg:qf_max", qp_max);
+@@ -796,6 +840,9 @@ static MPPEncFrame *rkmpp_submit_frame(AVCodecContext *avctx, AVFrame *frame)
+     }
+ 
+     drm_desc = (AVDRMFrameDescriptor *)drm_frame->data[0];
++    ret = rkmpp_check_drm_object0(avctx, drm_desc);
++    if (ret < 0)
++        goto exit;
+     if (drm_desc->objects[0].fd < 0)
+         goto exit;
+ 
+diff --git a/libavdevice/v4l2.c b/libavdevice/v4l2.c
+index f95b928f31..fd0d37ce64 100644
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -580,6 +580,7 @@ static int mmap_read_frame(AVFormatContext *ctx, AVPacket *pkt)
+         .length   = s->multiplanar ? VIDEO_MAX_PLANES : 0,
+     };
+     struct timeval buf_ts;
++    unsigned int plane_payload[VIDEO_MAX_PLANES] = { 0 };
+     unsigned int bytesused = 0;
+     int res;
+ 
+@@ -608,8 +609,21 @@ static int mmap_read_frame(AVFormatContext *ctx, AVPacket *pkt)
+     av_assert0(atomic_load(&s->buffers_queued) >= 1);
+ 
+     if (s->multiplanar) {
+-        for (int plane = 0; plane < buf.length; plane++)
+-            bytesused += buf.m.planes[plane].bytesused;
++        for (int plane = 0; plane < buf.length; plane++) {
++            if (buf.m.planes[plane].bytesused < buf.m.planes[plane].data_offset) {
++                av_log(ctx, AV_LOG_ERROR,
++                       "Dequeued v4l2 buffer plane %d contains %u bytes, "
++                       "below data offset %u.\n",
++                       plane, buf.m.planes[plane].bytesused,
++                       buf.m.planes[plane].data_offset);
++                res = enqueue_buffer(s, &buf);
++                return res ? res : AVERROR(EINVAL);
++            }
++
++            plane_payload[plane] = buf.m.planes[plane].bytesused -
++                                   buf.m.planes[plane].data_offset;
++            bytesused += plane_payload[plane];
++        }
+     } else {
+         bytesused = buf.bytesused;
+     }
+@@ -621,8 +635,10 @@ static int mmap_read_frame(AVFormatContext *ctx, AVPacket *pkt)
+                bytesused);
+         bytesused = 0;
+         if (s->multiplanar) {
+-            for (int plane = 0; plane < buf.length; plane++)
++            for (int plane = 0; plane < buf.length; plane++) {
++                plane_payload[plane] = 0;
+                 buf.m.planes[plane].bytesused = 0;
++            }
+         } else {
+             buf.bytesused = 0;
+         }
+@@ -640,8 +656,10 @@ static int mmap_read_frame(AVFormatContext *ctx, AVPacket *pkt)
+                    bytesused, s->frame_size, buf.flags);
+             bytesused = 0;
+             if (s->multiplanar) {
+-                for (int plane = 0; plane < buf.length; plane++)
++                for (int plane = 0; plane < buf.length; plane++) {
++                    plane_payload[plane] = 0;
+                     buf.m.planes[plane].bytesused = 0;
++                }
+             } else {
+                 buf.bytesused = 0;
+             }
+@@ -662,10 +680,13 @@ static int mmap_read_frame(AVFormatContext *ctx, AVPacket *pkt)
+             unsigned int offset = 0;
+ 
+             for (int plane = 0; plane < buf.length; plane++) {
+-                memcpy(pkt->data + offset,
+-                       (uint8_t *)s->buf_data[buf.index].start[plane] + buf.m.planes[plane].data_offset,
+-                       buf.m.planes[plane].bytesused);
+-                offset += buf.m.planes[plane].bytesused;
++                if (plane_payload[plane]) {
++                    memcpy(pkt->data + offset,
++                           (uint8_t *)s->buf_data[buf.index].start[plane] +
++                           buf.m.planes[plane].data_offset,
++                           plane_payload[plane]);
++                    offset += plane_payload[plane];
++                }
+             }
+         } else {
+             memcpy(pkt->data, s->buf_data[buf.index].start[0], bytesused);
+diff --git a/libswscale/input.c b/libswscale/input.c
+index 8f00b32cfa..efaa5379b8 100644
+--- a/libswscale/input.c
++++ b/libswscale/input.c
+@@ -953,8 +953,7 @@ static av_always_inline void nv15_20ToYUV_c(uint16_t *dst, const uint8_t *src,
+     int shift = (src_pos << 1) & 7;
+     src_pos = (src_pos * 10) >> 3;
+     AV_WN16(dst + dst_pos,
+-            ((AV_RL16(src + src_pos) >> shift) |
+-             (AV_RL16(src + src_pos + 1) << (8 - shift))) & 0x3FF);
++            (AV_RL16(src + src_pos) >> shift) & 0x3FF);
+ }
+ 
+ static void nv15_20ToY_c(uint8_t *_dst, const uint8_t *_src, const uint8_t *unused1,
+-- 
+2.53.0
+

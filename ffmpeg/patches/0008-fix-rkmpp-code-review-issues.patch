@@ -1,0 +1,439 @@
+From 1c73bd8e65361e95438d06a357ded854624109be Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 15:13:13 -0700
+Subject: [PATCH 8/9] fix rkmpp code review issues
+
+- rkmppdec: make rkmpp_export_frame always consume the MppFrame so
+  error paths no longer double-free it or leak the DRM descriptor and
+  tmp_frame
+- rkmppdec: fix assignment binding on info_change so it only stores
+  MPP's real info-change flag
+- rkmppdec: honor AV_EF_EXPLODE for hardware-flagged errinfo frames
+- rkmppenc: fully unwind the MPPEncFrame entry when submit fails so a
+  bufferless frame is never queued for encoding or leaked
+- rkmppenc: reclaim the consumed input frame's buffer on
+  rkmpp_get_packet error exits; check av_frame_clone result
+- rkrga: don't free frames already consumed by ff_filter_frame; check
+  av_frame_clone result in submit_frame
+- hwcontext_rkmpp: compute pool buffer size in size_t to avoid signed
+  overflow on large frames
+- pixdesc: rename NV20_PACKED descriptor to nv20_packed to stop
+  hijacking av_get_pix_fmt("nv20") from AV_PIX_FMT_NV20LE/BE
+- lavc/Makefile: add SKIPHEADERS for rkmpp headers to unbreak
+  checkheaders without MPP installed
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ libavcodec/Makefile              |  1 +
+ libavcodec/rkmppdec.c            | 79 +++++++++++++++++++++++---------
+ libavcodec/rkmppenc.c            | 47 +++++++++++++++----
+ libavfilter/rkrga_common.c       | 20 ++++----
+ libavutil/hwcontext_rkmpp.c      |  2 +-
+ libavutil/pixdesc.c              |  2 +-
+ tests/ref/fate/imgutils          |  4 +-
+ tests/ref/fate/sws-pixdesc-query | 10 ++--
+ 8 files changed, 116 insertions(+), 49 deletions(-)
+
+diff --git a/libavcodec/Makefile b/libavcodec/Makefile
+index 9d912d0feb..75a21e25d9 100644
+--- a/libavcodec/Makefile
++++ b/libavcodec/Makefile
+@@ -1358,6 +1358,7 @@ SKIPHEADERS-$(CONFIG_NVENC)            += nvenc.h
+ SKIPHEADERS-$(CONFIG_OHCODEC)          += ohcodec.h
+ SKIPHEADERS-$(CONFIG_QSV)              += qsv.h qsv_internal.h
+ SKIPHEADERS-$(CONFIG_QSVENC)           += qsvenc.h
++SKIPHEADERS-$(CONFIG_RKMPP)            += rkmppdec.h rkmppenc.h
+ SKIPHEADERS-$(CONFIG_VAAPI)            += vaapi_decode.h vaapi_hevc.h vaapi_encode.h
+ SKIPHEADERS-$(CONFIG_VDPAU)            += vdpau.h vdpau_internal.h
+ SKIPHEADERS-$(CONFIG_VIDEOTOOLBOX)     += videotoolbox.h vt_internal.h
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index 2f861dfe66..7657f1ebe4 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -681,6 +681,9 @@ static int frame_create_buf(AVFrame *frame,
+     return AVERROR(EINVAL);
+ }
+ 
++/* Exports the given MppFrame into the AVFrame.
++ * Ownership of mpp_frame is always consumed, on success and on failure:
++ * the caller must not deinit it after this call. */
+ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mpp_frame)
+ {
+     RKMPPDecContext *r = avctx->priv_data;
+@@ -692,16 +695,22 @@ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mp
+     int mpp_frame_mode = 0;
+     int ret, is_afbc = 0;
+ 
+-    if (!frame || !mpp_frame)
+-        return AVERROR(ENOMEM);
++    if (!frame || !mpp_frame) {
++        ret = AVERROR(ENOMEM);
++        goto fail;
++    }
+ 
+     mpp_buf = mpp_frame_get_buffer(mpp_frame);
+-    if (!mpp_buf)
+-        return AVERROR(EAGAIN);
++    if (!mpp_buf) {
++        ret = AVERROR(EAGAIN);
++        goto fail;
++    }
+ 
+     desc = av_mallocz(sizeof(*desc));
+-    if (!desc)
+-        return AVERROR(ENOMEM);
++    if (!desc) {
++        ret = AVERROR(ENOMEM);
++        goto fail;
++    }
+ 
+     desc->drm_desc.nb_objects = 1;
+     desc->buffers[0] = mpp_buf;
+@@ -727,7 +736,7 @@ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mp
+ 
+         pix_desc = av_pix_fmt_desc_get(avctx->sw_pix_fmt);
+         if ((ret = get_afbc_byte_stride(pix_desc, (int *)&layer->planes[0].pitch, 0)) < 0)
+-            return ret;
++            goto fail;
+ 
+         /* MPP specific AFBC src_y offset, not memory address offset */
+         frame->crop_top = r->use_rfbc ? 0 : mpp_frame_get_offset_y(mpp_frame);
+@@ -747,20 +756,25 @@ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mp
+ 
+     if ((ret = frame_create_buf(frame, mpp_frame, mpp_frame_get_buf_size(mpp_frame),
+                                 rkmpp_free_mpp_frame, mpp_frame, AV_BUFFER_FLAG_READONLY)) < 0)
+-        return ret;
++        goto fail;
++    /* from here on, mpp_frame is owned by frame->buf[] */
+ 
+     if ((ret = frame_create_buf(frame, (uint8_t *)desc, sizeof(*desc),
+-                                rkmpp_free_drm_desc, desc, AV_BUFFER_FLAG_READONLY)) < 0)
+-        return ret;
++                                rkmpp_free_drm_desc, desc, AV_BUFFER_FLAG_READONLY)) < 0) {
++        av_free(desc);
++        goto fail_unref;
++    }
+ 
+     frame->data[0] = (uint8_t *)desc;
+ 
+     frame->hw_frames_ctx = av_buffer_ref(r->hwframe);
+-    if (!frame->hw_frames_ctx)
+-        return AVERROR(ENOMEM);
++    if (!frame->hw_frames_ctx) {
++        ret = AVERROR(ENOMEM);
++        goto fail_unref;
++    }
+ 
+     if ((ret = ff_decode_frame_props(avctx, frame)) < 0)
+-        return ret;
++        goto fail_unref;
+ 
+     frame->width  = avctx->width;
+     frame->height = avctx->height;
+@@ -785,13 +799,24 @@ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mp
+          frame->color_trc == AVCOL_TRC_ARIB_STD_B67)) {
+         ret = rkmpp_export_mastering_display(avctx, frame, mpp_frame_get_mastering_display(mpp_frame));
+         if (ret < 0)
+-            return ret;
++            goto fail_unref;
+         ret = rkmpp_export_content_light(frame, mpp_frame_get_content_light(mpp_frame));
+         if (ret < 0)
+-            return ret;
++            goto fail_unref;
+     }
+ 
+     return 0;
++
++fail:
++    av_free(desc);
++    if (mpp_frame)
++        mpp_frame_deinit(&mpp_frame);
++    return ret;
++
++fail_unref:
++    /* frees mpp_frame (and desc, if attached) via the buf[] callbacks */
++    av_frame_unref(frame);
++    return ret;
+ }
+ 
+ static void rkmpp_export_avctx_color_props(AVCodecContext *avctx, MppFrame mpp_frame)
+@@ -901,21 +926,27 @@ static int rkmpp_get_frame(AVCodecContext *avctx, AVFrame *frame, int timeout)
+         goto exit;
+     }
+     if (ret = mpp_frame_get_errinfo(mpp_frame)) {
+-        int ignore_err = (avctx->codec_id != AV_CODEC_ID_MJPEG) ||
+-                         (avctx->err_recognition & AV_EF_IGNORE_ERR);
++        int explode = avctx->err_recognition & AV_EF_EXPLODE;
++        int ignore_err = !explode &&
++                         ((avctx->codec_id != AV_CODEC_ID_MJPEG) ||
++                          (avctx->err_recognition & AV_EF_IGNORE_ERR));
+         int log_level = ignore_err ? AV_LOG_DEBUG : AV_LOG_ERROR;
+ 
+         av_log(avctx, log_level, "Received a 'errinfo' frame: %d\n", ret);
+         if (avctx->codec_id == AV_CODEC_ID_MJPEG)
+             av_log(avctx, log_level, "The YCbCr format may not be supported. Supported: "
+                    "YUV420(2*2:1*1:1*1) | YUV422(2*1:1*1:1*1) | YUV444(1*1:1*1:1*1)\n");
++        if (explode) {
++            ret = AVERROR_INVALIDDATA;
++            goto exit;
++        }
+         if (!ignore_err)
+             r->eof = 1; /* bail out from the loop */
+         ret = AVERROR(EAGAIN);
+         goto exit;
+     }
+ 
+-    if (r->info_change = mpp_frame_get_info_change(mpp_frame) ||
++    if ((r->info_change = mpp_frame_get_info_change(mpp_frame)) ||
+         (avctx->codec_id == AV_CODEC_ID_MJPEG && !r->buf_group)) {
+         char *opts = NULL;
+         int fast_parse = r->fast_parse;
+@@ -997,9 +1028,10 @@ export:
+         switch (avctx->pix_fmt) {
+         case AV_PIX_FMT_DRM_PRIME:
+             {
+-                if ((ret = rkmpp_export_frame(avctx, frame, mpp_frame)) < 0)
++                ret = rkmpp_export_frame(avctx, frame, mpp_frame);
++                mpp_frame = NULL; /* consumed by rkmpp_export_frame even on failure */
++                if (ret < 0)
+                     goto exit;
+-                mpp_frame = NULL;
+                 return 0;
+             }
+             break;
+@@ -1014,9 +1046,12 @@ export:
+                     ret = AVERROR(ENOMEM);
+                     goto exit;
+                 }
+-                if ((ret = rkmpp_export_frame(avctx, tmp_frame, mpp_frame)) < 0)
++                ret = rkmpp_export_frame(avctx, tmp_frame, mpp_frame);
++                mpp_frame = NULL; /* consumed by rkmpp_export_frame even on failure */
++                if (ret < 0) {
++                    av_frame_free(&tmp_frame);
+                     goto exit;
+-                mpp_frame = NULL;
++                }
+ 
+                 if ((ret = ff_get_buffer(avctx, frame, 0)) < 0) {
+                     av_log(avctx, AV_LOG_ERROR, "ff_get_buffer failed: %d\n", ret);
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index d599997d53..7585f27143 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -820,6 +820,8 @@ static MPPEncFrame *rkmpp_submit_frame(AVCodecContext *avctx, AVFrame *frame)
+     if (avctx->pix_fmt == AV_PIX_FMT_DRM_PRIME) {
+         drm_frame = frame;
+         mpp_enc_frame->frame = av_frame_clone(drm_frame);
++        if (!mpp_enc_frame->frame)
++            goto exit;
+     } else {
+         AVBufferRef *hw_frames_ctx = frame->hw_frames_ctx;
+ 
+@@ -976,6 +978,24 @@ exit:
+         av_frame_free(&drm_frame);
+     }
+ 
++    /* fully unwind the list entry: a partially initialized (bufferless)
++     * MppFrame left queued would later be picked by
++     * get_oldest_unsent_frame and sent to the encoder, and could never
++     * be reclaimed by clear_unused_frames */
++    if (mpp_enc_frame) {
++        if (mpp_buf)
++            mpp_buffer_put(mpp_buf);
++        if (mpp_enc_frame->mpp_frame)
++            mpp_frame_deinit(&mpp_enc_frame->mpp_frame);
++
++        av_freep(&mpp_enc_frame->mpp_sei_set.datas);
++        mpp_enc_frame->mpp_sei_set.count = 0;
++
++        av_frame_free(&mpp_enc_frame->frame);
++        mpp_enc_frame->queued = 0;
++        mpp_enc_frame->sent = 0;
++    }
++
+     return NULL;
+ }
+ 
+@@ -1093,17 +1113,28 @@ static int rkmpp_get_packet(AVCodecContext *avctx, AVPacket *packet, int timeout
+         ret = AVERROR(ENOMEM);
+         goto exit;
+     }
+-
+-    /* mark buffer as unused (idx < 0) */
+-    mpp_buffer_set_index(mpp_buf, -1);
+-    clear_unused_frames(r->frame_list);
+-
+-    mpp_packet_deinit(&mpp_pkt);
+-    return 0;
++    ret = 0;
+ 
+ exit:
+-    if (mpp_pkt)
++    if (mpp_pkt) {
++        /* return the consumed input frame's buffer to the pool even when
++         * bailing out on error, otherwise it stays pinned forever */
++        if (!mpp_buf) {
++            if (!mpp_meta)
++                mpp_meta = mpp_packet_get_meta(mpp_pkt);
++            if (mpp_meta && !mpp_frame)
++                mpp_meta_get_frame(mpp_meta, KEY_INPUT_FRAME, &mpp_frame);
++            if (mpp_frame)
++                mpp_buf = mpp_frame_get_buffer(mpp_frame);
++        }
++        if (mpp_buf) {
++            /* mark buffer as unused (idx < 0) */
++            mpp_buffer_set_index(mpp_buf, -1);
++            clear_unused_frames(r->frame_list);
++        }
++
+         mpp_packet_deinit(&mpp_pkt);
++    }
+ 
+     return ret;
+ }
+diff --git a/libavfilter/rkrga_common.c b/libavfilter/rkrga_common.c
+index 2704bca1b9..1632c56e05 100644
+--- a/libavfilter/rkrga_common.c
++++ b/libavfilter/rkrga_common.c
+@@ -437,6 +437,8 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+         return NULL;
+     }
+     rga_frame->frame = av_frame_clone(picref);
++    if (!rga_frame->frame)
++        return NULL;
+ 
+     desc = (AVDRMFrameDescriptor *)rga_frame->frame->data[0];
+     if (desc->objects[0].fd < 0)
+@@ -1340,13 +1342,12 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+         set_rga_async_frame_lock_status(&aframe, 0);
+ 
+         filter_ret = r->filter_frame(outlink, aframe.dst->frame);
+-        if (filter_ret < 0) {
+-            av_frame_free(&aframe.dst->frame);
+-            return filter_ret;
+-        }
++        /* ff_filter_frame consumes the frame even on failure */
++        aframe.dst->frame = NULL;
+         aframe.dst->queued--;
++        if (filter_ret < 0)
++            return filter_ret;
+         r->got_frame = 1;
+-        aframe.dst->frame = NULL;
+     }
+ 
+     if (!picref_src)
+@@ -1437,13 +1438,12 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+         set_rga_async_frame_lock_status(&aframe, 0);
+ 
+         filter_ret = r->filter_frame(outlink, aframe.dst->frame);
+-        if (filter_ret < 0) {
+-            av_frame_free(&aframe.dst->frame);
+-            return filter_ret;
+-        }
++        /* ff_filter_frame consumes the frame even on failure */
++        aframe.dst->frame = NULL;
+         aframe.dst->queued--;
++        if (filter_ret < 0)
++            return filter_ret;
+         r->got_frame = 1;
+-        aframe.dst->frame = NULL;
+     }
+ 
+     return 0;
+diff --git a/libavutil/hwcontext_rkmpp.c b/libavutil/hwcontext_rkmpp.c
+index 75a807f76e..70362ac679 100644
+--- a/libavutil/hwcontext_rkmpp.c
++++ b/libavutil/hwcontext_rkmpp.c
+@@ -216,7 +216,7 @@ static AVBufferRef *rkmpp_drm_pool_alloc(void *opaque, size_t size)
+     const int aligned_h = FFALIGN(hwfc->height * 5 / 4, 64);
+ 
+     MppBuffer mpp_buf = NULL;
+-    size_t mpp_buf_size = aligned_w * aligned_h * bits_pp / 8;
++    size_t mpp_buf_size = (size_t)aligned_w * aligned_h * bits_pp / 8;
+ 
+     if (hwfc->initial_pool_size > 0 &&
+         avfc->nb_frames >= hwfc->initial_pool_size)
+diff --git a/libavutil/pixdesc.c b/libavutil/pixdesc.c
+index 02f0f4a797..61b109a69e 100644
+--- a/libavutil/pixdesc.c
++++ b/libavutil/pixdesc.c
+@@ -3280,7 +3280,7 @@ static const AVPixFmtDescriptor av_pix_fmt_descriptors[AV_PIX_FMT_NB] = {
+         .flags = AV_PIX_FMT_FLAG_PLANAR | AV_PIX_FMT_FLAG_BITSTREAM,
+     },
+     [AV_PIX_FMT_NV20_PACKED] = {
+-        .name = "nv20",
++        .name = "nv20_packed",
+         .nb_components = 3,
+         .log2_chroma_w = 1,
+         .log2_chroma_h = 0,
+diff --git a/tests/ref/fate/imgutils b/tests/ref/fate/imgutils
+index a998b12170..dbaafdf147 100644
+--- a/tests/ref/fate/imgutils
++++ b/tests/ref/fate/imgutils
+@@ -307,7 +307,7 @@ gbrp10msble     planes: 3, linesizes: 128 128 128   0, plane_sizes:  6144  6144
+ gbrp12msbbe     planes: 3, linesizes: 128 128 128   0, plane_sizes:  6144  6144  6144     0, plane_offsets:  6144  6144     0, total_size: 18432
+ gbrp12msble     planes: 3, linesizes: 128 128 128   0, plane_sizes:  6144  6144  6144     0, plane_offsets:  6144  6144     0, total_size: 18432
+ nv15            planes: 2, linesizes:  80  80   0   0, plane_sizes:  3840  1920     0     0, plane_offsets:  3840     0     0, total_size: 5760
+-nv20            planes: 2, linesizes:  80  80   0   0, plane_sizes:  3840  3840     0     0, plane_offsets:  3840     0     0, total_size: 7680
++nv20_packed     planes: 2, linesizes:  80  80   0   0, plane_sizes:  3840  3840     0     0, plane_offsets:  3840     0     0, total_size: 7680
+ 
+ image_fill_black tests
+ yuv420p         total_size:   4608,  black_unknown_crc: 0xd00f6cc6,  black_tv_crc: 0xd00f6cc6,  black_pc_crc: 0x234969af
+@@ -562,4 +562,4 @@ gbrp10msble     total_size:  18432,  black_unknown_crc: 0x00000000,  black_tv_cr
+ gbrp12msbbe     total_size:  18432,  black_unknown_crc: 0x00000000,  black_tv_crc: 0x00000000,  black_pc_crc: 0x00000000
+ gbrp12msble     total_size:  18432,  black_unknown_crc: 0x00000000,  black_tv_crc: 0x00000000,  black_pc_crc: 0x00000000
+ nv15            total_size:   5760,  black_unknown_crc: 0x6b5fdb58,  black_tv_crc: 0x6b5fdb58,  black_pc_crc: 0x660a512c
+-nv20            total_size:   7680,  black_unknown_crc: 0x171f53da,  black_tv_crc: 0x171f53da,  black_pc_crc: 0xfcf5cda3
++nv20_packed     total_size:   7680,  black_unknown_crc: 0x171f53da,  black_tv_crc: 0x171f53da,  black_pc_crc: 0xfcf5cda3
+diff --git a/tests/ref/fate/sws-pixdesc-query b/tests/ref/fate/sws-pixdesc-query
+index 928a0613ce..7406e288f1 100644
+--- a/tests/ref/fate/sws-pixdesc-query
++++ b/tests/ref/fate/sws-pixdesc-query
+@@ -80,7 +80,7 @@ isNBPS:
+   gray9be
+   gray9le
+   nv15
+-  nv20
++  nv20_packed
+   nv20be
+   nv20le
+   p010be
+@@ -267,7 +267,7 @@ isYUV:
+   nv12
+   nv15
+   nv16
+-  nv20
++  nv20_packed
+   nv20be
+   nv20le
+   nv21
+@@ -401,7 +401,7 @@ isPlanarYUV:
+   nv12
+   nv15
+   nv16
+-  nv20
++  nv20_packed
+   nv20be
+   nv20le
+   nv21
+@@ -504,7 +504,7 @@ isSemiPlanarYUV:
+   nv12
+   nv15
+   nv16
+-  nv20
++  nv20_packed
+   nv20be
+   nv20le
+   nv21
+@@ -1021,7 +1021,7 @@ Planar:
+   nv12
+   nv15
+   nv16
+-  nv20
++  nv20_packed
+   nv20be
+   nv20le
+   nv21
+-- 
+2.53.0
+
