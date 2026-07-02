@@ -13,7 +13,7 @@ directly, so run them on the board with a Mesa build that includes Panfrost.
 | [`repro_blit_float.c`](repro_blit_float.c) | RG32F→RGBA32F float variant — the counter-example that disqualifies the integer-only state-tracker fallback |
 | [`repro_blit_flip.c`](repro_blit_flip.c) | Flipped `glBlitFramebuffer` probe (negative scale); caught the pixel-center-convention bug, revealed the power-of-two-extent exactness, and proved shipped drivers corrupt wide non-pow2 blits |
 | [`repro_blit_scissor.c`](repro_blit_scissor.c) | Scissored wide identity blit: verifies clipping doesn't shift the fragcoord mapping and untouched texels keep their sentinel |
-| [`repro_blit_array.c`](repro_blit_array.c) | 2D-array-layer readback: confirms array targets stay on the lossy path — a REGRESSION vs the CPU path once BLIT transfers are enabled |
+| [`repro_blit_array.c`](repro_blit_array.c) | 2D-array-layer readback: found the array regression (15672/16307), now exact via the series' single-layer view commit |
 | [`probe_interp.c`](probe_interp.c) | Isolates varying interpolation from texture fetch (smooth / noperspective / gl_FragCoord modes) |
 | [`probe_const.c`](probe_const.c) | Constant-varying exactness probe: shows all-vertices-equal smooth varyings interpolate bit-exactly at every magnitude |
 | [`probe_wcorr.c`](probe_wcorr.c) | Shader-side recovery probe: disproves `gl_FragCoord.w` and `dFdx`-based correction |
@@ -275,16 +275,20 @@ series build (BLIT transfers on):  15672/16307 corrupt, first at 623
 system driver (transfer modes 0):      0/16307 (CPU path, exact)
 ```
 
-So with BLIT transfers enabled, wide (> ~5000 px) non-pow2 array-layer
-readbacks are a **correctness regression vs. the CPU path** — the sampled
-blit is reachable where it previously wasn't. No dEQP/piglit case covers
-this shape (all suites green while this fails). It must either be fixed
-(extend the fragcoord path to array targets — the layer is constant per
-draw and constants interpolate exactly, but the attribute needs a 5th
-value, e.g. sign/layer packing or a 2D single-layer view in u_blitter) or
-explicitly disclosed in the MR as a known limitation. Note the *pre-existing*
-corruption via `glBlitFramebuffer` from wide array-layer attachments exists
-upstream regardless (same lossy path).
+This was a **correctness regression vs. the CPU path** that no dEQP/piglit
+case covers. **RESOLVED the same day** by series commit `u_blitter: blit
+single array layers through a layer view with use_txf_fragcoord`:
+single-layer array blits sample through a 1D/2D view of the selected layer
+(`first_layer == last_layer == z`, gated on
+`pipe_caps.sampler_view_target`), so the fragment-position path applies
+unchanged. After the fix this probe reports **0/16307**, and the u_tests
+case gained an array-layer pass that also proves the correct layer is
+selected. Multi-layer array blits and 3D keep the old path (disclosed MR
+limitation; only reachable for wide non-pow2 shapes via desktop-GL
+whole-array GetTexImage). The *pre-existing* corruption via
+`glBlitFramebuffer` from wide array-layer attachments existed upstream
+regardless (same lossy path) and is fixed by the same commit for the
+single-layer case.
 
 ## `probe_const.c`
 

@@ -283,7 +283,7 @@ panfrost-transfer-targeted-fallback
 ```
 
 The reworked 6-patch series was assembled locally on 2026-07-01
-(`panfrost-transfer-blit-update`, tip `7fedfca1204` (tree-identical to the validated `993410a8f25`), not pushed — see
+(`panfrost-transfer-blit-update`, final tip `2e50c2622aa`, 7 commits after the array-view fix; earlier validated tips `993410a8f25`/`7fedfca1204`, not pushed — see
 [`README.md` § Status](../README.md)). Its validation: full probe battery
 green including flips at non-pow2 widths (`repro_blit_flip` 12000x8 and
 16307x2, all four orientations exact), `GALLIUM_TESTS`
@@ -309,12 +309,15 @@ fbo.blit.*:                               629/641 Pass, 12 NotSupported
 Scissored wide blits verified exact (`repro_blit_scissor.c`: 0 mismatches
 inside the scissor, 0 sentinel overwrites outside).
 
-**Open finding — array-layer readbacks regress** (`repro_blit_array.c`):
-with BLIT transfers enabled, a wide non-pow2 readback from a 2D-array layer
-goes through the still-lossy array TXF path (15672/16307 corrupt), whereas
-the CPU path on unpatched drivers is exact. No dEQP/piglit case covers this
-shape. Resolve before pushing: extend the fragcoord path to array targets,
-or disclose explicitly in the MR.
+Array-layer readbacks initially regressed (`repro_blit_array.c`:
+15672/16307 corrupt vs exact CPU path on unpatched drivers; no dEQP/piglit
+coverage). **Resolved the same day** by a new series commit that samples
+single-layer array blits through a 1D/2D layer view
+(`pipe_caps.sampler_view_target`-gated), making the fragment-position path
+apply: probe now 0/16307, u_tests gained an array pass, and the dEQP rerun
+stayed at zero failures (incl. `fbo.color.tex2darray.*` 36/36). Multi-layer
+array and 3D blits keep the old path (disclosed limitation). Final series
+tip: `2e50c2622aa` (7 commits).
 
 Still needed: piglit getteximage/PBO/readpixels subsets (no local piglit
 build on the board).
