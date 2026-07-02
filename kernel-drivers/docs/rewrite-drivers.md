@@ -131,9 +131,10 @@ implementation (cross-reference:
     semiplanar 10-bit YUV), rotation/mirror via WIN0 controls, destination
     rect offsets by biasing WR plane bases (8-bit; semiplanar YUV must be
     chroma-aligned); Porter-Duff A+B alpha blend for the common composition
-    paths with RGB destinations, including ffmpeg's YUV-main/RGB-overlay
-    `overlay_rkrga=format=<rgb>` path (YUV-destination alpha remains
-    unsupported; pattern dims must match destination).
+    paths with RGB destinations, including ffmpeg's
+    `overlay_rkrga=format=<rgb>` path, and the default RKMPP overlay path with
+    8-bit YUV main + RGB/RGBA pattern + 8-bit YUV destination (pattern dims
+    must match destination; 10-bit/no-pattern YUV alpha remains unsupported).
   - **RGA2**: solid fill (`imfill`, RGB-family raster; forced RGA3 fill is
     intentionally `-EOPNOTSUPP` because RK3588 RGA3 does not advertise
     `RGA_COLOR_FILL` in the forward-port capability table) and raster bitblit
