@@ -5,6 +5,16 @@ accelerators `=y`), plus the canonical udev rule. This is delivery path (a) of
 the project — see [`../INSTALL.md`](../INSTALL.md) for the chooser between the
 combined kernel, DKMS, and the PPA.
 
+## Package brief
+
+| Field | Contents |
+|-------|----------|
+| User outcome | Build the combined Armbian kernel, install the exact intended debs, validate device probing, and install the canonical codec udev rule. |
+| Developer focus | Preserve the assumptions in the Armbian wrapper flow: userpatch location, `USE_CCACHE` handling, PHASH pinning, validation signals, and device-node policy. |
+| Owns | `build-combined-kernel.sh`, `install-combined-kernel.sh`, `validate-combined.sh`, and `99-rockchip-codec.rules`. |
+| Depends on | Kernel patches in [`../patches/`](../patches/README.md), Armbian build tree setup from [`../INSTALL.md`](../INSTALL.md), and validation expectations from [`../tests/`](../tests/README.md). |
+| Current state | The combined-kernel flow produced the hardware-validated board state recorded in [`../STATUS.md`](../STATUS.md). |
+
 > **⚠️ Mutually exclusive with DKMS.** Do **not** install the
 > [`../packaging/dkms/`](../packaging/dkms/README.md) package on top of this
 > kernel: the drivers are built in, and DKMS modpost fails with

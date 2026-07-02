@@ -1,10 +1,21 @@
-# docs/ — the spine
+# docs/ - cross-package references
 
-The numbered docs are the project's knowledge spine: how the stack works, what
-was changed, and how to keep it alive. **Don't read them as a number line** —
-`00` is a reference appendix, not the start. Read them as a path:
+The repo is organized first by work package:
+[`kernel-drivers/`](../kernel-drivers/README.md),
+[`userspace-libraries/`](../userspace-libraries/README.md),
+[`ffmpeg/`](../ffmpeg/README.md),
+[`gnome-remote-desktop/`](../gnome-remote-desktop/README.md),
+[`mesa-panfrost-g610/`](../mesa-panfrost-g610/README.md), and
+[`packaging/`](../packaging/README.md). The numbered docs here are the
+cross-package references: how the stack works, what changed, what can go wrong,
+and how to maintain it.
+
+Start with [`15-work-packages.md`](15-work-packages.md) if you want the package
+map. For deep technical reading, do not read the numbered docs as a simple
+number line: `00` is a reference appendix, not the start. Read them as a path:
 
 ```
+PACKAGE MAP               15                    package split + user/developer paths
 CORE (any audience)        01 → 02 → 03          drivers → userspace libs → /dev ABIs
 SCORECARD                  04                    kernel-port status (whole project: ../STATUS.md)
 PORT ENGINEERING           05 → 06 → 07 → 08 → 09   what changed, how much, DT, Armbian, vanilla
@@ -17,6 +28,10 @@ ADVANCED / SECOND TRACK    13 → 14               clean-room rewrites; crash-ca
 
 ## What each doc is
 
+- **[`15-work-packages.md`](15-work-packages.md)** — the package-oriented map:
+  consistent package fields, a stack diagram, and user/developer reading paths
+  for kernel drivers, userspace libraries, FFmpeg, GRD, Mesa/Panfrost,
+  packaging, scripts, and tests.
 - **[`00-source-trees.md`](00-source-trees.md)** — the anchor appendix: pins and
   reconstruction recipes for **every tree that `file:line` cites resolve
   against** (forward-port tree, audited tree, `$OURS`/`$BSP` measurement pair,
@@ -85,10 +100,12 @@ ADVANCED / SECOND TRACK    13 → 14               clean-room rewrites; crash-ca
 
 | You are… | Read |
 |----------|------|
-| **Writing an app** on the codecs | [`02`](02-how-the-userspace-libs-work.md) → [`03`](03-dev-uapis.md) → [`../ffmpeg/`](../ffmpeg/README.md) |
-| **Packaging / redistributing** | [`08`](08-armbian-packaging.md) → [`../INSTALL.md`](../INSTALL.md) → [`../packaging/`](../packaging/README.md) |
-| **Porting / re-syncing** to a newer kernel or BSP | [`05`](05-vendor-forward-port.md) → [`06`](06-vendor-delta.md) → [`12`](12-resyncing.md), with [`00`](00-source-trees.md) open |
-| **Security-reviewing / upstreaming** | [`03`](03-dev-uapis.md) → [`11`](11-bsp-audit.md) → [`../patches/cleanup-split/`](../patches/cleanup-split/README.md); rewrite track [`13`](13-rewrite-drivers.md) |
+| **Trying to find the right package** | [`15`](15-work-packages.md) |
+| **Getting the board working** | [`../INSTALL.md`](../INSTALL.md) → [`../kernel-drivers/`](../kernel-drivers/README.md) → [`../tests/`](../tests/README.md) |
+| **Writing an app** on the codecs | [`../userspace-libraries/`](../userspace-libraries/README.md) → [`02`](02-how-the-userspace-libs-work.md) → [`03`](03-dev-uapis.md) → [`../ffmpeg/`](../ffmpeg/README.md) |
+| **Packaging / redistributing** | [`../packaging/`](../packaging/README.md) → [`08`](08-armbian-packaging.md) → [`../INSTALL.md`](../INSTALL.md) |
+| **Porting / re-syncing** to a newer kernel or BSP | [`../kernel-drivers/`](../kernel-drivers/README.md) → [`05`](05-vendor-forward-port.md) → [`06`](06-vendor-delta.md) → [`12`](12-resyncing.md), with [`00`](00-source-trees.md) open |
+| **Security-reviewing / upstreaming** | [`../kernel-drivers/`](../kernel-drivers/README.md) → [`03`](03-dev-uapis.md) → [`11`](11-bsp-audit.md) → [`../patches/cleanup-split/`](../patches/cleanup-split/README.md); rewrite track [`13`](13-rewrite-drivers.md) |
 | **Debugging something broken** | [`10`](10-gotchas.md) → [`../tests/`](../tests/README.md) → [`14`](14-debug-kernel.md) |
 
 ## Conventions
@@ -102,12 +119,14 @@ ADVANCED / SECOND TRACK    13 → 14               clean-room rewrites; crash-ca
 
 ## What is deliberately NOT here
 
-Subsystem depth lives with its subsystem, not in `docs/`:
-[`../ffmpeg/`](../ffmpeg/README.md) (FFmpeg architecture, rebase, fix series),
-[`../gnome-remote-desktop/`](../gnome-remote-desktop/README.md) (the GRD
-backend, profiling, capture path),
+Package-owned depth lives with its package, not in `docs/`:
+[`../kernel-drivers/`](../kernel-drivers/README.md) (kernel package front door),
+[`../userspace-libraries/`](../userspace-libraries/README.md) (libmpp/librga
+front door), [`../ffmpeg/`](../ffmpeg/README.md) (FFmpeg architecture, rebase,
+fix series), [`../gnome-remote-desktop/`](../gnome-remote-desktop/README.md)
+(the GRD backend, profiling, capture path),
 [`../mesa-panfrost-g610/`](../mesa-panfrost-g610/README.md) (Mesa/Panfrost),
-[`../packaging/`](../packaging/README.md) (delivery + operations),
+[`../packaging/`](../packaging/README.md) (delivery + operations), and
 [`../scripts/`](../scripts/README.md) + [`../tests/`](../tests/README.md)
 (build/validate/smoke-test). `docs/10` indexes their traps; `../STATUS.md`
 rolls up their state.

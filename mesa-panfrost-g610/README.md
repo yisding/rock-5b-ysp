@@ -7,6 +7,16 @@ one-page summary
 ([`../gnome-remote-desktop/MESA-PANFROST-TRANSFER.md`](../gnome-remote-desktop/MESA-PANFROST-TRANSFER.md));
 every shared figure, asm listing, and validation result is owned here.
 
+## Package brief
+
+| Field | Contents |
+|-------|----------|
+| User outcome | Understand the Mesa/Panfrost part of the board-support story, especially why hardware encode matters more than making GRD's software readback path less slow. |
+| Developer focus | Preserve the Mali-G610 transfer investigation: BLIT precision failure, COMPUTE correctness, AFBC limitation, benchmark results, dEQP validation, and reproducible probes. |
+| Owns | [`blit-precision.md`](blit-precision.md), [`validation.md`](validation.md), [`texture-query-levels.md`](texture-query-levels.md), and [`reproducers/`](reproducers/README.md). |
+| Depends on | Local Mesa/Panfrost worktrees and the GRD profiling context that exposed the readback cost. |
+| Current state | The COMPUTE-only direction was rejected upstream because it cannot write AFBC; surviving directions are local branches under active development. See [`../STATUS.md`](../STATUS.md). |
+
 Hardware and software used for the local investigation:
 
 - Radxa ROCK 5B / RK3588

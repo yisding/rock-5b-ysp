@@ -41,9 +41,11 @@ through Rockchip's **MPP** (Media Process Platform) framework, which presents a
 single char device `/dev/mpp_service`; RGA has its own driver and `/dev/rga`.
 Userspace does **not** use the mainline V4L2 stateless API here — it uses
 Rockchip's `librockchip_mpp` / `librga`, which is what `ffmpeg-rockchip` targets
-and what gives the full H.265-encode + full-feature-RGA capability (the mainline
-V4L2 path doesn't cover H.265 *encode*, and RGA3-via-V4L2 is a not-yet-merged
-subset — see [`docs/09`](09-vanilla-kernel.md)).
+and what gives the full hardware video-encode + full-feature-RGA capability. The
+mainline RK3588 encoder path is JPEG-only in Collabora's
+[mainline-status note](https://gitlab.collabora.com/hardware-enablement/rockchip-3588/notes-for-rockchip-3588/-/blob/main/mainline-status.md),
+so it does not provide H.264 encode for GRD or H.265 encode; RGA3-via-V4L2 is
+also still a subset — see [`docs/09`](09-vanilla-kernel.md).
 
 ```mermaid
 flowchart TB

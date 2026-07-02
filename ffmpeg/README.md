@@ -4,6 +4,16 @@ How to build [`ffmpeg-rockchip`](https://github.com/nyanmisaka/ffmpeg-rockchip)
 against the vendor **MPP** + **RGA** libraries so you get `h264_rkmpp` /
 `hevc_rkmpp` HW decode+encode and the `scale_rkrga` filter.
 
+## Package brief
+
+| Field | Contents |
+|-------|----------|
+| User outcome | Build or install an FFmpeg that can decode, encode, scale, and transcode through the RK3588 hardware stack. |
+| Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
+| Owns | The FFmpeg build recipe, [`HOW-FFMPEG-WORKS.md`](HOW-FFMPEG-WORKS.md), [`IMPLEMENTATION-COMPARISON.md`](IMPLEMENTATION-COMPARISON.md), rebase notes, fix candidates, and exported patch series. |
+| Depends on | Working kernel nodes from [`../kernel-drivers/`](../kernel-drivers/README.md), staged or packaged libraries from [`../userspace-libraries/`](../userspace-libraries/README.md), and the codec udev rule for non-root use. |
+| Current state | The original `ffmpeg-rockchip` build path is hardware-validated; the rebased `ffmpeg-rockchip-81` tree and 9-patch fix series are documented but not what is installed on the board. See [`../STATUS.md`](../STATUS.md). |
+
 Companion docs:
 
 - [`HOW-FFMPEG-WORKS.md`](HOW-FFMPEG-WORKS.md) explains FFmpeg's demux ->

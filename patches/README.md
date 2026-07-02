@@ -2,6 +2,16 @@
 
 The kernel-side deliverables of this repo, in three layers:
 
+## Package brief
+
+| Field | Contents |
+|-------|----------|
+| User outcome | Apply the kernel patch pair through Armbian userpatches or use it as the source for the DKMS path. |
+| Developer focus | Review the forward-port artifacts, the RK3588 DT patch, and the BSP-audit cleanup series without losing provenance. |
+| Owns | The two generated forward-port patches, `cleanup-split/`, and the historical `cleanup-draft/` verification record. |
+| Depends on | Source-tree pins in [`../docs/00-source-trees.md`](../docs/00-source-trees.md), kernel-driver explanations in [`../kernel-drivers/`](../kernel-drivers/README.md), and maintenance workflow in [`../docs/12-resyncing.md`](../docs/12-resyncing.md). |
+| Current state | The forward-port patch pair is the validated kernel base; the cleanup series is staged but its runtime gate remains pending. See [`../STATUS.md`](../STATUS.md). |
+
 | Path | What it is | Detail |
 |------|------------|--------|
 | `rk3588-rkvenc2-01-vcodec-rga-drivers.patch` | ~980 KB — the vendor MPP (`rk_vcodec`) + RGA (`multi_rga`) **drivers**, forward-ported to 6.18 (58 files: compat shims, hack files, API + bring-up fixes, Kconfig). | [`docs/05`](../docs/05-vendor-forward-port.md) |

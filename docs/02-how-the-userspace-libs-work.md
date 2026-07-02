@@ -46,8 +46,11 @@ do, parses the bitstream, manages the frame pool, and builds the exact register
 recipe; the kernel safely runs that recipe on the hardware.** docs/01 §9 said "the
 userspace library knows the recipe" — these libraries are where the recipe is
 built and where every `MPP_CMD_*` / `RGA_*` ioctl is issued. They exist (rather
-than using mainline V4L2) because Rockchip's stack exposes the full feature set:
-H.265 *encode*, all RGA ops, and the buffer model `ffmpeg-rockchip` expects.
+than using mainline V4L2) because Rockchip's stack exposes the feature set this
+repo needs: H.264 encode for GRD, H.265 encode for media workflows, all RGA ops,
+and the buffer model `ffmpeg-rockchip` expects. Collabora's
+[RK3588 mainline-status note](https://gitlab.collabora.com/hardware-enablement/rockchip-3588/notes-for-rockchip-3588/-/blob/main/mainline-status.md)
+lists mainline encoder support as JPEG-only.
 
 **Two FFmpeg lineages consume these libraries — differently.** This doc's
 running example is `ffmpeg-rockchip` (nyanmisaka fork), which uses *both*

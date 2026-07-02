@@ -27,7 +27,7 @@ which is the difference between a few-percent-CPU desktop and this one.
 | Route | What it is | Verdict |
 |-------|-----------|---------|
 | **VA-API** (GRD's main HW path) | GRD already has `GrdEncodeSessionVaapi`; if a VA-API driver existed for the VEPU we'd get HW encode for free | ❌ no VA-API driver for the RK3588 encoder. `libva` loads `panthor_drv_video.so`, which has no encode — GRD logs `Did not initialize VAAPI: Failed to initialize VA display`. Dead end on this hardware. *(Observed 2026-06 during bring-up, GRD 50.1 / Mesa 26.0.x / libva 2.23 on Ubuntu 26.04 "resolute"; re-check this row if a VA driver for the VEPU ever appears.)* |
-| **Mainline V4L2 stateful encoder** | The kernel-standard encode API | ❌ mainline V4L2 doesn't cover the RK3588 encoder (see the repo's [`docs/09`](../docs/09-vanilla-kernel.md)), and GRD has no V4L2 encode backend anyway. |
+| **Mainline V4L2 stateful encoder** | The kernel-standard encode API | ❌ GRD's target is H.264 encode, and Collabora's [RK3588 mainline-status note](https://gitlab.collabora.com/hardware-enablement/rockchip-3588/notes-for-rockchip-3588/-/blob/main/mainline-status.md) lists mainline encoder support as JPEG-only. GRD also has no V4L2 encode backend anyway. |
 | **Direct `librockchip_mpp`** | A new GRD encode session calling MPP directly | ⚠️ full control, but reinvents everything FFmpeg's `h264_rkmpp` already does (MPP setup, DRM-PRIME import, 1-in-1-out packet handling) and couples GRD to the MPP API. More code, more to maintain. |
 | **FFmpeg `h264_rkmpp`** | Wrap FFmpeg's rkmpp encoder in a GRD encode session | ✅ **chosen** — least code, reuses a maintained encoder, and FFmpeg 8.1 is an ABI drop-in that gives *every* app rkmpp, not just GRD. |
 

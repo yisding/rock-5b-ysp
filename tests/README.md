@@ -7,6 +7,16 @@ decoder cores appear as `video-codec0/1` (the DT keeps mainline's node name —
 see [`docs/07`](../docs/07-device-tree.md)); the scripts accept the older
 `rkvdec-core0/1` naming too.
 
+## Package brief
+
+| Field | Contents |
+|-------|----------|
+| User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
+| Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
+| Owns | `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
+| Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../ffmpeg/README.md), and device access from the codec udev rule. |
+| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated; VP9 decode remains an unverified recipe. See [`../STATUS.md`](../STATUS.md). |
+
 **Privileges** (this differs per test):
 
 | Test | Needs |

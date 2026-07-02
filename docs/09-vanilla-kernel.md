@@ -237,7 +237,11 @@ Pick one stack. Either:
   (or retype them, convert-in-place style); set `CONFIG_VIDEO_ROCKCHIP_VDEC` off
   or leave it on — it binds nothing if no matching nodes.
 - **Mainline V4L2**: don't apply the decoder DT; use the kernel's own nodes. You
-  lose H.265 *encode* (no V4L2 encoder) and full-feature RGA.
+  keep the mainline decoder path but the encoder side is not a substitute for
+  this repo's target: Collabora's
+  [RK3588 mainline-status note](https://gitlab.collabora.com/hardware-enablement/rockchip-3588/notes-for-rockchip-3588/-/blob/main/mainline-status.md)
+  lists mainline encoder support as JPEG-only, so there is no H.264 encode for
+  GRD and no H.265 encode for media workflows. You also lose full-feature RGA.
 
 ## Newer kernels (6.19+)
 

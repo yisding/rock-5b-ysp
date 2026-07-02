@@ -5,6 +5,16 @@ artifacts. If you just want codecs working, start with the delivery-model
 chooser in [`../INSTALL.md`](../INSTALL.md); this page is for people **building,
 shipping, or operating** the artifacts.
 
+## Package brief
+
+| Field | Contents |
+|-------|----------|
+| User outcome | Choose and operate an install path: combined kernel, DKMS, codec udev rule, GDM greeter ACL package, local debs, or future PPA packages. |
+| Developer focus | Keep deploy artifacts reproducible and auditable: DKMS source staging, udev policy, PPA source packages, rollback, binary publishing, and package boundaries. |
+| Owns | Packaging docs for `codec-udev/`, `gdm-hwenc/`, `dkms/`, `ppa/`, and the operations runbook for the rkmpp FFmpeg stack. |
+| Depends on | Kernel-driver artifacts, userspace libraries, FFmpeg/GRD package sources, and the status gates recorded in [`../STATUS.md`](../STATUS.md). |
+| Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only; PPA source packages built locally but have not been uploaded. |
+
 ## The four delivery channels
 
 | # | Channel | Lives in | What it delivers | Status |

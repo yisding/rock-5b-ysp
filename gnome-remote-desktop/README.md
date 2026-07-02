@@ -7,6 +7,16 @@ first real application built on it: a **hardware H.264 encode backend for
 of in software. On an RK3588 the difference is a live, full-framerate desktop at
 a few percent CPU instead of a laggy, CPU-bound one.
 
+## Package brief
+
+| Field | Contents |
+|-------|----------|
+| User outcome | Run an RDP session whose H.264 video stream is encoded by RK3588 hardware instead of software. |
+| Developer focus | Understand GRD's capture path, FFmpeg encode-session integration, RDP frame-ack behavior, zero-copy buffers, panvk RGB-to-NV12 conversion, and GDM greeter permissions. |
+| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 7-patch GRD backend series. |
+| Depends on | Kernel drivers, userspace libraries, an rkmpp-enabled FFmpeg build, Mesa/Panfrost Vulkan support, and optional GDM codec ACL packaging. |
+| Current state | The patch series applies to GRD 50.1; the hardware path sustains 60 fps in the measured setup; upstream submission remains pending. See [`../STATUS.md`](../STATUS.md). |
+
 | Piece | What | Status |
 |-------|------|--------|
 | **Encode backend** | `GrdEncodeSessionFfmpeg` → FFmpeg `h264_rkmpp` → VEPU580, zero-copy | ✅ live over real RDP (macOS client), post-login desktop |
