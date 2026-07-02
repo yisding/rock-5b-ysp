@@ -26,7 +26,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 | Kernel target | pinned to 6.18 API surface (resyncing.md hazards) | built on 6.18; being brought up on current mainline master too (§5) |
 | Userspace ABI | full BSP surface | the documented subset current `mpp-rockchip`/`librga`/`ffmpeg-rockchip` actually use |
 | Audit posture | 89 verified findings latent ([BSP audit](./bsp-audit.md)) | small, reviewable, refcount-disciplined by construction |
-| Size | ~35,000 lines (vendor-delta.md) | `mpp_rewrite.c` 3,338 lines + `rga_rewrite.c` 7,040 lines |
+| Size (observed 2026-07-02) | MPP ~15,822 lines + RGA3 ~19,171 lines (vendor-delta.md method) | MPP rewrite ~4,362 lines + RGA rewrite ~7,402 lines |
 
 Kconfig makes the two tracks **mutually exclusive per device node**:
 `ROCKCHIP_MPP_REWRITE` depends on `!ROCKCHIP_MPP_SERVICE` and registers
@@ -50,6 +50,89 @@ accordingly). Expect the ledgers below to lag the code; the in-tree ABI.rst is
 always current.
 
 ---
+
+## 1. Size, shape, and upstream-RGA comparison
+
+The RGA rewrite being larger than the MPP rewrite is expected. The codec side of
+`/dev/mpp_service` is mostly a register-job conveyor: userspace MPP/HAL code
+builds codec-specific register images, while the kernel validates the message
+stream, translates fd references to IOVAs, writes registers, handles IRQs and
+timeouts, and copies readback registers to userspace. The kernel does not encode
+H.264/H.265 policy or build codec recipes.
+
+The `/dev/rga` ABI is more semantic. Userspace asks for blit/fill/scale/
+color-convert/rotate/alpha operations with real image formats, strides, planes,
+rectangles, fences, compression modes, and core masks. The kernel must normalize
+those requests, choose an RGA2/RGA3-capable core, map buffers against that core's
+DMA device, and emit the command words itself. That format and feature matrix is
+why both the vendor RGA3 driver and the rewrite are bigger than their MPP peers.
+
+That also changes the line-count expectation. For the current RK3588 userspace
+paths (`mpp-rockchip`, `librga`, and `ffmpeg-rockchip`), both rewrites can stay
+substantially smaller than the BSP forward-port. For **full** BSP parity, the RGA
+rewrite would probably grow closest to the vendor driver because every extra RGA
+profile adds validation, layout math, command emission, and tests. The MPP
+rewrite can remain much smaller unless it starts cloning the whole BSP codec
+framework: older blocks, full queued/CCU policy, recovery/debug/procfs surface,
+fences, compat, and every vendor scheduling mode.
+
+The RGA rewrite is not a fundamentally different hardware model from the vendor
+RGA3 driver: the ABI and silicon force the same broad stages (copy request,
+resolve buffers, pick a core, emit commands, wait for an IRQ). The difference is
+in ownership and maintenance shape. The vendor driver is a broad BSP subsystem
+with global `rga_drvdata`, scheduler policy, `rga_mm`, debug/procfs machinery,
+legacy SoC compatibility, KERNEL_VERSION gates, and page-table walking. The
+rewrite keeps the `/dev/rga` ABI but uses session-owned ids, refcounted imports
+and jobs, job-owned per-core mappings, public dma-buf/DMA APIs, and explicit
+`-EOPNOTSUPP` boundaries for profiles it does not yet emit. If it ends up near
+the vendor size, the win is still clearer ownership, less BSP baggage, and an
+auditable public-API driver. If it drifts into copied vendor tables and quirks,
+that advantage shrinks.
+
+### Upstream-style V4L2 RGA3 in `../linux`
+
+The separate upstream-oriented RGA support compared on 2026-07-02 was the sibling
+`../linux` checkout on branch `rk3588-rewrite-mainline` at local commit
+`180ee72a9a80`. That branch was clean but seven commits ahead of
+`linux-rock5b/rk3588-rewrite-mainline`, so treat the cite as dev-box-local until
+pushed. The relevant tree is `drivers/media/platform/rockchip/rga/`, about
+3,168 lines.
+
+That driver is **not** a smaller `/dev/rga` replacement. It is a mainline-style
+V4L2 mem2mem driver (`/dev/videoX`) with `V4L2_CAP_VIDEO_M2M_MPLANE |
+V4L2_CAP_STREAMING`, `VB2_MMAP | VB2_DMABUF` queues, and RK3588 binding through
+`rockchip,rk3588-rga3` -> `rga3_hw`. For RGA3, the command path programs one
+source window (`WIN0`) to the writeback path (`WR`): scale, format/stride/CSC,
+addresses, command buffer, master-mode start, and frame-done IRQ. It deliberately
+exposes only the first RGA3 core until multicore scheduling lands.
+
+Besides multicore, the current RGA3 V4L2 path is missing these vendor/librga
+capabilities:
+
+- No `/dev/rga` ABI or `librga` compatibility: no Rockchip buffer handles,
+  request create/config/submit ioctls, core masks, multi-task requests, or
+  explicit `sync_file` ioctl surface.
+- No RGA3 rotate/flip/background-color controls. The generic V4L2 controls exist
+  only behind feature flags, and `rga3_hw.features = 0`.
+- No second input (`WIN1`), pattern/overlay composition, or Porter-Duff alpha
+  blend surface. The RGA3 command code explicitly uses only `WIN0` because two
+  inputs are not supported there yet.
+- No RGA3 color fill, pattern fill, ROP, color key, OSD, mosaic, dither, or
+  neural-network/quantize helpers from the vendor/librga feature surface.
+- No compressed or tiled layouts: no AFBC/RFBC/FBC/tile decode or encode.
+- Narrower format coverage: no 10-bit YUV, no YUV444, no planar YUV on RGA3,
+  and several RGB formats are input-only.
+- Incomplete crop/compose semantics for RGA3. The V4L2 selection API stores crop
+  and compose rectangles, but the RGA3 command generator currently uses only the
+  source crop width/height and full output size; it does not program source
+  offsets or arbitrary destination placement.
+- Thin error and recovery handling: the RGA3 IRQ path clears interrupts and
+  returns frame-done status, but does not yet provide vendor-style error-bit
+  diagnosis, timeout recovery, or reset policy.
+
+So the upstream V4L2 driver is small because its current contract is narrow:
+one-source scale/convert/blit through V4L2. It is the right mainline direction,
+but it is not close to the vendor `/dev/rga`/`librga` feature surface yet.
 
 ## 2. MPP ABI ledger (`mpp-rewrite/ABI.rst`)
 
@@ -228,17 +311,18 @@ confirm against the TRM before treating either as canonical.
 
 ## 6. Status & citable location
 
-| Item | State (2026-07-01) |
+| Item | State (2026-07-02) |
 |------|--------------------|
-| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 3,338 lines, `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 7,040 lines, `ABI.rst`, `Kconfig`, `Makefile`) |
-| 6.18 state | dev worktree `/home/yi/Code/linux-6.18-rkvenc` is currently at **local commit `5614909e5803`** ("arm64: dts: rockchip: rk3588: VEPU580 encoder, rkvdec2 decoder, RGA3 nodes") on top of the forward-port commit `924f4232546d`; the rewrite driver files are staged/modified in that worktree rather than published as a standalone citable commit. |
-| Mainline-master state | same rewrite sources present in the `/home/yi/Code/linux` master worktree (`665159e24674`, v7.2-rc1 era) as **uncommitted** changes: the §5 DT diff + `drivers/video/{Kconfig,Makefile}` wiring + untracked `drivers/video/rockchip/` and `include/uapi/linux/rk-mpp.h` |
+| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 4,180 lines; 4,362 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 7,197 lines; 7,402 total incl. `ABI.rst`, `Kconfig`, `Makefile`) |
+| 6.18 state | dev worktree `/home/yi/Code/linux-6.18-rkvenc` is on branch `rk3588-rewrite-6.18` at **local commit `eb511697426e`** ("media: rockchip: lock down mpp compat parser"), clean but seven commits ahead of `linux-rock5b/rk3588-rewrite-6.18`; not pushed as of this snapshot. |
+| Mainline-master state | sibling worktree `/home/yi/Code/linux` is on branch `rk3588-rewrite-mainline` at **local commit `180ee72a9a80`** (same tip subject), clean but seven commits ahead of `linux-rock5b/rk3588-rewrite-mainline`; it carries the rewrite drivers plus the mainline-master DT/wiring work and the V4L2 RGA3 comparison tree discussed in §1. |
 | Validation | MPP/RGA rewrite object builds pass on both the 6.18 and mainline-master worktrees, including compile gates with `ROCKCHIP_MPP_REWRITE_KUNIT_TEST=y` / `ROCKCHIP_RGA_REWRITE_KUNIT_TEST=y`; the ABI.rst ledgers record validated-against-userspace behaviours per §2/§3, and both rewrite drivers now carry optional KUnit coverage for pure ABI/helper logic. [`tests/abi-probe.sh`](../tests/abi-probe.sh) is the fast non-submit ABI log-diff gate for whichever implementation owns `/dev/mpp_service` and `/dev/rga`, including MPP query/session-control replay plus a safe two-message init batch, RGA query/no-op ioctls, virtual-address import/release, and handle-backed request create/config/cancel; [`tests/librga-smoke.sh`](../tests/librga-smoke.sh) is the direct librga/im2d copy/resize/fill functional smoke; [`tests/rewrite-smoke.sh`](../tests/rewrite-smoke.sh) runs the ABI probe plus decode/encode/transcode consumer workloads, with optional `RUN_LIBRGA=1` for the direct librga smoke. **UNVERIFIED in this repo**: the workload gate has not yet passed on hardware through the rewrite; no validation record equivalent to status.md exists yet. On the current 2026-07-01 board boot these scripts skip because both device nodes are absent. |
 
-> **TODO — publish before relying on these cites:** the rewrite exists *only*
-> on the dev box (staged/modified 6.18 worktree + uncommitted master diff; the
-> dev box is a single point of failure). Push the 6.18 rewrite state and the
-> mainline-master DT work to a citable public branch, then replace the
+> **TODO — publish before relying on these cites:** the rewrite still exists
+> only on the dev box (local 6.18 and mainline branches, both ahead of their
+> `linux-rock5b/*` remotes by seven commits; no public branch observed here).
+> Push the 6.18 rewrite state and the mainline-master DT work to a citable
+> public branch, then replace the
 > local-tree cites in this
 > doc and source-trees.md §8 with the public URL + hashes. Until then every anchor in
 > this doc is **unresolvable outside the dev box**.
@@ -246,4 +330,5 @@ confirm against the TRM before treating either as canonical.
 Cross-references: [uAPI guide](./dev-uapis.md) (uAPI surface),
 [userspace library guide](../../userspace-libraries/docs/how-the-userspace-libs-work.md) (the librga behaviours §3
 encodes), [device-tree guide](./device-tree.md) (6.18 DT), [kernel status](./status.md) /
-[`status.md`](../../status.md) (project status rows).
+[`status.md`](../../status.md) (project status rows),
+[source-tree pins](../../docs/source-trees.md) (local rewrite/upstream-RGA pins).
