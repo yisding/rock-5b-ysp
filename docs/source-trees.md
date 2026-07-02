@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local `rk3588-rewrite-6.18` @ `611f5fe047fd` + local `rk3588-rewrite-mainline` @ `9fb5f8bf7562` — **not yet public**, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local `rk3588-rewrite-6.18` @ `42fa9c66344d` + local `rk3588-rewrite-mainline` @ `1b8c7d948fe9` — **not yet public**, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | local `../linux/drivers/media/platform/rockchip/rga/` on `rk3588-rewrite-mainline` @ `180ee72a9a80`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver tests](../kernel-drivers/tests/README.md) "Expanded conformance bundle" | local `../rockchip-conformance`, see §10 |
 
@@ -194,10 +194,10 @@ dev-box-local kernel pins, both clean but not observed on a public branch as of
 2026-07-02:
 
 - `/home/yi/Code/linux-6.18-rkvenc`, branch `rk3588-rewrite-6.18`, commit
-  `611f5fe047fd` ("media: rockchip: recover mpp jobs on iommu faults"), 35
+  `42fa9c66344d` ("media: rockchip: count rga scheduler core activity"), 120
   commits ahead of `linux-rock5b/rk3588-rewrite-6.18`.
 - `/home/yi/Code/linux`, branch `rk3588-rewrite-mainline`, commit
-  `9fb5f8bf7562`, 35 commits ahead of
+  `1b8c7d948fe9` (same tip subject), 120 commits ahead of
   `linux-rock5b/rk3588-rewrite-mainline`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -205,9 +205,12 @@ Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
 for rewrite-drivers.md's current rewrite-size snapshot; the mainline tree is the
 post-6.18 DT/wiring state. These are **not yet reconstructible from public
 sources** unless the local branches are pushed. Rewrite-drivers.md §6 carries
-the operational status and the TODO to publish a citable branch. The older
-`180ee72a9a80` mainline pin is still used by §9 for the upstream-style V4L2
-RGA3 comparison that was measured before the latest rewrite commits landed.
+the operational status and the TODO to publish a citable branch. The newer pins
+include a large RGA feature-coverage push plus the debugfs scheduler-core
+counters needed to check RGA2/RGA3 forced-core and load-balancing behaviour on
+hardware. The older `180ee72a9a80` mainline pin is still used by §9 for the
+upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite
+commits landed.
 
 ## 9. Upstream-style V4L2 RGA3 comparison tree
 

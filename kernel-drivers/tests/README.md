@@ -75,6 +75,14 @@ it should match the forward-port. For documented unsupported RGA profiles, it
 should fail cleanly, preferably with `-EOPNOTSUPP`, without kernel warnings,
 hangs, leaked fences, IOMMU fault storms, or stale async completions.
 
+For RGA scheduler/core-routing validation, also capture the rewrite debugfs
+counters under `/sys/kernel/debug/rk_rga_rewrite/` before and after forced-core
+and mixed RGA2/RGA3 runs. The current rewrite exposes total scheduled,
+dispatched, and hardware-started job counts plus per-core counters for
+`rga3_core0`, `rga3_core1`, `rga2_core0`, and `rga2_core1`; those counters are
+the lightweight replacement for carrying the BSP debugger ABI just to confirm
+load balancing and `rga_req.core` routing.
+
 **Privileges** (this differs per test):
 
 | Test | Needs |
