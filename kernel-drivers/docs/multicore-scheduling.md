@@ -199,7 +199,11 @@ silicon: SOFT = CPU owns dispatch (maps onto mem2mem); HARD = CCU owns dispatch
 
 1. **Even Rockchip defaults to SOFT; HARD is effectively unvalidated** ("doesn't
    work as expected" per secondary sources). Building on HARD depends on a path
-   the vendor themselves avoid, on closed silicon.
+   the vendor themselves avoid, on closed silicon. **The clean-room rewrite
+   currently builds on exactly this path** — it implements HARD only, ignores
+   `rockchip,ccu-mode`, and so runs HARD on the rock-5b DT where the BSP runs
+   SOFT. See [rewrite-hard-ccu-finding.md](./rewrite-hard-ccu-finding.md) for the
+   divergence, test-coverage gap, and a validation/fuzz plan.
 2. **Mainline's multicore series is already doing SOFT — without the CCU.** The
    vendor's `rkvdec2_attach_ccu` shares the IOMMU domain by attaching non-main
    cores to the main core's domain (`if core_id != 0 → attach main domain`); that
