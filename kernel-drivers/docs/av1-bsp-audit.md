@@ -168,7 +168,7 @@ rather than counted as donor `mpp_av1dec.c` defects.
 | Hantro-only Kconfig smoke | PASS: with RKMPP disabled and Hantro Rockchip enabled, `olddefconfig` selects `VSI_IOMMU=y` |
 | Shared RK3588 DTS parse smoke | PASS: `rockchip/rk3588s-orangepi-5.dtb` and `rockchip/rk3588-evb1-v10.dtb` build |
 | Compiled base AV1 topology | PASS: `rk3588-evb1-v10.dtb` shows `video-codec@fdc70000` with `iommus` pointing at enabled `iommu@fdca0000` |
-| AV1 binding check | BLOCKED: `dt-doc-validate` / `dtschema` is not installed in this environment |
+| AV1 binding check | PASS: targeted `rockchip,av1-decoder.yaml` check runs cleanly with `dtschema` 2026.6 |
 | ROCK 5B AV1-enabled DTB | PENDING: plain tree still needs the Armbian media patch that provides `vdec0/vdec1` labels |
 | Runtime AV1 decode | PENDING: no board boot or `av1_rkmpp` userspace validation yet |
 

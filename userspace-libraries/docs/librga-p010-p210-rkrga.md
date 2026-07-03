@@ -177,8 +177,51 @@ It did not copy `is_10b_compact` or `is_10b_endian` from the caller-level
 `rga_info_t`.
 
 The same issue appeared in the older im2d implementation path: it copied
-`rd_mode`, but there was no public `rga_buffer_t` field for P010/P210 compactness
-and no observed copy of the legacy caller-level 10-bit layout fields.
+`rd_mode`, but there was no public `rga_buffer_t` field for arbitrary generic
+10-bit compactness and no observed copy of the legacy caller-level 10-bit layout
+fields. The newer public headers solve that at the API level by naming explicit
+`RK_FORMAT_P010` and `RK_FORMAT_P210` formats.
+
+## IM2D P010/P210 reverse-engineering and local implementation
+
+The public `airockchip/librga` repository is a header/prebuilt-library distro,
+not the full implementation source. Its README identifies the prebuilt API as
+`1.10.6`, and its `include/rga.h` defines both the generic 10-bit semiplanar
+formats and the newer direct API enums:
+
+| Public API enum | Header layout | Kernel request shape used locally |
+|-----------------|---------------|------------------------------------|
+| `RK_FORMAT_P010` (`0x40 << 8`) | 4:2:0, 10-bit samples in 16-bit little-endian containers | `RK_FORMAT_YCbCr_420_SP_10B` plus `is_10b_compact = 1`, `is_10b_endian = 1` |
+| `RK_FORMAT_P210` (`0x41 << 8`) | 4:2:2, 10-bit samples in 16-bit little-endian containers | `RK_FORMAT_YCbCr_422_SP_10B` plus `is_10b_compact = 1`, `is_10b_endian = 1` |
+
+The prebuilt `../librga/libs/Linux/gcc-aarch64/librga.so` contains P010/P210
+format names and DRM fourcc table entries, so the public API surface exists.
+Disassembly did not show a complete direct `0x4000` / `0x4100` request-generation
+path in the utility/check functions we inspected. That pushed the local fix
+toward the BSP kernel contract rather than treating P010/P210 as native kernel
+formats.
+
+The local `../librga-src` im2d follow-up now implements that contract explicitly:
+
+1. `rga_check_format()` accepts `RK_FORMAT_P010` as 4:2:0 semiplanar 10-bit and
+   `RK_FORMAT_P210` as 4:2:2 semiplanar 10-bit.
+2. Validation keeps the caller-visible P010/P210 format long enough for stride
+   checks to use 16-bit samples. `RgaUtils.cpp` now reports P010 as 3 bytes per
+   pixel, P210 as 4 bytes per pixel, and both as 16 bits per luma sample.
+3. After validation, `rga_task_submit()` normalizes P010/P210 to the BSP kernel's
+   generic 10-bit semiplanar format and marks the matching `rga_info_t` with
+   `is_10b_compact = 1` and `is_10b_endian = 1`.
+4. `generate_blit_req()`, `generate_fill_req()`, and
+   `generate_color_palette_req()` now copy those layout flags into the final
+   `struct rga_req` image slots after assigning `rd_mode`.
+5. Direct RGA1/RGA2 compatibility submission rejects requests that require
+   non-raster `rd_mode` or padded/incompact 10-bit flags before the lossy
+   compatibility conversion. The color-palette table-update ioctl gets the same
+   guard and uses the compatibility request shape when it is otherwise safe.
+
+This is still not a proof that every deployed Rockchip binary handles direct
+P010/P210 correctly. It is a source-level implementation that matches the BSP
+kernel fields we traced.
 
 The first Jellyfin patch fixed the main `RgaBlit()` path only. A follow-up audit
 of `../librga-src/core/NormalRga.cpp` found two more legacy request builders that
@@ -299,6 +342,9 @@ Current local `../librga-src` changes:
 | File | Result |
 |------|--------|
 | `core/NormalRga.cpp` | Added FBCE fixup, full-CSC fixup, shared 10-bit layout helper, blit/fill/palette 10-bit layout field copies, and fixed palette `ioctl(..., ioc_req)`. |
+| `im2d_api/src/im2d_impl.cpp` | Added P010/P210 validation, post-validation normalization to generic kernel 10-bit formats, request layout field copies, and RGA1/RGA2 compatibility rejection for unsupported layout state. |
+| `core/RgaUtils.cpp` | Added P010/P210 names, 16-bit sample stride, and 16-bit-container frame-size accounting. |
+| `core/utils/utils.cpp` | Classified P010/P210 as YUV formats for CSC/default-mode logic. |
 | `include/RgaApi.h` | Added `RGA_NORMAL_DST_FULL_CSC_FIXUP` and `RGA_NORMAL_FBCE_RGB_BGR_FIXUP`. |
 | `meson.build` | Removed the duplicate `static_library()` target. |
 
@@ -324,6 +370,15 @@ It rebuilt `core_NormalRga.cpp.o` and relinked `librga.so.2.2.0`.
 After adding the RGA2 rejection guard, the same rebuild completed again and
 relinked `librga.so.2.2.0`.
 
+After adding the im2d P010/P210 implementation, the same rebuild completed again:
+
+```bash
+CCACHE_DISABLE=1 ninja -C /tmp/librga-src-build-codex-1783097466
+```
+
+It rebuilt `core_utils_utils.cpp.o`, `core_RgaUtils.cpp.o`,
+`im2d_api_src_im2d_impl.cpp.o`, and relinked `librga.so.2.2.0`.
+
 ## What this fixes, and what it cannot fix
 
 This now closes the known userspace legacy-request propagation hole for the
@@ -341,13 +396,15 @@ Fixed by the local source tree:
 | Palette final ioctl request pointer | Fixed from `&ioc_req` to `ioc_req`. |
 | RGA2 compatibility fallback for unsafe inputs | Rejects non-raster `rd_mode` and padded/incompact 10-bit layout flags with `-EINVAL` before ioctl submission. |
 | Palette-table update on RGA2 fallback | Uses the RGA2 compatibility request conversion instead of submitting the larger RGA3 request shape directly. |
+| im2d direct P010/P210 API formats | Validated as public API formats, normalized to generic BSP kernel 10-bit request formats, and submitted with the required layout flags on multicore/RGA3. |
+| im2d RGA1/RGA2 fallback for P010/P210 | Rejected before the lossy compatibility conversion instead of risking silent layout corruption. |
 
 Still not proven or not fixed by this source patch:
 
 | Case | Reason |
 |------|--------|
 | BSP/kernel P010 corruption independent of userspace flags | Jellyfin carries an `nv15` first-pass workaround for one RGA P010 corruption case. This patch does not change kernel behavior. |
-| im2d P010/P210 | The fix is in the legacy `NormalRga.cpp` path. im2d 1.10.6 may have its own P010/P210 handling, but that needs source proof or hardware validation. |
+| im2d hardware behavior | The source now emits the BSP kernel request shape we traced, but real RK3588 hardware validation is still required. |
 | RGA2 compatibility request | The old `RGA_BLIT_SYNC` ABI has no RGA3 `rd_mode`/`compact_mode`/`is_10b_endian` fields. Compact 10-bit may work through the legacy implicit format behavior, but padded P010/P210 and non-raster modes are now rejected locally. |
 | Android-only `NormalRgaPaletteTable()` | It does not receive caller-level `rga_info_t` 10-bit layout fields, so there is no equivalent state to propagate. |
 | Unknown prebuilt librga binaries | The local source is fixed; an external `.so` must be tested or audited separately. |
@@ -364,7 +421,7 @@ Safe options:
 | Option | Risk profile |
 |--------|--------------|
 | Build and stage the patched `../librga-src` | Best match for Jellyfin-style legacy RKRGA P010 use; covers blit, color fill, and palette legacy builders. |
-| Migrate RKRGA to im2d P010/P210 and validate on hardware | Potentially the long-term supported API, but needs proof against the deployed kernel/librga pair. |
+| Migrate RKRGA to im2d P010/P210 and validate on hardware | Now source-supported locally for multicore/RGA3, but still needs proof against the deployed kernel/librga pair. |
 | Disable padded P010/P210 in RKRGA | Conservative if the deployed librga is unknown or unpatched. |
 | Keep compact NV15/NV20 handling | Lower risk because compact is the default/implicit 10-bit interpretation, though RGA2/RGA3 restrictions still apply. |
 

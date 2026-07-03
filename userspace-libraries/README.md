@@ -73,6 +73,7 @@ Read these when debugging library/kernel interactions:
 | How is libmpp structured internally? | [`docs/mpp-library-architecture.md`](docs/mpp-library-architecture.md) |
 | What does librga hide from an app? | [`docs/how-the-userspace-libs-work.md`](docs/how-the-userspace-libs-work.md) Part B |
 | How do regular users and media developers use librga well? | [`docs/librga-guide.md`](docs/librga-guide.md) |
+| What would a Rust `librga` replacement cost relative to `rga-rewrite`? | [`docs/librga-rust-rewrite-assessment.md`](docs/librga-rust-rewrite-assessment.md) |
 | What did we learn about RKRGA P010/P210 and librga 10-bit ABI compatibility? | [`docs/librga-p010-p210-rkrga.md`](docs/librga-p010-p210-rkrga.md) |
 | What ioctls cross into the kernel? | [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) |
 | What did we learn about Rockchip's newer KMPP path? | [`docs/mpp-kmpp-reverse-engineering.md`](docs/mpp-kmpp-reverse-engineering.md) |
