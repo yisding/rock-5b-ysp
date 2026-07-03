@@ -241,10 +241,12 @@ implementation (cross-reference:
     fallback formats RGA3 does not cover, planar/semiplanar YUV,
     YCbCr400/gray, NV24/NV42, RGB555-family, ARGB/ABGR output, compact 10-bit
     source, RFBC64x4 source profiles for ffmpeg-facing Rockchip frames,
-    full-CSC RGB→YUV, gray256 conversion, Y400 UV downsample, rotate/mirror,
-    in-place RGB mosaic, ROP, gaussian blur, NN quantize, RGB alpha-bitmap,
-    RGBA color-key for current forced-core `imcolorkey` normal/inverted modes,
-    OSD alpha overlay, and color palette/update-palette commands.
+    AFBC32x8 RGB-family source profiles for current `librga` DRM/gralloc
+    inputs, full-CSC RGB→YUV, gray256 conversion, Y400 UV downsample,
+    rotate/mirror, in-place RGB mosaic, ROP, gaussian blur, NN quantize, RGB
+    alpha-bitmap, RGBA color-key for current forced-core `imcolorkey`
+    normal/inverted modes, OSD alpha overlay, and color palette/update-palette
+    commands.
   - Multi-task requests run serially under one completion/fence when every task
     matches a supported profile. Mixed RGA2/RGA3 batches now validate the whole
     request up front and select an eligible backend per task; current `librga`
