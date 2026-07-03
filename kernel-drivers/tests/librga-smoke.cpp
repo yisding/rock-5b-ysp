@@ -317,14 +317,20 @@ static void fill_bgrx_pattern(uint8_t *buf, int width, int height)
 	}
 }
 
-static int nv12_changed_from_sentinel(const uint8_t *buf, size_t size)
+static int buffer_changed_from_sentinel(const uint8_t *buf, size_t size,
+					uint8_t sentinel)
 {
 	for (size_t i = 0; i < size; i++) {
-		if (buf[i] != 0x80)
+		if (buf[i] != sentinel)
 			return 1;
 	}
 
 	return 0;
+}
+
+static int nv12_changed_from_sentinel(const uint8_t *buf, size_t size)
+{
+	return buffer_changed_from_sentinel(buf, size, 0x80);
 }
 
 static void fill_nv12_pattern(uint8_t *buf, int width, int height)
@@ -683,6 +689,137 @@ out:
 	return ret;
 }
 
+static int run_gauss_matrix_improcess(void)
+{
+	const int width = 64;
+	const int height = 64;
+	const int format = RK_FORMAT_RGBA_8888;
+	const size_t image_size = (size_t)width * height * TEST_BPP;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	im_handle_param_t src_param = {
+		(uint32_t)width,
+		(uint32_t)height,
+		(uint32_t)format,
+	};
+	im_handle_param_t dst_param = {
+		(uint32_t)width,
+		(uint32_t)height,
+		(uint32_t)format,
+	};
+	im_opt_t opt = {};
+	double gauss_matrix[9] = {
+		0.075114, 0.123841, 0.075114,
+		0.123841, 0.204180, 0.123841,
+		0.075114, 0.123841, 0.075114,
+	};
+	int ret;
+
+	ret = dmabuf_alloc_any(image_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "gauss source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(image_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "gauss dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "gauss source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_pattern(dma_src.mem, width, height);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "gauss source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "gauss dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "gauss dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src_handle = importbuffer_fd(dma_src.fd, &src_param);
+	dst_handle = importbuffer_fd(dma_dst.fd, &dst_param);
+	if (!src_handle || !dst_handle) {
+		fprintf(stderr, "gauss importbuffer_fd failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, width, height, format);
+	dst = wrapbuffer_handle(dst_handle, width, height, format);
+
+	ret = imcheck(src, dst, {}, {});
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("imcheck gauss", ret);
+		goto out;
+	}
+
+	imsetOptGaussianBlurMatrix(&opt, 3, 3, gauss_matrix);
+	imsetOpacity(&src, 0xfe);
+
+	ret = improcess(src, dst, {}, {}, {}, {}, -1, NULL, &opt,
+			IM_SYNC | IM_GAUSS);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("improcess gauss", ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "gauss dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!buffer_changed_from_sentinel(dma_dst.mem, dma_dst.size, 0x80)) {
+		fprintf(stderr, "gauss output unchanged\n");
+		ret = 1;
+	} else {
+		ret = 0;
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"gauss dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "improcess gauss",
+		       dma_src.heap_path);
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 int main(void)
 {
 	const size_t src_size = TEST_SRC_W * TEST_SRC_H * TEST_BPP;
@@ -774,6 +911,10 @@ int main(void)
 		goto out;
 
 	ret = run_legacy_planar_to_semiplanar_convert();
+	if (ret)
+		goto out;
+
+	ret = run_gauss_matrix_improcess();
 	if (ret)
 		goto out;
 
