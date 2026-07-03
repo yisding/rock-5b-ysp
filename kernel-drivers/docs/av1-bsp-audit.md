@@ -202,7 +202,7 @@ logic. The fixes now in the worktrees are:
 | Compiled base AV1 topology | PASS: `rk3588-evb1-v10.dtb` shows `video-codec@fdc70000` with `iommus` pointing at enabled `iommu@fdca0000` |
 | AV1 binding check | PASS: targeted `rockchip,av1-decoder.yaml` check runs cleanly with `dtschema` 2026.6 |
 | ROCK 5B AV1-enabled DTB | PASS: `make O=/tmp/linux-6.18-rkvenc-av1-build ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- rockchip/rk3588-rock-5b.dtb` |
-| Vendor MPP/RGA binding check | PASS: targeted `dt_binding_check` for `rockchip,mpp-service.yaml`, `rockchip,rkvenc2.yaml`, `rockchip,rkvdec2.yaml`, and `rockchip,rga-vendor.yaml` in both worktrees with `dtschema` 2026.6 (`yamllint` was not installed, so only that lint layer was skipped) |
+| Vendor MPP/RGA binding check | PASS: targeted `dt_binding_check` for `rockchip,mpp-service.yaml`, `rockchip,rkvenc2.yaml`, `rockchip,rkvdec2.yaml`, and `rockchip,rga-vendor.yaml` in both worktrees with `dtschema` 2026.6, including yamllint and generated example DTC |
 | Focused RGA W=1 build | PASS: `CONFIG_ROCKCHIP_MULTI_RGA=y W=1` directory build for `drivers/video/rockchip/rga3/` in both worktrees |
 | Runtime AV1 decode | PENDING: no board boot or `av1_rkmpp` userspace validation yet |
 
