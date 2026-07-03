@@ -39,7 +39,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > repeated encoder/decoder drain-to-EOS reuse,
 > and decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
-> generated H.264/H.265 AFBC decode output and
+> generated H.264/H.265 AFBC decode output, generated multi-stream
+> decode/transcode, and
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 decoder-side
 > output conversion. The in-repo direct `librga` smoke
@@ -340,13 +341,15 @@ implementation (cross-reference:
   post-flush output, repeated encoder/decoder drain-to-EOS reuse in one process,
   and repeated state-loop reset; its
   diagnostic set also includes seek-event probes through the same
-  `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output, parallel H.264 encode, parallel H.264
-  encode->decode roundtrip pipelines for multi-session scheduling evidence, and
+  `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output, parallel H.264 encode,
+  parallel H.264 encode->decode roundtrip, generated same-codec/mixed-codec
+  parallel decode, and mixed H.264/H.265 decode->encode transcode pipelines for
+  multi-session scheduling evidence, and
   a GStreamer-visible RGA format matrix covering encoder-side
   BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths plus decoder-side
-  BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The next
-  media-backed GStreamer expansion should add display and broader multi-stream
-  decode/encode evidence.  Source review of the plugin
+  BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The remaining
+  media-backed GStreamer expansion should add display/sink evidence and booted
+  forward-port-vs-rewrite timing data.  Source review of the plugin
   shows the
   highest-value RGA paths are legacy `c_RkRgaBlit()` submissions from fd-backed
   MPP frames or Gst DMABuf memory into MPP-owned destination buffers:

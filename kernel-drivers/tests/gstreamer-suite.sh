@@ -80,6 +80,10 @@ generated_dec_h264_afbc_fakesink
 generated_dec_h265_afbc_fakesink
 parallel_enc_h264
 parallel_roundtrip_h264
+parallel_dec_h264
+parallel_dec_h265
+parallel_dec_mixed_h264_h265
+parallel_transcode_mixed_h264_h265
 enc_h264_bgr16_rga_scale
 enc_h264_rgb_rga_scale
 enc_h264_bgr_rga_scale
@@ -440,6 +444,62 @@ run_generated_transcode()
 	run_current_command
 }
 
+run_generated_parallel_decode()
+{
+	local first_codec=$1
+	local second_codec=$2
+	local first_path
+	local first_parser
+	local second_path
+	local second_parser
+
+	ensure_generated_input "$first_codec" || return $?
+	first_path=$GENERATED_INPUT_PATH
+	first_parser=$GENERATED_PARSER
+	ensure_generated_input "$second_codec" || return $?
+	second_path=$GENERATED_INPUT_PATH
+	second_parser=$GENERATED_PARSER
+
+	CMD=(
+		gst-launch-1.0 -q
+		filesrc "location=$first_path" "!" "$first_parser" "!" mppvideodec "!" fakesink sync=false
+		filesrc "location=$second_path" "!" "$second_parser" "!" mppvideodec "!" fakesink sync=false
+	)
+	printf "parallel decoding generated %s/%s inputs: " \
+		"$first_codec" "$second_codec"
+	print_current_command
+	run_current_command
+}
+
+run_generated_parallel_transcode()
+{
+	local first_codec=$1
+	local first_encoder=$2
+	local second_codec=$3
+	local second_encoder=$4
+	local first_path
+	local first_parser
+	local second_path
+	local second_parser
+
+	ensure_generated_input "$first_codec" || return $?
+	first_path=$GENERATED_INPUT_PATH
+	first_parser=$GENERATED_PARSER
+	ensure_generated_input "$second_codec" || return $?
+	second_path=$GENERATED_INPUT_PATH
+	second_parser=$GENERATED_PARSER
+
+	CMD=(
+		gst-launch-1.0 -q
+		filesrc "location=$first_path" "!" "$first_parser" "!" mppvideodec "!" "$first_encoder" zero-copy-pkt=true "!" fakesink sync=false
+		filesrc "location=$second_path" "!" "$second_parser" "!" mppvideodec "!" "$second_encoder" zero-copy-pkt=true "!" fakesink sync=false
+	)
+	printf "parallel transcoding generated %s/%s inputs: " \
+		"$first_codec" "$second_codec"
+	print_current_command
+	run_current_command
+}
+
 build_parallel_encode()
 {
 	CMD=(
@@ -776,6 +836,18 @@ build_case_command()
 	parallel_roundtrip_h264)
 		build_parallel_roundtrip
 		;;
+	parallel_dec_h264)
+		CMD=(__builtin_generated_parallel_decode h264 h264)
+		;;
+	parallel_dec_h265)
+		CMD=(__builtin_generated_parallel_decode h265 h265)
+		;;
+	parallel_dec_mixed_h264_h265)
+		CMD=(__builtin_generated_parallel_decode h264 h265)
+		;;
+	parallel_transcode_mixed_h264_h265)
+		CMD=(__builtin_generated_parallel_transcode h264 mpph265enc h265 mpph264enc)
+		;;
 	dec_h264_fakesink)
 		build_decode GST_H264_INPUT h264parse
 		;;
@@ -927,6 +999,13 @@ run_case_payload()
 	generated_transcode_h264_rga_to_h265 | \
 	generated_transcode_h264_dmabuf_to_h265)
 		run_generated_transcode "${CMD[1]}" "${CMD[2]}" "${CMD[@]:3}"
+		;;
+	parallel_dec_h264 | parallel_dec_h265 | parallel_dec_mixed_h264_h265)
+		run_generated_parallel_decode "${CMD[1]}" "${CMD[2]}"
+		;;
+	parallel_transcode_mixed_h264_h265)
+		run_generated_parallel_transcode "${CMD[1]}" "${CMD[2]}" \
+			"${CMD[3]}" "${CMD[4]}"
 		;;
 	*)
 		run_current_command
