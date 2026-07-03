@@ -24,10 +24,14 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > `rockchip,normal-rates` through the public clock framework for BSP-style
 > fixed-rate performance setup without private devfreq. The remaining gap is hardware validation: no conformance
 > record comparable to the forward-port's exists yet (§6). The support repo now
-> has versioned wrappers for the official MPP test matrix and official librga
-> sample suite, plus comparators that flag required forward-port passes missing
-> from the rewrite. The in-repo direct `librga` smoke covers virtual-address
-> imports, dma-heap dma-buf allocation plus `importbuffer_fd`, sync
+> has versioned wrappers for the official MPP test matrix, official librga
+> sample suite, and JeffyCN GStreamer plugin, plus comparators that flag
+> required forward-port passes missing from the rewrite. The default GStreamer
+> suite now includes asset-free encoder, RGA-conversion, decoder roundtrip, and
+> state-loop pipelines so the next hardware pass exercises decoder-side buffer
+> groups, short-timeout polling, info-change, reset, and decoder-side RGA
+> conversion before media assets are staged. The in-repo direct `librga` smoke
+> covers virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd`, sync
 > copy/resize/fill, legacy `c_RkRgaBlit()` conversions shaped like JeffyCN
 > GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing,
 > rotated NV12 dma-buf to BGRx dma-buf decode conversion, and planar I420
@@ -309,13 +313,14 @@ implementation (cross-reference:
   `gstreamer-rockchip` branch at `dcbcd6454ef8`.  There are no paired
   forward-port/rewrite conformance logs yet, so the immediate missing artifact
   is a booted hardware run, not another BSP feature.  The support repo now has
-  `tests/gstreamer-suite.sh` and `tests/gstreamer-suite-compare.sh` so the next
-  hardware pass can capture real plugin pipelines instead of only
-  `gst-inspect`/baseline `videotestsrc` smoke.  The first GStreamer matrix
-  should cover H.264/H.265 decode to `fakesink` and display, raw NV12 encode,
-  decode -> scale/format-convert/rotate -> encode transcode, repeated
-  stop/seek/EOS/restart/caps-renegotiation loops, DMABuf allocator negotiation,
-  and multi-stream decode/encode.  Source review of the plugin shows the
+  `tests/gstreamer-suite.sh` and `tests/gstreamer-suite-compare.sh`; its default
+  required set covers element inspection, raw NV12 encode, encoder-side legacy
+  RGA conversion, asset-free H.264/H.265 encode->parse->decode roundtrips,
+  decoder-side RGA rotate/format-convert, and repeated state-loop reset.  The
+  first media-backed GStreamer matrix should add H.264/H.265 decode to
+  `fakesink` and display, decode -> scale/format-convert/rotate -> encode
+  transcode, seek/EOS/caps-renegotiation loops, DMABuf allocator negotiation,
+  AFBC diagnostics, and multi-stream decode/encode.  Source review of the plugin shows the
   highest-value RGA paths are legacy `c_RkRgaBlit()` submissions from fd-backed
   MPP frames or Gst DMABuf memory into MPP-owned destination buffers:
   NV12/NV21/I420/YV12/NV16/NV61 plus RGB/RGBA/BGRx/RGBx families, scale,

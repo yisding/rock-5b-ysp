@@ -313,9 +313,12 @@ Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
 was last verified on 2026-07-03 after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
 coverage for the GStreamer virtual-source, fd-backed rotate/convert, and planar
-fallback shapes and after the MPP official-test suite/comparator were added. The
-GStreamer suite/comparator were added later and have been syntax-checked
-locally; run shellcheck on target when the package is installed.
+fallback shapes; after the MPP official-test suite/comparator and build helper
+were added; and after the GStreamer build wrapper, suite, comparator, and
+asset-free decoder roundtrip cases were added. `build-mpp-tests.sh` staged the
+official MPP binaries locally; `build-gstreamer-rockchip.sh` currently stops at
+its dependency preflight on this host because the GStreamer development `.pc`
+files are missing.
 
 For rewrite acceptance, boot a kernel where `ROCKCHIP_MPP_REWRITE` and
 `ROCKCHIP_RGA_REWRITE` own the device nodes, then run:
