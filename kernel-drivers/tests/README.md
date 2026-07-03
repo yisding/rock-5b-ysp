@@ -13,7 +13,7 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 |-------|----------|
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
-| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
+| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
 | Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains an unverified recipe. The rewrite clean-source object-build gate is versioned here and passed both public rewrite branch tips on 2026-07-03. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
 
@@ -67,6 +67,7 @@ Run it the same way under both kernels:
 cd ../rockchip-conformance
 PROFILE=rewrite ./scripts/collect-system-info.sh
 # build on the RK3588 target userspace, then run smoke/real media cases
+../rock-5b-ysp/kernel-drivers/tests/build-librga-samples-full.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/librga-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
@@ -139,12 +140,15 @@ sample binaries. It writes `summary.tsv`, per-sample logs/status files, dmesg
 tail, before/after RGA debugfs snapshots, and structured
 `debugfs-counters-{before,after,delta}.tsv` counter tables under
 `../rockchip-conformance/logs/$PROFILE/`. Its default **required** set matches
-the official top-level sample build's current Linux/RK3588 surface the rewrite
-is expected to cover or fail as a real regression: copy/FBC/tile/splice, crop,
-resize/UV-downsample, CSC/gray, fill and rectangle task arrays,
-alpha/colorkey/OSD/global-alpha, rotate/flip, async/fence, core config,
-malloc/dma-heap/DRM allocator fd imports, mosaic, ROP, padding, palette, and
-gaussian blur. Its default
+the official sample source surface the rewrite is expected to cover or fail as a
+real regression: copy/FBC/tile/splice, crop, resize/UV-downsample, CSC/gray,
+fill and rectangle task arrays, alpha/colorkey/OSD/global-alpha, rotate/flip,
+async/fence, core config, malloc/dma-heap/DRM allocator fd imports, mosaic, ROP,
+padding, palette, and gaussian blur. Use `build-librga-samples-full.sh`, not
+only the external bundle's top-level sample build, because the pinned
+`airockchip/librga` CMake omits `gauss_demo` and `palette_demo` from
+`samples/CMakeLists.txt` even though those sample directories exist and are part
+of the required rewrite surface. Its default
 **diagnostic** set records environment-specific, outside-slice, or
 not-installed-by-top-level cases without failing the whole run:
 physical-contiguous DRM, Android GraphicBuffer, RV1106 CMA, and CFA samples.
