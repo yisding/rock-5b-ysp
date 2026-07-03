@@ -300,7 +300,11 @@ c_RkRgaBlit(&src, &dst, NULL);
   it can offload). The exact version tuples current librga's capability
   probing expects back from an RK3588 kernel (RGA2E `3.2.63318`, RGA3
   `3.0.76831`) are documented in [rewrite-driver track](../../kernel-drivers/docs/rewrite-drivers.md) — any
-  alternative `/dev/rga` implementation has to report them.
+  alternative `/dev/rga` implementation has to report them. On the legacy
+  fallback path, both `NormalRga` and IM2D treat `RGA2_GET_VERSION` as success
+  when the ioctl return is non-negative; the BSP returns `1` after copying the
+  version string, so a compatible implementation must preserve that positive
+  success result instead of "fixing" it to zero.
 - **Legacy `RgaApi`/`RockchipRga`** (`core/`): `c_RkRgaInit`, `c_RkRgaBlit`,
   `RkRgaBlit`, the `RockchipRga` C++ singleton, with `NormalRga` as the engine.
   `ffmpeg-rockchip`'s `scale_rkrga` filter links `c_RkRgaBlit` (its `configure`

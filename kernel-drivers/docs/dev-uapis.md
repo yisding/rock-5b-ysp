@@ -240,6 +240,11 @@ struct rga_img_info_t {
 | `RGA_BLIT_ASYNC` | `0x5018` | `struct rga_req` | do the op, return a **release fence** |
 | `RGA_FLUSH` | `0x5019` | — | wait for outstanding async work |
 | `RGA_GET_VERSION` | `0x501b` | string | driver version |
+| `RGA2_GET_VERSION` | `0x601b` | string | RGA2 version; BSP returns positive success (`1`) after copying the string |
+
+The `RGA2_GET_VERSION` positive return is intentional ABI, not a failed boolean:
+the BSP driver sets `ret = true` after a successful copy, and current librga
+falls back only when the ioctl return is negative.
 
 `struct rga_req` is the full command descriptor: `render_mode` (the op), `src` /
 `dst` / `pat` (`rga_img_info_t` — pattern is for blending/ROP), rotation as a

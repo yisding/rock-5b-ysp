@@ -147,6 +147,9 @@ PROFILE=rewrite BASELINE=forward-port bash abi-replay.sh
 `abi-replay.sh` stores raw and normalized logs under
 `kernel-drivers/tests/logs/abi-replay/`. Normalization removes volatile file
 descriptor, import-handle, and request-id values before running `diff -u`.
+It also writes a smaller `.contract.log` that keeps the stable query/version
+and session-control lines, including the intentional legacy
+`RGA2_GET_VERSION ret=1` result copied from the BSP/librga contract.
 
 ## Regenerating the test inputs
 

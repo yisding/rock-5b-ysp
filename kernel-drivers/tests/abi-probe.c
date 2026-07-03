@@ -789,6 +789,11 @@ static void probe_rga(void)
 
 	memset(legacy, 0, sizeof(legacy));
 	errno = 0;
+	/*
+	 * BSP rga_drv.c returns true/1 after copying the RGA2 version string.
+	 * Current librga treats only negative values as failure/fallback, so
+	 * the positive return is part of the legacy ABI contract.
+	 */
 	require_ret("RGA2_GET_VERSION",
 		    ioctl(fd, RGA2_GET_VERSION, legacy), 1);
 	print_escaped_string("legacy_rga2_version", legacy, sizeof(legacy));
