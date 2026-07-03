@@ -13,7 +13,7 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 |-------|----------|
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
-| Owns | `abi-probe.sh`, `abi-probe.c`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
+| Owns | `abi-probe.sh`, `abi-probe.c`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
 | Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains an unverified recipe. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
 
@@ -32,15 +32,18 @@ Run it the same way under both kernels:
 cd ../rockchip-conformance
 PROFILE=rewrite ./scripts/collect-system-info.sh
 # build on the RK3588 target userspace, then run smoke/real media cases
-PROFILE=rewrite ./scripts/run-mpp-smoke.sh
+PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/librga-suite.sh
 PROFILE=rewrite ./scripts/run-gstreamer-smoke.sh
 
 # reboot into the BSP forward-port kernel and repeat:
 PROFILE=forward-port ./scripts/collect-system-info.sh
-PROFILE=forward-port ./scripts/run-mpp-smoke.sh
+PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
 PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/librga-suite.sh
 PROFILE=forward-port ./scripts/run-gstreamer-smoke.sh
+
+# compare the latest two MPP suite summaries:
+../rock-5b-ysp/kernel-drivers/tests/mpp-suite-compare.sh
 
 # compare the latest two librga suite summaries:
 ../rock-5b-ysp/kernel-drivers/tests/librga-suite-compare.sh
@@ -106,11 +109,43 @@ the latest `summary.tsv` for `BASELINE=forward-port` and `CANDIDATE=rewrite`
 by default, prints a per-case verdict table, and exits nonzero only when a
 required case passed on the baseline but did not pass on the candidate.
 
+`mpp-suite.sh` is the matching versioned wrapper for Rockchip MPP's official
+`test/` binaries from `../rockchip-conformance/out/mpp/bin`. It writes
+`summary.tsv`, per-case logs/status/command files, dmesg tail, and before/after
+MPP procfs/debugfs snapshots under `../rockchip-conformance/logs/$PROFILE/`.
+The default required set is intentionally asset-free: `mpp_info_test` only.
+Select real codec/performance cases with `MPP_REQUIRED_CASES` so both kernel
+profiles run the same matrix against the same media:
+
+```bash
+PROFILE=rewrite \
+MPP_H264_INPUT=assets/sample-1080p.h264 \
+MPP_H265_INPUT=assets/sample-1080p.h265 \
+MPP_ENC_INPUT=assets/nv12-1920x1080.yuv \
+MPP_ENC_WIDTH=1920 MPP_ENC_HEIGHT=1080 MPP_ENC_FORMAT=0 \
+MPP_REQUIRED_CASES="mpp_info_test mpi_dec_h264 mpi_dec_h265 mpi_dec_mt_h264 mpi_dec_multi_h265 mpi_enc_h264 mpi_enc_h265 mpi_enc_mt_h265 mpi_rc2_h264" \
+../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
+```
+
+Useful case names are `mpi_dec_h264`, `mpi_dec_h265`, `mpi_dec_vp9`,
+`mpi_dec_mt_*`, `mpi_dec_multi_*`, `mpi_enc_h264`, `mpi_enc_h265`,
+`mpi_enc_mt_*`, `mpi_rc2_h264`, and `mpi_rc2_h265`. The legacy Android/libvpu
+path is available as an explicit diagnostic case (`vpu_api_dec_h264`,
+`vpu_api_dec_h265`) but is not part of the default Linux/RK3588 pass gate.
+For one-off compatibility with the older external smoke script, setting
+`MPP_DEC_INPUT`/`MPP_DEC_TYPE` or `MPP_ENC_INPUT`/`MPP_ENC_*` without
+`MPP_REQUIRED_CASES` automatically adds `mpi_dec_custom` or `mpi_enc_custom`.
+After both kernels have a suite result, run `mpp-suite-compare.sh`. Like the RGA
+comparator, it fails only when a required forward-port pass is not a rewrite
+pass; diagnostic differences are printed but do not make the comparator fail.
+
 **Privileges** (this differs per test):
 
 | Test | Needs |
 |------|-------|
 | `test-decode.sh` | device access only: root, **or** membership in `video` with [`../scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules) installed (covers `/dev/mpp_service` **and** `/dev/dma_heap/*` — both required) |
+| `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode |
+| `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-smoke.sh` | device access only: root, **or** membership in `video` with the codec udev rule installed (covers `/dev/rga` **and** `/dev/dma_heap/*` — the smoke allocates dma-bufs and imports them with `importbuffer_fd`) |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, and readable debugfs/dmesg for full logs; root is the simplest mode |
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
@@ -134,6 +169,8 @@ required case passed on the baseline but did not pass on the candidate.
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
 | `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Builds and runs a small C probe that records MPP/RGA ioctl numbers, struct sizes, `/proc/mpp_service` command-advertisement markers when visible, safe query results, MPP client-type HW-ID replay, initialized MPP session controls (`INIT_DRIVER_DATA`, `SEND_CODEC_INFO`, `RESET_SESSION`, and advertised `SET_ERR_REF_HACK`), a safe two-message MPP init batch, `SET_SESSION_FD` bad-fd `mpp_bat_msg.ret = -EBADF` and `MPP_BAT_MSG_DONE` marker handling, RGA version tuples/strings with exact version-query returns including intentional `RGA2_GET_VERSION ret=1`, no-op ioctl return codes, RGA virtual-address import/release, and modern RGA request create/config/cancel with a handle-backed bitblit task. Use the same binary/log format on the forward port and rewrite, then diff the logs. Exit `77` means both device nodes are absent. |
+| `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Exit `77` means `/dev/mpp_service` is absent. |
+| `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; diagnostic differences are printed but do not fail the comparator. |
 | `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ im2d client against staged `librga`: virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd` copy, sync `imcopy`/`imresize`/`imfill`, forced RGA3 core-mask + priority copy through `improcess`, forced RGA2 `IM_PRE_INTR` read/write line-interrupt copy, and an async acquire/release-fence copy chain waited with `imsync`. This exercises the maintained librga import/submit/core/fence/pre-intr paths independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite.sh` | **official librga sample conformance** using `../rockchip-conformance/out/librga-samples/bin` | Runs the broad current Linux/RK3588 sample set under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots, and fails only required cases. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; diagnostic differences are printed but do not fail the comparator. |
@@ -148,6 +185,8 @@ required case passed on the baseline but did not pass on the candidate.
 bash rewrite-smoke.sh                 # one-command gate; use sudo when devices are present
 bash abi-probe.sh                     # fast non-submit ABI probe
 bash abi-replay.sh                    # record normalized ABI log for this boot
+bash mpp-suite.sh                     # official MPP test conformance
+bash mpp-suite-compare.sh             # compare latest forward-port/rewrite MPP summaries
 bash librga-smoke.sh                  # direct librga/im2d smoke
 bash librga-suite.sh                  # official librga sample conformance
 bash librga-suite-compare.sh          # compare latest forward-port/rewrite suite summaries
@@ -158,7 +197,8 @@ sudo bash transcode-test.sh          # end-to-end (needs ffmpeg-rockchip built �
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
 was last verified on 2026-07-03 after the direct `librga` smoke gained
-forced-core, fence, pre-intr, and dma-buf fd-import coverage.
+forced-core, fence, pre-intr, and dma-buf fd-import coverage and after the
+MPP official-test suite/comparator were added.
 
 For rewrite acceptance, boot a kernel where `ROCKCHIP_MPP_REWRITE` and
 `ROCKCHIP_RGA_REWRITE` own the device nodes, then run:
