@@ -24,8 +24,9 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > `rockchip,normal-rates` through the public clock framework for BSP-style
 > fixed-rate performance setup without private devfreq. The remaining gap is hardware validation: no conformance
 > record comparable to the forward-port's exists yet (§6). The support repo now
-> has versioned wrappers for the official MPP test matrix, official librga
-> sample suite, and JeffyCN GStreamer plugin, plus comparators that flag
+> has versioned wrappers for the official MPP test matrix, including generated
+> VP9 IVF input for explicit VP9 decode cases, official librga sample suite,
+> and JeffyCN GStreamer plugin, plus comparators that flag
 > required forward-port passes missing from the rewrite and can enforce an
 > elapsed-time slowdown ceiling with `PERF_MAX_RATIO`. The default GStreamer
 > suite now includes asset-free encoder, RGA-conversion, decoder roundtrip,

@@ -12,12 +12,17 @@ PROFILE=${PROFILE:-${1:-rewrite}}
 MPP_BIN_DIR=${MPP_BIN_DIR:-"$CONFORMANCE_ROOT/out/mpp/bin"}
 MPP_LIBDIR=${MPP_LIBDIR:-"$CONFORMANCE_ROOT/out/mpp/lib"}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-mpp-suite"}
+MPP_GENERATED_INPUT_CACHE=${MPP_GENERATED_INPUT_CACHE:-"$CONFORMANCE_ROOT/assets/mpp-generated"}
 MPP_TIMEOUT=${MPP_TIMEOUT:-180}
 MPP_DEC_FRAMES=${MPP_DEC_FRAMES:-120}
 MPP_ENC_FRAMES=${MPP_ENC_FRAMES:-120}
 MPP_INSTANCES=${MPP_INSTANCES:-4}
 MPP_DUMP_OUTPUTS=${MPP_DUMP_OUTPUTS:-0}
 MPP_ENC_FORMAT=${MPP_ENC_FORMAT:-${MPP_NV12_FORMAT:-0}}
+MPP_GENERATE_VP9_INPUT=${MPP_GENERATE_VP9_INPUT:-1}
+MPP_VP9_GENERATED_WIDTH=${MPP_VP9_GENERATED_WIDTH:-320}
+MPP_VP9_GENERATED_HEIGHT=${MPP_VP9_GENERATED_HEIGHT:-240}
+MPP_VP9_GENERATED_FPS=${MPP_VP9_GENERATED_FPS:-30}
 
 MPP_CODING_AVC=7
 MPP_CODING_VP9=10
@@ -84,6 +89,81 @@ require_var()
 	printf "%s" "$value"
 }
 
+safe_token()
+{
+	printf "%s" "$1" | tr -c 'A-Za-z0-9_.-' '_'
+}
+
+generated_vp9_input_path()
+{
+	local frames=$1
+	local fps
+
+	fps=$(safe_token "$MPP_VP9_GENERATED_FPS")
+	printf "%s/vp9-%sx%s-%sframes-%sfps.ivf" \
+		"$MPP_GENERATED_INPUT_CACHE" \
+		"$MPP_VP9_GENERATED_WIDTH" "$MPP_VP9_GENERATED_HEIGHT" \
+		"$frames" "$fps"
+}
+
+ensure_generated_vp9_input()
+{
+	local path
+	local frames=$MPP_DEC_FRAMES
+
+	if [ "$MPP_GENERATE_VP9_INPUT" != "1" ]; then
+		missing_var MPP_VP9_INPUT
+		return 3
+	fi
+
+	if ! command -v ffmpeg >/dev/null 2>&1; then
+		BUILD_ERROR="missing ffmpeg to generate MPP_VP9_INPUT"
+		return 3
+	fi
+
+	mkdir -p "$MPP_GENERATED_INPUT_CACHE"
+	path=$(generated_vp9_input_path "$frames")
+	if [ ! -s "$path" ]; then
+		if ! ffmpeg -hide_banner -loglevel error \
+			-f lavfi \
+			-i "testsrc2=size=${MPP_VP9_GENERATED_WIDTH}x${MPP_VP9_GENERATED_HEIGHT}:rate=${MPP_VP9_GENERATED_FPS}" \
+			-frames:v "$frames" \
+			-c:v libvpx-vp9 \
+			-pix_fmt yuv420p \
+			-f ivf \
+			"$path"; then
+			BUILD_ERROR="failed to generate MPP_VP9_INPUT at $path"
+			return 3
+		fi
+	fi
+	if [ ! -s "$path" ]; then
+		BUILD_ERROR="generated MPP_VP9_INPUT is empty at $path"
+		return 3
+	fi
+
+	printf "%s" "$path"
+}
+
+resolve_dec_input()
+{
+	local name=$1
+	local value
+
+	value=$(get_var "$name")
+	if [ -n "$value" ]; then
+		printf "%s" "$value"
+		return 0
+	fi
+
+	if [ "$name" = "MPP_VP9_INPUT" ]; then
+		ensure_generated_vp9_input
+		return $?
+	fi
+
+	missing_var "$name"
+	return 3
+}
+
 require_first_var()
 {
 	local first=$1
@@ -138,15 +218,26 @@ build_dec_case()
 	local type=$4
 	local width_var=$5
 	local height_var=$6
+	local generated_vp9=0
 	local input
 	local output
 
-	input=$(require_var "$input_var") || return $?
+	if [ "$input_var" = "MPP_VP9_INPUT" ] &&
+		[ -z "$(get_var "$input_var")" ] &&
+		[ "$MPP_GENERATE_VP9_INPUT" = "1" ]; then
+		generated_vp9=1
+	fi
+
+	input=$(resolve_dec_input "$input_var") || return $?
 	output=$(get_var "${case_name}_OUTPUT")
 
 	CMD=("$MPP_BIN_DIR/$exe" -i "$input" -t "$type" -n "$MPP_DEC_FRAMES" -v f)
-	append_if_var_set -w "$width_var"
-	append_if_var_set -h "$height_var"
+	if [ "$generated_vp9" = "1" ]; then
+		CMD+=(-w "$MPP_VP9_GENERATED_WIDTH" -h "$MPP_VP9_GENERATED_HEIGHT")
+	else
+		append_if_var_set -w "$width_var"
+		append_if_var_set -h "$height_var"
+	fi
 	append_if_var_set -f MPP_DEC_FORMAT
 	if [ "$exe" = "mpi_dec_multi_test" ]; then
 		CMD+=(-s "$MPP_INSTANCES")

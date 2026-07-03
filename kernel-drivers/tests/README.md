@@ -199,6 +199,13 @@ Useful case names are `mpi_dec_h264`, `mpi_dec_h265`, `mpi_dec_vp9`,
 `mpi_enc_mt_*`, `mpi_rc2_h264`, and `mpi_rc2_h265`. The legacy Android/libvpu
 path is available as an explicit diagnostic case (`vpu_api_dec_h264`,
 `vpu_api_dec_h265`) but is not part of the default Linux/RK3588 pass gate.
+When `mpi_dec_vp9`, `mpi_dec_mt_vp9`, or `mpi_dec_multi_vp9` is selected and
+`MPP_VP9_INPUT` is unset, the wrapper generates a shared VP9 IVF input under
+`MPP_GENERATED_INPUT_CACHE` (default
+`../rockchip-conformance/assets/mpp-generated`) with `ffmpeg`/`libvpx-vp9`.
+Set `MPP_GENERATE_VP9_INPUT=0` to require an explicit `MPP_VP9_INPUT`, or tune
+`MPP_VP9_GENERATED_WIDTH`, `MPP_VP9_GENERATED_HEIGHT`, and
+`MPP_VP9_GENERATED_FPS`.
 For one-off compatibility with the older external smoke script, setting
 `MPP_DEC_INPUT`/`MPP_DEC_TYPE` or `MPP_ENC_INPUT`/`MPP_ENC_*` without
 `MPP_REQUIRED_CASES` automatically adds `mpi_dec_custom` or `mpi_enc_custom`.
@@ -384,7 +391,7 @@ logs.
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
 | `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Builds and runs a small C probe that records MPP/RGA ioctl numbers, struct sizes, `/proc/mpp_service` command-advertisement markers when visible, safe query results, MPP client-type HW-ID replay, initialized MPP session controls (`INIT_DRIVER_DATA`, `SEND_CODEC_INFO`, `RESET_SESSION`, and advertised `SET_ERR_REF_HACK`), a safe two-message MPP init batch, `SET_SESSION_FD` bad-fd `mpp_bat_msg.ret = -EBADF` and `MPP_BAT_MSG_DONE` marker handling, RGA version tuples/strings with exact version-query returns including intentional `RGA2_GET_VERSION ret=1`, no-op ioctl return codes, RGA virtual-address import/release, and modern RGA request create/config/cancel with a handle-backed bitblit task. Use the same binary/log format on the forward port and rewrite, then diff the logs. Exit `77` means both device nodes are absent. |
-| `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Exit `77` means `/dev/mpp_service` is absent. |
+| `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Exit `77` means `/dev/mpp_service` is absent. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
 | `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ client against staged `librga`: virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd` copy, legacy `c_RkRgaBlit()` conversions shaped like JeffyCN GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing, rotated NV12 dma-buf to BGRx dma-buf decode conversion, and planar I420 dma-buf to NV12 dma-buf fallback), official Gaussian matrix blur via `imsetOptGaussianBlurMatrix()` + `imsetOpacity()` + `improcess(..., IM_SYNC | IM_GAUSS)`, sync `imcopy`/`imresize`/`imfill`, forced RGA3 core-mask + priority copy through `improcess`, forced RGA2 `IM_PRE_INTR` read/write line-interrupt copy, and an async acquire/release-fence copy chain waited with `imsync`. This exercises the maintained librga import/submit/core/fence/pre-intr/gauss paths independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite.sh` | **official librga sample conformance** using `../rockchip-conformance/out/librga-samples/bin` | Runs the broad current Linux/RK3588 sample set under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails only required cases. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
@@ -515,8 +522,17 @@ This is still not a recorded hardware pass; run it under both
 `PROFILE=forward-port` and `PROFILE=rewrite`, then compare with
 `gstreamer-suite-compare.sh`.
 
-The direct MPP recipe remains useful for proving the libmpp `mpi_dec_test`
-path. `mpi_dec_test` selects its IVF reader by the `.ivf` filename extension
+The direct MPP suite path is:
+
+```bash
+PROFILE=rewrite \
+MPP_REQUIRED_CASES="mpp_info_test mpi_dec_vp9" \
+../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
+```
+
+If `MPP_VP9_INPUT` is unset, `mpp-suite.sh` generates the IVF file under
+`../rockchip-conformance/assets/mpp-generated`. For a fully manual run,
+`mpi_dec_test` selects its IVF reader by the `.ivf` filename extension
 (`utils/mpi_dec_utils.c`), so:
 
 ```bash
@@ -525,9 +541,9 @@ LD_LIBRARY_PATH=$MPP_BUILD/mpp $MPP_BUILD/test/mpi_dec_test \
   -i "$CLIP_DIR/tiny-320x240-vp9.ivf" -t 10 -w 320 -h 240 -n 30 -o /tmp/dec_vp9.yuv -v f
 ```
 
-**UNVERIFIED:** neither the generated GStreamer VP9 cases nor this direct MPP
-recipe has a forward-port/rewrite hardware log yet. If you run either, record
-the result in status.md.
+**UNVERIFIED:** neither the generated GStreamer VP9 cases nor the direct MPP
+VP9 suite case has a forward-port/rewrite hardware log yet. If you run either,
+record the result in status.md.
 
 ## Observed results (reference)
 
