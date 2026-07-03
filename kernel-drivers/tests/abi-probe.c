@@ -117,6 +117,127 @@ static int mpp_cfg(int fd, const char *name, struct mpp_request *req)
 	return ret;
 }
 
+static char *read_text_file(const char *path)
+{
+	size_t cap = 4096;
+	size_t len = 0;
+	char *buf;
+	FILE *file;
+	int c;
+
+	file = fopen(path, "r");
+	if (!file) {
+		printf("  %-30s ret=-1 errno=%d (%s)\n",
+		       path, errno, strerror(errno));
+		return NULL;
+	}
+
+	buf = malloc(cap);
+	if (!buf) {
+		printf("  %-30s allocation failed\n", path);
+		failures++;
+		fclose(file);
+		return NULL;
+	}
+
+	while ((c = fgetc(file)) != EOF) {
+		if (len + 1 == cap) {
+			char *new_buf;
+
+			if (cap > SIZE_MAX / 2) {
+				printf("  %-30s too large\n", path);
+				failures++;
+				free(buf);
+				fclose(file);
+				return NULL;
+			}
+
+			cap *= 2;
+			new_buf = realloc(buf, cap);
+			if (!new_buf) {
+				printf("  %-30s allocation failed\n", path);
+				failures++;
+				free(buf);
+				fclose(file);
+				return NULL;
+			}
+			buf = new_buf;
+		}
+		buf[len++] = (char)c;
+	}
+
+	if (ferror(file)) {
+		printf("  %-30s read failed\n", path);
+		failures++;
+		free(buf);
+		fclose(file);
+		return NULL;
+	}
+
+	buf[len] = '\0';
+	fclose(file);
+
+	return buf;
+}
+
+static char *probe_mpp_read_support_cmds(void)
+{
+	static const char * const paths[] = {
+		"/proc/mpp_service/supports-cmd",
+		"/proc/mpp_service/support_cmd",
+	};
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(paths); i++) {
+		char *text = read_text_file(paths[i]);
+
+		if (text)
+			return text;
+	}
+
+	return NULL;
+}
+
+static void probe_mpp_proc_token(const char *text, const char *token,
+				 bool required)
+{
+	bool found = strstr(text, token) != NULL;
+
+	printf("  %-30s %s\n", token, found ? "present" : "missing");
+	if (required && !found)
+		failures++;
+}
+
+static void probe_mpp_proc_support_cmds(void)
+{
+	char *text;
+
+	text = probe_mpp_read_support_cmds();
+	if (!text)
+		return;
+
+	puts("  proc support commands:");
+	probe_mpp_proc_token(text, "QUERY_HW_SUPPORT:", true);
+	probe_mpp_proc_token(text, "QUERY_HW_ID:", true);
+	probe_mpp_proc_token(text, "QUERY_CMD_SUPPORT:", true);
+	probe_mpp_proc_token(text, "INIT_CLIENT_TYPE:", true);
+	probe_mpp_proc_token(text, "INIT_TRANS_TABLE:", true);
+	probe_mpp_proc_token(text, "SET_REG_WRITE:", true);
+	probe_mpp_proc_token(text, "SET_REG_READ:", true);
+	probe_mpp_proc_token(text, "SET_REG_ADDR_OFFSET:", true);
+	probe_mpp_proc_token(text, "POLL_HW_FINISH:", true);
+	probe_mpp_proc_token(text, "RESET_SESSION:", true);
+	probe_mpp_proc_token(text, "TRANS_FD_TO_IOVA:", true);
+	probe_mpp_proc_token(text, "RELEASE_FD:", true);
+	probe_mpp_proc_token(text, "SEND_CODEC_INFO:", true);
+	probe_mpp_proc_token(text, "POLL_HW_IRQ:", false);
+	probe_mpp_proc_token(text, "SET_RCB_INFO:", false);
+	probe_mpp_proc_token(text, "SET_SESSION_FD:", false);
+	probe_mpp_proc_token(text, "SET_ERR_REF_HACK:", false);
+
+	free(text);
+}
+
 static const char *mpp_client_name(uint32_t client_type)
 {
 	switch (client_type) {
@@ -367,6 +488,8 @@ static void probe_mpp(void)
 	       MPP_FLAGS_REG_OFFSET_ALONE);
 	printf("  %-30s %#x\n", "MPP_FLAGS_POLL_NON_BLOCK",
 	       MPP_FLAGS_POLL_NON_BLOCK);
+
+	probe_mpp_proc_support_cmds();
 
 	fd = open_optional("/dev/mpp_service");
 	if (fd < 0)
