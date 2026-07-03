@@ -224,11 +224,13 @@ implementation (cross-reference:
   a different present core; masks that include a present compatible core still
   schedule normally.
 - **Per-core profile coverage** (what real librga/ffmpeg consumers need):
-  - **RGA3**: raster, tile8x8, and AFBC16x16 bitblits; RGB/YUV plus compact
-    and unpacked 10-bit semiplanar YUV paths used by current `librga` and
-    `ffmpeg-rockchip`; source crop and destination offsets; resize
-    interpolation selectors; rotate/flip/mirror, including centered rotate and
-    padding/reflect border commands; RGB color-key for normal `imcolorkey`;
+  - **RGA3**: raster, AFBC16x16, and tile8x8 bitblits, including simple
+    raster-to-tile, tile-to-raster, and tile-to-tile semiplanar-YUV paths;
+    RGB/YUV plus compact and unpacked 10-bit semiplanar YUV paths used by
+    current `librga` and `ffmpeg-rockchip`; source crop and destination
+    offsets; resize interpolation selectors; rotate/flip/mirror, including
+    centered rotate and padding/reflect border commands; RGB color-key for
+    normal `imcolorkey`;
     Porter-Duff A+B alpha blend for public `librga` modes including CLEAR but
     not unlisted modes; pattern-backed ffmpeg/RKMPP overlay paths; AFBC writeback
     for supported alpha-overlay/copy profiles; and overlay pre-processing
@@ -254,9 +256,10 @@ implementation (cross-reference:
   generation; RGA3 pattern modes outside the supported alpha-overlay profile;
   RGA3 inverted color-key and color-key outside the implemented RGB/RGBA
   `imcolorkey` shapes; converted no-pattern or mixed-depth 8/10-bit
-  YUV-destination alpha; per-channel rotation; RGA3 RFBC/AFBC32x8; tile outside
-  simple bitblits; AFBC destination offsets; and non-bitblit operation modes
-  outside the implemented RGA2 subsets.
+  YUV-destination alpha; per-channel rotation; RGA3 RFBC/AFBC32x8; tile
+  alpha/pattern/color-key or other non-simple bitblit variants; AFBC
+  destination offsets; and non-bitblit operation modes outside the implemented
+  RGA2 subsets.
 - **Unsupported profiles fail *late* by design**: `-EOPNOTSUPP` is returned
   only after copy/validate/prepare/queue/dispatch/import-resolve/power-sequence
   reach the backend boundary — so the scheduler/lifetime path is exercised even
