@@ -8,6 +8,7 @@ directly, so run them on the board with a Mesa build that includes Panfrost.
 | File | One-liner |
 |---|---|
 | [`0001-panfrost-advertise-transfer-blit-and-compute.patch`](0001-panfrost-advertise-transfer-blit-and-compute.patch) | `format-patch` archive of the BLIT-advertising commit (`e8cf2ae6daa`); apply to a Mesa tree to reproduce the BLIT failure and the BLIT column of the timing table — reproduction-only, not for merging; full provenance in its annotation block |
+| [`u_blitter-review2-txf-fragcoord-cleanups.patch`](u_blitter-review2-txf-fragcoord-cleanups.patch) | Second `/code-review` round (2026-07-03) of `panfrost-blit-transfers`: two behavior-preserving `u_blitter` cleanups — a shared `blitter_target_supports_txf()` predicate (#2) and threading the chosen `use_txf_fragcoord` out of the four texfetch helpers via an out-param instead of recomputing it in `util_blitter_blit_generic` (#3). Revalidated 0-regression on device (reproducers + dEQP + piglit); see `../docs/rebuild-and-test.md` |
 | [`repro_blit.c`](repro_blit.c) | End-to-end failure repro: RG32UI→RGBA32UI `glReadPixels` through the u_blitter TXF staging blit |
 | [`repro_blit_off.c`](repro_blit_off.c) | Non-zero-offset variant: subregion readback at `x = X0`, exercising the blit affine's offset term in the fragcoord fix |
 | [`repro_blit_float.c`](repro_blit_float.c) | RG32F→RGBA32F float variant — the counter-example that disqualifies the integer-only state-tracker fallback |

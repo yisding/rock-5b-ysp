@@ -1,0 +1,325 @@
+diff --git a/src/gallium/auxiliary/util/u_blitter.c b/src/gallium/auxiliary/util/u_blitter.c
+index f6612a06b54..a1819b17697 100644
+--- a/src/gallium/auxiliary/util/u_blitter.c
++++ b/src/gallium/auxiliary/util/u_blitter.c
+@@ -962,22 +962,31 @@ util_pipe_tex_to_tgsi_tex(enum pipe_texture_target pipe_tex_target,
+    }
+ }
+ 
++/* The set of targets a TXF blit can address. Buffers and cubes are excluded;
++ * keep util_blitter_blit_with_txf and blitter_use_txf_fragcoord in agreement
++ * by routing both through this predicate.
++ */
++static bool
++blitter_target_supports_txf(enum pipe_texture_target target)
++{
++   return target != PIPE_BUFFER &&
++          target != PIPE_TEXTURE_CUBE &&
++          target != PIPE_TEXTURE_CUBE_ARRAY;
++}
++
+ static bool
+ blitter_use_txf_fragcoord(struct blitter_context_priv *ctx,
+                           enum pipe_texture_target target,
+                           unsigned nr_samples, bool use_txf)
+ {
+    /* MSAA blits and buffers use different fragment shader coordinate paths.
+-    * Cubes never use TXF (the same exclusion as in util_blitter_blit_with_txf),
+-    * but shader caching requests cube+TXF shaders, so the target check is
+-    * still needed here.
++    * Cubes never use TXF, but shader caching requests cube+TXF shaders, so the
++    * target check is still needed here.
+     */
+    return ctx->base.use_txf_fragcoord &&
+           use_txf &&
+           nr_samples <= 1 &&
+-          target != PIPE_BUFFER &&
+-          target != PIPE_TEXTURE_CUBE &&
+-          target != PIPE_TEXTURE_CUBE_ARRAY;
++          blitter_target_supports_txf(target);
+ }
+ 
+ static void *blitter_get_fs_texfetch_col(struct blitter_context_priv *ctx,
+@@ -987,7 +996,8 @@ static void *blitter_get_fs_texfetch_col(struct blitter_context_priv *ctx,
+                                          unsigned src_nr_samples,
+                                          unsigned dst_nr_samples,
+                                          unsigned filter,
+-                                         bool use_txf)
++                                         bool use_txf,
++                                         bool *out_use_txf_fragcoord)
+ {
+    struct pipe_context *pipe = ctx->base.pipe;
+    enum tgsi_texture_type tgsi_tex =
+@@ -998,6 +1008,9 @@ static void *blitter_get_fs_texfetch_col(struct blitter_context_priv *ctx,
+ 
+    assert(target >= 0 && target < PIPE_MAX_TEXTURE_TYPES);
+ 
++   if (out_use_txf_fragcoord)
++      *out_use_txf_fragcoord = false;
++
+    if (util_format_is_pure_uint(src_format)) {
+       stype = TGSI_RETURN_TYPE_UINT;
+       if (util_format_is_pure_uint(dst_format)) {
+@@ -1079,6 +1092,9 @@ static void *blitter_get_fs_texfetch_col(struct blitter_context_priv *ctx,
+       bool use_txf_fragcoord =
+          blitter_use_txf_fragcoord(ctx, target, src_nr_samples, use_txf);
+ 
++      if (out_use_txf_fragcoord)
++         *out_use_txf_fragcoord = use_txf_fragcoord;
++
+       if (use_txf)
+          shader = &ctx->fs_texfetch_col[type][target][1][use_txf_fragcoord];
+       else
+@@ -1140,12 +1156,16 @@ static inline
+ void *blitter_get_fs_texfetch_depth(struct blitter_context_priv *ctx,
+                                     enum pipe_texture_target target,
+                                     unsigned src_samples, unsigned dst_samples,
+-                                    bool use_txf)
++                                    bool use_txf,
++                                    bool *out_use_txf_fragcoord)
+ {
+    struct pipe_context *pipe = ctx->base.pipe;
+ 
+    assert(target < PIPE_MAX_TEXTURE_TYPES);
+ 
++   if (out_use_txf_fragcoord)
++      *out_use_txf_fragcoord = false;
++
+    if (src_samples > 1) {
+       bool sample_shading = ctx->has_sample_shading && src_samples > 1 &&
+                             src_samples == dst_samples;
+@@ -1167,6 +1187,9 @@ void *blitter_get_fs_texfetch_depth(struct blitter_context_priv *ctx,
+       bool use_txf_fragcoord =
+          blitter_use_txf_fragcoord(ctx, target, src_samples, use_txf);
+ 
++      if (out_use_txf_fragcoord)
++         *out_use_txf_fragcoord = use_txf_fragcoord;
++
+       if (use_txf)
+          shader = &ctx->fs_texfetch_depth[target][1][use_txf_fragcoord];
+       else
+@@ -1191,12 +1214,16 @@ static inline
+ void *blitter_get_fs_texfetch_depthstencil(struct blitter_context_priv *ctx,
+                                            enum pipe_texture_target target,
+                                            unsigned src_samples,
+-                                           unsigned dst_samples, bool use_txf)
++                                           unsigned dst_samples, bool use_txf,
++                                           bool *out_use_txf_fragcoord)
+ {
+    struct pipe_context *pipe = ctx->base.pipe;
+ 
+    assert(target < PIPE_MAX_TEXTURE_TYPES);
+ 
++   if (out_use_txf_fragcoord)
++      *out_use_txf_fragcoord = false;
++
+    if (src_samples > 1) {
+       bool sample_shading = ctx->has_sample_shading && src_samples > 1 &&
+                             src_samples == dst_samples;
+@@ -1219,6 +1246,9 @@ void *blitter_get_fs_texfetch_depthstencil(struct blitter_context_priv *ctx,
+       bool use_txf_fragcoord =
+          blitter_use_txf_fragcoord(ctx, target, src_samples, use_txf);
+ 
++      if (out_use_txf_fragcoord)
++         *out_use_txf_fragcoord = use_txf_fragcoord;
++
+       if (use_txf)
+          shader = &ctx->fs_texfetch_depthstencil[target][1][use_txf_fragcoord];
+       else
+@@ -1243,12 +1273,16 @@ static inline
+ void *blitter_get_fs_texfetch_stencil(struct blitter_context_priv *ctx,
+                                       enum pipe_texture_target target,
+                                       unsigned src_samples, unsigned dst_samples,
+-                                      bool use_txf)
++                                      bool use_txf,
++                                      bool *out_use_txf_fragcoord)
+ {
+    struct pipe_context *pipe = ctx->base.pipe;
+ 
+    assert(target < PIPE_MAX_TEXTURE_TYPES);
+ 
++   if (out_use_txf_fragcoord)
++      *out_use_txf_fragcoord = false;
++
+    if (src_samples > 1) {
+       bool sample_shading = ctx->has_sample_shading && src_samples > 1 &&
+                             src_samples == dst_samples;
+@@ -1271,6 +1305,9 @@ void *blitter_get_fs_texfetch_stencil(struct blitter_context_priv *ctx,
+       bool use_txf_fragcoord =
+          blitter_use_txf_fragcoord(ctx, target, src_samples, use_txf);
+ 
++      if (out_use_txf_fragcoord)
++         *out_use_txf_fragcoord = use_txf_fragcoord;
++
+       if (use_txf)
+          shader = &ctx->fs_texfetch_stencil[target][1][use_txf_fragcoord];
+       else
+@@ -1339,30 +1376,36 @@ void util_blitter_cache_all_shaders(struct blitter_context *blitter)
+              */
+             blitter_get_fs_texfetch_col(ctx, PIPE_FORMAT_R32_FLOAT,
+                                         PIPE_FORMAT_R32_FLOAT, target,
+-                                        samples, samples, 0, use_txf);
++                                        samples, samples, 0, use_txf, NULL);
+             blitter_get_fs_texfetch_col(ctx, PIPE_FORMAT_R32_UINT,
+                                         PIPE_FORMAT_R32_UINT, target,
+-                                        samples, samples, 0, use_txf);
++                                        samples, samples, 0, use_txf, NULL);
+             blitter_get_fs_texfetch_col(ctx, PIPE_FORMAT_R32_UINT,
+                                         PIPE_FORMAT_R32_SINT, target,
+-                                        samples, samples, 0, use_txf);
++                                        samples, samples, 0, use_txf, NULL);
+             blitter_get_fs_texfetch_col(ctx, PIPE_FORMAT_R32_SINT,
+                                         PIPE_FORMAT_R32_SINT, target,
+-                                        samples, samples, 0, use_txf);
++                                        samples, samples, 0, use_txf, NULL);
+             blitter_get_fs_texfetch_col(ctx, PIPE_FORMAT_R32_SINT,
+                                         PIPE_FORMAT_R32_UINT, target,
+-                                        samples, samples, 0, use_txf);
+-            blitter_get_fs_texfetch_depth(ctx, target, samples, samples, use_txf);
++                                        samples, samples, 0, use_txf, NULL);
++            blitter_get_fs_texfetch_depth(ctx, target, samples, samples, use_txf,
++                                          NULL);
+             if (ctx->has_stencil_export) {
+-               blitter_get_fs_texfetch_depthstencil(ctx, target, samples, samples, use_txf);
+-               blitter_get_fs_texfetch_stencil(ctx, target, samples, samples, use_txf);
++               blitter_get_fs_texfetch_depthstencil(ctx, target, samples, samples, use_txf,
++                                                    NULL);
++               blitter_get_fs_texfetch_stencil(ctx, target, samples, samples, use_txf,
++                                               NULL);
+             }
+ 
+             if (samples == 2) {
+-               blitter_get_fs_texfetch_depth(ctx, target, samples, 1, use_txf);
++               blitter_get_fs_texfetch_depth(ctx, target, samples, 1, use_txf,
++                                             NULL);
+                if (ctx->has_stencil_export) {
+-                  blitter_get_fs_texfetch_depthstencil(ctx, target, samples, 1, use_txf);
+-                  blitter_get_fs_texfetch_stencil(ctx, target, samples, 1, use_txf);
++                  blitter_get_fs_texfetch_depthstencil(ctx, target, samples, 1, use_txf,
++                                                       NULL);
++                  blitter_get_fs_texfetch_stencil(ctx, target, samples, 1, use_txf,
++                                                  NULL);
+                }
+             }
+ 
+@@ -1383,13 +1426,13 @@ void util_blitter_cache_all_shaders(struct blitter_context *blitter)
+ 
+                   blitter_get_fs_texfetch_col(ctx, PIPE_FORMAT_R32_FLOAT,
+                                               PIPE_FORMAT_R32_FLOAT, target,
+-                                              j, 1, f, use_txf);
++                                              j, 1, f, use_txf, NULL);
+                   blitter_get_fs_texfetch_col(ctx, PIPE_FORMAT_R32_UINT,
+                                               PIPE_FORMAT_R32_UINT, target,
+-                                              j, 1, f, use_txf);
++                                              j, 1, f, use_txf, NULL);
+                   blitter_get_fs_texfetch_col(ctx, PIPE_FORMAT_R32_SINT,
+                                               PIPE_FORMAT_R32_SINT, target,
+-                                              j, 1, f, use_txf);
++                                              j, 1, f, use_txf, NULL);
+                }
+             }
+          }
+@@ -2096,9 +2139,7 @@ bool util_blitter_blit_with_txf(struct blitter_context *blitter,
+    if (ctx->has_txf_txq &&
+        !is_scaled &&
+        filter == PIPE_TEX_FILTER_NEAREST &&
+-       src->target != PIPE_BUFFER &&
+-       src->target != PIPE_TEXTURE_CUBE &&
+-       src->target != PIPE_TEXTURE_CUBE_ARRAY) {
++       blitter_target_supports_txf(src->target)) {
+       int src_width = u_minify(src_width0, src->u.tex.first_level);
+       int src_height = u_minify(src_height0, src->u.tex.first_level);
+       int src_depth = src->u.tex.last_layer + 1;
+@@ -2199,12 +2240,12 @@ void util_blitter_blit_generic(struct blitter_context *blitter,
+    void *fs = fs_override;
+ 
+    /* Whether the draw packs the fragcoord encoding into the coordinate
+-    * attribute. Only the texfetch shaders created below decode it; the
+-    * pack_color_zs shaders and caller-supplied shaders consume the plain
+-    * texcoord attribute, so those must keep the encoding off.
++    * attribute. Only the texfetch shaders decode it, so each texfetch helper
++    * below reports whether it selected a fragcoord shader; the pack_color_zs
++    * shaders and caller-supplied shaders consume the plain texcoord attribute
++    * and leave this off.
+     */
+-   bool use_txf_fragcoord = !fs_override &&
+-      blitter_use_txf_fragcoord(ctx, src_target, src_samples, use_txf);
++   bool use_txf_fragcoord = false;
+ 
+    /* Blend, DSA, fragment shader. */
+    if (dst_has_depth && dst_has_stencil) {
+@@ -2215,13 +2256,13 @@ void util_blitter_blit_generic(struct blitter_context *blitter,
+       if (!fs) {
+          if (src_has_color) {
+             assert(use_txf);
+-            use_txf_fragcoord = false;
+             fs = blitter_get_fs_pack_color_zs(ctx, src_target,
+                                               src_samples, dst->format, false);
+          } else {
+             fs = blitter_get_fs_texfetch_depthstencil(ctx, src_target,
+                                                       src_samples, dst_samples,
+-                                                      use_txf);
++                                                      use_txf,
++                                                      &use_txf_fragcoord);
+          }
+       }
+    } else if (dst_has_depth) {
+@@ -2233,12 +2274,12 @@ void util_blitter_blit_generic(struct blitter_context *blitter,
+              (src->format == PIPE_FORMAT_R32_UINT ||
+               src->format == PIPE_FORMAT_R32G32_UINT)) {
+             assert(use_txf);
+-            use_txf_fragcoord = false;
+             fs = blitter_get_fs_pack_color_zs(ctx, src_target, src_samples,
+                                               dst->format, false);
+          } else {
+             fs = blitter_get_fs_texfetch_depth(ctx, src_target, src_samples,
+-                                               dst_samples, use_txf);
++                                               dst_samples, use_txf,
++                                               &use_txf_fragcoord);
+          }
+       }
+    } else if (dst_has_stencil) {
+@@ -2249,7 +2290,8 @@ void util_blitter_blit_generic(struct blitter_context *blitter,
+       assert(src_has_stencil); /* unpacking from color is unsupported */
+       if (!fs) {
+          fs = blitter_get_fs_texfetch_stencil(ctx, src_target, src_samples,
+-                                              dst_samples, use_txf);
++                                              dst_samples, use_txf,
++                                              &use_txf_fragcoord);
+       }
+    } else {
+       unsigned colormask = mask & PIPE_MASK_RGBA;
+@@ -2262,13 +2304,13 @@ void util_blitter_blit_generic(struct blitter_context *blitter,
+              (dst->format == PIPE_FORMAT_R32_UINT ||
+               dst->format == PIPE_FORMAT_R32G32_UINT)) {
+             assert(use_txf);
+-            use_txf_fragcoord = false;
+             fs = blitter_get_fs_pack_color_zs(ctx, src_target, src_samples,
+                                               src->format, true);
+          } else {
+             fs = blitter_get_fs_texfetch_col(ctx, src->format, dst->format,
+                                              src_target, src_samples,
+-                                             dst_samples, filter, use_txf);
++                                             dst_samples, filter, use_txf,
++                                             &use_txf_fragcoord);
+          }
+       }
+    }
+@@ -2450,13 +2492,15 @@ void util_blitter_generate_mipmap(struct blitter_context *blitter,
+       pipe->bind_depth_stencil_alpha_state(pipe,
+                                            ctx->dsa_write_depth_keep_stencil);
+       ctx->bind_fs_state(pipe,
+-                         blitter_get_fs_texfetch_depth(ctx, target, 1, 1, false));
++                         blitter_get_fs_texfetch_depth(ctx, target, 1, 1, false,
++                                                       NULL));
+    } else {
+       pipe->bind_blend_state(pipe, ctx->blend[PIPE_MASK_RGBA][0]);
+       pipe->bind_depth_stencil_alpha_state(pipe, ctx->dsa_keep_depth_stencil);
+       ctx->bind_fs_state(pipe,
+             blitter_get_fs_texfetch_col(ctx, tex->format, tex->format, target,
+-                                        1, 1, PIPE_TEX_FILTER_LINEAR, false));
++                                        1, 1, PIPE_TEX_FILTER_LINEAR, false,
++                                        NULL));
+    }
+ 
+    if (target == PIPE_TEXTURE_RECT) {

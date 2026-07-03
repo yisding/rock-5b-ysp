@@ -49,8 +49,10 @@ Two more gotchas the script encodes:
   Gotchas: run from a writable cwd (module dir is root-owned); `--deqp-caselist`
   wildcards are rejected; full `txt-caselist` enumeration OOM-killed — use
   explicit lists.
-- **piglit: still not built.** `build-codex-piglit` is a Mesa build (drm-shim),
-  not the piglit suite. See "Still outstanding" below.
+- **piglit: now built** at `/home/yi/Code/piglit` (2026-07-03). The earlier
+  `build-codex-piglit` was a Mesa drm-shim build, not the suite. The suite needs
+  a glvnd-enabled Mesa *install* (not an `LD_LIBRARY_PATH` override) — see the
+  piglit section below for the full recipe and the SIGSEGV gotcha.
 
 ## Results (build `git-7a6829f5b4` + the #2/#3 u_blitter cleanups, Rock 5B / Mali-G610 MC4)
 
