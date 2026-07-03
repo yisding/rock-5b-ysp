@@ -147,11 +147,15 @@ tracked here because they are required for the AV1 experiment to be supportable
 and because a failure there would present as an AV1 decoder bring-up bug.
 
 The second adversarial review also found broader forward-port debt that is not
-an original BSP bug and was not fully fixed in this AV1 pass:
+an original BSP bug. The Rockchip IOMMU item below was fixed after that review
+by moving the helper semantics into the mainline Rockchip provider:
 
-- The compat `rockchip_iommu_*` helpers remain no-op/`-ENODEV` shims. Normal
-  AV1 mapping now uses `vsi-iommu`, but RKVENC2/RKVDEC2 fault masking and
-  reset-refresh recovery still lack the BSP helper semantics.
+- The old compat `rockchip_iommu_*` helpers were no-op/`-ENODEV` shims. They are
+  now replaced by a real `include/soc/rockchip/rockchip_iommu.h` plus exported
+  wrappers in `drivers/iommu/rockchip-iommu.c`. RKVENC2/RKVDEC2 fault masking,
+  reset-refresh recovery, and MPP fault callbacks use the provider; AV1 mapping
+  still uses `vsi-iommu` and treats Rockchip-helper `-ENODEV` as a generic flush
+  fallback.
 - The forced `rockchip_save_qos()`/`rockchip_restore_qos()` compat helpers are
   no-ops, so the RKVDEC2 link reset QoS save/restore behavior is still missing.
 

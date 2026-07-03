@@ -30,7 +30,6 @@ post-processing / symbol-resolution step at link time.)
 
 | Shim header | Stands in for (BSP) | Inclusion mechanism | What it stubs to | Consequence / W-tag |
 |---|---|---|---|---|
-| `soc/rockchip/rockchip_iommu.h` | BSP IOMMU mask/enable helpers | `-I$(src)/compat` | **unconditional** inline stubs: `rockchip_iommu_mask_irq()` no-op, `enable()/disable()` → `-ENODEV` | fault-storm mask **disabled**; `mpp_iommu_refresh()` re-attach is a no-op (retval ignored) — iommu fault-mask TODO |
 | `soc/rockchip/rockchip_opp_select.h` | PVTM/OPP voltage selection | `-I$(src)/compat` | `rockchip_init_opp_table()` → `-EOPNOTSUPP`; **full (trimmed)** `struct rockchip_opp_info` (embedded by value) | `rkvenc_devfreq_init()` bails → no voltage/leakage management (**W15**) |
 | `soc/rockchip/rockchip_system_monitor.h` | system-monitor (SoC thermal/voltage) | `-I$(src)/compat` | `rockchip_system_monitor_register()` → `ERR_PTR(-ENODEV)` | driver logs "without system monitor", continues; prod path = a mainline thermal-cooling device |
 | `soc/rockchip/rockchip_dmc.h` | DDR devfreq (DMC) coupling | `-I$(src)/compat` | no-op `rockchip_dmcfreq_lock()/_unlock()` | **matches** the BSP's own `!CONFIG_ROCKCHIP_DMC` `#else` inlines — the stub *is* vendor behaviour |
@@ -49,8 +48,8 @@ Two distinct techniques are in play, and **knowing which is which is essential
 to reproduce the build**:
 
 1. **`-I$(src)/compat` header-search shadowing** — used for BSP headers that
-   have **no upstream counterpart** (`rockchip_iommu`, `rockchip_dmc`,
-   `rockchip_ipa`, `rockchip_opp_select`, `rockchip_system_monitor`, and
+   have **no upstream counterpart** (`rockchip_dmc`, `rockchip_ipa`,
+   `rockchip_opp_select`, `rockchip_system_monitor`, and
    `linux/rockchip/rockchip_sip.h`). The donor's unchanged
    `#include <soc/rockchip/…>` line finds our copy on the search path; nothing in
    the `.c` changes.
@@ -68,26 +67,14 @@ to reproduce the build**:
 
 ### Per-shim detail — *does stubbing X lose anything?*
 
-- **`rockchip_iommu.h`** — the BSP declared these as real externs behind
-  `IS_REACHABLE(CONFIG_ROCKCHIP_IOMMU)` with inline stubs only in the `#else`.
-  Mainline **does** define `CONFIG_ROCKCHIP_IOMMU` (`drivers/iommu/rockchip-iommu.c`),
-  so reusing the BSP header verbatim would leave the symbols as **unresolved
-  externs at modpost/link**. We therefore provide **unconditional** inline stubs
-  (`rockchip_iommu.h:33-39`). Cost: the fault-storm mask in the pagefault handler
-  is disabled, and the error-recovery re-attach in `mpp_iommu_refresh()` is a
-  no-op (its return is ignored).
-  This is not the normal buffer-mapping path for the validated RK3588 video
-  blocks: dma-buf import and IOVA translation still go through the upstream
-  Rockchip IOMMU provider. Treat the stubs as fault/reset robustness debt for
-  RKVDEC2/RKVENC2, not as missing happy-path mapping.
-  AV1 is the important exception: these stubs are **not** an AV1D IOMMU. The
-  validated RKVDEC2/RKVENC2 path still maps buffers through Linux's generic
-  IOMMU/DMA APIs, while the BSP AV1 path needs a separate
-  `rockchip,iommu-av1d` provider. The newer upstream-style path uses
-  `drivers/iommu/vsi-iommu.c` with `rockchip,rk3588-av1-iommu` /
-  `verisilicon,iommu-1.2`; that driver allocates/programs AV1 page tables, PTA,
-  fault IRQs, and TLB flushes. See [RK3588 AV1 decode, IOMMU, and userspace
-  paths](./av1-rk3588.md).
+- **`rockchip_iommu.h` is no longer a compat shim.** The forward-port now keeps
+  mainline `drivers/iommu/rockchip-iommu.c` as the provider and adds the narrow
+  BSP helper semantics there: enable/disable/reset, IRQ mask/unmask, and a
+  Rockchip-specific fault callback hook for MPP. This is intentionally not a
+  wholesale BSP IOMMU forward-port. It avoids fighting the 6.18 IOMMU core's
+  DMA-domain cookie model while restoring the media reset/fault semantics that a
+  local MPP no-op shim could never provide. AV1 remains separate and uses the
+  VSI provider described in [RK3588 AV1 decode, IOMMU, and userspace paths](./av1-rk3588.md).
 - **`rockchip_opp_select.h`** (`:53-58`) returns `-EOPNOTSUPP`, so
   `rkvenc_devfreq_init()` bails before registering anything. Note `struct
   rockchip_opp_info` is **embedded by value** in `struct rkvenc_dev`
@@ -137,13 +124,14 @@ to nothing on RK3588.
 6.18 reworked `struct iommu_dma_cookie` (`drivers/iommu/dma-iommu.c`). **Two**
 consequences fall out of the same change, and both are handled in the iommu glue:
 
-1. **Fault-handler cookie guard** (`mpp_iommu.c:669-672`). The core now `WARN`s and
-   bails inside `iommu_set_fault_handler()` if the domain already owns a cookie
-   (e.g. the default DMA domain from `iommu_get_domain_for_dev()`). The BSP
-   installed its handler unconditionally → a `WARN` splat. Fix: in
-   `mpp_iommu_dev_activate()`, only call `iommu_set_fault_handler()` when
-   `domain->cookie_type == IOMMU_COOKIE_NONE`; on a DMA-managed domain the core
-   reports faults itself. (Marker: `IOMMU_COOKIE_NONE`.)
+1. **Fault-handler cookie guard**. The core now `WARN`s and bails inside
+   `iommu_set_fault_handler()` if the domain already owns a cookie (e.g. the
+   default DMA domain from `iommu_get_domain_for_dev()`). MPP needs its
+   task-aware fault callback on that DMA domain, so the fix is not simply
+   "guard the call". `mpp_iommu_dev_activate()` registers with the Rockchip IOMMU
+   provider through `rockchip_iommu_set_fault_handler()`; only non-Rockchip or
+   cookie-less fallback domains use the generic API. (Marker:
+   `IOMMU_COOKIE_NONE`.)
 2. **`iovad` moved to offset 0** (`mpp_iommu.h:20-29`). The cookie dropped its
    leading `enum iommu_dma_cookie_type type` member (the enum itself was deleted),
    so the IOVA allocator `iovad` now sits at offset 0. The driver reaches `iovad`
@@ -217,14 +205,15 @@ correct than dispatching on a substring of the node name. (Marker:
 ## Map of the key hunks
 
 ```
-mpp_iommu.c        cookie_type guard on iommu_set_fault_handler
+mpp_iommu.c        Rockchip provider fault hook; generic fault fallback only on cookie-less domains
+rockchip-iommu.c   exported media reset/fault helpers around the mainline provider
 mpp_rkvenc2.c      CONFIG_CPU_RK3588 removed; attach_ccu -EPROBE_DEFER + put_device;
                    ccu_probe drvdata-last; OPP dev_err→dev_dbg
 mpp_rkvdec2.c      compatible-based probe dispatch; attach_ccu/core0 -EPROBE_DEFER;
                    ccu_probe drvdata-last; OPP dev_err→dev_dbg
 mpp_rkvdec2_link.c -EPROBE_DEFER on the link path
 mpp_common.c       OPP/devfreq de-noise; compat glue
-compat/**          shim headers for BSP-only SoC headers
+compat/**          remaining shim headers for BSP-only SoC headers
 hack/**            other-SoC bodies kept to satisfy #includes (NOT deletable)
 mpp/Kconfig        default y on ROCKCHIP_MPP_SERVICE (gates the cores)
 rga3/Kconfig       default y on ROCKCHIP_MULTI_RGA + select SYNC_FILE

@@ -95,7 +95,7 @@ only — we do **not** cite commit SHAs, and `—` means "not version-pinned her
 | `hrtimer_init()` + `.function=` → `hrtimer_setup()` | `rga_drv.c` | — | hrtimer init was consolidated into one call |
 | `__pte_offset_map_lock()` → `follow_pfnmap_start()/end()` | `rga_mm.c` | 6.12 | `__pte_offset_map_lock()` is no longer module-exported on 6.12+; `follow_pfnmap_*()` is the GPL-exported page-table walker (version-gated) |
 | `iommu_dma_cookie` shadow struct: `iovad` moved to offset 0 (+ `BUILD_BUG_ON`, `mpp_iommu.c:719`) | `mpp_iommu.h`, `mpp_iommu.c` | 6.18 | 6.18 deleted the leading `enum iommu_dma_cookie_type type` member; our shadow struct (used to reach `iovad` via `iommu_domain->iova_cookie`) must keep `iovad` first |
-| `iommu_set_fault_handler()` guarded by `cookie_type == IOMMU_COOKIE_NONE` | `mpp_iommu.c`, `rga_iommu.c` | 6.18 | the IOMMU core now WARNs if the domain already owns a cookie (e.g. the default DMA domain); only register our handler on a cookie-less domain |
+| MPP IOMMU fault handler moved to Rockchip provider hook | `mpp_iommu.c`, `rockchip-iommu.c` | 6.18 | the IOMMU core now WARNs if the domain already owns a cookie; MPP uses DMA domains, so Rockchip faults are reported through a provider-local callback instead of `iommu_set_fault_handler()` |
 | `-DMPP_VERSION="6.18-rkvenc-fwport"` (`ccflags-y`) | `mpp/Makefile` | — | replaces the donor's `$(shell git …)` version string, which fails in this tree (no vendor git metadata) |
 
 ### 2. Bring-up / correctness fixes — *make the cores actually bind on RK3588*
@@ -125,8 +125,10 @@ Thin headers under `mpp/compat/` so the vendor `.c` files keep their original
 `#include`s and call sites. Mostly no-op stubs:
 
 `rockchip_pmu_idle.h`, `rockchip_opp_select.h`, `rockchip_system_monitor.h`,
-`rockchip_iommu.h`, `rockchip_dmc.h`, `rockchip_ipa.h`, `rockchip_sip.h`,
-`rockchip_qos_compat.h`. See [forward-port guide](./vendor-forward-port.md).
+`rockchip_dmc.h`, `rockchip_ipa.h`, `rockchip_sip.h`, `rockchip_qos_compat.h`.
+`rockchip_iommu.h` graduated out of `compat/` into a real `include/soc/rockchip`
+header backed by `drivers/iommu/rockchip-iommu.c`. See
+[forward-port guide](./vendor-forward-port.md).
 
 ### 5. Wiring — Kconfig / Makefile (63 lines)
 
@@ -138,8 +140,8 @@ verbatim from the BSP and **must not be deleted** ([gotchas](../../docs/gotchas.
 ### 6. Residual TODOs (W-tags)
 
 Several shim banners point at `W6` / `W15` / "see Residual TODOs" (e.g.
-`rockchip_opp_select.h:8,11`, `rockchip_ipa.h:8`, `rockchip_system_monitor.h:12`,
-`rockchip_iommu.h:22`) but no master list lives in the tree. Consolidated here —
+`rockchip_opp_select.h:8,11`, `rockchip_ipa.h:8`, `rockchip_system_monitor.h:12`)
+but no master list lives in the tree. Consolidated here —
 these are **intentionally stubbed**, not bugs; a production path would restore
 them. See [resyncing guide](./resyncing.md) for the maintenance view.
 
@@ -147,7 +149,7 @@ them. See [resyncing guide](./resyncing.md) for the maintenance view.
 |-----|----------------|-----------------|
 | **W6** | dead/dvfs-off includes: `rockchip_ipa.h` is a dead include; the devfreq islands are `default n` | delete the dead `#include` (`mpp_rkvenc2.c:31`); leave devfreq off unless DVFS is wired |
 | **W15** | real OPP voltage/leakage management absent — `rkvenc_devfreq_init()` bails on the `-EOPNOTSUPP` stub | port the OPP/PVTM voltage stack, or drive voltage from a mainline regulator/devfreq governor |
-| iommu fault-mask | `rockchip_iommu_mask_irq()` is a no-op → the pagefault-handler fault-storm guard is disabled | a real mask path against the mainline `rockchip-iommu` driver |
+| iommu fault-mask | formerly `rockchip_iommu_mask_irq()` was a no-op, disabling the pagefault-handler fault-storm guard | fixed in the AV1 forward-port worktree by provider-local Rockchip IOMMU helpers |
 | system-monitor | `rockchip_system_monitor_register()` → `ERR_PTR(-ENODEV)`; encoder runs without SoC thermal/voltage monitoring | register the venc as a mainline thermal-cooling device |
 
 ---

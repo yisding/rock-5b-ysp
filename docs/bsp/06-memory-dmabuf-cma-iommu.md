@@ -59,6 +59,15 @@ AV1 on RK3588 is a good example of why memory plumbing is architectural. The BSP
 adds `rockchip-iommu-av1d.c` because the AV1D block uses a different IOMMU model
 than normal Rockchip `iommu-v2` nodes.
 
+For the RK3588 encoder/decoder forward-port, keep mainline Rockchip IOMMU as the
+base and add only the narrow media helper layer inside that provider. A shim in
+the MPP driver cannot safely implement reset, IRQ mask/unmask, or pagefault-done:
+those operations need the provider's private MMU register bases and domain state.
+Forward-porting the whole BSP IOMMU driver is higher risk because it replaces a
+shared provider for every Rockchip IOMMU client and drags in BSP-only policy.
+The local 6.18 solution is therefore mainline provider plus exported Rockchip
+media hooks, with the AV1 VSI provider staying separate.
+
 RKNPU is another example. Its default DRM GEM memory manager can allocate
 contiguous buffers, fall back to non-contiguous pages when IOMMU is available,
 and return one NPU-visible DMA or IOVA address to RKNN userspace. The alternate

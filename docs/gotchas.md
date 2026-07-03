@@ -82,6 +82,13 @@ against its window — and the BSP audit flags a latent clamp-arithmetic bug the
 at `mpp_common.c:1943`, where the over-size path stores the overflow amount
 instead of the remaining space. See [BSP audit](../kernel-drivers/docs/bsp-audit.md).)
 
+**Plain-tree ROCK 5B DTB still needs the Armbian media-label patch.** The
+convert-in-place decoder wiring overrides `&vdec0`, `&vdec1`, `&vdec0_mmu`, and
+`&vdec1_mmu`. Those labels are supplied by Armbian's media patch, not by vanilla
+6.18, so `make rockchip/rk3588-rock-5b.dtb` in the plain forward-port worktree
+fails before packaging applies that patch. This is a packaging-order dependency,
+not an AV1 or IOMMU regression.
+
 ## Driver / probe
 
 > These are forward-port traps **we introduced or hit** porting to 6.18. For
@@ -104,12 +111,15 @@ we return `-EPROBE_DEFER` (`rkvenc_attach_ccu`, `mpp_rkvenc2.c:2931`;
 `rkvdec2_attach_ccu` in `mpp_rkvdec2.c`) and publish CCU `drvdata` last. Six sites,
 enumerated in `vendor-forward-port.md`.
 
-**`iommu_set_fault_handler()` WARNs on 6.18.** The new
-`WARN_ON(!domain || domain->cookie_type != IOMMU_COOKIE_NONE)` inside
-`iommu_set_fault_handler` (`drivers/iommu/iommu.c:2015`) fires because the BSP sets
-a handler on the DMA default domain, which already owns a cookie. Guard the call
-with `domain->cookie_type == IOMMU_COOKIE_NONE` in `mpp_iommu_dev_activate`
-(`mpp_iommu.c:669-671`).
+**Do not use `iommu_set_fault_handler()` for MPP DMA-domain faults.** On 6.18,
+`iommu_set_fault_handler()` rejects domains whose cookie is not
+`IOMMU_COOKIE_NONE`; the codec buffers use the normal DMA default domain. The
+forward-port therefore keeps mainline `drivers/iommu/rockchip-iommu.c` and adds a
+small Rockchip provider hook/export layer (`rockchip_iommu_set_fault_handler()`,
+mask/unmask, enable/disable/reset). MPP registers its task-aware fault callback
+through that provider hook, and only falls back to the generic API for genuinely
+cookie-less domains. A local MPP-only shim is not enough: it cannot access the
+provider's private MMU bases, clocks, IRQ mask register, or domain state.
 
 **`CONFIG_CPU_RK3588` is never defined** in mainline/Armbian configs, so the BSP's
 guarded `of_device_id` entries don't register. Make the RK3588 match entries
