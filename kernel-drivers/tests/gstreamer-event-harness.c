@@ -16,6 +16,7 @@ enum harness_action {
 	ACTION_FLUSH,
 	ACTION_SEEK,
 	ACTION_FLUSH_SEEK,
+	ACTION_EOS_LOOP,
 };
 
 struct harness {
@@ -26,11 +27,13 @@ struct harness {
 	enum harness_action action;
 	guint trigger_buffers;
 	guint post_buffers;
+	guint loops;
 	guint seek_ms;
 	guint timeout_ms;
 	guint timeout_id;
 	guint before_buffers;
 	guint after_buffers;
+	guint eos_count;
 	gboolean action_queued;
 	gboolean action_done;
 	gboolean success;
@@ -41,9 +44,12 @@ static void usage(const char *argv0)
 {
 	g_printerr("Usage: %s --pipeline PIPELINE --target ELEMENT --action flush|seek|flush-seek [options]\n",
 		   argv0);
+	g_printerr("       %s --pipeline PIPELINE --action eos-loop --loops N [options]\n",
+		   argv0);
 	g_printerr("Options:\n");
 	g_printerr("  --trigger-buffers N  buffers from target src before event (default: 1)\n");
 	g_printerr("  --post-buffers N     buffers from target src after event (default: 1)\n");
+	g_printerr("  --loops N            EOS iterations for eos-loop (default: 1)\n");
 	g_printerr("  --seek-ms N          seek target for seek actions (default: 0)\n");
 	g_printerr("  --timeout-ms N       whole-test timeout (default: 30000)\n");
 }
@@ -162,6 +168,28 @@ static gboolean trigger_action(gpointer data)
 	return G_SOURCE_REMOVE;
 }
 
+static gboolean restart_eos_loop(gpointer data)
+{
+	struct harness *h = data;
+
+	if (h->failure || h->success)
+		return G_SOURCE_REMOVE;
+
+	if (gst_element_set_state(h->pipeline, GST_STATE_READY) ==
+	    GST_STATE_CHANGE_FAILURE) {
+		fail(h, "failed to reset pipeline for EOS loop");
+		return G_SOURCE_REMOVE;
+	}
+
+	if (gst_element_set_state(h->pipeline, GST_STATE_PLAYING) ==
+	    GST_STATE_CHANGE_FAILURE) {
+		fail(h, "failed to restart pipeline for EOS loop");
+		return G_SOURCE_REMOVE;
+	}
+
+	return G_SOURCE_REMOVE;
+}
+
 static GstPadProbeReturn buffer_probe(GstPad *pad, GstPadProbeInfo *info,
 				      gpointer data)
 {
@@ -209,6 +237,16 @@ static gboolean bus_cb(GstBus *bus, GstMessage *msg, gpointer data)
 		break;
 	}
 	case GST_MESSAGE_EOS:
+		if (h->action == ACTION_EOS_LOOP) {
+			h->eos_count++;
+			g_print("eos-loop iteration %u/%u\n",
+				h->eos_count, h->loops);
+			if (h->eos_count >= h->loops)
+				finish_success(h);
+			else
+				g_main_context_invoke(NULL, restart_eos_loop, h);
+			break;
+		}
 		if (!h->action_done)
 			fail(h, "pipeline reached EOS before event action");
 		else
@@ -243,6 +281,7 @@ int main(int argc, char **argv)
 	struct harness h = {
 		.trigger_buffers = 1,
 		.post_buffers = 1,
+		.loops = 1,
 		.timeout_ms = 30000,
 	};
 	const char *bad_number_arg = NULL;
@@ -272,6 +311,10 @@ int main(int argc, char **argv)
 			value = next_arg(&i, argc, argv);
 		else if (g_str_has_prefix(arg, "--post-buffers="))
 			value = arg + strlen("--post-buffers=");
+		else if (!strcmp(arg, "--loops"))
+			value = next_arg(&i, argc, argv);
+		else if (g_str_has_prefix(arg, "--loops="))
+			value = arg + strlen("--loops=");
 		else if (!strcmp(arg, "--seek-ms"))
 			value = next_arg(&i, argc, argv);
 		else if (g_str_has_prefix(arg, "--seek-ms="))
@@ -298,6 +341,11 @@ int main(int argc, char **argv)
 				bad_number_arg = arg;
 				goto bad_number;
 			}
+		} else if (g_str_has_prefix(arg, "--loops")) {
+			if (!parse_uint(value, &h.loops)) {
+				bad_number_arg = arg;
+				goto bad_number;
+			}
 		} else if (g_str_has_prefix(arg, "--seek-ms")) {
 			if (!parse_uint(value, &h.seek_ms)) {
 				bad_number_arg = arg;
@@ -311,7 +359,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (!pipeline_desc || !target_name || !action_name) {
+	if (!pipeline_desc || !action_name) {
 		usage(argv[0]);
 		return 2;
 	}
@@ -322,8 +370,20 @@ int main(int argc, char **argv)
 		h.action = ACTION_SEEK;
 	else if (!strcmp(action_name, "flush-seek"))
 		h.action = ACTION_FLUSH_SEEK;
+	else if (!strcmp(action_name, "eos-loop"))
+		h.action = ACTION_EOS_LOOP;
 	else {
 		g_printerr("unknown action: %s\n", action_name);
+		return 2;
+	}
+
+	if (h.action != ACTION_EOS_LOOP && !target_name) {
+		usage(argv[0]);
+		return 2;
+	}
+
+	if (h.action == ACTION_EOS_LOOP && !h.loops) {
+		g_printerr("bad numeric value for --loops\n");
 		return 2;
 	}
 
@@ -337,24 +397,28 @@ int main(int argc, char **argv)
 		return 2;
 	}
 
-	h.target = gst_bin_get_by_name(GST_BIN(h.pipeline), target_name);
-	if (!h.target) {
-		g_printerr("pipeline has no element named %s\n", target_name);
-		gst_object_unref(h.pipeline);
-		return 2;
-	}
+	if (h.action != ACTION_EOS_LOOP) {
+		h.target = gst_bin_get_by_name(GST_BIN(h.pipeline), target_name);
+		if (!h.target) {
+			g_printerr("pipeline has no element named %s\n",
+				   target_name);
+			gst_object_unref(h.pipeline);
+			return 2;
+		}
 
-	h.target_src = gst_element_get_static_pad(h.target, "src");
-	if (!h.target_src) {
-		g_printerr("target element has no src pad\n");
-		gst_object_unref(h.target);
-		gst_object_unref(h.pipeline);
-		return 2;
+		h.target_src = gst_element_get_static_pad(h.target, "src");
+		if (!h.target_src) {
+			g_printerr("target element has no src pad\n");
+			gst_object_unref(h.target);
+			gst_object_unref(h.pipeline);
+			return 2;
+		}
 	}
 
 	h.loop = g_main_loop_new(NULL, FALSE);
-	gst_pad_add_probe(h.target_src, GST_PAD_PROBE_TYPE_BUFFER, buffer_probe,
-			  &h, NULL);
+	if (h.target_src)
+		gst_pad_add_probe(h.target_src, GST_PAD_PROBE_TYPE_BUFFER,
+				  buffer_probe, &h, NULL);
 
 	bus = gst_element_get_bus(h.pipeline);
 	gst_bus_add_watch(bus, bus_cb, &h);
@@ -364,8 +428,10 @@ int main(int argc, char **argv)
 	    GST_STATE_CHANGE_FAILURE) {
 		g_printerr("failed to set pipeline to PLAYING\n");
 		g_main_loop_unref(h.loop);
-		gst_object_unref(h.target_src);
-		gst_object_unref(h.target);
+		if (h.target_src)
+			gst_object_unref(h.target_src);
+		if (h.target)
+			gst_object_unref(h.target);
 		gst_object_unref(h.pipeline);
 		return 1;
 	}
@@ -378,16 +444,22 @@ int main(int argc, char **argv)
 	gst_element_set_state(h.pipeline, GST_STATE_NULL);
 
 	if (h.success) {
-		g_print("PASS: before=%u after=%u action=%s\n",
-			h.before_buffers, h.after_buffers, action_name);
+		if (h.action == ACTION_EOS_LOOP)
+			g_print("PASS: eos=%u action=%s\n",
+				h.eos_count, action_name);
+		else
+			g_print("PASS: before=%u after=%u action=%s\n",
+				h.before_buffers, h.after_buffers, action_name);
 	} else {
 		g_printerr("FAIL: %s\n", h.failure ? h.failure : "unknown");
 	}
 
 	g_free(h.failure);
 	g_main_loop_unref(h.loop);
-	gst_object_unref(h.target_src);
-	gst_object_unref(h.target);
+	if (h.target_src)
+		gst_object_unref(h.target_src);
+	if (h.target)
+		gst_object_unref(h.target);
 	gst_object_unref(h.pipeline);
 
 	return h.success ? 0 : 1;

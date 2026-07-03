@@ -19,6 +19,7 @@ GST_TIMEOUT=${GST_TIMEOUT:-120}
 GST_NUM_BUFFERS=${GST_NUM_BUFFERS:-60}
 GST_STATE_LOOPS=${GST_STATE_LOOPS:-4}
 GST_STATE_LOOP_BUFFERS=${GST_STATE_LOOP_BUFFERS:-8}
+GST_EOS_LOOPS=${GST_EOS_LOOPS:-4}
 GST_EVENT_TRIGGER_BUFFERS=${GST_EVENT_TRIGGER_BUFFERS:-1}
 GST_EVENT_POST_BUFFERS=${GST_EVENT_POST_BUFFERS:-1}
 GST_EVENT_TIMEOUT_MS=${GST_EVENT_TIMEOUT_MS:-30000}
@@ -62,6 +63,10 @@ event_flush_enc_h264
 event_flush_enc_h265
 event_flush_dec_h264
 event_flush_dec_h265
+eos_loop_enc_h264
+eos_loop_enc_h265
+eos_loop_dec_h264
+eos_loop_dec_h265
 state_loop_h264_nv12
 state_loop_roundtrip_h264
 "
@@ -71,6 +76,8 @@ event_seek_enc_h264
 event_seek_enc_h265
 event_seek_dec_h264
 event_seek_dec_h265
+generated_dec_h264_afbc_fakesink
+generated_dec_h265_afbc_fakesink
 parallel_enc_h264
 parallel_roundtrip_h264
 enc_h264_bgr16_rga_scale
@@ -494,6 +501,19 @@ build_event_harness()
 	)
 }
 
+build_eos_loop_harness()
+{
+	local pipeline=$1
+
+	CMD=(
+		"$GST_EVENT_HARNESS"
+		"--action=eos-loop"
+		"--loops=$GST_EOS_LOOPS"
+		"--timeout-ms=$GST_EVENT_TIMEOUT_MS"
+		"--pipeline=$pipeline"
+	)
+}
+
 build_event_encode()
 {
 	local action=$1
@@ -519,6 +539,29 @@ build_event_generated_decode()
 	pipeline+="! mppvideodec name=target "
 	pipeline+="! fakesink sync=false"
 	build_event_harness "$action" target "$pipeline"
+}
+
+build_eos_loop_encode()
+{
+	local encoder=$1
+	local pipeline
+
+	pipeline="videotestsrc num-buffers=$GST_STATE_LOOP_BUFFERS is-live=false pattern=smpte "
+	pipeline+="! video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE "
+	pipeline+="! $encoder zero-copy-pkt=true "
+	pipeline+="! fakesink sync=false"
+	build_eos_loop_harness "$pipeline"
+}
+
+build_eos_loop_generated_decode()
+{
+	local pipeline
+
+	pipeline="filesrc location=$GENERATED_INPUT_PATH "
+	pipeline+="! $GENERATED_PARSER "
+	pipeline+="! mppvideodec "
+	pipeline+="! fakesink sync=false"
+	build_eos_loop_harness "$pipeline"
 }
 
 build_case_command()
@@ -659,6 +702,18 @@ build_case_command()
 	event_flush_dec_h265)
 		CMD=(__builtin_event_generated_decode h265 flush)
 		;;
+	eos_loop_enc_h264)
+		build_eos_loop_encode mpph264enc
+		;;
+	eos_loop_enc_h265)
+		build_eos_loop_encode mpph265enc
+		;;
+	eos_loop_dec_h264)
+		CMD=(__builtin_eos_loop_generated_decode h264)
+		;;
+	eos_loop_dec_h265)
+		CMD=(__builtin_eos_loop_generated_decode h265)
+		;;
 	event_seek_enc_h264)
 		build_event_encode seek mpph264enc
 		;;
@@ -670,6 +725,12 @@ build_case_command()
 		;;
 	event_seek_dec_h265)
 		CMD=(__builtin_event_generated_decode h265 seek)
+		;;
+	generated_dec_h264_afbc_fakesink)
+		CMD=(__builtin_generated_decode h264 fbc=true)
+		;;
+	generated_dec_h265_afbc_fakesink)
+		CMD=(__builtin_generated_decode h265 fbc=true)
 		;;
 	roundtrip_h264_rga_bgr16)
 		build_videotest_roundtrip mpph264enc h264parse \
@@ -846,7 +907,8 @@ run_case_payload()
 		;;
 	generated_dec_h264_fakesink | generated_dec_h265_fakesink | \
 	generated_dec_h264_dmabuf | generated_dec_h265_dmabuf | \
-	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale)
+	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
+	generated_dec_h264_afbc_fakesink | generated_dec_h265_afbc_fakesink)
 		run_generated_decode "${CMD[1]}" "${CMD[@]:2}"
 		;;
 	generated_dec_h264_renegotiate | generated_dec_h265_renegotiate)
@@ -855,6 +917,11 @@ run_case_payload()
 	event_flush_dec_h264 | event_flush_dec_h265 | \
 	event_seek_dec_h264 | event_seek_dec_h265)
 		run_event_generated_decode "${CMD[1]}" "${CMD[2]}"
+		;;
+	eos_loop_dec_h264 | eos_loop_dec_h265)
+		ensure_generated_input "${CMD[1]}" || return $?
+		build_eos_loop_generated_decode
+		run_current_command
 		;;
 	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
 	generated_transcode_h264_rga_to_h265 | \

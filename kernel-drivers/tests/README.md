@@ -118,10 +118,11 @@ Suggested expanded matrix:
   H.264/H.265 encode, BGRx/RGBA encode cases that force the plugin's legacy
   `c_RkRgaBlit()` conversion path, generated elementary-stream decode and
   transcode, in-pipeline caps renegotiation, explicit flush events, and
-  repeated start/stop encode loops. Add H.264/H.265 inputs to enable decode to `fakesink`, decode-side RGA
-  scale/format/rotate, decode -> encode transcodes, and diagnostic AFBC decode
-  output. Display/DMABuf sink pipelines remain manual add-ons until a target
-  compositor/KMS setup is fixed.
+  repeated EOS and start/stop loops. Add H.264/H.265 inputs to enable decode to
+  `fakesink`, decode-side RGA scale/format/rotate, and decode -> encode
+  transcodes. Generated H.264/H.265 AFBC decode output is recorded as
+  diagnostic coverage. Display/DMABuf sink pipelines remain manual add-ons until
+  a target compositor/KMS setup is fixed.
 
 The expected rewrite result is not universal pass today. For implemented paths,
 it should match the forward-port. For documented unsupported RGA profiles, it
@@ -232,6 +233,8 @@ kernel paths:
 - `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`;
 - `event_flush_enc_h264`, `event_flush_enc_h265`,
   `event_flush_dec_h264`, `event_flush_dec_h265`;
+- `eos_loop_enc_h264`, `eos_loop_enc_h265`,
+  `eos_loop_dec_h264`, `eos_loop_dec_h265`;
 - `state_loop_h264_nv12`, `state_loop_roundtrip_h264`.
 
 The generated-media cases first write short H.264/H.265 elementary streams
@@ -254,6 +257,10 @@ until `mpph264enc`, `mpph265enc`, or `mppvideodec` has produced data, send
 `FLUSH_START`/`FLUSH_STOP` to the element's sink pad, and require more output
 afterward. That directly drives JeffyCN's `GstVideoEncoder.flush` and
 `GstVideoDecoder.flush` hooks, which call `mpi->reset()`.
+The EOS-loop cases use the same helper in `eos-loop` mode to restart one
+finite encoder or generated elementary-stream decoder pipeline repeatedly in one
+process. That drives JeffyCN's drain/shutdown paths, which send EOS packets into
+MPP and then reuse the same GStreamer element graph for another cycle.
 
 Set `GST_H264_INPUT` and/or `GST_H265_INPUT` to add decode/transcode cases
 automatically:
@@ -275,6 +282,8 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,
+`eos_loop_enc_h264`, `eos_loop_enc_h265`,
+`eos_loop_dec_h264`, `eos_loop_dec_h265`,
 `dec_h264_fakesink`, `dec_h265_fakesink`, `dec_h264_rga_rotate`,
 `dec_h265_rga_scale`, `transcode_h264_to_h265`,
 `transcode_h265_to_h264`, `transcode_h264_rga_to_h265`,
@@ -286,7 +295,8 @@ one pipeline so GStreamer's decoder-side buffer-group, short-timeout polling,
 info-change, and reset paths are exercised even before media assets are staged.
 Diagnostic cases include `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`, `parallel_enc_h264`,
-`parallel_roundtrip_h264`, `dec_h264_afbc_fakesink`, and
+`parallel_roundtrip_h264`, `generated_dec_h264_afbc_fakesink`,
+`generated_dec_h265_afbc_fakesink`, `dec_h264_afbc_fakesink`, and
 `dec_h265_afbc_fakesink`. They also include a
 smaller GStreamer RGA format matrix for currently advertised legacy
 `c_RkRgaBlit()` conversions: encoder-side BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
@@ -387,9 +397,9 @@ was last verified on 2026-07-03 after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
 coverage for the GStreamer virtual-source, fd-backed rotate/convert, and planar
 fallback shapes; after the MPP official-test suite/comparator and build helper
-were added; and after the GStreamer build wrapper, suite, comparator, and
-asset-free decoder roundtrip plus generated-media decode/transcode cases were
-added. The device-free
+were added; and after the GStreamer build wrapper, suite, comparator, asset-free
+decoder roundtrip, generated-media decode/transcode, explicit flush-event,
+EOS-loop, and generated-AFBC diagnostic cases were added. The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,
 slowdown, and librga latest-summary filtering paths. `build-mpp-tests.sh`
 staged the official MPP binaries locally; `build-gstreamer-rockchip.sh`

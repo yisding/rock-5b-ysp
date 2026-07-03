@@ -30,14 +30,16 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > elapsed-time slowdown ceiling with `PERF_MAX_RATIO`. The default GStreamer
 > suite now includes asset-free encoder, RGA-conversion, decoder roundtrip,
 > generated elementary-stream decode/transcode, caps-renegotiation, explicit
-> flush-event, and state-loop pipelines so the
+> flush-event, EOS-loop, and state-loop pipelines so the
 > next hardware pass exercises decoder-side buffer groups, short-timeout
 > polling, info-change, parser-driven decoder caps changes, reset,
 > media-file parser/decode, decoder-side RGA
 > conversion, DMABuf caps/allocator handoff, in-pipeline drained encoder
 > reset on caps changes, encoder/decoder flush reset with post-flush output,
+> repeated encoder/decoder drain-to-EOS reuse,
 > and decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
+> generated H.264/H.265 AFBC decode output and
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 decoder-side
 > output conversion. The in-repo direct `librga` smoke
@@ -335,15 +337,16 @@ implementation (cross-reference:
   rotate/format-convert, in-pipeline H.264/H.265 encoder caps-renegotiation
   through two differently sized raw NV12 segments, explicit H.264/H.265
   encoder and decoder `FLUSH_START`/`FLUSH_STOP` event handling with required
-  post-flush output, and repeated state-loop reset; its
+  post-flush output, repeated encoder/decoder drain-to-EOS reuse in one process,
+  and repeated state-loop reset; its
   diagnostic set also includes seek-event probes through the same
-  `gstreamer-event-harness`, parallel H.264 encode, parallel H.264
+  `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output, parallel H.264 encode, parallel H.264
   encode->decode roundtrip pipelines for multi-session scheduling evidence, and
   a GStreamer-visible RGA format matrix covering encoder-side
   BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths plus decoder-side
   BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The next
-  media-backed GStreamer expansion should add display, EOS loops, AFBC
-  diagnostics, and multi-stream decode/encode.  Source review of the plugin
+  media-backed GStreamer expansion should add display and broader multi-stream
+  decode/encode evidence.  Source review of the plugin
   shows the
   highest-value RGA paths are legacy `c_RkRgaBlit()` submissions from fd-backed
   MPP frames or Gst DMABuf memory into MPP-owned destination buffers:
