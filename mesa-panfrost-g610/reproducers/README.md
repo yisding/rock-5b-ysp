@@ -396,3 +396,12 @@ The exact 25 dEQP cases from the MR !42563 review comment that were rerun
 locally after switching the MR direction to COMPUTE (result: 24/25 Pass, 1
 pre-existing QualityWarning — [`../validation.md`](../docs/validation.md), which
 also records the exact dEQP invocation).
+
+## Rebuild + re-run harness
+
+[`../scripts/`](../scripts) has a one-command rebuild
+(`build-mesa-surfaceless.sh`), the runtime env (`mesa-panfrost-env.sh`), and
+runners for the reproducers (`run-repro.sh`) and the dEQP cluster
+(`run-deqp.sh` + `deqp-gles3-transfer-cases.txt`). The environment gotchas
+(wiped `/tmp` build state, `mise` python shadowing) and the latest on-device
+results are in [`../docs/rebuild-and-test.md`](../docs/rebuild-and-test.md).

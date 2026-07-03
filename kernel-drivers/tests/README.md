@@ -90,7 +90,7 @@ changing. Compare `logs/rewrite/` against `logs/forward-port/`.
 
 | Bundle component | What it is | Why it belongs in conformance |
 |------------------|------------|-------------------------------|
-| `sources/jeffycn-gstreamer-rockchip` | JeffyCN's `gstreamer-rockchip` branch from `JeffyCN/mirrors` | Highest-value new target beyond FFmpeg/rkmpp/librga. GStreamer stresses MPP/RGA through caps negotiation, buffer pools, pipeline state changes, EOS/flush/seek/restart, dmabuf allocator negotiation, KMS/Wayland sinks, and multi-stream scheduling. |
+| `sources/jeffycn-gstreamer-rockchip` | JeffyCN's `gstreamer-rockchip` branch from `JeffyCN/mirrors` at `dcbcd6454ef8` | Highest-value new target beyond FFmpeg/rkmpp/librga. GStreamer stresses MPP/RGA through caps negotiation, buffer pools, pipeline state changes, EOS/flush/seek/restart, dmabuf allocator negotiation, KMS/Wayland sinks, and multi-stream scheduling. Source review shows its kernel-visible hot path is libmpp plus legacy `c_RkRgaBlit()` for fd-backed scale/convert/rotate between MPP decode/encode stages. |
 | `sources/rockchip-mpp` | Rockchip MPP library and official `test/` programs | Gives the canonical `mpp_info_test`, `mpi_dec_test`, `mpi_dec_mt_test`, `mpi_dec_multi_test`, `mpi_enc_test`, `mpi_enc_mt_test`, `mpi_rc2_test`, and `vpu_api_test` binaries. These hit sync/async decode, multi-instance and multi-thread paths, rate-control config, event/control paths, and the legacy VPU API more directly than FFmpeg. |
 | `sources/airockchip-librga` | Official librga repo and IM2D sample suite | Must be run as a *suite*, not just a copy/resize smoke. It covers allocator modes, async jobs, FBC/tile copies, alpha/colorkey/OSD, CSC, fill arrays, mosaic, ROP, palette, gauss, transform, crop, resize, and padding. These map almost exactly to the rewrite's remaining RGA feature boundaries. |
 | `sources/mpp-linux-cpp-demo` | Linux MPP/RGA/DRM demo | Useful integration smoke because it chains MPP decode, RGA conversion, DRM display, and threading in one app. |
@@ -106,10 +106,13 @@ Suggested expanded matrix:
   allocator samples first; then deliberately run `rop`, `mosaic`, `padding`,
   FBC/tile, colorkey/OSD, and 10-bit/compressed cases to distinguish clean
   `-EOPNOTSUPP` from real regressions.
-- GStreamer: decode to `fakesink`, decode to KMS/Wayland display, raw NV12
-  encode, transcode `decode -> convert/scale -> encode`, multi-stream jobs,
-  stop/seek/EOS/restart loops, and dmabuf zero-copy paths where the sink/source
-  supports them.
+- GStreamer: `run-gstreamer-smoke.sh` currently proves plugin discovery, not
+  driver parity.  Add real pipelines for H.264/H.265 decode to `fakesink`,
+  decode to KMS/Wayland display with DMABuf caps, raw NV12 encode to H.264/H.265,
+  RGB/BGRx/RGBA/NV21/I420/NV16 inputs that force RGA conversion before encode,
+  decode -> scale/format-convert/rotate -> encode transcodes, AFBC decode output
+  when the sink can accept it, multi-stream decode/encode, and repeated
+  stop/seek/EOS/restart/caps-renegotiation loops.
 
 The expected rewrite result is not universal pass today. For implemented paths,
 it should match the forward-port. For documented unsupported RGA profiles, it

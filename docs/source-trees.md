@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | `yisding/linux-rock5b` branch `rk3588-rewrite-6.18` @ `407e79466ab5` + branch `rk3588-rewrite-mainline` @ `b58c4f7f4c98`, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | `yisding/linux-rock5b` branch `rk3588-rewrite-6.18` @ `ad80e93d9d81` + branch `rk3588-rewrite-mainline` @ `d5bf7c457423`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver tests](../kernel-drivers/tests/README.md) "Expanded conformance bundle" | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -119,7 +119,7 @@ donor and is not cited by any doc.)
 | librga source (study tree) | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | Commit-level pin **unrecorded** — candidate `2cffdf6` (see note) | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
 | librga prebuilt | `airockchip/librga` | `2b32edc` ("Update librga version to 1.10.6_[3]") | ffmpeg/README.md librga row |
 | ffmpeg-rockchip (documented build) | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` (2026-04-23); preserved locally as branch `backup-pre-upgrade-master` | ffmpeg/README.md, [`ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md) |
-| ffmpeg-rockchip-81 (rebased successor) | `github.com/yisding/ffmpeg-rockchip-81` | branch `main` (tip `b59509b609` as of 2026-07-01); branch `upstream` = `87bd15dc3c` | [`ffmpeg/docs/fix-candidates.md`](../ffmpeg/docs/fix-candidates.md), [`ffmpeg/docs/rebase-notes.md`](../ffmpeg/docs/rebase-notes.md), [`ffmpeg/patches/`](../ffmpeg/patches/) |
+| ffmpeg-rockchip-81 (rebased successor) | `github.com/yisding/ffmpeg-rockchip-81` | branch `main` (tip `6cf02ab253` as of 2026-07-02); branch `upstream` = `87bd15dc3c` | [`ffmpeg/docs/fix-candidates.md`](../ffmpeg/docs/fix-candidates.md), [`ffmpeg/docs/rebase-notes.md`](../ffmpeg/docs/rebase-notes.md), [`ffmpeg/docs/submission-plan.md`](../ffmpeg/docs/submission-plan.md), [`ffmpeg/patches/`](../ffmpeg/patches/) |
 | FFmpeg upstream release | `FFmpeg/FFmpeg` | tag `n8.1.2` = `38b88335f99e` (2026-06-17) | `ffmpeg/docs/implementation-comparison.md` baseline; the PPA/GRD ABI base |
 | FFmpeg upstream master (rebase base) | `FFmpeg/FFmpeg` | `87bd15dc3c` = `n8.2-dev-2058-g87bd15dc3c` | `ffmpeg/docs/fix-candidates.md`, `ffmpeg/docs/rebase-notes.md` |
 
@@ -194,10 +194,10 @@ The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/re
 is reconstructible from public branches in `github.com/yisding/linux-rock5b` as
 of 2026-07-03:
 
-- branch `rk3588-rewrite-6.18`, commit `407e79466ab5` ("media: rockchip:
-  shrink rewrite RGA KUnit stack frame"), matching the clean dev worktree
+- branch `rk3588-rewrite-6.18`, commit `ad80e93d9d81` ("media: rockchip:
+  support RGA2 packed YUV420 fill"), matching the clean dev worktree
   `/home/yi/Code/linux-6.18-rkvenc`.
-- branch `rk3588-rewrite-mainline`, commit `b58c4f7f4c98` (same subject),
+- branch `rk3588-rewrite-mainline`, commit `d5bf7c457423` (same subject),
   matching the clean sibling worktree `/home/yi/Code/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -218,7 +218,7 @@ load-balancing behaviour on hardware, followed by focused MPP coverage for
 selected-core removal races,
 `RELEASE_FD`, nonblocking poll, public `RESET_SESSION`/file-close cleanup, and
 CCU coordinator removal cleanup for queued and active dependent-core jobs, plus
-RGA2 packed-YUV422 color-fill coverage, packed-YUV420 fill rejection, and
+RGA2 packed-YUV422 color-fill coverage, packed-YUV420 fill emission, and
 Y4/Y8 dither-output coverage, BPP palette source coverage, current
 RGB-to-Y4/Y8 full-CSC dither-output coverage, AFBC-to-AFBC ffmpeg filter
 copy coverage, and `immakeBorder()` reflect/wrap top/bottom and left/right
@@ -230,7 +230,8 @@ interrupt programming and line-only IRQ handling for current `librga` requests,
 plus aggregate and per-core MPP/RGA debugfs `hw_total_ns*` and `hw_max_ns*`
 counters for hardware busy-time evidence during rewrite-vs-forward-port runs,
 plus KUnit coverage for per-core timing-counter routing and warning-free RGA
-scheduler KUnit stack usage.  The support repo's
+scheduler KUnit stack usage, plus RGA2 packed-YUV420 fill emission for all four
+packed orderings.  The support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for both public branch tips.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
@@ -269,6 +270,14 @@ build librga samples, build JeffyCN's Meson-based GStreamer plugin tree, collect
 system/device state, and write per-profile logs under `logs/rewrite/` and
 `logs/forward-port/`. See [kernel-driver tests](../kernel-drivers/tests/README.md)
 for the test matrix and pass/fail interpretation.
+
+A 2026-07-03 source review of the staged JeffyCN GStreamer plugin found no
+existing conformance logs yet.  Its rewrite-relevant hot paths are libmpp
+decode/encode lifecycle operations, MPP allocator import/export of dma-bufs,
+optional AFBC decode/encode negotiation, and legacy `c_RkRgaBlit()` scale,
+format-convert, and rotate operations between fd-backed MPP/GStreamer buffers.
+That makes GStreamer pipeline conformance the next userspace-visible priority
+before chasing diagnostic-only RGA sample profiles.
 
 ## 11. RK3588 AV1 / VSI-IOMMU comparison trees
 
