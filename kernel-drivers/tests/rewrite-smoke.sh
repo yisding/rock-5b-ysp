@@ -18,6 +18,7 @@ RUN_ENCODE="${RUN_ENCODE:-1}"
 RUN_TRANSCODE="${RUN_TRANSCODE:-1}"
 RUN_ABI="${RUN_ABI:-1}"
 RUN_LIBRGA="${RUN_LIBRGA:-0}"
+RUN_GSTREAMER="${RUN_GSTREAMER:-0}"
 
 ok() { printf '  OK   %s\n' "$*"; }
 no() { printf '  MISS %s\n' "$*"; }
@@ -141,6 +142,7 @@ print_driver_snapshot "before"
 
 [ "$RUN_ABI" = 1 ] && run_step "ABI: non-submit ioctl/session/import/config probe" bash "$TEST_DIR/abi-probe.sh"
 [ "$RUN_LIBRGA" = 1 ] && run_step "librga: im2d copy/resize/fill" bash "$TEST_DIR/librga-smoke.sh"
+[ "$RUN_GSTREAMER" = 1 ] && run_step "gstreamer: mpp/rga plugin pipelines" bash "$TEST_DIR/gstreamer-suite.sh"
 [ "$RUN_DECODE" = 1 ] && run_step "decode: mpi_dec_test" bash "$TEST_DIR/test-decode.sh"
 [ "$RUN_ENCODE" = 1 ] && run_step "encode: mpi_enc_test" bash "$TEST_DIR/encode-test-tiny.sh"
 [ "$RUN_TRANSCODE" = 1 ] && run_step "transcode: ffmpeg-rockchip + scale_rkrga" bash "$TEST_DIR/transcode-test.sh"
