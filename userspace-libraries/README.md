@@ -70,9 +70,11 @@ Read these when debugging library/kernel interactions:
 | Question | Canonical doc |
 |----------|---------------|
 | What does libmpp hide from an app? | [`docs/how-the-userspace-libs-work.md`](docs/how-the-userspace-libs-work.md) Part A |
+| How is libmpp structured internally? | [`docs/mpp-library-architecture.md`](docs/mpp-library-architecture.md) |
 | What does librga hide from an app? | [`docs/how-the-userspace-libs-work.md`](docs/how-the-userspace-libs-work.md) Part B |
 | How do regular users and media developers use librga well? | [`docs/librga-guide.md`](docs/librga-guide.md) |
 | What ioctls cross into the kernel? | [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) |
+| What did we learn about Rockchip's newer KMPP path? | [`docs/mpp-kmpp-reverse-engineering.md`](docs/mpp-kmpp-reverse-engineering.md) |
 | Why does GRD use upstream FFmpeg instead of `ffmpeg-rockchip`? | [`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md) |
 | Which ABI facts were learned during the rewrite track? | [`../kernel-drivers/docs/rewrite-drivers.md`](../kernel-drivers/docs/rewrite-drivers.md) |
 
