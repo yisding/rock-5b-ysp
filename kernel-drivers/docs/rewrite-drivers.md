@@ -233,8 +233,8 @@ implementation (cross-reference:
     normal `imcolorkey`;
     Porter-Duff A+B alpha blend for public `librga` modes including CLEAR but
     not unlisted modes; pattern-backed ffmpeg/RKMPP overlay paths; AFBC writeback
-    for supported alpha-overlay/copy profiles; and overlay pre-processing
-    copies into offset pattern images.
+    with BSP-style overlap-offset programming for supported alpha-overlay/copy
+    profiles; and overlay pre-processing copies into offset pattern images.
   - **RGA2**: solid fill, YUV fill, rectangle/fill arrays, raster bitblit for
     fallback formats RGA3 does not cover, planar/semiplanar YUV,
     YCbCr400/gray, NV24/NV42, RGB555-family, ARGB/ABGR output, compact 10-bit
@@ -257,9 +257,8 @@ implementation (cross-reference:
   RGA3 inverted color-key and color-key outside the implemented RGB/RGBA
   `imcolorkey` shapes; converted no-pattern or mixed-depth 8/10-bit
   YUV-destination alpha; per-channel rotation; RGA3 RFBC/AFBC32x8; tile
-  alpha/pattern/color-key or other non-simple bitblit variants; AFBC
-  destination offsets; and non-bitblit operation modes outside the implemented
-  RGA2 subsets.
+  alpha/pattern/color-key or other non-simple bitblit variants; and non-bitblit
+  operation modes outside the implemented RGA2 subsets.
 - **Unsupported profiles fail *late* by design**: `-EOPNOTSUPP` is returned
   only after copy/validate/prepare/queue/dispatch/import-resolve/power-sequence
   reach the backend boundary — so the scheduler/lifetime path is exercised even
