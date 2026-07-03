@@ -13,9 +13,44 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 |-------|----------|
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
-| Owns | `abi-probe.sh`, `abi-probe.c`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
+| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
-| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains an unverified recipe. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
+| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains an unverified recipe. The rewrite clean-source object-build gate is versioned here and passed both public rewrite branch tips on 2026-07-03. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
+
+## Rewrite clean build gate
+
+Before hardware testing a rewrite slice, run the focused cross-kernel build gate
+from this support repo:
+
+```bash
+kernel-drivers/tests/rewrite-build-gate.sh all
+```
+
+The script builds from `git archive` copies of `../linux-6.18-rkvenc` and
+`../linux`, forces the mutually exclusive rewrite drivers plus their KUnit
+coverage, and builds only:
+
+```text
+drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o
+drivers/video/rockchip/rga-rewrite/rga_rewrite.o
+```
+
+It fails on dirty kernel worktrees by default, fails if the resolved config does
+not enable both rewrite KUnit suites, and treats compiler warnings as failures.
+The 6.18 run reuses that tree's `.config` when present, so it also covers the
+BTF helper path used by the current dev config; mainline falls back to
+`defconfig` unless a `.config` exists. Useful overrides:
+
+```bash
+KERNEL_6_18=/path/to/linux-6.18-rkvenc \
+KERNEL_MAINLINE=/path/to/linux \
+JOBS=16 KEEP_TMP=1 \
+kernel-drivers/tests/rewrite-build-gate.sh all
+```
+
+`ALLOW_DIRTY=1` still builds the committed `HEAD` archive, not uncommitted
+source edits. Use it only when checking the last pushed state while another
+worktree has unrelated local changes.
 
 ## Expanded conformance bundle
 

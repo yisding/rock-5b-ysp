@@ -230,7 +230,9 @@ interrupt programming and line-only IRQ handling for current `librga` requests,
 plus aggregate and per-core MPP/RGA debugfs `hw_total_ns*` and `hw_max_ns*`
 counters for hardware busy-time evidence during rewrite-vs-forward-port runs,
 plus KUnit coverage for per-core timing-counter routing and warning-free RGA
-scheduler KUnit stack usage.
+scheduler KUnit stack usage.  The support repo's
+`kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
+KUnit-enabled object build for both public branch tips.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite
 commits landed.
