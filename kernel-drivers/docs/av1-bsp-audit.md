@@ -1,0 +1,154 @@
+# AV1 BSP audit — forward-port findings
+
+This tracks the BSP defects found while forward-porting Rockchip's RK3588 AV1
+MPP backend into the experimental 6.18 worktree. It is the AV1-specific
+companion to [the main BSP audit](./bsp-audit.md), which covers the validated
+RKVENC2/RKVDEC2/RGA forward-port.
+
+> **Status:** these fixes currently live in the experimental AV1 worktree. They
+> are not yet packaged as a YSP split patch series, and they have not had the
+> same runtime gate as the validated encoder/decoder work.
+
+## Scope and pins
+
+| Item | Value |
+|------|-------|
+| Donor BSP | `../rockchip-kernel` |
+| Forward-port worktree | `../linux-6.18-rkvenc-av1-fwport` |
+| Branch | `rkvenc-fwport-6.18` |
+| Primary BSP file | `drivers/video/rockchip/mpp/mpp_av1dec.c` |
+| Imported IOMMU provider | `drivers/iommu/vsi-iommu.c` from `../linux`, not the BSP private `rockchip-iommu-av1d.c` path |
+| Audit date | 2026-07-03 |
+
+Line numbers below are against the experimental AV1 worktree after the first
+forward-port hardening pass. The "donor anchor" column names the original BSP
+site when the issue is inherited from Rockchip's `mpp_av1dec.c`.
+
+## Origin summary
+
+| Origin | Count | Notes |
+|--------|-------|-------|
+| Inherited from BSP `mpp_av1dec.c` | 7 | Register request splitting, bounds, FD translation, and ISR assumptions were already present in the donor driver. |
+| Forward-port/API compatibility | 3 | 6.18 callback/config/build issues introduced by moving BSP code into this tree. |
+| Hybrid integration hardening | 5 | Issues in the imported upstream-style VSI IOMMU provider and the RKMPP/VSI DT split; not findings against the BSP AV1 MPP driver itself. |
+| Pre-existing branch/packaging dependency | 1 | ROCK 5B DTB still depends on Armbian media labels unrelated to AV1. |
+
+## Findings
+
+| ID | Sev | Origin | Site | Donor anchor | Status |
+|----|-----|--------|------|--------------|--------|
+| AV1-BSP-001 | high | BSP | `mpp_av1dec.c` `w_reqs[]`/`r_reqs[]` and `av1dec_extract_task_msg()` | donor `mpp_av1dec.c:133-136`, `:331-359` | Fixed in worktree |
+| AV1-BSP-002 | high | BSP | `av1dec_extract_task_msg()` copies split writes using the unsplit request offset | donor `mpp_av1dec.c:335-341` | Fixed in worktree |
+| AV1-BSP-003 | high | BSP | register request offset/size arithmetic is unchecked | donor `mpp_av1dec.c:234-249`, `:280-298` | Fixed in worktree |
+| AV1-BSP-004 | medium | BSP | class bounds check uses `>` instead of `>=` | donor `mpp_av1dec.c:241`, `:287` | Fixed in worktree |
+| AV1-BSP-005 | medium | BSP | FD translation loop reuses the outer index and translates by write request instead of valid class | donor `mpp_av1dec.c:417-447` | Fixed in worktree |
+| AV1-BSP-006 | medium | BSP | `mpp_extract_reg_offset_info()` return value ignored | donor `mpp_av1dec.c:362-364` | Fixed in worktree |
+| AV1-BSP-007 | medium | BSP | ISR derives `task`/`regs` before checking `mpp->cur_task` | donor `mpp_av1dec.c:641-653` | Fixed in worktree |
+| AV1-FW-001 | low | forward-port | `platform_driver.remove` must return `void` on 6.18 | donor returns `int` | Fixed in worktree |
+| AV1-FW-002 | low | forward-port | procfs guard must match `CONFIG_ROCKCHIP_MPP_PROC_FS`, and that Kconfig must depend on `PROC_FS` | donor uses `CONFIG_PROC_FS` | Fixed in worktree |
+| AV1-FW-003 | cleanup | forward-port | forced include path defines `pr_fmt` before imported BSP files | not a donor runtime bug | Fixed in worktree |
+| AV1-VSI-001 | medium | hybrid integration | VSI IRQ path must not call sleeping runtime-PM resume from hard IRQ | `vsi-iommu.c:192-220` | Fixed in worktree |
+| AV1-VSI-002 | medium | hybrid integration | VSI IRQ fault reporting must tolerate no paging domain / identity domain | `vsi-iommu.c:206-214` | Fixed in worktree |
+| AV1-VSI-003 | high | hybrid integration | duplicate map failure must unwind partial PTE writes and return an error, not a bogus partial success | `vsi-iommu.c:347-380` | Fixed in worktree |
+| AV1-VSI-004 | medium | hybrid integration | map/unmap need a real `.flush_iotlb_all` implementation without self-deadlocking the domain lock | `vsi-iommu.c:383-419`, `:675-691` | Fixed in worktree |
+| AV1-VSI-005 | medium | hybrid integration | identity-domain attach/resume/enable paths must not cast identity domain through `to_vsi_domain()` | `vsi-iommu.c:532-580`, `:783-803` | Fixed in worktree |
+| AV1-DT-001 | low | packaging | `rk3588-rock-5b.dtb` target fails in the plain worktree before AV1 due missing `vdec0/vdec1` labels | `rk3588-rock-5b.dtsi` Armbian media label dependency | Open packaging-order note |
+
+## Details
+
+### AV1-BSP-001 — split request arrays can overflow
+
+The donor task stores one write and one read request array, each sized
+`MPP_MAX_MSG_NUM`, but a single userspace register request can overlap multiple
+AV1 register classes (`vcd`, `cache`, `afbc`). The extractor appends one split
+request per overlapping class without checking the destination count. A valid
+`msgs->req_cnt` can therefore expand past the fixed arrays.
+
+The worktree defines `AV1DEC_MAX_REQ_NUM = MPP_MAX_MSG_NUM * AV1DEC_CLASS_BUTT`,
+sizes both arrays with that maximum, and checks `task->w_req_cnt` /
+`task->r_req_cnt` before taking the next slot.
+
+### AV1-BSP-002 — split write copies from the wrong offset
+
+After `av1dec_update_req()` clamps a request to the current class range, the
+donor computes the destination register pointer with the original `req->offset`.
+For a request spanning more than one register bank, the later-class copy can
+underflow the bank-relative index and write before the class buffer.
+
+The worktree copies using `wreq->offset - base`, where `wreq` is the class
+clamped request.
+
+### AV1-BSP-003 — register request arithmetic is unchecked
+
+The donor computes `req->offset + req->size - sizeof(u32)` with no minimum size,
+alignment, or overflow guard. Tiny, unaligned, or near-`U32_MAX` requests can make
+class-overlap and split-size calculations wrap.
+
+The worktree rejects register requests with `size < sizeof(u32)`, unaligned
+offset/size, or overflowing end-offset arithmetic before splitting them.
+
+### AV1-BSP-004 — class bounds are off by one
+
+The donor helper checks `class > hw->reg_class_num`, but valid indexes are
+`0..reg_class_num - 1`. `class == reg_class_num` is out of range and must be
+rejected. The worktree changes those checks to `>=`.
+
+### AV1-BSP-005 — FD translation loop corrupts its own iterator
+
+The donor code loops over `task->w_req_cnt`, then starts an inner loop that
+reuses `i` for `hw->trans_class_num`. That destroys the outer loop state. It also
+translates a whole register class once per write request rather than once per
+valid class, which can double-apply offsets when multiple writes touch the same
+class.
+
+The worktree marks classes valid during write extraction, then translates each
+valid class exactly once.
+
+### AV1-BSP-006 — offset-info extraction failure is ignored
+
+`MPP_CMD_SET_REG_ADDR_OFFSET` feeds userspace-provided offset metadata into the
+later FD translation path. The donor ignores the return value from
+`mpp_extract_reg_offset_info()`, so a malformed request can leave partially
+updated or stale offset state. The worktree propagates the error and aborts task
+allocation.
+
+### AV1-BSP-007 — threaded ISR dereferences a missing current task
+
+The donor ISR reads `mpp->cur_task`, immediately derives the AV1 task and VCD
+register buffer, and only then checks whether `cur_task` was NULL. A spurious or
+late threaded IRQ can therefore NULL-deref before the guard. The worktree moves
+the NULL guard before `to_av1dec_task()` and register-buffer access.
+
+## Forward-port and integration notes
+
+The `AV1-FW-*` items are not upstream BSP runtime bugs. They are the normal
+6.1-to-6.18 compatibility work needed after importing the BSP file: platform
+remove callbacks now return `void`, the procfs guard must line up with the local
+MPP procfs Kconfig, and this branch's forced compat include reaches `printk.h`
+before several BSP files define `pr_fmt`.
+
+The `AV1-VSI-*` items are also not findings against Rockchip's BSP
+`mpp_av1dec.c`. They come from the chosen hybrid path: using the standalone
+upstream-style Verisilicon IOMMU provider rather than forward-porting the BSP's
+private `third_iommu_ops_wrap` / `rockchip-iommu-av1d.c` integration. They are
+tracked here because they are required for the AV1 experiment to be supportable
+and because a failure there would present as an AV1 decoder bring-up bug.
+
+## Verification status
+
+| Method | Status |
+|--------|--------|
+| Focused MPP object build | PASS: `drivers/video/rockchip/mpp/` builds and includes `mpp_av1dec.o` |
+| Focused IOMMU object build | PASS: `drivers/iommu/` builds and includes `vsi-iommu.o` |
+| Shared RK3588 DTS parse smoke | PASS: `rockchip/rk3588s-orangepi-5.dtb` built during bring-up |
+| ROCK 5B AV1-enabled DTB | PENDING: plain tree still needs the Armbian media patch that provides `vdec0/vdec1` labels |
+| Runtime AV1 decode | PENDING: no board boot or `av1_rkmpp` userspace validation yet |
+
+## Open follow-ups
+
+1. Re-run the DTB parse after the final ROCK 5B override shape is committed.
+2. Add a runtime gate for `ffmpeg-rockchip` `av1_rkmpp` once the DTB packages.
+3. Re-review `av1dec_set_afbc()` arithmetic once runtime traces show which AV1
+   profiles and output formats userspace submits.
+4. If we decide to upstream any fixes to Rockchip BSP, split `AV1-BSP-*` into
+   small mailbox patches independent of the 6.18 compatibility edits.

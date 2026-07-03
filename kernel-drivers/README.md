@@ -75,6 +75,7 @@ Read in this order when changing or reviewing kernel behavior:
 | What are the known traps? | [`../docs/gotchas.md`](../docs/gotchas.md) |
 | What did the BSP audit find? | [`docs/bsp-audit.md`](docs/bsp-audit.md) |
 | What is the RK3588 AV1 path, and why is it separate from RKVDEC2? | [`docs/av1-rk3588.md`](docs/av1-rk3588.md) |
+| What BSP bugs did the experimental RKMPP AV1 port expose? | [`docs/av1-bsp-audit.md`](docs/av1-bsp-audit.md) |
 | How does the **mainline** V4L2 `rkvdec` decoder work (the other stack)? | [`docs/mainline-rkvdec-v4l2.md`](docs/mainline-rkvdec-v4l2.md) |
 | Why is RK3588 **multi-core** decode hard, and where would a scheduler live? | [`docs/multicore-scheduling.md`](docs/multicore-scheduling.md) |
 | How do we resync to a new kernel or BSP? | [`docs/resyncing.md`](docs/resyncing.md) |

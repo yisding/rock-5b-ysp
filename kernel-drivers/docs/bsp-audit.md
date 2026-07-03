@@ -2,6 +2,10 @@
 
 A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA driver code, and a **draft** cleanup patch series derived from it. This is *separate* from the conservative forward-port — none of it is applied to the shipped kernel.
 
+> **AV1 note:** this document covers the validated RKVENC2/RKVDEC2/RGA
+> forward-port. The experimental RKMPP AV1 decoder work has its own tracker:
+> [AV1 BSP audit](./av1-bsp-audit.md).
+
 > **📦 How to consume the fixes.** Review and apply via
 > [`patches/cleanup-split/`](../patches/cleanup-split/) — **the** reviewable
 > series: 65 ordered per-issue mailbox patches (each commit message carries
