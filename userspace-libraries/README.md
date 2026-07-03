@@ -71,6 +71,7 @@ Read these when debugging library/kernel interactions:
 |----------|---------------|
 | What does libmpp hide from an app? | [`docs/how-the-userspace-libs-work.md`](docs/how-the-userspace-libs-work.md) Part A |
 | What does librga hide from an app? | [`docs/how-the-userspace-libs-work.md`](docs/how-the-userspace-libs-work.md) Part B |
+| How do regular users and media developers use librga well? | [`docs/librga-guide.md`](docs/librga-guide.md) |
 | What ioctls cross into the kernel? | [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) |
 | Why does GRD use upstream FFmpeg instead of `ffmpeg-rockchip`? | [`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md) |
 | Which ABI facts were learned during the rewrite track? | [`../kernel-drivers/docs/rewrite-drivers.md`](../kernel-drivers/docs/rewrite-drivers.md) |
