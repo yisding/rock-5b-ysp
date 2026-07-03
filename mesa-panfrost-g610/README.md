@@ -32,6 +32,7 @@ Hardware and software used for the local investigation:
 
 | File | One-liner |
 |---|---|
+| [`fix-walkthrough.md`](./docs/fix-walkthrough.md) | Start here if new to Mesa/C: from-first-principles explainer of the whole series — blits, TXF, varying interpolation, the `gl_FragCoord` fix, each patch, and why COMPUTE/CPU were rejected |
 | [`blit-precision.md`](./docs/blit-precision.md) | Root cause: why sampled-BLIT transfers are not bit-exact on G610 (`LD_VAR_IMM` ~2^-10 drift), everything ruled out, the options grid, and the AFBC constraint on COMPUTE |
 | [`validation.md`](./docs/validation.md) | What was tested for MR !42563: patch shapes, BLIT-vs-COMPUTE timings, GRD readback timings, dEQP reruns, exact dEQP invocation, build checks |
 | [`texture-query-levels.md`](./docs/texture-query-levels.md) | Separate work product on the same branch: `textureQueryLevels()` for Valhall + the texture-descriptor layout facts (LD_PKA, table 62, word2 lod_count field) |
