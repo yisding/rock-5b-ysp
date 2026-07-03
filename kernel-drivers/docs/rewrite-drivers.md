@@ -239,6 +239,7 @@ implementation (cross-reference:
     source, RFBC64x4 source profiles for ffmpeg-facing Rockchip frames,
     full-CSC RGB→YUV, gray256 conversion, Y400 UV downsample, rotate/mirror,
     in-place RGB mosaic, ROP, gaussian blur, NN quantize, RGB alpha-bitmap,
+    RGBA color-key for current forced-core `imcolorkey` normal/inverted modes,
     OSD alpha overlay, and color palette/update-palette commands.
   - Multi-task requests run serially under one completion/fence when every task
     matches a supported profile. Mixed RGA2/RGA3 batches now validate the whole
@@ -251,10 +252,11 @@ implementation (cross-reference:
 - **Remaining recognized RGA gaps** are now comparatively specific: physical
   address imports; full general RGA2/RGA3 policy and command-register
   generation; RGA3 pattern modes outside the supported alpha-overlay profile;
-  color-key outside the normal RGB `imcolorkey` shape; converted no-pattern or
-  mixed-depth 8/10-bit YUV-destination alpha; per-channel rotation; RGA3
-  RFBC/AFBC32x8; tile outside simple bitblits; AFBC destination offsets; and
-  non-bitblit operation modes outside the implemented RGA2 subsets.
+  RGA3 inverted color-key and color-key outside the implemented RGB/RGBA
+  `imcolorkey` shapes; converted no-pattern or mixed-depth 8/10-bit
+  YUV-destination alpha; per-channel rotation; RGA3 RFBC/AFBC32x8; tile outside
+  simple bitblits; AFBC destination offsets; and non-bitblit operation modes
+  outside the implemented RGA2 subsets.
 - **Unsupported profiles fail *late* by design**: `-EOPNOTSUPP` is returned
   only after copy/validate/prepare/queue/dispatch/import-resolve/power-sequence
   reach the backend boundary — so the scheduler/lifetime path is exercised even
