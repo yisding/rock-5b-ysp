@@ -30,7 +30,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 | Kernel target | pinned to 6.18 API surface (resyncing.md hazards) | built on 6.18; being brought up on current mainline master too (§5) |
 | Userspace ABI | full BSP surface | the documented subset current `mpp-rockchip`/`librga`/`ffmpeg-rockchip` actually use |
 | Audit posture | 89 verified findings latent ([BSP audit](./bsp-audit.md)) | small, reviewable, refcount-disciplined by construction |
-| Size (observed 2026-07-03) | MPP ~15,822 lines + RGA3 ~19,171 lines (vendor-delta.md method) | MPP rewrite ~8,282 lines + RGA rewrite ~14,805 lines |
+| Size (observed 2026-07-03) | MPP ~15,822 lines + RGA3 ~19,171 lines (vendor-delta.md method) | MPP rewrite ~8,282 lines + RGA rewrite ~14,901 lines |
 
 Kconfig makes the two tracks **mutually exclusive per device node**:
 `ROCKCHIP_MPP_REWRITE` depends on `!ROCKCHIP_MPP_SERVICE` and registers
@@ -239,10 +239,12 @@ implementation (cross-reference:
     normal/inverted-selector `imcolorkey`;
     Porter-Duff A+B alpha blend for public `librga` modes including CLEAR but
     not unlisted modes, including mixed-depth no-pattern semiplanar 8/10-bit
-    YUV source/destination conversions; mixed-depth pattern-backed
-    ffmpeg/RKMPP overlay paths; AFBC writeback with BSP-style overlap-offset
-    programming for supported alpha-overlay/copy profiles; and overlay
-    pre-processing copies into offset pattern images.
+    YUV source/destination conversions; current RK3588 `im2d_slt` three-channel
+    RGB/RGBA foreground plus RGB/RGBA background scale-up into a semiplanar YUV
+    destination with pattern/background rectangle offsets; mixed-depth
+    pattern-backed ffmpeg/RKMPP overlay paths; AFBC writeback with BSP-style
+    overlap-offset programming for supported alpha-overlay/copy profiles; and
+    overlay pre-processing copies into offset pattern images.
   - **RGA2**: solid fill, YUV fill, rectangle/fill arrays, raster bitblit for
     fallback formats RGA3 does not cover, planar/semiplanar YUV,
     YCbCr400/gray, NV24/NV42, RGB555-family, ARGB/ABGR output, compact 10-bit
@@ -278,7 +280,7 @@ implementation (cross-reference:
   `SET_SESSION_FD` helpers via `ROCKCHIP_MPP_REWRITE_KUNIT_TEST`; and RGA
   ABI-normalization, request create/config/cancel lifecycle, handle-backed
   request staging, import/release-buffer lifecycle, scheduler, fence,
-  RFBC/AFBC/tile, crop/destination-offset, blend-mode,
+  RFBC/AFBC/tile, crop/destination-offset, blend-mode, SLT alpha-blend,
   OSD/palette/gauss/quantize/ROP/mosaic, and ffmpeg-facing profile helpers via
   `ROCKCHIP_RGA_REWRITE_KUNIT_TEST`.
 
@@ -358,9 +360,9 @@ confirm against the TRM before treating either as canonical.
 
 | Item | State (2026-07-03) |
 |------|--------------------|
-| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 7,996 lines; 8,282 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 14,353 lines; 14,805 total incl. `ABI.rst`, `Kconfig`, `Makefile`) |
-| 6.18 state | public branch `linux-rock5b/rk3588-rewrite-6.18` at **`9a4109752ebd`** ("media: rockchip: test rga request config staging"), matching clean dev worktree `/home/yi/Code/linux-6.18-rkvenc`. Since `611f5fe047fd`, the committed work added a large RGA feature-coverage push: userptr import coverage, acquire-fence ownership, per-task core masks, request lifetime fixes, RGA2/RGA3 mixed-task scheduling, RGA priority, RGA2 YUV fill/full-CSC/gray/Y400/RFBC/mosaic/ROP/gauss/quantize/alpha-bitmap/OSD/palette, RGA3 resize/translate/rotate/flip/padding/color-key/tile8x8/AFBC/RFBC-facing/10-bit/P210/alpha-overlay/overlay-preprocess profiles, plus MPP `POLL_HW_IRQ`, DCHS-id, hard-CCU resend/recovery, IOMMU-refresh, session-batch-split, `RELEASE_FD`, nonblocking poll coverage, and RGA request-config staging coverage. |
-| Mainline-master state | public branch `linux-rock5b/rk3588-rewrite-mainline` at **`9eb0cf30c123`** ("media: rockchip: test rga request config staging"), matching clean sibling worktree `/home/yi/Code/linux`; it carries the rewrite drivers plus the mainline-master DT/wiring work and the V4L2 RGA3 comparison tree discussed in §1. |
+| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 7,996 lines; 8,282 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 14,446 lines; 14,901 total incl. `ABI.rst`, `Kconfig`, `Makefile`) |
+| 6.18 state | public branch `linux-rock5b/rk3588-rewrite-6.18` at **`27ac7a067957`** ("media: rockchip: support rga slt alpha blend"), matching clean dev worktree `/home/yi/Code/linux-6.18-rkvenc`. Since `611f5fe047fd`, the committed work added a large RGA feature-coverage push: userptr import coverage, acquire-fence ownership, per-task core masks, request lifetime fixes, RGA2/RGA3 mixed-task scheduling, RGA priority, RGA2 YUV fill/full-CSC/gray/Y400/RFBC/mosaic/ROP/gauss/quantize/alpha-bitmap/OSD/palette, RGA3 resize/translate/rotate/flip/padding/color-key/tile8x8/AFBC/RFBC-facing/10-bit/P210/alpha-overlay/overlay-preprocess profiles, plus MPP `POLL_HW_IRQ`, DCHS-id, hard-CCU resend/recovery, IOMMU-refresh, session-batch-split, `RELEASE_FD`, nonblocking poll coverage, RGA request-config staging coverage, and the RK3588 `im2d_slt` RGB/RGBA-to-YUV three-channel alpha-blend profile. |
+| Mainline-master state | public branch `linux-rock5b/rk3588-rewrite-mainline` at **`a52144fbbb2d`** ("media: rockchip: support rga slt alpha blend"), matching clean sibling worktree `/home/yi/Code/linux`; it carries the rewrite drivers plus the mainline-master DT/wiring work and the V4L2 RGA3 comparison tree discussed in §1. |
 | Validation | Focused compile gates pass at the public tips: mainline `make O=/tmp/rkcompat-mainline-rga-afbc-gcc ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j16 drivers/video/rockchip/rga-rewrite/`; 6.18 `make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j16 drivers/video/rockchip/rga-rewrite/rga_rewrite.o`; `git diff --check` and cross-tree `cmp` also passed for the touched RGA source/docs files. Both rewrite drivers carry optional KUnit coverage for pure ABI/helper logic, and the source-level ABI ledgers record the implemented/unsupported boundary per §2/§3. This is still code/ABI-ledger progress rather than proof from a booted rewrite kernel. [`tests/abi-probe.sh`](../tests/abi-probe.sh) is the fast non-submit ABI log-diff gate for whichever implementation owns `/dev/mpp_service` and `/dev/rga`; [`tests/librga-smoke.sh`](../tests/librga-smoke.sh) is the tiny direct librga/im2d copy/resize/fill smoke; [`tests/rewrite-smoke.sh`](../tests/rewrite-smoke.sh) runs the ABI probe plus decode/encode/transcode consumer workloads. The broader conformance plan is staged outside this repo at `../rockchip-conformance`: JeffyCN GStreamer Rockchip, official MPP tests, official librga samples, the Linux MPP/RGA/DRM demo, and RKMediaCodecDemo, with per-profile logs for rewrite vs forward-port runs. **UNVERIFIED in this repo**: the workload gate and expanded conformance bundle have not yet passed on hardware through the rewrite; no validation record equivalent to status.md exists yet. |
 
 Cross-references: [uAPI guide](./dev-uapis.md) (uAPI surface),
