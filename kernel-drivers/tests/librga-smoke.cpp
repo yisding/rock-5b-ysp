@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <rga/im2d.h>
 
@@ -58,14 +59,20 @@ int main(void)
 	const size_t dst_size = TEST_DST_W * TEST_DST_H * TEST_BPP;
 	rga_buffer_handle_t src_handle = 0;
 	rga_buffer_handle_t dst_handle = 0;
+	rga_buffer_handle_t tmp_handle = 0;
 	rga_buffer_handle_t fill_handle = 0;
 	uint8_t *src_mem = NULL;
 	uint8_t *dst_mem = NULL;
+	uint8_t *tmp_mem = NULL;
 	uint8_t *fill_mem = NULL;
 	rga_buffer_t src;
 	rga_buffer_t dst;
+	rga_buffer_t tmp;
 	rga_buffer_t fill;
 	im_rect fill_rect = {};
+	im_opt_t opt = {};
+	int first_fence = -1;
+	int second_fence = -1;
 	int ret;
 
 	ret = imcheckHeader();
@@ -77,6 +84,7 @@ int main(void)
 
 	if (alloc_aligned((void **)&src_mem, src_size) ||
 	    alloc_aligned((void **)&dst_mem, src_size) ||
+	    alloc_aligned((void **)&tmp_mem, src_size) ||
 	    alloc_aligned((void **)&fill_mem, dst_size)) {
 		perror("posix_memalign");
 		ret = 1;
@@ -84,12 +92,14 @@ int main(void)
 	}
 	fill_pattern(src_mem, TEST_SRC_W, TEST_SRC_H);
 	memset(dst_mem, 0x80, src_size);
+	memset(tmp_mem, 0x40, src_size);
 	memset(fill_mem, 0x33, dst_size);
 
 	src_handle = importbuffer_virtualaddr(src_mem, src_size);
 	dst_handle = importbuffer_virtualaddr(dst_mem, src_size);
+	tmp_handle = importbuffer_virtualaddr(tmp_mem, src_size);
 	fill_handle = importbuffer_virtualaddr(fill_mem, dst_size);
-	if (!src_handle || !dst_handle || !fill_handle) {
+	if (!src_handle || !dst_handle || !tmp_handle || !fill_handle) {
 		fprintf(stderr, "importbuffer_virtualaddr failed\n");
 		ret = 1;
 		goto out;
@@ -98,6 +108,8 @@ int main(void)
 	src = wrapbuffer_handle(src_handle, TEST_SRC_W, TEST_SRC_H,
 				RK_FORMAT_RGBA_8888);
 	dst = wrapbuffer_handle(dst_handle, TEST_SRC_W, TEST_SRC_H,
+				RK_FORMAT_RGBA_8888);
+	tmp = wrapbuffer_handle(tmp_handle, TEST_SRC_W, TEST_SRC_H,
 				RK_FORMAT_RGBA_8888);
 	fill = wrapbuffer_handle(fill_handle, TEST_DST_W, TEST_DST_H,
 				 RK_FORMAT_RGBA_8888);
@@ -118,6 +130,58 @@ int main(void)
 		goto out;
 	}
 	printf("%-24s ok\n", "imcopy");
+
+	memset(dst_mem, 0x80, src_size);
+	opt.core = IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1;
+	opt.priority = 3;
+	ret = improcess(src, dst, {}, {}, {}, {}, -1, NULL, &opt, IM_SYNC);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("improcess forced-core", ret);
+		goto out;
+	}
+	if (memcmp(src_mem, dst_mem, src_size)) {
+		fprintf(stderr, "forced-core output differs from source\n");
+		ret = 1;
+		goto out;
+	}
+	printf("%-24s ok\n", "forced RGA3 copy");
+
+	memset(tmp_mem, 0x40, src_size);
+	memset(dst_mem, 0x80, src_size);
+	ret = imcopy(src, tmp, 0, &first_fence);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("imcopy async", ret);
+		goto out;
+	}
+	if (first_fence < 0) {
+		fprintf(stderr, "imcopy async did not return a release fence\n");
+		ret = 1;
+		goto out;
+	}
+	ret = improcess(tmp, dst, {}, {}, {}, {}, first_fence, &second_fence,
+			NULL, IM_ASYNC);
+	first_fence = -1;
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("improcess async", ret);
+		goto out;
+	}
+	if (second_fence < 0) {
+		fprintf(stderr, "improcess async did not return a release fence\n");
+		ret = 1;
+		goto out;
+	}
+	ret = imsync(second_fence);
+	second_fence = -1;
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("imsync", ret);
+		goto out;
+	}
+	if (memcmp(src_mem, dst_mem, src_size)) {
+		fprintf(stderr, "async fence-chain output differs from source\n");
+		ret = 1;
+		goto out;
+	}
+	printf("%-24s ok\n", "async fence chain");
 
 	dst = wrapbuffer_handle(dst_handle, TEST_DST_W, TEST_DST_H,
 				RK_FORMAT_RGBA_8888);
@@ -154,14 +218,21 @@ int main(void)
 	ret = 0;
 
 out:
+	if (first_fence >= 0)
+		close(first_fence);
+	if (second_fence >= 0)
+		close(second_fence);
 	if (src_handle)
 		releasebuffer_handle(src_handle);
 	if (dst_handle)
 		releasebuffer_handle(dst_handle);
+	if (tmp_handle)
+		releasebuffer_handle(tmp_handle);
 	if (fill_handle)
 		releasebuffer_handle(fill_handle);
 	free(src_mem);
 	free(dst_mem);
+	free(tmp_mem);
 	free(fill_mem);
 
 	return ret;
