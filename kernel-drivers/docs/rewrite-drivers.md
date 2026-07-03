@@ -230,7 +230,7 @@ implementation (cross-reference:
     current `librga` and `ffmpeg-rockchip`; source crop and destination
     offsets; resize interpolation selectors; rotate/flip/mirror, including
     centered rotate and padding/reflect border commands; RGB color-key for
-    normal `imcolorkey`;
+    normal/inverted-selector `imcolorkey`;
     Porter-Duff A+B alpha blend for public `librga` modes including CLEAR but
     not unlisted modes; pattern-backed ffmpeg/RKMPP overlay paths; AFBC writeback
     with BSP-style overlap-offset programming for supported alpha-overlay/copy
@@ -254,8 +254,8 @@ implementation (cross-reference:
 - **Remaining recognized RGA gaps** are now comparatively specific: physical
   address imports; full general RGA2/RGA3 policy and command-register
   generation; RGA3 pattern modes outside the supported alpha-overlay profile;
-  RGA3 inverted color-key and color-key outside the implemented RGB/RGBA
-  `imcolorkey` shapes; converted no-pattern or mixed-depth 8/10-bit
+  RGA3 color-key outside the implemented RGB/RGBA `imcolorkey` shapes;
+  converted no-pattern or mixed-depth 8/10-bit
   YUV-destination alpha; per-channel rotation; RGA3 RFBC/AFBC32x8; tile
   alpha/pattern/color-key or other non-simple bitblit variants; and non-bitblit
   operation modes outside the implemented RGA2 subsets.
