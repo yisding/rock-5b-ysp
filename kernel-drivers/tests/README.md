@@ -126,6 +126,10 @@ sudo bash encode-test-tiny.sh        # encoder
 sudo bash transcode-test.sh          # end-to-end (needs ffmpeg-rockchip built — see ../ffmpeg)
 ```
 
+Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
+was last verified on 2026-07-03 after the direct `librga` smoke gained
+forced-core, fence, and pre-intr coverage.
+
 For rewrite acceptance, boot a kernel where `ROCKCHIP_MPP_REWRITE` and
 `ROCKCHIP_RGA_REWRITE` own the device nodes, then run:
 

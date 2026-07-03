@@ -33,8 +33,9 @@ soft_warns() { dmesg_since "$1" | grep -iE 'WARNING:|warn|deprecat'; }
 
 run_one() {
   local label="$1" type="$2" ext="$3" W="$4" H="$5" N="$6"
-  local mark="ENCMARK-${label}-$(date -u +%H%M%S%N)"
+  local mark
   local of="$OUT/${label}.${ext}"
+  mark="ENCMARK-${label}-$(date -u +%H%M%S%N)"
   echo "================= ${label} : ${W}x${H} ${N} frames -> ${of} ================="
   rm -f "$of"
   echo "=== ${mark} ===" > /dev/kmsg 2>/dev/null
@@ -52,8 +53,8 @@ run_one() {
     echo ">>> OUTPUT EMPTY/MISSING (exit $rc) — encode produced no bitstream. Aborting."; return 3
   fi
   local sz; sz=$(stat -c%s "$of")
-  local nal; nal=$(od -An -tx1 -N4 "$of" | tr -s ' ')
-  echo "--- output ${of}: ${sz} bytes  (first4:${nal}) $( [ "$(echo $nal)" = "00 00 00 01" ] && echo 'NAL-start OK' || echo '(check stream)') ---"
+  local nal; nal=$(od -An -tx1 -N4 "$of" | tr -s ' ' | sed 's/^ //;s/ $//')
+  echo "--- output ${of}: ${sz} bytes  (first4:${nal}) $( [ "$nal" = "00 00 00 01" ] && echo 'NAL-start OK' || echo '(check stream)') ---"
   local w; w=$(soft_warns "$mark" | head -n 4)
   [ -n "$w" ] && { echo "--- non-fatal kernel warnings (noted, not blocking): ---"; echo "$w"; }
   echo ">>> ${label} PASS (${sz} bytes, exit ${rc})"

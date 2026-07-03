@@ -42,9 +42,9 @@ FRAME=$(( W * H * 3 / 2 ))   # 115200 bytes/frame
 echo "================= preflight ================="
 fail=0
 for f in "$DEC" "$H264_IN" "$H265_IN"; do
-  [ -e "$f" ] && echo "  OK   $f" || { echo "  MISS $f"; fail=1; }
+  if [ -e "$f" ]; then echo "  OK   $f"; else echo "  MISS $f"; fail=1; fi
 done
-[ -d "$LIB" ] && echo "  OK   $LIB" || { echo "  MISS $LIB"; fail=1; }
+if [ -d "$LIB" ]; then echo "  OK   $LIB"; else echo "  MISS $LIB"; fail=1; fi
 [ $fail -eq 0 ] || { echo "Missing artifacts -- aborting."; exit 1; }
 # Decoder cores keep mainline's DT node name on the combined kernel, so they
 # appear as video-codec0/1 (verified 2026-07-01, 6.18.37 #7); earlier

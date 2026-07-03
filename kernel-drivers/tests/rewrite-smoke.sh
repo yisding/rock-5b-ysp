@@ -36,7 +36,7 @@ print_counter_dir() {
   for file in "$dir"/*; do
     [ -f "$file" ] || continue
     case "$(basename "$file")" in
-      *_count|hw_count|bound_hw_count|hw_support)
+      *_count|hw_support)
         printf '    %-24s %s\n' "$(basename "$file"):" "$(cat "$file" 2>/dev/null || echo '?')"
         ;;
     esac
@@ -97,15 +97,15 @@ preflight_artifacts() {
 
   echo "================= artifact preflight ================="
   if [ "$RUN_DECODE" = 1 ] || [ "$RUN_ENCODE" = 1 ]; then
-    [ -x "$mpp_build/test/mpi_dec_test" ] && ok "$mpp_build/test/mpi_dec_test" || { no "$mpp_build/test/mpi_dec_test"; fail=1; }
-    [ -x "$mpp_build/test/mpi_enc_test" ] && ok "$mpp_build/test/mpi_enc_test" || { no "$mpp_build/test/mpi_enc_test"; fail=1; }
-    [ -d "$mpp_build/mpp" ] && ok "$mpp_build/mpp" || { no "$mpp_build/mpp"; fail=1; }
+    if [ -x "$mpp_build/test/mpi_dec_test" ]; then ok "$mpp_build/test/mpi_dec_test"; else no "$mpp_build/test/mpi_dec_test"; fail=1; fi
+    if [ -x "$mpp_build/test/mpi_enc_test" ]; then ok "$mpp_build/test/mpi_enc_test"; else no "$mpp_build/test/mpi_enc_test"; fail=1; fi
+    if [ -d "$mpp_build/mpp" ]; then ok "$mpp_build/mpp"; else no "$mpp_build/mpp"; fail=1; fi
   fi
 
   if [ "$RUN_TRANSCODE" = 1 ]; then
-    [ -x "$ffdir/ffmpeg" ] && ok "$ffdir/ffmpeg" || { no "$ffdir/ffmpeg"; fail=1; }
-    [ -x "$ffdir/ffprobe" ] && ok "$ffdir/ffprobe" || { no "$ffdir/ffprobe"; fail=1; }
-    [ -f "$input" ] && ok "$input" || { no "$input"; fail=1; }
+    if [ -x "$ffdir/ffmpeg" ]; then ok "$ffdir/ffmpeg"; else no "$ffdir/ffmpeg"; fail=1; fi
+    if [ -x "$ffdir/ffprobe" ]; then ok "$ffdir/ffprobe"; else no "$ffdir/ffprobe"; fail=1; fi
+    if [ -f "$input" ]; then ok "$input"; else no "$input"; fail=1; fi
   fi
   echo
 
