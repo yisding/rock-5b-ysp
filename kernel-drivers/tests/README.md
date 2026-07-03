@@ -236,8 +236,9 @@ Useful explicit case names are `dec_h264_fakesink`, `dec_h265_fakesink`,
 they feed `videotestsrc` through the MPP encoder, parser, and `mppvideodec` in
 one pipeline so GStreamer's decoder-side buffer-group, short-timeout polling,
 info-change, and reset paths are exercised even before media assets are staged.
-Diagnostic cases include `parallel_enc_h264`, `dec_h264_afbc_fakesink`, and
-`dec_h265_afbc_fakesink`. Override with `GST_REQUIRED_CASES` or
+Diagnostic cases include `parallel_enc_h264`, `parallel_roundtrip_h264`,
+`dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. Override with
+`GST_REQUIRED_CASES` or
 `GST_DIAGNOSTIC_CASES` for narrower hardware debugging, and tune dimensions with
 `GST_WIDTH`, `GST_HEIGHT`, `GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,
 `GST_NUM_BUFFERS`, `GST_STATE_LOOPS`, and `GST_TIMEOUT`. After both kernels have

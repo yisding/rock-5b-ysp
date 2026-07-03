@@ -40,6 +40,7 @@ state_loop_roundtrip_h264
 
 diagnostic_cases_default="
 parallel_enc_h264
+parallel_roundtrip_h264
 "
 
 if [ -n "${GST_H264_INPUT:-}" ]; then
@@ -220,6 +221,18 @@ build_parallel_encode()
 	)
 }
 
+build_parallel_roundtrip()
+{
+	CMD=(
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$GST_NUM_BUFFERS" is-live=false pattern=ball
+		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" tee name=t
+		t. "!" queue "!" mpph264enc zero-copy-pkt=true "!" h264parse "!" mppvideodec "!" fakesink sync=false
+		t. "!" queue "!" mpph264enc zero-copy-pkt=true "!" h264parse "!" mppvideodec "!" fakesink sync=false
+	)
+}
+
 build_case_command()
 {
 	local case_name=$1
@@ -274,6 +287,9 @@ build_case_command()
 		;;
 	parallel_enc_h264)
 		build_parallel_encode
+		;;
+	parallel_roundtrip_h264)
+		build_parallel_roundtrip
 		;;
 	dec_h264_fakesink)
 		build_decode GST_H264_INPUT h264parse

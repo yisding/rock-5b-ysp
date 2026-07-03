@@ -316,7 +316,9 @@ implementation (cross-reference:
   `tests/gstreamer-suite.sh` and `tests/gstreamer-suite-compare.sh`; its default
   required set covers element inspection, raw NV12 encode, encoder-side legacy
   RGA conversion, asset-free H.264/H.265 encode->parse->decode roundtrips,
-  decoder-side RGA rotate/format-convert, and repeated state-loop reset.  The
+  decoder-side RGA rotate/format-convert, and repeated state-loop reset; its
+  diagnostic set also includes parallel H.264 encode and parallel H.264
+  encode->decode roundtrip pipelines for multi-session scheduling evidence.  The
   first media-backed GStreamer matrix should add H.264/H.265 decode to
   `fakesink` and display, decode -> scale/format-convert/rotate -> encode
   transcode, seek/EOS/caps-renegotiation loops, DMABuf allocator negotiation,
