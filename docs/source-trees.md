@@ -17,8 +17,8 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local `rk3588-rewrite-6.18` @ `42fa9c66344d` + local `rk3588-rewrite-mainline` @ `1b8c7d948fe9` — **not yet public**, see §8 |
-| 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | local `../linux/drivers/media/platform/rockchip/rga/` on `rk3588-rewrite-mainline` @ `180ee72a9a80`, see §9 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | `yisding/linux-rock5b` branch `rk3588-rewrite-6.18` @ `daec5ac1f087` + branch `rk3588-rewrite-mainline` @ `5c9ccc529a3a`, see §8 |
+| 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver tests](../kernel-drivers/tests/README.md) "Expanded conformance bundle" | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
 
@@ -190,42 +190,37 @@ Note the **rewrite-driver uAPI extensions** (`MPP_CMD_SET_ERR_REF_HACK`,
 
 ## 8. Rewrite-driver tree
 
-The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md)) currently has two
-dev-box-local kernel pins, both clean but not observed on a public branch as of
-2026-07-02:
+The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md))
+is reconstructible from public branches in `github.com/yisding/linux-rock5b` as
+of 2026-07-03:
 
-- `/home/yi/Code/linux-6.18-rkvenc`, branch `rk3588-rewrite-6.18`, commit
-  `42fa9c66344d` ("media: rockchip: count rga scheduler core activity"), 120
-  commits ahead of `linux-rock5b/rk3588-rewrite-6.18`.
-- `/home/yi/Code/linux`, branch `rk3588-rewrite-mainline`, commit
-  `1b8c7d948fe9` (same tip subject), 120 commits ahead of
-  `linux-rock5b/rk3588-rewrite-mainline`.
+- branch `rk3588-rewrite-6.18`, commit `daec5ac1f087` ("media: rockchip:
+  test mpp nonblocking poll"), matching the clean dev worktree
+  `/home/yi/Code/linux-6.18-rkvenc`.
+- branch `rk3588-rewrite-mainline`, commit `5c9ccc529a3a` (same subject),
+  matching the clean sibling worktree `/home/yi/Code/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
 `drivers/video/rockchip/rga-rewrite/`. The 6.18 tree is the line-count source
 for rewrite-drivers.md's current rewrite-size snapshot; the mainline tree is the
-post-6.18 DT/wiring state. These are **not yet reconstructible from public
-sources** unless the local branches are pushed. Rewrite-drivers.md §6 carries
-the operational status and the TODO to publish a citable branch. The newer pins
-include a large RGA feature-coverage push plus the debugfs scheduler-core
-counters needed to check RGA2/RGA3 forced-core and load-balancing behaviour on
-hardware. The older `180ee72a9a80` mainline pin is still used by §9 for the
+post-6.18 DT/wiring state. These pins include the large RGA feature-coverage
+push plus the debugfs scheduler-core counters needed to check RGA2/RGA3
+forced-core and load-balancing behaviour on hardware, followed by focused MPP
+coverage for selected-core removal races, `RELEASE_FD`, and nonblocking poll.
+The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite
 commits landed.
 
 ## 9. Upstream-style V4L2 RGA3 comparison tree
 
 The upstream-style RGA comparison in rewrite-drivers.md §1 reads the media driver
-from `/home/yi/Code/linux/drivers/media/platform/rockchip/rga/` on branch
-`rk3588-rewrite-mainline` at commit `180ee72a9a80`. That tree contains the
-mainline V4L2 mem2mem RGA driver plus local RK3588/RGA3 patches, including the
-RGA3 command path in `rga3-hw.c` and the temporary multicore-disable logic in
-`rga.c`. It measured 3,168 lines across `*.c`, `*.h`, `Kconfig`, and `Makefile`
-on 2026-07-02.
-
-The branch was clean but seven commits ahead of `linux-rock5b/rk3588-rewrite-mainline`
-when this note was written, so the comparison is a local-tree citation until the
-kernel branch is pushed.
+from `drivers/media/platform/rockchip/rga/` on branch
+`rk3588-rewrite-mainline` at commit `180ee72a9a80`. That commit is now reachable
+in the public `yisding/linux-rock5b` `rk3588-rewrite-mainline` history. The tree
+contains the mainline V4L2 mem2mem RGA driver plus local RK3588/RGA3 patches,
+including the RGA3 command path in `rga3-hw.c` and the temporary
+multicore-disable logic in `rga.c`. It measured 3,168 lines across `*.c`, `*.h`,
+`Kconfig`, and `Makefile` on 2026-07-02.
 
 ## 10. Expanded Rockchip conformance bundle
 
