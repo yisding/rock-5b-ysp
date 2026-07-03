@@ -74,8 +74,9 @@ check_compare_script()
 {
 	local script=$1
 	local out_prefix="$TMP_ROOT/$script"
+	shift
 
-	run_compare "$script" "$GOOD" "$out_prefix.good" PERF_MAX_RATIO=1.25
+	run_compare "$script" "$GOOD" "$out_prefix.good" PERF_MAX_RATIO=1.25 "$@"
 	grep -q "1.200" "$out_prefix.good"
 	grep -q "2.000" "$out_prefix.good"
 	if grep -q "slowdown" "$out_prefix.good"; then
@@ -83,10 +84,10 @@ check_compare_script()
 		exit 1
 	fi
 
-	expect_fail "$script" "$SLOW" "$out_prefix.slow" PERF_MAX_RATIO=1.25
+	expect_fail "$script" "$SLOW" "$out_prefix.slow" PERF_MAX_RATIO=1.25 "$@"
 	grep -q "slowdown" "$out_prefix.slow"
 
-	expect_fail "$script" "$REGRESSION" "$out_prefix.regression" PERF_MAX_RATIO=1.25
+	expect_fail "$script" "$REGRESSION" "$out_prefix.regression" PERF_MAX_RATIO=1.25 "$@"
 	grep -q "regression" "$out_prefix.regression"
 }
 
@@ -96,6 +97,8 @@ check_gstreamer_artifact_compare()
 	local cand_dir="$TMP_ROOT/gstreamer-cand"
 	local out_good="$TMP_ROOT/gstreamer-artifacts.good"
 	local out_bad="$TMP_ROOT/gstreamer-artifacts.bad"
+	local out_missing="$TMP_ROOT/gstreamer-artifacts.missing"
+	local out_legacy="$TMP_ROOT/gstreamer-artifacts.legacy"
 	local status
 
 	mkdir -p "$base_dir" "$cand_dir"
@@ -122,6 +125,26 @@ check_gstreamer_artifact_compare()
 		exit 1
 	fi
 	grep -q "artifact-mismatch" "$out_bad"
+
+	rm -f "$cand_dir/artifacts.tsv"
+	set +e
+	BASELINE_SUMMARY="$base_dir/summary.tsv" \
+		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
+		bash "$TEST_DIR/gstreamer-suite-compare.sh" > "$out_missing"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "missing GStreamer artifact manifest unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q "artifact_compare	skipped" "$out_missing"
+	grep -q "REQUIRE_ARTIFACTS=0" "$out_missing"
+
+	BASELINE_SUMMARY="$base_dir/summary.tsv" \
+		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
+		REQUIRE_ARTIFACTS=0 \
+		bash "$TEST_DIR/gstreamer-suite-compare.sh" > "$out_legacy"
+	grep -q "artifact_compare	skipped" "$out_legacy"
 }
 
 check_librga_latest_filter()
@@ -158,7 +181,7 @@ write_summary "$REGRESSION" rewrite fail 12 8
 
 check_compare_script mpp-suite-compare.sh
 check_compare_script librga-suite-compare.sh
-check_compare_script gstreamer-suite-compare.sh
+check_compare_script gstreamer-suite-compare.sh REQUIRE_ARTIFACTS=0
 check_gstreamer_artifact_compare
 check_librga_latest_filter
 

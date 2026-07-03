@@ -477,8 +477,9 @@ confirm against the TRM before treating either as canonical.
 GStreamer differential testing is now stronger than the table row's historical
 summary: generated H.264/H.265 inputs are cached under the shared conformance
 assets directory, and generated decode/transcode outputs are recorded in
-`artifacts.tsv` with byte counts and SHA-256s. The comparator fails required
-artifact mismatches when both forward-port and rewrite runs provide manifests.
+`artifacts.tsv` with byte counts and SHA-256s. The comparator now requires those
+manifests by default and fails required artifact mismatches; set
+`REQUIRE_ARTIFACTS=0` only for legacy pass/fail-only logs.
 
 ## 7. Path to production readiness
 

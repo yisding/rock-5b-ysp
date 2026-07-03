@@ -9,6 +9,7 @@ CANDIDATE=${CANDIDATE:-rewrite}
 BASELINE_SUMMARY=${BASELINE_SUMMARY:-}
 CANDIDATE_SUMMARY=${CANDIDATE_SUMMARY:-}
 PERF_MAX_RATIO=${PERF_MAX_RATIO:-}
+REQUIRE_ARTIFACTS=${REQUIRE_ARTIFACTS:-1}
 
 find_latest_summary()
 {
@@ -131,10 +132,13 @@ artifact_status=0
 if [ -f "$BASELINE_ARTIFACTS" ] && [ -f "$CANDIDATE_ARTIFACTS" ]; then
 	set +e
 	awk -v baseline="$BASELINE" -v candidate="$CANDIDATE" \
-	    -v base_file="$BASELINE_ARTIFACTS" -v cand_file="$CANDIDATE_ARTIFACTS" '
+	    -v base_file="$BASELINE_ARTIFACTS" -v cand_file="$CANDIDATE_ARTIFACTS" \
+	    -v require_artifacts="$REQUIRE_ARTIFACTS" '
 	BEGIN {
 		FS = "\t";
 		failed = 0;
+		artifact_count = 0;
+		require = (require_artifacts != "" && require_artifacts != "0");
 		printf("\nartifact_baseline\t%s\nartifact_candidate\t%s\n\n",
 		       base_file, cand_file);
 		printf("class\tcase\tkind\t%s_bytes\t%s_bytes\t%s_sha256\t%s_sha256\tverdict\n",
@@ -165,6 +169,7 @@ if [ -f "$BASELINE_ARTIFACTS" ] && [ -f "$CANDIDATE_ARTIFACTS" ]; then
 
 	END {
 		for (key in seen) {
+			artifact_count++;
 			split(key, parts, "\t");
 			case_name = parts[1];
 			kind = parts[2];
@@ -187,6 +192,11 @@ if [ -f "$BASELINE_ARTIFACTS" ] && [ -f "$CANDIDATE_ARTIFACTS" ]; then
 			       class[key], case_name, kind, bb, cb, bs, cs, verdict);
 		}
 
+		if (require && artifact_count == 0) {
+			printf("required\t<none>\t<none>\tmissing\tmissing\tmissing\tmissing\tartifact-missing\n");
+			failed = 1;
+		}
+
 		exit failed;
 	}
 	' "$BASELINE_ARTIFACTS" "$CANDIDATE_ARTIFACTS"
@@ -198,6 +208,10 @@ else
 	echo "artifact_baseline	$BASELINE_ARTIFACTS"
 	echo "artifact_candidate	$CANDIDATE_ARTIFACTS"
 	echo "reason	missing artifact manifest from one or both runs"
+	if [ -n "$REQUIRE_ARTIFACTS" ] && [ "$REQUIRE_ARTIFACTS" != "0" ]; then
+		echo "hint	set REQUIRE_ARTIFACTS=0 for legacy pass/fail-only comparisons"
+		artifact_status=1
+	fi
 fi
 
 if [ "$summary_status" -ne 0 ] || [ "$artifact_status" -ne 0 ]; then
