@@ -13,7 +13,7 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 |-------|----------|
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
-| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `build-mpp-tests.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `suite-compare-selftest.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
+| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `build-mpp-tests.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `suite-common.sh`, `suite-compare-selftest.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
 | Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains an unverified recipe. The rewrite clean-source object-build gate is versioned here and passed both public rewrite branch tips on 2026-07-03. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
 
@@ -160,9 +160,10 @@ After both kernels have a suite result, run `librga-suite-compare.sh`. It finds
 the latest `*-librga-suite/summary.tsv` for `BASELINE=forward-port` and
 `CANDIDATE=rewrite` by default, prints a per-case verdict table with
 elapsed-time ratios, and exits nonzero when a required case passed on the
-baseline but did not pass on the candidate. Set `PERF_MAX_RATIO` to also fail
-required cases that pass on both profiles but are slower than the configured
-candidate/baseline elapsed-time ratio.
+baseline but did not pass on the candidate. Suite summaries record `elapsed_s`
+as decimal seconds with millisecond precision. Set `PERF_MAX_RATIO` to also
+fail required cases that pass on both profiles but are slower than the
+configured candidate/baseline elapsed-time ratio.
 
 `mpp-suite.sh` is the matching versioned wrapper for Rockchip MPP's official
 `test/` binaries from `../rockchip-conformance/out/mpp/bin`. It writes
@@ -318,8 +319,10 @@ sudo bash transcode-test.sh          # end-to-end (needs ffmpeg-rockchip built â
 ```
 
 To turn the rewrite-vs-forward-port compare step into a performance gate, set a
-candidate/baseline elapsed-time ceiling. For example, this fails any required
-case that passes on both profiles but takes more than 25% longer on the rewrite:
+candidate/baseline elapsed-time ceiling. The suite wrappers record fractional
+`elapsed_s` values, so short RGA and GStreamer cases still produce usable
+ratios. For example, this fails any required case that passes on both profiles
+but takes more than 25% longer on the rewrite:
 
 ```bash
 PERF_MAX_RATIO=1.25 bash mpp-suite-compare.sh

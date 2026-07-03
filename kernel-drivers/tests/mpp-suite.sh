@@ -3,6 +3,8 @@ set -euo pipefail
 
 TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
+# shellcheck source=suite-common.sh disable=SC1091
+source "$TEST_DIR/suite-common.sh"
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
@@ -523,7 +525,7 @@ run_case()
 	fi
 
 	write_command_file "$command_file"
-	start=$(date +%s)
+	start=$(suite_now_ns)
 	set +e
 	if [ "$MPP_TIMEOUT" = "0" ]; then
 		"${CMD[@]}" > "$log" 2>&1
@@ -532,8 +534,8 @@ run_case()
 	fi
 	status=$?
 	set -e
-	end=$(date +%s)
-	elapsed=$((end - start))
+	end=$(suite_now_ns)
+	elapsed=$(suite_elapsed_s "$start" "$end")
 
 	printf "%s\n" "$status" > "$status_file"
 	if [ "$status" -eq 0 ]; then
