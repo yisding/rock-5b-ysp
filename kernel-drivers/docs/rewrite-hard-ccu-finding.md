@@ -1,12 +1,14 @@
-# Finding: the rewrite runs HARD CCU where the BSP runs SOFT
+# Finding: RK3588 CCU mode is now honored; HARD remains unvalidated
 
-**Date:** 2026-07-03 · **Track:** clean-room rewrite (`mpp-rewrite`) · **Status:** open, needs hardware.
+**Date:** 2026-07-03 · **Track:** clean-room rewrite (`mpp-rewrite`) · **Status:** code mismatch fixed, needs hardware.
 
-The rewrite MPP driver drives the RK3588 dual-core decoder in **HARD CCU** mode on
-the actual rock-5b device tree, even though the BSP-validated configuration is
-**SOFT CCU**. Upstream/secondary sources report HARD as unreliable. This page
-records the divergence, why the existing tests don't cover it, and how to earn
-confidence in (or design around) HARD.
+The rewrite MPP driver originally drove the RK3588 dual-core decoder in **HARD
+CCU** mode on the actual rock-5b device tree, even though the BSP-validated
+configuration is **SOFT CCU**. The current rewrite now reads
+`rockchip,ccu-mode`, defaults invalid/missing values to BSP-compatible SOFT, and
+only enables HARD link-table scheduling when the DT explicitly selects
+`rockchip,ccu-mode = <2>`. This page records the fixed divergence, the remaining
+hardware-validation gap, and how to earn confidence in HARD.
 
 Read [multicore-scheduling.md § 7](./multicore-scheduling.md#7-the-ccu-and-its-hardsoft-modes)
 first — it establishes what SOFT/HARD are ("who owns the scheduling loop": CPU vs
@@ -14,7 +16,7 @@ the CCU) and notes that even Rockchip defaults to SOFT. This page is the
 rewrite-specific consequence of that, plus a validation plan.
 
 > **Anchors & provenance.** `file:line` for the rewrite resolve against
-> `linux-6.18-rkvenc`, branch `rk3588-rewrite-6.18` (tip `b7053000e792`, this is
+> `linux-6.18-rkvenc`, branch `rk3588-rewrite-6.18` (tip `ee279b88cfa8`, this is
 > the same tree as track 4 in [status.md](../../status.md)). Vendor `file:line`
 > resolve against the forward-ported `drivers/video/rockchip/mpp/`. DT lines are in
 > that same tree's `arch/arm64/boot/dts/rockchip/`. The "HARD is unreliable" claim
@@ -27,11 +29,11 @@ rewrite-specific consequence of that, plus a validation plan.
 
 | | BSP forward-port (vendor) | Clean-room rewrite |
 |---|---|---|
-| Modes implemented | SOFT **and** HARD (`mpp_rkvdec2_link.c`) | **HARD only** |
-| Reads `rockchip,ccu-mode`? | Yes (`mpp_rkvdec2.c:1759`) | **No — property ignored** |
-| Default when unset | SOFT (`mpp_rkvdec2.c:1753`) | n/a (always HARD if link MMIO present) |
-| What rock-5b DT requests | SOFT (`rockchip,ccu-mode = <1>`) | (ignored) |
-| What actually runs on the board | **SOFT** | **HARD** |
+| Modes implemented | SOFT **and** HARD (`mpp_rkvdec2_link.c`) | SOFT default + HARD opt-in |
+| Reads `rockchip,ccu-mode`? | Yes (`mpp_rkvdec2.c:1759`) | Yes |
+| Default when unset/invalid | SOFT (`mpp_rkvdec2.c:1753`) | SOFT |
+| What rock-5b DT requests | SOFT (`rockchip,ccu-mode = <1>`) | honored |
+| What should run on the board | **SOFT** | **SOFT** |
 
 **The device tree explicitly asks for SOFT:**
 
@@ -41,29 +43,29 @@ rk3588-base.dtsi:1549   rockchip,ccu-mode = <1>;
 rk3588-rock-5b.dtsi:141 &rkvdec_ccu { status = "okay"; };   # enables, no mode override
 ```
 
-**The rewrite implements only the HARD linked-list path** and never consults the
-property:
+**The rewrite now gates the two paths from the same DT property:**
 
-- `rk_mpp_rkvdec2_reserve_link_table` / `_fill_ccu_descriptor` /
-  `_prepare_ccu_descriptor` / `_start_ccu_job` — all HARD-CCU (in-memory
-  descriptor list handed to the CCU, `CCU_CFG_ADDR` / `LINK_MODE` / `CFG_DONE`).
-- No SOFT-CCU equivalent (no software per-core round-robin dispatch loop).
-- `grep ccu-mode mpp_rewrite.c` → nothing.
+- `rk_mpp_hw_read_rkvdec_ccu_mode` reads `rockchip,ccu-mode` from the CCU node
+  and normalizes invalid/missing values to SOFT.
+- `rk_mpp_rkvdec2_prepare_soft_ccu` programs the SOFT coordination registers and
+  starts the selected core directly, matching the BSP "CPU owns dispatch" model.
+- `rk_mpp_rkvdec2_stage_link_table` / `_start_ccu_job` remain available only
+  when the normalized mode is HARD.
 
-**And the HARD path is live on this DT, not the `-EOPNOTSUPP` fallback.** The link
-table is provisioned whenever a `ccu_node` and the `"link"` reg window are present
-(`rk_mpp_rkvdec2_setup_link`, `mpp_rewrite.c:8192`). On rock-5b both are true:
+**The fixed risk boundary:** HARD is still implemented, but it is no longer live
+on the Rock 5B DT merely because the `"link"` reg window exists. Link tables are
+allocated only when the DT selects HARD. On rock-5b the relevant core still has
+both a CCU phandle and link MMIO:
 
 ```
 rk3588-rock-5b.dtsi   &vdec0 { reg-names = "regs", "link"; rockchip,ccu = <&rkvdec_ccu>; ... }
 ```
 
-so `hw->rkvdec_link_vaddr` is allocated and `reserve_link_table` succeeds. The
-`-EOPNOTSUPP` degrade-to-per-core path is reached **only** when the `"link"` MMIO
-is absent — which it is not here.
+but the explicit `rockchip,ccu-mode = <1>` now keeps the rewrite on SOFT.
 
-**Net:** on the shipped board DT, the rewrite silently selects a multi-core mode
-the BSP deliberately avoids.
+**Net:** the shipped board DT no longer silently selects a multi-core mode the
+BSP deliberately avoids. The remaining question is runtime equivalence and
+performance on hardware.
 
 ---
 
@@ -78,13 +80,13 @@ The HARD path has ~16 KUnit cases (`_fill_link_table`, `_link_table_ownership`,
 They are **logic-level only**: descriptors are built in `kunit_kcalloc` buffers
 with fake IOVAs (`0x12345000`), and assertions check link-table **byte layout**
 (which register word lands where, next-pointer, readback/segment offsets) and the
-job-list / ownership / power-transfer **state machines**. No test touches MMIO, the
-CCU register block, DMA, or real hardware. **SOFT has zero coverage** because it is
-unimplemented.
+job-list / ownership / power-transfer **state machines**. The new SOFT coverage
+checks mode normalization and the register programming shape, but still does not
+touch real MMIO, DMA, reset timing, or real hardware.
 
-So the suite would catch a regression in *how the driver assembles link tables and
-juggles jobs*, but says nothing about whether RK3588 silicon actually **executes**
-them — which is precisely where "HARD is unreliable" would live.
+So the suite would catch a regression in *which path is selected* and *how the
+driver assembles link tables / programs SOFT coordination registers*, but says
+nothing about whether RK3588 silicon executes either mode correctly under load.
 
 ---
 
@@ -121,9 +123,10 @@ testing (unbounded interleaving space). Achievable goals: (a) drive the failure
 rate below a soak threshold, and (b) guarantee **safe degradation** on failure.
 
 **Prerequisite — make the mode selectable + safe by default.**
-- Wire the rewrite to read `rockchip,ccu-mode` (today it ignores it). Default to
-  the BSP-validated SOFT/per-core path; make HARD opt-in.
-- Add **fallback-on-fault**: on a HARD timeout/reset, demote that `hw` to
+- Done in code: the rewrite reads `rockchip,ccu-mode`, defaults to the
+  BSP-validated SOFT/per-core path, and makes HARD opt-in.
+- Still needed: add **fallback-on-fault**. On a HARD timeout/reset, demote that
+  `hw` to
   per-core/SOFT and log. Turns a user-visible decode hang into degraded-but-working
   + telemetry — the thing that lets you ship while chasing the tail.
 - This also gives you the A/B oracle below on one kernel.
@@ -174,11 +177,12 @@ instability (that needs Layers 2–4). Pairs with the existing
 
 ## 5. Bottom line
 
-Ship SOFT as the default, gate HARD behind a flag with automatic
-fallback-on-timeout, and earn confidence in HARD via **differential soak testing
-under KCSAN**, with the append-race, IRQ-vs-lock, and reset-recovery paths as the
-named targets. Everything here needs RK3588 hardware, so it lands on the same
-critical path as the outstanding bring-up (track 4, [status.md](../../status.md)).
+Ship SOFT as the default, keep HARD opt-in with automatic fallback-on-timeout,
+and earn confidence in HARD via **differential soak testing under KCSAN**, with
+the append-race, IRQ-vs-lock, and reset-recovery paths as the named targets.
+Everything beyond the code-selection fix needs RK3588 hardware, so it lands on
+the same critical path as the outstanding bring-up (track 4,
+[status.md](../../status.md)).
 
 **Cross-refs:** [multicore-scheduling.md § 7](./multicore-scheduling.md#7-the-ccu-and-its-hardsoft-modes)
 · [rewrite-drivers.md](./rewrite-drivers.md) · [debug-kernel.md](./debug-kernel.md)
