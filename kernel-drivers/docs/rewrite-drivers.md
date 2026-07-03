@@ -232,9 +232,11 @@ implementation (cross-reference:
     centered rotate and padding/reflect border commands; RGB color-key for
     normal/inverted-selector `imcolorkey`;
     Porter-Duff A+B alpha blend for public `librga` modes including CLEAR but
-    not unlisted modes; pattern-backed ffmpeg/RKMPP overlay paths; AFBC writeback
-    with BSP-style overlap-offset programming for supported alpha-overlay/copy
-    profiles; and overlay pre-processing copies into offset pattern images.
+    not unlisted modes, including same-depth no-pattern semiplanar YUV
+    source/destination conversions; pattern-backed ffmpeg/RKMPP overlay paths;
+    AFBC writeback with BSP-style overlap-offset programming for supported
+    alpha-overlay/copy profiles; and overlay pre-processing copies into offset
+    pattern images.
   - **RGA2**: solid fill, YUV fill, rectangle/fill arrays, raster bitblit for
     fallback formats RGA3 does not cover, planar/semiplanar YUV,
     YCbCr400/gray, NV24/NV42, RGB555-family, ARGB/ABGR output, compact 10-bit
@@ -255,8 +257,8 @@ implementation (cross-reference:
   address imports; full general RGA2/RGA3 policy and command-register
   generation; RGA3 pattern modes outside the supported alpha-overlay profile;
   RGA3 color-key outside the implemented RGB/RGBA `imcolorkey` shapes;
-  converted no-pattern or mixed-depth 8/10-bit
-  YUV-destination alpha; per-channel rotation; RGA3 RFBC/AFBC32x8; tile
+  mixed-depth 8/10-bit YUV-destination alpha; per-channel rotation;
+  RGA3 RFBC/AFBC32x8; tile
   alpha/pattern/color-key or other non-simple bitblit variants; and non-bitblit
   operation modes outside the implemented RGA2 subsets.
 - **Unsupported profiles fail *late* by design**: `-EOPNOTSUPP` is returned
