@@ -1,17 +1,21 @@
 # ffmpeg/patches/ — exported RKMPP/RKRGA review-fix series
 
-The nine `git format-patch` files in this directory are the actual diffs behind
-the 14 fix groups described in [`../fix-candidates.md`](../docs/fix-candidates.md).
-They exist so the fixes survive independently of the dev box and of any
-maintained fork: [`../fix-candidates.md`](../docs/fix-candidates.md) is the *why*,
-this directory is the *what*.
+The 28 `git format-patch` files in this directory are the actual diffs behind
+the fix work described in [`../fix-candidates.md`](../docs/fix-candidates.md)
+(the 14 originally-audited groups) and
+[`../submission-plan.md`](../docs/submission-plan.md) (the 2026-07-02
+full-branch targeting analysis). They exist so the fixes survive independently
+of the dev box and of any maintained fork: those docs are the *why*, this
+directory is the *what*.
 
 ## Provenance
 
-Exported 2026-07-01 with `git format-patch --base=def08a047f def08a047f..main`
-from a clone of **`github.com/yisding/ffmpeg-rockchip-81`** (branch `main`,
-tip `b59509b609`, in sync with `origin/main` at export time). Tree topology,
-pins, and replay method: [`../rebase-notes.md`](../docs/rebase-notes.md).
+Exported 2026-07-02 with `git format-patch --base=def08a047f def08a047f..main`
+from the working clone of **`github.com/yisding/ffmpeg-rockchip-81`** (branch
+`main`, tip `6cf02ab253`, in sync with `origin/main` at export time; replaces
+the 2026-07-01 nine-patch export of the same series' first commits). Tree
+topology, pins, and replay method:
+[`../rebase-notes.md`](../docs/rebase-notes.md).
 
 The series applies on top of:
 
@@ -45,27 +49,30 @@ NyanMisaka-facing 10-patch split suggested at the end of FIX-CANDIDATES is a
 | `0006` | `383bd2a4f3` | fix rkmpp review cleanup issues | 5, 12, 13 |
 | `0007` | `9319172196` | fix rkmpp frame ownership cleanup | 5, 9, 12 |
 | `0008` | `1c73bd8e65` | fix rkmpp code review issues | 3, 5, 9, 10, 12, 13, 14 |
-| `0009` | `b59509b609` | fix rkmpp/v4l2 code review issues | post-write-up — see below |
+| `0009` | `b59509b609` | fix rkmpp/v4l2 code review issues | post-write-up (see [`../submission-plan.md`](../docs/submission-plan.md)) |
 
-`0009` landed on 2026-07-01 *after* the FIX-CANDIDATES write-up (which audited
-`1c73bd8e65`) and is not yet folded into its groups. Its commit message is the
-authoritative summary; headline items: decoder input-queue-full deadlock
-(return to caller instead of looping while all frames are held), MJPEG
-in-flight frame tracking during drain, BSF-filtered extradata sent before the
-first packet, errinfo frames surfaced as `AVERROR_INVALIDDATA` instead of a
-clean EOF, decoder state/`last_pts` reset on flush, `AVERROR(EOF)`→
-`AVERROR_EOF` sign fix, zero-pitch DRM-descriptor guards in encoder and RGA
-(SIGFPE), V4L2 DV-timings validation + `mmap_free` leak fix, and
-`drm_is_afbc`/`drm_is_rfbc` macro parenthesization.
+Patches `0010`–`0028` (2026-07-01/02) landed after the FIX-CANDIDATES write-up
+and are **not** mapped onto its groups; their targeting is covered by
+[`../submission-plan.md`](../docs/submission-plan.md) instead. By theme:
+
+| Patch range | Commits | Theme |
+|-------------|---------|-------|
+| `0010`–`0012` | `290be4a8a5..2c5ed87e26` | RGA overlay preproc/blend rework, crop defaults + `global_alpha=0`, encoder async send-queue rework + flush support |
+| `0013`–`0020` | `d1eb7f66ac..1c75fe327d` | DRM descriptor/layout validation frameworks (rkmppenc + rkrga + hwcontext_rkmpp), AFBC modifier whitelist + `afbc_offset_y` descriptor field, RFBC removal (`0018`), v4l2 m2m format-negotiation + copy rework |
+| `0021`–`0027` | `deb5047b03..a7f67c4cf4` | AFBC/capture fallback regression fixes, v4l2 mplane padded-raw validation, NV21 mapping, RGA compact 10-bit input fallback, v4l2 MPLANE-first retry + buffer release |
+| `0028` | `6cf02ab253` | 2026-07-02 review: decode drain/EOS/errinfo fixes, v4l2 copy source bounds, SAR transpose, DRM descriptor provenance, MJPEG SOF sizing, capture pixel-format two-pass fallback |
 
 ## Fork-only vs upstream-candidate
 
+Superseded in detail by [`../submission-plan.md`](../docs/submission-plan.md)
+(per-logical-change verdicts, verified against both trees). Short version:
+
 | Content | Label |
 |---------|-------|
-| Everything touching `rkmppdec.*`, `rkmppenc.*`, `hwcontext_rkmpp.*`, `rkrga_common.c`, and the `NV15`/`NV20_PACKED` swscale/pixdesc work | **Fork-only.** Upstream FFmpeg has no `AV_HWDEVICE_TYPE_RKMPP` hwcontext, no RKRGA filters, and no compact 10-bit NV formats ([`../fix-candidates.md`](../docs/fix-candidates.md) summary table). |
-| The `libavdevice/v4l2.c` / `v4l2-common.c` hunks in `0001`, `0002`, and `0009` (mplane `data_offset` payload accounting, `VIDIOC_G_DV_TIMINGS` framerate fallback + validation, `NV16`/`NV24` `#ifdef` guards, `mmap_free` leak) | **Upstream-candidate material** — the only two pieces FIX-CANDIDATES judges plausible as FFmpeg submissions, and even those need re-scoping to upstream's narrower single-plane mmap model before sending. |
+| Everything touching `rkmppdec.*`, `rkmppenc.*`, `hwcontext_rkmpp.*`, `rkrga_*`, and the `NV15`/`NV20_PACKED` swscale/pixdesc work | **Fork-only** (nyanmisaka target). Upstream FFmpeg has no `AV_HWDEVICE_TYPE_RKMPP` hwcontext, no RKRGA filters, and no compact 10-bit NV formats. |
+| The `libavcodec/v4l2_buffers.c`/`v4l2_context.c`/`v4l2_fmt.*` work (mostly in `0020`, `0028`) and the generic `libavdevice/v4l2.c` hunks (device_caps, bounds guards, two-pass format fallback, NV21) | **Upstream-candidate material** — nyanmisaka's series never touches the m2m stack, so these sit on vanilla upstream code and fix real upstream bugs (NULL deref, source overreads, format clobbering). See submission-plan §A. |
 
-None of it has been submitted anywhere as of 2026-07-01 — see the submission
+None of it has been submitted anywhere as of 2026-07-02 — see the submission
 ledger in [`../rebase-notes.md`](../docs/rebase-notes.md) §6.
 
 ## Applying
@@ -83,7 +90,7 @@ git am /path/to/rock-5b-ysp/ffmpeg/patches/00*.patch
 
 In practice the simpler path is `git clone
 https://github.com/yisding/ffmpeg-rockchip-81 && git checkout main` — the
-series is already applied there (`def08a047f..b59509b609`). Use `git am`
+series is already applied there (`def08a047f..6cf02ab253`). Use `git am`
 against `def08a047f` only when rebuilding from upstream FFmpeg plus this
 archive, or `git am -3` when porting to a nearby base.
 

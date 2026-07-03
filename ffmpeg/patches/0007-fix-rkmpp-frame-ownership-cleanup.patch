@@ -1,7 +1,7 @@
 From 93191721962c7e53f94462f6e7edb6dc7eb84c76 Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
 Date: Wed, 1 Jul 2026 14:28:45 -0700
-Subject: [PATCH 7/9] fix rkmpp frame ownership cleanup
+Subject: [PATCH 07/28] fix rkmpp frame ownership cleanup
 
 ---
  libavcodec/rkmppdec.c       |  2 ++

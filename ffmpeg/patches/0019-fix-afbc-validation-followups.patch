@@ -1,0 +1,398 @@
+From c2783ea8958acc356648694a60efec81132828b2 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 2 Jul 2026 01:51:56 -0700
+Subject: [PATCH 19/28] fix afbc validation followups
+
+---
+ configure                   |   9 ++
+ libavcodec/rkmppdec.c       |   4 +-
+ libavcodec/rkmppenc.c       |  10 ++-
+ libavdevice/v4l2.c          |   7 ++
+ libavfilter/rkrga_common.c  | 158 ++++++++++++++++++++++++++----------
+ libavfilter/rkrga_common.h  |   1 -
+ libavfilter/vf_vpp_rkrga.c  |   4 +-
+ libavutil/hwcontext_rkmpp.h |   4 -
+ 8 files changed, 144 insertions(+), 53 deletions(-)
+
+diff --git a/configure b/configure
+index aaf00fc781..42cda73338 100755
+--- a/configure
++++ b/configure
+@@ -7604,6 +7604,15 @@ enabled rkmpp             && { require_pkg_config rkmpp "rockchip_mpp >= 1.3.9"
+                              }
+ enabled rkrga             && { require_pkg_config rkrga librga rga/RgaApi.h c_RkRgaBlit &&
+                                require_pkg_config rkrga librga rga/im2d.h "querystring imsync" &&
++                               require_cc rkrga "rga/RgaApi.h rga/im2d.h" "rga_info_t info = { 0 };
++                                  info.is_10b_compact = 1;
++                                  info.is_10b_endian = 1;
++                                  info.core = 0;
++                                  info.priority = 1;
++                                  info.sync_mode = RGA_BLIT_ASYNC;
++                                  int status = IM_STATUS_SUCCESS;
++                                  (void)status;
++                                  (void)info" &&
+                                { enabled rkmpp ||
+                                  die "ERROR: rkrga requires --enable-rkmpp"; }
+                              }
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index 4a12338d03..bc965cd4fb 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -770,8 +770,8 @@ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mp
+     if (avctx->codec_id == AV_CODEC_ID_MPEG1VIDEO ||
+         avctx->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
+         MppFrameRational sar = mpp_frame_get_sar(mpp_frame);
+-        frame->sample_aspect_ratio = av_div_q((AVRational) { sar.num, sar.den },
+-                                              (AVRational) { frame->width, frame->height });
++        if (sar.num > 0 && sar.den > 0)
++            frame->sample_aspect_ratio = (AVRational) { sar.num, sar.den };
+     }
+ 
+     if ((avctx->codec_id == AV_CODEC_ID_HEVC ||
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index 089c208114..5f6bc8bdd0 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -118,6 +118,12 @@ static uint32_t rkmpp_get_drm_afbc_format(MppFrameFormat mpp_fmt)
+     }
+ }
+ 
++static int rkmpp_is_supported_afbc_modifier(uint64_t modifier)
++{
++    return modifier == DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_SPARSE |
++                                               AFBC_FORMAT_MOD_BLOCK_SIZE_16x16);
++}
++
+ static uint32_t rkmpp_get_drm_format(enum AVPixelFormat pix_fmt)
+ {
+     switch (pix_fmt) {
+@@ -583,7 +589,7 @@ static int rkmpp_set_enc_cfg_prep(AVCodecContext *avctx, AVFrame *frame)
+         return AVERROR(EINVAL);
+ 
+     pix_desc = av_pix_fmt_desc_get(r->pix_fmt);
+-    is_afbc = drm_is_afbc(drm_desc->objects[0].format_modifier);
++    is_afbc = rkmpp_is_supported_afbc_modifier(drm_desc->objects[0].format_modifier);
+     is_fbc  = is_afbc;
+     if (!is_fbc &&
+         drm_desc->objects[0].format_modifier != DRM_FORMAT_MOD_LINEAR) {
+@@ -1125,7 +1131,7 @@ static MPPEncFrame *rkmpp_submit_frame(AVCodecContext *avctx, AVFrame *frame,
+     layer = &drm_desc->layers[0];
+     plane0 = &layer->planes[0];
+ 
+-    is_afbc = drm_is_afbc(drm_desc->objects[0].format_modifier);
++    is_afbc = rkmpp_is_supported_afbc_modifier(drm_desc->objects[0].format_modifier);
+     is_fbc  = is_afbc;
+     if (!is_fbc &&
+         drm_desc->objects[0].format_modifier != DRM_FORMAT_MOD_LINEAR) {
+diff --git a/libavdevice/v4l2.c b/libavdevice/v4l2.c
+index 03d1fb2d40..44181a5b8f 100644
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -427,6 +427,13 @@ static int mmap_init(AVFormatContext *ctx)
+         }
+ 
+         plane_count = s->multiplanar ? buf.length : 1;
++        if (plane_count < 1 || plane_count > VIDEO_MAX_PLANES) {
++            av_log(ctx, AV_LOG_ERROR,
++                   "Invalid plane count %d for buffer %d\n",
++                   plane_count, i);
++            res = AVERROR(EINVAL);
++            goto fail;
++        }
+         if (s->plane_count && s->plane_count != plane_count) {
+             av_log(ctx, AV_LOG_ERROR, "Plane count differed between buffers\n");
+             res = AVERROR(EINVAL);
+diff --git a/libavfilter/rkrga_common.c b/libavfilter/rkrga_common.c
+index b24d553316..4c2f43359e 100644
+--- a/libavfilter/rkrga_common.c
++++ b/libavfilter/rkrga_common.c
+@@ -24,6 +24,7 @@
+  */
+ 
+ #include <inttypes.h>
++#include <limits.h>
+ 
+ #include "libavutil/common.h"
+ #include "libavutil/imgutils.h"
+@@ -237,14 +238,50 @@ static const AVDRMObjectDescriptor *get_single_drm_object(const AVDRMFrameDescri
+     return object_index < 0 ? NULL : &desc->objects[object_index];
+ }
+ 
+-static int get_afbc_pixel_stride(float bytes_pp, int *stride, int reverse)
++static int get_afbc_pixel_stride(const AVPixFmtDescriptor *desc,
++                                 ptrdiff_t byte_stride,
++                                 int *pixel_stride)
+ {
+-    if (!stride || *stride <= 0 || bytes_pp <= 0)
++    int bpp;
++    int64_t bits;
++
++    if (!desc || !pixel_stride || byte_stride <= 0)
++        return AVERROR(EINVAL);
++
++    bpp = av_get_padded_bits_per_pixel(desc);
++    bits = (int64_t)byte_stride * 8;
++    if (bpp <= 0 || bits % bpp)
++        return AVERROR(EINVAL);
++
++    bits /= bpp;
++    if (bits <= 0 || bits > INT_MAX)
++        return AVERROR(EINVAL);
++
++    *pixel_stride = bits;
++    return 0;
++}
++
++static int get_afbc_byte_stride(const AVPixFmtDescriptor *desc,
++                                int pixel_stride,
++                                ptrdiff_t *byte_stride)
++{
++    int bpp;
++    int64_t bits;
++
++    if (!desc || !byte_stride || pixel_stride <= 0)
+         return AVERROR(EINVAL);
+ 
+-    *stride = reverse ? (*stride / bytes_pp) : (*stride * bytes_pp);
++    bpp = av_get_padded_bits_per_pixel(desc);
++    bits = (int64_t)pixel_stride * bpp;
++    if (bpp <= 0 || bits % 8)
++        return AVERROR(EINVAL);
+ 
+-    return (*stride > 0) ? 0 : AVERROR(EINVAL);
++    bits /= 8;
++    if (bits <= 0 || bits > PTRDIFF_MAX)
++        return AVERROR(EINVAL);
++
++    *byte_stride = bits;
++    return 0;
+ }
+ 
+ /* Canonical formats: https://dri.freedesktop.org/docs/drm/gpu/afbc.html */
+@@ -997,11 +1034,12 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+ 
+         plane0 = &layer->planes[0];
+         info.rect.wstride = plane0->pitch;
+-        if ((ret = get_afbc_pixel_stride(in_info->bytes_pp, &info.rect.wstride, 1)) < 0)
++        if ((ret = get_afbc_pixel_stride(in_info->pix_desc, plane0->pitch,
++                                         &info.rect.wstride)) < 0)
+             goto fail;
+ 
+         if (info.rect.wstride % RK_RGA_AFBC_16x16_STRIDE_ALIGN)
+-            info.rect.wstride = FFALIGN(inlink->w, RK_RGA_AFBC_16x16_STRIDE_ALIGN);
++            goto fail;
+ 
+         info.rect.hstride = FFALIGN(inlink->h + afbc_offset_y,
+                                     RK_RGA_AFBC_16x16_STRIDE_ALIGN);
+@@ -1011,6 +1049,18 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+                                           info.rect.hstride, "Input");
+         if (ret < 0)
+             goto fail;
++        ret = validate_rga3_pixel_stride(ctx, in_info, out_info,
++                                         info.rect.wstride,
++                                         info.rect.hstride, "Input");
++        if (ret < 0)
++            goto fail;
++        if (ret > 0 && !r->has_rga2p) {
++            av_log(ctx, AV_LOG_ERROR, "Input format '%s' with AFBC modifier is not supported by RGA2 (non-Pro)\n",
++                   av_get_pix_fmt_name(in_info->pix_fmt));
++            goto fail;
++        }
++        if ((ret = verify_rga_frame_info_io_dynamic(ctx, in_info, out_info)) < 0)
++            goto fail;
+ 
+         info.rd_mode = 1 << 1; /* IM_AFBC16x16_MODE */
+     }
+@@ -1122,22 +1172,66 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+     }
+ 
+     is_afbc = r->afbc_out && !pat_preproc;
++    if (is_afbc) {
++        uint32_t drm_afbc_fmt = get_drm_afbc_format(out_info->pix_fmt);
++        int afbc_w_stride = FFALIGN(pat_preproc ? inlink->w : outlink->w,
++                                    RK_RGA_AFBC_16x16_STRIDE_ALIGN);
++        int afbc_h_stride = FFALIGN(pat_preproc ? inlink->h : outlink->h,
++                                    RK_RGA_AFBC_16x16_STRIDE_ALIGN);
++
++        if (drm_afbc_fmt == DRM_FORMAT_INVALID) {
++            av_log(ctx, AV_LOG_WARNING, "Output format '%s' with AFBC modifier is not supported\n",
++                   av_get_pix_fmt_name(out_info->pix_fmt));
++            is_afbc = r->afbc_out = 0;
++        } else if ((out_info->rga_fmt == RK_FORMAT_YCbCr_420_SP_10B ||
++                    out_info->rga_fmt == RK_FORMAT_YCbCr_422_SP_10B) &&
++                   (afbc_w_stride % 64)) {
++            av_log(ctx, AV_LOG_WARNING, "Output pixel wstride '%d' format '%s' is not supported by RGA3 AFBC\n",
++                   afbc_w_stride, av_get_pix_fmt_name(out_info->pix_fmt));
++            is_afbc = r->afbc_out = 0;
++        } else {
++            w_stride = afbc_w_stride;
++            h_stride = afbc_h_stride;
++        }
++    }
++
+     ret = validate_linear_drm_layer(ctx, object, layer, out_info->pix_fmt,
+                                     outlink->w, outlink->h);
+     if (ret < 0)
+         goto fail;
+-    ret = get_pixel_stride(object,
+-                           layer,
+-                           out_info->pix_fmt,
+-                           (out_info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB),
+-                           (out_info->pix_desc->flags & AV_PIX_FMT_FLAG_PLANAR),
+-                           outlink->w, outlink->h, &w_stride, &h_stride);
+-    if (!is_afbc && (ret < 0 || !w_stride || !h_stride)) {
+-        av_log(ctx, AV_LOG_ERROR, "Failed to get frame strides\n");
+-        goto fail;
++    if (!is_afbc) {
++        ret = get_pixel_stride(object,
++                               layer,
++                               out_info->pix_fmt,
++                               (out_info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB),
++                               (out_info->pix_desc->flags & AV_PIX_FMT_FLAG_PLANAR),
++                               outlink->w, outlink->h, &w_stride, &h_stride);
++        if (ret < 0 || !w_stride || !h_stride) {
++            av_log(ctx, AV_LOG_ERROR, "Failed to get frame strides\n");
++            goto fail;
++        }
+     }
+ 
+-    if (!is_afbc) {
++    ret = validate_active_rect_stride(ctx, out_info,
++                                      w_stride, h_stride, "Output");
++    if (ret < 0)
++        goto fail;
++    ret = validate_rga3_pixel_stride(ctx, out_info, &r->out_rga_frame_info,
++                                     w_stride, h_stride, "Output");
++    if (ret < 0)
++        goto fail;
++    if (ret > 0 && is_afbc) {
++        is_afbc = r->afbc_out = 0;
++        ret = get_pixel_stride(object,
++                               layer,
++                               out_info->pix_fmt,
++                               (out_info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB),
++                               (out_info->pix_desc->flags & AV_PIX_FMT_FLAG_PLANAR),
++                               outlink->w, outlink->h, &w_stride, &h_stride);
++        if (ret < 0 || !w_stride || !h_stride) {
++            av_log(ctx, AV_LOG_ERROR, "Failed to get frame strides\n");
++            goto fail;
++        }
+         ret = validate_active_rect_stride(ctx, out_info,
+                                           w_stride, h_stride, "Output");
+         if (ret < 0)
+@@ -1146,11 +1240,11 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+                                          w_stride, h_stride, "Output");
+         if (ret < 0)
+             goto fail;
+-        if ((ret = verify_rga_frame_info_io_dynamic(ctx,
+-                                                    pat_preproc ? in1_info : in0_info,
+-                                                    out_info)) < 0)
+-            goto fail;
+     }
++    if ((ret = verify_rga_frame_info_io_dynamic(ctx,
++                                                pat_preproc ? in1_info : in0_info,
++                                                out_info)) < 0)
++        goto fail;
+ 
+     info.fd           = object->fd;
+     info.format       = out_info->rga_fmt;
+@@ -1205,24 +1299,6 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+     if (is_afbc) {
+         uint32_t drm_afbc_fmt = get_drm_afbc_format(out_info->pix_fmt);
+ 
+-        if (drm_afbc_fmt == DRM_FORMAT_INVALID) {
+-            av_log(ctx, AV_LOG_WARNING, "Output format '%s' with AFBC modifier is not supported\n",
+-                   av_get_pix_fmt_name(out_info->pix_fmt));
+-            r->afbc_out = 0;
+-            goto exit;
+-        }
+-
+-        w_stride = FFALIGN(pat_preproc ? inlink->w : outlink->w, RK_RGA_AFBC_16x16_STRIDE_ALIGN);
+-        h_stride = FFALIGN(pat_preproc ? inlink->h : outlink->h, RK_RGA_AFBC_16x16_STRIDE_ALIGN);
+-
+-        if ((info.rect.format == RK_FORMAT_YCbCr_420_SP_10B ||
+-             info.rect.format == RK_FORMAT_YCbCr_422_SP_10B) && (w_stride % 64)) {
+-            av_log(ctx, AV_LOG_WARNING, "Output pixel wstride '%d' format '%s' is not supported by RGA3 AFBC\n",
+-                   w_stride, av_get_pix_fmt_name(out_info->pix_fmt));
+-            r->afbc_out = 0;
+-            goto exit;
+-        }
+-
+ #ifndef RGA_NORMAL_FBCE_RGB_BGR_FIXUP
+         /* Inverted RGB/BGR order in FBCE */
+         switch (info.rect.format) {
+@@ -1248,11 +1324,11 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+         layer->planes[0].offset = 0;
+         layer->planes[0].pitch  = info.rect.wstride;
+ 
+-        if ((ret = get_afbc_pixel_stride(out_info->bytes_pp, (int *)&layer->planes[0].pitch, 0)) < 0)
++        if ((ret = get_afbc_byte_stride(out_info->pix_desc, info.rect.wstride,
++                                        &layer->planes[0].pitch)) < 0)
+             goto fail;
+     }
+ 
+-exit:
+     out_frame->info = info;
+ 
+     return out_frame;
+@@ -1598,8 +1674,6 @@ static av_cold int fill_rga_frame_info_by_link(AVFilterContext *avctx,
+ 
+     info->pix_fmt  = hwfc->sw_format;
+     info->pix_desc = av_pix_fmt_desc_get(info->pix_fmt);
+-    info->bytes_pp = av_get_padded_bits_per_pixel(info->pix_desc) / 8.0f;
+-
+     info->act_x    = 0;
+     info->act_y    = 0;
+     info->act_w    = link->w;
+diff --git a/libavfilter/rkrga_common.h b/libavfilter/rkrga_common.h
+index 9c4359b53a..110d116960 100644
+--- a/libavfilter/rkrga_common.h
++++ b/libavfilter/rkrga_common.h
+@@ -53,7 +53,6 @@ typedef struct RGAFrameInfo {
+     enum _Rga_SURF_FORMAT     rga_fmt;
+     enum AVPixelFormat        pix_fmt;
+     const AVPixFmtDescriptor *pix_desc;
+-    float                     bytes_pp;
+     int                       act_x;
+     int                       act_y;
+     int                       act_w;
+diff --git a/libavfilter/vf_vpp_rkrga.c b/libavfilter/vf_vpp_rkrga.c
+index 570b4e401f..474c56b233 100644
+--- a/libavfilter/vf_vpp_rkrga.c
++++ b/libavfilter/vf_vpp_rkrga.c
+@@ -175,8 +175,6 @@ static av_cold int eval_expr(AVFilterContext *ctx,
+     /* calc again in case cx is relative to cy */
+     CALC_EXPR(cx_expr, var_values[VAR_CX], *ret_cx, (var_values[VAR_IW] - var_values[VAR_CW]) / 2);
+ 
+-    r->crop = (*ret_cw != var_values[VAR_IW]) || (*ret_ch != var_values[VAR_IH]);
+-
+ release:
+     av_expr_free(w_expr);
+     av_expr_free(h_expr);
+@@ -216,6 +214,8 @@ static av_cold int set_size_info(AVFilterContext *ctx,
+     r->act_y = FFMIN(r->act_y, inlink->h - r->act_h);
+     r->act_w = FFMIN(r->act_w, inlink->w - r->act_x);
+     r->act_h = FFMIN(r->act_h, inlink->h - r->act_y);
++    r->crop = r->act_x || r->act_y ||
++              r->act_w != inlink->w || r->act_h != inlink->h;
+     src_w = r->act_w;
+     src_h = r->act_h;
+ 
+diff --git a/libavutil/hwcontext_rkmpp.h b/libavutil/hwcontext_rkmpp.h
+index d7e0b4d0a9..78f071cc18 100644
+--- a/libavutil/hwcontext_rkmpp.h
++++ b/libavutil/hwcontext_rkmpp.h
+@@ -77,10 +77,6 @@
+         DRM_FORMAT_MOD_ARM_CODE(DRM_FORMAT_MOD_ARM_TYPE_AFBC, __afbc_mode)
+ #endif
+ 
+-#define drm_is_afbc(mod) \
+-        (((mod) >> 52) == (DRM_FORMAT_MOD_ARM_TYPE_AFBC | \
+-                (DRM_FORMAT_MOD_VENDOR_ARM << 4)))
+-
+ /**
+  * DRM Prime Frame descriptor for RKMPP HWDevice.
+  */
+-- 
+2.53.0
+

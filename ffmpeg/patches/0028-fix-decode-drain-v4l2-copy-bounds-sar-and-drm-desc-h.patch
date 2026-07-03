@@ -1,0 +1,423 @@
+From 6cf02ab253b6db79d1076f796489402571d69cd3 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 2 Jul 2026 18:52:39 -0700
+Subject: [PATCH 28/28] fix decode drain, v4l2 copy bounds, sar and drm desc
+ handling
+
+- rkmppdec: retry instead of premature EOF on discard/errinfo frames
+  during drain, set eof on data-carrying EOS frames to avoid a blocking
+  hang, do not latch eof on a single MJPEG errinfo frame, size MJPEG
+  output buffers from the larger of SOF and context dimensions, and
+  export colorimetry per frame
+- v4l2_buffers: bound plane copies by the source frame height and
+  replicate the last row into driver padding rows
+- v4l2: fall back to any supported capture format when the requested
+  pixel_format is rejected, matching upstream
+- rkrga/vpp: keep unknown SAR 0/den through transpose instead of
+  producing the invalid 1/0
+- rkmpp enc/rga/hwcontext: only trust the extended RKMPP DRM
+  descriptor when provenance (hw frames ctx type or descriptor buffer
+  size) proves it
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ libavcodec/rkmppdec.c       | 34 +++++++++++++++++++++++++-----
+ libavcodec/rkmppenc.c       | 11 ++++++++++
+ libavcodec/v4l2_buffers.c   | 32 +++++++++++++++++++++--------
+ libavdevice/v4l2.c          | 16 ++++++++++++++-
+ libavfilter/rkrga_common.c  | 41 +++++++++++++++++++++++++------------
+ libavfilter/vf_vpp_rkrga.c  | 12 +++++++----
+ libavutil/hwcontext_rkmpp.c | 15 +++++++++++++-
+ 7 files changed, 128 insertions(+), 33 deletions(-)
+
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index 5d08350a95..fc5b387d81 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -151,10 +151,17 @@ static int rkmpp_mjpeg_output_buffer_size(AVCodecContext *avctx,
+ {
+     int width = avctx->width > 0 ? avctx->width : avctx->coded_width;
+     int height = avctx->height > 0 ? avctx->height : avctx->coded_height;
++    int parsed_width = 0, parsed_height = 0;
+     uint64_t aligned_width, aligned_height;
+ 
+-    if ((width <= 0 || height <= 0) && pkt->data && pkt->size > 0)
+-        rkmpp_mjpeg_parse_dimensions(pkt->data, pkt->size, &width, &height);
++    /* the bitstream may be larger than the container-declared size:
++     * trust the SOF dimensions when they exceed the context ones */
++    if (pkt->data && pkt->size > 0 &&
++        rkmpp_mjpeg_parse_dimensions(pkt->data, pkt->size,
++                                     &parsed_width, &parsed_height)) {
++        width  = FFMAX(width,  parsed_width);
++        height = FFMAX(height, parsed_height);
++    }
+ 
+     if (width <= 0 || height <= 0) {
+         av_log(avctx, AV_LOG_ERROR, "Failed to determine MJPEG dimensions\n");
+@@ -944,15 +951,25 @@ static int rkmpp_get_frame(AVCodecContext *avctx, AVFrame *frame, int timeout)
+         r->frames_pending--;
+     if (mpp_frame_get_eos(mpp_frame)) {
+         av_log(avctx, AV_LOG_DEBUG, "Received a 'EOS' frame\n");
++        /* MPP signals EOS only once: remember it even when the EOS frame
++         * carries valid data, otherwise the next drain call would block
++         * forever waiting for a frame that never arrives */
++        r->eof = 1;
+         /* EOS frame may contain valid data */
+         if (!mpp_frame_get_buffer(mpp_frame)) {
+-            r->eof = 1;
+             ret = AVERROR_EOF;
+             goto exit;
+         }
+     }
+     if (mpp_frame_get_discard(mpp_frame)) {
+         av_log(avctx, AV_LOG_DEBUG, "Received a 'discard' frame\n");
++        /* during draining decodable frames may still be queued behind the
++         * discarded one: retry, otherwise the caller would turn the EAGAIN
++         * into a premature EOF */
++        if (r->draining && avctx->codec_id != AV_CODEC_ID_MJPEG) {
++            mpp_frame_deinit(&mpp_frame);
++            return rkmpp_get_frame(avctx, frame, MPP_TIMEOUT_MAX);
++        }
+         ret = AVERROR(EAGAIN);
+         goto exit;
+     }
+@@ -972,13 +989,18 @@ static int rkmpp_get_frame(AVCodecContext *avctx, AVFrame *frame, int timeout)
+             goto exit;
+         }
+         if (!ignore_err) {
+-            /* bail out from the loop, surfacing the error instead of a clean EOF */
+-            r->eof = 1;
++            /* surface the error for this frame only; latching EOF here would
++             * permanently end streams (e.g. live MJPEG capture) whose later
++             * frames are still decodable */
+             ret = AVERROR_INVALIDDATA;
+             goto exit;
+         }
+         /* return decodable frames flagged as corrupt, drop buffer-less ones */
+         if (!mpp_frame_get_buffer(mpp_frame)) {
++            if (r->draining && avctx->codec_id != AV_CODEC_ID_MJPEG) {
++                mpp_frame_deinit(&mpp_frame);
++                return rkmpp_get_frame(avctx, frame, MPP_TIMEOUT_MAX);
++            }
+             ret = AVERROR(EAGAIN);
+             goto exit;
+         }
+@@ -1082,6 +1104,8 @@ static int rkmpp_get_frame(AVCodecContext *avctx, AVFrame *frame, int timeout)
+ export:
+         av_log(avctx, AV_LOG_DEBUG, "Received a frame\n");
+         r->got_frame = 1;
++        /* colorimetry may change mid-stream without an info-change event */
++        rkmpp_export_avctx_color_props(avctx, mpp_frame);
+ 
+         switch (avctx->pix_fmt) {
+         case AV_PIX_FMT_DRM_PRIME:
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index 4996944429..38781953fc 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -734,9 +734,20 @@ static MPPEncFrame *get_free_frame(MPPEncFrame **list)
+ 
+ static const AVRKMPPDRMFrameDescriptor *get_rkmpp_drm_desc(const AVFrame *frame)
+ {
++    const AVHWFramesContext *hwfc;
++
+     if (!frame || !frame->data[0])
+         return NULL;
+ 
++    /* only RKMPP hwcontext frames carry the extended descriptor: a foreign
++     * DRM_PRIME frame whose descriptor buffer merely happens to be large
++     * enough must not have its trailing bytes read as afbc_offset_y */
++    if (!frame->hw_frames_ctx)
++        return NULL;
++    hwfc = (AVHWFramesContext *)frame->hw_frames_ctx->data;
++    if (hwfc->device_ctx->type != AV_HWDEVICE_TYPE_RKMPP)
++        return NULL;
++
+     for (int i = 0; i < AV_NUM_DATA_POINTERS; i++) {
+         if (frame->buf[i] &&
+             frame->buf[i]->data == frame->data[0] &&
+diff --git a/libavcodec/v4l2_buffers.c b/libavcodec/v4l2_buffers.c
+index e519e25648..820c788948 100644
+--- a/libavcodec/v4l2_buffers.c
++++ b/libavcodec/v4l2_buffers.c
+@@ -324,7 +324,7 @@ static int v4l2_bufref_to_buf(V4L2Buffer *out, int plane, const uint8_t* data, i
+ static int v4l2_copy_plane_to_buf_at(V4L2Buffer *out, int plane,
+                                       const uint8_t *data, int src_linesize,
+                                       int row_bytes, int dst_linesize,
+-                                      int rows, int offset)
++                                      int rows, int src_rows, int offset)
+ {
+     uint8_t *dst;
+     uint64_t size, end;
+@@ -332,7 +332,7 @@ static int v4l2_copy_plane_to_buf_at(V4L2Buffer *out, int plane,
+ 
+     if (plane >= out->num_planes || !data ||
+         src_linesize < row_bytes || dst_linesize < row_bytes ||
+-        rows <= 0 || row_bytes <= 0 || offset < 0)
++        rows <= 0 || src_rows <= 0 || row_bytes <= 0 || offset < 0)
+         return AVERROR(EINVAL);
+ 
+     size = (uint64_t)dst_linesize * rows;
+@@ -341,12 +341,21 @@ static int v4l2_copy_plane_to_buf_at(V4L2Buffer *out, int plane,
+         out->plane_info[plane].length > UINT_MAX)
+         return AVERROR(EINVAL);
+ 
++    /* the driver format may have more (alignment padding) rows than the
++     * source frame: replicate the last source row instead of reading past
++     * the end of the source plane */
++    src_rows = FFMIN(src_rows, rows);
++
+     dst = (uint8_t*)out->plane_info[plane].mm_addr + offset;
+-    for (int row = 0; row < rows; row++) {
++    for (int row = 0; row < src_rows; row++) {
+         memcpy(dst, data, row_bytes);
+         dst  += dst_linesize;
+         data += src_linesize;
+     }
++    for (int row = src_rows; row < rows; row++) {
++        memcpy(dst, data - src_linesize, row_bytes);
++        dst += dst_linesize;
++    }
+ 
+     bytesused = end;
+     length = out->plane_info[plane].length;
+@@ -362,7 +371,7 @@ static int v4l2_copy_plane_to_buf_at(V4L2Buffer *out, int plane,
+ 
+ static int v4l2_copy_plane_to_buf(V4L2Buffer *out, int plane,
+                                   const uint8_t *data, int src_linesize,
+-                                  int row_bytes, int rows)
++                                  int row_bytes, int rows, int src_rows)
+ {
+     int dst_linesize;
+ 
+@@ -371,7 +380,7 @@ static int v4l2_copy_plane_to_buf(V4L2Buffer *out, int plane,
+ 
+     dst_linesize = out->plane_info[plane].bytesperline;
+     return v4l2_copy_plane_to_buf_at(out, plane, data, src_linesize,
+-                                     row_bytes, dst_linesize, rows, 0);
++                                     row_bytes, dst_linesize, rows, src_rows, 0);
+ }
+ 
+ static int v4l2_single_buffer_plane_linesize(enum AVPixelFormat pix_fmt,
+@@ -508,11 +517,12 @@ static int v4l2_buffer_swframe_to_buf(const AVFrame *frame, V4L2Buffer *out)
+             return ret;
+ 
+         for (i = 0; i < planes_nb; i++) {
+-            int dst_linesize, h = height;
++            int dst_linesize, h = height, src_h = frame->height;
+             int64_t size;
+ 
+             if (i == 1 || i == 2) {
+                 h = AV_CEIL_RSHIFT(h, desc->log2_chroma_h);
++                src_h = AV_CEIL_RSHIFT(src_h, desc->log2_chroma_h);
+             }
+ 
+             ret = v4l2_single_buffer_plane_linesize(frame->format, desc,
+@@ -530,7 +540,7 @@ static int v4l2_buffer_swframe_to_buf(const AVFrame *frame, V4L2Buffer *out)
+             ret = v4l2_copy_plane_to_buf_at(out, 0, frame->data[i],
+                                             frame->linesize[i],
+                                             row_bytes[i], dst_linesize,
+-                                            h, offset);
++                                            h, src_h, offset);
+             if (ret)
+                 return ret;
+             offset += size;
+@@ -558,16 +568,20 @@ static int v4l2_buffer_swframe_to_buf(const AVFrame *frame, V4L2Buffer *out)
+             return ret;
+ 
+         for (i = 0; i < out->num_planes; i++) {
++            int src_rows = frame->height;
++
+             plane_rows[i] = height;
+-            if (i == 1 || i == 2)
++            if (i == 1 || i == 2) {
+                 plane_rows[i] = AV_CEIL_RSHIFT(height, desc->log2_chroma_h);
++                src_rows = AV_CEIL_RSHIFT(src_rows, desc->log2_chroma_h);
++            }
+ 
+             if (!frame->data[i])
+                 return AVERROR(EINVAL);
+ 
+             ret = v4l2_copy_plane_to_buf(out, i, frame->data[i],
+                                          frame->linesize[i],
+-                                         row_bytes[i], plane_rows[i]);
++                                         row_bytes[i], plane_rows[i], src_rows);
+             if (ret)
+                 return ret;
+         }
+diff --git a/libavdevice/v4l2.c b/libavdevice/v4l2.c
+index f5901042b6..7b11b70f50 100644
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -1174,10 +1174,15 @@ static int device_try_init(AVFormatContext *ctx,
+     }
+ 
+     if (!*desired_format) {
++        /* prefer the requested pixel format, but fall back to anything the
++         * device supports, matching upstream behavior */
++        int require_pix_fmt = pix_fmt != AV_PIX_FMT_NONE;
++
++retry:
+         for (i = 0; ff_fmt_conversion_table[i].codec_id != AV_CODEC_ID_NONE; i++) {
+             if ((ctx->video_codec_id == AV_CODEC_ID_NONE ||
+                  ff_fmt_conversion_table[i].codec_id == ctx->video_codec_id) &&
+-                (pix_fmt == AV_PIX_FMT_NONE ||
++                (!require_pix_fmt ||
+                  ff_fmt_conversion_table[i].ff_fmt == pix_fmt)) {
+                 av_log(ctx, AV_LOG_DEBUG, "Trying to set codec:%s pix_fmt:%s\n",
+                        avcodec_get_name(ff_fmt_conversion_table[i].codec_id),
+@@ -1193,6 +1198,15 @@ static int device_try_init(AVFormatContext *ctx,
+             }
+         }
+ 
++        if (*desired_format == 0 && require_pix_fmt) {
++            av_log(ctx, AV_LOG_WARNING,
++                   "Pixel format '%s' rejected by the device, "
++                   "trying other supported formats\n",
++                   (char *)av_x_if_null(av_get_pix_fmt_name(pix_fmt), "none"));
++            require_pix_fmt = 0;
++            goto retry;
++        }
++
+         if (*desired_format == 0) {
+             av_log(ctx, AV_LOG_ERROR, "Cannot find a proper format for "
+                    "codec '%s' (id %d), pixel format '%s' (id %d)\n",
+diff --git a/libavfilter/rkrga_common.c b/libavfilter/rkrga_common.c
+index ab9d8d30f0..89b2777cb6 100644
+--- a/libavfilter/rkrga_common.c
++++ b/libavfilter/rkrga_common.c
+@@ -934,9 +934,20 @@ static void release_frame(RGAFrame *frame)
+ 
+ static const AVRKMPPDRMFrameDescriptor *get_rkmpp_drm_desc(const AVFrame *frame)
+ {
++    const AVHWFramesContext *hwfc;
++
+     if (!frame || !frame->data[0])
+         return NULL;
+ 
++    /* only RKMPP hwcontext frames carry the extended descriptor: a foreign
++     * DRM_PRIME frame whose descriptor buffer merely happens to be large
++     * enough must not have its trailing bytes read as afbc_offset_y */
++    if (!frame->hw_frames_ctx)
++        return NULL;
++    hwfc = (AVHWFramesContext *)frame->hw_frames_ctx->data;
++    if (hwfc->device_ctx->type != AV_HWDEVICE_TYPE_RKMPP)
++        return NULL;
++
+     for (int i = 0; i < AV_NUM_DATA_POINTERS; i++) {
+         if (frame->buf[i] &&
+             frame->buf[i]->data == frame->data[0] &&
+@@ -1384,19 +1395,23 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+     out_frame->frame->crop_bottom = 0;
+     out_frame->frame->crop_left   = 0;
+     out_frame->frame->crop_right  = 0;
+-    if ((in0_info->rotate_mode & 0x04) == 0x04 /* HAL_TRANSFORM_ROT_90 */ ||
+-        (in0_info->rotate_mode & 0x07) == 0x07 /* HAL_TRANSFORM_ROT_270 */) {
+-        av_reduce(&out_frame->frame->sample_aspect_ratio.den,
+-                  &out_frame->frame->sample_aspect_ratio.num,
+-                  (int64_t)in->sample_aspect_ratio.num * outlink->w * in0_info->act_w,
+-                  (int64_t)in->sample_aspect_ratio.den * outlink->h * in0_info->act_h,
+-                  INT_MAX);
+-    } else {
+-        av_reduce(&out_frame->frame->sample_aspect_ratio.num,
+-                  &out_frame->frame->sample_aspect_ratio.den,
+-                  (int64_t)in->sample_aspect_ratio.num * outlink->h * in0_info->act_w,
+-                  (int64_t)in->sample_aspect_ratio.den * outlink->w * in0_info->act_h,
+-                  INT_MAX);
++    /* an unknown input SAR (0/den) must stay as copied from the input:
++     * scaling it would turn 0/1 into the invalid 1/0 in the rotated case */
++    if (in->sample_aspect_ratio.num) {
++        if ((in0_info->rotate_mode & 0x04) == 0x04 /* HAL_TRANSFORM_ROT_90 */ ||
++            (in0_info->rotate_mode & 0x07) == 0x07 /* HAL_TRANSFORM_ROT_270 */) {
++            av_reduce(&out_frame->frame->sample_aspect_ratio.den,
++                      &out_frame->frame->sample_aspect_ratio.num,
++                      (int64_t)in->sample_aspect_ratio.num * outlink->w * in0_info->act_w,
++                      (int64_t)in->sample_aspect_ratio.den * outlink->h * in0_info->act_h,
++                      INT_MAX);
++        } else {
++            av_reduce(&out_frame->frame->sample_aspect_ratio.num,
++                      &out_frame->frame->sample_aspect_ratio.den,
++                      (int64_t)in->sample_aspect_ratio.num * outlink->h * in0_info->act_w,
++                      (int64_t)in->sample_aspect_ratio.den * outlink->w * in0_info->act_h,
++                      INT_MAX);
++        }
+     }
+ 
+     if ((ret = av_hwframe_get_buffer(hw_frame_ctx, out_frame->frame, 0)) < 0) {
+diff --git a/libavfilter/vf_vpp_rkrga.c b/libavfilter/vf_vpp_rkrga.c
+index 84a72e7e87..825f2868ac 100644
+--- a/libavfilter/vf_vpp_rkrga.c
++++ b/libavfilter/vf_vpp_rkrga.c
+@@ -320,22 +320,26 @@ static av_cold int set_size_info(AVFilterContext *ctx,
+         case TRANSPOSE_CCLOCK_FLIP:
+             r->in_rotate_mode = 0x07 ^ 0x01; /* HAL_TRANSFORM_ROT_270 + HAL_TRANSFORM_FLIP_H */
+             FFSWAP(int, outlink->w, outlink->h);
+-            FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
++            if (outlink->sample_aspect_ratio.num)
++                FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
+             break;
+         case TRANSPOSE_CLOCK:
+             r->in_rotate_mode = 0x04; /* HAL_TRANSFORM_ROT_90 */
+             FFSWAP(int, outlink->w, outlink->h);
+-            FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
++            if (outlink->sample_aspect_ratio.num)
++                FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
+             break;
+         case TRANSPOSE_CCLOCK:
+             r->in_rotate_mode = 0x07; /* HAL_TRANSFORM_ROT_270 */
+             FFSWAP(int, outlink->w, outlink->h);
+-            FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
++            if (outlink->sample_aspect_ratio.num)
++                FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
+             break;
+         case TRANSPOSE_CLOCK_FLIP:
+             r->in_rotate_mode = 0x04 | 0x01; /* HAL_TRANSFORM_ROT_90 + HAL_TRANSFORM_FLIP_H */
+             FFSWAP(int, outlink->w, outlink->h);
+-            FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
++            if (outlink->sample_aspect_ratio.num)
++                FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
+             break;
+         case TRANSPOSE_REVERSAL:
+             r->in_rotate_mode = 0x03; /* HAL_TRANSFORM_ROT_180 */
+diff --git a/libavutil/hwcontext_rkmpp.c b/libavutil/hwcontext_rkmpp.c
+index e2781e6be6..d062f1c283 100644
+--- a/libavutil/hwcontext_rkmpp.c
++++ b/libavutil/hwcontext_rkmpp.c
+@@ -495,12 +495,25 @@ static int rkmpp_map_frame(AVHWFramesContext *hwfc,
+     RKMPPDRMMapping *map;
+     int err, i, p, plane;
+     int mmap_prot;
++    int have_mpp_buffers = 0;
+     void *addr;
+ 
+     err = rkmpp_validate_drm_descriptor(hwfc, desc);
+     if (err < 0)
+         return err;
+ 
++    /* the MppBuffer pointers live past the end of the base
++     * AVDRMFrameDescriptor: only trust them when the descriptor buffer is
++     * actually large enough, otherwise fall back to mmap of the fds */
++    for (i = 0; i < AV_NUM_DATA_POINTERS; i++) {
++        if (src->buf[i] &&
++            src->buf[i]->data == src->data[0] &&
++            src->buf[i]->size >= sizeof(AVRKMPPDRMFrameDescriptor)) {
++            have_mpp_buffers = 1;
++            break;
++        }
++    }
++
+     map = av_mallocz(sizeof(*map));
+     if (!map)
+         return AVERROR(ENOMEM);
+@@ -522,7 +535,7 @@ static int rkmpp_map_frame(AVHWFramesContext *hwfc,
+ 
+     for (i = 0; i < desc->drm_desc.nb_objects; i++) {
+         addr = NULL;
+-        if (desc->buffers[i])
++        if (have_mpp_buffers && desc->buffers[i])
+             addr = mpp_buffer_get_ptr(desc->buffers[i]);
+ 
+         if (addr) {
+-- 
+2.53.0
+

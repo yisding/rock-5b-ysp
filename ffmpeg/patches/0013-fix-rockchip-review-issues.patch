@@ -1,0 +1,799 @@
+From d1eb7f66acd5ca2fb4cd5dec4f6e130a83ac305d Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 2 Jul 2026 00:12:32 -0700
+Subject: [PATCH 13/28] fix rockchip review issues
+
+---
+ libavcodec/rkmppdec.c          |   3 +-
+ libavcodec/rkmppenc.c          |  29 +++++-
+ libavfilter/rkrga_common.c     | 160 +++++++++++++++++++++++++--------
+ libavfilter/vf_overlay_rkrga.c |   2 +-
+ libavfilter/vf_vpp_rkrga.c     |  11 ++-
+ libavutil/hwcontext_rkmpp.h    |   6 ++
+ libavutil/pixdesc.c            |  68 +++++++++++---
+ libavutil/tests/pixdesc.c      |  76 ++++++++++++++++
+ tests/fate/libavutil.mak       |   5 ++
+ tests/ref/fate/imgutils        |   4 +-
+ 10 files changed, 304 insertions(+), 60 deletions(-)
+
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index 480edff3b5..066bccaa3d 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -759,8 +759,7 @@ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mp
+         if ((ret = get_afbc_byte_stride(pix_desc, (int *)&layer->planes[0].pitch, 0)) < 0)
+             goto fail;
+ 
+-        /* MPP specific AFBC src_y offset, not memory address offset */
+-        frame->crop_top = r->use_rfbc ? 0 : mpp_frame_get_offset_y(mpp_frame);
++        desc->afbc_offset_y = r->use_rfbc ? 0 : mpp_frame_get_offset_y(mpp_frame);
+     } else {
+         layer->format = rkmpp_get_drm_format(mpp_fmt);
+         layer->nb_planes = 2;
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index d7628069e3..f495ebaf7d 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -346,6 +346,21 @@ static MPPEncFrame *get_free_frame(MPPEncFrame **list)
+     return out;
+ }
+ 
++static const AVRKMPPDRMFrameDescriptor *get_rkmpp_drm_desc(const AVFrame *frame)
++{
++    if (!frame || !frame->data[0])
++        return NULL;
++
++    for (int i = 0; i < AV_NUM_DATA_POINTERS; i++) {
++        if (frame->buf[i] &&
++            frame->buf[i]->data == frame->data[0] &&
++            frame->buf[i]->size >= sizeof(AVRKMPPDRMFrameDescriptor))
++            return (const AVRKMPPDRMFrameDescriptor *)frame->data[0];
++    }
++
++    return NULL;
++}
++
+ static int rkmpp_set_enc_cfg_prep(AVCodecContext *avctx, AVFrame *frame)
+ {
+     RKMPPEncContext *r = avctx->priv_data;
+@@ -367,7 +382,7 @@ static int rkmpp_set_enc_cfg_prep(AVCodecContext *avctx, AVFrame *frame)
+     if (ret < 0)
+         return ret;
+     if (drm_desc->objects[0].fd < 0)
+-        return AVERROR(ENOMEM);
++        return AVERROR(EINVAL);
+ 
+     pix_desc = av_pix_fmt_desc_get(r->pix_fmt);
+     is_afbc = drm_is_afbc(drm_desc->objects[0].format_modifier);
+@@ -790,6 +805,7 @@ static MPPEncFrame *rkmpp_submit_frame(AVCodecContext *avctx, AVFrame *frame,
+     MppBuffer mpp_buf = NULL;
+     AVFrame *drm_frame = NULL;
+     const AVDRMFrameDescriptor *drm_desc;
++    const AVRKMPPDRMFrameDescriptor *rkmpp_desc = NULL;
+     const AVDRMLayerDescriptor *layer;
+     const AVDRMPlaneDescriptor *plane0;
+     const AVPixFmtDescriptor *pix_desc = av_pix_fmt_desc_get(r->pix_fmt);
+@@ -861,6 +877,7 @@ static MPPEncFrame *rkmpp_submit_frame(AVCodecContext *avctx, AVFrame *frame,
+     }
+ 
+     drm_desc = (AVDRMFrameDescriptor *)drm_frame->data[0];
++    rkmpp_desc = get_rkmpp_drm_desc(drm_frame);
+     ret = rkmpp_check_drm_object0(avctx, drm_desc);
+     if (ret < 0) {
+         *errp = ret;
+@@ -936,8 +953,8 @@ static MPPEncFrame *rkmpp_submit_frame(AVCodecContext *avctx, AVFrame *frame,
+         }
+         mpp_fmt |= MPP_FRAME_FBC_AFBC_V2;
+ 
+-        if (drm_frame->crop_top > 0) {
+-            afbc_offset_y = drm_frame->crop_top;
++        if (rkmpp_desc && rkmpp_desc->afbc_offset_y > 0) {
++            afbc_offset_y = rkmpp_desc->afbc_offset_y;
+             mpp_frame_set_offset_y(mpp_frame, afbc_offset_y);
+         }
+     }
+@@ -1404,6 +1421,12 @@ static av_cold int rkmpp_encode_init(AVCodecContext *avctx)
+ 
+         pkt_pos = mpp_packet_get_pos(mpp_pkt);
+         pkt_len = mpp_packet_get_length(mpp_pkt);
++        if (!pkt_pos || pkt_len == 0 || pkt_len > sizeof(enc_hdr_buf)) {
++            av_log(avctx, AV_LOG_ERROR, "Invalid header packet from MPP: ptr=%p len=%zu\n",
++                   pkt_pos, pkt_len);
++            ret = AVERROR_EXTERNAL;
++            goto fail;
++        }
+ 
+         if (avctx->extradata) {
+             av_free(avctx->extradata);
+diff --git a/libavfilter/rkrga_common.c b/libavfilter/rkrga_common.c
+index 986a9598b2..6cb77fb94c 100644
+--- a/libavfilter/rkrga_common.c
++++ b/libavfilter/rkrga_common.c
+@@ -122,6 +122,7 @@ overlay:
+ 
+ static int get_pixel_stride(const AVDRMObjectDescriptor *object,
+                             const AVDRMLayerDescriptor *layer,
++                            enum AVPixelFormat pix_fmt,
+                             int is_rgb, int is_planar,
+                             float bytes_pp, int *ws, int *hs)
+ {
+@@ -137,9 +138,27 @@ static int get_pixel_stride(const AVDRMObjectDescriptor *object,
+     if (plane0->pitch <= 0)
+         return AVERROR(EINVAL);
+ 
+-    *ws = is_packed_fmt ?
+-        (plane0->pitch / bytes_pp) :
+-        plane0->pitch;
++    if (is_packed_fmt) {
++        *ws = plane0->pitch / bytes_pp;
++    } else {
++        switch (pix_fmt) {
++        case AV_PIX_FMT_P010:
++        case AV_PIX_FMT_P210:
++            if (plane0->pitch % 2)
++                return AVERROR(EINVAL);
++            *ws = plane0->pitch / 2;
++            break;
++        case AV_PIX_FMT_NV15:
++        case AV_PIX_FMT_NV20_PACKED:
++            if ((int64_t)plane0->pitch * 8 % 10)
++                return AVERROR(EINVAL);
++            *ws = (int64_t)plane0->pitch * 8 / 10;
++            break;
++        default:
++            *ws = plane0->pitch;
++            break;
++        }
++    }
+     *hs = is_packed_fmt ?
+         ALIGN_DOWN(object->size / plane0->pitch, is_rgb ? 1 : 2) :
+         (plane1->offset / plane0->pitch);
+@@ -237,6 +256,31 @@ static void clear_frame_list(RGAFrame **list)
+     }
+ }
+ 
++static void release_frame(RGAFrame *frame)
++{
++    if (!frame)
++        return;
++
++    av_frame_free(&frame->frame);
++    frame->queued = 0;
++    frame->locked = 0;
++}
++
++static const AVRKMPPDRMFrameDescriptor *get_rkmpp_drm_desc(const AVFrame *frame)
++{
++    if (!frame || !frame->data[0])
++        return NULL;
++
++    for (int i = 0; i < AV_NUM_DATA_POINTERS; i++) {
++        if (frame->buf[i] &&
++            frame->buf[i]->data == frame->data[0] &&
++            frame->buf[i]->size >= sizeof(AVRKMPPDRMFrameDescriptor))
++            return (const AVRKMPPDRMFrameDescriptor *)frame->data[0];
++    }
++
++    return NULL;
++}
++
+ static RGAFrame *get_free_frame(RGAFrame **list)
+ {
+     RGAFrame *out = *list;
+@@ -416,6 +460,7 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+     RGAFrameInfo *in_info = &r->in_rga_frame_infos[nb_link];
+     RGAFrameInfo *out_info = &r->out_rga_frame_info;
+     int w_stride = 0, h_stride = 0;
++    const AVRKMPPDRMFrameDescriptor *rkmpp_desc = NULL;
+     const AVDRMFrameDescriptor *desc;
+     const AVDRMLayerDescriptor *layer;
+     const AVDRMPlaneDescriptor *plane0;
+@@ -437,15 +482,18 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+ 
+     if (picref->format != AV_PIX_FMT_DRM_PRIME) {
+         av_log(ctx, AV_LOG_ERROR, "RGA gets a wrong frame\n");
+-        return NULL;
++        goto fail;
+     }
+     rga_frame->frame = av_frame_clone(picref);
+     if (!rga_frame->frame)
+-        return NULL;
++        goto fail;
+ 
+-    desc = (AVDRMFrameDescriptor *)rga_frame->frame->data[0];
+-    if (desc->objects[0].fd < 0)
+-        return NULL;
++    rkmpp_desc = get_rkmpp_drm_desc(rga_frame->frame);
++    desc = rkmpp_desc ? &rkmpp_desc->drm_desc :
++                        (AVDRMFrameDescriptor *)rga_frame->frame->data[0];
++    if (!desc || desc->nb_objects < 1 || desc->nb_layers < 1 ||
++        desc->layers[0].nb_planes < 1 || desc->objects[0].fd < 0)
++        goto fail;
+ 
+     is_afbc = drm_is_afbc(desc->objects[0].format_modifier);
+     is_rfbc = drm_is_rfbc(desc->objects[0].format_modifier);
+@@ -453,12 +501,13 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+     if (!is_fbc) {
+         ret = get_pixel_stride(&desc->objects[0],
+                                &desc->layers[0],
++                               in_info->pix_fmt,
+                                (in_info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB),
+                                (in_info->pix_desc->flags & AV_PIX_FMT_FLAG_PLANAR),
+                                in_info->bytes_pp, &w_stride, &h_stride);
+         if (ret < 0 || !w_stride || !h_stride) {
+             av_log(ctx, AV_LOG_ERROR, "Failed to get frame strides\n");
+-            return NULL;
++            goto fail;
+         }
+     }
+ 
+@@ -478,7 +527,7 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+     if (is_fbc && !r->has_rga2p && (r->is_rga2_used || out_info->scheduler_core == 0x4)) {
+         av_log(ctx, AV_LOG_ERROR, "Input format '%s' with AFBC modifier is not supported by RGA2 (non-Pro)\n",
+                av_get_pix_fmt_name(in_info->pix_fmt));
+-        return NULL;
++        goto fail;
+     }
+ 
+     /* verify inputs pixel stride */
+@@ -491,7 +540,7 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+         }
+ 
+         if ((ret = verify_rga_frame_info_io_dynamic(ctx, in_info, out_info)) < 0)
+-            return NULL;
++            goto fail;
+ 
+         if (r->is_rga2_used)
+             out_info->scheduler_core = 0x4;
+@@ -517,8 +566,8 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+         uint32_t drm_fbc_fmt =
+             is_afbc ? get_drm_afbc_format(in_info->pix_fmt) : get_drm_rfbc_format(in_info->pix_fmt);
+ 
+-        if (rga_frame->frame->crop_top > 0) {
+-            afbc_offset_y = is_afbc ? rga_frame->frame->crop_top : 0;
++        if (rkmpp_desc && rkmpp_desc->afbc_offset_y > 0) {
++            afbc_offset_y = is_afbc ? rkmpp_desc->afbc_offset_y : 0;
+             info.rect.yoffset += afbc_offset_y;
+         }
+ 
+@@ -527,7 +576,7 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+         if (drm_fbc_fmt == layer->format) {
+             info.rect.wstride = plane0->pitch;
+             if ((ret = get_afbc_pixel_stride(in_info->bytes_pp, &info.rect.wstride, 1)) < 0)
+-                return NULL;
++                goto fail;
+ 
+             if (info.rect.wstride % fbc_align_w)
+                 info.rect.wstride = FFALIGN(inlink->w, fbc_align_w);
+@@ -536,7 +585,7 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+         } else {
+             av_log(ctx, AV_LOG_ERROR, "Input format '%s' with AFBC/RFBC modifier is not supported\n",
+                    av_get_pix_fmt_name(in_info->pix_fmt));
+-            return NULL;
++            goto fail;
+         }
+ 
+         info.rd_mode =
+@@ -547,6 +596,10 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+     rga_frame->info = info;
+ 
+     return rga_frame;
++
++fail:
++    release_frame(rga_frame);
++    return NULL;
+ }
+ 
+ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+@@ -589,7 +642,7 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+ 
+     out_frame->frame = av_frame_alloc();
+     if (!out_frame->frame)
+-        return NULL;
++        goto fail;
+ 
+     if (in && (ret = av_frame_copy_props(out_frame->frame, in)) < 0) {
+         av_log(ctx, AV_LOG_ERROR, "Failed to copy metadata fields from in to out: %d\n", ret);
+@@ -603,14 +656,14 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+         (in0_info->rotate_mode & 0x07) == 0x07 /* HAL_TRANSFORM_ROT_270 */) {
+         av_reduce(&out_frame->frame->sample_aspect_ratio.den,
+                   &out_frame->frame->sample_aspect_ratio.num,
+-                  (int64_t)in->sample_aspect_ratio.num * outlink->w * inlink->w,
+-                  (int64_t)in->sample_aspect_ratio.den * outlink->h * inlink->h,
++                  (int64_t)in->sample_aspect_ratio.num * outlink->w * in0_info->act_w,
++                  (int64_t)in->sample_aspect_ratio.den * outlink->h * in0_info->act_h,
+                   INT_MAX);
+     } else {
+         av_reduce(&out_frame->frame->sample_aspect_ratio.num,
+                   &out_frame->frame->sample_aspect_ratio.den,
+-                  (int64_t)in->sample_aspect_ratio.num * outlink->h * inlink->w,
+-                  (int64_t)in->sample_aspect_ratio.den * outlink->w * inlink->h,
++                  (int64_t)in->sample_aspect_ratio.num * outlink->h * in0_info->act_w,
++                  (int64_t)in->sample_aspect_ratio.den * outlink->w * in0_info->act_h,
+                   INT_MAX);
+     }
+ 
+@@ -638,6 +691,7 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+     is_afbc = r->afbc_out && !pat_preproc;
+     ret = get_pixel_stride(&desc->objects[0],
+                            &desc->layers[0],
++                           out_info->pix_fmt,
+                            (out_info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB),
+                            (out_info->pix_desc->flags & AV_PIX_FMT_FLAG_PLANAR),
+                            out_info->bytes_pp, &w_stride, &h_stride);
+@@ -748,8 +802,7 @@ exit:
+     return out_frame;
+ 
+ fail:
+-    if (out_frame && out_frame->frame)
+-        av_frame_free(&out_frame->frame);
++    release_frame(out_frame);
+ 
+     return NULL;
+ }
+@@ -1204,6 +1257,12 @@ av_cold int ff_rkrga_init(AVFilterContext *avctx, RKRGAParam *param)
+         r->in_rga_frame_infos[1].overlay_x = param->overlay_x;
+         r->in_rga_frame_infos[1].overlay_y = param->overlay_y;
+ 
++        if (param->overlay_x < 0 || param->overlay_y < 0) {
++            av_log(avctx, AV_LOG_ERROR, "Negative overlay offsets are not supported\n");
++            ret = AVERROR(EINVAL);
++            goto fail;
++        }
++
+         r->is_overlay_offset_valid = (param->overlay_x >= 0) &&
+             (param->overlay_y >= 0) &&
+             (param->overlay_x < r->in_rga_frame_infos[0].act_w - 2) &&
+@@ -1320,7 +1379,7 @@ static int call_rkrga_blit(AVFilterContext *avctx,
+         return AVERROR_EXTERNAL;
+     }
+     if (dst_info->sync_mode == RGA_BLIT_ASYNC &&
+-        dst_info->out_fence_fd <= 0) {
++        dst_info->out_fence_fd < 0) {
+         av_log(avctx, AV_LOG_ERROR, "RGA async blit returned invalid fence_fd: %d\n",
+                dst_info->out_fence_fd);
+         return AVERROR_EXTERNAL;
+@@ -1339,6 +1398,8 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+     RGAFrame *src_frame = NULL;
+     RGAFrame *dst_frame = NULL;
+     RGAFrame *pat_frame = NULL;
++    RGAFrame *pat_in = NULL;
++    RGAFrame *pat_out = NULL;
+     int ret, filter_ret;
+     int do_overlay = ctx->nb_inputs > 1 &&
+                      r->is_overlay_offset_valid &&
+@@ -1355,8 +1416,12 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+         /* ff_filter_frame consumes the frame even on failure */
+         aframe.dst->frame = NULL;
+         aframe.dst->queued--;
+-        if (filter_ret < 0)
++        if (filter_ret < 0) {
++            release_frame(aframe.src);
++            release_frame(aframe.dst);
++            release_frame(aframe.pat);
+             return filter_ret;
++        }
+         r->got_frame = 1;
+     }
+ 
+@@ -1373,7 +1438,8 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+     /* DST */
+     if (!(dst_frame = query_frame(r, outlink, src_frame->frame, picref_pat, 0))) {
+         av_log(ctx, AV_LOG_ERROR, "Failed to query an output frame\n");
+-        return AVERROR(ENOMEM);
++        ret = AVERROR(ENOMEM);
++        goto fail;
+     }
+ 
+     /* PAT */
+@@ -1381,8 +1447,6 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+         RGAFrameInfo *in0_info = &r->in_rga_frame_infos[0];
+         RGAFrameInfo *in1_info = &r->in_rga_frame_infos[1];
+         RGAFrameInfo *out_info = &r->out_rga_frame_info;
+-        RGAFrame *pat_in = NULL;
+-        RGAFrame *pat_out = NULL;
+         int pat_preprocessed = 0;
+ 
+         /* translate PAT from top-left to (x,y) on a new image with the same size of SRC */
+@@ -1393,11 +1457,13 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+             if (!(pat_in = submit_frame(r, inlink_pat, picref_pat, 0, 1))) {
+                 av_log(ctx, AV_LOG_ERROR, "Failed to submit frame on input: %d\n",
+                        FF_INLINK_IDX(inlink_pat));
+-                return AVERROR(ENOMEM);
++                ret = AVERROR(ENOMEM);
++                goto fail;
+             }
+             if (!(pat_out = query_frame(r, outlink, picref_pat, NULL, 1))) {
+                 av_log(ctx, AV_LOG_ERROR, "Failed to query an output frame\n");
+-                return AVERROR(ENOMEM);
++                ret = AVERROR(ENOMEM);
++                goto fail;
+             }
+             dst_frame->info.core = out_info->scheduler_core;
+ 
+@@ -1408,7 +1474,7 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+             /* Sync Blit Pre-Proc */
+             ret = call_rkrga_blit(ctx, &pat_in->info, &pat_out->info, NULL);
+             if (ret < 0)
+-                return ret;
++                goto fail;
+ 
+             pat_frame = pat_out;
+             pat_preprocessed = 1;
+@@ -1417,7 +1483,8 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+         if (!pat_frame && !(pat_frame = submit_frame(r, inlink_pat, picref_pat, 0, 0))) {
+             av_log(ctx, AV_LOG_ERROR, "Failed to submit frame on input: %d\n",
+                    FF_INLINK_IDX(inlink_pat));
+-            return AVERROR(ENOMEM);
++            ret = AVERROR(ENOMEM);
++            goto fail;
+         }
+         dst_frame->info.core = out_info->scheduler_core;
+ 
+@@ -1431,7 +1498,7 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+ 
+             ret = call_rkrga_blit(ctx, &src_copy_info, &dst_copy_info, NULL);
+             if (ret < 0)
+-                return ret;
++                goto fail;
+ 
+             src_frame->info.rect.xoffset += in1_info->overlay_x;
+             src_frame->info.rect.yoffset += in1_info->overlay_y;
+@@ -1451,18 +1518,28 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+                           &dst_frame->info,
+                           pat_frame ? &pat_frame->info : NULL);
+     if (ret < 0)
+-        return ret;
++        goto fail;
+ 
+     dst_frame->queued++;
+     aframe = (RGAAsyncFrame){ src_frame, dst_frame, pat_frame };
+     set_rga_async_frame_lock_status(&aframe, 1);
+-    av_fifo_write(r->async_fifo, &aframe, 1);
++    ret = av_fifo_write(r->async_fifo, &aframe, 1);
++    if (ret < 0) {
++        if (imsync(dst_frame->info.out_fence_fd) != IM_STATUS_SUCCESS)
++            av_log(ctx, AV_LOG_WARNING, "RGA sync failed\n");
++        set_rga_async_frame_lock_status(&aframe, 0);
++        goto fail;
++    }
+ 
+     /* Sync & Retrieve */
+     if (av_fifo_can_read(r->async_fifo) > r->async_depth) {
+         av_fifo_read(r->async_fifo, &aframe, 1);
+         if (imsync(aframe.dst->info.out_fence_fd) != IM_STATUS_SUCCESS) {
+             av_log(ctx, AV_LOG_ERROR, "RGA sync failed\n");
++            set_rga_async_frame_lock_status(&aframe, 0);
++            release_frame(aframe.src);
++            release_frame(aframe.dst);
++            release_frame(aframe.pat);
+             return AVERROR_EXTERNAL;
+         }
+         set_rga_async_frame_lock_status(&aframe, 0);
+@@ -1471,10 +1548,23 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+         /* ff_filter_frame consumes the frame even on failure */
+         aframe.dst->frame = NULL;
+         aframe.dst->queued--;
+-        if (filter_ret < 0)
++        if (filter_ret < 0) {
++            release_frame(aframe.src);
++            release_frame(aframe.dst);
++            release_frame(aframe.pat);
+             return filter_ret;
++        }
+         r->got_frame = 1;
+     }
+ 
+     return 0;
++
++fail:
++    release_frame(src_frame);
++    release_frame(dst_frame);
++    release_frame(pat_in);
++    if (pat_out != pat_frame)
++        release_frame(pat_out);
++    release_frame(pat_frame);
++    return ret;
+ }
+diff --git a/libavfilter/vf_overlay_rkrga.c b/libavfilter/vf_overlay_rkrga.c
+index 25dcadd4df..5e9323704c 100644
+--- a/libavfilter/vf_overlay_rkrga.c
++++ b/libavfilter/vf_overlay_rkrga.c
+@@ -336,7 +336,7 @@ static const AVOption rgaoverlay_options[] = {
+         { "rga3_core1", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = 2 }, 0, 0, FLAGS, "core" }, /* RGA3_SCHEDULER_CORE1 */
+         { "rga2_core0", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = 4 }, 0, 0, FLAGS, "core" }, /* RGA2_SCHEDULER_CORE0 */
+         { "rga2_core1", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = 8 }, 0, 0, FLAGS, "core" }, /* RGA2_SCHEDULER_CORE1 */
+-    { "async_depth", "Set the internal parallelization depth", OFFSET(rga.async_depth), AV_OPT_TYPE_INT, { .i64 = 2 }, 0, 4, .flags = FLAGS },
++    { "async_depth", "Set the internal parallelization depth", OFFSET(rga.async_depth), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, 0, .flags = FLAGS },
+     { "afbc", "Enable AFBC (Arm Frame Buffer Compression) to save bandwidth", OFFSET(rga.afbc_out), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, .flags = FLAGS },
+     { NULL },
+ };
+diff --git a/libavfilter/vf_vpp_rkrga.c b/libavfilter/vf_vpp_rkrga.c
+index 7082700644..570b4e401f 100644
+--- a/libavfilter/vf_vpp_rkrga.c
++++ b/libavfilter/vf_vpp_rkrga.c
+@@ -196,6 +196,7 @@ static av_cold int set_size_info(AVFilterContext *ctx,
+ {
+     RGAVppContext *r = ctx->priv;
+     int w, h, ret;
++    int src_w, src_h;
+ 
+     if (inlink->w < 2 || inlink->w > 8192 ||
+         inlink->h < 2 || inlink->h > 8192) {
+@@ -215,6 +216,8 @@ static av_cold int set_size_info(AVFilterContext *ctx,
+     r->act_y = FFMIN(r->act_y, inlink->h - r->act_h);
+     r->act_w = FFMIN(r->act_w, inlink->w - r->act_x);
+     r->act_h = FFMIN(r->act_h, inlink->h - r->act_y);
++    src_w = r->act_w;
++    src_h = r->act_h;
+ 
+     ret = ff_scale_adjust_dimensions(inlink, &w, &h,
+                                      r->force_original_aspect_ratio,
+@@ -222,8 +225,8 @@ static av_cold int set_size_info(AVFilterContext *ctx,
+     if (ret < 0)
+         return ret;
+ 
+-    if (((int64_t)h * inlink->w) > INT_MAX ||
+-        ((int64_t)w * inlink->h) > INT_MAX) {
++    if (((int64_t)h * src_w) > INT_MAX ||
++        ((int64_t)w * src_h) > INT_MAX) {
+         av_log(ctx, AV_LOG_ERROR, "Rescaled value for width or height is too big.\n");
+         return AVERROR(EINVAL);
+     }
+@@ -237,8 +240,8 @@ static av_cold int set_size_info(AVFilterContext *ctx,
+     }
+ 
+     if (inlink->sample_aspect_ratio.num)
+-        outlink->sample_aspect_ratio = av_mul_q((AVRational){outlink->h * inlink->w,
+-                                                             outlink->w * inlink->h},
++        outlink->sample_aspect_ratio = av_mul_q((AVRational){outlink->h * src_w,
++                                                             outlink->w * src_h},
+                                                 inlink->sample_aspect_ratio);
+     else
+         outlink->sample_aspect_ratio = inlink->sample_aspect_ratio;
+diff --git a/libavutil/hwcontext_rkmpp.h b/libavutil/hwcontext_rkmpp.h
+index bd38d8fa56..f462baffc6 100644
+--- a/libavutil/hwcontext_rkmpp.h
++++ b/libavutil/hwcontext_rkmpp.h
+@@ -112,6 +112,12 @@ typedef struct AVRKMPPDRMFrameDescriptor {
+      * on each drm frame index.
+      */
+     MppBuffer buffers[AV_DRM_MAX_PLANES];
++
++    /**
++     * RKMPP AFBC source Y offset. This is hardware layout metadata, not
++     * presentation cropping.
++     */
++    int afbc_offset_y;
+ } AVRKMPPDRMFrameDescriptor;
+ 
+ /**
+diff --git a/libavutil/pixdesc.c b/libavutil/pixdesc.c
+index 61b109a69e..3416f480ee 100644
+--- a/libavutil/pixdesc.c
++++ b/libavutil/pixdesc.c
+@@ -28,6 +28,41 @@
+ #include "pixdesc.h"
+ #include "intreadwrite.h"
+ 
++static unsigned read_bitstream_lsb(const uint8_t *data, int bit_offset,
++                                   int depth)
++{
++    uint64_t val = 0;
++    int byte_offset = bit_offset >> 3;
++    int shift = bit_offset & 7;
++    int bits = shift + depth;
++    unsigned mask = depth == 32 ? UINT32_MAX : (1U << depth) - 1;
++
++    for (int i = 0; i < (bits + 7) >> 3; i++)
++        val |= (uint64_t)data[byte_offset + i] << (8 * i);
++
++    return (val >> shift) & mask;
++}
++
++static void write_bitstream_lsb(uint8_t *data, int bit_offset,
++                                int depth, unsigned val)
++{
++    int byte_offset = bit_offset >> 3;
++    int shift = bit_offset & 7;
++    int bits = shift + depth;
++    unsigned mask = depth == 32 ? UINT32_MAX : (1U << depth) - 1;
++    uint64_t field_mask = (uint64_t)mask << shift;
++    uint64_t word = 0;
++
++    val &= mask;
++    for (int i = 0; i < (bits + 7) >> 3; i++)
++        word |= (uint64_t)data[byte_offset + i] << (8 * i);
++
++    word = (word & ~field_mask) | ((uint64_t)val << shift);
++
++    for (int i = 0; i < (bits + 7) >> 3; i++)
++        data[byte_offset + i] = word >> (8 * i);
++}
++
+ void av_read_image_line2(void *dst,
+                         const uint8_t *data[4], const int linesize[4],
+                         const AVPixFmtDescriptor *desc,
+@@ -50,18 +85,22 @@ void av_read_image_line2(void *dst,
+ 
+     if (flags & AV_PIX_FMT_FLAG_BITSTREAM) {
+         if (step > 8) {
+-            // Assume all channels are packed into a 32bit value
+-            const uint8_t *byte_p = data[plane] + y * linesize[plane];
+-            const uint32_t *p = (uint32_t *)byte_p;
++            const uint8_t *p = data[plane] + y * linesize[plane];
++            int bit_offset = x * step + comp.offset;
+ 
+             while (w--) {
+-                int val = AV_RB32(p);
+-                val = (val >> comp.offset) & mask;
++                int val;
++                if (flags & AV_PIX_FMT_FLAG_BE) {
++                    const uint8_t *src = p + ((bit_offset - comp.offset) >> 3);
++                    val = (AV_RB32(src) >> comp.offset) & mask;
++                } else {
++                    val = read_bitstream_lsb(p, bit_offset, depth);
++                }
+                 if (read_pal_component)
+                     val = data[1][4*val + c];
+                 if (dst_element_size == 4) *dst32++ = val;
+                 else                       *dst16++ = val;
+-                p++;
++                bit_offset += step;
+             }
+         } else {
+             int skip = x * step + comp.offset;
+@@ -132,16 +171,19 @@ void av_write_image_line2(const void *src,
+ 
+     if (flags & AV_PIX_FMT_FLAG_BITSTREAM) {
+         if (step > 8) {
+-            // Assume all channels are packed into a 32bit value
+-            const uint8_t *byte_p = data[plane] + y * linesize[plane];
+-            uint32_t *p = (uint32_t *)byte_p;
+-            int offset = comp.offset;
+-            uint32_t mask  = ((1ULL << depth) - 1) << offset;
++            uint8_t *p = data[plane] + y * linesize[plane];
++            int bit_offset = x * step + comp.offset;
+ 
+             while (w--) {
+                 unsigned val = src_element_size == 4 ? *src32++ : *src16++;
+-                AV_WB32(p, (AV_RB32(p) & ~mask) | (val << offset));
+-                p++;
++                if (flags & AV_PIX_FMT_FLAG_BE) {
++                    uint8_t *dst = p + ((bit_offset - comp.offset) >> 3);
++                    uint32_t mask = ((1ULL << depth) - 1) << comp.offset;
++                    AV_WB32(dst, (AV_RB32(dst) & ~mask) | (val << comp.offset));
++                } else {
++                    write_bitstream_lsb(p, bit_offset, depth, val);
++                }
++                bit_offset += step;
+             }
+         } else {
+             int skip = x * step + comp.offset;
+diff --git a/libavutil/tests/pixdesc.c b/libavutil/tests/pixdesc.c
+index b13aba598b..aecfdbfe32 100644
+--- a/libavutil/tests/pixdesc.c
++++ b/libavutil/tests/pixdesc.c
+@@ -19,9 +19,81 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+  */
+ 
++#include <string.h>
++
+ #include "libavutil/log.h"
+ #include "libavutil/pixdesc.c"
+ 
++static int check_bytes(const char *name, const uint8_t *got,
++                       const uint8_t *expected, size_t size)
++{
++    if (!memcmp(got, expected, size))
++        return 0;
++
++    av_log(NULL, AV_LOG_ERROR, "%s byte mismatch\n", name);
++    return 1;
++}
++
++static int check_values(const char *name, const uint32_t *got,
++                        const uint32_t *expected, size_t nb_values)
++{
++    if (!memcmp(got, expected, nb_values * sizeof(*got)))
++        return 0;
++
++    av_log(NULL, AV_LOG_ERROR, "%s value mismatch\n", name);
++    return 1;
++}
++
++static int check_compact_10bit(enum AVPixelFormat pix_fmt)
++{
++    static const uint32_t y_values[4] = { 0x001, 0x155, 0x2aa, 0x3ff };
++    static const uint32_t u_values[2] = { 0x123, 0x321 };
++    static const uint32_t v_values[2] = { 0x234, 0x3ab };
++    static const uint8_t y_bytes[5]   = { 0x01, 0x54, 0xa5, 0xea, 0xff };
++    static const uint8_t y_x1_bytes[5] = { 0x00, 0x54, 0xa5, 0x2a, 0x00 };
++    static const uint8_t uv_bytes[5]  = { 0x23, 0xd1, 0x18, 0xf2, 0xea };
++    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
++    uint8_t y[8] = { 0 };
++    uint8_t uv[8] = { 0 };
++    uint8_t *data[4] = { y, uv, NULL, NULL };
++    const uint8_t *const_data[4] = { y, uv, NULL, NULL };
++    const int linesize[4] = { sizeof(y), sizeof(uv), 0, 0 };
++    uint32_t values[4] = { 0 };
++    int err = 0;
++
++    av_write_image_line2(y_values, data, linesize, desc, 0, 0, 0, 4, 4);
++    err |= check_bytes(desc->name, y, y_bytes, sizeof(y_bytes));
++
++    av_read_image_line2(values, const_data, linesize, desc,
++                        0, 0, 0, 4, 0, 4);
++    err |= check_values(desc->name, values, y_values, FF_ARRAY_ELEMS(y_values));
++
++    memset(y, 0, sizeof(y));
++    memset(values, 0, sizeof(values));
++    av_write_image_line2(y_values + 1, data, linesize, desc, 1, 0, 0, 2, 4);
++    err |= check_bytes(desc->name, y, y_x1_bytes, sizeof(y_x1_bytes));
++
++    av_read_image_line2(values, const_data, linesize, desc,
++                        1, 0, 0, 2, 0, 4);
++    err |= check_values(desc->name, values, y_values + 1, 2);
++
++    av_write_image_line2(u_values, data, linesize, desc, 0, 0, 1, 2, 4);
++    av_write_image_line2(v_values, data, linesize, desc, 0, 0, 2, 2, 4);
++    err |= check_bytes(desc->name, uv, uv_bytes, sizeof(uv_bytes));
++
++    memset(values, 0, sizeof(values));
++    av_read_image_line2(values, const_data, linesize, desc,
++                        0, 0, 1, 2, 0, 4);
++    err |= check_values(desc->name, values, u_values, FF_ARRAY_ELEMS(u_values));
++
++    memset(values, 0, sizeof(values));
++    av_read_image_line2(values, const_data, linesize, desc,
++                        0, 0, 2, 2, 0, 4);
++    err |= check_values(desc->name, values, v_values, FF_ARRAY_ELEMS(v_values));
++
++    return err;
++}
++
+ int main(void){
+     int i;
+     int err=0;
+@@ -39,5 +111,9 @@ int main(void){
+         }
+         av_log(NULL, AV_LOG_INFO, "pix fmt %s avg_bpp:%d colortype:%d\n", desc->name, av_get_padded_bits_per_pixel(desc), get_color_type(desc));
+     }
++
++    err |= check_compact_10bit(AV_PIX_FMT_NV15);
++    err |= check_compact_10bit(AV_PIX_FMT_NV20_PACKED);
++
+     return err;
+ }
+diff --git a/tests/fate/libavutil.mak b/tests/fate/libavutil.mak
+index a2ea57d939..7134be63e4 100644
+--- a/tests/fate/libavutil.mak
++++ b/tests/fate/libavutil.mak
+@@ -152,6 +152,11 @@ FATE_LIBAVUTIL-$(CONFIG_PIXELUTILS) += fate-pixelutils
+ fate-pixelutils: libavutil/tests/pixelutils$(EXESUF)
+ fate-pixelutils: CMD = run libavutil/tests/pixelutils$(EXESUF)
+ 
++FATE_LIBAVUTIL += fate-pixdesc
++fate-pixdesc: libavutil/tests/pixdesc$(EXESUF)
++fate-pixdesc: CMD = run libavutil/tests/pixdesc$(EXESUF)
++fate-pixdesc: CMP = null
++
+ FATE_LIBAVUTIL += fate-pixfmt_best
+ fate-pixfmt_best: libavutil/tests/pixfmt_best$(EXESUF)
+ fate-pixfmt_best: CMD = run libavutil/tests/pixfmt_best$(EXESUF)
+diff --git a/tests/ref/fate/imgutils b/tests/ref/fate/imgutils
+index dbaafdf147..3014b85f8f 100644
+--- a/tests/ref/fate/imgutils
++++ b/tests/ref/fate/imgutils
+@@ -561,5 +561,5 @@ gbrp10msbbe     total_size:  18432,  black_unknown_crc: 0x00000000,  black_tv_cr
+ gbrp10msble     total_size:  18432,  black_unknown_crc: 0x00000000,  black_tv_crc: 0x00000000,  black_pc_crc: 0x00000000
+ gbrp12msbbe     total_size:  18432,  black_unknown_crc: 0x00000000,  black_tv_crc: 0x00000000,  black_pc_crc: 0x00000000
+ gbrp12msble     total_size:  18432,  black_unknown_crc: 0x00000000,  black_tv_crc: 0x00000000,  black_pc_crc: 0x00000000
+-nv15            total_size:   5760,  black_unknown_crc: 0x6b5fdb58,  black_tv_crc: 0x6b5fdb58,  black_pc_crc: 0x660a512c
+-nv20_packed     total_size:   7680,  black_unknown_crc: 0x171f53da,  black_tv_crc: 0x171f53da,  black_pc_crc: 0xfcf5cda3
++nv15            total_size:   5760,  black_unknown_crc: 0x3cb4b484,  black_tv_crc: 0x3cb4b484,  black_pc_crc: 0xd8e45b0b
++nv20_packed     total_size:   7680,  black_unknown_crc: 0x29197bd4,  black_tv_crc: 0x29197bd4,  black_pc_crc: 0xfe6e9eee
+-- 
+2.53.0
+

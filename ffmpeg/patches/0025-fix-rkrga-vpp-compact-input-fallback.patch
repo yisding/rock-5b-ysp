@@ -1,0 +1,56 @@
+From 461b5a705ecef3de49196739baa76955db0e7dc0 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 2 Jul 2026 06:37:43 -0700
+Subject: [PATCH 25/28] fix rkrga vpp compact input fallback
+
+---
+ libavfilter/vf_vpp_rkrga.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/libavfilter/vf_vpp_rkrga.c b/libavfilter/vf_vpp_rkrga.c
+index 73d028680d..228b77d1bb 100644
+--- a/libavfilter/vf_vpp_rkrga.c
++++ b/libavfilter/vf_vpp_rkrga.c
+@@ -98,6 +98,12 @@ static int vpp_input_forces_rga2(enum AVPixelFormat pix_fmt)
+     }
+ }
+ 
++static int vpp_compact_10bit_input(enum AVPixelFormat pix_fmt)
++{
++    return pix_fmt == AV_PIX_FMT_NV15 ||
++           pix_fmt == AV_PIX_FMT_NV20_PACKED;
++}
++
+ static int vpp_output_size_forces_rga2(int width, int height)
+ {
+     return width > 0 && height > 0 &&
+@@ -312,7 +318,7 @@ static av_cold int set_size_info(AVFilterContext *ctx,
+     if (r->transpose >= 0) {
+         switch (r->transpose) {
+         case TRANSPOSE_CCLOCK_FLIP:
+-            r->in_rotate_mode = 0x07 | (0x01 << 4); /* HAL_TRANSFORM_ROT_270 | (HAL_TRANSFORM_FLIP_H << 4) */
++            r->in_rotate_mode = 0x07 ^ 0x01; /* HAL_TRANSFORM_ROT_270 + HAL_TRANSFORM_FLIP_H */
+             FFSWAP(int, outlink->w, outlink->h);
+             FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
+             break;
+@@ -327,7 +333,7 @@ static av_cold int set_size_info(AVFilterContext *ctx,
+             FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
+             break;
+         case TRANSPOSE_CLOCK_FLIP:
+-            r->in_rotate_mode = 0x04 | (0x01 << 4); /* HAL_TRANSFORM_ROT_90 | (HAL_TRANSFORM_FLIP_H << 4) */
++            r->in_rotate_mode = 0x04 | 0x01; /* HAL_TRANSFORM_ROT_90 + HAL_TRANSFORM_FLIP_H */
+             FFSWAP(int, outlink->w, outlink->h);
+             FFSWAP(int, outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den);
+             break;
+@@ -396,6 +402,8 @@ static av_cold void config_force_format(AVFilterContext *ctx,
+     use_rga2 = !has_rga3 ||
+                use_rga2_core ||
+                vpp_input_forces_rga2(in_format) ||
++               (r->force_yuv == FORCE_YUV_AUTO &&
++                vpp_compact_10bit_input(in_format)) ||
+                vpp_source_size_forces_rga2(src_width, src_height) ||
+                vpp_output_size_forces_rga2(out_width, out_height) ||
+                vpp_scale_forces_rga2(src_width, src_height,
+-- 
+2.53.0
+

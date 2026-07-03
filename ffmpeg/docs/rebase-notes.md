@@ -16,7 +16,7 @@ They relate like this:
 | nyanmisaka fork tip (pre-rebase) | `40c412dacc` | 2026-04-23 | `github.com/nyanmisaka/ffmpeg-rockchip` as studied; preserved locally as branch `backup-pre-upgrade-master` | [`README.md`](../README.md) build recipe, [`implementation-comparison.md`](implementation-comparison.md) fork column |
 | upstream release tag `n8.1.2` | `38b88335f99e` | 2026-06-17 | FFmpeg 8.1.2 release (branch `release/8.1`) | [`implementation-comparison.md`](implementation-comparison.md) upstream column; the PPA/GRD package base ([`../packaging/ppa/`](../../packaging/ppa/README.md)) |
 | upstream master | `87bd15dc3c` | 2026-06-26 | FFmpeg master commit used as the rebase base; branch `upstream` of the rebased repo | [`fix-candidates.md`](fix-candidates.md) source-points table |
-| rebased tree | `b59509b609` | 2026-07-01 | **`github.com/yisding/ffmpeg-rockchip-81`**, branch `main` (branch `upstream` = `87bd15dc3c`); `1c73bd8e65` is the same branch one commit earlier, the state the FIX-CANDIDATES write-up audited | [`fix-candidates.md`](fix-candidates.md), [`patches/`](../patches/README.md) |
+| rebased tree | `6cf02ab253` | 2026-07-02 | **`github.com/yisding/ffmpeg-rockchip-81`**, branch `main` (branch `upstream` = `87bd15dc3c`); earlier states: `1c73bd8e65` = what the FIX-CANDIDATES write-up audited, `b59509b609` = the 2026-07-01 export point | [`fix-candidates.md`](fix-candidates.md), [`submission-plan.md`](submission-plan.md), [`patches/`](../patches/README.md) |
 
 **How `n8.1.2` relates to `87bd15dc3c`:** they are siblings, not
 ancestor/descendant. `release/8.1` forked from master at `67c886222f` ("Bump
@@ -46,9 +46,9 @@ was a staged replay on a clean master base:
       └─ def08a047f              "avcodec/rkmpp: port Rockchip stack to
                                   current FFmpeg" — the squash-port of the
                                   remaining mismatches (10 files, +56/−34)
-         └─ 021c7102d8 … b59509b609   9 review-fix commits (all 2026-07-01)
+         └─ 021c7102d8 … 6cf02ab253   28 review-fix commits (2026-07-01/02)
                                   = ffmpeg-rockchip-81 main
-                                  = the exported patches/0001–0009
+                                  = the exported patches/0001–0028
 ```
 
 What the port commit `def08a047f` covers (the parts that did not replay
@@ -79,7 +79,7 @@ Verified 2026-07-01 on the ROCK 5B (kernel `6.18.37-current-rockchip64` #7):
 
 Two consequences worth stating plainly:
 
-- **The fixed tree (`b59509b609`) is published but is not what is currently
+- **The fixed tree (`6cf02ab253`) is published but is not what is currently
   installed or built anywhere on the board.** Anything exercised at runtime so
   far ran either upstream-8.1.2 rkmpp code or the pre-fix rebased stack.
 - **`--disable-vulkan` is a `40c412dacc`-era requirement only.** The old fork's
@@ -97,7 +97,7 @@ Mirrors the method in §2; run [`implementation-comparison.md`](implementation-c
 2. Recreate the removal commit: delete upstream's rkmpp files (mirror
    `6fb4d1cd37` — `libavcodec/rkmppdec.c`, `libavcodec/rkmppenc.c` and their
    Makefile/allcodecs registrations) so the fork's files can't collide.
-3. Replay the Rockchip stack: cherry-pick `6fb4d1cd37..b59509b609` from
+3. Replay the Rockchip stack: cherry-pick `6fb4d1cd37..6cf02ab253` from
    `yisding/ffmpeg-rockchip-81` (removal commit excluded, fixes included), or
    replay the 31 fork commits and `git am` [`patches/`](../patches/README.md) on
    top.
@@ -117,23 +117,30 @@ Mirrors the method in §2; run [`implementation-comparison.md`](implementation-c
 
 ## 5. The exported fix series
 
-[`patches/`](../patches/README.md) holds the nine review-fix commits
-(`def08a047f..b59509b609`) as `git format-patch` files with `base-commit`
-trailers, plus the patch↔fix-group map onto
+[`patches/`](../patches/README.md) holds the 28 review-fix commits
+(`def08a047f..6cf02ab253`, re-exported 2026-07-02) as `git format-patch`
+files with `base-commit` trailers, plus the patch↔fix-group map onto
 [`fix-candidates.md`](fix-candidates.md)'s 14 groups and fork-only vs
-upstream-candidate labeling. That directory is the survival copy; this file
-and FIX-CANDIDATES are the narrative.
+upstream-candidate labeling. That directory is the survival copy; this file,
+FIX-CANDIDATES, and [`submission-plan.md`](submission-plan.md) (the 2026-07-02
+full-branch targeting analysis) are the narrative.
 
 ## 6. Submission ledger
 
-Status of every outbound piece, as of **2026-07-01: nothing has been sent
-anywhere.** Update this table (with dates) when that changes; `status.md`
-carries the one-line rollup.
+Status of every outbound piece, as of **2026-07-02: nothing has been sent
+anywhere.** The item list below follows the 2026-07-02 full-branch targeting
+analysis in [`submission-plan.md`](submission-plan.md) (which supersedes the
+earlier five-item list). Update this table (with dates) when anything is sent;
+`status.md` carries the one-line rollup.
 
 | Item | Target | Sent | Landed | Notes |
 |------|--------|------|--------|-------|
-| 10-patch backport series ([`fix-candidates.md`](fix-candidates.md) "Suggested patch split") | nyanmisaka/ffmpeg-rockchip | no | — | Needs backport-by-behavior; the old branch predates current FFmpeg internals. |
-| V4L2 mplane `data_offset` payload accounting (group 1) | FFmpeg upstream | no | — | Must be re-scoped to upstream's single-plane mmap model first. |
-| V4L2 `VIDIOC_G_DV_TIMINGS` framerate fallback (group 2) | FFmpeg upstream | no | — | Generic; needs overflow/zero-field review per FIX-CANDIDATES. |
+| v4l2_buffers copy-bounds rewrite ([`submission-plan.md`](submission-plan.md) A1) | FFmpeg upstream | no | — | Strongest candidate: fixes a reachable NULL deref + source overreads in vanilla upstream m2m code. |
+| v4l2_context negotiation fixes + mplane-aware fourcc selection (A2, A3) | FFmpeg upstream | no | — | Real upstream bugs (TRY_FMT unverified, `*p` unset → YUV420P clobber). |
+| libavdevice/v4l2.c generics (A4: device_caps, bounds guards, two-pass fallback, NV21) | FFmpeg upstream | no | — | Separable small patches. |
+| pixdesc BE `x`-offset fix + `fate-pixdesc` hookup (A5, A6) | FFmpeg upstream | no | — | Slivers; optional. |
+| Crash/hang class (~10 patches: export-frame double-free, buffer-group double-free, EOS/drain trio, encoder queue drop, get_packet pos, overlay uninit blend, …) | nyanmisaka/ffmpeg-rockchip | no | — | First wave; all verified present in his tree. Backport-by-behavior. |
+| Wrong-output class (~14 patches: SAR/transpose, AFBC strides, core masks, colorspace defaults, …) | nyanmisaka/ffmpeg-rockchip | no | — | Second wave; transpose rotate-mode fix needs RGA runtime verification first. |
+| NV20 alias restoration + fate-imgutils ref fix | nyanmisaka/ffmpeg-rockchip | no | — | Fixes API break / broken FATE ref that exist only in his tree. |
+| DRM descriptor validation frameworks + `afbc_offset_y` descriptor field | nyanmisaka/ffmpeg-rockchip | no | — | Design proposal, not a patch dump; needs his buy-in (public-struct change, behavior changes). |
 | `NV15`/`NV20_PACKED` pixel formats | FFmpeg upstream | no | — | Only viable as a full feature series (formats + swscale + tests), not as fixes. |
-| Post-write-up fixes ([`patches/0009`](../patches/README.md)) | nyanmisaka/ffmpeg-rockchip | no | — | Not yet folded into the FIX-CANDIDATES groups either. |

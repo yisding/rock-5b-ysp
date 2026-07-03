@@ -1,7 +1,7 @@
 From 383bd2a4f39a72d34da140d04872e8d8ba962956 Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
 Date: Wed, 1 Jul 2026 13:03:23 -0700
-Subject: [PATCH 6/9] fix rkmpp review cleanup issues
+Subject: [PATCH 06/28] fix rkmpp review cleanup issues
 
 ---
  libavcodec/rkmppdec.c       | 9 +++++++--

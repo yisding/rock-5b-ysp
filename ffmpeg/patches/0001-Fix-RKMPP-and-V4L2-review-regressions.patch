@@ -1,7 +1,7 @@
 From 021c7102d8e43f41e44bb2bd4de96a3b7ca4c0d7 Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
 Date: Wed, 1 Jul 2026 09:30:17 -0700
-Subject: [PATCH 1/9] Fix RKMPP and V4L2 review regressions
+Subject: [PATCH 01/28] Fix RKMPP and V4L2 review regressions
 
 ---
  libavcodec/rkmppdec.c         | 27 +++++++++++----

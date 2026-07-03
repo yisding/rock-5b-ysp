@@ -1,7 +1,7 @@
 From 93891823df3a1b6906836e1f6ae802112ec38c64 Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
 Date: Wed, 1 Jul 2026 11:05:21 -0700
-Subject: [PATCH 5/9] fix rkmpp review regressions
+Subject: [PATCH 05/28] fix rkmpp review regressions
 
 ---
  libavcodec/rkmppdec.c         | 91 +++++++++++++++++++++++++++++++++--

@@ -1,0 +1,286 @@
+From 22b68d47240b2aaf405c7abd355284e65289852f Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 2 Jul 2026 01:00:09 -0700
+Subject: [PATCH 16/28] fix rkrga validation followups
+
+---
+ libavfilter/rkrga_common.c | 154 +++++++++++++++++++++++++++----------
+ 1 file changed, 112 insertions(+), 42 deletions(-)
+
+diff --git a/libavfilter/rkrga_common.c b/libavfilter/rkrga_common.c
+index 0ebcdef875..ef67237ec9 100644
+--- a/libavfilter/rkrga_common.c
++++ b/libavfilter/rkrga_common.c
+@@ -23,6 +23,8 @@
+  * Rockchip RGA (2D Raster Graphic Acceleration) base function
+  */
+ 
++#include <inttypes.h>
++
+ #include "libavutil/common.h"
+ #include "libavutil/mem.h"
+ #include "libavutil/pixdesc.h"
+@@ -260,10 +262,25 @@ static int is_pixel_stride_rga3_compat(int ws, int hs,
+     }
+ }
+ 
++static int is_rga2_core_mask(int scheduler_core)
++{
++    return scheduler_core && scheduler_core == (scheduler_core & 0xc);
++}
++
++static int is_rga3_core_mask(int scheduler_core)
++{
++    return scheduler_core && scheduler_core == (scheduler_core & 0x3);
++}
++
++static int has_mixed_rga_core_mask(int scheduler_core)
++{
++    return (scheduler_core & 0x3) && (scheduler_core & 0xc);
++}
++
+ static int rga3_core_can_be_used(const RKRGAContext *r, int scheduler_core)
+ {
+     return !r->is_rga2_used && r->has_rga3 &&
+-           (!scheduler_core || (scheduler_core & 0x3));
++           (!scheduler_core || is_rga3_core_mask(scheduler_core));
+ }
+ 
+ static void select_rga2_core(RKRGAContext *r, RGAFrameInfo *out)
+@@ -306,6 +323,38 @@ static int is_yuv_rect_aligned(const RGAFrameInfo *info, int x, int y, int w, in
+            !((x | y | w | h) & (RK_RGA_YUV_ALIGN - 1));
+ }
+ 
++static int is_supported_afbc_modifier(uint64_t modifier)
++{
++    return modifier == DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_SPARSE |
++                                               AFBC_FORMAT_MOD_BLOCK_SIZE_16x16);
++}
++
++static int is_supported_rfbc_modifier(uint64_t modifier)
++{
++    return modifier == DRM_FORMAT_MOD_ROCKCHIP_RFBC(ROCKCHIP_RFBC_BLOCK_SIZE_64x4);
++}
++
++static int validate_drm_modifier(AVFilterContext *avctx, uint64_t modifier,
++                                 int *is_afbc, int *is_rfbc)
++{
++    *is_afbc = *is_rfbc = 0;
++
++    if (modifier == DRM_FORMAT_MOD_LINEAR)
++        return 0;
++    if (is_supported_afbc_modifier(modifier)) {
++        *is_afbc = 1;
++        return 0;
++    }
++    if (is_supported_rfbc_modifier(modifier)) {
++        *is_rfbc = 1;
++        return 0;
++    }
++
++    av_log(avctx, AV_LOG_ERROR, "Unsupported DRM modifier 0x%016"PRIx64"\n",
++           modifier);
++    return AVERROR(ENOSYS);
++}
++
+ static void clear_unused_frames(RGAFrame *list)
+ {
+     while (list) {
+@@ -379,19 +428,20 @@ static RGAFrame *get_free_frame(RGAFrame **list)
+     return out;
+ }
+ 
+-static void set_colorspace_info(RGAFrameInfo *in_info,
+-                                enum AVColorSpace in_spc,
+-                                enum AVColorRange in_rng,
+-                                RGAFrameInfo *out_info,
+-                                enum AVColorSpace *out_spc,
+-                                enum AVColorRange *out_rng,
+-                                int *color_space_mode,
+-                                int is_rga2_used)
++static int set_colorspace_info(AVFilterContext *avctx,
++                               RGAFrameInfo *in_info,
++                               enum AVColorSpace in_spc,
++                               enum AVColorRange in_rng,
++                               RGAFrameInfo *out_info,
++                               enum AVColorSpace *out_spc,
++                               enum AVColorRange *out_rng,
++                               int *color_space_mode,
++                               int is_rga2_used)
+ {
+     int rgb_in, rgb_out, out_mode = 0;
+ 
+     if (!in_info || !out_info || !color_space_mode)
+-        return;
++        return AVERROR(EINVAL);
+ 
+     rgb_in  = in_info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB;
+     rgb_out = out_info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB;
+@@ -437,11 +487,13 @@ static void set_colorspace_info(RGAFrameInfo *in_info,
+                 out_mode = 1 << 0; /* IM_YUV_TO_RGB_BT601_LIMIT */
+             break;
+         case AVCOL_RANGE_JPEG:
+-#if 0
+-            if (in_spc == AVCOL_SPC_BT709)
+-                out_mode = 0xc << 8; /* yuv2rgb_709_full */
+-            if (in_spc == AVCOL_SPC_BT470BG)
+-#endif
++            if (in_spc == AVCOL_SPC_BT709) {
++                av_log(avctx, AV_LOG_ERROR,
++                       "Full-range BT.709 YUV to RGB is not supported by RGA\n");
++                return AVERROR(ENOSYS);
++            }
++            if (in_spc == AVCOL_SPC_BT470BG ||
++                in_spc == AVCOL_SPC_UNSPECIFIED)
+                 out_mode = 2 << 0; /* IM_YUV_TO_RGB_BT601_FULL */
+             break;
+         }
+@@ -466,6 +518,8 @@ static void set_colorspace_info(RGAFrameInfo *in_info,
+         if (out_rng)
+             *out_rng = AVCOL_RANGE_JPEG;
+     }
++
++    return 0;
+ }
+ 
+ static int verify_rga_frame_info_io_dynamic(AVFilterContext *avctx,
+@@ -578,8 +632,9 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+         goto fail;
+     }
+ 
+-    is_afbc = drm_is_afbc(object->format_modifier);
+-    is_rfbc = drm_is_rfbc(object->format_modifier);
++    ret = validate_drm_modifier(ctx, object->format_modifier, &is_afbc, &is_rfbc);
++    if (ret < 0)
++        goto fail;
+     is_fbc = is_afbc || is_rfbc;
+     if (!is_fbc) {
+         ret = get_pixel_stride(object,
+@@ -607,7 +662,8 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+         info.blend    = (do_overlay && !pat_preproc) ? in_info->blend_mode : 0;
+     }
+ 
+-    if (is_fbc && !r->has_rga2p && (r->is_rga2_used || out_info->scheduler_core == 0x4)) {
++    if (is_fbc && !r->has_rga2p &&
++        (r->is_rga2_used || is_rga2_core_mask(out_info->scheduler_core))) {
+         av_log(ctx, AV_LOG_ERROR, "Input format '%s' with AFBC/RFBC modifier is not supported by RGA2 (non-Pro)\n",
+                av_get_pix_fmt_name(in_info->pix_fmt));
+         goto fail;
+@@ -762,7 +818,7 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+     if (object->fd < 0)
+         goto fail;
+ 
+-    if (r->is_rga2_used || out_info->scheduler_core == 0x4) {
++    if (r->is_rga2_used || is_rga2_core_mask(out_info->scheduler_core)) {
+         if (!r->has_rga2p && pat_preproc && (act_w > 4096 || act_h > 4096)) {
+             av_log(ctx, AV_LOG_ERROR, "Max supported output size of RGA2 (non-Pro) is 4096x4096\n");
+             goto fail;
+@@ -809,27 +865,32 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+ 
+     if (!pat_preproc) {
+         int is_rga2_used = r->is_rga2_used ||
+-                           (out_info->scheduler_core > 0 &&
+-                            out_info->scheduler_core == (out_info->scheduler_core & 0xc));
++                           is_rga2_core_mask(out_info->scheduler_core);
+ 
+ #ifdef RGA_NORMAL_DST_FULL_CSC_FIXUP
+         if (in1_info && picref_pat) {
+             enum AVColorSpace pat_colorspace = picref_pat->colorspace;
+             enum AVColorRange pat_color_range = picref_pat->color_range;
+             /* yuv2rgb src->pat */
+-            set_colorspace_info(in0_info, in->colorspace, in->color_range,
+-                                in1_info, &pat_colorspace, &pat_color_range,
+-                                &info.color_space_mode, is_rga2_used);
++            ret = set_colorspace_info(ctx, in0_info, in->colorspace, in->color_range,
++                                      in1_info, &pat_colorspace, &pat_color_range,
++                                      &info.color_space_mode, is_rga2_used);
++            if (ret < 0)
++                goto fail;
+             /* rgb2yuv pat->dst */
+-            set_colorspace_info(in1_info, pat_colorspace, pat_color_range,
+-                                out_info, &out_frame->frame->colorspace, &out_frame->frame->color_range,
+-                                &info.color_space_mode, is_rga2_used);
++            ret = set_colorspace_info(ctx, in1_info, pat_colorspace, pat_color_range,
++                                      out_info, &out_frame->frame->colorspace, &out_frame->frame->color_range,
++                                      &info.color_space_mode, is_rga2_used);
++            if (ret < 0)
++                goto fail;
+         } else
+ #endif
+         {
+-            set_colorspace_info(in0_info, in->colorspace, in->color_range,
+-                                out_info, &out_frame->frame->colorspace, &out_frame->frame->color_range,
+-                                &info.color_space_mode, is_rga2_used);
++            ret = set_colorspace_info(ctx, in0_info, in->colorspace, in->color_range,
++                                      out_info, &out_frame->frame->colorspace, &out_frame->frame->color_range,
++                                      &info.color_space_mode, is_rga2_used);
++            if (ret < 0)
++                goto fail;
+         }
+     }
+ 
+@@ -1200,7 +1261,7 @@ static av_cold int verify_rga_frame_info(AVFilterContext *avctx,
+     scale_ratio_max = 16.0f;
+     if ((r->is_rga2_used && r->has_rga2l) ||
+         (!r->is_rga2_used && r->has_rga3 && !r->has_rga2) ||
+-        (r->scheduler_core > 0 && r->scheduler_core == (r->scheduler_core & 0x3))) {
++        is_rga3_core_mask(r->scheduler_core)) {
+         scale_ratio_max = 8.0f;
+     }
+     scale_ratio_min = 1.0f / scale_ratio_max;
+@@ -1245,10 +1306,13 @@ static av_cold int fill_rga_frame_info_by_link(AVFilterContext *avctx,
+     info->act_w    = link->w;
+     info->act_h    = link->h;
+ 
+-    /* The w/h of RGA YUV image needs to be 2 aligned */
+-    if (!(info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB)) {
+-        info->act_w = ALIGN_DOWN(info->act_w, RK_RGA_YUV_ALIGN);
+-        info->act_h = ALIGN_DOWN(info->act_h, RK_RGA_YUV_ALIGN);
++    /* The w/h of RGA YUV image needs to be 2 aligned. */
++    if (!(info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB) &&
++        ((info->act_w | info->act_h) & (RK_RGA_YUV_ALIGN - 1))) {
++        av_log(avctx, AV_LOG_ERROR, "'%s' pad %d format '%s' requires even dimensions\n",
++               is_inlink ? "input" : "output", nb_link,
++               av_get_pix_fmt_name(info->pix_fmt));
++        return AVERROR(EINVAL);
+     }
+ 
+     info->uncompact_10b_msb = info->pix_fmt == AV_PIX_FMT_P010 ||
+@@ -1292,9 +1356,13 @@ av_cold int ff_rkrga_init(AVFilterContext *avctx, RKRGAParam *param)
+         av_log(avctx, AV_LOG_WARNING, "Invalid scheduler core set, ignoring\n");
+         r->scheduler_core = 0;
+     }
+-    if (r->scheduler_core && r->scheduler_core == (r->scheduler_core & 0x3))
++    if (has_mixed_rga_core_mask(r->scheduler_core)) {
++        av_log(avctx, AV_LOG_ERROR, "Mixed RGA2/RGA3 scheduler core masks are not supported\n");
++        return AVERROR(EINVAL);
++    }
++    if (is_rga3_core_mask(r->scheduler_core))
+         r->has_rga2 = r->has_rga2l = r->has_rga2e = r->has_rga2p = 0;
+-    if (r->scheduler_core == 0x4 && !r->has_rga2p)
++    if (is_rga2_core_mask(r->scheduler_core))
+         r->has_rga3 = 0;
+ 
+     r->filter_frame = param->filter_frame;
+@@ -1323,11 +1391,13 @@ av_cold int ff_rkrga_init(AVFilterContext *avctx, RKRGAParam *param)
+ 
+         if (param->in_crop) {
+             /* The x/y/w/h of RGA YUV image needs to be 2 aligned */
+-            if (!(r->in_rga_frame_infos[0].pix_desc->flags & AV_PIX_FMT_FLAG_RGB)) {
+-                param->in_crop_x = ALIGN_DOWN(param->in_crop_x, RK_RGA_YUV_ALIGN);
+-                param->in_crop_y = ALIGN_DOWN(param->in_crop_y, RK_RGA_YUV_ALIGN);
+-                param->in_crop_w = ALIGN_DOWN(param->in_crop_w, RK_RGA_YUV_ALIGN);
+-                param->in_crop_h = ALIGN_DOWN(param->in_crop_h, RK_RGA_YUV_ALIGN);
++            if (!(r->in_rga_frame_infos[0].pix_desc->flags & AV_PIX_FMT_FLAG_RGB) &&
++                ((param->in_crop_x | param->in_crop_y |
++                  param->in_crop_w | param->in_crop_h) & (RK_RGA_YUV_ALIGN - 1))) {
++                av_log(avctx, AV_LOG_ERROR,
++                       "YUV crop rectangles require even x/y/width/height\n");
++                ret = AVERROR(EINVAL);
++                goto fail;
+             }
+             r->in_rga_frame_infos[0].crop = 1;
+             r->in_rga_frame_infos[0].act_x = param->in_crop_x;
+-- 
+2.53.0
+

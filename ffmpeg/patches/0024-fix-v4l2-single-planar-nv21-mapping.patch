@@ -1,0 +1,26 @@
+From a6896582ecc50d7bc82bc8b92ad4ec2a44015053 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 2 Jul 2026 06:31:25 -0700
+Subject: [PATCH 24/28] fix v4l2 single-planar nv21 mapping
+
+---
+ libavdevice/v4l2-common.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libavdevice/v4l2-common.c b/libavdevice/v4l2-common.c
+index 1f4b088a82..8322541856 100644
+--- a/libavdevice/v4l2-common.c
++++ b/libavdevice/v4l2-common.c
+@@ -50,6 +50,9 @@ const struct fmt_map ff_fmt_conversion_table[] = {
+     { AV_PIX_FMT_GRAY16LE,AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_Z16     },
+ #endif
+     { AV_PIX_FMT_NV12,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV12    },
++#ifdef V4L2_PIX_FMT_NV21
++    { AV_PIX_FMT_NV21,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV21    },
++#endif
+ #ifdef V4L2_PIX_FMT_NV12M
+     { AV_PIX_FMT_NV12,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV12M   },
+ #endif
+-- 
+2.53.0
+

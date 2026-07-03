@@ -1,0 +1,649 @@
+From 2f5e00e3a2d9329d728d6b0bc3e28914a432bc3a Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 2 Jul 2026 00:44:48 -0700
+Subject: [PATCH 14/28] fix remaining rockchip review issues
+
+---
+ configure                     |   2 +-
+ doc/APIchanges                |   6 +-
+ libavcodec/raw_pix_fmt_tags.h |   2 +
+ libavcodec/rkmppdec.c         |  18 ++--
+ libavcodec/rkmppenc.c         |  50 +++++-----
+ libavdevice/v4l2-common.c     |   6 ++
+ libavdevice/v4l2.c            |  27 ++++--
+ libavfilter/rkrga_common.c    | 168 ++++++++++++++++++++++++++++------
+ libavutil/version.h           |   2 +-
+ 9 files changed, 210 insertions(+), 71 deletions(-)
+
+diff --git a/configure b/configure
+index 8a8e8644fb..89bbc1bcf2 100755
+--- a/configure
++++ b/configure
+@@ -4377,7 +4377,7 @@ avcodec_suggest="libm stdatomic zlib rkrga"
+ avdevice_deps="avformat avcodec avutil"
+ avdevice_suggest="libm stdatomic"
+ avfilter_deps="avutil"
+-avfilter_suggest="libm stdatomic zlib spirv_library"
++avfilter_suggest="libm rkrga stdatomic zlib spirv_library"
+ avformat_deps="avcodec avutil"
+ avformat_suggest="libm network zlib stdatomic"
+ avutil_suggest="amf clock_gettime ffnvcodec gcrypt libm zlib libdrm libmfx opencl openssl rkmpp user32 vaapi vulkan videotoolbox corefoundation corevideo coremedia bcrypt stdatomic"
+diff --git a/doc/APIchanges b/doc/APIchanges
+index 02481f31ac..e46e6369f6 100644
+--- a/doc/APIchanges
++++ b/doc/APIchanges
+@@ -1,7 +1,11 @@
+-The last version increases of all libraries were on 2026-06-23.
++The last version increases of all libraries were on 2026-07-02.
+ 
+ API changes, most recent first:
+ 
++2026-07-02 - xxxxxxxxxxx - lavu 61.3.100 - pixfmt.h hwcontext.h
++  Add AV_PIX_FMT_NV15 and AV_PIX_FMT_NV20_PACKED.
++  Add AV_HWDEVICE_TYPE_RKMPP.
++
+ 2026-06-23 - 61693f6c35f - lavu 60.34.100 - hwcontext_vulkan.h
+   Switch AVVkFrame.access to VkAccessFlagBits2.
+ 
+diff --git a/libavcodec/raw_pix_fmt_tags.h b/libavcodec/raw_pix_fmt_tags.h
+index bdde060cf7..8448c03f26 100644
+--- a/libavcodec/raw_pix_fmt_tags.h
++++ b/libavcodec/raw_pix_fmt_tags.h
+@@ -68,7 +68,9 @@ static const PixelFormatTag raw_pix_fmt_tags[] = {
+     { AV_PIX_FMT_UYYVYY411,       MKTAG('Y', '4', '1', '1') },
+     { AV_PIX_FMT_GRAY8,           MKTAG('G', 'R', 'E', 'Y') },
+     { AV_PIX_FMT_NV12,            MKTAG('N', 'V', '1', '2') },
++    { AV_PIX_FMT_NV15,            MKTAG('N', 'V', '1', '5') },
+     { AV_PIX_FMT_NV21,            MKTAG('N', 'V', '2', '1') },
++    { AV_PIX_FMT_NV20_PACKED,     MKTAG('N', 'V', '2', '0') },
+     { AV_PIX_FMT_VUYA,            MKTAG('A', 'Y', 'U', 'V') }, /* MS 4:4:4:4 */
+     { AV_PIX_FMT_XV30LE,          MKTAG('Y', '4', '1', '0') },
+     { AV_PIX_FMT_XV48LE,          MKTAG('Y', '4', '1', '6') },
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index 066bccaa3d..a5b2c26a68 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -440,14 +440,15 @@ static av_cold int rkmpp_decode_init(AVCodecContext *avctx)
+     }
+ 
+     if (r->afbc) {
+-        MppFrameFormat afbc_fmt = MPP_FRAME_FBC_AFBC_V2;
++        MppFrameFormat afbc_fmt = r->use_rfbc ? MPP_FRAME_FBC_RKFBC
++                                               : MPP_FRAME_FBC_AFBC_V2;
+ 
+         if (avctx->codec_id == AV_CODEC_ID_H264 ||
+             avctx->codec_id == AV_CODEC_ID_HEVC ||
+             avctx->codec_id == AV_CODEC_ID_VP9 ||
+             avctx->codec_id == AV_CODEC_ID_AV1) {
+             if ((ret = r->mapi->control(r->mctx, MPP_DEC_SET_OUTPUT_FORMAT, &afbc_fmt)) != MPP_OK) {
+-                av_log(avctx, AV_LOG_ERROR, "Failed to set AFBC mode: %d\n", ret);
++                av_log(avctx, AV_LOG_ERROR, "Failed to set FBC mode: %d\n", ret);
+                 ret = AVERROR_EXTERNAL;
+                 goto fail;
+             }
+@@ -714,7 +715,7 @@ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mp
+     MppBuffer mpp_buf = NULL;
+     MppFrameFormat mpp_fmt = MPP_FMT_BUTT;
+     int mpp_frame_mode = 0;
+-    int ret, is_afbc = 0;
++    int ret, is_fbc = 0, is_rfbc = 0;
+ 
+     if (!frame || !mpp_frame) {
+         ret = AVERROR(ENOMEM);
+@@ -739,16 +740,17 @@ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mp
+     desc->drm_desc.objects[0].size = mpp_buffer_get_size(mpp_buf);
+ 
+     mpp_fmt = mpp_frame_get_fmt(mpp_frame);
+-    is_afbc = mpp_fmt & MPP_FRAME_FBC_MASK;
++    is_fbc  = mpp_fmt & MPP_FRAME_FBC_MASK;
++    is_rfbc = mpp_fmt & MPP_FRAME_FBC_RKFBC;
+ 
+     desc->drm_desc.nb_layers = 1;
+     layer = &desc->drm_desc.layers[0];
+     layer->planes[0].object_index = 0;
+ 
+-    if (is_afbc) {
++    if (is_fbc) {
+         desc->drm_desc.objects[0].format_modifier =
+-            r->use_rfbc ? DRM_FORMAT_MOD_ROCKCHIP_RFBC(ROCKCHIP_RFBC_BLOCK_SIZE_64x4)
+-                        : DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_SPARSE | AFBC_FORMAT_MOD_BLOCK_SIZE_16x16);
++            is_rfbc ? DRM_FORMAT_MOD_ROCKCHIP_RFBC(ROCKCHIP_RFBC_BLOCK_SIZE_64x4)
++                    : DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_SPARSE | AFBC_FORMAT_MOD_BLOCK_SIZE_16x16);
+ 
+         layer->format = rkmpp_get_drm_afbc_format(mpp_fmt);
+         layer->nb_planes = 1;
+@@ -759,7 +761,7 @@ static int rkmpp_export_frame(AVCodecContext *avctx, AVFrame *frame, MppFrame mp
+         if ((ret = get_afbc_byte_stride(pix_desc, (int *)&layer->planes[0].pitch, 0)) < 0)
+             goto fail;
+ 
+-        desc->afbc_offset_y = r->use_rfbc ? 0 : mpp_frame_get_offset_y(mpp_frame);
++        desc->afbc_offset_y = is_rfbc ? 0 : mpp_frame_get_offset_y(mpp_frame);
+     } else {
+         layer->format = rkmpp_get_drm_format(mpp_fmt);
+         layer->nb_planes = 2;
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index f495ebaf7d..77bcb47bb6 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -366,7 +366,7 @@ static int rkmpp_set_enc_cfg_prep(AVCodecContext *avctx, AVFrame *frame)
+     RKMPPEncContext *r = avctx->priv_data;
+     MppEncCfg cfg = r->mcfg;
+     MppFrameFormat mpp_fmt = r->mpp_fmt;
+-    int ret, is_afbc = 0;
++    int ret, is_afbc = 0, is_rfbc = 0, is_fbc = 0;
+     int hor_stride = 0, ver_stride = 0;
+     const AVPixFmtDescriptor *pix_desc;
+     const AVDRMFrameDescriptor *drm_desc;
+@@ -386,19 +386,21 @@ static int rkmpp_set_enc_cfg_prep(AVCodecContext *avctx, AVFrame *frame)
+ 
+     pix_desc = av_pix_fmt_desc_get(r->pix_fmt);
+     is_afbc = drm_is_afbc(drm_desc->objects[0].format_modifier);
+-    if (!is_afbc &&
++    is_rfbc = drm_is_rfbc(drm_desc->objects[0].format_modifier);
++    is_fbc  = is_afbc || is_rfbc;
++    if (!is_fbc &&
+         drm_desc->objects[0].format_modifier != DRM_FORMAT_MOD_LINEAR) {
+-        av_log(avctx, AV_LOG_ERROR, "Only linear and AFBC modifiers are supported\n");
++        av_log(avctx, AV_LOG_ERROR, "Only linear, AFBC and RFBC modifiers are supported\n");
+         return AVERROR(ENOSYS);
+     }
+-    if (is_afbc &&
++    if (is_fbc &&
+         !(avctx->codec_id == AV_CODEC_ID_H264 ||
+           avctx->codec_id == AV_CODEC_ID_HEVC)) {
+-        av_log(avctx, AV_LOG_ERROR, "AFBC is not supported in codec '%s'\n",
++        av_log(avctx, AV_LOG_ERROR, "FBC is not supported in codec '%s'\n",
+                avcodec_get_name(avctx->codec_id));
+         return AVERROR(ENOSYS);
+     }
+-    if (!is_afbc) {
++    if (!is_fbc) {
+         ret = get_byte_stride(&drm_desc->objects[0],
+                               &drm_desc->layers[0],
+                               (pix_desc->flags & AV_PIX_FMT_FLAG_RGB),
+@@ -437,16 +439,16 @@ static int rkmpp_set_enc_cfg_prep(AVCodecContext *avctx, AVFrame *frame)
+         mpp_enc_cfg_set_s32(cfg, "prep:format_out", rkmpp_fix_chroma_fmt(r->chroma_fmt, r->pix_fmt));
+     }
+ 
+-    if (is_afbc) {
++    if (is_fbc) {
+         const AVDRMLayerDescriptor *layer = &drm_desc->layers[0];
+-        uint32_t drm_afbc_fmt = rkmpp_get_drm_afbc_format(mpp_fmt);
++        uint32_t drm_fbc_fmt = rkmpp_get_drm_afbc_format(mpp_fmt);
+ 
+-        if (drm_afbc_fmt != layer->format) {
+-            av_log(avctx, AV_LOG_ERROR, "Input format '%s' with AFBC modifier is not supported\n",
++        if (drm_fbc_fmt != layer->format) {
++            av_log(avctx, AV_LOG_ERROR, "Input format '%s' with FBC modifier is not supported\n",
+                    av_get_pix_fmt_name(r->pix_fmt));
+             return AVERROR(ENOSYS);
+         }
+-        mpp_fmt |= MPP_FRAME_FBC_AFBC_V2;
++        mpp_fmt |= is_rfbc ? MPP_FRAME_FBC_RKFBC : MPP_FRAME_FBC_AFBC_V2;
+     }
+     mpp_enc_cfg_set_s32(cfg, "prep:format", mpp_fmt);
+ 
+@@ -815,7 +817,7 @@ static MPPEncFrame *rkmpp_submit_frame(AVCodecContext *avctx, AVFrame *frame,
+     int hor_stride = 0, ver_stride = 0;
+     MppBufferInfo buf_info = { 0 };
+     MppFrameFormat mpp_fmt = r->mpp_fmt;
+-    int ret, is_afbc = 0;
++    int ret, is_afbc = 0, is_rfbc = 0, is_fbc = 0;
+ 
+     MPPEncFrame *mpp_enc_frame = NULL;
+ 
+@@ -927,40 +929,42 @@ static MPPEncFrame *rkmpp_submit_frame(AVCodecContext *avctx, AVFrame *frame,
+     plane0 = &layer->planes[0];
+ 
+     is_afbc = drm_is_afbc(drm_desc->objects[0].format_modifier);
+-    if (!is_afbc &&
++    is_rfbc = drm_is_rfbc(drm_desc->objects[0].format_modifier);
++    is_fbc  = is_afbc || is_rfbc;
++    if (!is_fbc &&
+         drm_desc->objects[0].format_modifier != DRM_FORMAT_MOD_LINEAR) {
+-        av_log(avctx, AV_LOG_ERROR, "Only linear and AFBC modifiers are supported\n");
++        av_log(avctx, AV_LOG_ERROR, "Only linear, AFBC and RFBC modifiers are supported\n");
+         *errp = AVERROR(EINVAL);
+         goto exit;
+     }
+-    if (is_afbc &&
++    if (is_fbc &&
+         !(avctx->codec_id == AV_CODEC_ID_H264 ||
+           avctx->codec_id == AV_CODEC_ID_HEVC)) {
+-        av_log(avctx, AV_LOG_ERROR, "AFBC is not supported in codec '%s'\n",
++        av_log(avctx, AV_LOG_ERROR, "FBC is not supported in codec '%s'\n",
+                avcodec_get_name(avctx->codec_id));
+         *errp = AVERROR(EINVAL);
+         goto exit;
+     }
+-    if (is_afbc) {
+-        uint32_t drm_afbc_fmt = rkmpp_get_drm_afbc_format(mpp_fmt);
++    if (is_fbc) {
++        uint32_t drm_fbc_fmt = rkmpp_get_drm_afbc_format(mpp_fmt);
+         int afbc_offset_y = 0;
+ 
+-        if (drm_afbc_fmt != layer->format) {
+-            av_log(avctx, AV_LOG_ERROR, "Input format '%s' with AFBC modifier is not supported\n",
++        if (drm_fbc_fmt != layer->format) {
++            av_log(avctx, AV_LOG_ERROR, "Input format '%s' with FBC modifier is not supported\n",
+                    av_get_pix_fmt_name(r->pix_fmt));
+             *errp = AVERROR(EINVAL);
+             goto exit;
+         }
+-        mpp_fmt |= MPP_FRAME_FBC_AFBC_V2;
++        mpp_fmt |= is_rfbc ? MPP_FRAME_FBC_RKFBC : MPP_FRAME_FBC_AFBC_V2;
+ 
+-        if (rkmpp_desc && rkmpp_desc->afbc_offset_y > 0) {
++        if (!is_rfbc && rkmpp_desc && rkmpp_desc->afbc_offset_y > 0) {
+             afbc_offset_y = rkmpp_desc->afbc_offset_y;
+             mpp_frame_set_offset_y(mpp_frame, afbc_offset_y);
+         }
+     }
+     mpp_frame_set_fmt(mpp_frame, mpp_fmt);
+ 
+-    if (is_afbc) {
++    if (is_fbc) {
+         hor_stride = plane0->pitch;
+         if ((ret = get_afbc_byte_stride(pix_desc, &hor_stride, 1)) < 0) {
+             *errp = ret;
+diff --git a/libavdevice/v4l2-common.c b/libavdevice/v4l2-common.c
+index ebfd2b6d8d..5561426ed8 100644
+--- a/libavdevice/v4l2-common.c
++++ b/libavdevice/v4l2-common.c
+@@ -50,9 +50,15 @@ const struct fmt_map ff_fmt_conversion_table[] = {
+     { AV_PIX_FMT_GRAY16LE,AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_Z16     },
+ #endif
+     { AV_PIX_FMT_NV12,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV12    },
++#ifdef V4L2_PIX_FMT_NV15
++    { AV_PIX_FMT_NV15,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV15    },
++#endif
+ #ifdef V4L2_PIX_FMT_NV16
+     { AV_PIX_FMT_NV16,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV16    },
+ #endif
++#ifdef V4L2_PIX_FMT_NV20
++    { AV_PIX_FMT_NV20_PACKED, AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV20 },
++#endif
+ #ifdef V4L2_PIX_FMT_NV24
+     { AV_PIX_FMT_NV24,    AV_CODEC_ID_RAWVIDEO, V4L2_PIX_FMT_NV24    },
+ #endif
+diff --git a/libavdevice/v4l2.c b/libavdevice/v4l2.c
+index cea8af7829..35943e9075 100644
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -412,7 +412,7 @@ static int mmap_init(AVFormatContext *ctx)
+     for (i = 0; i < req.count; i++) {
+         int plane_count;
+         int total_frame_size = 0;
+-        struct v4l2_plane planes[VIDEO_MAX_PLANES];
++        struct v4l2_plane planes[VIDEO_MAX_PLANES] = { 0 };
+         struct v4l2_buffer buf = {
+             .type   = s->buf_type,
+             .index  = i,
+@@ -492,7 +492,7 @@ static int enqueue_buffer(struct video_data *s, struct v4l2_buffer *buf)
+ 
+ static void mmap_release_buffer(void *opaque, uint8_t *data)
+ {
+-    struct v4l2_plane planes[VIDEO_MAX_PLANES];
++    struct v4l2_plane planes[VIDEO_MAX_PLANES] = { 0 };
+     struct v4l2_buffer buf = { 0 };
+     struct buf_desc *buf_descriptor = opaque;
+     struct video_data *s = buf_descriptor->s;
+@@ -571,7 +571,7 @@ static int convert_timestamp(AVFormatContext *ctx, int64_t *ts)
+ static int mmap_read_frame(AVFormatContext *ctx, AVPacket *pkt)
+ {
+     struct video_data *s = ctx->priv_data;
+-    struct v4l2_plane planes[VIDEO_MAX_PLANES];
++    struct v4l2_plane planes[VIDEO_MAX_PLANES] = { 0 };
+     struct v4l2_buffer buf = {
+         .type   = s->buf_type,
+         .memory = V4L2_MEMORY_MMAP,
+@@ -737,7 +737,7 @@ static int mmap_start(AVFormatContext *ctx)
+     int i, res;
+ 
+     for (i = 0; i < s->buffers; i++) {
+-        struct v4l2_plane planes[VIDEO_MAX_PLANES];
++        struct v4l2_plane planes[VIDEO_MAX_PLANES] = { 0 };
+         struct v4l2_buffer buf = {
+             .type   = s->buf_type,
+             .index  = i,
+@@ -1001,6 +1001,7 @@ static int v4l2_read_header(AVFormatContext *ctx)
+     enum AVCodecID codec_id = AV_CODEC_ID_NONE;
+     enum AVPixelFormat pix_fmt = AV_PIX_FMT_NONE;
+     struct v4l2_input input = { 0 };
++    int input_probe_ignored = 0;
+ 
+     st = avformat_new_stream(ctx, NULL);
+     if (!st)
+@@ -1033,8 +1034,10 @@ static int v4l2_read_header(AVFormatContext *ctx)
+             av_log(ctx, (s->ignore_input_error) ? AV_LOG_WARNING : AV_LOG_ERROR, "ioctl(VIDIOC_G_INPUT): %s\n", av_err2str(res));
+             if (!s->ignore_input_error)
+                 goto fail;
+-            else
++            else {
+                 s->channel = 0;
++                input_probe_ignored = 1;
++            }
+         }
+     }
+ 
+@@ -1042,12 +1045,16 @@ static int v4l2_read_header(AVFormatContext *ctx)
+     input.index = s->channel;
+     if (v4l2_ioctl(s->fd, VIDIOC_ENUMINPUT, &input) < 0) {
+         res = AVERROR(errno);
+-        av_log(ctx, AV_LOG_ERROR, "ioctl(VIDIOC_ENUMINPUT): %s\n", av_err2str(res));
+-        goto fail;
++        av_log(ctx, input_probe_ignored ? AV_LOG_WARNING : AV_LOG_ERROR,
++               "ioctl(VIDIOC_ENUMINPUT): %s\n", av_err2str(res));
++        if (!input_probe_ignored)
++            goto fail;
++        s->std_id = 0;
++    } else {
++        s->std_id = input.std;
++        av_log(ctx, AV_LOG_DEBUG, "Current input_channel: %d, input_name: %s, input_std: %"PRIx64"\n",
++               s->channel, input.name, (uint64_t)input.std);
+     }
+-    s->std_id = input.std;
+-    av_log(ctx, AV_LOG_DEBUG, "Current input_channel: %d, input_name: %s, input_std: %"PRIx64"\n",
+-           s->channel, input.name, (uint64_t)input.std);
+ 
+     if (s->list_format) {
+         list_formats(ctx, s->list_format);
+diff --git a/libavfilter/rkrga_common.c b/libavfilter/rkrga_common.c
+index 6cb77fb94c..0ebcdef875 100644
+--- a/libavfilter/rkrga_common.c
++++ b/libavfilter/rkrga_common.c
+@@ -166,6 +166,33 @@ static int get_pixel_stride(const AVDRMObjectDescriptor *object,
+     return (*ws > 0 && *hs > 0) ? 0 : AVERROR(EINVAL);
+ }
+ 
++static int get_single_drm_object_index(const AVDRMFrameDescriptor *desc,
++                                       const AVDRMLayerDescriptor *layer)
++{
++    int object_index;
++
++    if (!desc || !layer || layer->nb_planes < 1)
++        return AVERROR(EINVAL);
++
++    object_index = layer->planes[0].object_index;
++    if (object_index < 0 || object_index >= desc->nb_objects)
++        return AVERROR(EINVAL);
++
++    for (int i = 1; i < layer->nb_planes; i++)
++        if (layer->planes[i].object_index != object_index)
++            return AVERROR(EINVAL);
++
++    return object_index;
++}
++
++static const AVDRMObjectDescriptor *get_single_drm_object(const AVDRMFrameDescriptor *desc,
++                                                          const AVDRMLayerDescriptor *layer)
++{
++    int object_index = get_single_drm_object_index(desc, layer);
++
++    return object_index < 0 ? NULL : &desc->objects[object_index];
++}
++
+ static int get_afbc_pixel_stride(float bytes_pp, int *stride, int reverse)
+ {
+     if (!stride || *stride <= 0 || bytes_pp <= 0)
+@@ -233,6 +260,52 @@ static int is_pixel_stride_rga3_compat(int ws, int hs,
+     }
+ }
+ 
++static int rga3_core_can_be_used(const RKRGAContext *r, int scheduler_core)
++{
++    return !r->is_rga2_used && r->has_rga3 &&
++           (!scheduler_core || (scheduler_core & 0x3));
++}
++
++static void select_rga2_core(RKRGAContext *r, RGAFrameInfo *out)
++{
++    r->is_rga2_used = 1;
++    if (out) {
++        out->scheduler_core = 0x4;
++        if (r->has_rga2p)
++            out->scheduler_core |= 0x8;
++    }
++}
++
++static int validate_rga3_pixel_stride(AVFilterContext *avctx,
++                                      RGAFrameInfo *info, RGAFrameInfo *out,
++                                      int ws, int hs, const char *role)
++{
++    RKRGAContext *r = avctx->priv;
++
++    if (!rga3_core_can_be_used(r, out ? out->scheduler_core : r->scheduler_core) ||
++        is_pixel_stride_rga3_compat(ws, hs, info->rga_fmt))
++        return 0;
++
++    if (r->has_rga2) {
++        select_rga2_core(r, out);
++        av_log(avctx, AV_LOG_WARNING,
++               "%s pixel stride (%dx%d) format '%s' is not supported by RGA3, falling back to RGA2\n",
++               role, ws, hs, av_get_pix_fmt_name(info->pix_fmt));
++        return 1;
++    }
++
++    av_log(avctx, AV_LOG_ERROR,
++           "%s pixel stride (%dx%d) format '%s' is not supported by RGA3\n",
++           role, ws, hs, av_get_pix_fmt_name(info->pix_fmt));
++    return AVERROR(EINVAL);
++}
++
++static int is_yuv_rect_aligned(const RGAFrameInfo *info, int x, int y, int w, int h)
++{
++    return (info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB) ||
++           !((x | y | w | h) & (RK_RGA_YUV_ALIGN - 1));
++}
++
+ static void clear_unused_frames(RGAFrame *list)
+ {
+     while (list) {
+@@ -325,6 +398,8 @@ static void set_colorspace_info(RGAFrameInfo *in_info,
+ 
+     /* rgb2yuv */
+     if (rgb_in && !rgb_out) {
++        if (in_rng == AVCOL_RANGE_UNSPECIFIED)
++            in_rng = AVCOL_RANGE_JPEG;
+         /* rgb full -> yuv full/limit */
+         if (in_rng == AVCOL_RANGE_JPEG) {
+             if ((out_rng && *out_rng == AVCOL_RANGE_JPEG) ||
+@@ -462,6 +537,7 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+     int w_stride = 0, h_stride = 0;
+     const AVRKMPPDRMFrameDescriptor *rkmpp_desc = NULL;
+     const AVDRMFrameDescriptor *desc;
++    const AVDRMObjectDescriptor *object;
+     const AVDRMLayerDescriptor *layer;
+     const AVDRMPlaneDescriptor *plane0;
+     RGAFrame **frame_list = NULL;
+@@ -492,15 +568,22 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+     desc = rkmpp_desc ? &rkmpp_desc->drm_desc :
+                         (AVDRMFrameDescriptor *)rga_frame->frame->data[0];
+     if (!desc || desc->nb_objects < 1 || desc->nb_layers < 1 ||
+-        desc->layers[0].nb_planes < 1 || desc->objects[0].fd < 0)
++        desc->layers[0].nb_planes < 1)
++        goto fail;
++
++    layer = &desc->layers[0];
++    object = get_single_drm_object(desc, layer);
++    if (!object || object->fd < 0) {
++        av_log(ctx, AV_LOG_ERROR, "RGA requires all DRM planes to share one valid object\n");
+         goto fail;
++    }
+ 
+-    is_afbc = drm_is_afbc(desc->objects[0].format_modifier);
+-    is_rfbc = drm_is_rfbc(desc->objects[0].format_modifier);
++    is_afbc = drm_is_afbc(object->format_modifier);
++    is_rfbc = drm_is_rfbc(object->format_modifier);
+     is_fbc = is_afbc || is_rfbc;
+     if (!is_fbc) {
+-        ret = get_pixel_stride(&desc->objects[0],
+-                               &desc->layers[0],
++        ret = get_pixel_stride(object,
++                               layer,
+                                in_info->pix_fmt,
+                                (in_info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB),
+                                (in_info->pix_desc->flags & AV_PIX_FMT_FLAG_PLANAR),
+@@ -511,7 +594,7 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+         }
+     }
+ 
+-    info.fd           = desc->objects[0].fd;
++    info.fd           = object->fd;
+     info.format       = in_info->rga_fmt;
+     info.in_fence_fd  = -1;
+     info.out_fence_fd = -1;
+@@ -525,25 +608,18 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+     }
+ 
+     if (is_fbc && !r->has_rga2p && (r->is_rga2_used || out_info->scheduler_core == 0x4)) {
+-        av_log(ctx, AV_LOG_ERROR, "Input format '%s' with AFBC modifier is not supported by RGA2 (non-Pro)\n",
++        av_log(ctx, AV_LOG_ERROR, "Input format '%s' with AFBC/RFBC modifier is not supported by RGA2 (non-Pro)\n",
+                av_get_pix_fmt_name(in_info->pix_fmt));
+         goto fail;
+     }
+ 
+-    /* verify inputs pixel stride */
+-    if (out_info->scheduler_core > 0 &&
+-        out_info->scheduler_core == (out_info->scheduler_core & 0x3)) {
+-        if (!is_afbc && !is_pixel_stride_rga3_compat(w_stride, h_stride, in_info->rga_fmt)) {
+-            r->is_rga2_used = 1;
+-            av_log(ctx, AV_LOG_WARNING, "Input pixel stride (%dx%d) format '%s' is not supported by RGA3\n",
+-                   w_stride, h_stride, av_get_pix_fmt_name(in_info->pix_fmt));
+-        }
+-
++    if (!is_fbc) {
++        ret = validate_rga3_pixel_stride(ctx, in_info, out_info,
++                                         w_stride, h_stride, "Input");
++        if (ret < 0)
++            goto fail;
+         if ((ret = verify_rga_frame_info_io_dynamic(ctx, in_info, out_info)) < 0)
+             goto fail;
+-
+-        if (r->is_rga2_used)
+-            out_info->scheduler_core = 0x4;
+     }
+ 
+     if (pat_preproc) {
+@@ -571,7 +647,6 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+             info.rect.yoffset += afbc_offset_y;
+         }
+ 
+-        layer = &desc->layers[0];
+         plane0 = &layer->planes[0];
+         if (drm_fbc_fmt == layer->format) {
+             info.rect.wstride = plane0->pitch;
+@@ -618,8 +693,9 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+     int act_w, act_h;
+     AVDRMFrameDescriptor *desc;
+     AVDRMLayerDescriptor *layer;
++    AVDRMObjectDescriptor *object;
+     RGAFrame **frame_list = NULL;
+-    int ret, is_afbc = 0;
++    int ret, is_afbc = 0, object_index;
+ 
+     if (!out_info || !hw_frame_ctx)
+         return NULL;
+@@ -673,7 +749,17 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+     }
+ 
+     desc = (AVDRMFrameDescriptor *)out_frame->frame->data[0];
+-    if (desc->objects[0].fd < 0)
++    if (!desc || desc->nb_objects < 1 || desc->nb_layers < 1 ||
++        desc->layers[0].nb_planes < 1)
++        goto fail;
++
++    layer = &desc->layers[0];
++    object_index = get_single_drm_object_index(desc, layer);
++    if (object_index < 0)
++        goto fail;
++
++    object = &desc->objects[object_index];
++    if (object->fd < 0)
+         goto fail;
+ 
+     if (r->is_rga2_used || out_info->scheduler_core == 0x4) {
+@@ -689,8 +775,8 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+     }
+ 
+     is_afbc = r->afbc_out && !pat_preproc;
+-    ret = get_pixel_stride(&desc->objects[0],
+-                           &desc->layers[0],
++    ret = get_pixel_stride(object,
++                           layer,
+                            out_info->pix_fmt,
+                            (out_info->pix_desc->flags & AV_PIX_FMT_FLAG_RGB),
+                            (out_info->pix_desc->flags & AV_PIX_FMT_FLAG_PLANAR),
+@@ -700,7 +786,18 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+         goto fail;
+     }
+ 
+-    info.fd           = desc->objects[0].fd;
++    if (!is_afbc) {
++        ret = validate_rga3_pixel_stride(ctx, out_info, &r->out_rga_frame_info,
++                                         w_stride, h_stride, "Output");
++        if (ret < 0)
++            goto fail;
++        if ((ret = verify_rga_frame_info_io_dynamic(ctx,
++                                                    pat_preproc ? in1_info : in0_info,
++                                                    out_info)) < 0)
++            goto fail;
++    }
++
++    info.fd           = object->fd;
+     info.format       = out_info->rga_fmt;
+     info.core         = out_info->scheduler_core;
+     info.in_fence_fd  = -1;
+@@ -782,10 +879,9 @@ static RGAFrame *query_frame(RKRGAContext *r, AVFilterLink *outlink,
+         info.rect.hstride = h_stride;
+         info.rd_mode = 1 << 1; /* IM_AFBC16x16_MODE */
+ 
+-        desc->objects[0].format_modifier =
++        object->format_modifier =
+             DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_SPARSE | AFBC_FORMAT_MOD_BLOCK_SIZE_16x16);
+ 
+-        layer = &desc->layers[0];
+         layer->format = drm_afbc_fmt;
+         layer->nb_planes = 1;
+ 
+@@ -1279,6 +1375,24 @@ av_cold int ff_rkrga_init(AVFilterContext *avctx, RKRGAParam *param)
+     if (ret < 0)
+         goto fail;
+ 
++    if (avctx->nb_inputs > 1 && r->is_overlay_offset_valid) {
++        RGAFrameInfo *in0_info = &r->in_rga_frame_infos[0];
++        RGAFrameInfo *in1_info = &r->in_rga_frame_infos[1];
++        RGAFrameInfo *out_info = &r->out_rga_frame_info;
++        int overlay_w = FFMIN(in0_info->act_w - in1_info->overlay_x, in1_info->act_w);
++        int overlay_h = FFMIN(in0_info->act_h - in1_info->overlay_y, in1_info->act_h);
++
++        if (!is_yuv_rect_aligned(in0_info, in1_info->overlay_x, in1_info->overlay_y,
++                                 overlay_w, overlay_h) ||
++            !is_yuv_rect_aligned(out_info, in1_info->overlay_x, in1_info->overlay_y,
++                                 overlay_w, overlay_h)) {
++            av_log(avctx, AV_LOG_ERROR,
++                   "YUV overlay rectangles require even x/y/width/height after clipping\n");
++            ret = AVERROR(EINVAL);
++            goto fail;
++        }
++    }
++
+     /* Pre-check RGAFrameInfo */
+     ret = verify_rga_frame_info(avctx, &r->in_rga_frame_infos[0],
+                                 &r->out_rga_frame_info,
+diff --git a/libavutil/version.h b/libavutil/version.h
+index dac3616b20..b944d9d112 100644
+--- a/libavutil/version.h
++++ b/libavutil/version.h
+@@ -79,7 +79,7 @@
+  */
+ 
+ #define LIBAVUTIL_VERSION_MAJOR  61
+-#define LIBAVUTIL_VERSION_MINOR   2
++#define LIBAVUTIL_VERSION_MINOR   3
+ #define LIBAVUTIL_VERSION_MICRO 100
+ 
+ #define LIBAVUTIL_VERSION_INT   AV_VERSION_INT(LIBAVUTIL_VERSION_MAJOR, \
+-- 
+2.53.0
+

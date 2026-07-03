@@ -1,7 +1,7 @@
 From 1c73bd8e65361e95438d06a357ded854624109be Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
 Date: Wed, 1 Jul 2026 15:13:13 -0700
-Subject: [PATCH 8/9] fix rkmpp code review issues
+Subject: [PATCH 08/28] fix rkmpp code review issues
 
 - rkmppdec: make rkmpp_export_frame always consume the MppFrame so
   error paths no longer double-free it or leak the DRM descriptor and

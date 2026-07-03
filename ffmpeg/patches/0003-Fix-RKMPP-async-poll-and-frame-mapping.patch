@@ -1,7 +1,7 @@
 From 5c0c56e8c84834cd68482a2d40c9a76d5d42e408 Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
 Date: Wed, 1 Jul 2026 10:12:24 -0700
-Subject: [PATCH 3/9] Fix RKMPP async poll and frame mapping
+Subject: [PATCH 03/28] Fix RKMPP async poll and frame mapping
 
 ---
  libavcodec/rkmppdec.c       | 3 ++-

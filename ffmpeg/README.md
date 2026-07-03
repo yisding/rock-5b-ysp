@@ -31,12 +31,16 @@ Companion docs:
   AFBC/DRM, and RKRGA capability traps.
 - [`docs/rebase-notes.md`](docs/rebase-notes.md) reconciles all the tree pins, records how
   the fork was replayed onto FFmpeg master, and holds the submission ledger.
+- [`docs/submission-plan.md`](docs/submission-plan.md) is the 2026-07-02
+  full-branch targeting analysis: which of the ~35 logical patches go to
+  nyanmisaka's fork, which to FFmpeg upstream, and which stay here.
 - [`patches/`](patches/README.md) is the exported fix series behind
-  [`docs/fix-candidates.md`](docs/fix-candidates.md) (`git format-patch` files + apply instructions).
+  [`docs/fix-candidates.md`](docs/fix-candidates.md) and
+  [`docs/submission-plan.md`](docs/submission-plan.md) (`git format-patch` files + apply instructions).
 
 **Which tree is current:** this README's recipe builds the nyanmisaka fork at
 `40c412dacc` (2026-04-23) — the tree the kernel-port validation used. Since
-then the whole stack was rebased onto FFmpeg master and given 9 review-fix
+then the whole stack was rebased onto FFmpeg master and given 28 review-fix
 commits: **`github.com/yisding/ffmpeg-rockchip-81`**, branch `main`
 (nyanmisaka upstream: `github.com/nyanmisaka/ffmpeg-rockchip`). If you are
 building fresh today, prefer the rebased tree — it carries the 14 documented

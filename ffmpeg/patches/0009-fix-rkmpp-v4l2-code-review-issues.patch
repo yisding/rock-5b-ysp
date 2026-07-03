@@ -1,7 +1,7 @@
 From b59509b6099053caab777e70db901ad6f449b1b4 Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
 Date: Wed, 1 Jul 2026 16:12:47 -0700
-Subject: [PATCH 9/9] fix rkmpp/v4l2 code review issues
+Subject: [PATCH 09/28] fix rkmpp/v4l2 code review issues
 
 - rkmppdec: return control to caller when the input queue is full
   instead of looping forever (deadlock when all frames are held)

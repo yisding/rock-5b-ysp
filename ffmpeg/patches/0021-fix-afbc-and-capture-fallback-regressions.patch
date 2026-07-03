@@ -1,0 +1,485 @@
+From deb5047b0300ad8fcaeb39ca0f9b5f044e97ba07 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 2 Jul 2026 06:06:03 -0700
+Subject: [PATCH 21/28] fix afbc and capture fallback regressions
+
+---
+ libavcodec/rkmppdec.c      |  66 +++++++++++-----------
+ libavdevice/v4l2.c         | 112 ++++++++++++++++++++++++++-----------
+ libavfilter/rkrga_common.c |  93 +++++++++++++++++++++++++++---
+ libavfilter/vf_vpp_rkrga.c |  16 +++++-
+ 4 files changed, 211 insertions(+), 76 deletions(-)
+
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index 3861752a38..7d1ba7d1ca 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -175,49 +175,32 @@ static int rkmpp_mjpeg_output_buffer_size(AVCodecContext *avctx,
+ static int get_afbc_byte_stride(const AVPixFmtDescriptor *desc,
+                                 int *stride, int reverse)
+ {
+-    int64_t scaled_stride;
+-    int64_t divisor = 1;
++    int bpp;
++    int64_t bits;
+ 
+     if (!desc || !stride || *stride <= 0)
+         return AVERROR(EINVAL);
+ 
+-    if (desc->nb_components == 1 ||
+-        (desc->flags & AV_PIX_FMT_FLAG_RGB) ||
+-        (!(desc->flags & AV_PIX_FMT_FLAG_RGB) &&
+-         !(desc->flags & AV_PIX_FMT_FLAG_PLANAR)))
+-        return 0;
++    bpp = av_get_padded_bits_per_pixel(desc);
++    if (bpp <= 0)
++        return AVERROR(EINVAL);
+ 
+-    scaled_stride = *stride;
+-    if (desc->log2_chroma_w == 1 && desc->log2_chroma_h == 1) {
+-        if (reverse) {
+-            scaled_stride *= 2;
+-            divisor = 3;
+-        } else {
+-            scaled_stride *= 3;
+-            divisor = 2;
+-        }
+-    } else if (desc->log2_chroma_w == 1 && !desc->log2_chroma_h) {
+-        if (reverse)
+-            divisor = 2;
+-        else
+-            scaled_stride *= 2;
+-    } else if (!desc->log2_chroma_w && !desc->log2_chroma_h) {
+-        if (reverse)
+-            divisor = 3;
+-        else
+-            scaled_stride *= 3;
++    if (reverse) {
++        bits = (int64_t)*stride * 8;
++        if (bits % bpp)
++            return AVERROR(EINVAL);
++        bits /= bpp;
+     } else {
+-        return AVERROR(EINVAL);
++        bits = (int64_t)*stride * bpp;
++        if (bits % 8)
++            return AVERROR(EINVAL);
++        bits /= 8;
+     }
+ 
+-    if (scaled_stride % divisor)
+-        return AVERROR(EINVAL);
+-
+-    scaled_stride /= divisor;
+-    if (scaled_stride <= 0 || scaled_stride > INT_MAX)
++    if (bits <= 0 || bits > INT_MAX)
+         return AVERROR(EINVAL);
+ 
+-    *stride = scaled_stride;
++    *stride = bits;
+     return 0;
+ }
+ 
+@@ -1013,6 +996,23 @@ static int rkmpp_get_frame(AVCodecContext *avctx, AVFrame *frame, int timeout)
+         avctx->coded_height = FFALIGN(avctx->height, 64);
+         rkmpp_export_avctx_color_props(avctx, mpp_frame);
+ 
++        if (r->afbc == RKMPP_DEC_AFBC_ON_RGA &&
++            !rkmpp_afbc_rga_supported(avctx->width, avctx->height, NULL)) {
++            MppFrameFormat output_fmt = MPP_FRAME_FBC_NONE;
++
++            av_log(avctx, AV_LOG_VERBOSE,
++                   "AFBC is requested without capable RGA for %dx%d, disabling\n",
++                   avctx->width, avctx->height);
++            r->afbc = RKMPP_DEC_AFBC_OFF;
++
++            ret = r->mapi->control(r->mctx, MPP_DEC_SET_OUTPUT_FORMAT, &output_fmt);
++            if (ret != MPP_OK) {
++                av_log(avctx, AV_LOG_ERROR, "Failed to disable FBC mode: %d\n", ret);
++                ret = AVERROR_EXTERNAL;
++                goto exit;
++            }
++        }
++
+         if (av_opt_serialize(r, 0, 0, &opts, '=', ' ') >= 0)
+             av_log(avctx, AV_LOG_VERBOSE, "Decoder options: %s\n", opts);
+         av_freep(&opts);
+diff --git a/libavdevice/v4l2.c b/libavdevice/v4l2.c
+index 995f4dedc4..bb63df1bb6 100644
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -100,6 +100,8 @@ struct video_data {
+ 
+     int multiplanar;
+     enum v4l2_buf_type buf_type;
++    int has_capture;
++    int has_capture_mplane;
+ 
+     int buffers;
+     int plane_count;
+@@ -132,6 +134,41 @@ struct buf_desc {
+     int index;
+ };
+ 
++static void select_capture_type(struct video_data *s, int multiplanar)
++{
++    s->multiplanar = multiplanar;
++    s->buf_type = multiplanar ? V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE :
++                                V4L2_BUF_TYPE_VIDEO_CAPTURE;
++}
++
++static int query_current_frame_size(AVFormatContext *ctx)
++{
++    struct video_data *s = ctx->priv_data;
++    struct v4l2_format fmt = { .type = s->buf_type };
++    int ret;
++
++    av_log(ctx, AV_LOG_VERBOSE,
++           "Querying the device for the current frame size\n");
++    if (s->ioctl_f(s->fd, VIDIOC_G_FMT, &fmt) < 0) {
++        ret = AVERROR(errno);
++        av_log(ctx, AV_LOG_ERROR, "ioctl(VIDIOC_G_FMT): %s\n",
++               av_err2str(ret));
++        return ret;
++    }
++
++    if (s->multiplanar) {
++        s->width  = fmt.fmt.pix_mp.width;
++        s->height = fmt.fmt.pix_mp.height;
++    } else {
++        s->width  = fmt.fmt.pix.width;
++        s->height = fmt.fmt.pix.height;
++    }
++
++    av_log(ctx, AV_LOG_VERBOSE,
++           "Setting frame size to %dx%d\n", s->width, s->height);
++    return 0;
++}
++
+ static int device_open(AVFormatContext *ctx, const char* device_path)
+ {
+     struct video_data *s = ctx->priv_data;
+@@ -198,12 +235,13 @@ static int device_open(AVFormatContext *ctx, const char* device_path)
+         caps = cap.device_caps;
+ #endif
+ 
+-    if (caps & V4L2_CAP_VIDEO_CAPTURE_MPLANE) {
+-        s->multiplanar = 1;
+-        s->buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+-    } else if (caps & V4L2_CAP_VIDEO_CAPTURE) {
+-        s->multiplanar = 0;
+-        s->buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++    s->has_capture_mplane = !!(caps & V4L2_CAP_VIDEO_CAPTURE_MPLANE);
++    s->has_capture        = !!(caps & V4L2_CAP_VIDEO_CAPTURE);
++
++    if (s->has_capture_mplane) {
++        select_capture_type(s, 1);
++    } else if (s->has_capture) {
++        select_capture_type(s, 0);
+     } else {
+         av_log(ctx, AV_LOG_ERROR, "Not a video capture device.\n");
+         err = AVERROR(ENODEV);
+@@ -1136,6 +1174,9 @@ static int v4l2_read_header(AVFormatContext *ctx)
+     enum AVPixelFormat pix_fmt = AV_PIX_FMT_NONE;
+     struct v4l2_input input = { 0 };
+     int input_probe_ignored = 0;
++    int requested_width;
++    int requested_height;
++    int tried_single_planar = 0;
+ 
+     st = avformat_new_stream(ctx, NULL);
+     if (!st)
+@@ -1221,48 +1262,45 @@ static int v4l2_read_header(AVFormatContext *ctx)
+         }
+     }
+ 
+-    if (!s->width && !s->height) {
+-        struct v4l2_format fmt = { .type = s->buf_type };
++    requested_width  = s->width;
++    requested_height = s->height;
+ 
+-        av_log(ctx, AV_LOG_VERBOSE,
+-               "Querying the device for the current frame size\n");
+-        if (v4l2_ioctl(s->fd, VIDIOC_G_FMT, &fmt) < 0) {
+-            res = AVERROR(errno);
+-            av_log(ctx, AV_LOG_ERROR, "ioctl(VIDIOC_G_FMT): %s\n",
+-                   av_err2str(res));
+-            goto fail;
+-        }
++retry_setup:
++    s->width       = requested_width;
++    s->height      = requested_height;
++    s->frame_size  = 0;
++    desired_format = 0;
++    codec_id       = AV_CODEC_ID_NONE;
++    st->codecpar->format = AV_PIX_FMT_NONE;
+ 
+-        s->width  = fmt.fmt.pix.width;
+-        s->height = fmt.fmt.pix.height;
+-        av_log(ctx, AV_LOG_VERBOSE,
+-               "Setting frame size to %dx%d\n", s->width, s->height);
+-    }
++    if (!s->width && !s->height &&
++        (res = query_current_frame_size(ctx)) < 0)
++        goto retry_or_fail;
+ 
+     res = device_try_init(ctx, pix_fmt, &s->width, &s->height, &desired_format, &codec_id);
+     if (res < 0)
+-        goto fail;
+-
+-    /* If no pixel_format was specified, the codec_id was not known up
+-     * until now. Set video_codec_id in the context, as codec_id will
+-     * not be available outside this function
+-     */
+-    if (codec_id != AV_CODEC_ID_NONE && ctx->video_codec_id == AV_CODEC_ID_NONE)
+-        ctx->video_codec_id = codec_id;
++        goto retry_or_fail;
+ 
+     if ((res = av_image_check_size(s->width, s->height, 0, ctx)) < 0)
+         goto fail;
+ 
+     s->pixelformat = desired_format;
+ 
+-    if ((res = v4l2_set_parameters(ctx)) < 0)
+-        goto fail;
+-
+     st->codecpar->format = ff_fmt_v4l2ff(desired_format, codec_id);
+     if (st->codecpar->format != AV_PIX_FMT_NONE)
+         s->frame_size = av_image_get_buffer_size(st->codecpar->format,
+                                                  s->width, s->height, 1);
+     if ((res = validate_multiplanar_raw_layout(ctx, st->codecpar->format)) < 0)
++        goto retry_or_fail;
++
++    /* If no pixel_format was specified, the codec_id was not known up
++     * until now. Set video_codec_id in the context, as codec_id will
++     * not be available outside this function
++     */
++    if (codec_id != AV_CODEC_ID_NONE && ctx->video_codec_id == AV_CODEC_ID_NONE)
++        ctx->video_codec_id = codec_id;
++
++    if ((res = v4l2_set_parameters(ctx)) < 0)
+         goto fail;
+ 
+     if ((res = mmap_init(ctx)) ||
+@@ -1290,6 +1328,16 @@ static int v4l2_read_header(AVFormatContext *ctx)
+ 
+     return 0;
+ 
++retry_or_fail:
++    if (s->multiplanar && s->has_capture && !tried_single_planar) {
++        av_log(ctx, AV_LOG_VERBOSE,
++               "MPLANE capture setup failed, retrying single-planar capture\n");
++        tried_single_planar = 1;
++        select_capture_type(s, 0);
++        goto retry_setup;
++    }
++    goto fail;
++
+ fail:
+     v4l2_close(s->fd);
+     return res;
+diff --git a/libavfilter/rkrga_common.c b/libavfilter/rkrga_common.c
+index 85308d5cbf..1805ca8707 100644
+--- a/libavfilter/rkrga_common.c
++++ b/libavfilter/rkrga_common.c
+@@ -292,6 +292,43 @@ static int get_afbc_byte_stride(const AVPixFmtDescriptor *desc,
+     return 0;
+ }
+ 
++static int get_afbc_min_size(const AVPixFmtDescriptor *desc,
++                             int pixel_stride,
++                             int height,
++                             int afbc_offset_y,
++                             uint64_t *min_size)
++{
++    uint64_t block_cols, block_rows, blocks;
++    uint64_t header_size, block_payload_size;
++    int bpp;
++
++    if (!desc || !min_size || pixel_stride <= 0 || height <= 0 ||
++        afbc_offset_y < 0)
++        return AVERROR(EINVAL);
++
++    bpp = av_get_padded_bits_per_pixel(desc);
++    if (bpp <= 0)
++        return AVERROR(EINVAL);
++
++    block_cols = ((uint64_t)pixel_stride + 15) >> 4;
++    block_rows = ((uint64_t)height + afbc_offset_y + 15) >> 4;
++    if (!block_cols || !block_rows || block_cols > UINT64_MAX / block_rows)
++        return AVERROR(EINVAL);
++
++    blocks = block_cols * block_rows;
++    if (blocks > (UINT64_MAX - 63) / 16)
++        return AVERROR(EINVAL);
++
++    header_size = (blocks * 16 + 63) & ~UINT64_C(63);
++    block_payload_size = ((uint64_t)bpp * 256 / 8 + 127) & ~UINT64_C(127);
++    if (!block_payload_size ||
++        blocks > (UINT64_MAX - header_size) / block_payload_size)
++        return AVERROR(EINVAL);
++
++    *min_size = header_size + blocks * block_payload_size;
++    return 0;
++}
++
+ /* Canonical formats: https://dri.freedesktop.org/docs/drm/gpu/afbc.html */
+ static uint32_t get_drm_afbc_format(enum AVPixelFormat pix_fmt)
+ {
+@@ -313,6 +350,12 @@ static uint32_t get_drm_afbc_format(enum AVPixelFormat pix_fmt)
+     }
+ }
+ 
++static int rga_rotates_dimensions(int rotate_mode)
++{
++    return (rotate_mode & 0x04) == 0x04 || /* HAL_TRANSFORM_ROT_90 */
++           (rotate_mode & 0x07) == 0x07;  /* HAL_TRANSFORM_ROT_270 */
++}
++
+ static uint32_t get_drm_linear_format(enum AVPixelFormat pix_fmt)
+ {
+     switch (pix_fmt) {
+@@ -802,10 +845,16 @@ static int validate_linear_drm_layer(AVFilterContext *avctx,
+ static int validate_afbc_drm_layer(AVFilterContext *avctx,
+                                    const AVDRMObjectDescriptor *object,
+                                    const AVDRMLayerDescriptor *layer,
+-                                   enum AVPixelFormat pix_fmt)
++                                   const AVPixFmtDescriptor *pix_desc,
++                                   enum AVPixelFormat pix_fmt,
++                                   int height,
++                                   int afbc_offset_y)
+ {
+     const AVDRMPlaneDescriptor *plane;
+     uint32_t drm_fbc_fmt = get_drm_afbc_format(pix_fmt);
++    uint64_t min_size;
++    int pixel_stride;
++    int ret;
+ 
+     if (!object || !layer || !object->size || layer->nb_planes != 1) {
+         av_log(avctx, AV_LOG_ERROR, "AFBC input must contain exactly one plane\n");
+@@ -824,6 +873,25 @@ static int validate_afbc_drm_layer(AVFilterContext *avctx,
+         return AVERROR(ENOSYS);
+     }
+ 
++    ret = get_afbc_pixel_stride(pix_desc, plane->pitch, &pixel_stride);
++    if (ret < 0) {
++        av_log(avctx, AV_LOG_ERROR, "Invalid AFBC DRM plane pitch: %td\n",
++               plane->pitch);
++        return ret;
++    }
++
++    ret = get_afbc_min_size(pix_desc, pixel_stride, height,
++                            afbc_offset_y, &min_size);
++    if (ret < 0)
++        return ret;
++
++    if ((uint64_t)object->size < min_size) {
++        av_log(avctx, AV_LOG_ERROR,
++               "AFBC DRM object is too small: size=%"PRIu64" min=%"PRIu64"\n",
++               (uint64_t)object->size, min_size);
++        return AVERROR(EINVAL);
++    }
++
+     return 0;
+ }
+ 
+@@ -1184,14 +1252,17 @@ static RGAFrame *submit_frame(RKRGAContext *r, AVFilterLink *inlink,
+     if (is_fbc) {
+         int afbc_offset_y = 0;
+ 
+-        ret = validate_afbc_drm_layer(ctx, object, layer, in_info->pix_fmt);
++        if (rkmpp_desc && rkmpp_desc->afbc_offset_y > 0)
++            afbc_offset_y = rkmpp_desc->afbc_offset_y;
++
++        ret = validate_afbc_drm_layer(ctx, object, layer,
++                                      in_info->pix_desc, in_info->pix_fmt,
++                                      inlink->h, afbc_offset_y);
+         if (ret < 0)
+             goto fail;
+ 
+-        if (rkmpp_desc && rkmpp_desc->afbc_offset_y > 0) {
+-            afbc_offset_y = rkmpp_desc->afbc_offset_y;
++        if (afbc_offset_y > 0)
+             info.rect.yoffset += afbc_offset_y;
+-        }
+ 
+         plane0 = &layer->planes[0];
+         info.rect.wstride = plane0->pitch;
+@@ -1638,6 +1709,7 @@ static av_cold int verify_rga_frame_info(AVFilterContext *avctx,
+     RKRGAContext *r = avctx->priv;
+     float scale_ratio_min, scale_ratio_max;
+     float scale_ratio_w, scale_ratio_h;
++    int scale_src_w, scale_src_h;
+     int ret;
+ 
+     if (!src || !dst)
+@@ -1650,8 +1722,13 @@ static av_cold int verify_rga_frame_info(AVFilterContext *avctx,
+         return AVERROR(ENOSYS);
+     }
+ 
+-    scale_ratio_w = (float)dst->act_w / (float)src->act_w;
+-    scale_ratio_h = (float)dst->act_h / (float)src->act_h;
++    scale_src_w = src->act_w;
++    scale_src_h = src->act_h;
++    if (rga_rotates_dimensions(src->rotate_mode))
++        FFSWAP(int, scale_src_w, scale_src_h);
++
++    scale_ratio_w = (float)dst->act_w / (float)scale_src_w;
++    scale_ratio_h = (float)dst->act_h / (float)scale_src_h;
+ 
+     /* P010 requires RGA3 */
+     if (!r->has_rga3 &&
+@@ -1989,8 +2066,6 @@ av_cold int ff_rkrga_init(AVFilterContext *avctx, RKRGAParam *param)
+     if (avctx->nb_inputs > 1) {
+         int need_premultiply = 0;
+ 
+-        pat_info_for_verify = &r->in_rga_frame_infos[1];
+-
+         if (r->in_rga_frame_infos[1].pix_desc->flags & AV_PIX_FMT_FLAG_ALPHA)
+             need_premultiply = param->in_alpha_format == 0;
+ 
+diff --git a/libavfilter/vf_vpp_rkrga.c b/libavfilter/vf_vpp_rkrga.c
+index 42c42bcc66..3a393ea659 100644
+--- a/libavfilter/vf_vpp_rkrga.c
++++ b/libavfilter/vf_vpp_rkrga.c
+@@ -112,8 +112,17 @@ static int vpp_source_size_forces_rga2(int width, int height)
+            (width < 68 || width > 8176 || height < 2 || height > 8176);
+ }
+ 
++static int vpp_transpose_swaps_dimensions(int transpose)
++{
++    return transpose == TRANSPOSE_CCLOCK_FLIP ||
++           transpose == TRANSPOSE_CLOCK ||
++           transpose == TRANSPOSE_CCLOCK ||
++           transpose == TRANSPOSE_CLOCK_FLIP;
++}
++
+ static int vpp_scale_forces_rga2(int src_width, int src_height,
+-                                 int out_width, int out_height)
++                                 int out_width, int out_height,
++                                 int transpose)
+ {
+     float scale_ratio_w, scale_ratio_h;
+ 
+@@ -121,6 +130,9 @@ static int vpp_scale_forces_rga2(int src_width, int src_height,
+         out_width <= 0 || out_height <= 0)
+         return 0;
+ 
++    if (vpp_transpose_swaps_dimensions(transpose))
++        FFSWAP(int, src_width, src_height);
++
+     scale_ratio_w = (float)out_width / (float)src_width;
+     scale_ratio_h = (float)out_height / (float)src_height;
+ 
+@@ -389,7 +401,7 @@ static av_cold void config_force_format(AVFilterContext *ctx,
+                vpp_source_size_forces_rga2(src_width, src_height) ||
+                vpp_output_size_forces_rga2(out_width, out_height) ||
+                vpp_scale_forces_rga2(src_width, src_height,
+-                                     out_width, out_height);
++                                     out_width, out_height, r->transpose);
+     if (out_depth >= 10 && use_rga2)
+         out_depth = 8;
+ 
+-- 
+2.53.0
+

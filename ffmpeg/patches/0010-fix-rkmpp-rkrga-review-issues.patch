@@ -1,0 +1,164 @@
+From 290be4a8a58496300f479c86c7ebdc5139a064f0 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Wed, 1 Jul 2026 21:55:47 -0700
+Subject: [PATCH 10/28] fix rkmpp/rkrga review issues
+
+---
+ libavcodec/rkmppdec.c      | 58 ++++++++++++++++++++++++++------------
+ libavfilter/rkrga_common.c | 38 +++++++++++++++++++------
+ 2 files changed, 70 insertions(+), 26 deletions(-)
+
+diff --git a/libavcodec/rkmppdec.c b/libavcodec/rkmppdec.c
+index 53b35d306f..e5382041f6 100644
+--- a/libavcodec/rkmppdec.c
++++ b/libavcodec/rkmppdec.c
+@@ -231,6 +231,41 @@ static void read_soc_name(AVCodecContext *avctx, char *name, int size)
+     }
+ }
+ 
++static int rkmpp_afbc_rga_supported(int width, int height,
++                                    int *has_rga2p)
++{
++#if CONFIG_RKRGA
++    const char *rga_ver = querystring(RGA_VERSION);
++    int has_rga2p_local = !!strstr(rga_ver, "RGA_2_PRO");
++    int has_rga3        = !!strstr(rga_ver, "RGA_3");
++    int check_size      = width > 0 && height > 0;
++    int is_rga2p_compat = !check_size ||
++                          (width >= 2 &&
++                           width <= 8192 &&
++                           height >= 2 &&
++                           height <= 8192);
++    int is_rga3_compat  = !check_size ||
++                          (width >= 68 &&
++                           width <= 8176 &&
++                           height >= 2 &&
++                           height <= 8176);
++
++    if (has_rga2p)
++        *has_rga2p = has_rga2p_local;
++
++    return (has_rga2p_local && is_rga2p_compat) ||
++           (has_rga3 && is_rga3_compat);
++#else
++    (void)width;
++    (void)height;
++
++    if (has_rga2p)
++        *has_rga2p = 0;
++
++    return 0;
++#endif
++}
++
+ static av_cold int rkmpp_decode_close(AVCodecContext *avctx)
+ {
+     RKMPPDecContext *r = avctx->priv_data;
+@@ -395,27 +430,14 @@ static av_cold int rkmpp_decode_init(AVCodecContext *avctx)
+     }
+ 
+     if (r->afbc == RKMPP_DEC_AFBC_ON_RGA) {
+-#if CONFIG_RKRGA
+-        const char *rga_ver = querystring(RGA_VERSION);
+-        int has_rga2p = !!strstr(rga_ver, "RGA_2_PRO");
+-        int has_rga3  = !!strstr(rga_ver, "RGA_3");
+-        int is_rga2p_compat = avctx->width >= 2 &&
+-                              avctx->width <= 8192 &&
+-                              avctx->height >= 2 &&
+-                              avctx->height <= 8192;
+-        int is_rga3_compat  = avctx->width >= 68 &&
+-                              avctx->width <= 8176 &&
+-                              avctx->height >= 2 &&
+-                              avctx->height <= 8176;
+-
+-        r->use_rfbc = r->use_rfbc || has_rga2p;
+-        if (!((has_rga2p && is_rga2p_compat) || (has_rga3 && is_rga3_compat))) {
+-#endif
++        int has_rga2p = 0;
++
++        if (!rkmpp_afbc_rga_supported(avctx->width, avctx->height, &has_rga2p)) {
+             av_log(avctx, AV_LOG_VERBOSE, "AFBC is requested without capable RGA, ignoring\n");
+             r->afbc = RKMPP_DEC_AFBC_OFF;
+-#if CONFIG_RKRGA
++        } else {
++            r->use_rfbc = r->use_rfbc || has_rga2p;
+         }
+-#endif
+     }
+ 
+     if (r->afbc) {
+diff --git a/libavfilter/rkrga_common.c b/libavfilter/rkrga_common.c
+index 6de71edbda..b4c1cad84e 100644
+--- a/libavfilter/rkrga_common.c
++++ b/libavfilter/rkrga_common.c
+@@ -1199,10 +1199,12 @@ av_cold int ff_rkrga_init(AVFilterContext *avctx, RKRGAParam *param)
+         } else
+             r->in_rga_frame_infos[0].blend_mode = need_premultiply ? 0x504 : 0x501;
+ 
+-        r->in_rga_frame_infos[1].overlay_x = FFMAX(param->overlay_x, 0);
+-        r->in_rga_frame_infos[1].overlay_y = FFMAX(param->overlay_y, 0);
++        r->in_rga_frame_infos[1].overlay_x = param->overlay_x;
++        r->in_rga_frame_infos[1].overlay_y = param->overlay_y;
+ 
+-        r->is_overlay_offset_valid = (param->overlay_x < r->in_rga_frame_infos[0].act_w - 2) &&
++        r->is_overlay_offset_valid = (param->overlay_x >= 0) &&
++            (param->overlay_y >= 0) &&
++            (param->overlay_x < r->in_rga_frame_infos[0].act_w - 2) &&
+             (param->overlay_y < r->in_rga_frame_infos[0].act_h - 2);
+         if (r->is_overlay_offset_valid)
+             init_pat_preproc_hwframes_ctx(avctx);
+@@ -1376,6 +1378,7 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+         RGAFrameInfo *out_info = &r->out_rga_frame_info;
+         RGAFrame *pat_in = NULL;
+         RGAFrame *pat_out = NULL;
++        int pat_preprocessed = 0;
+ 
+         /* translate PAT from top-left to (x,y) on a new image with the same size of SRC */
+         if (in1_info->act_w != in0_info->act_w ||
+@@ -1402,12 +1405,8 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+             if (ret < 0)
+                 return ret;
+ 
+-            pat_out->info.rect.xoffset = 0;
+-            pat_out->info.rect.yoffset = 0;
+-            pat_out->info.rect.width   = in0_info->act_w;
+-            pat_out->info.rect.height  = in0_info->act_h;
+-
+             pat_frame = pat_out;
++            pat_preprocessed = 1;
+         }
+ 
+         if (!pat_frame && !(pat_frame = submit_frame(r, inlink_pat, picref_pat, 0, 0))) {
+@@ -1416,6 +1415,29 @@ int ff_rkrga_filter_frame(RKRGAContext *r,
+             return AVERROR(ENOMEM);
+         }
+         dst_frame->info.core = out_info->scheduler_core;
++
++        if (pat_preprocessed) {
++            rga_info_t src_copy_info = src_frame->info;
++            rga_info_t dst_copy_info = dst_frame->info;
++
++            src_copy_info.blend = 0;
++            dst_copy_info.sync_mode = RGA_BLIT_SYNC;
++            dst_copy_info.out_fence_fd = -1;
++
++            ret = call_rkrga_blit(ctx, &src_copy_info, &dst_copy_info, NULL);
++            if (ret < 0)
++                return ret;
++
++            src_frame->info.rect.xoffset += in1_info->overlay_x;
++            src_frame->info.rect.yoffset += in1_info->overlay_y;
++            src_frame->info.rect.width    = pat_frame->info.rect.width;
++            src_frame->info.rect.height   = pat_frame->info.rect.height;
++
++            dst_frame->info.rect.xoffset += in1_info->overlay_x;
++            dst_frame->info.rect.yoffset += in1_info->overlay_y;
++            dst_frame->info.rect.width    = pat_frame->info.rect.width;
++            dst_frame->info.rect.height   = pat_frame->info.rect.height;
++        }
+     }
+ 
+     /* Async Blit */
+-- 
+2.53.0
+

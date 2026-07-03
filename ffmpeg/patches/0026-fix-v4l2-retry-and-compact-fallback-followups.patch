@@ -1,0 +1,190 @@
+From eae177b80b9bcf5a28df30ae5f61e59a1368341b Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 2 Jul 2026 06:49:34 -0700
+Subject: [PATCH 26/28] fix v4l2 retry and compact fallback followups
+
+---
+ libavcodec/v4l2_context.c  | 39 ++++++++++++++++++++++++++------------
+ libavdevice/v4l2.c         | 34 +++++++++++++++++++++++++--------
+ libavfilter/vf_vpp_rkrga.c |  3 +--
+ 3 files changed, 54 insertions(+), 22 deletions(-)
+
+diff --git a/libavcodec/v4l2_context.c b/libavcodec/v4l2_context.c
+index 647c196c96..d4e79df5ef 100644
+--- a/libavcodec/v4l2_context.c
++++ b/libavcodec/v4l2_context.c
+@@ -503,36 +503,31 @@ static inline int v4l2_try_raw_format(V4L2Context* ctx, enum AVPixelFormat pixfm
+     return v4l2_try_raw_format_v4l2(ctx, pixfmt, v4l2_fmt);
+ }
+ 
+-static int v4l2_get_raw_format(V4L2Context* ctx, enum AVPixelFormat *p)
++static int v4l2_get_raw_format_from_enum(V4L2Context* ctx,
++                                         enum AVPixelFormat requested_pixfmt,
++                                         enum AVPixelFormat *p)
+ {
+-    enum AVPixelFormat pixfmt = ctx->av_pix_fmt;
++    enum AVPixelFormat pixfmt;
+     struct v4l2_fmtdesc fdesc;
+     int ret;
+ 
+     memset(&fdesc, 0, sizeof(fdesc));
+     fdesc.type = ctx->type;
+ 
+-    if (pixfmt != AV_PIX_FMT_NONE) {
+-        ret = v4l2_try_raw_format(ctx, pixfmt);
+-        if (!ret) {
+-            *p = pixfmt;
+-            return 0;
+-        }
+-    }
+-
+     for (;;) {
+         ret = ioctl(ctx_to_m2mctx(ctx)->fd, VIDIOC_ENUM_FMT, &fdesc);
+         if (ret)
+             return AVERROR(EINVAL);
+ 
+         pixfmt = ff_v4l2_format_v4l2_to_avfmt(fdesc.pixelformat, AV_CODEC_ID_RAWVIDEO);
+-        if (pixfmt == AV_PIX_FMT_NONE) {
++        if (pixfmt == AV_PIX_FMT_NONE ||
++            (requested_pixfmt != AV_PIX_FMT_NONE && pixfmt != requested_pixfmt)) {
+             fdesc.index++;
+             continue;
+         }
+ 
+         ret = v4l2_try_raw_format_v4l2(ctx, pixfmt, fdesc.pixelformat);
+-        if (ret){
++        if (ret) {
+             fdesc.index++;
+             continue;
+         }
+@@ -545,6 +540,26 @@ static int v4l2_get_raw_format(V4L2Context* ctx, enum AVPixelFormat *p)
+     return AVERROR(EINVAL);
+ }
+ 
++static int v4l2_get_raw_format(V4L2Context* ctx, enum AVPixelFormat *p)
++{
++    enum AVPixelFormat pixfmt = ctx->av_pix_fmt;
++    int ret;
++
++    if (pixfmt != AV_PIX_FMT_NONE) {
++        ret = v4l2_try_raw_format(ctx, pixfmt);
++        if (!ret) {
++            *p = pixfmt;
++            return 0;
++        }
++
++        ret = v4l2_get_raw_format_from_enum(ctx, pixfmt, p);
++        if (!ret)
++            return 0;
++    }
++
++    return v4l2_get_raw_format_from_enum(ctx, AV_PIX_FMT_NONE, p);
++}
++
+ static int v4l2_get_coded_format(V4L2Context* ctx, uint32_t *p)
+ {
+     struct v4l2_fmtdesc fdesc;
+diff --git a/libavdevice/v4l2.c b/libavdevice/v4l2.c
+index 58bce1b3ee..50a774f822 100644
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -426,6 +426,8 @@ static void mmap_free(struct video_data *s, int n)
+     }
+     av_freep(&s->buf_data);
+     s->plane_count = 0;
++    s->buffers = 0;
++    atomic_store(&s->buffers_queued, 0);
+ }
+ 
+ static int mmap_init(AVFormatContext *ctx)
+@@ -718,6 +720,8 @@ static int mmap_read_frame(AVFormatContext *ctx, AVPacket *pkt)
+             res = enqueue_buffer(s, &buf);
+             return res ? res : AVERROR(EINVAL);
+         }
++        if (s->raw_plane_count == 1 && bytesused > s->raw_plane_size[0])
++            bytesused = s->raw_plane_size[0];
+     }
+ 
+     if (bytesused > INT_MAX) {
+@@ -891,7 +895,7 @@ static int validate_multiplanar_raw_layout(AVFormatContext *ctx,
+ 
+     s->raw_plane_count = 0;
+ 
+-    if (!s->multiplanar || pix_fmt == AV_PIX_FMT_NONE)
++    if (pix_fmt == AV_PIX_FMT_NONE)
+         return 0;
+ 
+     nb_planes = av_pix_fmt_count_planes(pix_fmt);
+@@ -914,6 +918,15 @@ static int validate_multiplanar_raw_layout(AVFormatContext *ctx,
+         return ret;
+     }
+ 
++    if (!s->multiplanar) {
++        if (fmt.fmt.pix.bytesperline == linesizes[0] &&
++            fmt.fmt.pix.sizeimage >= s->frame_size) {
++            s->raw_plane_count = 1;
++            s->raw_plane_size[0] = s->frame_size;
++        }
++        return 0;
++    }
++
+     if (fmt.fmt.pix_mp.num_planes == 1) {
+         const struct v4l2_plane_pix_format *plane_fmt = &fmt.fmt.pix_mp.plane_fmt[0];
+ 
+@@ -1313,6 +1326,14 @@ retry_setup:
+     if ((res = validate_multiplanar_raw_layout(ctx, st->codecpar->format)) < 0)
+         goto retry_or_fail;
+ 
++    if ((res = v4l2_set_parameters(ctx)) < 0)
++        goto fail;
++
++    if ((res = mmap_init(ctx)) < 0)
++        goto retry_mmap_or_fail;
++    if ((res = mmap_start(ctx)) < 0)
++        goto retry_mmap_or_fail;
++
+     /* If no pixel_format was specified, the codec_id was not known up
+      * until now. Set video_codec_id in the context, as codec_id will
+      * not be available outside this function
+@@ -1320,13 +1341,6 @@ retry_setup:
+     if (codec_id != AV_CODEC_ID_NONE && ctx->video_codec_id == AV_CODEC_ID_NONE)
+         ctx->video_codec_id = codec_id;
+ 
+-    if ((res = v4l2_set_parameters(ctx)) < 0)
+-        goto fail;
+-
+-    if ((res = mmap_init(ctx)) ||
+-        (res = mmap_start(ctx)) < 0)
+-            goto fail;
+-
+     s->top_field_first = first_field(s);
+ 
+     st->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
+@@ -1348,6 +1362,10 @@ retry_setup:
+ 
+     return 0;
+ 
++retry_mmap_or_fail:
++    mmap_close(s);
++    goto retry_or_fail;
++
+ retry_or_fail:
+     if (s->multiplanar && s->has_capture && !tried_single_planar) {
+         av_log(ctx, AV_LOG_VERBOSE,
+diff --git a/libavfilter/vf_vpp_rkrga.c b/libavfilter/vf_vpp_rkrga.c
+index 228b77d1bb..84a72e7e87 100644
+--- a/libavfilter/vf_vpp_rkrga.c
++++ b/libavfilter/vf_vpp_rkrga.c
+@@ -402,8 +402,7 @@ static av_cold void config_force_format(AVFilterContext *ctx,
+     use_rga2 = !has_rga3 ||
+                use_rga2_core ||
+                vpp_input_forces_rga2(in_format) ||
+-               (r->force_yuv == FORCE_YUV_AUTO &&
+-                vpp_compact_10bit_input(in_format)) ||
++               vpp_compact_10bit_input(in_format) ||
+                vpp_source_size_forces_rga2(src_width, src_height) ||
+                vpp_output_size_forces_rga2(out_width, out_height) ||
+                vpp_scale_forces_rga2(src_width, src_height,
+-- 
+2.53.0
+

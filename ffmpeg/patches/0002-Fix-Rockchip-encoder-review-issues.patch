@@ -1,7 +1,7 @@
 From c44cc876db768c8b44812cf8fc51f360c9900ea9 Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
 Date: Wed, 1 Jul 2026 09:48:58 -0700
-Subject: [PATCH 2/9] Fix Rockchip encoder review issues
+Subject: [PATCH 02/28] Fix Rockchip encoder review issues
 
 ---
  libavcodec/rkmppenc.c | 47 +++++++++++++++++++++++++++++++++++++++++++

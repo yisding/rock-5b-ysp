@@ -13,7 +13,7 @@ Source points from the audit:
 
 | Tree | Commit | Meaning |
 |------|--------|---------|
-| `ffmpeg-rockchip-81/main` | `1c73bd8e65` | Rebased Rockchip stack with post-review cleanups — the state this write-up audited. Tip has since moved to `b59509b609` (2026-07-01, exported as [`patches/0009`](../patches/README.md)); its fixes are **not** yet folded into the groups below. |
+| `ffmpeg-rockchip-81/main` | `1c73bd8e65` | Rebased Rockchip stack with post-review cleanups — the state this write-up audited. Tip has since moved to `6cf02ab253` (2026-07-02; the full series is exported as [`patches/0001–0028`](../patches/README.md)). Commits after `1c73bd8e65` are **not** folded into the groups below — their targeting is covered by [`submission-plan.md`](submission-plan.md), the 2026-07-02 full-branch analysis that supersedes this file's summary table for submission decisions. |
 | `origin/nyanmisaka` | `40c412dacc` | Older ffmpeg-rockchip fork point used by this repo's build notes. |
 | `upstream` | `87bd15dc3c` | FFmpeg **master** commit (2026-06-26) used as the rebase base. |
 
