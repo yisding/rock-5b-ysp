@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Build the staged JeffyCN GStreamer Rockchip MPP/RGA plugin.
+set -euo pipefail
+
+TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
+SRC_ROOT=${GST_ROCKCHIP_SRC:-"$CONFORMANCE_ROOT/sources/jeffycn-gstreamer-rockchip"}
+BUILD_DIR=${BUILD_DIR:-"$CONFORMANCE_ROOT/build/jeffycn-gstreamer-rockchip-mpp"}
+PREFIX=${PREFIX:-"$CONFORMANCE_ROOT/out/gstreamer-rockchip"}
+MPP_PREFIX=${MPP_PREFIX:-"$CONFORMANCE_ROOT/out/mpp"}
+PKG_SHIM=${PKG_SHIM:-"$CONFORMANCE_ROOT/out/pkgconfig"}
+ROCKCHIPMPP_FEATURE=${ROCKCHIPMPP_FEATURE:-enabled}
+RGA_FEATURE=${RGA_FEATURE:-enabled}
+RKXIMAGE_FEATURE=${RKXIMAGE_FEATURE:-disabled}
+KMSSRC_FEATURE=${KMSSRC_FEATURE:-disabled}
+VPXALPHADEC_FEATURE=${VPXALPHADEC_FEATURE:-auto}
+JOBS=${JOBS:-$(nproc)}
+
+if [ ! -d "$SRC_ROOT" ]; then
+	echo "Missing GStreamer Rockchip source directory: $SRC_ROOT" >&2
+	exit 2
+fi
+
+export PKG_CONFIG_PATH="$MPP_PREFIX/lib/pkgconfig:$PKG_SHIM:${PKG_CONFIG_PATH:-}"
+# Avoid ccache permission failures in sandboxed or root-invoked setup probes.
+export CCACHE_DISABLE=${CCACHE_DISABLE:-1}
+
+if [ ! -f "$PKG_SHIM/librga.pc" ] &&
+	[ -x "$CONFORMANCE_ROOT/scripts/make-librga-pkgconfig.sh" ]; then
+	PREFIX="$CONFORMANCE_ROOT/out" "$CONFORMANCE_ROOT/scripts/make-librga-pkgconfig.sh"
+fi
+
+required_pc=(
+	gstreamer-1.0
+	gstreamer-base-1.0
+	gstreamer-allocators-1.0
+	gstreamer-video-1.0
+	gstreamer-pbutils-1.0
+	glib-2.0
+	rockchip_mpp
+	librga
+)
+
+missing=()
+for pc in "${required_pc[@]}"; do
+	if ! pkg-config --exists "$pc"; then
+		missing+=("$pc")
+	fi
+done
+
+if [ "${#missing[@]}" -ne 0 ]; then
+	echo "Missing pkg-config dependencies for JeffyCN GStreamer Rockchip:" >&2
+	printf "  %s\n" "${missing[@]}" >&2
+	echo >&2
+	echo "On Debian/Ubuntu targets, install the GStreamer development packages:" >&2
+	echo "  sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libglib2.0-dev" >&2
+	echo "Then rerun build-mpp-tests.sh and this script from the ysp tree." >&2
+	exit 2
+fi
+
+setup_args=()
+if [ -d "$BUILD_DIR" ]; then
+	setup_args+=(--wipe)
+fi
+
+meson setup "$BUILD_DIR" "$SRC_ROOT" \
+	--prefix "$PREFIX" \
+	-Drockchipmpp="$ROCKCHIPMPP_FEATURE" \
+	-Drga="$RGA_FEATURE" \
+	-Drkximage="$RKXIMAGE_FEATURE" \
+	-Dkmssrc="$KMSSRC_FEATURE" \
+	-Dvpxalphadec="$VPXALPHADEC_FEATURE" \
+	"${setup_args[@]}"
+
+ninja -C "$BUILD_DIR" -j"$JOBS"
+ninja -C "$BUILD_DIR" install
+
+plugin="$PREFIX/lib/gstreamer-1.0/libgstrockchipmpp.so"
+if [ ! -f "$plugin" ]; then
+	echo "Missing installed GStreamer Rockchip MPP plugin: $plugin" >&2
+	exit 1
+fi
+
+echo "GStreamer Rockchip plugins installed to $PREFIX"
+echo "Use: export GST_PLUGIN_PATH=$PREFIX/lib/gstreamer-1.0"

@@ -13,7 +13,7 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 |-------|----------|
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
-| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
+| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `build-mpp-tests.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
 | Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains an unverified recipe. The rewrite clean-source object-build gate is versioned here and passed both public rewrite branch tips on 2026-07-03. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
 
@@ -68,6 +68,8 @@ cd ../rockchip-conformance
 PROFILE=rewrite ./scripts/collect-system-info.sh
 # build on the RK3588 target userspace, then run smoke/real media cases
 ../rock-5b-ysp/kernel-drivers/tests/build-librga-samples-full.sh
+../rock-5b-ysp/kernel-drivers/tests/build-mpp-tests.sh
+../rock-5b-ysp/kernel-drivers/tests/build-gstreamer-rockchip.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/librga-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
@@ -166,6 +168,10 @@ MPP procfs/debugfs snapshots under `../rockchip-conformance/logs/$PROFILE/`,
 plus structured `debugfs-counters-{before,after,delta}.tsv` counter tables.
 Those tables include the rewrite's aggregate and per-core `hw_total_ns*` /
 `hw_max_ns*` timing counters when the rewrite driver owns `/dev/mpp_service`.
+Use `build-mpp-tests.sh` to stage these binaries. It keeps the official MPP
+suite targets enabled but disables the obsolete `mpp_runtime_test` OSAL target,
+whose no-argument pthread start routine is rejected by current GCC even though
+the binary is not part of the driver conformance matrix.
 The default required set is intentionally asset-free: `mpp_info_test` only.
 Select real codec/performance cases with `MPP_REQUIRED_CASES` so both kernel
 profiles run the same matrix against the same media:
@@ -196,7 +202,11 @@ pass; diagnostic differences are printed but do not make the comparator fail.
 `gstreamer-rockchip` plugin from `../rockchip-conformance/out/gstreamer-rockchip`.
 It writes `summary.tsv`, per-case logs/status/commands, dmesg tail,
 before/after driver-state snapshots, and combined MPP/RGA debugfs counter
-deltas. The default required set needs no media files but still exercises real
+deltas. Use `build-gstreamer-rockchip.sh` to stage the plugin. It builds only
+the Rockchip MPP plugin by default, requires the RGA dependency instead of
+silently dropping conversion support, and disables the display-only `rkximage`
+and `kmssrc` plugins because the automated conformance matrix does not use
+them. The default required set needs no media files but still exercises real
 kernel paths:
 
 - `gst_inspect_rockchipmpp`, `gst_inspect_mppvideodec`,
@@ -230,6 +240,8 @@ pass vs candidate pass rule as the MPP/RGA comparators.
 
 | Test | Needs |
 |------|-------|
+| `build-mpp-tests.sh` | no device access; writes staged MPP library/tests under `../rockchip-conformance/out/mpp` |
+| `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths |
 | `test-decode.sh` | device access only: root, **or** membership in `video` with [`../scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules) installed (covers `/dev/mpp_service` **and** `/dev/dma_heap/*` — both required) |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
