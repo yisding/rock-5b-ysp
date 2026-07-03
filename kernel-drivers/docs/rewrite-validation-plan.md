@@ -69,9 +69,10 @@ rewrite. Kconfig makes the two tracks mutually exclusive per device node
 **The gap to close:** most current comparators still compare only *pass/fail and
 elapsed time*, and `abi-replay.sh` diffs *normalised ABI logs* rather than the
 **pixels/bitstream**. The GStreamer generated decode/transcode wrapper now
-caches shared H.264/H.265 inputs and compares `artifacts.tsv` byte counts plus
-SHA-256s, with the comparator requiring manifests by default; extend the same
-byte-exact discipline to the remaining suite outputs, which is where a
+caches shared H.264/H.265 inputs plus generated VP9 IVF input and compares
+`artifacts.tsv` byte counts plus SHA-256s, with the comparator requiring
+manifests by default; extend the same byte-exact discipline to the remaining
+suite outputs, which is where a
 rewrite's command-generation bugs actually surface:
 
 - **RGA** is deterministic pixel math → expect **bit-exact** destination buffers.

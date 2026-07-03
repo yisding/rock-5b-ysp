@@ -36,6 +36,8 @@ GST_SCALE_HEIGHT=${GST_SCALE_HEIGHT:-144}
 GST_FRAMERATE=${GST_FRAMERATE:-30/1}
 GST_ENABLE_DISPLAY_CASES=${GST_ENABLE_DISPLAY_CASES:-0}
 GST_REQUIRE_DISPLAY_CASES=${GST_REQUIRE_DISPLAY_CASES:-0}
+GST_ENABLE_VP9_CASES=${GST_ENABLE_VP9_CASES:-1}
+GST_REQUIRE_VP9_CASES=${GST_REQUIRE_VP9_CASES:-1}
 GST_DISPLAY_SINK=${GST_DISPLAY_SINK:-rkximagesink}
 GST_DISPLAY_SINK_ARGS=${GST_DISPLAY_SINK_ARGS:-}
 
@@ -77,6 +79,16 @@ state_loop_h264_nv12
 state_loop_roundtrip_h264
 "
 
+vp9_cases_default="
+generated_dec_vp9_fakesink
+generated_dec_vp9_dmabuf
+"
+
+vp9_diagnostic_cases_default="
+generated_dec_vp9_rga_scale
+generated_transcode_vp9_to_h264
+"
+
 diagnostic_cases_default="
 event_seek_enc_h264
 event_seek_enc_h265
@@ -106,6 +118,18 @@ roundtrip_h264_rga_nv61
 roundtrip_h264_rga_i420
 roundtrip_h264_rga_yv12
 "
+
+if [ "$GST_ENABLE_VP9_CASES" = "1" ]; then
+	diagnostic_cases_default="$diagnostic_cases_default
+$vp9_diagnostic_cases_default"
+	if [ "$GST_REQUIRE_VP9_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$vp9_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$vp9_cases_default"
+	fi
+fi
 
 display_cases_default="
 gst_inspect_display_sink
@@ -201,6 +225,8 @@ CASE_ARTIFACT_KINDS=()
 CASE_ARTIFACT_PATHS=()
 GENERATED_INPUT_PATH=
 GENERATED_ENCODER=
+GENERATED_ENCODER_ARGS=()
+GENERATED_MUXER=
 GENERATED_PARSER=
 GENERATED_SUFFIX=
 
@@ -370,13 +396,24 @@ select_generated_codec()
 	case "$codec" in
 	h264)
 		GENERATED_ENCODER=mpph264enc
+		GENERATED_ENCODER_ARGS=(zero-copy-pkt=true)
+		GENERATED_MUXER=
 		GENERATED_PARSER=h264parse
 		GENERATED_SUFFIX=h264
 		;;
 	h265)
 		GENERATED_ENCODER=mpph265enc
+		GENERATED_ENCODER_ARGS=(zero-copy-pkt=true)
+		GENERATED_MUXER=
 		GENERATED_PARSER=h265parse
 		GENERATED_SUFFIX=h265
+		;;
+	vp9)
+		GENERATED_ENCODER=vp9enc
+		GENERATED_ENCODER_ARGS=()
+		GENERATED_MUXER=ivfmux
+		GENERATED_PARSER=ivfparse
+		GENERATED_SUFFIX=ivf
 		;;
 	*)
 		printf "unknown generated codec: %s\n" "$codec" >&2
@@ -399,10 +436,14 @@ ensure_generated_input()
 		gst-launch-1.0 -q
 		videotestsrc "num-buffers=$GST_GENERATED_INPUT_BUFFERS" is-live=false pattern=smpte
 		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
-		"!" "$GENERATED_ENCODER" zero-copy-pkt=true
-		"!" "$GENERATED_PARSER"
-		"!" filesink "location=$GENERATED_INPUT_PATH"
+		"!" "$GENERATED_ENCODER" "${GENERATED_ENCODER_ARGS[@]}"
 	)
+	if [ -n "$GENERATED_MUXER" ]; then
+		CMD+=("!" "$GENERATED_MUXER")
+	else
+		CMD+=("!" "$GENERATED_PARSER")
+	fi
+	CMD+=("!" filesink "location=$GENERATED_INPUT_PATH")
 	printf "generating %s input: " "$codec"
 	print_current_command
 	run_current_command || return $?
@@ -427,10 +468,14 @@ generate_encoded_segment()
 		gst-launch-1.0 -q
 		videotestsrc "num-buffers=$buffers" is-live=false "pattern=$pattern"
 		"!" "video/x-raw,format=NV12,width=$width,height=$height,framerate=$GST_FRAMERATE"
-		"!" "$GENERATED_ENCODER" zero-copy-pkt=true
-		"!" "$GENERATED_PARSER"
-		"!" filesink "location=$path"
+		"!" "$GENERATED_ENCODER" "${GENERATED_ENCODER_ARGS[@]}"
 	)
+	if [ -n "$GENERATED_MUXER" ]; then
+		CMD+=("!" "$GENERATED_MUXER")
+	else
+		CMD+=("!" "$GENERATED_PARSER")
+	fi
+	CMD+=("!" filesink "location=$path")
 	printf "generating %s segment %s: " "$codec" "$path"
 	print_current_command
 	run_current_command || return $?
@@ -857,6 +902,12 @@ build_case_command()
 	generated_dec_h265_dmabuf)
 		CMD=(__builtin_generated_decode h265 dma-feature=true)
 		;;
+	generated_dec_vp9_fakesink)
+		CMD=(__builtin_generated_decode vp9)
+		;;
+	generated_dec_vp9_dmabuf)
+		CMD=(__builtin_generated_decode vp9 dma-feature=true)
+		;;
 	generated_dec_h264_renegotiate)
 		CMD=(__builtin_generated_renegotiate_decode h264)
 		;;
@@ -871,11 +922,18 @@ build_case_command()
 		CMD=(__builtin_generated_decode h265 \
 			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV21)
 		;;
+	generated_dec_vp9_rga_scale)
+		CMD=(__builtin_generated_decode vp9 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV12)
+		;;
 	generated_transcode_h264_to_h265)
 		CMD=(__builtin_generated_transcode h264 mpph265enc)
 		;;
 	generated_transcode_h265_to_h264)
 		CMD=(__builtin_generated_transcode h265 mpph264enc)
+		;;
+	generated_transcode_vp9_to_h264)
+		CMD=(__builtin_generated_transcode vp9 mpph264enc)
 		;;
 	generated_transcode_h264_rga_to_h265)
 		CMD=(__builtin_generated_transcode h264 mpph265enc \
@@ -1156,7 +1214,9 @@ run_case_payload()
 		;;
 	generated_dec_h264_fakesink | generated_dec_h265_fakesink | \
 	generated_dec_h264_dmabuf | generated_dec_h265_dmabuf | \
+	generated_dec_vp9_fakesink | generated_dec_vp9_dmabuf | \
 	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
+	generated_dec_vp9_rga_scale | \
 	generated_dec_h264_afbc_fakesink | generated_dec_h265_afbc_fakesink)
 		run_generated_decode "${CMD[1]}" "${CMD[@]:2}"
 		;;
@@ -1174,7 +1234,7 @@ run_case_payload()
 		;;
 	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
 	generated_transcode_h264_rga_to_h265 | \
-	generated_transcode_h264_dmabuf_to_h265)
+	generated_transcode_h264_dmabuf_to_h265 | generated_transcode_vp9_to_h264)
 		run_generated_transcode "${CMD[1]}" "${CMD[2]}" "${CMD[@]:3}"
 		;;
 	generated_dec_h264_display_dmabuf | generated_dec_h265_display_dmabuf | \

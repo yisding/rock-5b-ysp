@@ -29,7 +29,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > required forward-port passes missing from the rewrite and can enforce an
 > elapsed-time slowdown ceiling with `PERF_MAX_RATIO`. The default GStreamer
 > suite now includes asset-free encoder, RGA-conversion, decoder roundtrip,
-> generated elementary-stream decode/transcode, caps-renegotiation, explicit
+> generated elementary-stream H.264/H.265 decode/transcode, generated VP9 IVF
+> decode, caps-renegotiation, explicit
 > flush-event, EOS-loop, and state-loop pipelines so the
 > next hardware pass exercises decoder-side buffer groups, short-timeout
 > polling, info-change, parser-driven decoder caps changes, reset,
@@ -39,8 +40,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > repeated encoder/decoder drain-to-EOS reuse,
 > and decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
-> generated H.264/H.265 AFBC decode output, generated multi-stream
-> decode/transcode, and
+> generated H.264/H.265 AFBC decode output, generated VP9 transcode, generated
+> multi-stream decode/transcode, and
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 decoder-side
 > output conversion. The in-repo direct `librga` smoke
@@ -330,7 +331,8 @@ implementation (cross-reference:
   `tests/gstreamer-suite.sh` and `tests/gstreamer-suite-compare.sh`; its default
   required set covers element inspection, raw NV12 encode, encoder-side legacy
   RGA conversion, asset-free H.264/H.265 encode->parse->decode roundtrips,
-  generated elementary-stream H.264/H.265 `filesrc` decode, generated
+  generated elementary-stream H.264/H.265 `filesrc` decode, generated VP9 IVF
+  `filesrc` decode,
   H.264/H.265 decode->encode transcode including an RGA rotate/scale path,
   generated `mppvideodec dma-feature=true` DMABuf decode and DMABuf-to-encoder
   handoff, generated H.264/H.265 decoder caps-renegotiation through
@@ -341,7 +343,8 @@ implementation (cross-reference:
   post-flush output, repeated encoder/decoder drain-to-EOS reuse in one process,
   and repeated state-loop reset; its
   diagnostic set also includes seek-event probes through the same
-  `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output, parallel H.264 encode,
+  `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output,
+  generated VP9-to-H.264 transcode, parallel H.264 encode,
   parallel H.264 encode->decode roundtrip, generated same-codec/mixed-codec
   parallel decode, and mixed H.264/H.265 decode->encode transcode pipelines for
   multi-session scheduling evidence, and
@@ -363,7 +366,8 @@ implementation (cross-reference:
   `librga`/GStreamer direct-buffer fd-vs-virtual-address classification; the
   direct `librga` smoke mirrors the highest-value JeffyCN legacy-convert shapes
   through public `c_RkRgaBlit()`.  The missing evidence is still the
-  booted plugin run.  The
+  booted plugin run, including the newly generated VP9 IVF decode cases that
+  match JeffyCN's advertised `video/x-vp9` sink caps.  The
   highest-value MPP
   behaviours are `reset()` under flush/state changes, external MPP buffer-group
   handoff, nonblocking input/output timeouts, zero-copy encoded packets, and
@@ -475,8 +479,9 @@ confirm against the TRM before treating either as canonical.
 | Validation | Focused compile gates pass at the committed tips available so far (2026-07-03): both kernel trees passed `git diff --check`; [`tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) reproduced the clean-source, fresh-output, KUnit-enabled rewrite object build for `../linux-6.18-rkvenc` at `710642eb58e3` and for `../linux` at `85ef988e6516`. The latest provider-hook slice then built mainline `drivers/iommu/rockchip-iommu.o`, `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o`, and `drivers/video/rockchip/rga-rewrite/rga_rewrite.o` from live source into `/tmp/rk-mainline-fault.PfCd7n`; a clean temporary 6.18 source with the live rewrite diff built `mpp_rewrite.o` and `rga_rewrite.o` into `/tmp/rk-618-fault-out.pBwFi7`. This is still code/ABI-ledger progress rather than proof from a booted rewrite kernel. The broader conformance plan remains the staged `../rockchip-conformance` forward-port-vs-rewrite workflow for MPP, librga, and JeffyCN GStreamer; booted GStreamer state/allocator/RGA-conversion/display results are still missing before lower-priority diagnostic BSP profiles. **UNVERIFIED in this repo**: the workload gate and expanded conformance bundle have not yet passed on hardware through the rewrite; no validation record equivalent to status.md exists yet. |
 
 GStreamer differential testing is now stronger than the table row's historical
-summary: generated H.264/H.265 inputs are cached under the shared conformance
-assets directory, and generated decode/transcode outputs are recorded in
+summary: generated H.264/H.265 inputs and generated VP9 IVF input are cached
+under the shared conformance assets directory, and generated decode/transcode
+outputs are recorded in
 `artifacts.tsv` with byte counts and SHA-256s. The comparator now requires those
 manifests by default and fails required artifact mismatches; set
 `REQUIRE_ARTIFACTS=0` only for legacy pass/fail-only logs.

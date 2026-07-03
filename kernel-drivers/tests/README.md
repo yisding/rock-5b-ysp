@@ -15,7 +15,7 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
 | Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `build-mpp-tests.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-suite.sh`, `gstreamer-event-harness.c`, `gstreamer-suite-compare.sh`, `suite-common.sh`, `suite-compare-selftest.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
-| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains an unverified recipe. The rewrite clean-source object-build gate is versioned here and passed both public rewrite branch tips on 2026-07-03. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
+| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains unverified on hardware, but the GStreamer suite now has generated VP9 IVF decode cases. The rewrite clean-source object-build gate is versioned here and passed both public rewrite branch tips on 2026-07-03. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
 
 ## Rewrite clean build gate
 
@@ -106,8 +106,8 @@ Suggested expanded matrix:
 
 - MPP: H.264/H.265 decode at 1080p/4K, H.264/H.265 encode from NV12 at
   1080p/4K, multi-instance decode, multi-thread encode/decode, rate-control,
-  and `vpu_api_test`. VP9 remains a useful add-on because the forward-port docs
-  still mark it unverified.
+  and `vpu_api_test`. VP9 is now part of the generated GStreamer gate, but the
+  direct `mpi_dec_test -t 10` hardware recipe still needs a recorded run.
 - RGA: `copy`, `resize`, `cvtcolor`, `fill`, `alpha`, `transform`, `async`, and
   allocator samples first; then deliberately run `rop`, `mosaic`, `padding`,
   FBC/tile, colorkey/OSD, and 10-bit/compressed cases to distinguish clean
@@ -117,10 +117,11 @@ Suggested expanded matrix:
   asset-free but kernel-visible: plugin/element inspection, raw NV12
   H.264/H.265 encode, BGRx/RGBA encode cases that force the plugin's legacy
   `c_RkRgaBlit()` conversion path, generated elementary-stream decode and
-  transcode, in-pipeline caps renegotiation, explicit flush events, and
-  repeated EOS and start/stop loops. Add H.264/H.265 inputs to enable decode to
-  `fakesink`, decode-side RGA scale/format/rotate, and decode -> encode
-  transcodes. Generated H.264/H.265 AFBC decode output is recorded as
+  transcode, generated VP9 IVF decode, in-pipeline caps renegotiation, explicit
+  flush events, and repeated EOS and start/stop loops. Add H.264/H.265 inputs
+  to enable decode to `fakesink`, decode-side RGA scale/format/rotate, and
+  decode -> encode transcodes. Generated H.264/H.265 AFBC decode output is
+  recorded as
   diagnostic coverage, along with same-codec and mixed-codec generated
   multi-stream decode/transcode pipelines. Display/DMABuf sink pipelines remain
   manual add-ons until a target compositor/KMS setup is fixed.
@@ -228,6 +229,7 @@ exercises real kernel paths:
   `roundtrip_h264_rga_rotate`;
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
   `generated_dec_h264_dmabuf`, `generated_dec_h265_dmabuf`,
+  `generated_dec_vp9_fakesink`, `generated_dec_vp9_dmabuf`,
   `generated_dec_h264_renegotiate`, `generated_dec_h265_renegotiate`,
   `generated_dec_h264_rga_rotate`, `generated_dec_h265_rga_scale`;
 - `generated_transcode_h264_to_h265`, `generated_transcode_h265_to_h264`,
@@ -241,13 +243,17 @@ exercises real kernel paths:
 - `state_loop_h264_nv12`, `state_loop_roundtrip_h264`.
 
 The generated-media cases first write short H.264/H.265 elementary streams
-with the Rockchip encoders under `GST_GENERATED_INPUT_CACHE` (default
+with the Rockchip encoders and a short VP9 IVF stream with `vp9enc ! ivfmux`
+under `GST_GENERATED_INPUT_CACHE` (default
 `../rockchip-conformance/assets/gstreamer-generated`), then feed those shared
 files through `filesrc ! *parse ! mppvideodec` decode and decode->encode
 transcode pipelines. Keeping the cache outside each profile's log directory
 makes forward-port and rewrite runs consume the same input streams. That keeps
 the default run self-contained while covering the media-file path that
-same-pipeline roundtrips do not hit. The `*_dmabuf`
+same-pipeline roundtrips do not hit. VP9 cases are enabled and required by
+default; set `GST_ENABLE_VP9_CASES=0` to remove them or
+`GST_REQUIRE_VP9_CASES=0` to keep them diagnostic-only on images missing
+`vp9enc`, `ivfmux`, or `ivfparse`. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
 The decoder renegotiation cases concatenate two generated elementary streams at
@@ -288,11 +294,13 @@ promote the same cases to required, and pass simple sink properties with
 
 Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_fakesink`, `generated_dec_h264_dmabuf`,
-`generated_dec_h265_dmabuf`, `generated_dec_h264_renegotiate`,
+`generated_dec_h265_dmabuf`, `generated_dec_vp9_fakesink`,
+`generated_dec_vp9_dmabuf`, `generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
-`generated_dec_h265_rga_scale`, `generated_transcode_h264_to_h265`,
+`generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
+`generated_transcode_h264_to_h265`,
 `generated_transcode_h265_to_h264`, `generated_transcode_h264_rga_to_h265`,
-`generated_transcode_h264_dmabuf_to_h265`,
+`generated_transcode_h264_dmabuf_to_h265`, `generated_transcode_vp9_to_h264`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,
@@ -312,6 +320,7 @@ Diagnostic cases include `event_seek_enc_h264`, `event_seek_enc_h265`,
 `parallel_roundtrip_h264`, `parallel_dec_h264`, `parallel_dec_h265`,
 `parallel_dec_mixed_h264_h265`, `parallel_transcode_mixed_h264_h265`,
 `generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`,
+`generated_dec_vp9_rga_scale`, `generated_transcode_vp9_to_h264`,
 `dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
 smaller GStreamer RGA format matrix for currently advertised legacy
 `c_RkRgaBlit()` conversions: encoder-side BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
@@ -427,8 +436,9 @@ were added; and after the GStreamer build wrapper, suite, comparator, opt-in
 display/DMABuf sink diagnostics, asset-free
 decoder roundtrip, generated-media decode/transcode, explicit flush-event,
 EOS-loop, generated-AFBC diagnostic, and generated multi-stream diagnostic cases
-were added. It was re-run after the GStreamer generated-input cache and
-artifact-checksum comparator were added. The device-free
+were added. It was re-run after the GStreamer generated-input cache,
+artifact-checksum comparator, and generated VP9 IVF decode cases were added.
+The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,
 slowdown, GStreamer artifact mismatch, and librga latest-summary filtering
 paths. `build-mpp-tests.sh`
@@ -496,11 +506,18 @@ in `inc/rk_type.h` of `rockchip-linux/mpp` (the library
 (The jump to `0x01000004` is real: the enum restarts at the Rockchip extension
 base `MPP_VIDEO_CodingVC1 = 0x01000000`.)
 
-## VP9 decode (recipe — UNVERIFIED)
+## VP9 Decode
 
-The port builds VP9 decode but only H.264/H.265 were validated
-([kernel status](../docs/status.md)). `mpi_dec_test` selects its IVF reader by
-the `.ivf` filename extension (`utils/mpi_dec_utils.c`), so:
+The GStreamer suite now generates a short VP9 IVF stream with `vp9enc ! ivfmux`
+and requires `generated_dec_vp9_fakesink` plus `generated_dec_vp9_dmabuf` by
+default, matching JeffyCN `mppvideodec`'s advertised `video/x-vp9` sink caps.
+This is still not a recorded hardware pass; run it under both
+`PROFILE=forward-port` and `PROFILE=rewrite`, then compare with
+`gstreamer-suite-compare.sh`.
+
+The direct MPP recipe remains useful for proving the libmpp `mpi_dec_test`
+path. `mpi_dec_test` selects its IVF reader by the `.ivf` filename extension
+(`utils/mpi_dec_utils.c`), so:
 
 ```bash
 ffmpeg -f lavfi -i testsrc2=size=320x240:rate=30:duration=1 -c:v libvpx-vp9 -pix_fmt yuv420p -f ivf "$CLIP_DIR/tiny-320x240-vp9.ivf"
@@ -508,10 +525,9 @@ LD_LIBRARY_PATH=$MPP_BUILD/mpp $MPP_BUILD/test/mpi_dec_test \
   -i "$CLIP_DIR/tiny-320x240-vp9.ivf" -t 10 -w 320 -h 240 -n 30 -o /tmp/dec_vp9.yuv -v f
 ```
 
-**UNVERIFIED:** this recipe has not been run on the hardware (clip generation
-works; the decode itself is deliberately left untested — same data path as
-H.264/H.265 per status.md, but nobody has exercised the VP9 parser here). If you
-run it, record the result in status.md.
+**UNVERIFIED:** neither the generated GStreamer VP9 cases nor this direct MPP
+recipe has a forward-port/rewrite hardware log yet. If you run either, record
+the result in status.md.
 
 ## Observed results (reference)
 
