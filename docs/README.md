@@ -16,6 +16,7 @@ by one package.
 | File | Purpose |
 |------|---------|
 | [`work-packages.md`](work-packages.md) | The package map, stack diagram, and user/developer reading paths. Start here when you are not sure which package owns a topic. |
+| [`rockchip-bsp-architecture.md`](rockchip-bsp-architecture.md) | User and kernel-developer explanation of what the Rockchip 6.1 BSP adds compared with stock Linux, with area-by-area diagrams. |
 | [`source-trees.md`](source-trees.md) | Source pins and reconstruction recipes for every tree that `file:line` citations resolve against. Keep it open when checking anchors. |
 | [`gotchas.md`](gotchas.md) | Whole-repo trap index: kernel and FFmpeg traps live here, while GRD, Mesa, packaging, and debug-kernel traps point to their package-owned write-ups. |
 
@@ -35,6 +36,7 @@ by one package.
 | Goal | Path |
 |------|------|
 | Get the board working | [`../install.md`](../install.md) -> [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) |
+| Understand what the Rockchip BSP adds | [`rockchip-bsp-architecture.md`](rockchip-bsp-architecture.md) -> [`../kernel-drivers/docs/vendor-delta.md`](../kernel-drivers/docs/vendor-delta.md) -> [`../kernel-drivers/docs/vendor-forward-port.md`](../kernel-drivers/docs/vendor-forward-port.md) |
 | Understand the kernel stack | [`../kernel-drivers/docs/how-the-drivers-work.md`](../kernel-drivers/docs/how-the-drivers-work.md) -> [`../userspace-libraries/docs/how-the-userspace-libs-work.md`](../userspace-libraries/docs/how-the-userspace-libs-work.md) -> [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) |
 | Build userspace media tools | [`../userspace-libraries/`](../userspace-libraries/README.md) -> [`../ffmpeg/`](../ffmpeg/README.md) |
 | Package or redistribute | [`../packaging/`](../packaging/README.md) -> [`../packaging/docs/armbian-packaging.md`](../packaging/docs/armbian-packaging.md) -> [`../kernel-drivers/docs/resyncing.md`](../kernel-drivers/docs/resyncing.md) |
