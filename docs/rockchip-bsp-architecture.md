@@ -635,10 +635,10 @@ flowchart LR
   dt["Board DT"]
   buses["I2C/SPI/USB/PCIe/SDIO/I2S/GPIO"]
   drivers["Vendor peripheral drivers"]
-  class["Linux class APIs<br/>input, ALSA, netdev, V4L2, DRM bridge, power_supply"]
+  classapi["Linux class APIs<br/>input, ALSA, netdev, V4L2, DRM bridge, power_supply"]
   users["User-visible features<br/>touch, sound, Wi-Fi, camera bridges, charging"]
 
-  dt --> buses --> drivers --> class --> users
+  dt --> buses --> drivers --> classapi --> users
 ```
 
 Developer notes:
