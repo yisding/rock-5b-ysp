@@ -198,6 +198,8 @@ implementation (cross-reference:
 - **Both ioctl generations must exist**: legacy `RGA_GET_VERSION` /
   `RGA2_GET_VERSION` *and* modern `RGA_IOC_GET_HW_VERSION` /
   `RGA_IOC_GET_DRVIER_VERSION` (sic — the BSP typo is ABI, dev-uapis.md; `:745`).
+  `RGA2_GET_VERSION` returning `true` after copying the version string is
+  intentional BSP/librga ABI behaviour, not a bug.
 - **Legacy `RGA_CACHE_FLUSH`, `RGA_FLUSH`, `RGA_GET_RESULT`, and
   `RGA2_GET_RESULT` are safe as BSP-compatible no-ops** (`:6737-6741`) —
   userspace does not depend on their side effects.
@@ -260,8 +262,8 @@ implementation (cross-reference:
 - Optional **KUnit coverage** exists on both rewrite drivers: MPP parser helpers
   plus hard-CCU/link-table, DCHS, IOMMU-fault, `POLL_HW_IRQ`, and
   `SET_SESSION_FD` helpers via `ROCKCHIP_MPP_REWRITE_KUNIT_TEST`; and RGA
-  ABI-normalization, request create/cancel lifecycle, release-buffer lifecycle,
-  scheduler, fence, RFBC/AFBC/tile, crop/destination-offset, blend-mode,
+  ABI-normalization, request create/cancel lifecycle, import/release-buffer
+  lifecycle, scheduler, fence, RFBC/AFBC/tile, crop/destination-offset, blend-mode,
   OSD/palette/gauss/quantize/ROP/mosaic, and ffmpeg-facing profile helpers via
   `ROCKCHIP_RGA_REWRITE_KUNIT_TEST`.
 
