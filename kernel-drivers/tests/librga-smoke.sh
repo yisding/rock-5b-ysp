@@ -3,7 +3,6 @@
 set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$TEST_DIR/../.." && pwd)"
 
 CXX="${CXX:-c++}"
 BUILD_DIR="${BUILD_DIR:-/tmp/rkcompat-librga-smoke}"
@@ -23,9 +22,11 @@ fi
 
 mkdir -p "$BUILD_DIR"
 
+read -r -a LIBRGA_FLAGS <<< "$(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" "$PKG_CONFIG" --cflags --libs librga)"
+
 PKG_CONFIG_PATH="$PKG_CONFIG_PATH" "$CXX" -std=gnu++17 -Wall -Wextra \
   "$TEST_DIR/librga-smoke.cpp" \
-  $(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" "$PKG_CONFIG" --cflags --libs librga) \
+  "${LIBRGA_FLAGS[@]}" \
   -Wl,-rpath,"$STAGE/lib" \
   -o "$BUILD_DIR/librga-smoke"
 

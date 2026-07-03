@@ -146,6 +146,26 @@ int main(void)
 	}
 	printf("%-24s ok\n", "forced RGA3 copy");
 
+	opt = {};
+	memset(dst_mem, 0x80, src_size);
+	opt.core = IM_SCHEDULER_RGA2_CORE0;
+	opt.intr_config.flags = IM_INTR_READ_INTR | IM_INTR_WRITE_INTR;
+	opt.intr_config.read_threshold = TEST_SRC_H / 2;
+	opt.intr_config.write_start = 1;
+	opt.intr_config.write_step = 1;
+	ret = improcess(src, dst, {}, {}, {}, {}, -1, NULL, &opt,
+			IM_SYNC | IM_PRE_INTR);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("improcess pre-intr", ret);
+		goto out;
+	}
+	if (memcmp(src_mem, dst_mem, src_size)) {
+		fprintf(stderr, "pre-intr output differs from source\n");
+		ret = 1;
+		goto out;
+	}
+	printf("%-24s ok\n", "RGA2 pre-intr copy");
+
 	memset(tmp_mem, 0x40, src_size);
 	memset(dst_mem, 0x80, src_size);
 	ret = imcopy(src, tmp, 0, &first_fence);
