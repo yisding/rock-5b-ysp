@@ -21,6 +21,7 @@
 #include <linux/dma-heap.h>
 
 #include <rga/im2d.h>
+#include <rga/RgaApi.h>
 
 #define TEST_SRC_W 64
 #define TEST_SRC_H 64
@@ -302,6 +303,125 @@ out:
 	return ret;
 }
 
+static void fill_bgrx_pattern(uint8_t *buf, int width, int height)
+{
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			uint8_t *px = buf + ((y * width + x) * TEST_BPP);
+
+			px[0] = (uint8_t)(0x20 + x);
+			px[1] = (uint8_t)(0x40 + y);
+			px[2] = (uint8_t)(0x80 + (x ^ y));
+			px[3] = 0xff;
+		}
+	}
+}
+
+static int nv12_changed_from_sentinel(const uint8_t *buf, size_t size)
+{
+	for (size_t i = 0; i < size; i++) {
+		if (buf[i] != 0x80)
+			return 1;
+	}
+
+	return 0;
+}
+
+static int run_legacy_virtual_to_dmabuf_convert(void)
+{
+	const int src_w = 64;
+	const int src_h = 64;
+	const int dst_w = 32;
+	const int dst_h = 32;
+	const size_t src_size = (size_t)src_w * src_h * TEST_BPP;
+	const size_t dst_size = (size_t)dst_w * dst_h * 3 / 2;
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_info_t src = {};
+	rga_info_t dst = {};
+	uint8_t *src_mem = NULL;
+	int ret;
+
+	if (alloc_aligned((void **)&src_mem, src_size)) {
+		perror("posix_memalign legacy source");
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(dst_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "legacy RGA dma-heap dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	fill_bgrx_pattern(src_mem, src_w, src_h);
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "legacy RGA dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "legacy RGA dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src.virAddr = src_mem;
+	src.format = RK_FORMAT_BGRX_8888;
+	src.mmuFlag = 1;
+	rga_set_rect(&src.rect, 0, 0, src_w, src_h, src_w, src_h,
+		     RK_FORMAT_BGRX_8888);
+
+	dst.fd = dma_dst.fd;
+	dst.format = RK_FORMAT_YCbCr_420_SP;
+	dst.mmuFlag = 1;
+	rga_set_rect(&dst.rect, 0, 0, dst_w, dst_h, dst_w, dst_h,
+		     RK_FORMAT_YCbCr_420_SP);
+
+	if (c_RkRgaInit()) {
+		fprintf(stderr, "legacy RGA init failed\n");
+		ret = 1;
+		goto out;
+	}
+
+	if (c_RkRgaBlit(&src, &dst, NULL)) {
+		fprintf(stderr, "legacy RGA virtual->dmabuf blit failed\n");
+		c_RkRgaDeInit();
+		ret = 1;
+		goto out;
+	}
+	c_RkRgaDeInit();
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "legacy RGA dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!nv12_changed_from_sentinel(dma_dst.mem, dma_dst.size)) {
+		fprintf(stderr, "legacy RGA virtual->dmabuf output unchanged\n");
+		ret = 1;
+	} else {
+		ret = 0;
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"legacy RGA dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "legacy RGA BGRx->NV12",
+		       dma_dst.heap_path);
+
+out:
+	dmabuf_free(&dma_dst);
+	free(src_mem);
+
+	return ret;
+}
+
 int main(void)
 {
 	const size_t src_size = TEST_SRC_W * TEST_SRC_H * TEST_BPP;
@@ -381,6 +501,10 @@ int main(void)
 	printf("%-24s ok\n", "imcopy");
 
 	ret = run_dmabuf_copy(src_size);
+	if (ret)
+		goto out;
+
+	ret = run_legacy_virtual_to_dmabuf_convert();
 	if (ret)
 		goto out;
 

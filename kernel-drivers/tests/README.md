@@ -229,7 +229,7 @@ pass vs candidate pass rule as the MPP/RGA comparators.
 | `test-decode.sh` | device access only: root, **or** membership in `video` with [`../scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules) installed (covers `/dev/mpp_service` **and** `/dev/dma_heap/*` — both required) |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
-| `librga-smoke.sh` | device access only: root, **or** membership in `video` with the codec udev rule installed (covers `/dev/rga` **and** `/dev/dma_heap/*` — the smoke allocates dma-bufs and imports them with `importbuffer_fd`) |
+| `librga-smoke.sh` | device access only: root, **or** membership in `video` with the codec udev rule installed (covers `/dev/rga` **and** `/dev/dma_heap/*` — the smoke allocates dma-bufs, imports them with `importbuffer_fd`, and runs one legacy `c_RkRgaBlit()` virtual-source to dma-buf conversion) |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, and readable debugfs/dmesg for full logs; root is the simplest mode |
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, readable debugfs/dmesg for full logs; root is the simplest mode |
@@ -257,7 +257,7 @@ pass vs candidate pass rule as the MPP/RGA comparators.
 | `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Builds and runs a small C probe that records MPP/RGA ioctl numbers, struct sizes, `/proc/mpp_service` command-advertisement markers when visible, safe query results, MPP client-type HW-ID replay, initialized MPP session controls (`INIT_DRIVER_DATA`, `SEND_CODEC_INFO`, `RESET_SESSION`, and advertised `SET_ERR_REF_HACK`), a safe two-message MPP init batch, `SET_SESSION_FD` bad-fd `mpp_bat_msg.ret = -EBADF` and `MPP_BAT_MSG_DONE` marker handling, RGA version tuples/strings with exact version-query returns including intentional `RGA2_GET_VERSION ret=1`, no-op ioctl return codes, RGA virtual-address import/release, and modern RGA request create/config/cancel with a handle-backed bitblit task. Use the same binary/log format on the forward port and rewrite, then diff the logs. Exit `77` means both device nodes are absent. |
 | `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Exit `77` means `/dev/mpp_service` is absent. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; diagnostic differences are printed but do not fail the comparator. |
-| `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ im2d client against staged `librga`: virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd` copy, sync `imcopy`/`imresize`/`imfill`, forced RGA3 core-mask + priority copy through `improcess`, forced RGA2 `IM_PRE_INTR` read/write line-interrupt copy, and an async acquire/release-fence copy chain waited with `imsync`. This exercises the maintained librga import/submit/core/fence/pre-intr paths independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
+| `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ client against staged `librga`: virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd` copy, a legacy `c_RkRgaBlit()` malloc-backed BGRx source to dma-buf NV12 destination conversion shaped like JeffyCN GStreamer encoder preprocessing, sync `imcopy`/`imresize`/`imfill`, forced RGA3 core-mask + priority copy through `improcess`, forced RGA2 `IM_PRE_INTR` read/write line-interrupt copy, and an async acquire/release-fence copy chain waited with `imsync`. This exercises the maintained librga import/submit/core/fence/pre-intr paths independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite.sh` | **official librga sample conformance** using `../rockchip-conformance/out/librga-samples/bin` | Runs the broad current Linux/RK3588 sample set under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails only required cases. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; diagnostic differences are printed but do not fail the comparator. |
 | `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real `gst-launch-1.0` encode, RGA-conversion, restart-loop, and optional decode/transcode pipelines under the selected `PROFILE`. It records per-case logs/status/commands plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
@@ -287,10 +287,10 @@ sudo bash transcode-test.sh          # end-to-end (needs ffmpeg-rockchip built �
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
 was last verified on 2026-07-03 after the direct `librga` smoke gained
-forced-core, fence, pre-intr, and dma-buf fd-import coverage and after the
-MPP official-test suite/comparator were added. The GStreamer suite/comparator
-were added later and have been syntax-checked locally; run shellcheck on target
-when the package is installed.
+forced-core, fence, pre-intr, dma-buf fd-import, and legacy virtual-source
+`c_RkRgaBlit()` coverage and after the MPP official-test suite/comparator were
+added. The GStreamer suite/comparator were added later and have been
+syntax-checked locally; run shellcheck on target when the package is installed.
 
 For rewrite acceptance, boot a kernel where `ROCKCHIP_MPP_REWRITE` and
 `ROCKCHIP_RGA_REWRITE` own the device nodes, then run:
@@ -386,5 +386,6 @@ built-in combined kernel and is intentionally **not** included here — the over
 path hit an alias-resolution bug and a configfs-rmdir deadlock (see
 [gotchas](../../docs/gotchas.md)). The in-repo scripts have been scrubbed of
 the overlay-era instructions they were imported with (2026-07-01). The
-standalone `librga-smoke.sh` covers the maintained im2d API directly; the full
-hardware-frame RGA path is still validated through `transcode-test.sh`.
+standalone `librga-smoke.sh` covers the maintained im2d API directly and one
+legacy `c_RkRgaBlit()` conversion used by GStreamer encoder preprocessing; the
+full hardware-frame RGA path is still validated through `transcode-test.sh`.
