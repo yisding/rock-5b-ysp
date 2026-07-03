@@ -67,6 +67,15 @@ static void require_ok(const char *name, int ret)
 		failures++;
 }
 
+static void require_ret(const char *name, int ret, int expected)
+{
+	print_status(name, ret);
+	if (ret != expected) {
+		printf("  %-30s expected_ret=%d\n", name, expected);
+		failures++;
+	}
+}
+
 static int open_optional(const char *path)
 {
 	int fd = open(path, O_RDWR | O_CLOEXEC);
@@ -651,20 +660,20 @@ static void probe_rga(void)
 
 	memset(legacy, 0, sizeof(legacy));
 	errno = 0;
-	require_ok("RGA_GET_VERSION",
-		   ioctl(fd, RGA_GET_VERSION, legacy));
+	require_ret("RGA_GET_VERSION",
+		    ioctl(fd, RGA_GET_VERSION, legacy), 0);
 	print_escaped_string("legacy_version", legacy, sizeof(legacy));
 
 	memset(legacy, 0, sizeof(legacy));
 	errno = 0;
-	require_ok("RGA2_GET_VERSION",
-		   ioctl(fd, RGA2_GET_VERSION, legacy));
+	require_ret("RGA2_GET_VERSION",
+		    ioctl(fd, RGA2_GET_VERSION, legacy), 1);
 	print_escaped_string("legacy_rga2_version", legacy, sizeof(legacy));
 
 	memset(&driver_version, 0, sizeof(driver_version));
 	errno = 0;
-	require_ok("RGA_IOC_GET_DRVIER_VERSION",
-		   ioctl(fd, RGA_IOC_GET_DRVIER_VERSION, &driver_version));
+	require_ret("RGA_IOC_GET_DRVIER_VERSION",
+		    ioctl(fd, RGA_IOC_GET_DRVIER_VERSION, &driver_version), 1);
 	printf("  %-30s %u.%u.%05x\n", "driver_version_tuple",
 	       driver_version.major, driver_version.minor,
 	       driver_version.revision);
@@ -673,8 +682,8 @@ static void probe_rga(void)
 
 	memset(&hw_versions, 0, sizeof(hw_versions));
 	errno = 0;
-	require_ok("RGA_IOC_GET_HW_VERSION",
-		   ioctl(fd, RGA_IOC_GET_HW_VERSION, &hw_versions));
+	require_ret("RGA_IOC_GET_HW_VERSION",
+		    ioctl(fd, RGA_IOC_GET_HW_VERSION, &hw_versions), 1);
 	print_rga_hw_versions(&hw_versions);
 
 	errno = 0;
