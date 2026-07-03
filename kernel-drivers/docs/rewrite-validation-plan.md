@@ -8,8 +8,8 @@ hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
 > surface and heavily unit-tested — MPP **50 KUnit cases / 647 assertions**, RGA
-> **94 cases / 1,568 assertions** at the §6 pins (`710642eb58e3` on 6.18,
-> `85ef988e6516` on mainline). But every one of those tests is **logic-level**:
+> **94 cases / 1,568 assertions** at the §6 pins (`bb32bc4f999f` on 6.18,
+> `d84543927f85` on mainline). But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
 > is concentrated exactly where a from-scratch driver is weakest and where unit
