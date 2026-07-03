@@ -104,10 +104,13 @@ changing. Compare `logs/rewrite/` against `logs/forward-port/`.
 
 Suggested expanded matrix:
 
-- MPP: H.264/H.265 decode at 1080p/4K, H.264/H.265 encode from NV12 at
-  1080p/4K, multi-instance decode, multi-thread encode/decode, rate-control,
-  and `vpu_api_test`. VP9 is now part of the generated GStreamer gate, but the
-  direct `mpi_dec_test -t 10` hardware recipe still needs a recorded run.
+- MPP: H.264/H.265 decode at 1080p/4K, VP9 decode, H.264/H.265 encode from NV12
+  at 1080p/4K, multi-instance decode, multi-thread encode/decode,
+  rate-control, and `vpu_api_test`. The direct VP9 MPP case can now generate its
+  own IVF input, but still needs a recorded forward-port/rewrite hardware run.
+  VP8/MPEG/H.263/JPEG/AV1 names may be advertised by userspace; keep them out
+  of the required RK3588 rewrite gate unless a current workload proves they
+  need the legacy VDPU/JPEG or separate AV1 path.
 - RGA: `copy`, `resize`, `cvtcolor`, `fill`, `alpha`, `transform`, `async`, and
   allocator samples first; then deliberately run `rop`, `mosaic`, `padding`,
   FBC/tile, colorkey/OSD, and 10-bit/compressed cases to distinguish clean

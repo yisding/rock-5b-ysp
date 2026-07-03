@@ -85,6 +85,25 @@ a dedicated AV1 IOMMU. The newer upstream-style `../linux` tree has a clean
 same userspace ABI as RKMPP. See [RK3588 AV1 decode, IOMMU, and userspace
 paths](./av1-rk3588.md).
 
+The codec line is intentionally narrower than the names that FFmpeg and
+GStreamer can advertise. `ffmpeg-rockchip` registers AV1, H.263, H.264, HEVC,
+MJPEG, MPEG-1, MPEG-2, MPEG-4, VP8, and VP9 RKMPP decoders, upstream FFmpeg
+8.1.2 registers H.264, HEVC, VP8, and VP9 RKMPP decoders, and JeffyCN
+`mppvideodec` exposes similarly broad caps. That is userspace discovery, not
+proof that every codec maps to the RK3588 rewrite's hardware nodes. The current
+rewrite target binds only RKVDEC2/RKVENC2 plus their CCUs, matching the Rock 5B
+DT; it does not bind the legacy VDPU/VPU or JPEG nodes that libmpp uses for
+older formats.
+
+| Userspace-visible codec path | Rewrite classification | Why |
+|------------------------------|------------------------|-----|
+| H.264 decode, H.265 decode | required | libmpp uses the RKVDEC/VDPU383 path; these are the validated forward-port decoder paths. |
+| H.264 encode, H.265 encode | required | libmpp and FFmpeg use RKVENC2/VEPU580, the encoder core pair this rewrite implements. |
+| VP9 decode | required for current decoder parity, still hardware-unvalidated | libmpp's decoder HAL chooses `VPU_CLIENT_RKVDEC` for VP9, and the VDPU383 HAL has a VP9 backend. The YSP conformance wrappers now generate VP9 IVF inputs for GStreamer and direct MPP tests; hardware logs are still pending. |
+| VP8, MPEG-1/2/4, H.263 decode | recognized current-userspace names, outside the RK3588 rewrite profile | libmpp routes these through VDPU1/VDPU2-era clients, not the RKVDEC2 nodes the rewrite binds. Adding them would mean importing legacy VPU blocks, contrary to the no-cruft objective unless a current RK3588 workload proves the need. |
+| MJPEG decode/encode | recognized current-userspace names, outside the RK3588 rewrite profile | RK3588 has separate JPEG decoder/encoder hardware and BSP drivers, but this rewrite does not bind those nodes; the project status keeps JPEG as a skipped/non-goal path. |
+| AV1 via RKMPP | recognized current-userspace name, outside this RKMPP rewrite | The RK3588 AV1 block has separate hardware/IOMMU/backend plumbing; the maintained path for this project is V4L2 stateless AV1, not `/dev/mpp_service`. |
+
 Each driver carries an in-tree **`ABI.rst`** — a precise
 implemented / recognized-but-unsupported / out-of-scope ledger of the BSP ioctl
 surface. Those files are the authority; §2/§3 below transcribe the durable
