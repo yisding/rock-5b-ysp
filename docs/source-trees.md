@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | `yisding/linux-rock5b` branch `rk3588-rewrite-6.18` @ `cf3019762d16` + branch `rk3588-rewrite-mainline` @ `6537f27e4abb`, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | `yisding/linux-rock5b` branch `rk3588-rewrite-6.18` @ `78a105f66923` + branch `rk3588-rewrite-mainline` @ `5102d38eb28d`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver tests](../kernel-drivers/tests/README.md) "Expanded conformance bundle" | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -194,10 +194,10 @@ The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/re
 is reconstructible from public branches in `github.com/yisding/linux-rock5b` as
 of 2026-07-03:
 
-- branch `rk3588-rewrite-6.18`, commit `cf3019762d16` ("media: rockchip:
-  cover rga2 osd external colors"), matching the clean dev worktree
+- branch `rk3588-rewrite-6.18`, commit `78a105f66923` ("media: rockchip:
+  cover rga2 pre-intr requests"), matching the clean dev worktree
   `/home/yi/Code/linux-6.18-rkvenc`.
-- branch `rk3588-rewrite-mainline`, commit `6537f27e4abb` (same subject),
+- branch `rk3588-rewrite-mainline`, commit `5102d38eb28d` (same subject),
   matching the clean sibling worktree `/home/yi/Code/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -225,7 +225,8 @@ copy coverage, and `immakeBorder()` reflect/wrap top/bottom and left/right
 side-edge command coverage, plus RGA2 OSD external-flag, default-background,
 channel-invert, invert-calibration, and external-color register coverage for
 current `imosd` requests, plus MPP DT `rockchip,normal-rates` application
-through the public clock framework.
+through the public clock framework, plus RGA2 `IM_PRE_INTR` read/write line
+interrupt programming and line-only IRQ handling for current `librga` requests.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite
 commits landed.
