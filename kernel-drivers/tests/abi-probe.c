@@ -285,6 +285,51 @@ static void probe_mpp_multi_message_init(uint32_t hw_support)
 	close(fd);
 }
 
+static void probe_mpp_session_switch_markers(void)
+{
+	struct mpp_bat_msg bat = {
+		.fd = UINT32_MAX,
+		.ret = 1234,
+	};
+	int fd;
+
+	fd = open_optional("/dev/mpp_service");
+	if (fd < 0) {
+		failures++;
+		return;
+	}
+
+	if (!mpp_cfg(fd, "SET_SESSION_FD bad fd", &(struct mpp_request) {
+		.cmd = MPP_CMD_SET_SESSION_FD,
+		.size = sizeof(bat),
+		.data = &bat,
+	})) {
+		printf("  %-30s %d\n", "bad_fd_bat_ret", bat.ret);
+		if (bat.ret != -EBADF) {
+			printf("  %-30s expected %d\n", "bad_fd_bat_ret",
+			       -EBADF);
+			failures++;
+		}
+	}
+
+	bat.flag = MPP_BAT_MSG_DONE;
+	bat.fd = UINT32_MAX;
+	bat.ret = 77;
+	if (!mpp_cfg(fd, "SET_SESSION_FD done", &(struct mpp_request) {
+		.cmd = MPP_CMD_SET_SESSION_FD,
+		.size = sizeof(bat),
+		.data = &bat,
+	})) {
+		printf("  %-30s %d\n", "done_bat_ret", bat.ret);
+		if (bat.ret != 77) {
+			printf("  %-30s expected 77\n", "done_bat_ret");
+			failures++;
+		}
+	}
+
+	close(fd);
+}
+
 static void probe_mpp(void)
 {
 	static const uint32_t cmd_groups[] = {
@@ -347,6 +392,7 @@ static void probe_mpp(void)
 	probe_mpp_client_hw_ids(hw_support);
 	probe_mpp_session_controls(hw_support, control_butt);
 	probe_mpp_multi_message_init(hw_support);
+	probe_mpp_session_switch_markers();
 
 	errno = 0;
 	value = 0;

@@ -107,7 +107,7 @@ load balancing and `rga_req.core` routing.
 
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
-| `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Builds and runs a small C probe that records MPP/RGA ioctl numbers, struct sizes, safe query results, MPP client-type HW-ID replay, initialized MPP session controls (`INIT_DRIVER_DATA`, `SEND_CODEC_INFO`, `RESET_SESSION`, and advertised `SET_ERR_REF_HACK`), a safe two-message MPP init batch, RGA version tuples/strings, no-op ioctl return codes, RGA virtual-address import/release, and modern RGA request create/config/cancel with a handle-backed bitblit task. Use the same binary/log format on the forward port and rewrite, then diff the logs. Exit `77` means both device nodes are absent. |
+| `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Builds and runs a small C probe that records MPP/RGA ioctl numbers, struct sizes, safe query results, MPP client-type HW-ID replay, initialized MPP session controls (`INIT_DRIVER_DATA`, `SEND_CODEC_INFO`, `RESET_SESSION`, and advertised `SET_ERR_REF_HACK`), a safe two-message MPP init batch, `SET_SESSION_FD` bad-fd `mpp_bat_msg.ret = -EBADF` and `MPP_BAT_MSG_DONE` marker handling, RGA version tuples/strings including the intentional positive `RGA2_GET_VERSION` result, no-op ioctl return codes, RGA virtual-address import/release, and modern RGA request create/config/cancel with a handle-backed bitblit task. Use the same binary/log format on the forward port and rewrite, then diff the logs. Exit `77` means both device nodes are absent. |
 | `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ im2d client against staged `librga`: virtual-address imports plus `imcopy`, `imresize`, and `imfill`. This exercises the maintained librga request/import/submit path independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
 | `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates below in one pass, and snapshots rewrite debugfs counters when present. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
 | `test-decode.sh` | **decoder** (`rkvdec2`) | `mpi_dec_test` decodes *software-encoded* H.264 + H.265 320×240 clips to NV12 → exit 0 + non-empty output. Software-encoded input means a failure implicates the **decoder**, not our encoder. |
@@ -119,6 +119,7 @@ load balancing and `rga_req.core` routing.
 ```bash
 bash rewrite-smoke.sh                 # one-command gate; use sudo when devices are present
 bash abi-probe.sh                     # fast non-submit ABI probe
+bash abi-replay.sh                    # record normalized ABI log for this boot
 bash librga-smoke.sh                  # direct librga/im2d smoke
 bash test-decode.sh                  # decoder (device access is enough)
 sudo bash encode-test-tiny.sh        # encoder
@@ -134,6 +135,18 @@ sudo MPP_BUILD=<mpp-build> FFDIR=<ffmpeg-rockchip> STAGE=<stage> bash rewrite-sm
 
 The same command is valid on the BSP-derived forward-port kernel, which makes it
 the quick parity check between the two implementations.
+
+For raw ABI replay comparisons, record one normalized log under each booted
+kernel profile:
+
+```bash
+PROFILE=forward-port bash abi-replay.sh
+PROFILE=rewrite BASELINE=forward-port bash abi-replay.sh
+```
+
+`abi-replay.sh` stores raw and normalized logs under
+`kernel-drivers/tests/logs/abi-replay/`. Normalization removes volatile file
+descriptor, import-handle, and request-id values before running `diff -u`.
 
 ## Regenerating the test inputs
 

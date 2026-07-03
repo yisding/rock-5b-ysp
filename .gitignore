@@ -5,3 +5,6 @@
 # Built binaries never live in git — built .debs and dkms build output are
 # already covered by per-subdir .gitignores (packaging/*/.gitignore).
 # Publication policy for built artifacts: see packaging/README.md.
+
+# On-board ABI replay output is generated per boot/profile.
+kernel-drivers/tests/logs/
