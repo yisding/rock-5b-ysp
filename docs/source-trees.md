@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | `yisding/linux-rock5b` branch `rk3588-rewrite-6.18` @ `c24a9feebd7c` + branch `rk3588-rewrite-mainline` @ `f05d39966e5d`, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `56bc35785578` + branch `rk3588-rewrite-mainline` @ `171c68effbcd`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver tests](../kernel-drivers/tests/README.md) "Expanded conformance bundle" | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -191,13 +191,14 @@ Note the **rewrite-driver uAPI extensions** (`MPP_CMD_SET_ERR_REF_HACK`,
 ## 8. Rewrite-driver tree
 
 The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md))
-is reconstructible from public branches in `github.com/yisding/linux-rock5b` as
+is reconstructible from the committed local branch tips targeting
+`github.com/yisding/linux-rock5b` as
 of 2026-07-03:
 
-- branch `rk3588-rewrite-6.18`, commit `c24a9feebd7c` ("arm64: dts:
-  rockchip: add rk3588 vdec nodes"), matching the clean dev worktree
+- branch `rk3588-rewrite-6.18`, commit `56bc35785578` ("media: rockchip:
+  cover gstreamer rga format matrix"), matching the clean dev worktree
   `/home/yi/Code/linux-6.18-rkvenc`.
-- branch `rk3588-rewrite-mainline`, commit `f05d39966e5d` (same subject),
+- branch `rk3588-rewrite-mainline`, commit `171c68effbcd` (same subject),
   matching the clean sibling worktree `/home/yi/Code/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -235,12 +236,14 @@ plus aggregate and per-core MPP/RGA debugfs `hw_total_ns*` and `hw_max_ns*`
 counters for hardware busy-time evidence during rewrite-vs-forward-port runs,
 plus KUnit coverage for per-core timing-counter routing and warning-free RGA
 scheduler KUnit stack usage, plus RGA2 packed-YUV420 fill emission for all four
-packed orderings, plus named JeffyCN GStreamer legacy `c_RkRgaBlit()` conversion
-coverage for RGB-to-NV12, rotated NV12-to-RGB, and planar-I420/RGA2 fallback
-profiles, plus the RKVDEC2 CCU-mode update that keeps HARD opt-in while the
+packed orderings, plus named and matrix JeffyCN GStreamer legacy
+`c_RkRgaBlit()` conversion coverage for RGB-family/NV16/NV61-to-NV12,
+NV12/NV21/NV16/NV61/compact-10-bit decoder output to RGB-family, and
+planar I420/YV12 RGA2 fallback profiles, plus the RKVDEC2 CCU-mode update that
+keeps HARD opt-in while the
 RK3588 DT selects BSP-style soft CCU.  The support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
-KUnit-enabled object build for both public branch tips.
+KUnit-enabled object build for both committed branch tips.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite
 commits landed.
@@ -284,11 +287,13 @@ decode/encode lifecycle operations, MPP allocator import/export of dma-bufs,
 optional AFBC decode/encode negotiation, and legacy `c_RkRgaBlit()` scale,
 format-convert, and rotate operations between fd-backed MPP/GStreamer buffers.
 The kernel trees now have focused KUnit coverage for the highest-value legacy
-RGA conversion profiles, and the support repo's direct `librga-smoke.sh` mirrors
-those public `c_RkRgaBlit()` calls for encoder-side virtual-source conversion,
-decode-side fd-backed rotate/format conversion, and planar fallback. GStreamer
-pipeline conformance on a booted rewrite kernel remains the next
-userspace-visible priority before chasing diagnostic-only RGA sample profiles.
+RGA conversion profiles and the broader GStreamer-visible format matrix. The
+support repo's direct `librga-smoke.sh` mirrors the public `c_RkRgaBlit()` calls
+for encoder-side virtual-source conversion, decode-side fd-backed rotate/format
+conversion, and planar fallback, while `gstreamer-suite.sh` carries a diagnostic
+format matrix for advertised GStreamer RGA formats. GStreamer pipeline
+conformance on a booted rewrite kernel remains the next userspace-visible
+priority before chasing diagnostic-only RGA sample profiles.
 
 ## 11. RK3588 AV1 / VSI-IOMMU comparison trees
 

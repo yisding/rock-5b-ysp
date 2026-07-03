@@ -18,6 +18,7 @@ GST_TIMEOUT=${GST_TIMEOUT:-120}
 GST_NUM_BUFFERS=${GST_NUM_BUFFERS:-60}
 GST_STATE_LOOPS=${GST_STATE_LOOPS:-4}
 GST_STATE_LOOP_BUFFERS=${GST_STATE_LOOP_BUFFERS:-8}
+GST_FORMAT_MATRIX_BUFFERS=${GST_FORMAT_MATRIX_BUFFERS:-16}
 GST_WIDTH=${GST_WIDTH:-320}
 GST_HEIGHT=${GST_HEIGHT:-240}
 GST_SCALE_WIDTH=${GST_SCALE_WIDTH:-256}
@@ -43,6 +44,21 @@ state_loop_roundtrip_h264
 diagnostic_cases_default="
 parallel_enc_h264
 parallel_roundtrip_h264
+enc_h264_bgr16_rga_scale
+enc_h264_rgb_rga_scale
+enc_h264_bgr_rga_scale
+enc_h264_bgra_rga_scale
+enc_h264_rgbx_rga_scale
+enc_h264_nv16_rga_scale
+enc_h264_nv61_rga_scale
+roundtrip_h264_rga_bgr16
+roundtrip_h264_rga_rgb
+roundtrip_h264_rga_bgr
+roundtrip_h264_rga_nv21
+roundtrip_h264_rga_nv16
+roundtrip_h264_rga_nv61
+roundtrip_h264_rga_i420
+roundtrip_h264_rga_yv12
 "
 
 if [ -n "${GST_H264_INPUT:-}" ]; then
@@ -271,6 +287,41 @@ build_case_command()
 			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
 			zero-copy-pkt=true
 		;;
+	enc_h264_bgr16_rga_scale)
+		build_videotest_encode mpph264enc BGR16 "$GST_FORMAT_MATRIX_BUFFERS" \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_rgb_rga_scale)
+		build_videotest_encode mpph264enc RGB "$GST_FORMAT_MATRIX_BUFFERS" \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_bgr_rga_scale)
+		build_videotest_encode mpph264enc BGR "$GST_FORMAT_MATRIX_BUFFERS" \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_bgra_rga_scale)
+		build_videotest_encode mpph264enc BGRA "$GST_FORMAT_MATRIX_BUFFERS" \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_rgbx_rga_scale)
+		build_videotest_encode mpph264enc RGBx "$GST_FORMAT_MATRIX_BUFFERS" \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_nv16_rga_scale)
+		build_videotest_encode mpph264enc NV16 "$GST_FORMAT_MATRIX_BUFFERS" \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_nv61_rga_scale)
+		build_videotest_encode mpph264enc NV61 "$GST_FORMAT_MATRIX_BUFFERS" \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
 	roundtrip_h264_nv12)
 		build_videotest_roundtrip mpph264enc h264parse "$GST_NUM_BUFFERS"
 		;;
@@ -280,6 +331,38 @@ build_case_command()
 	roundtrip_h264_rga_rotate)
 		build_videotest_roundtrip mpph264enc h264parse "$GST_NUM_BUFFERS" \
 			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx
+		;;
+	roundtrip_h264_rga_bgr16)
+		build_videotest_roundtrip mpph264enc h264parse \
+			"$GST_FORMAT_MATRIX_BUFFERS" format=BGR16
+		;;
+	roundtrip_h264_rga_rgb)
+		build_videotest_roundtrip mpph264enc h264parse \
+			"$GST_FORMAT_MATRIX_BUFFERS" format=RGB
+		;;
+	roundtrip_h264_rga_bgr)
+		build_videotest_roundtrip mpph264enc h264parse \
+			"$GST_FORMAT_MATRIX_BUFFERS" format=BGR
+		;;
+	roundtrip_h264_rga_nv21)
+		build_videotest_roundtrip mpph264enc h264parse \
+			"$GST_FORMAT_MATRIX_BUFFERS" format=NV21
+		;;
+	roundtrip_h264_rga_nv16)
+		build_videotest_roundtrip mpph264enc h264parse \
+			"$GST_FORMAT_MATRIX_BUFFERS" format=NV16
+		;;
+	roundtrip_h264_rga_nv61)
+		build_videotest_roundtrip mpph264enc h264parse \
+			"$GST_FORMAT_MATRIX_BUFFERS" format=NV61
+		;;
+	roundtrip_h264_rga_i420)
+		build_videotest_roundtrip mpph264enc h264parse \
+			"$GST_FORMAT_MATRIX_BUFFERS" format=I420
+		;;
+	roundtrip_h264_rga_yv12)
+		build_videotest_roundtrip mpph264enc h264parse \
+			"$GST_FORMAT_MATRIX_BUFFERS" format=YV12
 		;;
 	state_loop_h264_nv12)
 		CMD=(__builtin_state_loop enc_h264_nv12 "loops=$GST_STATE_LOOPS")

@@ -29,9 +29,9 @@ site when the issue is inherited from Rockchip's `mpp_av1dec.c`.
 | Origin | Count | Notes |
 |--------|-------|-------|
 | Inherited from BSP `mpp_av1dec.c` | 7 | Register request splitting, bounds, FD translation, and ISR assumptions were already present in the donor driver. |
-| Forward-port/API compatibility | 4 | 6.18 callback/config/build issues introduced by moving BSP code into this tree, plus use of local compat wrappers where BSP-only APIs are absent. |
-| Hybrid integration hardening | 6 | Issues in the imported upstream-style VSI IOMMU provider and the RKMPP/VSI DT split; not findings against the BSP AV1 MPP driver itself. |
-| DT integration | 1 | Base RK3588 Hantro/VSI topology must stay complete while ROCK 5B retypes the consumer to RKMPP. |
+| Forward-port/API compatibility | 6 | 6.18 callback/config/build issues introduced by moving BSP code into this tree, plus use of local compat wrappers where BSP-only APIs are absent. |
+| Hybrid integration hardening | 9 | Issues in the imported upstream-style VSI IOMMU provider and the RKMPP/VSI DT split; not findings against the BSP AV1 MPP driver itself. |
+| DT/Kconfig integration | 2 | Base RK3588 Hantro/VSI topology and provider selection must stay complete while ROCK 5B retypes the consumer to RKMPP. |
 | Pre-existing branch/packaging dependency | 1 | ROCK 5B DTB still depends on Armbian media labels unrelated to AV1. |
 
 ## Findings
@@ -49,13 +49,19 @@ site when the issue is inherited from Rockchip's `mpp_av1dec.c`.
 | AV1-FW-002 | low | forward-port | procfs guard must match `CONFIG_ROCKCHIP_MPP_PROC_FS`, and that Kconfig must depend on `PROC_FS` | donor uses `CONFIG_PROC_FS` | Fixed in worktree |
 | AV1-FW-003 | cleanup | forward-port | forced include path defines `pr_fmt` before imported BSP files | not a donor runtime bug | Fixed in worktree |
 | AV1-FW-004 | medium | forward-port | AV1 reset must use `mpp_pmu_idle_request()` instead of calling the missing BSP PMU-idle API directly | `mpp_av1dec.c:922`, `:928` | Fixed in worktree |
+| AV1-FW-005 | medium | forward-port | ROCK 5B AV1 reset reaches the PMU-idle no-op unless the node explicitly opts out | `mpp_av1dec.c:922`, `rk3588-rock-5b.dtsi` AV1 override | Fixed in worktree |
+| AV1-FW-006 | low | forward-port | RKVENC2 devfreq code was still gated by bare `CONFIG_PM_DEVFREQ` instead of the local tier knob | `mpp_rkvenc2.c` devfreq guards | Fixed in worktree |
 | AV1-VSI-001 | medium | hybrid integration | VSI IRQ path must not call sleeping runtime-PM resume from hard IRQ | `vsi-iommu.c:192-220` | Fixed in worktree |
 | AV1-VSI-002 | medium | hybrid integration | VSI IRQ fault reporting must tolerate no paging domain / identity domain | `vsi-iommu.c:206-214` | Fixed in worktree |
 | AV1-VSI-003 | high | hybrid integration | duplicate map failure must unwind partial PTE writes and return an error, not a bogus partial success | `vsi-iommu.c:347-380` | Fixed in worktree |
 | AV1-VSI-004 | medium | hybrid integration | map/unmap need a real `.flush_iotlb_all` implementation without self-deadlocking the domain lock | `vsi-iommu.c:383-419`, `:675-691` | Fixed in worktree |
 | AV1-VSI-005 | medium | hybrid integration | identity-domain attach/resume/enable paths must not cast identity domain through `to_vsi_domain()` | `vsi-iommu.c:532-580`, `:783-803` | Fixed in worktree |
 | AV1-VSI-006 | high | hybrid integration | two-argument attach adaptation must remove `iommu->node` under the old paging-domain list lock before identity/new-domain attach | `vsi-iommu.c:532-648` | Fixed in worktree |
-| AV1-DT-001 | medium | DT integration | shared Hantro `av1d` node must keep `iommus = <&av1d_mmu>` and the base `av1d_mmu` provider must not be left disabled | `rk3588-base.dtsi:1421-1443` | Fixed in worktree |
+| AV1-VSI-007 | high | hybrid integration | TLB flush skipped already-active providers when runtime-PM usage count was zero | `vsi-iommu.c:383-405` | Fixed in worktree |
+| AV1-VSI-008 | medium | hybrid integration | release-domain identity attach could fail on PM resume even though the 6.18 core ignores that return during release | `vsi-iommu.c:532-576`, `iommu_ops.release_domain` | Fixed in worktree |
+| AV1-VSI-009 | medium | hybrid integration | `VSI_IOMMU=m` was allowed without a remove path for `iommu_device_unregister()`/runtime-PM cleanup | `drivers/iommu/Kconfig`, `vsi-iommu.c` platform driver | Fixed by making provider built-in-only |
+| AV1-DT-001 | medium | DT/Kconfig integration | shared Hantro `av1d` node must keep `iommus = <&av1d_mmu>` and the base `av1d_mmu` provider must not be left disabled | `rk3588-base.dtsi:1421-1443` | Fixed in worktree |
+| AV1-DT-002 | medium | DT/Kconfig integration | Hantro-only Rockchip AV1 configs could leave `CONFIG_VSI_IOMMU=n` even though the base AV1 node references `av1d_mmu` | `drivers/media/platform/verisilicon/Kconfig`, `drivers/iommu/Kconfig` | Fixed in worktree |
 | AV1-PKG-001 | low | packaging | `rk3588-rock-5b.dtb` target fails in the plain worktree before AV1 due missing `vdec0/vdec1` labels | `rk3588-rock-5b.dtsi` Armbian media label dependency | Open packaging-order note |
 
 ## Details
@@ -140,14 +146,29 @@ private `third_iommu_ops_wrap` / `rockchip-iommu-av1d.c` integration. They are
 tracked here because they are required for the AV1 experiment to be supportable
 and because a failure there would present as an AV1 decoder bring-up bug.
 
+The second adversarial review also found broader forward-port debt that is not
+an original BSP bug and was not fully fixed in this AV1 pass:
+
+- The compat `rockchip_iommu_*` helpers remain no-op/`-ENODEV` shims. Normal
+  AV1 mapping now uses `vsi-iommu`, but RKVENC2/RKVDEC2 fault masking and
+  reset-refresh recovery still lack the BSP helper semantics.
+- The forced `rockchip_save_qos()`/`rockchip_restore_qos()` compat helpers are
+  no-ops, so the RKVDEC2 link reset QoS save/restore behavior is still missing.
+
+Those should be tracked with the broader encoder/decoder forward-port work
+rather than counted as donor `mpp_av1dec.c` defects.
+
 ## Verification status
 
 | Method | Status |
 |--------|--------|
 | Focused MPP object build | PASS: `drivers/video/rockchip/mpp/` builds and includes `mpp_av1dec.o` |
 | Focused IOMMU object build | PASS: `drivers/iommu/` builds and includes `vsi-iommu.o` |
+| Focused Hantro object build | PASS: `drivers/media/platform/verisilicon/` builds with Rockchip Hantro support |
+| Hantro-only Kconfig smoke | PASS: with RKMPP disabled and Hantro Rockchip enabled, `olddefconfig` selects `VSI_IOMMU=y` |
 | Shared RK3588 DTS parse smoke | PASS: `rockchip/rk3588s-orangepi-5.dtb` and `rockchip/rk3588-evb1-v10.dtb` build |
 | Compiled base AV1 topology | PASS: `rk3588-evb1-v10.dtb` shows `video-codec@fdc70000` with `iommus` pointing at enabled `iommu@fdca0000` |
+| AV1 binding check | BLOCKED: `dt-doc-validate` / `dtschema` is not installed in this environment |
 | ROCK 5B AV1-enabled DTB | PENDING: plain tree still needs the Armbian media patch that provides `vdec0/vdec1` labels |
 | Runtime AV1 decode | PENDING: no board boot or `av1_rkmpp` userspace validation yet |
 

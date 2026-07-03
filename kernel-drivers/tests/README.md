@@ -243,14 +243,19 @@ they feed `videotestsrc` through the MPP encoder, parser, and `mppvideodec` in
 one pipeline so GStreamer's decoder-side buffer-group, short-timeout polling,
 info-change, and reset paths are exercised even before media assets are staged.
 Diagnostic cases include `parallel_enc_h264`, `parallel_roundtrip_h264`,
-`dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. Override with
+`dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
+smaller GStreamer RGA format matrix for currently advertised legacy
+`c_RkRgaBlit()` conversions: encoder-side BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
+scale paths and decoder-side BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output
+format paths. Override with
 `GST_REQUIRED_CASES` or
 `GST_DIAGNOSTIC_CASES` for narrower hardware debugging, and tune dimensions with
 `GST_WIDTH`, `GST_HEIGHT`, `GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,
-`GST_NUM_BUFFERS`, `GST_STATE_LOOPS`, and `GST_TIMEOUT`. After both kernels have
-a suite result, run `gstreamer-suite-compare.sh`; it follows the same baseline
-pass vs candidate pass rule as the MPP/RGA comparators and supports the same
-`PERF_MAX_RATIO` elapsed-time slowdown gate.
+`GST_NUM_BUFFERS`, `GST_FORMAT_MATRIX_BUFFERS`, `GST_STATE_LOOPS`, and
+`GST_TIMEOUT`. After both kernels have a suite result, run
+`gstreamer-suite-compare.sh`; it follows the same baseline pass vs candidate
+pass rule as the MPP/RGA comparators and supports the same `PERF_MAX_RATIO`
+elapsed-time slowdown gate.
 
 **Privileges** (this differs per test):
 
