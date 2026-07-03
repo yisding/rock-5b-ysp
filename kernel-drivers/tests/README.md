@@ -54,7 +54,7 @@ changing. Compare `logs/rewrite/` against `logs/forward-port/`.
 |------------------|------------|-------------------------------|
 | `sources/jeffycn-gstreamer-rockchip` | JeffyCN's `gstreamer-rockchip` branch from `JeffyCN/mirrors` | Highest-value new target beyond FFmpeg/rkmpp/librga. GStreamer stresses MPP/RGA through caps negotiation, buffer pools, pipeline state changes, EOS/flush/seek/restart, dmabuf allocator negotiation, KMS/Wayland sinks, and multi-stream scheduling. |
 | `sources/rockchip-mpp` | Rockchip MPP library and official `test/` programs | Gives the canonical `mpp_info_test`, `mpi_dec_test`, `mpi_dec_mt_test`, `mpi_dec_multi_test`, `mpi_enc_test`, `mpi_enc_mt_test`, `mpi_rc2_test`, and `vpu_api_test` binaries. These hit sync/async decode, multi-instance and multi-thread paths, rate-control config, event/control paths, and the legacy VPU API more directly than FFmpeg. |
-| `sources/airockchip-librga` | Official librga repo and IM2D sample suite | Must be run as a *suite*, not just a copy/resize smoke. It covers allocator modes, async jobs, FBC/tile copies, alpha/colorkey/OSD, CSC, fill arrays, mosaic, ROP, transform, crop, resize, and padding. These map almost exactly to the rewrite's remaining RGA feature boundaries. |
+| `sources/airockchip-librga` | Official librga repo and IM2D sample suite | Must be run as a *suite*, not just a copy/resize smoke. It covers allocator modes, async jobs, FBC/tile copies, alpha/colorkey/OSD, CSC, fill arrays, mosaic, ROP, palette, gauss, transform, crop, resize, and padding. These map almost exactly to the rewrite's remaining RGA feature boundaries. |
 | `sources/mpp-linux-cpp-demo` | Linux MPP/RGA/DRM demo | Useful integration smoke because it chains MPP decode, RGA conversion, DRM display, and threading in one app. |
 | `sources/rkmediacodec-demo` | Android RKMediaCodecDemo | Lower priority for Linux, but it is the Android-style MediaCodec/allocator path to run if Android compatibility matters. The earlier request called this RKMediaCoreDemo; the public Rockchip demo we found and staged is RKMediaCodecDemo. |
 
@@ -94,11 +94,11 @@ the official top-level sample build's current Linux/RK3588 surface the rewrite
 is expected to cover or fail as a real regression: copy/FBC/tile/splice, crop,
 resize/UV-downsample, CSC/gray, fill and rectangle task arrays,
 alpha/colorkey/OSD/global-alpha, rotate/flip, async/fence, core config,
-malloc/dma-heap/DRM allocator fd imports, mosaic, ROP, and padding. Its default
+malloc/dma-heap/DRM allocator fd imports, mosaic, ROP, padding, palette, and
+gaussian blur. Its default
 **diagnostic** set records environment-specific, outside-slice, or
 not-installed-by-top-level cases without failing the whole run:
-physical-contiguous DRM, Android GraphicBuffer, RV1106 CMA, palette, gauss, and
-CFA samples.
+physical-contiguous DRM, Android GraphicBuffer, RV1106 CMA, and CFA samples.
 Override with `RGA_REQUIRED_CASES` or `RGA_DIAGNOSTIC_CASES` when intentionally
 probing a narrower or broader profile.
 After both kernels have a suite result, run `librga-suite-compare.sh`. It finds

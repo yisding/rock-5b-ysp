@@ -53,12 +53,12 @@ rga_allocator_drm_demo
 rga_mosaic_demo
 rga_rop_demo
 rga_padding_demo
-"
-
-diagnostic_cases_default="
 rga_palette_demo
 rga_gauss_demo
 rga_gauss_matrix_demo
+"
+
+diagnostic_cases_default="
 rga_allocator_drm_phy_demo
 rga_allocator_graphicbuffer_demo
 rga_allocator_1106_cma_demo
