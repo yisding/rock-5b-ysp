@@ -27,7 +27,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | Clean cross-kernel build gate | ✅ [`tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) | reuse as the pre-merge gate |
 | Non-submit ABI probe + log diff | ✅ [`tests/abi-probe.sh`](../tests/abi-probe.sh), [`tests/abi-replay.sh`](../tests/abi-replay.sh) | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer) | ✅ `*-suite.sh` + external [`../rockchip-conformance`](../tests/README.md) | reuse; wire the pass/fail gate |
-| Differential rewrite-vs-forward-port | ⚠️ pass/fail + elapsed only (`*-suite-compare.sh`) | **add byte-exact output-buffer comparison** |
+| Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode cases now compare `artifacts.tsv` byte counts and SHA-256s; MPP/RGA suite outputs still need byte-exact dumps | **complete byte-exact output-buffer comparison** |
 | Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` | reuse as assertion hooks throughout |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
@@ -66,10 +66,13 @@ rewrite. Kconfig makes the two tracks mutually exclusive per device node
 ([`tests/README.md`](../tests/README.md) "Expanded conformance bundle"), keeping
 `assets/` and command lines identical across the two boots.
 
-**The gap to close:** the current `*-suite-compare.sh` scripts compare only
-*pass/fail and elapsed time*, and `abi-replay.sh` diffs *normalised ABI logs* —
-neither compares the **pixels/bitstream**. Add byte-exact output comparison,
-which is where a rewrite's command-generation bugs actually surface:
+**The gap to close:** most current comparators still compare only *pass/fail and
+elapsed time*, and `abi-replay.sh` diffs *normalised ABI logs* rather than the
+**pixels/bitstream**. The GStreamer generated decode/transcode wrapper now
+caches shared H.264/H.265 inputs and compares `artifacts.tsv` byte counts plus
+SHA-256s when both profiles provide them; extend the same byte-exact discipline
+to the remaining suite outputs, which is where a rewrite's command-generation
+bugs actually surface:
 
 - **RGA** is deterministic pixel math → expect **bit-exact** destination buffers.
   Have `librga-suite.sh` (or a thin wrapper) dump each op's destination dma-buf

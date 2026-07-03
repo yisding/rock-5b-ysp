@@ -27,6 +27,19 @@ write_summary()
 	} > "$file"
 }
 
+write_artifacts()
+{
+	local file=$1
+	local profile=$2
+	local sha=$3
+
+	{
+		printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n"
+		printf "%s\trequired\tcodec\tdecoded\t4\t%s\t/tmp/%s-codec.raw\n" \
+			"$profile" "$sha" "$profile"
+	} > "$file"
+}
+
 run_compare()
 {
 	local script=$1
@@ -77,6 +90,40 @@ check_compare_script()
 	grep -q "regression" "$out_prefix.regression"
 }
 
+check_gstreamer_artifact_compare()
+{
+	local base_dir="$TMP_ROOT/gstreamer-base"
+	local cand_dir="$TMP_ROOT/gstreamer-cand"
+	local out_good="$TMP_ROOT/gstreamer-artifacts.good"
+	local out_bad="$TMP_ROOT/gstreamer-artifacts.bad"
+	local status
+
+	mkdir -p "$base_dir" "$cand_dir"
+	write_summary "$base_dir/summary.tsv" forward-port pass 10 4
+	write_summary "$cand_dir/summary.tsv" rewrite pass 10 4
+	write_artifacts "$base_dir/artifacts.tsv" forward-port abcd
+	write_artifacts "$cand_dir/artifacts.tsv" rewrite abcd
+
+	BASELINE_SUMMARY="$base_dir/summary.tsv" \
+		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
+		bash "$TEST_DIR/gstreamer-suite-compare.sh" > "$out_good"
+	grep -q "artifact_baseline" "$out_good"
+	grep -q "same" "$out_good"
+
+	write_artifacts "$cand_dir/artifacts.tsv" rewrite dead
+	set +e
+	BASELINE_SUMMARY="$base_dir/summary.tsv" \
+		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
+		bash "$TEST_DIR/gstreamer-suite-compare.sh" > "$out_bad"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "gstreamer artifact mismatch unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q "artifact-mismatch" "$out_bad"
+}
+
 check_librga_latest_filter()
 {
 	local root="$TMP_ROOT/conformance"
@@ -112,6 +159,7 @@ write_summary "$REGRESSION" rewrite fail 12 8
 check_compare_script mpp-suite-compare.sh
 check_compare_script librga-suite-compare.sh
 check_compare_script gstreamer-suite-compare.sh
+check_gstreamer_artifact_compare
 check_librga_latest_filter
 
 echo "suite comparator selftest passed"

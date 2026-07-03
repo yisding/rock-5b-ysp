@@ -302,10 +302,14 @@ support repo's direct `librga-smoke.sh` mirrors the public `c_RkRgaBlit()` calls
 for encoder-side virtual-source conversion, decode-side fd-backed rotate/format
 conversion, and planar fallback, while `gstreamer-suite.sh` carries a diagnostic
 format matrix for advertised GStreamer RGA formats plus opt-in display/DMABuf
-sink cases against JeffyCN's `rkximagesink`. GStreamer pipeline conformance on a
-booted rewrite kernel, including a real display-plane run and forward-port vs
-rewrite timing data, remains the next userspace-visible priority before chasing
-diagnostic-only RGA sample profiles.
+sink cases against JeffyCN's `rkximagesink`. The GStreamer wrapper now also
+caches generated H.264/H.265 inputs under the shared conformance assets
+directory and records `artifacts.tsv` SHA-256s for generated decode/transcode
+outputs so the comparator can fail required forward-port vs rewrite pixel or
+bitstream mismatches. GStreamer pipeline conformance on a booted rewrite kernel,
+including a real display-plane run and forward-port vs rewrite timing data,
+remains the next userspace-visible priority before chasing diagnostic-only RGA
+sample profiles.
 
 ## 11. RK3588 AV1 / VSI-IOMMU comparison trees
 

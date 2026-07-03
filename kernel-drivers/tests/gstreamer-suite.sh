@@ -15,6 +15,8 @@ GST_EVENT_HARNESS=${GST_EVENT_HARNESS:-"$GST_PREFIX/bin/gstreamer-event-harness"
 MPP_LIBDIR=${MPP_LIBDIR:-"$CONFORMANCE_ROOT/out/mpp/lib"}
 LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-gstreamer-suite"}
+GST_GENERATED_INPUT_CACHE=${GST_GENERATED_INPUT_CACHE:-"$CONFORMANCE_ROOT/assets/gstreamer-generated"}
+GST_CAPTURE_ARTIFACTS=${GST_CAPTURE_ARTIFACTS:-1}
 GST_TIMEOUT=${GST_TIMEOUT:-120}
 GST_NUM_BUFFERS=${GST_NUM_BUFFERS:-60}
 GST_STATE_LOOPS=${GST_STATE_LOOPS:-4}
@@ -178,7 +180,14 @@ fi
 
 mkdir -p "$OUT"
 summary="$OUT/summary.tsv"
+artifact_dir="$OUT/artifacts"
+artifact_summary="$OUT/artifacts.tsv"
 printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
+printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
+mkdir -p "$artifact_dir"
+if [ -n "$GST_GENERATED_INPUT_CACHE" ]; then
+	mkdir -p "$GST_GENERATED_INPUT_CACHE"
+fi
 
 export GST_PLUGIN_PATH="$GST_PLUGIN_DIR:${GST_PLUGIN_PATH:-}"
 export GST_REGISTRY="${GST_REGISTRY:-"$OUT/gstreamer-registry.bin"}"
@@ -186,10 +195,70 @@ export LD_LIBRARY_PATH="$MPP_LIBDIR:$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
 
 CMD=()
 BUILD_ERROR=
+CURRENT_CLASS=
+CURRENT_CASE=
+CASE_ARTIFACT_KINDS=()
+CASE_ARTIFACT_PATHS=()
 GENERATED_INPUT_PATH=
 GENERATED_ENCODER=
 GENERATED_PARSER=
 GENERATED_SUFFIX=
+
+safe_token()
+{
+	printf "%s" "$1" | tr -c 'A-Za-z0-9_.-' '_'
+}
+
+generated_cache_path()
+{
+	local kind=$1
+	local codec=$2
+	local ext=$3
+	local framerate
+	local name
+
+	framerate=$(safe_token "$GST_FRAMERATE")
+	name="$kind-$codec-${GST_WIDTH}x${GST_HEIGHT}-${framerate}-${GST_GENERATED_INPUT_BUFFERS}"
+	if [ "$kind" = "generated-renegotiate" ]; then
+		name="$name-to-${GST_SCALE_WIDTH}x${GST_SCALE_HEIGHT}-${GST_CAPS_RENEGOTIATE_BUFFERS}"
+	fi
+	name="$name.$ext"
+
+	if [ -n "$GST_GENERATED_INPUT_CACHE" ]; then
+		printf "%s/%s" "$GST_GENERATED_INPUT_CACHE" "$name"
+	else
+		printf "%s/%s" "$OUT" "$name"
+	fi
+}
+
+artifact_capture_enabled()
+{
+	[ "$GST_CAPTURE_ARTIFACTS" = "1" ] && [ -n "$CURRENT_CASE" ]
+}
+
+register_artifact()
+{
+	local kind=$1
+	local path=$2
+
+	CASE_ARTIFACT_KINDS+=("$kind")
+	CASE_ARTIFACT_PATHS+=("$path")
+}
+
+append_artifact_or_fake_sink()
+{
+	local kind=$1
+	local ext=$2
+	local path
+
+	if artifact_capture_enabled; then
+		path="$artifact_dir/$(safe_token "$CURRENT_CASE").$(safe_token "$kind").$ext"
+		CMD+=("!" filesink "location=$path")
+		register_artifact "$kind" "$path"
+	else
+		CMD+=("!" fakesink sync=false)
+	fi
+}
 
 get_var()
 {
@@ -321,7 +390,7 @@ ensure_generated_input()
 	local codec=$1
 
 	select_generated_codec "$codec" || return $?
-	GENERATED_INPUT_PATH="$OUT/generated-input.$GENERATED_SUFFIX"
+	GENERATED_INPUT_PATH=$(generated_cache_path generated-input "$codec" "$GENERATED_SUFFIX")
 	if [ -s "$GENERATED_INPUT_PATH" ]; then
 		return 0
 	fi
@@ -378,7 +447,7 @@ ensure_generated_renegotiate_input()
 	local second_path
 
 	select_generated_codec "$codec" || return $?
-	GENERATED_INPUT_PATH="$OUT/generated-renegotiate.$GENERATED_SUFFIX"
+	GENERATED_INPUT_PATH=$(generated_cache_path generated-renegotiate "$codec" "$GENERATED_SUFFIX")
 	first_path="$OUT/generated-renegotiate-a.$GENERATED_SUFFIX"
 	second_path="$OUT/generated-renegotiate-b.$GENERATED_SUFFIX"
 	if [ -s "$GENERATED_INPUT_PATH" ]; then
@@ -410,7 +479,7 @@ run_generated_decode()
 		shift
 	done
 
-	CMD+=("!" fakesink sync=false)
+	append_artifact_or_fake_sink decoded raw
 	printf "decoding generated %s input: " "$codec"
 	print_current_command
 	run_current_command
@@ -429,7 +498,7 @@ run_generated_renegotiate_decode()
 		shift
 	done
 
-	CMD+=("!" fakesink sync=false)
+	append_artifact_or_fake_sink decoded-renegotiate raw
 	printf "decoding generated renegotiating %s input: " "$codec"
 	print_current_command
 	run_current_command
@@ -451,6 +520,7 @@ run_generated_transcode()
 {
 	local codec=$1
 	local encoder=$2
+	local ext=bin
 	shift 2
 
 	ensure_generated_input "$codec" || return $?
@@ -461,7 +531,17 @@ run_generated_transcode()
 		shift
 	done
 
-	CMD+=("!" "$encoder" zero-copy-pkt=true "!" fakesink sync=false)
+	case "$encoder" in
+	mpph264enc)
+		ext=h264
+		;;
+	mpph265enc)
+		ext=h265
+		;;
+	esac
+
+	CMD+=("!" "$encoder" zero-copy-pkt=true)
+	append_artifact_or_fake_sink encoded "$ext"
 	printf "transcoding generated %s input: " "$codec"
 	print_current_command
 	run_current_command
@@ -998,6 +1078,31 @@ record_summary()
 		>> "$summary"
 }
 
+record_case_artifacts()
+{
+	local idx
+	local kind
+	local path
+	local bytes
+	local sha
+
+	for idx in "${!CASE_ARTIFACT_PATHS[@]}"; do
+		kind=${CASE_ARTIFACT_KINDS[$idx]}
+		path=${CASE_ARTIFACT_PATHS[$idx]}
+		if [ -f "$path" ]; then
+			bytes=$(wc -c < "$path" | tr -d '[:space:]')
+			sha=$(sha256sum "$path" | awk '{ print $1 }')
+		else
+			bytes=missing
+			sha=missing
+		fi
+
+		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+			"$PROFILE" "$CURRENT_CLASS" "$CURRENT_CASE" "$kind" \
+			"$bytes" "$sha" "$path" >> "$artifact_summary"
+	done
+}
+
 write_command_file()
 {
 	local target=$1
@@ -1120,6 +1225,11 @@ run_case()
 	local result
 	local build_status
 
+	CURRENT_CLASS=$class
+	CURRENT_CASE=$case_name
+	CASE_ARTIFACT_KINDS=()
+	CASE_ARTIFACT_PATHS=()
+
 	if [ -z "$case_name" ]; then
 		return
 	fi
@@ -1167,6 +1277,7 @@ run_case()
 	printf "%s\n" "$status" > "$status_file"
 	if [ "$status" -eq 0 ]; then
 		result=pass
+		record_case_artifacts
 	elif [ "$status" -eq 124 ]; then
 		result=timeout
 		if [ "$class" = "required" ]; then
