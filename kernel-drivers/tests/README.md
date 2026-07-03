@@ -214,9 +214,11 @@ before/after driver-state snapshots, and combined MPP/RGA debugfs counter
 deltas. Use `build-gstreamer-rockchip.sh` to stage the plugin. It builds only
 the Rockchip MPP plugin by default, requires the RGA dependency instead of
 silently dropping conversion support, and disables the display-only `rkximage`
-and `kmssrc` plugins because the automated conformance matrix does not use
-them. The default required set needs no media files but still exercises real
-kernel paths:
+and `kmssrc` plugins for the headless default matrix. To stage the Rockchip KMS
+display sink used by the opt-in display cases, rebuild with
+`RKXIMAGE_FEATURE=enabled`; that additionally requires the `x11` and `libdrm`
+pkg-config dependencies. The default required set needs no media files but still
+exercises real kernel paths:
 
 - `gst_inspect_rockchipmpp`, `gst_inspect_mppvideodec`,
   `gst_inspect_mpph264enc`, `gst_inspect_mpph265enc`;
@@ -273,6 +275,14 @@ GST_H265_INPUT=assets/sample-1080p.h265 \
 ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
 ```
 
+Set `GST_ENABLE_DISPLAY_CASES=1` to add opt-in display diagnostics against
+`GST_DISPLAY_SINK` (default `rkximagesink`). These cases inspect the sink and
+run generated H.264/H.265 elementary streams through `mppvideodec
+dma-feature=true` into the sink, including AFBC variants. Set
+`GST_REQUIRE_DISPLAY_CASES=1` on a board with a known-good display plane to
+promote the same cases to required, and pass simple sink properties with
+`GST_DISPLAY_SINK_ARGS`, for example `connector-id=... plane-id=...`.
+
 Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_fakesink`, `generated_dec_h264_dmabuf`,
 `generated_dec_h265_dmabuf`, `generated_dec_h264_renegotiate`,
@@ -303,7 +313,10 @@ Diagnostic cases include `event_seek_enc_h264`, `event_seek_enc_h265`,
 smaller GStreamer RGA format matrix for currently advertised legacy
 `c_RkRgaBlit()` conversions: encoder-side BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 scale paths and decoder-side BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output
-format paths. Override with
+format paths. With `GST_ENABLE_DISPLAY_CASES=1`, diagnostics also include
+`gst_inspect_display_sink`, `generated_dec_h264_display_dmabuf`,
+`generated_dec_h265_display_dmabuf`, `generated_dec_h264_display_afbc`, and
+`generated_dec_h265_display_afbc`. Override with
 `GST_REQUIRED_CASES` or
 `GST_DIAGNOSTIC_CASES` for narrower hardware debugging, and tune dimensions with
 `GST_WIDTH`, `GST_HEIGHT`, `GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,
@@ -399,7 +412,8 @@ was last verified on 2026-07-03 after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
 coverage for the GStreamer virtual-source, fd-backed rotate/convert, and planar
 fallback shapes; after the MPP official-test suite/comparator and build helper
-were added; and after the GStreamer build wrapper, suite, comparator, asset-free
+were added; and after the GStreamer build wrapper, suite, comparator, opt-in
+display/DMABuf sink diagnostics, asset-free
 decoder roundtrip, generated-media decode/transcode, explicit flush-event,
 EOS-loop, generated-AFBC diagnostic, and generated multi-stream diagnostic cases
 were added. The device-free

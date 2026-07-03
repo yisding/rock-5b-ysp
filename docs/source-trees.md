@@ -292,9 +292,11 @@ RGA conversion profiles and the broader GStreamer-visible format matrix. The
 support repo's direct `librga-smoke.sh` mirrors the public `c_RkRgaBlit()` calls
 for encoder-side virtual-source conversion, decode-side fd-backed rotate/format
 conversion, and planar fallback, while `gstreamer-suite.sh` carries a diagnostic
-format matrix for advertised GStreamer RGA formats. GStreamer pipeline
-conformance on a booted rewrite kernel remains the next userspace-visible
-priority before chasing diagnostic-only RGA sample profiles.
+format matrix for advertised GStreamer RGA formats plus opt-in display/DMABuf
+sink cases against JeffyCN's `rkximagesink`. GStreamer pipeline conformance on a
+booted rewrite kernel, including a real display-plane run and forward-port vs
+rewrite timing data, remains the next userspace-visible priority before chasing
+diagnostic-only RGA sample profiles.
 
 ## 11. RK3588 AV1 / VSI-IOMMU comparison trees
 

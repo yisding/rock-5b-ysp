@@ -44,6 +44,13 @@ required_pc=(
 	librga
 )
 
+if [ "$RKXIMAGE_FEATURE" = "enabled" ]; then
+	required_pc+=(x11 libdrm)
+fi
+if [ "$KMSSRC_FEATURE" = "enabled" ]; then
+	required_pc+=(libdrm)
+fi
+
 missing=()
 for pc in "${required_pc[@]}"; do
 	if ! pkg-config --exists "$pc"; then
@@ -84,6 +91,17 @@ if [ ! -f "$plugin" ]; then
 	exit 1
 fi
 
+if [ "$RKXIMAGE_FEATURE" = "enabled" ] &&
+	[ ! -f "$PREFIX/lib/gstreamer-1.0/libgstrkximage.so" ]; then
+	echo "Missing installed Rockchip display sink plugin: libgstrkximage.so" >&2
+	exit 1
+fi
+if [ "$KMSSRC_FEATURE" = "enabled" ] &&
+	[ ! -f "$PREFIX/lib/gstreamer-1.0/libgstkmssrc.so" ]; then
+	echo "Missing installed Rockchip KMS source plugin: libgstkmssrc.so" >&2
+	exit 1
+fi
+
 mkdir -p "$PREFIX/bin"
 IFS=' ' read -r -a harness_cflags <<< "$(pkg-config --cflags gstreamer-1.0 glib-2.0)"
 IFS=' ' read -r -a harness_libs <<< "$(pkg-config --libs gstreamer-1.0 glib-2.0)"
@@ -96,3 +114,9 @@ IFS=' ' read -r -a harness_libs <<< "$(pkg-config --libs gstreamer-1.0 glib-2.0)
 echo "GStreamer Rockchip plugins installed to $PREFIX"
 echo "Use: export GST_PLUGIN_PATH=$PREFIX/lib/gstreamer-1.0"
 echo "Event harness installed to $PREFIX/bin/gstreamer-event-harness"
+if [ "$RKXIMAGE_FEATURE" != "disabled" ]; then
+	echo "Display sink feature requested: $RKXIMAGE_FEATURE"
+fi
+if [ "$KMSSRC_FEATURE" != "disabled" ]; then
+	echo "KMS source feature requested: $KMSSRC_FEATURE"
+fi

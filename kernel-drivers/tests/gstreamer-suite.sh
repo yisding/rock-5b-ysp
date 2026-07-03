@@ -32,6 +32,10 @@ GST_HEIGHT=${GST_HEIGHT:-240}
 GST_SCALE_WIDTH=${GST_SCALE_WIDTH:-256}
 GST_SCALE_HEIGHT=${GST_SCALE_HEIGHT:-144}
 GST_FRAMERATE=${GST_FRAMERATE:-30/1}
+GST_ENABLE_DISPLAY_CASES=${GST_ENABLE_DISPLAY_CASES:-0}
+GST_REQUIRE_DISPLAY_CASES=${GST_REQUIRE_DISPLAY_CASES:-0}
+GST_DISPLAY_SINK=${GST_DISPLAY_SINK:-rkximagesink}
+GST_DISPLAY_SINK_ARGS=${GST_DISPLAY_SINK_ARGS:-}
 
 required_cases_default="
 gst_inspect_rockchipmpp
@@ -100,6 +104,25 @@ roundtrip_h264_rga_nv61
 roundtrip_h264_rga_i420
 roundtrip_h264_rga_yv12
 "
+
+display_cases_default="
+gst_inspect_display_sink
+generated_dec_h264_display_dmabuf
+generated_dec_h265_display_dmabuf
+generated_dec_h264_display_afbc
+generated_dec_h265_display_afbc
+"
+
+if [ "$GST_ENABLE_DISPLAY_CASES" = "1" ] ||
+	[ "$GST_REQUIRE_DISPLAY_CASES" = "1" ]; then
+	if [ "$GST_REQUIRE_DISPLAY_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$display_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$display_cases_default"
+	fi
+fi
 
 if [ -n "${GST_H264_INPUT:-}" ]; then
 	required_cases_default="$required_cases_default
@@ -444,6 +467,40 @@ run_generated_transcode()
 	run_current_command
 }
 
+append_display_sink()
+{
+	local -a sink_args=()
+
+	CMD+=("!" "$GST_DISPLAY_SINK")
+	if [ -n "$GST_DISPLAY_SINK_ARGS" ]; then
+		read -r -a sink_args <<< "$GST_DISPLAY_SINK_ARGS"
+		CMD+=("${sink_args[@]}")
+	fi
+	CMD+=(sync=false)
+}
+
+run_generated_display_decode()
+{
+	local codec=$1
+	local mode=$2
+
+	ensure_generated_input "$codec" || return $?
+	CMD=(
+		gst-launch-1.0 -q
+		filesrc "location=$GENERATED_INPUT_PATH"
+		"!" "$GENERATED_PARSER"
+		"!" mppvideodec dma-feature=true
+	)
+	if [ "$mode" = "afbc" ]; then
+		CMD+=(fbc=true)
+	fi
+	append_display_sink
+	printf "displaying generated %s %s input through %s: " \
+		"$codec" "$mode" "$GST_DISPLAY_SINK"
+	print_current_command
+	run_current_command
+}
+
 run_generated_parallel_decode()
 {
 	local first_codec=$1
@@ -644,6 +701,9 @@ build_case_command()
 	gst_inspect_mpph265enc)
 		CMD=(gst-inspect-1.0 mpph265enc)
 		;;
+	gst_inspect_display_sink)
+		CMD=(gst-inspect-1.0 "$GST_DISPLAY_SINK")
+		;;
 	enc_h264_nv12)
 		build_videotest_encode mpph264enc NV12 "$GST_NUM_BUFFERS" zero-copy-pkt=true
 		;;
@@ -743,6 +803,18 @@ build_case_command()
 		;;
 	generated_transcode_h264_dmabuf_to_h265)
 		CMD=(__builtin_generated_transcode h264 mpph265enc dma-feature=true)
+		;;
+	generated_dec_h264_display_dmabuf)
+		CMD=(__builtin_generated_display_decode h264 dmabuf)
+		;;
+	generated_dec_h265_display_dmabuf)
+		CMD=(__builtin_generated_display_decode h265 dmabuf)
+		;;
+	generated_dec_h264_display_afbc)
+		CMD=(__builtin_generated_display_decode h264 afbc)
+		;;
+	generated_dec_h265_display_afbc)
+		CMD=(__builtin_generated_display_decode h265 afbc)
 		;;
 	caps_renegotiate_h264_nv12)
 		build_caps_renegotiate_encode mpph264enc
@@ -999,6 +1071,10 @@ run_case_payload()
 	generated_transcode_h264_rga_to_h265 | \
 	generated_transcode_h264_dmabuf_to_h265)
 		run_generated_transcode "${CMD[1]}" "${CMD[2]}" "${CMD[@]:3}"
+		;;
+	generated_dec_h264_display_dmabuf | generated_dec_h265_display_dmabuf | \
+	generated_dec_h264_display_afbc | generated_dec_h265_display_afbc)
+		run_generated_display_decode "${CMD[1]}" "${CMD[2]}"
 		;;
 	parallel_dec_h264 | parallel_dec_h265 | parallel_dec_mixed_h264_h265)
 		run_generated_parallel_decode "${CMD[1]}" "${CMD[2]}"
