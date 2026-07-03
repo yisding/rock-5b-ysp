@@ -3,6 +3,8 @@ set -euo pipefail
 
 TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
+# shellcheck source=debugfs-counters.sh disable=SC1091
+source "$TEST_DIR/debugfs-counters.sh"
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 MPP_BIN_DIR=${MPP_BIN_DIR:-"$CONFORMANCE_ROOT/out/mpp/bin"}
@@ -552,6 +554,8 @@ run_case()
 }
 
 snapshot_mpp_state before
+debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
+	mpp /sys/kernel/debug/rk_mpp_rewrite
 
 for case_name in $required_cases; do
 	run_case required "$case_name"
@@ -562,6 +566,11 @@ for case_name in $diagnostic_cases; do
 done
 
 snapshot_mpp_state after
+debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
+	mpp /sys/kernel/debug/rk_mpp_rewrite
+debugfs_counter_delta "$OUT/debugfs-counters-before.tsv" \
+	"$OUT/debugfs-counters-after.tsv" \
+	"$OUT/debugfs-counters-delta.tsv"
 dmesg | tail -n 500 > "$OUT/dmesg-tail.txt" 2>/dev/null || true
 
 echo "$OUT"

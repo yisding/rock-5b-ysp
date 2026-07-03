@@ -92,7 +92,8 @@ balancing, `rga_req.core` routing, and aggregate hardware busy-time trends.
 
 `librga-suite.sh` is the versioned in-repo wrapper for the external official
 sample binaries. It writes `summary.tsv`, per-sample logs/status files, dmesg
-tail, and before/after RGA debugfs snapshots under
+tail, before/after RGA debugfs snapshots, and structured
+`debugfs-counters-{before,after,delta}.tsv` counter tables under
 `../rockchip-conformance/logs/$PROFILE/`. Its default **required** set matches
 the official top-level sample build's current Linux/RK3588 surface the rewrite
 is expected to cover or fail as a real regression: copy/FBC/tile/splice, crop,
@@ -114,8 +115,9 @@ required case passed on the baseline but did not pass on the candidate.
 `test/` binaries from `../rockchip-conformance/out/mpp/bin`. It writes
 `summary.tsv`, per-case logs/status/command files, dmesg tail, and before/after
 MPP procfs/debugfs snapshots under `../rockchip-conformance/logs/$PROFILE/`,
-including the rewrite's `hw_total_ns` and `hw_max_ns` timing counters when the
-rewrite driver owns `/dev/mpp_service`.
+plus structured `debugfs-counters-{before,after,delta}.tsv` counter tables.
+Those tables include the rewrite's `hw_total_ns` and `hw_max_ns` timing
+counters when the rewrite driver owns `/dev/mpp_service`.
 The default required set is intentionally asset-free: `mpp_info_test` only.
 Select real codec/performance cases with `MPP_REQUIRED_CASES` so both kernel
 profiles run the same matrix against the same media:
@@ -172,10 +174,10 @@ pass; diagnostic differences are printed but do not make the comparator fail.
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
 | `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Builds and runs a small C probe that records MPP/RGA ioctl numbers, struct sizes, `/proc/mpp_service` command-advertisement markers when visible, safe query results, MPP client-type HW-ID replay, initialized MPP session controls (`INIT_DRIVER_DATA`, `SEND_CODEC_INFO`, `RESET_SESSION`, and advertised `SET_ERR_REF_HACK`), a safe two-message MPP init batch, `SET_SESSION_FD` bad-fd `mpp_bat_msg.ret = -EBADF` and `MPP_BAT_MSG_DONE` marker handling, RGA version tuples/strings with exact version-query returns including intentional `RGA2_GET_VERSION ret=1`, no-op ioctl return codes, RGA virtual-address import/release, and modern RGA request create/config/cancel with a handle-backed bitblit task. Use the same binary/log format on the forward port and rewrite, then diff the logs. Exit `77` means both device nodes are absent. |
-| `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Exit `77` means `/dev/mpp_service` is absent. |
+| `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Exit `77` means `/dev/mpp_service` is absent. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; diagnostic differences are printed but do not fail the comparator. |
 | `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ im2d client against staged `librga`: virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd` copy, sync `imcopy`/`imresize`/`imfill`, forced RGA3 core-mask + priority copy through `improcess`, forced RGA2 `IM_PRE_INTR` read/write line-interrupt copy, and an async acquire/release-fence copy chain waited with `imsync`. This exercises the maintained librga import/submit/core/fence/pre-intr paths independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
-| `librga-suite.sh` | **official librga sample conformance** using `../rockchip-conformance/out/librga-samples/bin` | Runs the broad current Linux/RK3588 sample set under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots, and fails only required cases. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
+| `librga-suite.sh` | **official librga sample conformance** using `../rockchip-conformance/out/librga-samples/bin` | Runs the broad current Linux/RK3588 sample set under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails only required cases. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; diagnostic differences are printed but do not fail the comparator. |
 | `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates below in one pass, and snapshots rewrite debugfs counters when present. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
 | `test-decode.sh` | **decoder** (`rkvdec2`) | `mpi_dec_test` decodes *software-encoded* H.264 + H.265 320×240 clips to NV12 → exit 0 + non-empty output. Software-encoded input means a failure implicates the **decoder**, not our encoder. |
