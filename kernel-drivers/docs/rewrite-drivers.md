@@ -260,9 +260,10 @@ implementation (cross-reference:
 - Optional **KUnit coverage** exists on both rewrite drivers: MPP parser helpers
   plus hard-CCU/link-table, DCHS, IOMMU-fault, `POLL_HW_IRQ`, and
   `SET_SESSION_FD` helpers via `ROCKCHIP_MPP_REWRITE_KUNIT_TEST`; and RGA
-  ABI-normalization, scheduler, fence, RFBC/AFBC/tile, crop/destination-offset,
-  blend-mode, OSD/palette/gauss/quantize/ROP/mosaic, and ffmpeg-facing profile
-  helpers via `ROCKCHIP_RGA_REWRITE_KUNIT_TEST`.
+  ABI-normalization, request create/cancel lifecycle, scheduler, fence,
+  RFBC/AFBC/tile, crop/destination-offset, blend-mode,
+  OSD/palette/gauss/quantize/ROP/mosaic, and ffmpeg-facing profile helpers via
+  `ROCKCHIP_RGA_REWRITE_KUNIT_TEST`.
 
 ---
 
