@@ -62,7 +62,7 @@ site when the issue is inherited from Rockchip's `mpp_av1dec.c`.
 | AV1-VSI-009 | medium | hybrid integration | `VSI_IOMMU=m` was allowed without a remove path for `iommu_device_unregister()`/runtime-PM cleanup | `drivers/iommu/Kconfig`, `vsi-iommu.c` platform driver | Fixed by making provider built-in-only |
 | AV1-DT-001 | medium | DT/Kconfig integration | shared Hantro `av1d` node must keep `iommus = <&av1d_mmu>` and the base `av1d_mmu` provider must not be left disabled | `rk3588-base.dtsi:1421-1443` | Fixed in worktree |
 | AV1-DT-002 | medium | DT/Kconfig integration | Hantro-only Rockchip AV1 configs could leave `CONFIG_VSI_IOMMU=n` even though the base AV1 node references `av1d_mmu` | `drivers/media/platform/verisilicon/Kconfig`, `drivers/iommu/Kconfig` | Fixed in worktree |
-| AV1-PKG-001 | low | packaging | `rk3588-rock-5b.dtb` target fails in the plain worktree before AV1 due missing `vdec0/vdec1` labels | `rk3588-rock-5b.dtsi` Armbian media label dependency | Open packaging-order note |
+| AV1-PKG-001 | low | packaging | `rk3588-rock-5b.dtb` target fails in the plain worktree before AV1 due missing `vdec0/vdec1` labels | `rk3588-rock-5b.dtsi` Armbian media label dependency | Fixed in worktree |
 
 ## Details
 
@@ -162,6 +162,34 @@ by moving the helper semantics into the mainline Rockchip provider:
 Those should be tracked with the broader encoder/decoder forward-port work
 rather than counted as donor `mpp_av1dec.c` defects.
 
+### 2026-07-03 adversarial forward-port review fixes
+
+The next review pass was scoped to forward-port bugs only, not original BSP
+logic. The fixes now in the worktrees are:
+
+- Rockchip and VSI IOMMU `map_pages`/`unmap_pages` honor the 6.18 `count`
+  argument and stop at the current second-level page table boundary.
+- Rockchip IOMMU has provider-local `flush_iotlb_all`, fault-handler, refresh,
+  IRQ-mask/unmask, and force-reset helpers; the exported force-reset path now
+  enables provider clocks while touching MMU registers.
+- VSI IOMMU has a provider-local refresh/fault hook for AV1, accepts
+  `#iommu-cells = <0>`, propagates probe resource errors, checks DMA mask setup,
+  and unwinds prepared clocks on IRQ/DMA-mask failures.
+- MPP IOMMU activation tries the Rockchip provider hook first, then VSI, then
+  the generic cookie-less fallback; teardown clears both provider hooks.
+- The compat ioctl path parses the 32-bit userspace message layout and converts
+  the nested data pointer, instead of only converting the top-level ioctl arg.
+- RKVENC2/RKVDEC2 secondary-core CCU domain attaches now check
+  `mpp_iommu_attach()` and roll back the local shared-domain mutation on error;
+  decoder CCU drvdata publication is last.
+- The AV1 ROCK 5B DTB is self-contained in the plain worktree: base `vdec0`,
+  `vdec1`, their MMU labels, and the needed SRAM pools are present before the
+  board override retypes nodes to RKMPP.
+- Vendor MPP/RKVENC2/RKVDEC2/RGA schema files now carry explicit dtschema types
+  for the non-standard Rockchip properties.
+- RGA version-string formatting and staged MPP variant tables are warning-clean
+  under the focused `W=1`/object builds used here.
+
 ## Verification status
 
 | Method | Status |
@@ -173,7 +201,9 @@ rather than counted as donor `mpp_av1dec.c` defects.
 | Shared RK3588 DTS parse smoke | PASS: `rockchip/rk3588s-orangepi-5.dtb` and `rockchip/rk3588-evb1-v10.dtb` build |
 | Compiled base AV1 topology | PASS: `rk3588-evb1-v10.dtb` shows `video-codec@fdc70000` with `iommus` pointing at enabled `iommu@fdca0000` |
 | AV1 binding check | PASS: targeted `rockchip,av1-decoder.yaml` check runs cleanly with `dtschema` 2026.6 |
-| ROCK 5B AV1-enabled DTB | PENDING: plain tree still needs the Armbian media patch that provides `vdec0/vdec1` labels |
+| ROCK 5B AV1-enabled DTB | PASS: `make O=/tmp/linux-6.18-rkvenc-av1-build ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- rockchip/rk3588-rock-5b.dtb` |
+| Vendor MPP/RGA binding check | PASS: targeted `dt_binding_check` for `rockchip,mpp-service.yaml`, `rockchip,rkvenc2.yaml`, `rockchip,rkvdec2.yaml`, and `rockchip,rga-vendor.yaml` in both worktrees with `dtschema` 2026.6 (`yamllint` was not installed, so only that lint layer was skipped) |
+| Focused RGA W=1 build | PASS: `CONFIG_ROCKCHIP_MULTI_RGA=y W=1` directory build for `drivers/video/rockchip/rga3/` in both worktrees |
 | Runtime AV1 decode | PENDING: no board boot or `av1_rkmpp` userspace validation yet |
 
 ## Open follow-ups

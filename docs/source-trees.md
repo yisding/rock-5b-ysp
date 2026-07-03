@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `9a8554efe3f8` + branch `rk3588-rewrite-mainline` @ `e6e9ba29dd20`, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `710642eb58e3` + branch `rk3588-rewrite-mainline` @ `85ef988e6516`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver tests](../kernel-drivers/tests/README.md) "Expanded conformance bundle" | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -195,10 +195,11 @@ is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b` as
 of 2026-07-03:
 
-- branch `rk3588-rewrite-6.18`, commit `9a8554efe3f8` ("media: rockchip:
-  cover rga direct buffer classification"), committed in the dev worktree
+- branch `rk3588-rewrite-6.18`, commit `710642eb58e3` ("media: rockchip:
+  harden rk3588 forward-port recovery"), committed in the dev worktree
   `/home/yi/Code/linux-6.18-rkvenc`.
-- branch `rk3588-rewrite-mainline`, commit `e6e9ba29dd20` (same subject),
+- branch `rk3588-rewrite-mainline`, commit `85ef988e6516` ("iommu/rockchip:
+  honor multi-page map counts"),
   committed in the sibling worktree `/home/yi/Code/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -243,7 +244,14 @@ NV12/NV21/NV16/NV61/compact-10-bit decoder output to RGB-family, and
 planar I420/YV12 RGA2 fallback profiles, plus the RKVDEC2 CCU-mode update that
 keeps HARD opt-in while the RK3588 DT selects BSP-style soft CCU, plus a named
 RGA direct-buffer classifier and KUnit coverage for current `librga`/GStreamer
-direct fd-vs-virtual-address encoding.  The support repo's
+direct fd-vs-virtual-address encoding, plus Rockchip IOMMU `map_pages`/
+`unmap_pages` count handling for dma-buf mappings that cross a 4 MiB page-table
+boundary. The 6.18 branch also has the forward-port recovery cleanup that moves
+the Rockchip IOMMU hooks into `include/soc/rockchip/rockchip_iommu.h`, restores
+real fault masking/pagefault-done/reset hooks for the BSP-derived MPP driver,
+adds 32-bit `MPP_IOC_CFG_V1` compat parsing, propagates IOMMU-refresh failures
+through reset paths, and records minimal vendor DT bindings for the RKMPP/RGA
+nodes.  The support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for both committed branch tips.
 The older `180ee72a9a80` mainline pin is still used by §9 for the

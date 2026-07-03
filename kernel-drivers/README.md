@@ -79,6 +79,7 @@ Read in this order when changing or reviewing kernel behavior:
 | How does the **mainline** V4L2 `rkvdec` decoder work (the other stack)? | [`docs/mainline-rkvdec-v4l2.md`](docs/mainline-rkvdec-v4l2.md) |
 | Why is RK3588 **multi-core** decode hard, and where would a scheduler live? | [`docs/multicore-scheduling.md`](docs/multicore-scheduling.md) |
 | How do we resync to a new kernel or BSP? | [`docs/resyncing.md`](docs/resyncing.md) |
+| How do we validate and fuzz the rewrite drivers to production readiness? | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) |
 
 ## Directory layout
 
