@@ -76,6 +76,10 @@ to reproduce the build**:
   (`rockchip_iommu.h:33-39`). Cost: the fault-storm mask in the pagefault handler
   is disabled, and the error-recovery re-attach in `mpp_iommu_refresh()` is a
   no-op (its return is ignored).
+  This is not the normal buffer-mapping path for the validated RK3588 video
+  blocks: dma-buf import and IOVA translation still go through the upstream
+  Rockchip IOMMU provider. Treat the stubs as fault/reset robustness debt for
+  RKVDEC2/RKVENC2, not as missing happy-path mapping.
   AV1 is the important exception: these stubs are **not** an AV1D IOMMU. The
   validated RKVDEC2/RKVENC2 path still maps buffers through Linux's generic
   IOMMU/DMA APIs, while the BSP AV1 path needs a separate

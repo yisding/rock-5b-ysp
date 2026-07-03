@@ -79,6 +79,14 @@ the *exact* build we validated (the installer matches debs on it; see
   kernel reordering or inserting a member *ahead* of `iovad` in the real cookie.
   Such a change would silently mis-read with no build error. Re-validate this exact
   cast on any kernel bump — see [resyncing guide](./resyncing.md).
+- **IOMMU helper stubs are fault/reset debt, not a validated-path blocker.**
+  RKVDEC2/RKVENC2 normal buffer mapping still uses Linux's generic DMA/IOMMU APIs
+  and the upstream Rockchip IOMMU provider. The current `rockchip_iommu_*` compat
+  stubs only remove BSP helper hooks used for fault IRQ masking and reset
+  recovery, so the risk is noisier faults or weaker recovery after a bad job.
+  AV1 is different: its hardware needs `vsi-iommu`/AV1D provider support before
+  any RKMPP AV1 path can map buffers at all. Details are in
+  [the AV1 note](./av1-rk3588.md).
 - **Single static clock.** No thermal/DVFS management: the clock is pinned by the
   DT `assigned-clock-rates` (~800 MHz) and never moves, so sustained max-load
   workloads should be watched (fine in tests so far). Re-enabling DVFS takes *two*
