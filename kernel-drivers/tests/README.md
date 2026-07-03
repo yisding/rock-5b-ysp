@@ -13,7 +13,7 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 |-------|----------|
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
-| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `build-mpp-tests.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `suite-common.sh`, `suite-compare-selftest.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
+| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `build-mpp-tests.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-suite.sh`, `gstreamer-event-harness.c`, `gstreamer-suite-compare.sh`, `suite-common.sh`, `suite-compare-selftest.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
 | Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains an unverified recipe. The rewrite clean-source object-build gate is versioned here and passed both public rewrite branch tips on 2026-07-03. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
 
@@ -116,8 +116,9 @@ Suggested expanded matrix:
   `run-gstreamer-smoke.sh`, for parity evidence. Its default required set is
   asset-free but kernel-visible: plugin/element inspection, raw NV12
   H.264/H.265 encode, BGRx/RGBA encode cases that force the plugin's legacy
-  `c_RkRgaBlit()` conversion path, and repeated start/stop encode loops. Add
-  H.264/H.265 inputs to enable decode to `fakesink`, decode-side RGA
+  `c_RkRgaBlit()` conversion path, generated elementary-stream decode and
+  transcode, in-pipeline caps renegotiation, explicit flush events, and
+  repeated start/stop encode loops. Add H.264/H.265 inputs to enable decode to `fakesink`, decode-side RGA
   scale/format/rotate, decode -> encode transcodes, and diagnostic AFBC decode
   output. Display/DMABuf sink pipelines remain manual add-ons until a target
   compositor/KMS setup is fixed.
@@ -229,6 +230,8 @@ kernel paths:
   `generated_transcode_h264_rga_to_h265`,
   `generated_transcode_h264_dmabuf_to_h265`;
 - `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`;
+- `event_flush_enc_h264`, `event_flush_enc_h265`,
+  `event_flush_dec_h264`, `event_flush_dec_h265`;
 - `state_loop_h264_nv12`, `state_loop_roundtrip_h264`.
 
 The generated-media cases first write short H.264/H.265 elementary streams
@@ -246,6 +249,11 @@ NV12 segments with different dimensions through one `concat ! mpp*h26*enc`
 pipeline, forcing JeffyCN's encoder `set_format()` path to drain and reset the
 existing MPP session inside one GStreamer pipeline rather than only across
 process restarts.
+The event-flush cases use the staged `gstreamer-event-harness` helper to wait
+until `mpph264enc`, `mpph265enc`, or `mppvideodec` has produced data, send
+`FLUSH_START`/`FLUSH_STOP` to the element's sink pad, and require more output
+afterward. That directly drives JeffyCN's `GstVideoEncoder.flush` and
+`GstVideoDecoder.flush` hooks, which call `mpi->reset()`.
 
 Set `GST_H264_INPUT` and/or `GST_H265_INPUT` to add decode/transcode cases
 automatically:
@@ -265,6 +273,8 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_transcode_h265_to_h264`, `generated_transcode_h264_rga_to_h265`,
 `generated_transcode_h264_dmabuf_to_h265`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
+`event_flush_enc_h264`, `event_flush_enc_h265`,
+`event_flush_dec_h264`, `event_flush_dec_h265`,
 `dec_h264_fakesink`, `dec_h265_fakesink`, `dec_h264_rga_rotate`,
 `dec_h265_rga_scale`, `transcode_h264_to_h265`,
 `transcode_h265_to_h264`, `transcode_h264_rga_to_h265`,
@@ -274,8 +284,10 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 they feed `videotestsrc` through the MPP encoder, parser, and `mppvideodec` in
 one pipeline so GStreamer's decoder-side buffer-group, short-timeout polling,
 info-change, and reset paths are exercised even before media assets are staged.
-Diagnostic cases include `parallel_enc_h264`, `parallel_roundtrip_h264`,
-`dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
+Diagnostic cases include `event_seek_enc_h264`, `event_seek_enc_h265`,
+`event_seek_dec_h264`, `event_seek_dec_h265`, `parallel_enc_h264`,
+`parallel_roundtrip_h264`, `dec_h264_afbc_fakesink`, and
+`dec_h265_afbc_fakesink`. They also include a
 smaller GStreamer RGA format matrix for currently advertised legacy
 `c_RkRgaBlit()` conversions: encoder-side BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 scale paths and decoder-side BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output
@@ -285,7 +297,9 @@ format paths. Override with
 `GST_WIDTH`, `GST_HEIGHT`, `GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,
 `GST_NUM_BUFFERS`, `GST_FORMAT_MATRIX_BUFFERS`,
 `GST_GENERATED_INPUT_BUFFERS`, `GST_CAPS_RENEGOTIATE_BUFFERS`,
-`GST_STATE_LOOPS`, and `GST_TIMEOUT`. After both kernels have a suite result, run
+`GST_EVENT_TRIGGER_BUFFERS`, `GST_EVENT_POST_BUFFERS`,
+`GST_EVENT_TIMEOUT_MS`, `GST_EVENT_SLEEP_US`, `GST_STATE_LOOPS`, and
+`GST_TIMEOUT`. After both kernels have a suite result, run
 `gstreamer-suite-compare.sh`; it follows the same baseline pass vs candidate
 pass rule as the MPP/RGA comparators and supports the same `PERF_MAX_RATIO`
 elapsed-time slowdown gate.
@@ -295,7 +309,7 @@ elapsed-time slowdown gate.
 | Test | Needs |
 |------|-------|
 | `build-mpp-tests.sh` | no device access; writes staged MPP library/tests under `../rockchip-conformance/out/mpp` |
-| `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths |
+| `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths; also builds `gstreamer-event-harness` into the GStreamer prefix |
 | `test-decode.sh` | device access only: root, **or** membership in `video` with [`../scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules) installed (covers `/dev/mpp_service` **and** `/dev/dma_heap/*` — both required) |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
@@ -330,7 +344,7 @@ elapsed-time slowdown gate.
 | `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ client against staged `librga`: virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd` copy, legacy `c_RkRgaBlit()` conversions shaped like JeffyCN GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing, rotated NV12 dma-buf to BGRx dma-buf decode conversion, and planar I420 dma-buf to NV12 dma-buf fallback), official Gaussian matrix blur via `imsetOptGaussianBlurMatrix()` + `imsetOpacity()` + `improcess(..., IM_SYNC | IM_GAUSS)`, sync `imcopy`/`imresize`/`imfill`, forced RGA3 core-mask + priority copy through `improcess`, forced RGA2 `IM_PRE_INTR` read/write line-interrupt copy, and an async acquire/release-fence copy chain waited with `imsync`. This exercises the maintained librga import/submit/core/fence/pre-intr/gauss paths independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite.sh` | **official librga sample conformance** using `../rockchip-conformance/out/librga-samples/bin` | Runs the broad current Linux/RK3588 sample set under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails only required cases. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
-| `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real `gst-launch-1.0` encode, RGA-conversion, restart-loop, and optional decode/transcode pipelines under the selected `PROFILE`. It records per-case logs/status/commands plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
+| `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, and optional external-media pipelines under the selected `PROFILE`. It records per-case logs/status/commands plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
 | `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates below in one pass, and snapshots rewrite debugfs counters, including aggregate/per-core timing counters, when present. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
 | `test-decode.sh` | **decoder** (`rkvdec2`) | `mpi_dec_test` decodes *software-encoded* H.264 + H.265 320×240 clips to NV12 → exit 0 + non-empty output. Software-encoded input means a failure implicates the **decoder**, not our encoder. |

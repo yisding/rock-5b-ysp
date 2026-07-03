@@ -10,12 +10,14 @@ BUILD_DIR=${BUILD_DIR:-"$CONFORMANCE_ROOT/build/jeffycn-gstreamer-rockchip-mpp"}
 PREFIX=${PREFIX:-"$CONFORMANCE_ROOT/out/gstreamer-rockchip"}
 MPP_PREFIX=${MPP_PREFIX:-"$CONFORMANCE_ROOT/out/mpp"}
 PKG_SHIM=${PKG_SHIM:-"$CONFORMANCE_ROOT/out/pkgconfig"}
+EVENT_HARNESS_SRC=${EVENT_HARNESS_SRC:-"$TEST_DIR/gstreamer-event-harness.c"}
 ROCKCHIPMPP_FEATURE=${ROCKCHIPMPP_FEATURE:-enabled}
 RGA_FEATURE=${RGA_FEATURE:-enabled}
 RKXIMAGE_FEATURE=${RKXIMAGE_FEATURE:-disabled}
 KMSSRC_FEATURE=${KMSSRC_FEATURE:-disabled}
 VPXALPHADEC_FEATURE=${VPXALPHADEC_FEATURE:-auto}
 JOBS=${JOBS:-$(nproc)}
+CC=${CC:-cc}
 
 if [ ! -d "$SRC_ROOT" ]; then
 	echo "Missing GStreamer Rockchip source directory: $SRC_ROOT" >&2
@@ -82,5 +84,15 @@ if [ ! -f "$plugin" ]; then
 	exit 1
 fi
 
+mkdir -p "$PREFIX/bin"
+IFS=' ' read -r -a harness_cflags <<< "$(pkg-config --cflags gstreamer-1.0 glib-2.0)"
+IFS=' ' read -r -a harness_libs <<< "$(pkg-config --libs gstreamer-1.0 glib-2.0)"
+"$CC" -Wall -Wextra -Werror -O2 -g \
+	"${harness_cflags[@]}" \
+	-o "$PREFIX/bin/gstreamer-event-harness" \
+	"$EVENT_HARNESS_SRC" \
+	"${harness_libs[@]}"
+
 echo "GStreamer Rockchip plugins installed to $PREFIX"
 echo "Use: export GST_PLUGIN_PATH=$PREFIX/lib/gstreamer-1.0"
+echo "Event harness installed to $PREFIX/bin/gstreamer-event-harness"

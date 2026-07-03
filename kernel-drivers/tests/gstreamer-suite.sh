@@ -11,6 +11,7 @@ CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 GST_PREFIX=${GST_PREFIX:-"$CONFORMANCE_ROOT/out/gstreamer-rockchip"}
 GST_PLUGIN_DIR=${GST_PLUGIN_DIR:-"$GST_PREFIX/lib/gstreamer-1.0"}
+GST_EVENT_HARNESS=${GST_EVENT_HARNESS:-"$GST_PREFIX/bin/gstreamer-event-harness"}
 MPP_LIBDIR=${MPP_LIBDIR:-"$CONFORMANCE_ROOT/out/mpp/lib"}
 LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-gstreamer-suite"}
@@ -18,6 +19,10 @@ GST_TIMEOUT=${GST_TIMEOUT:-120}
 GST_NUM_BUFFERS=${GST_NUM_BUFFERS:-60}
 GST_STATE_LOOPS=${GST_STATE_LOOPS:-4}
 GST_STATE_LOOP_BUFFERS=${GST_STATE_LOOP_BUFFERS:-8}
+GST_EVENT_TRIGGER_BUFFERS=${GST_EVENT_TRIGGER_BUFFERS:-1}
+GST_EVENT_POST_BUFFERS=${GST_EVENT_POST_BUFFERS:-1}
+GST_EVENT_TIMEOUT_MS=${GST_EVENT_TIMEOUT_MS:-30000}
+GST_EVENT_SLEEP_US=${GST_EVENT_SLEEP_US:-20000}
 GST_CAPS_RENEGOTIATE_BUFFERS=${GST_CAPS_RENEGOTIATE_BUFFERS:-8}
 GST_FORMAT_MATRIX_BUFFERS=${GST_FORMAT_MATRIX_BUFFERS:-16}
 GST_GENERATED_INPUT_BUFFERS=${GST_GENERATED_INPUT_BUFFERS:-30}
@@ -53,11 +58,19 @@ generated_transcode_h264_rga_to_h265
 generated_transcode_h264_dmabuf_to_h265
 caps_renegotiate_h264_nv12
 caps_renegotiate_h265_nv12
+event_flush_enc_h264
+event_flush_enc_h265
+event_flush_dec_h264
+event_flush_dec_h265
 state_loop_h264_nv12
 state_loop_roundtrip_h264
 "
 
 diagnostic_cases_default="
+event_seek_enc_h264
+event_seek_enc_h265
+event_seek_dec_h264
+event_seek_dec_h265
 parallel_enc_h264
 parallel_roundtrip_h264
 enc_h264_bgr16_rga_scale
@@ -388,6 +401,18 @@ run_generated_renegotiate_decode()
 	run_current_command
 }
 
+run_event_generated_decode()
+{
+	local codec=$1
+	local action=$2
+
+	ensure_generated_input "$codec" || return $?
+	build_event_generated_decode "$action"
+	printf "event-driving generated %s decode (%s): " "$codec" "$action"
+	print_current_command
+	run_current_command
+}
+
 run_generated_transcode()
 {
 	local codec=$1
@@ -450,6 +475,50 @@ build_caps_renegotiate_encode()
 		"!" queue
 		"!" c.
 	)
+}
+
+build_event_harness()
+{
+	local action=$1
+	local target=$2
+	local pipeline=$3
+
+	CMD=(
+		"$GST_EVENT_HARNESS"
+		"--action=$action"
+		"--target=$target"
+		"--trigger-buffers=$GST_EVENT_TRIGGER_BUFFERS"
+		"--post-buffers=$GST_EVENT_POST_BUFFERS"
+		"--timeout-ms=$GST_EVENT_TIMEOUT_MS"
+		"--pipeline=$pipeline"
+	)
+}
+
+build_event_encode()
+{
+	local action=$1
+	local encoder=$2
+	local pipeline
+
+	pipeline="videotestsrc num-buffers=$GST_NUM_BUFFERS is-live=false pattern=smpte "
+	pipeline+="! video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE "
+	pipeline+="! identity sleep-time=$GST_EVENT_SLEEP_US "
+	pipeline+="! $encoder name=target zero-copy-pkt=true "
+	pipeline+="! fakesink sync=false"
+	build_event_harness "$action" target "$pipeline"
+}
+
+build_event_generated_decode()
+{
+	local action=$1
+	local pipeline
+
+	pipeline="filesrc location=$GENERATED_INPUT_PATH "
+	pipeline+="! $GENERATED_PARSER "
+	pipeline+="! identity sleep-time=$GST_EVENT_SLEEP_US "
+	pipeline+="! mppvideodec name=target "
+	pipeline+="! fakesink sync=false"
+	build_event_harness "$action" target "$pipeline"
 }
 
 build_case_command()
@@ -577,6 +646,30 @@ build_case_command()
 		;;
 	caps_renegotiate_h265_nv12)
 		build_caps_renegotiate_encode mpph265enc
+		;;
+	event_flush_enc_h264)
+		build_event_encode flush mpph264enc
+		;;
+	event_flush_enc_h265)
+		build_event_encode flush mpph265enc
+		;;
+	event_flush_dec_h264)
+		CMD=(__builtin_event_generated_decode h264 flush)
+		;;
+	event_flush_dec_h265)
+		CMD=(__builtin_event_generated_decode h265 flush)
+		;;
+	event_seek_enc_h264)
+		build_event_encode seek mpph264enc
+		;;
+	event_seek_enc_h265)
+		build_event_encode seek mpph265enc
+		;;
+	event_seek_dec_h264)
+		CMD=(__builtin_event_generated_decode h264 seek)
+		;;
+	event_seek_dec_h265)
+		CMD=(__builtin_event_generated_decode h265 seek)
 		;;
 	roundtrip_h264_rga_bgr16)
 		build_videotest_roundtrip mpph264enc h264parse \
@@ -758,6 +851,10 @@ run_case_payload()
 		;;
 	generated_dec_h264_renegotiate | generated_dec_h265_renegotiate)
 		run_generated_renegotiate_decode "${CMD[1]}" "${CMD[@]:2}"
+		;;
+	event_flush_dec_h264 | event_flush_dec_h265 | \
+	event_seek_dec_h264 | event_seek_dec_h265)
+		run_event_generated_decode "${CMD[1]}" "${CMD[2]}"
 		;;
 	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
 	generated_transcode_h264_rga_to_h265 | \
