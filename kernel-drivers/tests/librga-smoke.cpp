@@ -7,11 +7,18 @@
  * im2d clients.
  */
 
+#include <errno.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <unistd.h>
+
+#include <linux/dma-buf.h>
+#include <linux/dma-heap.h>
 
 #include <rga/im2d.h>
 
@@ -20,6 +27,13 @@
 #define TEST_DST_W 32
 #define TEST_DST_H 32
 #define TEST_BPP 4
+
+struct dmabuf_test_buffer {
+	int fd;
+	uint8_t *mem;
+	size_t size;
+	const char *heap_path;
+};
 
 static int fail_status(const char *name, int ret)
 {
@@ -41,6 +55,32 @@ static void fill_pattern(uint8_t *buf, int width, int height)
 	}
 }
 
+static int check_pattern(const uint8_t *buf, int width, int height)
+{
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			const uint8_t *px = buf + ((y * width + x) * TEST_BPP);
+			uint8_t expected[TEST_BPP] = {
+				(uint8_t)x,
+				(uint8_t)y,
+				(uint8_t)(x ^ y),
+				0xff,
+			};
+
+			if (memcmp(px, expected, sizeof(expected))) {
+				fprintf(stderr,
+					"pixel %d,%d differs: got %02x:%02x:%02x:%02x expected %02x:%02x:%02x:%02x\n",
+					x, y, px[0], px[1], px[2], px[3],
+					expected[0], expected[1], expected[2],
+					expected[3]);
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static int alloc_aligned(void **ptr, size_t size)
 {
 	int ret;
@@ -51,6 +91,215 @@ static int alloc_aligned(void **ptr, size_t size)
 	memset(*ptr, 0, size);
 
 	return 0;
+}
+
+static int dmabuf_sync(int fd, uint64_t flags, const char *name)
+{
+	struct dma_buf_sync sync = {};
+
+	sync.flags = flags;
+	if (ioctl(fd, DMA_BUF_IOCTL_SYNC, &sync)) {
+		int err = errno;
+
+		fprintf(stderr, "%s DMA_BUF_IOCTL_SYNC failed: %s\n",
+			name, strerror(err));
+		return -err;
+	}
+
+	return 0;
+}
+
+static int dmabuf_alloc_from_heap(const char *heap_path, size_t size,
+				  struct dmabuf_test_buffer *buf)
+{
+	struct dma_heap_allocation_data data = {};
+	int heap_fd;
+	int ret;
+
+	heap_fd = open(heap_path, O_RDWR | O_CLOEXEC);
+	if (heap_fd < 0)
+		return -errno;
+
+	data.len = size;
+	data.fd_flags = O_RDWR | O_CLOEXEC;
+	ret = ioctl(heap_fd, DMA_HEAP_IOCTL_ALLOC, &data);
+	if (ret)
+		ret = -errno;
+	close(heap_fd);
+	if (ret)
+		return ret;
+
+	buf->mem = (uint8_t *)mmap(NULL, size, PROT_READ | PROT_WRITE,
+				  MAP_SHARED, data.fd, 0);
+	if (buf->mem == MAP_FAILED) {
+		ret = -errno;
+		close(data.fd);
+		buf->mem = NULL;
+		return ret;
+	}
+
+	buf->fd = data.fd;
+	buf->size = size;
+	buf->heap_path = heap_path;
+
+	return 0;
+}
+
+static int dmabuf_alloc_any(size_t size, struct dmabuf_test_buffer *buf)
+{
+	static const char * const heap_paths[] = {
+		"/dev/dma_heap/system-uncached-dma32",
+		"/dev/dma_heap/system-dma32",
+		"/dev/dma_heap/system-uncached",
+		"/dev/dma_heap/system",
+		"/dev/dma_heap/cma-uncached",
+		"/dev/dma_heap/cma",
+		"/dev/rk_dma_heap/rk-dma-heap-cma",
+	};
+	int first_err = 0;
+
+	buf->fd = -1;
+	buf->mem = NULL;
+	buf->size = 0;
+	buf->heap_path = NULL;
+
+	for (size_t i = 0; i < sizeof(heap_paths) / sizeof(heap_paths[0]); i++) {
+		int ret = dmabuf_alloc_from_heap(heap_paths[i], size, buf);
+
+		if (!ret)
+			return 0;
+		if (!first_err || first_err == -ENOENT)
+			first_err = ret;
+	}
+
+	return first_err ? first_err : -ENOENT;
+}
+
+static void dmabuf_free(struct dmabuf_test_buffer *buf)
+{
+	if (buf->mem)
+		munmap(buf->mem, buf->size);
+	if (buf->fd >= 0)
+		close(buf->fd);
+
+	buf->fd = -1;
+	buf->mem = NULL;
+	buf->size = 0;
+	buf->heap_path = NULL;
+}
+
+static int dmabuf_fill_for_rga(struct dmabuf_test_buffer *src,
+			       struct dmabuf_test_buffer *dst)
+{
+	int ret;
+
+	ret = dmabuf_sync(src->fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "dmabuf source start");
+	if (ret)
+		return ret;
+	fill_pattern(src->mem, TEST_SRC_W, TEST_SRC_H);
+	ret = dmabuf_sync(src->fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "dmabuf source end");
+	if (ret)
+		return ret;
+
+	ret = dmabuf_sync(dst->fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "dmabuf dest start");
+	if (ret)
+		return ret;
+	memset(dst->mem, 0xa5, dst->size);
+	ret = dmabuf_sync(dst->fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "dmabuf dest end");
+
+	return ret;
+}
+
+static int run_dmabuf_copy(size_t src_size)
+{
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	int ret;
+
+	ret = dmabuf_alloc_any(src_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "dma-heap source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(src_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "dma-heap dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_fill_for_rga(&dma_src, &dma_dst);
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src_handle = importbuffer_fd(dma_src.fd, src_size);
+	dst_handle = importbuffer_fd(dma_dst.fd, src_size);
+	if (!src_handle || !dst_handle) {
+		fprintf(stderr, "importbuffer_fd failed: %s\n", imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, TEST_SRC_W, TEST_SRC_H,
+				RK_FORMAT_RGBA_8888);
+	dst = wrapbuffer_handle(dst_handle, TEST_SRC_W, TEST_SRC_H,
+				RK_FORMAT_RGBA_8888);
+
+	ret = imcheck(src, dst, {}, {});
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("imcheck dmabuf", ret);
+		goto out;
+	}
+
+	ret = imcopy(src, dst);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("imcopy dmabuf", ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "dmabuf dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (check_pattern(dma_dst.mem, TEST_SRC_W, TEST_SRC_H)) {
+		ret = 1;
+		goto out_end_read;
+	}
+
+	ret = 0;
+
+out_end_read:
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"dmabuf dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "dmabuf imcopy",
+		       dma_src.heap_path);
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
 }
 
 int main(void)
@@ -130,6 +379,10 @@ int main(void)
 		goto out;
 	}
 	printf("%-24s ok\n", "imcopy");
+
+	ret = run_dmabuf_copy(src_size);
+	if (ret)
+		goto out;
 
 	memset(dst_mem, 0x80, src_size);
 	opt.core = IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1;
