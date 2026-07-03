@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | `yisding/linux-rock5b` branch `rk3588-rewrite-6.18` @ `ee279b88cfa8` + branch `rk3588-rewrite-mainline` @ `65a5673bac29`, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | `yisding/linux-rock5b` branch `rk3588-rewrite-6.18` @ `d6cdccc17e49` + branch `rk3588-rewrite-mainline` @ `8526f3eb537b`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver tests](../kernel-drivers/tests/README.md) "Expanded conformance bundle" | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -194,10 +194,10 @@ The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/re
 is reconstructible from public branches in `github.com/yisding/linux-rock5b` as
 of 2026-07-03:
 
-- branch `rk3588-rewrite-6.18`, commit `ee279b88cfa8` ("media: rockchip:
-  honor rkvdec ccu mode"), matching the clean dev worktree
+- branch `rk3588-rewrite-6.18`, commit `d6cdccc17e49` ("media: rockchip:
+  update mpp ccu mode abi notes"), matching the clean dev worktree
   `/home/yi/Code/linux-6.18-rkvenc`.
-- branch `rk3588-rewrite-mainline`, commit `65a5673bac29` (same subject),
+- branch `rk3588-rewrite-mainline`, commit `8526f3eb537b` (same subject),
   matching the clean sibling worktree `/home/yi/Code/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
