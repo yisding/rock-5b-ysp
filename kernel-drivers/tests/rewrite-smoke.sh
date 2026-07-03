@@ -36,7 +36,7 @@ print_counter_dir() {
   for file in "$dir"/*; do
     [ -f "$file" ] || continue
     case "$(basename "$file")" in
-      *_count|hw_support|hw_total_ns|hw_max_ns)
+      *_count|hw_support|hw_total_ns*|hw_max_ns*)
         printf '    %-24s %s\n' "$(basename "$file"):" "$(cat "$file" 2>/dev/null || echo '?')"
         ;;
     esac
