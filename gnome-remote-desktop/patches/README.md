@@ -1,10 +1,11 @@
 # gnome-remote-desktop/patches/
 
 The **complete** patch set that adds the FFmpeg/rkmpp H.264 encode backend to
-gnome-remote-desktop — seven commits from the
+gnome-remote-desktop — the seven backend commits from the
 [`ffmpeg-rkmpp-encode-backend`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/ffmpeg-rkmpp-encode-backend)
-branch of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`, as
-`git format-patch`. They apply, in order, on **pristine upstream GRD 50.1**
+branch of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`, plus
+`0008` as the July 3 backpressure/cooldown follow-up — as `git format-patch`.
+They apply, in order, on **pristine upstream GRD 50.1**
 (verified with `git am`). (Note this is a *different* pin than
 [`../capture-path.md`](../docs/capture-path.md)'s line anchors, which resolve
 against `50.1`+16 — see its header.)
@@ -21,10 +22,12 @@ against `50.1`+16 — see its header.)
 | 0005 | `encode-session-ffmpeg-allocate-nv12-surfaces-from-the-dma-heap` | 1 | panfrost GBM can't allocate NV12 → allocate from the dma-heap, lay out Y/UV by hand, 64-byte stride align (panvk + MPP). |
 | 0006 | `rdp-view-creator-avc-fall-back-when-host_cached-...` | 1 | Retry the readback buffer without `HOST_CACHED` (panvk has no cached host memory type). |
 | 0007 | `encode-session-ffmpeg-make-the-mainline-rkmpp-encoder-…` | 1 | The two **mainline-rkmpp** runtime fixes: first-frame IDR (recreate the encoder) + VBR quality (`rc_max_rate`/`rc_min_rate` + target). See [`../README.md`](../README.md) #1, #2. |
+| 0008 | `rdp-avoid-hardware-encode-backpressure-stalls` | 9 | The hardware-encode backpressure guard: busy-session gating, stale-frame dropping, slow-encode cooldown fallback to software RFX/CAPROGRESSIVE, and automatic AVC retry after cooldown. See [`../README.md`](../README.md) #4. |
 
 `0001`–`0003` are the backend; `0004`–`0006` are the panvk/hardware-enablement
 fixes ([`../design.md`](../docs/design.md)); `0007` is the mainline-rkmpp runtime fix
-([`../README.md`](../README.md)). Patch `0007` is a **no-op on the ffmpeg-rockchip
+([`../README.md`](../README.md)); `0008` is the backpressure/cooldown guard
+([`../README.md`](../README.md) #4). Patch `0007` is a **no-op on the ffmpeg-rockchip
 fork**, which already does fixed-QP and honours forced IDR.
 
 ## Apply
@@ -32,7 +35,7 @@ fork**, which already does fixed-QP and honours forced IDR.
 ```bash
 # on a pristine gnome-remote-desktop 50.1 checkout:
 cd gnome-remote-desktop
-git am /path/to/000*-*.patch          # all seven, in order
+git am /path/to/000*-*.patch          # all eight, in order
 # — or as quilt patches in a Debian source package:
 cp 000*-*.patch debian/patches/ && ls 000*-*.patch | sed 's#.*/##' >> debian/patches/series
 ```

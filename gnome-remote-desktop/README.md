@@ -13,7 +13,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 |-------|----------|
 | User outcome | Run an RDP session whose H.264 video stream is encoded by RK3588 hardware instead of software. |
 | Developer focus | Understand GRD's capture path, FFmpeg encode-session integration, RDP frame-ack behavior, zero-copy buffers, panvk RGB-to-NV12 conversion, and GDM greeter permissions. |
-| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 7-patch GRD backend series. |
+| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 8-patch GRD backend series. |
 | Depends on | Kernel drivers, userspace libraries, an rkmpp-enabled FFmpeg build, Mesa/Panfrost Vulkan support, and optional GDM codec ACL packaging. |
 | Current state | The patch series applies to GRD 50.1; the hardware path sustains 60 fps in the measured setup; upstream submission remains pending. See [`../status.md`](../status.md). |
 
@@ -43,7 +43,7 @@ benchmarking playbook (eviction hazard, env, HW-path checklist) ·
 [`docs/profiling.md`](docs/profiling.md) — the measured *after*: per-stage timing of the
 HW path (60 fps sustained, jitter breakdown, the working headless harness, the
 client-caps prerequisite, the verification-signal table) · [`patches/`](patches/)
-— the full 7-patch backend series · [`../packaging/ppa/`](../packaging/ppa/) — packaging the whole
+— the full 8-patch backend series · [`../packaging/ppa/`](../packaging/ppa/) — packaging the whole
 stack for a Launchpad PPA.
 
 ## How it fits the stack
@@ -102,9 +102,9 @@ ffmpeg-rockchip, GRD's existing `qp_init=22` already yields constant-quality
 output and forced IDR just works; **both fixes below are upstream-only
 workarounds, harmless on ffmpeg-rockchip.**
 
-## The three bugs we hit (and fixed)
+## The four issues we hit (and fixed)
 
-Getting from "compiles" to "live, crisp remote desktop" took three fixes. Each is
+Getting from "compiles" to "live, crisp remote desktop" took four fixes. Each is
 a good worked example of an upstream-rkmpp gotcha.
 
 ### 1. The frozen desktop — no IDR in the stream
@@ -203,6 +203,36 @@ security choice, not a default.
 > [`codec-udev` group discussion](../packaging/codec-udev/README.md) for the wider
 > `video`/`render`/`uaccess` map.
 
+### 4. Temporary stalls under encoder backpressure
+
+**Symptom.** Under load, the desktop can become temporarily unresponsive even
+though it eventually recovers. This is different from the no-IDR permanent
+freeze: the encoder is alive, but frame production gets stuck behind an encode
+operation that is taking too long.
+
+**Root cause.** The low-latency hardware path is intentionally synchronous at
+the bitstream-lock boundary. That keeps only one hardware frame in flight, which
+is what `h264_rkmpp` wants, but it also means Mutter can deliver newer buffers
+while an old frame is still waiting for MPP. Without a guard, GRD can spend work
+on stale frames and keep queuing behind the busy encode session, so the user sees
+a burst of delayed frames rather than the latest desktop state.
+
+**Fix.** Patch `0008` keeps the one-frame encoder model but adds backpressure
+control around it: bitstream lock duration is measured, view work is not started
+while that render context's encode session is busy, stale finished views are
+dropped before encode, and a slow AVC lock starts a short hardware-encode
+cooldown. During cooldown GRD requests a full refresh and uses software
+RFX/CAPROGRESSIVE; when the cooldown expires, another full refresh tears down the
+software context and retries hardware AVC.
+
+**Verification.** On RK3588 hardware, a dummy Mutter/PipeWire/GRD session was
+run with a FreeRDP test client linked against a local H.264-enabled FreeRDP
+build. With one forced 300 ms AVC lock, the client decoded the sequence
+`RDPGFX_CODECID_AVC420` → `RDPGFX_CODECID_CAPROGRESSIVE` →
+`RDPGFX_CODECID_AVC420` in a single connection. The switch is valid RDPGFX usage:
+each surface command carries its own `codecId`, and GRD does the transition with
+a full surface/context refresh.
+
 ## How we diagnosed it (methodology)
 
 Every fix above came from the same cheap toolkit — useful for anyone debugging a
@@ -232,12 +262,13 @@ codec consumer:
 
 ## The patches
 
-The **full backend patch set** — seven commits that add the rkmpp encode backend
+The **full backend patch set** — eight commits that add the rkmpp encode backend
 to a pristine GRD 50.1 — is in [`patches/`](patches/) (verified to `git am` on
 upstream). Patches `0001`–`0003` are the backend, `0004`–`0006` are the
 panvk/hardware-enablement fixes (the "looked like a Mesa bug" journey — see
-[`design.md`](./docs/design.md)), and `0007` is the two upstream-rkmpp runtime fixes
-above (#1 IDR, #2 bitrate). Full map: [`patches/README.md`](patches/README.md).
+[`design.md`](./docs/design.md)), `0007` is the two upstream-rkmpp runtime fixes
+above (#1 IDR, #2 bitrate), and `0008` is the hardware-encode
+backpressure/cooldown guard (#4). Full map: [`patches/README.md`](patches/README.md).
 
 Bug **#3** (greeter access) is not a code change — it's the udev package in
 [`packaging/gdm-hwenc/`](../packaging/gdm-hwenc/). The design rationale (why FFmpeg
