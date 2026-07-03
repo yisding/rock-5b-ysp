@@ -353,6 +353,117 @@ fix's shape:
   the screen buffer. Keeping the **blit** path (and making its coordinate exact)
   preserves AFBC, which is why the `gl_FragCoord` approach won.
 
+## 8. Why doesn't any other driver have this?
+
+This is not a software bug that other drivers happened to avoid — it is a
+*hardware property* of Mali's varying interpolator. The same shared `u_blitter`
+code runs on ~13 drivers; on the others it produces exact results because their
+interpolation hardware is not this imprecise. So the real question is "why is
+Mali's interpolator less precise than everyone else's?"
+
+There are two independent things a GPU can do to get this right. A GPU is immune
+if it has *either*. Mali has **neither**.
+
+### (1) Interpolate at high precision
+
+Interpolating a varying means evaluating a plane equation `A*x + B*y + C` (plus a
+perspective divide by `1/w`). The precision of that arithmetic is a design choice:
+
+- **Desktop GPUs (AMD, NVIDIA, Intel)** moved varying interpolation *into the
+  shader core* long ago — the shader evaluates it with the general **f32 ALU**
+  (~2^-23 relative precision), often on demand ("pull-model" interpolation). At
+  magnitude 16000 that is accurate to a tiny fraction of a texel.
+- **Apple (AGX / Asahi)** also evaluates the plane equation in f32 ALU (an `ffma`
+  on explicit coefficients, with an f32 divide for the perspective term) — ~2^-23.
+- **Mali** keeps a **dedicated fixed-function interpolator** — a separate hardware
+  unit with a ~32-bit datapath tuned for texture-coordinate-grade precision and
+  optimized for fp16. Its perspective reciprocal is good to only about **2^-10**,
+  ~1000x coarser than f32, which is the ~13-texel error at magnitude 16000.
+
+Why would Mali do that? Power and area. It is a mobile GPU; a compact
+fixed-function interpolator optimized for the fp16 values that dominate real
+shading is cheaper than routing every varying through full-f32 ALU. For actual
+rendering — where a varying is a color or a small coordinate and 0.1% is
+invisible — it is a perfectly good trade. It only bites when a varying is used to
+carry an *exact large integer*, which is exactly what the blit coordinate does.
+
+### (2) Never interpolate a large-magnitude value
+
+AGX interpolates **tile-locally**. Instead of feeding the interpolator the
+absolute coordinate (0..16000), it splits it: the large part lives in an **exact
+per-tile constant** (the plane equation's constant term for that 32x32 tile), and
+only a **small local offset** (0..31 within the tile) flows through the
+interpolation step. A relative error on a tiny number is a tiny absolute error;
+the big magnitude is added back as an exact constant. So AGX would be immune *even
+if its interpolator were imprecise*. That is the same "keep the interpolated part
+small, add back a large exact constant" idea our fix uses in software — except AGX
+does it in hardware, for free, on every varying.
+
+Mali has **no tile-local re-basing and no access to the raw coefficients** from
+the shader, so it interpolates the full-magnitude value and eats the relative
+error at full scale. That combination — a reduced-precision fixed-function unit
+interpolating the full coordinate — is, as far as anyone found (web + GitLab
+search turned up no prior art), unique to Mali-class hardware among in-tree
+drivers, which is why no other driver needed a fix.
+
+### Caveat: it is latent on Mali too, not "new"
+
+Even without our transfer-blit change, shipped Mesa corrupts a plain wide
+`glBlitFramebuffer` on Mali (29498/32614 wrong texels in the repro). Nobody
+noticed because the exposure is narrow: power-of-two extents are bit-exact and the
+drift only starts past ~3000-5000 px, so common blit sizes never trigger it. It is
+less "other drivers avoided a bug Mali has" and more "Mali always had this latent,
+and enabling GPU texture-transfers is what would have made it routinely visible."
+
+## 9. Does enabling BLIT put Midgard at risk?
+
+The BLIT enablement and the `gl_FragCoord` fix are **not independently safe** — they
+must move together. Enabling the transfer cap while leaving the fix off would route
+wide format-changing readbacks through the GPU blit path *on the old, lossy
+interpolated coordinate*, re-exposing the exact corruption. Only three of the four
+combinations are OK:
+
+| BLIT cap | `use_txf_fragcoord` | result |
+|---|---|---|
+| off | off | status quo — CPU fallback, safe (**this is Midgard**) |
+| on | on | fixed GPU blit — safe (**this is Bifrost+**) |
+| on | **off** | **corruption** |
+| off | on | harmless (fix present, nothing routes through it) |
+
+That is why **both** settings gate on `dev->arch >= 6`, not just the fix:
+
+```c
+/* pan_screen.c — the cap */
+caps->texture_transfer_modes =
+   dev->arch >= 6 ? PIPE_TEXTURE_TRANSFER_BLIT : 0;
+
+/* pan_context.c — the fix */
+ctx->blitter->use_txf_fragcoord = dev->arch >= 6;
+```
+
+On Midgard (`arch` 4-5) both evaluate to the "off" value. Crucially,
+`texture_transfer_modes = 0` is the *exact value it had before this series* (the
+replaced line was literally `caps->texture_transfer_modes = 0;`), so for Midgard
+the series is a **strict no-op on the transfer/blit path**: transfers stay on the
+CPU fallback, and with `use_txf_fragcoord` false `u_blitter` generates byte-for-byte
+the same shaders as before. No new code path means no new place for a bug to
+appear. Both comments end with "keep in sync with the transfer-mode enablement" so
+a future edit does not split them and re-open the corrupting third row.
+
+This was a real bug, not hypothetical caution: an earlier revision enabled the cap
+unconditionally while gating only the fix on arch — exactly the third row — and it
+was caught in the structured self-review (finding #2) and fixed by gating both.
+
+**Caveat.** We do not actually *know* Midgard's interpolator is bad — we know it is
+*not known to be exact* (its `gl_FragCoord` is itself a varying, "we'd prefer
+varyings on Midgard") and there is **no Midgard hardware in the test setup**
+(everything was validated on the G610 / Valhall). Leaving Midgard untouched is both
+correct (don't route transfers through a coordinate path you can't prove is exact)
+and conservative (don't speculatively enable a feature on hardware you can't test).
+If someone with Midgard silicon later verifies the fragcoord path is exact there,
+enabling it is a one-character change (`>= 6` -> `>= 4`) — but that is their call to
+make with real measurements.
+
 ## The one-sentence version
 
 Mali's fixed-function interpolator is ~0.1% imprecise, which silently corrupts wide
