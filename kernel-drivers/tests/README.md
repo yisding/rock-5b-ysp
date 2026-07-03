@@ -223,6 +223,7 @@ kernel paths:
   `roundtrip_h264_rga_rotate`;
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
   `generated_dec_h264_dmabuf`, `generated_dec_h265_dmabuf`,
+  `generated_dec_h264_renegotiate`, `generated_dec_h265_renegotiate`,
   `generated_dec_h264_rga_rotate`, `generated_dec_h265_rga_scale`;
 - `generated_transcode_h264_to_h265`, `generated_transcode_h265_to_h264`,
   `generated_transcode_h264_rga_to_h265`,
@@ -237,10 +238,14 @@ transcode pipelines. That keeps the default run self-contained while covering
 the media-file path that same-pipeline roundtrips do not hit. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
-The caps-renegotiation cases feed two finite raw NV12 segments with different
-dimensions through one `concat ! mpp*h26*enc` pipeline, forcing JeffyCN's
-encoder `set_format()` path to drain and reset the existing MPP session inside
-one GStreamer pipeline rather than only across process restarts.
+The decoder renegotiation cases concatenate two generated elementary streams at
+different dimensions and feed them through `filesrc ! *parse ! mppvideodec`,
+covering parser caps changes and decoder info-change/reset behavior without
+external media assets. The encoder caps-renegotiation cases feed two finite raw
+NV12 segments with different dimensions through one `concat ! mpp*h26*enc`
+pipeline, forcing JeffyCN's encoder `set_format()` path to drain and reset the
+existing MPP session inside one GStreamer pipeline rather than only across
+process restarts.
 
 Set `GST_H264_INPUT` and/or `GST_H265_INPUT` to add decode/transcode cases
 automatically:
@@ -254,7 +259,8 @@ GST_H265_INPUT=assets/sample-1080p.h265 \
 
 Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_fakesink`, `generated_dec_h264_dmabuf`,
-`generated_dec_h265_dmabuf`, `generated_dec_h264_rga_rotate`,
+`generated_dec_h265_dmabuf`, `generated_dec_h264_renegotiate`,
+`generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_transcode_h264_to_h265`,
 `generated_transcode_h265_to_h264`, `generated_transcode_h264_rga_to_h265`,
 `generated_transcode_h264_dmabuf_to_h265`,

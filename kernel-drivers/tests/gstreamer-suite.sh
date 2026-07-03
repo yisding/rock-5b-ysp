@@ -43,6 +43,8 @@ generated_dec_h264_fakesink
 generated_dec_h265_fakesink
 generated_dec_h264_dmabuf
 generated_dec_h265_dmabuf
+generated_dec_h264_renegotiate
+generated_dec_h265_renegotiate
 generated_dec_h264_rga_rotate
 generated_dec_h265_rga_scale
 generated_transcode_h264_to_h265
@@ -295,6 +297,59 @@ ensure_generated_input()
 	fi
 }
 
+generate_encoded_segment()
+{
+	local codec=$1
+	local path=$2
+	local width=$3
+	local height=$4
+	local pattern=$5
+	local buffers=$6
+
+	select_generated_codec "$codec" || return $?
+	CMD=(
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$buffers" is-live=false "pattern=$pattern"
+		"!" "video/x-raw,format=NV12,width=$width,height=$height,framerate=$GST_FRAMERATE"
+		"!" "$GENERATED_ENCODER" zero-copy-pkt=true
+		"!" "$GENERATED_PARSER"
+		"!" filesink "location=$path"
+	)
+	printf "generating %s segment %s: " "$codec" "$path"
+	print_current_command
+	run_current_command || return $?
+	if [ ! -s "$path" ]; then
+		printf "generated %s segment is empty: %s\n" "$codec" "$path" >&2
+		return 1
+	fi
+}
+
+ensure_generated_renegotiate_input()
+{
+	local codec=$1
+	local first_path
+	local second_path
+
+	select_generated_codec "$codec" || return $?
+	GENERATED_INPUT_PATH="$OUT/generated-renegotiate.$GENERATED_SUFFIX"
+	first_path="$OUT/generated-renegotiate-a.$GENERATED_SUFFIX"
+	second_path="$OUT/generated-renegotiate-b.$GENERATED_SUFFIX"
+	if [ -s "$GENERATED_INPUT_PATH" ]; then
+		return 0
+	fi
+
+	generate_encoded_segment "$codec" "$first_path" "$GST_WIDTH" "$GST_HEIGHT" \
+		smpte "$GST_CAPS_RENEGOTIATE_BUFFERS" || return $?
+	generate_encoded_segment "$codec" "$second_path" "$GST_SCALE_WIDTH" \
+		"$GST_SCALE_HEIGHT" ball "$GST_CAPS_RENEGOTIATE_BUFFERS" || return $?
+	cat "$first_path" "$second_path" > "$GENERATED_INPUT_PATH"
+	if [ ! -s "$GENERATED_INPUT_PATH" ]; then
+		printf "generated %s renegotiation input is empty: %s\n" "$codec" \
+			"$GENERATED_INPUT_PATH" >&2
+		return 1
+	fi
+}
+
 run_generated_decode()
 {
 	local codec=$1
@@ -310,6 +365,25 @@ run_generated_decode()
 
 	CMD+=("!" fakesink sync=false)
 	printf "decoding generated %s input: " "$codec"
+	print_current_command
+	run_current_command
+}
+
+run_generated_renegotiate_decode()
+{
+	local codec=$1
+	shift
+
+	ensure_generated_renegotiate_input "$codec" || return $?
+	CMD=(gst-launch-1.0 -q filesrc "location=$GENERATED_INPUT_PATH" "!" "$GENERATED_PARSER" "!" mppvideodec)
+
+	while [ "$#" -gt 0 ]; do
+		CMD+=("$1")
+		shift
+	done
+
+	CMD+=("!" fakesink sync=false)
+	printf "decoding generated renegotiating %s input: " "$codec"
 	print_current_command
 	run_current_command
 }
@@ -470,6 +544,12 @@ build_case_command()
 		;;
 	generated_dec_h265_dmabuf)
 		CMD=(__builtin_generated_decode h265 dma-feature=true)
+		;;
+	generated_dec_h264_renegotiate)
+		CMD=(__builtin_generated_renegotiate_decode h264)
+		;;
+	generated_dec_h265_renegotiate)
+		CMD=(__builtin_generated_renegotiate_decode h265)
 		;;
 	generated_dec_h264_rga_rotate)
 		CMD=(__builtin_generated_decode h264 \
@@ -675,6 +755,9 @@ run_case_payload()
 	generated_dec_h264_dmabuf | generated_dec_h265_dmabuf | \
 	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale)
 		run_generated_decode "${CMD[1]}" "${CMD[@]:2}"
+		;;
+	generated_dec_h264_renegotiate | generated_dec_h265_renegotiate)
+		run_generated_renegotiate_decode "${CMD[1]}" "${CMD[@]:2}"
 		;;
 	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
 	generated_transcode_h264_rga_to_h265 | \
