@@ -15,7 +15,7 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
 | Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `build-mpp-tests.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-suite.sh`, `gstreamer-event-harness.c`, `gstreamer-suite-compare.sh`, `suite-common.sh`, `suite-compare-selftest.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
-| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains unverified on hardware, but the GStreamer suite now has generated VP9 IVF decode cases. The rewrite clean-source object-build gate is versioned here and passed both public rewrite branch tips on 2026-07-03. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
+| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains unverified on hardware, but the GStreamer suite now has generated VP9 IVF decode cases. The suite also records JeffyCN's legacy-visible VP8/JPEG GStreamer elements as diagnostics, not required rewrite gates. The rewrite clean-source object-build gate is versioned here and passed both public rewrite branch tips on 2026-07-03. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
 
 ## Rewrite clean build gate
 
@@ -284,6 +284,14 @@ finite encoder or generated elementary-stream decoder pipeline repeatedly in one
 process. That drives JeffyCN's drain/shutdown paths, which send EOS packets into
 MPP and then reuse the same GStreamer element graph for another cycle.
 
+The pinned JeffyCN plugin also registers userspace-visible VP8 and JPEG encoder
+or decoder elements (`mppvp8enc`, `mppjpegenc`, and `mppjpegdec`). Those map to
+legacy VPU/JPEG hardware outside the RK3588 RKVDEC2/RKVENC2 rewrite profile, so
+the suite keeps them diagnostic-only: it inspects the elements and runs short
+`enc_vp8_nv12`, `enc_jpeg_nv12`, and `roundtrip_jpeg_nv12` pipelines to record
+what current userspace would observe without turning legacy coverage into a
+required pass condition.
+
 Set `GST_H264_INPUT` and/or `GST_H265_INPUT` to add decode/transcode cases
 automatically:
 
@@ -325,7 +333,9 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 they feed `videotestsrc` through the MPP encoder, parser, and `mppvideodec` in
 one pipeline so GStreamer's decoder-side buffer-group, short-timeout polling,
 info-change, and reset paths are exercised even before media assets are staged.
-Diagnostic cases include `event_seek_enc_h264`, `event_seek_enc_h265`,
+Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
+`gst_inspect_mppjpegdec`, `enc_vp8_nv12`, `enc_jpeg_nv12`,
+`roundtrip_jpeg_nv12`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`, `parallel_enc_h264`,
 `parallel_roundtrip_h264`, `parallel_dec_h264`, `parallel_dec_h265`,
 `parallel_dec_mixed_h264_h265`, `parallel_transcode_mixed_h264_h265`,

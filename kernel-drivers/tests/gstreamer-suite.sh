@@ -90,6 +90,9 @@ generated_transcode_vp9_to_h264
 "
 
 diagnostic_cases_default="
+gst_inspect_mppvp8enc
+gst_inspect_mppjpegenc
+gst_inspect_mppjpegdec
 event_seek_enc_h264
 event_seek_enc_h265
 event_seek_dec_h264
@@ -102,6 +105,9 @@ parallel_dec_h264
 parallel_dec_h265
 parallel_dec_mixed_h264_h265
 parallel_transcode_mixed_h264_h265
+enc_vp8_nv12
+enc_jpeg_nv12
+roundtrip_jpeg_nv12
 enc_h264_bgr16_rga_scale
 enc_h264_rgb_rga_scale
 enc_h264_bgr_rga_scale
@@ -350,6 +356,19 @@ build_videotest_roundtrip()
 	done
 
 	CMD+=("!" fakesink sync=false)
+}
+
+build_videotest_jpeg_roundtrip()
+{
+	CMD=(
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$GST_FORMAT_MATRIX_BUFFERS" is-live=false pattern=smpte
+		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" mppjpegenc
+		"!" jpegparse
+		"!" mppjpegdec
+		"!" fakesink sync=false
+	)
 }
 
 build_decode()
@@ -826,6 +845,15 @@ build_case_command()
 	gst_inspect_mpph265enc)
 		CMD=(gst-inspect-1.0 mpph265enc)
 		;;
+	gst_inspect_mppvp8enc)
+		CMD=(gst-inspect-1.0 mppvp8enc)
+		;;
+	gst_inspect_mppjpegenc)
+		CMD=(gst-inspect-1.0 mppjpegenc)
+		;;
+	gst_inspect_mppjpegdec)
+		CMD=(gst-inspect-1.0 mppjpegdec)
+		;;
 	gst_inspect_display_sink)
 		CMD=(gst-inspect-1.0 "$GST_DISPLAY_SINK")
 		;;
@@ -834,6 +862,12 @@ build_case_command()
 		;;
 	enc_h265_nv12)
 		build_videotest_encode mpph265enc NV12 "$GST_NUM_BUFFERS" zero-copy-pkt=true
+		;;
+	enc_vp8_nv12)
+		build_videotest_encode mppvp8enc NV12 "$GST_FORMAT_MATRIX_BUFFERS"
+		;;
+	enc_jpeg_nv12)
+		build_videotest_encode mppjpegenc NV12 "$GST_FORMAT_MATRIX_BUFFERS"
 		;;
 	enc_h264_bgrx_rga_rotate)
 		build_videotest_encode mpph264enc BGRx "$GST_NUM_BUFFERS" \
@@ -889,6 +923,9 @@ build_case_command()
 	roundtrip_h264_rga_rotate)
 		build_videotest_roundtrip mpph264enc h264parse "$GST_NUM_BUFFERS" \
 			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx
+		;;
+	roundtrip_jpeg_nv12)
+		build_videotest_jpeg_roundtrip
 		;;
 	generated_dec_h264_fakesink)
 		CMD=(__builtin_generated_decode h264)

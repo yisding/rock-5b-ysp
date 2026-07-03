@@ -88,12 +88,13 @@ paths](./av1-rk3588.md).
 The codec line is intentionally narrower than the names that FFmpeg and
 GStreamer can advertise. `ffmpeg-rockchip` registers AV1, H.263, H.264, HEVC,
 MJPEG, MPEG-1, MPEG-2, MPEG-4, VP8, and VP9 RKMPP decoders, upstream FFmpeg
-8.1.2 registers H.264, HEVC, VP8, and VP9 RKMPP decoders, and JeffyCN
-`mppvideodec` exposes similarly broad caps. That is userspace discovery, not
-proof that every codec maps to the RK3588 rewrite's hardware nodes. The current
-rewrite target binds only RKVDEC2/RKVENC2 plus their CCUs, matching the Rock 5B
-DT; it does not bind the legacy VDPU/VPU or JPEG nodes that libmpp uses for
-older formats.
+8.1.2 registers H.264, HEVC, VP8, and VP9 RKMPP decoders, JeffyCN
+`mppvideodec` exposes similarly broad caps, and the same GStreamer plugin
+registers VP8/JPEG encoder or decoder elements when userspace probing succeeds.
+That is userspace discovery, not proof that every codec maps to the RK3588
+rewrite's hardware nodes. The current rewrite target binds only RKVDEC2/RKVENC2
+plus their CCUs, matching the Rock 5B DT; it does not bind the legacy VDPU/VPU
+or JPEG nodes that libmpp uses for older formats.
 
 | Userspace-visible codec path | Rewrite classification | Why |
 |------------------------------|------------------------|-----|
