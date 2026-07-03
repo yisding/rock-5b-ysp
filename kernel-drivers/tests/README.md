@@ -221,7 +221,17 @@ kernel paths:
 - `enc_h264_bgrx_rga_rotate`, `enc_h265_rgba_rga_scale`;
 - `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
   `roundtrip_h264_rga_rotate`;
+- `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
+  `generated_dec_h264_rga_rotate`, `generated_dec_h265_rga_scale`;
+- `generated_transcode_h264_to_h265`, `generated_transcode_h265_to_h264`,
+  `generated_transcode_h264_rga_to_h265`;
 - `state_loop_h264_nv12`, `state_loop_roundtrip_h264`.
+
+The generated-media cases first write short H.264/H.265 elementary streams
+under the suite output directory with the Rockchip encoders, then feed those
+files through `filesrc ! *parse ! mppvideodec` decode and decode->encode
+transcode pipelines. That keeps the default run self-contained while covering
+the media-file path that same-pipeline roundtrips do not hit.
 
 Set `GST_H264_INPUT` and/or `GST_H265_INPUT` to add decode/transcode cases
 automatically:
@@ -233,8 +243,12 @@ GST_H265_INPUT=assets/sample-1080p.h265 \
 ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
 ```
 
-Useful explicit case names are `dec_h264_fakesink`, `dec_h265_fakesink`,
-`dec_h264_rga_rotate`, `dec_h265_rga_scale`, `transcode_h264_to_h265`,
+Useful explicit case names are `generated_dec_h264_fakesink`,
+`generated_dec_h265_fakesink`, `generated_dec_h264_rga_rotate`,
+`generated_dec_h265_rga_scale`, `generated_transcode_h264_to_h265`,
+`generated_transcode_h265_to_h264`, `generated_transcode_h264_rga_to_h265`,
+`dec_h264_fakesink`, `dec_h265_fakesink`, `dec_h264_rga_rotate`,
+`dec_h265_rga_scale`, `transcode_h264_to_h265`,
 `transcode_h265_to_h264`, `transcode_h264_rga_to_h265`,
 `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
 `roundtrip_h264_rga_rotate`, `state_loop_h264_nv12`, and
@@ -251,8 +265,9 @@ format paths. Override with
 `GST_REQUIRED_CASES` or
 `GST_DIAGNOSTIC_CASES` for narrower hardware debugging, and tune dimensions with
 `GST_WIDTH`, `GST_HEIGHT`, `GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,
-`GST_NUM_BUFFERS`, `GST_FORMAT_MATRIX_BUFFERS`, `GST_STATE_LOOPS`, and
-`GST_TIMEOUT`. After both kernels have a suite result, run
+`GST_NUM_BUFFERS`, `GST_FORMAT_MATRIX_BUFFERS`,
+`GST_GENERATED_INPUT_BUFFERS`, `GST_STATE_LOOPS`, and `GST_TIMEOUT`. After both
+kernels have a suite result, run
 `gstreamer-suite-compare.sh`; it follows the same baseline pass vs candidate
 pass rule as the MPP/RGA comparators and supports the same `PERF_MAX_RATIO`
 elapsed-time slowdown gate.
@@ -341,7 +356,8 @@ forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
 coverage for the GStreamer virtual-source, fd-backed rotate/convert, and planar
 fallback shapes; after the MPP official-test suite/comparator and build helper
 were added; and after the GStreamer build wrapper, suite, comparator, and
-asset-free decoder roundtrip cases were added. The device-free
+asset-free decoder roundtrip plus generated-media decode/transcode cases were
+added. The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,
 slowdown, and librga latest-summary filtering paths. `build-mpp-tests.sh`
 staged the official MPP binaries locally; `build-gstreamer-rockchip.sh`

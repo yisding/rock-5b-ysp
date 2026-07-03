@@ -19,6 +19,7 @@ GST_NUM_BUFFERS=${GST_NUM_BUFFERS:-60}
 GST_STATE_LOOPS=${GST_STATE_LOOPS:-4}
 GST_STATE_LOOP_BUFFERS=${GST_STATE_LOOP_BUFFERS:-8}
 GST_FORMAT_MATRIX_BUFFERS=${GST_FORMAT_MATRIX_BUFFERS:-16}
+GST_GENERATED_INPUT_BUFFERS=${GST_GENERATED_INPUT_BUFFERS:-30}
 GST_WIDTH=${GST_WIDTH:-320}
 GST_HEIGHT=${GST_HEIGHT:-240}
 GST_SCALE_WIDTH=${GST_SCALE_WIDTH:-256}
@@ -37,6 +38,13 @@ enc_h265_rgba_rga_scale
 roundtrip_h264_nv12
 roundtrip_h265_nv12
 roundtrip_h264_rga_rotate
+generated_dec_h264_fakesink
+generated_dec_h265_fakesink
+generated_dec_h264_rga_rotate
+generated_dec_h265_rga_scale
+generated_transcode_h264_to_h265
+generated_transcode_h265_to_h264
+generated_transcode_h264_rga_to_h265
 state_loop_h264_nv12
 state_loop_roundtrip_h264
 "
@@ -123,6 +131,10 @@ export LD_LIBRARY_PATH="$MPP_LIBDIR:$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
 
 CMD=()
 BUILD_ERROR=
+GENERATED_INPUT_PATH=
+GENERATED_ENCODER=
+GENERATED_PARSER=
+GENERATED_SUFFIX=
 
 get_var()
 {
@@ -225,6 +237,95 @@ build_transcode()
 	done
 
 	CMD+=("!" "$encoder" zero-copy-pkt=true "!" fakesink sync=false)
+}
+
+select_generated_codec()
+{
+	local codec=$1
+
+	case "$codec" in
+	h264)
+		GENERATED_ENCODER=mpph264enc
+		GENERATED_PARSER=h264parse
+		GENERATED_SUFFIX=h264
+		;;
+	h265)
+		GENERATED_ENCODER=mpph265enc
+		GENERATED_PARSER=h265parse
+		GENERATED_SUFFIX=h265
+		;;
+	*)
+		printf "unknown generated codec: %s\n" "$codec" >&2
+		return 4
+		;;
+	esac
+}
+
+ensure_generated_input()
+{
+	local codec=$1
+
+	select_generated_codec "$codec" || return $?
+	GENERATED_INPUT_PATH="$OUT/generated-input.$GENERATED_SUFFIX"
+	if [ -s "$GENERATED_INPUT_PATH" ]; then
+		return 0
+	fi
+
+	CMD=(
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$GST_GENERATED_INPUT_BUFFERS" is-live=false pattern=smpte
+		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" "$GENERATED_ENCODER" zero-copy-pkt=true
+		"!" "$GENERATED_PARSER"
+		"!" filesink "location=$GENERATED_INPUT_PATH"
+	)
+	printf "generating %s input: " "$codec"
+	print_current_command
+	run_current_command || return $?
+	if [ ! -s "$GENERATED_INPUT_PATH" ]; then
+		printf "generated %s input is empty: %s\n" "$codec" \
+			"$GENERATED_INPUT_PATH" >&2
+		return 1
+	fi
+}
+
+run_generated_decode()
+{
+	local codec=$1
+	shift
+
+	ensure_generated_input "$codec" || return $?
+	CMD=(gst-launch-1.0 -q filesrc "location=$GENERATED_INPUT_PATH" "!" "$GENERATED_PARSER" "!" mppvideodec)
+
+	while [ "$#" -gt 0 ]; do
+		CMD+=("$1")
+		shift
+	done
+
+	CMD+=("!" fakesink sync=false)
+	printf "decoding generated %s input: " "$codec"
+	print_current_command
+	run_current_command
+}
+
+run_generated_transcode()
+{
+	local codec=$1
+	local encoder=$2
+	shift 2
+
+	ensure_generated_input "$codec" || return $?
+	CMD=(gst-launch-1.0 -q filesrc "location=$GENERATED_INPUT_PATH" "!" "$GENERATED_PARSER" "!" mppvideodec)
+
+	while [ "$#" -gt 0 ]; do
+		CMD+=("$1")
+		shift
+	done
+
+	CMD+=("!" "$encoder" zero-copy-pkt=true "!" fakesink sync=false)
+	printf "transcoding generated %s input: " "$codec"
+	print_current_command
+	run_current_command
 }
 
 build_parallel_encode()
@@ -331,6 +432,30 @@ build_case_command()
 	roundtrip_h264_rga_rotate)
 		build_videotest_roundtrip mpph264enc h264parse "$GST_NUM_BUFFERS" \
 			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx
+		;;
+	generated_dec_h264_fakesink)
+		CMD=(__builtin_generated_decode h264)
+		;;
+	generated_dec_h265_fakesink)
+		CMD=(__builtin_generated_decode h265)
+		;;
+	generated_dec_h264_rga_rotate)
+		CMD=(__builtin_generated_decode h264 \
+			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx)
+		;;
+	generated_dec_h265_rga_scale)
+		CMD=(__builtin_generated_decode h265 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV21)
+		;;
+	generated_transcode_h264_to_h265)
+		CMD=(__builtin_generated_transcode h264 mpph265enc)
+		;;
+	generated_transcode_h265_to_h264)
+		CMD=(__builtin_generated_transcode h265 mpph264enc)
+		;;
+	generated_transcode_h264_rga_to_h265)
+		CMD=(__builtin_generated_transcode h264 mpph265enc \
+			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV12)
 		;;
 	roundtrip_h264_rga_bgr16)
 		build_videotest_roundtrip mpph264enc h264parse \
@@ -466,6 +591,16 @@ write_command_file()
 	printf "\n" >> "$target"
 }
 
+print_current_command()
+{
+	local arg
+
+	for arg in "${CMD[@]}"; do
+		printf "%q " "$arg"
+	done
+	printf "\n"
+}
+
 run_current_command()
 {
 	if [ "$GST_TIMEOUT" = "0" ]; then
@@ -494,6 +629,14 @@ run_case_payload()
 			build_videotest_roundtrip mpph264enc h264parse "$GST_STATE_LOOP_BUFFERS"
 			run_current_command || return $?
 		done
+		;;
+	generated_dec_h264_fakesink | generated_dec_h265_fakesink | \
+	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale)
+		run_generated_decode "${CMD[1]}" "${CMD[@]:2}"
+		;;
+	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
+	generated_transcode_h264_rga_to_h265)
+		run_generated_transcode "${CMD[1]}" "${CMD[2]}" "${CMD[@]:3}"
 		;;
 	*)
 		run_current_command
