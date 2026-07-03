@@ -252,7 +252,8 @@ implementation (cross-reference:
   - Minimal debugfs counters now report scheduled, dispatched, and
     hardware-started work per public RGA core bit (`rga3_core0`, `rga3_core1`,
     `rga2_core0`, `rga2_core1`) so board validation can confirm forced-core and
-    load-balancing behaviour without the BSP debug ABI.
+    load-balancing behaviour, including same-class equal-load tie rotation,
+    without the BSP debug ABI.
 - **Remaining recognized RGA gaps** are now comparatively specific: physical
   address imports; full general RGA2/RGA3 policy and command-register
   generation; RGA3 pattern modes outside the supported alpha-overlay profile;
