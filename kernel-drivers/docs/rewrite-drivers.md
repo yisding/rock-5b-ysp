@@ -218,6 +218,9 @@ implementation (cross-reference:
 - **BSP `rga_req.core` scheduler masks are honored**: RGA3 bits `0x1`/`0x2`,
   RGA2 bits `0x4`/`0x8`; imported images are **rebound to the selected core's
   DMA device at dispatch**, so a forced-core `wrapbuffer_fd()` submission works.
+  A mask that names only an absent core is rejected instead of being rerouted to
+  a different present core; masks that include a present compatible core still
+  schedule normally.
 - **Per-core profile coverage** (what real librga/ffmpeg consumers need):
   - **RGA3**: raster, tile8x8, and AFBC16x16 bitblits; RGB/YUV plus compact
     and unpacked 10-bit semiplanar YUV paths used by current `librga` and
