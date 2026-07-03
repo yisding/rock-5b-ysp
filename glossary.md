@@ -79,8 +79,33 @@ the CCU-vs-DCHS split, RCB SRAM-vs-DRAM, and convert-in-place.
 - **power-domain (PD)** — an SoC power island that must be on for a block to
   run.
 - **V4L2** — mainline *Video4Linux2*, the codec API this port deliberately
-  does **not** use (mainline `hantro`/`rkvdec` lack H.265 encode; see
-  [vanilla-kernel guide](./kernel-drivers/docs/vanilla-kernel.md)).
+  does **not** use for its shipped path (mainline `hantro`/`rkvdec` lack H.265
+  encode; see [vanilla-kernel guide](./kernel-drivers/docs/vanilla-kernel.md)).
+  The mainline V4L2 `rkvdec` decoder itself (the upstream trajectory, and the
+  `rk3588-rewrite-mainline` branch) is documented in
+  [mainline V4L2 rkvdec guide](./kernel-drivers/docs/mainline-rkvdec-v4l2.md).
+- **mem2mem** — the V4L2 *memory-to-memory* framework
+  (`drivers/media/v4l2-core/v4l2-mem2mem.c`) that mainline codec drivers build
+  on: a **single-execution-unit** job scheduler (one `curr_ctx` per device).
+  Why RK3588 multi-core decode is hard lives in
+  [multicore scheduling](./kernel-drivers/docs/multicore-scheduling.md).
+- **Request API** — the Media Request API (`MEDIA_IOC_REQUEST_ALLOC`,
+  `MEDIA_REQUEST_IOC_QUEUE`) that the mainline **stateless** decoder uses to
+  submit one frame's bitstream buffer **plus** its per-frame codec controls
+  atomically. See [mainline V4L2 rkvdec guide § 3](./kernel-drivers/docs/mainline-rkvdec-v4l2.md).
+- **DPB** — *Decoded Picture Buffer*: the set of already-decoded frames kept as
+  motion-compensation references. In the mainline **stateless** model userspace
+  owns the DPB and passes it per-frame as a control array; the driver resolves
+  each reference to a CAPTURE buffer **by timestamp** (`vb2_find_buffer`). This
+  per-stream dependency is what forbids parallelizing one stream across cores —
+  see [multicore scheduling § 3](./kernel-drivers/docs/multicore-scheduling.md).
+- **soft / hard CCU** — the decoder CCU's two task-distribution modes
+  (`RKVDEC2_CCU_TASK_SOFT`/`_HARD`, DT `rockchip,ccu-mode`): **soft** = the
+  driver picks the core (software dispatch, the shipped default); **hard** = the
+  CCU hardware autonomously dispatches from a task table. The V4L2-model
+  consequences of each are analysed in
+  [multicore scheduling § 7](./kernel-drivers/docs/multicore-scheduling.md); the
+  vendor-side mechanism is [kernel driver guide § 7a](./kernel-drivers/docs/how-the-drivers-work.md).
 
 ## Device tree & packaging
 
