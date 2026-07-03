@@ -213,7 +213,9 @@ kernel paths:
   `gst_inspect_mpph264enc`, `gst_inspect_mpph265enc`;
 - `enc_h264_nv12`, `enc_h265_nv12`;
 - `enc_h264_bgrx_rga_rotate`, `enc_h265_rgba_rga_scale`;
-- `state_loop_h264_nv12`.
+- `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
+  `roundtrip_h264_rga_rotate`;
+- `state_loop_h264_nv12`, `state_loop_roundtrip_h264`.
 
 Set `GST_H264_INPUT` and/or `GST_H265_INPUT` to add decode/transcode cases
 automatically:
@@ -227,8 +229,14 @@ GST_H265_INPUT=assets/sample-1080p.h265 \
 
 Useful explicit case names are `dec_h264_fakesink`, `dec_h265_fakesink`,
 `dec_h264_rga_rotate`, `dec_h265_rga_scale`, `transcode_h264_to_h265`,
-`transcode_h265_to_h264`, and `transcode_h264_rga_to_h265`. Diagnostic cases
-include `parallel_enc_h264`, `dec_h264_afbc_fakesink`, and
+`transcode_h265_to_h264`, `transcode_h264_rga_to_h265`,
+`roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
+`roundtrip_h264_rga_rotate`, `state_loop_h264_nv12`, and
+`state_loop_roundtrip_h264`. The roundtrip cases are asset-free decoder gates:
+they feed `videotestsrc` through the MPP encoder, parser, and `mppvideodec` in
+one pipeline so GStreamer's decoder-side buffer-group, short-timeout polling,
+info-change, and reset paths are exercised even before media assets are staged.
+Diagnostic cases include `parallel_enc_h264`, `dec_h264_afbc_fakesink`, and
 `dec_h265_afbc_fakesink`. Override with `GST_REQUIRED_CASES` or
 `GST_DIAGNOSTIC_CASES` for narrower hardware debugging, and tune dimensions with
 `GST_WIDTH`, `GST_HEIGHT`, `GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,

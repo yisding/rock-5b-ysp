@@ -31,7 +31,11 @@ enc_h264_nv12
 enc_h265_nv12
 enc_h264_bgrx_rga_rotate
 enc_h265_rgba_rga_scale
+roundtrip_h264_nv12
+roundtrip_h265_nv12
+roundtrip_h264_rga_rotate
 state_loop_h264_nv12
+state_loop_roundtrip_h264
 "
 
 diagnostic_cases_default="
@@ -143,6 +147,30 @@ build_videotest_encode()
 	CMD+=("!" fakesink sync=false)
 }
 
+build_videotest_roundtrip()
+{
+	local encoder=$1
+	local parser=$2
+	local buffers=$3
+	shift 3
+
+	CMD=(
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$buffers" is-live=false pattern=smpte
+		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" "$encoder" zero-copy-pkt=true
+		"!" "$parser"
+		"!" mppvideodec
+	)
+
+	while [ "$#" -gt 0 ]; do
+		CMD+=("$1")
+		shift
+	done
+
+	CMD+=("!" fakesink sync=false)
+}
+
 build_decode()
 {
 	local input_var=$1
@@ -228,8 +256,21 @@ build_case_command()
 			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
 			zero-copy-pkt=true
 		;;
+	roundtrip_h264_nv12)
+		build_videotest_roundtrip mpph264enc h264parse "$GST_NUM_BUFFERS"
+		;;
+	roundtrip_h265_nv12)
+		build_videotest_roundtrip mpph265enc h265parse "$GST_NUM_BUFFERS"
+		;;
+	roundtrip_h264_rga_rotate)
+		build_videotest_roundtrip mpph264enc h264parse "$GST_NUM_BUFFERS" \
+			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx
+		;;
 	state_loop_h264_nv12)
 		CMD=(__builtin_state_loop enc_h264_nv12 "loops=$GST_STATE_LOOPS")
+		;;
+	state_loop_roundtrip_h264)
+		CMD=(__builtin_state_loop roundtrip_h264_nv12 "loops=$GST_STATE_LOOPS")
 		;;
 	parallel_enc_h264)
 		build_parallel_encode
@@ -343,6 +384,13 @@ run_case_payload()
 		for i in $(seq 1 "$GST_STATE_LOOPS"); do
 			printf "state-loop iteration %s/%s\n" "$i" "$GST_STATE_LOOPS"
 			build_videotest_encode mpph264enc NV12 "$GST_STATE_LOOP_BUFFERS" zero-copy-pkt=true
+			run_current_command || return $?
+		done
+		;;
+	state_loop_roundtrip_h264)
+		for i in $(seq 1 "$GST_STATE_LOOPS"); do
+			printf "roundtrip state-loop iteration %s/%s\n" "$i" "$GST_STATE_LOOPS"
+			build_videotest_roundtrip mpph264enc h264parse "$GST_STATE_LOOP_BUFFERS"
 			run_current_command || return $?
 		done
 		;;
