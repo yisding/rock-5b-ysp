@@ -73,6 +73,7 @@ Read these when debugging library/kernel interactions:
 | How is libmpp structured internally? | [`docs/mpp-library-architecture.md`](docs/mpp-library-architecture.md) |
 | What does librga hide from an app? | [`docs/how-the-userspace-libs-work.md`](docs/how-the-userspace-libs-work.md) Part B |
 | How do regular users and media developers use librga well? | [`docs/librga-guide.md`](docs/librga-guide.md) |
+| What did we learn about RKRGA P010/P210 and librga 10-bit ABI compatibility? | [`docs/librga-p010-p210-rkrga.md`](docs/librga-p010-p210-rkrga.md) |
 | What ioctls cross into the kernel? | [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) |
 | What did we learn about Rockchip's newer KMPP path? | [`docs/mpp-kmpp-reverse-engineering.md`](docs/mpp-kmpp-reverse-engineering.md) |
 | Why does GRD use upstream FFmpeg instead of `ffmpeg-rockchip`? | [`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md) |
@@ -84,5 +85,6 @@ Read these when debugging library/kernel interactions:
 |------|-------------|
 | Device access is three nodes, not one | Non-root MPP encode needs `/dev/mpp_service` and `/dev/dma_heap/*`; RGA also needs `/dev/rga`. Install [`../kernel-drivers/scripts/99-rockchip-codec.rules`](../kernel-drivers/scripts/99-rockchip-codec.rules) or the [`../packaging/codec-udev/`](../packaging/codec-udev/README.md) deb. |
 | `librga` has source even when the official drop ships a prebuilt `.so` | The buildable source lineage is documented in [`../docs/gotchas.md`](../docs/gotchas.md) and the staging recipe in [`../ffmpeg/README.md`](../ffmpeg/README.md). |
+| P010/P210 through legacy RKRGA depends on librga copying 10-bit layout fields | Older librga sources dropped `is_10b_compact`/`is_10b_endian` before the ioctl; use a patched source build or disable padded 10-bit RKRGA paths. See [`docs/librga-p010-p210-rkrga.md`](docs/librga-p010-p210-rkrga.md). |
 | `h264_rkmpp` does not always mean the same implementation | `ffmpeg-rockchip` and upstream FFmpeg 8.1.2 both expose rkmpp names, but the control surface differs. See [`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md). |
 | The libraries generate hardware-specific recipes | The kernel does not parse H.264/HEVC streams into registers; libmpp does. This is why ABI compatibility matters as much as driver probing. |

@@ -29,6 +29,9 @@ Companion docs:
 - [`docs/review-learnings.md`](docs/review-learnings.md) captures the review
   lessons from hardening the `ffmpeg-rockchip-81` rebase: V4L2 fallback, RKMPP
   AFBC/DRM, and RKRGA capability traps.
+- [`../userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md)
+  records the RKRGA P010/P210 investigation: Jellyfin usage, BSP kernel layout
+  flags, older librga breakage, and nyanmisaka's patched librga fix.
 - [`docs/rebase-notes.md`](docs/rebase-notes.md) reconciles all the tree pins, records how
   the fork was replayed onto FFmpeg master, and holds the submission ledger.
 - [`docs/submission-plan.md`](docs/submission-plan.md) is the 2026-07-02
@@ -170,6 +173,12 @@ If you want a from-source userspace, build it from the **JeffyCN lineage**
 (`tsukumijima/librga-rockchip` — a buildable mirror of
 `JeffyCN/mirrors:linux-rga-multi`, Apache-2.0, CMake/Meson + Debian packages) and
 stage *that* `.so`/headers into `$STAGE` instead.
+
+For RKRGA `P010`/`P210`, use a patched source build rather than an unknown
+prebuilt. Older legacy `c_RkRgaBlit()` paths can drop the 10-bit layout flags and
+make padded P010/P210 look like compact NV15/NV20 to the BSP kernel. The detailed
+compatibility note is
+[`../userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md).
 
 To find out what version a prebuilt `librga.so` actually is (the
 [`librga.pc.example`](librga.pc.example)'s `1.10.6` must match the staged
