@@ -15,7 +15,7 @@ find_latest_summary()
 	local profile=$1
 	local summary
 
-	summary=$({ find "$CONFORMANCE_ROOT/logs/$profile" -path "*/summary.tsv" \
+	summary=$({ find "$CONFORMANCE_ROOT/logs/$profile" -path "*-librga-suite/summary.tsv" \
 		-type f -printf "%T@ %p\n" 2>/dev/null || true; } | sort -nr |
 		awk 'NR == 1 { sub(/^[^ ]+ /, ""); print }')
 	if [ -z "$summary" ]; then

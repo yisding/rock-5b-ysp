@@ -13,7 +13,7 @@ see [device-tree guide](../docs/device-tree.md)); the scripts accept the older
 |-------|----------|
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. |
-| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `build-mpp-tests.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
+| Owns | `rewrite-build-gate.sh`, `abi-probe.sh`, `abi-probe.c`, `build-mpp-tests.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `build-librga-samples-full.sh`, `librga-smoke.sh`, `librga-smoke.cpp`, `librga-suite.sh`, `librga-suite-compare.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `suite-compare-selftest.sh`, `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, input-regeneration recipes, pass criteria, and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
 | Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains an unverified recipe. The rewrite clean-source object-build gate is versioned here and passed both public rewrite branch tips on 2026-07-03. A broader conformance bundle now exists beside the kernel trees for rewrite-vs-forward-port comparison; see "Expanded conformance bundle" below. |
 
@@ -157,12 +157,12 @@ physical-contiguous DRM, Android GraphicBuffer, RV1106 CMA, and CFA samples.
 Override with `RGA_REQUIRED_CASES` or `RGA_DIAGNOSTIC_CASES` when intentionally
 probing a narrower or broader profile.
 After both kernels have a suite result, run `librga-suite-compare.sh`. It finds
-the latest `summary.tsv` for `BASELINE=forward-port` and `CANDIDATE=rewrite`
-by default, prints a per-case verdict table with elapsed-time ratios, and exits
-nonzero when a required case passed on the baseline but did not pass on the
-candidate. Set `PERF_MAX_RATIO` to also fail required cases that pass on both
-profiles but are slower than the configured candidate/baseline elapsed-time
-ratio.
+the latest `*-librga-suite/summary.tsv` for `BASELINE=forward-port` and
+`CANDIDATE=rewrite` by default, prints a per-case verdict table with
+elapsed-time ratios, and exits nonzero when a required case passed on the
+baseline but did not pass on the candidate. Set `PERF_MAX_RATIO` to also fail
+required cases that pass on both profiles but are slower than the configured
+candidate/baseline elapsed-time ratio.
 
 `mpp-suite.sh` is the matching versioned wrapper for Rockchip MPP's official
 `test/` binaries from `../rockchip-conformance/out/mpp/bin`. It writes
@@ -311,6 +311,7 @@ bash librga-suite.sh                  # official librga sample conformance
 bash librga-suite-compare.sh          # compare latest forward-port/rewrite suite summaries
 bash gstreamer-suite.sh               # JeffyCN GStreamer MPP/RGA conformance
 bash gstreamer-suite-compare.sh       # compare latest forward-port/rewrite GStreamer summaries
+bash suite-compare-selftest.sh        # device-free comparator regression selftest
 bash test-decode.sh                  # decoder (device access is enough)
 sudo bash encode-test-tiny.sh        # encoder
 sudo bash transcode-test.sh          # end-to-end (needs ffmpeg-rockchip built — see ../ffmpeg)
@@ -332,10 +333,12 @@ forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
 coverage for the GStreamer virtual-source, fd-backed rotate/convert, and planar
 fallback shapes; after the MPP official-test suite/comparator and build helper
 were added; and after the GStreamer build wrapper, suite, comparator, and
-asset-free decoder roundtrip cases were added. `build-mpp-tests.sh` staged the
-official MPP binaries locally; `build-gstreamer-rockchip.sh` currently stops at
-its dependency preflight on this host because the GStreamer development `.pc`
-files are missing.
+asset-free decoder roundtrip cases were added. The device-free
+`suite-compare-selftest.sh` covers the comparator pass, functional regression,
+slowdown, and librga latest-summary filtering paths. `build-mpp-tests.sh`
+staged the official MPP binaries locally; `build-gstreamer-rockchip.sh`
+currently stops at its dependency preflight on this host because the GStreamer
+development `.pc` files are missing.
 
 For rewrite acceptance, boot a kernel where `ROCKCHIP_MPP_REWRITE` and
 `ROCKCHIP_RGA_REWRITE` own the device nodes, then run:
