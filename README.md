@@ -81,7 +81,7 @@ The detailed package reading map is [`docs/work-packages.md`](docs/work-packages
 | Get hardware codecs working on a ROCK 5B | [`install.md`](install.md) | Delivery-model chooser, combined-kernel quickstart, PHASH pinning, validation, userspace handoff. |
 | Understand the whole stack | [`docs/work-packages.md`](docs/work-packages.md) | Package map plus user/developer reading paths. |
 | Learn the kernel internals | [`kernel-drivers/`](kernel-drivers/README.md) | Driver architecture, forward-port deltas, DT, audit, rewrite track. |
-| Understand what the Rockchip BSP adds to Linux | [`docs/rockchip-bsp-architecture.md`](docs/rockchip-bsp-architecture.md) | User-readable area descriptions, kernel-developer details, and diagrams for the BSP overlay. |
+| Understand what the Rockchip BSP adds to Linux | [`docs/bsp/`](docs/bsp/README.md) | User-readable area descriptions, kernel-developer details, and diagrams for the BSP overlay. |
 | Build userspace media tools | [`userspace-libraries/`](userspace-libraries/README.md) -> [`ffmpeg/`](ffmpeg/README.md) | MPP/librga staging, FFmpeg build, transcode validation. |
 | Use the stack in an application | [`gnome-remote-desktop/`](gnome-remote-desktop/README.md) | Hardware H.264 RDP encode path, performance, patches, packaging notes. |
 | Package or redistribute | [`packaging/`](packaging/README.md) | Delivery channels, udev/ACL packages, DKMS, PPA, binary policy. |
