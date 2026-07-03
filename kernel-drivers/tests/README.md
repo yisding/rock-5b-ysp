@@ -85,9 +85,10 @@ For RGA scheduler/core-routing validation, also capture the rewrite debugfs
 counters under `/sys/kernel/debug/rk_rga_rewrite/` before and after forced-core
 and mixed RGA2/RGA3 runs. The current rewrite exposes total scheduled,
 dispatched, and hardware-started job counts plus per-core counters for
-`rga3_core0`, `rga3_core1`, `rga2_core0`, and `rga2_core1`; those counters are
-the lightweight replacement for carrying the BSP debugger ABI just to confirm
-load balancing and `rga_req.core` routing.
+`rga3_core0`, `rga3_core1`, `rga2_core0`, and `rga2_core1`, plus
+`hw_total_ns` and `hw_max_ns` timing counters. Those counters are the
+lightweight replacement for carrying the BSP debugger ABI just to confirm load
+balancing, `rga_req.core` routing, and aggregate hardware busy-time trends.
 
 `librga-suite.sh` is the versioned in-repo wrapper for the external official
 sample binaries. It writes `summary.tsv`, per-sample logs/status files, dmesg
@@ -112,7 +113,9 @@ required case passed on the baseline but did not pass on the candidate.
 `mpp-suite.sh` is the matching versioned wrapper for Rockchip MPP's official
 `test/` binaries from `../rockchip-conformance/out/mpp/bin`. It writes
 `summary.tsv`, per-case logs/status/command files, dmesg tail, and before/after
-MPP procfs/debugfs snapshots under `../rockchip-conformance/logs/$PROFILE/`.
+MPP procfs/debugfs snapshots under `../rockchip-conformance/logs/$PROFILE/`,
+including the rewrite's `hw_total_ns` and `hw_max_ns` timing counters when the
+rewrite driver owns `/dev/mpp_service`.
 The default required set is intentionally asset-free: `mpp_info_test` only.
 Select real codec/performance cases with `MPP_REQUIRED_CASES` so both kernel
 profiles run the same matrix against the same media:
