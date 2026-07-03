@@ -229,8 +229,8 @@ implementation (cross-reference:
     `ffmpeg-rockchip`; source crop and destination offsets; resize
     interpolation selectors; rotate/flip/mirror, including centered rotate and
     padding/reflect border commands; RGB color-key for normal `imcolorkey`;
-    Porter-Duff A+B alpha blend for public `librga` modes except CLEAR and
-    unlisted modes; pattern-backed ffmpeg/RKMPP overlay paths; AFBC writeback
+    Porter-Duff A+B alpha blend for public `librga` modes including CLEAR but
+    not unlisted modes; pattern-backed ffmpeg/RKMPP overlay paths; AFBC writeback
     for supported alpha-overlay/copy profiles; and overlay pre-processing
     copies into offset pattern images.
   - **RGA2**: solid fill, YUV fill, rectangle/fill arrays, raster bitblit for
