@@ -40,11 +40,14 @@ roundtrip_h265_nv12
 roundtrip_h264_rga_rotate
 generated_dec_h264_fakesink
 generated_dec_h265_fakesink
+generated_dec_h264_dmabuf
+generated_dec_h265_dmabuf
 generated_dec_h264_rga_rotate
 generated_dec_h265_rga_scale
 generated_transcode_h264_to_h265
 generated_transcode_h265_to_h264
 generated_transcode_h264_rga_to_h265
+generated_transcode_h264_dmabuf_to_h265
 state_loop_h264_nv12
 state_loop_roundtrip_h264
 "
@@ -439,6 +442,12 @@ build_case_command()
 	generated_dec_h265_fakesink)
 		CMD=(__builtin_generated_decode h265)
 		;;
+	generated_dec_h264_dmabuf)
+		CMD=(__builtin_generated_decode h264 dma-feature=true)
+		;;
+	generated_dec_h265_dmabuf)
+		CMD=(__builtin_generated_decode h265 dma-feature=true)
+		;;
 	generated_dec_h264_rga_rotate)
 		CMD=(__builtin_generated_decode h264 \
 			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx)
@@ -456,6 +465,9 @@ build_case_command()
 	generated_transcode_h264_rga_to_h265)
 		CMD=(__builtin_generated_transcode h264 mpph265enc \
 			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV12)
+		;;
+	generated_transcode_h264_dmabuf_to_h265)
+		CMD=(__builtin_generated_transcode h264 mpph265enc dma-feature=true)
 		;;
 	roundtrip_h264_rga_bgr16)
 		build_videotest_roundtrip mpph264enc h264parse \
@@ -631,11 +643,13 @@ run_case_payload()
 		done
 		;;
 	generated_dec_h264_fakesink | generated_dec_h265_fakesink | \
+	generated_dec_h264_dmabuf | generated_dec_h265_dmabuf | \
 	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale)
 		run_generated_decode "${CMD[1]}" "${CMD[@]:2}"
 		;;
 	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
-	generated_transcode_h264_rga_to_h265)
+	generated_transcode_h264_rga_to_h265 | \
+	generated_transcode_h264_dmabuf_to_h265)
 		run_generated_transcode "${CMD[1]}" "${CMD[2]}" "${CMD[@]:3}"
 		;;
 	*)

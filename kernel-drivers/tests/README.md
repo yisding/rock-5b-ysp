@@ -222,16 +222,20 @@ kernel paths:
 - `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
   `roundtrip_h264_rga_rotate`;
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
+  `generated_dec_h264_dmabuf`, `generated_dec_h265_dmabuf`,
   `generated_dec_h264_rga_rotate`, `generated_dec_h265_rga_scale`;
 - `generated_transcode_h264_to_h265`, `generated_transcode_h265_to_h264`,
-  `generated_transcode_h264_rga_to_h265`;
+  `generated_transcode_h264_rga_to_h265`,
+  `generated_transcode_h264_dmabuf_to_h265`;
 - `state_loop_h264_nv12`, `state_loop_roundtrip_h264`.
 
 The generated-media cases first write short H.264/H.265 elementary streams
 under the suite output directory with the Rockchip encoders, then feed those
 files through `filesrc ! *parse ! mppvideodec` decode and decode->encode
 transcode pipelines. That keeps the default run self-contained while covering
-the media-file path that same-pipeline roundtrips do not hit.
+the media-file path that same-pipeline roundtrips do not hit. The `*_dmabuf`
+variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
+allocator/external-buffer-group handoff that zero-copy consumers negotiate.
 
 Set `GST_H264_INPUT` and/or `GST_H265_INPUT` to add decode/transcode cases
 automatically:
@@ -244,9 +248,11 @@ GST_H265_INPUT=assets/sample-1080p.h265 \
 ```
 
 Useful explicit case names are `generated_dec_h264_fakesink`,
-`generated_dec_h265_fakesink`, `generated_dec_h264_rga_rotate`,
+`generated_dec_h265_fakesink`, `generated_dec_h264_dmabuf`,
+`generated_dec_h265_dmabuf`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_transcode_h264_to_h265`,
 `generated_transcode_h265_to_h264`, `generated_transcode_h264_rga_to_h265`,
+`generated_transcode_h264_dmabuf_to_h265`,
 `dec_h264_fakesink`, `dec_h265_fakesink`, `dec_h264_rga_rotate`,
 `dec_h265_rga_scale`, `transcode_h264_to_h265`,
 `transcode_h265_to_h264`, `transcode_h264_rga_to_h265`,
