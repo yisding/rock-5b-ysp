@@ -30,7 +30,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 | Kernel target | pinned to 6.18 API surface (resyncing.md hazards) | built on 6.18; being brought up on current mainline master too (§5) |
 | Userspace ABI | full BSP surface | the documented subset current `mpp-rockchip`/`librga`/`ffmpeg-rockchip` actually use |
 | Audit posture | 89 verified findings latent ([BSP audit](./bsp-audit.md)) | small, reviewable, refcount-disciplined by construction |
-| Size (observed 2026-07-03) | MPP ~15,822 lines + RGA3 ~19,171 lines (vendor-delta.md method) | MPP rewrite ~8,430 lines + RGA rewrite ~16,317 lines |
+| Size (observed 2026-07-03) | MPP ~15,822 lines + RGA3 ~19,171 lines (vendor-delta.md method) | MPP rewrite ~8,430 lines + RGA rewrite ~16,483 lines |
 
 Kconfig makes the two tracks **mutually exclusive per device node**:
 `ROCKCHIP_MPP_REWRITE` depends on `!ROCKCHIP_MPP_SERVICE` and registers
@@ -40,7 +40,7 @@ Kconfig makes the two tracks **mutually exclusive per device node**:
 nodes* as the forward-port: `rockchip,rkv-encoder-v2-core`,
 `rockchip,rkv-decoder-v2`, both CCU compatibles (`mpp_rewrite.c:274-277`) and
 the RGA2/RGA3 compatibles incl. the mainline `rockchip,rk3588-rga`
-(`rga_rewrite.c:15525-15533`).
+(`rga_rewrite.c:15680-15687`).
 
 Important codec boundary: neither the forward-port nor the MPP rewrite currently
 exposes RK3588 AV1 through `/dev/mpp_service`. AV1 lives on a separate
@@ -191,8 +191,8 @@ implementation (cross-reference:
 - **Version tuples are capability keys.** `librga` capability-probing expects
   the RK3588 hardware-version tuples **RGA2E `3.2.63318`** and **RGA3
   `3.0.76831`** from `RGA_IOC_GET_HW_VERSION`
-  (`rga_rewrite.c:15509-15523` — `{3, 2, 0x63318}` / `{3, 0, 0x76831}`,
-  rendered `"%x.%01x.%05x"` at `:1277`, hence the hex-looking revision). Report
+  (`rga_rewrite.c:15663-15677` — `{3, 2, 0x63318}` / `{3, 0, 0x76831}`,
+  rendered `"%x.%01x.%05x"` at `:1302`, hence the hex-looking revision). Report
   the wrong tuple and librga silently selects the wrong per-core capability
   profile.
 - **Both ioctl generations must exist**: legacy `RGA_GET_VERSION` /
@@ -201,11 +201,11 @@ implementation (cross-reference:
   `RGA2_GET_VERSION` returning `true` after copying the version string is
   intentional BSP/librga ABI behaviour, not a bug.
 - **Legacy `RGA_CACHE_FLUSH`, `RGA_FLUSH`, `RGA_GET_RESULT`, and
-  `RGA2_GET_RESULT` are safe as BSP-compatible no-ops** (`:15473-15478`) —
+  `RGA2_GET_RESULT` are safe as BSP-compatible no-ops** (`:15627-15631`) —
   userspace does not depend on their side effects.
 - **Buffer import**: `RGA_IOC_IMPORT_BUFFER`/`RELEASE_BUFFER` for dma-buf fds
   *and* user virtual addresses — VA imports pin user pages, build sg_tables via
-  `sg_alloc_table_from_pages()` (`:14895`), map with the public DMA API, and
+  `sg_alloc_table_from_pages()` (`:15050`), map with the public DMA API, and
   sync around hw execution (the common CPU-buffer librga sample path). Legacy
   no-handle `wrapbuffer_fd()`/`wrapbuffer_virtualaddr()` blits are converted to
   job-owned temporary imports; **direct physical-address channels remain
@@ -231,7 +231,8 @@ implementation (cross-reference:
   copy-out path (`rga_req.out_fence_fd`) and the modern request-submit
   `release_fence_fd` path for jobs deferred behind an acquire fence, plus
   file-close cleanup of async jobs still pending on unsignaled acquire fences
-  and jobs already queued on hardware.
+  and jobs already queued on hardware, and last-hardware removal cleanup of
+  async jobs still pending on acquire fences.
 - **BSP `rga_req.core` scheduler masks are honored**: RGA3 bits `0x1`/`0x2`,
   RGA2 bits `0x4`/`0x8`; imported images are **rebound to the selected core's
   DMA device at dispatch**, so a forced-core `wrapbuffer_fd()` submission works.
@@ -293,8 +294,9 @@ implementation (cross-reference:
   replacement and job cloning, request-config ioctl staging/acquire-fd
   ownership, configured request cancel/file-close cleanup, mixed-task
   RGA3-to-RGA2 core handoff/requeue selection, file-close cleanup of async
-  pending-acquire and hardware-queued jobs, legacy async blit and modern async
-  request-submit acquire/release-fence ioctls,
+  pending-acquire and hardware-queued jobs, last-hardware pending-acquire
+  cleanup, legacy async blit and modern async request-submit
+  acquire/release-fence ioctls,
   import/release-buffer lifecycle, scheduler, fence,
   RFBC/AFBC/tile, crop/destination-offset, blend-mode, SLT alpha-blend,
   OSD/palette/gauss/quantize/ROP/mosaic, and ffmpeg-facing profile helpers via
@@ -376,10 +378,10 @@ confirm against the TRM before treating either as canonical.
 
 | Item | State (2026-07-03) |
 |------|--------------------|
-| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 8,143 lines; 8,430 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 15,842 lines; 16,317 total incl. `ABI.rst`, `Kconfig`, `Makefile`) |
-| 6.18 state | public branch `linux-rock5b/rk3588-rewrite-6.18` at **`700dc4fd2b0a`** ("media: rockchip: abort rga queued jobs on close"), matching clean dev worktree `/home/yi/Code/linux-6.18-rkvenc`. Since `611f5fe047fd`, the committed work added a large RGA feature-coverage push: userptr import coverage, acquire-fence ownership, per-task core masks, request lifetime fixes, RGA2/RGA3 mixed-task scheduling, RGA priority, RGA2 YUV fill/full-CSC/gray/Y400/RFBC/mosaic/ROP/gauss/quantize/alpha-bitmap/OSD/palette, RGA3 resize/translate/rotate/flip/padding/color-key/tile8x8/AFBC/RFBC-facing/10-bit/P210/alpha-overlay/overlay-preprocess profiles, plus MPP `POLL_HW_IRQ`, DCHS-id, hard-CCU resend/recovery, IOMMU-refresh, session-batch-split, `RELEASE_FD`, nonblocking poll coverage, public `RESET_SESSION`/file-close cleanup, RGA request-config staging and reconfiguration resource/acquire-fence/gauss replacement coverage, request-config ioctl staging/acquire-fd ownership/no-release-fence-export coverage, configured request cancel/file-close cleanup, async close cleanup for jobs pending on acquire fences and jobs already queued on hardware, the RK3588 `im2d_slt` RGB/RGBA-to-YUV three-channel alpha-blend profile, modern async request-submit acquire/release-fence coverage, legacy `RGA_BLIT_ASYNC` acquire/release-fence coverage for current `librga` single-task async calls, and mixed-task RGA3-to-RGA2 core handoff/requeue coverage. |
-| Mainline-master state | public branch `linux-rock5b/rk3588-rewrite-mainline` at **`c99130f65591`** ("media: rockchip: abort rga queued jobs on close"), matching clean sibling worktree `/home/yi/Code/linux`; it carries the rewrite drivers plus the mainline-master DT/wiring work and the V4L2 RGA3 comparison tree discussed in §1. |
-| Validation | Focused compile gates pass at the public tips: mainline `make O=/tmp/rkcompat-mainline-rga-afbc-gcc ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j16 drivers/video/rockchip/rga-rewrite/rga_rewrite.o`; 6.18 `make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j16 drivers/video/rockchip/rga-rewrite/rga_rewrite.o`; `git diff --check` and cross-tree `cmp` also passed for the touched RGA source/docs files. Both rewrite drivers carry optional KUnit coverage for pure ABI/helper logic, and the source-level ABI ledgers record the implemented/unsupported boundary per §2/§3; the latest RGA KUnit slice compiles coverage for file close while an async legacy blit is already queued on hardware, proving the session removes queued jobs before dispatch, signals the release fence with `-EFAULT`, and drains the job ref before the previous pending-acquire close cleanup, MPP reset/release cleanup, RGA configured-request teardown, request-config ioctl staging/acquire-fd ownership, resource/acquire-fence/gauss reconfiguration, mixed-task handoff, and async acquire/release-fence paths. This is still code/ABI-ledger progress rather than proof from a booted rewrite kernel. [`tests/abi-probe.sh`](../tests/abi-probe.sh) is the fast non-submit ABI log-diff gate for whichever implementation owns `/dev/mpp_service` and `/dev/rga`; [`tests/librga-smoke.sh`](../tests/librga-smoke.sh) is the tiny direct librga/im2d copy/resize/fill smoke; [`tests/rewrite-smoke.sh`](../tests/rewrite-smoke.sh) runs the ABI probe plus decode/encode/transcode consumer workloads. The broader conformance plan is staged outside this repo at `../rockchip-conformance`: JeffyCN GStreamer Rockchip, official MPP tests, official librga samples, the Linux MPP/RGA/DRM demo, and RKMediaCodecDemo, with per-profile logs for rewrite vs forward-port runs. **UNVERIFIED in this repo**: the workload gate and expanded conformance bundle have not yet passed on hardware through the rewrite; no validation record equivalent to status.md exists yet. |
+| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 8,143 lines; 8,430 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 16,005 lines; 16,483 total incl. `ABI.rst`, `Kconfig`, `Makefile`) |
+| 6.18 state | public branch `linux-rock5b/rk3588-rewrite-6.18` at **`e01754a3ed43`** ("media: rockchip: abort rga pending jobs on last remove"), matching clean dev worktree `/home/yi/Code/linux-6.18-rkvenc`. Since `611f5fe047fd`, the committed work added a large RGA feature-coverage push: userptr import coverage, acquire-fence ownership, per-task core masks, request lifetime fixes, RGA2/RGA3 mixed-task scheduling, RGA priority, RGA2 YUV fill/full-CSC/gray/Y400/RFBC/mosaic/ROP/gauss/quantize/alpha-bitmap/OSD/palette, RGA3 resize/translate/rotate/flip/padding/color-key/tile8x8/AFBC/RFBC-facing/10-bit/P210/alpha-overlay/overlay-preprocess profiles, plus MPP `POLL_HW_IRQ`, DCHS-id, hard-CCU resend/recovery, IOMMU-refresh, session-batch-split, `RELEASE_FD`, nonblocking poll coverage, public `RESET_SESSION`/file-close cleanup, RGA request-config staging and reconfiguration resource/acquire-fence/gauss replacement coverage, request-config ioctl staging/acquire-fd ownership/no-release-fence-export coverage, configured request cancel/file-close cleanup, async close cleanup for jobs pending on acquire fences and jobs already queued on hardware, last-hardware pending-acquire cleanup, the RK3588 `im2d_slt` RGB/RGBA-to-YUV three-channel alpha-blend profile, modern async request-submit acquire/release-fence coverage, legacy `RGA_BLIT_ASYNC` acquire/release-fence coverage for current `librga` single-task async calls, and mixed-task RGA3-to-RGA2 core handoff/requeue coverage. |
+| Mainline-master state | public branch `linux-rock5b/rk3588-rewrite-mainline` at **`f484553d0e84`** ("media: rockchip: abort rga pending jobs on last remove"), matching clean sibling worktree `/home/yi/Code/linux`; it carries the rewrite drivers plus the mainline-master DT/wiring work and the V4L2 RGA3 comparison tree discussed in §1. |
+| Validation | Focused compile gates pass at the public tips: mainline `make O=/tmp/rkcompat-mainline-rga-afbc-gcc ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j16 drivers/video/rockchip/rga-rewrite/rga_rewrite.o`; 6.18 `make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j16 drivers/video/rockchip/rga-rewrite/rga_rewrite.o`; `git diff --check` and cross-tree `cmp` also passed for the touched RGA source/docs files. Both rewrite drivers carry optional KUnit coverage for pure ABI/helper logic, and the source-level ABI ledgers record the implemented/unsupported boundary per §2/§3; the latest RGA KUnit slice compiles coverage for last-hardware removal while an async legacy blit is still pending on an acquire fence, proving the release fence is signaled with `-ENODEV` and job/import refs drain before the previous file-close queued-job cleanup, pending-acquire close cleanup, MPP reset/release cleanup, RGA configured-request teardown, request-config ioctl staging/acquire-fd ownership, resource/acquire-fence/gauss reconfiguration, mixed-task handoff, and async acquire/release-fence paths. This is still code/ABI-ledger progress rather than proof from a booted rewrite kernel. [`tests/abi-probe.sh`](../tests/abi-probe.sh) is the fast non-submit ABI log-diff gate for whichever implementation owns `/dev/mpp_service` and `/dev/rga`; [`tests/librga-smoke.sh`](../tests/librga-smoke.sh) is the tiny direct librga/im2d copy/resize/fill smoke; [`tests/rewrite-smoke.sh`](../tests/rewrite-smoke.sh) runs the ABI probe plus decode/encode/transcode consumer workloads. The broader conformance plan is staged outside this repo at `../rockchip-conformance`: JeffyCN GStreamer Rockchip, official MPP tests, official librga samples, the Linux MPP/RGA/DRM demo, and RKMediaCodecDemo, with per-profile logs for rewrite vs forward-port runs. **UNVERIFIED in this repo**: the workload gate and expanded conformance bundle have not yet passed on hardware through the rewrite; no validation record equivalent to status.md exists yet. |
 
 Cross-references: [uAPI guide](./dev-uapis.md) (uAPI surface),
 [userspace library guide](../../userspace-libraries/docs/how-the-userspace-libs-work.md) (the librga behaviours §3
