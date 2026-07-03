@@ -20,6 +20,7 @@ patches unless explicitly marked otherwise.
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local `rk3588-rewrite-6.18` @ `42fa9c66344d` + local `rk3588-rewrite-mainline` @ `1b8c7d948fe9` — **not yet public**, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | local `../linux/drivers/media/platform/rockchip/rga/` on `rk3588-rewrite-mainline` @ `180ee72a9a80`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver tests](../kernel-drivers/tests/README.md) "Expanded conformance bundle" | local `../rockchip-conformance`, see §10 |
+| 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
 
 ---
 
@@ -247,3 +248,28 @@ build librga samples, build JeffyCN's Meson-based GStreamer plugin tree, collect
 system/device state, and write per-profile logs under `logs/rewrite/` and
 `logs/forward-port/`. See [kernel-driver tests](../kernel-drivers/tests/README.md)
 for the test matrix and pass/fail interpretation.
+
+## 11. RK3588 AV1 / VSI-IOMMU comparison trees
+
+The AV1 note was written from three local trees on 2026-07-02:
+
+| Tree | Local path | Pin used for the observation | Relevant files |
+|------|------------|------------------------------|----------------|
+| Forward-port / rewrite 6.18 tree | `/home/yi/Code/linux-6.18-rkvenc` | branch `rk3588-rewrite-6.18`, commit `a81feb1e2971`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-6.18` | `drivers/video/rockchip/mpp/`, `drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
+| Upstream-style comparison tree | `/home/yi/Code/linux` | branch `rk3588-rewrite-mainline`, commit `839de47fcda2`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-mainline` | `drivers/iommu/vsi-iommu.c`, `Documentation/devicetree/bindings/iommu/verisilicon,iommu.yaml`, `drivers/media/platform/verisilicon/`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
+| Rockchip BSP donor | `/home/yi/Code/rockchip-kernel` | `develop-6.1` commit `b4ef083dc0c3` | `drivers/video/rockchip/mpp/mpp_av1dec.c`, `drivers/iommu/rockchip-iommu-av1d.c`, `drivers/iommu/rockchip-iommu.c`, `arch/arm64/boot/dts/rockchip/rk3588s.dtsi` |
+
+The upstream-style tree contains the AV1 IOMMU work as ordinary upstream commits:
+
+| Commit | Subject |
+|--------|---------|
+| `90d50734815a` | `dt-bindings: iommu: verisilicon: Add binding for VSI IOMMU` |
+| `917ace84b770` | `iommu: Add verisilicon IOMMU driver` |
+| `6ddfbec80077` | `arm64: dts: rockchip: Add verisilicon IOMMU node on RK3588` |
+| `80b0d3546ce1` | `iommu: vsi: avoid -Wformat-security warning` |
+| `3040784f8721` | `iommu/vsi: Use list_for_each_entry()` |
+
+Those commits are the likely source to reuse for any RKMPP AV1 forward-port
+experiment. The YSP repo does **not** vendor those files today; this section is
+a provenance record for the analysis in
+[`kernel-drivers/docs/av1-rk3588.md`](../kernel-drivers/docs/av1-rk3588.md).

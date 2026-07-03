@@ -76,6 +76,14 @@ to reproduce the build**:
   (`rockchip_iommu.h:33-39`). Cost: the fault-storm mask in the pagefault handler
   is disabled, and the error-recovery re-attach in `mpp_iommu_refresh()` is a
   no-op (its return is ignored).
+  AV1 is the important exception: these stubs are **not** an AV1D IOMMU. The
+  validated RKVDEC2/RKVENC2 path still maps buffers through Linux's generic
+  IOMMU/DMA APIs, while the BSP AV1 path needs a separate
+  `rockchip,iommu-av1d` provider. The newer upstream-style path uses
+  `drivers/iommu/vsi-iommu.c` with `rockchip,rk3588-av1-iommu` /
+  `verisilicon,iommu-1.2`; that driver allocates/programs AV1 page tables, PTA,
+  fault IRQs, and TLB flushes. See [RK3588 AV1 decode, IOMMU, and userspace
+  paths](./av1-rk3588.md).
 - **`rockchip_opp_select.h`** (`:53-58`) returns `-EOPNOTSUPP`, so
   `rkvenc_devfreq_init()` bails before registering anything. Note `struct
   rockchip_opp_info` is **embedded by value** in `struct rkvenc_dev`

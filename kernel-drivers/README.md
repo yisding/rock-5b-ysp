@@ -74,6 +74,7 @@ Read in this order when changing or reviewing kernel behavior:
 | What changes on vanilla mainline? | [`docs/vanilla-kernel.md`](docs/vanilla-kernel.md) |
 | What are the known traps? | [`../docs/gotchas.md`](../docs/gotchas.md) |
 | What did the BSP audit find? | [`docs/bsp-audit.md`](docs/bsp-audit.md) |
+| What is the RK3588 AV1 path, and why is it separate from RKVDEC2? | [`docs/av1-rk3588.md`](docs/av1-rk3588.md) |
 | How do we resync to a new kernel or BSP? | [`docs/resyncing.md`](docs/resyncing.md) |
 
 ## Directory layout

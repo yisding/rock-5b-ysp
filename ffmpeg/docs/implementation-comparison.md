@@ -171,6 +171,43 @@ The fork's broader codec list is not the same thing as this repo validating ever
 listed codec on RK3588. This repo's hardware goal and tests are H.264/H.265
 decode, H.264/H.265 encode, and RGA scale/CSC.
 
+### AV1 on RK3588: RKMPP vs V4L2 stateless
+
+AV1 is a special case on RK3588. The board has a hardware AV1 decoder, but it is
+not one of the RKVDEC2 cores validated by this YSP forward-port.
+
+| Path | Current state for this project |
+|------|--------------------------------|
+| ffmpeg-rockchip `av1_rkmpp` | The fork registers an AV1 RKMPP decoder and libmpp has AV1 parser/HAL support, but the kernel side needs the vendor `MPP_DEVICE_AV1DEC` backend. This YSP forward-port does not wire that backend, so `av1_rkmpp` should not be expected to work here. |
+| upstream FFmpeg 8.1.2 | Registers `h264_rkmpp`, `hevc_rkmpp`, `vp8_rkmpp`, and `vp9_rkmpp` decoders only. It does **not** register `av1_rkmpp`. |
+| FFmpeg V4L2 M2M | FFmpeg's `*_v4l2m2m` decoders are for stateful mem2mem devices. RK3588's upstream AV1 support is V4L2 **stateless Request API**, so there is no `av1_v4l2m2m` solution for this hardware. |
+| FFmpeg V4L2 Request | Neither upstream FFmpeg 8.1.2 nor the ffmpeg-rockchip tree inspected here contains a stateless V4L2 Request AV1 frontend (`V4L2_CID_STATELESS_AV1_*` driver). AV1 falls back to software/native/libdav1d in FFmpeg. |
+| GStreamer `v4l2codecs` | This is the clearest userspace path for the upstream AV1 decoder: `v4l2slav1dec` is designed for V4L2 stateless AV1 and can output DMABuf-backed frames. |
+| Chromium | Chromium has a V4L2 stateless backend with an AV1 delegate, useful for browser playback experiments rather than CLI transcode. |
+
+The practical transcode consequence: without a working `av1_rkmpp` kernel
+backend, ffmpeg-rockchip AV1 input is software decode -> CPU/system memory ->
+upload/import into the MPP encoder. That is slower mostly because AV1 decode is
+on the CPU and because of extra copies; RGA only matters when the pipeline also
+needs scale/crop/format conversion. A zero-copy AV1-hardware-decode ->
+RGA/MPP-encode path is plausible through the upstream V4L2 stateless decoder,
+but FFmpeg does not currently provide the plumbing in this stack. GStreamer or a
+custom dmabuf-aware pipeline is the more realistic test vehicle.
+
+References for current userspace candidates:
+
+| Candidate | Notes |
+|-----------|-------|
+| GStreamer `v4l2codecs` | <https://gstreamer.freedesktop.org/documentation/v4l2codecs/index.html> |
+| GStreamer `v4l2slav1dec` | <https://gstreamer.freedesktop.org/documentation/v4l2codecs/v4l2slav1dec.html> |
+| Chromium V4L2 GPU backend | <https://chromium.googlesource.com/chromium/src/+/refs/heads/main/media/gpu/v4l2/> |
+| Linux stateless decoder API | <https://www.kernel.org/doc/html/latest/userspace-api/media/v4l/dev-stateless-decoder.html> |
+| Bootlin `libva-v4l2-request` | MPEG2/H.264/H.265 only at the inspected README, so not an AV1 answer: <https://github.com/bootlin/libva-v4l2-request> |
+| Bootlin `v4l2-request-test` | MPEG2/H.264 only at the inspected README, so not an AV1 answer: <https://github.com/bootlin/v4l2-request-test> |
+
+Kernel-side AV1 details live in
+[`kernel-drivers/docs/av1-rk3588.md`](../../kernel-drivers/docs/av1-rk3588.md).
+
 ## 4. Encoder behavior
 
 Encoder differences are the most important application-facing differences.

@@ -42,6 +42,14 @@ nodes* as the forward-port: `rockchip,rkv-encoder-v2-core`,
 the RGA2/RGA3 compatibles incl. the mainline `rockchip,rk3588-rga`
 (`rga_rewrite.c:6536-6543`).
 
+Important codec boundary: neither the forward-port nor the MPP rewrite currently
+exposes RK3588 AV1 through `/dev/mpp_service`. AV1 lives on a separate
+Verisilicon/VPU981 hardware block, with a separate BSP `mpp_av1dec.c` backend and
+a dedicated AV1 IOMMU. The newer upstream-style `../linux` tree has a clean
+`vsi-iommu` provider and Hantro/V4L2 stateless AV1 support, but that is not the
+same userspace ABI as RKMPP. See [RK3588 AV1 decode, IOMMU, and userspace
+paths](./av1-rk3588.md).
+
 Each driver carries an in-tree **`ABI.rst`** — a precise
 implemented / recognized-but-unsupported / out-of-scope ledger of the BSP ioctl
 surface. Those files are the authority; §2/§3 below transcribe the durable
