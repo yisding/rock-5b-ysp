@@ -327,6 +327,51 @@ static int nv12_changed_from_sentinel(const uint8_t *buf, size_t size)
 	return 0;
 }
 
+static void fill_nv12_pattern(uint8_t *buf, int width, int height)
+{
+	uint8_t *y_plane = buf;
+	uint8_t *uv_plane = buf + ((size_t)width * height);
+
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++)
+			y_plane[(size_t)y * width + x] =
+				(uint8_t)(0x20 + ((x * 3 + y * 5) & 0x7f));
+	}
+
+	for (int y = 0; y < height / 2; y++) {
+		for (int x = 0; x < width; x += 2) {
+			uv_plane[(size_t)y * width + x] =
+				(uint8_t)(0x50 + ((x + y) & 0x1f));
+			uv_plane[(size_t)y * width + x + 1] =
+				(uint8_t)(0x90 + ((x * 2 + y) & 0x1f));
+		}
+	}
+}
+
+static void fill_i420_pattern(uint8_t *buf, int width, int height)
+{
+	size_t y_size = (size_t)width * height;
+	size_t uv_size = y_size / 4;
+	uint8_t *y_plane = buf;
+	uint8_t *u_plane = y_plane + y_size;
+	uint8_t *v_plane = u_plane + uv_size;
+
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++)
+			y_plane[(size_t)y * width + x] =
+				(uint8_t)(0x10 + ((x + y * 2) & 0xbf));
+	}
+
+	for (int y = 0; y < height / 2; y++) {
+		for (int x = 0; x < width / 2; x++) {
+			u_plane[(size_t)y * (width / 2) + x] =
+				(uint8_t)(0x60 + ((x * 3 + y) & 0x1f));
+			v_plane[(size_t)y * (width / 2) + x] =
+				(uint8_t)(0xa0 + ((x + y * 3) & 0x1f));
+		}
+	}
+}
+
 static int run_legacy_virtual_to_dmabuf_convert(void)
 {
 	const int src_w = 64;
@@ -422,6 +467,222 @@ out:
 	return ret;
 }
 
+static int run_legacy_dmabuf_to_dmabuf_rotate_convert(void)
+{
+	const int src_w = 64;
+	const int src_h = 32;
+	const int dst_w = 32;
+	const int dst_h = 64;
+	const size_t src_size = (size_t)src_w * src_h * 3 / 2;
+	const size_t dst_size = (size_t)dst_w * dst_h * TEST_BPP;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_info_t src = {};
+	rga_info_t dst = {};
+	int ret;
+
+	ret = dmabuf_alloc_any(src_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "legacy RGA NV12 source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(dst_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "legacy RGA BGRx dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "legacy RGA NV12 source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_nv12_pattern(dma_src.mem, src_w, src_h);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "legacy RGA NV12 source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "legacy RGA BGRx dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "legacy RGA BGRx dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src.fd = dma_src.fd;
+	src.format = RK_FORMAT_YCbCr_420_SP;
+	src.rotation = HAL_TRANSFORM_ROT_90;
+	src.mmuFlag = 1;
+	rga_set_rect(&src.rect, 0, 0, src_w, src_h, src_w, src_h,
+		     RK_FORMAT_YCbCr_420_SP);
+
+	dst.fd = dma_dst.fd;
+	dst.format = RK_FORMAT_BGRX_8888;
+	dst.mmuFlag = 1;
+	rga_set_rect(&dst.rect, 0, 0, dst_w, dst_h, dst_w, dst_h,
+		     RK_FORMAT_BGRX_8888);
+
+	if (c_RkRgaInit()) {
+		fprintf(stderr, "legacy RGA init failed\n");
+		ret = 1;
+		goto out;
+	}
+
+	if (c_RkRgaBlit(&src, &dst, NULL)) {
+		fprintf(stderr, "legacy RGA dmabuf rotate blit failed\n");
+		c_RkRgaDeInit();
+		ret = 1;
+		goto out;
+	}
+	c_RkRgaDeInit();
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "legacy RGA BGRx dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!nv12_changed_from_sentinel(dma_dst.mem, dma_dst.size)) {
+		fprintf(stderr, "legacy RGA dmabuf rotate output unchanged\n");
+		ret = 1;
+	} else {
+		ret = 0;
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"legacy RGA BGRx dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "legacy RGA NV12->BGRx",
+		       dma_dst.heap_path);
+
+out:
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
+static int run_legacy_planar_to_semiplanar_convert(void)
+{
+	const int width = 64;
+	const int height = 64;
+	const size_t image_size = (size_t)width * height * 3 / 2;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_info_t src = {};
+	rga_info_t dst = {};
+	int ret;
+
+	ret = dmabuf_alloc_any(image_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "legacy RGA I420 source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(image_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "legacy RGA NV12 dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "legacy RGA I420 source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_i420_pattern(dma_src.mem, width, height);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "legacy RGA I420 source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "legacy RGA NV12 dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "legacy RGA NV12 dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src.fd = dma_src.fd;
+	src.format = RK_FORMAT_YCbCr_420_P;
+	src.mmuFlag = 1;
+	rga_set_rect(&src.rect, 0, 0, width, height, width, height,
+		     RK_FORMAT_YCbCr_420_P);
+
+	dst.fd = dma_dst.fd;
+	dst.format = RK_FORMAT_YCbCr_420_SP;
+	dst.mmuFlag = 1;
+	rga_set_rect(&dst.rect, 0, 0, width, height, width, height,
+		     RK_FORMAT_YCbCr_420_SP);
+
+	if (c_RkRgaInit()) {
+		fprintf(stderr, "legacy RGA init failed\n");
+		ret = 1;
+		goto out;
+	}
+
+	if (c_RkRgaBlit(&src, &dst, NULL)) {
+		fprintf(stderr, "legacy RGA planar blit failed\n");
+		c_RkRgaDeInit();
+		ret = 1;
+		goto out;
+	}
+	c_RkRgaDeInit();
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "legacy RGA NV12 dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!nv12_changed_from_sentinel(dma_dst.mem, dma_dst.size)) {
+		fprintf(stderr, "legacy RGA planar output unchanged\n");
+		ret = 1;
+	} else {
+		ret = 0;
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"legacy RGA NV12 dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "legacy RGA I420->NV12",
+		       dma_dst.heap_path);
+
+out:
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 int main(void)
 {
 	const size_t src_size = TEST_SRC_W * TEST_SRC_H * TEST_BPP;
@@ -505,6 +766,14 @@ int main(void)
 		goto out;
 
 	ret = run_legacy_virtual_to_dmabuf_convert();
+	if (ret)
+		goto out;
+
+	ret = run_legacy_dmabuf_to_dmabuf_rotate_convert();
+	if (ret)
+		goto out;
+
+	ret = run_legacy_planar_to_semiplanar_convert();
 	if (ret)
 		goto out;
 

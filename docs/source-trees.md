@@ -280,9 +280,11 @@ decode/encode lifecycle operations, MPP allocator import/export of dma-bufs,
 optional AFBC decode/encode negotiation, and legacy `c_RkRgaBlit()` scale,
 format-convert, and rotate operations between fd-backed MPP/GStreamer buffers.
 The kernel trees now have focused KUnit coverage for the highest-value legacy
-RGA conversion profiles; GStreamer pipeline conformance on a booted rewrite
-kernel remains the next userspace-visible priority before chasing diagnostic-only
-RGA sample profiles.
+RGA conversion profiles, and the support repo's direct `librga-smoke.sh` mirrors
+those public `c_RkRgaBlit()` calls for encoder-side virtual-source conversion,
+decode-side fd-backed rotate/format conversion, and planar fallback. GStreamer
+pipeline conformance on a booted rewrite kernel remains the next
+userspace-visible priority before chasing diagnostic-only RGA sample profiles.
 
 ## 11. RK3588 AV1 / VSI-IOMMU comparison trees
 
