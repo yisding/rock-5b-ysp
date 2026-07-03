@@ -18,6 +18,7 @@ GST_TIMEOUT=${GST_TIMEOUT:-120}
 GST_NUM_BUFFERS=${GST_NUM_BUFFERS:-60}
 GST_STATE_LOOPS=${GST_STATE_LOOPS:-4}
 GST_STATE_LOOP_BUFFERS=${GST_STATE_LOOP_BUFFERS:-8}
+GST_CAPS_RENEGOTIATE_BUFFERS=${GST_CAPS_RENEGOTIATE_BUFFERS:-8}
 GST_FORMAT_MATRIX_BUFFERS=${GST_FORMAT_MATRIX_BUFFERS:-16}
 GST_GENERATED_INPUT_BUFFERS=${GST_GENERATED_INPUT_BUFFERS:-30}
 GST_WIDTH=${GST_WIDTH:-320}
@@ -48,6 +49,8 @@ generated_transcode_h264_to_h265
 generated_transcode_h265_to_h264
 generated_transcode_h264_rga_to_h265
 generated_transcode_h264_dmabuf_to_h265
+caps_renegotiate_h264_nv12
+caps_renegotiate_h265_nv12
 state_loop_h264_nv12
 state_loop_roundtrip_h264
 "
@@ -355,6 +358,26 @@ build_parallel_roundtrip()
 	)
 }
 
+build_caps_renegotiate_encode()
+{
+	local encoder=$1
+
+	CMD=(
+		gst-launch-1.0 -q
+		concat name=c
+		"!" "$encoder" zero-copy-pkt=true
+		"!" fakesink sync=false
+		videotestsrc "num-buffers=$GST_CAPS_RENEGOTIATE_BUFFERS" is-live=false pattern=smpte
+		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" queue
+		"!" c.
+		videotestsrc "num-buffers=$GST_CAPS_RENEGOTIATE_BUFFERS" is-live=false pattern=ball
+		"!" "video/x-raw,format=NV12,width=$GST_SCALE_WIDTH,height=$GST_SCALE_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" queue
+		"!" c.
+	)
+}
+
 build_case_command()
 {
 	local case_name=$1
@@ -468,6 +491,12 @@ build_case_command()
 		;;
 	generated_transcode_h264_dmabuf_to_h265)
 		CMD=(__builtin_generated_transcode h264 mpph265enc dma-feature=true)
+		;;
+	caps_renegotiate_h264_nv12)
+		build_caps_renegotiate_encode mpph264enc
+		;;
+	caps_renegotiate_h265_nv12)
+		build_caps_renegotiate_encode mpph265enc
 		;;
 	roundtrip_h264_rga_bgr16)
 		build_videotest_roundtrip mpph264enc h264parse \

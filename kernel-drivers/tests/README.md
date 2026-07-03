@@ -227,6 +227,7 @@ kernel paths:
 - `generated_transcode_h264_to_h265`, `generated_transcode_h265_to_h264`,
   `generated_transcode_h264_rga_to_h265`,
   `generated_transcode_h264_dmabuf_to_h265`;
+- `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`;
 - `state_loop_h264_nv12`, `state_loop_roundtrip_h264`.
 
 The generated-media cases first write short H.264/H.265 elementary streams
@@ -236,6 +237,10 @@ transcode pipelines. That keeps the default run self-contained while covering
 the media-file path that same-pipeline roundtrips do not hit. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
+The caps-renegotiation cases feed two finite raw NV12 segments with different
+dimensions through one `concat ! mpp*h26*enc` pipeline, forcing JeffyCN's
+encoder `set_format()` path to drain and reset the existing MPP session inside
+one GStreamer pipeline rather than only across process restarts.
 
 Set `GST_H264_INPUT` and/or `GST_H265_INPUT` to add decode/transcode cases
 automatically:
@@ -253,6 +258,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_rga_scale`, `generated_transcode_h264_to_h265`,
 `generated_transcode_h265_to_h264`, `generated_transcode_h264_rga_to_h265`,
 `generated_transcode_h264_dmabuf_to_h265`,
+`caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
 `dec_h264_fakesink`, `dec_h265_fakesink`, `dec_h264_rga_rotate`,
 `dec_h265_rga_scale`, `transcode_h264_to_h265`,
 `transcode_h265_to_h264`, `transcode_h264_rga_to_h265`,
@@ -272,8 +278,8 @@ format paths. Override with
 `GST_DIAGNOSTIC_CASES` for narrower hardware debugging, and tune dimensions with
 `GST_WIDTH`, `GST_HEIGHT`, `GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,
 `GST_NUM_BUFFERS`, `GST_FORMAT_MATRIX_BUFFERS`,
-`GST_GENERATED_INPUT_BUFFERS`, `GST_STATE_LOOPS`, and `GST_TIMEOUT`. After both
-kernels have a suite result, run
+`GST_GENERATED_INPUT_BUFFERS`, `GST_CAPS_RENEGOTIATE_BUFFERS`,
+`GST_STATE_LOOPS`, and `GST_TIMEOUT`. After both kernels have a suite result, run
 `gstreamer-suite-compare.sh`; it follows the same baseline pass vs candidate
 pass rule as the MPP/RGA comparators and supports the same `PERF_MAX_RATIO`
 elapsed-time slowdown gate.
