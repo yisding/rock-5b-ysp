@@ -53,6 +53,46 @@ flowchart LR
 | RKNPU | Vendor NPU runtime ABI. |
 | procfs/debugfs | Product diagnostics and status reporting. |
 
+## RKNPU ABI details
+
+The RKNPU ABI is a vendor register-task ABI used by Rockchip RKNN userspace. It
+has two kernel entry shapes depending on build configuration:
+
+- DRM ioctls when `ROCKCHIP_RKNPU_DRM_GEM` is selected,
+- `/dev/rknpu` misc-device ioctls when `ROCKCHIP_RKNPU_DMA_HEAP` is selected.
+
+In both cases the logical operations are action, submit, memory create, memory
+map, memory destroy, and memory sync. The action ioctl reports items such as
+hardware version, driver version, current frequency/voltage, bandwidth counters,
+IOMMU state, SRAM size, and IOMMU domain id. Some set-style actions are present
+for ABI compatibility even when the driver does little or no policy work for
+them.
+
+The submit ioctl is not a high-level neural-network API. RKNN userspace passes a
+task object containing low-level RKNPU task records, interrupt masks, and
+register-command addresses. The kernel validates basic fields, selects or uses a
+requested NPU core mask, switches to the requested IOMMU domain, programs
+PC-mode task registers, and waits for IRQ or fence completion.
+
+```mermaid
+flowchart LR
+  app["Application"]
+  rknn["RKNN runtime"]
+  header["RKNPU ioctl structs"]
+  kernel["drivers/rknpu"]
+  taskbuf["PC-mode task buffer"]
+  npu["NPU hardware"]
+
+  app --> rknn
+  rknn --> header --> kernel
+  rknn --> taskbuf --> kernel
+  kernel --> npu
+```
+
+This means RKNN compatibility depends on more than the device node existing. The
+runtime, ioctl header layout, memory backend, IOMMU behavior, core mask, and task
+format must match the kernel driver.
+
 ## Developer notes
 
 Userspace registration is not the same as a working hardware path. For example,
@@ -75,6 +115,8 @@ When documenting or testing BSP behavior, record:
 |---------|-------------|
 | ioctl returns `EINVAL` | userspace/header/kernel struct mismatch |
 | device opens but first job fails | missing subdriver, DT node, IOMMU, or heap access |
+| RKNPU submit returns `EINVAL` | invalid task count, unsupported core mask, non-PC job flags, bad IOMMU domain, or fence config mismatch |
+| RKNPU job times out | bad userspace task buffer, interrupt-mask mismatch, IOMMU fault, power/reset issue, or wrong RKNN/runtime pairing |
 | codec name appears but hardware does not run | userspace advertises more than the enabled kernel path |
 | works only as root | udev/ACL/group/heap permissions |
 | behavior changes after package update | library/header/runtime mismatch |

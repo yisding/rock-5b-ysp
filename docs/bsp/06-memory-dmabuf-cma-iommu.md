@@ -59,6 +59,35 @@ AV1 on RK3588 is a good example of why memory plumbing is architectural. The BSP
 adds `rockchip-iommu-av1d.c` because the AV1D block uses a different IOMMU model
 than normal Rockchip `iommu-v2` nodes.
 
+RKNPU is another example. Its default DRM GEM memory manager can allocate
+contiguous buffers, fall back to non-contiguous pages when IOMMU is available,
+and return one NPU-visible DMA or IOVA address to RKNN userspace. The alternate
+dma-heap path imports or allocates dma-bufs from Rockchip CMA heap support. Both
+paths use the RKNPU private memory ioctls rather than a generic accelerator ABI.
+
+```mermaid
+flowchart TD
+  mem_create["RKNPU MEM_CREATE"]
+  flags["Buffer flags<br/>cacheable, contiguous, IOMMU, SRAM, NBUF"]
+  gem_path["DRM GEM backend"]
+  heap_path["Rockchip dma-heap backend"]
+  iommu_path["RKNPU IOMMU mapping"]
+  cache_path["Optional SRAM or NBUF cache window"]
+  device_addr["NPU-visible DMA or IOVA address"]
+
+  mem_create --> flags
+  flags --> gem_path --> iommu_path
+  flags --> heap_path --> iommu_path
+  flags --> cache_path --> iommu_path
+  iommu_path --> device_addr
+```
+
+The RKNPU IOMMU code can manage multiple domains and switches domains only when
+its active-domain refcount reaches zero. That is different from the simpler
+"map this dma-buf for this device" model used by many peripheral drivers, and it
+is a reason RKNPU buffer lifetime, job lifetime, and domain id must be debugged
+together.
+
 ## Common failure signs
 
 | Symptom | Likely area |

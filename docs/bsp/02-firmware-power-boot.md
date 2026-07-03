@@ -62,6 +62,40 @@ sequenceDiagram
 | Suspend policy | Product suspend modes and debug paths beyond generic PM. |
 | Boot policy | Thunder Boot/async initcall style product-boot optimizations. |
 
+## Thunder Boot platform handoff
+
+Thunder Boot sits partly in this area because it coordinates Linux with work that
+may have started before normal Linux driver ownership. The BSP adds Rockchip SoC
+drivers for:
+
+- early ramdisk decompression with optional hardware crypto validation,
+- MMC or SPI-flash handoff nodes that point at compressed and decompressed
+  ramdisk reserved-memory regions,
+- mailbox-based MCU/AP handoff through `rockchip,thunder-boot-service`,
+- optional freeing of RTOS or transfer buffers after Linux has safely taken over.
+
+```mermaid
+sequenceDiagram
+  participant mcu as Loader or MCU
+  participant mem as Reserved memory
+  participant svc as Thunder Boot service
+  participant linux as Linux drivers
+  participant user as Product userspace
+
+  mcu->>mem: prepare ramdisk, camera frames, or RTOS state
+  linux->>mem: map reserved Thunder Boot regions
+  mcu->>svc: mailbox done message
+  svc->>linux: run registered handoff callbacks
+  linux->>mem: adopt buffers or free reserved areas
+  linux->>user: expose normal devices after takeover
+```
+
+The firmware/platform risk is ownership. A normal driver may assume hardware is
+idle at probe. A Thunder Boot product may require the driver to preserve clock,
+GPIO, DMA, or camera state until a handoff marker says it is safe to take over.
+That is why Thunder Boot should be treated as product policy plus firmware
+contract, not as a generic boot-speed option.
+
 ## Developer notes
 
 Some BSP drivers compile without the full service layer, but their runtime
