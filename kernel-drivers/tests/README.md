@@ -158,8 +158,11 @@ Override with `RGA_REQUIRED_CASES` or `RGA_DIAGNOSTIC_CASES` when intentionally
 probing a narrower or broader profile.
 After both kernels have a suite result, run `librga-suite-compare.sh`. It finds
 the latest `summary.tsv` for `BASELINE=forward-port` and `CANDIDATE=rewrite`
-by default, prints a per-case verdict table, and exits nonzero only when a
-required case passed on the baseline but did not pass on the candidate.
+by default, prints a per-case verdict table with elapsed-time ratios, and exits
+nonzero when a required case passed on the baseline but did not pass on the
+candidate. Set `PERF_MAX_RATIO` to also fail required cases that pass on both
+profiles but are slower than the configured candidate/baseline elapsed-time
+ratio.
 
 `mpp-suite.sh` is the matching versioned wrapper for Rockchip MPP's official
 `test/` binaries from `../rockchip-conformance/out/mpp/bin`. It writes
@@ -195,8 +198,10 @@ For one-off compatibility with the older external smoke script, setting
 `MPP_DEC_INPUT`/`MPP_DEC_TYPE` or `MPP_ENC_INPUT`/`MPP_ENC_*` without
 `MPP_REQUIRED_CASES` automatically adds `mpi_dec_custom` or `mpi_enc_custom`.
 After both kernels have a suite result, run `mpp-suite-compare.sh`. Like the RGA
-comparator, it fails only when a required forward-port pass is not a rewrite
-pass; diagnostic differences are printed but do not make the comparator fail.
+comparator, it prints elapsed-time ratios and fails when a required forward-port
+pass is not a rewrite pass. Set `PERF_MAX_RATIO` when using the compare step as
+a performance gate; diagnostic differences and slowdowns are printed but do not
+make the comparator fail.
 
 `gstreamer-suite.sh` is the versioned wrapper for JeffyCN's
 `gstreamer-rockchip` plugin from `../rockchip-conformance/out/gstreamer-rockchip`.
@@ -243,7 +248,8 @@ Diagnostic cases include `parallel_enc_h264`, `parallel_roundtrip_h264`,
 `GST_WIDTH`, `GST_HEIGHT`, `GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,
 `GST_NUM_BUFFERS`, `GST_STATE_LOOPS`, and `GST_TIMEOUT`. After both kernels have
 a suite result, run `gstreamer-suite-compare.sh`; it follows the same baseline
-pass vs candidate pass rule as the MPP/RGA comparators.
+pass vs candidate pass rule as the MPP/RGA comparators and supports the same
+`PERF_MAX_RATIO` elapsed-time slowdown gate.
 
 **Privileges** (this differs per test):
 
@@ -281,12 +287,12 @@ pass vs candidate pass rule as the MPP/RGA comparators.
 |------|-----------|----------------|
 | `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Builds and runs a small C probe that records MPP/RGA ioctl numbers, struct sizes, `/proc/mpp_service` command-advertisement markers when visible, safe query results, MPP client-type HW-ID replay, initialized MPP session controls (`INIT_DRIVER_DATA`, `SEND_CODEC_INFO`, `RESET_SESSION`, and advertised `SET_ERR_REF_HACK`), a safe two-message MPP init batch, `SET_SESSION_FD` bad-fd `mpp_bat_msg.ret = -EBADF` and `MPP_BAT_MSG_DONE` marker handling, RGA version tuples/strings with exact version-query returns including intentional `RGA2_GET_VERSION ret=1`, no-op ioctl return codes, RGA virtual-address import/release, and modern RGA request create/config/cancel with a handle-backed bitblit task. Use the same binary/log format on the forward port and rewrite, then diff the logs. Exit `77` means both device nodes are absent. |
 | `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Exit `77` means `/dev/mpp_service` is absent. |
-| `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; diagnostic differences are printed but do not fail the comparator. |
+| `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
 | `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ client against staged `librga`: virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd` copy, legacy `c_RkRgaBlit()` conversions shaped like JeffyCN GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing, rotated NV12 dma-buf to BGRx dma-buf decode conversion, and planar I420 dma-buf to NV12 dma-buf fallback), sync `imcopy`/`imresize`/`imfill`, forced RGA3 core-mask + priority copy through `improcess`, forced RGA2 `IM_PRE_INTR` read/write line-interrupt copy, and an async acquire/release-fence copy chain waited with `imsync`. This exercises the maintained librga import/submit/core/fence/pre-intr paths independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite.sh` | **official librga sample conformance** using `../rockchip-conformance/out/librga-samples/bin` | Runs the broad current Linux/RK3588 sample set under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails only required cases. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
-| `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; diagnostic differences are printed but do not fail the comparator. |
+| `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
 | `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real `gst-launch-1.0` encode, RGA-conversion, restart-loop, and optional decode/transcode pipelines under the selected `PROFILE`. It records per-case logs/status/commands plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
-| `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; diagnostic differences are printed but do not fail the comparator. |
+| `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
 | `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates below in one pass, and snapshots rewrite debugfs counters, including aggregate/per-core timing counters, when present. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
 | `test-decode.sh` | **decoder** (`rkvdec2`) | `mpi_dec_test` decodes *software-encoded* H.264 + H.265 320×240 clips to NV12 → exit 0 + non-empty output. Software-encoded input means a failure implicates the **decoder**, not our encoder. |
 | `encode-test-tiny.sh` | **encoder** (VEPU580) | `mpi_enc_test` H.264 + H.265 at 256² and 1280×720 → valid NAL-start bitstreams, exit 0, no IOMMU fault (dmesg-marker scheme with a real-fault regex that excludes benign warnings). Reports PSNR + fps. |
@@ -308,6 +314,16 @@ bash gstreamer-suite-compare.sh       # compare latest forward-port/rewrite GStr
 bash test-decode.sh                  # decoder (device access is enough)
 sudo bash encode-test-tiny.sh        # encoder
 sudo bash transcode-test.sh          # end-to-end (needs ffmpeg-rockchip built — see ../ffmpeg)
+```
+
+To turn the rewrite-vs-forward-port compare step into a performance gate, set a
+candidate/baseline elapsed-time ceiling. For example, this fails any required
+case that passes on both profiles but takes more than 25% longer on the rewrite:
+
+```bash
+PERF_MAX_RATIO=1.25 bash mpp-suite-compare.sh
+PERF_MAX_RATIO=1.25 bash librga-suite-compare.sh
+PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it

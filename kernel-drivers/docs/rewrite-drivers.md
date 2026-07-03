@@ -26,7 +26,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > record comparable to the forward-port's exists yet (§6). The support repo now
 > has versioned wrappers for the official MPP test matrix, official librga
 > sample suite, and JeffyCN GStreamer plugin, plus comparators that flag
-> required forward-port passes missing from the rewrite. The default GStreamer
+> required forward-port passes missing from the rewrite and can enforce an
+> elapsed-time slowdown ceiling with `PERF_MAX_RATIO`. The default GStreamer
 > suite now includes asset-free encoder, RGA-conversion, decoder roundtrip, and
 > state-loop pipelines so the next hardware pass exercises decoder-side buffer
 > groups, short-timeout polling, info-change, reset, and decoder-side RGA
