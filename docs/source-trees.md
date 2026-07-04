@@ -328,9 +328,13 @@ against JeffyCN's `rkximagesink` and `kmssrc`. The GStreamer wrapper now also
 caches generated H.264/H.265 inputs under the shared conformance assets
 directory and records `artifacts.tsv` SHA-256s for generated decode/transcode
 outputs so the comparator can fail required forward-port vs rewrite pixel or
-bitstream mismatches. GStreamer pipeline conformance on a booted rewrite kernel,
-including a real display-plane run and forward-port vs rewrite timing data,
-remains the next userspace-visible priority before chasing diagnostic-only RGA
+bitstream mismatches. The FFmpeg wrapper now also validates current
+ffmpeg-rockchip decoder/RGA filter option discovery, decoder-option null-output
+paths, `scale_rkrga` forced-core/async/AFBC-output transcodes, `vpp_rkrga`
+crop/transpose, and diagnostic decoder `afbc=rga` plus `overlay_rkrga` alpha
+composition. GStreamer and FFmpeg pipeline conformance on a booted rewrite
+kernel, including real display-plane and forward-port vs rewrite timing data,
+remain the next userspace-visible priorities before chasing diagnostic-only RGA
 sample profiles.
 
 ## 11. RK3588 AV1 / VSI-IOMMU comparison trees

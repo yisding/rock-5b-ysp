@@ -26,7 +26,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > record comparable to the forward-port's exists yet (§6). The support repo now
 > has versioned wrappers for the official MPP test matrix, including generated
 > VP9 IVF input for explicit VP9 decode cases, official librga sample suite,
-> JeffyCN GStreamer plugin, and ffmpeg-rockchip CLI transcodes, plus comparators that flag
+> JeffyCN GStreamer plugin, and ffmpeg-rockchip CLI coverage, plus comparators that flag
 > required forward-port passes missing from the rewrite and can enforce an
 > elapsed-time slowdown ceiling with `PERF_MAX_RATIO`. The direct RGA smoke case
 > is now part of the librga suite's required set and records deterministic
@@ -34,10 +34,13 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > GStreamer-shaped `c_RkRgaBlit()`, forced-core, pre-intr, Gaussian, and async
 > fence paths. The broad official librga sample binaries remain primarily
 > pass/fail/timing coverage until a current-userspace gap needs sample-specific
-> output capture. The FFmpeg suite generates
-> shared software H.264/H.265 inputs, runs H.264->RGA->HEVC and
-> HEVC->RGA->H.264 hardware transcodes, and records encoded bitstream byte
-> counts/SHA-256s for forward-port-vs-rewrite comparison. The default GStreamer
+> output capture. The FFmpeg suite generates shared software H.264/H.265 inputs,
+> probes current `ffmpeg-rockchip` decoder/RGA filter options, runs decoder-option
+> null-output cases, H.264->RGA->HEVC and HEVC->RGA->H.264 hardware transcodes,
+> required `scale_rkrga` forced-core/async/AFBC-output and `vpp_rkrga`
+> crop/transpose coverage, and diagnostic decoder `afbc=rga` plus
+> `overlay_rkrga` alpha composition. Encoded outputs record byte counts/SHA-256s
+> for forward-port-vs-rewrite comparison. The default GStreamer
 > suite now includes asset-free encoder, RGA-conversion, decoder roundtrip,
 > generated elementary-stream H.264/H.265 decode/transcode, generated VP9 IVF
 > decode, caps-renegotiation, explicit
@@ -554,13 +557,14 @@ confirm against the TRM before treating either as canonical.
 | Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 8,910 lines; 9,245 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 17,216 lines; 17,736 total incl. `ABI.rst`, `Kconfig`, `Makefile`) |
 | 6.18 state | committed local branch `rk3588-rewrite-6.18` at **`3794c7eed876`** ("media: rockchip: cover gstreamer decoder RGB outputs"), committed in dev worktree `/home/yi/Code/linux-6.18-rkvenc`. It includes the broad RGA/MPP ABI and performance-path work described in §2/§3, the Rock 5B DT self-containment commit for disabled decoder nodes/IOMMUs/SRAM pools, the BSP-derived forward-port recovery cleanup, Rockchip IOMMU `map_pages`/`unmap_pages` count handling for large dma-buf mappings, rewrite MPP/RGA fault-handler registration through the Rockchip provider-local public hook before generic fallback, and explicit KUnit coverage for GStreamer decoder-side 8-bit RGBA/BGRA/RGBx/BGRx RGA output conversions. |
 | Mainline-master state | committed local branch `rk3588-rewrite-mainline` at **`13cde7319359`** ("media: rockchip: cover gstreamer decoder RGB outputs"), committed in sibling worktree `/home/yi/Code/linux`. It carries the same rewrite drivers and userspace-facing ABI coverage, the mainline DT/wiring work, the Rockchip IOMMU map-count fix, the minimal public `include/soc/rockchip/rockchip_iommu.h` provider fault hook used by the rewrites, and the same GStreamer decoder RGB-output KUnit coverage. |
-| Validation | Focused compile gates pass at the committed tips available so far. On 2026-07-04, `ALLOW_DIRTY=1 kernel-drivers/tests/rewrite-build-gate.sh all` built from `git archive` copies and completed warning-free for `../linux-6.18-rkvenc` at `3794c7eed876` and `../linux` at `13cde7319359`, producing the KUnit-enabled `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o` and `drivers/video/rockchip/rga-rewrite/rga_rewrite.o` targets for both kernels. `ALLOW_DIRTY=1` was used only because the 6.18 worktree has unrelated dirty forward-port files; the gate still built committed `HEAD` archives. This is still code/ABI-ledger progress rather than proof from a booted rewrite kernel. The broader conformance plan remains the staged `../rockchip-conformance` forward-port-vs-rewrite workflow for MPP, librga, JeffyCN GStreamer, and ffmpeg-rockchip; booted MPP official-test artifact/timing runs, GStreamer state/allocator/RGA-conversion/display/KMS-capture results, and FFmpeg transcode artifact/timing results are still missing before lower-priority diagnostic BSP profiles. **UNVERIFIED in this repo**: the workload gate and expanded conformance bundle have not yet passed on hardware through the rewrite; no validation record equivalent to status.md exists yet. |
+| Validation | Focused compile gates pass at the committed tips available so far. On 2026-07-04, `ALLOW_DIRTY=1 kernel-drivers/tests/rewrite-build-gate.sh all` built from `git archive` copies and completed warning-free for `../linux-6.18-rkvenc` at `3794c7eed876` and `../linux` at `13cde7319359`, producing the KUnit-enabled `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o` and `drivers/video/rockchip/rga-rewrite/rga_rewrite.o` targets for both kernels. `ALLOW_DIRTY=1` was used only because the 6.18 worktree has unrelated dirty forward-port files; the gate still built committed `HEAD` archives. This is still code/ABI-ledger progress rather than proof from a booted rewrite kernel. The broader conformance plan remains the staged `../rockchip-conformance` forward-port-vs-rewrite workflow for MPP, librga, JeffyCN GStreamer, and ffmpeg-rockchip; booted MPP official-test artifact/timing runs, GStreamer state/allocator/RGA-conversion/display/KMS-capture results, and expanded FFmpeg decoder/RGA-filter artifact/timing results are still missing before lower-priority diagnostic BSP profiles. **UNVERIFIED in this repo**: the workload gate and expanded conformance bundle have not yet passed on hardware through the rewrite; no validation record equivalent to status.md exists yet. |
 
 GStreamer, FFmpeg, and MPP differential testing are now stronger than the table
 row's historical summary: generated H.264/H.265 inputs and generated VP9 IVF
 input are cached under the shared conformance assets directory; generated plus
 optional external-media GStreamer decode/transcode outputs, FFmpeg encoded
-bitstreams, and MPP official-test media outputs are recorded in `artifacts.tsv`
+bitstreams from transcode, forced-core/AFBC, VPP, and diagnostic overlay paths,
+and MPP official-test media outputs are recorded in `artifacts.tsv`
 with byte counts and SHA-256s. GStreamer/FFmpeg comparators require those
 manifests by default; the MPP comparator compares manifests when present and can
 enforce them with `REQUIRE_ARTIFACTS=1` for full media gates.

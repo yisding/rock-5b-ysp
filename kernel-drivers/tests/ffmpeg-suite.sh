@@ -20,6 +20,7 @@ FFMPEG_HEIGHT=${FFMPEG_HEIGHT:-1080}
 FFMPEG_FPS=${FFMPEG_FPS:-30}
 FFMPEG_DURATION=${FFMPEG_DURATION:-2}
 FFMPEG_TIMEOUT=${FFMPEG_TIMEOUT:-180}
+FFMPEG_VALIDATE_CASES=${FFMPEG_VALIDATE_CASES:-0}
 
 if [ -z "${FFDIR:-}" ]; then
 	if [ -x "$REPO_ROOT/../ffmpeg-rockchip-81/ffmpeg" ]; then
@@ -34,44 +35,24 @@ PROBE=${PROBE:-"$FFDIR/ffprobe"}
 
 required_cases_default="
 ffmpeg_probe_rkmpp_rkrga
+ffmpeg_decode_h264_extbuf_to_null
+ffmpeg_decode_hevc_afbc_to_null
 ffmpeg_transcode_h264_to_hevc_rkrga
 ffmpeg_transcode_hevc_to_h264_rkrga
+ffmpeg_filter_scale_rkrga_core_async_afbc
+ffmpeg_filter_vpp_rkrga_crop_transpose
 "
 
 diagnostic_cases_default="
+ffmpeg_transcode_h264_afbc_rga_to_hevc
+ffmpeg_filter_overlay_rkrga_alpha
 "
 
 required_cases=${FFMPEG_REQUIRED_CASES:-$required_cases_default}
 diagnostic_cases=${FFMPEG_DIAGNOSTIC_CASES:-$diagnostic_cases_default}
 failed=0
-
-if [ ! -e /dev/mpp_service ]; then
-	echo "SKIP: /dev/mpp_service is absent on this boot"
-	exit 77
-fi
-if [ ! -e /dev/rga ]; then
-	echo "SKIP: /dev/rga is absent on this boot"
-	exit 77
-fi
-
-if [ ! -x "$FF" ]; then
-	echo "Missing ffmpeg binary: $FF" >&2
-	exit 2
-fi
-if [ ! -x "$PROBE" ]; then
-	echo "Missing ffprobe binary: $PROBE" >&2
-	exit 2
-fi
-
-if [ -d "$STAGE/lib" ]; then
-	export LD_LIBRARY_PATH="$STAGE/lib:${LD_LIBRARY_PATH:-}"
-fi
-
-mkdir -p "$OUT/artifacts" "$FFMPEG_GENERATED_INPUT_CACHE"
 summary="$OUT/summary.tsv"
 artifact_summary="$OUT/artifacts.tsv"
-printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
-printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
 
 record_summary()
 {
@@ -231,11 +212,19 @@ run_probe_components()
 	local encoders="$OUT/ffmpeg-encoders.txt"
 	local filters="$OUT/ffmpeg-filters.txt"
 	local version="$OUT/ffmpeg-version.txt"
+	local h264_decoder_help="$OUT/ffmpeg-h264-rkmpp-decoder-help.txt"
+	local scale_help="$OUT/ffmpeg-scale-rkrga-help.txt"
+	local vpp_help="$OUT/ffmpeg-vpp-rkrga-help.txt"
+	local overlay_help="$OUT/ffmpeg-overlay-rkrga-help.txt"
 
 	"$FF" -hide_banner -version > "$version" 2>&1
 	"$FF" -hide_banner -decoders > "$decoders" 2>&1
 	"$FF" -hide_banner -encoders > "$encoders" 2>&1
 	"$FF" -hide_banner -filters > "$filters" 2>&1
+	"$FF" -hide_banner -h decoder=h264_rkmpp > "$h264_decoder_help" 2>&1
+	"$FF" -hide_banner -h filter=scale_rkrga > "$scale_help" 2>&1
+	"$FF" -hide_banner -h filter=vpp_rkrga > "$vpp_help" 2>&1
+	"$FF" -hide_banner -h filter=overlay_rkrga > "$overlay_help" 2>&1
 
 	head -1 "$version"
 	require_pattern "$decoders" '[[:space:]]h264_rkmpp[[:space:]]' "h264_rkmpp decoder"
@@ -243,6 +232,23 @@ run_probe_components()
 	require_pattern "$encoders" '[[:space:]]h264_rkmpp[[:space:]]' "h264_rkmpp encoder"
 	require_pattern "$encoders" '[[:space:]]hevc_rkmpp[[:space:]]' "hevc_rkmpp encoder"
 	require_pattern "$filters" '[[:space:]]scale_rkrga[[:space:]]' "scale_rkrga filter"
+	require_pattern "$filters" '[[:space:]]vpp_rkrga[[:space:]]' "vpp_rkrga filter"
+	require_pattern "$filters" '[[:space:]]overlay_rkrga[[:space:]]' "overlay_rkrga filter"
+	require_pattern "$h264_decoder_help" 'afbc' "rkmpp decoder afbc option"
+	require_pattern "$h264_decoder_help" 'buf_mode' "rkmpp decoder buf_mode option"
+	require_pattern "$h264_decoder_help" 'fast_parse' "rkmpp decoder fast_parse option"
+	require_pattern "$scale_help" 'force_original_aspect_ratio' "scale_rkrga aspect-ratio option"
+	require_pattern "$scale_help" 'force_yuv' "scale_rkrga force_yuv option"
+	require_pattern "$scale_help" 'force_chroma' "scale_rkrga force_chroma option"
+	require_pattern "$scale_help" 'async_depth' "scale_rkrga async_depth option"
+	require_pattern "$scale_help" 'core' "scale_rkrga core option"
+	require_pattern "$scale_help" 'afbc' "scale_rkrga afbc option"
+	require_pattern "$vpp_help" 'transpose' "vpp_rkrga transpose option"
+	require_pattern "$vpp_help" 'cw' "vpp_rkrga crop-width option"
+	require_pattern "$vpp_help" 'async_depth' "vpp_rkrga async_depth option"
+	require_pattern "$overlay_help" 'alpha_format' "overlay_rkrga alpha_format option"
+	require_pattern "$overlay_help" 'async_depth' "overlay_rkrga async_depth option"
+	require_pattern "$overlay_help" 'afbc' "overlay_rkrga afbc option"
 }
 
 probe_check()
@@ -299,6 +305,175 @@ run_transcode()
 	record_artifact required "$case_name" "encoded-$output_codec" "$output"
 }
 
+run_decode_null()
+{
+	local case_name=$1
+	local input_codec=$2
+	local decoder=$3
+	shift 3
+	local input
+
+	input=$(ensure_input "$input_codec")
+	timeout "$FFMPEG_TIMEOUT" "$FF" -hide_banner -y -loglevel info \
+		-hwaccel rkmpp -hwaccel_output_format drm_prime \
+		-c:v "$decoder" "$@" \
+		-i "$input" \
+		-an -f null -
+}
+
+run_filter_transcode()
+{
+	local case_name=$1
+	local input_codec=$2
+	local input_decoder=$3
+	local output_codec=$4
+	local output_encoder=$5
+	local output_format=$6
+	local output_width=$7
+	local output_height=$8
+	local bitrate=$9
+	local filter=${10}
+	local input
+	local output="$OUT/artifacts/$case_name.$output_format"
+
+	input=$(ensure_input "$input_codec")
+	rm -f "$output"
+	timeout "$FFMPEG_TIMEOUT" "$FF" -hide_banner -y -loglevel info \
+		-hwaccel rkmpp -hwaccel_output_format drm_prime \
+		-c:v "$input_decoder" \
+		-i "$input" \
+		-vf "$filter" \
+		-c:v "$output_encoder" -b:v "$bitrate" -f "$output_format" "$output"
+
+	probe_check "$output" "$output_codec" "$output_width" "$output_height"
+	record_artifact required "$case_name" "encoded-$output_codec" "$output"
+}
+
+run_filter_transcode_with_decoder_opts()
+{
+	local case_name=$1
+	local input_codec=$2
+	local input_decoder=$3
+	local output_codec=$4
+	local output_encoder=$5
+	local output_format=$6
+	local output_width=$7
+	local output_height=$8
+	local bitrate=$9
+	local filter=${10}
+	shift 10
+	local input
+	local output="$OUT/artifacts/$case_name.$output_format"
+
+	input=$(ensure_input "$input_codec")
+	rm -f "$output"
+	timeout "$FFMPEG_TIMEOUT" "$FF" -hide_banner -y -loglevel info \
+		-hwaccel rkmpp -hwaccel_output_format drm_prime \
+		-c:v "$input_decoder" "$@" \
+		-i "$input" \
+		-vf "$filter" \
+		-c:v "$output_encoder" -b:v "$bitrate" -f "$output_format" "$output"
+
+	probe_check "$output" "$output_codec" "$output_width" "$output_height"
+	record_artifact diagnostic "$case_name" "encoded-$output_codec" "$output"
+}
+
+run_overlay_transcode()
+{
+	local case_name=$1
+	local input_codec=$2
+	local input_decoder=$3
+	local output_codec=$4
+	local output_encoder=$5
+	local output_format=$6
+	local output_width=$7
+	local output_height=$8
+	local bitrate=$9
+	local filter=${10}
+	local input
+	local output="$OUT/artifacts/$case_name.$output_format"
+
+	input=$(ensure_input "$input_codec")
+	rm -f "$output"
+	timeout "$FFMPEG_TIMEOUT" "$FF" -hide_banner -y -loglevel info \
+		-hwaccel rkmpp -hwaccel_output_format drm_prime \
+		-c:v "$input_decoder" \
+		-i "$input" \
+		-hwaccel rkmpp -hwaccel_output_format drm_prime \
+		-c:v "$input_decoder" \
+		-i "$input" \
+		-filter_complex "$filter" \
+		-map "[out]" \
+		-c:v "$output_encoder" -b:v "$bitrate" -f "$output_format" "$output"
+
+	probe_check "$output" "$output_codec" "$output_width" "$output_height"
+	record_artifact diagnostic "$case_name" "encoded-$output_codec" "$output"
+}
+
+case_known()
+{
+	case "$1" in
+	ffmpeg_probe_rkmpp_rkrga | \
+	ffmpeg_decode_h264_extbuf_to_null | \
+	ffmpeg_decode_hevc_afbc_to_null | \
+	ffmpeg_transcode_h264_to_hevc_rkrga | \
+	ffmpeg_transcode_hevc_to_h264_rkrga | \
+	ffmpeg_filter_scale_rkrga_core_async_afbc | \
+	ffmpeg_filter_vpp_rkrga_crop_transpose | \
+	ffmpeg_transcode_h264_afbc_rga_to_hevc | \
+	ffmpeg_filter_overlay_rkrga_alpha)
+		return 0
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
+validate_case_names()
+{
+	local class=$1
+	local case_name=$2
+
+	if [ -z "$case_name" ]; then
+		return 0
+	fi
+	if case_known "$case_name"; then
+		printf "valid\t%s\t%s\n" "$class" "$case_name"
+		return 0
+	fi
+
+	printf "invalid\t%s\t%s\n" "$class" "$case_name" >&2
+	return 1
+}
+
+validate_cases()
+{
+	local case_name
+	local total=0
+	local validation_failed=0
+
+	for case_name in $required_cases; do
+		total=$((total + 1))
+		if ! validate_case_names required "$case_name"; then
+			validation_failed=1
+		fi
+	done
+
+	for case_name in $diagnostic_cases; do
+		total=$((total + 1))
+		if ! validate_case_names diagnostic "$case_name"; then
+			validation_failed=1
+		fi
+	done
+
+	if [ "$validation_failed" -ne 0 ]; then
+		return 1
+	fi
+
+	printf "validated %s ffmpeg-rockchip cases\n" "$total"
+}
+
 run_case_payload()
 {
 	local case_name=$1
@@ -307,11 +482,40 @@ run_case_payload()
 	ffmpeg_probe_rkmpp_rkrga)
 		run_probe_components
 		;;
+	ffmpeg_decode_h264_extbuf_to_null)
+		run_decode_null "$case_name" h264 h264_rkmpp \
+			-deint 0 -fast_parse 0 -buf_mode ext -afbc off
+		;;
+	ffmpeg_decode_hevc_afbc_to_null)
+		run_decode_null "$case_name" hevc hevc_rkmpp \
+			-deint 0 -fast_parse 1 -buf_mode half -afbc on
+		;;
 	ffmpeg_transcode_h264_to_hevc_rkrga)
 		run_transcode "$case_name" h264 hevc hevc_rkmpp hevc 1280 720 4M
 		;;
 	ffmpeg_transcode_hevc_to_h264_rkrga)
 		run_transcode "$case_name" hevc h264 h264_rkmpp h264 640 480 2M
+		;;
+	ffmpeg_filter_scale_rkrga_core_async_afbc)
+		run_filter_transcode "$case_name" hevc hevc_rkmpp h264 h264_rkmpp h264 \
+			960 540 3M \
+			"scale_rkrga=w=960:h=540:format=nv12:force_original_aspect_ratio=disable:force_yuv=8bit:force_chroma=420sp:core=rga3_core1:async_depth=4:afbc=1"
+		;;
+	ffmpeg_filter_vpp_rkrga_crop_transpose)
+		run_filter_transcode "$case_name" h264 h264_rkmpp hevc hevc_rkmpp hevc \
+			360 640 3M \
+			"vpp_rkrga=cw=960:ch=540:cx=160:cy=90:w=640:h=360:format=nv12:transpose=clock:core=rga3_core0:async_depth=2"
+		;;
+	ffmpeg_transcode_h264_afbc_rga_to_hevc)
+		run_filter_transcode_with_decoder_opts "$case_name" h264 h264_rkmpp hevc hevc_rkmpp hevc \
+			1280 720 4M \
+			"scale_rkrga=w=1280:h=720:format=nv12:force_original_aspect_ratio=disable:async_depth=2" \
+			-afbc rga -buf_mode half
+		;;
+	ffmpeg_filter_overlay_rkrga_alpha)
+		run_overlay_transcode "$case_name" h264 h264_rkmpp hevc hevc_rkmpp hevc \
+			1920 1080 4M \
+			"[0:v][1:v]overlay_rkrga=x=64:y=32:alpha=192:alpha_format=straight:format=nv12:core=rga3_core0:async_depth=0[out]"
 		;;
 	*)
 		echo "unknown case $case_name" >&2
@@ -358,6 +562,37 @@ run_case()
 
 	record_summary "$class" "$case_name" "$status" "$elapsed" "$result"
 }
+
+if [ "$FFMPEG_VALIDATE_CASES" = "1" ]; then
+	validate_cases
+	exit $?
+fi
+
+if [ ! -e /dev/mpp_service ]; then
+	echo "SKIP: /dev/mpp_service is absent on this boot"
+	exit 77
+fi
+if [ ! -e /dev/rga ]; then
+	echo "SKIP: /dev/rga is absent on this boot"
+	exit 77
+fi
+
+if [ ! -x "$FF" ]; then
+	echo "Missing ffmpeg binary: $FF" >&2
+	exit 2
+fi
+if [ ! -x "$PROBE" ]; then
+	echo "Missing ffprobe binary: $PROBE" >&2
+	exit 2
+fi
+
+if [ -d "$STAGE/lib" ]; then
+	export LD_LIBRARY_PATH="$STAGE/lib:${LD_LIBRARY_PATH:-}"
+fi
+
+mkdir -p "$OUT/artifacts" "$FFMPEG_GENERATED_INPUT_CACHE"
+printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
+printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
 
 snapshot_debugfs before
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
