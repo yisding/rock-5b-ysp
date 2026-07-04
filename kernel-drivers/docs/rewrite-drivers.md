@@ -45,6 +45,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > encoder max-pending and unaligned-vstride default handling,
 > strict decoder property application through `MPP_DEC_SET_PARSER_FAST_MODE`,
 > env-default decoder control, DMA-feature, and output-format application,
+> MPP-only encode/decode with `GST_MPP_NO_RGA=1`,
 > repeated encoder/decoder drain-to-EOS reuse,
 > multi-session scheduling,
 > and decode->encode transcode before
@@ -376,6 +377,7 @@ implementation (cross-reference:
   through two differently sized raw NV12 segments, explicit H.264/H.265
   encoder control-property cases for header/SEI/rate-control/GOP/re-encode
   config plus packet copy-out, codec-specific H.264/H.265 QP controls,
+  H.264 `GST_MPP_NO_RGA=1` MPP-only encode/decode,
   H.264 `GST_MPP_ENC_MAX_PENDING` outstanding-frame default handling,
   H.264 `GST_MPP_ENC_UNALIGNED_VSTRIDE=1` prep-stride programming,
   and H.264 profile/level controls,

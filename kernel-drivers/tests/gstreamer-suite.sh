@@ -56,6 +56,7 @@ enc_h264_control_props
 enc_h265_control_props
 enc_h264_qp_profile_props
 enc_h265_qp_props
+enc_h264_env_no_rga
 enc_h264_env_max_pending
 enc_h264_env_unaligned_vstride
 enc_h264_bgrx_rga_rotate
@@ -67,6 +68,7 @@ generated_dec_h264_fakesink
 generated_dec_h265_fakesink
 generated_dec_h264_dmabuf
 generated_dec_h264_env_dmabuf
+generated_dec_h264_env_no_rga
 generated_dec_h265_dmabuf
 generated_dec_h264_strict_props
 generated_dec_h265_strict_props
@@ -439,6 +441,22 @@ run_videotest_encode_env_max_pending()
 	run_current_command
 }
 
+run_videotest_encode_env_no_rga()
+{
+	CMD=(
+		env
+		GST_MPP_NO_RGA=1
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$GST_NUM_BUFFERS" is-live=false pattern=smpte
+		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" mpph264enc zero-copy-pkt=true
+		"!" fakesink sync=false
+	)
+	printf "encoding H.264 with RGA disabled by env: "
+	print_current_command
+	run_current_command
+}
+
 build_videotest_jpeg_roundtrip()
 {
 	CMD=(
@@ -668,6 +686,25 @@ run_generated_decode_env_dmabuf()
 	)
 	append_artifact_or_fake_sink decoded raw
 	printf "decoding generated %s input with DMA env default: " "$codec"
+	print_current_command
+	run_current_command
+}
+
+run_generated_decode_env_no_rga()
+{
+	local codec=$1
+
+	ensure_generated_input "$codec" || return $?
+	CMD=(
+		env
+		GST_MPP_NO_RGA=1
+		gst-launch-1.0 -q
+		filesrc "location=$GENERATED_INPUT_PATH"
+		"!" "$GENERATED_PARSER"
+		"!" mppvideodec
+	)
+	append_artifact_or_fake_sink decoded raw
+	printf "decoding generated %s input with RGA disabled by env: " "$codec"
 	print_current_command
 	run_current_command
 }
@@ -1045,6 +1082,9 @@ build_case_command()
 			qp-min-i=18 qp-max-i=38 qp-delta-ip=3 \
 			zero-copy-pkt=true
 		;;
+	enc_h264_env_no_rga)
+		CMD=(__builtin_encode_env_no_rga)
+		;;
 	enc_h264_env_max_pending)
 		CMD=(__builtin_encode_env_max_pending)
 		;;
@@ -1126,6 +1166,9 @@ build_case_command()
 		;;
 	generated_dec_h264_env_dmabuf)
 		CMD=(__builtin_generated_decode_env_dmabuf h264)
+		;;
+	generated_dec_h264_env_no_rga)
+		CMD=(__builtin_generated_decode_env_no_rga h264)
 		;;
 	generated_dec_h265_dmabuf)
 		CMD=(__builtin_generated_decode h265 dma-feature=true)
@@ -1470,11 +1513,17 @@ run_case_payload()
 	enc_h264_env_max_pending)
 		run_videotest_encode_env_max_pending
 		;;
+	enc_h264_env_no_rga)
+		run_videotest_encode_env_no_rga
+		;;
 	generated_dec_h264_env_strict_props)
 		run_generated_decode_env_strict "${CMD[1]}"
 		;;
 	generated_dec_h264_env_dmabuf)
 		run_generated_decode_env_dmabuf "${CMD[1]}"
+		;;
+	generated_dec_h264_env_no_rga)
+		run_generated_decode_env_no_rga "${CMD[1]}"
 		;;
 	generated_dec_h264_env_format_nv21)
 		run_generated_decode_env_format "${CMD[1]}" "${CMD[2]}"

@@ -242,13 +242,15 @@ exercises real kernel paths:
 - `enc_h264_nv12`, `enc_h265_nv12`,
   `enc_h264_control_props`, `enc_h265_control_props`,
   `enc_h264_qp_profile_props`, `enc_h265_qp_props`,
-  `enc_h264_env_max_pending`, `enc_h264_env_unaligned_vstride`;
+  `enc_h264_env_no_rga`, `enc_h264_env_max_pending`,
+  `enc_h264_env_unaligned_vstride`;
 - `enc_h264_bgrx_rga_rotate`, `enc_h265_rgba_rga_scale`;
 - `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
   `roundtrip_h264_rga_rotate`;
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
   `generated_dec_h264_dmabuf`, `generated_dec_h265_dmabuf`,
-  `generated_dec_h264_env_dmabuf`, `generated_dec_h264_strict_props`,
+  `generated_dec_h264_env_dmabuf`, `generated_dec_h264_env_no_rga`,
+  `generated_dec_h264_strict_props`,
   `generated_dec_h265_strict_props`,
   `generated_dec_h264_env_strict_props`,
   `generated_dec_h264_env_format_nv21`,
@@ -287,6 +289,10 @@ allocator/external-buffer-group handoff that zero-copy consumers negotiate.
 `generated_dec_h264_env_dmabuf` runs the same path with
 `GST_MPP_DEC_DMA_FEATURE=1`, covering JeffyCN's global default-value path
 separately from explicit element properties.
+`enc_h264_env_no_rga` and `generated_dec_h264_env_no_rga` run basic H.264
+encode/decode with `GST_MPP_NO_RGA=1`, covering the current plugin's global
+no-RGA branch while staying on MPP-only paths that should not depend on
+`/dev/rga`.
 The strict decoder-property cases set `fast-mode=false` and
 `ignore-error=false`, covering the current plugin path that changes
 `MPP_DEC_SET_PARSER_FAST_MODE` and skips the default `MPP_DEC_SET_DISABLE_ERROR`
@@ -372,7 +378,8 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_vp9_fakesink`,
 `generated_dec_vp9_dmabuf`, `generated_dec_h264_strict_props`,
 `generated_dec_h265_strict_props`, `generated_dec_h264_env_strict_props`,
-`generated_dec_h264_env_format_nv21`, `generated_dec_h264_renegotiate`,
+`generated_dec_h264_env_format_nv21`, `generated_dec_h264_env_no_rga`,
+`generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
 `generated_transcode_h264_to_h265`,
@@ -381,7 +388,8 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
 `enc_h264_control_props`, `enc_h265_control_props`,
 `enc_h264_qp_profile_props`, `enc_h265_qp_props`,
-`enc_h264_env_max_pending`, `enc_h264_env_unaligned_vstride`,
+`enc_h264_env_no_rga`, `enc_h264_env_max_pending`,
+`enc_h264_env_unaligned_vstride`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
 `event_force_key_enc_h264`, `event_force_key_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,
@@ -491,8 +499,9 @@ env-default decoder DMA-feature/output-format cases were added to the required
 set; after the GStreamer env-default FBC decode case was added as diagnostic
 coverage; after the GStreamer encoder unaligned-vstride env-default case was
 added to the required set; after the GStreamer encoder max-pending env-default
-case was added to the required set; after the conditional GStreamer VPx-alpha
-decodebin inspect was added as diagnostic coverage; after the GStreamer strict decoder-property cases
+case was added to the required set; after GStreamer no-RGA env-default
+encode/decode cases were added to the required set; after the conditional
+GStreamer VPx-alpha decodebin inspect was added as diagnostic coverage; after the GStreamer strict decoder-property cases
 were wired into the generated-decode builtin dispatch, the asset-free
 parallel cases became required by default, and after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
