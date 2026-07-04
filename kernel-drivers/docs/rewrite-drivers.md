@@ -57,6 +57,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > encoder force-key events that call `MPP_ENC_SET_IDR_FRAME`,
 > explicit encoder control-property application through `MPP_ENC_SET_CFG`,
 > including codec-specific QP controls and H.264 profile/level,
+> common direct H.264 encoder input formats I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR,
 > encoder max-pending and unaligned-vstride default handling,
 > strict decoder property application through `MPP_DEC_SET_PARSER_FAST_MODE`,
 > env-default decoder control, DMA-feature, output-format, and FBC/ARM-AFBC
@@ -413,6 +414,8 @@ implementation (cross-reference:
   encoder control-property cases for header/SEI/rate-control/GOP/re-encode
   config plus packet copy-out, encoded H.264/H.265 CBR/FIXQP rate-control
   artifacts, codec-specific H.264/H.265 QP controls,
+  common direct H.264 encoder input formats
+  I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR,
   H.264 `GST_MPP_NO_RGA=1` MPP-only encode/decode,
   H.264 `GST_MPP_ENC_MAX_PENDING` outstanding-frame default handling,
   H.264 `GST_MPP_ENC_UNALIGNED_VSTRIDE=1` prep-stride programming,
@@ -439,9 +442,9 @@ implementation (cross-reference:
   `GST_MPP_DEC_FBC_IS_RFBC=1` RFBC caps negotiation, generated VP9-to-H.264
   transcode, opt-in generated AV1 and legacy VP8/H.263/MPEG decode/transcode
   diagnostics, and
-  a diagnostic GStreamer-visible encoder-format matrix covering advertised direct MPP
-  input formats I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444 plus
-  RGA-forced encoder-side NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
+  a diagnostic GStreamer-visible encoder-format matrix covering chip-dependent
+  direct MPP input formats NV24/Y444 plus RGA-forced encoder-side
+  NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
   scale paths plus remaining decoder-side
   BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The runner now
   has opt-in display/DMABuf sink cases for JeffyCN's `rkximagesink`, including

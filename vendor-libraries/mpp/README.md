@@ -17,6 +17,7 @@ source lives in the sibling `mpp-rockchip` tree.
 | Doc | One-liner |
 |-----|-----------|
 | [`docs/mpp-library-architecture.md`](docs/mpp-library-architecture.md) | Internal libmpp architecture — context object, task queues, decoder/encoder flows, HAL selection, buffer system, KMPP hooks, with a source map. |
+| [`docs/mpp-ioctl-batch-mode.md`](docs/mpp-ioctl-batch-mode.md) | The `/dev/mpp_service` ioctl surface — `MPP_IOC_CFG_V1`, `MppReqV1`, `MULTI_MSG`/`LAST_MSG` chaining, `DELIMIT` tile packing, and the dormant cross-session batch server (with its rise-and-removal git history). |
 | [`docs/mpp-kmpp-reverse-engineering.md`](docs/mpp-kmpp-reverse-engineering.md) | Reverse-engineering notes on Rockchip's newer KMPP path and the kernel-shared-object boundary. |
 | [`docs/mpp-rust-rewrite-assessment.md`](docs/mpp-rust-rewrite-assessment.md) | Cost/scope of a Rust rewrite of classic `librockchip_mpp` keeping the same public API. |
 
