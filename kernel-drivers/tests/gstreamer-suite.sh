@@ -117,6 +117,7 @@ diagnostic_cases_default="
 gst_inspect_mppvp8enc
 gst_inspect_mppjpegenc
 gst_inspect_mppjpegdec
+gst_inspect_mppvpxalphadecodebin
 event_seek_enc_h264
 event_seek_enc_h265
 event_seek_dec_h264
@@ -989,6 +990,9 @@ build_case_command()
 		;;
 	gst_inspect_mppjpegdec)
 		CMD=(gst-inspect-1.0 mppjpegdec)
+		;;
+	gst_inspect_mppvpxalphadecodebin)
+		CMD=(gst-inspect-1.0 mppvpxalphadecodebin)
 		;;
 	gst_inspect_display_sink)
 		CMD=(gst-inspect-1.0 "$GST_DISPLAY_SINK")

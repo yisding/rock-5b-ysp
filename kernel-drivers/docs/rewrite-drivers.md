@@ -50,7 +50,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > and decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
 > generated H.264/H.265 AFBC decode output, generated H.264 crop-meta output,
-> generated VP9 transcode, generated
+> VP8/JPEG/VPx-alpha element visibility, generated VP9 transcode, generated
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 decoder-side
 > output conversion. The in-repo direct `librga` smoke
@@ -99,6 +99,8 @@ MJPEG, MPEG-1, MPEG-2, MPEG-4, VP8, and VP9 RKMPP decoders, upstream FFmpeg
 8.1.2 registers H.264, HEVC, VP8, and VP9 RKMPP decoders, JeffyCN
 `mppvideodec` exposes similarly broad caps, and the same GStreamer plugin
 registers VP8/JPEG encoder or decoder elements when userspace probing succeeds.
+It may also register a conditional VPx-alpha decodebin when built against a new
+enough GStreamer for the alpha demux/combine helpers.
 That is userspace discovery, not proof that every codec maps to the RK3588
 rewrite's hardware nodes. The current rewrite target binds only RKVDEC2/RKVENC2
 plus their CCUs, matching the Rock 5B DT; it does not bind the legacy VDPU/VPU
@@ -386,7 +388,8 @@ implementation (cross-reference:
   diagnostic set also includes seek-event probes through the same
   `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output,
   the matching H.264 `GST_MPP_VIDEODEC_DEFAULT_FBC=1` default path,
-  generated H.264 crop-meta output, generated VP9-to-H.264 transcode, and
+  generated H.264 crop-meta output, VP8/JPEG/VPx-alpha element visibility,
+  generated VP9-to-H.264 transcode, and
   a GStreamer-visible RGA format matrix covering encoder-side
   BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths plus decoder-side
   BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The runner now
