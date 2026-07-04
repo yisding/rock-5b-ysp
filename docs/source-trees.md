@@ -266,9 +266,9 @@ the mainline branch carries the minimal
 `include/soc/rockchip/rockchip_iommu.h` hook to match the 6.18 provider. The
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
-KUnit-enabled object build for the previous gate tips; the latest
-provider-hook pins have focused object-build coverage recorded in
-rewrite-drivers.md §6.
+KUnit-enabled object build for the rewrite drivers. The current committed pins
+(`../linux-6.18-rkvenc@bb32bc4f999f` and `../linux@d84543927f85`) passed that
+archive build gate warning-free on 2026-07-04; see rewrite-drivers.md §6.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite
 commits landed.
