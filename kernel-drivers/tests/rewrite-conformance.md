@@ -419,7 +419,9 @@ rewrite profile, so the suite keeps them diagnostic-only: it inspects the
 elements, verifies the optional `GST_MPP_VP8ENC_FAKE_VP8ENC=1` `vp8enc` alias
 resolves to Rockchip's VP8 encoder rather than a software element, and runs
 short `enc_vp8_nv12`, `enc_jpeg_nv12`, and
-`roundtrip_jpeg_nv12` pipelines, plus explicit `mppjpegdec format=BGRx` and
+`roundtrip_jpeg_nv12` pipelines, diagnostic `enc_vp8_qp_props` and
+`enc_jpeg_qf_props` property-setter probes, plus explicit
+`mppjpegdec format=BGRx` and
 `GST_MPP_JPEGDEC_DEFAULT_FORMAT=BGRx` roundtrips, to record what current
 userspace would observe without turning legacy coverage into a required pass
 condition.
@@ -516,13 +518,15 @@ one pipeline so GStreamer's decoder-side buffer-group, short-timeout polling,
 info-change, and reset paths are exercised even before media assets are staged.
 Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `gst_inspect_mppjpegdec`, `gst_inspect_mppvpxalphadecodebin`,
-`gst_inspect_vp8enc_alias`, `enc_vp8_nv12`, `enc_jpeg_nv12`,
+`gst_inspect_vp8enc_alias`, `enc_vp8_nv12`, `enc_vp8_qp_props`,
+`enc_jpeg_nv12`, `enc_jpeg_qf_props`,
 `roundtrip_jpeg_nv12`, `roundtrip_jpeg_format_bgrx`,
 `roundtrip_jpeg_env_format_bgrx`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`,
 `generated_dec_h264_crop_meta`, `generated_dec_h264_rga_rgba_scale`,
 `generated_dec_h264_rga_bgra_scale`, `generated_dec_h264_rga_rgbx_scale`,
 `generated_dec_h264_rga_bgrx_scale`,
+`generated_dec_h264_env_rfbc`,
 `generated_dec_vp9_rga_scale`, `generated_transcode_vp9_to_h264`,
 `dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
 GStreamer encoder-format matrix for advertised direct MPP formats
@@ -648,6 +652,7 @@ AFBC/FBC fakesink decode-output cases were promoted to required pass/fail
 coverage and generated AFBC decode-to-encode transcodes were added with
 encoded-artifact comparison; after diagnostic
 `GST_MPP_DEC_FBC_IS_RFBC=1` coverage was added for JeffyCN's RFBC caps path;
+after diagnostic VP8 QP and JPEG quality-factor property coverage was added;
 after the GStreamer codec-specific encoder QP
 cases and encoded
 CBR/FIXQP RC-mode artifact cases were added to the required set and the

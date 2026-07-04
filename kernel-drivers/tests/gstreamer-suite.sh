@@ -164,7 +164,9 @@ generated_dec_h264_rga_rgbx_scale
 generated_dec_h264_rga_bgrx_scale
 generated_dec_h264_env_rfbc
 enc_vp8_nv12
+enc_vp8_qp_props
 enc_jpeg_nv12
+enc_jpeg_qf_props
 roundtrip_jpeg_nv12
 enc_h264_i420
 enc_h264_yuy2
@@ -1532,8 +1534,17 @@ build_case_command()
 	enc_vp8_nv12)
 		build_videotest_encode mppvp8enc NV12 "$GST_FORMAT_MATRIX_BUFFERS"
 		;;
+	enc_vp8_qp_props)
+		build_videotest_encode mppvp8enc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
+			qp-init=36 qp-min=10 qp-max=80 qp-min-i=8 qp-max-i=70 \
+			qp-delta-ip=4
+		;;
 	enc_jpeg_nv12)
 		build_videotest_encode mppjpegenc NV12 "$GST_FORMAT_MATRIX_BUFFERS"
+		;;
+	enc_jpeg_qf_props)
+		build_videotest_encode mppjpegenc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
+			q-factor=72 qf-min=50 qf-max=90
 		;;
 	enc_h264_i420)
 		build_videotest_encode mpph264enc I420 "$GST_FORMAT_MATRIX_BUFFERS" \
