@@ -33,7 +33,7 @@ newcomer on-ramp.
 | `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates above in one pass, and snapshots rewrite debugfs counters, including aggregate/per-core timing counters, when present. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
 | `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Builds and runs a small C probe that records MPP/RGA ioctl numbers, struct sizes, `/proc/mpp_service` command-advertisement markers when visible, safe query results, MPP client-type HW-ID replay, initialized MPP session controls (`INIT_DRIVER_DATA`, `SEND_CODEC_INFO`, `RESET_SESSION`, and advertised `SET_ERR_REF_HACK`), a safe two-message MPP init batch, `SET_SESSION_FD` bad-fd `mpp_bat_msg.ret = -EBADF` and `MPP_BAT_MSG_DONE` marker handling, RGA version tuples/strings with exact version-query returns including intentional `RGA2_GET_VERSION ret=1`, no-op ioctl return codes, RGA virtual-address import/release, and modern RGA request create/config/cancel with a handle-backed bitblit task. Use the same binary/log format on the forward port and rewrite, then diff the logs. Exit `77` means both device nodes are absent. |
 | `abi-replay.sh` | **normalized ABI replay** for a single booted kernel profile | Records raw + normalized ABI logs under `logs/abi-replay/` and a `.contract.log` of the stable query/version and session-control lines. Feeds the raw ABI diff comparison in [`rewrite-conformance.md`](./rewrite-conformance.md) § Raw ABI replay. Exit `77` means the device nodes are absent. |
-| `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ client against staged `librga`: virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd` copy, legacy `c_RkRgaBlit()` conversions shaped like JeffyCN GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing, rotated NV12 dma-buf to BGRx dma-buf decode conversion, and planar I420 dma-buf to NV12 dma-buf fallback), official Gaussian matrix blur via `imsetOptGaussianBlurMatrix()` + `imsetOpacity()` + `improcess(..., IM_SYNC | IM_GAUSS)`, sync `imcopy`/`imresize`/`imfill`, forced RGA3 core-mask + priority copy through `improcess`, forced RGA2 `IM_PRE_INTR` read/write line-interrupt copy, and an async acquire/release-fence copy chain waited with `imsync`. This exercises the maintained librga import/submit/core/fence/pre-intr/gauss paths independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
+| `librga-smoke.sh` | **direct librga/im2d functional test** on current `/dev/rga` owner | Builds and runs a tiny C++ client against staged `librga`: virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd` copy, legacy `c_RkRgaBlit()` conversions shaped like JeffyCN GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing, rotated NV12 dma-buf to BGRx dma-buf decode conversion, and planar I420 dma-buf to NV12 dma-buf fallback), official Gaussian matrix blur via `imsetOptGaussianBlurMatrix()` + `imsetOpacity()` + `improcess(..., IM_SYNC | IM_GAUSS)`, sync `imcopy`/`imresize`/`imfill`, forced RGA3 core-mask + priority copy through `improcess`, forced RGA2 `IM_PRE_INTR` read/write line-interrupt copy, and an async acquire/release-fence copy chain waited with `imsync`. Set `LIBRGA_SMOKE_10BIT=1` to add direct IM2D P010->NV12 and P210->NV16 dma-buf conversions through the patched P010/P210 request-generation path. This exercises the maintained librga import/submit/core/fence/pre-intr/gauss/10-bit paths independently of FFmpeg. Exit `77` means `/dev/rga` is absent. |
 
 ## Privileges
 
@@ -42,7 +42,7 @@ The smoke tests differ in what device access they need:
 | Test | Needs |
 |------|-------|
 | `test-decode.sh` | device access only: root, **or** membership in `video` with [`../scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules) installed (covers `/dev/mpp_service` **and** `/dev/dma_heap/*` — both required) |
-| `librga-smoke.sh` | device access only: root, **or** membership in `video` with the codec udev rule installed (covers `/dev/rga` **and** `/dev/dma_heap/*` — the smoke allocates dma-bufs, imports them with `importbuffer_fd`, runs legacy `c_RkRgaBlit()` GStreamer-style virtual-source, fd-to-fd rotate/convert, and planar fallback conversions, and exercises the official `improcess(..., IM_GAUSS)` Gaussian matrix shape) |
+| `librga-smoke.sh` | device access only: root, **or** membership in `video` with the codec udev rule installed (covers `/dev/rga` **and** `/dev/dma_heap/*` — the smoke allocates dma-bufs, imports them with `importbuffer_fd`, runs legacy `c_RkRgaBlit()` GStreamer-style virtual-source, fd-to-fd rotate/convert, and planar fallback conversions, exercises the official `improcess(..., IM_GAUSS)` Gaussian matrix shape, and can opt into P010/P210 IM2D conversions with `LIBRGA_SMOKE_10BIT=1`) |
 | `encode-test-tiny.sh` | **root** — writes dmesg markers to `/dev/kmsg` and scans `dmesg` for faults (`kernel.dmesg_restrict=1` on Armbian) |
 | `transcode-test.sh` | **root** — runs a `dmesg` fault sweep at the end |
 
@@ -60,6 +60,7 @@ The smoke tests differ in what device access they need:
 > | `STAGE` | transcode | the MPP/RGA staging prefix from the ffmpeg README (e.g. `~/ffmpeg-stack`) |
 > | `IN` | transcode | 1080p H.264 Annex-B input (default `$STAGE/testdata/input-1080p.h264`; regeneration below) |
 > | `RUN_LIBRGA` | rewrite smoke | optional direct librga/im2d functional smoke (`0` by default; set `1` to run) |
+> | `LIBRGA_SMOKE_10BIT` | `librga-smoke.sh` | optional direct P010/P210 IM2D dma-buf conversion cases (`0` by default; set `1` when validating a patched librga/kernel pair) |
 > | `RUN_GSTREAMER` | rewrite smoke | optional JeffyCN GStreamer plugin suite (`0` by default; set `1` to run) |
 
 ## Run
@@ -69,6 +70,7 @@ bash rewrite-smoke.sh                 # one-command gate; use sudo when devices 
 bash abi-probe.sh                     # fast non-submit ABI probe
 bash abi-replay.sh                    # record normalized ABI log for this boot
 bash librga-smoke.sh                  # direct librga/im2d smoke
+LIBRGA_SMOKE_10BIT=1 bash librga-smoke.sh  # add P010/P210 IM2D cases
 bash test-decode.sh                  # decoder (device access is enough)
 sudo bash encode-test-tiny.sh        # encoder
 sudo bash transcode-test.sh          # end-to-end (needs ffmpeg-rockchip built — see ../ffmpeg)
@@ -164,5 +166,6 @@ standalone `librga-smoke.sh` covers the maintained im2d API directly, including
 the official Gaussian matrix `IM_GAUSS` sample shape, plus the legacy
 `c_RkRgaBlit()` conversion shapes JeffyCN GStreamer uses for encoder
 preprocessing, decode-side fd-backed rotate/format conversion, and planar
-fallback; the full hardware-frame RGA path is still validated through
-`transcode-test.sh`.
+fallback. With `LIBRGA_SMOKE_10BIT=1`, it also covers the direct IM2D
+P010/P210 request-generation path exported by the local librga patch series; the
+full hardware-frame RGA path is still validated through `transcode-test.sh`.

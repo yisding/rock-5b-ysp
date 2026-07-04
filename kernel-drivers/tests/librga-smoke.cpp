@@ -28,6 +28,8 @@
 #define TEST_DST_W 32
 #define TEST_DST_H 32
 #define TEST_BPP 4
+#define RGA_TEST_FORMAT_P010 (0x40 << 8)
+#define RGA_TEST_FORMAT_P210 (0x41 << 8)
 
 struct dmabuf_test_buffer {
 	int fd;
@@ -80,6 +82,15 @@ static int check_pattern(const uint8_t *buf, int width, int height)
 	}
 
 	return 0;
+}
+
+static bool env_enabled(const char *name)
+{
+	const char *value = getenv(name);
+
+	return value && strcmp(value, "0") && strcmp(value, "false") &&
+	       strcmp(value, "FALSE") && strcmp(value, "no") &&
+	       strcmp(value, "NO");
 }
 
 static int alloc_aligned(void **ptr, size_t size)
@@ -376,6 +387,188 @@ static void fill_i420_pattern(uint8_t *buf, int width, int height)
 				(uint8_t)(0xa0 + ((x + y * 3) & 0x1f));
 		}
 	}
+}
+
+static void fill_p010_pattern(uint8_t *buf, int width, int height)
+{
+	uint16_t *y_plane = (uint16_t *)buf;
+	uint16_t *uv_plane = y_plane + ((size_t)width * height);
+
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			uint16_t sample =
+				(uint16_t)((64 + x * 5 + y * 3) & 0x3ff);
+
+			y_plane[(size_t)y * width + x] = sample << 6;
+		}
+	}
+
+	for (int y = 0; y < height / 2; y++) {
+		for (int x = 0; x < width; x += 2) {
+			uv_plane[(size_t)y * width + x] =
+				(uint16_t)((256 + x + y) & 0x3ff) << 6;
+			uv_plane[(size_t)y * width + x + 1] =
+				(uint16_t)((512 + x * 2 + y) & 0x3ff) << 6;
+		}
+	}
+}
+
+static void fill_p210_pattern(uint8_t *buf, int width, int height)
+{
+	uint16_t *y_plane = (uint16_t *)buf;
+	uint16_t *uv_plane = y_plane + ((size_t)width * height);
+
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			uint16_t sample =
+				(uint16_t)((96 + x * 7 + y * 5) & 0x3ff);
+
+			y_plane[(size_t)y * width + x] = sample << 6;
+		}
+	}
+
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x += 2) {
+			uv_plane[(size_t)y * width + x] =
+				(uint16_t)((320 + x + y * 2) & 0x3ff) << 6;
+			uv_plane[(size_t)y * width + x + 1] =
+				(uint16_t)((640 + x * 3 + y) & 0x3ff) << 6;
+		}
+	}
+}
+
+static int run_10bit_im2d_convert(const char *name, int src_format,
+				  int dst_format, size_t src_size,
+				  size_t dst_size,
+				  void (*fill_src)(uint8_t *, int, int))
+{
+	const int width = 64;
+	const int height = 64;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	int ret;
+
+	ret = dmabuf_alloc_any(src_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "%s source allocation failed: %s\n",
+			name, strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(dst_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "%s dest allocation failed: %s\n",
+			name, strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "10-bit source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_src(dma_src.mem, width, height);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "10-bit source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "10-bit dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "10-bit dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src_handle = importbuffer_fd(dma_src.fd, src_size);
+	dst_handle = importbuffer_fd(dma_dst.fd, dst_size);
+	if (!src_handle || !dst_handle) {
+		fprintf(stderr, "%s importbuffer_fd failed: %s\n",
+			name, imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, width, height, src_format);
+	dst = wrapbuffer_handle(dst_handle, width, height, dst_format);
+
+	ret = imcheck(src, dst, {}, {});
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status(name, ret);
+		goto out;
+	}
+
+	ret = imcvtcolor(src, dst, src_format, dst_format);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status(name, ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "10-bit dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!buffer_changed_from_sentinel(dma_dst.mem, dma_dst.size, 0x80)) {
+		fprintf(stderr, "%s output unchanged\n", name);
+		ret = 1;
+	} else {
+		ret = 0;
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"10-bit dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", name, dma_src.heap_path);
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
+static int run_10bit_im2d_conversions(void)
+{
+	const int width = 64;
+	const int height = 64;
+	int ret;
+
+	ret = run_10bit_im2d_convert("im2d P010->NV12",
+				     RGA_TEST_FORMAT_P010,
+				     RK_FORMAT_YCbCr_420_SP,
+				     (size_t)width * height * 3,
+				     (size_t)width * height * 3 / 2,
+				     fill_p010_pattern);
+	if (ret)
+		return ret;
+
+	return run_10bit_im2d_convert("im2d P210->NV16",
+				      RGA_TEST_FORMAT_P210,
+				      RK_FORMAT_YCbCr_422_SP,
+				      (size_t)width * height * 4,
+				      (size_t)width * height * 2,
+				      fill_p210_pattern);
 }
 
 static int run_legacy_virtual_to_dmabuf_convert(void)
@@ -917,6 +1110,15 @@ int main(void)
 	ret = run_gauss_matrix_improcess();
 	if (ret)
 		goto out;
+
+	if (env_enabled("LIBRGA_SMOKE_10BIT")) {
+		ret = run_10bit_im2d_conversions();
+		if (ret)
+			goto out;
+	} else {
+		printf("%-24s skip set LIBRGA_SMOKE_10BIT=1\n",
+		       "im2d P010/P210");
+	}
 
 	memset(dst_mem, 0x80, src_size);
 	opt.core = IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1;

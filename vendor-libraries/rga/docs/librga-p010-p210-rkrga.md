@@ -450,6 +450,10 @@ tree; the delta is now recoverable from this repo.
 
 Minimum validation before enabling padded 10-bit RKRGA paths:
 
+First run `LIBRGA_SMOKE_10BIT=1 kernel-drivers/tests/librga-smoke.sh` on the
+exact staged librga/kernel pair. That exercises direct IM2D P010->NV12 and
+P210->NV16 dma-buf conversions through the public P010/P210 format values.
+
 1. RKMPP 10-bit HEVC or VP9 decode with OpenCL tonemapping through Jellyfin's
    Rockchip path, which exercises RKRGA `format=p010`.
 2. Direct FFmpeg `vpp_rkrga` or `scale_rkrga` conversion to `format=p010`, then

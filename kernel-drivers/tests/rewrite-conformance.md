@@ -113,7 +113,11 @@ Suggested expanded matrix:
 - RGA: `copy`, `resize`, `cvtcolor`, `fill`, `alpha`, `transform`, `async`, and
   allocator samples first; then deliberately run `rop`, `mosaic`, `padding`,
   FBC/tile, colorkey/OSD, and 10-bit/compressed cases to distinguish clean
-  `-EOPNOTSUPP` from real regressions.
+  `-EOPNOTSUPP` from real regressions. The standalone `librga-smoke.sh` can
+  also opt into direct P010/P210 IM2D dma-buf conversions with
+  `LIBRGA_SMOKE_10BIT=1`, which is the smallest hardware check for the local
+  P010/P210 request-generation patch before running full FFmpeg/Jellyfin RKRGA
+  paths.
 - GStreamer: use `gstreamer-suite.sh`, not the external
   `run-gstreamer-smoke.sh`, for parity evidence. Its default required set is
   asset-free but kernel-visible: plugin/element inspection, raw NV12
@@ -518,7 +522,8 @@ external-media decode/fallback/RGA-conversion cases were added; after the condit
 GStreamer VPx-alpha decodebin inspect was added as diagnostic coverage; after the GStreamer strict decoder-property cases
 were wired into the generated-decode builtin dispatch, the asset-free
 parallel cases became required by default, and after the direct `librga` smoke gained
-forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
+forced-core, fence, pre-intr, dma-buf fd-import, opt-in P010/P210 IM2D
+conversion, and legacy `c_RkRgaBlit()`
 coverage for the GStreamer virtual-source, fd-backed rotate/convert, and planar
 fallback shapes; after the MPP official-test suite/comparator and build helper
 were added; and after the GStreamer build wrapper, suite, comparator, opt-in

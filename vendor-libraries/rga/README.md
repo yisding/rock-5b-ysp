@@ -10,7 +10,7 @@ Source lives in the sibling `librga` / `librga-src` trees.
 |-------|----------|
 | Purpose | How to use librga well, and the 10-bit (P010/P210) RKRGA ABI facts. |
 | Code lives in | `librga` (upstream `airockchip/librga` lineage) and the patched `librga-src` (`github.com/yisding/librga` `main` @ `a632217`). |
-| Current state | Scale/color-convert validated through FFmpeg; the P010/P210 fix is exported as [`patches/`](patches/), but still needs hardware validation. See [`../../status.md`](../../status.md). |
+| Current state | Scale/color-convert validated through FFmpeg; the P010/P210 fix is exported as [`patches/`](patches/) and has an opt-in direct `librga-smoke.sh` hardware case, but still needs recorded hardware validation. See [`../../status.md`](../../status.md). |
 
 ## Scoped docs
 
