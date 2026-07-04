@@ -268,6 +268,7 @@ kms_cases_default="
 gst_inspect_kmssrc
 kms_capture_dmabuf_fakesink
 kms_capture_dmabuf_encode_h264
+kms_capture_env_dmabuf_encode_h264
 kms_capture_dmabuf_display
 "
 
@@ -1192,16 +1193,19 @@ append_display_sink()
 
 append_kmssrc()
 {
+	local dma_feature=${1:-true}
 	local -a source_args=()
 
 	CMD+=(
 		kmssrc
 		"num-buffers=$GST_KMS_CAPTURE_BUFFERS"
-		dma-feature=true
 		sync-fb=false
 		sync-vblank=false
 		framerate-limit=30
 	)
+	if [ "$dma_feature" = "true" ]; then
+		CMD+=(dma-feature=true)
+	fi
 	if [ -n "$GST_KMS_SRC_ARGS" ]; then
 		read -r -a source_args <<< "$GST_KMS_SRC_ARGS"
 		CMD+=("${source_args[@]}")
@@ -1221,6 +1225,15 @@ build_kms_capture_encode()
 
 	CMD=(gst-launch-1.0 -q)
 	append_kmssrc
+	CMD+=("!" "$encoder" zero-copy-pkt=true "!" fakesink sync=false)
+}
+
+build_kms_capture_env_dmabuf_encode()
+{
+	local encoder=$1
+
+	CMD=(env GST_KMSSRC_DMA_FEATURE=1 gst-launch-1.0 -q)
+	append_kmssrc false
 	CMD+=("!" "$encoder" zero-copy-pkt=true "!" fakesink sync=false)
 }
 
@@ -1764,6 +1777,9 @@ build_case_command()
 		;;
 	kms_capture_dmabuf_encode_h264)
 		build_kms_capture_encode mpph264enc
+		;;
+	kms_capture_env_dmabuf_encode_h264)
+		build_kms_capture_env_dmabuf_encode mpph264enc
 		;;
 	kms_capture_dmabuf_display)
 		build_kms_capture_display

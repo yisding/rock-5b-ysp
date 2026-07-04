@@ -457,9 +457,11 @@ promote the same cases to required, and pass simple sink properties with
 Set `GST_ENABLE_KMS_CASES=1` to add opt-in KMS capture diagnostics for
 JeffyCN's `kmssrc`. These inspect `kmssrc`, capture a small number of DRM
 framebuffer-backed DMABuf frames to `fakesink`, feed the same capture stream
-into `mpph264enc`, and optionally loop it through `GST_DISPLAY_SINK`. The
-encoder case is the userspace-visible import path that matters for the rewrite:
-it forces MPP to consume dma-bufs exported by the display stack instead of only
+into `mpph264enc`, repeat the encoder path with
+`GST_KMSSRC_DMA_FEATURE=1`, and optionally loop it through `GST_DISPLAY_SINK`.
+The encoder cases are the userspace-visible import paths that matter for the
+rewrite: they force MPP to consume dma-bufs exported by the display stack
+instead of only
 buffers allocated by MPP or dma-heap. Set `GST_REQUIRE_KMS_CASES=1` only on a
 board/session with a stable active KMS framebuffer. Tune capture with
 `GST_KMS_CAPTURE_BUFFERS` and pass source properties such as
@@ -540,8 +542,8 @@ paths. With
 `generated_dec_h265_display_dmabuf`, `generated_dec_h264_display_afbc`, and
 `generated_dec_h265_display_afbc`. With `GST_ENABLE_KMS_CASES=1`, diagnostics
 also include `gst_inspect_kmssrc`, `kms_capture_dmabuf_fakesink`,
-`kms_capture_dmabuf_encode_h264`, and `kms_capture_dmabuf_display`. Override with
-`GST_REQUIRED_CASES` or
+`kms_capture_dmabuf_encode_h264`, `kms_capture_env_dmabuf_encode_h264`, and
+`kms_capture_dmabuf_display`. Override with `GST_REQUIRED_CASES` or
 `GST_DIAGNOSTIC_CASES` for narrower hardware debugging, and tune dimensions with
 `GST_WIDTH`, `GST_HEIGHT`, `GST_UNALIGNED_HEIGHT`,
 `GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,
@@ -653,6 +655,8 @@ coverage and generated AFBC decode-to-encode transcodes were added with
 encoded-artifact comparison; after diagnostic
 `GST_MPP_DEC_FBC_IS_RFBC=1` coverage was added for JeffyCN's RFBC caps path;
 after diagnostic VP8 QP and JPEG quality-factor property coverage was added;
+after opt-in KMS capture coverage was expanded for
+`GST_KMSSRC_DMA_FEATURE=1`;
 after the GStreamer codec-specific encoder QP
 cases and encoded
 CBR/FIXQP RC-mode artifact cases were added to the required set and the

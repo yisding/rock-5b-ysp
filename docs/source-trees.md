@@ -322,9 +322,8 @@ format matrix for advertised GStreamer encoder input formats, decoder output
 formats, the optional `GST_MPP_VP8ENC_FAKE_VP8ENC` VP8 alias, JPEG decoder
 explicit/default BGRx output selection, VP8 QP and JPEG quality-factor property
 setters, `GST_MPP_DEC_FBC_IS_RFBC=1` RFBC caps negotiation, RGA conversions,
-and opt-in
-display/DMABuf sink cases against JeffyCN's
-`rkximagesink`. The GStreamer wrapper now also
+and opt-in display/DMABuf sink plus `GST_KMSSRC_DMA_FEATURE=1` KMS capture
+cases against JeffyCN's `rkximagesink` and `kmssrc`. The GStreamer wrapper now also
 caches generated H.264/H.265 inputs under the shared conformance assets
 directory and records `artifacts.tsv` SHA-256s for generated decode/transcode
 outputs so the comparator can fail required forward-port vs rewrite pixel or

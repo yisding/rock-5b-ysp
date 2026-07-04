@@ -426,8 +426,9 @@ implementation (cross-reference:
   paths.  The runner now
   has opt-in display/DMABuf sink cases for JeffyCN's `rkximagesink`, including
   linear DMABuf and AFBC decode output, and opt-in `kmssrc` KMS-capture cases
-  that feed DRM framebuffer-exported DMABufs into `mpph264enc` and loop them
-  through the display sink.  The remaining media-backed GStreamer evidence is
+  that feed DRM framebuffer-exported DMABufs into `mpph264enc`, including the
+  `GST_KMSSRC_DMA_FEATURE=1` env-default path, and loop them through the display
+  sink.  The remaining media-backed GStreamer evidence is
   still a booted display/KMS-plane run plus forward-port vs rewrite timing data.
   Source review of the plugin
   shows the
