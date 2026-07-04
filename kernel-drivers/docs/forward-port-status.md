@@ -107,10 +107,18 @@ the *exact* build we validated (the installer matches debs on it; see
   deliberately doesn't wire.
 - **Direct RGA3 im2d copy/resize samples can raise an error IRQ.** The
   upstream `airockchip/librga` `rga_copy`/`rga_resize` samples trigger
-  `RGA3_core0 INTR[0x2]` (soft-reset recovers, next job succeeds), while the
-  transform sample and the validated ffmpeg-`scale_rkrga`/`librga-smoke` paths
-  pass. Not yet root-caused — likely a sample format/heap mismatch (this kernel
-  exposes no `dma32_heap`), not a confirmed regression. Isolation steps:
+  `RGA3_core0 INTR[0x2]`, which is the RGA MMU interrupt (soft-reset recovers,
+  next job succeeds), while the transform sample and the validated
+  ffmpeg-`scale_rkrga`/`librga-smoke` paths pass. A source comparison found no
+  material BSP-vs-forward RGA3 driver delta; the remaining plausible
+  forward-port gap is the IOMMU provider/glue, since the vendor RGA driver now
+  runs against the mainline Rockchip IOMMU path rather than BSP
+  `rockchip,iommu-v2`. Treat raw upstream sample binaries as diagnostic until
+  BSP parity for the exact same sample shapes and fault-IOVA logs decide
+  whether this is an integration bug or an outdated test. Separately, this
+  kernel exposes no Rockchip DMA32 heaps; that is a BSP ABI/sample-compatibility
+  gap for heap-name-specific userspace, not a known requirement for the
+  maintained RGA3/MPP paths. Isolation steps:
   [`findings/2026-07-04-rga3-im2d-error-irq.md`](../../findings/2026-07-04-rga3-im2d-error-irq.md).
 
 ## What "done" means here

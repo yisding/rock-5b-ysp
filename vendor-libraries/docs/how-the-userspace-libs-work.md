@@ -250,6 +250,21 @@ This is exactly the eight-entry probe list `allocator_dma_heap.c` carries; the
 them and defers here for the mechanism. Allocation itself uses
 `DMA_HEAP_IOCTL_ALLOC` and returns a dma-buf fd.
 
+**What DMA32 means.** DMA32 is about the **hardware DMA address window**, not
+about 32-bit ARM userspace. A 32-bit or 64-bit process uses the same dma-heap
+ioctl and receives the same kind of dma-buf fd; the kernel then maps that buffer
+for the target device. Rockchip's `*-dma32` heaps allocate from low memory
+(`GFP_DMA32`) so devices or legacy paths with a 32-bit DMA mask can reach the
+backing pages directly, usually below 4 GiB. That can avoid mapping failures or
+bounce buffering for limited DMA engines.
+
+On RK3588, the forward-port's maintained MPP/RGA paths do not depend on those
+vendor DMA32 heap names for correctness: buffers from `system` or CMA heaps are
+mapped for the device through the normal dma-buf/IOMMU path. The missing DMA32
+heaps are therefore best classified as a **BSP ABI compatibility gap** for old
+Rockchip samples or vendor binaries that hard-code heap names, not as evidence
+that modern 6.18 userspace cannot allocate dma-bufs.
+
 **Why the preferred heaps are missing — and why that's fine.** We forward-ported
 the *codec* drivers (mpp + rga), **not** the vendor *memory* drivers. The Rockchip
 6.1 BSP registers extra named heaps via `drivers/dma-buf/heaps/rk_system_heap.c`,
@@ -268,8 +283,9 @@ hardware DMA. So coherency is handled and output is correct (our transcodes hit
 PSNR 47–62 dB on decodable streams). The only cost is a little cache-maintenance
 overhead per buffer versus uncached — negligible for HW-only pipelines
 (dec → rga → enc) where the CPU never touches the pixels. If you ever wanted
-byte-for-byte vendor behavior you'd also port `rk_system_heap`/`rk_dma_heap`, but
-it buys nothing for correctness.
+byte-for-byte vendor behavior or unchanged execution of old heap-name-specific
+samples you'd also port `rk_system_heap`/`rk_dma_heap`, but it buys nothing for
+correctness on the validated pipelines.
 
 **Runtime consequence.** Because the remap lands on `system` (a `/dev/dma_heap/*`
 node), and the kernel creates those nodes `root root 0600`, a non-root
