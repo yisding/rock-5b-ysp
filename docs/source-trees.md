@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `c5ca4d7cc556` + branch `rk3588-rewrite-mainline` @ `9f9b786baec2`, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `5e307d88798f` + branch `rk3588-rewrite-mainline` @ `9f9b786baec2`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -203,9 +203,11 @@ is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b` as
 of 2026-07-04:
 
-- branch `rk3588-rewrite-6.18`, commit `c5ca4d7cc556` ("media: rockchip:
+- branch `rk3588-rewrite-6.18`, commit `5e307d88798f` ("media: rockchip:
   reject dormant mpp batch server"), committed in the dev worktree
-  `/home/yi/Code/linux-6.18-rkvenc`.
+  `/home/yi/Code/linux-6.18-rkvenc`, replayed on the current
+  `rkvenc-fwport-6.18` forward-port tip `e059aad8d68b` from
+  `/home/yi/Code/linux-6.18-rkvenc-av1-fwport`.
 - branch `rk3588-rewrite-mainline`, commit `9f9b786baec2` ("media: rockchip:
   reject dormant mpp batch server"),
   committed in the sibling worktree `/home/yi/Code/linux`.
@@ -278,7 +280,7 @@ the mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for the rewrite drivers. The current committed pins
-(`../linux-6.18-rkvenc@c5ca4d7cc556` and `../linux@9f9b786baec2`) passed that
+(`../linux-6.18-rkvenc@5e307d88798f` and `../linux@9f9b786baec2`) passed that
 archive build gate warning-free on 2026-07-04; `VALIDATE_ONLY=1
 kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
 case-builder/comparator validation, including 143 GStreamer case builders. See
