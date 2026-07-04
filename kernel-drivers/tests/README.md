@@ -233,7 +233,8 @@ exercises real kernel paths:
 
 - `gst_inspect_rockchipmpp`, `gst_inspect_mppvideodec`,
   `gst_inspect_mpph264enc`, `gst_inspect_mpph265enc`;
-- `enc_h264_nv12`, `enc_h265_nv12`;
+- `enc_h264_nv12`, `enc_h265_nv12`,
+  `enc_h264_control_props`, `enc_h265_control_props`;
 - `enc_h264_bgrx_rga_rotate`, `enc_h265_rgba_rga_scale`;
 - `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
   `roundtrip_h264_rga_rotate`;
@@ -275,6 +276,11 @@ NV12 segments with different dimensions through one `concat ! mpp*h26*enc`
 pipeline, forcing JeffyCN's encoder `set_format()` path to drain and reset the
 existing MPP session inside one GStreamer pipeline rather than only across
 process restarts.
+The encoder-control-property cases set non-default `header-mode`, `sei-mode`,
+`rc-mode`, `gop`, `max-reenc`, `bps*`, and `max-pending` values and disable
+`zero-copy-pkt`, covering the current plugin path that applies
+`MPP_ENC_SET_HEADER_MODE`, `MPP_ENC_SET_SEI_CFG`, `MPP_ENC_SET_CFG`, and the
+packet copy-out path.
 The event cases use the staged `gstreamer-event-harness` helper to wait until
 `mpph264enc`, `mpph265enc`, or `mppvideodec` has produced data, then require
 more output afterward. The flush cases send `FLUSH_START`/`FLUSH_STOP` to the
@@ -324,6 +330,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_transcode_h265_to_h264`, `generated_transcode_h264_rga_to_h265`,
 `generated_transcode_h264_dmabuf_to_h265`, `generated_transcode_vp9_to_h264`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
+`enc_h264_control_props`, `enc_h265_control_props`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
 `event_force_key_enc_h264`, `event_force_key_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,

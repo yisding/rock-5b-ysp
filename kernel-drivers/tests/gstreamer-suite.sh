@@ -48,6 +48,8 @@ gst_inspect_mpph264enc
 gst_inspect_mpph265enc
 enc_h264_nv12
 enc_h265_nv12
+enc_h264_control_props
+enc_h265_control_props
 enc_h264_bgrx_rga_rotate
 enc_h265_rgba_rga_scale
 roundtrip_h264_nv12
@@ -864,6 +866,18 @@ build_case_command()
 		;;
 	enc_h265_nv12)
 		build_videotest_encode mpph265enc NV12 "$GST_NUM_BUFFERS" zero-copy-pkt=true
+		;;
+	enc_h264_control_props)
+		build_videotest_encode mpph264enc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
+			header-mode=each-idr sei-mode=one-frame rc-mode=vbr \
+			gop=12 max-reenc=2 bps=250000 bps-min=100000 bps-max=500000 \
+			max-pending=2 zero-copy-pkt=false
+		;;
+	enc_h265_control_props)
+		build_videotest_encode mpph265enc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
+			header-mode=each-idr sei-mode=one-frame rc-mode=vbr \
+			gop=12 max-reenc=2 bps=250000 bps-min=100000 bps-max=500000 \
+			max-pending=2 zero-copy-pkt=false
 		;;
 	enc_vp8_nv12)
 		build_videotest_encode mppvp8enc NV12 "$GST_FORMAT_MATRIX_BUFFERS"
