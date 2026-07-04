@@ -1,164 +1,175 @@
-# RGA3 core0 throws an error IRQ on some direct im2d copy/resize samples
+# RGA3 MMU interrupt on direct im2d samples: root-caused to Rockchip IOMMU DMA segment sizing
 
-> Scope: forward-port kernel `../kernel/linux-6.18-rkvenc-av1-fwport` (av1-fwport build, `/proc/mpp_service/version` = `6.18-rkvenc-fwport`), RGA driver `drivers/video/rockchip/rga3/`
-> Source: on-board run of the prebuilt `airockchip/librga` IM2D samples (`../rockchip-conformance/out/librga-samples/bin/`) on kernel `6.18.37-current-rockchip64 #8`
+> Scope: forward-port kernel `../kernel/linux-6.18-rkvenc-av1-fwport` branch
+> `rkvenc-fwport-6.18`, RGA driver `drivers/video/rockchip/rga3/`,
+> Rockchip IOMMU provider `drivers/iommu/rockchip-iommu.c`
+> Source: on-board debugfs run of prebuilt `airockchip/librga` IM2D samples from
+> `../rockchip-conformance/out/librga-samples/bin/`, plus BSP-vs-forward source
+> comparison against `../kernel/rockchip-kernel`
 > Date: 2026-07-04
-> Trust: MEASURED (symptom); ANALYZED (BSP/forward-port source comparison);
-> HYPOTHESIS (runtime root cause — not yet isolated on hardware)
+> Trust: MEASURED (symptom and fault addresses); ROOT-CAUSED (source delta);
+> FIX COMMITTED (runtime validation pending after rebuild)
 
-## The fact
+## Summary
 
-Running the official librga IM2D sample binaries directly (not through
-ffmpeg `scale_rkrga`), on the av1-fwport kernel:
+The direct upstream librga samples initially looked like either bad/outdated
+tests or a vague RGA3 + IOMMU forward-port gap. They are now a real
+forward-port bug with a narrow cause:
 
-- `rga_transform_rotate_demo` → **`running success!`** — at least one librga/RGA
-  submit/IRQ/readback path works after recovery. This does not, by itself, prove
-  the RGA3+IOMMU path is clean unless the selected core is captured in logs.
-- `rga_copy_demo`, `rga_resize_rect_demo` → `Failed to call RockChipRga
-  interface`. `dmesg` shows the real cause on the RGA3 side:
-  ```
-  rga: ID[1]: irq handler err! INTR[0x2], HW_STATUS[0xaaaaa], CMD_STATUS[0x1]
-  rga: RGA3_core0[0x1] soft reset complete.
-  rga: ID[1]: rga intr error[0x2]!  ... request commit failed! ... submit failed!
-  ```
-  i.e. RGA3 core0 raises the **RGA MMU interrupt** (`INTR[0x2]` is
-  `m_RGA3_INT_RGA_MMU_INTR`), the driver **soft-resets the core and recovers**,
-  and the *next* job (the transform demo) succeeds. So the reset/recovery path
-  is healthy; specific RGA3 im2d copy/resize submissions fault.
-- `rga_fill_rectangle_demo`, `rga_cvtcolor_csc_demo` → fail earlier, at buffer
-  allocation: `alloc dma32_heap buffer failed!` / `alloc src dma_heap buffer
-  failed!`. This kernel exposes only `/dev/dma_heap/{system,default_cma_region,
-  reserved}` — there is **no `dma32_heap`** node the samples ask for. That is an
-  environmental/sample-expectation mismatch, not an RGA fault.
+- The failing samples import malloc-backed userspace buffers with
+  `importbuffer_virtualaddr()`, not dma-heaps.
+- RGA pins those pages, builds an sg-table, calls `dma_map_sg()`, then programs
+  only `sg_dma_address(sgt->sgl)` into RGA registers while treating the sum of
+  all sg lengths as one contiguous IOVA span.
+- The BSP Rockchip IOMMU driver explicitly allows a single huge DMA segment for
+  each attached device with `dma_set_max_seg_size(dev, DMA_BIT_MASK(32))`.
+- The forward kernel lost that device DMA contract in
+  `rk_iommu_probe_device()`.
+- Without it, `dma_map_sg()` can leave the mapped buffer as multiple DMA
+  segments. RGA then walks past the first segment into unmapped IOVA pages and
+  raises `INTR[0x2]`, the RGA MMU interrupt.
 
-Contrast: RGA *is* validated through ffmpeg `scale_rkrga` in `transcode-test.sh`
-(1080p→720p / 720p→480p) and through `librga-smoke.sh`'s maintained im2d paths.
-Those pass. Only the direct upstream copy/resize sample shapes fault here.
+Forward-kernel fix:
 
-The failing copy/resize samples are not the heap-name failures: they allocate
-ordinary userspace memory with `malloc()`, register it through
-`importbuffer_virtualaddr()`, and then wrap the imported handles as RGBA buffers.
-That keeps the RGA MMU interrupt separate from the `dma32_heap` allocation
-failures.
+```text
+../kernel/linux-6.18-rkvenc-av1-fwport
+13afe70c8271 iommu: rockchip: restore large DMA segment support
+```
 
-## BSP vs forward-port comparison
+That commit restores the BSP `dma_parms` allocation and
+`dma_set_max_seg_size(dev, DMA_BIT_MASK(32))` in the mainline Rockchip IOMMU
+provider. It builds as a targeted object (`drivers/iommu/rockchip-iommu.o`) and
+passes `checkpatch`; runtime validation is still pending after rebuilding,
+installing, rebooting, and rerunning the diagnostic script below.
 
-Compared `../kernel/rockchip-kernel` against
-`../kernel/linux-6.18-rkvenc-av1-fwport`:
+## Reproducer / Diagnostic Script
 
-- `drivers/video/rockchip/rga3/` is effectively BSP-equivalent. The diffs are
-  forward-port/build adaptations: Kconfig dependency/defaults, Makefile include
-  syntax, hrtimer API, module namespace quoting, safer version-string
-  `snprintf()`, a 6.12+ VMA/PFN fallback, and an IOMMU fault-handler guard for
-  DMA-managed domains. There is no material diff in RGA3 register programming,
-  IRQ handling, policy/core selection, format/stride checks, job submission, or
-  virtual-buffer IOVA mapping.
-- The RK3588 RGA DT nodes are also effectively BSP nodes transplanted into the
-  6.18 base: same register ranges, IRQ numbers, clocks, power domains, and
-  IOMMU attachments, with mainline binding-compatible spelling/default
-  enablement. The important exception is the IOMMU provider binding: BSP RGA
-  MMUs use `compatible = "rockchip,iommu-v2"`, while the forward port binds
-  them through the mainline Rockchip IOMMU provider as
-  `compatible = "rockchip,rk3588-iommu", "rockchip,rk3568-iommu"`.
-- The heap behavior is a real BSP/forward-port delta, but it explains only the
-  allocation-only failures. The BSP enables Rockchip dma-buf heaps and creates
-  `system-dma32` / `system-uncached-dma32`; the forward kernel uses standard
-  6.18 heaps (`system`, `default_cma_region`, `reserved`) and does not expose a
-  Rockchip DMA32 heap.
+The support repo now carries a focused runner:
 
-DMA32 here means **memory suitable for devices with a 32-bit DMA address
-window**, usually pages below 4 GiB. It is not about whether the userspace
-process is a 32-bit ARM program: userspace gets a dma-buf fd, and the kernel
-maps that buffer for the hardware device. On RK3588, the maintained RGA3/MPP
-paths use IOMMU/dma-buf mappings and do not require a Rockchip DMA32 heap for
-correctness. Missing DMA32 heaps are therefore a BSP ABI/sample-compatibility
-gap, not a confirmed functional gap for the validated forward-port workloads.
+```bash
+sudo bash kernel-drivers/tests/rga-mmu-debug.sh
+```
 
-So there is no identified forward-port RGA3 *driver* change that directly
-explains only these copy/resize MMU interrupts. The plausible forward-port gap
-is narrower: the vendor RGA3 driver is now running against the mainline
-Rockchip IOMMU path instead of Rockchip's BSP `iommu-v2` path. The RGA driver
-maps malloc-backed virtual buffers by pinning pages, building an sg-table,
-calling `dma_map_sg()` against the selected scheduler/default IOMMU device, and
-programming the resulting IOVA into the RGA3 image base registers. If the
-mainline IOMMU domain, TLB maintenance, device/domain selection, or fault
-recovery differs from BSP in a way this vendor RGA driver did not expect, the
-first visible symptom would be exactly this: `m_RGA3_INT_RGA_MMU_INTR`.
+The script:
 
-One tempting theory is high-address truncation: RGA3 image base registers are
-programmed as 32-bit values while the RGA IOMMU devices request a 40-bit DMA
-mask. That must still be checked in the fault logs, but it is not the leading
-theory from source alone because the Rockchip IOMMU domain advertises a forced
-32-bit IOVA aperture in both trees. If the failing IOVA or programmed `win0` /
-`wr` addresses show high bits, address-width truncation becomes actionable. If
-the fault IOVA is below 4 GiB, focus instead on map range, domain sharing, TLB
-sync, or RGA/core selection.
+- checks `/dev/rga` and `/sys/kernel/debug/rkrga`;
+- idempotently enables RGA `reg msg int mm time` debug flags and restores their
+  original state on exit;
+- runs `rga_copy_demo`, `rga_resize_rect_demo`, and
+  `rga_transform_rotate_demo`;
+- writes `/dev/kmsg` markers around each case;
+- captures per-case stdout/stderr, full dmesg before/after, filtered
+  RGA/IOMMU/MMU dmesg, dmesg tail, and debugfs snapshots;
+- treats the upstream samples' "printed fatal error but exit 0" behavior as
+  `fail-output` instead of pass.
 
-The forward-port guard around `iommu_set_fault_handler()` for cookie-backed DMA
-domains is probably diagnostic/recovery related rather than the cause of the
-bad access. Restoring the generic call blindly is not the right fix on 6.18
-because the IOMMU core warns on cookie-backed domains. If we need the vendor RGA
-fault callback again, use the Rockchip-specific fault-handler shim exported by
-the forward IOMMU driver (`rockchip_iommu_set_fault_handler()`) or add explicit
-RGA-side fault dumps, instead of bypassing the 6.18 cookie rules.
+The run that found the bug was:
 
-## Why it matters / follow-up
+```text
+../rockchip-conformance/logs/rga-mmu-debug/20260704-102533
+kernel: Linux rock-5b 6.18.37-current-rockchip64 #8
+librga: rga_api version 1.10.6_[3]
+```
 
-RGA is part of the forward-port, so a real RGA3 copy/resize regression would
-matter — but this is **not yet root-caused**, and the validated userspace paths
-(ffmpeg scale, librga-smoke) are clean. Treat the raw upstream sample binaries as
-diagnostic on the forward-port until the exact same binaries and shapes are
-measured on the vendor 6.1 BSP image. In particular, `librga-suite.sh` currently
-lists many upstream sample binaries as required; that requirement is too broad
-for the forward-port gate unless BSP parity for those exact cases is known.
+The board had `/sys/kernel/debug/rkrga/{debug,driver_version,hardware,load,
+mm_session,request_manager,reset,scheduler_status}`. The `hardware` debugfs
+file reported:
 
-Debug plan:
-1. Re-run `rga_copy_demo`/`rga_resize_rect_demo` with RGA MM/REG/INT logging
-   enabled under `/sys/kernel/debug/rkrga/` if present. Capture the failing
-   request, selected core, src/dst format, active/virtual dimensions, stride,
-   `win0`/`wr` addresses, and `rga_mm_dump_buffer()` IOVA/dma_addr/offset values.
-2. Capture the Rockchip IOMMU page-fault line from `dmesg`
-   (`Page fault at ... of type read/write`) for the same run. Compare the fault
-   IOVA with the mapped src/dst IOVA ranges and the RGA3 register dump:
-   in-range faults point to IOMMU/TLB/domain handling; just-past-end faults point
-   to size/stride/overread; unrelated faults point to wrong device/domain or
-   stale mapping.
-3. Force core selection: RGA3 core0, RGA3 core1, then RGA2. If both RGA3 cores
-   fault and RGA2 succeeds, the RGA3/mainline-IOMMU path is suspect. If only one
-   RGA3 core faults, check that core's DT/IOMMU/power/clock path. If all cores
-   fail, focus on the sample request or virtual-buffer import path.
-4. Run the same copy/resize shapes with dma-buf fd-backed buffers from heaps the
-   forward kernel actually exposes (`system`, `default_cma_region`, or
-   `reserved`). If fd-backed buffers pass while `importbuffer_virtualaddr()`
-   fails, the GUP/sg/dma_map virtual-import path is the target. If both fail,
-   focus on RGA3 register programming or IOMMU translation.
-5. Vary size around the failing shapes. Small maintained smoke cases pass today;
-   finding the smallest failing width/height helps distinguish IOVA allocator
-   pressure, page-boundary/sg issues, and algorithm-specific copy/resize
-   behavior.
-6. Run the exact same prebuilt sample binaries and image shapes on the vendor
-   6.1 BSP kernel. If BSP RGA3 passes and the forward kernel fails, this is a
-   real forward-port bug in the RGA3 + IOMMU integration. If BSP also faults,
-   demote the raw upstream copy/resize samples to outdated/bad diagnostic tests
-   and keep the maintained smoke/ffmpeg paths as the gate.
+```text
+rga3 core 1: mmu: RK_IOMMU
+rga3 core 2: mmu: RK_IOMMU
+rga2 core 4: mmu: RGA_MMU
+```
 
-Candidate fix directions, depending on the evidence:
-1. If the fault IOVA is outside the mapped buffer: fix the sample/test request
-   or the driver size/stride validation; do not paper over it in IOMMU code.
-2. If the fault IOVA is inside a mapped buffer: audit the forward IOMMU glue for
-   the selected map device, shared domain setup between RGA3 cores, DMA API
-   attachment lifetime, and Rockchip IOMMU TLB/page-table sync.
-3. If the RGA driver needs its vendor fault callback for correct recovery, wire
-   it through `rockchip_iommu_set_fault_handler()` or add explicit RGA-side fault
-   dumps; do not re-enable generic `iommu_set_fault_handler()` on DMA-cookie
-   domains.
-4. If only malloc-backed imports fail: prefer dma-buf-backed buffers in
-   production tests while fixing the virtual import path separately. The public
-   librga ABI still supports virtual imports, so this should remain tracked.
-5. If forcing RGA2 avoids the fault: RGA2 routing is a workaround only. It should
-   not close the finding unless BSP also fails the RGA3 case.
+So these failures are specifically on the RGA3 + Rockchip IOMMU path, not the
+legacy RGA2 internal MMU path.
 
-Related: the missing DMA32 heap is worth noting for anyone running the raw
-upstream librga samples — rebuild heap-allocating samples with a heap this kernel
-provides (`system`, `default_cma_region`, or `reserved`) or treat those failures
-as environment/sample-expectation mismatches before they touch RGA.
+## Measured Fault Evidence
+
+All three samples selected `RGA3_core0`, whose IOMMU is `fdb60f00.iommu`.
+The sample programs returned process status `0`, but their stdout/stderr printed
+fatal librga errors and the kernel logs showed RGA request failure.
+
+| Case | Mapped buffer evidence | Fault evidence | Interpretation |
+|------|------------------------|----------------|----------------|
+| `rga_copy_demo` | src handle `7`: `iova = 0xfff7e010`, `size = 3686400`, `map_core = 0x1`; dst handle `8`: `iova = 0xff000010`, same size | `Page fault at 0x00000000fff85810 of type read`; `pte ... valid: 0`; `INTR[0x2]`, `HW_STATUS[0xaaaaa]`; `RGA3_core0[0x1] soft reset complete` | Fault is inside the logical src range, only about `0x7800` bytes after the programmed base. That points at a fragmented DMA mapping, not bad dimensions. |
+| `rga_resize_rect_demo` | src handle `9`: `iova = 0xff400010`, `size = 3686400`; dst handle `10`: `iova = 0xffe79010`, `size = 8294400`; RGA programmed `wr: y = ffe79010 ... vw = 1920 vh = 1080` | `Page fault at 0x00000000fff78010 of type write`; invalid PTE; `INTR[0x2]`, `HW_STATUS[0x5aaaa]` | Fault is inside the logical dst range. Again, RGA walked into an unmapped page inside what the driver believed was one buffer. |
+| `rga_transform_rotate_demo` | src handle `11`: `iova = 0xffcef010`, `size = 3686400`; dst handle `12`: `iova = 0xfff26010`, `size = 3686400` | `Page fault at 0x0000000000071c10 of type read`; invalid DTE/PTE; `INTR[0x2]`, `HW_STATUS[0xaaaaa]` | This one also shows 32-bit wrap because the logical src range crosses 4 GiB. The copy/resize faults already occurred before wrap, so wrap is a symptom amplifier, not the root cause. |
+
+The important common pattern is not "address above 4 GiB"; it is "RGA programs
+a single base address and then faults inside the buffer range because the IOMMU
+page table does not contain a contiguous mapping for that whole range."
+
+## How The Source Comparison Found The Cause
+
+The RGA3 driver source did not contain a material BSP-vs-forward delta in the
+paths involved here. The relevant RGA behavior is the same:
+
+- `rga_dma_map_sgt()` calls `dma_map_sg(map_dev, sgt->sgl, sgt->orig_nents, dir)`;
+- it stores only `sg_dma_address(sgt->sgl)` as `buffer->dma_addr`;
+- it sums every sg entry's `sg_dma_len()` into `buffer->size`;
+- register generation then programs `win0` / `wr` image base registers from that
+  one base address.
+
+That RGA design depends on the DMA layer returning one contiguous IOVA segment
+for the whole buffer.
+
+The BSP IOMMU driver has the missing contract in `rk_iommu_probe_device()`:
+
+```c
+/* set max segment size for dev, needed for single chunk map */
+if (!dev->dma_parms)
+	dev->dma_parms = kzalloc(sizeof(*dev->dma_parms), GFP_KERNEL);
+if (!dev->dma_parms)
+	return ERR_PTR(-ENOMEM);
+
+dma_set_max_seg_size(dev, DMA_BIT_MASK(32));
+```
+
+The forward-port IOMMU provider lacked that block. Restoring it makes the
+forward IOMMU provider match the vendor expectation that RGA and similar media
+clients may map a whole 32-bit IOVA aperture as one DMA segment.
+
+## What This Is Not
+
+This is separate from the missing `dma32_heap` sample failures.
+
+`rga_fill_rectangle_demo` and `rga_cvtcolor_csc_demo` fail earlier because they
+ask userspace for `/dev/dma_heap/dma32_heap`, which this standard 6.18 kernel
+does not expose. Rockchip DMA32 heaps mean "allocate memory suitable for devices
+with a 32-bit DMA address window"; they are not for 32-bit ARM userspace
+applications. That is a BSP ABI/sample-compatibility gap, not the cause of the
+RGA3 MMU interrupt above.
+
+This is also not explained by the forward-port guard around
+`iommu_set_fault_handler()` on DMA-cookie domains. That affects diagnostic fault
+callback registration/recovery plumbing. The fault here is caused before that:
+RGA is given a single base address for a mapping that is not actually contiguous
+for the full logical buffer size.
+
+## Validation State
+
+Done:
+
+- Captured RGA debugfs logs and IOMMU fault lines on hardware.
+- Matched the faulting IOVA to RGA's imported handle IOVA and programmed
+  register bases.
+- Compared BSP and forward RGA3 source and found no material RGA-side delta.
+- Compared BSP and forward Rockchip IOMMU source and found the missing
+  `dma_set_max_seg_size()` contract.
+- Patched, built, checkpatched, committed, and pushed the forward-kernel fix.
+
+Still pending:
+
+1. Rebuild/install/reboot the forward kernel containing `13afe70c8271`.
+2. Rerun:
+   ```bash
+   sudo bash kernel-drivers/tests/rga-mmu-debug.sh
+   ```
+3. Expected result: the three samples no longer print fatal librga errors, no
+   `rk_iommu fdb60f00.iommu: Page fault ...` appears between the per-case kmsg
+   markers, and no `RGA3_core0 INTR[0x2]` / `rga intr error[0x2]` occurs.
+4. If it still faults, add temporary RGA mapping logs for `dma_map_sg()` return
+   count, first sg length, and all mapped segment DMA ranges. The next suspect
+   would be a remaining merge limit or a second caller path that bypasses the
+   restored `dma_parms` value.

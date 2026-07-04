@@ -105,20 +105,21 @@ the *exact* build we validated (the installer matches debs on it; see
   The `mpp_platform: client N driver is not ready!` lines for clients 1/3/12/13/18/19
   are *also* benign — MPP's RK3588 table lists legacy VDPU/JPEG clients this DT
   deliberately doesn't wire.
-- **Direct RGA3 im2d copy/resize samples can raise an error IRQ.** The
-  upstream `airockchip/librga` `rga_copy`/`rga_resize` samples trigger
-  `RGA3_core0 INTR[0x2]`, which is the RGA MMU interrupt (soft-reset recovers,
-  next job succeeds), while the transform sample and the validated
-  ffmpeg-`scale_rkrga`/`librga-smoke` paths pass. A source comparison found no
-  material BSP-vs-forward RGA3 driver delta; the remaining plausible
-  forward-port gap is the IOMMU provider/glue, since the vendor RGA driver now
-  runs against the mainline Rockchip IOMMU path rather than BSP
-  `rockchip,iommu-v2`. Treat raw upstream sample binaries as diagnostic until
-  BSP parity for the exact same sample shapes and fault-IOVA logs decide
-  whether this is an integration bug or an outdated test. Separately, this
+- **Direct RGA3 im2d virtual-buffer samples exposed a Rockchip IOMMU forward-port
+  gap.** The upstream `airockchip/librga` copy/resize/rotate samples import
+  malloc-backed buffers and can trigger `RGA3_core0 INTR[0x2]`, the RGA MMU
+  interrupt, on the av1-fwport build. The debugfs run in
+  `kernel-drivers/tests/rga-mmu-debug.sh` showed the selected core, imported
+  IOVAs, programmed `win0`/`wr` bases, and `rk_iommu fdb60f00.iommu` page
+  faults. The root cause is that the forward Rockchip IOMMU provider lost the
+  BSP `dma_set_max_seg_size(dev, DMA_BIT_MASK(32))` setup that RGA needs because
+  it stores only the first `dma_map_sg()` address while treating the whole
+  sg-table as one contiguous IOVA span. The forward-kernel fix is committed as
+  `13afe70c8271` (`iommu: rockchip: restore large DMA segment support`), but
+  booted runtime validation is pending after rebuild/reboot. Separately, this
   kernel exposes no Rockchip DMA32 heaps; that is a BSP ABI/sample-compatibility
-  gap for heap-name-specific userspace, not a known requirement for the
-  maintained RGA3/MPP paths. Isolation steps:
+  gap for heap-name-specific userspace, not the RGA3 MMU interrupt cause.
+  Evidence and rerun instructions:
   [`findings/2026-07-04-rga3-im2d-error-irq.md`](../../findings/2026-07-04-rga3-im2d-error-irq.md).
 
 ## What "done" means here

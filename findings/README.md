@@ -36,4 +36,4 @@ in the watchlist.
 
 Each row: `` `YYYY-MM-DD-slug.md` `` — one-line summary — trust tag.
 
-- `` `2026-07-04-rga3-im2d-error-irq.md` `` — RGA3 core0 raises the RGA MMU interrupt (`INTR[0x2]`, soft-reset recovers) on some direct upstream librga copy/resize samples on the av1-fwport kernel; no material RGA3 driver delta was found, but the forward-port mainline Rockchip IOMMU glue remains a plausible gap until BSP parity and fault-IOVA logs decide it — MEASURED (symptom) / ANALYZED (source comparison) / HYPOTHESIS (cause).
+- `` `2026-07-04-rga3-im2d-error-irq.md` `` — RGA3 core0 `INTR[0x2]` on direct upstream librga virtual-buffer samples was root-caused to the forward Rockchip IOMMU provider losing the BSP `dma_set_max_seg_size(..., DMA_BIT_MASK(32))` contract that RGA needs for single-span DMA mappings; fix committed in the forward kernel as `13afe70c8271`, runtime validation pending — MEASURED / ROOT-CAUSED / FIX COMMITTED.
