@@ -48,6 +48,8 @@ GST_ENABLE_VP9_CASES=${GST_ENABLE_VP9_CASES:-1}
 GST_REQUIRE_VP9_CASES=${GST_REQUIRE_VP9_CASES:-1}
 GST_ENABLE_AV1_CASES=${GST_ENABLE_AV1_CASES:-0}
 GST_REQUIRE_AV1_CASES=${GST_REQUIRE_AV1_CASES:-0}
+GST_ENABLE_LEGACY_DECODE_CASES=${GST_ENABLE_LEGACY_DECODE_CASES:-0}
+GST_REQUIRE_LEGACY_DECODE_CASES=${GST_REQUIRE_LEGACY_DECODE_CASES:-0}
 GST_ENABLE_PARALLEL_CASES=${GST_ENABLE_PARALLEL_CASES:-1}
 GST_REQUIRE_PARALLEL_CASES=${GST_REQUIRE_PARALLEL_CASES:-1}
 GST_ENABLE_CONTAINER_CASES=${GST_ENABLE_CONTAINER_CASES:-1}
@@ -136,6 +138,25 @@ generated_dec_av1_dmabuf
 av1_diagnostic_cases_default="
 generated_dec_av1_rga_scale
 generated_transcode_av1_to_h264
+"
+
+legacy_decode_cases_default="
+generated_dec_vp8_fakesink
+generated_dec_vp8_dmabuf
+generated_dec_h263_fakesink
+generated_dec_mpeg2_fakesink
+generated_dec_mpeg4_fakesink
+"
+
+legacy_decode_diagnostic_cases_default="
+generated_dec_vp8_rga_scale
+generated_transcode_vp8_to_h264
+generated_dec_h263_rga_scale
+generated_transcode_h263_to_h264
+generated_dec_mpeg2_rga_scale
+generated_transcode_mpeg2_to_h264
+generated_dec_mpeg4_rga_scale
+generated_transcode_mpeg4_to_h264
 "
 
 parallel_cases_default="
@@ -250,6 +271,18 @@ $av1_cases_default"
 	else
 		diagnostic_cases_default="$diagnostic_cases_default
 $av1_cases_default"
+	fi
+fi
+
+if [ "$GST_ENABLE_LEGACY_DECODE_CASES" = "1" ]; then
+	diagnostic_cases_default="$diagnostic_cases_default
+$legacy_decode_diagnostic_cases_default"
+	if [ "$GST_REQUIRE_LEGACY_DECODE_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$legacy_decode_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$legacy_decode_cases_default"
 	fi
 fi
 
@@ -447,6 +480,8 @@ GENERATED_ENCODER_ARGS=()
 GENERATED_MUXER=
 GENERATED_PARSER=
 GENERATED_SUFFIX=
+GENERATED_WIDTH=$GST_WIDTH
+GENERATED_HEIGHT=$GST_HEIGHT
 
 safe_token()
 {
@@ -460,9 +495,11 @@ generated_cache_path()
 	local ext=$3
 	local framerate
 	local name
+	local width=${GENERATED_WIDTH:-$GST_WIDTH}
+	local height=${GENERATED_HEIGHT:-$GST_HEIGHT}
 
 	framerate=$(safe_token "$GST_FRAMERATE")
-	name="$kind-$codec-${GST_WIDTH}x${GST_HEIGHT}-${framerate}-${GST_GENERATED_INPUT_BUFFERS}"
+	name="$kind-$codec-${width}x${height}-${framerate}-${GST_GENERATED_INPUT_BUFFERS}"
 	if [ "$kind" = "generated-renegotiate" ]; then
 		name="$name-to-${GST_SCALE_WIDTH}x${GST_SCALE_HEIGHT}-${GST_CAPS_RENEGOTIATE_BUFFERS}"
 	fi
@@ -782,6 +819,9 @@ select_generated_codec()
 {
 	local codec=$1
 
+	GENERATED_WIDTH=$GST_WIDTH
+	GENERATED_HEIGHT=$GST_HEIGHT
+
 	case "$codec" in
 	h264)
 		GENERATED_ENCODER=mpph264enc
@@ -797,6 +837,13 @@ select_generated_codec()
 		GENERATED_PARSER=h265parse
 		GENERATED_SUFFIX=h265
 		;;
+	vp8)
+		GENERATED_ENCODER=vp8enc
+		GENERATED_ENCODER_ARGS=()
+		GENERATED_MUXER=ivfmux
+		GENERATED_PARSER=ivfparse
+		GENERATED_SUFFIX=ivf
+		;;
 	vp9)
 		GENERATED_ENCODER=vp9enc
 		GENERATED_ENCODER_ARGS=()
@@ -811,6 +858,29 @@ select_generated_codec()
 		GENERATED_PARSER=ivfparse
 		GENERATED_SUFFIX=ivf
 		;;
+	h263)
+		GENERATED_ENCODER=__ffmpeg_h263
+		GENERATED_ENCODER_ARGS=()
+		GENERATED_MUXER=
+		GENERATED_PARSER=h263parse
+		GENERATED_SUFFIX=h263
+		GENERATED_WIDTH=352
+		GENERATED_HEIGHT=288
+		;;
+	mpeg2)
+		GENERATED_ENCODER=__ffmpeg_mpeg2video
+		GENERATED_ENCODER_ARGS=()
+		GENERATED_MUXER=
+		GENERATED_PARSER=mpegvideoparse
+		GENERATED_SUFFIX=m2v
+		;;
+	mpeg4)
+		GENERATED_ENCODER=__ffmpeg_mpeg4
+		GENERATED_ENCODER_ARGS=()
+		GENERATED_MUXER=
+		GENERATED_PARSER=mpeg4videoparse
+		GENERATED_SUFFIX=m4v
+		;;
 	*)
 		printf "unknown generated codec: %s\n" "$codec" >&2
 		return 4
@@ -821,6 +891,8 @@ select_generated_codec()
 ensure_generated_input()
 {
 	local codec=$1
+	local ffmpeg_codec
+	local ffmpeg_format
 
 	select_generated_codec "$codec" || return $?
 	GENERATED_INPUT_PATH=$(generated_cache_path generated-input "$codec" "$GENERATED_SUFFIX")
@@ -833,7 +905,7 @@ ensure_generated_input()
 			"$GST_GENERATOR"
 			-y
 			-f lavfi
-			-i "testsrc2=size=${GST_WIDTH}x${GST_HEIGHT}:rate=${GST_FRAMERATE}"
+			-i "testsrc2=size=${GENERATED_WIDTH}x${GENERATED_HEIGHT}:rate=${GST_FRAMERATE}"
 			-frames:v "$GST_GENERATED_INPUT_BUFFERS"
 			-pix_fmt yuv420p
 			-c:v libaom-av1
@@ -855,10 +927,55 @@ ensure_generated_input()
 		return 0
 	fi
 
+	if [[ "$GENERATED_ENCODER" == __ffmpeg_* ]]; then
+		case "$GENERATED_ENCODER" in
+		__ffmpeg_h263)
+			ffmpeg_codec=h263
+			ffmpeg_format=h263
+			;;
+		__ffmpeg_mpeg2video)
+			ffmpeg_codec=mpeg2video
+			ffmpeg_format=mpeg2video
+			;;
+		__ffmpeg_mpeg4)
+			ffmpeg_codec=mpeg4
+			ffmpeg_format=m4v
+			;;
+		*)
+			printf "unknown ffmpeg generated encoder: %s\n" \
+				"$GENERATED_ENCODER" >&2
+			return 4
+			;;
+		esac
+
+		CMD=(
+			"$GST_GENERATOR"
+			-hide_banner
+			-loglevel error
+			-y
+			-f lavfi
+			-i "testsrc2=size=${GENERATED_WIDTH}x${GENERATED_HEIGHT}:rate=${GST_FRAMERATE}"
+			-frames:v "$GST_GENERATED_INPUT_BUFFERS"
+			-pix_fmt yuv420p
+			-c:v "$ffmpeg_codec"
+			-f "$ffmpeg_format"
+			"$GENERATED_INPUT_PATH"
+		)
+		printf "generating %s input: " "$codec"
+		print_current_command
+		run_current_command || return $?
+		if [ ! -s "$GENERATED_INPUT_PATH" ]; then
+			printf "generated %s input is empty: %s\n" "$codec" \
+				"$GENERATED_INPUT_PATH" >&2
+			return 1
+		fi
+		return 0
+	fi
+
 	CMD=(
 		gst-launch-1.0 -q
 		videotestsrc "num-buffers=$GST_GENERATED_INPUT_BUFFERS" is-live=false pattern=smpte
-		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" "video/x-raw,format=NV12,width=$GENERATED_WIDTH,height=$GENERATED_HEIGHT,framerate=$GST_FRAMERATE"
 		"!" "$GENERATED_ENCODER" "${GENERATED_ENCODER_ARGS[@]}"
 	)
 	if [ -n "$GENERATED_MUXER" ]; then
@@ -1925,6 +2042,12 @@ build_case_command()
 	generated_dec_h264_env_format_nv21)
 		CMD=(__builtin_generated_decode_env_format h264 NV21)
 		;;
+	generated_dec_vp8_fakesink)
+		CMD=(__builtin_generated_decode vp8)
+		;;
+	generated_dec_vp8_dmabuf)
+		CMD=(__builtin_generated_decode vp8 dma-feature=true)
+		;;
 	generated_dec_vp9_fakesink)
 		CMD=(__builtin_generated_decode vp9)
 		;;
@@ -1936,6 +2059,15 @@ build_case_command()
 		;;
 	generated_dec_av1_dmabuf)
 		CMD=(__builtin_generated_decode av1 dma-feature=true)
+		;;
+	generated_dec_h263_fakesink)
+		CMD=(__builtin_generated_decode h263)
+		;;
+	generated_dec_mpeg2_fakesink)
+		CMD=(__builtin_generated_decode mpeg2)
+		;;
+	generated_dec_mpeg4_fakesink)
+		CMD=(__builtin_generated_decode mpeg4)
 		;;
 	generated_dec_h264_renegotiate)
 		CMD=(__builtin_generated_renegotiate_decode h264)
@@ -1959,6 +2091,22 @@ build_case_command()
 		CMD=(__builtin_generated_decode av1 \
 			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV12)
 		;;
+	generated_dec_vp8_rga_scale)
+		CMD=(__builtin_generated_decode vp8 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV12)
+		;;
+	generated_dec_h263_rga_scale)
+		CMD=(__builtin_generated_decode h263 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV12)
+		;;
+	generated_dec_mpeg2_rga_scale)
+		CMD=(__builtin_generated_decode mpeg2 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV12)
+		;;
+	generated_dec_mpeg4_rga_scale)
+		CMD=(__builtin_generated_decode mpeg4 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV12)
+		;;
 	generated_transcode_h264_to_h265)
 		CMD=(__builtin_generated_transcode h264 mpph265enc)
 		;;
@@ -1976,6 +2124,18 @@ build_case_command()
 		;;
 	generated_transcode_av1_to_h264)
 		CMD=(__builtin_generated_transcode av1 mpph264enc)
+		;;
+	generated_transcode_vp8_to_h264)
+		CMD=(__builtin_generated_transcode vp8 mpph264enc)
+		;;
+	generated_transcode_h263_to_h264)
+		CMD=(__builtin_generated_transcode h263 mpph264enc)
+		;;
+	generated_transcode_mpeg2_to_h264)
+		CMD=(__builtin_generated_transcode mpeg2 mpph264enc)
+		;;
+	generated_transcode_mpeg4_to_h264)
+		CMD=(__builtin_generated_transcode mpeg4 mpph264enc)
 		;;
 	generated_transcode_h264_rga_to_h265)
 		CMD=(__builtin_generated_transcode h264 mpph265enc \
@@ -2410,9 +2570,14 @@ run_case_payload()
 	generated_dec_h264_fakesink | generated_dec_h265_fakesink | \
 	generated_dec_h264_dmabuf | generated_dec_h265_dmabuf | \
 	generated_dec_h264_strict_props | generated_dec_h265_strict_props | \
+	generated_dec_vp8_fakesink | generated_dec_vp8_dmabuf | \
 	generated_dec_vp9_fakesink | generated_dec_vp9_dmabuf | \
 	generated_dec_av1_fakesink | generated_dec_av1_dmabuf | \
+	generated_dec_h263_fakesink | generated_dec_mpeg2_fakesink | \
+	generated_dec_mpeg4_fakesink | \
 	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
+	generated_dec_vp8_rga_scale | generated_dec_h263_rga_scale | \
+	generated_dec_mpeg2_rga_scale | generated_dec_mpeg4_rga_scale | \
 	generated_dec_vp9_rga_scale | generated_dec_av1_rga_scale | \
 	generated_dec_h264_rga_rgba_scale | generated_dec_h264_rga_bgra_scale | \
 	generated_dec_h264_rga_rgbx_scale | generated_dec_h264_rga_bgrx_scale | \
@@ -2437,7 +2602,9 @@ run_case_payload()
 	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
 	generated_transcode_h264_rga_to_h265 | \
 	generated_transcode_h264_dmabuf_to_h265 | generated_transcode_vp9_to_h264 | \
-	generated_transcode_av1_to_h264)
+	generated_transcode_av1_to_h264 | generated_transcode_vp8_to_h264 | \
+	generated_transcode_h263_to_h264 | generated_transcode_mpeg2_to_h264 | \
+	generated_transcode_mpeg4_to_h264)
 		run_generated_transcode "${CMD[1]}" "${CMD[2]}" "${CMD[@]:3}"
 		;;
 	generated_transcode_h264_mp4_to_h265 | generated_transcode_h265_mp4_to_h264)
@@ -2508,9 +2675,14 @@ runtime_dispatch_validated()
 	generated_dec_h264_fakesink | generated_dec_h265_fakesink | \
 	generated_dec_h264_dmabuf | generated_dec_h265_dmabuf | \
 	generated_dec_h264_strict_props | generated_dec_h265_strict_props | \
+	generated_dec_vp8_fakesink | generated_dec_vp8_dmabuf | \
 	generated_dec_vp9_fakesink | generated_dec_vp9_dmabuf | \
 	generated_dec_av1_fakesink | generated_dec_av1_dmabuf | \
+	generated_dec_h263_fakesink | generated_dec_mpeg2_fakesink | \
+	generated_dec_mpeg4_fakesink | \
 	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
+	generated_dec_vp8_rga_scale | generated_dec_h263_rga_scale | \
+	generated_dec_mpeg2_rga_scale | generated_dec_mpeg4_rga_scale | \
 	generated_dec_vp9_rga_scale | generated_dec_av1_rga_scale | \
 	generated_dec_h264_rga_rgba_scale | generated_dec_h264_rga_bgra_scale | \
 	generated_dec_h264_rga_rgbx_scale | generated_dec_h264_rga_bgrx_scale | \
@@ -2523,7 +2695,9 @@ runtime_dispatch_validated()
 	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
 	generated_transcode_h264_rga_to_h265 | \
 	generated_transcode_h264_dmabuf_to_h265 | generated_transcode_vp9_to_h264 | \
-	generated_transcode_av1_to_h264 | \
+	generated_transcode_av1_to_h264 | generated_transcode_vp8_to_h264 | \
+	generated_transcode_h263_to_h264 | generated_transcode_mpeg2_to_h264 | \
+	generated_transcode_mpeg4_to_h264 | \
 	generated_transcode_h264_mp4_to_h265 | \
 	generated_transcode_h265_mp4_to_h264 | \
 	generated_dec_h264_display_dmabuf | generated_dec_h265_display_dmabuf | \

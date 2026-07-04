@@ -156,7 +156,9 @@ Suggested expanded matrix:
   Display and KMS-capture DMABuf pipelines are opt-in because they require a
   target display plane, but the suite has explicit cases for JeffyCN's
   `rkximagesink` display import and `kmssrc` DRM dma-buf capture into MPP
-  encode.
+  encode. Generated VP8/H.263/MPEG diagnostics are opt-in so the advertised
+  legacy decoder caps remain testable without making legacy VDPU blocks part of
+  the required RK3588 rewrite gate.
 - FFmpeg: use `ffmpeg-suite.sh` for a profile/log/comparator-integrated version
   of the full `ffmpeg-rockchip` path. It probes the selected ffmpeg build for
   `h264_rkmpp`/`hevc_rkmpp` decoders and encoders, `scale_rkrga`,
@@ -347,7 +349,12 @@ default; set `GST_ENABLE_VP9_CASES=0` to remove them or
 rewrite gate because it needs a separate AV1 backend; set
 `GST_ENABLE_AV1_CASES=1` to add generated AV1 fakesink/DMABuf decode plus
 RGA-scale and AV1-to-H.264 transcode diagnostics, or
-`GST_REQUIRE_AV1_CASES=1` when comparing an AV1-capable kernel. The `*_dmabuf`
+`GST_REQUIRE_AV1_CASES=1` when comparing an AV1-capable kernel. Set
+`GST_ENABLE_LEGACY_DECODE_CASES=1` to add generated VP8 IVF plus
+ffmpeg-generated H.263, MPEG-2, and MPEG-4 diagnostics for JeffyCN's advertised
+legacy `mppvideodec` caps; `GST_REQUIRE_LEGACY_DECODE_CASES=1` should only be
+used when comparing kernels that intentionally support those legacy decode
+blocks. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
 The generated H.265 Main10 cases are also enabled and required by default:
@@ -583,6 +590,14 @@ Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `generated_dec_h264_rga_bgrx_scale`,
 `generated_dec_h264_env_rfbc`,
 `generated_dec_vp9_rga_scale`, `generated_transcode_vp9_to_h264`,
+`generated_dec_vp8_fakesink`, `generated_dec_vp8_dmabuf`,
+`generated_dec_vp8_rga_scale`, `generated_transcode_vp8_to_h264`,
+`generated_dec_h263_fakesink`, `generated_dec_h263_rga_scale`,
+`generated_transcode_h263_to_h264`,
+`generated_dec_mpeg2_fakesink`, `generated_dec_mpeg2_rga_scale`,
+`generated_transcode_mpeg2_to_h264`,
+`generated_dec_mpeg4_fakesink`, `generated_dec_mpeg4_rga_scale`,
+`generated_transcode_mpeg4_to_h264`,
 `dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
 GStreamer encoder-format matrix for advertised direct MPP formats
 I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444, plus currently advertised
@@ -637,7 +652,7 @@ logs.
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
-| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, software `ffmpeg`/`libx265` via `GST_GENERATOR` for generated H.265 Main10 inputs, optional `libaom-av1` support in `GST_GENERATOR` for opt-in AV1 diagnostics, and readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
+| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, software `ffmpeg`/`libx265` via `GST_GENERATOR` for generated H.265 Main10 inputs, optional `libaom-av1` support in `GST_GENERATOR` for opt-in AV1 diagnostics, ffmpeg H.263/MPEG encoder support for opt-in legacy decode diagnostics, and readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
 | `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `ffmpeg-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, a staged `ffmpeg-rockchip` build via `FFDIR`, a software ffmpeg with `libx264`/`libx265` for generated inputs, and readable debugfs/dmesg for full logs; root is the simplest mode. `FFMPEG_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-list dispatch wiring. |
 | `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
@@ -759,7 +774,9 @@ artifact-checksum comparator, and generated VP9 IVF decode cases were added.
 It was re-run after ABI replay gained optional dma-heap-backed MPP
 `TRANS_FD_TO_IOVA`/`RELEASE_FD` and RGA dma-buf import/release coverage for
 GStreamer allocator handoff parity; and after opt-in generated GStreamer AV1
-diagnostics were added for the separate RKMPP AV1 backend gap. The device-free
+diagnostics were added for the separate RKMPP AV1 backend gap; and after
+opt-in generated VP8/H.263/MPEG diagnostics were added for advertised legacy
+decoder caps outside the RK3588 rewrite gate. The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,
 slowdown, MPP/GStreamer/FFmpeg artifact mismatch, and librga latest-summary
 filtering paths. `build-mpp-tests.sh`
@@ -852,3 +869,23 @@ enabled diagnostic set covers fakesink decode, DMABuf decode, RGA-scale decode,
 and AV1-to-H.264 transcode. A pass on the rewrite would require an RKMPP AV1
 backend; failures on the current rewrite are expected evidence of the separate
 AV1 gap, not a regression in the RKVDEC2 H.264/H.265/VP9 slice.
+
+## Legacy advertised decode diagnostics via the GStreamer suite
+
+JeffyCN `mppvideodec` also advertises VP8, H.263, MPEG-2, and MPEG-4 caps.
+Those routes map to legacy VDPU-era blocks rather than the RK3588 RKVDEC2 path
+this rewrite is targeting, so they are not part of the required gate. To keep
+that userspace-visible boundary executable, the suite can generate short VP8
+IVF, H.263, MPEG-2, and MPEG-4 streams and run fakesink decode, selected DMABuf
+decode, RGA-scale decode, and legacy-to-H.264 transcode diagnostics:
+
+```bash
+PROFILE=rewrite \
+GST_ENABLE_LEGACY_DECODE_CASES=1 \
+../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
+```
+
+Set `GST_REQUIRE_LEGACY_DECODE_CASES=1` only when comparing a kernel that
+intentionally supports those legacy decode blocks. On the current rewrite,
+failures are expected unsupported-profile evidence unless a current RK3588
+workload proves one of these advertised caps must be promoted.

@@ -43,7 +43,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > for forward-port-vs-rewrite comparison. The default GStreamer
 > suite now includes asset-free encoder, RGA-conversion, decoder roundtrip,
 > generated elementary-stream H.264/H.265 decode/transcode, generated VP9 IVF
-> decode, opt-in generated AV1 diagnostics, caps-renegotiation, explicit
+> decode, opt-in generated AV1 and legacy VP8/H.263/MPEG diagnostics,
+> caps-renegotiation, explicit
 > flush-event, force-key-unit, EOS-loop, state-loop, and parallel
 > encode/decode/transcode pipelines so the
 > next hardware pass exercises decoder-side buffer groups, short-timeout
@@ -67,7 +68,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > VP8/JPEG/VPx-alpha element visibility, the optional `vp8enc` alias from
 > `GST_MPP_VP8ENC_FAKE_VP8ENC`, VP8/JPEG encoder property setters,
 > JPEG decoder explicit/default output format selection, RFBC caps negotiation,
-> generated VP9 transcode, opt-in generated AV1 decode/transcode probes,
+> generated VP9 transcode, opt-in generated AV1 and legacy decode/transcode probes,
 > opt-in display/KMS env-default paths, and
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and
@@ -132,7 +133,7 @@ or JPEG nodes that libmpp uses for older formats.
 | H.264 decode, H.265 decode | required | libmpp uses the RKVDEC/VDPU383 path; these are the validated forward-port decoder paths. |
 | H.264 encode, H.265 encode | required | libmpp and FFmpeg use RKVENC2/VEPU580, the encoder core pair this rewrite implements. |
 | VP9 decode | required for current decoder parity, still hardware-unvalidated | libmpp's decoder HAL chooses `VPU_CLIENT_RKVDEC` for VP9, and the VDPU383 HAL has a VP9 backend. The YSP conformance wrappers now generate VP9 IVF inputs for GStreamer and direct MPP tests; hardware logs are still pending. |
-| VP8, MPEG-1/2/4, H.263 decode | recognized current-userspace names, outside the RK3588 rewrite profile | libmpp routes these through VDPU1/VDPU2-era clients, not the RKVDEC2 nodes the rewrite binds. Adding them would mean importing legacy VPU blocks, contrary to the no-cruft objective unless a current RK3588 workload proves the need. |
+| VP8, MPEG-1/2/4, H.263 decode | recognized current-userspace names, outside the RK3588 rewrite profile | libmpp routes these through VDPU1/VDPU2-era clients, not the RKVDEC2 nodes the rewrite binds. Adding them would mean importing legacy VPU blocks, contrary to the no-cruft objective unless a current RK3588 workload proves the need. The GStreamer suite has opt-in generated VP8/H.263/MPEG diagnostics so this boundary is executable instead of implicit. |
 | MJPEG decode/encode | recognized current-userspace names, outside the RK3588 rewrite profile | RK3588 has separate JPEG decoder/encoder hardware and BSP drivers, but this rewrite does not bind those nodes; the project status keeps JPEG as a skipped/non-goal path. |
 | AV1 via RKMPP | recognized current-userspace name, outside this RKMPP rewrite | The RK3588 AV1 block has separate hardware/IOMMU/backend plumbing; the maintained path for this project is V4L2 stateless AV1, not `/dev/mpp_service`. The GStreamer suite has opt-in generated AV1 diagnostics so this remains executable evidence instead of an undocumented omission. |
 
@@ -385,6 +386,8 @@ implementation (cross-reference:
   RGA conversion, asset-free H.264/H.265 encode->parse->decode roundtrips,
   generated elementary-stream H.264/H.265 `filesrc` decode, generated VP9 IVF
   `filesrc` decode, opt-in generated AV1 IVF `filesrc` decode diagnostics,
+  opt-in generated VP8/H.263/MPEG `filesrc` decode diagnostics for advertised
+  legacy caps,
   H.264/H.265 decode->encode transcode including an RGA rotate/scale path,
   generated `mppvideodec dma-feature=true` DMABuf decode, the matching
   `GST_MPP_DEC_DMA_FEATURE=1` environment-default DMABuf path, and
@@ -424,7 +427,8 @@ implementation (cross-reference:
   `GST_MPP_VP8ENC_FAKE_VP8ENC`, VP8 QP and JPEG quality-factor property
   setters, JPEG decoder explicit/default BGRx output selection,
   `GST_MPP_DEC_FBC_IS_RFBC=1` RFBC caps negotiation, generated VP9-to-H.264
-  transcode, opt-in generated AV1 decode/transcode diagnostics, and
+  transcode, opt-in generated AV1 and legacy VP8/H.263/MPEG decode/transcode
+  diagnostics, and
   a GStreamer-visible encoder-format matrix covering advertised direct MPP
   input formats I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444 plus
   RGA-forced encoder-side NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
@@ -565,7 +569,8 @@ confirm against the TRM before treating either as canonical.
 
 GStreamer, FFmpeg, and MPP differential testing are now stronger than the table
 row's historical summary: generated H.264/H.265 inputs, generated VP9 IVF
-input, and opt-in generated AV1 IVF input are cached under the shared
+input, opt-in generated AV1 IVF input, and opt-in generated legacy
+VP8/H.263/MPEG inputs are cached under the shared
 conformance assets directory; generated plus
 optional external-media GStreamer decode/transcode outputs, FFmpeg encoded
 bitstreams from transcode, forced-core/AFBC, VPP, and diagnostic overlay paths,
