@@ -42,6 +42,8 @@ GST_ENABLE_VP9_CASES=${GST_ENABLE_VP9_CASES:-1}
 GST_REQUIRE_VP9_CASES=${GST_REQUIRE_VP9_CASES:-1}
 GST_ENABLE_PARALLEL_CASES=${GST_ENABLE_PARALLEL_CASES:-1}
 GST_REQUIRE_PARALLEL_CASES=${GST_REQUIRE_PARALLEL_CASES:-1}
+GST_ENABLE_CONTAINER_CASES=${GST_ENABLE_CONTAINER_CASES:-1}
+GST_REQUIRE_CONTAINER_CASES=${GST_REQUIRE_CONTAINER_CASES:-1}
 GST_DISPLAY_SINK=${GST_DISPLAY_SINK:-rkximagesink}
 GST_DISPLAY_SINK_ARGS=${GST_DISPLAY_SINK_ARGS:-}
 
@@ -117,6 +119,11 @@ parallel_dec_mixed_h264_h265
 parallel_transcode_mixed_h264_h265
 "
 
+container_cases_default="
+generated_dec_h264_mp4_codec_data
+generated_dec_h265_mp4_codec_data
+"
+
 diagnostic_cases_default="
 gst_inspect_mppvp8enc
 gst_inspect_mppjpegenc
@@ -170,6 +177,17 @@ $parallel_cases_default"
 	else
 		diagnostic_cases_default="$diagnostic_cases_default
 $parallel_cases_default"
+	fi
+fi
+
+if [ "$GST_ENABLE_CONTAINER_CASES" = "1" ] ||
+	[ "$GST_REQUIRE_CONTAINER_CASES" = "1" ]; then
+	if [ "$GST_REQUIRE_CONTAINER_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$container_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$container_cases_default"
 	fi
 fi
 
@@ -618,6 +636,60 @@ ensure_generated_input()
 	fi
 }
 
+select_generated_mp4_codec()
+{
+	local codec=$1
+
+	select_generated_codec "$codec" || return $?
+	GENERATED_MP4_SUFFIX=mp4
+
+	case "$codec" in
+	h264)
+		GENERATED_MP4_PARSER=h264parse
+		GENERATED_MP4_CAPS=video/x-h264,stream-format=avc,alignment=au
+		;;
+	h265)
+		GENERATED_MP4_PARSER=h265parse
+		GENERATED_MP4_CAPS=video/x-h265,stream-format=hvc1,alignment=au
+		;;
+	*)
+		printf "no generated MP4 profile for codec: %s\n" "$codec" >&2
+		return 4
+		;;
+	esac
+}
+
+ensure_generated_mp4_input()
+{
+	local codec=$1
+
+	select_generated_mp4_codec "$codec" || return $?
+	GENERATED_MP4_INPUT_PATH=$(generated_cache_path generated-mp4 "$codec" \
+		"$GENERATED_MP4_SUFFIX")
+	if [ -s "$GENERATED_MP4_INPUT_PATH" ]; then
+		return 0
+	fi
+
+	CMD=(
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$GST_GENERATED_INPUT_BUFFERS" is-live=false pattern=smpte
+		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" "$GENERATED_ENCODER" "${GENERATED_ENCODER_ARGS[@]}"
+		"!" "$GENERATED_MP4_PARSER" config-interval=-1
+		"!" "$GENERATED_MP4_CAPS"
+		"!" mp4mux
+		"!" filesink "location=$GENERATED_MP4_INPUT_PATH"
+	)
+	printf "generating %s MP4 input: " "$codec"
+	print_current_command
+	run_current_command || return $?
+	if [ ! -s "$GENERATED_MP4_INPUT_PATH" ]; then
+		printf "generated %s MP4 input is empty: %s\n" "$codec" \
+			"$GENERATED_MP4_INPUT_PATH" >&2
+		return 1
+	fi
+}
+
 generate_encoded_segment()
 {
 	local codec=$1
@@ -690,6 +762,26 @@ run_generated_decode()
 
 	append_artifact_or_fake_sink decoded raw
 	printf "decoding generated %s input: " "$codec"
+	print_current_command
+	run_current_command
+}
+
+run_generated_mp4_decode()
+{
+	local codec=$1
+
+	ensure_generated_mp4_input "$codec" || return $?
+	CMD=(
+		gst-launch-1.0 -q
+		filesrc "location=$GENERATED_MP4_INPUT_PATH"
+		"!" qtdemux name=demux
+		demux.video_0
+		"!" queue
+		"!" "$GENERATED_MP4_PARSER"
+		"!" mppvideodec
+	)
+	append_artifact_or_fake_sink decoded-mp4 raw
+	printf "decoding generated %s MP4 input with codec_data: " "$codec"
 	print_current_command
 	run_current_command
 }
@@ -1216,6 +1308,12 @@ build_case_command()
 	generated_dec_h265_dmabuf)
 		CMD=(__builtin_generated_decode h265 dma-feature=true)
 		;;
+	generated_dec_h264_mp4_codec_data)
+		CMD=(__builtin_generated_mp4_decode h264)
+		;;
+	generated_dec_h265_mp4_codec_data)
+		CMD=(__builtin_generated_mp4_decode h265)
+		;;
 	generated_dec_h264_strict_props)
 		CMD=(__builtin_generated_decode h264 fast-mode=false ignore-error=false)
 		;;
@@ -1595,6 +1693,9 @@ run_case_payload()
 		;;
 	generated_dec_h264_env_fbc)
 		run_generated_decode_env_fbc "${CMD[1]}"
+		;;
+	generated_dec_h264_mp4_codec_data | generated_dec_h265_mp4_codec_data)
+		run_generated_mp4_decode "${CMD[1]}"
 		;;
 	generated_dec_h264_fakesink | generated_dec_h265_fakesink | \
 	generated_dec_h264_dmabuf | generated_dec_h265_dmabuf | \

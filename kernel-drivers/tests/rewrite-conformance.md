@@ -254,6 +254,8 @@ exercises real kernel paths:
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
   `generated_dec_h264_dmabuf`, `generated_dec_h265_dmabuf`,
   `generated_dec_h264_env_dmabuf`, `generated_dec_h264_env_no_rga`,
+  `generated_dec_h264_mp4_codec_data`,
+  `generated_dec_h265_mp4_codec_data`,
   `generated_dec_h264_strict_props`,
   `generated_dec_h265_strict_props`,
   `generated_dec_h264_env_strict_props`,
@@ -290,6 +292,14 @@ default; set `GST_ENABLE_VP9_CASES=0` to remove them or
 `vp9enc`, `ivfmux`, or `ivfparse`. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
+The generated MP4 cases write H.264/H.265 through `mp4mux`, then decode with
+`qtdemux ! *parse ! mppvideodec`; that covers JeffyCN's startup path that sends
+container `codec_data` as MPP extra data before normal decode packets. These
+container cases are enabled and required by default. Set
+`GST_REQUIRE_CONTAINER_CASES=0` to demote them to diagnostics on minimal
+GStreamer images missing `mp4mux`/`qtdemux`, or
+`GST_ENABLE_CONTAINER_CASES=0 GST_REQUIRE_CONTAINER_CASES=0` to omit them from a
+narrow debug run.
 `generated_dec_h264_env_dmabuf` runs the same path with
 `GST_MPP_DEC_DMA_FEATURE=1`, covering JeffyCN's global default-value path
 separately from explicit element properties.
@@ -389,6 +399,8 @@ promote the same cases to required, and pass simple sink properties with
 Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_fakesink`, `generated_dec_h264_dmabuf`,
 `generated_dec_h264_env_dmabuf`, `generated_dec_h265_dmabuf`,
+`generated_dec_h264_mp4_codec_data`,
+`generated_dec_h265_mp4_codec_data`,
 `generated_dec_vp9_fakesink`,
 `generated_dec_vp9_dmabuf`, `generated_dec_h264_strict_props`,
 `generated_dec_h265_strict_props`, `generated_dec_h264_env_strict_props`,
@@ -516,7 +528,8 @@ env-default decoder DMA-feature/output-format cases were added to the required
 set; after the GStreamer env-default FBC decode case was added as diagnostic
 coverage; after the GStreamer encoder unaligned-vstride env-default case was
 added to the required set; after the GStreamer encoder max-pending env-default
-case was added to the required set; after GStreamer no-RGA env-default
+case was added to the required set; after GStreamer MP4 container
+codec-data decode cases were added to the required set; after GStreamer no-RGA env-default
 encode/decode cases were added to the required set; after opt-in 10-bit H.265
 external-media decode/fallback/RGA-conversion cases were added; after the conditional
 GStreamer VPx-alpha decodebin inspect was added as diagnostic coverage; after the GStreamer strict decoder-property cases
