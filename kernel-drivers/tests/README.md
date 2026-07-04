@@ -19,15 +19,16 @@ a clean newcomer on-ramp.
 |-------|----------|
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. The rewrite build gate and conformance suites live in [`rewrite-conformance.md`](./rewrite-conformance.md). |
-| Owns | The smoke tests `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, `abi-probe.sh`/`abi-probe.c`, `abi-replay.sh`, and `librga-smoke.sh`/`librga-smoke.cpp`; the sourced helpers `suite-common.sh` and `debugfs-counters.sh`; the conformance runner/wrappers `rewrite-conformance-run.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `librga-suite.sh`, `librga-suite-compare.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `ffmpeg-suite.sh`, `ffmpeg-suite-compare.sh`, `debugfs-counter-check.sh`, `rewrite-build-gate.sh`, `suite-compare-selftest.sh` and their build helpers `build-mpp-tests.sh`, `build-librga-samples-full.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-event-harness.c` (all documented in [`rewrite-conformance.md`](./rewrite-conformance.md)); input-regeneration recipes; pass criteria; and observed reference results. |
+| Owns | The smoke tests `test-decode.sh`, `decode-differential.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, `abi-probe.sh`/`abi-probe.c`, `abi-replay.sh`, and `librga-smoke.sh`/`librga-smoke.cpp`; the sourced helpers `suite-common.sh` and `debugfs-counters.sh`; the conformance runner/wrappers `rewrite-conformance-run.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `librga-suite.sh`, `librga-suite-compare.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `ffmpeg-suite.sh`, `ffmpeg-suite-compare.sh`, `debugfs-counter-check.sh`, `rewrite-build-gate.sh`, `suite-compare-selftest.sh` and their build helpers `build-mpp-tests.sh`, `build-librga-samples-full.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-event-harness.c` (all documented in [`rewrite-conformance.md`](./rewrite-conformance.md)); input-regeneration recipes; pass criteria; and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`video-libraries/ffmpeg/README.md`](../../video-libraries/ffmpeg/README.md), and device access from the codec udev rule. |
-| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains unverified on hardware, but the GStreamer suite now has generated VP9 IVF decode cases, opt-in generated AV1 IVF diagnostics for the separate AV1 backend gap, opt-in generated VP8/H.263/MPEG diagnostics for advertised legacy decoder caps, required generated H.265 Main10 decode/RGA/fallback cases, optional generated H.265 4:2:2 10-bit cases, required GStreamer RGA rotation coverage for 90/180/270-degree public rotation values, diagnostic coverage for advertised H.264 encoder input and decoder output formats, the diagnostic VP8 encoder alias, diagnostic VP8/JPEG encoder property setters, diagnostic JPEG decoder explicit/default output-format cases, diagnostic RFBC caps negotiation via `GST_MPP_DEC_FBC_IS_RFBC=1`, opt-in display sink env cases for `KMSSINK_DISABLE_VSYNC=1`/`GST_RKXIMAGE_USE_COLORKEY=1`, opt-in KMS capture cases for DRM dma-buf import into MPP encode including `GST_KMSSRC_DMA_FEATURE=1`, and `GST_VALIDATE_CASES=1` device-free case-builder validation. The ABI replay now optionally allocates a dma-heap buffer and records non-submit MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD` plus RGA dma-buf import/release behavior for allocator handoff parity. The FFmpeg suite now has `FFMPEG_VALIDATE_CASES=1` dry validation plus required decoder-option, `scale_rkrga` forced-core/async/AFBC-output, and `vpp_rkrga` crop/transpose cases, with diagnostic decoder `afbc=rga` and `overlay_rkrga` alpha composition. `rewrite-conformance-run.sh` now sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and optional forward-port-vs-rewrite comparison steps for a full profile run. The MPP conformance comparator now has byte-count/SHA-256 artifact comparison for official-test media outputs when the suite dumps decode/encode files, the librga conformance comparator now compares deterministic destination-buffer artifacts from the required direct RGA smoke case, and `debugfs-counter-check.sh` can enforce rewrite counter deltas for selected hardware-start/busy-time gates. The rewrite clean-source object-build gate passed both public rewrite branch tips on 2026-07-04. See [`rewrite-conformance.md`](./rewrite-conformance.md) for the parity/conformance machinery. |
+| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; **VP9 and AV1 decode are now hardware-validated bit-exact on the av1-fwport build** (2026-07-04, `decode-differential.sh` — AV1 needs that variant's `mpp_av1dec.c` backend). The GStreamer suite additionally has generated VP9 IVF decode cases, opt-in generated AV1 IVF diagnostics, opt-in generated VP8/H.263/MPEG diagnostics for advertised legacy decoder caps, required generated H.265 Main10 decode/RGA/fallback cases, optional generated H.265 4:2:2 10-bit cases, required GStreamer RGA rotation coverage for 90/180/270-degree public rotation values, diagnostic coverage for advertised H.264 encoder input and decoder output formats, the diagnostic VP8 encoder alias, diagnostic VP8/JPEG encoder property setters, diagnostic JPEG decoder explicit/default output-format cases, diagnostic RFBC caps negotiation via `GST_MPP_DEC_FBC_IS_RFBC=1`, opt-in display sink env cases for `KMSSINK_DISABLE_VSYNC=1`/`GST_RKXIMAGE_USE_COLORKEY=1`, opt-in KMS capture cases for DRM dma-buf import into MPP encode including `GST_KMSSRC_DMA_FEATURE=1`, and `GST_VALIDATE_CASES=1` device-free case-builder validation. The ABI replay now optionally allocates a dma-heap buffer and records non-submit MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD` plus RGA dma-buf import/release behavior for allocator handoff parity. The FFmpeg suite now has `FFMPEG_VALIDATE_CASES=1` dry validation plus required decoder-option, `scale_rkrga` forced-core/async/AFBC-output, and `vpp_rkrga` crop/transpose cases, with diagnostic decoder `afbc=rga` and `overlay_rkrga` alpha composition. `rewrite-conformance-run.sh` now sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and optional forward-port-vs-rewrite comparison steps for a full profile run. The MPP conformance comparator now has byte-count/SHA-256 artifact comparison for official-test media outputs when the suite dumps decode/encode files, the librga conformance comparator now compares deterministic destination-buffer artifacts from the required direct RGA smoke case, and `debugfs-counter-check.sh` can enforce rewrite counter deltas for selected hardware-start/busy-time gates. The rewrite clean-source object-build gate passed both public rewrite branch tips on 2026-07-04. See [`rewrite-conformance.md`](./rewrite-conformance.md) for the parity/conformance machinery. |
 
 ## What each smoke test proves
 
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
 | `test-decode.sh` | **decoder** (`rkvdec2`) | `mpi_dec_test` decodes *software-encoded* H.264 + H.265 320×240 clips to NV12 → exit 0 + non-empty output. Software-encoded input means a failure implicates the **decoder**, not our encoder. |
+| `decode-differential.sh` | **decoder correctness** (`rkvdec2` + `av1dec`) | Adds the strong oracle on top of the liveness gate: HW-decode vs SW-decode **PSNR must be `inf` (bit-exact)** for H.264, H.265, **VP9, and AV1**. Covers the codecs `test-decode.sh` doesn't; AV1 needs the av1-fwport variant. Generates its own software-encoded inputs. |
 | `encode-test-tiny.sh` | **encoder** (VEPU580) | `mpi_enc_test` H.264 + H.265 at 256² and 1280×720 → valid NAL-start bitstreams, exit 0, no IOMMU fault (dmesg-marker scheme with a real-fault regex that excludes benign warnings). Reports PSNR + fps. |
 | `transcode-test.sh` | **full pipeline** (both decoders, both encoders, RGA ×2) | ffmpeg-rockchip: `h264_rkmpp` → `scale_rkrga` 1080p→720p → `hevc_rkmpp`, then the reverse. `rkmpp`/`rkrga` have no SW fallback, so a pass *is* proof the hardware ran. Verifies each output with `ffprobe`. |
 | `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates above in one pass, and snapshots rewrite debugfs counters, including aggregate/per-core timing counters, when present. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
@@ -75,7 +76,8 @@ bash librga-smoke.sh                  # direct librga/im2d smoke
 LIBRGA_SMOKE_10BIT=1 bash librga-smoke.sh  # add P010/P210 IM2D cases
 VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free conformance wiring check
 sudo PROFILE=rewrite bash rewrite-conformance-run.sh  # full profile run on a rewrite boot
-bash test-decode.sh                  # decoder (device access is enough)
+bash test-decode.sh                  # decoder liveness (device access is enough)
+bash decode-differential.sh          # decoder correctness: bit-exact HW-vs-SW PSNR, incl. VP9 + AV1
 sudo bash encode-test-tiny.sh        # encoder
 sudo bash transcode-test.sh          # end-to-end (needs ffmpeg-rockchip built — see ../ffmpeg)
 FFMPEG_VALIDATE_CASES=1 bash ffmpeg-suite.sh  # device-free FFmpeg case-list validation
@@ -146,9 +148,11 @@ base `MPP_VIDEO_CodingVC1 = 0x01000000`.)
 
 ## VP9 decode
 
-VP9 support is built in the decoder but not yet hardware-validated. For a fully
-manual run, `mpi_dec_test` selects its IVF reader by the `.ivf` filename
-extension (`utils/mpi_dec_utils.c`), so:
+VP9 support is built in the decoder and, as of **2026-07-04, hardware-validated
+bit-exact** on the forward-port (av1-fwport board build) via
+[`decode-differential.sh`](./decode-differential.sh) — the fastest way to re-run
+it. For a fully manual run, `mpi_dec_test` selects its IVF reader by the `.ivf`
+filename extension (`utils/mpi_dec_utils.c`), so:
 
 ```bash
 ffmpeg -f lavfi -i testsrc2=size=320x240:rate=30:duration=1 -c:v libvpx-vp9 -pix_fmt yuv420p -f ivf "$CLIP_DIR/tiny-320x240-vp9.ivf"
@@ -170,16 +174,26 @@ waits for queued completion and leaves async release-fence copy-out untouched,
 plus the legacy flush/result no-op ioctl return contract used by librga's
 post-blit compatibility path.
 
-**UNVERIFIED:** neither the manual recipe, the generated GStreamer VP9 cases, nor
-the direct MPP VP9 suite case has a forward-port/rewrite hardware log yet. If you
-run any of them, record the result in status.md.
+**Forward-port: VERIFIED 2026-07-04** — `decode-differential.sh` decoded VP9
+bit-exact (PSNR=inf) on the av1-fwport board build (recorded in status.md row 1).
+The generated GStreamer VP9 cases, the direct MPP VP9 suite case, and any
+**rewrite** VP9 hardware log are still unrecorded; if you run them, record the
+result in status.md.
 
 ## Observed results (reference)
 
 - decode: 30 frames each H.264/H.265, ~1200–1600 fps @ 320×240 (original run;
   a re-run 2026-07-01 on 6.18.37 #7 passed at 1470/3765 fps — the number varies
   with clip content, the PASS gate is exit code + output size).
+- **decode correctness (2026-07-04, av1-fwport build `P1c9d` #8, `decode-differential.sh`):**
+  H.264 / H.265 / VP9 / **AV1** all decoded 30/30 frames **bit-exact
+  (PSNR=inf)** vs a software reference @ 640×480 (mpi_dec_test fps at that size:
+  ~551 / 591 / 741 / 629). `av1_rkmpp` through the board's prebuilt `/usr/lib`
+  MPP fails (`parser not registered`) — this run used `../rockchip-conformance`'s
+  from-source `out/mpp`.
 - encode: H.264 720p PSNR 53–55 dB @ ~359 fps; H.265 720p PSNR 60–62 dB @ ~297 fps.
+  (2026-07-04 re-check via `mpi_enc_test`, 1280×720: H.264 / H.265 encoded 30
+  frames each; software re-decode PSNR-vs-source 42.7 / 45.0 dB.)
 - transcode: both directions pass at 17–42× realtime, no faults.
 
 ## Skipped / superseded

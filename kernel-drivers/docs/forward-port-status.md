@@ -18,7 +18,7 @@ the *exact* build we validated (the installer matches debs on it; see
 | Item | Evidence |
 |------|----------|
 | **H.264/H.265 encode** (VEPU580, both cores) | `mpi_enc_test`: 256² + 1280×720, PSNR 47–62 dB overall, NAL-correct, no IOMMU fault. **At 720p: H.264 PSNR 53–55 dB @ ~359 fps; H.265 PSNR 60–62 dB @ ~297 fps** ([`kernel-drivers/tests/README.md`](../tests/README.md) § Observed results). Both cores `attach ccu as core 0/1` (CCU = the Central Control Unit the paired cores share — see the [device-tree glossary](./device-tree.md)). |
-| **H.264/H.265 decode** (VDPU381/rkvdec2, both cores) | `mpi_dec_test`: decoded 30 frames each of software-encoded H.264 + H.265 to NV12, ~1200–1600 fps @ 320×240. Both `rkvdec-core0/1` bound at `fdc38000`/`fdc40000`. |
+| **H.264/H.265 decode** (VDPU381/rkvdec2, both cores) | `mpi_dec_test`: decoded 30 frames each of software-encoded H.264 + H.265 to NV12, ~1200–1600 fps @ 320×240. Both `rkvdec-core0/1` bound at `fdc38000`/`fdc40000`. **2026-07-04**: the shared rkvdec2 path was re-verified on the av1-fwport superset build with a *correctness* oracle — decode is **bit-exact (PSNR=inf) vs a software reference** for H.264, H.265, and now VP9 ([`tests/decode-differential.sh`](../tests/decode-differential.sh)). |
 | **RGA** (RGA3 ×2 + RGA2) | probes at boot, `/dev/rga` present, IOMMU bound; exercised functionally via `scale_rkrga` in the transcode (1080p→720p and 720p→480p). |
 | **Combined in-tree kernel** | all three accelerators `=y`, present at boot — **no overlay, no insmod**. |
 | **ffmpeg-rockchip** | built (`nyanmisaka` fork) with `h264_rkmpp`/`hevc_rkmpp` decode+encode and `scale_rkrga`. Full HW transcode passes both directions at **17–42× realtime**, no faults ([`kernel-drivers/tests/README.md`](../tests/README.md) § Observed results). |
@@ -30,9 +30,9 @@ the *exact* build we validated (the installer matches debs on it; see
 | Item | Why |
 |------|-----|
 | **Encoder/decoder DVFS** (`*_DEVFREQ`, OPP, system-monitor) | DVFS (dynamic voltage/frequency scaling) here rides on vendor BSP-only services — PVTM (the on-chip process-voltage-temperature monitor that drives voltage scaling), `rockchip_system_monitor`, `rockchip_opp_select` — none of which exist upstream. The OPP (operating performance point — one voltage/frequency pair) service is stubbed, so the concrete loss is **no PVTM voltage/leakage scaling**: the cores stay at the fixed DT `assigned-clock-rates` (enc 800 MHz, dec 800 MHz), which is plenty fast and fine at every load we tested. The devfreq (the Linux dynamic-frequency framework) islands are tier-2 Kconfigs — the project's off-by-default "nice-to-have" tier — defaulting `n`. See `vendor-forward-port.md`. |
-| **VP9 decode** | The decoder driver builds VP9 support; H.264/H.265 are the only codecs hardware-validated so far. The GStreamer conformance wrapper now generates VP9 IVF input and requires `generated_dec_vp9_fakesink` plus `generated_dec_vp9_dmabuf` by default, and the direct MPP suite can generate a VP9 IVF input for explicit `mpi_dec_vp9` runs when `MPP_VP9_INPUT` is unset. **TODO: run VP9 on forward-port and rewrite hardware and move this row to ✅ once logs match.** |
+| ~~**VP9 decode**~~ → ✅ **validated 2026-07-04** | **No longer deferred.** `mpi_dec_test -t 10` on a software-encoded VP9 IVF decoded 30/30 frames **bit-exact (PSNR=inf)** vs a software reference on the av1-fwport board build (shared rkvdec2 path); see [`tests/decode-differential.sh`](../tests/decode-differential.sh). The GStreamer/direct-MPP suite VP9 cases (generated IVF) remain the broader-coverage path; the *rewrite* still needs its own VP9 hardware log. |
 | **JPEG encode/decode** | `mjpeg_rkmpp` exists in ffmpeg-rockchip but was not a goal; the vendor JPEG encoder block is not wired in the DT and no JPEG validation was run. |
-| **RK3588 AV1 decode** | The hardware exists, but it is **not** exposed by the current RKMPP forward-port/rewrite. `ffmpeg-rockchip` registers `av1_rkmpp`, but that path needs the missing vendor `mpp_av1dec.c` kernel backend. Upstream-style AV1 is available through a separate Hantro/V4L2 stateless path backed by `vsi-iommu`, not through this validated `/dev/mpp_service` stack. See [AV1 note](../av1/docs/av1-rk3588.md). |
+| **RK3588 AV1 decode** | Not in *this* build (`Pb6ab` has no `mpp_av1dec.c`) — but **the av1-fwport variant now supplies it and is hardware-validated.** The sibling build `P1c9d` (kernel `6.18.37 #8` = this base **plus** the vendor `mpp_av1dec.c` backend + VSI-IOMMU provider) exposes AV1 through `/dev/mpp_service` (`supports-device` → `AV1DEC HW_ID:0x80019000`) and decodes **bit-exact (PSNR=inf) vs a software reference** (`mpi_dec_test -t 16777224`, 2026-07-04). The separate upstream Hantro/V4L2-stateless AV1 path (also `vsi-iommu`-backed) still exists as the mainline alternative. Full write-up + the `av1_rkmpp` distro-lib caveat: [AV1 note](../av1/docs/av1-rk3588.md) § 2026-07-04 update. |
 | **Expanded MPP/RGA/GStreamer/FFmpeg conformance** | RGA is validated *through* ffmpeg's `scale_rkrga`, and the in-repo `librga-smoke.sh` covers direct im2d paths including virtual-address imports, dma-buf fd imports, GStreamer-style legacy `c_RkRgaBlit()` conversions, forced-core/pre-intr submission, and async fences. The support repo now has wrappers and comparators for the official MPP tests, official `airockchip/librga` sample suite, JeffyCN GStreamer Rockchip plugin, and ffmpeg-rockchip CLI coverage under `../rockchip-conformance`, including generated VP9 IVF decode, generated H.265 Main10 decode/RGA/fallback coverage, optional generated H.265 4:2:2 10-bit coverage, encoder force-key-unit events, explicit encoder control-property pipelines, codec-specific H.264/H.265 QP controls, H.264 profile/level plus max-pending and unaligned-vstride controls, MPP-only `GST_MPP_NO_RGA=1` encode/decode, strict decoder-property pipelines plus env-default decoder control, DMA-feature, output-format coverage, and external-media H.265 10-bit fallback coverage for `GST_MPP_DEC_DISABLE_NV12_10`/`GST_MPP_DEC_DISABLE_NV16_10`, required parallel encode/decode/transcode pipelines for multicore scheduling evidence, diagnostic decoder crop-meta, env-default FBC output, RFBC caps negotiation via `GST_MPP_DEC_FBC_IS_RFBC=1`, diagnostic VP8/JPEG/VPx-alpha GStreamer element visibility including VP8 QP and JPEG quality-factor property setters, opt-in Rockchip display/DMABuf sink cases including `KMSSINK_DISABLE_VSYNC=1`, `GST_RKXIMAGE_USE_COLORKEY=1`, and `GST_KMSSRC_DMA_FEATURE=1` KMS capture, plus FFmpeg decoder-option, `scale_rkrga` forced-core/async/AFBC-output, `vpp_rkrga` crop/transpose, diagnostic decoder `afbc=rga`, and `overlay_rkrga` alpha-composition cases. MPP test binaries and the full librga sample build helper have been staged locally; the GStreamer plugin build wrapper is present but the current host still lacks the GStreamer development `.pc` packages. None of these expanded suites has paired forward-port/rewrite hardware logs yet. |
 | **OPP/voltage scaling, RGA genpool** (`ROCKCHIP_RGA_GENPOOL`) | gen_pool (the kernel `genalloc` carved-out memory allocator) is an alternate RGA buffer path; not needed for correctness. |
 | **Netboot / diskless** | Possible on current mainline U-Boot (RTL8125B + PCIe are upstream now) but needs a U-Boot config rebuild + ~100 Mbps; not worth it vs `scp` deb + reboot. |
@@ -94,6 +94,24 @@ the *exact* build we validated (the installer matches debs on it; see
   replace the OPP shim: as shipped, `rockchip_init_opp_table()` returns
   `-EOPNOTSUPP`, so even with the Kconfig on, devfreq init bails and the clock stays
   static.
+- **The board's prebuilt `/usr/lib` `librockchip_mpp` cannot drive these
+  decoders.** On the running rootfs, `ffmpeg-rockchip`'s `*_rkmpp` decoders fail
+  at init with `mpp_dec: mpp_parser_init parser <codec> is not registered` — a
+  userspace-library capability mismatch (the distro `.so` doesn't register the
+  parser table this kernel expects), **not** a kernel-driver fault. A from-source
+  MPP build works: `mpi_dec_test` linked against `../rockchip-conformance`'s
+  `out/mpp/lib` decodes every codec bit-exact. Point ffmpeg at that lib
+  (`LD_LIBRARY_PATH`) or rebuild MPP before concluding anything about the drivers.
+  The `mpp_platform: client N driver is not ready!` lines for clients 1/3/12/13/18/19
+  are *also* benign — MPP's RK3588 table lists legacy VDPU/JPEG clients this DT
+  deliberately doesn't wire.
+- **Direct RGA3 im2d copy/resize samples can raise an error IRQ.** The
+  upstream `airockchip/librga` `rga_copy`/`rga_resize` samples trigger
+  `RGA3_core0 INTR[0x2]` (soft-reset recovers, next job succeeds), while the
+  transform sample and the validated ffmpeg-`scale_rkrga`/`librga-smoke` paths
+  pass. Not yet root-caused — likely a sample format/heap mismatch (this kernel
+  exposes no `dma32_heap`), not a confirmed regression. Isolation steps:
+  [`findings/2026-07-04-rga3-im2d-error-irq.md`](../../findings/2026-07-04-rga3-im2d-error-irq.md).
 
 ## What "done" means here
 

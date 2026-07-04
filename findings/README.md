@@ -34,6 +34,6 @@ in the watchlist.
 
 ## Index (newest first)
 
-_(none yet — this inbox was created 2026-07-03)_
-
 Each row: `` `YYYY-MM-DD-slug.md` `` — one-line summary — trust tag.
+
+- `` `2026-07-04-rga3-im2d-error-irq.md` `` — RGA3 core0 raises an error IRQ (`INTR[0x2]`, soft-reset recovers) on some direct upstream librga copy/resize samples on the av1-fwport kernel; validated ffmpeg-scale/librga-smoke paths stay clean, so likely a sample format/heap mismatch, not a driver regression — MEASURED (symptom) / HYPOTHESIS (cause).
