@@ -318,6 +318,21 @@ require_var()
 	printf "%s" "$value"
 }
 
+encoded_artifact_ext()
+{
+	case "$1" in
+	mpph264enc)
+		printf "h264"
+		;;
+	mpph265enc)
+		printf "h265"
+		;;
+	*)
+		printf "bin"
+		;;
+	esac
+}
+
 build_videotest_encode()
 {
 	local encoder=$1
@@ -392,7 +407,7 @@ build_decode()
 		shift
 	done
 
-	CMD+=("!" fakesink sync=false)
+	append_artifact_or_fake_sink decoded raw
 }
 
 build_transcode()
@@ -400,6 +415,7 @@ build_transcode()
 	local input_var=$1
 	local parser=$2
 	local encoder=$3
+	local ext
 	local input
 	shift 3
 
@@ -411,7 +427,9 @@ build_transcode()
 		shift
 	done
 
-	CMD+=("!" "$encoder" zero-copy-pkt=true "!" fakesink sync=false)
+	ext=$(encoded_artifact_ext "$encoder")
+	CMD+=("!" "$encoder" zero-copy-pkt=true)
+	append_artifact_or_fake_sink encoded "$ext"
 }
 
 select_generated_codec()
@@ -590,7 +608,7 @@ run_generated_transcode()
 {
 	local codec=$1
 	local encoder=$2
-	local ext=bin
+	local ext
 	shift 2
 
 	ensure_generated_input "$codec" || return $?
@@ -601,15 +619,7 @@ run_generated_transcode()
 		shift
 	done
 
-	case "$encoder" in
-	mpph264enc)
-		ext=h264
-		;;
-	mpph265enc)
-		ext=h265
-		;;
-	esac
-
+	ext=$(encoded_artifact_ext "$encoder")
 	CMD+=("!" "$encoder" zero-copy-pkt=true)
 	append_artifact_or_fake_sink encoded "$ext"
 	printf "transcoding generated %s input: " "$codec"
