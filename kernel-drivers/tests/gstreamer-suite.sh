@@ -44,6 +44,8 @@ GST_ENABLE_PARALLEL_CASES=${GST_ENABLE_PARALLEL_CASES:-1}
 GST_REQUIRE_PARALLEL_CASES=${GST_REQUIRE_PARALLEL_CASES:-1}
 GST_ENABLE_CONTAINER_CASES=${GST_ENABLE_CONTAINER_CASES:-1}
 GST_REQUIRE_CONTAINER_CASES=${GST_REQUIRE_CONTAINER_CASES:-1}
+GST_ENABLE_FBC_CASES=${GST_ENABLE_FBC_CASES:-1}
+GST_REQUIRE_FBC_CASES=${GST_REQUIRE_FBC_CASES:-1}
 GST_DISPLAY_SINK=${GST_DISPLAY_SINK:-rkximagesink}
 GST_DISPLAY_SINK_ARGS=${GST_DISPLAY_SINK_ARGS:-}
 
@@ -126,6 +128,12 @@ generated_transcode_h264_mp4_to_h265
 generated_transcode_h265_mp4_to_h264
 "
 
+fbc_cases_default="
+generated_dec_h264_afbc_fakesink
+generated_dec_h265_afbc_fakesink
+generated_dec_h264_env_fbc
+"
+
 diagnostic_cases_default="
 gst_inspect_mppvp8enc
 gst_inspect_mppjpegenc
@@ -135,9 +143,6 @@ event_seek_enc_h264
 event_seek_enc_h265
 event_seek_dec_h264
 event_seek_dec_h265
-generated_dec_h264_afbc_fakesink
-generated_dec_h265_afbc_fakesink
-generated_dec_h264_env_fbc
 generated_dec_h264_crop_meta
 enc_vp8_nv12
 enc_jpeg_nv12
@@ -190,6 +195,17 @@ $container_cases_default"
 	else
 		diagnostic_cases_default="$diagnostic_cases_default
 $container_cases_default"
+	fi
+fi
+
+if [ "$GST_ENABLE_FBC_CASES" = "1" ] ||
+	[ "$GST_REQUIRE_FBC_CASES" = "1" ]; then
+	if [ "$GST_REQUIRE_FBC_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$fbc_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$fbc_cases_default"
 	fi
 fi
 
@@ -362,6 +378,11 @@ append_artifact_or_fake_sink()
 	else
 		CMD+=("!" fakesink sync=false)
 	fi
+}
+
+append_fake_sink()
+{
+	CMD+=("!" fakesink sync=false)
 }
 
 get_var()
@@ -768,6 +789,25 @@ run_generated_decode()
 	run_current_command
 }
 
+run_generated_decode_fakesink()
+{
+	local codec=$1
+	shift
+
+	ensure_generated_input "$codec" || return $?
+	CMD=(gst-launch-1.0 -q filesrc "location=$GENERATED_INPUT_PATH" "!" "$GENERATED_PARSER" "!" mppvideodec)
+
+	while [ "$#" -gt 0 ]; do
+		CMD+=("$1")
+		shift
+	done
+
+	append_fake_sink
+	printf "decoding generated %s input to fakesink: " "$codec"
+	print_current_command
+	run_current_command
+}
+
 run_generated_mp4_decode()
 {
 	local codec=$1
@@ -904,7 +944,7 @@ run_generated_decode_env_fbc()
 		"!" "$GENERATED_PARSER"
 		"!" mppvideodec
 	)
-	append_artifact_or_fake_sink decoded raw
+	append_fake_sink
 	printf "decoding generated %s input with FBC env default: " "$codec"
 	print_current_command
 	run_current_command
@@ -1735,9 +1775,11 @@ run_case_payload()
 	generated_dec_vp9_fakesink | generated_dec_vp9_dmabuf | \
 	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
 	generated_dec_vp9_rga_scale | \
-	generated_dec_h264_afbc_fakesink | generated_dec_h265_afbc_fakesink | \
 	generated_dec_h264_crop_meta)
 		run_generated_decode "${CMD[1]}" "${CMD[@]:2}"
+		;;
+	generated_dec_h264_afbc_fakesink | generated_dec_h265_afbc_fakesink)
+		run_generated_decode_fakesink "${CMD[1]}" "${CMD[@]:2}"
 		;;
 	generated_dec_h264_renegotiate | generated_dec_h265_renegotiate)
 		run_generated_renegotiate_decode "${CMD[1]}" "${CMD[@]:2}"

@@ -125,12 +125,12 @@ Suggested expanded matrix:
   `c_RkRgaBlit()` conversion path, generated elementary-stream decode and
   transcode, generated VP9 IVF decode, in-pipeline caps renegotiation, explicit
   flush events, codec-specific encoder QP/profile controls, and repeated EOS and
-  start/stop loops. Add H.264/H.265 inputs
+  start/stop loops, and generated H.264/H.265 AFBC/FBC decode-output
+  negotiation. Add H.264/H.265 inputs
   to enable decode to `fakesink`, decode-side RGA scale/format/rotate, and
-  decode -> encode transcodes. Generated H.264/H.265 AFBC decode output is
-  recorded as
-  diagnostic coverage, along with same-codec and mixed-codec generated
-  multi-stream decode/transcode pipelines. Display/DMABuf sink pipelines remain
+  decode -> encode transcodes. Same-codec and mixed-codec generated
+  multi-stream decode/transcode pipelines are diagnostic coverage.
+  Display/DMABuf sink pipelines remain
   manual add-ons until a target compositor/KMS setup is fixed.
 
 The expected rewrite result is not universal pass today. For implemented paths,
@@ -310,6 +310,15 @@ separately from explicit element properties.
 encode/decode with `GST_MPP_NO_RGA=1`, covering the current plugin's global
 no-RGA branch while staying on MPP-only paths that should not depend on
 `/dev/rga`.
+`generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`, and
+`generated_dec_h264_env_fbc` are enabled and required by default. They validate
+the plugin-visible `mppvideodec fbc=true` and
+`GST_MPP_VIDEODEC_DEFAULT_FBC=1` paths through `fakesink`; the suite does not
+capture artifacts for them because AFBC/FBC buffers are compressed layout
+contracts, not stable raw-pixel dumps for SHA-256 comparison. Set
+`GST_REQUIRE_FBC_CASES=0` to keep them diagnostic-only during bring-up, or
+`GST_ENABLE_FBC_CASES=0 GST_REQUIRE_FBC_CASES=0` to omit them from a narrow
+debug run.
 The strict decoder-property cases set `fast-mode=false` and
 `ignore-error=false`, covering the current plugin path that changes
 `MPP_DEC_SET_PARSER_FAST_MODE` and skips the default `MPP_DEC_SET_DISABLE_ERROR`
@@ -408,6 +417,8 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_vp9_dmabuf`, `generated_dec_h264_strict_props`,
 `generated_dec_h265_strict_props`, `generated_dec_h264_env_strict_props`,
 `generated_dec_h264_env_format_nv21`, `generated_dec_h264_env_no_rga`,
+`generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`,
+`generated_dec_h264_env_fbc`,
 `generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
@@ -444,8 +455,7 @@ Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `enc_vp8_nv12`, `enc_jpeg_nv12`,
 `roundtrip_jpeg_nv12`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`,
-`generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`,
-`generated_dec_h264_env_fbc`, `generated_dec_h264_crop_meta`,
+`generated_dec_h264_crop_meta`,
 `generated_dec_vp9_rga_scale`, `generated_transcode_vp9_to_h264`,
 `dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
 smaller GStreamer RGA format matrix for currently advertised legacy
@@ -463,12 +473,14 @@ format paths. With `GST_ENABLE_DISPLAY_CASES=1`, diagnostics also include
 `GST_GENERATED_INPUT_BUFFERS`, `GST_CAPS_RENEGOTIATE_BUFFERS`,
 `GST_EVENT_TRIGGER_BUFFERS`, `GST_EVENT_POST_BUFFERS`,
 `GST_EVENT_TIMEOUT_MS`, `GST_EVENT_SLEEP_US`, `GST_STATE_LOOPS`,
-`GST_ENABLE_PARALLEL_CASES`, `GST_REQUIRE_PARALLEL_CASES`, and `GST_TIMEOUT`.
+`GST_ENABLE_PARALLEL_CASES`, `GST_REQUIRE_PARALLEL_CASES`,
+`GST_ENABLE_FBC_CASES`, `GST_REQUIRE_FBC_CASES`, and `GST_TIMEOUT`.
 By default `GST_CAPTURE_ARTIFACTS=1` makes generated and
 optional external-media decode/transcode cases write decoded raw buffers or
 encoded elementary streams under each run's `artifacts/` directory and records
 byte counts plus SHA-256s in `artifacts.tsv`; set it to `0` for pure pass/fail
-timing runs. After both
+timing runs. Required generated AFBC/FBC fakesink cases are intentionally
+pass/fail-only and do not add artifact rows. After both
 kernels have a suite result, run
 `gstreamer-suite-compare.sh`; it follows the same baseline pass vs candidate
 pass rule as the MPP/RGA comparators and supports the same `PERF_MAX_RATIO`
@@ -527,28 +539,30 @@ PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-04 after the GStreamer codec-specific encoder QP
-cases were added to the required set and the decoder crop-meta case was added as
-diagnostic coverage; after the GStreamer env-default strict decoder and
-env-default decoder DMA-feature/output-format cases were added to the required
-set; after the GStreamer env-default FBC decode case was added as diagnostic
-coverage; after the GStreamer encoder unaligned-vstride env-default case was
-added to the required set; after the GStreamer encoder max-pending env-default
-case was added to the required set; after GStreamer MP4 container
-codec-data decode/transcode cases were added to the required set; after GStreamer no-RGA env-default
+was last verified on 2026-07-04 after generated GStreamer AFBC/FBC fakesink
+decode-output cases were promoted to required pass/fail coverage; after the
+GStreamer codec-specific encoder QP cases were added to the required set and
+the decoder crop-meta case was added as diagnostic coverage; after the
+GStreamer env-default strict decoder and env-default decoder
+DMA-feature/output-format cases were added to the required set; after the
+GStreamer encoder unaligned-vstride env-default case was added to the required
+set; after the GStreamer encoder max-pending env-default case was added to the
+required set; after GStreamer MP4 container codec-data decode/transcode cases
+were added to the required set; after GStreamer no-RGA env-default
 encode/decode cases were added to the required set; after opt-in 10-bit H.265
-external-media decode/fallback/RGA-conversion cases were added; after the conditional
-GStreamer VPx-alpha decodebin inspect was added as diagnostic coverage; after the GStreamer strict decoder-property cases
-were wired into the generated-decode builtin dispatch, the asset-free
-parallel cases became required by default, and after the direct `librga` smoke gained
-forced-core, fence, pre-intr, dma-buf fd-import, opt-in P010/P210 IM2D
-conversion, and legacy `c_RkRgaBlit()`
+external-media decode/fallback/RGA-conversion cases were added; after the
+conditional GStreamer VPx-alpha decodebin inspect was added as diagnostic
+coverage; after the GStreamer strict decoder-property cases were wired into the
+generated-decode builtin dispatch, the asset-free parallel cases became
+required by default, and after the direct `librga` smoke gained forced-core,
+fence, pre-intr, dma-buf fd-import, opt-in P010/P210 IM2D conversion, and
+legacy `c_RkRgaBlit()`
 coverage for the GStreamer virtual-source, fd-backed rotate/convert, and planar
 fallback shapes; after the MPP official-test suite/comparator and build helper
 were added; and after the GStreamer build wrapper, suite, comparator, opt-in
-display/DMABuf sink diagnostics, asset-free
-decoder roundtrip, generated-media decode/transcode, explicit flush-event,
-EOS-loop, generated-AFBC diagnostic, and generated multi-stream cases
+display/DMABuf sink diagnostics, asset-free decoder roundtrip,
+generated-media decode/transcode, explicit flush-event, EOS-loop,
+generated-AFBC cases, and generated multi-stream diagnostics
 were added. It was re-run after the GStreamer generated-input cache,
 artifact-checksum comparator, and generated VP9 IVF decode cases were added.
 The device-free
