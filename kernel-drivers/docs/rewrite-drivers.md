@@ -62,8 +62,9 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > external media assets are staged. Its diagnostic set now also covers
 > generated H.264 crop-meta output,
 > VP8/JPEG/VPx-alpha element visibility, the optional `vp8enc` alias from
-> `GST_MPP_VP8ENC_FAKE_VP8ENC`, JPEG decoder explicit/default output format
-> selection, generated VP9 transcode, and
+> `GST_MPP_VP8ENC_FAKE_VP8ENC`, VP8/JPEG encoder property setters,
+> JPEG decoder explicit/default output format selection, RFBC caps negotiation,
+> generated VP9 transcode, opt-in display/KMS env-default paths, and
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and
 > BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 decoder-side output
@@ -425,7 +426,8 @@ implementation (cross-reference:
   BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 output-format
   paths.  The runner now
   has opt-in display/DMABuf sink cases for JeffyCN's `rkximagesink`, including
-  linear DMABuf and AFBC decode output, and opt-in `kmssrc` KMS-capture cases
+  linear DMABuf, AFBC decode output, `KMSSINK_DISABLE_VSYNC=1`, and
+  `GST_RKXIMAGE_USE_COLORKEY=1`, and opt-in `kmssrc` KMS-capture cases
   that feed DRM framebuffer-exported DMABufs into `mpph264enc`, including the
   `GST_KMSSRC_DMA_FEATURE=1` env-default path, and loop them through the display
   sink.  The remaining media-backed GStreamer evidence is

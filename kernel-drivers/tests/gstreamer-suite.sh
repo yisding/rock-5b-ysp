@@ -251,6 +251,8 @@ generated_dec_h264_display_dmabuf
 generated_dec_h265_display_dmabuf
 generated_dec_h264_display_afbc
 generated_dec_h265_display_afbc
+generated_dec_h264_display_env_no_vsync
+generated_dec_h264_display_env_colorkey
 "
 
 if [ "$GST_ENABLE_DISPLAY_CASES" = "1" ] ||
@@ -1248,10 +1250,15 @@ run_generated_display_decode()
 {
 	local codec=$1
 	local mode=$2
+	local env_name=${3:-}
 
 	ensure_generated_input "$codec" || return $?
-	CMD=(
-		gst-launch-1.0 -q
+	if [ -n "$env_name" ]; then
+		CMD=(env "$env_name=1" gst-launch-1.0 -q)
+	else
+		CMD=(gst-launch-1.0 -q)
+	fi
+	CMD+=(
 		filesrc "location=$GENERATED_INPUT_PATH"
 		"!" "$GENERATED_PARSER"
 		"!" mppvideodec dma-feature=true
@@ -1260,8 +1267,13 @@ run_generated_display_decode()
 		CMD+=(fbc=true)
 	fi
 	append_display_sink
-	printf "displaying generated %s %s input through %s: " \
-		"$codec" "$mode" "$GST_DISPLAY_SINK"
+	if [ -n "$env_name" ]; then
+		printf "displaying generated %s %s input through %s with %s=1: " \
+			"$codec" "$mode" "$GST_DISPLAY_SINK" "$env_name"
+	else
+		printf "displaying generated %s %s input through %s: " \
+			"$codec" "$mode" "$GST_DISPLAY_SINK"
+	fi
 	print_current_command
 	run_current_command
 }
@@ -1772,6 +1784,12 @@ build_case_command()
 	generated_dec_h265_display_afbc)
 		CMD=(__builtin_generated_display_decode h265 afbc)
 		;;
+	generated_dec_h264_display_env_no_vsync)
+		CMD=(__builtin_generated_display_decode h264 dmabuf KMSSINK_DISABLE_VSYNC)
+		;;
+	generated_dec_h264_display_env_colorkey)
+		CMD=(__builtin_generated_display_decode h264 dmabuf GST_RKXIMAGE_USE_COLORKEY)
+		;;
 	kms_capture_dmabuf_fakesink)
 		build_kms_capture
 		;;
@@ -2180,8 +2198,9 @@ run_case_payload()
 		run_generated_mp4_transcode "${CMD[1]}" "${CMD[2]}"
 		;;
 	generated_dec_h264_display_dmabuf | generated_dec_h265_display_dmabuf | \
-	generated_dec_h264_display_afbc | generated_dec_h265_display_afbc)
-		run_generated_display_decode "${CMD[1]}" "${CMD[2]}"
+	generated_dec_h264_display_afbc | generated_dec_h265_display_afbc | \
+	generated_dec_h264_display_env_no_vsync | generated_dec_h264_display_env_colorkey)
+		run_generated_display_decode "${CMD[1]}" "${CMD[2]}" "${CMD[3]:-}"
 		;;
 	parallel_dec_h264 | parallel_dec_h265 | parallel_dec_mixed_h264_h265)
 		run_generated_parallel_decode "${CMD[1]}" "${CMD[2]}"
@@ -2257,6 +2276,8 @@ runtime_dispatch_validated()
 	generated_transcode_h265_mp4_to_h264 | \
 	generated_dec_h264_display_dmabuf | generated_dec_h265_display_dmabuf | \
 	generated_dec_h264_display_afbc | generated_dec_h265_display_afbc | \
+	generated_dec_h264_display_env_no_vsync | \
+	generated_dec_h264_display_env_colorkey | \
 	parallel_dec_h264 | parallel_dec_h265 | parallel_dec_mixed_h264_h265 | \
 	parallel_transcode_mixed_h264_h265)
 		return 0

@@ -450,8 +450,10 @@ GST_H265_10_INPUT=assets/sample-main10.h265 \
 Set `GST_ENABLE_DISPLAY_CASES=1` to add opt-in display diagnostics against
 `GST_DISPLAY_SINK` (default `rkximagesink`). These cases inspect the sink and
 run generated H.264/H.265 elementary streams through `mppvideodec
-dma-feature=true` into the sink, including AFBC variants. Set
-`GST_REQUIRE_DISPLAY_CASES=1` on a board with a known-good display plane to
+dma-feature=true` into the sink, including AFBC variants. The H.264 DMABuf
+display path is also repeated with `KMSSINK_DISABLE_VSYNC=1` and
+`GST_RKXIMAGE_USE_COLORKEY=1` to record current `rkximagesink` env behavior.
+Set `GST_REQUIRE_DISPLAY_CASES=1` on a board with a known-good display plane to
 promote the same cases to required, and pass simple sink properties with
 `GST_DISPLAY_SINK_ARGS`, for example `connector-id=... plane-id=...`.
 Set `GST_ENABLE_KMS_CASES=1` to add opt-in KMS capture diagnostics for
@@ -540,8 +542,10 @@ paths. With
 `GST_ENABLE_DISPLAY_CASES=1`, diagnostics also include
 `gst_inspect_display_sink`, `generated_dec_h264_display_dmabuf`,
 `generated_dec_h265_display_dmabuf`, `generated_dec_h264_display_afbc`, and
-`generated_dec_h265_display_afbc`. With `GST_ENABLE_KMS_CASES=1`, diagnostics
-also include `gst_inspect_kmssrc`, `kms_capture_dmabuf_fakesink`,
+`generated_dec_h265_display_afbc`,
+`generated_dec_h264_display_env_no_vsync`, and
+`generated_dec_h264_display_env_colorkey`. With `GST_ENABLE_KMS_CASES=1`,
+diagnostics also include `gst_inspect_kmssrc`, `kms_capture_dmabuf_fakesink`,
 `kms_capture_dmabuf_encode_h264`, `kms_capture_env_dmabuf_encode_h264`, and
 `kms_capture_dmabuf_display`. Override with `GST_REQUIRED_CASES` or
 `GST_DIAGNOSTIC_CASES` for narrower hardware debugging, and tune dimensions with
@@ -657,6 +661,8 @@ encoded-artifact comparison; after diagnostic
 after diagnostic VP8 QP and JPEG quality-factor property coverage was added;
 after opt-in KMS capture coverage was expanded for
 `GST_KMSSRC_DMA_FEATURE=1`;
+after opt-in display sink coverage was expanded for
+`KMSSINK_DISABLE_VSYNC=1` and `GST_RKXIMAGE_USE_COLORKEY=1`;
 after the GStreamer codec-specific encoder QP
 cases and encoded
 CBR/FIXQP RC-mode artifact cases were added to the required set and the
