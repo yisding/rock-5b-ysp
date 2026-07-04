@@ -317,6 +317,10 @@ paths:
   `generated_dec_h264_renegotiate`, `generated_dec_h265_renegotiate`,
   `generated_dec_h264_rga_rotate`, `generated_dec_h264_rga_rotate_180`,
   `generated_dec_h264_rga_rotate_270`, `generated_dec_h264_crop_meta`,
+  `generated_dec_h264_rga_rgba_scale`,
+  `generated_dec_h264_rga_bgra_scale`,
+  `generated_dec_h264_rga_rgbx_scale`,
+  `generated_dec_h264_rga_bgrx_scale`,
   `generated_dec_h265_rga_scale`;
 - `generated_transcode_h264_to_h265`, `generated_transcode_h265_to_h264`,
   `generated_transcode_h264_mp4_to_h265`,
@@ -560,6 +564,8 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h264_rga_rotate_180`, `generated_dec_h264_rga_rotate_270`,
 `generated_dec_h264_crop_meta`,
+`generated_dec_h264_rga_rgba_scale`, `generated_dec_h264_rga_bgra_scale`,
+`generated_dec_h264_rga_rgbx_scale`, `generated_dec_h264_rga_bgrx_scale`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
 `generated_transcode_h264_to_h265`,
 `generated_transcode_h265_to_h264`,
@@ -598,9 +604,6 @@ Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `roundtrip_jpeg_nv12`, `roundtrip_jpeg_format_bgrx`,
 `roundtrip_jpeg_env_format_bgrx`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`,
-`generated_dec_h264_rga_rgba_scale`,
-`generated_dec_h264_rga_bgra_scale`, `generated_dec_h264_rga_rgbx_scale`,
-`generated_dec_h264_rga_bgrx_scale`,
 `generated_dec_h264_env_rfbc`,
 `generated_dec_vp9_rga_scale`, `generated_transcode_vp9_to_h264`,
 `generated_dec_vp8_fakesink`, `generated_dec_vp8_dmabuf`,
@@ -616,8 +619,9 @@ GStreamer encoder-format matrix for advertised direct MPP formats
 I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444, plus currently advertised
 legacy `c_RkRgaBlit()` conversions: encoder-side
 NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths and decoder-side
-BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 output-format
-paths. With
+BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths; the
+advertised H.264 decoder-side RGBA/BGRA/RGBx/BGRx output-format paths are in
+the required set. With
 `GST_ENABLE_DISPLAY_CASES=1`, diagnostics also include
 `gst_inspect_display_sink`, `generated_dec_h264_display_dmabuf`,
 `generated_dec_h265_display_dmabuf`, `generated_dec_h264_display_afbc`, and
@@ -748,7 +752,9 @@ bash debugfs-counter-check.sh
 
 Maintenance gate: `shellcheck *.sh` in this directory and
 `VALIDATE_ONLY=1 bash rewrite-conformance-run.sh` are expected to pass; they
-were last verified on 2026-07-04 after GStreamer `crop-rectangle` crop-meta
+were last verified on 2026-07-04 after generated GStreamer H.264
+RGBA/BGRA/RGBx/BGRx decoder output-format cases were promoted to required;
+after GStreamer `crop-rectangle` crop-meta
 decode coverage was promoted to required; after the required GStreamer public
 encoder/decoder 270-degree and decoder 180-degree RGA rotation cases were
 added; after the required GStreamer libmpp batch-server mixed H.264/H.265
@@ -757,7 +763,7 @@ diagnostic GStreamer
 `GST_MPP_VP8ENC_FAKE_VP8ENC` alias validation was added; after diagnostic
 GStreamer JPEG decoder
 explicit-format and `GST_MPP_JPEGDEC_DEFAULT_FORMAT` cases were added; after
-diagnostic generated GStreamer H.264
+required generated GStreamer H.264
 decode output-format cases were expanded for the advertised RGBA/BGRA/RGBx/BGRx
 decoder-side RGA paths; after the diagnostic GStreamer H.264 encoder-format
 matrix was expanded for advertised direct MPP input formats and remaining

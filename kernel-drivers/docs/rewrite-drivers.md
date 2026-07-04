@@ -61,6 +61,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > strict decoder property application through `MPP_DEC_SET_PARSER_FAST_MODE`,
 > env-default decoder control, DMA-feature, output-format, and FBC/ARM-AFBC
 > default-alias application,
+> generated H.264 RGBA/BGRA/RGBx/BGRx decoder-side RGA output formats,
 > MPP-only encode/decode with `GST_MPP_NO_RGA=1`,
 > repeated encoder/decoder drain-to-EOS reuse,
 > multi-session scheduling, generated H.264/H.265 AFBC/FBC decode output,
@@ -399,7 +400,8 @@ implementation (cross-reference:
   DMABuf-to-encoder handoff, generated H.264/H.265 strict decoder property cases for
   `fast-mode=false`/`ignore-error=false`, the matching H.264 strict decoder
   environment-default path, the H.264 `GST_MPP_VIDEODEC_DEFAULT_FORMAT=NV21`
-  output-format default path, required generated H.265 Main10
+  output-format default path, required generated H.264
+  RGBA/BGRA/RGBx/BGRx decoder-side RGA output formats, required generated H.265 Main10
   decode/RGA/fallback coverage for `GST_MPP_DEC_DISABLE_NV12_10`, optional
   generated H.265 4:2:2 10-bit coverage for `GST_MPP_DEC_DISABLE_NV16_10`,
   opt-in external-media H.265 10-bit decode/fallback coverage, generated
@@ -437,12 +439,11 @@ implementation (cross-reference:
   `GST_MPP_DEC_FBC_IS_RFBC=1` RFBC caps negotiation, generated VP9-to-H.264
   transcode, opt-in generated AV1 and legacy VP8/H.263/MPEG decode/transcode
   diagnostics, and
-  a GStreamer-visible encoder-format matrix covering advertised direct MPP
+  a diagnostic GStreamer-visible encoder-format matrix covering advertised direct MPP
   input formats I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444 plus
   RGA-forced encoder-side NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
-  scale paths and decoder-side
-  BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 output-format
-  paths.  The runner now
+  scale paths plus remaining decoder-side
+  BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The runner now
   has opt-in display/DMABuf sink cases for JeffyCN's `rkximagesink`, including
   linear DMABuf, AFBC decode output, `KMSSINK_DISABLE_VSYNC=1`, and
   `GST_RKXIMAGE_USE_COLORKEY=1`, and opt-in `kmssrc` KMS-capture cases
