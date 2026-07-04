@@ -15,6 +15,12 @@ Two device files matter:
 | `/dev/mpp_service` | MPP framework (how-the-drivers-work.md) | `librockchip_mpp` | video encode/decode |
 | `/dev/rga` | RGA driver (how-the-drivers-work.md) | `librga` | 2D resize/rotate/convert/blend |
 
+> **Not all of the ABI below is live.** A chunk of what these headers define is
+> defined-but-dead — never issued by any userspace path (the MPP batch server, the
+> RGA2 `0x60xx` blit family, several flags and config fields). Before treating any
+> command as required, check [`abi-dormancy.md`](abi-dormancy.md), which classifies
+> each element live vs dormant with zero-caller evidence.
+
 ---
 
 ## 0. Meet the device files (user-friendly)
