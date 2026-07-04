@@ -14,7 +14,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > **Status: advanced bring-up, not yet the shipped replacement.** MPP now covers
 > the observed RK3588 userspace ABI with no required command intentionally left
 > unsupported. RGA has grown from the initial blit/fill subset into a broad
-> practical `librga`/FFmpeg feature subset, including AFBC/RFBC, 10-bit,
+> practical `librga`/FFmpeg feature subset, including RK3588 AFBC16x16, 10-bit,
 > alpha-overlay, color-key, OSD, palette, gauss, quantize, ROP, mosaic,
 > rotate/translate/padding border copies, packed-YUV422/420 fill, Y4/Y8 compact/full-CSC dither
 > output, BPP palette sources, AFBC-to-AFBC ffmpeg filter copies, mixed RGA2/RGA3 task batches, async
@@ -355,9 +355,9 @@ implementation (cross-reference:
     formats, rectangle/fill arrays, raster bitblit for fallback formats RGA3
     does not cover, planar/semiplanar YUV,
     YCbCr400/gray, NV24/NV42, RGB555-family, ARGB/ABGR output, compact 10-bit
-    source, RFBC64x4 source profiles for ffmpeg-facing Rockchip frames,
-    AFBC32x8 RGB-family source profiles for current `librga` DRM/gralloc
-    inputs, full-CSC RGB→YUV, gray256 conversion, Y400 UV downsample,
+    source, deprecated source-only RGA2-Pro RFBC64x4/AFBC32x8 compatibility
+    profiles retained only while historical conformance coverage is retired,
+    full-CSC RGB→YUV, gray256 conversion, Y400 UV downsample,
     Y4/Y8 compact/full-CSC dither output for current `librga` paths,
     rotate/mirror, in-place RGB mosaic, ROP, gaussian blur, NN quantize, RGB
     alpha-bitmap, RGBA color-key for current forced-core `imcolorkey`
@@ -378,9 +378,45 @@ implementation (cross-reference:
   generation; RGA3 pattern modes outside the supported alpha-overlay profile;
   RGA3 color-key outside the implemented RGB/RGBA `imcolorkey` shapes;
   Y4/Y8 full-CSC output outside the current RGB-to-YUV `librga` path;
-  per-channel rotation; RGA3 RFBC/AFBC32x8; tile
-  alpha/pattern/color-key or other non-simple bitblit variants; and non-bitblit
-  operation modes outside the implemented RGA2 subsets.
+  per-channel rotation; RFBC/AFBC32x8 outside the deprecated source-only
+  RGA2-Pro compatibility profiles; tile alpha/pattern/color-key or other
+  non-simple bitblit variants; and non-bitblit operation modes outside the
+  implemented RGA2 subsets.
+- **Public `librga` users outside the current conformance set** were surveyed
+  on 2026-07-04 by GitHub code search, excluding the already-covered
+  ffmpeg-rockchip, JeffyCN GStreamer, and official librga sample paths.  The
+  strongest additional Linux signal is RKNN/RKNPU preprocessing:
+  [airockchip/rknn_model_zoo](https://github.com/airockchip/rknn_model_zoo/blob/main/utils/image_utils.c),
+  [airockchip/rknn-toolkit2](https://github.com/airockchip/rknn-toolkit2/blob/master/rknpu2/examples/rknn_yolov5_demo/src/preprocess.cc),
+  and
+  [rockchip-linux/rknpu](https://github.com/rockchip-linux/rknpu/blob/master/rknn/rknn_api/examples/rknn_yolov5_demo/src/rga_func.c)
+  exercise RGB/RGBA/NV12/NV21 resize, crop/letterbox, and color conversion
+  through `imresize()`, `improcess()`, direct `wrapbuffer_virtualaddr()` /
+  `wrapbuffer_fd()` paths, handle imports, and legacy `c_RkRgaBlit()`.  Some
+  model-zoo utility code carries physical-address import branches, but the
+  common example paths are fd or virtual-address buffers; physical import stays
+  recognized-but-unsupported unless a target workload proves it is mandatory.
+  Android camera/HAL and display users
+  ([hardware-rockchip-camera](https://github.com/ruihe-rockchip/hardware-rockchip-camera),
+  [hardware-rockchip-hwcomposer](https://github.com/rockchip-android/hardware-rockchip-hwcomposer),
+  [frameworks-native](https://github.com/aosp-rockchip/android_frameworks_native))
+  are broad real consumers, but they mainly validate an Android allocator /
+  GraphicBuffer / HWC compatibility goal, not the current Linux Rock 5B target.
+  Other public Linux users such as
+  [PaddlePaddle/FlyCV](https://github.com/PaddlePaddle/FlyCV/blob/develop/modules/img_transform/crop/src/crop_rv1109.cpp),
+  [varphone/rkrga](https://github.com/varphone/rkrga),
+  [libv4l-rkmpp](https://github.com/sz-jack-01/libv4l-rkmpp),
+  [RetroArch OGA](https://github.com/libretro/RetroArch/blob/master/gfx/drivers/oga_gfx.c),
+  LVGL/SDL Rockchip RGA patches, Orbbec ROS decoder helpers, RKMedia demos, and
+  small Qt/DRM camera apps cluster around the same legacy blit, fd/virtual
+  import, RGB/RGB565/RGBA/NV12-family scale/convert/rotate feature set.  This
+  survey found no current Linux-media evidence that RFBC64x4/AFBC32x8,
+  per-channel rotation, tile alpha/pattern/color-key, or broad RGA2-Pro modes
+  should move into the required rewrite profile.  The next useful conformance
+  expansion is an RKNN-shaped smoke profile: virtual RGB888 `imresize()`,
+  fd-backed RGB/NV12/NV21 `improcess()` resize/convert, legacy RGB
+  `c_RkRgaBlit()` resize, and an explicit expected reject for physical-address
+  import.
 - **Unsupported profiles fail *late* by design**: `-EOPNOTSUPP` is returned
   only after copy/validate/prepare/queue/dispatch/import-resolve/power-sequence
   reach the backend boundary — so the scheduler/lifetime path is exercised even
@@ -495,7 +531,8 @@ implementation (cross-reference:
   import/release-buffer lifecycle, scheduler, fence,
   packed-YUV422/420 fill, Y4/Y8 compact/full-CSC dither output, BPP palette sources,
   RGA2 pre-intr register packing,
-  RFBC/AFBC/tile including AFBC-to-AFBC ffmpeg filter copies,
+  AFBC/tile including AFBC-to-AFBC ffmpeg filter copies, deprecated
+  source-only RGA2-Pro RFBC64x4/AFBC32x8 compatibility coverage,
   crop/destination-offset, blend-mode, SLT alpha-blend,
   OSD/palette/gauss/quantize/ROP/mosaic, JeffyCN GStreamer legacy conversion
   profile and format-matrix helpers, direct-buffer fd/userptr classification,
