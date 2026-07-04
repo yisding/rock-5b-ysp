@@ -10,8 +10,8 @@ set -euo pipefail
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$TEST_DIR/../.." && pwd)"
 
-KERNEL_6_18="${KERNEL_6_18:-$ROOT_DIR/../linux-6.18-rkvenc}"
-KERNEL_MAINLINE="${KERNEL_MAINLINE:-$ROOT_DIR/../linux}"
+KERNEL_6_18="${KERNEL_6_18:-$ROOT_DIR/../kernel/linux-6.18-rkvenc}"
+KERNEL_MAINLINE="${KERNEL_MAINLINE:-$ROOT_DIR/../kernel/linux}"
 ARCH="${ARCH:-arm64}"
 CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
 JOBS="${JOBS:-$(nproc)}"
@@ -31,8 +31,8 @@ usage() {
 Usage: ${0##*/} [6.18|mainline|all]
 
 Environment:
-  KERNEL_6_18       6.18 rewrite kernel checkout (default: ../linux-6.18-rkvenc)
-  KERNEL_MAINLINE   mainline rewrite kernel checkout (default: ../linux)
+  KERNEL_6_18       6.18 rewrite kernel checkout (default: ../kernel/linux-6.18-rkvenc)
+  KERNEL_MAINLINE   mainline rewrite kernel checkout (default: ../kernel/linux)
   ARCH              kernel ARCH (default: arm64)
   CROSS_COMPILE     cross compiler prefix (default: aarch64-linux-gnu-)
   JOBS              make parallelism (default: nproc)

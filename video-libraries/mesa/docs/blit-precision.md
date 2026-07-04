@@ -116,7 +116,7 @@ running the failing dEQP case or `repro_blit` against the patched local
 build, capturing stderr to a file. The u_blitter TXF fragment shader is the
 one named `TTN1` (TGSI-to-NIR) with `textures_used_by_txf` set. The raw dump
 this listing came from survives on the dev box as
-`/home/yi/Code/mesa/.codex-tmp/bi_asm.txt` (header records
+`/home/yi/Code/fdo/mesa/.codex-tmp/bi_asm.txt` (header records
 `GL_RENDERER=Mali-G610 MC4 (Panfrost)`, build `git-82d387ae89`).
 
 `PAN_MESA_DEBUG` is a *different* variable — driver-level toggles

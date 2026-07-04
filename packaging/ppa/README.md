@@ -8,7 +8,7 @@ builds them on its arm64 builders and `apt` installs the whole stack with
 dependencies resolved.
 
 Everything targets **resolute** (Ubuntu 26.04 base; Armbian's userspace) on
-**arm64**. The upload-ready artifacts live at **`~/Code/grd-ppa/`** (dev box
+**arm64**. The upload-ready artifacts live at **`~/Code/gnome/grd/grd-ppa/`** (dev box
 only — see [§Import plan](#import-plan--getting-the-debian-trees-into-this-repo))
 with a step-by-step runbook (`UPLOAD.md`); this document is the *why and how
 they were built*.
@@ -134,7 +134,7 @@ Wave D  gnome-remote-desktop-gdm-hwenc   (independent — any time)
 ```
 
 The full runbook — one-time Launchpad/GPG setup, `debsign`, `dput`, and
-per-package confidence notes — is **`~/Code/grd-ppa/UPLOAD.md`**. The staged
+per-package confidence notes — is **`~/Code/gnome/grd/grd-ppa/UPLOAD.md`**. The staged
 artifacts there are **source-only and unsigned**: you sign them with your own GPG
 key (registered on Launchpad) and `dput`.
 
@@ -160,7 +160,7 @@ the mpv/VLC decoder-selection caveat are in
 - `ffmpeg`: a **full local arm64 `dpkg-buildpackage` binary build succeeded
   2026-06-30** — the complete 25-artifact changes set (`ffmpeg`, `ffmpeg-doc`,
   all seven runtime lib debs, seven `-dev` debs, eight dbgsym `.ddeb`s,
-  `.buildinfo` + `.changes` in `~/Code/ffmpeg-ppa/`). Two scope notes from the
+  `.buildinfo` + `.changes` in `~/Code/ffmpeg/ffmpeg-ppa/`). Two scope notes from the
   `.buildinfo`: it ran with `DEB_BUILD_PROFILES="… pkg.ffmpeg.noextra"` and
   `DEB_BUILD_OPTIONS="nocheck …"`, so the **`-extra` flavour binaries and the
   FATE run were skipped locally**. Launchpad sets neither, so a PPA build will
@@ -178,7 +178,7 @@ the mpv/VLC decoder-selection caveat are in
 
 Today a fresh clone of this repo **cannot reproduce the PPA packages**: this
 README quotes the `debian/` deltas only as fragments, and the load-bearing
-artifacts live in the unversioned dev-box directory `~/Code/grd-ppa/`:
+artifacts live in the unversioned dev-box directory `~/Code/gnome/grd/grd-ppa/`:
 
 ```
 mpp_1.5.0-1+rk1.dsc / .debian.tar.xz / mpp_1.5.0.orig.tar.gz

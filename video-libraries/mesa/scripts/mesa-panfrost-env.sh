@@ -2,13 +2,13 @@
 # Runtime env for an uninstalled *surfaceless* Panfrost Mesa build (Rock 5B / Mali-G610).
 #
 # Usage:
-#   MESA_BUILD=/home/yi/Code/mesa/build-codex-main . mesa-panfrost-env.sh
+#   MESA_BUILD=/home/yi/Code/fdo/mesa/build-codex-main . mesa-panfrost-env.sh
 #   ./repro_blit           # now runs against the just-built driver
 #
 # Confirm you got the right driver: every reproducer prints GL_RENDERER /
 # GL_VERSION on the first line. If LIBGL_DRIVERS_PATH is wrong the loader
 # silently falls back to the *installed* system Mesa (see the version string).
-: "${MESA_BUILD:=/home/yi/Code/mesa/build-codex-main}"
+: "${MESA_BUILD:=$HOME/Code/fdo/mesa/build-codex-main}"
 
 export LIBGL_DRIVERS_PATH="$MESA_BUILD/src/gallium/targets/dri"
 export LD_LIBRARY_PATH="$MESA_BUILD/src/gallium/targets/dri:$MESA_BUILD/src/gbm:$MESA_BUILD/src/egl:${LD_LIBRARY_PATH:-}"

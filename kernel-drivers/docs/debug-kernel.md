@@ -7,7 +7,7 @@ bugs into loud reports, and `panic_on_oops` + `panic=10` guarantee the box
 comes back on its own.
 
 > Provenance: this workflow lives in the (non-git, dev-box-only) workspace
-> `/home/yi/Code/rock5b-kernel-debug/` — `build-rock5b-debug-kernel.sh`,
+> `/home/yi/Code/kernel/rock5b-kernel-debug/` — `build-rock5b-debug-kernel.sh`,
 > `enable-/disable-ramoops-capture.sh`, `enable-persistent-journal.sh`,
 > `install-rock5b-debug-kernel.sh`, `restore-stock-current-kernel.sh`, plus
 > `boot-backups/` snapshots. This doc transcribes everything needed to

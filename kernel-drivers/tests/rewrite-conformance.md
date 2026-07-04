@@ -22,8 +22,8 @@ from this support repo:
 kernel-drivers/tests/rewrite-build-gate.sh all
 ```
 
-The script builds from `git archive` copies of `../linux-6.18-rkvenc` and
-`../linux`, forces the mutually exclusive rewrite drivers plus their KUnit
+The script builds from `git archive` copies of `../kernel/linux-6.18-rkvenc` and
+`../kernel/linux`, forces the mutually exclusive rewrite drivers plus their KUnit
 coverage, and builds only:
 
 ```text
@@ -50,7 +50,7 @@ worktree has unrelated local changes.
 
 Last recorded run: `ALLOW_DIRTY=1 kernel-drivers/tests/rewrite-build-gate.sh all`
 on 2026-07-04 passed warning-free for the committed rewrite tips
-`../linux-6.18-rkvenc@5e307d88798f` and `../linux@9f9b786baec2`.
+`../kernel/linux-6.18-rkvenc@5e307d88798f` and `../kernel/linux@9f9b786baec2`.
 
 ## Expanded conformance bundle
 
@@ -89,14 +89,14 @@ PROFILE=rewrite ./scripts/collect-system-info.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/librga-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
-PROFILE=rewrite FFDIR=../ffmpeg-rockchip-81 ../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite.sh
+PROFILE=rewrite FFDIR=../ffmpeg/ffmpeg-rockchip-81 ../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite.sh
 
 # reboot into the BSP forward-port kernel and repeat:
 PROFILE=forward-port ./scripts/collect-system-info.sh
 PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
 PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/librga-suite.sh
 PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
-PROFILE=forward-port FFDIR=../ffmpeg-rockchip-81 ../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite.sh
+PROFILE=forward-port FFDIR=../ffmpeg/ffmpeg-rockchip-81 ../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite.sh
 
 # compare the latest two MPP suite summaries:
 ../rock-5b-ysp/kernel-drivers/tests/mpp-suite-compare.sh

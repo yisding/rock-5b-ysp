@@ -17,11 +17,11 @@ tracked separately in [the forward-port review log](../../../kernel-versions/doc
 
 | Item | Value |
 |------|-------|
-| Donor BSP | `../rockchip-kernel` |
-| Forward-port worktree | `../linux-6.18-rkvenc-av1-fwport` |
+| Donor BSP | `../kernel/rockchip-kernel` |
+| Forward-port worktree | `../kernel/linux-6.18-rkvenc-av1-fwport` |
 | Branch | `rkvenc-fwport-6.18` |
 | Primary BSP file | `drivers/video/rockchip/mpp/mpp_av1dec.c` |
-| Imported IOMMU provider | `drivers/iommu/vsi-iommu.c` from `../linux`, not the BSP private `rockchip-iommu-av1d.c` path |
+| Imported IOMMU provider | `drivers/iommu/vsi-iommu.c` from `../kernel/linux`, not the BSP private `rockchip-iommu-av1d.c` path |
 | Audit date | 2026-07-03 |
 
 Line numbers below are against the experimental AV1 worktree after the first

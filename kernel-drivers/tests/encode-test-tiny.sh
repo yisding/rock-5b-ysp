@@ -6,10 +6,12 @@
 # module loaded, so /dev/mpp_service is up. Root required — the script writes
 # dmesg markers to /dev/kmsg and scans dmesg for faults.
 set -uo pipefail
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 
 # MPP_BUILD = cmake build dir of rockchip-linux/mpp (env-overridable; the
 # "<mpp-build>" of ../ffmpeg/README.md). Default = the original dev box.
-MPP_BUILD="${MPP_BUILD:-/home/yi/Code/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native}"
+MPP_BUILD="${MPP_BUILD:-$REPO_ROOT/../kernel/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native}"
 LIB=$MPP_BUILD/mpp
 ENC=$MPP_BUILD/test/mpi_enc_test
 OUT=/tmp/rkvenc-test

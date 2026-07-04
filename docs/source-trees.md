@@ -20,7 +20,7 @@ patches unless explicitly marked otherwise.
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `5e307d88798f` + branch `rk3588-rewrite-mainline` @ `9f9b786baec2`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
-| 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
+| 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
 
 ---
 
@@ -48,7 +48,7 @@ its `&vdec0`/`&vdec1` overrides reference labels vanilla 6.18 doesn't define
 *anchoring* line cites that doesn't matter.
 
 Provenance: the patches were generated from the dev worktree
-`/home/yi/Code/linux-6.18-rkvenc` (branch `rkvenc-fwport-6.18`), commits
+`/home/yi/Code/kernel/linux-6.18-rkvenc` (branch `rkvenc-fwport-6.18`), commits
 
 ```
 924f4232546d  video: rockchip: RK3588 vendor MPP (rkvenc2/rkvdec2) + RGA3/RGA2 drivers  → patch 01
@@ -100,7 +100,7 @@ code.
 
 | Var | Tree | Pin |
 |-----|------|-----|
-| `$OURS` | `<forward-port tree §1>/drivers/video/rockchip` | dev-box provenance: `/home/yi/Code/linux-6.18-rkvenc/drivers/video/rockchip` |
+| `$OURS` | `<forward-port tree §1>/drivers/video/rockchip` | dev-box provenance: `/home/yi/Code/kernel/linux-6.18-rkvenc/drivers/video/rockchip` |
 | `$BSP` | `rockchip-linux/kernel` branch `develop-6.1`, `drivers/video/rockchip/` | clean checkout, observed @ `b4ef083dc0c3` (2026-07-01) |
 
 The BSP donor floats (it is a live vendor branch); vendor-delta.md already notes the
@@ -205,12 +205,12 @@ of 2026-07-04:
 
 - branch `rk3588-rewrite-6.18`, commit `5e307d88798f` ("media: rockchip:
   reject dormant mpp batch server"), committed in the dev worktree
-  `/home/yi/Code/linux-6.18-rkvenc`, replayed on the current
+  `/home/yi/Code/kernel/linux-6.18-rkvenc`, replayed on the current
   `rkvenc-fwport-6.18` forward-port tip `e059aad8d68b` from
-  `/home/yi/Code/linux-6.18-rkvenc-av1-fwport`.
+  `/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport`.
 - branch `rk3588-rewrite-mainline`, commit `9f9b786baec2` ("media: rockchip:
   reject dormant mpp batch server"),
-  committed in the sibling worktree `/home/yi/Code/linux`.
+  committed in the sibling worktree `/home/yi/Code/kernel/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
 `drivers/video/rockchip/rga-rewrite/`. The 6.18 tree is the line-count source
@@ -280,7 +280,7 @@ the mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for the rewrite drivers. The current committed pins
-(`../linux-6.18-rkvenc@5e307d88798f` and `../linux@9f9b786baec2`) passed that
+(`../kernel/linux-6.18-rkvenc@5e307d88798f` and `../kernel/linux@9f9b786baec2`) passed that
 archive build gate warning-free on 2026-07-04; `VALIDATE_ONLY=1
 kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
 case-builder/comparator validation, including 143 GStreamer case builders. See
@@ -364,9 +364,9 @@ The AV1 note was written from three local trees on 2026-07-02:
 
 | Tree | Local path | Pin used for the observation | Relevant files |
 |------|------------|------------------------------|----------------|
-| Forward-port / rewrite 6.18 tree | `/home/yi/Code/linux-6.18-rkvenc` | branch `rk3588-rewrite-6.18`, commit `a81feb1e2971`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-6.18` | `drivers/video/rockchip/mpp/`, `drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
-| Upstream-style comparison tree | `/home/yi/Code/linux` | branch `rk3588-rewrite-mainline`, commit `839de47fcda2`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-mainline` | `drivers/iommu/vsi-iommu.c`, `Documentation/devicetree/bindings/iommu/verisilicon,iommu.yaml`, `drivers/media/platform/verisilicon/`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
-| Rockchip BSP donor | `/home/yi/Code/rockchip-kernel` | `develop-6.1` commit `b4ef083dc0c3` | `drivers/video/rockchip/mpp/mpp_av1dec.c`, `drivers/iommu/rockchip-iommu-av1d.c`, `drivers/iommu/rockchip-iommu.c`, `arch/arm64/boot/dts/rockchip/rk3588s.dtsi` |
+| Forward-port / rewrite 6.18 tree | `/home/yi/Code/kernel/linux-6.18-rkvenc` | branch `rk3588-rewrite-6.18`, commit `a81feb1e2971`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-6.18` | `drivers/video/rockchip/mpp/`, `drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
+| Upstream-style comparison tree | `/home/yi/Code/kernel/linux` | branch `rk3588-rewrite-mainline`, commit `839de47fcda2`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-mainline` | `drivers/iommu/vsi-iommu.c`, `Documentation/devicetree/bindings/iommu/verisilicon,iommu.yaml`, `drivers/media/platform/verisilicon/`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
+| Rockchip BSP donor | `/home/yi/Code/kernel/rockchip-kernel` | `develop-6.1` commit `b4ef083dc0c3` | `drivers/video/rockchip/mpp/mpp_av1dec.c`, `drivers/iommu/rockchip-iommu-av1d.c`, `drivers/iommu/rockchip-iommu.c`, `arch/arm64/boot/dts/rockchip/rk3588s.dtsi` |
 
 The upstream-style tree contains the AV1 IOMMU work as ordinary upstream commits:
 

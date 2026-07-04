@@ -24,7 +24,7 @@
 #      (`exec /usr/bin/llvm-config-22 "$@"`); recreated here if missing.
 set -euo pipefail
 
-MESA=${MESA:-/home/yi/Code/mesa}
+MESA=${MESA:-$HOME/Code/fdo/mesa}
 BUILD=${BUILD:-$MESA/build-codex-main}
 CCACHE_DIR_DEFAULT=$MESA/.codex-ccache
 export CCACHE_DIR=${CCACHE_DIR:-$CCACHE_DIR_DEFAULT}

@@ -16,14 +16,16 @@
 # (root, or the video group via ../scripts/99-rockchip-codec.rules).
 # =============================================================================
 set -uo pipefail
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 
 # Paths (env-overridable; defaults = the original dev box, see README.md):
 #   MPP_BUILD = cmake build dir of rockchip-linux/mpp (the "<mpp-build>" of
 #               ../ffmpeg/README.md) containing mpp/librockchip_mpp.so* and
 #               test/mpi_dec_test
 #   CLIP_DIR  = where the tiny test clips live (regeneration recipes: README.md)
-MPP_BUILD="${MPP_BUILD:-/home/yi/Code/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native}"
-CLIP_DIR="${CLIP_DIR:-/home/yi/Code/rock5b-kernel-debug/rkvdec2-forward-port/test-bundle}"
+MPP_BUILD="${MPP_BUILD:-$REPO_ROOT/../kernel/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native}"
+CLIP_DIR="${CLIP_DIR:-$REPO_ROOT/../kernel/rock5b-kernel-debug/rkvdec2-forward-port/test-bundle}"
 LIB=$MPP_BUILD/mpp
 DEC=$MPP_BUILD/test/mpi_dec_test
 

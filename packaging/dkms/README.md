@@ -52,7 +52,7 @@ Then build and install:
 # Build the .deb (needs dtc + the kernel tree's dt-bindings headers):
 KSRC=/path/to/linux-6.18-rkvenc/drivers/video/rockchip \
   bash build-deb.sh                    # -> build/rk3588-vcodec-dkms_1.0_arm64.deb
-# (KSRC defaults to the dev-box path /home/yi/Code/linux-6.18-rkvenc/…;
+# (KSRC defaults to the dev-box path /home/yi/Code/kernel/linux-6.18-rkvenc/…;
 #  KROOT, for the dt-bindings headers, is derived from KSRC.)
 bash build-deb.sh clean                # remove build/ (staging tree + .deb)
 

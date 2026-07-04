@@ -2,7 +2,7 @@
 
 This note records the findings from reviewing the local `librga-src` checkout
 and comparing a possible Rust userspace rewrite with the in-progress
-`rga-rewrite` kernel driver work in `../linux-6.18-rkvenc`.
+`rga-rewrite` kernel driver work in `../kernel/linux-6.18-rkvenc`.
 
 The short version: a useful Linux-first Rust `librga` replacement is feasible
 and materially smaller than the kernel rewrite, but it is still real ABI work.

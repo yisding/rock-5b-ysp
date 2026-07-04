@@ -1,7 +1,7 @@
 # librga P010/P210 patch series
 
 This directory exports the source-only `librga` delta that was previously held
-only in the sibling `../librga-src` worktree.
+only in the sibling `../rockchip-userspace/librga-fork` worktree.
 
 ## Range
 

@@ -49,7 +49,7 @@ shipping, or operating** the artifacts.
 ## Operations runbook — running the rkmpp FFmpeg stack
 
 Recorded from operating the drop-in FFmpeg `8.1.2+rkmpp1` local debs on the
-dev board (source: the `~/Code/grd-debs` deployment, 2026-06-30); the same
+dev board (source: the `~/Code/gnome/grd/grd-debs` deployment, 2026-06-30); the same
 mechanics apply to the PPA's `7:8.1.2-1+rk1` set.
 
 ### Pin, or Ubuntu will silently take it back
@@ -133,7 +133,7 @@ so nobody re-walks them:
    redistributable as-is), and a private copy accelerates **only GRD** where
    the drop-in gives every FFmpeg consumer rkmpp.
 3. **Two self-contained vendored-FFmpeg GRD flavours** (2026-06-30, in
-   `~/Code/grd-debs`): `50.1+rkmpp.rk1` vendoring **ffmpeg-rockchip 6.1**
+   `~/Code/gnome/grd/grd-debs`): `50.1+rkmpp.rk1` vendoring **ffmpeg-rockchip 6.1**
    (libavcodec 60, fixed-QP `qp_init`, rkrga filters) and `50.1+rkmpp.main1`
    vendoring **mainline 8.1.2** (libavcodec 62, VBR) — each loading its FFmpeg
    from a private dir via `LD_LIBRARY_PATH` in the systemd unit, fully
@@ -173,7 +173,7 @@ points here).
 ## Still only on the dev box (import plan)
 
 The five PPA source packages' full `debian/` trees, `.dsc`/orig tarballs, and
-the `UPLOAD.md` signing/dput runbook live in the **unversioned** `~/Code/grd-ppa/`
+the `UPLOAD.md` signing/dput runbook live in the **unversioned** `~/Code/gnome/grd/grd-ppa/`
 — a fresh clone of this repo cannot rebuild the PPA packages from
 [`ppa/README.md`](ppa/README.md)'s quoted fragments alone. **Plan:** import the
 five `debian/` trees + `UPLOAD.md` into `ppa/` (source-only — orig tarballs are

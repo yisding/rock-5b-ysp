@@ -2,7 +2,7 @@
 # Compile (if needed) and run the Panfrost blit reproducers, summarizing
 # pass/fail. Point MESA_BUILD at a surfaceless build (see build-mesa-surfaceless.sh).
 #
-#   MESA_BUILD=/home/yi/Code/mesa/build-codex-main \
+#   MESA_BUILD=/home/yi/Code/fdo/mesa/build-codex-main \
 #   REPRO_SRC=/home/yi/Code/rock-5b-ysp/mesa-panfrost-g610/reproducers \
 #   ./run-repro.sh
 #
@@ -10,7 +10,7 @@
 # GL_VERSION is your build, not the installed system Mesa.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-: "${MESA_BUILD:=/home/yi/Code/mesa/build-codex-main}"
+: "${MESA_BUILD:=$HOME/Code/fdo/mesa/build-codex-main}"
 : "${REPRO_SRC:=$HERE/../reproducers}"
 BIN=${BIN:-$(mktemp -d)/repro-bin}; mkdir -p "$BIN"
 

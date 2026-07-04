@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run a dEQP-GLES3 caselist against a surfaceless Panfrost build.
 #
-#   MESA_BUILD=/home/yi/Code/mesa/build-codex-main \
+#   MESA_BUILD=/home/yi/Code/fdo/mesa/build-codex-main \
 #   DEQP=/tmp/deqp-gles-ci/modules/gles3/deqp-gles3 \
 #   ./run-deqp.sh cases.txt
 #
@@ -15,7 +15,7 @@
 #      grep '^dEQP-GLES3.functional.fbo.msaa.' "$MP" > msaa.txt
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-: "${MESA_BUILD:=/home/yi/Code/mesa/build-codex-main}"
+: "${MESA_BUILD:=$HOME/Code/fdo/mesa/build-codex-main}"
 : "${DEQP:=/tmp/deqp-gles-ci/modules/gles3/deqp-gles3}"
 CASES=${1:?usage: run-deqp.sh <caselist.txt>}
 CASES=$(readlink -f "$CASES")

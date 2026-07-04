@@ -12,6 +12,7 @@
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 
 RUN_DECODE="${RUN_DECODE:-1}"
 RUN_ENCODE="${RUN_ENCODE:-1}"
@@ -91,9 +92,9 @@ preflight_devices() {
 
 preflight_artifacts() {
   local fail=0
-  local mpp_build="${MPP_BUILD:-/home/yi/Code/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native}"
-  local ffdir="${FFDIR:-/home/yi/Code/ffmpeg-rockchip}"
-  local stage="${STAGE:-/home/yi/Code/rock5b-kernel-debug/ffmpeg-stack}"
+  local mpp_build="${MPP_BUILD:-$REPO_ROOT/../kernel/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native}"
+  local ffdir="${FFDIR:-$REPO_ROOT/../ffmpeg/ffmpeg-rockchip}"
+  local stage="${STAGE:-$REPO_ROOT/../kernel/rock5b-kernel-debug/ffmpeg-stack}"
   local input="${IN:-$stage/testdata/input-1080p.h264}"
 
   echo "================= artifact preflight ================="

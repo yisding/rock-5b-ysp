@@ -15,7 +15,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 NAME=rk3588-vcodec
 VERSION=1.0
-KSRC="${KSRC:-/home/yi/Code/linux-6.18-rkvenc/drivers/video/rockchip}"
+KSRC="${KSRC:-/home/yi/Code/kernel/linux-6.18-rkvenc/drivers/video/rockchip}"
 OVERLAY=rk3588-rock5b-vcodec
 
 OUT="$DIR/build"
