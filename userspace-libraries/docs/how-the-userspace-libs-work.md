@@ -46,11 +46,12 @@ do, parses the bitstream, manages the frame pool, and builds the exact register
 recipe; the kernel safely runs that recipe on the hardware.** how-the-drivers-work.md §9 said "the
 userspace library knows the recipe" — these libraries are where the recipe is
 built and where every `MPP_CMD_*` / `RGA_*` ioctl is issued. They exist (rather
-than using mainline V4L2) because Rockchip's stack exposes the feature set this
-repo needs: H.264 encode for GRD, H.265 encode for media workflows, all RGA ops,
-and the buffer model `ffmpeg-rockchip` expects. Collabora's
-[RK3588 mainline-status note](https://gitlab.collabora.com/hardware-enablement/rockchip-3588/notes-for-rockchip-3588/-/blob/main/mainline-status.md)
-lists mainline encoder support as JPEG-only.
+than using mainline V4L2) because mainline's RK3588 encoder support is JPEG-only,
+so Rockchip's stack is what exposes the feature set this repo needs — H.264 encode
+for GRD, H.265 encode for media workflows, all RGA ops, and the buffer model
+`ffmpeg-rockchip` expects. The full V4L2-vs-Rockchip / JPEG-only rationale is
+owned by
+[`kernel-drivers/docs/vanilla-kernel.md`](../../kernel-drivers/docs/vanilla-kernel.md).
 
 **Two FFmpeg lineages consume these libraries — differently.** This doc's
 running example is `ffmpeg-rockchip` (nyanmisaka fork), which uses *both*
@@ -217,7 +218,7 @@ it isn't allocating mid-stream.
 
 On this port the backend is **dma-heap** (`/dev/dma_heap/*`), and it's worth
 knowing exactly how MPP gets there, because it explains a non-obvious runtime
-requirement (the udev rule in gotchas.md) and a harmless `…failed!` log line.
+requirement (the `dma_heap` udev rule) and a harmless `…failed!` log line.
 
 **dma-heap is the normal modern path.** `mpp_allocator` supports three backends —
 **ION**, **DRM**, **dma-heap** — and picks at runtime. ION was deleted from
@@ -226,17 +227,28 @@ mainline years ago, so on any 6.x kernel the live path is dma-heap (MPP buffer
 nothing here is exotic.
 
 **MPP asks for a heap by *property*, then remaps if it's missing.**
-`osal/allocator/allocator_dma_heap.c` carries a table of named heaps keyed by
-cacheable/DMA32/CMA flags; at init it `open()`s every `/dev/dma_heap/<name>` it
-can and, for any that are absent, **remaps** to a surviving heap by dropping the
-`uncached` then the `dma32` then the `cma` preference:
+`osal/allocator/allocator_dma_heap.c` carries a table of **eight** named heaps,
+each keyed by cacheable/DMA32/CMA flags; at init it `open()`s every
+`/dev/dma_heap/<name>` it can and, for any that are absent, **remaps** to a
+surviving heap by dropping the `uncached`, then the `dma32`, then the `cma`
+preference — so those eight names collapse onto whatever the running kernel
+actually exposes:
 
-| MPP wants (in order) | flags | present on *this* kernel? |
+| MPP's named heap (probe set, in preference order) | flags | present on *this* kernel? |
 |---|---|---|
 | `system-uncached` (its default) | — | ❌ |
 | `system-uncached-dma32` | DMA32 | ❌ |
 | **`system`** | CACHABLE | ✅ ← **remaps here** |
-| `cma`, `cma-uncached`, … | CMA (+…) | ❌ (`default_cma_region`/`reserved` exist but aren't named `cma`) |
+| `system-dma32` | DMA32 | ❌ |
+| `cma-uncached` | CMA | ❌ |
+| `cma-uncached-dma32` | CMA+DMA32 | ❌ |
+| `cma` | CMA | ❌ (`default_cma_region`/`reserved` exist but aren't named `cma`) |
+| `cma-dma32` | CMA+DMA32 | ❌ |
+
+This is exactly the eight-entry probe list `allocator_dma_heap.c` carries; the
+[`mpp-library-architecture.md`](mpp-library-architecture.md) source map just names
+them and defers here for the mechanism. Allocation itself uses
+`DMA_HEAP_IOCTL_ALLOC` and returns a dma-buf fd.
 
 **Why the preferred heaps are missing — and why that's fine.** We forward-ported
 the *codec* drivers (mpp + rga), **not** the vendor *memory* drivers. The Rockchip
@@ -259,12 +271,15 @@ overhead per buffer versus uncached — negligible for HW-only pipelines
 byte-for-byte vendor behavior you'd also port `rk_system_heap`/`rk_dma_heap`, but
 it buys nothing for correctness.
 
-**Runtime consequence.** The kernel creates `/dev/dma_heap/*` as `root root 0600`,
-so a non-root `video`-group user can't open `system` to allocate — and granting
-just `/dev/mpp_service` is **not** enough; MPP init dies at
-`MppBufferService get_group failed … type 1`. The fix is the
-`SUBSYSTEM=="dma_heap"` udev rule (gotchas.md), upstreamed as
-[armbian/build#10085](https://github.com/armbian/build/pull/10085).
+**Runtime consequence.** Because the remap lands on `system` (a `/dev/dma_heap/*`
+node), and the kernel creates those nodes `root root 0600`, a non-root
+`video`-group user can't open the heap to allocate: granting just
+`/dev/mpp_service` is **not** enough, and MPP init dies at
+`MppBufferService get_group failed … type 1`. That is why a `dma_heap` udev rule
+is load-bearing here — but the rule itself (and why it must match
+`SUBSYSTEM=="dma_heap"`) is owned by
+[`packaging/codec-udev/README.md`](../../packaging/codec-udev/README.md); see also
+[gotchas.md](../../docs/gotchas.md).
 
 ---
 
@@ -335,7 +350,7 @@ flowchart TB
 *different* capabilities (max scale ratio, supported formats, tiling/AFBC).
 `NormalRga` checks the request's formats and limits and selects which engine class
 can do it; the **kernel's** scheduler (`rga3/rga_policy.c`, how-the-drivers-work.md §4) then picks
-a specific *idle* core of that class. (The `bsp-audit.md` audit found a real bug in that
+a specific *idle* core of that class. (The [bsp-audit.md](../../kernel-drivers/docs/bsp-audit.md) audit found a real bug in that
 kernel core-selection — it could accept a core supporting only a subset of the
 requested features.)
 
@@ -364,7 +379,7 @@ ops can pipeline. (`out_fence_fd` comes back `-1` if the kernel build lacks fenc
 support.) This is the same dma-fence machinery the kernel side documents in
 [kernel driver guide §5a](../../kernel-drivers/docs/how-the-drivers-work.md) (the sync_file export in
 `rga_fence.c`); it's also where the audit found a leaked acquire-fence
-reference (`bsp-audit.md`).
+reference ([bsp-audit.md](../../kernel-drivers/docs/bsp-audit.md)).
 
 ## B5. Describing memory, and batching jobs
 
@@ -435,9 +450,10 @@ So: **userspace builds the recipe and manages the memory; the kernel runs it on
 silicon.** how-the-drivers-work.md + how-the-userspace-libs-work.md together trace the complete path from your function
 call down to the hardware and back.
 
-> Provenance: librga's source is open (Apache-2.0) in the JeffyCN lineage above
-> (pinned: `tsukumijima/librga-rockchip@2cffdf6f332c`, v2.2.0); Rockchip's
-> official `airockchip/librga` ships only prebuilt binaries (see
-> [gotchas](../../docs/gotchas.md)). libmpp is open source (`rockchip-linux/mpp`).
-> Build/staging recipes: [`ffmpeg/README.md`](../../ffmpeg/README.md); all tree
-> pins: [source-tree pins](../../docs/source-trees.md).
+> Provenance: librga *looks* closed — the official `airockchip/librga` ships only
+> prebuilt binaries — but has open Apache-2.0 source in the JeffyCN lineage used
+> above; that "looks closed, has buildable source" story is owned by
+> [gotchas.md](../../docs/gotchas.md). libmpp is open source
+> (`rockchip-linux/mpp`). Build/staging recipes:
+> [`ffmpeg/README.md`](../../ffmpeg/README.md); all tree pins:
+> [source-tree pins](../../docs/source-trees.md).

@@ -5,6 +5,9 @@ It chooses a delivery model, walks the canonical quickstart, and hands off to
 userspace. Deep dives are linked at every step; if you only read one other
 page afterwards, make it [kernel driver guide](./kernel-drivers/docs/how-the-drivers-work.md).
 
+> **Unfamiliar term?** MPP, RGA, DKMS, PHASH, convert-in-place and the rest are
+> all defined in [`glossary.md`](glossary.md) — keep it open alongside this page.
+
 ## 1. Choose your delivery model
 
 Two ways to get the **kernel drivers**, plus the **userspace** layer you need
@@ -16,11 +19,11 @@ in either case:
 | **(b) DKMS on a stock kernel** | `rk_vcodec.ko` + `rga3.ko`, auto-rebuilt on every kernel update, + a boot-time DT overlay | A *stock* Armbian 6.18+ kernel, `dkms` + `dtc` installed | ⚠️ Compile-tested on **6.18 only**; overlay dtc-validated, **not boot-validated** | [`packaging/dkms/`](packaging/dkms/README.md) |
 | **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§6) | ffmpeg-rockchip build: hardware-validated; PPA: local builds OK 2026-06-30, **nothing uploaded yet** | [`ffmpeg/`](ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
 
-> **⚠️ Hard warning: (a) and (b) are mutually exclusive.** On a kernel that
-> already carries the drivers `=y` (the combined kernel), the DKMS build fails
-> `modpost` with `'…' exported twice` — the module's exports clash with
-> vmlinux. Pick **one** kernel path. ([`packaging/dkms/README.md`](packaging/dkms/README.md)
-> caveat 1; restated in the deploy hub, [`packaging/README.md`](packaging/README.md).)
+> **⚠️ Hard warning: (a) and (b) are mutually exclusive** — installing the DKMS
+> module on the combined kernel breaks the build. Mechanism and the exact
+> `modpost` error are owned by
+> [`packaging/dkms/README.md`](packaging/dkms/README.md) § Caveats. Pick **one**
+> kernel path.
 >
 > The **udev rule (§6) is needed on both paths** — no kernel path makes the
 > device nodes usable without root by itself.
@@ -30,6 +33,15 @@ Take (b) only if you cannot replace the kernel and accept the not-boot-validated
 overlay gate.
 
 ## 2. Prerequisites (path a)
+
+[Armbian](glossary.md) is the Debian/Ubuntu-based distro + build framework this
+port targets; the kernel is produced by *its* build system, not compiled by
+hand. That build system **hard-requires Docker** — `build-combined-kernel.sh`
+relaunches `compile.sh` inside a container, so install and start Docker first
+(`sudo apt install docker.io && sudo systemctl enable --now docker`, and add
+yourself to the `docker` group). Also budget the resources: a first build pulls
+a large toolchain image and needs roughly **25+ GB free disk** and **~80–90 min**
+cold (~10–15 min for warm patch-only rebuilds).
 
 `kernel-drivers/scripts/build-combined-kernel.sh` expects an Armbian build tree at
 **`<repo>/armbian-build`**:

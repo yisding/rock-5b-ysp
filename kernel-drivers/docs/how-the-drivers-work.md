@@ -41,11 +41,11 @@ through Rockchip's **MPP** (Media Process Platform) framework, which presents a
 single char device `/dev/mpp_service`; RGA has its own driver and `/dev/rga`.
 Userspace does **not** use the mainline V4L2 stateless API here — it uses
 Rockchip's `librockchip_mpp` / `librga`, which is what `ffmpeg-rockchip` targets
-and what gives the full hardware video-encode + full-feature-RGA capability. The
-mainline RK3588 encoder path is JPEG-only in Collabora's
-[mainline-status note](https://gitlab.collabora.com/hardware-enablement/rockchip-3588/notes-for-rockchip-3588/-/blob/main/mainline-status.md),
-so it does not provide H.264 encode for GRD or H.265 encode; RGA3-via-V4L2 is
-also still a subset — see [vanilla-kernel guide](./vanilla-kernel.md).
+and what gives the full hardware video-encode + full-feature-RGA capability.
+Mainline's RK3588 V4L2 path can't replace it — the encoder is JPEG-only and
+RGA3-via-V4L2 is a subset — so we carry the vendor MPP/RGA stack; the
+[vanilla-kernel guide](./vanilla-kernel.md) owns that rationale in full (with the
+Collabora mainline-status citation).
 
 ```mermaid
 flowchart TB
@@ -350,7 +350,7 @@ shared plumbing. The encoder and decoder even solve it differently.
 
 ### 7a. The decoder: a hardware CCU with a soft/hard switch
 
-The decoder's **CCU** (Coordination Unit) is a genuine hardware block — its own
+The decoder's **CCU** (Central Control Unit — see the [device-tree glossary](./device-tree.md) for the authoritative expansion) is a genuine hardware block — its own
 MMIO registers at `fdc30000`, separate from the two cores (`fdc38000`,
 `fdc40000`). It exposes `WORK_EN`, `WORK_MODE`, `SEND_NUM`/`DEC_NUM`, and per-core
 status (`CORE_WORK`, `CORE_IDLE`, `CORE_STA`, `CORE_ERR`) — so the hardware can

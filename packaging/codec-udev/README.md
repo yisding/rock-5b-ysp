@@ -7,11 +7,9 @@ and `/dev/rga` usable without root
 ship it, easiest-to-maintain first. (This rule is needed by **every** delivery
 channel — see the deploy hub, [`../README.md`](../README.md).)
 
-> **Why dma-heap too?** `rkmpp` allocates every frame/stream buffer from a kernel
-> DMA-heap, so granting only `mpp_service` is **not enough** — the encoder still
-> dies at MPP init (`MppBufferService get_group failed ... type 1`) because it
-> can't open `/dev/dma_heap/system`. The rule grants the `video` group all three
-> device classes (`mpp_service`, `dma_heap`, `rga`). See [gotchas](../../docs/gotchas.md).
+> **⚑ Why dma-heap too?** Granting only `mpp_service` is **not enough** — the
+> encoder still dies at MPP init with `MppBufferService get_group failed ... type
+> 1`. Full mechanism below (this README owns it).
 
 > **What about the `KERNEL=="iep"` line?** IEP is the BSP's Image Enhancement
 > Processor (a video post-processing block — see [`glossary.md`](../../glossary.md));
@@ -29,6 +27,32 @@ channel — see the deploy hub, [`../README.md`](../README.md).)
 | `root/DEBIAN/postinst` | `udevadm control --reload-rules && udevadm trigger` — rule takes effect without reboot. |
 | `root/usr/lib/udev/rules.d/99-rockchip-codec.rules` | *(gitignored)* the build-time copy of the canonical rule — never edit here. |
 | `rk3588-codec-udev_1.0_all.deb` | *(gitignored, on-disk build residue)* — see the [binary policy](../README.md#binary-policy). |
+
+## Why the dma-heap grant is required (the `get_group` trap)
+
+This is the canonical write-up of the trap; other docs point here.
+
+The HW codec nodes — `/dev/mpp_service`, `/dev/rga`, *and* the DMA-heaps under
+`/dev/dma_heap/` — all default to `crw------- root root`. The non-obvious part is
+the DMA-heaps: `rkmpp` allocates **every** frame/stream buffer from a DMA-heap
+(its allocator asks for `system-uncached`, then remaps down to `system`). So
+granting only the codec ioctl node (`mpp_service`) still leaves the encoder
+**dead** — `mpp_service` opens fine, but the buffer allocator can't open
+`/dev/dma_heap/system` and MPP init fails:
+
+```
+mpp_dma_heap: open dma heap ... failed!
+mpp_buffer:   MppBufferService get_group failed to get allocater ... type 1
+hal_h264e_vepu580: init vepu buffer failed ret: -1
+mpp: error found on mpp initialization        →  Conversion failed!
+```
+
+The fix is the rule this package ships: it grants the **`video`** group all
+three device classes — `KERNEL=="mpp_service"`, `KERNEL=="rga"`, and
+**`SUBSYSTEM=="dma_heap"`**. The heap is matched by *subsystem* because the heap
+node's kernel name is just `system`, not something codec-specific, so a
+`KERNEL==` match would miss it. Be in the `video` group and the encoder starts.
+Upstreamed to Armbian as [armbian/build#10085](https://github.com/armbian/build/pull/10085).
 
 ## 1. A standalone `.deb` (recommended) — this directory
 

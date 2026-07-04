@@ -120,17 +120,10 @@ Driving frames without a real client is fiddly, and the numbers are soft:
 ## 6. The safe micro-benchmark
 
 [`bench/readback_bench.c`](../bench/readback_bench.c) isolates the readback in a
-**surfaceless** GL context — no mutter, no session, safe on the live box:
-
-```bash
-cd bench && cc -O2 -o readback_bench readback_bench.c -lEGL -lGL
-./readback_bench 1920 1080 60
-MESA_COMPUTE_PBO=1 ./readback_bench 1920 1080 60
-```
-
-This is how the numbers in [`baseline.md`](baseline.md) were obtained. It reads a
-plain RGBA8 FBO, not mutter's real capture surface, so treat it as a bound (see
-BASELINE §5).
+**surfaceless** GL context — no mutter, no session, safe on the live box. The
+build+run invocation is in [`bench/README.md`](../bench/README.md). This is how
+the numbers in [`baseline.md`](baseline.md) were obtained. It reads a plain RGBA8
+FBO, not mutter's real capture surface, so treat it as a bound (see BASELINE §5).
 
 ## 7. Is it actually on hardware? — a quick checklist
 

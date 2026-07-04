@@ -1,4 +1,4 @@
-# kernel-drivers/ - RK3588 codec and RGA kernel work
+# kernel-drivers/ — RK3588 codec and RGA kernel work
 
 This package explains the kernel-side work for the ROCK 5B: the vendor
 Rockchip MPP codec drivers, the RGA driver, their RK3588 device tree, the audit
@@ -83,17 +83,34 @@ Read in this order when changing or reviewing kernel behavior:
 | How do we resync to a new kernel or BSP? | [`docs/resyncing.md`](docs/resyncing.md) |
 | How do we validate and fuzz the rewrite drivers to production readiness? | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) |
 
-## Directory layout
+## Files
 
-The kernel-driver package keeps docs, patch deliverables, board scripts, and
-hardware tests together:
+Every doc file and owned subdirectory in this package. The Developer-path table
+above is a question-first index into the same docs; this table is the exhaustive
+list.
 
-| Location | Role |
-|----------|------|
-| [`docs/`](docs/how-the-drivers-work.md) | Architecture, status, DT, audit, resync, debug, and rewrite notes. |
-| [`patches/rk3588-rkvenc2-01-vcodec-rga-drivers.patch`](patches/rk3588-rkvenc2-01-vcodec-rga-drivers.patch) | Forward-port driver patch. |
-| [`patches/rk3588-rkvenc2-02-vcodec-rga-dt.patch`](patches/rk3588-rkvenc2-02-vcodec-rga-dt.patch) | RK3588 device-tree patch. |
-| [`patches/cleanup-split/`](patches/cleanup-split/README.md) | Reviewable audit-fix series. |
+| Path | One-liner |
+|------|-----------|
+| [`docs/status.md`](docs/status.md) | Package-local scorecard for the kernel forward-port (distinct from the whole-project [`../status.md`](../status.md)). |
+| [`docs/how-the-drivers-work.md`](docs/how-the-drivers-work.md) | What each MPP/RGA driver layer does end to end. |
+| [`docs/dev-uapis.md`](docs/dev-uapis.md) | The `/dev/mpp_service` + `/dev/rga` ioctl ABI userspace depends on. |
+| [`docs/device-tree.md`](docs/device-tree.md) | RK3588 node/IRQ/IOMMU/alias/SRAM wiring and DT glossary. |
+| [`docs/vendor-forward-port.md`](docs/vendor-forward-port.md) | What changed carrying the 6.1 BSP drivers to 6.18. |
+| [`docs/vendor-delta.md`](docs/vendor-delta.md) | How much of the tree is vendor code vs local glue. |
+| [`docs/vanilla-kernel.md`](docs/vanilla-kernel.md) | Applying the port to a non-Armbian/mainline kernel; owner of the "why vendor MPP not mainline V4L2" rationale. |
+| [`docs/resyncing.md`](docs/resyncing.md) | Playbook for resyncing to a newer kernel or BSP. |
+| [`docs/bsp-audit.md`](docs/bsp-audit.md) | Multi-agent audit findings and the draft cleanup series. |
+| [`docs/forward-port-review-log.md`](docs/forward-port-review-log.md) | Adversarial review of our forward-port glue. |
+| [`docs/mpp-ccu-iommu-plan.md`](docs/mpp-ccu-iommu-plan.md) | Net-new CCU MMU/IOMMU plan. |
+| [`docs/multicore-scheduling.md`](docs/multicore-scheduling.md) | Why RK3588 multi-core decode is hard and where a scheduler would live. |
+| [`docs/mainline-rkvdec-v4l2.md`](docs/mainline-rkvdec-v4l2.md) | How the mainline V4L2 `rkvdec` decoder (the other stack) works. |
+| [`docs/av1-rk3588.md`](docs/av1-rk3588.md) | The RK3588 AV1 decode path and why it is separate from RKVDEC2. |
+| [`docs/av1-bsp-audit.md`](docs/av1-bsp-audit.md) | BSP bugs the experimental RKMPP AV1 port exposed. |
+| [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) | Public-API-only clean-room reimplementation track. |
+| [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
+| [`docs/rewrite-hard-ccu-finding.md`](docs/rewrite-hard-ccu-finding.md) | RKVDEC2 SOFT/HARD CCU rewrite finding and its validation gap. |
+| [`docs/debug-kernel.md`](docs/debug-kernel.md) | Capture a crash / run the KASAN debug kernel. |
+| [`patches/`](patches/README.md) | Forward-port driver + DT patches and the reviewable audit-fix series. |
 | [`scripts/`](scripts/README.md) | Combined-kernel build/install/validate wrappers and the codec udev rule. |
-| [`tests/`](tests/README.md) | On-hardware decode, encode, and transcode smoke tests. |
+| [`tests/`](tests/README.md) | On-hardware decode/encode/transcode smoke tests, plus the rewrite build gate and conformance suites. |
 | [`../packaging/dkms/`](../packaging/dkms/README.md) | DKMS delivery channel for the same driver source. |

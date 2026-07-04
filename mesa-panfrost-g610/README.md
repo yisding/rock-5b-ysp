@@ -1,4 +1,4 @@
-# Mesa/Panfrost Notes For Mali-G610
+# mesa-panfrost-g610/ — Mali-G610 Mesa/Panfrost transfer investigation
 
 This folder is the **canonical home** for the Mesa-side information learned
 while debugging ROCK 5B readback performance and Panfrost texture-transfer
@@ -15,7 +15,7 @@ every shared figure, asm listing, and validation result is owned here.
 | Developer focus | Preserve the Mali-G610 transfer investigation: BLIT precision failure, COMPUTE correctness, AFBC limitation, benchmark results, dEQP validation, and reproducible probes. |
 | Owns | [`blit-precision.md`](./docs/blit-precision.md), [`validation.md`](./docs/validation.md), [`texture-query-levels.md`](./docs/texture-query-levels.md), and [`reproducers/`](reproducers/README.md). |
 | Depends on | Local Mesa/Panfrost worktrees and the GRD profiling context that exposed the readback cost. |
-| Current state | The `gl_FragCoord` u_blitter fix is upstream as the 3-MR stack !42563 / !42613 / !42614 (pushed 2026-07-01; revised 2026-07-02 after a self-review fixed the pack-shader clobber, Midgard gating, and zero-area NaN — tips `486b6f7002f` / `e9125bd526f`). Awaiting upstream review. See [`../status.md`](../status.md). |
+| Current state | The `gl_FragCoord` u_blitter fix is upstream as the 4-MR stack !42563 (unbind bugfix) / !42679 (isolated shared `u_blitter` fragcoord fix) / !42613 (panfrost opt-in + Joshua Watt's BLIT enablement) / !42614 (u_tests case + glsl_type singleton). Pushed 2026-07-01; revised 2026-07-02 after a self-review fixed the pack-shader clobber, Midgard gating, and zero-area NaN (tips `486b6f7002f` / `e9125bd526f`); the shared blitter change was then split into its own MR !42679 at the reviewer's request. Awaiting upstream review. See [`../status.md`](../status.md). |
 
 Hardware and software used for the local investigation:
 
@@ -28,22 +28,25 @@ Hardware and software used for the local investigation:
 - dEQP GLES3 with surfaceless pbuffer (exact invocation:
   [`validation.md` § dEQP Invocation](./docs/validation.md))
 
-## Folder Map
+## Files
 
-| File | One-liner |
+| Path | One-liner |
 |---|---|
-| [`fix-walkthrough.md`](./docs/fix-walkthrough.md) | Start here if new to Mesa/C: from-first-principles explainer of the whole series — blits, TXF, varying interpolation, the `gl_FragCoord` fix, each patch, and why COMPUTE/CPU were rejected |
-| [`blit-precision.md`](./docs/blit-precision.md) | Root cause: why sampled-BLIT transfers are not bit-exact on G610 (`LD_VAR_IMM` ~2^-10 drift), everything ruled out, the options grid, and the AFBC constraint on COMPUTE |
-| [`validation.md`](./docs/validation.md) | What was tested for MR !42563: patch shapes, BLIT-vs-COMPUTE timings, GRD readback timings, dEQP reruns, exact dEQP invocation, build checks |
-| [`texture-query-levels.md`](./docs/texture-query-levels.md) | Separate work product on the same branch: `textureQueryLevels()` for Valhall + the texture-descriptor layout facts (LD_PKA, table 62, word2 lod_count field) |
-| [`reproducers/`](reproducers/) | Standalone GBM/EGL C probes + benchmark; see [`reproducers/README.md`](reproducers/README.md) |
+| [`docs/fix-walkthrough.md`](./docs/fix-walkthrough.md) | Start here if new to Mesa/C: from-first-principles explainer of the whole series — blits, TXF, varying interpolation, the `gl_FragCoord` fix, each of the four MRs, and why COMPUTE/CPU were rejected |
+| [`docs/blit-precision.md`](./docs/blit-precision.md) | Root cause: why sampled-BLIT transfers are not bit-exact on G610 (`LD_VAR_IMM` ~2^-10 drift), everything ruled out, the options grid, and the AFBC constraint on COMPUTE |
+| [`docs/validation.md`](./docs/validation.md) | What was tested: patch shapes, BLIT-vs-COMPUTE timings, GRD readback timings, dEQP reruns, exact dEQP invocation, build checks |
+| [`docs/rebuild-and-test.md`](./docs/rebuild-and-test.md) | On-device rebuild + revalidation log: how to drive `scripts/`, the environment gotchas (wiped `/tmp` build state, `mise` python shadowing, glvnd for piglit), and the latest reproducer/dEQP/piglit results |
+| [`docs/texture-query-levels.md`](./docs/texture-query-levels.md) | Separate work product on the same branch: `textureQueryLevels()` for Valhall + the texture-descriptor layout facts (LD_PKA, table 62, word2 lod_count field) |
+| [`scripts/`](scripts/README.md) | Rebuild + test entry point: surfaceless Mesa build, runtime env, and the reproducer / dEQP / piglit runners; see [`scripts/README.md`](scripts/README.md) |
+| [`reproducers/`](reproducers/README.md) | Standalone GBM/EGL C probes + benchmark + archived BLIT-advertising patch; see [`reproducers/README.md`](reproducers/README.md) |
 | [`reproducers/0001-panfrost-advertise-transfer-blit-and-compute.patch`](reproducers/0001-panfrost-advertise-transfer-blit-and-compute.patch) | Archived `format-patch` of the BLIT-advertising commit — the only way to rebuild the failing BLIT configuration once upstream ships a non-BLIT default; reproduction-only, not for merging |
 
 ## Status (verified 2026-07-01 against the local Mesa tree)
 
-Mesa MR
-[!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563)
-("panfrost: enable compute-based texture transfers") lifecycle:
+The transfer series lifecycle (MR
+[!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) began
+as the COMPUTE experiment and is now the reviewed unbind bugfix; the shared
+`gl_FragCoord` fix later moved to !42679):
 
 | Date | Event |
 |---|---|
@@ -60,14 +63,16 @@ Mesa MR
 
 | 2026-07-01 | **Fragcoord mechanism generalized to arrays and 3D; MSAA bug found and fixed; final tip `628e599172c` (6 commits)**. Extending array support exposed that the earlier revision's draw-side gate did not exclude MSAA sources — every MSAA resolve was corrupted (`fbo.msaa.*` **62/70 Fail** -> 0 Fail after gating on `nr_samples <= 1`). Final mechanism covers 1D/2D/RECT + 1D/2D arrays (single- and multi-layer) + 3D via a sign-bits/layer/offsets attribute (all per-draw constants, bit-exact through the interpolator); the interim single-layer-view commit was dropped as superseded. Final dEQP matrix: **zero failures across 1097 tests** (incl. fbo.msaa 66/70+4 NS, fbo.color.tex2darray 36/36, fbo.color.tex3d 36/36, basic_teximage3d 98/98). u_tests case has seven checks; negative control fails all seven (per-pass sensitivity proven; 3D render targets confirmed working on panfrost). Probes and perf unchanged. |
 
-| 2026-07-01 | **Pushed as a three-MR stack**: [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) reduced + retitled to the already-reviewed unbind fix (`833101f35ed`, force-pushed to `yding:panfrost-transfer-blit`); [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) "panfrost: enable blit-based texture transfers" = u_blitter fragcoord fix + panfrost opt-in + Joshua Watt's enablement (tip `51cb29834d1`, `yding:panfrost-blit-transfers`, depends on !42563); [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614) "u_tests: add a wide unscaled format-changing blit test" = glsl_type singleton + test (tip `628e599172c`, `yding:panfrost-blit-transfers-test`, depends on !42613). All opened with `allow_collaboration`, label `panfrost`. |
+| 2026-07-01 | **Pushed as a three-MR stack** (later split to four — see the 2026-07-03 row): [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) reduced + retitled to the already-reviewed unbind fix (`833101f35ed`, force-pushed to `yding:panfrost-transfer-blit`); [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) "panfrost: enable blit-based texture transfers" = u_blitter fragcoord fix + panfrost opt-in + Joshua Watt's enablement (tip `51cb29834d1`, `yding:panfrost-blit-transfers`, depends on !42563); [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614) "u_tests: add a wide unscaled format-changing blit test" = glsl_type singleton + test (tip `628e599172c`, `yding:panfrost-blit-transfers-test`, depends on !42613). All opened with `allow_collaboration`, label `panfrost`. |
 
 | 2026-07-02 | **Structured self-review of !42613 found 3 real bugs + cleanups; series revised and force-pushed** (!42613 tip `51cb29834d1` -> `486b6f7002f`, !42614 tip `628e599172c` -> `e9125bd526f`; revision notes posted on both MRs, !42613 description updated). Bugs: (1) the draw-side fragcoord repacking also fired for ZS<->color pack shaders and `fs_override` shaders that read the attribute raw — the encoding decision now lives in `util_blitter_blit_generic` beside shader selection and is threaded through `do_blits` to the draw; (2) `texture_transfer_modes` was enabled for **Midgard** while the precision fix only engaged on Bifrost+ — both now gate on `arch >= 6` (Midgard's position input rides the same lossy varying unit, so the fragcoord path is unverified there); (3) zero-area `glCopyImageSubData` boxes reached `scale = 0/0 = NaN` and tripped the debug assert. Cleanups: POSITION declared sysval-or-input per `fs_position_is_sysval` (documented flag, no implicit sysval contract); attribute encoding simplified from sign-bits + 6-op integer decode to `scale_x` / `scale_y*(layer+0.25)` with a 2-op decode (SSG + abs); dead `get_texcoords()` work skipped in the fragcoord path; predicate duplication collapsed to the same cube exclusion as `util_blitter_blit_with_txf`. Revalidation on `git-e9125bd526`: full probe battery 0 mismatches (flips 0/130456 across all 4 orientations), u_tests 7/7 checks, `fbo.msaa.*` 66P/4NS/0F, `precision.abs` 24/24, bench 16307x1 ~0.58 ms median (noreadpixcache, matches prior BLIT numbers). **Caveat:** the rebuilt local dEQP (`/tmp/deqp-gles-ci`) now fails 26 `pbo.*` + 34 `fbo.blit.default_framebuffer.*` cases with **zero-pixel image difference vs a negative comparison threshold** (-9.3e-10) — reproduced bit-identically on the unpatched build and on the shipped 26.0.3 driver; failure sets diffed and identical, i.e. a test-harness artifact, not a driver regression. |
 
-Neither !38433 nor the new stack had merged upstream as of the last check
-(2026-07-02, via `glab api`; all `state: opened`).
+| 2026-07-03 | **Reviewer-requested split into a four-MR stack.** The shared `u_blitter` change is shared code across ~10 drivers, so on review it was isolated into its own [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679) "u_blitter: use fragment position for unscaled TXF blits". [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) is correspondingly reduced to the Panfrost-only pieces — the `use_txf_fragcoord = arch >= 6` opt-in plus Joshua Watt's `PIPE_TEXTURE_TRANSFER_BLIT` enablement (both arch-gated together). Final canonical stack: !42563 (unbind bugfix) → !42679 (shared blitter fragcoord fix) → !42613 (panfrost opt-in + BLIT enablement, depends on !42679) → !42614 (u_tests case + glsl_type singleton, depends on !42613). A second `/code-review` round of behaviour-preserving `u_blitter` cleanups landed the same day ([`reproducers/u_blitter-review2-txf-fragcoord-cleanups.patch`](reproducers/u_blitter-review2-txf-fragcoord-cleanups.patch)); MR-by-MR breakdown in [`docs/fix-walkthrough.md` § 6](./docs/fix-walkthrough.md). |
 
-## Short Version
+Neither !38433 nor the new stack had merged upstream as of the last check
+(2026-07-03, via `glab api`; all `state: opened`).
+
+## Short version
 
 Panfrost historically advertised no Gallium texture-transfer acceleration:
 
@@ -124,7 +129,7 @@ rejection, 2026-07-01; see Status above and the AFBC section of
 and either fix its coordinate source (`gl_FragCoord`) or route only the risky
 integer format-changing cases elsewhere.
 
-## Key Facts To Carry Forward
+## Key facts to carry forward
 
 This list is a **summary**; the canonical, evidence-carrying copies live in
 [`blit-precision.md`](./docs/blit-precision.md) and [`validation.md`](./docs/validation.md).
@@ -181,7 +186,7 @@ This list is a **summary**; the canonical, evidence-carrying copies live in
   and it reproduced in a clean run, so it was not introduced by the transfer
   change.
 
-## Relation To The GRD Work
+## Relation to the GRD work
 
 The GRD software path is slow because it has to bring the captured frame back
 to CPU memory for software RFX encoding. A GPU-side transfer path makes that

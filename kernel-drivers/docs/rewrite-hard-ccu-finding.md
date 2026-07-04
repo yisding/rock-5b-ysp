@@ -16,8 +16,10 @@ the CCU) and notes that even Rockchip defaults to SOFT. This page is the
 rewrite-specific consequence of that, plus a validation plan.
 
 > **Anchors & provenance.** `file:line` for the rewrite resolve against
-> `linux-6.18-rkvenc`, branch `rk3588-rewrite-6.18` (tip `0d9d87ad57fa`, this is
-> the same tree as track 4 in [status.md](../../status.md)). Vendor `file:line`
+> `linux-6.18-rkvenc`, branch `rk3588-rewrite-6.18` (tip `bb32bc4f999f`, the
+> canonical 6.18 rewrite pin — see [rewrite-drivers.md § 6](./rewrite-drivers.md#6-status--citable-location)
+> and [source-trees § 8](../../docs/source-trees.md); this is the same tree as
+> track 4 in [status.md](../../status.md)). Vendor `file:line`
 > resolve against the forward-ported `drivers/video/rockchip/mpp/`. DT lines are in
 > that same tree's `arch/arm64/boot/dts/rockchip/`. The "HARD is unreliable" claim
 > is **secondary/web-sourced** (see § 7 of the multicore doc) — treat as a

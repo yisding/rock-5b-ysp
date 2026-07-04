@@ -39,8 +39,11 @@ readback on the CPU (nothing to overlap on the GPU); `MESA_COMPUTE_PBO=1` is the
 only config that moves the heavy part onto the (idle) GPU.
 
 The Mesa follow-up is tracked in
-[`../mesa-panfrost-transfer.md`](../docs/mesa-panfrost-transfer.md). In short, the
-sampled BLIT transfer path was rejected because Mali-G610 varying interpolation
-drifts by about `2^-10` on integer texel-coordinate readbacks; the COMPUTE path
-avoids that interpolator and was slightly faster than BLIT in the local transfer
-microbenchmarks.
+[`../docs/mesa-panfrost-transfer.md`](../docs/mesa-panfrost-transfer.md), which
+owns the live status. In short: the sampled BLIT transfer path is not bit-exact
+on Mali-G610 (varying-interpolator drift on integer texel-coordinate readbacks),
+and while COMPUTE avoids that interpolator, a **COMPUTE-only** fix was rejected in
+**2026-07-01** maintainer review because compute shaders cannot write
+AFBC-compressed resources — so the fix is being reworked toward a
+`gl_FragCoord`-based blit. Either way, `MESA_COMPUTE_PBO=1` stays a valid
+board-local mitigation for the numbers above.

@@ -1,7 +1,7 @@
 # Design — why FFmpeg, and how the backend came together
 
 This is the "how we got here" companion to [`README.md`](../README.md) (which is the
-runtime story and the three shipping bugs). It covers the **up-front decision** —
+runtime story and the four issues we hit and fixed). It covers the **up-front decision** —
 should GRD talk to the RK3588 encoder at all, and if so, through what? — and the
 **hardware-enablement journey** that turned "it compiles" into "the Mali GPU and
 the VEPU580 actually cooperate."
@@ -27,7 +27,7 @@ which is the difference between a few-percent-CPU desktop and this one.
 | Route | What it is | Verdict |
 |-------|-----------|---------|
 | **VA-API** (GRD's main HW path) | GRD already has `GrdEncodeSessionVaapi`; if a VA-API driver existed for the VEPU we'd get HW encode for free | ❌ no VA-API driver for the RK3588 encoder. `libva` loads `panthor_drv_video.so`, which has no encode — GRD logs `Did not initialize VAAPI: Failed to initialize VA display`. Dead end on this hardware. *(Observed 2026-06 during bring-up, GRD 50.1 / Mesa 26.0.x / libva 2.23 on Ubuntu 26.04 "resolute"; re-check this row if a VA driver for the VEPU ever appears.)* |
-| **Mainline V4L2 stateful encoder** | The kernel-standard encode API | ❌ GRD's target is H.264 encode, and Collabora's [RK3588 mainline-status note](https://gitlab.collabora.com/hardware-enablement/rockchip-3588/notes-for-rockchip-3588/-/blob/main/mainline-status.md) lists mainline encoder support as JPEG-only. GRD also has no V4L2 encode backend anyway. |
+| **Mainline V4L2 stateful encoder** | The kernel-standard encode API | ❌ mainline RK3588 encoder support is JPEG-only — no H.264 — and GRD has no V4L2 encode backend anyway. The V4L2/JPEG-only rationale (with the Collabora mainline-status citation) is owned by [`../../kernel-drivers/docs/vanilla-kernel.md`](../../kernel-drivers/docs/vanilla-kernel.md). |
 | **Direct `librockchip_mpp`** | A new GRD encode session calling MPP directly | ⚠️ full control, but reinvents everything FFmpeg's `h264_rkmpp` already does (MPP setup, DRM-PRIME import, 1-in-1-out packet handling) and couples GRD to the MPP API. More code, more to maintain. |
 | **GStreamer Rockchip MPP** | A new GRD encode session around `appsrc -> rockchipmpp H.264 encoder -> appsink` | ⚠️ plausible as a second backend, especially for testing and GNOME-adjacent review, but not shorter for this repo: we would still keep GRD's PipeWire capture, Vulkan RGB→NV12 view-creator, RDPGFX pacing, packet handling, and fail-closed smoke test. The hard part becomes proving low-latency zero-copy dmabuf caps/allocator negotiation through the pipeline. |
 | **FFmpeg `h264_rkmpp`** | Wrap FFmpeg's rkmpp encoder in a GRD encode session | ✅ **chosen** — least code, reuses a maintained encoder, and FFmpeg 8.1 is an ABI drop-in that gives *every* app rkmpp, not just GRD. |
@@ -175,5 +175,6 @@ thread and traffic — not just trust the session-created log line.
 | dma-heap NV12 surfaces (+64-align) | [`0005`](../patches/) | this file §journey |
 | HOST_CACHED readback fallback | [`0006`](../patches/) | this file §journey |
 | upstream rkmpp: first-frame IDR + VBR quality | [`0007`](../patches/) | [`README.md`](../README.md) #1, #2 |
+| hardware-encode backpressure/cooldown guard | [`0008`](../patches/) | [`README.md`](../README.md) #4 |
 | greeter device permissions | — (udev) | [`../packaging/gdm-hwenc/`](../../packaging/gdm-hwenc/), [`README.md`](../README.md) #3 |
 | handover reconnect revert | — (packaging) | [`patches/README.md`](../patches/README.md) §"What's *not* here" (the full story), [`../packaging/ppa/`](../../packaging/ppa/) (the deb-side quilt revert) |

@@ -31,37 +31,42 @@ a few percent CPU instead of a laggy, CPU-bound one.
 > validate script and `tests/` pass, the hard part is already done — GRD is just
 > another `/dev/mpp_service` + `/dev/dma_heap` client.
 
-**Companion docs:** [`docs/design.md`](docs/design.md) — why FFmpeg (vs VA-API / GStreamer / direct MPP)
-and the panvk hardware-enablement journey · [`docs/baseline.md`](docs/baseline.md) — the
-measured *before*: why the software path costs ~20 ms/frame (the `glReadPixels`
-readback) and why HW encode is the only real fix ·
-[`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) — the Mesa/Panfrost
-texture-transfer investigation behind the compute-path finding · [`docs/capture-path.md`](docs/capture-path.md)
-— the code map: view-creators, encode-session selection, PipeWire buffer
-negotiation, and where the backend plugs in · [`docs/testing.md`](docs/testing.md) — the
-benchmarking playbook (eviction hazard, env, HW-path checklist) ·
-[`docs/profiling.md`](docs/profiling.md) — the measured *after*: per-stage timing of the
-HW path (60 fps sustained, jitter breakdown, the working headless harness, the
-client-caps prerequisite, the verification-signal table) · [`patches/`](patches/)
-— the full 8-patch backend series · [`../packaging/ppa/`](../packaging/ppa/) — packaging the whole
-stack for a Launchpad PPA.
+## Files
+
+| Path | One-liner |
+|------|-----------|
+| [`docs/design.md`](docs/design.md) | Why FFmpeg (vs VA-API / GStreamer / direct MPP), and the panvk hardware-enablement journey. |
+| [`docs/baseline.md`](docs/baseline.md) | The measured *before*: why the software path costs ~20 ms/frame (the `glReadPixels` readback) and why HW encode is the only real fix. |
+| [`docs/capture-path.md`](docs/capture-path.md) | The code map: view-creators, encode-session selection, PipeWire buffer negotiation, and where the backend plugs in. |
+| [`docs/profiling.md`](docs/profiling.md) | The measured *after*: per-stage timing of the HW path (60 fps sustained, jitter breakdown, the headless harness, the client-caps prerequisite, the verification-signal table). |
+| [`docs/testing.md`](docs/testing.md) | The benchmarking playbook (eviction hazard, env setup, HW-path checklist). |
+| [`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) | GRD-facing summary of the Mesa/Panfrost texture-transfer investigation behind the compute-path finding. |
+| [`bench/`](bench/) | The benchmark this package owns — [`bench/README.md`](bench/README.md) plus [`readback_bench.c`](bench/readback_bench.c), the surfaceless `glReadPixels` readback timer behind `baseline.md`. |
+| [`patches/`](patches/) | The full 8-patch GRD backend series; [`patches/README.md`](patches/README.md) maps each commit. |
+
+Packaging the whole stack for a Launchpad PPA is covered in
+[`../packaging/ppa/`](../packaging/ppa/).
 
 ## How it fits the stack
 
-```
-  macOS / Windows RDP client
-        │  H.264 (AVC420) over RDP
-  ┌─────┴───────────────────────────────────────────────┐
-  │  gnome-remote-desktop daemon                         │
-  │    GrdRdpViewCreatorAVC  ── RGB→NV12 on the Mali GPU  │→ /dev/dri/renderD128 (panvk)
-  │    GrdEncodeSessionFfmpeg ── NV12 → H.264             │
-  └─────┬───────────────────────────────────────────────┘
-        │  FFmpeg h264_rkmpp  (upstream FFmpeg 8.1.2, not ffmpeg-rockchip)
-        │  librockchip_mpp
-   ┌────┴─────────────┬──────────────────────┐
-   │ /dev/mpp_service │ /dev/dma_heap/system  │   ← this repo's kernel drivers
-   │  (VEPU580)       │  (frame/stream bufs)  │     (kernel-drivers/patches, docs)
-   └──────────────────┴───────────────────────┘
+```mermaid
+flowchart TB
+  client["macOS / Windows RDP client<br/>H.264 (AVC420) over RDP"]
+  view["GrdRdpViewCreatorAVC<br/>RGB→NV12 on the Mali GPU"]
+  enc["GrdEncodeSessionFfmpeg<br/>NV12 → H.264"]
+  gpu["/dev/dri/renderD128<br/>mesa/panvk — not this repo"]
+  ffmpeg["FFmpeg h264_rkmpp<br/>upstream FFmpeg 8.1.2, not ffmpeg-rockchip<br/>librockchip_mpp"]
+  mpp["/dev/mpp_service<br/>VEPU580"]
+  heap["/dev/dma_heap/system<br/>frame/stream bufs"]
+
+  client --> view
+  subgraph grd["gnome-remote-desktop daemon"]
+    view --> enc
+  end
+  view -. RGB→NV12 .-> gpu
+  enc --> ffmpeg
+  ffmpeg --> mpp
+  ffmpeg --> heap
 ```
 
 Two device classes do the work, both from this repo's drivers: the **encoder**
@@ -78,10 +83,11 @@ dma-buf to the encoder zero-copy.
 > than ffmpeg-rockchip's.
 > See the table.
 
-## upstream FFmpeg 8.1.2 `h264_rkmpp` vs ffmpeg-rockchip ⭐
+## upstream FFmpeg 8.1.2 `h264_rkmpp` vs ffmpeg-rockchip
 
-There are **two independent** `h264_rkmpp` encoders with the same name. Knowing
-which one you have explains everything else on this page. The detailed
+There are **two independent** `h264_rkmpp` encoders with the same name. **This is
+the single most load-bearing fact on this page** — knowing which one you have
+explains everything else below. The detailed
 source-level comparison lives in
 [`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md);
 [`../ffmpeg/docs/how-ffmpeg-works.md`](../ffmpeg/docs/how-ffmpeg-works.md) explains the

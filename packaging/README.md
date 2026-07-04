@@ -13,7 +13,7 @@ shipping, or operating** the artifacts.
 | Developer focus | Keep deploy artifacts reproducible and auditable: DKMS source staging, udev policy, PPA source packages, rollback, binary publishing, and package boundaries. |
 | Owns | Packaging docs for `codec-udev/`, `gdm-hwenc/`, `dkms/`, `ppa/`, and the operations runbook for the rkmpp FFmpeg stack. |
 | Depends on | Kernel-driver artifacts, userspace libraries, FFmpeg/GRD package sources, and the status gates recorded in [`../status.md`](../status.md). |
-| Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only; PPA source packages built locally but have not been uploaded. |
+| Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only; PPA source packages built locally but have not been uploaded. See [../status.md](../status.md). |
 
 ## The four delivery channels
 
@@ -24,18 +24,17 @@ shipping, or operating** the artifacts.
 | 3 | **Local `.debs`** | [`codec-udev/`](codec-udev/README.md), [`gdm-hwenc/`](gdm-hwenc/README.md), `dkms/build-deb.sh` | The udev/ACL rules and the DKMS deb, built on demand | Built + installed on the dev board |
 | 4 | **Launchpad PPA** (userspace) | [`ppa/`](ppa/README.md) | MPP + librga + FFmpeg 8.1.2+rkmpp + GRD as source packages Launchpad builds | Local arm64 binary builds succeeded 2026-06-30; **nothing `dput` yet** |
 
-> **Hard rule: channels 1 and 2 are mutually exclusive.** On a kernel that
-> already has the drivers `=y` (the combined kernel), the DKMS build fails
-> `modpost` with `'…' exported twice` — the module's exports clash with
-> vmlinux. Pick one kernel-side channel. Details:
-> [`dkms/README.md`](dkms/README.md) caveat 1.
+> **⚑ Hard rule: channels 1 and 2 are mutually exclusive.** Never run DKMS on a
+> combined (`=y`) kernel — the build fails `modpost` with `'…' exported twice`.
+> Pick one kernel-side channel; the mechanism and expected symptom are owned by
+> [`dkms/README.md` § Caveats](dkms/README.md#caveats-read-before-relying-on-it).
 
 > **The udev rule is needed in *all* cases.** No kernel channel makes
 > `/dev/mpp_service` + `/dev/dma_heap/*` + `/dev/rga` usable without root —
 > that is [`codec-udev/`](codec-udev/README.md)'s job (or the same rule via the
 > other two ship methods it documents). Without the dma-heap grant the encoder
-> dies at MPP init even as root's group peer — see
-> [`../docs/gotchas.md`](../docs/gotchas.md).
+> dies at MPP init even as root's group peer — mechanism owned by
+> [`codec-udev/README.md`](codec-udev/README.md#why-the-dma-heap-grant-is-required-the-get_group-trap).
 
 ## Directory index (hub contract)
 
@@ -44,7 +43,8 @@ shipping, or operating** the artifacts.
 | [`codec-udev/`](codec-udev/README.md) | `rk3588-codec-udev` deb: the `video`-group udev rule for `mpp_service`/`dma_heap`/`rga` (canonical rule: [`../kernel-drivers/scripts/99-rockchip-codec.rules`](../kernel-drivers/scripts/99-rockchip-codec.rules), copied at build time) |
 | [`dkms/`](dkms/README.md) | `rk3588-vcodec-dkms` deb: out-of-tree DKMS build of the vendor drivers + boot-time DT overlay, for **stock** kernels |
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | `gnome-remote-desktop-gdm-hwenc` deb: opt-in `setfacl g:gdm` udev rule so the **GDM greeter** hardware-encodes too |
-| [`ppa/`](ppa/README.md) | The five Launchpad source packages (mpp, librga, ffmpeg, GRD, gdm-hwenc): design, build notes, upload waves. *(Moved here from `ppa/` 2026-07.)* |
+| [`ppa/`](ppa/README.md) | The five Launchpad source packages (mpp, librga, ffmpeg, GRD, gdm-hwenc): design, build notes, upload waves. *(Moved from top-level `/ppa/` 2026-07.)* |
+| [`docs/`](docs/armbian-packaging.md) | The Armbian `media-0001` conflict and the convert-in-place DT trick that both kernel channels rely on. |
 
 ## Operations runbook — running the rkmpp FFmpeg stack
 
@@ -165,16 +165,10 @@ points here).
   this README. *(None published yet — TODO when the first release is cut.)*
 - `dkms/build/` is disposable output: `bash dkms/build-deb.sh clean` removes it.
 - [`../kernel-drivers/scripts/99-rockchip-codec.rules`](../kernel-drivers/scripts/99-rockchip-codec.rules)
-  stays the **single canonical** udev rule; `codec-udev/build-deb.sh` copies it
-  at build time (the copy under `codec-udev/root/…` is gitignored). For
-  reference, the substance of the rule:
-
-  ```udev
-  KERNEL=="mpp_service", GROUP="video", MODE="0660"
-  KERNEL=="rga",         GROUP="video", MODE="0660"
-  KERNEL=="iep",         GROUP="video", MODE="0660"   # BSP-only node; not created by this port
-  SUBSYSTEM=="dma_heap",  GROUP="video", MODE="0660"  # REQUIRED — see codec-udev/README.md
-  ```
+  stays the **single canonical** udev rule — read the rule body there, never
+  transcribe it. `codec-udev/build-deb.sh` copies it at build time (the copy
+  under `codec-udev/root/…` is gitignored); [`codec-udev/README.md`](codec-udev/README.md)
+  owns *why* each line is needed (especially the required `dma_heap` grant).
 
 ## Still only on the dev box (import plan)
 

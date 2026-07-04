@@ -18,6 +18,7 @@ stays the master list.
 | Mesa | **BLIT-based texture transfers are unsafe on Mali-G610** — the texel coordinate arrives through lossy `LD_VAR_IMM` interpolation, corrupting integer format-changing transfers; the COMPUTE-only fix direction was rejected in Mesa review 2026-07-01 (compute cannot write AFBC) — surviving directions in [`mesa-panfrost-g610/README.md` § Status](../mesa-panfrost-g610/README.md) | [`mesa-panfrost-g610/docs/blit-precision.md`](../mesa-panfrost-g610/docs/blit-precision.md), [`validation.md` § Current MR State](../mesa-panfrost-g610/docs/validation.md) |
 | Packaging | **Combined (`=y`) kernel and the DKMS module are mutually exclusive** — building DKMS against a kernel that has the drivers built-in fails modpost with `'…' exported twice` | [`packaging/dkms/README.md` § Caveats](../packaging/dkms/README.md); chooser in [`install.md`](../install.md) |
 | Packaging | A future Ubuntu ffmpeg (`7:8.1.x`) silently supersedes the local `+rkmpp` debs — `apt-mark hold` them; exact-version rollback recipe exists | [`packaging/README.md` § Operations](../packaging/README.md) |
+| Permissions | HW codec nodes (`/dev/mpp_service`, `/dev/rga`, **and the `/dev/dma_heap/*` heaps**) default to root-only; granting `mpp_service` alone leaves the encoder **dead** at MPP init (`MppBufferService get_group failed … type 1`) because rkmpp allocates every buffer from a DMA-heap — the udev rule must also grant `SUBSYSTEM=="dma_heap"` to the `video` group | [`packaging/codec-udev/README.md` § Why the dma-heap grant is required](../packaging/codec-udev/README.md) |
 | Userspace libraries | RKRGA `P010`/`P210` through legacy `c_RkRgaBlit()` depends on librga copying the 10-bit layout fields; older sources can silently submit compact 10-bit instead of padded 10-bit, while the fixed source is `github.com/yisding/librga` `main` at `a632217` | [`userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md) |
 | Debug kernels | Everything about capturing a crash (ramoops/pstore, KASAN, lockdep) without breaking vermagic | [debug-kernel guide](../kernel-drivers/docs/debug-kernel.md); the KASAN/vermagic collision entry below stays canonical here |
 
@@ -157,25 +158,12 @@ exact upstream tag so vermagic matches, ramoops/pstore capture, KASAN caveats)
 is [debug-kernel guide](../kernel-drivers/docs/debug-kernel.md).
 
 **HW codec nodes are root-only — and the `mpp_service` rule alone isn't enough.**
-`/dev/mpp_service`, `/dev/rga`, *and* the DMA-heaps under `/dev/dma_heap/` all
-default to `crw------- root root`. The non-obvious trap: granting only the codec
-ioctl node (`mpp_service`) still leaves the encoder **dead**, because `rkmpp`
-allocates every frame/stream buffer from a DMA-heap (its allocator wants
-`system-uncached`, remaps down to `system`). Without dma-heap access, MPP init
-fails — even though `mpp_service` opens fine:
-
-```
-mpp_dma_heap: open dma heap ... failed!
-mpp_buffer:   MppBufferService get_group failed to get allocater ... type 1
-hal_h264e_vepu580: init vepu buffer failed ret: -1
-mpp: error found on mpp initialization        →  Conversion failed!
-```
-
-Install `kernel-drivers/scripts/99-rockchip-codec.rules`, which grants the **`video`** group all
-three: `KERNEL=="mpp_service"`, `KERNEL=="rga"`, and **`SUBSYSTEM=="dma_heap"`**
-(matched by subsystem because the heap node's kernel name is just `system`, not
-something codec-specific). Then be in the `video` group. Upstreamed to Armbian as
-PR [armbian/build#10085](https://github.com/armbian/build/pull/10085).
+Granting only `mpp_service` leaves the encoder dead at MPP init
+(`MppBufferService get_group failed … type 1`) because `rkmpp` allocates every
+buffer from a DMA-heap; the udev rule must also grant `SUBSYSTEM=="dma_heap"` to
+the `video` group. Canonical mechanism, the error dump, and the rule's design are
+owned by the package that ships the rule:
+[`packaging/codec-udev/README.md` § Why the dma-heap grant is required](../packaging/codec-udev/README.md).
 
 **Benign boot noise** (not errors): `rkvdec2_init: No niu aclk/hclk reset resource
 define` (optional NIU resets absent from DT); `failed to init_opp_table` /
@@ -201,20 +189,21 @@ confirms the ABI matches), but do not assume that binary has the legacy P010/P21
 fixes. `rkrga` is also optional in ffmpeg (`h264_rkmpp`/`hevc_rkmpp` work without
 it; you'd lose HW scale/CSC).
 
-**ffmpeg-rockchip fails to build on `vulkan_av1.c`.** The fork pins an older
-FFmpeg that uses the *provisional MESA* Vulkan-AV1 types; modern Vulkan headers
-only ship the *KHR* ones. **`--disable-vulkan`** — unrelated to the rk codecs.
+**ffmpeg-rockchip fails to build on `vulkan_av1.c` (old `40c412dacc`-era fork
+only).** That nyanmisaka tip pins an older FFmpeg using the *provisional MESA*
+Vulkan-AV1 types while modern Vulkan headers ship only the *KHR* ones;
+**`--disable-vulkan`** (unrelated to the rk codecs) works around it. The rebased
+`ffmpeg-rockchip-81` successor no longer hits this — do not read it as a live
+blocker; see [`ffmpeg/docs/rebase-notes.md` § 3](../ffmpeg/docs/rebase-notes.md).
 
 **`scale_rkrga` preserves aspect ratio by default.** `force_original_aspect_ratio`
 defaults to `decrease`, so `scale_rkrga=w=640:h=480` from a 16:9 source yields
 640×360, not 640×480. Add `:force_original_aspect_ratio=disable` for exact dims.
 
-**MPP/RGA pkg-config + header layout.** ffmpeg-rockchip's `configure` requires
-`rockchip_mpp >= 1.3.9` with `rockchip/rk_mpi.h` and `librga` with
-`rga/RgaApi.h` + `rga/im2d.h` (symbols `mpp_create`, `c_RkRgaBlit`,
-`querystring`). Stage headers under `include/rockchip/` and `include/rga/` and
-hand-write the two `.pc` files (see `ffmpeg/`). Link with `-Wl,-rpath,<stage>/lib`
-so the binary finds the libs.
+**MPP/RGA pkg-config + header staging.** ffmpeg needs hand-written `.pc` files
+plus staged headers under `include/rockchip/` and `include/rga/` — the exact
+recipe (required versions, symbols, `-Wl,-rpath`) is owned by
+[`ffmpeg/README.md`](../ffmpeg/README.md).
 
 ## Infra / netboot
 

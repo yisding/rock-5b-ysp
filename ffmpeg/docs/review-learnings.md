@@ -167,3 +167,20 @@ is linear or AFBC. At runtime, force RGA2 for compact 10-bit linear input.
 ### force_yuv output selection must be conservative before input modifiers are known
 
 `force_yuv=auto` and explicit `force_yuv=10bit` can be evaluated before the
+input frame's modifiers are known — and therefore before it is known whether the
+pipeline will be forced onto RGA2. If the filter commits to a 10-bit output
+format up front, a later RGA2 fallback (triggered by the scale ratio, RGA2 size
+limits, or RGA2-only compact 10-bit linear input) can leave the graph demanding a
+10-bit output the selected RGA core cannot actually produce. That surfaces as a
+runtime blit failure rather than a clean negotiation error, which is the harder
+class to diagnose.
+
+Practical rule: keep `force_yuv` output-format selection conservative until both
+the input frame modifier and the final RGA core choice (RGA2 vs RGA3) are
+settled. Do not lock in a 10-bit output before confirming the eventual core can
+emit it; re-derive the output format once the modifier and the RGA2/RGA3 decision
+are known, the same way compact 10-bit *input* handling waits for the modifier
+(see the RGA2-forcing rule above). The `vpp_rkrga` path is the concrete offender:
+it could keep a 10-bit output selected even after scale ratio, size limits, or
+RGA2-only input had already forced RGA2.
+

@@ -209,13 +209,21 @@ CCACHE_DIR=/home/yi/Code/mesa/.codex-ccache \
 The Panfrost static-library build still emits an unrelated existing warning in
 `pan_resource.c` about ignoring `asprintf`'s return value.
 
-## Current MR State
+## MR state — COMPUTE era, superseded
+
+> **Superseded.** This section captures the COMPUTE-only phase of MR !42563.
+> That direction was rejected on 2026-07-01 (AFBC), and !42563 was later
+> reduced/retitled to the reviewed shader-image unbind bugfix, with the shared
+> `gl_FragCoord` fix moving to !42679 and the panfrost opt-in to !42613. For the
+> current canonical stack see [`README.md` § Status](../README.md). The
+> correctness and timing evidence below remains valid — only the fix *shape*
+> changed.
 
 (Last verified 2026-07-01 against the local Mesa tree; the GitLab page itself
 was unreachable from the board — see [`README.md` § Status](../README.md) for
 the dated lifecycle table.)
 
-MR !42563 is titled:
+At this point in the lifecycle MR !42563 was titled:
 
 ```text
 panfrost: enable compute-based texture transfers

@@ -30,7 +30,7 @@ yourself only to poke around or build something minimal.
 ```bash
 ls -l /dev/mpp_service /dev/rga          # crw------- root root  (root-only unless the udev rule)
 ls -l /dev/dma_heap/                      # system, default_cma_region, reserved — MPP allocates buffers here
-ls /proc/mpp_service/                    # rkvenc-core0, rkvdec-core0/1, ... (one dir per bound core)
+ls /proc/mpp_service/                    # rkvenc-core0, video-codec0/1 (rkvdec-core0/1 on older overlay revisions), ... (one dir per bound core)
 cat /sys/kernel/debug/rkrga/*            # RGA load, version, scheduler state
 dmesg | grep -iE 'mpp|rkvdec|rkvenc|rga' # probe + per-op kernel logs
 strace -e ioctl -f ffmpeg …              # SEE the real ioctl stream the library issues
@@ -327,7 +327,8 @@ numbers, so a single 2D op **does** show directly in `strace`.
 
 ```bash
 # Which cores are bound and serving requests right now:
-ls /proc/mpp_service/ ; cat /proc/mpp_service/rkvdec-core0/* 2>/dev/null
+# (decoder cores are video-codec0/1 on the shipped kernel; rkvdec-core0/1 on older overlay revisions)
+ls /proc/mpp_service/ ; cat /proc/mpp_service/video-codec0/* 2>/dev/null
 
 # Watch the exact ioctl conversation a real workload has with the kernel.
 # NOTE: MPP codec ops ALL appear as MPP_IOC_CFG_V1 / 0x40047601 — the inner

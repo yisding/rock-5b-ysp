@@ -174,7 +174,7 @@ KASAN-inline instruments every memory access; lockdep instruments every lock;
 `DEBUG_PAGEALLOC`/`PAGE_OWNER` add per-page work. Codec throughput numbers on
 this kernel are meaningless — the validated figures (720p encode ~359 fps
 H.264 / ~297 fps H.265, transcode 17–42× realtime,
-[`tests/README.md`](../tests/README.md):102–103) were measured on the
+[`tests/README.md`](../tests/README.md) § Observed results) were measured on the
 **non-debug combined kernel** ([kernel status](./status.md)). The config's
 own comment says it: this kernel is for reproducing the crash, not for daily
 use. Capture the bug here; measure performance there.

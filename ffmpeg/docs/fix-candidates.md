@@ -32,18 +32,18 @@ worth sending.
 
 ## Summary
 
-The "Submitted?" column is the per-group outcome record; the full dated ledger
-lives in [`rebase-notes.md`](rebase-notes.md) §6. **As of 2026-07-01 nothing
-has been sent to either destination.**
+Submission status is not tracked per-group here; the single dated ledger lives in
+[`rebase-notes.md`](rebase-notes.md) §6. **As of 2026-07-02 nothing has been sent
+to either destination.**
 
-| Fix group | Send to NyanMisaka? | Send to FFmpeg upstream? | Submitted? | Why |
-|-----------|---------------------|--------------------------|------------|-----|
-| V4L2 multi-planar packet accounting | Yes | Maybe, as a smaller port | No (2026-07-01) | It fixes real packet-size and data-offset handling. Upstream's V4L2 mplane path is narrower, so it needs a targeted version. |
-| V4L2 framerate fallback and `NV16`/`NV24` guards | Yes | Partly | No (2026-07-01) | The framerate fallback is generic. The guards are already present upstream, but useful for older fork code. |
-| Packed `NV15`/`NV20` swscale and descriptor fixes | Yes | Not as a fix-only patch | No (2026-07-01) | Upstream does not have `AV_PIX_FMT_NV15` or `AV_PIX_FMT_NV20_PACKED`; this would need a pixel-format feature series first. |
-| RKMPP decoder ownership, errinfo, MJPEG, EOS, and format fixes | Yes | No, unless replacing/extending upstream RKMPP | No (2026-07-01) | These fix the fork's RKMPP hwcontext based decoder. Upstream's RKMPP decoder is a different, smaller implementation. |
-| RKMPP encoder async, packet, DRM, submit-unwind, and RC fixes | Yes | Mostly no | No (2026-07-01) | Some ideas overlap with upstream, but the code paths and option surface differ substantially. |
-| RKMPP hwcontext, RKRGA lifetime, and build cleanup | Yes | No | No (2026-07-01) | Upstream has no `AV_HWDEVICE_TYPE_RKMPP` hwcontext and no RKRGA filters. |
+| Fix group | Send to NyanMisaka? | Send to FFmpeg upstream? | Why |
+|-----------|---------------------|--------------------------|-----|
+| V4L2 multi-planar packet accounting | Yes | Maybe, as a smaller port | It fixes real packet-size and data-offset handling. Upstream's V4L2 mplane path is narrower, so it needs a targeted version. |
+| V4L2 framerate fallback and `NV16`/`NV24` guards | Yes | Partly | The framerate fallback is generic. The guards are already present upstream, but useful for older fork code. |
+| Packed `NV15`/`NV20` swscale and descriptor fixes | Yes | Not as a fix-only patch | Upstream does not have `AV_PIX_FMT_NV15` or `AV_PIX_FMT_NV20_PACKED`; this would need a pixel-format feature series first. |
+| RKMPP decoder ownership, errinfo, MJPEG, EOS, and format fixes | Yes | No, unless replacing/extending upstream RKMPP | These fix the fork's RKMPP hwcontext based decoder. Upstream's RKMPP decoder is a different, smaller implementation. |
+| RKMPP encoder async, packet, DRM, submit-unwind, and RC fixes | Yes | Mostly no | Some ideas overlap with upstream, but the code paths and option surface differ substantially. |
+| RKMPP hwcontext, RKRGA lifetime, and build cleanup | Yes | No | Upstream has no `AV_HWDEVICE_TYPE_RKMPP` hwcontext and no RKRGA filters. |
 
 ## 1. V4L2 multi-planar packet accounting
 

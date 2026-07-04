@@ -26,7 +26,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 |---|---|---|
 | Clean cross-kernel build gate | ✅ [`tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) | reuse as the pre-merge gate |
 | Non-submit ABI probe + log diff | ✅ [`tests/abi-probe.sh`](../tests/abi-probe.sh), [`tests/abi-replay.sh`](../tests/abi-replay.sh) | reuse; extend to bit-exact output (below) |
-| Consumer conformance (MPP / librga / GStreamer) | ✅ `*-suite.sh` + external [`../rockchip-conformance`](../tests/README.md) | reuse; wire the pass/fail gate |
+| Consumer conformance (MPP / librga / GStreamer) | ✅ `*-suite.sh` + external [`../rockchip-conformance`](../tests/rewrite-conformance.md) | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode cases now compare `artifacts.tsv` byte counts and SHA-256s; MPP/RGA suite outputs still need byte-exact dumps | **complete byte-exact output-buffer comparison** |
 | Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` | reuse as assertion hooks throughout |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
@@ -63,7 +63,7 @@ forward-port is the golden reference** — the single strongest technique for a
 rewrite. Kconfig makes the two tracks mutually exclusive per device node
 (`rewrite-drivers.md` head), so A/B in one kernel is impossible: use the existing
 `PROFILE=rewrite` / `PROFILE=forward-port` **dual-boot** flow
-([`tests/README.md`](../tests/README.md) "Expanded conformance bundle"), keeping
+([`tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) "Expanded conformance bundle"), keeping
 `assets/` and command lines identical across the two boots.
 
 **The gap to close:** most current comparators still compare only *pass/fail and
@@ -191,7 +191,7 @@ Ship only when **all** hold, each with a dated record in
    0 diffs (RGA pixels, VDEC YUV, VENC-vs-VENC bitstream).
 3. Full `mpp-suite` / `librga-suite` / `gstreamer-suite` pass via the comparators;
    every unsupported profile returns `-EOPNOTSUPP` with no warning/hang/leak
-   (the `tests/README.md` "expected rewrite result" rule, gated).
+   (the `tests/rewrite-conformance.md` "expected rewrite result" rule, gated).
 4. **72 h+ multi-instance soak**: 0 KASAN / KCSAN / lockdep / KMEMLEAK /
    DMA-debug splats; `import_count` and job counters return to baseline at idle.
 5. Every §4 fault scenario recovers cleanly, verified in a loop via debugfs.
@@ -207,8 +207,9 @@ Until 1–7 hold, the shipped, hardware-validated stack stays the forward-port.
 
 Cross-references: [rewrite-driver track](./rewrite-drivers.md) (what the drivers
 implement, §2/§3 ABI ledgers, §6 pins), [`debug-kernel.md`](./debug-kernel.md)
-(Kernel A / ramoops), [`tests/README.md`](../tests/README.md) (the existing
-harness + `../rockchip-conformance` bundle), [`bsp-audit.md`](./bsp-audit.md)
+(Kernel A / ramoops), [`tests/README.md`](../tests/README.md) (the smoke on-ramp)
+and [`tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) (the rewrite
+build gate + `../rockchip-conformance` bundle), [`bsp-audit.md`](./bsp-audit.md)
 (audit method), [`multicore-scheduling.md`](./multicore-scheduling.md) (the
 scheduling behaviour P4 exercises), [`rewrite-hard-ccu-finding.md`](./rewrite-hard-ccu-finding.md)
 (the opt-in HARD-CCU path in the §4 matrix), [kernel status](./status.md) /

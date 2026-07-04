@@ -1,4 +1,4 @@
-# userspace-libraries/ - libmpp and librga
+# userspace-libraries/ — libmpp and librga
 
 This package explains the userspace libraries that sit between applications and
 the kernel devices: Rockchip's `librockchip_mpp` for codec work and `librga`
@@ -81,12 +81,26 @@ Read these when debugging library/kernel interactions:
 | Why does GRD use upstream FFmpeg instead of `ffmpeg-rockchip`? | [`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md) |
 | Which ABI facts were learned during the rewrite track? | [`../kernel-drivers/docs/rewrite-drivers.md`](../kernel-drivers/docs/rewrite-drivers.md) |
 
+## Files
+
+Everything this package owns. All prose lives under `docs/`.
+
+| Path | One-liner |
+|------|-----------|
+| [`docs/how-the-userspace-libs-work.md`](docs/how-the-userspace-libs-work.md) | The package's main explanation — what libmpp and librga hide, how they're layered, and exactly where each meets the kernel (owner of the dma-heap probe/remap mechanism, §A5.1). |
+| [`docs/mpp-library-architecture.md`](docs/mpp-library-architecture.md) | Internal libmpp architecture notes — context object, task queues, decoder/encoder flows, HAL selection, buffer system, and KMPP hooks, with a source map. |
+| [`docs/librga-guide.md`](docs/librga-guide.md) | librga guide for both regular users and media developers — what RGA acceleration is and how to use the library well. |
+| [`docs/librga-p010-p210-rkrga.md`](docs/librga-p010-p210-rkrga.md) | The P010/P210 10-bit RKRGA investigation and the userspace librga fix series (currently only in the dev-box `../librga-src` tree; see the shipping-guidance export note). |
+| [`docs/mpp-kmpp-reverse-engineering.md`](docs/mpp-kmpp-reverse-engineering.md) | Reverse-engineering notes on Rockchip's newer KMPP path and the kernel-shared object boundary. |
+| [`docs/mpp-rust-rewrite-assessment.md`](docs/mpp-rust-rewrite-assessment.md) | Cost/scope assessment for a Rust rewrite of classic `librockchip_mpp` keeping the same public API. |
+| [`docs/librga-rust-rewrite-assessment.md`](docs/librga-rust-rewrite-assessment.md) | Cost/scope assessment for a Rust `librga` userspace rewrite, compared with the `rga-rewrite` kernel-driver track. |
+
 ## Common traps
 
 | Trap | Explanation |
 |------|-------------|
 | Device access is three nodes, not one | Non-root MPP encode needs `/dev/mpp_service` and `/dev/dma_heap/*`; RGA also needs `/dev/rga`. Install [`../kernel-drivers/scripts/99-rockchip-codec.rules`](../kernel-drivers/scripts/99-rockchip-codec.rules) or the [`../packaging/codec-udev/`](../packaging/codec-udev/README.md) deb. |
 | `librga` has source even when the official drop ships a prebuilt `.so` | The buildable source lineage is documented in [`../docs/gotchas.md`](../docs/gotchas.md); the current patched source tree is `github.com/yisding/librga` `main` at `a632217`. |
-| P010/P210 through legacy RKRGA depends on librga copying 10-bit layout fields | Older librga sources dropped `is_10b_compact`/`is_10b_endian` before the ioctl; use `github.com/yisding/librga` `main` at `a632217` or newer, or disable padded 10-bit RKRGA paths. See [`docs/librga-p010-p210-rkrga.md`](docs/librga-p010-p210-rkrga.md). |
+| P010/P210 through legacy RKRGA depends on librga copying 10-bit layout fields | Older librga sources dropped `is_10b_compact`/`is_10b_endian` before the ioctl; use `github.com/yisding/librga` `main` at `a632217` or newer, or disable padded 10-bit RKRGA paths. See [`docs/librga-p010-p210-rkrga.md`](docs/librga-p010-p210-rkrga.md). **The fix is not yet exported in-repo:** it lives only in the dev-box `../librga-src` tree and is tracked on the [`../status.md`](../status.md) dev-box watchlist for export under a future `userspace-libraries/patches/` (matching the other packages). |
 | `h264_rkmpp` does not always mean the same implementation | `ffmpeg-rockchip` and upstream FFmpeg 8.1.2 both expose rkmpp names, but the control surface differs. See [`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md). |
 | The libraries generate hardware-specific recipes | The kernel does not parse H.264/HEVC streams into registers; libmpp does. This is why ABI compatibility matters as much as driver probing. |

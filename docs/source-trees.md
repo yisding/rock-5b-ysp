@@ -19,7 +19,7 @@ patches unless explicitly marked otherwise.
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `bb32bc4f999f` + branch `rk3588-rewrite-mainline` @ `d84543927f85`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
-| 10 | Expanded Rockchip conformance bundle | [kernel-driver tests](../kernel-drivers/tests/README.md) "Expanded conformance bundle" | local `../rockchip-conformance`, see §10 |
+| 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
 
 ---
@@ -114,10 +114,11 @@ donor and is not cited by any doc.)
 
 | Component | Repo | Pin | Cited by |
 |-----------|------|-----|----------|
-| libmpp (study tree) | `rockchip-linux/mpp` | **v1.3.9** (how-the-userspace-libs-work.md:9). Commit-level pin **unrecorded** — see note below | how-the-userspace-libs-work.md Part A, [`ffmpeg/README.md`](../ffmpeg/README.md) |
+| libmpp (v1.3.9 how-doc study tree) | `rockchip-linux/mpp` | **v1.3.9** (how-the-userspace-libs-work.md:9). Commit-level pin **unrecorded** — see note below | how-the-userspace-libs-work.md Part A, [`ffmpeg/README.md`](../ffmpeg/README.md) |
+| libmpp (KMPP-aware study tree) | `mpp-rockchip` | `1375813cbbae5ad6861b166475dd8fb672183220` — the KMPP-bearing tree the architecture/KMPP/Rust docs were read against; **distinct** from the v1.3.9 how-doc tree above and the `750e76e` PPA tree below | [`mpp-library-architecture.md`](../userspace-libraries/docs/mpp-library-architecture.md), [`mpp-kmpp-reverse-engineering.md`](../userspace-libraries/docs/mpp-kmpp-reverse-engineering.md), [`mpp-rust-rewrite-assessment.md`](../userspace-libraries/docs/mpp-rust-rewrite-assessment.md) |
 | libmpp (PPA packaging tree) | `tsukumijima/mpp-rockchip` (tracks HermanChen `develop`) | `750e76e`, packaged as `1.5.0-1+rk1` | [`packaging/ppa/README.md`](../packaging/ppa/README.md) |
-| librga source (fixed tree) | `github.com/yisding/librga` | branch `main`, tip `a6322179c944aced42e326519cd89483bf9da26b` (2026-07-03); preserves the `2cffdf6` JeffyCN history, then `cc39281` as the latest-vendor-source layer matching `yisding/librga-mirror@32c3bf1`, then nyanmisaka/local fixes | [`userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md), [gotchas](./gotchas.md) |
-| librga historical source base | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | `2cffdf6` (`v2.2.0-1-20260121-2cffdf6`), the last open vendor-history tip used as the fixed tree base | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
+| librga source (fixed tree) | `github.com/yisding/librga` | branch `main`, tip `a6322179c944aced42e326519cd89483bf9da26b` (2026-07-03); preserves the `2cffdf6f332c` JeffyCN history, then `cc39281` as the latest-vendor-source layer matching `yisding/librga-mirror@32c3bf1`, then nyanmisaka/local fixes | [`userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md), [gotchas](./gotchas.md) |
+| librga historical source base (study tree) | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | `2cffdf6f332c` (`v2.2.0`, the 2026-01-21 merge of `JeffyCN/mirrors:linux-rga-multi`); **recorded**, every librga file/function cite in how-the-userspace-libs-work.md re-verified against it 2026-07-01 (how-the-userspace-libs-work.md:11-14). Also the last open vendor-history tip used as the fixed-tree base above | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
 | librga prebuilt | `airockchip/librga` | `2b32edc` ("Update librga version to 1.10.6_[3]") | ffmpeg/README.md librga row |
 | ffmpeg-rockchip (documented build) | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` (2026-04-23); preserved locally as branch `backup-pre-upgrade-master` | ffmpeg/README.md, [`ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md) |
 | ffmpeg-rockchip-81 (rebased successor) | `github.com/yisding/ffmpeg-rockchip-81` | branch `main` (tip `6cf02ab253` as of 2026-07-02); branch `upstream` = `87bd15dc3c` | [`ffmpeg/docs/fix-candidates.md`](../ffmpeg/docs/fix-candidates.md), [`ffmpeg/docs/rebase-notes.md`](../ffmpeg/docs/rebase-notes.md), [`ffmpeg/docs/submission-plan.md`](../ffmpeg/docs/submission-plan.md), [`ffmpeg/patches/`](../ffmpeg/patches/) |
@@ -132,22 +133,25 @@ fork. Their merge-base is `67c886222f` ("Bump versions for release/8.1") — the
 full topology and replay procedure live in
 [`ffmpeg/docs/rebase-notes.md`](../ffmpeg/docs/rebase-notes.md).
 
-> **The unrecorded pins (flagged, not invented).**
-> - **libmpp:** how-the-userspace-libs-work.md records only "v1.3.9". No commit hash was written down
->   at study time, and the only mpp checkout on the dev box today
->   (`mpp-rockchip` @ `750e76e`, the 1.5.0-era PPA packaging tree) is *newer*
->   than the study state. **UNVERIFIED** which exact commit how-the-userspace-libs-work.md's Part A
+> **The pins to watch.**
+> - **libmpp v1.3.9 how-doc tree — unrecorded (flagged, not invented).**
+>   how-the-userspace-libs-work.md records only "v1.3.9". No commit hash was
+>   written down at study time, and the KMPP-aware architecture tree
+>   (`mpp-rockchip` @ `1375813cbbae`) and the PPA tree (`mpp-rockchip` @
+>   `750e76e`, the 1.5.0-era packaging checkout) are both *different* states.
+>   **UNVERIFIED** which exact commit how-the-userspace-libs-work.md's Part A
 >   line numbers were read against; treat its anchors as "v1.3.9-era, verify
->   against your checkout".
-> - **librga:** how-the-userspace-libs-work.md names the repo but no commit. The original
->   study base is best represented by `2cffdf6` (merge of JeffyCN
->   `linux-rga-multi`; tag lineage `v2.2.0-1-20260121-2cffdf6`, packaged as
->   `2.2.0-1+rk1`). The current dev-box `librga-src` checkout has since been
->   rebuilt as `github.com/yisding/librga` `main` at `a632217`: old open history
->   through `2cffdf6`, one latest-release source layer matching
->   `yisding/librga-mirror@32c3bf1`, then the P010/P210/fix commits. Treat old
->   file/line anchors as `2cffdf6`-era unless a doc explicitly names the fixed
->   tree.
+>   against your checkout". (The architecture/KMPP/Rust docs, by contrast, record
+>   their own `1375813cbbae` pin — see the study-tree row above.)
+> - **librga — now recorded.** how-the-userspace-libs-work.md's Part B anchors
+>   are pinned to `tsukumijima/librga-rockchip` `2cffdf6f332c` (`v2.2.0`, the
+>   2026-01-21 JeffyCN `linux-rga-multi` merge) and were **re-verified against it
+>   2026-07-01** (how-the-userspace-libs-work.md:11-14). The fixed dev tree
+>   (`github.com/yisding/librga` `main` @ `a632217`) preserves that
+>   `2cffdf6f332c` open history, adds one latest-release source layer matching
+>   `yisding/librga-mirror@32c3bf1`, then the P010/P210 fix commits. Treat old
+>   file/line anchors as `2cffdf6f332c`-era unless a doc explicitly names the
+>   fixed tree.
 
 ## 5. GNOME Remote Desktop base
 
@@ -299,7 +303,7 @@ exact shallow checkouts staged on 2026-07-02:
 The bundle adds helper scripts to build MPP, generate a local `librga.pc` shim,
 build librga samples, build JeffyCN's Meson-based GStreamer plugin tree, collect
 system/device state, and write per-profile logs under `logs/rewrite/` and
-`logs/forward-port/`. See [kernel-driver tests](../kernel-drivers/tests/README.md)
+`logs/forward-port/`. See [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md)
 for the test matrix and pass/fail interpretation.
 
 A 2026-07-03 source review of the staged JeffyCN GStreamer plugin found no

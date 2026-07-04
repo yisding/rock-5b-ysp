@@ -54,12 +54,10 @@ KERNEL=="iep",         RUN+="…same…"    # BSP-only IEP node — not created 
 SUBSYSTEM=="dma_heap",  RUN+="…same…"
 ```
 
-> **`KERNEL=="iep"`**: IEP is the BSP's Image Enhancement Processor (video
-> post-processing — see [`glossary.md`](../../glossary.md)). This port ships no
-> IEP driver and **`/dev/iep` does not exist on the board** (verified
-> 2026-07-01, kernel `6.18.37-current-rockchip64` #7); the line only matters on
-> BSP/vendor kernels that create the node, mirroring the same forward-compat
-> line in the base rule ([`codec-udev`](../codec-udev/)).
+> **`KERNEL=="iep"`**: a forward-compat no-op — this port ships no IEP driver and
+> `/dev/iep` does not exist on the board, so the line only matters on BSP/vendor
+> kernels that create the node. It mirrors the base rule; the dated
+> verification stamp is owned by [`codec-udev/README.md`](../codec-udev/README.md).
 
 Prefix `70-` so it loads **after** the base `60-media` / `99-rockchip-codec` rule
 that sets `GROUP="video"`. `setfacl` adds a group entry and does **not** disturb

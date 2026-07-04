@@ -441,6 +441,14 @@ If the packaged stack uses airockchip's prebuilt 1.10.6 library, do not assume
 the legacy P010/P210 path is fixed. Either test the exact binary on hardware or
 ship a known patched source-built librga.
 
+**Export status (single point of failure).** This fix series currently exists
+only in the dev-box `../librga-src` tree; it has not been exported into this repo
+as a patch series the way the other packages ship theirs. Until it is, the delta
+is recoverable only from that one working tree. It is tracked on the
+[`status.md`](../../status.md) dev-box watchlist for in-repo export under a future
+`userspace-libraries/patches/` directory (mirroring the patch layout the kernel,
+ffmpeg, and packaging packages already use). Export it before relying on it.
+
 ## Test cases to keep
 
 Minimum validation before enabling padded 10-bit RKRGA paths:

@@ -75,7 +75,7 @@ Verified 2026-07-01 on the ROCK 5B (kernel `6.18.37-current-rockchip64` #7):
 | Consumer | Tree/binary | Detail |
 |----------|-------------|--------|
 | System-wide / GRD | `ffmpeg 7:8.1.2-1+rk1` (installed deb) | Upstream 8.1.2 + rkmpp ABI drop-in from the PPA packaging work — [`../packaging/ppa/`](../../packaging/ppa/README.md). `librockchip-mpp1/-dev 1.5.0-1+rk1` and `librga2/-dev 2.2.0-1+rk1` installed alongside. |
-| CLI hardware transcode / `tests/` | `~/Code/ffmpeg-rockchip/ffmpeg` (dev box), built 2026-07-01 | Working tree clean at `def08a047f` (the rebased port, **without** the 9 review-fix commits — those live on `ffmpeg-rockchip-81 main`). Configured `--enable-version3 --enable-libdrm --enable-rkmpp --enable-rkrga --disable-doc` against the **system PPA libs** (no staging prefix), with Vulkan enabled (`CONFIG_VULKAN 1`, headers 1.4.341). Caveat: the binary's version string reads `N-125363-g53e76abdc7` (the last replayed fork commit, `def08a047f`'s parent) — whether it predates the port commit or just carries a stale cached `.version` is UNVERIFIED; rebuild before trusting it for regression comparisons. |
+| CLI hardware transcode / `tests/` | `~/Code/ffmpeg-rockchip/ffmpeg` (dev box), built 2026-07-01 | Working tree clean at `def08a047f` (the rebased port, **without** the 28 review-fix commits — those live on `ffmpeg-rockchip-81 main`). Configured `--enable-version3 --enable-libdrm --enable-rkmpp --enable-rkrga --disable-doc` against the **system PPA libs** (no staging prefix), with Vulkan enabled (`CONFIG_VULKAN 1`, headers 1.4.341). Caveat: the binary's version string reads `N-125363-g53e76abdc7` (the last replayed fork commit, `def08a047f`'s parent) — whether it predates the port commit or just carries a stale cached `.version` is UNVERIFIED; rebuild before trusting it for regression comparisons. |
 
 Two consequences worth stating plainly:
 
@@ -110,7 +110,7 @@ Mirrors the method in §2; run [`implementation-comparison.md`](implementation-c
 6. Run [`implementation-comparison.md`](implementation-comparison.md) §8
    (did upstream grow RKMPP hwcontext / RGA filters / QP-profile-IDR options?
    — if yes, the removal-commit scope and the GRD workaround story change).
-7. Validate on hardware: [`../tests/transcode-test.sh`](../../kernel-drivers/tests/transcode-test.sh)
+7. Validate on hardware: [`../../kernel-drivers/tests/transcode-test.sh`](../../kernel-drivers/tests/transcode-test.sh)
    (no software fallback ⇒ a pass proves the HW ran).
 8. Update the pins here, in [`fix-candidates.md`](fix-candidates.md), and
    re-export [`patches/`](../patches/README.md); note the bump in `status.md`.

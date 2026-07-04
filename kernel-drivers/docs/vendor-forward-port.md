@@ -170,7 +170,8 @@ These aren't strictly "compile on 6.18" — they're correctness fixes surfaced b
 actually probing the hardware. They matter for any kernel.
 
 ### Probe ordering → `-EPROBE_DEFER` (not `-ENOMEM`/oops)
-The encoder and decoder cores attach to a **CCU** (clock/coordination unit) that
+The encoder and decoder cores attach to a **CCU** (Central Control Unit — see the
+[device-tree glossary](./device-tree.md) for the authoritative expansion) that
 must bind first. If a core probes before its CCU has set `drvdata`, the BSP
 returned `-ENOMEM` (hard fail) or oops'd dereferencing a not-yet-ready main core.
 Fixes (6 sites):

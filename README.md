@@ -5,7 +5,15 @@ the Radxa ROCK 5B: kernel codec/RGA drivers, userspace libraries, FFmpeg,
 GNOME Remote Desktop, Mesa/Panfrost investigation, packaging, and hardware
 validation.
 
-The shipped kernel result is a Rockchip vendor **MPP** codec stack plus **RGA**
+**New here?** *Hardware video encode/decode* means letting the chip's dedicated
+codec blocks compress and decompress H.264/H.265 video instead of the CPU — the
+difference between smooth 60 fps and a pegged, overheating board. The RK3588 in
+the ROCK 5B has that hardware, but stock Linux doesn't fully drive it; this repo
+is the work that makes it usable. Unfamiliar terms (MPP, RGA, CCU, DCHS, …) are
+all defined in [`glossary.md`](glossary.md).
+
+The shipped kernel result is a Rockchip vendor [**MPP**](glossary.md) codec
+stack plus [**RGA**](glossary.md)
 forward-port from the Rockchip 6.1 BSP to Linux 6.18, packaged for Armbian on
 the ROCK 5B. The repo also records the application and distribution work built
 on top of that base: `ffmpeg-rockchip`, a hardware H.264 backend for
@@ -17,53 +25,28 @@ below should be read through that file's last-verified dates.
 
 ## Main split: work packages
 
+This is the simplified front door. The canonical, detailed stack diagram (with
+per-package internals) is owned by
+[`docs/work-packages.md`](docs/work-packages.md) — keep the two in sync there,
+not here.
+
 ```mermaid
 flowchart TB
   board["ROCK 5B / RK3588"]
+  kernel["kernel-drivers<br/>/dev/mpp_service + /dev/rga"]
+  libs["userspace-libraries<br/>librockchip_mpp + librga"]
+  ffmpeg["ffmpeg<br/>rkmpp codecs + rkrga filters"]
+  apps["application work<br/>gnome-remote-desktop, mesa-panfrost-g610"]
+  packaging["packaging<br/>delivery and validation"]
 
-  subgraph kernel["kernel-drivers"]
-    dt["RK3588 device tree"]
-    mpp["/dev/mpp_service<br/>VEPU580 + VDPU381"]
-    rga["/dev/rga<br/>RGA3 + RGA2"]
-    kpatches["patches/"]
-    ktools["scripts/ + tests/"]
-  end
-
-  subgraph libs["userspace-libraries"]
-    libmpp["librockchip_mpp"]
-    librga["librga"]
-  end
-
-  subgraph ffmpeg["ffmpeg"]
-    rkcodecs["h264_rkmpp / hevc_rkmpp"]
-    rkfilters["scale_rkrga / vpp_rkrga"]
-  end
-
-  subgraph apps["application work"]
-    grd["gnome-remote-desktop<br/>RDP H.264 encode"]
-    mesa["mesa-panfrost-g610<br/>Mali transfer work"]
-  end
-
-  subgraph ops["delivery and validation"]
-    packaging["packaging"]
-  end
-
-  board --> dt
-  dt --> mpp
-  dt --> rga
-  mpp --> libmpp --> rkcodecs --> grd
-  rga --> librga --> rkfilters
-  mesa --> grd
-  packaging --> kernel
-  packaging --> libs
-  packaging --> ffmpeg
-  kpatches --> dt
-  ktools --> mpp
-  ktools --> rga
+  board --> kernel --> libs --> ffmpeg --> apps
+  packaging -.-> kernel
+  packaging -.-> libs
+  packaging -.-> ffmpeg
 ```
 
-| Package | User-facing content | Developer-facing content | Entry |
-|---------|---------------------|--------------------------|-------|
+| Package | User outcome | Developer focus | Entry |
+|---------|--------------|-----------------|-------|
 | **Kernel drivers** | Get `/dev/mpp_service` and `/dev/rga` on the board, build/install the combined kernel, and run on-hardware smoke tests. | Forward-port design, MPP/RGA internals, DT, patch series, scripts, tests, audit findings, rewrite drivers. | [`kernel-drivers/`](kernel-drivers/README.md) |
 | **Userspace libraries** | Build or install `librockchip_mpp` and `librga` with the right headers, `.pc` files, and device permissions. | Library/kernel responsibility split, ioctl behavior, dma-buf imports, ABI facts. | [`userspace-libraries/`](userspace-libraries/README.md) |
 | **FFmpeg** | Build and use rkmpp codecs and RGA filters for decode, encode, scale, and transcode. | FFmpeg hardware-frame model, fork vs upstream behavior, rebase/fix series. | [`ffmpeg/`](ffmpeg/README.md) |
@@ -78,6 +61,7 @@ The detailed package reading map is [`docs/work-packages.md`](docs/work-packages
 
 | Your goal | Start at | What you will find |
 |-----------|----------|--------------------|
+| New to Linux / never built a kernel | [`install.md`](install.md), then [`glossary.md`](glossary.md) | A guided on-ramp: what to install, the vocabulary, and where each term is defined before you dive into internals. |
 | Get hardware codecs working on a ROCK 5B | [`install.md`](install.md) | Delivery-model chooser, combined-kernel quickstart, PHASH pinning, validation, userspace handoff. |
 | Understand the whole stack | [`docs/work-packages.md`](docs/work-packages.md) | Package map plus user/developer reading paths. |
 | Learn the kernel internals | [`kernel-drivers/`](kernel-drivers/README.md) | Driver architecture, forward-port deltas, DT, audit, rewrite track. |
@@ -113,6 +97,26 @@ the stack `ffmpeg-rockchip` expects.
 > stack gives the full feature set used here today. See
 > [`kernel-drivers/docs/vanilla-kernel.md`](./kernel-drivers/docs/vanilla-kernel.md) for the mainline-V4L2
 > alternative and its trade-offs.
+
+Three details are load-bearing enough to state up front — they are the ones that
+most often trip people who assume the encoder and decoder are symmetric, or that
+the port replaces Armbian's DT:
+
+- **⚑ Decoder CCU is real hardware; the encoder's is not.** The decoder's
+  core-coordination unit is a real MMIO block (`@fdc30000`, its own DT node);
+  the encoder has no such register block — its equivalent is a **software-only
+  dual-core hand-shake (DCHS)**. See
+  [`kernel-drivers/docs/how-the-drivers-work.md`](./kernel-drivers/docs/how-the-drivers-work.md) §7 and
+  [`kernel-drivers/docs/device-tree.md`](./kernel-drivers/docs/device-tree.md).
+- **⚑ Decoder RCB lives in SRAM; the encoder's lives in DRAM.** The decoder
+  backs its Row Cache Buffer with on-chip SRAM (`system_sram2@ff001000`); the
+  encoder has no SRAM slice and row-caches from DRAM. See
+  [`kernel-drivers/docs/device-tree.md`](./kernel-drivers/docs/device-tree.md).
+- **⚑ The port converts Armbian's DT nodes in place — it does not replace
+  them.** *Convert-in-place* retypes Armbian's existing V4L2 decoder DT nodes
+  (`vdec0`/`vdec1`) to the vendor binding where they sit, so nothing edits
+  Armbian's own files. See
+  [`packaging/docs/armbian-packaging.md`](./packaging/docs/armbian-packaging.md).
 
 ## Quickstart
 
@@ -157,6 +161,8 @@ mesa-panfrost-g610/    Mali-G610 transfer investigation and reproducers
 packaging/             deploy hub: DKMS, udev/ACL debs, PPA notes, policy
   docs/                Armbian packaging notes
 docs/                  cross-project map, source-tree pins, and gotchas
+  work-packages.md     canonical package map, stack diagram, and reading paths
+  bsp/                 what the Rockchip 6.1 BSP adds vs stock Linux (13-file subtree)
 ```
 
 Maintenance rule: a commit that adds a user-facing file should update the

@@ -114,30 +114,22 @@ shows an 8 → 20 ms jump between `RGBA` and `BGRA`.
 
 panfrost could push the detile+swizzle onto the GPU's compute engine (which sits
 idle during a software encode) instead of the CPU. It doesn't, because it never
-advertises the capability:
+advertises a GPU texture-transfer capability: `texture_transfer_modes` is left at
+`0`, inherited unchanged from the original 2019 driver skeleton with no rationale
+comment — **not** an intentional disable.
 
-```c
-// mesa: src/gallium/drivers/panfrost/pan_screen.c:828
-caps->texture_transfer_modes = 0;   // unconditional, since the 2019 driver stub
-```
-
-This is **not an intentional disable** — it is inherited unchanged from the
-original driver skeleton, with no rationale comment. We investigated this in
-Mesa MR **!42563**. The first finding was a real Panfrost shader-image unbind
-bug exposed by GPU texture transfers; that is fixed separately in the MR. The
-second finding was that the tempting `BLIT` transfer cap is not safe on
-Mali-G610 for integer readback/format-conversion paths.
-
-The sampled `u_blitter` path compiled to the expected Mali varying load,
-`LD_VAR_IMM.slot0.v4.f32.center...`, followed by `F32_TO_S32.rtz` and
-`TEX_FETCH`. The problem is not an obvious compiler bug: the interpolated
-coordinate from `LD_VAR_IMM` drifts by about `2^-10`, so a 16307-wide integer
-readback selects previous texels for 15672/16307 samples. The fix direction is
-therefore **COMPUTE**, not BLIT: compute uses integer invocation coordinates and
-bypasses the varying interpolator. GRD-facing notes:
-[`mesa-panfrost-transfer.md`](mesa-panfrost-transfer.md); the canonical
-investigation — reproducers, `blit-precision.md`, dEQP validation, MR status —
-lives in [`../mesa-panfrost-g610/`](../../mesa-panfrost-g610/).
+Wiring that capability up is Mesa MR **!42563**. The GRD-relevant conclusion: the
+tempting sampled **BLIT** transfer path is not bit-exact on Mali-G610 for integer
+readback / format-conversion, and on **2026-07-01** maintainer review rejected a
+**COMPUTE-only** fix (compute shaders cannot write AFBC-compressed resources), so
+the fix shape is being reworked (a `gl_FragCoord`-based blit fix, or BLIT plus a
+targeted integer route). The MR also fixes a real Panfrost shader-image unbind
+crash exposed along the way. The asm-level reproduction (the varying-interpolator
+drift, the disassembly, the sample counts) and the live MR lifecycle are **not
+duplicated here** — the GRD-facing summary is
+[`mesa-panfrost-transfer.md`](mesa-panfrost-transfer.md), and the canonical
+investigation (reproducers, `blit-precision.md`, dEQP validation) lives in
+[`../mesa-panfrost-g610/`](../../mesa-panfrost-g610/).
 
 > **What `MESA_COMPUTE_PBO=1` actually does.** It is the manual override of
 > exactly this gap. Mesa's `st_pbo.c` normally uses the compute path only when the
@@ -150,9 +142,9 @@ lives in [`../mesa-panfrost-g610/`](../../mesa-panfrost-g610/).
 > why there is essentially no documentation for it and why it can't be relied on
 > as a shipping configuration.
 
-If Mesa !42563 lands in COMPUTE form, this debug override should no longer be
-needed for Panfrost texture transfers: the driver would advertise the compute
-path directly.
+If a GPU transfer mode ships in Mesa (!42563, whatever final shape it takes),
+this debug override should no longer be needed for Panfrost texture transfers:
+the driver would advertise the transfer path directly.
 
 ---
 
@@ -297,14 +289,9 @@ builds, not a faster memcpy.
 
 ## 7. Reproduce
 
-```bash
-cd gnome-remote-desktop/bench
-cc -O2 -o readback_bench readback_bench.c -lEGL -lGL
-
-./readback_bench 1920 1080 60                 # default Mesa
-MESA_COMPUTE_PBO=1 ./readback_bench 1920 1080 60   # GPU-offloaded detile+swizzle
-./readback_bench 1280 720                      # other resolutions
-```
+The build+run invocation lives with the benchmark it belongs to —
+[`../bench/README.md`](../bench/README.md) (`cc -O2 … -lEGL -lGL`, then the plain
+and `MESA_COMPUTE_PBO=1` runs at each resolution).
 
 This micro-benchmark is safe on the live box (surfaceless — it never touches
 mutter). A **live A/B against the real daemon** is a different, hazardous

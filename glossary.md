@@ -109,6 +109,11 @@ the CCU-vs-DCHS split, RCB SRAM-vs-DRAM, and convert-in-place.
 
 ## Device tree & packaging
 
+- **Armbian** — a Debian/Ubuntu-based Linux distribution and build framework for
+  ARM single-board computers; the ROCK 5B image and kernel used here are built
+  from its tree (`github.com/armbian/build`), which is why the port ships as
+  *userpatches* against Armbian rather than as a from-scratch kernel. On-ramp:
+  [`install.md`](install.md).
 - **convert-in-place** — **⚑ load-bearing:** the packaging trick of *retyping*
   Armbian's existing V4L2 decoder DT nodes (`vdec0`/`vdec1` from `media-0001`)
   to the vendor binding **where they sit**, instead of adding or replacing

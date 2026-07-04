@@ -664,7 +664,7 @@ One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse
   [`verification.md`](../patches/cleanup-draft/verification.md), the verification
   record. Kept as history; the hunk→finding map above indexes into it.
 
-Both apply on top of the forward-port (`patches/`). All compile clean on arm64 (`make drivers/video/rockchip/`). **Review each before merging** — see [How to apply & verify a cleanup patch](#how-to-apply--verify-a-cleanup-patch) for the runnable recipe and the per-patch hunk→finding map; start with the HIGH-severity items above.
+Both apply on top of the forward-port (`patches/`). The **`cleanup-draft/`** per-file form compiles clean on arm64 (`make drivers/video/rockchip/`) in its verified `aa859ad` shape. The **`cleanup-split/`** series does **not** compile clean as-is: since `808f7cb` it diverges from the draft aggregate in 8 files and currently **fails to build at patch 0024** (see lines 14-18/520 above and [`cleanup-split/README.md` § History](../patches/cleanup-split/README.md) for the one-line remedy). **Review each before merging** — see [How to apply & verify a cleanup patch](#how-to-apply--verify-a-cleanup-patch) for the runnable recipe and the per-patch hunk→finding map; start with the HIGH-severity items above.
 
 > **These drafts have been adversarially verified _and corrected_** — see
 > [`cleanup-draft/verification.md`](../patches/cleanup-draft/verification.md).

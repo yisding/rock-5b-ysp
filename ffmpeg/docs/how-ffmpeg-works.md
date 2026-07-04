@@ -116,8 +116,8 @@ issue their ioctls. This document is about the FFmpeg side of the handoff.
 ## 3. A full ffmpeg-rockchip transcode
 
 The repo's full transcode test
-([`../tests/transcode-test.sh`](../../kernel-drivers/tests/transcode-test.sh), documented in
-[`../tests/README.md`](../../kernel-drivers/tests/README.md)) is the cleanest FFmpeg example:
+([`../../kernel-drivers/tests/transcode-test.sh`](../../kernel-drivers/tests/transcode-test.sh), documented in
+[`../../kernel-drivers/tests/README.md`](../../kernel-drivers/tests/README.md)) is the cleanest FFmpeg example:
 
 ```bash
 ffmpeg -hwaccel rkmpp -hwaccel_output_format drm_prime -i in.h264 \
@@ -280,22 +280,8 @@ step 1 and step 2:
 
 ## 7. How to tell which behavior your binary has
 
-The codec names overlap, so check behavior rather than assuming from the name:
-
-```bash
-ffmpeg -hide_banner -filters | grep rkrga
-ffmpeg -hide_banner -h encoder=h264_rkmpp
-ffmpeg -hide_banner -h decoder=h264_rkmpp
-ffmpeg -hide_banner -hwaccels | grep rkmpp
-```
-
-Interpretation:
-
-| Probe | Upstream FFmpeg 8.1.2 | ffmpeg-rockchip |
-|-------|-----------------------|-----------------|
-| `grep rkrga` | no output | `scale_rkrga`, `vpp_rkrga`, `overlay_rkrga` |
-| `-h encoder=h264_rkmpp` | `rc` only for rate control; no QP/profile/IDR option surface | `rc_mode`, QP controls, profile/level/coder controls |
-| `-hwaccels` / hwdevice names | no RKMPP hwdevice | RKMPP hwdevice support |
-
-The same command line can therefore mean different things depending on which
-FFmpeg implementation is installed.
+The codec names overlap between upstream FFmpeg 8.1.2 and ffmpeg-rockchip, so
+check behavior rather than assuming from the name. The probe commands and the
+upstream-vs-fork interpretation table are canonical in
+[`implementation-comparison.md`](implementation-comparison.md) §7 (the doc that
+owns the fork distinction).

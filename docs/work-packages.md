@@ -1,6 +1,12 @@
 # Work packages - how this repo is organized
 
-This page is the package-oriented reading map. The main split of the project is
+The work here is getting the ROCK 5B's RK3588 chip to do hardware video
+encode/decode under Linux, from the kernel drivers up to real applications; this
+repo is split into the six *packages* that each own one layer of that stack.
+
+This page is the package-oriented reading map. It also owns the canonical,
+detailed stack diagram below (the root [`README.md`](../README.md) carries a
+simplified front-door version that links here). The main split of the project is
 the set of work packages below: kernel drivers, userspace libraries, FFmpeg,
 GNOME Remote Desktop, Mesa/Panfrost, and packaging. Package-specific docs,
 patches, scripts, tests, and code artifacts live inside the owning package.
@@ -64,8 +70,8 @@ flowchart TB
 
 ## Package map
 
-| Package | User outcome | Developer focus | Canonical entry |
-|---------|--------------|-----------------|-----------------|
+| Package | User outcome | Developer focus | Entry |
+|---------|--------------|-----------------|-------|
 | Kernel drivers | Boot and validate `/dev/mpp_service` + `/dev/rga` on RK3588. | MPP/RGA driver model, DT, forward-port deltas, patches, scripts, tests, audit fixes, rewrite track. | [`../kernel-drivers/`](../kernel-drivers/README.md) |
 | Userspace libraries | Build or install `librockchip_mpp` and `librga` for apps. | Library/kernel responsibility split, ioctls, dma-buf imports, ABI facts. | [`../userspace-libraries/`](../userspace-libraries/README.md) |
 | FFmpeg | Build and use rkmpp codecs plus RGA filters. | FFmpeg hardware frames, fork vs upstream behavior, rebase fixes. | [`../ffmpeg/`](../ffmpeg/README.md) |

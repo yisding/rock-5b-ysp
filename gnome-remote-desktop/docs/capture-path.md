@@ -16,7 +16,7 @@ rkmpp backend plugs in.
 > AMD VA-API disable between them), so §3's `:634`/`:553`/… only line up on
 > `c14e09e`; the `grd-rdp-pipewire-stream.c` and `grd-hwaccel-vulkan.c`
 > anchors happen to be identical in both (verified 2026-07-01). Note the
-> 7-patch series itself applies to pristine `50.1`
+> 8-patch series itself applies to pristine `50.1`
 > ([`patches/README.md`](../patches/README.md)) — a *different* pin than this
 > doc's anchors. To re-derive on a newer GRD, grep for the function names
 > given beside each anchor. Tree pins for the whole repo:

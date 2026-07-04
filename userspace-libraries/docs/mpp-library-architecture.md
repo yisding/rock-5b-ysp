@@ -608,19 +608,17 @@ used before hardware reads output/input ranges.
 
 ### dma-heap Details
 
-`osal/allocator/allocator_dma_heap.c` probes these heaps:
+`osal/allocator/allocator_dma_heap.c` carries an eight-entry probe list of named
+heaps — `system-uncached`, `system-uncached-dma32`, `system`, `system-dma32`,
+`cma-uncached`, `cma-uncached-dma32`, `cma`, `cma-dma32` — and allocates through
+`DMA_HEAP_IOCTL_ALLOC`, returning a dma-buf fd.
 
-- `system-uncached`
-- `system-uncached-dma32`
-- `system`
-- `system-dma32`
-- `cma-uncached`
-- `cma-uncached-dma32`
-- `cma`
-- `cma-dma32`
-
-If the exact heap is missing, it tries to remap by flipping cacheable and dma32
-flags. Allocation uses `DMA_HEAP_IOCTL_ALLOC` and returns a dma-buf fd.
+The probe/remap **mechanism** — how MPP falls back from a missing preferred heap
+to a surviving one by dropping the `uncached`/`dma32`/`cma` preference, which of
+those eight actually exist on this port's mainline kernel, and the udev-rule
+consequence — is owned by
+[`how-the-userspace-libs-work.md`](how-the-userspace-libs-work.md) §A5.1. Do not
+restate the fallback narrative here.
 
 ## Control and Config
 

@@ -1,4 +1,4 @@
-# ffmpeg/
+# ffmpeg/ — ffmpeg-rockchip build against vendor MPP + RGA
 
 How to build [`ffmpeg-rockchip`](https://github.com/nyanmisaka/ffmpeg-rockchip)
 against the vendor **MPP** + **RGA** libraries so you get `h264_rkmpp` /
@@ -12,34 +12,24 @@ against the vendor **MPP** + **RGA** libraries so you get `h264_rkmpp` /
 | Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
 | Owns | The FFmpeg build recipe, companion docs in [`docs/`](docs/how-ffmpeg-works.md), pkg-config examples, and exported patch series in [`patches/`](patches/README.md). |
 | Depends on | Working kernel nodes from [`../kernel-drivers/`](../kernel-drivers/README.md), staged or packaged libraries from [`../userspace-libraries/`](../userspace-libraries/README.md), and the codec udev rule for non-root use. |
-| Current state | The original `ffmpeg-rockchip` build path is hardware-validated; the rebased `ffmpeg-rockchip-81` tree and 9-patch fix series are documented but not what is installed on the board. See [`../status.md`](../status.md). |
+| Current state | The original `ffmpeg-rockchip` build path is hardware-validated; the rebased `ffmpeg-rockchip-81` tree and 28-patch fix series are documented but not what is installed on the board. See [`../status.md`](../status.md). |
 
-Companion docs:
+## Files
 
-- [`docs/how-ffmpeg-works.md`](docs/how-ffmpeg-works.md) explains FFmpeg's demux ->
-  decode -> filter -> encode -> mux model and where MPP/RGA plug in.
-- [`docs/implementation-comparison.md`](docs/implementation-comparison.md) compares
-  upstream FFmpeg 8.1.2 with ffmpeg-rockchip. Short version: ffmpeg-rockchip is
-  the full Rockchip CLI pipeline (RKMPP hwcontext + RGA filters + richer encoder
-  controls); upstream FFmpeg 8.1.2 is the ABI-friendly codec bridge used by the
-  GRD package and needs application-side workarounds for quality and IDR.
-- [`docs/fix-candidates.md`](docs/fix-candidates.md) records the 2026 rebase cleanup fixes
-  worth backporting to NyanMisaka's fork, and separates the small V4L2 pieces
-  that may be worth proposing to FFmpeg upstream.
-- [`docs/review-learnings.md`](docs/review-learnings.md) captures the review
-  lessons from hardening the `ffmpeg-rockchip-81` rebase: V4L2 fallback, RKMPP
-  AFBC/DRM, and RKRGA capability traps.
-- [`../userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md)
-  records the RKRGA P010/P210 investigation: Jellyfin usage, BSP kernel layout
-  flags, older librga breakage, and nyanmisaka's patched librga fix.
-- [`docs/rebase-notes.md`](docs/rebase-notes.md) reconciles all the tree pins, records how
-  the fork was replayed onto FFmpeg master, and holds the submission ledger.
-- [`docs/submission-plan.md`](docs/submission-plan.md) is the 2026-07-02
-  full-branch targeting analysis: which of the ~35 logical patches go to
-  nyanmisaka's fork, which to FFmpeg upstream, and which stay here.
-- [`patches/`](patches/README.md) is the exported fix series behind
-  [`docs/fix-candidates.md`](docs/fix-candidates.md) and
-  [`docs/submission-plan.md`](docs/submission-plan.md) (`git format-patch` files + apply instructions).
+| Path | One-liner |
+|------|-----------|
+| [`docs/how-ffmpeg-works.md`](docs/how-ffmpeg-works.md) | FFmpeg's demux -> decode -> filter -> encode -> mux model and where MPP/RGA plug in. |
+| [`docs/implementation-comparison.md`](docs/implementation-comparison.md) | Upstream FFmpeg 8.1.2 (ABI-friendly codec bridge used by the GRD package) vs ffmpeg-rockchip (full Rockchip CLI pipeline: RKMPP hwcontext + RGA filters + richer encoder controls); hwframe model, option surface, AV1 paths. |
+| [`docs/fix-candidates.md`](docs/fix-candidates.md) | The 14 rebase-cleanup fix groups worth backporting to NyanMisaka's fork, and the small V4L2 pieces that may go to FFmpeg upstream. |
+| [`docs/review-learnings.md`](docs/review-learnings.md) | Reusable review traps from hardening the `ffmpeg-rockchip-81` rebase: V4L2 fallback, RKMPP AFBC/DRM, and RKRGA capability. |
+| [`docs/rebase-notes.md`](docs/rebase-notes.md) | Tree pins reconciled, how the fork was replayed onto FFmpeg master, and the submission ledger. |
+| [`docs/submission-plan.md`](docs/submission-plan.md) | 2026-07-02 full-branch targeting: which of the ~35 logical patches go to nyanmisaka's fork, which to FFmpeg upstream, and which stay here. |
+| [`patches/`](patches/README.md) | The exported 28-patch `git format-patch` series behind fix-candidates + submission-plan (`.patch` files + apply instructions). |
+
+See also [`../userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md)
+(owned by userspace-libraries) for the RKRGA P010/P210 investigation: Jellyfin
+usage, BSP kernel layout flags, older librga breakage, and nyanmisaka's patched
+librga fix.
 
 **Which tree is current:** this README's recipe builds the nyanmisaka fork at
 `40c412dacc` (2026-04-23) — the tree the kernel-port validation used. Since
@@ -138,11 +128,11 @@ PKG_CONFIG_PATH=$STAGE/lib/pkgconfig ./configure \
 make -j"$(nproc)"
 ```
 
-- **`--disable-vulkan` is required** *for this 40c412d-era fork* — its
-  `vulkan_av1.c` uses provisional *MESA* Vulkan-AV1 types that modern Vulkan
-  headers replaced with *KHR* ones, and it fails to compile. Unrelated to the
-  rk codecs. The rebased `ffmpeg-rockchip-81` tree builds with Vulkan enabled
-  ([`docs/rebase-notes.md`](docs/rebase-notes.md) §3).
+- **`--disable-vulkan` is required for this 40c412d-era fork only** (its
+  `vulkan_av1.c` uses provisional MESA Vulkan-AV1 types that modern headers
+  dropped); the rebased `ffmpeg-rockchip-81` tree builds with Vulkan on —
+  [`docs/rebase-notes.md`](docs/rebase-notes.md) §3 scopes the flag to the
+  `40c412dacc` era.
 - The `-Wl,-rpath,$STAGE/lib` makes the resulting `./ffmpeg` find
   `librockchip_mpp.so.1` + `librga.so` at runtime (verify with `ldd ./ffmpeg`).
 
@@ -157,8 +147,9 @@ make -j"$(nproc)"
 ```
 
 See [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) for the full
-two-way test. Note `scale_rkrga` keeps aspect ratio by default — add
-`:force_original_aspect_ratio=disable` for exact dimensions.
+two-way test. Note `scale_rkrga` keeps aspect ratio by default (add
+`:force_original_aspect_ratio=disable` for exact dimensions) — canonical
+statement in [`docs/implementation-comparison.md`](docs/implementation-comparison.md) §5.
 
 **Player caveat:** the rkmpp decoders (both trees) are standalone `AVCodec`s,
 *not* `AVHWAccel`s, so generic "enable hwaccel" switches don't find them. mpv
@@ -168,16 +159,15 @@ all. Canonical write-up: [`../packaging/README.md`](../packaging/README.md)
 
 ## Building librga from source, or avoiding it
 
-We linked airockchip's prebuilt `.so` for convenience, but librga is open source.
-If you want a from-source userspace, build it from the **JeffyCN lineage**
-(`tsukumijima/librga-rockchip` — a buildable mirror of
-`JeffyCN/mirrors:linux-rga-multi`, Apache-2.0, CMake/Meson + Debian packages) and
-stage *that* `.so`/headers into `$STAGE` instead.
+We linked airockchip's prebuilt `.so` for convenience, but librga is open source
+despite looking like a vendor drop. If you want a from-source userspace, build it
+from the JeffyCN lineage and stage *that* `.so`/headers into `$STAGE` instead of
+the prebuilt — the lineage, licence, and buildable-mirror detail live in
+[gotchas](../docs/gotchas.md).
 
 For RKRGA `P010`/`P210`, use a patched source build rather than an unknown
-prebuilt. Older legacy `c_RkRgaBlit()` paths can drop the 10-bit layout flags and
-make padded P010/P210 look like compact NV15/NV20 to the BSP kernel. The detailed
-compatibility note is
+prebuilt: older legacy `c_RkRgaBlit()` paths can drop the 10-bit layout flags.
+The detailed compatibility note is
 [`../userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md).
 
 To find out what version a prebuilt `librga.so` actually is (the

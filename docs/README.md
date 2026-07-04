@@ -31,16 +31,11 @@ by one package.
 | [`gnome-remote-desktop/`](../gnome-remote-desktop/README.md) | Hardware H.264 RDP backend runtime story, design, capture path, profiling, testing, patches. |
 | [`mesa-panfrost-g610/`](../mesa-panfrost-g610/README.md) | Mali-G610 transfer investigation, validation, and reproducers. |
 
-## Reading Paths
+## Reading paths
 
-| Goal | Path |
-|------|------|
-| Get the board working | [`../install.md`](../install.md) -> [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) |
-| Understand what the Rockchip BSP adds | [`bsp/`](bsp/README.md) -> [`../kernel-drivers/docs/vendor-delta.md`](../kernel-drivers/docs/vendor-delta.md) -> [`../kernel-drivers/docs/vendor-forward-port.md`](../kernel-drivers/docs/vendor-forward-port.md) |
-| Understand the kernel stack | [`../kernel-drivers/docs/how-the-drivers-work.md`](../kernel-drivers/docs/how-the-drivers-work.md) -> [`../userspace-libraries/docs/how-the-userspace-libs-work.md`](../userspace-libraries/docs/how-the-userspace-libs-work.md) -> [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) |
-| Build userspace media tools | [`../userspace-libraries/`](../userspace-libraries/README.md) -> [`../ffmpeg/`](../ffmpeg/README.md) |
-| Package or redistribute | [`../packaging/`](../packaging/README.md) -> [`../packaging/docs/armbian-packaging.md`](../packaging/docs/armbian-packaging.md) -> [`../kernel-drivers/docs/resyncing.md`](../kernel-drivers/docs/resyncing.md) |
-| Debug a failure | [`gotchas.md`](gotchas.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) -> [`../kernel-drivers/docs/debug-kernel.md`](../kernel-drivers/docs/debug-kernel.md) |
+The user and developer reading paths are owned by
+[`work-packages.md`](work-packages.md) § User reading paths / § Developer
+reading paths — see there rather than duplicating the table here.
 
 ## Conventions
 

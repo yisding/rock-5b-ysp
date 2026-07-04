@@ -14,7 +14,7 @@ see [rewrite-driver track § 5](./rewrite-drivers.md) for that bring-up DT.
 
 | Term | Meaning |
 |------|---------|
-| **CCU** | Core-cluster coordination unit — schedules/load-balances tasks across the two cores of a codec cluster. The **decoder** CCU is a real MMIO block (`@fdc30000`); the **encoder** CCU is purely virtual (software-only, no registers). |
+| **CCU** | **Central Control Unit** (the TRM-verifiable name — RK3588 TRM v1.0 § 5.6.5; this glossary is the authoritative expansion, other docs defer here) — schedules/load-balances tasks across the two cores of a codec cluster. The **decoder** CCU is a real MMIO block (`@fdc30000`); the **encoder** CCU is purely virtual (software-only, no registers). |
 | **mpp_srv** | The shared MPP *service* node (`compatible = "rockchip,mpp-service"`, owns `/dev/mpp_service`). Every core attaches to it via `rockchip,srv`. Virtual — no `reg`. |
 | **RCB** | Row-Cache Buffer — scratch storage for per-row reconstruction/context data during decode/encode. |
 | **SRAM** | On-chip static RAM (`system_sram2@ff001000`). The decoder maps a slice of it as fast RCB; the encoder does not (it row-caches from DRAM). |
