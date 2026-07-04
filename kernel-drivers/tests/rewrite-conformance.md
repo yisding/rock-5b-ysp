@@ -242,7 +242,7 @@ exercises real kernel paths:
 - `enc_h264_nv12`, `enc_h265_nv12`,
   `enc_h264_control_props`, `enc_h265_control_props`,
   `enc_h264_qp_profile_props`, `enc_h265_qp_props`,
-  `enc_h264_env_unaligned_vstride`;
+  `enc_h264_env_max_pending`, `enc_h264_env_unaligned_vstride`;
 - `enc_h264_bgrx_rga_rotate`, `enc_h265_rgba_rga_scale`;
 - `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
   `roundtrip_h264_rga_rotate`;
@@ -308,9 +308,13 @@ The encoder-control-property cases set non-default `header-mode`, `sei-mode`,
 `rc-mode`, `gop`, `max-reenc`, `bps*`, and `max-pending` values and disable
 `zero-copy-pkt`, covering the current plugin path that applies
 `MPP_ENC_SET_HEADER_MODE`, `MPP_ENC_SET_SEI_CFG`, `MPP_ENC_SET_CFG`, and the
-packet copy-out path. The codec-specific QP/profile cases separately cover the
-current H.264/H.265 plugin properties that update `rc:qp_*` and, for H.264,
-`h264:profile`/`h264:level` before the same `MPP_ENC_SET_CFG` submit.
+packet copy-out path. `enc_h264_env_max_pending` runs the generated H.264
+encoder path with `GST_MPP_ENC_MAX_PENDING` set, covering the same
+userspace-visible outstanding-frame limit through JeffyCN's global default path
+instead of an explicit element property. The codec-specific QP/profile cases
+separately cover the current H.264/H.265 plugin properties that update
+`rc:qp_*` and, for H.264, `h264:profile`/`h264:level` before the same
+`MPP_ENC_SET_CFG` submit.
 `enc_h264_env_unaligned_vstride` runs H.264 encode with
 `GST_MPP_ENC_UNALIGNED_VSTRIDE=1` and a non-16-aligned even height, covering
 the current plugin path that leaves `prep:ver_stride` unaligned for RKVENC.
@@ -377,7 +381,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
 `enc_h264_control_props`, `enc_h265_control_props`,
 `enc_h264_qp_profile_props`, `enc_h265_qp_props`,
-`enc_h264_env_unaligned_vstride`,
+`enc_h264_env_max_pending`, `enc_h264_env_unaligned_vstride`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
 `event_force_key_enc_h264`, `event_force_key_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,
@@ -486,8 +490,9 @@ diagnostic coverage; after the GStreamer env-default strict decoder and
 env-default decoder DMA-feature/output-format cases were added to the required
 set; after the GStreamer env-default FBC decode case was added as diagnostic
 coverage; after the GStreamer encoder unaligned-vstride env-default case was
-added to the required set; after the conditional GStreamer VPx-alpha decodebin
-inspect was added as diagnostic coverage; after the GStreamer strict decoder-property cases
+added to the required set; after the GStreamer encoder max-pending env-default
+case was added to the required set; after the conditional GStreamer VPx-alpha
+decodebin inspect was added as diagnostic coverage; after the GStreamer strict decoder-property cases
 were wired into the generated-decode builtin dispatch, the asset-free
 parallel cases became required by default, and after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`

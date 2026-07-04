@@ -32,6 +32,7 @@ GST_GENERATED_INPUT_BUFFERS=${GST_GENERATED_INPUT_BUFFERS:-30}
 GST_WIDTH=${GST_WIDTH:-320}
 GST_HEIGHT=${GST_HEIGHT:-240}
 GST_UNALIGNED_HEIGHT=${GST_UNALIGNED_HEIGHT:-242}
+GST_ENC_MAX_PENDING=${GST_ENC_MAX_PENDING:-2}
 GST_SCALE_WIDTH=${GST_SCALE_WIDTH:-256}
 GST_SCALE_HEIGHT=${GST_SCALE_HEIGHT:-144}
 GST_FRAMERATE=${GST_FRAMERATE:-30/1}
@@ -55,6 +56,7 @@ enc_h264_control_props
 enc_h265_control_props
 enc_h264_qp_profile_props
 enc_h265_qp_props
+enc_h264_env_max_pending
 enc_h264_env_unaligned_vstride
 enc_h264_bgrx_rga_rotate
 enc_h265_rgba_rga_scale
@@ -417,6 +419,22 @@ run_videotest_encode_env_unaligned_vstride()
 		"!" fakesink sync=false
 	)
 	printf "encoding H.264 with unaligned vstride env default: "
+	print_current_command
+	run_current_command
+}
+
+run_videotest_encode_env_max_pending()
+{
+	CMD=(
+		env
+		"GST_MPP_ENC_MAX_PENDING=$GST_ENC_MAX_PENDING"
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$GST_NUM_BUFFERS" is-live=false pattern=smpte
+		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" mpph264enc zero-copy-pkt=true
+		"!" fakesink sync=false
+	)
+	printf "encoding H.264 with max-pending env default (%s): " "$GST_ENC_MAX_PENDING"
 	print_current_command
 	run_current_command
 }
@@ -1027,6 +1045,9 @@ build_case_command()
 			qp-min-i=18 qp-max-i=38 qp-delta-ip=3 \
 			zero-copy-pkt=true
 		;;
+	enc_h264_env_max_pending)
+		CMD=(__builtin_encode_env_max_pending)
+		;;
 	enc_h264_env_unaligned_vstride)
 		CMD=(__builtin_encode_env_unaligned_vstride)
 		;;
@@ -1445,6 +1466,9 @@ run_case_payload()
 		;;
 	enc_h264_env_unaligned_vstride)
 		run_videotest_encode_env_unaligned_vstride
+		;;
+	enc_h264_env_max_pending)
+		run_videotest_encode_env_max_pending
 		;;
 	generated_dec_h264_env_strict_props)
 		run_generated_decode_env_strict "${CMD[1]}"
