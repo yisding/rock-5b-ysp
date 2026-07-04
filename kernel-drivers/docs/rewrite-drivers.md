@@ -43,7 +43,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > explicit encoder control-property application through `MPP_ENC_SET_CFG`,
 > including codec-specific QP controls and H.264 profile/level,
 > strict decoder property application through `MPP_DEC_SET_PARSER_FAST_MODE`,
-> env-default decoder control application,
+> env-default decoder control and DMA-feature application,
 > repeated encoder/decoder drain-to-EOS reuse,
 > multi-session scheduling,
 > and decode->encode transcode before
@@ -362,8 +362,9 @@ implementation (cross-reference:
   generated elementary-stream H.264/H.265 `filesrc` decode, generated VP9 IVF
   `filesrc` decode,
   H.264/H.265 decode->encode transcode including an RGA rotate/scale path,
-  generated `mppvideodec dma-feature=true` DMABuf decode and DMABuf-to-encoder
-  handoff, generated H.264/H.265 strict decoder property cases for
+  generated `mppvideodec dma-feature=true` DMABuf decode, the matching
+  `GST_MPP_DEC_DMA_FEATURE=1` environment-default DMABuf path, and
+  DMABuf-to-encoder handoff, generated H.264/H.265 strict decoder property cases for
   `fast-mode=false`/`ignore-error=false`, the matching H.264 strict decoder
   environment-default path, generated H.264/H.265 decoder caps-renegotiation through
   concatenated elementary streams with different dimensions, decoder-side RGA

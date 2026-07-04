@@ -247,7 +247,8 @@ exercises real kernel paths:
   `roundtrip_h264_rga_rotate`;
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
   `generated_dec_h264_dmabuf`, `generated_dec_h265_dmabuf`,
-  `generated_dec_h264_strict_props`, `generated_dec_h265_strict_props`,
+  `generated_dec_h264_env_dmabuf`, `generated_dec_h264_strict_props`,
+  `generated_dec_h265_strict_props`,
   `generated_dec_h264_env_strict_props`,
   `generated_dec_vp9_fakesink`, `generated_dec_vp9_dmabuf`,
   `generated_dec_h264_renegotiate`, `generated_dec_h265_renegotiate`,
@@ -281,6 +282,9 @@ default; set `GST_ENABLE_VP9_CASES=0` to remove them or
 `vp9enc`, `ivfmux`, or `ivfparse`. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
+`generated_dec_h264_env_dmabuf` runs the same path with
+`GST_MPP_DEC_DMA_FEATURE=1`, covering JeffyCN's global default-value path
+separately from explicit element properties.
 The strict decoder-property cases set `fast-mode=false` and
 `ignore-error=false`, covering the current plugin path that changes
 `MPP_DEC_SET_PARSER_FAST_MODE` and skips the default `MPP_DEC_SET_DISABLE_ERROR`
@@ -350,7 +354,8 @@ promote the same cases to required, and pass simple sink properties with
 
 Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_fakesink`, `generated_dec_h264_dmabuf`,
-`generated_dec_h265_dmabuf`, `generated_dec_vp9_fakesink`,
+`generated_dec_h264_env_dmabuf`, `generated_dec_h265_dmabuf`,
+`generated_dec_vp9_fakesink`,
 `generated_dec_vp9_dmabuf`, `generated_dec_h264_strict_props`,
 `generated_dec_h265_strict_props`, `generated_dec_h264_env_strict_props`,
 `generated_dec_h264_renegotiate`,
@@ -464,8 +469,9 @@ PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
 was last verified on 2026-07-04 after the GStreamer codec-specific encoder QP
 cases were added to the required set and the decoder crop-meta case was added as
-diagnostic coverage; after the GStreamer env-default strict decoder case was
-added to the required set; after the GStreamer strict decoder-property cases
+diagnostic coverage; after the GStreamer env-default strict decoder and
+env-default decoder DMA-feature cases were added to the required set; after the
+GStreamer strict decoder-property cases
 were wired into the generated-decode builtin dispatch, the asset-free
 parallel cases became required by default, and after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`

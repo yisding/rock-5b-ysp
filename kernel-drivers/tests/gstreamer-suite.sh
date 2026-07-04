@@ -62,6 +62,7 @@ roundtrip_h264_rga_rotate
 generated_dec_h264_fakesink
 generated_dec_h265_fakesink
 generated_dec_h264_dmabuf
+generated_dec_h264_env_dmabuf
 generated_dec_h265_dmabuf
 generated_dec_h264_strict_props
 generated_dec_h265_strict_props
@@ -613,6 +614,25 @@ run_generated_decode_env_strict()
 	run_current_command
 }
 
+run_generated_decode_env_dmabuf()
+{
+	local codec=$1
+
+	ensure_generated_input "$codec" || return $?
+	CMD=(
+		env
+		GST_MPP_DEC_DMA_FEATURE=1
+		gst-launch-1.0 -q
+		filesrc "location=$GENERATED_INPUT_PATH"
+		"!" "$GENERATED_PARSER"
+		"!" mppvideodec
+	)
+	append_artifact_or_fake_sink decoded raw
+	printf "decoding generated %s input with DMA env default: " "$codec"
+	print_current_command
+	run_current_command
+}
+
 run_generated_renegotiate_decode()
 {
 	local codec=$1
@@ -1016,6 +1036,9 @@ build_case_command()
 	generated_dec_h264_dmabuf)
 		CMD=(__builtin_generated_decode h264 dma-feature=true)
 		;;
+	generated_dec_h264_env_dmabuf)
+		CMD=(__builtin_generated_decode_env_dmabuf h264)
+		;;
 	generated_dec_h265_dmabuf)
 		CMD=(__builtin_generated_decode h265 dma-feature=true)
 		;;
@@ -1349,6 +1372,9 @@ run_case_payload()
 		;;
 	generated_dec_h264_env_strict_props)
 		run_generated_decode_env_strict "${CMD[1]}"
+		;;
+	generated_dec_h264_env_dmabuf)
+		run_generated_decode_env_dmabuf "${CMD[1]}"
 		;;
 	generated_dec_h264_fakesink | generated_dec_h265_fakesink | \
 	generated_dec_h264_dmabuf | generated_dec_h265_dmabuf | \
