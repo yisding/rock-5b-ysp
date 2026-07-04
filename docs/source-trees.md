@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `64e14a376abe` + branch `rk3588-rewrite-mainline` @ `9a26436eab1b`, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `5945f9609ee9` + branch `rk3588-rewrite-mainline` @ `194c8ff5c565`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -203,11 +203,11 @@ is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b` as
 of 2026-07-04:
 
-- branch `rk3588-rewrite-6.18`, commit `64e14a376abe` ("media: rockchip:
-  cover gstreamer rotation extrema"), committed in the dev worktree
+- branch `rk3588-rewrite-6.18`, commit `5945f9609ee9` ("media: rockchip:
+  cover vp9 rkvdec translation"), committed in the dev worktree
   `/home/yi/Code/linux-6.18-rkvenc`.
-- branch `rk3588-rewrite-mainline`, commit `9a26436eab1b` ("media: rockchip:
-  cover gstreamer rotation extrema"),
+- branch `rk3588-rewrite-mainline`, commit `194c8ff5c565` ("media: rockchip:
+  cover vp9 rkvdec translation"),
   committed in the sibling worktree `/home/yi/Code/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -254,6 +254,7 @@ NV12_10LE40/NV16_10LE40 decoder output to scaled 8-bit NV12/NV16, and planar
 I420/YV12 RGA2 fallback profiles, plus explicit 8-bit decoder-output coverage
 for the GStreamer RGBA/BGRA/RGBx/BGRx diagnostic formats, plus GStreamer
 180/270-degree public rotation-value coverage, plus the
+VP9 RKVDEC fd-to-IOVA register translation/validation KUnit coverage, plus the
 RKVDEC2 CCU-mode update that
 keeps HARD opt-in while the RK3588 DT selects BSP-style soft CCU, plus a named
 RGA direct-buffer classifier and KUnit coverage for current `librga`/GStreamer
@@ -272,7 +273,7 @@ the mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for the rewrite drivers. The current committed pins
-(`../linux-6.18-rkvenc@64e14a376abe` and `../linux@9a26436eab1b`) passed that
+(`../linux-6.18-rkvenc@5945f9609ee9` and `../linux@194c8ff5c565`) passed that
 archive build gate warning-free on 2026-07-04; see rewrite-drivers.md §6.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite
@@ -320,8 +321,9 @@ decode/encode lifecycle operations, MPP allocator import/export of dma-bufs,
 optional AFBC decode/encode negotiation, and legacy `c_RkRgaBlit()` scale,
 format-convert, and rotate operations between fd-backed MPP/GStreamer buffers.
 The kernel trees now have focused KUnit coverage for the highest-value legacy
-RGA conversion profiles, the broader GStreamer-visible format matrix, and the
-remaining 180/270-degree public rotation values. The
+RGA conversion profiles, the broader GStreamer-visible format matrix, the
+remaining 180/270-degree public rotation values, and VP9 RKVDEC fd-to-IOVA
+register translation/validation. The
 support repo's direct `librga-smoke.sh` mirrors the public `c_RkRgaBlit()` calls
 for encoder-side virtual-source conversion, decode-side fd-backed rotate/format
 conversion, and planar fallback, while `gstreamer-suite.sh` carries a diagnostic

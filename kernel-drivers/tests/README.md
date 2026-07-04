@@ -159,6 +159,9 @@ LD_LIBRARY_PATH=$MPP_BUILD/mpp $MPP_BUILD/test/mpi_dec_test \
 The suite-driven VP9 cases (generated GStreamer IVF decode and the direct MPP
 `mpi_dec_vp9` suite case, which can generate its own IVF input) are documented in
 [`rewrite-conformance.md`](./rewrite-conformance.md) § VP9 decode via the suites.
+The rewrite branches also carry KUnit coverage for the VP9 RKVDEC fd-to-IOVA
+register translation/validation path, so the remaining gap is booted hardware
+evidence rather than parser/table coverage.
 
 **UNVERIFIED:** neither the manual recipe, the generated GStreamer VP9 cases, nor
 the direct MPP VP9 suite case has a forward-port/rewrite hardware log yet. If you

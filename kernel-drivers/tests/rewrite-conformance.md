@@ -873,6 +873,9 @@ MPP_REQUIRED_CASES="mpp_info_test mpi_dec_vp9" \
 If `MPP_VP9_INPUT` is unset, `mpp-suite.sh` generates the IVF file under
 `../rockchip-conformance/assets/mpp-generated`. The manual `mpi_dec_test` VP9
 recipe (no suite) lives in [`README.md`](./README.md) § VP9 decode.
+At the kernel level, the current rewrite pins also include KUnit coverage for
+VP9 RKVDEC fd-to-IOVA register translation/validation, including rejection of
+unknown RKVDEC format-table indices.
 
 **UNVERIFIED:** neither the generated GStreamer VP9 cases nor the direct MPP
 VP9 suite case has a forward-port/rewrite hardware log yet. If you run either,
