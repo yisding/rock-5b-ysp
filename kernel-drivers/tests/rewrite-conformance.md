@@ -876,6 +876,8 @@ recipe (no suite) lives in [`README.md`](./README.md) § VP9 decode.
 At the kernel level, the current rewrite pins also include KUnit coverage for
 VP9 RKVDEC fd-to-IOVA register translation/validation, including rejection of
 unknown RKVDEC format-table indices.
+They also cover `MPP_CMD_SET_ERR_REF_HACK` copy/discard behavior for the current
+libmpp VDPU382 probe path.
 The RGA side also includes KUnit coverage for the default legacy
 `RGA_BLIT_SYNC` `c_RkRgaBlit()` path used by JeffyCN GStreamer: a sync ioctl
 queues behind a busy core, waits for queued completion, and does not copy an

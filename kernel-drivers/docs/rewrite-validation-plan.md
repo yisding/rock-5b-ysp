@@ -7,9 +7,9 @@ the plan that closes the gap [`rewrite-drivers.md`](./rewrite-drivers.md) §6 an
 hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
-> surface and heavily unit-tested — MPP **51 KUnit cases / 661 assertions**, RGA
-> **96 cases / 1,613 assertions** at the §6 pins (`484f30b7fcb6` on 6.18,
-> `3913f2068f8f` on mainline). But every one of those tests is **logic-level**:
+> surface and heavily unit-tested — MPP **52 KUnit cases / 669 assertions**, RGA
+> **96 cases / 1,613 assertions** at the §6 pins (`861f4b80e146` on 6.18,
+> `2c2254230865` on mainline). But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
 > is concentrated exactly where a from-scratch driver is weakest and where unit
@@ -203,7 +203,7 @@ equivalent adversarial read**).
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 147 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
+1. 148 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
    (today's tests never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —
    0 diffs (RGA pixels, VDEC YUV, VENC-vs-VENC bitstream).
