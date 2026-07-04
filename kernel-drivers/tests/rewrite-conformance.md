@@ -136,8 +136,10 @@ Suggested expanded matrix:
   to enable decode to `fakesink`, decode-side RGA scale/format/rotate, and
   decode -> encode transcodes. Same-codec and mixed-codec generated
   multi-stream decode/transcode pipelines are diagnostic coverage.
-  Display/DMABuf sink pipelines remain
-  manual add-ons until a target compositor/KMS setup is fixed.
+  Display and KMS-capture DMABuf pipelines are opt-in because they require a
+  target display plane, but the suite has explicit cases for JeffyCN's
+  `rkximagesink` display import and `kmssrc` DRM dma-buf capture into MPP
+  encode.
 - FFmpeg: use `ffmpeg-suite.sh` for a profile/log/comparator-integrated version
   of the full `ffmpeg-rockchip` path. It probes the selected ffmpeg build for
   `h264_rkmpp`/`hevc_rkmpp` decoders and encoders plus `scale_rkrga`, generates
@@ -252,8 +254,10 @@ silently dropping conversion support, and disables the display-only `rkximage`
 and `kmssrc` plugins for the headless default matrix. To stage the Rockchip KMS
 display sink used by the opt-in display cases, rebuild with
 `RKXIMAGE_FEATURE=enabled`; that additionally requires the `x11` and `libdrm`
-pkg-config dependencies. The default required set needs no media files but still
-exercises real kernel paths:
+pkg-config dependencies. To stage the KMS source used by the opt-in capture
+cases, rebuild with `KMSSRC_FEATURE=enabled`; that requires `libdrm`. The
+default required set needs no media files but still exercises real kernel
+paths:
 
 - `gst_inspect_rockchipmpp`, `gst_inspect_mppvideodec`,
   `gst_inspect_mpph264enc`, `gst_inspect_mpph265enc`;
@@ -422,6 +426,16 @@ dma-feature=true` into the sink, including AFBC variants. Set
 `GST_REQUIRE_DISPLAY_CASES=1` on a board with a known-good display plane to
 promote the same cases to required, and pass simple sink properties with
 `GST_DISPLAY_SINK_ARGS`, for example `connector-id=... plane-id=...`.
+Set `GST_ENABLE_KMS_CASES=1` to add opt-in KMS capture diagnostics for
+JeffyCN's `kmssrc`. These inspect `kmssrc`, capture a small number of DRM
+framebuffer-backed DMABuf frames to `fakesink`, feed the same capture stream
+into `mpph264enc`, and optionally loop it through `GST_DISPLAY_SINK`. The
+encoder case is the userspace-visible import path that matters for the rewrite:
+it forces MPP to consume dma-bufs exported by the display stack instead of only
+buffers allocated by MPP or dma-heap. Set `GST_REQUIRE_KMS_CASES=1` only on a
+board/session with a stable active KMS framebuffer. Tune capture with
+`GST_KMS_CAPTURE_BUFFERS` and pass source properties such as
+`connector-id=... plane-id=... fb-id=...` through `GST_KMS_SRC_ARGS`.
 
 Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_fakesink`, `generated_dec_h264_dmabuf`,
@@ -479,7 +493,9 @@ scale paths and decoder-side BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output
 format paths. With `GST_ENABLE_DISPLAY_CASES=1`, diagnostics also include
 `gst_inspect_display_sink`, `generated_dec_h264_display_dmabuf`,
 `generated_dec_h265_display_dmabuf`, `generated_dec_h264_display_afbc`, and
-`generated_dec_h265_display_afbc`. Override with
+`generated_dec_h265_display_afbc`. With `GST_ENABLE_KMS_CASES=1`, diagnostics
+also include `gst_inspect_kmssrc`, `kms_capture_dmabuf_fakesink`,
+`kms_capture_dmabuf_encode_h264`, and `kms_capture_dmabuf_display`. Override with
 `GST_REQUIRED_CASES` or
 `GST_DIAGNOSTIC_CASES` for narrower hardware debugging, and tune dimensions with
 `GST_WIDTH`, `GST_HEIGHT`, `GST_UNALIGNED_HEIGHT`,
@@ -489,7 +505,9 @@ format paths. With `GST_ENABLE_DISPLAY_CASES=1`, diagnostics also include
 `GST_EVENT_TRIGGER_BUFFERS`, `GST_EVENT_POST_BUFFERS`,
 `GST_EVENT_TIMEOUT_MS`, `GST_EVENT_SLEEP_US`, `GST_STATE_LOOPS`,
 `GST_ENABLE_PARALLEL_CASES`, `GST_REQUIRE_PARALLEL_CASES`,
-`GST_ENABLE_FBC_CASES`, `GST_REQUIRE_FBC_CASES`, and `GST_TIMEOUT`.
+`GST_ENABLE_FBC_CASES`, `GST_REQUIRE_FBC_CASES`,
+`GST_ENABLE_KMS_CASES`, `GST_REQUIRE_KMS_CASES`,
+`GST_KMS_CAPTURE_BUFFERS`, `GST_KMS_SRC_ARGS`, and `GST_TIMEOUT`.
 By default `GST_CAPTURE_ARTIFACTS=1` makes generated and
 optional external-media decode/transcode cases write decoded raw buffers or
 encoded elementary streams under each run's `artifacts/` directory and records
@@ -515,7 +533,7 @@ logs.
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, and readable debugfs/dmesg for full logs; root is the simplest mode |
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
-| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, readable debugfs/dmesg for full logs; root is the simplest mode |
+| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. |
 | `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `ffmpeg-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, a staged `ffmpeg-rockchip` build via `FFDIR`, a software ffmpeg with `libx264`/`libx265` for generated inputs, and readable debugfs/dmesg for full logs; root is the simplest mode |
 | `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
@@ -528,7 +546,7 @@ logs.
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
 | `librga-suite.sh` | **official librga sample conformance** using `../rockchip-conformance/out/librga-samples/bin` | Runs the broad current Linux/RK3588 sample set under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails only required cases. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
-| `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, and optional external-media pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
+| `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, optional external-media pipelines, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 | `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs component inspection plus generated-input H.264->`scale_rkrga`->HEVC and HEVC->`scale_rkrga`->H.264 hardware transcodes under the selected `PROFILE`. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `ffmpeg-suite-compare.sh` | **rewrite-vs-forward-port ffmpeg-rockchip comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for encoded bitstream byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
@@ -590,7 +608,9 @@ were added; and after the GStreamer build wrapper, suite, comparator, opt-in
 display/DMABuf sink diagnostics, asset-free decoder roundtrip,
 generated-media decode/transcode, explicit flush-event, EOS-loop,
 generated-AFBC cases, and generated multi-stream diagnostics
-were added. It was re-run after the GStreamer generated-input cache,
+were added. It was re-run after the GStreamer KMS capture diagnostics were
+added for `kmssrc` DMABuf capture into MPP encode and display loopback; after
+the GStreamer generated-input cache,
 artifact-checksum comparator, and generated VP9 IVF decode cases were added.
 The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,

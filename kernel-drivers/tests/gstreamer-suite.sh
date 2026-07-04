@@ -38,6 +38,10 @@ GST_SCALE_HEIGHT=${GST_SCALE_HEIGHT:-144}
 GST_FRAMERATE=${GST_FRAMERATE:-30/1}
 GST_ENABLE_DISPLAY_CASES=${GST_ENABLE_DISPLAY_CASES:-0}
 GST_REQUIRE_DISPLAY_CASES=${GST_REQUIRE_DISPLAY_CASES:-0}
+GST_ENABLE_KMS_CASES=${GST_ENABLE_KMS_CASES:-0}
+GST_REQUIRE_KMS_CASES=${GST_REQUIRE_KMS_CASES:-0}
+GST_KMS_CAPTURE_BUFFERS=${GST_KMS_CAPTURE_BUFFERS:-8}
+GST_KMS_SRC_ARGS=${GST_KMS_SRC_ARGS:-}
 GST_ENABLE_VP9_CASES=${GST_ENABLE_VP9_CASES:-1}
 GST_REQUIRE_VP9_CASES=${GST_REQUIRE_VP9_CASES:-1}
 GST_ENABLE_PARALLEL_CASES=${GST_ENABLE_PARALLEL_CASES:-1}
@@ -226,6 +230,24 @@ $display_cases_default"
 	else
 		diagnostic_cases_default="$diagnostic_cases_default
 $display_cases_default"
+	fi
+fi
+
+kms_cases_default="
+gst_inspect_kmssrc
+kms_capture_dmabuf_fakesink
+kms_capture_dmabuf_encode_h264
+kms_capture_dmabuf_display
+"
+
+if [ "$GST_ENABLE_KMS_CASES" = "1" ] ||
+	[ "$GST_REQUIRE_KMS_CASES" = "1" ]; then
+	if [ "$GST_REQUIRE_KMS_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$kms_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$kms_cases_default"
 	fi
 fi
 
@@ -1018,6 +1040,47 @@ append_display_sink()
 	CMD+=(sync=false)
 }
 
+append_kmssrc()
+{
+	local -a source_args=()
+
+	CMD+=(
+		kmssrc
+		"num-buffers=$GST_KMS_CAPTURE_BUFFERS"
+		dma-feature=true
+		sync-fb=false
+		sync-vblank=false
+		framerate-limit=30
+	)
+	if [ -n "$GST_KMS_SRC_ARGS" ]; then
+		read -r -a source_args <<< "$GST_KMS_SRC_ARGS"
+		CMD+=("${source_args[@]}")
+	fi
+}
+
+build_kms_capture()
+{
+	CMD=(gst-launch-1.0 -q)
+	append_kmssrc
+	CMD+=("!" fakesink sync=false)
+}
+
+build_kms_capture_encode()
+{
+	local encoder=$1
+
+	CMD=(gst-launch-1.0 -q)
+	append_kmssrc
+	CMD+=("!" "$encoder" zero-copy-pkt=true "!" fakesink sync=false)
+}
+
+build_kms_capture_display()
+{
+	CMD=(gst-launch-1.0 -q)
+	append_kmssrc
+	append_display_sink
+}
+
 run_generated_display_decode()
 {
 	local codec=$1
@@ -1255,6 +1318,9 @@ build_case_command()
 	gst_inspect_display_sink)
 		CMD=(gst-inspect-1.0 "$GST_DISPLAY_SINK")
 		;;
+	gst_inspect_kmssrc)
+		CMD=(gst-inspect-1.0 kmssrc)
+		;;
 	enc_h264_nv12)
 		build_videotest_encode mpph264enc NV12 "$GST_NUM_BUFFERS" zero-copy-pkt=true
 		;;
@@ -1451,6 +1517,15 @@ build_case_command()
 		;;
 	generated_dec_h265_display_afbc)
 		CMD=(__builtin_generated_display_decode h265 afbc)
+		;;
+	kms_capture_dmabuf_fakesink)
+		build_kms_capture
+		;;
+	kms_capture_dmabuf_encode_h264)
+		build_kms_capture_encode mpph264enc
+		;;
+	kms_capture_dmabuf_display)
+		build_kms_capture_display
 		;;
 	caps_renegotiate_h264_nv12)
 		build_caps_renegotiate_encode mpph264enc
