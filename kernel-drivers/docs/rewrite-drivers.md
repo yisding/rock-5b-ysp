@@ -415,7 +415,8 @@ implementation (cross-reference:
   `gstreamer-event-harness`, generated H.264 crop-meta output,
   VP8/JPEG/VPx-alpha element visibility, the optional `vp8enc` alias from
   `GST_MPP_VP8ENC_FAKE_VP8ENC`, JPEG decoder explicit/default BGRx output
-  selection, generated VP9-to-H.264 transcode, and
+  selection, `GST_MPP_DEC_FBC_IS_RFBC=1` RFBC caps negotiation, generated
+  VP9-to-H.264 transcode, and
   a GStreamer-visible encoder-format matrix covering advertised direct MPP
   input formats I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444 plus
   RGA-forced encoder-side NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61

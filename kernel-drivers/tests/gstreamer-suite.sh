@@ -162,6 +162,7 @@ generated_dec_h264_rga_rgba_scale
 generated_dec_h264_rga_bgra_scale
 generated_dec_h264_rga_rgbx_scale
 generated_dec_h264_rga_bgrx_scale
+generated_dec_h264_env_rfbc
 enc_vp8_nv12
 enc_jpeg_nv12
 roundtrip_jpeg_nv12
@@ -1066,6 +1067,25 @@ run_generated_decode_env_fbc()
 	run_current_command
 }
 
+run_generated_decode_env_rfbc()
+{
+	local codec=$1
+
+	ensure_generated_input "$codec" || return $?
+	CMD=(
+		env
+		GST_MPP_DEC_FBC_IS_RFBC=1
+		gst-launch-1.0 -q
+		filesrc "location=$GENERATED_INPUT_PATH"
+		"!" "$GENERATED_PARSER"
+		"!" mppvideodec fbc=true
+	)
+	append_fake_sink
+	printf "decoding generated %s FBC input as RFBC with env override: " "$codec"
+	print_current_command
+	run_current_command
+}
+
 run_generated_renegotiate_decode()
 {
 	local codec=$1
@@ -1797,6 +1817,9 @@ build_case_command()
 	generated_dec_h264_env_arm_afbc)
 		CMD=(__builtin_generated_decode_env_fbc h264 GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC)
 		;;
+	generated_dec_h264_env_rfbc)
+		CMD=(__builtin_generated_decode_env_rfbc h264)
+		;;
 	generated_transcode_h264_afbc_to_h265)
 		CMD=(__builtin_generated_afbc_transcode h264 mpph265enc)
 		;;
@@ -2084,6 +2107,9 @@ run_case_payload()
 	generated_dec_h264_env_fbc | generated_dec_h264_env_arm_afbc)
 		run_generated_decode_env_fbc "${CMD[1]}" "${CMD[2]:-}"
 		;;
+	generated_dec_h264_env_rfbc)
+		run_generated_decode_env_rfbc "${CMD[1]}"
+		;;
 	generated_transcode_h264_afbc_to_h265 | \
 	generated_transcode_h265_afbc_to_h264 | \
 	generated_transcode_h264_env_arm_afbc_to_h265)
@@ -2178,7 +2204,7 @@ runtime_dispatch_validated()
 	generated_dec_h264_env_strict_props | \
 	generated_dec_h264_env_dmabuf | generated_dec_h264_env_no_rga | \
 	generated_dec_h264_env_format_nv21 | generated_dec_h264_env_fbc | \
-	generated_dec_h264_env_arm_afbc | \
+	generated_dec_h264_env_arm_afbc | generated_dec_h264_env_rfbc | \
 	generated_transcode_h264_afbc_to_h265 | \
 	generated_transcode_h265_afbc_to_h264 | \
 	generated_transcode_h264_env_arm_afbc_to_h265 | \

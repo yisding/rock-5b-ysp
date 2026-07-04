@@ -320,7 +320,8 @@ for encoder-side virtual-source conversion, decode-side fd-backed rotate/format
 conversion, and planar fallback, while `gstreamer-suite.sh` carries a diagnostic
 format matrix for advertised GStreamer encoder input formats, decoder output
 formats, the optional `GST_MPP_VP8ENC_FAKE_VP8ENC` VP8 alias, JPEG decoder
-explicit/default BGRx output selection, RGA conversions, and opt-in
+explicit/default BGRx output selection, `GST_MPP_DEC_FBC_IS_RFBC=1` RFBC caps
+negotiation, RGA conversions, and opt-in
 display/DMABuf sink cases against JeffyCN's
 `rkximagesink`. The GStreamer wrapper now also
 caches generated H.264/H.265 inputs under the shared conformance assets

@@ -347,6 +347,10 @@ SHA-256 comparison; the AFBC transcode cases record encoded bitstream
 artifacts. Set `GST_REQUIRE_FBC_CASES=0` to keep them diagnostic-only during
 bring-up, or `GST_ENABLE_FBC_CASES=0 GST_REQUIRE_FBC_CASES=0` to omit them from
 a narrow debug run.
+`generated_dec_h264_env_rfbc` is diagnostic-only coverage for
+`GST_MPP_DEC_FBC_IS_RFBC=1`; it forces `mppvideodec fbc=true` so JeffyCN's
+userspace caps path reports RFBC instead of ARM AFBC for an otherwise FBC
+frame. It records pass/fail negotiation behavior, not a raw-pixel artifact.
 The strict decoder-property cases set `fast-mode=false` and
 `ignore-error=false`, covering the current plugin path that changes
 `MPP_DEC_SET_PARSER_FAST_MODE` and skips the default `MPP_DEC_SET_DISABLE_ERROR`
@@ -478,6 +482,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h264_env_format_nv21`, `generated_dec_h264_env_no_rga`,
 `generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`,
 `generated_dec_h264_env_fbc`, `generated_dec_h264_env_arm_afbc`,
+`generated_dec_h264_env_rfbc`,
 `generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
@@ -641,7 +646,9 @@ forward-port-vs-rewrite conformance gate with encoded-bitstream artifacts; after
 GStreamer AFBC/FBC fakesink decode-output coverage; after generated GStreamer
 AFBC/FBC fakesink decode-output cases were promoted to required pass/fail
 coverage and generated AFBC decode-to-encode transcodes were added with
-encoded-artifact comparison; after the GStreamer codec-specific encoder QP
+encoded-artifact comparison; after diagnostic
+`GST_MPP_DEC_FBC_IS_RFBC=1` coverage was added for JeffyCN's RFBC caps path;
+after the GStreamer codec-specific encoder QP
 cases and encoded
 CBR/FIXQP RC-mode artifact cases were added to the required set and the
 decoder crop-meta case was added as diagnostic
