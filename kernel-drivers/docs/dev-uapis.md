@@ -137,6 +137,14 @@ The kernel `fdget`s the target session and flips the active `msgs->session`
 (`mpp_common.c` ~:1542). It's how libmpp drives multiple codec contexts through a
 single syscall.
 
+Current libmpp's batch server also builds a **wait array** as repeated
+`SET_SESSION_FD` + `POLL_HW_FINISH|POLL_NON_BLOCK|LAST_MSG` pairs, one pair per
+pending task slot. The rewrite driver treats `LAST_MSG` as a per-slot delimiter
+only for that recognized layout: it infers the wait-array capacity from the
+first `SET_SESSION_FD.data_ptr`, continues through valid next slots, stops at a
+fresh zeroed unused slot, and skips stale completed slots whose `mpp_bat_msg.flag`
+has `MPP_BAT_MSG_DONE`. Generic MPP batches still stop at `LAST_MSG`.
+
 ### The flow
 
 ```mermaid
