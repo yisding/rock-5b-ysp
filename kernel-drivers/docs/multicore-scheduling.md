@@ -207,11 +207,13 @@ silicon: SOFT = CPU owns dispatch (maps onto mem2mem); HARD = CCU owns dispatch
    divergence, remaining test-coverage gap, and validation/fuzz plan.
 2. **Mainline's multicore series is already doing SOFT — without the CCU.** The
    vendor's `rkvdec2_attach_ccu` shares the IOMMU domain by attaching non-main
-   cores to the main core's domain (`if core_id != 0 → attach main domain`); that
-   single trick **is** the Collabora series' "multicore IOMMU support" patch, done
-   in the V4L2 driver. For **independent-stream** parallelism the CCU's
-   coordination registers are optional — so mainline needs no CCU for the common
-   case, which is why the Collabora series never mentions it.
+   cores to the main core's domain (`if core_id != 0 → attach main domain`). The
+   Collabora series does the same high-level thing more explicitly in the V4L2
+   driver: every core has its own Rockchip IOMMU hardware, but the cluster uses
+   the first core's default domain as one shared IOVA address space. For
+   **independent-stream** parallelism the CCU's coordination registers are
+   optional — so mainline needs no CCU for the common case, which is why the
+   Collabora series never mentions it.
 
 **Corollary (revised after tracing HARD mode — see § 7a blockquote):** the CCU does
 **not** unlock single-stream-across-cores. HARD mode load-balances *whole-frame
@@ -228,9 +230,12 @@ parallelism model.
 > **Corruption footnote.** The "running two cores concurrently corrupts memory"
 > claim (earlier Collabora framing) is best read as an **IOMMU/IOVA** problem —
 > the dedicated multicore-IOMMU patch is the fix, and there is **no** CCU/cache-
-> coherency patch in the mainline series. So distinct per-core IOVAs, not the CCU,
-> are what make independent-stream concurrency safe. (This is inference from the
-> patch shape, not a line-verified mechanism.)
+> coherency patch in the mainline series. The correction from the full thread is
+> that the fix is **not** distinct per-core IOVA spaces: it is one shared domain,
+> seeded from the first core's default DMA domain, attached to all per-core
+> Rockchip IOMMUs so maps and TLB flushes reach every core. The RKMPP forward-port
+> needs the same model, but as explicit CCU-owned state; see
+> [mpp-ccu-iommu-plan.md](./mpp-ccu-iommu-plan.md).
 
 ---
 

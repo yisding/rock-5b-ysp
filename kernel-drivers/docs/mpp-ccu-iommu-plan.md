@@ -1,0 +1,292 @@
+# MPP CCU IOMMU/MMU plan
+
+This is the design note for the net-new MMU work needed after the 6.18
+forward-port. The current forward-port keeps the BSP's multicore CCU idea mostly
+intact, but its IOMMU implementation is still too implicit: secondary cores borrow
+the main core's domain by rewriting per-core `mpp_iommu_info` fields. That mirrors
+the BSP, but it is not a clean ownership model for mainline IOMMU semantics.
+
+The goal is to keep the useful part of the BSP design while making the address
+space explicit and auditable.
+
+## Correct model
+
+The upstream RK3588 rkvdec multicore discussion clarifies the intended shape:
+
+- each hardware core has its own Rockchip IOMMU block;
+- the multicore cluster uses one shared IOVA address space;
+- the shared address space is the first/main core's default DMA domain;
+- every participating core's IOMMU device is attached to that domain;
+- map/unmap/TLB flush operations then reach all IOMMU blocks attached to the
+  domain through the Rockchip provider's per-domain IOMMU list.
+
+That is not "one independent address space per core". It is:
+
+```text
+decoder cluster:
+  decoder core0 IOMMU \
+  decoder core1 IOMMU  -> one decoder domain / one decoder IOVA space
+
+encoder cluster:
+  encoder core0 IOMMU \
+  encoder core1 IOMMU  -> one encoder domain / one encoder IOVA space
+```
+
+The encoder and decoder clusters must not share a domain with each other. Their
+internal fixed IOVA windows may collide, they have separate schedulers, and they
+are separate hardware fault/recovery domains.
+
+The correctness invariant is simple:
+
+> Every DMA/IOVA value programmed into a core must be valid in the domain attached
+> to that core's IOMMU at the time the core runs.
+
+For CCU scheduling, one task may be dispatched to either core, so all participating
+cores need the same task-visible mappings. A cluster-wide shared domain satisfies
+that invariant without remapping buffers per dispatch.
+
+## Why the first core's default domain
+
+The first/main core's default DMA domain is not arbitrary. MPP sessions and
+dma-buf imports use the DMA API. In the V4L2 upstream discussion, VB2 allocates
+and maps through the device's DMA domain, so the shared cluster domain must be the
+domain the DMA API is already populating. RKMPP has the same practical constraint:
+`mpp_dma_session_create()` stores the device used for later `dma_buf_attach()` and
+`dma_buf_map_attachment()` calls.
+
+Current CCU registration already lines up with this:
+
+- RKVDEC2 CCU registers only core 0 with the MPP service.
+- RKVENC2 CCU registers the selected `main_core` with the MPP service.
+- User sessions therefore allocate/import DMA buffers through the service-visible
+  main core device.
+
+The MMU work should preserve that. If a future change allows userspace sessions to
+originate from a secondary core, session DMA creation must be redirected to the
+cluster's main/global device, or the IOVAs may be allocated in the wrong default
+domain before the core is attached to the shared domain.
+
+## Current forward-port state
+
+The present worktrees have safety fixes around the BSP mechanism, but they have
+not yet replaced it with an explicit cluster-owned object.
+
+Decoder (`mpp_rkvdec2_link.c`):
+
+- `rkvdec2_attach_ccu()` waits for core 0 and then assigns the secondary core's
+  `cur_info->domain = queue->cores[0]->iommu_info->domain`.
+- attach failure is now checked and the local mutation is rolled back.
+- the decoder path still does not share the main core's `rw_sem`, so mapping,
+  unmapping, reset, and refresh serialization is not as strong as the encoder.
+
+Encoder (`mpp_rkvenc2.c`):
+
+- `rkvenc_attach_ccu()` records the first attached core as `ccu->main_core`.
+- secondary cores copy both `domain` and `rw_sem` from the main core before
+  attaching their group.
+- late probe failure and remove now unwind CCU list/main-core bookkeeping, but the
+  shared domain still exists only as borrowed per-core fields.
+
+Provider (`drivers/iommu/rockchip-iommu.c`):
+
+- the mainline Rockchip provider already has `struct rk_iommu_domain::iommus`;
+- attach adds the hardware IOMMU to that domain list;
+- `flush_iotlb_all()` and range zaps iterate the domain's IOMMU list.
+
+That means the likely answer is **use mainline's Rockchip IOMMU provider with a
+small MPP/CCU shim**, not a wholesale BSP IOMMU forward-port.
+
+## Proposed implementation layout
+
+### 1. Add an explicit shared-domain helper in MPP
+
+Add a small helper layer around `struct mpp_iommu_info` instead of letting codec
+drivers open-code field swaps.
+
+Expected shape:
+
+```c
+struct mpp_iommu_shared_domain {
+        struct mpp_iommu_info *owner;
+        struct iommu_domain *domain;
+        struct rw_semaphore *rw_sem;
+};
+```
+
+The helper should provide operations along these lines:
+
+- initialize from the main core's `mpp_iommu_info`;
+- bind a secondary `mpp_iommu_info` to the shared domain;
+- attach the secondary's IOMMU group/device to the shared domain;
+- roll back the local binding if attach fails;
+- expose a single place for future assertions/logging.
+
+The helper should set both `domain` and `rw_sem`. Decoder needs to be brought up
+to the encoder's serialization level.
+
+### 2. Give each CCU explicit domain state
+
+Add domain state to the CCU structs, not to arbitrary secondary-core fields.
+
+Decoder:
+
+```c
+struct rkvdec2_ccu {
+        ...
+        struct mpp_iommu_shared_domain iommu;
+};
+```
+
+Encoder:
+
+```c
+struct rkvenc_ccu {
+        ...
+        struct mpp_dev *main_core;
+        struct mpp_iommu_shared_domain iommu;
+};
+```
+
+For RKVDEC2 the owner should be core 0, because the service registration already
+requires `core_id == 0`. For RKVENC2 the owner should be `ccu->main_core`, because
+that is the service-visible core.
+
+### 3. Convert decoder attach
+
+`rkvdec2_attach_ccu()` should become:
+
+1. find the CCU;
+2. read `rockchip,core-mask`;
+3. if this is core 0, initialize the CCU shared-domain object from core 0;
+4. if this is a secondary core, wait for the shared-domain owner and bind through
+   the helper;
+5. attach the secondary IOMMU to the shared domain;
+6. only publish `dec->ccu` after all IOMMU work succeeds.
+
+This removes the local domain pointer swap from the codec driver and makes the
+failure path uniform.
+
+### 4. Convert encoder attach
+
+`rkvenc_attach_ccu()` should follow the same pattern:
+
+1. first attached core becomes `ccu->main_core` and initializes the shared-domain
+   object;
+2. secondary cores bind through the helper;
+3. message capacity bookkeeping happens only after IOMMU attach succeeds;
+4. detach/unwind uses a matching helper path.
+
+The encoder currently gets closer than decoder because it already shares `rw_sem`.
+The conversion should preserve that behavior while making the domain owner
+explicit.
+
+### 5. Make RCB/SRAM mappings intentionally cluster-domain mappings
+
+Both RKVDEC2 and RKVENC2 map fixed RCB/SRAM windows with `iommu_map()` after CCU
+attach. That is correct only if those maps are made in the shared cluster domain.
+
+Implementation requirements:
+
+- keep mapping RCB/SRAM after the core is bound to the CCU domain;
+- reject or warn loudly on overlapping fixed IOVA windows inside one cluster;
+- keep decoder and encoder fixed windows in separate domains;
+- unmap from the same domain used for map;
+- document the Rock 5B layout: decoder uses distinct `0xFFF00000` and
+  `0xFFE00000` windows.
+
+Do not try to solve per-core SRAM by giving each core a separate task-visible
+IOVA space. The task register programming assumes the selected core can consume
+the same IOVA namespace as the rest of the CCU-visible task.
+
+### 6. Make reset/refresh paths domain-explicit
+
+The dangerous failure mode is a secondary core returning to its own default domain
+after reset, detach, identity attach, or empty-domain restore. The restore path
+must always end in the CCU shared domain for CCU cores.
+
+Work items:
+
+- audit `mpp_iommu_attach()`, `mpp_iommu_refresh()`, `mpp_dev_reset()`, and the
+  RKVDEC2 link/CCU reset paths;
+- add assertions or warnings when a CCU-bound core's current domain is not the
+  CCU domain;
+- avoid relying on `iommu_get_domain_for_dev(dev)` as proof that the attached
+  domain is correct for secondary CCU cores;
+- keep the provider-local Rockchip refresh helpers, because MPP needs to disable,
+  re-enable, and flush the hardware IOMMU without assuming BSP-private APIs.
+
+### 7. Keep fault handling per hardware core
+
+Once a cluster shares one domain, the domain alone no longer identifies the
+faulting core. Fault handlers must route by `iommu_dev` or provider token.
+
+RKVDEC2 already has CCU fault matching by IOMMU device. Preserve that pattern and
+ensure encoder diagnostics also report the concrete core that faulted.
+
+Expected behavior on fault:
+
+- mask the faulting IOMMU IRQ;
+- dump the task and the selected/faulting core;
+- let the task timeout/reset path recover;
+- refresh/re-attach the shared domain before accepting more work.
+
+### 8. Keep AV1/VSI separate
+
+The RKMPP AV1 path is not part of the RKVDEC2/RKVENC2 Rockchip-IOMMU CCU cluster.
+AV1 uses the VSI/AV1D IOMMU provider and needs its own refresh/fault hooks. Do not
+mix VSI devices into the encoder or RKVDEC2 shared domains.
+
+## Patch plan
+
+A reviewable series should be split roughly like this:
+
+1. **Docs/assertions only:** add comments and debug prints naming the current BSP
+   borrowed-domain behavior; no functional change.
+2. **MPP helper:** add `mpp_iommu_shared_domain` helpers and unit-level error
+   handling; convert no codecs yet.
+3. **RKVDEC2 conversion:** move decoder CCU attach to the helper and share
+   `rw_sem`; keep behavior otherwise unchanged.
+4. **RKVENC2 conversion:** move encoder CCU attach/detach to the helper; preserve
+   `msgs_cap` behavior.
+5. **RCB/SRAM hardening:** validate fixed IOVA windows and ensure map/unmap always
+   use the cluster domain.
+6. **Reset/fault hardening:** add domain assertions around reset/refresh and improve
+   fault-core attribution.
+7. **Validation docs:** record build, DTB, boot, parallel workload, and fault-inject
+   results.
+
+This keeps each step bisectable. The helper can land before codec conversion, and
+each codec conversion should leave single-core behavior unchanged.
+
+## Validation matrix
+
+Minimum pre-merge checks:
+
+| Check | Expected result |
+|-------|-----------------|
+| Focused arm64 build | `drivers/iommu/rockchip-iommu.o` and `drivers/video/rockchip/mpp/` build cleanly. |
+| `git diff --check` | no whitespace errors. |
+| DTB build | Rock 5B DTB still builds with encoder/decoder CCU, IOMMU, aliases, and RCB windows. |
+| Boot probe log | encoder and decoder cores attach to their CCU domains; only service-visible main cores register `/dev/mpp_service`. |
+| Parallel decode | two independent H.264/H.265 decode jobs can run without IOMMU faults. |
+| Parallel encode | two independent encode jobs can run without IOMMU faults. |
+| Fault injection | bad/unmapped IOVA faults report the faulting core and recover or fail the task cleanly. |
+| Reset stress | forced timeout/reset does not leave secondary cores attached to their private default domains. |
+| Suspend/runtime PM smoke | if exercised, resume re-enables the shared domain on all participating IOMMUs. |
+
+Nice-to-have checks after the minimum matrix:
+
+- HARD CCU opt-in decode stress;
+- repeated open/close while secondary cores probe/defer;
+- remove/unbind of a secondary core after the cluster has accepted sessions;
+- kmemleak or lockdep runs around attach/detach and reset paths.
+
+## Non-goals
+
+- Do not forward-port the BSP Rockchip IOMMU provider wholesale.
+- Do not create one domain shared by encoder, decoder, RGA, and AV1.
+- Do not change the userspace ABI or expose one userspace device per hardware
+  core.
+- Do not use HARD CCU as part of this MMU fix; HARD remains a separate scheduling
+  validation problem.
+

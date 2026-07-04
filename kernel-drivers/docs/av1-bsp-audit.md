@@ -5,6 +5,10 @@ MPP backend into the experimental 6.18 worktree. It is the AV1-specific
 companion to [the main BSP audit](./bsp-audit.md), which covers the validated
 RKVENC2/RKVDEC2/RGA forward-port.
 
+Port-only issues found after the BSP audit, such as VSI provider lookup,
+fault-masking, and reset-unwind bugs introduced by the 6.18 integration, are
+tracked separately in [the forward-port review log](./forward-port-review-log.md).
+
 > **Status:** these fixes currently live in the experimental AV1 worktree. They
 > are not yet packaged as a YSP split patch series, and they have not had the
 > same runtime gate as the validated encoder/decoder work.
