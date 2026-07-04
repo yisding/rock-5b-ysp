@@ -1,0 +1,39 @@
+From 68aa084adabe6beaae76ff1f8396b7c083abb70c Mon Sep 17 00:00:00 2001
+From: Nyanmisaka <nst799610810@gmail.com>
+Date: Fri, 8 Dec 2023 17:25:36 +0800
+Subject: [PATCH 3/7] normal: add 10bit compact and endian mode support
+
+Signed-off-by: nyanmisaka <nst799610810@gmail.com>
+(cherry picked from commit dce1e7cc787f8fc13a6e39600caac94369c5c229)
+---
+ core/NormalRga.cpp | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/core/NormalRga.cpp b/core/NormalRga.cpp
+index 74f8a68..2db98f5 100644
+--- a/core/NormalRga.cpp
++++ b/core/NormalRga.cpp
+@@ -1453,6 +1453,20 @@ int RgaBlit(rga_info *src, rga_info *dst, rga_info *src1) {
+     if (src1)
+         rgaReg.pat.rd_mode = src1->rd_mode ? src1->rd_mode : raster_mode;
+ 
++    /* rga3 is_10b_compact and is_10b_endian */
++    if (rgaReg.src.rd_mode == raster_mode) {
++        rgaReg.src.is_10b_compact = !!src->is_10b_compact;
++        rgaReg.src.is_10b_endian  = !!src->is_10b_endian;
++    }
++    if (rgaReg.dst.rd_mode == raster_mode || rgaReg.dst.rd_mode == tile_mode) {
++        rgaReg.dst.is_10b_compact = !!dst->is_10b_compact;
++        rgaReg.dst.is_10b_endian  = !!dst->is_10b_endian;
++    }
++    if (src1 && rgaReg.pat.rd_mode == raster_mode) {
++        rgaReg.pat.is_10b_compact = !!src1->is_10b_compact;
++        rgaReg.pat.is_10b_endian  = !!src1->is_10b_endian;
++    }
++
+     rgaReg.in_fence_fd = dst->in_fence_fd;
+     rgaReg.core = dst->core;
+     rgaReg.priority = dst->priority;
+-- 
+2.53.0
+

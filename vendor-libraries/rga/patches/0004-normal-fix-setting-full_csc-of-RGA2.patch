@@ -1,0 +1,68 @@
+From eee477450c82904886020f458f0352071cb8db09 Mon Sep 17 00:00:00 2001
+From: nyanmisaka <nst799610810@gmail.com>
+Date: Sun, 1 Jun 2025 21:20:40 +0800
+Subject: [PATCH 4/7] normal: fix setting full_csc of RGA2
+
+Signed-off-by: nyanmisaka <nst799610810@gmail.com>
+(cherry picked from commit 571a880951583a3b2a04e7e1fa900861653befde)
+---
+ core/NormalRga.cpp | 22 ++++++++++++----------
+ include/RgaApi.h   |  2 ++
+ 2 files changed, 14 insertions(+), 10 deletions(-)
+
+diff --git a/core/NormalRga.cpp b/core/NormalRga.cpp
+index 2db98f5..5584a32 100644
+--- a/core/NormalRga.cpp
++++ b/core/NormalRga.cpp
+@@ -1321,16 +1321,7 @@ int RgaBlit(rga_info *src, rga_info *dst, rga_info *src1) {
+     if (src1)
+         NormalRgaSetPatActiveInfo(&rgaReg, src1ActW, src1ActH, src1XPos, src1YPos);
+ 
+-    if (dst->color_space_mode & full_csc_mask) {
+-        ret = NormalRgaFullColorSpaceConvert(&rgaReg, dst->color_space_mode);
+-        if (ret < 0) {
+-            ALOGE("Not support full csc mode [%x]\n", dst->color_space_mode);
+-            return -EINVAL;
+-        }
+-
+-        if (dst->color_space_mode == rgb2yuv_709_limit)
+-            yuvToRgbMode |= 0x3 << 2;
+-    } else {
++    {
+         if (src1) {
+             /* special config for yuv + rgb => rgb */
+             /* src0 y2r, src1 bupass, dst bupass */
+@@ -1370,6 +1361,17 @@ int RgaBlit(rga_info *src, rga_info *dst, rga_info *src1) {
+             yuvToRgbMode = dst->color_space_mode;
+     }
+ 
++    if (dst->color_space_mode & full_csc_mask) {
++        ret = NormalRgaFullColorSpaceConvert(&rgaReg, dst->color_space_mode & full_csc_mask);
++        if (ret < 0) {
++            ALOGE("Not support full csc mode [%x]\n", dst->color_space_mode & full_csc_mask);
++            return -EINVAL;
++        }
++
++        if (dst->color_space_mode == rgb2yuv_709_limit)
++            yuvToRgbMode |= 0x3 << 2;
++    }
++
+     /* mode
+      * interp:set different algorithm to scale.
+      * rotateMode:rotation mode
+diff --git a/include/RgaApi.h b/include/RgaApi.h
+index b0049f7..0cb0624 100644
+--- a/include/RgaApi.h
++++ b/include/RgaApi.h
+@@ -33,6 +33,8 @@
+ #include "drmrga.h"
+ #include "rga.h"
+ 
++#define RGA_NORMAL_DST_FULL_CSC_FIXUP 1
++
+ #ifdef __cplusplus
+ extern "C"{
+ #endif
+-- 
+2.53.0
+

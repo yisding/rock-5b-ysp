@@ -1,0 +1,196 @@
+From 1dbf1b23ed24bba98d9e999eb24e028b6b7ebc16 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Fri, 3 Jul 2026 19:14:26 -0700
+Subject: [PATCH 6/7] normal: harden legacy 10-bit request handling
+
+---
+ core/NormalRga.cpp | 116 +++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 102 insertions(+), 14 deletions(-)
+
+diff --git a/core/NormalRga.cpp b/core/NormalRga.cpp
+index c425e0e..bc82b10 100644
+--- a/core/NormalRga.cpp
++++ b/core/NormalRga.cpp
+@@ -64,6 +64,64 @@ static void rga_set_driver_feature(struct rgaContext *ctx) {
+         ctx->driver_feature |= RGA_DRIVER_FEATURE_USER_CLOSE_FENCE;
+ }
+ 
++static inline void NormalRgaSet10BitMode(rga_img_info_t *img, rga_info *info, int allow_tile_mode) {
++    if (!img || !info)
++        return;
++
++    if (img->rd_mode == raster_mode || (allow_tile_mode && img->rd_mode == tile_mode)) {
++        img->is_10b_compact = !!info->is_10b_compact;
++        img->is_10b_endian = !!info->is_10b_endian;
++    }
++}
++
++static inline int NormalRgaIs10BitYuvFormat(uint32_t format) {
++    switch (format) {
++        case RK_FORMAT_YCbCr_420_SP_10B:
++        case RK_FORMAT_YCrCb_420_SP_10B:
++        case RK_FORMAT_YCbCr_422_SP_10B:
++        case RK_FORMAT_YCrCb_422_SP_10B:
++        case RK_FORMAT_YCbCr_420_SP_10B >> 8:
++        case RK_FORMAT_YCrCb_420_SP_10B >> 8:
++        case RK_FORMAT_YCbCr_422_SP_10B >> 8:
++        case RK_FORMAT_YCrCb_422_SP_10B >> 8:
++            return 1;
++        default:
++            return 0;
++    }
++}
++
++static int NormalRgaCheckRga2CompatImage(const char *name, const rga_img_info_t *img) {
++    if (!img)
++        return 0;
++
++    if (img->rd_mode != raster_mode) {
++        ALOGE("RGA2 compatibility path does not support %s rd_mode[%u].", name, img->rd_mode);
++        return -EINVAL;
++    }
++
++    if (NormalRgaIs10BitYuvFormat(img->format) && (img->is_10b_compact || img->is_10b_endian)) {
++        ALOGE("RGA2 compatibility path does not support %s padded/incompact 10-bit format[0x%x] compact[%u] endian[%u].",
++              name, img->format, img->is_10b_compact, img->is_10b_endian);
++        return -EINVAL;
++    }
++
++    return 0;
++}
++
++static int NormalRgaCheckRga2Compatibility(const rga_img_info_t *src,
++                                           const rga_img_info_t *dst,
++                                           const rga_img_info_t *pat) {
++    int ret = NormalRgaCheckRga2CompatImage("src", src);
++    if (ret)
++        return ret;
++
++    ret = NormalRgaCheckRga2CompatImage("dst", dst);
++    if (ret)
++        return ret;
++
++    return NormalRgaCheckRga2CompatImage("pat", pat);
++}
++
+ int NormalRgaOpen(void **context) {
+     struct rgaContext *ctx = NULL;
+     int fd = -1;
+@@ -1469,18 +1527,9 @@ int RgaBlit(rga_info *src, rga_info *dst, rga_info *src1) {
+         rgaReg.pat.rd_mode = src1->rd_mode ? src1->rd_mode : raster_mode;
+ 
+     /* rga3 is_10b_compact and is_10b_endian */
+-    if (rgaReg.src.rd_mode == raster_mode) {
+-        rgaReg.src.is_10b_compact = !!src->is_10b_compact;
+-        rgaReg.src.is_10b_endian  = !!src->is_10b_endian;
+-    }
+-    if (rgaReg.dst.rd_mode == raster_mode || rgaReg.dst.rd_mode == tile_mode) {
+-        rgaReg.dst.is_10b_compact = !!dst->is_10b_compact;
+-        rgaReg.dst.is_10b_endian  = !!dst->is_10b_endian;
+-    }
+-    if (src1 && rgaReg.pat.rd_mode == raster_mode) {
+-        rgaReg.pat.is_10b_compact = !!src1->is_10b_compact;
+-        rgaReg.pat.is_10b_endian  = !!src1->is_10b_endian;
+-    }
++    NormalRgaSet10BitMode(&rgaReg.src, src, 0);
++    NormalRgaSet10BitMode(&rgaReg.dst, dst, 1);
++    NormalRgaSet10BitMode(&rgaReg.pat, src1, 0);
+ 
+     rgaReg.in_fence_fd = dst->in_fence_fd;
+     rgaReg.core = dst->core;
+@@ -1490,6 +1539,12 @@ int RgaBlit(rga_info *src, rga_info *dst, rga_info *src1) {
+         case RGA_DRIVER_IOC_RGA2:
+             rga2_req compat_req;
+ 
++            ret = NormalRgaCheckRga2Compatibility(src ? &rgaReg.src : NULL,
++                                                  dst ? &rgaReg.dst : NULL,
++                                                  src1 ? &rgaReg.pat : NULL);
++            if (ret)
++                return ret;
++
+             memset(&compat_req, 0x0, sizeof(compat_req));
+             NormalRgaCompatModeConvertRga2(&compat_req, &rgaReg);
+ 
+@@ -1769,6 +1824,9 @@ int RgaCollorFill(rga_info *dst) {
+     /* If rd_mode is not configured, raster mode is executed by default. */
+     rgaReg.dst.rd_mode = dst->rd_mode ? dst->rd_mode : raster_mode;
+ 
++    /* rga3 is_10b_compact and is_10b_endian */
++    NormalRgaSet10BitMode(&rgaReg.dst, dst, 1);
++
+     rgaReg.in_fence_fd = dst->in_fence_fd;
+     rgaReg.core = dst->core;
+     rgaReg.priority = dst->priority;
+@@ -1777,6 +1835,10 @@ int RgaCollorFill(rga_info *dst) {
+         case RGA_DRIVER_IOC_RGA2:
+             rga2_req compat_req;
+ 
++            ret = NormalRgaCheckRga2Compatibility(NULL, dst ? &rgaReg.dst : NULL, NULL);
++            if (ret)
++                return ret;
++
+             memset(&compat_req, 0x0, sizeof(compat_req));
+             NormalRgaCompatModeConvertRga2(&compat_req, &rgaReg);
+ 
+@@ -2378,15 +2440,35 @@ int RgaCollorPalette(rga_info *src, rga_info *dst, rga_info *lut) {
+     if (lut)
+         rgaReg.pat.rd_mode = lut->rd_mode ? lut->rd_mode : raster_mode;
+ 
++    /* rga3 is_10b_compact and is_10b_endian */
++    NormalRgaSet10BitMode(&rgaReg.src, src, 0);
++    NormalRgaSet10BitMode(&rgaReg.dst, dst, 1);
++    NormalRgaSet10BitMode(&rgaReg.pat, lut, 0);
++
+     rgaReg.in_fence_fd = dst->in_fence_fd;
+     rgaReg.core = dst->core;
+     rgaReg.priority = dst->priority;
+ 
+     if (!(lutFd == -1 && lutBuf == NULL)) {
++        void *update_req = &rgaReg;
++        rga2_req update_compat_req;
++
+         rgaReg.fading.g = 0xff;
+         rgaReg.render_mode = update_palette_table_mode;
+ 
+-        if(ioctl(ctx->rgaFd, RGA_BLIT_SYNC, &rgaReg) != 0) {
++        if (ctx->driver == RGA_DRIVER_IOC_RGA2) {
++            ret = NormalRgaCheckRga2Compatibility(src ? &rgaReg.src : NULL,
++                                                  dst ? &rgaReg.dst : NULL,
++                                                  lut ? &rgaReg.pat : NULL);
++            if (ret)
++                return ret;
++
++            memset(&update_compat_req, 0x0, sizeof(update_compat_req));
++            NormalRgaCompatModeConvertRga2(&update_compat_req, &rgaReg);
++            update_req = &update_compat_req;
++        }
++
++        if(ioctl(ctx->rgaFd, RGA_BLIT_SYNC, update_req) != 0) {
+             printf("update palette table mode ioctl err\n");
+             return -1;
+         }
+@@ -2400,6 +2482,12 @@ int RgaCollorPalette(rga_info *src, rga_info *dst, rga_info *lut) {
+ 
+     switch (ctx->driver) {
+         case RGA_DRIVER_IOC_RGA2:
++            ret = NormalRgaCheckRga2Compatibility(src ? &rgaReg.src : NULL,
++                                                  dst ? &rgaReg.dst : NULL,
++                                                  lut ? &rgaReg.pat : NULL);
++            if (ret)
++                return ret;
++
+             memset(&compat_req, 0x0, sizeof(compat_req));
+             NormalRgaCompatModeConvertRga2(&compat_req, &rgaReg);
+ 
+@@ -2416,7 +2504,7 @@ int RgaCollorPalette(rga_info *src, rga_info *dst, rga_info *lut) {
+     }
+ 
+     do {
+-        ret = ioctl(ctx->rgaFd, RGA_BLIT_SYNC, &ioc_req);
++        ret = ioctl(ctx->rgaFd, RGA_BLIT_SYNC, ioc_req);
+     } while (ret == -1 && (errno == EINTR || errno == 512));   /* ERESTARTSYS is 512. */
+     if(ret) {
+         printf(" %s(%d) RGA_COLOR_PALETTE fail: %s\n",__FUNCTION__, __LINE__,strerror(errno));
+-- 
+2.53.0
+

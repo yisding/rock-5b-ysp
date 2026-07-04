@@ -13,5 +13,5 @@
 - **buffer import** — wrapping a dma-buf fd or a virtual-address buffer into an RGA
   handle.
 - **core profile** — librga's per-request choice of RGA core/format path.
-- **librga-src** — the dev-box patched tree (`github.com/yisding/librga` @ `a632217`)
-  holding the un-exported P010/P210 fix (a status.md single-point-of-failure).
+- **librga-src** — the dev-box patched tree (`github.com/yisding/librga` @ `a632217`);
+  its P010/P210 fix is exported in [`patches/`](patches/).

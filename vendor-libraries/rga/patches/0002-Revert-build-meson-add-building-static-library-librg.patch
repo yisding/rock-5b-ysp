@@ -1,0 +1,36 @@
+From a4db07b87f0c6752f8df8b36ebd38af44f553d39 Mon Sep 17 00:00:00 2001
+From: nyanmisaka <nst799610810@gmail.com>
+Date: Thu, 19 Sep 2024 03:56:01 +0800
+Subject: [PATCH 2/7] Revert "build: meson: add building static library
+ librga.a"
+
+This reverts commit 58f2fb3f9e04feb9900f1bc14db8a5867ab6a72d.
+
+(cherry picked from commit c7a7e95f001aa0d3a2e73f75300e54be93cdc159)
+---
+ meson.build | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/meson.build b/meson.build
+index 9cd0003..e357e46 100644
+--- a/meson.build
++++ b/meson.build
+@@ -52,15 +52,6 @@ librga = shared_library(
+     install : true,
+ )
+ 
+-librga = static_library(
+-    'rga',
+-    librga_srcs,
+-    dependencies : [libthreads_dep],
+-    include_directories : incdir,
+-    cpp_args : ['-w'],
+-    install : true,
+-)
+-
+ install_headers(
+     'include/rga.h',
+     'include/drmrga.h',
+-- 
+2.53.0
+
