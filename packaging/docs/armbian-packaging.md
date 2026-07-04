@@ -44,7 +44,9 @@ Armbian updates `media-0001`. Rejected as the final form.
 > same-basename patches **last-write-wins with core appended *after*
 > userpatches** — so a same-name userpatch override does **not** shadow a core
 > patch (core wins). This is the *opposite* of the old bash `patching.sh`. So you
-> can't neutralize `media-0001` with a same-named empty userpatch.
+> can't neutralize `media-0001` with a same-named empty userpatch. Full mechanism,
+> the (broken) documented empty-file method, the ~2-line fix to restore it, and why
+> series branches differ: [`armbian-patch-precedence.md`](./armbian-patch-precedence.md).
 
 ## Attempt 2 — delete-and-replace via `/delete-node/`. Collision hell.
 
@@ -119,19 +121,55 @@ probes. That is exactly why the vanilla/inline form (`vanilla-kernel.md`) must s
 (`rockchip,disable-mmu-reset` + `status`); the `vdecN_sram` pools are reused with
 no delta at all.
 
-### Three forms of the same node
+### Four forms of the same node
 
-The decoder core appears in **three shapes** across these docs — same hardware,
+The decoder core appears in **four shapes** across these docs — same hardware,
 different packaging:
 
 | Form | Where | Looks like | Caveat |
 |------|-------|-----------|--------|
 | **Overlay alias** | `device-tree.md` | a fragment that re-aliases the cores | overlay aliases resolve to the fragment-internal path, so `of_alias_get_id` fails — why we went built-in |
-| **Convert-in-place** | `armbian-packaging.md` (this doc) | `&vdec0 { … }` retype of `media-0001`'s node | inherits `interrupts`/`iommus`/`power-domains` — Armbian-only |
+| **Convert-in-place** | `armbian-packaging.md` (this doc) | `&vdec0 { … }` retype of `media-0001`'s node | inherits `interrupts`/`iommus`/`power-domains` — Armbian-only; **needs `media-0001` present** |
 | **Inline** | `vanilla-kernel.md` | a full `rkvdec-core@fdc38000 { … }` node | purely additive; must add `interrupts` + the `vdecN_sram` pools itself |
+| **Self-contained** | § below (AV1 forward-port) | `vdec0`/`vdec1`+mmu+sram declared `disabled` in `base.dtsi`, board retypes `&vdec0` | owns the nodes itself → **collides with `media-0001`**, which must be disabled |
 
 If a property is "missing" in one form, check whether the other form **inherited**
 it rather than declaring it.
+
+## Variant — self-contained DT (the AV1 forward-port): disable, don't convert
+
+Convert-in-place above keeps `media-0001` **pristine** and rides on its nodes. The
+AV1-extended forward-port tree (`linux-6.18-rkvenc-av1-fwport`, 11 commits on
+`v6.18`) took the **opposite** stance: its DT is **self-contained**. The commit *"add
+decoder/AV1 IOMMUs, SRAM and node wiring"* declares `vdec0`/`vdec1`, their
+`vdec*_mmu` IOMMUs, the `vdec*_sram` pools, and the `av1d`/`vsi-iommu` nodes
+**directly in `rk3588-base.dtsi`** (as `status = "disabled"`), and the board file
+retypes `&vdec0`/`&vdec1` to the vendor binding. No dependency on Armbian labels.
+
+The cost is the mirror image of convert-in-place: because the tree now **owns** those
+nodes, it **collides** with Armbian core patches that add the same nodes/files, so
+those must be **disabled** (rename `*.patch` → `*.patch.disabled`; the patcher only
+globs `*.patch` — see [`armbian-patch-precedence.md`](./armbian-patch-precedence.md)):
+
+| Armbian core patch | Collision (verified by `+++ b/` overlap) |
+|--------------------|-------------------------------------------|
+| `media-0001-Add-rkvdec-Support-v5.patch` | same `vdec0`/`vdec1` + `vdec*_sram` nodes in `rk3588-base.dtsi` |
+| `media-0007-add-verisilicon-AV1-iommu-driver.patch` | same `drivers/iommu/vsi-iommu.c` file + `av1d_mmu` node |
+
+`media-0003` (rk3568 hantro) and the rk35xx crypto patch also touch `base.dtsi` but in
+unrelated regions and are left enabled. Config enablement is still carried by the
+patches' own Kconfig `default y` (same as § below) — **no config edits**.
+
+**Trade-off:** convert-in-place = zero core-tree edits but Armbian-only and fragile to
+`media-0001` drift; self-contained = board-portable and media-independent but **requires
+editing Armbian's core patch set** (two renames). Pick per goal.
+
+Result of this path (build tooling lives in `linux-6.18-rkvenc-av1-fwport/packaging/armbian/`,
+reusing the shipping `rock5b-kernel-debug/armbian-build` tree): a drop-in
+`6.18.37 / 26.08.0-trunk` kernel, hash **`P1c9d-Cb831`** — new patch hash vs the
+convert-in-place `Pb6ab-Cb831`, **same config hash** `Cb831`. DTB verified to carry
+`mpp-service` + encoder×2 + decoder + `rga3_core0/1` + `verisilicon,iommu`; **not yet
+boot-tested** ([`status.md`](../../status.md) watchlist).
 
 ### Patch-hunk collision — the `av1d` relocation
 Our encoder + `rkvdec_ccu` block and media's `vdec` block both naturally land in

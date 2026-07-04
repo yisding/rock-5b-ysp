@@ -44,7 +44,7 @@ shipping, or operating** the artifacts.
 | [`dkms/`](dkms/README.md) | `rk3588-vcodec-dkms` deb: out-of-tree DKMS build of the vendor drivers + boot-time DT overlay, for **stock** kernels |
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | `gnome-remote-desktop-gdm-hwenc` deb: opt-in `setfacl g:gdm` udev rule so the **GDM greeter** hardware-encodes too |
 | [`ppa/`](ppa/README.md) | The five Launchpad source packages (mpp, librga, ffmpeg, GRD, gdm-hwenc): design, build notes, upload waves. *(Moved from top-level `/ppa/` 2026-07.)* |
-| [`docs/`](docs/armbian-packaging.md) | The Armbian `media-0001` conflict and the convert-in-place DT trick that both kernel channels rely on. |
+| [`docs/`](docs/armbian-packaging.md) | The Armbian `media-0001` conflict + the convert-in-place / self-contained DT strategies ([`armbian-packaging.md`](docs/armbian-packaging.md)); and Armbian **patch precedence** — why you can't disable a core patch from userpatches ([`armbian-patch-precedence.md`](docs/armbian-patch-precedence.md)). |
 
 ## Operations runbook — running the rkmpp FFmpeg stack
 
@@ -185,8 +185,11 @@ fetched or `git archive`d per the recipes there). Tracked in
 
 - [`../install.md`](../install.md) — the end-to-end chooser + quickstart.
 - [`armbian-packaging.md`](./docs/armbian-packaging.md) — the
-  Armbian `media-0001` conflict and the convert-in-place DT trick that both
-  kernel channels rely on.
+  Armbian `media-0001` conflict and the convert-in-place / self-contained DT
+  strategies that the kernel channels rely on.
+- [`armbian-patch-precedence.md`](./docs/armbian-patch-precedence.md) — the
+  patcher mechanics: why an empty userpatch can't disable a core patch on glob
+  branches, the workarounds, the ~2-line fix, and series-vs-glob.
 - [`../kernel-drivers/docs/resyncing.md`](../kernel-drivers/docs/resyncing.md) — the kernel-bump
   checklist; `dkms/` is a second consumer of every resync fix.
 - [`../glossary.md`](../glossary.md) — IEP, PHASH, "combined kernel" vs
