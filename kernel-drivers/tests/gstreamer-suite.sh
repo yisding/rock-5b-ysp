@@ -157,6 +157,10 @@ event_seek_enc_h265
 event_seek_dec_h264
 event_seek_dec_h265
 generated_dec_h264_crop_meta
+generated_dec_h264_rga_rgba_scale
+generated_dec_h264_rga_bgra_scale
+generated_dec_h264_rga_rgbx_scale
+generated_dec_h264_rga_bgrx_scale
 enc_vp8_nv12
 enc_jpeg_nv12
 roundtrip_jpeg_nv12
@@ -1748,6 +1752,22 @@ build_case_command()
 	generated_dec_h264_crop_meta)
 		CMD=(__builtin_generated_decode h264 "crop-rectangle=<16,16,160,120>")
 		;;
+	generated_dec_h264_rga_rgba_scale)
+		CMD=(__builtin_generated_decode h264 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=RGBA)
+		;;
+	generated_dec_h264_rga_bgra_scale)
+		CMD=(__builtin_generated_decode h264 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRA)
+		;;
+	generated_dec_h264_rga_rgbx_scale)
+		CMD=(__builtin_generated_decode h264 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=RGBx)
+		;;
+	generated_dec_h264_rga_bgrx_scale)
+		CMD=(__builtin_generated_decode h264 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx)
+		;;
 	roundtrip_h264_rga_bgr16)
 		build_videotest_roundtrip mpph264enc h264parse \
 			"$GST_FORMAT_MATRIX_BUFFERS" format=BGR16
@@ -2018,6 +2038,8 @@ run_case_payload()
 	generated_dec_vp9_fakesink | generated_dec_vp9_dmabuf | \
 	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
 	generated_dec_vp9_rga_scale | \
+	generated_dec_h264_rga_rgba_scale | generated_dec_h264_rga_bgra_scale | \
+	generated_dec_h264_rga_rgbx_scale | generated_dec_h264_rga_bgrx_scale | \
 	generated_dec_h264_crop_meta)
 		run_generated_decode "${CMD[1]}" "${CMD[@]:2}"
 		;;
@@ -2105,7 +2127,10 @@ runtime_dispatch_validated()
 	generated_dec_h264_strict_props | generated_dec_h265_strict_props | \
 	generated_dec_vp9_fakesink | generated_dec_vp9_dmabuf | \
 	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
-	generated_dec_vp9_rga_scale | generated_dec_h264_crop_meta | \
+	generated_dec_vp9_rga_scale | \
+	generated_dec_h264_rga_rgba_scale | generated_dec_h264_rga_bgra_scale | \
+	generated_dec_h264_rga_rgbx_scale | generated_dec_h264_rga_bgrx_scale | \
+	generated_dec_h264_crop_meta | \
 	generated_dec_h264_afbc_fakesink | generated_dec_h265_afbc_fakesink | \
 	generated_dec_h264_renegotiate | generated_dec_h265_renegotiate | \
 	event_flush_dec_h264 | event_flush_dec_h265 | \

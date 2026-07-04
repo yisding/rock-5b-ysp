@@ -510,14 +510,17 @@ Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `enc_vp8_nv12`, `enc_jpeg_nv12`,
 `roundtrip_jpeg_nv12`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`,
-`generated_dec_h264_crop_meta`,
+`generated_dec_h264_crop_meta`, `generated_dec_h264_rga_rgba_scale`,
+`generated_dec_h264_rga_bgra_scale`, `generated_dec_h264_rga_rgbx_scale`,
+`generated_dec_h264_rga_bgrx_scale`,
 `generated_dec_vp9_rga_scale`, `generated_transcode_vp9_to_h264`,
 `dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
 GStreamer encoder-format matrix for advertised direct MPP formats
 I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444, plus currently advertised
 legacy `c_RkRgaBlit()` conversions: encoder-side
 NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths and decoder-side
-BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths. With
+BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 output-format
+paths. With
 `GST_ENABLE_DISPLAY_CASES=1`, diagnostics also include
 `gst_inspect_display_sink`, `generated_dec_h264_display_dmabuf`,
 `generated_dec_h265_display_dmabuf`, `generated_dec_h264_display_afbc`, and
@@ -616,9 +619,11 @@ PERF_MAX_RATIO=1.25 bash ffmpeg-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-04 after the diagnostic GStreamer H.264
-encoder-format matrix was expanded for advertised direct MPP input formats and
-remaining NV21/I420/YV12 RGA scale paths; after the `GST_VALIDATE_CASES=1`
+was last verified on 2026-07-04 after diagnostic generated GStreamer H.264
+decode output-format cases were expanded for the advertised RGBA/BGRA/RGBx/BGRx
+decoder-side RGA paths; after the diagnostic GStreamer H.264 encoder-format
+matrix was expanded for advertised direct MPP input formats and remaining
+NV21/I420/YV12 RGA scale paths; after the `GST_VALIDATE_CASES=1`
 GStreamer case-builder/runner dry validation mode was added; after
 `ffmpeg-suite.sh` and
 `ffmpeg-suite-compare.sh` made ffmpeg-rockchip a first-class

@@ -61,10 +61,11 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
 > generated H.264 crop-meta output,
-> VP8/JPEG/VPx-alpha element visibility, generated VP9 transcode, generated
+> VP8/JPEG/VPx-alpha element visibility, generated VP9 transcode, and
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
-> encoder preprocessing and BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 decoder-side
-> output conversion. The in-repo direct `librga` smoke
+> encoder preprocessing and
+> BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 decoder-side output
+> conversion. The in-repo direct `librga` smoke
 > covers virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd`, sync
 > copy/resize/fill, legacy `c_RkRgaBlit()` conversions shaped like JeffyCN
 > GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing,
@@ -414,8 +415,9 @@ implementation (cross-reference:
   a GStreamer-visible encoder-format matrix covering advertised direct MPP
   input formats I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444 plus
   RGA-forced encoder-side NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
-  scale paths and decoder-side BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12
-  output-format paths.  The runner now
+  scale paths and decoder-side
+  BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 output-format
+  paths.  The runner now
   has opt-in display/DMABuf sink cases for JeffyCN's `rkximagesink`, including
   linear DMABuf and AFBC decode output, and opt-in `kmssrc` KMS-capture cases
   that feed DRM framebuffer-exported DMABufs into `mpph264enc` and loop them
