@@ -12,7 +12,7 @@ for 2D blits, scale, color conversion, and composition.
 | Developer focus | Understand which work happens in userspace vs kernel, how dma-buf handles and register recipes reach `/dev/mpp_service` and `/dev/rga`, and why different FFmpeg lineages use the libraries differently. |
 | Owns | The package-level entry point here, the deep explanation in [`docs/how-the-userspace-libs-work.md`](docs/how-the-userspace-libs-work.md), ABI detail in [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md), and build staging through [`../ffmpeg/README.md`](../ffmpeg/README.md). |
 | Depends on | Working kernel nodes from [`../kernel-drivers/`](../kernel-drivers/README.md), `video` group access to `/dev/mpp_service`, `/dev/rga`, and `/dev/dma_heap/*`, plus `libdrm` for DRM PRIME users. |
-| Current state | The source-built MPP plus staged librga path is hardware-validated through the tests; the packaged PPA route built locally but has not been uploaded. See [`../status.md`](../status.md). |
+| Current state | The previously staged source-built MPP/librga path is hardware-validated through the tests; the current patched librga source is `github.com/yisding/librga` `main` at `a632217` and still needs targeted P010/P210 hardware validation. The packaged PPA route built locally but has not been uploaded. See [`../status.md`](../status.md). |
 
 ## How the library package fits
 
@@ -86,7 +86,7 @@ Read these when debugging library/kernel interactions:
 | Trap | Explanation |
 |------|-------------|
 | Device access is three nodes, not one | Non-root MPP encode needs `/dev/mpp_service` and `/dev/dma_heap/*`; RGA also needs `/dev/rga`. Install [`../kernel-drivers/scripts/99-rockchip-codec.rules`](../kernel-drivers/scripts/99-rockchip-codec.rules) or the [`../packaging/codec-udev/`](../packaging/codec-udev/README.md) deb. |
-| `librga` has source even when the official drop ships a prebuilt `.so` | The buildable source lineage is documented in [`../docs/gotchas.md`](../docs/gotchas.md) and the staging recipe in [`../ffmpeg/README.md`](../ffmpeg/README.md). |
-| P010/P210 through legacy RKRGA depends on librga copying 10-bit layout fields | Older librga sources dropped `is_10b_compact`/`is_10b_endian` before the ioctl; use a patched source build or disable padded 10-bit RKRGA paths. See [`docs/librga-p010-p210-rkrga.md`](docs/librga-p010-p210-rkrga.md). |
+| `librga` has source even when the official drop ships a prebuilt `.so` | The buildable source lineage is documented in [`../docs/gotchas.md`](../docs/gotchas.md); the current patched source tree is `github.com/yisding/librga` `main` at `a632217`. |
+| P010/P210 through legacy RKRGA depends on librga copying 10-bit layout fields | Older librga sources dropped `is_10b_compact`/`is_10b_endian` before the ioctl; use `github.com/yisding/librga` `main` at `a632217` or newer, or disable padded 10-bit RKRGA paths. See [`docs/librga-p010-p210-rkrga.md`](docs/librga-p010-p210-rkrga.md). |
 | `h264_rkmpp` does not always mean the same implementation | `ffmpeg-rockchip` and upstream FFmpeg 8.1.2 both expose rkmpp names, but the control surface differs. See [`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md). |
 | The libraries generate hardware-specific recipes | The kernel does not parse H.264/HEVC streams into registers; libmpp does. This is why ABI compatibility matters as much as driver probing. |

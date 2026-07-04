@@ -116,7 +116,8 @@ donor and is not cited by any doc.)
 |-----------|------|-----|----------|
 | libmpp (study tree) | `rockchip-linux/mpp` | **v1.3.9** (how-the-userspace-libs-work.md:9). Commit-level pin **unrecorded** — see note below | how-the-userspace-libs-work.md Part A, [`ffmpeg/README.md`](../ffmpeg/README.md) |
 | libmpp (PPA packaging tree) | `tsukumijima/mpp-rockchip` (tracks HermanChen `develop`) | `750e76e`, packaged as `1.5.0-1+rk1` | [`packaging/ppa/README.md`](../packaging/ppa/README.md) |
-| librga source (study tree) | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | Commit-level pin **unrecorded** — candidate `2cffdf6` (see note) | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
+| librga source (fixed tree) | `github.com/yisding/librga` | branch `main`, tip `a6322179c944aced42e326519cd89483bf9da26b` (2026-07-03); preserves the `2cffdf6` JeffyCN history, then `cc39281` as the latest-vendor-source layer matching `yisding/librga-mirror@32c3bf1`, then nyanmisaka/local fixes | [`userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md), [gotchas](./gotchas.md) |
+| librga historical source base | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | `2cffdf6` (`v2.2.0-1-20260121-2cffdf6`), the last open vendor-history tip used as the fixed tree base | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
 | librga prebuilt | `airockchip/librga` | `2b32edc` ("Update librga version to 1.10.6_[3]") | ffmpeg/README.md librga row |
 | ffmpeg-rockchip (documented build) | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` (2026-04-23); preserved locally as branch `backup-pre-upgrade-master` | ffmpeg/README.md, [`ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md) |
 | ffmpeg-rockchip-81 (rebased successor) | `github.com/yisding/ffmpeg-rockchip-81` | branch `main` (tip `6cf02ab253` as of 2026-07-02); branch `upstream` = `87bd15dc3c` | [`ffmpeg/docs/fix-candidates.md`](../ffmpeg/docs/fix-candidates.md), [`ffmpeg/docs/rebase-notes.md`](../ffmpeg/docs/rebase-notes.md), [`ffmpeg/docs/submission-plan.md`](../ffmpeg/docs/submission-plan.md), [`ffmpeg/patches/`](../ffmpeg/patches/) |
@@ -138,12 +139,15 @@ full topology and replay procedure live in
 >   than the study state. **UNVERIFIED** which exact commit how-the-userspace-libs-work.md's Part A
 >   line numbers were read against; treat its anchors as "v1.3.9-era, verify
 >   against your checkout".
-> - **librga:** how-the-userspace-libs-work.md names the repo but no commit. The dev-box study
->   checkout `librga-src` sits at `2cffdf6` (merge of JeffyCN
+> - **librga:** how-the-userspace-libs-work.md names the repo but no commit. The original
+>   study base is best represented by `2cffdf6` (merge of JeffyCN
 >   `linux-rga-multi`; tag lineage `v2.2.0-1-20260121-2cffdf6`, packaged as
->   `2.2.0-1+rk1`) — the **candidate** study pin, recorded here as the best
->   available evidence. **UNVERIFIED** that the tree wasn't updated between
->   study and today.
+>   `2.2.0-1+rk1`). The current dev-box `librga-src` checkout has since been
+>   rebuilt as `github.com/yisding/librga` `main` at `a632217`: old open history
+>   through `2cffdf6`, one latest-release source layer matching
+>   `yisding/librga-mirror@32c3bf1`, then the P010/P210/fix commits. Treat old
+>   file/line anchors as `2cffdf6`-era unless a doc explicitly names the fixed
+>   tree.
 
 ## 5. GNOME Remote Desktop base
 

@@ -18,7 +18,7 @@ stays the master list.
 | Mesa | **BLIT-based texture transfers are unsafe on Mali-G610** — the texel coordinate arrives through lossy `LD_VAR_IMM` interpolation, corrupting integer format-changing transfers; the COMPUTE-only fix direction was rejected in Mesa review 2026-07-01 (compute cannot write AFBC) — surviving directions in [`mesa-panfrost-g610/README.md` § Status](../mesa-panfrost-g610/README.md) | [`mesa-panfrost-g610/docs/blit-precision.md`](../mesa-panfrost-g610/docs/blit-precision.md), [`validation.md` § Current MR State](../mesa-panfrost-g610/docs/validation.md) |
 | Packaging | **Combined (`=y`) kernel and the DKMS module are mutually exclusive** — building DKMS against a kernel that has the drivers built-in fails modpost with `'…' exported twice` | [`packaging/dkms/README.md` § Caveats](../packaging/dkms/README.md); chooser in [`install.md`](../install.md) |
 | Packaging | A future Ubuntu ffmpeg (`7:8.1.x`) silently supersedes the local `+rkmpp` debs — `apt-mark hold` them; exact-version rollback recipe exists | [`packaging/README.md` § Operations](../packaging/README.md) |
-| Userspace libraries | RKRGA `P010`/`P210` through legacy `c_RkRgaBlit()` depends on librga copying the 10-bit layout fields; older sources can silently submit compact 10-bit instead of padded 10-bit | [`userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md) |
+| Userspace libraries | RKRGA `P010`/`P210` through legacy `c_RkRgaBlit()` depends on librga copying the 10-bit layout fields; older sources can silently submit compact 10-bit instead of padded 10-bit, while the fixed source is `github.com/yisding/librga` `main` at `a632217` | [`userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md) |
 | Debug kernels | Everything about capturing a crash (ramoops/pstore, KASAN, lockdep) without breaking vermagic | [debug-kernel guide](../kernel-drivers/docs/debug-kernel.md); the KASAN/vermagic collision entry below stays canonical here |
 
 ## Build / patching
@@ -191,11 +191,15 @@ headers + samples (no library source) — easy to mistake for closed. The real
 implementation is open (Apache-2.0) in the JeffyCN mirror lineage:
 `JeffyCN/mirrors:linux-rga-multi`, maintained as `tsukumijima/librga-rockchip`
 (full `core/` + `im2d_api/`, CMake/Meson, Debian packages) and
-`madisongh/rockchip-librga`. We linked airockchip's prebuilt aarch64 `.so` purely
-for convenience — it works because it shares the BSP lineage with the kernel
-`/dev/rga` driver (the transcode test confirms the ABI matches). Build from the
-JeffyCN source if you want a from-source userspace. `rkrga` is also optional in
-ffmpeg (`h264_rkmpp`/`hevc_rkmpp` work without it; you'd lose HW scale/CSC).
+`madisongh/rockchip-librga`. The current fixed source tree is
+`github.com/yisding/librga` `main` at `a632217`: it preserves the old open history
+through `2cffdf6`, adds a latest-source layer matching `yisding/librga-mirror`,
+and then layers nyanmisaka's fixes plus the local P010/P210 hardening. We linked
+airockchip's prebuilt aarch64 `.so` purely for convenience — it works because it
+shares the BSP lineage with the kernel `/dev/rga` driver (the transcode test
+confirms the ABI matches), but do not assume that binary has the legacy P010/P210
+fixes. `rkrga` is also optional in ffmpeg (`h264_rkmpp`/`hevc_rkmpp` work without
+it; you'd lose HW scale/CSC).
 
 **ffmpeg-rockchip fails to build on `vulkan_av1.c`.** The fork pins an older
 FFmpeg that uses the *provisional MESA* Vulkan-AV1 types; modern Vulkan headers

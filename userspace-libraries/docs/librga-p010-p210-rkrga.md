@@ -8,7 +8,9 @@ The short version: P010/P210 through the legacy RGA API is only safe when librga
 copies the 10-bit layout flags into the kernel request. The older source tree
 did not. Jellyfin's packaged Rockchip path relies on a patched librga branch that
 does copy those fields for the blit path; we extended the local fix to the other
-legacy request builders too.
+legacy request builders too. The fixed source tree is now published at
+`https://github.com/yisding/librga`, branch `main`, tip
+`a6322179c944aced42e326519cd89483bf9da26b`.
 
 ## Source trees checked
 
@@ -17,7 +19,7 @@ The investigation used these local sibling trees:
 | Tree | What it contributed |
 |------|---------------------|
 | `../ffmpeg-rockchip-81` | Current RKRGA filter implementation under review. |
-| `../librga-src` | Buildable librga source lineage, initially missing the 10-bit copy. |
+| `../librga-src` | Reconstructed local checkout of `github.com/yisding/librga`, branch `main`, now containing the latest released source plus the fix series. |
 | `../librga` | airockchip-style prebuilt/header distro, version `1.10.6_[3]`. |
 | `../rockchip-kernel` | BSP RGA3/RGA2 kernel UAPI and driver behavior. |
 | `/tmp/jellyfin-server` | Jellyfin server FFmpeg command generation. |
@@ -29,6 +31,14 @@ The important Jellyfin RGA source branch was:
 ```text
 https://github.com/nyanmisaka/rk-mirrors/tree/jellyfin-rga
 commit 1d330cc28551943bed3380261a5a9c6fbd58ff53
+```
+
+The reconstructed fixed librga source tree is:
+
+```text
+https://github.com/yisding/librga
+branch main
+commit a6322179c944aced42e326519cd89483bf9da26b
 ```
 
 ## Format model
@@ -312,8 +322,15 @@ The same branch also carries other useful changes:
 - A full-CSC ordering/masking fix in `NormalRga.cpp`.
 - Meson cleanup removing a duplicate static `librga` target.
 
-We replayed that three-file delta onto `../librga-src`, then added a local
-follow-up to cover all legacy request builders in `NormalRga.cpp`.
+The published `yisding/librga` `main` branch preserves the open vendor history
+rather than making the latest source drop a new root: `2cffdf6` is the last open
+JeffyCN-lineage vendor-history tip, `cc39281` updates the tree to the latest
+mirrored `librga_1.10.6_[3]` release (`yisding/librga-mirror@32c3bf1`), and the
+fixes are layered as normal commits after that.
+
+We replayed nyanmisaka's four top `jellyfin-rga` commits onto that tree, then
+added local follow-ups to cover all legacy request builders in `NormalRga.cpp`
+and to implement the IM2D P010/P210 request path.
 
 The follow-up introduced a shared helper:
 
@@ -337,7 +354,18 @@ original policy. Source and pattern/LUT channels only receive these layout flags
 for raster mode; destination receives them for raster and tile mode. FBC paths do
 not use this 10-bit layout selector.
 
-Current local `../librga-src` changes:
+Published `yisding/librga` fix series:
+
+| Commit | Result |
+|--------|--------|
+| `a4db07b` | Replays nyanmisaka's Meson cleanup removing the duplicate static `librga` target. |
+| `68aa084` | Replays nyanmisaka's legacy blit-path 10-bit layout propagation fix. |
+| `eee4774` | Replays nyanmisaka's full-CSC ordering/masking fix. |
+| `d6a6e4c` | Replays nyanmisaka's RGA3 FBCE RGB/BGR compatibility fix. |
+| `1dbf1b2` | Adds the local legacy-path hardening for fill/palette, RGA2 rejection, and palette ioctl handling. |
+| `a632217` | Adds the local IM2D P010/P210 implementation and request-generation hardening. |
+
+Net source changes:
 
 | File | Result |
 |------|--------|
@@ -348,36 +376,20 @@ Current local `../librga-src` changes:
 | `include/RgaApi.h` | Added `RGA_NORMAL_DST_FULL_CSC_FIXUP` and `RGA_NORMAL_FBCE_RGB_BGR_FIXUP`. |
 | `meson.build` | Removed the duplicate `static_library()` target. |
 
-Validation after replay:
+Validation after rebuilding the history-preserving `main` branch:
 
 ```bash
-meson setup /tmp/librga-src-build-codex-1783097466 ../librga-src -Dlibrga_demo=false
-CCACHE_DISABLE=1 ninja -C /tmp/librga-src-build-codex-1783097466
+git diff --check HEAD~6..HEAD
+meson setup --wipe /tmp/librga-history-main-build /home/yi/Code/librga-src -Dlibrga_demo=false
+CCACHE_DISABLE=1 ninja -C /tmp/librga-history-main-build
 ```
 
-The build completed and linked `librga.so.2.2.0`. The first build attempt failed
-only because `ccache` could not write `/home/yi/.cache/ccache`; disabling ccache
-fixed the environment issue.
-
-After the local follow-up, the incremental rebuild also completed:
-
-```bash
-CCACHE_DISABLE=1 ninja -C /tmp/librga-src-build-codex-1783097466
-```
-
-It rebuilt `core_NormalRga.cpp.o` and relinked `librga.so.2.2.0`.
-
-After adding the RGA2 rejection guard, the same rebuild completed again and
-relinked `librga.so.2.2.0`.
-
-After adding the im2d P010/P210 implementation, the same rebuild completed again:
-
-```bash
-CCACHE_DISABLE=1 ninja -C /tmp/librga-src-build-codex-1783097466
-```
-
-It rebuilt `core_utils_utils.cpp.o`, `core_RgaUtils.cpp.o`,
-`im2d_api_src_im2d_impl.cpp.o`, and relinked `librga.so.2.2.0`.
+The final tree built and linked `librga.so.2.1.0`. The synthesized vendor-update
+commit `cc39281` was verified tree-identical to `yisding/librga-mirror@32c3bf1`,
+and its parent is `2cffdf6`. A full `git diff --check 2cffdf6..HEAD` reports one
+vendor-import whitespace warning in `samples/cfa_demo/CMakeLists.txt`; it was
+left untouched so the vendor-release layer stays identical to the mirrored
+release.
 
 ## What this fixes, and what it cannot fix
 
@@ -412,15 +424,15 @@ Still not proven or not fixed by this source patch:
 ## Shipping guidance
 
 Do not ship RKRGA P010/P210 support against an unverified librga legacy path.
-The local source-built `../librga-src` is now the preferred legacy-library input
-because it fixes every known userspace propagation site in the public legacy
-operations.
+The source-built `github.com/yisding/librga` `main` tree is now the preferred
+legacy-library input because it fixes every known userspace propagation site in
+the public legacy operations.
 
 Safe options:
 
 | Option | Risk profile |
 |--------|--------------|
-| Build and stage the patched `../librga-src` | Best match for Jellyfin-style legacy RKRGA P010 use; covers blit, color fill, and palette legacy builders. |
+| Build and stage `github.com/yisding/librga` `main` at `a632217` or newer | Best match for Jellyfin-style legacy RKRGA P010 use; covers blit, color fill, and palette legacy builders. |
 | Migrate RKRGA to im2d P010/P210 and validate on hardware | Now source-supported locally for multicore/RGA3, but still needs proof against the deployed kernel/librga pair. |
 | Disable padded P010/P210 in RKRGA | Conservative if the deployed librga is unknown or unpatched. |
 | Keep compact NV15/NV20 handling | Lower risk because compact is the default/implicit 10-bit interpretation, though RGA2/RGA3 restrictions still apply. |
