@@ -331,9 +331,10 @@ paths:
   `parallel_transcode_mixed_h264_h265`.
 
 The generated-media cases first write short H.264/H.265 elementary streams
-with the Rockchip encoders, a short VP9 IVF stream with `vp9enc ! ivfmux`, and
-a software-generated H.265 Main10 elementary stream with `GST_GENERATOR`
-(default `ffmpeg`) plus `libx265` under `GST_GENERATED_INPUT_CACHE` (default
+with the Rockchip encoders, a short VP9 IVF stream with `vp9enc ! ivfmux`,
+optional AV1 IVF input with `GST_GENERATOR` (default `ffmpeg`) plus
+`libaom-av1`, and software-generated H.265 Main10 elementary streams with
+`GST_GENERATOR` plus `libx265` under `GST_GENERATED_INPUT_CACHE` (default
 `../rockchip-conformance/assets/gstreamer-generated`). They then feed those
 shared files through `filesrc ! *parse ! mppvideodec` decode and decode->encode
 transcode pipelines. Keeping the cache outside each profile's log directory
@@ -342,7 +343,11 @@ the default run self-contained while covering the media-file path that
 same-pipeline roundtrips do not hit. VP9 cases are enabled and required by
 default; set `GST_ENABLE_VP9_CASES=0` to remove them or
 `GST_REQUIRE_VP9_CASES=0` to keep them diagnostic-only on images missing
-`vp9enc`, `ivfmux`, or `ivfparse`. The `*_dmabuf`
+`vp9enc`, `ivfmux`, or `ivfparse`. AV1 remains outside the required RK3588
+rewrite gate because it needs a separate AV1 backend; set
+`GST_ENABLE_AV1_CASES=1` to add generated AV1 fakesink/DMABuf decode plus
+RGA-scale and AV1-to-H.264 transcode diagnostics, or
+`GST_REQUIRE_AV1_CASES=1` when comparing an AV1-capable kernel. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
 The generated H.265 Main10 cases are also enabled and required by default:
@@ -632,7 +637,7 @@ logs.
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
-| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, software `ffmpeg`/`libx265` via `GST_GENERATOR` for generated H.265 Main10 inputs, and readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
+| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, software `ffmpeg`/`libx265` via `GST_GENERATOR` for generated H.265 Main10 inputs, optional `libaom-av1` support in `GST_GENERATOR` for opt-in AV1 diagnostics, and readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
 | `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `ffmpeg-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, a staged `ffmpeg-rockchip` build via `FFDIR`, a software ffmpeg with `libx264`/`libx265` for generated inputs, and readable debugfs/dmesg for full logs; root is the simplest mode. `FFMPEG_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-list dispatch wiring. |
 | `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
@@ -753,7 +758,8 @@ the GStreamer generated-input cache,
 artifact-checksum comparator, and generated VP9 IVF decode cases were added.
 It was re-run after ABI replay gained optional dma-heap-backed MPP
 `TRANS_FD_TO_IOVA`/`RELEASE_FD` and RGA dma-buf import/release coverage for
-GStreamer allocator handoff parity. The device-free
+GStreamer allocator handoff parity; and after opt-in generated GStreamer AV1
+diagnostics were added for the separate RKMPP AV1 backend gap. The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,
 slowdown, MPP/GStreamer/FFmpeg artifact mismatch, and librga latest-summary
 filtering paths. `build-mpp-tests.sh`
@@ -825,3 +831,24 @@ recipe (no suite) lives in [`README.md`](./README.md) § VP9 decode.
 **UNVERIFIED:** neither the generated GStreamer VP9 cases nor the direct MPP
 VP9 suite case has a forward-port/rewrite hardware log yet. If you run either,
 record the result in status.md.
+
+## AV1 diagnostics via the GStreamer suite
+
+AV1 remains outside the required RK3588 rewrite gate because the validated
+forward-port/rewrite path does not expose the separate RKMPP AV1 backend. The
+GStreamer plugin still advertises `video/x-av1`, so the suite has opt-in
+diagnostics that generate a small AV1 IVF stream with
+`GST_GENERATOR`/`libaom-av1` and feed it through the same
+`ivfparse ! mppvideodec` path as current userspace:
+
+```bash
+PROFILE=rewrite \
+GST_ENABLE_AV1_CASES=1 \
+../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
+```
+
+Set `GST_REQUIRE_AV1_CASES=1` only for an AV1-capable kernel comparison. The
+enabled diagnostic set covers fakesink decode, DMABuf decode, RGA-scale decode,
+and AV1-to-H.264 transcode. A pass on the rewrite would require an RKMPP AV1
+backend; failures on the current rewrite are expected evidence of the separate
+AV1 gap, not a regression in the RKVDEC2 H.264/H.265/VP9 slice.

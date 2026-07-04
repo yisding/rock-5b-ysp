@@ -43,7 +43,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > for forward-port-vs-rewrite comparison. The default GStreamer
 > suite now includes asset-free encoder, RGA-conversion, decoder roundtrip,
 > generated elementary-stream H.264/H.265 decode/transcode, generated VP9 IVF
-> decode, caps-renegotiation, explicit
+> decode, opt-in generated AV1 diagnostics, caps-renegotiation, explicit
 > flush-event, force-key-unit, EOS-loop, state-loop, and parallel
 > encode/decode/transcode pipelines so the
 > next hardware pass exercises decoder-side buffer groups, short-timeout
@@ -67,7 +67,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > VP8/JPEG/VPx-alpha element visibility, the optional `vp8enc` alias from
 > `GST_MPP_VP8ENC_FAKE_VP8ENC`, VP8/JPEG encoder property setters,
 > JPEG decoder explicit/default output format selection, RFBC caps negotiation,
-> generated VP9 transcode, opt-in display/KMS env-default paths, and
+> generated VP9 transcode, opt-in generated AV1 decode/transcode probes,
+> opt-in display/KMS env-default paths, and
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and
 > BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 decoder-side output
@@ -133,7 +134,7 @@ or JPEG nodes that libmpp uses for older formats.
 | VP9 decode | required for current decoder parity, still hardware-unvalidated | libmpp's decoder HAL chooses `VPU_CLIENT_RKVDEC` for VP9, and the VDPU383 HAL has a VP9 backend. The YSP conformance wrappers now generate VP9 IVF inputs for GStreamer and direct MPP tests; hardware logs are still pending. |
 | VP8, MPEG-1/2/4, H.263 decode | recognized current-userspace names, outside the RK3588 rewrite profile | libmpp routes these through VDPU1/VDPU2-era clients, not the RKVDEC2 nodes the rewrite binds. Adding them would mean importing legacy VPU blocks, contrary to the no-cruft objective unless a current RK3588 workload proves the need. |
 | MJPEG decode/encode | recognized current-userspace names, outside the RK3588 rewrite profile | RK3588 has separate JPEG decoder/encoder hardware and BSP drivers, but this rewrite does not bind those nodes; the project status keeps JPEG as a skipped/non-goal path. |
-| AV1 via RKMPP | recognized current-userspace name, outside this RKMPP rewrite | The RK3588 AV1 block has separate hardware/IOMMU/backend plumbing; the maintained path for this project is V4L2 stateless AV1, not `/dev/mpp_service`. |
+| AV1 via RKMPP | recognized current-userspace name, outside this RKMPP rewrite | The RK3588 AV1 block has separate hardware/IOMMU/backend plumbing; the maintained path for this project is V4L2 stateless AV1, not `/dev/mpp_service`. The GStreamer suite has opt-in generated AV1 diagnostics so this remains executable evidence instead of an undocumented omission. |
 
 Each driver carries an in-tree **`ABI.rst`** — a precise
 implemented / recognized-but-unsupported / out-of-scope ledger of the BSP ioctl
@@ -383,7 +384,7 @@ implementation (cross-reference:
   required set covers element inspection, raw NV12 encode, encoder-side legacy
   RGA conversion, asset-free H.264/H.265 encode->parse->decode roundtrips,
   generated elementary-stream H.264/H.265 `filesrc` decode, generated VP9 IVF
-  `filesrc` decode,
+  `filesrc` decode, opt-in generated AV1 IVF `filesrc` decode diagnostics,
   H.264/H.265 decode->encode transcode including an RGA rotate/scale path,
   generated `mppvideodec dma-feature=true` DMABuf decode, the matching
   `GST_MPP_DEC_DMA_FEATURE=1` environment-default DMABuf path, and
@@ -423,7 +424,7 @@ implementation (cross-reference:
   `GST_MPP_VP8ENC_FAKE_VP8ENC`, VP8 QP and JPEG quality-factor property
   setters, JPEG decoder explicit/default BGRx output selection,
   `GST_MPP_DEC_FBC_IS_RFBC=1` RFBC caps negotiation, generated VP9-to-H.264
-  transcode, and
+  transcode, opt-in generated AV1 decode/transcode diagnostics, and
   a GStreamer-visible encoder-format matrix covering advertised direct MPP
   input formats I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444 plus
   RGA-forced encoder-side NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
@@ -563,8 +564,9 @@ confirm against the TRM before treating either as canonical.
 | Validation | Focused compile gates pass at the committed tips available so far. On 2026-07-04, `ALLOW_DIRTY=1 kernel-drivers/tests/rewrite-build-gate.sh all` built from `git archive` copies and completed warning-free for `../linux-6.18-rkvenc` at `7368fe6902f2` and `../linux` at `9ad335a5daff`, producing the KUnit-enabled `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o` and `drivers/video/rockchip/rga-rewrite/rga_rewrite.o` targets for both kernels. `ALLOW_DIRTY=1` was used only because the 6.18 worktree has unrelated dirty forward-port files; the gate still built committed `HEAD` archives. This is still code/ABI-ledger progress rather than proof from a booted rewrite kernel. The broader conformance plan remains the staged `../rockchip-conformance` forward-port-vs-rewrite workflow for MPP, librga, JeffyCN GStreamer, and ffmpeg-rockchip; booted MPP official-test artifact/timing runs, GStreamer state/allocator/RGA-conversion/display/KMS-capture results, and expanded FFmpeg decoder/RGA-filter artifact/timing results are still missing before lower-priority diagnostic BSP profiles. **UNVERIFIED in this repo**: the workload gate and expanded conformance bundle have not yet passed on hardware through the rewrite; no validation record equivalent to status.md exists yet. |
 
 GStreamer, FFmpeg, and MPP differential testing are now stronger than the table
-row's historical summary: generated H.264/H.265 inputs and generated VP9 IVF
-input are cached under the shared conformance assets directory; generated plus
+row's historical summary: generated H.264/H.265 inputs, generated VP9 IVF
+input, and opt-in generated AV1 IVF input are cached under the shared
+conformance assets directory; generated plus
 optional external-media GStreamer decode/transcode outputs, FFmpeg encoded
 bitstreams from transcode, forced-core/AFBC, VPP, and diagnostic overlay paths,
 and MPP official-test media outputs are recorded in `artifacts.tsv`
