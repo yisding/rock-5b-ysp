@@ -415,6 +415,12 @@ rewrite profile, so the suite keeps them diagnostic-only: it inspects the
 elements and runs short `enc_vp8_nv12`, `enc_jpeg_nv12`, and
 `roundtrip_jpeg_nv12` pipelines to record what current userspace would observe
 without turning legacy coverage into a required pass condition.
+The diagnostic encoder-format matrix also records JeffyCN's advertised H.264
+sink caps that are not yet required acceptance gates: direct MPP input formats
+`I420`, `YUY2`, `UYVY`, `RGB16`, `ARGB`, `ABGR`, `xRGB`, `xBGR`, `NV24`, and
+`Y444`, plus RGA-forced `NV21`, `I420`, and `YV12` scale paths. The direct
+`NV24`/`Y444` cases stay diagnostic because the pinned plugin itself marks
+those formats as chip-dependent.
 
 Set `GST_H264_INPUT` and/or `GST_H265_INPUT` to add decode/transcode cases
 automatically. With artifact capture enabled, these cases write decoded raw
@@ -507,10 +513,12 @@ Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `generated_dec_h264_crop_meta`,
 `generated_dec_vp9_rga_scale`, `generated_transcode_vp9_to_h264`,
 `dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
-smaller GStreamer RGA format matrix for currently advertised legacy
-`c_RkRgaBlit()` conversions: encoder-side BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
-scale paths and decoder-side BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output
-format paths. With `GST_ENABLE_DISPLAY_CASES=1`, diagnostics also include
+GStreamer encoder-format matrix for advertised direct MPP formats
+I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444, plus currently advertised
+legacy `c_RkRgaBlit()` conversions: encoder-side
+NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths and decoder-side
+BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths. With
+`GST_ENABLE_DISPLAY_CASES=1`, diagnostics also include
 `gst_inspect_display_sink`, `generated_dec_h264_display_dmabuf`,
 `generated_dec_h265_display_dmabuf`, `generated_dec_h264_display_afbc`, and
 `generated_dec_h265_display_afbc`. With `GST_ENABLE_KMS_CASES=1`, diagnostics
@@ -608,7 +616,9 @@ PERF_MAX_RATIO=1.25 bash ffmpeg-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-04 after the `GST_VALIDATE_CASES=1`
+was last verified on 2026-07-04 after the diagnostic GStreamer H.264
+encoder-format matrix was expanded for advertised direct MPP input formats and
+remaining NV21/I420/YV12 RGA scale paths; after the `GST_VALIDATE_CASES=1`
 GStreamer case-builder/runner dry validation mode was added; after
 `ffmpeg-suite.sh` and
 `ffmpeg-suite-compare.sh` made ffmpeg-rockchip a first-class

@@ -160,6 +160,19 @@ generated_dec_h264_crop_meta
 enc_vp8_nv12
 enc_jpeg_nv12
 roundtrip_jpeg_nv12
+enc_h264_i420
+enc_h264_yuy2
+enc_h264_uyvy
+enc_h264_rgb16
+enc_h264_argb
+enc_h264_abgr
+enc_h264_xrgb
+enc_h264_xbgr
+enc_h264_nv24
+enc_h264_y444
+enc_h264_nv21_rga_scale
+enc_h264_i420_rga_scale
+enc_h264_yv12_rga_scale
 enc_h264_bgr16_rga_scale
 enc_h264_rgb_rga_scale
 enc_h264_bgr_rga_scale
@@ -1447,6 +1460,46 @@ build_case_command()
 	enc_jpeg_nv12)
 		build_videotest_encode mppjpegenc NV12 "$GST_FORMAT_MATRIX_BUFFERS"
 		;;
+	enc_h264_i420)
+		build_videotest_encode mpph264enc I420 "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_yuy2)
+		build_videotest_encode mpph264enc YUY2 "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_uyvy)
+		build_videotest_encode mpph264enc UYVY "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_rgb16)
+		build_videotest_encode mpph264enc RGB16 "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_argb)
+		build_videotest_encode mpph264enc ARGB "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_abgr)
+		build_videotest_encode mpph264enc ABGR "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_xrgb)
+		build_videotest_encode mpph264enc xRGB "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_xbgr)
+		build_videotest_encode mpph264enc xBGR "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_nv24)
+		build_videotest_encode mpph264enc NV24 "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_y444)
+		build_videotest_encode mpph264enc Y444 "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
 	enc_h264_bgrx_rga_rotate)
 		build_videotest_encode mpph264enc BGRx "$GST_NUM_BUFFERS" \
 			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
@@ -1454,6 +1507,21 @@ build_case_command()
 		;;
 	enc_h265_rgba_rga_scale)
 		build_videotest_encode mpph265enc RGBA "$GST_NUM_BUFFERS" \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_nv21_rga_scale)
+		build_videotest_encode mpph264enc NV21 "$GST_FORMAT_MATRIX_BUFFERS" \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_i420_rga_scale)
+		build_videotest_encode mpph264enc I420 "$GST_FORMAT_MATRIX_BUFFERS" \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
+	enc_h264_yv12_rga_scale)
+		build_videotest_encode mpph264enc YV12 "$GST_FORMAT_MATRIX_BUFFERS" \
 			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
 			zero-copy-pkt=true
 		;;

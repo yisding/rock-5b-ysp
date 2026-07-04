@@ -411,9 +411,11 @@ implementation (cross-reference:
   diagnostic set also includes seek-event probes through the same
   `gstreamer-event-harness`, generated H.264 crop-meta output,
   VP8/JPEG/VPx-alpha element visibility, generated VP9-to-H.264 transcode, and
-  a GStreamer-visible RGA format matrix covering encoder-side
-  BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths plus decoder-side
-  BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The runner now
+  a GStreamer-visible encoder-format matrix covering advertised direct MPP
+  input formats I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444 plus
+  RGA-forced encoder-side NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
+  scale paths and decoder-side BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12
+  output-format paths.  The runner now
   has opt-in display/DMABuf sink cases for JeffyCN's `rkximagesink`, including
   linear DMABuf and AFBC decode output, and opt-in `kmssrc` KMS-capture cases
   that feed DRM framebuffer-exported DMABufs into `mpph264enc` and loop them
