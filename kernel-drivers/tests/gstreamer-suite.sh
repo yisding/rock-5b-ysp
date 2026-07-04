@@ -52,6 +52,8 @@ enc_h264_nv12
 enc_h265_nv12
 enc_h264_control_props
 enc_h265_control_props
+enc_h264_qp_profile_props
+enc_h265_qp_props
 enc_h264_bgrx_rga_rotate
 enc_h265_rgba_rga_scale
 roundtrip_h264_nv12
@@ -116,6 +118,7 @@ event_seek_dec_h264
 event_seek_dec_h265
 generated_dec_h264_afbc_fakesink
 generated_dec_h265_afbc_fakesink
+generated_dec_h264_crop_meta
 enc_vp8_nv12
 enc_jpeg_nv12
 roundtrip_jpeg_nv12
@@ -907,6 +910,18 @@ build_case_command()
 			gop=12 max-reenc=2 bps=250000 bps-min=100000 bps-max=500000 \
 			max-pending=2 zero-copy-pkt=false
 		;;
+	enc_h264_qp_profile_props)
+		build_videotest_encode mpph264enc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
+			profile=main level=4.1 rc-mode=vbr qp-init=28 \
+			qp-min=18 qp-max=42 qp-min-i=18 qp-max-i=38 \
+			qp-delta-ip=3 zero-copy-pkt=true
+		;;
+	enc_h265_qp_props)
+		build_videotest_encode mpph265enc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
+			rc-mode=vbr qp-init=28 qp-min=18 qp-max=42 \
+			qp-min-i=18 qp-max-i=38 qp-delta-ip=3 \
+			zero-copy-pkt=true
+		;;
 	enc_vp8_nv12)
 		build_videotest_encode mppvp8enc NV12 "$GST_FORMAT_MATRIX_BUFFERS"
 		;;
@@ -1094,6 +1109,9 @@ build_case_command()
 		;;
 	generated_dec_h265_afbc_fakesink)
 		CMD=(__builtin_generated_decode h265 fbc=true)
+		;;
+	generated_dec_h264_crop_meta)
+		CMD=(__builtin_generated_decode h264 "crop-rectangle=<16,16,160,120>")
 		;;
 	roundtrip_h264_rga_bgr16)
 		build_videotest_roundtrip mpph264enc h264parse \
@@ -1311,7 +1329,8 @@ run_case_payload()
 	generated_dec_vp9_fakesink | generated_dec_vp9_dmabuf | \
 	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
 	generated_dec_vp9_rga_scale | \
-	generated_dec_h264_afbc_fakesink | generated_dec_h265_afbc_fakesink)
+	generated_dec_h264_afbc_fakesink | generated_dec_h265_afbc_fakesink | \
+	generated_dec_h264_crop_meta)
 		run_generated_decode "${CMD[1]}" "${CMD[@]:2}"
 		;;
 	generated_dec_h264_renegotiate | generated_dec_h265_renegotiate)

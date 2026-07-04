@@ -116,7 +116,8 @@ Suggested expanded matrix:
   H.264/H.265 encode, BGRx/RGBA encode cases that force the plugin's legacy
   `c_RkRgaBlit()` conversion path, generated elementary-stream decode and
   transcode, generated VP9 IVF decode, in-pipeline caps renegotiation, explicit
-  flush events, and repeated EOS and start/stop loops. Add H.264/H.265 inputs
+  flush events, codec-specific encoder QP/profile controls, and repeated EOS and
+  start/stop loops. Add H.264/H.265 inputs
   to enable decode to `fakesink`, decode-side RGA scale/format/rotate, and
   decode -> encode transcodes. Generated H.264/H.265 AFBC decode output is
   recorded as
@@ -235,7 +236,8 @@ exercises real kernel paths:
 - `gst_inspect_rockchipmpp`, `gst_inspect_mppvideodec`,
   `gst_inspect_mpph264enc`, `gst_inspect_mpph265enc`;
 - `enc_h264_nv12`, `enc_h265_nv12`,
-  `enc_h264_control_props`, `enc_h265_control_props`;
+  `enc_h264_control_props`, `enc_h265_control_props`,
+  `enc_h264_qp_profile_props`, `enc_h265_qp_props`;
 - `enc_h264_bgrx_rga_rotate`, `enc_h265_rgba_rga_scale`;
 - `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
   `roundtrip_h264_rga_rotate`;
@@ -290,7 +292,9 @@ The encoder-control-property cases set non-default `header-mode`, `sei-mode`,
 `rc-mode`, `gop`, `max-reenc`, `bps*`, and `max-pending` values and disable
 `zero-copy-pkt`, covering the current plugin path that applies
 `MPP_ENC_SET_HEADER_MODE`, `MPP_ENC_SET_SEI_CFG`, `MPP_ENC_SET_CFG`, and the
-packet copy-out path.
+packet copy-out path. The codec-specific QP/profile cases separately cover the
+current H.264/H.265 plugin properties that update `rc:qp_*` and, for H.264,
+`h264:profile`/`h264:level` before the same `MPP_ENC_SET_CFG` submit.
 The event cases use the staged `gstreamer-event-harness` helper to wait until
 `mpph264enc`, `mpph265enc`, or `mppvideodec` has produced data, then require
 more output afterward. The flush cases send `FLUSH_START`/`FLUSH_STOP` to the
@@ -349,6 +353,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_transcode_h264_dmabuf_to_h265`, `generated_transcode_vp9_to_h264`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
 `enc_h264_control_props`, `enc_h265_control_props`,
+`enc_h264_qp_profile_props`, `enc_h265_qp_props`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
 `event_force_key_enc_h264`, `event_force_key_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,
@@ -368,6 +373,7 @@ Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `roundtrip_jpeg_nv12`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`,
 `generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`,
+`generated_dec_h264_crop_meta`,
 `generated_dec_vp9_rga_scale`, `generated_transcode_vp9_to_h264`,
 `dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
 smaller GStreamer RGA format matrix for currently advertised legacy
@@ -448,8 +454,10 @@ PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-04 after the GStreamer strict decoder-property
-cases were wired into the generated-decode builtin dispatch, the asset-free
+was last verified on 2026-07-04 after the GStreamer codec-specific encoder QP
+cases were added to the required set and the decoder crop-meta case was added as
+diagnostic coverage; after the GStreamer strict decoder-property cases were
+wired into the generated-decode builtin dispatch, the asset-free
 parallel cases became required by default, and after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
 coverage for the GStreamer virtual-source, fd-backed rotate/convert, and planar

@@ -41,12 +41,14 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > reset on caps changes, encoder/decoder flush reset with post-flush output,
 > encoder force-key events that call `MPP_ENC_SET_IDR_FRAME`,
 > explicit encoder control-property application through `MPP_ENC_SET_CFG`,
+> including codec-specific QP controls and H.264 profile/level,
 > strict decoder property application through `MPP_DEC_SET_PARSER_FAST_MODE`,
 > repeated encoder/decoder drain-to-EOS reuse,
 > multi-session scheduling,
 > and decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
-> generated H.264/H.265 AFBC decode output, generated VP9 transcode, generated
+> generated H.264/H.265 AFBC decode output, generated H.264 crop-meta output,
+> generated VP9 transcode, generated
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 decoder-side
 > output conversion. The in-repo direct `librga` smoke
@@ -366,7 +368,8 @@ implementation (cross-reference:
   rotate/format-convert, in-pipeline H.264/H.265 encoder caps-renegotiation
   through two differently sized raw NV12 segments, explicit H.264/H.265
   encoder control-property cases for header/SEI/rate-control/GOP/re-encode
-  config plus packet copy-out,
+  config plus packet copy-out, codec-specific H.264/H.265 QP controls, and
+  H.264 profile/level controls,
   encoder and decoder `FLUSH_START`/`FLUSH_STOP` event handling with required
   post-flush output, encoder `GstForceKeyUnit` events that drive
   `MPP_ENC_SET_IDR_FRAME`, repeated encoder/decoder drain-to-EOS reuse in one
@@ -376,7 +379,7 @@ implementation (cross-reference:
   multi-session scheduling evidence; its
   diagnostic set also includes seek-event probes through the same
   `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output,
-  generated VP9-to-H.264 transcode, and
+  generated H.264 crop-meta output, generated VP9-to-H.264 transcode, and
   a GStreamer-visible RGA format matrix covering encoder-side
   BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths plus decoder-side
   BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The runner now
