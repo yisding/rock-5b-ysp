@@ -69,6 +69,8 @@ caps_renegotiate_h264_nv12
 caps_renegotiate_h265_nv12
 event_flush_enc_h264
 event_flush_enc_h265
+event_force_key_enc_h264
+event_force_key_enc_h265
 event_flush_dec_h264
 event_flush_dec_h265
 eos_loop_enc_h264
@@ -1002,6 +1004,12 @@ build_case_command()
 		;;
 	event_flush_enc_h265)
 		build_event_encode flush mpph265enc
+		;;
+	event_force_key_enc_h264)
+		build_event_encode force-key-unit mpph264enc
+		;;
+	event_force_key_enc_h265)
+		build_event_encode force-key-unit mpph265enc
 		;;
 	event_flush_dec_h264)
 		CMD=(__builtin_event_generated_decode h264 flush)

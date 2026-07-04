@@ -2,9 +2,10 @@
 /*
  * Drive GStreamer events that gst-launch-1.0 cannot issue on demand.
  *
- * The conformance suite uses this helper to trigger flush/seek handling after
- * a Rockchip MPP element has produced data, then requires post-event output so
- * reset/recovery paths are exercised rather than only accepting the event.
+ * The conformance suite uses this helper to trigger flush/seek/key-unit
+ * handling after a Rockchip MPP element has produced data, then requires
+ * post-event output so reset/recovery/control paths are exercised rather than
+ * only accepting the event.
  */
 
 #include <gst/gst.h>
@@ -16,6 +17,7 @@ enum harness_action {
 	ACTION_FLUSH,
 	ACTION_SEEK,
 	ACTION_FLUSH_SEEK,
+	ACTION_FORCE_KEY_UNIT,
 	ACTION_EOS_LOOP,
 };
 
@@ -42,7 +44,7 @@ struct harness {
 
 static void usage(const char *argv0)
 {
-	g_printerr("Usage: %s --pipeline PIPELINE --target ELEMENT --action flush|seek|flush-seek [options]\n",
+	g_printerr("Usage: %s --pipeline PIPELINE --target ELEMENT --action flush|seek|flush-seek|force-key-unit [options]\n",
 		   argv0);
 	g_printerr("       %s --pipeline PIPELINE --action eos-loop --loops N [options]\n",
 		   argv0);
@@ -136,6 +138,40 @@ static gboolean do_seek(struct harness *h)
 	return TRUE;
 }
 
+static gboolean do_force_key_unit(struct harness *h)
+{
+	GstStructure *structure;
+	GstEvent *event;
+	GstPad *peer;
+	gboolean ok;
+
+	peer = gst_pad_get_peer(h->target_src);
+	if (!peer) {
+		fail(h, "target src pad has no downstream peer");
+		return FALSE;
+	}
+
+	/*
+	 * Equivalent to gst_video_event_new_upstream_force_key_unit(), but kept
+	 * local so the harness only needs core GStreamer at compile time.
+	 */
+	structure = gst_structure_new("GstForceKeyUnit",
+				      "running-time", GST_TYPE_CLOCK_TIME,
+				      GST_CLOCK_TIME_NONE,
+				      "all-headers", G_TYPE_BOOLEAN, TRUE,
+				      "count", G_TYPE_UINT,
+				      h->before_buffers + 1, NULL);
+	event = gst_event_new_custom(GST_EVENT_CUSTOM_UPSTREAM, structure);
+	ok = gst_pad_send_event(peer, event);
+	gst_object_unref(peer);
+	if (!ok) {
+		fail(h, "target force-key-unit event was rejected");
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 static gboolean trigger_action(gpointer data)
 {
 	struct harness *h = data;
@@ -156,6 +192,12 @@ static gboolean trigger_action(gpointer data)
 		if (!do_flush(h) || !do_seek(h))
 			return G_SOURCE_REMOVE;
 		break;
+	case ACTION_FORCE_KEY_UNIT:
+		if (!do_force_key_unit(h))
+			return G_SOURCE_REMOVE;
+		break;
+	case ACTION_EOS_LOOP:
+		return G_SOURCE_REMOVE;
 	}
 
 	h->action_done = TRUE;
@@ -370,6 +412,8 @@ int main(int argc, char **argv)
 		h.action = ACTION_SEEK;
 	else if (!strcmp(action_name, "flush-seek"))
 		h.action = ACTION_FLUSH_SEEK;
+	else if (!strcmp(action_name, "force-key-unit"))
+		h.action = ACTION_FORCE_KEY_UNIT;
 	else if (!strcmp(action_name, "eos-loop"))
 		h.action = ACTION_EOS_LOOP;
 	else {

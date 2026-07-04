@@ -247,6 +247,7 @@ exercises real kernel paths:
   `generated_transcode_h264_dmabuf_to_h265`;
 - `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`;
 - `event_flush_enc_h264`, `event_flush_enc_h265`,
+  `event_force_key_enc_h264`, `event_force_key_enc_h265`,
   `event_flush_dec_h264`, `event_flush_dec_h265`;
 - `eos_loop_enc_h264`, `eos_loop_enc_h265`,
   `eos_loop_dec_h264`, `eos_loop_dec_h265`;
@@ -274,11 +275,14 @@ NV12 segments with different dimensions through one `concat ! mpp*h26*enc`
 pipeline, forcing JeffyCN's encoder `set_format()` path to drain and reset the
 existing MPP session inside one GStreamer pipeline rather than only across
 process restarts.
-The event-flush cases use the staged `gstreamer-event-harness` helper to wait
-until `mpph264enc`, `mpph265enc`, or `mppvideodec` has produced data, send
-`FLUSH_START`/`FLUSH_STOP` to the element's sink pad, and require more output
-afterward. That directly drives JeffyCN's `GstVideoEncoder.flush` and
-`GstVideoDecoder.flush` hooks, which call `mpi->reset()`.
+The event cases use the staged `gstreamer-event-harness` helper to wait until
+`mpph264enc`, `mpph265enc`, or `mppvideodec` has produced data, then require
+more output afterward. The flush cases send `FLUSH_START`/`FLUSH_STOP` to the
+element's sink pad and directly drive JeffyCN's `GstVideoEncoder.flush` and
+`GstVideoDecoder.flush` hooks, which call `mpi->reset()`. The force-key-unit
+encoder cases send a `GstForceKeyUnit` upstream event from the downstream peer
+toward the encoder src pad, covering the plugin path that marks the next frame
+as forced-key and calls `MPP_ENC_SET_IDR_FRAME`.
 The EOS-loop cases use the same helper in `eos-loop` mode to restart one
 finite encoder or generated elementary-stream decoder pipeline repeatedly in one
 process. That drives JeffyCN's drain/shutdown paths, which send EOS packets into
@@ -321,6 +325,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_transcode_h264_dmabuf_to_h265`, `generated_transcode_vp9_to_h264`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
+`event_force_key_enc_h264`, `event_force_key_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,
 `eos_loop_enc_h264`, `eos_loop_enc_h265`,
 `eos_loop_dec_h264`, `eos_loop_dec_h265`,

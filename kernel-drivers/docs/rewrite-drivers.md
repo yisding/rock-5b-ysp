@@ -32,12 +32,13 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > suite now includes asset-free encoder, RGA-conversion, decoder roundtrip,
 > generated elementary-stream H.264/H.265 decode/transcode, generated VP9 IVF
 > decode, caps-renegotiation, explicit
-> flush-event, EOS-loop, and state-loop pipelines so the
+> flush-event, force-key-unit, EOS-loop, and state-loop pipelines so the
 > next hardware pass exercises decoder-side buffer groups, short-timeout
 > polling, info-change, parser-driven decoder caps changes, reset,
 > media-file parser/decode, decoder-side RGA
 > conversion, DMABuf caps/allocator handoff, in-pipeline drained encoder
 > reset on caps changes, encoder/decoder flush reset with post-flush output,
+> encoder force-key events that call `MPP_ENC_SET_IDR_FRAME`,
 > repeated encoder/decoder drain-to-EOS reuse,
 > and decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
@@ -361,8 +362,9 @@ implementation (cross-reference:
   rotate/format-convert, in-pipeline H.264/H.265 encoder caps-renegotiation
   through two differently sized raw NV12 segments, explicit H.264/H.265
   encoder and decoder `FLUSH_START`/`FLUSH_STOP` event handling with required
-  post-flush output, repeated encoder/decoder drain-to-EOS reuse in one process,
-  and repeated state-loop reset; its
+  post-flush output, encoder `GstForceKeyUnit` events that drive
+  `MPP_ENC_SET_IDR_FRAME`, repeated encoder/decoder drain-to-EOS reuse in one
+  process, and repeated state-loop reset; its
   diagnostic set also includes seek-event probes through the same
   `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output,
   generated VP9-to-H.264 transcode, parallel H.264 encode,
