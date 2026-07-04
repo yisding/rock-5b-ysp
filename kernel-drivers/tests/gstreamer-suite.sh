@@ -132,6 +132,7 @@ fbc_cases_default="
 generated_dec_h264_afbc_fakesink
 generated_dec_h265_afbc_fakesink
 generated_dec_h264_env_fbc
+generated_dec_h264_env_arm_afbc
 "
 
 diagnostic_cases_default="
@@ -934,18 +935,19 @@ run_generated_decode_env_format()
 run_generated_decode_env_fbc()
 {
 	local codec=$1
+	local env_name=${2:-GST_MPP_VIDEODEC_DEFAULT_FBC}
 
 	ensure_generated_input "$codec" || return $?
 	CMD=(
 		env
-		GST_MPP_VIDEODEC_DEFAULT_FBC=1
+		"$env_name=1"
 		gst-launch-1.0 -q
 		filesrc "location=$GENERATED_INPUT_PATH"
 		"!" "$GENERATED_PARSER"
 		"!" mppvideodec
 	)
 	append_fake_sink
-	printf "decoding generated %s input with FBC env default: " "$codec"
+	printf "decoding generated %s input with %s env default: " "$codec" "$env_name"
 	print_current_command
 	run_current_command
 }
@@ -1507,6 +1509,9 @@ build_case_command()
 	generated_dec_h264_env_fbc)
 		CMD=(__builtin_generated_decode_env_fbc h264)
 		;;
+	generated_dec_h264_env_arm_afbc)
+		CMD=(__builtin_generated_decode_env_fbc h264 GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC)
+		;;
 	generated_dec_h264_crop_meta)
 		CMD=(__builtin_generated_decode h264 "crop-rectangle=<16,16,160,120>")
 		;;
@@ -1763,8 +1768,8 @@ run_case_payload()
 	generated_dec_h264_env_format_nv21)
 		run_generated_decode_env_format "${CMD[1]}" "${CMD[2]}"
 		;;
-	generated_dec_h264_env_fbc)
-		run_generated_decode_env_fbc "${CMD[1]}"
+	generated_dec_h264_env_fbc | generated_dec_h264_env_arm_afbc)
+		run_generated_decode_env_fbc "${CMD[1]}" "${CMD[2]:-}"
 		;;
 	generated_dec_h264_mp4_codec_data | generated_dec_h265_mp4_codec_data)
 		run_generated_mp4_decode "${CMD[1]}"

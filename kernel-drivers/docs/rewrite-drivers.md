@@ -44,13 +44,14 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > including codec-specific QP controls and H.264 profile/level,
 > encoder max-pending and unaligned-vstride default handling,
 > strict decoder property application through `MPP_DEC_SET_PARSER_FAST_MODE`,
-> env-default decoder control, DMA-feature, and output-format application,
+> env-default decoder control, DMA-feature, output-format, and FBC/ARM-AFBC
+> default-alias application,
 > MPP-only encode/decode with `GST_MPP_NO_RGA=1`,
 > repeated encoder/decoder drain-to-EOS reuse,
-> multi-session scheduling,
-> and decode->encode transcode before
+> multi-session scheduling, generated H.264/H.265 AFBC/FBC decode output, and
+> decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
-> generated H.264/H.265 AFBC decode output, generated H.264 crop-meta output,
+> generated H.264 crop-meta output,
 > VP8/JPEG/VPx-alpha element visibility, generated VP9 transcode, generated
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 decoder-side
@@ -389,12 +390,12 @@ implementation (cross-reference:
   process, repeated state-loop reset, parallel H.264 encode,
   parallel H.264 encode->decode roundtrip, generated same-codec/mixed-codec
   parallel decode, and mixed H.264/H.265 decode->encode transcode pipelines for
-  multi-session scheduling evidence; its
+  multi-session scheduling evidence, generated H.264/H.265 AFBC/FBC decode
+  output, and the matching H.264 `GST_MPP_VIDEODEC_DEFAULT_FBC=1` /
+  `GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC=1` default paths; its
   diagnostic set also includes seek-event probes through the same
-  `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output,
-  the matching H.264 `GST_MPP_VIDEODEC_DEFAULT_FBC=1` default path,
-  generated H.264 crop-meta output, VP8/JPEG/VPx-alpha element visibility,
-  generated VP9-to-H.264 transcode, and
+  `gstreamer-event-harness`, generated H.264 crop-meta output,
+  VP8/JPEG/VPx-alpha element visibility, generated VP9-to-H.264 transcode, and
   a GStreamer-visible RGA format matrix covering encoder-side
   BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths plus decoder-side
   BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The runner now

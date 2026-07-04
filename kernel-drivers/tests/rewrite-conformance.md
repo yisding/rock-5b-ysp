@@ -310,11 +310,12 @@ separately from explicit element properties.
 encode/decode with `GST_MPP_NO_RGA=1`, covering the current plugin's global
 no-RGA branch while staying on MPP-only paths that should not depend on
 `/dev/rga`.
-`generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`, and
-`generated_dec_h264_env_fbc` are enabled and required by default. They validate
-the plugin-visible `mppvideodec fbc=true` and
-`GST_MPP_VIDEODEC_DEFAULT_FBC=1` paths through `fakesink`; the suite does not
-capture artifacts for them because AFBC/FBC buffers are compressed layout
+`generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`,
+`generated_dec_h264_env_fbc`, and `generated_dec_h264_env_arm_afbc` are
+enabled and required by default. They validate the plugin-visible
+`mppvideodec fbc=true`, `GST_MPP_VIDEODEC_DEFAULT_FBC=1`, and
+`GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC=1` paths through `fakesink`; the suite does
+not capture artifacts for them because AFBC/FBC buffers are compressed layout
 contracts, not stable raw-pixel dumps for SHA-256 comparison. Set
 `GST_REQUIRE_FBC_CASES=0` to keep them diagnostic-only during bring-up, or
 `GST_ENABLE_FBC_CASES=0 GST_REQUIRE_FBC_CASES=0` to omit them from a narrow
@@ -418,7 +419,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_strict_props`, `generated_dec_h264_env_strict_props`,
 `generated_dec_h264_env_format_nv21`, `generated_dec_h264_env_no_rga`,
 `generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`,
-`generated_dec_h264_env_fbc`,
+`generated_dec_h264_env_fbc`, `generated_dec_h264_env_arm_afbc`,
 `generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
@@ -539,10 +540,13 @@ PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-04 after generated GStreamer AFBC/FBC fakesink
-decode-output cases were promoted to required pass/fail coverage; after the
-GStreamer codec-specific encoder QP cases were added to the required set and
-the decoder crop-meta case was added as diagnostic coverage; after the
+was last verified on 2026-07-04 after the
+`GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC=1` alias was added to the required
+GStreamer AFBC/FBC fakesink decode-output coverage; after generated GStreamer
+AFBC/FBC fakesink decode-output cases were promoted to required pass/fail
+coverage; after the GStreamer codec-specific encoder QP cases were added to
+the required set and the decoder crop-meta case was added as diagnostic
+coverage; after the
 GStreamer env-default strict decoder and env-default decoder
 DMA-feature/output-format cases were added to the required set; after the
 GStreamer encoder unaligned-vstride env-default case was added to the required
