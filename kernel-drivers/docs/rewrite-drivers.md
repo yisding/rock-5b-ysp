@@ -390,7 +390,8 @@ implementation (cross-reference:
   rotate/format-convert, in-pipeline H.264/H.265 encoder caps-renegotiation
   through two differently sized raw NV12 segments, explicit H.264/H.265
   encoder control-property cases for header/SEI/rate-control/GOP/re-encode
-  config plus packet copy-out, codec-specific H.264/H.265 QP controls,
+  config plus packet copy-out, encoded H.264/H.265 CBR/FIXQP rate-control
+  artifacts, codec-specific H.264/H.265 QP controls,
   H.264 `GST_MPP_NO_RGA=1` MPP-only encode/decode,
   H.264 `GST_MPP_ENC_MAX_PENDING` outstanding-frame default handling,
   H.264 `GST_MPP_ENC_UNALIGNED_VSTRIDE=1` prep-stride programming,

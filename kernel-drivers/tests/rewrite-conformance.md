@@ -372,7 +372,10 @@ The encoder-control-property cases set non-default `header-mode`, `sei-mode`,
 `rc-mode`, `gop`, `max-reenc`, `bps*`, and `max-pending` values and disable
 `zero-copy-pkt`, covering the current plugin path that applies
 `MPP_ENC_SET_HEADER_MODE`, `MPP_ENC_SET_SEI_CFG`, `MPP_ENC_SET_CFG`, and the
-packet copy-out path. `enc_h264_env_max_pending` runs the generated H.264
+packet copy-out path. Separate required H.264/H.265 RC-mode cases now exercise
+the `rc-mode=cbr` narrow-BPS branch and the `rc-mode=fixqp` QP-lock branch and
+record encoded bitstream artifacts for forward-port-vs-rewrite comparison.
+`enc_h264_env_max_pending` runs the generated H.264
 encoder path with `GST_MPP_ENC_MAX_PENDING` set, covering the same
 userspace-visible outstanding-frame limit through JeffyCN's global default path
 instead of an explicit element property. The codec-specific QP/profile cases
@@ -514,11 +517,11 @@ also include `gst_inspect_kmssrc`, `kms_capture_dmabuf_fakesink`,
 `GST_ENABLE_FBC_CASES`, `GST_REQUIRE_FBC_CASES`,
 `GST_ENABLE_KMS_CASES`, `GST_REQUIRE_KMS_CASES`,
 `GST_KMS_CAPTURE_BUFFERS`, `GST_KMS_SRC_ARGS`, and `GST_TIMEOUT`.
-By default `GST_CAPTURE_ARTIFACTS=1` makes generated and
-optional external-media decode/transcode cases write decoded raw buffers or
-encoded elementary streams under each run's `artifacts/` directory and records
-byte counts plus SHA-256s in `artifacts.tsv`; set it to `0` for pure pass/fail
-timing runs. Required generated AFBC/FBC fakesink cases are intentionally
+By default `GST_CAPTURE_ARTIFACTS=1` makes generated,
+optional external-media decode/transcode, and encoded RC-mode cases write
+decoded raw buffers or encoded elementary streams under each run's `artifacts/`
+directory and records byte counts plus SHA-256s in `artifacts.tsv`; set it to
+`0` for pure pass/fail timing runs. Required generated AFBC/FBC fakesink cases are intentionally
 pass/fail-only and do not add artifact rows. After both
 kernels have a suite result, run
 `gstreamer-suite-compare.sh`; it follows the same baseline pass vs candidate
@@ -552,7 +555,7 @@ logs.
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
 | `librga-suite.sh` | **official librga sample conformance plus direct artifact smoke** using `../rockchip-conformance/out/librga-samples/bin` and `librga-smoke.cpp` | Runs the broad current Linux/RK3588 sample set plus `ysp_librga_smoke` under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails required cases. The direct smoke case records deterministic destination buffers in `artifacts.tsv` for maintained im2d, fence, pre-intr, Gaussian, and GStreamer-shaped legacy `c_RkRgaBlit()` paths. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, paired `artifacts.tsv` manifests. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=0` only for legacy pass/fail-only logs. |
-| `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, optional external-media pipelines, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
+| `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, optional external-media pipelines, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, encoded RC-mode artifacts, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 | `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs component inspection plus generated-input H.264->`scale_rkrga`->HEVC and HEVC->`scale_rkrga`->H.264 hardware transcodes under the selected `PROFILE`. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `ffmpeg-suite-compare.sh` | **rewrite-vs-forward-port ffmpeg-rockchip comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for encoded bitstream byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
@@ -598,8 +601,9 @@ forward-port-vs-rewrite conformance gate with encoded-bitstream artifacts; after
 `GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC=1` alias was added to the required
 GStreamer AFBC/FBC fakesink decode-output coverage; after generated GStreamer
 AFBC/FBC fakesink decode-output cases were promoted to required pass/fail
-coverage; after the GStreamer codec-specific encoder QP cases were added to
-the required set and the decoder crop-meta case was added as diagnostic
+coverage; after the GStreamer codec-specific encoder QP cases and encoded
+CBR/FIXQP RC-mode artifact cases were added to the required set and the
+decoder crop-meta case was added as diagnostic
 coverage; after the
 GStreamer env-default strict decoder and env-default decoder
 DMA-feature/output-format cases were added to the required set; after the

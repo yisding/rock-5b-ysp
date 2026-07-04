@@ -62,6 +62,10 @@ enc_h264_nv12
 enc_h265_nv12
 enc_h264_control_props
 enc_h265_control_props
+enc_h264_rc_cbr
+enc_h264_rc_fixqp
+enc_h265_rc_cbr
+enc_h265_rc_fixqp
 enc_h264_qp_profile_props
 enc_h265_qp_props
 enc_h264_env_no_rga
@@ -443,7 +447,7 @@ encoded_artifact_ext()
 	esac
 }
 
-build_videotest_encode()
+build_videotest_encode_base()
 {
 	local encoder=$1
 	local format=$2
@@ -461,8 +465,23 @@ build_videotest_encode()
 		CMD+=("$1")
 		shift
 	done
+}
+
+build_videotest_encode()
+{
+	build_videotest_encode_base "$@"
 
 	CMD+=("!" fakesink sync=false)
+}
+
+build_videotest_encode_artifact()
+{
+	local encoder=$1
+	local ext
+
+	build_videotest_encode_base "$@"
+	ext=$(encoded_artifact_ext "$encoder")
+	append_artifact_or_fake_sink encoded "$ext"
 }
 
 build_videotest_roundtrip()
@@ -1338,6 +1357,24 @@ build_case_command()
 			header-mode=each-idr sei-mode=one-frame rc-mode=vbr \
 			gop=12 max-reenc=2 bps=250000 bps-min=100000 bps-max=500000 \
 			max-pending=2 zero-copy-pkt=false
+		;;
+	enc_h264_rc_cbr)
+		build_videotest_encode_artifact mpph264enc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
+			rc-mode=cbr bps=250000 bps-min=230000 bps-max=270000 \
+			qp-init=28 zero-copy-pkt=true
+		;;
+	enc_h264_rc_fixqp)
+		build_videotest_encode_artifact mpph264enc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
+			rc-mode=fixqp qp-init=30 zero-copy-pkt=true
+		;;
+	enc_h265_rc_cbr)
+		build_videotest_encode_artifact mpph265enc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
+			rc-mode=cbr bps=250000 bps-min=230000 bps-max=270000 \
+			qp-init=28 zero-copy-pkt=true
+		;;
+	enc_h265_rc_fixqp)
+		build_videotest_encode_artifact mpph265enc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
+			rc-mode=fixqp qp-init=30 zero-copy-pkt=true
 		;;
 	enc_h264_qp_profile_props)
 		build_videotest_encode mpph264enc NV12 "$GST_FORMAT_MATRIX_BUFFERS" \
