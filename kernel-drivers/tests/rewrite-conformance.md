@@ -302,6 +302,9 @@ paths:
 - `enc_h264_i420`, `enc_h264_yuy2`, `enc_h264_uyvy`,
   `enc_h264_rgb16`, `enc_h264_argb`, `enc_h264_abgr`,
   `enc_h264_xrgb`, `enc_h264_xbgr`;
+- `enc_h265_i420`, `enc_h265_yuy2`, `enc_h265_uyvy`,
+  `enc_h265_rgb16`, `enc_h265_argb`, `enc_h265_abgr`,
+  `enc_h265_xrgb`, `enc_h265_xbgr`;
 - `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
   `roundtrip_h264_rga_rotate`, `roundtrip_h264_rga_rotate_270`;
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
@@ -494,11 +497,11 @@ short `enc_vp8_nv12`, `enc_jpeg_nv12`, and
 userspace would observe without turning legacy coverage into a required pass
 condition.
 The required encoder-format set now covers JeffyCN's advertised common direct
-H.264 MPP input formats `I420`, `YUY2`, `UYVY`, `RGB16`, `ARGB`, `ABGR`,
-`xRGB`, and `xBGR`. The diagnostic encoder-format matrix keeps chip-dependent
-direct `NV24`/`Y444` cases plus RGA-forced `NV21`, `I420`, and `YV12` scale
-paths outside the required RK3588 gate until hardware logs prove they are
-needed for current workloads.
+H.264/H.265 MPP input formats `I420`, `YUY2`, `UYVY`, `RGB16`, `ARGB`,
+`ABGR`, `xRGB`, and `xBGR`. The diagnostic encoder-format matrix keeps
+chip-dependent direct `NV24`/`Y444` cases plus RGA-forced `NV21`, `I420`, and
+`YV12` scale paths outside the required RK3588 gate until hardware logs prove
+they are needed for current workloads.
 
 Set `GST_H264_INPUT` and/or `GST_H265_INPUT` to add decode/transcode cases
 automatically. With artifact capture enabled, these cases write decoded raw
@@ -585,6 +588,9 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `enc_h264_i420`, `enc_h264_yuy2`, `enc_h264_uyvy`,
 `enc_h264_rgb16`, `enc_h264_argb`, `enc_h264_abgr`,
 `enc_h264_xrgb`, `enc_h264_xbgr`,
+`enc_h265_i420`, `enc_h265_yuy2`, `enc_h265_uyvy`,
+`enc_h265_rgb16`, `enc_h265_argb`, `enc_h265_abgr`,
+`enc_h265_xrgb`, `enc_h265_xbgr`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
 `event_force_key_enc_h264`, `event_force_key_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,
@@ -610,7 +616,7 @@ Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `roundtrip_jpeg_nv12`, `roundtrip_jpeg_format_bgrx`,
 `roundtrip_jpeg_env_format_bgrx`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`,
-`enc_h264_nv24`, `enc_h264_y444`,
+`enc_h264_nv24`, `enc_h264_y444`, `enc_h265_nv24`, `enc_h265_y444`,
 `generated_dec_h264_env_rfbc`,
 `generated_dec_vp9_rga_scale`, `generated_transcode_vp9_to_h264`,
 `generated_dec_vp8_fakesink`, `generated_dec_vp8_dmabuf`,
@@ -622,8 +628,8 @@ Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `generated_dec_mpeg4_fakesink`, `generated_dec_mpeg4_rga_scale`,
 `generated_transcode_mpeg4_to_h264`,
 `dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
-GStreamer encoder-format matrix for advertised direct MPP formats
-I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444, plus currently advertised
+GStreamer encoder-format matrix for advertised direct H.264/H.265 MPP formats
+I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR plus diagnostic NV24/Y444, plus currently advertised
 legacy `c_RkRgaBlit()` conversions: encoder-side
 NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths and decoder-side
 BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths; the
@@ -772,7 +778,7 @@ GStreamer JPEG decoder
 explicit-format and `GST_MPP_JPEGDEC_DEFAULT_FORMAT` cases were added; after
 required generated GStreamer H.264
 decode output-format cases were expanded for the advertised RGBA/BGRA/RGBx/BGRx
-decoder-side RGA paths; after common direct GStreamer H.264 encoder-format
+decoder-side RGA paths; after common direct GStreamer H.264/H.265 encoder-format
 cases were promoted to required while the diagnostic matrix kept chip-dependent
 NV24/Y444 plus remaining NV21/I420/YV12 RGA scale paths; after the `GST_VALIDATE_CASES=1`
 GStreamer case-builder/runner dry validation mode was added; after

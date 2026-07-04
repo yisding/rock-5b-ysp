@@ -94,6 +94,14 @@ enc_h264_argb
 enc_h264_abgr
 enc_h264_xrgb
 enc_h264_xbgr
+enc_h265_i420
+enc_h265_yuy2
+enc_h265_uyvy
+enc_h265_rgb16
+enc_h265_argb
+enc_h265_abgr
+enc_h265_xrgb
+enc_h265_xbgr
 roundtrip_h264_nv12
 roundtrip_h265_nv12
 roundtrip_h264_rga_rotate
@@ -235,6 +243,8 @@ enc_jpeg_qf_props
 roundtrip_jpeg_nv12
 enc_h264_nv24
 enc_h264_y444
+enc_h265_nv24
+enc_h265_y444
 enc_h264_nv21_rga_scale
 enc_h264_i420_rga_scale
 enc_h264_yv12_rga_scale
@@ -1933,12 +1943,52 @@ build_case_command()
 		build_videotest_encode mpph264enc xBGR "$GST_FORMAT_MATRIX_BUFFERS" \
 			zero-copy-pkt=true
 		;;
+	enc_h265_i420)
+		build_videotest_encode mpph265enc I420 "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h265_yuy2)
+		build_videotest_encode mpph265enc YUY2 "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h265_uyvy)
+		build_videotest_encode mpph265enc UYVY "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h265_rgb16)
+		build_videotest_encode mpph265enc RGB16 "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h265_argb)
+		build_videotest_encode mpph265enc ARGB "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h265_abgr)
+		build_videotest_encode mpph265enc ABGR "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h265_xrgb)
+		build_videotest_encode mpph265enc xRGB "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h265_xbgr)
+		build_videotest_encode mpph265enc xBGR "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
 	enc_h264_nv24)
 		build_videotest_encode mpph264enc NV24 "$GST_FORMAT_MATRIX_BUFFERS" \
 			zero-copy-pkt=true
 		;;
 	enc_h264_y444)
 		build_videotest_encode mpph264enc Y444 "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h265_nv24)
+		build_videotest_encode mpph265enc NV24 "$GST_FORMAT_MATRIX_BUFFERS" \
+			zero-copy-pkt=true
+		;;
+	enc_h265_y444)
+		build_videotest_encode mpph265enc Y444 "$GST_FORMAT_MATRIX_BUFFERS" \
 			zero-copy-pkt=true
 		;;
 	enc_h264_bgrx_rga_rotate)
