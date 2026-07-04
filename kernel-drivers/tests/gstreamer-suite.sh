@@ -1281,6 +1281,7 @@ run_case_payload()
 		;;
 	generated_dec_h264_fakesink | generated_dec_h265_fakesink | \
 	generated_dec_h264_dmabuf | generated_dec_h265_dmabuf | \
+	generated_dec_h264_strict_props | generated_dec_h265_strict_props | \
 	generated_dec_vp9_fakesink | generated_dec_vp9_dmabuf | \
 	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
 	generated_dec_vp9_rga_scale | \
@@ -1316,6 +1317,13 @@ run_case_payload()
 			"${CMD[3]}" "${CMD[4]}"
 		;;
 	*)
+		case "${CMD[0]:-}" in
+		__builtin_*)
+			printf "internal error: unhandled builtin case %s (%s)\n" \
+				"$case_name" "${CMD[0]}" >&2
+			return 4
+			;;
+		esac
 		run_current_command
 		;;
 	esac

@@ -466,7 +466,9 @@ PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-03 after the direct `librga` smoke gained
+was last verified on 2026-07-04 after the GStreamer strict decoder-property
+cases were wired into the generated-decode builtin dispatch, and after the
+direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
 coverage for the GStreamer virtual-source, fd-backed rotate/convert, and planar
 fallback shapes; after the MPP official-test suite/comparator and build helper
