@@ -53,7 +53,7 @@ needs no path edits. Override `ARMBIAN_BUILD=`/`WORKSPACE=` for another layout.
 | Script | Runs as | What it does |
 |--------|---------|--------------|
 | `build-combined-kernel.sh` | user | Wraps `./compile.sh kernel BOARD=rock-5b BRANCH=current KERNEL_CONFIGURE=no USE_CCACHE=yes`. Crucially passes `USE_CCACHE` as an **argument** (env var wouldn't reach the Docker build — see [gotchas](../../docs/gotchas.md)). Prints ccache growth + the new `P####-C####` hash. |
-| `install-combined-kernel.sh` | root | Removes the obsolete `rkvdec2` boot overlay from `armbianEnv.txt` (backs it up), then `dpkg -i` the image + dtb + headers debs for the pinned `PHASH`. Old kernel stays selectable. `DEBS`/`HASH`/`PHASH` are env-overridable. |
+| `install-combined-kernel.sh` | root | Removes the obsolete `rkvdec2` boot overlay from `armbianEnv.txt` (backs it up), then `dpkg -i` the image + dtb + headers debs for the pinned `PHASH`. Old kernel stays selectable. `DEBS`/`PHASH` are env-overridable; `HASH` is an optional extra version filter. |
 | `build-armbian-deb.sh` | user | The **av1 forward-port** build variant. Regenerates the port patches from the kernel git tree (`KERNEL_TREE`, `git format-patch v6.18..HEAD`), restores/cleans the selected built-in Armbian kernel patch archive, clears the matching userpatch archive, stages the generated patch set, **disables** the two colliding Armbian core media patches (this tree's DT is self-contained), then the same ccache-correct `compile.sh`. `--restore` performs only the built-in archive reset. |
 | `kernel-revert.sh` | root (SD rescue) | Get a bad board booting again: flip `/boot` symlinks (`switch`) or chroot-reinstall a good deb (`reinstall`) on the internal disk from an SD-card rescue. Subcommands `list`/`switch`/`reinstall`; target via `--auto`/`--device`/`--root`. |
 | `make-fallback-kernel-deb.sh` | user | Repackage a kernel deb (rename `Package:`, drop `Provides:`) into a **co-installable** fallback that won't clobber the primary `linux-image-current-rockchip64` — a permanent recovery kernel `kernel-revert.sh` can `switch` to. Defaults to the official 6.18.35 (26.5.1) debs. |
@@ -88,7 +88,8 @@ Then run the on-hardware smoke tests in [`../tests/`](../tests/README.md).
 
 ## PHASH pinning
 
-`install-combined-kernel.sh` pins a specific build via `HASH`/`PHASH` so it
-can't grab the wrong deb. Update `PHASH` after each build (the value is printed
-by `build-combined-kernel.sh`); the hash↔patch-revision log lives in
+`install-combined-kernel.sh` pins a specific build via `PHASH` so it can't grab
+the wrong deb while still tolerating Armbian minor kernel bumps such as
+`6.18.37` → `6.18.38`. Pass `HASH=...` only when you want an additional kernel
+version filter. `PHASH` is printed by the build script; the hash↔patch-revision log lives in
 [`install.md`](../../install.md).

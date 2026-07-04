@@ -138,11 +138,11 @@ internals that drift on *their* schedule. **When Armbian bumps
    anchors at `@@ -1353` ([Armbian packaging guide](../../packaging/docs/armbian-packaging.md) § the `av1d`
    relocation). If Armbian's `rk3588-base.dtsi` gains/loses lines near there,
    the two patches can collide again — re-check that both apply in either order.
-3. **Re-derive the `P####-C####` hash and update `PHASH`.** Any patch or config
+3. **Re-derive the `P####-C####` hash and pass `PHASH`.** Any patch or config
    change alters the Armbian deb-name hash;
-   `scripts/build-combined-kernel.sh` prints the new value (`:59`) — set it in
-   `scripts/install-combined-kernel.sh` (`PHASH=`, currently `Pb6ab-Cb831`) or
-   the installer refuses the new debs.
+   `scripts/build-combined-kernel.sh` prints the new value (`:59`) — pass it to
+   `scripts/install-combined-kernel.sh` (`sudo PHASH='P####-C####' ...`) or the
+   installer refuses the new debs.
 4. **Kconfig `default y` still honored?** The zero-edit config trick relies on
    Armbian running `make olddefconfig` over our patched Kconfig defaults
    ([Armbian packaging guide](../../packaging/docs/armbian-packaging.md)); confirm the tristate parents still

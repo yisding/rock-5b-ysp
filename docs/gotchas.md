@@ -73,7 +73,7 @@ workspace dir does **not** invalidate the cache — only the compiler mtime does
 defaults and reverting the built-in config changes the `C####` component of the
 Armbian deb name (the config-content hash — `status.md` explains the `P####-C####`
 deb-name scheme; e.g. `C89d0` → `Cb831`). Update the `PHASH` pin in
-`kernel-drivers/scripts/install-combined-kernel.sh` so the installer matches the new deb.
+the `install-combined-kernel.sh` invocation so the installer matches the new deb.
 
 ## Device tree
 
