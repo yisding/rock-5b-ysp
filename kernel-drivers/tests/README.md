@@ -9,9 +9,9 @@ node name — see [device-tree guide](../docs/device-tree.md)); the scripts acce
 the older `rkvdec-core0/1` naming too.
 
 The heavier rewrite build gate, the external `../rockchip-conformance` bundle,
-and the full MPP/librga/GStreamer conformance-suite reference live in the sibling
-[`rewrite-conformance.md`](./rewrite-conformance.md) so this page stays a clean
-newcomer on-ramp.
+and the full MPP/librga/GStreamer/FFmpeg conformance-suite reference live in the
+sibling [`rewrite-conformance.md`](./rewrite-conformance.md) so this page stays
+a clean newcomer on-ramp.
 
 ## Package brief
 
@@ -19,9 +19,9 @@ newcomer on-ramp.
 |-------|----------|
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. The rewrite build gate and conformance suites live in [`rewrite-conformance.md`](./rewrite-conformance.md). |
-| Owns | The smoke tests `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, `abi-probe.sh`/`abi-probe.c`, `abi-replay.sh`, and `librga-smoke.sh`/`librga-smoke.cpp`; the sourced helpers `suite-common.sh` and `debugfs-counters.sh`; the conformance wrappers `mpp-suite.sh`, `mpp-suite-compare.sh`, `librga-suite.sh`, `librga-suite-compare.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `ffmpeg-suite.sh`, `ffmpeg-suite-compare.sh`, `rewrite-build-gate.sh`, `suite-compare-selftest.sh` and their build helpers `build-mpp-tests.sh`, `build-librga-samples-full.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-event-harness.c` (all documented in [`rewrite-conformance.md`](./rewrite-conformance.md)); input-regeneration recipes; pass criteria; and observed reference results. |
+| Owns | The smoke tests `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, `abi-probe.sh`/`abi-probe.c`, `abi-replay.sh`, and `librga-smoke.sh`/`librga-smoke.cpp`; the sourced helpers `suite-common.sh` and `debugfs-counters.sh`; the conformance runner/wrappers `rewrite-conformance-run.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `librga-suite.sh`, `librga-suite-compare.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `ffmpeg-suite.sh`, `ffmpeg-suite-compare.sh`, `rewrite-build-gate.sh`, `suite-compare-selftest.sh` and their build helpers `build-mpp-tests.sh`, `build-librga-samples-full.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-event-harness.c` (all documented in [`rewrite-conformance.md`](./rewrite-conformance.md)); input-regeneration recipes; pass criteria; and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`video-libraries/ffmpeg/README.md`](../../video-libraries/ffmpeg/README.md), and device access from the codec udev rule. |
-| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains unverified on hardware, but the GStreamer suite now has generated VP9 IVF decode cases, diagnostic coverage for advertised H.264 encoder input and decoder output formats, the diagnostic VP8 encoder alias, diagnostic VP8/JPEG encoder property setters, diagnostic JPEG decoder explicit/default output-format cases, diagnostic RFBC caps negotiation via `GST_MPP_DEC_FBC_IS_RFBC=1`, opt-in display sink env cases for `KMSSINK_DISABLE_VSYNC=1`/`GST_RKXIMAGE_USE_COLORKEY=1`, opt-in KMS capture cases for DRM dma-buf import into MPP encode including `GST_KMSSRC_DMA_FEATURE=1`, and `GST_VALIDATE_CASES=1` device-free case-builder validation. The FFmpeg suite now has `FFMPEG_VALIDATE_CASES=1` dry validation plus required decoder-option, `scale_rkrga` forced-core/async/AFBC-output, and `vpp_rkrga` crop/transpose cases, with diagnostic decoder `afbc=rga` and `overlay_rkrga` alpha composition. The MPP conformance comparator now has byte-count/SHA-256 artifact comparison for official-test media outputs when the suite dumps decode/encode files, and the librga conformance comparator now compares deterministic destination-buffer artifacts from the required direct RGA smoke case. The rewrite clean-source object-build gate passed both public rewrite branch tips on 2026-07-04. See [`rewrite-conformance.md`](./rewrite-conformance.md) for the parity/conformance machinery. |
+| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains unverified on hardware, but the GStreamer suite now has generated VP9 IVF decode cases, diagnostic coverage for advertised H.264 encoder input and decoder output formats, the diagnostic VP8 encoder alias, diagnostic VP8/JPEG encoder property setters, diagnostic JPEG decoder explicit/default output-format cases, diagnostic RFBC caps negotiation via `GST_MPP_DEC_FBC_IS_RFBC=1`, opt-in display sink env cases for `KMSSINK_DISABLE_VSYNC=1`/`GST_RKXIMAGE_USE_COLORKEY=1`, opt-in KMS capture cases for DRM dma-buf import into MPP encode including `GST_KMSSRC_DMA_FEATURE=1`, and `GST_VALIDATE_CASES=1` device-free case-builder validation. The FFmpeg suite now has `FFMPEG_VALIDATE_CASES=1` dry validation plus required decoder-option, `scale_rkrga` forced-core/async/AFBC-output, and `vpp_rkrga` crop/transpose cases, with diagnostic decoder `afbc=rga` and `overlay_rkrga` alpha composition. `rewrite-conformance-run.sh` now sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and optional forward-port-vs-rewrite comparison steps for a full profile run. The MPP conformance comparator now has byte-count/SHA-256 artifact comparison for official-test media outputs when the suite dumps decode/encode files, and the librga conformance comparator now compares deterministic destination-buffer artifacts from the required direct RGA smoke case. The rewrite clean-source object-build gate passed both public rewrite branch tips on 2026-07-04. See [`rewrite-conformance.md`](./rewrite-conformance.md) for the parity/conformance machinery. |
 
 ## What each smoke test proves
 
@@ -72,6 +72,8 @@ bash abi-probe.sh                     # fast non-submit ABI probe
 bash abi-replay.sh                    # record normalized ABI log for this boot
 bash librga-smoke.sh                  # direct librga/im2d smoke
 LIBRGA_SMOKE_10BIT=1 bash librga-smoke.sh  # add P010/P210 IM2D cases
+VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free conformance wiring check
+sudo PROFILE=rewrite bash rewrite-conformance-run.sh  # full profile run on a rewrite boot
 bash test-decode.sh                  # decoder (device access is enough)
 sudo bash encode-test-tiny.sh        # encoder
 sudo bash transcode-test.sh          # end-to-end (needs ffmpeg-rockchip built — see ../ffmpeg)
@@ -87,6 +89,19 @@ sudo MPP_BUILD=<mpp-build> FFDIR=<ffmpeg-rockchip> STAGE=<stage> bash rewrite-sm
 
 The same command is valid on the BSP-derived forward-port kernel, which makes it
 the quick parity check between the two implementations.
+
+For the full artifact/timing conformance pass, boot the forward-port kernel and
+run:
+
+```bash
+sudo PROFILE=forward-port bash rewrite-conformance-run.sh
+```
+
+Then boot the rewrite kernel and run:
+
+```bash
+sudo PROFILE=rewrite RUN_COMPARE=1 bash rewrite-conformance-run.sh
+```
 
 The official-test conformance suites (`mpp-suite.sh`, `librga-suite.sh`,
 `gstreamer-suite.sh`), their comparators, the rewrite build gate, and the

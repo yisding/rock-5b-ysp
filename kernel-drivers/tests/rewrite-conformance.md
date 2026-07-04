@@ -61,7 +61,23 @@ because it contains shallow third-party source checkouts and generated build/log
 directories. Its own `README.md` is the operational guide; this section records
 why each piece matters and what we learned to test.
 
-Run it the same way under both kernels:
+Run it the same way under both kernels. The normal path is the profile runner:
+
+```bash
+# Boot the BSP-derived forward-port kernel first.
+PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/rewrite-conformance-run.sh
+
+# Then boot the rewrite kernel and compare against the saved forward-port logs.
+PROFILE=rewrite RUN_COMPARE=1 ../rock-5b-ysp/kernel-drivers/tests/rewrite-conformance-run.sh
+```
+
+`rewrite-conformance-run.sh` sequences system-info collection, normalized ABI
+replay, MPP, librga, GStreamer, and ffmpeg-rockchip suites for one booted
+profile. Set `RUN_*_SUITE=0` to narrow a run, `RUN_COMPARE=1` to compare latest
+saved summaries against `COMPARE_BASELINE=forward-port`, and
+`VALIDATE_ONLY=1` for the device-free runner/case-builder maintenance check.
+
+For per-suite debugging, the equivalent manual sequence is:
 
 ```bash
 cd ../rockchip-conformance
@@ -587,6 +603,7 @@ logs.
 |------|-------|
 | `build-mpp-tests.sh` | no device access; writes staged MPP library/tests under `../rockchip-conformance/out/mpp` |
 | `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths; also builds `gstreamer-event-harness` into the GStreamer prefix |
+| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and only checks runner, case-list, and comparator wiring. |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
@@ -600,6 +617,7 @@ logs.
 
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
+| `rewrite-conformance-run.sh` | **full profile conformance orchestration** | Runs the selected profile's system-info, ABI replay, MPP, librga, GStreamer, and FFmpeg suite steps in a fixed order, then optionally runs the latest forward-port-vs-rewrite comparators. A nonzero required suite or comparator result fails the runner; suite exit `77` still means the relevant device nodes are absent on this boot. |
 | `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Media cases write `artifacts.tsv` rows for produced decode/encode outputs; set `MPP_DUMP_OUTPUTS=1` to make decode cases dump YUV outputs for byte-exact comparison. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Exit `77` means `/dev/mpp_service` is absent. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
 | `librga-suite.sh` | **official librga sample conformance plus direct artifact smoke** using `../rockchip-conformance/out/librga-samples/bin` and `librga-smoke.cpp` | Runs the broad current Linux/RK3588 sample set plus `ysp_librga_smoke` under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails required cases. The direct smoke case records deterministic destination buffers in `artifacts.tsv` for maintained im2d, fence, pre-intr, Gaussian, and GStreamer-shaped legacy `c_RkRgaBlit()` paths. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
@@ -612,6 +630,9 @@ logs.
 ## Running the suites & comparators
 
 ```bash
+VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/case/comparator wiring check
+PROFILE=rewrite bash rewrite-conformance-run.sh  # run all suites for the booted rewrite profile
+PROFILE=rewrite RUN_COMPARE=1 bash rewrite-conformance-run.sh  # run and compare latest summaries
 bash mpp-suite.sh                     # official MPP test conformance
 bash mpp-suite-compare.sh             # compare latest forward-port/rewrite MPP summaries
 bash librga-suite.sh                  # official librga sample conformance
@@ -645,8 +666,9 @@ PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
 PERF_MAX_RATIO=1.25 bash ffmpeg-suite-compare.sh
 ```
 
-Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-04 after diagnostic GStreamer
+Maintenance gate: `shellcheck *.sh` in this directory and
+`VALIDATE_ONLY=1 bash rewrite-conformance-run.sh` are expected to pass; they
+were last verified on 2026-07-04 after diagnostic GStreamer
 `GST_MPP_VP8ENC_FAKE_VP8ENC` alias validation was added; after diagnostic
 GStreamer JPEG decoder
 explicit-format and `GST_MPP_JPEGDEC_DEFAULT_FORMAT` cases were added; after
@@ -722,6 +744,14 @@ sudo MPP_BUILD=<mpp-build> FFDIR=<ffmpeg-rockchip> STAGE=<stage> bash rewrite-sm
 The same command is valid on the BSP-derived forward-port kernel, which makes it
 the quick parity check between the two implementations. (`rewrite-smoke.sh`
 itself is documented in [`README.md`](./README.md).)
+
+For the full userspace-visible parity gate, collect the full forward-port
+profile first, then reboot into the rewrite and compare against it:
+
+```bash
+sudo PROFILE=forward-port bash rewrite-conformance-run.sh
+sudo PROFILE=rewrite RUN_COMPARE=1 bash rewrite-conformance-run.sh
+```
 
 ## Raw ABI replay comparisons
 

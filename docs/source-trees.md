@@ -305,7 +305,10 @@ exact shallow checkouts staged on 2026-07-02:
 The bundle adds helper scripts to build MPP, generate a local `librga.pc` shim,
 build librga samples, build JeffyCN's Meson-based GStreamer plugin tree, collect
 system/device state, and write per-profile logs under `logs/rewrite/` and
-`logs/forward-port/`. See [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md)
+`logs/forward-port/`. The YSP-side `rewrite-conformance-run.sh` wrapper
+sequences those profile logs across ABI replay, MPP, librga, GStreamer, FFmpeg,
+and optional forward-port-vs-rewrite comparator steps. See
+[kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md)
 for the test matrix and pass/fail interpretation.
 
 A 2026-07-03 source review of the staged JeffyCN GStreamer plugin found no
