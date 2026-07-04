@@ -390,7 +390,7 @@ Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `roundtrip_jpeg_nv12`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`,
 `generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`,
-`generated_dec_h264_crop_meta`,
+`generated_dec_h264_env_fbc`, `generated_dec_h264_crop_meta`,
 `generated_dec_vp9_rga_scale`, `generated_transcode_vp9_to_h264`,
 `dec_h264_afbc_fakesink`, and `dec_h265_afbc_fakesink`. They also include a
 smaller GStreamer RGA format matrix for currently advertised legacy
@@ -475,7 +475,8 @@ was last verified on 2026-07-04 after the GStreamer codec-specific encoder QP
 cases were added to the required set and the decoder crop-meta case was added as
 diagnostic coverage; after the GStreamer env-default strict decoder and
 env-default decoder DMA-feature/output-format cases were added to the required
-set; after the GStreamer strict decoder-property cases
+set; after the GStreamer env-default FBC decode case was added as diagnostic
+coverage; after the GStreamer strict decoder-property cases
 were wired into the generated-decode builtin dispatch, the asset-free
 parallel cases became required by default, and after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`

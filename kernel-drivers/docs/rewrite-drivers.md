@@ -383,6 +383,7 @@ implementation (cross-reference:
   multi-session scheduling evidence; its
   diagnostic set also includes seek-event probes through the same
   `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output,
+  the matching H.264 `GST_MPP_VIDEODEC_DEFAULT_FBC=1` default path,
   generated H.264 crop-meta output, generated VP9-to-H.264 transcode, and
   a GStreamer-visible RGA format matrix covering encoder-side
   BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths plus decoder-side
