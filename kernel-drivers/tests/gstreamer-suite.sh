@@ -31,6 +31,7 @@ GST_FORMAT_MATRIX_BUFFERS=${GST_FORMAT_MATRIX_BUFFERS:-16}
 GST_GENERATED_INPUT_BUFFERS=${GST_GENERATED_INPUT_BUFFERS:-30}
 GST_WIDTH=${GST_WIDTH:-320}
 GST_HEIGHT=${GST_HEIGHT:-240}
+GST_UNALIGNED_HEIGHT=${GST_UNALIGNED_HEIGHT:-242}
 GST_SCALE_WIDTH=${GST_SCALE_WIDTH:-256}
 GST_SCALE_HEIGHT=${GST_SCALE_HEIGHT:-144}
 GST_FRAMERATE=${GST_FRAMERATE:-30/1}
@@ -54,6 +55,7 @@ enc_h264_control_props
 enc_h265_control_props
 enc_h264_qp_profile_props
 enc_h265_qp_props
+enc_h264_env_unaligned_vstride
 enc_h264_bgrx_rga_rotate
 enc_h265_rgba_rga_scale
 roundtrip_h264_nv12
@@ -400,6 +402,22 @@ build_videotest_roundtrip()
 	done
 
 	CMD+=("!" fakesink sync=false)
+}
+
+run_videotest_encode_env_unaligned_vstride()
+{
+	CMD=(
+		env
+		GST_MPP_ENC_UNALIGNED_VSTRIDE=1
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$GST_FORMAT_MATRIX_BUFFERS" is-live=false pattern=smpte
+		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_UNALIGNED_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" mpph264enc zero-copy-pkt=true
+		"!" fakesink sync=false
+	)
+	printf "encoding H.264 with unaligned vstride env default: "
+	print_current_command
+	run_current_command
 }
 
 build_videotest_jpeg_roundtrip()
@@ -1005,6 +1023,9 @@ build_case_command()
 			qp-min-i=18 qp-max-i=38 qp-delta-ip=3 \
 			zero-copy-pkt=true
 		;;
+	enc_h264_env_unaligned_vstride)
+		CMD=(__builtin_encode_env_unaligned_vstride)
+		;;
 	enc_vp8_nv12)
 		build_videotest_encode mppvp8enc NV12 "$GST_FORMAT_MATRIX_BUFFERS"
 		;;
@@ -1417,6 +1438,9 @@ run_case_payload()
 			build_videotest_roundtrip mpph264enc h264parse "$GST_STATE_LOOP_BUFFERS"
 			run_current_command || return $?
 		done
+		;;
+	enc_h264_env_unaligned_vstride)
+		run_videotest_encode_env_unaligned_vstride
 		;;
 	generated_dec_h264_env_strict_props)
 		run_generated_decode_env_strict "${CMD[1]}"

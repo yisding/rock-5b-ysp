@@ -42,6 +42,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > encoder force-key events that call `MPP_ENC_SET_IDR_FRAME`,
 > explicit encoder control-property application through `MPP_ENC_SET_CFG`,
 > including codec-specific QP controls and H.264 profile/level,
+> encoder unaligned-vstride default handling,
 > strict decoder property application through `MPP_DEC_SET_PARSER_FAST_MODE`,
 > env-default decoder control, DMA-feature, and output-format application,
 > repeated encoder/decoder drain-to-EOS reuse,
@@ -372,7 +373,8 @@ implementation (cross-reference:
   rotate/format-convert, in-pipeline H.264/H.265 encoder caps-renegotiation
   through two differently sized raw NV12 segments, explicit H.264/H.265
   encoder control-property cases for header/SEI/rate-control/GOP/re-encode
-  config plus packet copy-out, codec-specific H.264/H.265 QP controls, and
+  config plus packet copy-out, codec-specific H.264/H.265 QP controls,
+  H.264 `GST_MPP_ENC_UNALIGNED_VSTRIDE=1` prep-stride programming, and
   H.264 profile/level controls,
   encoder and decoder `FLUSH_START`/`FLUSH_STOP` event handling with required
   post-flush output, encoder `GstForceKeyUnit` events that drive

@@ -241,7 +241,8 @@ exercises real kernel paths:
   `gst_inspect_mpph264enc`, `gst_inspect_mpph265enc`;
 - `enc_h264_nv12`, `enc_h265_nv12`,
   `enc_h264_control_props`, `enc_h265_control_props`,
-  `enc_h264_qp_profile_props`, `enc_h265_qp_props`;
+  `enc_h264_qp_profile_props`, `enc_h265_qp_props`,
+  `enc_h264_env_unaligned_vstride`;
 - `enc_h264_bgrx_rga_rotate`, `enc_h265_rgba_rga_scale`;
 - `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
   `roundtrip_h264_rga_rotate`;
@@ -310,6 +311,9 @@ The encoder-control-property cases set non-default `header-mode`, `sei-mode`,
 packet copy-out path. The codec-specific QP/profile cases separately cover the
 current H.264/H.265 plugin properties that update `rc:qp_*` and, for H.264,
 `h264:profile`/`h264:level` before the same `MPP_ENC_SET_CFG` submit.
+`enc_h264_env_unaligned_vstride` runs H.264 encode with
+`GST_MPP_ENC_UNALIGNED_VSTRIDE=1` and a non-16-aligned even height, covering
+the current plugin path that leaves `prep:ver_stride` unaligned for RKVENC.
 The event cases use the staged `gstreamer-event-harness` helper to wait until
 `mpph264enc`, `mpph265enc`, or `mppvideodec` has produced data, then require
 more output afterward. The flush cases send `FLUSH_START`/`FLUSH_STOP` to the
@@ -371,6 +375,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
 `enc_h264_control_props`, `enc_h265_control_props`,
 `enc_h264_qp_profile_props`, `enc_h265_qp_props`,
+`enc_h264_env_unaligned_vstride`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
 `event_force_key_enc_h264`, `event_force_key_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,
@@ -402,7 +407,8 @@ format paths. With `GST_ENABLE_DISPLAY_CASES=1`, diagnostics also include
 `generated_dec_h265_display_afbc`. Override with
 `GST_REQUIRED_CASES` or
 `GST_DIAGNOSTIC_CASES` for narrower hardware debugging, and tune dimensions with
-`GST_WIDTH`, `GST_HEIGHT`, `GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,
+`GST_WIDTH`, `GST_HEIGHT`, `GST_UNALIGNED_HEIGHT`,
+`GST_SCALE_WIDTH`, `GST_SCALE_HEIGHT`,
 `GST_NUM_BUFFERS`, `GST_FORMAT_MATRIX_BUFFERS`,
 `GST_GENERATED_INPUT_BUFFERS`, `GST_CAPS_RENEGOTIATE_BUFFERS`,
 `GST_EVENT_TRIGGER_BUFFERS`, `GST_EVENT_POST_BUFFERS`,
@@ -476,7 +482,8 @@ cases were added to the required set and the decoder crop-meta case was added as
 diagnostic coverage; after the GStreamer env-default strict decoder and
 env-default decoder DMA-feature/output-format cases were added to the required
 set; after the GStreamer env-default FBC decode case was added as diagnostic
-coverage; after the GStreamer strict decoder-property cases
+coverage; after the GStreamer encoder unaligned-vstride env-default case was
+added to the required set; after the GStreamer strict decoder-property cases
 were wired into the generated-decode builtin dispatch, the asset-free
 parallel cases became required by default, and after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
