@@ -56,6 +56,19 @@ seeds ~5 GB); subsequent patch-only builds hit the cache (~10–15 min). Worktre
 re-patching churns mtimes and defeats Armbian's *worktree-incremental*, but
 content-addressed ccache survives it.
 
+**…but even arg-passed ccache silently misses if `compiler_check=mtime`.** ccache's
+default keys the cache on the compiler binary's **mtime**. Armbian periodically
+rebuilds its Docker image (`--> CACHE MISS IN DOCKERFILE`), which does a fresh
+`apt install gcc` → new mtime → ccache treats it as a different compiler and
+**misses the entire cache**: another full cold build (`hit=63 miss=14628 (0%)`,
+97 min) on unchanged source, cache still *growing* (it stores every miss).
+Symptom: a build that should be warm reports ~0% hit. Fix: key on compiler
+**content**, not mtime — drop `compiler_check = content` into
+`$WORKSPACE/armbian-build/cache/ccache/ccache.conf` (the in-container ccache reads
+it via `CCACHE_DIR`; `bootstrap-workspaces.sh` writes it). `CCACHE_BASEDIR` is
+already set by Armbian to the in-container worktree path, so renaming the host
+workspace dir does **not** invalidate the cache — only the compiler mtime does.
+
 **Config-hash component changes legitimately.** Moving config into Kconfig
 defaults and reverting the built-in config changes the `C####` component of the
 Armbian deb name (the config-content hash — `status.md` explains the `P####-C####`
