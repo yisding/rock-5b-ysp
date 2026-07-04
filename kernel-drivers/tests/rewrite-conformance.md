@@ -881,7 +881,8 @@ libmpp VDPU382 probe path.
 The RGA side also includes KUnit coverage for the default legacy
 `RGA_BLIT_SYNC` `c_RkRgaBlit()` path used by JeffyCN GStreamer: a sync ioctl
 queues behind a busy core, waits for queued completion, and does not copy an
-async release fence back to userspace.
+async release fence back to userspace. It also covers the legacy flush/result
+no-op ioctl return contract used by librga's post-blit compatibility path.
 
 **UNVERIFIED:** neither the generated GStreamer VP9 cases nor the direct MPP
 VP9 suite case has a forward-port/rewrite hardware log yet. If you run either,

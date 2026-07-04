@@ -97,7 +97,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 | Kernel target | pinned to 6.18 API surface (resyncing.md hazards) | built on 6.18; being brought up on current mainline master too (§5) |
 | Userspace ABI | full BSP surface | the documented subset current `mpp-rockchip`/`librga`/`ffmpeg-rockchip` actually use |
 | Audit posture | 89 verified findings latent ([BSP audit](./bsp-audit.md)) | small, reviewable, refcount-disciplined by construction |
-| Size (observed 2026-07-04) | MPP ~15,822 lines + RGA3 ~19,171 lines (vendor-delta.md method) | MPP rewrite ~9,034 lines + RGA rewrite ~17,467 lines |
+| Size (observed 2026-07-04) | MPP ~15,822 lines + RGA3 ~19,171 lines (vendor-delta.md method) | MPP rewrite ~9,034 lines + RGA rewrite ~17,499 lines |
 
 Kconfig makes the two tracks **mutually exclusive per device node**:
 `ROCKCHIP_MPP_REWRITE` depends on `!ROCKCHIP_MPP_SERVICE` and registers
@@ -320,7 +320,9 @@ implementation (cross-reference:
   default path waiting for queued completion without copying an output fence or
   translated addresses back to userspace, the legacy `RGA_BLIT_ASYNC` copy-out
   path (`rga_req.out_fence_fd`), and the modern request-submit
-  `release_fence_fd` path for jobs deferred behind an acquire fence, plus
+  `release_fence_fd` path for jobs deferred behind an acquire fence, and
+  direct dispatch coverage for legacy flush/result no-op ioctls used by
+  librga's post-blit compatibility path, plus
   file-close cleanup of async jobs still pending on unsignaled acquire fences
   and jobs already queued on hardware, and last-hardware removal cleanup of
   async jobs still pending on acquire fences.
@@ -380,7 +382,7 @@ implementation (cross-reference:
   only after copy/validate/prepare/queue/dispatch/import-resolve/power-sequence
   reach the backend boundary — so the scheduler/lifetime path is exercised even
   for profiles the command generator can't emit yet.
-- **Userspace-visible priorities after the GStreamer legacy sync-blit KUnit slice** are
+- **Userspace-visible priorities after the GStreamer legacy sync-blit/no-op ioctl KUnit slices** are
   driven by `../rockchip-conformance`, especially JeffyCN's
   `gstreamer-rockchip` branch at `dcbcd6454ef8`.  There are no paired
   forward-port/rewrite conformance logs yet, so the immediate missing artifact
@@ -480,7 +482,8 @@ implementation (cross-reference:
   pending-acquire and hardware-queued jobs, last-hardware pending-acquire
   cleanup, MPP CCU coordinator dependent queued/active abort coverage,
   RGA3 pattern-channel rotate rejection,
-  legacy sync blit, legacy async blit, and modern async request-submit
+  legacy flush/result no-op ioctl dispatch, legacy sync blit, legacy async
+  blit, and modern async request-submit
   acquire/release-fence ioctls,
   import/release-buffer lifecycle, scheduler, fence,
   packed-YUV422/420 fill, Y4/Y8 compact/full-CSC dither output, BPP palette sources,
@@ -567,10 +570,10 @@ confirm against the TRM before treating either as canonical.
 
 | Item | State (2026-07-04) |
 |------|--------------------|
-| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 9,034 lines; 9,369 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 17,467 lines; 17,988 total incl. `ABI.rst`, `Kconfig`, `Makefile`) |
-| 6.18 state | committed local branch `rk3588-rewrite-6.18` at **`861f4b80e146`** ("media: rockchip: cover mpp err-ref control"), committed in dev worktree `/home/yi/Code/linux-6.18-rkvenc`. It includes the broad RGA/MPP ABI and performance-path work described in §2/§3, the Rock 5B DT self-containment commit for disabled decoder nodes/IOMMUs/SRAM pools, the BSP-derived forward-port recovery cleanup, Rockchip IOMMU `map_pages`/`unmap_pages` count handling for large dma-buf mappings, rewrite MPP/RGA fault-handler registration through the Rockchip provider-local public hook before generic fallback, explicit KUnit coverage for GStreamer decoder-side 8-bit RGBA/BGRA/RGBx/BGRx RGA output conversions, compact NV12_10LE40/NV16_10LE40 decoder-output scaling to 8-bit NV12/NV16, the remaining 180/270-degree GStreamer public rotation values, VP9 RKVDEC fd-to-IOVA register translation/validation, direct legacy `RGA_BLIT_SYNC` wait/no-fence ioctl behaviour used by the default `c_RkRgaBlit()` path, and `SET_ERR_REF_HACK` copy/discard control handling used by current libmpp probing. |
-| Mainline-master state | committed local branch `rk3588-rewrite-mainline` at **`2c2254230865`** ("media: rockchip: cover mpp err-ref control"), committed in sibling worktree `/home/yi/Code/linux`. It carries the same rewrite drivers and userspace-facing ABI coverage, the mainline DT/wiring work, the Rockchip IOMMU map-count fix, the minimal public `include/soc/rockchip/rockchip_iommu.h` provider fault hook used by the rewrites, and the same GStreamer decoder 8-bit RGB, compact 10-bit YUV-output, 180/270-degree rotation, VP9 RKVDEC translation, legacy sync-blit ioctl, and MPP err-ref control KUnit coverage. |
-| Validation | Focused compile gates pass at the committed tips available so far. On 2026-07-04, `ALLOW_DIRTY=1 kernel-drivers/tests/rewrite-build-gate.sh all` built from `git archive` copies and completed warning-free for `../linux-6.18-rkvenc` at `861f4b80e146` and `../linux` at `2c2254230865`, producing the KUnit-enabled `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o` and `drivers/video/rockchip/rga-rewrite/rga_rewrite.o` targets for both kernels. `ALLOW_DIRTY=1` was used only because the 6.18 worktree has unrelated dirty forward-port files; the gate still built committed `HEAD` archives. This is still code/ABI-ledger progress rather than proof from a booted rewrite kernel. The broader conformance plan remains the staged `../rockchip-conformance` forward-port-vs-rewrite workflow for MPP, librga, JeffyCN GStreamer, and ffmpeg-rockchip; booted MPP official-test artifact/timing runs, GStreamer state/allocator/RGA-conversion/P010-P210/VP9/display/KMS-capture results, and expanded FFmpeg decoder/RGA-filter artifact/timing results are still missing before lower-priority diagnostic BSP profiles. **UNVERIFIED in this repo**: the workload gate and expanded conformance bundle have not yet passed on hardware through the rewrite; no validation record equivalent to status.md exists yet. |
+| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 9,034 lines; 9,369 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 17,499 lines; 18,020 total incl. `ABI.rst`, `Kconfig`, `Makefile`) |
+| 6.18 state | committed local branch `rk3588-rewrite-6.18` at **`6aefb879f6e7`** ("media: rockchip: cover legacy rga no-op ioctls"), committed in dev worktree `/home/yi/Code/linux-6.18-rkvenc`. It includes the broad RGA/MPP ABI and performance-path work described in §2/§3, the Rock 5B DT self-containment commit for disabled decoder nodes/IOMMUs/SRAM pools, the BSP-derived forward-port recovery cleanup, Rockchip IOMMU `map_pages`/`unmap_pages` count handling for large dma-buf mappings, rewrite MPP/RGA fault-handler registration through the Rockchip provider-local public hook before generic fallback, explicit KUnit coverage for GStreamer decoder-side 8-bit RGBA/BGRA/RGBx/BGRx RGA output conversions, compact NV12_10LE40/NV16_10LE40 decoder-output scaling to 8-bit NV12/NV16, the remaining 180/270-degree GStreamer public rotation values, VP9 RKVDEC fd-to-IOVA register translation/validation, direct legacy `RGA_BLIT_SYNC` wait/no-fence ioctl behaviour used by the default `c_RkRgaBlit()` path, legacy RGA flush/result no-op ioctl dispatch used by librga's post-blit compatibility path, and `SET_ERR_REF_HACK` copy/discard control handling used by current libmpp probing. |
+| Mainline-master state | committed local branch `rk3588-rewrite-mainline` at **`ff0631beca29`** ("media: rockchip: cover legacy rga no-op ioctls"), committed in sibling worktree `/home/yi/Code/linux`. It carries the same rewrite drivers and userspace-facing ABI coverage, the mainline DT/wiring work, the Rockchip IOMMU map-count fix, the minimal public `include/soc/rockchip/rockchip_iommu.h` provider fault hook used by the rewrites, and the same GStreamer decoder 8-bit RGB, compact 10-bit YUV-output, 180/270-degree rotation, VP9 RKVDEC translation, legacy sync-blit ioctl, legacy RGA no-op ioctl, and MPP err-ref control KUnit coverage. |
+| Validation | Focused compile gates pass at the committed tips available so far. On 2026-07-04, `ALLOW_DIRTY=1 kernel-drivers/tests/rewrite-build-gate.sh all` built from `git archive` copies and completed warning-free for `../linux-6.18-rkvenc` at `6aefb879f6e7` and `../linux` at `ff0631beca29`, producing the KUnit-enabled `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o` and `drivers/video/rockchip/rga-rewrite/rga_rewrite.o` targets for both kernels. `ALLOW_DIRTY=1` was used only because the 6.18 worktree has unrelated dirty forward-port files; the gate still built committed `HEAD` archives. This is still code/ABI-ledger progress rather than proof from a booted rewrite kernel. The broader conformance plan remains the staged `../rockchip-conformance` forward-port-vs-rewrite workflow for MPP, librga, JeffyCN GStreamer, and ffmpeg-rockchip; booted MPP official-test artifact/timing runs, GStreamer state/allocator/RGA-conversion/P010-P210/VP9/display/KMS-capture results, and expanded FFmpeg decoder/RGA-filter artifact/timing results are still missing before lower-priority diagnostic BSP profiles. **UNVERIFIED in this repo**: the workload gate and expanded conformance bundle have not yet passed on hardware through the rewrite; no validation record equivalent to status.md exists yet. |
 
 GStreamer, FFmpeg, and MPP differential testing are now stronger than the table
 row's historical summary: generated H.264/H.265 inputs, generated VP9 IVF

@@ -166,7 +166,9 @@ The MPP side also covers `MPP_CMD_SET_ERR_REF_HACK` copy/discard behavior for
 the current libmpp VDPU382 probe path.
 On the RGA side, the rewrite pins also cover the default legacy
 `RGA_BLIT_SYNC` `c_RkRgaBlit()` path used by JeffyCN GStreamer: sync submission
-waits for queued completion and leaves async release-fence copy-out untouched.
+waits for queued completion and leaves async release-fence copy-out untouched,
+plus the legacy flush/result no-op ioctl return contract used by librga's
+post-blit compatibility path.
 
 **UNVERIFIED:** neither the manual recipe, the generated GStreamer VP9 cases, nor
 the direct MPP VP9 suite case has a forward-port/rewrite hardware log yet. If you
