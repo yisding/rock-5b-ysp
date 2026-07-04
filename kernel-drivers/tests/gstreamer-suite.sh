@@ -218,6 +218,7 @@ fi
 if [ -n "${GST_H265_10_INPUT:-}" ]; then
 	required_cases_default="$required_cases_default
 dec_h265_10_fakesink
+dec_h265_10_rga_scale
 dec_h265_10_env_disable_nv12_10
 "
 fi
@@ -225,6 +226,7 @@ fi
 if [ -n "${GST_H265_422_10_INPUT:-}" ]; then
 	required_cases_default="$required_cases_default
 dec_h265_422_10_fakesink
+dec_h265_422_10_rga_scale
 dec_h265_422_10_env_disable_nv16_10
 "
 fi
@@ -1417,12 +1419,20 @@ build_case_command()
 	dec_h265_10_fakesink)
 		build_decode GST_H265_10_INPUT h265parse
 		;;
+	dec_h265_10_rga_scale)
+		build_decode GST_H265_10_INPUT h265parse \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV12
+		;;
 	dec_h265_10_env_disable_nv12_10)
 		build_decode_env GST_H265_10_INPUT h265parse \
 			GST_MPP_DEC_DISABLE_NV12_10 1
 		;;
 	dec_h265_422_10_fakesink)
 		build_decode GST_H265_422_10_INPUT h265parse
+		;;
+	dec_h265_422_10_rga_scale)
+		build_decode GST_H265_422_10_INPUT h265parse \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV16
 		;;
 	dec_h265_422_10_env_disable_nv16_10)
 		build_decode_env GST_H265_422_10_INPUT h265parse \

@@ -303,10 +303,12 @@ The env-default format variant runs H.264 decode with
 `GST_MPP_VIDEODEC_DEFAULT_FORMAT=NV21`, covering the plugin's global preferred
 output-format path and the decoder-side RGA conversion it triggers.
 When `GST_H265_10_INPUT` is set, the suite adds required 4:2:0 10-bit H.265
-decode coverage plus `GST_MPP_DEC_DISABLE_NV12_10=1`, recording the
+decode coverage, a scaled `format=NV12` decoder-side RGA conversion from the
+compact NV12_10LE40 frame, plus `GST_MPP_DEC_DISABLE_NV12_10=1`, recording the
 userspace-visible fallback from NV12_10LE40 to NV12. When
 `GST_H265_422_10_INPUT` is set, it does the same for 4:2:2 10-bit H.265 and
-`GST_MPP_DEC_DISABLE_NV16_10=1`, covering the NV16_10LE40 fallback.
+adds a scaled `format=NV16` RGA conversion from compact NV16_10LE40 before the
+`GST_MPP_DEC_DISABLE_NV16_10=1` fallback case.
 The decoder renegotiation cases concatenate two generated elementary streams at
 different dimensions and feed them through `filesrc ! *parse ! mppvideodec`,
 covering parser caps changes and decoder info-change/reset behavior without
@@ -405,7 +407,8 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `eos_loop_dec_h264`, `eos_loop_dec_h265`,
 `dec_h264_fakesink`, `dec_h265_fakesink`, `dec_h264_rga_rotate`,
 `dec_h265_rga_scale`, `dec_h265_10_fakesink`,
-`dec_h265_10_env_disable_nv12_10`, `dec_h265_422_10_fakesink`,
+`dec_h265_10_rga_scale`, `dec_h265_10_env_disable_nv12_10`,
+`dec_h265_422_10_fakesink`, `dec_h265_422_10_rga_scale`,
 `dec_h265_422_10_env_disable_nv16_10`, `transcode_h264_to_h265`,
 `transcode_h265_to_h264`, `transcode_h264_rga_to_h265`,
 `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
@@ -511,7 +514,7 @@ coverage; after the GStreamer encoder unaligned-vstride env-default case was
 added to the required set; after the GStreamer encoder max-pending env-default
 case was added to the required set; after GStreamer no-RGA env-default
 encode/decode cases were added to the required set; after opt-in 10-bit H.265
-external-media decode/fallback cases were added; after the conditional
+external-media decode/fallback/RGA-conversion cases were added; after the conditional
 GStreamer VPx-alpha decodebin inspect was added as diagnostic coverage; after the GStreamer strict decoder-property cases
 were wired into the generated-decode builtin dispatch, the asset-free
 parallel cases became required by default, and after the direct `librga` smoke gained
