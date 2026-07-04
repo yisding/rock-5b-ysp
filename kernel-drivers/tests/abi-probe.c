@@ -21,6 +21,7 @@
 #ifndef __user
 #define __user
 #endif
+#include <linux/dma-heap.h>
 #include <linux/rk-mpp.h>
 
 #include "rga_ioctl.h"
@@ -41,6 +42,12 @@
 #define MPP_CODEC_INFO_WIDTH 1U
 #define MPP_CODEC_INFO_FLAG_NUMBER 1U
 #define BIT32(n) (1U << (n))
+
+struct probe_dmabuf {
+	int fd;
+	size_t size;
+	const char *heap_path;
+};
 
 struct mpp_probe_codec_info {
 	uint32_t type;
@@ -87,6 +94,83 @@ static int open_optional(const char *path)
 		printf("  %-30s fd=%d\n", path, fd);
 
 	return fd;
+}
+
+static int dmabuf_alloc_from_heap(const char *heap_path, size_t size,
+				  struct probe_dmabuf *buf)
+{
+	struct dma_heap_allocation_data data = {};
+	int heap_fd;
+	int ret = 0;
+
+	heap_fd = open(heap_path, O_RDWR | O_CLOEXEC);
+	if (heap_fd < 0)
+		return -errno;
+
+	data.len = size;
+	data.fd_flags = O_RDWR | O_CLOEXEC;
+	if (ioctl(heap_fd, DMA_HEAP_IOCTL_ALLOC, &data))
+		ret = -errno;
+	close(heap_fd);
+	if (ret)
+		return ret;
+
+	buf->fd = data.fd;
+	buf->size = size;
+	buf->heap_path = heap_path;
+
+	return 0;
+}
+
+static int dmabuf_alloc_any(struct probe_dmabuf *buf)
+{
+	static const char * const heap_paths[] = {
+		"/dev/dma_heap/system-uncached-dma32",
+		"/dev/dma_heap/system-dma32",
+		"/dev/dma_heap/system-uncached",
+		"/dev/dma_heap/system",
+		"/dev/dma_heap/cma-uncached",
+		"/dev/dma_heap/cma",
+		"/dev/rk_dma_heap/rk-dma-heap-cma",
+	};
+	long page_size;
+	int first_err = 0;
+	size_t i;
+
+	buf->fd = -1;
+	buf->size = 0;
+	buf->heap_path = NULL;
+
+	page_size = sysconf(_SC_PAGESIZE);
+	if (page_size <= 0 || (unsigned long)page_size > UINT32_MAX)
+		return -EINVAL;
+
+	for (i = 0; i < ARRAY_SIZE(heap_paths); i++) {
+		int ret = dmabuf_alloc_from_heap(heap_paths[i],
+						 (size_t)page_size, buf);
+
+		if (!ret) {
+			printf("  %-30s %s\n", "dmabuf_heap",
+			       buf->heap_path);
+			printf("  %-30s %zu\n", "dmabuf_size", buf->size);
+			return 0;
+		}
+		if (!first_err || first_err == -ENOENT)
+			first_err = ret;
+	}
+
+	printf("  %-30s skipped errno=%d (%s)\n", "dmabuf_alloc",
+	       -first_err, strerror(-first_err));
+	return first_err ? first_err : -ENOENT;
+}
+
+static void dmabuf_free(struct probe_dmabuf *buf)
+{
+	if (buf->fd >= 0)
+		close(buf->fd);
+	buf->fd = -1;
+	buf->size = 0;
+	buf->heap_path = NULL;
 }
 
 static void print_escaped_string(const char *label, const unsigned char *buf,
@@ -460,6 +544,60 @@ static void probe_mpp_session_switch_markers(void)
 	close(fd);
 }
 
+static void probe_mpp_dmabuf_translate_release(uint32_t hw_support)
+{
+	struct probe_dmabuf dmabuf;
+	uint32_t client_type;
+	uint32_t fd_value;
+	int fd;
+
+	if (mpp_has_client(hw_support, MPP_CLIENT_RKVDEC))
+		client_type = MPP_CLIENT_RKVDEC;
+	else if (mpp_has_client(hw_support, MPP_CLIENT_RKVENC))
+		client_type = MPP_CLIENT_RKVENC;
+	else {
+		printf("  %-30s skipped hw_support=%#x\n",
+		       "TRANS_FD_TO_IOVA dmabuf", hw_support);
+		return;
+	}
+
+	if (dmabuf_alloc_any(&dmabuf))
+		return;
+
+	fd = open_optional("/dev/mpp_service");
+	if (fd < 0) {
+		failures++;
+		goto out_free_dmabuf;
+	}
+
+	if (mpp_cfg(fd, "INIT_CLIENT_TYPE dmabuf", &(struct mpp_request) {
+		.cmd = MPP_CMD_INIT_CLIENT_TYPE,
+		.size = sizeof(client_type),
+		.data = &client_type,
+	}))
+		goto out_close_mpp;
+
+	fd_value = (uint32_t)dmabuf.fd;
+	if (!mpp_cfg(fd, "TRANS_FD_TO_IOVA dmabuf", &(struct mpp_request) {
+		.cmd = MPP_CMD_TRANS_FD_TO_IOVA,
+		.size = sizeof(fd_value),
+		.data = &fd_value,
+	}))
+		printf("  %-30s %#x\n", "dmabuf_iova", fd_value);
+
+	fd_value = (uint32_t)dmabuf.fd;
+	mpp_cfg(fd, "RELEASE_FD dmabuf", &(struct mpp_request) {
+		.cmd = MPP_CMD_RELEASE_FD,
+		.size = sizeof(fd_value),
+		.data = &fd_value,
+	});
+
+out_close_mpp:
+	close(fd);
+out_free_dmabuf:
+	dmabuf_free(&dmabuf);
+}
+
 static void probe_mpp(void)
 {
 	static const uint32_t cmd_groups[] = {
@@ -525,6 +663,7 @@ static void probe_mpp(void)
 	probe_mpp_session_controls(hw_support, control_butt);
 	probe_mpp_multi_message_init(hw_support);
 	probe_mpp_session_switch_markers();
+	probe_mpp_dmabuf_translate_release(hw_support);
 
 	errno = 0;
 	value = 0;
@@ -647,6 +786,42 @@ static void probe_rga_virtual_import_release(int fd)
 		rga_release_handle(fd, handle, "RGA_IOC_RELEASE_BUFFER va");
 
 	free(memory);
+}
+
+static void probe_rga_dmabuf_import_release(int fd)
+{
+	struct rga_external_buffer buffers[1] = {};
+	struct rga_buffer_pool pool;
+	struct probe_dmabuf dmabuf;
+	int ret;
+
+	if (dmabuf_alloc_any(&dmabuf))
+		return;
+
+	memset(&pool, 0, sizeof(pool));
+	buffers[0].memory = (uint64_t)dmabuf.fd;
+	buffers[0].type = RGA_DMA_BUFFER;
+	buffers[0].memory_info.size = (uint32_t)dmabuf.size;
+	pool.buffers = (uint64_t)(uintptr_t)buffers;
+	pool.size = ARRAY_SIZE(buffers);
+
+	errno = 0;
+	ret = ioctl(fd, RGA_IOC_IMPORT_BUFFER, &pool);
+	require_ok("RGA_IOC_IMPORT_BUFFER dmabuf", ret);
+	printf("  %-30s %u\n", "dmabuf_import_handle",
+	       buffers[0].handle);
+
+	if (!ret) {
+		if (!buffers[0].handle) {
+			printf("  %-30s zero handle\n",
+			       "RGA dmabuf import result");
+			failures++;
+		}
+		rga_release_handle(fd, buffers[0].handle,
+				   "RGA_IOC_RELEASE_BUFFER dmabuf");
+	}
+
+	dmabuf_free(&dmabuf);
 }
 
 static void rga_fill_test_img(rga_img_info_t *img, uint32_t handle)
@@ -824,6 +999,7 @@ static void probe_rga(void)
 	require_ok("RGA2_GET_RESULT", ioctl(fd, RGA2_GET_RESULT, 0));
 
 	probe_rga_virtual_import_release(fd);
+	probe_rga_dmabuf_import_release(fd);
 	probe_rga_request_config(fd);
 
 	close(fd);

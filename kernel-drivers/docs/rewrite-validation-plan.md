@@ -25,7 +25,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | Capability | Status in repo | This plan |
 |---|---|---|
 | Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) | reuse as the pre-merge gate |
-| Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh) | reuse; extend to bit-exact output (below) |
+| Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release and RGA dma-buf import/release | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md), including opt-in GStreamer display/KMS-capture cases | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
 | Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` | reuse as assertion hooks throughout |
@@ -67,8 +67,9 @@ rewrite. Kconfig makes the two tracks mutually exclusive per device node
 `assets/` and command lines identical across the two boots.
 
 **The gap to keep closing:** `abi-replay.sh` diffs *normalised ABI logs* rather
-than the **pixels/bitstream**, and the broad official librga sample binaries are
-still mostly pass/fail/timing because many samples hard-code their own
+than the **pixels/bitstream**. It now includes the non-submit dma-buf allocator
+handoff visible to current GStreamer/KMS paths, but the broad official librga
+sample binaries are still mostly pass/fail/timing because many samples hard-code their own
 `/data`-style input/output conventions. The GStreamer generated
 decode/transcode wrapper now caches shared H.264/H.265 inputs plus generated
 VP9 IVF input and compares `artifacts.tsv` byte counts plus SHA-256s, with the

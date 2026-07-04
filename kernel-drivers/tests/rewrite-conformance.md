@@ -627,7 +627,7 @@ logs.
 |------|-------|
 | `build-mpp-tests.sh` | no device access; writes staged MPP library/tests under `../rockchip-conformance/out/mpp` |
 | `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths; also builds `gstreamer-event-harness` into the GStreamer prefix |
-| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and only checks runner, case-list, and comparator wiring. |
+| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and only checks runner, case-list, and comparator wiring. ABI replay also uses `/dev/dma_heap/*` when available to record MPP dma-buf translate/release and RGA dma-buf import/release parity. |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
@@ -642,6 +642,7 @@ logs.
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
 | `rewrite-conformance-run.sh` | **full profile conformance orchestration** | Runs the selected profile's system-info, ABI replay, MPP, librga, GStreamer, and FFmpeg suite steps in a fixed order, then optionally runs the latest forward-port-vs-rewrite comparators. A nonzero required suite or comparator result fails the runner; suite exit `77` still means the relevant device nodes are absent on this boot. |
+| `abi-replay.sh` | **non-submit kernel ABI replay** | Runs the C ABI probe on the booted `/dev/mpp_service` and `/dev/rga`, saves raw/normalized logs, and extracts the stable contract subset for forward-port-vs-rewrite diffing. It records ioctl numbers, struct sizes, version/query returns, safe MPP session controls, multi-message setup, bad-fd batch return markers, optional dma-heap-backed MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA version/no-op behavior, and virtual-address plus optional dma-buf import/release. Exit `77` means both device nodes are absent. |
 | `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Media cases write `artifacts.tsv` rows for produced decode/encode outputs; set `MPP_DUMP_OUTPUTS=1` to make decode cases dump YUV outputs for byte-exact comparison. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Exit `77` means `/dev/mpp_service` is absent. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
 | `librga-suite.sh` | **official librga sample conformance plus direct artifact smoke** using `../rockchip-conformance/out/librga-samples/bin` and `librga-smoke.cpp` | Runs the broad current Linux/RK3588 sample set plus `ysp_librga_smoke` under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails required cases. The direct smoke case records deterministic destination buffers in `artifacts.tsv` for maintained im2d, fence, pre-intr, Gaussian, and GStreamer-shaped legacy `c_RkRgaBlit()` paths. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
@@ -750,7 +751,9 @@ were added. It was re-run after the GStreamer KMS capture diagnostics were
 added for `kmssrc` DMABuf capture into MPP encode and display loopback; after
 the GStreamer generated-input cache,
 artifact-checksum comparator, and generated VP9 IVF decode cases were added.
-The device-free
+It was re-run after ABI replay gained optional dma-heap-backed MPP
+`TRANS_FD_TO_IOVA`/`RELEASE_FD` and RGA dma-buf import/release coverage for
+GStreamer allocator handoff parity. The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,
 slowdown, MPP/GStreamer/FFmpeg artifact mismatch, and librga latest-summary
 filtering paths. `build-mpp-tests.sh`
@@ -791,10 +794,12 @@ PROFILE=rewrite BASELINE=forward-port bash abi-replay.sh
 
 `abi-replay.sh` stores raw and normalized logs under
 `kernel-drivers/tests/logs/abi-replay/`. Normalization removes volatile file
-descriptor, import-handle, and request-id values before running `diff -u`.
-It also writes a smaller `.contract.log` that keeps the stable query/version
-and session-control lines, including the intentional legacy
-`RGA2_GET_VERSION ret=1` result copied from the BSP/librga contract.
+descriptor, import-handle, request-id, dma-buf heap, and IOVA values before
+running `diff -u`. It also writes a smaller `.contract.log` that keeps the
+stable query/version and session-control lines, including optional
+dma-heap-backed MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA dma-buf
+import/release, and the intentional legacy `RGA2_GET_VERSION ret=1` result
+copied from the BSP/librga contract.
 
 ## VP9 decode via the suites
 
