@@ -412,7 +412,9 @@ register `mppvpxalphadecodebin` when built against a new enough GStreamer for
 `codecalphademux`/`alphacombine`. Those map to legacy VPU/JPEG hardware or
 conditional VPx-alpha helper plumbing outside the RK3588 RKVDEC2/RKVENC2
 rewrite profile, so the suite keeps them diagnostic-only: it inspects the
-elements and runs short `enc_vp8_nv12`, `enc_jpeg_nv12`, and
+elements, verifies the optional `GST_MPP_VP8ENC_FAKE_VP8ENC=1` `vp8enc` alias
+resolves to Rockchip's VP8 encoder rather than a software element, and runs
+short `enc_vp8_nv12`, `enc_jpeg_nv12`, and
 `roundtrip_jpeg_nv12` pipelines, plus explicit `mppjpegdec format=BGRx` and
 `GST_MPP_JPEGDEC_DEFAULT_FORMAT=BGRx` roundtrips, to record what current
 userspace would observe without turning legacy coverage into a required pass
@@ -509,7 +511,7 @@ one pipeline so GStreamer's decoder-side buffer-group, short-timeout polling,
 info-change, and reset paths are exercised even before media assets are staged.
 Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `gst_inspect_mppjpegdec`, `gst_inspect_mppvpxalphadecodebin`,
-`enc_vp8_nv12`, `enc_jpeg_nv12`,
+`gst_inspect_vp8enc_alias`, `enc_vp8_nv12`, `enc_jpeg_nv12`,
 `roundtrip_jpeg_nv12`, `roundtrip_jpeg_format_bgrx`,
 `roundtrip_jpeg_env_format_bgrx`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`,
@@ -622,7 +624,9 @@ PERF_MAX_RATIO=1.25 bash ffmpeg-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-04 after diagnostic GStreamer JPEG decoder
+was last verified on 2026-07-04 after diagnostic GStreamer
+`GST_MPP_VP8ENC_FAKE_VP8ENC` alias validation was added; after diagnostic
+GStreamer JPEG decoder
 explicit-format and `GST_MPP_JPEGDEC_DEFAULT_FORMAT` cases were added; after
 diagnostic generated GStreamer H.264
 decode output-format cases were expanded for the advertised RGBA/BGRA/RGBx/BGRx

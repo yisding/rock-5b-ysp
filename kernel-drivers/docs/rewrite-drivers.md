@@ -61,8 +61,9 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
 > generated H.264 crop-meta output,
-> VP8/JPEG/VPx-alpha element visibility, JPEG decoder explicit/default output
-> format selection, generated VP9 transcode, and
+> VP8/JPEG/VPx-alpha element visibility, the optional `vp8enc` alias from
+> `GST_MPP_VP8ENC_FAKE_VP8ENC`, JPEG decoder explicit/default output format
+> selection, generated VP9 transcode, and
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and
 > BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 decoder-side output
@@ -412,8 +413,9 @@ implementation (cross-reference:
   encoded artifacts; its
   diagnostic set also includes seek-event probes through the same
   `gstreamer-event-harness`, generated H.264 crop-meta output,
-  VP8/JPEG/VPx-alpha element visibility, JPEG decoder explicit/default BGRx
-  output selection, generated VP9-to-H.264 transcode, and
+  VP8/JPEG/VPx-alpha element visibility, the optional `vp8enc` alias from
+  `GST_MPP_VP8ENC_FAKE_VP8ENC`, JPEG decoder explicit/default BGRx output
+  selection, generated VP9-to-H.264 transcode, and
   a GStreamer-visible encoder-format matrix covering advertised direct MPP
   input formats I420/YUY2/UYVY/RGB16/ARGB/ABGR/xRGB/xBGR/NV24/Y444 plus
   RGA-forced encoder-side NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61

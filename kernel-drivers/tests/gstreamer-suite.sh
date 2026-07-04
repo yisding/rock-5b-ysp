@@ -149,6 +149,7 @@ generated_transcode_h264_env_arm_afbc_to_h265
 
 diagnostic_cases_default="
 gst_inspect_mppvp8enc
+gst_inspect_vp8enc_alias
 gst_inspect_mppjpegenc
 gst_inspect_mppjpegdec
 gst_inspect_mppvpxalphadecodebin
@@ -581,6 +582,32 @@ run_videotest_encode_env_no_rga()
 	printf "encoding H.264 with RGA disabled by env: "
 	print_current_command
 	run_current_command
+}
+
+run_gst_inspect_vp8enc_alias()
+{
+	local output
+
+	CMD=(env GST_MPP_VP8ENC_FAKE_VP8ENC=1 gst-inspect-1.0 vp8enc)
+	printf "inspecting vp8enc alias with GST_MPP_VP8ENC_FAKE_VP8ENC=1: "
+	print_current_command
+
+	if [ "$GST_TIMEOUT" = "0" ]; then
+		output=$("${CMD[@]}")
+	else
+		output=$(timeout "$GST_TIMEOUT" "${CMD[@]}")
+	fi
+
+	printf "%s\n" "$output"
+	case "$output" in
+	*"Rockchip Mpp VP8 Encoder"*)
+		return 0
+		;;
+	*)
+		printf "vp8enc alias did not resolve to Rockchip MPP VP8 encoder\n" >&2
+		return 1
+		;;
+	esac
 }
 
 append_videotest_jpeg_roundtrip_pipeline()
@@ -1407,6 +1434,9 @@ build_case_command()
 	gst_inspect_mppvp8enc)
 		CMD=(gst-inspect-1.0 mppvp8enc)
 		;;
+	gst_inspect_vp8enc_alias)
+		CMD=(__builtin_gst_inspect_vp8enc_alias)
+		;;
 	gst_inspect_mppjpegenc)
 		CMD=(gst-inspect-1.0 mppjpegenc)
 		;;
@@ -2036,6 +2066,9 @@ run_case_payload()
 	enc_h264_env_no_rga)
 		run_videotest_encode_env_no_rga
 		;;
+	gst_inspect_vp8enc_alias)
+		run_gst_inspect_vp8enc_alias
+		;;
 	generated_dec_h264_env_strict_props)
 		run_generated_decode_env_strict "${CMD[1]}"
 		;;
@@ -2141,7 +2174,8 @@ runtime_dispatch_validated()
 	case "$case_name" in
 	state_loop_h264_nv12 | state_loop_roundtrip_h264 | \
 	enc_h264_env_unaligned_vstride | enc_h264_env_max_pending | \
-	enc_h264_env_no_rga | generated_dec_h264_env_strict_props | \
+	enc_h264_env_no_rga | gst_inspect_vp8enc_alias | \
+	generated_dec_h264_env_strict_props | \
 	generated_dec_h264_env_dmabuf | generated_dec_h264_env_no_rga | \
 	generated_dec_h264_env_format_nv21 | generated_dec_h264_env_fbc | \
 	generated_dec_h264_env_arm_afbc | \
