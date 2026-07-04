@@ -19,11 +19,12 @@
 # WHAT IT DOES
 #   1. Regenerate the port patches from git:  git format-patch v6.18..HEAD,
 #      excluding commits already carried by the shipping Armbian kernel base.
-#   2. Stage them as Armbian userpatches (replacing any prior port patches;
-#      leaving unrelated userpatches such as rk806-* untouched).
-#   3. Disable the two colliding Armbian core media patches.
-#   4. Run ./compile.sh with USE_CCACHE passed as an ARGUMENT (see below).
-#   5. Print the new P####-C#### hash and the deb paths.
+#   2. Reset Armbian patch state: restore/clean the built-in archive and clear
+#      generated userpatches for this kernel archive.
+#   3. Stage the generated patch set.
+#   4. Disable the two colliding Armbian core media patches.
+#   5. Run ./compile.sh with USE_CCACHE passed as an ARGUMENT (see below).
+#   6. Print the new P####-C#### hash and the deb paths.
 #
 # THE ccache GOTCHA (inherited from rock-5b-ysp): USE_CCACHE must be a compile.sh
 # command-line ARGUMENT, never a shell env var -- Armbian relaunches the build
@@ -36,9 +37,10 @@
 #   bash build-armbian-deb.sh
 #   nohup bash build-armbian-deb.sh >build.log 2>&1 &   # long build
 #   ARMBIAN_BUILD=/path/to/armbian-build bash build-armbian-deb.sh
+#   KERNEL_TREE=/path/to/other-kernel PATCH_PREFIX=rk3588-rewrite bash build-armbian-deb.sh
 #   bash build-armbian-deb.sh KERNEL_CONFIGURE=yes      # extra args pass through
 #
-# Reverse the media-patch disable later with:  --restore  (does nothing else)
+# Reset the built-in patch archive without building with:  --restore
 # =============================================================================
 # shellcheck disable=SC2012
 set -euo pipefail
@@ -56,7 +58,7 @@ KERNEL_TREE="${KERNEL_TREE:-$CODE/kernel/linux-6.18-rkvenc-av1-fwport}"
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 BASE_TAG="${BASE_TAG:-v6.18}"                 # port patches are v6.18..HEAD
 KBRANCH="${KBRANCH:-rockchip64-6.18}"         # Armbian kernel patch archive branch
-PATCH_PREFIX="rk3588-av1-fwport"              # our userpatch filename prefix
+PATCH_PREFIX="${PATCH_PREFIX:-rk3588-av1-fwport}"  # generated userpatch filename prefix
 STAGING="${STAGING:-$WORKSPACE/forward-port/patches}"   # inspectable copy of generated patches
 # Commit(s) present in this forward-port tree only because the local branch
 # tracks fixes that Armbian's shipping 6.18.37 source base already carries.
@@ -76,18 +78,26 @@ DEBS="$ARMBIAN_BUILD/output/debs"
 say() { printf '>>> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-restore_media() {
-	say "Restoring Armbian core media patches (removing .disabled)"
-	for p in "${DISABLE_PATCHES[@]}"; do
-		if [ -f "$CORE_DIR/$p.disabled" ]; then
-			mv -v "$CORE_DIR/$p.disabled" "$CORE_DIR/$p"
-		fi
-	done
+reset_core_patches() {
+	local rel_core_dir="patch/kernel/archive/$KBRANCH"
+
+	say "STEP 0: reset Armbian built-in patch archive in $CORE_DIR"
+	[ -d "$CORE_DIR" ] || die "Armbian kernel patch archive not found: $CORE_DIR (wrong KBRANCH?)"
+	if git -C "$ARMBIAN_BUILD" rev-parse --git-dir >/dev/null 2>&1; then
+		git -C "$ARMBIAN_BUILD" checkout -- "$rel_core_dir"
+		git -C "$ARMBIAN_BUILD" clean -f -- "$rel_core_dir" | sed 's/^/      /'
+	else
+		say "  WARNING: $ARMBIAN_BUILD is not a git tree; only restoring *.patch.disabled files"
+		find "$CORE_DIR" -maxdepth 1 -type f -name '*.patch.disabled' -print |
+			while IFS= read -r disabled; do
+				mv -v "$disabled" "${disabled%.disabled}"
+			done | sed 's/^/      /'
+	fi
 }
 
 # --- --restore mode --------------------------------------------------------
 if [ "${1:-}" = "--restore" ]; then
-	restore_media
+	reset_core_patches
 	exit 0
 fi
 
@@ -96,6 +106,9 @@ git -C "$KERNEL_TREE" rev-parse --git-dir >/dev/null 2>&1 || die "$KERNEL_TREE i
 git -C "$KERNEL_TREE" rev-parse "$BASE_TAG" >/dev/null 2>&1 || die "base tag '$BASE_TAG' not found in $KERNEL_TREE"
 [ -x "$ARMBIAN_BUILD/compile.sh" ] || die "Armbian build tree not found: $ARMBIAN_BUILD (set ARMBIAN_BUILD=)"
 [ -d "$CORE_DIR" ] || die "Armbian kernel patch archive not found: $CORE_DIR (wrong KBRANCH?)"
+
+# =============================================================================
+reset_core_patches
 
 # =============================================================================
 say "STEP 1: regenerate port patches from git ($BASE_TAG..HEAD)"
@@ -122,19 +135,24 @@ for f in "$STAGING"/0*.patch; do
 	base=$(basename "$f")
 	mv "$f" "$STAGING/$PATCH_PREFIX-$base"
 done
-say "  generated $(ls "$STAGING"/$PATCH_PREFIX-*.patch | wc -l) patches into $STAGING"
+say "  generated $(ls "$STAGING"/"$PATCH_PREFIX"-*.patch | wc -l) patches into $STAGING"
 
 # =============================================================================
-say "STEP 2: stage them as Armbian userpatches in $UP_DIR"
+say "STEP 2: reset Armbian userpatches in $UP_DIR"
 mkdir -p "$UP_DIR"
-# Remove prior *port* userpatches only (ours + the superseded rkvenc2 pair);
-# leave anything else (e.g. rk806-log-reset-status.patch) in place.
-rm -fv "$UP_DIR/$PATCH_PREFIX-"*.patch "$UP_DIR"/rk3588-rkvenc2-*.patch 2>/dev/null || true
-cp -v "$STAGING"/$PATCH_PREFIX-*.patch "$UP_DIR"/ | sed 's/^/      /'
+# This archive directory is generated state for these kernel builds. Reset all
+# top-level patches so switching between AV1/rewrite/other generated kernels
+# cannot leave stale patches behind.
+find "$UP_DIR" -maxdepth 1 -type f -name '*.patch' -print -delete |
+	sed 's/^/      removed /'
+
+# =============================================================================
+say "STEP 3: stage generated userpatches"
+cp -v "$STAGING"/"$PATCH_PREFIX"-*.patch "$UP_DIR"/ | sed 's/^/      /'
 say "  userpatches now:"; ls "$UP_DIR" | sed 's/^/      /'
 
 # =============================================================================
-say "STEP 3: disable colliding Armbian core patches (self-contained DT owns these nodes)"
+say "STEP 4: disable colliding Armbian core patches (self-contained DT owns these nodes)"
 for p in "${DISABLE_PATCHES[@]}"; do
 	if [ -f "$CORE_DIR/$p" ]; then
 		mv -v "$CORE_DIR/$p" "$CORE_DIR/$p.disabled"
@@ -146,7 +164,7 @@ for p in "${DISABLE_PATCHES[@]}"; do
 done
 
 # =============================================================================
-say "STEP 4: build (ccache ON, as a compile.sh ARGUMENT so it reaches Docker)"
+say "STEP 5: build (ccache ON, as a compile.sh ARGUMENT so it reaches Docker)"
 say "  ccache dir before: $(du -sh "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)"
 cd "$ARMBIAN_BUILD"
 ./compile.sh kernel \
@@ -157,7 +175,7 @@ cd "$ARMBIAN_BUILD"
 	"$@"
 
 # =============================================================================
-say "STEP 5: results"
+say "STEP 6: results"
 say "  ccache dir after:  $(du -sh "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)  (grew = ccache engaged)"
 say "  newest current-rockchip64 debs:"
 ls -t "$DEBS"/linux-image-current-rockchip64_*.deb "$DEBS"/linux-dtb-current-rockchip64_*.deb \
