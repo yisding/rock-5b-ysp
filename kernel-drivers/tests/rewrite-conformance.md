@@ -50,7 +50,7 @@ worktree has unrelated local changes.
 
 Last recorded run: `ALLOW_DIRTY=1 kernel-drivers/tests/rewrite-build-gate.sh all`
 on 2026-07-04 passed warning-free for the committed rewrite tips
-`../linux-6.18-rkvenc@3794c7eed876` and `../linux@13cde7319359`.
+`../linux-6.18-rkvenc@c20d1af7258d` and `../linux@daa625ece1ad`.
 
 ## Expanded conformance bundle
 
@@ -877,7 +877,10 @@ At the kernel level, the current rewrite pins also include KUnit coverage for
 VP9 RKVDEC fd-to-IOVA register translation/validation, including rejection of
 unknown RKVDEC format-table indices.
 They also cover `MPP_CMD_SET_ERR_REF_HACK` copy/discard behavior for the current
-libmpp VDPU382 probe path.
+libmpp VDPU382 probe path, and `SET_SESSION_FD` batch-poll status writeback so
+current libmpp's batch server sees positive `EAGAIN` for pending slots and
+negative task errors such as `-EIO` through `mpp_bat_msg.ret` without treating
+the whole ioctl as failed.
 The RGA side also includes KUnit coverage for the default legacy
 `RGA_BLIT_SYNC` `c_RkRgaBlit()` path used by JeffyCN GStreamer: a sync ioctl
 queues behind a busy core, waits for queued completion, and does not copy an
