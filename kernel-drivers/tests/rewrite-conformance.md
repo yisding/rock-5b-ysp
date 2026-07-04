@@ -250,6 +250,7 @@ exercises real kernel paths:
   `generated_dec_h264_env_dmabuf`, `generated_dec_h264_strict_props`,
   `generated_dec_h265_strict_props`,
   `generated_dec_h264_env_strict_props`,
+  `generated_dec_h264_env_format_nv21`,
   `generated_dec_vp9_fakesink`, `generated_dec_vp9_dmabuf`,
   `generated_dec_h264_renegotiate`, `generated_dec_h265_renegotiate`,
   `generated_dec_h264_rga_rotate`, `generated_dec_h265_rga_scale`;
@@ -291,6 +292,9 @@ The strict decoder-property cases set `fast-mode=false` and
 control before decode starts. The env-default variant runs the same decode with
 `GST_MPP_DEC_DEFAULT_FAST_MODE=0` and `GST_MPP_DEC_DEFAULT_IGNORE_ERROR=0`, so
 the default-value path is covered separately from explicit element properties.
+The env-default format variant runs H.264 decode with
+`GST_MPP_VIDEODEC_DEFAULT_FORMAT=NV21`, covering the plugin's global preferred
+output-format path and the decoder-side RGA conversion it triggers.
 The decoder renegotiation cases concatenate two generated elementary streams at
 different dimensions and feed them through `filesrc ! *parse ! mppvideodec`,
 covering parser caps changes and decoder info-change/reset behavior without
@@ -358,7 +362,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_vp9_fakesink`,
 `generated_dec_vp9_dmabuf`, `generated_dec_h264_strict_props`,
 `generated_dec_h265_strict_props`, `generated_dec_h264_env_strict_props`,
-`generated_dec_h264_renegotiate`,
+`generated_dec_h264_env_format_nv21`, `generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
 `generated_transcode_h264_to_h265`,
@@ -470,8 +474,8 @@ Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
 was last verified on 2026-07-04 after the GStreamer codec-specific encoder QP
 cases were added to the required set and the decoder crop-meta case was added as
 diagnostic coverage; after the GStreamer env-default strict decoder and
-env-default decoder DMA-feature cases were added to the required set; after the
-GStreamer strict decoder-property cases
+env-default decoder DMA-feature/output-format cases were added to the required
+set; after the GStreamer strict decoder-property cases
 were wired into the generated-decode builtin dispatch, the asset-free
 parallel cases became required by default, and after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
