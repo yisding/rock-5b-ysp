@@ -165,7 +165,7 @@ patches' own Kconfig `default y` (same as § below) — **no config edits**.
 editing Armbian's core patch set** (two renames). Pick per goal.
 
 Result of this path (build tooling lives in `linux-6.18-rkvenc-av1-fwport/packaging/armbian/`,
-reusing the shipping `rock5b-kernel-debug/armbian-build` tree): a drop-in
+reusing the shipping `rock5b-kernel-build/armbian-build` tree): a drop-in
 `6.18.37 / 26.08.0-trunk` kernel, hash **`P1c9d-Cb831`** — new patch hash vs the
 convert-in-place `Pb6ab-Cb831`, **same config hash** `Cb831`. DTB verified to carry
 `mpp-service` + encoder×2 + decoder + `rga3_core0/1` + `verisilicon,iommu`; **not yet

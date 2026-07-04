@@ -11,7 +11,7 @@ source "$TEST_DIR/debugfs-counters.sh"
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-ffmpeg-suite"}
-STAGE=${STAGE:-"$REPO_ROOT/../kernel/rock5b-kernel-debug/ffmpeg-stack"}
+STAGE=${STAGE:-"$REPO_ROOT/../kernel/rock5b-kernel-build/ffmpeg-stack"}
 FFMPEG_GENERATOR=${FFMPEG_GENERATOR:-ffmpeg}
 FFMPEG_GENERATED_INPUT_CACHE=${FFMPEG_GENERATED_INPUT_CACHE:-"$CONFORMANCE_ROOT/assets/ffmpeg-generated"}
 FFMPEG_GENERATE_INPUTS=${FFMPEG_GENERATE_INPUTS:-1}

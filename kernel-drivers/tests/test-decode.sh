@@ -19,15 +19,15 @@ set -uo pipefail
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 
-# Paths (env-overridable; defaults = the original dev box, see README.md):
-#   MPP_BUILD = cmake build dir of rockchip-linux/mpp (the "<mpp-build>" of
-#               ../ffmpeg/README.md) containing mpp/librockchip_mpp.so* and
-#               test/mpi_dec_test
+# Paths (env-overridable; defaults = the dev box, see README.md):
+#   MPP_BUILD = an MPP build/install tree containing librockchip_mpp + mpi_dec_test.
+#               Default is the rockchip-conformance install prefix (lib/ + bin/);
+#               a raw cmake build dir (mpp/ + test/) is auto-detected too.
 #   CLIP_DIR  = where the tiny test clips live (regeneration recipes: README.md)
-MPP_BUILD="${MPP_BUILD:-$REPO_ROOT/../kernel/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native}"
-CLIP_DIR="${CLIP_DIR:-$REPO_ROOT/../kernel/rock5b-kernel-debug/rkvdec2-forward-port/test-bundle}"
-LIB=$MPP_BUILD/mpp
-DEC=$MPP_BUILD/test/mpi_dec_test
+MPP_BUILD="${MPP_BUILD:-$REPO_ROOT/../rockchip-conformance/out/mpp}"
+CLIP_DIR="${CLIP_DIR:-$REPO_ROOT/../kernel/rock5b-kernel-build/ffmpeg-stack/testdata}"
+LIB=$MPP_BUILD/lib;             [ -d "$LIB" ] || LIB=$MPP_BUILD/mpp
+DEC=$MPP_BUILD/bin/mpi_dec_test; [ -x "$DEC" ] || DEC=$MPP_BUILD/test/mpi_dec_test
 
 H264_IN=$CLIP_DIR/tiny-320x240.h264
 H265_IN=$CLIP_DIR/tiny-320x240.h265

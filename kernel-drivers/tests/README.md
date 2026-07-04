@@ -56,7 +56,7 @@ The smoke tests differ in what device access they need:
 >
 > | Var | Used by | Meaning |
 > |-----|---------|---------|
-> | `MPP_BUILD` | decode, encode | cmake build dir of `rockchip-linux/mpp` (the `<mpp-build>` of the ffmpeg README; build recipe there) — must contain `mpp/librockchip_mpp.so*` and `test/mpi_dec_test` / `test/mpi_enc_test` |
+> | `MPP_BUILD` | decode, encode | an MPP build/install tree with `librockchip_mpp` + `mpi_dec_test`/`mpi_enc_test`. Default `../rockchip-conformance/out/mpp` (install layout `lib/`+`bin/`); a raw cmake build dir (`mpp/`+`test/`) is auto-detected too. `decode-differential.sh` uses the same default. |
 > | `CLIP_DIR` | decode | directory holding `tiny-320x240.h264/.h265` (regeneration below) |
 > | `FFDIR` | transcode | ffmpeg-rockchip build dir (`./ffmpeg`, `./ffprobe`) |
 > | `STAGE` | transcode | the MPP/RGA staging prefix from the ffmpeg README (e.g. `~/ffmpeg-stack`) |

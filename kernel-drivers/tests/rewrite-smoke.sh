@@ -92,9 +92,9 @@ preflight_devices() {
 
 preflight_artifacts() {
   local fail=0
-  local mpp_build="${MPP_BUILD:-$REPO_ROOT/../kernel/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native}"
+  local mpp_build="${MPP_BUILD:-$REPO_ROOT/../rockchip-conformance/out/mpp}"
   local ffdir="${FFDIR:-$REPO_ROOT/../ffmpeg/ffmpeg-rockchip}"
-  local stage="${STAGE:-$REPO_ROOT/../kernel/rock5b-kernel-debug/ffmpeg-stack}"
+  local stage="${STAGE:-$REPO_ROOT/../kernel/rock5b-kernel-build/ffmpeg-stack}"
   local input="${IN:-$stage/testdata/input-1080p.h264}"
 
   echo "================= artifact preflight ================="

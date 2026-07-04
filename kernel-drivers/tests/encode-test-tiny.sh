@@ -9,11 +9,12 @@ set -uo pipefail
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 
-# MPP_BUILD = cmake build dir of rockchip-linux/mpp (env-overridable; the
-# "<mpp-build>" of ../ffmpeg/README.md). Default = the original dev box.
-MPP_BUILD="${MPP_BUILD:-$REPO_ROOT/../kernel/rock5b-kernel-debug/rkvenc-forward-port/userspace/mpp/build_native}"
-LIB=$MPP_BUILD/mpp
-ENC=$MPP_BUILD/test/mpi_enc_test
+# MPP_BUILD = an MPP build/install tree with librockchip_mpp + mpi_enc_test
+# (env-overridable). Default = the rockchip-conformance install prefix (lib/+bin/);
+# a raw cmake build dir (mpp/+test/) is auto-detected too.
+MPP_BUILD="${MPP_BUILD:-$REPO_ROOT/../rockchip-conformance/out/mpp}"
+LIB=$MPP_BUILD/lib;             [ -d "$LIB" ] || LIB=$MPP_BUILD/mpp
+ENC=$MPP_BUILD/bin/mpi_enc_test; [ -x "$ENC" ] || ENC=$MPP_BUILD/test/mpi_enc_test
 OUT=/tmp/rkvenc-test
 
 if [ "$(id -u)" -ne 0 ]; then echo "Run as root (sudo)."; exit 1; fi

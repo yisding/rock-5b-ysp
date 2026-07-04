@@ -7,9 +7,9 @@ bugs into loud reports, and `panic_on_oops` + `panic=10` guarantee the box
 comes back on its own.
 
 > Provenance: this workflow lives in the (non-git, dev-box-only) workspace
-> `/home/yi/Code/kernel/rock5b-kernel-debug/` — `build-rock5b-debug-kernel.sh`,
+> `/home/yi/Code/kernel/rock5b-kernel-build/debug-kernel/` — `build-debug-kernel.sh`,
 > `enable-/disable-ramoops-capture.sh`, `enable-persistent-journal.sh`,
-> `install-rock5b-debug-kernel.sh`, `restore-stock-current-kernel.sh`, plus
+> `install-debug-kernel.sh`, `(restore recipe in debug-kernel/README.md)`, plus
 > `boot-backups/` snapshots. This doc transcribes everything needed to
 > reproduce it without that workspace. The same workspace's `armbian-build/`
 > tree is the one `scripts/build-combined-kernel.sh` drives (see
@@ -111,7 +111,7 @@ a crash.
 
 ## 5. Install, hold, roll back
 
-**Install** (`install-rock5b-debug-kernel.sh` logic): back up the current
+**Install** (`install-debug-kernel.sh` logic): back up the current
 `/boot` kernel artifacts (`Image`, `vmlinuz-*`, `initrd.img-*`, `uInitrd-*`,
 `System.map-*`, `config-*`, `dtb-*`) into a timestamped `boot-backups/<stamp>/`
 dir, `dpkg -i` the newest image+dtb+headers debs from
@@ -119,7 +119,7 @@ dir, `dpkg -i` the newest image+dtb+headers debs from
 `linux-{image,dtb,headers}-current-rockchip64` so an apt upgrade can't
 silently replace the debug kernel mid-investigation.
 
-**Restore stock** (`restore-stock-current-kernel.sh` logic):
+**Restore stock** (`(restore recipe in debug-kernel/README.md)` logic):
 
 1. `apt-mark unhold` the three packages.
 2. `apt-get install --allow-downgrades --reinstall` **image, dtb, AND headers
