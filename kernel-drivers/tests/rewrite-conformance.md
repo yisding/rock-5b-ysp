@@ -298,7 +298,7 @@ paths:
   `enc_h264_env_no_rga`, `enc_h264_env_max_pending`,
   `enc_h264_env_unaligned_vstride`;
 - `enc_h264_bgrx_rga_rotate`, `enc_h264_bgrx_rga_rotate_180`,
-  `enc_h265_rgba_rga_scale`;
+  `enc_h264_bgrx_rga_rotate_270`, `enc_h265_rgba_rga_scale`;
 - `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
   `roundtrip_h264_rga_rotate`, `roundtrip_h264_rga_rotate_270`;
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
@@ -315,7 +315,8 @@ paths:
   `generated_dec_h264_env_format_nv21`,
   `generated_dec_vp9_fakesink`, `generated_dec_vp9_dmabuf`,
   `generated_dec_h264_renegotiate`, `generated_dec_h265_renegotiate`,
-  `generated_dec_h264_rga_rotate`, `generated_dec_h265_rga_scale`;
+  `generated_dec_h264_rga_rotate`, `generated_dec_h264_rga_rotate_180`,
+  `generated_dec_h264_rga_rotate_270`, `generated_dec_h265_rga_scale`;
 - `generated_transcode_h264_to_h265`, `generated_transcode_h265_to_h264`,
   `generated_transcode_h264_mp4_to_h265`,
   `generated_transcode_h265_mp4_to_h264`,
@@ -556,6 +557,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_422_10_env_disable_nv16_10`,
 `generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
+`generated_dec_h264_rga_rotate_180`, `generated_dec_h264_rga_rotate_270`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
 `generated_transcode_h264_to_h265`,
 `generated_transcode_h265_to_h264`,
@@ -568,7 +570,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `enc_h264_qp_profile_props`, `enc_h265_qp_props`,
 `enc_h264_env_no_rga`, `enc_h264_env_max_pending`,
 `enc_h264_env_unaligned_vstride`,
-`enc_h264_bgrx_rga_rotate_180`,
+`enc_h264_bgrx_rga_rotate_180`, `enc_h264_bgrx_rga_rotate_270`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
 `event_force_key_enc_h264`, `event_force_key_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,
@@ -744,8 +746,10 @@ bash debugfs-counter-check.sh
 
 Maintenance gate: `shellcheck *.sh` in this directory and
 `VALIDATE_ONLY=1 bash rewrite-conformance-run.sh` are expected to pass; they
-were last verified on 2026-07-04 after the required GStreamer libmpp
-batch-server mixed H.264/H.265 parallel decode case was added; after
+were last verified on 2026-07-04 after the required GStreamer public
+encoder/decoder 270-degree and decoder 180-degree RGA rotation cases were
+added; after the required GStreamer libmpp batch-server mixed H.264/H.265
+parallel decode case was added; after
 diagnostic GStreamer
 `GST_MPP_VP8ENC_FAKE_VP8ENC` alias validation was added; after diagnostic
 GStreamer JPEG decoder

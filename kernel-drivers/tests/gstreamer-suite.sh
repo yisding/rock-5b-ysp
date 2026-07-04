@@ -84,6 +84,7 @@ enc_h264_env_max_pending
 enc_h264_env_unaligned_vstride
 enc_h264_bgrx_rga_rotate
 enc_h264_bgrx_rga_rotate_180
+enc_h264_bgrx_rga_rotate_270
 enc_h265_rgba_rga_scale
 roundtrip_h264_nv12
 roundtrip_h265_nv12
@@ -102,6 +103,8 @@ generated_dec_h264_env_format_nv21
 generated_dec_h264_renegotiate
 generated_dec_h265_renegotiate
 generated_dec_h264_rga_rotate
+generated_dec_h264_rga_rotate_180
+generated_dec_h264_rga_rotate_270
 generated_dec_h265_rga_scale
 generated_transcode_h264_to_h265
 generated_transcode_h265_to_h264
@@ -1948,6 +1951,11 @@ build_case_command()
 			rotation=180 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
 			zero-copy-pkt=true
 		;;
+	enc_h264_bgrx_rga_rotate_270)
+		build_videotest_encode mpph264enc BGRx "$GST_NUM_BUFFERS" \
+			rotation=270 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
 	enc_h265_rgba_rga_scale)
 		build_videotest_encode mpph265enc RGBA "$GST_NUM_BUFFERS" \
 			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
@@ -2098,6 +2106,14 @@ build_case_command()
 	generated_dec_h264_rga_rotate)
 		CMD=(__builtin_generated_decode h264 \
 			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx)
+		;;
+	generated_dec_h264_rga_rotate_180)
+		CMD=(__builtin_generated_decode h264 \
+			rotation=180 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx)
+		;;
+	generated_dec_h264_rga_rotate_270)
+		CMD=(__builtin_generated_decode h264 \
+			rotation=270 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx)
 		;;
 	generated_dec_h265_rga_scale)
 		CMD=(__builtin_generated_decode h265 \
@@ -2608,7 +2624,8 @@ run_case_payload()
 	generated_dec_av1_fakesink | generated_dec_av1_dmabuf | \
 	generated_dec_h263_fakesink | generated_dec_mpeg2_fakesink | \
 	generated_dec_mpeg4_fakesink | \
-	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
+	generated_dec_h264_rga_rotate | generated_dec_h264_rga_rotate_180 | \
+	generated_dec_h264_rga_rotate_270 | generated_dec_h265_rga_scale | \
 	generated_dec_vp8_rga_scale | generated_dec_h263_rga_scale | \
 	generated_dec_mpeg2_rga_scale | generated_dec_mpeg4_rga_scale | \
 	generated_dec_vp9_rga_scale | generated_dec_av1_rga_scale | \
@@ -2714,7 +2731,8 @@ runtime_dispatch_validated()
 	generated_dec_av1_fakesink | generated_dec_av1_dmabuf | \
 	generated_dec_h263_fakesink | generated_dec_mpeg2_fakesink | \
 	generated_dec_mpeg4_fakesink | \
-	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
+	generated_dec_h264_rga_rotate | generated_dec_h264_rga_rotate_180 | \
+	generated_dec_h264_rga_rotate_270 | generated_dec_h265_rga_scale | \
 	generated_dec_vp8_rga_scale | generated_dec_h263_rga_scale | \
 	generated_dec_mpeg2_rga_scale | generated_dec_mpeg4_rga_scale | \
 	generated_dec_vp9_rga_scale | generated_dec_av1_rga_scale | \
