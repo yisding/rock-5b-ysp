@@ -32,7 +32,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > suite now includes asset-free encoder, RGA-conversion, decoder roundtrip,
 > generated elementary-stream H.264/H.265 decode/transcode, generated VP9 IVF
 > decode, caps-renegotiation, explicit
-> flush-event, force-key-unit, EOS-loop, and state-loop pipelines so the
+> flush-event, force-key-unit, EOS-loop, state-loop, and parallel
+> encode/decode/transcode pipelines so the
 > next hardware pass exercises decoder-side buffer groups, short-timeout
 > polling, info-change, parser-driven decoder caps changes, reset,
 > media-file parser/decode, decoder-side RGA
@@ -42,10 +43,10 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > explicit encoder control-property application through `MPP_ENC_SET_CFG`,
 > strict decoder property application through `MPP_DEC_SET_PARSER_FAST_MODE`,
 > repeated encoder/decoder drain-to-EOS reuse,
+> multi-session scheduling,
 > and decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
 > generated H.264/H.265 AFBC decode output, generated VP9 transcode, generated
-> multi-stream decode/transcode, and
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 decoder-side
 > output conversion. The in-repo direct `librga` smoke
@@ -369,13 +370,13 @@ implementation (cross-reference:
   encoder and decoder `FLUSH_START`/`FLUSH_STOP` event handling with required
   post-flush output, encoder `GstForceKeyUnit` events that drive
   `MPP_ENC_SET_IDR_FRAME`, repeated encoder/decoder drain-to-EOS reuse in one
-  process, and repeated state-loop reset; its
-  diagnostic set also includes seek-event probes through the same
-  `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output,
-  generated VP9-to-H.264 transcode, parallel H.264 encode,
+  process, repeated state-loop reset, parallel H.264 encode,
   parallel H.264 encode->decode roundtrip, generated same-codec/mixed-codec
   parallel decode, and mixed H.264/H.265 decode->encode transcode pipelines for
-  multi-session scheduling evidence, and
+  multi-session scheduling evidence; its
+  diagnostic set also includes seek-event probes through the same
+  `gstreamer-event-harness`, generated H.264/H.265 AFBC decode output,
+  generated VP9-to-H.264 transcode, and
   a GStreamer-visible RGA format matrix covering encoder-side
   BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61 scale paths plus decoder-side
   BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The runner now

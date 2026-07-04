@@ -38,6 +38,8 @@ GST_ENABLE_DISPLAY_CASES=${GST_ENABLE_DISPLAY_CASES:-0}
 GST_REQUIRE_DISPLAY_CASES=${GST_REQUIRE_DISPLAY_CASES:-0}
 GST_ENABLE_VP9_CASES=${GST_ENABLE_VP9_CASES:-1}
 GST_REQUIRE_VP9_CASES=${GST_REQUIRE_VP9_CASES:-1}
+GST_ENABLE_PARALLEL_CASES=${GST_ENABLE_PARALLEL_CASES:-1}
+GST_REQUIRE_PARALLEL_CASES=${GST_REQUIRE_PARALLEL_CASES:-1}
 GST_DISPLAY_SINK=${GST_DISPLAY_SINK:-rkximagesink}
 GST_DISPLAY_SINK_ARGS=${GST_DISPLAY_SINK_ARGS:-}
 
@@ -95,6 +97,15 @@ generated_dec_vp9_rga_scale
 generated_transcode_vp9_to_h264
 "
 
+parallel_cases_default="
+parallel_enc_h264
+parallel_roundtrip_h264
+parallel_dec_h264
+parallel_dec_h265
+parallel_dec_mixed_h264_h265
+parallel_transcode_mixed_h264_h265
+"
+
 diagnostic_cases_default="
 gst_inspect_mppvp8enc
 gst_inspect_mppjpegenc
@@ -105,12 +116,6 @@ event_seek_dec_h264
 event_seek_dec_h265
 generated_dec_h264_afbc_fakesink
 generated_dec_h265_afbc_fakesink
-parallel_enc_h264
-parallel_roundtrip_h264
-parallel_dec_h264
-parallel_dec_h265
-parallel_dec_mixed_h264_h265
-parallel_transcode_mixed_h264_h265
 enc_vp8_nv12
 enc_jpeg_nv12
 roundtrip_jpeg_nv12
@@ -140,6 +145,17 @@ $vp9_cases_default"
 	else
 		diagnostic_cases_default="$diagnostic_cases_default
 $vp9_cases_default"
+	fi
+fi
+
+if [ "$GST_ENABLE_PARALLEL_CASES" = "1" ] ||
+	[ "$GST_REQUIRE_PARALLEL_CASES" = "1" ]; then
+	if [ "$GST_REQUIRE_PARALLEL_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$parallel_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$parallel_cases_default"
 	fi
 fi
 
