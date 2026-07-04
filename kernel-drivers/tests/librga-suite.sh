@@ -12,8 +12,12 @@ PROFILE=${PROFILE:-${1:-rewrite}}
 BIN_DIR=${RGA_BIN_DIR:-"$CONFORMANCE_ROOT/out/librga-samples/bin"}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-librga-suite"}
 LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
+RGA_CAPTURE_ARTIFACTS=${RGA_CAPTURE_ARTIFACTS:-1}
+RGA_ENABLE_YSP_SMOKE=${RGA_ENABLE_YSP_SMOKE:-1}
+RGA_REQUIRE_YSP_SMOKE=${RGA_REQUIRE_YSP_SMOKE:-1}
 
 required_cases_default="
+ysp_librga_smoke
 rga_copy_demo
 rga_copy_drm_fourcc_demo
 rga_copy_fbc_demo
@@ -71,6 +75,17 @@ rga_cfa_a2_demo
 rga_cfa_bcsh_demo
 "
 
+if [ "$RGA_ENABLE_YSP_SMOKE" != "1" ] &&
+	[ "$RGA_REQUIRE_YSP_SMOKE" != "1" ]; then
+	required_cases_default=$(printf "%s\n" "$required_cases_default" |
+		awk '$1 != "ysp_librga_smoke"')
+elif [ "$RGA_REQUIRE_YSP_SMOKE" != "1" ]; then
+	required_cases_default=$(printf "%s\n" "$required_cases_default" |
+		awk '$1 != "ysp_librga_smoke"')
+	diagnostic_cases_default="$diagnostic_cases_default
+ysp_librga_smoke"
+fi
+
 required_cases=${RGA_REQUIRED_CASES:-$required_cases_default}
 diagnostic_cases=${RGA_DIAGNOSTIC_CASES:-$diagnostic_cases_default}
 failed=0
@@ -87,7 +102,11 @@ fi
 
 mkdir -p "$OUT"
 summary="$OUT/summary.tsv"
+artifact_dir="$OUT/artifacts"
+artifact_summary="$OUT/artifacts.tsv"
 printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
+printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
+mkdir -p "$artifact_dir"
 
 export LD_LIBRARY_PATH="$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
 
@@ -112,11 +131,37 @@ snapshot_debugfs()
 	done
 }
 
+record_case_artifacts()
+{
+	local class=$1
+	local case_name=$2
+	local dir=$3
+	local file
+	local kind
+	local bytes
+	local sha
+
+	if [ "$RGA_CAPTURE_ARTIFACTS" != "1" ] || [ ! -d "$dir" ]; then
+		return
+	fi
+
+	while IFS= read -r file; do
+		kind=$(basename "$file")
+		kind=${kind%.bin}
+		bytes=$(wc -c < "$file" | tr -d '[:space:]')
+		sha=$(sha256sum "$file" | awk '{ print $1 }')
+		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+			"$PROFILE" "$class" "$case_name" "$kind" \
+			"$bytes" "$sha" "$file" >> "$artifact_summary"
+	done < <(find "$dir" -maxdepth 1 -type f -name '*.bin' | sort)
+}
+
 run_case()
 {
 	local class=$1
 	local case_name=$2
 	local exe="$BIN_DIR/$case_name"
+	local case_artifact_dir="$artifact_dir/$case_name"
 	local log="$OUT/$case_name.log"
 	local status_file="$OUT/$case_name.status"
 	local start
@@ -129,6 +174,10 @@ run_case()
 		return
 	fi
 
+	if [ "$case_name" = "ysp_librga_smoke" ]; then
+		exe="$TEST_DIR/librga-smoke.sh"
+	fi
+
 	if [ ! -x "$exe" ]; then
 		printf "missing\n" > "$status_file"
 		printf "%s\t%s\t%s\tmissing\t0\tmissing\n" \
@@ -139,9 +188,18 @@ run_case()
 		return
 	fi
 
+	rm -rf "$case_artifact_dir"
+	mkdir -p "$case_artifact_dir"
 	start=$(suite_now_ns)
 	set +e
-	"$exe" > "$log" 2>&1
+	if [ "$case_name" = "ysp_librga_smoke" ]; then
+		CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
+		LIBRGA_LIBDIR="$LIBRGA_LIBDIR" \
+		LIBRGA_SMOKE_ARTIFACT_DIR="$case_artifact_dir" \
+			"$exe" > "$log" 2>&1
+	else
+		"$exe" > "$log" 2>&1
+	fi
 	status=$?
 	set -e
 	end=$(suite_now_ns)
@@ -150,6 +208,7 @@ run_case()
 	printf "%s\n" "$status" > "$status_file"
 	if [ "$status" -eq 0 ]; then
 		result=pass
+		record_case_artifacts "$class" "$case_name" "$case_artifact_dir"
 	elif [ "$class" = "diagnostic" ]; then
 		result=diagnostic-fail
 	else

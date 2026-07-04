@@ -9,19 +9,27 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <linux/dma-buf.h>
 #include <linux/dma-heap.h>
 
+#if __has_include(<rga/im2d.h>)
 #include <rga/im2d.h>
 #include <rga/RgaApi.h>
+#else
+#include <im2d.h>
+#include <RgaApi.h>
+#endif
 
 #define TEST_SRC_W 64
 #define TEST_SRC_H 64
@@ -30,6 +38,8 @@
 #define TEST_BPP 4
 #define RGA_TEST_FORMAT_P010 (0x40 << 8)
 #define RGA_TEST_FORMAT_P210 (0x41 << 8)
+
+static const char *artifact_dir;
 
 struct dmabuf_test_buffer {
 	int fd;
@@ -91,6 +101,68 @@ static bool env_enabled(const char *name)
 	return value && strcmp(value, "0") && strcmp(value, "false") &&
 	       strcmp(value, "FALSE") && strcmp(value, "no") &&
 	       strcmp(value, "NO");
+}
+
+static int ensure_artifact_dir(void)
+{
+	if (!artifact_dir || !artifact_dir[0])
+		return 0;
+
+	if (mkdir(artifact_dir, 0755) && errno != EEXIST) {
+		fprintf(stderr, "failed to create artifact dir %s: %s\n",
+			artifact_dir, strerror(errno));
+		return 1;
+	}
+
+	return 0;
+}
+
+static int write_artifact(const char *name, const void *buf, size_t size)
+{
+	char safe[128];
+	char path[PATH_MAX];
+	FILE *file;
+	size_t i;
+
+	if (!artifact_dir || !artifact_dir[0])
+		return 0;
+
+	for (i = 0; name[i] && i < sizeof(safe) - 1; i++) {
+		unsigned char ch = (unsigned char)name[i];
+
+		safe[i] = (isalnum(ch) || ch == '_' || ch == '.' || ch == '-') ?
+			  (char)ch : '_';
+	}
+	safe[i] = '\0';
+
+	if (snprintf(path, sizeof(path), "%s/%s.bin", artifact_dir, safe) >=
+	    (int)sizeof(path)) {
+		fprintf(stderr, "artifact path too long for %s\n", name);
+		return 1;
+	}
+
+	file = fopen(path, "wb");
+	if (!file) {
+		fprintf(stderr, "failed to open artifact %s: %s\n",
+			path, strerror(errno));
+		return 1;
+	}
+
+	if (fwrite(buf, 1, size, file) != size) {
+		fprintf(stderr, "failed to write artifact %s: %s\n",
+			path, ferror(file) ? strerror(errno) : "short write");
+		fclose(file);
+		return 1;
+	}
+
+	if (fclose(file)) {
+		fprintf(stderr, "failed to close artifact %s: %s\n",
+			path, strerror(errno));
+		return 1;
+	}
+
+	printf("%-24s artifact=%s bytes=%zu\n", name, path, size);
+	return 0;
 }
 
 static int alloc_aligned(void **ptr, size_t size)
@@ -289,6 +361,10 @@ static int run_dmabuf_copy(size_t src_size)
 		goto out;
 	}
 	if (check_pattern(dma_dst.mem, TEST_SRC_W, TEST_SRC_H)) {
+		ret = 1;
+		goto out_end_read;
+	}
+	if (write_artifact("dmabuf_imcopy_rgba", dma_dst.mem, src_size)) {
 		ret = 1;
 		goto out_end_read;
 	}
@@ -529,7 +605,7 @@ static int run_10bit_im2d_convert(const char *name, int src_format,
 		fprintf(stderr, "%s output unchanged\n", name);
 		ret = 1;
 	} else {
-		ret = 0;
+		ret = write_artifact(name, dma_dst.mem, dma_dst.size);
 	}
 	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
 			"10-bit dest read end"))
@@ -650,7 +726,8 @@ static int run_legacy_virtual_to_dmabuf_convert(void)
 		fprintf(stderr, "legacy RGA virtual->dmabuf output unchanged\n");
 		ret = 1;
 	} else {
-		ret = 0;
+		ret = write_artifact("legacy_bgrx_to_nv12",
+				     dma_dst.mem, dma_dst.size);
 	}
 	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
 			"legacy RGA dest read end"))
@@ -760,7 +837,8 @@ static int run_legacy_dmabuf_to_dmabuf_rotate_convert(void)
 		fprintf(stderr, "legacy RGA dmabuf rotate output unchanged\n");
 		ret = 1;
 	} else {
-		ret = 0;
+		ret = write_artifact("legacy_nv12_to_bgrx_rot90",
+				     dma_dst.mem, dma_dst.size);
 	}
 	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
 			"legacy RGA BGRx dest read end"))
@@ -866,7 +944,8 @@ static int run_legacy_planar_to_semiplanar_convert(void)
 		fprintf(stderr, "legacy RGA planar output unchanged\n");
 		ret = 1;
 	} else {
-		ret = 0;
+		ret = write_artifact("legacy_i420_to_nv12",
+				     dma_dst.mem, dma_dst.size);
 	}
 	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
 			"legacy RGA NV12 dest read end"))
@@ -993,7 +1072,8 @@ static int run_gauss_matrix_improcess(void)
 		fprintf(stderr, "gauss output unchanged\n");
 		ret = 1;
 	} else {
-		ret = 0;
+		ret = write_artifact("improcess_gauss_matrix",
+				     dma_dst.mem, dma_dst.size);
 	}
 	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
 			"gauss dest read end"))
@@ -1034,6 +1114,10 @@ int main(void)
 	int first_fence = -1;
 	int second_fence = -1;
 	int ret;
+
+	artifact_dir = getenv("LIBRGA_SMOKE_ARTIFACT_DIR");
+	if (ensure_artifact_dir())
+		return 1;
 
 	ret = imcheckHeader();
 	if (ret != IM_STATUS_NOERROR)
@@ -1089,6 +1173,10 @@ int main(void)
 		ret = 1;
 		goto out;
 	}
+	if (write_artifact("imcopy_virtual_rgba", dst_mem, src_size)) {
+		ret = 1;
+		goto out;
+	}
 	printf("%-24s ok\n", "imcopy");
 
 	ret = run_dmabuf_copy(src_size);
@@ -1133,6 +1221,10 @@ int main(void)
 		ret = 1;
 		goto out;
 	}
+	if (write_artifact("forced_rga3_copy", dst_mem, src_size)) {
+		ret = 1;
+		goto out;
+	}
 	printf("%-24s ok\n", "forced RGA3 copy");
 
 	opt = {};
@@ -1150,6 +1242,10 @@ int main(void)
 	}
 	if (memcmp(src_mem, dst_mem, src_size)) {
 		fprintf(stderr, "pre-intr output differs from source\n");
+		ret = 1;
+		goto out;
+	}
+	if (write_artifact("rga2_pre_intr_copy", dst_mem, src_size)) {
 		ret = 1;
 		goto out;
 	}
@@ -1190,6 +1286,10 @@ int main(void)
 		ret = 1;
 		goto out;
 	}
+	if (write_artifact("async_fence_chain", dst_mem, src_size)) {
+		ret = 1;
+		goto out;
+	}
 	printf("%-24s ok\n", "async fence chain");
 
 	dst = wrapbuffer_handle(dst_handle, TEST_DST_W, TEST_DST_H,
@@ -1202,6 +1302,10 @@ int main(void)
 	ret = imresize(src, dst);
 	if (ret != IM_STATUS_SUCCESS) {
 		ret = fail_status("imresize", ret);
+		goto out;
+	}
+	if (write_artifact("imresize_rgba", dst_mem, dst_size)) {
+		ret = 1;
 		goto out;
 	}
 	printf("%-24s ok first=%02x:%02x:%02x:%02x\n", "imresize",
@@ -1219,6 +1323,10 @@ int main(void)
 	ret = imfill(fill, fill_rect, 0xff00ff00);
 	if (ret != IM_STATUS_SUCCESS) {
 		ret = fail_status("imfill", ret);
+		goto out;
+	}
+	if (write_artifact("imfill_rgba", fill_mem, dst_size)) {
+		ret = 1;
 		goto out;
 	}
 	printf("%-24s ok first=%02x:%02x:%02x:%02x\n", "imfill",

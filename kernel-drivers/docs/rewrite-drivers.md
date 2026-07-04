@@ -28,7 +28,13 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > VP9 IVF input for explicit VP9 decode cases, official librga sample suite,
 > JeffyCN GStreamer plugin, and ffmpeg-rockchip CLI transcodes, plus comparators that flag
 > required forward-port passes missing from the rewrite and can enforce an
-> elapsed-time slowdown ceiling with `PERF_MAX_RATIO`. The FFmpeg suite generates
+> elapsed-time slowdown ceiling with `PERF_MAX_RATIO`. The direct RGA smoke case
+> is now part of the librga suite's required set and records deterministic
+> destination-buffer byte counts/SHA-256s for maintained im2d, legacy
+> GStreamer-shaped `c_RkRgaBlit()`, forced-core, pre-intr, Gaussian, and async
+> fence paths. The broad official librga sample binaries remain primarily
+> pass/fail/timing coverage until a current-userspace gap needs sample-specific
+> output capture. The FFmpeg suite generates
 > shared software H.264/H.265 inputs, runs H.264->RGA->HEVC and
 > HEVC->RGA->H.264 hardware transcodes, and records encoded bitstream byte
 > counts/SHA-256s for forward-port-vs-rewrite comparison. The default GStreamer
@@ -66,7 +72,9 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > dma-buf to NV12 dma-buf fallback), forced RGA3 core-mask + priority
 > submission, forced RGA2 `IM_PRE_INTR`, the official Gaussian matrix
 > `IM_GAUSS` public sample shape, and an async acquire/release-fence chain, but
-> these still need to be run on a booted rewrite kernel. The shipped,
+> these still need to be run on a booted rewrite kernel. When launched through
+> `librga-suite.sh`, the smoke records deterministic destination artifacts for
+> forward-port-vs-rewrite comparison. The shipped,
 > hardware-validated stack is still the forward-port
 > ([kernel status](./forward-port-status.md), [`status.md`](../../status.md)). Location + pin in
 > §6.

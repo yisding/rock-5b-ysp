@@ -81,6 +81,9 @@ done
 
 missing=0
 while IFS= read -r case_name; do
+	if [ "$case_name" = "ysp_librga_smoke" ]; then
+		continue
+	fi
 	if [ ! -x "$PREFIX/bin/$case_name" ]; then
 		echo "Missing required librga sample after build: $case_name" >&2
 		missing=1

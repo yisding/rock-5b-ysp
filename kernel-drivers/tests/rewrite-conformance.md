@@ -170,16 +170,20 @@ trends by core.
 sample binaries. It writes `summary.tsv`, per-sample logs/status files, dmesg
 tail, before/after RGA debugfs snapshots, and structured
 `debugfs-counters-{before,after,delta}.tsv` counter tables under
-`../rockchip-conformance/logs/$PROFILE/`. Its default **required** set matches
-the official sample source surface the rewrite is expected to cover or fail as a
-real regression: copy/FBC/tile/splice, crop, resize/UV-downsample, CSC/gray,
-fill and rectangle task arrays, alpha/colorkey/OSD/global-alpha, rotate/flip,
+`../rockchip-conformance/logs/$PROFILE/`. Its default **required** set includes
+the in-repo `ysp_librga_smoke` direct-userspace artifact case plus the official
+sample source surface the rewrite is expected to cover or fail as a real
+regression: copy/FBC/tile/splice, crop, resize/UV-downsample, CSC/gray, fill and
+rectangle task arrays, alpha/colorkey/OSD/global-alpha, rotate/flip,
 async/fence, core config, malloc/dma-heap/DRM allocator fd imports, mosaic, ROP,
 padding, palette, and gaussian blur. Use `build-librga-samples-full.sh`, not
 only the external bundle's top-level sample build, because the pinned
 `airockchip/librga` CMake omits `gauss_demo` and `palette_demo` from
 `samples/CMakeLists.txt` even though those sample directories exist and are part
-of the required rewrite surface. Its default
+of the required rewrite surface. `ysp_librga_smoke` writes deterministic raw
+destination artifacts for direct `imcopy`, dma-buf import/copy, legacy
+`c_RkRgaBlit()` BGRx->NV12, NV12->BGRx rotate, I420->NV12, Gaussian matrix,
+forced-core, pre-intr, async fence-chain, resize, and fill paths. Its default
 **diagnostic** set records environment-specific, outside-slice, or
 not-installed-by-top-level cases without failing the whole run:
 physical-contiguous DRM, Android GraphicBuffer, RV1106 CMA, and CFA samples.
@@ -188,11 +192,13 @@ probing a narrower or broader profile.
 After both kernels have a suite result, run `librga-suite-compare.sh`. It finds
 the latest `*-librga-suite/summary.tsv` for `BASELINE=forward-port` and
 `CANDIDATE=rewrite` by default, prints a per-case verdict table with
-elapsed-time ratios, and exits nonzero when a required case passed on the
-baseline but did not pass on the candidate. Suite summaries record `elapsed_s`
-as decimal seconds with millisecond precision. Set `PERF_MAX_RATIO` to also
-fail required cases that pass on both profiles but are slower than the
-configured candidate/baseline elapsed-time ratio.
+elapsed-time ratios, compares `artifacts.tsv` when present, and exits nonzero
+when a required case passed on the baseline but did not pass on the candidate or
+when a required artifact differs. Suite summaries record `elapsed_s` as decimal
+seconds with millisecond precision. Set `PERF_MAX_RATIO` to also fail required
+cases that pass on both profiles but are slower than the configured
+candidate/baseline elapsed-time ratio. Set `REQUIRE_ARTIFACTS=0` only when
+comparing legacy pass/fail-only logs.
 
 ## mpp-suite reference
 
@@ -531,8 +537,8 @@ logs.
 | `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths; also builds `gstreamer-event-harness` into the GStreamer prefix |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
-| `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, and readable debugfs/dmesg for full logs; root is the simplest mode |
-| `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
+| `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
+| `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
 | `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. |
 | `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `ffmpeg-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, a staged `ffmpeg-rockchip` build via `FFDIR`, a software ffmpeg with `libx264`/`libx265` for generated inputs, and readable debugfs/dmesg for full logs; root is the simplest mode |
@@ -544,8 +550,8 @@ logs.
 |------|-----------|----------------|
 | `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Media cases write `artifacts.tsv` rows for produced decode/encode outputs; set `MPP_DUMP_OUTPUTS=1` to make decode cases dump YUV outputs for byte-exact comparison. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Exit `77` means `/dev/mpp_service` is absent. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
-| `librga-suite.sh` | **official librga sample conformance** using `../rockchip-conformance/out/librga-samples/bin` | Runs the broad current Linux/RK3588 sample set under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails only required cases. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
-| `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
+| `librga-suite.sh` | **official librga sample conformance plus direct artifact smoke** using `../rockchip-conformance/out/librga-samples/bin` and `librga-smoke.cpp` | Runs the broad current Linux/RK3588 sample set plus `ysp_librga_smoke` under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails required cases. The direct smoke case records deterministic destination buffers in `artifacts.tsv` for maintained im2d, fence, pre-intr, Gaussian, and GStreamer-shaped legacy `c_RkRgaBlit()` paths. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
+| `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, paired `artifacts.tsv` manifests. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=0` only for legacy pass/fail-only logs. |
 | `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, optional external-media pipelines, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 | `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs component inspection plus generated-input H.264->`scale_rkrga`->HEVC and HEVC->`scale_rkrga`->H.264 hardware transcodes under the selected `PROFILE`. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |

@@ -171,7 +171,8 @@ check_librga_latest_filter()
 	touch -t 202607030100 "$base_librga" "$cand_librga"
 	touch -t 202607030200 "$base_mpp" "$cand_mpp"
 
-	CONFORMANCE_ROOT="$root" bash "$TEST_DIR/librga-suite-compare.sh" > "$out"
+	CONFORMANCE_ROOT="$root" REQUIRE_ARTIFACTS=0 \
+		bash "$TEST_DIR/librga-suite-compare.sh" > "$out"
 	grep -q -- "-librga-suite/summary.tsv" "$out"
 	if grep -q -- "-mpp-suite/summary.tsv" "$out"; then
 		echo "librga comparator selected a non-librga summary" >&2
@@ -185,10 +186,11 @@ write_summary "$SLOW" rewrite pass 14 8
 write_summary "$REGRESSION" rewrite fail 12 8
 
 check_compare_script mpp-suite-compare.sh
-check_compare_script librga-suite-compare.sh
+check_compare_script librga-suite-compare.sh REQUIRE_ARTIFACTS=0
 check_compare_script gstreamer-suite-compare.sh REQUIRE_ARTIFACTS=0
 check_compare_script ffmpeg-suite-compare.sh REQUIRE_ARTIFACTS=0
 check_artifact_compare mpp-suite-compare.sh mpp
+check_artifact_compare librga-suite-compare.sh librga
 check_artifact_compare gstreamer-suite-compare.sh gstreamer
 check_artifact_compare ffmpeg-suite-compare.sh ffmpeg
 check_librga_latest_filter
