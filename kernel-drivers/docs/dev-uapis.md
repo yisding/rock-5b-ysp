@@ -135,7 +135,9 @@ struct mpp_bat_msg {     /* rk-mpp.h ~:76 */
 
 The kernel `fdget`s the target session and flips the active `msgs->session`
 (`mpp_common.c` ~:1542). It's how libmpp drives multiple codec contexts through a
-single syscall.
+single syscall. For the kernel-side loop that walks this array — and why
+`SET_SESSION_FD` (not `LAST_MSG`) is the real per-batch delimiter — see
+[`../mpp/docs/ioctl-collector.md`](../mpp/docs/ioctl-collector.md).
 
 Current libmpp's batch server also builds a **wait array** as repeated
 `SET_SESSION_FD` + `POLL_HW_FINISH|POLL_NON_BLOCK|LAST_MSG` pairs, one pair per

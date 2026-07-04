@@ -20,6 +20,7 @@ mpp+rga). This sub-project holds MPP-specific notes.
 
 | Doc | One-liner |
 |-----|-----------|
+| [`docs/ioctl-collector.md`](docs/ioctl-collector.md) | Kernel-side trace of `mpp_collect_msgs`: how one `MPP_IOC_CFG_V1` batch is walked into task containers, and why `LAST_MSG` is a whole-syscall terminator (one per ioctl) while `SET_SESSION_FD` is the real per-batch delimiter. |
 | [`docs/multicore-scheduling.md`](docs/multicore-scheduling.md) | Why RK3588 multi-core decode is hard (per-stream DPB dependency), and where a scheduler would live; soft/hard CCU consequences. |
 
 Start with the shared [`../docs/how-the-drivers-work.md`](../docs/how-the-drivers-work.md)
