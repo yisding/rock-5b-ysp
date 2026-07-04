@@ -192,6 +192,8 @@ roundtrip_h264_rga_nv16
 roundtrip_h264_rga_nv61
 roundtrip_h264_rga_i420
 roundtrip_h264_rga_yv12
+roundtrip_jpeg_format_bgrx
+roundtrip_jpeg_env_format_bgrx
 "
 
 if [ "$GST_ENABLE_VP9_CASES" = "1" ]; then
@@ -581,17 +583,36 @@ run_videotest_encode_env_no_rga()
 	run_current_command
 }
 
-build_videotest_jpeg_roundtrip()
+append_videotest_jpeg_roundtrip_pipeline()
 {
-	CMD=(
-		gst-launch-1.0 -q
+	CMD+=(
 		videotestsrc "num-buffers=$GST_FORMAT_MATRIX_BUFFERS" is-live=false pattern=smpte
 		"!" "video/x-raw,format=NV12,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
 		"!" mppjpegenc
 		"!" jpegparse
 		"!" mppjpegdec
-		"!" fakesink sync=false
 	)
+
+	while [ "$#" -gt 0 ]; do
+		CMD+=("$1")
+		shift
+	done
+
+	CMD+=("!" fakesink sync=false)
+}
+
+build_videotest_jpeg_roundtrip()
+{
+	CMD=(gst-launch-1.0 -q)
+	append_videotest_jpeg_roundtrip_pipeline "$@"
+}
+
+build_videotest_jpeg_roundtrip_env_format()
+{
+	local format=$1
+
+	CMD=(env "GST_MPP_JPEGDEC_DEFAULT_FORMAT=$format" gst-launch-1.0 -q)
+	append_videotest_jpeg_roundtrip_pipeline
 }
 
 build_decode()
@@ -1576,6 +1597,12 @@ build_case_command()
 		;;
 	roundtrip_jpeg_nv12)
 		build_videotest_jpeg_roundtrip
+		;;
+	roundtrip_jpeg_format_bgrx)
+		build_videotest_jpeg_roundtrip format=BGRx
+		;;
+	roundtrip_jpeg_env_format_bgrx)
+		build_videotest_jpeg_roundtrip_env_format BGRx
 		;;
 	generated_dec_h264_fakesink)
 		CMD=(__builtin_generated_decode h264)

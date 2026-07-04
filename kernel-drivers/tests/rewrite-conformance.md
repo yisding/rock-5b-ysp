@@ -413,8 +413,10 @@ register `mppvpxalphadecodebin` when built against a new enough GStreamer for
 conditional VPx-alpha helper plumbing outside the RK3588 RKVDEC2/RKVENC2
 rewrite profile, so the suite keeps them diagnostic-only: it inspects the
 elements and runs short `enc_vp8_nv12`, `enc_jpeg_nv12`, and
-`roundtrip_jpeg_nv12` pipelines to record what current userspace would observe
-without turning legacy coverage into a required pass condition.
+`roundtrip_jpeg_nv12` pipelines, plus explicit `mppjpegdec format=BGRx` and
+`GST_MPP_JPEGDEC_DEFAULT_FORMAT=BGRx` roundtrips, to record what current
+userspace would observe without turning legacy coverage into a required pass
+condition.
 The diagnostic encoder-format matrix also records JeffyCN's advertised H.264
 sink caps that are not yet required acceptance gates: direct MPP input formats
 `I420`, `YUY2`, `UYVY`, `RGB16`, `ARGB`, `ABGR`, `xRGB`, `xBGR`, `NV24`, and
@@ -508,7 +510,8 @@ info-change, and reset paths are exercised even before media assets are staged.
 Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `gst_inspect_mppjpegdec`, `gst_inspect_mppvpxalphadecodebin`,
 `enc_vp8_nv12`, `enc_jpeg_nv12`,
-`roundtrip_jpeg_nv12`, `event_seek_enc_h264`, `event_seek_enc_h265`,
+`roundtrip_jpeg_nv12`, `roundtrip_jpeg_format_bgrx`,
+`roundtrip_jpeg_env_format_bgrx`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`,
 `generated_dec_h264_crop_meta`, `generated_dec_h264_rga_rgba_scale`,
 `generated_dec_h264_rga_bgra_scale`, `generated_dec_h264_rga_rgbx_scale`,
@@ -619,7 +622,9 @@ PERF_MAX_RATIO=1.25 bash ffmpeg-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-04 after diagnostic generated GStreamer H.264
+was last verified on 2026-07-04 after diagnostic GStreamer JPEG decoder
+explicit-format and `GST_MPP_JPEGDEC_DEFAULT_FORMAT` cases were added; after
+diagnostic generated GStreamer H.264
 decode output-format cases were expanded for the advertised RGBA/BGRA/RGBx/BGRx
 decoder-side RGA paths; after the diagnostic GStreamer H.264 encoder-format
 matrix was expanded for advertised direct MPP input formats and remaining

@@ -319,7 +319,8 @@ support repo's direct `librga-smoke.sh` mirrors the public `c_RkRgaBlit()` calls
 for encoder-side virtual-source conversion, decode-side fd-backed rotate/format
 conversion, and planar fallback, while `gstreamer-suite.sh` carries a diagnostic
 format matrix for advertised GStreamer encoder input formats, decoder output
-formats, RGA conversions, and opt-in display/DMABuf sink cases against JeffyCN's
+formats, JPEG decoder explicit/default BGRx output selection, RGA conversions,
+and opt-in display/DMABuf sink cases against JeffyCN's
 `rkximagesink`. The GStreamer wrapper now also
 caches generated H.264/H.265 inputs under the shared conformance assets
 directory and records `artifacts.tsv` SHA-256s for generated decode/transcode
