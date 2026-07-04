@@ -141,6 +141,9 @@ generated_dec_h264_afbc_fakesink
 generated_dec_h265_afbc_fakesink
 generated_dec_h264_env_fbc
 generated_dec_h264_env_arm_afbc
+generated_transcode_h264_afbc_to_h265
+generated_transcode_h265_afbc_to_h264
+generated_transcode_h264_env_arm_afbc_to_h265
 "
 
 diagnostic_cases_default="
@@ -1047,6 +1050,42 @@ run_generated_transcode()
 	run_current_command
 }
 
+run_generated_afbc_transcode()
+{
+	local codec=$1
+	local encoder=$2
+	local env_name=${3:-}
+	local ext
+
+	ensure_generated_input "$codec" || return $?
+	ext=$(encoded_artifact_ext "$encoder")
+
+	if [ -n "$env_name" ]; then
+		CMD=(env "$env_name=1" gst-launch-1.0 -q)
+	else
+		CMD=(gst-launch-1.0 -q)
+	fi
+	CMD+=(
+		filesrc "location=$GENERATED_INPUT_PATH"
+		"!" "$GENERATED_PARSER"
+		"!" mppvideodec fbc=true
+		"!" "$encoder" zero-copy-pkt=true
+	)
+	if [ -z "$env_name" ]; then
+		CMD+=(arm-afbc=true)
+	fi
+	append_artifact_or_fake_sink encoded-afbc "$ext"
+
+	if [ -n "$env_name" ]; then
+		printf "transcoding generated %s AFBC input with %s default: " \
+			"$codec" "$env_name"
+	else
+		printf "transcoding generated %s AFBC input: " "$codec"
+	fi
+	print_current_command
+	run_current_command
+}
+
 append_display_sink()
 {
 	local -a sink_args=()
@@ -1624,6 +1663,15 @@ build_case_command()
 	generated_dec_h264_env_arm_afbc)
 		CMD=(__builtin_generated_decode_env_fbc h264 GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC)
 		;;
+	generated_transcode_h264_afbc_to_h265)
+		CMD=(__builtin_generated_afbc_transcode h264 mpph265enc)
+		;;
+	generated_transcode_h265_afbc_to_h264)
+		CMD=(__builtin_generated_afbc_transcode h265 mpph264enc)
+		;;
+	generated_transcode_h264_env_arm_afbc_to_h265)
+		CMD=(__builtin_generated_afbc_transcode h264 mpph265enc GST_MPP_ENC_DEFAULT_ARM_AFBC)
+		;;
 	generated_dec_h264_crop_meta)
 		CMD=(__builtin_generated_decode h264 "crop-rectangle=<16,16,160,120>")
 		;;
@@ -1882,6 +1930,11 @@ run_case_payload()
 		;;
 	generated_dec_h264_env_fbc | generated_dec_h264_env_arm_afbc)
 		run_generated_decode_env_fbc "${CMD[1]}" "${CMD[2]:-}"
+		;;
+	generated_transcode_h264_afbc_to_h265 | \
+	generated_transcode_h265_afbc_to_h264 | \
+	generated_transcode_h264_env_arm_afbc_to_h265)
+		run_generated_afbc_transcode "${CMD[1]}" "${CMD[2]}" "${CMD[3]:-}"
 		;;
 	generated_dec_h264_mp4_codec_data | generated_dec_h265_mp4_codec_data)
 		run_generated_mp4_decode "${CMD[1]}"

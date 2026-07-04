@@ -404,7 +404,10 @@ implementation (cross-reference:
   parallel decode, and mixed H.264/H.265 decode->encode transcode pipelines for
   multi-session scheduling evidence, generated H.264/H.265 AFBC/FBC decode
   output, and the matching H.264 `GST_MPP_VIDEODEC_DEFAULT_FBC=1` /
-  `GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC=1` default paths; its
+  `GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC=1` default paths, plus generated
+  decode-AFBC-to-encode-AFBC transcodes that exercise explicit
+  `arm-afbc=true` and `GST_MPP_ENC_DEFAULT_ARM_AFBC=1` encoder input paths with
+  encoded artifacts; its
   diagnostic set also includes seek-event probes through the same
   `gstreamer-event-harness`, generated H.264 crop-meta output,
   VP8/JPEG/VPx-alpha element visibility, generated VP9-to-H.264 transcode, and
