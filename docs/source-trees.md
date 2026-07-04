@@ -243,7 +243,8 @@ current `imosd` requests, plus MPP DT `rockchip,normal-rates` application
 through the public clock framework, plus RGA2 `IM_PRE_INTR` read/write line
 interrupt programming and line-only IRQ handling for current `librga` requests,
 plus aggregate and per-core MPP/RGA debugfs `hw_total_ns*` and `hw_max_ns*`
-counters for hardware busy-time evidence during rewrite-vs-forward-port runs,
+counters plus the YSP `debugfs-counter-check.sh` gate for hardware busy-time
+evidence during rewrite-vs-forward-port runs,
 plus KUnit coverage for per-core timing-counter routing and warning-free RGA
 scheduler KUnit stack usage, plus RGA2 packed-YUV420 fill emission for all four
 packed orderings, plus named and matrix JeffyCN GStreamer legacy

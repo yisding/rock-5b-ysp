@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# Validate rewrite debugfs counter deltas captured by the conformance suites.
+set -euo pipefail
+
+SUMMARY=${SUMMARY:-${1:-}}
+COUNTERS_FILE=${COUNTERS_FILE:-}
+REQUIRED_POSITIVE_COUNTERS=${REQUIRED_POSITIVE_COUNTERS:-}
+FORBID_POSITIVE_COUNTERS=${FORBID_POSITIVE_COUNTERS:-"mpp:timeout_count mpp:iommu_fault_count rga:timeout_count rga:irq_error_count rga:iommu_fault_count"}
+REQUIRE_COUNTER_FILE=${REQUIRE_COUNTER_FILE:-0}
+
+if [ -z "$COUNTERS_FILE" ] && [ -n "$SUMMARY" ]; then
+	COUNTERS_FILE="$(dirname "$SUMMARY")/debugfs-counters-delta.tsv"
+fi
+
+if [ -z "$COUNTERS_FILE" ]; then
+	echo "missing COUNTERS_FILE or SUMMARY" >&2
+	exit 2
+fi
+
+if [ ! -f "$COUNTERS_FILE" ]; then
+	echo "counter_check	skipped"
+	echo "counter_file	$COUNTERS_FILE"
+	echo "reason	missing debugfs counter delta file"
+	if [ "$REQUIRE_COUNTER_FILE" = "1" ] ||
+		[ -n "$REQUIRED_POSITIVE_COUNTERS" ]; then
+		exit 1
+	fi
+	exit 0
+fi
+
+awk -v required_specs="$REQUIRED_POSITIVE_COUNTERS" \
+    -v forbid_specs="$FORBID_POSITIVE_COUNTERS" \
+    -v counter_file="$COUNTERS_FILE" '
+function split_specs(value, array,    n, i, token) {
+	n = split(value, tokens, /[[:space:]]+/);
+	for (i = 1; i <= n; i++) {
+		token = tokens[i];
+		if (token == "")
+			continue;
+		array[++array[0]] = token;
+	}
+}
+
+function split_spec(spec, parts) {
+	if (split(spec, parts, ":") != 2)
+		return 0;
+	if (parts[1] == "" || parts[2] == "")
+		return 0;
+	return 1;
+}
+
+function spec_matches(spec, component, counter,    parts) {
+	if (!split_spec(spec, parts))
+		return 0;
+	if (parts[1] != "*" && parts[1] != component)
+		return 0;
+	if (parts[2] != "*" && parts[2] != counter)
+		return 0;
+	return 1;
+}
+
+function spec_delta_sum(spec,    key, total) {
+	total = 0;
+	for (key in delta_by_key) {
+		if (spec_matches(spec, component_by_key[key], counter_by_key[key]))
+			total += delta_by_key[key];
+	}
+	return total;
+}
+
+BEGIN {
+	FS = OFS = "\t";
+	failed = 0;
+	split_specs(required_specs, required);
+	split_specs(forbid_specs, forbidden);
+	print "counter_file", counter_file;
+	print "required_positive", required_specs;
+	print "forbid_positive", forbid_specs;
+	print "";
+	print "component", "counter", "before", "after", "delta", "verdict";
+}
+
+FNR == 1 {
+	next;
+}
+
+{
+	key = $1 SUBSEP $2;
+	component_by_key[key] = $1;
+	counter_by_key[key] = $2;
+	before_by_key[key] = $3;
+	after_by_key[key] = $4;
+	delta_by_key[key] = ($5 ~ /^-?[0-9]+$/) ? $5 + 0 : 0;
+	seen[key] = 1;
+}
+
+END {
+	for (key in seen) {
+		verdict = "ok";
+		for (i = 1; i <= forbidden[0]; i++) {
+			if (spec_matches(forbidden[i], component_by_key[key],
+					 counter_by_key[key]) &&
+			    delta_by_key[key] > 0) {
+				verdict = "forbidden-positive";
+				failed = 1;
+			}
+		}
+
+		print component_by_key[key], counter_by_key[key],
+		      before_by_key[key], after_by_key[key], delta_by_key[key],
+		      verdict;
+	}
+
+	if (required[0] || forbidden[0])
+		print "";
+	if (required[0])
+		print "require_spec", "observed_delta", "verdict";
+	for (i = 1; i <= required[0]; i++) {
+		if (!split_spec(required[i], parts)) {
+			print required[i], "n/a", "invalid-spec";
+			failed = 1;
+			continue;
+		}
+		sum = spec_delta_sum(required[i]);
+		if (sum > 0) {
+			print required[i], sum, "ok";
+		} else {
+			print required[i], sum, "missing-or-zero";
+			failed = 1;
+		}
+	}
+
+	if (forbidden[0])
+		print "forbid_spec", "observed_delta", "verdict";
+	for (i = 1; i <= forbidden[0]; i++) {
+		if (!split_spec(forbidden[i], parts)) {
+			print forbidden[i], "n/a", "invalid-spec";
+			failed = 1;
+			continue;
+		}
+		sum = spec_delta_sum(forbidden[i]);
+		if (sum > 0) {
+			print forbidden[i], sum, "forbidden-positive";
+			failed = 1;
+		} else {
+			print forbidden[i], sum, "ok";
+		}
+	}
+
+	exit failed;
+}
+' "$COUNTERS_FILE"

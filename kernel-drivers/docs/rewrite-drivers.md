@@ -28,7 +28,9 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > VP9 IVF input for explicit VP9 decode cases, official librga sample suite,
 > JeffyCN GStreamer plugin, and ffmpeg-rockchip CLI coverage, plus comparators that flag
 > required forward-port passes missing from the rewrite and can enforce an
-> elapsed-time slowdown ceiling with `PERF_MAX_RATIO`. The direct RGA smoke case
+> elapsed-time slowdown ceiling with `PERF_MAX_RATIO`; `debugfs-counter-check.sh`
+> can additionally require positive rewrite hardware-start/busy-time counter
+> deltas and fail timeout/fault/error deltas. The direct RGA smoke case
 > is now part of the librga suite's required set and records deterministic
 > destination-buffer byte counts/SHA-256s for maintained im2d, legacy
 > GStreamer-shaped `c_RkRgaBlit()`, forced-core, pre-intr, Gaussian, and async

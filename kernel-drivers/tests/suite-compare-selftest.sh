@@ -40,6 +40,24 @@ write_artifacts()
 	} > "$file"
 }
 
+write_counter_delta()
+{
+	local file=$1
+	local started=${2:-2}
+	local hw_ns=${3:-1000}
+	local timeout=${4:-0}
+	local fault=${5:-0}
+
+	{
+		printf "component\tcounter\tbefore\tafter\tdelta\n"
+		printf "mpp\tstarted_job_count\t0\t%s\t%s\n" "$started" "$started"
+		printf "mpp\thw_total_ns\t0\t%s\t%s\n" "$hw_ns" "$hw_ns"
+		printf "mpp\ttimeout_count\t0\t%s\t%s\n" "$timeout" "$timeout"
+		printf "mpp\tiommu_fault_count\t0\t%s\t%s\n" "$fault" "$fault"
+		printf "rga\tirq_error_count\t0\t0\t0\n"
+	} > "$file"
+}
+
 run_compare()
 {
 	local script=$1
@@ -152,6 +170,56 @@ check_artifact_compare()
 	grep -q "artifact_compare	skipped" "$out_legacy"
 }
 
+check_counter_check()
+{
+	local base_dir="$TMP_ROOT/counter-check"
+	local out_good="$TMP_ROOT/counter-check.good"
+	local out_missing_required="$TMP_ROOT/counter-check.missing-required"
+	local out_forbidden="$TMP_ROOT/counter-check.forbidden"
+	local out_missing_file="$TMP_ROOT/counter-check.missing-file"
+	local status
+
+	mkdir -p "$base_dir"
+	write_summary "$base_dir/summary.tsv" rewrite pass 10 4
+	write_counter_delta "$base_dir/debugfs-counters-delta.tsv"
+
+	SUMMARY="$base_dir/summary.tsv" \
+		REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns" \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_good"
+	grep -q "mpp:started_job_count" "$out_good"
+	grep -q "forbid_spec" "$out_good"
+
+	set +e
+	SUMMARY="$base_dir/summary.tsv" \
+		REQUIRED_POSITIVE_COUNTERS="rga:started_job_count" \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_missing_required"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "missing required counter unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q "missing-or-zero" "$out_missing_required"
+
+	write_counter_delta "$base_dir/debugfs-counters-delta.tsv" 2 1000 1 0
+	set +e
+	SUMMARY="$base_dir/summary.tsv" \
+		REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count" \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_forbidden"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "forbidden positive counter unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q "forbidden-positive" "$out_forbidden"
+
+	rm -f "$base_dir/debugfs-counters-delta.tsv"
+	SUMMARY="$base_dir/summary.tsv" \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_missing_file"
+	grep -q "counter_check	skipped" "$out_missing_file"
+}
+
 check_librga_latest_filter()
 {
 	local root="$TMP_ROOT/conformance"
@@ -193,6 +261,7 @@ check_artifact_compare mpp-suite-compare.sh mpp
 check_artifact_compare librga-suite-compare.sh librga
 check_artifact_compare gstreamer-suite-compare.sh gstreamer
 check_artifact_compare ffmpeg-suite-compare.sh ffmpeg
+check_counter_check
 check_librga_latest_filter
 
 echo "suite comparator selftest passed"

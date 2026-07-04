@@ -656,6 +656,7 @@ logs.
 | `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `ffmpeg-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, a staged `ffmpeg-rockchip` build via `FFDIR`, a software ffmpeg with `libx264`/`libx265` for generated inputs, and readable debugfs/dmesg for full logs; root is the simplest mode. `FFMPEG_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-list dispatch wiring. |
 | `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
+| `debugfs-counter-check.sh` | no device access after a suite has run; reads a suite directory's `debugfs-counters-delta.tsv` and optionally requires positive hardware counters such as `mpp:started_job_count`, `mpp:hw_total_ns`, `rga:started_job_count`, or `rga:hw_total_ns`. By default it fails positive rewrite timeout/fault/error counters when the counter file exists. |
 
 ## What each suite proves
 
@@ -671,6 +672,7 @@ logs.
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 | `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs component/option inspection, decoder-option null-output cases, generated-input H.264->`scale_rkrga`->HEVC and HEVC->`scale_rkrga`->H.264 hardware transcodes, required `scale_rkrga` forced-core/async/AFBC-output coverage, and required `vpp_rkrga` crop/transpose coverage under the selected `PROFILE`. Diagnostic cases cover decoder `afbc=rga` and `overlay_rkrga` alpha composition. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `ffmpeg-suite-compare.sh` | **rewrite-vs-forward-port ffmpeg-rockchip comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for encoded bitstream byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
+| `debugfs-counter-check.sh` | **rewrite counter-delta gate** | Checks a captured `debugfs-counters-delta.tsv` from any suite. Use `REQUIRED_POSITIVE_COUNTERS` to prove selected hardware paths actually submitted and reached the IRQ/completion timing path; use `FORBID_POSITIVE_COUNTERS` to override the default timeout/fault/error guard. This complements elapsed-time comparison because it catches “userspace passed but the rewrite did no hardware work” cases. |
 
 ## Running the suites & comparators
 
@@ -709,6 +711,26 @@ PERF_MAX_RATIO=1.25 bash mpp-suite-compare.sh
 PERF_MAX_RATIO=1.25 bash librga-suite-compare.sh
 PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
 PERF_MAX_RATIO=1.25 bash ffmpeg-suite-compare.sh
+```
+
+For rewrite runs with selected hardware cases, also gate the captured debugfs
+counter deltas so a userspace pass cannot hide a missing hardware submission or
+timer path. The checker defaults to failing positive timeout/fault/error
+counters when the delta file exists. Add explicit positive counters for the
+suite you intentionally ran:
+
+```bash
+SUMMARY=../rockchip-conformance/logs/rewrite/<run>-mpp-suite/summary.tsv \
+REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns" \
+bash debugfs-counter-check.sh
+
+SUMMARY=../rockchip-conformance/logs/rewrite/<run>-librga-suite/summary.tsv \
+REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns" \
+bash debugfs-counter-check.sh
+
+SUMMARY=../rockchip-conformance/logs/rewrite/<run>-gstreamer-suite/summary.tsv \
+REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns" \
+bash debugfs-counter-check.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory and
@@ -776,10 +798,12 @@ It was re-run after ABI replay gained optional dma-heap-backed MPP
 GStreamer allocator handoff parity; and after opt-in generated GStreamer AV1
 diagnostics were added for the separate RKMPP AV1 backend gap; and after
 opt-in generated VP8/H.263/MPEG diagnostics were added for advertised legacy
-decoder caps outside the RK3588 rewrite gate. The device-free
+decoder caps outside the RK3588 rewrite gate; and after `debugfs-counter-check.sh`
+was added to gate selected rewrite hardware-start/busy-time counter deltas and
+default timeout/fault/error counters. The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,
-slowdown, MPP/GStreamer/FFmpeg artifact mismatch, and librga latest-summary
-filtering paths. `build-mpp-tests.sh`
+slowdown, MPP/GStreamer/FFmpeg artifact mismatch, debugfs counter-check pass
+and failure paths, and librga latest-summary filtering paths. `build-mpp-tests.sh`
 staged the official MPP binaries locally; `build-gstreamer-rockchip.sh`
 currently stops at its dependency preflight on this host because the GStreamer
 development `.pc` files are missing.
