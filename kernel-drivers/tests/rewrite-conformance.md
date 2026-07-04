@@ -449,6 +449,14 @@ board/session with a stable active KMS framebuffer. Tune capture with
 `GST_KMS_CAPTURE_BUFFERS` and pass source properties such as
 `connector-id=... plane-id=... fb-id=...` through `GST_KMS_SRC_ARGS`.
 
+Set `GST_VALIDATE_CASES=1` to run a device-free case-builder validation pass.
+That mode skips `/dev/mpp_service`, `/dev/rga`, GStreamer executable, and
+plugin-directory preflight, disables artifact capture, builds every selected
+required/diagnostic case, and fails if a case name is unknown, a required env var
+is missing, or an internal `__builtin_*` payload is not wired into the runner.
+It is a maintenance check for the suite matrix, not hardware or plugin
+conformance evidence.
+
 Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_fakesink`, `generated_dec_h264_dmabuf`,
 `generated_dec_h264_env_dmabuf`, `generated_dec_h265_dmabuf`,
@@ -546,7 +554,7 @@ logs.
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
-| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. |
+| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
 | `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `ffmpeg-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, a staged `ffmpeg-rockchip` build via `FFDIR`, a software ffmpeg with `libx264`/`libx265` for generated inputs, and readable debugfs/dmesg for full logs; root is the simplest mode |
 | `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
@@ -571,6 +579,7 @@ bash mpp-suite.sh                     # official MPP test conformance
 bash mpp-suite-compare.sh             # compare latest forward-port/rewrite MPP summaries
 bash librga-suite.sh                  # official librga sample conformance
 bash librga-suite-compare.sh          # compare latest forward-port/rewrite suite summaries
+GST_VALIDATE_CASES=1 bash gstreamer-suite.sh  # device-free GStreamer case-builder validation
 bash gstreamer-suite.sh               # JeffyCN GStreamer MPP/RGA conformance
 bash gstreamer-suite-compare.sh       # compare latest forward-port/rewrite GStreamer summaries
 bash ffmpeg-suite.sh                  # ffmpeg-rockchip CLI conformance
@@ -599,7 +608,9 @@ PERF_MAX_RATIO=1.25 bash ffmpeg-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-04 after `ffmpeg-suite.sh` and
+was last verified on 2026-07-04 after the `GST_VALIDATE_CASES=1`
+GStreamer case-builder/runner dry validation mode was added; after
+`ffmpeg-suite.sh` and
 `ffmpeg-suite-compare.sh` made ffmpeg-rockchip a first-class
 forward-port-vs-rewrite conformance gate with encoded-bitstream artifacts; after the
 `GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC=1` alias was added to the required

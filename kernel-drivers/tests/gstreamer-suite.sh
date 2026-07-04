@@ -14,6 +14,7 @@ GST_PLUGIN_DIR=${GST_PLUGIN_DIR:-"$GST_PREFIX/lib/gstreamer-1.0"}
 GST_EVENT_HARNESS=${GST_EVENT_HARNESS:-"$GST_PREFIX/bin/gstreamer-event-harness"}
 MPP_LIBDIR=${MPP_LIBDIR:-"$CONFORMANCE_ROOT/out/mpp/lib"}
 LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
+GST_VALIDATE_CASES=${GST_VALIDATE_CASES:-0}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-gstreamer-suite"}
 GST_GENERATED_INPUT_CACHE=${GST_GENERATED_INPUT_CACHE:-"$CONFORMANCE_ROOT/assets/gstreamer-generated"}
 GST_CAPTURE_ARTIFACTS=${GST_CAPTURE_ARTIFACTS:-1}
@@ -301,45 +302,49 @@ required_cases=${GST_REQUIRED_CASES:-$required_cases_default}
 diagnostic_cases=${GST_DIAGNOSTIC_CASES:-$diagnostic_cases_default}
 failed=0
 
-if [ ! -e /dev/mpp_service ]; then
-	echo "SKIP: /dev/mpp_service is absent on this boot"
-	exit 77
-fi
+if [ "$GST_VALIDATE_CASES" = "1" ]; then
+	GST_CAPTURE_ARTIFACTS=0
+else
+	if [ ! -e /dev/mpp_service ]; then
+		echo "SKIP: /dev/mpp_service is absent on this boot"
+		exit 77
+	fi
 
-if [ ! -e /dev/rga ]; then
-	echo "SKIP: /dev/rga is absent on this boot"
-	exit 77
-fi
+	if [ ! -e /dev/rga ]; then
+		echo "SKIP: /dev/rga is absent on this boot"
+		exit 77
+	fi
 
-if ! command -v gst-launch-1.0 >/dev/null 2>&1; then
-	echo "Missing gst-launch-1.0. Install GStreamer runtime tools first." >&2
-	exit 2
-fi
+	if ! command -v gst-launch-1.0 >/dev/null 2>&1; then
+		echo "Missing gst-launch-1.0. Install GStreamer runtime tools first." >&2
+		exit 2
+	fi
 
-if ! command -v gst-inspect-1.0 >/dev/null 2>&1; then
-	echo "Missing gst-inspect-1.0. Install GStreamer runtime tools first." >&2
-	exit 2
-fi
+	if ! command -v gst-inspect-1.0 >/dev/null 2>&1; then
+		echo "Missing gst-inspect-1.0. Install GStreamer runtime tools first." >&2
+		exit 2
+	fi
 
-if [ ! -d "$GST_PLUGIN_DIR" ]; then
-	echo "Missing $GST_PLUGIN_DIR. Run ../rockchip-conformance/scripts/build-gstreamer-rockchip.sh first." >&2
-	exit 2
-fi
+	if [ ! -d "$GST_PLUGIN_DIR" ]; then
+		echo "Missing $GST_PLUGIN_DIR. Run ../rockchip-conformance/scripts/build-gstreamer-rockchip.sh first." >&2
+		exit 2
+	fi
 
-mkdir -p "$OUT"
-summary="$OUT/summary.tsv"
-artifact_dir="$OUT/artifacts"
-artifact_summary="$OUT/artifacts.tsv"
-printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
-printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
-mkdir -p "$artifact_dir"
-if [ -n "$GST_GENERATED_INPUT_CACHE" ]; then
-	mkdir -p "$GST_GENERATED_INPUT_CACHE"
-fi
+	mkdir -p "$OUT"
+	summary="$OUT/summary.tsv"
+	artifact_dir="$OUT/artifacts"
+	artifact_summary="$OUT/artifacts.tsv"
+	printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
+	printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
+	mkdir -p "$artifact_dir"
+	if [ -n "$GST_GENERATED_INPUT_CACHE" ]; then
+		mkdir -p "$GST_GENERATED_INPUT_CACHE"
+	fi
 
-export GST_PLUGIN_PATH="$GST_PLUGIN_DIR:${GST_PLUGIN_PATH:-}"
-export GST_REGISTRY="${GST_REGISTRY:-"$OUT/gstreamer-registry.bin"}"
-export LD_LIBRARY_PATH="$MPP_LIBDIR:$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
+	export GST_PLUGIN_PATH="$GST_PLUGIN_DIR:${GST_PLUGIN_PATH:-}"
+	export GST_REGISTRY="${GST_REGISTRY:-"$OUT/gstreamer-registry.bin"}"
+	export LD_LIBRARY_PATH="$MPP_LIBDIR:$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
+fi
 
 CMD=()
 BUILD_ERROR=
@@ -2012,6 +2017,119 @@ command_exists()
 	esac
 }
 
+runtime_dispatch_validated()
+{
+	local case_name=$1
+
+	case "$case_name" in
+	state_loop_h264_nv12 | state_loop_roundtrip_h264 | \
+	enc_h264_env_unaligned_vstride | enc_h264_env_max_pending | \
+	enc_h264_env_no_rga | generated_dec_h264_env_strict_props | \
+	generated_dec_h264_env_dmabuf | generated_dec_h264_env_no_rga | \
+	generated_dec_h264_env_format_nv21 | generated_dec_h264_env_fbc | \
+	generated_dec_h264_env_arm_afbc | \
+	generated_transcode_h264_afbc_to_h265 | \
+	generated_transcode_h265_afbc_to_h264 | \
+	generated_transcode_h264_env_arm_afbc_to_h265 | \
+	generated_dec_h264_mp4_codec_data | generated_dec_h265_mp4_codec_data | \
+	generated_dec_h264_fakesink | generated_dec_h265_fakesink | \
+	generated_dec_h264_dmabuf | generated_dec_h265_dmabuf | \
+	generated_dec_h264_strict_props | generated_dec_h265_strict_props | \
+	generated_dec_vp9_fakesink | generated_dec_vp9_dmabuf | \
+	generated_dec_h264_rga_rotate | generated_dec_h265_rga_scale | \
+	generated_dec_vp9_rga_scale | generated_dec_h264_crop_meta | \
+	generated_dec_h264_afbc_fakesink | generated_dec_h265_afbc_fakesink | \
+	generated_dec_h264_renegotiate | generated_dec_h265_renegotiate | \
+	event_flush_dec_h264 | event_flush_dec_h265 | \
+	event_seek_dec_h264 | event_seek_dec_h265 | \
+	eos_loop_dec_h264 | eos_loop_dec_h265 | \
+	generated_transcode_h264_to_h265 | generated_transcode_h265_to_h264 | \
+	generated_transcode_h264_rga_to_h265 | \
+	generated_transcode_h264_dmabuf_to_h265 | generated_transcode_vp9_to_h264 | \
+	generated_transcode_h264_mp4_to_h265 | \
+	generated_transcode_h265_mp4_to_h264 | \
+	generated_dec_h264_display_dmabuf | generated_dec_h265_display_dmabuf | \
+	generated_dec_h264_display_afbc | generated_dec_h265_display_afbc | \
+	parallel_dec_h264 | parallel_dec_h265 | parallel_dec_mixed_h264_h265 | \
+	parallel_transcode_mixed_h264_h265)
+		return 0
+		;;
+	esac
+
+	case "${CMD[0]:-}" in
+	__builtin_*)
+		return 1
+		;;
+	esac
+
+	return 0
+}
+
+validate_case_build()
+{
+	local class=$1
+	local case_name=$2
+	local build_status
+
+	if [ -z "$case_name" ]; then
+		return 0
+	fi
+
+	CURRENT_CLASS=$class
+	CURRENT_CASE=$case_name
+	CASE_ARTIFACT_KINDS=()
+	CASE_ARTIFACT_PATHS=()
+
+	set +e
+	build_case_command "$case_name"
+	build_status=$?
+	set -e
+	if [ "$build_status" -ne 0 ]; then
+		printf "invalid\t%s\t%s\t%s\n" "$class" "$case_name" "$BUILD_ERROR" >&2
+		return 1
+	fi
+
+	if ! runtime_dispatch_validated "$case_name"; then
+		printf "invalid\t%s\t%s\tunhandled builtin dispatch %s\n" \
+			"$class" "$case_name" "${CMD[0]}" >&2
+		return 1
+	fi
+
+	printf "valid\t%s\t%s\t%s\n" "$class" "$case_name" "${CMD[0]:-payload}"
+}
+
+validate_case_builders()
+{
+	local case_name
+	local validation_failed=0
+	local total=0
+	local old_capture=$GST_CAPTURE_ARTIFACTS
+
+	GST_CAPTURE_ARTIFACTS=0
+
+	for case_name in $required_cases; do
+		total=$((total + 1))
+		if ! validate_case_build required "$case_name"; then
+			validation_failed=1
+		fi
+	done
+
+	for case_name in $diagnostic_cases; do
+		total=$((total + 1))
+		if ! validate_case_build diagnostic "$case_name"; then
+			validation_failed=1
+		fi
+	done
+
+	GST_CAPTURE_ARTIFACTS=$old_capture
+
+	if [ "$validation_failed" -ne 0 ]; then
+		return 1
+	fi
+
+	printf "validated %s GStreamer case builders\n" "$total"
+}
+
 run_case()
 {
 	local class=$1
@@ -2093,6 +2211,11 @@ run_case()
 
 	record_summary "$class" "$case_name" "$status" "$elapsed" "$result"
 }
+
+if [ "$GST_VALIDATE_CASES" = "1" ]; then
+	validate_case_builders
+	exit $?
+fi
 
 snapshot_state before
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
