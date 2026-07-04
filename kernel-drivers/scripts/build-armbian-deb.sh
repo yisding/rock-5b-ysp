@@ -17,7 +17,8 @@
 # rock-5b-ysp's convert-in-place patch, by contrast, *needed* media-0001 present.
 #
 # WHAT IT DOES
-#   1. Regenerate the port patches from git:  git format-patch v6.18..HEAD
+#   1. Regenerate the port patches from git:  git format-patch v6.18..HEAD,
+#      excluding commits already carried by the shipping Armbian kernel base.
 #   2. Stage them as Armbian userpatches (replacing any prior port patches;
 #      leaving unrelated userpatches such as rk806-* untouched).
 #   3. Disable the two colliding Armbian core media patches.
@@ -39,6 +40,7 @@
 #
 # Reverse the media-patch disable later with:  --restore  (does nothing else)
 # =============================================================================
+# shellcheck disable=SC2012
 set -euo pipefail
 
 # --- Locations -------------------------------------------------------------
@@ -56,6 +58,10 @@ BASE_TAG="${BASE_TAG:-v6.18}"                 # port patches are v6.18..HEAD
 KBRANCH="${KBRANCH:-rockchip64-6.18}"         # Armbian kernel patch archive branch
 PATCH_PREFIX="rk3588-av1-fwport"              # our userpatch filename prefix
 STAGING="${STAGING:-$WORKSPACE/forward-port/patches}"   # inspectable copy of generated patches
+# Commit(s) present in this forward-port tree only because the local branch
+# tracks fixes that Armbian's shipping 6.18.37 source base already carries.
+# Keep them out of generated userpatches or Armbian will reject them as reversed.
+SKIP_COMMITS="${SKIP_COMMITS:-e059aad8d68b}"
 
 # Armbian core patches that collide with this tree's self-contained DT.
 DISABLE_PATCHES=(
@@ -98,6 +104,18 @@ say "  $NCOMMITS commits on top of $BASE_TAG:"
 git -C "$KERNEL_TREE" log --oneline "$BASE_TAG"..HEAD | sed 's/^/      /'
 rm -rf "$STAGING"; mkdir -p "$STAGING"
 git -C "$KERNEL_TREE" format-patch --no-signature -o "$STAGING" "$BASE_TAG"..HEAD >/dev/null
+for commit in $SKIP_COMMITS; do
+	subject=$(git -C "$KERNEL_TREE" show -s --format=%f "$commit" 2>/dev/null || true)
+	if [ -z "$subject" ]; then
+		say "  WARNING: SKIP_COMMITS entry not found in kernel tree: $commit"
+		continue
+	fi
+	for f in "$STAGING"/[0-9][0-9][0-9][0-9]-"$subject".patch; do
+		[ -e "$f" ] || continue
+		say "  skipping Armbian-base commit: $(basename "$f")"
+		rm -f "$f"
+	done
+done
 # Prefix so they sort after Armbian's media-* patches (proven-good order) and
 # are clearly distinct from the old rk3588-rkvenc2-* set.
 for f in "$STAGING"/0*.patch; do
