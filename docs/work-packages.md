@@ -1,23 +1,20 @@
-# Work packages - how this repo is organized
+# Work packages — how this repo is organized
 
 The work here is getting the ROCK 5B's RK3588 chip to do hardware video
-encode/decode under Linux, from the kernel drivers up to real applications; this
-repo is split into the six *packages* that each own one layer of that stack.
+encode/decode under Linux, from the kernel bases up to real applications. The
+repo is split **project-by-project**, grouped into categories; this page is the
+detailed reading map and owns the canonical stack diagram (the root
+[`README.md`](../README.md) carries the front-door taxonomy that links here).
 
-This page is the package-oriented reading map. It also owns the canonical,
-detailed stack diagram below (the root [`README.md`](../README.md) carries a
-simplified front-door version that links here). The main split of the project is
-the set of work packages below: kernel drivers, userspace libraries, FFmpeg,
-GNOME Remote Desktop, Mesa/Panfrost, and packaging. Package-specific docs,
-patches, scripts, tests, and code artifacts live inside the owning package.
-
-Every package page should answer the same questions near the top:
+Project-specific docs, patches, scripts, tests, and code artifacts live inside
+the owning project. Each project directory answers the same questions near the
+top of its `README.md`:
 
 | Field | Meaning |
 |-------|---------|
-| User outcome | What a board user can accomplish from this package. |
+| Purpose | What this project covers and where its code lives (which `../` tree). |
 | Developer focus | What someone changing, reviewing, or upstreaming code should learn here. |
-| Owns | The files, patches, or docs for which this package is the front door. |
+| Owns | The files, patches, or docs for which this project is the front door. |
 | Depends on | The lower layers or external projects that must already work. |
 | Current state | The dated validation or known caveat, with [`../status.md`](../status.md) as the rollup. |
 
@@ -27,80 +24,83 @@ Every package page should answer the same questions near the top:
 flowchart TB
   board["Radxa ROCK 5B<br/>RK3588"]
 
-  subgraph kernel["kernel-drivers package"]
-    dt["device tree"]
-    mpp["/dev/mpp_service<br/>rkvenc2 + rkvdec2"]
-    rga["/dev/rga<br/>RGA3 + RGA2"]
-    kpatches["patches/"]
-    ktools["scripts/ + tests/"]
+  subgraph kver["kernel-versions"]
+    bsp["BSP overlay vs stock"]
+    fport["forward-port + mainline-V4L2 notes"]
   end
 
-  subgraph libs["userspace-libraries package"]
-    libmpp["librockchip_mpp"]
-    librga["librga"]
+  subgraph kernel["kernel-drivers"]
+    mpp["mpp<br/>/dev/mpp_service<br/>rkvenc2 + rkvdec2"]
+    rga["rga<br/>/dev/rga<br/>RGA3 + RGA2"]
+    av1["av1<br/>rkvdec2 AV1 decode"]
+    iommu["iommu<br/>CCU / dma-buf mapping"]
+    kart["patches/ · scripts/ · tests/"]
   end
 
-  subgraph ff["ffmpeg package"]
-    codecs["h264_rkmpp / hevc_rkmpp"]
-    filters["scale_rkrga / vpp_rkrga"]
+  subgraph libs["vendor-libraries"]
+    libmpp["mpp<br/>librockchip_mpp"]
+    librga["rga<br/>librga"]
   end
 
-  subgraph apps["application packages"]
+  subgraph video["video-libraries"]
+    ffmpeg["ffmpeg<br/>h264_rkmpp · scale_rkrga"]
+    mesa["mesa<br/>Mali-G610 transfer"]
+  end
+
+  subgraph apps["apps"]
     grd["gnome-remote-desktop<br/>RDP H.264 backend"]
-    mesa["mesa-panfrost-g610<br/>Mali transfer work"]
   end
 
-  subgraph ops["delivery and verification"]
-    packaging["packaging"]
-  end
+  packaging["packaging<br/>delivery + verification"]
 
-  board --> dt
-  dt --> mpp
-  dt --> rga
-  mpp --> libmpp --> codecs --> grd
-  rga --> librga --> filters
+  board --> bsp
+  bsp --> mpp
+  fport -.-> mpp
+  mpp --> libmpp --> ffmpeg --> grd
+  rga --> librga --> ffmpeg
+  av1 --> libmpp
+  iommu -.-> mpp
+  iommu -.-> rga
   mesa --> grd
   packaging --> kernel
   packaging --> libs
-  packaging --> ff
-  kpatches --> dt
-  ktools --> mpp
-  ktools --> rga
+  packaging --> video
+  kart --> mpp
 ```
 
-## Package map
+## Project map
 
-| Package | User outcome | Developer focus | Entry |
-|---------|--------------|-----------------|-------|
-| Kernel drivers | Boot and validate `/dev/mpp_service` + `/dev/rga` on RK3588. | MPP/RGA driver model, DT, forward-port deltas, patches, scripts, tests, audit fixes, rewrite track. | [`../kernel-drivers/`](../kernel-drivers/README.md) |
-| Userspace libraries | Build or install `librockchip_mpp` and `librga` for apps. | Library/kernel responsibility split, ioctls, dma-buf imports, ABI facts. | [`../userspace-libraries/`](../userspace-libraries/README.md) |
-| FFmpeg | Build and use rkmpp codecs plus RGA filters. | FFmpeg hardware frames, fork vs upstream behavior, rebase fixes. | [`../ffmpeg/`](../ffmpeg/README.md) |
-| GNOME Remote Desktop | Use the codec stack in a real RDP application. | Backend design, RDP frame flow, zero-copy encode, panvk conversion, greeter ACL. | [`../gnome-remote-desktop/`](../gnome-remote-desktop/README.md) |
-| Mesa/Panfrost | Understand the Mali-G610 transfer investigation behind GRD fallback performance. | Panfrost BLIT/COMPUTE transfer correctness, validation, reproducers. | [`../mesa-panfrost-g610/`](../mesa-panfrost-g610/README.md) |
-| Packaging | Choose and operate installable delivery channels. | DKMS, udev ACLs, PPA source packages, rollback, binary policy. | [`../packaging/`](../packaging/README.md) |
+| Category | Project | Purpose | Entry |
+|----------|---------|---------|-------|
+| kernel-versions | — | Kernel bases and moving between them: BSP overlay vs stock, forward-port narrative, mainline-V4L2 alternative. | [`../kernel-versions/`](../kernel-versions/README.md) |
+| kernel-drivers | mpp / rga / av1 / iommu | In-kernel accelerator drivers. Shared driver model, DT, patches, scripts, tests at the top; per-block notes in each sub-project. | [`../kernel-drivers/`](../kernel-drivers/README.md) |
+| vendor-libraries | mpp / rga | `librockchip_mpp` and `librga` userspace: library/kernel split, ioctls, dma-buf imports, ABI facts. | [`../vendor-libraries/`](../vendor-libraries/README.md) |
+| video-libraries | ffmpeg / mesa | rkmpp codecs + rkrga filters, and the Mali-G610 transfer investigation behind GRD fallback. | [`../video-libraries/`](../video-libraries/README.md) |
+| apps | gnome-remote-desktop | The codec stack in a real RDP application: backend design, zero-copy encode, greeter ACL. | [`../apps/`](../apps/README.md) |
+| packaging | — | Installable delivery: DKMS, udev ACLs, PPA source packages, rollback, binary policy. | [`../packaging/`](../packaging/README.md) |
 
 ## User reading paths
 
 | Goal | Path |
 |------|------|
 | Get codecs working on a board | [`../install.md`](../install.md) -> [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) |
-| Build a command-line media stack | [`../userspace-libraries/`](../userspace-libraries/README.md) -> [`../ffmpeg/`](../ffmpeg/README.md) -> [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) |
-| Run accelerated RDP | [`../install.md`](../install.md) -> [`../packaging/`](../packaging/README.md) -> [`../gnome-remote-desktop/`](../gnome-remote-desktop/README.md) |
+| Build a command-line media stack | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`../video-libraries/ffmpeg/`](../video-libraries/ffmpeg/README.md) -> [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) |
+| Run accelerated RDP | [`../install.md`](../install.md) -> [`../packaging/`](../packaging/README.md) -> [`../apps/gnome-remote-desktop/`](../apps/gnome-remote-desktop/README.md) |
 | Recover from a failure | [`../status.md`](../status.md) -> [`gotchas.md`](gotchas.md) -> [`debug-kernel.md`](../kernel-drivers/docs/debug-kernel.md) |
 
 ## Developer reading paths
 
 | Goal | Path |
 |------|------|
-| Review the kernel port | [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`how-the-drivers-work.md`](../kernel-drivers/docs/how-the-drivers-work.md) -> [`vendor-forward-port.md`](../kernel-drivers/docs/vendor-forward-port.md) -> [`vendor-delta.md`](../kernel-drivers/docs/vendor-delta.md) |
-| Review userspace ABI compatibility | [`../userspace-libraries/`](../userspace-libraries/README.md) -> [`how-the-userspace-libs-work.md`](../userspace-libraries/docs/how-the-userspace-libs-work.md) -> [`dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) -> [`rewrite-drivers.md`](../kernel-drivers/docs/rewrite-drivers.md) |
+| Review the kernel port | [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`how-the-drivers-work.md`](../kernel-drivers/docs/how-the-drivers-work.md) -> [`vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md) -> [`vendor-delta.md`](../kernel-drivers/docs/vendor-delta.md) |
+| Review userspace ABI compatibility | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`how-the-userspace-libs-work.md`](../vendor-libraries/docs/how-the-userspace-libs-work.md) -> [`dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) -> [`rewrite-drivers.md`](../kernel-drivers/docs/rewrite-drivers.md) |
 | Maintain the package set | [`../packaging/`](../packaging/README.md) -> [`armbian-packaging.md`](../packaging/docs/armbian-packaging.md) -> [`resyncing.md`](../kernel-drivers/docs/resyncing.md) |
-| Upstream or rebase application work | [`../ffmpeg/docs/rebase-notes.md`](../ffmpeg/docs/rebase-notes.md), [`../ffmpeg/docs/fix-candidates.md`](../ffmpeg/docs/fix-candidates.md), [`../gnome-remote-desktop/patches/`](../gnome-remote-desktop/patches/README.md), [`../mesa-panfrost-g610/docs/validation.md`](../mesa-panfrost-g610/docs/validation.md) |
+| Upstream or rebase application work | [`../video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md), [`../video-libraries/ffmpeg/docs/fix-candidates.md`](../video-libraries/ffmpeg/docs/fix-candidates.md), [`../apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/README.md), [`../video-libraries/mesa/docs/validation.md`](../video-libraries/mesa/docs/validation.md) |
 
 ## Maintenance rule
 
-When a package gains a new user-facing file, update that package's `README.md`.
-When a new top-level package is added, update this page and the repository map
-in [`../README.md`](../README.md). When status changes, update
+When a project gains a new user-facing file, update that project's `README.md`.
+When a new top-level category or project is added, update this page and the
+repository map in [`../README.md`](../README.md). When status changes, update
 [`../status.md`](../status.md) with a real verification date rather than only
 changing prose elsewhere.

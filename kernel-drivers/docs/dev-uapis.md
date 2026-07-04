@@ -2,7 +2,7 @@
 
 A **uAPI** ("userspace API") is the contract between userspace and the kernel: the
 device files, the `ioctl()` commands, and the structs passed across. The
-libraries in [userspace library guide](../../userspace-libraries/docs/how-the-userspace-libs-work.md) exist so you *don't*
+libraries in [userspace library guide](../../vendor-libraries/docs/how-the-userspace-libs-work.md) exist so you *don't*
 have to use these directly — but understanding them is invaluable for **debugging**
 (what is ffmpeg actually asking the kernel to do?), **writing a minimal client**,
 and **security review** (this is the kernel's attack surface — the `bsp-audit.md` audit
@@ -41,10 +41,10 @@ strace -e ioctl -f ffmpeg …              # SEE the real ioctl stream the libra
 `DMA_HEAP_IOCTL_ALLOC` → a dma-buf fd it then hands to `/dev/mpp_service`). It's
 listed here because it shares the codec's permission story: all of these are
 `crw------- root root` by default — that's why the tests need `sudo`; the
-[`scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules) udev rule
+[`kernel-drivers/scripts/99-rockchip-codec.rules`](../scripts/99-rockchip-codec.rules) udev rule
 relaxes `mpp_service`, `rga`, **and** `dma_heap` to `video` group `0660`. Granting
 the codec node without the heaps still fails — see
-[userspace library guide §A5.1](../../userspace-libraries/docs/how-the-userspace-libs-work.md) for why MPP needs the heap and
+[userspace library guide §A5.1](../../vendor-libraries/docs/how-the-userspace-libs-work.md) for why MPP needs the heap and
 which one it lands on.
 
 ---
@@ -301,7 +301,7 @@ sequenceDiagram
 
 ## C. How the libraries map onto these
 
-This is the bottom edge of [userspace library guide](../../userspace-libraries/docs/how-the-userspace-libs-work.md):
+This is the bottom edge of [userspace library guide](../../vendor-libraries/docs/how-the-userspace-libs-work.md):
 
 | Library call | Becomes these ioctls |
 |--------------|----------------------|

@@ -32,7 +32,7 @@ they were built*.
 | 2 | `librga` | `2.2.0-1+rk1` | `librga2` (+ unversioned `librga.so`), `librga-dev` | [`tsukumijima/librga-rockchip`](https://github.com/tsukumijima/librga-rockchip) (JeffyCN lineage) |
 | 3 | `ffmpeg` | `7:8.1.2-1+rk1` | `libavcodec62` (+`-extra`), the full Ubuntu `libav*` set, `ffmpeg` — **with `h264_rkmpp`** | Ubuntu's `ffmpeg` source, upstream bumped `8.0.1 → 8.1.2` |
 | 4 | `gnome-remote-desktop` | `50.1+rkmpp-2` | `gnome-remote-desktop` (rkmpp encode backend) | our fork vendored as upstream + Ubuntu's `50.0` packaging |
-| 5 | `gnome-remote-desktop-gdm-hwenc` | `1.0` | `gnome-remote-desktop-gdm-hwenc` (opt-in greeter ACL) | native; [`../gdm-hwenc/`](../gdm-hwenc/) |
+| 5 | `gnome-remote-desktop-gdm-hwenc` | `1.0` | `gnome-remote-desktop-gdm-hwenc` (opt-in greeter ACL) | native; [`../gdm-hwenc/`](../gdm-hwenc) |
 
 All are `3.0 (quilt)` except `gdm-hwenc` (`3.0 (native)`). Version convention:
 **`+rk1`** sorts above the stock revision; FFmpeg keeps Ubuntu's **epoch `7:`** so
@@ -68,7 +68,7 @@ The goal was a **drop-in** over Ubuntu's `ffmpeg` so every app gets rkmpp. 8.1.2
 and 8.0.1 are both FFmpeg 8.x, so the seven library SONAME majors are identical
 (`libavcodec.so.62`, `libavutil.so.60`, …) → ABI-compatible.
 The trade-off versus `ffmpeg-rockchip` is documented in
-[`../../ffmpeg/docs/implementation-comparison.md`](../../ffmpeg/docs/implementation-comparison.md):
+[`video-libraries/ffmpeg/docs/implementation-comparison.md`](../../video-libraries/ffmpeg/docs/implementation-comparison.md):
 upstream FFmpeg 8.1.2 keeps ABI compatibility but lacks ffmpeg-rockchip's RGA
 filters and richer rkmpp encoder controls.
 
@@ -101,7 +101,7 @@ There is no separate "upstream tarball" for our work, so we **vendored our fork
 branch as the upstream**:
 
 - `orig` = `git archive` of the `ffmpeg-rkmpp-encode-backend` branch (GRD 50.1 +
-  the [encode backend](../../gnome-remote-desktop/patches/)).
+  the [encode backend](../../apps/gnome-remote-desktop/patches)).
 - Grafted **Ubuntu's `50.0` `debian/`** on top; dropped Ubuntu's three patches
   (all upstream in 50.1); enabled `-Dffmpeg=enabled` and added
   `libavcodec-dev`/`libavutil-dev (>= 7:8.1.2~)` to `Build-Depends` (stock Ubuntu
@@ -110,12 +110,12 @@ branch as the upstream**:
   `debian/patches` (`3.0 quilt`): the **upstream-rkmpp fix** and a **revert** of a
   cherry-picked handover-reconnect change that broke GDM→session handover. (That
   revert exists only because the `orig` snapshot happened to include the
-  cherry-pick — see the [patches note](../../gnome-remote-desktop/patches/README.md).)
+  cherry-pick — see the [patches note](../../apps/gnome-remote-desktop/patches/README.md).)
 
 ### 5. `gnome-remote-desktop-gdm-hwenc` — the greeter ACL
 
 A tiny native package; documented and buildable standalone at
-[`../gdm-hwenc/`](../gdm-hwenc/). Independent of the others
+[`../gdm-hwenc/`](../gdm-hwenc). Independent of the others
 (depends only on `acl`).
 
 ## Upload order — respect the build-dep chain

@@ -1,10 +1,10 @@
 # Packaging the greeter codec access — `gnome-remote-desktop-gdm-hwenc`
 
-An **opt-in** companion to [`codec-udev`](../codec-udev/). That package grants the
+An **opt-in** companion to [`codec-udev`](../codec-udev). That package grants the
 **`video`** group access to the codec nodes, which covers the interactive login
 user. This one grants the **`gdm`** group, so the **GDM login screen** is
 hardware-encoded too — needed only if you run
-[gnome-remote-desktop over RDP](../../gnome-remote-desktop/) and want the greeter
+[gnome-remote-desktop over RDP](../../apps/gnome-remote-desktop) and want the greeter
 (not just the logged-in session) on the VEPU580.
 
 It is a separate package on purpose: it widens video-codec access to the whole
@@ -39,7 +39,7 @@ Result: `gnome-remote-desktop`'s rkmpp encode session fails at the first
 `open("/dev/dma_heap/system")` and silently falls back to software RFX for the
 login screen. (The greeter still reaches the **GPU** — `renderD128` gets a DRM
 `uaccess` ACL — which is why the buffer looks fine but the encoder won't start.)
-The full diagnosis is in [`../../gnome-remote-desktop/README.md`](../../gnome-remote-desktop/README.md)
+The full diagnosis is in [`apps/gnome-remote-desktop/README.md`](../../apps/gnome-remote-desktop/README.md)
 (bug #3).
 
 The stable handle across the churn is the **`gdm` group** itself. The rule adds a
@@ -57,7 +57,7 @@ SUBSYSTEM=="dma_heap",  RUN+="…same…"
 > **`KERNEL=="iep"`**: a forward-compat no-op — this port ships no IEP driver and
 > `/dev/iep` does not exist on the board, so the line only matters on BSP/vendor
 > kernels that create the node. It mirrors the base rule; the dated
-> verification stamp is owned by [`codec-udev/README.md`](../codec-udev/README.md).
+> verification stamp is owned by [`packaging/codec-udev/README.md`](../codec-udev/README.md).
 
 Prefix `70-` so it loads **after** the base `60-media` / `99-rockchip-codec` rule
 that sets `GROUP="video"`. `setfacl` adds a group entry and does **not** disturb
@@ -89,7 +89,7 @@ build the artifact on demand.
 
 | Rule | Grants | Covers |
 |------|--------|--------|
-| Armbian `60-media.rules` / this repo's [`codec-udev`](../codec-udev/) | `GROUP="video"` on `mpp_service`, `dma_heap`, `rga` | the interactive login user (in `video`) |
+| Armbian `60-media.rules` / this repo's [`codec-udev`](../codec-udev) | `GROUP="video"` on `mpp_service`, `dma_heap`, `rga` | the interactive login user (in `video`) |
 | **this package** (`70-…gdm-hwenc`) | `setfacl g:gdm` on the same nodes | the GDM greeter's dynamic `gdm-greeter-*` users |
 | systemd default (`uaccess` on DRM) | ACL for the active seat user | the GPU node only — not the codec nodes |
 

@@ -15,9 +15,9 @@ in either case:
 
 | Path | What you get | What it needs | Validation status ([`status.md`](status.md)) | Where |
 |------|--------------|---------------|-----------------------------------------------|-------|
-| **(a) Combined Armbian kernel** | All three accelerators **built in (`=y`)** — no modules, no overlay | An Armbian build tree (§2) + a kernel install/reboot | ✅ **Hardware-validated** (build `Pb6ab-Cb831`, [kernel status](kernel-drivers/docs/status.md)) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
+| **(a) Combined Armbian kernel** | All three accelerators **built in (`=y`)** — no modules, no overlay | An Armbian build tree (§2) + a kernel install/reboot | ✅ **Hardware-validated** (build `Pb6ab-Cb831`, [kernel status](kernel-drivers/docs/forward-port-status.md)) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
 | **(b) DKMS on a stock kernel** | `rk_vcodec.ko` + `rga3.ko`, auto-rebuilt on every kernel update, + a boot-time DT overlay | A *stock* Armbian 6.18+ kernel, `dkms` + `dtc` installed | ⚠️ Compile-tested on **6.18 only**; overlay dtc-validated, **not boot-validated** | [`packaging/dkms/`](packaging/dkms/README.md) |
-| **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§6) | ffmpeg-rockchip build: hardware-validated; PPA: local builds OK 2026-06-30, **nothing uploaded yet** | [`ffmpeg/`](ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
+| **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§6) | ffmpeg-rockchip build: hardware-validated; PPA: local builds OK 2026-06-30, **nothing uploaded yet** | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
 
 > **⚠️ Hard warning: (a) and (b) are mutually exclusive** — installing the DKMS
 > module on the combined kernel breaks the build. Mechanism and the exact
@@ -57,7 +57,7 @@ to Armbian's own files, the `media-0001` collision):
 [Armbian packaging guide](./packaging/docs/armbian-packaging.md).
 
 For **vanilla mainline** (no Armbian) the driver patch applies as-is but the
-decoder DT must be inline — follow [vanilla-kernel guide](./kernel-drivers/docs/vanilla-kernel.md)
+decoder DT must be inline — follow [vanilla-kernel guide](./kernel-versions/docs/vanilla-kernel.md)
 instead of this quickstart.
 
 ## 3. Canonical quickstart (path a — combined kernel)
@@ -107,8 +107,8 @@ deb from `output/debs`. Workflow:
 
 | PHASH | Kernel | Patch set | Validated | Notes |
 |-------|--------|-----------|-----------|-------|
-| `Pb6ab-Cb831` | 6.18.37-current-rockchip64 | `kernel-drivers/patches/rk3588-rkvenc2-01` + `02` (current revision) | ✅ hardware ([kernel status](kernel-drivers/docs/status.md); tests re-run 2026-07-01) | The pinned default in `install-combined-kernel.sh`. |
-| `P8c75` (config hash not recorded) | 6.18.37 | functionally-identical predecessor revision | ✅ ([kernel status](./kernel-drivers/docs/status.md)) | Superseded by `Pb6ab-Cb831`. |
+| `Pb6ab-Cb831` | 6.18.37-current-rockchip64 | `kernel-drivers/patches/rk3588-rkvenc2-01` + `02` (current revision) | ✅ hardware ([kernel status](kernel-drivers/docs/forward-port-status.md); tests re-run 2026-07-01) | The pinned default in `install-combined-kernel.sh`. |
+| `P8c75` (config hash not recorded) | 6.18.37 | functionally-identical predecessor revision | ✅ ([kernel status](./kernel-drivers/docs/forward-port-status.md)) | Superseded by `Pb6ab-Cb831`. |
 
 (Every new build you install gets a row; a PHASH change with *unchanged*
 `kernel-drivers/patches/` means the Armbian patch stack moved — run the
@@ -145,7 +145,7 @@ the package must never be installed on the combined kernel (§1).
   packages the §3-step-4 rule as a deb (`rk3588-codec-udev`). The canonical
   rule file is [`kernel-drivers/scripts/99-rockchip-codec.rules`](kernel-drivers/scripts/99-rockchip-codec.rules).
 - **The GDM login screen** (only if you run
-  [`gnome-remote-desktop/`](gnome-remote-desktop/README.md) and want the
+  [`apps/gnome-remote-desktop/`](apps/gnome-remote-desktop/README.md) and want the
   *greeter* hardware-encoded too): the opt-in
   [`packaging/gdm-hwenc/`](packaging/gdm-hwenc/README.md) deb grants the `gdm`
   group ACL access. Deliberately separate — it widens the security boundary.
@@ -155,7 +155,7 @@ the package must never be installed on the combined kernel (§1).
 A validated kernel gives you `/dev/mpp_service` + `/dev/rga` and **no encoder
 binary**. Get userspace one of two ways:
 
-- **Build it**: [`ffmpeg/README.md`](ffmpeg/README.md) is the end-to-end recipe
+- **Build it**: [`video-libraries/ffmpeg/README.md`](video-libraries/ffmpeg/README.md) is the end-to-end recipe
   — building `rockchip-linux/mpp` (`librockchip_mpp` + `mpi_enc_test`/
   `mpi_dec_test`), staging `librga`, then building
   [`ffmpeg-rockchip`](https://github.com/nyanmisaka/ffmpeg-rockchip) with

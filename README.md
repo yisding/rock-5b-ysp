@@ -1,75 +1,60 @@
-# rock-5b-ysp - ROCK 5B support work packages
+# rock-5b-ysp — ROCK 5B RK3588 hardware-video record
 
-This repo explains the pieces of work done to support RK3588 hardware video on
-the Radxa ROCK 5B: kernel codec/RGA drivers, userspace libraries, FFmpeg,
-GNOME Remote Desktop, Mesa/Panfrost investigation, packaging, and hardware
-validation.
+This repo is the tracking and knowledge record for making the Radxa ROCK 5B's
+RK3588 do hardware video encode/decode under Linux. The actual code lives in
+sibling source trees (kernel forks, `ffmpeg-rockchip`, `gnome-remote-desktop`,
+mesa, `librga`, `mpp-rockchip`); this repo holds the architecture notes,
+forward-port design, patch deliverables, captured findings, and the dated status
+of every track. Cross-cutting vocabulary (MPP, RGA, CCU, DCHS, …) lives in
+[`glossary.md`](glossary.md); each project also keeps a `keywords.md`.
 
-**New here?** *Hardware video encode/decode* means letting the chip's dedicated
-codec blocks compress and decompress H.264/H.265 video instead of the CPU — the
-difference between smooth 60 fps and a pegged, overheating board. The RK3588 in
-the ROCK 5B has that hardware, but stock Linux doesn't fully drive it; this repo
-is the work that makes it usable. Unfamiliar terms (MPP, RGA, CCU, DCHS, …) are
-all defined in [`glossary.md`](glossary.md).
+The shipped kernel result is a Rockchip vendor **MPP** codec stack plus **RGA**
+forward-port from the Rockchip 6.1 BSP to Linux 6.18, packaged for Armbian on the
+ROCK 5B. The repo also records the work built on that base: `ffmpeg-rockchip`, a
+hardware H.264 backend for `gnome-remote-desktop`, Mesa/Panfrost Mali-G610
+debugging, DKMS/PPA packaging, a BSP audit fix series, and a clean-room rewrite
+track.
 
-The shipped kernel result is a Rockchip vendor [**MPP**](glossary.md) codec
-stack plus [**RGA**](glossary.md)
-forward-port from the Rockchip 6.1 BSP to Linux 6.18, packaged for Armbian on
-the ROCK 5B. The repo also records the application and distribution work built
-on top of that base: `ffmpeg-rockchip`, a hardware H.264 backend for
-`gnome-remote-desktop`, Mesa/Panfrost Mali-G610 debugging, DKMS/PPA packaging,
-a BSP audit fix series, and a clean-room rewrite track.
+The dated project scoreboard is [`status.md`](status.md); read every state claim
+through its last-verified dates.
 
-The dated project scoreboard is [`status.md`](status.md). Every status claim
-below should be read through that file's last-verified dates.
+## Structure
 
-## Main split: work packages
-
-This is the simplified front door. The canonical, detailed stack diagram (with
-per-package internals) is owned by
-[`docs/work-packages.md`](docs/work-packages.md) — keep the two in sync there,
-not here.
+The repo is split project-by-project, grouped into the categories below. Each
+project directory carries its own `README.md` (front door) and, where useful, a
+`keywords.md` ("key words to know"). Shared driver architecture, the combined
+patch series, scripts, and on-hardware tests stay at the `kernel-drivers/` top.
 
 ```mermaid
 flowchart TB
-  board["ROCK 5B / RK3588"]
-  kernel["kernel-drivers<br/>/dev/mpp_service + /dev/rga"]
-  libs["userspace-libraries<br/>librockchip_mpp + librga"]
-  ffmpeg["ffmpeg<br/>rkmpp codecs + rkrga filters"]
-  apps["application work<br/>gnome-remote-desktop, mesa-panfrost-g610"]
-  packaging["packaging<br/>delivery and validation"]
+  board["Radxa ROCK 5B / RK3588"]
+  kver["kernel-versions<br/>BSP overlay · forward-port"]
+  kernel["kernel-drivers<br/>mpp · rga · av1 · iommu"]
+  libs["vendor-libraries<br/>librockchip_mpp · librga"]
+  video["video-libraries<br/>ffmpeg · mesa"]
+  apps["apps<br/>gnome-remote-desktop"]
+  packaging["packaging<br/>delivery & validation"]
 
-  board --> kernel --> libs --> ffmpeg --> apps
+  board --> kernel
+  kver -.-> kernel
+  kernel --> libs --> video --> apps
   packaging -.-> kernel
   packaging -.-> libs
-  packaging -.-> ffmpeg
+  packaging -.-> video
 ```
 
-| Package | User outcome | Developer focus | Entry |
-|---------|--------------|-----------------|-------|
-| **Kernel drivers** | Get `/dev/mpp_service` and `/dev/rga` on the board, build/install the combined kernel, and run on-hardware smoke tests. | Forward-port design, MPP/RGA internals, DT, patch series, scripts, tests, audit findings, rewrite drivers. | [`kernel-drivers/`](kernel-drivers/README.md) |
-| **Userspace libraries** | Build or install `librockchip_mpp` and `librga` with the right headers, `.pc` files, and device permissions. | Library/kernel responsibility split, ioctl behavior, dma-buf imports, ABI facts. | [`userspace-libraries/`](userspace-libraries/README.md) |
-| **FFmpeg** | Build and use rkmpp codecs and RGA filters for decode, encode, scale, and transcode. | FFmpeg hardware-frame model, fork vs upstream behavior, rebase/fix series. | [`ffmpeg/`](ffmpeg/README.md) |
-| **GNOME Remote Desktop** | Run a real RDP workload with RK3588 H.264 hardware encode. | GRD backend design, zero-copy path, IDR/bitrate fixes, GDM greeter ACL. | [`gnome-remote-desktop/`](gnome-remote-desktop/README.md) |
-| **Mesa/Panfrost** | Understand why Mali-G610 transfer work mattered to the GRD fallback path. | Panfrost BLIT/COMPUTE correctness, AFBC constraint, reproducers, validation. | [`mesa-panfrost-g610/`](mesa-panfrost-g610/README.md) |
-| **Packaging** | Choose combined kernel, DKMS, local debs, or PPA-style source packages. | DKMS layout, udev/ACL packages, PPA import plan, rollback, binary policy. | [`packaging/`](packaging/README.md) |
-| **Cross-package docs** | Follow the package map, source pins, and whole-repo trap index. | Source reconstruction, global maintenance rules, and cross-package navigation. | [`docs/`](docs/README.md), [`glossary.md`](glossary.md) |
+| Category | What lives here | Entry |
+|----------|-----------------|-------|
+| **kernel-versions** | The kernel bases and moving between them: what the BSP adds vs stock, the forward-port narrative, the mainline-V4L2 alternative. | [`kernel-versions/`](kernel-versions/README.md) |
+| **kernel-drivers** | In-kernel accelerator drivers, split `mpp` · `rga` · `av1` · `iommu`; shared architecture docs, patches, scripts, on-hardware tests at the top. | [`kernel-drivers/`](kernel-drivers/README.md) |
+| **vendor-libraries** | Userspace vendor libs: `mpp` (librockchip_mpp), `rga` (librga). | [`vendor-libraries/`](vendor-libraries/README.md) |
+| **video-libraries** | `ffmpeg` (rkmpp codecs + rkrga filters) and `mesa` (Mali-G610 transfer work). | [`video-libraries/`](video-libraries/README.md) |
+| **apps** | Real applications on the stack: `gnome-remote-desktop` H.264 RDP backend. | [`apps/`](apps/README.md) |
+| **packaging** | Delivery channels: DKMS, udev/ACL debs, PPA source packages, binary policy. | [`packaging/`](packaging/README.md) |
+| **findings** | Raw capture inbox — drop a freshly-learned fact first, graduate it into a project doc later. | [`findings/`](findings/README.md) |
+| **docs** + glossary | Cross-cutting: package map, source-tree pins, whole-repo trap index, shared vocabulary. | [`docs/`](docs/README.md), [`glossary.md`](glossary.md) |
 
 The detailed package reading map is [`docs/work-packages.md`](docs/work-packages.md).
-
-## Choose your path
-
-| Your goal | Start at | What you will find |
-|-----------|----------|--------------------|
-| New to Linux / never built a kernel | [`install.md`](install.md), then [`glossary.md`](glossary.md) | A guided on-ramp: what to install, the vocabulary, and where each term is defined before you dive into internals. |
-| Get hardware codecs working on a ROCK 5B | [`install.md`](install.md) | Delivery-model chooser, combined-kernel quickstart, PHASH pinning, validation, userspace handoff. |
-| Understand the whole stack | [`docs/work-packages.md`](docs/work-packages.md) | Package map plus user/developer reading paths. |
-| Learn the kernel internals | [`kernel-drivers/`](kernel-drivers/README.md) | Driver architecture, forward-port deltas, DT, audit, rewrite track. |
-| Understand what the Rockchip BSP adds to Linux | [`docs/bsp/`](docs/bsp/README.md) | User-readable area descriptions, kernel-developer details, and diagrams for the BSP overlay. |
-| Build userspace media tools | [`userspace-libraries/`](userspace-libraries/README.md) -> [`ffmpeg/`](ffmpeg/README.md) | MPP/librga staging, FFmpeg build, transcode validation. |
-| Use the stack in an application | [`gnome-remote-desktop/`](gnome-remote-desktop/README.md) | Hardware H.264 RDP encode path, performance, patches, packaging notes. |
-| Package or redistribute | [`packaging/`](packaging/README.md) | Delivery channels, udev/ACL packages, DKMS, PPA, binary policy. |
-| Debug a failure | [`docs/gotchas.md`](docs/gotchas.md) | Trap index, test links, crash-capture workflow. |
 
 ## Current board support
 
@@ -95,7 +80,7 @@ the stack `ffmpeg-rockchip` expects.
 > so it does not provide the H.264 encode path GRD targets, nor H.265 encode.
 > The RGA3 V4L2 driver is also still a subset for RK3588. The vendor MPP + RGA
 > stack gives the full feature set used here today. See
-> [`kernel-drivers/docs/vanilla-kernel.md`](./kernel-drivers/docs/vanilla-kernel.md) for the mainline-V4L2
+> [`kernel-versions/docs/vanilla-kernel.md`](./kernel-versions/docs/vanilla-kernel.md) for the mainline-V4L2
 > alternative and its trade-offs.
 
 Three details are load-bearing enough to state up front — they are the ones that
@@ -103,7 +88,7 @@ most often trip people who assume the encoder and decoder are symmetric, or that
 the port replaces Armbian's DT:
 
 - **⚑ Decoder CCU is real hardware; the encoder's is not.** The decoder's
-  core-coordination unit is a real MMIO block (`@fdc30000`, its own DT node);
+  Central Control Unit is a real MMIO block (`@fdc30000`, its own DT node);
   the encoder has no such register block — its equivalent is a **software-only
   dual-core hand-shake (DCHS)**. See
   [`kernel-drivers/docs/how-the-drivers-work.md`](./kernel-drivers/docs/how-the-drivers-work.md) §7 and
@@ -133,42 +118,44 @@ sudo bash kernel-drivers/scripts/validate-combined.sh
 ```
 
 Then install the udev rule from [`kernel-drivers/scripts/99-rockchip-codec.rules`](kernel-drivers/scripts/99-rockchip-codec.rules),
-build or install userspace through [`userspace-libraries/`](userspace-libraries/README.md)
-and [`ffmpeg/`](ffmpeg/README.md), and run [`kernel-drivers/tests/`](kernel-drivers/tests/README.md).
+build or install userspace through [`vendor-libraries/`](vendor-libraries/README.md)
+and [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), and run [`kernel-drivers/tests/`](kernel-drivers/tests/README.md).
 
 ## Repository map
 
-Each directory README owns the file-level index for that package or artifact
-area. Additions should update the owning README.
+Each project README owns the file-level index for its area; additions update the
+owning README.
 
 ```
-install.md             board-user install path and delivery chooser
+README.md              this map + the taxonomy diagram
 status.md              dated whole-project scoreboard and staleness watchlist
-glossary.md            vocabulary used across packages
-kernel-drivers/        MPP/RGA kernel driver package
-  docs/                architecture, status, DT, audit, resync, rewrite notes
-  patches/             kernel patch deliverables and audit-fix series
-  scripts/             combined-kernel build, install, validate, udev rule
-  tests/               on-hardware decode, encode, and transcode smoke tests
-userspace-libraries/   package front door for libmpp and librga
-  docs/                userspace-library architecture notes
-ffmpeg/                FFmpeg build/use docs, architecture notes, fix series
-  docs/                FFmpeg architecture, comparison, rebase, fix candidates
-gnome-remote-desktop/  hardware H.264 RDP backend docs and patches
-  docs/                GRD baseline, design, capture path, testing, profiling
-mesa-panfrost-g610/    Mali-G610 transfer investigation and reproducers
-  docs/                Panfrost validation and issue notes
-packaging/             deploy hub: DKMS, udev/ACL debs, PPA notes, policy
-  docs/                Armbian packaging notes
-docs/                  cross-project map, source-tree pins, and gotchas
-  work-packages.md     canonical package map, stack diagram, and reading paths
+glossary.md            cross-cutting vocabulary (per-project terms live in each project's keywords.md)
+install.md             board-user install path and delivery chooser
+findings/              raw capture inbox (drop-first, graduate-later): README + TEMPLATE
+kernel-versions/       the kernel bases and moving between them
   bsp/                 what the Rockchip 6.1 BSP adds vs stock Linux (13-file subtree)
+  docs/                vanilla / mainline-V4L2 notes, forward-port narrative + review log
+kernel-drivers/        MPP/RGA in-kernel drivers
+  docs/                shared architecture, uAPI, DT, audit, resync, rewrite, forward-port status
+  mpp/ rga/ av1/ iommu/  per-block notes (keywords + scoped docs)
+  patches/             combined kernel patch deliverables and audit-fix series
+  scripts/ tests/      combined-kernel build/install/validate; on-hardware smoke tests
+vendor-libraries/      librockchip_mpp + librga userspace
+  docs/                shared userspace-library architecture
+  mpp/ rga/            per-library notes (keywords + scoped docs)
+video-libraries/
+  ffmpeg/              rkmpp codecs + rkrga filters: docs, patches, pkgconfig
+  mesa/                Mali-G610 Panfrost transfer: docs, patches, reproducers, scripts
+apps/
+  gnome-remote-desktop/  hardware H.264 RDP backend: docs, patches, bench
+packaging/             deploy hub: DKMS, udev/ACL debs, PPA notes, policy
+docs/                  cross-project map, source-tree pins, and gotchas trap index
 ```
 
-Maintenance rule: a commit that adds a user-facing file should update the
-owning package README; a commit that adds a top-level package should update
-this map and [`docs/work-packages.md`](docs/work-packages.md). Status
-changes belong in [`status.md`](status.md) with a real verification date.
+Maintenance rule: a commit that adds a user-facing file updates the owning project
+README; a commit that adds a top-level category or project updates this map and
+[`docs/work-packages.md`](docs/work-packages.md). Status changes belong in
+[`status.md`](status.md) with a real verification date.
 
 ## Provenance and licensing
 
@@ -177,7 +164,7 @@ changes belong in [`status.md`](status.md) with a real verification date.
   kernel driver. It is GPL-2.0 like the kernel.
 - `librga` userspace is open source (Apache-2.0). The official `airockchip/librga`
   repo ships a prebuilt `.so`; the source lineage and build notes are linked
-  from [`userspace-libraries/`](userspace-libraries/README.md) and
+  from [`vendor-libraries/`](vendor-libraries/README.md) and
   [`docs/gotchas.md`](docs/gotchas.md).
 - The mainline RGA-in-U-Boot / RGA-V4L2 context comes from Collabora's RK3588
   upstreaming work.

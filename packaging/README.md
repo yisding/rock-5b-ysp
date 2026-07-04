@@ -100,7 +100,7 @@ decoder explicitly:
 - **ffmpeg CLI**: `-c:v h264_rkmpp` before the input for decode; as the encoder
   name for encode.
 
-(Referenced from [`../ffmpeg/README.md`](../ffmpeg/README.md); this is the
+(Referenced from [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md); this is the
 canonical statement.)
 
 ### Verify the stack end-to-end
@@ -141,7 +141,7 @@ so nobody re-walks them:
    flavours can't break other apps but help only GRD and double the
    maintenance; the encoder-behaviour difference between the two is the
    ffmpeg-rockchip-vs-upstream comparison in
-   [`../ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md).
+   [`video-libraries/ffmpeg/docs/implementation-comparison.md`](../video-libraries/ffmpeg/docs/implementation-comparison.md).
 4. **Final: system-wide ABI drop-in + PPA.** Upstream FFmpeg 8.1.2 with
    `--enable-rkmpp` has the same seven SONAME majors as Ubuntu's 8.0.1, so it
    replaces the system libs in place — first as local `+rkmpp1` debs, then as

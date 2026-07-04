@@ -5,7 +5,7 @@
 `rk3588-rock-5b.dtsi` (the board enables them). The encoder and RGA are defined
 **inline**; the decoder is **convert-in-place** for Armbian (see
 [Armbian packaging guide](../../packaging/docs/armbian-packaging.md)) or inline for vanilla (see
-[vanilla-kernel guide](./vanilla-kernel.md)). A third variant exists for **post-6.18
+[vanilla-kernel guide](../../kernel-versions/docs/vanilla-kernel.md)). A third variant exists for **post-6.18
 mainline-master**, where mainline itself defines `&vdec0`/`&vdec1` and the
 override targets *those* nodes (same `fdc38100`/`fdc38000` regs/link split) —
 see [rewrite-driver track § 5](./rewrite-drivers.md) for that bring-up DT.
@@ -92,7 +92,7 @@ The decoder IRQs are still *not pinned in this repo's DT patch*: the
 convert-in-place cores inherit `interrupts` from Armbian's `media-0001` node and
 override only `interrupt-names` (`"irq_rkvdec0"` / `"irq_rkvdec1"`). The inline
 (vanilla) form must supply them itself — the verified values live in
-[vanilla-kernel guide](./vanilla-kernel.md)'s copy-pasteable block. Either way the IRQ is
+[vanilla-kernel guide](../../kernel-versions/docs/vanilla-kernel.md)'s copy-pasteable block. Either way the IRQ is
 mandatory: `platform_get_irq(pdev, 0)` (`mpp_common.c:2206`) fails the probe if
 no `interrupts` resolves.
 
@@ -152,7 +152,7 @@ aliases {
 
 ### 2. Enable the CCU with the cores
 A node named `*-core@…` always dispatches to the CCU-attaching probe (see
-[forward-port guide](./vendor-forward-port.md)). Enable the CCU **and** both cores **and** both IOMMUs together, or you
+[forward-port guide](../../kernel-versions/docs/vendor-forward-port.md)). Enable the CCU **and** both cores **and** both IOMMUs together, or you
 get `attach ccu failed` and nothing registers:
 
 ```dts

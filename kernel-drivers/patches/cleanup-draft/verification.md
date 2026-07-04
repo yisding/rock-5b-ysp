@@ -1,6 +1,6 @@
 # Verification of the cleanup-draft patches
 
-> **Review/apply via [`../cleanup-split/`](../cleanup-split/)** — this directory
+> **Review/apply via [`../cleanup-split/`](../cleanup-split)** — this directory
 > is the per-file history + verification record. The verdicts below cover the
 > draft bundles and, by byte-identity, the initial (`aa859ad`) split series;
 > the current split series has since been strengthened beyond them (`808f7cb`)

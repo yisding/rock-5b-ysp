@@ -3,13 +3,13 @@
 A guided, in-depth tour of what the RK3588 video codec + RGA **kernel drivers**
 do — written so a curious user can follow the big picture, with enough mechanism
 and code pointers for kernel developers. Each section opens **In plain terms**,
-then goes **Under the hood**. Its companion, [userspace library guide](../../userspace-libraries/docs/how-the-userspace-libs-work.md),
+then goes **Under the hood**. Its companion, [userspace library guide](../../vendor-libraries/docs/how-the-userspace-libs-work.md),
 covers the userspace libraries.
 
 > **Anchors.** The `file:line` references in this doc (`mpp_common.c ~:2316`,
 > `mpp_common.h ~:389`, …) resolve against the **forward-port source tree**,
 > which lives in this repo only inside
-> [`patches/rk3588-rkvenc2-01-vcodec-rga-drivers.patch`](../patches/). To browse
+> [`kernel-drivers/patches`](../patches). To browse
 > it, reconstruct the tree per [source-tree pins](../../docs/source-trees.md) (apply the patch
 > to mainline v6.18).
 
@@ -44,7 +44,7 @@ Rockchip's `librockchip_mpp` / `librga`, which is what `ffmpeg-rockchip` targets
 and what gives the full hardware video-encode + full-feature-RGA capability.
 Mainline's RK3588 V4L2 path can't replace it — the encoder is JPEG-only and
 RGA3-via-V4L2 is a subset — so we carry the vendor MPP/RGA stack; the
-[vanilla-kernel guide](./vanilla-kernel.md) owns that rationale in full (with the
+[vanilla-kernel guide](../../kernel-versions/docs/vanilla-kernel.md) owns that rationale in full (with the
 Collabora mainline-status citation).
 
 ```mermaid
@@ -282,7 +282,7 @@ has **no** fence path — its completion is the poll/wake of §3a):
   `rga_dma_fence_get_fd()` (`rga_fence.c` ~:73) wraps it in a **sync_file**
   (`sync_file_create()` + `fd_install()`) — that fd is the
   `release_fence_fd`/`out_fence_fd` userspace gets back
-  ([userspace library guide §B4](../../userspace-libraries/docs/how-the-userspace-libs-work.md), [uAPI guide §B](./dev-uapis.md)).
+  ([userspace library guide §B4](../../vendor-libraries/docs/how-the-userspace-libs-work.md), [uAPI guide §B](./dev-uapis.md)).
   On completion (or error) the driver signals it —
   `rga_dma_fence_signal(request->release_fence, …)` (`rga_job.c` ~:836, ~:1048)
   — and every waiter wakes.
@@ -299,7 +299,7 @@ has **no** fence path — its completion is the poll/wake of §3a):
 - **Audit note.** The [BSP audit](./bsp-audit.md) audit found real bugs on
   exactly this path: an acquire-fence `dma_fence` reference leaked on every path
   (HIGH, `rga_job.c`) and an unlocked seqno increment (`rga_fence.c`) — fixes
-  staged in [`patches/cleanup-split/`](../patches/cleanup-split/).
+  staged in [`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split).
 
 ---
 
@@ -532,7 +532,7 @@ silicon and back, with the IOMMU keeping it safe, dma-buf keeping it cheap, and 
 CCU/DCHS keeping both cores busy.
 
 > Want to see it run? `tests/` exercises each path; the raw observed numbers
-> live in [`tests/README.md`](../tests/README.md) and the validated-on-hardware
-> scorecard in [kernel status](./status.md) (encode 720p ~297–359 fps, decode
+> live in [`kernel-drivers/tests/README.md`](../tests/README.md) and the validated-on-hardware
+> scorecard in [kernel status](./forward-port-status.md) (encode 720p ~297–359 fps, decode
 > ~1200–1600 fps @ 320×240, full transcode 17–42× realtime). For the libraries
-> on top, read [userspace library guide](../../userspace-libraries/docs/how-the-userspace-libs-work.md).
+> on top, read [userspace library guide](../../vendor-libraries/docs/how-the-userspace-libs-work.md).

@@ -24,9 +24,9 @@ rebuild it — extend it. The columns below are honest about the boundary.
 
 | Capability | Status in repo | This plan |
 |---|---|---|
-| Clean cross-kernel build gate | ✅ [`tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) | reuse as the pre-merge gate |
-| Non-submit ABI probe + log diff | ✅ [`tests/abi-probe.sh`](../tests/abi-probe.sh), [`tests/abi-replay.sh`](../tests/abi-replay.sh) | reuse; extend to bit-exact output (below) |
-| Consumer conformance (MPP / librga / GStreamer) | ✅ `*-suite.sh` + external [`../rockchip-conformance`](../tests/rewrite-conformance.md) | reuse; wire the pass/fail gate |
+| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) | reuse as the pre-merge gate |
+| Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh) | reuse; extend to bit-exact output (below) |
+| Consumer conformance (MPP / librga / GStreamer) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode cases now compare `artifacts.tsv` byte counts and SHA-256s; MPP/RGA suite outputs still need byte-exact dumps | **complete byte-exact output-buffer comparison** |
 | Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` | reuse as assertion hooks throughout |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
@@ -63,7 +63,7 @@ forward-port is the golden reference** — the single strongest technique for a
 rewrite. Kconfig makes the two tracks mutually exclusive per device node
 (`rewrite-drivers.md` head), so A/B in one kernel is impossible: use the existing
 `PROFILE=rewrite` / `PROFILE=forward-port` **dual-boot** flow
-([`tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) "Expanded conformance bundle"), keeping
+([`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) "Expanded conformance bundle"), keeping
 `assets/` and command lines identical across the two boots.
 
 **The gap to close:** most current comparators still compare only *pass/fail and
@@ -183,7 +183,7 @@ equivalent adversarial read**).
 ## 7. Production-readiness gate (definition of done)
 
 Ship only when **all** hold, each with a dated record in
-[`../../status.md`](../../status.md) / [`status.md`](./status.md):
+[`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
 1. 144 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
    (today's tests never open the device).
@@ -207,10 +207,10 @@ Until 1–7 hold, the shipped, hardware-validated stack stays the forward-port.
 
 Cross-references: [rewrite-driver track](./rewrite-drivers.md) (what the drivers
 implement, §2/§3 ABI ledgers, §6 pins), [`debug-kernel.md`](./debug-kernel.md)
-(Kernel A / ramoops), [`tests/README.md`](../tests/README.md) (the smoke on-ramp)
-and [`tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) (the rewrite
+(Kernel A / ramoops), [`kernel-drivers/tests/README.md`](../tests/README.md) (the smoke on-ramp)
+and [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) (the rewrite
 build gate + `../rockchip-conformance` bundle), [`bsp-audit.md`](./bsp-audit.md)
-(audit method), [`multicore-scheduling.md`](./multicore-scheduling.md) (the
-scheduling behaviour P4 exercises), [`rewrite-hard-ccu-finding.md`](./rewrite-hard-ccu-finding.md)
-(the opt-in HARD-CCU path in the §4 matrix), [kernel status](./status.md) /
+(audit method), [`multicore-scheduling.md`](../mpp/docs/multicore-scheduling.md) (the
+scheduling behaviour P4 exercises), [`rewrite-hard-ccu-finding.md`](../iommu/docs/rewrite-hard-ccu-finding.md)
+(the opt-in HARD-CCU path in the §4 matrix), [kernel status](./forward-port-status.md) /
 [`../../status.md`](../../status.md) (where results get recorded).

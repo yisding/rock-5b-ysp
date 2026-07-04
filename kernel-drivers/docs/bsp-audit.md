@@ -4,10 +4,10 @@ A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA drive
 
 > **AV1 note:** this document covers the validated RKVENC2/RKVDEC2/RGA
 > forward-port. The experimental RKMPP AV1 decoder work has its own tracker:
-> [AV1 BSP audit](./av1-bsp-audit.md).
+> [AV1 BSP audit](../av1/docs/av1-bsp-audit.md).
 
 > **📦 How to consume the fixes.** Review and apply via
-> [`patches/cleanup-split/`](../patches/cleanup-split/) — **the** reviewable
+> [`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split) — **the** reviewable
 > series: 65 ordered per-issue mailbox patches (each commit message carries
 > `Plain-language impact:` + `Kernel details:` trailers). Byte-identity with
 > the verified per-file aggregate held for the `aa859ad` drop only — since
@@ -16,7 +16,7 @@ A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA drive
 > **fails to compile at patch 0024**; see
 > [`patches/cleanup-split/README.md` § History](../patches/cleanup-split/README.md)
 > for the accurate record and the one-line remedy.
-> [`patches/cleanup-draft/`](../patches/cleanup-draft/) is the *historical*
+> [`kernel-drivers/patches/cleanup-draft`](../patches/cleanup-draft) is the *historical*
 > per-file bundle form, kept as the audit's assembly history together with
 > [`verification.md`](../patches/cleanup-draft/verification.md), the verification
 > record both forms rest on.
@@ -46,7 +46,7 @@ A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA drive
 These patches are **machine-generated, adversarially-LLM-verified, and compile-tested on arm64 — but NOT human-merge-reviewed.** They are a *starting point*, not merge-ready.
 
 > **How this squares with "adversarially verified" below:** both are true, and the
-> resolution lives in [`cleanup-draft/verification.md`](../patches/cleanup-draft/verification.md).
+> resolution lives in [`kernel-drivers/patches/cleanup-draft/verification.md`](../patches/cleanup-draft/verification.md).
 > Every hunk *was* adversarially re-verified by independent LLM passes against the
 > real source — that review found and fixed 2 rejects + 1 hold + 3 incomplete
 > fixes plus 5 pre-existing bugs, and re-verified the corrections SAFE. What has
@@ -513,13 +513,13 @@ The only bound is an **upper** bound. A zero-length write (`write(fd, "", 0)`, t
 ## How to apply & verify a cleanup patch
 
 **Preferred path:** apply the whole series from
-[`cleanup-split/`](../patches/cleanup-split/) (`git am` the 65 mailbox patches —
+[`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split) (`git am` the 65 mailbox patches —
 see its README for the apply command, the cherry-picker warnings, and the atomic
 pairs). Each change arrives as one reviewable commit — but since `808f7cb` the
 tree is **no longer byte-identical** to applying the 15 per-file drafts below
 (8-file divergence, plus the 0024 compile defect; see that README § History).
 
-The per-file form: the drafts in [`cleanup-draft/`](../patches/cleanup-draft/) are **`git show`-style single-commit slices**: all 15 were carved from the one assembly commit `56e403e` ("WIP: BSP audit cleanup edits"), one file per patch, each carrying the full commit header plus that file's diff. Because every patch is self-contained and touches exactly one source file, both `git am` and `git apply` work per-file, in any order (except the `mpp_iommu` + `mpp_rkvenc2` **atomic pair** — see verification.md).
+The per-file form: the drafts in [`kernel-drivers/patches/cleanup-draft`](../patches/cleanup-draft) are **`git show`-style single-commit slices**: all 15 were carved from the one assembly commit `56e403e` ("WIP: BSP audit cleanup edits"), one file per patch, each carrying the full commit header plus that file's diff. Because every patch is self-contained and touches exactly one source file, both `git am` and `git apply` work per-file, in any order (except the `mpp_iommu` + `mpp_rkvenc2` **atomic pair** — see verification.md).
 
 **The catch:** the relative path `kernel-drivers/patches/cleanup-draft/...` only exists in *this* repo (`rock-5b-ysp`), **not** inside the kernel tree. Apply with an **absolute path** (or `git apply --directory`). From the forward-ported kernel checkout:
 
@@ -537,7 +537,7 @@ git am $YSP/kernel-drivers/patches/cleanup-draft/mpp_rkvdec2.patch
 make ARCH=arm64 drivers/video/rockchip/
 ```
 
-Apply one file at a time, read each hunk against the matching finding, and keep only the hunks you trust (see the [Status](#-status--read-before-using-the-patches) caveat — review every refcount/bounds/security edit). Full runnable recipe: [`cleanup-draft/README.md`](../patches/cleanup-draft/README.md).
+Apply one file at a time, read each hunk against the matching finding, and keep only the hunks you trust (see the [Status](#-status--read-before-using-the-patches) caveat — review every refcount/bounds/security edit). Full runnable recipe: [`kernel-drivers/patches/cleanup-draft/README.md`](../patches/cleanup-draft/README.md).
 
 ### Per-patch hunk → finding map
 
@@ -655,11 +655,11 @@ One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse
 ---
 ## The cleanup patch series (two forms)
 
-- **[`cleanup-split/`](../patches/cleanup-split/)** — **the reviewable series**:
+- **[`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split)** — **the reviewable series**:
   65 ordered per-issue mailbox patches. Consume the fixes here — noting the
   post-`808f7cb` divergence from the draft aggregate and the 0024 compile
   defect recorded in its README § History.
-- **[`cleanup-draft/`](../patches/cleanup-draft/)** — the historical per-file
+- **[`kernel-drivers/patches/cleanup-draft`](../patches/cleanup-draft)** — the historical per-file
   bundles (15 patches, one per source file) plus
   [`verification.md`](../patches/cleanup-draft/verification.md), the verification
   record. Kept as history; the hunk→finding map above indexes into it.
@@ -667,7 +667,7 @@ One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse
 Both apply on top of the forward-port (`patches/`). The **`cleanup-draft/`** per-file form compiles clean on arm64 (`make drivers/video/rockchip/`) in its verified `aa859ad` shape. The **`cleanup-split/`** series does **not** compile clean as-is: since `808f7cb` it diverges from the draft aggregate in 8 files and currently **fails to build at patch 0024** (see lines 14-18/520 above and [`cleanup-split/README.md` § History](../patches/cleanup-split/README.md) for the one-line remedy). **Review each before merging** — see [How to apply & verify a cleanup patch](#how-to-apply--verify-a-cleanup-patch) for the runnable recipe and the per-patch hunk→finding map; start with the HIGH-severity items above.
 
 > **These drafts have been adversarially verified _and corrected_** — see
-> [`cleanup-draft/verification.md`](../patches/cleanup-draft/verification.md).
+> [`kernel-drivers/patches/cleanup-draft/verification.md`](../patches/cleanup-draft/verification.md).
 > The review found 2 rejects + 1 hold + 3 incomplete fixes (two rejects compiled
 > clean but introduced a new bug), plus **5 pre-existing bugs beyond these 89
 > findings**; **all are now fixed and re-verified SAFE**, so all 15 patches apply

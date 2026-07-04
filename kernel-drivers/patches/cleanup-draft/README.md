@@ -1,6 +1,6 @@
 # cleanup-draft/ — per-file history + verification record (apply via ../cleanup-split/)
 
-> **Review/apply via [`../cleanup-split/`](../cleanup-split/).** This directory
+> **Review/apply via [`../cleanup-split/`](../cleanup-split).** This directory
 > is the **per-file history and the verification record** of the BSP-audit
 > fixes: the original machine-generated bundles plus
 > [`verification.md`](verification.md), the adversarial-review verdicts. The

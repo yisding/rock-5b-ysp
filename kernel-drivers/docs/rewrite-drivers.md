@@ -4,7 +4,7 @@ A second, independent implementation track: **public-API-only reimplementations
 of the `/dev/mpp_service` and `/dev/rga` userspace ABIs**, written from the ABI
 knowledge documented in [uAPI guide](./dev-uapis.md) rather than by carrying the
 BSP code. This is the *opposite* strategy to the conservative forward-port
-([forward-port guide](./vendor-forward-port.md), which keeps ~98% of the vendor code
+([forward-port guide](../../kernel-versions/docs/vendor-forward-port.md), which keeps ~98% of the vendor code
 byte-identical, [vendor delta](./vendor-delta.md)): here the BSP `.c` files are
 not used at all, and every kernel interface is a public one — devm-managed
 MMIO/IRQ/clock/reset discovery, public `dma_buf_attach`/`map` for fd imports,
@@ -64,7 +64,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > `IM_GAUSS` public sample shape, and an async acquire/release-fence chain, but
 > these still need to be run on a booted rewrite kernel. The shipped,
 > hardware-validated stack is still the forward-port
-> ([kernel status](./status.md), [`status.md`](../../status.md)). Location + pin in
+> ([kernel status](./forward-port-status.md), [`status.md`](../../status.md)). Location + pin in
 > §6.
 
 | | Forward-port (`mpp/`, `rga3/`) | Rewrite (`mpp-rewrite/`, `rga-rewrite/`) |
@@ -92,7 +92,7 @@ Verisilicon/VPU981 hardware block, with a separate BSP `mpp_av1dec.c` backend an
 a dedicated AV1 IOMMU. The newer upstream-style `../linux` tree has a clean
 `vsi-iommu` provider and Hantro/V4L2 stateless AV1 support, but that is not the
 same userspace ABI as RKMPP. See [RK3588 AV1 decode, IOMMU, and userspace
-paths](./av1-rk3588.md).
+paths](../av1/docs/av1-rk3588.md).
 
 The codec line is intentionally narrower than the names that FFmpeg and
 GStreamer can advertise. `ffmpeg-rockchip` registers AV1, H.263, H.264, HEVC,
@@ -252,7 +252,7 @@ the BSP-derived 6.18 driver also rejects in the observed path).
 The hard-won **librga ABI facts** — what the rewrite's ABI.rst records that
 real `librga`/`ffmpeg-rockchip` consumers require of a `/dev/rga`
 implementation (cross-reference:
-[userspace library guide](../../userspace-libraries/docs/how-the-userspace-libs-work.md) Part B):
+[userspace library guide](../../vendor-libraries/docs/how-the-userspace-libs-work.md) Part B):
 
 - **Version tuples are capability keys.** `librga` capability-probing expects
   the RK3588 hardware-version tuples **RGA2E `3.2.63318`** and **RGA3
@@ -542,12 +542,12 @@ net-new KCSAN build), the forward-port oracle plus **byte-exact** differential
 comparison, the fault-injection & recovery matrix, syzkaller/structure-aware
 fuzzing, a rewrite-specific security/ABI audit, and the production-readiness
 gate that must pass before the rewrite can replace the forward-port. It builds
-on the existing [`tests/`](../tests/README.md) harness rather than duplicating
+on the existing [`kernel-drivers/tests/README.md`](../tests/README.md) harness rather than duplicating
 it.
 
 Cross-references: [uAPI guide](./dev-uapis.md) (uAPI surface),
-[userspace library guide](../../userspace-libraries/docs/how-the-userspace-libs-work.md) (the librga behaviours §3
-encodes), [device-tree guide](./device-tree.md) (6.18 DT), [kernel status](./status.md) /
+[userspace library guide](../../vendor-libraries/docs/how-the-userspace-libs-work.md) (the librga behaviours §3
+encodes), [device-tree guide](./device-tree.md) (6.18 DT), [kernel status](./forward-port-status.md) /
 [`status.md`](../../status.md) (project status rows),
 [source-tree pins](../../docs/source-trees.md) (local rewrite/upstream-RGA pins),
 [validation & fuzzing plan](./rewrite-validation-plan.md) (path to production readiness).

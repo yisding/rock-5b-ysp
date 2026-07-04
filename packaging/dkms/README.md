@@ -66,7 +66,7 @@ sudo reboot
 sudo bash ../../kernel-drivers/scripts/validate-combined.sh
 ```
 
-The udev rules ([`../codec-udev/`](../codec-udev/)) still apply — install those
+The udev rules ([`../codec-udev/`](../codec-udev)) still apply — install those
 too for non-root `/dev/mpp_service` + `/dev/dma_heap/*` + `/dev/rga` access.
 
 ## How the out-of-tree build works (the non-obvious bits)
@@ -76,7 +76,7 @@ too for non-root `/dev/mpp_service` + `/dev/dma_heap/*` + `/dev/rga` access.
   Kbuilds list the objects explicitly and `-D` the symbols the C code `#ifdef`s
   on (encoder + decoder + RGA + procfs; **devfreq off**).
 - **`-I compat` + force-included QoS shim + `-DMPP_VERSION`** — same as the
-  in-tree build ([forward-port guide](../../kernel-drivers/docs/vendor-forward-port.md)).
+  in-tree build ([forward-port guide](../../kernel-versions/docs/vendor-forward-port.md)).
 - **The devfreq re-guard is mandatory for OOT.** The encoder gated its custom
   devfreq governor — and the *private* `drivers/devfreq/governor.h` — on
   `CONFIG_PM_DEVFREQ` (host `=y`), which isn't shippable OOT and whose struct
@@ -118,4 +118,4 @@ resets it.)
 3. **Stock-Armbian assumption:** the overlay *converts in place* Armbian's
    media-0001 V4L2 `vdec0`/`vdec1`/`rga` nodes (present on `rockchip64-current`).
    On a vanilla mainline kernel without those nodes, use the inline DT from
-   [vanilla-kernel guide](../../kernel-drivers/docs/vanilla-kernel.md) instead.
+   [vanilla-kernel guide](../../kernel-versions/docs/vanilla-kernel.md) instead.

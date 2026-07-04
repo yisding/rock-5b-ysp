@@ -5,7 +5,7 @@ is Rockchip's, and precisely what our changes were and why.
 
 > This doc is the **quantitative** side — counts, percentages, and the complete
 > per-change table. For the narrative rationale (why each hunk exists, the
-> `compat/` and `hack/` story), see [forward-port guide](./vendor-forward-port.md).
+> `compat/` and `hack/` story), see [forward-port guide](../../kernel-versions/docs/vendor-forward-port.md).
 
 ## Method
 
@@ -102,7 +102,7 @@ only — we do **not** cite commit SHAs, and `—` means "not version-pinned her
 
 Four hunks (part of the ~140 in-place edits), surfaced by probing real hardware
 and relevant on any kernel. Narrated in full in
-[forward-port guide](./vendor-forward-port.md) (§ C — Bring-up fixes); the `file:symbol`
+[forward-port guide](../../kernel-versions/docs/vendor-forward-port.md) (§ C — Bring-up fixes); the `file:symbol`
 anchors are pinned here so the line-level count stays auditable:
 
 | Hunk | `file:symbol` (anchor) |
@@ -116,7 +116,7 @@ anchors are pinned here so the line-level count stays auditable:
 
 The devfreq islands are `#ifdef`-gated off (`default n`), the `init_opp_table` /
 `add venc devfreq` `dev_err`s are downgraded to `dev_dbg`, and devfreq teardown is
-`NULL`-guarded. Narrated in [forward-port guide](./vendor-forward-port.md) (§ B — OPP /
+`NULL`-guarded. Narrated in [forward-port guide](../../kernel-versions/docs/vendor-forward-port.md) (§ B — OPP /
 devfreq de-noised).
 
 ### 4. The `compat/` shim layer — *stand in for BSP-only SoC headers* (338 lines, all new)
@@ -128,7 +128,7 @@ Thin headers under `mpp/compat/` so the vendor `.c` files keep their original
 `rockchip_dmc.h`, `rockchip_ipa.h`, `rockchip_sip.h`, `rockchip_qos_compat.h`.
 `rockchip_iommu.h` graduated out of `compat/` into a real `include/soc/rockchip`
 header backed by `drivers/iommu/rockchip-iommu.c`. See
-[forward-port guide](./vendor-forward-port.md).
+[forward-port guide](../../kernel-versions/docs/vendor-forward-port.md).
 
 ### 5. Wiring — Kconfig / Makefile (63 lines)
 
@@ -163,8 +163,8 @@ Any latent bugs or non-idiomatic patterns in the BSP code are *still there* —
 the companion audit-and-clean effort now lives **in this repo**:
 [BSP audit](./bsp-audit.md) is the audit (89 reviewer findings, 16 HIGH), the
 fixes are the reviewable 65-patch series in
-[`patches/cleanup-split/`](../patches/cleanup-split/) (with the per-file
+[`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split) (with the per-file
 history and verification record in
-[`patches/cleanup-draft/`](../patches/cleanup-draft/)) — all kept **separate**
+[`kernel-drivers/patches/cleanup-draft`](../patches/cleanup-draft)) — all kept **separate**
 from this conservative forward-port, and with the **runtime regression gate
 still PENDING** ([`verification.md`](../patches/cleanup-draft/verification.md)).

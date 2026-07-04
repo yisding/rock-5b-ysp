@@ -1,7 +1,7 @@
 # cleanup-split/ — BSP audit cleanup split by issue
 
 This directory is **the reviewable form of the BSP-audit fixes**: the per-file
-bundles in [`../cleanup-draft/`](../cleanup-draft/) split into **65 ordered
+bundles in [`../cleanup-draft/`](../cleanup-draft) split into **65 ordered
 mailbox patches**, each addressing one issue or one tightly-coupled fix cluster.
 Review and apply **this** series; `cleanup-draft/` remains as the per-file
 history and the home of the verification record
@@ -63,7 +63,7 @@ static int rkvenc2_free_rcbbuf(struct platform_device *pdev, struct rkvenc_dev *
 above `rkvenc_core_probe()`. **TODO:** fold the fix into a regenerated series.
 With exactly that one-line shim, the rest was verified 2026-07-01 to compile
 with **0 errors** and link both modules (out-of-tree build using the
-[`packaging/dkms/`](../../../packaging/dkms/) Kbuilds against the installed
+[`packaging/dkms`](../../../packaging/dkms) Kbuilds against the installed
 `6.18.37-current-rockchip64` headers, devfreq re-guard applied), up to the
 **expected** modpost `exported twice` clash — the running combined kernel
 carries the drivers `=y`, so an OOT link against it can never complete
@@ -100,7 +100,7 @@ make ARCH=arm64 drivers/video/rockchip/
 
 …which currently **fails at 0024** (defect above) until the forward
 declaration is added. After a successful build, the **runtime regression** is
-the real gate — [`../../tests/`](../../tests/) plus the targeted triggers in
+the real gate — [`../../tests/`](../../tests) plus the targeted triggers in
 [`verification.md`](../cleanup-draft/verification.md) §How to apply the safe set.
 
 ## Review notes — do not cherry-pick past these

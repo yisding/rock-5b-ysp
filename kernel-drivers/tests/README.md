@@ -20,7 +20,7 @@ newcomer on-ramp.
 | User outcome | Prove on real hardware that decode, encode, and full transcode paths work after installing the kernel and userspace stack. |
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. The rewrite build gate and conformance suites live in [`rewrite-conformance.md`](./rewrite-conformance.md). |
 | Owns | The smoke tests `test-decode.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, `abi-probe.sh`/`abi-probe.c`, `abi-replay.sh`, and `librga-smoke.sh`/`librga-smoke.cpp`; the sourced helpers `suite-common.sh` and `debugfs-counters.sh`; the conformance wrappers `mpp-suite.sh`, `mpp-suite-compare.sh`, `librga-suite.sh`, `librga-suite-compare.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `rewrite-build-gate.sh`, `suite-compare-selftest.sh` and their build helpers `build-mpp-tests.sh`, `build-librga-samples-full.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-event-harness.c` (all documented in [`rewrite-conformance.md`](./rewrite-conformance.md)); input-regeneration recipes; pass criteria; and observed reference results. |
-| Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`../ffmpeg/`](../../ffmpeg/README.md), and device access from the codec udev rule. |
+| Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`video-libraries/ffmpeg/README.md`](../../video-libraries/ffmpeg/README.md), and device access from the codec udev rule. |
 | Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 decode remains unverified on hardware, but the GStreamer suite now has generated VP9 IVF decode cases. The rewrite clean-source object-build gate passed both public rewrite branch tips on 2026-07-03. See [`rewrite-conformance.md`](./rewrite-conformance.md) for the parity/conformance machinery. |
 
 ## What each smoke test proves
@@ -50,7 +50,7 @@ The smoke tests differ in what device access they need:
 [`rewrite-conformance.md`](./rewrite-conformance.md) § Suite privileges.)
 
 > **Paths.** Every dev-box path is an env-overridable variable with the
-> original dev-box default. Naming matches [`../ffmpeg/README.md`](../../ffmpeg/README.md):
+> original dev-box default. Naming matches [`video-libraries/ffmpeg/README.md`](../../video-libraries/ffmpeg/README.md):
 >
 > | Var | Used by | Meaning |
 > |-----|---------|---------|
@@ -91,7 +91,7 @@ external `../rockchip-conformance` bundle are all documented in
 ## Regenerating the test inputs
 
 The clips are not committed (nothing binary is — see
-[`../packaging/README.md`](../../packaging/README.md)). Regenerate them anywhere
+[`packaging/README.md`](../../packaging/README.md)). Regenerate them anywhere
 with a stock ffmpeg that has libx264/libx265 (must be **software** encoders —
 that isolation is the point of the decode test):
 
@@ -112,7 +112,7 @@ transcode verification.)
 
 `mpi_dec_test -t` / `mpi_enc_test -t` take a raw `MppCodingType` value, defined
 in `inc/rk_type.h` of `rockchip-linux/mpp` (the library
-[userspace library guide](../../userspace-libraries/docs/how-the-userspace-libs-work.md) documents):
+[userspace library guide](../../vendor-libraries/docs/how-the-userspace-libs-work.md) documents):
 
 | Value | Enum | Codec |
 |-------|------|-------|

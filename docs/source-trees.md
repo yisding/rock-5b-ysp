@@ -1,7 +1,7 @@
 # Source trees — reconstructing every cited tree
 
-Reference appendix. Every `file:line` cite in `docs/` (and most in `ffmpeg/`,
-`gnome-remote-desktop/`) resolves against a specific tree state. This doc pins
+Reference appendix. Every `file:line` cite in `docs/` (and most in `video-libraries/ffmpeg/`,
+`apps/gnome-remote-desktop/`) resolves against a specific tree state. This doc pins
 each of those trees and gives the reconstruction recipe, so the anchors stay
 auditable without access to the original dev box. Dev-box paths
 (`/home/yi/Code/…`) appear below **only** as provenance records of where the
@@ -10,17 +10,17 @@ patches unless explicitly marked otherwise.
 
 | # | Tree | Anchors for | Pin |
 |---|------|-------------|-----|
-| 1 | Forward-port kernel tree | [kernel driver guide](../kernel-drivers/docs/how-the-drivers-work.md), [uAPI guide](../kernel-drivers/docs/dev-uapis.md), [forward-port guide](../kernel-drivers/docs/vendor-forward-port.md), [vendor delta](../kernel-drivers/docs/vendor-delta.md), [device-tree guide](../kernel-drivers/docs/device-tree.md); DKMS `KSRC` | `v6.18` + `kernel-drivers/patches/rk3588-rkvenc2-01…` (+ `02` for DT) |
+| 1 | Forward-port kernel tree | [kernel driver guide](../kernel-drivers/docs/how-the-drivers-work.md), [uAPI guide](../kernel-drivers/docs/dev-uapis.md), [forward-port guide](../kernel-versions/docs/vendor-forward-port.md), [vendor delta](../kernel-drivers/docs/vendor-delta.md), [device-tree guide](../kernel-drivers/docs/device-tree.md); DKMS `KSRC` | `v6.18` + `kernel-drivers/patches/rk3588-rkvenc2-01…` (+ `02` for DT) |
 | 2 | Audited tree (BSP audit) | [BSP audit](../kernel-drivers/docs/bsp-audit.md), `kernel-drivers/patches/cleanup-draft/` line numbers | parent of `56e403ede081` = `5614909e5803` |
 | 3 | `$OURS` / `$BSP` measurement pair | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count" | tree 1 vs `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3` |
-| 4 | Userspace libraries + FFmpeg | [userspace library guide](../userspace-libraries/docs/how-the-userspace-libs-work.md), `ffmpeg/*` | table in §4 |
-| 5 | GNOME Remote Desktop | `gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
+| 4 | Userspace libraries + FFmpeg | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), `ffmpeg/*` | table in §4 |
+| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `bb32bc4f999f` + branch `rk3588-rewrite-mainline` @ `d84543927f85`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
-| 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
+| 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
 
 ---
 
@@ -44,7 +44,7 @@ patch 01; device-tree.md's DT anchors need patch 02. Note patch 02 *applies* to
 pristine `v6.18` at the git level (it was committed there), but the resulting
 DT only **compiles** on a tree that also carries Armbian's `media-0001` nodes —
 its `&vdec0`/`&vdec1` overrides reference labels vanilla 6.18 doesn't define
-([Armbian packaging guide](../packaging/docs/armbian-packaging.md), [vanilla-kernel guide](../kernel-drivers/docs/vanilla-kernel.md)). For
+([Armbian packaging guide](../packaging/docs/armbian-packaging.md), [vanilla-kernel guide](../kernel-versions/docs/vanilla-kernel.md)). For
 *anchoring* line cites that doesn't matter.
 
 Provenance: the patches were generated from the dev worktree
@@ -61,7 +61,7 @@ shipped patch file (9 one-line, 1:1 replacements in `mpp_rkvenc2.c`:
 `#ifdef CONFIG_PM_DEVFREQ` → `#if defined(CONFIG_PM_DEVFREQ) &&
 defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ)`), enabling the OOT/DKMS build
 ([`packaging/dkms/README.md`](../packaging/dkms/README.md),
-[forward-port guide](../kernel-drivers/docs/vendor-forward-port.md) §B). Because every replacement is
+[forward-port guide](../kernel-versions/docs/vendor-forward-port.md) §B). Because every replacement is
 line-for-line, **all line numbers are unaffected** — a tree built from patch 01
 anchors identically to the pre-guard dev tree. (The trailing comment text on
 those 9 lines differs cosmetically between the patch — `/* governor.h: in-tree
@@ -83,8 +83,8 @@ parent of commit `56e403e`**. Concretely:
 - Audit-assembly commit: `56e403ede081` "WIP: BSP audit cleanup edits
   (machine-generated, compile-tested)", sole commit on branch
   `bsp-audit-cleanup` of the dev linux repo — the working source of both
-  [`kernel-drivers/patches/cleanup-split/`](../kernel-drivers/patches/cleanup-split/) and
-  [`kernel-drivers/patches/cleanup-draft/`](../kernel-drivers/patches/cleanup-draft/).
+  [`kernel-drivers/patches/cleanup-split`](../kernel-drivers/patches/cleanup-split) and
+  [`kernel-drivers/patches/cleanup-draft`](../kernel-drivers/patches/cleanup-draft).
 - Its parent: `5614909e5803` — i.e. **exactly the forward-port tree of §1**
   (driver files identical to `v6.18` + patch 01, modulo the 9 same-line
   devfreq-guard rewrites noted above, which shift nothing).
@@ -114,16 +114,16 @@ donor and is not cited by any doc.)
 
 | Component | Repo | Pin | Cited by |
 |-----------|------|-----|----------|
-| libmpp (v1.3.9 how-doc study tree) | `rockchip-linux/mpp` | **v1.3.9** (how-the-userspace-libs-work.md:9). Commit-level pin **unrecorded** — see note below | how-the-userspace-libs-work.md Part A, [`ffmpeg/README.md`](../ffmpeg/README.md) |
-| libmpp (KMPP-aware study tree) | `mpp-rockchip` | `1375813cbbae5ad6861b166475dd8fb672183220` — the KMPP-bearing tree the architecture/KMPP/Rust docs were read against; **distinct** from the v1.3.9 how-doc tree above and the `750e76e` PPA tree below | [`mpp-library-architecture.md`](../userspace-libraries/docs/mpp-library-architecture.md), [`mpp-kmpp-reverse-engineering.md`](../userspace-libraries/docs/mpp-kmpp-reverse-engineering.md), [`mpp-rust-rewrite-assessment.md`](../userspace-libraries/docs/mpp-rust-rewrite-assessment.md) |
+| libmpp (v1.3.9 how-doc study tree) | `rockchip-linux/mpp` | **v1.3.9** (how-the-userspace-libs-work.md:9). Commit-level pin **unrecorded** — see note below | how-the-userspace-libs-work.md Part A, [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md) |
+| libmpp (KMPP-aware study tree) | `mpp-rockchip` | `1375813cbbae5ad6861b166475dd8fb672183220` — the KMPP-bearing tree the architecture/KMPP/Rust docs were read against; **distinct** from the v1.3.9 how-doc tree above and the `750e76e` PPA tree below | [`mpp-library-architecture.md`](../vendor-libraries/mpp/docs/mpp-library-architecture.md), [`mpp-kmpp-reverse-engineering.md`](../vendor-libraries/mpp/docs/mpp-kmpp-reverse-engineering.md), [`mpp-rust-rewrite-assessment.md`](../vendor-libraries/mpp/docs/mpp-rust-rewrite-assessment.md) |
 | libmpp (PPA packaging tree) | `tsukumijima/mpp-rockchip` (tracks HermanChen `develop`) | `750e76e`, packaged as `1.5.0-1+rk1` | [`packaging/ppa/README.md`](../packaging/ppa/README.md) |
-| librga source (fixed tree) | `github.com/yisding/librga` | branch `main`, tip `a6322179c944aced42e326519cd89483bf9da26b` (2026-07-03); preserves the `2cffdf6f332c` JeffyCN history, then `cc39281` as the latest-vendor-source layer matching `yisding/librga-mirror@32c3bf1`, then nyanmisaka/local fixes | [`userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md), [gotchas](./gotchas.md) |
+| librga source (fixed tree) | `github.com/yisding/librga` | branch `main`, tip `a6322179c944aced42e326519cd89483bf9da26b` (2026-07-03); preserves the `2cffdf6f332c` JeffyCN history, then `cc39281` as the latest-vendor-source layer matching `yisding/librga-mirror@32c3bf1`, then nyanmisaka/local fixes | [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md), [gotchas](./gotchas.md) |
 | librga historical source base (study tree) | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | `2cffdf6f332c` (`v2.2.0`, the 2026-01-21 merge of `JeffyCN/mirrors:linux-rga-multi`); **recorded**, every librga file/function cite in how-the-userspace-libs-work.md re-verified against it 2026-07-01 (how-the-userspace-libs-work.md:11-14). Also the last open vendor-history tip used as the fixed-tree base above | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
 | librga prebuilt | `airockchip/librga` | `2b32edc` ("Update librga version to 1.10.6_[3]") | ffmpeg/README.md librga row |
-| ffmpeg-rockchip (documented build) | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` (2026-04-23); preserved locally as branch `backup-pre-upgrade-master` | ffmpeg/README.md, [`ffmpeg/docs/implementation-comparison.md`](../ffmpeg/docs/implementation-comparison.md) |
-| ffmpeg-rockchip-81 (rebased successor) | `github.com/yisding/ffmpeg-rockchip-81` | branch `main` (tip `6cf02ab253` as of 2026-07-02); branch `upstream` = `87bd15dc3c` | [`ffmpeg/docs/fix-candidates.md`](../ffmpeg/docs/fix-candidates.md), [`ffmpeg/docs/rebase-notes.md`](../ffmpeg/docs/rebase-notes.md), [`ffmpeg/docs/submission-plan.md`](../ffmpeg/docs/submission-plan.md), [`ffmpeg/patches/`](../ffmpeg/patches/) |
-| FFmpeg upstream release | `FFmpeg/FFmpeg` | tag `n8.1.2` = `38b88335f99e` (2026-06-17) | `ffmpeg/docs/implementation-comparison.md` baseline; the PPA/GRD ABI base |
-| FFmpeg upstream master (rebase base) | `FFmpeg/FFmpeg` | `87bd15dc3c` = `n8.2-dev-2058-g87bd15dc3c` | `ffmpeg/docs/fix-candidates.md`, `ffmpeg/docs/rebase-notes.md` |
+| ffmpeg-rockchip (documented build) | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` (2026-04-23); preserved locally as branch `backup-pre-upgrade-master` | ffmpeg/README.md, [`video-libraries/ffmpeg/docs/implementation-comparison.md`](../video-libraries/ffmpeg/docs/implementation-comparison.md) |
+| ffmpeg-rockchip-81 (rebased successor) | `github.com/yisding/ffmpeg-rockchip-81` | branch `main` (tip `6cf02ab253` as of 2026-07-02); branch `upstream` = `87bd15dc3c` | [`video-libraries/ffmpeg/docs/fix-candidates.md`](../video-libraries/ffmpeg/docs/fix-candidates.md), [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md), [`video-libraries/ffmpeg/docs/submission-plan.md`](../video-libraries/ffmpeg/docs/submission-plan.md), [`video-libraries/ffmpeg/patches`](../video-libraries/ffmpeg/patches) |
+| FFmpeg upstream release | `FFmpeg/FFmpeg` | tag `n8.1.2` = `38b88335f99e` (2026-06-17) | `video-libraries/ffmpeg/docs/implementation-comparison.md` baseline; the PPA/GRD ABI base |
+| FFmpeg upstream master (rebase base) | `FFmpeg/FFmpeg` | `87bd15dc3c` = `n8.2-dev-2058-g87bd15dc3c` | `video-libraries/ffmpeg/docs/fix-candidates.md`, `video-libraries/ffmpeg/docs/rebase-notes.md` |
 
 **How the two upstream FFmpeg pins relate:** `n8.1.2` (`38b88335f99e`) sits on
 the `release/8.1` branch; `87bd15dc3c` is FFmpeg `master` well past the 8.1
@@ -131,7 +131,7 @@ fork. Their merge-base is `67c886222f` ("Bump versions for release/8.1") — the
 8.1 branch point. So the rebased Rockchip stack (`main` on
 `87bd15dc3c`) is *ahead of* the 8.1.2 ABI the packaged GRD stack uses; the
 full topology and replay procedure live in
-[`ffmpeg/docs/rebase-notes.md`](../ffmpeg/docs/rebase-notes.md).
+[`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md).
 
 > **The pins to watch.**
 > - **libmpp v1.3.9 how-doc tree — unrecorded (flagged, not invented).**
@@ -156,14 +156,14 @@ full topology and replay procedure live in
 ## 5. GNOME Remote Desktop base
 
 All `file:line` anchors in
-[`gnome-remote-desktop/docs/capture-path.md`](../gnome-remote-desktop/docs/capture-path.md)
-(and the patch series in `gnome-remote-desktop/patches/`) resolve against
+[`apps/gnome-remote-desktop/docs/capture-path.md`](../apps/gnome-remote-desktop/docs/capture-path.md)
+(and the patch series in `apps/gnome-remote-desktop/patches/`) resolve against
 **upstream GRD tag `50.1` = commit `5ef1a2aa6bef`**
 (`gitlab.gnome.org/GNOME/gnome-remote-desktop`), *before* this repo's patches.
 The dev working branch `rdp-handover-reconnect` (tip `a3a1a32`, 17 commits atop
 `50.1`) carries the backend + the parked handover-reconnect fix — see
-`gnome-remote-desktop/patches/README.md` and
-[`gnome-remote-desktop/docs/profiling.md`](../gnome-remote-desktop/docs/profiling.md).
+`apps/gnome-remote-desktop/patches/README.md` and
+[`apps/gnome-remote-desktop/docs/profiling.md`](../apps/gnome-remote-desktop/docs/profiling.md).
 
 ## 6. Where the register recipes live
 
@@ -349,4 +349,4 @@ The upstream-style tree contains the AV1 IOMMU work as ordinary upstream commits
 Those commits are the likely source to reuse for any RKMPP AV1 forward-port
 experiment. The YSP repo does **not** vendor those files today; this section is
 a provenance record for the analysis in
-[`kernel-drivers/docs/av1-rk3588.md`](../kernel-drivers/docs/av1-rk3588.md).
+[`kernel-drivers/av1/docs/av1-rk3588.md`](../kernel-drivers/av1/docs/av1-rk3588.md).

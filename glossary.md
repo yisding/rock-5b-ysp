@@ -11,7 +11,7 @@ the CCU-vs-DCHS split, RCB SRAM-vs-DRAM, and convert-in-place.
   framework (kernel `rk_vcodec.ko` + userspace `librockchip_mpp`), reached via
   `/dev/mpp_service`. **Not** V4L2. Kernel side:
   [kernel driver guide](./kernel-drivers/docs/how-the-drivers-work.md); userspace side:
-  [userspace library guide](./userspace-libraries/docs/how-the-userspace-libs-work.md).
+  [userspace library guide](./vendor-libraries/docs/how-the-userspace-libs-work.md).
 - **VEPU580 / `rkvenc2`** — the H.264/H.265 hardware **encoder** block / its
   driver (`mpp/mpp_rkvenc2.c`). Two cores, `fdbd0000`/`fdbe0000`.
 - **VDPU381 / `rkvdec2`** — the H.264/H.265/VP9 hardware **decoder** block /
@@ -31,7 +31,7 @@ the CCU-vs-DCHS split, RCB SRAM-vs-DRAM, and convert-in-place.
   The `KERNEL=="iep"` line in the udev rule is a harmless forward-compat no-op
   for BSP/vendor kernels — see
   [`packaging/codec-udev/README.md`](packaging/codec-udev/README.md).
-- **CCU** — the per-cluster *core coordination unit* that picks an idle core
+- **CCU** — the per-cluster *Central Control Unit* that picks an idle core
   and shares clocks/IOMMU across a codec cluster. **⚑ load-bearing
   disambiguation:** the **decoder's CCU is a real MMIO block** (`@fdc30000`,
   with its own DT node); the **encoder's is software-only** — no registers,
@@ -75,36 +75,36 @@ the CCU-vs-DCHS split, RCB SRAM-vs-DRAM, and convert-in-place.
   Rockchip's on-chip process/voltage/temperature monitor; devfreq = the Linux
   dynamic-frequency framework). **Off in this port** — the cores run at the
   fixed DT `assigned-clock-rates` (~800 MHz); see
-  [kernel status](./kernel-drivers/docs/status.md) § Skipped.
+  [kernel status](./kernel-drivers/docs/forward-port-status.md) § Skipped.
 - **power-domain (PD)** — an SoC power island that must be on for a block to
   run.
 - **V4L2** — mainline *Video4Linux2*, the codec API this port deliberately
   does **not** use for its shipped path (mainline `hantro`/`rkvdec` lack H.265
-  encode; see [vanilla-kernel guide](./kernel-drivers/docs/vanilla-kernel.md)).
+  encode; see [vanilla-kernel guide](./kernel-versions/docs/vanilla-kernel.md)).
   The mainline V4L2 `rkvdec` decoder itself (the upstream trajectory, and the
   `rk3588-rewrite-mainline` branch) is documented in
-  [mainline V4L2 rkvdec guide](./kernel-drivers/docs/mainline-rkvdec-v4l2.md).
+  [mainline V4L2 rkvdec guide](./kernel-versions/docs/mainline-rkvdec-v4l2.md).
 - **mem2mem** — the V4L2 *memory-to-memory* framework
   (`drivers/media/v4l2-core/v4l2-mem2mem.c`) that mainline codec drivers build
   on: a **single-execution-unit** job scheduler (one `curr_ctx` per device).
   Why RK3588 multi-core decode is hard lives in
-  [multicore scheduling](./kernel-drivers/docs/multicore-scheduling.md).
+  [multicore scheduling](./kernel-drivers/mpp/docs/multicore-scheduling.md).
 - **Request API** — the Media Request API (`MEDIA_IOC_REQUEST_ALLOC`,
   `MEDIA_REQUEST_IOC_QUEUE`) that the mainline **stateless** decoder uses to
   submit one frame's bitstream buffer **plus** its per-frame codec controls
-  atomically. See [mainline V4L2 rkvdec guide § 3](./kernel-drivers/docs/mainline-rkvdec-v4l2.md).
+  atomically. See [mainline V4L2 rkvdec guide § 3](./kernel-versions/docs/mainline-rkvdec-v4l2.md).
 - **DPB** — *Decoded Picture Buffer*: the set of already-decoded frames kept as
   motion-compensation references. In the mainline **stateless** model userspace
   owns the DPB and passes it per-frame as a control array; the driver resolves
   each reference to a CAPTURE buffer **by timestamp** (`vb2_find_buffer`). This
   per-stream dependency is what forbids parallelizing one stream across cores —
-  see [multicore scheduling § 3](./kernel-drivers/docs/multicore-scheduling.md).
+  see [multicore scheduling § 3](./kernel-drivers/mpp/docs/multicore-scheduling.md).
 - **soft / hard CCU** — the decoder CCU's two task-distribution modes
   (`RKVDEC2_CCU_TASK_SOFT`/`_HARD`, DT `rockchip,ccu-mode`): **soft** = the
   driver picks the core (software dispatch, the shipped default); **hard** = the
   CCU hardware autonomously dispatches from a task table. The V4L2-model
   consequences of each are analysed in
-  [multicore scheduling § 7](./kernel-drivers/docs/multicore-scheduling.md); the
+  [multicore scheduling § 7](./kernel-drivers/mpp/docs/multicore-scheduling.md); the
   vendor-side mechanism is [kernel driver guide § 7a](./kernel-drivers/docs/how-the-drivers-work.md).
 
 ## Device tree & packaging
@@ -147,11 +147,11 @@ the CCU-vs-DCHS split, RCB SRAM-vs-DRAM, and convert-in-place.
 
 - **Panfrost / panvk** — Mesa's open-source OpenGL(ES) / Vulkan drivers for
   Mali GPUs (here the Mali-G610). The GRD backend does RGB→NV12 on panvk;
-  the transfer/precision work is [`mesa-panfrost-g610/`](mesa-panfrost-g610/).
+  the transfer/precision work is [`video-libraries/mesa/`](video-libraries/mesa).
 - **AFBC** — *Arm FrameBuffer Compression*, "a lossless compression scheme
   natively implemented in Mali GPUs" (Mesa
   `src/panfrost/lib/pan_afbc.h:22`) used for surfaces/textures. Compute
   shaders **cannot write AFBC destinations**, which is why the COMPUTE-only
   texture-transfer direction was rejected in Mesa review (2026-07-01) — see
-  [`mesa-panfrost-g610/docs/blit-precision.md`](./mesa-panfrost-g610/docs/blit-precision.md)
+  [`video-libraries/mesa/docs/blit-precision.md`](./video-libraries/mesa/docs/blit-precision.md)
   § The AFBC Constraint.

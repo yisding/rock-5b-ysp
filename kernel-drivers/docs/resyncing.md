@@ -4,13 +4,13 @@ The maintenance view. When you bump the donor (a newer Rockchip BSP), the host
 kernel (a newer mainline/Armbian), or Armbian's own patch stack, this is what to
 re-check and in what order. The forward-port deliberately keeps ~98% of the
 vendor code byte-identical ([vendor delta](./vendor-delta.md)) and confines the
-deltas to a shim layer ([forward-port guide](./vendor-forward-port.md)), so re-syncing is
+deltas to a shim layer ([forward-port guide](../../kernel-versions/docs/vendor-forward-port.md)), so re-syncing is
 mostly *re-applying a small, well-located set of changes* — but a few of them are
 fragile against kernel-internal churn. Read this before you start.
 
 > **Every fix here has two consumers.** The same driver source ships as (a) the
 > combined `=y` Armbian kernel (`scripts/`) and (b) the DKMS module
-> ([`packaging/dkms/`](../../packaging/dkms/)), whose KSRC input is the identical
+> ([`packaging/dkms`](../../packaging/dkms)), whose KSRC input is the identical
 > `v6.18` + patch-01 tree ([source-tree pins](../../docs/source-trees.md)). Any shim/compat fix
 > you make while re-syncing must land in both; DKMS is actually the early-warning
 > channel — it re-builds on every `apt upgrade` kernel bump and surfaces API
@@ -21,7 +21,7 @@ fragile against kernel-internal churn. Read this before you start.
 ## 1. The two shim-inclusion mechanisms — and when each breaks
 
 Everything in `mpp/compat/` reaches the vendor `.c` files by **one of two
-techniques** ([forward-port guide](./vendor-forward-port.md) § How the shims get
+techniques** ([forward-port guide](../../kernel-versions/docs/vendor-forward-port.md) § How the shims get
 included). A re-sync that fails to build almost always traces back to one of
 these flipping:
 
@@ -183,9 +183,9 @@ The repo's cross-cited facts drift unless edits propagate. The standing rules:
 
 | When you touch… | …also update |
 |-----------------|--------------|
-| `patches/rk3588-rkvenc2-01-…drivers.patch` (driver source) | re-derive `P####-C####` → `PHASH` in `scripts/install-combined-kernel.sh`; rebuild/retest [`packaging/dkms/`](../../packaging/dkms/) (same source, second consumer); re-run `tests/`; re-measure the § 3 delta and [vendor delta](./vendor-delta.md)'s headline; note that [BSP audit](./bsp-audit.md)'s line pins are against the *pre-cleanup* tree ([source-tree pins](../../docs/source-trees.md)) |
-| `patches/rk3588-rkvenc2-02-…dt.patch` (DT) | [device-tree guide](./device-tree.md) tables + annotated node; [vanilla-kernel guide](./vanilla-kernel.md)'s inline block; the DKMS overlay in [`packaging/dkms/`](../../packaging/dkms/) (encodes the same nodes as string-path aliases) |
+| `patches/rk3588-rkvenc2-01-…drivers.patch` (driver source) | re-derive `P####-C####` → `PHASH` in `scripts/install-combined-kernel.sh`; rebuild/retest [`packaging/dkms`](../../packaging/dkms) (same source, second consumer); re-run `tests/`; re-measure the § 3 delta and [vendor delta](./vendor-delta.md)'s headline; note that [BSP audit](./bsp-audit.md)'s line pins are against the *pre-cleanup* tree ([source-tree pins](../../docs/source-trees.md)) |
+| `patches/rk3588-rkvenc2-02-…dt.patch` (DT) | [device-tree guide](./device-tree.md) tables + annotated node; [vanilla-kernel guide](../../kernel-versions/docs/vanilla-kernel.md)'s inline block; the DKMS overlay in [`packaging/dkms`](../../packaging/dkms) (encodes the same nodes as string-path aliases) |
 | the host kernel version (mainline or Armbian bump) | § 1 shim mechanisms + § 2 hazards here; [vendor delta § 1](./vendor-delta.md) API table; DKMS rebuild (the loud early warning); if it's an Armbian bump, the full § 4 checklist above |
 | the donor BSP | § 3 delta re-measurement; [vendor delta](./vendor-delta.md); re-check the [BSP audit](./bsp-audit.md) findings still map (they're latent BSP bugs — a donor bump may fix or move them) |
-| `patches/cleanup-split/` (applying or editing the audit series) | the ⏳ runtime-gate row in [`cleanup-draft/verification.md`](../patches/cleanup-draft/verification.md) and `status.md`; [BSP audit](./bsp-audit.md)'s line-pin caveat |
+| `patches/cleanup-split/` (applying or editing the audit series) | the ⏳ runtime-gate row in [`kernel-drivers/patches/cleanup-draft/verification.md`](../patches/cleanup-draft/verification.md) and `status.md`; [BSP audit](./bsp-audit.md)'s line-pin caveat |
 | any file you **add** to the repo | the owning directory's hub README (every README indexes every file/subdir); if you added a *top-level package directory*, also update the root `README.md` repository map and [work-package map](../../docs/work-packages.md) |

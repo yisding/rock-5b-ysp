@@ -1,6 +1,6 @@
 # tests/rewrite-conformance.md — rewrite build gate & conformance suites
 
-The expert half of [`tests/`](./README.md). The user-facing on-ramp (decode,
+The expert half of [`kernel-drivers/tests/README.md`](./README.md). The user-facing on-ramp (decode,
 encode, transcode smoke tests) leads in [`README.md`](./README.md); this page
 owns the rewrite clean-build gate, the external `../rockchip-conformance` bundle,
 and the full per-suite reference (MPP / librga / GStreamer) with its env-var

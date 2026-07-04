@@ -13,7 +13,7 @@ comes back on its own.
 > `boot-backups/` snapshots. This doc transcribes everything needed to
 > reproduce it without that workspace. The same workspace's `armbian-build/`
 > tree is the one `scripts/build-combined-kernel.sh` drives (see
-> [`scripts/README.md`](../scripts/README.md)); its
+> [`kernel-drivers/scripts/README.md`](../scripts/README.md)); its
 > `userpatches/kernel/archive/rockchip64-6.18/` carries the two codec patches,
 > so a debug build from it **also contains the codec drivers**.
 
@@ -25,7 +25,7 @@ comes back on its own.
   (OOB writes, UAF/refcount bugs) are reachable from unprivileged ioctls;
   KASAN + `DEBUG_LIST`/`DMA_API_DEBUG` are what turn "occasionally weird"
   into a precise report with a stack trace. This is the natural runtime gate
-  for the [`patches/cleanup-split/`](../patches/cleanup-split/) series.
+  for the [`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split) series.
 - Hard-reset GPU crashes (the original motivation was Panthor crashes under
   accelerated Firefox/RDP rendering).
 - Locking bugs: `PROVE_LOCKING` / `DEBUG_ATOMIC_SLEEP` catch e.g. the audit's
@@ -144,7 +144,7 @@ load on the stock kernel (and vice versa). Canonical entry:
 collision"). Consequences here:
 
 - After restoring stock, always run the §5 step-4 header check.
-- Don't build the [`packaging/dkms/`](../../packaging/dkms/README.md) package
+- Don't build the [`packaging/dkms/README.md`](../../packaging/dkms/README.md) package
   while debug headers are installed unless you intend to run it *on* the
   debug kernel.
 - Moot for the combined `=y` kernel — nothing is built out-of-tree.
@@ -174,7 +174,7 @@ KASAN-inline instruments every memory access; lockdep instruments every lock;
 `DEBUG_PAGEALLOC`/`PAGE_OWNER` add per-page work. Codec throughput numbers on
 this kernel are meaningless — the validated figures (720p encode ~359 fps
 H.264 / ~297 fps H.265, transcode 17–42× realtime,
-[`tests/README.md`](../tests/README.md) § Observed results) were measured on the
-**non-debug combined kernel** ([kernel status](./status.md)). The config's
+[`kernel-drivers/tests/README.md`](../tests/README.md) § Observed results) were measured on the
+**non-debug combined kernel** ([kernel status](./forward-port-status.md)). The config's
 own comment says it: this kernel is for reproducing the crash, not for daily
 use. Capture the bug here; measure performance there.

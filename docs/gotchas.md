@@ -3,7 +3,7 @@
 The kernel-port and ffmpeg-userspace traps are **canonical on this page**: every
 trap we hit during the port, with the fix, roughly ordered build → DT → driver →
 runtime → userspace → infra. The repo has since grown whole subsystems
-(`gnome-remote-desktop/`, `mesa-panfrost-g610/`, `packaging/`) whose traps are
+(`apps/gnome-remote-desktop/`, `video-libraries/mesa/`, `packaging/`) whose traps are
 canonical in their own trees — the index table below points at each so this page
 stays the master list.
 
@@ -11,15 +11,15 @@ stays the master list.
 
 | Area | Trap | Canonical write-up |
 |------|------|--------------------|
-| GRD | Mutter's RemoteDesktop/ScreenCast D-Bus API is **single-tenant** — starting a second GRD instance evicts the live session, including the RDP client you may be connected through | [`gnome-remote-desktop/docs/testing.md` § 1](../gnome-remote-desktop/docs/testing.md) |
-| GRD | The backend's startup **smoke encode consumes the encoder's one natural IDR** → client decodes nothing, RDPGFX frame controller throttles to 0 slots → permanently frozen desktop | [`gnome-remote-desktop/README.md` § The three bugs](../gnome-remote-desktop/README.md) |
-| GRD | Headless/smoke-test numbers are soft — mutter often delivers nothing to the virtual monitor; validate with a **real client** plus the "is it actually on hardware?" checklist | [`gnome-remote-desktop/docs/testing.md` §§ 5, 7](../gnome-remote-desktop/docs/testing.md), [`profiling.md`](../gnome-remote-desktop/docs/profiling.md) |
-| GRD | PipeWire buffer-negotiation `EINVAL`: mutter advertises `dataType = 1<<SPA_DATA_DmaBuf`, GRD demands `1<<SPA_DATA_MemFd` — a *reconciliation* failure, not an allocation one (and forcing MemFd needs explicit `SPA_PARAM_BUFFERS` shm geometry too) | [`gnome-remote-desktop/docs/capture-path.md` § 1](../gnome-remote-desktop/docs/capture-path.md), [`baseline.md` § 4](../gnome-remote-desktop/docs/baseline.md) |
-| Mesa | **BLIT-based texture transfers are unsafe on Mali-G610** — the texel coordinate arrives through lossy `LD_VAR_IMM` interpolation, corrupting integer format-changing transfers; the COMPUTE-only fix direction was rejected in Mesa review 2026-07-01 (compute cannot write AFBC) — surviving directions in [`mesa-panfrost-g610/README.md` § Status](../mesa-panfrost-g610/README.md) | [`mesa-panfrost-g610/docs/blit-precision.md`](../mesa-panfrost-g610/docs/blit-precision.md), [`validation.md` § Current MR State](../mesa-panfrost-g610/docs/validation.md) |
+| GRD | Mutter's RemoteDesktop/ScreenCast D-Bus API is **single-tenant** — starting a second GRD instance evicts the live session, including the RDP client you may be connected through | [`apps/gnome-remote-desktop/docs/testing.md` § 1](../apps/gnome-remote-desktop/docs/testing.md) |
+| GRD | The backend's startup **smoke encode consumes the encoder's one natural IDR** → client decodes nothing, RDPGFX frame controller throttles to 0 slots → permanently frozen desktop | [`apps/gnome-remote-desktop/README.md` § The three bugs](../apps/gnome-remote-desktop/README.md) |
+| GRD | Headless/smoke-test numbers are soft — mutter often delivers nothing to the virtual monitor; validate with a **real client** plus the "is it actually on hardware?" checklist | [`apps/gnome-remote-desktop/docs/testing.md` §§ 5, 7](../apps/gnome-remote-desktop/docs/testing.md), [`profiling.md`](../apps/gnome-remote-desktop/docs/profiling.md) |
+| GRD | PipeWire buffer-negotiation `EINVAL`: mutter advertises `dataType = 1<<SPA_DATA_DmaBuf`, GRD demands `1<<SPA_DATA_MemFd` — a *reconciliation* failure, not an allocation one (and forcing MemFd needs explicit `SPA_PARAM_BUFFERS` shm geometry too) | [`apps/gnome-remote-desktop/docs/capture-path.md` § 1](../apps/gnome-remote-desktop/docs/capture-path.md), [`baseline.md` § 4](../apps/gnome-remote-desktop/docs/baseline.md) |
+| Mesa | **BLIT-based texture transfers are unsafe on Mali-G610** — the texel coordinate arrives through lossy `LD_VAR_IMM` interpolation, corrupting integer format-changing transfers; the COMPUTE-only fix direction was rejected in Mesa review 2026-07-01 (compute cannot write AFBC) — surviving directions in [`video-libraries/mesa/README.md` § Status](../video-libraries/mesa/README.md) | [`video-libraries/mesa/docs/blit-precision.md`](../video-libraries/mesa/docs/blit-precision.md), [`validation.md` § Current MR State](../video-libraries/mesa/docs/validation.md) |
 | Packaging | **Combined (`=y`) kernel and the DKMS module are mutually exclusive** — building DKMS against a kernel that has the drivers built-in fails modpost with `'…' exported twice` | [`packaging/dkms/README.md` § Caveats](../packaging/dkms/README.md); chooser in [`install.md`](../install.md) |
 | Packaging | A future Ubuntu ffmpeg (`7:8.1.x`) silently supersedes the local `+rkmpp` debs — `apt-mark hold` them; exact-version rollback recipe exists | [`packaging/README.md` § Operations](../packaging/README.md) |
 | Permissions | HW codec nodes (`/dev/mpp_service`, `/dev/rga`, **and the `/dev/dma_heap/*` heaps**) default to root-only; granting `mpp_service` alone leaves the encoder **dead** at MPP init (`MppBufferService get_group failed … type 1`) because rkmpp allocates every buffer from a DMA-heap — the udev rule must also grant `SUBSYSTEM=="dma_heap"` to the `video` group | [`packaging/codec-udev/README.md` § Why the dma-heap grant is required](../packaging/codec-udev/README.md) |
-| Userspace libraries | RKRGA `P010`/`P210` through legacy `c_RkRgaBlit()` depends on librga copying the 10-bit layout fields; older sources can silently submit compact 10-bit instead of padded 10-bit, while the fixed source is `github.com/yisding/librga` `main` at `a632217` | [`userspace-libraries/docs/librga-p010-p210-rkrga.md`](../userspace-libraries/docs/librga-p010-p210-rkrga.md) |
+| Userspace libraries | RKRGA `P010`/`P210` through legacy `c_RkRgaBlit()` depends on librga copying the 10-bit layout fields; older sources can silently submit compact 10-bit instead of padded 10-bit, while the fixed source is `github.com/yisding/librga` `main` at `a632217` | [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md) |
 | Debug kernels | Everything about capturing a crash (ramoops/pstore, KASAN, lockdep) without breaking vermagic | [debug-kernel guide](../kernel-drivers/docs/debug-kernel.md); the KASAN/vermagic collision entry below stays canonical here |
 
 ## Build / patching
@@ -194,7 +194,7 @@ only).** That nyanmisaka tip pins an older FFmpeg using the *provisional MESA*
 Vulkan-AV1 types while modern Vulkan headers ship only the *KHR* ones;
 **`--disable-vulkan`** (unrelated to the rk codecs) works around it. The rebased
 `ffmpeg-rockchip-81` successor no longer hits this — do not read it as a live
-blocker; see [`ffmpeg/docs/rebase-notes.md` § 3](../ffmpeg/docs/rebase-notes.md).
+blocker; see [`video-libraries/ffmpeg/docs/rebase-notes.md` § 3](../video-libraries/ffmpeg/docs/rebase-notes.md).
 
 **`scale_rkrga` preserves aspect ratio by default.** `force_original_aspect_ratio`
 defaults to `decrease`, so `scale_rkrga=w=640:h=480` from a 16:9 source yields
@@ -203,7 +203,7 @@ defaults to `decrease`, so `scale_rkrga=w=640:h=480` from a 16:9 source yields
 **MPP/RGA pkg-config + header staging.** ffmpeg needs hand-written `.pc` files
 plus staged headers under `include/rockchip/` and `include/rga/` — the exact
 recipe (required versions, symbols, `-Wl,-rpath`) is owned by
-[`ffmpeg/README.md`](../ffmpeg/README.md).
+[`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md).
 
 ## Infra / netboot
 
