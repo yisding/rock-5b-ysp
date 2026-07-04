@@ -26,8 +26,8 @@ rebuild it — extend it. The columns below are honest about the boundary.
 |---|---|---|
 | Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) | reuse as the pre-merge gate |
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh) | reuse; extend to bit-exact output (below) |
-| Consumer conformance (MPP / librga / GStreamer) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) | reuse; wire the pass/fail gate |
-| Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode cases now compare `artifacts.tsv` byte counts and SHA-256s; MPP/RGA suite outputs still need byte-exact dumps | **complete byte-exact output-buffer comparison** |
+| Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) | reuse; wire the pass/fail gate |
+| Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode and FFmpeg transcode cases now compare `artifacts.tsv` byte counts and SHA-256s; MPP/RGA suite outputs still need byte-exact dumps | **complete byte-exact output-buffer comparison** |
 | Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` | reuse as assertion hooks throughout |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
@@ -92,7 +92,7 @@ net-new work.
 | Phase | Goal | Lean on | Net-new |
 |---|---|---|---|
 | **P1 Smoke** | silicon actually moves; happy path per backend | `rewrite-smoke.sh`, `abi-probe.sh` | confirm IRQ completion via `started_job_count`/`hw_total_ns` advancing |
-| **P2 Conformance** | real consumers pass; unsupported → clean `-EOPNOTSUPP` | `mpp-suite.sh`, `librga-suite.sh`, `gstreamer-suite.sh` + `-compare.sh` | wire pass/fail as a gate; KCOV/gcov coverage map to find cold paths |
+| **P2 Conformance** | real consumers pass; unsupported → clean `-EOPNOTSUPP` | `mpp-suite.sh`, `librga-suite.sh`, `gstreamer-suite.sh`, `ffmpeg-suite.sh` + `-compare.sh` | wire pass/fail as a gate; KCOV/gcov coverage map to find cold paths |
 | **P3 Differential-exact** | byte-identical output vs forward-port | dual-boot `PROFILE=` flow | §2 buffer/bitstream hashing |
 | **P4 Concurrency/race** | no data races under load | debugfs per-core counters | Kernel B (KCSAN); N-thread/M-proc storms; PM-cycling |
 | **P5 Fault injection** | every recovery path executes and recovers | Kernel A + `FAULT_INJECTION` | §4 recovery matrix |
@@ -189,7 +189,7 @@ Ship only when **all** hold, each with a dated record in
    (today's tests never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —
    0 diffs (RGA pixels, VDEC YUV, VENC-vs-VENC bitstream).
-3. Full `mpp-suite` / `librga-suite` / `gstreamer-suite` pass via the comparators;
+3. Full `mpp-suite` / `librga-suite` / `gstreamer-suite` / `ffmpeg-suite` pass via the comparators;
    every unsupported profile returns `-EOPNOTSUPP` with no warning/hang/leak
    (the `tests/rewrite-conformance.md` "expected rewrite result" rule, gated).
 4. **72 h+ multi-instance soak**: 0 KASAN / KCSAN / lockdep / KMEMLEAK /

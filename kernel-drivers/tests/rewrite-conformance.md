@@ -3,10 +3,11 @@
 The expert half of [`kernel-drivers/tests/README.md`](./README.md). The user-facing on-ramp (decode,
 encode, transcode smoke tests) leads in [`README.md`](./README.md); this page
 owns the rewrite clean-build gate, the external `../rockchip-conformance` bundle,
-and the full per-suite reference (MPP / librga / GStreamer) with its env-var
-matrices, privileges, and comparators. The strategic "what it would take to ship
-the rewrite" plan is [`../docs/rewrite-validation-plan.md`](../docs/rewrite-validation-plan.md);
-this page is the operational how-to-run counterpart it leans on.
+and the full per-suite reference (MPP / librga / GStreamer / ffmpeg-rockchip)
+with its env-var matrices, privileges, and comparators. The strategic "what it
+would take to ship the rewrite" plan is
+[`../docs/rewrite-validation-plan.md`](../docs/rewrite-validation-plan.md); this
+page is the operational how-to-run counterpart it leans on.
 
 All suites assume the combined kernel booted, `/dev/mpp_service` + `/dev/rga`
 present, and (for rewrite parity work) the ability to dual-boot the forward-port
@@ -72,12 +73,14 @@ PROFILE=rewrite ./scripts/collect-system-info.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/librga-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
+PROFILE=rewrite FFDIR=../ffmpeg-rockchip-81 ../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite.sh
 
 # reboot into the BSP forward-port kernel and repeat:
 PROFILE=forward-port ./scripts/collect-system-info.sh
 PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
 PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/librga-suite.sh
 PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
+PROFILE=forward-port FFDIR=../ffmpeg-rockchip-81 ../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite.sh
 
 # compare the latest two MPP suite summaries:
 ../rock-5b-ysp/kernel-drivers/tests/mpp-suite-compare.sh
@@ -87,6 +90,9 @@ PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
 
 # compare the latest two GStreamer suite summaries:
 ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite-compare.sh
+
+# compare the latest two ffmpeg-rockchip suite summaries:
+../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite-compare.sh
 ```
 
 The important rule is that `assets/` and command lines stay identical between
@@ -132,6 +138,14 @@ Suggested expanded matrix:
   multi-stream decode/transcode pipelines are diagnostic coverage.
   Display/DMABuf sink pipelines remain
   manual add-ons until a target compositor/KMS setup is fixed.
+- FFmpeg: use `ffmpeg-suite.sh` for a profile/log/comparator-integrated version
+  of the full `ffmpeg-rockchip` path. It probes the selected ffmpeg build for
+  `h264_rkmpp`/`hevc_rkmpp` decoders and encoders plus `scale_rkrga`, generates
+  shared software H.264/H.265 elementary inputs under
+  `../rockchip-conformance/assets/ffmpeg-generated`, and runs both
+  H.264->RGA->HEVC and HEVC->RGA->H.264 hardware transcodes. The comparator can
+  enforce pass/fail, elapsed-time ratios, and encoded bitstream byte-count/SHA
+  parity against the forward-port.
 
 The expected rewrite result is not universal pass today. For implemented paths,
 it should match the forward-port. For documented unsupported RGA profiles, it
@@ -503,6 +517,8 @@ logs.
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, readable debugfs/dmesg for full logs; root is the simplest mode |
 | `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
+| `ffmpeg-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, a staged `ffmpeg-rockchip` build via `FFDIR`, a software ffmpeg with `libx264`/`libx265` for generated inputs, and readable debugfs/dmesg for full logs; root is the simplest mode |
+| `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
 
 ## What each suite proves
 
@@ -514,6 +530,8 @@ logs.
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
 | `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, and optional external-media pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
+| `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs component inspection plus generated-input H.264->`scale_rkrga`->HEVC and HEVC->`scale_rkrga`->H.264 hardware transcodes under the selected `PROFILE`. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
+| `ffmpeg-suite-compare.sh` | **rewrite-vs-forward-port ffmpeg-rockchip comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for encoded bitstream byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 
 ## Running the suites & comparators
 
@@ -524,6 +542,8 @@ bash librga-suite.sh                  # official librga sample conformance
 bash librga-suite-compare.sh          # compare latest forward-port/rewrite suite summaries
 bash gstreamer-suite.sh               # JeffyCN GStreamer MPP/RGA conformance
 bash gstreamer-suite-compare.sh       # compare latest forward-port/rewrite GStreamer summaries
+bash ffmpeg-suite.sh                  # ffmpeg-rockchip CLI conformance
+bash ffmpeg-suite-compare.sh          # compare latest forward-port/rewrite FFmpeg summaries
 bash suite-compare-selftest.sh        # device-free comparator regression selftest
 ```
 
@@ -537,10 +557,13 @@ but takes more than 25% longer on the rewrite:
 PERF_MAX_RATIO=1.25 bash mpp-suite-compare.sh
 PERF_MAX_RATIO=1.25 bash librga-suite-compare.sh
 PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
+PERF_MAX_RATIO=1.25 bash ffmpeg-suite-compare.sh
 ```
 
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
-was last verified on 2026-07-04 after the
+was last verified on 2026-07-04 after `ffmpeg-suite.sh` and
+`ffmpeg-suite-compare.sh` made ffmpeg-rockchip a first-class
+forward-port-vs-rewrite conformance gate with encoded-bitstream artifacts; after the
 `GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC=1` alias was added to the required
 GStreamer AFBC/FBC fakesink decode-output coverage; after generated GStreamer
 AFBC/FBC fakesink decode-output cases were promoted to required pass/fail
@@ -571,8 +594,8 @@ were added. It was re-run after the GStreamer generated-input cache,
 artifact-checksum comparator, and generated VP9 IVF decode cases were added.
 The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,
-slowdown, GStreamer artifact mismatch, and librga latest-summary filtering
-paths. `build-mpp-tests.sh`
+slowdown, GStreamer/FFmpeg artifact mismatch, and librga latest-summary
+filtering paths. `build-mpp-tests.sh`
 staged the official MPP binaries locally; `build-gstreamer-rockchip.sh`
 currently stops at its dependency preflight on this host because the GStreamer
 development `.pc` files are missing.

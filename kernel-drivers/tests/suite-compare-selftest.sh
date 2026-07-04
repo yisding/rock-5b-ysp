@@ -91,14 +91,16 @@ check_compare_script()
 	grep -q "regression" "$out_prefix.regression"
 }
 
-check_gstreamer_artifact_compare()
+check_artifact_compare()
 {
-	local base_dir="$TMP_ROOT/gstreamer-base"
-	local cand_dir="$TMP_ROOT/gstreamer-cand"
-	local out_good="$TMP_ROOT/gstreamer-artifacts.good"
-	local out_bad="$TMP_ROOT/gstreamer-artifacts.bad"
-	local out_missing="$TMP_ROOT/gstreamer-artifacts.missing"
-	local out_legacy="$TMP_ROOT/gstreamer-artifacts.legacy"
+	local script=$1
+	local label=$2
+	local base_dir="$TMP_ROOT/$label-base"
+	local cand_dir="$TMP_ROOT/$label-cand"
+	local out_good="$TMP_ROOT/$label-artifacts.good"
+	local out_bad="$TMP_ROOT/$label-artifacts.bad"
+	local out_missing="$TMP_ROOT/$label-artifacts.missing"
+	local out_legacy="$TMP_ROOT/$label-artifacts.legacy"
 	local status
 
 	mkdir -p "$base_dir" "$cand_dir"
@@ -109,7 +111,7 @@ check_gstreamer_artifact_compare()
 
 	BASELINE_SUMMARY="$base_dir/summary.tsv" \
 		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
-		bash "$TEST_DIR/gstreamer-suite-compare.sh" > "$out_good"
+		bash "$TEST_DIR/$script" > "$out_good"
 	grep -q "artifact_baseline" "$out_good"
 	grep -q "same" "$out_good"
 
@@ -117,11 +119,11 @@ check_gstreamer_artifact_compare()
 	set +e
 	BASELINE_SUMMARY="$base_dir/summary.tsv" \
 		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
-		bash "$TEST_DIR/gstreamer-suite-compare.sh" > "$out_bad"
+		bash "$TEST_DIR/$script" > "$out_bad"
 	status=$?
 	set -e
 	if [ "$status" -eq 0 ]; then
-		echo "gstreamer artifact mismatch unexpectedly passed" >&2
+		echo "$label artifact mismatch unexpectedly passed" >&2
 		exit 1
 	fi
 	grep -q "artifact-mismatch" "$out_bad"
@@ -130,11 +132,11 @@ check_gstreamer_artifact_compare()
 	set +e
 	BASELINE_SUMMARY="$base_dir/summary.tsv" \
 		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
-		bash "$TEST_DIR/gstreamer-suite-compare.sh" > "$out_missing"
+		bash "$TEST_DIR/$script" > "$out_missing"
 	status=$?
 	set -e
 	if [ "$status" -eq 0 ]; then
-		echo "missing GStreamer artifact manifest unexpectedly passed" >&2
+		echo "missing $label artifact manifest unexpectedly passed" >&2
 		exit 1
 	fi
 	grep -q "artifact_compare	skipped" "$out_missing"
@@ -143,7 +145,7 @@ check_gstreamer_artifact_compare()
 	BASELINE_SUMMARY="$base_dir/summary.tsv" \
 		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
 		REQUIRE_ARTIFACTS=0 \
-		bash "$TEST_DIR/gstreamer-suite-compare.sh" > "$out_legacy"
+		bash "$TEST_DIR/$script" > "$out_legacy"
 	grep -q "artifact_compare	skipped" "$out_legacy"
 }
 
@@ -182,7 +184,9 @@ write_summary "$REGRESSION" rewrite fail 12 8
 check_compare_script mpp-suite-compare.sh
 check_compare_script librga-suite-compare.sh
 check_compare_script gstreamer-suite-compare.sh REQUIRE_ARTIFACTS=0
-check_gstreamer_artifact_compare
+check_compare_script ffmpeg-suite-compare.sh REQUIRE_ARTIFACTS=0
+check_artifact_compare gstreamer-suite-compare.sh gstreamer
+check_artifact_compare ffmpeg-suite-compare.sh ffmpeg
 check_librga_latest_filter
 
 echo "suite comparator selftest passed"
