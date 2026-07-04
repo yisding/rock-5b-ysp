@@ -328,8 +328,9 @@ setters, `GST_MPP_DEC_FBC_IS_RFBC=1` RFBC caps negotiation, RGA conversions,
 and opt-in display/DMABuf sink plus `KMSSINK_DISABLE_VSYNC=1`,
 `GST_RKXIMAGE_USE_COLORKEY=1`, and `GST_KMSSRC_DMA_FEATURE=1` KMS capture cases
 against JeffyCN's `rkximagesink` and `kmssrc`. The GStreamer wrapper now also
-caches generated H.264/H.265 inputs under the shared conformance assets
-directory and records `artifacts.tsv` SHA-256s for generated decode/transcode
+caches generated H.264/H.265, VP9, and H.265 Main10 inputs under the shared
+conformance assets directory and records `artifacts.tsv` SHA-256s for generated
+decode/transcode
 outputs so the comparator can fail required forward-port vs rewrite pixel or
 bitstream mismatches. The FFmpeg wrapper now also validates current
 ffmpeg-rockchip decoder/RGA filter option discovery, decoder-option null-output

@@ -145,8 +145,9 @@ Suggested expanded matrix:
   asset-free but kernel-visible: plugin/element inspection, raw NV12
   H.264/H.265 encode, BGRx/RGBA encode cases that force the plugin's legacy
   `c_RkRgaBlit()` conversion path, generated elementary-stream decode and
-  transcode, generated VP9 IVF decode, in-pipeline caps renegotiation, explicit
-  flush events, codec-specific encoder QP/profile controls, and repeated EOS and
+  transcode, generated VP9 IVF decode, generated H.265 Main10 decode/RGA/fallback,
+  in-pipeline caps renegotiation, explicit flush events,
+  codec-specific encoder QP/profile controls, and repeated EOS and
   start/stop loops, and generated H.264/H.265 AFBC/FBC decode-output
   negotiation. Add H.264/H.265 inputs
   to enable decode to `fakesink`, decode-side RGA scale/format/rotate, and
@@ -302,6 +303,9 @@ paths:
   `generated_dec_h264_env_dmabuf`, `generated_dec_h264_env_no_rga`,
   `generated_dec_h264_mp4_codec_data`,
   `generated_dec_h265_mp4_codec_data`,
+  `generated_dec_h265_10_fakesink`,
+  `generated_dec_h265_10_rga_scale`,
+  `generated_dec_h265_10_env_disable_nv12_10`,
   `generated_dec_h264_strict_props`,
   `generated_dec_h265_strict_props`,
   `generated_dec_h264_env_strict_props`,
@@ -327,10 +331,11 @@ paths:
   `parallel_transcode_mixed_h264_h265`.
 
 The generated-media cases first write short H.264/H.265 elementary streams
-with the Rockchip encoders and a short VP9 IVF stream with `vp9enc ! ivfmux`
-under `GST_GENERATED_INPUT_CACHE` (default
-`../rockchip-conformance/assets/gstreamer-generated`), then feed those shared
-files through `filesrc ! *parse ! mppvideodec` decode and decode->encode
+with the Rockchip encoders, a short VP9 IVF stream with `vp9enc ! ivfmux`, and
+a software-generated H.265 Main10 elementary stream with `GST_GENERATOR`
+(default `ffmpeg`) plus `libx265` under `GST_GENERATED_INPUT_CACHE` (default
+`../rockchip-conformance/assets/gstreamer-generated`). They then feed those
+shared files through `filesrc ! *parse ! mppvideodec` decode and decode->encode
 transcode pipelines. Keeping the cache outside each profile's log directory
 makes forward-port and rewrite runs consume the same input streams. That keeps
 the default run self-contained while covering the media-file path that
@@ -340,6 +345,18 @@ default; set `GST_ENABLE_VP9_CASES=0` to remove them or
 `vp9enc`, `ivfmux`, or `ivfparse`. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
+The generated H.265 Main10 cases are also enabled and required by default:
+`generated_dec_h265_10_fakesink`,
+`generated_dec_h265_10_rga_scale`, and
+`generated_dec_h265_10_env_disable_nv12_10` cover compact NV12_10LE40 decode,
+decoder-side RGA conversion to NV12, and the
+`GST_MPP_DEC_DISABLE_NV12_10=1` fallback path without requiring external media.
+Set `GST_REQUIRE_H265_10_CASES=0` to demote them during bring-up, or
+`GST_ENABLE_H265_10_CASES=0 GST_REQUIRE_H265_10_CASES=0` to omit them from a
+narrow debug run. The optional generated 4:2:2 10-bit set is disabled by
+default because host `libx265` profile support varies; enable it with
+`GST_ENABLE_H265_422_10_CASES=1` or require it with
+`GST_REQUIRE_H265_422_10_CASES=1`.
 The generated MP4 cases write H.264/H.265 through `mp4mux`, then decode or
 transcode with `qtdemux ! *parse ! mppvideodec`; that covers JeffyCN's startup
 path that sends container `codec_data` as MPP extra data before normal decode
@@ -382,12 +399,13 @@ the default-value path is covered separately from explicit element properties.
 The env-default format variant runs H.264 decode with
 `GST_MPP_VIDEODEC_DEFAULT_FORMAT=NV21`, covering the plugin's global preferred
 output-format path and the decoder-side RGA conversion it triggers.
-When `GST_H265_10_INPUT` is set, the suite adds required 4:2:0 10-bit H.265
-decode coverage, a scaled `format=NV12` decoder-side RGA conversion from the
-compact NV12_10LE40 frame, plus `GST_MPP_DEC_DISABLE_NV12_10=1`, recording the
-userspace-visible fallback from NV12_10LE40 to NV12. When
-`GST_H265_422_10_INPUT` is set, it does the same for 4:2:2 10-bit H.265 and
-adds a scaled `format=NV16` RGA conversion from compact NV16_10LE40 before the
+When `GST_H265_10_INPUT` is set, the suite also adds required external-media
+4:2:0 10-bit H.265 decode coverage, a scaled `format=NV12` decoder-side RGA
+conversion from the compact NV12_10LE40 frame, plus
+`GST_MPP_DEC_DISABLE_NV12_10=1`, recording the userspace-visible fallback from
+NV12_10LE40 to NV12 on a supplied clip. When `GST_H265_422_10_INPUT` is set,
+it does the same for a supplied 4:2:2 10-bit H.265 stream and adds a scaled
+`format=NV16` RGA conversion from compact NV16_10LE40 before the
 `GST_MPP_DEC_DISABLE_NV16_10=1` fallback case.
 The decoder renegotiation cases concatenate two generated elementary streams at
 different dimensions and feed them through `filesrc ! *parse ! mppvideodec`,
@@ -511,6 +529,12 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h264_afbc_fakesink`, `generated_dec_h265_afbc_fakesink`,
 `generated_dec_h264_env_fbc`, `generated_dec_h264_env_arm_afbc`,
 `generated_dec_h264_env_rfbc`,
+`generated_dec_h265_10_fakesink`,
+`generated_dec_h265_10_rga_scale`,
+`generated_dec_h265_10_env_disable_nv12_10`,
+`generated_dec_h265_422_10_fakesink`,
+`generated_dec_h265_422_10_rga_scale`,
+`generated_dec_h265_422_10_env_disable_nv16_10`,
 `generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
@@ -608,7 +632,7 @@ logs.
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
-| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
+| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, software `ffmpeg`/`libx265` via `GST_GENERATOR` for generated H.265 Main10 inputs, and readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
 | `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `ffmpeg-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, a staged `ffmpeg-rockchip` build via `FFDIR`, a software ffmpeg with `libx264`/`libx265` for generated inputs, and readable debugfs/dmesg for full logs; root is the simplest mode. `FFMPEG_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-list dispatch wiring. |
 | `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
@@ -622,7 +646,7 @@ logs.
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
 | `librga-suite.sh` | **official librga sample conformance plus direct artifact smoke** using `../rockchip-conformance/out/librga-samples/bin` and `librga-smoke.cpp` | Runs the broad current Linux/RK3588 sample set plus `ysp_librga_smoke` under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails required cases. The direct smoke case records deterministic destination buffers in `artifacts.tsv` for maintained im2d, fence, pre-intr, Gaussian, and GStreamer-shaped legacy `c_RkRgaBlit()` paths. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, paired `artifacts.tsv` manifests. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=0` only for legacy pass/fail-only logs. |
-| `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, AFBC decode-to-encode transcodes, optional external-media pipelines, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, encoded RC-mode/AFBC artifacts, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
+| `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, generated 8-bit/10-bit decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, AFBC decode-to-encode transcodes, optional external-media pipelines, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, encoded RC-mode/AFBC artifacts, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 | `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs component/option inspection, decoder-option null-output cases, generated-input H.264->`scale_rkrga`->HEVC and HEVC->`scale_rkrga`->H.264 hardware transcodes, required `scale_rkrga` forced-core/async/AFBC-output coverage, and required `vpp_rkrga` crop/transpose coverage under the selected `PROFILE`. Diagnostic cases cover decoder `afbc=rga` and `overlay_rkrga` alpha composition. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `ffmpeg-suite-compare.sh` | **rewrite-vs-forward-port ffmpeg-rockchip comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for encoded bitstream byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
@@ -706,8 +730,10 @@ GStreamer encoder unaligned-vstride env-default case was added to the required
 set; after the GStreamer encoder max-pending env-default case was added to the
 required set; after GStreamer MP4 container codec-data decode/transcode cases
 were added to the required set; after GStreamer no-RGA env-default
-encode/decode cases were added to the required set; after opt-in 10-bit H.265
-external-media decode/fallback/RGA-conversion cases were added; after the
+encode/decode cases were added to the required set; after generated H.265
+Main10 decode/fallback/RGA-conversion cases were added to the required set and
+generated H.265 4:2:2 10-bit cases were added as opt-in coverage; after opt-in
+10-bit H.265 external-media decode/fallback/RGA-conversion cases were added; after the
 conditional GStreamer VPx-alpha decodebin inspect was added as diagnostic
 coverage; after the GStreamer strict decoder-property cases were wired into the
 generated-decode builtin dispatch, the asset-free parallel cases became

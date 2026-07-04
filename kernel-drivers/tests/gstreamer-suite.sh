@@ -14,6 +14,7 @@ GST_PLUGIN_DIR=${GST_PLUGIN_DIR:-"$GST_PREFIX/lib/gstreamer-1.0"}
 GST_EVENT_HARNESS=${GST_EVENT_HARNESS:-"$GST_PREFIX/bin/gstreamer-event-harness"}
 MPP_LIBDIR=${MPP_LIBDIR:-"$CONFORMANCE_ROOT/out/mpp/lib"}
 LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
+GST_GENERATOR=${GST_GENERATOR:-ffmpeg}
 GST_VALIDATE_CASES=${GST_VALIDATE_CASES:-0}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-gstreamer-suite"}
 GST_GENERATED_INPUT_CACHE=${GST_GENERATED_INPUT_CACHE:-"$CONFORMANCE_ROOT/assets/gstreamer-generated"}
@@ -51,6 +52,10 @@ GST_ENABLE_CONTAINER_CASES=${GST_ENABLE_CONTAINER_CASES:-1}
 GST_REQUIRE_CONTAINER_CASES=${GST_REQUIRE_CONTAINER_CASES:-1}
 GST_ENABLE_FBC_CASES=${GST_ENABLE_FBC_CASES:-1}
 GST_REQUIRE_FBC_CASES=${GST_REQUIRE_FBC_CASES:-1}
+GST_ENABLE_H265_10_CASES=${GST_ENABLE_H265_10_CASES:-1}
+GST_REQUIRE_H265_10_CASES=${GST_REQUIRE_H265_10_CASES:-1}
+GST_ENABLE_H265_422_10_CASES=${GST_ENABLE_H265_422_10_CASES:-0}
+GST_REQUIRE_H265_422_10_CASES=${GST_REQUIRE_H265_422_10_CASES:-0}
 GST_DISPLAY_SINK=${GST_DISPLAY_SINK:-rkximagesink}
 GST_DISPLAY_SINK_ARGS=${GST_DISPLAY_SINK_ARGS:-}
 
@@ -145,6 +150,18 @@ generated_dec_h264_env_arm_afbc
 generated_transcode_h264_afbc_to_h265
 generated_transcode_h265_afbc_to_h264
 generated_transcode_h264_env_arm_afbc_to_h265
+"
+
+h265_10_cases_default="
+generated_dec_h265_10_fakesink
+generated_dec_h265_10_rga_scale
+generated_dec_h265_10_env_disable_nv12_10
+"
+
+h265_422_10_cases_default="
+generated_dec_h265_422_10_fakesink
+generated_dec_h265_422_10_rga_scale
+generated_dec_h265_422_10_env_disable_nv16_10
 "
 
 diagnostic_cases_default="
@@ -242,6 +259,28 @@ $fbc_cases_default"
 	else
 		diagnostic_cases_default="$diagnostic_cases_default
 $fbc_cases_default"
+	fi
+fi
+
+if [ "$GST_ENABLE_H265_10_CASES" = "1" ] ||
+	[ "$GST_REQUIRE_H265_10_CASES" = "1" ]; then
+	if [ "$GST_REQUIRE_H265_10_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$h265_10_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$h265_10_cases_default"
+	fi
+fi
+
+if [ "$GST_ENABLE_H265_422_10_CASES" = "1" ] ||
+	[ "$GST_REQUIRE_H265_422_10_CASES" = "1" ]; then
+	if [ "$GST_REQUIRE_H265_422_10_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$h265_422_10_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$h265_422_10_cases_default"
 	fi
 fi
 
@@ -780,6 +819,61 @@ ensure_generated_input()
 	fi
 }
 
+generated_h265_10_cache_path()
+{
+	local variant=$1
+	local pix_fmt=$2
+	local framerate
+
+	framerate=$(safe_token "$GST_FRAMERATE")
+	printf "%s/generated-input-h265-%s-%s-%sx%s-%s-%sframes.%s" \
+		"$GST_GENERATED_INPUT_CACHE" "$variant" "$pix_fmt" \
+		"$GST_WIDTH" "$GST_HEIGHT" "$framerate" \
+		"$GST_GENERATED_INPUT_BUFFERS" h265
+}
+
+ensure_generated_h265_10_input()
+{
+	local variant=$1
+	local pix_fmt=$2
+	local profile=$3
+
+	GENERATED_INPUT_PATH=$(generated_h265_10_cache_path "$variant" "$pix_fmt")
+	if [ -s "$GENERATED_INPUT_PATH" ]; then
+		return 0
+	fi
+
+	if ! command -v "$GST_GENERATOR" >/dev/null 2>&1; then
+		BUILD_ERROR="missing $GST_GENERATOR to generate $variant H.265 input"
+		printf "%s\n" "$BUILD_ERROR" >&2
+		return 3
+	fi
+
+	mkdir -p "$GST_GENERATED_INPUT_CACHE"
+	CMD=(
+		"$GST_GENERATOR" -hide_banner -loglevel error -y
+		-f lavfi
+		-i "testsrc2=size=${GST_WIDTH}x${GST_HEIGHT}:rate=${GST_FRAMERATE}"
+		-frames:v "$GST_GENERATED_INPUT_BUFFERS"
+		-vf "format=$pix_fmt"
+		-c:v libx265
+		-preset ultrafast
+		-profile:v "$profile"
+		-pix_fmt "$pix_fmt"
+		-x265-params log-level=error:keyint=30:min-keyint=30:scenecut=0
+		-f hevc
+		"$GENERATED_INPUT_PATH"
+	)
+	printf "generating %s H.265 input: " "$variant"
+	print_current_command
+	run_current_command || return $?
+	if [ ! -s "$GENERATED_INPUT_PATH" ]; then
+		printf "generated %s H.265 input is empty: %s\n" "$variant" \
+			"$GENERATED_INPUT_PATH" >&2
+		return 1
+	fi
+}
+
 select_generated_mp4_codec()
 {
 	local codec=$1
@@ -1068,6 +1162,53 @@ run_generated_decode_env_fbc()
 	)
 	append_fake_sink
 	printf "decoding generated %s input with %s env default: " "$codec" "$env_name"
+	print_current_command
+	run_current_command
+}
+
+run_generated_h265_10_decode()
+{
+	local variant=$1
+	local pix_fmt=$2
+	local profile=$3
+	shift 3
+
+	ensure_generated_h265_10_input "$variant" "$pix_fmt" "$profile" ||
+		return $?
+	CMD=(gst-launch-1.0 -q filesrc "location=$GENERATED_INPUT_PATH" "!" h265parse "!" mppvideodec)
+
+	while [ "$#" -gt 0 ]; do
+		CMD+=("$1")
+		shift
+	done
+
+	append_artifact_or_fake_sink decoded raw
+	printf "decoding generated %s H.265 input: " "$variant"
+	print_current_command
+	run_current_command
+}
+
+run_generated_h265_10_decode_env()
+{
+	local variant=$1
+	local pix_fmt=$2
+	local profile=$3
+	local env_name=$4
+	local env_value=$5
+
+	ensure_generated_h265_10_input "$variant" "$pix_fmt" "$profile" ||
+		return $?
+	CMD=(
+		env
+		"$env_name=$env_value"
+		gst-launch-1.0 -q
+		filesrc "location=$GENERATED_INPUT_PATH"
+		"!" h265parse
+		"!" mppvideodec
+	)
+	append_artifact_or_fake_sink decoded raw
+	printf "decoding generated %s H.265 input with %s=%s: " \
+		"$variant" "$env_name" "$env_value"
 	print_current_command
 	run_current_command
 }
@@ -1865,6 +2006,28 @@ build_case_command()
 	generated_dec_h264_env_rfbc)
 		CMD=(__builtin_generated_decode_env_rfbc h264)
 		;;
+	generated_dec_h265_10_fakesink)
+		CMD=(__builtin_generated_h265_10_decode main10 yuv420p10le main10)
+		;;
+	generated_dec_h265_10_rga_scale)
+		CMD=(__builtin_generated_h265_10_decode main10 yuv420p10le main10 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV12)
+		;;
+	generated_dec_h265_10_env_disable_nv12_10)
+		CMD=(__builtin_generated_h265_10_decode_env main10 yuv420p10le main10 \
+			GST_MPP_DEC_DISABLE_NV12_10 1)
+		;;
+	generated_dec_h265_422_10_fakesink)
+		CMD=(__builtin_generated_h265_10_decode main422_10 yuv422p10le main422-10)
+		;;
+	generated_dec_h265_422_10_rga_scale)
+		CMD=(__builtin_generated_h265_10_decode main422_10 yuv422p10le main422-10 \
+			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=NV16)
+		;;
+	generated_dec_h265_422_10_env_disable_nv16_10)
+		CMD=(__builtin_generated_h265_10_decode_env main422_10 yuv422p10le main422-10 \
+			GST_MPP_DEC_DISABLE_NV16_10 1)
+		;;
 	generated_transcode_h264_afbc_to_h265)
 		CMD=(__builtin_generated_afbc_transcode h264 mpph265enc)
 		;;
@@ -2155,6 +2318,16 @@ run_case_payload()
 	generated_dec_h264_env_rfbc)
 		run_generated_decode_env_rfbc "${CMD[1]}"
 		;;
+	generated_dec_h265_10_fakesink | generated_dec_h265_10_rga_scale | \
+	generated_dec_h265_422_10_fakesink | generated_dec_h265_422_10_rga_scale)
+		run_generated_h265_10_decode "${CMD[1]}" "${CMD[2]}" \
+			"${CMD[3]}" "${CMD[@]:4}"
+		;;
+	generated_dec_h265_10_env_disable_nv12_10 | \
+	generated_dec_h265_422_10_env_disable_nv16_10)
+		run_generated_h265_10_decode_env "${CMD[1]}" "${CMD[2]}" \
+			"${CMD[3]}" "${CMD[4]}" "${CMD[5]}"
+		;;
 	generated_transcode_h264_afbc_to_h265 | \
 	generated_transcode_h265_afbc_to_h264 | \
 	generated_transcode_h264_env_arm_afbc_to_h265)
@@ -2251,6 +2424,10 @@ runtime_dispatch_validated()
 	generated_dec_h264_env_dmabuf | generated_dec_h264_env_no_rga | \
 	generated_dec_h264_env_format_nv21 | generated_dec_h264_env_fbc | \
 	generated_dec_h264_env_arm_afbc | generated_dec_h264_env_rfbc | \
+	generated_dec_h265_10_fakesink | generated_dec_h265_10_rga_scale | \
+	generated_dec_h265_10_env_disable_nv12_10 | \
+	generated_dec_h265_422_10_fakesink | generated_dec_h265_422_10_rga_scale | \
+	generated_dec_h265_422_10_env_disable_nv16_10 | \
 	generated_transcode_h264_afbc_to_h265 | \
 	generated_transcode_h265_afbc_to_h264 | \
 	generated_transcode_h264_env_arm_afbc_to_h265 | \
