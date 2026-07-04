@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `bb32bc4f999f` + branch `rk3588-rewrite-mainline` @ `d84543927f85`, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `3794c7eed876` + branch `rk3588-rewrite-mainline` @ `13cde7319359`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -201,13 +201,13 @@ Note the **rewrite-driver uAPI extensions** (`MPP_CMD_SET_ERR_REF_HACK`,
 The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md))
 is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b` as
-of 2026-07-03:
+of 2026-07-04:
 
-- branch `rk3588-rewrite-6.18`, commit `bb32bc4f999f` ("media: rockchip:
-  use provider fault hooks in rewrites"), committed in the dev worktree
+- branch `rk3588-rewrite-6.18`, commit `3794c7eed876` ("media: rockchip:
+  cover gstreamer decoder RGB outputs"), committed in the dev worktree
   `/home/yi/Code/linux-6.18-rkvenc`.
-- branch `rk3588-rewrite-mainline`, commit `d84543927f85` ("media: rockchip:
-  use provider fault hooks in rewrites"),
+- branch `rk3588-rewrite-mainline`, commit `13cde7319359` ("media: rockchip:
+  cover gstreamer decoder RGB outputs"),
   committed in the sibling worktree `/home/yi/Code/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -249,7 +249,9 @@ scheduler KUnit stack usage, plus RGA2 packed-YUV420 fill emission for all four
 packed orderings, plus named and matrix JeffyCN GStreamer legacy
 `c_RkRgaBlit()` conversion coverage for RGB-family/NV16/NV61-to-NV12,
 NV12/NV21/NV16/NV61/compact-10-bit decoder output to RGB-family, and
-planar I420/YV12 RGA2 fallback profiles, plus the RKVDEC2 CCU-mode update that
+planar I420/YV12 RGA2 fallback profiles, plus explicit 8-bit decoder-output
+coverage for the GStreamer RGBA/BGRA/RGBx/BGRx diagnostic formats, plus the
+RKVDEC2 CCU-mode update that
 keeps HARD opt-in while the RK3588 DT selects BSP-style soft CCU, plus a named
 RGA direct-buffer classifier and KUnit coverage for current `librga`/GStreamer
 direct fd-vs-virtual-address encoding, plus Rockchip IOMMU `map_pages`/
@@ -267,7 +269,7 @@ the mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for the rewrite drivers. The current committed pins
-(`../linux-6.18-rkvenc@bb32bc4f999f` and `../linux@d84543927f85`) passed that
+(`../linux-6.18-rkvenc@3794c7eed876` and `../linux@13cde7319359`) passed that
 archive build gate warning-free on 2026-07-04; see rewrite-drivers.md §6.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite

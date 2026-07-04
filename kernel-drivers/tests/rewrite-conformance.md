@@ -50,7 +50,7 @@ worktree has unrelated local changes.
 
 Last recorded run: `ALLOW_DIRTY=1 kernel-drivers/tests/rewrite-build-gate.sh all`
 on 2026-07-04 passed warning-free for the committed rewrite tips
-`../linux-6.18-rkvenc@bb32bc4f999f` and `../linux@d84543927f85`.
+`../linux-6.18-rkvenc@3794c7eed876` and `../linux@13cde7319359`.
 
 ## Expanded conformance bundle
 
