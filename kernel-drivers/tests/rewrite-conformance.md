@@ -264,6 +264,8 @@ exercises real kernel paths:
   `generated_dec_h264_renegotiate`, `generated_dec_h265_renegotiate`,
   `generated_dec_h264_rga_rotate`, `generated_dec_h265_rga_scale`;
 - `generated_transcode_h264_to_h265`, `generated_transcode_h265_to_h264`,
+  `generated_transcode_h264_mp4_to_h265`,
+  `generated_transcode_h265_mp4_to_h264`,
   `generated_transcode_h264_rga_to_h265`,
   `generated_transcode_h264_dmabuf_to_h265`;
 - `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`;
@@ -292,10 +294,11 @@ default; set `GST_ENABLE_VP9_CASES=0` to remove them or
 `vp9enc`, `ivfmux`, or `ivfparse`. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
-The generated MP4 cases write H.264/H.265 through `mp4mux`, then decode with
-`qtdemux ! *parse ! mppvideodec`; that covers JeffyCN's startup path that sends
-container `codec_data` as MPP extra data before normal decode packets. These
-container cases are enabled and required by default. Set
+The generated MP4 cases write H.264/H.265 through `mp4mux`, then decode or
+transcode with `qtdemux ! *parse ! mppvideodec`; that covers JeffyCN's startup
+path that sends container `codec_data` as MPP extra data before normal decode
+packets, including the common demuxed-file transcode shape. These container
+cases are enabled and required by default. Set
 `GST_REQUIRE_CONTAINER_CASES=0` to demote them to diagnostics on minimal
 GStreamer images missing `mp4mux`/`qtdemux`, or
 `GST_ENABLE_CONTAINER_CASES=0 GST_REQUIRE_CONTAINER_CASES=0` to omit them from a
@@ -409,7 +412,10 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
 `generated_transcode_h264_to_h265`,
-`generated_transcode_h265_to_h264`, `generated_transcode_h264_rga_to_h265`,
+`generated_transcode_h265_to_h264`,
+`generated_transcode_h264_mp4_to_h265`,
+`generated_transcode_h265_mp4_to_h264`,
+`generated_transcode_h264_rga_to_h265`,
 `generated_transcode_h264_dmabuf_to_h265`, `generated_transcode_vp9_to_h264`,
 `caps_renegotiate_h264_nv12`, `caps_renegotiate_h265_nv12`,
 `enc_h264_control_props`, `enc_h265_control_props`,
@@ -529,7 +535,7 @@ set; after the GStreamer env-default FBC decode case was added as diagnostic
 coverage; after the GStreamer encoder unaligned-vstride env-default case was
 added to the required set; after the GStreamer encoder max-pending env-default
 case was added to the required set; after GStreamer MP4 container
-codec-data decode cases were added to the required set; after GStreamer no-RGA env-default
+codec-data decode/transcode cases were added to the required set; after GStreamer no-RGA env-default
 encode/decode cases were added to the required set; after opt-in 10-bit H.265
 external-media decode/fallback/RGA-conversion cases were added; after the conditional
 GStreamer VPx-alpha decodebin inspect was added as diagnostic coverage; after the GStreamer strict decoder-property cases

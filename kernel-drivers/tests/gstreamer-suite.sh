@@ -122,6 +122,8 @@ parallel_transcode_mixed_h264_h265
 container_cases_default="
 generated_dec_h264_mp4_codec_data
 generated_dec_h265_mp4_codec_data
+generated_transcode_h264_mp4_to_h265
+generated_transcode_h265_mp4_to_h264
 "
 
 diagnostic_cases_default="
@@ -786,6 +788,30 @@ run_generated_mp4_decode()
 	run_current_command
 }
 
+run_generated_mp4_transcode()
+{
+	local codec=$1
+	local encoder=$2
+	local ext
+
+	ensure_generated_mp4_input "$codec" || return $?
+	ext=$(encoded_artifact_ext "$encoder")
+	CMD=(
+		gst-launch-1.0 -q
+		filesrc "location=$GENERATED_MP4_INPUT_PATH"
+		"!" qtdemux name=demux
+		demux.video_0
+		"!" queue
+		"!" "$GENERATED_MP4_PARSER"
+		"!" mppvideodec
+		"!" "$encoder" zero-copy-pkt=true
+	)
+	append_artifact_or_fake_sink encoded-mp4-transcode "$ext"
+	printf "transcoding generated %s MP4 input with codec_data: " "$codec"
+	print_current_command
+	run_current_command
+}
+
 run_generated_decode_env_strict()
 {
 	local codec=$1
@@ -1356,6 +1382,12 @@ build_case_command()
 	generated_transcode_h265_to_h264)
 		CMD=(__builtin_generated_transcode h265 mpph264enc)
 		;;
+	generated_transcode_h264_mp4_to_h265)
+		CMD=(__builtin_generated_mp4_transcode h264 mpph265enc)
+		;;
+	generated_transcode_h265_mp4_to_h264)
+		CMD=(__builtin_generated_mp4_transcode h265 mpph264enc)
+		;;
 	generated_transcode_vp9_to_h264)
 		CMD=(__builtin_generated_transcode vp9 mpph264enc)
 		;;
@@ -1723,6 +1755,9 @@ run_case_payload()
 	generated_transcode_h264_rga_to_h265 | \
 	generated_transcode_h264_dmabuf_to_h265 | generated_transcode_vp9_to_h264)
 		run_generated_transcode "${CMD[1]}" "${CMD[2]}" "${CMD[@]:3}"
+		;;
+	generated_transcode_h264_mp4_to_h265 | generated_transcode_h265_mp4_to_h264)
+		run_generated_mp4_transcode "${CMD[1]}" "${CMD[2]}"
 		;;
 	generated_dec_h264_display_dmabuf | generated_dec_h265_display_dmabuf | \
 	generated_dec_h264_display_afbc | generated_dec_h265_display_afbc)
