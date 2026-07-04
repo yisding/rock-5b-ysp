@@ -38,10 +38,13 @@
 # =============================================================================
 set -euo pipefail
 
-# <repo>/armbian-build -- resolved relative to this script so the friendly
-# error below (not a cryptic `cd` failure under set -e) fires when it's absent.
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BUILD_DIR="$REPO/armbian-build"
+# The Armbian build tree lives in the external build workspace (rock5b-kernel-build);
+# bootstrap-workspaces.sh clones it there. Override WORKSPACE / ARMBIAN_BUILD for
+# another layout. The friendly error below fires (not a cryptic cd failure) if absent.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CODE="$(cd "$HERE/../../.." && pwd)"                       # ~/Code
+WORKSPACE="${WORKSPACE:-$CODE/kernel/rock5b-kernel-build}"
+BUILD_DIR="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 DEBS="$BUILD_DIR/output/debs"
 
 [ -x "$BUILD_DIR/compile.sh" ] || { echo "Missing Armbian build tree: $BUILD_DIR -- clone https://github.com/armbian/build there (see install.md)" >&2; exit 1; }

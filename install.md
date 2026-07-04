@@ -44,13 +44,15 @@ a large toolchain image and needs roughly **25+ GB free disk** and **~80–90 mi
 cold (~10–15 min for warm patch-only rebuilds).
 
 `kernel-drivers/scripts/build-combined-kernel.sh` expects an Armbian build tree at
-**`<repo>/armbian-build`**:
+**`$WORKSPACE/armbian-build`** — an external, gitignored build workspace
+(default `WORKSPACE=../kernel/rock5b-kernel-build`, override with `WORKSPACE=`).
+The bootstrap clones it (and the conformance sources) from their pins:
 
 ```bash
-git clone https://github.com/armbian/build "$(git rev-parse --show-toplevel)/armbian-build"
+bash kernel-drivers/scripts/bootstrap-workspaces.sh
 ```
 
-Debs land in `<repo>/armbian-build/output/debs` — exactly where
+Debs land in `$WORKSPACE/armbian-build/output/debs` — exactly where
 `install-combined-kernel.sh` looks by default, so the build → install handoff
 needs no path edits. Background on the patch mechanism (userpatches, zero edits
 to Armbian's own files, the `media-0001` collision):

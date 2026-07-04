@@ -17,10 +17,12 @@
 set -uo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "Run as root:  sudo bash $0"; exit 1; }
 
-# Where build-combined-kernel.sh writes its debs: <repo>/armbian-build/output/debs.
-# All four knobs are env-overridable, e.g.  sudo DEBS=/path/to/debs bash $0
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DEBS="${DEBS:-$REPO/armbian-build/output/debs}"
+# Where the build scripts write their debs: the external workspace's
+# armbian-build/output/debs. All knobs env-overridable, e.g. sudo DEBS=/path bash $0
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CODE="$(cd "$HERE/../../.." && pwd)"                       # ~/Code
+WORKSPACE="${WORKSPACE:-$CODE/kernel/rock5b-kernel-build}"
+DEBS="${DEBS:-${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}/output/debs}"
 ENV="${ENV:-/boot/armbianEnv.txt}"
 HASH="${HASH:-6.18.37}"            # kernel version of the just-built debs
 PHASH="${PHASH:-Pb6ab-Cb831}"      # patch+config hash pinning this exact build

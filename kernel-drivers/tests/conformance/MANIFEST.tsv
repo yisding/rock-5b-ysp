@@ -1,0 +1,6 @@
+name	path	remote	branch	commit	purpose
+jeffycn-gstreamer-rockchip	sources/jeffycn-gstreamer-rockchip	https://github.com/JeffyCN/mirrors.git	gstreamer-rockchip	dcbcd6454ef892e385b3a782600369eb6c0719db	GStreamer MPP/RGA integration plugins
+rockchip-mpp	sources/rockchip-mpp	https://github.com/rockchip-linux/mpp.git	develop	c2c1ee502b3a26efebcf843f7a0aeb4d172c6237	Official MPP library and test binaries
+airockchip-librga	sources/airockchip-librga	https://github.com/airockchip/librga.git	main	2b32edcb97b601b25683e2941d888c8515da6d55	Official librga library and IM2D sample suite
+mpp-linux-cpp-demo	sources/mpp-linux-cpp-demo	https://github.com/WainDing/mpp_linux_cpp.git	master	3d7cca63c4f5f0febacef0b0d0cdb36394fb5ca0	Linux MPP/RGA/DRM integration demo
+rkmediacodec-demo	sources/rkmediacodec-demo	https://github.com/c-xh/RKMediaCodecDemo.git	master	38b85b3c160bf58f2237d5f49b601c1636d484a5	Android RKMediaCodec demo
