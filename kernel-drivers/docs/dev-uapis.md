@@ -141,11 +141,10 @@ single syscall. For the kernel-side loop that walks this array — and why
 
 Current libmpp's batch server also builds a **wait array** as repeated
 `SET_SESSION_FD` + `POLL_HW_FINISH|POLL_NON_BLOCK|LAST_MSG` pairs, one pair per
-pending task slot. The rewrite driver treats `LAST_MSG` as a per-slot delimiter
-only for that recognized layout: it infers the wait-array capacity from the
-first `SET_SESSION_FD.data_ptr`, continues through valid next slots, stops at a
-fresh zeroed unused slot, and skips stale completed slots whose `mpp_bat_msg.flag`
-has `MPP_BAT_MSG_DONE`. Generic MPP batches still stop at `LAST_MSG`.
+pending task slot. That server path is dormant in current libmpp because
+`MPP_DEV_BATCH_ON` has no wired callers. The rewrite driver recognizes this
+wait-array shape and rejects it with `-EOPNOTSUPP`; generic MPP batches stop at
+the first `LAST_MSG`, matching the BSP-visible normal-submission behavior.
 
 ### The flow
 

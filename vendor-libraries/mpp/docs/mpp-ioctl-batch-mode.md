@@ -173,11 +173,12 @@ The matching wait buffer holds one `POLL_HW_FINISH` per task, each with
 `:283`). Here `LAST_MSG` delimits a per-session task while `MULTI_MSG` (still set
 on that same entry) keeps the kernel reading into the next task group.
 
-> **HYPOTHESIS (kernel side):** the exact buffer-walking loop lives in the kernel
-> `mpp_service` driver (not in this tree). The userspace buffers are demonstrably
-> built to the contract above; the dedicated server fd is presumably what puts the
-> kernel into session-routing mode where multiple `LAST_MSG`-terminated groups per
-> ioctl are expected. Cross-check against the kernel driver before relying on it.
+> **Kernel cross-check:** the BSP `mpp_service` collector still treats
+> `LAST_MSG` as the terminator for the whole ioctl, including the
+> `SET_SESSION_FD` path. It does not expose a general multi-`LAST_MSG`
+> continuation ABI for normal submissions. The rewrite therefore recognizes the
+> dormant batch-server wait-array shape and rejects it with `-EOPNOTSUPP` rather
+> than preserving a userspace-only layout that current libmpp no longer wires.
 
 ## Why the batch server is dormant
 
@@ -235,5 +236,6 @@ Re-add a `mpp_dev_ioctl(dev, MPP_DEV_BATCH_ON, NULL)` (gated on `batch_mode`) in
 `mpp/codec/mpp_dec.c` around config update, with the matching `BATCH_OFF` on
 deinit — roughly reverting the `ecf7531c` codec-side hunk onto the current C tree.
 Before doing so, understand why fast mode replaced it (that is where the
-multi-instance performance work went) and verify the kernel-side batch parsing
-still matches the `SET_SESSION_FD` + multi-`LAST_MSG` layout above.
+multi-instance performance work went) and design a fresh kernel contract for
+batch-server submit/wait arrays; the current rewrite intentionally rejects that
+dormant path.

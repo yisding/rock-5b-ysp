@@ -170,10 +170,10 @@ flushes the tail and stops the loop. A **single-session** batched ioctl never us
 
 > **Cross-check.** libmpp's batch server builds its wait array as repeated
 > `SET_SESSION_FD` + `POLL_HW_FINISH | POLL_NON_BLOCK | LAST_MSG` pairs — see
-> [`../../docs/dev-uapis.md § A`](../../docs/dev-uapis.md) for how the *rewrite*
-> driver special-cases that recognized layout (inferring wait-array capacity,
-> skipping `MPP_BAT_MSG_DONE` slots) while generic batches still stop at the first
-> `LAST_MSG`.
+> [`../../docs/dev-uapis.md § A`](../../docs/dev-uapis.md). Current libmpp no
+> longer wires callers to this server, so the *rewrite* driver recognizes that
+> wait-array shape and rejects it with `-EOPNOTSUPP`; generic batches still stop
+> at the first `LAST_MSG`.
 
 ---
 

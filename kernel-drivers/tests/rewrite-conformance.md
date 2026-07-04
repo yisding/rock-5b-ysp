@@ -342,8 +342,7 @@ paths:
 - `state_loop_h264_nv12`, `state_loop_roundtrip_h264`;
 - `parallel_enc_h264`, `parallel_roundtrip_h264`,
   `parallel_dec_h264`, `parallel_dec_h265`,
-  `parallel_dec_mixed_h264_h265`,
-  `parallel_batch_server_dec_mixed_h264_h265`, and
+  `parallel_dec_mixed_h264_h265`, and
   `parallel_transcode_mixed_h264_h265`.
 
 The generated-media cases first write short H.264/H.265 elementary streams
@@ -371,11 +370,12 @@ used when comparing kernels that intentionally support those legacy decode
 blocks. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
-The `parallel_batch_server_dec_mixed_h264_h265` case runs the generated mixed
-H.264/H.265 decode workload with `mpp_server_enable=1` and
-`mpp_server_batch_task=${GST_MPP_SERVER_BATCH_TASK:-8}`, which makes hardware
-runs exercise current libmpp's multi-slot batch wait polling path instead of
-only the single-session direct poll path.
+The dormant libmpp batch server is not a required workload.  Current libmpp no
+longer wires callers to `MPP_DEV_BATCH_ON`, so the rewrite driver recognizes
+the known batch-server wait-array shape and returns `-EOPNOTSUPP` instead of
+adding multi-`LAST_MSG` behavior that the BSP collector does not expose for
+normal submissions.  Parallel decode/transcode cases remain required for
+multi-session scheduling evidence through currently reachable userspace paths.
 The generated H.265 Main10 cases are also enabled and required by default:
 `generated_dec_h265_10_fakesink`,
 `generated_dec_h265_10_rga_scale`, and
@@ -770,8 +770,8 @@ RGBA/BGRA/RGBx/BGRx decoder output-format cases were promoted to required;
 after GStreamer `crop-rectangle` crop-meta
 decode coverage was promoted to required; after the required GStreamer public
 encoder/decoder 270-degree and decoder 180-degree RGA rotation cases were
-added; after the required GStreamer libmpp batch-server mixed H.264/H.265
-parallel decode case was added; after
+added; after the dormant GStreamer libmpp batch-server mixed H.264/H.265
+parallel decode case was removed from the required set; after
 diagnostic GStreamer
 `GST_MPP_VP8ENC_FAKE_VP8ENC` alias validation was added; after diagnostic
 GStreamer JPEG decoder
@@ -909,14 +909,10 @@ At the kernel level, the current rewrite pins also include KUnit coverage for
 VP9 RKVDEC fd-to-IOVA register translation/validation, including rejection of
 unknown RKVDEC format-table indices.
 They also cover `MPP_CMD_SET_ERR_REF_HACK` copy/discard behavior for the current
-libmpp VDPU382 probe path, and `SET_SESSION_FD` batch-poll status writeback so
-current libmpp's batch server sees positive `EAGAIN` for pending slots and
-negative task errors such as `-EIO` through `mpp_bat_msg.ret` without treating
-the whole ioctl as failed.
-The required `parallel_batch_server_dec_mixed_h264_h265` GStreamer case is the
-hardware-facing trigger for that parser coverage: it enables libmpp server mode
-and a multi-slot wait array while decoding generated H.264/H.265 streams in
-parallel.
+libmpp VDPU382 probe path, and `SET_SESSION_FD` batch-server wait-array
+recognition/rejection so the dormant multi-slot polling shape fails with
+`-EOPNOTSUPP` instead of extending the ABI beyond BSP-visible normal
+submissions.
 The RGA side also includes KUnit coverage for the default legacy
 `RGA_BLIT_SYNC` `c_RkRgaBlit()` path used by JeffyCN GStreamer: a sync ioctl
 queues behind a busy core, waits for queued completion, and does not copy an
