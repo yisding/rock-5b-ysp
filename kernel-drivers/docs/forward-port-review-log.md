@@ -55,7 +55,7 @@ is a host-tool build issue, not a media-driver failure.
 
 The AV1 forward-port worktree (`../linux-6.18-rkvenc-av1-fwport`, branch
 `rkvenc-fwport-6.18`) was **entirely uncommitted on top of the two base commits**
-until now. It is committed as an 8-commit series (`5614909..2dae7f0`), dependency
+until now. It is committed as a 9-commit series (`5614909..5983ccd`), dependency
 ordered:
 
 | Commit | Content |
@@ -68,14 +68,33 @@ ordered:
 | `71bcd51` | RGA `ROCKCHIP_IOMMU` dep + version-string `sizeof` fix |
 | `92e08bc` | RK3588 DTS: decoder/AV1 IOMMUs, SRAM windows, node wiring |
 | `2dae7f0` | convert rkvenc2 CCU attach/detach onto the shared-domain helper (plan §4) |
+| `5983ccd` | RCB/SRAM fixed-window overlap check + wire `verify()` audit into reset paths (plan §5/§6) |
 
-This advances the [mpp-ccu-iommu-plan](./mpp-ccu-iommu-plan.md): helper (§2),
-decoder conversion (§3), and encoder conversion (§4) are done — both codecs now
-join their cluster through `mpp_iommu_shared_domain_*` (owner = core 0 for the
-decoder, `main_core` for the encoder) with no open-coded domain/rw_sem swaps
-left. **RCB/SRAM validation and reset/fault domain hardening (§5–§7) are still
-open**; the `verify()` audit hook exists but is not yet wired into the
-reset/refresh paths.
+This **completes the code side of the
+[mpp-ccu-iommu-plan](./mpp-ccu-iommu-plan.md)**:
+
+- §1/§2 shared-domain helper; §3/§4 both codecs join their cluster through
+  `mpp_iommu_shared_domain_*` (owner = core 0 for the decoder, `main_core` for
+  the encoder) with no open-coded domain/rw_sem swaps left;
+- §5 fixed RCB/SRAM windows are tracked per cluster and an overlap inside one
+  shared domain is rejected loudly (`mpp_iommu_shared_domain_reserve_window()`),
+  called before `iommu_map()` in both codecs (single-core paths unaffected);
+- §6 the `verify()` warn-once audit hook is wired in after CCU attach and into
+  the decoder soft/hard CCU reset loops and the encoder reset, catching a core
+  that ever drifts off the cluster domain;
+- §7 fault handling already routes by `iommu_dev` and names the faulting core in
+  both codecs; §8 AV1/VSI stays on its own provider and never touches the CCU
+  shared domain.
+
+**Compile-side validation (plan §7):** focused arm64 build of
+`drivers/video/rockchip/mpp/` + `rockchip-iommu.o` + `vsi-iommu.o` is
+warning-free at `W=1`, `rk3588-rock-5b.dtb` builds clean, and the whole series
+passes `git diff --check`. **The runtime gate is still PENDING** — parallel
+H.264/H.265 decode + encode without IOMMU faults, fault injection reporting the
+correct core, and reset stress not leaving a secondary on its private default
+domain all need on-board validation and have not been run. The `verify()` and
+window-overlap paths are diagnostics that only fire on misconfiguration, so a
+clean boot log alone will not exercise them.
 
 ### The rewrite lineage carries a *stale* copy of the forward-port — do not sync back from it
 
