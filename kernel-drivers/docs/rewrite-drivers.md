@@ -371,7 +371,9 @@ implementation (cross-reference:
   DMABuf-to-encoder handoff, generated H.264/H.265 strict decoder property cases for
   `fast-mode=false`/`ignore-error=false`, the matching H.264 strict decoder
   environment-default path, the H.264 `GST_MPP_VIDEODEC_DEFAULT_FORMAT=NV21`
-  output-format default path, generated H.264/H.265 decoder caps-renegotiation through
+  output-format default path, opt-in H.265 10-bit decode/fallback coverage for
+  `GST_MPP_DEC_DISABLE_NV12_10` and `GST_MPP_DEC_DISABLE_NV16_10`, generated
+  H.264/H.265 decoder caps-renegotiation through
   concatenated elementary streams with different dimensions, decoder-side RGA
   rotate/format-convert, in-pipeline H.264/H.265 encoder caps-renegotiation
   through two differently sized raw NV12 segments, explicit H.264/H.265

@@ -215,6 +215,20 @@ dec_h265_afbc_fakesink
 "
 fi
 
+if [ -n "${GST_H265_10_INPUT:-}" ]; then
+	required_cases_default="$required_cases_default
+dec_h265_10_fakesink
+dec_h265_10_env_disable_nv12_10
+"
+fi
+
+if [ -n "${GST_H265_422_10_INPUT:-}" ]; then
+	required_cases_default="$required_cases_default
+dec_h265_422_10_fakesink
+dec_h265_422_10_env_disable_nv16_10
+"
+fi
+
 required_cases=${GST_REQUIRED_CASES:-$required_cases_default}
 diagnostic_cases=${GST_DIAGNOSTIC_CASES:-$diagnostic_cases_default}
 failed=0
@@ -479,6 +493,33 @@ build_decode()
 
 	input=$(require_var "$input_var") || return $?
 	CMD=(gst-launch-1.0 -q filesrc "location=$input" "!" "$parser" "!" mppvideodec)
+
+	while [ "$#" -gt 0 ]; do
+		CMD+=("$1")
+		shift
+	done
+
+	append_artifact_or_fake_sink decoded raw
+}
+
+build_decode_env()
+{
+	local input_var=$1
+	local parser=$2
+	local env_name=$3
+	local env_value=$4
+	local input
+	shift 4
+
+	input=$(require_var "$input_var") || return $?
+	CMD=(
+		env
+		"$env_name=$env_value"
+		gst-launch-1.0 -q
+		filesrc "location=$input"
+		"!" "$parser"
+		"!" mppvideodec
+	)
 
 	while [ "$#" -gt 0 ]; do
 		CMD+=("$1")
@@ -1372,6 +1413,20 @@ build_case_command()
 		;;
 	dec_h265_afbc_fakesink)
 		build_decode GST_H265_INPUT h265parse fbc=true
+		;;
+	dec_h265_10_fakesink)
+		build_decode GST_H265_10_INPUT h265parse
+		;;
+	dec_h265_10_env_disable_nv12_10)
+		build_decode_env GST_H265_10_INPUT h265parse \
+			GST_MPP_DEC_DISABLE_NV12_10 1
+		;;
+	dec_h265_422_10_fakesink)
+		build_decode GST_H265_422_10_INPUT h265parse
+		;;
+	dec_h265_422_10_env_disable_nv16_10)
+		build_decode_env GST_H265_422_10_INPUT h265parse \
+			GST_MPP_DEC_DISABLE_NV16_10 1
 		;;
 	transcode_h264_to_h265)
 		build_transcode GST_H264_INPUT h264parse mpph265enc
