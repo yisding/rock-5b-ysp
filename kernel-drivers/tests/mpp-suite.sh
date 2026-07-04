@@ -18,6 +18,7 @@ MPP_DEC_FRAMES=${MPP_DEC_FRAMES:-120}
 MPP_ENC_FRAMES=${MPP_ENC_FRAMES:-120}
 MPP_INSTANCES=${MPP_INSTANCES:-4}
 MPP_DUMP_OUTPUTS=${MPP_DUMP_OUTPUTS:-0}
+MPP_CAPTURE_ARTIFACTS=${MPP_CAPTURE_ARTIFACTS:-1}
 MPP_ENC_FORMAT=${MPP_ENC_FORMAT:-${MPP_NV12_FORMAT:-0}}
 MPP_GENERATE_VP9_INPUT=${MPP_GENERATE_VP9_INPUT:-1}
 MPP_VP9_GENERATED_WIDTH=${MPP_VP9_GENERATED_WIDTH:-320}
@@ -54,12 +55,18 @@ fi
 
 mkdir -p "$OUT"
 summary="$OUT/summary.tsv"
+artifact_summary="$OUT/artifacts.tsv"
 printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
+printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
 
 export LD_LIBRARY_PATH="$MPP_LIBDIR:${LD_LIBRARY_PATH:-}"
 
 CMD=()
 BUILD_ERROR=
+CURRENT_CLASS=
+CURRENT_CASE=
+CASE_ARTIFACT_KINDS=()
+CASE_ARTIFACT_PATHS=()
 
 get_var()
 {
@@ -92,6 +99,19 @@ require_var()
 safe_token()
 {
 	printf "%s" "$1" | tr -c 'A-Za-z0-9_.-' '_'
+}
+
+register_artifact()
+{
+	local kind=$1
+	local path=$2
+
+	if [ "$MPP_CAPTURE_ARTIFACTS" != "1" ] || [ -z "$path" ]; then
+		return
+	fi
+
+	CASE_ARTIFACT_KINDS+=("$kind")
+	CASE_ARTIFACT_PATHS+=("$path")
 }
 
 generated_vp9_input_path()
@@ -202,11 +222,17 @@ maybe_dec_output()
 {
 	local case_name=$1
 	local explicit=$2
+	local output=
 
 	if [ -n "$explicit" ]; then
-		CMD+=(-o "$explicit")
+		output=$explicit
 	elif [ "$MPP_DUMP_OUTPUTS" = "1" ]; then
-		CMD+=(-o "$OUT/$case_name.yuv")
+		output="$OUT/$case_name.yuv"
+	fi
+
+	if [ -n "$output" ]; then
+		CMD+=(-o "$output")
+		register_artifact decoded "$output"
 	fi
 }
 
@@ -295,6 +321,7 @@ build_enc_case()
 		-v f
 		-o "$output"
 	)
+	register_artifact encoded "$output"
 	if [ "$exe" = "mpi_enc_mt_test" ]; then
 		CMD+=(-s "$MPP_INSTANCES")
 	fi
@@ -332,6 +359,7 @@ build_enc_custom_case()
 		-v f
 		-o "$output"
 	)
+	register_artifact encoded "$output"
 	if [ "$exe" = "mpi_enc_mt_test" ]; then
 		CMD+=(-s "$MPP_INSTANCES")
 	fi
@@ -360,6 +388,7 @@ build_rc2_case()
 		-v f
 		-o "$OUT/$case_name.$suffix"
 	)
+	register_artifact encoded "$OUT/$case_name.$suffix"
 	append_if_var_set -rc MPP_ENC_RC_MODE
 	append_if_var_set -bps MPP_ENC_BPS
 	append_if_var_set -fps MPP_ENC_FPS
@@ -380,6 +409,7 @@ build_rc2_custom_case()
 		-v f
 		-o "$OUT/mpi_rc2_custom.bin"
 	)
+	register_artifact encoded "$OUT/mpi_rc2_custom.bin"
 	append_if_var_set -rc MPP_ENC_RC_MODE
 	append_if_var_set -bps MPP_ENC_BPS
 	append_if_var_set -fps MPP_ENC_FPS
@@ -407,6 +437,7 @@ build_vpu_api_dec_case()
 		-coding "$coding"
 		-vframes "$MPP_DEC_FRAMES"
 	)
+	register_artifact decoded "$output"
 }
 
 build_vpu_api_dec_custom_case()
@@ -423,6 +454,7 @@ build_vpu_api_dec_custom_case()
 		-coding "$type"
 		-vframes "$MPP_DEC_FRAMES"
 	)
+	register_artifact decoded "${MPP_DEC_OUTPUT:-"$OUT/vpu_api_dec_custom.yuv"}"
 }
 
 build_case_command()
@@ -554,6 +586,31 @@ record_summary()
 		>> "$summary"
 }
 
+record_case_artifacts()
+{
+	local idx
+	local kind
+	local path
+	local bytes
+	local sha
+
+	for idx in "${!CASE_ARTIFACT_PATHS[@]}"; do
+		kind=${CASE_ARTIFACT_KINDS[$idx]}
+		path=${CASE_ARTIFACT_PATHS[$idx]}
+		if [ -f "$path" ]; then
+			bytes=$(wc -c < "$path" | tr -d '[:space:]')
+			sha=$(sha256sum "$path" | awk '{ print $1 }')
+		else
+			bytes=missing
+			sha=missing
+		fi
+
+		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+			"$PROFILE" "$CURRENT_CLASS" "$CURRENT_CASE" "$kind" \
+			"$bytes" "$sha" "$path" >> "$artifact_summary"
+	done
+}
+
 write_command_file()
 {
 	local target=$1
@@ -579,6 +636,11 @@ run_case()
 	local status
 	local result
 	local build_status
+
+	CURRENT_CLASS=$class
+	CURRENT_CASE=$case_name
+	CASE_ARTIFACT_KINDS=()
+	CASE_ARTIFACT_PATHS=()
 
 	if [ -z "$case_name" ]; then
 		return
@@ -631,6 +693,7 @@ run_case()
 	printf "%s\n" "$status" > "$status_file"
 	if [ "$status" -eq 0 ]; then
 		result=pass
+		record_case_artifacts
 	elif [ "$status" -eq 124 ]; then
 		result=timeout
 		if [ "$class" = "required" ]; then

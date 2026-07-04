@@ -111,6 +111,7 @@ check_artifact_compare()
 
 	BASELINE_SUMMARY="$base_dir/summary.tsv" \
 		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
+		REQUIRE_ARTIFACTS=1 \
 		bash "$TEST_DIR/$script" > "$out_good"
 	grep -q "artifact_baseline" "$out_good"
 	grep -q "same" "$out_good"
@@ -119,6 +120,7 @@ check_artifact_compare()
 	set +e
 	BASELINE_SUMMARY="$base_dir/summary.tsv" \
 		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
+		REQUIRE_ARTIFACTS=1 \
 		bash "$TEST_DIR/$script" > "$out_bad"
 	status=$?
 	set -e
@@ -132,6 +134,7 @@ check_artifact_compare()
 	set +e
 	BASELINE_SUMMARY="$base_dir/summary.tsv" \
 		CANDIDATE_SUMMARY="$cand_dir/summary.tsv" \
+		REQUIRE_ARTIFACTS=1 \
 		bash "$TEST_DIR/$script" > "$out_missing"
 	status=$?
 	set -e
@@ -185,6 +188,7 @@ check_compare_script mpp-suite-compare.sh
 check_compare_script librga-suite-compare.sh
 check_compare_script gstreamer-suite-compare.sh REQUIRE_ARTIFACTS=0
 check_compare_script ffmpeg-suite-compare.sh REQUIRE_ARTIFACTS=0
+check_artifact_compare mpp-suite-compare.sh mpp
 check_artifact_compare gstreamer-suite-compare.sh gstreamer
 check_artifact_compare ffmpeg-suite-compare.sh ffmpeg
 check_librga_latest_filter

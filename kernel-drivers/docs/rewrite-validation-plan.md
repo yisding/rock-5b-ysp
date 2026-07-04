@@ -27,7 +27,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) | reuse as the pre-merge gate |
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh) | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md), including opt-in GStreamer display/KMS-capture cases | reuse; wire the pass/fail gate |
-| Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode and FFmpeg transcode cases now compare `artifacts.tsv` byte counts and SHA-256s; MPP/RGA suite outputs still need byte-exact dumps | **complete byte-exact output-buffer comparison** |
+| Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, and MPP official-test media outputs now have `artifacts.tsv` byte-count/SHA-256 comparison paths; RGA suite outputs still need byte-exact destination dumps | **complete RGA byte-exact output-buffer comparison** |
 | Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` | reuse as assertion hooks throughout |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
@@ -66,20 +66,23 @@ rewrite. Kconfig makes the two tracks mutually exclusive per device node
 ([`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) "Expanded conformance bundle"), keeping
 `assets/` and command lines identical across the two boots.
 
-**The gap to close:** most current comparators still compare only *pass/fail and
-elapsed time*, and `abi-replay.sh` diffs *normalised ABI logs* rather than the
-**pixels/bitstream**. The GStreamer generated decode/transcode wrapper now
-caches shared H.264/H.265 inputs plus generated VP9 IVF input and compares
-`artifacts.tsv` byte counts plus SHA-256s, with the comparator requiring
-manifests by default; extend the same byte-exact discipline to the remaining
-suite outputs, which is where a
-rewrite's command-generation bugs actually surface:
+**The gap to close:** the remaining RGA comparator still compares only
+*pass/fail and elapsed time*, and `abi-replay.sh` diffs *normalised ABI logs*
+rather than the **pixels/bitstream**. The GStreamer generated
+decode/transcode wrapper now caches shared H.264/H.265 inputs plus generated
+VP9 IVF input and compares `artifacts.tsv` byte counts plus SHA-256s, with the
+comparator requiring manifests by default. The FFmpeg suite does the same for
+encoded bitstreams, and the MPP suite now records official-test decode/encode
+outputs in `artifacts.tsv` when those media cases produce files. Extend the same
+byte-exact discipline to RGA destination buffers, where a rewrite's
+command-generation bugs actually surface:
 
 - **RGA** is deterministic pixel math → expect **bit-exact** destination buffers.
   Have `librga-suite.sh` (or a thin wrapper) dump each op's destination dma-buf
   and `sha256`/`cmp` rewrite-vs-forward-port. A one-pixel CSC or stride error is
   invisible to a pass/fail gate but caught instantly here.
-- **VDEC** decode is bit-exact per bitstream → compare decoded YUV.
+- **VDEC** decode is bit-exact per bitstream → compare decoded YUV through the
+  MPP suite with `MPP_DUMP_OUTPUTS=1`.
 - **VENC** encode is bit-exact only vs the *vendor encoder* at identical config
   (never vs a software encoder) — compare rewrite-VENC output to
   forward-port-VENC output for the same input+params, not PSNR against source.

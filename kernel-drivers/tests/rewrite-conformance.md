@@ -542,8 +542,8 @@ logs.
 
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
-| `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Exit `77` means `/dev/mpp_service` is absent. |
-| `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
+| `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Media cases write `artifacts.tsv` rows for produced decode/encode outputs; set `MPP_DUMP_OUTPUTS=1` to make decode cases dump YUV outputs for byte-exact comparison. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Exit `77` means `/dev/mpp_service` is absent. |
+| `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
 | `librga-suite.sh` | **official librga sample conformance** using `../rockchip-conformance/out/librga-samples/bin` | Runs the broad current Linux/RK3588 sample set under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails only required cases. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files. A required baseline pass that is not a candidate pass is a regression and exits nonzero; elapsed times and candidate/baseline ratios are printed. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio; diagnostic differences and slowdowns remain informational. |
 | `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, optional external-media pipelines, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
@@ -564,6 +564,13 @@ bash ffmpeg-suite.sh                  # ffmpeg-rockchip CLI conformance
 bash ffmpeg-suite-compare.sh          # compare latest forward-port/rewrite FFmpeg summaries
 bash suite-compare-selftest.sh        # device-free comparator regression selftest
 ```
+
+For MPP media parity, run the same official-test cases on the forward port and
+rewrite with identical inputs and `MPP_DUMP_OUTPUTS=1`. Encoder and RC2 cases
+already emit bitstreams; `MPP_DUMP_OUTPUTS=1` adds decoded YUV dumps for decode
+cases. `mpp-suite-compare.sh` compares `artifacts.tsv` rows whenever both
+manifests exist, and `REQUIRE_ARTIFACTS=1` makes a missing or empty manifest a
+hard failure for full media conformance runs.
 
 To turn the rewrite-vs-forward-port compare step into a performance gate, set a
 candidate/baseline elapsed-time ceiling. The suite wrappers record fractional
@@ -614,7 +621,7 @@ the GStreamer generated-input cache,
 artifact-checksum comparator, and generated VP9 IVF decode cases were added.
 The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,
-slowdown, GStreamer/FFmpeg artifact mismatch, and librga latest-summary
+slowdown, MPP/GStreamer/FFmpeg artifact mismatch, and librga latest-summary
 filtering paths. `build-mpp-tests.sh`
 staged the official MPP binaries locally; `build-gstreamer-rockchip.sh`
 currently stops at its dependency preflight on this host because the GStreamer
