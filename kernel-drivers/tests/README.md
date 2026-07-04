@@ -240,6 +240,7 @@ exercises real kernel paths:
   `roundtrip_h264_rga_rotate`;
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
   `generated_dec_h264_dmabuf`, `generated_dec_h265_dmabuf`,
+  `generated_dec_h264_strict_props`, `generated_dec_h265_strict_props`,
   `generated_dec_vp9_fakesink`, `generated_dec_vp9_dmabuf`,
   `generated_dec_h264_renegotiate`, `generated_dec_h265_renegotiate`,
   `generated_dec_h264_rga_rotate`, `generated_dec_h265_rga_scale`;
@@ -268,6 +269,10 @@ default; set `GST_ENABLE_VP9_CASES=0` to remove them or
 `vp9enc`, `ivfmux`, or `ivfparse`. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
+The strict decoder-property cases set `fast-mode=false` and
+`ignore-error=false`, covering the current plugin path that changes
+`MPP_DEC_SET_PARSER_FAST_MODE` and skips the default `MPP_DEC_SET_DISABLE_ERROR`
+control before decode starts.
 The decoder renegotiation cases concatenate two generated elementary streams at
 different dimensions and feed them through `filesrc ! *parse ! mppvideodec`,
 covering parser caps changes and decoder info-change/reset behavior without
@@ -323,7 +328,8 @@ promote the same cases to required, and pass simple sink properties with
 Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_fakesink`, `generated_dec_h264_dmabuf`,
 `generated_dec_h265_dmabuf`, `generated_dec_vp9_fakesink`,
-`generated_dec_vp9_dmabuf`, `generated_dec_h264_renegotiate`,
+`generated_dec_vp9_dmabuf`, `generated_dec_h264_strict_props`,
+`generated_dec_h265_strict_props`, `generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
 `generated_transcode_h264_to_h265`,

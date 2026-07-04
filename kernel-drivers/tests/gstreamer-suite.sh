@@ -59,6 +59,8 @@ generated_dec_h264_fakesink
 generated_dec_h265_fakesink
 generated_dec_h264_dmabuf
 generated_dec_h265_dmabuf
+generated_dec_h264_strict_props
+generated_dec_h265_strict_props
 generated_dec_h264_renegotiate
 generated_dec_h265_renegotiate
 generated_dec_h264_rga_rotate
@@ -954,6 +956,12 @@ build_case_command()
 		;;
 	generated_dec_h265_dmabuf)
 		CMD=(__builtin_generated_decode h265 dma-feature=true)
+		;;
+	generated_dec_h264_strict_props)
+		CMD=(__builtin_generated_decode h264 fast-mode=false ignore-error=false)
+		;;
+	generated_dec_h265_strict_props)
+		CMD=(__builtin_generated_decode h265 fast-mode=false ignore-error=false)
 		;;
 	generated_dec_vp9_fakesink)
 		CMD=(__builtin_generated_decode vp9)

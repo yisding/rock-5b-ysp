@@ -40,6 +40,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > reset on caps changes, encoder/decoder flush reset with post-flush output,
 > encoder force-key events that call `MPP_ENC_SET_IDR_FRAME`,
 > explicit encoder control-property application through `MPP_ENC_SET_CFG`,
+> strict decoder property application through `MPP_DEC_SET_PARSER_FAST_MODE`,
 > repeated encoder/decoder drain-to-EOS reuse,
 > and decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
@@ -358,7 +359,8 @@ implementation (cross-reference:
   `filesrc` decode,
   H.264/H.265 decode->encode transcode including an RGA rotate/scale path,
   generated `mppvideodec dma-feature=true` DMABuf decode and DMABuf-to-encoder
-  handoff, generated H.264/H.265 decoder caps-renegotiation through
+  handoff, generated H.264/H.265 strict decoder property cases for
+  `fast-mode=false`/`ignore-error=false`, generated H.264/H.265 decoder caps-renegotiation through
   concatenated elementary streams with different dimensions, decoder-side RGA
   rotate/format-convert, in-pipeline H.264/H.265 encoder caps-renegotiation
   through two differently sized raw NV12 segments, explicit H.264/H.265
