@@ -297,9 +297,10 @@ paths:
   `enc_h264_qp_profile_props`, `enc_h265_qp_props`,
   `enc_h264_env_no_rga`, `enc_h264_env_max_pending`,
   `enc_h264_env_unaligned_vstride`;
-- `enc_h264_bgrx_rga_rotate`, `enc_h265_rgba_rga_scale`;
+- `enc_h264_bgrx_rga_rotate`, `enc_h264_bgrx_rga_rotate_180`,
+  `enc_h265_rgba_rga_scale`;
 - `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
-  `roundtrip_h264_rga_rotate`;
+  `roundtrip_h264_rga_rotate`, `roundtrip_h264_rga_rotate_270`;
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
   `generated_dec_h264_dmabuf`, `generated_dec_h265_dmabuf`,
   `generated_dec_h264_env_dmabuf`, `generated_dec_h264_env_no_rga`,
@@ -561,6 +562,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `enc_h264_qp_profile_props`, `enc_h265_qp_props`,
 `enc_h264_env_no_rga`, `enc_h264_env_max_pending`,
 `enc_h264_env_unaligned_vstride`,
+`enc_h264_bgrx_rga_rotate_180`,
 `event_flush_enc_h264`, `event_flush_enc_h265`,
 `event_force_key_enc_h264`, `event_force_key_enc_h265`,
 `event_flush_dec_h264`, `event_flush_dec_h265`,
@@ -573,7 +575,8 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `dec_h265_422_10_env_disable_nv16_10`, `transcode_h264_to_h265`,
 `transcode_h265_to_h264`, `transcode_h264_rga_to_h265`,
 `roundtrip_h264_nv12`, `roundtrip_h265_nv12`,
-`roundtrip_h264_rga_rotate`, `state_loop_h264_nv12`, and
+`roundtrip_h264_rga_rotate`, `roundtrip_h264_rga_rotate_270`,
+`state_loop_h264_nv12`, and
 `state_loop_roundtrip_h264`. The roundtrip cases are asset-free decoder gates:
 they feed `videotestsrc` through the MPP encoder, parser, and `mppvideodec` in
 one pipeline so GStreamer's decoder-side buffer-group, short-timeout polling,
@@ -800,7 +803,9 @@ diagnostics were added for the separate RKMPP AV1 backend gap; and after
 opt-in generated VP8/H.263/MPEG diagnostics were added for advertised legacy
 decoder caps outside the RK3588 rewrite gate; and after `debugfs-counter-check.sh`
 was added to gate selected rewrite hardware-start/busy-time counter deltas and
-default timeout/fault/error counters. The device-free
+default timeout/fault/error counters; and after required GStreamer
+encoder/decoder RGA rotation cases were extended to cover the remaining
+180/270-degree public rotation values. The device-free
 `suite-compare-selftest.sh` covers the comparator pass, functional regression,
 slowdown, MPP/GStreamer/FFmpeg artifact mismatch, debugfs counter-check pass
 and failure paths, and librga latest-summary filtering paths. `build-mpp-tests.sh`

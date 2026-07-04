@@ -319,7 +319,8 @@ decode/encode lifecycle operations, MPP allocator import/export of dma-bufs,
 optional AFBC decode/encode negotiation, and legacy `c_RkRgaBlit()` scale,
 format-convert, and rotate operations between fd-backed MPP/GStreamer buffers.
 The kernel trees now have focused KUnit coverage for the highest-value legacy
-RGA conversion profiles and the broader GStreamer-visible format matrix. The
+RGA conversion profiles, the broader GStreamer-visible format matrix, and the
+remaining 180/270-degree public rotation values. The
 support repo's direct `librga-smoke.sh` mirrors the public `c_RkRgaBlit()` calls
 for encoder-side virtual-source conversion, decode-side fd-backed rotate/format
 conversion, and planar fallback, while `gstreamer-suite.sh` carries a diagnostic

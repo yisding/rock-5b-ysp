@@ -453,7 +453,8 @@ implementation (cross-reference:
   named and matrix RGA KUnit coverage for RGB-family/NV16/NV61-to-NV12 encoder
   preprocessing, NV12/NV21/NV16/NV61 plus compact 10-bit decoder output to
   RGB-family formats, compact NV12_10LE40/NV16_10LE40 decoder output to scaled
-  8-bit NV12/NV16, planar I420/YV12-style RGA2 fallback, and the current
+  8-bit NV12/NV16, planar I420/YV12-style RGA2 fallback, the remaining
+  180/270-degree GStreamer rotation values, and the current
   `librga`/GStreamer direct-buffer fd-vs-virtual-address classification; the
   direct `librga` smoke mirrors the highest-value JeffyCN legacy-convert shapes
   through public `c_RkRgaBlit()`.  The missing evidence is still the

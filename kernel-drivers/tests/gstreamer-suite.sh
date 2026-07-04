@@ -82,10 +82,12 @@ enc_h264_env_no_rga
 enc_h264_env_max_pending
 enc_h264_env_unaligned_vstride
 enc_h264_bgrx_rga_rotate
+enc_h264_bgrx_rga_rotate_180
 enc_h265_rgba_rga_scale
 roundtrip_h264_nv12
 roundtrip_h265_nv12
 roundtrip_h264_rga_rotate
+roundtrip_h264_rga_rotate_270
 generated_dec_h264_fakesink
 generated_dec_h265_fakesink
 generated_dec_h264_dmabuf
@@ -1932,6 +1934,11 @@ build_case_command()
 			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
 			zero-copy-pkt=true
 		;;
+	enc_h264_bgrx_rga_rotate_180)
+		build_videotest_encode mpph264enc BGRx "$GST_NUM_BUFFERS" \
+			rotation=180 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
+			zero-copy-pkt=true
+		;;
 	enc_h265_rgba_rga_scale)
 		build_videotest_encode mpph265enc RGBA "$GST_NUM_BUFFERS" \
 			"width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" \
@@ -1996,6 +2003,10 @@ build_case_command()
 	roundtrip_h264_rga_rotate)
 		build_videotest_roundtrip mpph264enc h264parse "$GST_NUM_BUFFERS" \
 			rotation=90 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx
+		;;
+	roundtrip_h264_rga_rotate_270)
+		build_videotest_roundtrip mpph264enc h264parse "$GST_NUM_BUFFERS" \
+			rotation=270 "width=$GST_SCALE_WIDTH" "height=$GST_SCALE_HEIGHT" format=BGRx
 		;;
 	roundtrip_jpeg_nv12)
 		build_videotest_jpeg_roundtrip
