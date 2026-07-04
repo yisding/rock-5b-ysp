@@ -330,7 +330,8 @@ paths:
 - `state_loop_h264_nv12`, `state_loop_roundtrip_h264`;
 - `parallel_enc_h264`, `parallel_roundtrip_h264`,
   `parallel_dec_h264`, `parallel_dec_h265`,
-  `parallel_dec_mixed_h264_h265`, and
+  `parallel_dec_mixed_h264_h265`,
+  `parallel_batch_server_dec_mixed_h264_h265`, and
   `parallel_transcode_mixed_h264_h265`.
 
 The generated-media cases first write short H.264/H.265 elementary streams
@@ -358,6 +359,11 @@ used when comparing kernels that intentionally support those legacy decode
 blocks. The `*_dmabuf`
 variants set `mppvideodec dma-feature=true`, forcing DMABuf caps and the MPP
 allocator/external-buffer-group handoff that zero-copy consumers negotiate.
+The `parallel_batch_server_dec_mixed_h264_h265` case runs the generated mixed
+H.264/H.265 decode workload with `mpp_server_enable=1` and
+`mpp_server_batch_task=${GST_MPP_SERVER_BATCH_TASK:-8}`, which makes hardware
+runs exercise current libmpp's multi-slot batch wait polling path instead of
+only the single-session direct poll path.
 The generated H.265 Main10 cases are also enabled and required by default:
 `generated_dec_h265_10_fakesink`,
 `generated_dec_h265_10_rga_scale`, and
@@ -738,7 +744,9 @@ bash debugfs-counter-check.sh
 
 Maintenance gate: `shellcheck *.sh` in this directory and
 `VALIDATE_ONLY=1 bash rewrite-conformance-run.sh` are expected to pass; they
-were last verified on 2026-07-04 after diagnostic GStreamer
+were last verified on 2026-07-04 after the required GStreamer libmpp
+batch-server mixed H.264/H.265 parallel decode case was added; after
+diagnostic GStreamer
 `GST_MPP_VP8ENC_FAKE_VP8ENC` alias validation was added; after diagnostic
 GStreamer JPEG decoder
 explicit-format and `GST_MPP_JPEGDEC_DEFAULT_FORMAT` cases were added; after
@@ -881,6 +889,10 @@ libmpp VDPU382 probe path, and `SET_SESSION_FD` batch-poll status writeback so
 current libmpp's batch server sees positive `EAGAIN` for pending slots and
 negative task errors such as `-EIO` through `mpp_bat_msg.ret` without treating
 the whole ioctl as failed.
+The required `parallel_batch_server_dec_mixed_h264_h265` GStreamer case is the
+hardware-facing trigger for that parser coverage: it enables libmpp server mode
+and a multi-slot wait array while decoding generated H.264/H.265 streams in
+parallel.
 The RGA side also includes KUnit coverage for the default legacy
 `RGA_BLIT_SYNC` `c_RkRgaBlit()` path used by JeffyCN GStreamer: a sync ioctl
 queues behind a busy core, waits for queued completion, and does not copy an

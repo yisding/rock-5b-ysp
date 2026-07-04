@@ -31,6 +31,7 @@ GST_EVENT_SLEEP_US=${GST_EVENT_SLEEP_US:-20000}
 GST_CAPS_RENEGOTIATE_BUFFERS=${GST_CAPS_RENEGOTIATE_BUFFERS:-8}
 GST_FORMAT_MATRIX_BUFFERS=${GST_FORMAT_MATRIX_BUFFERS:-16}
 GST_GENERATED_INPUT_BUFFERS=${GST_GENERATED_INPUT_BUFFERS:-30}
+GST_MPP_SERVER_BATCH_TASK=${GST_MPP_SERVER_BATCH_TASK:-8}
 GST_WIDTH=${GST_WIDTH:-320}
 GST_HEIGHT=${GST_HEIGHT:-240}
 GST_UNALIGNED_HEIGHT=${GST_UNALIGNED_HEIGHT:-242}
@@ -167,6 +168,7 @@ parallel_roundtrip_h264
 parallel_dec_h264
 parallel_dec_h265
 parallel_dec_mixed_h264_h265
+parallel_batch_server_dec_mixed_h264_h265
 parallel_transcode_mixed_h264_h265
 "
 
@@ -1600,6 +1602,7 @@ run_generated_parallel_decode()
 {
 	local first_codec=$1
 	local second_codec=$2
+	local batch_server=${3:-0}
 	local first_path
 	local first_parser
 	local second_path
@@ -1617,8 +1620,14 @@ run_generated_parallel_decode()
 		filesrc "location=$first_path" "!" "$first_parser" "!" mppvideodec "!" fakesink sync=false
 		filesrc "location=$second_path" "!" "$second_parser" "!" mppvideodec "!" fakesink sync=false
 	)
-	printf "parallel decoding generated %s/%s inputs: " \
-		"$first_codec" "$second_codec"
+	if [ "$batch_server" = "batch-server" ]; then
+		prepend_mpp_server_batch_env
+		printf "parallel decoding generated %s/%s inputs with libmpp batch server depth %s: " \
+			"$first_codec" "$second_codec" "$GST_MPP_SERVER_BATCH_TASK"
+	else
+		printf "parallel decoding generated %s/%s inputs: " \
+			"$first_codec" "$second_codec"
+	fi
 	print_current_command
 	run_current_command
 }
@@ -2351,6 +2360,9 @@ build_case_command()
 	parallel_dec_mixed_h264_h265)
 		CMD=(__builtin_generated_parallel_decode h264 h265)
 		;;
+	parallel_batch_server_dec_mixed_h264_h265)
+		CMD=(__builtin_generated_parallel_decode h264 h265 batch-server)
+		;;
 	parallel_transcode_mixed_h264_h265)
 		CMD=(__builtin_generated_parallel_transcode h264 mpph265enc h265 mpph264enc)
 		;;
@@ -2510,6 +2522,16 @@ run_current_command()
 	fi
 }
 
+prepend_mpp_server_batch_env()
+{
+	CMD=(
+		env
+		mpp_server_enable=1
+		"mpp_server_batch_task=$GST_MPP_SERVER_BATCH_TASK"
+		"${CMD[@]}"
+	)
+}
+
 run_case_payload()
 {
 	local case_name=$1
@@ -2626,8 +2648,9 @@ run_case_payload()
 	generated_dec_h264_display_env_no_vsync | generated_dec_h264_display_env_colorkey)
 		run_generated_display_decode "${CMD[1]}" "${CMD[2]}" "${CMD[3]:-}"
 		;;
-	parallel_dec_h264 | parallel_dec_h265 | parallel_dec_mixed_h264_h265)
-		run_generated_parallel_decode "${CMD[1]}" "${CMD[2]}"
+	parallel_dec_h264 | parallel_dec_h265 | parallel_dec_mixed_h264_h265 | \
+	parallel_batch_server_dec_mixed_h264_h265)
+		run_generated_parallel_decode "${CMD[1]}" "${CMD[2]}" "${CMD[3]:-}"
 		;;
 	parallel_transcode_mixed_h264_h265)
 		run_generated_parallel_transcode "${CMD[1]}" "${CMD[2]}" \
@@ -2716,6 +2739,7 @@ runtime_dispatch_validated()
 	generated_dec_h264_display_env_no_vsync | \
 	generated_dec_h264_display_env_colorkey | \
 	parallel_dec_h264 | parallel_dec_h265 | parallel_dec_mixed_h264_h265 | \
+	parallel_batch_server_dec_mixed_h264_h265 | \
 	parallel_transcode_mixed_h264_h265)
 		return 0
 		;;
