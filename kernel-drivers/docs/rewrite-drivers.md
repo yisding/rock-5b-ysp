@@ -63,10 +63,9 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > default-alias application,
 > MPP-only encode/decode with `GST_MPP_NO_RGA=1`,
 > repeated encoder/decoder drain-to-EOS reuse,
-> multi-session scheduling, generated H.264/H.265 AFBC/FBC decode output, and
-> decode->encode transcode before
+> multi-session scheduling, generated H.264/H.265 AFBC/FBC decode output,
+> generated H.264 crop-meta output, and decode->encode transcode before
 > external media assets are staged. Its diagnostic set now also covers
-> generated H.264 crop-meta output,
 > VP8/JPEG/VPx-alpha element visibility, the optional `vp8enc` alias from
 > `GST_MPP_VP8ENC_FAKE_VP8ENC`, VP8/JPEG encoder property setters,
 > JPEG decoder explicit/default output format selection, RFBC caps negotiation,
@@ -428,9 +427,10 @@ implementation (cross-reference:
   `GST_MPP_VIDEODEC_DEFAULT_ARM_AFBC=1` default paths, plus generated
   decode-AFBC-to-encode-AFBC transcodes that exercise explicit
   `arm-afbc=true` and `GST_MPP_ENC_DEFAULT_ARM_AFBC=1` encoder input paths with
-  encoded artifacts; its
+  encoded artifacts, plus generated H.264 crop-meta output from
+  `crop-rectangle`; its
   diagnostic set also includes seek-event probes through the same
-  `gstreamer-event-harness`, generated H.264 crop-meta output,
+  `gstreamer-event-harness`,
   VP8/JPEG/VPx-alpha element visibility, the optional `vp8enc` alias from
   `GST_MPP_VP8ENC_FAKE_VP8ENC`, VP8 QP and JPEG quality-factor property
   setters, JPEG decoder explicit/default BGRx output selection,

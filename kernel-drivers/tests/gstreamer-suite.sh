@@ -105,6 +105,7 @@ generated_dec_h265_renegotiate
 generated_dec_h264_rga_rotate
 generated_dec_h264_rga_rotate_180
 generated_dec_h264_rga_rotate_270
+generated_dec_h264_crop_meta
 generated_dec_h265_rga_scale
 generated_transcode_h264_to_h265
 generated_transcode_h265_to_h264
@@ -214,7 +215,6 @@ event_seek_enc_h264
 event_seek_enc_h265
 event_seek_dec_h264
 event_seek_dec_h265
-generated_dec_h264_crop_meta
 generated_dec_h264_rga_rgba_scale
 generated_dec_h264_rga_bgra_scale
 generated_dec_h264_rga_rgbx_scale

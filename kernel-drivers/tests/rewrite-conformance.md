@@ -316,7 +316,8 @@ paths:
   `generated_dec_vp9_fakesink`, `generated_dec_vp9_dmabuf`,
   `generated_dec_h264_renegotiate`, `generated_dec_h265_renegotiate`,
   `generated_dec_h264_rga_rotate`, `generated_dec_h264_rga_rotate_180`,
-  `generated_dec_h264_rga_rotate_270`, `generated_dec_h265_rga_scale`;
+  `generated_dec_h264_rga_rotate_270`, `generated_dec_h264_crop_meta`,
+  `generated_dec_h265_rga_scale`;
 - `generated_transcode_h264_to_h265`, `generated_transcode_h265_to_h264`,
   `generated_transcode_h264_mp4_to_h265`,
   `generated_transcode_h265_mp4_to_h264`,
@@ -558,6 +559,7 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h264_rga_rotate_180`, `generated_dec_h264_rga_rotate_270`,
+`generated_dec_h264_crop_meta`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
 `generated_transcode_h264_to_h265`,
 `generated_transcode_h265_to_h264`,
@@ -596,7 +598,7 @@ Diagnostic cases include `gst_inspect_mppvp8enc`, `gst_inspect_mppjpegenc`,
 `roundtrip_jpeg_nv12`, `roundtrip_jpeg_format_bgrx`,
 `roundtrip_jpeg_env_format_bgrx`, `event_seek_enc_h264`, `event_seek_enc_h265`,
 `event_seek_dec_h264`, `event_seek_dec_h265`,
-`generated_dec_h264_crop_meta`, `generated_dec_h264_rga_rgba_scale`,
+`generated_dec_h264_rga_rgba_scale`,
 `generated_dec_h264_rga_bgra_scale`, `generated_dec_h264_rga_rgbx_scale`,
 `generated_dec_h264_rga_bgrx_scale`,
 `generated_dec_h264_env_rfbc`,
@@ -746,7 +748,8 @@ bash debugfs-counter-check.sh
 
 Maintenance gate: `shellcheck *.sh` in this directory and
 `VALIDATE_ONLY=1 bash rewrite-conformance-run.sh` are expected to pass; they
-were last verified on 2026-07-04 after the required GStreamer public
+were last verified on 2026-07-04 after GStreamer `crop-rectangle` crop-meta
+decode coverage was promoted to required; after the required GStreamer public
 encoder/decoder 270-degree and decoder 180-degree RGA rotation cases were
 added; after the required GStreamer libmpp batch-server mixed H.264/H.265
 parallel decode case was added; after
@@ -779,9 +782,7 @@ after opt-in display sink coverage was expanded for
 `KMSSINK_DISABLE_VSYNC=1` and `GST_RKXIMAGE_USE_COLORKEY=1`;
 after the GStreamer codec-specific encoder QP
 cases and encoded
-CBR/FIXQP RC-mode artifact cases were added to the required set and the
-decoder crop-meta case was added as diagnostic
-coverage; after the
+CBR/FIXQP RC-mode artifact cases were added to the required set; after the
 GStreamer env-default strict decoder and env-default decoder
 DMA-feature/output-format cases were added to the required set; after the
 GStreamer encoder unaligned-vstride env-default case was added to the required
