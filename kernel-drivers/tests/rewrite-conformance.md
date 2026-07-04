@@ -248,6 +248,7 @@ exercises real kernel paths:
 - `generated_dec_h264_fakesink`, `generated_dec_h265_fakesink`,
   `generated_dec_h264_dmabuf`, `generated_dec_h265_dmabuf`,
   `generated_dec_h264_strict_props`, `generated_dec_h265_strict_props`,
+  `generated_dec_h264_env_strict_props`,
   `generated_dec_vp9_fakesink`, `generated_dec_vp9_dmabuf`,
   `generated_dec_h264_renegotiate`, `generated_dec_h265_renegotiate`,
   `generated_dec_h264_rga_rotate`, `generated_dec_h265_rga_scale`;
@@ -283,7 +284,9 @@ allocator/external-buffer-group handoff that zero-copy consumers negotiate.
 The strict decoder-property cases set `fast-mode=false` and
 `ignore-error=false`, covering the current plugin path that changes
 `MPP_DEC_SET_PARSER_FAST_MODE` and skips the default `MPP_DEC_SET_DISABLE_ERROR`
-control before decode starts.
+control before decode starts. The env-default variant runs the same decode with
+`GST_MPP_DEC_DEFAULT_FAST_MODE=0` and `GST_MPP_DEC_DEFAULT_IGNORE_ERROR=0`, so
+the default-value path is covered separately from explicit element properties.
 The decoder renegotiation cases concatenate two generated elementary streams at
 different dimensions and feed them through `filesrc ! *parse ! mppvideodec`,
 covering parser caps changes and decoder info-change/reset behavior without
@@ -349,7 +352,8 @@ Useful explicit case names are `generated_dec_h264_fakesink`,
 `generated_dec_h265_fakesink`, `generated_dec_h264_dmabuf`,
 `generated_dec_h265_dmabuf`, `generated_dec_vp9_fakesink`,
 `generated_dec_vp9_dmabuf`, `generated_dec_h264_strict_props`,
-`generated_dec_h265_strict_props`, `generated_dec_h264_renegotiate`,
+`generated_dec_h265_strict_props`, `generated_dec_h264_env_strict_props`,
+`generated_dec_h264_renegotiate`,
 `generated_dec_h265_renegotiate`, `generated_dec_h264_rga_rotate`,
 `generated_dec_h265_rga_scale`, `generated_dec_vp9_rga_scale`,
 `generated_transcode_h264_to_h265`,
@@ -460,8 +464,9 @@ PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
 Maintenance gate: `shellcheck *.sh` in this directory is expected to pass; it
 was last verified on 2026-07-04 after the GStreamer codec-specific encoder QP
 cases were added to the required set and the decoder crop-meta case was added as
-diagnostic coverage; after the GStreamer strict decoder-property cases were
-wired into the generated-decode builtin dispatch, the asset-free
+diagnostic coverage; after the GStreamer env-default strict decoder case was
+added to the required set; after the GStreamer strict decoder-property cases
+were wired into the generated-decode builtin dispatch, the asset-free
 parallel cases became required by default, and after the direct `librga` smoke gained
 forced-core, fence, pre-intr, dma-buf fd-import, and legacy `c_RkRgaBlit()`
 coverage for the GStreamer virtual-source, fd-backed rotate/convert, and planar
