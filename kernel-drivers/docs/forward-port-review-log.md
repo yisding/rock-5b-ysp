@@ -55,7 +55,7 @@ is a host-tool build issue, not a media-driver failure.
 
 The AV1 forward-port worktree (`../linux-6.18-rkvenc-av1-fwport`, branch
 `rkvenc-fwport-6.18`) was **entirely uncommitted on top of the two base commits**
-until now. It is committed as a 7-commit series (`5614909..92e08bc`), dependency
+until now. It is committed as an 8-commit series (`5614909..2dae7f0`), dependency
 ordered:
 
 | Commit | Content |
@@ -67,11 +67,15 @@ ordered:
 | `538d695` | RKMPP AV1 decoder (`mpp_av1dec.c`) |
 | `71bcd51` | RGA `ROCKCHIP_IOMMU` dep + version-string `sizeof` fix |
 | `92e08bc` | RK3588 DTS: decoder/AV1 IOMMUs, SRAM windows, node wiring |
+| `2dae7f0` | convert rkvenc2 CCU attach/detach onto the shared-domain helper (plan §4) |
 
-This advances the [mpp-ccu-iommu-plan](./mpp-ccu-iommu-plan.md): helper (§2) and
-decoder conversion (§3) are done; **encoder conversion (§4) and RCB/reset
-hardening (§5–§7) are still open**. The `verify()` audit hook exists but is not
-wired into reset/refresh yet.
+This advances the [mpp-ccu-iommu-plan](./mpp-ccu-iommu-plan.md): helper (§2),
+decoder conversion (§3), and encoder conversion (§4) are done — both codecs now
+join their cluster through `mpp_iommu_shared_domain_*` (owner = core 0 for the
+decoder, `main_core` for the encoder) with no open-coded domain/rw_sem swaps
+left. **RCB/SRAM validation and reset/fault domain hardening (§5–§7) are still
+open**; the `verify()` audit hook exists but is not yet wired into the
+reset/refresh paths.
 
 ### The rewrite lineage carries a *stale* copy of the forward-port — do not sync back from it
 
