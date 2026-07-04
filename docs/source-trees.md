@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `5945f9609ee9` + branch `rk3588-rewrite-mainline` @ `194c8ff5c565`, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `484f30b7fcb6` + branch `rk3588-rewrite-mainline` @ `3913f2068f8f`, see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -203,11 +203,11 @@ is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b` as
 of 2026-07-04:
 
-- branch `rk3588-rewrite-6.18`, commit `5945f9609ee9` ("media: rockchip:
-  cover vp9 rkvdec translation"), committed in the dev worktree
+- branch `rk3588-rewrite-6.18`, commit `484f30b7fcb6` ("media: rockchip:
+  cover legacy rga sync blit"), committed in the dev worktree
   `/home/yi/Code/linux-6.18-rkvenc`.
-- branch `rk3588-rewrite-mainline`, commit `194c8ff5c565` ("media: rockchip:
-  cover vp9 rkvdec translation"),
+- branch `rk3588-rewrite-mainline`, commit `3913f2068f8f` ("media: rockchip:
+  cover legacy rga sync blit"),
   committed in the sibling worktree `/home/yi/Code/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -222,7 +222,8 @@ push, RGA request-config staging and reconfiguration
 resource/acquire-fence/gauss replacement coverage, request-config ioctl
 acquire-fd ownership/no-release-fence-export coverage, configured request
 cancel/file-close cleanup, legacy async blit and modern request-submit
-acquire/release-fence coverage, RGA async close cleanup for jobs pending on
+acquire/release-fence coverage, legacy sync blit wait/no-fence ioctl coverage,
+RGA async close cleanup for jobs pending on
 acquire fences and jobs queued on hardware, last-hardware pending-acquire
 cleanup, RGA3 pattern-channel rotate rejection, mixed-task RGA3-to-RGA2
 core handoff/requeue coverage, the RK3588
@@ -273,7 +274,7 @@ the mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for the rewrite drivers. The current committed pins
-(`../linux-6.18-rkvenc@5945f9609ee9` and `../linux@194c8ff5c565`) passed that
+(`../linux-6.18-rkvenc@484f30b7fcb6` and `../linux@3913f2068f8f`) passed that
 archive build gate warning-free on 2026-07-04; see rewrite-drivers.md §6.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite

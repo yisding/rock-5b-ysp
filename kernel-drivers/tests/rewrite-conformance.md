@@ -876,6 +876,10 @@ recipe (no suite) lives in [`README.md`](./README.md) § VP9 decode.
 At the kernel level, the current rewrite pins also include KUnit coverage for
 VP9 RKVDEC fd-to-IOVA register translation/validation, including rejection of
 unknown RKVDEC format-table indices.
+The RGA side also includes KUnit coverage for the default legacy
+`RGA_BLIT_SYNC` `c_RkRgaBlit()` path used by JeffyCN GStreamer: a sync ioctl
+queues behind a busy core, waits for queued completion, and does not copy an
+async release fence back to userspace.
 
 **UNVERIFIED:** neither the generated GStreamer VP9 cases nor the direct MPP
 VP9 suite case has a forward-port/rewrite hardware log yet. If you run either,
