@@ -212,6 +212,7 @@ Two notes:
   batch mode; it's about HAL `support_fast_mode`. But the batch block occupied the
   exact spot fast mode took over, and nothing restored it, so fast mode
   (per-frame pipelining) appears to be the throughput mechanism that replaced it.
+  See [`mpp-fast-mode.md`](mpp-fast-mode.md) for how fast mode works.
 - **Never wired into encoders** — batch mode only ever had a decoder caller.
   Encoders use `MPP_DEV_DELIMIT` (above), which is unrelated and still active.
 
