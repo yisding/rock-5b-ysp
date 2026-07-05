@@ -429,7 +429,9 @@ implementation (cross-reference:
   can be made a rewrite-only expected reject with
   `LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1`, and public-API
   raster-to-AFBC32x8/RFBC64x4 destination-mode probes that become rewrite-only
-  expected rejects with `LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT=1`.
+  expected rejects with `LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT=1`.  The
+  `librga-suite.sh` wrapper enables both negative assertions by default for
+  `PROFILE=*rewrite*` runs while leaving forward-port runs observational.
   It also turns the display/compositor/game-UI survey signal into an executable
   fd-backed BGRx `c_RkRgaBlit()` 90-degree rotation artifact, without promoting
   Android-only allocator/HWC paths into the Linux RK3588 required profile.

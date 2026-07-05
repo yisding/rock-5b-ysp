@@ -9,10 +9,18 @@ PROFILE="${PROFILE:-$(uname -r)}"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/kernel-drivers/tests/logs/abi-replay}"
 BASELINE="${BASELINE:-}"
 
+case "$PROFILE" in
+  *rewrite*)
+    : "${ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT:=1}"
+    export ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT
+    ;;
+esac
+
 mkdir -p "$LOG_DIR"
 
 raw_log="$LOG_DIR/$PROFILE.raw.log"
 norm_log="$LOG_DIR/$PROFILE.norm.log"
+compare_log="$LOG_DIR/$PROFILE.compare.log"
 contract_log="$LOG_DIR/$PROFILE.contract.log"
 
 normalize_log() {
@@ -23,13 +31,18 @@ normalize_log() {
     -e 's/((virtual_import_handle|dmabuf_import_handle|physical_import_handle|config_request_id|config_src_handle|config_dst_handle)[[:space:]]+)[0-9]+/\1<id>/g'
 }
 
+extract_compare_log() {
+  awk '!/^[[:space:]]+(RGA_IOC_IMPORT_BUFFER physical|RGA_IOC_RELEASE_BUFFER physical|physical_import_handle|physical_import_reject)/'
+}
+
 extract_contract_log() {
   grep -E \
     -e '^rkcompat abi probe$' \
     -e '^mpp:$' \
     -e '^rga:$' \
     -e '^[[:space:]]+(MPP_IOC_CFG_V[12]|sizeof mpp_|MPP_FLAGS_|QUERY_HW_SUPPORT|hw_support|QUERY_CMD_SUPPORT|cmd_butt|INIT_CLIENT_TYPE|QUERY_HW_ID|hw_id|INIT_DRIVER_DATA zero|SEND_CODEC_INFO width|SET_ERR_REF_HACK|RESET_SESSION|MULTI init\+driver|SET_SESSION_FD|bad_fd_bat_ret|done_bat_ret|TRANS_FD_TO_IOVA dmabuf|dmabuf_iova|RELEASE_FD dmabuf)' \
-    -e '^[[:space:]]+(RGA_(BLIT|FLUSH|GET|CACHE|IOC)|RGA2_GET|sizeof rga_|legacy_|driver_version_|hw_version_count|hw\[[0-9]+]|dmabuf_import_handle)'
+    -e '^[[:space:]]+(RGA_(BLIT|FLUSH|GET|CACHE|IOC)|RGA2_GET|sizeof rga_|legacy_|driver_version_|hw_version_count|hw\[[0-9]+]|dmabuf_import_handle)' |
+    extract_compare_log
 }
 
 set +e
@@ -38,10 +51,12 @@ probe_status=${PIPESTATUS[0]}
 set -e
 
 normalize_log < "$raw_log" > "$norm_log"
+extract_compare_log < "$norm_log" > "$compare_log"
 extract_contract_log < "$norm_log" > "$contract_log"
 
 echo "Wrote raw ABI log:        $raw_log"
 echo "Wrote normalized ABI log: $norm_log"
+echo "Wrote comparable ABI log: $compare_log"
 echo "Wrote contract ABI log:   $contract_log"
 
 if [ "$probe_status" -ne 0 ]; then
@@ -50,12 +65,16 @@ fi
 
 if [ -n "$BASELINE" ]; then
   baseline_log="$LOG_DIR/$BASELINE.norm.log"
+  baseline_compare="$LOG_DIR/$BASELINE.compare.log"
   if [ ! -e "$baseline_log" ]; then
     echo "Missing baseline normalized log: $baseline_log" >&2
     exit 2
   fi
+  if [ ! -e "$baseline_compare" ]; then
+    extract_compare_log < "$baseline_log" > "$baseline_compare"
+  fi
 
-  diff -u "$baseline_log" "$norm_log"
+  diff -u "$baseline_compare" "$compare_log"
 
   baseline_contract="$LOG_DIR/$BASELINE.contract.log"
   if [ ! -e "$baseline_contract" ]; then

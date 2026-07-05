@@ -144,7 +144,9 @@ Suggested expanded matrix:
   `LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1`. It also records public-API
   raster-to-AFBC32x8/RFBC64x4 destination-mode probes by default and can turn
   those into rewrite-only negative checks with
-  `LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT=1`. It can opt into direct P010/P210 IM2D dma-buf conversions with
+  `LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT=1`. `librga-suite.sh` enables both
+  negative assertions automatically for `PROFILE=*rewrite*` so the full rewrite
+  profile fails if these obsolete paths become accepted again. It can opt into direct P010/P210 IM2D dma-buf conversions with
   `LIBRGA_SMOKE_10BIT=1`, which is the smallest hardware check for the local
   P010/P210 request-generation patch before running full FFmpeg/Jellyfin RKRGA
   paths.
@@ -229,6 +231,8 @@ rewrite-negative run where accepting that import should be a failure. It also
 submits raster-to-AFBC32x8/RFBC64x4 destination-mode probes through public
 `librga`; set `LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT=1` only on rewrite-negative
 runs where accepting those deprecated FBC tail modes should fail the smoke.
+`PROFILE=*rewrite*` `librga-suite.sh` runs set both rewrite-negative smoke
+flags by default; forward-port suite runs leave them observational.
 Override with `RGA_REQUIRED_CASES` or `RGA_DIAGNOSTIC_CASES` when intentionally
 probing a narrower or broader profile.
 After both kernels have a suite result, run `librga-suite-compare.sh`. It finds
@@ -710,10 +714,10 @@ logs.
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
 | `rewrite-conformance-run.sh` | **full profile conformance orchestration** | Runs the selected profile's system-info, ABI replay, MPP, librga, GStreamer, and FFmpeg suite steps in a fixed order with deterministic per-suite output directories for that run id, then optionally runs debugfs counter checks and the latest forward-port-vs-rewrite comparators. A nonzero required suite, counter check, or comparator result fails the runner; suite exit `77` still means the relevant device nodes are absent on this boot. |
-| `abi-replay.sh` | **non-submit kernel ABI replay** | Runs the C ABI probe on the booted `/dev/mpp_service` and `/dev/rga`, saves raw/normalized logs, and extracts the stable contract subset for forward-port-vs-rewrite diffing. It records ioctl numbers, struct sizes, version/query returns, safe MPP session controls, multi-message setup, bad-fd batch return markers, optional dma-heap-backed MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA version/no-op behavior, virtual-address plus optional dma-buf import/release, and raw physical-address import behavior. Set `ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT=1` only on rewrite-negative runs to fail unless the raw physical-address import ioctl returns `-EOPNOTSUPP`; the default only records the result so the same probe remains usable on the forward-port oracle. Exit `77` means both device nodes are absent. |
+| `abi-replay.sh` | **non-submit kernel ABI replay** | Runs the C ABI probe on the booted `/dev/mpp_service` and `/dev/rga`, saves raw/normalized logs, and extracts a comparable log plus the stable contract subset for forward-port-vs-rewrite diffing. It records ioctl numbers, struct sizes, version/query returns, safe MPP session controls, multi-message setup, bad-fd batch return markers, optional dma-heap-backed MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA version/no-op behavior, virtual-address plus optional dma-buf import/release, and raw physical-address import behavior. `PROFILE=*rewrite*` defaults `ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT=1` so accepting raw physical-address import fails rewrite runs; `.compare.log` and `.contract.log` omit that intentionally pruned path so forward-port/default direct runs remain observational. Exit `77` means both device nodes are absent. |
 | `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Media cases write `artifacts.tsv` rows for produced decode/encode outputs; set `MPP_DUMP_OUTPUTS=1` to make decode cases dump YUV outputs for byte-exact comparison. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Exit `77` means `/dev/mpp_service` is absent. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
-| `librga-suite.sh` | **official librga sample conformance plus direct artifact smoke** using `../rockchip-conformance/out/librga-samples/bin` and `librga-smoke.cpp` | Runs the broad current Linux/RK3588 sample set plus `ysp_librga_smoke` under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails required cases. The direct smoke case records deterministic destination buffers in `artifacts.tsv` for maintained im2d, RKNN/RKNPU-style preprocessing including RGBA crop/letterbox, fence, pre-intr, Gaussian, and GStreamer/display-shaped legacy `c_RkRgaBlit()` paths, logs a no-submit physical-address import probe, and records public-API AFBC32x8/RFBC64x4 destination-mode negative probes. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
+| `librga-suite.sh` | **official librga sample conformance plus direct artifact smoke** using `../rockchip-conformance/out/librga-samples/bin` and `librga-smoke.cpp` | Runs the broad current Linux/RK3588 sample set plus `ysp_librga_smoke` under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails required cases. The direct smoke case records deterministic destination buffers in `artifacts.tsv` for maintained im2d, RKNN/RKNPU-style preprocessing including RGBA crop/letterbox, fence, pre-intr, Gaussian, and GStreamer/display-shaped legacy `c_RkRgaBlit()` paths, logs a no-submit physical-address import probe, and records public-API AFBC32x8/RFBC64x4 destination-mode negative probes. `PROFILE=*rewrite*` defaults the physical/FBC-tail probes to hard negative assertions; forward-port runs keep them observational. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, paired `artifacts.tsv` manifests. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=0` only for legacy pass/fail-only logs. |
 | `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, generated 8-bit/10-bit decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, AFBC decode-to-encode transcodes, optional external-media pipelines, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, encoded RC-mode/AFBC artifacts, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
@@ -895,7 +899,7 @@ sudo PROFILE=rewrite RUN_COMPARE=1 bash rewrite-conformance-run.sh
 
 ## Raw ABI replay comparisons
 
-For raw ABI replay comparisons, record one normalized log under each booted
+For raw ABI replay comparisons, record one normalized log set under each booted
 kernel profile:
 
 ```bash
@@ -903,14 +907,16 @@ PROFILE=forward-port bash abi-replay.sh
 PROFILE=rewrite BASELINE=forward-port bash abi-replay.sh
 ```
 
-`abi-replay.sh` stores raw and normalized logs under
+`abi-replay.sh` stores raw, normalized, comparable, and contract logs under
 `kernel-drivers/tests/logs/abi-replay/`. Normalization removes volatile file
-descriptor, import-handle, request-id, dma-buf heap, and IOVA values before
-running `diff -u`. It also writes a smaller `.contract.log` that keeps the
-stable query/version and session-control lines, including optional
-dma-heap-backed MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA dma-buf
-import/release, raw RGA physical-address import behavior, and the intentional
-legacy `RGA2_GET_VERSION ret=1` result copied from the BSP/librga contract.
+descriptor, import-handle, request-id, dma-buf heap, and IOVA values. The
+forward-port-vs-rewrite `diff -u` uses `.compare.log`, which additionally drops
+the intentionally pruned raw physical-address import path while preserving that
+evidence in `.raw.log` and `.norm.log`. It also writes a smaller `.contract.log`
+that keeps the stable query/version and session-control lines, including
+optional dma-heap-backed MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA dma-buf
+import/release, and the intentional legacy `RGA2_GET_VERSION ret=1` result
+copied from the BSP/librga contract.
 
 ## VP9 decode via the suites
 

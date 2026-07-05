@@ -79,9 +79,9 @@ No surveyed current Linux-media user promoted RFBC64x4/AFBC32x8, per-channel
 rotation, tile alpha/pattern/color-key, broad RGA2-Pro modes, or Android
 GraphicBuffer/HWC allocator behavior into the required Rock 5B rewrite gate.
 
-**The gap to keep closing:** `abi-replay.sh` diffs *normalised ABI logs* rather
-than the **pixels/bitstream**. It now includes the non-submit dma-buf allocator
-handoff visible to current GStreamer/KMS paths, but the broad official librga
+**The gap to keep closing:** `abi-replay.sh` diffs comparable *normalised ABI
+logs* rather than the **pixels/bitstream**. It still records the non-submit
+dma-buf allocator handoff visible to current GStreamer/KMS paths, but the broad official librga
 sample binaries are still mostly pass/fail/timing because many samples hard-code their own
 `/data`-style input/output conventions. The GStreamer generated
 decode/transcode wrapper now caches shared H.264/H.265 inputs plus generated
