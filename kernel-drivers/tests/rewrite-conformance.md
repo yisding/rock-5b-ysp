@@ -688,7 +688,7 @@ logs.
 |------|-------|
 | `build-mpp-tests.sh` | no device access; writes staged MPP library/tests under `../rockchip-conformance/out/mpp` |
 | `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths; also builds `gstreamer-event-harness` into the GStreamer prefix |
-| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and only checks runner, case-list, and comparator wiring. ABI replay also uses `/dev/dma_heap/*` when available to record MPP dma-buf translate/release, RGA dma-buf import/release parity, and raw RGA physical-address import behavior. |
+| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, optional debugfs counter checks, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and only checks runner, case-list, and comparator wiring. ABI replay also uses `/dev/dma_heap/*` when available to record MPP dma-buf translate/release, RGA dma-buf import/release parity, and raw RGA physical-address import behavior. |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
@@ -703,7 +703,7 @@ logs.
 
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
-| `rewrite-conformance-run.sh` | **full profile conformance orchestration** | Runs the selected profile's system-info, ABI replay, MPP, librga, GStreamer, and FFmpeg suite steps in a fixed order, then optionally runs the latest forward-port-vs-rewrite comparators. A nonzero required suite or comparator result fails the runner; suite exit `77` still means the relevant device nodes are absent on this boot. |
+| `rewrite-conformance-run.sh` | **full profile conformance orchestration** | Runs the selected profile's system-info, ABI replay, MPP, librga, GStreamer, and FFmpeg suite steps in a fixed order with deterministic per-suite output directories for that run id, then optionally runs debugfs counter checks and the latest forward-port-vs-rewrite comparators. A nonzero required suite, counter check, or comparator result fails the runner; suite exit `77` still means the relevant device nodes are absent on this boot. |
 | `abi-replay.sh` | **non-submit kernel ABI replay** | Runs the C ABI probe on the booted `/dev/mpp_service` and `/dev/rga`, saves raw/normalized logs, and extracts the stable contract subset for forward-port-vs-rewrite diffing. It records ioctl numbers, struct sizes, version/query returns, safe MPP session controls, multi-message setup, bad-fd batch return markers, optional dma-heap-backed MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA version/no-op behavior, virtual-address plus optional dma-buf import/release, and raw physical-address import behavior. Set `ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT=1` only on rewrite-negative runs to fail unless the raw physical-address import ioctl returns `-EOPNOTSUPP`; the default only records the result so the same probe remains usable on the forward-port oracle. Exit `77` means both device nodes are absent. |
 | `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Media cases write `artifacts.tsv` rows for produced decode/encode outputs; set `MPP_DUMP_OUTPUTS=1` to make decode cases dump YUV outputs for byte-exact comparison. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Exit `77` means `/dev/mpp_service` is absent. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
@@ -721,6 +721,12 @@ logs.
 VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/case/comparator wiring check
 PROFILE=rewrite bash rewrite-conformance-run.sh  # run all suites for the booted rewrite profile
 PROFILE=rewrite RUN_COMPARE=1 bash rewrite-conformance-run.sh  # run and compare latest summaries
+PROFILE=rewrite RUN_COUNTER_CHECKS=1 \
+  MPP_REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns" \
+  LIBRGA_REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns" \
+  GSTREAMER_REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns" \
+  FFMPEG_REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns" \
+  bash rewrite-conformance-run.sh
 bash mpp-suite.sh                     # official MPP test conformance
 bash mpp-suite-compare.sh             # compare latest forward-port/rewrite MPP summaries
 bash librga-suite.sh                  # official librga sample conformance
@@ -756,9 +762,12 @@ PERF_MAX_RATIO=1.25 bash ffmpeg-suite-compare.sh
 
 For rewrite runs with selected hardware cases, also gate the captured debugfs
 counter deltas so a userspace pass cannot hide a missing hardware submission or
-timer path. The checker defaults to failing positive timeout/fault/error
-counters when the delta file exists. Add explicit positive counters for the
-suite you intentionally ran:
+timer path. `rewrite-conformance-run.sh` can run those checks automatically with
+`RUN_COUNTER_CHECKS=1`; it always points the selected suite wrappers at known
+`$CONFORMANCE_ROOT/logs/$PROFILE/$RUN_ID-*-suite/` directories so the matching
+counter files are unambiguous. The checker defaults to failing positive
+timeout/fault/error counters when the delta file exists. Add explicit positive
+counters for the suite you intentionally ran:
 
 ```bash
 SUMMARY=../rockchip-conformance/logs/rewrite/<run>-mpp-suite/summary.tsv \

@@ -18,7 +18,19 @@ RUN_LIBRGA_SUITE=${RUN_LIBRGA_SUITE:-1}
 RUN_GSTREAMER_SUITE=${RUN_GSTREAMER_SUITE:-1}
 RUN_FFMPEG_SUITE=${RUN_FFMPEG_SUITE:-1}
 RUN_COMPARE=${RUN_COMPARE:-0}
+RUN_COUNTER_CHECKS=${RUN_COUNTER_CHECKS:-0}
 VALIDATE_ONLY=${VALIDATE_ONLY:-0}
+RUN_ID=${RUN_ID:-$(date +%Y%m%d-%H%M%S)}
+LOG_ROOT=${LOG_ROOT:-"$CONFORMANCE_ROOT/logs/$PROFILE"}
+MPP_SUITE_OUT=${MPP_SUITE_OUT:-"$LOG_ROOT/$RUN_ID-mpp-suite"}
+LIBRGA_SUITE_OUT=${LIBRGA_SUITE_OUT:-"$LOG_ROOT/$RUN_ID-librga-suite"}
+GSTREAMER_SUITE_OUT=${GSTREAMER_SUITE_OUT:-"$LOG_ROOT/$RUN_ID-gstreamer-suite"}
+FFMPEG_SUITE_OUT=${FFMPEG_SUITE_OUT:-"$LOG_ROOT/$RUN_ID-ffmpeg-suite"}
+MPP_REQUIRED_POSITIVE_COUNTERS=${MPP_REQUIRED_POSITIVE_COUNTERS:-}
+LIBRGA_REQUIRED_POSITIVE_COUNTERS=${LIBRGA_REQUIRED_POSITIVE_COUNTERS:-}
+GSTREAMER_REQUIRED_POSITIVE_COUNTERS=${GSTREAMER_REQUIRED_POSITIVE_COUNTERS:-}
+FFMPEG_REQUIRED_POSITIVE_COUNTERS=${FFMPEG_REQUIRED_POSITIVE_COUNTERS:-}
+REQUIRE_COUNTER_FILE=${REQUIRE_COUNTER_FILE:-0}
 
 run_step()
 {
@@ -54,6 +66,24 @@ run_system_info()
 	)
 }
 
+run_counter_check()
+{
+	local label=$1
+	local summary=$2
+	local required=$3
+
+	if [ "$RUN_COUNTER_CHECKS" != "1" ]; then
+		return
+	fi
+
+	run_step "$label: check rewrite debugfs counters" \
+		env SUMMARY="$summary" \
+		REQUIRED_POSITIVE_COUNTERS="$required" \
+		FORBID_POSITIVE_COUNTERS="${FORBID_POSITIVE_COUNTERS:-}" \
+		REQUIRE_COUNTER_FILE="$REQUIRE_COUNTER_FILE" \
+		bash "$TEST_DIR/debugfs-counter-check.sh"
+}
+
 run_profile_suites()
 {
 	if [ "$RUN_SYSTEM_INFO" = "1" ]; then
@@ -68,25 +98,37 @@ run_profile_suites()
 	if [ "$RUN_MPP_SUITE" = "1" ]; then
 		run_step "mpp: official test suite" \
 			env PROFILE="$PROFILE" CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
+			OUT="$MPP_SUITE_OUT" \
 			bash "$TEST_DIR/mpp-suite.sh"
+		run_counter_check "mpp" "$MPP_SUITE_OUT/summary.tsv" \
+			"$MPP_REQUIRED_POSITIVE_COUNTERS"
 	fi
 
 	if [ "$RUN_LIBRGA_SUITE" = "1" ]; then
 		run_step "rga: official librga suite" \
 			env PROFILE="$PROFILE" CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
+			OUT="$LIBRGA_SUITE_OUT" \
 			bash "$TEST_DIR/librga-suite.sh"
+		run_counter_check "rga" "$LIBRGA_SUITE_OUT/summary.tsv" \
+			"$LIBRGA_REQUIRED_POSITIVE_COUNTERS"
 	fi
 
 	if [ "$RUN_GSTREAMER_SUITE" = "1" ]; then
 		run_step "gstreamer: JeffyCN plugin suite" \
 			env PROFILE="$PROFILE" CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
+			OUT="$GSTREAMER_SUITE_OUT" \
 			bash "$TEST_DIR/gstreamer-suite.sh"
+		run_counter_check "gstreamer" "$GSTREAMER_SUITE_OUT/summary.tsv" \
+			"$GSTREAMER_REQUIRED_POSITIVE_COUNTERS"
 	fi
 
 	if [ "$RUN_FFMPEG_SUITE" = "1" ]; then
 		run_step "ffmpeg: rkmpp/rkrga CLI suite" \
 			env PROFILE="$PROFILE" CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
+			OUT="$FFMPEG_SUITE_OUT" \
 			bash "$TEST_DIR/ffmpeg-suite.sh"
+		run_counter_check "ffmpeg" "$FFMPEG_SUITE_OUT/summary.tsv" \
+			"$FFMPEG_REQUIRED_POSITIVE_COUNTERS"
 	fi
 }
 
