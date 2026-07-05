@@ -41,8 +41,9 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > librga sample binaries remain primarily
 > pass/fail/timing coverage until a current-userspace gap needs sample-specific
 > output capture. The FFmpeg suite generates shared software H.264/H.265 inputs,
-> probes current `ffmpeg-rockchip` decoder/RGA filter options, runs decoder-option
-> null-output cases, H.264->RGA->HEVC and HEVC->RGA->H.264 hardware transcodes,
+> probes current `ffmpeg-rockchip` decoder, encoder, and RGA filter options,
+> runs decoder-option null-output cases, generated H.264/H.265 encoder-option
+> encodes, H.264->RGA->HEVC and HEVC->RGA->H.264 hardware transcodes,
 > required `scale_rkrga` forced-core/async/AFBC-output and `vpp_rkrga`
 > crop/transpose coverage, and diagnostic decoder `afbc=rga` plus
 > `overlay_rkrga` alpha composition. Encoded outputs record byte counts/SHA-256s
@@ -391,19 +392,23 @@ implementation (cross-reference:
   non-simple bitblit variants; and non-bitblit operation modes outside the
   implemented RGA2 subsets.
 - **Public `librga` users outside the current conformance set** were surveyed
-  on 2026-07-04 by GitHub code search, excluding the already-covered
-  ffmpeg-rockchip, JeffyCN GStreamer, and official librga sample paths.  The
+  on 2026-07-04 and refreshed on 2026-07-05 by GitHub code search, excluding
+  the already-covered ffmpeg-rockchip, JeffyCN GStreamer, and official librga
+  sample paths.  The
   raw survey note is
   [`findings/2026-07-04-librga-consumer-survey.md`](../../findings/2026-07-04-librga-consumer-survey.md).
   The
   strongest additional Linux signal is RKNN/RKNPU preprocessing:
-  [airockchip/rknn_model_zoo](https://github.com/airockchip/rknn_model_zoo/blob/main/utils/image_utils.c),
-  [airockchip/rknn-toolkit2](https://github.com/airockchip/rknn-toolkit2/blob/master/rknpu2/examples/rknn_yolov5_demo/src/preprocess.cc),
+  [airockchip/rknn_model_zoo](https://github.com/airockchip/rknn_model_zoo/blob/bad6c7334531becaf90a561988519b7bec34d0ab/utils/image_utils.c),
+  [rockchip-linux/rknpu2](https://github.com/rockchip-linux/rknpu2/blob/5adf7c1bd17e169e9880ccdf3b49adde925ab7f9/examples/rknn_yolov5_demo/src/preprocess.cc),
   and
-  [rockchip-linux/rknpu](https://github.com/rockchip-linux/rknpu/blob/master/rknn/rknn_api/examples/rknn_yolov5_demo/src/rga_func.c)
+  [rockchip-linux/rknpu2's RKNN memory handoff demo](https://github.com/rockchip-linux/rknpu2/blob/5adf7c1bd17e169e9880ccdf3b49adde925ab7f9/examples/rknn_api_demo/src/rknn_create_mem_with_rga_demo.cpp)
   exercise RGB/RGBA/NV12/NV21 resize, crop/letterbox, and color conversion
   through `imresize()`, `improcess()`, direct `wrapbuffer_virtualaddr()` /
-  `wrapbuffer_fd()` paths, handle imports, and legacy `c_RkRgaBlit()`.  Some
+  `wrapbuffer_fd()` / `wrapbuffer_fd_t()` paths, handle imports, and RKNN
+  tensor-memory fd handoff.  Jellyfin and downstream NAS packaging use the
+  same ffmpeg-rockchip RKRGA filters and `c_RkRgaBlit()` ABI already covered by
+  `ffmpeg-suite.sh`, not a separate direct-librga kernel profile.  Some
   model-zoo utility code carries physical-address import branches, but the
   common example paths are fd or virtual-address buffers; physical import stays
   recognized-but-unsupported unless a target workload proves it is mandatory.

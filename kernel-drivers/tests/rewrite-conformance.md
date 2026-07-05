@@ -177,13 +177,14 @@ Suggested expanded matrix:
   of the full `ffmpeg-rockchip` path. It probes the selected ffmpeg build for
   `h264_rkmpp`/`hevc_rkmpp` decoders and encoders, `scale_rkrga`,
   `vpp_rkrga`, `overlay_rkrga`, decoder `afbc`/`buf_mode`/`fast_parse`
-  options, and the current RGA filter option surface. It generates shared
-  software H.264/H.265 elementary inputs under
-  `../rockchip-conformance/assets/ffmpeg-generated`, runs decoder-option
-  null-output cases, both H.264->RGA->HEVC and HEVC->RGA->H.264 hardware
-  transcodes, required `scale_rkrga` core/async/AFBC-output coverage, and
-  required `vpp_rkrga` crop/transpose coverage. Diagnostic cases cover
-  decoder `afbc=rga` and `overlay_rkrga` alpha composition until paired
+  options, H.264/H.265 encoder rate-control/QP/profile/level controls, and the
+  current RGA filter option surface. It generates shared software H.264/H.265
+  elementary inputs under `../rockchip-conformance/assets/ffmpeg-generated`,
+  runs decoder-option null-output cases, generated H.264/H.265 encoder-option
+  cases, both H.264->RGA->HEVC and HEVC->RGA->H.264 hardware transcodes,
+  required `scale_rkrga` core/async/AFBC-output coverage, and required
+  `vpp_rkrga` crop/transpose coverage. Diagnostic cases cover decoder
+  `afbc=rga` and `overlay_rkrga` alpha composition until paired
   forward-port/rewrite hardware logs decide whether to promote them. The
   comparator can enforce pass/fail, elapsed-time ratios, and encoded bitstream
   byte-count/SHA parity against the forward-port.
@@ -725,7 +726,7 @@ logs.
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, paired `artifacts.tsv` manifests. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=0` only for legacy pass/fail-only logs. |
 | `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, generated 8-bit/10-bit decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, AFBC decode-to-encode transcodes, optional external-media pipelines, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, encoded RC-mode/AFBC artifacts, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
-| `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs component/option inspection, decoder-option null-output cases, generated-input H.264->`scale_rkrga`->HEVC and HEVC->`scale_rkrga`->H.264 hardware transcodes, required `scale_rkrga` forced-core/async/AFBC-output coverage, and required `vpp_rkrga` crop/transpose coverage under the selected `PROFILE`. Diagnostic cases cover decoder `afbc=rga` and `overlay_rkrga` alpha composition. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
+| `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs component/option inspection, decoder-option null-output cases, generated H.264/H.265 encoder-option encodes, generated-input H.264->`scale_rkrga`->HEVC and HEVC->`scale_rkrga`->H.264 hardware transcodes, required `scale_rkrga` forced-core/async/AFBC-output coverage, and required `vpp_rkrga` crop/transpose coverage under the selected `PROFILE`. Diagnostic cases cover decoder `afbc=rga` and `overlay_rkrga` alpha composition. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `ffmpeg-suite-compare.sh` | **rewrite-vs-forward-port ffmpeg-rockchip comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for encoded bitstream byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 | `debugfs-counter-check.sh` | **rewrite counter-delta gate** | Checks a captured `debugfs-counters-delta.tsv` from any suite. Use `REQUIRED_POSITIVE_COUNTERS` to prove selected hardware paths actually submitted and reached the IRQ/completion timing path; use `FORBID_POSITIVE_COUNTERS` to override the default timeout/fault/error guard. This complements elapsed-time comparison because it catches “userspace passed but the rewrite did no hardware work” cases. |
 
@@ -819,7 +820,8 @@ cases were promoted to required while the diagnostic matrix kept chip-dependent
 NV24/Y444 plus remaining NV21/I420/YV12 RGA scale paths; after the `GST_VALIDATE_CASES=1`
 GStreamer case-builder/runner dry validation mode was added; after
 `FFMPEG_VALIDATE_CASES=1` dry validation and FFmpeg decoder-option,
-forced-core/async/AFBC, `vpp_rkrga`, and `overlay_rkrga` cases were added;
+H.264/H.265 encoder-option, forced-core/async/AFBC, `vpp_rkrga`, and
+`overlay_rkrga` cases were added;
 after
 `ffmpeg-suite.sh` and
 `ffmpeg-suite-compare.sh` made ffmpeg-rockchip a first-class

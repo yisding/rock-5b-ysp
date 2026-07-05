@@ -359,10 +359,11 @@ the shared conformance assets directory and records `artifacts.tsv` SHA-256s for
 decode/transcode
 outputs so the comparator can fail required forward-port vs rewrite pixel or
 bitstream mismatches. The FFmpeg wrapper now also validates current
-ffmpeg-rockchip decoder/RGA filter option discovery, decoder-option null-output
-paths, `scale_rkrga` forced-core/async/AFBC-output transcodes, `vpp_rkrga`
-crop/transpose, and diagnostic decoder `afbc=rga` plus `overlay_rkrga` alpha
-composition. GStreamer and FFmpeg pipeline conformance on a booted rewrite
+ffmpeg-rockchip decoder/encoder/RGA filter option discovery, decoder-option
+null-output paths, H.264/H.265 encoder-option encodes, `scale_rkrga`
+forced-core/async/AFBC-output transcodes, `vpp_rkrga` crop/transpose, and
+diagnostic decoder `afbc=rga` plus `overlay_rkrga` alpha composition.
+GStreamer and FFmpeg pipeline conformance on a booted rewrite
 kernel, including real display-plane and forward-port vs rewrite timing data,
 remain the next userspace-visible priorities before chasing diagnostic-only RGA
 sample profiles.

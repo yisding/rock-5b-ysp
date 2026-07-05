@@ -37,6 +37,8 @@ required_cases_default="
 ffmpeg_probe_rkmpp_rkrga
 ffmpeg_decode_h264_extbuf_to_null
 ffmpeg_decode_hevc_afbc_to_null
+ffmpeg_encode_h264_options
+ffmpeg_encode_hevc_options
 ffmpeg_transcode_h264_to_hevc_rkrga
 ffmpeg_transcode_hevc_to_h264_rkrga
 ffmpeg_filter_scale_rkrga_core_async_afbc
@@ -213,6 +215,8 @@ run_probe_components()
 	local filters="$OUT/ffmpeg-filters.txt"
 	local version="$OUT/ffmpeg-version.txt"
 	local h264_decoder_help="$OUT/ffmpeg-h264-rkmpp-decoder-help.txt"
+	local h264_encoder_help="$OUT/ffmpeg-h264-rkmpp-encoder-help.txt"
+	local hevc_encoder_help="$OUT/ffmpeg-hevc-rkmpp-encoder-help.txt"
 	local scale_help="$OUT/ffmpeg-scale-rkrga-help.txt"
 	local vpp_help="$OUT/ffmpeg-vpp-rkrga-help.txt"
 	local overlay_help="$OUT/ffmpeg-overlay-rkrga-help.txt"
@@ -222,6 +226,8 @@ run_probe_components()
 	"$FF" -hide_banner -encoders > "$encoders" 2>&1
 	"$FF" -hide_banner -filters > "$filters" 2>&1
 	"$FF" -hide_banner -h decoder=h264_rkmpp > "$h264_decoder_help" 2>&1
+	"$FF" -hide_banner -h encoder=h264_rkmpp > "$h264_encoder_help" 2>&1
+	"$FF" -hide_banner -h encoder=hevc_rkmpp > "$hevc_encoder_help" 2>&1
 	"$FF" -hide_banner -h filter=scale_rkrga > "$scale_help" 2>&1
 	"$FF" -hide_banner -h filter=vpp_rkrga > "$vpp_help" 2>&1
 	"$FF" -hide_banner -h filter=overlay_rkrga > "$overlay_help" 2>&1
@@ -237,6 +243,22 @@ run_probe_components()
 	require_pattern "$h264_decoder_help" 'afbc' "rkmpp decoder afbc option"
 	require_pattern "$h264_decoder_help" 'buf_mode' "rkmpp decoder buf_mode option"
 	require_pattern "$h264_decoder_help" 'fast_parse' "rkmpp decoder fast_parse option"
+	require_pattern "$h264_encoder_help" 'rc_mode' "h264_rkmpp encoder rc_mode option"
+	require_pattern "$h264_encoder_help" 'qp_init' "h264_rkmpp encoder qp_init option"
+	require_pattern "$h264_encoder_help" 'qp_max' "h264_rkmpp encoder qp_max option"
+	require_pattern "$h264_encoder_help" 'qp_min' "h264_rkmpp encoder qp_min option"
+	require_pattern "$h264_encoder_help" 'profile' "h264_rkmpp encoder profile option"
+	require_pattern "$h264_encoder_help" 'level' "h264_rkmpp encoder level option"
+	require_pattern "$h264_encoder_help" 'coder' "h264_rkmpp encoder coder option"
+	require_pattern "$h264_encoder_help" '8x8dct' "h264_rkmpp encoder 8x8dct option"
+	require_pattern "$h264_encoder_help" 'prefix_mode' "h264_rkmpp encoder prefix_mode option"
+	require_pattern "$hevc_encoder_help" 'rc_mode' "hevc_rkmpp encoder rc_mode option"
+	require_pattern "$hevc_encoder_help" 'qp_init' "hevc_rkmpp encoder qp_init option"
+	require_pattern "$hevc_encoder_help" 'qp_max' "hevc_rkmpp encoder qp_max option"
+	require_pattern "$hevc_encoder_help" 'qp_min' "hevc_rkmpp encoder qp_min option"
+	require_pattern "$hevc_encoder_help" 'profile' "hevc_rkmpp encoder profile option"
+	require_pattern "$hevc_encoder_help" 'tier' "hevc_rkmpp encoder tier option"
+	require_pattern "$hevc_encoder_help" 'level' "hevc_rkmpp encoder level option"
 	require_pattern "$scale_help" 'force_original_aspect_ratio' "scale_rkrga aspect-ratio option"
 	require_pattern "$scale_help" 'force_yuv' "scale_rkrga force_yuv option"
 	require_pattern "$scale_help" 'force_chroma' "scale_rkrga force_chroma option"
@@ -300,6 +322,29 @@ run_transcode()
 		-i "$input" \
 		-vf "scale_rkrga=w=${output_width}:h=${output_height}:format=nv12:force_original_aspect_ratio=disable" \
 		-c:v "$output_encoder" -b:v "$bitrate" -f "$output_format" "$output"
+
+	probe_check "$output" "$output_codec" "$output_width" "$output_height"
+	record_artifact required "$case_name" "encoded-$output_codec" "$output"
+}
+
+run_encode_generated()
+{
+	local case_name=$1
+	local output_codec=$2
+	local output_encoder=$3
+	local output_format=$4
+	local output_width=$5
+	local output_height=$6
+	local bitrate=$7
+	shift 7
+	local output="$OUT/artifacts/$case_name.$output_format"
+
+	rm -f "$output"
+	timeout "$FFMPEG_TIMEOUT" "$FF" -hide_banner -y -loglevel info \
+		-f lavfi \
+		-i "testsrc2=size=${output_width}x${output_height}:rate=${FFMPEG_FPS}:duration=${FFMPEG_DURATION}" \
+		-pix_fmt nv12 \
+		-c:v "$output_encoder" "$@" -b:v "$bitrate" -f "$output_format" "$output"
 
 	probe_check "$output" "$output_codec" "$output_width" "$output_height"
 	record_artifact required "$case_name" "encoded-$output_codec" "$output"
@@ -416,6 +461,8 @@ case_known()
 	ffmpeg_probe_rkmpp_rkrga | \
 	ffmpeg_decode_h264_extbuf_to_null | \
 	ffmpeg_decode_hevc_afbc_to_null | \
+	ffmpeg_encode_h264_options | \
+	ffmpeg_encode_hevc_options | \
 	ffmpeg_transcode_h264_to_hevc_rkrga | \
 	ffmpeg_transcode_hevc_to_h264_rkrga | \
 	ffmpeg_filter_scale_rkrga_core_async_afbc | \
@@ -489,6 +536,19 @@ run_case_payload()
 	ffmpeg_decode_hevc_afbc_to_null)
 		run_decode_null "$case_name" hevc hevc_rkmpp \
 			-deint 0 -fast_parse 1 -buf_mode half -afbc on
+		;;
+	ffmpeg_encode_h264_options)
+		run_encode_generated "$case_name" h264 h264_rkmpp h264 640 360 2M \
+			-rc_mode CBR -qp_init 26 -qp_min 20 -qp_max 36 \
+			-qp_min_i 18 -qp_max_i 34 \
+			-profile:v high -level:v 4.1 -coder cabac -8x8dct 1 \
+			-prefix_mode 1
+		;;
+	ffmpeg_encode_hevc_options)
+		run_encode_generated "$case_name" hevc hevc_rkmpp hevc 640 360 2M \
+			-rc_mode CBR -qp_init 28 -qp_min 22 -qp_max 38 \
+			-qp_min_i 20 -qp_max_i 36 \
+			-profile:v main -tier high -level:v 4.1
 		;;
 	ffmpeg_transcode_h264_to_hevc_rkrga)
 		run_transcode "$case_name" h264 hevc hevc_rkmpp hevc 1280 720 4M
