@@ -98,11 +98,13 @@ Implemented forward-port fixes:
   callbacks unwind already-enabled clocks before returning the error.
 - Device `run()` callback failures now unwind the active IOMMU handler, power, and
   reset state; the RKVENC temporary core-clock re-enable path cancels the timeout,
-  ends run accounting, and clears `cur_task` before returning an error. The MPP
-  worker completes run-start failures as aborted/done and wakes waiters before
-  dropping the running-queue reference, so userspace does not hang. RKVENC
-  slice-mode blocking polls also wake on `TASK_STATE_DONE` and fall through the
-  same aborted-task return path when no slice data is available.
+  ends run accounting, clears the CCU DCHS working slot, and clears `cur_task`
+  before returning an error. RKVENC also clears a patched DCHS slot if register
+  class validation fails after the slot was reserved. The MPP worker completes
+  run-start failures as aborted/done and wakes waiters before dropping the
+  running-queue reference, so userspace does not hang. RKVENC slice-mode blocking
+  polls also wake on `TASK_STATE_DONE` and fall through the same aborted-task
+  return path when no slice data is available.
 - MPP fault-handler activation now fails the task/power-on path instead of
   running hardware without the intended provider fault hook.
 - RKVENC2 fault handling routes by the faulting IOMMU device while holding RCU
