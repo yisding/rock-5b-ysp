@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `5e307d88798f` + branch `rk3588-rewrite-mainline` @ `9f9b786baec2`, see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `96aac5e2460f` + branch `rk3588-rewrite-mainline` @ `fb0988ed04ac`, including the RGA2-Pro FBC deprecation slice; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -203,13 +203,13 @@ is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b` as
 of 2026-07-04:
 
-- branch `rk3588-rewrite-6.18`, commit `5e307d88798f` ("media: rockchip:
-  reject dormant mpp batch server"), committed in the dev worktree
+- branch `rk3588-rewrite-6.18`, commit `96aac5e2460f` ("media: rockchip:
+  deprecate RGA2-Pro FBC paths"), committed in the dev worktree
   `/home/yi/Code/kernel/linux-6.18-rkvenc`, replayed on the current
   `rkvenc-fwport-6.18` forward-port tip `e059aad8d68b` from
   `/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport`.
-- branch `rk3588-rewrite-mainline`, commit `9f9b786baec2` ("media: rockchip:
-  reject dormant mpp batch server"),
+- branch `rk3588-rewrite-mainline`, commit `fb0988ed04ac` ("media: rockchip:
+  deprecate RGA2-Pro FBC paths"),
   committed in the sibling worktree `/home/yi/Code/kernel/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -261,7 +261,9 @@ VP9 RKVDEC fd-to-IOVA register translation/validation KUnit coverage, plus
 `MPP_CMD_SET_ERR_REF_HACK` initialized-session copy/discard KUnit coverage for
 the current libmpp VDPU382 probe path, plus legacy RGA flush/result no-op ioctl
 dispatch KUnit coverage for current librga's post-blit compatibility path, plus
-dormant MPP batch-server wait-array recognition/rejection with `-EOPNOTSUPP`, and the
+dormant MPP batch-server wait-array recognition/rejection with `-EOPNOTSUPP`,
+RGA2-Pro RFBC64x4/AFBC32x8 source-only compatibility paths now marked
+deprecated for removal after historical conformance coverage is retired, and the
 RKVDEC2 CCU-mode update that
 keeps HARD opt-in while the RK3588 DT selects BSP-style soft CCU, plus a named
 RGA direct-buffer classifier and KUnit coverage for current `librga`/GStreamer
@@ -280,7 +282,7 @@ the mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for the rewrite drivers. The current committed pins
-(`../kernel/linux-6.18-rkvenc@5e307d88798f` and `../kernel/linux@9f9b786baec2`) passed that
+(`../kernel/linux-6.18-rkvenc@96aac5e2460f` and `../kernel/linux@fb0988ed04ac`) passed that
 archive build gate warning-free on 2026-07-04; `VALIDATE_ONLY=1
 kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
 case-builder/comparator validation, including 143 GStreamer case builders. See
