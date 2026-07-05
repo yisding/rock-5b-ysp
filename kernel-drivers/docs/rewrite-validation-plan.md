@@ -234,9 +234,11 @@ Ship only when **all** hold, each with a dated record in
    (today's tests never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —
    0 diffs (RGA pixels, VDEC YUV, VENC-vs-VENC bitstream).
-3. Full `mpp-suite` / `librga-suite` / `gstreamer-suite` / `ffmpeg-suite` pass via the comparators;
-   every unsupported profile returns `-EOPNOTSUPP` with no warning/hang/leak
-   (the `tests/rewrite-conformance.md` "expected rewrite result" rule, gated).
+3. Full `mpp-suite` / `librga-suite` / `gstreamer-suite` / `ffmpeg-suite` pass via the comparators
+   with `PROFILE=rewrite RUN_COUNTER_CHECKS=1`; every unsupported profile
+   returns `-EOPNOTSUPP` with no warning/hang/leak, and the default positive
+   hardware-start/busy-time plus timeout/fault/error counter gates pass (the
+   `tests/rewrite-conformance.md` "expected rewrite result" rule, gated).
 4. **72 h+ multi-instance soak**: 0 KASAN / KCSAN / lockdep / KMEMLEAK /
    DMA-debug splats; `import_count` and job counters return to baseline at idle.
 5. Every §4 fault scenario recovers cleanly, verified in a loop via debugfs.

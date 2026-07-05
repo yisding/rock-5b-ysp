@@ -30,7 +30,9 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > required forward-port passes missing from the rewrite and can enforce an
 > elapsed-time slowdown ceiling with `PERF_MAX_RATIO`; `debugfs-counter-check.sh`
 > can additionally require positive rewrite hardware-start/busy-time counter
-> deltas and fail timeout/fault/error deltas. The direct RGA smoke case
+> deltas and fail timeout/fault/error deltas, and the profile runner defaults
+> those positive checks for rewrite hardware suites when
+> `PROFILE=*rewrite* RUN_COUNTER_CHECKS=1`. The direct RGA smoke case
 > is now part of the librga suite's required set and records deterministic
 > destination-buffer byte counts/SHA-256s for maintained im2d,
 > RKNN/RKNPU-style preprocessing including RGBA crop/letterbox, legacy
