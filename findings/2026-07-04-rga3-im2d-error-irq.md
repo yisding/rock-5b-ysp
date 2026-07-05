@@ -6,9 +6,11 @@
 > Source: on-board debugfs run of prebuilt `airockchip/librga` IM2D samples from
 > `../rockchip-conformance/out/librga-samples/bin/`, plus BSP-vs-forward source
 > comparison against `../kernel/rockchip-kernel`
-> Date: 2026-07-04
+> Date: 2026-07-04 (updated 2026-07-05)
 > Trust: MEASURED (symptom and fault addresses); ROOT-CAUSED (source deltas);
-> FIX IN TREE (runtime validation pending after next rebuild)
+> RUNTIME-VALIDATED 2026-07-05 — the MMU IRQ is gone and the contiguous-buffer
+> path runs clean; scattered `virt_addr` imports are now cleanly fail-closed
+> **by design** (see the 2026-07-05 section). Related: [[2026-07-04-librga-consumer-survey]]
 
 ## Summary
 
@@ -41,7 +43,7 @@ Forward-kernel fixes:
 ../kernel/linux-6.18-rkvenc-av1-fwport
 13afe70c8271 iommu: rockchip: restore large DMA segment support
 6b9dba7abcd0 video: rockchip: rga: keep IOVAs below 32-bit wrap guard
-uncommitted     video: rockchip: rga: reject unsafe DMA/IOMMU mappings cleanly
+590c9ef297ce media: rockchip: harden IOMMU forward port   (the fail-closed reject; was "uncommitted" above)
 ```
 
 The first commit restores the BSP `dma_parms` allocation and
@@ -218,6 +220,89 @@ callback registration/recovery plumbing. The fault here is caused before that:
 RGA is given a single base address for a mapping that is not actually contiguous
 for the full logical buffer size.
 
+## 2026-07-05 Runtime Validation: Fix Confirmed; Scattered virt_addr Is Fail-Closed By Design
+
+Runtime validation (the pending item from 2026-07-04) is done, on
+`6.18.38-current-rockchip64 #10` (runs
+`../rockchip-conformance/logs/rga-mmu-debug/20260704-233927` and
+`20260705-000005`). Note the sample harness now redirects the librga demos' raw
+`.bin` fixtures off the hardcoded Android `/data` path to a user-writable dir via
+`$RGA_SAMPLE_DATA_DIR` (patched into the vendored librga at
+`kernel-drivers/tests/conformance/patches/airockchip-librga/0001-sample-data-dir-env-override.patch`,
+re-applied by `bootstrap-workspaces.sh`), and stages the 1280x720 RGBA fixture
+the copy/resize/rotate cases consume.
+
+**The IOMMU/DMA fix works.** The `INTR[0x2]` MMU interrupt / page fault / soft
+reset is gone. Programmed IOVAs land well below the 32-bit wrap guard (e.g.
+`0xde800010`, `0xdec00010`), confirming `6b9dba7abcd0`. `rga_resize_rect_demo`
+ran four real hardware jobs to completion (`finished 1 failed 0` five times,
+output written) — the contiguous-buffer path is clean.
+
+**But the fail-closed check now rejects scattered malloc buffers, and that is
+by design.** For `importbuffer_virtualaddr()` imports, success depends on the
+*physical contiguity* of the specific malloc'd buffer:
+
+- copy/rotate first buffer: `orig_nents = 341` (ordinary fragmentation of a
+  3.6 MB / 900-page buffer) → `reject sg_table DMA mapping: expected one DMA
+  segment, got 341` (`-EOPNOTSUPP`) → userspace prints `importbuffer failed!`.
+- resize, and copy's second buffer: happened to be physically contiguous
+  (`orig_nents = 1`) → passed.
+
+So the pass/fail split across cases is **allocation luck, not a regression**.
+The check is doing exactly its job: turning a would-be MMU fault into a clean
+reject. 341 is not "a lot" — it is normal fragmentation; the relevant fact is
+that it is not 1.
+
+### Step 0 (raise `max_seg_size` so `dma_map_sg` coalesces) is already in-tree and PROVEN INSUFFICIENT
+
+The obvious cheap fix — make `dma_map_sg()` fold the scattered runs into one
+IOVA by lifting the segment-size cap — is exactly what `13afe70c8271` already
+does (`dma_set_max_seg_size(dev, DMA_BIT_MASK(32))` in `rk_iommu_probe_device()`).
+Proof it was **active** during the 341-segment run, despite an unreliable build
+timestamp:
+
+- the `reject sg_table DMA mapping` string was introduced in `590c9ef297ce`;
+- `git merge-base --is-ancestor 13afe70c8271 590c9ef297ce` → true;
+- the booted kernel emitted that string ⟹ it contains `590c9ef` ⟹ it contains
+  `13afe70` ⟹ `max_seg_size = 4 GB` was in effect.
+
+Yet `dma_map_sg()` returned `nents == orig_nents == 341`. That is the decisive
+signal: **zero merging occurred.** A segment-size cap can only *floor* merging
+(a 64 KB cap would give ~57 output segments for this buffer; a 4 GB cap would
+give 1) — `nents == orig_nents` means no merge was attempted at all, i.e.
+`dma_map_sg()` is running the **direct/identity** path, not the coalescing
+`iommu_dma_map_sg()` path. So `max_seg_size` is not the lever; re-applying it on
+the RGA device side (tried, then reverted) cannot change the outcome.
+
+This fits the surrounding upstream history:
+`9176a303d971 iommu/rockchip: Use IOMMU device for dma mapping operations` and
+`4f0aba676735 iommu/rockchip: Use DMA API to manage coherency` shape the RGA's
+`map_dev = scheduler->iommu_info->default_dev` path. On this platform, client
+`dma_map_sg()` does not coalesce, so RGA3 is effectively physically-addressed and
+requires physically-contiguous input.
+
+### Consequence and recommendation
+
+Making scattered `virt_addr` imports actually work has **no config-tweak path**.
+It requires the BSP mechanism the forward-port dropped ("Route B"): allocate an
+IOVA range in a translated RGA domain, `iommu_map_sg()` the scatter-gather into
+one contiguous IOVA, program that, do explicit `dma_sync_sg_*`, and tear it down
+on release. That is a few hundred lines, medium-high risk (it re-enters the
+manual-IOMMU territory the fail-closed check was added to escape), and leans on
+the kernel-private `iommu_dma_cookie`/`iova_domain` layout — the
+`struct rga_iommu_dma_cookie` fossil still sitting unused in
+`rga3/include/rga_drv.h` is that mechanism's remnant.
+
+**Recommendation: accept the limitation.** RGA3 requires dma-buf /
+physically-contiguous input; userptr imports should route to the rga2 core
+(`RGA_MMU`, its own page-table MMU, which handles scatter via
+`rga_mm_set_mmu_base()`). Nothing in [[2026-07-04-librga-consumer-survey]] feeds
+RGA3 raw userptr — real pipelines (GStreamer/MPP) hand RGA dma-buf, which is
+always `nents == 1`. Pursue Route B only if a concrete userptr-on-RGA3 consumer
+appears; de-risk first with a one-build map-site diagnostic printing
+`dma_get_max_seg_size(map_dev)` and whether `iommu_get_domain_for_dev(map_dev)`
+is translated vs identity.
+
 ## Validation State
 
 Done:
@@ -239,17 +324,26 @@ Done:
   review found no remaining forward-port correctness bugs in scope after the
   slice-mode wait fix documented in `kernel-drivers/iommu/docs/mpp-ccu-iommu-plan.md`.
 
-Still pending:
+Done (2026-07-05, see the 2026-07-05 section above):
 
-1. Rebuild/install/reboot the forward kernel containing the current
-   RGA/MPP contract-check delta.
-2. Rerun:
-   ```bash
-   sudo env RGA_FAIL_ON_CASE_FAILURE=1 bash kernel-drivers/tests/rga-mmu-debug.sh
-   ```
-3. Expected result: the three samples no longer print fatal librga errors, no
-   `rk_iommu fdb60f00.iommu: Page fault ...` appears between the per-case kmsg
-   markers, and no `RGA3_core0 INTR[0x2]` / `rga intr error[0x2]` occurs.
-4. If it still faults, add temporary RGA mapping logs for `dma_map_sg()` return
-   count, first sg length, all mapped segment DMA ranges, `dma_get_mask()`,
-   `dev->bus_dma_limit`, and `dma_get_max_seg_size()` for the actual `map_dev`.
+- Rebuilt/installed/rebooted the forward kernel with the full RGA/MPP
+  contract-check delta (`6.18.38-current-rockchip64 #10`, contains
+  `13afe70c8271` + `6b9dba7abcd0` + `590c9ef297ce`).
+- Reran `kernel-drivers/tests/rga-mmu-debug.sh`: **no** `Page fault`, **no**
+  `INTR[0x2]`, **no** soft reset. The MMU IRQ is fixed; the contiguous-buffer
+  path runs clean (`rga_resize_rect_demo`: 4 jobs, `finished 1 failed 0`).
+- Confirmed the remaining `importbuffer failed!` cases are the fail-closed
+  reject of physically-*discontiguous* `virt_addr` buffers (`got 341 == orig_nents`),
+  which is by-design, not a fault.
+- Proved Step 0 (`max_seg_size`) is already in-tree and insufficient (ancestry
+  proof + `nents == orig_nents` zero-merge signature).
+
+Open decision (not a bug):
+
+1. Whether to implement "Route B" (driver-owned `iommu_map_sg()` into a
+   translated RGA domain) so scattered `virt_addr` imports work on RGA3, or
+   accept the dma-buf/contiguous-only limitation and route userptr to rga2.
+   Recommendation above is to accept the limitation absent a concrete consumer.
+2. If Route B is pursued, first land the one-build map-site diagnostic
+   (`dma_get_max_seg_size(map_dev)` + translated-vs-identity domain type) to
+   confirm the non-coalescing path before the larger change.
