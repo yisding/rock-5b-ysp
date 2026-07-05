@@ -86,7 +86,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing,
 > rotated NV12 dma-buf to BGRx dma-buf decode conversion, and planar I420
 > dma-buf to NV12 dma-buf fallback) plus a public display/compositor-shaped
-> fd-backed BGRx 90-degree rotation path, a no-submit physical-address import probe,
+> fd-backed BGRx 90-degree rotation path, no-submit physical-address import plus
+> AFBC32x8/RFBC64x4 destination-mode probes,
 > forced RGA3 core-mask + priority submission, forced RGA2 `IM_PRE_INTR`, the official Gaussian matrix
 > `IM_GAUSS` public sample shape, and an async acquire/release-fence chain, but
 > these still need to be run on a booted rewrite kernel. When launched through
@@ -424,9 +425,11 @@ implementation (cross-reference:
   `ysp_librga_smoke` now covers the highest-value RKNN-shaped paths: virtual
   RGB888 `imresize()`, fd-backed RGB/NV12/NV21 `improcess()` resize/convert,
   fd-backed RGBA source-crop into an RGB letterbox rectangle, legacy RGB
-  `c_RkRgaBlit()` resize, and a no-submit physical-address import probe that
+  `c_RkRgaBlit()` resize, a no-submit physical-address import probe that
   can be made a rewrite-only expected reject with
-  `LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1`.
+  `LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1`, and public-API
+  raster-to-AFBC32x8/RFBC64x4 destination-mode probes that become rewrite-only
+  expected rejects with `LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT=1`.
   It also turns the display/compositor/game-UI survey signal into an executable
   fd-backed BGRx `c_RkRgaBlit()` 90-degree rotation artifact, without promoting
   Android-only allocator/HWC paths into the Linux RK3588 required profile.
@@ -545,7 +548,8 @@ implementation (cross-reference:
   packed-YUV422/420 fill, Y4/Y8 compact/full-CSC dither output, BPP palette sources,
   RGA2 pre-intr register packing,
   AFBC/tile including AFBC-to-AFBC ffmpeg filter copies,
-  RGA2-Pro RFBC64x4/AFBC32x8 source rejection coverage,
+  RGA2-Pro RFBC64x4/AFBC32x8 source rejection coverage plus public-API
+  AFBC32x8/RFBC64x4 destination negative probes,
   crop/destination-offset, blend-mode, SLT alpha-blend,
   OSD/palette/gauss/quantize/ROP/mosaic, JeffyCN GStreamer legacy conversion
   profile and format-matrix helpers, direct-buffer fd/userptr classification,

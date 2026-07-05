@@ -73,7 +73,8 @@ conformance direction.  Outside ffmpeg-rockchip, JeffyCN GStreamer, and the
 official librga samples, the strongest additional signal is RKNN/RKNPU
 preprocessing plus simple display/compositor blits: fd or virtual RGB/RGBA/NV12/
 NV21 resize/convert/crop/letterbox, legacy `c_RkRgaBlit()` RGB-family
-scale/rotate, and clean negative handling for raw physical-address import.
+scale/rotate, and clean negative handling for raw physical-address import plus
+AFBC32x8/RFBC64x4 destination modes.
 No surveyed current Linux-media user promoted RFBC64x4/AFBC32x8, per-channel
 rotation, tile alpha/pattern/color-key, broad RGA2-Pro modes, or Android
 GraphicBuffer/HWC allocator behavior into the required Rock 5B rewrite gate.

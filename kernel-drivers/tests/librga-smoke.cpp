@@ -1126,6 +1126,91 @@ static int run_physical_import_probe(void)
 	return 0;
 }
 
+static int run_fbc_tail_reject_probe_one(const char *name, int rd_mode)
+{
+	const int width = 64;
+	const int height = 64;
+	const int format = RK_FORMAT_YCbCr_420_SP;
+	const size_t raster_size = (size_t)width * height * 3 / 2;
+	const size_t fbc_size = raster_size * 4;
+	const bool expect_reject =
+		env_enabled("LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT");
+	rga_buffer_handle_t raster_handle = 0;
+	rga_buffer_handle_t fbc_handle = 0;
+	rga_buffer_t raster;
+	rga_buffer_t fbc;
+	uint8_t *raster_mem = NULL;
+	uint8_t *fbc_mem = NULL;
+	int ret;
+
+	if (alloc_aligned((void **)&raster_mem, raster_size) ||
+	    alloc_aligned((void **)&fbc_mem, fbc_size)) {
+		perror("posix_memalign fbc tail");
+		ret = 1;
+		goto out;
+	}
+
+	fill_nv12_pattern(raster_mem, width, height);
+	memset(fbc_mem, 0x80, fbc_size);
+
+	raster_handle = importbuffer_virtualaddr(raster_mem, raster_size);
+	fbc_handle = importbuffer_virtualaddr(fbc_mem, fbc_size);
+	if (!raster_handle || !fbc_handle) {
+		fprintf(stderr, "%s importbuffer_virtualaddr failed: %s\n",
+			name, imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	raster = wrapbuffer_handle(raster_handle, width, height, format);
+	fbc = wrapbuffer_handle(fbc_handle, width, height, format);
+	raster.rd_mode = IM_RASTER_MODE;
+	fbc.rd_mode = rd_mode;
+
+	ret = imcopy(raster, fbc);
+	if (ret == IM_STATUS_SUCCESS) {
+		if (expect_reject) {
+			fprintf(stderr,
+				"%s was accepted; rewrite profile expects rejection\n",
+				name);
+			ret = 1;
+			goto out;
+		}
+
+		printf("%-24s accepted; outside required rewrite profile\n",
+		       name);
+		ret = 0;
+		goto out;
+	}
+
+	printf("%-24s rejected/unsupported (%s)\n",
+	       name, imStrError((IM_STATUS)ret));
+	ret = 0;
+
+out:
+	if (raster_handle)
+		releasebuffer_handle(raster_handle);
+	if (fbc_handle)
+		releasebuffer_handle(fbc_handle);
+	free(raster_mem);
+	free(fbc_mem);
+
+	return ret;
+}
+
+static int run_fbc_tail_reject_probes(void)
+{
+	int ret;
+
+	ret = run_fbc_tail_reject_probe_one("AFBC32x8 dst",
+					    IM_AFBC32x8_MODE);
+	if (ret)
+		return ret;
+
+	return run_fbc_tail_reject_probe_one("RFBC64x4 dst",
+					     IM_RKFBC64x4_MODE);
+}
+
 static int run_legacy_virtual_to_dmabuf_convert(void)
 {
 	const int src_w = 64;
@@ -1790,6 +1875,10 @@ int main(void)
 		goto out;
 
 	ret = run_physical_import_probe();
+	if (ret)
+		goto out;
+
+	ret = run_fbc_tail_reject_probes();
 	if (ret)
 		goto out;
 
