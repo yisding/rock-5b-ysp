@@ -84,16 +84,32 @@ Implemented forward-port fixes:
 - Fixed RCB/SRAM IOVA windows are tracked per cluster and overlapping windows are
   rejected before reserving the generic IOVA allocator range. The tracking table
   is locked, ranges are checked for 32-bit wrap/overflow, and table exhaustion is
-  a hard `-ENOSPC` failure instead of silently losing the record.
+  a hard `-ENOSPC` failure instead of silently losing the record. DT-provided RCB
+  IOVA/size values are page-aligned in 64-bit and rejected if alignment would
+  overflow the 32-bit IOVA aperture.
 - RCB/SRAM allocation errors unwind maps, pages, IOVA reservations, and fixed
   window records through the same free path used by remove.
 - MPP and RGA dma-buf imports now require the DMA API to return one nonzero,
   non-wrapping 32-bit IOVA segment; unsafe mappings are rejected with a log
   instead of passing a truncated first segment to hardware.
+- MPP task and RKVDEC CCU/link power-on paths now fail cleanly if runtime PM or
+  clock enable fails instead of touching registers after a failed resume. The MPP
+  clock helper propagates `clk_prepare_enable()` errors, and multi-clock codec
+  callbacks unwind already-enabled clocks before returning the error.
+- Device `run()` callback failures now unwind the active IOMMU handler, power, and
+  reset state; the RKVENC temporary core-clock re-enable path cancels the timeout,
+  ends run accounting, and clears `cur_task` before returning an error. The MPP
+  worker completes run-start failures as aborted/done and wakes waiters before
+  dropping the running-queue reference, so userspace does not hang. RKVENC
+  slice-mode blocking polls also wake on `TASK_STATE_DONE` and fall through the
+  same aborted-task return path when no slice data is available.
 - MPP fault-handler activation now fails the task/power-on path instead of
   running hardware without the intended provider fault hook.
 - RKVENC2 fault handling routes by the faulting IOMMU device while holding RCU
-  over the CCU core list.
+  over the CCU core list, and unknown faulting IOMMU devices are rejected instead
+  of being reported against the token core.
+- RKVDEC2 soft/hard CCU fault handling also rejects unknown faulting IOMMU
+  devices so provider fallback reporting is not suppressed.
 - RKVDEC2 CCU power-on failure paths unwind runtime PM, clocks, IOMMU activation,
   idle-core state, prepared link tables, and power latches.
 - AV1 AFBC's sideband IRQ no longer touches AFBC registers unless the AV1 clocks

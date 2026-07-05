@@ -8,7 +8,7 @@
 > comparison against `../kernel/rockchip-kernel`
 > Date: 2026-07-04
 > Trust: MEASURED (symptom and fault addresses); ROOT-CAUSED (source deltas);
-> FIX COMMITTED (runtime validation pending after next rebuild)
+> FIX IN TREE (runtime validation pending after next rebuild)
 
 ## Summary
 
@@ -41,16 +41,27 @@ Forward-kernel fixes:
 ../kernel/linux-6.18-rkvenc-av1-fwport
 13afe70c8271 iommu: rockchip: restore large DMA segment support
 6b9dba7abcd0 video: rockchip: rga: keep IOVAs below 32-bit wrap guard
+uncommitted     video: rockchip: rga: reject unsafe DMA/IOMMU mappings cleanly
 ```
 
 The first commit restores the BSP `dma_parms` allocation and
 `dma_set_max_seg_size(dev, DMA_BIT_MASK(32))` in the mainline Rockchip IOMMU
 provider. The second commit caps RGA IOMMU mappings with a 512 MiB guard band
 below the 32-bit IOVA ceiling by lowering the RGA mapping device's
-`bus_dma_limit`. That keeps the hardware-visible base plus plane offsets from
-wrapping out of the mapped span. Both touched objects build and both diffs pass
-`checkpatch`; runtime validation is pending after rebuilding, installing,
-rebooting, and rerunning the diagnostic script below.
+`bus_dma_limit`. That keeps the hardware-visible base plus typical plane offsets
+away from 32-bit wrap.
+
+The current defensive fix also makes the implicit driver/hardware contract
+explicit at import time: RGA rejects and logs any mapping where the DMA API does
+not return exactly one nonzero segment whose complete IOVA span fits inside
+32 bits. MPP dma-buf imports now apply the same contract because those drivers
+also pass one IOVA/size pair to hardware. This is intentionally fail-closed for
+now; if hardware validation shows frequent rejections from legitimate users, the
+next design step is a driver-owned contiguous staging/allocation fallback.
+
+The touched objects build and the diffs pass `checkpatch`; runtime validation is
+pending after rebuilding, installing, rebooting, and rerunning the diagnostic
+script below.
 
 ## Reproducer / Diagnostic Script
 
@@ -182,9 +193,13 @@ The follow-up failure was not from an RGA source delta either; BSP and forward
 RGA both set a 40-bit streaming DMA mask for RGA3 and both program 32-bit RGA
 register addresses. The practical difference is the forward port's modern
 generic DMA/IOMMU path, which can allocate RGA IOVAs at the very end of the
-32-bit aperture. The forward fix is therefore local to the RGA probe path:
+32-bit aperture. The first forward fix is therefore local to the RGA probe path:
 preserve the 40-bit DMA mask but set a lower `bus_dma_limit` for RGA IOMMU
 mappings so the DMA API allocator has a 512 MiB guard band below `0xffffffff`.
+The final defensive fix is in the common RGA DMA mapping helpers: after
+`dma_map_sg()` or `dma_buf_map_attachment_unlocked()`, validate that the returned
+DMA mapping is one contiguous, nonzero, non-wrapping 32-bit IOVA span before
+programming it into RGA registers.
 
 ## What This Is Not
 
@@ -215,11 +230,19 @@ Done:
   `dma_set_max_seg_size()` contract.
 - Rebuilt/booted `P60c0-Cb831` with `13afe70c8271`; confirmed the direct RGA
   samples still failed, now clearly showing high-end 32-bit IOVA wrap.
-- Patched, built, checkpatched, committed, and pushed both forward-kernel fixes.
+- Patched, built, checkpatched, committed, and pushed the initial segment-size
+  and RGA guard-band fixes.
+- Added explicit RGA and MPP DMA/IOMMU contract checks that reject unsafe
+  non-single-segment or 32-bit-wrapping mappings with kernel logs instead of
+  allowing hardware to fault later.
+- Ran adversarial subagent review of the provider/RGA/MPP IOMMU delta. The final
+  review found no remaining forward-port correctness bugs in scope after the
+  slice-mode wait fix documented in `kernel-drivers/iommu/docs/mpp-ccu-iommu-plan.md`.
 
 Still pending:
 
-1. Rebuild/install/reboot the forward kernel containing `6b9dba7abcd0`.
+1. Rebuild/install/reboot the forward kernel containing the current
+   RGA/MPP contract-check delta.
 2. Rerun:
    ```bash
    sudo env RGA_FAIL_ON_CASE_FAILURE=1 bash kernel-drivers/tests/rga-mmu-debug.sh
