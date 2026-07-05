@@ -64,8 +64,8 @@ The rewrite should keep chasing current user-visible behavior, not every BSP
 mode table entry. The practical follow-up is:
 
 1. Keep RKNN-shaped preprocessing in required conformance: virtual RGB resize,
-   fd-backed RGB/NV12/NV21 resize/convert, and legacy RGB `c_RkRgaBlit()`
-   resize.
+   fd-backed RGB/NV12/NV21 resize/convert, fd-backed RGBA crop/letterbox, and
+   legacy RGB `c_RkRgaBlit()` resize.
 2. Keep physical-address import as a clean negative ABI path for the rewrite
    unless a real workload needs it.
 3. Treat source-only RGA2-Pro RFBC64x4/AFBC32x8 paths as deprecated historical

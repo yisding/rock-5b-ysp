@@ -8,7 +8,7 @@ hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
 > surface and heavily unit-tested — MPP **53 KUnit cases** and RGA **99 KUnit
-> cases** compile at the §6 pins (`c061c0a11617` on 6.18, `ff7a01559100` on
+> cases** compile at the §6 pins (`b6ff1ba06157` on 6.18, `b0330d37f1f6` on
 > mainline). But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
@@ -92,7 +92,8 @@ hardware completion path.
 - **RGA** is deterministic pixel math → expect **bit-exact** destination buffers.
   The in-repo `ysp_librga_smoke` path now writes destination dumps for direct
   im2d copy/resize/fill, dma-buf import/copy, RKNN/RKNPU-style
-  RGB/NV12/NV21 preprocessing, legacy GStreamer-shaped `c_RkRgaBlit()`
+  RGB/NV12/NV21 preprocessing plus RKNN-style RGBA crop/letterbox,
+  legacy GStreamer-shaped `c_RkRgaBlit()`
   conversions, Gaussian matrix, forced-core, pre-intr, and async fence-chain
   cases. A one-pixel CSC or stride error is invisible to a
   pass/fail gate but caught instantly here. Add official-sample artifact dumps

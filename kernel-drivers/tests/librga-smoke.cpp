@@ -910,6 +910,132 @@ static int run_rknn_fd_improcess_cases(void)
 				     fill_nv21_pattern);
 }
 
+static int run_rknn_fd_rgba_letterbox(void)
+{
+	const int src_w = 64;
+	const int src_h = 64;
+	const int dst_w = 64;
+	const int dst_h = 48;
+	const size_t src_size = (size_t)src_w * src_h * 4;
+	const size_t dst_size = (size_t)dst_w * dst_h * 3;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	im_handle_param_t src_param = {
+		(uint32_t)src_w,
+		(uint32_t)src_h,
+		(uint32_t)RK_FORMAT_RGBA_8888,
+	};
+	im_handle_param_t dst_param = {
+		(uint32_t)dst_w,
+		(uint32_t)dst_h,
+		(uint32_t)RK_FORMAT_RGB_888,
+	};
+	im_rect src_rect = {8, 6, 40, 32};
+	im_rect dst_rect = {12, 8, 40, 32};
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	int ret;
+
+	ret = dmabuf_alloc_any(src_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "RKNN RGBA letterbox source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(dst_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "RKNN RGBA letterbox dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "RKNN RGBA source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_pattern(dma_src.mem, src_w, src_h);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "RKNN RGBA source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "RKNN RGB letterbox dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "RKNN RGB letterbox dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src_handle = importbuffer_fd(dma_src.fd, &src_param);
+	dst_handle = importbuffer_fd(dma_dst.fd, &dst_param);
+	if (!src_handle || !dst_handle) {
+		fprintf(stderr, "RKNN RGBA letterbox importbuffer_fd failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, src_w, src_h, RK_FORMAT_RGBA_8888);
+	dst = wrapbuffer_handle(dst_handle, dst_w, dst_h, RK_FORMAT_RGB_888);
+
+	ret = imcheck(src, dst, src_rect, dst_rect);
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("RKNN RGBA letterbox", ret);
+		goto out;
+	}
+
+	ret = improcess(src, dst, {}, src_rect, dst_rect, {}, IM_SYNC);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("RKNN RGBA letterbox", ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "RKNN RGB letterbox read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!buffer_changed_from_sentinel(dma_dst.mem, dma_dst.size, 0x80)) {
+		fprintf(stderr, "RKNN RGBA letterbox output unchanged\n");
+		ret = 1;
+	} else {
+		ret = write_artifact("rknn_fd_rgba_to_rgb_letterbox",
+				     dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"RKNN RGB letterbox read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "RKNN RGBA letterbox",
+		       dma_src.heap_path);
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 static int run_rknn_legacy_rgb_resize(void)
 {
 	const int src_w = 64;
@@ -1541,6 +1667,10 @@ int main(void)
 		goto out;
 
 	ret = run_rknn_fd_improcess_cases();
+	if (ret)
+		goto out;
+
+	ret = run_rknn_fd_rgba_letterbox();
 	if (ret)
 		goto out;
 
