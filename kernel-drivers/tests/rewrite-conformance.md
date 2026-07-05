@@ -48,9 +48,9 @@ kernel-drivers/tests/rewrite-build-gate.sh all
 source edits. Use it only when checking the last pushed state while another
 worktree has unrelated local changes.
 
-Last recorded run: `ALLOW_DIRTY=1 kernel-drivers/tests/rewrite-build-gate.sh all`
-on 2026-07-04 passed warning-free for the committed rewrite tips
-`../kernel/linux-6.18-rkvenc@96aac5e2460f` and `../kernel/linux@fb0988ed04ac`.
+Last recorded run: `kernel-drivers/tests/rewrite-build-gate.sh all`
+on 2026-07-05 passed warning-free for the committed rewrite tips
+`../kernel/linux-6.18-rkvenc@313dafd56c1c` and `../kernel/linux@a4064324d669`.
 
 ## Expanded conformance bundle
 

@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `96aac5e2460f` + branch `rk3588-rewrite-mainline` @ `fb0988ed04ac`, including the RGA2-Pro FBC deprecation slice; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `313dafd56c1c` + branch `rk3588-rewrite-mainline` @ `a4064324d669`, including the RKNN RGA preprocessing KUnit slice; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -201,15 +201,15 @@ Note the **rewrite-driver uAPI extensions** (`MPP_CMD_SET_ERR_REF_HACK`,
 The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md))
 is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b` as
-of 2026-07-04:
+of 2026-07-05:
 
-- branch `rk3588-rewrite-6.18`, commit `96aac5e2460f` ("media: rockchip:
-  deprecate RGA2-Pro FBC paths"), committed in the dev worktree
+- branch `rk3588-rewrite-6.18`, commit `313dafd56c1c` ("media: rockchip:
+  cover RKNN RGA preprocess profiles"), committed in the dev worktree
   `/home/yi/Code/kernel/linux-6.18-rkvenc`, replayed on the current
   `rkvenc-fwport-6.18` forward-port tip `e059aad8d68b` from
   `/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport`.
-- branch `rk3588-rewrite-mainline`, commit `fb0988ed04ac` ("media: rockchip:
-  deprecate RGA2-Pro FBC paths"),
+- branch `rk3588-rewrite-mainline`, commit `a4064324d669` ("media: rockchip:
+  cover RKNN RGA preprocess profiles"),
   committed in the sibling worktree `/home/yi/Code/kernel/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -256,7 +256,9 @@ NV12/NV21/NV16/NV61/compact-10-bit decoder output to RGB-family, compact
 NV12_10LE40/NV16_10LE40 decoder output to scaled 8-bit NV12/NV16, and planar
 I420/YV12 RGA2 fallback profiles, plus explicit 8-bit decoder-output coverage
 for the GStreamer RGBA/BGRA/RGBx/BGRx diagnostic formats, plus GStreamer
-180/270-degree public rotation-value coverage, plus the
+180/270-degree public rotation-value coverage, plus named RKNN/RKNPU RGA3
+preprocessing coverage for RGB888 resize, RGB888-to-NV12 resize/convert, and
+NV12/NV21-to-RGB resize/convert profiles, plus
 VP9 RKVDEC fd-to-IOVA register translation/validation KUnit coverage, plus
 `MPP_CMD_SET_ERR_REF_HACK` initialized-session copy/discard KUnit coverage for
 the current libmpp VDPU382 probe path, plus legacy RGA flush/result no-op ioctl
@@ -282,8 +284,8 @@ the mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for the rewrite drivers. The current committed pins
-(`../kernel/linux-6.18-rkvenc@96aac5e2460f` and `../kernel/linux@fb0988ed04ac`) passed that
-archive build gate warning-free on 2026-07-04; `VALIDATE_ONLY=1
+(`../kernel/linux-6.18-rkvenc@313dafd56c1c` and `../kernel/linux@a4064324d669`) passed that
+archive build gate warning-free on 2026-07-05; `VALIDATE_ONLY=1
 kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
 case-builder/comparator validation, including 143 GStreamer case builders. See
 rewrite-drivers.md §6.
