@@ -1,4 +1,4 @@
-# RGA3 MMU interrupt on direct im2d samples: root-caused to Rockchip IOMMU DMA segment sizing
+# RGA3 MMU interrupt on direct im2d samples: RGA DMA/IOMMU IOVA contract gaps
 
 > Scope: forward-port kernel `../kernel/linux-6.18-rkvenc-av1-fwport` branch
 > `rkvenc-fwport-6.18`, RGA driver `drivers/video/rockchip/rga3/`,
@@ -7,14 +7,14 @@
 > `../rockchip-conformance/out/librga-samples/bin/`, plus BSP-vs-forward source
 > comparison against `../kernel/rockchip-kernel`
 > Date: 2026-07-04
-> Trust: MEASURED (symptom and fault addresses); ROOT-CAUSED (source delta);
-> FIX COMMITTED (runtime validation pending after rebuild)
+> Trust: MEASURED (symptom and fault addresses); ROOT-CAUSED (source deltas);
+> FIX COMMITTED (runtime validation pending after next rebuild)
 
 ## Summary
 
 The direct upstream librga samples initially looked like either bad/outdated
-tests or a vague RGA3 + IOMMU forward-port gap. They are now a real
-forward-port bug with a narrow cause:
+tests or a vague RGA3 + IOMMU forward-port gap. They are real forward-port
+bugs in the DMA/IOMMU contract that the vendor RGA driver assumes:
 
 - The failing samples import malloc-backed userspace buffers with
   `importbuffer_virtualaddr()`, not dma-heaps.
@@ -28,19 +28,29 @@ forward-port bug with a narrow cause:
 - Without it, `dma_map_sg()` can leave the mapped buffer as multiple DMA
   segments. RGA then walks past the first segment into unmapped IOVA pages and
   raises `INTR[0x2]`, the RGA MMU interrupt.
+- After rebuilding with the segment-size fix, validation still failed because
+  the generic IOVA allocator could place an RGA mapping at the very top of the
+  32-bit aperture, for example `iova = 0xfffff010` for a 3.5 MiB RGBA buffer.
+  RGA register generation then added plane/stride offsets in 32-bit registers
+  and wrapped into low IOVA addresses such as `0x00000410`, which were not part
+  of the mapping.
 
-Forward-kernel fix:
+Forward-kernel fixes:
 
 ```text
 ../kernel/linux-6.18-rkvenc-av1-fwport
 13afe70c8271 iommu: rockchip: restore large DMA segment support
+6b9dba7abcd0 video: rockchip: rga: keep IOVAs below 32-bit wrap guard
 ```
 
-That commit restores the BSP `dma_parms` allocation and
+The first commit restores the BSP `dma_parms` allocation and
 `dma_set_max_seg_size(dev, DMA_BIT_MASK(32))` in the mainline Rockchip IOMMU
-provider. It builds as a targeted object (`drivers/iommu/rockchip-iommu.o`) and
-passes `checkpatch`; runtime validation is still pending after rebuilding,
-installing, rebooting, and rerunning the diagnostic script below.
+provider. The second commit caps RGA IOMMU mappings with a 512 MiB guard band
+below the 32-bit IOVA ceiling by lowering the RGA mapping device's
+`bus_dma_limit`. That keeps the hardware-visible base plus plane offsets from
+wrapping out of the mapped span. Both touched objects build and both diffs pass
+`checkpatch`; runtime validation is pending after rebuilding, installing,
+rebooting, and rerunning the diagnostic script below.
 
 ## Reproducer / Diagnostic Script
 
@@ -100,6 +110,44 @@ The important common pattern is not "address above 4 GiB"; it is "RGA programs
 a single base address and then faults inside the buffer range because the IOMMU
 page table does not contain a contiguous mapping for that whole range."
 
+## Follow-up Validation: Segment Fix Was Necessary But Insufficient
+
+After rebuilding and installing `P60c0-Cb831`
+(`6.18.38-current-rockchip64 #9`), the generated Armbian userpatch set did
+contain:
+
+```text
+rk3588-av1-fwport-0013-iommu-rockchip-restore-large-DMA-segment-support.patch
+```
+
+Rerunning the diagnostic still failed:
+
+```text
+../rockchip-conformance/logs/rga-mmu-debug/20260704-192122
+kernel: Linux rock-5b 6.18.38-current-rockchip64 #9
+
+case                         result
+rga_copy_demo                fail-exit
+rga_resize_rect_demo         fail-output
+rga_transform_rotate_demo    fail-output
+```
+
+The new run exposed the remaining IOVA-wrap part of the bug:
+
+- `rga_resize_rect_demo` imported a 3.5 MiB source at `iova = 0xfffff010`.
+  RGA programmed `0x0110 : fffff010 000e0010 00118410 ...`, i.e. source plane
+  offsets wrapped below 4 GiB, and the Rockchip IOMMU faulted at
+  `0x0000000000000410`.
+- `rga_transform_rotate_demo` imported a 3.5 MiB source at
+  `iova = 0xffb60010`, then faulted inside the advertised source range at
+  `0x00000000ffed7810`; the same job ended with `INTR[0x2]`,
+  `request commit failed!`, and `submit failed!`.
+
+This changed the conclusion: restoring the BSP segment-size contract is
+necessary, but the forward RGA/IOMMU integration must also prevent top-of-32-bit
+IOVA placement for RGA3 because the vendor register path uses 32-bit base-plus-
+offset arithmetic.
+
 ## How The Source Comparison Found The Cause
 
 The RGA3 driver source did not contain a material BSP-vs-forward delta in the
@@ -130,6 +178,14 @@ The forward-port IOMMU provider lacked that block. Restoring it makes the
 forward IOMMU provider match the vendor expectation that RGA and similar media
 clients may map a whole 32-bit IOVA aperture as one DMA segment.
 
+The follow-up failure was not from an RGA source delta either; BSP and forward
+RGA both set a 40-bit streaming DMA mask for RGA3 and both program 32-bit RGA
+register addresses. The practical difference is the forward port's modern
+generic DMA/IOMMU path, which can allocate RGA IOVAs at the very end of the
+32-bit aperture. The forward fix is therefore local to the RGA probe path:
+preserve the 40-bit DMA mask but set a lower `bus_dma_limit` for RGA IOMMU
+mappings so the DMA API allocator has a 512 MiB guard band below `0xffffffff`.
+
 ## What This Is Not
 
 This is separate from the missing `dma32_heap` sample failures.
@@ -157,19 +213,20 @@ Done:
 - Compared BSP and forward RGA3 source and found no material RGA-side delta.
 - Compared BSP and forward Rockchip IOMMU source and found the missing
   `dma_set_max_seg_size()` contract.
-- Patched, built, checkpatched, committed, and pushed the forward-kernel fix.
+- Rebuilt/booted `P60c0-Cb831` with `13afe70c8271`; confirmed the direct RGA
+  samples still failed, now clearly showing high-end 32-bit IOVA wrap.
+- Patched, built, checkpatched, committed, and pushed both forward-kernel fixes.
 
 Still pending:
 
-1. Rebuild/install/reboot the forward kernel containing `13afe70c8271`.
+1. Rebuild/install/reboot the forward kernel containing `6b9dba7abcd0`.
 2. Rerun:
    ```bash
-   sudo bash kernel-drivers/tests/rga-mmu-debug.sh
+   sudo env RGA_FAIL_ON_CASE_FAILURE=1 bash kernel-drivers/tests/rga-mmu-debug.sh
    ```
 3. Expected result: the three samples no longer print fatal librga errors, no
    `rk_iommu fdb60f00.iommu: Page fault ...` appears between the per-case kmsg
    markers, and no `RGA3_core0 INTR[0x2]` / `rga intr error[0x2]` occurs.
 4. If it still faults, add temporary RGA mapping logs for `dma_map_sg()` return
-   count, first sg length, and all mapped segment DMA ranges. The next suspect
-   would be a remaining merge limit or a second caller path that bypasses the
-   restored `dma_parms` value.
+   count, first sg length, all mapped segment DMA ranges, `dma_get_mask()`,
+   `dev->bus_dma_limit`, and `dma_get_max_seg_size()` for the actual `map_dev`.

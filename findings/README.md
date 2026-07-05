@@ -36,4 +36,4 @@ in the watchlist.
 
 Each row: `` `YYYY-MM-DD-slug.md` `` — one-line summary — trust tag.
 
-- `` `2026-07-04-rga3-im2d-error-irq.md` `` — RGA3 core0 `INTR[0x2]` on direct upstream librga virtual-buffer samples was root-caused to the forward Rockchip IOMMU provider losing the BSP `dma_set_max_seg_size(..., DMA_BIT_MASK(32))` contract that RGA needs for single-span DMA mappings; fix committed in the forward kernel as `13afe70c8271`, runtime validation pending — MEASURED / ROOT-CAUSED / FIX COMMITTED.
+- `` `2026-07-04-rga3-im2d-error-irq.md` `` — RGA3 core0 `INTR[0x2]` on direct upstream librga virtual-buffer samples was root-caused to a two-part forward-port DMA/IOMMU contract gap: missing BSP large-segment setup (`13afe70c8271`) plus RGA IOVAs being allocated too close to 4 GiB and wrapping in 32-bit registers (`6b9dba7abcd0`); runtime validation pending after rebuild — MEASURED / ROOT-CAUSED / FIX COMMITTED.
