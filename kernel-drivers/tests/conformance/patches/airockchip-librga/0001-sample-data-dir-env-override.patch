@@ -1,0 +1,83 @@
+diff --git a/samples/utils/utils.cpp b/samples/utils/utils.cpp
+index 640c875..df1fcab 100644
+--- a/samples/utils/utils.cpp
++++ b/samples/utils/utils.cpp
+@@ -31,6 +31,18 @@
+ extern "C" {
+ #endif
+ 
++/*
++ * Resolve the base directory for sample .bin fixtures. Upstream demos hardcode
++ * LOCAL_FILE_PATH="/data" (an Android/vendor convention) which is absent and not
++ * writable on a stock Linux rootfs. Honor $RGA_SAMPLE_DATA_DIR when set so the
++ * conformance harness can redirect reads/writes to a user-accessible scratch
++ * dir; otherwise fall back to the caller-provided path (unchanged behavior).
++ */
++static const char *rga_sample_dir(const char *path) {
++    const char *env = getenv("RGA_SAMPLE_DATA_DIR");
++    return (env && env[0]) ? env : path;
++}
++
+ void draw_rgba(char *buffer, int width, int height) {
+     for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width/4; j++) {
+@@ -114,11 +126,11 @@ void draw_image(char *buffer, int width, int height, int format) {
+ 
+ int read_image_from_fbc_file(void *buf, const char *path, int sw, int sh, int fmt, int index) {
+     int size;
+-    char filePath[100];
++    char filePath[256];
+     const char *inputFbcFilePath = "%s/in%dw%d-h%d-%s-fbc.bin";
+ 
+-    snprintf(filePath, 100, inputFbcFilePath,
+-             path, index, sw, sh, translate_format_str(fmt));
++    snprintf(filePath, sizeof(filePath), inputFbcFilePath,
++             rga_sample_dir(path), index, sw, sh, translate_format_str(fmt));
+ 
+     FILE *file = fopen(filePath, "rb");
+     if (!file) {
+@@ -137,11 +149,11 @@ int read_image_from_fbc_file(void *buf, const char *path, int sw, int sh, int fm
+ 
+ int read_image_from_file(void *buf, const char *path, int sw, int sh, int fmt, int index) {
+     int size;
+-    char filePath[100];
++    char filePath[256];
+     const char *inputFilePath = "%s/in%dw%d-h%d-%s.bin";
+ 
+-    snprintf(filePath, 100, inputFilePath,
+-             path, index, sw, sh, translate_format_str(fmt));
++    snprintf(filePath, sizeof(filePath), inputFilePath,
++             rga_sample_dir(path), index, sw, sh, translate_format_str(fmt));
+ 
+     FILE *file = fopen(filePath, "rb");
+     if (!file) {
+@@ -160,11 +172,11 @@ int read_image_from_file(void *buf, const char *path, int sw, int sh, int fmt, i
+ 
+ int write_image_to_fbc_file(void *buf, const char *path, int sw, int sh, int fmt, int index) {
+     int size;
+-    char filePath[100];
++    char filePath[256];
+     const char *outputFbcFilePath = "%s/out%dw%d-h%d-%s-fbc.bin";
+ 
+-    snprintf(filePath, 100, outputFbcFilePath,
+-             path, index, sw, sh, translate_format_str(fmt));
++    snprintf(filePath, sizeof(filePath), outputFbcFilePath,
++             rga_sample_dir(path), index, sw, sh, translate_format_str(fmt));
+ 
+     FILE *file = fopen(filePath, "wb+");
+     if (!file) {
+@@ -185,11 +197,11 @@ int write_image_to_fbc_file(void *buf, const char *path, int sw, int sh, int fmt
+ 
+ int write_image_to_file(void *buf, const char *path, int sw, int sh, int fmt, int index) {
+     int size;
+-    char filePath[100];
++    char filePath[256];
+     const char *outputFilePath = "%s/out%dw%d-h%d-%s.bin";
+ 
+-    snprintf(filePath, 100, outputFilePath,
+-             path, index, sw, sh, translate_format_str(fmt));
++    snprintf(filePath, sizeof(filePath), outputFilePath,
++             rga_sample_dir(path), index, sw, sh, translate_format_str(fmt));
+ 
+     FILE *file = fopen(filePath, "wb+");
+     if (!file) {

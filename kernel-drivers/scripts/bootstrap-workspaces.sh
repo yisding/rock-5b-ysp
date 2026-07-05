@@ -71,6 +71,33 @@ tail -n +2 "$CONF_SKEL/MANIFEST.tsv" | while IFS=$'\t' read -r name path remote 
 	clone_at "$remote" "$branch" "$commit" "$CONFORMANCE_DIR/$path"
 done
 
+echo; say "2b) Apply local source patches (patches/<name>/*.patch)"
+# We keep small, reviewed deltas to the vendored sources as patches under the
+# tracked skeleton so a fresh clone reproduces them (e.g. redirect the librga
+# sample fixtures off the hardcoded Android /data path via $RGA_SAMPLE_DATA_DIR).
+# Idempotent: a reverse-apply --check that succeeds means it's already in place.
+if [ -d "$CONF_SKEL/patches" ]; then
+	for pdir in "$CONF_SKEL/patches"/*/; do
+		[ -d "$pdir" ] || continue
+		name="$(basename "$pdir")"; dest="$CONFORMANCE_DIR/sources/$name"
+		have "$dest/.git" || { say "  skip $name (not cloned)"; continue; }
+		for patch in "$pdir"*.patch; do
+			[ -e "$patch" ] || continue
+			if git -C "$dest" apply --reverse --check "$patch" >/dev/null 2>&1; then
+				say "  already applied: $name/$(basename "$patch")"
+			elif [ "$CHECK" = 1 ]; then
+				say "  WOULD apply: $name/$(basename "$patch")"
+			elif git -C "$dest" apply "$patch" >/dev/null 2>&1; then
+				say "  applied: $name/$(basename "$patch")"
+			else
+				say "  WARN: could not apply $name/$(basename "$patch") (locally modified?)"
+			fi
+		done
+	done
+else
+	say "  (no patches/ dir — nothing to apply)"
+fi
+
 echo; say "3) Deploy the tracked conformance skeleton into the working bundle"
 if [ "$CHECK" = 1 ]; then
 	say "  (check) would deploy scripts/ MANIFEST.tsv profiles/ README.md -> $CONFORMANCE_DIR"

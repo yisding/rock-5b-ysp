@@ -13,6 +13,11 @@ OUT=${OUT:-"$CONFORMANCE_ROOT/logs/rga-mmu-debug/$(date +%Y%m%d-%H%M%S)"}
 RGA_DEBUGFS=${RGA_DEBUGFS:-/sys/kernel/debug/rkrga}
 RGA_CASES=${RGA_CASES:-"rga_copy_demo rga_resize_rect_demo rga_transform_rotate_demo"}
 RGA_DEBUG_FLAGS=${RGA_DEBUG_FLAGS:-"reg msg int mm time"}
+# The librga demos read/write raw fixtures under a base dir that upstream hardcodes
+# to the Android "/data" path (absent + unwritable on Armbian). Our patched librga
+# utils honor $RGA_SAMPLE_DATA_DIR; point it at a user-writable dir and stage the
+# fixtures the copy/resize/rotate cases consume.
+RGA_SAMPLE_DATA_DIR=${RGA_SAMPLE_DATA_DIR:-"$CONFORMANCE_ROOT/assets/rga-fixtures"}
 RGA_RESTORE_DEBUG=${RGA_RESTORE_DEBUG:-1}
 RGA_FAIL_ON_CASE_FAILURE=${RGA_FAIL_ON_CASE_FAILURE:-0}
 
@@ -192,6 +197,7 @@ write_metadata()
 		printf "conformance_root: %s\n" "$CONFORMANCE_ROOT"
 		printf "bin_dir: %s\n" "$BIN_DIR"
 		printf "librga_libdir: %s\n" "$LIBRGA_LIBDIR"
+		printf "sample_data_dir: %s\n" "$RGA_SAMPLE_DATA_DIR"
 		printf "debugfs: %s\n" "$RGA_DEBUGFS"
 		printf "cases: %s\n" "$RGA_CASES"
 		printf "debug_flags: %s\n" "$RGA_DEBUG_FLAGS"
@@ -202,6 +208,24 @@ write_metadata()
 		printf "\n== debugfs listing ==\n"
 		sudo_run ls -la "$RGA_DEBUGFS" 2>&1 || true
 	} > "$target"
+}
+
+stage_rga_fixtures()
+{
+	# The demos read/write raw planar fixtures named in<idx>w<W>-h<H>-<fmt>.bin /
+	# out<...>.bin under $RGA_SAMPLE_DATA_DIR. copy/resize/rotate all consume a
+	# 1280x720 RGBA8888 source at index 0. Materialize it deterministically if
+	# missing (content is irrelevant to the MMU/DMA datapath check; byte size must
+	# equal W*H*bpp exactly). head-then-tr keeps exit codes clean under pipefail.
+	mkdir -p "$RGA_SAMPLE_DATA_DIR"
+	local src="$RGA_SAMPLE_DATA_DIR/in0w1280-h720-rgba8888.bin"
+	local want=$((1280 * 720 * 4))
+	local have
+	have=$(stat -c '%s' "$src" 2>/dev/null || echo 0)
+	if [ ! -f "$src" ] || [ "$have" != "$want" ]; then
+		head -c "$want" /dev/zero | tr '\0' '\252' > "$src"
+		printf "staged fixture: %s (%s bytes)\n" "$src" "$want"
+	fi
 }
 
 run_case()
@@ -236,12 +260,31 @@ run_case()
 	tail -n 300 "$case_dir/dmesg-after.txt" > "$case_dir/dmesg-tail.txt" 2>/dev/null || true
 	snapshot_debugfs "$case_name after" "$case_dir/debugfs-after.txt"
 
+	# These RK im2d demos return an IM_STATUS_* code as the *process* exit code, and
+	# IM_STATUS_SUCCESS == 1 -- so rga_resize_rect_demo exits 1 on full success while
+	# copy/rotate exit 0. The raw exit code is therefore NOT a reliable pass/fail
+	# signal (it is still recorded in the TSV for forensics). Judge instead on:
+	#   fail-output    the demo hit a read/import/submit error in stdout
+	#   fail-hw        this case's dmesg window shows an MMU fault / "failed N>0"
+	#   fail-nosuccess the demo never printed its "running success" line
+	local had_error had_success had_hwfault
+	grep -Eiq 'running failed|Fatal error|Failed to call RockChipRga interface|request commit failed|submit failed|importbuffer failed|src image read err|Could not open' \
+		"$case_dir/stdout-stderr.log" && had_error=1 || had_error=0
+	grep -Eiq 'running success' "$case_dir/stdout-stderr.log" && had_success=1 || had_success=0
+	if comm -13 <(sort "$case_dir/dmesg-rga-iommu-before.txt") <(sort "$case_dir/dmesg-rga-iommu-after.txt") 2>/dev/null \
+		| grep -Eiq 'page fault|bus error|finished [0-9]+ failed [1-9]|INTR\[0x2\]'; then
+		had_hwfault=1
+	else
+		had_hwfault=0
+	fi
+
 	result=pass
-	if [ "$status" -ne 0 ]; then
-		result=fail-exit
-	elif grep -Eiq 'running failed|Fatal error|Failed to call RockChipRga interface|request commit failed|submit failed' \
-		"$case_dir/stdout-stderr.log"; then
+	if [ "$had_error" = 1 ]; then
 		result=fail-output
+	elif [ "$had_hwfault" = 1 ]; then
+		result=fail-hw
+	elif [ "$had_success" = 0 ]; then
+		result=fail-nosuccess
 	fi
 
 	printf "%s\t%s\t%s\t%s\t%s\n" \
@@ -291,6 +334,8 @@ printf "case\texit_status\tresult\telapsed_s\tcase_dir\n" > "$OUT/summary.tsv"
 write_metadata "$OUT/metadata.txt"
 
 export LD_LIBRARY_PATH="$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
+export RGA_SAMPLE_DATA_DIR
+stage_rga_fixtures
 
 trap restore_debug_flags EXIT
 snapshot_debugfs "initial" "$OUT/debugfs-initial.txt"
@@ -314,7 +359,9 @@ cat "$OUT/summary.tsv"
 
 if [ "$failed" -ne 0 ]; then
 	echo
-	echo "$failed case(s) failed or reported fatal output. This is expected for an active MMU interrupt repro."
+	echo "$failed case(s) failed or reported fatal output. With the IOMMU/DMA forward-port fix"
+	echo "in place and fixtures staged, a failure here is a real regression -- inspect the case"
+	echo "dir's dmesg-rga-iommu-after.txt for an MMU/page-fault signature."
 	if [ "$RGA_FAIL_ON_CASE_FAILURE" = "1" ]; then
 		exit 1
 	fi
