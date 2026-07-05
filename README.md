@@ -55,6 +55,9 @@ flowchart TB
 | **docs** + glossary | Cross-cutting: package map, source-tree pins, whole-repo trap index, shared vocabulary. | [`docs/`](docs/README.md), [`glossary.md`](glossary.md) |
 
 The detailed package reading map is [`docs/work-packages.md`](docs/work-packages.md).
+New to the memory/address-translation path? Start with the
+[IOMMU explainer series](kernel-drivers/iommu/docs/01-iommu-primer.md) —
+concept → RK3588 hardware → RGA/MPP driver code.
 
 ## Current board support
 

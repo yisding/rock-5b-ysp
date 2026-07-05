@@ -55,7 +55,9 @@ the CCU-vs-DCHS split, RCB SRAM-vs-DRAM, and convert-in-place.
   see [gotchas](docs/gotchas.md).
 - **IOMMU / MMU / IOVA** — the codec's own address translator: gives a dma-buf
   a device-side address (an *IOVA*) so the hardware can read/write it. Each
-  core has its own IOMMU node in the DT.
+  core has its own IOMMU node in the DT. Full walkthrough (concept → RK3588
+  hardware → RGA/MPP driver code) in the
+  [IOMMU explainer series](kernel-drivers/iommu/docs/01-iommu-primer.md).
 - **RCB** — *Row Cache Buffer*, per-row scratch the codec keeps in fast
   memory. **⚑ load-bearing disambiguation:** the **decoder** backs RCB with
   on-chip **SRAM** (`system_sram2@ff001000`); the **encoder** row-caches from
