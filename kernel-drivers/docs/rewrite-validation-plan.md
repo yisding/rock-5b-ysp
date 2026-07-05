@@ -32,7 +32,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
 | **Fault injection & recovery** | ❌ (suites only *detect* faults, never *inject*) | **add** — the recovery matrix (§4) |
-| **Fuzzing (syzkaller / structure-aware)** | ⚠️ draft syzlang + ABI-constant check added under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; not yet compiled by syzkaller or run under KCOV/KASAN | finish §5 |
+| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; not yet compiled by syzkaller or run under KCOV/KASAN | finish §5 |
 | **Rewrite-specific security/ABI audit** | ❌ ([`bsp-audit.md`](./bsp-audit.md) is the *forward-port*) | **add** (§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
@@ -182,8 +182,12 @@ register image; many in RGA).
   overflow-check sites, MPP ~13 — verify they're *complete*, not just present);
   cross-session fd confusion (`MPP_CMD_SET_SESSION_FD`, import fd, fence fd).
 
-A cheap first pass before syzkaller: a userspace libFuzzer/AFL harness over the
-ioctls catches the shallow `copy_from_user`/size-validation bugs in minutes.
+A cheap first pass before syzkaller now exists as
+[`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh): it mutates
+non-submit MPP/RGA ioctl payloads, sizes, flags, bad user pointers, RGA import
+pools, and request create/cancel lifetimes. It still needs to be run on a booted
+rewrite kernel, ideally under Kernel A with KASAN/KCOV, and later replaced or
+augmented by a proper libFuzzer/AFL in-process harness plus syzkaller.
 
 ## 6. Security / ABI hardening review (net-new, human)
 
