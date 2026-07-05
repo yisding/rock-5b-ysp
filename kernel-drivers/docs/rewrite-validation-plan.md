@@ -8,7 +8,7 @@ hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
 > surface and heavily unit-tested — MPP **53 KUnit cases** and RGA **99 KUnit
-> cases** compile at the §6 pins (`b6ff1ba06157` on 6.18, `b0330d37f1f6` on
+> cases** compile at the §6 pins (`73b3c8da6299` on 6.18, `0f29be2bc97d` on
 > mainline). But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
@@ -66,6 +66,18 @@ rewrite. Kconfig makes the two tracks mutually exclusive per device node
 ([`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) "Expanded conformance bundle"), keeping
 `assets/` and command lines identical across the two boots.
 
+The public `librga` consumer survey
+([`findings/2026-07-04-librga-consumer-survey.md`](../../findings/2026-07-04-librga-consumer-survey.md))
+does not broaden the required Linux RK3588 profile beyond the current
+conformance direction.  Outside ffmpeg-rockchip, JeffyCN GStreamer, and the
+official librga samples, the strongest additional signal is RKNN/RKNPU
+preprocessing plus simple display/compositor blits: fd or virtual RGB/RGBA/NV12/
+NV21 resize/convert/crop/letterbox, legacy `c_RkRgaBlit()` RGB-family
+scale/rotate, and clean negative handling for raw physical-address import.
+No surveyed current Linux-media user promoted RFBC64x4/AFBC32x8, per-channel
+rotation, tile alpha/pattern/color-key, broad RGA2-Pro modes, or Android
+GraphicBuffer/HWC allocator behavior into the required Rock 5B rewrite gate.
+
 **The gap to keep closing:** `abi-replay.sh` diffs *normalised ABI logs* rather
 than the **pixels/bitstream**. It now includes the non-submit dma-buf allocator
 handoff visible to current GStreamer/KMS paths, but the broad official librga
@@ -93,11 +105,12 @@ hardware completion path.
   The in-repo `ysp_librga_smoke` path now writes destination dumps for direct
   im2d copy/resize/fill, dma-buf import/copy, RKNN/RKNPU-style
   RGB/NV12/NV21 preprocessing plus RKNN-style RGBA crop/letterbox,
-  legacy GStreamer-shaped `c_RkRgaBlit()`
-  conversions, Gaussian matrix, forced-core, pre-intr, and async fence-chain
-  cases. A one-pixel CSC or stride error is invisible to a
-  pass/fail gate but caught instantly here. Add official-sample artifact dumps
-  later only for sample coverage that exposes a new current-userspace behavior.
+  legacy GStreamer-shaped `c_RkRgaBlit()` conversions, display/compositor-shaped
+  BGRx `c_RkRgaBlit()` 90-degree rotation, Gaussian matrix, forced-core,
+  pre-intr, and async fence-chain cases. A one-pixel CSC or stride error is
+  invisible to a pass/fail gate but caught instantly here. Add official-sample
+  artifact dumps later only for sample coverage that exposes a new
+  current-userspace behavior.
 - **VDEC** decode is bit-exact per bitstream → compare decoded YUV through the
   MPP suite with `MPP_DUMP_OUTPUTS=1`.
 - **VENC** encode is bit-exact only vs the *vendor encoder* at identical config
