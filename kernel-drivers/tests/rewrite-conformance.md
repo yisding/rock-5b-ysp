@@ -50,7 +50,7 @@ worktree has unrelated local changes.
 
 Last recorded run: `kernel-drivers/tests/rewrite-build-gate.sh all`
 on 2026-07-05 passed warning-free for the committed rewrite tips
-`../kernel/linux-6.18-rkvenc@73b3c8da6299` and `../kernel/linux@0f29be2bc97d`.
+`../kernel/linux-6.18-rkvenc@fc88b89af250` and `../kernel/linux@20eba4ee26ee`.
 
 ## Expanded conformance bundle
 
