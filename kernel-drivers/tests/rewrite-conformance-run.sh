@@ -103,6 +103,55 @@ run_counter_check()
 		bash "$TEST_DIR/debugfs-counter-check.sh"
 }
 
+validate_counter_defaults()
+{
+	case "$PROFILE" in
+	*rewrite*)
+		;;
+	*)
+		printf "counter defaults skipped for profile '%s'\n" "$PROFILE"
+		return 0
+		;;
+	esac
+
+	if [ "$RUN_COUNTER_CHECKS" != "1" ]; then
+		printf "counter defaults skipped because RUN_COUNTER_CHECKS=%s\n" \
+			"$RUN_COUNTER_CHECKS"
+		return 0
+	fi
+
+	if [ "$REWRITE_COUNTER_DEFAULTS" != "1" ]; then
+		printf "counter defaults skipped because REWRITE_COUNTER_DEFAULTS=%s\n" \
+			"$REWRITE_COUNTER_DEFAULTS"
+		return 0
+	fi
+
+	if [ "$REQUIRE_COUNTER_FILE" != "1" ]; then
+		printf "rewrite counter defaults did not require counter files\n" >&2
+		return 1
+	fi
+
+	if [ -z "$LIBRGA_REQUIRED_POSITIVE_COUNTERS" ]; then
+		printf "rewrite counter defaults did not require librga counters\n" >&2
+		return 1
+	fi
+	if [ -z "$GSTREAMER_REQUIRED_POSITIVE_COUNTERS" ]; then
+		printf "rewrite counter defaults did not require GStreamer counters\n" >&2
+		return 1
+	fi
+	if [ -z "$FFMPEG_REQUIRED_POSITIVE_COUNTERS" ]; then
+		printf "rewrite counter defaults did not require FFmpeg counters\n" >&2
+		return 1
+	fi
+	if [ -n "${MPP_REQUIRED_CASES:-}" ] &&
+		[ -z "$MPP_REQUIRED_POSITIVE_COUNTERS" ]; then
+		printf "rewrite counter defaults did not require MPP counters for explicit MPP cases\n" >&2
+		return 1
+	fi
+
+	printf "rewrite counter defaults validated\n"
+}
+
 run_profile_suites()
 {
 	if [ "$RUN_SYSTEM_INFO" = "1" ]; then
@@ -193,6 +242,8 @@ run_comparators()
 
 run_validation()
 {
+	run_step "counter defaults: validate wiring" validate_counter_defaults
+
 	if [ "$RUN_GSTREAMER_SUITE" = "1" ]; then
 		run_step "gstreamer: validate case builders" \
 			env GST_VALIDATE_CASES=1 PROFILE="$PROFILE" \

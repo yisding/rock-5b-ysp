@@ -177,6 +177,7 @@ check_counter_check()
 	local out_missing_required="$TMP_ROOT/counter-check.missing-required"
 	local out_forbidden="$TMP_ROOT/counter-check.forbidden"
 	local out_missing_file="$TMP_ROOT/counter-check.missing-file"
+	local out_required_file="$TMP_ROOT/counter-check.required-file"
 	local status
 
 	mkdir -p "$base_dir"
@@ -218,6 +219,18 @@ check_counter_check()
 	SUMMARY="$base_dir/summary.tsv" \
 		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_missing_file"
 	grep -q "counter_check	skipped" "$out_missing_file"
+
+	set +e
+	SUMMARY="$base_dir/summary.tsv" \
+		REQUIRE_COUNTER_FILE=1 \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_required_file"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "missing required counter file unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q "missing debugfs counter delta file" "$out_required_file"
 }
 
 check_librga_latest_filter()

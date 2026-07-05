@@ -89,6 +89,7 @@ LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1 bash librga-smoke.sh  # rewrite-only physi
 LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT=1 bash librga-smoke.sh  # rewrite-only AFBC32x8/RFBC64x4 negative check
 sudo env RGA_FAIL_ON_CASE_FAILURE=1 bash rga-mmu-debug.sh  # RGA3/IOMMU validation gate
 VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free conformance wiring check
+VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # also checks rewrite counter-default wiring
 sudo PROFILE=rewrite bash rewrite-conformance-run.sh  # full profile run on a rewrite boot
 sudo PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # require rewrite hardware counter deltas
 bash test-decode.sh                  # decoder liveness (device access is enough)

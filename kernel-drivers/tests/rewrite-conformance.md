@@ -729,6 +729,7 @@ logs.
 
 ```bash
 VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/case/comparator wiring check
+VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # also validate rewrite counter-default wiring
 PROFILE=rewrite bash rewrite-conformance-run.sh  # run all suites for the booted rewrite profile
 PROFILE=rewrite RUN_COMPARE=1 bash rewrite-conformance-run.sh  # run and compare latest summaries
 PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # add default rewrite hardware counter gates
