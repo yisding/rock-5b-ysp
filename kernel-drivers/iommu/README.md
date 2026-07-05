@@ -12,6 +12,17 @@ CCU finding from the rewrite track.
 | Code lives in | Rockchip IOMMU + MPP service code in the sibling kernel trees (`drivers/iommu/rockchip-iommu.c`, `mpp/mpp_iommu.c`, `mpp_rkvdec2*.c`). |
 | Current state | CCU IOMMU plan implemented in the rewrite track; SOFT/HARD CCU finding resolved. See [`../docs/rewrite-drivers.md`](../docs/rewrite-drivers.md) and [`../../status.md`](../../status.md). |
 
+## Explainer series (start here)
+
+A from-first-principles walkthrough of the whole IOMMU story on RK3588, concept →
+hardware → driver code. Read in order if you're new to it.
+
+| Doc | One-liner |
+|-----|-----------|
+| [`docs/01-iommu-primer.md`](docs/01-iommu-primer.md) | What an IOMMU is and why it exists (vendor-neutral): the three problems it solves, the vocabulary, where it sits in the Linux DMA stack, and the `dma_map_sg` coalescing detail everything else hinges on. |
+| [`docs/02-rk3588-iommu-hardware.md`](docs/02-rk3588-iommu-hardware.md) | The RK3588 silicon: one IOMMU per block (topology), the 2-level DTE→PTE page table + walk math, the 32-bit-IOVA/40-bit-physical asymmetry, register/command map, fault mechanism, and the separate AV1D (Verisilicon) provider. |
+| [`docs/03-bsp-iommu-code.md`](docs/03-bsp-iommu-code.md) | What the RGA and MPP drivers actually do: internal-MMU (RGA2) vs external-IOMMU (RGA3), shared domains, the buffer-import → single-segment-contract → program-IOVA flow, the CCU cluster domain, and the forward-port hardening trio. |
+
 ## Scoped docs
 
 | Doc | One-liner |
