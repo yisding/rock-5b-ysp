@@ -270,9 +270,16 @@ Yet `dma_map_sg()` returned `nents == orig_nents == 341`. That is the decisive
 signal: **zero merging occurred.** A segment-size cap can only *floor* merging
 (a 64 KB cap would give ~57 output segments for this buffer; a 4 GB cap would
 give 1) — `nents == orig_nents` means no merge was attempted at all, i.e.
-`dma_map_sg()` is running the **direct/identity** path, not the coalescing
-`iommu_dma_map_sg()` path. So `max_seg_size` is not the lever; re-applying it on
-the RGA device side (tried, then reverted) cannot change the outcome.
+`dma_map_sg()` is **not being serviced by the coalescing `iommu_dma_map_sg()`
+path**. So `max_seg_size` is not the lever; re-applying it on the RGA device side
+(tried, then reverted) cannot change the outcome.
+
+> **Correction (2026-07-05 map-site DIAG):** an earlier version of this section
+> called that the "direct/identity" path. The map-site diagnostic below refutes
+> the *identity* part: the RGA map device is on a **translated** DMA-API IOMMU
+> domain (`domain_type = 0x3 = IOMMU_DOMAIN_DMA`), not an identity/passthrough
+> one. The buffer is being translated; it is just not being coalesced. See
+> "### 2026-07-05 map-site diagnostic" below.
 
 This fits the surrounding upstream history:
 `9176a303d971 iommu/rockchip: Use IOMMU device for dma mapping operations` and
@@ -281,27 +288,145 @@ This fits the surrounding upstream history:
 `dma_map_sg()` does not coalesce, so RGA3 is effectively physically-addressed and
 requires physically-contiguous input.
 
+### 2026-07-05 map-site diagnostic: domain is translated, not identity — Option 1 reopened (later eliminated by the use_dma_iommu probe)
+
+The de-risking diagnostic recommended below was built (temporary forward-port
+commit `eb0f3e209007`, "DIAG: log dma_map_sg non-coalescing for RGA3 imports")
+and run on `6.18.38-current-rockchip64 #11`
+(`../rockchip-conformance/logs/rga-mmu-debug/20260705-125811`). It logs, whenever
+`dma_map_sg()` returns more than one segment, the effective `max_seg_size`, the
+`orig_nents`/`nents` pair, and the device's IOMMU domain type. The one line it
+emitted (on `rga_resize_rect_demo`'s scattered buffer) was:
+
+```text
+DIAG rga_dma_map_sgt: dev=fdb60000.rga max_seg_size=4294967295 orig_nents=254 nents=254 domain_type=0x3
+```
+
+Decoded against `include/linux/iommu.h`:
+
+- `max_seg_size = 0xffffffff` — the 4 GB cap from `13afe70c8271` is active **on the
+  actual map device** (`fdb60000.rga`), now measured directly rather than inferred
+  from git ancestry. Not the lever.
+- `orig_nents == nents == 254` — zero coalescing, same signature as the 341-segment
+  run, just a different allocation draw.
+- `domain_type = 0x3` = `__IOMMU_DOMAIN_PAGING | __IOMMU_DOMAIN_DMA_API` =
+  `IOMMU_DOMAIN_DMA` — a **translated, paging, DMA-API-managed** domain. **Not**
+  identity (`0x4`). This is the correction to the Step 0 wording above.
+
+The key inference: the userptr sgt is built by `sg_alloc_table_from_pages()`
+(`rga3/rga_mm.c:226`), which coalesces the 900 pages into 254 physically-contiguous
+runs whose starts (after the first) are page-aligned. That shape is exactly what
+`iommu_dma_map_sg()`'s merge pass (`__finalise_sg`, gated on `!s_iova_off`) is
+built to fuse. A genuine `iommu_dma_map_sg()` on a translated domain with a 4 GB
+seg cap would have collapsed all 254 runs into **one** IOVA segment. It returned
+254. So the map is **not being serviced by the coalescing iommu-dma routine** even
+though a DMA-type default domain is attached to the device.
+
+Those are two separate facts: "a `IOMMU_DOMAIN_DMA` default domain exists" (what
+`iommu_get_domain_for_dev()` reports) is *not* the same as "the DMA API routes this
+device's scatter-maps through `iommu_dma_map_sg()`" (which is gated by
+`dev->dma_iommu` / `use_dma_iommu()`, set from `iommu_is_dma_domain(domain)` during
+dma-ops setup — `drivers/iommu/dma-iommu.c:2107`). The DIAG only measured the first.
+
+**This reopened Option 1** as a candidate: if `fdb60000.rga` were simply not on the
+generic coalescing iommu-dma path despite having a translated domain, routing it
+there (a dma-ops-wiring fix) would make scattered userptr collapse for free. The
+discriminator is one field: `use_dma_iommu(map_dev)`, added to the same DIAG:
+
+- `false` → device is off iommu-dma despite the DMA domain ⟹ **Option 1**.
+- `true` → `iommu_dma_map_sg()` runs yet still returns non-coalesced segments ⟹ a
+  deeper issue — see the next section, which resolves this.
+
+### 2026-07-05 use_dma_iommu probe: on iommu-dma AND the multi-segment return may be contiguous
+
+Built `use_dma_iommu` into the DIAG (fixup `30102c8f769e`) and ran on
+`6.18.38-current-rockchip64 #12` (`../rockchip-conformance/logs/rga-mmu-debug/20260705-142730`,
+the `P4256-Cb831` build). The line:
+
+```text
+DIAG rga_dma_map_sgt: dev=fdb60000.rga max_seg_size=4294967295 orig_nents=332 nents=332 domain_type=0x3 use_dma_iommu=1
+```
+
+`use_dma_iommu=1` **eliminates Option 1** — the device *is* on the generic
+iommu-dma path; `dma_map_sg()` dispatches to `iommu_dma_map_sg()`. There is nothing
+to "route onto iommu-dma"; it is already there.
+
+But reading `iommu_dma_map_sg()` (`../kernel/linux-6.18-rkvenc-av1-fwport/drivers/iommu/dma-iommu.c`)
+reframes what the 332-segment return *means*. For a platform device like RGA the
+swiotlb bounce sub-path is not taken (`dev_use_sg_swiotlb()` is untrusted-PCI /
+unaligned-kmalloc only, `:603`), so the **normal path** runs:
+
+- `iommu_dma_alloc_iova(domain, iova_len, …)` allocates **one** IOVA range for the
+  whole buffer (`:1483`);
+- `iommu_map_sg(domain, iova, sg, nents, …)` maps every page into it (`:1493`);
+- `__finalise_sg()` then returns segment addresses that march monotonically from
+  `iova` (`:1312`, `:1316`).
+
+So the multi-segment return is **non-coalesced *reporting*, not a non-contiguous
+*mapping*** — the underlying IOVA is one contiguous block `[iova, iova+iova_len)`.
+If the returned segments abut (`addr[i]+len[i] == addr[i+1]`), then RGA's
+`base = sg_dma_address(sgl)` + `size = Σ len` programming is **already safe**, and
+the fail-closed `sgt->nents != 1` reject in `rga_dma_check_iova_contract()`
+(`rga3/rga_dma_buf.c:28`) is rejecting buffers that would actually work.
+
+**If that held, the fix would be "relax the check"** rather than Route B: generalise
+the contract check from "exactly one segment" to "segments form one contiguous,
+non-wrapping 32-bit IOVA span." That hypothesis was **inferred from generic code and
+had to be measured** before relaxing a safety check — the original MMU fault proves
+non-contiguity was real at some point. So a contiguity walk was staged in the DIAG
+(fixup `171de4153e97`): in the `nents != 1` branch it logs
+`contiguous=<0|1> gaps=<n> span=… end=…`.
+
+### 2026-07-05 contiguity result: contiguous=0 — the reject is correct, "relax the check" is dead
+
+Ran the contiguity build on `#13` (two runs, `20260705-151717` all-contiguous by
+luck → passed, and `20260705-151723` fragmented → the interesting one). **Every
+multi-segment mapping came back `contiguous=0`:**
+
+```text
+orig_nents=386 contiguous=0 gaps=9   first=0xdfd04010 span=0x17c000            end=0xdfe8000f
+orig_nents=492 contiguous=0 gaps=68  first=0xdfebd010 span=0x89000             end=0xdff4600f
+orig_nents=367 contiguous=0 gaps=306 first=0xdfe27010 span=0x96000            end=0xdfebd00f
+orig_nents=895 contiguous=0 gaps=894 first=0xdffff010 span=0xffffffffffc7a000  end=0xdfc7900f
+orig_nents=390 contiguous=0 gaps=367 first=0xdfd0d010 span=0xffffffffffc5f000  end=0xdf96c00f
+```
+
+Two things kill the "one contiguous span, just non-coalesced reporting" hypothesis:
+
+1. **`gaps` is nonzero and large** (up to 894 of 895 — essentially every segment
+   starts somewhere unexpected).
+2. **`span=0xffffffff…` means `end < first`**: the last segment ends *below* where
+   the first begins — the IOVAs run **backwards**. The generic normal path
+   (`iommu_dma_alloc_iova` + `iommu_map_sg` + `__finalise_sg`) can only ever hand
+   back *monotonically ascending* addresses tiling one allocation, so it is **not**
+   what ran. The device is mapping scattered pages to scattered per-segment IOVAs
+   (a per-segment / swiotlb-style path, not coalescing) — which refutes my
+   generic-code reading from the previous section. This is exactly why we measured.
+
+So RGA's `base + size` programming really would walk into unmapped/out-of-order
+IOVA and fault. **The fail-closed `nents != 1` reject is correct**, and relaxing it
+would reintroduce the original MMU interrupt. `contiguous=0` closes the cheap-fix
+door.
+
 ### Consequence and recommendation
 
-Making scattered `virt_addr` imports actually work has **no config-tweak path**.
-It requires the BSP mechanism the forward-port dropped ("Route B"): allocate an
-IOVA range in a translated RGA domain, `iommu_map_sg()` the scatter-gather into
-one contiguous IOVA, program that, do explicit `dma_sync_sg_*`, and tear it down
-on release. That is a few hundred lines, medium-high risk (it re-enters the
-manual-IOMMU territory the fail-closed check was added to escape), and leans on
-the kernel-private `iommu_dma_cookie`/`iova_domain` layout — the
-`struct rga_iommu_dma_cookie` fossil still sitting unused in
-`rga3/include/rga_drv.h` is that mechanism's remnant.
+Every cheap lever is now eliminated **by measurement, not argument**: not
+`max_seg_size` (maxed), not Option 1 (`use_dma_iommu=1`, already on iommu-dma), not
+check-relaxation (`contiguous=0`, the mapping genuinely is not one span). The only
+technical path that makes scattered `virt_addr` work on RGA3 is **Route B**:
+allocate an IOVA range in a translated RGA domain, `iommu_map_sg()` the scatter into
+it, program that one base, do explicit `dma_sync_sg_*`, and tear it down on release
+— a few hundred lines, medium-high risk (it re-enters the manual-IOMMU territory the
+fail-closed check was added to escape; the unused `struct rga_iommu_dma_cookie` in
+`rga3/include/rga_drv.h` is that mechanism's remnant).
 
 **Recommendation: accept the limitation.** RGA3 requires dma-buf /
-physically-contiguous input; userptr imports should route to the rga2 core
+physically-contiguous input; userptr imports otherwise route to the rga2 core
 (`RGA_MMU`, its own page-table MMU, which handles scatter via
 `rga_mm_set_mmu_base()`). Nothing in [[2026-07-04-librga-consumer-survey]] feeds
-RGA3 raw userptr — real pipelines (GStreamer/MPP) hand RGA dma-buf, which is
-always `nents == 1`. Pursue Route B only if a concrete userptr-on-RGA3 consumer
-appears; de-risk first with a one-build map-site diagnostic printing
-`dma_get_max_seg_size(map_dev)` and whether `iommu_get_domain_for_dev(map_dev)`
-is translated vs identity.
+RGA3 raw userptr — real pipelines (GStreamer/MPP) normally hand RGA dma-buf fds from
+suitable exporters, and the forward-port already validates those imports before
+programming RGA3.
 
 ## Validation State
 
@@ -337,13 +462,32 @@ Done (2026-07-05, see the 2026-07-05 section above):
   which is by-design, not a fault.
 - Proved Step 0 (`max_seg_size`) is already in-tree and insufficient (ancestry
   proof + `nents == orig_nents` zero-merge signature).
+- Built and ran the map-site diagnostic (`eb0f3e209007`) on
+  `6.18.38-current-rockchip64 #11` (`20260705-125811`). Result:
+  `dev=fdb60000.rga max_seg_size=0xffffffff orig_nents=254 nents=254
+  domain_type=0x3`. Directly measured that the cap is maxed on the real map
+  device and the domain is **translated** (`IOMMU_DOMAIN_DMA`), not identity —
+  correcting the earlier "direct/identity path" wording and reopening Option 1.
+- Built the `use_dma_iommu` field (fixup `30102c8f769e`) and ran on `#12`
+  (`P4256-Cb831`, `20260705-142730`). Result adds `use_dma_iommu=1` (orig_nents =
+  nents = 332). **Eliminates Option 1** — the device is already on the iommu-dma
+  path. (Inferred from `iommu_dma_map_sg()` that the mapping was probably one
+  contiguous IOVA span; the next probe refuted that.)
+- Built the contiguity walk (fixup `171de4153e97`) and ran on `#13`
+  (`20260705-151717` all-contiguous by luck → passed; `20260705-151723` fragmented).
+  Result: **`contiguous=0` in every case** (gaps 9–894; two cases with `end < first`,
+  i.e. IOVAs running backwards). The mapping is genuinely not one span — the
+  generic normal-path inference was wrong; it is a per-segment/scattered mapping.
+  **The `nents != 1` reject is therefore correct**, and check-relaxation is dead.
 
-Open decision (not a bug):
+Investigation closed (not a bug):
 
-1. Whether to implement "Route B" (driver-owned `iommu_map_sg()` into a
-   translated RGA domain) so scattered `virt_addr` imports work on RGA3, or
-   accept the dma-buf/contiguous-only limitation and route userptr to rga2.
-   Recommendation above is to accept the limitation absent a concrete consumer.
-2. If Route B is pursued, first land the one-build map-site diagnostic
-   (`dma_get_max_seg_size(map_dev)` + translated-vs-identity domain type) to
-   confirm the non-coalescing path before the larger change.
+1. Every cheap lever is eliminated by measurement: not `max_seg_size` (maxed), not
+   Option 1 (`use_dma_iommu=1`), not check-relaxation (`contiguous=0`). Making
+   scattered `virt_addr` work on RGA3 requires **Route B** (driver-owned
+   `iommu_map_sg()` into a translated RGA domain) — pursue only if a concrete
+   userptr-on-RGA3 consumer appears. Standing recommendation: **accept the
+   dma-buf/contiguous-only limitation**; the fail-closed reject stays as-is.
+2. The DIAG has served its purpose. Drop `eb0f3e209007` + its two fixups
+   (`30102c8f769e`, `171de4153e97`) from `rkvenc-fwport-6.18` and rebuild a clean
+   kernel (the fail-closed reject in `590c9ef297ce` is unaffected and remains).
