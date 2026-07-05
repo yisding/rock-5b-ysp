@@ -58,6 +58,15 @@ struct mpp_probe_codec_info {
 static unsigned int failures;
 static unsigned int probed_devices;
 
+static bool env_enabled(const char *name)
+{
+	const char *value = getenv(name);
+
+	return value && strcmp(value, "0") && strcmp(value, "false") &&
+	       strcmp(value, "FALSE") && strcmp(value, "no") &&
+	       strcmp(value, "NO");
+}
+
 static void print_status(const char *name, int ret)
 {
 	if (ret < 0)
@@ -824,6 +833,55 @@ static void probe_rga_dmabuf_import_release(int fd)
 	dmabuf_free(&dmabuf);
 }
 
+static void probe_rga_physical_import(int fd)
+{
+	struct rga_external_buffer buffers[1] = {};
+	struct rga_buffer_pool pool;
+	bool expect_reject =
+		env_enabled("ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT");
+	int saved_errno;
+	int ret;
+
+	memset(&pool, 0, sizeof(pool));
+	buffers[0].memory = 0x1000;
+	buffers[0].type = RGA_PHYSICAL_ADDRESS;
+	buffers[0].memory_info.size = 4096;
+	pool.buffers = (uint64_t)(uintptr_t)buffers;
+	pool.size = ARRAY_SIZE(buffers);
+
+	errno = 0;
+	ret = ioctl(fd, RGA_IOC_IMPORT_BUFFER, &pool);
+	saved_errno = errno;
+	print_status("RGA_IOC_IMPORT_BUFFER physical", ret);
+
+	if (ret >= 0) {
+		printf("  %-30s %u\n", "physical_import_handle",
+		       buffers[0].handle);
+		if (buffers[0].handle) {
+			memset(&pool, 0, sizeof(pool));
+			pool.buffers = (uint64_t)(uintptr_t)buffers;
+			pool.size = ARRAY_SIZE(buffers);
+			errno = 0;
+			print_status("RGA_IOC_RELEASE_BUFFER physical",
+				     ioctl(fd, RGA_IOC_RELEASE_BUFFER, &pool));
+		}
+		if (expect_reject) {
+			printf("  %-30s expected errno=%d (%s)\n",
+			       "physical_import_reject",
+			       EOPNOTSUPP, strerror(EOPNOTSUPP));
+			failures++;
+		}
+		return;
+	}
+
+	if (expect_reject && saved_errno != EOPNOTSUPP) {
+		printf("  %-30s expected errno=%d (%s)\n",
+		       "physical_import_reject",
+		       EOPNOTSUPP, strerror(EOPNOTSUPP));
+		failures++;
+	}
+}
+
 static void rga_fill_test_img(rga_img_info_t *img, uint32_t handle)
 {
 	img->yrgb_addr = handle;
@@ -1000,6 +1058,7 @@ static void probe_rga(void)
 
 	probe_rga_virtual_import_release(fd);
 	probe_rga_dmabuf_import_release(fd);
+	probe_rga_physical_import(fd);
 	probe_rga_request_config(fd);
 
 	close(fd);

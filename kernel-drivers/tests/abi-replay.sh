@@ -20,7 +20,7 @@ normalize_log() {
     -e 's/(\/dev\/[^ ]+[[:space:]]+)fd=[0-9]+/\1fd=<fd>/g' \
     -e 's/(dmabuf_heap[[:space:]]+).*/\1<heap>/g' \
     -e 's/(dmabuf_iova[[:space:]]+)0x[0-9a-fA-F]+/\1<iova>/g' \
-    -e 's/((virtual_import_handle|dmabuf_import_handle|config_request_id|config_src_handle|config_dst_handle)[[:space:]]+)[0-9]+/\1<id>/g'
+    -e 's/((virtual_import_handle|dmabuf_import_handle|physical_import_handle|config_request_id|config_src_handle|config_dst_handle)[[:space:]]+)[0-9]+/\1<id>/g'
 }
 
 extract_contract_log() {

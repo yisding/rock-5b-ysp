@@ -32,9 +32,10 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > can additionally require positive rewrite hardware-start/busy-time counter
 > deltas and fail timeout/fault/error deltas. The direct RGA smoke case
 > is now part of the librga suite's required set and records deterministic
-> destination-buffer byte counts/SHA-256s for maintained im2d, legacy
-> GStreamer-shaped `c_RkRgaBlit()`, forced-core, pre-intr, Gaussian, and async
-> fence paths. The broad official librga sample binaries remain primarily
+> destination-buffer byte counts/SHA-256s for maintained im2d,
+> RKNN/RKNPU-style preprocessing, legacy GStreamer-shaped `c_RkRgaBlit()`,
+> forced-core, pre-intr, Gaussian, and async fence paths. The broad official
+> librga sample binaries remain primarily
 > pass/fail/timing coverage until a current-userspace gap needs sample-specific
 > output capture. The FFmpeg suite generates shared software H.264/H.265 inputs,
 > probes current `ffmpeg-rockchip` decoder/RGA filter options, runs decoder-option
@@ -78,11 +79,12 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 decoder-side output
 > conversion. The in-repo direct `librga` smoke
 > covers virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd`, sync
-> copy/resize/fill, legacy `c_RkRgaBlit()` conversions shaped like JeffyCN
+> copy/resize/fill, RKNN/RKNPU-style RGB/NV12/NV21 preprocessing,
+> legacy `c_RkRgaBlit()` conversions shaped like JeffyCN
 > GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing,
 > rotated NV12 dma-buf to BGRx dma-buf decode conversion, and planar I420
-> dma-buf to NV12 dma-buf fallback), forced RGA3 core-mask + priority
-> submission, forced RGA2 `IM_PRE_INTR`, the official Gaussian matrix
+> dma-buf to NV12 dma-buf fallback), a no-submit physical-address import probe,
+> forced RGA3 core-mask + priority submission, forced RGA2 `IM_PRE_INTR`, the official Gaussian matrix
 > `IM_GAUSS` public sample shape, and an async acquire/release-fence chain, but
 > these still need to be run on a booted rewrite kernel. When launched through
 > `librga-suite.sh`, the smoke records deterministic destination artifacts for
@@ -412,11 +414,12 @@ implementation (cross-reference:
   import, RGB/RGB565/RGBA/NV12-family scale/convert/rotate feature set.  This
   survey found no current Linux-media evidence that RFBC64x4/AFBC32x8,
   per-channel rotation, tile alpha/pattern/color-key, or broad RGA2-Pro modes
-  should move into the required rewrite profile.  The next useful conformance
-  expansion is an RKNN-shaped smoke profile: virtual RGB888 `imresize()`,
-  fd-backed RGB/NV12/NV21 `improcess()` resize/convert, legacy RGB
-  `c_RkRgaBlit()` resize, and an explicit expected reject for physical-address
-  import.
+  should move into the required rewrite profile.  The in-repo
+  `ysp_librga_smoke` now covers the highest-value RKNN-shaped paths: virtual
+  RGB888 `imresize()`, fd-backed RGB/NV12/NV21 `improcess()` resize/convert,
+  legacy RGB `c_RkRgaBlit()` resize, and a no-submit physical-address import
+  probe that can be made a rewrite-only expected reject with
+  `LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1`.
 - **Unsupported profiles fail *late* by design**: `-EOPNOTSUPP` is returned
   only after copy/validate/prepare/queue/dispatch/import-resolve/power-sequence
   reach the backend boundary — so the scheduler/lifetime path is exercised even

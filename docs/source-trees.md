@@ -334,9 +334,10 @@ The kernel trees now have focused KUnit coverage for the highest-value legacy
 RGA conversion profiles, the broader GStreamer-visible format matrix, the
 remaining 180/270-degree public rotation values, and VP9 RKVDEC fd-to-IOVA
 register translation/validation. The
-support repo's direct `librga-smoke.sh` mirrors the public `c_RkRgaBlit()` calls
-for encoder-side virtual-source conversion, decode-side fd-backed rotate/format
-conversion, and planar fallback, while `gstreamer-suite.sh` carries a diagnostic
+support repo's direct `librga-smoke.sh` mirrors the public RKNN/RKNPU
+preprocessing shapes plus the `c_RkRgaBlit()` calls for encoder-side
+virtual-source conversion, decode-side fd-backed rotate/format conversion, and
+planar fallback, while `gstreamer-suite.sh` carries a diagnostic
 format matrix for advertised GStreamer encoder input formats, decoder output
 formats, the optional `GST_MPP_VP8ENC_FAKE_VP8ENC` VP8 alias, JPEG decoder
 explicit/default BGRx output selection, VP8 QP and JPEG quality-factor property

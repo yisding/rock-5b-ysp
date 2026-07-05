@@ -404,6 +404,19 @@ static void fill_bgrx_pattern(uint8_t *buf, int width, int height)
 	}
 }
 
+static void fill_rgb_pattern(uint8_t *buf, int width, int height)
+{
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			uint8_t *px = buf + ((size_t)y * width + x) * 3;
+
+			px[0] = (uint8_t)(0x40 + x);
+			px[1] = (uint8_t)(0x20 + y);
+			px[2] = (uint8_t)(0x80 + (x ^ y));
+		}
+	}
+}
+
 static int buffer_changed_from_sentinel(const uint8_t *buf, size_t size,
 					uint8_t sentinel)
 {
@@ -437,6 +450,27 @@ static void fill_nv12_pattern(uint8_t *buf, int width, int height)
 				(uint8_t)(0x50 + ((x + y) & 0x1f));
 			uv_plane[(size_t)y * width + x + 1] =
 				(uint8_t)(0x90 + ((x * 2 + y) & 0x1f));
+		}
+	}
+}
+
+static void fill_nv21_pattern(uint8_t *buf, int width, int height)
+{
+	uint8_t *y_plane = buf;
+	uint8_t *vu_plane = buf + ((size_t)width * height);
+
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++)
+			y_plane[(size_t)y * width + x] =
+				(uint8_t)(0x28 + ((x * 5 + y * 3) & 0x7f));
+	}
+
+	for (int y = 0; y < height / 2; y++) {
+		for (int x = 0; x < width; x += 2) {
+			vu_plane[(size_t)y * width + x] =
+				(uint8_t)(0xa0 + ((x + y * 2) & 0x1f));
+			vu_plane[(size_t)y * width + x + 1] =
+				(uint8_t)(0x50 + ((x * 3 + y) & 0x1f));
 		}
 	}
 }
@@ -645,6 +679,325 @@ static int run_10bit_im2d_conversions(void)
 				      (size_t)width * height * 4,
 				      (size_t)width * height * 2,
 				      fill_p210_pattern);
+}
+
+static int run_rknn_virtual_rgb_resize(void)
+{
+	const int src_w = 64;
+	const int src_h = 64;
+	const int dst_w = 32;
+	const int dst_h = 32;
+	const size_t src_size = (size_t)src_w * src_h * 3;
+	const size_t dst_size = (size_t)dst_w * dst_h * 3;
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	uint8_t *src_mem = NULL;
+	uint8_t *dst_mem = NULL;
+	int ret;
+
+	if (alloc_aligned((void **)&src_mem, src_size) ||
+	    alloc_aligned((void **)&dst_mem, dst_size)) {
+		perror("posix_memalign rknn virtual RGB");
+		ret = 1;
+		goto out;
+	}
+
+	fill_rgb_pattern(src_mem, src_w, src_h);
+	memset(dst_mem, 0x80, dst_size);
+
+	src_handle = importbuffer_virtualaddr(src_mem, src_size);
+	dst_handle = importbuffer_virtualaddr(dst_mem, dst_size);
+	if (!src_handle || !dst_handle) {
+		fprintf(stderr, "RKNN virtual RGB import failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, src_w, src_h, RK_FORMAT_RGB_888);
+	dst = wrapbuffer_handle(dst_handle, dst_w, dst_h, RK_FORMAT_RGB_888);
+
+	ret = imcheck(src, dst, {}, {});
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("rknn rgb imcheck", ret);
+		goto out;
+	}
+
+	ret = imresize(src, dst);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("rknn rgb resize", ret);
+		goto out;
+	}
+
+	if (!buffer_changed_from_sentinel(dst_mem, dst_size, 0x80)) {
+		fprintf(stderr, "RKNN virtual RGB resize output unchanged\n");
+		ret = 1;
+		goto out;
+	}
+
+	ret = write_artifact("rknn_virtual_rgb_imresize", dst_mem, dst_size);
+	if (!ret)
+		printf("%-24s ok\n", "RKNN rgb imresize");
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	free(src_mem);
+	free(dst_mem);
+
+	return ret;
+}
+
+static int run_rknn_fd_improcess(const char *name, const char *artifact,
+				 int src_format, int dst_format,
+				 size_t src_size, size_t dst_size,
+				 void (*fill_src)(uint8_t *, int, int))
+{
+	const int src_w = 64;
+	const int src_h = 64;
+	const int dst_w = 32;
+	const int dst_h = 32;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	im_handle_param_t src_param = {
+		(uint32_t)src_w,
+		(uint32_t)src_h,
+		(uint32_t)src_format,
+	};
+	im_handle_param_t dst_param = {
+		(uint32_t)dst_w,
+		(uint32_t)dst_h,
+		(uint32_t)dst_format,
+	};
+	im_rect src_rect = {0, 0, src_w, src_h};
+	im_rect dst_rect = {0, 0, dst_w, dst_h};
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	int ret;
+
+	ret = dmabuf_alloc_any(src_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "%s source allocation failed: %s\n",
+			name, strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(dst_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "%s dest allocation failed: %s\n",
+			name, strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "RKNN fd source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_src(dma_src.mem, src_w, src_h);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "RKNN fd source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "RKNN fd dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "RKNN fd dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src_handle = importbuffer_fd(dma_src.fd, &src_param);
+	dst_handle = importbuffer_fd(dma_dst.fd, &dst_param);
+	if (!src_handle || !dst_handle) {
+		fprintf(stderr, "%s importbuffer_fd failed: %s\n",
+			name, imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, src_w, src_h, src_format);
+	dst = wrapbuffer_handle(dst_handle, dst_w, dst_h, dst_format);
+
+	ret = imcheck(src, dst, src_rect, dst_rect);
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status(name, ret);
+		goto out;
+	}
+
+	ret = improcess(src, dst, {}, src_rect, dst_rect, {}, IM_SYNC);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status(name, ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "RKNN fd dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!buffer_changed_from_sentinel(dma_dst.mem, dma_dst.size, 0x80)) {
+		fprintf(stderr, "%s output unchanged\n", name);
+		ret = 1;
+	} else {
+		ret = write_artifact(artifact, dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"RKNN fd dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", name, dma_src.heap_path);
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
+static int run_rknn_fd_improcess_cases(void)
+{
+	int ret;
+
+	ret = run_rknn_fd_improcess("RKNN RGB->NV12",
+				    "rknn_fd_rgb_to_nv12_improcess",
+				    RK_FORMAT_RGB_888,
+				    RK_FORMAT_YCbCr_420_SP,
+				    (size_t)64 * 64 * 3,
+				    (size_t)32 * 32 * 3 / 2,
+				    fill_rgb_pattern);
+	if (ret)
+		return ret;
+
+	ret = run_rknn_fd_improcess("RKNN NV12->RGB",
+				    "rknn_fd_nv12_to_rgb_improcess",
+				    RK_FORMAT_YCbCr_420_SP,
+				    RK_FORMAT_RGB_888,
+				    (size_t)64 * 64 * 3 / 2,
+				    (size_t)32 * 32 * 3,
+				    fill_nv12_pattern);
+	if (ret)
+		return ret;
+
+	return run_rknn_fd_improcess("RKNN NV21->RGB",
+				     "rknn_fd_nv21_to_rgb_improcess",
+				     RK_FORMAT_YCrCb_420_SP,
+				     RK_FORMAT_RGB_888,
+				     (size_t)64 * 64 * 3 / 2,
+				     (size_t)32 * 32 * 3,
+				     fill_nv21_pattern);
+}
+
+static int run_rknn_legacy_rgb_resize(void)
+{
+	const int src_w = 64;
+	const int src_h = 64;
+	const int dst_w = 32;
+	const int dst_h = 32;
+	const size_t src_size = (size_t)src_w * src_h * 3;
+	const size_t dst_size = (size_t)dst_w * dst_h * 3;
+	rga_info_t src = {};
+	rga_info_t dst = {};
+	uint8_t *src_mem = NULL;
+	uint8_t *dst_mem = NULL;
+	int ret;
+
+	if (alloc_aligned((void **)&src_mem, src_size) ||
+	    alloc_aligned((void **)&dst_mem, dst_size)) {
+		perror("posix_memalign rknn legacy RGB");
+		ret = 1;
+		goto out;
+	}
+
+	fill_rgb_pattern(src_mem, src_w, src_h);
+	memset(dst_mem, 0x80, dst_size);
+
+	src.virAddr = src_mem;
+	src.format = RK_FORMAT_RGB_888;
+	src.mmuFlag = 1;
+	rga_set_rect(&src.rect, 0, 0, src_w, src_h, src_w, src_h,
+		     RK_FORMAT_RGB_888);
+
+	dst.virAddr = dst_mem;
+	dst.format = RK_FORMAT_RGB_888;
+	dst.mmuFlag = 1;
+	rga_set_rect(&dst.rect, 0, 0, dst_w, dst_h, dst_w, dst_h,
+		     RK_FORMAT_RGB_888);
+
+	if (c_RkRgaInit()) {
+		fprintf(stderr, "RKNN legacy RGA init failed\n");
+		ret = 1;
+		goto out;
+	}
+
+	if (c_RkRgaBlit(&src, &dst, NULL)) {
+		fprintf(stderr, "RKNN legacy RGB resize failed\n");
+		c_RkRgaDeInit();
+		ret = 1;
+		goto out;
+	}
+	c_RkRgaDeInit();
+
+	if (!buffer_changed_from_sentinel(dst_mem, dst_size, 0x80)) {
+		fprintf(stderr, "RKNN legacy RGB resize output unchanged\n");
+		ret = 1;
+		goto out;
+	}
+
+	ret = write_artifact("rknn_legacy_rgb_resize", dst_mem, dst_size);
+	if (!ret)
+		printf("%-24s ok\n", "RKNN legacy RGB");
+
+out:
+	free(src_mem);
+	free(dst_mem);
+
+	return ret;
+}
+
+static int run_physical_import_probe(void)
+{
+	const size_t phys_size = (size_t)64 * 64 * TEST_BPP;
+	rga_buffer_handle_t handle;
+
+	handle = importbuffer_physicaladdr(0x1000, (int)phys_size);
+	if (handle) {
+		releasebuffer_handle(handle);
+		if (env_enabled("LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT")) {
+			fprintf(stderr,
+				"physical-address import was accepted; rewrite profile expects rejection\n");
+			return 1;
+		}
+
+		printf("%-24s accepted; no-submit outside required profile\n",
+		       "physical import");
+		return 0;
+	}
+
+	printf("%-24s rejected/unsupported\n", "physical import");
+	return 0;
 }
 
 static int run_legacy_virtual_to_dmabuf_convert(void)
@@ -1180,6 +1533,22 @@ int main(void)
 	printf("%-24s ok\n", "imcopy");
 
 	ret = run_dmabuf_copy(src_size);
+	if (ret)
+		goto out;
+
+	ret = run_rknn_virtual_rgb_resize();
+	if (ret)
+		goto out;
+
+	ret = run_rknn_fd_improcess_cases();
+	if (ret)
+		goto out;
+
+	ret = run_rknn_legacy_rgb_resize();
+	if (ret)
+		goto out;
+
+	ret = run_physical_import_probe();
 	if (ret)
 		goto out;
 

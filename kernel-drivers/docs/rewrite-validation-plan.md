@@ -25,9 +25,9 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | Capability | Status in repo | This plan |
 |---|---|---|
 | Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) | reuse as the pre-merge gate |
-| Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release and RGA dma-buf import/release | reuse; extend to bit-exact output (below) |
+| Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release, RGA dma-buf import/release, and raw RGA physical-address import observation with an opt-in rewrite reject assertion | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md), including opt-in GStreamer display/KMS-capture, AV1, and legacy advertised-decode diagnostic cases | reuse; wire the pass/fail gate |
-| Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
+| Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
 | Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` plus [`debugfs-counter-check.sh`](../tests/debugfs-counter-check.sh) | reuse as assertion hooks throughout |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
@@ -91,9 +91,10 @@ hardware completion path.
 
 - **RGA** is deterministic pixel math → expect **bit-exact** destination buffers.
   The in-repo `ysp_librga_smoke` path now writes destination dumps for direct
-  im2d copy/resize/fill, dma-buf import/copy, legacy GStreamer-shaped
-  `c_RkRgaBlit()` conversions, Gaussian matrix, forced-core, pre-intr, and async
-  fence-chain cases. A one-pixel CSC or stride error is invisible to a
+  im2d copy/resize/fill, dma-buf import/copy, RKNN/RKNPU-style
+  RGB/NV12/NV21 preprocessing, legacy GStreamer-shaped `c_RkRgaBlit()`
+  conversions, Gaussian matrix, forced-core, pre-intr, and async fence-chain
+  cases. A one-pixel CSC or stride error is invisible to a
   pass/fail gate but caught instantly here. Add official-sample artifact dumps
   later only for sample coverage that exposes a new current-userspace behavior.
 - **VDEC** decode is bit-exact per bitstream → compare decoded YUV through the
