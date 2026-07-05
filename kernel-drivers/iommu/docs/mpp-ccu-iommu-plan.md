@@ -68,33 +68,59 @@ domain before the core is attached to the shared domain.
 
 ## Current forward-port state
 
-The present worktrees have safety fixes around the BSP mechanism, but they have
-not yet replaced it with an explicit cluster-owned object.
+The current 6.18 forward-port now uses the intended model: mainline's Rockchip
+IOMMU provider plus a small MPP/CCU shared-domain shim, not a wholesale BSP IOMMU
+forward-port.
 
-Decoder (`mpp_rkvdec2_link.c`):
+Implemented forward-port fixes:
 
-- `rkvdec2_attach_ccu()` waits for core 0 and then assigns the secondary core's
-  `cur_info->domain = queue->cores[0]->iommu_info->domain`.
-- attach failure is now checked and the local mutation is rolled back.
-- the decoder path still does not share the main core's `rw_sem`, so mapping,
-  unmapping, reset, and refresh serialization is not as strong as the encoder.
-
-Encoder (`mpp_rkvenc2.c`):
-
-- `rkvenc_attach_ccu()` records the first attached core as `ccu->main_core`.
-- secondary cores copy both `domain` and `rw_sem` from the main core before
-  attaching their group.
-- late probe failure and remove now unwind CCU list/main-core bookkeeping, but the
-  shared domain still exists only as borrowed per-core fields.
+- `mpp_iommu_shared_domain` is the explicit cluster-owned object for the borrowed
+  domain and shared `rw_sem`.
+- RKVDEC2 and RKVENC2 CCU attach bind secondary cores through the helper instead
+  of open-coding `domain` / `rw_sem` field swaps.
+- Shared-domain bind failure rolls the secondary back to its default domain.
+- CCU detach restores secondary cores to their default domains, and owner detach
+  frees secondary fixed RCB mappings before tearing down the shared domain.
+- Fixed RCB/SRAM IOVA windows are tracked per cluster and overlapping windows are
+  rejected before reserving the generic IOVA allocator range.
+- RCB/SRAM allocation errors unwind maps, pages, IOVA reservations, and fixed
+  window records through the same free path used by remove.
+- MPP fault-handler activation now fails the task/power-on path instead of
+  running hardware without the intended provider fault hook.
+- RKVENC2 fault handling routes by the faulting IOMMU device while holding RCU
+  over the CCU core list.
+- RKVDEC2 CCU power-on failure paths unwind runtime PM, clocks, IOMMU activation,
+  idle-core state, prepared link tables, and power latches.
+- Rockchip and VSI provider hooks now honor media fault-handler return values,
+  preserving generic `report_iommu_fault()` fallback when a handler declines the
+  fault.
 
 Provider (`drivers/iommu/rockchip-iommu.c`):
 
 - the mainline Rockchip provider already has `struct rk_iommu_domain::iommus`;
 - attach adds the hardware IOMMU to that domain list;
-- `flush_iotlb_all()` and range zaps iterate the domain's IOMMU list.
+- `flush_iotlb_all()` and range zaps iterate the domain's IOMMU list;
+- media-facing provider helpers are wrapped so they do not touch suspended IOMMU
+  registers.
 
-That means the likely answer is **use mainline's Rockchip IOMMU provider with a
-small MPP/CCU shim**, not a wholesale BSP IOMMU forward-port.
+### Inherited or legacy debt not fixed here
+
+These are intentionally documented instead of changed in this forward-port fix
+set because they are BSP-inherited or require a separate design decision:
+
+- `rockchip,iommu-shared-mask` / `driver_managed_dma` remains the old arm32
+  service-mask path. RK3588 CCU sharing does not rely on it; the forward port
+  shares the owner core's normal DMA domain because MPP still uses the DMA API
+  and dma-buf attachment mapping.
+- The generic `iommu_set_fault_handler()` fallback has no public clear API, so
+  the forward port uses provider hooks on RK3588 and keeps the generic fallback
+  as best-effort only.
+- RGA hot-unbind cleanup is still mostly global-driver cleanup, matching the BSP
+  shape. That is hotplug robustness debt, not the current RGA3 MMU interrupt root
+  cause.
+- RGA and MPP cache-sync/import behavior that predates the 6.18 port should be
+  handled as separate BSP cleanup unless hardware testing shows a new forward
+  regression.
 
 ## Proposed implementation layout
 
@@ -289,4 +315,3 @@ Nice-to-have checks after the minimum matrix:
   core.
 - Do not use HARD CCU as part of this MMU fix; HARD remains a separate scheduling
   validation problem.
-
