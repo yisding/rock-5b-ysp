@@ -82,15 +82,23 @@ Implemented forward-port fixes:
 - CCU detach restores secondary cores to their default domains, and owner detach
   frees secondary fixed RCB mappings before tearing down the shared domain.
 - Fixed RCB/SRAM IOVA windows are tracked per cluster and overlapping windows are
-  rejected before reserving the generic IOVA allocator range.
+  rejected before reserving the generic IOVA allocator range. The tracking table
+  is locked, ranges are checked for 32-bit wrap/overflow, and table exhaustion is
+  a hard `-ENOSPC` failure instead of silently losing the record.
 - RCB/SRAM allocation errors unwind maps, pages, IOVA reservations, and fixed
   window records through the same free path used by remove.
+- MPP and RGA dma-buf imports now require the DMA API to return one nonzero,
+  non-wrapping 32-bit IOVA segment; unsafe mappings are rejected with a log
+  instead of passing a truncated first segment to hardware.
 - MPP fault-handler activation now fails the task/power-on path instead of
   running hardware without the intended provider fault hook.
 - RKVENC2 fault handling routes by the faulting IOMMU device while holding RCU
   over the CCU core list.
 - RKVDEC2 CCU power-on failure paths unwind runtime PM, clocks, IOMMU activation,
   idle-core state, prepared link tables, and power latches.
+- AV1 AFBC's sideband IRQ no longer touches AFBC registers unless the AV1 clocks
+  are known live; clock-off clears the active flag and synchronizes the IRQ before
+  disabling clocks.
 - Rockchip and VSI provider hooks now honor media fault-handler return values,
   preserving generic `report_iommu_fault()` fallback when a handler declines the
   fault.
@@ -102,6 +110,9 @@ Provider (`drivers/iommu/rockchip-iommu.c`):
 - `flush_iotlb_all()` and range zaps iterate the domain's IOMMU list;
 - media-facing provider helpers are wrapped so they do not touch suspended IOMMU
   registers.
+- Rockchip and VSI clients advertise a 32-bit max DMA segment so dma-buf mappings
+  can be merged into the single IOVA span expected by the vendor media drivers.
+  Provider-created `dma_parms` storage is devm-owned by the consumer device.
 
 ### Inherited or legacy debt not fixed here
 
@@ -118,6 +129,19 @@ set because they are BSP-inherited or require a separate design decision:
 - RGA hot-unbind cleanup is still mostly global-driver cleanup, matching the BSP
   shape. That is hotplug robustness debt, not the current RGA3 MMU interrupt root
   cause.
+- RGA platform-device remove remains hot-unplug-light; module/global cleanup
+  unwinds the IOMMU binding, but per-device remove does not try to make the
+  driver fully hotplug robust.
+- Legacy `queue->last_iommu_info` is still present for the old arm32
+  `CONFIG_ARM_DMA_USE_IOMMU` shared-IOMMU path. RK3588 arm64 does not exercise it
+  because the forward port uses explicit shared domains instead.
+- The generic non-Rockchip RGA fault-handler fallback still has one handler token
+  per domain. The RK3588 Rockchip provider path uses per-device provider hooks,
+  so this is not a blocker for this branch.
+- The RKVDEC2/RKVENC2 RCB free path still has BSP-style ordering debt around
+  freeing backing pages versus unmapping the fixed IOVA. The forward-port fixes
+  made this path unwindable and auditable, but a full ordering cleanup belongs in
+  the BSP-cleanup series unless testing shows a new 6.18 regression.
 - RGA and MPP cache-sync/import behavior that predates the 6.18 port should be
   handled as separate BSP cleanup unless hardware testing shows a new forward
   regression.
