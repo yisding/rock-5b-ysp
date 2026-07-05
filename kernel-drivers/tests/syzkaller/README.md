@@ -1,0 +1,28 @@
+# RK3588 MPP/RGA Syzkaller Seeds
+
+This directory holds the first structure-aware fuzzing scaffold for the
+clean-room `/dev/mpp_service` and `/dev/rga` rewrite drivers.
+
+`rockchip_mpp_rga.txt` is a syzlang draft for the current userspace-visible ABI:
+
+- MPP `MPP_IOC_CFG_V1` query/control messages, including payload-bearing
+  commands and disabled register-submit shapes.
+- RGA legacy version/no-op ioctls, import/release, request create/cancel, and
+  disabled legacy/request submit shapes.
+
+Submit-capable calls are marked `disabled` or `no_generate` in the draft. Enable
+them only on a sacrificial RK3588 fuzzing host with the IOMMU on, a serial
+console, `panic=10`, ramoops, and the KASAN/KCOV debug kernel described in
+`../../docs/debug-kernel.md`.
+
+Run the local consistency check after updating the ABI probe headers or the
+syzlang file:
+
+```sh
+kernel-drivers/tests/syzkaller/check-rockchip-syzlang.sh
+```
+
+The check does not compile syzlang; syzkaller is not vendored here. It verifies
+that the ioctl numbers and struct sizes recorded in the syzlang draft still
+match `kernel-drivers/tests/abi-probe.sh`, accepting the probe's `77` skip exit
+when the device nodes are not present.

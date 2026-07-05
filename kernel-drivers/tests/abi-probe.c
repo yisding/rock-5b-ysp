@@ -995,6 +995,8 @@ static void probe_rga(void)
 	       (unsigned long)RGA_IOC_RELEASE_BUFFER);
 	printf("  %-30s %#lx\n", "RGA_IOC_REQUEST_CREATE",
 	       (unsigned long)RGA_IOC_REQUEST_CREATE);
+	printf("  %-30s %#lx\n", "RGA_IOC_REQUEST_SUBMIT",
+	       (unsigned long)RGA_IOC_REQUEST_SUBMIT);
 	printf("  %-30s %#lx\n", "RGA_IOC_REQUEST_CONFIG",
 	       (unsigned long)RGA_IOC_REQUEST_CONFIG);
 	printf("  %-30s %#lx\n", "RGA_IOC_REQUEST_CANCEL",
@@ -1005,6 +1007,8 @@ static void probe_rga(void)
 	       sizeof(struct rga_hw_versions_t));
 	printf("  %-30s %zu\n", "sizeof rga_buffer_pool",
 	       sizeof(struct rga_buffer_pool));
+	printf("  %-30s %zu\n", "sizeof rga_external_buffer",
+	       sizeof(struct rga_external_buffer));
 	printf("  %-30s %zu\n", "sizeof rga_req", sizeof(struct rga_req));
 	printf("  %-30s %zu\n", "sizeof rga_user_request",
 	       sizeof(struct rga_user_request));

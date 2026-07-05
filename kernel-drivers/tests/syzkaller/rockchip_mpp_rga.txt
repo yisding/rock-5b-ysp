@@ -1,0 +1,502 @@
+# SPDX-License-Identifier: MIT
+#
+# Draft syzlang for the RK3588 MPP/RGA compatibility rewrite ABI.
+#
+# This intentionally starts with the current librockchip_mpp/librga-visible
+# surface rather than the full BSP history. Hardware-submitting calls are marked
+# disabled/no_generate so the draft can be used first for parser/lifetime
+# hardening and then selectively enabled on an IOMMU-contained fuzzing board.
+#
+# The "# ABI:" lines are checked by check-rockchip-syzlang.sh against
+# kernel-drivers/tests/abi-probe.sh.
+
+include <linux/fcntl.h>
+
+# ABI: MPP_IOC_CFG_V1=0x40047601
+# ABI: MPP_IOC_CFG_V2=0x40047602
+# ABI: sizeof mpp_request=24
+# ABI: sizeof mpp_bat_msg=16
+# ABI: RGA_BLIT_SYNC=0x5017
+# ABI: RGA_BLIT_ASYNC=0x5018
+# ABI: RGA_FLUSH=0x5019
+# ABI: RGA_GET_RESULT=0x501a
+# ABI: RGA_GET_VERSION=0x501b
+# ABI: RGA_CACHE_FLUSH=0x501c
+# ABI: RGA2_GET_RESULT=0x601a
+# ABI: RGA2_GET_VERSION=0x601b
+# ABI: RGA_IOC_GET_DRVIER_VERSION=0x801c7201
+# ABI: RGA_IOC_GET_HW_VERSION=0x80907202
+# ABI: RGA_IOC_IMPORT_BUFFER=0xc0107203
+# ABI: RGA_IOC_RELEASE_BUFFER=0x40107204
+# ABI: RGA_IOC_REQUEST_CREATE=0x80047205
+# ABI: RGA_IOC_REQUEST_SUBMIT=0xc0987206
+# ABI: RGA_IOC_REQUEST_CONFIG=0xc0987207
+# ABI: RGA_IOC_REQUEST_CANCEL=0xc0047208
+# ABI: sizeof rga_version_t=28
+# ABI: sizeof rga_hw_versions_t=144
+# ABI: sizeof rga_buffer_pool=16
+# ABI: sizeof rga_external_buffer=288
+# ABI: sizeof rga_req=504
+# ABI: sizeof rga_user_request=152
+
+define MPP_IOC_CFG_V1	0x40047601
+define MPP_IOC_CFG_V2	0x40047602
+
+define MPP_CMD_QUERY_HW_SUPPORT		0x000
+define MPP_CMD_QUERY_HW_ID		0x001
+define MPP_CMD_QUERY_CMD_SUPPORT	0x002
+define MPP_CMD_INIT_CLIENT_TYPE		0x100
+define MPP_CMD_INIT_DRIVER_DATA		0x101
+define MPP_CMD_INIT_TRANS_TABLE		0x102
+define MPP_CMD_SET_REG_WRITE		0x200
+define MPP_CMD_SET_REG_READ		0x201
+define MPP_CMD_SET_REG_ADDR_OFFSET	0x202
+define MPP_CMD_SET_RCB_INFO		0x203
+define MPP_CMD_SET_SESSION_FD		0x204
+define MPP_CMD_POLL_HW_FINISH		0x300
+define MPP_CMD_POLL_HW_IRQ		0x301
+define MPP_CMD_RESET_SESSION		0x400
+define MPP_CMD_TRANS_FD_TO_IOVA		0x401
+define MPP_CMD_RELEASE_FD		0x402
+define MPP_CMD_SEND_CODEC_INFO		0x403
+define MPP_CMD_SET_ERR_REF_HACK		0x404
+
+define MPP_FLAGS_MULTI_MSG		0x00000001
+define MPP_FLAGS_LAST_MSG		0x00000002
+define MPP_FLAGS_REG_FD_NO_TRANS	0x00000004
+define MPP_FLAGS_SCL_FD_NO_TRANS	0x00000008
+define MPP_FLAGS_REG_OFFSET_ALONE	0x00000010
+define MPP_FLAGS_POLL_NON_BLOCK		0x00000020
+define MPP_FLAGS_SECURE_MODE		0x00010000
+
+define MPP_BAT_MSG_DONE	0x00000001
+
+define RGA_IOC_GET_DRVIER_VERSION	0x801c7201
+define RGA_IOC_GET_HW_VERSION		0x80907202
+define RGA_IOC_IMPORT_BUFFER		0xc0107203
+define RGA_IOC_RELEASE_BUFFER		0x40107204
+define RGA_IOC_REQUEST_CREATE		0x80047205
+define RGA_IOC_REQUEST_SUBMIT		0xc0987206
+define RGA_IOC_REQUEST_CONFIG		0xc0987207
+define RGA_IOC_REQUEST_CANCEL		0xc0047208
+
+define RGA_BLIT_SYNC		0x5017
+define RGA_BLIT_ASYNC		0x5018
+define RGA_FLUSH		0x5019
+define RGA_GET_RESULT		0x501a
+define RGA_GET_VERSION		0x501b
+define RGA_CACHE_FLUSH		0x501c
+define RGA2_GET_RESULT		0x601a
+define RGA2_GET_VERSION		0x601b
+
+define RGA_DMA_BUFFER		0
+define RGA_VIRTUAL_ADDRESS	1
+define RGA_PHYSICAL_ADDRESS	2
+
+define RGA_RENDER_BITBLT	0
+define RGA_RENDER_PALETTE	1
+define RGA_RENDER_FILL		2
+
+define RGA_RASTER_MODE		0x01
+define RGA_FBC_MODE		0x02
+define RGA_TILE_MODE		0x04
+define RGA_RKFBC_MODE		0x10
+define RGA_AFBC32X8_MODE	0x20
+
+define RGA_FORMAT_RGBA_8888		0x00
+define RGA_FORMAT_RGBX_8888		0x01
+define RGA_FORMAT_RGB_888		0x02
+define RGA_FORMAT_BGRA_8888		0x03
+define RGA_FORMAT_RGB_565		0x04
+define RGA_FORMAT_BGR_888		0x07
+define RGA_FORMAT_YCBCR_420_SP		0x0a
+define RGA_FORMAT_YCRCB_420_SP		0x0e
+define RGA_FORMAT_BGRX_8888		0x16
+define RGA_FORMAT_YCBCR_420_SP_10B	0x20
+define RGA_FORMAT_YCRCB_420_SP_10B	0x21
+define RGA_FORMAT_ABGR_8888		0x2c
+define RGA_FORMAT_XBGR_8888		0x2d
+
+resource fd_mpp[fd]
+resource fd_rga[fd]
+resource rga_handle[int32]
+resource rga_request_id[int32]
+
+openat$mpp_service(fd const[AT_FDCWD], file ptr[in, string["/dev/mpp_service"]], flags flags[open_flags], mode const[0]) fd_mpp
+openat$rga(fd const[AT_FDCWD], file ptr[in, string["/dev/rga"]], flags flags[open_flags], mode const[0]) fd_rga
+
+ioctl$mpp_query(fd fd_mpp, cmd const[MPP_IOC_CFG_V1], arg ptr[inout, mpp_request$query])
+ioctl$mpp_init_client(fd fd_mpp, cmd const[MPP_IOC_CFG_V1], arg ptr[in, mpp_request$u32])
+ioctl$mpp_init_trans_table(fd fd_mpp, cmd const[MPP_IOC_CFG_V1], arg ptr[in, mpp_request$trans_table])
+ioctl$mpp_codec_info(fd fd_mpp, cmd const[MPP_IOC_CFG_V1], arg ptr[in, mpp_request$codec_info])
+ioctl$mpp_reset(fd fd_mpp, cmd const[MPP_IOC_CFG_V1], arg ptr[in, mpp_request$nodata])
+ioctl$mpp_release_fd(fd fd_mpp, cmd const[MPP_IOC_CFG_V1], arg ptr[in, mpp_request$u32])
+ioctl$mpp_set_err_ref_hack(fd fd_mpp, cmd const[MPP_IOC_CFG_V1], arg ptr[in, mpp_request$bytes])
+ioctl$mpp_poll(fd fd_mpp, cmd const[MPP_IOC_CFG_V1], arg ptr[inout, mpp_request$poll])
+
+# Register-write batches can start real hardware. Keep generated fuzzing away
+# from them until the target is a sacrificial RK3588 board with IOMMU + ramoops.
+ioctl$mpp_reg_submit(fd fd_mpp, cmd const[MPP_IOC_CFG_V1], arg ptr[in, mpp_request$reg_write]) (disabled, no_generate)
+ioctl$mpp_batch(fd fd_mpp, cmd const[MPP_IOC_CFG_V1], arg ptr[inout, array[mpp_bat_msg, 1:8]]) (disabled, no_generate)
+
+ioctl$rga_get_version(fd fd_rga, cmd const[RGA_GET_VERSION], arg ptr[out, array[int8, 16]])
+ioctl$rga2_get_version(fd fd_rga, cmd const[RGA2_GET_VERSION], arg ptr[out, array[int8, 16]]) (ignore_return)
+ioctl$rga_get_driver_version(fd fd_rga, cmd const[RGA_IOC_GET_DRVIER_VERSION], arg ptr[out, rga_version]) (ignore_return)
+ioctl$rga_get_hw_version(fd fd_rga, cmd const[RGA_IOC_GET_HW_VERSION], arg ptr[out, rga_hw_versions]) (ignore_return)
+ioctl$rga_cache_flush(fd fd_rga, cmd const[RGA_CACHE_FLUSH], arg const[0])
+ioctl$rga_flush(fd fd_rga, cmd const[RGA_FLUSH], arg const[0])
+ioctl$rga_get_result(fd fd_rga, cmd const[RGA_GET_RESULT], arg const[0])
+ioctl$rga2_get_result(fd fd_rga, cmd const[RGA2_GET_RESULT], arg const[0])
+ioctl$rga_import_buffer(fd fd_rga, cmd const[RGA_IOC_IMPORT_BUFFER], arg ptr[inout, rga_buffer_pool])
+ioctl$rga_release_buffer(fd fd_rga, cmd const[RGA_IOC_RELEASE_BUFFER], arg ptr[in, rga_buffer_pool$release])
+ioctl$rga_request_create(fd fd_rga, cmd const[RGA_IOC_REQUEST_CREATE], arg ptr[out, rga_request_id])
+ioctl$rga_request_cancel(fd fd_rga, cmd const[RGA_IOC_REQUEST_CANCEL], arg ptr[in, rga_request_id])
+
+# These submit or can arm submit-ready work. Use them as corpus seeds only after
+# the safe parser/import lifecycle is stable.
+ioctl$rga_blit_sync(fd fd_rga, cmd const[RGA_BLIT_SYNC], arg ptr[inout, rga_req]) (disabled, no_generate, timeout[1000])
+ioctl$rga_blit_async(fd fd_rga, cmd const[RGA_BLIT_ASYNC], arg ptr[inout, rga_req]) (disabled, no_generate, timeout[1000])
+ioctl$rga_request_config(fd fd_rga, cmd const[RGA_IOC_REQUEST_CONFIG], arg ptr[inout, rga_user_request]) (disabled, no_generate)
+ioctl$rga_request_submit(fd fd_rga, cmd const[RGA_IOC_REQUEST_SUBMIT], arg ptr[inout, rga_user_request]) (disabled, no_generate, timeout[1000])
+
+mpp_flags = MPP_FLAGS_MULTI_MSG, MPP_FLAGS_LAST_MSG, MPP_FLAGS_REG_FD_NO_TRANS, MPP_FLAGS_SCL_FD_NO_TRANS, MPP_FLAGS_REG_OFFSET_ALONE, MPP_FLAGS_POLL_NON_BLOCK, MPP_FLAGS_SECURE_MODE
+mpp_query_cmds = MPP_CMD_QUERY_HW_SUPPORT, MPP_CMD_QUERY_HW_ID, MPP_CMD_QUERY_CMD_SUPPORT
+mpp_poll_cmds = MPP_CMD_POLL_HW_FINISH, MPP_CMD_POLL_HW_IRQ
+mpp_control_u32_cmds = MPP_CMD_INIT_CLIENT_TYPE, MPP_CMD_RELEASE_FD, MPP_CMD_TRANS_FD_TO_IOVA, MPP_CMD_SET_SESSION_FD
+mpp_nodata_cmds = MPP_CMD_INIT_DRIVER_DATA, MPP_CMD_RESET_SESSION
+mpp_payload_cmds = MPP_CMD_INIT_TRANS_TABLE, MPP_CMD_SEND_CODEC_INFO, MPP_CMD_SET_ERR_REF_HACK, MPP_CMD_SET_REG_READ, MPP_CMD_SET_REG_ADDR_OFFSET, MPP_CMD_SET_RCB_INFO
+
+mpp_request$query {
+	cmd	int32[mpp_query_cmds]
+	flags	flags[mpp_flags, int32]
+	size	const[4, int32]
+	offset	int32
+	data	ptr[inout, int32]
+}
+
+mpp_request$u32 {
+	cmd	int32[mpp_control_u32_cmds]
+	flags	flags[mpp_flags, int32]
+	size	const[4, int32]
+	offset	int32
+	data	ptr[in, int32]
+}
+
+mpp_request$nodata {
+	cmd	int32[mpp_nodata_cmds]
+	flags	flags[mpp_flags, int32]
+	size	const[0, int32]
+	offset	int32
+	data	const[0, intptr]
+}
+
+mpp_request$trans_table {
+	cmd	const[MPP_CMD_INIT_TRANS_TABLE, int32]
+	flags	flags[mpp_flags, int32]
+	size	bytesize[data, int32]
+	offset	int32
+	data	ptr[in, array[int16, 0:256]]
+}
+
+mpp_request$codec_info {
+	cmd	const[MPP_CMD_SEND_CODEC_INFO, int32]
+	flags	flags[mpp_flags, int32]
+	size	bytesize[data, int32]
+	offset	int32
+	data	ptr[in, array[mpp_codec_info, 1:8]]
+}
+
+mpp_request$bytes {
+	cmd	const[MPP_CMD_SET_ERR_REF_HACK, int32]
+	flags	flags[mpp_flags, int32]
+	size	bytesize[data, int32]
+	offset	int32
+	data	ptr[in, array[int8, 0:4096]]
+}
+
+mpp_request$poll {
+	cmd	int32[mpp_poll_cmds]
+	flags	flags[mpp_flags, int32]
+	size	bytesize[data, int32]
+	offset	int32
+	data	ptr[inout, array[int32, 0:64]]
+}
+
+mpp_request$reg_write {
+	cmd	const[MPP_CMD_SET_REG_WRITE, int32]
+	flags	flags[mpp_flags, int32]
+	size	bytesize[data, int32]
+	offset	int32
+	data	ptr[in, array[int32, 1:1024]]
+}
+
+mpp_request$payload {
+	cmd	int32[mpp_payload_cmds]
+	flags	flags[mpp_flags, int32]
+	size	bytesize[data, int32]
+	offset	int32
+	data	ptr[inout, array[int8, 0:4096]]
+}
+
+mpp_bat_msg {
+	flag	flags[mpp_bat_flags, int64]
+	fd	fd_mpp
+	ret	int32
+}
+
+mpp_bat_flags = MPP_BAT_MSG_DONE
+
+mpp_codec_info {
+	type	int32
+	flag	int32
+	data	int64
+}
+
+rga_memory_types = RGA_DMA_BUFFER, RGA_VIRTUAL_ADDRESS, RGA_PHYSICAL_ADDRESS
+rga_render_modes = RGA_RENDER_BITBLT, RGA_RENDER_PALETTE, RGA_RENDER_FILL
+rga_rd_modes = RGA_RASTER_MODE, RGA_FBC_MODE, RGA_TILE_MODE, RGA_RKFBC_MODE, RGA_AFBC32X8_MODE
+rga_formats = RGA_FORMAT_RGBA_8888, RGA_FORMAT_RGBX_8888, RGA_FORMAT_RGB_888, RGA_FORMAT_BGRA_8888, RGA_FORMAT_RGB_565, RGA_FORMAT_BGR_888, RGA_FORMAT_YCBCR_420_SP, RGA_FORMAT_YCRCB_420_SP, RGA_FORMAT_BGRX_8888, RGA_FORMAT_YCBCR_420_SP_10B, RGA_FORMAT_YCRCB_420_SP_10B, RGA_FORMAT_ABGR_8888, RGA_FORMAT_XBGR_8888
+
+rga_version {
+	major	int32
+	minor	int32
+	revision	int32
+	str	array[int8, 16]
+}
+
+rga_hw_versions {
+	version	array[rga_version, 5]
+	size	int32
+}
+
+rga_buffer_pool {
+	buffers	ptr64[inout, array[rga_external_buffer, 1:4]]
+	size	len[buffers, int32]
+} [size[16]]
+
+rga_buffer_pool$release {
+	buffers	ptr64[in, array[rga_external_buffer$release, 1:4]]
+	size	len[buffers, int32]
+} [size[16]]
+
+rga_external_buffer {
+	memory	rga_import_memory
+	type	int32[rga_memory_types]
+	handle	rga_handle	(out)
+	memory_info	rga_memory_parm
+	reserve	array[int8, 252]
+} [size[288]]
+
+rga_external_buffer$release {
+	memory	int64
+	type	int32
+	handle	rga_handle
+	memory_info	rga_memory_parm
+	reserve	array[int8, 252]
+} [size[288]]
+
+rga_import_memory [
+	dmabuf	fd
+	va	ptr64[inout, array[int8, 1:4096]]
+	phys	int64
+]
+
+rga_memory_parm {
+	width	int32[0:8192]
+	height	int32[0:8192]
+	format	int32[rga_formats]
+	size	int32[0:33554432]
+}
+
+rga_img_info {
+	yrgb_addr	int64
+	uv_addr	int64
+	v_addr	int64
+	format	int32[rga_formats]
+	act_w	int16[0:8192]
+	act_h	int16[0:8192]
+	x_offset	int16[0:8192]
+	y_offset	int16[0:8192]
+	vir_w	int16[0:8192]
+	vir_h	int16[0:8192]
+	endian_mode	int16
+	alpha_swap	int16
+	rotate_mode	int16
+	rd_mode	int16[rga_rd_modes]
+	is_10b_compact	int16[0:1]
+	is_10b_endian	int16[0:1]
+	enable	int16[0:1]
+}
+
+rga_point {
+	x	int16
+	y	int16
+}
+
+rga_rect {
+	xmin	int16
+	xmax	int16
+	ymin	int16
+	ymax	int16
+}
+
+rga_mmu {
+	mmu_en	int8
+	base_addr	int64
+	mmu_flag	int32
+}
+
+rga_color_fill {
+	gr_x_a	int16
+	gr_y_a	int16
+	gr_x_b	int16
+	gr_y_b	int16
+	gr_x_g	int16
+	gr_y_g	int16
+	gr_x_r	int16
+	gr_y_r	int16
+}
+
+rga_line_draw {
+	start_point	rga_point
+	end_point	rga_point
+	color	int32
+	flag	int32
+	line_width	int32[0:32]
+}
+
+rga_fading {
+	b	int8
+	g	int8
+	r	int8
+	res	int8
+}
+
+rga_csc_coe {
+	r_v	int16
+	g_y	int16
+	b_u	int16
+	off	int32
+}
+
+rga_full_csc {
+	flag	int8
+	coe_y	rga_csc_coe
+	coe_u	rga_csc_coe
+	coe_v	rga_csc_coe
+}
+
+rga_mosaic_info {
+	enable	int8
+	mode	int8
+}
+
+rga_pre_intr_info {
+	enable	int8
+	read_intr_en	int8
+	write_intr_en	int8
+	read_hold_en	int8
+	read_threshold	int32
+	write_start	int32
+	write_step	int32
+}
+
+rga_osd_info {
+	data	array[int8, 56]
+}
+
+rga_feature {
+	global_alpha_en	int32:1
+	full_csc_clip_en	int32:1
+	user_close_fence	int32:1
+	reserved	int32:29
+}
+
+rga_csc_range {
+	max	int16
+	min	int16
+}
+
+rga_csc_clip {
+	y	rga_csc_range
+	uv	rga_csc_range
+}
+
+rga_rgba5551_alpha {
+	flags	int16
+	alpha0	int8
+	alpha1	int8
+}
+
+rga_gauss_config {
+	size	int32
+	coe_ptr	ptr64[in, array[int16, 0:64]]
+}
+
+rga_req {
+	render_mode	int8[rga_render_modes]
+	src	rga_img_info
+	dst	rga_img_info
+	pat	rga_img_info
+	rop_mask_addr	int64
+	LUT_addr	int64
+	clip	rga_rect
+	sina	int32
+	cosa	int32
+	alpha_rop_flag	int16
+	scale_mode	int8
+	color_key_max	int32
+	color_key_min	int32
+	fg_color	int32
+	bg_color	int32
+	gr_color	rga_color_fill
+	line_draw_info	rga_line_draw
+	fading	rga_fading
+	PD_mode	int8
+	alpha_global_value	int8
+	rop_code	int16
+	bsfilter_flag	int8
+	palette_mode	int8
+	yuv2rgb_mode	int8
+	endian_mode	int8
+	rotate_mode	int8
+	color_fill_mode	int8
+	mmu_info	rga_mmu
+	alpha_rop_mode	int8
+	src_trans_mode	int8
+	dither_mode	int8
+	full_csc	rga_full_csc
+	in_fence_fd	fd
+	core	int8
+	priority	int8[0:6]
+	out_fence_fd	fd
+	handle_flag	int8[0:1]
+	mosaic_info	rga_mosaic_info
+	uvhds_mode	int8
+	uvvds_mode	int8
+	osd_info	rga_osd_info
+	pre_intr_info	rga_pre_intr_info
+	fg_global_alpha	int8
+	bg_global_alpha	int8
+	feature	rga_feature
+	full_csc_clip	rga_csc_clip
+	rgba5551_alpha	rga_rgba5551_alpha
+	gauss_config	rga_gauss_config
+	cfa_ctrl0	int32
+	cfa_ctrl1	int32
+	cfa_apattern	int32
+	cfa_dither_coe05	int32
+	cfa_dither_coe6b	int32
+	reservr	array[int8, 4]
+} [size[504]]
+
+rga_user_request {
+	task_ptr	ptr64[inout, array[rga_req, 1:4]]
+	task_num	len[task_ptr, int32]
+	id	rga_request_id
+	sync_mode	int32
+	release_fence_fd	fd
+	mpi_config_flags	int32
+	acquire_fence_fd	fd
+	reservr	array[int8, 120]
+} [size[152]]
