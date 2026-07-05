@@ -38,6 +38,12 @@ allocator handoff. The survey did not find current Linux-media evidence that
 RFBC64x4, AFBC32x8, per-channel rotation, tile alpha/pattern/color-key, or broad
 RGA2-Pro modes should be promoted into the required RK3588 rewrite profile.
 
+Follow-up in this repo now makes the public display/compositor/game-UI signal
+executable too: `librga-smoke.cpp` records a deterministic
+`legacy_bgrx_display_rot90` artifact using fd-backed BGRx `c_RkRgaBlit()` 90
+degree rotation, alongside the existing RKNN/RKNPU preprocessing and
+GStreamer-shaped legacy conversion artifacts.
+
 ## Representative public hits
 
 This is not a complete dependency census. It is a source-shape check to decide
@@ -66,10 +72,13 @@ mode table entry. The practical follow-up is:
 1. Keep RKNN-shaped preprocessing in required conformance: virtual RGB resize,
    fd-backed RGB/NV12/NV21 resize/convert, fd-backed RGBA crop/letterbox, and
    legacy RGB `c_RkRgaBlit()` resize.
-2. Keep physical-address import as a clean negative ABI path for the rewrite
+2. Keep the public display/compositor/game-UI class covered by simple
+   fd-backed RGB-family legacy blit/rotate artifacts, not by broad Android HWC
+   or allocator compatibility.
+3. Keep physical-address import as a clean negative ABI path for the rewrite
    unless a real workload needs it.
-3. Treat source-only RGA2-Pro RFBC64x4/AFBC32x8 paths as deprecated historical
+4. Treat source-only RGA2-Pro RFBC64x4/AFBC32x8 paths as deprecated historical
    compatibility, not RK3588 required ABI.
-4. Do not prioritize per-channel rotation, tile alpha/pattern/color-key, or
+5. Do not prioritize per-channel rotation, tile alpha/pattern/color-key, or
    broad RGA2-Pro mode expansion ahead of booted forward-port-vs-rewrite
    conformance and performance runs.

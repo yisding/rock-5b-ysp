@@ -212,7 +212,8 @@ only the external bundle's top-level sample build, because the pinned
 `samples/CMakeLists.txt` even though those sample directories exist and are part
 of the required rewrite surface. `ysp_librga_smoke` writes deterministic raw
 destination artifacts for direct `imcopy`, dma-buf import/copy, legacy
-`c_RkRgaBlit()` BGRx->NV12, NV12->BGRx rotate, I420->NV12, RKNN-style
+`c_RkRgaBlit()` BGRx->NV12, NV12->BGRx rotate, BGRx display rot90,
+I420->NV12, RKNN-style
 RGB virtual resize, fd-backed RGB->NV12/NV12->RGB/NV21->RGB `improcess`
 resize/convert, legacy RGB resize, Gaussian matrix, forced-core, pre-intr,
 async fence-chain, resize, and fill paths. Its default

@@ -1333,6 +1333,117 @@ out:
 	return ret;
 }
 
+static int run_legacy_display_rgb_rotate(void)
+{
+	const int src_w = 64;
+	const int src_h = 32;
+	const int dst_w = 32;
+	const int dst_h = 64;
+	const size_t src_size = (size_t)src_w * src_h * TEST_BPP;
+	const size_t dst_size = (size_t)dst_w * dst_h * TEST_BPP;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_info_t src = {};
+	rga_info_t dst = {};
+	int ret;
+
+	ret = dmabuf_alloc_any(src_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "legacy display BGRx source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(dst_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "legacy display BGRx dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "legacy display BGRx source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_bgrx_pattern(dma_src.mem, src_w, src_h);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "legacy display BGRx source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "legacy display BGRx dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "legacy display BGRx dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src.fd = dma_src.fd;
+	src.format = RK_FORMAT_BGRX_8888;
+	src.rotation = HAL_TRANSFORM_ROT_90;
+	src.mmuFlag = 1;
+	rga_set_rect(&src.rect, 0, 0, src_w, src_h, src_w, src_h,
+		     RK_FORMAT_BGRX_8888);
+
+	dst.fd = dma_dst.fd;
+	dst.format = RK_FORMAT_BGRX_8888;
+	dst.mmuFlag = 1;
+	rga_set_rect(&dst.rect, 0, 0, dst_w, dst_h, dst_w, dst_h,
+		     RK_FORMAT_BGRX_8888);
+
+	if (c_RkRgaInit()) {
+		fprintf(stderr, "legacy display RGA init failed\n");
+		ret = 1;
+		goto out;
+	}
+
+	if (c_RkRgaBlit(&src, &dst, NULL)) {
+		fprintf(stderr, "legacy display BGRx rotate blit failed\n");
+		c_RkRgaDeInit();
+		ret = 1;
+		goto out;
+	}
+	c_RkRgaDeInit();
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "legacy display BGRx read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!buffer_changed_from_sentinel(dma_dst.mem, dma_dst.size, 0x80)) {
+		fprintf(stderr, "legacy display BGRx rotate output unchanged\n");
+		ret = 1;
+	} else {
+		ret = write_artifact("legacy_bgrx_display_rot90",
+				     dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"legacy display BGRx read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "legacy display BGRx",
+		       dma_dst.heap_path);
+
+out:
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 static int run_legacy_planar_to_semiplanar_convert(void)
 {
 	const int width = 64;
@@ -1687,6 +1798,10 @@ int main(void)
 		goto out;
 
 	ret = run_legacy_dmabuf_to_dmabuf_rotate_convert();
+	if (ret)
+		goto out;
+
+	ret = run_legacy_display_rgb_rotate();
 	if (ret)
 		goto out;
 

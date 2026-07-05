@@ -34,7 +34,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > is now part of the librga suite's required set and records deterministic
 > destination-buffer byte counts/SHA-256s for maintained im2d,
 > RKNN/RKNPU-style preprocessing including RGBA crop/letterbox, legacy
-> GStreamer-shaped `c_RkRgaBlit()`,
+> GStreamer-shaped and display-shaped `c_RkRgaBlit()`,
 > forced-core, pre-intr, Gaussian, and async fence paths. The broad official
 > librga sample binaries remain primarily
 > pass/fail/timing coverage until a current-userspace gap needs sample-specific
@@ -85,7 +85,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > legacy `c_RkRgaBlit()` conversions shaped like JeffyCN
 > GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing,
 > rotated NV12 dma-buf to BGRx dma-buf decode conversion, and planar I420
-> dma-buf to NV12 dma-buf fallback), a no-submit physical-address import probe,
+> dma-buf to NV12 dma-buf fallback) plus a public display/compositor-shaped
+> fd-backed BGRx 90-degree rotation path, a no-submit physical-address import probe,
 > forced RGA3 core-mask + priority submission, forced RGA2 `IM_PRE_INTR`, the official Gaussian matrix
 > `IM_GAUSS` public sample shape, and an async acquire/release-fence chain, but
 > these still need to be run on a booted rewrite kernel. When launched through
@@ -426,6 +427,9 @@ implementation (cross-reference:
   `c_RkRgaBlit()` resize, and a no-submit physical-address import probe that
   can be made a rewrite-only expected reject with
   `LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1`.
+  It also turns the display/compositor/game-UI survey signal into an executable
+  fd-backed BGRx `c_RkRgaBlit()` 90-degree rotation artifact, without promoting
+  Android-only allocator/HWC paths into the Linux RK3588 required profile.
 - **Unsupported profiles fail *late* by design**: `-EOPNOTSUPP` is returned
   only after copy/validate/prepare/queue/dispatch/import-resolve/power-sequence
   reach the backend boundary — so the scheduler/lifetime path is exercised even
