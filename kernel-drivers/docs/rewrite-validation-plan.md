@@ -8,7 +8,7 @@ hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
 > surface and heavily unit-tested — MPP **53 KUnit cases** and RGA **100 KUnit
-> cases** compile at the §6 pins (`fc88b89af250` on 6.18, `20eba4ee26ee` on
+> cases** compile at the §6 pins (`0e6fa86bd84c` on 6.18, `c092e016fd29` on
 > mainline). But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk

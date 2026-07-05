@@ -77,8 +77,9 @@ mode table entry. The practical follow-up is:
    or allocator compatibility.
 3. Keep physical-address import as a clean negative ABI path for the rewrite
    unless a real workload needs it.
-4. Treat source-only RGA2-Pro RFBC64x4/AFBC32x8 paths as deprecated historical
-   compatibility, not RK3588 required ABI.
+4. Keep source-only RGA2-Pro RFBC64x4/AFBC32x8 paths recognized but
+   unsupported; the rewrite now rejects them with `-EOPNOTSUPP` instead of
+   carrying an executable FBCIN path.
 5. Do not prioritize per-channel rotation, tile alpha/pattern/color-key, or
    broad RGA2-Pro mode expansion ahead of booted forward-port-vs-rewrite
    conformance and performance runs.
