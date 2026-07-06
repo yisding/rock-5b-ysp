@@ -2398,6 +2398,43 @@ out:
 	return ret;
 }
 
+static int run_imconfig_scheduler_core_copy(rga_buffer_t src,
+					    rga_buffer_t dst,
+					    const uint8_t *src_mem,
+					    uint8_t *dst_mem,
+					    size_t size)
+{
+	int ret;
+	int reset_ret;
+
+	memset(dst_mem, 0x80, size);
+	ret = imconfig(IM_CONFIG_SCHEDULER_CORE,
+		       IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1);
+	if (ret != IM_STATUS_SUCCESS)
+		return fail_status("imconfig core", ret);
+
+	ret = imcopy(src, dst);
+	reset_ret = imconfig(IM_CONFIG_SCHEDULER_CORE, IM_SCHEDULER_DEFAULT);
+	if (reset_ret != IM_STATUS_SUCCESS) {
+		if (ret == IM_STATUS_SUCCESS)
+			ret = reset_ret;
+		fprintf(stderr, "imconfig scheduler reset failed: %s (%d)\n",
+			imStrError((IM_STATUS)reset_ret), reset_ret);
+	}
+	if (ret != IM_STATUS_SUCCESS)
+		return fail_status("imconfig copy", ret);
+
+	if (memcmp(src_mem, dst_mem, size)) {
+		fprintf(stderr, "imconfig scheduler output differs from source\n");
+		return 1;
+	}
+	if (write_artifact("imconfig_scheduler_copy", dst_mem, size))
+		return 1;
+
+	printf("%-24s ok\n", "imconfig scheduler");
+	return 0;
+}
+
 int main(void)
 {
 	const size_t src_size = TEST_SRC_W * TEST_SRC_H * TEST_BPP;
@@ -2560,6 +2597,11 @@ int main(void)
 		printf("%-24s skip set LIBRGA_SMOKE_10BIT=1\n",
 		       "im2d P010/P210");
 	}
+
+	ret = run_imconfig_scheduler_core_copy(src, dst, src_mem, dst_mem,
+					       src_size);
+	if (ret)
+		goto out;
 
 	memset(dst_mem, 0x80, src_size);
 	opt.core = IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1;

@@ -136,7 +136,11 @@ targets: `rkmppenc` for MPP-fd IM2D crop/CSC/resize plus fence plumbing, a
 standalone `gstreamer-rga` or env-gated GStreamer `videoflip` path for
 independent legacy-blit converter coverage, and one UI/display BGRA/XRGB
 rotation smoke if appliance/display usage becomes part of the target profile.
-The same scan found old RKNN/Yolo code using direct physical-address RGA
+The direct `librga-smoke` binary now covers the standalone `gstreamer-rga`
+thread-default core-mask primitive through
+`imconfig(IM_CONFIG_SCHEDULER_CORE, ...)`, but not the plugin lifecycle. The
+same scan found old RKNN/Yolo code
+using direct physical-address RGA
 destinations; keep that recognized-but-unsupported unless a current RK3588
 workload proves fd or virtual buffers are insufficient.
 
@@ -995,6 +999,11 @@ async release fence back to userspace. It also covers the legacy flush/result
 no-op ioctl return contract used by librga's post-blit compatibility path and
 the BGRx->BGRx 90-degree display-shaped legacy blit profile used by public
 compositor/game-UI callers.
+The direct `librga-smoke` path also covers a scheduler-core `imconfig()` call
+with `IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1`, followed by
+`imcopy`, matching the thread-default core-mask configuration path exposed by
+standalone `gstreamer-rga` without making that full plugin a required
+conformance target.
 
 **UNVERIFIED:** neither the generated GStreamer VP9 cases nor the direct MPP
 VP9 suite case has a forward-port/rewrite hardware log yet. If you run either,

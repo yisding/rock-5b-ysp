@@ -242,11 +242,13 @@ path hit an alias-resolution bug and a configfs-rmdir deadlock (see
 [gotchas](../../docs/gotchas.md)). The in-repo scripts have been scrubbed of
 the overlay-era instructions they were imported with (2026-07-01). The
 standalone `librga-smoke.sh` covers the maintained im2d API directly, including
-RKNN/RKNPU-style RGB/NV12/NV21 preprocessing plus RGBA crop/letterbox, the official Gaussian matrix
-`IM_GAUSS` sample shape, plus the legacy `c_RkRgaBlit()` conversion shapes
-JeffyCN GStreamer uses for encoder
-preprocessing, decode-side fd-backed rotate/format conversion, and planar
-fallback. The default no-submit physical-address import probe records whether
+RKNN/RKNPU-style RGB/NV12/NV21 preprocessing plus RGBA crop/letterbox, async
+resize release fences, the official Gaussian matrix `IM_GAUSS` sample shape,
+and the thread-default `imconfig(IM_CONFIG_SCHEDULER_CORE, ...)` core-mask path
+seen in standalone `gstreamer-rga`, plus the legacy `c_RkRgaBlit()` conversion
+shapes JeffyCN GStreamer uses for encoder preprocessing, decode-side fd-backed
+rotate/format conversion, and planar fallback. The default no-submit
+physical-address import probe records whether
 the booted driver accepts the path; set `LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1`
 for rewrite-only negative validation. The AFBC32x8/RFBC64x4 destination-mode
 probes likewise record by default and become rewrite-only negative assertions
