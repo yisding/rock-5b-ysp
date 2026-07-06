@@ -30,7 +30,7 @@ the rewrite.
 
 | Consumer family | Public source checked | RGA surface seen | Rewrite impact |
 |-----------------|-----------------------|------------------|----------------|
-| `rkmppenc` CLI encoder | `rigaya/rkmppenc` README and `mppcore/mpp_filter.cpp` at `a12c80e` | MPP buffer fd -> `importbuffer_fd`; `wrapbuffer_handle(_t)`; `imcrop`, `imcvtcolor`, `imresize`; fence fd plumbing | Good optional integration target. The direct YSP smoke now covers a fd-backed RGB crop/CSC to NV12 followed by async NV12 resize, with the first release fence supplied as the second acquire fence; a full `rkmppenc` run would still test a separate MPP-frame producer and filter graph. |
+| `rkmppenc` CLI encoder | `rigaya/rkmppenc` README/options and `mppcore/mpp_filter.cpp` at `a12c80e`; latest public release seen was 0.18 on 2026-03-15 | Public docs call out ROCK 5B transcoding, MPP encode/decode, `--check-mppinfo`, `--check-rgainfo`, `--output-res`, and `--vpp-resize rga_nearest/rga_bilinear/rga_bicubic`; source review shows MPP buffer fd -> `importbuffer_fd`, `wrapbuffer_handle(_t)`, `imcrop`, `imcvtcolor`, `imresize`, and fence fd plumbing | Best optional application-level target found outside the current bundle. The direct YSP smoke now covers a fd-backed RGB crop/CSC to NV12 followed by async NV12 resize, with the first release fence supplied as the second acquire fence; a full `rkmppenc` run would still test the separate MPP-frame producer, CLI option probing, and filter graph lifecycle. |
 | Standalone GStreamer RGA plugins | `corenel/gstreamer-rga` changelog at `223ecb2`; `higithubhi/gstreamer-rgaconvert` `plugins/gstrgaconvert.c` at `6f9da70` | `rgavideoconvert` via `c_RkRgaBlit`, DMABuf fd when available, virtual fallback, common RGB/YUV conversions, runtime core-mask selection through `imconfig(IM_CONFIG_SCHEDULER_CORE, ...)` in `corenel/gstreamer-rga` | No new consumer-specific ABI beyond legacy blit/core-mask. The direct smoke now covers the thread-default core-mask primitive plus the adjacent `IM_CONFIG_PRIORITY` path; a full plugin run remains useful optional coverage if we want an independent GStreamer RGA converter in addition to JeffyCN's plugin. |
 | GStreamer `videoflip` RGA patch | `JeffyCN/meta-rockchip` patch at `c1eed72` | env-gated `GST_VIDEO_FLIP_USE_RGA=1`; virtual-buffer `c_RkRgaBlit`; rotations/flips; RGB/YUV and `NV12_10LE40` format mapping | Mostly covered by current rotation/format tests plus the direct YSP IM2D/legacy flip artifacts. A focused `videoflip` pipeline remains useful optional integration coverage for caps negotiation and compact-10-bit input. |
 | Jellyfin/FFmpeg/Kodi/OpenWrt packaging | `SynoCommunity/spksrc` ffmpeg8 Rockchip patch at `34c6e71`; `armsurvivors/kodi-rockchip-deb` Dockerfile at `dd1e192`; `jjm2473/openwrt-rkmpp` package makefiles at `64c04f1`; `tsukumijima/librga-rockchip` package repo scan | `--enable-rkrga`/`--enable-librga`; `scale_rkrga`, `vpp_rkrga`, `overlay_rkrga`; RKMPP decode/encode; distribution packaging of `librga`, MPP, and `ffmpeg-rockchip` | Already represented by the YSP `ffmpeg-suite.sh`/Jellyfin-oriented filter coverage. Package repos prove distribution demand for the same stack, not a separate RGA ABI surface. |
@@ -50,7 +50,9 @@ as useful but non-blocking conformance work:
 - add an optional `rkmppenc` profile only if we want full application-level
   integration evidence; the direct `librga-smoke` now covers the kernel-visible
   fd-backed crop, CSC, resize, release-fence, and acquire-fence chain, but not
-  the separate MPP-frame producer and `rkmppenc` filter graph;
+  `rkmppenc`'s `--check-mppinfo`/`--check-rgainfo` probes, `--output-res` CLI
+  path, `--vpp-resize rga_*` selection, separate MPP-frame producer, or full
+  filter graph;
 - add one standalone `gstreamer-rga` or `videoflip` RGA pipeline if we want an
   independent GStreamer converter outside JeffyCN's plugin; the GStreamer
   suite now has opt-in `GST_ENABLE_VIDEOFLIP_RGA_CASES=1` diagnostics for the
@@ -76,7 +78,9 @@ compatibility as required Linux/Rock 5B behavior.
 
 ## Sources
 
-- `rkmppenc`: https://github.com/rigaya/rkmppenc/blob/a12c80e41a421d9b23ac87d6594a8f22b327322d/mppcore/mpp_filter.cpp
+- `rkmppenc` README: https://github.com/rigaya/rkmppenc
+- `rkmppenc` options: https://raw.githubusercontent.com/rigaya/rkmppenc/master/rkmppenc_Options.en.md
+- `rkmppenc` filter source: https://github.com/rigaya/rkmppenc/blob/a12c80e41a421d9b23ac87d6594a8f22b327322d/mppcore/mpp_filter.cpp
 - `gstreamer-rga`: https://github.com/corenel/gstreamer-rga/blob/223ecb27d423220d205660352649aaf774303ee0/docs/changelog.md
 - `gstreamer-rgaconvert`: https://github.com/higithubhi/gstreamer-rgaconvert/blob/6f9da709181ae5d331be3ca131cc99ab9c747e7a/plugins/gstrgaconvert.c
 - Jellyfin/FFmpeg Rockchip patch: https://github.com/SynoCommunity/spksrc/blob/34c6e71dfc7d7e9cb736bb59718a22da43384d31/cross/ffmpeg8/patches/1042-jellyfin-0042-add-full-hwa-pipeline-for-rockchip-rk3588-platform.patch

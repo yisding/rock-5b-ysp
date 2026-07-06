@@ -175,6 +175,14 @@ old RKNN/Yolo code
 using direct physical-address RGA
 destinations; keep that recognized-but-unsupported unless a current RK3588
 workload proves fd or virtual buffers are insufficient.
+The strongest optional application gap from that scan is `rkmppenc`: its public
+docs are active, explicitly mention ROCK 5B transcoding, expose
+`--check-mppinfo`/`--check-rgainfo`, and select RGA resize through
+`--output-res` plus `--vpp-resize rga_nearest/rga_bilinear/rga_bicubic`.
+If promoted into this runner, keep it optional unless it proves a new
+kernel-visible ABI issue; the first useful cases are version/probe commands,
+Y4M/raw H.264 and H.265 encode with RGA resize, and a diagnostic hardware-decode
+to RGA-resize to encode transcode.
 
 Suggested expanded matrix:
 
