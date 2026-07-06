@@ -67,11 +67,12 @@ worktree has unrelated local changes.
 
 Last recorded run: `kernel-drivers/tests/rewrite-build-gate.sh all`
 on 2026-07-06 passed warning-free for the committed rewrite tips
-`../kernel/linux-6.18-rkvenc@1f551f8fd32e` and `../kernel/linux@0ec942b2f0c5`.
-On the same date,
+`../kernel/linux-6.18-rkvenc@187f7baef704` and `../kernel/linux@00eee6c3b575`
+after display-tail RGB565 rotation KUnit coverage was added. On the same date,
 `REWRITE_BUILD_PROFILES="memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
-also passed warning-free for both trees, proving compile coverage with
-KASAN/fault-injection and KCSAN/lockdep enabled.
+also passed warning-free for both trees at the prior
+`1f551f8fd32e`/`0ec942b2f0c5` pins, proving compile coverage with
+KASAN/fault-injection and KCSAN/lockdep enabled before the RGB565-only follow-up.
 The same maintenance pass also ran
 `VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh` and
 `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`,
