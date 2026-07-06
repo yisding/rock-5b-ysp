@@ -80,6 +80,13 @@ The same maintenance pass also ran
 plus the same counter-default validation with `LIBRGA_FORCE_ROUTE_B=1`; all
 passed, including the forced Route B counter-default wiring check.
 
+After the Rockchip IOMMU provider hardening slice, the default `normal` profile
+passed warning-free for the committed tips
+`../kernel/linux-6.18-rkvenc@d1d15a3d052a` and
+`../kernel/linux@12f712d71144`. The same slice also passed focused provider
+object builds of `drivers/iommu/rockchip-iommu.o` from clean temporary archives
+with the staged diff applied before commit.
+
 ## Expanded conformance bundle
 
 The narrow in-repo tests are still the fast gate. For rewrite parity work, also

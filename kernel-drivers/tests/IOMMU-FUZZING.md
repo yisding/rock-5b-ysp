@@ -30,30 +30,36 @@ The run passes iff: every RGA op is byte-correct, every codec decodes bit-exact
 
 ## 1. What is instrumented (kernel side)
 
-The original instrumentation is in the forward port
-(`../kernel/linux-6.18-rkvenc-av1-fwport`). The rewrite exposes the same Route B
-fallback counters under its own debugfs root. Everything is debug-only; the only
-behavior change is the explicit `force_remap` knob when you flip it.
+The original broad instrumentation is in the forward port
+(`../kernel/linux-6.18-rkvenc-av1-fwport`). The rewrite intentionally keeps a
+narrower debug surface: aggregate MPP/RGA counters under
+`/sys/kernel/debug/rk_mpp_rewrite` and `/sys/kernel/debug/rk_rga_rewrite`, plus
+Route B counters under `rk_rga_rewrite/route_b`. The forward-port provider-level
+per-master fault counters and DIAG logs are useful while debugging that tree, but
+they are not part of the rewrite contract.
 
 | Signal | Path / mechanism | Answers |
 |--------|------------------|---------|
+| MPP/RGA rewrite faults | `/sys/kernel/debug/rk_mpp_rewrite/iommu_fault_count`, `/sys/kernel/debug/rk_rga_rewrite/iommu_fault_count` | did a rewrite-owned IOMMU fault callback run |
 | Route B fired? how often? | forward-port: `/sys/kernel/debug/rkrga/route_b/attempt`, rewrite: `/sys/kernel/debug/rk_rga_rewrite/route_b/attempt`; same for `ok` | did the scattered-userptr fallback run, and succeed |
 | Route B leak? | `.../route_b/active` | maps minus unmaps — **must be 0 at rest** |
 | Force every map through Route B | `.../route_b/force_remap` (forward-port also has module param `rga_force_iommu_remap`) | 100% coverage + same-buffer differential |
-| Route B span detail | `dmesg` when `DEBUGGER_EN(MM)` on | nents, data/map size, offset, programmed IOVA |
-| Multi-segment trigger (DIAG) | `dmesg` `DIAG rga_dma_map_sgt: ...` | did `dma_map_sg` fail to coalesce (the Route B trigger) + contiguity walk |
-| Per-master IOMMU faults | `/sys/kernel/debug/rockchip-iommu/<dev>`, `/sys/kernel/debug/vsi-iommu/<dev>` | which master page/bus-faulted, across both providers |
+| Route B span detail | forward-port `dmesg` when `DEBUGGER_EN(MM)` on | nents, data/map size, offset, programmed IOVA |
+| Multi-segment trigger (DIAG) | forward-port-only `dmesg` `DIAG rga_dma_map_sgt: ...` | did `dma_map_sg` fail to coalesce (the Route B trigger) + contiguity walk |
+| Per-master IOMMU faults | optional forward-port debugfs: `/sys/kernel/debug/rockchip-iommu/<dev>`, `/sys/kernel/debug/vsi-iommu/<dev>` | which master page/bus-faulted, across both providers |
 | Fault IOVA + type | `dmesg` `rk_iommu ... Page fault at <iova>` / vsi `int_status` | where in IOVA space, read vs write |
 | DMA-API misuse | `dmesg` `DMA-API: ...` (needs `CONFIG_DMA_API_DEBUG`) | unbalanced map/unmap, wrong-device sync, leaks — any master |
 
-Counters are `atomic_t`/`u64`, updated in the fast path with no locking (a stat
-race just loses a count — fine for debug). `attempt − ok` = Route B failures;
-the interior trace / DIAG tell you *why*.
+Rewrite counters are `atomic_t`/`u64`, updated in the fast path with no locking
+(a stat race just loses a count — fine for debug). `attempt − ok` = Route B
+failures. The forward-port interior trace / DIAG can tell you *why* when those
+temporary patches are built.
 
 Provenance: `iommu: rockchip, vsi: count per-device IOMMU faults in debugfs`,
 `media: rockchip: rga3: add Route B debug stats and force knob`, and the
 rewrite slice `media: rockchip: rga-rewrite: count Route B fallback mappings`.
-The DIAG commit above the forward-port instrumentation adds the trigger log.
+The DIAG commit above the forward-port instrumentation adds the trigger log; it
+has not been replicated in the rewrite.
 
 ---
 
@@ -76,8 +82,9 @@ What the fragment buys you (all currently `n` on the stock config):
   name (section 6), otherwise only exported symbols resolve.
 - `CONFIG_IOMMU_DEBUGFS` — generic per-domain IOMMU debugfs.
 
-The counters + force knob work **without** the fragment (they are in the driver
-patches); the fragment only adds the cross-cutting DMA-API/kprobe coverage.
+The rewrite's own counters + force knob work **without** the fragment. The
+fragment only adds cross-cutting DMA-API/kprobe coverage; forward-port-only
+provider counters require the matching debug patches in that tree.
 
 Everything under `/sys/kernel/debug` is root-only — run the harness under `sudo`
 (or arrange group access), same as `rga-mmu-debug.sh`.
@@ -150,8 +157,9 @@ for g in /sys/kernel/iommu_groups/*/devices/*; do
 On this board: `fdb60000.rga`/`fdb70000.rga` (RGA3 cores → Route B),
 `fdc38100/fdc40100.video-codec` (RKVDEC), the `fdba*`/`fdb50000`/`fdc70000`
 codec/AV1 nodes, `fdd90000.vop`, `fdbd0000/fdbe0000.rkvenc-core`, three `npu`.
-The AV1 decoder sits behind `vsi-iommu` (own debugfs dir), everything else behind
-`rockchip-iommu`. PCIe is behind ARM `smmu3` — out of scope here.
+The AV1 decoder sits behind `vsi-iommu`, everything else behind
+`rockchip-iommu`. Provider debugfs dirs exist only on debug-instrumented
+forward-port builds. PCIe is behind ARM `smmu3` — out of scope here.
 
 ---
 
@@ -172,12 +180,18 @@ grep . attempt ok active
 - `active` → live mappings. Read it **at rest** (no jobs running): must be `0`.
   Non-zero after the fuzzer drains = a leaked IOVA/GUP pin.
 
-**Faults, by master, across both providers:**
+**Rewrite fault counters and optional per-master provider counters:**
+```sh
+grep -r . /sys/kernel/debug/rk_mpp_rewrite/ /sys/kernel/debug/rk_rga_rewrite/ 2>/dev/null
+```
+Non-zero `iommu_fault_count` means the rewrite fault callback ran for that driver
+class. Correlate with dmesg for the fault IOVA and read/write direction.
+
+On forward-port debug builds, per-master counters may also exist:
 ```sh
 grep -r . /sys/kernel/debug/rockchip-iommu/ /sys/kernel/debug/vsi-iommu/ 2>/dev/null
 ```
-Any non-zero value names the exact faulting device. Correlate with the dmesg
-`Page fault at <iova>` line for the IOVA and read/write direction. A fault on
+Any non-zero provider value names the exact faulting device. A fault on
 `vsi-iommu/*` implicates the AV1 path specifically.
 
 **DMA-API violations** (debug-kernel only): any `DMA-API:` line in dmesg is a
@@ -208,23 +222,26 @@ equivalent: `/sys/module/<rga-module>/parameters/rga_force_iommu_remap`; the
 debugfs bool is the reliable path.)
 
 ### 6b. "Did the fallback actually fire, and on what?"
-Turn on the RGA trace and the DIAG trigger:
+On rewrite kernels, use the Route B counters above as the primary signal. On
+forward-port debug kernels, the BSP RGA trace and DIAG trigger add span detail:
 ```sh
 echo mm | sudo tee /sys/kernel/debug/rkrga/debug     # enable DEBUGGER_EN(MM)
 sudo dmesg -w | grep -E 'DIAG rga_dma_map_sgt|routeB'
 ```
 `DIAG ...` prints when `dma_map_sg` returned multi-segment (the trigger) with the
 contiguity walk; `routeB: ...`/`routeB ok: ...` print the synthetic span and the
-programmed IOVA. Silence + `attempt==0` = nothing scattered.
+programmed IOVA. On either kernel, silence + `attempt==0` = nothing scattered.
 
 ### 6c. "A fault fired — localize it"
 ```sh
 sudo dmesg | grep -iE 'rk_iommu|vsi.*int_status|Page fault|BUS_ERROR'
+grep -r . /sys/kernel/debug/rk_mpp_rewrite/ /sys/kernel/debug/rk_rga_rewrite/ 2>/dev/null
 grep -r . /sys/kernel/debug/rockchip-iommu/ /sys/kernel/debug/vsi-iommu/
 ```
-The counter tells you the device; the dmesg line tells you the IOVA and
-read/write. Cross-check the IOVA against the `routeB ok:` programmed base to see
-if a Route B span is implicated, and whether it wrapped the 32-bit guard
+The rewrite counters tell you which driver class saw the callback; optional
+provider counters name the exact device; the dmesg line tells you the IOVA and
+read/write. Cross-check the IOVA against the Route B mapping range when available
+to see if a fallback span is implicated, and whether it wrapped the 32-bit guard
 (`>= 0xe0000000` should never appear).
 
 ### 6d. "Output is wrong (but no fault)"
@@ -276,8 +293,9 @@ the `route_b/attempt` counter or a kprobe on `rga_dma_map_sgt_iommu`.
 - **`attempt == 0` invalidates an RGA run.** Scatter is probabilistic; a clean
   pass with zero attempts tested the contiguous path only. Confirm coverage, or
   use `force_remap`.
-- **AV1 ≠ rockchip-iommu.** AV1 faults show under `vsi-iommu/`, not
-  `rockchip-iommu/`. Grep both.
+- **AV1 ≠ rockchip-iommu.** On forward-port debug builds, AV1 faults show under
+  `vsi-iommu/`, not `rockchip-iommu/`; grep both. On rewrite builds, use dmesg
+  plus aggregate MPP/RGA fault counters.
 - **MPP needs the from-source build.** The distro `librockchip_mpp` reports
   "parser not registered" and fails decode; the harness uses
   `../rockchip-conformance/out/mpp` which has parsers registered. AV1 = `-t 16777224`.

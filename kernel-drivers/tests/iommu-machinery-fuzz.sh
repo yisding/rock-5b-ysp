@@ -16,10 +16,11 @@
 #   C) CONCURRENT -- run A and a multi-instance AV1 decode together so both IOMMU
 #               providers are mapping/unmapping simultaneously (cross-domain races).
 #
-# Every phase brackets dmesg + debugfs counters; the run FAILS on any IOMMU page
-# fault, any correctness mismatch, or a leaked mapping (active gauge not back to
-# baseline). Counters/gauges appear only on an instrumented kernel (see
-# ../patches/iommu-debug/); without them the dmesg fault scan is the backstop.
+# Every phase brackets dmesg + available debugfs counters; the run FAILS on any
+# IOMMU page fault, correctness mismatch, or leaked mapping (active gauge not
+# back to baseline). Rewrite kernels expose MPP/RGA aggregate counters and Route
+# B gauges; some forward-port debug builds also expose provider-level counters.
+# Without counters the dmesg fault scan is the backstop.
 #
 # Usage: iommu-machinery-fuzz.sh [-n rga_iters] [-L loops] [-p A|B|C|ABC]
 #   env: RGA_ITERS, DECODE_LOOPS, PHASES, OUT, SUDO
@@ -73,12 +74,14 @@ if [ "$IOMMU_FUZZ_VALIDATE_BUILD" = "1" ]; then
   exit 0
 fi
 
-# Debugfs dirs that hold instrumentation counters (present only when patched).
+# Debugfs dirs that hold rewrite counters and optional forward-port debug counters.
 COUNTER_DIRS=(
-  rkrga        /sys/kernel/debug/rkrga/route_b
-  rga_rewrite  /sys/kernel/debug/rk_rga_rewrite/route_b
-  rk_iommu     /sys/kernel/debug/rockchip-iommu
-  vsi_iommu    /sys/kernel/debug/vsi-iommu
+  mpp_rewrite          /sys/kernel/debug/rk_mpp_rewrite
+  rga_rewrite          /sys/kernel/debug/rk_rga_rewrite
+  rga_rewrite_route_b  /sys/kernel/debug/rk_rga_rewrite/route_b
+  rkrga_route_b        /sys/kernel/debug/rkrga/route_b
+  rk_iommu_debug       /sys/kernel/debug/rockchip-iommu
+  vsi_iommu_debug      /sys/kernel/debug/vsi-iommu
 )
 # dmesg lines that indicate a real IOMMU/DMA/decode fault (vs benign probe noise).
 FAULT_RE='rk_iommu|vsi.?iommu|Page fault|iommu.*fault|DMA-API|swiotlb.*(full|buffer is full)|rga_job_err|RGA_INT|hardware error|mpp.*(error|timeout)|rkvdec.*error|av1.*error'
@@ -196,7 +199,7 @@ else
   #   (1) ran non-root: /sys/kernel/debug is 0700 root, so the snapshot read nothing
   #       (the per-command $SUDO is only used for dmesg, NOT the debugfs snapshot).
   #   (2) root, dirs exist, genuinely zero deltas (unlikely after phase A).
-  #   (3) root but dirs absent: driver instrumentation (patches 1-3) not in this kernel.
+  #   (3) root but dirs absent: no rewrite or optional provider debugfs counters.
   if [ "${EUID:-$(id -u)}" -ne 0 ]; then
     log "  (no counters read -- /sys/kernel/debug is root-only; run the WHOLE script as root:"
     log "     sudo $0 ${*:-}   -- per-command sudo does NOT expose the debugfs snapshot)"
@@ -204,8 +207,8 @@ else
        "${SUDO_CMD[@]}" test -d /sys/kernel/debug/rk_rga_rewrite/route_b 2>/dev/null; then
     log "  (instrumentation present but no counter deltas this run)"
   else
-    log "  (no instrumentation counters in this kernel -- driver patches 1-3 not built;"
-    log "     see ../patches/iommu-debug/README.md. Correctness+dmesg-fault checks still valid.)"
+    log "  (no debugfs counters in this kernel. Correctness+dmesg-fault checks still valid;"
+    log "     provider-level counters are optional forward-port debug instrumentation.)"
   fi
 fi
 grep -E 'MemFree|MemAvailable|Slab' /proc/meminfo > "$OUT/meminfo-after.txt"
