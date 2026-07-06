@@ -28,6 +28,11 @@ now checks the candidate counter contents by default, not just that a counter
 delta file exists. That keeps placeholder or stale `debugfs-counters-delta.tsv`
 files from passing the branch-level parity audit.
 
+ABI-replay note: `abi-probe.sh` records the BSP-compatible modern RGA request
+wrapper behavior for an unsupported handle-backed `RGA_IOC_REQUEST_CONFIG`.
+After the initial request-check stage succeeds, the observable ioctl errno is
+`EFAULT`, while legacy/backend unsupported paths can still use `EOPNOTSUPP`.
+
 ## What each smoke test proves
 
 | Test | Exercises | Pass criterion |

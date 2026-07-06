@@ -461,10 +461,16 @@ implementation (cross-reference:
   It also turns the display/compositor/game-UI survey signal into an executable
   fd-backed BGRx `c_RkRgaBlit()` 90-degree rotation artifact, without promoting
   Android-only allocator/HWC paths into the Linux RK3588 required profile.
-- **Unsupported profiles fail *late* by design**: `-EOPNOTSUPP` is returned
-  only after copy/validate/prepare/queue/dispatch/import-resolve/power-sequence
-  reach the backend boundary — so the scheduler/lifetime path is exercised even
-  for profiles the command generator can't emit yet.
+- **Unsupported profiles fail *late* by design**: legacy blit/backend helpers
+  return `-EOPNOTSUPP` only after
+  copy/validate/prepare/queue/dispatch/import-resolve/power-sequence reach the
+  backend boundary, so the scheduler/lifetime path is exercised even for
+  profiles the command generator can't emit yet.  The modern
+  `RGA_IOC_REQUEST_CONFIG` / `RGA_IOC_REQUEST_SUBMIT` wrapper is different
+  BSP ABI: after `rga_request_check()` succeeds, request-configuration or
+  submit failures are surfaced to userspace as `-EFAULT`.  ABI replay now
+  records that wrapper behavior with an unsupported handle-backed request
+  config case.
 - **Userspace-visible priorities after the GStreamer legacy sync-blit/no-op ioctl KUnit slices** are
   driven by `../rockchip-conformance`, especially JeffyCN's
   `gstreamer-rockchip` branch at `dcbcd6454ef8`.  There are no paired

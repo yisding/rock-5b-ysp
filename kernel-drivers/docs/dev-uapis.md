@@ -309,6 +309,11 @@ sequenceDiagram
   IM2D's job batching (how-the-userspace-libs-work.md §B5).
 - async returns `release_fence_fd` (`-1` if the kernel lacks fence support); wait on
   it with the usual sync_file/`poll()` machinery.
+- The BSP request wrapper returns request-check errors directly, but once
+  `RGA_IOC_REQUEST_CONFIG` / `RGA_IOC_REQUEST_SUBMIT` reaches request
+  configuration or submit and that inner step fails, the observable ioctl
+  result is `-EFAULT`. ABI replay records an unsupported handle-backed request
+  config case to pin that wrapper behavior.
 - The kernel scheduler then picks an idle RGA3/RGA2 core able to do the op (how-the-drivers-work.md
   §4); the buffers are IOMMU-mapped exactly like the codecs (how-the-drivers-work.md §6).
 

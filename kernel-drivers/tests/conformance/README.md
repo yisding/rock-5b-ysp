@@ -207,6 +207,8 @@ For every test run, record:
 - Any RGA/MPP debugfs or procfs counters that changed.
 
 The comparison target is not just "does it run". The rewrite should match the
-forward port for successful cases, fail cleanly with `EOPNOTSUPP` for explicitly
-unsupported RGA features, and avoid kernel warnings, hangs, use-after-free
-reports, leaked fences, or IOMMU fault recovery regressions.
+forward port for successful cases, fail cleanly for explicitly unsupported RGA
+features, and avoid kernel warnings, hangs, use-after-free reports, leaked
+fences, or IOMMU fault recovery regressions. Legacy/backend unsupported paths
+should normally surface `EOPNOTSUPP`; modern request config/submit failures
+match the BSP wrapper and surface `EFAULT` after request-check succeeds.

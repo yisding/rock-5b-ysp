@@ -1106,7 +1106,10 @@ evidence in `.raw.log` and `.norm.log`. It also writes a smaller `.contract.log`
 that keeps the stable query/version and session-control lines, including
 optional dma-heap-backed MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA dma-buf
 import/release, and the intentional legacy `RGA2_GET_VERSION ret=1` result
-copied from the BSP/librga contract.
+copied from the BSP/librga contract. It also records a handle-backed modern
+`RGA_IOC_REQUEST_CONFIG` unsupported-profile case whose observable errno is
+`EFAULT`, matching the BSP request wrapper after the initial request-check
+stage has passed.
 
 ## VP9 decode via the suites
 

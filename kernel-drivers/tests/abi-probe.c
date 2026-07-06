@@ -92,6 +92,18 @@ static void require_ret(const char *name, int ret, int expected)
 	}
 }
 
+static void require_errno_value(const char *name, int ret, int expected_errno)
+{
+	int saved_errno = errno;
+
+	print_status(name, ret);
+	if (ret >= 0 || saved_errno != expected_errno) {
+		printf("  %-30s expected errno=%d (%s)\n", name,
+		       expected_errno, strerror(expected_errno));
+		failures++;
+	}
+}
+
 static int open_optional(const char *path)
 {
 	int fd = open(path, O_RDWR | O_CLOEXEC);
@@ -956,6 +968,12 @@ static void probe_rga_request_config(int fd)
 	errno = 0;
 	require_ok("RGA_IOC_REQUEST_CONFIG copy",
 		   ioctl(fd, RGA_IOC_REQUEST_CONFIG, &request));
+
+	task.render_mode = update_patten_buff_mode;
+	errno = 0;
+	require_errno_value("RGA_IOC_REQUEST_CONFIG unsupported",
+			    ioctl(fd, RGA_IOC_REQUEST_CONFIG, &request),
+			    EFAULT);
 
 out_cancel:
 	errno = 0;
