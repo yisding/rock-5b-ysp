@@ -68,14 +68,12 @@ worktree has unrelated local changes.
 Last recorded compile gate: on 2026-07-06 the `normal`, `memory`, and `race`
 profiles all passed warning-free for the committed rewrite tips
 `../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and `../kernel/linux@938b1d2032c3`.
-The first all-in-one
+After the gate was changed to remove each per-profile archive checkout as soon
+as that profile passes, the all-in-one
 `REWRITE_BUILD_PROFILES="normal memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
-run completed 6.18 `normal`/`memory`/`race` plus mainline `normal`, then
-exhausted the 7.8 GiB `/tmp` tmpfs while unpacking the mainline `memory` source
-archive. The scratch tree was cleaned by the script trap, and rerunning
-mainline `memory` and mainline `race` as isolated profiles passed. This records
-a host-capacity limit of the combined six-profile invocation, not a rewrite
-compile failure.
+run completed 6.18 `normal`/`memory`/`race` and mainline
+`normal`/`memory`/`race` in one invocation. `/tmp` returned to 7.4 GiB free
+after the run, with no leftover `rkcompat-rewrite-build.*` scratch directories.
 The same maintenance pass also ran
 `VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh` and
 `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`,

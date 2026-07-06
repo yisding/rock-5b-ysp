@@ -301,10 +301,11 @@ KUnit-enabled object build for the rewrite drivers. The current committed pins
 (`../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and `../kernel/linux@938b1d2032c3`) passed the
 `normal`, `memory`, and `race` archive build profiles warning-free on
 2026-07-06 after display-tail RGB565 and XRGB rotation coverage was added. The
-combined six-profile invocation exhausted the 7.8 GiB `/tmp` tmpfs after 6.18
-`normal`/`memory`/`race` plus mainline `normal`, so mainline `memory` and
-mainline `race` were rerun as isolated profiles and passed; that is a host
-capacity limit, not a rewrite compile failure.
+build gate now removes each per-profile archive checkout after a passing profile
+unless `KEEP_TMP=1`; after that change, the combined
+`REWRITE_BUILD_PROFILES="normal memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
+invocation completed all six profiles in one run and left no
+`rkcompat-rewrite-build.*` scratch directories under `/tmp`.
 `VALIDATE_ONLY=1
 kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
 syzlang ABI-marker, case-builder, and comparator validation, including 26

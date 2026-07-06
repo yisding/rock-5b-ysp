@@ -3,8 +3,9 @@
 #
 # The gate intentionally builds from git-archive copies, not the live kernel
 # worktrees, so generated files and local object state cannot hide portability
-# problems. It only builds the two rewrite objects with their optional KUnit
-# coverage enabled.
+# problems. Each profile gets its own scratch tree, which is removed after that
+# profile passes unless KEEP_TMP=1. It only builds the two rewrite objects with
+# their optional KUnit coverage enabled.
 set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -194,15 +195,18 @@ build_one_profile() {
   local tree="$2"
   local profile="$3"
   local commit
+  local profile_tmp
   local src
   local out
   local log
 
   check_clean_tree "$tree"
   commit="$(git -C "$tree" rev-parse --short=12 HEAD)"
-  src="$tmp_root/$label-$profile-src"
-  out="$tmp_root/$label-$profile-out"
-  log="$tmp_root/$label-$profile-build.log"
+  profile_tmp="$(mktemp -d -t "rkcompat-rewrite-build.$label.$profile.XXXXXX")"
+  tmp_root="$profile_tmp"
+  src="$profile_tmp/src"
+  out="$profile_tmp/out"
+  log="$profile_tmp/build.log"
 
   mkdir -p "$src" "$out"
   echo "[$label/$profile] source: $tree @ $commit"
@@ -224,6 +228,9 @@ build_one_profile() {
     echo "[$label/$profile] kept source: $src"
     echo "[$label/$profile] kept output: $out"
     echo "[$label/$profile] kept log:    $log"
+  else
+    rm -rf "$profile_tmp"
+    tmp_root=
   fi
 }
 
@@ -249,8 +256,6 @@ main() {
   need_tool tar
   need_tool make
   need_tool grep
-
-  tmp_root="$(mktemp -d -t rkcompat-rewrite-build.XXXXXX)"
 
   case "$which" in
   6.18)
