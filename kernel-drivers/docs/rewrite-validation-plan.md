@@ -32,7 +32,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
 | **Fault injection & recovery** | ❌ (suites only *detect* faults, never *inject*) | **add** — the recovery matrix (§4) |
-| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; not yet compiled by syzkaller or run under KCOV/KASAN | finish §5 |
+| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; the ABI check is now included in `VALIDATE_ONLY=1` conformance validation, but the draft has not yet been compiled by syzkaller or run under KCOV/KASAN | finish §5 |
 | **Rewrite-specific security/ABI audit** | ❌ ([`bsp-audit.md`](./bsp-audit.md) is the *forward-port*) | **add** (§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
@@ -171,8 +171,9 @@ register image; many in RGA).
   and is guarded by
   [`../tests/syzkaller/check-rockchip-syzlang.sh`](../tests/syzkaller/check-rockchip-syzlang.sh),
   which keeps its ioctl constants and struct-size markers in sync with
-  `abi-probe.sh`. It still needs to be imported into a syzkaller checkout and
-  compiled there.
+  `abi-probe.sh` and is now run by
+  `VALIDATE_ONLY=1 ../tests/rewrite-conformance-run.sh`. It still needs to be
+  imported into a syzkaller checkout and compiled there.
   Expand it for each node:
   - `/dev/mpp_service`: the `MPP_IOC_CFG_V1` message + `mpp_bat_msg` batch
     grammar, all `MPP_CMD_*` subcommands, and the structured register-image blob.

@@ -25,4 +25,6 @@ kernel-drivers/tests/syzkaller/check-rockchip-syzlang.sh
 The check does not compile syzlang; syzkaller is not vendored here. It verifies
 that the ioctl numbers and struct sizes recorded in the syzlang draft still
 match `kernel-drivers/tests/abi-probe.sh`, accepting the probe's `77` skip exit
-when the device nodes are not present.
+when the device nodes are not present. The same check is part of
+`VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh`, so the normal
+device-free conformance validation fails if the draft's ABI constants drift.

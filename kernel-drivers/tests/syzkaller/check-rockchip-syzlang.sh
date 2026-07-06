@@ -9,10 +9,11 @@ SYZ_FILE="${SYZ_FILE:-$SCRIPT_DIR/rockchip_mpp_rga.txt}"
 PROBE="${PROBE:-$TEST_DIR/abi-probe.sh}"
 
 tmp="$(mktemp "${TMPDIR:-/tmp}/rk-syz-abi.XXXXXX")"
-trap 'rm -f "$tmp"' EXIT
+probe_build_dir="$(mktemp -d "${TMPDIR:-/tmp}/rk-syz-abi-build.XXXXXX")"
+trap 'rm -f "$tmp"; rm -rf "$probe_build_dir"' EXIT
 
 set +e
-"$PROBE" >"$tmp"
+BUILD_DIR="${BUILD_DIR:-$probe_build_dir}" "$PROBE" >"$tmp"
 probe_status=$?
 set -e
 
