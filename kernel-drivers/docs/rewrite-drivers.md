@@ -665,6 +665,10 @@ and MPP official-test media outputs are recorded in `artifacts.tsv`
 with byte counts and SHA-256s. GStreamer/FFmpeg comparators require those
 manifests by default; the MPP comparator compares manifests when present and can
 enforce them with `REQUIRE_ARTIFACTS=1` for full media gates.
+The non-submit ioctl mutator also has an opt-in `IOCTL_FUZZ_FAIL_NTH_MAX`
+mode for debug kernels, which ties `/proc/self/fail-nth` allocation/usercopy
+failures to individual MPP/RGA ioctls. No booted rewrite fail-nth log is
+recorded yet.
 
 ## 7. Path to production readiness
 

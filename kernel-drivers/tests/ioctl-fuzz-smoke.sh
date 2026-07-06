@@ -7,6 +7,7 @@ ROOT_DIR="$(cd "$TEST_DIR/../.." && pwd)"
 
 CC="${CC:-cc}"
 IOCTL_FUZZ_VALIDATE_BUILD="${IOCTL_FUZZ_VALIDATE_BUILD:-0}"
+IOCTL_FUZZ_FAIL_NTH_MAX="${IOCTL_FUZZ_FAIL_NTH_MAX:-0}"
 tmp_build_dir=
 
 if [ "$IOCTL_FUZZ_VALIDATE_BUILD" = "1" ] &&
@@ -36,6 +37,29 @@ mkdir -p "$BUILD_DIR"
 
 if [ "$IOCTL_FUZZ_VALIDATE_BUILD" = "1" ]; then
 	echo "PASS: ioctl fuzz smoke builds"
+	exit 0
+fi
+
+case "$IOCTL_FUZZ_FAIL_NTH_MAX" in
+''|*[!0-9]*)
+	printf "IOCTL_FUZZ_FAIL_NTH_MAX must be an unsigned integer, got '%s'\n" \
+		"$IOCTL_FUZZ_FAIL_NTH_MAX" >&2
+	exit 2
+	;;
+esac
+
+if [ "$IOCTL_FUZZ_FAIL_NTH_MAX" -gt 0 ]; then
+	rc=0
+	for nth in $(seq 1 "$IOCTL_FUZZ_FAIL_NTH_MAX"); do
+		printf "================= ioctl fail-nth %s =================\n" "$nth"
+		env IOCTL_FUZZ_FAIL_NTH="$nth" \
+			IOCTL_FUZZ_FAIL_NTH_REQUIRE_HIT="${IOCTL_FUZZ_FAIL_NTH_REQUIRE_HIT:-1}" \
+			"$BUILD_DIR/ioctl-fuzz-smoke" "$@" || rc=$?
+		printf "\n"
+		if [ "$rc" -ne 0 ]; then
+			exit "$rc"
+		fi
+	done
 	exit 0
 fi
 

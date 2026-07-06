@@ -31,8 +31,8 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` plus [`debugfs-counter-check.sh`](../tests/debugfs-counter-check.sh), including exact-counter gates and `component:counter_prefix:min_positive` multicore-spread gates | reuse as assertion hooks throughout |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
-| **Fault injection & recovery** | ⚠️ [`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh) now orchestrates kill/close, reset-opener, and opt-in unbind/rebind loops around real workloads, and `VALIDATE_ONLY=1` checks its config; synthetic timeout/IOMMU/allocation fault injection has not run | finish the recovery matrix (§4) |
-| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; the RGA3 Route B/IOMMU path has a scattered-userptr correctness fuzzer under [`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh); `VALIDATE_ONLY=1` conformance validation now checks syzlang ABI markers, the ioctl mutator build, and the RGA IOMMU fuzzer build, but neither fuzzer has been run under KCOV/KASAN and the syzkaller draft has not yet been compiled by syzkaller | finish §5 |
+| **Fault injection & recovery** | ⚠️ [`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh) now orchestrates kill/close, reset-opener, and opt-in unbind/rebind loops around real workloads, and `VALIDATE_ONLY=1` checks its config; [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh) now has an opt-in `/proc/self/fail-nth` mode for syscall-local allocation/usercopy failures in non-submit ioctls; synthetic hardware timeout/IOMMU fault injection has not run | finish the recovery matrix (§4) |
+| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps, plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; the RGA3 Route B/IOMMU path has a scattered-userptr correctness fuzzer under [`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh); `VALIDATE_ONLY=1` conformance validation now checks syzlang ABI markers, the ioctl mutator build, and the RGA IOMMU fuzzer build, but neither fuzzer has been run under KCOV/KASAN and the syzkaller draft has not yet been compiled by syzkaller | finish §5 |
 | **Rewrite-specific security/ABI audit** | ❌ ([`bsp-audit.md`](./bsp-audit.md) is the *forward-port*) | **add** (§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
@@ -48,7 +48,8 @@ Three builds; the sanitizers do not usefully coexist.
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
   reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 153 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
-  `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FUNCTION_ERROR_INJECTION` for §4.
+  `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
+  `FUNCTION_ERROR_INJECTION` for §4.
 - **Kernel B — race.** A *separate* build with `KCSAN=y` + lockdep. `debug-kernel.md`
   §3 turns KCSAN off on purpose (it conflicts with KASAN and adds noise), so the
   race pass needs its own kernel. This is the build that finds the
@@ -170,8 +171,17 @@ lines for fatal signatures, and snapshot MPP/RGA debugfs counter deltas.
 `RECOVERY_VALIDATE_ONLY=1` is part of the device-free
 `rewrite-conformance-run.sh` validation gate, but it only proves the harness
 configuration. It still needs a booted RK3588 rewrite run, and it does not yet
-induce synthetic hardware timeout, synthetic IOMMU faults, or scoped allocation
-failures.
+induce synthetic hardware timeout or synthetic IOMMU faults. Submit-path
+allocation failures remain open beyond the non-submit fail-nth smoke below.
+
+The bounded ioctl mutator now has the first scoped fault-injection hook for the
+allocation/usercopy row: run `IOCTL_FUZZ_FAIL_NTH_MAX=N
+IOCTL_FUZZ_ITERS=<small>` on Kernel A. The C mutator writes
+`/proc/self/fail-nth` immediately before each individual non-submit ioctl and
+clears it immediately afterward, so the injected fault is tied to the ioctl
+syscall rather than shell startup. This covers parser/import/control unwind
+paths; it does **not** replace the real submit-path allocation failures in the
+matrix below.
 
 | Trigger | How to induce | Assert (debugfs + behaviour) |
 |---|---|---|
@@ -229,12 +239,17 @@ register image; many in RGA).
 A cheap first pass before syzkaller now exists as
 [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh): it mutates
 non-submit MPP/RGA ioctl payloads, sizes, flags, bad user pointers, RGA import
-pools, and request create/cancel lifetimes. It still needs to be run on a booted
+pools, and request create/cancel lifetimes. With `IOCTL_FUZZ_FAIL_NTH_MAX=N`,
+the wrapper repeats the mutator with `IOCTL_FUZZ_FAIL_NTH=1..N`; each C-side
+ioctl wrapper sets `/proc/self/fail-nth` only for the syscall under test and can
+require at least one consumed injected fault with
+`IOCTL_FUZZ_FAIL_NTH_REQUIRE_HIT=1`. It still needs to be run on a booted
 rewrite kernel, ideally under Kernel A with KASAN/KCOV. Device-free validation
 now compiles the mutator through `IOCTL_FUZZ_VALIDATE_BUILD=1` in
 `VALIDATE_ONLY=1 ../tests/rewrite-conformance-run.sh`, but that only catches
-build rot; it still needs a real booted rewrite run and should later be replaced
-or augmented by a proper libFuzzer/AFL in-process harness plus syzkaller.
+build rot; it still needs real booted rewrite runs, including fail-nth sweeps,
+and should later be replaced or augmented by a proper libFuzzer/AFL in-process
+harness plus syzkaller.
 
 The Route B/IOMMU-specific first pass is
 [`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh), which

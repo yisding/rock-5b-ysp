@@ -40,6 +40,7 @@
 #define MPP_CLIENT_RKVENC 16U
 #define MPP_CODEC_INFO_WIDTH 1U
 #define MPP_CODEC_INFO_FLAG_NUMBER 1U
+#define FAIL_NTH_PATH "/proc/self/fail-nth"
 
 struct fuzz_rng {
 	uint64_t state;
@@ -57,8 +58,18 @@ struct mpp_fuzz_codec_info {
 	uint64_t data;
 };
 
+struct fail_nth_state {
+	unsigned int nth;
+	unsigned int attempts;
+	unsigned int injected;
+	unsigned int pending;
+	unsigned int setup_errors;
+	bool require_hit;
+};
+
 static uint8_t mpp_payload[MPP_FUZZ_PAYLOAD_SIZE];
 static uint8_t rga_buffer[RGA_FUZZ_BUFFER_SIZE] __attribute__((aligned(4096)));
+static struct fail_nth_state fail_nth;
 
 static uint64_t rng_next(struct fuzz_rng *rng)
 {
@@ -126,6 +137,102 @@ static void timeout_handler(int sig)
 	_exit(124);
 }
 
+static int write_text_file(const char *path, const char *text)
+{
+	int fd;
+	ssize_t len;
+	ssize_t written;
+
+	fd = open(path, O_WRONLY | O_CLOEXEC);
+	if (fd < 0)
+		return -1;
+
+	len = (ssize_t)strlen(text);
+	written = write(fd, text, (size_t)len);
+	close(fd);
+
+	return written == len ? 0 : -1;
+}
+
+static int read_fail_nth_value(long *value)
+{
+	char buf[64];
+	char *end = NULL;
+	ssize_t len;
+	int fd;
+
+	fd = open(FAIL_NTH_PATH, O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return -1;
+
+	len = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (len <= 0)
+		return -1;
+
+	buf[len] = '\0';
+	errno = 0;
+	*value = strtol(buf, &end, 0);
+	if (errno || end == buf)
+		return -1;
+
+	return 0;
+}
+
+static int set_fail_nth(unsigned int nth)
+{
+	char buf[32];
+
+	snprintf(buf, sizeof(buf), "%u", nth);
+	return write_text_file(FAIL_NTH_PATH, buf);
+}
+
+static void clear_fail_nth(void)
+{
+	(void)write_text_file(FAIL_NTH_PATH, "0");
+}
+
+static void fail_nth_before(const char *label, bool verbose)
+{
+	if (!fail_nth.nth)
+		return;
+
+	fail_nth.attempts++;
+	if (set_fail_nth(fail_nth.nth)) {
+		fail_nth.setup_errors++;
+		if (verbose)
+			printf("  %-28s fail-nth setup failed errno=%d (%s)\n",
+			       label, errno, strerror(errno));
+	}
+}
+
+static void fail_nth_after(const char *label, bool verbose)
+{
+	long remaining = -1;
+
+	if (!fail_nth.nth)
+		return;
+
+	if (read_fail_nth_value(&remaining)) {
+		fail_nth.setup_errors++;
+		if (verbose)
+			printf("  %-28s fail-nth readback failed errno=%d (%s)\n",
+			       label, errno, strerror(errno));
+		clear_fail_nth();
+		return;
+	}
+
+	if (remaining == 0)
+		fail_nth.injected++;
+	else
+		fail_nth.pending++;
+
+	if (verbose)
+		printf("  %-28s fail-nth remaining=%ld\n", label, remaining);
+
+	clear_fail_nth();
+}
+
 static int open_optional(const char *path)
 {
 	int fd = open(path, O_RDWR | O_CLOEXEC);
@@ -147,8 +254,10 @@ static int fuzz_ioctl(int fd, unsigned long cmd, void *arg,
 	int ret;
 
 	errno = 0;
+	fail_nth_before(label, verbose);
 	ret = ioctl(fd, cmd, arg);
 	saved_errno = errno;
+	fail_nth_after(label, verbose);
 
 	stats->calls++;
 	if (ret < 0)
@@ -562,11 +671,22 @@ int main(void)
 	if (!timeout)
 		timeout = DEFAULT_TIMEOUT_S;
 
+	fail_nth.nth = (unsigned int)env_u64("IOCTL_FUZZ_FAIL_NTH", 0);
+	fail_nth.require_hit = env_enabled("IOCTL_FUZZ_FAIL_NTH_REQUIRE_HIT");
+	if (fail_nth.nth && access(FAIL_NTH_PATH, W_OK) < 0) {
+		printf("SKIP: %s is absent or not writable; enable kernel fault injection\n",
+		       FAIL_NTH_PATH);
+		return 77;
+	}
+
 	signal(SIGALRM, timeout_handler);
 	alarm(timeout);
 
 	printf("rkcompat ioctl fuzz smoke: seed=%#llx iterations=%u timeout=%us\n",
 	       (unsigned long long)rng.state, iters, timeout);
+	if (fail_nth.nth)
+		printf("fail-nth: nth=%u require_hit=%u\n", fail_nth.nth,
+		       fail_nth.require_hit ? 1U : 0U);
 
 	mpp_fd = open_optional("/dev/mpp_service");
 	rga_fd = open_optional("/dev/rga");
@@ -584,6 +704,18 @@ int main(void)
 	if (rga_fd >= 0) {
 		fuzz_rga(rga_fd, &rng, iters, verbose);
 		close(rga_fd);
+	}
+
+	if (fail_nth.nth) {
+		printf("fail-nth summary: attempts=%u injected=%u pending=%u setup_errors=%u\n",
+		       fail_nth.attempts, fail_nth.injected, fail_nth.pending,
+		       fail_nth.setup_errors);
+		if (fail_nth.setup_errors)
+			return 1;
+		if (fail_nth.require_hit && !fail_nth.injected) {
+			puts("FAIL: fail-nth did not inject any fault");
+			return 1;
+		}
 	}
 
 	puts("PASS: non-submit ioctl fuzz smoke completed");
