@@ -19,12 +19,18 @@ IOMMU_FUZZ_VALIDATE_BUILD=1 bash kernel-drivers/tests/iommu-machinery-fuzz.sh
 
 # one-time: build a debug kernel with the config fragment (section 2), boot it
 sudo kernel-drivers/tests/iommu-machinery-fuzz.sh          # full A+B+C run
+sudo env IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS=1 \
+  kernel-drivers/tests/iommu-machinery-fuzz.sh             # require direct Route B attribution
 # then read the verdict + counters it prints, or drill in with sections 5–6
 ```
 
 The run passes iff: every RGA op is byte-correct, every codec decodes bit-exact
 (PSNR=inf), no IOMMU page fault fired on either provider, and the Route B
-`active` gauge returned to baseline (no leaked mapping).
+`active` gauge returned to baseline (no leaked mapping). When Route B counters
+are present and an RGA phase ran, the orchestrator also requires positive
+`attempt`/`ok` deltas, no `attempt - ok` failures, and `active == 0` after the
+run. Set `IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS=1` to make missing counters a
+hard failure rather than an indirect-attribution warning.
 
 ---
 
@@ -101,6 +107,8 @@ counter delta + leak assertion. Structured logs land under
 ```sh
 IOMMU_FUZZ_VALIDATE_BUILD=1 bash kernel-drivers/tests/iommu-machinery-fuzz.sh  # device-free C++ build gate
 sudo kernel-drivers/tests/iommu-machinery-fuzz.sh              # full A+B+C
+sudo env IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS=1 \
+  kernel-drivers/tests/iommu-machinery-fuzz.sh                 # direct Route B counter gate
 sudo RGA_ITERS=256 PHASES=A  kernel-drivers/tests/iommu-machinery-fuzz.sh   # RGA only, heavier
 sudo DECODE_LOOPS=20 PHASES=B kernel-drivers/tests/iommu-machinery-fuzz.sh  # decode soak
 sudo PHASES=C kernel-drivers/tests/iommu-machinery-fuzz.sh                  # cross-domain concurrency
@@ -118,6 +126,11 @@ the staged librga headers and exits before any device, debugfs, dmesg, or target
 librga shared-library access. It is also part of
 `VALIDATE_ONLY=1 rewrite-conformance-run.sh`, so normal device-free maintenance
 catches source/header drift in the Route B fuzzer. It is not hardware evidence.
+
+`IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS=1` is for debug-capable Route B kernels.
+It fails the run when no `route_b` debugfs counters are captured during RGA
+phases; without it, missing counters are reported as indirect attribution while
+correctness and dmesg fault checks still decide the behavioral result.
 
 ### 3b. `rga-iommu-fuzz` — RGA scattered-userptr correctness (built by the orchestrator)
 Forces physical scatter with an interleaved-fault trick (mmap the buffer + an
@@ -179,6 +192,12 @@ grep . attempt ok active
   the specific `rga_err` reason.
 - `active` → live mappings. Read it **at rest** (no jobs running): must be `0`.
   Non-zero after the fuzzer drains = a leaked IOVA/GUP pin.
+
+`iommu-machinery-fuzz.sh` enforces these rules automatically when it captures
+Route B counters. If a clean RGA run prints "no Route B counters captured", it
+is still useful behavioral evidence, but not direct fallback attribution unless
+you rerun with a kernel exposing `route_b` counters or enable
+`IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS=1`.
 
 **Rewrite fault counters and optional per-master provider counters:**
 ```sh

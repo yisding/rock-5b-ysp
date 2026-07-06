@@ -40,6 +40,7 @@ MPP_BUILD="${MPP_BUILD:-$CONFORMANCE_ROOT/out/mpp}"
 AV1_IVF="${AV1_IVF:-$CONFORMANCE_ROOT/assets/test_av1.ivf}"
 CXX="${CXX:-g++}"
 IOMMU_FUZZ_VALIDATE_BUILD="${IOMMU_FUZZ_VALIDATE_BUILD:-0}"
+IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS="${IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS:-0}"
 tmp_out=
 if [ "$IOMMU_FUZZ_VALIDATE_BUILD" = "1" ] &&
    [ -z "${OUT+x}" ]; then
@@ -93,6 +94,86 @@ dmesg_faults() { # before after -> prints offending lines (0 = clean)
   local b="$1" a="$2"
   comm -13 <(sort "$b") <(sort "$a") 2>/dev/null \
     | grep -aiE "$FAULT_RE" | grep -aivE "$BENIGN_RE" || true
+}
+counter_delta_sum() { # delta-file counter-name [component-regex]
+  local file="$1" counter="$2" component_re="${3:-.*}"
+  awk -F'\t' -v c="$counter" -v re="$component_re" '
+    NR > 1 && $1 ~ re && $2 == c && $5 ~ /^-?[0-9]+$/ {
+      sum += $5; seen = 1
+    }
+    END { print seen ? sum : 0 }
+  ' "$file"
+}
+counter_after_sum() { # delta-file counter-name [component-regex]
+  local file="$1" counter="$2" component_re="${3:-.*}"
+  awk -F'\t' -v c="$counter" -v re="$component_re" '
+    NR > 1 && $1 ~ re && $2 == c && $4 ~ /^-?[0-9]+$/ {
+      sum += $4; seen = 1
+    }
+    END { print seen ? sum : 0 }
+  ' "$file"
+}
+route_b_counter_rows() {
+  awk -F'\t' 'NR > 1 && $1 ~ /route_b/ { n++ } END { print n + 0 }' "$1"
+}
+counter_row_count() { # delta-file counter-name [component-regex]
+  local file="$1" counter="$2" component_re="${3:-.*}"
+  awk -F'\t' -v c="$counter" -v re="$component_re" '
+    NR > 1 && $1 ~ re && $2 == c { n++ }
+    END { print n + 0 }
+  ' "$file"
+}
+check_route_b_coverage() { # counters-delta.tsv
+  local delta_file="$1"
+  local rows attempt_delta ok_delta active_after active_rows failures
+
+  case "$PHASES" in
+    *A*|*C*) ;;
+    *) return 0 ;;
+  esac
+
+  rows=$(route_b_counter_rows "$delta_file")
+  if [ "$rows" -eq 0 ]; then
+    if [ "$IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS" = "1" ]; then
+      log "  !! Route B counters required but no route_b debugfs counters were captured"
+      overall=1
+    else
+      log "  (no Route B counters captured; RGA correctness+dmesg checks passed, but fallback attribution is indirect)"
+    fi
+    return 0
+  fi
+
+  attempt_delta=$(counter_delta_sum "$delta_file" attempt 'route_b')
+  ok_delta=$(counter_delta_sum "$delta_file" ok 'route_b')
+  active_after=$(counter_after_sum "$delta_file" active 'route_b')
+  active_rows=$(counter_row_count "$delta_file" active 'route_b')
+  failures=$((attempt_delta - ok_delta))
+
+  if [ "$attempt_delta" -le 0 ]; then
+    log "  !! Route B counters present but attempt did not increase"
+    overall=1
+  fi
+  if [ "$ok_delta" -le 0 ]; then
+    log "  !! Route B counters present but ok did not increase"
+    overall=1
+  fi
+  if [ "$failures" -ne 0 ]; then
+    log "  !! Route B failures recorded: attempt_delta=$attempt_delta ok_delta=$ok_delta"
+    overall=1
+  fi
+  if [ "$active_rows" -le 0 ]; then
+    log "  !! Route B counters present but active gauge was not captured"
+    overall=1
+  fi
+  if [ "$active_after" -ne 0 ]; then
+    log "  !! Route B active mappings remain after run: active=$active_after"
+    overall=1
+  fi
+  if [ "$attempt_delta" -gt 0 ] && [ "$ok_delta" -gt 0 ] &&
+     [ "$failures" -eq 0 ] && [ "$active_rows" -gt 0 ] &&
+     [ "$active_after" -eq 0 ]; then
+    log "  Route B attribution: attempt_delta=$attempt_delta ok_delta=$ok_delta active=$active_after"
+  fi
 }
 
 # ---------------------------------------------------------------- preflight ---
@@ -194,6 +275,7 @@ if [ "$(wc -l < "$OUT/counters-delta.tsv" 2>/dev/null || echo 0)" -gt 1 ]; then
   # active gauges must return to baseline (delta 0) -> otherwise a mapping leaked.
   leaked=$(awk -F'\t' 'NR>1 && $2 ~ /active/ && $5 != 0 && $5 != "" {print}' "$OUT/counters-delta.tsv")
   [ -z "$leaked" ] || { log "  !! LEAKED MAPPINGS (active gauge != baseline):"; echo "$leaked" | sed 's/^/     /'; overall=1; }
+  check_route_b_coverage "$OUT/counters-delta.tsv"
 else
   # No counters in the delta. Three very different causes -- don't conflate them:
   #   (1) ran non-root: /sys/kernel/debug is 0700 root, so the snapshot read nothing
@@ -209,6 +291,11 @@ else
   else
     log "  (no debugfs counters in this kernel. Correctness+dmesg-fault checks still valid;"
     log "     provider-level counters are optional forward-port debug instrumentation.)"
+  fi
+  if [ "$IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS" = "1" ] &&
+     { [[ "$PHASES" == *A* ]] || [[ "$PHASES" == *C* ]]; }; then
+    log "  !! Route B counters required but no counter deltas were captured"
+    overall=1
   fi
 fi
 grep -E 'MemFree|MemAvailable|Slab' /proc/meminfo > "$OUT/meminfo-after.txt"

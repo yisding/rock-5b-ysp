@@ -39,6 +39,10 @@
 #include "rga.h"
 
 static const size_t PAGE = 4096;
+// RGA3 on RK3588 advertises a 68-pixel minimum width. Keep generated
+// dimensions on 16-pixel boundaries, so 80 is the first valid width.
+static const int RGA3_MIN_WIDTH = 80;
+static const int RGA3_MIN_RESIZE_SRC_WIDTH = RGA3_MIN_WIDTH * 2;
 
 struct Buf {
     uint8_t *map = nullptr;   size_t map_len = 0;   // the buffer region (VA-contiguous)
@@ -159,7 +163,15 @@ static bool trial(Op op, int w, int h, int sfmt, int dfmt, int dw, int dh,
     // Destinations. Test the WRITE path by scattering dst when requested.
     bool scat_dst = (scat == "dst" || scat == "both");
     bool scat_src = (scat == "src" || scat == "both");
-    if (!scat_src) { free_buf(src_s); alloc_buf(src_s, w, h, sfmt, false, off); memcpy(src_s.data, pat.data(), pat.size()); }
+    if (!scat_src) {
+        free_buf(src_s);
+        if (!alloc_buf(src_s, w, h, sfmt, false, off)) {
+            free_buf(src_s);
+            free_buf(src_c);
+            return false;
+        }
+        memcpy(src_s.data, pat.data(), pat.size());
+    }
 
     Buf dst_a, dst_b;
     if (!alloc_buf(dst_a, dw, dh, dfmt, scat_dst, 0) ||
@@ -206,6 +218,11 @@ int main(int argc, char **argv) {
     }
     printf("rga-iommu-fuzz: iters=%d seed=%u op=%s scatter=%s\n", c.iters, c.seed, c.op.c_str(), c.scat.c_str());
 
+    if (c.scat != "src" && c.scat != "dst" && c.scat != "both") {
+        fprintf(stderr, "bad -t\n");
+        return 2;
+    }
+
     std::vector<Op> ops;
     if (c.op == "all") ops = {OP_COPY, OP_RESIZE, OP_ROTATE, OP_CVT};
     else if (c.op == "copy") ops = {OP_COPY};
@@ -214,10 +231,21 @@ int main(int argc, char **argv) {
     else if (c.op == "cvt") ops = {OP_CVT};
     else { fprintf(stderr, "bad -o\n"); return 2; }
 
+    int min_w = RGA3_MIN_WIDTH;
+    for (Op op : ops) {
+        if (op == OP_RESIZE)
+            min_w = RGA3_MIN_RESIZE_SRC_WIDTH;
+    }
+    if (c.fixed_w && c.fixed_w < min_w) {
+        fprintf(stderr, "fixed width %d is below RGA3-safe minimum %d for op=%s\n",
+                c.fixed_w, min_w, c.op.c_str());
+        return 2;
+    }
+
     uint32_t rs = c.seed;
     int pass = 0, fail = 0;
     for (int it = 0; it < c.iters; it++) {
-        int w = c.fixed_w ? c.fixed_w : rnd_dim(rs, 64, 1024);
+        int w = c.fixed_w ? c.fixed_w : rnd_dim(rs, min_w, 1024);
         int h = c.fixed_h ? c.fixed_h : rnd_dim(rs, 64, 768);
         for (Op op : ops) {
             int sfmt = RK_FORMAT_RGBA_8888, dfmt = RK_FORMAT_RGBA_8888;

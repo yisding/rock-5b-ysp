@@ -99,6 +99,7 @@ The smoke tests differ in what device access they need:
 > | `IOCTL_FUZZ_FAIL_NTH_REQUIRE_HIT` | `ioctl-fuzz-smoke.sh` | require each fail-nth sweep run to consume at least one injected fault; the wrapper defaults this to `1` when `IOCTL_FUZZ_FAIL_NTH_MAX` is set |
 > | `IOCTL_FUZZ_OUT` | `ioctl-fuzz-smoke.sh` | optional directory for persisted fuzzer stdout/stderr and, when dmesg scanning is enabled, before/after dmesg snapshots |
 > | `IOCTL_FUZZ_DMESG_SCAN`, `IOCTL_FUZZ_REQUIRE_DMESG` | `ioctl-fuzz-smoke.sh` | scan new dmesg lines for fatal signatures after each logged run; `REQUIRE_DMESG=1` also fails if dmesg is unreadable |
+> | `IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS` | `iommu-machinery-fuzz.sh` | strict attribution mode; when set to `1`, RGA phases fail unless Route B debugfs counters are captured, `attempt`/`ok` increase, and `active` is zero after the run |
 > | `RECOVERY_CASES` | `rewrite-recovery-stress.sh` | recovery cases to run: `kill`, `reset`, `unbind`, or `list-bindings`; default `kill` |
 > | `RECOVERY_WORKLOAD_CMD` | `rewrite-recovery-stress.sh` | busy workload command run in its own process group while the harness kills, resets, or unbinds around it; default is a narrowed `rewrite-conformance-run.sh` profile run |
 > | `RECOVERY_UNBIND_TARGETS` | `rewrite-recovery-stress.sh` | space-separated `driver:device` platform binding specs for the opt-in unbind/rebind case; use `RECOVERY_CASES=list-bindings` to print candidates |
@@ -135,6 +136,7 @@ GST_EVENT_HARNESS_VALIDATE_BUILD=1 bash build-gstreamer-rockchip.sh  # device-fr
 sudo env RGA_FAIL_ON_CASE_FAILURE=1 bash rga-mmu-debug.sh  # RGA3/IOMMU validation gate
 IOMMU_FUZZ_VALIDATE_BUILD=1 bash iommu-machinery-fuzz.sh  # device-free RGA scatter-fuzzer compile check
 sudo bash iommu-machinery-fuzz.sh  # booted Route B/IOMMU stress gate
+sudo env IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS=1 bash iommu-machinery-fuzz.sh  # require direct Route B counter attribution
 RECOVERY_VALIDATE_ONLY=1 bash rewrite-recovery-stress.sh  # device-free recovery harness config check
 sudo RECOVERY_WORKLOAD_CMD='PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash "$TEST_DIR/rewrite-conformance-run.sh"' RECOVERY_CASES="kill reset" bash rewrite-recovery-stress.sh  # kill/reset recovery stress around a busy profile run
 sudo RECOVERY_CASES=list-bindings bash rewrite-recovery-stress.sh  # print rewrite platform bindings for opt-in unbind testing
