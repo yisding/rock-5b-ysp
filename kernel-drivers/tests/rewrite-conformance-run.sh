@@ -330,6 +330,9 @@ run_validation()
 	run_step "fuzzing: validate syzlang ABI constants" \
 		bash "$TEST_DIR/syzkaller/check-rockchip-syzlang.sh"
 
+	run_optional_step "fuzzing: compile syzlang with syzkaller" \
+		bash "$TEST_DIR/syzkaller/check-rockchip-syzlang-compile.sh"
+
 	run_step "fuzzing: validate ioctl mutator build" \
 		env IOCTL_FUZZ_VALIDATE_BUILD=1 \
 		bash "$TEST_DIR/ioctl-fuzz-smoke.sh"

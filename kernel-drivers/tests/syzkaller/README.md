@@ -22,9 +22,24 @@ syzlang file:
 kernel-drivers/tests/syzkaller/check-rockchip-syzlang.sh
 ```
 
-The check does not compile syzlang; syzkaller is not vendored here. It verifies
-that the ioctl numbers and struct sizes recorded in the syzlang draft still
-match `kernel-drivers/tests/abi-probe.sh`, accepting the probe's `77` skip exit
-when the device nodes are not present. The same check is part of
-`VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh`, so the normal
-device-free conformance validation fails if the draft's ABI constants drift.
+That mandatory check verifies that the ioctl numbers and struct sizes recorded
+in the syzlang draft still match `kernel-drivers/tests/abi-probe.sh`, accepting
+the probe's `77` skip exit when the device nodes are not present. The same check
+is part of `VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh`, so
+the normal device-free conformance validation fails if the draft's ABI constants
+drift.
+
+If an upstream syzkaller checkout and Go toolchain are available, also compile
+the draft with syzkaller's real description generator:
+
+```sh
+SYZKALLER_DIR=/path/to/syzkaller \
+kernel-drivers/tests/syzkaller/check-rockchip-syzlang-compile.sh
+```
+
+The compile check copies the syzkaller tree to a temporary directory, installs
+the Rockchip draft as `sys/linux/dev_rockchip_mpp_rga.txt`, and runs
+`make descriptions` there so the source checkout is not dirtied. The conformance
+runner calls this as an optional step; it exits `77` and is reported as skipped
+when `SYZKALLER_DIR` or Go is missing. Set `SYZKALLER_REQUIRE_COMPILE=1` to make
+that absence a hard failure for a fuzzing-prep host.

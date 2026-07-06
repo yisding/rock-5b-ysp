@@ -33,7 +33,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ⚠️ compile-only `race` profile exists in [`rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh); KCSAN is deliberately **off** in `debug-kernel.md` | **add** — a separate booted build (§3) |
 | **Fault injection & recovery** | ⚠️ [`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh) now orchestrates kill/close, reset-opener, and opt-in unbind/rebind loops around real workloads, and `VALIDATE_ONLY=1` checks its config; [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh) now has an opt-in `/proc/self/fail-nth` mode for syscall-local allocation/usercopy failures in non-submit ioctls; synthetic hardware timeout/IOMMU fault injection has not run | finish the recovery matrix (§4) |
-| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps, plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; the RGA3 Route B/IOMMU path has a scattered-userptr correctness fuzzer under [`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh); `VALIDATE_ONLY=1` conformance validation now checks syzlang ABI markers, the ioctl mutator build, and the RGA IOMMU fuzzer build, but neither fuzzer has been run under KCOV/KASAN and the syzkaller draft has not yet been compiled by syzkaller | finish §5 |
+| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps, plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; an optional syzkaller `make descriptions` compile check now exists for hosts with `SYZKALLER_DIR` + Go; the RGA3 Route B/IOMMU path has a scattered-userptr correctness fuzzer under [`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh); `VALIDATE_ONLY=1` conformance validation now checks syzlang ABI markers, optionally compiles the syzlang draft with syzkaller, checks the ioctl mutator build, and checks the RGA IOMMU fuzzer build, but neither fuzzer has been run under KCOV/KASAN | finish §5 |
 | **Rewrite-specific security/ABI audit** | ❌ ([`bsp-audit.md`](./bsp-audit.md) is the *forward-port*) | **add** (§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
@@ -218,8 +218,12 @@ register image; many in RGA).
   [`../tests/syzkaller/check-rockchip-syzlang.sh`](../tests/syzkaller/check-rockchip-syzlang.sh),
   which keeps its ioctl constants and struct-size markers in sync with
   `abi-probe.sh` and is now run by
-  `VALIDATE_ONLY=1 ../tests/rewrite-conformance-run.sh`. It still needs to be
-  imported into a syzkaller checkout and compiled there.
+  `VALIDATE_ONLY=1 ../tests/rewrite-conformance-run.sh`. The optional
+  [`../tests/syzkaller/check-rockchip-syzlang-compile.sh`](../tests/syzkaller/check-rockchip-syzlang-compile.sh)
+  imports the draft into a temporary copy of an upstream syzkaller checkout and
+  runs `make descriptions` when `SYZKALLER_DIR` and Go are available; set
+  `SYZKALLER_REQUIRE_COMPILE=1` on a fuzzing-prep host to make a missing compile
+  environment a hard failure.
   Expand it for each node:
   - `/dev/mpp_service`: the `MPP_IOC_CFG_V1` message + `mpp_bat_msg` batch
     grammar, all `MPP_CMD_*` subcommands, and the structured register-image blob.
