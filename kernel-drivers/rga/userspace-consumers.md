@@ -52,7 +52,8 @@ as useful but non-blocking conformance work:
   fd-backed crop, CSC, resize, release-fence, and acquire-fence chain, but not
   `rkmppenc`'s `--check-mppinfo`/`--check-rgainfo` probes, `--output-res` CLI
   path, `--vpp-resize rga_*` selection, separate MPP-frame producer, or full
-  filter graph;
+  filter graph. `rkmppenc-suite.sh` now makes those app-level probes and short
+  generated resize/encode/transcode cases executable as an opt-in YSP profile;
 - add one standalone `gstreamer-rga` or `videoflip` RGA pipeline if we want an
   independent GStreamer converter outside JeffyCN's plugin; the GStreamer
   suite now has opt-in `GST_ENABLE_VIDEOFLIP_RGA_CASES=1` diagnostics for the
