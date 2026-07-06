@@ -16,20 +16,29 @@ Line anchors are against `../kernel/linux-6.18-rkvenc-av1-fwport` at the DIAG HE
 | 3 | `drivers/video/rockchip/rga3/{rga_dma_buf.c,rga_debugger.c}` | Route B stats + **active gauge** + interior trace + `force_iommu_remap` knob | `rkrga/route_b/*` coverage + leak check |
 | 4 | `kconfig-debug.fragment` | `DMA_API_DEBUG`, `KALLSYMS_ALL`, `IOMMU_DEBUGFS` | `DMA-API:` dmesg lines |
 
-> **Status.** The config layer (patch 4) is **build-wired**: `IOMMU_DEBUG=yes`
-> makes `build-armbian-deb.sh` stage an Armbian `custom_kernel_config` hook
-> ([`lib.config`](lib.config)) that enables `DMA_API_DEBUG` / `KALLSYMS_ALL` /
-> `IOMMU_DEBUGFS` (staged/removed each run so the userpatches reset can't strand
-> it). The **driver instrumentation** (patches 1–3: per-master fault counters,
-> Route B stats/gauge, force knob) was applied and compile-verified with
-> `ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-`, then dropped when
-> `rkvenc-fwport-6.18` was rebased clean (HEAD is now Route B + the rkvenc RCB
-> fix, no DIAG). It is **not currently on the branch**. Re-apply it as either
-> port commits or — to match the build-time debug-overlay model — staged
-> `IOMMU_DEBUG` userpatches. Until then, a debug build has the config-level
-> signals (`DMA-API:` dmesg lines, kprobe-able helpers) but **not** the
-> `route_b/*` or `*-iommu/<dev>` debugfs counters. The sections below are the
-> reference for re-applying. Signal usage:
+> **Status.** The **driver instrumentation** (patches 1–3: per-master fault
+> counters, Route B stats/gauge, force knob) is **committed on the fwport
+> branch** — `801c756` (Route B stats + force knob + `route_b/` debugfs) and
+> `30457c7` (per-device IOMMU fault counters). `build-armbian-deb.sh` turns every
+> `v6.18..HEAD` commit into a userpatch, so these land in **every** build,
+> debug or not — independent of `IOMMU_DEBUG`. They only need `CONFIG_DEBUG_FS`
+> (always =y), so the `route_b/*` and `*-iommu/<dev>` debugfs counters are live
+> on any build of this branch (read them as **root**).
+>
+> The **config layer** (patch 4: `DMA_API_DEBUG` / `KALLSYMS_ALL` /
+> `IOMMU_DEBUGFS`) is opt-in via `IOMMU_DEBUG=yes`, which stages an Armbian
+> **extension** ([`extensions/ysp-iommu-debug.sh`](extensions/ysp-iommu-debug.sh))
+> and passes `ENABLE_EXTENSIONS=ysp-iommu-debug` to `compile.sh`. **Do not** use
+> `userpatches/lib.config` for this: Armbian sources `lib.config` *after* the
+> extension manager has initialized, so a `custom_kernel_config` hook defined
+> there is never registered (Armbian calls it "wishful hooking"; see
+> `lib/functions/configuration/main-config.sh`). The earlier `lib.config` wiring
+> silently no-op'd — an `IOMMU_DEBUG=yes` build came out byte-identical to a
+> normal one, with `DMA_API_DEBUG` still unset. The extension path is the fix.
+>
+> Net: a plain build of this branch has the `route_b/*` + `*-iommu/<dev>`
+> counters and the force knob but **no** `DMA-API:` auditing; an
+> `IOMMU_DEBUG=yes` build adds the config-level signals on top. Signal usage:
 > [`../../tests/IOMMU-FUZZING.md`](../../tests/IOMMU-FUZZING.md).
 
 ---
@@ -181,14 +190,24 @@ branches deterministically. Lower priority; ask and I'll write it.
 
 ## Apply + build
 
+Patches 1–3 are already committed on the fwport branch (`801c756`, `30457c7`), so
+the **Armbian** path needs nothing by hand — just opt into the config layer:
+
 ```sh
-# 1. config
-./scripts/kconfig/merge_config.sh -m .config kernel-drivers/patches/iommu-debug/kconfig-debug.fragment
-make olddefconfig
-# 2. patches 1–3 by hand (above) or ask for git-apply-ready diffs
-# 3. build as usual; boot; then:
-sudo kernel-drivers/tests/iommu-machinery-fuzz.sh          # full A+B+C run
+# Armbian .deb build (driver instrumentation rides the fwport commits automatically):
+IOMMU_DEBUG=yes kernel-drivers/scripts/build-armbian-deb.sh   # adds DMA_API_DEBUG etc.
+# reboot into the new kernel, then:
+sudo kernel-drivers/tests/iommu-machinery-fuzz.sh             # full A+B+C run
 ```
+
+For a **direct / non-Armbian** kernel build, apply the config fragment yourself
+(patches 1–3 are in the tree already):
+
+```sh
+./scripts/kconfig/merge_config.sh -m .config kernel-drivers/patches/iommu-debug/kconfig-debug.fragment
+make olddefconfig && make ...     # build as usual; boot; then run the fuzzer above
+```
+
 With the instrumented kernel, a run prints `route_b/*` deltas (proving the
 fallback fired and how often), per-master fault counts from both providers, any
 `DMA-API:` violations, and asserts the `active` gauge returned to baseline.

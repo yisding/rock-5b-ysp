@@ -71,6 +71,11 @@ dmesg_faults() { # before after -> prints offending lines (0 = clean)
 # ---------------------------------------------------------------- preflight ---
 log "================= preflight ================="
 log "  kernel: $(uname -r) $(uname -v | grep -oE '#[0-9]+')"
+if [ "${EUID:-$(id -u)}" -ne 0 ]; then
+  log "  NOTE: not root -- dmesg fault scan uses '$([ "${#SUDO_CMD[@]}" -gt 0 ] && echo "${SUDO_CMD[*]}" || echo none)', but the"
+  log "        debugfs counter/leak snapshot is read directly and needs root. For full"
+  log "        coverage+leak signal, run the whole script as root: sudo $0 $*"
+fi
 if grep -qm1 'rga_dma_check_iova_span' /proc/kallsyms 2>/dev/null; then
   log "  Route B: present (rga_dma_check_iova_span in kallsyms)"
 else
@@ -163,7 +168,20 @@ if [ "$(wc -l < "$OUT/counters-delta.tsv" 2>/dev/null || echo 0)" -gt 1 ]; then
   leaked=$(awk -F'\t' 'NR>1 && $2 ~ /active/ && $5 != 0 && $5 != "" {print}' "$OUT/counters-delta.tsv")
   [ -z "$leaked" ] || { log "  !! LEAKED MAPPINGS (active gauge != baseline):"; echo "$leaked" | sed 's/^/     /'; overall=1; }
 else
-  log "  (no instrumentation counters found -- build ../patches/iommu-debug/ for coverage+leak signal)"
+  # No counters in the delta. Three very different causes -- don't conflate them:
+  #   (1) ran non-root: /sys/kernel/debug is 0700 root, so the snapshot read nothing
+  #       (the per-command $SUDO is only used for dmesg, NOT the debugfs snapshot).
+  #   (2) root, dirs exist, genuinely zero deltas (unlikely after phase A).
+  #   (3) root but dirs absent: driver instrumentation (patches 1-3) not in this kernel.
+  if [ "${EUID:-$(id -u)}" -ne 0 ]; then
+    log "  (no counters read -- /sys/kernel/debug is root-only; run the WHOLE script as root:"
+    log "     sudo $0 ${*:-}   -- per-command sudo does NOT expose the debugfs snapshot)"
+  elif "${SUDO_CMD[@]}" test -d /sys/kernel/debug/rkrga/route_b 2>/dev/null; then
+    log "  (instrumentation present but no counter deltas this run)"
+  else
+    log "  (no instrumentation counters in this kernel -- driver patches 1-3 not built;"
+    log "     see ../patches/iommu-debug/README.md. Correctness+dmesg-fault checks still valid.)"
+  fi
 fi
 grep -E 'MemFree|MemAvailable|Slab' /proc/meminfo > "$OUT/meminfo-after.txt"
 
