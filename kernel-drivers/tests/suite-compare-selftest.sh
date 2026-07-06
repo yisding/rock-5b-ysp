@@ -328,10 +328,12 @@ check_compare_script mpp-suite-compare.sh
 check_compare_script librga-suite-compare.sh REQUIRE_ARTIFACTS=0
 check_compare_script gstreamer-suite-compare.sh REQUIRE_ARTIFACTS=0
 check_compare_script ffmpeg-suite-compare.sh REQUIRE_ARTIFACTS=0
+check_compare_script rkmppenc-suite-compare.sh REQUIRE_ARTIFACTS=0
 check_artifact_compare mpp-suite-compare.sh mpp
 check_artifact_compare librga-suite-compare.sh librga
 check_artifact_compare gstreamer-suite-compare.sh gstreamer
 check_artifact_compare ffmpeg-suite-compare.sh ffmpeg
+check_artifact_compare rkmppenc-suite-compare.sh rkmppenc
 check_counter_check
 check_librga_latest_filter
 

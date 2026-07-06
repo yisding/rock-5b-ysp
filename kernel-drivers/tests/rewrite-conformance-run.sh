@@ -345,6 +345,13 @@ run_comparators()
 			CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
 			bash "$TEST_DIR/ffmpeg-suite-compare.sh"
 	fi
+
+	if [ "$RUN_RKMPPENC_SUITE" = "1" ]; then
+		run_step "rkmppenc: compare latest suite summaries" \
+			env BASELINE="$baseline" CANDIDATE="$candidate" \
+			CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
+			bash "$TEST_DIR/rkmppenc-suite-compare.sh"
+	fi
 }
 
 run_validation()

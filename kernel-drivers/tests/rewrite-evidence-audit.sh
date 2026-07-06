@@ -228,12 +228,12 @@ selftest()
 	tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/rk-evidence-audit.XXXXXX")"
 	trap 'rm -rf "$tmp_root"' RETURN
 
-	for suite in mpp librga gstreamer ffmpeg; do
+	for suite in mpp librga gstreamer ffmpeg rkmppenc; do
 		write_fixture_suite "$tmp_root" "$BASELINE" "$suite"
 		write_fixture_suite "$tmp_root" "$CANDIDATE" "$suite"
 	done
 
-	CONFORMANCE_ROOT="$tmp_root" SUITES="mpp librga gstreamer ffmpeg" \
+	CONFORMANCE_ROOT="$tmp_root" SUITES="mpp librga gstreamer ffmpeg rkmppenc" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
 		RUN_COMPARATORS=1 "$0" >/dev/null
 
