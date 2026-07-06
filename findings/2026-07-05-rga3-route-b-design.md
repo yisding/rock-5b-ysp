@@ -3,9 +3,11 @@
 > Scope: forward-port `../kernel/linux-6.18-rkvenc-av1-fwport` RGA3 driver,
 > rewrite trees `../kernel/linux-6.18-rkvenc` and `../kernel/linux`, and patch
 > artifacts in `kernel-drivers/patches/route-b/`.
-> Source: Route B patch construction and focused object builds on 2026-07-05.
+> Source: Route B patch construction, focused object builds, and Route-B-only
+> `rga-mmu-debug.sh` smoke runs on 2026-07-05.
 > Date: 2026-07-05
-> Trust: CODE-INSPECTED / BUILD-VERIFIED. Hardware runtime validation pending.
+> Trust: CODE-INSPECTED / BUILD-VERIFIED / BEHAVIORAL-SMOKE-PASSED for the
+> forward-port; direct Route B fallback attribution still pending.
 > Related: [[2026-07-04-rga3-im2d-error-irq]],
 > [[2026-07-05-rga3-memory-import-contract]],
 > [[2026-07-05-rga3-scattered-iova-mechanism]]
@@ -72,10 +74,77 @@ the RGA3 register-wrap fault fixed by the earlier guard-band change. The
 validator uses an overflow-checked `base + size - 1` calculation, so oversized
 or wrapped spans fail closed before any address is programmed.
 
-This is still a candidate architecture until the runtime gate passes with
-route-specific attribution. Static verification proves that the patches apply,
-pass style, and build; it does not prove that scattered `virt_addr` jobs
-complete on RK3588 hardware or that the silent Route B fallback was executed.
+Static verification proves that the patches apply, pass style, and build. The
+Route-B-only forward-port image also now proves the selected scattered
+`virt_addr` demo family can complete on RK3588 hardware without RGA/IOMMU fault
+signatures. What remains unproven is direct attribution to the silent fallback:
+the clean test image intentionally did not include a success log/counter in
+`rga_dma_map_sgt_iommu()`.
+
+## Runtime smoke after Route B-only build
+
+Route B strings were present in the installed image:
+
+```text
+driver-owned IOMMU
+iommu_dma_get_iova_domain
+```
+
+The temporary diagnostic string was absent:
+
+```text
+DIAG rga_dma_map_sgt
+```
+
+So the booted image was the clean Route-B-only profile, not the debug-tip profile
+with fallback breadcrumbs.
+
+Repeated runs under
+`../rockchip-conformance/logs/rga-mmu-debug/20260705-182754` through
+`../rockchip-conformance/logs/rga-mmu-debug/20260705-182808` all reported `pass`
+for:
+
+- `rga_copy_demo`
+- `rga_resize_rect_demo`
+- `rga_transform_rotate_demo`
+
+The filtered dmesg in those runs contained no `DIAG rga_dma_map_sgt`, no
+`reject sg_table DMA mapping`, no `INTR[0x2]`, no IOMMU page fault, and no RGA
+`finished N failed M` fault where `M > 0`.
+
+This is strong indirect Route B evidence because the earlier debug run at
+`../rockchip-conformance/logs/rga-mmu-debug/20260705-151723` showed the same
+demo family fail closed with non-contiguous userptr imports:
+
+```text
+orig_nents=895 nents=895 contiguous=0 gaps=894 ... reject sg_table DMA mapping
+orig_nents=386 nents=386 contiguous=0 gaps=9   ... reject sg_table DMA mapping
+orig_nents=367 nents=367 contiguous=0 gaps=306 ... reject sg_table DMA mapping
+orig_nents=492 nents=492 contiguous=0 gaps=68  ... reject sg_table DMA mapping
+orig_nents=390 nents=390 contiguous=0 gaps=367 ... reject sg_table DMA mapping
+orig_nents=389 nents=389 contiguous=0 gaps=36  ... reject sg_table DMA mapping
+```
+
+The exact fallback execution count is still unknown from the clean-image logs.
+To make the fallback itself runtime-proven, rebuild the debug-tip profile or add
+a temporary positive breadcrumb/counter in `rga_dma_map_sgt_iommu()` and capture
+a passing selected case that entered Route B.
+
+## IOMMU notes from bring-up
+
+RK3588 RGA3 uses the external Rockchip IOMMU. Debugfs identifies the RGA3 cores
+as `mmu: RK_IOMMU`, while the older RGA2 core is `mmu: RGA_MMU`.
+
+The RGA3 command dumps can still show:
+
+```text
+mmu: win0 = 00 win1 = 00 wr = 00
+```
+
+That line is the internal RGA3 command MMU bitfield and is expected to be zero
+when RGA3 uses the external RK_IOMMU. It is not evidence that the command uses
+physical addresses. The `handle[...] iova = ... dma_addr = ...` lines are the
+device-visible IOVA values that the command path programs.
 
 ## Verification
 
@@ -93,7 +162,7 @@ Verification on 2026-07-05:
   rewrite `rga_rewrite.o`, including the page-granule and overflow-safe span
   guards; the same focused targets also pass with `W=1`.
 
-Hardware runtime validation is still pending; the runbook is
-`kernel-drivers/patches/route-b/runtime-validation.md`. Until that is run and
-records fallback-path evidence, the finding is "build-verified candidate
-design", not a runtime-proven fix.
+The runbook is `kernel-drivers/patches/route-b/runtime-validation.md`. The
+forward-port has a behavioral smoke pass. Until a Route B breadcrumb/counter is
+captured, the finding is "behavioral smoke passed; direct fallback attribution
+pending", not a fully runtime-proven fallback.

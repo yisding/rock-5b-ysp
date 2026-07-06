@@ -11,6 +11,30 @@ command streams still carry base addresses, not scatterlists. Every imported
 plane must still resolve to one byte-contiguous device-visible address range
 whose programmed base and final byte fit in the RGA3 32-bit address registers.
 
+## What "IOMMU" Means Here
+
+RGA3 on RK3588 uses the external Rockchip system IOMMU, not the older internal
+RGA MMU. Debugfs reports the RGA3 cores as `mmu: RK_IOMMU`; the RGA2 core reports
+`mmu: RGA_MMU`. That distinction matters when reading the vendor debug logs:
+
+- RGA3 command dumps can print internal command fields as
+  `mmu: win0 = 00 win1 = 00 wr = 00`. That does not mean the job is using
+  physical addresses. It means the RGA3 internal MMU command bits are disabled.
+  Address translation is still handled by the external RK_IOMMU attached to the
+  RGA device.
+- `handle[...] iova = ... dma_addr = ...` lines in the RGA3 logs are the
+  device-visible addresses programmed into the command stream. With Route B,
+  those addresses can be synthetic IOVAs allocated by the driver from the same
+  translated DMA domain allocator that the DMA API uses.
+- The hardware still gets one base address per plane. Neither the external
+  RK_IOMMU nor Route B changes the command stream into a scatterlist ABI.
+
+The installed Route-B-only 6.18 test image was checked with `strings` on
+`/boot/vmlinuz-6.18.38-current-rockchip64`: it contains the Route B strings
+`driver-owned IOMMU` and `iommu_dma_get_iova_domain`, and it does not contain the
+temporary diagnostic string `DIAG rga_dma_map_sgt`. That proves the image has the
+clean Route B code, but not the temporary fallback breadcrumb commits.
+
 ## Invariants
 
 - DMA-buf imports remain fail-closed. If a dma-buf import does not map as one
@@ -168,7 +192,7 @@ The algorithm is intentionally the same, but the attachment points differ:
 That difference avoids forcing the rewrite into the vendor helper shape while
 still keeping the core Route B rules aligned.
 
-## Verification Boundary
+## Runtime Evidence Boundary
 
 As of 2026-07-05:
 
@@ -176,10 +200,17 @@ As of 2026-07-05:
 - strict checkpatch is clean;
 - focused object builds pass;
 - focused `W=1` object builds pass;
-- RK3588 runtime validation has not yet been run on a Route B kernel.
+- a Route-B-only forward-port kernel passed repeated scattered `virt_addr`
+  librga smoke runs on RK3588 without RGA/IOMMU faults.
 
-The architecture is therefore a static/build-verified candidate, not a
-runtime-proven fix. Completion requires booting the Route B forward-port kernel,
-passing the behavioral runtime gate in `runtime-validation.md`, and recording
-route-specific evidence that at least one selected scattered userptr case entered
-the Route B fallback rather than succeeding through the normal DMA API path.
+The runtime result is a behavioral pass and strong indirect evidence for Route B:
+the same demo family previously produced non-contiguous `orig_nents == nents`
+DMA mappings and failed closed with `reject sg_table DMA mapping`, while the
+Route-B-only image now runs the selected cases to completion with no rejects,
+faults, or failed RGA jobs.
+
+It is still not direct fallback-path proof. The clean image intentionally lacks a
+success log/counter in `rga_dma_map_sgt_iommu()`, so the artifacts cannot show
+which individual import entered Route B. Completion still requires either a
+one-run debug-tip kernel or a temporary positive breadcrumb/counter in the Route
+B helper, plus the same case passing without RGA/IOMMU faults.

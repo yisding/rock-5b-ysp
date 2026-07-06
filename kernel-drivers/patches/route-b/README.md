@@ -1,9 +1,9 @@
 # RGA3 Route B userptr mapping
 
-Experimental follow-up patches for scattered RGA3 `virt_addr` / userptr
-buffers. These are not part of the validated base patch pair yet; they are the
-candidate Route B implementation on top of the current forward-port and rewrite
-trees.
+Follow-up patches for scattered RGA3 `virt_addr` / userptr buffers. Patch 0001
+is the forward-port Route B implementation that now has RK3588 behavioral smoke
+coverage; patch 0002 is the same design ported to the rewrite trees and remains
+build-verified until a rewrite kernel is booted.
 
 ## Patches
 
@@ -17,16 +17,29 @@ Runtime validation instructions live in [`runtime-validation.md`](runtime-valida
 
 ## Consumption Boundary
 
-For the RK3588 forward-port runtime test, consume patch 0001 by applying it to
-the current forward-port source tree first, then point `build-armbian-deb.sh` at
-that patched source tree with `KERNEL_TREE=...`. The build script regenerates a
-complete Armbian userpatch archive from `v6.18..HEAD`, minus the script's
-`SKIP_COMMITS` list for commits already carried by the Armbian base. It does not
-consume patch 0001 directly as a standalone Armbian userpatch.
+For the RK3588 forward-port runtime test, point `build-armbian-deb.sh` at a
+source tree whose checked-out commit already contains patch 0001 with
+`KERNEL_TREE=...`. If starting from a pre-Route-B base, apply patch 0001 once in
+that source tree first. Do not apply patch 0001 again on top of a Route-B branch.
+The build script regenerates a complete Armbian userpatch archive from
+`v6.18..HEAD`, minus the script's `SKIP_COMMITS` list for commits already
+carried by the Armbian base. It does not consume patch 0001 directly as a
+standalone Armbian userpatch.
 
 Patch 0002 is not part of the forward-port kernel build. It is the compatibility
 rewrite version of the same Route B design and should only be applied when
 building one of the rewrite trees.
+
+The local forward-port state recorded on 2026-07-05 has
+`rkvenc-fwport-6.18-route-b` as the clean Route-B-only branch at
+`2b52e8174c12`. The `rkvenc-fwport-6.18` and
+`rkvenc-fwport-6.18-route-b-debug-tip` branches keep temporary diagnostic
+commits above Route B. Those diagnostics are useful for one-run fallback
+attribution, but they are not part of the publishable Route-B-only branch. If
+the installed image contains `driver-owned IOMMU` and
+`iommu_dma_get_iova_domain` strings but does not contain
+`DIAG rga_dma_map_sgt`, it is a clean Route-B-only image: good for behavioral
+testing, but it will not prove the silent fallback path by itself.
 
 Before installing a Route B kernel, use the exact `PHASH` printed by the build
 script. Do not reuse an older `PHASH`, and do not treat the static checks below
@@ -78,6 +91,12 @@ visible, instead of casting the opaque cookie through an RGA-local shadow type.
 This keeps synthetic IOVA allocation in the same address space as the DMA API
 mappings.
 
+On RK3588, RGA3 debugfs reports `mmu: RK_IOMMU`, while the older RGA2 core
+reports `mmu: RGA_MMU`. RGA3 command dumps can still show
+`mmu: win0 = 00 win1 = 00 wr = 00`; that is the internal RGA3 command MMU state,
+not evidence that the job bypassed the external RK_IOMMU. The programmed
+`handle[...] iova` / `dma_addr` values are the device-visible IOVA addresses.
+
 Route B fails closed if the domain is not a translated paging domain, if the
 domain does not expose a DMA IOVA cookie, or if the DMA domain's IOVA granule is
 larger than `PAGE_SIZE`. RGA needs one byte-contiguous view; with larger IOVA
@@ -119,10 +138,14 @@ Status on 2026-07-05:
   overflow-safe span guards; the same focused targets also pass with `W=1`:
   - forward-port: `rga_dma_buf.o`, `rga_mm.o`, `rga_drv.o`
   - rewrite: `rga_rewrite.o`
+- A clean Route-B-only forward-port image passed repeated RK3588
+  `rga-mmu-debug.sh` smoke runs for `rga_copy_demo`, `rga_resize_rect_demo`, and
+  `rga_transform_rotate_demo`.
 
-No RK3588 hardware runtime validation has been run yet for Route B. The required
-runtime gate is the scattered `virt_addr` librga path that previously failed
-closed, plus the contiguous-buffer regression path that already passed before
-Route B. The gate must also include route-specific attribution, such as a
-temporary debug counter/print proving `rga_dma_map_sgt_iommu()` handled at least
-one selected case, before claiming the Route B fallback itself is runtime-proven.
+The Route-B-only smoke evidence is a behavioral pass and strong indirect
+evidence because the same demo family previously failed closed with
+non-contiguous `orig_nents == nents` userptr mappings. It is not direct fallback
+attribution: the clean image did not include a Route B success breadcrumb. To
+claim the fallback itself is runtime-proven, rebuild the debug-tip profile or
+add a temporary counter/print in `rga_dma_map_sgt_iommu()` and capture at least
+one passing case that entered the fallback.

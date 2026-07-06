@@ -46,6 +46,14 @@ the pages into one contiguous IOVA. RGA2 *can*. That difference is why a scatter
 userptr buffer may work on RGA2 and be rejected on RGA3 (see the limitation
 section and the finding).
 
+Route B bring-up exposed one easy log-reading trap: RGA3 command dumps can print
+`mmu: win0 = 00 win1 = 00 wr = 00`. Those are the internal RGA3 command MMU
+fields and are expected to be zero when RGA3 uses the external RK_IOMMU. They are
+not evidence that the job bypassed the IOMMU or used physical addresses. The
+debugfs hardware line (`mmu: RK_IOMMU`) identifies the external model, and the
+`handle[...] iova` / `dma_addr` lines show the device-visible IOVA values that
+the command path programs.
+
 ## RGA: IOMMU setup and the shared domain
 
 Each RGA3 core has its own IOMMU instance (doc 02), but the driver makes them
@@ -159,24 +167,36 @@ generic DMA/IOMMU stack. All three are load-bearing together:
 Full root-cause, fault addresses, and the runtime validation are in
 [`../../../findings/2026-07-04-rga3-im2d-error-irq.md`](../../../findings/2026-07-04-rga3-im2d-error-irq.md).
 
-## The known limitation: scattered userptr on RGA3
+Route B is the follow-up for driver-owned scattered userptr sg-tables that fail
+that contract after the normal DMA API map. It allocates one guard-banded IOVA
+span from the translated RGA DMA domain cookie, maps a page-aligned copy of the
+physical sg-table with `iommu_map_sg()`, and keeps cache maintenance on the
+original physical sg-table. The driver gets the DMA domain allocator through the
+exported `iommu_dma_get_iova_domain()` helper in `drivers/iommu/dma-iommu.c`
+instead of casting the opaque cookie through a local shadow struct. Dma-buf
+imports remain fail-closed.
+
+## Scattered userptr on RGA3 and Route B
 
 The contract requires `nents == 1`, and on this platform `dma_map_sg()` for the
 RGA3 `map_dev` returns `nents == orig_nents` (no coalescing) — so a physically
 **scattered** userptr buffer (e.g. `orig_nents == 341` for a fragmented 3.6 MB
 malloc) is rejected, while a buffer that happens to land physically contiguous
-passes. This is **by design** (fail-closed beats faulting) but flaky by allocation
-luck. Notably:
+passes. This was **by design** before Route B: fail-closed beats faulting, but it
+made raw-malloc `virt_addr` imports flaky by allocation luck. Notably:
 
 - raising `max_seg_size` does **not** help — it is already `DMA_BIT_MASK(32)` and
   `nents == orig_nents` proves no merge is even attempted (the device isn't on the
   coalescing iommu-dma path). Proven in the finding.
 - real pipelines feed RGA **dma-buf** (CMA-backed → `orig_nents == 1`), which
   always passes; only raw-malloc `virt_addr` imports hit this.
-- if scattered userptr on RGA3 must work, the fix is a driver-owned
-  `iommu_map_sg()` into a translated RGA domain to synthesize one IOVA ("Route B"
-  in the finding) — not a config tweak. Otherwise route userptr to the RGA2 core
-  (`RGA_MMU`), whose internal page-table MMU handles scatter.
+- Route B is the driver-owned `iommu_map_sg()` fix for RGA3 userptr, not a config
+  tweak. The forward-port Route-B-only kernel passed repeated RK3588 behavioral
+  smoke runs for `rga_copy_demo`, `rga_resize_rect_demo`, and
+  `rga_transform_rotate_demo`; direct fallback attribution still needs a
+  temporary positive breadcrumb/counter in the Route B helper.
+- without Route B, route scattered userptr to the RGA2 core (`RGA_MMU`), whose
+  internal page-table MMU handles scatter.
 
 ## Source map
 
@@ -198,3 +218,6 @@ luck. Notably:
   SOFT/HARD CCU finding.
 - [`../../../findings/2026-07-04-rga3-im2d-error-irq.md`](../../../findings/2026-07-04-rga3-im2d-error-irq.md)
   — the RGA3 MMU-fault root-cause + the scattered-buffer limitation.
+- [`../../patches/route-b/architecture.md`](../../patches/route-b/architecture.md)
+  — Route B architecture, IOMMU-domain allocator model, and runtime evidence
+  boundary.

@@ -7,7 +7,8 @@
 > Source: temporary map-site DIAG (`eb0f3e209007` + fixups `30102c8f769e`,
 > `171de4153e97`) run on `6.18.38-current-rockchip64 #13`
 > (`../rockchip-conformance/logs/rga-mmu-debug/20260705-151723`), plus
-> code / kernel-config / DT inspection.
+> code / kernel-config / DT inspection; post-Route-B Route-B-only smoke runs
+> `20260705-182754` through `20260705-182808`.
 > Date: 2026-07-05
 > Trust: MEASURED for the IOVA-address fingerprint and guard-band clustering;
 > CODE-INSPECTED for the coalescing path, RGA3 coherency, and the bounce config;
@@ -131,3 +132,24 @@ above:
 2. **Keep the 32-bit-safe placement.** Route B's own IOVA allocation must stay below
    the ~`0xE0000000` guard ceiling (or otherwise guarantee base + RGA plane offsets
    do not cross `0xFFFFFFFF`), or the wrap fault `6b9dba7abcd0` fixed comes back.
+
+## Post-Route-B smoke comparison
+
+The Route-B-only 6.18 image installed for the 18:28 runs contained the clean
+Route B strings (`driver-owned IOMMU`, `iommu_dma_get_iova_domain`) and did not
+contain the temporary `DIAG rga_dma_map_sgt` string. Repeated runs at
+`../rockchip-conformance/logs/rga-mmu-debug/20260705-182754` through
+`../rockchip-conformance/logs/rga-mmu-debug/20260705-182808` reported `pass` for
+`rga_copy_demo`, `rga_resize_rect_demo`, and `rga_transform_rotate_demo`.
+
+The filtered logs for those Route-B-only runs contained no `reject sg_table DMA
+mapping`, no `INTR[0x2]`, no IOMMU page fault, and no failed RGA jobs. That is a
+behavioral regression pass for the scattered userptr demo family that previously
+hit the fail-closed rejects documented above.
+
+This does not invalidate the mechanism boundary in this finding. The exact
+reason the generic DMA path returned per-segment IOVAs remains unresolved, and
+the clean Route-B-only logs cannot directly prove which import entered
+`rga_dma_map_sgt_iommu()`. What the comparison does prove is that the selected
+demo family moved from measured non-contiguous userptr rejects to fault-free
+completion under a kernel that contains Route B.
