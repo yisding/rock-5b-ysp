@@ -16,10 +16,21 @@ Line anchors are against `../kernel/linux-6.18-rkvenc-av1-fwport` at the DIAG HE
 | 3 | `drivers/video/rockchip/rga3/{rga_dma_buf.c,rga_debugger.c}` | Route B stats + **active gauge** + interior trace + `force_iommu_remap` knob | `rkrga/route_b/*` coverage + leak check |
 | 4 | `kconfig-debug.fragment` | `DMA_API_DEBUG`, `KALLSYMS_ALL`, `IOMMU_DEBUGFS` | `DMA-API:` dmesg lines |
 
-> These are specs with exact insertion points and code, not yet `.patch` files,
-> so they apply cleanly on top of whatever DIAG fixups are in your tree right now.
-> Say the word and I'll emit `git apply`-ready diffs (generated in a throwaway
-> worktree so it won't touch your in-flight build).
+> **Status.** The config layer (patch 4) is **build-wired**: `IOMMU_DEBUG=yes`
+> makes `build-armbian-deb.sh` stage an Armbian `custom_kernel_config` hook
+> ([`lib.config`](lib.config)) that enables `DMA_API_DEBUG` / `KALLSYMS_ALL` /
+> `IOMMU_DEBUGFS` (staged/removed each run so the userpatches reset can't strand
+> it). The **driver instrumentation** (patches 1–3: per-master fault counters,
+> Route B stats/gauge, force knob) was applied and compile-verified with
+> `ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-`, then dropped when
+> `rkvenc-fwport-6.18` was rebased clean (HEAD is now Route B + the rkvenc RCB
+> fix, no DIAG). It is **not currently on the branch**. Re-apply it as either
+> port commits or — to match the build-time debug-overlay model — staged
+> `IOMMU_DEBUG` userpatches. Until then, a debug build has the config-level
+> signals (`DMA-API:` dmesg lines, kprobe-able helpers) but **not** the
+> `route_b/*` or `*-iommu/<dev>` debugfs counters. The sections below are the
+> reference for re-applying. Signal usage:
+> [`../../tests/IOMMU-FUZZING.md`](../../tests/IOMMU-FUZZING.md).
 
 ---
 

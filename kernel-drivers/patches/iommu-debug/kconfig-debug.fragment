@@ -19,7 +19,6 @@ CONFIG_KALLSYMS_ALL=y
 # decoders) for free. This is the single highest-value flag for Route B + the
 # decoder DMA paths. Violations print "DMA-API: ..." to dmesg (the runner greps it).
 CONFIG_DMA_API_DEBUG=y
-CONFIG_DMA_API_DEBUG_SG=y
 
 # Generic IOMMU debugfs surface (per-domain info) to complement the driver counters.
 CONFIG_IOMMU_DEBUGFS=y
