@@ -39,6 +39,16 @@ allocator handoff. The survey did not find current Linux-media evidence that
 RFBC64x4, AFBC32x8, per-channel rotation, tile alpha/pattern/color-key, or broad
 RGA2-Pro modes should be promoted into the required RK3588 rewrite profile.
 
+The 2026-07-06 Route B rewrite slice changes how to prioritize the virtual
+buffer half of that finding. Public RKNN/RKNPU examples commonly use
+`wrapbuffer_virtualaddr()` or handle imports around userspace-virtual image
+buffers, and direct `librga` samples use the same shape. The rewrite now keeps
+dma-buf imports fail-closed but maps driver-owned pinned userptr sg-tables
+through one contiguous IOMMU IOVA span on RGA3. That is the right compatibility
+target for current Linux direct-librga/RKNN-style virtual buffers; it is not a
+reason to revive physical-address import or broad Android allocator/HWC API
+surface.
+
 Follow-up in this repo now makes the public display/compositor/game-UI signal
 executable too: `librga-smoke.cpp` records a deterministic
 `legacy_bgrx_display_rot90` artifact using fd-backed BGRx `c_RkRgaBlit()` 90

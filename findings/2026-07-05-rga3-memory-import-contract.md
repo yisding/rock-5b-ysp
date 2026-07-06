@@ -5,19 +5,24 @@
 > Source: code inspection of BSP `../kernel/rockchip-kernel` @ `b4ef083dc0c3`,
 > `../kernel/linux-6.18-rkvenc-av1-fwport`
 > `rkvenc-fwport-6.18` @ `eb0f3e209007`,
-> `../kernel/linux-6.18-rkvenc` `rk3588-rewrite-6.18` @ `0e6fa86bd84c`,
-> and `../kernel/linux` `rk3588-rewrite-mainline` @ `c092e016fd29`;
+> pre-Route-B `../kernel/linux-6.18-rkvenc` `rk3588-rewrite-6.18` @
+> `0e6fa86bd84c`, and pre-Route-B `../kernel/linux`
+> `rk3588-rewrite-mainline` @ `c092e016fd29`;
 > related runtime evidence in
 > `findings/2026-07-04-rga3-im2d-error-irq.md`.
 > Date: 2026-07-05
 > Trust: CODE-INSPECTED; MEASURED for the forward-port scattered-userptr reject
 > behavior inherited from the related runtime finding.
 
-> Update 2026-07-05: this finding captured the pre-Route-B state. Candidate
-> Route B patch artifacts now live under `kernel-drivers/patches/route-b/` and
-> are documented in `findings/2026-07-05-rga3-route-b-design.md`. They are
-> apply/checkpatch/object-build verified, but RK3588 hardware runtime validation
-> is still pending.
+> Update 2026-07-05: this finding captured the pre-Route-B state. Route B patch
+> artifacts now live under `kernel-drivers/patches/route-b/` and
+> are documented in `findings/2026-07-05-rga3-route-b-design.md`.
+>
+> Update 2026-07-06: the rewrite-side Route B slice is now committed and pushed
+> to `yisding/linux-rock5b`: `rk3588-rewrite-6.18` @ `235428d394cb` and
+> `rk3588-rewrite-mainline` @ `dab8fb08c9e2`. Both committed tips passed the
+> clean-archive YSP rewrite build gate for `mpp_rewrite.o` and `rga_rewrite.o`.
+> Booted rewrite hardware validation is still pending.
 
 ## The fact
 
@@ -87,16 +92,25 @@ and then applies that contract
 (`../kernel/linux-6.18-rkvenc-av1-fwport/drivers/video/rockchip/rga3/rga_dma_buf.c:139`,
 `:160`, `:169`).  That is fail-closed behavior.  It is not Route B.
 
-The rewrite does not yet have the same fail-closed contract check.  Its userptr
-path pins with `pin_user_pages_fast(FOLL_WRITE | FOLL_LONGTERM)`, builds an
-sg-table with `sg_alloc_table_from_pages()`, calls `dma_map_sgtable()`, and stores
-only `sg_dma_address(sgt->sgl)` as the IOVA
+The pre-Route-B rewrite did not yet have the same fail-closed contract check.
+Its userptr path pinned with `pin_user_pages_fast(FOLL_WRITE | FOLL_LONGTERM)`,
+built an sg-table with `sg_alloc_table_from_pages()`, called
+`dma_map_sgtable()`, and stored only `sg_dma_address(sgt->sgl)` as the IOVA
 (`../kernel/linux-6.18-rkvenc/drivers/video/rockchip/rga-rewrite/rga_rewrite.c:16605`,
 `:16624`, `:16629`, `:16745`).  Its dma-buf import similarly stores the first
 sg DMA address after `dma_buf_map_attachment()`
 (`../kernel/linux-6.18-rkvenc/drivers/video/rockchip/rga-rewrite/rga_rewrite.c:16640`,
 `:16666`, `:16690`).  There is no rewrite-local equivalent of the forward-port
 `nents == 1` and 32-bit-span validation as of `0e6fa86bd84c`.
+
+As of `rk3588-rewrite-6.18` @ `235428d394cb` and
+`rk3588-rewrite-mainline` @ `dab8fb08c9e2`, the rewrite now validates normal
+DMA mappings and keeps dma-buf imports fail-closed unless they resolve to one
+32-bit-safe segment. For driver-owned pinned userptr mappings only, it adds the
+scoped Route B fallback: allocate one byte-contiguous DMA IOVA from the device's
+translated DMA domain, map a page-aligned sg copy with `iommu_map_sg()`, program
+that synthetic IOVA, and unmap/free it explicitly when the import or temporary
+job mapping is released.
 
 The mainline RGA3 V4L2 driver is a different ABI.  It has no vendor
 `RGA_IOC_IMPORT_BUFFER`, no raw physical import, and no arbitrary userptr queue
@@ -111,11 +125,12 @@ userspace can mmap; it does not allow an arbitrary `malloc()` pointer to be
 queued.  Imported dmabufs must present a large enough contiguous chunk
 (`../kernel/linux/drivers/media/common/videobuf2/videobuf2-dma-contig.c:714`).
 
-Neither the current forward-port nor the current rewrite implements Route B: a
-driver-owned `iommu_map_sg()` / synthetic contiguous IOVA range for scattered
-userptr.  Therefore neither one makes physically discontinuous malloc-backed
-memory generally usable on RGA3.  The forward-port rejects unsafe mappings; the
-rewrite currently accepts too much and can still fault.
+The historical gap was that neither the forward-port nor the rewrite implemented
+Route B: a driver-owned `iommu_map_sg()` / synthetic contiguous IOVA range for
+scattered userptr. That is no longer true for the committed rewrite tips above.
+The remaining evidence gap is runtime: the rewrite Route B path is build- and
+style-verified on both target kernels, but still needs booted Rock 5B validation
+against direct virtual-address `librga` workloads.
 
 ## Why it matters / follow-up
 
@@ -129,12 +144,15 @@ provide physically contiguous backing memory; system-heap style exporters may be
 backed by scattered pages.  What matters to RGA3 is that importing the dma-buf
 produces one contiguous device-visible DMA segment for the plane.  The
 forward-port checks that and rejects imported mappings with multiple DMA
-segments.  The rewrite does not yet do that validation.
+segments.  The committed rewrite now applies the same fail-closed rule for
+dma-buf imports.
 
-Plain `malloc()` or anonymous `mmap()` memory should be treated as opportunistic
-on RGA3.  It works only when the pinned pages happen to map as one contiguous,
-non-wrapping device-visible span.  Otherwise the correct behavior is a clean
-reject unless Route B or a staging-copy fallback is added.
+Plain `malloc()` or anonymous `mmap()` memory was previously opportunistic on
+RGA3.  It worked only when the pinned pages happened to map as one contiguous,
+non-wrapping device-visible span.  The rewrite Route B slice is intended to make
+that direct virtual-address path deterministic without weakening the dma-buf
+contract, but hardware conformance still needs to prove it on the booted rewrite
+driver.
 
 ## Implementation options if RGA3 userptr must work
 
@@ -193,7 +211,8 @@ The realistic options are:
    while still giving userspace CPU access, but it is a UAPI and userspace
    integration change.
 
-Rewrite follow-up: port the forward-port's RGA3 DMA mapping contract check into
-`drivers/video/rockchip/rga-rewrite/rga_rewrite.c` before relying on userptr on
-RGA3.  The check should reject empty mappings, `nents != 1`, zero-length
-segments, and spans whose base or end exceed the 32-bit address range.
+Rewrite follow-up: run booted forward-port-vs-rewrite conformance for direct
+virtual-address `librga` smoke cases and GStreamer/RKNN-shaped fd-backed paths.
+The code-side follow-up is now smaller: preserve the fail-closed dma-buf rule,
+keep Route B scoped to driver-owned userptr sg-tables, and add a runtime
+breadcrumb or counter if direct fallback attribution is needed.
