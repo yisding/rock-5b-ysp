@@ -14,6 +14,9 @@ varying.
 | [`probe_interp.c`](probe_interp.c) | Original GBM/EGL/GLES probe. Draws a two-triangle quad with an explicit vertex attribute varying from `0` to `W`, then compares the interpolated value with `i + 0.5`. Includes `smooth`, attempted `noperspective`, and `gl_FragCoord.x` modes. |
 | [`tiny_interp_probe.c`](tiny_interp_probe.c) | Minimal surfaceless EGL/GLES proof. Uses one `gl_VertexID` triangle, no texture, no TXF, no u_blitter, no GBM, and no format-changing readback. This is the canonical GL reproducer. |
 | [`vk_interp_probe.c`](vk_interp_probe.c) | Vulkan/panvk port of the tiny probe. Removes Gallium, u_blitter, and the GL state tracker from the stack. Uses dynamic rendering and copies raw `R32_UINT` bits back with Vulkan. |
+| [`tiny_interp_probe_arm_blob.c`](tiny_interp_probe_arm_blob.c) | RK3588 proprietary ARM Mali variant of the tiny GL reproducer. Keeps the shader/draw/readback/checker identical, but swaps Mesa's surfaceless platform for a GBM display plus `EGL_NO_SURFACE`. |
+| [`vk_interp_probe_arm_blob.c`](vk_interp_probe_arm_blob.c) | ARM-named Vulkan entry point for scripts/logs. It includes `vk_interp_probe.c` directly because the RK3588 libmali ICD advertises Vulkan 1.3, so no Vulkan source fork is needed. |
+| [`README-arm-blob.md`](README-arm-blob.md) | Source-backed ARM/RK3588 driver capability notes, exact patch map, and proprietary-driver build/run instructions. |
 | [`vk_interp_probe.vert`](vk_interp_probe.vert) | Vulkan vertex shader. Emits the varying `v` that should interpolate to `x + 0.5`. |
 | [`vk_interp_probe.varying.frag`](vk_interp_probe.varying.frag) | Vulkan test fragment shader. Stores `floatBitsToUint(v)`. |
 | [`vk_interp_probe.fragcoord.frag`](vk_interp_probe.fragcoord.frag) | Vulkan control fragment shader. Stores `floatBitsToUint(gl_FragCoord.x)`. |
@@ -51,9 +54,16 @@ export EGL_PLATFORM=surfaceless
 ```
 
 `probe_interp*.c` uses GBM and hardcodes `/dev/dri/renderD128`.
-`tiny_interp_probe*.c` uses surfaceless EGL and opens no DRM node itself.
+`tiny_interp_probe.c` and `tiny_interp_probe_explained.c` use surfaceless EGL
+and open no DRM node themselves.
+`tiny_interp_probe_arm_blob.c` uses GBM and defaults to `/dev/dri/renderD128`.
 `vk_interp_probe*.c` selects a Vulkan physical device by name substring
 (`Mali` by default, or pass `llvmpipe` for the software control).
+
+For the proprietary ARM Mali stack on the same Rock 5B/RK3588 hardware, use
+[`README-arm-blob.md`](README-arm-blob.md). The ARM GL variant uses GBM instead
+of Mesa surfaceless EGL; the ARM Vulkan entry point intentionally shares the
+canonical Vulkan source.
 
 ## Build
 
@@ -62,11 +72,14 @@ Build from this directory:
 ```bash
 cc -O2 -o probe_interp probe_interp.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
+cc -O2 -o tiny_interp_probe_arm_blob \
+  tiny_interp_probe_arm_blob.c -lEGL -lGLESv2 -lgbm -lm
 
 glslc vk_interp_probe.vert           -o vk_interp_probe.vert.spv
 glslc vk_interp_probe.varying.frag   -o vk_interp_probe.varying.frag.spv
 glslc vk_interp_probe.fragcoord.frag -o vk_interp_probe.fragcoord.frag.spv
 cc -O2 -o vk_interp_probe vk_interp_probe.c -lvulkan -lm
+cc -O2 -o vk_interp_probe_arm_blob vk_interp_probe_arm_blob.c -lvulkan -lm
 ```
 
 Build the explained copies separately:
@@ -98,11 +111,16 @@ current working directory.
 ./tiny_interp_probe 12288 fragcoord
 ./tiny_interp_probe 8192
 ./tiny_interp_probe 16307 varying
+./tiny_interp_probe_arm_blob
+./tiny_interp_probe_arm_blob 12288 fragcoord
+./tiny_interp_probe_arm_blob 16307 varying /dev/dri/renderD128
 
 ./vk_interp_probe
 ./vk_interp_probe 12288 fragcoord
 ./vk_interp_probe 16307 varying
 ./vk_interp_probe 12288 varying llvmpipe
+./vk_interp_probe_arm_blob
+./vk_interp_probe_arm_blob 12288 fragcoord
 ```
 
 The explained copies take the same arguments:
