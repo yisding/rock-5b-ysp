@@ -2067,6 +2067,91 @@ static int run_fbc_tail_reject_probes(void)
 					     IM_RKFBC64x4_MODE);
 }
 
+static int run_afbc16x16_roundtrip(void)
+{
+	const int width = 64;
+	const int height = 64;
+	const int format = RK_FORMAT_YCbCr_420_SP;
+	const size_t raster_size = (size_t)width * height * 3 / 2;
+	const size_t fbc_size = raster_size * 3 / 2;
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t fbc_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	rga_buffer_t src;
+	rga_buffer_t fbc;
+	rga_buffer_t dst;
+	uint8_t *src_mem = NULL;
+	uint8_t *fbc_mem = NULL;
+	uint8_t *dst_mem = NULL;
+	int ret;
+
+	if (alloc_aligned((void **)&src_mem, raster_size) ||
+	    alloc_aligned((void **)&fbc_mem, fbc_size) ||
+	    alloc_aligned((void **)&dst_mem, raster_size)) {
+		perror("posix_memalign afbc16x16");
+		ret = 1;
+		goto out;
+	}
+
+	fill_nv12_pattern(src_mem, width, height);
+	memset(fbc_mem, 0x80, fbc_size);
+	memset(dst_mem, 0x40, raster_size);
+
+	src_handle = importbuffer_virtualaddr(src_mem, raster_size);
+	fbc_handle = importbuffer_virtualaddr(fbc_mem, fbc_size);
+	dst_handle = importbuffer_virtualaddr(dst_mem, raster_size);
+	if (!src_handle || !fbc_handle || !dst_handle) {
+		fprintf(stderr, "afbc16x16 importbuffer_virtualaddr failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, width, height, format);
+	fbc = wrapbuffer_handle(fbc_handle, width, height, format);
+	dst = wrapbuffer_handle(dst_handle, width, height, format);
+
+	src.rd_mode = IM_RASTER_MODE;
+	fbc.rd_mode = IM_AFBC16x16_MODE;
+	dst.rd_mode = IM_RASTER_MODE;
+
+	ret = imcopy(src, fbc);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("afbc raster->fbc", ret);
+		goto out;
+	}
+
+	ret = imcopy(fbc, dst);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("afbc fbc->raster", ret);
+		goto out;
+	}
+
+	if (memcmp(src_mem, dst_mem, raster_size)) {
+		fprintf(stderr, "afbc16x16 round-trip output differs from source\n");
+		ret = 1;
+		goto out;
+	}
+
+	ret = write_artifact("afbc16x16_nv12_roundtrip", dst_mem,
+			     raster_size);
+	if (!ret)
+		printf("%-24s ok\n", "afbc16x16 roundtrip");
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (fbc_handle)
+		releasebuffer_handle(fbc_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	free(src_mem);
+	free(fbc_mem);
+	free(dst_mem);
+
+	return ret;
+}
+
 static int run_tile8x8_roundtrip(void)
 {
 	const int width = 64;
@@ -3044,6 +3129,10 @@ int main(void)
 		goto out;
 
 	ret = run_fbc_tail_reject_probes();
+	if (ret)
+		goto out;
+
+	ret = run_afbc16x16_roundtrip();
 	if (ret)
 		goto out;
 

@@ -37,7 +37,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > destination-buffer byte counts/SHA-256s for maintained im2d,
 > RKNN/RKNPU-style preprocessing including RGBA crop/letterbox, legacy
 > GStreamer-shaped and display-shaped `c_RkRgaBlit()`,
-> forced-core, pre-intr, tile8x8, Gaussian, and async fence paths. The broad official
+> forced-core, pre-intr, AFBC16x16, tile8x8, Gaussian, and async fence paths. The broad official
 > librga sample binaries remain primarily
 > pass/fail/timing coverage until a current-userspace gap needs sample-specific
 > output capture. The FFmpeg suite generates shared software H.264/H.265 inputs,
@@ -91,7 +91,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > dma-buf to NV12 dma-buf fallback) plus a public display/compositor-shaped
 > fd-backed BGRx 90-degree rotation path, no-submit physical-address import plus
 > AFBC32x8/RFBC64x4 destination-mode probes, NV12
-> raster-to-tile8x8-to-raster round-trip,
+> raster-to-AFBC16x16-to-raster and raster-to-tile8x8-to-raster round-trips,
 > forced RGA3 core-mask + priority submission, forced RGA2 `IM_PRE_INTR`, the official Gaussian matrix
 > `IM_GAUSS` public sample shape, and an async acquire/release-fence chain, but
 > these still need to be run on a booted rewrite kernel. When launched through
@@ -444,8 +444,9 @@ implementation (cross-reference:
   `LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1`, and public-API
   raster-to-AFBC32x8/RFBC64x4 destination-mode probes that become rewrite-only
   expected rejects with `LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT=1`.  It also
-  records a public-API NV12 raster-to-tile8x8-to-raster artifact for the
-  supported RGA3 tile subset.  The
+  records public-API NV12 raster-to-AFBC16x16-to-raster and
+  raster-to-tile8x8-to-raster artifacts for the supported RGA3 compressed/tile
+  subset.  The
   `librga-suite.sh` wrapper enables both negative assertions by default for
   `PROFILE=*rewrite*` runs while leaving forward-port runs observational.
   It also turns the display/compositor/game-UI survey signal into an executable
