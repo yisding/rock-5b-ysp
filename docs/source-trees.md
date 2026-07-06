@@ -14,12 +14,12 @@ patches unless explicitly marked otherwise.
 | 2 | Audited tree (BSP audit) | [BSP audit](../kernel-drivers/docs/bsp-audit.md), `kernel-drivers/patches/cleanup-draft/` line numbers | parent of `56e403ede081` = `5614909e5803` |
 | 3 | `$OURS` / `$BSP` measurement pair | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count" | tree 1 vs `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3` |
 | 4 | Userspace libraries + FFmpeg | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), `ffmpeg/*` | table in §4 |
-| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
+| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | tag `50.1` = `5ef1a2aa6bef`; PPA source snapshot = `a59c904c99088235eb4de31ca340747d334494f3` + `dirty20260706` delta, see §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `0a35c26a0fd7` + branch `rk3588-rewrite-mainline` @ `938b1d2032c3`, including display-tail RGB565/RGA3 and XRGB/RGA2 rotation command-emission KUnit coverage, invalid public scheduler-core mask KUnit coverage, collector-level dormant MPP batch-server rejection, and RGA userptr-IOMMU fallback RGA3 userptr IOMMU mapping/debugfs attribution slices; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `d1d15a3d052a` + branch `rk3588-rewrite-mainline` @ `12f712d71144`, including Rockchip IOMMU media fault-reporting hardening on top of the display-tail RGB565/RGA3, XRGB/RGA2 rotation, invalid scheduler-core mask, dormant MPP batch-server rejection, and RGA userptr-IOMMU attribution slices; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
-| 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
+| 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
 
 ---
@@ -57,7 +57,7 @@ Provenance: the patches were generated from the dev worktree
 
 **One deliberate divergence from commit `924f4232546d`:** rock-5b-ysp commit
 `23cbe21` later folded the encoder **devfreq re-guard** directly into the
-shipped patch file (9 one-line, 1:1 replacements in `mpp_rkvenc2.c`:
+validated patch file (9 one-line, 1:1 replacements in `mpp_rkvenc2.c`:
 `#ifdef CONFIG_PM_DEVFREQ` → `#if defined(CONFIG_PM_DEVFREQ) &&
 defined(CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ)`), enabling the OOT/DKMS build
 ([`packaging/dkms/README.md`](../packaging/dkms/README.md),
@@ -115,13 +115,13 @@ donor and is not cited by any doc.)
 | Component | Repo | Pin | Cited by |
 |-----------|------|-----|----------|
 | libmpp (v1.3.9 how-doc study tree) | `rockchip-linux/mpp` | **v1.3.9** (how-the-userspace-libs-work.md:9). Commit-level pin **unrecorded** — see note below | how-the-userspace-libs-work.md Part A, [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md) |
-| libmpp (KMPP-aware study tree) | `mpp-rockchip` | `1375813cbbae5ad6861b166475dd8fb672183220` — the KMPP-bearing tree the architecture/KMPP/Rust docs were read against; **distinct** from the v1.3.9 how-doc tree above and the `750e76e` PPA tree below | [`mpp-library-architecture.md`](../vendor-libraries/mpp/docs/mpp-library-architecture.md), [`mpp-kmpp-reverse-engineering.md`](../vendor-libraries/mpp/docs/mpp-kmpp-reverse-engineering.md), [`mpp-rust-rewrite-assessment.md`](../vendor-libraries/mpp/docs/mpp-rust-rewrite-assessment.md) |
-| libmpp (PPA packaging tree) | `tsukumijima/mpp-rockchip` (tracks HermanChen `develop`) | `750e76e`, packaged as `1.5.0-1+rk1` | [`packaging/ppa/README.md`](../packaging/ppa/README.md) |
+| libmpp (KMPP-aware study tree) | `mpp-rockchip` | `1375813cbbae5ad6861b166475dd8fb672183220` — the KMPP-bearing tree the architecture/KMPP/Rust docs were read against; **distinct** from the v1.3.9 how-doc tree above | [`mpp-library-architecture.md`](../vendor-libraries/mpp/docs/mpp-library-architecture.md), [`mpp-kmpp-reverse-engineering.md`](../vendor-libraries/mpp/docs/mpp-kmpp-reverse-engineering.md), [`mpp-rust-rewrite-assessment.md`](../vendor-libraries/mpp/docs/mpp-rust-rewrite-assessment.md) |
+| libmpp (PPA packaging tree) | `mpp-rockchip` | `1375813c`, exported as `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` with unused Windows binaries removed from the orig tarball | [`packaging/ppa/README.md`](../packaging/ppa/README.md) |
 | librga source (fixed tree) | `github.com/yisding/librga` | branch `main`, tip `a6322179c944aced42e326519cd89483bf9da26b` (2026-07-03); preserves the `2cffdf6f332c` JeffyCN history, then `cc39281` as the latest-vendor-source layer matching `yisding/librga-mirror@32c3bf1`, then nyanmisaka/local fixes | [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md), [gotchas](./gotchas.md) |
 | librga historical source base (study tree) | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | `2cffdf6f332c` (`v2.2.0`, the 2026-01-21 merge of `JeffyCN/mirrors:linux-rga-multi`); **recorded**, every librga file/function cite in how-the-userspace-libs-work.md re-verified against it 2026-07-01 (how-the-userspace-libs-work.md:11-14). Also the last open vendor-history tip used as the fixed-tree base above | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
 | librga prebuilt | `airockchip/librga` | `2b32edc` ("Update librga version to 1.10.6_[3]") | ffmpeg/README.md librga row |
 | ffmpeg-rockchip (documented build) | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` (2026-04-23); preserved locally as branch `backup-pre-upgrade-master` | ffmpeg/README.md, [`video-libraries/ffmpeg/docs/implementation-comparison.md`](../video-libraries/ffmpeg/docs/implementation-comparison.md) |
-| ffmpeg-rockchip-81 (rebased successor) | `github.com/yisding/ffmpeg-rockchip-81` | branch `main` (tip `6cf02ab253` as of 2026-07-02); branch `upstream` = `87bd15dc3c` | [`video-libraries/ffmpeg/docs/fix-candidates.md`](../video-libraries/ffmpeg/docs/fix-candidates.md), [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md), [`video-libraries/ffmpeg/docs/submission-plan.md`](../video-libraries/ffmpeg/docs/submission-plan.md), [`video-libraries/ffmpeg/patches`](../video-libraries/ffmpeg/patches) |
+| ffmpeg-rockchip-81 (rebased successor) | `github.com/yisding/ffmpeg-rockchip-81` | exported review series: branch `main` tip `6cf02ab253` as of 2026-07-02, branch `upstream` = `87bd15dc3c`; package-validation tree: local branch `refactor/section-c` @ `75638e7f0b17` | [`video-libraries/ffmpeg/docs/fix-candidates.md`](../video-libraries/ffmpeg/docs/fix-candidates.md), [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md), [`video-libraries/ffmpeg/docs/submission-plan.md`](../video-libraries/ffmpeg/docs/submission-plan.md), [`video-libraries/ffmpeg/patches`](../video-libraries/ffmpeg/patches), [`findings/2026-07-06-ffmpeg-rockchip81-package-validation.md`](../findings/2026-07-06-ffmpeg-rockchip81-package-validation.md) |
 | FFmpeg upstream release | `FFmpeg/FFmpeg` | tag `n8.1.2` = `38b88335f99e` (2026-06-17) | `video-libraries/ffmpeg/docs/implementation-comparison.md` baseline; the PPA/GRD ABI base |
 | FFmpeg upstream master (rebase base) | `FFmpeg/FFmpeg` | `87bd15dc3c` = `n8.2-dev-2058-g87bd15dc3c` | `video-libraries/ffmpeg/docs/fix-candidates.md`, `video-libraries/ffmpeg/docs/rebase-notes.md` |
 
@@ -136,9 +136,8 @@ full topology and replay procedure live in
 > **The pins to watch.**
 > - **libmpp v1.3.9 how-doc tree — unrecorded (flagged, not invented).**
 >   how-the-userspace-libs-work.md records only "v1.3.9". No commit hash was
->   written down at study time, and the KMPP-aware architecture tree
->   (`mpp-rockchip` @ `1375813cbbae`) and the PPA tree (`mpp-rockchip` @
->   `750e76e`, the 1.5.0-era packaging checkout) are both *different* states.
+>   written down at study time, and the KMPP-aware/PPA-export tree
+>   (`mpp-rockchip` @ `1375813cbbae`) is a *different* state.
 >   **UNVERIFIED** which exact commit how-the-userspace-libs-work.md's Part A
 >   line numbers were read against; treat its anchors as "v1.3.9-era, verify
 >   against your checkout". (The architecture/KMPP/Rust docs, by contrast, record
@@ -165,6 +164,15 @@ The dev working branch `rdp-handover-reconnect` (tip `a3a1a32`, 17 commits atop
 `apps/gnome-remote-desktop/patches/README.md` and
 [`apps/gnome-remote-desktop/docs/profiling.md`](../apps/gnome-remote-desktop/docs/profiling.md).
 
+The staged GRD PPA source package uses a different local working tree:
+`/home/yi/Code/gnome/grd/grd-ffmpeg`, branch `ffmpeg-rkmpp-encode-backend`,
+commit `a59c904c99088235eb4de31ca340747d334494f3`, plus the dirty source delta
+captured at
+[`packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch`](../packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch).
+That patch was generated from the dirty worktree used for the
+`50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1` source export and
+`git apply --check` passed against a clean archive of `a59c904c99088235eb4de31ca340747d334494f3`.
+
 ## 6. Where the register recipes live
 
 The kernel drivers never construct codec register values
@@ -176,13 +184,13 @@ recipe"). The recipes live in:
   `hal_h264d`, `hal_h265d`; how-the-userspace-libs-work.md §A3). Register-layout headers sit next to
   each HAL (VEPU580 / VDPU381 register structs).
 - **RK3588 TRM** — the address map in device-tree.md ("Address Mapping" table, the
-  `fdc40000`-vs-`fdc48000` resolution). TODO: the docs cite "the RK3588 TRM"
-  without recording the exact TRM part/version number — **UNVERIFIED** which
-  TRM revision was consulted; record it here when known.
+  `fdc40000`-vs-`fdc48000` resolution). Reference gap: the docs cite "the
+  RK3588 TRM" without recording the exact TRM part/version number —
+  **UNVERIFIED** which TRM revision was consulted; record it here when known.
 
 ## 7. Canonical uAPI headers (dev-uapis.md's definitions)
 
-Both headers ship **inside patch 01**, so the §1 reconstruction gives you the
+Both headers are included **inside patch 01**, so the §1 reconstruction gives you the
 exact bytes dev-uapis.md documents:
 
 | Header | In-tree path (after patch 01) | Size in patch |
@@ -203,14 +211,14 @@ is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b` as
 of 2026-07-06:
 
-- branch `rk3588-rewrite-6.18`, commit `0a35c26a0fd7` ("media: rockchip:
-  rga-rewrite: cover XRGB display rotation"), committed in the dev worktree
+- branch `rk3588-rewrite-6.18`, commit `d1d15a3d052a` ("iommu: rockchip:
+  harden media fault reporting"), committed in the dev worktree
   `/home/yi/Code/kernel/linux-6.18-rkvenc`. The sibling 6.18 forward-port
   oracle referenced by this rewrite track was
   `/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport` at
   `rkvenc-fwport-6.18` tip `e059aad8d68b` when these pins were recorded.
-- branch `rk3588-rewrite-mainline`, commit `938b1d2032c3` ("media: rockchip:
-  rga-rewrite: cover XRGB display rotation"),
+- branch `rk3588-rewrite-mainline`, commit `12f712d71144` ("iommu: rockchip:
+  harden media fault reporting"),
   committed in the sibling worktree `/home/yi/Code/kernel/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -298,11 +306,15 @@ the mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for the rewrite drivers. The current committed pins
-(`../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and `../kernel/linux@938b1d2032c3`) passed the
-`normal`, `memory`, and `race` archive build profiles warning-free on
-2026-07-06 after display-tail RGB565 and XRGB rotation coverage was added. The
-build gate now removes each per-profile archive checkout after a passing profile
-unless `KEEP_TMP=1`; after that change, the combined
+(`../kernel/linux-6.18-rkvenc@d1d15a3d052a` and
+`../kernel/linux@12f712d71144`) passed the default `normal` archive build
+profile warning-free on 2026-07-06 after Rockchip IOMMU media fault-reporting
+hardening was added. The broader `normal`, `memory`, and `race` archive build
+profiles last passed warning-free at the immediately earlier
+`../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and
+`../kernel/linux@938b1d2032c3` pins after display-tail RGB565 and XRGB rotation
+coverage was added. The build gate now removes each per-profile archive
+checkout after a passing profile unless `KEEP_TMP=1`; after that change, the combined
 `REWRITE_BUILD_PROFILES="normal memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
 invocation completed all six profiles in one run and left no
 `rkcompat-rewrite-build.*` scratch directories under `/tmp`.
@@ -330,11 +342,14 @@ multicore-disable logic in `rga.c`. It measured 3,168 lines across `*.c`, `*.h`,
 
 ## 10. Expanded Rockchip conformance bundle
 
-The external conformance bundle lives at `/home/yi/Code/rockchip-conformance`
-(`../rockchip-conformance` from the kernel/YSP worktrees). It is **not** a git
-repo and is not vendored here because it contains third-party source checkouts,
-build directories, logs, and test assets. Its own `MANIFEST.tsv` records the
-exact shallow checkouts staged on 2026-07-02:
+The reproducible seed for the conformance bundle now lives in this repo under
+[`kernel-drivers/tests/conformance/`](../kernel-drivers/tests/conformance/README.md).
+The generated runtime bundle still defaults to an external path,
+`../rockchip-conformance` (`/home/yi/Code/rockchip-conformance` on the dev box),
+because third-party source checkouts, build directories, logs, and test assets
+do not belong in git. The tracked seed's `MANIFEST.tsv` records the exact
+shallow checkouts staged on 2026-07-02 and
+`scripts/bootstrap-sources.sh` reconstructs the missing `sources/` trees:
 
 | Component | Path inside bundle | Pin |
 |-----------|--------------------|-----|
@@ -344,10 +359,11 @@ exact shallow checkouts staged on 2026-07-02:
 | Linux MPP/RGA/DRM demo | `sources/mpp-linux-cpp-demo` | `WainDing/mpp_linux_cpp.git`, branch `master`, commit `3d7cca63c4f5f0febacef0b0d0cdb36394fb5ca0` |
 | Android RKMediaCodecDemo | `sources/rkmediacodec-demo` | `c-xh/RKMediaCodecDemo.git`, branch `master`, commit `38b85b3c160bf58f2237d5f49b601c1636d484a5` |
 
-The bundle adds helper scripts to build MPP, generate a local `librga.pc` shim,
-build librga samples, build JeffyCN's Meson-based GStreamer plugin tree, collect
-system/device state, and write per-profile logs under `logs/rewrite/` and
-`logs/forward-port/`. The YSP-side `rewrite-conformance-run.sh` wrapper
+The tracked seed also carries helper scripts to build MPP, generate a local
+`librga.pc` shim, build librga samples, build JeffyCN's Meson-based GStreamer
+plugin tree, collect system/device state, and write per-profile logs under
+`logs/rewrite/` and `logs/forward-port/`. The YSP-side
+`rewrite-conformance-run.sh` wrapper
 sequences those profile logs across ABI replay, MPP, librga, GStreamer, FFmpeg,
 and optional forward-port-vs-rewrite comparator steps. See
 [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md)

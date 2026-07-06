@@ -461,7 +461,7 @@ drivers, which is why no other driver needed a fix.
 
 ### Caveat: it is latent on Mali too, not "new"
 
-Even without our transfer-blit change, shipped Mesa corrupts a plain wide
+Even without our transfer-blit change, the system Mesa 26.0.3 driver corrupts a plain wide
 `glBlitFramebuffer` on Mali (29498/32614 wrong texels in the repro). Nobody
 noticed because the exposure is narrow: power-of-two extents are bit-exact and
 failing widths are sparse below ~4300 (the smallest measured is 2080), so

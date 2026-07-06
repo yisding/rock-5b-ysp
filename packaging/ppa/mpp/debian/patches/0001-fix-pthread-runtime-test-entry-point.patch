@@ -1,0 +1,22 @@
+Description: fix pthread start routine signature in runtime test
+ mpp_runtime_test passes wait_thread to pthread_create(), whose third
+ argument must be a function taking a single void * argument. Newer GCC/glibc
+ headers reject the old no-argument function pointer conversion.
+Author: Yi Ding <yi.s.ding@gmail.com>
+Forwarded: no
+Last-Update: 2026-07-06
+
+--- a/osal/test/mpp_runtime_test.c
++++ b/osal/test/mpp_runtime_test.c
+@@ -136,8 +136,10 @@
+ rk_u32 condition = 0;
+ 
+-void *wait_thread()
++void *wait_thread(void *unused)
+ {
++    (void)unused;
++
+     int ret;
+     struct timespec ts, ts_s, ts_e;
+     char time_str[64];
+     struct tm *tm_info;

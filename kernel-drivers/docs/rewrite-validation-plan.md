@@ -8,8 +8,10 @@ hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
 > surface and heavily unit-tested — MPP **54 KUnit cases** and RGA **104 KUnit
-> cases** compile at the §6 pins (`0a35c26a0fd7` on 6.18, `938b1d2032c3` on
-> mainline). But every one of those tests is **logic-level**:
+> cases** compile at the current §6 pins (`d1d15a3d052a` on 6.18,
+> `12f712d71144` on mainline). The broader sanitizer object-build profiles were
+> last recorded at the immediately earlier `0a35c26a0fd7` / `938b1d2032c3`
+> pins. But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
 > is concentrated exactly where a from-scratch driver is weakest and where unit
@@ -324,7 +326,7 @@ Ship only when **all** hold, each with a dated record in
    (`PERF_MAX_RATIO` in the `-compare.sh` gate; forward-port reference numbers in
    [`../tests/README.md`](../tests/README.md) "Observed results").
 
-Until 1–7 hold, the shipped, hardware-validated stack stays the forward-port.
+Until 1–7 hold, the hardware-validated stack stays the forward-port.
 
 ---
 

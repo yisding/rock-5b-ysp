@@ -49,7 +49,7 @@ which is the difference between a few-percent-CPU desktop and this one.
 ### Where GStreamer fits
 
 GStreamer is worth keeping as an experiment and conformance target, not as the
-shipping replacement for this backend yet. The clean version would be another
+production replacement for this backend yet. The clean version would be another
 `GrdEncodeSession` implementation:
 
 ```

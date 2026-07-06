@@ -40,7 +40,7 @@ the *exact* build we validated (the installer matches debs on it; see
 
 ## ⚠️ Known limitations
 
-- **The shipped drivers still carry every bug the BSP audit found.** This
+- **The validated forward-port drivers still carry every bug the BSP audit found.** This
   forward-port is deliberately conservative (~98% byte-identical BSP —
   [vendor delta](./vendor-delta.md)), so the [BSP audit](./bsp-audit.md) audit's
   **16 HIGH-severity findings remain present in the code you boot** — including
@@ -91,7 +91,7 @@ the *exact* build we validated (the installer matches debs on it; see
   DT `assigned-clock-rates` (~800 MHz) and never moves, so sustained max-load
   workloads should be watched (fine in tests so far). Re-enabling DVFS takes *two*
   changes, not one — set `CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ` (default `n`) **and**
-  replace the OPP shim: as shipped, `rockchip_init_opp_table()` returns
+  replace the OPP shim: in the validated forward-port, `rockchip_init_opp_table()` returns
   `-EOPNOTSUPP`, so even with the Kconfig on, devfreq init bails and the clock stays
   static.
 - **The board's prebuilt `/usr/lib` `librockchip_mpp` cannot drive these

@@ -14,7 +14,7 @@ Panfrost. The standalone interpolation probes now live in
 | [`repro_blit.c`](repro_blit.c) | End-to-end failure repro: RG32UI→RGBA32UI `glReadPixels` through the u_blitter TXF staging blit |
 | [`repro_blit_off.c`](repro_blit_off.c) | Non-zero-offset variant: subregion readback at `x = X0`, exercising the blit affine's offset term in the fragcoord fix |
 | [`repro_blit_float.c`](repro_blit_float.c) | RG32F→RGBA32F float variant — the counter-example that disqualifies the integer-only state-tracker fallback |
-| [`repro_blit_flip.c`](repro_blit_flip.c) | Flipped `glBlitFramebuffer` probe (negative scale); caught the pixel-center-convention bug, revealed the power-of-two-extent exactness, and proved shipped drivers corrupt wide non-pow2 blits |
+| [`repro_blit_flip.c`](repro_blit_flip.c) | Flipped `glBlitFramebuffer` probe (negative scale); caught the pixel-center-convention bug, revealed the power-of-two-extent exactness, and proved the system Mesa 26.0.3 driver corrupts wide non-pow2 blits |
 | [`repro_blit_scissor.c`](repro_blit_scissor.c) | Scissored wide identity blit: verifies clipping doesn't shift the fragcoord mapping and untouched texels keep their sentinel |
 | [`repro_blit_array.c`](repro_blit_array.c) | 2D-array-layer readback: found the array regression (15672/16307), now exact via the series' single-layer view commit |
 | [`interp_probe/`](interp_probe/README.md) | Standalone interpolation probes: historical GBM/GLES probe, minimal surfaceless GLES probe, and Vulkan/panvk port; documents exactly what each isolates and how to build/run the controls |
@@ -339,11 +339,11 @@ Run (also try `PAN_MESA_DEBUG=forcepack`):
 
 Observed 2026-07-01: **0 mismatches** on both the unfixed system driver
 (Mesa 26.0.3) and the fragcoord branch build. So *this particular path* is
-clean in shipped drivers (the FBO texture likely never takes an AFBC layout
+clean in the system Mesa 26.0.3 driver (the FBO texture likely never takes an AFBC layout
 here, or the map demotes it first). NOTE: this negative result initially led
-to a too-broad "shipped drivers are unaffected" conclusion — later
+to a too-broad "system drivers are unaffected" conclusion — later
 `repro_blit_flip.c` testing showed direct wide non-pow2 `glBlitFramebuffer`
-**is** corrupt on shipped Mesa 26.0.3 (see that probe's section).
+**is** corrupt on the system Mesa 26.0.3 driver (see that probe's section).
 
 ## `bench_transfer.c`
 

@@ -1,0 +1,40 @@
+librga (2.2.0+git20260703.a632217-0ubuntu3~rk1) resolute; urgency=medium
+
+  * No-change rebuild after Launchpad arm64 build failed without publishing a
+    build log.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Mon, 06 Jul 2026 16:21:00 -0700
+
+librga (2.2.0+git20260703.a632217-0ubuntu2~rk1) resolute; urgency=medium
+
+  * Restrict Rockchip RGA binary packages to arm64 for the ROCK 5B PPA.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Mon, 06 Jul 2026 16:20:00 -0700
+
+librga (2.2.0+git20260703.a632217-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Build for ppa:yi-ding/ubuntu-rock-5b from librga-fork at a632217.
+  * Include the local P010/P210 request-generation support.
+  * Modernize packaging for Ubuntu resolute: debhelper-compat 13,
+    Standards-Version 4.7.4.1, Rules-Requires-Root: no, and explicit
+    development-package dependencies.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Mon, 06 Jul 2026 12:41:07 -0700
+
+librga (2.2.0-1) unstable; urgency=medium
+
+  * debian: Update to support rga3
+
+ -- Jeffy Chen <jeffy.chen@rock-chips.com>  Fri, 7 Jan 2022 15:44:00 +0800
+
+librga (2.1.0-1) unstable; urgency=medium
+
+  * debian: Update license
+
+ -- Jeffy Chen <jeffy.chen@rock-chips.com>  Thu, 20 May 2021 10:05:29 +0800
+
+librga (2.0.0-1) stable; urgency=medium
+
+  * Initial release.
+
+ -- Jeffy Chen <jeffy.chen@rock-chips.com>  Thu, 23 Jul 2020 17:49:04 +0800

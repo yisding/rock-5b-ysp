@@ -2,6 +2,14 @@
 # Build the rk3588-codec-udev .deb from the canonical kernel-driver rule.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ "${1:-}" = "clean" ]; then
+	rm -f "$DIR/rk3588-codec-udev_1.0_all.deb"
+	rm -f "$DIR/root/usr/lib/udev/rules.d/99-rockchip-codec.rules"
+	echo "cleaned: $DIR"
+	exit 0
+fi
+
 cp "$DIR/../../kernel-drivers/scripts/99-rockchip-codec.rules" \
    "$DIR/root/usr/lib/udev/rules.d/99-rockchip-codec.rules"
 chmod 0644 "$DIR/root/usr/lib/udev/rules.d/99-rockchip-codec.rules"

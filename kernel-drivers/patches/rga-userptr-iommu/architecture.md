@@ -40,6 +40,10 @@ clean RGA userptr-IOMMU fallback code, but not the temporary fallback breadcrumb
 - DMA-buf imports remain fail-closed. If a dma-buf import does not map as one
   non-wrapping 32-bit DMA span, the import is rejected rather than remapped by
   RGA.
+- DMA-buf physical scatter is acceptable only when the exporter/attachment DMA
+  map presents RGA with one byte-contiguous IOVA span. RGA never consumes the
+  exporter scatterlist directly, and the fallback must not replace exporter-owned
+  dma-buf mappings with driver-owned IOMMU mappings.
 - RGA userptr-IOMMU fallback is only for driver-owned sg-tables. In the forward-port, that means
   `rga_dma_map_sgt()` users: scattered pinned userptr and the physical-address
   IOMMU path that builds an sg-table from pages. In the rewrite, it is wired only
@@ -57,6 +61,12 @@ clean RGA userptr-IOMMU fallback code, but not the temporary fallback breadcrumb
   unrelated physical pages.
 - All span arithmetic is overflow-checked before any address is accepted for RGA
   register programming.
+
+The BSP comparison for this boundary is recorded in
+[`findings/2026-07-06-rga3-dmabuf-scatter-bsp-contract.md`](../../../findings/2026-07-06-rga3-dmabuf-scatter-bsp-contract.md):
+the studied RGA3 BSP path maps dma-buf attachments and records the first DMA
+address, but it does not allocate a synthetic contiguous IOVA for exporter-owned
+dma-bufs and does not check adjacent multi-entry DMA spans.
 
 ## Forward-Port Flow
 
@@ -89,6 +99,13 @@ Patch 0001 modifies the vendor-style RGA3 forward-port.
     `iommu_unmap()` plus `free_iova_fast()`; normal DMA API mappings still use
     `dma_unmap_sg()`.
 
+Forward-port dma-buf imports do not call `rga_dma_map_sgt()`. They enter through
+`rga_dma_map_buf()` / `rga_dma_map_fd()`, call `dma_buf_map_attachment_*()`, and
+then call `rga_dma_set_buffer_mapping()` directly. That helper only validates the
+single-span contract and records the attachment mapping; it does not call
+`rga_dma_map_sgt_iommu()`. The debug `force_remap` knob is inserted in
+`rga_dma_map_sgt()` only, so it also remains scoped to driver-owned sg-tables.
+
 The forward-port also changes non-contiguous cache sync to use
 `buffer->dma_buffer->map_dev`, the device that created the mapping, rather than
 the current scheduler device. That matters because RGA userptr-IOMMU fallback keeps cache
@@ -113,6 +130,10 @@ rewrite import layer rather than a shared `rga_dma_map_sgt()` helper.
    RGA userptr-IOMMU fallback from DMA API ownership.
 6. Dma-buf imports and dma-buf per-job remaps only run the fail-closed contract
    check. They do not enter RGA userptr-IOMMU fallback.
+   `rk_rga_import_dmabuf()` and dma-buf remap paths call `rk_rga_check_dma_sgt()`
+   after `dma_buf_map_attachment()` and unwind the attachment on failure; only
+   `rk_rga_map_userptr_sgt()` reads `userptr_iommu_force_remap` and calls
+   `rk_rga_map_userptr_sgt_iommu()`.
 
 The rewrite already had explicit userptr sync hooks around job submission and
 completion. RGA userptr-IOMMU fallback preserves those hooks by keeping the original physical

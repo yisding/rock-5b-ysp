@@ -8,7 +8,7 @@ packs many sub-commands into one syscall, and the cross-session **batch server**
 Complements [`mpp-library-architecture.md`](mpp-library-architecture.md) (see its
 "Kernel Device Boundary" section for the higher-level `MppDev` picture) and the
 kernel ABI notes in
-[`../../kernel-drivers/docs/dev-uapis.md`](../../kernel-drivers/docs/dev-uapis.md).
+[`../../../kernel-drivers/docs/dev-uapis.md`](../../../kernel-drivers/docs/dev-uapis.md).
 
 Sources studied:
 

@@ -17,7 +17,7 @@ in either case:
 |------|--------------|---------------|-----------------------------------------------|-------|
 | **(a) Combined Armbian kernel** | All three accelerators **built in (`=y`)** — no modules, no overlay | An Armbian build tree (§2) + a kernel install/reboot | ✅ **Hardware-validated** (build `Pb6ab-Cb831`, [kernel status](kernel-drivers/docs/forward-port-status.md)) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
 | **(b) DKMS on a stock kernel** | `rk_vcodec.ko` + `rga3.ko`, auto-rebuilt on every kernel update, + a boot-time DT overlay | A *stock* Armbian 6.18+ kernel, `dkms` + `dtc` installed | ⚠️ Compile-tested on **6.18 only**; overlay dtc-validated, **not boot-validated** | [`packaging/dkms/`](packaging/dkms/README.md) |
-| **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§6) | ffmpeg-rockchip build: hardware-validated; PPA: local builds OK 2026-06-30, **nothing uploaded yet** | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
+| **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§6) | ffmpeg-rockchip build: hardware-validated; PPA packaging in progress, public APT currently has MPP/librga source only and empty binary indexes | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
 
 > **⚠️ Hard warning: (a) and (b) are mutually exclusive** — installing the DKMS
 > module on the combined kernel breaks the build. Mechanism and the exact
@@ -65,18 +65,21 @@ instead of this quickstart.
 ## 3. Canonical quickstart (path a — combined kernel)
 
 ```bash
-# 1. Stage the two port patches as Armbian userpatches
-#    (a fresh clone has no userpatches/ tree yet):
-mkdir -p armbian-build/userpatches/kernel/archive/rockchip64-6.18
+# 0. Bootstrap the external Armbian workspace if this machine does not have it.
+export WORKSPACE="${WORKSPACE:-../kernel/rock5b-kernel-build}"
+bash kernel-drivers/scripts/bootstrap-workspaces.sh
+
+# 1. Stage the two port patches as Armbian userpatches.
+mkdir -p "$WORKSPACE/armbian-build/userpatches/kernel/archive/rockchip64-6.18"
 cp kernel-drivers/patches/rk3588-rkvenc2-0*.patch \
-   armbian-build/userpatches/kernel/archive/rockchip64-6.18/
+   "$WORKSPACE/armbian-build/userpatches/kernel/archive/rockchip64-6.18/"
 
 # 2. Build (~80-90 min cold, ~10-15 warm). USE_CCACHE must be an ARGUMENT,
 #    not an env var -- the wrapper gets this right (docs/gotchas.md):
 bash kernel-drivers/scripts/build-combined-kernel.sh        # prints the new P####-C#### hash
 
 # 3. Install (pin the hash the build printed), reboot, validate:
-sudo PHASH='P####-C####' bash kernel-drivers/scripts/install-combined-kernel.sh
+sudo WORKSPACE="$WORKSPACE" PHASH='P####-C####' bash kernel-drivers/scripts/install-combined-kernel.sh
 sudo reboot
 sudo bash kernel-drivers/scripts/validate-combined.sh       # /dev/mpp_service, 4 cores, /dev/rga
 
@@ -164,11 +167,12 @@ binary**. Get userspace one of two ways:
   `h264_rkmpp`/`hevc_rkmpp`/`scale_rkrga`. This is the hardware-validated
   combination ([`kernel-drivers/tests/`](kernel-drivers/tests/README.md) uses it).
 - **Install it packaged**: the [`packaging/ppa/`](packaging/ppa/README.md)
-  source packages build the whole stack (MPP + librga + FFmpeg 8.1.2+rkmpp +
-  GRD) — but **nothing is on Launchpad yet** ([`status.md`](status.md)); until
-  then the packaged route is the local-deb flow documented in
+  source packaging is in progress for MPP, librga, and FFmpeg, but the public
+  PPA has no binary packages yet and no public FFmpeg source in the APT index
+  ([`status.md`](status.md)). Until the binary indexes publish, the packaged
+  route is the local-deb flow documented in
   [`packaging/README.md`](packaging/README.md) § Operations (including the
-  `apt-mark hold` pin and the exact rollback).
+  `apt-mark hold` pinning guidance).
 
 Player note: the rkmpp decoders are standalone AVCodecs, **not** `AVHWAccel` —
 mpv needs `--hwdec=rkmpp` / `--vd=h264_rkmpp`, VLC 3.x cannot select them at

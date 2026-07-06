@@ -8,10 +8,12 @@ kernel the two decoder cores appear as `video-codec0/1` (the DT keeps mainline's
 node name — see [device-tree guide](../docs/device-tree.md)); the scripts accept
 the older `rkvdec-core0/1` naming too.
 
-The heavier rewrite build gate, the external `../rockchip-conformance` bundle,
-and the full MPP/librga/GStreamer/FFmpeg conformance-suite reference live in the
-sibling [`rewrite-conformance.md`](./rewrite-conformance.md) so this page stays
-a clean newcomer on-ramp.
+The heavier rewrite build gate, the tracked conformance seed under
+[`conformance/`](conformance/README.md), the external runtime
+`../rockchip-conformance` bundle it reconstructs, and the full
+MPP/librga/GStreamer/FFmpeg conformance-suite reference live in the sibling
+[`rewrite-conformance.md`](./rewrite-conformance.md) so this page stays a clean
+newcomer on-ramp.
 
 ## Package brief
 
@@ -21,7 +23,7 @@ a clean newcomer on-ramp.
 | Developer focus | Keep each test's isolation clear: decoder-only software inputs, encoder PSNR/fault checks, and FFmpeg transcode paths with no software fallback. The rewrite build gate and conformance suites live in [`rewrite-conformance.md`](./rewrite-conformance.md). |
 | Owns | The smoke tests `test-decode.sh`, `decode-differential.sh`, `encode-test-tiny.sh`, `transcode-test.sh`, `rewrite-smoke.sh`, `abi-probe.sh`/`abi-probe.c`, `abi-replay.sh`, `librga-smoke.sh`/`librga-smoke.cpp`, and the targeted RGA MMU diagnostic `rga-mmu-debug.sh`; the recovery/RGA/IOMMU stress tools `rewrite-recovery-stress.sh`, `iommu-machinery-fuzz.sh`, `rga-iommu-fuzz.cpp`, and [`IOMMU-FUZZING.md`](./IOMMU-FUZZING.md); the sourced helpers `suite-common.sh` and `debugfs-counters.sh`; the conformance runner/wrappers `rewrite-conformance-run.sh`, `rewrite-evidence-audit.sh`, `mpp-suite.sh`, `mpp-suite-compare.sh`, `librga-suite.sh`, `librga-suite-compare.sh`, `gstreamer-suite.sh`, `gstreamer-suite-compare.sh`, `ffmpeg-suite.sh`, `ffmpeg-suite-compare.sh`, `rkmppenc-suite.sh`, `rkmppenc-suite-compare.sh`, `debugfs-counter-check.sh`, `rewrite-build-gate.sh`, `suite-compare-selftest.sh`, the syzkaller checks under `syzkaller/`, and their build helpers `build-mpp-tests.sh`, `build-librga-samples-full.sh`, `build-gstreamer-rockchip.sh`, `gstreamer-event-harness.c` (all documented in [`rewrite-conformance.md`](./rewrite-conformance.md)); input-regeneration recipes; pass criteria; and observed reference results. |
 | Depends on | A validated kernel from [`../scripts/`](../scripts/README.md), staged MPP/FFmpeg artifacts from [`video-libraries/ffmpeg/README.md`](../../video-libraries/ffmpeg/README.md), and device access from the codec udev rule. |
-| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 and AV1 decode are hardware-validated bit-exact on the av1-fwport build as of 2026-07-04 (`decode-differential.sh`; AV1 needs that variant's `mpp_av1dec.c` backend). The rewrite conformance machinery now covers ABI replay, MPP/librga/GStreamer/FFmpeg suites, optional `rkmppenc`, artifact comparators, counter checks, fuzz-smoke build checks, syzlang ABI-marker checks, and the paired evidence audit; the detailed matrix lives in [`rewrite-conformance.md`](./rewrite-conformance.md). The current rewrite tips `0a35c26a0fd7` on 6.18 and `938b1d2032c3` on mainline passed the `normal`, `memory`, and `race` clean-source object-build profiles warning-free on 2026-07-06. Device-free `VALIDATE_ONLY=1` runner/counter/default RGA userptr-IOMMU validations passed the same day. Booted rewrite hardware evidence is still missing, so `rewrite-evidence-audit.sh` is expected to fail until paired forward-port/rewrite logs, artifacts, counters, and comparator-clean results exist. |
+| Current state | H.264/H.265 decode, encode, and full HW transcode have been validated on the forward-port; VP9 and AV1 decode are hardware-validated bit-exact on the av1-fwport build as of 2026-07-04 (`decode-differential.sh`; AV1 needs that variant's `mpp_av1dec.c` backend). The rewrite conformance machinery now covers ABI replay, MPP/librga/GStreamer/FFmpeg suites, optional `rkmppenc`, artifact comparators, counter checks, fuzz-smoke build checks, syzlang ABI-marker checks, and the paired evidence audit; the detailed matrix lives in [`rewrite-conformance.md`](./rewrite-conformance.md). The current rewrite tips `d1d15a3d052a` on 6.18 and `12f712d71144` on mainline passed the normal clean-source object-build gate warning-free on 2026-07-06; the broader `normal`, `memory`, and `race` profile coverage last passed at `0a35c26a0fd7` and `938b1d2032c3`. Device-free `VALIDATE_ONLY=1` runner/counter/default RGA userptr-IOMMU validations passed the same day. Booted rewrite hardware evidence is still missing, so `rewrite-evidence-audit.sh` is expected to fail until paired forward-port/rewrite logs, artifacts, counters, and comparator-clean results exist. |
 
 Evidence-audit note: for `CANDIDATE=*rewrite*`, `rewrite-evidence-audit.sh`
 now checks the candidate counter contents by default, not just that a counter
@@ -200,8 +202,9 @@ by default for `CANDIDATE=*rewrite*`, so a stale or placeholder counter file no
 longer passes the branch-level parity audit.
 
 The official-test conformance suites (`mpp-suite.sh`, `librga-suite.sh`,
-`gstreamer-suite.sh`), their comparators, the rewrite build gate, and the
-external `../rockchip-conformance` bundle are all documented in
+`gstreamer-suite.sh`), their comparators, the rewrite build gate, the tracked
+[`conformance/`](conformance/README.md) seed, and the external
+`../rockchip-conformance` runtime bundle are all documented in
 [`rewrite-conformance.md`](./rewrite-conformance.md).
 
 ## Regenerating the test inputs

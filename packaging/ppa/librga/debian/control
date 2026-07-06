@@ -1,0 +1,36 @@
+Source: librga
+Priority: optional
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Putin Lee <putin.li@rock-chips.com>
+Uploaders: Jeffy Chen <jeffy.chen@rock-chips.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ libdrm-dev (>= 2.4.0),
+ meson,
+ pkgconf,
+Standards-Version: 4.7.4.1
+Rules-Requires-Root: no
+Section: libs
+Homepage: https://github.com/rockchip-linux/linux-rga
+Vcs-Git: https://github.com/rockchip-linux/linux-rga
+Vcs-Browser: https://github.com/rockchip-linux/linux-rga
+
+Package: librga-dev
+Section: libdevel
+Architecture: arm64
+Multi-Arch: same
+Depends:
+ libdrm-dev,
+ librga2 (= ${binary:Version}),
+ ${misc:Depends},
+Description: Rockchip RGA 2D accelerator development files
+ Headers, pkg-config metadata, and linker symlinks for building software
+ against the Rockchip RGA userspace library.
+
+Package: librga2
+Architecture: arm64
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Rockchip RGA 2D accelerator runtime library
+ Userspace runtime library for submitting image blit, scale, color-conversion,
+ and related operations to Rockchip RGA hardware.

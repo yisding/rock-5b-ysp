@@ -21,12 +21,12 @@
 #   change a patch hit the content-addressed cache (survives the re-patch mtime
 #   churn that defeats Armbian's worktree-incremental) and finish in ~10-15 min.
 #
-# PREREQUISITE: an Armbian build tree at <repo>/armbian-build:
-#   `git clone https://github.com/armbian/build <repo>/armbian-build`
-#   with the port patches in place -- see ../../install.md and
+# PREREQUISITE: an Armbian build tree at $WORKSPACE/armbian-build:
+#   `bash kernel-drivers/scripts/bootstrap-workspaces.sh`
+#   with the port patches staged as userpatches -- see ../../install.md and
 #   ../../packaging/docs/armbian-packaging.md. Debs land in
-#   <repo>/armbian-build/output/debs, which is also where
-#   install-combined-kernel.sh looks by default.
+#   $WORKSPACE/armbian-build/output/debs, which is also where
+#   install-combined-kernel.sh looks by default when WORKSPACE matches.
 #
 # USAGE:
 #   bash build-combined-kernel.sh                 # build, ccache on
@@ -47,7 +47,7 @@ WORKSPACE="${WORKSPACE:-$CODE/kernel/rock5b-kernel-build}"
 BUILD_DIR="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 DEBS="$BUILD_DIR/output/debs"
 
-[ -x "$BUILD_DIR/compile.sh" ] || { echo "Missing Armbian build tree: $BUILD_DIR -- clone https://github.com/armbian/build there (see install.md)" >&2; exit 1; }
+[ -x "$BUILD_DIR/compile.sh" ] || { echo "Missing Armbian build tree: $BUILD_DIR -- run bootstrap-workspaces.sh first (see install.md)" >&2; exit 1; }
 cd "$BUILD_DIR"
 
 echo ">>> Building combined Rock 5B kernel (ccache ON) in: $BUILD_DIR"

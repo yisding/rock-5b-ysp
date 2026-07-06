@@ -1,0 +1,63 @@
+Source: mpp
+Priority: optional
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Randy Li <randy.li@rock-chips.com>
+Build-Depends:
+ cmake,
+ debhelper-compat (= 13),
+ pkgconf,
+Standards-Version: 4.7.4.1
+Rules-Requires-Root: no
+Section: libs
+Homepage: http://www.rock-chips.com
+#Vcs-Git: git://anonscm.debian.org/collab-maint/mpp.git
+#Vcs-Browser: http://anonscm.debian.org/?p=collab-maint/mpp.git;a=summary
+
+Package: librockchip-mpp-dev
+Section: libdevel
+Architecture: arm64
+Multi-Arch: same
+Depends:
+ librockchip-mpp1 (= ${binary:Version}),
+ librockchip-vpu1 (= ${binary:Version}),
+ ${misc:Depends},
+Description: Rockchip Media Process Platform development files
+ Headers, pkg-config metadata, and linker symlinks for building software
+ against Rockchip's Media Process Platform libraries.
+
+Package: librockchip-mpp1
+Architecture: arm64
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Rockchip Media Process Platform runtime library
+ Runtime library for Rockchip's Media Process Platform video decode and
+ encode stack.
+
+Package: librockchip-vpu1
+Architecture: arm64
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Breaks: librockchip-vpu0 (<< ${binary:Version})
+Replaces: librockchip-vpu0 (<< ${binary:Version})
+Description: Rockchip VPU compatibility runtime library
+ Runtime library for the legacy Rockchip VPU compatibility API.
+
+Package: librockchip-vpu0
+Section: oldlibs
+Architecture: arm64
+Multi-Arch: same
+Depends:
+ librockchip-vpu1 (= ${binary:Version}),
+ ${misc:Depends},
+Description: transitional package for librockchip-vpu1
+ This package can be removed after upgrading to librockchip-vpu1.
+
+Package: rockchip-mpp-demos
+Architecture: arm64
+Depends:
+ librockchip-mpp1 (= ${binary:Version}),
+ librockchip-vpu1 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Rockchip Media Process Platform demo programs
+ Example and diagnostic programs for Rockchip's Media Process Platform.

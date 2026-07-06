@@ -1,0 +1,8 @@
+Version: 5
+
+Source: https://download.gnome.org/sources/@PACKAGE@/cache.json
+Matching-Pattern: [\d.]+/@PACKAGE@-([\d.]+\.?(?:beta|rc)?[\d.]*)@ARCHIVE_EXT@
+Downloadurlmangle: s|cache.json||
+Searchmode: plain
+Uversionmangle: s/\.(alpha|beta|rc)/~$1/
+

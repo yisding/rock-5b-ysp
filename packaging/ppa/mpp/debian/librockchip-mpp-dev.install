@@ -1,0 +1,4 @@
+usr/include/*
+usr/lib/${DEB_HOST_MULTIARCH}/librockchip_mpp.so
+usr/lib/${DEB_HOST_MULTIARCH}/librockchip_vpu.so
+usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/*

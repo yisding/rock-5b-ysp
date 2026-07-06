@@ -1,0 +1,55 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: linux-rga
+Source: https://github.com/rockchip-linux/linux-rga
+
+Files: *
+Copyright: 2016-2025 Rockchip Electronics Co., Ltd.
+           2016 Zhiqin Wei <wzq@rock-chips.com>
+           2017 Putin Lee <putin.li@rock-chips.com>
+           2020 Yu Qiaowei <cerf.yu@rock-chips.com>
+License: Apache-2.0
+ On Debian systems, the complete text of the Apache version 2.0 license
+ can be found in "/usr/share/common-licenses/Apache-2.0".
+
+Files: Android.mk
+Copyright: 2018 Fuzhou Rockchip Electronics Co., Ltd.
+License: GPL-3+
+ On Debian systems, the complete text of the GNU General Public License
+ version 3 can be found in "/usr/share/common-licenses/GPL-3".
+
+Files: core/3rdparty/libdrm/include/drm/*
+       samples/utils/3rdparty/libdrm/include/libdrm/*
+       samples/utils/3rdparty/libdrm/include/xf86drm.h
+Copyright: 1999-2000 Precision Insight, Inc., Cedar Park, Texas
+           2000 VA Linux Systems, Inc., Sunnyvale, California
+           2007 Dave Airlie <airlied@linux.ie>
+           2007 Jakob Bornecrantz <wallbraker@gmail.com>
+           2007-2008 Tungsten Graphics, Inc., Cedar Park, TX., USA
+           2007-2008 Intel Corporation
+           2008 Red Hat Inc.
+           2011 Intel Corporation
+License: Expat
+ Permission is hereby granted, free of charge, to any person obtaining a
+ copy of this software and associated documentation files (the "Software"),
+ to deal in the Software without restriction, including without limitation
+ the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ and/or sell copies of the Software, and to permit persons to whom the
+ Software is furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ IN THE SOFTWARE.
+
+Files: debian/*
+Copyright: 2020 Jeffy Chen <jeffy.chen@rock-chips.com>
+           2026 Yi Ding <yi.s.ding@gmail.com>
+License: Apache-2.0
+ On Debian systems, the complete text of the Apache version 2.0 license
+ can be found in "/usr/share/common-licenses/Apache-2.0".

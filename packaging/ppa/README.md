@@ -1,199 +1,229 @@
-# ppa/ — packaging the whole userspace stack for a Launchpad PPA
+# ppa/ - Launchpad source packages for the userspace stack
 
-The kernel side of this repo ships as Armbian userpatches + standalone `.debs`
-(see the deploy hub, [`../README.md`](../README.md)). The **userspace** side —
-the MPP + RGA libraries, a rkmpp-enabled FFmpeg, and gnome-remote-desktop — is
-packaged as **source packages for a personal Launchpad PPA**, so Launchpad
-builds them on its arm64 builders and `apt` installs the whole stack with
-dependencies resolved.
+This directory holds the reproducible Debian packaging for the ROCK 5B
+userspace media stack intended for `ppa:yi-ding/ubuntu-rock-5b`.
 
-Everything targets **resolute** (Ubuntu 26.04 base; Armbian's userspace) on
-**arm64**. The upload-ready artifacts live at **`~/Code/gnome/grd/grd-ppa/`** (dev box
-only — see [§Import plan](#import-plan--getting-the-debian-trees-into-this-repo))
-with a step-by-step runbook (`UPLOAD.md`); this document is the *why and how
-they were built*.
+The kernel side still ships through Armbian userpatches and standalone local
+`.debs`; this PPA is for userspace packages that should be built by Launchpad
+and installed by `apt`: MPP, librga, FFmpeg with RKMPP/RKRGA, and GRD. The
+greeter ACL package remains a local deb or future native PPA wrapper.
 
-> **Why a PPA and not the local `.debs`?** Early on the codec libs were a
-> hand-split `rockchip-codec-libs` deb (an unversioned `librga.so` + a hand-built
-> MPP blob — the one non-reproducible piece). The PPA replaces that with the
-> **ecosystem-standard** `librockchip-mpp1` / `librga2` packages plus proper
-> FFmpeg and GRD source packages, all built reproducibly on Launchpad. The full
-> chain of abandoned designs (hand-split libs → GRD-private bundled
-> ffmpeg-rockchip → two vendored-FFmpeg GRD flavours → this) is recorded in
-> [`../README.md` §History](../README.md#history--packaging-roads-not-taken);
-> day-2 operations (apt-mark hold, exact rollback, the mpv/VLC decoder-selection
-> caveat) are in [`../README.md` §Operations](../README.md#operations-runbook--running-the-rkmpp-ffmpeg-stack).
+## Current State
 
-## The five packages
+Last recorded in the public APT indexes and Launchpad API at
+`2026-07-06T16:43:41-07:00` and in
+[`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md):
 
-| # | Source | Version | Builds | Upstream / basis |
-|---|--------|---------|--------|------------------|
-| 1 | `mpp` | `1.5.0-1+rk1` | `librockchip-mpp1`, `-dev`, `librockchip-vpu0`, `rockchip-mpp-demos` | [`tsukumijima/mpp-rockchip`](https://github.com/tsukumijima/mpp-rockchip) `@750e76e` (tracks HermanChen `develop`) |
-| 2 | `librga` | `2.2.0-1+rk1` | `librga2` (+ unversioned `librga.so`), `librga-dev` | [`tsukumijima/librga-rockchip`](https://github.com/tsukumijima/librga-rockchip) (JeffyCN lineage) |
-| 3 | `ffmpeg` | `7:8.1.2-1+rk1` | `libavcodec62` (+`-extra`), the full Ubuntu `libav*` set, `ffmpeg` — **with `h264_rkmpp`** | Ubuntu's `ffmpeg` source, upstream bumped `8.0.1 → 8.1.2` |
-| 4 | `gnome-remote-desktop` | `50.1+rkmpp-2` | `gnome-remote-desktop` (rkmpp encode backend) | our fork vendored as upstream + Ubuntu's `50.0` packaging |
-| 5 | `gnome-remote-desktop-gdm-hwenc` | `1.0` | `gnome-remote-desktop-gdm-hwenc` (opt-in greeter ACL) | native; [`../gdm-hwenc/`](../gdm-hwenc) |
+| Package | Version in this repo | Public PPA state | Notes |
+|---------|----------------------|------------------|-------|
+| `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Source index publishes `-0ubuntu2~rk1`; public binary indexes are still empty. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
+| `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Public APT source index still publishes `-0ubuntu2~rk1`; public binary indexes are still empty. | Launchpad API shows the `-0ubuntu3~rk1` retry source publication as `Pending`, so it had not reached the public APT source index at the last check. |
+| `ffmpeg` | `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk1` | Rockchip-81 source package generated, lintian-checked, signed, and held; not in the public PPA source index. | A separate upstream FFmpeg `7:8.1.2-1+rk1` baseline upload is `Pending` in Launchpad's API view, but no FFmpeg source was visible in the public APT source index at the last check. Upload the higher-version Rockchip-81 source only after dependencies and the baseline path settle. |
+| `gnome-remote-desktop` | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1` | Source packaging imported, source lintian passed, and a local `nocheck` binary build passed against upstream FFmpeg `7:8.1.2-1+rk1`; not uploaded and not public in the PPA source index. | Reconstructed from `GRD_COMMIT` plus [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md), so it no longer depends on a dirty dev-box worktree. Wait for the FFmpeg dependency chain before upload, then rebuild once against upstream FFmpeg and once after `ffmpeg-rockchip-81` supersedes it. |
+| `gnome-remote-desktop-gdm-hwenc` | local native package exists | Future wave or standalone local deb. | Source lives under [`../gdm-hwenc/`](../gdm-hwenc/README.md). |
 
-All are `3.0 (quilt)` except `gdm-hwenc` (`3.0 (native)`). Version convention:
-**`+rk1`** sorts above the stock revision; FFmpeg keeps Ubuntu's **epoch `7:`** so
-`7:8.1.2-1+rk1` upgrades in place over `7:8.0.1-3ubuntu2`.
+Install-facing state: **do not tell users to install from this PPA yet**. The
+public `binary-arm64/Packages.gz` and `binary-amd64/Packages.gz` indexes were
+empty at the last check, so `apt` cannot install the package set even though
+source publications exist.
 
-## How each was built
+The PPA targets **resolute** (Ubuntu 26.04 / Armbian userspace) on **arm64**.
+The PPA was corrected from its initial amd64-only setup during the 2026-07-06
+run; package metadata now marks the imported binary packages as `Architecture:
+arm64`.
 
-### 1–2. `mpp` + `librga` — the codec libraries
+## Directory Contents
 
-Built straight from the **tsukumijima** Debian formulas (clean `debian/`, CI-built,
-track a Rockchip-maintained MPP `develop` branch). The only work was making them
-build on **resolute / GCC-15**, which promotes several warnings to errors that
-older CI toolchains didn't:
+| Path | Purpose |
+|------|---------|
+| [`build-source-packages.sh`](build-source-packages.sh) | Exports clean upstream git snapshots, overlays the packaging in this repo, and creates unsigned source packages under `/tmp/ubuntu-rock-5b-ppa/artifacts` by default. |
+| [`mpp/debian/`](mpp/debian/changelog) | Debian packaging for Rockchip MPP from `mpp-rockchip` commit `1375813c`. |
+| [`librga/debian/`](librga/debian/changelog) | Debian packaging for the local `librga-fork` commit `a632217`, including the P010/P210 work. |
+| [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg packaging retargeted to the `ffmpeg-rockchip-81` forward-port at `75638e7f0b17`. |
+| [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging retargeted to the `GRD_COMMIT` + `GRD_DELTA` source snapshot with `-Dffmpeg=enabled`. |
+| [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md) | Captured tracked-file GRD deltas needed to reconstruct dirty source-package snapshots. |
+| [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md) | The detailed build, lintian, signing, upload, Launchpad, and retry log for the current run. |
 
-```make
-# debian/rules — mpp (and similarly librga)
-DEB_CFLAGS_MAINT_APPEND = -Wno-error=incompatible-pointer-types \
-                          -Wno-error=implicit-function-declaration \
-                          -Wno-error=int-conversion -Wno-error=implicit-int
-```
+Generated `.dsc`, `.changes`, `.buildinfo`, orig tarballs, `.deb`, `.ddeb`, and
+build directories are intentionally not committed. The script writes them under
+`/tmp` unless `OUT=` is set.
 
-`mpp` yields `librockchip_mpp.so.1` (NEEDED: libc/libm only; max `GLIBC_2.38`).
-`librga` yields `librga.so.2` **and** ships the unversioned `librga.so` symlink so
-it also satisfies the `ffmpeg-rockchip` fork if you build that too. `librga` had no
-`debian/source/format`; added `3.0 (quilt)`.
+## Source Inputs
 
-> Both were proven by encoding 60 frames through the built libs with our system
-> FFmpeg (`ffprobe`-clean), before packaging.
+The helper uses these default local source trees and commits. Override the paths
+or pins with the matching environment variables when reproducing the export on a
+different machine.
 
-### 3. `ffmpeg` — upstream FFmpeg 8.1.2 + rkmpp, as an in-place upgrade
+| Source | Default variable | Default value |
+|--------|------------------|---------------|
+| MPP repo | `MPP_REPO` | `/home/yi/Code/rockchip-userspace/mpp-rockchip` |
+| MPP commit | `MPP_COMMIT` | `1375813c` |
+| librga repo | `LIBRGA_REPO` | `/home/yi/Code/rockchip-userspace/librga-fork` |
+| librga commit | `LIBRGA_COMMIT` | `a632217` |
+| FFmpeg repo | `FFMPEG_REPO` | `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81` |
+| FFmpeg commit | `FFMPEG_COMMIT` | `75638e7f0b1775193381af0c3187838f6c51dbd1` |
+| GRD repo | `GRD_REPO` | `/home/yi/Code/gnome/grd/grd-ffmpeg` |
+| GRD commit | `GRD_COMMIT` | `a59c904c99088235eb4de31ca340747d334494f3` |
+| GRD dirty delta | `GRD_DELTA` | [`source-deltas/dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch) |
 
-The goal was a **drop-in** over Ubuntu's `ffmpeg` so every app gets rkmpp. 8.1.2
-and 8.0.1 are both FFmpeg 8.x, so the seven library SONAME majors are identical
-(`libavcodec.so.62`, `libavutil.so.60`, …) → ABI-compatible.
-The trade-off versus `ffmpeg-rockchip` is documented in
-[`video-libraries/ffmpeg/docs/implementation-comparison.md`](../../video-libraries/ffmpeg/docs/implementation-comparison.md):
-upstream FFmpeg 8.1.2 keeps ABI compatibility but lacks ffmpeg-rockchip's RGA
-filters and richer rkmpp encoder controls.
+Version strings can also be overridden with `MPP_UPSTREAM_VERSION`,
+`LIBRGA_UPSTREAM_VERSION`, `FFMPEG_UPSTREAM_VERSION`, and
+`GRD_UPSTREAM_VERSION`.
 
-```bash
-apt-get source ffmpeg                      # Ubuntu 7:8.0.1-3ubuntu2 (no debian/patches to rebase)
-# drop in the official ffmpeg-8.1.2 orig tarball as the new upstream
-```
-Two `debian/` deltas:
-- **`debian/rules`** — add rkmpp to the *shared* config (the "extra" flavour
-  already had `version3`; the standard flavour that builds `libavcodec62` did not):
-  ```make
-  CONFIG += --enable-rkmpp --enable-version3
-  ```
-- **`debian/control`** — `Build-Depends: … librockchip-mpp-dev [linux-any]`.
+## Build Source Packages
 
-License resolves to **GPL-3** (rkmpp's `version3` requirement). The `*.symbols`
-files are templated/auto-extending, and 8.1.2 only *adds* symbols within SONAME
-62, so the symbol diffs are non-fatal. Builds the full Ubuntu package set.
-
-**FATE is deliberately non-fatal** in this package: `debian/rules` prefixes
-`override_dh_auto_test-arch` with `-` and passes `-k`, because the frei0r FATE
-filter tests need the `frei0r-plugins` **runtime** package (the `distort0r`
-module) which is not a build dependency, so the filter cannot `dlopen` it in
-the build environment. That failure is expected and **unrelated to rkmpp** —
-anyone reproducing the package should not chase it.
-
-### 4. `gnome-remote-desktop` — the backend, vendored as upstream
-
-There is no separate "upstream tarball" for our work, so we **vendored our fork
-branch as the upstream**:
-
-- `orig` = `git archive` of the `ffmpeg-rkmpp-encode-backend` branch (GRD 50.1 +
-  the [encode backend](../../apps/gnome-remote-desktop/patches)).
-- Grafted **Ubuntu's `50.0` `debian/`** on top; dropped Ubuntu's three patches
-  (all upstream in 50.1); enabled `-Dffmpeg=enabled` and added
-  `libavcodec-dev`/`libavutil-dev (>= 7:8.1.2~)` to `Build-Depends` (stock Ubuntu
-  builds GRD with the ffmpeg feature *off*); switched fdk-aac on.
-- The **backend lives in the `orig`**; only the two runtime changes ride as
-  `debian/patches` (`3.0 quilt`): the **upstream-rkmpp fix** and a **revert** of a
-  cherry-picked handover-reconnect change that broke GDM→session handover. (That
-  revert exists only because the `orig` snapshot happened to include the
-  cherry-pick — see the [patches note](../../apps/gnome-remote-desktop/patches/README.md).)
-
-### 5. `gnome-remote-desktop-gdm-hwenc` — the greeter ACL
-
-A tiny native package; documented and buildable standalone at
-[`../gdm-hwenc/`](../gdm-hwenc). Independent of the others
-(depends only on `acl`).
-
-## Upload order — respect the build-dep chain
-
-Launchpad does **not** auto-retry a build that fails on a missing build-dep, and
-can only use a PPA package as a build-dep **after it has finished publishing**
-(minutes to ~1 h each). So upload in waves:
-
-```
-Wave A  mpp, librga            (no internal deps)
-          └─ wait for librockchip-mpp-dev to publish (arm64)
-Wave B  ffmpeg                 (build-deps on librockchip-mpp-dev)
-          └─ wait for libavcodec-dev 7:8.1.2-1+rk1 to publish
-Wave C  gnome-remote-desktop   (build-deps on libavcodec-dev >= 7:8.1.2~)
-Wave D  gnome-remote-desktop-gdm-hwenc   (independent — any time)
-```
-
-The full runbook — one-time Launchpad/GPG setup, `debsign`, `dput`, and
-per-package confidence notes — is **`~/Code/gnome/grd/grd-ppa/UPLOAD.md`**. The staged
-artifacts there are **source-only and unsigned**: you sign them with your own GPG
-key (registered on Launchpad) and `dput`.
-
-## Install (once published)
+Build all imported source packages:
 
 ```bash
-# Wave A/B publish first; then a single apt line pulls the stack + GRD:
-sudo apt install librockchip-mpp1 librga2 ffmpeg gnome-remote-desktop
-sudo apt install gnome-remote-desktop-gdm-hwenc   # optional: HW-encode the login screen
+bash packaging/ppa/build-source-packages.sh
 ```
 
-`mpp`/`librga`/`ffmpeg` are useful well beyond GRD (Jellyfin, mpv, …); GRD is just
-the first consumer that needed the whole chain at once. After installing,
-**pin the FFmpeg libs** (`apt-mark hold`) so a future Ubuntu `7:8.1.x` doesn't
-silently replace the rkmpp build — the hold set, the exact rollback recipe, and
-the mpv/VLC decoder-selection caveat are in
-[`../README.md` §Operations](../README.md#operations-runbook--running-the-rkmpp-ffmpeg-stack).
+Build a subset:
 
-## Status (verified 2026-07-01)
-
-- `mpp` and `librga`: **binary-built on resolute** (high confidence; MPP
-  end-to-end encode-tested through the built libs).
-- `ffmpeg`: a **full local arm64 `dpkg-buildpackage` binary build succeeded
-  2026-06-30** — the complete 25-artifact changes set (`ffmpeg`, `ffmpeg-doc`,
-  all seven runtime lib debs, seven `-dev` debs, eight dbgsym `.ddeb`s,
-  `.buildinfo` + `.changes` in `~/Code/ffmpeg/ffmpeg-ppa/`). Two scope notes from the
-  `.buildinfo`: it ran with `DEB_BUILD_PROFILES="… pkg.ffmpeg.noextra"` and
-  `DEB_BUILD_OPTIONS="nocheck …"`, so the **`-extra` flavour binaries and the
-  FATE run were skipped locally**. Launchpad sets neither, so a PPA build will
-  additionally build the extra flavour and run FATE — `UPLOAD.md` flags the
-  two-flavour build as the remaining unknown, and the non-fatal `dh_auto_test`
-  override (frei0r, above) is what keeps the expected test failure from
-  sinking the build.
-- `gnome-remote-desktop`: configure/compile-proven and round-trip-verified as a
-  source package.
-- **Not yet done:** no clean-chroot `sbuild` test of #3/#4; **nothing has been
-  `dput`** — the PPA, GPG key, and upload are the maintainer's to run.
-  Project-wide snapshot: [`../../status.md`](../../status.md).
-
-## Import plan — getting the `debian/` trees into this repo
-
-Today a fresh clone of this repo **cannot reproduce the PPA packages**: this
-README quotes the `debian/` deltas only as fragments, and the load-bearing
-artifacts live in the unversioned dev-box directory `~/Code/gnome/grd/grd-ppa/`:
-
-```
-mpp_1.5.0-1+rk1.dsc / .debian.tar.xz / mpp_1.5.0.orig.tar.gz
-librga_2.2.0-1+rk1.dsc / .debian.tar.xz / librga_2.2.0.orig.tar.gz
-ffmpeg_8.1.2-1+rk1.dsc / .debian.tar.xz / ffmpeg_8.1.2.orig.tar.xz
-gnome-remote-desktop_50.1+rkmpp-2.dsc / .debian.tar.xz / …orig.tar.gz
-gnome-remote-desktop-gdm-hwenc_1.0.dsc / .tar.xz
-UPLOAD.md            (sign + wave-ordered dput runbook)
+```bash
+bash packaging/ppa/build-source-packages.sh mpp librga
+bash packaging/ppa/build-source-packages.sh ffmpeg
+bash packaging/ppa/build-source-packages.sh gnome-remote-desktop
+bash packaging/ppa/build-source-packages.sh grd
 ```
 
-**Plan (not yet executed):** import into this directory the five unpacked
-`debian/` trees (as `ppa/<source>/debian/`) plus `UPLOAD.md` — *source only*,
-per the [binary policy](../README.md#binary-policy): no orig tarballs, no
-`.deb`s. The orig tarballs are reconstructible (upstream release tarballs for
-mpp/librga/ffmpeg; `git archive` of the GRD fork branch for #4; native for #5),
-so `debian/` + this README + `UPLOAD.md` make the PPA work reproducible from a
-clone. Until that lands, the dev box remains a single point of failure for the
-PPA channel (tracked in [`../../status.md`](../../status.md)).
+Use a different output directory or source checkout:
+
+```bash
+OUT=/tmp/rock5b-ppa \
+MPP_REPO=/path/to/mpp-rockchip \
+LIBRGA_REPO=/path/to/librga-fork \
+FFMPEG_REPO=/path/to/ffmpeg-rockchip-81 \
+GRD_REPO=/path/to/grd-ffmpeg \
+bash packaging/ppa/build-source-packages.sh
+```
+
+The script reuses an existing orig tarball from the artifact directory unless
+`FORCE_ORIG=1` is set. That is required for Launchpad: every Debian revision
+for the same upstream version must reference byte-identical orig tarball
+contents. Before reuse, the helper extracts the existing orig tarball and checks
+that its contents match the freshly exported source tree; stale orig tarballs
+fail loudly instead of silently changing the source-package delta.
+
+The GRD exporter archives `GRD_COMMIT` and applies `GRD_DELTA` before creating
+the orig tarball, because the validation source is marked by the
+`dirty20260706` version string. Override `GRD_REPO`, `GRD_COMMIT`, and
+`GRD_DELTA` together when rebuilding from a different GRD source state.
+
+## Upload Order
+
+Respect the build-dependency chain:
+
+```text
+Wave A  mpp, librga
+          wait for librockchip-mpp-dev and librga-dev to publish on arm64
+Wave B  ffmpeg-rockchip-81
+          wait for libavcodec-dev/libavutil-dev/etc. to publish
+Wave C  gnome-remote-desktop
+Wave D  gnome-remote-desktop-gdm-hwenc
+```
+
+For the normal Rockchip-enabled package flow, do not upload the higher-version
+`ffmpeg-rockchip-81` source package until the corrected MPP and librga
+development packages are published in the PPA. Launchpad does not automatically
+retry builds that fail before dependencies exist. The 2026-07-06 run made one
+explicit exception: an upstream FFmpeg `7:8.1.2-1+rk1` baseline source upload
+was submitted first so Launchpad could start the baseline path while the
+Rockchip-81 source remained held.
+
+Signing and upload are deliberately outside the helper:
+
+```bash
+debsign -k <fingerprint> /tmp/ubuntu-rock-5b-ppa/artifacts/*_source.changes
+dput ppa:yi-ding/ubuntu-rock-5b /tmp/ubuntu-rock-5b-ppa/artifacts/<package>_source.changes
+```
+
+Use the exact files from the artifact directory; the upload log records the
+fingerprint and package-specific retry history from the 2026-07-06 run.
+
+## Package Notes
+
+### MPP
+
+The MPP package is based on `mpp-rockchip` tag `1.0.12` / commit `1375813c`.
+The source is repacked as `+ds` because unused upstream Windows binaries are
+removed before orig tarball creation. The runtime packages are:
+
+- `librockchip-mpp1`
+- `librockchip-vpu1`
+- `librockchip-vpu0` transitional package
+- `rockchip-mpp-demos`
+- `librockchip-mpp-dev`
+
+The packaging keeps unversioned linker symlinks in `-dev`, adds a small quilt
+patch for GCC 15 pthread start-routine type checking in a test helper, and lists
+the upstream static archive in `debian/not-installed` rather than shipping it.
+
+### librga
+
+The librga package is based on the local `librga-fork` commit `a632217`, carrying
+the P010/P210 request-generation support recorded under
+[`../../vendor-libraries/rga/`](../../vendor-libraries/rga/README.md). It builds:
+
+- `librga2`
+- `librga-dev`
+
+The upstream project reports Meson version `2.1.0`, while the package version is
+`2.2.0+git20260703.a632217-*`; the built shared library keeps SONAME
+`librga.so.2`.
+
+### FFmpeg
+
+The FFmpeg package uses the full Ubuntu/Debian packaging surface, not the smaller
+local `/opt` package under [`../ffmpeg-rockchip81/`](../ffmpeg-rockchip81/README.md).
+It is built from the `ffmpeg-rockchip-81` forward-port branch at `75638e7f0b17`
+and enables:
+
+- `--enable-rkmpp`
+- `--enable-rkrga`
+- `--enable-libdrm`
+- `--enable-version3`
+
+This source produces the ABI from that branch: `libavcodec63`, `libavutil61`,
+`libavformat63`, `libavfilter12`, `libavdevice63`, `libswscale10`, and
+`libswresample7`.
+
+### GNOME Remote Desktop
+
+The GRD package is based on `GRD_COMMIT` plus the captured
+[`source-deltas/dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch),
+not a clean commit archive. `build-source-packages.sh` exports a clean git
+archive, applies that delta, removes generated `*.spv` shader outputs, overlays
+[`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog), and
+builds a `3.0 (quilt)` source package. The packaging enables the FFmpeg backend
+with `-Dffmpeg=enabled`, restricts the binary package to `Architecture: arm64`,
+and depends on the PPA's FFmpeg 8.1.2 development packages.
+
+This package has not been uploaded to the PPA or Launchpad-build-validated from
+this repo snapshot. Local source-package validation passed, and a local
+`DEB_BUILD_OPTIONS=nocheck` binary build succeeded against the upstream FFmpeg
+8.1.2 baseline (`libavcodec62` / `libavutil60`) after sanitizing `PATH` so
+`a2x` used `/usr/bin/python3` instead of a user-level `mise` Python. Treat GRD
+as staged behind the MPP/librga/FFmpeg dependency chain, with a second binary
+validation still required after `ffmpeg-rockchip-81` publishes the fork ABI
+(`libavcodec63` / `libavutil61`).
+
+## What Is Still Not In This Repo
+
+- A PPA-native `gnome-remote-desktop-gdm-hwenc` source-package wrapper, if that
+  package is uploaded through Launchpad instead of shipped as the existing local
+  native deb.
+- The original dev-box `UPLOAD.md` runbook. The current run is captured in
+  [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md)
+  instead.
+- Signed upload artifacts, orig tarballs, `.changes`, `.dsc`, binary packages,
+  and Launchpad credentials.
+
+## See Also
+
+- [`../README.md`](../README.md) - deploy hub and binary policy.
+- [`../../status.md`](../../status.md) - project-wide scoreboard.
+- [`../ffmpeg-rockchip81/`](../ffmpeg-rockchip81/README.md) - self-contained
+  local `/opt` FFmpeg package, separate from this PPA replacement package.
+- [`../../video-libraries/ffmpeg/`](../../video-libraries/ffmpeg/README.md) -
+  FFmpeg implementation notes and patch context.

@@ -140,7 +140,7 @@ rather than silently falling back to software RFX:
   `ps -T -p <pid>` / `top -H`.
 - **FDs:** it holds an open `/dev/mpp_service` (and `/dev/dma_heap/*`) fd.
   `ls -l /proc/<pid>/fd | grep -E 'mpp_service|dma_heap'`.
-- **Logs:** grep the journal for the shipped `[HWAccel.FFmpeg]` tags —
+- **Logs:** grep the journal for the committed `[HWAccel.FFmpeg]` tags —
   `Initialized FFmpeg/rkmpp encode backend` and
   `Created h264_rkmpp encode session` are `g_message` (always reach the
   journal, no debug-env dance); the failure lines are
@@ -148,7 +148,7 @@ rather than silently falling back to software RFX:
   `[HWAccel.FFmpeg] Could not create rkmpp encode session: …`. Full signal
   table with exact strings: [`profiling.md`](profiling.md) §7. (The
   `[ACKDBG]`-style tags in [`README.md`](../README.md)'s methodology section were
-  throwaway instrumentation — in no shipped patch, don't grep for them.)
+  throwaway instrumentation — in no committed patch, don't grep for them.)
 - **Multiple frames.** `Created … encode session` alone proves only the smoke
   encode, not the view-creator — run several frames and re-check the
   thread/fds ([`design.md`](design.md) §lesson).

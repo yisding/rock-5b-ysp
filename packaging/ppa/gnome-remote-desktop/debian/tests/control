@@ -1,0 +1,4 @@
+Tests: upstream-tests
+Depends: @, @builddeps@
+Architecture: !i386
+Restrictions: allow-stderr

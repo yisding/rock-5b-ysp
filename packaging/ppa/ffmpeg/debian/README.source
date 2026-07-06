@@ -1,0 +1,21 @@
+This source package is exported from the local ffmpeg-rockchip-81 git tree
+with git archive, then this debian/ directory is overlaid by the YSP
+packaging script.
+
+The upstream RELEASE file in this branch says 8.0.git, but the library ABI
+headers in the same source tree declare libavcodec/libavformat/libavdevice
+major 63, libavutil major 61, libavfilter major 12, libswresample major 7, and
+libswscale major 10. The Debian package version is chosen to sort above the
+previous Ubuntu/Rockchip PPA ffmpeg 7:8.1.2-1+rk1 while recording the exact
+Rockchip git commit in the version string.
+
+This package keeps the normal Ubuntu/Debian ffmpeg feature surface: standard
+and extra shared-library flavors, ffmpeg-doc, ffplay, qt-faststart, and the
+usual optional codec/filter/protocol dependencies from the Ubuntu package. The
+Rockchip delta is layered on top by enabling RKMPP, RKRGA, libdrm, and
+version3 support.
+
+The old ABI-62/60/11 Debian symbols templates are intentionally not used for
+this ABI-63/61/12 Rockchip forward-port upload. dh_makeshlibs generates shlibs
+metadata from the built libraries; symbols coverage can be reintroduced after
+the ABI-63 symbol set is stabilized in this PPA.

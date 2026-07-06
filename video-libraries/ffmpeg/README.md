@@ -15,7 +15,7 @@ Project vocabulary (incl. `ffmpeg-rockchip` upstream vs the `ffmpeg-rockchip-81`
 | Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
 | Owns | The FFmpeg build recipe, companion docs in [`docs/`](docs/how-ffmpeg-works.md), pkg-config examples, and exported patch series in [`patches/`](patches/README.md). |
 | Depends on | Working kernel nodes from [`kernel-drivers/README.md`](../../kernel-drivers/README.md), staged or packaged libraries from [`vendor-libraries/README.md`](../../vendor-libraries/README.md), and the codec udev rule for non-root use. |
-| Current state | The original `ffmpeg-rockchip` build path is hardware-validated; the rebased `ffmpeg-rockchip-81` tree and 28-patch fix series are documented but not what is installed on the board. See [`status.md`](../../status.md). |
+| Current state | The original `ffmpeg-rockchip` build path is hardware-validated. The current local `ffmpeg-rockchip-81` forward-port at `75638e7f0b17` builds and packages, and its feature/encode/RGA-smoke validation passed; decode currently depends on selecting a fixed MPP runtime instead of the board's installed `/usr` MPP. See [`status.md`](../../status.md). |
 
 ## Files
 
@@ -37,12 +37,13 @@ librga fix.
 **Which tree is current:** this README's recipe builds the nyanmisaka fork at
 `40c412dacc` (2026-04-23) — the tree the kernel-port validation used. Since
 then the whole stack was rebased onto FFmpeg master and given 28 review-fix
-commits: **`github.com/yisding/ffmpeg-rockchip-81`**, branch `main`
-(nyanmisaka upstream: `github.com/nyanmisaka/ffmpeg-rockchip`). If you are
-building fresh today, prefer the rebased tree — it carries the 14 documented
-fix groups ([`docs/fix-candidates.md`](docs/fix-candidates.md)) and no longer needs
-`--disable-vulkan`. See [`docs/rebase-notes.md`](docs/rebase-notes.md) §3 for what is
-actually installed/running on the board.
+commits: **`github.com/yisding/ffmpeg-rockchip-81`** (nyanmisaka upstream:
+`github.com/nyanmisaka/ffmpeg-rockchip`). If you are building fresh today,
+prefer the rebased tree: it carries the documented fix groups
+([`docs/fix-candidates.md`](docs/fix-candidates.md)), no longer needs
+`--disable-vulkan`, and is the tree behind the local package validation at
+`75638e7f0b17`. The older `main` export at `6cf02ab253` remains the 28-patch
+review series captured under [`patches/`](patches/README.md).
 
 This needs **no system install and no sudo to build** — everything goes into an
 isolated staging prefix; only *running* it needs device access (root, or the udev

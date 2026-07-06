@@ -1,0 +1,813 @@
+gnome-remote-desktop (50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Package the current grd-ffmpeg working tree for the ROCK 5B PPA.
+  * Build the FFmpeg/rkmpp encode backend with -Dffmpeg=enabled so the same GRD
+    source can be validated first against upstream FFmpeg 8.1.2 and then against
+    the ffmpeg-rockchip-81 forward port.
+  * Export the already-applied rkmpp backend and mainline h264_rkmpp workaround
+    commits from git instead of replaying the older quilt patch stack.
+  * Exclude generated SPIR-V shader outputs from the source tarball; they are
+    rebuilt from GLSL at package build time.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Mon, 06 Jul 2026 16:10:51 -0700
+
+gnome-remote-desktop (50.1+rkmpp-2) resolute; urgency=medium
+
+  * Revert "rdp: make handover reconnect cleanup robust" (4e0d599): it broke the
+    basic GDM->session handover (stall, refcount underflow, zombie remote
+    displays from its preserve-on-failure path). Back to stock 50.1 handover.
+  * encode-session-ffmpeg: make mainline FFmpeg's h264_rkmpp produce a usable
+    AVC420 stream. Mainline's rkmpp encoder (unlike the ffmpeg-rockchip fork)
+    exposes no QP/profile knobs and ignores per-frame forced IDR, so it needs two
+    mainline-specific workarounds (both no-ops on the fork):
+    - Recreate the encoder after the start-up smoke encode so the first client
+      frame is a real IDR (SPS+PPS+IDR). rkmpp only emits an IDR for the first
+      frame after open and the smoke encode consumed it; mainline ignores
+      pict_type=I, so every frame went out as a bare P-slice, the client never
+      decoded or acknowledged a frame, and the RDPGFX frame controller froze the
+      surface after two unacknowledged frames.
+    - Set the VBR peak/floor (rc_max_rate/rc_min_rate) and raise the target.
+      Mainline only sets MPP bps_max from avctx->rc_max_rate, which was unset, so
+      MPP's ~2.5 Mbps default ceiling capped every frame; with no QP knob on
+      mainline, a higher target is what keeps QP low. Fixes heavy artifacts.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 30 Jun 2026 21:15:00 -0700
+
+gnome-remote-desktop (50.1+rkmpp-1) resolute; urgency=medium
+
+  * Vendor the FFmpeg/rkmpp H.264 encode backend (RK3588 / h264_rkmpp) on top of
+    upstream 50.1: GrdEncodeSessionFFmpeg + GrdHwAccelFFmpeg, dma-heap NV12
+    surfaces, the panvk modifier-list / HOST_CACHED fixes, and the robust
+    handover reconnect cleanup.
+  * Enable the ffmpeg meson feature (-Dffmpeg=enabled); build against the PPA's
+    FFmpeg 8.1.2 (libavcodec-dev/libavutil-dev >= 7:8.1.2).
+  * Drop Ubuntu's tests-rdp / rdp-pipewire patches (present in 50.1 upstream).
+  * Enable fdk-aac (libfdk-aac-dev) instead of Ubuntu's disable-fdk-aac revert,
+    which no longer applies cleanly to 50.1.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 30 Jun 2026 09:04:03 -0700
+
+gnome-remote-desktop (50.0-0ubuntu2) resolute; urgency=medium
+
+  * Cherry-pick patch to fix black screen issues on RDP with NVIDIA
+    GPUs. (LP: #2145123)
+
+ -- Charles <charles05@canonical.com>  Fri, 27 Mar 2026 08:52:01 +0000
+
+gnome-remote-desktop (50.0-0ubuntu1) resolute; urgency=medium
+
+  * New upstream release
+  * Refresh patches
+  * d/p/tests-rdp-Ignore-cursor-updates-when-checking-for-the-scr.patch:
+    - Add upstream patch to workaround gnome-remote-desktop/rdp test
+      flakiness.
+
+ -- Charles <charles05@canonical.com>  Mon, 16 Mar 2026 08:59:26 +0000
+
+gnome-remote-desktop (50~rc-0ubuntu1) resolute; urgency=medium
+
+  * New upstream release
+  * Refresh patches
+  * Add gdm3 (<< 50~rc) to Breaks
+    - The DBus interface for creating remote displays changed
+      incompatibly.
+  * Note that gnome-remote-desktop/rdp is flakey with the current
+    versions of Mutter.
+    - Expecting 50.rc to contain some fixes for that.
+    - See: https://gitlab.gnome.org/GNOME/gnome-remote-desktop/-/issues/301
+
+ -- Charles <charles05@canonical.com>  Mon, 02 Mar 2026 15:03:08 +0000
+
+gnome-remote-desktop (50~beta-1) experimental; urgency=medium
+
+  [ Charles ]
+  * New upstream release
+    - d/control: Update dependencies. libkrb5-dev is a new one
+  * d/watch: Update to version 5
+  * Refresh patches
+
+  [ Daniel van Vugt ]
+  * Soften the dependency on libmutter to Recommends because it's really
+    not required until run time, and even then is only a weak assumption
+    that a similar enough DBus protocol is supported. Also allow multiple
+    versions of libmutter where the protocol is known to not have changed
+    (much).
+
+ -- Charles <charles05@canonical.com>  Wed, 04 Feb 2026 23:00:30 +0000
+
+gnome-remote-desktop (49.2-2) unstable; urgency=medium
+
+  * Bump Standards Version to 4.7.3
+  * Stop running autopkgtests on i386 (Closes: #1121036)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 07 Jan 2026 12:39:06 -0500
+
+gnome-remote-desktop (49.2-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 08 Dec 2025 09:59:48 -0500
+
+gnome-remote-desktop (49.1-2) unstable; urgency=medium
+
+  * Release to unstable
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Fri, 31 Oct 2025 08:39:39 -0400
+
+gnome-remote-desktop (49.1-1) experimental; urgency=medium
+
+  * New upstream release
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 13 Oct 2025 18:36:46 -0400
+
+gnome-remote-desktop (49.0-1) experimental; urgency=medium
+
+  [ Jeremy Bícha ]
+  * New upstream release
+
+  [ Alessandro Astone ]
+  * debian/control: Update Build-Depends minimum versions
+  * debian/control: Bump mutter API
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Tue, 16 Sep 2025 09:00:30 -0400
+
+gnome-remote-desktop (48.2-1) unstable; urgency=medium
+
+  [ Jeremy Bícha ]
+  * New upstream release
+  * Bump Standards Version to 4.7.2
+  * Remove obsolete Rules-Requires-Root: no field
+
+  [ Alessandro Astone ]
+  * debian/patches: Drop patch applied upstream
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Tue, 16 Sep 2025 08:53:49 -0400
+
+gnome-remote-desktop (48.1-4) unstable; urgency=medium
+
+  * Team upload
+  * Upload to unstable
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 10 Jul 2025 10:04:35 +0100
+
+gnome-remote-desktop (48.1-3) experimental; urgency=medium
+
+  * Cherry-pick patch to fix gnome-remote-desktop on arm64
+    (at least as seen on Raspberry Pi 5) with mesa 25.07 (LP: #2115956)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Tue, 08 Jul 2025 16:59:33 +0200
+
+gnome-remote-desktop (48.1-2) unstable; urgency=medium
+
+  [ Jeremy Bícha ]
+  * postinst: Remove accidental copy of rygel.postinst
+
+ -- Laurent Bigonville <bigon@debian.org>  Tue, 13 May 2025 16:01:58 +0200
+
+gnome-remote-desktop (48.1-1) unstable; urgency=medium
+
+  [ Jeremy Bícha ]
+  * New upstream release
+  * Don't automatically enable the systemd system service (Closes: #1070644)
+  * Salsa CI: Disable build tests to avoid inability to run the TPM test
+
+ -- Matthias Geiger <werdahias@debian.org>  Sat, 03 May 2025 14:15:02 +0200
+
+gnome-remote-desktop (48.0-1) unstable; urgency=medium
+
+  * New upstream release
+  * Add Build-Depends: libva-dev
+  * Remove patch to avoid libva
+  * debian/docs: install README.md since it explains how to configure
+    gnome-remote-desktop via the command line (LP: #2064647)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Thu, 20 Mar 2025 15:34:24 -0400
+
+gnome-remote-desktop (48~alpha-2) unstable; urgency=medium
+
+  * Release to unstable
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sun, 02 Mar 2025 05:29:35 -0500
+
+gnome-remote-desktop (48~alpha-1) experimental; urgency=medium
+
+  * New upstream release
+  * Bump minimum mutter & pipewire
+  * Add Build-Depends: libvulkan-dev, glslc, spirv-tools
+  * Add patch to temporarily remove unused libva dependency check
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 10 Feb 2025 10:27:46 -0500
+
+gnome-remote-desktop (47.3-1) unstable; urgency=medium
+
+  * New upstream release
+  * debian/salsa-ci.yml: update to current recommended URL
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Thu, 16 Jan 2025 16:46:00 -0500
+
+gnome-remote-desktop (47.2-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 25 Nov 2024 10:52:13 -0500
+
+gnome-remote-desktop (47.0-3) unstable; urgency=medium
+
+  [ Simon McVittie ]
+  * Remove unused Lintian override for #1031037, fixed in
+    Lintian 2.117.0
+
+  [ Jeremy Bícha ]
+  * Release to unstable
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Fri, 04 Oct 2024 19:19:09 -0400
+
+gnome-remote-desktop (47.0-1) experimental; urgency=medium
+
+  * New upstream release (LP: #2083260)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 30 Sep 2024 11:09:48 -0400
+
+gnome-remote-desktop (47~rc-1) experimental; urgency=medium
+
+  * Team upload
+  * New upstream release
+  * d/control: Drop libwinpr2-dev. Not replacing it by libwinpr3-dev
+    because that is already pulled with freerdp3-dev, which is already
+    a build dependency.
+
+ -- Nathan Pratta Teodosio <nathan.teodosio@canonical.com>  Fri, 06 Sep 2024 14:25:11 +0200
+
+gnome-remote-desktop (47~beta-1) experimental; urgency=medium
+
+  * New upstream release
+  * Build with mutter 47
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 05 Aug 2024 16:48:18 -0400
+
+gnome-remote-desktop (46.4-1) unstable; urgency=medium
+
+  * New upstream release
+  * Bump Standards Version to 4.7.0
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 05 Aug 2024 16:42:21 -0400
+
+gnome-remote-desktop (46.3-4) unstable; urgency=medium
+
+  * Run upstream tests as autopkgtest (Closes: #1076270)
+
+ -- Nathan Pratta Teodosio <nathan.teodosio@canonical.com>  Thu, 01 Aug 2024 17:47:09 -0400
+
+gnome-remote-desktop (46.3-3) unstable; urgency=medium
+
+  * Stop ignoring build test failures except on a few architectures
+    where mutter appears to be broken (Closes: #1070463) (LP: #2072768)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sat, 13 Jul 2024 08:22:10 -0400
+
+gnome-remote-desktop (46.3-2) unstable; urgency=medium
+
+  * Release to unstable
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Fri, 12 Jul 2024 18:31:14 -0400
+
+gnome-remote-desktop (46.3-1) experimental; urgency=medium
+
+  * New upstream release
+  * Fix nocheck build
+  * Drop obsolete postinst rules
+  * Use custom postinst to fix long delay when first installing 46
+    (Closes: #1070119) (LP: #2072596)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 10 Jul 2024 08:21:50 -0400
+
+gnome-remote-desktop (46.2-1) experimental; urgency=medium
+
+  * SECURITY UPDATE: New upstream release (LP: #2066306)
+    - CVE-2024-5148 Limit login screen->user session handover access
+      to appropriate user. This issue only affected the 46 series.
+    - Various security hardening improvements
+    - Potential crasher fix
+    - Improved disconnection messages
+    - Broader client compatibility support
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Tue, 21 May 2024 16:38:36 -0400
+
+gnome-remote-desktop (46.1-4) experimental; urgency=medium
+
+  * Run dh_installtmpfiles, then dh_installsysfiles, then dh_installtmpfiles
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 06 May 2024 07:15:49 -0400
+
+gnome-remote-desktop (46.1-3) experimental; urgency=medium
+
+  * Ensure that dh_installtmpfiles is run before dh_installsysusers
+  * Temporarily ignore build test failures on Debian
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sun, 05 May 2024 19:37:58 -0400
+
+gnome-remote-desktop (46.1-2) experimental; urgency=medium
+
+  * Opt into Salsa CI
+  * Simplify running dh_auto_test
+  * Run dh_installsysusers & dh_installtmpfiles (Closes: #1070119)
+    (LP: #2063333)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sun, 05 May 2024 14:11:47 -0400
+
+gnome-remote-desktop (46.1-1) experimental; urgency=medium
+
+  * New upstream release (LP: #2062076)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 17 Apr 2024 17:52:06 -0400
+
+gnome-remote-desktop (46.0-2) experimental; urgency=medium
+
+  [ Michael Biebl ]
+  * Build-depend on systemd-dev instead of systemd (Closes: #1060499)
+
+  [ Jeremy Bícha ]
+  * Add changelog from 44.2-8
+
+  [ Marco Trevisan (Treviño) ]
+  * debian/patches/fdkaac: Do not force codecs once negotiation took place.
+    We forced a different codec when peers should have already decided them
+    based on the ones that the two parties support.
+    Drop this code as it may lead to g-r-d crashes and potential security
+    issues as suggested by Pascal Nowack (upstream maintainer).
+    Plus revert the previous previous upload change since it was stoping the
+    said nogtiation to happen.
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Thu, 04 Apr 2024 04:38:26 +0200
+
+gnome-remote-desktop (46.0-1) experimental; urgency=medium
+
+  * New upstream release
+  * Switch from freerdp2 to freerdp3
+  * Build with mutter 46
+  * Bump minimum glib & libei
+  * Add Build-Depends: libdbus-1-dev, libopus-dev, libpolkit-gobject-1-dev,
+    libsystemd-dev
+  * Add patch to keep fdkaac optional since fdk-aac-free is still in universe
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 18 Mar 2024 16:29:53 -0400
+
+gnome-remote-desktop (45.1-3) experimental; urgency=medium
+
+  * Team upload
+  * Merge packaging from unstable
+    - Stop marking libgudev-1.0-dev as <!nocheck>.
+      It is needed at build-time, even when not intending to run the
+      test suite. (Closes: #1029451)
+
+ -- Simon McVittie <smcv@debian.org>  Sun, 17 Mar 2024 19:53:25 +0000
+
+gnome-remote-desktop (45.1-2) experimental; urgency=medium
+
+  * Stop using debian/control.in and dh_gnome_clean
+  * Run wrap-and-sort
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Thu, 25 Jan 2024 09:46:57 -0500
+
+gnome-remote-desktop (45.1-1) experimental; urgency=medium
+
+  * Team upload
+  * New upstream release
+
+ -- Amin Bandali <bandali@ubuntu.com>  Tue, 24 Oct 2023 13:48:57 -0400
+
+gnome-remote-desktop (45.0-1) experimental; urgency=medium
+
+  * New upstream release (LP: #2038108)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 02 Oct 2023 12:14:30 -0400
+
+gnome-remote-desktop (45~rc-1) experimental; urgency=medium
+
+  * New upstream release
+  * debian/control.in: Build-Depend on libei-dev
+  * debian/control.in: Bump minimum mutter to 45~rc
+  * Add debian/docs to install NEWS
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 06 Sep 2023 16:47:01 -0400
+
+gnome-remote-desktop (45~beta-1) experimental; urgency=medium
+
+  * New upstream release
+  * debian/control.in: Switch libmutter dependency to 13 (GNOME 45)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 21 Aug 2023 15:28:36 -0400
+
+gnome-remote-desktop (44.2-8) unstable; urgency=medium
+
+  * Update Depends: libmutter-12-0 to libmutter-12-0t64 (Closes: #1068213)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Tue, 02 Apr 2024 13:56:27 -0400
+
+gnome-remote-desktop (44.2-7) unstable; urgency=medium
+
+  * Team upload
+  * d/gbp.conf: Use debian/trixie, upstream/44.x branches
+  * Stop using debian/control.in and dh_gnome_clean
+  * Stop marking libgudev-1.0-dev as <!nocheck>.
+    It is needed at build-time, even when not intending to run the
+    test suite. (Closes: #1029451)
+
+ -- Simon McVittie <smcv@debian.org>  Sun, 17 Mar 2024 17:53:17 +0000
+
+gnome-remote-desktop (44.2-6) unstable; urgency=medium
+
+  * Team upload
+  * Upload to unstable (part of transition: #1043144)
+
+ -- Simon McVittie <smcv@debian.org>  Sun, 20 Aug 2023 22:43:15 +0100
+
+gnome-remote-desktop (44.2-5) experimental; urgency=medium
+
+  * debian/rules: Also ignore failures for newly enabled tests on mipsel & x32
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Fri, 18 Aug 2023 08:17:49 -0400
+
+gnome-remote-desktop (44.2-4) experimental; urgency=medium
+
+  * Team upload
+  * Merge packaging from unstable
+  * Override a Lintian false-positive (see #1031037)
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 10 Aug 2023 13:03:43 +0100
+
+gnome-remote-desktop (43.4-2) unstable; urgency=medium
+
+  * Team upload
+  * d/control.in: Drop pipewire-media-session alternative dependency.
+    pipewire-media-session is not going to be included in trixie
+    (see #1030765), so wireplumber is the only option. The release team's
+    autoremovals machinery only considers the preferred (first) dependency
+    in an alternative-group, so this change is necessary to prevent
+    autoremoval.
+  * d/control.in, d/gbp.conf: Use debian/trixie packaging branch
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 10 Aug 2023 10:49:07 +0100
+
+gnome-remote-desktop (43.4-1) unstable; urgency=medium
+
+  * New upstream translations release
+    - Add Belarusian
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 29 May 2023 15:56:00 -0400
+
+gnome-remote-desktop (44.2-3) experimental; urgency=medium
+
+  * debian/control: Add dbus-daemon to b-d for dbus-run-session
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Sat, 17 Jun 2023 05:49:15 +0200
+
+gnome-remote-desktop (44.2-2) experimental; urgency=medium
+
+  * debian: Add tests dependencies and run tests, not allowing failures
+    in most of architectures (big endian are not supported yet)
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Fri, 16 Jun 2023 22:45:17 +0200
+
+gnome-remote-desktop (44.2-1) experimental; urgency=medium
+
+  * New upstream release (LP: #2021526)
+  * Update standards version to 4.6.2, no changes needed
+
+ -- Amin Bandali <bandali@ubuntu.com>  Mon, 29 May 2023 14:19:05 -0400
+
+gnome-remote-desktop (44.1-1) experimental; urgency=medium
+
+  * New upstream release
+  * debian/upstream/metadata: Fix malformed file, causing gbp clone with
+    --add-upstream-vcs to crash with a traceback with the following error
+    at the end:
+      yaml.scanner.ScannerError: mapping values are not allowed here
+      in "debian/upstream/metadata", line 2, column 13
+
+ -- Amin Bandali <bandali@ubuntu.com>  Thu, 27 Apr 2023 11:38:46 -0400
+
+gnome-remote-desktop (44.0-1) experimental; urgency=medium
+
+  * New upstream release
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Mon, 27 Mar 2023 08:42:38 -0400
+
+gnome-remote-desktop (44~rc-1) experimental; urgency=medium
+
+  * New upstream release
+  * Depend on libmutter-12 instead of libmutter-11
+  * debian/control.in: Bump minimum freerdp to 2.10.10
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Wed, 15 Mar 2023 09:30:27 -0400
+
+gnome-remote-desktop (43.3-1) unstable; urgency=medium
+
+  [ Jeremy Bicha ]
+  * New upstream release
+  * Remove incorrect nocheck annotation from libgbm-dev Build-Depends
+    (Closes: #1023582)
+
+  [ Ben Westover ]
+  * Update dependencies and description to reflect removal of VNC
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Tue, 17 Jan 2023 11:16:08 -0500
+
+gnome-remote-desktop (43.2-1) unstable; urgency=medium
+
+  * New upstream release (LP: #1995245)
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Tue, 06 Dec 2022 14:49:34 -0500
+
+gnome-remote-desktop (43.1-1) unstable; urgency=medium
+
+  * New upstream release (LP: #1995245)
+  * Drop all patches: applied in new release
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Mon, 31 Oct 2022 10:38:58 +0100
+
+gnome-remote-desktop (43.0-2) unstable; urgency=medium
+
+  * Update mutter dependency for mutter 43
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Tue, 27 Sep 2022 19:25:16 -0400
+
+gnome-remote-desktop (43.0-1) unstable; urgency=medium
+
+  * New upstream release (Closes: #1019342)
+    - Only RDP is provided now because it offers better performance and
+      privacy and is supported by a wide number of clients (Closes: #1012271)
+  * Don't build audio forwarding feature since fdk-aac isn't in Debian
+    or Ubuntu 'main' yet
+  * debian/control.in: Build-Depend on libtss2-dev
+  * debian/control.in: Build-Depend on asciidoc-base & docbook-xml
+  * debian/control.in: Bump minimum freerdp to 2.8.0
+  * debian/control.in: Set Rules-Requires-Root: no
+  * Cherry-pick 2 patches to fix crashes
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Wed, 21 Sep 2022 19:45:03 -0400
+
+gnome-remote-desktop (42.4-1) unstable; urgency=medium
+
+  * New upstream release (LP: #1983788)
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Sun, 07 Aug 2022 16:46:54 -0400
+
+gnome-remote-desktop (42.3-1) unstable; urgency=medium
+
+  * Team upload
+  * New upstream release (LP: #1980748)
+
+ -- Nathan Pratta Teodosio <nathan.teodosio@canonical.com>  Mon, 04 Jul 2022 11:36:33 -0300
+
+gnome-remote-desktop (42.2-1) unstable; urgency=medium
+
+  * New upstream release (LP: #1976547)
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Wed, 01 Jun 2022 14:54:51 -0400
+
+gnome-remote-desktop (42.1.1-2) unstable; urgency=high
+
+  * Don't automatically enable the systemd user service (LP: #1973028)
+  * Add postinst to remove the automatic enabling of the user service
+  * debian/control: Lower mutter dependency so that these fixes reach
+    Testing sooner
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Thu, 12 May 2022 15:19:46 -0400
+
+gnome-remote-desktop (42.1.1-1) unstable; urgency=medium
+
+  * New upstream release (LP: #1970662)
+    - Fixes black screen with virtio on qemu (LP: #1971195)
+  * Drop all patches: applied in new release
+  * Depend on libmutter instead of gnome-shell | budgie-desktop
+    - This is a more accurate dependency
+  * Require libmutter 42.1 for Nvidia fixes
+  * Depend on fuse3 (Closes: #998846) (LP: #1970411)
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Tue, 10 May 2022 14:50:48 -0400
+
+gnome-remote-desktop (42.0-4) unstable; urgency=medium
+
+  * debian/patches: Ensure support with nvidia drivers >= 495
+    the NVIDIA >= 495 drivers apparently allows creating and importing dma-bufs
+    However, this won't succeed, but without an error.
+    The result is that undefined content is drawn onto the screen on clients.
+    This affects both the RDP and VNC backend.
+    Disabling dma-bufs in such case gets rid of this issue, because with this
+    patch g-r-d always assumes, that dma-bufs are unavailable with the NVIDIA
+    driver.
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Thu, 14 Apr 2022 12:59:26 +0200
+
+gnome-remote-desktop (42.0-3) unstable; urgency=medium
+
+  * Team upload
+  * Add a Breaks to get -control-center and -remote-desktop upgraded together
+  * Release to unstable
+
+ -- Simon McVittie <smcv@debian.org>  Wed, 13 Apr 2022 16:49:06 +0100
+
+gnome-remote-desktop (42.0-2) experimental; urgency=medium
+
+  * Cherry-pick commit to autostart as part of gnome-session.target
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Tue, 12 Apr 2022 08:22:43 -0400
+
+gnome-remote-desktop (42.0-1) experimental; urgency=medium
+
+  * New upstream release
+
+ -- Jeremy Bicha <jbicha@ubuntu.com>  Mon, 21 Mar 2022 08:22:43 -0400
+
+gnome-remote-desktop (42~rc-1) experimental; urgency=medium
+
+  * New upstream release
+  * debian/control.in: Bump minimum libffmpeg-nvenc-dev to 11.1.5
+
+ -- Jeremy Bicha <jeremy.bicha@canonical.com>  Tue, 08 Mar 2022 10:45:32 -0500
+
+gnome-remote-desktop (42~beta-1) experimental; urgency=medium
+
+  * New upstream release
+  * debian/control.in: Bump minimum freerdp to 2.5.0
+  * debian/control.in: Build-Depend on libdrm-dev & libepoxy-dev
+  * debian/control.in: Build-Depend on libgbm-dev & libgudev-1.0-dev for tests
+
+ -- Jeremy Bicha <jeremy.bicha@canonical.com>  Wed, 16 Feb 2022 08:41:30 -0500
+
+gnome-remote-desktop (41.2-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Jeremy Bicha <jbicha@debian.org>  Fri, 14 Jan 2022 07:11:05 -0500
+
+gnome-remote-desktop (41.1-3) unstable; urgency=medium
+
+  * debian/control.in:
+    - Depends on pipewire-media-session | wireplumber, without one of those
+      the video streams are paused and sharing isn't working
+
+ -- Sebastien Bacher <seb128@ubuntu.com>  Wed, 01 Dec 2021 13:15:36 +0100
+
+gnome-remote-desktop (41.1-2) unstable; urgency=medium
+
+  * Build-Depend on libffmpeg-nvenc-dev & enable NVENC support
+
+ -- Jeremy Bicha <jbicha@debian.org>  Mon, 22 Nov 2021 19:57:17 -0500
+
+gnome-remote-desktop (41.1-1) unstable; urgency=medium
+
+  * New upstream release
+  * d/p/u/meson-Add-option-to-disable-rdp-clipboard-support.patch,
+    debian/rules:
+    - remove hacks to build without RDP clipboard on Ubuntu since fuse3
+      is going to be promoted now.
+
+ -- Sebastien Bacher <seb128@ubuntu.com>  Mon, 08 Nov 2021 12:10:27 +0100
+
+gnome-remote-desktop (41.0-1) unstable; urgency=medium
+
+  * New upstream release
+  * Rebase rdp-clipboard option patch
+  * debian/control.in: Disable nvenc; needs new libffmpeg-nvenc-dev
+
+ -- Jeremy Bicha <jbicha@debian.org>  Mon, 27 Sep 2021 17:24:20 -0400
+
+gnome-remote-desktop (40.2-1) unstable; urgency=medium
+
+  * New upstream release
+  * Drop bash patch since similar fix was applied in new release
+  * debian/rules: Only disable RDP clipboard on Ubuntu, not derivatives
+  * Bump debhelper-compat to 13
+  * Bump Standards-Version to 4.6.0
+
+ -- Jeremy Bicha <jbicha@debian.org>  Sat, 18 Sep 2021 22:07:18 -0400
+
+gnome-remote-desktop (40.1-4) unstable; urgency=medium
+
+  * Team upload
+  * Release to unstable (transition: #992870)
+
+ -- Simon McVittie <smcv@debian.org>  Sat, 11 Sep 2021 21:47:36 +0100
+
+gnome-remote-desktop (40.1-3) experimental; urgency=medium
+
+  * Drop direct dependency on libmutter
+  * Build-Depend on dh-sequence-gnome instead of gnome-pkg-tools
+
+ -- Jeremy Bicha <jbicha@debian.org>  Mon, 19 Jul 2021 07:19:03 -0400
+
+gnome-remote-desktop (40.1-2) experimental; urgency=medium
+
+  * debian/patches: Fix a typo causing RDP clipboard not to be enabled in debian
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Tue, 01 Jun 2021 13:04:42 +0200
+
+gnome-remote-desktop (40.1-1) experimental; urgency=medium
+
+  * New upstream release:
+  * debian/control:
+    - Update build-dependencies to follow upstream
+    - Also depend on any libmutter-8 version
+  * debian/patches:
+    - Remove patches merged upstream
+    - Add option to disable rdp clipboard support.
+      This requires libfuse-3 which is not in Ubuntu main yet, so add an
+      option to disable it
+  * debian/rules: Disable RDP clipboard in ubuntu builds.
+    RDP clipboard requires libfuse-3 that is not in ubuntu main yet
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Mon, 31 May 2021 18:03:34 +0200
+
+gnome-remote-desktop (0.1.9-5) unstable; urgency=medium
+
+  * Team upload
+
+  [ David Mohammed ]
+  * debian/control: add budgie-desktop as an alternate for gnome-shell
+    (Closes: #982937)
+
+ -- Simon McVittie <smcv@debian.org>  Tue, 09 Mar 2021 10:31:04 +0000
+
+gnome-remote-desktop (0.1.9-4) unstable; urgency=medium
+
+  * debian/patches: Fix use-after-free crash on repeated VNC connections
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Thu, 11 Feb 2021 17:14:14 +0100
+
+gnome-remote-desktop (0.1.9-3) unstable; urgency=medium
+
+  * Team upload
+  * Add patch from upstream, via Fedora, to fix crashes
+  * Add patch to make test script find bash on non-merged-/usr systems
+  * Standards-Version: 4.5.1 (no changes required)
+  * Simplify dependencies now that GNOME 3.38 is in unstable
+
+ -- Simon McVittie <smcv@debian.org>  Sun, 17 Jan 2021 13:53:19 +0000
+
+gnome-remote-desktop (0.1.9-2) unstable; urgency=medium
+
+  * Team upload
+  * Relax runtime dependency to be satisfiable in unstable
+  * Upload to unstable for PipeWire 0.3 transition (Closes: #966521)
+
+ -- Simon McVittie <smcv@debian.org>  Thu, 10 Sep 2020 14:04:30 +0100
+
+gnome-remote-desktop (0.1.9-1) experimental; urgency=medium
+
+  * Team upload
+  * New upstream release
+  * d/upstream/metadata: Add.
+    The canonical upstream git repo has moved to
+    <https://gitlab.gnome.org/GNOME/gnome-remote-desktop>.
+  * d/watch, d/copyright: Switch source of releases.
+    Newer versions of this package are now available from
+    <https://download.gnome.org/sources/gnome-remote-desktop/>.
+  * d/copyright: Update
+  * d/control.in: Update dependencies for new RDP support
+  * d/control.in: Depend on a compatible version of GNOME Shell
+
+ -- Simon McVittie <smcv@debian.org>  Wed, 09 Sep 2020 12:38:19 +0100
+
+gnome-remote-desktop (0.1.8-1) experimental; urgency=medium
+
+  * Team upload.
+
+  [ Laurent Bigonville ]
+  * New upstream release
+    - debian/control.in: Bump the build-dependencies
+
+  [ Andreas Henriksson ]
+  * Use user-unit dir from systemd pkg-config file
+  * Make tests non-fatal for now
+
+ -- Andreas Henriksson <andreas@fatal.se>  Sun, 06 Sep 2020 23:43:23 +0200
+
+gnome-remote-desktop (0.1.7-2) unstable; urgency=medium
+
+  * Bump debhelper compatibility to 12
+  * Bump Standards-Version to 4.5.0 (no further changes)
+  * Move the daemon to /usr/libexec now that's allowed in the policy
+
+ -- Laurent Bigonville <bigon@debian.org>  Sat, 21 Mar 2020 11:44:15 +0100
+
+gnome-remote-desktop (0.1.7-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Laurent Bigonville <bigon@debian.org>  Thu, 21 Feb 2019 10:53:14 +0100
+
+gnome-remote-desktop (0.1.6-2) unstable; urgency=medium
+
+  * Add -Wl,-O1 -Wl,-z,defs -Wl,--as-needed to our LDFLAGS
+  * Enable all hardening flags
+  * Bump Standards-Version to 4.3.0
+
+ -- Jeremy Bicha <jbicha@debian.org>  Tue, 25 Dec 2018 08:50:19 -0500
+
+gnome-remote-desktop (0.1.6-1) unstable; urgency=medium
+
+  * Initial release. Closes: #909670
+
+ -- Jeremy Bicha <jbicha@debian.org>  Thu, 27 Sep 2018 01:05:41 -0400

@@ -14,7 +14,7 @@ prerequisite without which every measurement silently measures software RFX.
 > [GNOME `yding/` fork](https://gitlab.gnome.org/yding/gnome-remote-desktop).
 > Profiled build: GRD linked against **static ffmpeg-rockchip** (libavcodec 60,
 > fixed QP 22) with the panvk fixes (patches [`0004`–`0006`](../patches)) —
-> *not* the shipped upstream-8.1.2 drop-in, though both drive the same MPP
+> *not* the upstream-8.1.2 drop-in tested later, though both drive the same MPP
 > encoder. Surface 800×600 (encoder dims 800×608); statistics over the
 > ~200-frame steady state, startup frames excluded.
 
@@ -86,8 +86,8 @@ where mutter often delivered nothing. This harness, by contrast, delivered
   difference; the mechanism was not root-caused).
 
 The driver script (`scratchpad/run-grd-mf.sh`) was throwaway and is **not
-preserved** — reconstruct it from the four components above. TODO: archive a
-copy if the harness is ever rebuilt.
+preserved** — reconstruct it from the four components above. Remaining archival
+action: archive a copy if the harness is ever rebuilt.
 
 ## 5. Client caps: without H.264 the server silently negotiates RFX
 
@@ -122,10 +122,10 @@ chase is the ~3 % > 25 ms jitter (§2): instrument the view-creator
 
 ## 7. Verification signals — what to grep
 
-The concrete, shipped-patch signals that the hardware path is really engaged
+The concrete committed-patch signals that the hardware path is really engaged
 (this closes [`testing.md`](testing.md) §7's "this repo's tags" gap; the
 `[ACKDBG]`/`[SYNCDBG]`/`[GDMDBG]` tags in [`README.md`](../README.md)'s
-methodology section were **throwaway instrumentation, present in no shipped
+methodology section were **throwaway instrumentation, present in no committed
 patch**):
 
 | Signal | What to look for | Emitted by |
@@ -151,7 +151,7 @@ Still the section's highest-value open measurement
 ([`baseline.md`](baseline.md) §2/§5): whether mutter's screencast dma-buf is
 AFBC, tiled, or linear decides the real software-path detile cost (and matters
 to the HW path's Vulkan import too). **No verified procedure exists yet.**
-Untested candidate approach (TODO): log the fixated format's modifier in GRD at
+Untested candidate approach: log the fixated format's modifier in GRD at
 `spa_format_video_raw_parse` time in `grd-rdp-pipewire-stream.c`
 (`on_format_changed`), or dump the negotiated `SPA_FORMAT_VIDEO_modifier` via
 `PIPEWIRE_DEBUG`/`pw-dump` while a session is live. After patch 0004, the

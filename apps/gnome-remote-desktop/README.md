@@ -251,8 +251,8 @@ codec consumer:
   `[GDMDBG]`): the encoded packet size + keyframe flag, the RDPGFX frame-ack
   callback, and the buffer-info gate values. `g_message` always reaches the
   journal, so no debug-env dance. **These tags were throwaway instrumentation —
-  they exist in no shipped patch.** For verifying a running daemon, use the
-  *shipped* signals instead: the `[HWAccel.FFmpeg]` journal lines, the
+  they exist in no committed patch.** For verifying a running daemon, use the
+  current signals instead: the `[HWAccel.FFmpeg]` journal lines, the
   `mpp_h264e` thread, and the device fds — the full greppable table is
   [`profiling.md`](./docs/profiling.md) §7.
 - **Dump the bitstream.** Writing the first few `AVPacket`s to `/tmp/*.h264` and
@@ -307,11 +307,11 @@ sudo apt install ./gnome-remote-desktop-gdm-hwenc_1.0_all.deb    # optional
 #    (full signal table: profiling.md §7; the client must advertise AVC420 — §5).
 ```
 
-The full stack (codec libs + FFmpeg + GRD) is prepared as upload-ready Launchpad
-**PPA** source packages (a personal `resolute`/arm64 PPA); `gnome-remote-desktop`
-is `50.1+rkmpp-2` and `gnome-remote-desktop-gdm-hwenc` is an independent
-`Arch: all` add-on. How all five source packages were built — and the upload
-order — is in [`packaging/ppa`](../../packaging/ppa).
+The full-stack Launchpad **PPA** path is still a packaging track, not the
+validated install path. MPP/librga/FFmpeg/GRD source packaging lives in
+[`packaging/ppa`](../../packaging/ppa), but the public arm64 binary index is not
+installable yet and the GRD source package has not been uploaded or
+Launchpad-build-validated.
 
 ## Provenance & licensing
 

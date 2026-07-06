@@ -1,7 +1,7 @@
 # Armbian patch precedence — why you can't disable a core patch from userpatches
 
 > Scope: Armbian `build` framework, `lib/tools/patching.py` + `lib/tools/common/patching_utils.py`.
-> Source pin: `armbian/build` master @ `82b6430` (the tree that built our shipping
+> Source pin: `armbian/build` master @ `82b6430` (the tree that built our validated
 > kernel), read 2026-07. Line numbers drift; the stable anchors are the
 > construct names (`ALL_DIR_PATCH_FILES_BY_NAME`, `CONST_PATCH_ROOT_DIRS`, `find_series_patch_files`).
 > Trust: **MEASURED** (read the code + reproduced the build; forum/PR claims cited inline).

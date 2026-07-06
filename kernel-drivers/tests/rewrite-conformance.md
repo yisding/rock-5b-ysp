@@ -2,9 +2,11 @@
 
 The expert half of [`kernel-drivers/tests/README.md`](./README.md). The user-facing on-ramp (decode,
 encode, transcode smoke tests) leads in [`README.md`](./README.md); this page
-owns the rewrite clean-build gate, the external `../rockchip-conformance` bundle,
-and the full per-suite reference (MPP / librga / GStreamer / ffmpeg-rockchip)
-with its env-var matrices, privileges, and comparators. The strategic "what it
+owns the rewrite clean-build gate, the tracked
+[`conformance/`](conformance/README.md) seed for the external
+`../rockchip-conformance` runtime bundle, and the full per-suite reference (MPP /
+librga / GStreamer / ffmpeg-rockchip) with its env-var matrices, privileges, and
+comparators. The strategic "what it
 would take to ship the rewrite" plan is
 [`../docs/rewrite-validation-plan.md`](../docs/rewrite-validation-plan.md); this
 page is the operational how-to-run counterpart it leans on.
@@ -65,9 +67,13 @@ kernel-drivers/tests/rewrite-build-gate.sh all
 source edits. Use it only when checking the last pushed state while another
 worktree has unrelated local changes.
 
-Last recorded compile gate: on 2026-07-06 the `normal`, `memory`, and `race`
-profiles all passed warning-free for the committed rewrite tips
-`../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and `../kernel/linux@938b1d2032c3`.
+Last recorded compile gates: on 2026-07-06 the default `normal` profile passed
+warning-free for the current committed rewrite tips
+`../kernel/linux-6.18-rkvenc@d1d15a3d052a` and
+`../kernel/linux@12f712d71144`. The broader `normal`, `memory`, and `race`
+profiles all passed warning-free the same day for the immediately earlier tips
+`../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and
+`../kernel/linux@938b1d2032c3`.
 After the gate was changed to remove each per-profile archive checkout as soon
 as that profile passes, the all-in-one
 `REWRITE_BUILD_PROFILES="normal memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
@@ -90,11 +96,24 @@ with the staged diff applied before commit.
 ## Expanded conformance bundle
 
 The narrow in-repo tests are still the fast gate. For rewrite parity work, also
-use the external bundle at the dev-box path `../rockchip-conformance`
-(`/home/yi/Code/rockchip-conformance`). It is intentionally outside this repo
-because it contains shallow third-party source checkouts and generated build/log
-directories. Its own `README.md` is the operational guide; this section records
-why each piece matters and what we learned to test.
+use the external runtime bundle at `../rockchip-conformance`
+(`/home/yi/Code/rockchip-conformance` on the dev box). It is intentionally
+outside this repo because it contains shallow third-party source checkouts and
+generated build/log directories.
+
+The reproducible seed for that bundle is tracked in
+[`conformance/`](conformance/README.md). To reconstruct the source checkouts from
+a fresh clone:
+
+```bash
+cd kernel-drivers/tests/conformance
+bash scripts/bootstrap-sources.sh
+```
+
+Then copy or mount the populated bundle where the suite expects it, or set
+`CONFORMANCE_ROOT=/path/to/kernel-drivers/tests/conformance` when you want to run
+in place. This section records why each piece matters and what we learned to
+test.
 
 Run it the same way under both kernels. The normal path is the profile runner:
 

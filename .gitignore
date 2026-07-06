@@ -6,5 +6,13 @@
 # already covered by per-subdir .gitignores (packaging/*/.gitignore).
 # Publication policy for built artifacts: see packaging/README.md.
 
+# Accidental in-tree FFmpeg configure/build residue. Package builds should use
+# packaging/ffmpeg-rockchip81/build/ or /tmp, not a root-level ffbuild/.
+ffbuild/
+
 # On-board ABI replay output is generated per boot/profile.
 kernel-drivers/tests/logs/
+
+# Python validation helpers.
+__pycache__/
+*.pyc

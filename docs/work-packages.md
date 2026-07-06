@@ -78,15 +78,18 @@ flowchart TB
 | video-libraries | ffmpeg / mesa | rkmpp codecs + rkrga filters, and the Mali-G610 transfer investigation behind GRD fallback. | [`../video-libraries/`](../video-libraries/README.md) |
 | apps | gnome-remote-desktop | The codec stack in a real RDP application: backend design, zero-copy encode, greeter ACL. | [`../apps/`](../apps/README.md) |
 | packaging | — | Installable delivery: DKMS, udev ACLs, PPA source packages, rollback, binary policy. | [`../packaging/`](../packaging/README.md) |
+| scripts | — | Repo-wide maintenance checks used before presentation or handoff. | [`../scripts/`](../scripts/README.md) |
 
 ## User reading paths
 
 | Goal | Path |
 |------|------|
+| Present the project accurately | [`conference-brief.md`](conference-brief.md) -> [`../status.md`](../status.md) -> [`../README.md`](../README.md) |
+| Check the docs before handoff | [`../scripts/check-markdown-links.py`](../scripts/check-markdown-links.py) -> `git diff --check` |
 | Get codecs working on a board | [`../install.md`](../install.md) -> [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) |
 | Build a command-line media stack | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`../video-libraries/ffmpeg/`](../video-libraries/ffmpeg/README.md) -> [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) |
 | Run accelerated RDP | [`../install.md`](../install.md) -> [`../packaging/`](../packaging/README.md) -> [`../apps/gnome-remote-desktop/`](../apps/gnome-remote-desktop/README.md) |
-| Recover from a failure | [`../status.md`](../status.md) -> [`gotchas.md`](gotchas.md) -> [`debug-kernel.md`](../kernel-drivers/docs/debug-kernel.md) |
+| Recover from a failure | [`../status.md`](../status.md) -> [`status-ledger.md`](status-ledger.md) -> [`gotchas.md`](gotchas.md) -> [`debug-kernel.md`](../kernel-drivers/docs/debug-kernel.md) |
 
 ## Developer reading paths
 

@@ -26,7 +26,9 @@ channel — see the deploy hub, [`../README.md`](../README.md).)
 | `root/DEBIAN/control` | Package metadata (`rk3588-codec-udev`, `Architecture: all`). |
 | `root/DEBIAN/postinst` | `udevadm control --reload-rules && udevadm trigger` — rule takes effect without reboot. |
 | `root/usr/lib/udev/rules.d/99-rockchip-codec.rules` | *(gitignored)* the build-time copy of the canonical rule — never edit here. |
-| `rk3588-codec-udev_1.0_all.deb` | *(gitignored, on-disk build residue)* — see the [binary policy](../README.md#binary-policy). |
+| `rk3588-codec-udev_1.0_all.deb` | *(gitignored build residue, when present)* — see the [binary policy](../README.md#binary-policy). |
+
+<a id="why-the-dma-heap-grant-is-required-the-get_group-trap"></a>
 
 ## Why the dma-heap grant is required (the `get_group` trap)
 
@@ -52,7 +54,9 @@ three device classes — `KERNEL=="mpp_service"`, `KERNEL=="rga"`, and
 **`SUBSYSTEM=="dma_heap"`**. The heap is matched by *subsystem* because the heap
 node's kernel name is just `system`, not something codec-specific, so a
 `KERNEL==` match would miss it. Be in the `video` group and the encoder starts.
-Upstreamed to Armbian as [armbian/build#10085](https://github.com/armbian/build/pull/10085).
+Merged into Armbian as [armbian/build#10085](https://github.com/armbian/build/pull/10085)
+on 2026-06-30; this package remains useful as a backfill for existing images,
+kernel-only builds, or custom images that do not include that Armbian change.
 
 ## 1. A standalone `.deb` (recommended) — this directory
 
@@ -65,6 +69,7 @@ reloads udev in its `postinst` — so it takes effect immediately, no reboot, an
 bash build-deb.sh                       # → rk3588-codec-udev_1.0_all.deb
 sudo dpkg -i rk3588-codec-udev_1.0_all.deb
 # postinst runs: udevadm control --reload-rules && udevadm trigger
+bash build-deb.sh clean                 # remove the .deb and copied rule
 ```
 
 `build-deb.sh` copies the canonical rule from `kernel-drivers/scripts/` so
@@ -134,11 +139,11 @@ Two reasons they don't solve our case:
    doesn't anticipate.
 
 Our rule uses Armbian's exact convention (`GROUP="video" MODE="0660"`) and simply
-adds the `mpp_service` and `dma_heap` lines. The *upstream-correct* fix — adding
-both to Armbian's `60-media.rules` — is submitted as
-[**armbian/build#10085**](https://github.com/armbian/build/pull/10085); this deb is
-the local equivalent until/unless that lands. (PR status is a volatile external
-fact — last-checked date tracked in the [`status.md`](../../status.md) watchlist.)
+adds the `mpp_service` and `dma_heap` lines. The upstream fix landed as
+[**armbian/build#10085**](https://github.com/armbian/build/pull/10085). This deb
+is the local equivalent for existing images, kernel-only build/install flows, or
+custom images not yet built from a base that includes that merge. The volatile
+upstream state is tracked in the [`status.md`](../../status.md) watchlist.
 
 ## Which group — `video` or `render`?
 

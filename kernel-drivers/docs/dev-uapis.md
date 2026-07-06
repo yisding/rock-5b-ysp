@@ -347,7 +347,7 @@ numbers, so a single 2D op **does** show directly in `strace`.
 
 ```bash
 # Which cores are bound and serving requests right now:
-# (decoder cores are video-codec0/1 on the shipped kernel; rkvdec-core0/1 on older overlay revisions)
+# (decoder cores are video-codec0/1 on the validated kernel; rkvdec-core0/1 on older overlay revisions)
 ls /proc/mpp_service/ ; cat /proc/mpp_service/video-codec0/* 2>/dev/null
 
 # Watch the exact ioctl conversation a real workload has with the kernel.

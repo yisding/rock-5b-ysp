@@ -1,6 +1,6 @@
 # BSP audit — findings & draft cleanup patches
 
-A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA driver code, and a **draft** cleanup patch series derived from it. This is *separate* from the conservative forward-port — none of it is applied to the shipped kernel.
+A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA driver code, and a **draft** cleanup patch series derived from it. This is *separate* from the conservative forward-port — none of it is applied to the validated kernel.
 
 > **AV1 note:** this document covers the validated RKVENC2/RKVDEC2/RGA
 > forward-port. The experimental RKMPP AV1 decoder work has its own tracker:
@@ -31,15 +31,17 @@ A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA drive
 > too, and the split series is deliberately written in upstream mailbox style.
 > Nothing has been submitted anywhere as of 2026-07-01; the submission target
 > (Rockchip BSP, Armbian, or mainline alongside the
-> [rewrite-driver track](./rewrite-drivers.md) rewrite drivers) is **TODO: owner
-> decision**.
+> [rewrite-driver track](./rewrite-drivers.md) rewrite drivers) is awaiting an
+> owner decision.
 
 ## How it was produced
 
-- **15** shipped driver files (`mpp/` + `rga3/`) reviewed through **3 lenses** (correctness, resource-safety, concurrency/security/cleanup) — 45 reviewers.
+- **15** validated forward-port driver files (`mpp/` + `rga3/`) reviewed through **3 lenses** (correctness, resource-safety, concurrency/security/cleanup) — 45 reviewers.
 - Every finding **adversarially verified** by an independent agent that re-read the actual code and defaulted to *reject* unless it could trace the concrete bug (false-positive filter).
 - Per-file agents then designed **minimal, behaviour-preserving** fix edits.
 - **180 agents, ~3.7M tokens, 37 min.** 89 findings survived verification.
+
+<a id="-status--read-before-using-the-patches"></a>
 
 ## ⚠️ Status — read before using the patches
 
@@ -56,7 +58,7 @@ These patches are **machine-generated, adversarially-LLM-verified, and compile-t
 
 > **Concrete proof review is required:** while assembling the series, one ambiguous text-match doubled a `kref_put` in `mpp_dma_release()` (a function that takes a buffer directly), introducing a **use-after-free** — the fix was meant for `mpp_dma_release_fd()`. It compiled fine. It was caught by hand and reverted. **Treat every refcount/bounds/security edit as needing review.** One arm32-only edit (`CONFIG_ARM_DMA_USE_IOMMU`) was left unapplied (untestable on arm64).
 
-> **That reverted UAF is *not* in the shipped draft.** Verified against `mpp_iommu.patch`: it touches only `mpp_dma_find_buffer_fd()` (adds `kref_get_unless_zero` at the two match sites) and removes the dead `CONFIG_DMABUF_CACHE` guards in `mpp_dma_import_fd()`. It **never touches `mpp_dma_release()` / `mpp_dma_release_fd()`** (mpp_iommu.c ~:130 / ~:140), so no `kref_put` is doubled. The one intentionally-omitted edit — the arm32-only `WARN_ON(!mapping)` guard at `mpp_iommu.c` ~:553, inside `#ifdef CONFIG_ARM_DMA_USE_IOMMU` in `mpp_iommu_probe()` — is the **single "left-unapplied" row** in the [verification matrix](#appendix--finding--patch-status) below.
+> **That reverted UAF is *not* in the current draft.** Verified against `mpp_iommu.patch`: it touches only `mpp_dma_find_buffer_fd()` (adds `kref_get_unless_zero` at the two match sites) and removes the dead `CONFIG_DMABUF_CACHE` guards in `mpp_dma_import_fd()`. It **never touches `mpp_dma_release()` / `mpp_dma_release_fd()`** (mpp_iommu.c ~:130 / ~:140), so no `kref_put` is doubled. The one intentionally-omitted edit — the arm32-only `WARN_ON(!mapping)` guard at `mpp_iommu.c` ~:553, inside `#ifdef CONFIG_ARM_DMA_USE_IOMMU` in `mpp_iommu_probe()` — is the **single "left-unapplied" row** in the [verification matrix](#appendix--finding--patch-status) below.
 
 ## Summary
 
@@ -86,6 +88,8 @@ These patches are **machine-generated, adversarially-LLM-verified, and compile-t
 |  |  | | rga3/rga_fence.c | 2 |
 
 **Total: 89 verified findings** (16 high, 30 medium, 30 low, 13 cleanup) across 15 files.[^count]
+
+<a id="user-content-fn-count"></a>
 
 [^count]: **"89" is reviewer-findings across three lenses, not 89 distinct bugs.** Each file was reviewed by three independent agents (correctness / resource-safety / concurrency-security-cleanup), so the same defect is often reported 2–3×. After collapsing duplicates there are **~70 distinct `file:line` sites**, and they map to **15 patches** (one per file). Examples of double/triple-counting: `mpp_common.c:250` appears 3× (1 high + 2 low) for the one unchecked `kzalloc`; `mpp_rkvdec2.c:350` and `:359` are the **same** OOB write (the read of `reg_idx` and the write through it) counted as two HIGHs; `rga_mm.c:1555` appears 3× (all the same `rga_mm_get_buffer` refcount/out-param bug); `rga_drv.c:804` and `mpp_rkvenc2.c:3141`/`:3152` are each one bug counted twice. The per-file **Findings** column above counts reviewer rows; the [verification matrix](#appendix--finding--patch-status) collapses them to distinct sites.
 
@@ -160,7 +164,7 @@ These are **latent in the upstream Rockchip BSP** too — the forward-port kept 
 **Problem.** In mpp_set_rcbbuf the loop does `reg_idx = rcb_inf->elem[i].index;` then `task->reg[reg_idx] = dec->rcb_iova + rcb_offset;`. The `index` field originates entirely from userspace: MPP_CMD_SET_RCB_INFO -> rkvdec2_extract_task_msg -> mpp_extract_rcb_info() does `copy_from_user(rcb_inf->elem, req->data, req->size)` and only bounds the element *count* (cnt <= ARRAY_SIZE(elem)=16). The per-element `index` (struct rcb_info_elem.index, u32) is never validated. `task->reg` is a fixed `u32 reg[RKVDEC_REG_NUM]` with RKVDEC_REG_NUM=360. A malicious/buggy client can set index to any value up to 2^32-1, producing an out-of-bounds write of an iova-sized value past the kzalloc'd rkvdec2_task. Only `rcb_offset + rcb_size` is range-checked (against `dec->rcb_size` at line 352) — that bounds the SRAM offset, not the register index, so `reg_idx` flows straight into `task->reg[reg_idx]`.
 
 
-**Fix.** Bound-check the user-supplied register index before the write. Insert before line 359 (just after rcb_size is read / before task->reg[reg_idx] = ...):  			if (reg_idx >= RKVDEC_REG_NUM) { 				mpp_err("invalid rcb reg index %u\n", reg_idx); 				continue; 			}  so the write becomes:  			task->reg[reg_idx] = dec->rcb_iova + rcb_offset;  Use RKVDEC_REG_NUM (the array's compile-time size), NOT ARRAY_SIZE(task->reg) — task->reg is a u32* pointer in this function. Optionally apply array_index_nospec(reg_idx, RKVDEC_REG_NUM) before the write to also close the speculative-OOB variant. **The shipped `mpp_rkvdec2.patch` does both** — the explicit `if (reg_idx >= RKVDEC_REG_NUM) continue;` guard *and* `reg_idx = array_index_nospec(reg_idx, RKVDEC_REG_NUM);` (RKVDEC_REG_NUM = 360, from mpp_rkvdec2.h).
+**Fix.** Bound-check the user-supplied register index before the write. Insert before line 359 (just after rcb_size is read / before task->reg[reg_idx] = ...):  			if (reg_idx >= RKVDEC_REG_NUM) { 				mpp_err("invalid rcb reg index %u\n", reg_idx); 				continue; 			}  so the write becomes:  			task->reg[reg_idx] = dec->rcb_iova + rcb_offset;  Use RKVDEC_REG_NUM (the array's compile-time size), NOT ARRAY_SIZE(task->reg) — task->reg is a u32* pointer in this function. Optionally apply array_index_nospec(reg_idx, RKVDEC_REG_NUM) before the write to also close the speculative-OOB variant. **The current `mpp_rkvdec2.patch` does both** — the explicit `if (reg_idx >= RKVDEC_REG_NUM) continue;` guard *and* `reg_idx = array_index_nospec(reg_idx, RKVDEC_REG_NUM);` (RKVDEC_REG_NUM = 360, from mpp_rkvdec2.h).
 
 
 *verify confidence: high*
@@ -172,7 +176,7 @@ These are **latent in the upstream Rockchip BSP** too — the forward-port kept 
 **Problem.** reg_idx is taken directly from user input: 'reg_idx = rcb_inf->elem[i].index;' (line 350) and then used to index the fixed 360-entry register array: 'task->reg[reg_idx] = dec->rcb_iova + rcb_offset;' (line 359). The index originates from MPP_CMD_SET_RCB_INFO -> mpp_extract_rcb_info(), which does copy_from_user() into rcb_inf->elem[] (line 255) and performs NO bounds check on the per-element 'index' field (struct rcb_info_elem.index is a raw u32). task->reg is 'u32 reg[RKVDEC_REG_NUM]' with RKVDEC_REG_NUM=360 inside the kzalloc'd struct rkvdec2_task. A malicious userspace can therefore set index to any u32 and force a 32-bit write of a kernel IOVA value at reg+index*4, far past the allocation — a fully controlled out-of-bounds kernel write (heap corruption). This is the **same defect** as the L359 finding above, counted twice (the read of `reg_idx` at :350 and the write through it at :359).
 
 
-**Fix.** Add a bounds check on the user-controlled register index in mpp_set_rcbbuf() before it is used to index task->reg[]. Insert immediately after reg_idx/rcb_size are read (after current line 351, before the offset check at line 352):  			if (reg_idx >= task->hw_info->reg_num) 				continue;  (task is the struct mpp_task * arg; task->hw_info->reg_num is set in rkvdec2_task_init and equals the valid HW register count, <= RKVDEC_REG_NUM=360, so this is OOB-safe and behaviour-preserving for all legitimate clients.) **Note:** the shipped `mpp_rkvdec2.patch` instead bounds against the array's compile-time size `RKVDEC_REG_NUM` (360) and adds `array_index_nospec` — see the L359 entry. Either bound closes the OOB write; the draft chose the constant.
+**Fix.** Add a bounds check on the user-controlled register index in mpp_set_rcbbuf() before it is used to index task->reg[]. Insert immediately after reg_idx/rcb_size are read (after current line 351, before the offset check at line 352):  			if (reg_idx >= task->hw_info->reg_num) 				continue;  (task is the struct mpp_task * arg; task->hw_info->reg_num is set in rkvdec2_task_init and equals the valid HW register count, <= RKVDEC_REG_NUM=360, so this is OOB-safe and behaviour-preserving for all legitimate clients.) **Note:** the current `mpp_rkvdec2.patch` instead bounds against the array's compile-time size `RKVDEC_REG_NUM` (360) and adds `array_index_nospec` — see the L359 entry. Either bound closes the OOB write; the draft chose the constant.
 
 
 *verify confidence: high*
@@ -469,7 +473,7 @@ The only bound is an **upper** bound. A zero-length write (`write(fd, "", 0)`, t
 **Problem.** rga_mm_get_buffer does `kref_get(&internal_buffer->refcount)` at line 1542, then has two classes of error exit with OPPOSITE refcount behavior, and both leave the caller's out-pointer assigned (`*buf` was set at line 1533 before any failure can occur):    (a) rga_mm_get_buffer_info() failure (lines 1551-1556) does `return ret;` WITHOUT releasing the ref it just took -> net +1 leak.   (b) size-check failure (1558-1563) and sync-for-device failure (1566-1576) `goto put_internal_buffer` which DOES kref_put (1583) -> net 0, but `*buf` (e.g. job_buf->uv_addr) still points at the buffer whose ref was just dropped.  So on error the caller cannot know whether it owns a reference, and the out-param is left pointing at the buffer in every case — including the paths that already dropped the ref — so a later rga_mm_put_* on `*buf` can double-free.
 
 
-**Fix.** Make all post-kref_get error exits symmetric (drop the ref + clear *buf).\n\n1) Route the get_buffer_info failure through the put label instead of returning directly. Replace lines 1551-1556:\n\n\tret = rga_mm_get_buffer_info(job, internal_buffer, channel_addr);\n\tif (ret < 0) {\n\t\trga_job_err(job, \"handle[%ld] failed to get internal buffer info!\\n\",\n\t\t\t(unsigned long)handle);\n\t\tgoto put_internal_buffer;   /* was: return ret; */\n\t}\n\n2) Clear the dangling out-param in the shared `put_internal_buffer` cleanup: add `*buf = NULL;` immediately before its `return ret;` (after the kref_put). On every error exit the caller then sees a NULL buffer and cannot double-put. Both edits ship in `rga_mm.patch`.
+**Fix.** Make all post-kref_get error exits symmetric (drop the ref + clear *buf).\n\n1) Route the get_buffer_info failure through the put label instead of returning directly. Replace lines 1551-1556:\n\n\tret = rga_mm_get_buffer_info(job, internal_buffer, channel_addr);\n\tif (ret < 0) {\n\t\trga_job_err(job, \"handle[%ld] failed to get internal buffer info!\\n\",\n\t\t\t(unsigned long)handle);\n\t\tgoto put_internal_buffer;   /* was: return ret; */\n\t}\n\n2) Clear the dangling out-param in the shared `put_internal_buffer` cleanup: add `*buf = NULL;` immediately before its `return ret;` (after the kref_put). On every error exit the caller then sees a NULL buffer and cannot double-put. Both edits are in `rga_mm.patch`.
 
 
 *verify confidence: high*
@@ -481,7 +485,7 @@ The only bound is an **upper** bound. A zero-length write (`write(fd, "", 0)`, t
 **Problem.** rga_mm_get_handle_info acquires channels sequentially via rga_mm_get_channel_handle_info: src (1762), dst (1772), pat (1789/1793). On any failure it simply `return ret;` (e.g. lines 1776-1778 for dst, 1797-1800 for pat) WITHOUT releasing channels already acquired by earlier calls. Each successful rga_mm_get_buffer did kref_get on an IDR-resident internal_buffer, so those refs are now leaked. The same gap exists one level down inside rga_mm_get_channel_handle_info itself: in the three-plane branch, if y_addr is acquired (1647) but uv_addr (1658) or v_addr (1668) fails, it returns without putting the already-acquired y_addr/uv_addr.  This is not recovered by the caller: rga_mm_map_job_info() returns the error straight up without unwinding, so each partially-acquired channel's kref is leaked and its buffers stay pinned.
 
 
-**Fix.** Make the handle path self-unwinding like the non-handle path, and make releases idempotent so already-cleaned channels are not double-put. Three coordinated edits:  1) rga_mm_get_buffer (rga_mm.c:1516): guarantee that on EVERY error after kref_get, the ref is balanced and *buf is NULLed. Route the get_buffer_info failure through the cleanup label (it currently `return ret` at 1555 WITHOUT kref_put — a latent leak), and NULL *buf in the label:    - line 1552-1556: change `return ret;` to `goto put_internal_buffer;` and add `*buf = NULL;` before that label's `return ret;`.  2) Make rga_mm_get_handle_info self-unwinding: add an `err_put_handle_info:` label that calls `rga_mm_put_handle_info(job)`, and route the src/dst/pat get failures to it via `goto err_put_handle_info;` instead of `return ret;`.  3) Make rga_mm_put_channel_handle_info idempotent by NULLing y_addr/uv_addr/v_addr (and page_table) after releasing each, so an already-cleaned channel is never double-put. All three edits ship in `rga_mm.patch`.
+**Fix.** Make the handle path self-unwinding like the non-handle path, and make releases idempotent so already-cleaned channels are not double-put. Three coordinated edits:  1) rga_mm_get_buffer (rga_mm.c:1516): guarantee that on EVERY error after kref_get, the ref is balanced and *buf is NULLed. Route the get_buffer_info failure through the cleanup label (it currently `return ret` at 1555 WITHOUT kref_put — a latent leak), and NULL *buf in the label:    - line 1552-1556: change `return ret;` to `goto put_internal_buffer;` and add `*buf = NULL;` before that label's `return ret;`.  2) Make rga_mm_get_handle_info self-unwinding: add an `err_put_handle_info:` label that calls `rga_mm_put_handle_info(job)`, and route the src/dst/pat get failures to it via `goto err_put_handle_info;` instead of `return ret;`.  3) Make rga_mm_put_channel_handle_info idempotent by NULLing y_addr/uv_addr/v_addr (and page_table) after releasing each, so an already-cleaned channel is never double-put. All three edits are in `rga_mm.patch`.
 
 
 *verify confidence: high*
@@ -510,6 +514,8 @@ The only bound is an **upper** bound. A zero-length write (`write(fd, "", 0)`, t
 </details>
 
 ---
+<a id="how-to-apply--verify-a-cleanup-patch"></a>
+
 ## How to apply & verify a cleanup patch
 
 **Preferred path:** apply the whole series from
@@ -538,6 +544,8 @@ make ARCH=arm64 drivers/video/rockchip/
 ```
 
 Apply one file at a time, read each hunk against the matching finding, and keep only the hunks you trust (see the [Status](#-status--read-before-using-the-patches) caveat — review every refcount/bounds/security edit). Full runnable recipe: [`kernel-drivers/patches/cleanup-draft/README.md`](../patches/cleanup-draft/README.md).
+
+<a id="per-patch-hunk--finding-map"></a>
 
 ### Per-patch hunk → finding map
 
@@ -570,16 +578,18 @@ Each patch has **fewer hunks than the per-file Findings column** (which counts r
 - [uAPI guide — The /dev uAPIs](./dev-uapis.md): the ioctl contract several HIGH security findings sit on — `MPP_CMD_SET_SESSION_FD` type-confusion (`mpp_common.c:1582`), the user-controlled register-index OOB writes (`mpp_rkvdec2.c:350/359`, `mpp_rkvenc2.c:958`), and the `RGA_IOC_GET_HW_VERSION` infoleak (`rga_drv.c:945`).
 
 ---
+<a id="appendix--finding--patch-status"></a>
+
 ## Appendix — Finding → patch status
 
-One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse to — `(×N)` marks how many rows fold in). Every site is in the shipped draft and **applied**, except the single arm32-only WARN_ON, which `mpp_iommu.patch` deliberately **leaves unapplied**. `sev`: H/M/L/C = high/medium/low/cleanup.
+One row per **distinct `file:line` site** (the ~70 the 89 reviewer rows collapse to — `(×N)` marks how many rows fold in). Every site is in the current draft and **applied**, except the single arm32-only WARN_ON, which `mpp_iommu.patch` deliberately **leaves unapplied**. `sev`: H/M/L/C = high/medium/low/cleanup.
 
 > **"applied" ≠ "applied on the first try."** The adversarial verification pass
 > ([`verification.md`](../patches/cleanup-draft/verification.md)) found **2
 > rejects + 1 hold + 3 incomplete fixes** among the machine-generated edits; all
-> six were corrected and re-verified SAFE before the shipped draft was cut. The
+> six were corrected and re-verified SAFE before the current draft was cut. The
 > affected rows below are marked **applied (corrected)** — their first-draft fix
-> was wrong or incomplete, and the shipped hunk is the *corrected* one. The pass
+> was wrong or incomplete, and the current hunk is the *corrected* one. The pass
 > also fixed 5 pre-existing bugs *beyond* these 89 findings (not in this table —
 > see verification.md § Follow-up fixes).
 

@@ -1,7 +1,11 @@
 # Rockchip rewrite conformance bundle
 
-This directory collects the user-space stacks that should be used to compare the
-rewrite kernel against the BSP forward-port kernel. The test method is:
+This directory is the tracked seed for the user-space stacks that should be used
+to compare the rewrite kernel against the BSP forward-port kernel. The source
+checkouts, generated assets, build directories, install prefixes, and logs are
+created beside it but ignored by git.
+
+The test method is:
 
 1. Boot the rewrite kernel and run the suite with `PROFILE=rewrite`.
 2. Boot the forward-port kernel and run the same suite with `PROFILE=forward-port`.
@@ -9,6 +13,22 @@ rewrite kernel against the BSP forward-port kernel. The test method is:
 
 The bundle is not tied to either kernel tree. It should be copied or mounted on
 the target RK3588 system and run from there.
+
+## Bootstrap
+
+The tracked [`MANIFEST.tsv`](MANIFEST.tsv) pins every third-party source tree.
+Reconstruct the external `sources/` directory from a fresh clone with:
+
+```bash
+cd kernel-drivers/tests/conformance
+bash scripts/bootstrap-sources.sh
+bash scripts/bootstrap-sources.sh verify
+```
+
+`bootstrap-sources.sh` clones missing sources, checks out the manifest commits,
+and applies repo-owned patches from `patches/<name>/`. It refuses dirty existing
+checkouts. The generated `sources/`, `assets/`, `build/`, `out/`, and `logs/`
+directories stay untracked by policy.
 
 ## Directory layout
 

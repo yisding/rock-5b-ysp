@@ -158,7 +158,7 @@ internals that drift on *their* schedule. **When Armbian bumps
 
 ---
 
-## 5. Residual TODOs (W-tags) — what's intentionally stubbed
+## 5. Residual W-tag stubs — what's intentionally stubbed
 
 These are **deliberate** stubs, tracked so a re-syncer doesn't mistake them for
 regressions. **The canonical W-tag table (W6, W15, iommu fault-mask,

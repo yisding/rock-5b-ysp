@@ -74,14 +74,24 @@ Verified 2026-07-01 on the ROCK 5B (kernel `6.18.37-current-rockchip64` #7):
 
 | Consumer | Tree/binary | Detail |
 |----------|-------------|--------|
-| System-wide / GRD | `ffmpeg 7:8.1.2-1+rk1` (installed deb) | Upstream 8.1.2 + rkmpp ABI drop-in from the PPA packaging work — [`packaging/ppa/README.md`](../../../packaging/ppa/README.md). `librockchip-mpp1/-dev 1.5.0-1+rk1` and `librga2/-dev 2.2.0-1+rk1` installed alongside. |
+| System-wide / GRD | `ffmpeg 7:8.1.2-1+rk1` (installed deb) | Upstream 8.1.2 + rkmpp ABI drop-in from the local PPA-style packaging work — [`packaging/ppa/README.md`](../../../packaging/ppa/README.md). `librockchip-mpp1/-dev 1.5.0-1+rk1` and `librga2/-dev 2.2.0-1+rk1` installed alongside. |
 | CLI hardware transcode / `tests/` | `~/Code/ffmpeg/ffmpeg-rockchip/ffmpeg` (dev box), built 2026-07-01 | Working tree clean at `def08a047f` (the rebased port, **without** the 28 review-fix commits — those live on `ffmpeg-rockchip-81 main`). Configured `--enable-version3 --enable-libdrm --enable-rkmpp --enable-rkrga --disable-doc` against the **system PPA libs** (no staging prefix), with Vulkan enabled (`CONFIG_VULKAN 1`, headers 1.4.341). Caveat: the binary's version string reads `N-125363-g53e76abdc7` (the last replayed fork commit, `def08a047f`'s parent) — whether it predates the port commit or just carries a stale cached `.version` is UNVERIFIED; rebuild before trusting it for regression comparisons. |
+
+This is a dated runtime snapshot. A later 2026-07-06 package-validation pass
+used the `ffmpeg-rockchip-81` `refactor/section-c` branch at `75638e7f0b17`:
+that tree built a self-contained package, registered the RKMPP/RKRGA features,
+and passed H.264 encode plus RKMPP hwupload -> RGA -> HEVC encode smoke tests.
+Its `h264_rkmpp` decode path fails only with the board's installed `/usr`
+`librockchip_mpp.so.1`; a clean `mpp-rockchip` 1.0.12 build supplies the missing
+parser registration and makes decode pass. See
+[`../../../findings/2026-07-06-ffmpeg-rockchip81-package-validation.md`](../../../findings/2026-07-06-ffmpeg-rockchip81-package-validation.md).
 
 Two consequences worth stating plainly:
 
-- **The fixed tree (`6cf02ab253`) is published but is not what is currently
-  installed or built anywhere on the board.** Anything exercised at runtime so
-  far ran either upstream-8.1.2 rkmpp code or the pre-fix rebased stack.
+- **The exported review series (`6cf02ab253`) and the package-validation tree
+  (`75638e7f0b17`) are different snapshots.** Treat `6cf02ab253` as the
+  submission-plan/patch-series baseline and `75638e7f0b17` as the latest local
+  package-validation baseline recorded in this repo.
 - **`--disable-vulkan` is a `40c412dacc`-era requirement only.** The old fork's
   `vulkan_av1.c` used provisional MESA Vulkan-AV1 types; the rebased tree
   inherits master's KHR types and builds with Vulkan on (verified in the

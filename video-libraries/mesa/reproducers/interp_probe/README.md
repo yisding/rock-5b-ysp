@@ -190,7 +190,7 @@ same binary on software.
 
 ## Expected Results
 
-On ROCK 5B / Mali-G610, the shipped Mesa 26.0.3 Panfrost/panvk stack shows the
+On ROCK 5B / Mali-G610, the system Mesa 26.0.3 Panfrost/panvk stack shows the
 same failure in GL and Vulkan:
 
 ```text

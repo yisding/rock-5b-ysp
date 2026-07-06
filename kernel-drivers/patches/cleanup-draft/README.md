@@ -10,7 +10,7 @@
 
 Per-file draft fixes for the issues in [BSP audit](../../docs/bsp-audit.md),
 produced by the multi-agent audit. They apply on top of the forward-port
-(`../`) and target the **shipped `mpp/` + `rga3/` driver code**.
+(`../`) and target the **validated forward-port `mpp/` + `rga3/` driver code**.
 
 > **✅ Adversarially verified + corrected — read [`verification.md`](verification.md) first.**
 > Every hunk was reviewed against the real source (verifiers told to *try to

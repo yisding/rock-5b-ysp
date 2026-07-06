@@ -10,8 +10,9 @@ hardware-encoded too — needed only if you run
 It is a separate package on purpose: it widens video-codec access to the whole
 `gdm` group, which is a deliberate security choice rather than a default. GRD does
 **not** depend on it — without it the login screen simply falls back to software.
-(Delivery-channel context: the deploy hub, [`../README.md`](../README.md); it also
-ships as PPA source package #5, [`../ppa/`](../ppa/README.md).)
+Delivery-channel context lives in the deploy hub,
+[`../README.md`](../README.md); PPA import for this package is a future wave
+tracked from [`../ppa/`](../ppa/README.md).
 
 ## What's here
 
@@ -21,7 +22,7 @@ ships as PPA source package #5, [`../ppa/`](../ppa/README.md).)
 | `build-deb.sh` | Assembles the `.deb` from `root/`. |
 | `root/DEBIAN/control` | Package metadata (`gnome-remote-desktop-gdm-hwenc`, `Depends: acl`, `Enhances: gnome-remote-desktop`). |
 | `root/DEBIAN/postinst` | `udevadm control --reload-rules && udevadm trigger` on the codec nodes. |
-| `gnome-remote-desktop-gdm-hwenc_1.0_all.deb` | *(gitignored, on-disk build residue)* — see the [binary policy](../README.md#binary-policy). |
+| `gnome-remote-desktop-gdm-hwenc_1.0_all.deb` | *(gitignored build residue, when present)* — see the [binary policy](../README.md#binary-policy). |
 
 ## Why the greeter needs its own rule
 
@@ -70,6 +71,7 @@ grants.
 bash build-deb.sh                                       # → gnome-remote-desktop-gdm-hwenc_1.0_all.deb
 sudo apt install ./gnome-remote-desktop-gdm-hwenc_1.0_all.deb
 # postinst runs: udevadm control --reload-rules && udevadm trigger (codec nodes)
+bash build-deb.sh clean                                 # remove the .deb
 ```
 
 No reboot needed: the `setfacl` RUN fires on the trigger, and GDM re-attempts the
@@ -93,7 +95,9 @@ build the artifact on demand.
 | **this package** (`70-…gdm-hwenc`) | `setfacl g:gdm` on the same nodes | the GDM greeter's dynamic `gdm-greeter-*` users |
 | systemd default (`uaccess` on DRM) | ACL for the active seat user | the GPU node only — not the codec nodes |
 
-The base `video`-group grant is the [upstream-submitted Armbian
+The base `video`-group grant is the [merged Armbian
 rule](https://github.com/armbian/build/pull/10085); this package is the greeter
-delta on top. There is **no** Armbian/distro precedent for granting the `gdm`
-group codec access — it's specific to running an encoder inside the greeter.
+delta on top for images that already carry that rule, and a companion to
+`codec-udev` for older/custom images. There is **no** Armbian/distro precedent
+for granting the `gdm` group codec access — it's specific to running an encoder
+inside the greeter.

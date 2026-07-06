@@ -1,0 +1,7 @@
+mpp for Ubuntu Rock 5B
+----------------------
+
+The Rockchip VPU compatibility library has SONAME `librockchip_vpu.so.1`.
+This packaging therefore ships it in `librockchip-vpu1`; `librockchip-vpu0`
+is kept only as an empty transitional package for upgrades from older local
+Rockchip packages.

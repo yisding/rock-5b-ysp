@@ -8,7 +8,7 @@ forward-port design, patch deliverables, captured findings, and the dated status
 of every track. Cross-cutting vocabulary (MPP, RGA, CCU, DCHS, …) lives in
 [`glossary.md`](glossary.md); each project also keeps a `keywords.md`.
 
-The shipped kernel result is a Rockchip vendor **MPP** codec stack plus **RGA**
+The validated kernel result is a Rockchip vendor **MPP** codec stack plus **RGA**
 forward-port from the Rockchip 6.1 BSP to Linux 6.18, packaged for Armbian on the
 ROCK 5B. The repo also records the work built on that base: `ffmpeg-rockchip`, a
 hardware H.264 backend for `gnome-remote-desktop`, Mesa/Panfrost Mali-G610
@@ -30,6 +30,7 @@ For a quick orientation:
 
 | Need | Start here |
 |------|------------|
+| Present the project accurately | [`docs/conference-brief.md`](docs/conference-brief.md) |
 | Install the validated ROCK 5B kernel path | [`install.md`](install.md) |
 | Check what is usable, experimental, or stale | [`status.md`](status.md) |
 | Review the kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
@@ -42,9 +43,10 @@ For a quick orientation:
 |-------|---------------------|
 | Combined Armbian kernel | Hardware-validated on ROCK 5B for H.264/H.265 encode, H.264/H.265 decode, RGA, and full hardware transcode. This is the primary install path. |
 | Userspace codec stack | Documented through `vendor-libraries/` and `video-libraries/`; `ffmpeg-rockchip` and GRD integration notes are captured here, while source builds live in their own trees. |
+| PPA delivery | Source packaging for `mpp`, `librga`, `ffmpeg`, and `gnome-remote-desktop` is in-repo; public PPA source publication has started, but the public binary indexes are still empty and FFmpeg/GRD are not public in APT yet. Treat it as a packaging track, not an install path yet. |
 | DKMS package path | Compiles on the documented 6.18 target, but the overlay has not replaced the validated combined-kernel path. Treat it as secondary. |
 | BSP audit cleanup series | Reviewable, but not shippable yet; compile/runtime gates are still tracked in [`status.md`](status.md). |
-| Clean-room rewrite track | Active bring-up and conformance work, not the shipped replacement. |
+| Clean-room rewrite track | Active bring-up and conformance work, not the validated replacement. |
 | Binaries and releases | Built binaries are intentionally not committed. Use documented build paths until a release artifact exists. |
 
 ## Structure
@@ -106,12 +108,12 @@ Userspace talks to the vendor MPP framework through `/dev/mpp_service`
 (`librockchip_mpp`, not V4L2) and to RGA through `/dev/rga` (`librga`). This is
 the stack `ffmpeg-rockchip` expects.
 
-> **Why the vendor stack and not mainline V4L2?** The mainline RK3588 encoder
-> path is JPEG-only in Collabora's
-> [mainline-status note](https://gitlab.collabora.com/hardware-enablement/rockchip-3588/notes-for-rockchip-3588/-/blob/main/mainline-status.md),
-> so it does not provide the H.264 encode path GRD targets, nor H.265 encode.
-> The RGA3 V4L2 driver is also still a subset for RK3588. The vendor MPP + RGA
-> stack gives the full feature set used here today. See
+> **Why the vendor stack and not mainline V4L2?** This repo's dated
+> mainline-V4L2 comparison records mainline as not providing the RK3588
+> H.264/H.265 encode path GRD targets. The RGA3 V4L2 driver is also documented
+> here as a subset for RK3588. Re-check current upstream status before making a
+> present-tense claim about mainline support; the validated path in this repo is
+> vendor MPP + RGA. See
 > [`kernel-versions/docs/vanilla-kernel.md`](./kernel-versions/docs/vanilla-kernel.md) for the mainline-V4L2
 > alternative and its trade-offs.
 
@@ -142,11 +144,13 @@ the port replaces Armbian's DT:
 The canonical walkthrough is [`install.md`](install.md). The shape is:
 
 ```bash
-git clone https://github.com/armbian/build armbian-build
-mkdir -p armbian-build/userpatches/kernel/archive/rockchip64-6.18
-cp kernel-drivers/patches/rk3588-rkvenc2-0*.patch armbian-build/userpatches/kernel/archive/rockchip64-6.18/
+export WORKSPACE="${WORKSPACE:-../kernel/rock5b-kernel-build}"
+bash kernel-drivers/scripts/bootstrap-workspaces.sh
+mkdir -p "$WORKSPACE/armbian-build/userpatches/kernel/archive/rockchip64-6.18"
+cp kernel-drivers/patches/rk3588-rkvenc2-0*.patch \
+   "$WORKSPACE/armbian-build/userpatches/kernel/archive/rockchip64-6.18/"
 ./kernel-drivers/scripts/build-combined-kernel.sh
-sudo PHASH='P####-C####' ./kernel-drivers/scripts/install-combined-kernel.sh
+sudo WORKSPACE="$WORKSPACE" PHASH='P####-C####' ./kernel-drivers/scripts/install-combined-kernel.sh
 sudo reboot
 sudo ./kernel-drivers/scripts/validate-combined.sh
 ```
@@ -184,6 +188,9 @@ apps/
   gnome-remote-desktop/  hardware H.264 RDP backend: docs, patches, bench
 packaging/             deploy hub: DKMS, udev/ACL debs, PPA notes, policy
 docs/                  cross-project map, source-tree pins, and gotchas trap index
+  conference-brief.md  presenter-facing claim/evidence/caveat summary
+  status-ledger.md     audit companion to status.md
+scripts/               repo-wide maintenance checks
 ```
 
 Maintenance rule: a commit that adds a user-facing file updates the owning project
@@ -193,6 +200,8 @@ README; a commit that adds a top-level category or project updates this map and
 
 ## Provenance and licensing
 
+- Current repo-wide license state is recorded in [`LICENSE.md`](LICENSE.md):
+  no repository-wide license has been granted yet.
 - The driver code is forward-ported from Rockchip's GPL-2.0 BSP MPP framework
   (`rockchip-kernel` `drivers/video/rockchip/mpp/`) and `airockchip/librga`'s
   kernel driver. It is GPL-2.0 like the kernel.

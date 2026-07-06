@@ -79,7 +79,7 @@ reboot wipes, so `ninja -C build-codex-main` died at the meson *regen* step:
 - `/tmp/llvm-config-22-mesa-codex` — a 1-line wrapper
   (`exec /usr/bin/llvm-config-22 "$@"`) — survived here, recreated by the script if not.
 - `/tmp/mesa-x11-dev-deps/` — a staged X11 dev sysroot for the `x11` platform —
-  **gone and not reconstructable** without the original .debs.
+  gone after reboot; the fixed build path no longer depends on reconstructing it.
 
 Fix (in [`build-mesa-surfaceless.sh`](../scripts/build-mesa-surfaceless.sh)):
 recreate the native file and **reconfigure to surfaceless** (`-Dplatforms=

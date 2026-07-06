@@ -1,0 +1,13 @@
+mpp for Ubuntu Rock 5B
+----------------------
+
+This source package uses `3.0 (quilt)`.
+
+The `+ds` orig tarball is exported from mpp-rockchip commit 1375813c with the
+upstream `debian/` directory and unused Windows binaries removed:
+
+* tools/AStyle.exe
+* tools/TextEncoding.exe
+
+Ubuntu packaging changes live under `debian/`. Source patches are listed in
+`debian/patches/series`.

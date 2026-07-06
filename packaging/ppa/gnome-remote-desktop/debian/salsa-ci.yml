@@ -1,0 +1,7 @@
+---
+include:
+  - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/recipes/debian.yml
+
+# Salsa CI can't handle the TPM test
+variables:
+  DEB_BUILD_PROFILES: nocheck

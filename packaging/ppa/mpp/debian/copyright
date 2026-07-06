@@ -1,0 +1,9 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Media Process Platform (MPP) module 
+Source: https://github.com/rockchip-linux/mpp
+
+Files: *
+Copyright: 2015 Herman Chen <herman.chen@rock-chips.com>
+License: Apache-2.0
+ On Debian systems, the complete text of the Apache License, Version 2.0
+ can be found in `/usr/share/common-licenses/Apache-2.0`.

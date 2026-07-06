@@ -101,8 +101,8 @@ mpp_destroy(ctx)
 | Advanced task API | `poll`, `dequeue`, `enqueue` | Direct access to port/task queues. |
 | Control | `control`, `reset` | Runtime/pre-init configuration, buffer groups, callbacks, reset. |
 
-Important gotcha: `mpi_encode()` in `mpp/mpi.c` is still a TODO wrapper. The
-real encode path is `encode_put_frame()` plus `encode_get_packet()`, or the
+Important gotcha: `mpi_encode()` in `mpp/mpi.c` is still a placeholder wrapper.
+The real encode path is `encode_put_frame()` plus `encode_get_packet()`, or the
 advanced task API.
 
 ## The Internal `Mpp` Object

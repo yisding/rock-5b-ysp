@@ -1,0 +1,42 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/default.mk
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,-O1 -Wl,-z,defs
+
+%:
+	dh $@
+
+# https://bugs.debian.org/981285
+# https://launchpad.net/bugs/1977614
+override_dh_auto_configure:
+	dh_auto_configure -- \
+		-Dffmpeg=enabled \
+		-Dtests=$(if $(filter nocheck,$(DEB_BUILD_OPTIONS)),false,true)
+
+# We manually handle tmpfiles & sysusers in postinst
+# Remove these 2 empty overrides when postinst is dropped
+override_dh_installtmpfiles:
+
+override_dh_installsysusers:
+
+# Ignore build test failures on some architectures
+# These tests require working mutter & mutter's build tests
+# fail for these architectures too
+override_dh_auto_test:
+ifeq (,$(filter mips64el riscv64,$(DEB_HOST_ARCH)))
+	dh_auto_test
+else
+	dh_auto_test || true
+endif
+
+# https://launchpad.net/bugs/1973028
+override_dh_installsystemduser:
+	dh_installsystemduser --no-enable
+
+override_dh_installsystemd:
+	dh_installsystemd --no-enable
+
+# Skip. We only use dh_gnome for dh_translations for Ubuntu
+override_dh_gnome:

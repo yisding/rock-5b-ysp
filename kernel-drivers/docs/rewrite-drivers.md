@@ -11,7 +11,7 @@ MMIO/IRQ/clock/reset discovery, public `dma_buf_attach`/`map` for fd imports,
 the public DMA API (`dmam_alloc_coherent`) for RCB scratch instead of the BSP's
 fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 
-> **Status: advanced bring-up, not yet the shipped replacement.** MPP now covers
+> **Status: advanced bring-up, not yet the validated replacement.** MPP now covers
 > the observed RK3588 userspace ABI with no required command intentionally left
 > unsupported. RGA has grown from the initial blit/fill subset into a broad
 > practical `librga`/FFmpeg feature subset, including RK3588 AFBC16x16, 10-bit,
@@ -103,8 +103,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > RGA userptr-IOMMU fallback userptr mapping slice: dma-buf imports remain fail-closed unless they
 > map as one 32-bit-safe segment, while driver-owned pinned userptr sg-tables
 > can be mapped through one contiguous IOMMU IOVA span for direct-librga/RKNN
-> virtual-buffer compatibility. The shipped,
-> hardware-validated stack is still the forward-port
+> virtual-buffer compatibility. The hardware-validated stack is still the forward-port
 > ([kernel status](./forward-port-status.md), [`status.md`](../../status.md)). Location + pin in
 > §6.
 
@@ -675,6 +674,8 @@ reads per-instance status), but which is TRM-correct is **UNVERIFIED** —
 confirm against the TRM before treating either as canonical.
 
 ---
+
+<a id="6-status--citable-location"></a>
 
 ## 6. Status & citable location
 

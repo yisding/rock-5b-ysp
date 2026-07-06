@@ -60,7 +60,8 @@ compile-gated draft tree). Remedy: regenerate `0024` with a file-scope
 static int rkvenc2_free_rcbbuf(struct platform_device *pdev, struct rkvenc_dev *enc);
 ```
 
-above `rkvenc_core_probe()`. **TODO:** fold the fix into a regenerated series.
+above `rkvenc_core_probe()`. Remaining action: fold the fix into a regenerated
+series.
 With exactly that one-line shim, the rest was verified 2026-07-01 to compile
 with **0 errors** and link both modules (out-of-tree build using the
 [`packaging/dkms`](../../../packaging/dkms) Kbuilds against the installed

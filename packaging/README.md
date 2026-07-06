@@ -9,11 +9,11 @@ shipping, or operating** the artifacts.
 
 | Field | Contents |
 |-------|----------|
-| User outcome | Choose and operate an install path: combined kernel, DKMS, codec udev rule, GDM greeter ACL package, local debs, or future PPA packages. |
+| User outcome | Choose and operate an install path: combined kernel, DKMS, codec udev rule, GDM greeter ACL package, local debs, or PPA packages. |
 | Developer focus | Keep deploy artifacts reproducible and auditable: DKMS source staging, udev policy, PPA source packages, rollback, binary publishing, and package boundaries. |
 | Owns | Packaging docs for `codec-udev/`, `gdm-hwenc/`, `dkms/`, `ppa/`, and the operations runbook for the rkmpp FFmpeg stack. |
 | Depends on | Kernel-driver artifacts, userspace libraries, FFmpeg/GRD package sources, and the status gates recorded in [`../status.md`](../status.md). |
-| Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only; PPA source packages built locally but have not been uploaded. See [../status.md](../status.md). |
+| Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only; PPA source packaging for MPP, librga, FFmpeg, and GRD is now in-repo, but the public PPA has no arm64 binaries yet. See [../status.md](../status.md). |
 
 ## The four delivery channels
 
@@ -22,7 +22,7 @@ shipping, or operating** the artifacts.
 | 1 | **Combined Armbian kernel** (`=y`) | [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) + [`../kernel-drivers/patches/`](../kernel-drivers/patches/README.md) | Kernel debs with the vendor MPP + RGA drivers built in | Hardware-validated (see [`../status.md`](../status.md)) |
 | 2 | **DKMS on a stock kernel** | [`dkms/`](dkms/README.md) | `rk_vcodec.ko` + `rga3.ko` rebuilt on every kernel update, + a boot-time DT overlay | Compile-tested on 6.18; overlay dtc-validated, **not boot-validated** |
 | 3 | **Local `.debs`** | [`codec-udev/`](codec-udev/README.md), [`gdm-hwenc/`](gdm-hwenc/README.md), `dkms/build-deb.sh` | The udev/ACL rules and the DKMS deb, built on demand | Built + installed on the dev board |
-| 4 | **Launchpad PPA** (userspace) | [`ppa/`](ppa/README.md) | MPP + librga + FFmpeg 8.1.2+rkmpp + GRD as source packages Launchpad builds | Local arm64 binary builds succeeded 2026-06-30; **nothing `dput` yet** |
+| 4 | **Launchpad PPA** (userspace) | [`ppa/`](ppa/README.md) | MPP + librga + FFmpeg RKMPP/RKRGA + GRD packages Launchpad builds from source | Source packaging imported; public APT currently has MPP/librga source only, empty binary indexes, FFmpeg baseline `Pending` in Launchpad API, and Rockchip-81 FFmpeg/GRD held until deps publish |
 
 > **⚑ Hard rule: channels 1 and 2 are mutually exclusive.** Never run DKMS on a
 > combined (`=y`) kernel — the build fails `modpost` with `'…' exported twice`.
@@ -42,32 +42,43 @@ shipping, or operating** the artifacts.
 |------|-----------|
 | [`codec-udev/`](codec-udev/README.md) | `rk3588-codec-udev` deb: the `video`-group udev rule for `mpp_service`/`dma_heap`/`rga` (canonical rule: [`../kernel-drivers/scripts/99-rockchip-codec.rules`](../kernel-drivers/scripts/99-rockchip-codec.rules), copied at build time) |
 | [`dkms/`](dkms/README.md) | `rk3588-vcodec-dkms` deb: out-of-tree DKMS build of the vendor drivers + boot-time DT overlay, for **stock** kernels |
+| [`ffmpeg-rockchip81/`](ffmpeg-rockchip81/README.md) | `ffmpeg-rockchip81` deb: self-contained `/opt` runtime package for the local `ffmpeg-rockchip-81` forward-port tree |
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | `gnome-remote-desktop-gdm-hwenc` deb: opt-in `setfacl g:gdm` udev rule so the **GDM greeter** hardware-encodes too |
-| [`ppa/`](ppa/README.md) | The five Launchpad source packages (mpp, librga, ffmpeg, GRD, gdm-hwenc): design, build notes, upload waves. *(Moved from top-level `/ppa/` 2026-07.)* |
+| [`ppa/`](ppa/README.md) | Launchpad source packages for the userspace stack: imported `mpp`, `librga`, `ffmpeg`, and GRD packaging, source-export helper, and the 2026-07-06 upload log. |
 | [`docs/`](docs/armbian-packaging.md) | The Armbian `media-0001` conflict + the convert-in-place / self-contained DT strategies ([`armbian-packaging.md`](docs/armbian-packaging.md)); and Armbian **patch precedence** — why you can't disable a core patch from userpatches ([`armbian-patch-precedence.md`](docs/armbian-patch-precedence.md)). |
 
 ## Operations runbook — running the rkmpp FFmpeg stack
 
-Recorded from operating the drop-in FFmpeg `8.1.2+rkmpp1` local debs on the
-dev board (source: the `~/Code/gnome/grd/grd-debs` deployment, 2026-06-30); the same
-mechanics apply to the PPA's `7:8.1.2-1+rk1` set.
+Recorded from operating the older drop-in FFmpeg `8.1.2+rkmpp1` local debs on
+the dev board (source: the `~/Code/gnome/grd/grd-debs` deployment,
+2026-06-30). The same package-management mechanics apply to a PPA install, but
+the current `ffmpeg-rockchip-81` PPA candidate has newer library package names
+(`libavcodec63`, `libavutil61`, `libavformat63`, `libavfilter12`,
+`libavdevice63`, `libswscale10`, `libswresample7`).
 
 ### Pin, or Ubuntu will silently take it back
 
-The rkmpp FFmpeg keeps Ubuntu's epoch (`7:`) and a version above stock
-(`7:8.1.2…` > `7:8.0.1-3ubuntu2`), so it upgrades in place — but a **future
-Ubuntu `7:8.1.x`** would sort above it and supersede it on a routine
-`apt upgrade`. Hold the seven runtime libs (+ the codec libs):
+The rkmpp FFmpeg keeps Ubuntu's epoch (`7:`) and a version above stock, so it
+upgrades in place — but a future Ubuntu FFmpeg with a higher version can
+supersede it on a routine `apt upgrade`. Hold the installed seven runtime libs
+(+ the codec libs):
 
 ```bash
 sudo apt-mark hold libavutil60 libavcodec62 libavformat62 libavdevice62 \
                    libavfilter11 libswscale9 libswresample6
+# Current ffmpeg-rockchip-81 PPA candidate, once published:
+# sudo apt-mark hold libavutil61 libavcodec63 libavformat63 libavdevice63 \
+#                    libavfilter12 libswscale10 libswresample7
 # plus the codec libs of whichever era you installed:
 #   PPA:        librockchip-mpp1 librga2
 #   local-deb:  rockchip-codec-libs
 ```
 
-### Exact rollback to stock Ubuntu FFmpeg
+### Exact rollback to stock Ubuntu FFmpeg (older libav*62 set)
+
+For the current `ffmpeg-rockchip-81` PPA candidate, exact rollback should be
+documented after publication against the actual package set. The older local
+drop-in set rolled back with:
 
 ```bash
 sudo apt-mark unhold libavutil60 libavcodec62 libavformat62 libavdevice62 \
@@ -85,9 +96,8 @@ Installing the **local** `+rkmpp1` runtime debs removed the five installed
 FFmpeg `-dev` packages (`libavcodec-dev`, `libavformat-dev`, `libavutil-dev`,
 `libswresample-dev`, `libswscale-dev`) — those were build-time headers only;
 **no application is removed** (apps depend on the runtime libs, which upgrade
-in place). The PPA build *does* produce the full `-dev` set
-(seven `-dev` debs in the 2026-06-30 local build), so via the PPA the `-dev`
-packages upgrade instead of vanishing.
+in place). The PPA build produces the full `-dev` set, so via the PPA the
+`-dev` packages upgrade instead of vanishing.
 
 ### Player caveat — rkmpp decoders are standalone AVCodecs *(canonical copy)*
 
@@ -142,19 +152,19 @@ so nobody re-walks them:
    maintenance; the encoder-behaviour difference between the two is the
    ffmpeg-rockchip-vs-upstream comparison in
    [`video-libraries/ffmpeg/docs/implementation-comparison.md`](../video-libraries/ffmpeg/docs/implementation-comparison.md).
-4. **Final: system-wide ABI drop-in + PPA.** Upstream FFmpeg 8.1.2 with
-   `--enable-rkmpp` has the same seven SONAME majors as Ubuntu's 8.0.1, so it
-   replaces the system libs in place — first as local `+rkmpp1` debs, then as
-   the [`ppa/`](ppa/README.md) source packages so Launchpad builds them
-   reproducibly.
+4. **System-wide ABI drop-in + PPA.** The first PPA design used upstream FFmpeg
+   8.1.2 with `--enable-rkmpp`, keeping the same SONAME majors as Ubuntu's
+   8.0.1. The current first-wave PPA work keeps the source-package model but
+   points FFmpeg at the local `ffmpeg-rockchip-81` forward-port, whose ABI is
+   recorded in [`ppa/`](ppa/README.md).
 
 ## Binary policy
 
 **No built binaries in git, ever.** Verified: `git ls-files | grep -E
-'\.(deb|ko|dtbo|so)$'` is empty; the on-disk `.deb`s in `codec-udev/` and
-`gdm-hwenc/` and the whole `dkms/build/` staging tree are build residue covered
-by the per-subdir `.gitignore`s (the root [`../.gitignore`](../.gitignore)
-points here).
+'\.(deb|ko|dtbo|so)$'` is empty; any on-disk `.deb`s in `codec-udev/` or
+`gdm-hwenc/`, and the whole `dkms/build/` staging tree, are build residue
+covered by the per-subdir `.gitignore`s (the root
+[`../.gitignore`](../.gitignore) points here).
 
 - Commit the **source** (`root/DEBIAN/*`, `build-deb.sh`, `dkms.conf`,
   Kbuilds, overlay `.dts`); build artifacts on demand.
@@ -162,7 +172,7 @@ points here).
   assets** on [`yisding/rock-5b-ysp`](https://github.com/yisding/rock-5b-ysp),
   tagged with the kernel `PHASH` (see [`../install.md`](../install.md)) or the
   package version, with `sha256sum`s in the release notes, and linked from
-  this README. *(None published yet — TODO when the first release is cut.)*
+  this README. *(None published yet; record the first release here when cut.)*
 - `dkms/build/` is disposable output: `bash dkms/build-deb.sh clean` removes it.
 - [`../kernel-drivers/scripts/99-rockchip-codec.rules`](../kernel-drivers/scripts/99-rockchip-codec.rules)
   stays the **single canonical** udev rule — read the rule body there, never
@@ -170,16 +180,15 @@ points here).
   under `codec-udev/root/…` is gitignored); [`codec-udev/README.md`](codec-udev/README.md)
   owns *why* each line is needed (especially the required `dma_heap` grant).
 
-## Still only on the dev box (import plan)
+## Remaining PPA import gaps
 
-The five PPA source packages' full `debian/` trees, `.dsc`/orig tarballs, and
-the `UPLOAD.md` signing/dput runbook live in the **unversioned** `~/Code/gnome/grd/grd-ppa/`
-— a fresh clone of this repo cannot rebuild the PPA packages from
-[`ppa/README.md`](ppa/README.md)'s quoted fragments alone. **Plan:** import the
-five `debian/` trees + `UPLOAD.md` into `ppa/` (source-only — orig tarballs are
-fetched or `git archive`d per the recipes there). Tracked in
-[`../status.md`](../status.md); described in detail in
-[`ppa/README.md`](ppa/README.md) §Import plan.
+The PPA source packaging for `mpp`, `librga`, `ffmpeg`, and GRD is now in this
+repo under [`ppa/`](ppa/README.md), along with the source-export helper and the
+2026-07-06 upload log. The remaining PPA import gaps are the PPA-native
+`gnome-remote-desktop-gdm-hwenc` source-package wrapper, if that route is used,
+and any old `UPLOAD.md` details not already captured in the current upload log.
+Generated source packages, orig tarballs, signed `.changes`, `.deb`s, and
+Launchpad credentials stay out of git by policy.
 
 ## See also
 

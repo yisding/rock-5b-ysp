@@ -1,7 +1,7 @@
 # Exactly what we changed in the Rockchip 6.1 BSP
 
-A line-level accounting of the forward-port: how much of the shipped driver code
-is Rockchip's, and precisely what our changes were and why.
+A line-level accounting of the forward-port: how much of the validated driver
+code is Rockchip's, and precisely what our changes were and why.
 
 > This doc is the **quantitative** side — counts, percentages, and the complete
 > per-change table. For the narrative rationale (why each hunk exists, the
@@ -137,9 +137,9 @@ In-tree `obj-$(CONFIG_…)` rules and the menu structure, plus `default y` on
 config travels in the patch — `armbian-packaging.md`). The `hack/` files are restored
 verbatim from the BSP and **must not be deleted** ([gotchas](../../docs/gotchas.md)).
 
-### 6. Residual TODOs (W-tags)
+### 6. Residual W-tag stubs
 
-Several shim banners point at `W6` / `W15` / "see Residual TODOs" (e.g.
+Several shim banners point at `W6` / `W15` / the old residual-stubs label (e.g.
 `rockchip_opp_select.h:8,11`, `rockchip_ipa.h:8`, `rockchip_system_monitor.h:12`)
 but no master list lives in the tree. Consolidated here —
 these are **intentionally stubbed**, not bugs; a production path would restore

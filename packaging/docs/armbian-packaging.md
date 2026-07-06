@@ -2,7 +2,7 @@
 
 This is the part that was genuinely tricky: **Armbian already backports a
 mainline rkvdec driver**, and it collides head-on with our vendor decoder. The
-goal was to ship everything as **userpatches with zero edits to Armbian's own
+goal was to deliver everything as **userpatches with zero edits to Armbian's own
 files** — and getting there took three attempts.
 
 ## The conflict
@@ -56,7 +56,7 @@ the `vdec0_sram`/`vdec1_sram` **labels** and the core/mmu **addresses**, all in
 shared parents (`system_sram2`), needing delicate `/delete-node/` ordering that
 only validates with full ~80-min builds. Abandoned.
 
-## Attempt 3 — **convert-in-place** (the shipped solution). Zero edits.
+## Attempt 3 — **convert-in-place** (the validated solution). Zero edits.
 
 Two insights collapse the whole problem:
 
@@ -165,7 +165,7 @@ patches' own Kconfig `default y` (same as § below) — **no config edits**.
 editing Armbian's core patch set** (two renames). Pick per goal.
 
 Result of this path (build tooling lives in `linux-6.18-rkvenc-av1-fwport/packaging/armbian/`,
-reusing the shipping `rock5b-kernel-build/armbian-build` tree): a drop-in
+reusing the `rock5b-kernel-build/armbian-build` kernel-build tree): a drop-in
 `6.18.37 / 26.08.0-trunk` kernel, hash **`P1c9d-Cb831`** — new patch hash vs the
 convert-in-place `Pb6ab-Cb831`, **same config hash** `Cb831`. DTB verified to carry
 `mpp-service` + encoder×2 + decoder + `rga3_core0/1` + `verisilicon,iommu`; **not yet

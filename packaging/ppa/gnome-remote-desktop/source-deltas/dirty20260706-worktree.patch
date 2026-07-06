@@ -1,0 +1,682 @@
+diff --git a/src/grd-encode-session.c b/src/grd-encode-session.c
+index 99b3ce0..b71936a 100644
+--- a/src/grd-encode-session.c
++++ b/src/grd-encode-session.c
+@@ -185,11 +185,16 @@ lock_bitstreams (gpointer user_data)
+     {
+       GrdBitstream *bitstream;
+       g_autoptr (GError) error = NULL;
++      int64_t start_us;
++      int64_t lock_duration_us;
+ 
++      start_us = g_get_monotonic_time ();
+       bitstream = klass->lock_bitstream (encode_session, task->image_view,
+                                          &error);
++      lock_duration_us = g_get_monotonic_time () - start_us;
++
+       task->callback (encode_session, bitstream, task->callback_user_data,
+-                      error);
++                      lock_duration_us, error);
+ 
+       g_free (task);
+     }
+diff --git a/src/grd-encode-session.h b/src/grd-encode-session.h
+index bc54352..e1a4939 100644
+--- a/src/grd-encode-session.h
++++ b/src/grd-encode-session.h
+@@ -31,6 +31,7 @@ G_DECLARE_DERIVABLE_TYPE (GrdEncodeSession, grd_encode_session,
+ typedef void (* GrdEncodeSessionOnBitstreamLockedFunc) (GrdEncodeSession *encode_session,
+                                                         GrdBitstream     *bitstream,
+                                                         gpointer          user_data,
++                                                        int64_t           lock_duration_us,
+                                                         GError           *error);
+ 
+ struct _GrdEncodeSessionClass
+diff --git a/src/grd-rdp-frame.c b/src/grd-rdp-frame.c
+index 24449e9..6e31669 100644
+--- a/src/grd-rdp-frame.c
++++ b/src/grd-rdp-frame.c
+@@ -46,6 +46,7 @@ struct _GrdRdpFrame
+ 
+   GrdRdpBuffer *src_buffer_new;
+   GrdRdpBuffer *src_buffer_old;
++  uint64_t source_serial;
+ 
+   GrdRdpFrameViewType view_type;
+ 
+@@ -89,6 +90,12 @@ grd_rdp_frame_get_last_source_buffer (GrdRdpFrame *rdp_frame)
+   return rdp_frame->src_buffer_old;
+ }
+ 
++uint64_t
++grd_rdp_frame_get_source_serial (GrdRdpFrame *rdp_frame)
++{
++  return rdp_frame->source_serial;
++}
++
+ GrdRdpFrameViewType
+ grd_rdp_frame_get_avc_view_type (GrdRdpFrame *rdp_frame)
+ {
+@@ -126,6 +133,13 @@ grd_rdp_frame_set_renderer (GrdRdpFrame    *rdp_frame,
+   rdp_frame->renderer = renderer;
+ }
+ 
++void
++grd_rdp_frame_set_source_serial (GrdRdpFrame *rdp_frame,
++                                 uint64_t     source_serial)
++{
++  rdp_frame->source_serial = source_serial;
++}
++
+ void
+ grd_rdp_frame_set_avc_view_type (GrdRdpFrame         *rdp_frame,
+                                  GrdRdpFrameViewType  view_type)
+diff --git a/src/grd-rdp-frame.h b/src/grd-rdp-frame.h
+index d4e0f2f..c4a1162 100644
+--- a/src/grd-rdp-frame.h
++++ b/src/grd-rdp-frame.h
+@@ -21,6 +21,7 @@
+ 
+ #include <cairo/cairo.h>
+ #include <glib.h>
++#include <stdint.h>
+ 
+ #include "grd-types.h"
+ 
+@@ -58,6 +59,8 @@ GrdRdpBuffer *grd_rdp_frame_get_source_buffer (GrdRdpFrame *rdp_frame);
+ 
+ GrdRdpBuffer *grd_rdp_frame_get_last_source_buffer (GrdRdpFrame *rdp_frame);
+ 
++uint64_t grd_rdp_frame_get_source_serial (GrdRdpFrame *rdp_frame);
++
+ GrdRdpFrameViewType grd_rdp_frame_get_avc_view_type (GrdRdpFrame *rdp_frame);
+ 
+ cairo_region_t *grd_rdp_frame_get_damage_region (GrdRdpFrame *rdp_frame);
+@@ -71,6 +74,9 @@ gboolean grd_rdp_frame_is_surface_damaged (GrdRdpFrame *rdp_frame);
+ void grd_rdp_frame_set_renderer (GrdRdpFrame    *rdp_frame,
+                                  GrdRdpRenderer *renderer);
+ 
++void grd_rdp_frame_set_source_serial (GrdRdpFrame *rdp_frame,
++                                      uint64_t     source_serial);
++
+ void grd_rdp_frame_set_avc_view_type (GrdRdpFrame         *rdp_frame,
+                                       GrdRdpFrameViewType  view_type);
+ 
+diff --git a/src/grd-rdp-render-context.c b/src/grd-rdp-render-context.c
+index 8c65fb8..9e4f859 100644
+--- a/src/grd-rdp-render-context.c
++++ b/src/grd-rdp-render-context.c
+@@ -661,24 +661,27 @@ create_hw_accelerated_encode_session (GrdRdpRenderContext  *render_context,
+ 
+   grd_rdp_dvc_graphics_pipeline_get_capabilities (graphics_pipeline,
+                                                   &have_avc444, &have_avc420);
+-  if ((have_avc444 || have_avc420) && hwaccel_vaapi)
+-    try_create_vaapi_session (render_context, rdp_surface, have_avc444);
++  if (!grd_rdp_renderer_is_hw_encode_disabled (render_context->renderer))
++    {
++      if ((have_avc444 || have_avc420) && hwaccel_vaapi)
++        try_create_vaapi_session (render_context, rdp_surface, have_avc444);
+ 
+ #ifdef HAVE_FFMPEG
+-  /*
+-   * VA-API stays the preferred path; the FFmpeg/rkmpp backend is only tried
+-   * when VA-API did not produce a session. It is H.264-only, so it requires
+-   * AVC420 support from the client.
+-   */
+-  if (!render_context->encode_session && have_avc420)
+-    {
+-      GrdHwAccelFfmpeg *hwaccel_ffmpeg =
+-        grd_rdp_renderer_get_hwaccel_ffmpeg (render_context->renderer);
++      /*
++       * VA-API stays the preferred path; the FFmpeg/rkmpp backend is only tried
++       * when VA-API did not produce a session. It is H.264-only, so it requires
++       * AVC420 support from the client.
++       */
++      if (!render_context->encode_session && have_avc420)
++        {
++          GrdHwAccelFfmpeg *hwaccel_ffmpeg =
++            grd_rdp_renderer_get_hwaccel_ffmpeg (render_context->renderer);
+ 
+-      if (hwaccel_ffmpeg)
+-        try_create_ffmpeg_session (render_context, rdp_surface);
+-    }
++          if (hwaccel_ffmpeg)
++            try_create_ffmpeg_session (render_context, rdp_surface);
++        }
+ #endif
++    }
+ 
+   if (render_context->encode_session)
+     return TRUE;
+diff --git a/src/grd-rdp-renderer.c b/src/grd-rdp-renderer.c
+index 4d8c340..eb4cf37 100644
+--- a/src/grd-rdp-renderer.c
++++ b/src/grd-rdp-renderer.c
+@@ -31,6 +31,7 @@
+ #include "grd-hwaccel-vulkan.h"
+ #include "grd-rdp-dvc-graphics-pipeline.h"
+ #include "grd-rdp-frame.h"
++#include "grd-rdp-gfx-surface.h"
+ #include "grd-rdp-private.h"
+ #include "grd-rdp-render-context.h"
+ #include "grd-rdp-server.h"
+@@ -40,6 +41,12 @@
+ #include "grd-rdp-view-creator.h"
+ #include "grd-session-rdp.h"
+ 
++#define HW_ENCODE_SLOW_THRESHOLD_US (50 * 1000)
++#define HW_ENCODE_STALL_THRESHOLD_US (250 * 1000)
++#define HW_ENCODE_SLOW_WINDOW_US (2 * G_USEC_PER_SEC)
++#define HW_ENCODE_SLOW_SAMPLE_THRESHOLD 3
++#define HW_ENCODE_COOLDOWN_US (10 * G_USEC_PER_SEC)
++
+ enum
+ {
+   INHIBITION_DONE,
+@@ -96,6 +103,12 @@ struct _GrdRdpRenderer
+ 
+   GMutex frame_encodings_mutex;
+   GHashTable *finished_frame_encodings;
++
++  GSource *hw_encode_cooldown_source;
++  GMutex hw_encode_mutex;
++  int64_t hw_encode_cooldown_until_us;
++  int64_t slow_hw_encode_window_start_us;
++  uint32_t slow_hw_encode_samples;
+ };
+ 
+ G_DEFINE_TYPE (GrdRdpRenderer, grd_rdp_renderer, G_TYPE_OBJECT)
+@@ -136,6 +149,133 @@ grd_rdp_renderer_get_encoder_ca (GrdRdpRenderer *renderer)
+   return renderer->encoder_ca;
+ }
+ 
++gboolean
++grd_rdp_renderer_is_hw_encode_disabled (GrdRdpRenderer *renderer)
++{
++  gboolean disabled;
++
++  g_mutex_lock (&renderer->hw_encode_mutex);
++  disabled = g_get_monotonic_time () < renderer->hw_encode_cooldown_until_us;
++  g_mutex_unlock (&renderer->hw_encode_mutex);
++
++  return disabled;
++}
++
++static void
++request_surface_full_refresh (gpointer key,
++                              gpointer value,
++                              gpointer user_data)
++{
++  GrdRdpSurfaceRenderer *surface_renderer = value;
++
++  (void) key;
++  (void) user_data;
++
++  grd_rdp_surface_renderer_request_full_refresh (surface_renderer);
++}
++
++static void
++request_full_refresh_for_all_surfaces (GrdRdpRenderer *renderer)
++{
++  g_mutex_lock (&renderer->surface_renderers_mutex);
++  g_hash_table_foreach (renderer->surface_renderer_table,
++                        request_surface_full_refresh, NULL);
++  g_mutex_unlock (&renderer->surface_renderers_mutex);
++}
++
++static gboolean
++recover_hw_encode_after_cooldown (gpointer user_data)
++{
++  GrdRdpRenderer *renderer = user_data;
++  int64_t cooldown_until_us;
++  int64_t now_us;
++
++  now_us = g_get_monotonic_time ();
++
++  g_mutex_lock (&renderer->hw_encode_mutex);
++  cooldown_until_us = renderer->hw_encode_cooldown_until_us;
++  g_mutex_unlock (&renderer->hw_encode_mutex);
++
++  if (now_us < cooldown_until_us)
++    {
++      g_source_set_ready_time (renderer->hw_encode_cooldown_source,
++                               cooldown_until_us);
++      return G_SOURCE_CONTINUE;
++    }
++
++  g_debug ("[RDP] Hardware encode cooldown expired; retrying hardware encoding");
++  request_full_refresh_for_all_surfaces (renderer);
++
++  return G_SOURCE_CONTINUE;
++}
++
++static void
++schedule_hw_encode_cooldown_recovery (GrdRdpRenderer *renderer,
++                                      int64_t         cooldown_until_us)
++{
++  g_source_set_ready_time (renderer->hw_encode_cooldown_source,
++                           cooldown_until_us);
++  g_main_context_wakeup (renderer->graphics_context);
++}
++
++static void
++note_hw_encode_duration (GrdRdpRenderer *renderer,
++                         int64_t         duration_us)
++{
++  const char *reason = NULL;
++  int64_t now_us = g_get_monotonic_time ();
++  int64_t cooldown_until_us = 0;
++  gboolean started_cooldown = FALSE;
++
++  g_mutex_lock (&renderer->hw_encode_mutex);
++
++  if (duration_us >= HW_ENCODE_STALL_THRESHOLD_US)
++    {
++      reason = "single slow encode";
++    }
++  else if (duration_us >= HW_ENCODE_SLOW_THRESHOLD_US)
++    {
++      if (renderer->slow_hw_encode_window_start_us == 0 ||
++          now_us - renderer->slow_hw_encode_window_start_us >
++          HW_ENCODE_SLOW_WINDOW_US)
++        {
++          renderer->slow_hw_encode_window_start_us = now_us;
++          renderer->slow_hw_encode_samples = 0;
++        }
++
++      ++renderer->slow_hw_encode_samples;
++      if (renderer->slow_hw_encode_samples >= HW_ENCODE_SLOW_SAMPLE_THRESHOLD)
++        reason = "repeated slow encodes";
++    }
++  else if (renderer->slow_hw_encode_window_start_us != 0 &&
++           now_us - renderer->slow_hw_encode_window_start_us >
++           HW_ENCODE_SLOW_WINDOW_US)
++    {
++      renderer->slow_hw_encode_window_start_us = 0;
++      renderer->slow_hw_encode_samples = 0;
++    }
++
++  if (reason && now_us >= renderer->hw_encode_cooldown_until_us)
++    {
++      cooldown_until_us = now_us + HW_ENCODE_COOLDOWN_US;
++      renderer->hw_encode_cooldown_until_us = cooldown_until_us;
++      renderer->slow_hw_encode_window_start_us = 0;
++      renderer->slow_hw_encode_samples = 0;
++      started_cooldown = TRUE;
++    }
++
++  g_mutex_unlock (&renderer->hw_encode_mutex);
++
++  if (!started_cooldown)
++    return;
++
++  g_warning ("[RDP] Hardware encode is slow (%s, duration %" G_GINT64_FORMAT
++             " us); using software encoding for %" G_GINT64_FORMAT " us",
++             reason, (gint64) duration_us, (gint64) HW_ENCODE_COOLDOWN_US);
++  schedule_hw_encode_cooldown_recovery (renderer, cooldown_until_us);
++  request_full_refresh_for_all_surfaces (renderer);
++}
++
+ static void
+ trigger_render_sources (GrdRdpRenderer *renderer)
+ {
+@@ -492,6 +632,22 @@ destroy_render_context_locked (GrdRdpRenderer *renderer,
+   g_hash_table_remove (renderer->render_context_table, rdp_surface);
+ }
+ 
++static gboolean
++can_destroy_render_context_locked (GrdRdpRenderer *renderer,
++                                   GrdRdpSurface  *rdp_surface)
++{
++  GrdRdpRenderContext *render_context = NULL;
++
++  if (!g_hash_table_lookup_extended (renderer->render_context_table,
++                                     rdp_surface,
++                                     NULL, (gpointer *) &render_context))
++    return TRUE;
++
++  return !g_hash_table_contains (renderer->acquired_render_contexts,
++                                 render_context) &&
++         !g_hash_table_contains (renderer->queued_frames, render_context);
++}
++
+ static void
+ destroy_render_context (GrdRdpRenderer *renderer,
+                         GrdRdpSurface  *rdp_surface)
+@@ -576,7 +732,12 @@ grd_rdp_renderer_try_acquire_render_context (GrdRdpRenderer            *renderer
+   maybe_reset_graphics (renderer);
+ 
+   if (flags & GRD_RDP_ACQUIRE_CONTEXT_FLAG_FORCE_RESET)
+-    destroy_render_context_locked (renderer, rdp_surface);
++    {
++      if (!can_destroy_render_context_locked (renderer, rdp_surface))
++        return NULL;
++
++      destroy_render_context_locked (renderer, rdp_surface);
++    }
+ 
+   if (g_hash_table_lookup_extended (renderer->render_context_table, rdp_surface,
+                                     NULL, (gpointer *) &render_context))
+@@ -742,6 +903,11 @@ grd_rdp_renderer_dispose (GObject *object)
+       g_source_destroy (renderer->surface_render_source);
+       g_clear_pointer (&renderer->surface_render_source, g_source_unref);
+     }
++  if (renderer->hw_encode_cooldown_source)
++    {
++      g_source_destroy (renderer->hw_encode_cooldown_source);
++      g_clear_pointer (&renderer->hw_encode_cooldown_source, g_source_unref);
++    }
+   if (renderer->surface_disposal_source)
+     {
+       g_source_destroy (renderer->surface_disposal_source);
+@@ -778,6 +944,7 @@ grd_rdp_renderer_finalize (GObject *object)
+ 
+   g_mutex_clear (&renderer->frame_encodings_mutex);
+   g_mutex_clear (&renderer->view_creations_mutex);
++  g_mutex_clear (&renderer->hw_encode_mutex);
+ 
+   g_cond_clear (&renderer->stop_rendering_cond);
+   g_mutex_clear (&renderer->inhibition_mutex);
+@@ -804,6 +971,19 @@ release_acquired_resource (GrdRdpRenderer      *renderer,
+     g_assert_not_reached ();
+ }
+ 
++static GrdRdpSurfaceRenderer *
++surface_renderer_from_frame (GrdRdpFrame *rdp_frame)
++{
++  GrdRdpRenderContext *render_context =
++    grd_rdp_frame_get_render_context (rdp_frame);
++  GrdRdpGfxSurface *gfx_surface =
++    grd_rdp_render_context_get_gfx_surface (render_context);
++  GrdRdpSurface *rdp_surface =
++    grd_rdp_gfx_surface_get_rdp_surface (gfx_surface);
++
++  return grd_rdp_surface_get_surface_renderer (rdp_surface);
++}
++
+ static GList *
+ fetch_rendered_frames (GrdRdpRenderer *renderer)
+ {
+@@ -838,10 +1018,24 @@ static void
+ on_bitstream_locked (GrdEncodeSession *encode_session,
+                      GrdBitstream     *bitstream,
+                      gpointer          user_data,
++                     int64_t           lock_duration_us,
+                      GError           *error)
+ {
+   GrdRdpFrame *rdp_frame = user_data;
+   GrdRdpRenderer *renderer = grd_rdp_frame_get_renderer (rdp_frame);
++  GrdRdpRenderContext *render_context =
++    grd_rdp_frame_get_render_context (rdp_frame);
++  GrdRdpCodec codec = grd_rdp_render_context_get_codec (render_context);
++
++  switch (codec)
++    {
++    case GRD_RDP_CODEC_CAPROGRESSIVE:
++      break;
++    case GRD_RDP_CODEC_AVC420:
++    case GRD_RDP_CODEC_AVC444v2:
++      note_hw_encode_duration (renderer, lock_duration_us);
++      break;
++    }
+ 
+   if (bitstream)
+     {
+@@ -927,14 +1121,25 @@ maybe_start_encodings (GrdRdpRenderer *renderer)
+     {
+       GHashTable *acquired_resources = NULL;
+       GrdRdpRenderContext *render_context;
++      GrdRdpSurfaceRenderer *surface_renderer;
+       GrdRdpViewCreator *view_creator;
+       GrdEncodeSession *encode_session;
+ 
+       g_assert (grd_rdp_frame_has_valid_view (rdp_frame));
+ 
+       render_context = grd_rdp_frame_get_render_context (rdp_frame);
++      surface_renderer = surface_renderer_from_frame (rdp_frame);
+       view_creator = grd_rdp_render_context_get_view_creator (render_context);
+ 
++      if (grd_rdp_surface_renderer_is_frame_stale (surface_renderer,
++                                                   rdp_frame))
++        {
++          release_acquired_resource (renderer, render_context, view_creator);
++          grd_rdp_surface_renderer_request_full_refresh (surface_renderer);
++          g_hash_table_iter_remove (&iter);
++          continue;
++        }
++
+       if (!grd_rdp_frame_is_surface_damaged (rdp_frame))
+         {
+           release_acquired_resource (renderer, render_context, view_creator);
+@@ -1009,6 +1214,10 @@ maybe_start_view_creations (GrdRdpRenderer *renderer)
+       if (g_hash_table_contains (acquired_resources, view_creator))
+         continue;
+ 
++      if (g_hash_table_contains (acquired_resources,
++                                 grd_rdp_render_context_get_encode_session (render_context)))
++        continue;
++
+       grd_rdp_frame_notify_picked_up (rdp_frame);
+ 
+       /* There is no resource to release here (no predecessor) */
+@@ -1157,6 +1366,7 @@ grd_rdp_renderer_init (GrdRdpRenderer *renderer)
+ {
+   GSource *surface_disposal_source;
+   GSource *surface_render_source;
++  GSource *hw_encode_cooldown_source;
+ 
+   renderer->surface_renderer_table = g_hash_table_new (NULL, NULL);
+   renderer->render_context_table = g_hash_table_new_full (NULL, NULL,
+@@ -1184,6 +1394,7 @@ grd_rdp_renderer_init (GrdRdpRenderer *renderer)
+ 
+   g_mutex_init (&renderer->view_creations_mutex);
+   g_mutex_init (&renderer->frame_encodings_mutex);
++  g_mutex_init (&renderer->hw_encode_mutex);
+ 
+   renderer->graphics_context = g_main_context_new ();
+ 
+@@ -1200,6 +1411,13 @@ grd_rdp_renderer_init (GrdRdpRenderer *renderer)
+   g_source_set_ready_time (surface_render_source, -1);
+   g_source_attach (surface_render_source, renderer->graphics_context);
+   renderer->surface_render_source = surface_render_source;
++
++  hw_encode_cooldown_source = g_source_new (&source_funcs, sizeof (GSource));
++  g_source_set_callback (hw_encode_cooldown_source,
++                         recover_hw_encode_after_cooldown, renderer, NULL);
++  g_source_set_ready_time (hw_encode_cooldown_source, -1);
++  g_source_attach (hw_encode_cooldown_source, renderer->graphics_context);
++  renderer->hw_encode_cooldown_source = hw_encode_cooldown_source;
+ }
+ 
+ static void
+diff --git a/src/grd-rdp-renderer.h b/src/grd-rdp-renderer.h
+index 6f8b4fc..48570e7 100644
+--- a/src/grd-rdp-renderer.h
++++ b/src/grd-rdp-renderer.h
+@@ -51,6 +51,8 @@ GrdHwAccelFfmpeg *grd_rdp_renderer_get_hwaccel_ffmpeg (GrdRdpRenderer *renderer)
+ 
+ GrdRdpSwEncoderCa *grd_rdp_renderer_get_encoder_ca (GrdRdpRenderer *renderer);
+ 
++gboolean grd_rdp_renderer_is_hw_encode_disabled (GrdRdpRenderer *renderer);
++
+ void grd_rdp_renderer_update_output_suppression_state (GrdRdpRenderer *renderer,
+                                                        gboolean        suppress_output);
+ 
+diff --git a/src/grd-rdp-surface-renderer.c b/src/grd-rdp-surface-renderer.c
+index 525965e..9a1020f 100644
+--- a/src/grd-rdp-surface-renderer.c
++++ b/src/grd-rdp-surface-renderer.c
+@@ -89,11 +89,14 @@ struct _GrdRdpSurfaceRenderer
+   uint32_t total_frame_slots;
+   GHashTable *assigned_frame_slots;
+   int64_t unthrottled_since_us;
++  uint64_t latest_source_serial;
++  uint64_t pending_buffer_serial;
+ 
+   GMutex render_mutex;
+   GrdRdpBuffer *pending_buffer;
+   GrdRdpBuffer *last_buffer;
+   GHashTable *acquired_buffers;
++  gboolean needs_full_refresh;
+ 
+   GHashTable *registered_buffers;
+   GrdRdpBufferInfo *rdp_buffer_info;
+@@ -132,6 +135,31 @@ grd_rdp_surface_renderer_get_total_frame_slots (GrdRdpSurfaceRenderer *surface_r
+   return surface_renderer->total_frame_slots;
+ }
+ 
++gboolean
++grd_rdp_surface_renderer_is_frame_stale (GrdRdpSurfaceRenderer *surface_renderer,
++                                         GrdRdpFrame           *rdp_frame)
++{
++  gboolean is_stale;
++
++  g_mutex_lock (&surface_renderer->render_mutex);
++  is_stale = grd_rdp_frame_get_source_serial (rdp_frame) <
++             surface_renderer->latest_source_serial;
++  g_mutex_unlock (&surface_renderer->render_mutex);
++
++  return is_stale;
++}
++
++void
++grd_rdp_surface_renderer_request_full_refresh (GrdRdpSurfaceRenderer *surface_renderer)
++{
++  g_mutex_lock (&surface_renderer->render_mutex);
++  surface_renderer->needs_full_refresh = TRUE;
++  surface_renderer->pending_render_context_reset = TRUE;
++  g_mutex_unlock (&surface_renderer->render_mutex);
++
++  grd_rdp_surface_renderer_trigger_render_source (surface_renderer);
++}
++
+ static void
+ trigger_frame_upgrade_schedule (GrdRdpSurfaceRenderer *surface_renderer)
+ {
+@@ -355,6 +383,7 @@ grd_rdp_surface_renderer_submit_buffer (GrdRdpSurfaceRenderer *surface_renderer,
+   g_mutex_lock (&surface_renderer->render_mutex);
+   g_clear_pointer (&surface_renderer->pending_buffer, release_pw_buffer);
+ 
++  surface_renderer->pending_buffer_serial = ++surface_renderer->latest_source_serial;
+   surface_renderer->pending_buffer = rdp_buffer;
+   g_mutex_unlock (&surface_renderer->render_mutex);
+ 
+@@ -500,6 +529,7 @@ unref_objects (gpointer user_data)
+ {
+   GrdRdpSurfaceRenderer *surface_renderer = user_data;
+   UnrefContext *unref_context;
++  gboolean retry_render = FALSE;
+ 
+   while ((unref_context = g_async_queue_try_pop (surface_renderer->unref_queue)))
+     {
+@@ -507,18 +537,38 @@ unref_objects (gpointer user_data)
+         {
+         case OBJECT_TYPE_BUFFER:
+           unref_buffer (surface_renderer, unref_context->object);
++          retry_render = TRUE;
+           break;
+         case OBJECT_TYPE_RENDER_CONTEXT:
+           unref_render_context (surface_renderer, unref_context->object);
++          retry_render = TRUE;
+           break;
+         }
+ 
+       g_free (unref_context);
+     }
+ 
++  if (retry_render)
++    grd_rdp_surface_renderer_trigger_render_source (surface_renderer);
++
+   return G_SOURCE_CONTINUE;
+ }
+ 
++static gboolean
++maybe_apply_full_refresh (GrdRdpSurfaceRenderer *surface_renderer)
++{
++  if (!surface_renderer->needs_full_refresh)
++    return TRUE;
++
++  if (g_hash_table_size (surface_renderer->acquired_buffers) > 0)
++    return FALSE;
++
++  grd_rdp_surface_renderer_invalidate_surface_unlocked (surface_renderer);
++  surface_renderer->needs_full_refresh = FALSE;
++
++  return TRUE;
++}
++
+ static gboolean
+ can_prepare_new_frame (GrdRdpSurfaceRenderer *surface_renderer)
+ {
+@@ -687,6 +737,8 @@ handle_pending_buffer (GrdRdpSurfaceRenderer *surface_renderer,
+                                  on_frame_picked_up, on_view_finalization,
+                                  on_frame_submission, on_frame_finalization,
+                                  frame_context, g_free);
++  grd_rdp_frame_set_source_serial (rdp_frame,
++                                   surface_renderer->pending_buffer_serial);
+   maybe_downgrade_view_type (surface_renderer, render_context, rdp_frame);
+ 
+   grd_rdp_renderer_submit_frame (renderer, render_context, rdp_frame);
+@@ -752,6 +804,16 @@ maybe_render_frame (gpointer user_data)
+     return G_SOURCE_CONTINUE;
+ 
+   locker = g_mutex_locker_new (&surface_renderer->render_mutex);
++  if (!surface_renderer->pending_buffer &&
++      !rdp_surface->pending_framebuffer &&
++      !surface_renderer->needs_full_refresh)
++    return G_SOURCE_CONTINUE;
++
++  g_source_set_ready_time (surface_renderer->frame_upgrade_source, -1);
++
++  if (!maybe_apply_full_refresh (surface_renderer))
++    return G_SOURCE_CONTINUE;
++
+   if (!surface_renderer->pending_buffer &&
+       !rdp_surface->pending_framebuffer)
+     return G_SOURCE_CONTINUE;
+@@ -759,8 +821,6 @@ maybe_render_frame (gpointer user_data)
+   g_assert (!surface_renderer->pending_buffer ||
+             !rdp_surface->pending_framebuffer);
+ 
+-  g_source_set_ready_time (surface_renderer->frame_upgrade_source, -1);
+-
+   if (!can_prepare_new_frame (surface_renderer))
+     return G_SOURCE_CONTINUE;
+ 
+@@ -812,14 +872,20 @@ upgrade_frame (GrdRdpSurfaceRenderer *surface_renderer,
+   GrdRdpRenderer *renderer = surface_renderer->renderer;
+   GrdRdpFrameContext *frame_context;
+   GrdRdpFrame *rdp_frame;
++  uint64_t source_serial;
+ 
+   frame_context = g_new0 (GrdRdpFrameContext, 1);
+   frame_context->surface_renderer = surface_renderer;
+ 
++  g_mutex_lock (&surface_renderer->render_mutex);
++  source_serial = surface_renderer->latest_source_serial;
++  g_mutex_unlock (&surface_renderer->render_mutex);
++
+   rdp_frame = grd_rdp_frame_new (render_context, NULL, NULL,
+                                  on_frame_picked_up, NULL,
+                                  on_frame_submission, on_frame_finalization,
+                                  frame_context, g_free);
++  grd_rdp_frame_set_source_serial (rdp_frame, source_serial);
+   grd_rdp_renderer_submit_frame (renderer, render_context, rdp_frame);
+ }
+ 
+diff --git a/src/grd-rdp-surface-renderer.h b/src/grd-rdp-surface-renderer.h
+index bffa07f..bdb698e 100644
+--- a/src/grd-rdp-surface-renderer.h
++++ b/src/grd-rdp-surface-renderer.h
+@@ -38,6 +38,11 @@ GrdRdpBufferInfo *grd_rdp_surface_renderer_get_buffer_info (GrdRdpSurfaceRendere
+ 
+ uint32_t grd_rdp_surface_renderer_get_total_frame_slots (GrdRdpSurfaceRenderer *surface_renderer);
+ 
++gboolean grd_rdp_surface_renderer_is_frame_stale (GrdRdpSurfaceRenderer *surface_renderer,
++                                                  GrdRdpFrame           *rdp_frame);
++
++void grd_rdp_surface_renderer_request_full_refresh (GrdRdpSurfaceRenderer *surface_renderer);
++
+ void grd_rdp_surface_renderer_update_total_frame_slots (GrdRdpSurfaceRenderer *surface_renderer,
+                                                         uint32_t               total_frame_slots);
+ 

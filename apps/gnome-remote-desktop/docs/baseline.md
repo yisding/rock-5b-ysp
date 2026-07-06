@@ -305,5 +305,6 @@ in [`testing.md`](testing.md). The two prototype worktrees (`grd-async-pbo-wt`,
 local-only worktrees on the dev box** (async-PBO ≈ 506 lines in
 `grd-egl-thread.c` + the two pipewire-stream files; MemFd ≈ 21 lines), not
 archived anywhere citable. Their *conclusions* are fully recorded here and in
-[`capture-path.md`](capture-path.md) §5; TODO: export the two diffs as
-reference patches under this directory before the worktrees are lost.
+[`capture-path.md`](capture-path.md) §5. Remaining archival action: export the
+two diffs as reference patches under this directory before the worktrees are
+lost.

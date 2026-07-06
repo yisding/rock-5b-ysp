@@ -14,8 +14,9 @@ GRD hardware-encode terms. Cross-cutting vocabulary is in
   force-key-unit handling.
 - **handover-reconnect** — the parked fork fix (`rdp-handover-reconnect`,
   `a3a1a32`) awaiting upstream submission.
-- **zero-copy capture (PBO / MemFd)** — the async-PBO and MemFd prototype worktrees
-  for the capture path (dev-box SPOFs on the status.md watchlist).
+- **zero-copy capture (PBO / MemFd)** — the async-PBO and MemFd prototype
+  worktrees for the capture path, still tracked as dev-box-only artifacts in
+  the status watchlist.
 - **panvk RGB→NV12** — the color-convert step done on the Mali GPU; ties to
   [`../../video-libraries/mesa/`](../../video-libraries/mesa/README.md).
 - **GDM greeter ACL** — the login-screen device-access rule (the `gdm-hwenc`

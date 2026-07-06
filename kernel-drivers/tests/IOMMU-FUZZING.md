@@ -328,6 +328,11 @@ the `userptr_iommu/attempt` counter or a kprobe on `rga_dma_map_sgt_iommu`.
   `../rockchip-conformance/out/mpp` which has parsers registered. AV1 = `-t 16777224`.
 - **`force_remap` only affects driver-owned maps** (userptr / physical). dma-buf
   imports keep the fail-closed single-span contract regardless.
+- **dma-buf scatter is a separate negative gate.** A dma-buf can be physically
+  non-contiguous, but RGA may only accept it when the attachment maps to one
+  contiguous IOVA span. A multi-segment dma-buf should reject cleanly and must
+  not increment `userptr_iommu` fallback counters. The BSP comparison is recorded
+  in [`findings/2026-07-06-rga3-dmabuf-scatter-bsp-contract.md`](../../findings/2026-07-06-rga3-dmabuf-scatter-bsp-contract.md).
 - **debugfs/dmesg are root-only** — run under sudo.
 - Guard band invariant: no RGA userptr-IOMMU fallback IOVA should ever be `>= 0xe0000000`
   (`DMA_BIT_MASK(32) − SZ_512M`); if one is, the 32-bit-wrap protection regressed.

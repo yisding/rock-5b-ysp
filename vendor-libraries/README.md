@@ -18,7 +18,7 @@ explanation stays at this top level.
 | Developer focus | Which work happens in userspace vs kernel, how dma-buf handles and register recipes reach `/dev/mpp_service` and `/dev/rga`, and why FFmpeg lineages use the libraries differently. |
 | Owns | The shared explanation in [`docs/how-the-userspace-libs-work.md`](docs/how-the-userspace-libs-work.md); the `mpp`/`rga` sub-projects; ABI detail cross-linked from [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md). |
 | Depends on | Working kernel nodes from [`../kernel-drivers/`](../kernel-drivers/README.md); `video`-group access to `/dev/mpp_service`, `/dev/rga`, `/dev/dma_heap/*`; `libdrm` for DRM PRIME. |
-| Current state | The source-built MPP/librga path is hardware-validated through the tests; the patched librga (`github.com/yisding/librga` `main` @ `a632217`) still needs P010/P210 hardware validation; the PPA route built locally but is not uploaded. See [`../status.md`](../status.md). |
+| Current state | The source-built MPP/librga path is hardware-validated through the tests; the patched librga (`github.com/yisding/librga` `main` @ `a632217`) still needs P010/P210 hardware validation; PPA source packaging is imported and MPP/librga source publications exist, but no public arm64 binaries are installable yet. See [`../status.md`](../status.md). |
 
 ## How the library package fits
 

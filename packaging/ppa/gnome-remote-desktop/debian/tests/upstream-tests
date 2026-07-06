@@ -1,0 +1,5 @@
+#!/bin/sh
+set -ex
+./debian/rules override_dh_auto_configure
+dh_auto_build
+./debian/rules override_dh_auto_test

@@ -181,7 +181,7 @@ while the same binary passes on llvmpipe; verbatim outputs in
 
 ### Low-Level Tiny-Probe Shader
 
-Captured 2026-07-06 against the **shipped Mesa 26.0.3** driver, with the bug
+Captured 2026-07-06 against the **system Mesa 26.0.3** driver, with the bug
 reproducing during the capture. (An earlier version of this section showed a
 dump from an older attribute-fed probe revision; this is the current
 `gl_VertexID` probe.) Capture commands — the dumps themselves are dev-box
@@ -610,12 +610,12 @@ path: **0 mismatches at X0 = 1, 623, 8000, 16000** on the fragcoord branch.
 (The earlier PoC concern about non-zero-offset blits is resolved by the full
 affine plumbing; y flips and scissor still need explicit tests.)
 
-**4. Shipped drivers ARE corrupted via direct wide blits (the AFBC CPU-map
+**4. The system Mesa 26.0.3 driver IS corrupted via direct wide blits (the AFBC CPU-map
 path is clean).** `repro_afbc.c` probes the AFBC CPU-map staging blit
 (`pan_blit_to_staging`) via a wide RGBA8 FBO readback in the matching
 format, incl. `PAN_MESA_DEBUG=forcepack`: clean on the unfixed Mesa 26.0.3
 system driver. But `repro_blit_flip.c` later showed that a *direct* wide
-non-pow2 unscaled `glBlitFramebuffer` **is corrupt on shipped drivers**:
+non-pow2 unscaled `glBlitFramebuffer` **is corrupt on the system Mesa 26.0.3 driver**:
 16307x2 RG32UI on Mesa 26.0.3 returns 29498/32614 wrong texels (first at
 x=1539, fetched 1538) in all four orientations — no transfer-mode cap
 involved. So the fragcoord fix is a bugfix for an already-reachable path
