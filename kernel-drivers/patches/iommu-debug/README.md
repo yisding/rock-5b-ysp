@@ -1,13 +1,15 @@
 # IOMMU-machinery debug patch set
 
 Instrumentation to make the whole RK3588 IOMMU surface **observable** while
-`kernel-drivers/tests/iommu-machinery-fuzz.sh` stresses it. These are additive to
-the DIAG stack already in the fwport tree — DIAG shows the Route B *trigger*
-(multi-segment `dma_map_sg` + contiguity); these show what happens *after* the
-trigger, across *both* IOMMU providers, plus a leak/coverage signal.
+`kernel-drivers/tests/iommu-machinery-fuzz.sh` stresses it. The forward-port
+keeps this out of the clean .deb path; apply it only when building a diagnostic
+kernel.
 
 Nothing here changes driver behavior except the opt-in force knob (default off).
-Line anchors are against `../kernel/linux-6.18-rkvenc-av1-fwport` at the DIAG HEAD.
+`forward-port-route-b/` archives the debug-only commits removed from
+`../kernel/linux-6.18-rkvenc-av1-fwport` on 2026-07-06. The same commits remain
+reachable in that kernel repo on branch `rkvenc-fwport-6.18-iommu-debug-20260706`.
+The clean forward-port branch now stops before these diagnostics.
 
 | # | File(s) | Adds | Runner signal |
 |---|---------|------|---------------|
@@ -16,14 +18,10 @@ Line anchors are against `../kernel/linux-6.18-rkvenc-av1-fwport` at the DIAG HE
 | 3 | `drivers/video/rockchip/rga3/{rga_dma_buf.c,rga_debugger.c}` | Route B stats + **active gauge** + interior trace + `force_iommu_remap` knob | `rkrga/route_b/*` coverage + leak check |
 | 4 | `kconfig-debug.fragment` | `DMA_API_DEBUG`, `KALLSYMS_ALL`, `IOMMU_DEBUGFS` | `DMA-API:` dmesg lines |
 
-> **Status.** The **driver instrumentation** (patches 1–3: per-master fault
-> counters, Route B stats/gauge, force knob) is **committed on the fwport
-> branch** — `801c756` (Route B stats + force knob + `route_b/` debugfs) and
-> `30457c7` (per-device IOMMU fault counters). `build-armbian-deb.sh` turns every
-> `v6.18..HEAD` commit into a userpatch, so these land in **every** build,
-> debug or not — independent of `IOMMU_DEBUG`. They only need `CONFIG_DEBUG_FS`
-> (always =y), so the `route_b/*` and `*-iommu/<dev>` debugfs counters are live
-> on any build of this branch (read them as **root**).
+> **Status.** The driver instrumentation is archived here, not carried by the
+> clean forward-port branch. A plain `build-armbian-deb.sh` run therefore builds
+> the functional Route B forward-port without `DIAG` dmesg traces, per-master
+> debugfs fault counters, or `rkrga/route_b/*` counters/force knob.
 >
 > The **config layer** (patch 4: `DMA_API_DEBUG` / `KALLSYMS_ALL` /
 > `IOMMU_DEBUGFS`) is opt-in via `IOMMU_DEBUG=yes`, which stages an Armbian
@@ -36,9 +34,10 @@ Line anchors are against `../kernel/linux-6.18-rkvenc-av1-fwport` at the DIAG HE
 > silently no-op'd — an `IOMMU_DEBUG=yes` build came out byte-identical to a
 > normal one, with `DMA_API_DEBUG` still unset. The extension path is the fix.
 >
-> Net: a plain build of this branch has the `route_b/*` + `*-iommu/<dev>`
-> counters and the force knob but **no** `DMA-API:` auditing; an
-> `IOMMU_DEBUG=yes` build adds the config-level signals on top. Signal usage:
+> Net: a plain build is clean. To recreate the diagnostic kernel used for Route B
+> attribution, first apply `forward-port-route-b/*.patch` to the kernel tree,
+> then build with `IOMMU_DEBUG=yes` if you also want config-level DMA/IOMMU
+> auditing. Signal usage:
 > [`../../tests/IOMMU-FUZZING.md`](../../tests/IOMMU-FUZZING.md).
 
 ---
@@ -190,21 +189,32 @@ branches deterministically. Lower priority; ask and I'll write it.
 
 ## Apply + build
 
-Patches 1–3 are already committed on the fwport branch (`801c756`, `30457c7`), so
-the **Armbian** path needs nothing by hand — just opt into the config layer:
+Clean Armbian .deb build, with the archived diagnostics excluded:
 
 ```sh
-# Armbian .deb build (driver instrumentation rides the fwport commits automatically):
-IOMMU_DEBUG=yes kernel-drivers/scripts/build-armbian-deb.sh   # adds DMA_API_DEBUG etc.
-# reboot into the new kernel, then:
-sudo kernel-drivers/tests/iommu-machinery-fuzz.sh             # full A+B+C run
+bash kernel-drivers/scripts/build-armbian-deb.sh
 ```
 
-For a **direct / non-Armbian** kernel build, apply the config fragment yourself
-(patches 1–3 are in the tree already):
+Diagnostic Armbian .deb build with the archived Route B/IOMMU instrumentation:
 
 ```sh
-./scripts/kconfig/merge_config.sh -m .config kernel-drivers/patches/iommu-debug/kconfig-debug.fragment
+cd ../kernel/linux-6.18-rkvenc-av1-fwport
+git switch rkvenc-fwport-6.18-iommu-debug-20260706
+cd ../../rock-5b-ysp
+IOMMU_DEBUG=yes bash kernel-drivers/scripts/build-armbian-deb.sh
+# reboot into the new kernel, then:
+sudo env IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS=1 \
+  PHASES=ABC RGA_ITERS=128 DECODE_LOOPS=3 \
+  bash kernel-drivers/tests/iommu-machinery-fuzz.sh
+```
+
+For a **direct / non-Armbian** debug kernel build, apply the patch bundle and
+config fragment yourself:
+
+```sh
+git switch -c rkvenc-fwport-6.18-debug-work rkvenc-fwport-6.18
+git am /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/iommu-debug/forward-port-route-b/*.patch
+./scripts/kconfig/merge_config.sh -m .config /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/iommu-debug/kconfig-debug.fragment
 make olddefconfig && make ...     # build as usual; boot; then run the fuzzer above
 ```
 
