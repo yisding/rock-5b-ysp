@@ -18,6 +18,35 @@ track.
 The dated project scoreboard is [`status.md`](status.md); read every state claim
 through its last-verified dates.
 
+## Read first
+
+This is an integration record and patch-delivery repo, not a self-contained
+source monorepo. Use it to understand the RK3588 hardware-video stack, apply the
+published patch series, rebuild packages, and reproduce the validation path. The
+source projects themselves live in external trees; pinned source-tree references
+and reconstruction notes are in [`docs/source-trees.md`](docs/source-trees.md).
+
+For a quick orientation:
+
+| Need | Start here |
+|------|------------|
+| Install the validated ROCK 5B kernel path | [`install.md`](install.md) |
+| Check what is usable, experimental, or stale | [`status.md`](status.md) |
+| Review the kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
+| Understand the repo taxonomy | [`docs/work-packages.md`](docs/work-packages.md) |
+| Decode shared terms like MPP, RGA, CCU, DCHS | [`glossary.md`](glossary.md) |
+
+## What is usable now
+
+| Track | Public-facing state |
+|-------|---------------------|
+| Combined Armbian kernel | Hardware-validated on ROCK 5B for H.264/H.265 encode, H.264/H.265 decode, RGA, and full hardware transcode. This is the primary install path. |
+| Userspace codec stack | Documented through `vendor-libraries/` and `video-libraries/`; `ffmpeg-rockchip` and GRD integration notes are captured here, while source builds live in their own trees. |
+| DKMS package path | Compiles on the documented 6.18 target, but the overlay has not replaced the validated combined-kernel path. Treat it as secondary. |
+| BSP audit cleanup series | Reviewable, but not shippable yet; compile/runtime gates are still tracked in [`status.md`](status.md). |
+| Clean-room rewrite track | Active bring-up and conformance work, not the shipped replacement. |
+| Binaries and releases | Built binaries are intentionally not committed. Use documented build paths until a release artifact exists. |
+
 ## Structure
 
 The repo is split project-by-project, grouped into the categories below. Each
@@ -116,10 +145,10 @@ The canonical walkthrough is [`install.md`](install.md). The shape is:
 git clone https://github.com/armbian/build armbian-build
 mkdir -p armbian-build/userpatches/kernel/archive/rockchip64-6.18
 cp kernel-drivers/patches/rk3588-rkvenc2-0*.patch armbian-build/userpatches/kernel/archive/rockchip64-6.18/
-bash kernel-drivers/scripts/build-combined-kernel.sh
-sudo PHASH='P####-C####' bash kernel-drivers/scripts/install-combined-kernel.sh
+./kernel-drivers/scripts/build-combined-kernel.sh
+sudo PHASH='P####-C####' ./kernel-drivers/scripts/install-combined-kernel.sh
 sudo reboot
-sudo bash kernel-drivers/scripts/validate-combined.sh
+sudo ./kernel-drivers/scripts/validate-combined.sh
 ```
 
 Then install the udev rule from [`kernel-drivers/scripts/99-rockchip-codec.rules`](kernel-drivers/scripts/99-rockchip-codec.rules),
@@ -173,8 +202,9 @@ README; a commit that adds a top-level category or project updates this map and
   [`docs/gotchas.md`](docs/gotchas.md).
 - The mainline RGA-in-U-Boot / RGA-V4L2 context comes from Collabora's RK3588
   upstreaming work.
-- License of this repo's own prose/scripts: TODO - owner decision pending. The
-  kernel patches are GPL-2.0 as derived works; nothing else is licensed yet.
+- Repo-level licensing for this repo's own prose/scripts still needs an owner
+  decision before public redistribution. The kernel patches are GPL-2.0 as
+  derived works; test utilities with SPDX headers keep their stated licenses.
 
 This repo is the integration and analysis record; the heavy lifting on the
 drivers is Rockchip's.

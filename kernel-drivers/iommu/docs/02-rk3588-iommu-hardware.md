@@ -180,13 +180,15 @@ When a domain is attached to a device (`rk_iommu_enable`), for each MMU base:
 sequenceDiagram
   participant K as kernel (rockchip-iommu.c)
   participant M as MMU registers
-  K->>M: clocks on; ENABLE_STALL
+  K->>M: clocks on
+  K->>M: ENABLE_STALL
   K->>M: FORCE_RESET
   K->>M: write DT phys → RK_MMU_DTE_ADDR (0x00)
   K->>M: ZAP_CACHE (flush IOTLB)
   K->>M: INT_MASK ← 0x03 (enable fault + bus-error IRQ)
   K->>M: AUTO_GATING settings
-  K->>M: DISABLE_STALL; ENABLE_PAGING
+  K->>M: DISABLE_STALL
+  K->>M: ENABLE_PAGING
   Note over M: MMU now translates IOVAs
 ```
 
