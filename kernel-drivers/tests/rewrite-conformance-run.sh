@@ -346,6 +346,10 @@ run_validation()
 		env IOMMU_FUZZ_VALIDATE_BUILD=1 \
 		bash "$TEST_DIR/iommu-machinery-fuzz.sh"
 
+	run_step "recovery: validate stress harness config" \
+		env RECOVERY_VALIDATE_ONLY=1 \
+		bash "$TEST_DIR/rewrite-recovery-stress.sh"
+
 	if [ "$RUN_MPP_SUITE" = "1" ]; then
 		run_step "mpp: validate case builders" \
 			env MPP_VALIDATE_CASES=1 PROFILE="$PROFILE" \

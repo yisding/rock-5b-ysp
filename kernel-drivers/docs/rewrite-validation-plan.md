@@ -31,7 +31,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` plus [`debugfs-counter-check.sh`](../tests/debugfs-counter-check.sh), including exact-counter gates and `component:counter_prefix:min_positive` multicore-spread gates | reuse as assertion hooks throughout |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
-| **Fault injection & recovery** | ❌ (suites only *detect* faults, never *inject*) | **add** — the recovery matrix (§4) |
+| **Fault injection & recovery** | ⚠️ [`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh) now orchestrates kill/close, reset-opener, and opt-in unbind/rebind loops around real workloads, and `VALIDATE_ONLY=1` checks its config; synthetic timeout/IOMMU/allocation fault injection has not run | finish the recovery matrix (§4) |
 | **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; the RGA3 Route B/IOMMU path has a scattered-userptr correctness fuzzer under [`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh); `VALIDATE_ONLY=1` conformance validation now checks syzlang ABI markers, the ioctl mutator build, and the RGA IOMMU fuzzer build, but neither fuzzer has been run under KCOV/KASAN and the syzkaller draft has not yet been compiled by syzkaller | finish §5 |
 | **Rewrite-specific security/ABI audit** | ❌ ([`bsp-audit.md`](./bsp-audit.md) is the *forward-port*) | **add** (§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
@@ -161,6 +161,17 @@ The ABI ledgers advertise a large body of recovery machinery. On real hardware
 **none of it has run** — these are the branches most likely to deadlock, leak, or
 UAF. Drive each trigger deliberately (Kernel A, KASAN on) and assert the outcome
 via the debugfs counters that were added for exactly this purpose.
+
+A first executable recovery harness now exists as
+[`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh).
+It can run kill/close, reset-opener, and explicit platform unbind/rebind loops
+around a busy MPP/RGA workload, then run a liveness probe, scan fresh dmesg
+lines for fatal signatures, and snapshot MPP/RGA debugfs counter deltas.
+`RECOVERY_VALIDATE_ONLY=1` is part of the device-free
+`rewrite-conformance-run.sh` validation gate, but it only proves the harness
+configuration. It still needs a booted RK3588 rewrite run, and it does not yet
+induce synthetic hardware timeout, synthetic IOMMU faults, or scoped allocation
+failures.
 
 | Trigger | How to induce | Assert (debugfs + behaviour) |
 |---|---|---|
