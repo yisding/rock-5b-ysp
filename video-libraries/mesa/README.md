@@ -40,9 +40,10 @@ Hardware and software used for the local investigation:
 | [`docs/arm-mali-blob-stack.md`](./docs/arm-mali-blob-stack.md) | Proprietary RK3588/G610 libmali userspace notes: package metadata, GBM/EGL/Vulkan wrapper model, inspected blob hashes, surfaceless extension strings, and runtime verification checklist |
 | [`docs/validation.md`](./docs/validation.md) | What was tested: patch shapes, BLIT-vs-COMPUTE timings, GRD readback timings, dEQP reruns, exact dEQP invocation, build checks |
 | [`docs/rebuild-and-test.md`](./docs/rebuild-and-test.md) | On-device rebuild + revalidation log: how to drive `scripts/`, the environment gotchas (wiped `/tmp` build state, `mise` python shadowing, glvnd for piglit), and the latest reproducer/dEQP/piglit results |
-| [`docs/mr-review-findings.md`](./docs/mr-review-findings.md) | 2026-07-06 structured review of the four open MRs: verdicts (no blockers), should-fix list with proposed patches (G52/G57 expectations, `st_TexSubImage` guard hoist, gate-sync helper, root-cause rewording), live u_test verification both directions, and the stack-topology/rebase-health audit || [`docs/texture-query-levels.md`](./docs/texture-query-levels.md) | Separate work product on the same branch: `textureQueryLevels()` for Valhall + the texture-descriptor layout facts (LD_PKA, table 62, word2 lod_count field) |
+| [`docs/mr-review-findings.md`](./docs/mr-review-findings.md) | 2026-07-06 structured review of the four open MRs: verdicts (no blockers), should-fix list with proposed patches (G52/G57 expectations, `st_TexSubImage` guard hoist, gate-sync helper, root-cause rewording), live u_test verification both directions, and the stack-topology/rebase-health audit |
+| [`docs/texture-query-levels.md`](./docs/texture-query-levels.md) | Separate work product on the same branch: `textureQueryLevels()` for Valhall + the texture-descriptor layout facts (LD_PKA, table 62, word2 lod_count field) |
 | [`scripts/`](scripts/README.md) | Rebuild + test entry point: surfaceless Mesa build, runtime env, and the reproducer / dEQP / piglit runners; see [`scripts/README.md`](scripts/README.md) |
-| [`reproducers/`](reproducers/README.md) | Standalone GBM/EGL C probes + benchmark + archived BLIT-advertising patch; interpolation-only probes are in [`reproducers/interp_probe/`](reproducers/interp_probe/README.md) |
+| [`reproducers/`](reproducers/README.md) | Texture-transfer reproducers, transfer benchmark, archived BLIT-advertising patch, and the focused [`reproducers/interp_probe/`](reproducers/interp_probe/README.md) varying-interpolation proof set |
 | [`video-libraries/mesa/patches/0001-panfrost-advertise-transfer-blit-and-compute.patch`](patches/0001-panfrost-advertise-transfer-blit-and-compute.patch) | Archived `format-patch` of the BLIT-advertising commit — the only way to rebuild the failing BLIT configuration once upstream ships a non-BLIT default; reproduction-only, not for merging |
 
 ## Status (verified 2026-07-06 against the local Mesa tree and GitLab API)
@@ -186,7 +187,7 @@ This list is a **summary**; the canonical, evidence-carrying copies live in
   `i=16306` sampled `16293`.
 - `gl_FragCoord.x` was exact in the same probe: `0 / 16307` floor mismatches.
   (Both counts re-verified on the board 2026-07-01 — see
-  [`reproducers/README.md`](reproducers/README.md).)
+  [`reproducers/interp_probe/README.md`](reproducers/interp_probe/README.md).)
 - The minimal reproducer is `tiny_interp_probe.c` (2026-07-06): pure varying
   interpolation with no u_blitter/texture/TXF/filtering still drifts
   (`12288 x 1`: 11744/12288 wrong, relative error `9.74e-4`), the
