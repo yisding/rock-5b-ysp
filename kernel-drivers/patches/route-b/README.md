@@ -2,7 +2,9 @@
 
 Follow-up patches for scattered RGA3 `virt_addr` / userptr buffers. Patch 0001
 is the forward-port Route B implementation that now has RK3588 behavioral smoke
-coverage; patch 0002 is the same design ported to the rewrite trees and remains
+coverage; patch 0002 is the same design ported to the rewrite trees; patch 0003
+adds rewrite-side debugfs counters and a `force_remap` knob so a booted rewrite
+kernel can directly attribute fallback execution. The rewrite path remains
 build-verified until a rewrite kernel is booted.
 
 ## Patches
@@ -11,6 +13,7 @@ build-verified until a rewrite kernel is booted.
 |-------|--------|---------|
 | `0001-media-rockchip-rga3-map-scattered-userptr-through-IOMMU.patch` | `../kernel/linux-6.18-rkvenc-av1-fwport` | Adds Route B to the vendor-style RGA3 forward-port. |
 | `0002-media-rockchip-rga-rewrite-add-Route-B-userptr-mapping.patch` | `../kernel/linux-6.18-rkvenc` and `../kernel/linux` | Adds the same userptr fallback to the compatibility rewrite. |
+| `0003-media-rockchip-rga-rewrite-add-route-b-debugfs-counters.patch` | `../kernel/linux-6.18-rkvenc` and `../kernel/linux` | Adds `rk_rga_rewrite/route_b/{attempt,ok,active,force_remap}` for rewrite runtime attribution. |
 
 Detailed architecture notes live in [`architecture.md`](architecture.md).
 Runtime validation instructions live in [`runtime-validation.md`](runtime-validation.md).
@@ -26,9 +29,10 @@ The build script regenerates a complete Armbian userpatch archive from
 carried by the Armbian base. It does not consume patch 0001 directly as a
 standalone Armbian userpatch.
 
-Patch 0002 is not part of the forward-port kernel build. It is the compatibility
-rewrite version of the same Route B design and should only be applied when
-building one of the rewrite trees.
+Patches 0002 and 0003 are not part of the forward-port kernel build. They are
+the compatibility rewrite version of the same Route B design and the matching
+rewrite attribution surface, and should only be applied when building one of the
+rewrite trees.
 
 The local forward-port state recorded on 2026-07-05 has
 `rkvenc-fwport-6.18-route-b` as the clean Route-B-only branch at
@@ -65,7 +69,9 @@ The two patch targets share the same mapping model, but the hook points differ:
   userptr remaps; dma-buf imports and dma-buf remaps are validated and rejected
   if they are not one 32-bit-safe DMA span. Patch 0002 also sets the RGA3 DMA
   mask/coherent mask and clamps `bus_dma_limit`, so normal DMA API placement and
-  dma-buf validation use the same 32-bit guard-band contract.
+  dma-buf validation use the same 32-bit guard-band contract. Patch 0003 adds a
+  rewrite-only `rk_rga_rewrite/route_b` debugfs directory with `attempt`, `ok`,
+  `active`, and `force_remap`; this is development evidence, not userspace ABI.
 
 1. Try the normal DMA API map first.
 2. If the result violates the single-segment or 32-bit span contract, unmap it.
@@ -113,7 +119,9 @@ writable userptr pages dirty before dropping their GUP references.
 
 ## Verification
 
-Run from this repo:
+Run from this repo. Patch 0003 is layered on top of patch 0002, so check it in
+a scratch tree that is already at the post-0002/pre-0003 rewrite state, or
+after applying patch 0002 in a temporary checkout:
 
 ```bash
 git -C ../kernel/linux-6.18-rkvenc-av1-fwport apply --check \
@@ -121,19 +129,27 @@ git -C ../kernel/linux-6.18-rkvenc-av1-fwport apply --check \
 
 git -C ../kernel/linux-6.18-rkvenc apply --check \
   /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/route-b/0002-media-rockchip-rga-rewrite-add-Route-B-userptr-mapping.patch
+git -C ../kernel/linux-6.18-rkvenc apply --check \
+  /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/route-b/0003-media-rockchip-rga-rewrite-add-route-b-debugfs-counters.patch
 
 git -C ../kernel/linux apply --check \
   /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/route-b/0002-media-rockchip-rga-rewrite-add-Route-B-userptr-mapping.patch
+git -C ../kernel/linux apply --check \
+  /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/route-b/0003-media-rockchip-rga-rewrite-add-route-b-debugfs-counters.patch
 
 ../kernel/linux-6.18-rkvenc-av1-fwport/scripts/checkpatch.pl --strict \
   kernel-drivers/patches/route-b/0001-media-rockchip-rga3-map-scattered-userptr-through-IOMMU.patch \
-  kernel-drivers/patches/route-b/0002-media-rockchip-rga-rewrite-add-Route-B-userptr-mapping.patch
+  kernel-drivers/patches/route-b/0002-media-rockchip-rga-rewrite-add-Route-B-userptr-mapping.patch \
+  kernel-drivers/patches/route-b/0003-media-rockchip-rga-rewrite-add-route-b-debugfs-counters.patch
 ```
 
-Status on 2026-07-05:
+Status on 2026-07-06:
 
-- All three `git apply --check` commands pass.
-- Strict checkpatch reports `0 errors, 0 warnings, 0 checks` for both patches.
+- Patch 0001 applies to the forward-port tree, patch 0002 applies to both
+  rewrite trees, and patch 0003 applies to both rewrite trees at the post-0002
+  pre-0003 state.
+- Strict checkpatch reports `0 errors, 0 warnings, 0 checks` for the checked
+  Route B patches, including patch 0003.
 - Focused object builds pass in temp trees after the page-granule and
   overflow-safe span guards; the same focused targets also pass with `W=1`:
   - forward-port: `rga_dma_buf.o`, `rga_mm.o`, `rga_drv.o`
@@ -141,11 +157,16 @@ Status on 2026-07-05:
 - A clean Route-B-only forward-port image passed repeated RK3588
   `rga-mmu-debug.sh` smoke runs for `rga_copy_demo`, `rga_resize_rect_demo`, and
   `rga_transform_rotate_demo`.
+- The rewrite tips `d1cfb432da7f` (6.18) and `c8a41bb830a6` (mainline) passed
+  `kernel-drivers/tests/rewrite-build-gate.sh all` from clean `git archive`
+  sources after patch 0003 landed.
 
 The Route-B-only smoke evidence is a behavioral pass and strong indirect
 evidence because the same demo family previously failed closed with
 non-contiguous `orig_nents == nents` userptr mappings. It is not direct fallback
 attribution: the clean image did not include a Route B success breadcrumb. To
-claim the fallback itself is runtime-proven, rebuild the debug-tip profile or
-add a temporary counter/print in `rga_dma_map_sgt_iommu()` and capture at least
-one passing case that entered the fallback.
+claim the forward-port fallback itself is runtime-proven, rebuild the debug-tip
+profile or add a temporary counter/print in `rga_dma_map_sgt_iommu()` and
+capture at least one passing case that entered the fallback. For the rewrite,
+boot a kernel carrying patch 0003 and capture `route_b/attempt`, `route_b/ok`,
+and `route_b/active` around the selected cases.

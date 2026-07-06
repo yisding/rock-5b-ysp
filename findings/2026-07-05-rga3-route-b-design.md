@@ -9,7 +9,8 @@
 > Date: 2026-07-05
 > Trust: CODE-INSPECTED / BUILD-VERIFIED for the rewrite branches;
 > BEHAVIORAL-SMOKE-PASSED for the forward-port; booted rewrite runtime and
-> direct Route B fallback attribution still pending.
+> direct forward-port Route B fallback attribution still pending; rewrite
+> fallback attribution is now instrumentable but not hardware-run.
 > Related: [[2026-07-04-rga3-im2d-error-irq]],
 > [[2026-07-05-rga3-memory-import-contract]],
 > [[2026-07-05-rga3-scattered-iova-mechanism]]
@@ -78,14 +79,15 @@ or wrapped spans fail closed before any address is programmed.
 
 Static verification proves that the patches apply, pass style, and build. The
 rewrite-side Route B slice is also committed and pushed on both rewrite
-branches: `rk3588-rewrite-6.18` @ `235428d394cb` and
-`rk3588-rewrite-mainline` @ `dab8fb08c9e2`. The Route-B-only forward-port image
+branches: `rk3588-rewrite-6.18` @ `d1cfb432da7f` and
+`rk3588-rewrite-mainline` @ `c8a41bb830a6`. The Route-B-only forward-port image
 also now proves the selected scattered
 `virt_addr` demo family can complete on RK3588 hardware without RGA/IOMMU fault
 signatures. What remains unproven is direct attribution to the silent fallback:
 the clean test image intentionally did not include a success log/counter in
-`rga_dma_map_sgt_iommu()`. The rewrite tips still need the equivalent booted
-hardware run.
+`rga_dma_map_sgt_iommu()`. The rewrite tips now expose
+`rk_rga_rewrite/route_b/{attempt,ok,active,force_remap}` so the equivalent
+booted hardware run can prove fallback execution directly.
 
 ## Runtime smoke after Route B-only build
 
@@ -158,6 +160,7 @@ Patch artifacts:
 
 - `kernel-drivers/patches/route-b/0001-media-rockchip-rga3-map-scattered-userptr-through-IOMMU.patch`
 - `kernel-drivers/patches/route-b/0002-media-rockchip-rga-rewrite-add-Route-B-userptr-mapping.patch`
+- `kernel-drivers/patches/route-b/0003-media-rockchip-rga-rewrite-add-route-b-debugfs-counters.patch`
 
 Verification on 2026-07-05:
 
@@ -172,8 +175,10 @@ Rewrite integration on 2026-07-06:
 
 - patch 0002 is committed and pushed as `media: rockchip: map RGA userptr
   through IOMMU`;
-- 6.18 branch: `235428d394cb` on `yisding/linux-rock5b/rk3588-rewrite-6.18`;
-- mainline branch: `dab8fb08c9e2` on
+- patch 0003 is committed as `media: rockchip: rga-rewrite: count Route B
+  fallback mappings`;
+- 6.18 branch: `d1cfb432da7f` on `yisding/linux-rock5b/rk3588-rewrite-6.18`;
+- mainline branch: `c8a41bb830a6` on
   `yisding/linux-rock5b/rk3588-rewrite-mainline`;
 - pre-commit clean-archive builds of the dirty patch passed for
   `rga_rewrite.o` on both target kernels with no warning lines;
@@ -185,4 +190,5 @@ The runbook is `kernel-drivers/patches/route-b/runtime-validation.md`. The
 forward-port has a behavioral smoke pass. Until a Route B breadcrumb/counter is
 captured, the forward-port finding is "behavioral smoke passed; direct fallback
 attribution pending", not a fully runtime-proven fallback. The rewrite finding
-is "committed and build-verified; booted hardware validation pending".
+is "committed, build-verified, and attribution-instrumented; booted hardware
+validation pending".

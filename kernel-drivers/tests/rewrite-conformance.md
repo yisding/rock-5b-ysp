@@ -49,8 +49,8 @@ source edits. Use it only when checking the last pushed state while another
 worktree has unrelated local changes.
 
 Last recorded run: `kernel-drivers/tests/rewrite-build-gate.sh all`
-on 2026-07-05 passed warning-free for the committed rewrite tips
-`../kernel/linux-6.18-rkvenc@0e6fa86bd84c` and `../kernel/linux@c092e016fd29`.
+on 2026-07-06 passed warning-free for the committed rewrite tips
+`../kernel/linux-6.18-rkvenc@d1cfb432da7f` and `../kernel/linux@c8a41bb830a6`.
 The same maintenance pass also ran
 `VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh` and
 `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`;

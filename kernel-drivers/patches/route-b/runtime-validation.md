@@ -221,9 +221,11 @@ as **behavioral smoke passed; direct Route B attribution still pending**.
 
 ## Rewrite Runtime Gate
 
-Patch 0002 applies to both rewrite trees, but the rewrite still needs a booted
-kernel profile before Route B can be runtime-proven there. When a rewrite kernel
-with patch 0002 is booted, run at minimum:
+Patches 0002 and 0003 apply to both rewrite trees, but the rewrite still needs a
+booted kernel profile before Route B can be runtime-proven there. Patch 0003
+adds the development-only `rk_rga_rewrite/route_b` debugfs directory used for
+direct attribution. When a rewrite kernel with both patches is booted, run at
+minimum:
 
 ```bash
 cd /home/yi/Code/rock-5b-ysp
@@ -246,12 +248,15 @@ Pass criteria:
 - `ysp_librga_smoke` artifacts remain deterministic against the selected
   forward-port baseline where comparable;
 - rewrite debugfs counter deltas show RGA hardware starts and busy time;
+- `/sys/kernel/debug/rk_rga_rewrite/route_b/attempt` and `ok` increase for at
+  least one selected direct-virtual-address case, while `active` returns to 0 at
+  rest;
 - dmesg has no new RGA/IOMMU fault signature.
 
 ## Completion Rule
 
 Forward-port Route B has now passed the behavioral RK3588 smoke gate for the
-selected scattered `virt_addr` demos. Direct fallback-path proof still requires
-route-specific evidence that the fallback executed for at least one selected
-case. Rewrite runtime evidence is still required before promoting patch 0002
-from build-verified parity to runtime-proven parity.
+selected scattered `virt_addr` demos. Direct forward-port fallback-path proof
+still requires route-specific evidence that the fallback executed for at least
+one selected case. Rewrite runtime evidence is still required before promoting
+patches 0002/0003 from build-verified parity to runtime-proven parity.

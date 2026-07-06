@@ -1,0 +1,133 @@
+From d1cfb432da7faf6239449fab970c801d01d1a31c Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 5 Jul 2026 23:26:02 -0700
+Subject: [PATCH] media: rockchip: rga-rewrite: count Route B fallback mappings
+
+Route B makes scattered userptr mappings usable on RGA3, but a passing
+workload is hard to interpret unless validation can see that the fallback
+actually ran.
+
+Add minimal debugfs counters for fallback attempts, successes, and live
+mappings, plus a debug-only force_remap knob for driver-owned userptr maps.
+
+The knob does not affect dma-buf imports, which keep the fail-closed
+single-span contract.
+
+The counters live under the rewrite debugfs root. They are explicitly
+development evidence rather than userspace ABI.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/rga-rewrite/ABI.rst    |  6 +++-
+ .../video/rockchip/rga-rewrite/rga_rewrite.c  | 29 +++++++++++++++++--
+ 2 files changed, 32 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga-rewrite/ABI.rst b/drivers/video/rockchip/rga-rewrite/ABI.rst
+index 67b1bbe49976..c522ea8030fb 100644
+--- a/drivers/video/rockchip/rga-rewrite/ABI.rst
++++ b/drivers/video/rockchip/rga-rewrite/ABI.rst
+@@ -122,7 +122,11 @@ Implemented
+   at dispatch time, so direct
+   ``wrapbuffer_fd()`` submissions can target a non-default RGA core.  Minimal
+   debugfs counters report scheduled, dispatched, and hardware-started work per
+-  public core-mask bit so RK3588 board validation can confirm load balancing,
++  public core-mask bit, plus Route B userptr IOMMU fallback attempts,
++  successes, live mappings, and a force-remap knob under ``route_b/``.  The
++  Route B counters are development evidence only, not ABI; they let validation
++  distinguish a real scattered-userptr fallback pass from a workload that stayed
++  on the normal DMA segment path.  RK3588 board validation can confirm load balancing,
+   equal-load tie rotation, and forced-core routing without carrying the BSP
+   debugger ABI.
+ * Runtime PM and clock-bulk sequencing around the backend dispatch boundary.
+diff --git a/drivers/video/rockchip/rga-rewrite/rga_rewrite.c b/drivers/video/rockchip/rga-rewrite/rga_rewrite.c
+index 17a68e6d1792..9ff6356c9c18 100644
+--- a/drivers/video/rockchip/rga-rewrite/rga_rewrite.c
++++ b/drivers/video/rockchip/rga-rewrite/rga_rewrite.c
+@@ -1208,6 +1208,10 @@ struct rk_rga_service {
+ 	atomic_t iommu_fault_count;
+ 	atomic_t iommu_refresh_count;
+ 	atomic_t unsupported_count;
++	atomic_t route_b_attempt_count;
++	atomic_t route_b_ok_count;
++	atomic_t route_b_active_count;
++	bool route_b_force_remap;
+ };
+ 
+ static struct rk_rga_service rk_rga;
+@@ -1781,6 +1785,7 @@ static void rk_rga_unmap_userptr_iommu(struct iommu_domain *domain,
+ 		       &base, iova_size, unmapped);
+ 
+ 	rk_rga_free_iommu_iova(domain, base, iova_size);
++	atomic_dec(&rk_rga.route_b_active_count);
+ }
+ 
+ static void rk_rga_unmap_userptr_sgt(struct device *dev, struct sg_table *sgt,
+@@ -16960,6 +16965,7 @@ static int rk_rga_map_userptr_sgt(struct rk_rga_import *import,
+ 				  bool *iommu_mapped_out)
+ {
+ 	struct sg_table *sgt;
++	bool force_iommu;
+ 	int ret;
+ 
+ 	*sgt_out = NULL;
+@@ -16982,23 +16988,28 @@ static int rk_rga_map_userptr_sgt(struct rk_rga_import *import,
+ 	if (ret)
+ 		goto err_free_table;
+ 
++	force_iommu = READ_ONCE(rk_rga.route_b_force_remap);
+ 	ret = rk_rga_check_dma_sgt(sgt, "userptr", import->size, iova_out,
+ 				   false);
+-	if (!ret) {
++	if (!ret && !force_iommu) {
+ 		*sgt_out = sgt;
+ 		return 0;
+ 	}
+ 
+ 	dma_unmap_sgtable(dev, sgt, DMA_BIDIRECTIONAL, 0);
+ 	rk_rga_reset_sgt_dma_state(sgt);
+-	if (ret != -EOPNOTSUPP && ret != -EOVERFLOW)
++	if (ret && ret != -EOPNOTSUPP && ret != -EOVERFLOW)
+ 		goto err_free_table;
+ 
++	atomic_inc(&rk_rga.route_b_attempt_count);
+ 	ret = rk_rga_map_userptr_sgt_iommu(import, dev, sgt, iova_out,
+ 					   domain_out, iova_size_out);
+ 	if (ret)
+ 		goto err_free_table;
+ 
++	atomic_inc(&rk_rga.route_b_ok_count);
++	atomic_inc(&rk_rga.route_b_active_count);
++
+ 	*sgt_out = sgt;
+ 	*iommu_mapped_out = true;
+ 
+@@ -17884,6 +17895,19 @@ rk_rga_debugfs_create_core_times(const char *prefix,
+ 	}
+ }
+ 
++static void rk_rga_debugfs_create_route_b(void)
++{
++	struct dentry *dir;
++
++	dir = debugfs_create_dir("route_b", rk_rga.debugfs_root);
++	debugfs_create_atomic_t("attempt", 0444, dir,
++				&rk_rga.route_b_attempt_count);
++	debugfs_create_atomic_t("ok", 0444, dir, &rk_rga.route_b_ok_count);
++	debugfs_create_atomic_t("active", 0444, dir,
++				&rk_rga.route_b_active_count);
++	debugfs_create_bool("force_remap", 0600, dir, &rk_rga.route_b_force_remap);
++}
++
+ static int __init rk_rga_init(void)
+ {
+ 	int ret;
+@@ -17968,6 +17992,7 @@ static int __init rk_rga_init(void)
+ 	debugfs_create_atomic_t("iommu_refresh_count", 0444,
+ 				rk_rga.debugfs_root,
+ 				&rk_rga.iommu_refresh_count);
++	rk_rga_debugfs_create_route_b();
+ 	debugfs_create_atomic_t("unsupported_count", 0444, rk_rga.debugfs_root,
+ 				&rk_rga.unsupported_count);
+ 
+-- 
+2.53.0

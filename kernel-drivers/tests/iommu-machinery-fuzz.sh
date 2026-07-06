@@ -53,6 +53,7 @@ FUZZ="$OUT/rga-iommu-fuzz"
 # Debugfs dirs that hold instrumentation counters (present only when patched).
 COUNTER_DIRS=(
   rkrga        /sys/kernel/debug/rkrga/route_b
+  rga_rewrite  /sys/kernel/debug/rk_rga_rewrite/route_b
   rk_iommu     /sys/kernel/debug/rockchip-iommu
   vsi_iommu    /sys/kernel/debug/vsi-iommu
 )
@@ -176,7 +177,8 @@ else
   if [ "${EUID:-$(id -u)}" -ne 0 ]; then
     log "  (no counters read -- /sys/kernel/debug is root-only; run the WHOLE script as root:"
     log "     sudo $0 ${*:-}   -- per-command sudo does NOT expose the debugfs snapshot)"
-  elif "${SUDO_CMD[@]}" test -d /sys/kernel/debug/rkrga/route_b 2>/dev/null; then
+  elif "${SUDO_CMD[@]}" test -d /sys/kernel/debug/rkrga/route_b 2>/dev/null ||
+       "${SUDO_CMD[@]}" test -d /sys/kernel/debug/rk_rga_rewrite/route_b 2>/dev/null; then
     log "  (instrumentation present but no counter deltas this run)"
   else
     log "  (no instrumentation counters in this kernel -- driver patches 1-3 not built;"

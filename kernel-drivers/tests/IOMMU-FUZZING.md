@@ -27,14 +27,16 @@ The run passes iff: every RGA op is byte-correct, every codec decodes bit-exact
 
 ## 1. What is instrumented (kernel side)
 
-All of this is in the forward port (`../kernel/linux-6.18-rkvenc-av1-fwport`),
-debug-only, no behaviour change unless you flip `force_remap`.
+The original instrumentation is in the forward port
+(`../kernel/linux-6.18-rkvenc-av1-fwport`). The rewrite exposes the same Route B
+fallback counters under its own debugfs root. Everything is debug-only; the only
+behavior change is the explicit `force_remap` knob when you flip it.
 
 | Signal | Path / mechanism | Answers |
 |--------|------------------|---------|
-| Route B fired? how often? | `/sys/kernel/debug/rkrga/route_b/attempt`, `.../ok` | did the scattered-userptr fallback run, and succeed |
-| Route B leak? | `/sys/kernel/debug/rkrga/route_b/active` | maps minus unmaps — **must be 0 at rest** |
-| Force every map through Route B | `/sys/kernel/debug/rkrga/route_b/force_remap` (or module param `rga_force_iommu_remap`) | 100% coverage + same-buffer differential |
+| Route B fired? how often? | forward-port: `/sys/kernel/debug/rkrga/route_b/attempt`, rewrite: `/sys/kernel/debug/rk_rga_rewrite/route_b/attempt`; same for `ok` | did the scattered-userptr fallback run, and succeed |
+| Route B leak? | `.../route_b/active` | maps minus unmaps — **must be 0 at rest** |
+| Force every map through Route B | `.../route_b/force_remap` (forward-port also has module param `rga_force_iommu_remap`) | 100% coverage + same-buffer differential |
 | Route B span detail | `dmesg` when `DEBUGGER_EN(MM)` on | nents, data/map size, offset, programmed IOVA |
 | Multi-segment trigger (DIAG) | `dmesg` `DIAG rga_dma_map_sgt: ...` | did `dma_map_sg` fail to coalesce (the Route B trigger) + contiguity walk |
 | Per-master IOMMU faults | `/sys/kernel/debug/rockchip-iommu/<dev>`, `/sys/kernel/debug/vsi-iommu/<dev>` | which master page/bus-faulted, across both providers |
@@ -45,9 +47,10 @@ Counters are `atomic_t`/`u64`, updated in the fast path with no locking (a stat
 race just loses a count — fine for debug). `attempt − ok` = Route B failures;
 the interior trace / DIAG tell you *why*.
 
-Provenance: `iommu: rockchip, vsi: count per-device IOMMU faults in debugfs`
-and `media: rockchip: rga3: add Route B debug stats and force knob` (both build
-clean; the DIAG commit above them adds the trigger log).
+Provenance: `iommu: rockchip, vsi: count per-device IOMMU faults in debugfs`,
+`media: rockchip: rga3: add Route B debug stats and force knob`, and the
+rewrite slice `media: rockchip: rga-rewrite: count Route B fallback mappings`.
+The DIAG commit above the forward-port instrumentation adds the trigger log.
 
 ---
 
@@ -146,7 +149,9 @@ The AV1 decoder sits behind `vsi-iommu` (own debugfs dir), everything else behin
 
 **Route B coverage & health** (after a run):
 ```sh
-cd /sys/kernel/debug/rkrga/route_b
+RGA_ROUTE_B_DEBUGFS=/sys/kernel/debug/rk_rga_rewrite/route_b   # rewrite
+[ -d "$RGA_ROUTE_B_DEBUGFS" ] || RGA_ROUTE_B_DEBUGFS=/sys/kernel/debug/rkrga/route_b
+cd "$RGA_ROUTE_B_DEBUGFS"
 grep . attempt ok active
 ```
 - `attempt > 0` → the fallback actually ran. **`attempt == 0` means your test
@@ -178,10 +183,12 @@ IOMMU data corruption.
 
 ### 6a. "Make Route B run on demand" (coverage without luck)
 ```sh
-echo 1 | sudo tee /sys/kernel/debug/rkrga/route_b/force_remap   # every driver-owned map → Route B
+RGA_ROUTE_B_DEBUGFS=/sys/kernel/debug/rk_rga_rewrite/route_b   # rewrite
+[ -d "$RGA_ROUTE_B_DEBUGFS" ] || RGA_ROUTE_B_DEBUGFS=/sys/kernel/debug/rkrga/route_b
+echo 1 | sudo tee "$RGA_ROUTE_B_DEBUGFS/force_remap"            # every driver-owned map -> Route B
 # run any librga workload or rga-iommu-fuzz; then:
-cat /sys/kernel/debug/rkrga/route_b/attempt                     # climbs on every job
-echo 0 | sudo tee /sys/kernel/debug/rkrga/route_b/force_remap
+cat "$RGA_ROUTE_B_DEBUGFS/attempt"                              # climbs on every job
+echo 0 | sudo tee "$RGA_ROUTE_B_DEBUGFS/force_remap"
 ```
 With `force_remap=1`, even *contiguous* buffers traverse Route B, so you get a
 same-buffer normal-vs-Route-B differential (run the same op with it off and on,
@@ -220,7 +227,9 @@ finite PSNR with a clean fault log is the same signature on the AV1/RKVDEC path.
 ### 6e. "Prove there's no leak" (soak)
 ```sh
 # baseline at rest
-cat /sys/kernel/debug/rkrga/route_b/active            # expect 0
+RGA_ROUTE_B_DEBUGFS=/sys/kernel/debug/rk_rga_rewrite/route_b
+[ -d "$RGA_ROUTE_B_DEBUGFS" ] || RGA_ROUTE_B_DEBUGFS=/sys/kernel/debug/rkrga/route_b
+cat "$RGA_ROUTE_B_DEBUGFS/active"                     # expect 0
 grep MemAvailable /proc/meminfo
 sudo RGA_ITERS=512 DECODE_LOOPS=50 kernel-drivers/tests/iommu-machinery-fuzz.sh
 # after: active back to 0, MemAvailable stable, dmesg has no 'DMA-API:' lines
@@ -274,7 +283,8 @@ the `route_b/attempt` counter or a kprobe on `rga_dma_map_sgt_iommu`.
 
 - Kernel instrumentation: commits `iommu: rockchip, vsi: count per-device IOMMU
   faults in debugfs` and `media: rockchip: rga3: add Route B debug stats and
-  force knob` on `rkvenc-fwport-6.18`.
+  force knob` on `rkvenc-fwport-6.18`; rewrite commit `media: rockchip:
+  rga-rewrite: count Route B fallback mappings`.
 - Config fragment + patch notes: `../patches/iommu-debug/`.
 - Tools: `iommu-machinery-fuzz.sh`, `rga-iommu-fuzz.cpp`, `decode-differential.sh`
   (+ `suite-common.sh`, `debugfs-counters.sh`) in this directory.

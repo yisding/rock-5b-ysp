@@ -19,10 +19,12 @@
 > are documented in `findings/2026-07-05-rga3-route-b-design.md`.
 >
 > Update 2026-07-06: the rewrite-side Route B slice is now committed and pushed
-> to `yisding/linux-rock5b`: `rk3588-rewrite-6.18` @ `235428d394cb` and
-> `rk3588-rewrite-mainline` @ `dab8fb08c9e2`. Both committed tips passed the
+> to `yisding/linux-rock5b`: `rk3588-rewrite-6.18` @ `d1cfb432da7f` and
+> `rk3588-rewrite-mainline` @ `c8a41bb830a6`. Both committed tips passed the
 > clean-archive YSP rewrite build gate for `mpp_rewrite.o` and `rga_rewrite.o`.
-> Booted rewrite hardware validation is still pending.
+> The rewrite now exposes `rk_rga_rewrite/route_b` counters and `force_remap`
+> for direct fallback attribution; booted rewrite hardware validation is still
+> pending.
 
 ## The fact
 
@@ -103,14 +105,16 @@ sg DMA address after `dma_buf_map_attachment()`
 `:16666`, `:16690`).  There is no rewrite-local equivalent of the forward-port
 `nents == 1` and 32-bit-span validation as of `0e6fa86bd84c`.
 
-As of `rk3588-rewrite-6.18` @ `235428d394cb` and
-`rk3588-rewrite-mainline` @ `dab8fb08c9e2`, the rewrite now validates normal
+As of `rk3588-rewrite-6.18` @ `d1cfb432da7f` and
+`rk3588-rewrite-mainline` @ `c8a41bb830a6`, the rewrite now validates normal
 DMA mappings and keeps dma-buf imports fail-closed unless they resolve to one
 32-bit-safe segment. For driver-owned pinned userptr mappings only, it adds the
 scoped Route B fallback: allocate one byte-contiguous DMA IOVA from the device's
 translated DMA domain, map a page-aligned sg copy with `iommu_map_sg()`, program
 that synthetic IOVA, and unmap/free it explicitly when the import or temporary
-job mapping is released.
+job mapping is released. It also exposes development-only Route B counters and a
+`force_remap` knob under `rk_rga_rewrite/route_b` so hardware validation can
+distinguish "the workload passed" from "the fallback executed."
 
 The mainline RGA3 V4L2 driver is a different ABI.  It has no vendor
 `RGA_IOC_IMPORT_BUFFER`, no raw physical import, and no arbitrary userptr queue
@@ -215,4 +219,6 @@ Rewrite follow-up: run booted forward-port-vs-rewrite conformance for direct
 virtual-address `librga` smoke cases and GStreamer/RKNN-shaped fd-backed paths.
 The code-side follow-up is now smaller: preserve the fail-closed dma-buf rule,
 keep Route B scoped to driver-owned userptr sg-tables, and add a runtime
-breadcrumb or counter if direct fallback attribution is needed.
+breadcrumb or counter if direct fallback attribution is needed. The rewrite
+counter surface now exists; the remaining work is to capture it on booted RK3588
+hardware.

@@ -209,8 +209,11 @@ DMA mappings and failed closed with `reject sg_table DMA mapping`, while the
 Route-B-only image now runs the selected cases to completion with no rejects,
 faults, or failed RGA jobs.
 
-It is still not direct fallback-path proof. The clean image intentionally lacks a
-success log/counter in `rga_dma_map_sgt_iommu()`, so the artifacts cannot show
-which individual import entered Route B. Completion still requires either a
-one-run debug-tip kernel or a temporary positive breadcrumb/counter in the Route
-B helper, plus the same case passing without RGA/IOMMU faults.
+It is still not direct forward-port fallback-path proof. The clean image
+intentionally lacks a success log/counter in `rga_dma_map_sgt_iommu()`, so the
+artifacts cannot show which individual import entered Route B. Forward-port
+completion still requires either a one-run debug-tip kernel or a temporary
+positive breadcrumb/counter in the Route B helper, plus the same case passing
+without RGA/IOMMU faults. The rewrite now has a permanent development-only
+`rk_rga_rewrite/route_b` counter surface for this attribution, but it still needs
+a booted rewrite run.
