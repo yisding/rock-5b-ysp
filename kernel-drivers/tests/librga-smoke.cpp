@@ -123,6 +123,37 @@ static int check_rgba_crop(const uint8_t *dst, int crop_x, int crop_y,
 	return 0;
 }
 
+static int check_rgba_flip(const uint8_t *dst, int width, int height,
+			   bool flip_h, bool flip_v)
+{
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			int src_x = flip_h ? width - 1 - x : x;
+			int src_y = flip_v ? height - 1 - y : y;
+			const uint8_t *dst_px =
+				dst + ((y * width + x) * TEST_BPP);
+			uint8_t expected[TEST_BPP] = {
+				(uint8_t)src_x,
+				(uint8_t)src_y,
+				(uint8_t)(src_x ^ src_y),
+				0xff,
+			};
+
+			if (memcmp(expected, dst_px, TEST_BPP)) {
+				fprintf(stderr,
+					"flip pixel %d,%d differs: got %02x:%02x:%02x:%02x expected %02x:%02x:%02x:%02x\n",
+					x, y, dst_px[0], dst_px[1],
+					dst_px[2], dst_px[3], expected[0],
+					expected[1], expected[2],
+					expected[3]);
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static bool env_enabled(const char *name)
 {
 	const char *value = getenv(name);
@@ -1066,6 +1097,121 @@ out:
 	return ret;
 }
 
+static int run_dmabuf_imflip_rgba(void)
+{
+	const int width = 64;
+	const int height = 48;
+	const size_t size = (size_t)width * height * TEST_BPP;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	im_handle_param_t param = {
+		(uint32_t)width,
+		(uint32_t)height,
+		(uint32_t)RK_FORMAT_RGBA_8888,
+	};
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	int ret;
+
+	ret = dmabuf_alloc_any(size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "imflip source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "imflip dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "imflip source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_pattern(dma_src.mem, width, height);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "imflip source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "imflip dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "imflip dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src_handle = importbuffer_fd(dma_src.fd, &param);
+	dst_handle = importbuffer_fd(dma_dst.fd, &param);
+	if (!src_handle || !dst_handle) {
+		fprintf(stderr, "imflip importbuffer_fd failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, width, height, RK_FORMAT_RGBA_8888);
+	dst = wrapbuffer_handle(dst_handle, width, height, RK_FORMAT_RGBA_8888);
+
+	ret = imcheck(src, dst, {}, {});
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("imcheck imflip", ret);
+		goto out;
+	}
+
+	ret = imflip(src, dst, IM_HAL_TRANSFORM_FLIP_H);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("imflip", ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "imflip dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (check_rgba_flip(dma_dst.mem, width, height, true, false)) {
+		ret = 1;
+	} else {
+		ret = write_artifact("dmabuf_imflip_h_rgba",
+				     dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"imflip dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "dmabuf imflip H",
+		       dma_src.heap_path);
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 static int run_rknn_fd_rgba_letterbox(void)
 {
 	const int src_w = 64;
@@ -1685,6 +1831,70 @@ out:
 	return ret;
 }
 
+static int run_legacy_virtual_rgba_flip(void)
+{
+	const int width = 64;
+	const int height = 48;
+	const size_t size = (size_t)width * height * TEST_BPP;
+	rga_info_t src = {};
+	rga_info_t dst = {};
+	uint8_t *src_mem = NULL;
+	uint8_t *dst_mem = NULL;
+	int ret;
+
+	if (alloc_aligned((void **)&src_mem, size) ||
+	    alloc_aligned((void **)&dst_mem, size)) {
+		perror("posix_memalign legacy flip");
+		ret = 1;
+		goto out;
+	}
+
+	fill_pattern(src_mem, width, height);
+	memset(dst_mem, 0x80, size);
+
+	src.virAddr = src_mem;
+	src.format = RK_FORMAT_RGBA_8888;
+	src.rotation = HAL_TRANSFORM_FLIP_V;
+	src.mmuFlag = 1;
+	rga_set_rect(&src.rect, 0, 0, width, height, width, height,
+		     RK_FORMAT_RGBA_8888);
+
+	dst.virAddr = dst_mem;
+	dst.format = RK_FORMAT_RGBA_8888;
+	dst.mmuFlag = 1;
+	rga_set_rect(&dst.rect, 0, 0, width, height, width, height,
+		     RK_FORMAT_RGBA_8888);
+
+	if (c_RkRgaInit()) {
+		fprintf(stderr, "legacy flip RGA init failed\n");
+		ret = 1;
+		goto out;
+	}
+
+	if (c_RkRgaBlit(&src, &dst, NULL)) {
+		fprintf(stderr, "legacy RGBA flip blit failed\n");
+		c_RkRgaDeInit();
+		ret = 1;
+		goto out;
+	}
+	c_RkRgaDeInit();
+
+	if (check_rgba_flip(dst_mem, width, height, false, true)) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = write_artifact("legacy_rgba_flip_v", dst_mem, size);
+	if (!ret)
+		printf("%-24s ok\n", "legacy RGBA flip V");
+
+out:
+	free(src_mem);
+	free(dst_mem);
+
+	return ret;
+}
+
 static int run_legacy_planar_to_semiplanar_convert(void)
 {
 	const int width = 64;
@@ -2026,6 +2236,10 @@ int main(void)
 	if (ret)
 		goto out;
 
+	ret = run_dmabuf_imflip_rgba();
+	if (ret)
+		goto out;
+
 	ret = run_rknn_fd_rgba_letterbox();
 	if (ret)
 		goto out;
@@ -2051,6 +2265,10 @@ int main(void)
 		goto out;
 
 	ret = run_legacy_display_rgb_rotate();
+	if (ret)
+		goto out;
+
+	ret = run_legacy_virtual_rgba_flip();
 	if (ret)
 		goto out;
 
