@@ -25,10 +25,16 @@
 
 #if __has_include(<rga/im2d.h>)
 #include <rga/im2d.h>
+#include <rga/im2d_task.h>
 #include <rga/RgaApi.h>
 #else
 #include <im2d.h>
+#include <im2d_task.h>
 #include <RgaApi.h>
+#endif
+
+#ifndef IM_JOB_FLAGS_EXEC_SEQUENTIAL
+#define IM_JOB_FLAGS_EXEC_SEQUENTIAL ((uint32_t)(1 << 6))
 #endif
 
 #define TEST_SRC_W 64
@@ -2544,6 +2550,52 @@ out:
 	return 0;
 }
 
+static int run_im2d_job_copy_chain(rga_buffer_t src, rga_buffer_t tmp,
+				   rga_buffer_t dst, const uint8_t *src_mem,
+				   uint8_t *tmp_mem, uint8_t *dst_mem,
+				   size_t size)
+{
+	im_job_handle_t job;
+	int ret;
+
+	memset(tmp_mem, 0x40, size);
+	memset(dst_mem, 0x80, size);
+
+	job = imbeginJob(IM_JOB_FLAGS_EXEC_SEQUENTIAL);
+	if (!job) {
+		fprintf(stderr, "im2d job begin failed: %s\n", imStrError());
+		return 1;
+	}
+
+	ret = imcopyTask(job, src, tmp);
+	if (ret != IM_STATUS_SUCCESS) {
+		fail_status("imcopyTask src", ret);
+		imcancelJob(job);
+		return 1;
+	}
+
+	ret = imcopyTask(job, tmp, dst);
+	if (ret != IM_STATUS_SUCCESS) {
+		fail_status("imcopyTask tmp", ret);
+		imcancelJob(job);
+		return 1;
+	}
+
+	ret = imendJob(job, IM_SYNC);
+	if (ret != IM_STATUS_SUCCESS)
+		return fail_status("imendJob copy", ret);
+
+	if (memcmp(src_mem, dst_mem, size)) {
+		fprintf(stderr, "im2d job copy-chain output differs from source\n");
+		return 1;
+	}
+	if (write_artifact("im2d_job_copy_chain", dst_mem, size))
+		return 1;
+
+	printf("%-24s ok\n", "im2d job copy");
+	return 0;
+}
+
 int main(void)
 {
 	const size_t src_size = TEST_SRC_W * TEST_SRC_H * TEST_BPP;
@@ -2713,6 +2765,11 @@ int main(void)
 
 	ret = run_imconfig_thread_defaults_copy(src, dst, src_mem, dst_mem,
 						src_size);
+	if (ret)
+		goto out;
+
+	ret = run_im2d_job_copy_chain(src, tmp, dst, src_mem, tmp_mem, dst_mem,
+				      src_size);
 	if (ret)
 		goto out;
 
