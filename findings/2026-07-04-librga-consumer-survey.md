@@ -74,7 +74,7 @@ required RGA profile.
 | Camera / ROS helpers | [`OrbbecSDK_ROS2` `rk_mpp_decoder.cpp`](https://github.com/orbbec/OrbbecSDK_ROS2/blob/HEAD/orbbec_camera/src/rk_mpp_decoder.cpp) | Legacy `c_RkRgaBlit()` conversion after MPP decode |
 | Display/compositor patches | [`JeffyCN/weston` `fb-convert.c`](https://github.com/JeffyCN/weston/blob/HEAD/libweston/backend-drm/fb-convert.c), [`EchoHeim/RK3399-linux` pixman patch](https://github.com/EchoHeim/RK3399-linux/blob/HEAD/buildroot/package/pixman/0005-pixman_image_composite32-Support-rockchip-RGA-2D-acc.patch) | Legacy blit acceleration for framebuffer/composite conversion |
 | Game/UI/display stacks | [`RetroArch-ARM` `display.c`](https://github.com/basharast/RetroArch-ARM/blob/HEAD/src/deps/libgo2/src/display.c), [`EmuELEC` SDL patch](https://github.com/fengshenwk/EmuELEC/blob/HEAD/packages/multimedia/SDL2/patches/OdroidGoAdvance/0005-SDL-2.0.20.odroidgoa-support.patch) | Legacy RGB-family blit/rotate/display scaling |
-| Language bindings | [`varphone/rkrga`](https://github.com/varphone/rkrga) | Rust exposure of the same C `librga` / legacy blit ABI, not a distinct kernel feature demand |
+| Language bindings | [`varphone/rkrga`](https://github.com/varphone/rkrga) | Rust exposure of the same C `librga` / legacy blit/fill ABI, not a distinct kernel feature demand |
 
 Several hits are older SoCs or downstream board SDKs rather than Rock 5B
 targets. They still matter as public Linux `librga` usage signals, but they do
@@ -91,8 +91,8 @@ mode table entry. The practical follow-up is:
    handle import/release lifetime, RKNN tensor-memory fd handoff, and legacy RGB
    `c_RkRgaBlit()` resize.
 2. Keep the public display/compositor/game-UI class covered by simple
-   fd-backed RGB-family legacy blit/rotate artifacts, not by broad Android HWC
-   or allocator compatibility.
+   fd-backed RGB-family legacy blit/rotate/fill artifacts, not by broad Android
+   HWC or allocator compatibility.
 3. Keep Jellyfin-style media-server usage under the FFmpeg conformance suite;
    it does not add a distinct direct-librga kernel profile beyond the RKRGA
    filters and legacy blit ABI.

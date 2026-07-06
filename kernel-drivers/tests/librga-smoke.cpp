@@ -1669,6 +1669,83 @@ out:
 	return ret;
 }
 
+static int run_legacy_color_fill(void)
+{
+	const int width = TEST_DST_W;
+	const int height = TEST_DST_H;
+	const int format = RK_FORMAT_RGBA_8888;
+	const size_t size = (size_t)width * height * TEST_BPP;
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_info_t dst = {};
+	int ret;
+
+	ret = dmabuf_alloc_any(size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "legacy color-fill dest allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "legacy color-fill dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x33, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "legacy color-fill dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	dst.fd = dma_dst.fd;
+	dst.format = format;
+	dst.mmuFlag = 1;
+	dst.color = 0xff00ff00;
+	rga_set_rect(&dst.rect, 0, 0, width, height, width, height, format);
+
+	if (c_RkRgaInit()) {
+		fprintf(stderr, "legacy color-fill RGA init failed\n");
+		ret = 1;
+		goto out;
+	}
+
+	if (c_RkRgaColorFill(&dst)) {
+		fprintf(stderr, "legacy color-fill failed\n");
+		c_RkRgaDeInit();
+		ret = 1;
+		goto out;
+	}
+	c_RkRgaDeInit();
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "legacy color-fill read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!buffer_changed_from_sentinel(dma_dst.mem, dma_dst.size, 0x33)) {
+		fprintf(stderr, "legacy color-fill output unchanged\n");
+		ret = 1;
+	} else {
+		ret = write_artifact("legacy_color_fill_rgba",
+				     dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"legacy color-fill read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "legacy color fill",
+		       dma_dst.heap_path);
+
+out:
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 static int run_physical_import_probe(void)
 {
 	const size_t phys_size = (size_t)64 * 64 * TEST_BPP;
@@ -2586,6 +2663,10 @@ int main(void)
 		goto out;
 
 	ret = run_rknn_legacy_rgb_resize();
+	if (ret)
+		goto out;
+
+	ret = run_legacy_color_fill();
 	if (ret)
 		goto out;
 
