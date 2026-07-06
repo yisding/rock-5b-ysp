@@ -1,0 +1,38 @@
+# IOMMU-machinery debug kernel config fragment (RK3588 / 6.18 fwport).
+#
+# Merge into the build .config, e.g.:
+#   ./scripts/kconfig/merge_config.sh -m .config \
+#       kernel-drivers/patches/iommu-debug/kconfig-debug.fragment
+#   make olddefconfig
+# (Armbian: drop as a userpatches/kernel .config fragment, or append + olddefconfig.)
+#
+# These are observability-only; none change driver behavior. Expect a modest
+# perf/memory hit from DMA_API_DEBUG -- a debug build, not for shipping.
+
+# Full symbol table so every static Route B / IOMMU function is kprobe-able by
+# name (currently =n: only exported symbols resolve, so mapping helpers are dark).
+CONFIG_KALLSYMS=y
+CONFIG_KALLSYMS_ALL=y
+
+# Transparent DMA-API bookkeeping: catches unbalanced map/unmap, sync-on-wrong-
+# device, double-free, and overlapping mappings across EVERY master (RGA, MPP,
+# decoders) for free. This is the single highest-value flag for Route B + the
+# decoder DMA paths. Violations print "DMA-API: ..." to dmesg (the runner greps it).
+CONFIG_DMA_API_DEBUG=y
+CONFIG_DMA_API_DEBUG_SG=y
+
+# Generic IOMMU debugfs surface (per-domain info) to complement the driver counters.
+CONFIG_IOMMU_DEBUGFS=y
+
+# Tracing/instrumentation substrate (mostly already =y on this tree; pinned here
+# so a reconfigured build keeps them). KUNIT stays modular for the optional
+# Route B fail-closed unit module.
+CONFIG_FTRACE=y
+CONFIG_KPROBES=y
+CONFIG_DYNAMIC_FTRACE=y
+CONFIG_KUNIT=m
+
+# Optional, heavier -- uncomment to also scrub freed DMA/page memory and catch
+# use-after-free of decoder/RGA buffers. Noticeable slowdown.
+# CONFIG_DEBUG_PAGEALLOC=y
+# CONFIG_PAGE_POISONING=y

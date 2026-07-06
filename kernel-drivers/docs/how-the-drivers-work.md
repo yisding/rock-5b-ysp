@@ -436,6 +436,8 @@ idle cores*."
 **In plain terms.** While decoding, the hardware keeps a running "row cache" of
 intermediate data. Parking that in main RAM would eat memory bandwidth, so the
 chip has a small, *very* fast on-chip **SRAM** the decoder uses as a scratchpad.
+The RCB/SRAM memory model is documented separately in
+[`../mpp/docs/rcb-sram.md`](../mpp/docs/rcb-sram.md).
 Separately, instead of the CPU feeding the decoder one frame at a time, the
 hardware can follow a **linked list** of jobs by itself ("link mode") — like
 giving it a playlist instead of pressing play for each song.

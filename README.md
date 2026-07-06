@@ -96,10 +96,12 @@ the port replaces Armbian's DT:
   dual-core hand-shake (DCHS)**. See
   [`kernel-drivers/docs/how-the-drivers-work.md`](./kernel-drivers/docs/how-the-drivers-work.md) §7 and
   [`kernel-drivers/docs/device-tree.md`](./kernel-drivers/docs/device-tree.md).
-- **⚑ Decoder RCB lives in SRAM; the encoder's lives in DRAM.** The decoder
-  backs its Row Cache Buffer with on-chip SRAM (`system_sram2@ff001000`); the
-  encoder has no SRAM slice and row-caches from DRAM. See
-  [`kernel-drivers/docs/device-tree.md`](./kernel-drivers/docs/device-tree.md).
+- **⚑ Decoder RCB is SRAM-backed; encoder RCB is only optionally plumbed.** The
+  decoder backs its RCB scratch with on-chip SRAM (`system_sram2@ff001000`).
+  Current RK3588 DT does not wire encoder SRAM backing, even though userspace and
+  the drivers understand optional encoder RCB descriptors. See
+  [`kernel-drivers/mpp/docs/rcb-sram.md`](./kernel-drivers/mpp/docs/rcb-sram.md)
+  and [`kernel-drivers/docs/device-tree.md`](./kernel-drivers/docs/device-tree.md).
 - **⚑ The port converts Armbian's DT nodes in place — it does not replace
   them.** *Convert-in-place* retypes Armbian's existing V4L2 decoder DT nodes
   (`vdec0`/`vdec1`) to the vendor binding where they sit, so nothing edits

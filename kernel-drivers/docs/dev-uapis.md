@@ -109,7 +109,7 @@ The kernel dispatches on each message's inner `cmd`, grouped by base value
 | **SEND** `0x200` | `SET_REG_WRITE` | the **register recipe** for this task (how-the-drivers-work.md §9) |
 | | `SET_REG_READ` | which result registers to read back |
 | | `SET_REG_ADDR_OFFSET` | where in the recipe to patch buffer IOVAs |
-| | `SET_RCB_INFO` | which row-cache fields go in on-chip SRAM (how-the-drivers-work.md §8) |
+| | `SET_RCB_INFO` | RCB scratch descriptors: register index plus scratch size; SRAM backing is block/DT dependent ([RCB/SRAM primer](../mpp/docs/rcb-sram.md)) |
 | | `SET_SESSION_FD` | **switch to another session** mid-batch (*not* a task-start — see below) |
 | **POLL** `0x300` | `POLL_HW_FINISH`, `POLL_HW_IRQ` | block until the task completes |
 | **CONTROL** `0x400` | `RESET_SESSION`, `TRANS_FD_TO_IOVA`, `RELEASE_FD`, `SEND_CODEC_INFO` | reset, fd↔iova, buffer release, codec hints |

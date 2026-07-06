@@ -16,8 +16,8 @@ see [rewrite-driver track § 5](./rewrite-drivers.md) for that bring-up DT.
 |------|---------|
 | **CCU** | **Central Control Unit** (the TRM-verifiable name — RK3588 TRM v1.0 § 5.6.5; this glossary is the authoritative expansion, other docs defer here) — schedules/load-balances tasks across the two cores of a codec cluster. The **decoder** CCU is a real MMIO block (`@fdc30000`); the **encoder** CCU is purely virtual (software-only, no registers). |
 | **mpp_srv** | The shared MPP *service* node (`compatible = "rockchip,mpp-service"`, owns `/dev/mpp_service`). Every core attaches to it via `rockchip,srv`. Virtual — no `reg`. |
-| **RCB** | Row-Cache Buffer — scratch storage for per-row reconstruction/context data during decode/encode. |
-| **SRAM** | On-chip static RAM (`system_sram2@ff001000`). The decoder maps a slice of it as fast RCB; the encoder does not (it row-caches from DRAM). |
+| **RCB** | Codec scratch buffers for row/column processing. Upstream names these "Rows and Cols Buffers"; vendor shorthand often calls them row-cache buffers. See [`../mpp/docs/rcb-sram.md`](../mpp/docs/rcb-sram.md). |
+| **SRAM** | On-chip static RAM (`system_sram2@ff001000`). The decoder maps a slice of it as fast RCB. The encoder has optional RCB descriptor plumbing, but RK3588 DT does not wire encoder SRAM backing; see [`../mpp/docs/rcb-sram.md`](../mpp/docs/rcb-sram.md) and [`../../findings/2026-07-05-rkvenc-rcb-sram.md`](../../findings/2026-07-05-rkvenc-rcb-sram.md). |
 | **IOMMU / MMU** | I/O memory-management unit — per-core translation between device DMA addresses (IOVA) and physical pages. |
 | **taskqueue** | The MPP framework's per-cluster work queue. Both cores of a cluster share one `rockchip,taskqueue-node` index into a global array of `rockchip,taskqueue-count` (`12`). |
 | **core-mask** | Logical bitmask (`rockchip,core-mask`) identifying a core to the CCU scheduler, independent of MMIO address. |
@@ -124,7 +124,7 @@ assumptions onto the encoder (or vice-versa) silently breaks things.
 | CCU | `rkvenc_ccu` is **purely virtual** — `rkvenc_ccu_probe` (`mpp_rkvenc2.c:2880`) allocates state only, **no reg/clock/reset** | `rkvdec_ccu` is **real MMIO** `@fdc30000` with `aclk_ccu` + `video_ccu` reset + `rockchip,ccu-mode` |
 | Clocks | **3**: `aclk_vcodec`, `hclk_vcodec`, `clk_core` (`:2379`) | **5**: + `clk_cabac`, `clk_hevc_cabac` (`:1216`) |
 | Resets | **3**: `video_a`, `video_h`, `video_core` (`:2397`) | up to **7**: + optional `niu_a`/`niu_h`, plus `video_cabac`, `video_hevc_cabac` (`:1242`) |
-| RCB / SRAM | **none** on Rock 5B — no `rockchip,sram`, no `rockchip,rcb-iova`; `rkvenc2_alloc_rcbbuf` returns early and its return is **ignored** (`mpp_rkvenc2.c:3145`) → encoder row-caches from **DRAM** | maps on-chip **SRAM** as RCB (`rockchip,sram` + `rockchip,rcb-iova`) |
+| RCB / SRAM | No SRAM backing in RK3588 DT: no `rockchip,sram`, no `rockchip,rcb-iova`. `rkvenc2_alloc_rcbbuf` returns early and the BSP ignores its return. Userspace and both kernel tracks still support optional RKVENC RCB descriptors; without `enc->sram_iova` they are a no-op. See [`../../findings/2026-07-05-rkvenc-rcb-sram.md`](../../findings/2026-07-05-rkvenc-rcb-sram.md). | maps on-chip **SRAM** as RCB (`rockchip,sram` + `rockchip,rcb-iova`) |
 | MMU | two `0x40` reg windows (`@fdbdf000`/`+0x40`) + **two** IRQs (dual R/W channel) | one window the *codec* driver reaches via the hardcoded `io_base+0x600` poke; the `vdecN_mmu` iommu node is separate |
 
 The asymmetry is real silicon, not a packaging artifact: the decoder needs CABAC
@@ -238,9 +238,18 @@ rkvdec0: rkvdec-core@fdc38000 {              /* unit-addr = link window; name ha
 
 ## SRAM / row-cache-buffer (RCB)
 
+Conceptual background is in [`../mpp/docs/rcb-sram.md`](../mpp/docs/rcb-sram.md).
+
 Each decoder core points at an on-chip SRAM pool via `rockchip,sram = <&vdecN_sram>`
 (`@0` size `0x78000`, `@78000` size `0x77000`, children of `system_sram2@ff001000`)
 and an `rcb-iova`/`rcb-info` map. The driver translates the SRAM phandle with
 `of_address_to_resource()` and `iommu_map()`s the physical region as the RCB — it
 does **not** use a gen_pool, which is why the convert-in-place reuses Armbian's
 `pool;`-flavored SRAM nodes untouched ([Armbian packaging guide](../../packaging/docs/armbian-packaging.md)).
+
+The encoder side is intentionally not mirrored here. The RKVENC ABI accepts RCB
+descriptors and the BSP has a generic `rkvenc2_alloc_rcbbuf()` path, but both the
+6.1 BSP RK3588 DTS and the 7.2 rewrite RK3588 DTS leave encoder RCB unbacked.
+Do not borrow `vdec0_sram`/`vdec1_sram` for RKVENC without TRM/vendor evidence
+that the region is safe for encoder use; details are recorded in
+[`../../findings/2026-07-05-rkvenc-rcb-sram.md`](../../findings/2026-07-05-rkvenc-rcb-sram.md).

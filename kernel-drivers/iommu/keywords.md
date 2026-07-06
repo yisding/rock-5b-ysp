@@ -17,5 +17,8 @@ CCU / IOMMU memory-path terms. Cross-cutting vocabulary is in
 - **shared IOMMU domain** — the CCU conversion that maps a cluster's cores into one
   domain; map/unmap counting for large dma-buf mappings. See
   [`docs/mpp-ccu-iommu-plan.md`](docs/mpp-ccu-iommu-plan.md).
-- **RCB** — Row Cache Buffer; *memory placement* (decoder = SRAM, encoder = DRAM),
-  distinct from link mode. See [`../../glossary.md`](../../glossary.md).
+- **RCB** — codec scratch buffers for row/column processing; RK3588 decoder RCB
+  is SRAM-backed, while encoder RCB is only optionally plumbed and currently
+  unbacked by encoder SRAM in DT. Distinct from link mode. See
+  [`../../glossary.md`](../../glossary.md) and
+  [`../mpp/docs/rcb-sram.md`](../mpp/docs/rcb-sram.md).

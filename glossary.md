@@ -3,7 +3,7 @@
 The vocabulary used across this repo, in one place. Each entry links to the doc
 that owns the depth. Three entries are load-bearing enough that the root
 [`README.md`](README.md) keeps them inline as well (marked **⚑ load-bearing**):
-the CCU-vs-DCHS split, RCB SRAM-vs-DRAM, and convert-in-place.
+the CCU-vs-DCHS split, RCB/SRAM backing, and convert-in-place.
 
 ## Hardware blocks & their drivers
 
@@ -58,10 +58,13 @@ the CCU-vs-DCHS split, RCB SRAM-vs-DRAM, and convert-in-place.
   core has its own IOMMU node in the DT. Full walkthrough (concept → RK3588
   hardware → RGA/MPP driver code) in the
   [IOMMU explainer series](kernel-drivers/iommu/docs/01-iommu-primer.md).
-- **RCB** — *Row Cache Buffer*, per-row scratch the codec keeps in fast
-  memory. **⚑ load-bearing disambiguation:** the **decoder** backs RCB with
-  on-chip **SRAM** (`system_sram2@ff001000`); the **encoder** row-caches from
-  **DRAM** (no SRAM slice). See [device-tree guide](./kernel-drivers/docs/device-tree.md).
+- **RCB** — codec scratch buffers for row/column processing. Upstream calls
+  these "Rows and Cols Buffers"; vendor shorthand often says row-cache buffers.
+  **⚑ load-bearing disambiguation:** the **decoder** backs RCB with on-chip
+  **SRAM** (`system_sram2@ff001000`); the **encoder** has optional RCB descriptor
+  plumbing, but current RK3588 DT does not wire encoder SRAM backing. See
+  [RCB/SRAM primer](./kernel-drivers/mpp/docs/rcb-sram.md) and
+  [device-tree guide](./kernel-drivers/docs/device-tree.md).
 - **link mode** — the decoder's descriptor-table job chaining: the hardware
   walks a coherent-DMA **linked table of task configs** by itself instead of
   the driver programming registers per task
