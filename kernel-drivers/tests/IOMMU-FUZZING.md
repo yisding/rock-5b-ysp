@@ -14,6 +14,9 @@ coverage has to touch both, which is why AV1 is a first-class phase below.
 ## 0. TL;DR
 
 ```sh
+# device-free maintenance: compile the RGA scatter fuzzer object only
+IOMMU_FUZZ_VALIDATE_BUILD=1 bash kernel-drivers/tests/iommu-machinery-fuzz.sh
+
 # one-time: build a debug kernel with the config fragment (section 2), boot it
 sudo kernel-drivers/tests/iommu-machinery-fuzz.sh          # full A+B+C run
 # then read the verdict + counters it prints, or drill in with sections 5–6
@@ -89,6 +92,7 @@ counter delta + leak assertion. Structured logs land under
 `../rockchip-conformance/logs/iommu-machinery/<ts>/`.
 
 ```sh
+IOMMU_FUZZ_VALIDATE_BUILD=1 bash kernel-drivers/tests/iommu-machinery-fuzz.sh  # device-free C++ build gate
 sudo kernel-drivers/tests/iommu-machinery-fuzz.sh              # full A+B+C
 sudo RGA_ITERS=256 PHASES=A  kernel-drivers/tests/iommu-machinery-fuzz.sh   # RGA only, heavier
 sudo DECODE_LOOPS=20 PHASES=B kernel-drivers/tests/iommu-machinery-fuzz.sh  # decode soak
@@ -101,6 +105,12 @@ Phases:
 - **B — decode**: `decode-differential.sh`, HW vs SW, PASS iff bit-exact.
 - **C — concurrent**: RGA scatter + a 600-frame AV1 decode running together, so
   `rockchip-iommu` and `vsi-iommu` map/unmap simultaneously (cross-domain races).
+
+`IOMMU_FUZZ_VALIDATE_BUILD=1` compiles `rga-iommu-fuzz.cpp` to an object with
+the staged librga headers and exits before any device, debugfs, dmesg, or target
+librga shared-library access. It is also part of
+`VALIDATE_ONLY=1 rewrite-conformance-run.sh`, so normal device-free maintenance
+catches source/header drift in the Route B fuzzer. It is not hardware evidence.
 
 ### 3b. `rga-iommu-fuzz` — RGA scattered-userptr correctness (built by the orchestrator)
 Forces physical scatter with an interleaved-fault trick (mmap the buffer + an

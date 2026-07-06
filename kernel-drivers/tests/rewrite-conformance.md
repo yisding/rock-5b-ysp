@@ -81,7 +81,8 @@ replay, MPP, librga, GStreamer, and ffmpeg-rockchip suites for one booted
 profile. Set `RUN_*_SUITE=0` to narrow a run, `RUN_COMPARE=1` to compare latest
 saved summaries against `COMPARE_BASELINE=forward-port`, and
 `VALIDATE_ONLY=1` for the device-free runner, syzlang ABI-marker,
-case-builder, and comparator maintenance check.
+ioctl-fuzzer build, RGA IOMMU scatter-fuzzer build, case-builder, and
+comparator maintenance check.
 
 For per-suite debugging, the equivalent manual sequence is:
 
@@ -734,7 +735,7 @@ logs.
 |------|-------|
 | `build-mpp-tests.sh` | no device access; writes staged MPP library/tests under `../rockchip-conformance/out/mpp` |
 | `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths; also builds `gstreamer-event-harness` into the GStreamer prefix |
-| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, optional debugfs counter checks, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and checks runner wiring, syzkaller ABI markers, ioctl mutator buildability, case lists, and comparator selftests. With `PROFILE=*rewrite* RUN_COUNTER_CHECKS=1`, the runner defaults to requiring counter files plus positive librga/GStreamer/FFmpeg hardware-start and busy-time counters, with MPP positive counters added when explicit MPP media cases are selected. If `LIBRGA_FORCE_ROUTE_B=1` is also set, the librga counter gate additionally requires positive `rga_route_b:attempt` and `rga_route_b:ok` deltas. ABI replay also uses `/dev/dma_heap/*` when available to record MPP dma-buf translate/release, RGA dma-buf import/release parity, and raw RGA physical-address import behavior. |
+| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, optional debugfs counter checks, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and checks runner wiring, syzkaller ABI markers, ioctl mutator buildability, RGA IOMMU scatter-fuzzer buildability, case lists, and comparator selftests. With `PROFILE=*rewrite* RUN_COUNTER_CHECKS=1`, the runner defaults to requiring counter files plus positive librga/GStreamer/FFmpeg hardware-start and busy-time counters, with MPP positive counters added when explicit MPP media cases are selected. If `LIBRGA_FORCE_ROUTE_B=1` is also set, the librga counter gate additionally requires positive `rga_route_b:attempt` and `rga_route_b:ok` deltas. ABI replay also uses `/dev/dma_heap/*` when available to record MPP dma-buf translate/release, RGA dma-buf import/release parity, and raw RGA physical-address import behavior. |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
@@ -749,7 +750,7 @@ logs.
 
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
-| `rewrite-conformance-run.sh` | **full profile conformance orchestration** | Runs the selected profile's system-info, ABI replay, MPP, librga, GStreamer, and FFmpeg suite steps in a fixed order with deterministic per-suite output directories for that run id, then optionally runs debugfs counter checks and the latest forward-port-vs-rewrite comparators. For rewrite profiles, `RUN_COUNTER_CHECKS=1` defaults to hard hardware-start/busy-time checks for the suites that should submit RGA/MPP work, while avoiding a false MPP hardware requirement for the default `mpp_info_test`-only suite. In `VALIDATE_ONLY=1` mode it also runs the syzkaller ABI-marker check and compile-only ioctl mutator check, so stale ioctl numbers, stale struct sizes, or a broken non-submit fuzzer fail the same device-free maintenance gate as the case builders and comparators. A nonzero required suite, counter check, syzlang check, ioctl-fuzz build check, or comparator result fails the runner; suite exit `77` still means the relevant device nodes are absent on this boot. |
+| `rewrite-conformance-run.sh` | **full profile conformance orchestration** | Runs the selected profile's system-info, ABI replay, MPP, librga, GStreamer, and FFmpeg suite steps in a fixed order with deterministic per-suite output directories for that run id, then optionally runs debugfs counter checks and the latest forward-port-vs-rewrite comparators. For rewrite profiles, `RUN_COUNTER_CHECKS=1` defaults to hard hardware-start/busy-time checks for the suites that should submit RGA/MPP work, while avoiding a false MPP hardware requirement for the default `mpp_info_test`-only suite. In `VALIDATE_ONLY=1` mode it also runs the syzkaller ABI-marker check plus compile-only ioctl mutator and RGA IOMMU scatter-fuzzer checks, so stale ioctl numbers, stale struct sizes, or broken fuzzer sources fail the same device-free maintenance gate as the case builders and comparators. A nonzero required suite, counter check, syzlang check, ioctl-fuzz build check, IOMMU-fuzzer build check, or comparator result fails the runner; suite exit `77` still means the relevant device nodes are absent on this boot. |
 | `abi-replay.sh` | **non-submit kernel ABI replay** | Runs the C ABI probe on the booted `/dev/mpp_service` and `/dev/rga`, saves raw/normalized logs, and extracts a comparable log plus the stable contract subset for forward-port-vs-rewrite diffing. It records ioctl numbers, struct sizes, version/query returns, safe MPP session controls, multi-message setup, bad-fd batch return markers, optional dma-heap-backed MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA version/no-op behavior, virtual-address plus optional dma-buf import/release, and raw physical-address import behavior. `PROFILE=*rewrite*` defaults `ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT=1` so accepting raw physical-address import fails rewrite runs; `.compare.log` and `.contract.log` omit that intentionally pruned path so forward-port/default direct runs remain observational. Exit `77` means both device nodes are absent. |
 | `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Media cases write `artifacts.tsv` rows for produced decode/encode outputs; set `MPP_DUMP_OUTPUTS=1` to make decode cases dump YUV outputs for byte-exact comparison. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Exit `77` means `/dev/mpp_service` is absent. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
@@ -764,7 +765,7 @@ logs.
 ## Running the suites & comparators
 
 ```bash
-VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/syzlang/ioctl-fuzz/case/comparator wiring check
+VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/syzlang/ioctl-fuzz/iommu-fuzz/case/comparator wiring check
 VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # also validate rewrite counter-default wiring
 VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 LIBRGA_FORCE_ROUTE_B=1 bash rewrite-conformance-run.sh  # also validate Route B counter-default wiring
 PROFILE=rewrite bash rewrite-conformance-run.sh  # run all suites for the booted rewrite profile
@@ -842,14 +843,15 @@ bash debugfs-counter-check.sh
 
 Maintenance gate: `shellcheck *.sh` in this directory and
 `VALIDATE_ONLY=1 bash rewrite-conformance-run.sh` are expected to pass; they
-now include the syzkaller ABI-marker consistency check and the
-`IOCTL_FUZZ_VALIDATE_BUILD=1` ioctl-mutator compile check in addition to the
-runner, case-list, and comparator checks. They were last verified on
-2026-07-06 after the syzkaller ABI-marker step and ioctl-fuzz build step were
-wired into `rewrite-conformance-run.sh`, after that checker was made safe for
-concurrent validation runs by giving `abi-probe.sh` a private build directory,
-and after direct `librga-smoke` coverage gained the `rkmppenc`-shaped fd-backed
-crop/CSC/resize fence chain. Historical reruns include the checks after generated GStreamer H.264
+now include the syzkaller ABI-marker consistency check,
+`IOCTL_FUZZ_VALIDATE_BUILD=1` ioctl-mutator compile check, and
+`IOMMU_FUZZ_VALIDATE_BUILD=1` RGA IOMMU scatter-fuzzer compile check in addition
+to the runner, case-list, and comparator checks. They were last verified on
+2026-07-06 after the syzkaller ABI-marker, ioctl-fuzz build, and IOMMU-fuzzer
+build steps were wired into `rewrite-conformance-run.sh`, after that checker was
+made safe for concurrent validation runs by giving `abi-probe.sh` a private
+build directory, and after direct `librga-smoke` coverage gained the
+`rkmppenc`-shaped fd-backed crop/CSC/resize fence chain. Historical reruns include the checks after generated GStreamer H.264
 RGBA/BGRA/RGBx/BGRx decoder output-format cases were promoted to required;
 after GStreamer `crop-rectangle` crop-meta
 decode coverage was promoted to required; after the required GStreamer public

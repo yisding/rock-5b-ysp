@@ -37,7 +37,17 @@ LRGA="${LRGA:-$CONFORMANCE_ROOT/sources/airockchip-librga}"
 LIBRGA_LIBDIR="${LIBRGA_LIBDIR:-$LRGA/libs/Linux/gcc-aarch64}"
 MPP_BUILD="${MPP_BUILD:-$CONFORMANCE_ROOT/out/mpp}"
 AV1_IVF="${AV1_IVF:-$CONFORMANCE_ROOT/assets/test_av1.ivf}"
-OUT="${OUT:-$CONFORMANCE_ROOT/logs/iommu-machinery/$(date +%Y%m%d-%H%M%S)}"
+CXX="${CXX:-g++}"
+IOMMU_FUZZ_VALIDATE_BUILD="${IOMMU_FUZZ_VALIDATE_BUILD:-0}"
+tmp_out=
+if [ "$IOMMU_FUZZ_VALIDATE_BUILD" = "1" ] &&
+   [ -z "${OUT+x}" ]; then
+  tmp_out="$(mktemp -d "${TMPDIR:-/tmp}/rkcompat-iommu-fuzz.XXXXXX")"
+  OUT="$tmp_out"
+  trap 'rm -rf "$tmp_out"' EXIT
+else
+  OUT="${OUT:-$CONFORMANCE_ROOT/logs/iommu-machinery/$(date +%Y%m%d-%H%M%S)}"
+fi
 RGA_ITERS="${RGA_ITERS:-64}"
 DECODE_LOOPS="${DECODE_LOOPS:-1}"
 PHASES="${PHASES:-ABC}"
@@ -49,6 +59,19 @@ while [ "$#" -gt 0 ]; do case "$1" in
 if [ "${EUID:-$(id -u)}" -eq 0 ]; then SUDO_CMD=(); else SUDO_CMD=(${SUDO-sudo}); fi
 mkdir -p "$OUT"
 FUZZ="$OUT/rga-iommu-fuzz"
+
+if [ "$IOMMU_FUZZ_VALIDATE_BUILD" = "1" ]; then
+  "$CXX" -std=gnu++17 -O2 -Wall -Wextra \
+      -I"$LRGA/include" \
+      -c "$TEST_DIR/rga-iommu-fuzz.cpp" \
+      -o "$OUT/rga-iommu-fuzz.o" \
+      2> "$OUT/rga-iommu-fuzz-build.log" || {
+        cat "$OUT/rga-iommu-fuzz-build.log" >&2
+        exit 1
+      }
+  echo "PASS: RGA IOMMU fuzzer builds"
+  exit 0
+fi
 
 # Debugfs dirs that hold instrumentation counters (present only when patched).
 COUNTER_DIRS=(
@@ -87,7 +110,7 @@ for f in /dev/rga /dev/mpp_service; do [ -e "$f" ] && log "  $f: ok" || log "  $
 # Build the RGA fuzzer.
 if [ ! -x "$FUZZ" ] || [ "$TEST_DIR/rga-iommu-fuzz.cpp" -nt "$FUZZ" ]; then
   log "  building rga-iommu-fuzz ..."
-  g++ -O2 -Wall -I"$LRGA/include" "$TEST_DIR/rga-iommu-fuzz.cpp" \
+  "$CXX" -std=gnu++17 -O2 -Wall -I"$LRGA/include" "$TEST_DIR/rga-iommu-fuzz.cpp" \
       -L"$LIBRGA_LIBDIR" -Wl,-rpath,"$LIBRGA_LIBDIR" -lrga -lpthread -o "$FUZZ" \
       2> "$OUT/fuzz-build.log" || { log "  BUILD FAILED (see $OUT/fuzz-build.log)"; exit 1; }
 fi

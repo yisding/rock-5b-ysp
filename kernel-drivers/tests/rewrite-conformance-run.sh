@@ -296,6 +296,10 @@ run_validation()
 		env IOCTL_FUZZ_VALIDATE_BUILD=1 \
 		bash "$TEST_DIR/ioctl-fuzz-smoke.sh"
 
+	run_step "iommu: validate RGA scatter fuzzer build" \
+		env IOMMU_FUZZ_VALIDATE_BUILD=1 \
+		bash "$TEST_DIR/iommu-machinery-fuzz.sh"
+
 	if [ "$RUN_GSTREAMER_SUITE" = "1" ]; then
 		run_step "gstreamer: validate case builders" \
 			env GST_VALIDATE_CASES=1 PROFILE="$PROFILE" \

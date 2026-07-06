@@ -32,7 +32,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
 | **Fault injection & recovery** | ❌ (suites only *detect* faults, never *inject*) | **add** — the recovery matrix (§4) |
-| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; `VALIDATE_ONLY=1` conformance validation now checks both syzlang ABI markers and the ioctl mutator build, but the draft has not yet been compiled by syzkaller or run under KCOV/KASAN | finish §5 |
+| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; the RGA3 Route B/IOMMU path has a scattered-userptr correctness fuzzer under [`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh); `VALIDATE_ONLY=1` conformance validation now checks syzlang ABI markers, the ioctl mutator build, and the RGA IOMMU fuzzer build, but neither fuzzer has been run under KCOV/KASAN and the syzkaller draft has not yet been compiled by syzkaller | finish §5 |
 | **Rewrite-specific security/ABI audit** | ❌ ([`bsp-audit.md`](./bsp-audit.md) is the *forward-port*) | **add** (§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
@@ -207,6 +207,17 @@ now compiles the mutator through `IOCTL_FUZZ_VALIDATE_BUILD=1` in
 `VALIDATE_ONLY=1 ../tests/rewrite-conformance-run.sh`, but that only catches
 build rot; it still needs a real booted rewrite run and should later be replaced
 or augmented by a proper libFuzzer/AFL in-process harness plus syzkaller.
+
+The Route B/IOMMU-specific first pass is
+[`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh), which
+builds `rga-iommu-fuzz.cpp` and can force scattered userptr RGA3 copy/resize/
+rotate/cvtcolor, reuse the bit-exact decode oracle, and run RGA scatter
+concurrently with AV1 decode while scanning dmesg/debugfs for IOMMU faults and
+Route B leaks. Device-free validation now compiles the RGA scatter fuzzer object
+through `IOMMU_FUZZ_VALIDATE_BUILD=1`; that is only a source/build gate. The
+remaining production evidence is still a booted rewrite run on RK3588 with
+Route B `attempt`/`ok` deltas, `active` returning to baseline, clean IOMMU fault
+counters, and correct output under the debug kernel.
 
 ## 6. Security / ABI hardening review (net-new, human)
 
