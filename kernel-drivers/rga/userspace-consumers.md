@@ -26,7 +26,7 @@ recognized-but-unsupported unless a current RK3588 workload proves otherwise.
 
 | Consumer family | Public source checked | RGA surface seen | Rewrite impact |
 |-----------------|-----------------------|------------------|----------------|
-| `rkmppenc` CLI encoder | `rigaya/rkmppenc` README and `mppcore/mpp_filter.cpp` at `a12c80e` | MPP buffer fd -> `importbuffer_fd`; `wrapbuffer_handle(_t)`; `imcrop`, `imcvtcolor`, `imresize`; fence fd plumbing | Good optional conformance target. It exercises maintained IM2D fd/handle crop/CSC/resize paths and does not require raw ioctls or BSP debug APIs. |
+| `rkmppenc` CLI encoder | `rigaya/rkmppenc` README and `mppcore/mpp_filter.cpp` at `a12c80e` | MPP buffer fd -> `importbuffer_fd`; `wrapbuffer_handle(_t)`; `imcrop`, `imcvtcolor`, `imresize`; fence fd plumbing | Good optional integration target. The direct YSP smoke now covers the fd-backed IM2D crop primitive plus existing CSC/resize paths, but a full `rkmppenc` run would still test a separate MPP-frame producer and filter graph. |
 | Standalone `gstreamer-rga` plugin | `corenel/gstreamer-rga` changelog at `223ecb2` | `rgavideoconvert` via `c_RkRgaBlit`, DMABuf support, common RGB/YUV conversions, runtime core-mask selection | No new ABI beyond legacy blit/core-mask. Useful optional coverage if we want an independent GStreamer RGA converter in addition to JeffyCN's plugin. |
 | GStreamer `videoflip` RGA patch | `JeffyCN/meta-rockchip` patch at `c1eed72` | env-gated `GST_VIDEO_FLIP_USE_RGA=1`; virtual-buffer `c_RkRgaBlit`; rotations/flips; RGB/YUV and `NV12_10LE40` format mapping | Mostly covered by current rotation/format tests, but a focused `videoflip` pipeline would be a good optional check for virtual-buffer rotate/flip and compact-10-bit input. |
 | Jellyfin/FFmpeg packaging | `SynoCommunity/spksrc` ffmpeg8 Rockchip patch at `34c6e71` | `--enable-rkrga`; `scale_rkrga`, `vpp_rkrga`, `overlay_rkrga`; RKMPP decode/encode | Already represented by the YSP `ffmpeg-suite.sh`/Jellyfin-oriented filter coverage. No separate RGA ABI surface found. |
@@ -43,6 +43,8 @@ as useful but non-blocking conformance work:
 
 - add an optional `rkmppenc` profile, because it chains MPP buffer fds through
   IM2D crop, CSC, resize, and fence plumbing in a different userspace codebase;
+  the direct `librga-smoke` now covers the fd-backed crop primitive, but not
+  the full `rkmppenc` pipeline;
 - add one standalone `gstreamer-rga` or `videoflip` RGA pipeline if we want an
   independent GStreamer converter outside JeffyCN's plugin;
 - add one UI/display smoke for fd-backed BGRA/XRGB rotation into a GBM or dumb

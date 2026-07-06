@@ -94,6 +94,35 @@ static int check_pattern(const uint8_t *buf, int width, int height)
 	return 0;
 }
 
+static int check_rgba_crop(const uint8_t *dst, int crop_x, int crop_y,
+			   int crop_w, int crop_h)
+{
+	for (int y = 0; y < crop_h; y++) {
+		for (int x = 0; x < crop_w; x++) {
+			const uint8_t *dst_px =
+				dst + ((y * crop_w + x) * TEST_BPP);
+			uint8_t expected[TEST_BPP] = {
+				(uint8_t)(crop_x + x),
+				(uint8_t)(crop_y + y),
+				(uint8_t)((crop_x + x) ^ (crop_y + y)),
+				0xff,
+			};
+
+			if (memcmp(expected, dst_px, TEST_BPP)) {
+				fprintf(stderr,
+					"crop pixel %d,%d differs: got %02x:%02x:%02x:%02x expected %02x:%02x:%02x:%02x\n",
+					x, y, dst_px[0], dst_px[1],
+					dst_px[2], dst_px[3], expected[0],
+					expected[1], expected[2],
+					expected[3]);
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static bool env_enabled(const char *name)
 {
 	const char *value = getenv(name);
@@ -908,6 +937,133 @@ static int run_rknn_fd_improcess_cases(void)
 				     (size_t)64 * 64 * 3 / 2,
 				     (size_t)32 * 32 * 3,
 				     fill_nv21_pattern);
+}
+
+static int run_dmabuf_imcrop_rgba(void)
+{
+	const int src_w = 64;
+	const int src_h = 64;
+	const int crop_x = 10;
+	const int crop_y = 12;
+	const int crop_w = 32;
+	const int crop_h = 24;
+	const size_t src_size = (size_t)src_w * src_h * TEST_BPP;
+	const size_t dst_size = (size_t)crop_w * crop_h * TEST_BPP;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	im_handle_param_t src_param = {
+		(uint32_t)src_w,
+		(uint32_t)src_h,
+		(uint32_t)RK_FORMAT_RGBA_8888,
+	};
+	im_handle_param_t dst_param = {
+		(uint32_t)crop_w,
+		(uint32_t)crop_h,
+		(uint32_t)RK_FORMAT_RGBA_8888,
+	};
+	im_rect src_rect = {crop_x, crop_y, crop_w, crop_h};
+	im_rect dst_rect = {0, 0, crop_w, crop_h};
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	int ret;
+
+	ret = dmabuf_alloc_any(src_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "imcrop source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(dst_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "imcrop dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "imcrop source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_pattern(dma_src.mem, src_w, src_h);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "imcrop source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "imcrop dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "imcrop dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src_handle = importbuffer_fd(dma_src.fd, &src_param);
+	dst_handle = importbuffer_fd(dma_dst.fd, &dst_param);
+	if (!src_handle || !dst_handle) {
+		fprintf(stderr, "imcrop importbuffer_fd failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, src_w, src_h, RK_FORMAT_RGBA_8888);
+	dst = wrapbuffer_handle(dst_handle, crop_w, crop_h, RK_FORMAT_RGBA_8888);
+
+	ret = imcheck(src, dst, src_rect, dst_rect, IM_CROP);
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("imcheck imcrop", ret);
+		goto out;
+	}
+
+	ret = imcrop(src, dst, src_rect);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("imcrop", ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "imcrop dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (check_rgba_crop(dma_dst.mem, crop_x, crop_y, crop_w, crop_h)) {
+		ret = 1;
+	} else {
+		ret = write_artifact("dmabuf_imcrop_rgba",
+				     dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"imcrop dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "dmabuf imcrop",
+		       dma_src.heap_path);
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
 }
 
 static int run_rknn_fd_rgba_letterbox(void)
@@ -1863,6 +2019,10 @@ int main(void)
 		goto out;
 
 	ret = run_rknn_fd_improcess_cases();
+	if (ret)
+		goto out;
+
+	ret = run_dmabuf_imcrop_rgba();
 	if (ret)
 		goto out;
 
