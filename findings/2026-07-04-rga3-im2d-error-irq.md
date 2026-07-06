@@ -12,6 +12,11 @@
 > path runs clean; scattered `virt_addr` imports are now cleanly fail-closed
 > **by design** (see the 2026-07-05 section). Related: [[2026-07-04-librga-consumer-survey]]
 
+> Update 2026-07-05: candidate Route B patches now exist under
+> `kernel-drivers/patches/route-b/`; see
+> `findings/2026-07-05-rga3-route-b-design.md`. They are static/build verified,
+> but the RK3588 runtime gate described there is still pending.
+
 ## Summary
 
 The direct upstream librga samples initially looked like either bad/outdated
@@ -417,8 +422,7 @@ technical path that makes scattered `virt_addr` work on RGA3 is **Route B**:
 allocate an IOVA range in a translated RGA domain, `iommu_map_sg()` the scatter into
 it, program that one base, do explicit `dma_sync_sg_*`, and tear it down on release
 — a few hundred lines, medium-high risk (it re-enters the manual-IOMMU territory the
-fail-closed check was added to escape; the unused `struct rga_iommu_dma_cookie` in
-`rga3/include/rga_drv.h` is that mechanism's remnant).
+fail-closed check was added to escape).
 
 **Recommendation: accept the limitation.** RGA3 requires dma-buf /
 physically-contiguous input; userptr imports otherwise route to the rga2 core

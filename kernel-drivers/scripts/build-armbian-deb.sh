@@ -40,7 +40,8 @@
 #   KERNEL_TREE=/path/to/other-kernel PATCH_PREFIX=rk3588-rewrite bash build-armbian-deb.sh
 #   bash build-armbian-deb.sh KERNEL_CONFIGURE=yes      # extra args pass through
 #
-# Reset the built-in patch archive without building with:  --restore
+# Reset the built-in patch archive and generated userpatches without building
+# with:  --restore
 # =============================================================================
 # shellcheck disable=SC2012
 set -euo pipefail
@@ -95,9 +96,17 @@ reset_core_patches() {
 	fi
 }
 
+reset_userpatches() {
+	say "  clear generated Armbian userpatches in $UP_DIR"
+	mkdir -p "$UP_DIR"
+	find "$UP_DIR" -maxdepth 1 -type f -name '*.patch' -print -delete |
+		sed 's/^/      removed /'
+}
+
 # --- --restore mode --------------------------------------------------------
 if [ "${1:-}" = "--restore" ]; then
 	reset_core_patches
+	reset_userpatches
 	exit 0
 fi
 
@@ -139,12 +148,10 @@ say "  generated $(ls "$STAGING"/"$PATCH_PREFIX"-*.patch | wc -l) patches into $
 
 # =============================================================================
 say "STEP 2: reset Armbian userpatches in $UP_DIR"
-mkdir -p "$UP_DIR"
 # This archive directory is generated state for these kernel builds. Reset all
 # top-level patches so switching between AV1/rewrite/other generated kernels
 # cannot leave stale patches behind.
-find "$UP_DIR" -maxdepth 1 -type f -name '*.patch' -print -delete |
-	sed 's/^/      removed /'
+reset_userpatches
 
 # =============================================================================
 say "STEP 3: stage generated userpatches"

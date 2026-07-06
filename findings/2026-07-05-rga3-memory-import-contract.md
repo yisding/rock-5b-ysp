@@ -13,6 +13,12 @@
 > Trust: CODE-INSPECTED; MEASURED for the forward-port scattered-userptr reject
 > behavior inherited from the related runtime finding.
 
+> Update 2026-07-05: this finding captured the pre-Route-B state. Candidate
+> Route B patch artifacts now live under `kernel-drivers/patches/route-b/` and
+> are documented in `findings/2026-07-05-rga3-route-b-design.md`. They are
+> apply/checkpatch/object-build verified, but RK3588 hardware runtime validation
+> is still pending.
+
 ## The fact
 
 Physical-address imports and userptr/virtual-address imports are distinct ABI

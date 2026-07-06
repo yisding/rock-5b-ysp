@@ -6,7 +6,7 @@ The kernel-side deliverables of this repo, in three layers:
 
 | Field | Contents |
 |-------|----------|
-| User outcome | Apply the kernel patch pair through Armbian userpatches or use it as the source for the DKMS path. |
+| User outcome | Apply the validated base kernel patch pair through Armbian userpatches or use it as the source for the DKMS path. |
 | Developer focus | Review the forward-port artifacts, the RK3588 DT patch, and the BSP-audit cleanup series without losing provenance. |
 | Owns | The two generated forward-port patches, `cleanup-split/`, and the historical `cleanup-draft/` verification record. |
 | Depends on | Source-tree pins in [`docs/source-trees.md`](../../docs/source-trees.md), kernel-driver explanations in [`kernel-drivers/README.md`](../README.md), and maintenance workflow in [`kernel-drivers/docs/resyncing.md`](../docs/resyncing.md). |
@@ -18,8 +18,16 @@ The kernel-side deliverables of this repo, in three layers:
 | `rk3588-rkvenc2-02-vcodec-rga-dt.patch` | ~16 KB — **device tree**: encoder + RGA nodes inline, decoder via convert-in-place override, board enables. | [device-tree guide](../docs/device-tree.md), [Armbian packaging guide](../../packaging/docs/armbian-packaging.md) |
 | [`cleanup-split/`](cleanup-split) | **THE reviewable BSP-audit fix series** — 65 one-issue-per-patch mailbox patches fixing the [BSP audit](../docs/bsp-audit.md) findings on top of the forward-port. Apply/review **this**, not the draft. | [`cleanup-split/README.md`](cleanup-split/README.md) |
 | [`cleanup-draft/`](cleanup-draft) | **Historical** per-file fix bundles (15 patches) + [`verification.md`](./cleanup-draft/verification.md), the adversarial-verification **record** for the same fixes. Kept as the audit's provenance trail; superseded for application by `cleanup-split/`. | [`cleanup-draft/README.md`](cleanup-draft/README.md) |
+| [`route-b/`](route-b) | **Experimental RGA3 userptr follow-up** — candidate Route B patches that map scattered pinned userptr through a driver-owned contiguous IOVA span in the translated RGA domain. Apply/checkpatch/object-build verified; RK3588 runtime validation is still pending. | [`route-b/README.md`](route-b/README.md) |
 
 > **⚠️ Runtime gate PENDING** — the runtime codec regression test (encode/decode/transcode plus the targeted triggers listed in `patches/cleanup-draft/verification.md`) has **never been run** on a kernel carrying these fixes. Compile status alone is not verification. Do not ship the series without the runtime gate; track it in `status.md` and record the result in `patches/cleanup-draft/verification.md` when run.
+
+The generic Armbian apply flow below is for the two validated base patches named
+`rk3588-rkvenc2-0*.patch`. Do not drop `route-b/*.patch` into Armbian's patch
+archive as a pair: Route B has a separate consumption flow in
+[`route-b/runtime-validation.md`](route-b/runtime-validation.md). Patch 0001 is
+applied to the forward-port source tree and regenerated through
+`KERNEL_TREE=...`; patch 0002 is rewrite-only.
 
 The two numbered patches are generated against **pristine mainline `v6.18`** (two
 commits on top of the `v6.18` tag) and map to the two dev-tree commits:
