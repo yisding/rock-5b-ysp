@@ -32,7 +32,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
 | **Fault injection & recovery** | ❌ (suites only *detect* faults, never *inject*) | **add** — the recovery matrix (§4) |
-| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; the ABI check is now included in `VALIDATE_ONLY=1` conformance validation, but the draft has not yet been compiled by syzkaller or run under KCOV/KASAN | finish §5 |
+| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; `VALIDATE_ONLY=1` conformance validation now checks both syzlang ABI markers and the ioctl mutator build, but the draft has not yet been compiled by syzkaller or run under KCOV/KASAN | finish §5 |
 | **Rewrite-specific security/ABI audit** | ❌ ([`bsp-audit.md`](./bsp-audit.md) is the *forward-port*) | **add** (§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
@@ -202,8 +202,11 @@ A cheap first pass before syzkaller now exists as
 [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh): it mutates
 non-submit MPP/RGA ioctl payloads, sizes, flags, bad user pointers, RGA import
 pools, and request create/cancel lifetimes. It still needs to be run on a booted
-rewrite kernel, ideally under Kernel A with KASAN/KCOV, and later replaced or
-augmented by a proper libFuzzer/AFL in-process harness plus syzkaller.
+rewrite kernel, ideally under Kernel A with KASAN/KCOV. Device-free validation
+now compiles the mutator through `IOCTL_FUZZ_VALIDATE_BUILD=1` in
+`VALIDATE_ONLY=1 ../tests/rewrite-conformance-run.sh`, but that only catches
+build rot; it still needs a real booted rewrite run and should later be replaced
+or augmented by a proper libFuzzer/AFL in-process harness plus syzkaller.
 
 ## 6. Security / ABI hardening review (net-new, human)
 
