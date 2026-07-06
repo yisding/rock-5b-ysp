@@ -62,6 +62,9 @@ GST_ENABLE_H265_422_10_CASES=${GST_ENABLE_H265_422_10_CASES:-0}
 GST_REQUIRE_H265_422_10_CASES=${GST_REQUIRE_H265_422_10_CASES:-0}
 GST_ENABLE_VIDEOFLIP_RGA_CASES=${GST_ENABLE_VIDEOFLIP_RGA_CASES:-0}
 GST_REQUIRE_VIDEOFLIP_RGA_CASES=${GST_REQUIRE_VIDEOFLIP_RGA_CASES:-0}
+GST_ENABLE_RGACONVERT_CASES=${GST_ENABLE_RGACONVERT_CASES:-0}
+GST_REQUIRE_RGACONVERT_CASES=${GST_REQUIRE_RGACONVERT_CASES:-0}
+GST_RGACONVERT_ELEMENT=${GST_RGACONVERT_ELEMENT:-rgavideoconvert}
 GST_DISPLAY_SINK=${GST_DISPLAY_SINK:-rkximagesink}
 GST_DISPLAY_SINK_ARGS=${GST_DISPLAY_SINK_ARGS:-}
 
@@ -274,6 +277,13 @@ videoflip_rga_bgrx_clockwise
 videoflip_rga_bgrx_horizontal
 "
 
+rgaconvert_cases_default="
+gst_inspect_rgaconvert
+rgaconvert_bgrx_to_nv12
+rgaconvert_nv12_to_bgrx
+rgaconvert_bgrx_scale
+"
+
 if [ "$GST_ENABLE_VP9_CASES" = "1" ]; then
 	diagnostic_cases_default="$diagnostic_cases_default
 $vp9_diagnostic_cases_default"
@@ -373,6 +383,17 @@ $videoflip_rga_cases_default"
 	else
 		diagnostic_cases_default="$diagnostic_cases_default
 $videoflip_rga_cases_default"
+	fi
+fi
+
+if [ "$GST_ENABLE_RGACONVERT_CASES" = "1" ] ||
+	[ "$GST_REQUIRE_RGACONVERT_CASES" = "1" ]; then
+	if [ "$GST_REQUIRE_RGACONVERT_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$rgaconvert_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$rgaconvert_cases_default"
 	fi
 fi
 
@@ -795,6 +816,23 @@ build_videoflip_rga()
 		videotestsrc "num-buffers=$GST_FORMAT_MATRIX_BUFFERS" is-live=false pattern=smpte
 		"!" "video/x-raw,format=$format,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
 		"!" videoflip "method=$method"
+		"!" fakesink sync=false
+	)
+}
+
+build_rgaconvert()
+{
+	local src_format=$1
+	local dst_format=$2
+	local dst_width=$3
+	local dst_height=$4
+
+	CMD=(
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$GST_FORMAT_MATRIX_BUFFERS" is-live=false pattern=smpte
+		"!" "video/x-raw,format=$src_format,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" "$GST_RGACONVERT_ELEMENT"
+		"!" "video/x-raw,format=$dst_format,width=$dst_width,height=$dst_height"
 		"!" fakesink sync=false
 	)
 }
@@ -1863,6 +1901,9 @@ build_case_command()
 	gst_inspect_videoflip)
 		CMD=(gst-inspect-1.0 videoflip)
 		;;
+	gst_inspect_rgaconvert)
+		CMD=(gst-inspect-1.0 "$GST_RGACONVERT_ELEMENT")
+		;;
 	gst_inspect_display_sink)
 		CMD=(gst-inspect-1.0 "$GST_DISPLAY_SINK")
 		;;
@@ -2122,6 +2163,15 @@ build_case_command()
 		;;
 	videoflip_rga_bgrx_horizontal)
 		build_videoflip_rga BGRx horizontal-flip
+		;;
+	rgaconvert_bgrx_to_nv12)
+		build_rgaconvert BGRx NV12 "$GST_SCALE_WIDTH" "$GST_SCALE_HEIGHT"
+		;;
+	rgaconvert_nv12_to_bgrx)
+		build_rgaconvert NV12 BGRx "$GST_SCALE_WIDTH" "$GST_SCALE_HEIGHT"
+		;;
+	rgaconvert_bgrx_scale)
+		build_rgaconvert BGRx BGRx "$GST_SCALE_WIDTH" "$GST_SCALE_HEIGHT"
 		;;
 	generated_dec_h264_fakesink)
 		CMD=(__builtin_generated_decode h264)
