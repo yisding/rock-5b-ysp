@@ -413,6 +413,9 @@ run_validation()
 	run_step "comparators: regression selftest" \
 		bash "$TEST_DIR/suite-compare-selftest.sh"
 
+	run_step "abi replay: filter selftest" \
+		bash "$TEST_DIR/abi-replay.sh" --selftest
+
 	run_step "evidence: audit selftest" \
 		bash "$TEST_DIR/rewrite-evidence-audit.sh" --selftest
 }
