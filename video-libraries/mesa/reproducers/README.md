@@ -3,7 +3,8 @@
 These are the standalone C programs used while debugging Panfrost texture
 transfers on ROCK 5B / Mali-G610, plus the archived Mesa patch needed to
 rebuild the failing BLIT configuration. They use GBM/EGL and GLES 3.x
-directly, so run them on the board with a Mesa build that includes Panfrost.
+directly (one, `vk_interp_probe.c`, uses Vulkan/panvk instead), so run them
+on the board with a Mesa build that includes Panfrost.
 
 | File | One-liner |
 |---|---|
@@ -16,14 +17,19 @@ directly, so run them on the board with a Mesa build that includes Panfrost.
 | [`repro_blit_scissor.c`](repro_blit_scissor.c) | Scissored wide identity blit: verifies clipping doesn't shift the fragcoord mapping and untouched texels keep their sentinel |
 | [`repro_blit_array.c`](repro_blit_array.c) | 2D-array-layer readback: found the array regression (15672/16307), now exact via the series' single-layer view commit |
 | [`probe_interp.c`](probe_interp.c) | Isolates varying interpolation from texture fetch (smooth / noperspective / gl_FragCoord modes) |
+| [`tiny_interp_probe.c`](tiny_interp_probe.c) | Smallest varying-only probe: no u_blitter, no texture, no TXF, no window system; measures the width-dependent non-power-of-two varying drift directly (~2^-10 at the blit-bug widths) and shows powers of two are exact |
+| [`vk_interp_probe.c`](vk_interp_probe.c) (+ [`vk_interp_probe.vert`](vk_interp_probe.vert), [`vk_interp_probe.varying.frag`](vk_interp_probe.varying.frag), [`vk_interp_probe.fragcoord.frag`](vk_interp_probe.fragcoord.frag)) | Vulkan port of the tiny probe on panvk — no Gallium, no u_blitter, no GL state tracker in the stack — reproducing the varying drift bit-for-bit; the same binary passes on llvmpipe |
 | [`probe_const.c`](probe_const.c) | Constant-varying exactness probe: shows all-vertices-equal smooth varyings interpolate bit-exactly at every magnitude |
 | [`probe_wcorr.c`](probe_wcorr.c) | Shader-side recovery probe: disproves `gl_FragCoord.w` and `dFdx`-based correction |
 | [`repro_afbc.c`](repro_afbc.c) | Scoped negative result: the AFBC CPU-map staging path is clean on unfixed drivers (direct wide blits are NOT — see `repro_blit_flip.c`) |
 | [`bench_transfer.c`](bench_transfer.c) | BLIT-vs-COMPUTE timing microbenchmark for the same readback shape |
 | [`mr42563-comment-failures.txt`](mr42563-comment-failures.txt) | The exact 25 dEQP-GLES3 case names from the MR !42563 review comment, rerun locally after the COMPUTE switch |
 
-All GL entrypoints are loaded via `eglGetProcAddress` specifically to bypass
-glvnd and guarantee the locally built Mesa driver is exercised.
+The older probes load all GL entrypoints via `eglGetProcAddress` specifically
+to bypass glvnd and guarantee the locally built Mesa driver is exercised.
+`tiny_interp_probe.c` instead links `libGLESv2` directly (glvnd dispatches via
+the current EGL context); its stderr `GL_RENDERER`/`GL_VERSION` lines confirm
+which driver actually ran.
 
 ## Build
 
@@ -35,6 +41,11 @@ cc -O2 -o repro_blit_flip repro_blit_flip.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o repro_blit_scissor repro_blit_scissor.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o repro_blit_array repro_blit_array.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o probe_interp probe_interp.c -lEGL -lGLESv2 -lgbm -lm
+cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
+glslc vk_interp_probe.vert           -o vk_interp_probe.vert.spv
+glslc vk_interp_probe.varying.frag   -o vk_interp_probe.varying.frag.spv
+glslc vk_interp_probe.fragcoord.frag -o vk_interp_probe.fragcoord.frag.spv
+cc -O2 -o vk_interp_probe vk_interp_probe.c -lvulkan -lm
 cc -O2 -o probe_const probe_const.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o probe_wcorr probe_wcorr.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o repro_afbc repro_afbc.c -lEGL -lGLESv2 -lgbm -lm
@@ -65,7 +76,10 @@ REPRO_NODE=/dev/dri/renderD128
 ```
 
 (`repro_blit_off.c` and `repro_blit_float.c` honor it too; `probe_interp.c`,
-`probe_wcorr.c`, `probe_const.c`, and `repro_afbc.c` hardcode `renderD128`.)
+`probe_wcorr.c`, `probe_const.c`, and `repro_afbc.c` hardcode `renderD128`.
+`tiny_interp_probe.c` uses the surfaceless EGL platform and opens no DRM node
+itself. `vk_interp_probe.c` picks its physical device through the Vulkan
+loader by device-name substring.)
 
 ## `0001-panfrost-advertise-transfer-blit-and-compute.patch`
 
@@ -212,6 +226,205 @@ reserved word in GLSL ES, and the probe compiles its shaders as
 (`pan_nir_lower_noperspective.c` routes it through the same perspective
 machinery) and on the compiler-level `prefer_persp = false` experiment, not
 on this probe.
+
+## `tiny_interp_probe.c`
+
+Smallest varying-only repro (added 2026-07-06). It exists to answer the
+upstream review argument "the hardware docs say the varying interpolator is
+full 32-bit, so the ~2^-10 error must be u_blitter misusing varyings (e.g.
+nearest-sample tie-breakers)". The probe removes everything except varying
+interpolation itself: no `u_blitter`, no source texture, no `texelFetch`, no
+filtering, no format-changing readback, no window system, no GBM (surfaceless
+EGL). One `gl_VertexID`-generated triangle covers a `W x 1` `R32UI` render
+target; the vertex shader computes a varying that must interpolate to exactly
+`x + 0.5` at the center of pixel `x`; the fragment shader stores the raw
+float bits (`floatBitsToUint`); the CPU reads the same bits back with a
+format-matching `glReadPixels(GL_RED_INTEGER)` and checks `floor(v) == x`.
+Mode `fragcoord` writes `gl_FragCoord.x` through the otherwise identical
+pipeline as the control. The default width `12288` (`3 * 4096`) was chosen
+because the drift there is almost exactly `2^-10`.
+
+Non-graphics model: this is a ruler test. The GPU is given the numbers at the
+two ends of the ruler and must fill in the number at every pixel center. Pixel
+`x` should see `x + 0.5`. If the filled-in number is slightly too low, a real
+blit shader that truncates it to an integer fetches the previous texel.
+
+Build and run (exit 0 = every pixel exact, 2 = any `floor(v) != x` failure,
+1 = usage or EGL/GL setup error):
+
+```bash
+cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
+./tiny_interp_probe                  # 12288 x 1, varying — fails on G610
+./tiny_interp_probe 12288 fragcoord  # control — passes
+./tiny_interp_probe 8192             # pow2 control — passes
+./tiny_interp_probe 16307 varying    # width from the original bug reports
+```
+
+Verbatim output on ROCK 5B / Mali-G610, system Mesa (every run first prints
+`GL_RENDERER=Mali-G610 MC4 (Panfrost)` and `GL_VERSION=OpenGL ES 3.1 Mesa
+26.0.3-1ubuntu1` to stderr):
+
+```text
+$ ./tiny_interp_probe                  # exit 2
+mode=varying width=12288: floor(v) != x at 11744 of 12288 pixels (first at x=529)
+last pixel x=12287: v=12275.5312 expected=12287.5 relative_error=9.741e-04 (0.997 * 2^-10)
+
+$ ./tiny_interp_probe 12288 fragcoord  # exit 0
+mode=fragcoord width=12288: floor(v) != x at 0 of 12288 pixels (first at x=-1)
+last pixel x=12287: v=12287.5000 expected=12287.5 relative_error=0.000e+00 (0.000 * 2^-10)
+
+$ ./tiny_interp_probe 8192             # exit 0; 16384 likewise
+mode=varying width=8192: floor(v) != x at 0 of 8192 pixels (first at x=-1)
+last pixel x=8191: v=8191.5000 expected=8191.5 relative_error=0.000e+00 (0.000 * 2^-10)
+
+$ ./tiny_interp_probe 16307 varying    # exit 2
+mode=varying width=16307: floor(v) != x at 15672 of 16307 pixels (first at x=623)
+last pixel x=16306: v=16293.2832 expected=16306.5 relative_error=8.105e-04 (0.830 * 2^-10)
+
+$ ./tiny_interp_probe 2080             # exit 2 — smallest failing width
+mode=varying width=2080: floor(v) != x at 32 of 2080 pixels (first at x=2048)
+last pixel x=2079: v=2078.9922 expected=2079.5 relative_error=2.442e-04 (0.250 * 2^-10)
+```
+
+Width dependence, measured 2026-07-06 on this board:
+
+- Every power-of-two width tested (512, 1024, 2048, 4096, 8192, 16384) is
+  **bit-exact**.
+- Non-power-of-two widths show a jagged, width-dependent relative error from
+  ~`1.25e-5` (`W=640`) to ~`1.24e-3` (`W=16300`) that quantizes to
+  power-of-two-ish values per width: exactly `2^-12` at `W=2080`, exactly
+  `2^-14` at `W=16383`, ~`2^-10` at `W=12288` and `W=16307`. So "~2^-10" is
+  the signature of specific widths — including the ones the blit bug was
+  found at — not a universal constant.
+- The smallest width where `floor()` fails is `2080` (pixels `x=2048..2079`).
+  Failing widths are sparse and non-monotone up to ~4300 (`W=5000` fails,
+  `W=6000` passes), dense above.
+
+Three cross-checks close the remaining escape hatches:
+
+- The `fragcoord` control is bit-exact through the identical pipeline, so
+  rasterization and readback are fine; only the varying value is off.
+- An `R32F` render target + `glReadPixels(GL_RED, GL_FLOAT)` variant returns
+  bit-identical values to the `R32UI` path (verified via hex-float compare),
+  ruling out readback conversion as the source of the drift. `R32UI` stays
+  canonical because integer readback is spec-guaranteed conversion-free.
+- An earlier revision drew the same varying plane as a two-triangle quad;
+  results were bit-identical to the single triangle, ruling out the diagonal
+  split (and u_blitter's `use_index_buffer`/`use_single_triangle` toggles) as
+  causes.
+
+Two 2026-07-06 follow-ups extend the same result:
+
+- **The drift reproduces bit-for-bit through Vulkan/panvk** — a stack with no
+  Gallium, no u_blitter, and no GL state tracker anywhere — see
+  [`vk_interp_probe.c`](#vk_interp_probec) below. A source-level and gdb audit
+  additionally proves the GL probe's own frame contains no u_blitter or
+  internal-blit work — see
+  [`../docs/blit-precision.md` § The Probe Frame Contains No u_blitter Work](../docs/blit-precision.md).
+- **The drift persists, bit-identically, on the fixed upstream MR stack** —
+  as expected, since the fix reroutes u_blitter's TXF coordinates around
+  varyings; it does not (and cannot) repair varying interpolation itself.
+  Verbatim GL-probe run on a debug build of the corrected !42614 stack
+  (2026-07-06), exit 2:
+
+  ```text
+  GL_RENDERER=Mali-G610 MC4 (Panfrost)
+  GL_VERSION=OpenGL ES 3.1 Mesa 26.2.0-devel (git-60eb35d6ee)
+  mode=varying width=12288: floor(v) != x at 11744 of 12288 pixels (first at x=529)
+  last pixel x=12287: v=12275.5312 expected=12287.5 relative_error=9.741e-04 (0.997 * 2^-10)
+  ```
+
+  The `fragcoord` and `8192` controls on the same build report 0 bad pixels
+  and exit 0.
+
+Since the probe has no texture sample at all and compares directly against
+pixel centers (`x + 0.5`), nearest-sample tie-breakers and texel-centering
+cannot explain the failure. The `W=16307` numbers reproduce the original bug
+signature exactly (`15672/16307` wrong, first at `x=623`, relative error
+`8.105e-04`), so the earlier `repro_blit`/`probe_interp` history stays
+comparable; the last-pixel relative error replaces the older least-squares
+fit as the headline statistic.
+
+The power-of-two exactness is consistent with the interpolator ALU being full
+precision while the plane/coefficient setup for non-power-of-two
+render-target widths loses precision. Whether that setup error lives in the
+hardware or in the varying descriptors the drivers program is open — see
+[`../docs/blit-precision.md`](../docs/blit-precision.md).
+
+## `vk_interp_probe.c`
+
+Vulkan port of `tiny_interp_probe` (added 2026-07-06), run on **panvk**,
+Mesa's Vulkan driver for Mali. The point: the panvk stack contains **no
+Gallium, no u_blitter, and no GL state tracker anywhere**, and it reproduces
+the varying drift **bit-for-bit identically** to the GL probe. That makes the
+"u_blitter misuses varyings" hypothesis untenable — u_blitter does not exist
+in this stack — and turns the result into two independent driver stacks
+programming the same hardware interpolation and reading back the same wrong
+bits.
+
+Same shape as the GL probe: one triangle covers a `W x 1` `R32_UINT` render
+target via dynamic rendering; the vertex shader
+([`vk_interp_probe.vert`](vk_interp_probe.vert)) emits a varying that must
+interpolate to `x + 0.5` at the center of pixel `x`; the fragment shader
+([`vk_interp_probe.varying.frag`](vk_interp_probe.varying.frag)) stores
+`floatBitsToUint(v)`; readback is `vkCmdCopyImageToBuffer` into host-visible
+memory (raw bits, no format conversion); the CPU checks `floor(v) == x`.
+Mode `fragcoord` ([`vk_interp_probe.fragcoord.frag`](vk_interp_probe.fragcoord.frag))
+writes `gl_FragCoord.x` through the identical pipeline as the control. The
+physical device is chosen by substring of
+`VkPhysicalDeviceProperties::deviceName` (default `Mali`); passing `llvmpipe`
+runs the identical binary on a software implementation as a
+checker-soundness control. The readback buffer is prefilled with a sentinel;
+the `unwritten` count in the output is a rasterization-coverage self-check
+(0 in every run below).
+
+Build and run (exit 0 = every pixel satisfies `floor(v) == x`, 2 =
+mismatches, 1 = setup error):
+
+```bash
+glslc vk_interp_probe.vert           -o vk_interp_probe.vert.spv
+glslc vk_interp_probe.varying.frag   -o vk_interp_probe.varying.frag.spv
+glslc vk_interp_probe.fragcoord.frag -o vk_interp_probe.fragcoord.frag.spv
+cc -O2 -o vk_interp_probe vk_interp_probe.c -lvulkan -lm
+./vk_interp_probe [width] [varying|fragcoord] [device-substring]   # defaults: 12288 varying Mali
+```
+
+Every run prints `device=... apiVersion=... driverVersion=...` to stderr; on
+this board panvk (Mesa 26.0.3-1ubuntu1) reports `apiVersion=1.4.335` — panvk
+claims Vulkan 1.4 conformance on this device, so this is not an experimental
+half-driver being exercised off its supported path.
+
+Verbatim output (recorded 2026-07-06):
+
+```text
+$ ./vk_interp_probe                          # exit 2
+mode=varying width=12288 device=Mali-G610 MC4: floor(v) != x at 11744 of 12288 pixels (first at x=529, unwritten=0)
+last pixel x=12287: v=12275.5312 expected=12287.5 relative_error=9.741e-04 (0.997 * 2^-10)
+
+$ ./vk_interp_probe 12288 fragcoord          # exit 0
+mode=fragcoord width=12288 device=Mali-G610 MC4: floor(v) != x at 0 of 12288 pixels (first at x=-1, unwritten=0)
+last pixel x=12287: v=12287.5000 expected=12287.5 relative_error=0.000e+00 (0.000 * 2^-10)
+
+$ ./vk_interp_probe 16307 varying            # exit 2
+mode=varying width=16307 device=Mali-G610 MC4: floor(v) != x at 15672 of 16307 pixels (first at x=623, unwritten=0)
+last pixel x=16306: v=16293.2832 expected=16306.5 relative_error=8.105e-04 (0.830 * 2^-10)
+
+$ ./vk_interp_probe 12288 varying llvmpipe   # exit 0
+mode=varying width=12288 device=llvmpipe (LLVM 21.1.8, 128 bits): floor(v) != x at 0 of 12288 pixels (first at x=-1, unwritten=0)
+```
+
+`./vk_interp_probe 8192` (power-of-two control) likewise exits 0 with 0 of
+8192 pixels bad.
+
+The numbers to hold against the GL probe's output above: **11744 of 12288
+bad, first at x=529, last-pixel v=12275.5312** — identical, bit for bit,
+through a driver stack that shares no GL/Gallium code with the GL probe. At
+`W=16307` both stacks also reproduce the original blit-bug signature
+(15672/16307, first at x=623, `0.830 * 2^-10`). The llvmpipe run passes with
+the same binary, so the checker is sound; the fragcoord control passes on
+Mali, so rasterization and readback are sound. panvk's compiled fragment
+shader is instruction-for-instruction identical to the GL one — see
+[`../docs/blit-precision.md` § Low-Level Tiny-Probe Shader](../docs/blit-precision.md).
 
 ## `repro_blit_flip.c`
 

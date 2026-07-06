@@ -18,7 +18,7 @@ every shared figure, asm listing, and validation result is owned here.
 | Developer focus | Preserve the Mali-G610 transfer investigation: BLIT precision failure, COMPUTE correctness, AFBC limitation, benchmark results, dEQP validation, and reproducible probes. |
 | Owns | [`blit-precision.md`](./docs/blit-precision.md), [`validation.md`](./docs/validation.md), [`texture-query-levels.md`](./docs/texture-query-levels.md), and [`reproducers/`](reproducers/README.md). |
 | Depends on | Local Mesa/Panfrost worktrees and the GRD profiling context that exposed the readback cost. |
-| Current state | The `gl_FragCoord` u_blitter fix is upstream as the 4-MR stack !42563 (unbind bugfix) / !42679 (isolated shared `u_blitter` fragcoord fix) / !42613 (panfrost opt-in + Joshua Watt's BLIT enablement) / !42614 (u_tests case + glsl_type singleton). Pushed 2026-07-01; revised 2026-07-02 after a self-review fixed the pack-shader clobber, Midgard gating, and zero-area NaN (tips `486b6f7002f` / `e9125bd526f`); the shared blitter change was then split into its own MR !42679 at the reviewer's request. Awaiting upstream review. See [`status.md`](../../status.md). |
+| Current state | The `gl_FragCoord` u_blitter fix is upstream as the 4-MR stack !42563 (unbind bugfix) / !42679 (isolated shared `u_blitter` fragcoord fix) / !42613 (panfrost opt-in + Joshua Watt's BLIT enablement) / !42614 (panfrost Gallium-test runtime setup + u_tests case). Final reviewed shape as of 2026-07-06 removes empty-blit handling from `u_blitter`, keeps zero-sized copies as front-end no-ops, and drops the impossible `PIPE_BUFFER` case from the TXF-fragcoord predicate/comment. !42563 and !42679 selected CI is green; the first !42613/!42614 selected G610 runs were red, now classified, force-pushed, and green on the selected G610 reruns. See [`status.md`](../../status.md). |
 
 Hardware and software used for the local investigation:
 
@@ -38,13 +38,40 @@ Hardware and software used for the local investigation:
 | [`docs/fix-walkthrough.md`](./docs/fix-walkthrough.md) | Start here if new to Mesa/C: from-first-principles explainer of the whole series — blits, TXF, varying interpolation, the `gl_FragCoord` fix, each of the four MRs, and why COMPUTE/CPU were rejected |
 | [`docs/blit-precision.md`](./docs/blit-precision.md) | Root cause: why sampled-BLIT transfers are not bit-exact on G610 (`LD_VAR_IMM` ~2^-10 drift), everything ruled out, the options grid, and the AFBC constraint on COMPUTE |
 | [`docs/validation.md`](./docs/validation.md) | What was tested: patch shapes, BLIT-vs-COMPUTE timings, GRD readback timings, dEQP reruns, exact dEQP invocation, build checks |
-| [`docs/rebuild-and-test.md`](./docs/rebuild-and-test.md) | On-device rebuild + revalidation log: how to drive `scripts/`, the environment gotchas (wiped `/tmp` build state, `mise` python shadowing, glvnd for piglit), and the latest reproducer/dEQP/piglit results |
-| [`docs/texture-query-levels.md`](./docs/texture-query-levels.md) | Separate work product on the same branch: `textureQueryLevels()` for Valhall + the texture-descriptor layout facts (LD_PKA, table 62, word2 lod_count field) |
+| [`docs/rebuild-and-test.md`](./docs/rebuild-and-test.md) | On-device rebuild + revalidation log: how to drive `scripts/`, the environment gotchas (wiped `/tmp` build state, `mise` python shadowing, glvnd for piglit), and the latest reproducer/dEQP/piglit results || [`docs/texture-query-levels.md`](./docs/texture-query-levels.md) | Separate work product on the same branch: `textureQueryLevels()` for Valhall + the texture-descriptor layout facts (LD_PKA, table 62, word2 lod_count field) |
 | [`scripts/`](scripts/README.md) | Rebuild + test entry point: surfaceless Mesa build, runtime env, and the reproducer / dEQP / piglit runners; see [`scripts/README.md`](scripts/README.md) |
 | [`reproducers/`](reproducers/README.md) | Standalone GBM/EGL C probes + benchmark + archived BLIT-advertising patch; see [`reproducers/README.md`](reproducers/README.md) |
 | [`video-libraries/mesa/patches/0001-panfrost-advertise-transfer-blit-and-compute.patch`](patches/0001-panfrost-advertise-transfer-blit-and-compute.patch) | Archived `format-patch` of the BLIT-advertising commit — the only way to rebuild the failing BLIT configuration once upstream ships a non-BLIT default; reproduction-only, not for merging |
 
-## Status (verified 2026-07-01 against the local Mesa tree)
+## Status (verified 2026-07-06 against the local Mesa tree and GitLab API)
+
+Current upstream stack:
+
+| MR | Branch / tip | Contents | CI status at last check |
+|---|---|---|---|
+| [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) `panfrost: clear shader image mask on trailing unbinds` | `panfrost-transfer-blit` / `833101f35ed` | Independent Panfrost shader-image unbind bugfix; carries `Reviewed-by: Iago Toral Quiroga` and `Fixes: 72ff66c3d73`. | Pipeline 1697832: selected x86/arm64 build and G610 GL/piglit jobs green. |
+| [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679) `u_blitter: use fragment position for unscaled TXF blits` | `u-blitter-txf-fragcoord` / `6509025064f` | Shared `u_blitter` opt-in: use `gl_FragCoord` plus the blit affine for single-sample unscaled TXF blits; excludes MSAA, cube, pack, and override-shader paths. | Pipeline 1700107: selected x86 build, clang, llvmpipe, and softpipe jobs green. ARM hardware is intentionally not the useful signal here because the flag defaults off until Panfrost opts in. |
+| [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) `panfrost: enable blit-based texture transfers` | `panfrost-blit-transfers` / `8875a22856d` | Reviewed !42563 unbind prerequisite, !42679 u_blitter fix, `9600bae512d` Panfrost opt-in (`use_txf_fragcoord = arch >= 6`), `87d458819b0` `st_TexImage` allocation-only guard, Joshua Watt's `a9d6caeeb53` `PIPE_TEXTURE_TRANSFER_BLIT` enablement, and `8875a22856d` G610 expectation cleanup for `glx-copy-sub-buffer`. | First pipeline 1700108 was red for classified reasons; pipeline 1700150 got the crash/assert roots green but exposed the stale `glx-copy-sub-buffer` expectation; force-pushed again and rerun pipeline 1700162 passed all four selected G610 shards. |
+| [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614) `panfrost: add a Gallium test for wide blit precision` | `panfrost-blit-transfers-test` / `4c23f1db1f9` | Corrected !42613 stack plus `458eaee08ac` Panfrost `glsl_type` singleton lifetime for Gallium tests and `4c23f1db1f9` wide non-pow2 unscaled format-changing blit u_test. Depends on !42613 because the test only exercises the fixed path on Panfrost after the driver opt-in. | First pipeline 1700109 inherited the !42613 failures; pipeline 1700149 was superseded by the expectation cleanup; rerun pipeline 1700163 passed all four selected G610 shards. |
+
+Follow-up branches exist for the separate no-zero-sized-blit constraint, but
+no MRs have been opened for them yet:
+
+| Branch | Tip | Scope |
+|---|---|---|
+| `zero-sized-blits-gallium` | `d8cf9625ba5` `mesa,dri: skip zero-sized blits before Gallium` | Skips empty GL/DRI copy rectangles in `dri2_blit_image`, `glCopyImageSubData`, and `glCopyTexSubImage*` before constructing Gallium blits. |
+| `zero-sized-blits-lavapipe` | `740be57319d` `lavapipe: skip zero-sized image blit and resolve regions` | Skips empty Vulkan blit/resolve regions before lavapipe builds `pipe_blit_info` for llvmpipe/softpipe. |
+
+Two review-driven clarifications matter for future edits:
+
+- A zero-sized blit is a valid API no-op in places like `glCopyImageSubData`,
+  but it is not useful work for `u_blitter`; no fragments are rasterized, so the
+  right invariant is that empty boxes are skipped before Gallium render blits.
+- `PIPE_BUFFER` can appear in Mesa texture/buffer-object code, but it cannot
+  reach this `u_blitter` render-blit TXF path. Buffer copies go through buffer
+  copy/resource paths, not through a sampled render blit to a pipe surface, so
+  `blitter_target_supports_txf()` intentionally only reasons about texture
+  targets and cube exclusion.
 
 The transfer series lifecycle (MR
 [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) began
@@ -70,10 +97,17 @@ as the COMPUTE experiment and is now the reviewed unbind bugfix; the shared
 
 | 2026-07-02 | **Structured self-review of !42613 found 3 real bugs + cleanups; series revised and force-pushed** (!42613 tip `51cb29834d1` -> `486b6f7002f`, !42614 tip `628e599172c` -> `e9125bd526f`; revision notes posted on both MRs, !42613 description updated). Bugs: (1) the draw-side fragcoord repacking also fired for ZS<->color pack shaders and `fs_override` shaders that read the attribute raw — the encoding decision now lives in `util_blitter_blit_generic` beside shader selection and is threaded through `do_blits` to the draw; (2) `texture_transfer_modes` was enabled for **Midgard** while the precision fix only engaged on Bifrost+ — both now gate on `arch >= 6` (Midgard's position input rides the same lossy varying unit, so the fragcoord path is unverified there); (3) zero-area `glCopyImageSubData` boxes reached `scale = 0/0 = NaN` and tripped the debug assert. Cleanups: POSITION declared sysval-or-input per `fs_position_is_sysval` (documented flag, no implicit sysval contract); attribute encoding simplified from sign-bits + 6-op integer decode to `scale_x` / `scale_y*(layer+0.25)` with a 2-op decode (SSG + abs); dead `get_texcoords()` work skipped in the fragcoord path; predicate duplication collapsed to the same cube exclusion as `util_blitter_blit_with_txf`. Revalidation on `git-e9125bd526`: full probe battery 0 mismatches (flips 0/130456 across all 4 orientations), u_tests 7/7 checks, `fbo.msaa.*` 66P/4NS/0F, `precision.abs` 24/24, bench 16307x1 ~0.58 ms median (noreadpixcache, matches prior BLIT numbers). **Caveat:** the rebuilt local dEQP (`/tmp/deqp-gles-ci`) now fails 26 `pbo.*` + 34 `fbo.blit.default_framebuffer.*` cases with **zero-pixel image difference vs a negative comparison threshold** (-9.3e-10) — reproduced bit-identically on the unpatched build and on the shipped 26.0.3 driver; failure sets diffed and identical, i.e. a test-harness artifact, not a driver regression. |
 
-| 2026-07-03 | **Reviewer-requested split into a four-MR stack.** The shared `u_blitter` change is shared code across ~10 drivers, so on review it was isolated into its own [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679) "u_blitter: use fragment position for unscaled TXF blits". [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) is correspondingly reduced to the Panfrost-only pieces — the `use_txf_fragcoord = arch >= 6` opt-in plus Joshua Watt's `PIPE_TEXTURE_TRANSFER_BLIT` enablement (both arch-gated together). Final canonical stack: !42563 (unbind bugfix) → !42679 (shared blitter fragcoord fix) → !42613 (panfrost opt-in + BLIT enablement, depends on !42679) → !42614 (u_tests case + glsl_type singleton, depends on !42613). A second `/code-review` round of behaviour-preserving `u_blitter` cleanups landed the same day ([`video-libraries/mesa/patches/u_blitter-review2-txf-fragcoord-cleanups.patch`](patches/u_blitter-review2-txf-fragcoord-cleanups.patch)); MR-by-MR breakdown in [`docs/fix-walkthrough.md` § 6](./docs/fix-walkthrough.md). |
+| 2026-07-03 | **Reviewer-requested split into a four-MR stack.** The shared `u_blitter` change is shared code across ~10 drivers, so on review it was isolated into its own [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679) "u_blitter: use fragment position for unscaled TXF blits". [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) is correspondingly reduced to the Panfrost-only pieces: the `use_txf_fragcoord = arch >= 6` opt-in plus Joshua Watt's `PIPE_TEXTURE_TRANSFER_BLIT` enablement, both arch-gated together. Final canonical stack: !42563 (unbind bugfix) -> !42679 (shared blitter fragcoord fix) -> !42613 (panfrost opt-in + BLIT enablement, depends on !42679) -> !42614 (u_tests case + glsl_type singleton, depends on !42613). A second `/code-review` round of behaviour-preserving `u_blitter` cleanups landed the same day ([`video-libraries/mesa/patches/u_blitter-review2-txf-fragcoord-cleanups.patch`](patches/u_blitter-review2-txf-fragcoord-cleanups.patch)); MR-by-MR breakdown in [`docs/fix-walkthrough.md` § 6](./docs/fix-walkthrough.md). |
+| 2026-07-05 | **Maintainer follow-up on empty blits accepted: do not handle them in `u_blitter`.** The earlier self-review workaround for `0/0` scale in empty `glCopyImageSubData` boxes was removed from !42679. A zero-sized API copy is a no-op, but a zero-sized render blit makes no sense for `u_blitter`, whose fragcoord path now asserts non-empty destination axes. Minimal follow-up branches were built but not MR'd: `zero-sized-blits-gallium` (`d8cf9625ba5`) skips empty GL/DRI copy rectangles before Gallium, and `zero-sized-blits-lavapipe` (`740be57319d`) skips empty Vulkan blit/resolve regions before lavapipe builds `pipe_blit_info`. |
+| 2026-07-05 | **`PIPE_BUFFER` was removed from both the TXF-fragcoord predicate and comment.** `PIPE_BUFFER` is a real target in other Mesa paths (TBOs, PBO/SSBO helpers, buffer resources), but not in this `u_blitter` render-blit TXF path: buffer copies route through resource/buffer-copy machinery rather than rendering a sampled blit to a pipe surface. Keeping it in the predicate implied a false upstream expectation. |
+| 2026-07-06 | **First targeted Panfrost-enablement G610 pipelines were red.** !42563 selected x86/arm64 build + G610 GL/piglit jobs are green. !42679 selected x86 build + clang + llvmpipe + softpipe jobs are green; no ARM hardware job was selected there because the shared flag defaults off and Panfrost does not exercise the new path until !42613. !42613 shared dependencies were green but all selected G610 GL/piglit shards failed. !42614, stacked on !42613, also had selected G610 failures. The visible failure sets were transfer/readback-heavy: dEQP `packed_pixels.pbo_rectangle.*`, `dEQP-GLES3.functional.pbo.*`, `KHR-GLES31.core.texture_buffer.texture_buffer_operations_framebuffer_readback`, piglit `pbo-getteximage`, `gettextureimage-targets`, `cubemap-getteximage-pbo`, `max-texture-size`, and `large-tex`; several logs also showed `panfrost_resource_setup: Assertion valid failed` or `DRM_IOCTL_PANTHOR_BO_CREATE failed (err=12)`. Manual `glab api` fallback worked for playing jobs after `ci_run_n_monitor.sh` token issues, but it also taught one CI gotcha: if the helper is not doing the cancel step, non-target automatic jobs can fan out after dependencies finish (e.g. freedreno/zink on !42614) and must be canceled explicitly. |
+| 2026-07-06 | **G610 red jobs classified after local repro on the board.** The main crash root cause is stack integration, not the `gl_FragCoord` fix itself: pushed `panfrost-blit-transfers` / `panfrost-blit-transfers-test` do not contain `37ce0f3111d` (`panfrost: clear shader image mask on trailing unbinds`); `git branch --contains 37ce0f3111d` only lists older experimental branches. That explains why prior end-to-end testing, including Piglit, could pass: it ran on the earlier fragcoord/targeted branches that still carried the unbind fix, while the later review split lost it from the pushed Panfrost branches. Without the fix, trailing image unbinds clear resources but leave stale `image_mask` bits; the next u_blitter draw can dereference a null image resource in `util_image_to_sampler_view()`. Local proof: `pbo-getteximage -auto` crashed with that backtrace and passed after applying the one-line mask clear. |
+| 2026-07-06 | **Second G610 root cause: allocation-only `glTexImage*` still entered the BLIT upload path.** `max-texture-size -auto -fbo` aborts in `panfrost_resource_setup` because `st_TexImage(..., pixels = NULL)` calls `st_TexSubImage`, and the new BLIT transfer path allocates a huge staging texture before finding there is no client data. Local gdb showed a 16384x16384 `PIPE_FORMAT_R32G32B32A32_FLOAT` staging source with `pixels = NULL`. Temporarily disabling Panfrost BLIT transfers makes the exact command pass; guarding the `st_TexSubImage` call with `if (pixels || unpack->BufferObj)` also makes it pass while preserving valid PBO offset-zero uploads. After the image-mask and state-tracker guards, local `pbo-getteximage`, `cubemap-getteximage-pbo`, `arb_direct_state_access-gettextureimage-targets -fbo`, `mesa_pack_invert-readpixels`, `object-namespace-pollution glGetTexImage`, `getteximage-targets RECT -fbo`, and `max-texture-size -fbo` pass. Residuals are now non-crash signals: `large-tex -auto -fbo` reaches a later `#version 420` shader compile despite Panfrost exposing only GL 3.1, and `gl-2.1-pbo -auto -fbo` fails `test_polygon_stip` with a black-vs-white probe mismatch; both need no-BLIT baseline comparison before treating them as MR blockers. |
+| 2026-07-06 | **MRs force-pushed with the classified fixes.** !42613 was rebuilt to `a9d6caeeb53` as !42563 -> !42679 -> Panfrost opt-in -> `st/mesa: skip TexSubImage for allocation-only TexImage` -> Joshua Watt's BLIT enablement. !42614 was rebuilt to `60eb35d6ee1` on that corrected stack; its two unique commits are content-unchanged. MR descriptions were updated with the G610 root-cause notes. Local corrected-stack smoke passed `ninja -C .codex-tmp/build-g610-debug`, `pbo-getteximage -auto`, and `max-texture-size -auto -fbo`. Pipeline 1700150 (!42613) later exposed the stale expectation recorded below; pipeline 1700149 (!42614) was superseded before final G610 results. |
+| 2026-07-06 | **Rerun exposed one stale G610 expectation, not another transfer crash.** In pipeline 1700150, !42613 had `panfrost-g610-gl` 1/2 and 2/2 green plus `panfrost-g610-piglit` 1/2 green; `panfrost-g610-piglit` 2/2 failed only because `glx@glx-copy-sub-buffer` was still listed in `src/panfrost/ci/panfrost-g610-fails.txt` but passed twice (`UnexpectedImprovement(Pass)`). The transfer/readback crash set was gone from that shard. !42613 was force-pushed again to `8875a22856d` with `panfrost/ci: drop fixed G610 glx-copy-sub-buffer fail`; !42614 was rebuilt to `4c23f1db1f9`. Final selected reruns 1700162 (!42613) and 1700163 (!42614) then passed all four targeted G610 shards on each branch. Manual API job starting still fans out unrelated freedreno/zink/other-ARM jobs after dependencies finish, so those must be canceled when not using the helper's cancel logic. |
 
 Neither !38433 nor the new stack had merged upstream as of the last check
-(2026-07-03, via `glab api`; all `state: opened`).
+(2026-07-06, via `glab api`; all `state: opened`).
 
 ## Short version
 
@@ -97,7 +131,8 @@ for some integer format-changing transfers. The problematic path is:
 2. `u_blitter` emits a fragment shader that reads interpolated texture
    coordinates.
 3. The shader truncates those coordinates and performs `TEX_FETCH`/TXF.
-4. Mali-G610's `LD_VAR_IMM` varying interpolation drifts by about `2^-10`.
+4. Mali-G610's `LD_VAR_IMM` varying interpolation drifts at non-power-of-two
+   widths — by about `2^-10` at the widths involved here.
 5. Truncation turns that coordinate drift into wrong texel selection.
 
 The exact key instruction sequence from the generated blit fragment shader
@@ -149,6 +184,25 @@ This list is a **summary**; the canonical, evidence-carrying copies live in
 - `gl_FragCoord.x` was exact in the same probe: `0 / 16307` floor mismatches.
   (Both counts re-verified on the board 2026-07-01 — see
   [`reproducers/README.md`](reproducers/README.md).)
+- The minimal reproducer is `tiny_interp_probe.c` (2026-07-06): pure varying
+  interpolation with no u_blitter/texture/TXF/filtering still drifts
+  (`12288 x 1`: 11744/12288 wrong, relative error `9.74e-4`), the
+  `gl_FragCoord` control is bit-exact, every power-of-two width tested is
+  exact, and the error is width-dependent (`2^-12` at 2080, `2^-14` at 16383,
+  ~`2^-10` at 12288/16307) — the drift is in the varying path itself, not in
+  u_blitter's use of it
+  ([`reproducers/README.md` § `tiny_interp_probe.c`](reproducers/README.md)).
+- A Vulkan port of the probe (`vk_interp_probe.c`, 2026-07-06) reproduces the
+  drift **bit-for-bit on panvk** — Mesa's Vulkan driver for Mali, a stack
+  with no Gallium, no u_blitter, and no GL state tracker anywhere
+  (11744/12288 bad, first at x=529, last-pixel v=12275.5312 — identical
+  numbers to the GL probe). panvk reports Vulkan 1.4 conformance
+  (apiVersion 1.4.335), and the same binary passes on llvmpipe, so the
+  checker is sound. The "u_blitter misuses varyings" hypothesis is
+  untenable: u_blitter does not exist in that stack. The drift also persists
+  bit-identically on the corrected !42614 stack — the fix reroutes blit TXF
+  coordinates around varyings; it does not repair varying interpolation
+  ([`reproducers/README.md` § `vk_interp_probe.c`](reproducers/README.md)).
 - `noperspective` is not an exact escape on Mali-G610; Panfrost lowers it
   through the same perspective machinery
   (`pan_nir_lower_noperspective.c`), and GLSL ES rejects the qualifier
@@ -179,8 +233,9 @@ This list is a **summary**; the canonical, evidence-carrying copies live in
   29498/32614 wrong texels in all four orientations (`repro_blit_flip.c`).
   The AFBC CPU-map staging-blit path, by contrast, is clean
   (`repro_afbc.c`). So the series is a bugfix for an already-reachable path
-  plus the `PIPE_TEXTURE_TRANSFER_BLIT` enabler; exposure is narrow (drift
-  onset 3000-5000 px, pow2 extents exact), which is why it went unreported.
+  plus the `PIPE_TEXTURE_TRANSFER_BLIT` enabler; exposure is narrow (failing
+  widths sparse below ~4300, smallest measured 2080, pow2 extents exact),
+  which is why it went unreported.
 - Panfrost's own FB preload shaders already use the exact pixel index
   (`nir_load_pixel_coord`, `pan_fb_nir.c`) instead of varyings — internal
   precedent for the fragcoord approach.

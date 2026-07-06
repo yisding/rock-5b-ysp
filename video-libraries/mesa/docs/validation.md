@@ -1,12 +1,106 @@
 # Validation And Performance
 
 This records what was tested while moving Mesa MR !42563 from sampled BLIT
-texture transfers to COMPUTE texture transfers on Panfrost/Mali-G610.
-For the MR's current direction (COMPUTE-only was rejected in review on
-2026-07-01), see [`README.md` § Status](../README.md) and
+texture transfers to COMPUTE texture transfers and then to the selected
+`gl_FragCoord` `u_blitter` fix on Panfrost/Mali-G610. For the current MR stack,
+see [`README.md` § Status](../README.md) and
 [`blit-precision.md`](blit-precision.md).
 
-## Patch Series Shape
+## Current MR And CI State (2026-07-06)
+
+The current upstream shape is four open MRs:
+
+| MR | Tip | Scope | Selected CI state |
+|---|---|---|---|
+| [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) | `833101f35ed` | Reviewed Panfrost shader-image unbind fix. | Green: x86/arm64 build plus G610 GL/piglit jobs. |
+| [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679) | `6509025064f` | Shared `u_blitter` fragcoord TXF fix, opt-in default-off. | Green: x86 build, clang, llvmpipe, softpipe. |
+| [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) | `8875a22856d` | Reviewed !42563 unbind prerequisite, !42679 u_blitter fix, Panfrost opt-in, `st_TexImage` allocation-only guard, Joshua Watt's BLIT transfer enablement, and G610 `glx-copy-sub-buffer` expectation cleanup. | Force-pushed 2026-07-06; rerun pipeline 1700162 passed all four selected G610 shards. Previous tip `3ab262af7fc` was red for the two classified root causes below; `a9d6caeeb53` was red only on the stale `glx-copy-sub-buffer` expectation. |
+| [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614) | `4c23f1db1f9` | Corrected !42613 stack plus unchanged Panfrost Gallium-test setup and wide non-pow2 u_test. | Force-pushed 2026-07-06; rerun pipeline 1700163 passed all four selected G610 shards. Previous tip `5bd122bbf07` inherited the !42613 failures. |
+
+The x86-only selection for !42679 is intentional: the new shared flag defaults
+off, so ARM/Panfrost hardware does not execute the fragcoord path until !42613
+sets `ctx->blitter->use_txf_fragcoord = dev->arch >= 6`. The hardware signal
+therefore belongs in !42613 and !42614. !42614 remains stacked on !42613 because
+the test would compile without the opt-in, but it would not validate the fixed
+Panfrost path.
+
+CI process note: `bin/ci/ci_run_n_monitor.sh --dry-run` is the useful source of
+job sets. In this environment direct helper execution could not mutate jobs
+because its default `/home/yi/.config/gitlab-token` file was absent, while
+`glab api` was authenticated. The current fallback is:
+
+```text
+ci_run_n_monitor.sh --pipeline-url <pipeline> \
+  --target 'panfrost-g610-(gl|piglit):arm64.*' --dry-run
+```
+
+Then manually `play` only the dependency jobs it names. For the 2026-07-06
+rerun that was `sanity` (already green), `debian/arm64_build`,
+`debian/arm64_test-base`, `debian/arm64_test-gl`, and `debian-arm64`, followed
+by the four G610 target shards. If using manual API calls, watch for unrelated
+jobs fanning out after dependencies finish and cancel them explicitly.
+
+### 2026-07-06 G610 Red-Job Classification
+
+The first selected !42613/!42614 G610 run was not an unexplained Piglit
+regression. It had two concrete root causes:
+
+1. The pushed Panfrost branches accidentally omitted the reviewed !42563
+   shader-image unbind fix. `panfrost_set_shader_images()` cleared resources
+   for `count + unbind_num_trailing_slots` but only cleared `count` bits from
+   `image_mask`; later image descriptor emission during a u_blitter draw could
+   dereference a NULL image resource. Local gdb for `pbo-getteximage -auto`
+   crashed in `util_image_to_sampler_view()` via `panfrost_emit_images()` and
+   `panfrost_blit()`. Re-applying the !42563 fix made the exact test pass.
+2. `max-texture-size -auto -fbo` exposed a state-tracker allocation-only upload
+   bug once Panfrost advertised BLIT transfers. `st_TexImage(..., pixels =
+   NULL)` still called `st_TexSubImage`, and the BLIT path tried to allocate a
+   full-size staging source before discovering there was no client data. Local
+   gdb showed a 16384x16384 `PIPE_FORMAT_R32G32B32A32_FLOAT` staging resource.
+   Guarding the upload with `if (pixels || unpack->BufferObj)` makes the exact
+   command pass and preserves PBO offset-zero uploads.
+
+This explains the apparent contradiction with earlier end-to-end testing: the
+earlier Rock 5B Piglit/dEQP runs used experimental fragcoord/targeted branches
+that still contained the unbind fix. The later four-MR review split rebuilt the
+pushed `panfrost-blit-transfers*` branches without that prerequisite, so the CI
+branch was not the same effective stack that had been tested locally.
+
+After rebuilding the stack, local smoke on Rock 5B / Mali-G610 passes:
+
+- `ninja -C .codex-tmp/build-g610-debug`
+- `pbo-getteximage -auto`
+- `max-texture-size -auto -fbo`
+
+Other previously red Piglit cases also stop crashing with the two fixes applied:
+`cubemap-getteximage-pbo`, `arb_direct_state_access-gettextureimage-targets -fbo`,
+`mesa_pack_invert-readpixels`, `object-namespace-pollution glGetTexImage`, and
+`getteximage-targets RECT -fbo`. Two residual non-crash
+signals need separate baseline comparison if CI still reports them:
+`large-tex -auto -fbo` reaches a later GLSL `#version 420` compile despite
+Panfrost's GL 3.1 renderer, and `gl-2.1-pbo -auto -fbo` fails only
+`test_polygon_stip` with a black-vs-white probe mismatch.
+
+The first corrected-stack rerun (`a9d6caeeb53`, pipeline 1700150) got the
+transfer/readback crash roots out of the way: `panfrost-g610-gl` 1/2 and 2/2
+passed, and `panfrost-g610-piglit` 1/2 passed. The remaining failed shard,
+`panfrost-g610-piglit` 2/2, failed only because `glx@glx-copy-sub-buffer`
+passed while `src/panfrost/ci/panfrost-g610-fails.txt` still expected `Fail`.
+That stale expectation was removed in `8875a22856d`, and the selected G610 jobs
+were restarted in pipelines 1700162 and 1700163. Both final reruns passed all
+four targeted G610 shards.
+
+Review followups that changed the patch shape after the first self-review:
+
+- Empty blits are not handled in `u_blitter`. API-front-end paths may accept
+  zero-sized copies as no-ops, but they should skip them before constructing
+  Gallium blits. Follow-up branches exist: `zero-sized-blits-gallium`
+  (`d8cf9625ba5`) and `zero-sized-blits-lavapipe` (`740be57319d`).
+- `PIPE_BUFFER` was removed from the TXF-fragcoord predicate/comment. It is a
+  real target elsewhere in Mesa, but buffer copies cannot reach this
+  render-blit TXF path.
+
+## Patch Series Shape (COMPUTE Era, Superseded)
 
 As of the 2026-07-01 rebase (branch `panfrost-transfer-blit-update`,
 commits `37ce0f3111d` + `9d7f561cd9d`), the Mesa MR has two patches:

@@ -1,10 +1,11 @@
-# Rebuilding + on-board testing the Panfrost blit series (2026-07-02)
+# Rebuilding + on-board testing the Panfrost blit series
 
 How to rebuild the surfaceless Panfrost driver on the Rock 5B and re-run the
 reproducers + the previously-failing dEQP cluster, plus the environment
 gotchas that cost time. Scripts live in [`../scripts/`](../scripts).
 
-Context: this validates the `panfrost-blit-transfers` branch **plus two
+Context for the 2026-07-02 local run below: this validates the
+`panfrost-blit-transfers` branch **plus two
 uncommitted `u_blitter` cleanups** (finding #2: a shared
 `blitter_target_supports_txf()` predicate; finding #3: the four
 `blitter_get_fs_texfetch_*` helpers now report the chosen `use_txf_fragcoord`
@@ -12,6 +13,61 @@ via an out-param so `util_blitter_blit_generic` no longer recomputes it — whic
 also removed the three scattered `use_txf_fragcoord = false` pack-branch
 resets). Both are behavior-preserving refactors; the run below is the
 regression check.
+
+## 2026-07-06 GitLab CI update
+
+The local results below remain useful as the scoped Rock 5B reproducer/dEQP/
+piglit-subset validation for the 2026-07-02 refactor state. They are **not** the
+current full upstream CI result.
+
+Current selected MR CI status:
+
+- !42563 (`panfrost: clear shader image mask on trailing unbinds`): selected
+  x86/arm64 build + G610 GL/piglit jobs green.
+- !42679 (`u_blitter: use fragment position for unscaled TXF blits`): selected
+  x86 build + clang + llvmpipe + softpipe jobs green. ARM hardware was not the
+  useful signal there because the shared flag defaults off.
+- !42613 (`panfrost: enable blit-based texture transfers`): first selected G610
+  run at tip `3ab262af7fc` was red, classified, and force-pushed to
+  `a9d6caeeb53`; pipeline 1700150 then got the crash/assert roots green and
+  exposed only a stale `glx-copy-sub-buffer` G610 fail expectation. Current tip
+  is `8875a22856d`; rerun pipeline 1700162 passed all four selected G610
+  shards.
+- !42614 (`panfrost: add a Gallium test for wide blit precision`): first
+  selected G610 run at tip `5bd122bbf07` inherited the !42613 failures, now
+  force-pushed to `4c23f1db1f9`; rerun pipeline 1700163 passed all four
+  selected G610 shards.
+
+The visible first-run !42613/!42614 failures were transfer/readback-heavy: dEQP
+`packed_pixels.pbo_rectangle.*`, `dEQP-GLES3.functional.pbo.*`, and
+`KHR-GLES31.core.texture_buffer.texture_buffer_operations_framebuffer_readback`
+crashes, plus piglit `pbo-getteximage`, `gettextureimage-targets`,
+`cubemap-getteximage-pbo`, `max-texture-size`, and `large-tex` crashes. They
+were not generic flakes. Local repro found two root causes:
+
+1. The pushed `panfrost-blit-transfers*` branches accidentally did not contain
+   the reviewed !42563 unbind fix. Earlier end-to-end Piglit/dEQP testing had
+   used experimental branches that still carried it, which is why the local
+   result did not match the first split-stack CI result. Without the fix,
+   trailing shader-image unbinds left stale `image_mask` bits and u_blitter
+   draws could crash in image descriptor emission. `pbo-getteximage -auto`
+   reproduced this locally and passes after the fix is present.
+2. `max-texture-size -auto -fbo` exposed a state-tracker allocation-only upload
+   bug: `st_TexImage(..., pixels = NULL)` called `st_TexSubImage`, and the BLIT
+   path created a huge staging texture before discovering there was no client
+   data. The branch now guards the upload with `if (pixels || unpack->BufferObj)`
+   so ordinary allocation-only `glTexImage*` is a no-op upload while PBO offset
+   zero remains valid.
+
+Local smoke on the force-pushed stack: `ninja -C .codex-tmp/build-g610-debug`,
+`pbo-getteximage -auto`, and `max-texture-size -auto -fbo` all pass on the Rock
+5B / Mali-G610.
+
+Follow-up from the first corrected-stack rerun: `panfrost-g610-piglit:arm64
+2/2` failed only as `UnexpectedImprovement(Pass)` for `glx@glx-copy-sub-buffer`.
+The branch now drops that stale expectation from
+`src/panfrost/ci/panfrost-g610-fails.txt`. Final selected reruns 1700162
+(!42613) and 1700163 (!42614) passed all four targeted G610 shards each.
 
 ## The build was wedged by wiped /tmp state
 

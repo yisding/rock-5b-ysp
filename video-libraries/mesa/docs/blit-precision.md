@@ -114,10 +114,9 @@ is no compiler-emitted reciprocal whose precision could be raised.
 the dump in fact also includes the final packed Valhall assembly) while
 running the failing dEQP case or `repro_blit` against the patched local
 build, capturing stderr to a file. The u_blitter TXF fragment shader is the
-one named `TTN1` (TGSI-to-NIR) with `textures_used_by_txf` set. The raw dump
-this listing came from survives on the dev box as
-`/home/yi/Code/fdo/mesa/.codex-tmp/bi_asm.txt` (header records
-`GL_RENDERER=Mali-G610 MC4 (Panfrost)`, build `git-82d387ae89`).
+one named `TTN1` (TGSI-to-NIR) with `textures_used_by_txf` set. The captured
+dump header recorded `GL_RENDERER=Mali-G610 MC4 (Panfrost)`, build
+`git-82d387ae89`.
 
 `PAN_MESA_DEBUG` is a *different* variable — driver-level toggles
 (`nofp16`, `linear`, `sync`, ...) used in the ruled-out table below; it does
@@ -148,6 +147,150 @@ is generated from the rasterizer's pixel coordinate instead of loaded through
 the varying unit (Panfrost computes it from the exact integer pixel index:
 `fs_coord_pixel_center_integer`, `nir_load_pixel_coord + 0.5`).
 
+[`video-libraries/mesa/reproducers/tiny_interp_probe.c`](../reproducers/tiny_interp_probe.c)
+(2026-07-06) is the direct answer to the review argument "the hardware docs
+say the interpolator is full 32-bit, so this must be u_blitter misusing
+varyings". It strips the experiment down to pure varying interpolation — no
+`u_blitter`, no texture, no `TXF`, no filtering, no tie-breakers, no
+format-changing readback — and still drifts, while `gl_FragCoord.x` through
+the identical pipeline is bit-exact. Canonical build/run/output, exit codes,
+and the full width sweep live in
+[`reproducers/README.md` § `tiny_interp_probe.c`](../reproducers/README.md);
+the headline result on the shipped 26.0.3 driver (verbatim):
+
+```text
+$ ./tiny_interp_probe                  # 12288 x 1 varying; exit 2
+mode=varying width=12288: floor(v) != x at 11744 of 12288 pixels (first at x=529)
+last pixel x=12287: v=12275.5312 expected=12287.5 relative_error=9.741e-04 (0.997 * 2^-10)
+```
+
+The width sweep sharpens the empirical claim: every power-of-two width tested
+(512-16384) is bit-exact, while non-power-of-two widths show a jagged
+width-dependent relative error that quantizes per width (exactly `2^-12` at
+`W=2080`, exactly `2^-14` at `W=16383`, ~`2^-10` at `W=12288` and `W=16307`;
+smallest `floor()`-failing width `2080`). So "~2^-10" is the signature of
+specific widths — including the ones the blit bug was found at — not a
+blanket "f32 varyings are only 10-bit" rule. That pattern is consistent with
+a full-precision interpolator ALU fed by a plane/coefficient setup that loses
+precision for non-power-of-two render-target widths.
+
+A Vulkan port of the probe reproduces the drift **bit-for-bit on panvk** — a
+stack with no Gallium, no `u_blitter`, and no GL state tracker anywhere —
+while the same binary passes on llvmpipe; verbatim outputs in
+[`reproducers/README.md` § `vk_interp_probe.c`](../reproducers/README.md).
+
+### Low-Level Tiny-Probe Shader
+
+Captured 2026-07-06 against the **shipped Mesa 26.0.3** driver, with the bug
+reproducing during the capture. (An earlier version of this section showed a
+dump from an older attribute-fed probe revision; this is the current
+`gl_VertexID` probe.) Capture commands — the dumps themselves are dev-box
+artifacts, not in the repo:
+
+```bash
+BIFROST_MESA_DEBUG=shaders ./tiny_interp_probe 12288 varying   # compiler dump: NIR + packed Valhall asm
+PAN_MESA_DEBUG=trace       ./tiny_interp_probe 12288 varying   # pandecode: decoded command streams + descriptors
+PAN_MESA_DEBUG=trace       ./vk_interp_probe   12288 varying   # same for the panvk run
+```
+
+`BIFROST_MESA_DEBUG=shaders` is what produces shader dumps on this driver;
+`PAN_MESA_DEBUG=trace` is a *different* variable that produces pandecode
+command-stream dumps (its other toggles — `nofp16`, `linear`, `sync`, ... —
+are used in the ruled-out table below).
+
+The packed Valhall fragment shader for the varying mode, in full — the
+varying goes from the load message straight to the blend message with **no
+ALU in between**:
+
+```asm
+NOP.wait0126
+ATEST.wait0 @r60, ^r60, 0x3F800000, atest_datum.w0
+LD_VAR_BUF_IMM.f32.slot0.src_f32.center.store.discard @r0, ^r61, index:0x0
+MOV.i32 r1, 0x0
+MOV.i32 r2, 0x0
+MOV.i32.wait r3, 0x0
+BLEND.slot1.v4.u32.end @r0:r1:r2:r3, blend_descriptor_0.w0, r60, target:0x0
+```
+
+`LD_VAR_BUF_IMM.f32...center` is Valhall v10's buffer-based
+interpolated-varying fetch — f32 in, f32 out, sampled at the pixel center —
+already the maximum-precision variant of the varying load. The IDVS varying
+vertex shader computes `v` with exactly-representable arithmetic (the stored
+per-vertex values are `0.0` and `2*width = 24576.0`, both exact in f32) and
+ends in a raw `STORE.i32` — no conversion touches the value on its way to
+memory. The panvk-compiled fragment shader is instruction-for-instruction
+identical (only the blend-descriptor constant source differs). So the shader
+cannot be the source of the error; the only remaining variables are the
+varying descriptors the driver programs and the fixed-function interpolation
+itself.
+
+The pandecode dumps of both the GL and panvk runs — the literal decoded
+command streams and descriptors — close most of the descriptor half: the
+varying descriptor is plain `Format R32F, Vertex packet, stride 16` with
+sane flags (`Preserve subnormals`, no NaN suppression), and — the key
+structural fact — **no driver-computed plane-equation coefficients exist
+anywhere on Mali**: the hardware derives the interpolation from the raw
+per-vertex f32 values plus the rasterizer's barycentrics. There is no
+coefficient buffer a driver could have filled imprecisely.
+
+### Going Lower
+
+The feasibility ladder for even-lower-level reproduction, assessed
+2026-07-06:
+
+- **Done:** the GL and panvk probes, the instruction-identical
+  `LD_VAR_BUF_IMM` fragment shaders, and the `PAN_MESA_DEBUG=trace`
+  pandecode command-stream dumps above.
+- **Assessed, not built:** a hand-built CSF command stream submitted through
+  raw panthor ioctls. That is a mini-driver — roughly 1.5-3k lines covering
+  VM/queue setup, the tiler heap, FBD/DCD/IDVS SPD packing, and
+  `RUN_IDVS`/`RUN_FRAGMENT`. Crib sources exist in-tree (the panvk CSF
+  backend `src/panfrost/vulkan/csf/`, genxml `cs_builder.h`, kraid's
+  compute-only hw_runner harness
+  `src/panfrost/compiler/kraid/hw_runner/`, and
+  `/usr/include/drm/panthor_drm.h` is present on the board), but the
+  marginal evidentiary value is modest: the pandecode dumps already expose
+  every descriptor byte such a harness would emit.
+- **The single most probative next step**, if the hardware attribution is
+  still disputed: run the same `vk_interp_probe` binary on ARM's proprietary
+  blob Vulkan driver (not currently installed) — that removes all Mesa code
+  from the loop.
+
+One dead end recorded: `BIFROST_MESA_DEBUG=noidvs` breaks Valhall rendering
+outright in this driver (`v=0.0` everywhere — tested 2026-07-06), so no
+environment knob switches the varying path for an A/B experiment.
+
+## The Probe Frame Contains No u_blitter Work
+
+The tiny probe's frame provably contains no u_blitter or internal-blit work.
+
+Source-level (Mesa 26.0.3): `st_ReadPixels` bails to the CPU fallback before
+any blit because panfrost reports `texture_transfer_modes = 0`
+(`pan_screen.c:825` → `st_context.c:491-494` → `st_cb_readpixels.c:443`),
+and `_mesa_readpixels` reduces to a memcpy since `R32UI` matches
+`GL_RED_INTEGER`/`GL_UNSIGNED_INT`. The mapped resource is
+`DRM_FORMAT_MOD_LINEAR` (tiling is rejected for height-1 targets at
+`pan_resource.c:701`; AFBC has no R32 mode per `pan_afbc.h:498-604`), so
+`panfrost_ptr_map` returns a direct CPU pointer after a flush+wait — the
+AFBC staging-blit branch is never reached. The draw is a single
+`glDrawArrays` with no clear, and tile preload is skipped because a fresh
+`glTexStorage2D` image has no valid contents (`pan_job.c:537-542`).
+
+Empirically, on debug builds of the corrected !42613/!42614 stack — which,
+unlike shipped 26.0.3, even enable blit-based transfers — gdb breakpoints on
+every `util_blitter_*` entry point, `panfrost_blit`, `pan_blit_to_staging`,
+and the panfrost preload emitters record **zero hits** for the executed
+frame across a full failing run. The only preload descriptors emitted are
+the never-executed tiler-OOM contingency FBDs (no "Incremental rendering was
+triggered" under `PAN_MESA_DEBUG=sync,perf`).
+
+The same runs reproduce the varying drift bit-identically (11744/12288 bad,
+`0.997 * 2^-10`) while the `gl_FragCoord` control reads back exact — which
+also confirms the drift persists on the fixed MR stack, as it must: the fix
+reroutes u_blitter's TXF coordinates around varyings; it does not (and
+cannot) repair varying interpolation. So the 2^-10 error originates in
+varying interpolation itself — not in u_blitter, any blit, or the readback.
+
 ## What The `2^-10` Means
 
 For normal texture coordinates, a relative error around `2^-10` is often
@@ -164,10 +307,16 @@ The observed right-edge error was about 13 texels. After
 why a small relative interpolation error becomes a large integer readback
 failure.
 
-This is a hardware precision property, not a Panfrost software bug: the
-fixed-function varying interpolator computes the perspective correction (the
-`1/w` reciprocal inside `LD_VAR`) at roughly `2^-10` relative precision, even
-for `highp`/f32 varyings.
+This is the measured behavior of the Panfrost/Mali smooth-varying path at
+specific non-power-of-two widths; the error is width-dependent (`2^-12` at
+`W=2080`, `2^-14` at `W=16383`, ~`2^-10` at `W=12288`/`W=16307`) and is never
+seen at power-of-two extents. If the hardware contract says the f32 varying
+path should be more accurate than this, the tiny probe narrows the
+investigation to the non-power-of-two interpolation setup — in the hardware
+or in the varying descriptors the drivers program (pandecode shows those as
+plain `R32F` with sane flags, and Mali has no driver-computed plane
+coefficients at all) — rather than `u_blitter`'s texture operation, which
+the panvk reproduction removes from the stack entirely.
 
 ## Why `noperspective` Did Not Fix It
 
@@ -210,11 +359,11 @@ These were checked and did not make BLIT correct:
 |---|---|
 | fp16 lowering / `PAN_MESA_DEBUG=nofp16` | No effect. NIR and asm showed f32 coordinate handling; the loss is in the fixed-function varying interpolation. |
 | Explicit `fmul coord, frag_w` | Red herring. The default path has no explicit multiply; the perspective divide is internal to `LD_VAR_IMM`. |
-| Pixel-center mismatch | Refuted. The error grows with coordinate magnitude (−0.18 at i=256 → −13.2 at i=16306); a center mismatch would be a constant half-pixel shift, and `gl_FragCoord` (which does get the +0.5) is exact. |
+| Pixel-center mismatch | Refuted. The error grows with coordinate magnitude (−0.18 at i=256 → −13.2 at i=16306); a center mismatch would be a constant half-pixel shift, and `gl_FragCoord` (which does get the +0.5) is exact. `tiny_interp_probe.c` has no texture sample at all and compares directly against the pixel-center ideal `x + 0.5`. |
 | AFBC or modifier layout, `PAN_MESA_DEBUG=linear` | Still failed. |
 | Missing fence, `PAN_MESA_DEBUG=sync` | Still failed. |
 | Readpixels cache, `ST_DEBUG=noreadpixcache` | Still failed. |
-| Diagonal split / single triangle | Still failed. One big quad does not help either: the vertex values are still ~16000, so the interpolated magnitude (and the error) stays large regardless of triangle size. |
+| Diagonal split / single triangle | Still failed. An earlier `tiny_interp_probe` revision drew the same varying plane as a two-triangle quad and as a single triangle; the results were bit-identical (15672/16307 either way), so this is not a two-triangle seam. |
 | TXF path toggles (`util_blitter_blit_with_txf` selection) | Still failed. |
 | `gl_FragCoord.w` correction | `gl_FragCoord.w` is exactly `1.0` — it does not carry the interpolation error, so `interp / w` fails identically (15672/16307). |
 | `dFdx` reconstruction | Worse: `16187 / 16307` mismatches. Mali's derivatives are themselves coarse/quantized. |
@@ -314,6 +463,37 @@ readback/transfer such as `RG32UI -> RGBA32UI`):
   interpolated delta) — ruled out: precise but requires splitting blits into
   small primitives and emitting both a flat base and a delta from the VS;
   strictly more plumbing than `gl_FragCoord` with no upside.
+
+## Review Followups: Empty Blits And Buffer Targets
+
+Two maintainer-review details are easy to misread because they look like small
+defensive checks, but they are really layer-boundary decisions.
+
+**Zero-sized blits.** `glCopyImageSubData` and related API paths can legally
+describe zero-sized copy boxes; those are no-ops. That does not mean
+`u_blitter` should accept a zero-sized render blit. A render blit with zero
+width/height rasterizes no fragments, and the fragcoord path's affine
+(`scale = src_extent / dst_extent`) has no meaningful value. The first !42679
+revision handled this by substituting scale 1 for degenerate axes; after review
+that was removed. The current invariant is: API/front-end code skips empty
+regions before building Gallium blits, while `u_blitter` assumes non-empty work
+and asserts that the destination axes are not zero in the fragcoord path.
+
+Follow-up branches exist but are not part of the current MR stack:
+
+- `zero-sized-blits-gallium` (`d8cf9625ba5`) skips empty GL/DRI copy rectangles
+  in `dri2_blit_image`, `glCopyImageSubData`, and `glCopyTexSubImage*` before
+  constructing Gallium blits.
+- `zero-sized-blits-lavapipe` (`740be57319d`) skips empty Vulkan blit/resolve
+  regions before lavapipe builds `pipe_blit_info` for llvmpipe/softpipe.
+
+**`PIPE_BUFFER`.** `PIPE_BUFFER` is a valid Gallium target in other contexts,
+including buffer textures and PBO/SSBO-style helper paths, but it does not reach
+this `u_blitter` render-blit TXF path. Buffer copies route through resource or
+buffer-copy machinery rather than rendering a sampled blit to a pipe surface.
+So `blitter_target_supports_txf()` intentionally reasons only about texture
+targets and cube exclusion; mentioning `PIPE_BUFFER` there would document a case
+that cannot happen.
 
 ## The AFBC Constraint (Why COMPUTE-Only Was Rejected)
 

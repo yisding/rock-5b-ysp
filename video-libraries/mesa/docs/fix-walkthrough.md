@@ -116,13 +116,17 @@ For a 16307-wide readback the varying runs 0 -> 16307 across the rectangle, pixe
 ### The bug: Mali interpolates imprecisely
 
 **Interpolation is done by fixed-function hardware — a dedicated circuit, not the
-shader.** On Arm Mali, that circuit is accurate to only about **2^-10 relative
-error** (~0.1%). It is tuned for texture coordinates in normal rendering, where
-0.1% of a pixel is invisible.
+shader.** On the G610, large non-power-of-two widths behave as if that circuit
+sets up the ruler with a small width-dependent relative scale error — about
+**2^-10** (~0.1%) at the widths where the blit bug was found. That is harmless
+for texture coordinates in normal rendering, where 0.1% of a pixel is usually
+invisible.
 
 But for an **exact texel copy**, 0.1% is catastrophic at large coordinates:
 
-- At coordinate ~16000, a 2^-10 relative error is about **13 texels**.
+- At coordinate ~16000, a full 2^-10 relative error would be ~15.6 texels; the
+  measured `8.1e-4` (0.83 * 2^-10) at `W = 16307` puts the right edge about
+  **13 texels** low.
 - So the shader computes `coord ~ 16293` instead of `16306`, truncates, and
   **fetches texel 16293** — the wrong one.
 - The error is *relative*, so it grows with position: early pixels are fine, later
@@ -132,16 +136,37 @@ Measured on the G610: a 16307-wide `RG32UI -> RGBA32UI` readback returned
 **15672 of 16307 texels wrong**, each holding a neighbor's value. The CPU fallback
 was correct; only the GPU blit was wrong.
 
+The smallest proof is `tiny_interp_probe.c`
+([canonical writeup](../reproducers/README.md)) — pure varying interpolation,
+with no `u_blitter`, no source texture, no `texelFetch`, no filtering, and no
+format-changing readback. At the default `W = 12288` the varying reads back
+with a `9.74e-4` (~2^-10) relative error and 11744 of 12288 pixels fail
+`floor(v) == x`, while the `gl_FragCoord.x` control through the identical
+pipeline is bit-exact; at `W = 16307` it reproduces the original bug signature
+(15672/16307, first at x=623). Every power-of-two width tested is exact, and
+the error at other widths is width-dependent (exactly 2^-12 at W=2080, exactly
+2^-14 at W=16383): the bug is not "all f32 varyings are 10-bit"; it is the
+non-power-of-two setup/interpolation case that wide blits hit. The failing
+fragment shader's dump contains no texture instruction — just one
+`LD_VAR_BUF_IMM ... f32 ... center` load
+([`blit-precision.md`](blit-precision.md)) — so if the hardware docs say the
+varying load should be more accurate, this is the reduced test case for the
+Panfrost/Mali varying path, not for u_blitter's sampler coordinates. A
+Vulkan port (`vk_interp_probe.c`) reproduces the drift bit-for-bit on panvk,
+Mesa's Vulkan driver — a stack with no u_blitter, no Gallium, and no GL
+state tracker anywhere — while the same binary passes on llvmpipe
+([canonical writeup](../reproducers/README.md)).
+
 ### Two details that made this hard to find
 
 - **It is not integer-specific.** The same test with floats (`RG32F -> RGBA32F`)
   fails identically — proving the problem is the *coordinate*, not the data. This
   rules out "just special-case integer formats."
 - **It only happens at non-power-of-two widths.** A blit that is exactly 8192 or
-  16384 wide is bit-exact; 5000, 8193, 12000, 16307 all drift. The interpolator's
-  internal reciprocal happens to be exact for powers of two. This is why the bug
-  hid for years — ordinary sizes are often powers of two, and the onset is only
-  past ~3000-5000 pixels of width.
+  16384 wide is bit-exact; 5000, 8193, 12000, 16307 all drift. Whatever sets up
+  the interpolation happens to be exact for powers of two. This is why the bug
+  hid for years — ordinary sizes are often powers of two, and `floor()`-visible
+  failures start only at width 2080, staying sparse until ~4300.
 
 ### Why you cannot "just interpolate more precisely"
 
@@ -266,6 +291,15 @@ must not touch:
   they also read the plain attribute. The code decides *once*, where it picks the
   shader, whether the draw uses the new decode, and threads that single decision to
   the draw.
+- **Zero-sized blits are excluded before this layer.** A zero-sized GL/Vulkan copy
+  can be a valid API no-op, but it is not a meaningful render blit: no fragments
+  are produced and the fragcoord affine would divide by a zero destination extent.
+  The final `u_blitter` patch assumes non-empty work; separate follow-up branches
+  skip empty GL/DRI and lavapipe regions before Gallium blits are built.
+- **`PIPE_BUFFER` is not part of this path.** Buffers appear in many Mesa helper
+  paths, but buffer copies do not reach this render-blit TXF shader path; they use
+  resource/buffer-copy machinery. So the final predicate only talks about texture
+  targets and cube exclusion.
 - **The flag defaults off.** Any driver that does not opt in generates exactly the
   shaders it did before. This is what makes the shared-code change safe for the ~10
   other drivers using `u_blitter`, and why it is structured as an opt-in flag
@@ -355,19 +389,38 @@ fix's shape:
 
 ## 8. Why doesn't any other driver have this?
 
-This is not a software bug that other drivers happened to avoid — it is a
-*hardware property* of Mali's varying interpolator. The same shared `u_blitter`
-code runs on ~13 drivers; on the others it produces exact results because their
-interpolation hardware is not this imprecise. So the real question is "why is
-Mali's interpolator less precise than everyone else's?"
+The same shared `u_blitter` code runs on ~13 drivers; on the others it
+produces exact results. Whatever is wrong lives below the shared code, in the
+Mali/Panfrost varying path: `tiny_interp_probe.c` shows pure varying
+interpolation — no u_blitter, no texture sampling, no filtering, no
+tie-breakers — drifting by a width-dependent relative error (~2^-10 at the
+widths where the blit bug was found), while `gl_FragCoord.x` through the
+identical pipeline is bit-exact. Every power-of-two width tested is bit-exact
+too, which is consistent with the interpolator ALU itself being full precision
+while the plane/coefficient setup for non-power-of-two render-target widths
+loses precision. Whether that setup error is in the hardware or in how
+Panfrost programs the varying unit is still open; either way, no other
+in-tree driver's interpolation path measures like this.
 
-There are two independent things a GPU can do to get this right. A GPU is immune
-if it has *either*. Mali has **neither**.
+Two 2026-07-06 measurements close the remaining alternatives. First, the
+Vulkan port of the probe reproduces the drift **bit-for-bit on panvk**,
+Mesa's Vulkan driver for Mali — a stack containing no u_blitter, no Gallium,
+and no GL state tracker — so the error cannot live in any of those layers
+(the same binary passes on llvmpipe; see
+[`reproducers/README.md`](../reproducers/README.md)). Second, the GL probe
+drifts bit-identically (11744/12288, `0.997 * 2^-10`) on a debug build of
+the corrected !42613/!42614 stack: our fix reroutes u_blitter's TXF
+coordinates *around* varyings — it does not (and cannot) repair varying
+interpolation itself.
 
-### (1) Interpolate at high precision
+There are two independent things a GPU stack can do to be immune. The other
+drivers have at least one; the measured G610 path has **neither**.
+
+### (1) Interpolate at high precision end-to-end
 
 Interpolating a varying means evaluating a plane equation `A*x + B*y + C` (plus a
-perspective divide by `1/w`). The precision of that arithmetic is a design choice:
+perspective divide by `1/w`). The precision of that whole chain — coefficient
+setup *and* evaluation — is a design choice:
 
 - **Desktop GPUs (AMD, NVIDIA, Intel)** moved varying interpolation *into the
   shader core* long ago — the shader evaluates it with the general **f32 ALU**
@@ -375,17 +428,17 @@ perspective divide by `1/w`). The precision of that arithmetic is a design choic
   magnitude 16000 that is accurate to a tiny fraction of a texel.
 - **Apple (AGX / Asahi)** also evaluates the plane equation in f32 ALU (an `ffma`
   on explicit coefficients, with an f32 divide for the perspective term) — ~2^-23.
-- **Mali** keeps a **dedicated fixed-function interpolator** — a separate hardware
-  unit with a ~32-bit datapath tuned for texture-coordinate-grade precision and
-  optimized for fp16. Its perspective reciprocal is good to only about **2^-10**,
-  ~1000x coarser than f32, which is the ~13-texel error at magnitude 16000.
+- **Mali** keeps a **dedicated fixed-function interpolator** — a separate
+  hardware unit whose plane setup the driver programs and the shader cannot
+  inspect. The measured G610 result is exact for power-of-two widths and off
+  by a width-dependent ~2^-10-class scale error at many non-power-of-two
+  widths — which at magnitude 16000 is the observed ~13-texel error.
 
-Why would Mali do that? Power and area. It is a mobile GPU; a compact
-fixed-function interpolator optimized for the fp16 values that dominate real
-shading is cheaper than routing every varying through full-f32 ALU. For actual
-rendering — where a varying is a color or a small coordinate and 0.1% is
-invisible — it is a perfectly good trade. It only bites when a varying is used to
-carry an *exact large integer*, which is exactly what the blit coordinate does.
+A compact fixed-function interpolator is a reasonable mobile power/area trade:
+for actual rendering — where a varying is a color or a small coordinate and
+0.1% is invisible — a small setup error is harmless. It only bites when a
+varying is used to carry an *exact large integer*, which is exactly what the
+blit coordinate does.
 
 ### (2) Never interpolate a large-magnitude value
 
@@ -401,8 +454,8 @@ does it in hardware, for free, on every varying.
 
 Mali has **no tile-local re-basing and no access to the raw coefficients** from
 the shader, so it interpolates the full-magnitude value and eats the relative
-error at full scale. That combination — a reduced-precision fixed-function unit
-interpolating the full coordinate — is, as far as anyone found (web + GitLab
+error at full scale. That combination — a lossy full-magnitude interpolation
+path with no shader-visible escape — is, as far as anyone found (web + GitLab
 search turned up no prior art), unique to Mali-class hardware among in-tree
 drivers, which is why no other driver needed a fix.
 
@@ -410,8 +463,9 @@ drivers, which is why no other driver needed a fix.
 
 Even without our transfer-blit change, shipped Mesa corrupts a plain wide
 `glBlitFramebuffer` on Mali (29498/32614 wrong texels in the repro). Nobody
-noticed because the exposure is narrow: power-of-two extents are bit-exact and the
-drift only starts past ~3000-5000 px, so common blit sizes never trigger it. It is
+noticed because the exposure is narrow: power-of-two extents are bit-exact and
+failing widths are sparse below ~4300 (the smallest measured is 2080), so
+common blit sizes rarely trigger it. It is
 less "other drivers avoided a bug Mali has" and more "Mali always had this latent,
 and enabling GPU texture-transfers is what would have made it routinely visible."
 
