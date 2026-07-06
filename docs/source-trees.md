@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `309548773814` + branch `rk3588-rewrite-mainline` @ `49913db297cb`, including collector-level dormant MPP batch-server rejection coverage after the Route B RGA3 userptr IOMMU mapping/debugfs attribution slice; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `02e6026c3a00` + branch `rk3588-rewrite-mainline` @ `60983387706b`, including display-tail BGRA partial-alpha-blend RGA3 KUnit coverage after the collector-level dormant MPP batch-server rejection and Route B RGA3 userptr IOMMU mapping/debugfs attribution slices; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -203,13 +203,14 @@ is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b` as
 of 2026-07-06:
 
-- branch `rk3588-rewrite-6.18`, commit `309548773814` ("media: rockchip:
-  mpp-rewrite: cover batch-server rejection"), committed in the dev worktree
-  `/home/yi/Code/kernel/linux-6.18-rkvenc`, replayed on the current
-  `rkvenc-fwport-6.18` forward-port tip `e059aad8d68b` from
-  `/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport`.
-- branch `rk3588-rewrite-mainline`, commit `49913db297cb` ("media: rockchip:
-  mpp-rewrite: cover batch-server rejection"),
+- branch `rk3588-rewrite-6.18`, commit `02e6026c3a00` ("media: rockchip:
+  rga-rewrite: cover display alpha blend"), committed in the dev worktree
+  `/home/yi/Code/kernel/linux-6.18-rkvenc`. The sibling 6.18 forward-port
+  oracle referenced by this rewrite track was
+  `/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport` at
+  `rkvenc-fwport-6.18` tip `e059aad8d68b` when these pins were recorded.
+- branch `rk3588-rewrite-mainline`, commit `60983387706b` ("media: rockchip:
+  rga-rewrite: cover display alpha blend"),
   committed in the sibling worktree `/home/yi/Code/kernel/linux`.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
@@ -280,7 +281,8 @@ direct fd-vs-virtual-address encoding, plus Rockchip IOMMU `map_pages`/
 `unmap_pages` count handling for dma-buf mappings that cross a 4 MiB page-table
 boundary, plus zero-count RGA import/release buffer-pool KUnit coverage that
 preserves the BSP-style valid-pointer no-op and null-pointer `-EFAULT`
-boundary. The 6.18 branch also has the forward-port recovery cleanup that moves
+boundary, plus RGA3 display-tail BGRA partial alpha-blend command-emission
+coverage for the opt-in public UI/display smoke shape. The 6.18 branch also has the forward-port recovery cleanup that moves
 the Rockchip IOMMU hooks into `include/soc/rockchip/rockchip_iommu.h`, restores
 real fault masking/pagefault-done/reset hooks for the BSP-derived MPP driver,
 adds 32-bit `MPP_IOC_CFG_V1` compat parsing, propagates IOMMU-refresh failures
@@ -293,9 +295,12 @@ the mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for the rewrite drivers. The current committed pins
-(`../kernel/linux-6.18-rkvenc@309548773814` and `../kernel/linux@49913db297cb`) passed that
-archive build gate warning-free on 2026-07-06 after the MPP batch-server
-collector-level rejection coverage was added; `VALIDATE_ONLY=1
+(`../kernel/linux-6.18-rkvenc@02e6026c3a00` and `../kernel/linux@60983387706b`) passed that
+archive build gate warning-free on 2026-07-06 after the RGA3 display-tail
+partial-alpha-blend coverage was added; the same pins also passed
+`REWRITE_BUILD_PROFILES="memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
+warning-free for KASAN/fault-injection and KCSAN/lockdep compile coverage.
+`VALIDATE_ONLY=1
 kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
 syzlang ABI-marker, case-builder, and comparator validation, including 26
 Rockchip syzlang ABI markers and 143 GStreamer case builders. The

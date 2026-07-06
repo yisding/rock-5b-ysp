@@ -7,8 +7,8 @@ the plan that closes the gap [`rewrite-drivers.md`](./rewrite-drivers.md) §6 an
 hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
-> surface and heavily unit-tested — MPP **54 KUnit cases** and RGA **100 KUnit
-> cases** compile at the §6 pins (`309548773814` on 6.18, `49913db297cb` on
+> surface and heavily unit-tested — MPP **54 KUnit cases** and RGA **101 KUnit
+> cases** compile at the §6 pins (`02e6026c3a00` on 6.18, `60983387706b` on
 > mainline). But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk

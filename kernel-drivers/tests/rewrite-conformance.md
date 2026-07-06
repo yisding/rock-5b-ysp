@@ -67,7 +67,7 @@ worktree has unrelated local changes.
 
 Last recorded run: `kernel-drivers/tests/rewrite-build-gate.sh all`
 on 2026-07-06 passed warning-free for the committed rewrite tips
-`../kernel/linux-6.18-rkvenc@309548773814` and `../kernel/linux@49913db297cb`.
+`../kernel/linux-6.18-rkvenc@02e6026c3a00` and `../kernel/linux@60983387706b`.
 On the same date,
 `REWRITE_BUILD_PROFILES="memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
 also passed warning-free for both trees, proving compile coverage with
