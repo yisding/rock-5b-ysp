@@ -83,6 +83,34 @@ run_step()
 	fi
 }
 
+run_optional_step()
+{
+	local name=$1
+	shift
+	local rc
+
+	printf "================= %s =================\n" "$name"
+	set +e
+	"$@"
+	rc=$?
+	set -e
+	printf "\n"
+
+	case "$rc" in
+	0)
+		return 0
+		;;
+	77)
+		printf "%s SKIPPED with exit code 77\n" "$name"
+		return 0
+		;;
+	*)
+		printf "%s FAILED with exit code %s\n" "$name" "$rc" >&2
+		exit "$rc"
+		;;
+	esac
+}
+
 run_system_info()
 {
 	local collector="$CONFORMANCE_ROOT/scripts/collect-system-info.sh"
@@ -299,6 +327,10 @@ run_validation()
 	run_step "rga: validate direct librga smoke build" \
 		env LIBRGA_SMOKE_VALIDATE_BUILD=1 \
 		bash "$TEST_DIR/librga-smoke.sh"
+
+	run_optional_step "gstreamer: validate event harness build" \
+		env GST_EVENT_HARNESS_VALIDATE_BUILD=1 \
+		bash "$TEST_DIR/build-gstreamer-rockchip.sh"
 
 	run_step "iommu: validate RGA scatter fuzzer build" \
 		env IOMMU_FUZZ_VALIDATE_BUILD=1 \
