@@ -1,0 +1,279 @@
+#!/usr/bin/env bash
+# Audit whether paired forward-port/rewrite conformance evidence exists.
+set -euo pipefail
+
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
+BASELINE=${BASELINE:-forward-port}
+CANDIDATE=${CANDIDATE:-rewrite}
+SUITES=${SUITES:-"mpp librga gstreamer ffmpeg"}
+REQUIRE_ARTIFACTS=${REQUIRE_ARTIFACTS:-1}
+REQUIRE_COUNTER_DELTAS=${REQUIRE_COUNTER_DELTAS:-1}
+RUN_COMPARATORS=${RUN_COMPARATORS:-1}
+
+usage()
+{
+	cat <<EOF
+Usage: ${0##*/} [--selftest]
+
+Environment:
+  CONFORMANCE_ROOT       conformance bundle root (default: ../rockchip-conformance)
+  BASELINE               baseline profile (default: forward-port)
+  CANDIDATE              candidate profile (default: rewrite)
+  SUITES                 suites to audit (default: mpp librga gstreamer ffmpeg)
+  REQUIRE_ARTIFACTS=0    allow pass/fail-only suite logs
+  REQUIRE_COUNTER_DELTAS=0
+                          allow missing debugfs-counters-delta.tsv files
+  RUN_COMPARATORS=0      skip suite comparator execution
+EOF
+}
+
+find_latest_summary()
+{
+	local profile=$1
+	local suite=$2
+	local summary
+
+	summary=$({ find "$CONFORMANCE_ROOT/logs/$profile" \
+		-path "*-$suite-suite/summary.tsv" -type f \
+		-printf "%T@ %p\n" 2>/dev/null || true; } |
+		sort -nr | awk 'NR == 1 { sub(/^[^ ]+ /, ""); print }')
+	if [ -z "$summary" ]; then
+		printf "missing latest %s summary for profile %s\n" \
+			"$suite" "$profile" >&2
+		return 1
+	fi
+
+	printf "%s\n" "$summary"
+}
+
+check_required_cases()
+{
+	local summary=$1
+	local suite=$2
+	local profile=$3
+
+	awk -v suite="$suite" -v profile="$profile" '
+	BEGIN {
+		FS = "\t";
+		required = 0;
+		failed = 0;
+	}
+	NR == 1 {
+		next;
+	}
+	$2 == "required" {
+		required++;
+		if ($6 != "pass") {
+			printf("required case failed: profile=%s suite=%s case=%s result=%s status=%s\n",
+			       profile, suite, $3, $6, $4) > "/dev/stderr";
+			failed++;
+		}
+	}
+	END {
+		if (required == 0) {
+			printf("no required cases recorded: profile=%s suite=%s summary=%s\n",
+			       profile, suite, FILENAME) > "/dev/stderr";
+			exit 1;
+		}
+		exit failed ? 1 : 0;
+	}
+	' "$summary"
+}
+
+check_artifacts()
+{
+	local summary=$1
+	local suite=$2
+	local profile=$3
+	local artifacts
+
+	artifacts="$(dirname "$summary")/artifacts.tsv"
+	if [ "$REQUIRE_ARTIFACTS" != "1" ]; then
+		printf "artifact audit skipped: profile=%s suite=%s artifacts=%s\n" \
+			"$profile" "$suite" "$artifacts"
+		return 0
+	fi
+
+	if [ ! -s "$artifacts" ]; then
+		printf "missing artifact manifest: profile=%s suite=%s path=%s\n" \
+			"$profile" "$suite" "$artifacts" >&2
+		return 1
+	fi
+
+	if ! awk 'NR > 1 { found = 1 } END { exit found ? 0 : 1 }' "$artifacts"; then
+		printf "empty artifact manifest: profile=%s suite=%s path=%s\n" \
+			"$profile" "$suite" "$artifacts" >&2
+		return 1
+	fi
+}
+
+check_counter_deltas()
+{
+	local summary=$1
+	local suite=$2
+	local profile=$3
+	local counters
+
+	counters="$(dirname "$summary")/debugfs-counters-delta.tsv"
+	if [ "$REQUIRE_COUNTER_DELTAS" != "1" ]; then
+		printf "counter audit skipped: profile=%s suite=%s counters=%s\n" \
+			"$profile" "$suite" "$counters"
+		return 0
+	fi
+
+	if [ ! -s "$counters" ]; then
+		printf "missing counter delta file: profile=%s suite=%s path=%s\n" \
+			"$profile" "$suite" "$counters" >&2
+		return 1
+	fi
+
+	if ! awk 'NR > 1 { found = 1 } END { exit found ? 0 : 1 }' "$counters"; then
+		printf "empty counter delta file: profile=%s suite=%s path=%s\n" \
+			"$profile" "$suite" "$counters" >&2
+		return 1
+	fi
+}
+
+run_suite_comparator()
+{
+	local suite=$1
+	local baseline_summary=$2
+	local candidate_summary=$3
+	local comparator="$TEST_DIR/$suite-suite-compare.sh"
+
+	if [ "$RUN_COMPARATORS" != "1" ]; then
+		return 0
+	fi
+
+	if [ ! -x "$comparator" ]; then
+		printf "missing comparator for suite %s: %s\n" "$suite" "$comparator" >&2
+		return 1
+	fi
+
+	BASELINE="$BASELINE" CANDIDATE="$CANDIDATE" \
+		BASELINE_SUMMARY="$baseline_summary" \
+		CANDIDATE_SUMMARY="$candidate_summary" \
+		CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
+		REQUIRE_ARTIFACTS="$REQUIRE_ARTIFACTS" \
+		bash "$comparator" >/dev/null
+}
+
+audit_one_suite()
+{
+	local suite=$1
+	local baseline_summary
+	local candidate_summary
+	local suite_failed=0
+
+	if ! baseline_summary="$(find_latest_summary "$BASELINE" "$suite")"; then
+		return 1
+	fi
+	if ! candidate_summary="$(find_latest_summary "$CANDIDATE" "$suite")"; then
+		return 1
+	fi
+
+	check_required_cases "$baseline_summary" "$suite" "$BASELINE" ||
+		suite_failed=1
+	check_required_cases "$candidate_summary" "$suite" "$CANDIDATE" ||
+		suite_failed=1
+	check_artifacts "$baseline_summary" "$suite" "$BASELINE" ||
+		suite_failed=1
+	check_artifacts "$candidate_summary" "$suite" "$CANDIDATE" ||
+		suite_failed=1
+	check_counter_deltas "$baseline_summary" "$suite" "$BASELINE" ||
+		suite_failed=1
+	check_counter_deltas "$candidate_summary" "$suite" "$CANDIDATE" ||
+		suite_failed=1
+	run_suite_comparator "$suite" "$baseline_summary" "$candidate_summary" ||
+		suite_failed=1
+
+	if [ "$suite_failed" -ne 0 ]; then
+		return 1
+	fi
+
+	printf "evidence ok: suite=%s baseline=%s candidate=%s\n" \
+		"$suite" "$baseline_summary" "$candidate_summary"
+}
+
+write_fixture_suite()
+{
+	local root=$1
+	local profile=$2
+	local suite=$3
+	local dir="$root/logs/$profile/20260706-000000-$suite-suite"
+
+	mkdir -p "$dir"
+	cat > "$dir/summary.tsv" <<EOF
+profile	class	case	status	elapsed_s	result
+$profile	required	${suite}_required	0	1.000	pass
+$profile	diagnostic	${suite}_diagnostic	0	1.000	pass
+EOF
+	cat > "$dir/artifacts.tsv" <<EOF
+profile	class	case	kind	bytes	sha256
+$profile	required	${suite}_required	output	4	0123456789abcdef
+EOF
+	cat > "$dir/debugfs-counters-delta.tsv" <<EOF
+component	counter	before	after	delta
+${suite}	started_job_count	0	1	1
+EOF
+}
+
+selftest()
+{
+	local tmp_root
+
+	tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/rk-evidence-audit.XXXXXX")"
+	trap 'rm -rf "$tmp_root"' RETURN
+
+	for suite in mpp librga gstreamer ffmpeg; do
+		write_fixture_suite "$tmp_root" "$BASELINE" "$suite"
+		write_fixture_suite "$tmp_root" "$CANDIDATE" "$suite"
+	done
+
+	CONFORMANCE_ROOT="$tmp_root" SUITES="mpp librga gstreamer ffmpeg" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=1 "$0" >/dev/null
+
+	rm -f "$tmp_root/logs/$CANDIDATE/20260706-000000-ffmpeg-suite/artifacts.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="ffmpeg" REQUIRE_ARTIFACTS=1 \
+		REQUIRE_COUNTER_DELTAS=1 RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected missing artifact audit to fail\n" >&2
+		return 1
+	fi
+
+	printf "PASS: rewrite evidence audit selftest\n"
+}
+
+case "${1:-}" in
+--help|-h)
+	usage
+	exit 0
+	;;
+--selftest)
+	selftest
+	exit 0
+	;;
+"")
+	;;
+*)
+	usage >&2
+	exit 2
+	;;
+esac
+
+failed=0
+for suite in $SUITES; do
+	if ! audit_one_suite "$suite"; then
+		failed=1
+	fi
+done
+
+if [ "$failed" -ne 0 ]; then
+	printf "rewrite evidence audit failed\n" >&2
+	exit 1
+fi
+
+printf "rewrite evidence audit passed\n"

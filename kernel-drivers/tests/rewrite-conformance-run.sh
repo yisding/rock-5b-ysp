@@ -373,6 +373,9 @@ run_validation()
 
 	run_step "comparators: regression selftest" \
 		bash "$TEST_DIR/suite-compare-selftest.sh"
+
+	run_step "evidence: audit selftest" \
+		bash "$TEST_DIR/rewrite-evidence-audit.sh" --selftest
 }
 
 if [ "$VALIDATE_ONLY" = "1" ]; then
