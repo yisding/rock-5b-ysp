@@ -870,6 +870,7 @@ bash rewrite-evidence-audit.sh        # audit latest paired forward-port/rewrite
 SUITES="mpp librga gstreamer ffmpeg rkmppenc" bash rewrite-evidence-audit.sh  # include optional rkmppenc once both profiles have logs
 SUITES="gstreamer rkmppenc" REQUIRE_DIAGNOSTIC_PASS=1 AUDIT_REQUIRED_CASES="gstreamer:rgaconvert_bgrx_to_nv12 gstreamer:videoflip_rga_nv12_clockwise rkmppenc:rkmppenc_avhw_h264_to_hevc_rga_resize" bash rewrite-evidence-audit.sh  # hard-audit selected optional librga consumer tails
 PERF_MAX_RATIO=0 bash rewrite-evidence-audit.sh  # exploratory paired audit without the default 1.25x slowdown ceiling
+AUDIT_COUNTER_CHECKS=0 bash rewrite-evidence-audit.sh  # exploratory paired audit without candidate hardware-counter content checks
 RECOVERY_VALIDATE_ONLY=1 bash rewrite-recovery-stress.sh  # device-free recovery stress harness config check
 sudo RECOVERY_WORKLOAD_CMD='PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash "$TEST_DIR/rewrite-conformance-run.sh"' RECOVERY_CASES="kill reset" bash rewrite-recovery-stress.sh
 sudo RECOVERY_CASES=list-bindings bash rewrite-recovery-stress.sh  # discover opt-in unbind targets
@@ -898,6 +899,18 @@ PERF_MAX_RATIO=1.25 bash gstreamer-suite-compare.sh
 PERF_MAX_RATIO=1.25 bash ffmpeg-suite-compare.sh
 PERF_MAX_RATIO=1.25 bash rkmppenc-suite-compare.sh
 ```
+
+For `CANDIDATE=*rewrite*`, `rewrite-evidence-audit.sh` also checks the
+candidate counter contents by default, not just that the candidate
+`debugfs-counters-delta.tsv` exists. The audit uses the same default positive
+hardware-start and busy-time counters as the profile runner for librga,
+GStreamer, FFmpeg, and optional `rkmppenc`; it keeps MPP positive counters
+opt-in because the default MPP suite is `mpp_info_test` only. The audit still
+uses `debugfs-counter-check.sh`'s default timeout/fault/error guard for every
+selected rewrite suite and adds the forced Route B `rga_route_b:attempt`,
+`rga_route_b:ok`, and zero-after `rga_route_b:active` requirements when
+`LIBRGA_FORCE_ROUTE_B=1`. Use `AUDIT_COUNTER_CHECKS=0` only when intentionally
+inspecting old logs that predate the rewrite debugfs counter contract.
 
 For rewrite runs with selected hardware cases, also gate the captured debugfs
 counter deltas so a userspace pass cannot hide a missing hardware submission or

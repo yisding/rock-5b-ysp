@@ -14,7 +14,19 @@ REQUIRE_COUNTER_DELTAS=${REQUIRE_COUNTER_DELTAS:-1}
 REQUIRE_DIAGNOSTIC_PASS=${REQUIRE_DIAGNOSTIC_PASS:-0}
 AUDIT_REQUIRED_CASES=${AUDIT_REQUIRED_CASES:-}
 PERF_MAX_RATIO=${PERF_MAX_RATIO:-1.25}
+AUDIT_COUNTER_CHECKS=${AUDIT_COUNTER_CHECKS:-}
 RUN_COMPARATORS=${RUN_COMPARATORS:-1}
+
+if [ -z "$AUDIT_COUNTER_CHECKS" ]; then
+	case "$CANDIDATE" in
+	*rewrite*)
+		AUDIT_COUNTER_CHECKS=1
+		;;
+	*)
+		AUDIT_COUNTER_CHECKS=0
+		;;
+	esac
+fi
 
 usage()
 {
@@ -38,6 +50,16 @@ Environment:
   PERF_MAX_RATIO=1.25    fail comparator-clean audit if a required candidate
                           pass is slower than baseline by this ratio; set 0 to
                           disable the elapsed-time gate
+  AUDIT_COUNTER_CHECKS=0 skip candidate counter-content checks. By default this
+                          is enabled when CANDIDATE contains "rewrite".
+                          Override per-suite specs with
+                          MPP_REQUIRED_POSITIVE_COUNTERS,
+                          LIBRGA_REQUIRED_POSITIVE_COUNTERS,
+                          GSTREAMER_REQUIRED_POSITIVE_COUNTERS,
+                          FFMPEG_REQUIRED_POSITIVE_COUNTERS,
+                          RKMPPENC_REQUIRED_POSITIVE_COUNTERS, plus matching
+                          *_REQUIRED_POSITIVE_COUNTER_PREFIXES and
+                          *_REQUIRED_ZERO_AFTER_COUNTERS variables.
   RUN_COMPARATORS=0      skip suite comparator execution
 EOF
 }
@@ -268,6 +290,90 @@ check_counter_deltas()
 	fi
 }
 
+set_counter_specs_for_suite()
+{
+	local suite=$1
+
+	counter_check_positive=
+	counter_check_prefix=
+	counter_check_zero_after=
+
+	case "$suite" in
+	mpp)
+		counter_check_positive=${MPP_REQUIRED_POSITIVE_COUNTERS:-}
+		counter_check_prefix=${MPP_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
+		counter_check_zero_after=${MPP_REQUIRED_ZERO_AFTER_COUNTERS:-}
+		;;
+	librga)
+		counter_check_positive=${LIBRGA_REQUIRED_POSITIVE_COUNTERS:-"rga:started_job_count rga:hw_total_ns"}
+		counter_check_prefix=${LIBRGA_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
+		counter_check_zero_after=${LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS:-}
+		if [ "${LIBRGA_FORCE_ROUTE_B:-0}" = "1" ]; then
+			case " $counter_check_positive " in
+			*" rga_route_b:attempt "*)
+				;;
+			*)
+				counter_check_positive="$counter_check_positive rga_route_b:attempt"
+				;;
+			esac
+			case " $counter_check_positive " in
+			*" rga_route_b:ok "*)
+				;;
+			*)
+				counter_check_positive="$counter_check_positive rga_route_b:ok"
+				;;
+			esac
+			case " $counter_check_zero_after " in
+			*" rga_route_b:active "*)
+				;;
+			*)
+				counter_check_zero_after="$counter_check_zero_after rga_route_b:active"
+				;;
+			esac
+		fi
+		;;
+	gstreamer)
+		counter_check_positive=${GSTREAMER_REQUIRED_POSITIVE_COUNTERS:-"mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns"}
+		counter_check_prefix=${GSTREAMER_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
+		counter_check_zero_after=${GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS:-}
+		;;
+	ffmpeg)
+		counter_check_positive=${FFMPEG_REQUIRED_POSITIVE_COUNTERS:-"mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns"}
+		counter_check_prefix=${FFMPEG_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
+		counter_check_zero_after=${FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS:-}
+		;;
+	rkmppenc)
+		counter_check_positive=${RKMPPENC_REQUIRED_POSITIVE_COUNTERS:-"mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns"}
+		counter_check_prefix=${RKMPPENC_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
+		counter_check_zero_after=${RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS:-}
+		;;
+	esac
+}
+
+run_candidate_counter_check()
+{
+	local summary=$1
+	local suite=$2
+
+	if [ "$AUDIT_COUNTER_CHECKS" != "1" ] ||
+		[ "$REQUIRE_COUNTER_DELTAS" != "1" ]; then
+		return 0
+	fi
+
+	set_counter_specs_for_suite "$suite"
+
+	if ! SUMMARY="$summary" \
+		REQUIRED_POSITIVE_COUNTERS="$counter_check_positive" \
+		REQUIRED_POSITIVE_COUNTER_PREFIXES="$counter_check_prefix" \
+		REQUIRED_ZERO_AFTER_COUNTERS="$counter_check_zero_after" \
+		REQUIRE_COUNTER_FILE=1 \
+		bash "$TEST_DIR/debugfs-counter-check.sh" >/dev/null; then
+		printf "candidate counter check failed: suite=%s summary=%s\n" \
+			"$suite" "$summary" >&2
+		return 1
+	fi
+}
+
 run_suite_comparator()
 {
 	local suite=$1
@@ -323,6 +429,8 @@ audit_one_suite()
 		suite_failed=1
 	check_counter_deltas "$candidate_summary" "$suite" "$CANDIDATE" ||
 		suite_failed=1
+	run_candidate_counter_check "$candidate_summary" "$suite" ||
+		suite_failed=1
 	run_suite_comparator "$suite" "$baseline_summary" "$candidate_summary" ||
 		suite_failed=1
 
@@ -353,7 +461,18 @@ $profile	required	${suite}_required	output	4	0123456789abcdef
 EOF
 	cat > "$dir/debugfs-counters-delta.tsv" <<EOF
 component	counter	before	after	delta
-${suite}	started_job_count	0	1	1
+mpp	started_job_count	0	1	1
+mpp	hw_total_ns	0	1000	1000
+mpp	timeout_count	0	0	0
+mpp	iommu_fault_count	0	0	0
+rga	started_job_count	0	1	1
+rga	hw_total_ns	0	1000	1000
+rga	timeout_count	0	0	0
+rga	irq_error_count	0	0	0
+rga	iommu_fault_count	0	0	0
+rga_route_b	attempt	0	1	1
+rga_route_b	ok	0	1	1
+rga_route_b	active	0	0	0
 EOF
 }
 
@@ -372,6 +491,34 @@ selftest()
 	CONFORMANCE_ROOT="$tmp_root" SUITES="mpp librga gstreamer ffmpeg rkmppenc" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
 		RUN_COMPARATORS=1 PERF_MAX_RATIO=1.25 "$0" >/dev/null
+
+	CONFORMANCE_ROOT="$tmp_root" SUITES="librga" LIBRGA_FORCE_ROUTE_B=1 \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null
+	sed -i 's/rga_route_b\tactive\t0\t0\t0/rga_route_b\tactive\t0\t1\t1/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-librga-suite/debugfs-counters-delta.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="librga" LIBRGA_FORCE_ROUTE_B=1 \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected Route B active-gauge audit to fail\n" >&2
+		return 1
+	fi
+	sed -i 's/rga_route_b\tactive\t0\t1\t1/rga_route_b\tactive\t0\t0\t0/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-librga-suite/debugfs-counters-delta.tsv"
+
+	sed -i 's/rga\tstarted_job_count\t0\t1\t1/rga\tstarted_job_count\t0\t0\t0/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/debugfs-counters-delta.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected missing candidate hardware counter audit to fail\n" >&2
+		return 1
+	fi
+	CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=0 AUDIT_COUNTER_CHECKS=0 "$0" >/dev/null
+	sed -i 's/rga\tstarted_job_count\t0\t0\t0/rga\tstarted_job_count\t0\t1\t1/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/debugfs-counters-delta.tsv"
 
 	sed -i 's/gstreamer_required\t0\t1.000\tpass/gstreamer_required\t0\t2.000\tpass/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/summary.tsv"
