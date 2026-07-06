@@ -23,6 +23,8 @@ sub-project is the RGA-specific front door.
 - DT wiring (nodes `fdb60000`/`fdb70000`/`fdb80000`, IOMMUs): [`../docs/device-tree.md`](../docs/device-tree.md).
 - ioctl ABI (incl. intentional `RGA2_GET_VERSION ret=1`): [`../docs/dev-uapis.md`](../docs/dev-uapis.md).
 - On-hardware RGA tests: [`../tests/`](../tests/README.md) (`librga-smoke.*`, `librga-suite*.sh`).
+- External userspace scan beyond the current conformance set:
+  [`userspace-consumers.md`](userspace-consumers.md).
 - Userspace side: [`../../vendor-libraries/rga/`](../../vendor-libraries/rga/README.md).
 
 Project vocabulary: [`keywords.md`](keywords.md).

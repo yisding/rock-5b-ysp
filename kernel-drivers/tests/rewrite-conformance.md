@@ -127,6 +127,19 @@ changing. Compare `logs/rewrite/` against `logs/forward-port/`.
 | `sources/mpp-linux-cpp-demo` | Linux MPP/RGA/DRM demo | Useful integration smoke because it chains MPP decode, RGA conversion, DRM display, and threading in one app. |
 | `sources/rkmediacodec-demo` | Android RKMediaCodecDemo | Lower priority for Linux, but it is the Android-style MediaCodec/allocator path to run if Android compatibility matters. The earlier request called this RKMediaCoreDemo; the public Rockchip demo we found and staged is RKMediaCodecDemo. |
 
+The current conformance set is still the right required gate. A follow-up public
+source scan of additional `librga` users is recorded in
+[`../rga/userspace-consumers.md`](../rga/userspace-consumers.md). It found no
+new maintained media-server ABI beyond the `librga` IM2D and legacy
+`c_RkRgaBlit()` surfaces already under test. It does identify useful optional
+targets: `rkmppenc` for MPP-fd IM2D crop/CSC/resize plus fence plumbing, a
+standalone `gstreamer-rga` or env-gated GStreamer `videoflip` path for
+independent legacy-blit converter coverage, and one UI/display BGRA/XRGB
+rotation smoke if appliance/display usage becomes part of the target profile.
+The same scan found old RKNN/Yolo code using direct physical-address RGA
+destinations; keep that recognized-but-unsupported unless a current RK3588
+workload proves fd or virtual buffers are insufficient.
+
 Suggested expanded matrix:
 
 - MPP: H.264/H.265 decode at 1080p/4K, VP9 decode, H.264/H.265 encode from NV12
