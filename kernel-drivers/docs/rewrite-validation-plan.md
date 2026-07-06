@@ -176,7 +176,9 @@ allocation failures remain open beyond the non-submit fail-nth smoke below.
 
 The bounded ioctl mutator now has the first scoped fault-injection hook for the
 allocation/usercopy row: run `IOCTL_FUZZ_FAIL_NTH_MAX=N
-IOCTL_FUZZ_ITERS=<small>` on Kernel A. The C mutator writes
+IOCTL_FUZZ_ITERS=<small>` on Kernel A, with `IOCTL_FUZZ_OUT=<dir>` and
+`IOCTL_FUZZ_DMESG_SCAN=1` so the run leaves logs plus dmesg before/after
+snapshots. The C mutator writes
 `/proc/self/fail-nth` immediately before each individual non-submit ioctl and
 clears it immediately afterward, so the injected fault is tied to the ioctl
 syscall rather than shell startup. This covers parser/import/control unwind
@@ -243,8 +245,11 @@ pools, and request create/cancel lifetimes. With `IOCTL_FUZZ_FAIL_NTH_MAX=N`,
 the wrapper repeats the mutator with `IOCTL_FUZZ_FAIL_NTH=1..N`; each C-side
 ioctl wrapper sets `/proc/self/fail-nth` only for the syscall under test and can
 require at least one consumed injected fault with
-`IOCTL_FUZZ_FAIL_NTH_REQUIRE_HIT=1`. It still needs to be run on a booted
-rewrite kernel, ideally under Kernel A with KASAN/KCOV. Device-free validation
+`IOCTL_FUZZ_FAIL_NTH_REQUIRE_HIT=1`. `IOCTL_FUZZ_OUT=<dir>` persists per-run
+logs; `IOCTL_FUZZ_DMESG_SCAN=1` brackets each run with dmesg fatal-signature
+checks, and `IOCTL_FUZZ_REQUIRE_DMESG=1` makes unreadable dmesg a failure.
+It still needs to be run on a booted rewrite kernel, ideally under Kernel A
+with KASAN/KCOV. Device-free validation
 now compiles the mutator through `IOCTL_FUZZ_VALIDATE_BUILD=1` in
 `VALIDATE_ONLY=1 ../tests/rewrite-conformance-run.sh`, but that only catches
 build rot; it still needs real booted rewrite runs, including fail-nth sweeps,
