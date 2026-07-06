@@ -60,6 +60,8 @@ GST_ENABLE_H265_10_CASES=${GST_ENABLE_H265_10_CASES:-1}
 GST_REQUIRE_H265_10_CASES=${GST_REQUIRE_H265_10_CASES:-1}
 GST_ENABLE_H265_422_10_CASES=${GST_ENABLE_H265_422_10_CASES:-0}
 GST_REQUIRE_H265_422_10_CASES=${GST_REQUIRE_H265_422_10_CASES:-0}
+GST_ENABLE_VIDEOFLIP_RGA_CASES=${GST_ENABLE_VIDEOFLIP_RGA_CASES:-0}
+GST_REQUIRE_VIDEOFLIP_RGA_CASES=${GST_REQUIRE_VIDEOFLIP_RGA_CASES:-0}
 GST_DISPLAY_SINK=${GST_DISPLAY_SINK:-rkximagesink}
 GST_DISPLAY_SINK_ARGS=${GST_DISPLAY_SINK_ARGS:-}
 
@@ -265,6 +267,13 @@ roundtrip_jpeg_format_bgrx
 roundtrip_jpeg_env_format_bgrx
 "
 
+videoflip_rga_cases_default="
+gst_inspect_videoflip
+videoflip_rga_nv12_clockwise
+videoflip_rga_bgrx_clockwise
+videoflip_rga_bgrx_horizontal
+"
+
 if [ "$GST_ENABLE_VP9_CASES" = "1" ]; then
 	diagnostic_cases_default="$diagnostic_cases_default
 $vp9_diagnostic_cases_default"
@@ -353,6 +362,17 @@ $h265_422_10_cases_default"
 	else
 		diagnostic_cases_default="$diagnostic_cases_default
 $h265_422_10_cases_default"
+	fi
+fi
+
+if [ "$GST_ENABLE_VIDEOFLIP_RGA_CASES" = "1" ] ||
+	[ "$GST_REQUIRE_VIDEOFLIP_RGA_CASES" = "1" ]; then
+	if [ "$GST_REQUIRE_VIDEOFLIP_RGA_CASES" = "1" ]; then
+		required_cases_default="$required_cases_default
+$videoflip_rga_cases_default"
+	else
+		diagnostic_cases_default="$diagnostic_cases_default
+$videoflip_rga_cases_default"
 	fi
 fi
 
@@ -761,6 +781,22 @@ build_videotest_jpeg_roundtrip_env_format()
 
 	CMD=(env "GST_MPP_JPEGDEC_DEFAULT_FORMAT=$format" gst-launch-1.0 -q)
 	append_videotest_jpeg_roundtrip_pipeline
+}
+
+build_videoflip_rga()
+{
+	local format=$1
+	local method=$2
+
+	CMD=(
+		env
+		GST_VIDEO_FLIP_USE_RGA=1
+		gst-launch-1.0 -q
+		videotestsrc "num-buffers=$GST_FORMAT_MATRIX_BUFFERS" is-live=false pattern=smpte
+		"!" "video/x-raw,format=$format,width=$GST_WIDTH,height=$GST_HEIGHT,framerate=$GST_FRAMERATE"
+		"!" videoflip "method=$method"
+		"!" fakesink sync=false
+	)
 }
 
 build_decode()
@@ -1824,6 +1860,9 @@ build_case_command()
 	gst_inspect_mppvpxalphadecodebin)
 		CMD=(gst-inspect-1.0 mppvpxalphadecodebin)
 		;;
+	gst_inspect_videoflip)
+		CMD=(gst-inspect-1.0 videoflip)
+		;;
 	gst_inspect_display_sink)
 		CMD=(gst-inspect-1.0 "$GST_DISPLAY_SINK")
 		;;
@@ -2074,6 +2113,15 @@ build_case_command()
 		;;
 	roundtrip_jpeg_env_format_bgrx)
 		build_videotest_jpeg_roundtrip_env_format BGRx
+		;;
+	videoflip_rga_nv12_clockwise)
+		build_videoflip_rga NV12 clockwise
+		;;
+	videoflip_rga_bgrx_clockwise)
+		build_videoflip_rga BGRx clockwise
+		;;
+	videoflip_rga_bgrx_horizontal)
+		build_videoflip_rga BGRx horizontal-flip
 		;;
 	generated_dec_h264_fakesink)
 		CMD=(__builtin_generated_decode h264)

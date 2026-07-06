@@ -77,7 +77,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > `GST_MPP_VP8ENC_FAKE_VP8ENC`, VP8/JPEG encoder property setters,
 > JPEG decoder explicit/default output format selection, RFBC caps negotiation,
 > generated VP9 transcode, opt-in generated AV1 and legacy decode/transcode probes,
-> opt-in display/KMS env-default paths, and
+> opt-in display/KMS env-default paths,
+> the opt-in external `GST_VIDEO_FLIP_USE_RGA=1` `videoflip` RGA path, and
 > the GStreamer-visible RGA format matrix for BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
 > encoder preprocessing and
 > BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 decoder-side output
@@ -519,7 +520,11 @@ implementation (cross-reference:
   NV21/I420/YV12/BGR16/RGB/BGR/BGRA/RGBx/NV16/NV61
   scale paths plus remaining decoder-side
   BGR16/RGB/BGR/NV21/NV16/NV61/I420/YV12 output-format paths.  The runner now
-  has opt-in display/DMABuf sink cases for JeffyCN's `rkximagesink`, including
+  has opt-in external `videoflip` diagnostics for the Rockchip
+  `GST_VIDEO_FLIP_USE_RGA=1` path, covering NV12/BGRx clockwise rotation and
+  BGRx horizontal flip; keep these cases diagnostic unless the runtime is known to
+  carry the patched element and rewrite counters prove `/dev/rga` submission.
+  It also has opt-in display/DMABuf sink cases for JeffyCN's `rkximagesink`, including
   linear DMABuf, AFBC decode output, `KMSSINK_DISABLE_VSYNC=1`, and
   `GST_RKXIMAGE_USE_COLORKEY=1`, and opt-in `kmssrc` KMS-capture cases
   that feed DRM framebuffer-exported DMABufs into `mpph264enc`, including the

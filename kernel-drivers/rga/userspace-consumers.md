@@ -52,11 +52,12 @@ as useful but non-blocking conformance work:
   fd-backed crop, CSC, resize, release-fence, and acquire-fence chain, but not
   the separate MPP-frame producer and `rkmppenc` filter graph;
 - add one standalone `gstreamer-rga` or `videoflip` RGA pipeline if we want an
-  independent GStreamer converter outside JeffyCN's plugin; the direct smoke
-  now covers fd-backed IM2D flip, virtual legacy `c_RkRgaBlit()` flip
+  independent GStreamer converter outside JeffyCN's plugin; the GStreamer
+  suite now has opt-in `GST_ENABLE_VIDEOFLIP_RGA_CASES=1` diagnostics for the
+  Rockchip `GST_VIDEO_FLIP_USE_RGA=1` NV12/BGRx rotate/flip lifecycle, and the
+  direct smoke covers fd-backed IM2D flip, virtual legacy `c_RkRgaBlit()` flip
   primitives, the thread-default `imconfig(IM_CONFIG_SCHEDULER_CORE, ...)`
-  core-mask call, and `IM_CONFIG_PRIORITY`, but not the full GStreamer element
-  lifecycle;
+  core-mask call, and `IM_CONFIG_PRIORITY`;
 - add one UI/display smoke for fd-backed BGRA/XRGB rotation into a GBM or dumb
   scanout buffer if display-appliance use becomes part of the target profile;
   `LIBRGA_SMOKE_DISPLAY_TAIL=1` now makes the fd-backed BGRA/XRGB legacy
