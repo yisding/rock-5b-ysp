@@ -1094,6 +1094,146 @@ out:
 	return ret;
 }
 
+static int run_dmabuf_imresize_async_rgba(void)
+{
+	const int src_w = 64;
+	const int src_h = 64;
+	const int dst_w = 32;
+	const int dst_h = 32;
+	const size_t src_size = (size_t)src_w * src_h * TEST_BPP;
+	const size_t dst_size = (size_t)dst_w * dst_h * TEST_BPP;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	im_handle_param_t src_param = {
+		(uint32_t)src_w,
+		(uint32_t)src_h,
+		(uint32_t)RK_FORMAT_RGBA_8888,
+	};
+	im_handle_param_t dst_param = {
+		(uint32_t)dst_w,
+		(uint32_t)dst_h,
+		(uint32_t)RK_FORMAT_RGBA_8888,
+	};
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	int release_fence = -1;
+	int ret;
+
+	ret = dmabuf_alloc_any(src_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "imresize source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(dst_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "imresize dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "imresize source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_pattern(dma_src.mem, src_w, src_h);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "imresize source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "imresize dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "imresize dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src_handle = importbuffer_fd(dma_src.fd, &src_param);
+	dst_handle = importbuffer_fd(dma_dst.fd, &dst_param);
+	if (!src_handle || !dst_handle) {
+		fprintf(stderr, "imresize importbuffer_fd failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, src_w, src_h, RK_FORMAT_RGBA_8888);
+	dst = wrapbuffer_handle(dst_handle, dst_w, dst_h, RK_FORMAT_RGBA_8888);
+
+	ret = imcheck(src, dst, {}, {});
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("imcheck imresize", ret);
+		goto out;
+	}
+
+	ret = (imresize)(src, dst, 0.0, 0.0, IM_INTERP_DEFAULT, 0,
+			 &release_fence);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("imresize async", ret);
+		goto out;
+	}
+	if (release_fence < 0) {
+		fprintf(stderr, "imresize async did not return a release fence\n");
+		ret = 1;
+		goto out;
+	}
+
+	ret = imsync(release_fence);
+	release_fence = -1;
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("imsync imresize", ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "imresize dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!buffer_changed_from_sentinel(dma_dst.mem, dma_dst.size, 0x80)) {
+		fprintf(stderr, "imresize async output unchanged\n");
+		ret = 1;
+	} else {
+		ret = write_artifact("dmabuf_imresize_async_rgba",
+				     dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"imresize dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "dmabuf imresize async",
+		       dma_src.heap_path);
+
+out:
+	if (release_fence >= 0)
+		close(release_fence);
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 static int run_dmabuf_imcrop_rgba(void)
 {
 	const int src_w = 64;
@@ -2357,6 +2497,10 @@ int main(void)
 		goto out;
 
 	ret = run_dmabuf_imcvtcolor_rgb_to_nv12();
+	if (ret)
+		goto out;
+
+	ret = run_dmabuf_imresize_async_rgba();
 	if (ret)
 		goto out;
 
