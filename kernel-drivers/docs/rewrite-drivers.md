@@ -402,7 +402,7 @@ implementation (cross-reference:
   non-simple bitblit variants; and non-bitblit operation modes outside the
   implemented RGA2 subsets.
 - **Public `librga` users outside the current conformance set** were surveyed
-  on 2026-07-04 and refreshed on 2026-07-05 by GitHub code search, excluding
+  on 2026-07-04 and refreshed on 2026-07-05/06 by GitHub code search, excluding
   the already-covered ffmpeg-rockchip, JeffyCN GStreamer, and official librga
   sample paths.  The
   raw survey note is
@@ -435,7 +435,13 @@ implementation (cross-reference:
   [RetroArch OGA](https://github.com/libretro/RetroArch/blob/master/gfx/drivers/oga_gfx.c),
   LVGL/SDL Rockchip RGA patches, Orbbec ROS decoder helpers, RKMedia demos, and
   small Qt/DRM camera apps cluster around the same legacy blit, fd/virtual
-  import, RGB/RGB565/RGBA/NV12-family scale/convert/rotate feature set.  This
+  import, RGB/RGB565/RGBA/NV12-family scale/convert/rotate feature set.  The
+  2026-07-06 delta added OpenCV/RKAIQ capture, HDMI-capture/RTSP conversion,
+  Weston mirror-mode patches, GStreamer base `video-converter` RGA patches,
+  runtime wrappers, and a G2D shim that forces RGA3 cores through
+  `imconfig(IM_CONFIG_SCHEDULER_CORE, ...)`; these reinforce fd/virtual import,
+  IM2D color conversion/resize, legacy blit/fill/flush, and scheduler-core
+  control without adding a new ioctl family.  This
   survey found no current Linux-media evidence that RFBC64x4/AFBC32x8,
   per-channel rotation, tile alpha/pattern/color-key, or broad RGA2-Pro modes
   should move into the required rewrite profile.  The in-repo

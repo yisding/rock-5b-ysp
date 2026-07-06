@@ -1,11 +1,11 @@
 # RGA userspace consumers outside the current conformance set
 
-Search note from 2026-07-06, with a follow-up GitHub repository pass the same
-day. This is a high-signal public-source scan for projects that use Rockchip
-`librga` beyond the current YSP conformance bundle (`librockchip_mpp`, official
-`librga` samples, JeffyCN GStreamer, and `ffmpeg-rockchip`/Jellyfin paths). It
-is not an exhaustive GitHub index, and it does not make every stale BSP demo
-part of the RK3588 rewrite contract.
+Search note from 2026-07-06, with follow-up GitHub repository/code-search passes
+the same day. This is a high-signal public-source scan for projects that use
+Rockchip `librga` beyond the current YSP conformance bundle
+(`librockchip_mpp`, official `librga` samples, JeffyCN GStreamer, and
+`ffmpeg-rockchip`/Jellyfin paths). It is not an exhaustive GitHub index, and it
+does not make every stale BSP demo part of the RK3588 rewrite contract.
 
 ## Bottom line
 
@@ -24,7 +24,11 @@ external apps, and keep old raw/physical-address and RGA2-Pro/FBC tail behavior
 recognized-but-unsupported unless a current RK3588 workload proves otherwise.
 The follow-up repository pass also found package-only stacks and an older
 DRM-RGA userspace library; neither adds required `/dev/rga` ioctl coverage for
-the rewrite.
+the rewrite. A later same-day code-search delta found OpenCV/RKAIQ capture,
+HDMI-capture/RTSP conversion, Weston mirror-mode patches, GStreamer base
+converter patches, and runtime-language wrappers; these strengthen the
+camera/CV/display usage signal but still collapse onto fd/virtual import,
+legacy blit/fill/flush, IM2D color-convert/resize, and scheduler-core control.
 
 ## Representative consumers
 
@@ -37,8 +41,11 @@ the rewrite.
 | RKNN/Yolo preprocessing examples | `MontaukLaw/3568_rknn_rtmp` `rga_func.c` at `178599e`, Rockchip `rknn-toolkit2` bundled `RockchipRga.h` at `59a913d`, and `1125962926/YOLO_RKNN_Acceleration_Program` preprocessing at `7fdd2f1` | legacy `c_RkRgaBlit` for RGB resize; IM2D `wrapbuffer_virtualaddr`, `importbuffer_virtualaddr`, `wrapbuffer_fd`, `imresize`, and `imcvtcolor`; one older example writes to `dst.phyAddr` with `mmuFlag = 0` | The fd/virtual preprocessing shape is already mirrored by `librga-smoke.sh`. Direct physical-address submission is a compatibility risk, but not a current RK3588 requirement yet; keep it cleanly rejected until a target workload needs it. |
 | Standalone RGA demo/sample repos | `sravansenthiln1/rga-demos` sample sources at `b36dff0`; `BedRockJie/rockchip-rga-sample` `src/rga_test.cpp` at `5286187` | `querystring(RGA_*)`, `importbuffer_fd`, `importbuffer_virtualaddr`, `wrapbuffer_handle`, copy/crop/resize/rotate/fill/draw/color-convert samples | Mostly duplicates official `librga` sample coverage already in the conformance bundle. Useful for developer sanity checks, but not evidence of a separate production ABI requirement. |
 | UI/display/media-player stacks | SDL KMSDRM rotation patch in `knulli-linux` at `4cfc5d`; LVGL/RKADK sample at `6e1bb1`; `iambronze/mp4player` `media/rga_utils.cc` at `f7dfb8d` | GBM/dumb-buffer fds, virtual draw buffers, BGRA/XRGB `c_RkRgaBlit`, 90/270-degree rotation into scanout buffers, optional alpha/blend on virtual MPP frame copies | Not a media-server requirement, but common appliance-style usage. `LIBRGA_SMOKE_DISPLAY_TAIL=1` now covers fd-backed BGRA/XRGB rotation plus a deterministic BGRA partial-rectangle alpha blend artifact; it still is not a full GBM/DRM scanout test. |
+| OpenCV/camera/RTSP capture helpers | `nihui/opencv-mobile` RKAIQ V4L2 capture source at `3151145`; `pablocpas/rockchip-hdmi-capture-rtsp` RGA converter at `2e10fb8` | V4L2 exported dma-buf or MPP buffer fds, dma-heap destination buffers, dynamic `librga.so` loading, `importbuffer_fd`, `wrapbuffer_handle(_t)`, `imcvtcolor(_t)`, YCrCb/NV12 or YUYV to BGR/NV12 conversion | Confirms camera/CV/streaming apps want the same fd-backed IM2D conversion path. The direct smoke covers the kernel-visible fd import and color-convert behavior; full camera/RTSP source lifecycle remains optional application coverage. |
+| Weston and GStreamer base converter patches | Radxa Buildroot Weston mirror-mode patch at `05cd2d`; TinkerBoard2 GStreamer base `video-converter` RGA patch at `9055ab5`; similar Khadas/Vicharak/OpenBMC downstream copies | env-gated `WESTON_DRM_MIRROR` and `GST_VIDEO_CONVERT_USE_RGA=1`; DRM PRIME fds or contiguous virtual video frames; `c_RkRgaBlit`; RGB-family, NV12-family, and compact `NV12_10LE40` conversion/scale/rotate | Same legacy blit/format coverage as the GStreamer and display-tail smokes. Promote only if desktop/display conformance becomes a target; they do not justify Android HWC or old RGA2-Pro tail support. |
 | Old DRM-RGA userspace | `zouxf1024/libdrm-rockchip` RGA helper/API at `5d82052` | Rockchip DRM/GEM RGA helper structs and DRM ioctl path, not the `/dev/rga` `librga` character device ABI | Different historical userspace interface. Do not pull it into the `/dev/rga` rewrite unless the project explicitly grows a DRM-RGA compatibility target. |
 | Language wrappers | `varphone/rkrga` Rust wrapper at `057cc92` | thin wrapper over `c_RkRgaInit`, `c_RkRgaBlit`, `c_RkRgaColorFill`, rotate/scale/fill helpers | No new kernel behavior. Passing the C API surfaces is enough for wrappers; the direct smoke now covers fd-backed legacy `c_RkRgaColorFill()` as well as legacy blit. |
+| Runtime wrappers and G2D shims | `w-0x1f/linux-media` C# wrapper at `439ac1`; `zczjx/posix-bsp-perf` RGA G2D shim at `e17acf` | P/Invoke wrappers for `c_RkRgaBlit`, `c_RkRgaColorFill`, and `c_RkRgaFlush`; C++ fd/virtual wrapping through `wrapbuffer_fd_t`/`wrapbuffer_virtualaddr_t`; `imresize`, `imcvtcolor`, `imrectangle`; thread-local `imconfig(IM_CONFIG_SCHEDULER_CORE, RGA3 core mask)` | No new ioctl surface, but it reinforces that scheduler-core control, legacy fill/flush, fd wrapping, and virtual-address wrapping are public app expectations rather than sample-only behavior. |
 
 ## What this changes
 
@@ -68,6 +75,12 @@ as useful but non-blocking conformance work:
   BGRA/XRGB legacy display-rotation primitive and a BGRA partial-rectangle
   alpha-blend artifact executable, though it still is not a full GBM/DRM
   scanout lifecycle test;
+- keep OpenCV/RKAIQ capture, HDMI-capture/RTSP, Weston mirror, and
+  `GST_VIDEO_CONVERT_USE_RGA=1` base-converter paths as optional app-level
+  diagnostics for now. Their kernel-visible pieces are fd import, virtual
+  import, IM2D color conversion/resize, legacy blit, and scheduler-core
+  selection, all already inside the rewrite's required or near-required RGA
+  surface;
 - keep direct physical-address RGA submission as recognized-but-unsupported
   unless a current RK3588 RKNPU/RKADK app cannot be moved to fd or virtual
   buffers.
@@ -100,5 +113,11 @@ compatibility as required Linux/Rock 5B behavior.
 - SDL KMSDRM RGA rotation patch: https://github.com/knulli-cfw/knulli-linux/blob/4cfc5dde832dcb110338db287ded96619f690331/board/rockchip/rk3566/patches/sdl2/0003-Implement-librga-framebuffer-rotation.patch
 - LVGL/RKADK display sample: https://github.com/ZyoungInc/LVGL_RK_RGA/blob/6e1bb1a81d7470efc34d018a0265ba2a744ff00e/lv_drivers-8.3.0/rkadk/rkadk.c
 - `mp4player` RGA helper: https://github.com/iambronze/mp4player/blob/f7dfb8d4a0452be22614a8f4594691072b11bdd1/media/rga_utils.cc
+- OpenCV-mobile RKAIQ/V4L2 capture: https://github.com/nihui/opencv-mobile/blob/3151145cbfe44b1802004d4fe532cf307594b477/highgui/src/capture_v4l2_rk_aiq.cpp
+- HDMI capture/RTSP RGA converter: https://github.com/pablocpas/rockchip-hdmi-capture-rtsp/blob/2e10fb8cdde9224c901ce4aed304c436d01835a6/src/rga_converter.cpp
+- Weston mirror-mode RGA patch: https://github.com/radxa/buildroot/blob/05cd2d7b3d322adca4da4af412660a78e6bf30f4/package/weston/0023-backend-drm-Support-mirror-mode.patch
+- GStreamer base video-converter RGA patch: https://github.com/TinkerBoard2/buildroot/blob/9055ab5f2394d9c649b29ef6e736869c0c76687b/package/gstreamer1/gst1-plugins-base/1.18.5/0010-video-converter-Support-rockchip-RGA-2D-accel.patch
+- C# `librga` wrapper: https://github.com/w-0x1f/linux-media/blob/439ac160af49987a928368ff48e8ca77ea8ae994/linux-media-rockchip-rga/RGA.cs
+- RGA G2D scheduler-core shim: https://github.com/zczjx/posix-bsp-perf/blob/e17acf4670c3cd6f722d083b2695b2e3b37cdd45/bsp/bsp_g2d/impl/rk_rga/rkrga.cpp
 - old `libdrm-rockchip` RGA helper: https://github.com/zouxf1024/libdrm-rockchip/blob/5d82052f2d62f2c167142af93905d63a7fa5ba77/rga_api_helper.md
 - Rust wrapper: https://github.com/varphone/rkrga/blob/057cc92f258adc2852915f20040a514bb447cf09/src/lib.rs

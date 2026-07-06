@@ -10,6 +10,9 @@
 > `improcess`, and `c_RkRgaBlit` consumers such as RKNN preprocessors,
 > Orbbec helpers, Weston, pixman/SDL/LVGL acceleration patches, Rust bindings,
 > downstream Jellyfin packaging, and small RK3588 vision apps
+> Follow-up: 2026-07-06 code-search delta for OpenCV/RKAIQ capture, HDMI
+> capture/RTSP, Weston/GStreamer-base converter patches, runtime wrappers, and
+> scheduler-core direct use
 > Date: 2026-07-04
 > Trust: UNVERIFIED (public-source survey; no hardware conformance run yet)
 
@@ -62,6 +65,25 @@ uses `--enable-rkrga`, probes `rga/RgaApi.h`, `c_RkRgaBlit`, `rga/im2d.h`, and
 filters. That keeps Jellyfin/SynoCommunity-style media-server usage inside the
 existing `ffmpeg-suite.sh` coverage boundary.
 
+A 2026-07-06 follow-up code-search pass found additional camera/CV/display
+users worth recording, but not a new kernel ABI family. OpenCV-mobile's RKAIQ
+capture path exports a V4L2 buffer as dma-buf, imports it and a dma-heap
+destination through `importbuffer_fd()`, wraps both handles, and runs
+`imcvtcolor_t()` from YCrCb/NV12-style capture into BGR output. A small Rockchip
+HDMI-capture/RTSP app uses the same dynamic-`librga.so` pattern to import MPP
+buffer fds and encoder-input fds, then runs YUYV-to-NV12 `imcvtcolor_t()`.
+Weston mirror-mode and GStreamer base `video-converter` patches are env-gated
+legacy `c_RkRgaBlit()` users over DRM PRIME fds or contiguous virtual
+GStreamer frames. A C# wrapper exposes only the legacy blit/fill/flush calls,
+and a generic G2D shim wraps fd/virtual buffers while forcing an RGA3 core mask
+through `imconfig(IM_CONFIG_SCHEDULER_CORE, ...)`.
+
+The rewrite impact is narrow: these findings reinforce fd import,
+virtual-address import, IM2D color conversion/resize, legacy blit/fill/flush,
+and scheduler-core selection. They do not justify promoting Android HWC,
+physical-address import, abandoned DRM-RGA ioctls, or RGA2-Pro RFBC/AFBC32x8
+tail modes into the required RK3588 Linux profile.
+
 ## Representative public hits
 
 This is not a complete dependency census. It is a source-shape check to decide
@@ -76,7 +98,10 @@ required RGA profile.
 | Camera / ROS helpers | [`OrbbecSDK_ROS2` `rk_mpp_decoder.cpp`](https://github.com/orbbec/OrbbecSDK_ROS2/blob/HEAD/orbbec_camera/src/rk_mpp_decoder.cpp) | Legacy `c_RkRgaBlit()` conversion after MPP decode |
 | Display/compositor patches | [`JeffyCN/weston` `fb-convert.c`](https://github.com/JeffyCN/weston/blob/HEAD/libweston/backend-drm/fb-convert.c), [`EchoHeim/RK3399-linux` pixman patch](https://github.com/EchoHeim/RK3399-linux/blob/HEAD/buildroot/package/pixman/0005-pixman_image_composite32-Support-rockchip-RGA-2D-acc.patch) | Legacy blit acceleration for framebuffer/composite conversion |
 | Game/UI/display stacks | [`RetroArch-ARM` `display.c`](https://github.com/basharast/RetroArch-ARM/blob/HEAD/src/deps/libgo2/src/display.c), [`EmuELEC` SDL patch](https://github.com/fengshenwk/EmuELEC/blob/HEAD/packages/multimedia/SDL2/patches/OdroidGoAdvance/0005-SDL-2.0.20.odroidgoa-support.patch) | Legacy RGB-family blit/rotate/display scaling |
+| OpenCV / camera capture | [`opencv-mobile` RKAIQ V4L2 capture](https://github.com/nihui/opencv-mobile/blob/3151145cbfe44b1802004d4fe532cf307594b477/highgui/src/capture_v4l2_rk_aiq.cpp), [`rockchip-hdmi-capture-rtsp` RGA converter](https://github.com/pablocpas/rockchip-hdmi-capture-rtsp/blob/2e10fb8cdde9224c901ce4aed304c436d01835a6/src/rga_converter.cpp) | V4L2/MPP dma-buf fd import, dma-heap or encoder fd destination import, handle wrapping, `imcvtcolor_t()` for camera/streaming color conversion |
+| Weston / GStreamer base converter patches | [`radxa/buildroot` Weston mirror-mode patch](https://github.com/radxa/buildroot/blob/05cd2d7b3d322adca4da4af412660a78e6bf30f4/package/weston/0023-backend-drm-Support-mirror-mode.patch), [`TinkerBoard2/buildroot` GStreamer base converter patch](https://github.com/TinkerBoard2/buildroot/blob/9055ab5f2394d9c649b29ef6e736869c0c76687b/package/gstreamer1/gst1-plugins-base/1.18.5/0010-video-converter-Support-rockchip-RGA-2D-accel.patch) | Env-gated legacy blit over DRM PRIME fds or contiguous virtual video frames; RGB-family and NV12-family scale/convert/rotate, including compact 10-bit in the GStreamer patch |
 | Language bindings | [`varphone/rkrga`](https://github.com/varphone/rkrga) | Rust exposure of the same C `librga` / legacy blit/fill ABI, not a distinct kernel feature demand |
+| Runtime wrappers / G2D shims | [`w-0x1f/linux-media` C# wrapper](https://github.com/w-0x1f/linux-media/blob/439ac160af49987a928368ff48e8ca77ea8ae994/linux-media-rockchip-rga/RGA.cs), [`posix-bsp-perf` RGA G2D shim](https://github.com/zczjx/posix-bsp-perf/blob/e17acf4670c3cd6f722d083b2695b2e3b37cdd45/bsp/bsp_g2d/impl/rk_rga/rkrga.cpp) | Thin wrapper over legacy blit/fill/flush plus fd/virtual IM2D wrapping, resize/color-convert/rectangle, and thread-local RGA3 scheduler-core selection |
 
 Several hits are older SoCs or downstream board SDKs rather than Rock 5B
 targets. They still matter as public Linux `librga` usage signals, but they do
@@ -95,14 +120,19 @@ mode table entry. The practical follow-up is:
 2. Keep the public display/compositor/game-UI class covered by simple
    fd-backed RGB-family legacy blit/rotate/fill artifacts, not by broad Android
    HWC or allocator compatibility.
-3. Keep Jellyfin-style media-server usage under the FFmpeg conformance suite;
+3. Treat OpenCV/RKAIQ capture, HDMI-capture/RTSP, Weston mirror-mode, and
+   `GST_VIDEO_CONVERT_USE_RGA=1` base-converter paths as optional app-level
+   diagnostics unless camera/desktop display becomes part of the required
+   Rock 5B profile. Their kernel-visible pieces are already represented by the
+   direct RGA smoke and optional GStreamer/display diagnostics.
+4. Keep Jellyfin-style media-server usage under the FFmpeg conformance suite;
    it does not add a distinct direct-librga kernel profile beyond the RKRGA
    filters and legacy blit ABI.
-4. Keep physical-address import as a clean negative ABI path for the rewrite
+5. Keep physical-address import as a clean negative ABI path for the rewrite
    unless a real workload needs it.
-5. Keep source-only RGA2-Pro RFBC64x4/AFBC32x8 paths recognized but
+6. Keep source-only RGA2-Pro RFBC64x4/AFBC32x8 paths recognized but
    unsupported; the rewrite now rejects them with `-EOPNOTSUPP` instead of
    carrying an executable FBCIN path.
-6. Do not prioritize per-channel rotation, tile alpha/pattern/color-key, or
+7. Do not prioritize per-channel rotation, tile alpha/pattern/color-key, or
    broad RGA2-Pro mode expansion ahead of booted forward-port-vs-rewrite
    conformance and performance runs.
