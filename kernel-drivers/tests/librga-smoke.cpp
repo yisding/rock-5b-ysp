@@ -1608,6 +1608,213 @@ out:
 	return ret;
 }
 
+static int run_rkmppenc_fd_filter_chain(void)
+{
+	const int src_w = 64;
+	const int src_h = 64;
+	const int crop_x = 8;
+	const int crop_y = 6;
+	const int crop_w = 48;
+	const int crop_h = 40;
+	const int dst_w = 32;
+	const int dst_h = 24;
+	const size_t src_size = (size_t)src_w * src_h * 3;
+	const size_t tmp_size = (size_t)crop_w * crop_h * 3 / 2;
+	const size_t dst_size = (size_t)dst_w * dst_h * 3 / 2;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_tmp = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t tmp_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	im_handle_param_t src_param = {
+		(uint32_t)src_w,
+		(uint32_t)src_h,
+		(uint32_t)RK_FORMAT_RGB_888,
+	};
+	im_handle_param_t tmp_param = {
+		(uint32_t)crop_w,
+		(uint32_t)crop_h,
+		(uint32_t)RK_FORMAT_YCbCr_420_SP,
+	};
+	im_handle_param_t dst_param = {
+		(uint32_t)dst_w,
+		(uint32_t)dst_h,
+		(uint32_t)RK_FORMAT_YCbCr_420_SP,
+	};
+	im_rect src_rect = {crop_x, crop_y, crop_w, crop_h};
+	im_rect tmp_rect = {0, 0, crop_w, crop_h};
+	im_rect dst_rect = {0, 0, dst_w, dst_h};
+	rga_buffer_t src;
+	rga_buffer_t tmp;
+	rga_buffer_t dst;
+	int first_fence = -1;
+	int second_fence = -1;
+	int ret;
+
+	ret = dmabuf_alloc_any(src_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "rkmppenc chain source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(tmp_size, &dma_tmp);
+	if (ret) {
+		fprintf(stderr, "rkmppenc chain temp allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_alloc_any(dst_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "rkmppenc chain dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "rkmppenc chain source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_rgb_pattern(dma_src.mem, src_w, src_h);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "rkmppenc chain source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_tmp.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "rkmppenc chain temp start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_tmp.mem, 0x80, dma_tmp.size);
+	ret = dmabuf_sync(dma_tmp.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "rkmppenc chain temp end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "rkmppenc chain dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, 0x80, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "rkmppenc chain dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src_handle = importbuffer_fd(dma_src.fd, &src_param);
+	tmp_handle = importbuffer_fd(dma_tmp.fd, &tmp_param);
+	dst_handle = importbuffer_fd(dma_dst.fd, &dst_param);
+	if (!src_handle || !tmp_handle || !dst_handle) {
+		fprintf(stderr, "rkmppenc chain importbuffer_fd failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, src_w, src_h, RK_FORMAT_RGB_888);
+	tmp = wrapbuffer_handle(tmp_handle, crop_w, crop_h,
+				RK_FORMAT_YCbCr_420_SP);
+	dst = wrapbuffer_handle(dst_handle, dst_w, dst_h,
+				RK_FORMAT_YCbCr_420_SP);
+
+	ret = imcheck(src, tmp, src_rect, tmp_rect);
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("rkmppenc crop/csc", ret);
+		goto out;
+	}
+
+	ret = improcess(src, tmp, {}, src_rect, tmp_rect, {}, -1,
+			&first_fence, NULL, IM_ASYNC);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("rkmppenc crop/csc", ret);
+		goto out;
+	}
+	if (first_fence < 0) {
+		fprintf(stderr, "rkmppenc crop/csc did not return a fence\n");
+		ret = 1;
+		goto out;
+	}
+
+	ret = imcheck(tmp, dst, tmp_rect, dst_rect);
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("rkmppenc resize", ret);
+		goto out;
+	}
+
+	ret = improcess(tmp, dst, {}, tmp_rect, dst_rect, {}, first_fence,
+			&second_fence, NULL, IM_ASYNC);
+	first_fence = -1;
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("rkmppenc resize", ret);
+		goto out;
+	}
+	if (second_fence < 0) {
+		fprintf(stderr, "rkmppenc resize did not return a fence\n");
+		ret = 1;
+		goto out;
+	}
+
+	ret = imsync(second_fence);
+	second_fence = -1;
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("imsync rkmppenc", ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "rkmppenc chain dest read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (!nv12_changed_from_sentinel(dma_dst.mem, dma_dst.size)) {
+		fprintf(stderr, "rkmppenc fd filter-chain output unchanged\n");
+		ret = 1;
+	} else {
+		ret = write_artifact("rkmppenc_fd_crop_csc_resize_chain",
+				     dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"rkmppenc chain dest read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "rkmppenc fd chain",
+		       dma_src.heap_path);
+
+out:
+	if (first_fence >= 0)
+		close(first_fence);
+	if (second_fence >= 0)
+		close(second_fence);
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (tmp_handle)
+		releasebuffer_handle(tmp_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_tmp);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 static int run_rknn_legacy_rgb_resize(void)
 {
 	const int src_w = 64;
@@ -2711,6 +2918,10 @@ int main(void)
 		goto out;
 
 	ret = run_rknn_fd_rgba_letterbox();
+	if (ret)
+		goto out;
+
+	ret = run_rkmppenc_fd_filter_chain();
 	if (ret)
 		goto out;
 

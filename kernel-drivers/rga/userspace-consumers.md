@@ -26,7 +26,7 @@ recognized-but-unsupported unless a current RK3588 workload proves otherwise.
 
 | Consumer family | Public source checked | RGA surface seen | Rewrite impact |
 |-----------------|-----------------------|------------------|----------------|
-| `rkmppenc` CLI encoder | `rigaya/rkmppenc` README and `mppcore/mpp_filter.cpp` at `a12c80e` | MPP buffer fd -> `importbuffer_fd`; `wrapbuffer_handle(_t)`; `imcrop`, `imcvtcolor`, `imresize`; fence fd plumbing | Good optional integration target. The direct YSP smoke now covers fd-backed IM2D crop, `imcvtcolor`, and async `imresize` with release-fence wait; a full `rkmppenc` run would still test a separate MPP-frame producer and filter graph. |
+| `rkmppenc` CLI encoder | `rigaya/rkmppenc` README and `mppcore/mpp_filter.cpp` at `a12c80e` | MPP buffer fd -> `importbuffer_fd`; `wrapbuffer_handle(_t)`; `imcrop`, `imcvtcolor`, `imresize`; fence fd plumbing | Good optional integration target. The direct YSP smoke now covers a fd-backed RGB crop/CSC to NV12 followed by async NV12 resize, with the first release fence supplied as the second acquire fence; a full `rkmppenc` run would still test a separate MPP-frame producer and filter graph. |
 | Standalone `gstreamer-rga` plugin | `corenel/gstreamer-rga` changelog at `223ecb2` | `rgavideoconvert` via `c_RkRgaBlit`, DMABuf support, common RGB/YUV conversions, runtime core-mask selection through `imconfig(IM_CONFIG_SCHEDULER_CORE, ...)` | No new consumer-specific ABI beyond legacy blit/core-mask. The direct smoke now covers the thread-default core-mask primitive plus the adjacent `IM_CONFIG_PRIORITY` path; a full plugin run remains useful optional coverage if we want an independent GStreamer RGA converter in addition to JeffyCN's plugin. |
 | GStreamer `videoflip` RGA patch | `JeffyCN/meta-rockchip` patch at `c1eed72` | env-gated `GST_VIDEO_FLIP_USE_RGA=1`; virtual-buffer `c_RkRgaBlit`; rotations/flips; RGB/YUV and `NV12_10LE40` format mapping | Mostly covered by current rotation/format tests plus the direct YSP IM2D/legacy flip artifacts. A focused `videoflip` pipeline remains useful optional integration coverage for caps negotiation and compact-10-bit input. |
 | Jellyfin/FFmpeg packaging | `SynoCommunity/spksrc` ffmpeg8 Rockchip patch at `34c6e71` | `--enable-rkrga`; `scale_rkrga`, `vpp_rkrga`, `overlay_rkrga`; RKMPP decode/encode | Already represented by the YSP `ffmpeg-suite.sh`/Jellyfin-oriented filter coverage. No separate RGA ABI surface found. |
@@ -41,11 +41,10 @@ Required rewrite coverage remains anchored to current Rock 5B media userspace:
 Jellyfin-style FFmpeg filter stack. The external scan suggests these additions
 as useful but non-blocking conformance work:
 
-- add an optional `rkmppenc` profile, because it chains MPP buffer fds through
-  IM2D crop, CSC, resize, and fence plumbing in a different userspace codebase;
-  the direct `librga-smoke` now covers the fd-backed crop, `imcvtcolor`, and
-  async `imresize` release-fence primitives, but not the full `rkmppenc`
-  pipeline;
+- add an optional `rkmppenc` profile only if we want full application-level
+  integration evidence; the direct `librga-smoke` now covers the kernel-visible
+  fd-backed crop, CSC, resize, release-fence, and acquire-fence chain, but not
+  the separate MPP-frame producer and `rkmppenc` filter graph;
 - add one standalone `gstreamer-rga` or `videoflip` RGA pipeline if we want an
   independent GStreamer converter outside JeffyCN's plugin; the direct smoke
   now covers fd-backed IM2D flip, virtual legacy `c_RkRgaBlit()` flip
