@@ -174,20 +174,27 @@ Suggested expanded matrix:
   legacy decoder caps remain testable without making legacy VDPU blocks part of
   the required RK3588 rewrite gate.
 - FFmpeg: use `ffmpeg-suite.sh` for a profile/log/comparator-integrated version
-  of the full `ffmpeg-rockchip` path. It probes the selected ffmpeg build for
-  `h264_rkmpp`/`hevc_rkmpp` decoders and encoders, `scale_rkrga`,
-  `vpp_rkrga`, `overlay_rkrga`, decoder `afbc`/`buf_mode`/`fast_parse`
-  options, H.264/H.265 encoder rate-control/QP/profile/level controls, and the
-  current RGA filter option surface. It generates shared software H.264/H.265
-  elementary inputs under `../rockchip-conformance/assets/ffmpeg-generated`,
-  runs decoder-option null-output cases, generated H.264/H.265 encoder-option
-  cases, both H.264->RGA->HEVC and HEVC->RGA->H.264 hardware transcodes,
-  required `scale_rkrga` core/async/AFBC-output coverage, and required
-  `vpp_rkrga` crop/transpose coverage. Diagnostic cases cover decoder
-  `afbc=rga` and `overlay_rkrga` alpha composition until paired
-  forward-port/rewrite hardware logs decide whether to promote them. The
-  comparator can enforce pass/fail, elapsed-time ratios, and encoded bitstream
-  byte-count/SHA parity against the forward-port.
+  of the full `ffmpeg-rockchip` path. It runs the selected `FFDIR/ffmpeg` once
+  against the current system runtime and, when available, once with staged
+  from-source MPP via `STAGE` or `FFMPEG_STAGED_LD_LIBRARY_PATH`; this catches
+  packaging/library skew such as a system `librockchip_mpp` without AV1 parser
+  support. The suite records `uname`, `ffmpeg -version`, `ldd`, device-node and
+  `/proc/mpp_service/supports-device` preflight data, probes H.264/H.265/VP9
+  RKMPP decoders, H.264/H.265 RKMPP encoders, RKRGA filters, and treats an
+  absent AV1 RKMPP encoder as expected. It generates shared software H.264,
+  H.265, VP9, AV1, H.265 Main10, resolution-change, and optional 4K/8K inputs
+  under `../rockchip-conformance/assets/ffmpeg-generated`. Required cases cover
+  H.264/H.265/VP9 decode to null, bit-exact HW-vs-SW decode PSNR, H.264/H.265
+  encode sanity with a PSNR floor, H.264<->RGA<->H.265 transcodes, and
+  `scale_rkrga`, `vpp_rkrga`, and `overlay_rkrga`. AV1 decode, AV1 PSNR,
+  AV1->RGA->H.264/H.265, and AV1 AFBC off/on/rga modes are diagnostic by
+  default and become required with `FFMPEG_REQUIRE_AV1=1` for the av1-fwport
+  build. Additional diagnostics cover H.265 Main10/P010 through RGA and H.264
+  resolution-change decode; `FFMPEG_RUN_STRESS=1` adds repeated short
+  encode/decode/transcode loops plus an AV1->RGA->H.264 soak controlled by
+  `FFMPEG_STRESS_LOOPS` and `FFMPEG_SOAK_SECONDS`. The comparator can enforce
+  pass/fail, elapsed-time ratios, and encoded bitstream byte-count/SHA parity
+  against the forward-port.
 
 The expected rewrite result is not universal pass today. For implemented paths,
 it should match the forward-port. For documented unsupported RGA profiles, it
@@ -710,7 +717,7 @@ logs.
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
 | `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, software `ffmpeg`/`libx265` via `GST_GENERATOR` for generated H.265 Main10 inputs, optional `libaom-av1` support in `GST_GENERATOR` for opt-in AV1 diagnostics, ffmpeg H.263/MPEG encoder support for opt-in legacy decode diagnostics, and readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
 | `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
-| `ffmpeg-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, a staged `ffmpeg-rockchip` build via `FFDIR`, a software ffmpeg with `libx264`/`libx265` for generated inputs, and readable debugfs/dmesg for full logs; root is the simplest mode. `FFMPEG_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-list dispatch wiring. |
+| `ffmpeg-suite.sh` | device access for `/dev/mpp_service`, `/dev/rga`, `/dev/dma_heap/*`, and a DRM render node; a staged `ffmpeg-rockchip` build via `FFDIR`; system and/or staged MPP runtime libraries via `FFMPEG_RUNTIME_MODES`, `STAGE`, or `FFMPEG_STAGED_LD_LIBRARY_PATH`; software ffmpeg encoders `libx264`, `libx265`, `libvpx-vp9`, and optionally `libsvtav1`/`libaom-av1` for generated inputs; and readable debugfs/dmesg for full logs. Root is the simplest mode. `FFMPEG_VALIDATE_CASES=1` is the device-free maintenance mode and validates case-list/runtime dispatch wiring. |
 | `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
 | `debugfs-counter-check.sh` | no device access after a suite has run; reads a suite directory's `debugfs-counters-delta.tsv` and optionally requires positive hardware counters such as `mpp:started_job_count`, `mpp:hw_total_ns`, `rga:started_job_count`, or `rga:hw_total_ns`. By default it fails positive rewrite timeout/fault/error counters when the counter file exists. |
 
@@ -726,7 +733,7 @@ logs.
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, paired `artifacts.tsv` manifests. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=0` only for legacy pass/fail-only logs. |
 | `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, generated 8-bit/10-bit decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, AFBC decode-to-encode transcodes, optional external-media pipelines, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, encoded RC-mode/AFBC artifacts, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
-| `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs component/option inspection, decoder-option null-output cases, generated H.264/H.265 encoder-option encodes, generated-input H.264->`scale_rkrga`->HEVC and HEVC->`scale_rkrga`->H.264 hardware transcodes, required `scale_rkrga` forced-core/async/AFBC-output coverage, and required `vpp_rkrga` crop/transpose coverage under the selected `PROFILE`. Diagnostic cases cover decoder `afbc=rga` and `overlay_rkrga` alpha composition. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
+| `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs system-runtime and staged-MPP-runtime passes when available, component/option inspection, device/support preflight, required H.264/H.265/VP9 RKMPP decode and bit-exact PSNR, generated H.264/H.265 encoder-option encodes with PSNR sanity, generated-input H.264<->`scale_rkrga`<->H.265 hardware transcodes, required `scale_rkrga`, `vpp_rkrga`, and `overlay_rkrga` coverage, plus diagnostic/promotable AV1 decode/RGA/transcode/AFBC coverage. Diagnostics also cover H.265 Main10/P010 RGA and H.264 resolution changes; opt-in stress adds repeated short loops and an AV1->RGA->H.264 soak. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `ffmpeg-suite-compare.sh` | **rewrite-vs-forward-port ffmpeg-rockchip comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for encoded bitstream byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 | `debugfs-counter-check.sh` | **rewrite counter-delta gate** | Checks a captured `debugfs-counters-delta.tsv` from any suite. Use `REQUIRED_POSITIVE_COUNTERS` to prove selected hardware paths actually submitted and reached the IRQ/completion timing path; use `FORBID_POSITIVE_COUNTERS` to override the default timeout/fault/error guard. This complements elapsed-time comparison because it catches “userspace passed but the rewrite did no hardware work” cases. |
 
@@ -746,7 +753,9 @@ GST_VALIDATE_CASES=1 bash gstreamer-suite.sh  # device-free GStreamer case-build
 bash gstreamer-suite.sh               # JeffyCN GStreamer MPP/RGA conformance
 bash gstreamer-suite-compare.sh       # compare latest forward-port/rewrite GStreamer summaries
 FFMPEG_VALIDATE_CASES=1 bash ffmpeg-suite.sh   # device-free FFmpeg case-list validation
+FFMPEG_VALIDATE_CASES=1 FFMPEG_REQUIRE_AV1=1 FFMPEG_RUN_STRESS=1 FFMPEG_STRESS_LOOPS=1 bash ffmpeg-suite.sh  # validate promoted/optional FFmpeg wiring
 bash ffmpeg-suite.sh                  # ffmpeg-rockchip CLI conformance
+sudo FFMPEG_REQUIRE_AV1=1 FFMPEG_RUNTIME_MODES="system staged" bash ffmpeg-suite.sh  # AV1-capable board/runtime gate
 bash ffmpeg-suite-compare.sh          # compare latest forward-port/rewrite FFmpeg summaries
 bash suite-compare-selftest.sh        # device-free comparator regression selftest
 ```
@@ -819,9 +828,11 @@ decoder-side RGA paths; after common direct GStreamer H.264/H.265 encoder-format
 cases were promoted to required while the diagnostic matrix kept chip-dependent
 NV24/Y444 plus remaining NV21/I420/YV12 RGA scale paths; after the `GST_VALIDATE_CASES=1`
 GStreamer case-builder/runner dry validation mode was added; after
-`FFMPEG_VALIDATE_CASES=1` dry validation and FFmpeg decoder-option,
-H.264/H.265 encoder-option, forced-core/async/AFBC, `vpp_rkrga`, and
-`overlay_rkrga` cases were added;
+`FFMPEG_VALIDATE_CASES=1` dry validation, FFmpeg system/staged runtime passes,
+VP9 required decode/PSNR gates, AV1 diagnostic/promotable decode/RGA/transcode
+coverage, H.265 Main10/P010 and resolution-change diagnostics, stress/soak
+hooks, decoder-option, H.264/H.265 encoder-option, forced-core/async/AFBC,
+`vpp_rkrga`, and `overlay_rkrga` cases were added;
 after
 `ffmpeg-suite.sh` and
 `ffmpeg-suite-compare.sh` made ffmpeg-rockchip a first-class
