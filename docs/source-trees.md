@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md` etc. | tag `50.1` = `5ef1a2aa6bef` |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `0a35c26a0fd7` + branch `rk3588-rewrite-mainline` @ `938b1d2032c3`, including display-tail RGB565/RGA3 and XRGB/RGA2 rotation command-emission KUnit coverage, invalid public scheduler-core mask KUnit coverage, collector-level dormant MPP batch-server rejection, and Route B RGA3 userptr IOMMU mapping/debugfs attribution slices; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `0a35c26a0fd7` + branch `rk3588-rewrite-mainline` @ `938b1d2032c3`, including display-tail RGB565/RGA3 and XRGB/RGA2 rotation command-emission KUnit coverage, invalid public scheduler-core mask KUnit coverage, collector-level dormant MPP batch-server rejection, and RGA userptr-IOMMU fallback RGA3 userptr IOMMU mapping/debugfs attribution slices; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | local `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -269,7 +269,7 @@ the current libmpp VDPU382 probe path, plus legacy RGA flush/result no-op ioctl
 dispatch KUnit coverage for current librga's post-blit compatibility path, plus
 dormant MPP batch-server wait-array recognition/rejection with `-EOPNOTSUPP`,
 RGA2-Pro RFBC64x4/AFBC32x8 source profiles now rejected with `-EOPNOTSUPP`
-instead of carrying an executable FBCIN path, plus RGA3 userptr Route B mapping
+instead of carrying an executable FBCIN path, plus RGA3 userptr RGA userptr-IOMMU fallback mapping
 through a driver-owned contiguous IOMMU IOVA while keeping dma-buf imports
 fail-closed unless they resolve to one 32-bit-safe segment, plus
 `rk_rga_rewrite/route_b/{attempt,ok,active,force_remap}` debugfs attribution
@@ -311,7 +311,7 @@ kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
 syzlang ABI-marker, case-builder, and comparator validation, including 26
 Rockchip syzlang ABI markers and 143 GStreamer case builders. The
 counter-enabled `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1` mode
-plus the `LIBRGA_FORCE_ROUTE_B=1` variant passed the rewrite counter-default
+plus the `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1` variant passed the rewrite counter-default
 wiring checks. See rewrite-drivers.md §6.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite

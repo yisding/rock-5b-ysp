@@ -18,7 +18,7 @@ index 7b62d1cf6980..a6446861a94c 100644
  	 *            routing this device onto iommu-dma ("Option 1"), no manual IOMMU.
 -	 *   true  -> iommu_dma_map_sg() runs yet still returns non-coalesced segments;
 -	 *            a deeper issue that leans toward a driver-owned iommu_map_sg
--	 *            ("Route B").
+-	 *            ("RGA userptr-IOMMU").
 +	 *   true  -> iommu_dma_map_sg() runs yet still returns non-coalesced segments.
 +	 * Measured use_dma_iommu=1, so we are in the second case. But on that path
 +	 * iommu_dma_map_sg() allocates ONE IOVA range for the whole buffer and maps
@@ -28,8 +28,8 @@ index 7b62d1cf6980..a6446861a94c 100644
 +	 * returned segments abut in IOVA space: if addr[i]+len[i] == addr[i+1] for all
 +	 * i, the buffer is one contiguous span and RGA's base+size programming is
 +	 * already safe — the nents!=1 reject in rga_dma_check_iova_contract() is then
-+	 * too strict and can be relaxed to a contiguity+32-bit-span check (no Route B).
-+	 * If contiguous=0, the segments are genuinely scattered and Route B stands.
++	 * too strict and can be relaxed to a contiguity+32-bit-span check (no RGA userptr-IOMMU).
++	 * If contiguous=0, the segments are genuinely scattered and RGA userptr-IOMMU stands.
  	 * Remove once the scattered-buffer question is settled.
  	 */
  	if (sgt->nents != 1) {

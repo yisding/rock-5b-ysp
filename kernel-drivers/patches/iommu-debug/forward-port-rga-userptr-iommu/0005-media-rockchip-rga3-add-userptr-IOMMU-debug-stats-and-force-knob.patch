@@ -1,10 +1,10 @@
 From 801c756c7bca8a30bac1b6c46aec260ee1697901 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sun, 5 Jul 2026 19:21:22 -0700
-Subject: [PATCH 5/5] media: rockchip: rga3: add Route B debug stats and force
+Subject: [PATCH 5/5] media: rockchip: rga3: add RGA userptr-IOMMU debug stats and force
  knob
 
-Instrument the driver-owned scattered-userptr IOMMU fallback (Route B): atomic attempt/ok/active counters under /sys/kernel/debug/rkrga/route_b/ (active is a map/unmap gauge that must return to baseline -- a leak canary); a DEBUGGER_EN(MM)-gated trace of the synthetic span on entry and success; and a force_remap module param / debugfs bool that routes every driver-owned map through Route B even when dma_map_sg coalesced, for 100% fallback coverage and same-buffer normal-vs-Route-B differential testing.
+Instrument the driver-owned scattered-userptr IOMMU fallback (RGA userptr-IOMMU): atomic attempt/ok/active counters under /sys/kernel/debug/rkrga/route_b/ (active is a map/unmap gauge that must return to baseline -- a leak canary); a DEBUGGER_EN(MM)-gated trace of the synthetic span on entry and success; and a force_remap module param / debugfs bool that routes every driver-owned map through RGA userptr-IOMMU even when dma_map_sg coalesced, for 100% fallback coverage and same-buffer normal-vs-RGA-userptr-IOMMU differential testing.
 
 Default off; dma-buf imports are unaffected (they use rga_dma_map_buf, not this path). Debug-only; no behaviour change unless force_remap is set.
 
@@ -24,7 +24,7 @@ index bebcc817fc56..dd4c791171df 100644
  void rga_dma_unmap_sgt(struct rga_dma_buffer *buffer);
  
 +struct dentry;
-+void rga_route_b_debugfs_init(struct dentry *parent);
++void rga_userptr_iommu_debugfs_init(struct dentry *parent);
 +
  int rga_dma_map_buf(struct dma_buf *dma_buf, struct rga_dma_buffer *rga_dma_buffer,
  		    enum dma_data_direction dir, struct device *map_dev);
@@ -45,7 +45,7 @@ index 612db0ffb603..782fafac338c 100644
  		goto CREATE_FAIL;
  	}
  
-+	rga_route_b_debugfs_init(debugger->debugfs_dir);
++	rga_userptr_iommu_debugfs_init(debugger->debugfs_dir);
 +
  	return 0;
  
@@ -70,17 +70,17 @@ index a6446861a94c..1cf65f7e8b11 100644
  #include "rga_job.h"
  #include "rga_debugger.h"
  
-+/* --- Route B (scattered-userptr IOMMU remap) debug instrumentation --- */
++/* --- RGA userptr-IOMMU (scattered-userptr IOMMU remap) debug instrumentation --- */
 +static bool rga_force_iommu_remap;
 +module_param(rga_force_iommu_remap, bool, 0644);
 +MODULE_PARM_DESC(rga_force_iommu_remap,
-+	"debug: route every driver-owned map through Route B even when contiguous");
++	"debug: route every driver-owned map through RGA userptr-IOMMU even when contiguous");
 +
 +static atomic_t rga_rb_attempt = ATOMIC_INIT(0);
 +static atomic_t rga_rb_ok = ATOMIC_INIT(0);
 +static atomic_t rga_rb_active = ATOMIC_INIT(0);
 +
-+void rga_route_b_debugfs_init(struct dentry *parent)
++void rga_userptr_iommu_debugfs_init(struct dentry *parent)
 +{
 +	struct dentry *rb;
 +

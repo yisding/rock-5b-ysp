@@ -9,7 +9,7 @@ returned more than one DMA segment. Runtime diagnostics proved those
 returned IOVAs can be scattered and even descend, so relaxing the check
 would reintroduce the MMU fault.
 
-Add a Route B fallback for driver-owned sg-tables. After a normal DMA map
+Add a RGA userptr-IOMMU fallback for driver-owned sg-tables. After a normal DMA map
 fails the single-span contract, unmap it, clear the sg-table DMA
 bookkeeping left by that abandoned map, allocate one IOVA range from the
 DMA domain cookie, map a page-aligned copy of the sg-table with
@@ -246,7 +246,7 @@ index 05f4037feca8..41ae9e76ba51 100644
 +		return -EOPNOTSUPP;
 +
 +	/*
-+	 * Route B exposes one byte-contiguous RGA span. Larger IOVA granules can
++	 * RGA userptr-IOMMU exposes one byte-contiguous RGA span. Larger IOVA granules can
 +	 * force padding between non-contiguous user pages, so fail closed.
 +	 */
 +	if (iovad->granule > PAGE_SIZE)

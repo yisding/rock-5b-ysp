@@ -5,8 +5,8 @@
 > Source: code inspection of BSP `../kernel/rockchip-kernel` @ `b4ef083dc0c3`,
 > `../kernel/linux-6.18-rkvenc-av1-fwport`
 > `rkvenc-fwport-6.18` @ `eb0f3e209007`,
-> pre-Route-B `../kernel/linux-6.18-rkvenc` `rk3588-rewrite-6.18` @
-> `0e6fa86bd84c`, and pre-Route-B `../kernel/linux`
+> pre-RGA-userptr-IOMMU `../kernel/linux-6.18-rkvenc` `rk3588-rewrite-6.18` @
+> `0e6fa86bd84c`, and pre-RGA-userptr-IOMMU `../kernel/linux`
 > `rk3588-rewrite-mainline` @ `c092e016fd29`;
 > related runtime evidence in
 > `findings/2026-07-04-rga3-im2d-error-irq.md`.
@@ -14,11 +14,11 @@
 > Trust: CODE-INSPECTED; MEASURED for the forward-port scattered-userptr reject
 > behavior inherited from the related runtime finding.
 
-> Update 2026-07-05: this finding captured the pre-Route-B state. Route B patch
-> artifacts now live under `kernel-drivers/patches/route-b/` and
-> are documented in `findings/2026-07-05-rga3-route-b-design.md`.
+> Update 2026-07-05: this finding captured the pre-RGA-userptr-IOMMU state. RGA userptr-IOMMU fallback patch
+> artifacts now live under `kernel-drivers/patches/rga-userptr-iommu/` and
+> are documented in `findings/2026-07-05-rga3-userptr-iommu-design.md`.
 >
-> Update 2026-07-06: the rewrite-side Route B slice is now committed and pushed
+> Update 2026-07-06: the rewrite-side RGA userptr-IOMMU fallback slice is now committed and pushed
 > to `yisding/linux-rock5b`: `rk3588-rewrite-6.18` @ `d1cfb432da7f` and
 > `rk3588-rewrite-mainline` @ `c8a41bb830a6`. Both committed tips passed the
 > clean-archive YSP rewrite build gate for `mpp_rewrite.o` and `rga_rewrite.o`.
@@ -92,9 +92,9 @@ DMA segment and rejects 32-bit IOVA overflow
 segment count, logs diagnostics when the DMA layer returns multiple segments,
 and then applies that contract
 (`../kernel/linux-6.18-rkvenc-av1-fwport/drivers/video/rockchip/rga3/rga_dma_buf.c:139`,
-`:160`, `:169`).  That is fail-closed behavior.  It is not Route B.
+`:160`, `:169`).  That is fail-closed behavior.  It is not RGA userptr-IOMMU fallback.
 
-The pre-Route-B rewrite did not yet have the same fail-closed contract check.
+The pre-RGA-userptr-IOMMU rewrite did not yet have the same fail-closed contract check.
 Its userptr path pinned with `pin_user_pages_fast(FOLL_WRITE | FOLL_LONGTERM)`,
 built an sg-table with `sg_alloc_table_from_pages()`, called
 `dma_map_sgtable()`, and stored only `sg_dma_address(sgt->sgl)` as the IOVA
@@ -109,10 +109,10 @@ As of `rk3588-rewrite-6.18` @ `d1cfb432da7f` and
 `rk3588-rewrite-mainline` @ `c8a41bb830a6`, the rewrite now validates normal
 DMA mappings and keeps dma-buf imports fail-closed unless they resolve to one
 32-bit-safe segment. For driver-owned pinned userptr mappings only, it adds the
-scoped Route B fallback: allocate one byte-contiguous DMA IOVA from the device's
+scoped RGA userptr-IOMMU fallback: allocate one byte-contiguous DMA IOVA from the device's
 translated DMA domain, map a page-aligned sg copy with `iommu_map_sg()`, program
 that synthetic IOVA, and unmap/free it explicitly when the import or temporary
-job mapping is released. It also exposes development-only Route B counters and a
+job mapping is released. It also exposes development-only RGA userptr-IOMMU fallback counters and a
 `force_remap` knob under `rk_rga_rewrite/route_b` so hardware validation can
 distinguish "the workload passed" from "the fallback executed."
 
@@ -130,9 +130,9 @@ queued.  Imported dmabufs must present a large enough contiguous chunk
 (`../kernel/linux/drivers/media/common/videobuf2/videobuf2-dma-contig.c:714`).
 
 The historical gap was that neither the forward-port nor the rewrite implemented
-Route B: a driver-owned `iommu_map_sg()` / synthetic contiguous IOVA range for
+RGA userptr-IOMMU fallback: a driver-owned `iommu_map_sg()` / synthetic contiguous IOVA range for
 scattered userptr. That is no longer true for the committed rewrite tips above.
-The remaining evidence gap is runtime: the rewrite Route B path is build- and
+The remaining evidence gap is runtime: the rewrite RGA userptr-IOMMU fallback path is build- and
 style-verified on both target kernels, but still needs booted Rock 5B validation
 against direct virtual-address `librga` workloads.
 
@@ -153,7 +153,7 @@ dma-buf imports.
 
 Plain `malloc()` or anonymous `mmap()` memory was previously opportunistic on
 RGA3.  It worked only when the pinned pages happened to map as one contiguous,
-non-wrapping device-visible span.  The rewrite Route B slice is intended to make
+non-wrapping device-visible span.  The rewrite RGA userptr-IOMMU fallback slice is intended to make
 that direct virtual-address path deterministic without weakening the dma-buf
 contract, but hardware conformance still needs to prove it on the booted rewrite
 driver.
@@ -185,7 +185,7 @@ The realistic options are:
 
 1. Repair the normal DMA API path if the chosen RGA `map_dev` is bypassing
    `iommu-dma`.  This is a targeted RGA/IOMMU-device selection problem, not a
-   wholesale BSP import.  It is worth checking before Route B, but the measured
+   wholesale BSP import.  It is worth checking before RGA userptr-IOMMU fallback, but the measured
    zero-merge signature (`nents == orig_nents`) already shows that simply
    re-applying `max_seg_size` is not enough.
 
@@ -199,7 +199,7 @@ The realistic options are:
    manual IOMMU ownership, but it is not zero-copy and can be expensive for
    large frames.
 
-4. Implement Route B in a scoped way.  For a pinned userptr sg-table, allocate a
+4. Implement RGA userptr-IOMMU fallback in a scoped way.  For a pinned userptr sg-table, allocate a
    contiguous IOVA span in an RGA-translated domain, map the scattered pages into
    that span with `iommu_map_sg()`, program that synthetic IOVA, perform explicit
    cache synchronization, and unmap/free the IOVA when the import is released.
@@ -218,7 +218,7 @@ The realistic options are:
 Rewrite follow-up: run booted forward-port-vs-rewrite conformance for direct
 virtual-address `librga` smoke cases and GStreamer/RKNN-shaped fd-backed paths.
 The code-side follow-up is now smaller: preserve the fail-closed dma-buf rule,
-keep Route B scoped to driver-owned userptr sg-tables, and add a runtime
+keep RGA userptr-IOMMU fallback scoped to driver-owned userptr sg-tables, and add a runtime
 breadcrumb or counter if direct fallback attribution is needed. The rewrite
 counter surface now exists; the remaining work is to capture it on booted RK3588
 hardware.

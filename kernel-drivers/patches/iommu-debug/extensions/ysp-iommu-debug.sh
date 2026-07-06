@@ -34,13 +34,13 @@ function custom_kernel_config__ysp_iommu_debug() {
 	# Cross-master DMA-API auditing: unbalanced map/unmap, wrong-device sync,
 	# leaks -> printed as 'DMA-API:' in dmesg. Highest-value debug flag.
 	kernel_config_set_y DMA_API_DEBUG
-	# Full symbol table -> static Route B / IOMMU helpers become kprobe-able.
+	# Full symbol table -> static RGA userptr-IOMMU / IOMMU helpers become kprobe-able.
 	kernel_config_set_y KALLSYMS_ALL
 	# Generic per-domain IOMMU debugfs.
 	kernel_config_set_y IOMMU_DEBUGFS
 	# Tracing substrate (usually already =y; pinned so a reconfigure keeps them).
 	kernel_config_set_y FTRACE
 	kernel_config_set_y KPROBES
-	# KUnit stays modular for the optional Route B fail-closed unit module.
+	# KUnit stays modular for the optional RGA userptr-IOMMU fail-closed unit module.
 	kernel_config_set_m KUNIT
 }

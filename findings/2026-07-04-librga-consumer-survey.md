@@ -42,7 +42,7 @@ allocator handoff. The survey did not find current Linux-media evidence that
 RFBC64x4, AFBC32x8, per-channel rotation, tile alpha/pattern/color-key, or broad
 RGA2-Pro modes should be promoted into the required RK3588 rewrite profile.
 
-The 2026-07-06 Route B rewrite slice changes how to prioritize the virtual
+The 2026-07-06 RGA userptr-IOMMU fallback rewrite slice changes how to prioritize the virtual
 buffer half of that finding. Public RKNN/RKNPU examples commonly use
 `wrapbuffer_virtualaddr()` or handle imports around userspace-virtual image
 buffers, and direct `librga` samples use the same shape. The rewrite now keeps

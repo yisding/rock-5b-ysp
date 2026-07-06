@@ -6,7 +6,7 @@ keeps this out of the clean .deb path; apply it only when building a diagnostic
 kernel.
 
 Nothing here changes driver behavior except the opt-in force knob (default off).
-`forward-port-route-b/` archives the debug-only commits removed from
+`forward-port-rga-userptr-iommu/` archives the debug-only commits removed from
 `../kernel/linux-6.18-rkvenc-av1-fwport` on 2026-07-06. The same commits remain
 reachable in that kernel repo on branch `rkvenc-fwport-6.18-iommu-debug-20260706`.
 The clean forward-port branch now stops before these diagnostics.
@@ -15,12 +15,12 @@ The clean forward-port branch now stops before these diagnostics.
 |---|---------|------|---------------|
 | 1 | `drivers/iommu/rockchip-iommu.c` | per-device page/bus-fault counter + debugfs | `rk_iommu` fault deltas |
 | 2 | `drivers/iommu/vsi-iommu.c` | per-device fault counter + debugfs (AV1 path) | `vsi_iommu` fault deltas |
-| 3 | `drivers/video/rockchip/rga3/{rga_dma_buf.c,rga_debugger.c}` | Route B stats + **active gauge** + interior trace + `force_iommu_remap` knob | `rkrga/route_b/*` coverage + leak check |
+| 3 | `drivers/video/rockchip/rga3/{rga_dma_buf.c,rga_debugger.c}` | RGA userptr-IOMMU stats + **active gauge** + interior trace + `force_iommu_remap` knob | `rkrga/route_b/*` coverage + leak check |
 | 4 | `kconfig-debug.fragment` | `DMA_API_DEBUG`, `KALLSYMS_ALL`, `IOMMU_DEBUGFS` | `DMA-API:` dmesg lines |
 
 > **Status.** The driver instrumentation is archived here, not carried by the
 > clean forward-port branch. A plain `build-armbian-deb.sh` run therefore builds
-> the functional Route B forward-port without `DIAG` dmesg traces, per-master
+> the functional RGA userptr-IOMMU forward-port without `DIAG` dmesg traces, per-master
 > debugfs fault counters, or `rkrga/route_b/*` counters/force knob.
 >
 > The **config layer** (patch 4: `DMA_API_DEBUG` / `KALLSYMS_ALL` /
@@ -34,8 +34,8 @@ The clean forward-port branch now stops before these diagnostics.
 > silently no-op'd — an `IOMMU_DEBUG=yes` build came out byte-identical to a
 > normal one, with `DMA_API_DEBUG` still unset. The extension path is the fix.
 >
-> Net: a plain build is clean. To recreate the diagnostic kernel used for Route B
-> attribution, first apply `forward-port-route-b/*.patch` to the kernel tree,
+> Net: a plain build is clean. To recreate the diagnostic kernel used for RGA userptr-IOMMU
+> attribution, first apply `forward-port-rga-userptr-iommu/*.patch` to the kernel tree,
 > then build with `IOMMU_DEBUG=yes` if you also want config-level DMA/IOMMU
 > auditing. Signal usage:
 > [`../../tests/IOMMU-FUZZING.md`](../../tests/IOMMU-FUZZING.md).
@@ -105,11 +105,11 @@ Result: `/sys/kernel/debug/vsi-iommu/<addr>` = AV1-IOMMU fault count.
 
 ---
 
-## Patch 3 — RGA Route B stats + active gauge + force knob + trace
+## Patch 3 — RGA RGA userptr-IOMMU stats + active gauge + force knob + trace
 
-### 3a. Counters (`rga_dma_buf.c`, file scope near the Route B helpers)
+### 3a. Counters (`rga_dma_buf.c`, file scope near the RGA userptr-IOMMU helpers)
 ```c
-static atomic_t rgb_attempt, rgb_ok, rgb_active;	/* rgb = route-b */
+static atomic_t rgb_attempt, rgb_ok, rgb_active;	/* rgb = userptr-iommu */
 static atomic_t rgb_fail_granule, rgb_fail_iova, rgb_fail_map, rgb_fail_span;
 ```
 Wire them in `rga_dma_map_sgt_iommu()` (~line 219): `atomic_inc(&rgb_attempt)` on
@@ -142,7 +142,7 @@ drown `dmesg`.
 static bool rga_force_iommu_remap;
 module_param(rga_force_iommu_remap, bool, 0644);
 MODULE_PARM_DESC(rga_force_iommu_remap,
-	"debug: route every driver-owned map through Route B even if contiguous");
+	"debug: route every driver-owned map through RGA userptr-IOMMU even if contiguous");
 ```
 In `rga_dma_map_sgt()`, after the contract check passes and before
 `rga_dma_set_buffer_mapping()` (~line 489):
@@ -155,7 +155,7 @@ In `rga_dma_map_sgt()`, after the contract check passes and before
 ```
 Toggle at runtime: `echo 1 > /sys/module/rga3/parameters/rga_force_iommu_remap`
 (module name may be `rga` — check `/sys/module/`). With it on, the fuzzer's
-*contiguous* buffers also traverse Route B, giving a same-buffer normal-vs-RouteB
+*contiguous* buffers also traverse RGA userptr-IOMMU, giving a same-buffer normal-vs-remapped
 diff with zero dependence on the scatter trick.
 
 ### 3d. Expose counters as a `route_b` debugfs subdir (`rga_debugger.c`)
@@ -182,7 +182,7 @@ Export the `rgb_*` atomics (or a small accessor) from `rga_dma_buf.c` so
 
 The `granule > PAGE_SIZE` and 32-bit-span-overflow rejects can't be hit at runtime
 on RK3588 (4 KiB granule, guard band holds). A tiny KUnit module that calls the
-Route B span/granule checkers with synthetic pathological inputs covers those
+RGA userptr-IOMMU span/granule checkers with synthetic pathological inputs covers those
 branches deterministically. Lower priority; ask and I'll write it.
 
 ---
@@ -195,7 +195,7 @@ Clean Armbian .deb build, with the archived diagnostics excluded:
 bash kernel-drivers/scripts/build-armbian-deb.sh
 ```
 
-Diagnostic Armbian .deb build with the archived Route B/IOMMU instrumentation:
+Diagnostic Armbian .deb build with the archived RGA userptr-IOMMU/IOMMU instrumentation:
 
 ```sh
 cd ../kernel/linux-6.18-rkvenc-av1-fwport
@@ -203,7 +203,7 @@ git switch rkvenc-fwport-6.18-iommu-debug-20260706
 cd ../../rock-5b-ysp
 IOMMU_DEBUG=yes bash kernel-drivers/scripts/build-armbian-deb.sh
 # reboot into the new kernel, then:
-sudo env IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS=1 \
+sudo env IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS=1 \
   PHASES=ABC RGA_ITERS=128 DECODE_LOOPS=3 \
   bash kernel-drivers/tests/iommu-machinery-fuzz.sh
 ```
@@ -213,7 +213,7 @@ config fragment yourself:
 
 ```sh
 git switch -c rkvenc-fwport-6.18-debug-work rkvenc-fwport-6.18
-git am /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/iommu-debug/forward-port-route-b/*.patch
+git am /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/iommu-debug/forward-port-rga-userptr-iommu/*.patch
 ./scripts/kconfig/merge_config.sh -m .config /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/iommu-debug/kconfig-debug.fragment
 make olddefconfig && make ...     # build as usual; boot; then run the fuzzer above
 ```

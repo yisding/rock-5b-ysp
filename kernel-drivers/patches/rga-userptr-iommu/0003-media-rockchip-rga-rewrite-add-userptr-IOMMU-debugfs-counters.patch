@@ -1,9 +1,9 @@
 From d1cfb432da7faf6239449fab970c801d01d1a31c Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sun, 5 Jul 2026 23:26:02 -0700
-Subject: [PATCH] media: rockchip: rga-rewrite: count Route B fallback mappings
+Subject: [PATCH] media: rockchip: rga-rewrite: count RGA userptr-IOMMU fallback mappings
 
-Route B makes scattered userptr mappings usable on RGA3, but a passing
+RGA userptr-IOMMU makes scattered userptr mappings usable on RGA3, but a passing
 workload is hard to interpret unless validation can see that the fallback
 actually ran.
 
@@ -31,9 +31,9 @@ index 67b1bbe49976..c522ea8030fb 100644
    ``wrapbuffer_fd()`` submissions can target a non-default RGA core.  Minimal
    debugfs counters report scheduled, dispatched, and hardware-started work per
 -  public core-mask bit so RK3588 board validation can confirm load balancing,
-+  public core-mask bit, plus Route B userptr IOMMU fallback attempts,
++  public core-mask bit, plus RGA userptr-IOMMU userptr IOMMU fallback attempts,
 +  successes, live mappings, and a force-remap knob under ``route_b/``.  The
-+  Route B counters are development evidence only, not ABI; they let validation
++  RGA userptr-IOMMU counters are development evidence only, not ABI; they let validation
 +  distinguish a real scattered-userptr fallback pass from a workload that stayed
 +  on the normal DMA segment path.  RK3588 board validation can confirm load balancing,
    equal-load tie rotation, and forced-core routing without carrying the BSP

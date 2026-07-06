@@ -7,7 +7,7 @@
 > Source: temporary map-site DIAG (`eb0f3e209007` + fixups `30102c8f769e`,
 > `171de4153e97`) run on `6.18.38-current-rockchip64 #13`
 > (`../rockchip-conformance/logs/rga-mmu-debug/20260705-151723`), plus
-> code / kernel-config / DT inspection; post-Route-B Route-B-only smoke runs
+> code / kernel-config / DT inspection; post-RGA-userptr-IOMMU RGA-userptr-IOMMU-only smoke runs
 > `20260705-182754` through `20260705-182808`.
 > Date: 2026-07-05
 > Trust: MEASURED for the IOVA-address fingerprint and guard-band clustering;
@@ -111,45 +111,45 @@ measured, so the fail-closed reject is correct regardless of *why* the coalescer
 skipped. If it ever needs nailing, one more DIAG field — the `dir` argument plus
 which `iommu_dma_map_sg()` branch ran — settles it in one reflash.
 
-## Implications for Route B
+## Implications for RGA userptr-IOMMU fallback
 
-Route B (driver-owned `iommu_map_sg()` into a translated RGA domain) is exactly the
+RGA userptr-IOMMU fallback (driver-owned `iommu_map_sg()` into a translated RGA domain) is exactly the
 "cheap contiguous remap" this whole question is about — the driver does by hand what
 the coalescer does for the contiguous buffers, so it works regardless of why the
 generic path scatters some of them. Two constraints fall directly out of the facts
 above:
 
-1. **Non-coherent ⟹ Route B must do explicit cache maintenance**
+1. **Non-coherent ⟹ RGA userptr-IOMMU fallback must do explicit cache maintenance**
    (`dma_sync_sg_for_device()` before the job, `dma_sync_sg_for_cpu()` after).
    Whatever diverts the scattered buffers today is silently providing read-back
    coherency; a direct mapping will not. Skipping this yields correct addresses but
-   stale/corrupt pixel data — this is why the Route B sketch in
+   stale/corrupt pixel data — this is why the RGA userptr-IOMMU fallback sketch in
    [[2026-07-04-rga3-im2d-error-irq]] lists `dma_sync_sg_*` explicitly.
-   The candidate Route B patches keep cache maintenance on the original
+   The candidate RGA userptr-IOMMU fallback patches keep cache maintenance on the original
    physical sg-table: the forward-port syncs through the same `map_dev` used for
    the mapping, and the rewrite's userptr sync hooks continue to wrap submission
    and completion.
-2. **Keep the 32-bit-safe placement.** Route B's own IOVA allocation must stay below
+2. **Keep the 32-bit-safe placement.** RGA userptr-IOMMU fallback's own IOVA allocation must stay below
    the ~`0xE0000000` guard ceiling (or otherwise guarantee base + RGA plane offsets
    do not cross `0xFFFFFFFF`), or the wrap fault `6b9dba7abcd0` fixed comes back.
 
-## Post-Route-B smoke comparison
+## Post-RGA-userptr-IOMMU smoke comparison
 
-The Route-B-only 6.18 image installed for the 18:28 runs contained the clean
-Route B strings (`driver-owned IOMMU`, `iommu_dma_get_iova_domain`) and did not
+The RGA-userptr-IOMMU-only 6.18 image installed for the 18:28 runs contained the clean
+RGA userptr-IOMMU fallback strings (`driver-owned IOMMU`, `iommu_dma_get_iova_domain`) and did not
 contain the temporary `DIAG rga_dma_map_sgt` string. Repeated runs at
 `../rockchip-conformance/logs/rga-mmu-debug/20260705-182754` through
 `../rockchip-conformance/logs/rga-mmu-debug/20260705-182808` reported `pass` for
 `rga_copy_demo`, `rga_resize_rect_demo`, and `rga_transform_rotate_demo`.
 
-The filtered logs for those Route-B-only runs contained no `reject sg_table DMA
+The filtered logs for those RGA-userptr-IOMMU-only runs contained no `reject sg_table DMA
 mapping`, no `INTR[0x2]`, no IOMMU page fault, and no failed RGA jobs. That is a
 behavioral regression pass for the scattered userptr demo family that previously
 hit the fail-closed rejects documented above.
 
 This does not invalidate the mechanism boundary in this finding. The exact
 reason the generic DMA path returned per-segment IOVAs remains unresolved, and
-the clean Route-B-only logs cannot directly prove which import entered
+the clean RGA-userptr-IOMMU-only logs cannot directly prove which import entered
 `rga_dma_map_sgt_iommu()`. What the comparison does prove is that the selected
 demo family moved from measured non-contiguous userptr rejects to fault-free
-completion under a kernel that contains Route B.
+completion under a kernel that contains RGA userptr-IOMMU fallback.

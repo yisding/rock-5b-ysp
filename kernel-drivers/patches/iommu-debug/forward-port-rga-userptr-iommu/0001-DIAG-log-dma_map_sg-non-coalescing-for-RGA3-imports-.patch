@@ -27,7 +27,7 @@ index 41ae9e76ba51..d1a51a1d66a4 100644
  	sgt->nents = ret;
  
 +	/*
-+	 * TEMP DIAGNOSTIC (scattered virt_addr / "Route B" investigation): when the
++	 * TEMP DIAGNOSTIC (scattered virt_addr / "RGA userptr-IOMMU" investigation): when the
 +	 * DMA layer returns more than one segment, log why, so we can distinguish a
 +	 * max_seg_size cap from a non-coalescing (direct/identity) mapping. If
 +	 * max_seg_size is already large and nents == orig_nents, the device is not on

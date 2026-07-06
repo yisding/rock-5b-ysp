@@ -1,6 +1,6 @@
-# Route B Architecture
+# RGA userptr-IOMMU fallback Architecture
 
-Route B is the scoped fallback for RGA3 buffers that are owned by the RGA
+RGA userptr-IOMMU fallback is the scoped fallback for RGA3 buffers that are owned by the RGA
 driver, backed by an sg-table, and cannot be represented by the normal DMA API
 as one 32-bit-safe DMA segment. It maps those pages into one contiguous IOVA span
 inside the already translated RGA DMA domain, then programs that synthetic IOVA
@@ -23,36 +23,36 @@ RGA MMU. Debugfs reports the RGA3 cores as `mmu: RK_IOMMU`; the RGA2 core report
   Address translation is still handled by the external RK_IOMMU attached to the
   RGA device.
 - `handle[...] iova = ... dma_addr = ...` lines in the RGA3 logs are the
-  device-visible addresses programmed into the command stream. With Route B,
+  device-visible addresses programmed into the command stream. With RGA userptr-IOMMU fallback,
   those addresses can be synthetic IOVAs allocated by the driver from the same
   translated DMA domain allocator that the DMA API uses.
 - The hardware still gets one base address per plane. Neither the external
-  RK_IOMMU nor Route B changes the command stream into a scatterlist ABI.
+  RK_IOMMU nor RGA userptr-IOMMU fallback changes the command stream into a scatterlist ABI.
 
-The installed Route-B-only 6.18 test image was checked with `strings` on
-`/boot/vmlinuz-6.18.38-current-rockchip64`: it contains the Route B strings
+The installed RGA-userptr-IOMMU-only 6.18 test image was checked with `strings` on
+`/boot/vmlinuz-6.18.38-current-rockchip64`: it contains the RGA userptr-IOMMU fallback strings
 `driver-owned IOMMU` and `iommu_dma_get_iova_domain`, and it does not contain the
 temporary diagnostic string `DIAG rga_dma_map_sgt`. That proves the image has the
-clean Route B code, but not the temporary fallback breadcrumb commits.
+clean RGA userptr-IOMMU fallback code, but not the temporary fallback breadcrumb commits.
 
 ## Invariants
 
 - DMA-buf imports remain fail-closed. If a dma-buf import does not map as one
   non-wrapping 32-bit DMA span, the import is rejected rather than remapped by
   RGA.
-- Route B is only for driver-owned sg-tables. In the forward-port, that means
+- RGA userptr-IOMMU fallback is only for driver-owned sg-tables. In the forward-port, that means
   `rga_dma_map_sgt()` users: scattered pinned userptr and the physical-address
   IOMMU path that builds an sg-table from pages. In the rewrite, it is wired only
   into pinned userptr imports and per-job userptr remaps.
 - The fallback uses the translated RGA domain that the DMA API already uses for
   the selected mapping device. It does not create a private IOMMU domain.
 - IOVA allocation comes from the domain's existing DMA IOVA allocator via the
-  domain cookie, so Route B shares allocator ownership with the DMA API instead
+  domain cookie, so RGA userptr-IOMMU fallback shares allocator ownership with the DMA API instead
   of inventing an overlapping allocator.
-- Route B caps allocation at the minimum of the device DMA mask,
+- RGA userptr-IOMMU fallback caps allocation at the minimum of the device DMA mask,
   `dev->bus_dma_limit`, any forced IOMMU aperture limit, and
   `DMA_BIT_MASK(32) - SZ_512M`.
-- Route B fails closed if the IOVA allocator granule is larger than `PAGE_SIZE`.
+- RGA userptr-IOMMU fallback fails closed if the IOVA allocator granule is larger than `PAGE_SIZE`.
   RGA needs a byte-contiguous view; larger granules can require padding between
   unrelated physical pages.
 - All span arithmetic is overflow-checked before any address is accepted for RGA
@@ -72,8 +72,8 @@ Patch 0001 modifies the vendor-style RGA3 forward-port.
 5. If the normal map returns multiple segments or a wrapping/overflowing span,
    the driver immediately calls `dma_unmap_sg()`, resets sg DMA bookkeeping
    (`sg_dma_address`, `sg_dma_len` when present, and `SG_DMA_BUS_ADDRESS` /
-   `SG_DMA_SWIOTLB` when present), then enters Route B.
-6. Route B builds a temporary page-aligned sg-table copy. This copy is used only
+   `SG_DMA_SWIOTLB` when present), then enters RGA userptr-IOMMU fallback.
+6. RGA userptr-IOMMU fallback builds a temporary page-aligned sg-table copy. This copy is used only
    for `iommu_map_sg()`, because the IOMMU map operation needs page-aligned
    physical ranges.
 7. The driver allocates one IOVA span from the RGA DMA domain cookie and maps the
@@ -85,13 +85,13 @@ Patch 0001 modifies the vendor-style RGA3 forward-port.
    existing command generator shape.
 10. Writable userptr imports remember that they were mapped for device writes.
     On release, their GUP-held pages are marked dirty before `put_page()`.
-11. Teardown checks `buffer->iommu_mapped`. Route B mappings use
+11. Teardown checks `buffer->iommu_mapped`. RGA userptr-IOMMU fallback mappings use
     `iommu_unmap()` plus `free_iova_fast()`; normal DMA API mappings still use
     `dma_unmap_sg()`.
 
 The forward-port also changes non-contiguous cache sync to use
 `buffer->dma_buffer->map_dev`, the device that created the mapping, rather than
-the current scheduler device. That matters because Route B keeps cache
+the current scheduler device. That matters because RGA userptr-IOMMU fallback keeps cache
 maintenance on the original physical sg-table while the programmed address is
 the synthetic IOVA.
 
@@ -106,22 +106,22 @@ rewrite import layer rather than a shared `rga_dma_map_sgt()` helper.
    different RGA device.
 3. If the DMA API map is one segment and 32-bit-safe, it is kept.
 4. If that map violates the contract, the rewrite unmaps it, clears stale sg DMA
-   state, and runs Route B with the same cookie-backed IOVA allocation and
+   state, and runs RGA userptr-IOMMU fallback with the same cookie-backed IOVA allocation and
    page-aligned `iommu_map_sg()` copy used in the forward-port.
 5. Persistent imports and per-job mappings both store `domain`, `iova_size`,
    `page_offset`, and `iommu_mapped`, so their release paths can distinguish
-   Route B from DMA API ownership.
+   RGA userptr-IOMMU fallback from DMA API ownership.
 6. Dma-buf imports and dma-buf per-job remaps only run the fail-closed contract
-   check. They do not enter Route B.
+   check. They do not enter RGA userptr-IOMMU fallback.
 
 The rewrite already had explicit userptr sync hooks around job submission and
-completion. Route B preserves those hooks by keeping the original physical
+completion. RGA userptr-IOMMU fallback preserves those hooks by keeping the original physical
 sg-table as the object passed to `dma_sync_sgtable_for_device()` and
 `dma_sync_sgtable_for_cpu()`.
 
 Patch 0002 also adds RGA3 DMA-mask setup in probe: 40-bit streaming DMA mask,
 32-bit coherent mask, and a `bus_dma_limit` clamp at
-`DMA_BIT_MASK(32) - SZ_512M`. That is not a Route B fallback hook, but it is part
+`DMA_BIT_MASK(32) - SZ_512M`. That is not a RGA userptr-IOMMU fallback hook, but it is part
 of the rewrite's RGA3 import contract because it constrains normal DMA API
 placement and dma-buf validation before any userptr fallback is considered.
 
@@ -132,7 +132,7 @@ here declare `iommu_get_dma_domain()` but do not export it. The selected
 `map_dev` is the same device used for the normal DMA API map, so the returned
 domain is expected to be the translated DMA domain.
 
-The kernel does not expose `struct iommu_dma_cookie` to drivers. Route B adds a
+The kernel does not expose `struct iommu_dma_cookie` to drivers. RGA userptr-IOMMU fallback adds a
 small exported `iommu_dma_get_iova_domain()` helper inside
 `drivers/iommu/dma-iommu.c`, where the private cookie type is visible, and has
 RGA call that helper instead of casting the opaque cookie through a local shadow
@@ -140,12 +140,12 @@ type. The helper checks `domain->cookie_type == IOMMU_COOKIE_DMA_IOVA` and
 returns `NULL` for unsupported domains.
 
 This is intentionally narrower than a private allocator. `alloc_iova_fast()` and
-`free_iova_fast()` operate on the DMA domain's allocator, so Route B allocations
+`free_iova_fast()` operate on the DMA domain's allocator, so RGA userptr-IOMMU fallback allocations
 cannot overlap DMA API allocations from the same domain.
 
 ## Cache And Coherency Model
 
-RK3588 RGA3 is non-coherent. Route B maps the pages directly with
+RK3588 RGA3 is non-coherent. RGA userptr-IOMMU fallback maps the pages directly with
 `iommu_map_sg()`, so it must not depend on SWIOTLB bounce buffers for coherency.
 The implementation keeps cache maintenance on the original physical sg-table:
 
@@ -160,11 +160,11 @@ The implementation keeps cache maintenance on the original physical sg-table:
 
 Resetting stale `SG_DMA_SWIOTLB` state after the abandoned DMA API map is part of
 that coherency model. Without it, later sync calls could operate on stale bounce
-state rather than the pinned physical pages now mapped by Route B.
+state rather than the pinned physical pages now mapped by RGA userptr-IOMMU fallback.
 
 ## Failure Behavior
 
-Route B returns an error and leaves no ownership behind if any step fails:
+RGA userptr-IOMMU fallback returns an error and leaves no ownership behind if any step fails:
 
 - no translated paging domain;
 - unsupported DMA IOVA cookie;
@@ -176,21 +176,21 @@ Route B returns an error and leaves no ownership behind if any step fails:
 - overflow or 32-bit-span violation after adding the original page offset.
 
 Short `iommu_map_sg()` results are explicitly unmapped before the IOVA is freed.
-Normal DMA API maps are always unmapped before Route B starts, and the sg-table
+Normal DMA API maps are always unmapped before RGA userptr-IOMMU fallback starts, and the sg-table
 DMA state is reset before later cache sync or remap attempts.
 
 ## Differences Between The Two Patches
 
 The algorithm is intentionally the same, but the attachment points differ:
 
-- the forward-port has a reusable `rga_dma_map_sgt()` helper, so Route B lives
+- the forward-port has a reusable `rga_dma_map_sgt()` helper, so RGA userptr-IOMMU fallback lives
   there and covers every driver-owned sg-table that flows through it;
-- the rewrite has explicit import objects and per-job mapping records, so Route B
+- the rewrite has explicit import objects and per-job mapping records, so RGA userptr-IOMMU fallback
   is implemented at the userptr import/remap boundary and records ownership in
   those objects.
 
 That difference avoids forcing the rewrite into the vendor helper shape while
-still keeping the core Route B rules aligned.
+still keeping the core RGA userptr-IOMMU fallback rules aligned.
 
 ## Runtime Evidence Boundary
 
@@ -200,20 +200,20 @@ As of 2026-07-05:
 - strict checkpatch is clean;
 - focused object builds pass;
 - focused `W=1` object builds pass;
-- a Route-B-only forward-port kernel passed repeated scattered `virt_addr`
+- a RGA-userptr-IOMMU-only forward-port kernel passed repeated scattered `virt_addr`
   librga smoke runs on RK3588 without RGA/IOMMU faults.
 
-The runtime result is a behavioral pass and strong indirect evidence for Route B:
+The runtime result is a behavioral pass and strong indirect evidence for RGA userptr-IOMMU fallback:
 the same demo family previously produced non-contiguous `orig_nents == nents`
 DMA mappings and failed closed with `reject sg_table DMA mapping`, while the
-Route-B-only image now runs the selected cases to completion with no rejects,
+RGA-userptr-IOMMU-only image now runs the selected cases to completion with no rejects,
 faults, or failed RGA jobs.
 
 It is still not direct forward-port fallback-path proof. The clean image
 intentionally lacks a success log/counter in `rga_dma_map_sgt_iommu()`, so the
-artifacts cannot show which individual import entered Route B. Forward-port
+artifacts cannot show which individual import entered RGA userptr-IOMMU fallback. Forward-port
 completion still requires either a one-run debug-tip kernel or a temporary
-positive breadcrumb/counter in the Route B helper, plus the same case passing
+positive breadcrumb/counter in the RGA userptr-IOMMU fallback helper, plus the same case passing
 without RGA/IOMMU faults. The rewrite now has a permanent development-only
 `rk_rga_rewrite/route_b` counter surface for this attribution, but it still needs
 a booted rewrite run.

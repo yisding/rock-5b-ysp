@@ -22,6 +22,7 @@ RUN_COMPARE=${RUN_COMPARE:-0}
 RUN_COUNTER_CHECKS=${RUN_COUNTER_CHECKS:-0}
 VALIDATE_ONLY=${VALIDATE_ONLY:-0}
 REWRITE_COUNTER_DEFAULTS=${REWRITE_COUNTER_DEFAULTS:-1}
+LIBRGA_FORCE_RGA_USERPTR_IOMMU=${LIBRGA_FORCE_RGA_USERPTR_IOMMU:-${LIBRGA_FORCE_ROUTE_B:-0}}
 RUN_ID=${RUN_ID:-$(date +%Y%m%d-%H%M%S)}
 LOG_ROOT=${LOG_ROOT:-"$CONFORMANCE_ROOT/logs/$PROFILE"}
 MPP_SUITE_OUT=${MPP_SUITE_OUT:-"$LOG_ROOT/$RUN_ID-mpp-suite"}
@@ -56,13 +57,13 @@ case "$PROFILE" in
 		fi
 		if [ -z "$LIBRGA_REQUIRED_POSITIVE_COUNTERS" ]; then
 			LIBRGA_REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns"
-			if [ "${LIBRGA_FORCE_ROUTE_B:-0}" = "1" ]; then
-				LIBRGA_REQUIRED_POSITIVE_COUNTERS="$LIBRGA_REQUIRED_POSITIVE_COUNTERS rga_route_b:attempt rga_route_b:ok"
+			if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ]; then
+				LIBRGA_REQUIRED_POSITIVE_COUNTERS="$LIBRGA_REQUIRED_POSITIVE_COUNTERS rga_userptr_iommu:attempt rga_userptr_iommu:ok"
 			fi
 		fi
-		if [ "${LIBRGA_FORCE_ROUTE_B:-0}" = "1" ] &&
+		if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ] &&
 			[ -z "$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS" ]; then
-			LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS="rga_route_b:active"
+			LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS="rga_userptr_iommu:active"
 		fi
 		: "${GSTREAMER_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
 		: "${FFMPEG_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
@@ -192,28 +193,28 @@ validate_counter_defaults()
 		printf "rewrite counter defaults did not require librga counters\n" >&2
 		return 1
 	fi
-	if [ "${LIBRGA_FORCE_ROUTE_B:-0}" = "1" ]; then
+	if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ]; then
 		case " $LIBRGA_REQUIRED_POSITIVE_COUNTERS " in
-		*" rga_route_b:attempt "*)
+		*" rga_userptr_iommu:attempt "*)
 			;;
 		*)
-			printf "rewrite Route B forced mode did not require route_b attempts\n" >&2
+			printf "forced RGA userptr-IOMMU mode did not require attempts\n" >&2
 			return 1
 			;;
 		esac
 		case " $LIBRGA_REQUIRED_POSITIVE_COUNTERS " in
-		*" rga_route_b:ok "*)
+		*" rga_userptr_iommu:ok "*)
 			;;
 		*)
-			printf "rewrite Route B forced mode did not require route_b successes\n" >&2
+			printf "forced RGA userptr-IOMMU mode did not require successes\n" >&2
 			return 1
 			;;
 		esac
 		case " $LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS " in
-		*" rga_route_b:active "*)
+		*" rga_userptr_iommu:active "*)
 			;;
 		*)
-			printf "rewrite Route B forced mode did not require active gauge to return to zero\n" >&2
+			printf "forced RGA userptr-IOMMU mode did not require active gauge to return to zero\n" >&2
 			return 1
 			;;
 		esac

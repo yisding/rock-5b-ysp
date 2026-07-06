@@ -15,9 +15,9 @@ LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs
 RGA_CAPTURE_ARTIFACTS=${RGA_CAPTURE_ARTIFACTS:-1}
 RGA_ENABLE_YSP_SMOKE=${RGA_ENABLE_YSP_SMOKE:-1}
 RGA_REQUIRE_YSP_SMOKE=${RGA_REQUIRE_YSP_SMOKE:-1}
-LIBRGA_FORCE_ROUTE_B=${LIBRGA_FORCE_ROUTE_B:-0}
-route_b_force_path=
-route_b_force_prev=
+LIBRGA_FORCE_RGA_USERPTR_IOMMU=${LIBRGA_FORCE_RGA_USERPTR_IOMMU:-${LIBRGA_FORCE_ROUTE_B:-0}}
+rga_userptr_iommu_force_path=
+rga_userptr_iommu_force_prev=
 
 case "$PROFILE" in
 *rewrite*)
@@ -103,19 +103,21 @@ diagnostic_cases=${RGA_DIAGNOSTIC_CASES:-$diagnostic_cases_default}
 failed=0
 
 # shellcheck disable=SC2329 # Invoked through the EXIT trap below.
-restore_route_b_force()
+restore_rga_userptr_iommu_force()
 {
-	if [ -n "$route_b_force_path" ] && [ -n "$route_b_force_prev" ] &&
-		[ -e "$route_b_force_path" ]; then
-		printf "%s\n" "$route_b_force_prev" > "$route_b_force_path" 2>/dev/null || true
+	if [ -n "$rga_userptr_iommu_force_path" ] &&
+		[ -n "$rga_userptr_iommu_force_prev" ] &&
+		[ -e "$rga_userptr_iommu_force_path" ]; then
+		printf "%s\n" "$rga_userptr_iommu_force_prev" \
+			> "$rga_userptr_iommu_force_path" 2>/dev/null || true
 	fi
 }
 
-setup_route_b_force()
+setup_rga_userptr_iommu_force()
 {
 	local path
 
-	if [ "$LIBRGA_FORCE_ROUTE_B" != "1" ]; then
+	if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" != "1" ]; then
 		return
 	fi
 
@@ -123,26 +125,26 @@ setup_route_b_force()
 		/sys/kernel/debug/rk_rga_rewrite/route_b/force_remap \
 		/sys/kernel/debug/rkrga/route_b/force_remap; do
 		if [ -e "$path" ]; then
-			route_b_force_path=$path
+			rga_userptr_iommu_force_path=$path
 			break
 		fi
 	done
 
-	if [ -z "$route_b_force_path" ]; then
-		echo "LIBRGA_FORCE_ROUTE_B=1 but no Route B force_remap debugfs knob is present" >&2
+	if [ -z "$rga_userptr_iommu_force_path" ]; then
+		echo "LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 but no RGA userptr-IOMMU force_remap debugfs knob is present" >&2
 		exit 2
 	fi
 
-	route_b_force_prev=$(cat "$route_b_force_path" 2>/dev/null || true)
-	case "$route_b_force_prev" in
+	rga_userptr_iommu_force_prev=$(cat "$rga_userptr_iommu_force_path" 2>/dev/null || true)
+	case "$rga_userptr_iommu_force_prev" in
 	0|1) ;;
-	*) route_b_force_prev=0 ;;
+	*) rga_userptr_iommu_force_prev=0 ;;
 	esac
 
-	printf "1\n" > "$route_b_force_path"
+	printf "1\n" > "$rga_userptr_iommu_force_path"
 }
 
-trap restore_route_b_force EXIT
+trap restore_rga_userptr_iommu_force EXIT
 
 if [ ! -e /dev/rga ]; then
 	echo "SKIP: /dev/rga is absent on this boot"
@@ -275,13 +277,13 @@ run_case()
 		>> "$summary"
 }
 
-setup_route_b_force
+setup_rga_userptr_iommu_force
 
 snapshot_debugfs before
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
 	rga /sys/kernel/debug/rk_rga_rewrite \
-	rga_route_b /sys/kernel/debug/rk_rga_rewrite/route_b \
-	rkrga_route_b /sys/kernel/debug/rkrga/route_b
+	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/route_b \
+	rkrga_userptr_iommu /sys/kernel/debug/rkrga/route_b
 
 for case_name in $required_cases; do
 	run_case required "$case_name"
@@ -294,8 +296,8 @@ done
 snapshot_debugfs after
 debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
 	rga /sys/kernel/debug/rk_rga_rewrite \
-	rga_route_b /sys/kernel/debug/rk_rga_rewrite/route_b \
-	rkrga_route_b /sys/kernel/debug/rkrga/route_b
+	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/route_b \
+	rkrga_userptr_iommu /sys/kernel/debug/rkrga/route_b
 debugfs_counter_delta "$OUT/debugfs-counters-before.tsv" \
 	"$OUT/debugfs-counters-after.tsv" \
 	"$OUT/debugfs-counters-delta.tsv"

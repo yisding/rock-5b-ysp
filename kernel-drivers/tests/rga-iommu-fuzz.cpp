@@ -1,19 +1,20 @@
 // =============================================================================
-// rga-iommu-fuzz.cpp -- RGA3 scattered-userptr (Route B) *correctness* fuzzer.
+// rga-iommu-fuzz.cpp -- RGA3 scattered-userptr IOMMU correctness fuzzer.
 //
 // The stock librga demos only ever hand the driver userptr buffers that happen
 // to be physically contiguous, so dma_map_sg() coalesces to one segment and the
-// Route B (driver-owned iommu_map_sg) fallback is never exercised. This tool
-// deterministically forces the SCATTERED path and checks the result is correct.
+// driver-owned IOMMU remap fallback is never exercised. This tool
+// deterministically forces the scattered path and checks the result is correct.
 //
 // HOW IT FORCES SCATTER
 //   A userptr needs a *contiguous virtual* range, but its backing physical pages
 //   can be arbitrary. We mmap the buffer region A and an equal spacer region B,
 //   MADV_NOHUGEPAGE both, then fault them PAGE-INTERLEAVED (A[0],B[0],A[1],B[1]..).
 //   The buddy allocator hands A's consecutive virtual pages non-adjacent PFNs, so
-//   dma_map_sg() cannot coalesce -> nents ~= npages -> Route B must run. B stays
-//   mapped so A stays fragmented. On the pre-Route-B kernel this exact buffer
-//   fails closed / MMU-faults, so success+correct-output *is* proof Route B ran.
+//   dma_map_sg() cannot coalesce -> nents ~= npages -> the remap path must run.
+//   B stays mapped so A stays fragmented. On the pre-remap kernel this exact
+//   buffer fails closed / MMU-faults, so success+correct-output proves the
+//   driver-owned IOMMU path ran.
 //
 // ORACLES (video/2D ops are deterministic, so results are bit-exact)
 //   copy   : ABSOLUTE  -- output must equal the known input pattern.

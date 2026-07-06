@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
 # iommu-machinery-fuzz.sh -- exercise the WHOLE RK3588 IOMMU surface and check
-# it stays correct under stress. Not just RGA Route B: it drives both IOMMU
-# providers on the SoC at once.
+# it stays correct under stress. Not just the RGA userptr-IOMMU fallback: it
+# drives both IOMMU providers on the SoC at once.
 #
-#   * rockchip-iommu.c  masters: RGA3 (scattered userptr / Route B), and the
+#   * rockchip-iommu.c  masters: RGA3 scattered userptr, and the
 #                        RKVDEC/VP9/H26x video-codec cores via MPP.
 #   * vsi-iommu.c        master: the standalone AV1 decoder (verisilicon IOMMU).
 #
 # Each phase pairs a CORRECTNESS ORACLE with FAULT/LEAK monitoring:
-#   A) RGA   -- rga-iommu-fuzz forces scattered userptr (Route B) and checks the
-#               result byte-for-byte (absolute for copy, differential for the rest).
+#   A) RGA   -- rga-iommu-fuzz forces scattered userptr so the driver-owned
+#               IOMMU remap path runs, then checks the result byte-for-byte.
 #   B) DECODE-- decode-differential.sh: HW decode vs SW reference, PASS iff PSNR=inf
 #               (bit-exact) for H264/H265/VP9/AV1. AV1 is the vsi-iommu path.
 #   C) CONCURRENT -- run A and a multi-instance AV1 decode together so both IOMMU
@@ -18,8 +18,8 @@
 #
 # Every phase brackets dmesg + available debugfs counters; the run FAILS on any
 # IOMMU page fault, correctness mismatch, or leaked mapping (active gauge not
-# back to baseline). Rewrite kernels expose MPP/RGA aggregate counters and Route
-# B gauges; some forward-port debug builds also expose provider-level counters.
+# back to baseline). Rewrite kernels expose MPP/RGA aggregate counters and RGA
+# userptr-IOMMU gauges; some forward-port debug builds also expose provider-level counters.
 # Without counters the dmesg fault scan is the backstop.
 #
 # Usage: iommu-machinery-fuzz.sh [-n rga_iters] [-L loops] [-p A|B|C|ABC]
@@ -40,7 +40,7 @@ MPP_BUILD="${MPP_BUILD:-$CONFORMANCE_ROOT/out/mpp}"
 AV1_IVF="${AV1_IVF:-$CONFORMANCE_ROOT/assets/test_av1.ivf}"
 CXX="${CXX:-g++}"
 IOMMU_FUZZ_VALIDATE_BUILD="${IOMMU_FUZZ_VALIDATE_BUILD:-0}"
-IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS="${IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS:-0}"
+IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS="${IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS:-${IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS:-0}}"
 tmp_out=
 if [ "$IOMMU_FUZZ_VALIDATE_BUILD" = "1" ] &&
    [ -z "${OUT+x}" ]; then
@@ -79,8 +79,8 @@ fi
 COUNTER_DIRS=(
   mpp_rewrite          /sys/kernel/debug/rk_mpp_rewrite
   rga_rewrite          /sys/kernel/debug/rk_rga_rewrite
-  rga_rewrite_route_b  /sys/kernel/debug/rk_rga_rewrite/route_b
-  rkrga_route_b        /sys/kernel/debug/rkrga/route_b
+  rga_rewrite_userptr_iommu  /sys/kernel/debug/rk_rga_rewrite/route_b
+  rkrga_userptr_iommu        /sys/kernel/debug/rkrga/route_b
   rk_iommu_debug       /sys/kernel/debug/rockchip-iommu
   vsi_iommu_debug      /sys/kernel/debug/vsi-iommu
 )
@@ -113,8 +113,8 @@ counter_after_sum() { # delta-file counter-name [component-regex]
     END { print seen ? sum : 0 }
   ' "$file"
 }
-route_b_counter_rows() {
-  awk -F'\t' 'NR > 1 && $1 ~ /route_b/ { n++ } END { print n + 0 }' "$1"
+rga_userptr_iommu_counter_rows() {
+  awk -F'\t' 'NR > 1 && $1 ~ /(route_b|userptr_iommu)/ { n++ } END { print n + 0 }' "$1"
 }
 counter_row_count() { # delta-file counter-name [component-regex]
   local file="$1" counter="$2" component_re="${3:-.*}"
@@ -123,7 +123,9 @@ counter_row_count() { # delta-file counter-name [component-regex]
     END { print n + 0 }
   ' "$file"
 }
-check_route_b_coverage() { # counters-delta.tsv
+rga_userptr_iommu_counter_filter='(route_b|userptr_iommu)'
+
+check_rga_userptr_iommu_coverage() { # counters-delta.tsv
   local delta_file="$1"
   local rows attempt_delta ok_delta active_after active_rows failures
 
@@ -132,47 +134,47 @@ check_route_b_coverage() { # counters-delta.tsv
     *) return 0 ;;
   esac
 
-  rows=$(route_b_counter_rows "$delta_file")
+  rows=$(rga_userptr_iommu_counter_rows "$delta_file")
   if [ "$rows" -eq 0 ]; then
-    if [ "$IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS" = "1" ]; then
-      log "  !! Route B counters required but no route_b debugfs counters were captured"
+    if [ "$IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS" = "1" ]; then
+      log "  !! RGA userptr-IOMMU counters required but no debugfs counters were captured"
       overall=1
     else
-      log "  (no Route B counters captured; RGA correctness+dmesg checks passed, but fallback attribution is indirect)"
+      log "  (no RGA userptr-IOMMU counters captured; RGA correctness+dmesg checks passed, but fallback attribution is indirect)"
     fi
     return 0
   fi
 
-  attempt_delta=$(counter_delta_sum "$delta_file" attempt 'route_b')
-  ok_delta=$(counter_delta_sum "$delta_file" ok 'route_b')
-  active_after=$(counter_after_sum "$delta_file" active 'route_b')
-  active_rows=$(counter_row_count "$delta_file" active 'route_b')
+  attempt_delta=$(counter_delta_sum "$delta_file" attempt "$rga_userptr_iommu_counter_filter")
+  ok_delta=$(counter_delta_sum "$delta_file" ok "$rga_userptr_iommu_counter_filter")
+  active_after=$(counter_after_sum "$delta_file" active "$rga_userptr_iommu_counter_filter")
+  active_rows=$(counter_row_count "$delta_file" active "$rga_userptr_iommu_counter_filter")
   failures=$((attempt_delta - ok_delta))
 
   if [ "$attempt_delta" -le 0 ]; then
-    log "  !! Route B counters present but attempt did not increase"
+    log "  !! RGA userptr-IOMMU counters present but attempt did not increase"
     overall=1
   fi
   if [ "$ok_delta" -le 0 ]; then
-    log "  !! Route B counters present but ok did not increase"
+    log "  !! RGA userptr-IOMMU counters present but ok did not increase"
     overall=1
   fi
   if [ "$failures" -ne 0 ]; then
-    log "  !! Route B failures recorded: attempt_delta=$attempt_delta ok_delta=$ok_delta"
+    log "  !! RGA userptr-IOMMU failures recorded: attempt_delta=$attempt_delta ok_delta=$ok_delta"
     overall=1
   fi
   if [ "$active_rows" -le 0 ]; then
-    log "  !! Route B counters present but active gauge was not captured"
+    log "  !! RGA userptr-IOMMU counters present but active gauge was not captured"
     overall=1
   fi
   if [ "$active_after" -ne 0 ]; then
-    log "  !! Route B active mappings remain after run: active=$active_after"
+    log "  !! RGA userptr-IOMMU active mappings remain after run: active=$active_after"
     overall=1
   fi
   if [ "$attempt_delta" -gt 0 ] && [ "$ok_delta" -gt 0 ] &&
      [ "$failures" -eq 0 ] && [ "$active_rows" -gt 0 ] &&
      [ "$active_after" -eq 0 ]; then
-    log "  Route B attribution: attempt_delta=$attempt_delta ok_delta=$ok_delta active=$active_after"
+    log "  RGA userptr-IOMMU attribution: attempt_delta=$attempt_delta ok_delta=$ok_delta active=$active_after"
   fi
 }
 
@@ -185,9 +187,9 @@ if [ "${EUID:-$(id -u)}" -ne 0 ]; then
   log "        coverage+leak signal, run the whole script as root: sudo $0 $*"
 fi
 if grep -qm1 'rga_dma_check_iova_span' /proc/kallsyms 2>/dev/null; then
-  log "  Route B: present (rga_dma_check_iova_span in kallsyms)"
+  log "  RGA userptr-IOMMU fallback: present (rga_dma_check_iova_span in kallsyms)"
 else
-  log "  Route B: NOT DETECTED in running kernel symbols -- RGA scatter phase may fail closed"
+  log "  RGA userptr-IOMMU fallback: NOT DETECTED in running kernel symbols -- RGA scatter phase may fail closed"
 fi
 for f in /dev/rga /dev/mpp_service; do [ -e "$f" ] && log "  $f: ok" || log "  $f: MISSING"; done
 
@@ -275,7 +277,7 @@ if [ "$(wc -l < "$OUT/counters-delta.tsv" 2>/dev/null || echo 0)" -gt 1 ]; then
   # active gauges must return to baseline (delta 0) -> otherwise a mapping leaked.
   leaked=$(awk -F'\t' 'NR>1 && $2 ~ /active/ && $5 != 0 && $5 != "" {print}' "$OUT/counters-delta.tsv")
   [ -z "$leaked" ] || { log "  !! LEAKED MAPPINGS (active gauge != baseline):"; echo "$leaked" | sed 's/^/     /'; overall=1; }
-  check_route_b_coverage "$OUT/counters-delta.tsv"
+  check_rga_userptr_iommu_coverage "$OUT/counters-delta.tsv"
 else
   # No counters in the delta. Three very different causes -- don't conflate them:
   #   (1) ran non-root: /sys/kernel/debug is 0700 root, so the snapshot read nothing
@@ -292,9 +294,9 @@ else
     log "  (no debugfs counters in this kernel. Correctness+dmesg-fault checks still valid;"
     log "     provider-level counters are optional forward-port debug instrumentation.)"
   fi
-  if [ "$IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS" = "1" ] &&
+  if [ "$IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS" = "1" ] &&
      { [[ "$PHASES" == *A* ]] || [[ "$PHASES" == *C* ]]; }; then
-    log "  !! Route B counters required but no counter deltas were captured"
+    log "  !! RGA userptr-IOMMU counters required but no counter deltas were captured"
     overall=1
   fi
 fi

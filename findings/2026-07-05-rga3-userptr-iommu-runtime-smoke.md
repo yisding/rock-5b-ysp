@@ -1,13 +1,13 @@
-# RGA3 Route B runtime smoke: behavior passes, fallback attribution still indirect
+# RGA3 userptr-IOMMU runtime smoke: behavior passes, fallback attribution still indirect
 
-> Scope: RK3588 Rock 5B forward-port Route B kernel, RGA3 `virt_addr` librga
+> Scope: RK3588 Rock 5B forward-port RGA userptr-IOMMU fallback kernel, RGA3 `virt_addr` librga
 > demos, and `kernel-drivers/tests/rga-mmu-debug.sh`.
 > Source: `/boot/vmlinuz-6.18.38-current-rockchip64` string inspection and
 > `../rockchip-conformance/logs/rga-mmu-debug/20260705-182754` through
 > `../rockchip-conformance/logs/rga-mmu-debug/20260705-182808`.
 > Date: 2026-07-05
 > Trust: MEASURED for kernel string evidence and smoke-test behavior; INFERRED
-> for Route B fallback attribution because the clean image had no positive
+> for RGA userptr-IOMMU fallback attribution because the clean image had no positive
 > fallback breadcrumb.
 
 ## The fact
@@ -18,9 +18,9 @@ The installed test kernel was:
 Linux rock-5b 6.18.38-current-rockchip64 #14 SMP PREEMPT Sat Jul  4 11:44:22 UTC 2026 aarch64 GNU/Linux
 ```
 
-`strings /boot/vmlinuz-6.18.38-current-rockchip64` found the Route B identifiers
+`strings /boot/vmlinuz-6.18.38-current-rockchip64` found the RGA userptr-IOMMU fallback identifiers
 `driver-owned IOMMU` and `iommu_dma_get_iova_domain`, but did not find
-`DIAG rga_dma_map_sgt`. This means the booted image contained clean Route B
+`DIAG rga_dma_map_sgt`. This means the booted image contained clean RGA userptr-IOMMU fallback
 without the temporary debug-tip fallback diagnostics.
 
 Six consecutive `rga-mmu-debug.sh` artifact directories reported `pass` for all
@@ -69,7 +69,7 @@ finishing as `finished 1 failed 0`.
 
 ## Why it matters / follow-up
 
-This is strong indirect Route B evidence because the earlier debug run at
+This is strong indirect RGA userptr-IOMMU fallback evidence because the earlier debug run at
 `../rockchip-conformance/logs/rga-mmu-debug/20260705-151723` showed this same
 demo family failing closed with non-contiguous userptr imports such as:
 
@@ -84,6 +84,6 @@ orig_nents=389 nents=389 contiguous=0 gaps=36  ... reject sg_table DMA mapping
 
 Do not overclaim this as direct fallback proof. The clean image had no success
 log/counter in `rga_dma_map_sgt_iommu()`, so the artifact set cannot identify
-which individual import entered Route B. To close that gap, boot the debug-tip
+which individual import entered RGA userptr-IOMMU fallback. To close that gap, boot the debug-tip
 profile or add a temporary positive breadcrumb/counter in `rga_dma_map_sgt_iommu()`
 and capture one passing selected case that entered the fallback.

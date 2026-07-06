@@ -1,6 +1,6 @@
-# Route B Runtime Validation
+# RGA userptr-IOMMU fallback Runtime Validation
 
-This is the hardware gate for the Route B patch series. Static checks prove the
+This is the hardware gate for the RGA userptr-IOMMU fallback patch series. Static checks prove the
 patches apply, pass style, and build; they do not prove that RGA3 can now run
 the scattered `virt_addr` cases that previously failed closed.
 
@@ -8,18 +8,18 @@ the scattered `virt_addr` cases that previously failed closed.
 
 Patch 0001 is the forward-port runtime artifact. Build from a source tree whose
 checked-out commit already contains that patch, or apply patch 0001 to a
-pre-Route-B base worktree first. Do not apply patch 0001 a second time on top of
-a Route-B branch. Do not use patch 0002 for this kernel; patch 0002 is
+pre-RGA-userptr-IOMMU base worktree first. Do not apply patch 0001 a second time on top of
+a RGA-userptr-IOMMU branch. Do not use patch 0002 for this kernel; patch 0002 is
 rewrite-only.
 
 There are two useful forward-port source profiles:
 
-- **Route-B-only:** the publishable branch has Route B without temporary
+- **RGA-userptr-IOMMU-only:** the publishable branch has RGA userptr-IOMMU fallback without temporary
   diagnostics. It is the right profile for normal kernel builds and GitHub
   publication. Its runtime artifacts prove behavior and absence of faults, but
   they do not identify which import entered the silent fallback.
 - **Debug tip:** the local development branch can keep temporary diagnostic
-  commits above Route B. Build this profile only when you need direct fallback
+  commits above RGA userptr-IOMMU fallback. Build this profile only when you need direct fallback
   attribution from a one-run breadcrumb/counter. Keep those commits at the tip so
   they can be dropped cleanly before publishing.
 
@@ -28,23 +28,23 @@ Use a temporary git worktree so the source tree stays clean after the test.
 workspace: it resets the generated userpatch archive, stages patches generated
 from `KERNEL_TREE`, and disables the colliding built-in media patches for this
 self-contained DT build. `KERNEL_TREE` must therefore name a source tree whose
-final checked-out source already contains the Route B commit.
+final checked-out source already contains the RGA userptr-IOMMU fallback commit.
 
 The local forward-port tree state recorded on 2026-07-05 was:
 
 ```text
-rkvenc-fwport-6.18-route-b           clean Route B, tip 2b52e8174c12
-rkvenc-fwport-6.18                   Route B plus temporary DIAG commits
-rkvenc-fwport-6.18-route-b-debug-tip Route B plus temporary DIAG commits
+rkvenc-fwport-6.18-rga-userptr-iommu           clean RGA userptr-IOMMU fallback, tip 2b52e8174c12
+rkvenc-fwport-6.18                   RGA userptr-IOMMU fallback plus temporary DIAG commits
+rkvenc-fwport-6.18-rga-userptr-iommu-debug-tip RGA userptr-IOMMU fallback plus temporary DIAG commits
 ```
 
-For a normal clean Route-B-only build, use the Route-B branch directly:
+For a normal clean RGA-userptr-IOMMU-only build, use the RGA-userptr-IOMMU branch directly:
 
 ```bash
 FW=/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport
-TEST=/tmp/rga-route-b-fw-runtime
+TEST=/tmp/rga-userptr-iommu-fw-runtime
 
-git -C "$FW" worktree add "$TEST" rkvenc-fwport-6.18-route-b
+git -C "$FW" worktree add "$TEST" rkvenc-fwport-6.18-rga-userptr-iommu
 
 git -C "$TEST" log --oneline -1
 if rg -n 'DIAG rga_dma_map_sgt|TEMP DIAGNOSTIC' "$TEST/drivers/video/rockchip/rga3"; then
@@ -53,21 +53,21 @@ if rg -n 'DIAG rga_dma_map_sgt|TEMP DIAGNOSTIC' "$TEST/drivers/video/rockchip/rg
 fi
 
 KERNEL_TREE="$TEST" \
-PATCH_PREFIX=rk3588-av1-route-b \
-STAGING=/tmp/rga-route-b-fw-runtime-patches \
+PATCH_PREFIX=rk3588-av1-rga-userptr-iommu \
+STAGING=/tmp/rga-userptr-iommu-fw-runtime-patches \
   bash /home/yi/Code/rock-5b-ysp/kernel-drivers/scripts/build-armbian-deb.sh
 ```
 
-If you are starting from a pre-Route-B base instead of the prepared local branch,
+If you are starting from a pre-RGA-userptr-IOMMU base instead of the prepared local branch,
 apply patch 0001 once in that temporary worktree before running the same
 `KERNEL_TREE=... build-armbian-deb.sh` command:
 
 ```bash
-BASE=backup/rkvenc-fwport-6.18-before-route-b-20260705-180636
+BASE=backup/rkvenc-fwport-6.18-before-rga-userptr-iommu-20260705-180636
 
 git -C "$FW" worktree add "$TEST" "$BASE"
 git -C "$TEST" am \
-  /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/route-b/0001-media-rockchip-rga3-map-scattered-userptr-through-IOMMU.patch
+  /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/rga-userptr-iommu/0001-media-rockchip-rga3-map-scattered-userptr-through-IOMMU.patch
 ```
 
 The build script regenerates the Armbian userpatches from `KERNEL_TREE`, disables
@@ -84,7 +84,7 @@ A previously prepared patched tree may be used instead of `$TEST` only if all of
 these checks pass:
 
 ```bash
-PREPARED=/tmp/rga-route-b-fw-runtime-codex
+PREPARED=/tmp/rga-userptr-iommu-fw-runtime-codex
 
 git -C "$PREPARED" diff --quiet
 git -C "$PREPARED" diff --cached --quiet
@@ -97,7 +97,7 @@ fi
 ```
 
 The reproducible worktree flow above is the source of truth. Do not build a
-clean Route-B-only image from a prepared tree that lacks the Route B commit or
+clean RGA-userptr-IOMMU-only image from a prepared tree that lacks the RGA userptr-IOMMU fallback commit or
 contains the temporary diagnostic commits.
 
 After the test, remove the temporary worktree:
@@ -116,7 +116,7 @@ bash /home/yi/Code/rock-5b-ysp/kernel-drivers/scripts/build-armbian-deb.sh --res
 
 ## Forward-Port Runtime Gate
 
-After booting the Route B kernel:
+After booting the RGA userptr-IOMMU fallback kernel:
 
 ```bash
 cd /home/yi/Code/rock-5b-ysp
@@ -135,23 +135,23 @@ Pass criteria:
 - `validate-combined.sh` sees `/dev/rga`, `/dev/mpp_service`, and the expected
   cores without probe-time RGA/IOMMU faults.
 - `librga-smoke.sh` exits 0 and still covers the maintained im2d paths that
-  were already working before Route B.
+  were already working before RGA userptr-IOMMU fallback.
 - `rga-mmu-debug.sh` exits 0 with every row in `summary.tsv` reporting `pass`.
 - The per-case filtered dmesg files contain no new `INTR[0x2]`, page fault, bus
   error, or `finished N failed M` RGA fault signature.
 
 The commands above prove the user-visible behavior and fault-free regression
-surface. They do not, by themselves, prove that the silent Route B fallback path
-was taken. To claim Route B itself is runtime-proven, capture route-specific
+surface. They do not, by themselves, prove that the silent RGA userptr-IOMMU fallback path
+was taken. To claim RGA userptr-IOMMU fallback itself is runtime-proven, capture route-specific
 evidence for at least one selected case, for example a one-run temporary debug
 print/counter in `rga_dma_map_sgt_iommu()` showing a fallback mapping, along with
 the same case passing without RGA/IOMMU faults. If this evidence is missing,
-record the result as a behavioral pass, not as Route B fallback proof.
+record the result as a behavioral pass, not as RGA userptr-IOMMU fallback proof.
 
 Record the printed `rga-mmu-debug` artifact directory, the installed PHASH, and
 `uname -a` in a new dated finding if this passes.
 
-## 2026-07-05 Route-B-Only Smoke Evidence
+## 2026-07-05 RGA-userptr-IOMMU-Only Smoke Evidence
 
 The installed test image was:
 
@@ -159,10 +159,10 @@ The installed test image was:
 Linux rock-5b 6.18.38-current-rockchip64 #14 SMP PREEMPT Sat Jul  4 11:44:22 UTC 2026 aarch64 GNU/Linux
 ```
 
-`strings /boot/vmlinuz-6.18.38-current-rockchip64` found Route B strings
+`strings /boot/vmlinuz-6.18.38-current-rockchip64` found RGA userptr-IOMMU fallback strings
 (`driver-owned IOMMU`, `iommu_dma_get_iova_domain`) and did not find the
 temporary `DIAG rga_dma_map_sgt` string. That means this was a clean
-Route-B-only image, not the debug-tip image.
+RGA-userptr-IOMMU-only image, not the debug-tip image.
 
 Repeated `rga-mmu-debug.sh` runs all passed:
 
@@ -202,7 +202,7 @@ external RK_IOMMU. The same logs showed external IOVA handles such as
 `iova = 0xdd800000, dma_addr = 0xdd800000, offset = 0x10` and jobs finishing as
 `finished 1 failed 0`.
 
-This is strong indirect evidence that Route B handled the selected scattered
+This is strong indirect evidence that RGA userptr-IOMMU fallback handled the selected scattered
 `virt_addr` cases, because the earlier debug run at
 `../rockchip-conformance/logs/rga-mmu-debug/20260705-151723` showed the same demo
 family failing closed with non-contiguous `orig_nents == nents` mappings:
@@ -216,13 +216,13 @@ orig_nents=390 nents=390 contiguous=0 gaps=367 ... reject sg_table DMA mapping
 orig_nents=389 nents=389 contiguous=0 gaps=36  ... reject sg_table DMA mapping
 ```
 
-Because the Route-B-only image had no positive fallback breadcrumb, record this
-as **behavioral smoke passed; direct Route B attribution still pending**.
+Because the RGA-userptr-IOMMU-only image had no positive fallback breadcrumb, record this
+as **behavioral smoke passed; direct RGA userptr-IOMMU fallback attribution still pending**.
 
 ## Rewrite Runtime Gate
 
 Patches 0002 and 0003 apply to both rewrite trees, but the rewrite still needs a
-booted kernel profile before Route B can be runtime-proven there. Patch 0003
+booted kernel profile before RGA userptr-IOMMU fallback can be runtime-proven there. Patch 0003
 adds the development-only `rk_rga_rewrite/route_b` debugfs directory used for
 direct attribution. When a rewrite kernel with both patches is booted, run at
 minimum:
@@ -231,7 +231,7 @@ minimum:
 cd /home/yi/Code/rock-5b-ysp
 
 sudo PROFILE=rewrite \
-  LIBRGA_FORCE_ROUTE_B=1 \
+  LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 \
   RGA_REQUIRED_CASES='ysp_librga_smoke rga_copy_demo rga_resize_rect_demo rga_transform_rotate_demo' \
   bash kernel-drivers/tests/librga-suite.sh
 
@@ -239,7 +239,7 @@ sudo PROFILE=rewrite \
   RUN_SYSTEM_INFO=0 RUN_ABI_REPLAY=0 RUN_MPP_SUITE=0 \
   RUN_GSTREAMER_SUITE=0 RUN_FFMPEG_SUITE=0 RUN_LIBRGA_SUITE=1 \
   RUN_COUNTER_CHECKS=1 \
-  LIBRGA_FORCE_ROUTE_B=1 \
+  LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 \
   RGA_REQUIRED_CASES='ysp_librga_smoke rga_copy_demo rga_resize_rect_demo rga_transform_rotate_demo' \
   bash kernel-drivers/tests/rewrite-conformance-run.sh
 ```
@@ -255,17 +255,17 @@ Pass criteria:
   rest;
 - dmesg has no new RGA/IOMMU fault signature.
 
-`LIBRGA_FORCE_ROUTE_B=1` makes the suite set the rewrite
+`LIBRGA_FORCE_RGA_USERPTR_IOMMU=1` makes the suite set the rewrite
 `route_b/force_remap` debugfs knob for the run and restore its previous value at
-exit. The conformance runner then adds `rga_route_b:attempt` and
-`rga_route_b:ok` to the required positive counter set and requires
-`rga_route_b:active` to be zero after the run, so a passing userspace case
+exit. The conformance runner then adds `rga_userptr_iommu:attempt` and
+`rga_userptr_iommu:ok` to the required positive counter set and requires
+`rga_userptr_iommu:active` to be zero after the run, so a passing userspace case
 cannot be mistaken for proof if it stayed on the normal DMA segment path or
-leaked a Route B IOVA mapping.
+leaked a RGA userptr-IOMMU fallback IOVA mapping.
 
 ## Completion Rule
 
-Forward-port Route B has now passed the behavioral RK3588 smoke gate for the
+Forward-port RGA userptr-IOMMU fallback has now passed the behavioral RK3588 smoke gate for the
 selected scattered `virt_addr` demos. Direct forward-port fallback-path proof
 still requires route-specific evidence that the fallback executed for at least
 one selected case. Rewrite runtime evidence is still required before promoting

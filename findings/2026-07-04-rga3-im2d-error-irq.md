@@ -12,9 +12,9 @@
 > path runs clean; scattered `virt_addr` imports are now cleanly fail-closed
 > **by design** (see the 2026-07-05 section). Related: [[2026-07-04-librga-consumer-survey]]
 
-> Update 2026-07-05: candidate Route B patches now exist under
-> `kernel-drivers/patches/route-b/`; see
-> `findings/2026-07-05-rga3-route-b-design.md`. They are static/build verified,
+> Update 2026-07-05: candidate RGA userptr-IOMMU fallback patches now exist under
+> `kernel-drivers/patches/rga-userptr-iommu/`; see
+> `findings/2026-07-05-rga3-userptr-iommu-design.md`. They are static/build verified,
 > but the RK3588 runtime gate described there is still pending.
 
 ## Summary
@@ -374,7 +374,7 @@ If the returned segments abut (`addr[i]+len[i] == addr[i+1]`), then RGA's
 the fail-closed `sgt->nents != 1` reject in `rga_dma_check_iova_contract()`
 (`rga3/rga_dma_buf.c:28`) is rejecting buffers that would actually work.
 
-**If that held, the fix would be "relax the check"** rather than Route B: generalise
+**If that held, the fix would be "relax the check"** rather than RGA userptr-IOMMU fallback: generalise
 the contract check from "exactly one segment" to "segments form one contiguous,
 non-wrapping 32-bit IOVA span." That hypothesis was **inferred from generic code and
 had to be measured** before relaxing a safety check — the original MMU fault proves
@@ -418,7 +418,7 @@ door.
 Every cheap lever is now eliminated **by measurement, not argument**: not
 `max_seg_size` (maxed), not Option 1 (`use_dma_iommu=1`, already on iommu-dma), not
 check-relaxation (`contiguous=0`, the mapping genuinely is not one span). The only
-technical path that makes scattered `virt_addr` work on RGA3 is **Route B**:
+technical path that makes scattered `virt_addr` work on RGA3 is **RGA userptr-IOMMU fallback**:
 allocate an IOVA range in a translated RGA domain, `iommu_map_sg()` the scatter into
 it, program that one base, do explicit `dma_sync_sg_*`, and tear it down on release
 — a few hundred lines, medium-high risk (it re-enters the manual-IOMMU territory the
@@ -488,7 +488,7 @@ Investigation closed (not a bug):
 
 1. Every cheap lever is eliminated by measurement: not `max_seg_size` (maxed), not
    Option 1 (`use_dma_iommu=1`), not check-relaxation (`contiguous=0`). Making
-   scattered `virt_addr` work on RGA3 requires **Route B** (driver-owned
+   scattered `virt_addr` work on RGA3 requires **RGA userptr-IOMMU fallback** (driver-owned
    `iommu_map_sg()` into a translated RGA domain) — pursue only if a concrete
    userptr-on-RGA3 consumer appears. Standing recommendation: **accept the
    dma-buf/contiguous-only limitation**; the fail-closed reject stays as-is.

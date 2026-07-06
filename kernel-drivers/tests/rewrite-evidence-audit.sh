@@ -6,6 +6,7 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
+LIBRGA_FORCE_RGA_USERPTR_IOMMU=${LIBRGA_FORCE_RGA_USERPTR_IOMMU:-${LIBRGA_FORCE_ROUTE_B:-0}}
 BASELINE=${BASELINE:-forward-port}
 CANDIDATE=${CANDIDATE:-rewrite}
 SUITES=${SUITES:-"mpp librga gstreamer ffmpeg"}
@@ -308,26 +309,26 @@ set_counter_specs_for_suite()
 		counter_check_positive=${LIBRGA_REQUIRED_POSITIVE_COUNTERS:-"rga:started_job_count rga:hw_total_ns"}
 		counter_check_prefix=${LIBRGA_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
 		counter_check_zero_after=${LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS:-}
-		if [ "${LIBRGA_FORCE_ROUTE_B:-0}" = "1" ]; then
+		if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ]; then
 			case " $counter_check_positive " in
-			*" rga_route_b:attempt "*)
+			*" rga_userptr_iommu:attempt "*)
 				;;
 			*)
-				counter_check_positive="$counter_check_positive rga_route_b:attempt"
+				counter_check_positive="$counter_check_positive rga_userptr_iommu:attempt"
 				;;
 			esac
 			case " $counter_check_positive " in
-			*" rga_route_b:ok "*)
+			*" rga_userptr_iommu:ok "*)
 				;;
 			*)
-				counter_check_positive="$counter_check_positive rga_route_b:ok"
+				counter_check_positive="$counter_check_positive rga_userptr_iommu:ok"
 				;;
 			esac
 			case " $counter_check_zero_after " in
-			*" rga_route_b:active "*)
+			*" rga_userptr_iommu:active "*)
 				;;
 			*)
-				counter_check_zero_after="$counter_check_zero_after rga_route_b:active"
+				counter_check_zero_after="$counter_check_zero_after rga_userptr_iommu:active"
 				;;
 			esac
 		fi
@@ -470,9 +471,9 @@ rga	hw_total_ns	0	1000	1000
 rga	timeout_count	0	0	0
 rga	irq_error_count	0	0	0
 rga	iommu_fault_count	0	0	0
-rga_route_b	attempt	0	1	1
-rga_route_b	ok	0	1	1
-rga_route_b	active	0	0	0
+rga_userptr_iommu	attempt	0	1	1
+rga_userptr_iommu	ok	0	1	1
+rga_userptr_iommu	active	0	0	0
 EOF
 }
 
@@ -492,18 +493,18 @@ selftest()
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
 		RUN_COMPARATORS=1 PERF_MAX_RATIO=1.25 "$0" >/dev/null
 
-	CONFORMANCE_ROOT="$tmp_root" SUITES="librga" LIBRGA_FORCE_ROUTE_B=1 \
+	CONFORMANCE_ROOT="$tmp_root" SUITES="librga" LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
 		RUN_COMPARATORS=0 "$0" >/dev/null
-	sed -i 's/rga_route_b\tactive\t0\t0\t0/rga_route_b\tactive\t0\t1\t1/' \
+	sed -i 's/rga_userptr_iommu\tactive\t0\t0\t0/rga_userptr_iommu\tactive\t0\t1\t1/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-librga-suite/debugfs-counters-delta.tsv"
-	if CONFORMANCE_ROOT="$tmp_root" SUITES="librga" LIBRGA_FORCE_ROUTE_B=1 \
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="librga" LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
 		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
-		printf "selftest expected Route B active-gauge audit to fail\n" >&2
+		printf "selftest expected RGA userptr-IOMMU active-gauge audit to fail\n" >&2
 		return 1
 	fi
-	sed -i 's/rga_route_b\tactive\t0\t1\t1/rga_route_b\tactive\t0\t0\t0/' \
+	sed -i 's/rga_userptr_iommu\tactive\t0\t1\t1/rga_userptr_iommu\tactive\t0\t0\t0/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-librga-suite/debugfs-counters-delta.tsv"
 
 	sed -i 's/rga\tstarted_job_count\t0\t1\t1/rga\tstarted_job_count\t0\t0\t0/' \

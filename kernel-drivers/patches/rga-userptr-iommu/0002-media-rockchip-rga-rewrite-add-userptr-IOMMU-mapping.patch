@@ -1,21 +1,21 @@
 From 422b49bcf01af2a0e1c59b028c63e98ca181e5f7 Mon Sep 17 00:00:00 2001
 From: Codex <codex@example.invalid>
 Date: Sun, 5 Jul 2026 15:49:18 -0700
-Subject: [PATCH] media: rockchip: rga-rewrite: add Route B userptr mapping
+Subject: [PATCH] media: rockchip: rga-rewrite: add RGA userptr-IOMMU userptr mapping
 
 The compatibility rewrite pinned userptr pages, called dma_map_sgtable(),
 and then programmed only the first returned DMA address. That matches the
 vendor ABI only when the DMA API gives RGA one non-wrapping span;
 fragmented userptrs can otherwise fault RGA3.
 
-Share the forward-port Route B design in the rewrite: validate dma-buf
+Share the forward-port RGA userptr-IOMMU design in the rewrite: validate dma-buf
 imports fail-closed, but for pinned userptr sg-tables fall back to a
 driver-owned contiguous IOVA allocation in the translated RGA domain and
 map a page-aligned sg-table copy with iommu_map_sg(). Clear the sg-table
 DMA bookkeeping left by the abandoned DMA API map so later userptr cache
 syncs use the physical pages, not stale SWIOTLB state. Fail closed if the
 IOVA granule is larger than PAGE_SIZE, where padding could break RGA's
-byte-contiguous view. Track Route B ownership in both persistent imports
+byte-contiguous view. Track RGA userptr-IOMMU ownership in both persistent imports
 and per-job remaps so release tears down the right mapping. Harden the
 32-bit span validator so arithmetic overflow fails closed.
 
@@ -207,7 +207,7 @@ index 2f30fc35877c..17a68e6d1792 100644
 +		return -EOPNOTSUPP;
 +
 +	/*
-+	 * Route B exposes one byte-contiguous RGA span. Larger IOVA granules can
++	 * RGA userptr-IOMMU exposes one byte-contiguous RGA span. Larger IOVA granules can
 +	 * force padding between non-contiguous user pages, so fail closed.
 +	 */
 +	if (iovad->granule > PAGE_SIZE)

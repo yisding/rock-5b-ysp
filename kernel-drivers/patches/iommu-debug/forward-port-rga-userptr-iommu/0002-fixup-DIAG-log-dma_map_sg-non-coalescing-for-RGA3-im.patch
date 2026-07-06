@@ -23,7 +23,8 @@ index d1a51a1d66a4..7b62d1cf6980 100644
 @@ -420,20 +421,30 @@ int rga_dma_map_sgt(struct sg_table *sgt, struct rga_dma_buffer *buffer,
  
  	/*
- 	 * TEMP DIAGNOSTIC (scattered virt_addr / "Route B" investigation): when the
+-	 * TEMP DIAGNOSTIC (scattered virt_addr / "RGA userptr-IOMMU" investigation): when the
++	 * TEMP DIAGNOSTIC (scattered virt_addr / "RGA userptr-IOMMU" investigation): when the
 -	 * DMA layer returns more than one segment, log why, so we can distinguish a
 -	 * max_seg_size cap from a non-coalescing (direct/identity) mapping. If
 -	 * max_seg_size is already large and nents == orig_nents, the device is not on
@@ -43,7 +44,7 @@ index d1a51a1d66a4..7b62d1cf6980 100644
 +	 *            routing this device onto iommu-dma ("Option 1"), no manual IOMMU.
 +	 *   true  -> iommu_dma_map_sg() runs yet still returns non-coalesced segments;
 +	 *            a deeper issue that leans toward a driver-owned iommu_map_sg
-+	 *            ("Route B").
++	 *            ("RGA userptr-IOMMU").
 +	 * Remove once the scattered-buffer question is settled.
  	 */
  	if (sgt->nents != 1) {

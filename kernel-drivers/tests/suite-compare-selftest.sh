@@ -47,9 +47,9 @@ write_counter_delta()
 	local hw_ns=${3:-1000}
 	local timeout=${4:-0}
 	local fault=${5:-0}
-	local route_b_attempt=${6:-3}
-	local route_b_ok=${7:-3}
-	local route_b_active=${8:-0}
+	local userptr_iommu_attempt=${6:-3}
+	local userptr_iommu_ok=${7:-3}
+	local userptr_iommu_active=${8:-0}
 
 	{
 		printf "component\tcounter\tbefore\tafter\tdelta\n"
@@ -62,11 +62,11 @@ write_counter_delta()
 		printf "mpp\ttimeout_count\t0\t%s\t%s\n" "$timeout" "$timeout"
 		printf "mpp\tiommu_fault_count\t0\t%s\t%s\n" "$fault" "$fault"
 		printf "rga\tirq_error_count\t0\t0\t0\n"
-		printf "rga_route_b\tattempt\t0\t%s\t%s\n" \
-			"$route_b_attempt" "$route_b_attempt"
-		printf "rga_route_b\tok\t0\t%s\t%s\n" "$route_b_ok" "$route_b_ok"
-		printf "rga_route_b\tactive\t0\t%s\t%s\n" \
-			"$route_b_active" "$route_b_active"
+		printf "rga_userptr_iommu\tattempt\t0\t%s\t%s\n" \
+			"$userptr_iommu_attempt" "$userptr_iommu_attempt"
+		printf "rga_userptr_iommu\tok\t0\t%s\t%s\n" "$userptr_iommu_ok" "$userptr_iommu_ok"
+		printf "rga_userptr_iommu\tactive\t0\t%s\t%s\n" \
+			"$userptr_iommu_active" "$userptr_iommu_active"
 	} > "$file"
 }
 
@@ -200,13 +200,13 @@ check_counter_check()
 	write_counter_delta "$base_dir/debugfs-counters-delta.tsv"
 
 	SUMMARY="$base_dir/summary.tsv" \
-		REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns rga_route_b:attempt rga_route_b:ok" \
+		REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns rga_userptr_iommu:attempt rga_userptr_iommu:ok" \
 		REQUIRED_POSITIVE_COUNTER_PREFIXES="mpp:started_rkvdec_core:2 rga:started_rga3_core:2" \
-		REQUIRED_ZERO_AFTER_COUNTERS="rga_route_b:active" \
+		REQUIRED_ZERO_AFTER_COUNTERS="rga_userptr_iommu:active" \
 		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_good"
 	grep -q "mpp:started_job_count" "$out_good"
-	grep -q "rga_route_b:attempt" "$out_good"
-	grep -q "rga_route_b:active" "$out_good"
+	grep -q "rga_userptr_iommu:attempt" "$out_good"
+	grep -q "rga_userptr_iommu:active" "$out_good"
 	grep -q "mpp:started_rkvdec_core:2" "$out_good"
 	grep -q "rga:started_rga3_core:2" "$out_good"
 	grep -q "forbid_spec" "$out_good"
@@ -251,7 +251,7 @@ check_counter_check()
 	write_counter_delta "$base_dir/debugfs-counters-delta.tsv" 2 1000 0 0 3 3 1
 	set +e
 	SUMMARY="$base_dir/summary.tsv" \
-		REQUIRED_ZERO_AFTER_COUNTERS="rga_route_b:active" \
+		REQUIRED_ZERO_AFTER_COUNTERS="rga_userptr_iommu:active" \
 		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_nonzero_after"
 	status=$?
 	set -e
