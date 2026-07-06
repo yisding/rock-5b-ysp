@@ -7,6 +7,11 @@ changing only the loader/context setup that is Mesa-specific.
 
 ## Capability Notes
 
+The longer stack note is
+[`../../docs/arm-mali-blob-stack.md`](../../docs/arm-mali-blob-stack.md). This
+section keeps the subset directly relevant to running the interpolation
+reproducers.
+
 The Rockchip libmali package data maps `valhall-g610` to `rk3588`:
 https://raw.githubusercontent.com/tsukumijima/libmali-rockchip/master/gpu-chips.txt
 

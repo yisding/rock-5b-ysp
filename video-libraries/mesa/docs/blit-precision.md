@@ -252,10 +252,14 @@ The feasibility ladder for even-lower-level reproduction, assessed
   `/usr/include/drm/panthor_drm.h` is present on the board), but the
   marginal evidentiary value is modest: the pandecode dumps already expose
   every descriptor byte such a harness would emit.
-- **The single most probative next step**, if the hardware attribution is
-  still disputed: run the same `vk_interp_probe` binary on ARM's proprietary
-  blob Vulkan driver (not currently installed) — that removes all Mesa code
-  from the loop.
+- **The single most probative remaining runtime step**, if the hardware
+  attribution is still disputed: run the ARM-named interpolation reproducers on
+  ARM's proprietary blob driver. The stack notes and runbook are now in
+  [`arm-mali-blob-stack.md`](./arm-mali-blob-stack.md) and
+  [`../reproducers/interp_probe/README-arm-blob.md`](../reproducers/interp_probe/README-arm-blob.md).
+  The public RK3588/G610 libmali package advertises a Vulkan 1.3 ICD and the
+  inspected GBM blobs expose surfaceless EGL/GL extension strings, but no
+  proprietary-driver runtime output has been captured in this repo yet.
 
 One dead end recorded: `BIFROST_MESA_DEBUG=noidvs` breaks Valhall rendering
 outright in this driver (`v=0.0` everywhere — tested 2026-07-06), so no
