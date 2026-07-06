@@ -223,7 +223,7 @@ as **behavioral smoke passed; direct RGA userptr-IOMMU fallback attribution stil
 
 Patches 0002 and 0003 apply to both rewrite trees, but the rewrite still needs a
 booted kernel profile before RGA userptr-IOMMU fallback can be runtime-proven there. Patch 0003
-adds the development-only `rk_rga_rewrite/route_b` debugfs directory used for
+adds the development-only `rk_rga_rewrite/userptr_iommu` debugfs directory used for
 direct attribution. When a rewrite kernel with both patches is booted, run at
 minimum:
 
@@ -250,13 +250,13 @@ Pass criteria:
 - `ysp_librga_smoke` artifacts remain deterministic against the selected
   forward-port baseline where comparable;
 - rewrite debugfs counter deltas show RGA hardware starts and busy time;
-- `/sys/kernel/debug/rk_rga_rewrite/route_b/attempt` and `ok` increase for at
+- `/sys/kernel/debug/rk_rga_rewrite/userptr_iommu/attempt` and `ok` increase for at
   least one selected direct-virtual-address case, while `active` returns to 0 at
   rest;
 - dmesg has no new RGA/IOMMU fault signature.
 
 `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1` makes the suite set the rewrite
-`route_b/force_remap` debugfs knob for the run and restore its previous value at
+`userptr_iommu/force_remap` debugfs knob for the run and restore its previous value at
 exit. The conformance runner then adds `rga_userptr_iommu:attempt` and
 `rga_userptr_iommu:ok` to the required positive counter set and requires
 `rga_userptr_iommu:active` to be zero after the run, so a passing userspace case

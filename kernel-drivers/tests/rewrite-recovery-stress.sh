@@ -390,7 +390,8 @@ mkdir -p "$OUT"
 debugfs_counter_snapshot "$OUT/counters-before.tsv" \
 	mpp /sys/kernel/debug/rk_mpp_rewrite \
 	rga /sys/kernel/debug/rk_rga_rewrite \
-	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/route_b
+	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/userptr_iommu \
+	rga_userptr_iommu_legacy /sys/kernel/debug/rk_rga_rewrite/route_b
 
 overall=0
 for loop in $(seq 1 "$RECOVERY_LOOPS"); do
@@ -409,7 +410,8 @@ done
 debugfs_counter_snapshot "$OUT/counters-after.tsv" \
 	mpp /sys/kernel/debug/rk_mpp_rewrite \
 	rga /sys/kernel/debug/rk_rga_rewrite \
-	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/route_b
+	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/userptr_iommu \
+	rga_userptr_iommu_legacy /sys/kernel/debug/rk_rga_rewrite/route_b
 debugfs_counter_delta "$OUT/counters-before.tsv" "$OUT/counters-after.tsv" \
 	"$OUT/counters-delta.tsv"
 dmesg | tail -n 500 > "$OUT/dmesg-tail.txt" 2>/dev/null || true

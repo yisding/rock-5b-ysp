@@ -215,5 +215,5 @@ artifacts cannot show which individual import entered RGA userptr-IOMMU fallback
 completion still requires either a one-run debug-tip kernel or a temporary
 positive breadcrumb/counter in the RGA userptr-IOMMU fallback helper, plus the same case passing
 without RGA/IOMMU faults. The rewrite now has a permanent development-only
-`rk_rga_rewrite/route_b` counter surface for this attribution, but it still needs
+`rk_rga_rewrite/userptr_iommu` counter surface for this attribution, but it still needs
 a booted rewrite run.

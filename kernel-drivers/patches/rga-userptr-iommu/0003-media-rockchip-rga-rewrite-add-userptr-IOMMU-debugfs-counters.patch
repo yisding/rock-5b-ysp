@@ -32,7 +32,7 @@ index 67b1bbe49976..c522ea8030fb 100644
    debugfs counters report scheduled, dispatched, and hardware-started work per
 -  public core-mask bit so RK3588 board validation can confirm load balancing,
 +  public core-mask bit, plus RGA userptr-IOMMU userptr IOMMU fallback attempts,
-+  successes, live mappings, and a force-remap knob under ``route_b/``.  The
++  successes, live mappings, and a force-remap knob under ``userptr_iommu/``.  The
 +  RGA userptr-IOMMU counters are development evidence only, not ABI; they let validation
 +  distinguish a real scattered-userptr fallback pass from a workload that stayed
 +  on the normal DMA segment path.  RK3588 board validation can confirm load balancing,
@@ -47,10 +47,10 @@ index 17a68e6d1792..9ff6356c9c18 100644
  	atomic_t iommu_fault_count;
  	atomic_t iommu_refresh_count;
  	atomic_t unsupported_count;
-+	atomic_t route_b_attempt_count;
-+	atomic_t route_b_ok_count;
-+	atomic_t route_b_active_count;
-+	bool route_b_force_remap;
++	atomic_t userptr_iommu_attempt_count;
++	atomic_t userptr_iommu_ok_count;
++	atomic_t userptr_iommu_active_count;
++	bool userptr_iommu_force_remap;
  };
  
  static struct rk_rga_service rk_rga;
@@ -58,7 +58,7 @@ index 17a68e6d1792..9ff6356c9c18 100644
  		       &base, iova_size, unmapped);
  
  	rk_rga_free_iommu_iova(domain, base, iova_size);
-+	atomic_dec(&rk_rga.route_b_active_count);
++	atomic_dec(&rk_rga.userptr_iommu_active_count);
  }
  
  static void rk_rga_unmap_userptr_sgt(struct device *dev, struct sg_table *sgt,
@@ -74,7 +74,7 @@ index 17a68e6d1792..9ff6356c9c18 100644
  	if (ret)
  		goto err_free_table;
  
-+	force_iommu = READ_ONCE(rk_rga.route_b_force_remap);
++	force_iommu = READ_ONCE(rk_rga.userptr_iommu_force_remap);
  	ret = rk_rga_check_dma_sgt(sgt, "userptr", import->size, iova_out,
  				   false);
 -	if (!ret) {
@@ -89,14 +89,14 @@ index 17a68e6d1792..9ff6356c9c18 100644
 +	if (ret && ret != -EOPNOTSUPP && ret != -EOVERFLOW)
  		goto err_free_table;
  
-+	atomic_inc(&rk_rga.route_b_attempt_count);
++	atomic_inc(&rk_rga.userptr_iommu_attempt_count);
  	ret = rk_rga_map_userptr_sgt_iommu(import, dev, sgt, iova_out,
  					   domain_out, iova_size_out);
  	if (ret)
  		goto err_free_table;
  
-+	atomic_inc(&rk_rga.route_b_ok_count);
-+	atomic_inc(&rk_rga.route_b_active_count);
++	atomic_inc(&rk_rga.userptr_iommu_ok_count);
++	atomic_inc(&rk_rga.userptr_iommu_active_count);
 +
  	*sgt_out = sgt;
  	*iommu_mapped_out = true;
@@ -105,17 +105,17 @@ index 17a68e6d1792..9ff6356c9c18 100644
  	}
  }
  
-+static void rk_rga_debugfs_create_route_b(void)
++static void rk_rga_debugfs_create_userptr_iommu(void)
 +{
 +	struct dentry *dir;
 +
-+	dir = debugfs_create_dir("route_b", rk_rga.debugfs_root);
++	dir = debugfs_create_dir("userptr_iommu", rk_rga.debugfs_root);
 +	debugfs_create_atomic_t("attempt", 0444, dir,
-+				&rk_rga.route_b_attempt_count);
-+	debugfs_create_atomic_t("ok", 0444, dir, &rk_rga.route_b_ok_count);
++				&rk_rga.userptr_iommu_attempt_count);
++	debugfs_create_atomic_t("ok", 0444, dir, &rk_rga.userptr_iommu_ok_count);
 +	debugfs_create_atomic_t("active", 0444, dir,
-+				&rk_rga.route_b_active_count);
-+	debugfs_create_bool("force_remap", 0600, dir, &rk_rga.route_b_force_remap);
++				&rk_rga.userptr_iommu_active_count);
++	debugfs_create_bool("force_remap", 0600, dir, &rk_rga.userptr_iommu_force_remap);
 +}
 +
  static int __init rk_rga_init(void)
@@ -125,7 +125,7 @@ index 17a68e6d1792..9ff6356c9c18 100644
  	debugfs_create_atomic_t("iommu_refresh_count", 0444,
  				rk_rga.debugfs_root,
  				&rk_rga.iommu_refresh_count);
-+	rk_rga_debugfs_create_route_b();
++	rk_rga_debugfs_create_userptr_iommu();
  	debugfs_create_atomic_t("unsupported_count", 0444, rk_rga.debugfs_root,
  				&rk_rga.unsupported_count);
  

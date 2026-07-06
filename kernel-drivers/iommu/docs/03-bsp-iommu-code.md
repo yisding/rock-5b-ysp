@@ -195,7 +195,7 @@ made raw-malloc `virt_addr` imports flaky by allocation luck. Notably:
   smoke runs for `rga_copy_demo`, `rga_resize_rect_demo`, and
   `rga_transform_rotate_demo`; direct forward-port fallback attribution still
   needs a temporary positive breadcrumb/counter in the RGA userptr-IOMMU fallback helper. The
-  rewrite now exposes `rk_rga_rewrite/route_b` counters for the equivalent
+  rewrite now exposes `rk_rga_rewrite/userptr_iommu` counters for the equivalent
   booted validation, but that run is still pending.
 - without RGA userptr-IOMMU fallback, route scattered userptr to the RGA2 core (`RGA_MMU`), whose
   internal page-table MMU handles scatter.

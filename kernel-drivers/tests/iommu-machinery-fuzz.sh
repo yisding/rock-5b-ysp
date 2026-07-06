@@ -79,8 +79,10 @@ fi
 COUNTER_DIRS=(
   mpp_rewrite          /sys/kernel/debug/rk_mpp_rewrite
   rga_rewrite          /sys/kernel/debug/rk_rga_rewrite
-  rga_rewrite_userptr_iommu  /sys/kernel/debug/rk_rga_rewrite/route_b
-  rkrga_userptr_iommu        /sys/kernel/debug/rkrga/route_b
+  rga_rewrite_userptr_iommu         /sys/kernel/debug/rk_rga_rewrite/userptr_iommu
+  rga_rewrite_userptr_iommu_legacy  /sys/kernel/debug/rk_rga_rewrite/route_b
+  rkrga_userptr_iommu               /sys/kernel/debug/rkrga/userptr_iommu
+  rkrga_userptr_iommu_legacy        /sys/kernel/debug/rkrga/route_b
   rk_iommu_debug       /sys/kernel/debug/rockchip-iommu
   vsi_iommu_debug      /sys/kernel/debug/vsi-iommu
 )
@@ -287,7 +289,9 @@ else
   if [ "${EUID:-$(id -u)}" -ne 0 ]; then
     log "  (no counters read -- /sys/kernel/debug is root-only; run the WHOLE script as root:"
     log "     sudo $0 ${*:-}   -- per-command sudo does NOT expose the debugfs snapshot)"
-  elif "${SUDO_CMD[@]}" test -d /sys/kernel/debug/rkrga/route_b 2>/dev/null ||
+  elif "${SUDO_CMD[@]}" test -d /sys/kernel/debug/rkrga/userptr_iommu 2>/dev/null ||
+       "${SUDO_CMD[@]}" test -d /sys/kernel/debug/rk_rga_rewrite/userptr_iommu 2>/dev/null ||
+       "${SUDO_CMD[@]}" test -d /sys/kernel/debug/rkrga/route_b 2>/dev/null ||
        "${SUDO_CMD[@]}" test -d /sys/kernel/debug/rk_rga_rewrite/route_b 2>/dev/null; then
     log "  (instrumentation present but no counter deltas this run)"
   else

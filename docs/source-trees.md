@@ -272,7 +272,7 @@ RGA2-Pro RFBC64x4/AFBC32x8 source profiles now rejected with `-EOPNOTSUPP`
 instead of carrying an executable FBCIN path, plus RGA3 userptr RGA userptr-IOMMU fallback mapping
 through a driver-owned contiguous IOMMU IOVA while keeping dma-buf imports
 fail-closed unless they resolve to one 32-bit-safe segment, plus
-`rk_rga_rewrite/route_b/{attempt,ok,active,force_remap}` debugfs attribution
+`rk_rga_rewrite/userptr_iommu/{attempt,ok,active,force_remap}` debugfs attribution
 for development/runtime validation, and the
 RKVDEC2 CCU-mode update that
 keeps HARD opt-in while the RK3588 DT selects BSP-style soft CCU, plus a named

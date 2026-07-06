@@ -4,7 +4,7 @@ Date: Sun, 5 Jul 2026 19:21:22 -0700
 Subject: [PATCH 5/5] media: rockchip: rga3: add RGA userptr-IOMMU debug stats and force
  knob
 
-Instrument the driver-owned scattered-userptr IOMMU fallback (RGA userptr-IOMMU): atomic attempt/ok/active counters under /sys/kernel/debug/rkrga/route_b/ (active is a map/unmap gauge that must return to baseline -- a leak canary); a DEBUGGER_EN(MM)-gated trace of the synthetic span on entry and success; and a force_remap module param / debugfs bool that routes every driver-owned map through RGA userptr-IOMMU even when dma_map_sg coalesced, for 100% fallback coverage and same-buffer normal-vs-RGA-userptr-IOMMU differential testing.
+Instrument the driver-owned scattered-userptr IOMMU fallback (RGA userptr-IOMMU): atomic attempt/ok/active counters under /sys/kernel/debug/rkrga/userptr_iommu/ (active is a map/unmap gauge that must return to baseline -- a leak canary); a DEBUGGER_EN(MM)-gated trace of the synthetic span on entry and success; and a force_remap module param / debugfs bool that routes every driver-owned map through RGA userptr-IOMMU even when dma_map_sg coalesced, for 100% fallback coverage and same-buffer normal-vs-RGA-userptr-IOMMU differential testing.
 
 Default off; dma-buf imports are unaffected (they use rga_dma_map_buf, not this path). Debug-only; no behaviour change unless force_remap is set.
 
@@ -87,7 +87,7 @@ index a6446861a94c..1cf65f7e8b11 100644
 +	if (IS_ERR_OR_NULL(parent))
 +		return;
 +
-+	rb = debugfs_create_dir("route_b", parent);
++	rb = debugfs_create_dir("userptr_iommu", parent);
 +	debugfs_create_atomic_t("attempt", 0444, rb, &rga_rb_attempt);
 +	debugfs_create_atomic_t("ok", 0444, rb, &rga_rb_ok);
 +	debugfs_create_atomic_t("active", 0444, rb, &rga_rb_active);

@@ -22,7 +22,7 @@
 > to `yisding/linux-rock5b`: `rk3588-rewrite-6.18` @ `d1cfb432da7f` and
 > `rk3588-rewrite-mainline` @ `c8a41bb830a6`. Both committed tips passed the
 > clean-archive YSP rewrite build gate for `mpp_rewrite.o` and `rga_rewrite.o`.
-> The rewrite now exposes `rk_rga_rewrite/route_b` counters and `force_remap`
+> The rewrite now exposes `rk_rga_rewrite/userptr_iommu` counters and `force_remap`
 > for direct fallback attribution; booted rewrite hardware validation is still
 > pending.
 
@@ -113,7 +113,7 @@ scoped RGA userptr-IOMMU fallback: allocate one byte-contiguous DMA IOVA from th
 translated DMA domain, map a page-aligned sg copy with `iommu_map_sg()`, program
 that synthetic IOVA, and unmap/free it explicitly when the import or temporary
 job mapping is released. It also exposes development-only RGA userptr-IOMMU fallback counters and a
-`force_remap` knob under `rk_rga_rewrite/route_b` so hardware validation can
+`force_remap` knob under `rk_rga_rewrite/userptr_iommu` so hardware validation can
 distinguish "the workload passed" from "the fallback executed."
 
 The mainline RGA3 V4L2 driver is a different ABI.  It has no vendor

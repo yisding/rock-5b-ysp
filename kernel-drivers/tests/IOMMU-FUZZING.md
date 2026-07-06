@@ -4,8 +4,9 @@ How to exercise and validate the whole Rock 5B IOMMU surface: RGA3 scattered
 userptr through the driver-owned IOMMU fallback, hardware video decode, and the
 AV1 decoder.
 
-Older findings and kernel debugfs still use the internal name `route_b`. Current
-repo-facing docs call the mechanism **RGA userptr-IOMMU fallback**.
+Older debug kernels may expose the legacy internal debugfs name `route_b`.
+Current repo-facing docs call the mechanism **RGA userptr-IOMMU fallback** and
+new debug patches expose `userptr_iommu`.
 
 Scope note: "the IOMMU machinery" here is **two** providers. `rockchip-iommu.c`
 serves RGA3, RKVDEC/VP9/H26x, RKVENC, VOP and NPU; `vsi-iommu.c` (Verisilicon)
@@ -44,16 +45,16 @@ The original broad instrumentation is in the forward port
 narrower debug surface: aggregate MPP/RGA counters under
 `/sys/kernel/debug/rk_mpp_rewrite` and `/sys/kernel/debug/rk_rga_rewrite`, plus
 RGA userptr-IOMMU fallback counters under the compatibility path
-`rk_rga_rewrite/route_b`. The forward-port provider-level
+`rk_rga_rewrite/userptr_iommu`. The forward-port provider-level
 per-master fault counters and DIAG logs are useful while debugging that tree, but
 they are not part of the rewrite contract.
 
 | Signal | Path / mechanism | Answers |
 |--------|------------------|---------|
 | MPP/RGA rewrite faults | `/sys/kernel/debug/rk_mpp_rewrite/iommu_fault_count`, `/sys/kernel/debug/rk_rga_rewrite/iommu_fault_count` | did a rewrite-owned IOMMU fault callback run |
-| RGA userptr-IOMMU fallback fired? how often? | forward-port: `/sys/kernel/debug/rkrga/route_b/attempt`, rewrite: `/sys/kernel/debug/rk_rga_rewrite/route_b/attempt`; same for `ok` | did the scattered-userptr fallback run, and succeed |
-| RGA userptr-IOMMU fallback leak? | `.../route_b/active` | maps minus unmaps — **must be 0 at rest** |
-| Force every driver-owned RGA map through the fallback | `.../route_b/force_remap` (forward-port also has module param `rga_force_iommu_remap`) | 100% coverage + same-buffer differential |
+| RGA userptr-IOMMU fallback fired? how often? | forward-port: `/sys/kernel/debug/rkrga/userptr_iommu/attempt`, rewrite: `/sys/kernel/debug/rk_rga_rewrite/userptr_iommu/attempt`; same for `ok` | did the scattered-userptr fallback run, and succeed |
+| RGA userptr-IOMMU fallback leak? | `.../userptr_iommu/active` | maps minus unmaps — **must be 0 at rest** |
+| Force every driver-owned RGA map through the fallback | `.../userptr_iommu/force_remap` (forward-port also has module param `rga_force_iommu_remap`) | 100% coverage + same-buffer differential |
 | RGA userptr-IOMMU fallback span detail | forward-port `dmesg` when `DEBUGGER_EN(MM)` on | nents, data/map size, offset, programmed IOVA |
 | Multi-segment trigger (DIAG) | forward-port-only `dmesg` `DIAG rga_dma_map_sgt: ...` | did `dma_map_sg` fail to coalesce (the RGA userptr-IOMMU fallback trigger) + contiguity walk |
 | Per-master IOMMU faults | optional forward-port debugfs: `/sys/kernel/debug/rockchip-iommu/<dev>`, `/sys/kernel/debug/vsi-iommu/<dev>` | which master page/bus-faulted, across both providers |
@@ -133,9 +134,9 @@ catches source/header drift in the RGA userptr-IOMMU fallback fuzzer. It is not 
 
 `IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS=1` is for debug-capable RGA
 userptr-IOMMU kernels.
-It fails the run when no `route_b` debugfs counters are captured during RGA
-phases; without it, missing counters are reported as indirect attribution while
-correctness and dmesg fault checks still decide the behavioral result.
+It fails the run when no RGA userptr-IOMMU debugfs counters are captured during
+RGA phases; without it, missing counters are reported as indirect attribution
+while correctness and dmesg fault checks still decide the behavioral result.
 
 ### 3b. `rga-iommu-fuzz` — RGA scattered-userptr correctness (built by the orchestrator)
 Forces physical scatter with an interleaved-fault trick (mmap the buffer + an
@@ -186,8 +187,8 @@ forward-port builds. PCIe is behind ARM `smmu3` — out of scope here.
 
 **RGA userptr-IOMMU fallback coverage & health** (after a run):
 ```sh
-RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rk_rga_rewrite/route_b   # rewrite
-[ -d "$RGA_USERPTR_IOMMU_DEBUGFS" ] || RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rkrga/route_b
+RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rk_rga_rewrite/userptr_iommu   # rewrite
+[ -d "$RGA_USERPTR_IOMMU_DEBUGFS" ] || RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rkrga/userptr_iommu
 cd "$RGA_USERPTR_IOMMU_DEBUGFS"
 grep . attempt ok active
 ```
@@ -202,7 +203,8 @@ grep . attempt ok active
 `iommu-machinery-fuzz.sh` enforces these rules automatically when it captures
 RGA userptr-IOMMU fallback counters. If a clean RGA run prints "no RGA userptr-IOMMU fallback counters captured", it
 is still useful behavioral evidence, but not direct fallback attribution unless
-you rerun with a kernel exposing `route_b` counters or enable
+you rerun with a kernel exposing `userptr_iommu` counters, or a legacy kernel
+exposing equivalent `route_b` counters, or enable
 `IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS=1`.
 
 **Rewrite fault counters and optional per-master provider counters:**
@@ -232,8 +234,8 @@ IOMMU data corruption.
 
 ### 6a. "Make RGA userptr-IOMMU fallback run on demand" (coverage without luck)
 ```sh
-RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rk_rga_rewrite/route_b   # rewrite
-[ -d "$RGA_USERPTR_IOMMU_DEBUGFS" ] || RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rkrga/route_b
+RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rk_rga_rewrite/userptr_iommu   # rewrite
+[ -d "$RGA_USERPTR_IOMMU_DEBUGFS" ] || RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rkrga/userptr_iommu
 echo 1 | sudo tee "$RGA_USERPTR_IOMMU_DEBUGFS/force_remap"            # every driver-owned map -> RGA userptr-IOMMU fallback
 # run any librga workload or rga-iommu-fuzz; then:
 cat "$RGA_USERPTR_IOMMU_DEBUGFS/attempt"                              # climbs on every job
@@ -279,8 +281,8 @@ finite PSNR with a clean fault log is the same signature on the AV1/RKVDEC path.
 ### 6e. "Prove there's no leak" (soak)
 ```sh
 # baseline at rest
-RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rk_rga_rewrite/route_b
-[ -d "$RGA_USERPTR_IOMMU_DEBUGFS" ] || RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rkrga/route_b
+RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rk_rga_rewrite/userptr_iommu
+[ -d "$RGA_USERPTR_IOMMU_DEBUGFS" ] || RGA_USERPTR_IOMMU_DEBUGFS=/sys/kernel/debug/rkrga/userptr_iommu
 cat "$RGA_USERPTR_IOMMU_DEBUGFS/active"                     # expect 0
 grep MemAvailable /proc/meminfo
 sudo RGA_ITERS=512 DECODE_LOOPS=50 kernel-drivers/tests/iommu-machinery-fuzz.sh
@@ -309,7 +311,7 @@ echo 'p rk_iommu_irq' >> kprobe_events ; echo 'p vsi_iommu_irq' >> kprobe_events
 ```
 `rga_dma_check_iova_span` is exported even without KALLSYMS_ALL, but it fires on
 both the normal and RGA userptr-IOMMU fallback paths, so it is not a clean fallback counter — prefer
-the `route_b/attempt` counter or a kprobe on `rga_dma_map_sgt_iommu`.
+the `userptr_iommu/attempt` counter or a kprobe on `rga_dma_map_sgt_iommu`.
 
 ---
 

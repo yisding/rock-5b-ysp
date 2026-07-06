@@ -122,6 +122,8 @@ setup_rga_userptr_iommu_force()
 	fi
 
 	for path in \
+		/sys/kernel/debug/rk_rga_rewrite/userptr_iommu/force_remap \
+		/sys/kernel/debug/rkrga/userptr_iommu/force_remap \
 		/sys/kernel/debug/rk_rga_rewrite/route_b/force_remap \
 		/sys/kernel/debug/rkrga/route_b/force_remap; do
 		if [ -e "$path" ]; then
@@ -282,8 +284,10 @@ setup_rga_userptr_iommu_force
 snapshot_debugfs before
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
 	rga /sys/kernel/debug/rk_rga_rewrite \
-	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/route_b \
-	rkrga_userptr_iommu /sys/kernel/debug/rkrga/route_b
+	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/userptr_iommu \
+	rga_userptr_iommu_legacy /sys/kernel/debug/rk_rga_rewrite/route_b \
+	rkrga_userptr_iommu /sys/kernel/debug/rkrga/userptr_iommu \
+	rkrga_userptr_iommu_legacy /sys/kernel/debug/rkrga/route_b
 
 for case_name in $required_cases; do
 	run_case required "$case_name"
@@ -296,8 +300,10 @@ done
 snapshot_debugfs after
 debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
 	rga /sys/kernel/debug/rk_rga_rewrite \
-	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/route_b \
-	rkrga_userptr_iommu /sys/kernel/debug/rkrga/route_b
+	rga_userptr_iommu /sys/kernel/debug/rk_rga_rewrite/userptr_iommu \
+	rga_userptr_iommu_legacy /sys/kernel/debug/rk_rga_rewrite/route_b \
+	rkrga_userptr_iommu /sys/kernel/debug/rkrga/userptr_iommu \
+	rkrga_userptr_iommu_legacy /sys/kernel/debug/rkrga/route_b
 debugfs_counter_delta "$OUT/debugfs-counters-before.tsv" \
 	"$OUT/debugfs-counters-after.tsv" \
 	"$OUT/debugfs-counters-delta.tsv"

@@ -15,13 +15,13 @@ The clean forward-port branch now stops before these diagnostics.
 |---|---------|------|---------------|
 | 1 | `drivers/iommu/rockchip-iommu.c` | per-device page/bus-fault counter + debugfs | `rk_iommu` fault deltas |
 | 2 | `drivers/iommu/vsi-iommu.c` | per-device fault counter + debugfs (AV1 path) | `vsi_iommu` fault deltas |
-| 3 | `drivers/video/rockchip/rga3/{rga_dma_buf.c,rga_debugger.c}` | RGA userptr-IOMMU stats + **active gauge** + interior trace + `force_iommu_remap` knob | `rkrga/route_b/*` coverage + leak check |
+| 3 | `drivers/video/rockchip/rga3/{rga_dma_buf.c,rga_debugger.c}` | RGA userptr-IOMMU stats + **active gauge** + interior trace + `force_iommu_remap` knob | `rkrga/userptr_iommu/*` coverage + leak check |
 | 4 | `kconfig-debug.fragment` | `DMA_API_DEBUG`, `KALLSYMS_ALL`, `IOMMU_DEBUGFS` | `DMA-API:` dmesg lines |
 
 > **Status.** The driver instrumentation is archived here, not carried by the
 > clean forward-port branch. A plain `build-armbian-deb.sh` run therefore builds
 > the functional RGA userptr-IOMMU forward-port without `DIAG` dmesg traces, per-master
-> debugfs fault counters, or `rkrga/route_b/*` counters/force knob.
+> debugfs fault counters, or `rkrga/userptr_iommu/*` counters/force knob.
 >
 > The **config layer** (patch 4: `DMA_API_DEBUG` / `KALLSYMS_ALL` /
 > `IOMMU_DEBUGFS`) is opt-in via `IOMMU_DEBUG=yes`, which stages an Armbian
@@ -158,19 +158,19 @@ Toggle at runtime: `echo 1 > /sys/module/rga3/parameters/rga_force_iommu_remap`
 *contiguous* buffers also traverse RGA userptr-IOMMU, giving a same-buffer normal-vs-remapped
 diff with zero dependence on the scatter trick.
 
-### 3d. Expose counters as a `route_b` debugfs subdir (`rga_debugger.c`)
+### 3d. Expose counters as a `userptr_iommu` debugfs subdir (`rga_debugger.c`)
 In `rga_debugfs_init()` after the root dir is created (~line 678), matching the
-runner's `rkrga → /sys/kernel/debug/rkrga/route_b` snapshot path:
+runner's `rkrga → /sys/kernel/debug/rkrga/userptr_iommu` snapshot path:
 ```c
 	{
-		struct dentry *rb = debugfs_create_dir("route_b", rga_debugfs_root);
-		debugfs_create_atomic_t("attempt",      0444, rb, &rgb_attempt);
-		debugfs_create_atomic_t("ok",           0444, rb, &rgb_ok);
-		debugfs_create_atomic_t("active",       0444, rb, &rgb_active);
-		debugfs_create_atomic_t("fail_granule", 0444, rb, &rgb_fail_granule);
-		debugfs_create_atomic_t("fail_iova",    0444, rb, &rgb_fail_iova);
-		debugfs_create_atomic_t("fail_map",     0444, rb, &rgb_fail_map);
-		debugfs_create_atomic_t("fail_span",    0444, rb, &rgb_fail_span);
+		struct dentry *ui = debugfs_create_dir("userptr_iommu", rga_debugfs_root);
+		debugfs_create_atomic_t("attempt",      0444, ui, &rgb_attempt);
+		debugfs_create_atomic_t("ok",           0444, ui, &rgb_ok);
+		debugfs_create_atomic_t("active",       0444, ui, &rgb_active);
+		debugfs_create_atomic_t("fail_granule", 0444, ui, &rgb_fail_granule);
+		debugfs_create_atomic_t("fail_iova",    0444, ui, &rgb_fail_iova);
+		debugfs_create_atomic_t("fail_map",     0444, ui, &rgb_fail_map);
+		debugfs_create_atomic_t("fail_span",    0444, ui, &rgb_fail_span);
 	}
 ```
 Export the `rgb_*` atomics (or a small accessor) from `rga_dma_buf.c` so
@@ -218,6 +218,6 @@ git am /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/iommu-debug/forward-port
 make olddefconfig && make ...     # build as usual; boot; then run the fuzzer above
 ```
 
-With the instrumented kernel, a run prints `route_b/*` deltas (proving the
+With the instrumented kernel, a run prints `userptr_iommu/*` deltas (proving the
 fallback fired and how often), per-master fault counts from both providers, any
 `DMA-API:` violations, and asserts the `active` gauge returned to baseline.

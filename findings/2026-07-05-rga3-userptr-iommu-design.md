@@ -86,7 +86,7 @@ also now proves the selected scattered
 signatures. What remains unproven is direct attribution to the silent fallback:
 the clean test image intentionally did not include a success log/counter in
 `rga_dma_map_sgt_iommu()`. The rewrite tips now expose
-`rk_rga_rewrite/route_b/{attempt,ok,active,force_remap}` so the equivalent
+`rk_rga_rewrite/userptr_iommu/{attempt,ok,active,force_remap}` so the equivalent
 booted hardware run can prove fallback execution directly.
 
 ## Runtime smoke after RGA userptr-IOMMU fallback-only build

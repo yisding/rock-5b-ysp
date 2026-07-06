@@ -13,7 +13,7 @@ build-verified until a rewrite kernel is booted.
 |-------|--------|---------|
 | `0001-media-rockchip-rga3-map-scattered-userptr-through-IOMMU.patch` | `../kernel/linux-6.18-rkvenc-av1-fwport` | Adds RGA userptr-IOMMU fallback to the vendor-style RGA3 forward-port. |
 | `0002-media-rockchip-rga-rewrite-add-userptr-IOMMU-mapping.patch` | `../kernel/linux-6.18-rkvenc` and `../kernel/linux` | Adds the same userptr fallback to the compatibility rewrite. |
-| `0003-media-rockchip-rga-rewrite-add-userptr-IOMMU-debugfs-counters.patch` | `../kernel/linux-6.18-rkvenc` and `../kernel/linux` | Adds `rk_rga_rewrite/route_b/{attempt,ok,active,force_remap}` for rewrite runtime attribution. |
+| `0003-media-rockchip-rga-rewrite-add-userptr-IOMMU-debugfs-counters.patch` | `../kernel/linux-6.18-rkvenc` and `../kernel/linux` | Adds `rk_rga_rewrite/userptr_iommu/{attempt,ok,active,force_remap}` for rewrite runtime attribution. |
 
 Detailed architecture notes live in [`architecture.md`](architecture.md).
 Runtime validation instructions live in [`runtime-validation.md`](runtime-validation.md).
@@ -70,7 +70,7 @@ The two patch targets share the same mapping model, but the hook points differ:
   if they are not one 32-bit-safe DMA span. Patch 0002 also sets the RGA3 DMA
   mask/coherent mask and clamps `bus_dma_limit`, so normal DMA API placement and
   dma-buf validation use the same 32-bit guard-band contract. Patch 0003 adds a
-  rewrite-only `rk_rga_rewrite/route_b` debugfs directory with `attempt`, `ok`,
+  rewrite-only `rk_rga_rewrite/userptr_iommu` debugfs directory with `attempt`, `ok`,
   `active`, and `force_remap`; this is development evidence, not userspace ABI.
 
 1. Try the normal DMA API map first.
@@ -168,5 +168,5 @@ attribution: the clean image did not include a RGA userptr-IOMMU fallback succes
 claim the forward-port fallback itself is runtime-proven, rebuild the debug-tip
 profile or add a temporary counter/print in `rga_dma_map_sgt_iommu()` and
 capture at least one passing case that entered the fallback. For the rewrite,
-boot a kernel carrying patch 0003 and capture `route_b/attempt`, `route_b/ok`,
-and `route_b/active` around the selected cases.
+boot a kernel carrying patch 0003 and capture `userptr_iommu/attempt`, `userptr_iommu/ok`,
+and `userptr_iommu/active` around the selected cases.
