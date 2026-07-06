@@ -78,6 +78,15 @@ GStreamer frames. A C# wrapper exposes only the legacy blit/fill/flush calls,
 and a generic G2D shim wraps fd/virtual buffers while forcing an RGA3 core mask
 through `imconfig(IM_CONFIG_SCHEDULER_CORE, ...)`.
 
+A final same-day public-source sweep added libretro/RetroArch's OGA KMS driver,
+downstream Xorg modesetting EXA, Qt raster, pixman, SDL, and OpenHarmony/BSP
+wrapper copies to the evidence set. The useful kernel-visible signal is still
+legacy fill/blit, fd-backed DRM PRIME buffers, virtual pixmaps, RGB565/BGRA/BGRX
+display surfaces, 90/180/270-degree rotation, simple source/source-over
+blending, and limited NV12-family conversion. It strengthens the optional
+display/desktop diagnostics, but it does not change the required Rock 5B media
+rewrite ABI.
+
 The rewrite impact is narrow: these findings reinforce fd import,
 virtual-address import, IM2D color conversion/resize, legacy blit/fill/flush,
 and scheduler-core selection. They do not justify promoting Android HWC,
@@ -97,9 +106,10 @@ required RGA profile.
 | RK3588 vision demos | [`XtERVG_RK3588_Demo` `mpp_rknn.cc`](https://github.com/steven-j-on-ai/XtERVG_RK3588_Demo/blob/HEAD/src/mpp_rknn.cc), [`gstreamer-rknn` `gstrknn.c`](https://github.com/haydenee/gstreamer-rknn/blob/HEAD/src/gstrknn.c) | MPP/GStreamer DMABuf fds into `wrapbuffer_fd()`/`wrapbuffer_fd_t()`, then RGA resize/convert for neural-network input |
 | Camera / ROS helpers | [`OrbbecSDK_ROS2` `rk_mpp_decoder.cpp`](https://github.com/orbbec/OrbbecSDK_ROS2/blob/HEAD/orbbec_camera/src/rk_mpp_decoder.cpp) | Legacy `c_RkRgaBlit()` conversion after MPP decode |
 | Display/compositor patches | [`JeffyCN/weston` `fb-convert.c`](https://github.com/JeffyCN/weston/blob/HEAD/libweston/backend-drm/fb-convert.c), [`EchoHeim/RK3399-linux` pixman patch](https://github.com/EchoHeim/RK3399-linux/blob/HEAD/buildroot/package/pixman/0005-pixman_image_composite32-Support-rockchip-RGA-2D-acc.patch) | Legacy blit acceleration for framebuffer/composite conversion |
-| Game/UI/display stacks | [`RetroArch-ARM` `display.c`](https://github.com/basharast/RetroArch-ARM/blob/HEAD/src/deps/libgo2/src/display.c), [`EmuELEC` SDL patch](https://github.com/fengshenwk/EmuELEC/blob/HEAD/packages/multimedia/SDL2/patches/OdroidGoAdvance/0005-SDL-2.0.20.odroidgoa-support.patch) | Legacy RGB-family blit/rotate/display scaling |
+| Game/UI/display stacks | [`libretro/RetroArch` OGA KMS driver](https://github.com/libretro/RetroArch/blob/6712969a7b7516cb348f6af70635b1b1c8822dee/gfx/drivers/oga_gfx.c), [`RetroArch-ARM` `display.c`](https://github.com/basharast/RetroArch-ARM/blob/HEAD/src/deps/libgo2/src/display.c), [`EmuELEC` SDL patch](https://github.com/fengshenwk/EmuELEC/blob/HEAD/packages/multimedia/SDL2/patches/OdroidGoAdvance/0005-SDL-2.0.20.odroidgoa-support.patch) | DRM PRIME fds or virtual buffers, legacy RGB-family fill/blit/rotate/display scaling, BGRA/XRGB scanout, and simple blend |
 | OpenCV / camera capture | [`opencv-mobile` RKAIQ V4L2 capture](https://github.com/nihui/opencv-mobile/blob/3151145cbfe44b1802004d4fe532cf307594b477/highgui/src/capture_v4l2_rk_aiq.cpp), [`rockchip-hdmi-capture-rtsp` RGA converter](https://github.com/pablocpas/rockchip-hdmi-capture-rtsp/blob/2e10fb8cdde9224c901ce4aed304c436d01835a6/src/rga_converter.cpp) | V4L2/MPP dma-buf fd import, dma-heap or encoder fd destination import, handle wrapping, `imcvtcolor_t()` for camera/streaming color conversion |
 | Weston / GStreamer base converter patches | [`radxa/buildroot` Weston mirror-mode patch](https://github.com/radxa/buildroot/blob/05cd2d7b3d322adca4da4af412660a78e6bf30f4/package/weston/0023-backend-drm-Support-mirror-mode.patch), [`TinkerBoard2/buildroot` GStreamer base converter patch](https://github.com/TinkerBoard2/buildroot/blob/9055ab5f2394d9c649b29ef6e736869c0c76687b/package/gstreamer1/gst1-plugins-base/1.18.5/0010-video-converter-Support-rockchip-RGA-2D-accel.patch) | Env-gated legacy blit over DRM PRIME fds or contiguous virtual video frames; RGB-family and NV12-family scale/convert/rotate, including compact 10-bit in the GStreamer patch |
+| Xorg / Qt / pixman desktop patches | [`khadas/external_xserver` EXA path](https://github.com/khadas/external_xserver/blob/fad645a0ca0f438b62dc3a332b34388bf9fd9fd0/hw/xfree86/drivers/modesetting/exa.c), [`RK3588_Buildroot` Qt raster patch](https://github.com/SwordofMorning/RK3588_Buildroot/blob/55c00ec37361dd1352957e2c32f138392cebf77c/package/qt5/qt5base/0018-HACK-qpaintengine_raster-Support-rga-in-fillRect-wit.patch), downstream pixman composite patches | fd or virtual pixmaps, legacy color-fill/blit/copy/composite, source/source-over blend, 0/90/180/270 transforms, RGB565/BGRA/BGRX and limited YUV/NV12-family formats |
 | Language bindings | [`varphone/rkrga`](https://github.com/varphone/rkrga) | Rust exposure of the same C `librga` / legacy blit/fill ABI, not a distinct kernel feature demand |
 | Runtime wrappers / G2D shims | [`w-0x1f/linux-media` C# wrapper](https://github.com/w-0x1f/linux-media/blob/439ac160af49987a928368ff48e8ca77ea8ae994/linux-media-rockchip-rga/RGA.cs), [`posix-bsp-perf` RGA G2D shim](https://github.com/zczjx/posix-bsp-perf/blob/e17acf4670c3cd6f722d083b2695b2e3b37cdd45/bsp/bsp_g2d/impl/rk_rga/rkrga.cpp) | Thin wrapper over legacy blit/fill/flush plus fd/virtual IM2D wrapping, resize/color-convert/rectangle, and thread-local RGA3 scheduler-core selection |
 

@@ -67,7 +67,7 @@ worktree has unrelated local changes.
 
 Last recorded run: `kernel-drivers/tests/rewrite-build-gate.sh all`
 on 2026-07-06 passed warning-free for the committed rewrite tips
-`../kernel/linux-6.18-rkvenc@02e6026c3a00` and `../kernel/linux@60983387706b`.
+`../kernel/linux-6.18-rkvenc@1f551f8fd32e` and `../kernel/linux@0ec942b2f0c5`.
 On the same date,
 `REWRITE_BUILD_PROFILES="memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
 also passed warning-free for both trees, proving compile coverage with
@@ -1137,7 +1137,9 @@ The direct `librga-smoke` path also covers scheduler-core and priority
 `imconfig()` calls, followed by `imcopy`, matching the thread-default core-mask
 configuration path exposed by standalone `gstreamer-rga` and the documented
 thread-default priority API without making that full plugin a required
-conformance target.
+conformance target. The kernel KUnit suite now also pins invalid public
+scheduler-core masks to `-EINVAL` for bitblit, fill, palette, and
+update-palette request shapes.
 
 **UNVERIFIED:** neither the generated GStreamer VP9 cases nor the direct MPP
 VP9 suite case has a forward-port/rewrite hardware log yet. If you run either,

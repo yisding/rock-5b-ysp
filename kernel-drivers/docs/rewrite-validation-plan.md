@@ -7,8 +7,8 @@ the plan that closes the gap [`rewrite-drivers.md`](./rewrite-drivers.md) §6 an
 hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
-> surface and heavily unit-tested — MPP **54 KUnit cases** and RGA **101 KUnit
-> cases** compile at the §6 pins (`02e6026c3a00` on 6.18, `60983387706b` on
+> surface and heavily unit-tested — MPP **54 KUnit cases** and RGA **102 KUnit
+> cases** compile at the §6 pins (`1f551f8fd32e` on 6.18, `0ec942b2f0c5` on
 > mainline). But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
@@ -47,7 +47,7 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 154 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 156 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
@@ -78,10 +78,10 @@ The public `librga` consumer survey
 does not broaden the required Linux RK3588 profile beyond the current
 conformance direction.  Outside ffmpeg-rockchip, JeffyCN GStreamer, and the
 official librga samples, the strongest additional signal is RKNN/RKNPU
-preprocessing plus simple display/compositor blits: fd or virtual RGB/RGBA/NV12/
-NV21 resize/convert/crop/letterbox, legacy `c_RkRgaBlit()` RGB-family
-scale/rotate, and clean negative handling for raw physical-address import plus
-AFBC32x8/RFBC64x4 destination modes.
+preprocessing plus simple display/compositor/desktop blits: fd or virtual
+RGB/RGBA/NV12/NV21 resize/convert/crop/letterbox, legacy `c_RkRgaBlit()`
+RGB-family fill/scale/rotate/simple-blend paths, and clean negative handling
+for raw physical-address import plus AFBC32x8/RFBC64x4 destination modes.
 No surveyed current Linux-media user promoted RFBC64x4/AFBC32x8, per-channel
 rotation, tile alpha/pattern/color-key, broad RGA2-Pro modes, or Android
 GraphicBuffer/HWC allocator behavior into the required Rock 5B rewrite gate.
@@ -303,7 +303,7 @@ equivalent adversarial read**).
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 154 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
+1. 156 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
    (today's tests never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —
    0 diffs (RGA pixels, VDEC YUV, VENC-vs-VENC bitstream).
