@@ -56,6 +56,19 @@ new kernel ioctl class.
 | Language wrappers | `varphone/rkrga` Rust wrapper at `057cc92` | thin wrapper over `c_RkRgaInit`, `c_RkRgaBlit`, `c_RkRgaColorFill`, rotate/scale/fill helpers | No new kernel behavior. Passing the C API surfaces is enough for wrappers; the direct smoke now covers fd-backed legacy `c_RkRgaColorFill()` as well as legacy blit. |
 | Runtime wrappers and G2D shims | `w-0x1f/linux-media` C# wrapper at `439ac1`; `zczjx/posix-bsp-perf` RGA G2D shim at `e17acf` | P/Invoke wrappers for `c_RkRgaBlit`, `c_RkRgaColorFill`, and `c_RkRgaFlush`; C++ fd/virtual wrapping through `wrapbuffer_fd_t`/`wrapbuffer_virtualaddr_t`; `imresize`, `imcvtcolor`, `imrectangle`; thread-local `imconfig(IM_CONFIG_SCHEDULER_CORE, RGA3 core mask)` | No new ioctl surface, but it reinforces that scheduler-core control, legacy fill/flush, fd wrapping, and virtual-address wrapping are public app expectations rather than sample-only behavior. |
 
+## Conformance mapping
+
+The actionable split from the survey is:
+
+| Finding cluster | Rewrite status | YSP coverage / next action |
+|-----------------|----------------|-----------------------------|
+| RKNN/RKNPU preprocessors, OpenCV/RKAIQ capture, HDMI/RTSP helpers | Required kernel-visible shape: fd import, virtual import, RGB/NV12/NV21 resize/convert/crop, and acquire/release fence lifetime | Covered by the default direct `librga-smoke` RKNN/RKNPU and fd-backed color-convert/resize paths; booted forward-port-vs-rewrite artifact/counter evidence is still needed. |
+| Jellyfin, Kodi, OpenWrt, and packaged `ffmpeg-rockchip` stacks | Required through the FFmpeg RKRGA filter surface, not as a separate direct-`librga` ABI | Covered by `ffmpeg-suite.sh` probing and `scale_rkrga`/`vpp_rkrga`/`overlay_rkrga` cases; keep Jellyfin-style usage inside the FFmpeg gate. |
+| `rkmppenc` | Optional app-level confidence target; direct kernel primitive is fd-backed crop/CSC/resize plus fence chaining | Primitive covered by direct `librga-smoke`; full CLI/filter graph is executable through opt-in `rkmppenc-suite.sh` and its comparator. |
+| Standalone `gstreamer-rga`, env-gated `videoflip`, Weston mirror, and GStreamer base converter patches | Optional integration diagnostics for independent plugin/env-gated legacy blit lifecycles | Case builders are wired through `GST_ENABLE_RGACONVERT_CASES=1` and `GST_ENABLE_VIDEOFLIP_RGA_CASES=1`; promote only if desktop/GStreamer-base acceleration becomes a target profile. |
+| RetroArch/SDL/LVGL/Xorg/Qt/pixman display and UI acceleration | Optional appliance/display tail: RGB565/BGRA/BGRX/XRGB fill, blit, rotate, simple blend, and fd-backed scanout-style buffers | Covered by `LIBRGA_SMOKE_DISPLAY_TAIL=1` BGRA/XRGB/RGB565 rotation plus BGRA partial alpha-blend artifacts; it is not a full GBM/DRM scanout lifecycle test. |
+| Direct physical-address submit, old DRM-RGA userspace, Android HWC/gralloc, and RGA2-Pro RFBC64x4/AFBC32x8 source-tail modes | Recognized-but-unsupported or outside the Linux/Rock 5B rewrite profile | Keep explicit negative probes for physical import and FBC tail modes; do not add the abandoned DRM-RGA ioctl family or Android allocator/HWC APIs to `/dev/rga`. |
+
 ## What this changes
 
 Required rewrite coverage remains anchored to current Rock 5B media userspace:
