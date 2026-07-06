@@ -259,8 +259,10 @@ for the GStreamer RGBA/BGRA/RGBx/BGRx diagnostic formats, plus GStreamer
 180/270-degree public rotation-value coverage, plus named RKNN/RKNPU RGA3
 preprocessing coverage for RGB888 resize, RGB888-to-NV12 resize/convert, and
 NV12/NV21-to-RGB resize/convert profiles, plus RGBA crop/letterbox resize
-coverage for the same public RKNN/RKNPU profile, plus VP9 RKVDEC fd-to-IOVA
-register translation/validation KUnit coverage, plus
+coverage for the same public RKNN/RKNPU profile, plus direct `librga-smoke`
+coverage for an `rkmppenc`-shaped fd-backed crop/CSC/resize
+acquire-fence/release-fence chain, plus VP9 RKVDEC fd-to-IOVA register
+translation/validation KUnit coverage, plus
 `MPP_CMD_SET_ERR_REF_HACK` initialized-session copy/discard KUnit coverage for
 the current libmpp VDPU382 probe path, plus legacy RGA flush/result no-op ioctl
 dispatch KUnit coverage for current librga's post-blit compatibility path, plus
@@ -292,12 +294,14 @@ support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled object build for the rewrite drivers. The current committed pins
 (`../kernel/linux-6.18-rkvenc@d1cfb432da7f` and `../kernel/linux@c8a41bb830a6`) passed that
-archive build gate warning-free on 2026-07-06; `VALIDATE_ONLY=1
+archive build gate warning-free on 2026-07-06 and the gate was re-run cleanly
+after the YSP validation updates; `VALIDATE_ONLY=1
 kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
-case-builder/comparator validation, including 143 GStreamer case builders, and
-the counter-enabled `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1`
-mode plus the `LIBRGA_FORCE_ROUTE_B=1` variant passed the rewrite
-counter-default wiring checks. See rewrite-drivers.md §6.
+syzlang ABI-marker, case-builder, and comparator validation, including 26
+Rockchip syzlang ABI markers and 143 GStreamer case builders. The
+counter-enabled `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1` mode
+plus the `LIBRGA_FORCE_ROUTE_B=1` variant passed the rewrite counter-default
+wiring checks. See rewrite-drivers.md §6.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite
 commits landed.
