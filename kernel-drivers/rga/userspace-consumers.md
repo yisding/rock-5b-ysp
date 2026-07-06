@@ -97,9 +97,10 @@ as useful but non-blocking conformance work:
   `GST_RGACONVERT_ELEMENT` plugin inspect plus BGRx/NV12 conversion/scale
   pipelines, and `GST_ENABLE_VIDEOFLIP_RGA_CASES=1` diagnostics for the
   Rockchip `GST_VIDEO_FLIP_USE_RGA=1` NV12/BGRx rotate/flip lifecycle. The
-  direct smoke covers fd-backed IM2D flip, virtual legacy `c_RkRgaBlit()` flip
-  primitives, the thread-default `imconfig(IM_CONFIG_SCHEDULER_CORE, ...)`
-  core-mask call, and `IM_CONFIG_PRIORITY`;
+  direct smoke covers fd-backed IM2D flip, immediate and task-array rectangle
+  drawing, virtual legacy `c_RkRgaBlit()` flip primitives, the thread-default
+  `imconfig(IM_CONFIG_SCHEDULER_CORE, ...)` core-mask call, and
+  `IM_CONFIG_PRIORITY`;
 - keep UI/display smoke optional unless display-appliance use becomes part of
   the target profile; `LIBRGA_SMOKE_DISPLAY_TAIL=1` now makes the fd-backed
   BGRA/XRGB/RGB565 legacy display-rotation primitive and a BGRA partial-rectangle

@@ -611,6 +611,55 @@ static int check_rectangle_border_update(const uint8_t *buf, int width,
 	return 0;
 }
 
+static bool rect_border_contains(const im_rect *rect, int x, int y,
+				 int thickness)
+{
+	return x >= rect->x && x < rect->x + rect->width &&
+	       y >= rect->y && y < rect->y + rect->height &&
+	       (x < rect->x + thickness ||
+		x >= rect->x + rect->width - thickness ||
+		y < rect->y + thickness ||
+		y >= rect->y + rect->height - thickness);
+}
+
+static int check_rectangle_array_border_update(const uint8_t *buf, int width,
+					       int height,
+					       const im_rect *rects,
+					       size_t rect_count,
+					       int thickness,
+					       uint8_t sentinel)
+{
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			const uint8_t *px = buf + ((y * width + x) * TEST_BPP);
+			bool expected = false;
+			bool changed = false;
+
+			for (size_t i = 0; i < rect_count; i++)
+				expected |= rect_border_contains(&rects[i], x, y,
+								thickness);
+			for (int i = 0; i < TEST_BPP; i++)
+				changed |= px[i] != sentinel;
+
+			if (expected) {
+				if (!changed) {
+					fprintf(stderr,
+						"rectangle-array border pixel %d,%d unchanged\n",
+						x, y);
+					return 1;
+				}
+			} else if (changed) {
+				fprintf(stderr,
+					"rectangle-array non-border pixel %d,%d changed: %02x:%02x:%02x:%02x\n",
+					x, y, px[0], px[1], px[2], px[3]);
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static void fill_nv12_pattern(uint8_t *buf, int width, int height)
 {
 	uint8_t *y_plane = buf;
@@ -2154,6 +2203,122 @@ out:
 	return ret;
 }
 
+static int run_dmabuf_imrectangle_task_array_rgba(void)
+{
+	const int width = TEST_DST_W;
+	const int height = TEST_DST_H;
+	const int thickness = 2;
+	const size_t size = (size_t)width * height * TEST_BPP;
+	const uint8_t sentinel = 0x44;
+	im_rect rects[] = {
+		{2, 2, 10, 8},
+		{18, 7, 10, 12},
+		{6, 22, 16, 6},
+	};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t dst_handle = 0;
+	im_job_handle_t job = 0;
+	rga_buffer_t dst;
+	int ret;
+
+	ret = dmabuf_alloc_any(size, &dma_dst);
+	if (ret) {
+		fprintf(stderr,
+			"imrectangleTaskArray dest allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "imrectangleTaskArray dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, sentinel, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "imrectangleTaskArray dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	dst_handle = importbuffer_fd(dma_dst.fd, size);
+	if (!dst_handle) {
+		fprintf(stderr,
+			"imrectangleTaskArray importbuffer_fd failed: %s\n",
+			strerror(errno));
+		ret = 1;
+		goto out;
+	}
+
+	dst = wrapbuffer_handle(dst_handle, width, height, RK_FORMAT_RGBA_8888);
+	for (size_t i = 0; i < sizeof(rects) / sizeof(rects[0]); i++) {
+		ret = imcheck({}, dst, {}, rects[i], IM_COLOR_FILL);
+		if (ret != IM_STATUS_NOERROR) {
+			ret = fail_status("imcheck imrectangleTaskArray", ret);
+			goto out;
+		}
+	}
+
+	job = imbeginJob(IM_JOB_FLAGS_EXEC_SEQUENTIAL);
+	if (!job) {
+		fprintf(stderr, "imrectangleTaskArray begin failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	ret = imrectangleTaskArray(job, dst, rects,
+				   (int)(sizeof(rects) / sizeof(rects[0])),
+				   0xffff0000, thickness);
+	if (ret != IM_STATUS_SUCCESS) {
+		fail_status("imrectangleTaskArray", ret);
+		imcancelJob(job);
+		job = 0;
+		ret = 1;
+		goto out;
+	}
+
+	ret = imendJob(job);
+	job = 0;
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("imendJob rectangle", ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "imrectangleTaskArray read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (check_rectangle_array_border_update(dma_dst.mem, width, height,
+						rects,
+						sizeof(rects) / sizeof(rects[0]),
+						thickness, sentinel)) {
+		ret = 1;
+	} else {
+		ret = write_artifact("imrectangle_task_array_rgba_border",
+				     dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"imrectangleTaskArray read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "imrectangle tasks",
+		       dma_dst.heap_path);
+
+out:
+	if (job)
+		imcancelJob(job);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 static int run_physical_import_probe(void)
 {
 	const size_t phys_size = (size_t)64 * 64 * TEST_BPP;
@@ -3465,6 +3630,10 @@ int main(void)
 		goto out;
 
 	ret = run_dmabuf_imrectangle_rgba();
+	if (ret)
+		goto out;
+
+	ret = run_dmabuf_imrectangle_task_array_rgba();
 	if (ret)
 		goto out;
 
