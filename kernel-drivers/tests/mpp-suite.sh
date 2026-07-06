@@ -24,6 +24,7 @@ MPP_GENERATE_VP9_INPUT=${MPP_GENERATE_VP9_INPUT:-1}
 MPP_VP9_GENERATED_WIDTH=${MPP_VP9_GENERATED_WIDTH:-320}
 MPP_VP9_GENERATED_HEIGHT=${MPP_VP9_GENERATED_HEIGHT:-240}
 MPP_VP9_GENERATED_FPS=${MPP_VP9_GENERATED_FPS:-30}
+MPP_VALIDATE_CASES=${MPP_VALIDATE_CASES:-0}
 
 MPP_CODING_AVC=7
 MPP_CODING_VP9=10
@@ -43,24 +44,8 @@ required_cases=${MPP_REQUIRED_CASES:-$required_cases_default}
 diagnostic_cases=${MPP_DIAGNOSTIC_CASES:-}
 failed=0
 
-if [ ! -e /dev/mpp_service ]; then
-	echo "SKIP: /dev/mpp_service is absent on this boot"
-	exit 77
-fi
-
-if [ ! -d "$MPP_BIN_DIR" ]; then
-	echo "Missing $MPP_BIN_DIR. Run ../rockchip-conformance/scripts/build-mpp.sh first." >&2
-	exit 2
-fi
-
-mkdir -p "$OUT"
 summary="$OUT/summary.tsv"
 artifact_summary="$OUT/artifacts.tsv"
-printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
-printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
-
-export LD_LIBRARY_PATH="$MPP_LIBDIR:${LD_LIBRARY_PATH:-}"
-
 CMD=()
 BUILD_ERROR=
 CURRENT_CLASS=
@@ -708,6 +693,86 @@ run_case()
 
 	record_summary "$class" "$case_name" "$status" "$elapsed" "$result"
 }
+
+validate_case_build()
+{
+	local class=$1
+	local case_name=$2
+	local build_status
+	local command
+
+	if [ -z "$case_name" ]; then
+		return 0
+	fi
+
+	CURRENT_CLASS=$class
+	CURRENT_CASE=$case_name
+	CASE_ARTIFACT_KINDS=()
+	CASE_ARTIFACT_PATHS=()
+
+	set +e
+	build_case_command "$case_name"
+	build_status=$?
+	set -e
+	if [ "$build_status" -ne 0 ]; then
+		printf "invalid\t%s\t%s\t%s\n" \
+			"$class" "$case_name" "${BUILD_ERROR:-build failed}" >&2
+		return 1
+	fi
+
+	command=${CMD[0]:-}
+	command=${command##*/}
+	printf "valid\t%s\t%s\t%s\n" "$class" "$case_name" "$command"
+}
+
+validate_case_builders()
+{
+	local case_name
+	local total=0
+	local errors=0
+
+	for case_name in $required_cases; do
+		if ! validate_case_build required "$case_name"; then
+			errors=$((errors + 1))
+		fi
+		total=$((total + 1))
+	done
+
+	for case_name in $diagnostic_cases; do
+		if ! validate_case_build diagnostic "$case_name"; then
+			errors=$((errors + 1))
+		fi
+		total=$((total + 1))
+	done
+
+	if [ "$errors" -ne 0 ]; then
+		printf "FAIL: %s MPP case builder(s) failed validation\n" "$errors" >&2
+		return 1
+	fi
+
+	printf "validated %s MPP case builders\n" "$total"
+}
+
+if [ "$MPP_VALIDATE_CASES" = "1" ]; then
+	validate_case_builders
+	exit $?
+fi
+
+if [ ! -e /dev/mpp_service ]; then
+	echo "SKIP: /dev/mpp_service is absent on this boot"
+	exit 77
+fi
+
+if [ ! -d "$MPP_BIN_DIR" ]; then
+	echo "Missing $MPP_BIN_DIR. Run ../rockchip-conformance/scripts/build-mpp.sh first." >&2
+	exit 2
+fi
+
+mkdir -p "$OUT"
+printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
+printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
+
+export LD_LIBRARY_PATH="$MPP_LIBDIR:${LD_LIBRARY_PATH:-}"
 
 snapshot_mpp_state before
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \

@@ -336,6 +336,13 @@ run_validation()
 		env IOMMU_FUZZ_VALIDATE_BUILD=1 \
 		bash "$TEST_DIR/iommu-machinery-fuzz.sh"
 
+	if [ "$RUN_MPP_SUITE" = "1" ]; then
+		run_step "mpp: validate case builders" \
+			env MPP_VALIDATE_CASES=1 PROFILE="$PROFILE" \
+			CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
+			bash "$TEST_DIR/mpp-suite.sh"
+	fi
+
 	if [ "$RUN_GSTREAMER_SUITE" = "1" ]; then
 		run_step "gstreamer: validate case builders" \
 			env GST_VALIDATE_CASES=1 PROFILE="$PROFILE" \
