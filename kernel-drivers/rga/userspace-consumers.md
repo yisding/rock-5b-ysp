@@ -53,6 +53,9 @@ as useful but non-blocking conformance work:
   lifecycle;
 - add one UI/display smoke for fd-backed BGRA/XRGB rotation into a GBM or dumb
   scanout buffer if display-appliance use becomes part of the target profile;
+  `LIBRGA_SMOKE_DISPLAY_TAIL=1` now makes the fd-backed BGRA/XRGB legacy
+  display-rotation primitive executable, though it still is not a full GBM/DRM
+  scanout lifecycle test;
 - keep direct physical-address RGA submission as recognized-but-unsupported
   unless a current RK3588 RKNPU/RKADK app cannot be moved to fd or virtual
   buffers.

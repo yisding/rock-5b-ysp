@@ -52,8 +52,10 @@ surface.
 Follow-up in this repo now makes the public display/compositor/game-UI signal
 executable too: `librga-smoke.cpp` records a deterministic
 `legacy_bgrx_display_rot90` artifact using fd-backed BGRx `c_RkRgaBlit()` 90
-degree rotation, alongside the existing RKNN/RKNPU preprocessing and
-GStreamer-shaped legacy conversion artifacts. A 2026-07-05 re-check also found
+degree rotation in the default direct smoke, and `LIBRGA_SMOKE_DISPLAY_TAIL=1`
+adds opt-in BGRA and XRGB fd-backed legacy display-rotation artifacts alongside
+the existing RKNN/RKNPU preprocessing and GStreamer-shaped legacy conversion
+artifacts. A 2026-07-05 re-check also found
 that Jellyfin's Rockchip FFmpeg patch is not a separate `/dev/rga` profile: it
 uses `--enable-rkrga`, probes `rga/RgaApi.h`, `c_RkRgaBlit`, `rga/im2d.h`, and
 `querystring`, and exposes the `scale_rkrga`, `vpp_rkrga`, and `overlay_rkrga`
