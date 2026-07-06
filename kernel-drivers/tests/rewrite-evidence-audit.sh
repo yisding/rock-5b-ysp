@@ -11,6 +11,8 @@ CANDIDATE=${CANDIDATE:-rewrite}
 SUITES=${SUITES:-"mpp librga gstreamer ffmpeg"}
 REQUIRE_ARTIFACTS=${REQUIRE_ARTIFACTS:-1}
 REQUIRE_COUNTER_DELTAS=${REQUIRE_COUNTER_DELTAS:-1}
+REQUIRE_DIAGNOSTIC_PASS=${REQUIRE_DIAGNOSTIC_PASS:-0}
+AUDIT_REQUIRED_CASES=${AUDIT_REQUIRED_CASES:-}
 RUN_COMPARATORS=${RUN_COMPARATORS:-1}
 
 usage()
@@ -26,6 +28,12 @@ Environment:
   REQUIRE_ARTIFACTS=0    allow pass/fail-only suite logs
   REQUIRE_COUNTER_DELTAS=0
                           allow missing debugfs-counters-delta.tsv files
+  REQUIRE_DIAGNOSTIC_PASS=1
+                          require diagnostic cases recorded in the selected
+                          summaries to pass too
+  AUDIT_REQUIRED_CASES    whitespace-separated suite:case list that must be
+                          present and passing in both profiles; use *:case to
+                          match any selected suite
   RUN_COMPARATORS=0      skip suite comparator execution
 EOF
 }
@@ -49,17 +57,20 @@ find_latest_summary()
 	printf "%s\n" "$summary"
 }
 
-check_required_cases()
+check_case_results()
 {
 	local summary=$1
 	local suite=$2
 	local profile=$3
 
-	awk -v suite="$suite" -v profile="$profile" '
+	awk -v suite="$suite" -v profile="$profile" \
+	    -v require_diagnostic="$REQUIRE_DIAGNOSTIC_PASS" '
 	BEGIN {
 		FS = "\t";
 		required = 0;
+		diagnostic = 0;
 		failed = 0;
+		require_diagnostic = require_diagnostic == "1";
 	}
 	NR == 1 {
 		next;
@@ -68,6 +79,14 @@ check_required_cases()
 		required++;
 		if ($6 != "pass") {
 			printf("required case failed: profile=%s suite=%s case=%s result=%s status=%s\n",
+			       profile, suite, $3, $6, $4) > "/dev/stderr";
+			failed++;
+		}
+	}
+	$2 == "diagnostic" {
+		diagnostic++;
+		if (require_diagnostic && $6 != "pass") {
+			printf("diagnostic case failed: profile=%s suite=%s case=%s result=%s status=%s\n",
 			       profile, suite, $3, $6, $4) > "/dev/stderr";
 			failed++;
 		}
@@ -81,6 +100,114 @@ check_required_cases()
 		exit failed ? 1 : 0;
 	}
 	' "$summary"
+}
+
+check_named_cases()
+{
+	local summary=$1
+	local suite=$2
+	local profile=$3
+	local spec
+	local spec_suite
+	local spec_case
+	local failed=0
+
+	if [ -z "$AUDIT_REQUIRED_CASES" ]; then
+		return 0
+	fi
+
+	for spec in $AUDIT_REQUIRED_CASES; do
+		case "$spec" in
+		*:*)
+			spec_suite=${spec%%:*}
+			spec_case=${spec#*:}
+			;;
+		*)
+			printf "invalid AUDIT_REQUIRED_CASES entry (want suite:case): %s\n" \
+				"$spec" >&2
+			return 1
+			;;
+		esac
+
+		if [ "$spec_suite" != "$suite" ] && [ "$spec_suite" != "*" ]; then
+			continue
+		fi
+
+		if ! awk -v suite="$suite" -v profile="$profile" \
+			-v required_case="$spec_case" '
+		BEGIN {
+			FS = "\t";
+			found = 0;
+			failed = 0;
+		}
+		NR == 1 {
+			next;
+		}
+		$3 == required_case {
+			found = 1;
+			if ($6 != "pass") {
+				printf("audited case failed: profile=%s suite=%s case=%s class=%s result=%s status=%s\n",
+				       profile, suite, $3, $2, $6, $4) > "/dev/stderr";
+				failed = 1;
+			}
+		}
+		END {
+			if (!found) {
+				printf("missing audited case: profile=%s suite=%s case=%s summary=%s\n",
+				       profile, suite, required_case, FILENAME) > "/dev/stderr";
+				exit 1;
+			}
+			exit failed ? 1 : 0;
+		}
+		' "$summary"; then
+			failed=1
+		fi
+	done
+
+	return "$failed"
+}
+
+suite_selected()
+{
+	local want=$1
+	local suite
+
+	for suite in $SUITES; do
+		if [ "$suite" = "$want" ]; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+validate_named_case_specs()
+{
+	local spec
+	local spec_suite
+
+	if [ -z "$AUDIT_REQUIRED_CASES" ]; then
+		return 0
+	fi
+
+	for spec in $AUDIT_REQUIRED_CASES; do
+		case "$spec" in
+		*:*)
+			spec_suite=${spec%%:*}
+			;;
+		*)
+			printf "invalid AUDIT_REQUIRED_CASES entry (want suite:case): %s\n" \
+				"$spec" >&2
+			return 1
+			;;
+		esac
+
+		if [ "$spec_suite" != "*" ] && ! suite_selected "$spec_suite"; then
+			printf "AUDIT_REQUIRED_CASES suite is not selected: %s (SUITES=%s)\n" \
+				"$spec_suite" "$SUITES" >&2
+			return 1
+		fi
+	done
 }
 
 check_artifacts()
@@ -175,9 +302,13 @@ audit_one_suite()
 		return 1
 	fi
 
-	check_required_cases "$baseline_summary" "$suite" "$BASELINE" ||
+	check_case_results "$baseline_summary" "$suite" "$BASELINE" ||
 		suite_failed=1
-	check_required_cases "$candidate_summary" "$suite" "$CANDIDATE" ||
+	check_case_results "$candidate_summary" "$suite" "$CANDIDATE" ||
+		suite_failed=1
+	check_named_cases "$baseline_summary" "$suite" "$BASELINE" ||
+		suite_failed=1
+	check_named_cases "$candidate_summary" "$suite" "$CANDIDATE" ||
 		suite_failed=1
 	check_artifacts "$baseline_summary" "$suite" "$BASELINE" ||
 		suite_failed=1
@@ -244,6 +375,38 @@ selftest()
 		return 1
 	fi
 
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
+		AUDIT_REQUIRED_CASES="gstreamer:not_recorded" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected missing named case audit to fail\n" >&2
+		return 1
+	fi
+
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
+		AUDIT_REQUIRED_CASES="rkmppenc:rkmppenc_avhw_h264_to_hevc_rga_resize" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected unselected named-case suite audit to fail\n" >&2
+		return 1
+	fi
+
+	sed -i 's/gstreamer_diagnostic\t0\t1.000\tpass/gstreamer_diagnostic\t1\t1.000\tfail/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/summary.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
+		REQUIRE_DIAGNOSTIC_PASS=1 REQUIRE_ARTIFACTS=1 \
+		REQUIRE_COUNTER_DELTAS=1 RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected diagnostic failure audit to fail\n" >&2
+		return 1
+	fi
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
+		AUDIT_REQUIRED_CASES="gstreamer:gstreamer_diagnostic" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected named diagnostic failure audit to fail\n" >&2
+		return 1
+	fi
+
 	printf "PASS: rewrite evidence audit selftest\n"
 }
 
@@ -263,6 +426,8 @@ case "${1:-}" in
 	exit 2
 	;;
 esac
+
+validate_named_case_specs
 
 failed=0
 for suite in $SUITES; do
