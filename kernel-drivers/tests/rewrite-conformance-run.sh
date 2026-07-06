@@ -41,7 +41,12 @@ case "$PROFILE" in
 		if [ -z "$REQUIRE_COUNTER_FILE_WAS_SET" ]; then
 			REQUIRE_COUNTER_FILE=1
 		fi
-		: "${LIBRGA_REQUIRED_POSITIVE_COUNTERS:=rga:started_job_count rga:hw_total_ns}"
+		if [ -z "$LIBRGA_REQUIRED_POSITIVE_COUNTERS" ]; then
+			LIBRGA_REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns"
+			if [ "${LIBRGA_FORCE_ROUTE_B:-0}" = "1" ]; then
+				LIBRGA_REQUIRED_POSITIVE_COUNTERS="$LIBRGA_REQUIRED_POSITIVE_COUNTERS rga_route_b:attempt rga_route_b:ok"
+			fi
+		fi
 		: "${GSTREAMER_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
 		: "${FFMPEG_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
 		if [ -n "${MPP_REQUIRED_CASES:-}" ]; then
@@ -134,6 +139,24 @@ validate_counter_defaults()
 	if [ -z "$LIBRGA_REQUIRED_POSITIVE_COUNTERS" ]; then
 		printf "rewrite counter defaults did not require librga counters\n" >&2
 		return 1
+	fi
+	if [ "${LIBRGA_FORCE_ROUTE_B:-0}" = "1" ]; then
+		case " $LIBRGA_REQUIRED_POSITIVE_COUNTERS " in
+		*" rga_route_b:attempt "*)
+			;;
+		*)
+			printf "rewrite Route B forced mode did not require route_b attempts\n" >&2
+			return 1
+			;;
+		esac
+		case " $LIBRGA_REQUIRED_POSITIVE_COUNTERS " in
+		*" rga_route_b:ok "*)
+			;;
+		*)
+			printf "rewrite Route B forced mode did not require route_b successes\n" >&2
+			return 1
+			;;
+		esac
 	fi
 	if [ -z "$GSTREAMER_REQUIRED_POSITIVE_COUNTERS" ]; then
 		printf "rewrite counter defaults did not require GStreamer counters\n" >&2

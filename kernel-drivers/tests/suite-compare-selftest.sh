@@ -47,6 +47,8 @@ write_counter_delta()
 	local hw_ns=${3:-1000}
 	local timeout=${4:-0}
 	local fault=${5:-0}
+	local route_b_attempt=${6:-3}
+	local route_b_ok=${7:-3}
 
 	{
 		printf "component\tcounter\tbefore\tafter\tdelta\n"
@@ -55,6 +57,9 @@ write_counter_delta()
 		printf "mpp\ttimeout_count\t0\t%s\t%s\n" "$timeout" "$timeout"
 		printf "mpp\tiommu_fault_count\t0\t%s\t%s\n" "$fault" "$fault"
 		printf "rga\tirq_error_count\t0\t0\t0\n"
+		printf "rga_route_b\tattempt\t0\t%s\t%s\n" \
+			"$route_b_attempt" "$route_b_attempt"
+		printf "rga_route_b\tok\t0\t%s\t%s\n" "$route_b_ok" "$route_b_ok"
 	} > "$file"
 }
 
@@ -185,9 +190,10 @@ check_counter_check()
 	write_counter_delta "$base_dir/debugfs-counters-delta.tsv"
 
 	SUMMARY="$base_dir/summary.tsv" \
-		REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns" \
+		REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns rga_route_b:attempt rga_route_b:ok" \
 		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_good"
 	grep -q "mpp:started_job_count" "$out_good"
+	grep -q "rga_route_b:attempt" "$out_good"
 	grep -q "forbid_spec" "$out_good"
 
 	set +e

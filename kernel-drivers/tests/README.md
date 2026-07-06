@@ -76,6 +76,7 @@ The smoke tests differ in what device access they need:
 > | `LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT` | `librga-smoke.sh` / `librga-suite.sh` | optional rewrite-only negative check for direct physical-address import (`librga-suite.sh` defaults it to `1` for `PROFILE=*rewrite*`; direct smoke runs default to observational so they can still run on the BSP-derived forward-port, which may accept the import path) |
 > | `LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT` | `librga-smoke.sh` / `librga-suite.sh` | optional rewrite-only negative check for AFBC32x8/RFBC64x4 destination modes through public `librga` calls (`librga-suite.sh` defaults it to `1` for `PROFILE=*rewrite*`; direct smoke runs record, rather than fail, forward-port behavior) |
 > | `LIBRGA_SMOKE_ARTIFACT_DIR` | `librga-smoke.sh` | optional directory for raw destination-buffer dumps; `librga-suite.sh` sets this for its required `ysp_librga_smoke` artifact case |
+> | `LIBRGA_FORCE_ROUTE_B` | `librga-suite.sh` / `rewrite-conformance-run.sh` | set `route_b/force_remap` during the librga suite and restore it at exit; with rewrite counter defaults, also require positive `rga_route_b:attempt` and `rga_route_b:ok` deltas |
 > | `RUN_GSTREAMER` | rewrite smoke | optional JeffyCN GStreamer plugin suite (`0` by default; set `1` to run) |
 > | `RUN_COUNTER_CHECKS` | `rewrite-conformance-run.sh` | optional suite debugfs counter gate (`0` by default); with `PROFILE=*rewrite*`, the runner defaults to requiring counter files plus positive librga/GStreamer/FFmpeg hardware-start and busy-time counters |
 > | `REWRITE_COUNTER_DEFAULTS` | `rewrite-conformance-run.sh` | set `0` to disable the automatic rewrite counter requirements when doing a narrow diagnostic run |
@@ -94,8 +95,10 @@ LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT=1 bash librga-smoke.sh  # rewrite-only AFBC3
 sudo env RGA_FAIL_ON_CASE_FAILURE=1 bash rga-mmu-debug.sh  # RGA3/IOMMU validation gate
 VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free conformance wiring check
 VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # also checks rewrite counter-default wiring
+VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 LIBRGA_FORCE_ROUTE_B=1 bash rewrite-conformance-run.sh  # also checks Route B counter-default wiring
 sudo PROFILE=rewrite bash rewrite-conformance-run.sh  # full profile run on a rewrite boot
 sudo PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # require rewrite hardware counter deltas
+sudo PROFILE=rewrite RUN_COUNTER_CHECKS=1 LIBRGA_FORCE_ROUTE_B=1 RUN_SYSTEM_INFO=0 RUN_ABI_REPLAY=0 RUN_MPP_SUITE=0 RUN_GSTREAMER_SUITE=0 RUN_FFMPEG_SUITE=0 RUN_LIBRGA_SUITE=1 bash rewrite-conformance-run.sh  # focused Route B attribution gate
 bash test-decode.sh                  # decoder liveness (device access is enough)
 bash decode-differential.sh          # decoder correctness: bit-exact HW-vs-SW PSNR, incl. VP9 + AV1
 sudo bash encode-test-tiny.sh        # encoder

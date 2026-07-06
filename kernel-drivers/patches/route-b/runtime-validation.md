@@ -231,6 +231,7 @@ minimum:
 cd /home/yi/Code/rock-5b-ysp
 
 sudo PROFILE=rewrite \
+  LIBRGA_FORCE_ROUTE_B=1 \
   RGA_REQUIRED_CASES='ysp_librga_smoke rga_copy_demo rga_resize_rect_demo rga_transform_rotate_demo' \
   bash kernel-drivers/tests/librga-suite.sh
 
@@ -238,6 +239,7 @@ sudo PROFILE=rewrite \
   RUN_SYSTEM_INFO=0 RUN_ABI_REPLAY=0 RUN_MPP_SUITE=0 \
   RUN_GSTREAMER_SUITE=0 RUN_FFMPEG_SUITE=0 RUN_LIBRGA_SUITE=1 \
   RUN_COUNTER_CHECKS=1 \
+  LIBRGA_FORCE_ROUTE_B=1 \
   RGA_REQUIRED_CASES='ysp_librga_smoke rga_copy_demo rga_resize_rect_demo rga_transform_rotate_demo' \
   bash kernel-drivers/tests/rewrite-conformance-run.sh
 ```
@@ -252,6 +254,12 @@ Pass criteria:
   least one selected direct-virtual-address case, while `active` returns to 0 at
   rest;
 - dmesg has no new RGA/IOMMU fault signature.
+
+`LIBRGA_FORCE_ROUTE_B=1` makes the suite set the rewrite
+`route_b/force_remap` debugfs knob for the run and restore its previous value at
+exit. The conformance runner then adds `rga_route_b:attempt` and
+`rga_route_b:ok` to the required positive counter set, so a passing userspace
+case cannot be mistaken for proof if it stayed on the normal DMA segment path.
 
 ## Completion Rule
 
