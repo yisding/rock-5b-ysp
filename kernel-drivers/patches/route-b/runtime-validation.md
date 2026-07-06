@@ -258,8 +258,10 @@ Pass criteria:
 `LIBRGA_FORCE_ROUTE_B=1` makes the suite set the rewrite
 `route_b/force_remap` debugfs knob for the run and restore its previous value at
 exit. The conformance runner then adds `rga_route_b:attempt` and
-`rga_route_b:ok` to the required positive counter set, so a passing userspace
-case cannot be mistaken for proof if it stayed on the normal DMA segment path.
+`rga_route_b:ok` to the required positive counter set and requires
+`rga_route_b:active` to be zero after the run, so a passing userspace case
+cannot be mistaken for proof if it stayed on the normal DMA segment path or
+leaked a Route B IOVA mapping.
 
 ## Completion Rule
 

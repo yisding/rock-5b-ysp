@@ -49,6 +49,7 @@ write_counter_delta()
 	local fault=${5:-0}
 	local route_b_attempt=${6:-3}
 	local route_b_ok=${7:-3}
+	local route_b_active=${8:-0}
 
 	{
 		printf "component\tcounter\tbefore\tafter\tdelta\n"
@@ -60,6 +61,8 @@ write_counter_delta()
 		printf "rga_route_b\tattempt\t0\t%s\t%s\n" \
 			"$route_b_attempt" "$route_b_attempt"
 		printf "rga_route_b\tok\t0\t%s\t%s\n" "$route_b_ok" "$route_b_ok"
+		printf "rga_route_b\tactive\t0\t%s\t%s\n" \
+			"$route_b_active" "$route_b_active"
 	} > "$file"
 }
 
@@ -181,6 +184,7 @@ check_counter_check()
 	local out_good="$TMP_ROOT/counter-check.good"
 	local out_missing_required="$TMP_ROOT/counter-check.missing-required"
 	local out_forbidden="$TMP_ROOT/counter-check.forbidden"
+	local out_nonzero_after="$TMP_ROOT/counter-check.nonzero-after"
 	local out_missing_file="$TMP_ROOT/counter-check.missing-file"
 	local out_required_file="$TMP_ROOT/counter-check.required-file"
 	local status
@@ -191,9 +195,11 @@ check_counter_check()
 
 	SUMMARY="$base_dir/summary.tsv" \
 		REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns rga_route_b:attempt rga_route_b:ok" \
+		REQUIRED_ZERO_AFTER_COUNTERS="rga_route_b:active" \
 		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_good"
 	grep -q "mpp:started_job_count" "$out_good"
 	grep -q "rga_route_b:attempt" "$out_good"
+	grep -q "rga_route_b:active" "$out_good"
 	grep -q "forbid_spec" "$out_good"
 
 	set +e
@@ -220,6 +226,19 @@ check_counter_check()
 		exit 1
 	fi
 	grep -q "forbidden-positive" "$out_forbidden"
+
+	write_counter_delta "$base_dir/debugfs-counters-delta.tsv" 2 1000 0 0 3 3 1
+	set +e
+	SUMMARY="$base_dir/summary.tsv" \
+		REQUIRED_ZERO_AFTER_COUNTERS="rga_route_b:active" \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_nonzero_after"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "nonzero after-counter unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q "nonzero-after" "$out_nonzero_after"
 
 	rm -f "$base_dir/debugfs-counters-delta.tsv"
 	SUMMARY="$base_dir/summary.tsv" \

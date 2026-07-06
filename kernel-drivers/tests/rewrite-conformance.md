@@ -719,7 +719,7 @@ logs.
 | `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `ffmpeg-suite.sh` | device access for `/dev/mpp_service`, `/dev/rga`, `/dev/dma_heap/*`, and a DRM render node; a staged `ffmpeg-rockchip` build via `FFDIR`; system and/or staged MPP runtime libraries via `FFMPEG_RUNTIME_MODES`, `STAGE`, or `FFMPEG_STAGED_LD_LIBRARY_PATH`; software ffmpeg encoders `libx264`, `libx265`, `libvpx-vp9`, and optionally `libsvtav1`/`libaom-av1` for generated inputs; and readable debugfs/dmesg for full logs. Root is the simplest mode. `FFMPEG_VALIDATE_CASES=1` is the device-free maintenance mode and validates case-list/runtime dispatch wiring. |
 | `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
-| `debugfs-counter-check.sh` | no device access after a suite has run; reads a suite directory's `debugfs-counters-delta.tsv` and optionally requires positive hardware counters such as `mpp:started_job_count`, `mpp:hw_total_ns`, `rga:started_job_count`, or `rga:hw_total_ns`. By default it fails positive rewrite timeout/fault/error counters when the counter file exists. |
+| `debugfs-counter-check.sh` | no device access after a suite has run; reads a suite directory's `debugfs-counters-delta.tsv` and optionally requires positive hardware counters such as `mpp:started_job_count`, `mpp:hw_total_ns`, `rga:started_job_count`, or `rga:hw_total_ns`. `REQUIRED_ZERO_AFTER_COUNTERS` requires selected gauges to be exactly zero after the run; the forced Route B gate uses this for `rga_route_b:active`. By default it fails positive rewrite timeout/fault/error counters when the counter file exists. |
 
 ## What each suite proves
 
@@ -735,7 +735,7 @@ logs.
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 | `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs system-runtime and staged-MPP-runtime passes when available, component/option inspection, device/support preflight, required H.264/H.265/VP9 RKMPP decode and bit-exact PSNR, generated H.264/H.265 encoder-option encodes with PSNR sanity, generated-input H.264<->`scale_rkrga`<->H.265 hardware transcodes, required `scale_rkrga`, `vpp_rkrga`, and `overlay_rkrga` coverage, plus diagnostic/promotable AV1 decode/RGA/transcode/AFBC coverage. Diagnostics also cover H.265 Main10/P010 RGA and H.264 resolution changes; opt-in stress adds repeated short loops and an AV1->RGA->H.264 soak. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `ffmpeg-suite-compare.sh` | **rewrite-vs-forward-port ffmpeg-rockchip comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for encoded bitstream byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
-| `debugfs-counter-check.sh` | **rewrite counter-delta gate** | Checks a captured `debugfs-counters-delta.tsv` from any suite. Use `REQUIRED_POSITIVE_COUNTERS` to prove selected hardware paths actually submitted and reached the IRQ/completion timing path; use `FORBID_POSITIVE_COUNTERS` to override the default timeout/fault/error guard. This complements elapsed-time comparison because it catches “userspace passed but the rewrite did no hardware work” cases. |
+| `debugfs-counter-check.sh` | **rewrite counter-delta gate** | Checks a captured `debugfs-counters-delta.tsv` from any suite. Use `REQUIRED_POSITIVE_COUNTERS` to prove selected hardware paths actually submitted and reached the IRQ/completion timing path; use `REQUIRED_ZERO_AFTER_COUNTERS` for gauges that must settle back to zero at rest; use `FORBID_POSITIVE_COUNTERS` to override the default timeout/fault/error guard. This complements elapsed-time comparison because it catches “userspace passed but the rewrite did no hardware work” cases. |
 
 ## Running the suites & comparators
 
@@ -804,6 +804,11 @@ bash debugfs-counter-check.sh
 
 SUMMARY=../rockchip-conformance/logs/rewrite/<run>-librga-suite/summary.tsv \
 REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns" \
+bash debugfs-counter-check.sh
+
+SUMMARY=../rockchip-conformance/logs/rewrite/<run>-librga-suite/summary.tsv \
+REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns rga_route_b:attempt rga_route_b:ok" \
+REQUIRED_ZERO_AFTER_COUNTERS="rga_route_b:active" \
 bash debugfs-counter-check.sh
 
 SUMMARY=../rockchip-conformance/logs/rewrite/<run>-gstreamer-suite/summary.tsv \

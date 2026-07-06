@@ -31,6 +31,10 @@ MPP_REQUIRED_POSITIVE_COUNTERS=${MPP_REQUIRED_POSITIVE_COUNTERS:-}
 LIBRGA_REQUIRED_POSITIVE_COUNTERS=${LIBRGA_REQUIRED_POSITIVE_COUNTERS:-}
 GSTREAMER_REQUIRED_POSITIVE_COUNTERS=${GSTREAMER_REQUIRED_POSITIVE_COUNTERS:-}
 FFMPEG_REQUIRED_POSITIVE_COUNTERS=${FFMPEG_REQUIRED_POSITIVE_COUNTERS:-}
+MPP_REQUIRED_ZERO_AFTER_COUNTERS=${MPP_REQUIRED_ZERO_AFTER_COUNTERS:-}
+LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS=${LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS:-}
+GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS=${GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS:-}
+FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS=${FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS:-}
 REQUIRE_COUNTER_FILE_WAS_SET=${REQUIRE_COUNTER_FILE+x}
 REQUIRE_COUNTER_FILE=${REQUIRE_COUNTER_FILE:-0}
 
@@ -46,6 +50,10 @@ case "$PROFILE" in
 			if [ "${LIBRGA_FORCE_ROUTE_B:-0}" = "1" ]; then
 				LIBRGA_REQUIRED_POSITIVE_COUNTERS="$LIBRGA_REQUIRED_POSITIVE_COUNTERS rga_route_b:attempt rga_route_b:ok"
 			fi
+		fi
+		if [ "${LIBRGA_FORCE_ROUTE_B:-0}" = "1" ] &&
+			[ -z "$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS" ]; then
+			LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS="rga_route_b:active"
 		fi
 		: "${GSTREAMER_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
 		: "${FFMPEG_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
@@ -95,6 +103,7 @@ run_counter_check()
 	local label=$1
 	local summary=$2
 	local required=$3
+	local required_zero_after=$4
 
 	if [ "$RUN_COUNTER_CHECKS" != "1" ]; then
 		return
@@ -103,6 +112,7 @@ run_counter_check()
 	run_step "$label: check rewrite debugfs counters" \
 		env SUMMARY="$summary" \
 		REQUIRED_POSITIVE_COUNTERS="$required" \
+		REQUIRED_ZERO_AFTER_COUNTERS="$required_zero_after" \
 		FORBID_POSITIVE_COUNTERS="${FORBID_POSITIVE_COUNTERS:-}" \
 		REQUIRE_COUNTER_FILE="$REQUIRE_COUNTER_FILE" \
 		bash "$TEST_DIR/debugfs-counter-check.sh"
@@ -157,6 +167,14 @@ validate_counter_defaults()
 			return 1
 			;;
 		esac
+		case " $LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS " in
+		*" rga_route_b:active "*)
+			;;
+		*)
+			printf "rewrite Route B forced mode did not require active gauge to return to zero\n" >&2
+			return 1
+			;;
+		esac
 	fi
 	if [ -z "$GSTREAMER_REQUIRED_POSITIVE_COUNTERS" ]; then
 		printf "rewrite counter defaults did not require GStreamer counters\n" >&2
@@ -192,7 +210,8 @@ run_profile_suites()
 			OUT="$MPP_SUITE_OUT" \
 			bash "$TEST_DIR/mpp-suite.sh"
 		run_counter_check "mpp" "$MPP_SUITE_OUT/summary.tsv" \
-			"$MPP_REQUIRED_POSITIVE_COUNTERS"
+			"$MPP_REQUIRED_POSITIVE_COUNTERS" \
+			"$MPP_REQUIRED_ZERO_AFTER_COUNTERS"
 	fi
 
 	if [ "$RUN_LIBRGA_SUITE" = "1" ]; then
@@ -201,7 +220,8 @@ run_profile_suites()
 			OUT="$LIBRGA_SUITE_OUT" \
 			bash "$TEST_DIR/librga-suite.sh"
 		run_counter_check "rga" "$LIBRGA_SUITE_OUT/summary.tsv" \
-			"$LIBRGA_REQUIRED_POSITIVE_COUNTERS"
+			"$LIBRGA_REQUIRED_POSITIVE_COUNTERS" \
+			"$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS"
 	fi
 
 	if [ "$RUN_GSTREAMER_SUITE" = "1" ]; then
@@ -210,7 +230,8 @@ run_profile_suites()
 			OUT="$GSTREAMER_SUITE_OUT" \
 			bash "$TEST_DIR/gstreamer-suite.sh"
 		run_counter_check "gstreamer" "$GSTREAMER_SUITE_OUT/summary.tsv" \
-			"$GSTREAMER_REQUIRED_POSITIVE_COUNTERS"
+			"$GSTREAMER_REQUIRED_POSITIVE_COUNTERS" \
+			"$GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS"
 	fi
 
 	if [ "$RUN_FFMPEG_SUITE" = "1" ]; then
@@ -219,7 +240,8 @@ run_profile_suites()
 			OUT="$FFMPEG_SUITE_OUT" \
 			bash "$TEST_DIR/ffmpeg-suite.sh"
 		run_counter_check "ffmpeg" "$FFMPEG_SUITE_OUT/summary.tsv" \
-			"$FFMPEG_REQUIRED_POSITIVE_COUNTERS"
+			"$FFMPEG_REQUIRED_POSITIVE_COUNTERS" \
+			"$FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS"
 	fi
 }
 

@@ -5,6 +5,7 @@ set -euo pipefail
 SUMMARY=${SUMMARY:-${1:-}}
 COUNTERS_FILE=${COUNTERS_FILE:-}
 REQUIRED_POSITIVE_COUNTERS=${REQUIRED_POSITIVE_COUNTERS:-}
+REQUIRED_ZERO_AFTER_COUNTERS=${REQUIRED_ZERO_AFTER_COUNTERS:-}
 FORBID_POSITIVE_COUNTERS=${FORBID_POSITIVE_COUNTERS:-"mpp:timeout_count mpp:iommu_fault_count rga:timeout_count rga:irq_error_count rga:iommu_fault_count"}
 REQUIRE_COUNTER_FILE=${REQUIRE_COUNTER_FILE:-0}
 
@@ -22,13 +23,15 @@ if [ ! -f "$COUNTERS_FILE" ]; then
 	echo "counter_file	$COUNTERS_FILE"
 	echo "reason	missing debugfs counter delta file"
 	if [ "$REQUIRE_COUNTER_FILE" = "1" ] ||
-		[ -n "$REQUIRED_POSITIVE_COUNTERS" ]; then
+		[ -n "$REQUIRED_POSITIVE_COUNTERS" ] ||
+		[ -n "$REQUIRED_ZERO_AFTER_COUNTERS" ]; then
 		exit 1
 	fi
 	exit 0
 fi
 
 awk -v required_specs="$REQUIRED_POSITIVE_COUNTERS" \
+    -v required_zero_after_specs="$REQUIRED_ZERO_AFTER_COUNTERS" \
     -v forbid_specs="$FORBID_POSITIVE_COUNTERS" \
     -v counter_file="$COUNTERS_FILE" '
 function split_specs(value, array,    n, i, token) {
@@ -68,13 +71,43 @@ function spec_delta_sum(spec,    key, total) {
 	return total;
 }
 
+function spec_seen_count(spec,    key, total) {
+	total = 0;
+	for (key in seen) {
+		if (spec_matches(spec, component_by_key[key], counter_by_key[key]))
+			total++;
+	}
+	return total;
+}
+
+function spec_after_sum(spec,    key, total) {
+	total = 0;
+	for (key in after_by_key) {
+		if (spec_matches(spec, component_by_key[key], counter_by_key[key]))
+			total += after_by_key[key];
+	}
+	return total;
+}
+
+function spec_after_non_numeric_count(spec,    key, total) {
+	total = 0;
+	for (key in seen) {
+		if (spec_matches(spec, component_by_key[key], counter_by_key[key]) &&
+		    !after_numeric_by_key[key])
+			total++;
+	}
+	return total;
+}
+
 BEGIN {
 	FS = OFS = "\t";
 	failed = 0;
 	split_specs(required_specs, required);
+	split_specs(required_zero_after_specs, required_zero_after);
 	split_specs(forbid_specs, forbidden);
 	print "counter_file", counter_file;
 	print "required_positive", required_specs;
+	print "required_zero_after", required_zero_after_specs;
 	print "forbid_positive", forbid_specs;
 	print "";
 	print "component", "counter", "before", "after", "delta", "verdict";
@@ -89,7 +122,8 @@ FNR == 1 {
 	component_by_key[key] = $1;
 	counter_by_key[key] = $2;
 	before_by_key[key] = $3;
-	after_by_key[key] = $4;
+	after_by_key[key] = ($4 ~ /^-?[0-9]+$/) ? $4 + 0 : 0;
+	after_numeric_by_key[key] = ($4 ~ /^-?[0-9]+$/) ? 1 : 0;
 	delta_by_key[key] = ($5 ~ /^-?[0-9]+$/) ? $5 + 0 : 0;
 	seen[key] = 1;
 }
@@ -126,6 +160,31 @@ END {
 			print required[i], sum, "ok";
 		} else {
 			print required[i], sum, "missing-or-zero";
+			failed = 1;
+		}
+	}
+
+	if (required_zero_after[0])
+		print "require_zero_after_spec", "observed_after", "verdict";
+	for (i = 1; i <= required_zero_after[0]; i++) {
+		if (!split_spec(required_zero_after[i], parts)) {
+			print required_zero_after[i], "n/a", "invalid-spec";
+			failed = 1;
+			continue;
+		}
+		seen_count = spec_seen_count(required_zero_after[i]);
+		missing_after = spec_after_non_numeric_count(required_zero_after[i]);
+		sum = spec_after_sum(required_zero_after[i]);
+		if (seen_count == 0) {
+			print required_zero_after[i], "missing", "missing";
+			failed = 1;
+		} else if (missing_after > 0) {
+			print required_zero_after[i], "missing", "missing-after";
+			failed = 1;
+		} else if (sum == 0) {
+			print required_zero_after[i], sum, "ok";
+		} else {
+			print required_zero_after[i], sum, "nonzero-after";
 			failed = 1;
 		}
 	}

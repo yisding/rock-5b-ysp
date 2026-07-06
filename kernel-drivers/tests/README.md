@@ -80,6 +80,7 @@ The smoke tests differ in what device access they need:
 > | `RUN_GSTREAMER` | rewrite smoke | optional JeffyCN GStreamer plugin suite (`0` by default; set `1` to run) |
 > | `RUN_COUNTER_CHECKS` | `rewrite-conformance-run.sh` | optional suite debugfs counter gate (`0` by default); with `PROFILE=*rewrite*`, the runner defaults to requiring counter files plus positive librga/GStreamer/FFmpeg hardware-start and busy-time counters |
 > | `REWRITE_COUNTER_DEFAULTS` | `rewrite-conformance-run.sh` | set `0` to disable the automatic rewrite counter requirements when doing a narrow diagnostic run |
+> | `REQUIRED_ZERO_AFTER_COUNTERS` | `debugfs-counter-check.sh` | optional counter specs whose after-run value must be exactly zero, used by the Route B gate for `rga_route_b:active` |
 
 ## Run
 
