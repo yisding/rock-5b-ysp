@@ -296,6 +296,10 @@ run_validation()
 		env IOCTL_FUZZ_VALIDATE_BUILD=1 \
 		bash "$TEST_DIR/ioctl-fuzz-smoke.sh"
 
+	run_step "rga: validate direct librga smoke build" \
+		env LIBRGA_SMOKE_VALIDATE_BUILD=1 \
+		bash "$TEST_DIR/librga-smoke.sh"
+
 	run_step "iommu: validate RGA scatter fuzzer build" \
 		env IOMMU_FUZZ_VALIDATE_BUILD=1 \
 		bash "$TEST_DIR/iommu-machinery-fuzz.sh"

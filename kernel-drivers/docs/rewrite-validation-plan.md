@@ -26,7 +26,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 |---|---|---|
 | Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) | reuse as the pre-merge gate |
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release, RGA dma-buf import/release, and raw RGA physical-address import observation with an opt-in rewrite reject assertion | reuse; extend to bit-exact output (below) |
-| Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md), including opt-in GStreamer display/KMS-capture, AV1, and legacy advertised-decode diagnostic cases | reuse; wire the pass/fail gate |
+| Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md), including opt-in GStreamer display/KMS-capture, AV1, and legacy advertised-decode diagnostic cases; `VALIDATE_ONLY=1` now also compile-checks the direct `librga-smoke.cpp` source used for maintained RGA artifacts | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
 | Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` plus [`debugfs-counter-check.sh`](../tests/debugfs-counter-check.sh) | reuse as assertion hooks throughout |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
@@ -95,6 +95,12 @@ adds the required `ysp_librga_smoke` case to dump deterministic direct RGA
 destination buffers for rewrite-vs-forward-port comparison. Extend that
 byte-exact discipline to additional official librga sample outputs only where a
 remaining userspace-visible gap needs it:
+
+The direct `librga-smoke.cpp` source is also part of the device-free
+maintenance gate through `LIBRGA_SMOKE_VALIDATE_BUILD=1`, so API/header drift in
+the maintained direct RGA artifact path fails before a board run. That build
+check is not runtime proof; the full `ysp_librga_smoke` case still needs a
+booted `/dev/rga` owner and artifact comparison against the forward-port.
 
 `debugfs-counter-check.sh` can now require positive `started_job_count` /
 `hw_total_ns` deltas for selected rewrite MPP/RGA runs while failing positive
