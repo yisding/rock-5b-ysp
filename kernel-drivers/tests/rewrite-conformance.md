@@ -65,15 +65,17 @@ kernel-drivers/tests/rewrite-build-gate.sh all
 source edits. Use it only when checking the last pushed state while another
 worktree has unrelated local changes.
 
-Last recorded run: `kernel-drivers/tests/rewrite-build-gate.sh all`
-on 2026-07-06 passed warning-free for the committed rewrite tips
-`../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and `../kernel/linux@938b1d2032c3`
-after display-tail RGB565/RGA3 and XRGB/RGA2 rotation KUnit coverage was added.
-On the same date,
-`REWRITE_BUILD_PROFILES="memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
-also passed warning-free for both trees at the prior
-`1f551f8fd32e`/`0ec942b2f0c5` pins, proving compile coverage with
-KASAN/fault-injection and KCSAN/lockdep enabled before the display-tail follow-ups.
+Last recorded compile gate: on 2026-07-06 the `normal`, `memory`, and `race`
+profiles all passed warning-free for the committed rewrite tips
+`../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and `../kernel/linux@938b1d2032c3`.
+The first all-in-one
+`REWRITE_BUILD_PROFILES="normal memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
+run completed 6.18 `normal`/`memory`/`race` plus mainline `normal`, then
+exhausted the 7.8 GiB `/tmp` tmpfs while unpacking the mainline `memory` source
+archive. The scratch tree was cleaned by the script trap, and rerunning
+mainline `memory` and mainline `race` as isolated profiles passed. This records
+a host-capacity limit of the combined six-profile invocation, not a rewrite
+compile failure.
 The same maintenance pass also ran
 `VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh` and
 `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`,
