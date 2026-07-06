@@ -470,6 +470,20 @@ static void fill_bgrx_pattern(uint8_t *buf, int width, int height)
 	}
 }
 
+static void fill_bgra_alpha_pattern(uint8_t *buf, int width, int height)
+{
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			uint8_t *px = buf + ((y * width + x) * TEST_BPP);
+
+			px[0] = (uint8_t)(0x10 + (x & 0x3f));
+			px[1] = (uint8_t)(0x20 + (y & 0x3f));
+			px[2] = (uint8_t)(0x30 + ((x ^ y) & 0x3f));
+			px[3] = 0x80;
+		}
+	}
+}
+
 static void fill_rgb_pattern(uint8_t *buf, int width, int height)
 {
 	for (int y = 0; y < height; y++) {
@@ -497,6 +511,48 @@ static int buffer_changed_from_sentinel(const uint8_t *buf, size_t size,
 static int nv12_changed_from_sentinel(const uint8_t *buf, size_t size)
 {
 	return buffer_changed_from_sentinel(buf, size, 0x80);
+}
+
+static int check_partial_rect_update(const uint8_t *buf, int width, int height,
+				     const im_rect *rect, uint8_t sentinel,
+				     const char *name)
+{
+	bool changed_inside = false;
+
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			const uint8_t *px = buf + ((y * width + x) * TEST_BPP);
+			bool in_rect = x >= rect->x &&
+				       x < rect->x + rect->width &&
+				       y >= rect->y &&
+				       y < rect->y + rect->height;
+			bool pixel_changed = false;
+
+			for (int i = 0; i < TEST_BPP; i++) {
+				if (px[i] != sentinel) {
+					pixel_changed = true;
+					break;
+				}
+			}
+
+			if (in_rect) {
+				changed_inside |= pixel_changed;
+			} else if (pixel_changed) {
+				fprintf(stderr,
+					"%s changed outside target rect at %d,%d: %02x:%02x:%02x:%02x\n",
+					name, x, y, px[0], px[1], px[2],
+					px[3]);
+				return 1;
+			}
+		}
+	}
+
+	if (!changed_inside) {
+		fprintf(stderr, "%s target rect unchanged\n", name);
+		return 1;
+	}
+
+	return 0;
 }
 
 static void fill_nv12_pattern(uint8_t *buf, int width, int height)
@@ -2559,6 +2615,126 @@ static int run_legacy_display_rgb_rotate(void)
 						 HAL_TRANSFORM_ROT_90);
 }
 
+static int run_display_tail_bgra_partial_blend(void)
+{
+	const int src_w = 64;
+	const int src_h = 48;
+	const int dst_w = 80;
+	const int dst_h = 64;
+	const uint8_t sentinel = 0x11;
+	const int blend_usage = IM_ALPHA_BLEND_SRC_OVER |
+				IM_ALPHA_BLEND_PRE_MUL;
+	const size_t src_size = (size_t)src_w * src_h * TEST_BPP;
+	const size_t dst_size = (size_t)dst_w * dst_h * TEST_BPP;
+	struct dmabuf_test_buffer dma_src = {};
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	rga_buffer_t src;
+	rga_buffer_t dst;
+	im_rect src_rect = {8, 6, 28, 20};
+	im_rect dst_rect = {24, 18, 28, 20};
+	int ret;
+
+	ret = dmabuf_alloc_any(src_size, &dma_src);
+	if (ret) {
+		fprintf(stderr, "display blend source allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_alloc_any(dst_size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "display blend dest allocation failed: %s\n",
+			strerror(-ret));
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "display blend source start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	fill_bgra_alpha_pattern(dma_src.mem, src_w, src_h);
+	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "display blend source end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "display blend dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, sentinel, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "display blend dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	src_handle = importbuffer_fd(dma_src.fd, src_size);
+	dst_handle = importbuffer_fd(dma_dst.fd, dst_size);
+	if (!src_handle || !dst_handle) {
+		fprintf(stderr, "display blend importbuffer_fd failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, src_w, src_h, RK_FORMAT_BGRA_8888);
+	dst = wrapbuffer_handle(dst_handle, dst_w, dst_h, RK_FORMAT_BGRA_8888);
+
+	ret = imcheck(src, dst, src_rect, dst_rect, blend_usage);
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("imcheck display blend", ret);
+		goto out;
+	}
+
+	ret = improcess(src, dst, {}, src_rect, dst_rect, {}, -1, NULL, NULL,
+			IM_SYNC | blend_usage);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("improcess display blend", ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "display blend read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (check_partial_rect_update(dma_dst.mem, dst_w, dst_h, &dst_rect,
+				      sentinel, "display blend")) {
+		ret = 1;
+	} else {
+		ret = write_artifact("display_bgra_partial_blend",
+				     dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"display blend read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "display BGRA blend",
+		       dma_src.heap_path);
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_src);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 static int run_legacy_display_tail_rotate(void)
 {
 	int ret;
@@ -2570,10 +2746,14 @@ static int run_legacy_display_tail_rotate(void)
 	if (ret)
 		return ret;
 
-	return run_legacy_display_rgb_rotate_one("legacy display XRGB",
-						 "legacy_xrgb_display_rot270",
-						 RK_FORMAT_XRGB_8888,
-						 HAL_TRANSFORM_ROT_270);
+	ret = run_legacy_display_rgb_rotate_one("legacy display XRGB",
+						"legacy_xrgb_display_rot270",
+						RK_FORMAT_XRGB_8888,
+						HAL_TRANSFORM_ROT_270);
+	if (ret)
+		return ret;
+
+	return run_display_tail_bgra_partial_blend();
 }
 
 static int run_legacy_virtual_rgba_flip(void)

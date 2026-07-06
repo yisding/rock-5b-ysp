@@ -36,7 +36,7 @@ the rewrite.
 | Jellyfin/FFmpeg/Kodi/OpenWrt packaging | `SynoCommunity/spksrc` ffmpeg8 Rockchip patch at `34c6e71`; `armsurvivors/kodi-rockchip-deb` Dockerfile at `dd1e192`; `jjm2473/openwrt-rkmpp` package makefiles at `64c04f1`; `tsukumijima/librga-rockchip` package repo scan | `--enable-rkrga`/`--enable-librga`; `scale_rkrga`, `vpp_rkrga`, `overlay_rkrga`; RKMPP decode/encode; distribution packaging of `librga`, MPP, and `ffmpeg-rockchip` | Already represented by the YSP `ffmpeg-suite.sh`/Jellyfin-oriented filter coverage. Package repos prove distribution demand for the same stack, not a separate RGA ABI surface. |
 | RKNN/Yolo preprocessing examples | `MontaukLaw/3568_rknn_rtmp` `rga_func.c` at `178599e`, Rockchip `rknn-toolkit2` bundled `RockchipRga.h` at `59a913d`, and `1125962926/YOLO_RKNN_Acceleration_Program` preprocessing at `7fdd2f1` | legacy `c_RkRgaBlit` for RGB resize; IM2D `wrapbuffer_virtualaddr`, `importbuffer_virtualaddr`, `wrapbuffer_fd`, `imresize`, and `imcvtcolor`; one older example writes to `dst.phyAddr` with `mmuFlag = 0` | The fd/virtual preprocessing shape is already mirrored by `librga-smoke.sh`. Direct physical-address submission is a compatibility risk, but not a current RK3588 requirement yet; keep it cleanly rejected until a target workload needs it. |
 | Standalone RGA demo/sample repos | `sravansenthiln1/rga-demos` sample sources at `b36dff0`; `BedRockJie/rockchip-rga-sample` `src/rga_test.cpp` at `5286187` | `querystring(RGA_*)`, `importbuffer_fd`, `importbuffer_virtualaddr`, `wrapbuffer_handle`, copy/crop/resize/rotate/fill/draw/color-convert samples | Mostly duplicates official `librga` sample coverage already in the conformance bundle. Useful for developer sanity checks, but not evidence of a separate production ABI requirement. |
-| UI/display/media-player stacks | SDL KMSDRM rotation patch in `knulli-linux` at `4cfc5d`; LVGL/RKADK sample at `6e1bb1`; `iambronze/mp4player` `media/rga_utils.cc` at `f7dfb8d` | GBM/dumb-buffer fds, virtual draw buffers, BGRA/XRGB `c_RkRgaBlit`, 90/270-degree rotation into scanout buffers, optional alpha/blend on virtual MPP frame copies | Not a media-server requirement, but common appliance-style usage. Optional display smoke would cover fd-backed BGRA/XRGB rotation, virtual-buffer blit, blend, and partial updates. |
+| UI/display/media-player stacks | SDL KMSDRM rotation patch in `knulli-linux` at `4cfc5d`; LVGL/RKADK sample at `6e1bb1`; `iambronze/mp4player` `media/rga_utils.cc` at `f7dfb8d` | GBM/dumb-buffer fds, virtual draw buffers, BGRA/XRGB `c_RkRgaBlit`, 90/270-degree rotation into scanout buffers, optional alpha/blend on virtual MPP frame copies | Not a media-server requirement, but common appliance-style usage. `LIBRGA_SMOKE_DISPLAY_TAIL=1` now covers fd-backed BGRA/XRGB rotation plus a deterministic BGRA partial-rectangle alpha blend artifact; it still is not a full GBM/DRM scanout test. |
 | Old DRM-RGA userspace | `zouxf1024/libdrm-rockchip` RGA helper/API at `5d82052` | Rockchip DRM/GEM RGA helper structs and DRM ioctl path, not the `/dev/rga` `librga` character device ABI | Different historical userspace interface. Do not pull it into the `/dev/rga` rewrite unless the project explicitly grows a DRM-RGA compatibility target. |
 | Language wrappers | `varphone/rkrga` Rust wrapper at `057cc92` | thin wrapper over `c_RkRgaInit`, `c_RkRgaBlit`, `c_RkRgaColorFill`, rotate/scale/fill helpers | No new kernel behavior. Passing the C API surfaces is enough for wrappers; the direct smoke now covers fd-backed legacy `c_RkRgaColorFill()` as well as legacy blit. |
 
@@ -63,10 +63,10 @@ as useful but non-blocking conformance work:
   direct smoke covers fd-backed IM2D flip, virtual legacy `c_RkRgaBlit()` flip
   primitives, the thread-default `imconfig(IM_CONFIG_SCHEDULER_CORE, ...)`
   core-mask call, and `IM_CONFIG_PRIORITY`;
-- add one UI/display smoke for fd-backed BGRA/XRGB rotation into a GBM or dumb
-  scanout buffer if display-appliance use becomes part of the target profile;
-  `LIBRGA_SMOKE_DISPLAY_TAIL=1` now makes the fd-backed BGRA/XRGB legacy
-  display-rotation primitive executable, though it still is not a full GBM/DRM
+- keep UI/display smoke optional unless display-appliance use becomes part of
+  the target profile; `LIBRGA_SMOKE_DISPLAY_TAIL=1` now makes the fd-backed
+  BGRA/XRGB legacy display-rotation primitive and a BGRA partial-rectangle
+  alpha-blend artifact executable, though it still is not a full GBM/DRM
   scanout lifecycle test;
 - keep direct physical-address RGA submission as recognized-but-unsupported
   unless a current RK3588 RKNPU/RKADK app cannot be moved to fd or virtual
