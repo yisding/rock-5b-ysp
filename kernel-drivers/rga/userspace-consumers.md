@@ -62,7 +62,7 @@ DRM-RGA ioctls, or RGA2-Pro FBC source modes to the required profile.
 | Xorg/Qt/pixman desktop acceleration patches | Khadas/TinkerBoard Xorg modesetting EXA at `fad645a`; Qt raster `fillRect` patch at `55c00e`; LubanCat-style pixman composite patches | fd or virtual pixmaps, `c_RkRgaColorFill()`, `c_RkRgaBlit()`, copy/fill/upload/download, 0/90/180/270 transforms, source/source-over blending, RGB565/BGRA/BGRX and limited YUV/NV12-family formats | Useful desktop-stack signal for the same legacy fill/blit/blend primitives. Keep it optional unless desktop acceleration becomes a target profile; the direct smoke and GStreamer/display diagnostics already cover the kernel-visible pieces. |
 | Old DRM-RGA userspace | `zouxf1024/libdrm-rockchip` RGA helper/API at `5d82052` | Rockchip DRM/GEM RGA helper structs and DRM ioctl path, not the `/dev/rga` `librga` character device ABI | Different historical userspace interface. Do not pull it into the `/dev/rga` rewrite unless the project explicitly grows a DRM-RGA compatibility target. |
 | Language wrappers | `varphone/rkrga` Rust wrapper at `057cc92`; `enthropy7/YSCV` Rust RGA module at `f034482`; `vicharak-in/zig-rga` binding at `35616b3` | Thin wrappers over `c_RkRgaInit`, `c_RkRgaBlit`, `c_RkRgaColorFill`, IM2D helpers, dynamic `librga.so` loading, and fd-or-virtual RGB/NV12/NV21/I420 surfaces | No new kernel behavior. Passing the C API surfaces is enough for wrappers; the direct smoke now covers fd-backed legacy `c_RkRgaColorFill()` as well as legacy blit. |
-| Runtime wrappers and G2D shims | `w-0x1f/linux-media` C# wrapper at `439ac1`; `zczjx/posix-bsp-perf` RGA G2D shim at `e17acf`; `wxd9199/drmclone` RGA helper at `72f39d3` | P/Invoke wrappers for `c_RkRgaBlit`, `c_RkRgaColorFill`, and `c_RkRgaFlush`; C++ fd/virtual wrapping through `importbuffer_fd`, `importbuffer_virtualaddr`, `wrapbuffer_fd_t`/`wrapbuffer_virtualaddr_t`/`wrapbuffer_handle`; `imresize`, `imcvtcolor`, `imcopy`, `imrotate`, `imrectangle`; thread-local `imconfig(IM_CONFIG_SCHEDULER_CORE, RGA3 core mask)` | No new ioctl surface, but it reinforces that scheduler-core control, legacy fill/flush, fd wrapping, virtual-address wrapping, RGB-family DRM-format mapping, and rotate/copy helpers are public app expectations rather than sample-only behavior. |
+| Runtime wrappers and G2D shims | `w-0x1f/linux-media` C# wrapper at `439ac1`; `zczjx/posix-bsp-perf` RGA G2D shim at `e17acf`; `wxd9199/drmclone` RGA helper at `72f39d3` | P/Invoke wrappers for `c_RkRgaBlit`, `c_RkRgaColorFill`, and `c_RkRgaFlush`; C++ fd/virtual wrapping through `importbuffer_fd`, `importbuffer_virtualaddr`, `wrapbuffer_fd_t`/`wrapbuffer_virtualaddr_t`/`wrapbuffer_handle`; `imresize`, `imcvtcolor`, `imcopy`, `imrotate`, `imrectangle`; thread-local `imconfig(IM_CONFIG_SCHEDULER_CORE, RGA3 core mask)` | No new ioctl surface, but it reinforces that scheduler-core control, legacy fill/flush, fd wrapping, virtual-address wrapping, RGB-family DRM-format mapping, rectangle drawing, and rotate/copy helpers are public app expectations rather than sample-only behavior. |
 
 ## Conformance mapping
 
@@ -110,8 +110,8 @@ as useful but non-blocking conformance work:
   diagnostics for now; the late-pass BrightSign/GStreamer-MPP/drmclone/YSCV
   hits land in the same bucket. Their kernel-visible pieces are fd import,
   virtual import, IM2D color conversion/resize, legacy blit/rotate, and
-  scheduler-core selection, all already inside the rewrite's required or
-  near-required RGA surface;
+  scheduler-core selection, and rectangle drawing, all already inside the
+  rewrite's required or near-required RGA surface;
 - keep direct physical-address RGA submission as recognized-but-unsupported
   unless a current RK3588 RKNPU/RKADK app cannot be moved to fd or virtual
   buffers.

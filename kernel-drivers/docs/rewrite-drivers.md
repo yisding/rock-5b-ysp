@@ -86,7 +86,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 > BGR16/RGB/BGR/RGBA/BGRA/RGBx/BGRx/NV21/NV16/NV61/I420/YV12 decoder-side output
 > conversion. The in-repo direct `librga` smoke
 > covers virtual-address imports, dma-heap dma-buf allocation plus `importbuffer_fd`, sync
-> copy/resize/fill, RKNN/RKNPU-style RGB/NV12/NV21 preprocessing plus
+> copy/resize/fill/rectangle, RKNN/RKNPU-style RGB/NV12/NV21 preprocessing plus
 > RGBA crop/letterbox,
 > legacy `c_RkRgaBlit()` conversions shaped like JeffyCN
 > GStreamer (`BGRx` malloc source to NV12 dma-buf encoder preprocessing,

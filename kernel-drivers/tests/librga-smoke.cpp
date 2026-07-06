@@ -571,6 +571,46 @@ static int check_partial_rect_update(const uint8_t *buf, int width, int height,
 	return 0;
 }
 
+static int check_rectangle_border_update(const uint8_t *buf, int width,
+					 int height, const im_rect *rect,
+					 int thickness, uint8_t sentinel)
+{
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			const uint8_t *px = buf + ((y * width + x) * TEST_BPP);
+			bool in_rect = x >= rect->x &&
+				       x < rect->x + rect->width &&
+				       y >= rect->y &&
+				       y < rect->y + rect->height;
+			bool in_border = in_rect &&
+					 (x < rect->x + thickness ||
+					  x >= rect->x + rect->width - thickness ||
+					  y < rect->y + thickness ||
+					  y >= rect->y + rect->height - thickness);
+			bool changed = false;
+
+			for (int i = 0; i < TEST_BPP; i++)
+				changed |= px[i] != sentinel;
+
+			if (in_border) {
+				if (!changed) {
+					fprintf(stderr,
+						"rectangle border pixel %d,%d unchanged\n",
+						x, y);
+					return 1;
+				}
+			} else if (changed) {
+				fprintf(stderr,
+					"rectangle non-border pixel %d,%d changed: %02x:%02x:%02x:%02x\n",
+					x, y, px[0], px[1], px[2], px[3]);
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static void fill_nv12_pattern(uint8_t *buf, int width, int height)
 {
 	uint8_t *y_plane = buf;
@@ -2031,6 +2071,89 @@ out:
 	return ret;
 }
 
+static int run_dmabuf_imrectangle_rgba(void)
+{
+	const int width = TEST_DST_W;
+	const int height = TEST_DST_H;
+	const int thickness = 2;
+	const size_t size = (size_t)width * height * TEST_BPP;
+	const uint8_t sentinel = 0x22;
+	struct dmabuf_test_buffer dma_dst = {};
+	rga_buffer_handle_t dst_handle = 0;
+	rga_buffer_t dst;
+	im_rect rect = {4, 5, 20, 18};
+	int ret;
+
+	ret = dmabuf_alloc_any(size, &dma_dst);
+	if (ret) {
+		fprintf(stderr, "imrectangle dest allocation failed: %s\n",
+			strerror(-ret));
+		return 1;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
+			  "imrectangle dest start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	memset(dma_dst.mem, sentinel, dma_dst.size);
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
+			  "imrectangle dest end");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+
+	dst_handle = importbuffer_fd(dma_dst.fd, size);
+	if (!dst_handle) {
+		fprintf(stderr, "imrectangle importbuffer_fd failed: %s\n",
+			strerror(errno));
+		ret = 1;
+		goto out;
+	}
+
+	dst = wrapbuffer_handle(dst_handle, width, height, RK_FORMAT_RGBA_8888);
+	ret = imcheck({}, dst, {}, rect, IM_COLOR_FILL);
+	if (ret != IM_STATUS_NOERROR) {
+		ret = fail_status("imcheck imrectangle", ret);
+		goto out;
+	}
+
+	ret = imrectangle(dst, rect, 0xff00ff00, thickness);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("imrectangle", ret);
+		goto out;
+	}
+
+	ret = dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+			  "imrectangle read start");
+	if (ret) {
+		ret = 1;
+		goto out;
+	}
+	if (check_rectangle_border_update(dma_dst.mem, width, height, &rect,
+					  thickness, sentinel)) {
+		ret = 1;
+	} else {
+		ret = write_artifact("imrectangle_rgba_border",
+				     dma_dst.mem, dma_dst.size);
+	}
+	if (dmabuf_sync(dma_dst.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+			"imrectangle read end"))
+		ret = 1;
+	if (!ret)
+		printf("%-24s ok heap=%s\n", "imrectangle",
+		       dma_dst.heap_path);
+
+out:
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	dmabuf_free(&dma_dst);
+
+	return ret;
+}
+
 static int run_physical_import_probe(void)
 {
 	const size_t phys_size = (size_t)64 * 64 * TEST_BPP;
@@ -3338,6 +3461,10 @@ int main(void)
 		goto out;
 
 	ret = run_legacy_color_fill();
+	if (ret)
+		goto out;
+
+	ret = run_dmabuf_imrectangle_rgba();
 	if (ret)
 		goto out;
 
