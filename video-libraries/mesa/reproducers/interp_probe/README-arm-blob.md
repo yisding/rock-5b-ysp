@@ -65,57 +65,232 @@ duplicating or drifting from the canonical Vulkan source. The searched RK3588
 libmali ICD advertises Vulkan 1.3, so the existing dynamic-rendering probe is
 the right first run on this hardware.
 
-## Build
+The `*_explained.c` ARM files are the teaching copies:
 
-Run from this directory:
+- `tiny_interp_probe_arm_blob_explained.c` is standalone because the GLES/EGL
+  setup really differs from the Mesa tiny probe. It explains each ARM-specific
+  step: DRM render node, GBM device, GBM EGL display, and surfaceless
+  `eglMakeCurrent`.
+- `vk_interp_probe_arm_blob_explained.c` is a documented wrapper around
+  `vk_interp_probe_explained.c` because Vulkan does not use EGL, and the
+  RK3588 libmali ICD advertises the Vulkan 1.3 path used by the canonical
+  reproducer.
+
+## Detailed Runbook
+
+Run these commands on the Rock 5B itself, or on an RK3588 system with the same
+proprietary Mali userspace stack installed. Start from the reproducers
+directory:
 
 ```bash
-cc -O2 -o tiny_interp_probe_arm_blob \
-  tiny_interp_probe_arm_blob.c -lEGL -lGLESv2 -lgbm -lm
-
-glslc vk_interp_probe.vert           -o vk_interp_probe.vert.spv
-glslc vk_interp_probe.varying.frag   -o vk_interp_probe.varying.frag.spv
-glslc vk_interp_probe.fragcoord.frag -o vk_interp_probe.fragcoord.frag.spv
-cc -O2 -o vk_interp_probe_arm_blob vk_interp_probe_arm_blob.c -lvulkan -lm
+cd video-libraries/mesa/reproducers/interp_probe
 ```
 
-If the proprietary libraries are not installed in the system loader path, point
-the dynamic linker and Vulkan loader at them explicitly. Do not carry over Mesa
-driver overrides from the Mesa reproducers:
+### 1. Check The Render Node
+
+The GLES ARM reproducer opens a DRM render node so it can create the GBM display
+that libmali expects:
+
+```bash
+ls -l /dev/dri/renderD*
+```
+
+The default is `/dev/dri/renderD128`. If your board exposes a different render
+node, pass it as the third argument to the GLES reproducer. If opening the node
+fails with `Permission denied`, run as a user with render-node access or
+temporarily use `sudo` for the reproducer command.
+
+### 2. Clear Mesa Loader Overrides
+
+If you have been running the Mesa/Panfrost reproducers from the same shell,
+clear the Mesa-specific loader variables before testing the proprietary stack:
 
 ```bash
 unset LIBGL_DRIVERS_PATH
 unset GBM_BACKENDS_PATH
 unset EGL_PLATFORM
 unset MESA_LOADER_DRIVER_OVERRIDE
+```
 
+These reproducers print the renderer they actually reached. Do not interpret
+the numbers until stderr confirms the proprietary Mali driver, not Panfrost.
+
+### 3. Point At libmali If Needed
+
+If the libmali wrapper libraries are installed system-wide, you should not need
+`LD_LIBRARY_PATH`. If you are testing an unpacked libmali build or package tree,
+point the dynamic linker at the directory containing the ARM blob wrappers:
+
+```bash
 export LD_LIBRARY_PATH=/path/to/libmali/lib:$LD_LIBRARY_PATH
+```
+
+The Vulkan loader also needs to find the Mali ICD JSON. If the package installed
+it into a standard location such as `/usr/share/vulkan/icd.d`, leave
+`VK_ICD_FILENAMES` unset. If the ICD JSON lives in an unpacked tree, point at it
+explicitly:
+
+```bash
 export VK_ICD_FILENAMES=/path/to/mali.json
 ```
 
-`VK_ICD_FILENAMES` is only needed when the Mali ICD JSON is not installed in a
-standard Vulkan loader directory such as `/usr/share/vulkan/icd.d`.
-
-## Run
+For a quick sanity check, this should list a Mali ICD path when the Vulkan JSON
+is installed system-wide:
 
 ```bash
-./tiny_interp_probe_arm_blob
-./tiny_interp_probe_arm_blob 12288 fragcoord
-./tiny_interp_probe_arm_blob 16307 varying /dev/dri/renderD128
-
-./vk_interp_probe_arm_blob
-./vk_interp_probe_arm_blob 12288 fragcoord
-./vk_interp_probe_arm_blob 16307 varying
+ls /usr/share/vulkan/icd.d/*mali* 2>/dev/null
 ```
 
-Check stderr before interpreting the numbers:
+### 4. Build The GLES Reproducers
 
-- GLES should print the proprietary Mali `GL_RENDERER` and `GL_VERSION`, not a
-  Mesa/Panfrost renderer.
-- Vulkan should print a Mali physical device and the blob's `apiVersion`.
+```bash
+cc -O2 -o tiny_interp_probe_arm_blob \
+  tiny_interp_probe_arm_blob.c -lEGL -lGLESv2 -lgbm -lm
+cc -O2 -o tiny_interp_probe_arm_blob_explained \
+  tiny_interp_probe_arm_blob_explained.c -lEGL -lGLESv2 -lgbm -lm
+```
+
+The compact and explained binaries run the same test. Use the compact binary
+for logs and the explained binary when reading through the code.
+
+### 5. Build The Vulkan Reproducers
+
+Compile the shader files first, then the host programs:
+
+```bash
+glslc vk_interp_probe.vert           -o vk_interp_probe.vert.spv
+glslc vk_interp_probe.varying.frag   -o vk_interp_probe.varying.frag.spv
+glslc vk_interp_probe.fragcoord.frag -o vk_interp_probe.fragcoord.frag.spv
+cc -O2 -o vk_interp_probe_arm_blob vk_interp_probe_arm_blob.c -lvulkan -lm
+
+glslc vk_interp_probe_explained.vert \
+  -o vk_interp_probe_explained.vert.spv
+glslc vk_interp_probe_explained.varying.frag \
+  -o vk_interp_probe_explained.varying.frag.spv
+glslc vk_interp_probe_explained.fragcoord.frag \
+  -o vk_interp_probe_explained.fragcoord.frag.spv
+cc -O2 -o vk_interp_probe_arm_blob_explained \
+  vk_interp_probe_arm_blob_explained.c -lvulkan -lm
+```
+
+The Vulkan binaries open their `.spv` files by relative filename, so run them
+from this directory unless you copy the `.spv` files next to the executable.
+
+### 6. Run The GLES Control First
+
+Run `fragcoord` before the varying test:
+
+```bash
+./tiny_interp_probe_arm_blob 12288 fragcoord /dev/dri/renderD128
+```
+
+Expected shape:
+
+- stderr prints proprietary Mali `GL_RENDERER` and `GL_VERSION`.
+- stdout reports `floor(v) != x at 0 of 12288 pixels`.
+- exit code is `0`.
+
+This proves the ARM blob rendered, read back, and interpreted `gl_FragCoord.x`
+correctly through the same offscreen integer framebuffer path.
+
+### 7. Run The GLES Varying Test
+
+Run the default problem width:
+
+```bash
+./tiny_interp_probe_arm_blob 12288 varying /dev/dri/renderD128
+```
+
+Useful follow-up widths:
+
+```bash
+./tiny_interp_probe_arm_blob 8192 varying /dev/dri/renderD128
+./tiny_interp_probe_arm_blob 16307 varying /dev/dri/renderD128
+```
+
+`8192` is a power-of-two control. `12288` and `16307` are widths where the Mesa
+Panfrost path showed interpolation drift on this board.
+
+Exit code `2` is not a harness failure here. It means the reproducer ran and
+found at least one pixel where `floor(v) != x`.
+
+### 8. Run The Vulkan Control And Test
+
+Run the control:
+
+```bash
+./vk_interp_probe_arm_blob 12288 fragcoord Mali
+```
+
+Expected shape:
+
+- stderr prints a Mali Vulkan physical device and its `apiVersion`.
+- stdout reports `floor(v) != x at 0 of 12288 pixels`.
+- `unwritten=0`.
+- exit code is `0`.
+
+Then run the varying cases:
+
+```bash
+./vk_interp_probe_arm_blob 12288 varying Mali
+./vk_interp_probe_arm_blob 16307 varying Mali
+```
+
+The Vulkan ARM binary is an ARM-named wrapper around the canonical Vulkan
+reproducer. If it fails at setup, first confirm that the Vulkan loader is seeing
+the Mali ICD JSON, then confirm that the `.spv` files were built in this
+directory.
+
+### 9. Optional Teaching Runs
+
+The explained binaries take the same arguments:
+
+```bash
+./tiny_interp_probe_arm_blob_explained 12288 fragcoord /dev/dri/renderD128
+./tiny_interp_probe_arm_blob_explained 12288 varying /dev/dri/renderD128
+./vk_interp_probe_arm_blob_explained
+./vk_interp_probe_arm_blob_explained 12288 fragcoord
+```
+
+### 10. Save Logs Without Losing Exit Codes
+
+When collecting logs, use `set -o pipefail` so a failing varying test still
+returns exit code `2` even when piped through `tee`:
+
+```bash
+set -o pipefail
+./tiny_interp_probe_arm_blob 12288 fragcoord /dev/dri/renderD128 \
+  2>&1 | tee arm-gles-fragcoord-12288.log
+echo "exit=$?"
+
+./tiny_interp_probe_arm_blob 12288 varying /dev/dri/renderD128 \
+  2>&1 | tee arm-gles-varying-12288.log
+echo "exit=$?"
+
+./vk_interp_probe_arm_blob 12288 fragcoord Mali \
+  2>&1 | tee arm-vk-fragcoord-12288.log
+echo "exit=$?"
+
+./vk_interp_probe_arm_blob 12288 varying Mali \
+  2>&1 | tee arm-vk-varying-12288.log
+echo "exit=$?"
+```
+
+### 11. Interpret The Result
 
 The control expectation is the same as the Mesa runs: `fragcoord` should pass,
 and `varying` is the actual interpolation precision test. A passing ARM blob
 run would show the hardware can produce the exact per-pixel varying values
 under Arm's compiler/driver stack; a failing run would show the drift is below
 the Mesa/Panfrost compiler and GL/Vulkan frontend layers.
+
+Read the result in this order:
+
+1. Confirm the renderer/device line names the proprietary Mali stack.
+2. Confirm the `fragcoord` control reports zero mismatches.
+3. Confirm `unwritten=0` for Vulkan.
+4. Compare `varying` mismatch counts and last-pixel relative error with the
+   Mesa/Panfrost runs at the same width.
+
+If `fragcoord` fails, do not use the `varying` result yet. That would mean the
+control path, readback path, or driver selection is wrong.

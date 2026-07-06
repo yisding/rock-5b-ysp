@@ -31,6 +31,8 @@ background:
 | [`probe_interp_explained.c`](probe_interp_explained.c) | Comment-heavy version of the historical GBM/GLES probe, including explanations of GBM, EGL, framebuffers, vertex attributes, varyings, and the readback check. |
 | [`tiny_interp_probe_explained.c`](tiny_interp_probe_explained.c) | Comment-heavy version of the canonical minimal GLES probe. This is the best first code file to read. |
 | [`vk_interp_probe_explained.c`](vk_interp_probe_explained.c) | Comment-heavy Vulkan host program explaining instance/device selection, memory, render targets, pipeline setup, command buffers, barriers, copy-to-buffer, and CPU verification. |
+| [`tiny_interp_probe_arm_blob_explained.c`](tiny_interp_probe_arm_blob_explained.c) | Comment-heavy RK3588 proprietary ARM Mali GLES variant. Explains why Mesa's surfaceless platform is replaced with a GBM display while `EGL_NO_SURFACE` is preserved. |
+| [`vk_interp_probe_arm_blob_explained.c`](vk_interp_probe_arm_blob_explained.c) | Comment-heavy ARM Vulkan entry point. Explains why the Vulkan ARM variant intentionally includes the canonical explained Vulkan probe instead of forking it. |
 | [`vk_interp_probe_explained.vert`](vk_interp_probe_explained.vert) | Comment-heavy Vulkan vertex shader. |
 | [`vk_interp_probe_explained.varying.frag`](vk_interp_probe_explained.varying.frag) | Comment-heavy Vulkan test fragment shader. |
 | [`vk_interp_probe_explained.fragcoord.frag`](vk_interp_probe_explained.fragcoord.frag) | Comment-heavy Vulkan control fragment shader. |
@@ -87,6 +89,8 @@ Build the explained copies separately:
 ```bash
 cc -O2 -o probe_interp_explained probe_interp_explained.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o tiny_interp_probe_explained tiny_interp_probe_explained.c -lEGL -lGLESv2 -lm
+cc -O2 -o tiny_interp_probe_arm_blob_explained \
+  tiny_interp_probe_arm_blob_explained.c -lEGL -lGLESv2 -lgbm -lm
 
 glslc vk_interp_probe_explained.vert \
   -o vk_interp_probe_explained.vert.spv
@@ -95,6 +99,8 @@ glslc vk_interp_probe_explained.varying.frag \
 glslc vk_interp_probe_explained.fragcoord.frag \
   -o vk_interp_probe_explained.fragcoord.frag.spv
 cc -O2 -o vk_interp_probe_explained vk_interp_probe_explained.c -lvulkan -lm
+cc -O2 -o vk_interp_probe_arm_blob_explained \
+  vk_interp_probe_arm_blob_explained.c -lvulkan -lm
 ```
 
 The Vulkan executables open their `.spv` files by relative filename, so run
@@ -131,9 +137,13 @@ The explained copies take the same arguments:
 
 ./tiny_interp_probe_explained
 ./tiny_interp_probe_explained 12288 fragcoord
+./tiny_interp_probe_arm_blob_explained
+./tiny_interp_probe_arm_blob_explained 12288 fragcoord
 
 ./vk_interp_probe_explained
 ./vk_interp_probe_explained 12288 varying llvmpipe
+./vk_interp_probe_arm_blob_explained
+./vk_interp_probe_arm_blob_explained 12288 fragcoord
 ```
 
 Exit codes:
