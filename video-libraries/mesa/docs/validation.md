@@ -175,7 +175,7 @@ mismatches = 0 / 16307
 ```
 
 The interpolation probe in
-[`video-libraries/mesa/reproducers/probe_interp.c`](../reproducers/probe_interp.c) explains why:
+[`video-libraries/mesa/reproducers/interp_probe/probe_interp.c`](../reproducers/interp_probe/probe_interp.c) explains why:
 
 ```text
 smooth varying:
@@ -189,7 +189,7 @@ gl_FragCoord.x:
 
 That isolates the failure to Mali's varying interpolation path. Both probe
 counts were re-verified on the board on 2026-07-01
-([`video-libraries/mesa/reproducers/README.md`](../reproducers/README.md)).
+([`video-libraries/mesa/reproducers/interp_probe/README.md`](../reproducers/interp_probe/README.md)).
 
 ## BLIT vs COMPUTE Timing
 

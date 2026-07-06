@@ -12,7 +12,8 @@
 // otherwise identical pipeline. It reads back bit-exact on Mali-G610, which
 // pins the drift on varying interpolation rather than raster or readback.
 //
-// Build: cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
+// Build from this directory:
+//        cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
 // Run:   ./tiny_interp_probe                  # 12288 x 1, varying
 //        ./tiny_interp_probe 12288 fragcoord  # control: passes
 //        ./tiny_interp_probe 8192             # pow2 control: passes

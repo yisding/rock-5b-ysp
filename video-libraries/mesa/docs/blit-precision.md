@@ -124,7 +124,7 @@ not dump compiler output.
 
 ## Interpolation Probe
 
-[`video-libraries/mesa/reproducers/probe_interp.c`](../reproducers/probe_interp.c) isolates interpolation
+[`video-libraries/mesa/reproducers/interp_probe/probe_interp.c`](../reproducers/interp_probe/probe_interp.c) isolates interpolation
 from texture fetch. It renders a `W x 1` quad with a varying that runs from
 `0` to `W` across the quad, then writes the interpolated value bit-exactly using
 `floatBitsToUint`.
@@ -147,7 +147,7 @@ is generated from the rasterizer's pixel coordinate instead of loaded through
 the varying unit (Panfrost computes it from the exact integer pixel index:
 `fs_coord_pixel_center_integer`, `nir_load_pixel_coord + 0.5`).
 
-[`video-libraries/mesa/reproducers/tiny_interp_probe.c`](../reproducers/tiny_interp_probe.c)
+[`video-libraries/mesa/reproducers/interp_probe/tiny_interp_probe.c`](../reproducers/interp_probe/tiny_interp_probe.c)
 (2026-07-06) is the direct answer to the review argument "the hardware docs
 say the interpolator is full 32-bit, so this must be u_blitter misusing
 varyings". It strips the experiment down to pure varying interpolation — no
@@ -155,7 +155,7 @@ varyings". It strips the experiment down to pure varying interpolation — no
 format-changing readback — and still drifts, while `gl_FragCoord.x` through
 the identical pipeline is bit-exact. Canonical build/run/output, exit codes,
 and the full width sweep live in
-[`reproducers/README.md` § `tiny_interp_probe.c`](../reproducers/README.md);
+[`reproducers/interp_probe/README.md`](../reproducers/interp_probe/README.md);
 the headline result on the shipped 26.0.3 driver (verbatim):
 
 ```text
@@ -177,7 +177,7 @@ precision for non-power-of-two render-target widths.
 A Vulkan port of the probe reproduces the drift **bit-for-bit on panvk** — a
 stack with no Gallium, no `u_blitter`, and no GL state tracker anywhere —
 while the same binary passes on llvmpipe; verbatim outputs in
-[`reproducers/README.md` § `vk_interp_probe.c`](../reproducers/README.md).
+[`reproducers/interp_probe/README.md`](../reproducers/interp_probe/README.md).
 
 ### Low-Level Tiny-Probe Shader
 
@@ -188,6 +188,7 @@ dump from an older attribute-fed probe revision; this is the current
 artifacts, not in the repo:
 
 ```bash
+cd ../reproducers/interp_probe
 BIFROST_MESA_DEBUG=shaders ./tiny_interp_probe 12288 varying   # compiler dump: NIR + packed Valhall asm
 PAN_MESA_DEBUG=trace       ./tiny_interp_probe 12288 varying   # pandecode: decoded command streams + descriptors
 PAN_MESA_DEBUG=trace       ./vk_interp_probe   12288 varying   # same for the panvk run
@@ -333,7 +334,7 @@ So `noperspective` travels through the same lossy perspective machinery
 (forcing `prefer_persp = false` in the compiler failed the same way). Note
 also that the qualifier does not exist in GLSL ES at all — `noperspective` is
 a reserved word, which is why `probe_interp` mode=1 fails to compile under an
-ES context (see [`video-libraries/mesa/reproducers/README.md`](../reproducers/README.md)).
+ES context (see [`video-libraries/mesa/reproducers/interp_probe/README.md`](../reproducers/interp_probe/README.md)).
 
 The useful options in the fragment shader are:
 

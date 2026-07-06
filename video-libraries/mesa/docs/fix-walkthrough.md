@@ -137,7 +137,7 @@ Measured on the G610: a 16307-wide `RG32UI -> RGBA32UI` readback returned
 was correct; only the GPU blit was wrong.
 
 The smallest proof is `tiny_interp_probe.c`
-([canonical writeup](../reproducers/README.md)) — pure varying interpolation,
+([canonical writeup](../reproducers/interp_probe/README.md)) — pure varying interpolation,
 with no `u_blitter`, no source texture, no `texelFetch`, no filtering, and no
 format-changing readback. At the default `W = 12288` the varying reads back
 with a `9.74e-4` (~2^-10) relative error and 11744 of 12288 pixels fail
@@ -155,7 +155,7 @@ Panfrost/Mali varying path, not for u_blitter's sampler coordinates. A
 Vulkan port (`vk_interp_probe.c`) reproduces the drift bit-for-bit on panvk,
 Mesa's Vulkan driver — a stack with no u_blitter, no Gallium, and no GL
 state tracker anywhere — while the same binary passes on llvmpipe
-([canonical writeup](../reproducers/README.md)).
+([canonical writeup](../reproducers/interp_probe/README.md)).
 
 ### Two details that made this hard to find
 
@@ -407,7 +407,7 @@ Vulkan port of the probe reproduces the drift **bit-for-bit on panvk**,
 Mesa's Vulkan driver for Mali — a stack containing no u_blitter, no Gallium,
 and no GL state tracker — so the error cannot live in any of those layers
 (the same binary passes on llvmpipe; see
-[`reproducers/README.md`](../reproducers/README.md)). Second, the GL probe
+[`reproducers/interp_probe/README.md`](../reproducers/interp_probe/README.md)). Second, the GL probe
 drifts bit-identically (11744/12288, `0.997 * 2^-10`) on a debug build of
 the corrected !42613/!42614 stack: our fix reroutes u_blitter's TXF
 coordinates *around* varyings — it does not (and cannot) repair varying

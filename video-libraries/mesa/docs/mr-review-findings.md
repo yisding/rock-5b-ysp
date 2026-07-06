@@ -388,6 +388,6 @@ coverage (and no CI-breakage risk on other drivers either).
   !42613 nits); the canonical coverage statement is now "all non-cube
   sampled targets, single-sample".
 - The root-cause wording used in the MR commit messages predates the
-  [tiny/vk probe evidence](../reproducers/README.md) and needs the S2/M1
+  [tiny/vk probe evidence](../reproducers/interp_probe/README.md) and needs the S2/M1
   rewording at the next force-push; the docs here already carry the hedged
   version ([`blit-precision.md`](./blit-precision.md)).
