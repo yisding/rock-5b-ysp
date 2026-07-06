@@ -18,6 +18,7 @@ JOBS="${JOBS:-$(nproc)}"
 KEEP_TMP="${KEEP_TMP:-0}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-0}"
 FAIL_ON_WARNING="${FAIL_ON_WARNING:-1}"
+REWRITE_BUILD_PROFILES="${REWRITE_BUILD_PROFILES:-normal}"
 
 TARGETS=(
   drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o
@@ -39,6 +40,11 @@ Environment:
   KEEP_TMP=1        keep /tmp source/output/log directories
   ALLOW_DIRTY=1     allow dirty kernel worktrees, but still build HEAD archive
   FAIL_ON_WARNING=0 do not fail on "warning:" lines in the build log
+  REWRITE_BUILD_PROFILES
+                    space-separated profiles: normal, memory, race
+                    normal: KUnit-enabled focused object build (default)
+                    memory: KASAN/fault-injection focused object build
+                    race: KCSAN/lockdep focused object build
 EOF
 }
 
@@ -86,6 +92,48 @@ set_rewrite_config() {
     -e ROCKCHIP_RGA_REWRITE_KUNIT_TEST
 }
 
+set_profile_config() {
+  local src="$1"
+  local out="$2"
+  local profile="$3"
+
+  case "$profile" in
+  normal)
+    ;;
+  memory)
+    "$src/scripts/config" --file "$out/.config" \
+      -e DEBUG_KERNEL \
+      -e DEBUG_FS \
+      -d KCSAN \
+      -e KASAN \
+      -e KASAN_GENERIC \
+      -e KASAN_INLINE \
+      -e KASAN_VMALLOC \
+      -e FAULT_INJECTION \
+      -e FAULT_INJECTION_DEBUG_FS \
+      -e FAULT_INJECTION_STACKTRACE_FILTER \
+      -e FAILSLAB \
+      -e FAIL_PAGE_ALLOC \
+      -e FAULT_INJECTION_USERCOPY \
+      -e FUNCTION_ERROR_INJECTION \
+      --set-val FRAME_WARN 4096
+    ;;
+  race)
+    "$src/scripts/config" --file "$out/.config" \
+      -e EXPERT \
+      -e DEBUG_KERNEL \
+      -d KASAN \
+      -e KCSAN \
+      -e PROVE_LOCKING \
+      --set-val FRAME_WARN 4096
+    ;;
+  *)
+    echo "unknown REWRITE_BUILD_PROFILES entry: $profile" >&2
+    exit 2
+    ;;
+  esac
+}
+
 require_config() {
   local out="$1"
   local symbol="$2"
@@ -93,7 +141,7 @@ require_config() {
   if ! grep -qx "CONFIG_${symbol}=y" "$out/.config"; then
     echo "required config did not resolve to y: CONFIG_${symbol}" >&2
     echo "Relevant config lines:" >&2
-    grep -E "CONFIG_(ROCKCHIP_.*REWRITE|ROCKCHIP_MPP_SERVICE|ROCKCHIP_MULTI_RGA|VIDEO_ROCKCHIP_RGA|KUNIT)" "$out/.config" >&2 || true
+    grep -E "CONFIG_(ROCKCHIP_.*REWRITE|ROCKCHIP_MPP_SERVICE|ROCKCHIP_MULTI_RGA|VIDEO_ROCKCHIP_RGA|KUNIT|KASAN|KCSAN|FAULT_INJECTION|FAILSLAB|FAIL_PAGE_ALLOC|PROVE_LOCKING|DEBUG_KERNEL|EXPERT)" "$out/.config" >&2 || true
     exit 1
   fi
 }
@@ -103,6 +151,7 @@ configure_tree() {
   local tree="$2"
   local src="$3"
   local out="$4"
+  local profile="$5"
   local base_config="$tree/.config"
 
   if [ -f "$base_config" ]; then
@@ -114,6 +163,7 @@ configure_tree() {
   fi
 
   set_rewrite_config "$src" "$out"
+  set_profile_config "$src" "$out" "$profile"
   make -C "$src" O="$out" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" olddefconfig
 
   require_config "$out" KUNIT
@@ -121,11 +171,28 @@ configure_tree() {
   require_config "$out" ROCKCHIP_MPP_REWRITE_KUNIT_TEST
   require_config "$out" ROCKCHIP_RGA_REWRITE
   require_config "$out" ROCKCHIP_RGA_REWRITE_KUNIT_TEST
+
+  case "$profile" in
+  normal)
+    ;;
+  memory)
+    require_config "$out" KASAN
+    require_config "$out" FAULT_INJECTION
+    require_config "$out" FAILSLAB
+    require_config "$out" FAIL_PAGE_ALLOC
+    require_config "$out" FAULT_INJECTION_USERCOPY
+    ;;
+  race)
+    require_config "$out" KCSAN
+    require_config "$out" PROVE_LOCKING
+    ;;
+  esac
 }
 
-build_one() {
+build_one_profile() {
   local label="$1"
   local tree="$2"
+  local profile="$3"
   local commit
   local src
   local out
@@ -133,31 +200,41 @@ build_one() {
 
   check_clean_tree "$tree"
   commit="$(git -C "$tree" rev-parse --short=12 HEAD)"
-  src="$tmp_root/$label-src"
-  out="$tmp_root/$label-out"
-  log="$tmp_root/$label-build.log"
+  src="$tmp_root/$label-$profile-src"
+  out="$tmp_root/$label-$profile-out"
+  log="$tmp_root/$label-$profile-build.log"
 
   mkdir -p "$src" "$out"
-  echo "[$label] source: $tree @ $commit"
+  echo "[$label/$profile] source: $tree @ $commit"
   git -C "$tree" archive --format=tar HEAD | tar -C "$src" -xf -
 
-  configure_tree "$label" "$tree" "$src" "$out"
+  configure_tree "$label/$profile" "$tree" "$src" "$out" "$profile"
 
-  echo "[$label] build: ${TARGETS[*]}"
+  echo "[$label/$profile] build: ${TARGETS[*]}"
   make -C "$src" O="$out" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
     -j "$JOBS" "${TARGETS[@]}" 2>&1 | tee "$log"
 
   if [ "$FAIL_ON_WARNING" = 1 ] && grep -i "warning:" "$log"; then
-    echo "[$label] build completed but emitted warnings; see $log" >&2
+    echo "[$label/$profile] build completed but emitted warnings; see $log" >&2
     exit 1
   fi
 
-  echo "[$label] PASS: clean rewrite object build at $commit"
+  echo "[$label/$profile] PASS: clean rewrite object build at $commit"
   if [ "$KEEP_TMP" = 1 ]; then
-    echo "[$label] kept source: $src"
-    echo "[$label] kept output: $out"
-    echo "[$label] kept log:    $log"
+    echo "[$label/$profile] kept source: $src"
+    echo "[$label/$profile] kept output: $out"
+    echo "[$label/$profile] kept log:    $log"
   fi
+}
+
+build_one() {
+  local label="$1"
+  local tree="$2"
+  local profile
+
+  for profile in $REWRITE_BUILD_PROFILES; do
+    build_one_profile "$label" "$tree" "$profile"
+  done
 }
 
 main() {

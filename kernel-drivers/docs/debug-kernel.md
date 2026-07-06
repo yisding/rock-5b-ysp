@@ -80,6 +80,14 @@ philosophy as [Armbian packaging guide](../../packaging/docs/armbian-packaging.m
 | DRM/GPU | `DRM_DEBUG_MM`, `DRM_DEBUG_MODESET_LOCK`, `DRM_PANIC` | Panthor/display path corruption |
 | Explicitly **off** | `KFENCE`, `KCSAN`, `DEBUG_INFO_NONE/REDUCED` | KASAN is the one sanitizer; lighter/race-oriented ones conflict or add noise |
 
+For a device-free preflight before building/installing this kernel,
+[`../tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) now has
+`REWRITE_BUILD_PROFILES=memory` for KASAN/fault-injection object coverage and
+`REWRITE_BUILD_PROFILES=race` for the separate KCSAN/lockdep object coverage.
+Those profiles only prove the rewrite objects compile with the instrumentation;
+booted runtime evidence still comes from this debug kernel plus the separate
+KCSAN race kernel in [`rewrite-validation-plan.md`](./rewrite-validation-plan.md).
+
 ## 4. Enable ramoops capture (+ persistent journal)
 
 Ramoops needs a reserved-memory region the kernel can find at boot. On Armbian

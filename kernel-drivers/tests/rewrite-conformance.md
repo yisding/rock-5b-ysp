@@ -35,12 +35,29 @@ It fails on dirty kernel worktrees by default, fails if the resolved config does
 not enable both rewrite KUnit suites, and treats compiler warnings as failures.
 The 6.18 run reuses that tree's `.config` when present, so it also covers the
 BTF helper path used by the current dev config; mainline falls back to
-`defconfig` unless a `.config` exists. Useful overrides:
+`defconfig` unless a `.config` exists. The default `normal` profile is the
+strict KUnit object-build gate. `REWRITE_BUILD_PROFILES` can add compile-only
+sanitizer profiles:
+
+- `memory`: enables KASAN plus fault-injection options used by the fail-nth
+  ioctl unwind tests.
+- `race`: enables KCSAN plus lockdep for race-oriented compile coverage.
+
+The sanitizer profiles intentionally set a higher `FRAME_WARN` threshold because
+KASAN/KCSAN instrumentation inflates KUnit stack frames; the normal profile keeps
+the existing stricter warning behavior. These profiles prove the rewrite objects
+compile with the relevant instrumentation on both kernel lines, but they are not
+a substitute for booted KASAN/KCSAN runtime evidence.
+
+Useful overrides:
 
 ```bash
 KERNEL_6_18=/path/to/linux-6.18-rkvenc \
 KERNEL_MAINLINE=/path/to/linux \
 JOBS=16 KEEP_TMP=1 \
+kernel-drivers/tests/rewrite-build-gate.sh all
+
+REWRITE_BUILD_PROFILES="normal memory race" \
 kernel-drivers/tests/rewrite-build-gate.sh all
 ```
 
@@ -51,6 +68,10 @@ worktree has unrelated local changes.
 Last recorded run: `kernel-drivers/tests/rewrite-build-gate.sh all`
 on 2026-07-06 passed warning-free for the committed rewrite tips
 `../kernel/linux-6.18-rkvenc@d1cfb432da7f` and `../kernel/linux@c8a41bb830a6`.
+On the same date,
+`REWRITE_BUILD_PROFILES="memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
+also passed warning-free for both trees, proving compile coverage with
+KASAN/fault-injection and KCSAN/lockdep enabled.
 The same maintenance pass also ran
 `VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh` and
 `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`,
