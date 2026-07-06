@@ -53,8 +53,9 @@ on 2026-07-06 passed warning-free for the committed rewrite tips
 `../kernel/linux-6.18-rkvenc@d1cfb432da7f` and `../kernel/linux@c8a41bb830a6`.
 The same maintenance pass also ran
 `VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh` and
-`VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`;
-both passed, including the rewrite counter-default wiring check.
+`VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`,
+plus the same counter-default validation with `LIBRGA_FORCE_ROUTE_B=1`; all
+passed, including the forced Route B counter-default wiring check.
 
 ## Expanded conformance bundle
 
@@ -138,8 +139,9 @@ independent legacy-blit converter coverage, and one UI/display BGRA/XRGB
 rotation smoke if appliance/display usage becomes part of the target profile.
 The direct `librga-smoke` binary now covers the standalone `gstreamer-rga`
 thread-default core-mask primitive through
-`imconfig(IM_CONFIG_SCHEDULER_CORE, ...)`, but not the plugin lifecycle. The
-same scan found old RKNN/Yolo code
+`imconfig(IM_CONFIG_SCHEDULER_CORE, ...)` and the public thread-default
+`IM_CONFIG_PRIORITY` path, but not the plugin lifecycle. The same scan found
+old RKNN/Yolo code
 using direct physical-address RGA
 destinations; keep that recognized-but-unsupported unless a current RK3588
 workload proves fd or virtual buffers are insufficient.
@@ -999,10 +1001,10 @@ async release fence back to userspace. It also covers the legacy flush/result
 no-op ioctl return contract used by librga's post-blit compatibility path and
 the BGRx->BGRx 90-degree display-shaped legacy blit profile used by public
 compositor/game-UI callers.
-The direct `librga-smoke` path also covers a scheduler-core `imconfig()` call
-with `IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1`, followed by
-`imcopy`, matching the thread-default core-mask configuration path exposed by
-standalone `gstreamer-rga` without making that full plugin a required
+The direct `librga-smoke` path also covers scheduler-core and priority
+`imconfig()` calls, followed by `imcopy`, matching the thread-default core-mask
+configuration path exposed by standalone `gstreamer-rga` and the documented
+thread-default priority API without making that full plugin a required
 conformance target.
 
 **UNVERIFIED:** neither the generated GStreamer VP9 cases nor the direct MPP

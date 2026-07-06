@@ -296,7 +296,8 @@ archive build gate warning-free on 2026-07-06; `VALIDATE_ONLY=1
 kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
 case-builder/comparator validation, including 143 GStreamer case builders, and
 the counter-enabled `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1`
-mode passed the rewrite counter-default wiring check. See rewrite-drivers.md §6.
+mode plus the `LIBRGA_FORCE_ROUTE_B=1` variant passed the rewrite
+counter-default wiring checks. See rewrite-drivers.md §6.
 The older `180ee72a9a80` mainline pin is still used by §9 for the
 upstream-style V4L2 RGA3 comparison that was measured before the latest rewrite
 commits landed.

@@ -2398,40 +2398,72 @@ out:
 	return ret;
 }
 
-static int run_imconfig_scheduler_core_copy(rga_buffer_t src,
-					    rga_buffer_t dst,
-					    const uint8_t *src_mem,
-					    uint8_t *dst_mem,
-					    size_t size)
+static int run_imconfig_thread_defaults_copy(rga_buffer_t src,
+					     rga_buffer_t dst,
+					     const uint8_t *src_mem,
+					     uint8_t *dst_mem,
+					     size_t size)
 {
 	int ret;
-	int reset_ret;
+	int reset_core_ret = IM_STATUS_SUCCESS;
+	int reset_priority_ret = IM_STATUS_SUCCESS;
+	bool core_set = false;
+	bool priority_set = false;
 
 	memset(dst_mem, 0x80, size);
 	ret = imconfig(IM_CONFIG_SCHEDULER_CORE,
 		       IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1);
-	if (ret != IM_STATUS_SUCCESS)
-		return fail_status("imconfig core", ret);
+	if (ret != IM_STATUS_SUCCESS) {
+		fail_status("imconfig core", ret);
+		goto out;
+	}
+	core_set = true;
+
+	ret = imconfig(IM_CONFIG_PRIORITY, 3);
+	if (ret != IM_STATUS_SUCCESS) {
+		fail_status("imconfig priority", ret);
+		goto out;
+	}
+	priority_set = true;
 
 	ret = imcopy(src, dst);
-	reset_ret = imconfig(IM_CONFIG_SCHEDULER_CORE, IM_SCHEDULER_DEFAULT);
-	if (reset_ret != IM_STATUS_SUCCESS) {
-		if (ret == IM_STATUS_SUCCESS)
-			ret = reset_ret;
-		fprintf(stderr, "imconfig scheduler reset failed: %s (%d)\n",
-			imStrError((IM_STATUS)reset_ret), reset_ret);
-	}
 	if (ret != IM_STATUS_SUCCESS)
-		return fail_status("imconfig copy", ret);
+		fail_status("imconfig copy", ret);
+
+out:
+	if (priority_set) {
+		reset_priority_ret = imconfig(IM_CONFIG_PRIORITY, 0);
+		if (reset_priority_ret != IM_STATUS_SUCCESS)
+			fprintf(stderr,
+				"imconfig priority reset failed: %s (%d)\n",
+				imStrError((IM_STATUS)reset_priority_ret),
+				reset_priority_ret);
+	}
+	if (core_set) {
+		reset_core_ret = imconfig(IM_CONFIG_SCHEDULER_CORE,
+					  IM_SCHEDULER_DEFAULT);
+		if (reset_core_ret != IM_STATUS_SUCCESS)
+			fprintf(stderr,
+				"imconfig scheduler reset failed: %s (%d)\n",
+				imStrError((IM_STATUS)reset_core_ret),
+				reset_core_ret);
+	}
+
+	if (ret != IM_STATUS_SUCCESS)
+		return 1;
+	if (reset_priority_ret != IM_STATUS_SUCCESS)
+		return fail_status("imconfig priority reset", reset_priority_ret);
+	if (reset_core_ret != IM_STATUS_SUCCESS)
+		return fail_status("imconfig core reset", reset_core_ret);
 
 	if (memcmp(src_mem, dst_mem, size)) {
 		fprintf(stderr, "imconfig scheduler output differs from source\n");
 		return 1;
 	}
-	if (write_artifact("imconfig_scheduler_copy", dst_mem, size))
+	if (write_artifact("imconfig_thread_defaults_copy", dst_mem, size))
 		return 1;
 
-	printf("%-24s ok\n", "imconfig scheduler");
+	printf("%-24s ok\n", "imconfig defaults");
 	return 0;
 }
 
@@ -2598,8 +2630,8 @@ int main(void)
 		       "im2d P010/P210");
 	}
 
-	ret = run_imconfig_scheduler_core_copy(src, dst, src_mem, dst_mem,
-					       src_size);
+	ret = run_imconfig_thread_defaults_copy(src, dst, src_mem, dst_mem,
+						src_size);
 	if (ret)
 		goto out;
 
