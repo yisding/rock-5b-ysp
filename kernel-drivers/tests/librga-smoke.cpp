@@ -2067,6 +2067,89 @@ static int run_fbc_tail_reject_probes(void)
 					     IM_RKFBC64x4_MODE);
 }
 
+static int run_tile8x8_roundtrip(void)
+{
+	const int width = 64;
+	const int height = 64;
+	const int format = RK_FORMAT_YCbCr_420_SP;
+	const size_t size = (size_t)width * height * 3 / 2;
+	rga_buffer_handle_t src_handle = 0;
+	rga_buffer_handle_t tile_handle = 0;
+	rga_buffer_handle_t dst_handle = 0;
+	rga_buffer_t src;
+	rga_buffer_t tile;
+	rga_buffer_t dst;
+	uint8_t *src_mem = NULL;
+	uint8_t *tile_mem = NULL;
+	uint8_t *dst_mem = NULL;
+	int ret;
+
+	if (alloc_aligned((void **)&src_mem, size) ||
+	    alloc_aligned((void **)&tile_mem, size) ||
+	    alloc_aligned((void **)&dst_mem, size)) {
+		perror("posix_memalign tile8x8");
+		ret = 1;
+		goto out;
+	}
+
+	fill_nv12_pattern(src_mem, width, height);
+	memset(tile_mem, 0x80, size);
+	memset(dst_mem, 0x40, size);
+
+	src_handle = importbuffer_virtualaddr(src_mem, size);
+	tile_handle = importbuffer_virtualaddr(tile_mem, size);
+	dst_handle = importbuffer_virtualaddr(dst_mem, size);
+	if (!src_handle || !tile_handle || !dst_handle) {
+		fprintf(stderr, "tile8x8 importbuffer_virtualaddr failed: %s\n",
+			imStrError());
+		ret = 1;
+		goto out;
+	}
+
+	src = wrapbuffer_handle(src_handle, width, height, format);
+	tile = wrapbuffer_handle(tile_handle, width, height, format);
+	dst = wrapbuffer_handle(dst_handle, width, height, format);
+
+	src.rd_mode = IM_RASTER_MODE;
+	tile.rd_mode = IM_TILE8x8_MODE;
+	dst.rd_mode = IM_RASTER_MODE;
+
+	ret = imcopy(src, tile);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("tile raster->tile", ret);
+		goto out;
+	}
+
+	ret = imcopy(tile, dst);
+	if (ret != IM_STATUS_SUCCESS) {
+		ret = fail_status("tile tile->raster", ret);
+		goto out;
+	}
+
+	if (memcmp(src_mem, dst_mem, size)) {
+		fprintf(stderr, "tile8x8 round-trip output differs from source\n");
+		ret = 1;
+		goto out;
+	}
+
+	ret = write_artifact("tile8x8_nv12_roundtrip", dst_mem, size);
+	if (!ret)
+		printf("%-24s ok\n", "tile8x8 roundtrip");
+
+out:
+	if (src_handle)
+		releasebuffer_handle(src_handle);
+	if (tile_handle)
+		releasebuffer_handle(tile_handle);
+	if (dst_handle)
+		releasebuffer_handle(dst_handle);
+	free(src_mem);
+	free(tile_mem);
+	free(dst_mem);
+
+	return ret;
+}
+
 static int run_legacy_virtual_to_dmabuf_convert(void)
 {
 	const int src_w = 64;
@@ -2961,6 +3044,10 @@ int main(void)
 		goto out;
 
 	ret = run_fbc_tail_reject_probes();
+	if (ret)
+		goto out;
+
+	ret = run_tile8x8_roundtrip();
 	if (ret)
 		goto out;
 
