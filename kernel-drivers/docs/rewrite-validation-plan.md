@@ -7,8 +7,8 @@ the plan that closes the gap [`rewrite-drivers.md`](./rewrite-drivers.md) §6 an
 hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
-> surface and heavily unit-tested — MPP **53 KUnit cases** and RGA **100 KUnit
-> cases** compile at the §6 pins (`d1cfb432da7f` on 6.18, `c8a41bb830a6` on
+> surface and heavily unit-tested — MPP **54 KUnit cases** and RGA **100 KUnit
+> cases** compile at the §6 pins (`309548773814` on 6.18, `49913db297cb` on
 > mainline). But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
@@ -47,7 +47,7 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 153 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 154 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
@@ -299,7 +299,7 @@ equivalent adversarial read**).
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 153 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
+1. 154 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
    (today's tests never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —
    0 diffs (RGA pixels, VDEC YUV, VENC-vs-VENC bitstream).

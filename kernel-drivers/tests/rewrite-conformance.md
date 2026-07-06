@@ -67,7 +67,7 @@ worktree has unrelated local changes.
 
 Last recorded run: `kernel-drivers/tests/rewrite-build-gate.sh all`
 on 2026-07-06 passed warning-free for the committed rewrite tips
-`../kernel/linux-6.18-rkvenc@d1cfb432da7f` and `../kernel/linux@c8a41bb830a6`.
+`../kernel/linux-6.18-rkvenc@309548773814` and `../kernel/linux@49913db297cb`.
 On the same date,
 `REWRITE_BUILD_PROFILES="memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
 also passed warning-free for both trees, proving compile coverage with
@@ -1063,9 +1063,9 @@ VP9 RKVDEC fd-to-IOVA register translation/validation, including rejection of
 unknown RKVDEC format-table indices.
 They also cover `MPP_CMD_SET_ERR_REF_HACK` copy/discard behavior for the current
 libmpp VDPU382 probe path, and `SET_SESSION_FD` batch-server wait-array
-recognition/rejection so the dormant multi-slot polling shape fails with
-`-EOPNOTSUPP` instead of extending the ABI beyond BSP-visible normal
-submissions.
+recognition plus collector-level rejection so the dormant multi-slot polling
+shape fails with `-EOPNOTSUPP` without status-slot writeback instead of
+extending the ABI beyond BSP-visible normal submissions.
 The RGA side also includes KUnit coverage for the default legacy
 `RGA_BLIT_SYNC` `c_RkRgaBlit()` path used by JeffyCN GStreamer: a sync ioctl
 queues behind a busy core, waits for queued completion, and does not copy an
