@@ -83,6 +83,7 @@ The smoke tests differ in what device access they need:
 > | `LIBRGA_FORCE_ROUTE_B` | `librga-suite.sh` / `rewrite-conformance-run.sh` | set `route_b/force_remap` during the librga suite and restore it at exit; with rewrite counter defaults, also require positive `rga_route_b:attempt` and `rga_route_b:ok` deltas |
 > | `RUN_GSTREAMER` | rewrite smoke | optional JeffyCN GStreamer plugin suite (`0` by default; set `1` to run) |
 > | `RUN_COUNTER_CHECKS` | `rewrite-conformance-run.sh` | optional suite debugfs counter gate (`0` by default); with `PROFILE=*rewrite*`, the runner defaults to requiring counter files plus positive librga/GStreamer/FFmpeg hardware-start and busy-time counters |
+> | `*_REQUIRED_POSITIVE_COUNTER_PREFIXES` | `rewrite-conformance-run.sh` / `debugfs-counter-check.sh` | optional multicore spread gate using `component:counter_prefix:min_positive`, e.g. `MPP_REQUIRED_POSITIVE_COUNTER_PREFIXES="mpp:started_rkvdec_core:2"` or `LIBRGA_REQUIRED_POSITIVE_COUNTER_PREFIXES="rga:started_rga3_core:2"` |
 > | `REWRITE_COUNTER_DEFAULTS` | `rewrite-conformance-run.sh` | set `0` to disable the automatic rewrite counter requirements when doing a narrow diagnostic run |
 > | `REQUIRED_ZERO_AFTER_COUNTERS` | `debugfs-counter-check.sh` | optional counter specs whose after-run value must be exactly zero, used by the Route B gate for `rga_route_b:active` |
 
@@ -145,7 +146,13 @@ Add `RUN_COUNTER_CHECKS=1` on rewrite profile runs when the selected suites
 should have submitted hardware. The runner defaults to requiring counter files,
 positive librga/GStreamer/FFmpeg hardware-start and busy-time counters, and MPP
 hardware counters when explicit MPP media cases are selected. Use
-`REWRITE_COUNTER_DEFAULTS=0` only for a deliberately narrow diagnostic pass.
+`REWRITE_COUNTER_DEFAULTS=0` only for a deliberately narrow diagnostic pass. To
+prove multicore scheduling on a suite that should use more than one core, add a
+positive-prefix gate such as
+`MPP_REQUIRED_POSITIVE_COUNTER_PREFIXES="mpp:started_rkvdec_core:2"` or
+`LIBRGA_REQUIRED_POSITIVE_COUNTER_PREFIXES="rga:started_rga3_core:2"`; the final
+field is the minimum number of matching per-core counters whose delta must be
+positive.
 
 The official-test conformance suites (`mpp-suite.sh`, `librga-suite.sh`,
 `gstreamer-suite.sh`), their comparators, the rewrite build gate, and the

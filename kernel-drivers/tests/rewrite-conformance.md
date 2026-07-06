@@ -737,7 +737,7 @@ logs.
 |------|-------|
 | `build-mpp-tests.sh` | no device access; writes staged MPP library/tests under `../rockchip-conformance/out/mpp` |
 | `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths; also builds `gstreamer-event-harness` into the GStreamer prefix. `GST_EVENT_HARNESS_VALIDATE_BUILD=1` compiles only the event harness and returns `77` when the GStreamer development `.pc` files are absent. |
-| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, optional debugfs counter checks, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and checks runner wiring, syzkaller ABI markers, ioctl mutator buildability, direct `librga` smoke buildability, optional GStreamer event-harness buildability, RGA IOMMU scatter-fuzzer buildability, MPP/GStreamer case builders, FFmpeg case lists, and comparator selftests. With `PROFILE=*rewrite* RUN_COUNTER_CHECKS=1`, the runner defaults to requiring counter files plus positive librga/GStreamer/FFmpeg hardware-start and busy-time counters, with MPP positive counters added when explicit MPP media cases are selected. If `LIBRGA_FORCE_ROUTE_B=1` is also set, the librga counter gate additionally requires positive `rga_route_b:attempt` and `rga_route_b:ok` deltas. ABI replay also uses `/dev/dma_heap/*` when available to record MPP dma-buf translate/release, RGA dma-buf import/release parity, and raw RGA physical-address import behavior. |
+| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, optional debugfs counter checks, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and checks runner wiring, syzkaller ABI markers, ioctl mutator buildability, direct `librga` smoke buildability, optional GStreamer event-harness buildability, RGA IOMMU scatter-fuzzer buildability, MPP/GStreamer case builders, FFmpeg case lists, and comparator selftests. With `PROFILE=*rewrite* RUN_COUNTER_CHECKS=1`, the runner defaults to requiring counter files plus positive librga/GStreamer/FFmpeg hardware-start and busy-time counters, with MPP positive counters added when explicit MPP media cases are selected. Per-suite `*_REQUIRED_POSITIVE_COUNTER_PREFIXES` variables add multicore-spread requirements such as `mpp:started_rkvdec_core:2` or `rga:started_rga3_core:2`. If `LIBRGA_FORCE_ROUTE_B=1` is also set, the librga counter gate additionally requires positive `rga_route_b:attempt` and `rga_route_b:ok` deltas. ABI replay also uses `/dev/dma_heap/*` when available to record MPP dma-buf translate/release, RGA dma-buf import/release parity, and raw RGA physical-address import behavior. |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode. `MPP_VALIDATE_CASES=1` is the device-free maintenance mode and only validates selected case-builder wiring. |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
@@ -762,7 +762,7 @@ logs.
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 | `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs system-runtime and staged-MPP-runtime passes when available, component/option inspection, device/support preflight, required H.264/H.265/VP9 RKMPP decode and bit-exact PSNR, generated H.264/H.265 encoder-option encodes with PSNR sanity, generated-input H.264<->`scale_rkrga`<->H.265 hardware transcodes, required `scale_rkrga`, `vpp_rkrga`, and `overlay_rkrga` coverage, plus diagnostic/promotable AV1 decode/RGA/transcode/AFBC coverage. Diagnostics also cover H.265 Main10/P010 RGA and H.264 resolution changes; opt-in stress adds repeated short loops and an AV1->RGA->H.264 soak. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `ffmpeg-suite-compare.sh` | **rewrite-vs-forward-port ffmpeg-rockchip comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for encoded bitstream byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
-| `debugfs-counter-check.sh` | **rewrite counter-delta gate** | Checks a captured `debugfs-counters-delta.tsv` from any suite. Use `REQUIRED_POSITIVE_COUNTERS` to prove selected hardware paths actually submitted and reached the IRQ/completion timing path; use `REQUIRED_ZERO_AFTER_COUNTERS` for gauges that must settle back to zero at rest; use `FORBID_POSITIVE_COUNTERS` to override the default timeout/fault/error guard. This complements elapsed-time comparison because it catches “userspace passed but the rewrite did no hardware work” cases. |
+| `debugfs-counter-check.sh` | **rewrite counter-delta gate** | Checks a captured `debugfs-counters-delta.tsv` from any suite. Use `REQUIRED_POSITIVE_COUNTERS` to prove selected hardware paths actually submitted and reached the IRQ/completion timing path; use `REQUIRED_POSITIVE_COUNTER_PREFIXES` with `component:counter_prefix:min_positive` to prove multicore spread across per-core counters; use `REQUIRED_ZERO_AFTER_COUNTERS` for gauges that must settle back to zero at rest; use `FORBID_POSITIVE_COUNTERS` to override the default timeout/fault/error guard. This complements elapsed-time comparison because it catches “userspace passed but the rewrite did no hardware work” and “all work stuck to one core” cases. |
 
 ## Running the suites & comparators
 
@@ -822,16 +822,26 @@ hardware-start and busy-time counters; it adds positive MPP counters only when
 `mpp_info_test` case does not submit hardware. Set `REWRITE_COUNTER_DEFAULTS=0`
 to disable those automatic requirements for a narrow diagnostic pass. The
 checker defaults to failing positive timeout/fault/error counters when the delta
-file exists. Override or add explicit positive counters when a run intentionally
-uses a different suite mix:
+file exists. To prove multicore spread, set
+`REQUIRED_POSITIVE_COUNTER_PREFIXES` directly, or the per-suite runner variables
+`MPP_REQUIRED_POSITIVE_COUNTER_PREFIXES`,
+`LIBRGA_REQUIRED_POSITIVE_COUNTER_PREFIXES`,
+`GSTREAMER_REQUIRED_POSITIVE_COUNTER_PREFIXES`, and
+`FFMPEG_REQUIRED_POSITIVE_COUNTER_PREFIXES`. Prefix specs use
+`component:counter_prefix:min_positive`; for example,
+`mpp:started_rkvdec_core:2` requires at least two MPP decoder-core counters with
+positive deltas. Override or add explicit positive counters when a run
+intentionally uses a different suite mix:
 
 ```bash
 SUMMARY=../rockchip-conformance/logs/rewrite/<run>-mpp-suite/summary.tsv \
 REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns" \
+REQUIRED_POSITIVE_COUNTER_PREFIXES="mpp:started_rkvdec_core:2" \
 bash debugfs-counter-check.sh
 
 SUMMARY=../rockchip-conformance/logs/rewrite/<run>-librga-suite/summary.tsv \
 REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns" \
+REQUIRED_POSITIVE_COUNTER_PREFIXES="rga:started_rga3_core:2" \
 bash debugfs-counter-check.sh
 
 SUMMARY=../rockchip-conformance/logs/rewrite/<run>-librga-suite/summary.tsv \

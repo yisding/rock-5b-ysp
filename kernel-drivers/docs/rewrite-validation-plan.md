@@ -28,7 +28,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release, RGA dma-buf import/release, and raw RGA physical-address import observation with an opt-in rewrite reject assertion | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md), including opt-in GStreamer display/KMS-capture, AV1, and legacy advertised-decode diagnostic cases; `VALIDATE_ONLY=1` now also validates MPP/GStreamer case builders, validates FFmpeg case-list wiring, compile-checks the direct `librga-smoke.cpp` source used for maintained RGA artifacts, and attempts an optional `gstreamer-event-harness.c` build when GStreamer development headers are installed | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
-| Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` plus [`debugfs-counter-check.sh`](../tests/debugfs-counter-check.sh) | reuse as assertion hooks throughout |
+| Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` plus [`debugfs-counter-check.sh`](../tests/debugfs-counter-check.sh), including exact-counter gates and `component:counter_prefix:min_positive` multicore-spread gates | reuse as assertion hooks throughout |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ❌ deliberately **off** in `debug-kernel.md` | **add** — a separate build (§3) |
 | **Fault injection & recovery** | ❌ (suites only *detect* faults, never *inject*) | **add** — the recovery matrix (§4) |
@@ -112,7 +112,10 @@ visible skip in `VALIDATE_ONLY=1`.
 
 `debugfs-counter-check.sh` can now require positive `started_job_count` /
 `hw_total_ns` deltas for selected rewrite MPP/RGA runs while failing positive
-timeout, IOMMU-fault, or IRQ-error deltas. This makes the performance gate
+timeout, IOMMU-fault, or IRQ-error deltas. It can also require at least N
+positive per-core counters with prefix specs such as
+`mpp:started_rkvdec_core:2` or `rga:started_rga3_core:2`, so multicore
+scheduling claims can be checked directly in the conformance logs. This makes the performance gate
 harder to satisfy with a userspace-only pass that never reaches the rewrite
 hardware completion path.
 

@@ -55,6 +55,10 @@ write_counter_delta()
 		printf "component\tcounter\tbefore\tafter\tdelta\n"
 		printf "mpp\tstarted_job_count\t0\t%s\t%s\n" "$started" "$started"
 		printf "mpp\thw_total_ns\t0\t%s\t%s\n" "$hw_ns" "$hw_ns"
+		printf "mpp\tstarted_rkvdec_core0_count\t0\t1\t1\n"
+		printf "mpp\tstarted_rkvdec_core1_count\t0\t1\t1\n"
+		printf "rga\tstarted_rga3_core0_count\t0\t1\t1\n"
+		printf "rga\tstarted_rga3_core1_count\t0\t1\t1\n"
 		printf "mpp\ttimeout_count\t0\t%s\t%s\n" "$timeout" "$timeout"
 		printf "mpp\tiommu_fault_count\t0\t%s\t%s\n" "$fault" "$fault"
 		printf "rga\tirq_error_count\t0\t0\t0\n"
@@ -183,9 +187,11 @@ check_counter_check()
 	local base_dir="$TMP_ROOT/counter-check"
 	local out_good="$TMP_ROOT/counter-check.good"
 	local out_missing_required="$TMP_ROOT/counter-check.missing-required"
+	local out_missing_prefix="$TMP_ROOT/counter-check.missing-prefix"
 	local out_forbidden="$TMP_ROOT/counter-check.forbidden"
 	local out_nonzero_after="$TMP_ROOT/counter-check.nonzero-after"
 	local out_missing_file="$TMP_ROOT/counter-check.missing-file"
+	local out_missing_file_prefix="$TMP_ROOT/counter-check.missing-file-prefix"
 	local out_required_file="$TMP_ROOT/counter-check.required-file"
 	local status
 
@@ -195,11 +201,14 @@ check_counter_check()
 
 	SUMMARY="$base_dir/summary.tsv" \
 		REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns rga_route_b:attempt rga_route_b:ok" \
+		REQUIRED_POSITIVE_COUNTER_PREFIXES="mpp:started_rkvdec_core:2 rga:started_rga3_core:2" \
 		REQUIRED_ZERO_AFTER_COUNTERS="rga_route_b:active" \
 		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_good"
 	grep -q "mpp:started_job_count" "$out_good"
 	grep -q "rga_route_b:attempt" "$out_good"
 	grep -q "rga_route_b:active" "$out_good"
+	grep -q "mpp:started_rkvdec_core:2" "$out_good"
+	grep -q "rga:started_rga3_core:2" "$out_good"
 	grep -q "forbid_spec" "$out_good"
 
 	set +e
@@ -213,6 +222,18 @@ check_counter_check()
 		exit 1
 	fi
 	grep -q "missing-or-zero" "$out_missing_required"
+
+	set +e
+	SUMMARY="$base_dir/summary.tsv" \
+		REQUIRED_POSITIVE_COUNTER_PREFIXES="mpp:started_rkvdec_core:3" \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_missing_prefix"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "missing required multicore counter prefix unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q "missing-or-low" "$out_missing_prefix"
 
 	write_counter_delta "$base_dir/debugfs-counters-delta.tsv" 2 1000 1 0
 	set +e
@@ -244,6 +265,18 @@ check_counter_check()
 	SUMMARY="$base_dir/summary.tsv" \
 		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_missing_file"
 	grep -q "counter_check	skipped" "$out_missing_file"
+
+	set +e
+	SUMMARY="$base_dir/summary.tsv" \
+		REQUIRED_POSITIVE_COUNTER_PREFIXES="mpp:started_rkvdec_core:2" \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_missing_file_prefix"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "missing required prefix counter file unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q "missing debugfs counter delta file" "$out_missing_file_prefix"
 
 	set +e
 	SUMMARY="$base_dir/summary.tsv" \

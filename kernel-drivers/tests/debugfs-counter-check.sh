@@ -5,6 +5,7 @@ set -euo pipefail
 SUMMARY=${SUMMARY:-${1:-}}
 COUNTERS_FILE=${COUNTERS_FILE:-}
 REQUIRED_POSITIVE_COUNTERS=${REQUIRED_POSITIVE_COUNTERS:-}
+REQUIRED_POSITIVE_COUNTER_PREFIXES=${REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
 REQUIRED_ZERO_AFTER_COUNTERS=${REQUIRED_ZERO_AFTER_COUNTERS:-}
 FORBID_POSITIVE_COUNTERS=${FORBID_POSITIVE_COUNTERS:-"mpp:timeout_count mpp:iommu_fault_count rga:timeout_count rga:irq_error_count rga:iommu_fault_count"}
 REQUIRE_COUNTER_FILE=${REQUIRE_COUNTER_FILE:-0}
@@ -24,6 +25,7 @@ if [ ! -f "$COUNTERS_FILE" ]; then
 	echo "reason	missing debugfs counter delta file"
 	if [ "$REQUIRE_COUNTER_FILE" = "1" ] ||
 		[ -n "$REQUIRED_POSITIVE_COUNTERS" ] ||
+		[ -n "$REQUIRED_POSITIVE_COUNTER_PREFIXES" ] ||
 		[ -n "$REQUIRED_ZERO_AFTER_COUNTERS" ]; then
 		exit 1
 	fi
@@ -31,6 +33,7 @@ if [ ! -f "$COUNTERS_FILE" ]; then
 fi
 
 awk -v required_specs="$REQUIRED_POSITIVE_COUNTERS" \
+    -v required_prefix_specs="$REQUIRED_POSITIVE_COUNTER_PREFIXES" \
     -v required_zero_after_specs="$REQUIRED_ZERO_AFTER_COUNTERS" \
     -v forbid_specs="$FORBID_POSITIVE_COUNTERS" \
     -v counter_file="$COUNTERS_FILE" '
@@ -52,12 +55,32 @@ function split_spec(spec, parts) {
 	return 1;
 }
 
+function split_prefix_spec(spec, parts) {
+	if (split(spec, parts, ":") != 3)
+		return 0;
+	if (parts[1] == "" || parts[2] == "" || parts[3] == "")
+		return 0;
+	if (parts[3] !~ /^[0-9]+$/ || parts[3] + 0 <= 0)
+		return 0;
+	return 1;
+}
+
 function spec_matches(spec, component, counter,    parts) {
 	if (!split_spec(spec, parts))
 		return 0;
 	if (parts[1] != "*" && parts[1] != component)
 		return 0;
 	if (parts[2] != "*" && parts[2] != counter)
+		return 0;
+	return 1;
+}
+
+function prefix_spec_matches(spec, component, counter,    parts) {
+	if (!split_prefix_spec(spec, parts))
+		return 0;
+	if (parts[1] != "*" && parts[1] != component)
+		return 0;
+	if (index(counter, parts[2]) != 1)
 		return 0;
 	return 1;
 }
@@ -99,14 +122,27 @@ function spec_after_non_numeric_count(spec,    key, total) {
 	return total;
 }
 
+function prefix_positive_count(spec,    key, total) {
+	total = 0;
+	for (key in delta_by_key) {
+		if (prefix_spec_matches(spec, component_by_key[key],
+					counter_by_key[key]) &&
+		    delta_by_key[key] > 0)
+			total++;
+	}
+	return total;
+}
+
 BEGIN {
 	FS = OFS = "\t";
 	failed = 0;
 	split_specs(required_specs, required);
+	split_specs(required_prefix_specs, required_prefix);
 	split_specs(required_zero_after_specs, required_zero_after);
 	split_specs(forbid_specs, forbidden);
 	print "counter_file", counter_file;
 	print "required_positive", required_specs;
+	print "required_positive_prefixes", required_prefix_specs;
 	print "required_zero_after", required_zero_after_specs;
 	print "forbid_positive", forbid_specs;
 	print "";
@@ -160,6 +196,24 @@ END {
 			print required[i], sum, "ok";
 		} else {
 			print required[i], sum, "missing-or-zero";
+			failed = 1;
+		}
+	}
+
+	if (required_prefix[0])
+		print "require_prefix_spec", "positive_counter_count", "verdict";
+	for (i = 1; i <= required_prefix[0]; i++) {
+		if (!split_prefix_spec(required_prefix[i], parts)) {
+			print required_prefix[i], "n/a", "invalid-spec";
+			failed = 1;
+			continue;
+		}
+		count = prefix_positive_count(required_prefix[i]);
+		needed = parts[3] + 0;
+		if (count >= needed) {
+			print required_prefix[i], count, "ok";
+		} else {
+			print required_prefix[i], count, "missing-or-low";
 			failed = 1;
 		}
 	}
