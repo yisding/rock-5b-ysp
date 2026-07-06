@@ -13,6 +13,7 @@ REQUIRE_ARTIFACTS=${REQUIRE_ARTIFACTS:-1}
 REQUIRE_COUNTER_DELTAS=${REQUIRE_COUNTER_DELTAS:-1}
 REQUIRE_DIAGNOSTIC_PASS=${REQUIRE_DIAGNOSTIC_PASS:-0}
 AUDIT_REQUIRED_CASES=${AUDIT_REQUIRED_CASES:-}
+PERF_MAX_RATIO=${PERF_MAX_RATIO:-1.25}
 RUN_COMPARATORS=${RUN_COMPARATORS:-1}
 
 usage()
@@ -34,6 +35,9 @@ Environment:
   AUDIT_REQUIRED_CASES    whitespace-separated suite:case list that must be
                           present and passing in both profiles; use *:case to
                           match any selected suite
+  PERF_MAX_RATIO=1.25    fail comparator-clean audit if a required candidate
+                          pass is slower than baseline by this ratio; set 0 to
+                          disable the elapsed-time gate
   RUN_COMPARATORS=0      skip suite comparator execution
 EOF
 }
@@ -285,6 +289,7 @@ run_suite_comparator()
 		CANDIDATE_SUMMARY="$candidate_summary" \
 		CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
 		REQUIRE_ARTIFACTS="$REQUIRE_ARTIFACTS" \
+		PERF_MAX_RATIO="$PERF_MAX_RATIO" \
 		bash "$comparator" >/dev/null
 }
 
@@ -366,7 +371,21 @@ selftest()
 
 	CONFORMANCE_ROOT="$tmp_root" SUITES="mpp librga gstreamer ffmpeg rkmppenc" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=1 "$0" >/dev/null
+		RUN_COMPARATORS=1 PERF_MAX_RATIO=1.25 "$0" >/dev/null
+
+	sed -i 's/gstreamer_required\t0\t1.000\tpass/gstreamer_required\t0\t2.000\tpass/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/summary.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=1 PERF_MAX_RATIO=1.25 "$0" >/dev/null 2>&1; then
+		printf "selftest expected default performance audit to fail\n" >&2
+		return 1
+	fi
+	CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=1 PERF_MAX_RATIO=0 "$0" >/dev/null
+	sed -i 's/gstreamer_required\t0\t2.000\tpass/gstreamer_required\t0\t1.000\tpass/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/summary.tsv"
 
 	rm -f "$tmp_root/logs/$CANDIDATE/20260706-000000-ffmpeg-suite/artifacts.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="ffmpeg" REQUIRE_ARTIFACTS=1 \

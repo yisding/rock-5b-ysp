@@ -98,6 +98,7 @@ The smoke tests differ in what device access they need:
 > | `RKMPPENC_VALIDATE_CASES` | `rkmppenc-suite.sh` | device-free optional `rkmppenc` case-list validation |
 > | `REQUIRE_DIAGNOSTIC_PASS` | `rewrite-evidence-audit.sh` | set `1` when selected diagnostic cases in paired forward-port/rewrite summaries are intended to be hard pass/fail evidence |
 > | `AUDIT_REQUIRED_CASES` | `rewrite-evidence-audit.sh` | whitespace-separated `suite:case` list that must be present and passing in both audited profiles, useful for opt-in `gstreamer-rga`, `videoflip`, and `rkmppenc` tails |
+> | `PERF_MAX_RATIO` | suite comparators / `rewrite-evidence-audit.sh` | candidate/baseline elapsed-time ceiling for required pass/pass cases; the evidence audit defaults to `1.25`, and `0` disables the timing gate |
 > | `RUN_COUNTER_CHECKS` | `rewrite-conformance-run.sh` | optional suite debugfs counter gate (`0` by default); with `PROFILE=*rewrite*`, the runner defaults to requiring counter files plus positive librga/GStreamer/FFmpeg hardware-start and busy-time counters |
 > | `*_REQUIRED_POSITIVE_COUNTER_PREFIXES` | `rewrite-conformance-run.sh` / `debugfs-counter-check.sh` | optional multicore spread gate using `component:counter_prefix:min_positive`, e.g. `MPP_REQUIRED_POSITIVE_COUNTER_PREFIXES="mpp:started_rkvdec_core:2"` or `LIBRGA_REQUIRED_POSITIVE_COUNTER_PREFIXES="rga:started_rga3_core:2"` |
 > | `REWRITE_COUNTER_DEFAULTS` | `rewrite-conformance-run.sh` | set `0` to disable the automatic rewrite counter requirements when doing a narrow diagnostic run |
