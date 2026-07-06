@@ -470,6 +470,22 @@ static void fill_bgrx_pattern(uint8_t *buf, int width, int height)
 	}
 }
 
+static void fill_rgb565_pattern(uint8_t *buf, int width, int height)
+{
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			uint8_t r = (uint8_t)((x * 3) & 0x1f);
+			uint8_t g = (uint8_t)((y * 5) & 0x3f);
+			uint8_t b = (uint8_t)((x ^ y) & 0x1f);
+			uint16_t pixel = (uint16_t)((r << 11) | (g << 5) | b);
+			uint8_t *px = buf + (((size_t)y * width + x) * 2);
+
+			px[0] = (uint8_t)(pixel & 0xff);
+			px[1] = (uint8_t)(pixel >> 8);
+		}
+	}
+}
+
 static void fill_bgra_alpha_pattern(uint8_t *buf, int width, int height)
 {
 	for (int y = 0; y < height; y++) {
@@ -2500,14 +2516,20 @@ out:
 
 static int run_legacy_display_rgb_rotate_one(const char *label,
 					     const char *artifact,
-					     int format, int rotation)
+					     int format, int rotation,
+					     size_t bytes_per_pixel,
+					     void (*fill)(uint8_t *buf,
+							  int width,
+							  int height))
 {
 	const int src_w = 64;
 	const int src_h = 32;
-	const int dst_w = 32;
-	const int dst_h = 64;
-	const size_t src_size = (size_t)src_w * src_h * TEST_BPP;
-	const size_t dst_size = (size_t)dst_w * dst_h * TEST_BPP;
+	const bool swaps_axes = rotation == HAL_TRANSFORM_ROT_90 ||
+				rotation == HAL_TRANSFORM_ROT_270;
+	const int dst_w = swaps_axes ? src_h : src_w;
+	const int dst_h = swaps_axes ? src_w : src_h;
+	const size_t src_size = (size_t)src_w * src_h * bytes_per_pixel;
+	const size_t dst_size = (size_t)dst_w * dst_h * bytes_per_pixel;
 	struct dmabuf_test_buffer dma_src = {};
 	struct dmabuf_test_buffer dma_dst = {};
 	rga_info_t src = {};
@@ -2535,7 +2557,7 @@ static int run_legacy_display_rgb_rotate_one(const char *label,
 		ret = 1;
 		goto out;
 	}
-	fill_bgrx_pattern(dma_src.mem, src_w, src_h);
+	fill(dma_src.mem, src_w, src_h);
 	ret = dmabuf_sync(dma_src.fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
 			  "legacy display source end");
 	if (ret) {
@@ -2612,7 +2634,9 @@ static int run_legacy_display_rgb_rotate(void)
 	return run_legacy_display_rgb_rotate_one("legacy display BGRx",
 						 "legacy_bgrx_display_rot90",
 						 RK_FORMAT_BGRX_8888,
-						 HAL_TRANSFORM_ROT_90);
+						 HAL_TRANSFORM_ROT_90,
+						 TEST_BPP,
+						 fill_bgrx_pattern);
 }
 
 static int run_display_tail_bgra_partial_blend(void)
@@ -2742,14 +2766,27 @@ static int run_legacy_display_tail_rotate(void)
 	ret = run_legacy_display_rgb_rotate_one("legacy display BGRA",
 						"legacy_bgra_display_rot90",
 						RK_FORMAT_BGRA_8888,
-						HAL_TRANSFORM_ROT_90);
+						HAL_TRANSFORM_ROT_90,
+						TEST_BPP,
+						fill_bgrx_pattern);
 	if (ret)
 		return ret;
 
 	ret = run_legacy_display_rgb_rotate_one("legacy display XRGB",
 						"legacy_xrgb_display_rot270",
 						RK_FORMAT_XRGB_8888,
-						HAL_TRANSFORM_ROT_270);
+						HAL_TRANSFORM_ROT_270,
+						TEST_BPP,
+						fill_bgrx_pattern);
+	if (ret)
+		return ret;
+
+	ret = run_legacy_display_rgb_rotate_one("legacy display RGB565",
+						"legacy_rgb565_display_rot180",
+						RK_FORMAT_RGB_565,
+						HAL_TRANSFORM_ROT_180,
+						2,
+						fill_rgb565_pattern);
 	if (ret)
 		return ret;
 
