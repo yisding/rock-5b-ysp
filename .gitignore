@@ -16,3 +16,8 @@ kernel-drivers/tests/logs/
 # Python validation helpers.
 __pycache__/
 *.pyc
+
+# Local board flash dumps and erase-time backups. These are recovery artifacts,
+# not source inputs.
+spi-backups/
+spi-*.bin
