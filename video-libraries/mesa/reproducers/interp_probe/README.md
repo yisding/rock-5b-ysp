@@ -14,9 +14,11 @@ varying.
 | [`probe_interp.c`](probe_interp.c) | Original GBM/EGL/GLES probe. Draws a two-triangle quad with an explicit vertex attribute varying from `0` to `W`, then compares the interpolated value with `i + 0.5`. Includes `smooth`, attempted `noperspective`, and `gl_FragCoord.x` modes. |
 | [`tiny_interp_probe.c`](tiny_interp_probe.c) | Minimal surfaceless EGL/GLES proof. Uses one `gl_VertexID` triangle, no texture, no TXF, no u_blitter, no GBM, and no format-changing readback. This is the canonical GL reproducer. |
 | [`vk_interp_probe.c`](vk_interp_probe.c) | Vulkan/panvk port of the tiny probe. Removes Gallium, u_blitter, and the GL state tracker from the stack. Uses dynamic rendering and copies raw `R32_UINT` bits back with Vulkan. |
-| [`tiny_interp_probe_arm_blob.c`](tiny_interp_probe_arm_blob.c) | RK3588 proprietary ARM Mali variant of the tiny GL reproducer. Keeps the shader/draw/readback/checker identical, but swaps Mesa's surfaceless platform for a GBM display plus `EGL_NO_SURFACE`. |
-| [`vk_interp_probe_arm_blob.c`](vk_interp_probe_arm_blob.c) | ARM-named Vulkan entry point for scripts/logs. It includes `vk_interp_probe.c` directly because the RK3588 libmali ICD advertises Vulkan 1.3, so no Vulkan source fork is needed. |
-| [`README-arm-blob.md`](README-arm-blob.md) | Source-backed ARM/RK3588 driver capability notes, exact patch map, and proprietary-driver build/run instructions. |
+| [`tiny_interp_probe_arm_blob_x11.c`](tiny_interp_probe_arm_blob_x11.c) | **RK3588 proprietary ARM Mali variant — the runnable one.** Renders as a client of a running X server, so libmali never issues the kernel-crashing `SET_VERSION`. Shader/draw/readback/checker identical to the tiny probe. |
+| [`tiny_interp_probe_arm_blob.c`](tiny_interp_probe_arm_blob.c) | RK3588 ARM Mali variant via a GBM display. **⚠ Crashes the Radxa 5.10 vendor kernel** (NULL-deref in `drm_setversion`); refuses to run by default. Kept for the record — use the X11 variant instead. |
+| [`vk_interp_probe_arm_blob.c`](vk_interp_probe_arm_blob.c) | ARM-named Vulkan entry point for scripts/logs. It includes `vk_interp_probe.c` directly because the RK3588 libmali ICD advertises Vulkan 1.3, so no Vulkan source fork is needed. (The installed g6p0 blob ships no Vulkan ICD, so this is currently unrunnable on this board.) |
+| [`arm-mali-reproducer.md`](arm-mali-reproducer.md) | **Focused, ARM-specific overview — read this first for the Mali blob.** What it measures, the GBM-crash-vs-X11 story, how to build/run, and the verified result. |
+| [`README-arm-blob.md`](README-arm-blob.md) | Long source-backed ARM/RK3588 driver capability notes, exact patch map, and full step-by-step proprietary-driver runbook. |
 | [`vk_interp_probe.vert`](vk_interp_probe.vert) | Vulkan vertex shader. Emits the varying `v` that should interpolate to `x + 0.5`. |
 | [`vk_interp_probe.varying.frag`](vk_interp_probe.varying.frag) | Vulkan test fragment shader. Stores `floatBitsToUint(v)`. |
 | [`vk_interp_probe.fragcoord.frag`](vk_interp_probe.fragcoord.frag) | Vulkan control fragment shader. Stores `floatBitsToUint(gl_FragCoord.x)`. |
@@ -31,7 +33,8 @@ background:
 | [`probe_interp_explained.c`](probe_interp_explained.c) | Comment-heavy version of the historical GBM/GLES probe, including explanations of GBM, EGL, framebuffers, vertex attributes, varyings, and the readback check. |
 | [`tiny_interp_probe_explained.c`](tiny_interp_probe_explained.c) | Comment-heavy version of the canonical minimal GLES probe. This is the best first code file to read. |
 | [`vk_interp_probe_explained.c`](vk_interp_probe_explained.c) | Comment-heavy Vulkan host program explaining instance/device selection, memory, render targets, pipeline setup, command buffers, barriers, copy-to-buffer, and CPU verification. |
-| [`tiny_interp_probe_arm_blob_explained.c`](tiny_interp_probe_arm_blob_explained.c) | Comment-heavy RK3588 proprietary ARM Mali GLES variant. Explains why Mesa's surfaceless platform is replaced with a GBM display while `EGL_NO_SURFACE` is preserved. |
+| [`tiny_interp_probe_arm_blob_x11_explained.c`](tiny_interp_probe_arm_blob_x11_explained.c) | Comment-heavy version of the runnable X11-client ARM Mali variant. Explains X-client vs GBM, why the GBM path Oopses the kernel, and the DRI2/no-`SET_VERSION` reasoning. |
+| [`tiny_interp_probe_arm_blob_explained.c`](tiny_interp_probe_arm_blob_explained.c) | Comment-heavy GBM ARM Mali variant (the crashing path). Explains the GBM display setup; kept as documentation of why that route is unusable on this kernel. |
 | [`vk_interp_probe_arm_blob_explained.c`](vk_interp_probe_arm_blob_explained.c) | Comment-heavy ARM Vulkan entry point. Explains why the Vulkan ARM variant intentionally includes the canonical explained Vulkan probe instead of forking it. |
 | [`vk_interp_probe_explained.vert`](vk_interp_probe_explained.vert) | Comment-heavy Vulkan vertex shader. |
 | [`vk_interp_probe_explained.varying.frag`](vk_interp_probe_explained.varying.frag) | Comment-heavy Vulkan test fragment shader. |
@@ -58,24 +61,35 @@ export EGL_PLATFORM=surfaceless
 `probe_interp*.c` uses GBM and hardcodes `/dev/dri/renderD128`.
 `tiny_interp_probe.c` and `tiny_interp_probe_explained.c` use surfaceless EGL
 and open no DRM node themselves.
-`tiny_interp_probe_arm_blob.c` uses GBM and defaults to `/dev/dri/renderD128`.
+`tiny_interp_probe_arm_blob_x11.c` connects to a running X server and opens no
+DRM node itself; `tiny_interp_probe_arm_blob.c` (GBM) defaults to
+`/dev/dri/renderD128` but crashes this kernel and is gated off.
 `vk_interp_probe*.c` selects a Vulkan physical device by name substring
 (`Mali` by default, or pass `llvmpipe` for the software control).
 
-For the proprietary ARM Mali stack on the same Rock 5B/RK3588 hardware, use
-[`README-arm-blob.md`](README-arm-blob.md). The ARM GL variant uses GBM instead
-of Mesa surfaceless EGL; the ARM Vulkan entry point intentionally shares the
-canonical Vulkan source.
+For the proprietary ARM Mali stack on the same Rock 5B/RK3588 hardware, start
+with [`arm-mali-reproducer.md`](arm-mali-reproducer.md) (focused overview) and
+see [`README-arm-blob.md`](README-arm-blob.md) for the full runbook. The runnable
+ARM GL variant is the X11-client one; the ARM Vulkan entry point intentionally
+shares the canonical Vulkan source.
 
 ## Build
 
 Build from this directory:
 
+The ARM Mali variants link `libmali` directly (`-lmali`): the vendor
+`.../mali/libEGL|libGLESv2|libgbm` files are zero-symbol forwarding stubs, so
+`-lEGL -lGLESv2 -lgbm` fails to link. Use the **X11** variant to actually run —
+the GBM one crashes this kernel (see
+[`arm-mali-reproducer.md`](arm-mali-reproducer.md)).
+
 ```bash
 cc -O2 -o probe_interp probe_interp.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
+cc -O2 -o tiny_interp_probe_arm_blob_x11 \
+  tiny_interp_probe_arm_blob_x11.c -lmali -lX11 -lm
 cc -O2 -o tiny_interp_probe_arm_blob \
-  tiny_interp_probe_arm_blob.c -lEGL -lGLESv2 -lgbm -lm
+  tiny_interp_probe_arm_blob.c -lmali -lm          # GBM: gated off, crashes kernel
 
 glslc vk_interp_probe.vert           -o vk_interp_probe.vert.spv
 glslc vk_interp_probe.varying.frag   -o vk_interp_probe.varying.frag.spv
@@ -89,8 +103,10 @@ Build the explained copies separately:
 ```bash
 cc -O2 -o probe_interp_explained probe_interp_explained.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o tiny_interp_probe_explained tiny_interp_probe_explained.c -lEGL -lGLESv2 -lm
+cc -O2 -o tiny_interp_probe_arm_blob_x11_explained \
+  tiny_interp_probe_arm_blob_x11_explained.c -lmali -lX11 -lm
 cc -O2 -o tiny_interp_probe_arm_blob_explained \
-  tiny_interp_probe_arm_blob_explained.c -lEGL -lGLESv2 -lgbm -lm
+  tiny_interp_probe_arm_blob_explained.c -lmali -lm   # GBM: gated off, crashes kernel
 
 glslc vk_interp_probe_explained.vert \
   -o vk_interp_probe_explained.vert.spv
@@ -117,9 +133,11 @@ current working directory.
 ./tiny_interp_probe 12288 fragcoord
 ./tiny_interp_probe 8192
 ./tiny_interp_probe 16307 varying
-./tiny_interp_probe_arm_blob
-./tiny_interp_probe_arm_blob 12288 fragcoord
-./tiny_interp_probe_arm_blob 16307 varying /dev/dri/renderD128
+# ARM Mali blob: use the X11 variant (needs a running X server; see
+# arm-mali-reproducer.md). The GBM tiny_interp_probe_arm_blob crashes this kernel.
+DISPLAY=:0 ./tiny_interp_probe_arm_blob_x11 8192 fragcoord
+DISPLAY=:0 ./tiny_interp_probe_arm_blob_x11 12288 varying
+DISPLAY=:0 ./tiny_interp_probe_arm_blob_x11 16307 varying
 
 ./vk_interp_probe
 ./vk_interp_probe 12288 fragcoord
