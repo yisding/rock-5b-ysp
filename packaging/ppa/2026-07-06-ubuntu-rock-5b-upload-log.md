@@ -1220,3 +1220,51 @@ W: gnome-remote-desktop buildinfo: package-has-long-file-name gnome-remote-deskt
   - `gnome-remote-desktop` has no source publication entries.
 - Install-facing conclusion remains unchanged: **do not tell users to install
   from this PPA yet**.
+
+### 2026-07-07
+
+## Upstream FFmpeg 8.1.2 baseline arm64 build failure (build 33366878)
+
+- Launchpad arm64 build `33366878` of the upstream baseline
+  `ffmpeg 7:8.1.2-1+rk1` failed on `bos03-arm64-098` after ~22 minutes.
+- Not a compile error: compilation and linking succeeded; the failure is in
+  the FATE test suite run by `override_dh_auto_test-arch`. Exactly two tests
+  failed:
+  - `fate-filter-frei0r-filter`
+  - `fate-filter-frei0r-filter-unaligned`
+- Both fail with:
+
+```text
+[Parsed_frei0r_1 @ ...] Could not find module 'distort0r'.
+[AVFilterGraph @ ...] Error initializing filters
+```
+
+- Root cause: these FATE tests are new in FFmpeg 8.1 and load the real
+  `distort0r.so` frei0r plugin at runtime. The build chroot only had
+  `frei0r-plugins-dev` (headers, from Build-Depends) installed, not
+  `frei0r-plugins`, which ships the plugin modules. Ubuntu resolute's archive
+  never hit this because it is still on FFmpeg 8.0.1, and Debian's 8.1.x
+  changelog shows no frei0r-related build-dep fix yet.
+- Verified resolute's arm64 `frei0r-plugins` package ships
+  `/usr/lib/aarch64-linux-gnu/frei0r-1/distort0r.so` and provides the
+  `/usr/lib/frei0r-1` path that ffmpeg's frei0r filter searches.
+- The `mpp_soc: open /proc/device-tree/compatible error` lines in the build
+  log are harmless: the MPP runtime probing for Rockchip hardware that does
+  not exist on the Launchpad builder.
+- Fix applied to the forward-port packaging in this repo
+  (`packaging/ppa/ffmpeg/debian/`):
+  - `debian/control`: added `frei0r-plugins <!nocheck !pkg.ffmpeg.stage1>`
+    to Build-Depends next to `frei0r-plugins-dev`;
+  - `debian/changelog`: bumped to
+    `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2` (the ~rk1
+    source upload was signed but never uploaded, so it is superseded before
+    upload).
+- Remaining work on the board (`/home/yi`, not reachable from the Mac where
+  this entry was written):
+  - apply the same `frei0r-plugins <!nocheck>` Build-Depends change to the
+    upstream-baseline `8.1.2-1+rk1` tree used for
+    `/home/yi/Code/gnome/grd/grd-ppa/ffmpeg_8.1.2-1+rk1_source.changes`,
+    bump it to `7:8.1.2-1+rk2` (still sorts below the forward-port
+    version), rebuild the source package, re-sign, and `dput`;
+  - rebuild and re-sign the forward-port source package from the updated
+    `debian/` in this repo before its (still held) upload.

@@ -1,3 +1,15 @@
+ffmpeg (7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2) resolute; urgency=medium
+
+  * debian/control: add frei0r-plugins to Build-Depends, marked <!nocheck>.
+    The FATE tests fate-filter-frei0r-filter and
+    fate-filter-frei0r-filter-unaligned, new in FFmpeg 8.1, load the
+    distort0r plugin at runtime; the build chroot only had
+    frei0r-plugins-dev (headers), so both tests failed with "Could not
+    find module 'distort0r'". Seen in PPA arm64 build 33366878 of the
+    7:8.1.2-1+rk1 upstream-baseline upload, which needs the same fix.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 07 Jul 2026 22:16:17 -0700
+
 ffmpeg (7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk1) resolute; urgency=medium
 
   * Build from the ffmpeg-rockchip-81 forward-port branch at commit

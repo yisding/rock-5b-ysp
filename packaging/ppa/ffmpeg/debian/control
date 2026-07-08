@@ -31,6 +31,8 @@ Build-Depends:
  flite1-dev,
 # --enable-frei0r
  frei0r-plugins-dev <!pkg.ffmpeg.stage1>,
+# fate-filter-frei0r-filter loads distort0r.so at runtime
+ frei0r-plugins <!nocheck !pkg.ffmpeg.stage1>,
 # --enable-ladspa
  ladspa-sdk <!pkg.ffmpeg.stage1>,
 # --enable-libaom
