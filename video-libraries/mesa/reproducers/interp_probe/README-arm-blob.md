@@ -215,10 +215,16 @@ As with every variant, trust the number only when stderr `GL_RENDERER` names
 Mali and the `fragcoord` control passes first. Do **not** fall back to the GBM
 binary if the X11 one fails to connect — fix `DISPLAY`/authority instead.
 
-> Status: compile-verified against `libmali.so.1` + `libX11.so.6` (no `libgbm`);
-> **not yet run on hardware.** The X11-client path is *expected* to avoid
-> `SET_VERSION` (X owns DRM master), but that libmali-internal behavior is
-> UNVERIFIED until a run captures `GL_RENDERER` without a kernel Oops.
+> Status: **RUN AND VERIFIED on hardware (2026-07-08).** Driven as a client of
+> the sddm Xorg on `5.10.110-39-rockchip`, this path completes with no kernel
+> Oops: `GL_RENDERER=Mali-LODX`, `OpenGL ES 3.2 v1.g6p0-01eac0…`, `fragcoord`
+> control exact at 8192/12288/16307, and the `varying` drift comes out
+> **bit-for-bit identical to the Mesa/Panfrost numbers** (12288 → 11744/12288,
+> last v=12275.5312, 0.997·2⁻¹⁰; 16307 → 15672/16307, last v=16293.2832,
+> 0.830·2⁻¹⁰), proving the drift is hardware. Full write-up:
+> [`../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md`](../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md).
+> Requires a live X server (`DISPLAY=:0` + X authority); the GBM variant still
+> Oopses this kernel and stays gated off.
 
 ### 5. Build The Vulkan Reproducers
 

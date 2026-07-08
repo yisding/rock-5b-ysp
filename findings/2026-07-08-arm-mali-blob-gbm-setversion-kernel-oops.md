@@ -112,10 +112,11 @@ actually get an ARM-blob interp number.
 
 - Do **not** run the GBM ARM-blob reproducer on this kernel — it is a
   deterministic kernel crash, not a flake. The gate now prevents accidental runs.
-- The ARM-blob GLES interp number is still **uncaptured**. Next attempt should be
-  the **X11-client path** (start Xorg, use `EGL_PLATFORM_X11` + a pbuffer
-  surface, or a hidden window + FBO), which avoids `SET_VERSION`. This likely
-  needs a small X11 variant of the reproducer rather than the GBM one.
+- The ARM-blob GLES interp number was captured via the **X11-client path**
+  (`tiny_interp_probe_arm_blob_x11`) on 2026-07-08 — it runs cleanly (no Oops)
+  and the drift is bit-identical to Mesa/Panfrost. See
+  [`2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md`](2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md).
+  The GBM path here remains the crashing one and stays gated off.
 - Kernel-bug angle (watchlist / upstream): rockchip-drm's `drm_setversion`
   NULL-deref and the `rockchip_drm_lastclose -> drm_master_internal_acquire`
   teardown deadlock are both defects in `5.10.110-39-rockchip`. A newer vendor
