@@ -5,6 +5,23 @@ to produce a generic "any Mali blob" fallback. The goal is to keep the ARM blob
 reproducers as close as possible to the Mesa/Panfrost reproducers while
 changing only the loader/context setup that is Mesa-specific.
 
+> **⚠ DANGER — the GBM path crashes the kernel on the Radxa 5.10 vendor kernel.**
+> On `5.10.110-39-rockchip`, libmali's GBM/EGL bring-up issues the legacy
+> `DRM_IOCTL_SET_VERSION` on the rockchip-drm primary node, which **NULL-derefs
+> the kernel** (`Oops at drm_setversion+0x80`); the Oops teardown then deadlocks
+> in `rockchip_drm_lastclose → drm_master_internal_acquire`, so the task never
+> dies, holds `drm_global_mutex` forever, and every later DRM open hangs
+> (`D`-state, unkillable, PMIC/i2c/cpufreq cascade) — reboot / power cycle
+> required. With a compositor holding DRM master it *deadlocks* instead of
+> Oopsing, so stopping the display manager is **not** enough. Because of this,
+> `tiny_interp_probe_arm_blob` now **refuses to run by default**
+> (`MALI_PROBE_FORCE_SETVERSION=1` overrides only if your kernel is fixed). The
+> blob has no surfaceless EGL platform (only `EGL_KHR_platform_gbm` /
+> `EGL_KHR_platform_x11`), so GBM-on-the-display-node is unavoidable — the
+> **recommended way to actually get a number is to drive libmali as an X11
+> client** under a running Xorg (X owns DRM master → no `SET_VERSION`). Full
+> trace: [`../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md`](../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md).
+
 ## Capability Notes
 
 The longer stack note is
@@ -148,15 +165,60 @@ ls /usr/share/vulkan/icd.d/*mali* 2>/dev/null
 
 ### 4. Build The GLES Reproducers
 
+The Radxa vendor libmali installs `libEGL`/`libGLESv2`/`libgbm` under
+`/usr/lib/aarch64-linux-gnu/mali/` as **zero-symbol forwarding stubs** (the real
+`egl*`/`gl*`/`gbm_*` symbols live in `libmali.so.1`). GNU ld's default
+`--no-copy-dt-needed-entries` means linking those stubs fails with undefined
+references, so **link libmali directly** with `-lmali`:
+
 ```bash
 cc -O2 -o tiny_interp_probe_arm_blob \
-  tiny_interp_probe_arm_blob.c -lEGL -lGLESv2 -lgbm -lm
+  tiny_interp_probe_arm_blob.c -lmali -lm
 cc -O2 -o tiny_interp_probe_arm_blob_explained \
-  tiny_interp_probe_arm_blob_explained.c -lEGL -lGLESv2 -lgbm -lm
+  tiny_interp_probe_arm_blob_explained.c -lmali -lm
 ```
+
+(This needs the dev headers `libegl1-mesa-dev libgles2-mesa-dev libgbm-dev`.)
+`ldd ./tiny_interp_probe_arm_blob` should then show `libmali.so.1`.
 
 The compact and explained binaries run the same test. Use the compact binary
 for logs and the explained binary when reading through the code.
+
+**These binaries refuse to run by default on the RK3588 vendor kernel** (see the
+DANGER banner above): the GBM path Oopses the kernel. `MALI_PROBE_FORCE_SETVERSION=1`
+overrides the safety gate, but only do that on a kernel whose `drm_setversion` is
+known fixed — otherwise you will crash the board.
+
+### 4b. Build The GLES X11-Client Reproducer (the runnable path)
+
+Because the GBM path crashes this kernel, the runnable GLES variant is
+`tiny_interp_probe_arm_blob_x11.c`. It drives libmali as a **client of a running
+X server**: the X server already owns DRM master, so the libmali client
+authenticates through DRI2 and never issues the `SET_VERSION` that Oopses the
+kernel. It opens no DRM node itself; a 1×1 pbuffer just makes the context
+current, and the test still renders into the same `GL_R32UI` FBO.
+
+```bash
+cc -O2 -o tiny_interp_probe_arm_blob_x11 \
+  tiny_interp_probe_arm_blob_x11.c -lmali -lX11 -lm
+```
+
+Run it against the active X server. It reads `$DISPLAY` (and needs X authority —
+set `XAUTHORITY`/use `xhost` if running over SSH):
+
+```bash
+DISPLAY=:0 ./tiny_interp_probe_arm_blob_x11 8192 fragcoord
+DISPLAY=:0 ./tiny_interp_probe_arm_blob_x11 12288 varying
+```
+
+As with every variant, trust the number only when stderr `GL_RENDERER` names
+Mali and the `fragcoord` control passes first. Do **not** fall back to the GBM
+binary if the X11 one fails to connect — fix `DISPLAY`/authority instead.
+
+> Status: compile-verified against `libmali.so.1` + `libX11.so.6` (no `libgbm`);
+> **not yet run on hardware.** The X11-client path is *expected* to avoid
+> `SET_VERSION` (X owns DRM master), but that libmali-internal behavior is
+> UNVERIFIED until a run captures `GL_RENDERER` without a kernel Oops.
 
 ### 5. Build The Vulkan Reproducers
 
