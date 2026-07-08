@@ -84,7 +84,6 @@ flowchart TB
 
 | Goal | Path |
 |------|------|
-| Present the project accurately | [`conference-brief.md`](conference-brief.md) -> [`../status.md`](../status.md) -> [`../README.md`](../README.md) |
 | Check the docs before handoff | [`../scripts/check-markdown-links.py`](../scripts/check-markdown-links.py) -> `git diff --check` |
 | Get codecs working on a board | [`../install.md`](../install.md) -> [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) |
 | Build a command-line media stack | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`../video-libraries/ffmpeg/`](../video-libraries/ffmpeg/README.md) -> [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) |

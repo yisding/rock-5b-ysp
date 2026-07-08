@@ -8,8 +8,7 @@ of repo-wide references that are not owned by one project.
 
 | File | Purpose |
 |------|---------|
-| [`conference-brief.md`](conference-brief.md) | Presenter-facing summary: validated claim, proof points, demo path, and things not to overclaim. |
-| [`status-ledger.md`](status-ledger.md) | Audit companion to `../status.md`: longer dated cross-track notes without crowding the presentation scoreboard. |
+| [`status-ledger.md`](status-ledger.md) | Audit companion to `../status.md`: longer dated cross-track notes without crowding the status scoreboard. |
 | [`work-packages.md`](work-packages.md) | The project map, stack diagram, and user/developer reading paths. Start here when you are not sure which project owns a topic. |
 | [`source-trees.md`](source-trees.md) | Source pins and reconstruction recipes for the trees that `file:line` citations resolve against. Frozen — not actively expanded (useful trees are being published to GitHub instead). |
 | [`gotchas.md`](gotchas.md) | Whole-repo trap index: kernel and FFmpeg traps live here; GRD, Mesa, packaging, and debug-kernel traps point to their project-owned write-ups. |

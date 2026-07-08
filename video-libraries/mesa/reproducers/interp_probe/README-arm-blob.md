@@ -20,7 +20,7 @@ changing only the loader/context setup that is Mesa-specific.
 > `EGL_KHR_platform_x11`), so GBM-on-the-display-node is unavoidable — the
 > **recommended way to actually get a number is to drive libmali as an X11
 > client** under a running Xorg (X owns DRM master → no `SET_VERSION`). Full
-> trace: [`../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md`](../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md).
+> trace: [`../../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md`](../../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md).
 
 ## Capability Notes
 
@@ -58,7 +58,10 @@ I also checked the embedded extension strings in the public G610 GBM binaries
 - `EGL_KHR_surfaceless_context`
 - `GL_OES_surfaceless_context`
 
-That is the clean path for this probe. The Khronos
+Those extensions would make GBM a clean surfaceless path on paper — but on this
+board's kernel the GBM route never gets that far: it crashes in
+`DRM_IOCTL_SET_VERSION` before first draw (see the DANGER banner above), so the
+runnable variant is the X11-client one. The Khronos
 `EGL_KHR_surfaceless_context` extension exists so applications that render only
 to client API targets, such as GL framebuffer objects, do not need a throw-away
 EGL surface:
@@ -66,33 +69,42 @@ https://registry.khronos.org/EGL/extensions/KHR/EGL_KHR_surfaceless_context.txt
 
 ## What Changes
 
-`tiny_interp_probe_arm_blob.c` is a patched copy of `tiny_interp_probe.c`.
-The shader strings, triangle, `GL_R32UI` target, raw `glReadPixels` path, and
-CPU checker are intentionally unchanged.
+There are two GLES ARM variants. Both are patched copies of
+`tiny_interp_probe.c` — the shader strings, triangle, `GL_R32UI` target, raw
+`glReadPixels` path, and CPU checker are intentionally unchanged; only the EGL
+setup differs. Both link `libmali` directly (`-lmali`), because the vendor
+`.../mali/libEGL|libGLESv2|libgbm` files are zero-symbol forwarding stubs.
 
-Only the EGL setup changes:
+`tiny_interp_probe_arm_blob_x11.c` — **the runnable one.** It renders as a
+client of a running X server:
 
-- Add `fcntl.h`, `gbm.h`, and `unistd.h`.
-- Accept optional `argv[3]` as the DRM render node, defaulting to
-  `/dev/dri/renderD128`.
-- Open the render node and create a `gbm_device`.
+- Add `X11/Xlib.h`; `XOpenDisplay` connects to the server named by `$DISPLAY`.
+- Get the EGLDisplay via `EGL_PLATFORM_X11_KHR` on that X `Display*`.
+- Make current against a throwaway 1×1 pbuffer (the test still draws to the FBO).
+- Because the X server already owns DRM master, libmali authenticates via DRI2
+  and never issues the kernel-crashing `SET_VERSION`.
+
+`tiny_interp_probe_arm_blob.c` — **the GBM variant, gated off** (crashes this
+kernel; see the DANGER banner). Kept for the record:
+
+- Add `fcntl.h`, `gbm.h`, `unistd.h`; accept optional `argv[3]` render node
+  (default `/dev/dri/renderD128`); open it and create a `gbm_device`.
 - Replace Mesa's `EGL_PLATFORM_SURFACELESS_MESA` display with
-  `EGL_PLATFORM_GBM_KHR`.
-- Keep `eglMakeCurrent` surfaceless with `EGL_NO_SURFACE` for draw and read.
-- Link with `-lgbm`.
+  `EGL_PLATFORM_GBM_KHR`; keep `eglMakeCurrent` surfaceless (`EGL_NO_SURFACE`).
+- Refuses to run unless `MALI_PROBE_FORCE_SETVERSION=1`.
 
 `vk_interp_probe_arm_blob.c` deliberately does not fork the Vulkan test. It
 includes `vk_interp_probe.c` so ARM-named build/run scripts can exist without
-duplicating or drifting from the canonical Vulkan source. The searched RK3588
-libmali ICD advertises Vulkan 1.3, so the existing dynamic-rendering probe is
-the right first run on this hardware.
+duplicating or drifting from the canonical Vulkan source. (The installed g6p0
+blob ships no Vulkan ICD, so this is currently unrunnable on this board.)
 
 The `*_explained.c` ARM files are the teaching copies:
 
-- `tiny_interp_probe_arm_blob_explained.c` is standalone because the GLES/EGL
-  setup really differs from the Mesa tiny probe. It explains each ARM-specific
-  step: DRM render node, GBM device, GBM EGL display, and surfaceless
-  `eglMakeCurrent`.
+- `tiny_interp_probe_arm_blob_x11_explained.c` is the heavily-commented copy of
+  the runnable X11 variant — read this one. It explains the X-client vs GBM
+  choice, why GBM Oopses the kernel, and the DRI2/no-`SET_VERSION` reasoning.
+- `tiny_interp_probe_arm_blob_explained.c` is the comment-heavy GBM variant,
+  kept as documentation of the route that does not work here.
 - `vk_interp_probe_arm_blob_explained.c` is a documented wrapper around
   `vk_interp_probe_explained.c` because Vulkan does not use EGL, and the
   RK3588 libmali ICD advertises the Vulkan 1.3 path used by the canonical
@@ -222,7 +234,7 @@ binary if the X11 one fails to connect — fix `DISPLAY`/authority instead.
 > **bit-for-bit identical to the Mesa/Panfrost numbers** (12288 → 11744/12288,
 > last v=12275.5312, 0.997·2⁻¹⁰; 16307 → 15672/16307, last v=16293.2832,
 > 0.830·2⁻¹⁰), proving the drift is hardware. Full write-up:
-> [`../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md`](../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md).
+> [`../../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md`](../../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md).
 > Requires a live X server (`DISPLAY=:0` + X authority); the GBM variant still
 > Oopses this kernel and stays gated off.
 

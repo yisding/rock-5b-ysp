@@ -30,7 +30,6 @@ For a quick orientation:
 
 | Need | Start here |
 |------|------------|
-| Present the project accurately | [`docs/conference-brief.md`](docs/conference-brief.md) |
 | Install the validated ROCK 5B kernel path | [`install.md`](install.md) |
 | Check what is usable, experimental, or stale | [`status.md`](status.md) |
 | Review the kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
@@ -188,7 +187,6 @@ apps/
   gnome-remote-desktop/  hardware H.264 RDP backend: docs, patches, bench
 packaging/             deploy hub: DKMS, udev/ACL debs, PPA notes, policy
 docs/                  cross-project map, source-tree pins, and gotchas trap index
-  conference-brief.md  presenter-facing claim/evidence/caveat summary
   status-ledger.md     audit companion to status.md
 scripts/               repo-wide maintenance checks
 ```

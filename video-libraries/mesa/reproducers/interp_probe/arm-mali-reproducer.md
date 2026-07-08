@@ -48,7 +48,7 @@ faithfully driving the Mali-G610 Valhall fixed-function varying interpolator,
 which carries the value at roughly 10 fractional bits (~`2⁻¹⁰`) of precision.
 Switching to the ARM blob does not avoid it; a fix must avoid relying on
 high-magnitude `highp` varyings. Full write-up:
-[`../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md`](../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md).
+[`../../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md`](../../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md).
 
 ## ⚠ Use the X11 variant. The GBM variant crashes the kernel.
 
@@ -73,7 +73,7 @@ never dies, holds `drm_global_mutex` forever, and every later DRM open hangs —
 the board needs a reboot / power cycle. The GBM binaries therefore **refuse to
 run by default** (override only on a fixed kernel via
 `MALI_PROBE_FORCE_SETVERSION=1`). Details:
-[`../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md`](../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md).
+[`../../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md`](../../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md).
 
 The X11 variant sidesteps this entirely: it renders as a **client of a running X
 server**, which already owns DRM master, so libmali authenticates via DRI2 and
