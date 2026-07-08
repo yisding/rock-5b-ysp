@@ -1268,3 +1268,27 @@ W: gnome-remote-desktop buildinfo: package-has-long-file-name gnome-remote-deskt
     version), rebuild the source package, re-sign, and `dput`;
   - rebuild and re-sign the forward-port source package from the updated
     `debian/` in this repo before its (still held) upload.
+
+## Baseline packaging recovered from Launchpad and checked in
+
+- The upstream-baseline `7:8.1.2-1+rk1` `debian/` tree was never in git; it
+  existed only at `/home/yi/Code/gnome/grd/grd-ppa/` on the board. A GitHub
+  search confirmed no other repo carries it.
+- Recovered it from the Launchpad source publication (`+sourcepub/18602029`,
+  status `Published`): downloaded `ffmpeg_8.1.2-1+rk1.debian.tar.xz` and the
+  `.dsc`, and verified the tarball sha256
+  `88d622f3090478439cebb30d1ded7b966012a21362982d8101b99a7463742b07` against
+  the `.dsc` checksums.
+- Checked the tree into this repo at `packaging/ppa/ffmpeg-baseline/debian/`
+  with the frei0r fix applied and the changelog bumped to `7:8.1.2-1+rk2`:
+  - `debian/control`: `frei0r-plugins <!nocheck !pkg.ffmpeg.stage1>` added to
+    Build-Depends (same fix as the forward-port tree);
+  - provenance and rebuild instructions in
+    `packaging/ppa/ffmpeg-baseline/README.md`.
+- Version ordering re-checked: `7:8.1.2-1+rk2` still sorts below
+  `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2`, so the baseline →
+  forward-port supersede plan is unchanged.
+- Remaining board-side work: rebuild the baseline source package from
+  `ffmpeg-baseline/debian/` plus the existing byte-identical
+  `ffmpeg_8.1.2.orig.tar.xz`, `debsign`, `dput`; then rebuild and re-sign the
+  forward-port `~rk2` source from `packaging/ppa/ffmpeg/debian/`.
