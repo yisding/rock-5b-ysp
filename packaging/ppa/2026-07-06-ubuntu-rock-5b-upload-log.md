@@ -866,7 +866,7 @@ W: ffmpeg source: superfluous-file-pattern tests/checkasm/x86/* [debian/copyrigh
   binary packages, and FFmpeg is still intentionally held back until
   `librockchip-mpp-dev` and `librga-dev` publish.
 
-## Public APT index recheck for presentation docs
+## Public APT index recheck for public-facing docs
 
 - Checked the public PPA APT indexes again at `2026-07-06T15:51:26-07:00`:
   - `dists/resolute/main/source/Sources.gz` still publishes:
@@ -883,7 +883,7 @@ W: ffmpeg source: superfluous-file-pattern tests/checkasm/x86/* [debian/copyrigh
 ## Public APT index recheck before docs handoff
 
 - Checked the public PPA APT indexes again at `2026-07-06T15:56:55-07:00`.
-  State was unchanged from the presentation-docs recheck:
+  State was unchanged from the public-facing-docs recheck:
   - `dists/resolute/main/source/Sources.gz` still publishes:
     - `mpp 1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1`;
     - `librga 2.2.0+git20260703.a632217-0ubuntu2~rk1`;

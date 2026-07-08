@@ -15,7 +15,7 @@ hardware H.264 backend for `gnome-remote-desktop`, Mesa/Panfrost Mali-G610
 debugging, DKMS/PPA packaging, a BSP audit fix series, and a clean-room rewrite
 track.
 
-The dated project scoreboard is [`status.md`](status.md); read every state claim
+The dated project dashboard is [`status.md`](status.md); read every state claim
 through its last-verified dates.
 
 ## Read first
@@ -165,7 +165,7 @@ owning README.
 
 ```
 README.md              this map + the taxonomy diagram
-status.md              dated whole-project scoreboard and staleness watchlist
+status.md              dated whole-project dashboard and staleness watchlist
 glossary.md            cross-cutting vocabulary (per-project terms live in each project's keywords.md)
 install.md             board-user install path and delivery chooser
 findings/              raw capture inbox (drop-first, graduate-later): README + TEMPLATE

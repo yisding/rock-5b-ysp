@@ -223,7 +223,7 @@ validation still required after `ffmpeg-rockchip-81` publishes the fork ABI
 ## See Also
 
 - [`../README.md`](../README.md) - deploy hub and binary policy.
-- [`../../status.md`](../../status.md) - project-wide scoreboard.
+- [`../../status.md`](../../status.md) - project-wide dashboard.
 - [`../ffmpeg-rockchip81/`](../ffmpeg-rockchip81/README.md) - self-contained
   local `/opt` FFmpeg package, separate from this PPA replacement package.
 - [`../../video-libraries/ffmpeg/`](../../video-libraries/ffmpeg/README.md) -

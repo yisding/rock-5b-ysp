@@ -3,7 +3,7 @@
 > **Scope.** This doc is the scorecard for the **kernel codec forward-port**
 > only. The repo now spans much more — ffmpeg (two lineages), the
 > gnome-remote-desktop HW-encode backend, DKMS/PPA packaging, Mesa/Panfrost —
-> and the whole-project dated scoreboard is [`status.md`](../../status.md) at the
+> and the whole-project dated dashboard is [`status.md`](../../status.md) at the
 > repo root.
 
 Target: Radxa ROCK 5B (RK3588), Armbian, kernel **6.18.37** (`rockchip64-current`).

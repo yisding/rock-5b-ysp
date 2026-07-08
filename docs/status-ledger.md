@@ -1,7 +1,7 @@
 # Status ledger
 
 This is the audit companion to [`../status.md`](../status.md). Keep
-`status.md` as the presentation scoreboard and watchlist; use this file for
+`status.md` as the status dashboard and watchlist; use this file for
 longer dated notes that cross project boundaries but are not the canonical home
 for the underlying evidence.
 

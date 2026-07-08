@@ -70,7 +70,7 @@ with **0 errors** and link both modules (out-of-tree build using the
 carries the drivers `=y`, so an OOT link against it can never complete
 ([`packaging/dkms/README.md`](../../../packaging/dkms/README.md) caveat 1).
 
-### Verification scoreboard
+### Verification dashboard
 
 | Check | Status |
 |-------|--------|

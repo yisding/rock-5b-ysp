@@ -78,7 +78,7 @@ flowchart TB
 | video-libraries | ffmpeg / mesa | rkmpp codecs + rkrga filters, and the Mali-G610 transfer investigation behind GRD fallback. | [`../video-libraries/`](../video-libraries/README.md) |
 | apps | gnome-remote-desktop | The codec stack in a real RDP application: backend design, zero-copy encode, greeter ACL. | [`../apps/`](../apps/README.md) |
 | packaging | — | Installable delivery: DKMS, udev ACLs, PPA source packages, rollback, binary policy. | [`../packaging/`](../packaging/README.md) |
-| scripts | — | Repo-wide maintenance checks used before presentation or handoff. | [`../scripts/`](../scripts/README.md) |
+| scripts | — | Repo-wide maintenance checks (markdown links, whitespace) run before a handoff. | [`../scripts/`](../scripts/README.md) |
 
 ## User reading paths
 
