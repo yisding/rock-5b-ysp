@@ -191,3 +191,20 @@ fetch modes onto one mechanism so they can't diverge.
 - Watch item: whether the NIR migration lands as a lateral port first or with
   the `pixel_coord` swap folded in. The port alone does not fix the drift — the
   exactness has to live in the shader it generates, not be assumed from elsewhere.
+
+## Direction / ownership (2026-07-08)
+
+Status: **paused, pending the maintainer.** The analysis above is complete, but
+the plan is *not* to drive the NIR migration forward from here:
+
+- The NIR blit-generator migration is shared Gallium infrastructure touching
+  every driver (the two-blast-radius split above), and the preference is **not to
+  land several hundred lines of machine-generated code** into it. That area is
+  the maintainer's; the cleaner outcome is for the maintainer to own the NIR
+  migration directly.
+- If a precision fix is wanted sooner, the targeted, arch-gated TGSI change
+  (!42679, in review) is the shippable path and does not depend on the migration.
+
+So: leave !42679 as the in-review targeted fix and **wait to see how the
+maintainer wants to approach the NIR work** rather than pushing a large change
+into shared code. This section is the "why we stopped here" marker.
