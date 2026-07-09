@@ -62,6 +62,15 @@ This means SPI U-Boot should scan bootable SD partitions before NVMe, but it
 does not run the SD card's raw bootloader stages in the pre-partition gap.
 BootROM already loaded SPL/U-Boot from SPI.
 
+Correction from the follow-up Armbian 26.2.1 SD experiment: this "should
+bypass" model is not reliable as a practical assumption on this board. A later
+test showed that an Armbian SD card with an intact-but-bad raw Rockchip loader
+blocked both SD boot and NVMe fallback, while backing up and zeroing only the SD
+raw-loader gap at sectors 64..32767 made the same SD rootfs boot successfully
+via the known-good SPI path. Treat the exact priority/preemption mechanism here
+as unresolved without UART or boot-order source confirmation; see
+[`2026-07-08-armbian-26.2.1-bl31-handoff-hang.md`](2026-07-08-armbian-26.2.1-bl31-handoff-hang.md).
+
 The Radxa Debian Bookworm SD card layout observed with `parted` / `lsblk`:
 
 ```text
@@ -115,9 +124,10 @@ cannot see a bootable SD card: the SD has a bootable ext4 partition with a
 standard `/boot/extlinux/extlinux.conf`, a matching root UUID, and the expected
 Rock 5B DTB.
 
-The likely boundary is that SPI U-Boot bypasses the Radxa SD card's raw
-Rockchip boot chain in the pre-partition gap. It should still be able to attempt
-the extlinux boot from p3, but the remaining failure is probably one of:
+The original suspected boundary was that SPI U-Boot bypasses the Radxa SD
+card's raw Rockchip boot chain in the pre-partition gap and then attempts the
+extlinux boot from p3. The later Armbian SD result above weakens that
+assumption. Remaining failure possibilities are therefore:
 
 1. DTB load/selection mismatch at U-Boot `sysboot` time.
 2. Vendor BSP kernel start or early firmware handoff mismatch when booted by the
