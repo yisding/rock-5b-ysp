@@ -1,13 +1,19 @@
 # RCB and SRAM: codec scratch memory wiring
 
 This note explains the memory model behind the `rockchip,rcb-*` properties and
-`MPP_CMD_SET_RCB_INFO`. It is the conceptual companion to the RK3588-specific
-finding in [`../../../findings/2026-07-05-rkvenc-rcb-sram.md`](../../../findings/2026-07-05-rkvenc-rcb-sram.md).
+`MPP_CMD_SET_RCB_INFO`, and records the RK3588-specific RKVENC/RKVDEC RCB state
+(see [RK3588-specific state](#rk3588-specific-state) below).
 
 > Anchors resolve against the local source trees used on 2026-07-05:
 > `../kernel/rockchip-kernel` `b4ef083dc0c3`,
-> `../kernel/linux` `c092e016fd29`, and
+> `../kernel/linux` `c092e016fd29`,
+> `../kernel/linux-6.18-rkvenc-av1-fwport` `a4b67868c0dd` plus the uncommitted
+> best-effort RCB probe fix, and
 > `../rockchip-conformance/sources/rockchip-mpp` `c2c1ee502b3a`.
+> Trust: CODE-INSPECTED for source-tree facts, MEASURED for the live Rock 5B
+> procfs/sysfs state below, ONLINE-SURVEY-NEGATIVE for public documentation
+> (no public TRM excerpt, binding, or vendor note assigns RK3588 encoder SRAM
+> RCB or `rockchip,rcb-iova` to the VEPU580 nodes as of 2026-07-05).
 
 ## One paragraph
 
@@ -157,10 +163,46 @@ On the studied RK3588 trees:
   - core 1: `rockchip,sram = <&vdec1_sram>`,
     `rockchip,rcb-iova = <0xFFE00000 0x100000>`.
 - RKVENC2 has optional RCB descriptor plumbing but no SRAM-backed DT properties
-  in either the 6.1 BSP RK3588 DTS or the 7.2 rewrite RK3588 DTS.
+  in either the 6.1 BSP RK3588 DTS or the 7.2 rewrite RK3588 DTS. The plumbing is
+  real end to end: current H.264 VEPU580 userspace emits encoder RCB descriptors
+  by default (`hal_h264e_vepu580.c` sends two `MPP_DEV_RCB_INFO` commands unless
+  `disable_rcb_buf=1`), and both kernel implementations accept them. But with no
+  encoder `rockchip,sram`/`rockchip,rcb-iova` in DT, the BSP `rkvenc2_set_rcbbuf()`
+  has no `enc->sram_iova` and the rewrite `rk_mpp_job_apply_rcb_info()` has no
+  `hw->rcb_iova`, so the descriptors are accepted and then patch no registers.
 
 So for RK3588, "decoder RCB uses SRAM" is an observed DT/driver fact. "Encoder
-RCB uses SRAM" is not supported by the current evidence.
+RCB uses SRAM" is not supported by the current evidence: this reads as optional
+generic RKVENC RCB support that Rockchip did not enable for RK3588 encoder nodes,
+not a forward-port omission.
+
+### Forward-port must keep encoder RCB allocation best-effort
+
+Because encoder RCB is unbacked in DT, `rkvenc2_alloc_rcbbuf()` cannot find
+`rockchip,rcb-iova` on RK3588 and returns an error. The 6.1 BSP calls that helper
+at both probe sites and **ignores the return value**, so the missing backing is
+harmless. The local `6.18-rkvenc-av1-fwport` briefly made that error fatal, which
+broke encoder probe. On that image the two VEPU580 cores fail probe with `-22`
+after CCU attach, and RKVENC never appears:
+
+```text
+$ cat /proc/mpp_service/supports-device
+DEVICE[ 4]:AV1DEC    HW_ID:0x80019000
+DEVICE[ 9]:RKVDEC    HW_ID:0x53813f05
+```
+
+`rkvenc-ccu` is bound but `fdbd0000.rkvenc-core`/`fdbe0000.rkvenc-core` have no
+driver, and the live DT confirms no encoder `rockchip,rcb-iova`/`rockchip,sram`.
+The fix is to restore BSP semantics — call `rkvenc2_alloc_rcbbuf()` best-effort
+and do not fail probe on missing encoder RCB backing — which restores RKVENC
+without inventing SRAM backing.
+
+Do **not** borrow `vdec0_sram`/`vdec1_sram` for the encoder to "fix" this. Those
+SRAM children are decoder-owned in DT and actively used by the decoder; reusing
+them for RKVENC is not justified without TRM/vendor evidence for a safe region
+and ownership model. A rewrite-only `rockchip,rcb-iova` can exercise the ABI and
+register-patching path, but it allocates coherent DMA scratch, not on-chip SRAM,
+and must be documented as such.
 
 ## Why it can matter for performance
 

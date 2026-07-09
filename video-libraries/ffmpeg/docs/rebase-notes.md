@@ -83,8 +83,9 @@ that tree built a self-contained package, registered the RKMPP/RKRGA features,
 and passed H.264 encode plus RKMPP hwupload -> RGA -> HEVC encode smoke tests.
 Its `h264_rkmpp` decode path fails only with the board's installed `/usr`
 `librockchip_mpp.so.1`; a clean `mpp-rockchip` 1.0.12 build supplies the missing
-parser registration and makes decode pass. See
-[`../../../findings/2026-07-06-ffmpeg-rockchip81-package-validation.md`](../../../findings/2026-07-06-ffmpeg-rockchip81-package-validation.md).
+parser registration and makes decode pass. Full build/package/on-board
+validation record, including the deb sha256 and the four documented failures, is
+in [`rockchip81-package-validation.md`](rockchip81-package-validation.md).
 
 Two consequences worth stating plainly:
 

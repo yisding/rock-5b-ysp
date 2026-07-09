@@ -7,6 +7,10 @@ Rockchip `librga` beyond the current YSP conformance bundle
 `ffmpeg-rockchip`/Jellyfin paths). It is not an exhaustive GitHub index, and it
 does not make every stale BSP demo part of the RK3588 rewrite contract.
 
+Trust: UNVERIFIED. This is a public-source survey (reading published GitHub code,
+not running these consumers on hardware); treat it as signal for profile
+selection, not as a conformance result.
+
 ## Bottom line
 
 The scan did not find another maintained media-server framework that adds a new
@@ -75,7 +79,7 @@ The actionable split from the survey is:
 | `rkmppenc` | Optional app-level confidence target; direct kernel primitive is fd-backed crop/CSC/resize plus fence chaining | Primitive covered by direct `librga-smoke`; full CLI/filter graph is executable through opt-in `rkmppenc-suite.sh` and its comparator. |
 | Standalone `gstreamer-rga`, env-gated `videoflip`, Weston mirror, and GStreamer base converter patches | Optional integration diagnostics for independent plugin/env-gated legacy blit lifecycles | Case builders are wired through `GST_ENABLE_RGACONVERT_CASES=1` and `GST_ENABLE_VIDEOFLIP_RGA_CASES=1`; promote only if desktop/GStreamer-base acceleration becomes a target profile. |
 | RetroArch/SDL/LVGL/Xorg/Qt/pixman display and UI acceleration | Optional appliance/display tail: RGB565/BGRA/BGRX/XRGB fill, blit, rotate, simple blend, and fd-backed scanout-style buffers | Covered by `LIBRGA_SMOKE_DISPLAY_TAIL=1` BGRA/XRGB/RGB565 rotation plus BGRA partial alpha-blend artifacts; it is not a full GBM/DRM scanout lifecycle test. |
-| Direct physical-address submit, old DRM-RGA userspace, Android HWC/gralloc, and RGA2-Pro RFBC64x4/AFBC32x8 source-tail modes | Recognized-but-unsupported or outside the Linux/Rock 5B rewrite profile | Keep explicit negative probes for physical import and FBC tail modes; do not add the abandoned DRM-RGA ioctl family or Android allocator/HWC APIs to `/dev/rga`. |
+| Direct physical-address submit, old DRM-RGA userspace, Android HWC/gralloc, RGA2-Pro RFBC64x4/AFBC32x8 source-tail modes, per-channel rotation, and tile alpha/pattern/color-key | Recognized-but-unsupported or outside the Linux/Rock 5B rewrite profile | Keep explicit negative probes for physical import and FBC tail modes; the rewrite rejects the RGA2-Pro FBC source modes with `-EOPNOTSUPP` rather than carrying an executable FBCIN path. Do not add the abandoned DRM-RGA ioctl family or Android allocator/HWC APIs to `/dev/rga`. |
 
 ## What this changes
 
@@ -120,9 +124,12 @@ as useful but non-blocking conformance work:
   `/dev/rga` character-device ABI used by `librga`, not the abandoned
   `libdrm-rockchip` RGA helper path.
 
-The scan does not justify reviving RGA2-Pro source FBC paths, dormant BSP
-debug/procfs controls, raw physical-address submit, or old Android gralloc
-compatibility as required Linux/Rock 5B behavior.
+The scan does not justify reviving RGA2-Pro source FBC paths, per-channel
+rotation, tile alpha/pattern/color-key, dormant BSP debug/procfs controls, raw
+physical-address submit, or old Android gralloc compatibility as required
+Linux/Rock 5B behavior. No current Linux-media consumer promotes those into the
+RK3588 profile, so the rewrite keeps them out and rejects the RGA2-Pro FBC
+source modes with `-EOPNOTSUPP`.
 
 ## Sources
 
@@ -156,3 +163,23 @@ compatibility as required Linux/Rock 5B behavior.
 - RGA G2D scheduler-core shim: https://github.com/zczjx/posix-bsp-perf/blob/e17acf4670c3cd6f722d083b2695b2e3b37cdd45/bsp/bsp_g2d/impl/rk_rga/rkrga.cpp
 - old `libdrm-rockchip` RGA helper: https://github.com/zouxf1024/libdrm-rockchip/blob/5d82052f2d62f2c167142af93905d63a7fa5ba77/rga_api_helper.md
 - Rust wrapper: https://github.com/varphone/rkrga/blob/057cc92f258adc2852915f20040a514bb447cf09/src/lib.rs
+
+Additional citations from the 2026-07-04 librga-consumer survey pass (not already
+listed above):
+
+- RKNN model-zoo `image_utils.c`: https://github.com/airockchip/rknn_model_zoo/blob/bad6c7334531becaf90a561988519b7bec34d0ab/utils/image_utils.c
+- RKNPU2 `preprocess.cc`: https://github.com/rockchip-linux/rknpu2/blob/5adf7c1bd17e169e9880ccdf3b49adde925ab7f9/examples/rknn_yolov5_demo/src/preprocess.cc
+- RKNPU2 RGA memory demo: https://github.com/rockchip-linux/rknpu2/blob/5adf7c1bd17e169e9880ccdf3b49adde925ab7f9/examples/rknn_api_demo/src/rknn_create_mem_with_rga_demo.cpp
+- Jellyfin FFmpeg Rockchip patch (upstream): https://github.com/jellyfin/jellyfin-ffmpeg/blob/172f1454c4bc4dd9a3754e9db024708ef7a83f0c/debian/patches/0042-add-full-hwa-pipeline-for-rockchip-rk3588-platform.patch
+- XtERVG RK3588 demo `mpp_rknn.cc`: https://github.com/steven-j-on-ai/XtERVG_RK3588_Demo/blob/HEAD/src/mpp_rknn.cc
+- `gstreamer-rknn` `gstrknn.c`: https://github.com/haydenee/gstreamer-rknn/blob/HEAD/src/gstrknn.c
+- OrbbecSDK ROS2 `rk_mpp_decoder.cpp`: https://github.com/orbbec/OrbbecSDK_ROS2/blob/HEAD/orbbec_camera/src/rk_mpp_decoder.cpp
+- BELABOX `gstreamer-rockchip` `gstmpp.c`: https://github.com/BELABOX/gstreamer-rockchip/blob/6453290d26121659111ce3d444ec33624de7506a/gst/rockchipmpp/gstmpp.c
+- JeffyCN Weston `fb-convert.c`: https://github.com/JeffyCN/weston/blob/HEAD/libweston/backend-drm/fb-convert.c
+- EchoHeim RK3399 pixman RGA patch: https://github.com/EchoHeim/RK3399-linux/blob/HEAD/buildroot/package/pixman/0005-pixman_image_composite32-Support-rockchip-RGA-2D-acc.patch
+- RetroArch-ARM libgo2 `display.c`: https://github.com/basharast/RetroArch-ARM/blob/HEAD/src/deps/libgo2/src/display.c
+- EmuELEC SDL2 Odroid-Go RGA patch: https://github.com/fengshenwk/EmuELEC/blob/HEAD/packages/multimedia/SDL2/patches/OdroidGoAdvance/0005-SDL-2.0.20.odroidgoa-support.patch
+- BrightSign NPU gaze extension `inference.cpp`: https://github.com/brightsign/brightsign-npu-gaze-extension/blob/889ea9554034ae766ea7f665ff8bd20cf022460c/src/inference.cpp
+- `drmclone` `rga_helper.cpp`: https://github.com/wxd9199/drmclone/blob/72f39d3668c29f8933a149de840d2d63387e6207/src/rga_helper.cpp
+- YSCV Rust RGA module `rga.rs`: https://github.com/enthropy7/YSCV/blob/f0344820ac03b49aa9cc4662ba110ec10e056c85/crates/yscv-video/src/rga.rs
+- `zig-rga` `im2d_single.zig`: https://github.com/vicharak-in/zig-rga/blob/35616b3d33216d4b0289a72b3de53796cf9f7bfa/src/im2d_single.zig
