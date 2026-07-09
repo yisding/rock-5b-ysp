@@ -48,7 +48,7 @@ faithfully driving the Mali-G610 Valhall fixed-function varying interpolator,
 which carries the value at roughly 10 fractional bits (~`2⁻¹⁰`) of precision.
 Switching to the ARM blob does not avoid it; a fix must avoid relying on
 high-magnitude `highp` varyings. Full write-up:
-[`../../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md`](../../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md).
+[`../../docs/arm-mali-blob-stack.md`](../../docs/arm-mali-blob-stack.md) → "Runtime Results".
 
 ## ⚠ Use the X11 variant. The GBM variant crashes the kernel.
 
@@ -73,7 +73,7 @@ never dies, holds `drm_global_mutex` forever, and every later DRM open hangs —
 the board needs a reboot / power cycle. The GBM binaries therefore **refuse to
 run by default** (override only on a fixed kernel via
 `MALI_PROBE_FORCE_SETVERSION=1`). Details:
-[`../../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md`](../../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md).
+[`../../docs/arm-mali-blob-stack.md`](../../docs/arm-mali-blob-stack.md) → "Runtime Results".
 
 The X11 variant sidesteps this entirely: it renders as a **client of a running X
 server**, which already owns DRM master, so libmali authenticates via DRI2 and
@@ -139,6 +139,6 @@ last pixel x=12287: v=12275.5312 expected=12287.5 relative_error=9.741e-04 (0.99
 - [`README-arm-blob.md`](README-arm-blob.md) — full multi-step runbook (incl.
   loader/env checks and the unavailable Vulkan path).
 - [`../../docs/arm-mali-blob-stack.md`](../../docs/arm-mali-blob-stack.md) —
-  static notes on the proprietary stack (packaging, blob symbols, DDK lines).
-- `findings/2026-07-08-arm-mali-blob-*` — the measured kernel-Oops and
-  bit-identical-drift findings.
+  the proprietary-stack notes (packaging, blob symbols, DDK lines) **and the
+  measured runtime results** (kernel-Oops mechanism, X11 path, bit-identical
+  drift) that this reproducer produced.

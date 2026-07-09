@@ -4,10 +4,11 @@ This note records what was learned while preparing the interpolation
 reproducers for the proprietary Arm/Rockchip Mali stack on the same Rock 5B /
 RK3588 / Mali-G610 MC4 hardware.
 
-Scope: package metadata and static binary inspection. These notes do not claim
-that the proprietary stack has been run on the board yet. Runtime logs still
-need to confirm the actual `GL_RENDERER`, Vulkan physical device, Vulkan
-`apiVersion`, selected DDK build, kernel ABI, and firmware state.
+Scope: package metadata and static binary inspection, plus the on-board runtime
+results captured 2026-07-08 (see [Runtime Results](#runtime-results-measured-2026-07-08)).
+The static sections below predate the runtime run and are kept as the reasoning
+that led to it; the runtime section records what actually happened on hardware
+(`GL_RENDERER`, DDK build, kernel ABI, and the GBM-vs-X11 outcome).
 
 ## Source Package Facts
 
@@ -213,9 +214,83 @@ See:
 - [`../reproducers/interp_probe/tiny_interp_probe_arm_blob.c`](../reproducers/interp_probe/tiny_interp_probe_arm_blob.c)
 - [`../reproducers/interp_probe/vk_interp_probe_arm_blob.c`](../reproducers/interp_probe/vk_interp_probe_arm_blob.c)
 
+## Runtime Results (measured 2026-07-08)
+
+Captured on `rock-5b-vendor-510`, `Linux 5.10.110-39-rockchip`, Debian 11 Radxa
+vendor distro, `libmali-valhall-g610-g6p0-x11-gbm 1.9-1`, `bifrost_kbase`
+loaded. The reproducer runbook is
+[`../reproducers/interp_probe/arm-mali-reproducer.md`](../reproducers/interp_probe/arm-mali-reproducer.md).
+
+### Build / loader
+
+- The vendor libmali ships `libEGL`/`libGLESv2`/`libgbm` under
+  `/usr/lib/aarch64-linux-gnu/mali/` as **zero-symbol forwarding stubs**; the
+  real symbols live in `libmali.so.1`. So `-lEGL -lGLESv2 -lgbm` fails to link
+  (GNU ld `--no-copy-dt-needed-entries`) — link `libmali` directly (`-lmali`).
+- `ldconfig` resolves `libEGL.so.1`/`libGLESv2.so.2`/`libgbm.so.1` to the `mali`
+  wrappers ahead of stock mesa via `/etc/ld.so.conf.d/00-aarch64-mali.conf`.
+
+### GBM path Oopses the kernel (do not use it)
+
+The Mali GPU is `/dev/mali0` (proprietary kbase, no DRM node), so the GBM path
+reaches libmali through the **rockchip-drm display node**. libmali's GBM/EGL
+bring-up issues the legacy `DRM_IOCTL_SET_VERSION` on the primary card node, and
+on this kernel that handler **NULL-derefs**:
+
+```
+Unable to handle kernel NULL pointer dereference at 0x10
+pc : drm_setversion+0x80/0x18c
+Call trace: drm_setversion / drm_ioctl_kernel / drm_ioctl / __arm64_sys_ioctl
+```
+
+The Oops teardown then deadlocks: the dying task's `drm_release` runs
+`rockchip_drm_lastclose -> drm_master_internal_acquire`, so it never finishes
+dying and holds `drm_global_mutex` forever — every later DRM open hangs
+(`drm_open`, unkillable `D`-state), with a PMIC `rk806` SPI + i2c + cpufreq
+cascade, needing a reboot/power cycle. With a compositor holding DRM master the
+same call *deadlocks* instead of Oopsing, so stopping the display manager is not
+a fix. The GBM reproducer therefore refuses to run by default. Trust:
+MEASURED (reproduced twice, full Oops + hung-task backtraces).
+
+### X11-client path works
+
+Driving libmali as a client of a running X server avoids `SET_VERSION` (the X
+server already owns DRM master; the client authenticates via DRI2). That path
+runs cleanly:
+
+- `GL_RENDERER=Mali-LODX`, `GL_VERSION=OpenGL ES 3.2 v1.g6p0-01eac0…`,
+  `arm_release_ver g6p0-01eac0`, `rk_so_ver 5`. This resolves the DDK-line /
+  kernel-ABI / renderer unknowns: **g6p0**, `bifrost_kbase`, `Mali-LODX`.
+
+### Interpolation result: bit-identical to Mesa/Panfrost
+
+The `fragcoord` control is exact at 8192/12288/16307; the `varying` drift is
+**numerically identical, to the last bit, to the Mesa/Panfrost run** on the same
+GPU:
+
+| width (varying) | mismatches | first bad x | last pixel v | relative_error |
+|---|---|---|---|---|
+| 8192 | 0 / 8192 | — | 8191.5000 | 0 (pass) |
+| 12288 | 11744 / 12288 | 529 | 12275.5312 | 9.741e-04 (0.997·2⁻¹⁰) |
+| 16307 | 15672 / 16307 | 623 | 16293.2832 | 8.105e-04 (0.830·2⁻¹⁰) |
+
+Two stacks that share only the GPU — different EGL/GL userspace, compilers, and
+kernel driver (`bifrost_kbase` vs Panfrost) — emit the same bits, so **the drift
+is hardware**: the Valhall fixed-function varying interpolator at ~10
+fractional-bit (`2⁻¹⁰`) precision, not a Panfrost/Mesa compiler bug. The exact
+proprietary-compiler question in the old "Current Unknowns" is answered by this.
+
+### Vulkan: unavailable from these repos
+
+Every Radxa-repo G610 package is DDK **g6p0** with no `vk_icdGetInstanceProcAddr`
+/ `libMaliVulkan` / ICD JSON (checked on the installed x11-gbm blob and the
+downloaded `gbm` blob). ARM-blob Vulkan needs an out-of-distro g13p0/g24p0
+libmali, which would also replace the working GLES path. Trust: MEASURED.
+
 ## Runtime Verification Checklist
 
-When the proprietary stack is actually run on the board, preserve:
+The 2026-07-08 run above satisfies this checklist; keep it for re-runs (a kernel
+or libmali bump can change the answer). Preserve:
 
 - exact libmali package/build source
 - chosen DDK line (`g6p0`, `g13p0`, `g24p0`, or another)
@@ -233,12 +308,14 @@ and the renderer/device lines prove the proprietary stack answered the calls.
 
 ## Current Unknowns
 
-- No ARM blob runtime output has been captured in this repo yet.
-- Static extension strings show surfaceless support, but runtime behavior still
-  depends on the installed wrapper layout, Vulkan loader configuration, kernel
-  driver compatibility, firmware installation, and render-node permissions.
-- The package metadata advertises OpenCL wrapper/ICD support when symbols are
-  present, but OpenCL behavior was not relevant to the interpolation probe and
-  was not runtime-tested.
-- The exact proprietary compiler behavior for the varying probe is not known
-  until the reproducers are run under libmali on the board.
+Most of the original unknowns are resolved by the
+[Runtime Results](#runtime-results-measured-2026-07-08) above (runtime output
+captured, DDK line `g6p0`, kernel ABI `bifrost_kbase`, and the varying-drift
+behavior — bit-identical to Mesa, i.e. hardware). Still open:
+
+- OpenCL wrapper/ICD behavior was not exercised (not relevant to the interp
+  probe).
+- The GBM `SET_VERSION` NULL-deref is a vendor-kernel bug pinned to
+  `5.10.110-39-rockchip`; a fixed kernel could make the GBM path usable. The
+  bit-identical varying result should be re-confirmed on any kernel or libmali
+  bump.

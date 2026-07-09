@@ -20,7 +20,7 @@ changing only the loader/context setup that is Mesa-specific.
 > `EGL_KHR_platform_x11`), so GBM-on-the-display-node is unavoidable — the
 > **recommended way to actually get a number is to drive libmali as an X11
 > client** under a running Xorg (X owns DRM master → no `SET_VERSION`). Full
-> trace: [`../../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md`](../../../../findings/2026-07-08-arm-mali-blob-gbm-setversion-kernel-oops.md).
+> trace and mechanism: [`../../docs/arm-mali-blob-stack.md`](../../docs/arm-mali-blob-stack.md) → "Runtime Results".
 
 ## Capability Notes
 
@@ -234,7 +234,7 @@ binary if the X11 one fails to connect — fix `DISPLAY`/authority instead.
 > **bit-for-bit identical to the Mesa/Panfrost numbers** (12288 → 11744/12288,
 > last v=12275.5312, 0.997·2⁻¹⁰; 16307 → 15672/16307, last v=16293.2832,
 > 0.830·2⁻¹⁰), proving the drift is hardware. Full write-up:
-> [`../../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md`](../../../../findings/2026-07-08-arm-mali-blob-interp-drift-bit-identical-to-mesa.md).
+> [`../../docs/arm-mali-blob-stack.md`](../../docs/arm-mali-blob-stack.md) → "Runtime Results".
 > Requires a live X server (`DISPLAY=:0` + X authority); the GBM variant still
 > Oopses this kernel and stays gated off.
 
