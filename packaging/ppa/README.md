@@ -7,8 +7,9 @@ The kernel side still ships through Armbian userpatches and standalone local
 `.debs`; the PPA's implemented source packages are userspace packages that
 should be built by Launchpad and installed by `apt`: MPP, librga, FFmpeg with
 RKMPP/RKRGA, and GRD. The forward-port kernel now has a tracked PPA source
-package under [`kernel-forward-port/`](kernel-forward-port/README.md), but its
-binary build and board install/revert gates are still pending. The optional
+package under [`kernel-forward-port/`](kernel-forward-port/README.md); its
+local arm64 binary build and normalized Armbian payload comparison now pass, but
+board install/revert gates are still pending. The optional
 greeter ACL package has both the existing local deb source and a native PPA
 source wrapper under [`gdm-hwenc/`](gdm-hwenc/README.md).
 
@@ -22,10 +23,10 @@ Last recorded in the public APT indexes and Launchpad API at
 |---------|----------------------|------------------|-------|
 | `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Source and arm64 binaries are published in the public PPA indexes. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
 | `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Source and arm64 binaries are published in the public PPA indexes; `-0ubuntu2~rk1` is superseded. | The `-0ubuntu3~rk1` retry succeeded after the earlier arm64 builder failure. |
-| `ffmpeg` | `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2` | Rockchip-81 packaging is fixed in-repo but not uploaded yet. | The `~rk1` signed artifacts are stale: `~rk2` adds the `frei0r-plugins` build-dependency needed by the FFmpeg 8.1 FATE frei0r tests, so the source package must be rebuilt and re-signed before upload. Upload the higher-version Rockchip-81 source only after the baseline retry reaches a useful state. |
+| `ffmpeg` | `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2` | Rockchip-81 `~rk2` source artifacts are regenerated under `packaging/ppa/out/artifacts/`, source-lintian checked with warnings only, and held unsigned/not uploaded. | `~rk2` adds the `frei0r-plugins` build-dependency needed by the FFmpeg 8.1 FATE frei0r tests. Upload the higher-version Rockchip-81 source only after baseline build `33381225` finishes or reaches a useful failure state; the 2026-07-09 API check still showed it as `Needs building`. |
 | `ffmpeg` (baseline) | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Fixed source upload is `Pending` as Launchpad source publication `18610234`; arm64 build `33381225` is `Needs building`. | The `7:8.1.2-1+rk1` baseline upload published, but arm64 build `33366878` failed in the FATE frei0r tests. `-1+rk2` adds the `frei0r-plugins` build-dependency and still sorts below the Rockchip-81 forward-port. |
 | `gnome-remote-desktop` | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1` | Source packaging imported, source lintian passed, and a local `nocheck` binary build passed against upstream FFmpeg `7:8.1.2-1+rk1`; not uploaded and not public in the PPA source index. | Reconstructed from `GRD_COMMIT` plus [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md), so it no longer depends on a dirty dev-box worktree. Wait for the FFmpeg dependency chain before upload, then rebuild once against upstream FFmpeg and once after `ffmpeg-rockchip-81` supersedes it. |
-| forward-port kernel | `6.18.38+rk3588av1fwport20260709-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source package generated locally; not uploaded. | Builds co-installable `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`; binary build and board install/revert validation are still pending. |
+| forward-port kernel | `6.18.38+rk3588av1fwport20260709-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source and local arm64 binary packages build locally; not uploaded. | Builds co-installable `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. Normalized module and DTB file lists match the local Armbian `6.18.38-current-rockchip64` debs; board install/revert validation is still pending. |
 | `gnome-remote-desktop-gdm-hwenc` | `1.0` under [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source wrapper imported; not uploaded. | Optional greeter ACL package. The canonical rule also feeds the local deb source under [`../gdm-hwenc/`](../gdm-hwenc/README.md). |
 
 Install-facing state: **do not tell users to install the full stack from this
@@ -155,8 +156,8 @@ Wave B  ffmpeg-rockchip-81
           wait for libavcodec-dev/libavutil-dev/etc. to publish
 Wave C  gnome-remote-desktop
 Wave D  gnome-remote-desktop-gdm-hwenc (optional greeter ACL)
-Wave K  forward-port kernel, only after kernel-forward-port/ has a clean
-        resolute arm64 binary build and board install/revert validation
+Wave K  forward-port kernel, only after kernel-forward-port/ has board
+        install/revert validation
 ```
 
 For the normal Rockchip-enabled package flow, do not upload the higher-version
@@ -223,6 +224,21 @@ and enables:
 This source produces the ABI from that branch: `libavcodec63`, `libavutil61`,
 `libavformat63`, `libavfilter12`, `libavdevice63`, `libswscale10`, and
 `libswresample7`.
+
+Prepared source artifacts for the held Rockchip-81 upload live under
+`packaging/ppa/out/artifacts/` when generated locally. As of 2026-07-09,
+`ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2_source.changes`
+has been regenerated and source-lintian checked, but it is intentionally not
+signed or uploaded until the upstream-baseline `7:8.1.2-1+rk2` build gives a
+useful result. The Rockchip-81 version sorts above the baseline version, so a
+later upload supersedes the baseline `ffmpeg`/`libav*` packages in the PPA.
+
+Private FFmpeg helper packages are a separate case: a package such as
+`gnome-remote-desktop-ffmpeg-rk` that installs FFmpeg 6 libraries under
+`/usr/lib/gnome-remote-desktop/ffmpeg-rk/` does not conflict with this PPA
+`ffmpeg` source or its distro-style `libav*` binaries. A source package named
+`ffmpeg` that produces `ffmpeg`/`libav*` binaries would not coexist; it would be
+ordered by Debian version and either supersede or be superseded.
 
 ### GNOME Remote Desktop
 

@@ -1388,3 +1388,64 @@ dput ppa:yi-ding/ubuntu-rock-5b /tmp/ubuntu-rock-5b-ppa/artifacts/ffmpeg_8.1.2-1
   - then rebuild and re-sign the higher-version `ffmpeg-rockchip-81`
     `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2` source package
     from `packaging/ppa/ffmpeg/debian/` before uploading it.
+
+### 2026-07-09
+
+## Prepared held `ffmpeg-rockchip-81` `~rk2` source upload
+
+- Rechecked Launchpad arm64 build `33381225` via the API before preparing the
+  forward-port upload. It still reports `buildstate: Needs building`, with no
+  builder, no first dispatch time, and no build log. The Rockchip-81 upload
+  remains held.
+- Regenerated the higher-version Rockchip-81 source package from the pinned
+  source checkout:
+  - repo: `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81`
+  - commit: `75638e7f0b1775193381af0c3187838f6c51dbd1`
+  - packaging: `packaging/ppa/ffmpeg/debian/`
+  - command: `bash packaging/ppa/build-source-packages.sh ffmpeg`
+- Produced unsigned artifacts under `packaging/ppa/out/artifacts/`:
+  - `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b.orig.tar.gz`
+  - `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2.debian.tar.xz`
+  - `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2.dsc`
+  - `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2_source.buildinfo`
+  - `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2_source.changes`
+- Verified version ordering locally:
+
+```text
+7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2 > 7:8.1.2-1+rk2
+```
+
+- Verified the generated `.dsc` unpacks and contains the expected fixes:
+  - changelog top entry is
+    `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2`;
+  - `debian/control` contains
+    `frei0r-plugins <!nocheck !pkg.ffmpeg.stage1>`;
+  - `debian/rules` still enables
+    `--enable-rkmpp --enable-rkrga --enable-version3`.
+- `lintian` on
+  `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2_source.changes`
+  completed with warnings only:
+  - `newer-standards-version 4.7.4.1`
+  - long generated `.changes` / `.buildinfo` filenames
+  - stale `debian/copyright` file patterns inherited from the upstream packaging
+- Next action when baseline build `33381225` finishes or produces a useful log:
+  sign and upload
+  `packaging/ppa/out/artifacts/ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2_source.changes`.
+
+## FFmpeg 6 helper package coexistence
+
+- The existing FFmpeg 6-style helper artifact found locally is
+  `gnome-remote-desktop-ffmpeg-rk_6.1+rkmpp1_arm64.deb`, not a distro-style
+  `ffmpeg` package.
+- Its binary package name is `gnome-remote-desktop-ffmpeg-rk`; it installs
+  private FFmpeg libraries under
+  `/usr/lib/gnome-remote-desktop/ffmpeg-rk/lib/`.
+- Its control metadata conflicts only with
+  `gnome-remote-desktop-ffmpeg-mainline` and provides
+  `gnome-remote-desktop-ffmpeg`.
+- That package shape does not conflict with the PPA's normal `ffmpeg` source or
+  distro-style `ffmpeg`/`libav*` binaries. A source package named `ffmpeg` that
+  builds normal `ffmpeg`/`libav*` binaries would not coexist; Debian version
+  ordering would decide which one supersedes the other.
+- Launchpad PPAs accept source uploads, not copied local `.deb` binaries, so
+  publishing that helper through the PPA still requires a source package wrapper.

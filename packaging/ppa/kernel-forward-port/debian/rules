@@ -49,6 +49,7 @@ override_dh_installdeb:
 	dh_installdeb
 
 override_dh_gencontrol:
+	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/substvars
 	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/$(IMAGE_PKG).substvars
 	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/$(DTB_PKG).substvars
 	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/$(HEADERS_PKG).substvars
