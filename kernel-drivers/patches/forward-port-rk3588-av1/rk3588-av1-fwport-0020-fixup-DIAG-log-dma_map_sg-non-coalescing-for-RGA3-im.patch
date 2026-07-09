@@ -1,0 +1,63 @@
+From e71f12dc84fbeac5921cd930c7ade7be56436e72 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 5 Jul 2026 14:35:51 -0700
+Subject: [PATCH 20/22] fixup! DIAG: log dma_map_sg non-coalescing for RGA3
+ imports (temporary)
+
+---
+ drivers/video/rockchip/rga3/rga_dma_buf.c | 34 +++++++++++++++++++----
+ 1 file changed, 29 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_dma_buf.c b/drivers/video/rockchip/rga3/rga_dma_buf.c
+index 7b62d1cf6980..a6446861a94c 100644
+--- a/drivers/video/rockchip/rga3/rga_dma_buf.c
++++ b/drivers/video/rockchip/rga3/rga_dma_buf.c
+@@ -432,19 +432,43 @@ int rga_dma_map_sgt(struct sg_table *sgt, struct rga_dma_buffer *buffer,
+ 	 *   false -> device is NOT on the coalescing iommu-dma path despite the DMA
+ 	 *            domain (a dma-ops wiring / map_dev-selection gap); fixable by
+ 	 *            routing this device onto iommu-dma ("Option 1"), no manual IOMMU.
+-	 *   true  -> iommu_dma_map_sg() runs yet still returns non-coalesced segments;
+-	 *            a deeper issue that leans toward a driver-owned iommu_map_sg
+-	 *            ("Route B").
++	 *   true  -> iommu_dma_map_sg() runs yet still returns non-coalesced segments.
++	 * Measured use_dma_iommu=1, so we are in the second case. But on that path
++	 * iommu_dma_map_sg() allocates ONE IOVA range for the whole buffer and maps
++	 * every page into it (dma-iommu.c iommu_dma_alloc_iova + iommu_map_sg); the
++	 * multi-segment return from __finalise_sg is non-coalesced *reporting*, not a
++	 * non-contiguous *mapping*. So the decisive question is now whether the
++	 * returned segments abut in IOVA space: if addr[i]+len[i] == addr[i+1] for all
++	 * i, the buffer is one contiguous span and RGA's base+size programming is
++	 * already safe — the nents!=1 reject in rga_dma_check_iova_contract() is then
++	 * too strict and can be relaxed to a contiguity+32-bit-span check (no Route B).
++	 * If contiguous=0, the segments are genuinely scattered and Route B stands.
+ 	 * Remove once the scattered-buffer question is settled.
+ 	 */
+ 	if (sgt->nents != 1) {
+ 		struct iommu_domain *diag_dom = iommu_get_domain_for_dev(map_dev);
++		struct scatterlist *s;
++		dma_addr_t first = sg_dma_address(sgt->sgl);
++		dma_addr_t expect = first;
++		int contiguous = 1;
++		int gaps = 0;
++		int i;
++
++		for_each_sg(sgt->sgl, s, sgt->nents, i) {
++			if (sg_dma_address(s) != expect) {
++				contiguous = 0;
++				gaps++;
++			}
++			expect = sg_dma_address(s) + sg_dma_len(s);
++		}
+ 
+-		rga_err("DIAG rga_dma_map_sgt: dev=%s max_seg_size=%u orig_nents=%u nents=%u domain_type=0x%x use_dma_iommu=%d\n",
++		rga_err("DIAG rga_dma_map_sgt: dev=%s max_seg_size=%u orig_nents=%u nents=%u domain_type=0x%x use_dma_iommu=%d contiguous=%d gaps=%d first=%pad span=0x%llx end=0x%llx\n",
+ 			dev_name(map_dev), dma_get_max_seg_size(map_dev),
+ 			sgt->orig_nents, sgt->nents,
+ 			diag_dom ? diag_dom->type : 0,
+-			use_dma_iommu(map_dev));
++			use_dma_iommu(map_dev),
++			contiguous, gaps, &first,
++			(u64)expect - (u64)first, (u64)expect - 1);
+ 	}
+ 
+ 	ret = rga_dma_check_iova_contract(sgt, "sg_table", false);

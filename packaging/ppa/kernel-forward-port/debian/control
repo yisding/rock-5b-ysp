@@ -1,0 +1,63 @@
+Source: linux-rockchip64-ysp
+Section: kernel
+Priority: optional
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Yi Ding <yi@example.com>
+Build-Depends:
+ bc,
+ bison,
+ debhelper-compat (= 13),
+ flex,
+ kmod,
+ libelf-dev,
+ libssl-dev,
+ pahole | dwarves,
+ python3,
+ rsync
+Rules-Requires-Root: no
+Standards-Version: 4.7.2
+Homepage: https://github.com/yisding/rock-5b-ysp
+
+Package: linux-image-ysp-rockchip64
+Architecture: arm64
+Depends:
+ initramfs-tools | linux-initramfs-tool,
+ ${misc:Depends},
+Provides:
+ linux-image,
+ linux-image-armbian,
+ wireguard-modules
+Description: ROCK 5B YSP Linux kernel image ${kernel:Release}
+ This package contains the co-installable ROCK 5B YSP forward-port kernel
+ image, modules, and matching in-image DTB copy for ${kernel:Release}.
+
+Package: linux-dtb-ysp-rockchip64
+Architecture: arm64
+Depends:
+ ${misc:Depends},
+Provides:
+ linux-dtb,
+ linux-dtb-armbian
+Description: ROCK 5B YSP Linux device trees ${kernel:Release}
+ This package contains device tree blobs for the ROCK 5B YSP forward-port
+ kernel, installed under /boot/dtb-${kernel:Release}.
+
+Package: linux-headers-ysp-rockchip64
+Section: devel
+Architecture: arm64
+Depends:
+ bison,
+ flex,
+ gcc,
+ libc6-dev,
+ libelf-dev,
+ libssl-dev,
+ make,
+ pahole | dwarves,
+ ${misc:Depends},
+Provides:
+ linux-headers-armbian
+Description: ROCK 5B YSP Linux kernel headers ${kernel:Release}
+ This package provides kernel headers for ${kernel:Release}.
+ .
+ This is useful for DKMS and building external modules.

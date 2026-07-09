@@ -1,0 +1,108 @@
+From 30457c7eeed27a9ec43c8fce342c726271aa2512 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 5 Jul 2026 19:21:22 -0700
+Subject: [PATCH 21/22] iommu: rockchip, vsi: count per-device IOMMU faults in
+ debugfs
+
+Add a u64 fault_count to struct rk_iommu and struct vsi_iommu, bumped in each fault IRQ, exposed read-only under /sys/kernel/debug/rockchip-iommu/<dev> and /sys/kernel/debug/vsi-iommu/<dev>.
+
+Lets the IOMMU-machinery fuzz harness attribute page/bus faults to a specific master across both providers (rockchip masters and the Verisilicon AV1 decoder) without scraping dmesg. Debug-only; no behaviour change on the fault path.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ drivers/iommu/rockchip-iommu.c | 15 +++++++++++++++
+ drivers/iommu/vsi-iommu.c      | 13 +++++++++++++
+ 2 files changed, 28 insertions(+)
+
+diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
+index 921ad0433e4c..c15797a273ae 100644
+--- a/drivers/iommu/rockchip-iommu.c
++++ b/drivers/iommu/rockchip-iommu.c
+@@ -8,6 +8,7 @@
+ 
+ #include <linux/clk.h>
+ #include <linux/compiler.h>
++#include <linux/debugfs.h>
+ #include <linux/delay.h>
+ #include <linux/device.h>
+ #include <linux/dma-mapping.h>
+@@ -112,6 +113,7 @@ struct rk_iommu_ops {
+ 
+ struct rk_iommu {
+ 	struct device *dev;
++	u64 fault_count;		/* page + bus faults on this MMU (debug) */
+ 	void __iomem **bases;
+ 	int num_mmu;
+ 	int num_irq;
+@@ -616,6 +618,9 @@ static irqreturn_t rk_iommu_irq(int irq, void *dev_id)
+ 		ret = IRQ_HANDLED;
+ 		iova = rk_iommu_read(iommu->bases[i], RK_MMU_PAGE_FAULT_ADDR);
+ 
++		if (int_status & (RK_MMU_IRQ_PAGE_FAULT | RK_MMU_IRQ_BUS_ERROR))
++			iommu->fault_count++;
++
+ 		if (int_status & RK_MMU_IRQ_PAGE_FAULT) {
+ 			int flags;
+ 
+@@ -1594,6 +1599,16 @@ static int rk_iommu_probe(struct platform_device *pdev)
+ 	if (err)
+ 		goto err_remove_sysfs;
+ 
++	{
++		static struct dentry *rk_iommu_debug_root;
++
++		if (!rk_iommu_debug_root)
++			rk_iommu_debug_root =
++				debugfs_create_dir("rockchip-iommu", NULL);
++		debugfs_create_u64(dev_name(dev), 0444, rk_iommu_debug_root,
++				   &iommu->fault_count);
++	}
++
+ 	return 0;
+ err_remove_sysfs:
+ 	iommu_device_sysfs_remove(&iommu->iommu);
+diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
+index 9ced6b2dcb14..320cf0d756dd 100644
+--- a/drivers/iommu/vsi-iommu.c
++++ b/drivers/iommu/vsi-iommu.c
+@@ -17,6 +17,7 @@
+ 
+ #include <linux/clk.h>
+ #include <linux/compiler.h>
++#include <linux/debugfs.h>
+ #include <linux/delay.h>
+ #include <linux/device.h>
+ #include <linux/dma-mapping.h>
+@@ -42,6 +43,7 @@
+ 
+ struct vsi_iommu {
+ 	struct device *dev;
++	u64 fault_count;		/* faults seen by this AV1-decoder MMU (debug) */
+ 	void __iomem *regs;
+ 	struct clk_bulk_data *clocks;
+ 	int num_clocks;
+@@ -248,6 +250,7 @@ static irqreturn_t vsi_iommu_irq(int irq, void *dev_id)
+ 		iova = readl(iommu->regs + VSI_MMU_PAGE_FAULT_ADDR);
+ 		domain = iommu->domain;
+ 		fault = true;
++		iommu->fault_count++;
+ 		vsi_iommu_mask_irq_locked(iommu);
+ 	}
+ 	writel(0, iommu->regs + VSI_MMU_STATUS_BASE);
+@@ -965,6 +968,16 @@ static int vsi_iommu_probe(struct platform_device *pdev)
+ 	if (err)
+ 		goto err_remove_sysfs;
+ 
++	{
++		static struct dentry *vsi_iommu_debug_root;
++
++		if (!vsi_iommu_debug_root)
++			vsi_iommu_debug_root =
++				debugfs_create_dir("vsi-iommu", NULL);
++		debugfs_create_u64(dev_name(dev), 0444, vsi_iommu_debug_root,
++				   &iommu->fault_count);
++	}
++
+ 	return 0;
+ 
+ err_remove_sysfs:

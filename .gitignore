@@ -5,6 +5,21 @@
 # Built binaries never live in git — built .debs and dkms build output are
 # already covered by per-subdir .gitignores (packaging/*/.gitignore).
 # Publication policy for built artifacts: see packaging/README.md.
+packaging/ppa/out/
+downloads/
+*.deb
+*.ddeb
+*.changes
+*.buildinfo
+*.dsc
+*.orig.tar.*
+*.debian.tar.*
+*.ko
+*.dtb
+*.dtbo
+*.img
+*.bin
+*.tar.zst
 
 # Accidental in-tree FFmpeg configure/build residue. Package builds should use
 # packaging/ffmpeg-rockchip81/build/ or /tmp, not a root-level ffbuild/.

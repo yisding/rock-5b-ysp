@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ] && [ -d /run/udev ]; then
+	udevadm control --reload-rules || true
+	# Apply to the codec nodes now so the active greeter can pick up the ACL
+	# without a reboot when the nodes already exist.
+	udevadm trigger --action=add --subsystem-match=dma_heap || true
+	udevadm trigger --action=add /dev/mpp_service /dev/rga /dev/iep 2>/dev/null || true
+fi
+
+#DEBHELPER#
+exit 0

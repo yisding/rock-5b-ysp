@@ -7,6 +7,12 @@ detectors + ramoops console/pmsg/ftrace + DRM memory/modeset debug. Built native
 default `../../../../kernel/rock5b-kernel-build`), with the config seeded from the
 running `/boot/config-$(uname -r)`.
 
+The Armbian userpatch config is tracked here as
+[`config-rock5b-debug-kernel.conf.sh`](config-rock5b-debug-kernel.conf.sh).
+`build-debug-kernel.sh` installs it into
+`$WORKSPACE/armbian-build/userpatches/` before invoking `compile.sh`; the
+external build tree is scratch, not the source of truth.
+
 > Perf numbers on this kernel are meaningless (KASAN instruments every access) —
 > use the production forward-port build for benchmarking.
 

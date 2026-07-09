@@ -37,7 +37,16 @@ def github_like_anchor(text: str) -> str:
 
 
 def markdown_files(root: Path) -> list[Path]:
-    return sorted(path for path in root.rglob("*.md") if ".git" not in path.parts)
+    skipped_prefixes = {("downloads",), ("packaging", "ppa", "out")}
+    files: list[Path] = []
+    for path in root.rglob("*.md"):
+        if ".git" in path.parts:
+            continue
+        relative_parts = path.relative_to(root).parts
+        if any(relative_parts[: len(prefix)] == prefix for prefix in skipped_prefixes):
+            continue
+        files.append(path)
+    return sorted(files)
 
 
 def normalize_target(raw: str) -> str:

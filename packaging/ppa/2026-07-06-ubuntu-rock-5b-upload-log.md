@@ -17,18 +17,19 @@
 
 This is a chronological working log, not a finished-state doc. Current state:
 
-- **`mpp` and `librga` source packages are published** in the PPA source index
-  (`dists/resolute/main/source`), but the **binary indexes are still empty** —
-  nothing has built into installable `.deb`s yet.
-- **FFmpeg is not public in the PPA.** The upstream baseline `7:8.1.2-1+rk1` hit
-  an arm64 build failure (frei0r); the fixed baseline `7:8.1.2-1+rk2` and the
-  higher-version `ffmpeg-rockchip-81` source are checked into
-  [`ffmpeg-baseline/`](ffmpeg-baseline/) / [`ffmpeg/`](ffmpeg/debian/) here but
-  still need a board-side rebuild + `debsign` + `dput`.
+- **`mpp` and `librga` source and arm64 binary packages are published** in the
+  public PPA indexes.
+- **FFmpeg baseline retry is uploaded.** The upstream baseline
+  `7:8.1.2-1+rk1` hit an arm64 build failure (frei0r); the fixed baseline
+  `7:8.1.2-1+rk2` was rebuilt, signed, uploaded, and accepted as Pending
+  source publication `18610234`. Arm64 build `33381225` is `Needs building`.
+  The higher-version `ffmpeg-rockchip-81` packaging is also fixed as `~rk2`,
+  but still needs source rebuild + `debsign` before upload.
 - **GRD / `grd-ffmpeg`** packaging prep exists; not uploaded.
 
-**Do not tell users to install from this PPA yet** — treat it as a packaging
-track. The install path remains the combined Armbian kernel (see
+**Do not tell users to install the full stack from this PPA yet** - treat it as
+a packaging track until FFmpeg publishes. The install path remains the combined
+Armbian kernel (see
 [`../../install.md`](../../install.md)). Public-index rechecks that can change
 this are in the [`../../status.md`](../../status.md) watchlist.
 
@@ -1319,3 +1320,71 @@ W: gnome-remote-desktop buildinfo: package-has-long-file-name gnome-remote-deskt
   `ffmpeg-baseline/debian/` plus the existing byte-identical
   `ffmpeg_8.1.2.orig.tar.xz`, `debsign`, `dput`; then rebuild and re-sign the
   forward-port `~rk2` source from `packaging/ppa/ffmpeg/debian/`.
+
+### 2026-07-08
+
+## Fixed FFmpeg baseline upload
+
+- Rechecked current Launchpad/PPA state before upload:
+  - MPP `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` is `Published`;
+  - librga `2.2.0+git20260703.a632217-0ubuntu3~rk1` is `Published`;
+  - public `binary-arm64/Packages.gz` contains `librockchip-mpp-dev`,
+    `librockchip-mpp1`, `librockchip-vpu0`, `librockchip-vpu1`,
+    `rockchip-mpp-demos`, `librga-dev`, and `librga2`;
+  - baseline FFmpeg `7:8.1.2-1+rk1` is `Published`, but arm64 build
+    `33366878` is `Failed to build`.
+- Rebuilt the fixed upstream-baseline source package from the checked-in
+  `packaging/ppa/ffmpeg-baseline/debian/` tree and the existing orig tarball
+  `/home/yi/Code/gnome/grd/grd-ppa/ffmpeg_8.1.2.orig.tar.xz`.
+- Verified the orig tarball is the byte-identical known input:
+
+```text
+464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c  ffmpeg_8.1.2.orig.tar.xz
+```
+
+- Version ordering was rechecked locally:
+
+```text
+7:8.1.2-1+rk2 < 7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2
+```
+
+- `dpkg-buildpackage -S -sa -us -uc -d` succeeded and produced:
+  - `/tmp/ubuntu-rock-5b-ppa/artifacts/ffmpeg_8.1.2.orig.tar.xz`
+  - `/tmp/ubuntu-rock-5b-ppa/artifacts/ffmpeg_8.1.2-1+rk2.debian.tar.xz`
+  - `/tmp/ubuntu-rock-5b-ppa/artifacts/ffmpeg_8.1.2-1+rk2.dsc`
+  - `/tmp/ubuntu-rock-5b-ppa/artifacts/ffmpeg_8.1.2-1+rk2_source.buildinfo`
+  - `/tmp/ubuntu-rock-5b-ppa/artifacts/ffmpeg_8.1.2-1+rk2_source.changes`
+- `lintian` on the fixed source upload reported only the already-known
+  baseline warnings:
+
+```text
+W: ffmpeg source: orig-tarball-missing-upstream-signature ffmpeg_8.1.2.orig.tar.xz
+W: ffmpeg source: superfluous-file-pattern libavfilter/vf_fspp.h [debian/copyright:606]
+W: ffmpeg source: superfluous-file-pattern tests/checkasm/llviddspenc.c [debian/copyright:606]
+```
+
+- Signed the source upload with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`; `debsign` successfully signed
+  the `.dsc`, `.buildinfo`, and `.changes` files.
+- Uploaded with:
+
+```text
+dput ppa:yi-ding/ubuntu-rock-5b /tmp/ubuntu-rock-5b-ppa/artifacts/ffmpeg_8.1.2-1+rk2_source.changes
+```
+
+- Client-side `dput` checks and FTP transfer succeeded for:
+  - `ffmpeg_8.1.2-1+rk2.dsc`
+  - `ffmpeg_8.1.2.orig.tar.xz`
+  - `ffmpeg_8.1.2-1+rk2.debian.tar.xz`
+  - `ffmpeg_8.1.2-1+rk2_source.buildinfo`
+  - `ffmpeg_8.1.2-1+rk2_source.changes`
+- Launchpad accepted the upload into Pending source publication
+  `18610234`; related package upload is `38591474`.
+- The new arm64 build record is `33381225`, currently `Needs building`, with no
+  dependency-wait text and no build log yet.
+- Remaining FFmpeg work:
+  - wait for baseline build `33381225` to finish or reach a useful failure
+    state;
+  - then rebuild and re-sign the higher-version `ffmpeg-rockchip-81`
+    `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2` source package
+    from `packaging/ppa/ffmpeg/debian/` before uploading it.

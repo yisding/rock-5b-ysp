@@ -167,10 +167,12 @@ binary**. Get userspace one of two ways:
   `h264_rkmpp`/`hevc_rkmpp`/`scale_rkrga`. This is the hardware-validated
   combination ([`kernel-drivers/tests/`](kernel-drivers/tests/README.md) uses it).
 - **Install it packaged**: the [`packaging/ppa/`](packaging/ppa/README.md)
-  source packaging is in progress for MPP, librga, and FFmpeg, but the public
-  PPA has no binary packages yet and no public FFmpeg source in the APT index
-  ([`status.md`](status.md)). Until the binary indexes publish, the packaged
-  route is the local-deb flow documented in
+  source packaging for MPP, librga, FFmpeg, GRD, the optional GDM greeter ACL
+  package, and the co-installable forward-port kernel is in this repo. The
+  public PPA is still not a complete install path: MPP and librga are published,
+  but FFmpeg/GRD and the kernel gates are still pending ([`status.md`](status.md)).
+  Until the full stack publishes and validates, the packaged route is the
+  local-deb flow documented in
   [`packaging/README.md`](packaging/README.md) § Operations (including the
   `apt-mark hold` pinning guidance).
 

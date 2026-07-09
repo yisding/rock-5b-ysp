@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-OUT="${OUT:-/tmp/ubuntu-rock-5b-ppa}"
+OUT="${OUT:-$ROOT/packaging/ppa/out}"
 WORK="$OUT/work"
 ARTIFACTS="$OUT/artifacts"
 
@@ -23,14 +23,22 @@ GRD_COMMIT="${GRD_COMMIT:-a59c904c99088235eb4de31ca340747d334494f3}"
 GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260630.a59c904+dirty20260706}"
 GRD_DELTA="${GRD_DELTA:-$ROOT/packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch}"
 
-mkdir -p "$WORK" "$ARTIFACTS"
+KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
+KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-/home/yi/Code/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
+KERNEL_PPA_CONFIG="${KERNEL_PPA_CONFIG:-$KERNEL_PPA_REPO/.config}"
+KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.38+rk3588av1fwport20260709}"
+
+GDM_HWENC_SOURCE="${GDM_HWENC_SOURCE:-gnome-remote-desktop-gdm-hwenc}"
+GDM_HWENC_VERSION="${GDM_HWENC_VERSION:-1.0}"
+GDM_HWENC_RULE="${GDM_HWENC_RULE:-$ROOT/packaging/gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules}"
 
 usage() {
     cat <<'USAGE'
-Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [gnome-remote-desktop|grd]
+Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [gnome-remote-desktop|grd] [gdm-hwenc] [kernel]
 
 Build unsigned source packages for ppa:yi-ding/ubuntu-rock-5b.
-Artifacts are written under ${OUT:-/tmp/ubuntu-rock-5b-ppa}/artifacts.
+Artifacts are written under packaging/ppa/out/artifacts by default.
+Set OUT=/path/to/output to use a different output root.
 
 Existing orig tarballs in the artifacts directory are reused by default, which
 is required when uploading a new Debian revision for an upstream version that
@@ -40,6 +48,14 @@ Source tree defaults can be overridden with MPP_REPO, LIBRGA_REPO, FFMPEG_REPO,
 GRD_REPO, and the matching *_COMMIT / *_UPSTREAM_VERSION variables. The GRD
 snapshot applies GRD_DELTA on top of GRD_COMMIT by default so the dirty20260706
 source package is reconstructible from a clean checkout.
+
+The forward-port kernel target exports the already-patched Armbian kernel
+worktree named by KERNEL_PPA_REPO, excluding build products and .git, then
+overlays packaging/ppa/kernel-forward-port/debian. It is intentionally not part
+of the no-argument default set because the orig tarball is large.
+
+The gdm-hwenc target creates a small native source package and copies the
+canonical rule from packaging/gdm-hwenc at export time.
 USAGE
 }
 
@@ -149,6 +165,98 @@ prepare_source() {
         -exec mv -f {} "$ARTIFACTS/" \;
 }
 
+prepare_worktree_source() {
+    local source="$1"
+    local repo="$2"
+    local upstream_version="$3"
+    local packaging_dir="$4"
+    local config_file="$5"
+    local source_dir="$WORK/${source}-${upstream_version}"
+    local upstream_tmp="$WORK/upstream-${source}"
+    local export_list="$WORK/${source}-${upstream_version}.files"
+    local orig_name="${source}_${upstream_version}.orig.tar.gz"
+    local orig="$WORK/$orig_name"
+    local artifact_orig="$ARTIFACTS/$orig_name"
+    local force_orig="${FORCE_ORIG:-0}"
+    local source_date_epoch
+
+    git -c safe.directory="$repo" -C "$repo" rev-parse --is-inside-work-tree >/dev/null
+    [[ -f "$config_file" ]] || {
+        echo "kernel config not found: $config_file" >&2
+        return 1
+    }
+
+    rm -rf "$source_dir" "$upstream_tmp" "$export_list"
+    mkdir -p "$source_dir" "$upstream_tmp"
+
+    git -c safe.directory="$repo" -C "$repo" ls-files --cached --others --exclude-standard |
+        grep -Ev '(^|/)debian(/|$)|(^|/).*\.orig$|(^|/).*\.rej$|(^|/)\.config(\.old)?$|(^|/).*\.cmd$|(^|/).*\.o$|(^|/).*\.ko$|(^|/).*\.dtb(o)?$|(^|/)\.tmp_.*|(^|/)Module\.symvers$|(^|/)System\.map$|(^|/)modules\.(builtin|builtin\.modinfo|order)$|(^|/)built-in\.a$' \
+        > "$export_list"
+
+    tar -C "$repo" -cf - -T "$export_list" | tar -C "$source_dir" -xf -
+
+    if [[ -f "$artifact_orig" && "$force_orig" != "1" ]]; then
+        assert_orig_matches_source "$artifact_orig" "$source_dir"
+        cp -f "$artifact_orig" "$orig"
+    else
+        source_date_epoch="$(git -c safe.directory="$repo" -C "$repo" show -s --format=%ct HEAD)"
+        cp -a "$source_dir" "$upstream_tmp/${source}-${upstream_version}"
+        tar -C "$upstream_tmp" \
+            --sort=name \
+            --mtime="@$source_date_epoch" \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -cf - "${source}-${upstream_version}" \
+            | gzip -n > "$orig"
+        rm -rf "$upstream_tmp/${source}-${upstream_version}"
+    fi
+
+    cp -a "$ROOT/$packaging_dir/debian" "$source_dir/debian"
+    cp -f "$config_file" "$source_dir/debian/config/arm64-rockchip64.config"
+
+    (
+        cd "$source_dir"
+        dpkg-buildpackage -S -sa -us -uc -d
+    )
+
+    if [[ -f "$artifact_orig" && "$force_orig" != "1" ]]; then
+        cmp -s "$orig" "$artifact_orig"
+    else
+        cp -f "$orig" "$ARTIFACTS/"
+    fi
+    find "$WORK" -maxdepth 1 -type f \
+        \( -name "${source}_${upstream_version}*.dsc" \
+        -o -name "${source}_${upstream_version}*.debian.tar.*" \
+        -o -name "${source}_${upstream_version}*_source.changes" \
+        -o -name "${source}_${upstream_version}*_source.buildinfo" \) \
+        -exec mv -f {} "$ARTIFACTS/" \;
+}
+
+prepare_native_source() {
+    local source="$1"
+    local version="$2"
+    local packaging_dir="$3"
+    local source_dir="$WORK/${source}-${version}"
+
+    rm -rf "$source_dir"
+    mkdir -p "$source_dir"
+    cp -a "$ROOT/$packaging_dir/debian" "$source_dir/debian"
+    cp -f "$GDM_HWENC_RULE" "$source_dir/70-gnome-remote-desktop-gdm-hwenc.rules"
+
+    (
+        cd "$source_dir"
+        dpkg-buildpackage -S -us -uc -d
+    )
+
+    find "$WORK" -maxdepth 1 -type f \
+        \( -name "${source}_${version}.dsc" \
+        -o -name "${source}_${version}.tar.*" \
+        -o -name "${source}_${version}_source.changes" \
+        -o -name "${source}_${version}_source.buildinfo" \) \
+        -exec mv -f {} "$ARTIFACTS/" \;
+}
+
 build_mpp() {
     prepare_source \
         "mpp" \
@@ -193,10 +301,28 @@ build_grd() {
         "*.spv"
 }
 
+build_kernel_forward_port() {
+    prepare_worktree_source \
+        "$KERNEL_PPA_SOURCE" \
+        "$KERNEL_PPA_REPO" \
+        "$KERNEL_PPA_UPSTREAM_VERSION" \
+        "packaging/ppa/kernel-forward-port" \
+        "$KERNEL_PPA_CONFIG"
+}
+
+build_gdm_hwenc() {
+    prepare_native_source \
+        "$GDM_HWENC_SOURCE" \
+        "$GDM_HWENC_VERSION" \
+        "packaging/ppa/gdm-hwenc"
+}
+
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     usage
     exit 0
 fi
+
+mkdir -p "$WORK" "$ARTIFACTS"
 
 if [[ "$#" -eq 0 ]]; then
     set -- mpp librga ffmpeg gnome-remote-desktop
@@ -208,6 +334,8 @@ for package in "$@"; do
         librga) build_librga ;;
         ffmpeg) build_ffmpeg ;;
         gnome-remote-desktop|grd) build_grd ;;
+        gdm-hwenc|gnome-remote-desktop-gdm-hwenc) build_gdm_hwenc ;;
+        kernel|forward-port-kernel|linux-rockchip64-ysp) build_kernel_forward_port ;;
         *) echo "unknown package: $package" >&2; usage >&2; exit 2 ;;
     esac
 done

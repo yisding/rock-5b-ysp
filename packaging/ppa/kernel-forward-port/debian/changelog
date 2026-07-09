@@ -1,0 +1,8 @@
+linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260709-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Initial ROCK 5B YSP forward-port kernel source package.
+  * Build co-installable image, DTB, and headers packages from the Armbian
+    rockchip64-current 6.18.38 source tree with the RK3588 MPP/RGA/AV1
+    forward-port applied.
+
+ -- Yi Ding <yi@example.com>  Thu, 09 Jul 2026 12:00:00 -0700

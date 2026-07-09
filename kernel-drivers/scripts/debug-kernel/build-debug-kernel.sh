@@ -6,6 +6,8 @@ CODE="$(cd "${ROOT_DIR}/../../../.." && pwd)"                # ~/Code (this live
 WORKSPACE="${WORKSPACE:-${CODE}/kernel/rock5b-kernel-build}" # external build scratch (armbian-build lives here)
 BUILD_DIR="${WORKSPACE}/armbian-build"
 CONFIG_NAME="rock5b-debug-kernel"
+CONFIG_SOURCE="${ROOT_DIR}/config-${CONFIG_NAME}.conf.sh"
+CONFIG_DEST="${BUILD_DIR}/userpatches/config-${CONFIG_NAME}.conf.sh"
 KERNEL_CONFIG="${BUILD_DIR}/userpatches/linux-rockchip64-current.config"
 
 usage() {
@@ -28,6 +30,8 @@ if [[ ! -x "${BUILD_DIR}/compile.sh" ]]; then
 	printf 'Missing Armbian build tree: %s\n' "${BUILD_DIR}" >&2
 	exit 1
 fi
+
+install -D -m 0644 "${CONFIG_SOURCE}" "${CONFIG_DEST}"
 
 running_config="/boot/config-$(uname -r)"
 if [[ -r "${running_config}" ]]; then

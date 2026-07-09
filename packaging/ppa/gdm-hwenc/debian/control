@@ -1,0 +1,23 @@
+Source: gnome-remote-desktop-gdm-hwenc
+Section: admin
+Priority: optional
+Maintainer: Yi Ding <yi.s.ding@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+
+Package: gnome-remote-desktop-gdm-hwenc
+Architecture: all
+Depends: ${misc:Depends}, acl
+Enhances: gnome-remote-desktop
+Description: hardware-accelerated encode for the GDM login screen (Rockchip)
+ gnome-remote-desktop can hardware-encode the RDP stream on Rockchip RK3588
+ via the MPP video codec. This package installs a udev rule that grants the
+ GDM greeter's dynamic per-session user, a member of group "gdm", access to
+ the MPP device nodes (/dev/mpp_service, the DMA-heaps, /dev/rga), so the
+ pre-login greeter is hardware-accelerated too and not just the logged-in
+ session, which is already covered by the "video" group.
+ .
+ It is a separate, opt-in package and is not pulled in by gnome-remote-desktop
+ because it widens access to the video codec hardware to the whole "gdm" group.
+ Install it only if you want the login screen hardware-encoded.

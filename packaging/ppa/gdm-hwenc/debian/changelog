@@ -1,0 +1,7 @@
+gnome-remote-desktop-gdm-hwenc (1.0) resolute; urgency=medium
+
+  * Initial PPA-native source package. Grant the GDM greeter group access to
+    the Rockchip MPP/RGA/dma-heap codec nodes via a udev setfacl rule, so
+    gnome-remote-desktop can hardware-encode the login screen as an opt-in.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 30 Jun 2026 21:30:00 -0700

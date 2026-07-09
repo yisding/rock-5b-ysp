@@ -1,32 +1,36 @@
-# ppa/ - Launchpad source packages for the userspace stack
+# ppa/ - Launchpad source packages
 
 This directory holds the reproducible Debian packaging for the ROCK 5B
-userspace media stack intended for `ppa:yi-ding/ubuntu-rock-5b`.
+media stack intended for `ppa:yi-ding/ubuntu-rock-5b`.
 
 The kernel side still ships through Armbian userpatches and standalone local
-`.debs`; this PPA is for userspace packages that should be built by Launchpad
-and installed by `apt`: MPP, librga, FFmpeg with RKMPP/RKRGA, and GRD. The
-greeter ACL package remains a local deb or future native PPA wrapper.
+`.debs`; the PPA's implemented source packages are userspace packages that
+should be built by Launchpad and installed by `apt`: MPP, librga, FFmpeg with
+RKMPP/RKRGA, and GRD. The forward-port kernel now has a tracked PPA source
+package under [`kernel-forward-port/`](kernel-forward-port/README.md), but its
+binary build and board install/revert gates are still pending. The optional
+greeter ACL package has both the existing local deb source and a native PPA
+source wrapper under [`gdm-hwenc/`](gdm-hwenc/README.md).
 
 ## Current State
 
 Last recorded in the public APT indexes and Launchpad API at
-`2026-07-06T16:43:41-07:00` and in
+`2026-07-08T22:50:31-07:00` and in
 [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md):
 
 | Package | Version in this repo | Public PPA state | Notes |
 |---------|----------------------|------------------|-------|
-| `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Source index publishes `-0ubuntu2~rk1`; public binary indexes are still empty. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
-| `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Public APT source index still publishes `-0ubuntu2~rk1`; public binary indexes are still empty. | Launchpad API shows the `-0ubuntu3~rk1` retry source publication as `Pending`, so it had not reached the public APT source index at the last check. |
-| `ffmpeg` | `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2` | Rockchip-81 source package generated, lintian-checked, signed, and held; not in the public PPA source index. | The `~rk1` signed artifacts are stale: `~rk2` adds the `frei0r-plugins` build-dependency needed by the FFmpeg 8.1 FATE frei0r tests, so the source package must be rebuilt and re-signed before upload. Upload the higher-version Rockchip-81 source only after dependencies and the baseline path settle. |
-| `ffmpeg` (baseline) | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | The `7:8.1.2-1+rk1` baseline upload published, but its arm64 binary build 33366878 failed in the FATE frei0r tests. | `debian/` recovered from the Launchpad source publication on 2026-07-07 and checked in with the `frei0r-plugins` build-dependency fix as `-1+rk2`. Rebuild, re-sign, and re-upload from the board; still sorts below the Rockchip-81 forward-port. |
+| `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Source and arm64 binaries are published in the public PPA indexes. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
+| `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Source and arm64 binaries are published in the public PPA indexes; `-0ubuntu2~rk1` is superseded. | The `-0ubuntu3~rk1` retry succeeded after the earlier arm64 builder failure. |
+| `ffmpeg` | `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2` | Rockchip-81 packaging is fixed in-repo but not uploaded yet. | The `~rk1` signed artifacts are stale: `~rk2` adds the `frei0r-plugins` build-dependency needed by the FFmpeg 8.1 FATE frei0r tests, so the source package must be rebuilt and re-signed before upload. Upload the higher-version Rockchip-81 source only after the baseline retry reaches a useful state. |
+| `ffmpeg` (baseline) | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Fixed source upload is `Pending` as Launchpad source publication `18610234`; arm64 build `33381225` is `Needs building`. | The `7:8.1.2-1+rk1` baseline upload published, but arm64 build `33366878` failed in the FATE frei0r tests. `-1+rk2` adds the `frei0r-plugins` build-dependency and still sorts below the Rockchip-81 forward-port. |
 | `gnome-remote-desktop` | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1` | Source packaging imported, source lintian passed, and a local `nocheck` binary build passed against upstream FFmpeg `7:8.1.2-1+rk1`; not uploaded and not public in the PPA source index. | Reconstructed from `GRD_COMMIT` plus [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md), so it no longer depends on a dirty dev-box worktree. Wait for the FFmpeg dependency chain before upload, then rebuild once against upstream FFmpeg and once after `ffmpeg-rockchip-81` supersedes it. |
-| `gnome-remote-desktop-gdm-hwenc` | local native package exists | Future wave or standalone local deb. | Source lives under [`../gdm-hwenc/`](../gdm-hwenc/README.md). |
+| forward-port kernel | `6.18.38+rk3588av1fwport20260709-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source package generated locally; not uploaded. | Builds co-installable `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`; binary build and board install/revert validation are still pending. |
+| `gnome-remote-desktop-gdm-hwenc` | `1.0` under [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source wrapper imported; not uploaded. | Optional greeter ACL package. The canonical rule also feeds the local deb source under [`../gdm-hwenc/`](../gdm-hwenc/README.md). |
 
-Install-facing state: **do not tell users to install from this PPA yet**. The
-public `binary-arm64/Packages.gz` and `binary-amd64/Packages.gz` indexes were
-empty at the last check, so `apt` cannot install the package set even though
-source publications exist.
+Install-facing state: **do not tell users to install the full stack from this
+PPA yet**. The public arm64 index now has MPP and librga binaries, but FFmpeg
+is still pending/rebuilding, so the package set is not complete.
 
 The PPA targets **resolute** (Ubuntu 26.04 / Armbian userspace) on **arm64**.
 The PPA was corrected from its initial amd64-only setup during the 2026-07-06
@@ -37,17 +41,20 @@ arm64`.
 
 | Path | Purpose |
 |------|---------|
-| [`build-source-packages.sh`](build-source-packages.sh) | Exports clean upstream git snapshots, overlays the packaging in this repo, and creates unsigned source packages under `/tmp/ubuntu-rock-5b-ppa/artifacts` by default. |
+| [`build-source-packages.sh`](build-source-packages.sh) | Exports clean upstream git snapshots, overlays the packaging in this repo, and creates unsigned source packages under `packaging/ppa/out/artifacts/` by default. |
 | [`mpp/debian/`](mpp/debian/changelog) | Debian packaging for Rockchip MPP from `mpp-rockchip` commit `1375813c`. |
 | [`librga/debian/`](librga/debian/changelog) | Debian packaging for the local `librga-fork` commit `a632217`, including the P010/P210 work. |
 | [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg packaging retargeted to the `ffmpeg-rockchip-81` forward-port at `75638e7f0b17`. |
 | [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging retargeted to the `GRD_COMMIT` + `GRD_DELTA` source snapshot with `-Dffmpeg=enabled`. |
 | [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md) | Captured tracked-file GRD deltas needed to reconstruct dirty source-package snapshots. |
+| [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source-package wrapper for the optional GDM greeter hardware-encode ACL rule. |
+| [`kernel-forward-port/`](kernel-forward-port/README.md) | Launchpad source-package track for the forward-port kernel; records source inputs, packaging shape, generated artifacts, and remaining binary/board validation gates. |
 | [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md) | The detailed build, lintian, signing, upload, Launchpad, and retry log for the current run. |
 
 Generated `.dsc`, `.changes`, `.buildinfo`, orig tarballs, `.deb`, `.ddeb`, and
 build directories are intentionally not committed. The script writes them under
-`/tmp` unless `OUT=` is set.
+`packaging/ppa/out/` by default; that directory is ignored. Set `OUT=` to use a
+different output root.
 
 ## Source Inputs
 
@@ -66,14 +73,21 @@ different machine.
 | GRD repo | `GRD_REPO` | `/home/yi/Code/gnome/grd/grd-ffmpeg` |
 | GRD commit | `GRD_COMMIT` | `a59c904c99088235eb4de31ca340747d334494f3` |
 | GRD dirty delta | `GRD_DELTA` | [`source-deltas/dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch) |
+| Forward-port kernel worktree | `KERNEL_PPA_REPO` | `/home/yi/Code/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
+| Forward-port kernel config | `KERNEL_PPA_CONFIG` | `$KERNEL_PPA_REPO/.config` |
+| Forward-port kernel source version | `KERNEL_PPA_UPSTREAM_VERSION` | `6.18.38+rk3588av1fwport20260709` |
+| GDM greeter ACL rule | `GDM_HWENC_RULE` | [`../gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules`](../gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules) |
 
 Version strings can also be overridden with `MPP_UPSTREAM_VERSION`,
 `LIBRGA_UPSTREAM_VERSION`, `FFMPEG_UPSTREAM_VERSION`, and
-`GRD_UPSTREAM_VERSION`.
+`GRD_UPSTREAM_VERSION`. The kernel source name can be overridden with
+`KERNEL_PPA_SOURCE`, though `linux-rockchip64-ysp` is the current package name.
+The native greeter ACL source package name/version can be overridden with
+`GDM_HWENC_SOURCE` and `GDM_HWENC_VERSION`.
 
 ## Build Source Packages
 
-Build all imported source packages:
+Build the default userspace dependency chain:
 
 ```bash
 bash packaging/ppa/build-source-packages.sh
@@ -86,17 +100,32 @@ bash packaging/ppa/build-source-packages.sh mpp librga
 bash packaging/ppa/build-source-packages.sh ffmpeg
 bash packaging/ppa/build-source-packages.sh gnome-remote-desktop
 bash packaging/ppa/build-source-packages.sh grd
+bash packaging/ppa/build-source-packages.sh gdm-hwenc
+bash packaging/ppa/build-source-packages.sh kernel
 ```
+
+The kernel target exports the patched Armbian kernel worktree rather than using
+`git archive`, because Armbian applies its patch stack into a dirty worktree.
+It is intentionally not part of the no-argument default set because the orig
+tarball is large.
 
 Use a different output directory or source checkout:
 
 ```bash
-OUT=/tmp/rock5b-ppa \
+OUT=/path/to/rock5b-ppa \
 MPP_REPO=/path/to/mpp-rockchip \
 LIBRGA_REPO=/path/to/librga-fork \
 FFMPEG_REPO=/path/to/ffmpeg-rockchip-81 \
 GRD_REPO=/path/to/grd-ffmpeg \
 bash packaging/ppa/build-source-packages.sh
+```
+
+For the kernel:
+
+```bash
+KERNEL_PPA_REPO=/path/to/armbian/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64 \
+KERNEL_PPA_CONFIG=/path/to/resolved/.config \
+bash packaging/ppa/build-source-packages.sh kernel
 ```
 
 The script reuses an existing orig tarball from the artifact directory unless
@@ -111,6 +140,10 @@ the orig tarball, because the validation source is marked by the
 `dirty20260706` version string. Override `GRD_REPO`, `GRD_COMMIT`, and
 `GRD_DELTA` together when rebuilding from a different GRD source state.
 
+The `gdm-hwenc` target is a native source package. It copies the canonical udev
+rule from [`../gdm-hwenc/`](../gdm-hwenc/README.md) into the generated source
+tree and does not create an orig tarball.
+
 ## Upload Order
 
 Respect the build-dependency chain:
@@ -121,7 +154,9 @@ Wave A  mpp, librga
 Wave B  ffmpeg-rockchip-81
           wait for libavcodec-dev/libavutil-dev/etc. to publish
 Wave C  gnome-remote-desktop
-Wave D  gnome-remote-desktop-gdm-hwenc
+Wave D  gnome-remote-desktop-gdm-hwenc (optional greeter ACL)
+Wave K  forward-port kernel, only after kernel-forward-port/ has a clean
+        resolute arm64 binary build and board install/revert validation
 ```
 
 For the normal Rockchip-enabled package flow, do not upload the higher-version
@@ -135,8 +170,8 @@ Rockchip-81 source remained held.
 Signing and upload are deliberately outside the helper:
 
 ```bash
-debsign -k <fingerprint> /tmp/ubuntu-rock-5b-ppa/artifacts/*_source.changes
-dput ppa:yi-ding/ubuntu-rock-5b /tmp/ubuntu-rock-5b-ppa/artifacts/<package>_source.changes
+debsign -k <fingerprint> packaging/ppa/out/artifacts/*_source.changes
+dput ppa:yi-ding/ubuntu-rock-5b packaging/ppa/out/artifacts/<package>_source.changes
 ```
 
 Use the exact files from the artifact directory; the upload log records the
@@ -209,11 +244,22 @@ as staged behind the MPP/librga/FFmpeg dependency chain, with a second binary
 validation still required after `ffmpeg-rockchip-81` publishes the fork ABI
 (`libavcodec63` / `libavutil61`).
 
+### GDM Greeter Hardware Encode ACL
+
+The `gdm-hwenc` target builds a small `3.0 (native)` source package for
+`gnome-remote-desktop-gdm-hwenc`. It installs the same udev rule as the local
+package under [`../gdm-hwenc/`](../gdm-hwenc/README.md), granting group `gdm`
+access to the codec nodes so the pre-login greeter can hardware-encode.
+
+This package is opt-in because it widens video-codec access to the whole `gdm`
+group. It should be uploaded only after the GRD package path is otherwise ready.
+
 ## What Is Still Not In This Repo
 
-- A PPA-native `gnome-remote-desktop-gdm-hwenc` source-package wrapper, if that
-  package is uploaded through Launchpad instead of shipped as the existing local
-  native deb.
+- Binary-build, payload-comparison, and board install/revert validation for the
+  PPA-native forward-port kernel source package in
+  [`kernel-forward-port/`](kernel-forward-port/README.md). Current local Armbian
+  binary `.deb`s are still not valid PPA upload inputs.
 - The original dev-box `UPLOAD.md` runbook. The current run is captured in
   [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md)
   instead.

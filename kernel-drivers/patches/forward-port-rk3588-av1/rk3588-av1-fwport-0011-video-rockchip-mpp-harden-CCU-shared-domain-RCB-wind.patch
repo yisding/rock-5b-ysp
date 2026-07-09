@@ -1,0 +1,225 @@
+From 5983ccd09a76046cf7fcdaf17ae82c4ff7ebf0e1 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Fri, 3 Jul 2026 20:39:20 -0700
+Subject: [PATCH 11/22] video: rockchip: mpp: harden CCU shared-domain RCB
+ windows and reset paths
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Complete the CCU IOMMU plan's hardening steps (§5/§6) on top of the shared
+-domain helper:
+
+§5 RCB/SRAM fixed windows. Each core maps its own RCB/SRAM window into the one
+shared cluster domain at a distinct fixed IOVA from "rockchip,rcb-iova" (Rock
+5B decoder: core 0 0xFFF00000, core 1 0xFFE00000). Track those windows on the
+shared-domain object and reject or warn loudly on an accidental overlap inside
+a cluster via mpp_iommu_shared_domain_reserve_window(), called before
+iommu_map() in both codecs (guarded by ccu presence; single-core paths are
+unaffected).
+
+§6 reset/refresh domain assertions. Wire the mpp_iommu_shared_domain_verify()
+audit hook (warn-once) into both codecs after CCU attach and into the decoder
+soft/hard CCU reset loops and the encoder reset, so a CCU-bound core that ever
+drifts off the cluster domain after reset/refresh is caught instead of silently
+faulting. This does not gate dispatch; it is a diagnostic.
+
+Fault handling (§7) already routes by iommu_dev and reports the faulting core in
+both codecs; AV1/VSI (§8) stays on its own provider and never touches the CCU
+shared domain. No functional change on the correct-config path.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ drivers/video/rockchip/mpp/mpp_iommu.c        | 44 +++++++++++++++++++
+ drivers/video/rockchip/mpp/mpp_iommu.h        | 17 +++++++
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c      |  7 +++
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c |  7 +++
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c      | 14 ++++++
+ 5 files changed, 89 insertions(+)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index 383eb2767660..0b0ebc6ff1c5 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -577,6 +577,50 @@ bool mpp_iommu_shared_domain_verify(struct mpp_iommu_shared_domain *shared,
+ 	return true;
+ }
+ 
++/*
++ * Record a fixed RCB/SRAM IOVA window for a CCU cluster and reject an overlap.
++ *
++ * Every core in a cluster maps its own RCB/SRAM window into the one shared
++ * domain, each at a distinct fixed IOVA from its "rockchip,rcb-iova" DT
++ * property. Two cores whose windows overlap would corrupt each other's fixed
++ * buffers in the shared IOVA space, so refuse the second map and say so loudly.
++ * Windows are tracked per cluster; the array is cleared when the owner detaches.
++ */
++int mpp_iommu_shared_domain_reserve_window(struct mpp_iommu_shared_domain *shared,
++					   dma_addr_t iova, size_t size,
++					   struct device *dev)
++{
++	unsigned int i;
++
++	if (!shared || !size)
++		return -EINVAL;
++
++	for (i = 0; i < shared->nr_windows; i++) {
++		dma_addr_t a0 = shared->windows[i].iova;
++		size_t asz = shared->windows[i].size;
++
++		/* half-open ranges overlap iff each starts before the other ends */
++		if (iova < a0 + asz && a0 < iova + size) {
++			dev_err(dev,
++				"CCU fixed IOVA window %pad+%#zx overlaps existing %pad+%#zx\n",
++				&iova, size, &a0, asz);
++			return -EADDRINUSE;
++		}
++	}
++
++	if (shared->nr_windows >= MPP_IOMMU_MAX_FIXED_WINDOWS) {
++		dev_warn(dev, "CCU fixed IOVA window table full; not tracking %pad\n",
++			 &iova);
++		return 0;
++	}
++
++	shared->windows[shared->nr_windows].iova = iova;
++	shared->windows[shared->nr_windows].size = size;
++	shared->nr_windows++;
++
++	return 0;
++}
++
+ static int mpp_iommu_handle(struct iommu_domain *iommu,
+ 			    struct device *iommu_dev,
+ 			    unsigned long iova,
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
+index 09a857ba2b82..03e0b765633c 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.h
++++ b/drivers/video/rockchip/mpp/mpp_iommu.h
+@@ -107,6 +107,9 @@ struct mpp_iommu_info {
+ 	struct mpp_taskqueue *queue;
+ };
+ 
++/* fixed RCB/SRAM windows tracked per CCU cluster (one per core + slack) */
++#define MPP_IOMMU_MAX_FIXED_WINDOWS	8
++
+ /*
+  * CCU cluster shared IOMMU domain.
+  *
+@@ -134,6 +137,17 @@ struct mpp_iommu_shared_domain {
+ 	struct iommu_domain *domain;
+ 	/* cluster-wide map/unmap/reset serialization == owner->rw_sem */
+ 	struct rw_semaphore *rw_sem;
++	/*
++	 * Fixed RCB/SRAM IOVA windows mapped into this cluster domain. Each core
++	 * maps its own SRAM window at a distinct fixed IOVA (Rock 5B decoder:
++	 * core 0 0xFFF00000, core 1 0xFFE00000), so tracking them lets us reject
++	 * an accidental overlap inside the one shared domain.
++	 */
++	struct {
++		dma_addr_t iova;
++		size_t size;
++	} windows[MPP_IOMMU_MAX_FIXED_WINDOWS];
++	unsigned int nr_windows;
+ };
+ 
+ struct mpp_dma_session *
+@@ -172,6 +186,9 @@ int mpp_iommu_shared_domain_bind(struct mpp_iommu_shared_domain *shared,
+ 				 struct mpp_iommu_info *info);
+ bool mpp_iommu_shared_domain_verify(struct mpp_iommu_shared_domain *shared,
+ 				    struct mpp_iommu_info *info);
++int mpp_iommu_shared_domain_reserve_window(struct mpp_iommu_shared_domain *shared,
++					   dma_addr_t iova, size_t size,
++					   struct device *dev);
+ 
+ int mpp_iommu_refresh(struct mpp_iommu_info *info, struct device *dev);
+ int mpp_iommu_flush_tlb(struct mpp_iommu_info *info);
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index 29f1c79509aa..402a964f7842 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -1851,6 +1851,13 @@ static int rkvdec2_alloc_rcbbuf(struct platform_device *pdev, struct rkvdec2_dev
+ 	sram_size = rcb_size < sram_size ? rcb_size : sram_size;
+ 	/* iova map to sram */
+ 	domain = dec->mpp.iommu_info->domain;
++	/* in a CCU cluster this is the shared domain; reject overlapping windows */
++	if (dec->ccu) {
++		ret = mpp_iommu_shared_domain_reserve_window(&dec->ccu->iommu,
++							     iova, rcb_size, dev);
++		if (ret)
++			return ret;
++	}
+ 	ret = iommu_map(domain, iova, sram_start, sram_size, IOMMU_READ | IOMMU_WRITE, GFP_KERNEL);
+ 	if (ret) {
+ 		dev_err(dev, "sram iommu_map error.\n");
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index 7c9220a1c4fc..0e6dd8bde6c0 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -1621,6 +1621,9 @@ int rkvdec2_attach_ccu(struct device *dev, struct rkvdec2_dev *dec)
+ 		}
+ 	}
+ 
++	/* audit: the core must now sit on the cluster shared domain */
++	mpp_iommu_shared_domain_verify(&ccu->iommu, dec->mpp.iommu_info);
++
+ 	dec->ccu = ccu;
+ 
+ 	dev_info(dev, "attach ccu as core %d\n", dec->mpp.core_id);
+@@ -1870,6 +1873,8 @@ static int rkvdec2_soft_ccu_reset(struct mpp_taskqueue *queue,
+ 				first_ret = ret;
+ 		}
+ 		atomic_set(&mpp->reset_request, 0);
++		/* audit: reset/refresh must leave the core on the shared domain */
++		mpp_iommu_shared_domain_verify(&ccu->iommu, mpp->iommu_info);
+ 
+ 		enable_irq(mpp->irq);
+ 		dev_info(mpp->dev, "reset done\n");
+@@ -2496,6 +2501,8 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+ 		}
+ 		enable_irq(mpp->irq);
+ 		atomic_set(&mpp->reset_request, 0);
++		/* audit: reset/refresh must leave the core on the shared domain */
++		mpp_iommu_shared_domain_verify(&ccu->iommu, mpp->iommu_info);
+ 		val = mpp_read_relaxed(mpp, 272*4);
+ 		dev_info(mpp->dev, "reset done, idle %d\n", (val & 1));
+ 	}
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 5a7bce784196..d40eb8b4fb89 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -2490,6 +2490,9 @@ static int rkvenc_reset(struct mpp_dev *mpp)
+ 		ccu->dchs[mpp->core_id].val[0] = 0;
+ 		ccu->dchs[mpp->core_id].val[1] = 0;
+ 		spin_unlock_irqrestore(&ccu->lock_dchs, flags);
++
++		/* audit: reset must leave a CCU core on the shared domain */
++		mpp_iommu_shared_domain_verify(&ccu->iommu, mpp->iommu_info);
+ 	}
+ 
+ 	mpp_dbg_core("core %d reset idle %lx\n", mpp->core_id, queue->core_idle);
+@@ -3006,6 +3009,10 @@ static int rkvenc_attach_ccu(struct device *dev, struct rkvenc_dev *enc)
+ 		ccu->main_core->msgs_cap++;
+ 		enc->mpp.msgs_cap = 0;
+ 	}
++
++	/* audit: the core must now sit on the cluster shared domain */
++	mpp_iommu_shared_domain_verify(&ccu->iommu, enc->mpp.iommu_info);
++
+ 	enc->ccu = ccu;
+ 
+ 	dev_info(dev, "attach ccu as core %d\n", enc->mpp.core_id);
+@@ -3103,6 +3110,13 @@ static int rkvenc2_alloc_rcbbuf(struct platform_device *pdev, struct rkvenc_dev
+ 	sram_size = sram_used < sram_size ? sram_used : sram_size;
+ 	/* iova map to sram */
+ 	domain = enc->mpp.iommu_info->domain;
++	/* in a CCU cluster this is the shared domain; reject overlapping windows */
++	if (enc->ccu) {
++		ret = mpp_iommu_shared_domain_reserve_window(&enc->ccu->iommu,
++							     iova, sram_used, dev);
++		if (ret)
++			return ret;
++	}
+ 	/* 6.18: iommu_map() gained a trailing gfp_t; probe ctx -> GFP_KERNEL */
+ 	ret = iommu_map(domain, iova, sram_start, sram_size,
+ 			IOMMU_READ | IOMMU_WRITE, GFP_KERNEL);
