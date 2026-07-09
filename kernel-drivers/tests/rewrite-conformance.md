@@ -15,6 +15,13 @@ All suites assume the combined kernel booted, `/dev/mpp_service` + `/dev/rga`
 present, and (for rewrite parity work) the ability to dual-boot the forward-port
 and rewrite kernels.
 
+## Contents
+
+- **Gate & bundle:** [Rewrite clean build gate](#rewrite-clean-build-gate) · [Expanded conformance bundle](#expanded-conformance-bundle)
+- **Per-suite reference:** [librga](#librga-suite-reference) · [mpp](#mpp-suite-reference) · [gstreamer](#gstreamer-suite-reference)
+- **Running them:** [privileges](#suite-privileges) · [what each proves](#what-each-suite-proves) · [running & comparators](#running-the-suites-and-comparators) · [acceptance (one command)](#rewrite-acceptance-one-command)
+- **Targeted checks:** [raw ABI replay](#raw-abi-replay-comparisons) · [VP9 decode](#vp9-decode-via-the-suites) · [AV1 diagnostics](#av1-diagnostics-via-the-gstreamer-suite) · [legacy advertised decode](#legacy-advertised-decode-diagnostics-via-the-gstreamer-suite)
+
 ## Rewrite clean build gate
 
 Before hardware testing a rewrite slice, run the focused cross-kernel build gate
@@ -861,7 +868,7 @@ logs.
 | `debugfs-counter-check.sh` | **rewrite counter-delta gate** | Checks a captured `debugfs-counters-delta.tsv` from any suite. Use `REQUIRED_POSITIVE_COUNTERS` to prove selected hardware paths actually submitted and reached the IRQ/completion timing path; use `REQUIRED_POSITIVE_COUNTER_PREFIXES` with `component:counter_prefix:min_positive` to prove multicore spread across per-core counters; use `REQUIRED_ZERO_AFTER_COUNTERS` for gauges that must settle back to zero at rest; use `FORBID_POSITIVE_COUNTERS` to override the default timeout/fault/error guard. This complements elapsed-time comparison because it catches “userspace passed but the rewrite did no hardware work” and “all work stuck to one core” cases. |
 | `rewrite-recovery-stress.sh` | **reset/recovery stress harness** | Runs kill/close, reset-opener, and opt-in platform unbind/rebind loops around an explicit busy workload, then runs a post-case liveness command, scans new dmesg lines for fatal signatures, and records before/after/delta debugfs counters. `RECOVERY_VALIDATE_ONLY=1` validates the script config without touching devices and is included in the top-level `VALIDATE_ONLY=1` runner; it is not proof that close/reset/unbind recovery works on hardware. Runtime exit `77` means both device nodes are absent. |
 
-## Running the suites & comparators
+## Running the suites and comparators
 
 ```bash
 VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/syzlang/syzkaller/ioctl-fuzz/librga-smoke/gstreamer-harness/iommu-fuzz/recovery/case/comparator/abi-replay/evidence wiring check

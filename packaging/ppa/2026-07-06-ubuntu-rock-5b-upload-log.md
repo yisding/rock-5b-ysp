@@ -13,6 +13,33 @@
 > `arm64`.
 > Date opened: 2026-07-06.
 
+## Bottom line (as of the last entry)
+
+This is a chronological working log, not a finished-state doc. Current state:
+
+- **`mpp` and `librga` source packages are published** in the PPA source index
+  (`dists/resolute/main/source`), but the **binary indexes are still empty** —
+  nothing has built into installable `.deb`s yet.
+- **FFmpeg is not public in the PPA.** The upstream baseline `7:8.1.2-1+rk1` hit
+  an arm64 build failure (frei0r); the fixed baseline `7:8.1.2-1+rk2` and the
+  higher-version `ffmpeg-rockchip-81` source are checked into
+  [`ffmpeg-baseline/`](ffmpeg-baseline/) / [`ffmpeg/`](ffmpeg/debian/) here but
+  still need a board-side rebuild + `debsign` + `dput`.
+- **GRD / `grd-ffmpeg`** packaging prep exists; not uploaded.
+
+**Do not tell users to install from this PPA yet** — treat it as a packaging
+track. The install path remains the combined Armbian kernel (see
+[`../../install.md`](../../install.md)). Public-index rechecks that can change
+this are in the [`../../status.md`](../../status.md) watchlist.
+
+## Contents
+
+- [Packaging Policy](#packaging-policy) · [Environment Snapshot](#environment-snapshot)
+- Source-package passes: [mpp/running log](#running-log) · [librga](#librga-source-package-pass) · [ffmpeg](#ffmpeg-source-package-pass)
+- Launchpad back-and-forth: [signing/first upload](#signing-and-first-upload-attempt) · [arch correction](#launchpad-architecture-correction) · [orig-tarball rejection](#launchpad-orig-tarball-rejection) · [arm64 enablement](#launchpad-arm64-enablement-retry) · [MPP published, librga retry](#mpp-published-and-librga-retry)
+- FFmpeg: [staging strategy](#ffmpeg-staging-strategy) · [8.1.2 build polling](#upstream-ffmpeg-812-build-polling) · [arm64 build failure](#upstream-ffmpeg-812-baseline-arm64-build-failure-build-33366878) · [baseline recovered + checked in](#baseline-packaging-recovered-from-launchpad-and-checked-in)
+- GRD: [packaging prep](#gnome-remote-desktop-and-grd-ffmpeg-packaging-prep) · [local binary validation](#gnome-remote-desktop-local-binary-validation)
+
 ## Packaging Policy
 
 This run follows the current Ubuntu/Debian source-package model:
@@ -985,7 +1012,7 @@ W: ffmpeg source: superfluous-file-pattern tests/checkasm/x86/* [debian/copyrigh
   - `2026-07-06T16:50:38-07:00`: `Currently building`, no dependency-wait
     text, no build log URL exposed yet.
 
-## gnome-remote-desktop / grd-ffmpeg packaging prep
+## gnome-remote-desktop and grd-ffmpeg packaging prep
 
 - Confirmed the requested GRD source tree is
   `/home/yi/Code/gnome/grd/grd-ffmpeg`, branch
