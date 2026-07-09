@@ -74,10 +74,13 @@ if (use_txf) { coord = nir_f2i32(&b, nir_ftrunc(&b, coord)); ... }    // no pixe
 
 Consequences to flag:
 
-- **Regression risk.** The new function has no fragcoord flag and the call site
-  drops !42679's `use_txf_fragcoord` plumbing, so if this replaces the shader
-  !42679 made exact, it **reintroduces the drift** — a lateral NIR port at best,
-  a precision regression at worst, until the `pixel_coord` swap is added.
+- **It does not carry the precision fix.** The new function has no fragcoord /
+  pixel-index path and the call site drops !42679's `use_txf_fragcoord` plumbing,
+  so as written it still reads the interpolated coordinate and **leaves the
+  wide-blit drift in place** — a pure shader-generation port. (Neither approach
+  is landed, so nothing is being "regressed"; the point is that whatever
+  supersedes the current `u_blitter` TGSI shader must fold the `pixel_coord`
+  reconstruction in — the port alone is not the fix.)
 - The `interpolation` parameter is passed but never applied
   (`in_var->data.interpolation` is unset) — harmless for a `w=1` blit quad, but
   a dead param on this path.
@@ -186,4 +189,5 @@ fetch modes onto one mechanism so they can't diverge.
   captured on G610. `tiny_interp_probe` (`fragcoord` exact vs `varying` drift)
   remains the mechanism check.
 - Watch item: whether the NIR migration lands as a lateral port first or with
-  the `pixel_coord` swap folded in. Landing the port alone regresses !42679.
+  the `pixel_coord` swap folded in. The port alone does not fix the drift — the
+  exactness has to live in the shader it generates, not be assumed from elsewhere.
