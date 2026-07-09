@@ -38,6 +38,13 @@ together, and both stop relying on the interpolated coordinate varying.
   validator about it — growing a legacy IR that everything already lowers out
   of. The maintainer's objection ("I don't want us to add new TGSI opcodes") is
   exactly this.
+- NIR has **both** rasterizer-position primitives — `nir_load_pixel_coord`
+  (integer `uvec2`) and `nir_load_frag_coord` (float `vec4`, `x+0.5` =
+  `gl_FragCoord`) — so the whole blit shader, both fetch modes, is authored in
+  one `nir_builder`: **no `tgsi_to_nir` round-trip, and no reliance on the
+  `nir_lower_frag_coord_to_pixel_coord` bridge** !42679 leans on. They are the
+  same rasterizer position in two forms (on Bifrost+ both resolve to the
+  `BI_PRELOAD_POSITION_XY` preload); you just pick the form per branch.
 - **!42679 is authored in TGSI** for good reasons, not by mistake:
   the blit shaders already lived in `u_blitter`/`u_simple_shaders` as `ureg`
   (TGSI), and exactness was reachable **without** a new opcode by declaring the
@@ -91,6 +98,21 @@ fragment from the exact pixel position:
   → `nir_tex`. One float MAD in the ALU (~`2^-24` relative), ~14 bits better
   than the interpolator; a filtered resize is not meant to be bit-exact anyway.
 
+The per-path primitive is deliberate — **not `gl_FragCoord` for both**. The copy
+path takes the **integer** form (`pixel_coord`) so it is exact with no float; the
+resize path takes the **float pixel-center** form (`gl_FragCoord` = `x+0.5`)
+because a filtered sample is fractional by nature. You *could* use `gl_FragCoord`
+for both and truncate for TXF — it is bit-exact at real sizes (`x+0.5` is exactly
+representable to 2^23) and is essentially what !42679 already does for the copy
+path — but it leaves the exact path doing a needless float round-trip, exactly
+what integer `pixel_coord` removes. And you cannot instead just mark the
+coordinate varying `flat`: the coordinate genuinely varies per pixel, so it can't
+be one constant; only its *generator* (`scale`, `translate`) is constant, which
+is why you ship the generator flat and rebuild the coordinate per fragment.
+Mnemonic: **whole-number reads take the whole-number position; fractional reads
+take the half-pixel-center position; both come straight from the rasterizer,
+never from interpolation.**
+
 `u_blitter` **already computes this affine map** (its corner texcoords are the
 map sampled at the corners); the caller change is to emit `scale`/`translate`/
 `layer`/`lod` as flat constants instead of a `0→W` ramp, and the blit VS
@@ -121,6 +143,35 @@ given blit uses one shader/path, never both), but it leaves two real problems:
 Since both are the same affine-map reconstruction (integer add vs one float MAD),
 fixing them together is one extra branch — and it removes the hazard rather than
 papering half of it.
+
+### Why !42679 is TXF-only (and didn't just use gl_FragCoord for both)
+
+This is not hypothetical: **!42679 *is* the TXF-only fix.** Per
+`blit-precision.md` its FS already reconstructs the TXF coordinate with a
+flat-coefficient `MAD` from `gl_FragCoord` (in the simplest case at "offset-0"),
+so TGSI's vocabulary was never the blocker for using fragcoord. It stopped at TXF
+because:
+
+- **Separate code paths.** TXF (unscaled) and TEX (scaled/filtered) are chosen
+  independently in `u_blitter` and use *different* shader generators; !42679 only
+  touched the unscaled-TXF one. The scaled generator
+  (`util_make_fragment_tex_shader`, `use_txf=false`) is untouched.
+- **The unscaled case has a shortcut; the scaled case doesn't.** For a 1:1 copy
+  the map is a pure integer translation, so `gl_FragCoord` *is* the source texel
+  up to a constant offset — a near drop-in. The scaled case needs a fractional
+  scale + normalization + routing to a filtered sample: the full reconstruction.
+- **No forcing function.** The filtered path tolerates the drift and had no
+  failing conformance test, so nothing pushed it.
+- **Deeper:** `gl_FragCoord`-on-both is a *float-everywhere* fix; the exact path
+  should carry the integer `pixel_coord` (the maintainer's point), which TGSI
+  cannot express. Generalizing in TGSI is the same effort as the clean fix but
+  leaves the copy path on float — so once you generalize, NIR wins.
+
+Direction-of-change to keep in mind: before !42679 both paths drifted (wide blits
+*uniformly* broken); after it, TXF is exact and TEX still drifts — so it **moves
+the state into** the path-dependent divergence described above. The NIR unified
+fix is therefore also "finishing the job": it closes the TEX gap and merges both
+fetch modes onto one mechanism so they can't diverge.
 
 ## Why it matters / follow-up
 
