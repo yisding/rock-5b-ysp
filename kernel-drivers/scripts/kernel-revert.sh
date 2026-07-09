@@ -45,6 +45,12 @@
 #   # From an SD rescue: see what's on the internal disk, then boot edge instead:
 #   sudo bash kernel-revert.sh --auto list
 #   sudo bash kernel-revert.sh --auto switch 7.1.0-edge-rockchip64
+#   # From a microSD rescue after mounting the internal NVMe root yourself:
+#   sudo mount /dev/nvme0n1p1 /mnt/nvme
+#   sudo bash /mnt/nvme/home/yi/Code/rock-5b-ysp/kernel-drivers/scripts/kernel-revert.sh \
+#        --root /mnt/nvme list
+#   sudo bash /mnt/nvme/home/yi/Code/rock-5b-ysp/kernel-drivers/scripts/kernel-revert.sh \
+#        --root /mnt/nvme switch 6.18.38-current-rockchip64
 #   # Put the known-good shipping 6.18.37 back (clobber case):
 #   sudo bash kernel-revert.sh --device /dev/nvme0n1p1 reinstall \
 #        /mnt/build/output/debs/linux-image-current-rockchip64_*Pb6ab-Cb831*.deb \
@@ -134,6 +140,27 @@ confirm() {  # $1 = prompt
   read -r a < /dev/tty; [ "$a" = y ] || [ "$a" = Y ]
 }
 
+ensure_writable() {  # $1 = path that must be writable
+  local path="$1"
+  [ -w "$path" ] && return 0
+
+  if [ "$ROOT_DIR" = "/" ]; then
+    warn "$path is not writable; attempting to remount / read-write"
+    mount -o remount,rw / || die "could not remount / read-write"
+    [ -w "$path" ] || die "$path is still not writable after remount"
+    return 0
+  fi
+
+  if mountpoint -q "$ROOT_DIR"; then
+    warn "$path is not writable; attempting to remount $ROOT_DIR read-write"
+    mount -o remount,rw "$ROOT_DIR" || die "could not remount $ROOT_DIR read-write"
+    [ -w "$path" ] || die "$path is still not writable after remount"
+    return 0
+  fi
+
+  die "$path is not writable; remount the target root read-write and retry"
+}
+
 # ---- commands --------------------------------------------------------------
 cmd_list() {
   local act; act="$(active_ver)"
@@ -172,6 +199,7 @@ cmd_switch() {
   fi
   say "will switch active kernel: $(active_ver) -> $v   (target $ROOT_DIR)"
   confirm "repoint /boot symlinks?" || die "aborted"
+  ensure_writable "$BOOT"
   ln -sfn "vmlinuz-$v" "$BOOT/Image"
   ln -sfn "vmlinuz-$v" "$BOOT/vmlinuz"
   [ -e "$BOOT/uInitrd-$v" ]    && ln -sfn "uInitrd-$v"    "$BOOT/uInitrd"
@@ -186,6 +214,7 @@ cmd_reinstall() {
   local d; for d in "$@"; do [ -f "$d" ] || die "not a file: $d"; done
   say "will dpkg -i into $ROOT_DIR:"; printf '   %s\n' "$@"
   confirm "reinstall these kernel deb(s)?" || die "aborted"
+  ensure_writable "$ROOT_DIR"
   if [ "$ROOT_DIR" = "/" ]; then
     dpkg -i "$@" || die "dpkg failed"
   else
