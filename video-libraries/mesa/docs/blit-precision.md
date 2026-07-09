@@ -5,6 +5,47 @@ This is the detailed chain from "Panfrost should enable texture transfers" to
 Mali-G610" — and what that leaves as viable fixes. Status and dated MR
 lifecycle live in [`README.md` § Status](../README.md).
 
+## The idea in plain English
+
+**The problem.** To copy or resize an image, the GPU must know, for each
+destination pixel, which source pixel to read. Today the driver figures that out
+by writing a number on each *corner* of the image and letting the hardware
+smoothly fill in all the numbers in between — like stamping "0" on the first
+fence post and "5280" on the last, then eyeballing the label on every post
+between. That fill-in-between step is only accurate to about one part in a
+thousand. On a small image nobody notices. On a big one the eyeballed numbers
+drift: by the far edge they're off by several whole pixels (~15 at 16k wide), so
+the GPU reads the wrong source pixels and the copy comes out smeared or shifted.
+
+**The fix.** Stop eyeballing the labels. The GPU already knows *exactly* which
+pixel it is drawing — its row and column, an exact whole number it gets for free.
+So instead of shipping the coordinate itself, ship the *recipe* for it — "start
+here, move this much per pixel" — as one fixed value, and let each pixel work out
+its own source location from its own exact position. Exact position + fixed
+recipe, computed fresh at each pixel, gives an exact answer. Nothing is guessed,
+so nothing drifts. (Same picture: don't eyeball the posts — each already has its
+exact distance stamped on it; just announce "your label = your number + 3" and
+every post gets it right.)
+
+**Why it works.** The coordinate genuinely changes from pixel to pixel, so it
+*can't* be one fixed value — that's why you can't just "turn interpolation off."
+But the recipe that produces it (a start and a step) is the same for the whole
+copy: a true constant. Constants reach the shader untouched, the exact per-pixel
+position is handed to us for free, and one multiply-add per pixel runs at full
+arithmetic precision instead of the interpolator's coarse guess. The one lossy
+step in the old path is simply deleted.
+
+**Why one idea fixes both copy and resize.** "Which source pixel" is always
+`start + step × (my position)`. For an exact 1-to-1 copy the step is 1 and
+everything stays whole numbers, so the result is perfect, bit for bit. For a
+resize the step is a fraction, so there's a little arithmetic — but done from the
+exact position it is still ~1000× more accurate than the old guess, far more than
+a resize needs. Same recipe, two settings.
+
+The rest of this doc is the evidence and mechanism behind that summary; the exact
+NIR / `u_blitter` implementation is in
+[`../../../findings/2026-07-08-blit-precision-nir-migration.md`](../../../findings/2026-07-08-blit-precision-nir-migration.md).
+
 ## Starting Point
 
 The first attempted change was:
