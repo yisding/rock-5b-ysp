@@ -1,12 +1,12 @@
 # Blit-precision fix: the TGSI→NIR migration and doing it with pixel_coord
 
 > Scope: Mesa `u_blitter` / `u_simple_shaders` blit fragment-shader generation —
-> the follow-up to the merged wide-blit precision fix (!42679) that reworks it in
-> NIR so the TXF coordinate comes from `pixel_coord`.
+> the follow-up to the proposed wide-blit precision fix (MR !42679, in review)
+> that reworks it in NIR so the TXF coordinate comes from `pixel_coord`.
 > Source: MR review discussion + inspection of a maintainer diff introducing
 > `src/gallium/auxiliary/nir/nir_blit_helpers.c` (`nir_make_blit_frag_shader`)
 > and deleting the TGSI `util_make_fragment_tex_shader`.
-> Precision mechanism, reproducer, and the merged fix are in
+> Precision mechanism, reproducer, and the proposed fix are in
 > [`../video-libraries/mesa/docs/blit-precision.md`](../video-libraries/mesa/docs/blit-precision.md)
 > and [`../video-libraries/mesa/docs/mr-review-findings.md`](../video-libraries/mesa/docs/mr-review-findings.md);
 > the ARM-blob cross-check (drift is hardware) is in
@@ -38,7 +38,7 @@ together, and both stop relying on the interpolated coordinate varying.
   validator about it — growing a legacy IR that everything already lowers out
   of. The maintainer's objection ("I don't want us to add new TGSI opcodes") is
   exactly this.
-- The merged **!42679 landed in TGSI anyway** for good reasons, not by mistake:
+- **!42679 is authored in TGSI** for good reasons, not by mistake:
   the blit shaders already lived in `u_blitter`/`u_simple_shaders` as `ureg`
   (TGSI), and exactness was reachable **without** a new opcode by declaring the
   float `POSITION` and leaning on the existing downstream lowering
