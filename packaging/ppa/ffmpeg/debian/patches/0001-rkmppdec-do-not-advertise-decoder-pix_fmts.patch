@@ -1,0 +1,44 @@
+Description: rkmpp decoders: drop the static output pix_fmts advertisement
+ The ffmpeg-rockchip *_rkmpp decoders declared a static AVCodec.pix_fmts
+ array (NV12/NV16/NV15/NV20/NV24/DRM_PRIME). That field is metadata only:
+ the decoders negotiate their real output format at runtime by building a
+ local {DRM_PRIME, <sw_fmt>} list and calling ff_get_format(), and nothing
+ reads the static array. Upstream FFmpeg's own rkmpp decoder does not set it,
+ and the libavcodec-avcodec self-test (libavcodec/tests/avcodec.c) rejects any
+ video decoder that sets pix_fmts or supported_framerates, which aborts
+ `make check`.
+ .
+ Remove the static array and its CODEC_PIXFMTS_ARRAY() reference so the
+ decoders match upstream and pass the self-test. The DRM_PRIME hw_config that
+ players (Kodi's DRM PRIME codec, mpv) rely on is unchanged, and runtime
+ format negotiation is unaffected.
+Author: Yi Ding <yi.s.ding@gmail.com>
+Forwarded: not-needed
+Last-Update: 2026-07-11
+--- a/libavcodec/rkmppdec.h
++++ b/libavcodec/rkmppdec.h
+@@ -104,16 +104,6 @@ static const AVOption options[] = {
+     { NULL }
+ };
+ 
+-static const enum AVPixelFormat rkmpp_dec_pix_fmts[] = {
+-    AV_PIX_FMT_NV12,
+-    AV_PIX_FMT_NV16,
+-    AV_PIX_FMT_NV15,
+-    AV_PIX_FMT_NV20_PACKED,
+-    AV_PIX_FMT_NV24,
+-    AV_PIX_FMT_DRM_PRIME,
+-    AV_PIX_FMT_NONE,
+-};
+-
+ static const AVCodecHWConfigInternal *const rkmpp_dec_hw_configs[] = {
+     &(const AVCodecHWConfigInternal) {
+         .public = {
+@@ -151,7 +141,6 @@ const FFCodec ff_##x##_rkmpp_decoder = { \
+     .caps_internal  = FF_CODEC_CAP_NOT_INIT_THREADSAFE | \
+                       FF_CODEC_CAP_INIT_CLEANUP | \
+                       FF_CODEC_CAP_SETS_FRAME_PROPS, \
+-    CODEC_PIXFMTS_ARRAY(rkmpp_dec_pix_fmts), \
+     .hw_configs     = rkmpp_dec_hw_configs, \
+     .p.wrapper_name = "rkmpp", \
+ };

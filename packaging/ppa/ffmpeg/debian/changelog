@@ -1,11 +1,31 @@
+ffmpeg (7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk5) resolute; urgency=medium
+
+  * debian/control: set ffmpeg-doc back to Architecture: all (an earlier
+    arm64-only correction pass had flipped it to arm64). ffmpeg-doc's content
+    is the doxygen HTML built by the arch-indep pass, which the arch-only
+    builder skips, so dh_install aborted on missing
+    debian/standard/doc/doxy/html/* (Launchpad arm64 build 33387871). This
+    matches the baseline ffmpeg packaging, where ffmpeg-doc is Architecture:
+    all. Verified locally that a full arch+indep build now emits every deb
+    including ffmpeg-doc.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sat, 11 Jul 2026 09:20:00 -0700
+
 ffmpeg (7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk4) resolute; urgency=medium
 
-  * debian/rules: ignore the libavcodec-avcodec FATE self-test. The
-    forward-port's *_rkmpp decoders advertise an output pix_fmts array while
-    also setting AV_CODEC_CAP_HARDWARE, which libavcodec/tests/avcodec.c
-    rejects, so `make check` aborted (Launchpad arm64 build 33387380 failed to
-    build). Ignoring only this one self-test keeps the fork's multi-format
-    decoder output and the rest of the FATE suite.
+  * debian/patches: add 0001-rkmppdec-do-not-advertise-decoder-pix_fmts.patch
+    to fix the libavcodec-avcodec FATE self-test failure at the source instead
+    of skipping the test. The forward-port's *_rkmpp decoders declared a static
+    AVCodec.pix_fmts array that is metadata only (output format is negotiated at
+    runtime via ff_get_format), which libavcodec/tests/avcodec.c rejects for
+    video decoders, aborting `make check` (Launchpad arm64 build 33387380
+    failed to build). Dropping the unused array matches upstream FFmpeg's own
+    rkmpp decoder, keeps the DRM_PRIME hw_config players rely on, and lets the
+    full FATE suite run.
+  * debian/ffmpeg.install: drop the RELEASE_NOTES doc entry. The
+    ffmpeg-rockchip forward-port ships RELEASE and Changelog instead of the
+    upstream RELEASE_NOTES file, so dh_install aborted with "missing files"
+    at the install stage once the build got past the FATE tests.
 
  -- Yi Ding <yi.s.ding@gmail.com>  Sat, 11 Jul 2026 00:03:06 -0700
 

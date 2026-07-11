@@ -228,7 +228,7 @@ Description: Tools for transcoding, streaming and playing of multimedia files
 
 Package: ffmpeg-doc
 Section: doc
-Architecture: arm64
+Architecture: all
 Multi-Arch: foreign
 Depends:
  libjs-jquery,
