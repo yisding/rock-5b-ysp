@@ -117,8 +117,9 @@ unreferenced by any decode logic, so removing it makes the decoders match
 upstream, keeps the DRM_PRIME hw_config Kodi relies on, and lets the full FATE
 suite run. Validated end-to-end locally: a full arch+indep build emits every
 deb — `libavcodec63` (carries `av1_rkmpp`), the rest of the `libav*63`,
-`ffmpeg`, and `ffmpeg-doc_..._all.deb` — with FATE passing. `~rk5` is uploaded
-and building; the current published state is on the status watchlist.
+`ffmpeg`, and `ffmpeg-doc_..._all.deb` — with FATE passing. `~rk5` then **built
+successfully** on Launchpad (source `Published`, arm64 binaries publishing),
+confirming all three fixes; `~rk3` and `~rk4` remain `Failed to build`.
 
 ### 5. Build-environment gotchas on this box
 

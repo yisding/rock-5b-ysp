@@ -18,7 +18,7 @@ zero-copy.
 | Piece | What | Status |
 |-------|------|--------|
 | **Decoder selection** | Stock Kodi 22 auto-picks `h264_rkmpp`/`hevc_rkmpp`/`av1_rkmpp` via the fork's `AVCodecHWConfig` — **no Kodi patch** | ✅ analyzed, [`docs/decoder-selection.md`](docs/decoder-selection.md) |
-| **FFmpeg** | External `ffmpeg-rockchip-81` (`libavcodec63`), `-DENABLE_INTERNAL_FFMPEG=OFF` | ✅ fork libav63 debs built; PPA `~rk5` building |
+| **FFmpeg** | External `ffmpeg-rockchip-81` (`libavcodec63`), `-DENABLE_INTERNAL_FFMPEG=OFF` | ✅ fork libav63 debs built; PPA `~rk5` built on Launchpad |
 | **MPP runtime** | PPA `1375813c` (h264/hevc `rkmpp` decode verified); board stock `750e76e` is broken | ✅ [finding](../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) |
 | **Build** | GBM windowing + GLES render, native cmake | ⏳ not built yet — [`docs/build-hwaccel.md`](docs/build-hwaccel.md) |
 | **Playback** | `kodi-gbm` on tty1, Prime-decoder settings on | ⏳ pending (needs `gdm` stopped) |

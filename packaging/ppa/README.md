@@ -29,7 +29,7 @@ Last recorded in the public APT indexes and Launchpad API at
 |---------|----------------------|------------------|-------|
 | `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Source and arm64 binaries are published in the public PPA indexes. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
 | `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Source and arm64 binaries are published in the public PPA indexes; `-0ubuntu2~rk1` is superseded. | The `-0ubuntu3~rk1` retry succeeded after the earlier arm64 builder failure. |
-| `ffmpeg` | `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk5` | `~rk5` uploaded and building. Each earlier arm64 build exposed one fork bug: `~rk2` failed configure (`--disable-omx`), `~rk3` failed FATE `libavcodec-avcodec`, `~rk4` (build `33387871`) failed `dh_install` on `RELEASE_NOTES` then `ffmpeg-doc` arch. `~rk5` fixes `ffmpeg-doc` architecture and was validated locally as a full arch+indep build emitting every deb. | Three fixes now carried: quilt patch `0001-rkmppdec-do-not-advertise-decoder-pix_fmts.patch` (FATE), drop `RELEASE_NOTES` from `ffmpeg.install`, and `ffmpeg-doc` `Architecture: all`. Sorts above the baseline `ffmpeg`, so it supersedes it once green. |
+| `ffmpeg` | `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk5` | `~rk5` source `Published`, arm64 build **`Successfully built`** (binaries publishing). Each earlier arm64 build exposed one fork bug: `~rk2` failed configure (`--disable-omx`), `~rk3` failed FATE `libavcodec-avcodec`, `~rk4` (build `33387871`) failed `dh_install` on `RELEASE_NOTES` then `ffmpeg-doc` arch. | Three fixes carried: quilt patch `0001-rkmppdec-do-not-advertise-decoder-pix_fmts.patch` (FATE), drop `RELEASE_NOTES` from `ffmpeg.install`, and `ffmpeg-doc` `Architecture: all`. Sorts above the baseline `ffmpeg`, so it supersedes it once the binaries publish. |
 | `ffmpeg` (baseline) | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Fixed arm64 build `33381225` completed successfully on 2026-07-10 UTC. | The `7:8.1.2-1+rk1` baseline upload published, but arm64 build `33366878` failed in the FATE frei0r tests. `-1+rk2` adds the `frei0r-plugins` build-dependency and still sorts below the Rockchip-81 forward-port. |
 | `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Source publication `18614552` is `Pending`; arm64 build `33387375` `Successfully built`. Source lintian passed and local arm64 binary validation passed. | Packages nyanmisaka FFmpeg 6.1 as `/opt/ffmpeg-rockchip` plus `ffmpeg-rockchip`/`ffprobe-rockchip`/`ffplay-rockchip`, not as the system `ffmpeg`; it can coexist with Ubuntu 26.04 FFmpeg 8.x and the Rockchip-81 replacement package because source and binary package names do not collide. |
 | `gnome-remote-desktop` | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1` | Source packaging imported, source lintian passed, and a local `nocheck` binary build passed against upstream FFmpeg `7:8.1.2-1+rk1`; not uploaded and not public in the PPA source index. | Reconstructed from `GRD_COMMIT` plus [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md), so it no longer depends on a dirty dev-box worktree. Wait for the FFmpeg dependency chain before upload, then rebuild once against upstream FFmpeg and once after `ffmpeg-rockchip-81` supersedes it. |
@@ -282,11 +282,13 @@ one per failed Launchpad build. These are recorded in
    back to `Architecture: all` (matching the baseline).
 
 As of 2026-07-11 PDT the fork is at `~rk5`: `~rk3` failed FATE, `~rk4`
-(build `33387871`) failed `dh_install`, and `~rk5` (the `ffmpeg-doc` fix) is
-uploaded and building. `~rk5` was validated locally as a full arch+indep build
-emitting every deb, with FATE passing and `libavcodec63` carrying `av1_rkmpp`.
-The Rockchip-81 version sorts above the baseline version, so it supersedes the
-baseline `ffmpeg`/`libav*` packages in the PPA once green.
+(build `33387871`) failed `dh_install`, and `~rk5` (the `ffmpeg-doc` fix)
+**built successfully** on Launchpad — the source is `Published` and the arm64
+binaries are publishing. `~rk5` was also validated locally as a full arch+indep
+build emitting every deb, with FATE passing and `libavcodec63` carrying
+`av1_rkmpp`. The Rockchip-81 version sorts above the baseline version, so it
+supersedes the baseline `ffmpeg`/`libav*` packages in the PPA as the binaries
+publish.
 
 Private FFmpeg helper packages are a separate case: a package such as
 `gnome-remote-desktop-ffmpeg-rk` that installs FFmpeg 6 libraries under
