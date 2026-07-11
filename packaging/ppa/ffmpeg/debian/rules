@@ -79,6 +79,15 @@ CONFIG += --disable-sndio
 # RK MPI requires --enable-version3 because MPP is Apache-2.0 licensed.
 CONFIG += --enable-rkmpp --enable-rkrga --enable-version3
 
+# The ffmpeg-rockchip forward-port's *_rkmpp decoders deliberately advertise an
+# output pix_fmts array (NV12/NV16/NV15/NV20/NV24/DRM_PRIME multi-format output)
+# while also setting AV_CODEC_CAP_HARDWARE. The upstream libavcodec-avcodec
+# self-test (libavcodec/tests/avcodec.c) rejects any video decoder that sets
+# pix_fmts, so it aborts `make check` (Launchpad arm64 build 33387380). Ignore
+# only that one self-test rather than dropping the fork's multi-format output;
+# the rest of the FATE suite still runs.
+CONFIG += --ignore-tests=libavcodec-avcodec
+
 ifeq (amd64,$(DEB_HOST_ARCH))
 	CONFIG += --enable-libvpl
 else

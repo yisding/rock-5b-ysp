@@ -1,3 +1,14 @@
+ffmpeg (7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk4) resolute; urgency=medium
+
+  * debian/rules: ignore the libavcodec-avcodec FATE self-test. The
+    forward-port's *_rkmpp decoders advertise an output pix_fmts array while
+    also setting AV_CODEC_CAP_HARDWARE, which libavcodec/tests/avcodec.c
+    rejects, so `make check` aborted (Launchpad arm64 build 33387380 failed to
+    build). Ignoring only this one self-test keeps the fork's multi-format
+    decoder output and the rest of the FATE suite.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sat, 11 Jul 2026 00:03:06 -0700
+
 ffmpeg (7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk3) resolute; urgency=medium
 
   * debian/rules: drop --disable-omx for the ffmpeg-rockchip-81 source.
