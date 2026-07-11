@@ -1,0 +1,26 @@
+Source: ffmpeg-rockchip
+Section: video
+Priority: optional
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Yi Ding <yi.s.ding@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ libbz2-dev,
+ libdrm-dev,
+ librockchip-mpp-dev,
+ librga-dev,
+ libsdl2-dev,
+ pkgconf,
+ zlib1g-dev
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/nyanmisaka/ffmpeg-rockchip
+
+Package: ffmpeg-rockchip
+Architecture: arm64
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: co-installable FFmpeg 6.1 Rockchip runtime
+ This package provides nyanmisaka's FFmpeg 6.1 Rockchip fork with RKMPP and
+ RKRGA enabled. It installs under /opt/ffmpeg-rockchip and exposes
+ ffmpeg-rockchip, ffprobe-rockchip, and ffplay-rockchip commands, so it can be
+ installed alongside Ubuntu's normal ffmpeg and libav* packages.

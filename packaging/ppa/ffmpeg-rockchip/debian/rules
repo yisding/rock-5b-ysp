@@ -1,0 +1,56 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all optimize=-lto
+
+PACKAGE := ffmpeg-rockchip
+PREFIX := /opt/ffmpeg-rockchip
+
+CFLAGS := $(shell dpkg-buildflags --get CFLAGS)
+CPPFLAGS := $(shell dpkg-buildflags --get CPPFLAGS)
+LDFLAGS := $(shell dpkg-buildflags --get LDFLAGS)
+
+CONFIGURE_FLAGS := \
+	--prefix=$(PREFIX) \
+	--bindir=$(PREFIX)/bin \
+	--disable-autodetect \
+	--disable-doc \
+	--disable-debug \
+	--disable-stripping \
+	--enable-bzlib \
+	--enable-libdrm \
+	--enable-rkmpp \
+	--enable-rkrga \
+	--enable-sdl2 \
+	--enable-static \
+	--enable-version3 \
+	--enable-zlib \
+	--extra-cflags="$(CPPFLAGS) $(CFLAGS)" \
+	--extra-ldflags="$(LDFLAGS)" \
+	--pkg-config=pkg-config
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	./configure $(CONFIGURE_FLAGS)
+
+override_dh_auto_build:
+	dh_auto_build -- ffmpeg ffprobe ffplay
+
+override_dh_auto_test:
+	# The upstream FATE suite is not part of this private tool package gate.
+
+override_dh_auto_install:
+	install -d \
+		debian/$(PACKAGE)$(PREFIX)/bin \
+		debian/$(PACKAGE)/usr/bin \
+		debian/$(PACKAGE)/usr/share/doc/$(PACKAGE)
+	install -m 0755 ffmpeg ffprobe ffplay debian/$(PACKAGE)$(PREFIX)/bin/
+	ln -s $(PREFIX)/bin/ffmpeg debian/$(PACKAGE)/usr/bin/ffmpeg-rockchip
+	ln -s $(PREFIX)/bin/ffprobe debian/$(PACKAGE)/usr/bin/ffprobe-rockchip
+	ln -s $(PREFIX)/bin/ffplay debian/$(PACKAGE)/usr/bin/ffplay-rockchip
+	install -m 0644 README.md RELEASE RELEASE_NOTES debian/source-info \
+		debian/$(PACKAGE)/usr/share/doc/$(PACKAGE)/
+
+override_dh_auto_clean:
+	if [ -f ffbuild/config.mak ]; then $(MAKE) distclean; fi

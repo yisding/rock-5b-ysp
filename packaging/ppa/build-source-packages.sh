@@ -18,6 +18,10 @@ FFMPEG_REPO="${FFMPEG_REPO:-/home/yi/Code/ffmpeg/ffmpeg-rockchip-81}"
 FFMPEG_COMMIT="${FFMPEG_COMMIT:-75638e7f0b1775193381af0c3187838f6c51dbd1}"
 FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.1.2+rockchip81+git20260703.75638e7f0b}"
 
+FFMPEG_ROCKCHIP_REPO="${FFMPEG_ROCKCHIP_REPO:-/home/yi/Code/ffmpeg/ffmpeg-rockchip}"
+FFMPEG_ROCKCHIP_COMMIT="${FFMPEG_ROCKCHIP_COMMIT:-40c412daccf08164493da0de990eb99a8948116b}"
+FFMPEG_ROCKCHIP_UPSTREAM_VERSION="${FFMPEG_ROCKCHIP_UPSTREAM_VERSION:-6.1+git20260423.40c412dacc}"
+
 GRD_REPO="${GRD_REPO:-/home/yi/Code/gnome/grd/grd-ffmpeg}"
 GRD_COMMIT="${GRD_COMMIT:-a59c904c99088235eb4de31ca340747d334494f3}"
 GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260630.a59c904+dirty20260706}"
@@ -28,13 +32,23 @@ KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-/home/yi/Code/kernel/rock5b-kernel-build/arm
 KERNEL_PPA_CONFIG="${KERNEL_PPA_CONFIG:-$KERNEL_PPA_REPO/.config}"
 KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.38+rk3588av1fwport20260709}"
 
+KERNEL_ALPHA_618_SOURCE="${KERNEL_ALPHA_618_SOURCE:-linux-rockchip64-ysp-alpha-6.18}"
+KERNEL_ALPHA_618_REPO="${KERNEL_ALPHA_618_REPO:-/home/yi/Code/kernel/linux-6.18-rkvenc}"
+KERNEL_ALPHA_618_CONFIG="${KERNEL_ALPHA_618_CONFIG:-$ROOT/packaging/ppa/kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config}"
+KERNEL_ALPHA_618_UPSTREAM_VERSION="${KERNEL_ALPHA_618_UPSTREAM_VERSION:-6.18.0+rk3588rewritealpha20260710}"
+
+KERNEL_ALPHA_72RC2_SOURCE="${KERNEL_ALPHA_72RC2_SOURCE:-linux-rockchip64-ysp-alpha-7.2-rc2}"
+KERNEL_ALPHA_72RC2_REPO="${KERNEL_ALPHA_72RC2_REPO:-/home/yi/Code/kernel/linux}"
+KERNEL_ALPHA_72RC2_CONFIG="${KERNEL_ALPHA_72RC2_CONFIG:-$ROOT/packaging/ppa/kernel-rewrite-alpha-7.2-rc2/debian/config/arm64-rockchip64.config}"
+KERNEL_ALPHA_72RC2_UPSTREAM_VERSION="${KERNEL_ALPHA_72RC2_UPSTREAM_VERSION:-7.2.0~rc2+rk3588rewritealpha20260710}"
+
 GDM_HWENC_SOURCE="${GDM_HWENC_SOURCE:-gnome-remote-desktop-gdm-hwenc}"
 GDM_HWENC_VERSION="${GDM_HWENC_VERSION:-1.0}"
 GDM_HWENC_RULE="${GDM_HWENC_RULE:-$ROOT/packaging/gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules}"
 
 usage() {
     cat <<'USAGE'
-Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [gnome-remote-desktop|grd] [gdm-hwenc] [kernel]
+Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [gdm-hwenc] [kernel] [kernel-alpha-6.18] [kernel-alpha-7.2-rc2]
 
 Build unsigned source packages for ppa:yi-ding/ubuntu-rock-5b.
 Artifacts are written under packaging/ppa/out/artifacts by default.
@@ -45,14 +59,21 @@ is required when uploading a new Debian revision for an upstream version that
 Launchpad has already accepted. Set FORCE_ORIG=1 to regenerate an orig tarball.
 
 Source tree defaults can be overridden with MPP_REPO, LIBRGA_REPO, FFMPEG_REPO,
-GRD_REPO, and the matching *_COMMIT / *_UPSTREAM_VERSION variables. The GRD
-snapshot applies GRD_DELTA on top of GRD_COMMIT by default so the dirty20260706
-source package is reconstructible from a clean checkout.
+FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching *_COMMIT /
+*_UPSTREAM_VERSION variables. The GRD snapshot applies GRD_DELTA on top of
+GRD_COMMIT by default so the dirty20260706 source package is reconstructible
+from a clean checkout.
 
 The forward-port kernel target exports the already-patched Armbian kernel
 worktree named by KERNEL_PPA_REPO, excluding build products and .git, then
 overlays packaging/ppa/kernel-forward-port/debian. It is intentionally not part
 of the no-argument default set because the orig tarball is large.
+
+The alpha rewrite kernel targets export the local clean-room rewrite kernel
+worktrees named by KERNEL_ALPHA_618_REPO and KERNEL_ALPHA_72RC2_REPO, then
+overlay packaging/ppa/kernel-rewrite-alpha-6.18/debian and
+packaging/ppa/kernel-rewrite-alpha-7.2-rc2/debian respectively. They are also
+large and intentionally excluded from the no-argument default set.
 
 The gdm-hwenc target creates a small native source package and copies the
 canonical rule from packaging/gdm-hwenc at export time.
@@ -286,6 +307,15 @@ build_ffmpeg() {
         "packaging/ppa/ffmpeg"
 }
 
+build_ffmpeg_rockchip() {
+    prepare_source \
+        "ffmpeg-rockchip" \
+        "$FFMPEG_ROCKCHIP_REPO" \
+        "$FFMPEG_ROCKCHIP_COMMIT" \
+        "$FFMPEG_ROCKCHIP_UPSTREAM_VERSION" \
+        "packaging/ppa/ffmpeg-rockchip"
+}
+
 build_grd() {
     prepare_source \
         "gnome-remote-desktop" \
@@ -308,6 +338,24 @@ build_kernel_forward_port() {
         "$KERNEL_PPA_UPSTREAM_VERSION" \
         "packaging/ppa/kernel-forward-port" \
         "$KERNEL_PPA_CONFIG"
+}
+
+build_kernel_alpha_618() {
+    prepare_worktree_source \
+        "$KERNEL_ALPHA_618_SOURCE" \
+        "$KERNEL_ALPHA_618_REPO" \
+        "$KERNEL_ALPHA_618_UPSTREAM_VERSION" \
+        "packaging/ppa/kernel-rewrite-alpha-6.18" \
+        "$KERNEL_ALPHA_618_CONFIG"
+}
+
+build_kernel_alpha_72rc2() {
+    prepare_worktree_source \
+        "$KERNEL_ALPHA_72RC2_SOURCE" \
+        "$KERNEL_ALPHA_72RC2_REPO" \
+        "$KERNEL_ALPHA_72RC2_UPSTREAM_VERSION" \
+        "packaging/ppa/kernel-rewrite-alpha-7.2-rc2" \
+        "$KERNEL_ALPHA_72RC2_CONFIG"
 }
 
 build_gdm_hwenc() {
@@ -333,9 +381,12 @@ for package in "$@"; do
         mpp) build_mpp ;;
         librga) build_librga ;;
         ffmpeg) build_ffmpeg ;;
+        ffmpeg-rockchip|nyanmisaka-ffmpeg-rockchip) build_ffmpeg_rockchip ;;
         gnome-remote-desktop|grd) build_grd ;;
         gdm-hwenc|gnome-remote-desktop-gdm-hwenc) build_gdm_hwenc ;;
         kernel|forward-port-kernel|linux-rockchip64-ysp) build_kernel_forward_port ;;
+        kernel-alpha-6.18|rewrite-alpha-6.18|linux-rockchip64-ysp-alpha-6.18) build_kernel_alpha_618 ;;
+        kernel-alpha-7.2-rc|kernel-alpha-7.2-rc2|rewrite-alpha-7.2-rc|rewrite-alpha-7.2-rc2|linux-rockchip64-ysp-alpha-7.2-rc2) build_kernel_alpha_72rc2 ;;
         *) echo "unknown package: $package" >&2; usage >&2; exit 2 ;;
     esac
 done

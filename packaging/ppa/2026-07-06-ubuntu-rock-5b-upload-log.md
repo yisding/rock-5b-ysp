@@ -1449,3 +1449,100 @@ dput ppa:yi-ding/ubuntu-rock-5b /tmp/ubuntu-rock-5b-ppa/artifacts/ffmpeg_8.1.2-1
   ordering would decide which one supersedes the other.
 - Launchpad PPAs accept source uploads, not copied local `.deb` binaries, so
   publishing that helper through the PPA still requires a source package wrapper.
+
+### 2026-07-10
+
+## Baseline succeeded and Rockchip-81 source uploaded
+
+- Rechecked baseline build `33381225` through the Launchpad API. It completed
+  successfully:
+  - source version: `7:8.1.2-1+rk2`
+  - first dispatched: `2026-07-10T04:00:45.378167+00:00`
+  - built: `2026-07-10T04:25:31.853230+00:00`
+  - builder: `bos03-arm64-020`
+- Signed the prepared Rockchip-81 source upload with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`; `debsign` successfully signed
+  the `.dsc`, `.buildinfo`, and `.changes` files. The only warning was that the
+  running `gpg-agent` was older than the `gpg` client.
+- Uploaded with:
+
+```text
+dput ppa:yi-ding/ubuntu-rock-5b packaging/ppa/out/artifacts/ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2_source.changes
+```
+
+- Client-side `dput` checks and FTP transfer succeeded for:
+  - `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2.dsc`
+  - `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b.orig.tar.gz`
+  - `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2.debian.tar.xz`
+  - `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2_source.buildinfo`
+  - `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2_source.changes`
+- Launchpad accepted the source into Pending source publication `18614542`;
+  related package upload is `38609150`.
+- The new arm64 build record is `33387355`, currently `Needs building`.
+
+## Co-installable nyanmisaka FFmpeg Rockchip source package
+
+- Confirmed Ubuntu resolute's primary archive publishes system FFmpeg
+  `7:8.0.1-3ubuntu2`, while the board currently has local/PPA
+  `7:8.1.2-1+rk1` installed.
+- Confirmed `/home/yi/Code/ffmpeg/ffmpeg-rockchip` is nyanmisaka's
+  `ffmpeg-rockchip` fork:
+  - repo: `https://github.com/nyanmisaka/ffmpeg-rockchip.git`
+  - commit: `40c412daccf08164493da0de990eb99a8948116b`
+  - `RELEASE`: `6.1`
+  - ABI family: `libavcodec60`, `libavutil58`, `libavformat60`,
+    `libavfilter9`, `libavdevice60`, `libswscale7`, `libswresample4`,
+    `libpostproc57`
+- Conclusion: this fork is too old to be a normal Ubuntu 26.04 system
+  `ffmpeg` replacement. Packaging it as source package `ffmpeg` would either be
+  a downgrade or collide with the existing baseline/Rockchip-81 `ffmpeg`
+  package plan.
+- Added source package `ffmpeg-rockchip` instead. It installs private tools
+  under `/opt/ffmpeg-rockchip` and exposes non-shadowing commands
+  `ffmpeg-rockchip`, `ffprobe-rockchip`, and `ffplay-rockchip`.
+- Built unsigned source artifacts with:
+
+```text
+bash packaging/ppa/build-source-packages.sh ffmpeg-rockchip
+```
+
+- `dpkg-source -x` and source `lintian` validation passed; local arm64 binary
+  build validation is still running at the time of this note.
+
+## Kernel source uploads and alpha rc2 refresh
+
+- Verified the official kernel.org `v7.2-rc2` tag before updating the alpha
+  mainline rewrite branch:
+  - tag ref: `4c45e14df2f4e77982ad70d6d8e3fe750edd4c37 refs/tags/v7.2-rc2`;
+  - peeled commit observed locally after fetch: `8cdeaa50eae8` ("Linux 7.2-rc2").
+- Rebased `/home/yi/Code/kernel/linux` branch `rk3588-rewrite-mainline` from
+  `v7.2-rc1` to `v7.2-rc2` with backup branch
+  `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`. The rebased tip is
+  `083bdb98e715` and `git describe` reports `v7.2-rc2-224-g083bdb98e715`.
+- Signed and uploaded the forward-port kernel source package:
+  - `linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260709-0ubuntu1~rk1_source.changes`;
+  - `dput ppa:yi-ding/ubuntu-rock-5b` completed client-side FTP upload.
+- Added and built alpha rewrite kernel source packages:
+  - `linux-rockchip64-ysp-alpha-6.18_6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk1_source.changes`;
+  - `linux-rockchip64-ysp-alpha-7.2-rc2_7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk1_source.changes`.
+- Source validation passed for both alpha packages:
+  - source package helper export and `dpkg-buildpackage -S`;
+  - `dpkg-source -x` of each generated `.dsc`;
+  - `debian/rules override_dh_auto_configure` in each extracted source;
+  - resolved configs keep the rewrite MPP/RGA drivers and KUnit suites built in,
+    disable stock RGA, and keep `CONFIG_VSI_IOMMU=y`.
+- Signed both alpha `.changes` files with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6` and uploaded them with `dput`.
+- Launchpad API check at 2026-07-10 23:05 PDT:
+  - forward-port kernel source publication `18614540` is `Published`; arm64
+    build `33387353` is `Currently building` on `bos03-arm64-094`;
+  - alpha 6.18 source publication `18614549` is `Pending`; arm64 build
+    `33387366` is `Needs building`;
+  - alpha 7.2-rc2 source publication `18614550` is `Pending`; arm64 build
+    `33387367` is `Needs building`;
+  - Rockchip-81 FFmpeg source publication `18614542` is `Published`; arm64
+    build `33387355` is `Currently building` on `bos03-arm64-113`.
+- Pending kernel work: wait for Launchpad builds/publication, run any local
+  binary/payload comparisons still missing for the alpha packages, and validate
+  board install, reboot, rollback, and `kernel-revert.sh` recovery before giving
+  install guidance.

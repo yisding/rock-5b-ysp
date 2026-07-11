@@ -1,8 +1,9 @@
 # kernel-forward-port/ - PPA kernel source package
 
 This directory tracks the Launchpad PPA path for the ROCK 5B forward-port
-kernel. The source package and local arm64 binary package build now pass;
-board install/revert validation is still pending.
+kernel. The source package is published in Launchpad, the Launchpad arm64
+build is running, and the local arm64 binary package build passes; board
+install/revert validation is still pending.
 
 The current kernel delivery path is still the Armbian wrapper in
 [`../../../kernel-drivers/scripts/build-armbian-deb.sh`](../../../kernel-drivers/scripts/build-armbian-deb.sh),
@@ -21,7 +22,7 @@ First PPA kernel package should be conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18.38 worktree with the self-contained-DT RK3588 MPP/RGA/AV1 forward-port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Unsigned source artifacts generated locally under `packaging/ppa/out/artifacts`; not uploaded. |
+| Upload state | Signed and uploaded to `ppa:yi-ding/ubuntu-rock-5b`; Launchpad source publication `18614540` is `Published`, and arm64 build `33387353` is `Currently building`. |
 
 ## Source Inputs
 
@@ -59,7 +60,7 @@ build products, `.orig` backups, and `debian/`. It then overlays this directory'
 bash packaging/ppa/build-source-packages.sh kernel
 ```
 
-Generated on 2026-07-09:
+Generated on 2026-07-09, then signed and uploaded on 2026-07-10 local time:
 
 ```text
 packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260709.orig.tar.gz
@@ -97,6 +98,13 @@ Passed:
     release string;
   - header scripts use the same prepare flow, with one intentional tolerance:
     `tools/bpf/resolve_btfids` failure is non-fatal in the YSP package.
+- `debsign` signed the `.dsc`, `.buildinfo`, and `.changes` with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`.
+- `dput ppa:yi-ding/ubuntu-rock-5b` completed client-side upload of the signed
+  source package.
+- Launchpad API check on 2026-07-10 23:05 PDT: source publication `18614540`
+  is `Published`; arm64 build `33387353` is `Currently building` on
+  `bos03-arm64-094`.
 
 Notes:
 
@@ -112,13 +120,13 @@ Notes:
 
 Not done yet:
 
+- Launchpad arm64 build completion and binary publication.
 - Board install, reboot, rollback, and `kernel-revert.sh` recovery validation.
 - Full `lintian`; the source lint run was stopped after several minutes with no
   output because the kernel orig tarball scan was taking too long.
 
 ## Remaining Checklist
 
-1. Validate install, reboot, rollback, and `kernel-revert.sh` recovery on the
-   board.
-2. Sign the source upload and `dput` it to the PPA only after the board gate
-   passes.
+1. Wait for Launchpad arm64 build `33387353` to finish and publish binaries.
+2. Validate install, reboot, rollback, and `kernel-revert.sh` recovery on the
+   board before giving install guidance.

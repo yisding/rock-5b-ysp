@@ -1,0 +1,23 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: ffmpeg-rockchip
+Source: https://github.com/nyanmisaka/ffmpeg-rockchip
+
+Files: *
+Copyright:
+ 2000-2026 FFmpeg developers and contributors
+ 2022-2026 nyanmisaka/ffmpeg-rockchip contributors
+License: LGPL-2.1+ and LGPL-3+
+ FFmpeg is primarily licensed under the GNU Lesser General Public License.
+ This package is configured with --enable-version3 for the Rockchip MPP/RGA
+ integration and without --enable-gpl, so the resulting command binaries are
+ distributed under LGPL version 3 or later.
+ .
+ On Debian systems, the complete text of the GNU Lesser General Public License
+ version 2.1 can be found in "/usr/share/common-licenses/LGPL-2.1", and the
+ complete text of version 3 can be found in "/usr/share/common-licenses/LGPL-3".
+
+Files: debian/*
+Copyright: 2026 Yi Ding <yi.s.ding@gmail.com>
+License: LGPL-3+
+ On Debian systems, the complete text of the GNU Lesser General Public License
+ version 3 can be found in "/usr/share/common-licenses/LGPL-3".

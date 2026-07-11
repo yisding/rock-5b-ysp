@@ -1,0 +1,10 @@
+ffmpeg-rockchip (6.1+git20260423.40c412dacc-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Initial PPA package for nyanmisaka's FFmpeg 6.1 Rockchip fork.
+  * Install as a co-installable private runtime under /opt/ffmpeg-rockchip
+    with non-shadowing command names ffmpeg-rockchip, ffprobe-rockchip, and
+    ffplay-rockchip.
+  * Enable RKMPP/RKRGA support without replacing Ubuntu's system ffmpeg/libav*
+    packages.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Fri, 10 Jul 2026 10:00:00 -0700

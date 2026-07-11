@@ -1,0 +1,7 @@
+upstream: https://github.com/nyanmisaka/ffmpeg-rockchip
+source-tree: /home/yi/Code/ffmpeg/ffmpeg-rockchip
+commit: 40c412daccf08164493da0de990eb99a8948116b
+commit-date: 2026-04-23
+release: 6.1
+configure: --disable-autodetect --enable-version3 --enable-libdrm --enable-rkmpp --enable-rkrga --enable-sdl2 --enable-zlib --enable-bzlib
+install-prefix: /opt/ffmpeg-rockchip
