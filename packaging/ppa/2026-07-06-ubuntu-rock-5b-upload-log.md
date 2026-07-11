@@ -1546,3 +1546,28 @@ bash packaging/ppa/build-source-packages.sh ffmpeg-rockchip
   binary/payload comparisons still missing for the alpha packages, and validate
   board install, reboot, rollback, and `kernel-revert.sh` recovery before giving
   install guidance.
+
+## Rockchip-81 FFmpeg `~rk2` build failure and `~rk3` packaging fix
+
+- Launchpad arm64 build `33387355` for
+  `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2` failed during
+  `override_dh_auto_configure` on 2026-07-11 UTC.
+- The build log shows `../../configure` rejected `--disable-omx` before writing
+  `ffbuild/config.log`:
+
+```text
+Unknown option "--disable-omx".
+See ../../configure --help for available options.
+```
+
+- Prepared local package revision
+  `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk3` by removing
+  `--disable-omx` from `packaging/ppa/ffmpeg/debian/rules`.
+- Validation before committing the packaging fix:
+  - `dpkg-source --before-build packaging/ppa/ffmpeg` passed;
+  - `git diff --check` passed;
+  - `make -f packaging/ppa/ffmpeg/debian/rules -n override_dh_auto_configure`
+    dry-run output no longer includes `--disable-omx` in the generated
+    configure commands.
+- Not done yet: rebuild the `~rk3` source package, sign it, upload it, and wait
+  for the replacement arm64 Launchpad build.

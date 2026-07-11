@@ -1,3 +1,11 @@
+ffmpeg (7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk3) resolute; urgency=medium
+
+  * debian/rules: drop --disable-omx for the ffmpeg-rockchip-81 source.
+    The forward-port branch no longer exposes an OMX configure option, so the
+    Launchpad arm64 build 33387355 failed during configure before compiling.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Fri, 10 Jul 2026 23:20:00 -0700
+
 ffmpeg (7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2) resolute; urgency=medium
 
   * debian/control: add frei0r-plugins to Build-Depends, marked <!nocheck>.

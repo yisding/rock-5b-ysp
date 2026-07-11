@@ -29,7 +29,7 @@ Last recorded in the public APT indexes and Launchpad API at
 |---------|----------------------|------------------|-------|
 | `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Source and arm64 binaries are published in the public PPA indexes. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
 | `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Source and arm64 binaries are published in the public PPA indexes; `-0ubuntu2~rk1` is superseded. | The `-0ubuntu3~rk1` retry succeeded after the earlier arm64 builder failure. |
-| `ffmpeg` | `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk2` | Source publication `18614542` is `Published`; arm64 build `33387355` is `Currently building` on `bos03-arm64-113`. | Uploaded after baseline build `33381225` completed successfully. This higher-version source superseded the baseline `ffmpeg` source publication once it published. |
+| `ffmpeg` | `7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk3` | Published `~rk2` source publication `18614542` failed arm64 build `33387355` during configure; local `~rk3` packaging is prepared but not uploaded. | `~rk3` drops `--disable-omx`, which the forward-port branch no longer exposes as a configure option. The higher-version `~rk2` source already superseded the baseline `ffmpeg` source publication once it published. |
 | `ffmpeg` (baseline) | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Fixed arm64 build `33381225` completed successfully on 2026-07-10 UTC. | The `7:8.1.2-1+rk1` baseline upload published, but arm64 build `33366878` failed in the FATE frei0r tests. `-1+rk2` adds the `frei0r-plugins` build-dependency and still sorts below the Rockchip-81 forward-port. |
 | `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Co-installable source packaging imported; source package builds and lintian passes, local binary validation is in progress. | Packages nyanmisaka's FFmpeg 6.1 fork as `/opt/ffmpeg-rockchip` plus `ffmpeg-rockchip`/`ffprobe-rockchip`/`ffplay-rockchip`, not as the system `ffmpeg`; it can coexist with Ubuntu 26.04 FFmpeg 8.x and the Rockchip-81 replacement package because source and binary package names do not collide. |
 | `gnome-remote-desktop` | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1` | Source packaging imported, source lintian passed, and a local `nocheck` binary build passed against upstream FFmpeg `7:8.1.2-1+rk1`; not uploaded and not public in the PPA source index. | Reconstructed from `GRD_COMMIT` plus [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md), so it no longer depends on a dirty dev-box worktree. Wait for the FFmpeg dependency chain before upload, then rebuild once against upstream FFmpeg and once after `ffmpeg-rockchip-81` supersedes it. |
@@ -40,8 +40,8 @@ Last recorded in the public APT indexes and Launchpad API at
 
 Install-facing state: **do not tell users to install the full stack from this
 PPA yet**. The public arm64 index now has MPP and librga binaries, but FFmpeg
-and the kernel packages are still building or pending, so the package set is
-not complete.
+needs a `~rk3` retry and the kernel packages are still building or pending, so
+the package set is not complete.
 
 The PPA targets **resolute** (Ubuntu 26.04 / Armbian userspace) on **arm64**.
 The PPA was corrected from its initial amd64-only setup during the 2026-07-06
