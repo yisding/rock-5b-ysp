@@ -14,7 +14,7 @@ package names and a distinct localversion.
 | Binary DTB package | `linux-dtb-ysp-alpha-6.18-rockchip64` |
 | Binary headers package | `linux-headers-ysp-alpha-6.18-rockchip64` |
 | Kernel release | `6.18.0-ysp-alpha-6.18-rockchip64` |
-| Upload state | Initial source publication `18614549` is `Published`; retry source publication `18614560` is `Pending`, and retry arm64 build `33387392` is `Needs building`. |
+| Upload state | Initial source publication `18614549` is `Published`; retry source publication `18614560` is `Pending`, and retry arm64 build `33387392` is `Currently building` on `bos03-arm64-110`. |
 | Debian version | `6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2` |
 
 ## Source Inputs
@@ -54,8 +54,8 @@ Passed:
 - Retry `~rk2` adds `u-boot-tools` to Build-Depends, extracts cleanly from the
   generated `.dsc`, signs successfully, and was uploaded with `dput`.
 - Launchpad API check on 2026-07-10 23:49 PDT found retry source publication
-  `18614560` in `Pending` state and retry arm64 build `33387392` in
-  `Needs building` state.
+  `18614560` in `Pending` state and retry arm64 build `33387392`
+  `Currently building` on `bos03-arm64-110`.
 
 Not done yet:
 

@@ -1605,6 +1605,6 @@ See ../../configure --help for available options.
   `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6` and uploaded them with `dput`.
 - Launchpad API check at 2026-07-10 23:49 PDT found the retry uploads accepted
   as Pending source publications:
-  - forward-port source `18614559`, arm64 build `33387391` `Needs building`;
-  - alpha 6.18 source `18614560`, arm64 build `33387392` `Needs building`;
-  - alpha 7.2-rc2 source `18614561`, arm64 build `33387393` `Needs building`.
+  - forward-port source `18614559`, arm64 build `33387391` `Currently building` on `bos03-arm64-047`;
+  - alpha 6.18 source `18614560`, arm64 build `33387392` `Currently building` on `bos03-arm64-110`;
+  - alpha 7.2-rc2 source `18614561`, arm64 build `33387393` `Currently building` on `bos03-arm64-074`.

@@ -3,8 +3,8 @@
 This directory tracks the Launchpad PPA path for the ROCK 5B forward-port
 kernel. The first Launchpad arm64 build failed because `mkimage` was missing
 while generating the Rockchip overlay fixup script. Retry source publication
-`18614559` adds the `u-boot-tools` build dependency and is queued as arm64 build
-`33387391`. The local arm64 binary package build passes; Launchpad retry
+`18614559` adds the `u-boot-tools` build dependency and is building as arm64 build
+`33387391` on `bos03-arm64-047`. The local arm64 binary package build passes; Launchpad retry
 completion and board install/revert validation are still pending.
 
 The current kernel delivery path is still the Armbian wrapper in
@@ -24,7 +24,7 @@ First PPA kernel package should be conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18.38 worktree with the self-contained-DT RK3588 MPP/RGA/AV1 forward-port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Initial source publication `18614540` is `Published`, but arm64 build `33387353` failed on missing `mkimage`. Retry source publication `18614559` is `Pending`; arm64 build `33387391` is `Needs building`. |
+| Upload state | Initial source publication `18614540` is `Published`, but arm64 build `33387353` failed on missing `mkimage`. Retry source publication `18614559` is `Pending`; arm64 build `33387391` is `Currently building` on `bos03-arm64-047`. |
 
 ## Source Inputs
 
@@ -111,7 +111,7 @@ Passed:
 - Retry `~rk2` adds `u-boot-tools` to Build-Depends, extracts cleanly from the
   generated `.dsc`, signs successfully, and was uploaded with `dput`.
 - Launchpad API check on 2026-07-10 23:49 PDT: retry source publication
-  `18614559` is `Pending`; arm64 build `33387391` is `Needs building`.
+  `18614559` is `Pending`; arm64 build `33387391` is `Currently building` on `bos03-arm64-047`.
 
 Notes:
 
