@@ -1,10 +1,11 @@
 # kernel-forward-port/ - PPA kernel source package
 
 This directory tracks the Launchpad PPA path for the ROCK 5B forward-port
-kernel. The source package is published in Launchpad, but the first Launchpad
-arm64 build failed because `mkimage` was missing while generating the Rockchip
-overlay fixup script. The local arm64 binary package build passes; a
-build-dependency retry and board install/revert validation are still pending.
+kernel. The first Launchpad arm64 build failed because `mkimage` was missing
+while generating the Rockchip overlay fixup script. Retry source publication
+`18614559` adds the `u-boot-tools` build dependency and is queued as arm64 build
+`33387391`. The local arm64 binary package build passes; Launchpad retry
+completion and board install/revert validation are still pending.
 
 The current kernel delivery path is still the Armbian wrapper in
 [`../../../kernel-drivers/scripts/build-armbian-deb.sh`](../../../kernel-drivers/scripts/build-armbian-deb.sh),
@@ -23,7 +24,7 @@ First PPA kernel package should be conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18.38 worktree with the self-contained-DT RK3588 MPP/RGA/AV1 forward-port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Signed and uploaded to `ppa:yi-ding/ubuntu-rock-5b`; Launchpad source publication `18614540` is `Published`, and arm64 build `33387353` `Failed to build` because `mkimage` was missing. |
+| Upload state | Initial source publication `18614540` is `Published`, but arm64 build `33387353` failed on missing `mkimage`. Retry source publication `18614559` is `Pending`; arm64 build `33387391` is `Needs building`. |
 
 ## Source Inputs
 
@@ -61,13 +62,13 @@ build products, `.orig` backups, and `debian/`. It then overlays this directory'
 bash packaging/ppa/build-source-packages.sh kernel
 ```
 
-Generated on 2026-07-09, then signed and uploaded on 2026-07-10 local time:
+Generated on 2026-07-09, signed/uploaded on 2026-07-10 local time, then rebuilt as `~rk2` with `u-boot-tools` in Build-Depends:
 
 ```text
 packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260709.orig.tar.gz
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260709-0ubuntu1~rk1.debian.tar.xz
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260709-0ubuntu1~rk1.dsc
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260709-0ubuntu1~rk1_source.changes
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2.debian.tar.xz
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2.dsc
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2_source.changes
 ```
 
 The orig tarball is large (`272M` in the first export), so the kernel target is
@@ -107,6 +108,10 @@ Passed:
   `18614540` is `Published`; arm64 build `33387353` `Failed to build` because
   `/bin/sh: 1: mkimage: not found` while generating
   `arch/arm64/boot/dts/rockchip/overlay/rockchip-fixup.scr`.
+- Retry `~rk2` adds `u-boot-tools` to Build-Depends, extracts cleanly from the
+  generated `.dsc`, signs successfully, and was uploaded with `dput`.
+- Launchpad API check on 2026-07-10 23:49 PDT: retry source publication
+  `18614559` is `Pending`; arm64 build `33387391` is `Needs building`.
 
 Notes:
 
@@ -122,16 +127,13 @@ Notes:
 
 Not done yet:
 
-- Add the missing `mkimage` provider build dependency, rebuild/upload a retry,
-  and wait for Launchpad arm64 build completion and binary publication.
+- Wait for retry arm64 build `33387391` to finish and publish binaries.
 - Board install, reboot, rollback, and `kernel-revert.sh` recovery validation.
 - Full `lintian`; the source lint run was stopped after several minutes with no
   output because the kernel orig tarball scan was taking too long.
 
 ## Remaining Checklist
 
-1. Add the missing `mkimage` provider build dependency and upload a kernel
-   retry source package.
-2. Wait for the retry arm64 build to finish and publish binaries.
-3. Validate install, reboot, rollback, and `kernel-revert.sh` recovery on the
+1. Wait for retry arm64 build `33387391` to finish and publish binaries.
+2. Validate install, reboot, rollback, and `kernel-revert.sh` recovery on the
    board before giving install guidance.

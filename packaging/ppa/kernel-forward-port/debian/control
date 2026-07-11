@@ -13,7 +13,8 @@ Build-Depends:
  libssl-dev,
  pahole | dwarves,
  python3,
- rsync
+ rsync,
+ u-boot-tools
 Rules-Requires-Root: no
 Standards-Version: 4.7.2
 Homepage: https://github.com/yisding/rock-5b-ysp

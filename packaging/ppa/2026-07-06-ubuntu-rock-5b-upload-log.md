@@ -1586,3 +1586,25 @@ See ../../configure --help for available options.
     `33387367` is `Currently building` on `bos03-arm64-008`.
 - Next forward-port kernel retry likely needs the `mkimage` provider in
   Build-Depends before rebuilding and uploading a new Debian revision.
+
+## Kernel `~rk2` retry uploads for `mkimage`
+
+- Added `u-boot-tools` to Build-Depends for all three PPA kernel source
+  packages so Launchpad provides `mkimage` while generating Rockchip overlay
+  fixup scripts.
+- Bumped Debian revisions and rebuilt source packages with existing orig
+  tarballs:
+  - `linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2_source.changes`;
+  - `linux-rockchip64-ysp-alpha-6.18_6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2_source.changes`;
+  - `linux-rockchip64-ysp-alpha-7.2-rc2_7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2_source.changes`.
+- Validation before upload:
+  - `dpkg-source --before-build` passed for all three packaging directories;
+  - all three generated `.dsc` files extracted cleanly;
+  - extracted `debian/control` files contain `u-boot-tools`.
+- Signed all three retry uploads with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6` and uploaded them with `dput`.
+- Launchpad API check at 2026-07-10 23:49 PDT found the retry uploads accepted
+  as Pending source publications:
+  - forward-port source `18614559`, arm64 build `33387391` `Needs building`;
+  - alpha 6.18 source `18614560`, arm64 build `33387392` `Needs building`;
+  - alpha 7.2-rc2 source `18614561`, arm64 build `33387393` `Needs building`.

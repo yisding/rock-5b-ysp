@@ -14,8 +14,8 @@ package names and a distinct localversion.
 | Binary DTB package | `linux-dtb-ysp-alpha-7.2-rc2-rockchip64` |
 | Binary headers package | `linux-headers-ysp-alpha-7.2-rc2-rockchip64` |
 | Kernel release | `7.2.0-rc2-ysp-alpha-7.2-rc2-rockchip64` |
-| Upload state | Signed and uploaded to `ppa:yi-ding/ubuntu-rock-5b`; Launchpad source publication `18614550` is `Pending`, and arm64 build `33387367` is `Currently building` on `bos03-arm64-008`. |
-| Debian version | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk1` |
+| Upload state | Initial source publication `18614550` is `Published`; retry source publication `18614561` is `Pending`, and retry arm64 build `33387393` is `Needs building`. |
+| Debian version | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2` |
 
 ## Source Inputs
 
@@ -56,6 +56,11 @@ Passed:
 - Launchpad API check on 2026-07-10 23:30 PDT found source publication
   `18614550` in `Pending` state and arm64 build `33387367` `Currently building`
   on `bos03-arm64-008`.
+- Retry `~rk2` adds `u-boot-tools` to Build-Depends, extracts cleanly from the
+  generated `.dsc`, signs successfully, and was uploaded with `dput`.
+- Launchpad API check on 2026-07-10 23:49 PDT found retry source publication
+  `18614561` in `Pending` state and retry arm64 build `33387393` in
+  `Needs building` state.
 
 Not done yet:
 

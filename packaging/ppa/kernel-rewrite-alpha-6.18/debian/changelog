@@ -1,3 +1,10 @@
+linux-rockchip64-ysp-alpha-6.18 (6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2) resolute; urgency=medium
+
+  * Add u-boot-tools to Build-Depends so Launchpad provides mkimage
+    when generating Rockchip overlay fixup scripts.
+
+ -- Yi Ding <yi@example.com>  Fri, 10 Jul 2026 23:45:00 -0700
+
 linux-rockchip64-ysp-alpha-6.18 (6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk1) resolute; urgency=medium
 
   * Initial ROCK 5B YSP alpha clean-room rewrite kernel source package.
