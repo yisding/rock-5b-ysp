@@ -1,9 +1,10 @@
 # kernel-forward-port/ - PPA kernel source package
 
 This directory tracks the Launchpad PPA path for the ROCK 5B forward-port
-kernel. The source package is published in Launchpad, the Launchpad arm64
-build is running, and the local arm64 binary package build passes; board
-install/revert validation is still pending.
+kernel. The source package is published in Launchpad, but the first Launchpad
+arm64 build failed because `mkimage` was missing while generating the Rockchip
+overlay fixup script. The local arm64 binary package build passes; a
+build-dependency retry and board install/revert validation are still pending.
 
 The current kernel delivery path is still the Armbian wrapper in
 [`../../../kernel-drivers/scripts/build-armbian-deb.sh`](../../../kernel-drivers/scripts/build-armbian-deb.sh),
@@ -22,7 +23,7 @@ First PPA kernel package should be conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18.38 worktree with the self-contained-DT RK3588 MPP/RGA/AV1 forward-port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Signed and uploaded to `ppa:yi-ding/ubuntu-rock-5b`; Launchpad source publication `18614540` is `Published`, and arm64 build `33387353` is `Currently building`. |
+| Upload state | Signed and uploaded to `ppa:yi-ding/ubuntu-rock-5b`; Launchpad source publication `18614540` is `Published`, and arm64 build `33387353` `Failed to build` because `mkimage` was missing. |
 
 ## Source Inputs
 
@@ -102,9 +103,10 @@ Passed:
   `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`.
 - `dput ppa:yi-ding/ubuntu-rock-5b` completed client-side upload of the signed
   source package.
-- Launchpad API check on 2026-07-10 23:05 PDT: source publication `18614540`
-  is `Published`; arm64 build `33387353` is `Currently building` on
-  `bos03-arm64-094`.
+- Launchpad API/log check on 2026-07-10 23:30 PDT: source publication
+  `18614540` is `Published`; arm64 build `33387353` `Failed to build` because
+  `/bin/sh: 1: mkimage: not found` while generating
+  `arch/arm64/boot/dts/rockchip/overlay/rockchip-fixup.scr`.
 
 Notes:
 
@@ -120,13 +122,16 @@ Notes:
 
 Not done yet:
 
-- Launchpad arm64 build completion and binary publication.
+- Add the missing `mkimage` provider build dependency, rebuild/upload a retry,
+  and wait for Launchpad arm64 build completion and binary publication.
 - Board install, reboot, rollback, and `kernel-revert.sh` recovery validation.
 - Full `lintian`; the source lint run was stopped after several minutes with no
   output because the kernel orig tarball scan was taking too long.
 
 ## Remaining Checklist
 
-1. Wait for Launchpad arm64 build `33387353` to finish and publish binaries.
-2. Validate install, reboot, rollback, and `kernel-revert.sh` recovery on the
+1. Add the missing `mkimage` provider build dependency and upload a kernel
+   retry source package.
+2. Wait for the retry arm64 build to finish and publish binaries.
+3. Validate install, reboot, rollback, and `kernel-revert.sh` recovery on the
    board before giving install guidance.

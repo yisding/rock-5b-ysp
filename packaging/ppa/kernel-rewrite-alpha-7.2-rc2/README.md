@@ -14,7 +14,7 @@ package names and a distinct localversion.
 | Binary DTB package | `linux-dtb-ysp-alpha-7.2-rc2-rockchip64` |
 | Binary headers package | `linux-headers-ysp-alpha-7.2-rc2-rockchip64` |
 | Kernel release | `7.2.0-rc2-ysp-alpha-7.2-rc2-rockchip64` |
-| Upload state | Signed and uploaded to `ppa:yi-ding/ubuntu-rock-5b`; Launchpad source publication `18614550` is `Pending`, and arm64 build `33387367` is `Needs building`. |
+| Upload state | Signed and uploaded to `ppa:yi-ding/ubuntu-rock-5b`; Launchpad source publication `18614550` is `Pending`, and arm64 build `33387367` is `Currently building` on `bos03-arm64-008`. |
 | Debian version | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk1` |
 
 ## Source Inputs
@@ -53,8 +53,9 @@ Passed:
   `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`.
 - `dput ppa:yi-ding/ubuntu-rock-5b` completed client-side upload of the signed
   source package.
-- Launchpad API check on 2026-07-10 23:05 PDT found source publication `18614550`
-  in `Pending` state and arm64 build `33387367` in `Needs building` state.
+- Launchpad API check on 2026-07-10 23:30 PDT found source publication
+  `18614550` in `Pending` state and arm64 build `33387367` `Currently building`
+  on `bos03-arm64-008`.
 
 Not done yet:
 

@@ -19,12 +19,7 @@ This is a chronological working log, not a finished-state doc. Current state:
 
 - **`mpp` and `librga` source and arm64 binary packages are published** in the
   public PPA indexes.
-- **FFmpeg baseline retry is uploaded.** The upstream baseline
-  `7:8.1.2-1+rk1` hit an arm64 build failure (frei0r); the fixed baseline
-  `7:8.1.2-1+rk2` was rebuilt, signed, uploaded, and accepted as Pending
-  source publication `18610234`. Arm64 build `33381225` is `Needs building`.
-  The higher-version `ffmpeg-rockchip-81` packaging is also fixed as `~rk2`,
-  but still needs source rebuild + `debsign` before upload.
+- **FFmpeg baseline retry built successfully, and both Rockchip FFmpeg tracks are now uploaded.** The upstream baseline `7:8.1.2-1+rk2` built successfully as arm64 build `33381225`. Rockchip-81 `~rk2` was uploaded and accepted as source publication `18614542`, but arm64 build `33387355` failed immediately during configure on unsupported `--disable-omx`; `~rk3` removes that flag, is accepted as Pending source publication `18614555`, and arm64 build `33387380` is currently building. The co-installable FFmpeg 6.1 tool package `ffmpeg-rockchip` is accepted as Pending source publication `18614552`, and arm64 build `33387375` successfully built.
 - **GRD / `grd-ffmpeg`** packaging prep exists; not uploaded.
 
 **Do not tell users to install the full stack from this PPA yet** - treat it as
@@ -1506,8 +1501,12 @@ dput ppa:yi-ding/ubuntu-rock-5b packaging/ppa/out/artifacts/ffmpeg_8.1.2+rockchi
 bash packaging/ppa/build-source-packages.sh ffmpeg-rockchip
 ```
 
-- `dpkg-source -x` and source `lintian` validation passed; local arm64 binary
-  build validation is still running at the time of this note.
+- `dpkg-source -x` and source `lintian` validation passed.
+- Local arm64 binary validation passed after two packaging adjustments:
+  - disabled LTO with `DEB_BUILD_MAINT_OPTIONS = hardening=+all optimize=-lto` because the first static link consumed too many local resources;
+  - made `override_dh_auto_test` a no-op because upstream FATE HLS list generation segfaulted with Error 139 in this fork.
+- The resulting package installs `/opt/ffmpeg-rockchip/bin/{ffmpeg,ffprobe,ffplay}` plus `/usr/bin/{ffmpeg-rockchip,ffprobe-rockchip,ffplay-rockchip}` and depends only on external runtime libraries such as `librockchip-mpp1`, `librga2`, `libdrm2`, `libsdl2-2.0-0`, `zlib1g`, and `libbz2-1.0`. Feature checks found the expected RKMPP encoders/decoders and RKRGA filters.
+- Signed and uploaded `ffmpeg-rockchip_6.1+git20260423.40c412dacc-0ubuntu1~rk1_source.changes` to `ppa:yi-ding/ubuntu-rock-5b`. Launchpad accepted it as Pending source publication `18614552`; arm64 build `33387375` successfully built on `bos03-arm64-043`.
 
 ## Kernel source uploads and alpha rc2 refresh
 
@@ -1569,5 +1568,21 @@ See ../../configure --help for available options.
   - `make -f packaging/ppa/ffmpeg/debian/rules -n override_dh_auto_configure`
     dry-run output no longer includes `--disable-omx` in the generated
     configure commands.
-- Not done yet: rebuild the `~rk3` source package, sign it, upload it, and wait
-  for the replacement arm64 Launchpad build.
+- Rebuilt the `~rk3` source package with `bash packaging/ppa/build-source-packages.sh ffmpeg`; it reused the existing orig tarball and produced `ffmpeg_8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk3_source.changes`.
+- Source `lintian` completed with warnings only: known newer-standards-version, long source artifact names, and inherited stale copyright file-pattern warnings.
+- Signed the `~rk3` `.dsc`, `.buildinfo`, and `.changes` files with `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`; the only warning was the older local `gpg-agent`.
+- Uploaded `~rk3` with `dput ppa:yi-ding/ubuntu-rock-5b`. Launchpad accepted it as Pending source publication `18614555` and created arm64 build `33387380`, currently `Currently building` on `bos03-arm64-014`.
+
+## Kernel Launchpad build state update
+
+- Launchpad API/log check at 2026-07-10 23:30 PDT:
+  - forward-port kernel source publication `18614540` remains `Published`, but
+    arm64 build `33387353` failed. The log shows `/bin/sh: 1: mkimage: not
+    found` while generating
+    `arch/arm64/boot/dts/rockchip/overlay/rockchip-fixup.scr`;
+  - alpha 6.18 source publication `18614549` remains `Pending`; arm64 build
+    `33387366` is `Currently building` on `bos03-arm64-032`;
+  - alpha 7.2-rc2 source publication `18614550` remains `Pending`; arm64 build
+    `33387367` is `Currently building` on `bos03-arm64-008`.
+- Next forward-port kernel retry likely needs the `mkimage` provider in
+  Build-Depends before rebuilding and uploading a new Debian revision.
