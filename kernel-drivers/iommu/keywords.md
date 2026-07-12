@@ -5,7 +5,8 @@ CCU / IOMMU memory-path terms. Cross-cutting vocabulary is in
 
 - **CCU** — **Central Control Unit**: the per-cluster block that picks an idle core
   and shares clocks/IOMMU. The **decoder's CCU is a real MMIO block** (`@fdc30000`);
-  the encoder's equivalent is software-only (**DCHS**).
+  the encoder has a virtual driver-side coordinator rather than a separate CCU
+  block, while its cores perform the hardware **DCHS** handshake.
 - **IOMMU / MMU / IOVA** — the codec's address translator: gives a dma-buf a
   device-side address (IOVA) so the hardware can read/write it. Each core has its
   own IOMMU node.

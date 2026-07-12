@@ -1,9 +1,8 @@
 # Glossary
 
 The vocabulary used across this repo, in one place. Each entry links to the doc
-that owns the depth. Three entries are load-bearing enough that the root
-[`README.md`](README.md) keeps them inline as well (marked **⚑ load-bearing**):
-the CCU-vs-DCHS split, RCB/SRAM backing, and convert-in-place.
+that owns the depth. Entries marked **⚑ load-bearing** are especially important
+when comparing the encoder and decoder or reconstructing the Armbian port.
 
 ## Hardware blocks & their drivers
 
@@ -31,15 +30,18 @@ the CCU-vs-DCHS split, RCB/SRAM backing, and convert-in-place.
   The `KERNEL=="iep"` line in the udev rule is a harmless forward-compat no-op
   for BSP/vendor kernels — see
   [`packaging/codec-udev/README.md`](packaging/codec-udev/README.md).
-- **CCU** — the per-cluster *Central Control Unit* that picks an idle core
-  and shares clocks/IOMMU across a codec cluster. **⚑ load-bearing
+- **CCU** — the per-cluster *Central Control Unit* coordination model used to
+  pick an idle core and manage shared clocks/IOMMU. **⚑ load-bearing
   disambiguation:** the **decoder's CCU is a real MMIO block** (`@fdc30000`,
-  with its own DT node); the **encoder's is software-only** — no registers,
-  implemented as **DCHS** (below). See
+  with its own DT node). The encoder has no separate CCU register block: its
+  driver-side `rkvenc_ccu` object is virtual/software coordination, while the
+  cross-core handshake itself uses **hardware DCHS registers** inside each
+  VEPU580 core. See
   [kernel driver guide §7](./kernel-drivers/docs/how-the-drivers-work.md) and
   [device-tree guide](./kernel-drivers/docs/device-tree.md).
-- **DCHS** — *dual-core hand-shake*: the encoder's software-only equivalent of
-  the decoder's hardware CCU. See CCU above.
+- **DCHS** — *dual-core hand-shake*: a hardware TX/RX channel mechanism in the
+  encoder cores. Software allocates and links the small channel IDs; hardware
+  performs the handshake. See CCU above.
 - **mpp_srv** — the shared MPP *service* DT node
   (`compatible = "rockchip,mpp-service"`); virtual, no `reg`; owns
   `/dev/mpp_service`. Every core attaches to it via `rockchip,srv`

@@ -15,29 +15,19 @@ and dated status of every track. Cross-cutting vocabulary (MPP, RGA, CCU, DCHS,
 …) lives in [`glossary.md`](glossary.md); each project also keeps a
 `keywords.md`.
 
-The validated kernel result is a Rockchip vendor **MPP** codec stack plus **RGA**
-forward-port from the Rockchip 6.1 BSP to Linux 6.18, packaged for Armbian on the
-ROCK 5B. The repo also records the work built on that base: `ffmpeg-rockchip`, a
-hardware H.264 backend for `gnome-remote-desktop`, Kodi hardware decode,
-Mesa/Panfrost Mali-G610 debugging, DKMS/PPA packaging, a BSP audit fix series,
-and a clean-room rewrite track.
+The deepest body of evidence follows a Rockchip vendor **MPP** codec stack plus
+**RGA** from the Rockchip 6.1 BSP into Linux 6.18, then upward through
+`ffmpeg-rockchip`, GNOME Remote Desktop, Kodi, Mesa/Panfrost, and package
+delivery. BSP-audit and clean-room rewrite work are recorded alongside that
+forward-port path rather than presented as interchangeable kernels.
 
 The dated project dashboard is [`status.md`](status.md); read every state claim
 through its last-verified dates.
 
-## Read first
+## Start here
 
-This is an integration record and patch-delivery repo, not a self-contained
-source monorepo. Use it to understand the RK3588 hardware-video stack, apply the
-published patch series, rebuild packages, and reproduce the validation path. The
-source projects themselves live in external trees; pinned source-tree references
-and reconstruction notes are in [`docs/source-trees.md`](docs/source-trees.md).
-It is not yet a complete ROCK 5B hardware-compatibility database. The explicit
-[`support coverage inventory`](docs/support-coverage.md) distinguishes tracked,
-narrowly evidenced, and wholly unassessed board areas; absence from
-[`status.md`](status.md) is never evidence of support.
-
-For a quick orientation:
+Choose the owner for the question you are trying to answer. This front door does
+not repeat dated status or operational commands because those copies drift.
 
 | Need | Start here |
 |------|------------|
@@ -49,22 +39,15 @@ For a quick orientation:
 | Update or contribute to the record | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Review the kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
 | Understand the repo taxonomy | [`docs/work-packages.md`](docs/work-packages.md) |
+| Reconstruct an external source tree or resolve a code citation | [`docs/source-trees.md`](docs/source-trees.md) |
 | Decode shared terms like MPP, RGA, CCU, DCHS | [`glossary.md`](glossary.md) |
 
-## What is usable now
+This is an integration record and patch-delivery repo, not a self-contained
+source monorepo. A subsystem missing from the dashboard is not implicitly
+working or broken. Use the support coverage inventory to see the evidence
+boundary, then create a finding rather than guessing.
 
-| Track | Public-facing state |
-|-------|---------------------|
-| Boot chain | The established SPI → NVMe path works. Raw SD boot remains under investigation; the tested SD rootfs boots through SPI after clearing its raw-loader area. See [`status.md` track 12](status.md#dashboard) before changing boot firmware. |
-| Combined Armbian kernel | Hardware-validated on ROCK 5B for H.264/H.265 encode, H.264/H.265 decode, RGA, and full hardware transcode. This is the primary install path. |
-| Userspace codec stack | Documented through `vendor-libraries/` and `video-libraries/`; `ffmpeg-rockchip` and GRD integration notes are captured here, while source builds live in their own trees. |
-| PPA delivery | Public arm64 indexes now contain MPP, librga, the Rockchip-81 FFmpeg stack, the co-installable FFmpeg 6.1 tools, and all three co-installable kernel builds. GRD/GDM packages and all kernel board install/revert gates remain pending, so treat the PPA as a staging channel rather than the primary install path. |
-| DKMS package path | Compiles on the documented 6.18 target, but the overlay has not replaced the validated combined-kernel path. Treat it as secondary. |
-| BSP audit cleanup series | Reviewable, but not shippable yet; compile/runtime gates are still tracked in [`status.md`](status.md). |
-| Clean-room rewrite track | Active bring-up and conformance work, not the validated replacement. |
-| Binaries and releases | Built binaries are intentionally not committed. Use documented build paths until a release artifact exists. |
-
-## Structure
+## Repository structure
 
 The repo is split project-by-project, grouped into the categories below. Each
 project directory carries its own `README.md` (front door) and, where useful, a
@@ -107,113 +90,23 @@ New to the memory/address-translation path? Start with the
 [IOMMU explainer series](kernel-drivers/iommu/docs/01-iommu-primer.md) —
 concept → RK3588 hardware → RGA/MPP driver code.
 
-## Current board support
+## Canonical owners
 
-The core validated result is a single Armbian kernel with all three accelerator
-families built in (`=y`) and exercised on real ROCK 5B hardware:
+| Information | Canonical owner |
+|-------------|-----------------|
+| Dated public state, next proof, and volatile external facts | [`status.md`](status.md) and its [`audit ledger`](docs/status-ledger.md) |
+| Whole-board tracked/narrow/unassessed scope | [`docs/support-coverage.md`](docs/support-coverage.md) |
+| Exact build, install, rollback, and validation commands | [`install.md`](install.md), then the owning project README |
+| Fresh observations and unresolved explanations | [`findings/`](findings/README.md) |
+| Stable technical explanations, patches, tests, and scripts | The nearest project `README.md` in the category table above |
+| Evidence lifecycle, file placement, and handoff checks | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
-| Area | Block or package | Interface | Current state |
-|------|------------------|-----------|---------------|
-| Encoder | VEPU580 / `rkvenc2` | `/dev/mpp_service`, nodes `fdbd0000`, `fdbe0000` | H.264 + H.265 encode validated at 256x256 and 720p. |
-| Decoder | VDPU381 / `rkvdec2` | `/dev/mpp_service`, CCU `fdc30000`, cores `fdc38000` / `fdc40000` | H.264 + H.265 decode validated on both cores. |
-| RGA | RGA3 x2 + RGA2 | `/dev/rga`, nodes `fdb60000`, `fdb70000`, `fdb80000` | Probe, IOMMU, scale/color-convert path validated through FFmpeg. |
-| End-to-end media | `ffmpeg-rockchip` | `h264_rkmpp`, `hevc_rkmpp`, `scale_rkrga` | Full hardware transcode validated. |
-| Real application | GNOME Remote Desktop | FFmpeg `h264_rkmpp` backend | 60 fps RDP hardware encode measured in the documented path. |
-| BSP audit fixes | `kernel-drivers/patches/cleanup-split/` | 65-patch fix series | Staged, not shippable; compile/runtime gates remain in [`status.md`](status.md). |
-
-Userspace talks to the vendor MPP framework through `/dev/mpp_service`
-(`librockchip_mpp`, not V4L2) and to RGA through `/dev/rga` (`librga`). This is
-the stack `ffmpeg-rockchip` expects.
-
-> **Why the vendor stack and not mainline V4L2?** This repo's dated
-> mainline-V4L2 comparison records mainline as not providing the RK3588
-> H.264/H.265 encode path GRD targets. The RGA3 V4L2 driver is also documented
-> here as a subset for RK3588. Re-check current upstream status before making a
-> present-tense claim about mainline support; the validated path in this repo is
-> vendor MPP + RGA. See
-> [`kernel-versions/docs/vanilla-kernel.md`](./kernel-versions/docs/vanilla-kernel.md) for the mainline-V4L2
-> alternative and its trade-offs.
-
-Three details are load-bearing enough to state up front — they are the ones that
-most often trip people who assume the encoder and decoder are symmetric, or that
-the port replaces Armbian's DT:
-
-- **⚑ Decoder CCU is real hardware; the encoder's is not.** The decoder's
-  Central Control Unit is a real MMIO block (`@fdc30000`, its own DT node);
-  the encoder has no such register block — its equivalent is a **software-only
-  dual-core hand-shake (DCHS)**. See
-  [`kernel-drivers/docs/how-the-drivers-work.md`](./kernel-drivers/docs/how-the-drivers-work.md) §7 and
-  [`kernel-drivers/docs/device-tree.md`](./kernel-drivers/docs/device-tree.md).
-- **⚑ Decoder RCB is SRAM-backed; encoder RCB is only optionally plumbed.** The
-  decoder backs its RCB scratch with on-chip SRAM (`system_sram2@ff001000`).
-  Current RK3588 DT does not wire encoder SRAM backing, even though userspace and
-  the drivers understand optional encoder RCB descriptors. See
-  [`kernel-drivers/mpp/docs/rcb-sram.md`](./kernel-drivers/mpp/docs/rcb-sram.md)
-  and [`kernel-drivers/docs/device-tree.md`](./kernel-drivers/docs/device-tree.md).
-- **⚑ The port converts Armbian's DT nodes in place — it does not replace
-  them.** *Convert-in-place* retypes Armbian's existing V4L2 decoder DT nodes
-  (`vdec0`/`vdec1`) to the vendor binding where they sit, so nothing edits
-  Armbian's own files. See
-  [`packaging/docs/armbian-packaging.md`](./packaging/docs/armbian-packaging.md).
-
-## Quickstart
-
-The canonical walkthrough is [`install.md`](install.md). The shape is:
-
-```bash
-export WORKSPACE="${WORKSPACE:-../kernel/rock5b-kernel-build}"
-bash kernel-drivers/scripts/bootstrap-workspaces.sh
-mkdir -p "$WORKSPACE/armbian-build/userpatches/kernel/archive/rockchip64-6.18"
-cp kernel-drivers/patches/rk3588-rkvenc2-0*.patch \
-   "$WORKSPACE/armbian-build/userpatches/kernel/archive/rockchip64-6.18/"
-./kernel-drivers/scripts/build-combined-kernel.sh
-sudo WORKSPACE="$WORKSPACE" PHASH='P####-C####' ./kernel-drivers/scripts/install-combined-kernel.sh
-sudo reboot
-sudo ./kernel-drivers/scripts/validate-combined.sh
-```
-
-Then install the udev rule from [`kernel-drivers/scripts/99-rockchip-codec.rules`](kernel-drivers/scripts/99-rockchip-codec.rules),
-build or install userspace through [`vendor-libraries/`](vendor-libraries/README.md)
-and [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), and run [`kernel-drivers/tests/`](kernel-drivers/tests/README.md).
-
-## Repository map
-
-Each project README owns the file-level index for its area; additions update the
-owning README.
-
-```
-README.md              this map + the taxonomy diagram
-CONTRIBUTING.md        evidence lifecycle, file ownership, status updates, handoff checks
-status.md              dated dashboard, next gates, and staleness watchlist
-glossary.md            cross-cutting vocabulary (per-project terms live in each project's keywords.md)
-install.md             board-user install path and delivery chooser
-findings/              raw capture inbox (drop-first, graduate-later): README + TEMPLATE
-kernel-versions/       the kernel bases and moving between them
-  bsp/                 what the Rockchip 6.1 BSP adds vs stock Linux (13-file subtree)
-  docs/                vanilla / mainline-V4L2 notes, forward-port narrative + review log
-kernel-drivers/        MPP/RGA in-kernel drivers
-  docs/                shared architecture, uAPI, DT, audit, resync, rewrite, forward-port status
-  mpp/ rga/ av1/ iommu/  per-block notes (keywords + scoped docs)
-  patches/             combined kernel patch deliverables and audit-fix series
-  scripts/ tests/      combined-kernel build/install/validate; on-hardware smoke tests
-vendor-libraries/      librockchip_mpp + librga userspace
-  docs/                shared userspace-library architecture
-  mpp/ rga/            per-library notes (keywords + scoped docs)
-video-libraries/
-  ffmpeg/              rkmpp codecs + rkrga filters: docs, patches, pkgconfig
-  mesa/                Mali-G610 Panfrost transfer: docs, patches, reproducers, scripts
-apps/
-  gnome-remote-desktop/  hardware H.264 RDP backend: docs, patches, bench
-  kodi/                  Kodi 22 RKMPP/DRM PRIME decode: design, build, test
-packaging/             deploy hub: DKMS, udev/ACL debs, PPA notes, policy
-docs/                  coverage/baseline maps, source-tree pins, and gotchas trap index
-  status-ledger.md     audit companion to status.md
-scripts/               repo-wide maintenance checks
-```
-
-The canonical maintenance workflow is [`CONTRIBUTING.md`](CONTRIBUTING.md): it
-defines file ownership, the finding-to-project-doc lifecycle, dated status
-updates, external artifact policy, and the required handoff checks.
+The deepest evidence follows the vendor MPP/RGA media path from kernel through
+userspace and applications. That depth is not proof of unrelated board support;
+the coverage inventory keeps the untouched areas visible. Likewise, this README
+does not choose between the vendor and mainline media models: the maintained
+comparison and its dated trade-offs live in
+[`kernel-versions/docs/vanilla-kernel.md`](kernel-versions/docs/vanilla-kernel.md).
 
 ## Provenance and licensing
 

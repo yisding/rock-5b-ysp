@@ -233,6 +233,19 @@ class DocumentationConsistencyTests(unittest.TestCase):
             self.assertTrue(any("empty current owner field" in e for e in errors))
             self.assertTrue(any("coverage IDs are not ordered" in e for e in errors))
 
+    def test_dchs_software_only_conflation_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "README.md").write_text(
+                "# Test\n\nDCHS is the encoder's software-only equivalent.\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_load_bearing_terminology(root, errors)
+
+            self.assertTrue(any("DCHS is a hardware handshake" in e for e in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

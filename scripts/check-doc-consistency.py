@@ -18,6 +18,10 @@ WATCH_ID_RE = re.compile(r"^W\d{2}$")
 WATCH_LINK_RE = re.compile(r"^\[(.+)\]\(#watch-(w\d{2})\)$", re.IGNORECASE)
 COVERAGE_ID_RE = re.compile(r"^C\d{2}$")
 COVERAGE_STATES = {"TRACKED", "NARROW", "UNASSESSED"}
+DCHS_SOFTWARE_ONLY_RE = re.compile(
+    r"(?:DCHS.{0,100}software-only|software-only.{0,100}DCHS)",
+    re.IGNORECASE | re.DOTALL,
+)
 TRUST_TAGS = {
     "CODE-INSPECTED",
     "CONFIG-INSPECTED",
@@ -403,6 +407,17 @@ def check_support_coverage(root: Path, errors: list[str]) -> None:
         errors.append("docs/support-coverage.md: coverage IDs are not ordered")
 
 
+def check_load_bearing_terminology(root: Path, errors: list[str]) -> None:
+    """Reject a known encoder-coordination conflation in maintained prose."""
+    for path in repository_markdown_files(root):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if DCHS_SOFTWARE_ONLY_RE.search(text):
+            errors.append(
+                f"{path.relative_to(root)}: DCHS is a hardware handshake; only "
+                "the encoder's virtual CCU/coordinator is software-only"
+            )
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     errors: list[str] = []
@@ -414,6 +429,7 @@ def main() -> int:
     check_dashboard_next_gates(root, errors)
     check_watchlist(root, errors)
     check_support_coverage(root, errors)
+    check_load_bearing_terminology(root, errors)
 
     for error in errors:
         print(error, file=sys.stderr)

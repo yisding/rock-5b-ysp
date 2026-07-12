@@ -11,8 +11,9 @@ MPP service + codec-core terms. Cross-cutting vocabulary is in
   cores `fdbd0000`/`fdbe0000`.
 - **VDPU381 / `rkvdec2`** — the H.264/H.265/VP9 hardware decoder and its driver;
   two cores plus a real CCU block.
-- **DCHS** — dual-core hand-shake: the encoder's *software-only* equivalent of the
-  decoder's hardware CCU (the encoder has no CCU register block).
+- **DCHS** — dual-core hand-shake: hardware TX/RX channels in the VEPU580 core
+  registers. Software assigns and links the channel IDs; the encoder has no
+  separate CCU register block.
 - **link mode** — the decoder's descriptor-table job chaining (hardware walks a
   linked table of task configs); distinct from RCB.
 - **soft / hard CCU** — the decoder CCU's two dispatch modes (`rockchip,ccu-mode`):
