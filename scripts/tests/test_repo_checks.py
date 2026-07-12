@@ -27,6 +27,7 @@ def load_doc_checker():
 
 
 DOC_CHECKER = load_doc_checker()
+REPO_ROOT = SCRIPTS.parent
 
 
 class RepositoryMarkdownFilesTests(unittest.TestCase):
@@ -136,6 +137,33 @@ class MarkdownLinkCheckerTests(unittest.TestCase):
                 "2 local markdown anchors",
                 result.stdout,
             )
+
+
+class OperationalHelpTests(unittest.TestCase):
+    def test_board_mutating_entry_points_have_safe_help(self) -> None:
+        scripts = (
+            "kernel-drivers/scripts/install-combined-kernel.sh",
+            "kernel-drivers/scripts/kernel-revert.sh",
+            "kernel-drivers/scripts/make-fallback-kernel-deb.sh",
+            "kernel-drivers/scripts/debug-kernel/install-debug-kernel.sh",
+            "kernel-drivers/scripts/debug-kernel/enable-ramoops-capture.sh",
+            "kernel-drivers/scripts/debug-kernel/disable-ramoops-capture.sh",
+            "kernel-drivers/scripts/debug-kernel/enable-persistent-journal.sh",
+            "scripts/rock5b-spi-erase.sh",
+            "scripts/rock5b-spi-restore-armbian.sh",
+        )
+        for relative in scripts:
+            with self.subTest(script=relative):
+                result = subprocess.run(
+                    ["bash", str(REPO_ROOT / relative), "--help"],
+                    cwd=REPO_ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                output = result.stdout + result.stderr
+                self.assertEqual(result.returncode, 0, output)
+                self.assertIn("usage", output.casefold())
 
 
 class DocumentationConsistencyTests(unittest.TestCase):

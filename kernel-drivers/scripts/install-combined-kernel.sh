@@ -14,12 +14,13 @@
 # Kernel package installation can replace the current package's files, and this
 # board has no U-Boot kernel-selection menu. The script backs up armbianEnv.txt
 # but requires an explicit acknowledgement that rescue media and known-good
-# image/DTB debs are ready. Run as root:
+# image/DTB debs are ready.
+# Usage:
 #   sudo RECOVERY_READY=1 PHASH='P####-C####' bash install-combined-kernel.sh
 # =============================================================================
 set -uo pipefail
 [ "${1:-}" != "-h" ] && [ "${1:-}" != "--help" ] || {
-  sed -n '2,19p' "$0"
+  sed -n '2,20p' "$0"
   exit 0
 }
 [ "$(id -u)" -eq 0 ] || { echo "Run as root:  sudo RECOVERY_READY=1 PHASH='P####-C####' bash $0"; exit 1; }

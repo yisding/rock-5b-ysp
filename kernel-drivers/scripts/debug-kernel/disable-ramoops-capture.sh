@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage: sudo bash disable-ramoops-capture.sh
+
+Backs up /boot/armbianEnv.txt, removes only files marked as managed by the
+ramoops enable script, and removes its boot arguments/overlay selection.
+EOF
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  "") ;;
+  *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+esac
+
 ENV_FILE="/boot/armbianEnv.txt"
 OVERLAY_DIR="/boot/overlay-user"
 DTS_FILE="${OVERLAY_DIR}/ramoops.dts"

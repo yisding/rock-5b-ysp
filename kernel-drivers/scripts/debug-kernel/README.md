@@ -21,12 +21,26 @@ external build tree is scratch, not the source of truth.
 ```bash
 ./build-debug-kernel.sh --install-deps      # --install-deps only needed once
 ```
-Debs land in `$WORKSPACE/armbian-build/output/debs/`.
+Debs land in `$WORKSPACE/armbian-build/output/debs/`; the build prints the exact
+`P####-C####` needed by the installer.
+
+## Prepare recovery before install
+
+A debug build uses the same `linux-*-current-rockchip64` package names as the
+daily kernel and can replace its files. ROCK 5B's Armbian boot flow has no
+kernel-selection menu. Complete the baseline, rescue-media, known-good-deb, and
+`kernel-revert.sh` preparation in [`../../../install.md` §3](../../../install.md)
+before continuing.
+
+`install-debug-kernel.sh` captures the running kernel's selected `/boot` files
+and package manifest for diagnosis, but that directory is **not** a bootable
+rollback and cannot replace the known-good image/DTB debs.
 
 ## Install + enable crash capture
 
 ```bash
-./install-debug-kernel.sh                    # picks newest debs, backs up /boot,
+RECOVERY_READY=1 PHASH='P####-C####' \
+  ./install-debug-kernel.sh                  # exact debs, diagnostic capture,
                                              # dpkg -i, then apt-mark hold
 sudo ./enable-ramoops-capture.sh             # ramoops DT overlay + panic_on_oops
 sudo ./enable-persistent-journal.sh          # optional: journald survives reboots
@@ -34,8 +48,9 @@ sudo reboot
 ```
 
 `install-debug-kernel.sh` runs `apt-mark hold` on the kernel packages so a routine
-`apt upgrade` can't silently replace the debug build. Backups of the replaced
-`/boot` artifacts go to `$WORKSPACE/boot-backups/<timestamp>/`.
+`apt upgrade` can't silently replace the debug build. The diagnostic capture of
+the running release, package versions, boot selectors, and selected artifacts
+goes to `$WORKSPACE/boot-backups/<timestamp>/`.
 
 ## Reading a crash
 
@@ -64,6 +79,7 @@ Adjust `=26.5.1` to the stock version you want. After restoring, confirm
 `CONFIG_KASAN` — a debug/stock mismatch there means out-of-tree modules won't load
 (the vermagic/uname-collision gotcha).
 
-For a booting-again emergency (bad kernel won't boot), the forward-port
-`../kernel-revert.sh` flips `/boot` symlinks or chroot-reinstalls a
-good deb from an SD-card rescue — it works for any Armbian kernel, debug or not.
+For a booting-again emergency (bad kernel won't boot), the shared
+[`../kernel-revert.sh`](../kernel-revert.sh) flips `/boot` symlinks to a distinct
+installed release or chroot-reinstalls known-good debs from the prepared SD
+rescue — it works for any Armbian kernel, debug or not.

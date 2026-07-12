@@ -82,3 +82,15 @@ find "${BUILD_DIR}/output/debs" -maxdepth 1 -type f \
 	-o -name 'linux-headers-current-rockchip64_*.deb' \
 	-o -name 'linux-libc-dev-current-rockchip64_*.deb' \) \
 	-print | sort
+
+new_image="$(find "${BUILD_DIR}/output/debs" -maxdepth 1 -type f \
+	-name 'linux-image-current-rockchip64_*.deb' -printf '%T@ %p\n' \
+	| sort -nr | awk 'NR == 1 {sub(/^[^ ]+ /, ""); print}')"
+phash="$(basename "$new_image" 2>/dev/null \
+	| grep -oE 'P[0-9a-f]{4,}-C[0-9a-f]{4,}' || true)"
+if [[ -n "$phash" ]]; then
+	printf '\nExact install hash: %s\n' "$phash"
+	printf 'After install.md recovery prep:\n'
+	printf '  RECOVERY_READY=1 PHASH=%q bash %q\n' \
+		"$phash" "$ROOT_DIR/install-debug-kernel.sh"
+fi

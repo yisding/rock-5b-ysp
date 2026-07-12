@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage: sudo bash enable-ramoops-capture.sh
+
+Backs up /boot/armbianEnv.txt, installs a managed ramoops overlay/module/sysctl,
+and enables panic capture for the next boot. Reverse the managed changes with
+disable-ramoops-capture.sh.
+EOF
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  "") ;;
+  *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+esac
+
 ENV_FILE="/boot/armbianEnv.txt"
 OVERLAY_DIR="/boot/overlay-user"
 DTS_FILE="${OVERLAY_DIR}/ramoops.dts"

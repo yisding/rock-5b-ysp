@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage: sudo bash enable-persistent-journal.sh
+
+Backs up /etc/systemd/journald.conf, points /var/log/journal at the persistent
+/var/log.hdd/journal store, sets bounded retention, and restarts journald.
+The printed timestamped backup is the manual configuration rollback source.
+EOF
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  "") ;;
+  *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+esac
+
 if [[ ${EUID} -ne 0 ]]; then
   echo "Run this with sudo: sudo $0" >&2
   exit 1
