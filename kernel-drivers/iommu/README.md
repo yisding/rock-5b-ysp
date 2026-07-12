@@ -9,6 +9,9 @@ CCU finding from the rewrite track.
 | Field | Contents |
 |-------|----------|
 | Purpose | How dma-buf buffers get device-side addresses (IOVAs) through each core's IOMMU, and how the decoder CCU shares that across a cluster. |
+| Developer focus | Domain sharing, map/unmap lifetime, fault attribution, SOFT/HARD CCU dispatch, and the public-DMA-API constraints of the rewrite. |
+| Owns | The three-part IOMMU explainer, [`docs/mpp-ccu-iommu-plan.md`](docs/mpp-ccu-iommu-plan.md), [`docs/rewrite-hard-ccu-finding.md`](docs/rewrite-hard-ccu-finding.md), and [`keywords.md`](keywords.md). |
+| Depends on | Rockchip IOMMU and dma-buf kernel infrastructure, effective RK3588 DT bindings, and the MPP/RGA drivers that consume the domains. |
 | Code lives in | Rockchip IOMMU + MPP service code in the sibling kernel trees (`drivers/iommu/rockchip-iommu.c`, `mpp/mpp_iommu.c`, `mpp_rkvdec2*.c`). |
 | Current state | CCU IOMMU plan implemented in the rewrite track; SOFT/HARD CCU finding resolved. See [`../docs/rewrite-drivers.md`](../docs/rewrite-drivers.md) and [`../../status.md`](../../status.md). |
 

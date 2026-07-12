@@ -22,6 +22,22 @@ DCHS_SOFTWARE_ONLY_RE = re.compile(
     r"(?:DCHS.{0,100}software-only|software-only.{0,100}DCHS)",
     re.IGNORECASE | re.DOTALL,
 )
+PROJECT_BRIEF_READMES = (
+    "kernel-versions/README.md",
+    "kernel-drivers/README.md",
+    "kernel-drivers/mpp/README.md",
+    "kernel-drivers/rga/README.md",
+    "kernel-drivers/av1/README.md",
+    "kernel-drivers/iommu/README.md",
+    "vendor-libraries/README.md",
+    "vendor-libraries/mpp/README.md",
+    "vendor-libraries/rga/README.md",
+    "video-libraries/ffmpeg/README.md",
+    "video-libraries/mesa/README.md",
+    "apps/gnome-remote-desktop/README.md",
+    "apps/kodi/README.md",
+    "packaging/README.md",
+)
 TRUST_TAGS = {
     "CODE-INSPECTED",
     "CONFIG-INSPECTED",
@@ -418,6 +434,46 @@ def check_load_bearing_terminology(root: Path, errors: list[str]) -> None:
             )
 
 
+def check_project_briefs(
+    root: Path,
+    errors: list[str],
+    readmes: tuple[str, ...] = PROJECT_BRIEF_READMES,
+) -> None:
+    """Require each project front door to answer the orientation questions."""
+    recognized = {
+        "Purpose",
+        "User outcome",
+        "Developer focus",
+        "Owns",
+        "Depends on",
+        "Current state",
+    }
+    for relative in readmes:
+        path = root / relative
+        if not path.is_file():
+            errors.append(f"{relative}: missing project front door")
+            continue
+
+        fields: dict[str, str] = {}
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            if not line.startswith("|"):
+                continue
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if len(cells) < 2 or cells[0] not in recognized:
+                continue
+            if cells[0] in fields:
+                errors.append(f"{relative}: duplicate project brief field {cells[0]}")
+            fields[cells[0]] = cells[1]
+
+        if not fields.get("Purpose") and not fields.get("User outcome"):
+            errors.append(f"{relative}: project brief has no purpose/user outcome")
+        for field in ("Developer focus", "Owns", "Depends on", "Current state"):
+            if not fields.get(field):
+                errors.append(f"{relative}: project brief has no {field}")
+        if fields.get("Current state") and "status.md" not in fields["Current state"]:
+            errors.append(f"{relative}: Current state does not link to status.md")
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     errors: list[str] = []
@@ -430,6 +486,7 @@ def main() -> int:
     check_watchlist(root, errors)
     check_support_coverage(root, errors)
     check_load_bearing_terminology(root, errors)
+    check_project_briefs(root, errors)
 
     for error in errors:
         print(error, file=sys.stderr)

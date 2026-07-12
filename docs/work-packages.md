@@ -12,12 +12,13 @@ detailed reading map and owns the canonical stack diagram (the root
 [`README.md`](../README.md) carries the front-door taxonomy that links here).
 
 Project-specific docs, patches, scripts, tests, and code artifacts live inside
-the owning project. Each project directory answers the same questions near the
-top of its `README.md`:
+the owning project. Category hubs such as `apps/` and `video-libraries/` map
+their child projects; each project front door answers the same questions near
+the top of its `README.md`:
 
 | Field | Meaning |
 |-------|---------|
-| Purpose | What this project covers and where its code lives (which `../` tree). |
+| Purpose / user outcome | What this project covers or enables and where its code lives (which `../` tree). |
 | Developer focus | What someone changing, reviewing, or upstreaming code should learn here. |
 | Owns | The files, patches, or docs for which this project is the front door. |
 | Depends on | The lower layers or external projects that must already work. |

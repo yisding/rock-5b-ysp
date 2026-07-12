@@ -246,6 +246,32 @@ class DocumentationConsistencyTests(unittest.TestCase):
 
             self.assertTrue(any("DCHS is a hardware handshake" in e for e in errors))
 
+    def test_project_brief_requires_orientation_fields_and_status_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            readme = root / "project" / "README.md"
+            readme.parent.mkdir()
+            readme.write_text(
+                "# Project\n\n"
+                "| Field | Contents |\n"
+                "|-------|----------|\n"
+                "| Purpose | Explain it. |\n"
+                "| Developer focus | Maintain it. |\n"
+                "| Owns | Its docs. |\n"
+                "| Current state | Works today. |\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_project_briefs(
+                root,
+                errors,
+                ("project/README.md",),
+            )
+
+            self.assertTrue(any("has no Depends on" in e for e in errors))
+            self.assertTrue(any("does not link to status.md" in e for e in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

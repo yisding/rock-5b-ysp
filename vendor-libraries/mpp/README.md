@@ -9,6 +9,9 @@ source lives in the sibling `mpp-rockchip` tree.
 | Field | Contents |
 |-------|----------|
 | Purpose | How libmpp is structured internally and where it meets `/dev/mpp_service`. |
+| Developer focus | Parser/HAL selection, buffer and frame ownership, ioctl batching, fast mode, KMPP evolution, and public-API compatibility. |
+| Owns | The MPP library docs under [`docs/`](docs/mpp-library-architecture.md), this front door, and [`keywords.md`](keywords.md). |
+| Depends on | The classic MPP userspace API/headers and a compatible [`../../kernel-drivers/mpp/`](../../kernel-drivers/mpp/README.md) service for runtime validation. |
 | Code lives in | `mpp-rockchip` (`mpp/`, HAL, `mpp_service` client). |
 | Current state | Source-built path hardware-validated via the tests; see [`../../status.md`](../../status.md). |
 

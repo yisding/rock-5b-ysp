@@ -9,6 +9,9 @@ Source lives in the sibling `librga` / `librga-src` trees.
 | Field | Contents |
 |-------|----------|
 | Purpose | How to use librga well, and the 10-bit (P010/P210) RKRGA ABI facts. |
+| Developer focus | Buffer imports, format/stride flags, core-profile negotiation, fences, 10-bit layout compatibility, and the public IM2D/legacy API boundary. |
+| Owns | The librga docs under [`docs/`](docs/librga-guide.md), the exported [`patches/`](patches/), this front door, and [`keywords.md`](keywords.md). |
+| Depends on | A compatible [`../../kernel-drivers/rga/`](../../kernel-drivers/rga/README.md) `/dev/rga` ABI, dma-buf allocation/access, and consuming tests or media applications. |
 | Code lives in | `librga` (upstream `airockchip/librga` lineage) and the patched `librga-src` (`github.com/yisding/librga` `main` @ `a632217`). |
 | Current state | Scale/color-convert validated through FFmpeg; the P010/P210 fix is exported as [`patches/`](patches/) and has an opt-in direct `librga-smoke.sh` hardware case, but still needs recorded hardware validation. See [`../../status.md`](../../status.md). |
 

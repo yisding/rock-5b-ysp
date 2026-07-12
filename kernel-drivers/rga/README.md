@@ -14,6 +14,9 @@ sub-project is the RGA-specific front door.
 | Field | Contents |
 |-------|----------|
 | Purpose | The RGA3/RGA2 driver, its `/dev/rga` ABI, IOMMU wiring, and core-profile selection. |
+| Developer focus | Buffer-import lifetime, core capability selection, virtual-address/contiguous-IOVA behavior, fence handling, and ABI compatibility with current librga consumers. |
+| Owns | [`userptr-iommu.md`](userptr-iommu.md), [`userspace-consumers.md`](userspace-consumers.md), and [`keywords.md`](keywords.md); shared architecture, patches, and runtime suites remain owned by [`../`](../README.md). |
+| Depends on | RK3588 RGA device-tree/IOMMU wiring, the shared kernel infrastructure, and [`../../vendor-libraries/rga/`](../../vendor-libraries/rga/README.md) for userspace jobs. |
 | Code lives in | `linux-6.18-rkvenc*` / `rockchip-kernel` `drivers/video/rockchip/rga3/` (`multi_rga`), plus `librga`'s kernel driver. |
 | Current state | Probe, IOMMU, and the scale/color-convert path validated through FFmpeg. See [`../../status.md`](../../status.md). |
 
