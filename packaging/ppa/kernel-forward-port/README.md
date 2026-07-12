@@ -29,10 +29,11 @@ First PPA kernel package should be conservative and recovery-friendly:
 ## Source Inputs
 
 The local build wrapper currently owns these inputs:
+`WORKSPACE_ROOT` defaults to the parent of this repository.
 
 | Input | Default |
 |-------|---------|
-| Patched Armbian kernel worktree | `KERNEL_PPA_REPO=/home/yi/Code/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
+| Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Resolved kernel config | `KERNEL_PPA_CONFIG=$KERNEL_PPA_REPO/.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
 | Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.38+rk3588av1fwport20260709` |

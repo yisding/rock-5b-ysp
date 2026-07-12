@@ -23,6 +23,10 @@ DCHS_SOFTWARE_ONLY_RE = re.compile(
     r"(?:DCHS.{0,100}software-only|software-only.{0,100}DCHS)",
     re.IGNORECASE | re.DOTALL,
 )
+PERSONAL_HOME_DEFAULT_RE = re.compile(
+    r"(?:^[A-Z][A-Z0-9_]*=[\"']?/(?:home|Users)/|"
+    r"\$\{[A-Za-z_][A-Za-z0-9_]*:-[\"']?/(?:home|Users)/)"
+)
 PROJECT_BRIEF_READMES = (
     "kernel-versions/README.md",
     "kernel-drivers/README.md",
@@ -110,6 +114,23 @@ def check_operational_indexes(root: Path, errors: list[str]) -> None:
                 f"{path.relative_to(root)}: operational file not named in owning "
                 f"{readme.relative_to(root)}"
             )
+
+
+def check_portable_operational_defaults(root: Path, errors: list[str]) -> None:
+    """Reject executable defaults tied to one developer's home directory."""
+    for path in repository_operational_files(root):
+        for line_number, line in enumerate(
+            path.read_text(encoding="utf-8", errors="replace").splitlines(),
+            start=1,
+        ):
+            if line.lstrip().startswith("#"):
+                continue
+            if PERSONAL_HOME_DEFAULT_RE.search(line):
+                errors.append(
+                    f"{path.relative_to(root)}:{line_number}: personal home path "
+                    "used as an executable default; derive it from the repository "
+                    "or a shared workspace variable"
+                )
 
 
 def check_findings_index(root: Path, errors: list[str]) -> None:
@@ -566,6 +587,7 @@ def main() -> int:
 
     check_readme_indexes(root, errors)
     check_operational_indexes(root, errors)
+    check_portable_operational_defaults(root, errors)
     check_findings_index(root, errors)
     check_finding_template(root, errors)
     check_finding_headers(root, errors)

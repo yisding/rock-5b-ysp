@@ -72,30 +72,32 @@ different output root.
 
 ## Source Inputs
 
-The helper uses these default local source trees and commits. Override the paths
-or pins with the matching environment variables when reproducing the export on a
-different machine.
+The helper resolves source checkouts below `WORKSPACE_ROOT`, which defaults to
+the parent of this repository. Keep the documented sibling layout, override the
+shared root, or override individual paths/pins with the matching environment
+variables.
 
 | Source | Default variable | Default value |
 |--------|------------------|---------------|
-| MPP repo | `MPP_REPO` | `/home/yi/Code/rockchip-userspace/mpp-rockchip` |
+| Workspace containing sibling source families | `WORKSPACE_ROOT` | Parent of the `rock-5b-ysp` checkout |
+| MPP repo | `MPP_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/mpp-rockchip` |
 | MPP commit | `MPP_COMMIT` | `1375813c` |
-| librga repo | `LIBRGA_REPO` | `/home/yi/Code/rockchip-userspace/librga-fork` |
+| librga repo | `LIBRGA_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/librga-fork` |
 | librga commit | `LIBRGA_COMMIT` | `a632217` |
-| FFmpeg repo | `FFMPEG_REPO` | `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81` |
+| FFmpeg repo | `FFMPEG_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81` |
 | FFmpeg commit | `FFMPEG_COMMIT` | `be367abfe67045b9c68812ecee3b6162c92f9776` |
-| nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `/home/yi/Code/ffmpeg/ffmpeg-rockchip` |
+| nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
 | nyanmisaka FFmpeg Rockchip commit | `FFMPEG_ROCKCHIP_COMMIT` | `40c412daccf08164493da0de990eb99a8948116b` |
-| GRD repo | `GRD_REPO` | `/home/yi/Code/gnome/grd/grd-ffmpeg` |
+| GRD repo | `GRD_REPO` | `$WORKSPACE_ROOT/gnome/grd/grd-ffmpeg` |
 | GRD commit | `GRD_COMMIT` | `a59c904c99088235eb4de31ca340747d334494f3` |
 | GRD dirty delta | `GRD_DELTA` | [`source-deltas/dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch) |
-| Forward-port kernel worktree | `KERNEL_PPA_REPO` | `/home/yi/Code/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
+| Forward-port kernel worktree | `KERNEL_PPA_REPO` | `$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Forward-port kernel config | `KERNEL_PPA_CONFIG` | `$KERNEL_PPA_REPO/.config` |
 | Forward-port kernel source version | `KERNEL_PPA_UPSTREAM_VERSION` | `6.18.38+rk3588av1fwport20260709` |
-| Alpha rewrite 6.18 kernel worktree | `KERNEL_ALPHA_618_REPO` | `/home/yi/Code/kernel/linux-6.18-rkvenc` |
+| Alpha rewrite 6.18 kernel worktree | `KERNEL_ALPHA_618_REPO` | `$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc` |
 | Alpha rewrite 6.18 kernel config | `KERNEL_ALPHA_618_CONFIG` | [`kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config`](kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config) |
 | Alpha rewrite 6.18 kernel source version | `KERNEL_ALPHA_618_UPSTREAM_VERSION` | `6.18.0+rk3588rewritealpha20260710` |
-| Alpha rewrite 7.2-rc2 kernel worktree | `KERNEL_ALPHA_72RC2_REPO` | `/home/yi/Code/kernel/linux` |
+| Alpha rewrite 7.2-rc2 kernel worktree | `KERNEL_ALPHA_72RC2_REPO` | `$WORKSPACE_ROOT/kernel/linux` |
 | Alpha rewrite 7.2-rc2 kernel config | `KERNEL_ALPHA_72RC2_CONFIG` | [`kernel-rewrite-alpha-7.2-rc2/debian/config/arm64-rockchip64.config`](kernel-rewrite-alpha-7.2-rc2/debian/config/arm64-rockchip64.config) |
 | Alpha rewrite 7.2-rc2 kernel source version | `KERNEL_ALPHA_72RC2_UPSTREAM_VERSION` | `7.2.0~rc2+rk3588rewritealpha20260710` |
 | GDM greeter ACL rule | `GDM_HWENC_RULE` | [`../gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules`](../gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules) |

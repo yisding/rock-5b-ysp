@@ -19,11 +19,16 @@ Build:
 bash packaging/ffmpeg-rockchip81/build-deb.sh
 ```
 
+The default source is
+`$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81`, where `WORKSPACE_ROOT` defaults to
+the parent of this repository.
+
 Useful overrides:
 
 ```bash
 FFSRC=/path/to/ffmpeg-rockchip-81 JOBS=4 bash packaging/ffmpeg-rockchip81/build-deb.sh
 bash packaging/ffmpeg-rockchip81/build-deb.sh clean
+bash packaging/ffmpeg-rockchip81/build-deb.sh --help
 ```
 
 The build output in `build/` is disposable and must not be committed.

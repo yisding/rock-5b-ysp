@@ -19,9 +19,11 @@ package names and a distinct localversion.
 
 ## Source Inputs
 
+`WORKSPACE_ROOT` defaults to the parent of this repository.
+
 | Input | Value |
 |-------|-------|
-| Kernel worktree | `/home/yi/Code/kernel/linux-6.18-rkvenc` |
+| Kernel worktree | `$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc` (the original build used `/home/yi/Code/kernel/linux-6.18-rkvenc`) |
 | Branch | `rk3588-rewrite-6.18` |
 | Commit | `d1d15a3d052a` |
 | Config | `debian/config/arm64-rockchip64.config`, snapshotted from the worktree `.config` |

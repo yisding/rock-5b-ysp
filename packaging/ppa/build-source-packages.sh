@@ -2,43 +2,44 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+WORKSPACE_ROOT="$(cd "${WORKSPACE_ROOT:-$ROOT/..}" && pwd)"
 OUT="${OUT:-$ROOT/packaging/ppa/out}"
 WORK="$OUT/work"
 ARTIFACTS="$OUT/artifacts"
 
-MPP_REPO="${MPP_REPO:-/home/yi/Code/rockchip-userspace/mpp-rockchip}"
+MPP_REPO="${MPP_REPO:-$WORKSPACE_ROOT/rockchip-userspace/mpp-rockchip}"
 MPP_COMMIT="${MPP_COMMIT:-1375813c}"
 MPP_UPSTREAM_VERSION="${MPP_UPSTREAM_VERSION:-1.5.0+git20260529.1375813c+ds}"
 
-LIBRGA_REPO="${LIBRGA_REPO:-/home/yi/Code/rockchip-userspace/librga-fork}"
+LIBRGA_REPO="${LIBRGA_REPO:-$WORKSPACE_ROOT/rockchip-userspace/librga-fork}"
 LIBRGA_COMMIT="${LIBRGA_COMMIT:-a632217}"
 LIBRGA_UPSTREAM_VERSION="${LIBRGA_UPSTREAM_VERSION:-2.2.0+git20260703.a632217}"
 
-FFMPEG_REPO="${FFMPEG_REPO:-/home/yi/Code/ffmpeg/ffmpeg-rockchip-81}"
+FFMPEG_REPO="${FFMPEG_REPO:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81}"
 FFMPEG_COMMIT="${FFMPEG_COMMIT:-be367abfe67045b9c68812ecee3b6162c92f9776}"
 FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.1.2+rockchip81+git20260711.be367abfe6}"
 
-FFMPEG_ROCKCHIP_REPO="${FFMPEG_ROCKCHIP_REPO:-/home/yi/Code/ffmpeg/ffmpeg-rockchip}"
+FFMPEG_ROCKCHIP_REPO="${FFMPEG_ROCKCHIP_REPO:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip}"
 FFMPEG_ROCKCHIP_COMMIT="${FFMPEG_ROCKCHIP_COMMIT:-40c412daccf08164493da0de990eb99a8948116b}"
 FFMPEG_ROCKCHIP_UPSTREAM_VERSION="${FFMPEG_ROCKCHIP_UPSTREAM_VERSION:-6.1+git20260423.40c412dacc}"
 
-GRD_REPO="${GRD_REPO:-/home/yi/Code/gnome/grd/grd-ffmpeg}"
+GRD_REPO="${GRD_REPO:-$WORKSPACE_ROOT/gnome/grd/grd-ffmpeg}"
 GRD_COMMIT="${GRD_COMMIT:-a59c904c99088235eb4de31ca340747d334494f3}"
 GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260630.a59c904+dirty20260706}"
 GRD_DELTA="${GRD_DELTA:-$ROOT/packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch}"
 
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
-KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-/home/yi/Code/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
+KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
 KERNEL_PPA_CONFIG="${KERNEL_PPA_CONFIG:-$KERNEL_PPA_REPO/.config}"
 KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.38+rk3588av1fwport20260709}"
 
 KERNEL_ALPHA_618_SOURCE="${KERNEL_ALPHA_618_SOURCE:-linux-rockchip64-ysp-alpha-6.18}"
-KERNEL_ALPHA_618_REPO="${KERNEL_ALPHA_618_REPO:-/home/yi/Code/kernel/linux-6.18-rkvenc}"
+KERNEL_ALPHA_618_REPO="${KERNEL_ALPHA_618_REPO:-$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc}"
 KERNEL_ALPHA_618_CONFIG="${KERNEL_ALPHA_618_CONFIG:-$ROOT/packaging/ppa/kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config}"
 KERNEL_ALPHA_618_UPSTREAM_VERSION="${KERNEL_ALPHA_618_UPSTREAM_VERSION:-6.18.0+rk3588rewritealpha20260710}"
 
 KERNEL_ALPHA_72RC2_SOURCE="${KERNEL_ALPHA_72RC2_SOURCE:-linux-rockchip64-ysp-alpha-7.2-rc2}"
-KERNEL_ALPHA_72RC2_REPO="${KERNEL_ALPHA_72RC2_REPO:-/home/yi/Code/kernel/linux}"
+KERNEL_ALPHA_72RC2_REPO="${KERNEL_ALPHA_72RC2_REPO:-$WORKSPACE_ROOT/kernel/linux}"
 KERNEL_ALPHA_72RC2_CONFIG="${KERNEL_ALPHA_72RC2_CONFIG:-$ROOT/packaging/ppa/kernel-rewrite-alpha-7.2-rc2/debian/config/arm64-rockchip64.config}"
 KERNEL_ALPHA_72RC2_UPSTREAM_VERSION="${KERNEL_ALPHA_72RC2_UPSTREAM_VERSION:-7.2.0~rc2+rk3588rewritealpha20260710}"
 
@@ -58,8 +59,9 @@ Existing orig tarballs in the artifacts directory are reused by default, which
 is required when uploading a new Debian revision for an upstream version that
 Launchpad has already accepted. Set FORCE_ORIG=1 to regenerate an orig tarball.
 
-Source tree defaults can be overridden with MPP_REPO, LIBRGA_REPO, FFMPEG_REPO,
-FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching *_COMMIT /
+Source tree defaults are resolved below WORKSPACE_ROOT (the repository's parent
+directory by default). Override that shared root or use MPP_REPO, LIBRGA_REPO,
+FFMPEG_REPO, FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching *_COMMIT /
 *_UPSTREAM_VERSION variables. The GRD snapshot applies GRD_DELTA on top of
 GRD_COMMIT by default so the dirty20260706 source package is reconstructible
 from a clean checkout.

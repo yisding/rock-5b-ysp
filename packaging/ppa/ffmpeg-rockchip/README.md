@@ -18,10 +18,13 @@ under `/opt/ffmpeg-rockchip/bin/` and exposes non-shadowing links:
 /usr/bin/ffplay-rockchip
 ```
 
-The packaged binaries are built from the local
+The packaged binaries were built from the local
 `/home/yi/Code/ffmpeg/ffmpeg-rockchip` checkout at commit
 `40c412daccf08164493da0de990eb99a8948116b`, exported by
-[`../build-source-packages.sh`](../build-source-packages.sh). The source package
+[`../build-source-packages.sh`](../build-source-packages.sh). That path records
+provenance; the portable default is
+`$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip`, with `WORKSPACE_ROOT` defaulting to
+the parent of this repository. The source package
 name is `ffmpeg-rockchip`, so it can live in the same PPA as the normal
 `ffmpeg` baseline and `ffmpeg-rockchip-81` replacement packages without source
 or binary package-name collisions.

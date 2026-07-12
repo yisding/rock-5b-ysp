@@ -5,13 +5,44 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$DIR/../.." && pwd)"
+WORKSPACE_ROOT="$(cd "${WORKSPACE_ROOT:-$REPO_ROOT/..}" && pwd)"
 NAME=ffmpeg-rockchip81
-FFSRC="${FFSRC:-/home/yi/Code/ffmpeg/ffmpeg-rockchip-81}"
+FFSRC="${FFSRC:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81}"
 PREFIX=/opt/ffmpeg-rockchip-81
 OUT="$DIR/build"
 BUILD_SRC="$OUT/src"
 PKGROOT="$OUT/debian/$NAME"
 JOBS="${JOBS:-$(nproc)}"
+
+usage() {
+	cat <<EOF
+Usage: build-deb.sh [clean]
+
+Build the co-installable ffmpeg-rockchip81 runtime package, or remove its
+disposable build directory.
+
+Environment:
+  WORKSPACE_ROOT  Parent workspace for the default FFmpeg checkout
+  FFSRC           FFmpeg source directory (default: $FFSRC)
+  JOBS            Parallel build jobs (default: $JOBS)
+  VERSION         Override the generated Debian version
+EOF
+}
+
+case ${1:-} in
+	-h|--help)
+		usage
+		exit 0
+		;;
+	''|clean)
+		;;
+	*)
+		echo "unknown argument: $1" >&2
+		usage >&2
+		exit 2
+		;;
+esac
 
 if [ "${1:-}" = "clean" ]; then
 	rm -rf "$OUT"

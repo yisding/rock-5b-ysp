@@ -19,9 +19,11 @@ package names and a distinct localversion.
 
 ## Source Inputs
 
+`WORKSPACE_ROOT` defaults to the parent of this repository.
+
 | Input | Value |
 |-------|-------|
-| Kernel worktree | `/home/yi/Code/kernel/linux` |
+| Kernel worktree | `$WORKSPACE_ROOT/kernel/linux` (the original build used `/home/yi/Code/kernel/linux`) |
 | Branch | `rk3588-rewrite-mainline` |
 | Commit | `083bdb98e715` |
 | Upstream base | official kernel.org `v7.2-rc2` |

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 import sys
 import tempfile
@@ -196,6 +197,31 @@ class OperationalHelpTests(unittest.TestCase):
         self.assertEqual(traversal.returncode, 2)
         self.assertIn("invalid profile", traversal.stderr.casefold())
 
+    def test_packaging_entry_points_explain_portable_source_defaults(self) -> None:
+        scripts = (
+            "packaging/dkms/build-deb.sh",
+            "packaging/ffmpeg-rockchip81/build-deb.sh",
+            "packaging/ppa/build-source-packages.sh",
+        )
+        with tempfile.TemporaryDirectory() as workspace:
+            environment = os.environ.copy()
+            environment["WORKSPACE_ROOT"] = workspace
+            for relative in scripts:
+                with self.subTest(script=relative):
+                    result = subprocess.run(
+                        ["bash", str(REPO_ROOT / relative), "--help"],
+                        cwd=REPO_ROOT,
+                        env=environment,
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                    )
+                    output = result.stdout + result.stderr
+                    self.assertEqual(result.returncode, 0, output)
+                    self.assertIn("usage", output.casefold())
+                    self.assertIn("workspace_root", output.casefold())
+                    self.assertNotIn("/home/yi/", output)
+
 
 class DocumentationConsistencyTests(unittest.TestCase):
     def write_status(self, root: Path, text: str) -> None:
@@ -378,6 +404,20 @@ class DocumentationConsistencyTests(unittest.TestCase):
             DOC_CHECKER.check_operational_indexes(root, errors)
 
             self.assertTrue(any("operational file not named" in e for e in errors))
+
+    def test_personal_home_default_in_operational_file_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            script = root / "build.sh"
+            script.write_text(
+                '#!/usr/bin/env bash\nSRC="${SRC:-/' + 'home/alice/src}"\n',
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_portable_operational_defaults(root, errors)
+
+            self.assertTrue(any("personal home path" in e for e in errors))
 
     def test_kernel_package_helper_drift_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
