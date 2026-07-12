@@ -7,8 +7,8 @@ import subprocess
 from pathlib import Path
 
 
-def _git_markdown_files(root: Path) -> list[Path] | None:
-    """Return Git-known Markdown files, or None outside a usable Git worktree."""
+def _git_files(root: Path, patterns: tuple[str, ...]) -> list[Path] | None:
+    """Return Git-known files matching pathspecs, or None outside Git."""
     if not (root / ".git").exists():
         return None
 
@@ -24,7 +24,7 @@ def _git_markdown_files(root: Path) -> list[Path] | None:
                 "--exclude-standard",
                 "-z",
                 "--",
-                "*.md",
+                *patterns,
             ],
             check=False,
             capture_output=True,
@@ -54,7 +54,7 @@ def _skip_directory(relative_parts: tuple[str, ...]) -> bool:
     )
 
 
-def _walk_markdown_files(root: Path) -> list[Path]:
+def _walk_files(root: Path, suffixes: tuple[str, ...]) -> list[Path]:
     """Fallback for source archives: prune generated trees before descending."""
     files: list[Path] = []
     for directory, child_dirs, child_files in os.walk(root):
@@ -66,7 +66,9 @@ def _walk_markdown_files(root: Path) -> list[Path]:
             if not _skip_directory(relative.parts + (name,))
         ]
         files.extend(
-            directory_path / name for name in child_files if name.endswith(".md")
+            directory_path / name
+            for name in child_files
+            if name.endswith(suffixes)
         )
     return sorted(files)
 
@@ -74,5 +76,12 @@ def _walk_markdown_files(root: Path) -> list[Path]:
 def repository_markdown_files(root: Path) -> list[Path]:
     """Return tracked and non-ignored untracked Markdown files under root."""
     root = root.resolve()
-    git_files = _git_markdown_files(root)
-    return git_files if git_files is not None else _walk_markdown_files(root)
+    git_files = _git_files(root, ("*.md",))
+    return git_files if git_files is not None else _walk_files(root, (".md",))
+
+
+def repository_operational_files(root: Path) -> list[Path]:
+    """Return tracked and non-ignored untracked shell/Python tools."""
+    root = root.resolve()
+    git_files = _git_files(root, ("*.sh", "*.py"))
+    return git_files if git_files is not None else _walk_files(root, (".sh", ".py"))

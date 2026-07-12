@@ -8,7 +8,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from repo_files import repository_markdown_files
+from repo_files import repository_markdown_files, repository_operational_files
 
 
 FINDING_NAME_RE = re.compile(r"20\d{2}-\d{2}-\d{2}-[a-z0-9][a-z0-9.-]*\.md")
@@ -38,6 +38,15 @@ PROJECT_BRIEF_READMES = (
     "apps/gnome-remote-desktop/README.md",
     "apps/kodi/README.md",
     "packaging/README.md",
+)
+KERNEL_PACKAGE_DIRS = (
+    "packaging/ppa/kernel-forward-port",
+    "packaging/ppa/kernel-rewrite-alpha-6.18",
+    "packaging/ppa/kernel-rewrite-alpha-7.2-rc2",
+)
+KERNEL_PACKAGE_HELPERS = (
+    "debian/scripts/install-kernel-packages.sh",
+    "debian/scripts/write-maintainer-scripts.sh",
 )
 TRUST_TAGS = {
     "CODE-INSPECTED",
@@ -69,6 +78,25 @@ def check_readme_indexes(root: Path, errors: list[str]) -> None:
         if relative not in text and path.name not in text:
             errors.append(
                 f"{path.relative_to(root)}: not named in owning "
+                f"{readme.relative_to(root)}"
+            )
+
+
+def check_operational_indexes(root: Path, errors: list[str]) -> None:
+    """Require shell/Python tools to be named by their nearest README."""
+    for path in repository_operational_files(root):
+        owner = path.parent
+        while owner != root and not (owner / "README.md").is_file():
+            owner = owner.parent
+        readme = owner / "README.md"
+        if not readme.is_file():
+            continue
+
+        relative = path.relative_to(owner).as_posix()
+        text = readme.read_text(encoding="utf-8", errors="replace")
+        if relative not in text and path.name not in text:
+            errors.append(
+                f"{path.relative_to(root)}: operational file not named in owning "
                 f"{readme.relative_to(root)}"
             )
 
@@ -481,11 +509,39 @@ def check_project_briefs(
             errors.append(f"{relative}: Current state does not link to status.md")
 
 
+def check_kernel_package_helpers(
+    root: Path,
+    errors: list[str],
+    package_dirs: tuple[str, ...] = KERNEL_PACKAGE_DIRS,
+    helper_names: tuple[str, ...] = KERNEL_PACKAGE_HELPERS,
+) -> None:
+    """Keep source-package-local kernel helper copies synchronized."""
+    for helper_name in helper_names:
+        copies: list[tuple[str, bytes]] = []
+        for package_dir in package_dirs:
+            relative = f"{package_dir}/{helper_name}"
+            path = root / relative
+            if not path.is_file():
+                errors.append(f"{relative}: missing kernel package helper")
+                continue
+            copies.append((relative, path.read_bytes()))
+
+        if len(copies) < 2:
+            continue
+        reference_name, reference = copies[0]
+        for relative, contents in copies[1:]:
+            if contents != reference:
+                errors.append(
+                    f"{relative}: differs from synchronized helper {reference_name}"
+                )
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     errors: list[str] = []
 
     check_readme_indexes(root, errors)
+    check_operational_indexes(root, errors)
     check_findings_index(root, errors)
     check_finding_headers(root, errors)
     check_status_ledger(root, errors)
@@ -494,6 +550,7 @@ def main() -> int:
     check_support_coverage(root, errors)
     check_load_bearing_terminology(root, errors)
     check_project_briefs(root, errors)
+    check_kernel_package_helpers(root, errors)
 
     for error in errors:
         print(error, file=sys.stderr)

@@ -30,7 +30,10 @@ build products and external checkouts out of this repository.
 
 The nearest `README.md` is the front door for every user-facing Markdown file.
 Adding or moving a document therefore also means adding or updating its entry in
-that README. The repository consistency check enforces this ownership rule.
+that README. Tracked shell and Python tools follow the same rule: name each one
+in its nearest README, including internal packaging helpers, so operational code
+never becomes an invisible entry point. The repository consistency check
+enforces both ownership rules.
 
 ## Evidence lifecycle
 
@@ -135,12 +138,12 @@ bash scripts/check-repo.sh
 ```
 
 This checks local Markdown paths and anchors, runs the repository-check
-regression tests, verifies README ownership, finding metadata/order, and
-dashboard/ledger contracts, and finds whitespace errors in staged, unstaged,
-and untracked files. For changed shell scripts, also run `bash -n` and
-`shellcheck` on those files. Run project-specific build or hardware tests in
-proportion to the behavior changed, and report exactly what was and was not
-exercised.
+regression tests, verifies Markdown/operational-file README ownership, finding
+metadata/order, and dashboard/ledger contracts, and finds whitespace errors in
+staged, unstaged, and untracked files. For changed shell scripts, also run
+`bash -n` and `shellcheck` on those files. Run project-specific build or
+hardware tests in proportion to the behavior changed, and report exactly what
+was and was not exercised.
 
 The read-only [repository-checks workflow](.github/workflows/repository-checks.yml)
 runs the same command on every push and pull request. Run it locally first so a

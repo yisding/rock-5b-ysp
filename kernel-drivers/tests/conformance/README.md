@@ -69,6 +69,10 @@ directories stay untracked by policy.
 : Created by build scripts. `build/` holds CMake/Meson build directories;
   `out/` holds locally installed binaries/libraries.
 
+`scripts/list-built-binaries.sh`
+: Prints the executable files currently staged under `out/`; use it to verify
+  which source builds actually produced runnable conformance tools.
+
 ## What to test
 
 Run these in order. Stop on crashes, hangs, WARN/OOPS, refcount splats, IOMMU

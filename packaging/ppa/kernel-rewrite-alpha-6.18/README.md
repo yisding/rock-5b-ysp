@@ -26,6 +26,18 @@ package names and a distinct localversion.
 | Commit | `d1d15a3d052a` |
 | Config | `debian/config/arm64-rockchip64.config`, snapshotted from the worktree `.config` |
 
+## Debian helper scripts
+
+These `debian/rules` helpers are source-package-local copies of the
+forward-port package helpers. Keeping the copies makes each export
+self-contained; `scripts/check-doc-consistency.py` enforces byte identity
+across all three kernel package directories.
+
+| Helper | Role |
+|--------|------|
+| [`debian/scripts/install-kernel-packages.sh`](debian/scripts/install-kernel-packages.sh) | Stages the image/modules, DTBs, and buildable headers into their binary-package roots. |
+| [`debian/scripts/write-maintainer-scripts.sh`](debian/scripts/write-maintainer-scripts.sh) | Generates the Armbian-compatible image, DTB, and header maintainer scripts. |
+
 ## Build
 
 ```sh

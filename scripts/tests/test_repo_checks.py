@@ -11,7 +11,7 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 
-from repo_files import repository_markdown_files  # noqa: E402
+from repo_files import repository_markdown_files, repository_operational_files  # noqa: E402
 
 
 def load_doc_checker():
@@ -91,6 +91,18 @@ class RepositoryMarkdownFilesTests(unittest.TestCase):
             self.assertEqual(
                 self.relative_files(root),
                 ["tracked.md", "untracked.md"],
+            )
+
+    def test_operational_inventory_includes_shell_and_python_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write(root, "tool.sh", "#!/usr/bin/env bash\n")
+            self.write(root, "check.py", "print(\"ok\")\n")
+            self.write(root, "guide.md")
+
+            self.assertEqual(
+                [path.name for path in repository_operational_files(root)],
+                ["check.py", "tool.sh"],
             )
 
 
@@ -291,6 +303,40 @@ class DocumentationConsistencyTests(unittest.TestCase):
 
             self.assertTrue(any("has no Depends on" in e for e in errors))
             self.assertTrue(any("does not link to status.md" in e for e in errors))
+
+    def test_unindexed_operational_file_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            scripts = root / "scripts"
+            scripts.mkdir()
+            (scripts / "README.md").write_text("# Scripts\n", encoding="utf-8")
+            (scripts / "hidden.sh").write_text(
+                "#!/usr/bin/env bash\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_operational_indexes(root, errors)
+
+            self.assertTrue(any("operational file not named" in e for e in errors))
+
+    def test_kernel_package_helper_drift_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for package, contents in (("one", "same\n"), ("two", "changed\n")):
+                path = root / package / "helper.sh"
+                path.parent.mkdir()
+                path.write_text(contents, encoding="utf-8")
+            errors: list[str] = []
+
+            DOC_CHECKER.check_kernel_package_helpers(
+                root,
+                errors,
+                ("one", "two"),
+                ("helper.sh",),
+            )
+
+            self.assertTrue(any("differs from synchronized helper" in e for e in errors))
 
 
 if __name__ == "__main__":

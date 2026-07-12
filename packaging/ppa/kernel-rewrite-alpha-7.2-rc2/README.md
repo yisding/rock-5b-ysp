@@ -31,6 +31,18 @@ The local rewrite branch was rebased from `v7.2-rc1` to the official kernel.org
 `v7.2-rc2` tag before this source package was generated. A backup branch exists
 in the kernel worktree as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`.
 
+## Debian helper scripts
+
+These `debian/rules` helpers are source-package-local copies of the
+forward-port package helpers. Keeping the copies makes each export
+self-contained; `scripts/check-doc-consistency.py` enforces byte identity
+across all three kernel package directories.
+
+| Helper | Role |
+|--------|------|
+| [`debian/scripts/install-kernel-packages.sh`](debian/scripts/install-kernel-packages.sh) | Stages the image/modules, DTBs, and buildable headers into their binary-package roots. |
+| [`debian/scripts/write-maintainer-scripts.sh`](debian/scripts/write-maintainer-scripts.sh) | Generates the Armbian-compatible image, DTB, and header maintainer scripts. |
+
 ## Build
 
 ```sh

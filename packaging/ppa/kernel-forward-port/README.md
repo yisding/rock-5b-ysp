@@ -43,6 +43,18 @@ build products, `.orig` backups, and `debian/`. It then overlays this directory'
 `debian/` packaging and copies the resolved config into
 `debian/config/arm64-rockchip64.config`.
 
+## Debian helper scripts
+
+These helpers are invoked by `debian/rules`, not directly by board users. The
+same source-package-local copies ship in both alpha-kernel directories so every
+export is self-contained; `scripts/check-doc-consistency.py` enforces that all
+three copies remain byte-identical.
+
+| Helper | Role |
+|--------|------|
+| [`debian/scripts/install-kernel-packages.sh`](debian/scripts/install-kernel-packages.sh) | Stages the image/modules, DTBs, and buildable headers into their three binary-package roots. |
+| [`debian/scripts/write-maintainer-scripts.sh`](debian/scripts/write-maintainer-scripts.sh) | Generates image/DTB/header maintainer scripts with Armbian-compatible `/boot`, initramfs, symlink, and header-prepare behavior. |
+
 ## Launchpad Constraints
 
 - Build from source in the Launchpad build chroot. Do not upload the Armbian
