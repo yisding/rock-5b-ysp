@@ -32,6 +32,11 @@
 # =============================================================================
 set -euo pipefail
 
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+	sed -n '2,32p' "$0"
+	exit 0
+fi
+
 say() { printf '>>> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
@@ -50,7 +55,23 @@ OUT="${OUT:-$WORKSPACE/forward-port/fallback}"
 #   mkdir -p official-src && ( cd official-src && apt-get download \
 #       linux-image-current-rockchip64=26.5.1 linux-dtb-current-rockchip64=26.5.1 )
 OFFICIAL="$WORKSPACE/forward-port/official-src"
-first_match() { local g; for g in "$@"; do ls -t $g 2>/dev/null | head -1 && return 0; done; }
+first_match() {
+	local pattern file newest
+	for pattern in "$@"; do
+		newest=""
+		while IFS= read -r file; do
+			[ -f "$file" ] || continue
+			if [ -z "$newest" ] || [ "$file" -nt "$newest" ]; then
+				newest="$file"
+			fi
+		done < <(compgen -G "$pattern" || true)
+		if [ -n "$newest" ]; then
+			printf '%s\n' "$newest"
+			return 0
+		fi
+	done
+	return 1
+}
 IMG="${1:-$(first_match "$OFFICIAL/linux-image-current-rockchip64_26.5.1_arm64*.deb" "$DEBS_DIR/linux-image-current-rockchip64_*6.18.35*P068c*.deb")}"
 DTB="${2:-$(first_match "$OFFICIAL/linux-dtb-current-rockchip64_26.5.1_arm64*.deb"   "$DEBS_DIR/linux-dtb-current-rockchip64_*6.18.35*P068c*.deb")}"
 [ -f "${IMG:-}" ] || die "image deb not found (pass it as arg 1). Looked in $DEBS_DIR"

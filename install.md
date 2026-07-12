@@ -17,7 +17,7 @@ in either case:
 |------|--------------|---------------|-----------------------------------------------|-------|
 | **(a) Combined Armbian kernel** | All three accelerators **built in (`=y`)** — no modules, no overlay | An Armbian build tree (§2) + a kernel install/reboot | ✅ **Hardware-validated** (build `Pb6ab-Cb831`, [kernel status](kernel-drivers/docs/forward-port-status.md)) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
 | **(b) DKMS on a stock kernel** | `rk_vcodec.ko` + `rga3.ko`, auto-rebuilt on every kernel update, + a boot-time DT overlay | A *stock* Armbian 6.18+ kernel, `dkms` + `dtc` installed | ⚠️ Compile-tested on **6.18 only**; overlay dtc-validated, **not boot-validated** | [`packaging/dkms/`](packaging/dkms/README.md) |
-| **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§6) | Source-built `ffmpeg-rockchip` is hardware-validated; public PPA arm64 indexes now contain MPP, librga, Rockchip-81 FFmpeg, and the co-installable FFmpeg 6.1 tools | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
+| **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§8) | Source-built `ffmpeg-rockchip` is hardware-validated; public PPA arm64 indexes now contain MPP, librga, Rockchip-81 FFmpeg, and the co-installable FFmpeg 6.1 tools | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
 
 > **⚠️ Hard warning: (a) and (b) are mutually exclusive** — installing the DKMS
 > module on the combined kernel breaks the build. Mechanism and the exact
@@ -25,7 +25,7 @@ in either case:
 > [`packaging/dkms/README.md`](packaging/dkms/README.md) § Caveats. Pick **one**
 > kernel path.
 >
-> The **udev rule (§6) is needed on both paths** — no kernel path makes the
+> The **udev rule (§8) is needed on both paths** — no kernel path makes the
 > device nodes usable without root by itself.
 
 Not sure? Take **(a)** — it is the only path validated end-to-end on hardware.
@@ -77,7 +77,52 @@ For **vanilla mainline** (no Armbian) the driver patch applies as-is but the
 decoder DT must be inline — follow [vanilla-kernel guide](./kernel-versions/docs/vanilla-kernel.md)
 instead of this quickstart.
 
-## 3. Canonical quickstart (path a — combined kernel)
+## 3. Prepare recovery and capture the old baseline
+
+Do this **before either kernel install path**. Armbian's ROCK 5B U-Boot flow has
+no kernel-selection menu: keeping another file under `/boot` does not make it
+selectable after a failed boot. Installing another
+`linux-image-current-rockchip64` package can also replace or overwrite the
+known-good package files, especially when both builds use the same kernel
+version string.
+
+1. Capture the working board/kernel/userspace identity:
+
+   ```bash
+   PROFILE=pre-install \
+     bash kernel-drivers/tests/conformance/scripts/collect-system-info.sh
+   ```
+
+2. Record which kernel `/boot` selects and keep the known-good **image + DTB
+   debs** somewhere the rescue environment can reach:
+
+   ```bash
+   sudo bash kernel-drivers/scripts/kernel-revert.sh list
+   cp -a /boot/armbianEnv.txt ./armbianEnv.txt.pre-ysp
+   ```
+
+3. Have a tested SD rescue path that can mount the internal Armbian root. The
+   current SD/SPI limitations are tracked in [`status.md` track 12](status.md#dashboard);
+   do not assume an arbitrary raw SD image bypasses the installed loader.
+
+4. Know which recovery operation applies:
+
+   | Situation | Recovery from the rescue boot |
+   |-----------|-------------------------------|
+   | A distinct known-good kernel version is still present | `sudo bash kernel-drivers/scripts/kernel-revert.sh --auto list`, then `sudo bash kernel-drivers/scripts/kernel-revert.sh --auto switch <version>` |
+   | The install overwrote the same-version package files | `sudo bash kernel-drivers/scripts/kernel-revert.sh --auto reinstall <known-good-image.deb> <known-good-dtb.deb>` |
+
+The full target-selection and clobber explanation is in
+[`kernel-drivers/scripts/kernel-revert.sh`](kernel-drivers/scripts/kernel-revert.sh).
+For a persistent distinct fallback, repackage known-good image/DTB debs with
+[`make-fallback-kernel-deb.sh`](kernel-drivers/scripts/make-fallback-kernel-deb.sh)
+and install them before testing the new kernel.
+
+`install-combined-kernel.sh` now refuses to modify `/boot` until
+`RECOVERY_READY=1` is supplied. That flag is an acknowledgement, not a test;
+the commands above are the actual preparation.
+
+## 4. Canonical quickstart (path a — combined kernel)
 
 ```bash
 # 0. Bootstrap the external Armbian workspace if this machine does not have it.
@@ -95,7 +140,8 @@ cp kernel-drivers/patches/rk3588-rkvenc2-0*.patch \
 bash kernel-drivers/scripts/build-combined-kernel.sh        # prints the new P####-C#### hash
 
 # 3. Install (pin the hash the build printed), reboot, validate:
-sudo WORKSPACE="$WORKSPACE" PHASH='P####-C####' bash kernel-drivers/scripts/install-combined-kernel.sh
+sudo RECOVERY_READY=1 WORKSPACE="$WORKSPACE" PHASH='P####-C####' \
+  bash kernel-drivers/scripts/install-combined-kernel.sh
 sudo reboot
 sudo bash kernel-drivers/scripts/validate-combined.sh       # /dev/mpp_service, 4 cores, /dev/rga
 
@@ -111,7 +157,7 @@ the two decoder cores (`video-codec0/1` on the combined kernel — the DT keeps
 mainline's node name, see [device-tree guide](./kernel-drivers/docs/device-tree.md); pre-combined
 revisions said `rkvdec-core0/1`), and `/dev/rga`.
 
-## 4. PHASH pinning — don't install the wrong build
+## 5. PHASH pinning — don't install the wrong build
 
 Armbian bakes a `P####-C####` pair into every kernel deb name: `P####` hashes
 the **applied patch set**, `C####` the **kernel config** — so the pair names an
@@ -120,22 +166,22 @@ matches debs on `HASH` (kernel version) + `PHASH` so it can never grab a stale
 deb from `output/debs`. Workflow:
 
 1. `build-combined-kernel.sh` prints the new hash at the end of every build.
-2. Pass it to the installer (`sudo PHASH='…' bash kernel-drivers/scripts/install-combined-kernel.sh`)
-   or update the `PHASH` default in the script.
+2. After completing §3, pass it to the installer (`sudo RECOVERY_READY=1
+   PHASH='…' bash kernel-drivers/scripts/install-combined-kernel.sh`).
 3. **Add a row to the log below** so the hash stays decodable later.
 
 ### Hash ↔ patch-revision log
 
 | PHASH | Kernel | Patch set | Validated | Notes |
 |-------|--------|-----------|-----------|-------|
-| `Pb6ab-Cb831` | 6.18.37-current-rockchip64 | `kernel-drivers/patches/rk3588-rkvenc2-01` + `02` (current revision) | ✅ hardware ([kernel status](kernel-drivers/docs/forward-port-status.md); tests re-run 2026-07-01) | The pinned default in `install-combined-kernel.sh`. |
+| `Pb6ab-Cb831` | 6.18.37-current-rockchip64 | `kernel-drivers/patches/rk3588-rkvenc2-01` + `02` (current revision) | ✅ hardware ([kernel status](kernel-drivers/docs/forward-port-status.md); tests re-run 2026-07-01) | Known validated pair; `install-combined-kernel.sh` still requires it explicitly. |
 | `P8c75` (config hash not recorded) | 6.18.37 | functionally-identical predecessor revision | ✅ ([kernel status](./kernel-drivers/docs/forward-port-status.md)) | Superseded by `Pb6ab-Cb831`. |
 
 (Every new build you install gets a row; a PHASH change with *unchanged*
 `kernel-drivers/patches/` means the Armbian patch stack moved — run the
 [resyncing guide §4](./kernel-drivers/docs/resyncing.md) bump checklist.)
 
-## 5. Path b — DKMS on a stock kernel
+## 6. Path b — DKMS on a stock kernel
 
 Full instructions (KSRC reconstruction, out-of-tree Kbuild details, caveats):
 [`packaging/dkms/README.md`](packaging/dkms/README.md). The shape:
@@ -149,25 +195,24 @@ sudo dpkg -i packaging/dkms/build/rk3588-vcodec-dkms_1.0_arm64.deb
 # add rk3588-rock5b-vcodec to user_overlays= in /boot/armbianEnv.txt, reboot
 ```
 
-Then validate exactly as in §3 (`validate-combined.sh` works for both paths).
+Then validate exactly as in §4 (`validate-combined.sh` works for both paths).
 Remember: **the overlay is not boot-validated** ([`status.md`](status.md)) and
 the package must never be installed on the combined kernel (§1).
 
-## 6. Validate, then exercise real frames
+## 7. Validate, then exercise real frames
 
-Before replacing a working kernel, capture its identity with the
-[`system-baseline.md`](docs/system-baseline.md) collector so a failure can be
-compared against the exact previous boot.
+Compare the post-boot result against the pre-install capture from §3; a new
+device node or package alone is not proof that real frames ran on hardware.
 
 1. `sudo bash kernel-drivers/scripts/validate-combined.sh` — devices, 4 cores, clean-probe
    dmesg sweep ([`kernel-drivers/scripts/README.md`](kernel-drivers/scripts/README.md)).
 2. [`kernel-drivers/tests/`](kernel-drivers/tests/README.md) — decode, encode (PSNR/fps), and full HW
    transcode smoke tests, with pass criteria and input-regeneration recipes.
 
-## 7. Non-root access & the GDM greeter
+## 8. Non-root access & the GDM greeter
 
 - **Every user in the `video` group**: [`packaging/codec-udev/`](packaging/codec-udev/README.md)
-  packages the §3-step-4 rule as a deb (`rk3588-codec-udev`). The canonical
+  packages the §4-step-4 rule as a deb (`rk3588-codec-udev`). The canonical
   rule file is [`kernel-drivers/scripts/99-rockchip-codec.rules`](kernel-drivers/scripts/99-rockchip-codec.rules).
 - **The GDM login screen** (only if you run
   [`apps/gnome-remote-desktop/`](apps/gnome-remote-desktop/README.md) and want the
@@ -175,7 +220,7 @@ compared against the exact previous boot.
   [`packaging/gdm-hwenc/`](packaging/gdm-hwenc/README.md) deb grants the `gdm`
   group ACL access. Deliberately separate — it widens the security boundary.
 
-## 8. Userspace handoff — you have a kernel, not an encoder
+## 9. Userspace handoff — you have a kernel, not an encoder
 
 A validated kernel gives you `/dev/mpp_service` + `/dev/rga` and **no encoder
 binary**. Get userspace one of two ways:

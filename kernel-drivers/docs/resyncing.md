@@ -141,8 +141,9 @@ internals that drift on *their* schedule. **When Armbian bumps
 3. **Re-derive the `P####-C####` hash and pass `PHASH`.** Any patch or config
    change alters the Armbian deb-name hash;
    `scripts/build-combined-kernel.sh` prints the new value (`:59`) — pass it to
-   `scripts/install-combined-kernel.sh` (`sudo PHASH='P####-C####' ...`) or the
-   installer refuses the new debs.
+   `scripts/install-combined-kernel.sh` (`sudo RECOVERY_READY=1
+   PHASH='P####-C####' ...`, after the recovery preflight in `install.md`) or
+   the installer refuses the new debs.
 4. **Kconfig `default y` still honored?** The zero-edit config trick relies on
    Armbian running `make olddefconfig` over our patched Kconfig defaults
    ([Armbian packaging guide](../../packaging/docs/armbian-packaging.md)); confirm the tristate parents still

@@ -75,7 +75,7 @@ the self-contained-DT collisions, builds the debs, and prints the `P####-C####`
 hash. Install that exact build:
 
 ```bash
-sudo PHASH='P####-C####' \
+sudo RECOVERY_READY=1 PHASH='P####-C####' \
   bash /home/yi/Code/rock-5b-ysp/kernel-drivers/scripts/install-combined-kernel.sh
 sudo reboot
 ```

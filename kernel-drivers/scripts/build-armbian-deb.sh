@@ -248,4 +248,5 @@ ls -t "$DEBS"/linux-image-current-rockchip64_*.deb "$DEBS"/linux-dtb-current-roc
 NEW=$(ls -t "$DEBS"/linux-image-current-rockchip64_*.deb 2>/dev/null | head -1)
 PH=$(basename "$NEW" 2>/dev/null | grep -oE 'P[0-9a-f]{4,}-C[0-9a-f]{4,}' || true)
 [ -n "$PH" ] && say "This build's hash: $PH"
-say "DONE. Install with:  sudo PHASH='$PH' bash $HERE/install-combined-kernel.sh"
+say "DONE. After install.md recovery prep, install with:"
+say "  sudo RECOVERY_READY=1 PHASH='$PH' bash $HERE/install-combined-kernel.sh"

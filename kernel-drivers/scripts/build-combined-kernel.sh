@@ -32,8 +32,8 @@
 #   nohup bash build-combined-kernel.sh &         # background (long build)
 #   bash build-combined-kernel.sh KERNEL_CONFIGURE=yes   # extra args pass through
 #
-# After it finishes, point install-combined-kernel.sh (same directory) PHASH at
-# the new P####-C#### hash printed below, then install + reboot + validate.
+# After it finishes, complete install.md's recovery prep, then pass the printed
+# P####-C#### as PHASH with RECOVERY_READY=1, install, reboot, and validate.
 # =============================================================================
 # shellcheck disable=SC2012 # Armbian-generated deb names cannot contain whitespace.
 set -euo pipefail
@@ -69,4 +69,5 @@ ls -t "$DEBS"/linux-image-current-rockchip64_*.deb "$DEBS"/linux-dtb-current-roc
 	"$DEBS"/linux-headers-current-rockchip64_*.deb 2>/dev/null | head -3 | sed 's/^/    /'
 NEW=$(ls -t "$DEBS"/linux-image-current-rockchip64_*.deb 2>/dev/null | head -1)
 PH=$(basename "$NEW" 2>/dev/null | grep -oE 'P[0-9a-f]{4,}-C[0-9a-f]{4,}' || true)
-[ -n "$PH" ] && echo ">>> This build's hash: $PH  -- set install-combined-kernel.sh PHASH='$PH'"
+[ -n "$PH" ] && echo ">>> This build's hash: $PH"
+[ -n "$PH" ] && echo ">>> After install.md recovery prep: sudo RECOVERY_READY=1 PHASH='$PH' bash $HERE/install-combined-kernel.sh"

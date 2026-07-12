@@ -74,7 +74,7 @@ needs no path edits. Override `ARMBIAN_BUILD=`/`WORKSPACE=` for another layout.
 | Script | Runs as | What it does |
 |--------|---------|--------------|
 | `build-combined-kernel.sh` | user | Wraps `./compile.sh kernel BOARD=rock-5b BRANCH=current KERNEL_CONFIGURE=no USE_CCACHE=yes`. Crucially passes `USE_CCACHE` as an **argument** so it survives Armbian's Docker/sudo relaunch (see [gotchas](../../docs/gotchas.md)). Prints ccache growth + the new `P####-C####` hash. |
-| `install-combined-kernel.sh` | root | Removes the obsolete `rkvdec2` boot overlay from `armbianEnv.txt` (backs it up), then `dpkg -i` the image + dtb + headers debs for the pinned `PHASH`. Old kernel stays selectable. `DEBS`/`PHASH` are env-overridable; `HASH` is an optional extra version filter. |
+| `install-combined-kernel.sh` | root | After `RECOVERY_READY=1`, removes the obsolete `rkvdec2` boot overlay from `armbianEnv.txt` (backs it up), then `dpkg -i` the image + dtb + headers debs for the pinned `PHASH`. A same-name/version install can clobber the prior files; there is no boot menu, so prepare `kernel-revert.sh` and known-good debs first. `DEBS`/`PHASH` are env-overridable; `HASH` is an optional extra version filter. |
 | `build-armbian-deb.sh` | user | The **av1 forward-port** build variant. Regenerates the port patches from the kernel git tree (`KERNEL_TREE`, `git format-patch v6.18..HEAD`), restores/cleans the selected built-in Armbian kernel patch archive, clears the matching userpatch archive, stages the generated patch set, **disables** the two colliding Armbian core media patches (this tree's DT is self-contained), then the same ccache-correct `compile.sh`. `--restore` performs only the built-in archive reset. |
 | `kernel-revert.sh` | root (SD rescue) | Get a bad board booting again: flip `/boot` symlinks (`switch`) or chroot-reinstall a good deb (`reinstall`) on the internal disk from an SD-card rescue. Subcommands `list`/`switch`/`reinstall`; target via `--auto`/`--device`/`--root`. |
 | `make-fallback-kernel-deb.sh` | user | Repackage a kernel deb (rename `Package:`, drop `Provides:`) into a **co-installable** fallback that won't clobber the primary `linux-image-current-rockchip64` — a permanent recovery kernel `kernel-revert.sh` can `switch` to. Defaults to the official 6.18.35 (26.5.1) debs. |
@@ -96,7 +96,7 @@ needs no path edits. Override `ARMBIAN_BUILD=`/`WORKSPACE=` for another layout.
 # build (on Docker-capable Linux, or native Armbian/Ubuntu Noble)
 nohup bash build-combined-kernel.sh &            # ~80-90 min cold, ~10-15 warm
 # set install-combined-kernel.sh PHASH to the printed hash (or pass it), then:
-sudo PHASH='P####-C####' bash install-combined-kernel.sh
+sudo RECOVERY_READY=1 PHASH='P####-C####' bash install-combined-kernel.sh
 sudo reboot
 sudo bash validate-combined.sh                   # expect 2+2 cores + /dev/rga, tainted 0
 
