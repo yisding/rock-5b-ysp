@@ -1,3 +1,4 @@
+# shellcheck shell=bash disable=SC2034
 # Debug rebuild for the ROCK 5B current Armbian kernel.
 #
 # This config intentionally starts from userpatches/linux-rockchip64-current.config,

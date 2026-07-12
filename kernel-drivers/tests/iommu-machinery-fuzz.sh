@@ -58,7 +58,13 @@ while [ "$#" -gt 0 ]; do case "$1" in
   -n) RGA_ITERS="$2"; shift 2;; -L) DECODE_LOOPS="$2"; shift 2;;
   -p) PHASES="$2"; shift 2;; *) echo "unknown arg: $1"; exit 2;; esac; done
 
-if [ "${EUID:-$(id -u)}" -eq 0 ]; then SUDO_CMD=(); else SUDO_CMD=(${SUDO-sudo}); fi
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+  SUDO_CMD=()
+elif [[ -v SUDO ]]; then
+  read -r -a SUDO_CMD <<< "$SUDO"
+else
+  SUDO_CMD=(sudo)
+fi
 mkdir -p "$OUT"
 FUZZ="$OUT/rga-iommu-fuzz"
 

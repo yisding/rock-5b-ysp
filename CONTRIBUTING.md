@@ -138,12 +138,13 @@ bash scripts/check-repo.sh
 ```
 
 This checks local Markdown paths and anchors, runs the repository-check
-regression tests, verifies Markdown/operational-file README ownership, finding
-metadata/order, and dashboard/ledger contracts, and finds whitespace errors in
-staged, unstaged, and untracked files. For changed shell scripts, also run
-`bash -n` and `shellcheck` on those files. Run project-specific build or
-hardware tests in proportion to the behavior changed, and report exactly what
-was and was not exercised.
+regression tests, runs ShellCheck at warning-or-higher severity across every
+maintained shell file, verifies Markdown/operational-file README ownership,
+finding metadata/order, and dashboard/ledger contracts, and finds whitespace
+errors in staged, unstaged, and untracked files. Run `bash -n` on changed shell
+scripts as an additional syntax gate. Run project-specific build or hardware
+tests in proportion to the behavior changed, and report exactly what was and
+was not exercised.
 
 The read-only [repository-checks workflow](.github/workflows/repository-checks.yml)
 runs the same command on every push and pull request. Run it locally first so a

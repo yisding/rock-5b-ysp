@@ -23,5 +23,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes shellcheck
+
       - name: Run repository checks
         run: bash scripts/check-repo.sh
