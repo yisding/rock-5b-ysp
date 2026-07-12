@@ -397,6 +397,22 @@ class DocumentationConsistencyTests(unittest.TestCase):
 
             self.assertTrue(any("differs from synchronized helper" in e for e in errors))
 
+    def test_finding_template_requires_reproducible_evidence_prompts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            findings = root / "findings"
+            findings.mkdir()
+            (findings / "TEMPLATE.md").write_text(
+                "# Finding\n\n> Scope: project\n\n## Result\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_finding_template(root, errors)
+
+            self.assertTrue(any("missing identity prompt" in e for e in errors))
+            self.assertTrue(any("missing boundary section" in e for e in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -58,6 +58,17 @@ TRUST_TAGS = {
     "SOURCE-INSPECTED",
     "UNVERIFIED",
 }
+FINDING_TEMPLATE_MARKERS = (
+    ("coverage-aware scope", "C##"),
+    ("result section", "## Result"),
+    ("evidence section", "## Evidence and reproduction"),
+    ("identity prompt", "- **Identity:**"),
+    ("detection prompt", "- **Detection:**"),
+    ("exercise prompt", "- **Exercise:**"),
+    ("pass/fail prompt", "- **Pass/fail signal:**"),
+    ("artifact prompt", "- **Artifacts:**"),
+    ("boundary section", "## Boundary"),
+)
 
 
 def check_readme_indexes(root: Path, errors: list[str]) -> None:
@@ -127,6 +138,19 @@ def check_findings_index(root: Path, errors: list[str]) -> None:
     dates = [name[:10] for name in entries]
     if dates != sorted(dates, reverse=True):
         errors.append("findings/README.md: index entries are not newest first")
+
+
+def check_finding_template(root: Path, errors: list[str]) -> None:
+    """Keep new findings aligned with the repository evidence contract."""
+    path = root / "findings" / "TEMPLATE.md"
+    if not path.is_file():
+        errors.append("findings/TEMPLATE.md: missing finding intake template")
+        return
+
+    text = path.read_text(encoding="utf-8", errors="replace")
+    for label, marker in FINDING_TEMPLATE_MARKERS:
+        if marker not in text:
+            errors.append(f"findings/TEMPLATE.md: missing {label} ({marker})")
 
 
 def check_finding_headers(root: Path, errors: list[str]) -> None:
@@ -543,6 +567,7 @@ def main() -> int:
     check_readme_indexes(root, errors)
     check_operational_indexes(root, errors)
     check_findings_index(root, errors)
+    check_finding_template(root, errors)
     check_finding_headers(root, errors)
     check_status_ledger(root, errors)
     check_dashboard_next_gates(root, errors)
