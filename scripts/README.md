@@ -27,6 +27,10 @@ the same command on pushes and pull requests.
 
 ## ROCK 5B SPI bootloader
 
+Read the [`U-Boot primer`](../boot-firmware/docs/u-boot-primer.md) and
+[`debugging guide`](../boot-firmware/docs/debugging.md) before changing raw
+firmware. They distinguish the SPI firmware source from the later OS target.
+
 These scripts are intentionally board-specific. They refuse to run unless they
 detect a Radxa ROCK 5B and a single 16 MiB NOR MTD device, unless overridden
 with `--force-board` / `--mtd`.

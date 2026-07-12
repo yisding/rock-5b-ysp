@@ -22,6 +22,7 @@ Repository-wide license status is not a cross-project doc; it lives at
 
 | Topic | Now lives in |
 |-------|--------------|
+| U-Boot, RK3588 boot stages, firmware lineage comparison, and boot debugging | [`../boot-firmware/`](../boot-firmware/README.md) |
 | What the Rockchip 6.1 BSP adds vs stock Linux (13-file subtree) | [`../kernel-versions/bsp/`](../kernel-versions/bsp/README.md) |
 | Forward-port narrative, review log, vanilla / mainline-V4L2 notes | [`../kernel-versions/docs/`](../kernel-versions/README.md) |
 | MPP/RGA driver architecture, uAPI, DT, audit, resync, rewrite | [`../kernel-drivers/`](../kernel-drivers/README.md) |

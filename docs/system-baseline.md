@@ -28,7 +28,7 @@ hosts use Docker. The distinction and current upstream requirements are owned by
 | Which ROCK 5B subsystems has this repository not assessed? | [`support-coverage.md`](support-coverage.md). |
 | Which kernel build has real codec/RGA hardware evidence? | [`kernel-drivers/docs/forward-port-status.md`](../kernel-drivers/docs/forward-port-status.md) and the PHASH log in [`install.md`](../install.md). |
 | Which PPA packages are public or still gated? | [`packaging/ppa/README.md`](../packaging/ppa/README.md) and watchlist item [W05](../status.md#watch-w05). |
-| What is known about SPI, raw SD, and NVMe boot? | Dashboard track 12 and watchlist/detail evidence under [`findings/`](../findings/README.md). |
+| What is known about SPI, raw SD, and NVMe boot? | [`../boot-firmware/`](../boot-firmware/README.md) for the stable model; dashboard track 12 and linked findings for dated hardware evidence. |
 | What build machine and Armbian branch map were measured? | [`findings/2026-07-08-armbian-builder-setup.md`](../findings/2026-07-08-armbian-builder-setup.md) and watchlist item [W14](../status.md#watch-w14). |
 | Which external source contents do code citations mean? | [`source-trees.md`](source-trees.md). |
 

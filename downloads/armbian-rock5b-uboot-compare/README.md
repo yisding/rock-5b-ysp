@@ -1,7 +1,7 @@
 # Captured Armbian ROCK 5B U-Boot packages
 
 Forensic inputs for
-[`findings/2026-07-11-rock5b-u-boot-four-way-comparison.md`](../../findings/2026-07-11-rock5b-u-boot-four-way-comparison.md).
+[`boot-firmware/docs/version-comparison.md`](../../boot-firmware/docs/version-comparison.md).
 
 ## Package files
 

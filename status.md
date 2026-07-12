@@ -41,7 +41,7 @@ separate table below so both remain scannable.
 | 9 | Launchpad PPA | ⚠️ MPP, librga, both FFmpeg tracks, and three kernels are public; GRD/GDM are held and kernel board gates are open. | 2026-07-11 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
-| 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./findings/2026-07-11-rock5b-u-boot-four-way-comparison.md) |
+| 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
 
 ## Next gates
 
@@ -64,7 +64,7 @@ dashboard date and ledger row when public state changes.
 | 9 | Launchpad PPA | Install, boot, and revert the co-installable forward-port kernel on the ROCK 5B. | [Kernel package checklist](./packaging/ppa/kernel-forward-port/README.md#remaining-checklist) |
 | 10 | Binary publishing | Choose and record the repository-wide license required before a public release. | [License decision boundary](./LICENSE.md) |
 | 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. | [Kodi tty1 runbook](./apps/kodi/docs/build-hwaccel.md#5-test-on-tty1-gbm-needs-drm-master) |
-| 12 | ROCK 5B SD/SPI boot chain | Write the 26.5.1 `current` raw artifacts to SD and capture where that boot stops or succeeds. | [U-Boot recommendation](./findings/2026-07-11-rock5b-u-boot-four-way-comparison.md#recommendation) |
+| 12 | ROCK 5B SD/SPI boot chain | Write the 26.5.1 `current` raw artifacts to SD and capture where that boot stops or succeeds. | [Required next proofs](./boot-firmware/docs/version-comparison.md#9-required-next-proofs) |
 
 > **Runtime gate pending.** The BSP-audit cleanup series still needs the runtime
 > codec regression test before it can ship. Compile status alone is not

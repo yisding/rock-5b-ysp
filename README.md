@@ -33,6 +33,7 @@ not repeat dated status or operational commands because those copies drift.
 |------|------------|
 | Install the validated ROCK 5B kernel path | [`install.md`](install.md) |
 | Check what is usable, experimental, or stale | [`status.md`](status.md) |
+| Understand U-Boot and the ROCK 5B boot chain | [`boot-firmware/`](boot-firmware/README.md) |
 | See which board subsystems have not been assessed | [`docs/support-coverage.md`](docs/support-coverage.md) |
 | Capture the exact board/kernel/userspace baseline | [`docs/system-baseline.md`](docs/system-baseline.md) |
 | Record a newly discovered gap or result | [`findings/`](findings/README.md) |
@@ -57,6 +58,7 @@ patch series, scripts, and on-hardware tests stay at the `kernel-drivers/` top.
 ```mermaid
 flowchart TB
   board["Radxa ROCK 5B / RK3588"]
+  boot["boot-firmware: BootROM · SPL · TF-A · U-Boot"]
   kver["kernel-versions<br/>BSP overlay · forward-port"]
   kernel["kernel-drivers<br/>mpp · rga · av1 · iommu"]
   libs["vendor-libraries<br/>librockchip_mpp · librga"]
@@ -64,7 +66,7 @@ flowchart TB
   apps["apps<br/>gnome-remote-desktop · kodi"]
   packaging["packaging<br/>delivery & validation"]
 
-  board --> kernel
+  board --> boot --> kernel
   kver -.-> kernel
   kernel --> libs --> video --> apps
   packaging -.-> kernel
@@ -74,6 +76,7 @@ flowchart TB
 
 | Category | What lives here | Entry |
 |----------|-----------------|-------|
+| **boot-firmware** | Power-on through Linux handoff: U-Boot primer, RK3588 stages/artifacts, lineage comparison, and safe debugging. | [`boot-firmware/`](boot-firmware/README.md) |
 | **kernel-versions** | The kernel bases and moving between them: what the BSP adds vs stock, the forward-port narrative, the mainline-V4L2 alternative. | [`kernel-versions/`](kernel-versions/README.md) |
 | **kernel-drivers** | In-kernel accelerator drivers, split `mpp` · `rga` · `av1` · `iommu`; shared architecture docs, patches, scripts, on-hardware tests at the top. | [`kernel-drivers/`](kernel-drivers/README.md) |
 | **vendor-libraries** | Userspace vendor libs: `mpp` (librockchip_mpp), `rga` (librga). | [`vendor-libraries/`](vendor-libraries/README.md) |

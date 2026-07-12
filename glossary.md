@@ -114,6 +114,42 @@ when comparing the encoder and decoder or reconstructing the Armbian port.
   [multicore scheduling § 7](./kernel-drivers/mpp/docs/multicore-scheduling.md); the
   vendor-side mechanism is [kernel driver guide § 7a](./kernel-drivers/docs/how-the-drivers-work.md).
 
+## Boot firmware
+
+- **BootROM** — immutable RK3588 code that chooses a ROM-supported firmware
+  source and starts the earliest external image.
+- **TPL / DDR blob** — the earliest DRAM-initialization role. The examined
+  RK3588 builds use executable Rockchip DDR firmware where an upstream build
+  supplies the external input as `ROCKCHIP_TPL`.
+- **SPL** — U-Boot's size-constrained secondary program loader; it initializes
+  enough hardware to load TF-A and U-Boot proper.
+- **TF-A / BL31 / BL33** — Trusted Firmware-A provides the EL3 BL31 runtime;
+  it transfers to the normal-world BL33 payload, U-Boot proper here. BL32 is an
+  optional trusted-world payload such as OP-TEE.
+- **U-Boot proper** — the full firmware program with driver model, environment,
+  command shell, OS discovery, payload loading, and Linux handoff.
+- **boot source / OS target** — **⚑ load-bearing:** the firmware medium and the
+  Linux medium are independent. `SPI → NVMe` means BootROM/SPL/U-Boot came from
+  SPI and U-Boot loaded Linux/root from NVMe.
+- **control DTB / kernel DTB** — **⚑ load-bearing:** U-Boot's own device tree
+  runs firmware drivers; a separate kernel device tree is later passed to
+  Linux. An empty control DTB can stop BL33 before Linux is involved.
+- **`idbloader.img`** — Rockchip ID-block artifact; in the inspected vendor
+  path it combines the DDR binary and U-Boot SPL.
+- **FIT / `u-boot.itb`** — Flattened Image Tree containing U-Boot proper, BL31
+  segments, the U-Boot control DTB, hashes, and a configuration.
+- **binman** — upstream U-Boot's image assembler, used to place stages, FITs,
+  external blobs, offsets, and padding into final Rockchip images.
+- **environment** — U-Boot key/value settings and scripts, either compiled-only
+  or persisted through a selected storage backend.
+- **distro boot / Bootstd** — the legacy environment-script OS scan versus
+  upstream's Standard Boot driver model (`bootdev` + `bootmeth` → `bootflow`).
+- **secure boot** — an enforced authentication chain rooted in trusted state;
+  enabled hashes/RSA code or a signature node without a signature value is not
+  sufficient proof.
+
+Full definitions and diagrams: [`boot-firmware/`](boot-firmware/README.md).
+
 ## Device tree & packaging
 
 - **Armbian** — a Debian/Ubuntu-based Linux distribution and build framework for

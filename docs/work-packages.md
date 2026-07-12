@@ -2,9 +2,9 @@
 
 The work here improves ROCK 5B support on Armbian's Ubuntu 26.04 images. Most
 project directories follow the RK3588 hardware-video path from kernel bases up
-to real applications; cross-cutting board bring-up and boot-chain work is
-captured through `findings/`, repo-wide scripts, and the status dashboard. The
-whole-board [`support coverage inventory`](support-coverage.md) makes areas
+to real applications; boot-chain knowledge has a durable owner in
+[`../boot-firmware/`](../boot-firmware/README.md), with raw observations still
+entering through `findings/`. The whole-board [`support coverage inventory`](support-coverage.md) makes areas
 outside that media-heavy project taxonomy explicit instead of silently treating
 them as supported. The
 repo is split **project-by-project**, grouped into categories; this page is the
@@ -29,6 +29,7 @@ the top of its `README.md`:
 ```mermaid
 flowchart TB
   board["Radxa ROCK 5B<br/>RK3588"]
+  boot["boot-firmware: BootROM · SPL · TF-A · U-Boot"]
 
   subgraph kver["kernel-versions"]
     bsp["BSP overlay vs stock"]
@@ -60,7 +61,7 @@ flowchart TB
 
   packaging["packaging<br/>delivery + verification"]
 
-  board --> bsp
+  board --> boot --> bsp
   bsp --> mpp
   fport -.-> mpp
   mpp --> libmpp --> ffmpeg --> grd
@@ -80,6 +81,7 @@ flowchart TB
 
 | Category | Project | Purpose | Entry |
 |----------|---------|---------|-------|
+| boot-firmware | U-Boot | BootROM-to-Linux stages, Rockchip artifacts, Armbian/Radxa/upstream comparison, and safe boot debugging. | [`../boot-firmware/`](../boot-firmware/README.md) |
 | kernel-versions | — | Kernel bases and moving between them: BSP overlay vs stock, forward-port narrative, mainline-V4L2 alternative. | [`../kernel-versions/`](../kernel-versions/README.md) |
 | kernel-drivers | mpp / rga / av1 / iommu | In-kernel accelerator drivers. Shared driver model, DT, patches, scripts, tests at the top; per-block notes in each sub-project. | [`../kernel-drivers/`](../kernel-drivers/README.md) |
 | vendor-libraries | mpp / rga | `librockchip_mpp` and `librga` userspace: library/kernel split, ioctls, dma-buf imports, ABI facts. | [`../vendor-libraries/`](../vendor-libraries/README.md) |
@@ -94,7 +96,7 @@ flowchart TB
 |------|------|
 | Check the repo before handoff | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) -> `bash scripts/check-repo.sh` |
 | Find an unassessed board subsystem or choose the next intake test | [`support-coverage.md`](support-coverage.md) -> [`system-baseline.md`](system-baseline.md) -> [`../findings/`](../findings/README.md) |
-| Diagnose SD/SPI boot behavior | [`../status.md`](../status.md) track 12 -> [boot investigation](../findings/2026-07-09-rock5b-armbian-sd-boot-investigation.md) -> [`../scripts/`](../scripts/README.md) |
+| Understand or diagnose SD/SPI/U-Boot behavior | [`../boot-firmware/`](../boot-firmware/README.md) -> [debugging guide](../boot-firmware/docs/debugging.md) -> [`../status.md`](../status.md) track 12 -> [`../scripts/`](../scripts/README.md) |
 | Capture a reproducible board/runtime baseline | [`system-baseline.md`](system-baseline.md) -> [`../kernel-drivers/tests/conformance/`](../kernel-drivers/tests/conformance/README.md) |
 | Get codecs working on a board | [`../install.md`](../install.md) -> [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) |
 | Build a command-line media stack | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`../video-libraries/ffmpeg/`](../video-libraries/ffmpeg/README.md) -> [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) |
@@ -106,6 +108,7 @@ flowchart TB
 
 | Goal | Path |
 |------|------|
+| Compare or modify U-Boot | [`../boot-firmware/docs/u-boot-primer.md`](../boot-firmware/docs/u-boot-primer.md) -> [`../boot-firmware/docs/version-comparison.md`](../boot-firmware/docs/version-comparison.md) -> pinned sibling trees |
 | Review the kernel port | [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`how-the-drivers-work.md`](../kernel-drivers/docs/how-the-drivers-work.md) -> [`vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md) -> [`vendor-delta.md`](../kernel-drivers/docs/vendor-delta.md) |
 | Review userspace ABI compatibility | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`how-the-userspace-libs-work.md`](../vendor-libraries/docs/how-the-userspace-libs-work.md) -> [`dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) -> [`rewrite-drivers.md`](../kernel-drivers/docs/rewrite-drivers.md) |
 | Maintain the package set | [`../packaging/`](../packaging/README.md) -> [`armbian-packaging.md`](../packaging/docs/armbian-packaging.md) -> [`resyncing.md`](../kernel-drivers/docs/resyncing.md) |
