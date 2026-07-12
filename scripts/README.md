@@ -12,6 +12,7 @@ not belong to a single package or driver area.
 | [`tests/test_repo_checks.py`](tests/test_repo_checks.py) | Standard-library regression tests for file inventory/ownership, link classification, dashboard/watchlist contracts, support coverage, and synchronized package helpers. |
 | [`rock5b-spi-erase.sh`](rock5b-spi-erase.sh) | Backs up and erases the ROCK 5B SPI NOR so BootROM falls through to microSD/eMMC bootloader paths. |
 | [`rock5b-spi-restore-armbian.sh`](rock5b-spi-restore-armbian.sh) | Restores and verifies the Armbian ROCK 5B SPI bootloader image. |
+| [`rock5b-sd-uboot-hypothesis-test.sh`](rock5b-sd-uboot-hypothesis-test.sh) | Captures a pristine 26.2.1 raw-SD loader gap, applies one controlled 26.5.1 component substitution, verifies readback, and restores the baseline. |
 
 Run the canonical handoff check from the repository root:
 
@@ -64,3 +65,79 @@ The restore script defaults to
 `/usr/lib/linux-u-boot-current-rock-5b/rkspi_loader.img`, checks that the image
 size matches the SPI NOR, looks for U-Boot/ROCK 5B markers, writes with
 `flashcp`, then compares the readback against the image.
+
+## ROCK 5B raw-SD U-Boot hypothesis test
+
+The SD test script separates the two differences between the failing Armbian
+26.2.1 media and the audited 26.5.1 `current` candidate:
+
+| Variant | 26.2.1 component retained | 26.5.1 component substituted | Interpretation |
+|---------|---------------------------|------------------------------|----------------|
+| `fit-only` | `idbloader.img` (DDR v1.18 and SPL) | `u-boot.itb` with a nonzero control DTB | A successful boot strongly supports the empty-control-DTB/BL33-package hypothesis. |
+| `loader-only` | `u-boot.itb` with the empty control DTB | `idbloader.img` (DDR v1.20 and SPL) | A continued failure shows that the DDR/SPL update alone is insufficient. A success instead favors the early-loader path, subject to mixed-stage compatibility. |
+| `both` | OS partitions and every byte outside the raw loader gap | Both raw boot artifacts | Positive-control candidate: tests the complete audited 26.5.1 `current` pair. |
+
+Keep SPI contents, power, peripherals, display, and UART capture identical for
+all four boots. First prove that the untouched new 26.2.1 card reproduces the
+failure. Identify the SD **whole-disk** device carefully; every command below
+uses `/dev/mmcblk1` only as an example.
+
+Capture the complete raw loader gap before changing anything:
+
+```bash
+sudo bash scripts/rock5b-sd-uboot-hypothesis-test.sh capture \
+  --device /dev/mmcblk1
+```
+
+The command prints the baseline filename under
+`downloads/sd-bootarea-backups/`. Copy that exact path into the following
+commands. The capture is 16,744,448 bytes (sectors 64 through 32767) and has
+`.sha256` and `.report.txt` sidecars.
+
+Preview the first substitution without a write:
+
+```bash
+sudo bash scripts/rock5b-sd-uboot-hypothesis-test.sh apply \
+  --device /dev/mmcblk1 \
+  --baseline downloads/sd-bootarea-backups/mmcblk1-armbian-26.2.1-pristine-TIMESTAMP.bin \
+  --variant fit-only \
+  --dry-run
+```
+
+Run one variant, boot it once, and capture UART plus HDMI observations:
+
+```bash
+sudo bash scripts/rock5b-sd-uboot-hypothesis-test.sh apply \
+  --device /dev/mmcblk1 \
+  --baseline downloads/sd-bootarea-backups/mmcblk1-armbian-26.2.1-pristine-TIMESTAMP.bin \
+  --variant fit-only
+```
+
+Before every other variant, restore the full baseline and let the script
+verify its SHA-256:
+
+```bash
+sudo bash scripts/rock5b-sd-uboot-hypothesis-test.sh restore \
+  --device /dev/mmcblk1 \
+  --baseline downloads/sd-bootarea-backups/mmcblk1-armbian-26.2.1-pristine-TIMESTAMP.bin
+```
+
+Use this order so every comparison begins from identical bytes:
+
+1. untouched 26.2.1 baseline boot;
+2. `fit-only`, then restore;
+3. `loader-only`, then restore;
+4. `both`, then restore when evidence capture is complete.
+
+The default artifacts are the audited files in
+`/usr/lib/linux-u-boot-current-rock-5b`. The script requires their known
+SHA-256 values and rejects a zero-byte FIT control DTB. Use `--artifact-dir`
+for a deliberately different candidate; it will still require explicit
+`--allow-unpinned-artifacts` if the hashes differ.
+
+For writes, the script rejects partitions, the running root disk, mounted child
+partitions, non-512-byte logical sectors, and layouts whose first partition
+overlaps the raw loader gap. It requires a removable target unless
+`--force-device` is explicit, requires a typed confirmation, and verifies the
+written component and the region expected to remain unchanged. It never reads
+or writes SPI and does not modify partition filesystems.

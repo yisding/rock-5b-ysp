@@ -232,11 +232,31 @@ The present evidence is:
 26.5.1 current: DDR v1.20, valid 12,752-byte control DTB, raw path untested
 ```
 
-The smallest useful next proof is the captured 26.5.1 current raw loader on
-recoverable SD media, with UART and HDMI captured. If it boots, the empty-DTB
-vendor build becomes the leading discriminator. If it stops at the same place,
-capture whether the new DTB is actually loaded and then separate BL33 entry,
-console, and OS-discovery hypotheses.
+Use the maintained
+[`rock5b-sd-uboot-hypothesis-test.sh`](../../scripts/rock5b-sd-uboot-hypothesis-test.sh)
+runbook to preserve the brand-new 26.2.1 card and change one raw component at a
+time:
+
+```mermaid
+flowchart LR
+    base[26.2.1 baseline<br/>DDR v1.18 + empty-DTB FIT]
+    fit[fit-only<br/>DDR v1.18 + valid-DTB FIT]
+    loader[loader-only<br/>DDR v1.20 + empty-DTB FIT]
+    both[both<br/>DDR v1.20 + valid-DTB FIT]
+    base -->|replace FIT only| fit
+    fit -->|restore full gap| base
+    base -->|replace loader only| loader
+    loader -->|restore full gap| base
+    base -->|replace both| both
+```
+
+A `fit-only` success is the cleanest support for the empty-control-DTB/BL33
+package hypothesis because DDR v1.18 and the 26.2.1 SPL remain in place. A
+`loader-only` success instead favors the DDR/SPL path, with the caveat that it
+is a mixed-stage image. `both` is the positive-control candidate. A failure of
+all three means the next split is BL33 entry versus disabled console versus OS
+discovery—not another simultaneous artifact change. Capture UART and HDMI for
+each boot, and restore the complete baseline raw gap between variants.
 
 ## 10. Evidence template
 
@@ -258,6 +278,11 @@ HDMI observation/photo:
 Last proven stage:
 One variable changed from baseline:
 Readback verification:
+SD baseline image/hash:
+SD test variant: baseline | fit-only | loader-only | both
+SPI state/hash (held constant):
+Boot result and exact last line:
+Baseline restored and verified afterward:
 Recovery result:
 ```
 
