@@ -1,7 +1,9 @@
 # Work packages — how this repo is organized
 
-The work here is getting the ROCK 5B's RK3588 chip to do hardware video
-encode/decode under Linux, from the kernel bases up to real applications. The
+The work here improves ROCK 5B support on Armbian's Ubuntu 26.04 images. Most
+project directories follow the RK3588 hardware-video path from kernel bases up
+to real applications; cross-cutting board bring-up and boot-chain work is
+captured through `findings/`, repo-wide scripts, and the status dashboard. The
 repo is split **project-by-project**, grouped into categories; this page is the
 detailed reading map and owns the canonical stack diagram (the root
 [`README.md`](../README.md) carries the front-door taxonomy that links here).
@@ -80,13 +82,15 @@ flowchart TB
 | video-libraries | ffmpeg / mesa | rkmpp codecs + rkrga filters, and the Mali-G610 transfer investigation behind GRD fallback. | [`../video-libraries/`](../video-libraries/README.md) |
 | apps | gnome-remote-desktop / kodi | Real application integration: zero-copy RDP encode and DRM PRIME media playback. | [`../apps/`](../apps/README.md) |
 | packaging | — | Installable delivery: DKMS, udev ACLs, PPA source packages, rollback, binary policy. | [`../packaging/`](../packaging/README.md) |
-| scripts | — | Repo-wide maintenance checks (markdown links, whitespace) run before a handoff. | [`../scripts/`](../scripts/README.md) |
+| scripts | — | Repo-wide maintenance checks (links, documentation contracts, whitespace) and board operations. | [`../scripts/`](../scripts/README.md) |
 
 ## User reading paths
 
 | Goal | Path |
 |------|------|
-| Check the docs before handoff | [`../scripts/check-markdown-links.py`](../scripts/check-markdown-links.py) -> `git diff --check` |
+| Check the repo before handoff | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) -> `bash scripts/check-repo.sh` |
+| Diagnose SD/SPI boot behavior | [`../status.md`](../status.md) track 12 -> [boot investigation](../findings/2026-07-09-rock5b-armbian-sd-boot-investigation.md) -> [`../scripts/`](../scripts/README.md) |
+| Capture a reproducible board/runtime baseline | [`system-baseline.md`](system-baseline.md) -> [`../kernel-drivers/tests/conformance/`](../kernel-drivers/tests/conformance/README.md) |
 | Get codecs working on a board | [`../install.md`](../install.md) -> [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) |
 | Build a command-line media stack | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`../video-libraries/ffmpeg/`](../video-libraries/ffmpeg/README.md) -> [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) |
 | Run accelerated RDP | [`../install.md`](../install.md) -> [`../packaging/`](../packaging/README.md) -> [`../apps/gnome-remote-desktop/`](../apps/gnome-remote-desktop/README.md) |
@@ -104,8 +108,6 @@ flowchart TB
 
 ## Maintenance rule
 
-When a project gains a new user-facing file, update that project's `README.md`.
-When a new top-level category or project is added, update this page and the
-repository map in [`../README.md`](../README.md). When status changes, update
-[`../status.md`](../status.md) with a real verification date rather than only
-changing prose elsewhere.
+[`../CONTRIBUTING.md`](../CONTRIBUTING.md) is the canonical update contract. It
+owns the file-placement rules, evidence lifecycle, status/ledger procedure, and
+handoff checks; this page owns only the project taxonomy and reading paths.

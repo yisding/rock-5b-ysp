@@ -10,6 +10,7 @@ of repo-wide references that are not owned by one project.
 |------|---------|
 | [`status-ledger.md`](status-ledger.md) | Audit companion to `../status.md`: longer dated cross-track notes without crowding the status dashboard. |
 | [`work-packages.md`](work-packages.md) | The project map, stack diagram, and user/developer reading paths. Start here when you are not sure which project owns a topic. |
+| [`system-baseline.md`](system-baseline.md) | Canonical capture contract separating target board, boot path, runtime kernel/userspace, and build host; points to the existing collector and dated truth owners. |
 | [`source-trees.md`](source-trees.md) | Source pins and reconstruction recipes for the trees that `file:line` citations resolve against. Frozen — not actively expanded (useful trees are being published to GitHub instead). |
 | [`gotchas.md`](gotchas.md) | Whole-repo trap index: kernel and FFmpeg traps live here; GRD, Mesa, packaging, and debug-kernel traps point to their project-owned write-ups. |
 
@@ -36,6 +37,9 @@ The user and developer reading paths are owned by
 paths — see there rather than duplicating the table here.
 
 ## Conventions
+
+The full evidence, ownership, status-update, and handoff workflow lives in
+[`../CONTRIBUTING.md`](../CONTRIBUTING.md). The `docs/`-specific conventions are:
 
 - **Anchors.** `file:line` citations resolve against a pinned source tree in
   [`source-trees.md`](source-trees.md). If a citation does not match what you see,

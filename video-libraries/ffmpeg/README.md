@@ -26,6 +26,7 @@ Project vocabulary (incl. `ffmpeg-rockchip` upstream vs the `ffmpeg-rockchip-81`
 | [`docs/fix-candidates.md`](docs/fix-candidates.md) | The 14 rebase-cleanup fix groups worth backporting to NyanMisaka's fork, and the small V4L2 pieces that may go to FFmpeg upstream. |
 | [`docs/review-learnings.md`](docs/review-learnings.md) | Reusable review traps from hardening the `ffmpeg-rockchip-81` rebase: V4L2 fallback, RKMPP AFBC/DRM, and RKRGA capability. |
 | [`docs/rebase-notes.md`](docs/rebase-notes.md) | Tree pins reconciled, how the fork was replayed onto FFmpeg master, and the submission ledger. |
+| [`docs/rockchip81-package-validation.md`](docs/rockchip81-package-validation.md) | Local package build and on-board RKMPP/RKRGA smoke validation, including the incomplete-MPP-runtime decode failure. |
 | [`docs/jellyfin-ffmpeg-patch-survey.md`](docs/jellyfin-ffmpeg-patch-survey.md) | 2026-07-11 comparison against Jellyfin FFmpeg 8.1.2: Rockchip sync status, correctness patches to apply directly, and sidecar-only patches. |
 | [`docs/submission-plan.md`](docs/submission-plan.md) | 2026-07-02 full-branch targeting: which of the ~35 logical patches go to nyanmisaka's fork, which to FFmpeg upstream, and which stay here. |
 | [`patches/`](patches/README.md) | The exported 28-patch `git format-patch` series behind fix-candidates + submission-plan (`.patch` files + apply instructions). |

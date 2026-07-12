@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
 # bootstrap-workspaces.sh — reconstruct the external build + conformance
-# workspaces from their pins, so a fresh machine can build kernels and run the
+# workspaces, so a fresh machine can build kernels and run the
 # conformance suites. The workspaces are deliberately NOT in git (they are ~99%
 # vendored git checkouts + multi-GB build output); this repo is their source of
-# truth for the authored scripts, and this script clones the rest.
+# truth for the authored scripts. Armbian follows the configured branch (main by
+# default); conformance sources use the commits in MANIFEST.tsv.
 #
 # It sets up two sibling dirs under ~/Code (override via env):
 #   WORKSPACE       (default ~/Code/kernel/rock5b-kernel-build) — Armbian build tree
@@ -14,6 +15,8 @@
 #
 #   bash bootstrap-workspaces.sh              # clone anything missing, deploy skeleton
 #   bash bootstrap-workspaces.sh --check      # report only, clone nothing
+#   ARMBIAN_BRANCH=v26.05 bash bootstrap-workspaces.sh  # branch for a new clone
+# Existing checkouts are reported with branch@commit and never moved.
 # =============================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"      # kernel-drivers/scripts
@@ -32,14 +35,25 @@ have() { [ -e "$1" ]; }
 
 clone_at() { # remote branch commit dest
 	local remote="$1" branch="$2" commit="$3" dest="$4"
-	if have "$dest/.git"; then say "  have   $dest"; return 0; fi
+	local head current_branch
+	local -a clone_args
+	if have "$dest/.git"; then
+		head="$(git -C "$dest" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+		current_branch="$(git -C "$dest" symbolic-ref --quiet --short HEAD 2>/dev/null || echo detached)"
+		say "  have   $dest  ($current_branch@$head)"
+		return 0
+	fi
 	if [ "$CHECK" = 1 ]; then say "  MISSING $dest  ($remote @ ${commit:-$branch})"; return 0; fi
 	say "  clone  $dest  <- $remote"
-	git clone --quiet "$remote" "$dest"
+	clone_args=(--quiet)
+	[ -n "$branch" ] && [ "$branch" != "-" ] && clone_args+=(--branch "$branch")
+	git clone "${clone_args[@]}" "$remote" "$dest"
 	if [ -n "$commit" ] && [ "$commit" != "-" ]; then
 		git -C "$dest" checkout --quiet "$commit" 2>/dev/null \
 			|| say "    WARN: pinned commit $commit not found — left on $branch tip"
 	fi
+	head="$(git -C "$dest" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+	say "    ready $branch@$head"
 }
 
 say "WORKSPACE       = $WORKSPACE"

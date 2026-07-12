@@ -46,17 +46,20 @@ block and Armbian's `media-0001` `vdec` block both land in the
 hunks overlapping. Exact `@@` anchors and reasoning in
 [Armbian packaging guide](../packaging/docs/armbian-packaging.md) (§ the `av1d` relocation).
 
-**ccache silently off if passed as an env var.** Armbian relaunches in Docker and
-only forwards parsed `KEY=VALUE` **cmdline** args (`ARMBIAN_CLI_RELAUNCH_PARAMS`,
-parsed in `lib/functions/cli/utils-cli.sh`); `USE_CCACHE=yes ./compile.sh`
-(env var) is dropped → `Ccache result: hit=0 miss=0 (0%)`. Pass it as an
-**argument**: `./compile.sh kernel BOARD=rock-5b … USE_CCACHE=yes`
+**ccache silently off if passed as an env var.** Armbian prefers a Docker
+relaunch when Docker is usable and otherwise supports a sudo/native relaunch on
+Armbian or Ubuntu Noble. The Docker path only forwards parsed `KEY=VALUE`
+**cmdline** args (`ARMBIAN_CLI_RELAUNCH_PARAMS`, parsed in
+`lib/functions/cli/utils-cli.sh`); `USE_CCACHE=yes ./compile.sh` (env var) was
+observed being dropped → `Ccache result: hit=0 miss=0 (0%)`. Pass it as an
+**argument** in either mode: `./compile.sh kernel BOARD=rock-5b … USE_CCACHE=yes`
 (`kernel-drivers/scripts/build-combined-kernel.sh` does this). First build is cold (~80–90 min,
 seeds ~5 GB); subsequent patch-only builds hit the cache (~10–15 min). Worktree
 re-patching churns mtimes and defeats Armbian's *worktree-incremental*, but
 content-addressed ccache survives it.
 
-**…but even arg-passed ccache silently misses if `compiler_check=mtime`.** ccache's
+**In Docker mode, even arg-passed ccache silently misses if
+`compiler_check=mtime`.** ccache's
 default keys the cache on the compiler binary's **mtime**. Armbian periodically
 rebuilds its Docker image (`--> CACHE MISS IN DOCKERFILE`), which does a fresh
 `apt install gcc` → new mtime → ccache treats it as a different compiler and

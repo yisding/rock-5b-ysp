@@ -84,6 +84,10 @@ PROFILE=rewrite ./scripts/collect-system-info.sh
 PROFILE=forward-port ./scripts/collect-system-info.sh
 ```
 
+The cross-project [`system baseline guide`](../../../../docs/system-baseline.md)
+defines the captured fields, profile naming, privacy boundary, and which dated
+document owns each changing state claim.
+
 Check that `/dev/mpp_service`, `/dev/rga`, dma-heaps, DRM/KMS nodes, RGA
 version paths, and MPP proc/debugfs paths look sane. Keep the collected dmesg
 tail with every test result.

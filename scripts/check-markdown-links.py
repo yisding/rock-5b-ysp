@@ -8,7 +8,9 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote
 
-LINK_RE = re.compile(r"!??\[[^\]\n]*(?:\][^\[\]\n]*)*\]\(([^\)\n]+)\)")
+from repo_files import repository_markdown_files
+
+LINK_RE = re.compile(r"!?\[[^\]\n]*(?:\][^\[\]\n]*)*\]\(([^\)\n]+)\)")
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 HTML_ANCHOR_RE = re.compile(
     r"<a\s+(?:[^>]*\s+)?(?:id|name)=[\"']([^\"']+)[\"']",
@@ -34,19 +36,6 @@ def github_like_anchor(text: str) -> str:
                 out.append("-")
                 previous_dash = True
     return "".join(out).strip("-")
-
-
-def markdown_files(root: Path) -> list[Path]:
-    skipped_prefixes = {("downloads",), ("packaging", "ppa", "out")}
-    files: list[Path] = []
-    for path in root.rglob("*.md"):
-        if ".git" in path.parts:
-            continue
-        relative_parts = path.relative_to(root).parts
-        if any(relative_parts[: len(prefix)] == prefix for prefix in skipped_prefixes):
-            continue
-        files.append(path)
-    return sorted(files)
 
 
 def normalize_target(raw: str) -> str:
@@ -84,8 +73,9 @@ def main() -> int:
     anchor_cache: dict[Path, set[str]] = {}
     file_links = 0
     anchor_links = 0
+    files = repository_markdown_files(root)
 
-    for path in markdown_files(root):
+    for path in files:
         text = path.read_text(encoding="utf-8", errors="replace")
         for match in LINK_RE.finditer(text):
             raw = match.group(1).strip()
@@ -93,9 +83,11 @@ def main() -> int:
                 continue
 
             target = normalize_target(raw)
-            if target.startswith("#") or SCHEME_RE.match(target):
+            if SCHEME_RE.match(target):
+                continue
+            if target.startswith("#"):
                 candidate = path.resolve()
-                fragment = target[1:] if target.startswith("#") else ""
+                fragment = target[1:]
             else:
                 file_part, _, fragment = target.partition("#")
                 if not file_part:
@@ -135,7 +127,7 @@ def main() -> int:
         )
 
     print(
-        f"checked {len(markdown_files(root))} markdown files, "
+        f"checked {len(files)} markdown files, "
         f"{file_links} local links, {anchor_links} local markdown anchors"
     )
     return 1 if missing_files or missing_anchors else 0

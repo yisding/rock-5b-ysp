@@ -25,6 +25,8 @@ sub-project is the RGA-specific front door.
 - On-hardware RGA tests: [`../tests/`](../tests/README.md) (`librga-smoke.*`, `librga-suite*.sh`).
 - External userspace scan beyond the current conformance set:
   [`userspace-consumers.md`](userspace-consumers.md).
+- RGA3 virtual-address import and contiguous-IOVA fallback investigation:
+  [`userptr-iommu.md`](userptr-iommu.md).
 - Userspace side: [`../../vendor-libraries/rga/`](../../vendor-libraries/rga/README.md).
 
 Project vocabulary: [`keywords.md`](keywords.md).

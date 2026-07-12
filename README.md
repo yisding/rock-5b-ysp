@@ -1,12 +1,19 @@
-# rock-5b-ysp — ROCK 5B RK3588 hardware-video record
+# rock-5b-ysp — ROCK 5B RK3588 support record
 
-This repo is the tracking and knowledge record for making the Radxa ROCK 5B's
-RK3588 do hardware video encode/decode under Linux. The actual code lives in
-sibling source trees (kernel forks, `ffmpeg-rockchip`, `gnome-remote-desktop`,
-mesa, `librga`, `mpp-rockchip`); this repo holds the architecture notes,
-forward-port design, patch deliverables, captured findings, and the dated status
-of every track. Cross-cutting vocabulary (MPP, RGA, CCU, DCHS, …) lives in
-[`glossary.md`](glossary.md); each project also keeps a `keywords.md`.
+This repo is the tracking and knowledge record for improving Radxa ROCK 5B
+support on Armbian's Ubuntu 26.04 (Resolute) images. The largest body of work is
+making the RK3588 hardware-video stack usable end to end, but the record also
+captures board bring-up, boot-chain, packaging, and application gaps encountered
+along the way. The goal is to make each gap, experiment, result, and remaining
+gate understandable and reproducible by someone other than the person who first
+investigated it.
+
+The actual code lives in sibling source trees (kernel forks, `ffmpeg-rockchip`,
+`gnome-remote-desktop`, Mesa, `librga`, `mpp-rockchip`); this repo holds the
+architecture notes, forward-port design, patch deliverables, captured findings,
+and dated status of every track. Cross-cutting vocabulary (MPP, RGA, CCU, DCHS,
+…) lives in [`glossary.md`](glossary.md); each project also keeps a
+`keywords.md`.
 
 The validated kernel result is a Rockchip vendor **MPP** codec stack plus **RGA**
 forward-port from the Rockchip 6.1 BSP to Linux 6.18, packaged for Armbian on the
@@ -25,6 +32,8 @@ source monorepo. Use it to understand the RK3588 hardware-video stack, apply the
 published patch series, rebuild packages, and reproduce the validation path. The
 source projects themselves live in external trees; pinned source-tree references
 and reconstruction notes are in [`docs/source-trees.md`](docs/source-trees.md).
+It is not yet a complete ROCK 5B hardware-compatibility database: a subsystem
+absent from [`status.md`](status.md) is untracked, not implicitly supported.
 
 For a quick orientation:
 
@@ -32,6 +41,9 @@ For a quick orientation:
 |------|------------|
 | Install the validated ROCK 5B kernel path | [`install.md`](install.md) |
 | Check what is usable, experimental, or stale | [`status.md`](status.md) |
+| Capture the exact board/kernel/userspace baseline | [`docs/system-baseline.md`](docs/system-baseline.md) |
+| Record a newly discovered gap or result | [`findings/`](findings/README.md) |
+| Update or contribute to the record | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Review the kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
 | Understand the repo taxonomy | [`docs/work-packages.md`](docs/work-packages.md) |
 | Decode shared terms like MPP, RGA, CCU, DCHS | [`glossary.md`](glossary.md) |
@@ -40,6 +52,7 @@ For a quick orientation:
 
 | Track | Public-facing state |
 |-------|---------------------|
+| Boot chain | The established SPI → NVMe path works. Raw SD boot remains under investigation; the tested SD rootfs boots through SPI after clearing its raw-loader area. See [`status.md` track 12](status.md#dashboard) before changing boot firmware. |
 | Combined Armbian kernel | Hardware-validated on ROCK 5B for H.264/H.265 encode, H.264/H.265 decode, RGA, and full hardware transcode. This is the primary install path. |
 | Userspace codec stack | Documented through `vendor-libraries/` and `video-libraries/`; `ffmpeg-rockchip` and GRD integration notes are captured here, while source builds live in their own trees. |
 | PPA delivery | Public arm64 indexes now contain MPP, librga, the Rockchip-81 FFmpeg stack, the co-installable FFmpeg 6.1 tools, and all three co-installable kernel builds. GRD/GDM packages and all kernel board install/revert gates remain pending, so treat the PPA as a staging channel rather than the primary install path. |
@@ -165,7 +178,8 @@ owning README.
 
 ```
 README.md              this map + the taxonomy diagram
-status.md              dated whole-project dashboard and staleness watchlist
+CONTRIBUTING.md        evidence lifecycle, file ownership, status updates, handoff checks
+status.md              dated dashboard, next gates, and staleness watchlist
 glossary.md            cross-cutting vocabulary (per-project terms live in each project's keywords.md)
 install.md             board-user install path and delivery chooser
 findings/              raw capture inbox (drop-first, graduate-later): README + TEMPLATE
@@ -192,10 +206,9 @@ docs/                  cross-project map, source-tree pins, and gotchas trap ind
 scripts/               repo-wide maintenance checks
 ```
 
-Maintenance rule: a commit that adds a user-facing file updates the owning project
-README; a commit that adds a top-level category or project updates this map and
-[`docs/work-packages.md`](docs/work-packages.md). Status changes belong in
-[`status.md`](status.md) with a real verification date.
+The canonical maintenance workflow is [`CONTRIBUTING.md`](CONTRIBUTING.md): it
+defines file ownership, the finding-to-project-doc lifecycle, dated status
+updates, external artifact policy, and the required handoff checks.
 
 ## Provenance and licensing
 

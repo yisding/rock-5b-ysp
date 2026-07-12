@@ -7,13 +7,12 @@
 #
 # WHY THIS WRAPPER EXISTS -- the ccache gotcha:
 #   USE_CCACHE must be passed as a compile.sh *ARGUMENT* (KEY=VALUE), never as a
-#   shell environment variable. Armbian relaunches the whole build inside Docker
-#   and only forwards command-line KEY=VALUE args into the container -- a bare
-#   `USE_CCACHE=yes ./compile.sh ...` env var is silently dropped, the container
-#   falls back to USE_CCACHE=no, and ccache stays OFF without warning. A build
-#   done the env-var way reported `Ccache result: hit=0 miss=0 (0%)` and took the
-#   full ~89 min. Passed as an arg (as below) it propagates correctly; Armbian
-#   prints `using CCACHE` and a real hit/miss summary at the end.
+#   shell environment variable. Armbian may relaunch through Docker (preferred
+#   when available) or sudo (native Armbian/Ubuntu Noble); command-line
+#   KEY=VALUE args survive either path. A bare env var was observed being
+#   dropped by the Docker relaunch, leaving ccache OFF without warning
+#   (`hit=0 miss=0`, ~89 min). Passed as an arg (as below), it propagates
+#   correctly and Armbian prints a real hit/miss summary at the end.
 #
 # COLD vs WARM:
 #   The first build with an empty cache is full-speed (~80-90 min) and POPULATES
@@ -36,6 +35,7 @@
 # After it finishes, point install-combined-kernel.sh (same directory) PHASH at
 # the new P####-C#### hash printed below, then install + reboot + validate.
 # =============================================================================
+# shellcheck disable=SC2012 # Armbian-generated deb names cannot contain whitespace.
 set -euo pipefail
 
 # The Armbian build tree lives in the external build workspace (rock5b-kernel-build);
@@ -54,7 +54,7 @@ echo ">>> Building combined Rock 5B kernel (ccache ON) in: $BUILD_DIR"
 echo ">>> ccache dir before: $(du -sh cache/ccache 2>/dev/null | cut -f1 || echo 'n/a')"
 echo
 
-# USE_CCACHE=yes is an ARGUMENT (not an env var) so it reaches the Docker container.
+# USE_CCACHE=yes is an ARGUMENT so it survives the Docker or sudo relaunch.
 ./compile.sh kernel \
 	BOARD=rock-5b \
 	BRANCH=current \

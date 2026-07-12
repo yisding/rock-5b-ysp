@@ -36,17 +36,32 @@ overlay gate.
 
 [Armbian](glossary.md) is the Debian/Ubuntu-based distro + build framework this
 port targets; the kernel is produced by *its* build system, not compiled by
-hand. That build system **hard-requires Docker** — `build-combined-kernel.sh`
-relaunches `compile.sh` inside a container, so install and start Docker first
-(`sudo apt install docker.io && sudo systemctl enable --now docker`, and add
-yourself to the `docker` group). Also budget the resources: a first build pulls
-a large toolchain image and needs roughly **25+ GB free disk** and **~80–90 min**
-cold (~10–15 min for warm patch-only rebuilds).
+hand. Do not confuse the two operating-system roles: **Ubuntu 26.04 Resolute is
+the target image/userspace**, while Armbian's documented native build hosts are
+Armbian or **Ubuntu 24.04 Noble**. Any current Docker-capable Linux can instead
+use the containerized build. The official requirements are at least **8 GB RAM**
+(less only with BTF disabled) and about **50 GB free disk**; the measured cold
+kernel build takes ~80–90 minutes and a warm patch-only build ~10–15 minutes.
+
+`compile.sh` prefers Docker when a working daemon is available
+(`PREFER_DOCKER=yes`, the default) and otherwise relaunches through `sudo` for a
+native build. Choose one supported host mode:
+
+| Build-host mode | Requirement | Invocation through this repo |
+|-----------------|-------------|------------------------------|
+| Containerized (default) | A current Docker-capable Linux host; install/start Docker and give your user daemon access. | `bash kernel-drivers/scripts/build-combined-kernel.sh` |
+| Native | Armbian or Ubuntu 24.04 Noble, plus working `sudo`. The measured aarch64 VM path is documented in the [builder finding](findings/2026-07-08-armbian-builder-setup.md). | `bash kernel-drivers/scripts/build-combined-kernel.sh PREFER_DOCKER=no` |
+
+On a ROCK 5B already running the target Ubuntu 26.04 userspace, use the Docker
+mode unless Armbian adds Resolute to its native-host support list. See Armbian's
+official [build preparation](https://docs.armbian.com/Developer-Guide_Build-Preparation/)
+and [`PREFER_DOCKER` switch](https://docs.armbian.com/Developer-Guide_Build-Switches/#prefer_docker).
 
 `kernel-drivers/scripts/build-combined-kernel.sh` expects an Armbian build tree at
 **`$WORKSPACE/armbian-build`** — an external, gitignored build workspace
 (default `WORKSPACE=../kernel/rock5b-kernel-build`, override with `WORKSPACE=`).
-The bootstrap clones it (and the conformance sources) from their pins:
+The bootstrap clones Armbian's configured branch (`main` by default) and checks
+out the conformance sources at the commits in their manifest:
 
 ```bash
 bash kernel-drivers/scripts/bootstrap-workspaces.sh
@@ -75,7 +90,8 @@ cp kernel-drivers/patches/rk3588-rkvenc2-0*.patch \
    "$WORKSPACE/armbian-build/userpatches/kernel/archive/rockchip64-6.18/"
 
 # 2. Build (~80-90 min cold, ~10-15 warm). USE_CCACHE must be an ARGUMENT,
-#    not an env var -- the wrapper gets this right (docs/gotchas.md):
+#    not an env var -- the wrapper gets this right (docs/gotchas.md).
+#    On a supported Noble/Armbian native host, append PREFER_DOCKER=no.
 bash kernel-drivers/scripts/build-combined-kernel.sh        # prints the new P####-C#### hash
 
 # 3. Install (pin the hash the build printed), reboot, validate:
@@ -138,6 +154,10 @@ Remember: **the overlay is not boot-validated** ([`status.md`](status.md)) and
 the package must never be installed on the combined kernel (§1).
 
 ## 6. Validate, then exercise real frames
+
+Before replacing a working kernel, capture its identity with the
+[`system-baseline.md`](docs/system-baseline.md) collector so a failure can be
+compared against the exact previous boot.
 
 1. `sudo bash kernel-drivers/scripts/validate-combined.sh` — devices, 4 cores, clean-probe
    dmesg sweep ([`kernel-drivers/scripts/README.md`](kernel-drivers/scripts/README.md)).

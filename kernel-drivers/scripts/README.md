@@ -5,7 +5,8 @@ combined `=y` kernel and the self-contained-DT **av1 forward-port** deb) plus th
 shared ops scripts (revert, co-installable fallback, the canonical udev rule),
 the [`debug-kernel/`](debug-kernel/README.md) KASAN build, and
 [`bootstrap-workspaces.sh`](bootstrap-workspaces.sh) which reconstructs the
-external build/conformance workspaces from their pins. This is delivery path (a)
+external build/conformance workspaces from Armbian's configured branch plus the
+pinned conformance manifest. This is delivery path (a)
 of the project — see [`install.md`](../../install.md) for the chooser between the
 combined kernel, DKMS, and the PPA.
 
@@ -15,6 +16,26 @@ combined kernel, DKMS, and the PPA.
 > `bootstrap-workspaces.sh` clones that workspace. Every script defaults
 > `WORKSPACE` to `../../../kernel/rock5b-kernel-build` and takes `ARMBIAN_BUILD=`
 > / `WORKSPACE=` overrides.
+
+## Build-host modes
+
+The Ubuntu 26.04 Resolute system being built **is not the same thing as the
+build host**. Armbian currently supports native builds on Armbian or Ubuntu
+24.04 Noble; any current Docker-capable Linux can use the containerized path.
+`compile.sh` prefers Docker when it is usable and falls back to a sudo relaunch
+when it is not. Pass `PREFER_DOCKER=no` as an extra wrapper argument to force a
+supported native build:
+
+```bash
+bash build-combined-kernel.sh                    # Docker when available
+bash build-combined-kernel.sh PREFER_DOCKER=no   # native Armbian/Noble host
+```
+
+Both modes need roughly 8 GB RAM and 50 GB free disk. The aarch64 Noble native
+path and its tight BTF memory margin are recorded in the
+[`armbian-builder-setup` finding](../../findings/2026-07-08-armbian-builder-setup.md).
+The full prerequisite and mode chooser is canonical in
+[`install.md`](../../install.md) §2.
 
 ## Package brief
 
@@ -39,7 +60,7 @@ The build scripts expect an Armbian build tree at
 gitignored, outside this repo). Get it with the bootstrap:
 
 ```bash
-bash bootstrap-workspaces.sh          # clones armbian-build + conformance sources from pins
+bash bootstrap-workspaces.sh          # Armbian branch + pinned conformance sources
 ```
 
 Stage the port patches per [`packaging/docs/armbian-packaging.md`](../../packaging/docs/armbian-packaging.md)
@@ -52,12 +73,12 @@ needs no path edits. Override `ARMBIAN_BUILD=`/`WORKSPACE=` for another layout.
 
 | Script | Runs as | What it does |
 |--------|---------|--------------|
-| `build-combined-kernel.sh` | user | Wraps `./compile.sh kernel BOARD=rock-5b BRANCH=current KERNEL_CONFIGURE=no USE_CCACHE=yes`. Crucially passes `USE_CCACHE` as an **argument** (env var wouldn't reach the Docker build — see [gotchas](../../docs/gotchas.md)). Prints ccache growth + the new `P####-C####` hash. |
+| `build-combined-kernel.sh` | user | Wraps `./compile.sh kernel BOARD=rock-5b BRANCH=current KERNEL_CONFIGURE=no USE_CCACHE=yes`. Crucially passes `USE_CCACHE` as an **argument** so it survives Armbian's Docker/sudo relaunch (see [gotchas](../../docs/gotchas.md)). Prints ccache growth + the new `P####-C####` hash. |
 | `install-combined-kernel.sh` | root | Removes the obsolete `rkvdec2` boot overlay from `armbianEnv.txt` (backs it up), then `dpkg -i` the image + dtb + headers debs for the pinned `PHASH`. Old kernel stays selectable. `DEBS`/`PHASH` are env-overridable; `HASH` is an optional extra version filter. |
 | `build-armbian-deb.sh` | user | The **av1 forward-port** build variant. Regenerates the port patches from the kernel git tree (`KERNEL_TREE`, `git format-patch v6.18..HEAD`), restores/cleans the selected built-in Armbian kernel patch archive, clears the matching userpatch archive, stages the generated patch set, **disables** the two colliding Armbian core media patches (this tree's DT is self-contained), then the same ccache-correct `compile.sh`. `--restore` performs only the built-in archive reset. |
 | `kernel-revert.sh` | root (SD rescue) | Get a bad board booting again: flip `/boot` symlinks (`switch`) or chroot-reinstall a good deb (`reinstall`) on the internal disk from an SD-card rescue. Subcommands `list`/`switch`/`reinstall`; target via `--auto`/`--device`/`--root`. |
 | `make-fallback-kernel-deb.sh` | user | Repackage a kernel deb (rename `Package:`, drop `Provides:`) into a **co-installable** fallback that won't clobber the primary `linux-image-current-rockchip64` — a permanent recovery kernel `kernel-revert.sh` can `switch` to. Defaults to the official 6.18.35 (26.5.1) debs. |
-| `bootstrap-workspaces.sh` | user | Reconstruct the external build + conformance workspaces from their pins: clone `armbian-build` and the 5 conformance source checkouts (from `../tests/conformance/MANIFEST.tsv`), deploy the tracked conformance skeleton. Idempotent; `--check` reports only. |
+| `bootstrap-workspaces.sh` | user | Reconstruct the external workspaces: clone `ARMBIAN_BRANCH` (`main` by default), clone the five conformance sources at `../tests/conformance/MANIFEST.tsv` commits, and deploy the tracked conformance skeleton. Existing checkouts are never moved and are reported as `branch@commit`; `--check` reports only. |
 | `validate-combined.sh` | root | Post-reboot: checks `/dev/mpp_service`, the four cores under `/proc/mpp_service` (`rkvenc-core0/1` + the two decoder cores, see naming note below), `/dev/rga`, and greps boot dmesg for clean probes / no faults. |
 | `99-rockchip-codec.rules` | (install to `/etc/udev/rules.d/`) | `GROUP="video" MODE="0660"` on `/dev/mpp_service`, `/dev/dma_heap/*`, and `/dev/rga` so ffmpeg-rockchip runs **without sudo** (you must be in the `video` group; the dma-heap line is **required** — rkmpp allocates buffers there, see [gotchas](../../docs/gotchas.md)). Packaged as a deb by [`packaging/codec-udev/README.md`](../../packaging/codec-udev/README.md), which copies this file at build time — this copy is canonical. |
 
@@ -72,7 +93,7 @@ needs no path edits. Override `ARMBIAN_BUILD=`/`WORKSPACE=` for another layout.
 ## Typical flow
 
 ```bash
-# build (on a fast box or the board itself)
+# build (on Docker-capable Linux, or native Armbian/Ubuntu Noble)
 nohup bash build-combined-kernel.sh &            # ~80-90 min cold, ~10-15 warm
 # set install-combined-kernel.sh PHASH to the printed hash (or pass it), then:
 sudo PHASH='P####-C####' bash install-combined-kernel.sh

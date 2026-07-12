@@ -4,7 +4,9 @@
 #
 # Build an Armbian "current" (rockchip64, Rock 5B) kernel .deb that carries the
 # RK3588 vendor MPP + RGA + *AV1 decoder* forward-port from THIS git tree, on
-# top of the *currently shipping* Armbian kernel base (6.18.37 / 26.08.0-trunk).
+# top of the selected Armbian `current` kernel base. This wrapper was validated
+# against 6.18.37 / 26.08.0-trunk; re-check its skip list and core patch names
+# when the Armbian base moves.
 #
 # It differs from rock-5b-ysp's build-combined-kernel.sh in one load-bearing way:
 # this tree's device tree is SELF-CONTAINED. Commit "add decoder/AV1 IOMMUs,
@@ -27,11 +29,14 @@
 #   6. Print the new P####-C#### hash and the deb paths.
 #
 # THE ccache GOTCHA (inherited from rock-5b-ysp): USE_CCACHE must be a compile.sh
-# command-line ARGUMENT, never a shell env var -- Armbian relaunches the build
-# inside Docker and silently drops bare env vars, so ccache would stay OFF.
+# command-line ARGUMENT, never a shell env var. Armbian can relaunch through
+# Docker or sudo; arguments survive both, while the Docker path was observed
+# silently dropping a bare env var and leaving ccache OFF.
 #
-# PREREQS: Docker running + you in the `docker` group; ~25 GB free; the Armbian
-# build tree (ARMBIAN_BUILD) already cloned. Cold build ~80-90 min; warm ~10-15.
+# PREREQS: either Docker-capable Linux (default mode) or a supported native
+# Armbian/Ubuntu Noble host (`PREFER_DOCKER=no`); ~8 GB RAM, ~50 GB free; the
+# Armbian build tree (ARMBIAN_BUILD) already cloned. Cold build ~80-90 min;
+# warm ~10-15. See ../../install.md §2.
 #
 # USAGE
 #   bash build-armbian-deb.sh
@@ -56,14 +61,14 @@ CODE="$(cd "$HERE/../../.." && pwd)"                    # ~/Code (ysp is <CODE>/
 WORKSPACE="${WORKSPACE:-$CODE/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
 # KERNEL_TREE = the kernel git tree carrying the forward-port commits (git format-patch source).
 KERNEL_TREE="${KERNEL_TREE:-$CODE/kernel/linux-6.18-rkvenc-av1-fwport}"
-# ARMBIAN_BUILD = the Armbian build tree that produced the shipping 6.18.37 deb.
+# ARMBIAN_BUILD = the selected Armbian build tree.
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 BASE_TAG="${BASE_TAG:-v6.18}"                 # port patches are v6.18..HEAD
 KBRANCH="${KBRANCH:-rockchip64-6.18}"         # Armbian kernel patch archive branch
 PATCH_PREFIX="${PATCH_PREFIX:-rk3588-av1-fwport}"  # generated userpatch filename prefix
 STAGING="${STAGING:-$WORKSPACE/forward-port/patches}"   # inspectable copy of generated patches
 # Commit(s) present in this forward-port tree only because the local branch
-# tracks fixes that Armbian's shipping 6.18.37 source base already carries.
+# tracks fixes that the validated Armbian 6.18.37 source base already carries.
 # Keep them out of generated userpatches or Armbian will reject them as reversed.
 SKIP_COMMITS="${SKIP_COMMITS:-e059aad8d68b}"
 
@@ -218,7 +223,7 @@ for p in "${DISABLE_PATCHES[@]}"; do
 done
 
 # =============================================================================
-say "STEP 5: build (ccache ON, as a compile.sh ARGUMENT so it reaches Docker)"
+say "STEP 5: build (ccache ON as a compile.sh ARGUMENT across Docker/sudo relaunch)"
 say "  ccache dir before: $(du -sh "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)"
 cd "$ARMBIAN_BUILD"
 # Enable our debug extension only for IOMMU_DEBUG=yes builds; the extension

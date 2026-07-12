@@ -3,7 +3,7 @@
 > Scope: <which project / source tree this is about>
 > Source: <tree @ pin, and the anchor — `file.c` `func()` (~:NNN), or a commit/URL>
 > Date: <YYYY-MM-DD>
-> Trust: MEASURED | HYPOTHESIS | UNVERIFIED
+> Trust: <one or more tags defined in findings/README.md>
 
 ## The fact
 

@@ -9,23 +9,59 @@ distro versions, un-pushed dev-box state) are concentrated in the
 [watchlist](#watchlist--facts-that-go-stale-silently) so routine maintenance
 means re-checking one list. Update rule: the
 [resyncing guide §6](./kernel-drivers/docs/resyncing.md) update-propagation table names this page
-whenever a gate changes; keep dates honest (re-verify, don't re-date).
+whenever a gate changes. The canonical status/ledger procedure is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md); keep dates honest (re-verify, don't
+re-date).
+
+Symbols: ✅ hardware-validated or otherwise complete for its stated scope;
+⚠️ usable or reviewable with a material caveat; 🚧 active work without the
+required runtime proof; 🔄 waiting on an external review/rebase cycle; ❌ not
+available yet. A subsystem absent from this dashboard is **untracked**, not
+implicitly working or broken—capture evidence in [`findings/`](findings/README.md)
+before adding a new track.
 
 ## Dashboard
 
+This table answers **what is true as of the verification date**. Longer evidence
+stays in the linked detail and status ledger; the next proof is kept in the
+separate table below so both remain scannable.
+
 | # | Track | Public state | Verified | Detail |
 |---|-------|--------------|----------|--------|
-| 1 | Kernel forward-port | ✅ Primary validated path: combined Armbian kernel is hardware-validated for H.264/H.265 encode/decode, full hardware transcode, and the AV1/VP9 superset decode build. | 2026-07-04 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
-| 2 | BSP-audit fix series | ⚠️ Staged review material, not shippable: current split series diverged from the adversarially-verified draft and does not compile until patch 0024 is regenerated. | 2026-07-01 | [`cleanup-split/`](./kernel-drivers/patches/cleanup-split/README.md) |
-| 3 | DKMS channel | ⚠️ Secondary path: compiles on the documented 6.18 target; boot overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
-| 4 | Clean-room rewrite drivers | 🚧 Active bring-up: 6.18 remains at `d1d15a3d052a`; mainline was rebased to official `v7.2-rc2` at `083bdb98e715`. Source-package `olddefconfig` validation passes for both alpha kernel packages, and broad device-free validation exists, but there is still no booted hardware-validation record. | 2026-07-10 | [rewrite-driver track](./kernel-drivers/docs/rewrite-drivers.md) §6 |
-| 5 | ffmpeg tree | ⚠️ `ffmpeg-rockchip-81` builds and packages. The AV1 MP4/MKV fix (`be367abfe6`) and decoder `pix_fmts` cleanup (`8356739686`) are committed on `main`; open, mergeable PR #1 advanced to `c8aca81111` with review fixes. The decoder, `ffmpeg`, and focused FATE test pass. Packaging exports `main@be367abfe6` with no quilt series, and source publication `18615674` plus arm64 build `33388714` are public. RK3588 MP4/MKV hardware re-validation remains pending. | 2026-07-11 | [Kodi/ffmpeg finding](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) |
-| 6 | ffmpeg submissions | ❌ Nothing submitted yet; the upstream-vs-fork targeting plan exists. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
-| 7 | GNOME Remote Desktop backend | ✅ Patch series applies to GRD 50.1 and the hardware path sustains 60 fps; handover-reconnect work is still awaiting upstream submission. | 2026-07-03 | [`profiling.md`](./apps/gnome-remote-desktop/docs/profiling.md) |
-| 8 | Mesa / Panfrost | 🔄 Four-MR `gl_FragCoord` transfer stack remains open at the validated tips; selected G610 reruns passed, interpolation evidence is separated under `interp_probe/`, and !42679 now needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ⚠️ Public arm64 indexes now contain MPP, librga, Rockchip-81 FFmpeg from `main@be367abfe6`, the co-installable FFmpeg 6.1 tools, and all three `~rk2` co-installable kernels. GRD and the optional GDM greeter ACL remain held, and kernel board install/revert validation is pending, so this is not yet the primary full-stack install path. | 2026-07-11 | [`packaging/ppa/`](packaging/ppa/README.md) |
-| 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Releases exist yet. | 2026-07-01 | [`packaging/`](packaging/README.md) |
-| 11 | Kodi HW decode | 🚧 Design + prerequisites done: stock Kodi 22 auto-selects the fork `*_rkmpp` decoders via their `AVCodecHWConfig` (no Kodi patch), the fork `libavcodec63` debs are built, and the MPP runtime is fixed. Not yet done: the Kodi GBM/GLES build, tty1 playback validation, and the `kodi` PPA package. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
+| 1 | Kernel forward-port | ✅ Primary path: combined kernel hardware-validated for H.264/H.265 encode/decode, RGA, transcode, and AV1/VP9 superset decode. | 2026-07-04 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
+| 2 | BSP-audit fix series | ⚠️ Staged only: the split series diverges from the verified draft and does not compile until patch 0024 is regenerated. | 2026-07-01 | [`cleanup-split/`](./kernel-drivers/patches/cleanup-split/README.md) |
+| 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
+| 4 | Clean-room rewrite drivers | 🚧 Both alpha packages pass source/config gates and broad device-free validation; neither has booted hardware proof. | 2026-07-10 | [rewrite-driver track](./kernel-drivers/docs/rewrite-drivers.md) §6 |
+| 5 | ffmpeg tree | ⚠️ Rockchip-81 builds, passes focused tests, and is public in the PPA; AV1 MP4/MKV still lacks board re-validation. | 2026-07-11 | [Kodi/ffmpeg finding](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) |
+| 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
+| 7 | GNOME Remote Desktop backend | ✅ The series applies to GRD 50.1 and the hardware path sustains 60 fps; the reconnect fix is not submitted. | 2026-07-03 | [`profiling.md`](./apps/gnome-remote-desktop/docs/profiling.md) |
+| 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
+| 9 | Launchpad PPA | ⚠️ MPP, librga, both FFmpeg tracks, and three kernels are public; GRD/GDM are held and kernel board gates are open. | 2026-07-11 | [`packaging/ppa/`](packaging/ppa/README.md) |
+| 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
+| 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
+| 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works and the tested SD rootfs boots through SPI; raw SD-loader boot remains unresolved. | 2026-07-09 | [boot investigation](./findings/2026-07-09-rock5b-armbian-sd-boot-investigation.md) |
+
+## Next gates
+
+A next gate is the smallest result that would materially advance its track, not
+a general wish list. Close or replace it only with evidence from the owning
+detail page, and update the dashboard date and ledger row when public state
+changes.
+
+| # | Track | Next proof |
+|---|-------|------------|
+| 1 | Kernel forward-port | No open kernel-function gate; rerun the hardware suite whenever the kernel or patch base changes. |
+| 2 | BSP-audit fix series | Regenerate patch 0024 and prove the full split series compiles. |
+| 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. |
+| 4 | Clean-room rewrite drivers | Boot one packaged alpha kernel on the board and capture the first hardware conformance log. |
+| 5 | ffmpeg tree | Re-test AV1 from MP4 and MKV through `av1_rkmpp` on RK3588. |
+| 6 | ffmpeg submissions | Submit the first patch from the ordered upstream/fork plan and record its review URL. |
+| 7 | GNOME Remote Desktop backend | Submit the handover-reconnect fix upstream and link the MR. |
+| 8 | Mesa / Panfrost | Rebase !42679 and rerun its selected CI coverage. |
+| 9 | Launchpad PPA | Install, boot, and revert the co-installable forward-port kernel on the ROCK 5B. |
+| 10 | Binary publishing | Choose and record the repository-wide license required before a public release. |
+| 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. |
+| 12 | ROCK 5B SD/SPI boot chain | Write the 26.5.1 `current` raw artifacts to SD and capture where that boot stops or succeeds. |
 
 > **Runtime gate pending.** The BSP-audit cleanup series still needs the runtime
 > codec regression test before it can ship. Compile status alone is not
@@ -36,29 +72,190 @@ whenever a gate changes; keep dates honest (re-verify, don't re-date).
 ## Status Ledger
 
 Longer dated audit notes now live in
-[`docs/status-ledger.md`](./docs/status-ledger.md). Keep this page as the
-status dashboard plus the watchlist of facts that can change silently.
+[`docs/status-ledger.md`](./docs/status-ledger.md). Keep this page as the compact
+dashboard, next-gate queue, and watchlist of facts that can change silently.
 
 <a id="watchlist--facts-that-go-stale-silently"></a>
 
 ## Watchlist — facts that go stale silently
 
-Re-check these on any maintenance pass; each row records the last time anyone
-looked.
+Re-check these on a maintenance pass. The index is the quick scan; each linked
+detail preserves why the item can drift and the exact state observed on its
+last-checked date.
 
-| Watch item | Why it matters | Last checked | State then |
-|------------|----------------|--------------|------------|
-| Armbian `media-0001` drift (node labels, av1d `@@` anchor) | DT patch 02 converts its nodes in place — a change breaks the build or the decoder DT | 2026-07-11 | Live `armbian/build` main `815a50b664f9` still carries byte-identical `rockchip64-6.18` `media-0001`/`media-0007` blobs (`390c2e0b`/`a2a4143e`); `vdec0`, `vdec1`, and the `av1d` hunk assumptions hold. Checklist: [resyncing guide §4](./kernel-drivers/docs/resyncing.md) |
-| Armbian patcher precedence (empty-file disable **broken** on glob branches; `rockchip64-6.18` is glob, not series) | The self-contained-DT / AV1 build disables `media-0001`+`media-0007` by **renaming them in Armbian's core tree**; if Armbian restores userpatch override, moves the branch to `series.conf`, or adds a per-patch disable, switch the disable step to the supported mechanism | 2026-07-11 | Live-main `lib/tools/patching.py` blob remains `d14c53f6`, identical to the audited core-wins implementation; no precedence change observed. Mechanism + fix: [`packaging/docs/armbian-patch-precedence.md`](./packaging/docs/armbian-patch-precedence.md) |
-| [armbian/build#10085](https://github.com/armbian/build/pull/10085) (udev rule upstreaming) | Determines whether `codec-udev` is required or just a backfill for older/custom images | 2026-07-11 | GitHub still records it merged 2026-06-30 as `a6163444eb6c305b635c82242fbeb636daf4b6f4`; future Armbian images built from that base should carry the MPP/dma-heap rule. |
-| Ubuntu ffmpeg version on resolute | A future `7:8.1.x` silently supersedes the `+rkmpp` debs | 2026-07-11 | The live resolute arm64 universe index still publishes `ffmpeg 7:8.0.1-3ubuntu2`; hold recipe: [`packaging/README.md`](packaging/README.md) |
-| Launchpad PPA publication state | Source acceptance, build state, and binary publication can change after upload without local file changes | 2026-07-11 | Launchpad API + public arm64 index check 21:44 PDT: `main@be367abfe6` FFmpeg source [`18615674`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18615674) is Published and build [`33388714`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33388714) succeeded; its `ffmpeg`/`libavcodec63` binaries are indexed. Co-installable `ffmpeg-rockchip`, MPP, librga, and all three `~rk2` kernel image/DTB/header sets are also indexed. GRD/GDM remain held; no kernel has passed its board gate. |
-| Mesa MR stack [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) / [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679) / [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) / [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614) (+ superseded [!38433](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/38433)) | Review feedback / CI results / merge state drive next steps | 2026-07-11 | GitLab API: all remain `opened` at the previously recorded tips/pipelines; !42679 is now reported `need_rebase`. Selected CI evidence remains: !42563 pipeline 1697832 green for x86/arm64 build + G610 GL/piglit; !42679 pipeline 1700107 green for x86 build + clang + llvmpipe + softpipe; corrected !42613 `8875a22856d` pipeline 1700162 and !42614 `4c23f1db1f9` pipeline 1700163 passed all four selected G610 shards. Web UI stays bot-blocked; use the GitLab API. |
-| `ffmpeg-rockchip-81` tip | Main carries correctness fixes; refactor work remains isolated in PR #1. | 2026-07-11 | GitHub API check 21:37 PDT: `main` tip `be367abfe6`; `refactor/section-c` tip `c8aca81111`, with updated main merged and review findings fixed. [PR #1](https://github.com/yisding/ffmpeg-rockchip-81/pull/1) is open and mergeable. PPA source exports the exact main tip. |
-| `av1_rkmpp` container extradata | Kodi AV1 playback from MP4/MKV depends on MPP recognizing the container's `av1C` extradata | 2026-07-11 | Root cause fixed directly on main in `be367abfe6`: the fork sent extradata but omitted `mpp_packet_set_extra_data()`, so MPP parsed the `av1C` header as an OBU. Source build/FATE and package source validation pass; RK3588 MP4/MKV decode re-test pending. [finding §3](findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) |
-| Kodi build + tty1 playback | The `apps/kodi` design is validated but the build and on-board playback have not been run | 2026-07-11 | Prereqs done (fork `libavcodec63` debs built, MPP fixed, no Kodi patch needed). Pending: GBM/GLES build, `kodi-gbm` on tty1 with the Prime-decoder settings, and the `kodi` PPA package. [`apps/kodi/`](apps/kodi/README.md) |
-| GRD handover fix upstream MR | Row 7's "awaiting submission" has no artifact to point at yet | 2026-07-11 | GitLab project/fork MR queries found no submission for `rdp-handover-reconnect`; branch still points to `a3a1a32`. |
-| Repository-wide license decision | A public release needs a clear license; until then the repo stands as an integration record, not a redistributable release | 2026-07-11 | No repository-wide license granted; current boundary remains [`LICENSE.md`](LICENSE.md). |
-| **Dev-box-only artifacts** (single point of failure) | ✅ No currently identified code/package artifact is available only in an uncaptured dirty worktree. The GRD async-PBO and MemFd prototype diffs are now exported under [`apps/gnome-remote-desktop/patches/reference/`](./apps/gnome-remote-desktop/patches/reference/). The throwaway headless-harness driver was never preserved, but its four-component reconstruction is documented. | 2026-07-11 | Prototype evidence and disposition: [`baseline.md`](./apps/gnome-remote-desktop/docs/baseline.md) §7; harness reconstruction: [`profiling.md`](./apps/gnome-remote-desktop/docs/profiling.md) §4; workspace disposition: [`packaging/external-workspaces.md`](packaging/external-workspaces.md). |
-| **librga P010/P210 fix series** | ✅ **Exported in-repo** as [`vendor-libraries/rga/patches/`](./vendor-libraries/rga/patches/README.md), covering the source series from `2cffdf6` to local `main@a632217`. It is no longer a dev-box-only single point of failure, and `LIBRGA_SMOKE_10BIT=1 kernel-drivers/tests/librga-smoke.sh` provides the smallest direct IM2D P010/P210 hardware check. Recorded hardware validation of padded P010/P210 RKRGA paths is still pending. | 2026-07-11 | Local source tip and exported series rechecked; [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](./vendor-libraries/rga/docs/librga-p010-p210-rkrga.md) § Shipping guidance. |
-| **YSP Armbian builder box** (dev-box state) | The `rock-5b` builder is a Noble 24.04 aarch64 VMware VM whose RAM (7.7 GiB, only ~19–45 MiB over Armbian's BTF gate), grown 97 GB LV, the `resolute` `supported` flag, and the `current=6.18 / edge=7.1 / vendor=6.1` branch map can all shift silently under `armbian/build` trunk | 2026-07-08 | `armbian/build` `26.08.0-trunk`; native compile reached (`gcc 13.3.0`, arm64-on-arm64) but the BTF/`pahole` link is unproven on 8 GB; setup + branch/release/cache map: [`findings/2026-07-08-armbian-builder-setup.md`](findings/2026-07-08-armbian-builder-setup.md) |
+| ID | Watch item | Last checked | Summary |
+|----|------------|--------------|---------|
+| W01 | [Armbian media-patch drift](#watch-w01) | 2026-07-11 | Patch blobs unchanged; DT anchors still hold. |
+| W02 | [Armbian patcher precedence](#watch-w02) | 2026-07-11 | Core-wins behavior unchanged; rename workaround still required. |
+| W03 | [Armbian codec-udev upstreaming](#watch-w03) | 2026-07-11 | PR merged; future images should carry the rule. |
+| W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-07-11 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
+| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-11 | Userspace and kernels public; board gates remain open. |
+| W06 | [Mesa MR stack](#watch-w06) | 2026-07-11 | Four MRs open; !42679 needs a rebase. |
+| W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-11 | Main and PR tips recorded; PR remains mergeable. |
+| W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-11 | Fix built and public; board re-test pending. |
+| W09 | [Kodi build and tty1 playback](#watch-w09) | 2026-07-11 | Prerequisites ready; build/playback/package pending. |
+| W10 | [GRD handover-fix submission](#watch-w10) | 2026-07-11 | No upstream MR found. |
+| W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
+| W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
+| W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
+| W14 | [YSP Armbian builder](#watch-w14) | 2026-07-08 | Native compile reached; BTF link remains unproven. |
+
+<a id="watch-w01"></a>
+### W01 — Armbian media-patch drift
+
+- **Why recheck:** DT patch 02 converts Armbian's nodes in place; changed node
+  labels or patch anchors can break the build or decoder DT.
+- **Last checked:** 2026-07-11
+- **State then:** Live `armbian/build` main `815a50b664f9` still carried
+  byte-identical `rockchip64-6.18` `media-0001`/`media-0007` blobs
+  (`390c2e0b`/`a2a4143e`); `vdec0`, `vdec1`, and `av1d` hunk assumptions held.
+  Checklist: [resyncing guide §4](./kernel-drivers/docs/resyncing.md).
+
+<a id="watch-w02"></a>
+### W02 — Armbian patcher precedence
+
+- **Why recheck:** The self-contained-DT/AV1 build must rename two core media
+  patches. A restored userpatch override, `series.conf` migration, or supported
+  disable mechanism would change that procedure.
+- **Last checked:** 2026-07-11
+- **State then:** Live-main `lib/tools/patching.py` blob `d14c53f6` still matched
+  the audited core-wins implementation. Mechanism and workaround:
+  [`armbian-patch-precedence.md`](./packaging/docs/armbian-patch-precedence.md).
+
+<a id="watch-w03"></a>
+### W03 — Armbian codec-udev upstreaming
+
+- **Why recheck:** The upstream rule determines whether `codec-udev` is required
+  or only backfills older/custom images.
+- **Last checked:** 2026-07-11
+- **State then:** [armbian/build#10085](https://github.com/armbian/build/pull/10085)
+  remained merged as `a6163444eb6c305b635c82242fbeb636daf4b6f4` (2026-06-30).
+  Images built from that base should carry the MPP/dma-heap rule.
+
+<a id="watch-w04"></a>
+### W04 — Ubuntu FFmpeg version
+
+- **Why recheck:** A future Resolute `7:8.1.x` can silently supersede the
+  `+rkmpp` packages.
+- **Last checked:** 2026-07-11
+- **State then:** The live Resolute arm64 universe index published
+  `ffmpeg 7:8.0.1-3ubuntu2`. Hold recipe:
+  [`packaging/README.md`](packaging/README.md).
+
+<a id="watch-w05"></a>
+### W05 — Launchpad PPA publication
+
+- **Why recheck:** Acceptance, build state, and binary publication can change
+  after upload without a local repository edit.
+- **Last checked:** 2026-07-11
+- **State then:** The 21:44 PDT API/index check found Rockchip-81 FFmpeg source
+  [`18615674`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18615674)
+  published and build
+  [`33388714`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33388714)
+  successful, with `ffmpeg`/`libavcodec63` indexed. Co-installable
+  `ffmpeg-rockchip`, MPP, librga, and all three `~rk2` kernel sets were indexed.
+  GRD/GDM remained held; no kernel had passed its board gate.
+
+<a id="watch-w06"></a>
+### W06 — Mesa MR stack
+
+- **Why recheck:** Review feedback, CI, merge state, and rebase requirements
+  determine the next upstream action.
+- **Last checked:** 2026-07-11
+- **State then:** [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563),
+  [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679),
+  [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613), and
+  [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614)
+  remained open; !42679 reported `need_rebase`. Selected evidence remained:
+  !42563 pipeline 1697832 green for x86/arm64 build plus G610 GL/piglit;
+  !42679 pipeline 1700107 green for x86 build, clang, llvmpipe, and softpipe;
+  !42613 `8875a22856d` pipeline 1700162 and !42614 `4c23f1db1f9` pipeline
+  1700163 passed all four selected G610 shards. The web UI remained bot-blocked;
+  use the GitLab API. Superseded context: [!38433](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/38433).
+
+<a id="watch-w07"></a>
+### W07 — `ffmpeg-rockchip-81` tips
+
+- **Why recheck:** Main carries correctness fixes while refactor work remains
+  isolated in PR #1; either tip or mergeability can change.
+- **Last checked:** 2026-07-11
+- **State then:** GitHub API at 21:37 PDT reported `main@be367abfe6` and
+  `refactor/section-c@c8aca81111`. [PR #1](https://github.com/yisding/ffmpeg-rockchip-81/pull/1)
+  was open and mergeable; PPA source exported the exact main tip.
+
+<a id="watch-w08"></a>
+### W08 — AV1 container-extradata validation
+
+- **Why recheck:** Kodi AV1 playback from MP4/MKV depends on MPP recognizing the
+  container's `av1C` extradata.
+- **Last checked:** 2026-07-11
+- **State then:** `be367abfe6` fixed the missing `mpp_packet_set_extra_data()`
+  call that caused MPP to parse the `av1C` header as an OBU. Source build/FATE
+  and package validation passed; RK3588 MP4/MKV decode re-test remained pending.
+  See [finding §3](findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md).
+
+<a id="watch-w09"></a>
+### W09 — Kodi build and tty1 playback
+
+- **Why recheck:** Decoder selection is designed, but the application build and
+  real playback have not been demonstrated.
+- **Last checked:** 2026-07-11
+- **State then:** Fork `libavcodec63` packages were built, MPP was fixed, and no
+  Kodi patch was needed. GBM/GLES build, `kodi-gbm` tty1 playback with Prime
+  settings, and the Kodi PPA package remained pending. See
+  [`apps/kodi/`](apps/kodi/README.md).
+
+<a id="watch-w10"></a>
+### W10 — GRD handover-fix submission
+
+- **Why recheck:** Dashboard track 7's submission claim needs a public review
+  artifact.
+- **Last checked:** 2026-07-11
+- **State then:** GitLab project/fork MR queries found no submission for
+  `rdp-handover-reconnect`; the branch remained at `a3a1a32`.
+
+<a id="watch-w11"></a>
+### W11 — Repository-wide license
+
+- **Why recheck:** A public release needs a clear redistribution license.
+- **Last checked:** 2026-07-11
+- **State then:** No repository-wide license had been granted; the boundary
+  remained [`LICENSE.md`](LICENSE.md).
+
+<a id="watch-w12"></a>
+### W12 — Dev-box-only artifacts
+
+- **Why recheck:** Uncaptured code or packaging in a dirty worktree is a single
+  point of failure.
+- **Last checked:** 2026-07-11
+- **State then:** No identified code/package artifact remained only in an
+  uncaptured dirty tree. GRD async-PBO and MemFd prototypes were exported under
+  [`patches/reference/`](./apps/gnome-remote-desktop/patches/reference/). The
+  throwaway headless harness was not preserved, but its reconstruction was
+  documented. Evidence: [`baseline.md`](./apps/gnome-remote-desktop/docs/baseline.md)
+  §7, [`profiling.md`](./apps/gnome-remote-desktop/docs/profiling.md) §4, and
+  [`external-workspaces.md`](packaging/external-workspaces.md).
+
+<a id="watch-w13"></a>
+### W13 — librga P010/P210 series
+
+- **Why recheck:** The fix must remain reconstructible and its 10-bit shipping
+  gate must not be mistaken for completed hardware validation.
+- **Last checked:** 2026-07-11
+- **State then:** The series from `2cffdf6` through `main@a632217` was exported
+  under [`vendor-libraries/rga/patches/`](./vendor-libraries/rga/patches/README.md).
+  `LIBRGA_SMOKE_10BIT=1 kernel-drivers/tests/librga-smoke.sh` provided the direct
+  IM2D gate; padded P010/P210 RKRGA hardware validation remained pending. See
+  [shipping guidance](./vendor-libraries/rga/docs/librga-p010-p210-rkrga.md).
+
+<a id="watch-w14"></a>
+### W14 — YSP Armbian builder
+
+- **Why recheck:** Builder resources, supported releases, branch mapping, and
+  Armbian trunk behavior can shift without a repo change.
+- **Last checked:** 2026-07-08
+- **State then:** The Noble 24.04 aarch64 VMware VM had 5 vCPU, 7.7 GiB RAM,
+  a 97 GB root LV, and `armbian/build 26.08.0-trunk`. Native compilation reached
+  GCC 13.3.0 arm64-on-arm64; the BTF/`pahole` link remained unproven on 8 GB.
+  `resolute` was marked supported and branch map was current=6.18, edge=7.1,
+  vendor=6.1. See the [builder finding](findings/2026-07-08-armbian-builder-setup.md).

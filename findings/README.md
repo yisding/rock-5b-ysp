@@ -15,9 +15,23 @@ add a file.
 2. Fill the header (scope, source anchor, date, trust tag) and write the fact.
 3. Add one line to the index below. That's it — no other file needs editing.
 
-Trust tags (state how sure you are): **MEASURED** (observed on hardware / in a
-run), **HYPOTHESIS** (reasoned but unverified), **UNVERIFIED** (copied from a
-comment/commit, not checked).
+For promotion, status changes, and the repository handoff checklist, follow the
+canonical [`CONTRIBUTING.md`](../CONTRIBUTING.md) workflow.
+
+Trust tags state what kind of evidence supports each claim. Combine tags when a
+finding mixes evidence types:
+
+- **MEASURED** — observed on hardware or in a recorded run.
+- **CODE-INSPECTED**, **CONFIG-INSPECTED**, or **SOURCE-INSPECTED** — checked
+  directly against the named pinned source.
+- **INFERRED** — a conclusion supported by the recorded evidence but not
+  observed directly.
+- **HYPOTHESIS** — a candidate explanation that still needs a discriminating
+  test.
+- **DESIGN** — proposed behavior or an implementation plan, not an observed
+  result.
+- **UNVERIFIED** — copied from a comment, commit, or other source but not yet
+  checked.
 
 ## Lifecycle
 
@@ -36,6 +50,7 @@ in the watchlist.
 
 Each row: `` `YYYY-MM-DD-slug.md` `` — one-line summary — trust tag.
 
+- `` `2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md` `` — stock Kodi 22 can auto-select the fork's RKMPP decoders through DRM PRIME without a Kodi patch; the PPA MPP runtime fixes missing parser registration, three FFmpeg packaging failures were fixed, and the AV1 MP4/MKV extradata flag fix is built/published but still needs an RK3588 playback re-test — MEASURED, except for the pending hardware re-test.
 - `` `2026-07-09-ffmpeg-baseline-rk2-local-build-validation.md` `` — locally regenerated the `ffmpeg 7:8.1.2-1+rk2` source package from the byte-identical 8.1.2 orig tarball plus `packaging/ppa/ffmpeg-baseline/debian`, extracted that `.dsc`, and completed an arm64 binary build on the ROCK 5B; `fate-source` passed, `fate-filter-frei0r-filter` and `fate-filter-frei0r-filter-unaligned` both ran without the prior `Could not find module 'distort0r'` failure, 32 binary artifacts were produced, and the built standard binary exposes the expected RKMPP encoders/decoders; caveat: source-package accurate but not a clean Launchpad `sbuild` replica because `frei0r-plugins` was provided via extracted package + `FREI0R_PATH`, and local builds under `downloads/` need `GIT_CEILING_DIRECTORIES` to keep upstream `fate-source` from seeing the enclosing repo — MEASURED.
 - `` `2026-07-09-rock5b-armbian-sd-boot-investigation.md` `` — consolidated ROCK 5B Armbian SD boot investigation: original 26.2.1 raw SD path stops after BL31 with `ddr-v1.18` and no HDMI, SD image/rootfs/`/boot` verify cleanly, 26.5.1 vendor kernel transplant does not fix the intact raw-loader case, zeroing SD sectors 64..32767 makes the same SD rootfs boot through known-good SPI, 26.5.1 vendor raw U-Boot initializes HDMI but still does not complete boot, and the next discriminator is writing the known-good-family 26.5.1 `current` raw artifacts to SD — MEASURED / SOURCE-INSPECTED / HYPOTHESIS for exact raw-loader preemption mechanism.
 - `` `2026-07-08-armbian-26.2.1-bl31-handoff-hang.md` `` — Armbian 26.2.1 Minimal Debian 13 / 6.1.115 on ROCK 5B uses Armbian build commit `5abb97453`, Radxa U-Boot `6c807...`, RK3588 DDR blob `v1.18`, and a vendor U-Boot config with `CONFIG_DISABLE_CONSOLE=y`, so the UART stop after BL31 handoff does not by itself prove BL33 crashed; the card write and `/boot` payload verify cleanly, a 26.5.1 vendor kernel/initrd transplant still failed, disabling `/boot/boot.scr` still hung instead of falling through to NVMe, but backing up and zeroing the SD raw-loader gap at sectors 64..32767 made the SD boot successfully via the known-good SPI path; Radxa source diff `6c807...`→`39cd...` does not touch ROCK 5B files, while Armbian `1bac6d97` switches RK3588 DDR blob v1.18→v1.20 — MEASURED / SOURCE-INSPECTED / HYPOTHESIS for exact raw-loader preemption mechanism.
