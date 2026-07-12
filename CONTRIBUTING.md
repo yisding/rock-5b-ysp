@@ -22,6 +22,7 @@ build products and external checkouts out of this repository.
 | A stable project-specific explanation | The owning project's `docs/`, linked from its `README.md`. |
 | A patch, test, reproducer, package recipe, or operational script | The project directory that owns the affected layer. |
 | A cross-project map, source pin, or global trap | [`docs/`](docs/README.md). |
+| A board subsystem with no or only narrow repo evidence | The stable row in [`docs/support-coverage.md`](docs/support-coverage.md), plus a dated finding when runtime evidence is gathered. |
 | A user-visible support state or the next proof needed | [`status.md`](status.md), with the matching audit row in [`docs/status-ledger.md`](docs/status-ledger.md). |
 | An external fact that can change without a repository edit | The [`status.md` watchlist](status.md#watchlist--facts-that-go-stale-silently). |
 | A shared term | [`glossary.md`](glossary.md); project-only terms stay in the project's `keywords.md`. |
@@ -79,6 +80,19 @@ renumber the remaining items when one is retired.
 
 Dashboard/next-gate/ledger identity, watchlist structure, dates, and required
 fields are checked automatically by `scripts/check-doc-consistency.py`.
+
+## Updating whole-board coverage
+
+[`docs/support-coverage.md`](docs/support-coverage.md) is the scope inventory;
+it is not a second status dashboard. Preserve each stable `C##` ID and use only
+the documented `TRACKED`, `NARROW`, or `UNASSESSED` states. A device-tree node,
+bound driver, or device file is discovery evidence, not a functional pass.
+
+Promote an area from `UNASSESSED` to `NARROW` only after a dated runtime finding
+records identity, detection, real exercise, a pass/fail signal, logs, and the
+untested boundary. Promote it to `TRACKED` only when it has a durable evidence
+owner and maintenance path. Add a `status.md` track separately when the result
+is user-visible or becomes a sustained workstream.
 
 ## Source and artifact discipline
 

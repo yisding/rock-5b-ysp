@@ -25,6 +25,7 @@ hosts use Docker. The distinction and current upstream requirements are owned by
 | Question | Canonical source |
 |----------|------------------|
 | What works, what is incomplete, and what proof comes next? | [`status.md`](../status.md) dashboard and next gates. |
+| Which ROCK 5B subsystems has this repository not assessed? | [`support-coverage.md`](support-coverage.md). |
 | Which kernel build has real codec/RGA hardware evidence? | [`kernel-drivers/docs/forward-port-status.md`](../kernel-drivers/docs/forward-port-status.md) and the PHASH log in [`install.md`](../install.md). |
 | Which PPA packages are public or still gated? | [`packaging/ppa/README.md`](../packaging/ppa/README.md) and watchlist item [W05](../status.md#watch-w05). |
 | What is known about SPI, raw SD, and NVMe boot? | Dashboard track 12 and watchlist/detail evidence under [`findings/`](../findings/README.md). |
@@ -82,6 +83,10 @@ PROFILE=rewrite      ./scripts/collect-system-info.sh
 - kernel command line and selected `armbianEnv.txt` keys, with root/resume
   identifiers redacted;
 - installed kernel and media-support packages;
+- CPU topology/frequency policy, thermal zones, memory/CMA/swap, storage, and
+  root-mount discovery;
+- PCI/USB topology, network link/driver state without addresses, DRM connector
+  modes, ALSA devices, and camera/media graphs when their tools are installed;
 - FFmpeg path/version and exposed Rockchip codecs/filters;
 - relevant kernel configuration, device-node ownership, RGA version, MPP
   proc/debugfs state, and loaded Rockchip modules.
@@ -95,9 +100,9 @@ channel, not proof that no fault occurred.
 
 The collector deliberately avoids network addresses, disk serial numbers, and
 unredacted root/resume identifiers. It still records the hostname through
-`uname`, package versions, device paths, boot options, and kernel logs. Review a
-bundle before publishing it; kernel logs can contain unexpected device-specific
-or application data.
+`uname`, package versions, device and interface names, PCI/USB identifiers,
+mount layout, boot options, and kernel logs. Review a bundle before publishing
+it; kernel logs can contain unexpected device-specific or application data.
 
 Do not commit raw capture directories. Summarize the result in a dated
 [`findings/`](../findings/README.md) entry, link or checksum any externally kept

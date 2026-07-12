@@ -86,7 +86,12 @@ PROFILE=forward-port ./scripts/collect-system-info.sh
 
 The cross-project [`system baseline guide`](../../../../docs/system-baseline.md)
 defines the captured fields, profile naming, privacy boundary, and which dated
-document owns each changing state claim.
+document owns each changing state claim. Its discovery sections also seed the
+whole-board [`support coverage inventory`](../../../../docs/support-coverage.md):
+CPU/thermal, memory, storage, PCI/USB, address-free network state, DRM
+connectors, audio, and camera graphs are recorded when available. Discovery is
+not a functional pass; use the inventory row's first-evidence guidance before
+changing its coverage state.
 
 Check that `/dev/mpp_service`, `/dev/rga`, dma-heaps, DRM/KMS nodes, RGA
 version paths, and MPP proc/debugfs paths look sane. Keep the collected dmesg

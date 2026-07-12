@@ -193,6 +193,46 @@ class DocumentationConsistencyTests(unittest.TestCase):
             self.assertTrue(any("must have 3 columns" in e for e in errors))
             self.assertTrue(any("empty next gate" in e for e in errors))
 
+    def test_valid_support_coverage_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            docs = root / "docs"
+            docs.mkdir()
+            (docs / "support-coverage.md").write_text(
+                "## Coverage inventory\n\n"
+                "| ID | Board area | Coverage | What the repository owns today | First useful evidence to add |\n"
+                "|----|------------|----------|--------------------------------|------------------------------|\n"
+                "| C01 | Example | `TRACKED` | Owner. | Run it. |\n"
+                "| C02 | Other | `UNASSESSED` | None. | Capture it. |\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_support_coverage(root, errors)
+
+            self.assertEqual(errors, [])
+
+    def test_support_coverage_reports_bad_state_order_and_empty_field(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            docs = root / "docs"
+            docs.mkdir()
+            (docs / "support-coverage.md").write_text(
+                "## Coverage inventory\n\n"
+                "| ID | Board area | Coverage | What the repository owns today | First useful evidence to add |\n"
+                "|----|------------|----------|--------------------------------|------------------------------|\n"
+                "| C02 | Example | `UNKNOWN` | | Run it. |\n"
+                "| C01 | Other | `NARROW` | Owner. | Capture it. |\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_support_coverage(root, errors)
+
+            self.assertTrue(any("invalid coverage state" in e for e in errors))
+            self.assertTrue(any("empty current owner field" in e for e in errors))
+            self.assertTrue(any("coverage IDs are not ordered" in e for e in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

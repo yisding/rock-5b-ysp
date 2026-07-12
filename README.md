@@ -32,8 +32,10 @@ source monorepo. Use it to understand the RK3588 hardware-video stack, apply the
 published patch series, rebuild packages, and reproduce the validation path. The
 source projects themselves live in external trees; pinned source-tree references
 and reconstruction notes are in [`docs/source-trees.md`](docs/source-trees.md).
-It is not yet a complete ROCK 5B hardware-compatibility database: a subsystem
-absent from [`status.md`](status.md) is untracked, not implicitly supported.
+It is not yet a complete ROCK 5B hardware-compatibility database. The explicit
+[`support coverage inventory`](docs/support-coverage.md) distinguishes tracked,
+narrowly evidenced, and wholly unassessed board areas; absence from
+[`status.md`](status.md) is never evidence of support.
 
 For a quick orientation:
 
@@ -41,6 +43,7 @@ For a quick orientation:
 |------|------------|
 | Install the validated ROCK 5B kernel path | [`install.md`](install.md) |
 | Check what is usable, experimental, or stale | [`status.md`](status.md) |
+| See which board subsystems have not been assessed | [`docs/support-coverage.md`](docs/support-coverage.md) |
 | Capture the exact board/kernel/userspace baseline | [`docs/system-baseline.md`](docs/system-baseline.md) |
 | Record a newly discovered gap or result | [`findings/`](findings/README.md) |
 | Update or contribute to the record | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
@@ -95,9 +98,11 @@ flowchart TB
 | **apps** | Real applications on the stack: `gnome-remote-desktop` H.264 RDP encode and Kodi DRM PRIME hardware decode. | [`apps/`](apps/README.md) |
 | **packaging** | Delivery channels: DKMS, udev/ACL debs, PPA source packages, binary policy. | [`packaging/`](packaging/README.md) |
 | **findings** | Raw capture inbox — drop a freshly-learned fact first, graduate it into a project doc later. | [`findings/`](findings/README.md) |
-| **docs** + glossary | Cross-cutting: package map, source-tree pins, whole-repo trap index, shared vocabulary. | [`docs/`](docs/README.md), [`glossary.md`](glossary.md) |
+| **docs** + glossary | Cross-cutting: support coverage, package map, source-tree pins, whole-repo trap index, shared vocabulary. | [`docs/`](docs/README.md), [`glossary.md`](glossary.md) |
 
-The detailed package reading map is [`docs/work-packages.md`](docs/work-packages.md).
+The detailed package reading map is [`docs/work-packages.md`](docs/work-packages.md),
+while [`docs/support-coverage.md`](docs/support-coverage.md) makes the repo's
+media-heavy evidence boundary and the remaining whole-board gaps explicit.
 New to the memory/address-translation path? Start with the
 [IOMMU explainer series](kernel-drivers/iommu/docs/01-iommu-primer.md) —
 concept → RK3588 hardware → RGA/MPP driver code.
@@ -201,7 +206,7 @@ apps/
   gnome-remote-desktop/  hardware H.264 RDP backend: docs, patches, bench
   kodi/                  Kodi 22 RKMPP/DRM PRIME decode: design, build, test
 packaging/             deploy hub: DKMS, udev/ACL debs, PPA notes, policy
-docs/                  cross-project map, source-tree pins, and gotchas trap index
+docs/                  coverage/baseline maps, source-tree pins, and gotchas trap index
   status-ledger.md     audit companion to status.md
 scripts/               repo-wide maintenance checks
 ```

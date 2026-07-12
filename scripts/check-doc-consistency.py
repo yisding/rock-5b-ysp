@@ -16,6 +16,8 @@ DATE_RE = re.compile(r"20\d{2}-\d{2}-\d{2}")
 WATCH_HEADING_RE = re.compile(r"^### (W\d{2}) — (.+)$")
 WATCH_ID_RE = re.compile(r"^W\d{2}$")
 WATCH_LINK_RE = re.compile(r"^\[(.+)\]\(#watch-(w\d{2})\)$", re.IGNORECASE)
+COVERAGE_ID_RE = re.compile(r"^C\d{2}$")
+COVERAGE_STATES = {"TRACKED", "NARROW", "UNASSESSED"}
 TRUST_TAGS = {
     "CODE-INSPECTED",
     "CONFIG-INSPECTED",
@@ -342,6 +344,65 @@ def check_watchlist(root: Path, errors: list[str]) -> None:
                 )
 
 
+def check_support_coverage(root: Path, errors: list[str]) -> None:
+    """Validate stable IDs and the small schema of the coverage inventory."""
+    path = root / "docs" / "support-coverage.md"
+    if not path.is_file():
+        errors.append("docs/support-coverage.md: missing coverage inventory")
+        return
+
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    heading = "## Coverage inventory"
+    try:
+        start = lines.index(heading) + 1
+    except ValueError:
+        errors.append(f"docs/support-coverage.md: missing {heading}")
+        return
+
+    rows: dict[str, list[str]] = {}
+    order: list[str] = []
+    for line in lines[start:]:
+        if line.startswith("## "):
+            break
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if not cells or not COVERAGE_ID_RE.fullmatch(cells[0]):
+            continue
+
+        coverage_id = cells[0]
+        if len(cells) != 5:
+            errors.append(
+                f"docs/support-coverage.md {coverage_id}: row must have 5 columns"
+            )
+            if len(cells) < 5:
+                cells.extend([""] * (5 - len(cells)))
+        if coverage_id in rows:
+            errors.append(
+                f"docs/support-coverage.md: duplicate coverage ID {coverage_id}"
+            )
+        rows[coverage_id] = cells
+        order.append(coverage_id)
+
+        state = cells[2].strip("`")
+        if state not in COVERAGE_STATES:
+            errors.append(
+                f"docs/support-coverage.md {coverage_id}: invalid coverage state "
+                f"{cells[2]!r}"
+            )
+        for index, field in ((1, "board area"), (3, "current owner"), (4, "first evidence")):
+            if not cells[index]:
+                errors.append(
+                    f"docs/support-coverage.md {coverage_id}: empty {field} field"
+                )
+
+    if not rows:
+        errors.append("docs/support-coverage.md: coverage inventory has no rows")
+        return
+    if order != sorted(order):
+        errors.append("docs/support-coverage.md: coverage IDs are not ordered")
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     errors: list[str] = []
@@ -352,6 +413,7 @@ def main() -> int:
     check_status_ledger(root, errors)
     check_dashboard_next_gates(root, errors)
     check_watchlist(root, errors)
+    check_support_coverage(root, errors)
 
     for error in errors:
         print(error, file=sys.stderr)

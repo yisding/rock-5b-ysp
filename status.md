@@ -17,8 +17,10 @@ Symbols: ✅ hardware-validated or otherwise complete for its stated scope;
 ⚠️ usable or reviewable with a material caveat; 🚧 active work without the
 required runtime proof; 🔄 waiting on an external review/rebase cycle; ❌ not
 available yet. A subsystem absent from this dashboard is **untracked**, not
-implicitly working or broken—capture evidence in [`findings/`](findings/README.md)
-before adding a new track.
+implicitly working or broken. The
+[`support coverage inventory`](docs/support-coverage.md) exposes whole-board
+areas that are only narrowly evidenced or entirely unassessed; capture runtime
+evidence in [`findings/`](findings/README.md) before adding a new status track.
 
 ## Dashboard
 
