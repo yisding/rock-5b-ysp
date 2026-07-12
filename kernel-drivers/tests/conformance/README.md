@@ -88,12 +88,22 @@ PROFILE=rewrite ./scripts/collect-system-info.sh
 PROFILE=forward-port ./scripts/collect-system-info.sh
 ```
 
+Use `OUT=/path/to/result` when a surrounding test run needs a deterministic
+destination. `./scripts/collect-system-info.sh --selftest` verifies the
+root/resume identifier redaction without reading board state or creating a log
+directory.
+
 The cross-project [`system baseline guide`](../../../../docs/system-baseline.md)
 defines the captured fields, profile naming, privacy boundary, and which dated
 document owns each changing state claim. Its discovery sections also seed the
 whole-board [`support coverage inventory`](../../../../docs/support-coverage.md):
 CPU/thermal, memory, storage, PCI/USB, address-free network state, DRM
-connectors, audio, and camera graphs are recorded when available. Discovery is
+connectors, audio, and camera graphs are recorded when available. The boot
+identity section also records any U-Boot version exposed in the live DT, a hash
+of the live flattened device tree, resolved `/boot` artifact paths, and MTD/SPI
+device identity without reading firmware contents. Those signals can
+distinguish artifacts but cannot prove which medium BootROM selected; preserve
+UART output and the exact tested firmware image for that claim. Discovery is
 not a functional pass; use the inventory row's first-evidence guidance before
 changing its coverage state.
 

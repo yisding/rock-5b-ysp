@@ -2,8 +2,80 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-PROFILE=${PROFILE:-${1:-rewrite}}
-OUT="$ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-system"
+
+usage() {
+    cat <<'EOF'
+Usage: collect-system-info.sh [PROFILE]
+       collect-system-info.sh --selftest
+
+Collect a read-only ROCK 5B board/kernel/userspace baseline. The default
+PROFILE is "rewrite"; PROFILE and OUT can also be set in the environment.
+The output directory is printed after collection.
+
+Options:
+  -h, --help   Show this help without collecting data.
+  --selftest   Verify the boot-identifier redaction contract without hardware.
+EOF
+}
+
+redact_boot_ids() {
+    sed -E \
+        -e 's/(root|resume)=[^ ]+/\1=<redacted>/g' \
+        -e 's/^(rootdev=).*/\1<redacted>/'
+}
+
+selftest() {
+    local actual expected
+    actual=$(printf '%s\n' \
+        'console=ttyS2 root=PARTUUID=secret resume=/dev/zram0 quiet' \
+        'rootdev=UUID=also-secret' |
+        redact_boot_ids)
+    expected=$(printf '%s\n' \
+        'console=ttyS2 root=<redacted> resume=<redacted> quiet' \
+        'rootdev=<redacted>')
+    if [[ "$actual" != "$expected" ]]; then
+        printf 'redaction self-test failed\nexpected:\n%s\nactual:\n%s\n' \
+            "$expected" "$actual" >&2
+        return 1
+    fi
+    echo "collect-system-info self-test passed"
+}
+
+profile_arg=
+case ${1:-} in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    --selftest)
+        selftest
+        exit 0
+        ;;
+    -*)
+        printf 'unknown option: %s\n' "$1" >&2
+        usage >&2
+        exit 2
+        ;;
+    '')
+        ;;
+    *)
+        profile_arg=$1
+        shift
+        ;;
+esac
+if (($#)); then
+    printf 'unexpected argument: %s\n' "$1" >&2
+    usage >&2
+    exit 2
+fi
+
+PROFILE=${PROFILE:-${profile_arg:-rewrite}}
+if [[ ! "$PROFILE" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    printf 'invalid PROFILE %q: start with a letter/number, then use letters, numbers, dot, underscore, or dash\n' \
+        "$PROFILE" >&2
+    exit 2
+fi
+OUT=${OUT:-"$ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-system"}
 KERNEL_CONFIG="/boot/config-$(uname -r)"
 
 mkdir -p "$OUT"
@@ -14,12 +86,6 @@ section() {
 
 unavailable() {
     printf 'unavailable=%s\n' "$1"
-}
-
-redact_boot_ids() {
-    sed -E \
-        -e 's/(root|resume)=[^ ]+/\1=<redacted>/g' \
-        -e 's/^(rootdev=).*/\1<redacted>/'
 }
 
 {
@@ -100,6 +166,58 @@ redact_boot_ids() {
     else
         unavailable findmnt
     fi
+
+    section "boot-loader-and-live-device-tree"
+    for property in u-boot,version bootloader-version stdout-path; do
+        property_path="/proc/device-tree/chosen/$property"
+        if [ -r "$property_path" ]; then
+            printf '%s=' "$property"
+            tr '\0' ',' < "$property_path" | sed 's/,$//'
+            echo
+        fi
+    done
+    if [ -r /sys/firmware/fdt ]; then
+        if live_fdt_bytes=$(wc -c < /sys/firmware/fdt 2>/dev/null); then
+            echo "live-fdt-bytes=$live_fdt_bytes"
+        fi
+        if command -v sha256sum >/dev/null 2>&1; then
+            live_fdt_sha256=$(sha256sum /sys/firmware/fdt 2>/dev/null | awk '{print $1}' || true)
+            [ -z "$live_fdt_sha256" ] || echo "live-fdt-sha256=$live_fdt_sha256"
+        else
+            unavailable sha256sum-for-live-fdt
+        fi
+    else
+        unavailable /sys/firmware/fdt
+    fi
+    for artifact in /boot/Image /boot/uInitrd /boot/vmlinuz /boot/initrd.img \
+        /boot/dtb /boot/Image-* /boot/uInitrd-* /boot/vmlinuz-* \
+        /boot/initrd.img-* /boot/dtb-*; do
+        [ -e "$artifact" ] || [ -L "$artifact" ] || continue
+        artifact_target=$(readlink -f "$artifact" 2>/dev/null || true)
+        if [ -n "$artifact_target" ]; then
+            printf 'boot-artifact=%s -> %s\n' "$artifact" "$artifact_target"
+        else
+            printf 'boot-artifact=%s\n' "$artifact"
+        fi
+    done
+
+    section "firmware-storage-inventory"
+    if [ -r /proc/mtd ]; then
+        cat /proc/mtd
+    else
+        unavailable /proc/mtd
+    fi
+    for mtd_path in /sys/class/mtd/mtd[0-9]*; do
+        [ -d "$mtd_path" ] || continue
+        printf '%s' "$(basename "$mtd_path")"
+        for field in name size erasesize; do
+            if [ -r "$mtd_path/$field" ]; then
+                value=$(tr -d '\n' < "$mtd_path/$field")
+                printf '\t%s=%s' "$field" "$value"
+            fi
+        done
+        echo
+    done
 
     section "pci-and-usb"
     if command -v lspci >/dev/null 2>&1; then

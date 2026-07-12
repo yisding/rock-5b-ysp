@@ -165,6 +165,37 @@ class OperationalHelpTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, output)
                 self.assertIn("usage", output.casefold())
 
+    def test_system_collector_help_and_redaction_selftest(self) -> None:
+        collector = (
+            REPO_ROOT
+            / "kernel-drivers/tests/conformance/scripts/collect-system-info.sh"
+        )
+        for argument, expected in (
+            ("--help", "usage"),
+            ("--selftest", "self-test passed"),
+        ):
+            with self.subTest(argument=argument):
+                result = subprocess.run(
+                    ["bash", str(collector), argument],
+                    cwd=REPO_ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                output = result.stdout + result.stderr
+                self.assertEqual(result.returncode, 0, output)
+                self.assertIn(expected, output.casefold())
+
+        traversal = subprocess.run(
+            ["bash", str(collector), "../outside"],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(traversal.returncode, 2)
+        self.assertIn("invalid profile", traversal.stderr.casefold())
+
 
 class DocumentationConsistencyTests(unittest.TestCase):
     def write_status(self, root: Path, text: str) -> None:
