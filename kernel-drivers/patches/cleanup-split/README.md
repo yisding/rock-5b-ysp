@@ -47,6 +47,8 @@ Treat the rows below as the review-priority delta:
 | `mpp_service_probe` worker threads | `kthread_run` failure logged, probe continues | failure is fatal (`goto fail_register`) |
 | rga3 headers | dead-helper prototypes retained | `rga_virtual_memory_check` / `rga_dma_memory_check` / `rga_user_memory_check` prototypes removed together with their dead helpers (`0042`/`0049`) |
 
+<a id="cleanup-split-compile-gate"></a>
+
 ### ❌ Known defect: the current series does not compile (verified 2026-07-01)
 
 `808f7cb`'s revision of **`0024`** added a call to `rkvenc2_free_rcbbuf()` in

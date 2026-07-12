@@ -41,29 +41,30 @@ separate table below so both remain scannable.
 | 9 | Launchpad PPA | ⚠️ MPP, librga, both FFmpeg tracks, and three kernels are public; GRD/GDM are held and kernel board gates are open. | 2026-07-11 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
-| 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works and the tested SD rootfs boots through SPI; raw SD-loader boot remains unresolved. | 2026-07-09 | [boot investigation](./findings/2026-07-09-rock5b-armbian-sd-boot-investigation.md) |
+| 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./findings/2026-07-11-rock5b-u-boot-four-way-comparison.md) |
 
 ## Next gates
 
 A next gate is the smallest result that would materially advance its track, not
-a general wish list. Close or replace it only with evidence from the owning
-detail page, and update the dashboard date and ledger row when public state
-changes.
+a general wish list. The action path points to the maintained runbook, exact
+evidence owner, or decision boundary; keep it usable when a gate changes. Close
+or replace a gate only with evidence from the owning detail page, and update the
+dashboard date and ledger row when public state changes.
 
-| # | Track | Next proof |
-|---|-------|------------|
-| 1 | Kernel forward-port | No open kernel-function gate; rerun the hardware suite whenever the kernel or patch base changes. |
-| 2 | BSP-audit fix series | Regenerate patch 0024 and prove the full split series compiles. |
-| 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. |
-| 4 | Clean-room rewrite drivers | Boot one packaged alpha kernel on the board and capture the first hardware conformance log. |
-| 5 | ffmpeg tree | Re-test AV1 from MP4 and MKV through `av1_rkmpp` on RK3588. |
-| 6 | ffmpeg submissions | Submit the first patch from the ordered upstream/fork plan and record its review URL. |
-| 7 | GNOME Remote Desktop backend | Submit the handover-reconnect fix upstream and link the MR. |
-| 8 | Mesa / Panfrost | Rebase !42679 and rerun its selected CI coverage. |
-| 9 | Launchpad PPA | Install, boot, and revert the co-installable forward-port kernel on the ROCK 5B. |
-| 10 | Binary publishing | Choose and record the repository-wide license required before a public release. |
-| 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. |
-| 12 | ROCK 5B SD/SPI boot chain | Write the 26.5.1 `current` raw artifacts to SD and capture where that boot stops or succeeds. |
+| # | Track | Next proof | Action path |
+|---|-------|------------|-------------|
+| 1 | Kernel forward-port | No open kernel-function gate; rerun the hardware suite whenever the kernel or patch base changes. | [Hardware test runbook](./kernel-drivers/tests/README.md#run) |
+| 2 | BSP-audit fix series | Regenerate patch 0024 and prove the full split series compiles. | [Compile defect and remedy](./kernel-drivers/patches/cleanup-split/README.md#cleanup-split-compile-gate) |
+| 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. | [DKMS build and install](./packaging/dkms/README.md#dkms-build-install) |
+| 4 | Clean-room rewrite drivers | Boot one packaged alpha kernel on the board and capture the first hardware conformance log. | [Rewrite acceptance commands](./kernel-drivers/tests/rewrite-conformance.md#rewrite-acceptance-one-command) |
+| 5 | ffmpeg tree | Re-test AV1 from MP4 and MKV through `av1_rkmpp` on RK3588. | [AV1 follow-up evidence](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md#av1-follow-up) |
+| 6 | ffmpeg submissions | Submit the first patch from the ordered upstream/fork plan and record its review URL. | [Suggested first wave](./video-libraries/ffmpeg/docs/submission-plan.md#suggested-first-wave) |
+| 7 | GNOME Remote Desktop backend | Submit the handover-reconnect fix upstream and link the MR. | [Submission state and branch](#watch-w10) |
+| 8 | Mesa / Panfrost | Rebase !42679 and rerun its selected CI coverage. | [MR tips and selected CI](./video-libraries/mesa/README.md#mr-status) |
+| 9 | Launchpad PPA | Install, boot, and revert the co-installable forward-port kernel on the ROCK 5B. | [Kernel package checklist](./packaging/ppa/kernel-forward-port/README.md#remaining-checklist) |
+| 10 | Binary publishing | Choose and record the repository-wide license required before a public release. | [License decision boundary](./LICENSE.md) |
+| 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. | [Kodi tty1 runbook](./apps/kodi/docs/build-hwaccel.md#5-test-on-tty1-gbm-needs-drm-master) |
+| 12 | ROCK 5B SD/SPI boot chain | Write the 26.5.1 `current` raw artifacts to SD and capture where that boot stops or succeeds. | [U-Boot recommendation](./findings/2026-07-11-rock5b-u-boot-four-way-comparison.md#recommendation) |
 
 > **Runtime gate pending.** The BSP-audit cleanup series still needs the runtime
 > codec regression test before it can ship. Compile status alone is not

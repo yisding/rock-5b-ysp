@@ -32,6 +32,8 @@ package also ships a **boot-time DT overlay**.
 | `build-deb.sh` | Stages source from the kernel tree, compiles the overlay, assembles the `.deb`. `clean` removes `build/`. |
 | `build/` | *(gitignored, disposable)* staging tree + built `.deb`/`.dtbo` from the last run — never committed ([binary policy](../README.md#binary-policy)). |
 
+<a id="dkms-build-install"></a>
+
 ## Build & install
 
 `build-deb.sh` stages the driver source from a **forward-port kernel tree**

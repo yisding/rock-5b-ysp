@@ -18,6 +18,7 @@ WATCH_ID_RE = re.compile(r"^W\d{2}$")
 WATCH_LINK_RE = re.compile(r"^\[(.+)\]\(#watch-(w\d{2})\)$", re.IGNORECASE)
 COVERAGE_ID_RE = re.compile(r"^C\d{2}$")
 COVERAGE_STATES = {"TRACKED", "NARROW", "UNASSESSED"}
+MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\([^)]+\)")
 DCHS_SOFTWARE_ONLY_RE = re.compile(
     r"(?:DCHS.{0,100}software-only|software-only.{0,100}DCHS)",
     re.IGNORECASE | re.DOTALL,
@@ -220,7 +221,7 @@ def check_dashboard_next_gates(root: Path, errors: list[str]) -> None:
     """Keep compact dashboard rows and their next-gate rows in lockstep."""
     path = root / "status.md"
     dashboard = section_table_rows(path, "## Dashboard", 5, errors)
-    gates = section_table_rows(path, "## Next gates", 3, errors)
+    gates = section_table_rows(path, "## Next gates", 4, errors)
 
     for number in sorted(dashboard.keys() | gates.keys()):
         if number not in dashboard:
@@ -237,6 +238,12 @@ def check_dashboard_next_gates(root: Path, errors: list[str]) -> None:
             )
         if not gates[number][2]:
             errors.append(f"status.md: track {number} has an empty next gate")
+        if not gates[number][3]:
+            errors.append(f"status.md: track {number} has an empty action path")
+        elif not MARKDOWN_LINK_RE.search(gates[number][3]):
+            errors.append(
+                f"status.md: track {number} action path has no Markdown link"
+            )
         if not dashboard[number][1]:
             errors.append(f"status.md: dashboard track {number} has no name")
         if not dashboard[number][2]:

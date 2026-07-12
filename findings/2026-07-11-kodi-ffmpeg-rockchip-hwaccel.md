@@ -147,6 +147,8 @@ confirming all three fixes; `~rk3` and `~rk4` remain `Failed to build`.
   `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`) is present and agent-cached, so
   `debsign` is non-interactive.
 
+<a id="av1-follow-up"></a>
+
 ## Why it matters / follow-up
 
 - Kodi build recipe and settings: [`apps/kodi/`](../apps/kodi/README.md).

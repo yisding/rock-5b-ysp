@@ -7,7 +7,7 @@ not belong to a single package or driver area.
 |--------|---------|
 | [`check-repo.sh`](check-repo.sh) | Runs the common repository handoff gate: Markdown links, documentation contracts, and staged/unstaged/untracked whitespace. |
 | [`check-markdown-links.py`](check-markdown-links.py) | Checks local Markdown links for missing files and missing same-repo section anchors. |
-| [`check-doc-consistency.py`](check-doc-consistency.py) | Checks README ownership and project briefs, finding metadata/index order, dashboard/next-gate/ledger alignment, watchlist index/detail contracts, stable support-coverage rows, and selected load-bearing terminology invariants. |
+| [`check-doc-consistency.py`](check-doc-consistency.py) | Checks README ownership and project briefs, finding metadata/index order, dashboard/next-gate/action-path/ledger alignment, watchlist index/detail contracts, stable support-coverage rows, and selected load-bearing terminology invariants. |
 | [`repo_files.py`](repo_files.py) | Shared Git-aware maintained-file inventory for the Python checks, with a pruned source-archive fallback. |
 | [`tests/test_repo_checks.py`](tests/test_repo_checks.py) | Standard-library regression tests for file inventory, link classification, dashboard/watchlist contracts, and the support-coverage schema. |
 | [`rock5b-spi-erase.sh`](rock5b-spi-erase.sh) | Backs up and erases the ROCK 5B SPI NOR so BootROM falls through to microSD/eMMC bootloader paths. |

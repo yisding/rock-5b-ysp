@@ -46,6 +46,8 @@ Hardware and software used for the local investigation:
 | [`reproducers/`](reproducers/README.md) | Texture-transfer reproducers, transfer benchmark, archived BLIT-advertising patch, and the focused [`reproducers/interp_probe/`](reproducers/interp_probe/README.md) varying-interpolation proof set |
 | [`video-libraries/mesa/patches/0001-panfrost-advertise-transfer-blit-and-compute.patch`](patches/0001-panfrost-advertise-transfer-blit-and-compute.patch) | Archived `format-patch` of the BLIT-advertising commit — the only way to rebuild the failing BLIT configuration once upstream ships a non-BLIT default; reproduction-only, not for merging |
 
+<a id="mr-status"></a>
+
 ## Status (last live-state check 2026-07-11; technical validation remains dated below)
 
 Current upstream stack:

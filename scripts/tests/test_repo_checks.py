@@ -190,8 +190,28 @@ class DocumentationConsistencyTests(unittest.TestCase):
 
             DOC_CHECKER.check_dashboard_next_gates(root, errors)
 
-            self.assertTrue(any("must have 3 columns" in e for e in errors))
+            self.assertTrue(any("must have 4 columns" in e for e in errors))
             self.assertTrue(any("empty next gate" in e for e in errors))
+
+    def test_next_gate_requires_linked_action_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_status(
+                root,
+                "## Dashboard\n\n"
+                "| # | Track | Public state | Verified | Detail |\n"
+                "|---|-------|--------------|----------|--------|\n"
+                "| 1 | Example | ✅ Works. | 2026-07-11 | detail.md |\n\n"
+                "## Next gates\n\n"
+                "| # | Track | Next proof | Action path |\n"
+                "|---|-------|------------|-------------|\n"
+                "| 1 | Example | Re-run it. | Read the runbook. |\n",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_dashboard_next_gates(root, errors)
+
+            self.assertTrue(any("action path has no Markdown link" in e for e in errors))
 
     def test_valid_support_coverage_schema(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

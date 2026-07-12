@@ -63,7 +63,8 @@ When an existing track changes:
 
 1. Update its public state only as far as current evidence proves.
 2. Update the matching **Next gates** row with the smallest result that
-   materially advances the track.
+   materially advances the track and a working **Action path** to its runbook,
+   exact evidence owner, or decision boundary.
 3. Change the verification date only when the state was actually rechecked.
 4. Update the matching ledger row with the same number, track name, and date.
 5. Link the project document or finding that owns the evidence.
