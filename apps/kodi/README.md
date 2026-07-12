@@ -18,7 +18,7 @@ zero-copy.
 | Piece | What | Status |
 |-------|------|--------|
 | **Decoder selection** | Stock Kodi 22 auto-picks `h264_rkmpp`/`hevc_rkmpp`/`av1_rkmpp` via the fork's `AVCodecHWConfig` — **no Kodi patch** | ✅ analyzed, [`docs/decoder-selection.md`](docs/decoder-selection.md) |
-| **FFmpeg** | External `ffmpeg-rockchip-81` (`libavcodec63`), `-DENABLE_INTERNAL_FFMPEG=OFF` | 🛠 `main@be367abfe6` source accepted by Launchpad; previous `~rk5` built |
+| **FFmpeg** | External `ffmpeg-rockchip-81` (`libavcodec63`), `-DENABLE_INTERNAL_FFMPEG=OFF` | ✅ `main@be367abfe6` source and arm64 binaries published by Launchpad |
 | **MPP runtime** | PPA `1375813c` (h264/hevc `rkmpp` decode verified); board stock `750e76e` is broken | ✅ [finding](../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) |
 | **Build** | GBM windowing + GLES render, native cmake | ⏳ not built yet — [`docs/build-hwaccel.md`](docs/build-hwaccel.md) |
 | **Playback** | `kodi-gbm` on tty1, Prime-decoder settings on | ⏳ pending (needs `gdm` stopped) |
@@ -35,5 +35,5 @@ zero-copy.
 ## See also
 
 - Origin finding: [`../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md`](../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md)
-- FFmpeg fork + PPA packaging: [`../../packaging/ppa/ffmpeg/README.md`](../../packaging/ppa/ffmpeg/README.md)
+- FFmpeg fork + PPA packaging: [`../../packaging/ppa/README.md`](../../packaging/ppa/README.md#ffmpeg)
 - State rollup: [`../../status.md`](../../status.md)

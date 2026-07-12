@@ -30,6 +30,22 @@ fixes ([`apps/gnome-remote-desktop/docs/design.md`](../docs/design.md)); `0007` 
 ([`../README.md`](../README.md) #4). Patch `0007` is a **no-op on the ffmpeg-rockchip
 fork**, which already does fixed-QP and honours forced IDR.
 
+## Reference prototypes (not part of the series)
+
+[`reference/`](reference/) preserves two measured, deliberately unshipped
+experiments that were previously available only as dirty dev-box worktrees:
+
+| Patch | Base | Purpose | Disposition |
+|-------|------|---------|-------------|
+| [`async-pbo-prototype.patch`](reference/async-pbo-prototype.patch) | `c14e09ef67e916ae83a4eddee6a56591078e78e0` | Adds the opt-in `GRD_ASYNC_READBACK` PBO/fence path (506 changed lines across four files). | Useful only with Mesa's compute-PBO route; slower on the default path and unable to pipeline across GRD's single-in-flight consumer. |
+| [`memfd-prototype.patch`](reference/memfd-prototype.patch) | `c14e09ef67e916ae83a4eddee6a56591078e78e0` | Adds the opt-in `GRD_FORCE_MEMFD` negotiation and shm geometry (21 changed lines across two files). | Moves readback work into Mutter rather than removing it; not a performance fix. |
+
+These are raw working-tree diffs, not `git format-patch` commits, and are not
+included by the `0001`–`0008` apply command below. Generated SPIR-V files were
+excluded. The measurements and conclusions are in
+[`../docs/baseline.md`](../docs/baseline.md) and
+[`../docs/capture-path.md`](../docs/capture-path.md).
+
 ## Apply
 
 ```bash

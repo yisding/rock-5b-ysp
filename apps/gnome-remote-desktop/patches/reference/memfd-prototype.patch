@@ -1,0 +1,64 @@
+diff --git a/src/grd-rdp-pipewire-stream.c b/src/grd-rdp-pipewire-stream.c
+index eae08d0..5082a58 100644
+--- a/src/grd-rdp-pipewire-stream.c
++++ b/src/grd-rdp-pipewire-stream.c
+@@ -324,7 +324,7 @@ add_format_params (GrdRdpPipeWireStream        *stream,
+   add_common_format_params (pod_builder, spa_format, virtual_monitor,
+                             refresh_rate);
+ 
+-  if (egl_thread && !hwaccel_nvidia)
++  if (egl_thread && !hwaccel_nvidia && !g_getenv ("GRD_FORCE_MEMFD"))
+     {
+       uint32_t drm_format;
+       int n_modifiers;
+@@ -534,7 +534,8 @@ on_stream_param_changed (void                 *user_data,
+   spa_pod_dynamic_builder_init (&pod_builder, NULL, 0, PARAMS_BUFFER_SIZE);
+ 
+   allowed_buffer_types = 1 << SPA_DATA_MemFd;
+-  if (egl_thread && !hwaccel_nvidia)
++  if (egl_thread && !hwaccel_nvidia &&
++      !g_getenv ("GRD_FORCE_MEMFD"))
+     allowed_buffer_types |= 1 << SPA_DATA_DmaBuf;
+ 
+   if (allowed_buffer_types & 1 << SPA_DATA_DmaBuf &&
+@@ -549,6 +550,18 @@ on_stream_param_changed (void                 *user_data,
+     SPA_PARAM_BUFFERS_buffers, SPA_POD_CHOICE_RANGE_Int (8, 2, 8),
+     SPA_PARAM_BUFFERS_dataType, SPA_POD_Int (allowed_buffer_types),
+     0);
++  if (!(allowed_buffer_types & 1 << SPA_DATA_DmaBuf))
++    {
++      /* For MemFd buffers the producer (mutter) needs an explicit shm geometry;
++       * without it buffer allocation fails with "Invalid argument". */
++      spa_pod_builder_add (
++        &pod_builder.b,
++        SPA_PARAM_BUFFERS_blocks, SPA_POD_Int (1),
++        SPA_PARAM_BUFFERS_size, SPA_POD_Int (stride * height),
++        SPA_PARAM_BUFFERS_stride, SPA_POD_Int (stride),
++        SPA_PARAM_BUFFERS_align, SPA_POD_Int (16),
++        0);
++    }
+   if (use_explicit_sync)
+     {
+       spa_pod_builder_prop (&pod_builder.b,
+diff --git a/src/grd-rdp-render-context.c b/src/grd-rdp-render-context.c
+index ae01d21..0bf9b33 100644
+--- a/src/grd-rdp-render-context.c
++++ b/src/grd-rdp-render-context.c
+@@ -546,6 +546,8 @@ create_egl_based_rfx_progressive_encode_session (GrdRdpRenderContext  *render_co
+ 
+   render_context->codec = GRD_RDP_CODEC_CAPROGRESSIVE;
+ 
++  g_message ("[BENCH] view-creator=gen-gl (DMA-BUF + glReadPixels readback path)");
++
+   return TRUE;
+ }
+ 
+@@ -617,6 +619,8 @@ create_sw_based_rfx_progressive_encode_session (GrdRdpRenderContext  *render_con
+   render_context->codec = GRD_RDP_CODEC_CAPROGRESSIVE;
+   render_context->delay_view_finalization = TRUE;
+ 
++  g_message ("[BENCH] view-creator=gen-sw (MemFd direct-map, no readback)");
++
+   return TRUE;
+ }
+ 

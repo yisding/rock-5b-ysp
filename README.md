@@ -11,9 +11,9 @@ of every track. Cross-cutting vocabulary (MPP, RGA, CCU, DCHS, …) lives in
 The validated kernel result is a Rockchip vendor **MPP** codec stack plus **RGA**
 forward-port from the Rockchip 6.1 BSP to Linux 6.18, packaged for Armbian on the
 ROCK 5B. The repo also records the work built on that base: `ffmpeg-rockchip`, a
-hardware H.264 backend for `gnome-remote-desktop`, Mesa/Panfrost Mali-G610
-debugging, DKMS/PPA packaging, a BSP audit fix series, and a clean-room rewrite
-track.
+hardware H.264 backend for `gnome-remote-desktop`, Kodi hardware decode,
+Mesa/Panfrost Mali-G610 debugging, DKMS/PPA packaging, a BSP audit fix series,
+and a clean-room rewrite track.
 
 The dated project dashboard is [`status.md`](status.md); read every state claim
 through its last-verified dates.
@@ -42,7 +42,7 @@ For a quick orientation:
 |-------|---------------------|
 | Combined Armbian kernel | Hardware-validated on ROCK 5B for H.264/H.265 encode, H.264/H.265 decode, RGA, and full hardware transcode. This is the primary install path. |
 | Userspace codec stack | Documented through `vendor-libraries/` and `video-libraries/`; `ffmpeg-rockchip` and GRD integration notes are captured here, while source builds live in their own trees. |
-| PPA delivery | Source packaging for `mpp`, `librga`, `ffmpeg`, and `gnome-remote-desktop` is in-repo; public PPA source publication has started, but the public binary indexes are still empty and FFmpeg/GRD are not public in APT yet. Treat it as a packaging track, not an install path yet. |
+| PPA delivery | Public arm64 indexes now contain MPP, librga, the Rockchip-81 FFmpeg stack, the co-installable FFmpeg 6.1 tools, and all three co-installable kernel builds. GRD/GDM packages and all kernel board install/revert gates remain pending, so treat the PPA as a staging channel rather than the primary install path. |
 | DKMS package path | Compiles on the documented 6.18 target, but the overlay has not replaced the validated combined-kernel path. Treat it as secondary. |
 | BSP audit cleanup series | Reviewable, but not shippable yet; compile/runtime gates are still tracked in [`status.md`](status.md). |
 | Clean-room rewrite track | Active bring-up and conformance work, not the validated replacement. |
@@ -62,7 +62,7 @@ flowchart TB
   kernel["kernel-drivers<br/>mpp · rga · av1 · iommu"]
   libs["vendor-libraries<br/>librockchip_mpp · librga"]
   video["video-libraries<br/>ffmpeg · mesa"]
-  apps["apps<br/>gnome-remote-desktop"]
+  apps["apps<br/>gnome-remote-desktop · kodi"]
   packaging["packaging<br/>delivery & validation"]
 
   board --> kernel
@@ -79,7 +79,7 @@ flowchart TB
 | **kernel-drivers** | In-kernel accelerator drivers, split `mpp` · `rga` · `av1` · `iommu`; shared architecture docs, patches, scripts, on-hardware tests at the top. | [`kernel-drivers/`](kernel-drivers/README.md) |
 | **vendor-libraries** | Userspace vendor libs: `mpp` (librockchip_mpp), `rga` (librga). | [`vendor-libraries/`](vendor-libraries/README.md) |
 | **video-libraries** | `ffmpeg` (rkmpp codecs + rkrga filters) and `mesa` (Mali-G610 transfer work). | [`video-libraries/`](video-libraries/README.md) |
-| **apps** | Real applications on the stack: `gnome-remote-desktop` H.264 RDP backend. | [`apps/`](apps/README.md) |
+| **apps** | Real applications on the stack: `gnome-remote-desktop` H.264 RDP encode and Kodi DRM PRIME hardware decode. | [`apps/`](apps/README.md) |
 | **packaging** | Delivery channels: DKMS, udev/ACL debs, PPA source packages, binary policy. | [`packaging/`](packaging/README.md) |
 | **findings** | Raw capture inbox — drop a freshly-learned fact first, graduate it into a project doc later. | [`findings/`](findings/README.md) |
 | **docs** + glossary | Cross-cutting: package map, source-tree pins, whole-repo trap index, shared vocabulary. | [`docs/`](docs/README.md), [`glossary.md`](glossary.md) |
@@ -185,6 +185,7 @@ video-libraries/
   mesa/                Mali-G610 Panfrost transfer: docs, patches, reproducers, scripts
 apps/
   gnome-remote-desktop/  hardware H.264 RDP backend: docs, patches, bench
+  kodi/                  Kodi 22 RKMPP/DRM PRIME decode: design, build, test
 packaging/             deploy hub: DKMS, udev/ACL debs, PPA notes, policy
 docs/                  cross-project map, source-tree pins, and gotchas trap index
   status-ledger.md     audit companion to status.md

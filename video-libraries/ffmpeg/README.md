@@ -15,7 +15,7 @@ Project vocabulary (incl. `ffmpeg-rockchip` upstream vs the `ffmpeg-rockchip-81`
 | Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
 | Owns | The FFmpeg build recipe, companion docs in [`docs/`](docs/how-ffmpeg-works.md), pkg-config examples, and exported patch series in [`patches/`](patches/README.md). |
 | Depends on | Working kernel nodes from [`kernel-drivers/README.md`](../../kernel-drivers/README.md), staged or packaged libraries from [`vendor-libraries/README.md`](../../vendor-libraries/README.md), and the codec udev rule for non-root use. |
-| Current state | The original `ffmpeg-rockchip` build path is hardware-validated. `ffmpeg-rockchip-81` main at `be367abfe6` builds, passes focused codec-registration FATE, and is the source of the pending PPA upload; broader feature/encode/RGA-smoke validation was recorded at the earlier `75638e7f0b17` snapshot. See [`status.md`](../../status.md). |
+| Current state | The original `ffmpeg-rockchip` build path is hardware-validated. `ffmpeg-rockchip-81` main at `be367abfe6` builds, passes focused codec-registration FATE, and is published in the PPA for arm64; broader feature/encode/RGA-smoke validation was recorded at the earlier `75638e7f0b17` snapshot. See [`status.md`](../../status.md). |
 
 ## Files
 

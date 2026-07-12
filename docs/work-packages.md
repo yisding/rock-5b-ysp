@@ -49,6 +49,7 @@ flowchart TB
 
   subgraph apps["apps"]
     grd["gnome-remote-desktop<br/>RDP H.264 backend"]
+    kodi["kodi<br/>DRM PRIME hardware decode"]
   end
 
   packaging["packaging<br/>delivery + verification"]
@@ -57,6 +58,7 @@ flowchart TB
   bsp --> mpp
   fport -.-> mpp
   mpp --> libmpp --> ffmpeg --> grd
+  ffmpeg --> kodi
   rga --> librga --> ffmpeg
   av1 --> libmpp
   iommu -.-> mpp
@@ -76,7 +78,7 @@ flowchart TB
 | kernel-drivers | mpp / rga / av1 / iommu | In-kernel accelerator drivers. Shared driver model, DT, patches, scripts, tests at the top; per-block notes in each sub-project. | [`../kernel-drivers/`](../kernel-drivers/README.md) |
 | vendor-libraries | mpp / rga | `librockchip_mpp` and `librga` userspace: library/kernel split, ioctls, dma-buf imports, ABI facts. | [`../vendor-libraries/`](../vendor-libraries/README.md) |
 | video-libraries | ffmpeg / mesa | rkmpp codecs + rkrga filters, and the Mali-G610 transfer investigation behind GRD fallback. | [`../video-libraries/`](../video-libraries/README.md) |
-| apps | gnome-remote-desktop | The codec stack in a real RDP application: backend design, zero-copy encode, greeter ACL. | [`../apps/`](../apps/README.md) |
+| apps | gnome-remote-desktop / kodi | Real application integration: zero-copy RDP encode and DRM PRIME media playback. | [`../apps/`](../apps/README.md) |
 | packaging | — | Installable delivery: DKMS, udev ACLs, PPA source packages, rollback, binary policy. | [`../packaging/`](../packaging/README.md) |
 | scripts | — | Repo-wide maintenance checks (markdown links, whitespace) run before a handoff. | [`../scripts/`](../scripts/README.md) |
 
@@ -88,6 +90,7 @@ flowchart TB
 | Get codecs working on a board | [`../install.md`](../install.md) -> [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) |
 | Build a command-line media stack | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`../video-libraries/ffmpeg/`](../video-libraries/ffmpeg/README.md) -> [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) |
 | Run accelerated RDP | [`../install.md`](../install.md) -> [`../packaging/`](../packaging/README.md) -> [`../apps/gnome-remote-desktop/`](../apps/gnome-remote-desktop/README.md) |
+| Build and test Kodi hardware decode | [`../apps/kodi/`](../apps/kodi/README.md) -> [`../apps/kodi/docs/build-hwaccel.md`](../apps/kodi/docs/build-hwaccel.md) |
 | Recover from a failure | [`../status.md`](../status.md) -> [`status-ledger.md`](status-ledger.md) -> [`gotchas.md`](gotchas.md) -> [`debug-kernel.md`](../kernel-drivers/docs/debug-kernel.md) |
 
 ## Developer reading paths

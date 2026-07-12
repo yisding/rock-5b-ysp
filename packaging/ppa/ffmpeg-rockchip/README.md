@@ -30,4 +30,4 @@ or binary package-name collisions.
 
 Local source-package validation passed, source `lintian` passed, and a local arm64 binary build produced the expected private tools with RKMPP encoders/decoders and RKRGA filters. The package disables LTO for local/Launchpad resource use and skips upstream FATE tests because this fork segfaults while generating HLS list test data.
 
-The signed source upload `6.1+git20260423.40c412dacc-0ubuntu1~rk1` was accepted by Launchpad as Pending source publication `18614552`; arm64 build `33387375` successfully built on `bos03-arm64-043`.
+The signed source upload `6.1+git20260423.40c412dacc-0ubuntu1~rk1` is public as source publication `18614552`; arm64 build `33387375` successfully built on `bos03-arm64-043`, and the tool package is in the public index.

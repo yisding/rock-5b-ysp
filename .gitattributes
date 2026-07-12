@@ -1,0 +1,4 @@
+# Unified-diff artifacts require a single context marker on otherwise blank
+# lines. Do not report those format-significant spaces as repository whitespace
+# errors; patch applicability is validated separately.
+*.patch -whitespace

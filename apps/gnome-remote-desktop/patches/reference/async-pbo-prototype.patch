@@ -1,0 +1,648 @@
+diff --git a/src/grd-egl-thread.c b/src/grd-egl-thread.c
+index 012d026..d86f458 100644
+--- a/src/grd-egl-thread.c
++++ b/src/grd-egl-thread.c
+@@ -65,6 +65,13 @@ struct _GrdEglThread
+     int drm_render_node_fd;
+ 
+     GSource *egl_thread_source;
++
++    /* Asynchronous PBO readback (download) state. EGL-thread only. */
++    GHashTable *download_cache;
++    gboolean async_readback;
++    gboolean readback_debug;
++    gboolean have_gl_sync;
++    unsigned int readback_ring_size;
+   } impl;
+ };
+ 
+@@ -159,6 +166,44 @@ typedef struct _GrdEglTaskDownload
+   uint64_t timeline_point;
+ } GrdEglTaskDownload;
+ 
++typedef struct _GrdEglTaskInvalidate
++{
++  GrdEglTask base;
++
++  int fd;
++} GrdEglTaskInvalidate;
++
++#define GRD_READBACK_RING_MAX 3
++#define GRD_READBACK_RING_DEFAULT 2
++#define GRD_DOWNLOAD_CACHE_MAX_ENTRIES 16
++
++typedef struct _GrdDownloadCacheEntry
++{
++  GrdEglThread *egl_thread;
++
++  int fd; /* key, not owned */
++
++  unsigned int width;
++  unsigned int height;
++  uint32_t format;
++  uint32_t stride;
++  uint32_t offset;
++  uint64_t modifier;
++  gboolean have_modifier;
++
++  EGLImageKHR egl_image;
++  GLuint tex;
++  GLuint fbo;
++
++  unsigned int ring_size;
++  GLuint pbo[GRD_READBACK_RING_MAX];
++  GLsync fence[GRD_READBACK_RING_MAX];
++  size_t pbo_size[GRD_READBACK_RING_MAX];
++  unsigned int ring_head;
++} GrdDownloadCacheEntry;
++
++static void download_cache_entry_free_in_impl (gpointer data);
++
+ static void
+ grd_egl_task_free (GrdEglTask *task)
+ {
+@@ -681,6 +726,44 @@ grd_egl_thread_func (gpointer user_data)
+       return NULL;
+     }
+ 
++  /* The EGL context is current here. Resolve readback config and build the
++   * per-context download cache (GL/EGL objects are context-bound). */
++  egl_thread->impl.async_readback = g_getenv ("GRD_ASYNC_READBACK") != NULL;
++  egl_thread->impl.readback_debug = g_getenv ("GRD_READBACK_DEBUG") != NULL;
++  egl_thread->impl.have_gl_sync = epoxy_gl_version () >= 32 ||
++                                  epoxy_has_gl_extension ("GL_ARB_sync") ||
++                                  (!epoxy_is_desktop_gl () &&
++                                   epoxy_gl_version () >= 30);
++
++  egl_thread->impl.readback_ring_size = GRD_READBACK_RING_DEFAULT;
++  {
++    const char *ring_env = g_getenv ("GRD_READBACK_RING");
++
++    if (ring_env)
++      {
++        int ring = (int) g_ascii_strtoll (ring_env, NULL, 10);
++
++        egl_thread->impl.readback_ring_size =
++          CLAMP (ring, 1, GRD_READBACK_RING_MAX);
++      }
++  }
++
++  if (egl_thread->impl.async_readback && !egl_thread->impl.have_gl_sync)
++    {
++      g_warning ("[EGL Thread] GRD_ASYNC_READBACK requested but GL sync objects "
++                 "are unavailable; falling back to synchronous readback");
++      egl_thread->impl.async_readback = FALSE;
++    }
++
++  egl_thread->impl.download_cache =
++    g_hash_table_new_full (NULL, NULL, NULL, download_cache_entry_free_in_impl);
++
++  if (egl_thread->impl.async_readback)
++    {
++      g_debug ("[EGL Thread] Asynchronous PBO readback enabled (ring=%u)",
++               egl_thread->impl.readback_ring_size);
++    }
++
+   egl_thread->impl.egl_thread_source =
+     g_source_new (&egl_task_source_funcs, sizeof (EglTaskSource));
+   ((EglTaskSource *) egl_thread->impl.egl_thread_source)->egl_thread =
+@@ -717,6 +800,9 @@ grd_egl_thread_func (gpointer user_data)
+     }
+   g_async_queue_unref (egl_thread->task_queue);
+ 
++  /* Free cached GL/EGL download objects while the context is still current. */
++  g_clear_pointer (&egl_thread->impl.download_cache, g_hash_table_unref);
++
+   g_clear_fd (&egl_thread->impl.drm_render_node_fd, NULL);
+   eglMakeCurrent (egl_thread->impl.egl_display,
+                   EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+@@ -1026,6 +1112,260 @@ create_egl_sync_from_syncobj_timeline_point_in_impl (GrdEglThread  *egl_thread,
+                                                    error);
+ }
+ 
++/*
++ * Like bind_egl_image(), but without the per-create glPixelStorei
++ * (GL_PACK_ROW_LENGTH) call: pack row length is global pack state that must be
++ * set per-read (in read_pixels_pbo_in_impl), not at import time.
++ */
++static gboolean
++bind_egl_image_cached_in_impl (GrdEglThread *egl_thread,
++                               EGLImageKHR   egl_image,
++                               GLuint       *tex,
++                               GLuint       *fbo)
++{
++  GLenum error;
++
++  glGenTextures (1, tex);
++  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
++  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
++  glBindTexture (GL_TEXTURE_2D, *tex);
++  glEGLImageTargetTexture2DOES (GL_TEXTURE_2D, egl_image);
++  error = glGetError ();
++  if (error != GL_NO_ERROR)
++    {
++      g_warning ("[EGL Thread] Failed to bind DMA buf texture: %u", error);
++      return FALSE;
++    }
++
++  glGenFramebuffers (1, fbo);
++  glBindFramebuffer (GL_FRAMEBUFFER, *fbo);
++  glFramebufferTexture2D (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
++                          GL_TEXTURE_2D, *tex, 0);
++  if (glCheckFramebufferStatus (GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
++    {
++      g_warning ("Failed to bind DMA buf framebuffer");
++      return FALSE;
++    }
++
++  return TRUE;
++}
++
++static void
++download_cache_entry_free_in_impl (gpointer data)
++{
++  GrdDownloadCacheEntry *entry = data;
++  GrdEglThread *egl_thread = entry->egl_thread;
++  unsigned int i;
++
++  for (i = 0; i < entry->ring_size; i++)
++    {
++      if (entry->fence[i])
++        glDeleteSync (entry->fence[i]);
++      if (entry->pbo[i])
++        glDeleteBuffers (1, &entry->pbo[i]);
++    }
++
++  if (entry->fbo)
++    glDeleteFramebuffers (1, &entry->fbo);
++  if (entry->tex)
++    glDeleteTextures (1, &entry->tex);
++  if (entry->egl_image != EGL_NO_IMAGE)
++    eglDestroyImageKHR (egl_thread->impl.egl_display, entry->egl_image);
++
++  g_free (entry);
++}
++
++static GrdDownloadCacheEntry *
++download_cache_entry_get_or_create_in_impl (GrdEglThread       *egl_thread,
++                                            GrdEglTaskDownload *task)
++{
++  GHashTable *cache = egl_thread->impl.download_cache;
++  gboolean have_modifier = task->modifiers != NULL;
++  uint64_t modifier = have_modifier ? task->modifiers[0] : 0;
++  int fd = task->fds[0];
++  GrdDownloadCacheEntry *entry;
++  EGLImageKHR egl_image;
++  GLuint tex = 0;
++  GLuint fbo = 0;
++
++  entry = g_hash_table_lookup (cache, GINT_TO_POINTER (fd));
++  if (entry)
++    {
++      if (entry->width == task->width &&
++          entry->height == task->height &&
++          entry->format == task->format &&
++          entry->stride == task->strides[0] &&
++          entry->offset == task->offsets[0] &&
++          entry->have_modifier == have_modifier &&
++          entry->modifier == modifier)
++        return entry;
++
++      /* fd was recycled to a different buffer: drop and rebuild. */
++      g_hash_table_remove (cache, GINT_TO_POINTER (fd));
++      entry = NULL;
++    }
++
++  egl_image = create_dmabuf_image (egl_thread,
++                                   task->width,
++                                   task->height,
++                                   task->format,
++                                   task->n_planes,
++                                   task->fds,
++                                   task->strides,
++                                   task->offsets,
++                                   task->modifiers);
++  if (egl_image == EGL_NO_IMAGE)
++    return NULL;
++
++  if (!bind_egl_image_cached_in_impl (egl_thread, egl_image, &tex, &fbo))
++    {
++      if (fbo)
++        glDeleteFramebuffers (1, &fbo);
++      if (tex)
++        glDeleteTextures (1, &tex);
++      eglDestroyImageKHR (egl_thread->impl.egl_display, egl_image);
++      return NULL;
++    }
++
++  /* Keep cache growth bounded; evict an arbitrary entry if at capacity. */
++  if (g_hash_table_size (cache) >= GRD_DOWNLOAD_CACHE_MAX_ENTRIES)
++    {
++      GHashTableIter iter;
++
++      g_hash_table_iter_init (&iter, cache);
++      if (g_hash_table_iter_next (&iter, NULL, NULL))
++        g_hash_table_iter_remove (&iter);
++    }
++
++  entry = g_new0 (GrdDownloadCacheEntry, 1);
++  entry->egl_thread = egl_thread;
++  entry->fd = fd;
++  entry->width = task->width;
++  entry->height = task->height;
++  entry->format = task->format;
++  entry->stride = task->strides[0];
++  entry->offset = task->offsets[0];
++  entry->have_modifier = have_modifier;
++  entry->modifier = modifier;
++  entry->egl_image = egl_image;
++  entry->tex = tex;
++  entry->fbo = fbo;
++  entry->ring_size = egl_thread->impl.readback_ring_size;
++  entry->ring_head = 0;
++
++  g_hash_table_insert (cache, GINT_TO_POINTER (fd), entry);
++
++  return entry;
++}
++
++/*
++ * Readback via a GL_PIXEL_PACK_BUFFER. Binding a real PBO at glReadPixels time
++ * is what flips Mesa from the blocking _mesa_readpixels (CPU detile/staging)
++ * onto the try_pbo_readpixels GPU pack fast path. The map+memcpy completes in
++ * this same call, after waiting on a GLsync fence, so the consumer always sees
++ * a fully populated dst_data when the callback fires.
++ */
++static gboolean
++read_pixels_pbo_in_impl (GrdEglThread          *egl_thread,
++                         GrdDownloadCacheEntry *entry,
++                         GrdEglTaskDownload    *task)
++{
++  size_t size = (size_t) task->dst_row_width * task->height * 4;
++  unsigned int i = entry->ring_head;
++  gboolean debug = egl_thread->impl.readback_debug;
++  GLenum wait_result;
++  GLenum error;
++  void *mapped;
++  int64_t t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0;
++
++  if (entry->pbo[i] == 0 || entry->pbo_size[i] != size)
++    {
++      if (entry->pbo[i] == 0)
++        glGenBuffers (1, &entry->pbo[i]);
++      glBindBuffer (GL_PIXEL_PACK_BUFFER, entry->pbo[i]);
++      glBufferData (GL_PIXEL_PACK_BUFFER, size, NULL, GL_STREAM_READ);
++      entry->pbo_size[i] = size;
++    }
++
++  glBindFramebuffer (GL_FRAMEBUFFER, entry->fbo);
++  glPixelStorei (GL_PACK_ROW_LENGTH, task->dst_row_width);
++  glBindBuffer (GL_PIXEL_PACK_BUFFER, entry->pbo[i]);
++
++  if (debug)
++    t0 = g_get_monotonic_time ();
++
++  glReadPixels (0, 0, task->width, task->height,
++                GL_BGRA, GL_UNSIGNED_BYTE, (void *) 0);
++
++  if (debug)
++    t1 = g_get_monotonic_time ();
++
++  if (entry->fence[i])
++    glDeleteSync (entry->fence[i]);
++  entry->fence[i] = glFenceSync (GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
++  glFlush ();
++
++  if (debug)
++    t2 = g_get_monotonic_time ();
++
++  do
++    {
++      wait_result = glClientWaitSync (entry->fence[i],
++                                      GL_SYNC_FLUSH_COMMANDS_BIT,
++                                      1000000000ULL);
++    }
++  while (wait_result == GL_TIMEOUT_EXPIRED);
++
++  if (debug)
++    t3 = g_get_monotonic_time ();
++
++  mapped = glMapBufferRange (GL_PIXEL_PACK_BUFFER, 0, size, GL_MAP_READ_BIT);
++
++  if (debug)
++    t4 = g_get_monotonic_time ();
++
++  if (!mapped)
++    {
++      g_warning ("[EGL Thread] Failed to map PBO for readback");
++      glBindBuffer (GL_PIXEL_PACK_BUFFER, 0);
++      glDeleteSync (entry->fence[i]);
++      entry->fence[i] = 0;
++      return FALSE;
++    }
++
++  memcpy (task->dst_data, mapped, size);
++
++  if (debug)
++    t5 = g_get_monotonic_time ();
++
++  glUnmapBuffer (GL_PIXEL_PACK_BUFFER);
++  glBindBuffer (GL_PIXEL_PACK_BUFFER, 0);
++  glDeleteSync (entry->fence[i]);
++  entry->fence[i] = 0;
++
++  entry->ring_head = (i + 1) % entry->ring_size;
++
++  error = glGetError ();
++  if (error != GL_NO_ERROR)
++    {
++      g_warning ("[EGL Thread] GL error during PBO readback: %u", error);
++      return FALSE;
++    }
++
++  if (debug)
++    {
++      g_message ("[EGL Thread] async readback %ux%u ring=%u: "
++                 "t_issue=%.3fms t_fence=%.3fms t_map=%.3fms t_copy=%.3fms",
++                 task->width, task->height, i,
++                 (t1 - t0) / 1000.0,
++                 (t3 - t2) / 1000.0,
++                 (t4 - t3) / 1000.0,
++                 (t5 - t4) / 1000.0);
++    }
++
++  return TRUE;
++}
++
+ static void
+ download_in_impl (gpointer data,
+                   gpointer user_data)
+@@ -1037,6 +1377,52 @@ download_in_impl (gpointer data,
+   GLuint tex = 0;
+   GLuint fbo = 0;
+ 
++  if (egl_thread->impl.async_readback)
++    {
++      GrdDownloadCacheEntry *entry;
++      gboolean async_success = FALSE;
++
++      entry = download_cache_entry_get_or_create_in_impl (egl_thread, task);
++      if (entry)
++        {
++          gboolean acquire_ok = TRUE;
++
++          glBindFramebuffer (GL_FRAMEBUFFER, entry->fbo);
++
++          if (task->syncobj_fd >= 0)
++            {
++              g_autoptr (GError) error = NULL;
++              EGLSync sync;
++
++              sync =
++                create_egl_sync_from_syncobj_timeline_point_in_impl (egl_thread,
++                                                                     task->syncobj_fd,
++                                                                     task->timeline_point,
++                                                                     &error);
++              if (sync == EGL_NO_SYNC)
++                {
++                  g_warning ("Failed to create EGLSync for acquire timeline point: %s",
++                             error->message);
++                  acquire_ok = FALSE;
++                }
++              else
++                {
++                  eglWaitSync (egl_thread->impl.egl_display, sync, 0);
++                  eglDestroySync (egl_thread->impl.egl_display, sync);
++                }
++            }
++
++          if (acquire_ok)
++            async_success = read_pixels_pbo_in_impl (egl_thread, entry, task);
++        }
++
++      glBindBuffer (GL_PIXEL_PACK_BUFFER, 0);
++      glBindFramebuffer (GL_FRAMEBUFFER, 0);
++
++      task->base.callback (async_success, task->base.callback_user_data);
++      return;
++    }
++
+   egl_image =
+     create_dmabuf_image (egl_thread,
+                          task->width,
+@@ -1203,6 +1589,21 @@ sync_in_impl (gpointer data,
+   task->base.callback (TRUE, task->base.callback_user_data);
+ }
+ 
++static void
++invalidate_in_impl (gpointer data,
++                    gpointer user_data)
++{
++  GrdEglThread *egl_thread = data;
++  GrdEglTaskInvalidate *task = user_data;
++
++  if (egl_thread->impl.download_cache)
++    g_hash_table_remove (egl_thread->impl.download_cache,
++                         GINT_TO_POINTER (task->fd));
++
++  if (task->base.callback)
++    task->base.callback (TRUE, task->base.callback_user_data);
++}
++
+ static void
+ run_custom_task_in_impl (gpointer data,
+                          gpointer user_data)
+@@ -1414,6 +1815,23 @@ grd_egl_thread_sync (GrdEglThread         *egl_thread,
+   g_main_context_wakeup (egl_thread->impl.main_context);
+ }
+ 
++void
++grd_egl_thread_invalidate_buffer (GrdEglThread *egl_thread,
++                                  int           fd)
++{
++  GrdEglTaskInvalidate *task;
++
++  task = g_new0 (GrdEglTaskInvalidate, 1);
++
++  task->fd = fd;
++
++  task->base.func = invalidate_in_impl;
++  task->base.destroy = (GDestroyNotify) grd_egl_task_free;
++
++  g_async_queue_push (egl_thread->task_queue, task);
++  g_main_context_wakeup (egl_thread->impl.main_context);
++}
++
+ void
+ grd_egl_thread_run_custom_task (GrdEglThread           *egl_thread,
+                                 GrdEglThreadCustomFunc  custom_func,
+diff --git a/src/grd-egl-thread.h b/src/grd-egl-thread.h
+index 08cd7b7..5f8a495 100644
+--- a/src/grd-egl-thread.h
++++ b/src/grd-egl-thread.h
+@@ -101,6 +101,9 @@ void grd_egl_thread_sync (GrdEglThread         *egl_thread,
+                           gpointer              user_data,
+                           GDestroyNotify        destroy);
+ 
++void grd_egl_thread_invalidate_buffer (GrdEglThread *egl_thread,
++                                       int           fd);
++
+ void grd_egl_thread_run_custom_task (GrdEglThread           *egl_thread,
+                                      GrdEglThreadCustomFunc  custom_func,
+                                      gpointer                custom_func_data,
+diff --git a/src/grd-rdp-pipewire-stream.c b/src/grd-rdp-pipewire-stream.c
+index eae08d0..bd03659 100644
+--- a/src/grd-rdp-pipewire-stream.c
++++ b/src/grd-rdp-pipewire-stream.c
+@@ -650,6 +650,40 @@ on_stream_add_buffer (void             *user_data,
+   g_hash_table_insert (stream->pipewire_buffers, buffer, rdp_pw_buffer);
+ }
+ 
++/*
++ * The EGL thread download cache keys cached EGLImages/textures/FBOs on the raw
++ * dmabuf fd. The fd is owned by PipeWire and gets recycled to a new (unrelated)
++ * dmabuf once the buffer it belonged to is destroyed, so the cache MUST be told
++ * to drop the entry before that happens, otherwise a recycled fd with identical
++ * geometry would hit the stale entry and read back the wrong buffer's pixels.
++ */
++static void
++invalidate_egl_download_cache (GrdRdpPipeWireStream *stream,
++                               GrdRdpPwBuffer       *rdp_pw_buffer)
++{
++  GrdSession *session = GRD_SESSION (stream->session_rdp);
++  GrdContext *context = grd_session_get_context (session);
++  GrdEglThread *egl_thread = grd_context_get_egl_thread (context);
++  const GrdRdpPwBufferDmaBufInfo *dma_buf_info;
++
++  if (!egl_thread)
++    return;
++
++  dma_buf_info = grd_rdp_pw_buffer_get_dma_buf_info (rdp_pw_buffer);
++  if (!dma_buf_info)
++    return;
++
++  grd_egl_thread_invalidate_buffer (egl_thread, dma_buf_info->fd);
++}
++
++static void
++invalidate_egl_download_cache_foreach (gpointer key,
++                                       gpointer value,
++                                       gpointer user_data)
++{
++  invalidate_egl_download_cache (user_data, value);
++}
++
+ static void
+ on_stream_remove_buffer (void             *user_data,
+                          struct pw_buffer *buffer)
+@@ -670,6 +704,8 @@ on_stream_remove_buffer (void             *user_data,
+   grd_rdp_surface_renderer_unregister_pw_buffer (surface_renderer,
+                                                  rdp_pw_buffer);
+ 
++  invalidate_egl_download_cache (stream, rdp_pw_buffer);
++
+   g_hash_table_remove (stream->pipewire_buffers, rdp_pw_buffer);
+ }
+ 
+@@ -1275,6 +1311,11 @@ grd_rdp_pipewire_stream_finalize (GObject *object)
+ 
+   g_mutex_clear (&stream->dequeue_mutex);
+ 
++  if (stream->pipewire_buffers)
++    {
++      g_hash_table_foreach (stream->pipewire_buffers,
++                            invalidate_egl_download_cache_foreach, stream);
++    }
+   g_clear_pointer (&stream->pipewire_buffers, g_hash_table_unref);
+ 
+   pw_deinit ();
+diff --git a/src/grd-vnc-pipewire-stream.c b/src/grd-vnc-pipewire-stream.c
+index 63e5de5..f7bd76b 100644
+--- a/src/grd-vnc-pipewire-stream.c
++++ b/src/grd-vnc-pipewire-stream.c
+@@ -64,6 +64,8 @@ typedef struct
+   GMutex buffer_mutex;
+   gboolean is_locked;
+ 
++  int dma_buf_fd;
++
+   int device_fd;
+ 
+   int acquire_syncobj_fd;
+@@ -169,6 +171,7 @@ grd_vnc_pw_buffer_new (struct pw_stream  *pw_stream,
+   vnc_pw_buffer = g_new0 (GrdVncPwBuffer, 1);
+   vnc_pw_buffer->pw_stream = pw_stream;
+   vnc_pw_buffer->pw_buffer = pw_buffer;
++  vnc_pw_buffer->dma_buf_fd = -1;
+   g_mutex_init (&vnc_pw_buffer->buffer_mutex);
+ 
+   if (get_pw_buffer_type (pw_buffer) == SPA_DATA_DmaBuf)
+@@ -176,6 +179,8 @@ grd_vnc_pw_buffer_new (struct pw_stream  *pw_stream,
+       struct spa_buffer *spa_buffer = pw_buffer->buffer;
+       int acquire_syncobj_fd, release_syncobj_fd;
+ 
++      vnc_pw_buffer->dma_buf_fd = spa_buffer->datas[0].fd;
++
+       if (grd_spa_buffer_find_syncobj_fds (spa_buffer,
+                                            &acquire_syncobj_fd,
+                                            &release_syncobj_fd))
+@@ -563,6 +568,38 @@ on_stream_add_buffer (void             *user_data,
+   g_hash_table_insert (stream->pipewire_buffers, buffer, vnc_pw_buffer);
+ }
+ 
++/*
++ * The EGL thread download cache keys cached EGLImages/textures/FBOs on the raw
++ * dmabuf fd. The fd is owned by PipeWire and gets recycled to a new (unrelated)
++ * dmabuf once the buffer it belonged to is destroyed, so the cache MUST be told
++ * to drop the entry before that happens, otherwise a recycled fd with identical
++ * geometry would hit the stale entry and read back the wrong buffer's pixels.
++ */
++static void
++invalidate_egl_download_cache (GrdVncPipeWireStream *stream,
++                               GrdVncPwBuffer       *vnc_pw_buffer)
++{
++  GrdSession *session = GRD_SESSION (stream->session);
++  GrdContext *context = grd_session_get_context (session);
++  GrdEglThread *egl_thread = grd_context_get_egl_thread (context);
++
++  if (!egl_thread)
++    return;
++
++  if (vnc_pw_buffer->dma_buf_fd < 0)
++    return;
++
++  grd_egl_thread_invalidate_buffer (egl_thread, vnc_pw_buffer->dma_buf_fd);
++}
++
++static void
++invalidate_egl_download_cache_foreach (gpointer key,
++                                       gpointer value,
++                                       gpointer user_data)
++{
++  invalidate_egl_download_cache (user_data, value);
++}
++
+ static void
+ on_stream_remove_buffer (void             *user_data,
+                          struct pw_buffer *buffer)
+@@ -581,6 +618,8 @@ on_stream_remove_buffer (void             *user_data,
+   g_mutex_lock (&vnc_pw_buffer->buffer_mutex);
+   g_mutex_unlock (&vnc_pw_buffer->buffer_mutex);
+ 
++  invalidate_egl_download_cache (stream, vnc_pw_buffer);
++
+   g_hash_table_remove (stream->pipewire_buffers, buffer);
+ }
+ 
+@@ -1273,6 +1312,11 @@ grd_vnc_pipewire_stream_finalize (GObject *object)
+   g_mutex_clear (&stream->frame_mutex);
+   g_mutex_clear (&stream->dequeue_mutex);
+ 
++  if (stream->pipewire_buffers)
++    {
++      g_hash_table_foreach (stream->pipewire_buffers,
++                            invalidate_egl_download_cache_foreach, stream);
++    }
+   g_clear_pointer (&stream->pipewire_buffers, g_hash_table_unref);
+ 
+   pw_deinit ();

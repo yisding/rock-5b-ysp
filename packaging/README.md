@@ -13,7 +13,7 @@ shipping, or operating** the artifacts.
 | Developer focus | Keep deploy artifacts reproducible and auditable: DKMS source staging, udev policy, PPA source packages, rollback, binary publishing, and package boundaries. |
 | Owns | Packaging docs for `codec-udev/`, `gdm-hwenc/`, `dkms/`, `ppa/`, and the operations runbook for the rkmpp FFmpeg stack. |
 | Depends on | Kernel-driver artifacts, userspace libraries, FFmpeg/GRD package sources, and the status gates recorded in [`../status.md`](../status.md). |
-| Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only; PPA source packaging for MPP, librga, FFmpeg, GRD, the optional GDM greeter ACL package, and the forward-port kernel is now in-repo. The kernel source package still needs binary-build and board install/revert validation. See [../status.md](../status.md). |
+| Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only. The PPA publicly indexes MPP, librga, both FFmpeg tracks, and three co-installable kernel builds; GRD/GDM uploads and kernel board install/revert validation remain pending. See [../status.md](../status.md). |
 
 ## The four delivery channels
 
@@ -22,7 +22,7 @@ shipping, or operating** the artifacts.
 | 1 | **Combined Armbian kernel** (`=y`) | [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) + [`../kernel-drivers/patches/`](../kernel-drivers/patches/README.md) | Kernel debs with the vendor MPP + RGA drivers built in | Hardware-validated (see [`../status.md`](../status.md)) |
 | 2 | **DKMS on a stock kernel** | [`dkms/`](dkms/README.md) | `rk_vcodec.ko` + `rga3.ko` rebuilt on every kernel update, + a boot-time DT overlay | Compile-tested on 6.18; overlay dtc-validated, **not boot-validated** |
 | 3 | **Local `.debs`** | [`codec-udev/`](codec-udev/README.md), [`gdm-hwenc/`](gdm-hwenc/README.md), `dkms/build-deb.sh` | The udev/ACL rules and the DKMS deb, built on demand | Built + installed on the dev board |
-| 4 | **Launchpad PPA** | [`ppa/`](ppa/README.md) | MPP + librga + FFmpeg RKMPP/RKRGA + GRD packages Launchpad builds from source; optional GDM greeter ACL native package; co-installable forward-port kernel source package | Source packaging imported; public PPA state is tracked in [`ppa/`](ppa/README.md). Kernel source package is generated locally, with binary and board gates pending. |
+| 4 | **Launchpad PPA** | [`ppa/`](ppa/README.md) | MPP + librga + FFmpeg RKMPP/RKRGA + staged GRD/GDM packages; co-installable forward-port and alpha kernels | Userspace codec and kernel binaries are public; GRD/GDM uploads and kernel board gates remain pending. |
 
 > **⚑ Hard rule: channels 1 and 2 are mutually exclusive.** Never run DKMS on a
 > combined (`=y`) kernel — the build fails `modpost` with `'…' exported twice`.
@@ -44,7 +44,7 @@ shipping, or operating** the artifacts.
 | [`dkms/`](dkms/README.md) | `rk3588-vcodec-dkms` deb: out-of-tree DKMS build of the vendor drivers + boot-time DT overlay, for **stock** kernels |
 | [`ffmpeg-rockchip81/`](ffmpeg-rockchip81/README.md) | `ffmpeg-rockchip81` deb: self-contained `/opt` runtime package for the local `ffmpeg-rockchip-81` forward-port tree |
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | `gnome-remote-desktop-gdm-hwenc` deb: opt-in `setfacl g:gdm` udev rule so the **GDM greeter** hardware-encodes too |
-| [`ppa/`](ppa/README.md) | Launchpad source packages for the userspace stack: imported `mpp`, `librga`, `ffmpeg`, and GRD packaging, source-export helper, the forward-port kernel source package, and the 2026-07-06 upload log. |
+| [`ppa/`](ppa/README.md) | Launchpad packaging and live state for public MPP/librga/FFmpeg/kernel packages plus staged GRD/GDM sources, the reproducible export helper, and the dated upload log. |
 | [`docs/`](docs/armbian-packaging.md) | The Armbian `media-0001` conflict + the convert-in-place / self-contained DT strategies ([`armbian-packaging.md`](docs/armbian-packaging.md)); and Armbian **patch precedence** — why you can't disable a core patch from userpatches ([`armbian-patch-precedence.md`](docs/armbian-patch-precedence.md)). |
 | [`external-workspaces.md`](external-workspaces.md) | Inventory and disposition for packaging/build artifacts in sibling `~/Code` workspaces: what is canonical source here, what is generated output, and what stays outside git. |
 
@@ -53,7 +53,7 @@ shipping, or operating** the artifacts.
 Recorded from operating the older drop-in FFmpeg `8.1.2+rkmpp1` local debs on
 the dev board (source: the `~/Code/gnome/grd/grd-debs` deployment,
 2026-06-30). The same package-management mechanics apply to a PPA install, but
-the current `ffmpeg-rockchip-81` PPA candidate has newer library package names
+the published `ffmpeg-rockchip-81` PPA package has newer library package names
 (`libavcodec63`, `libavutil61`, `libavformat63`, `libavfilter12`,
 `libavdevice63`, `libswscale10`, `libswresample7`).
 
@@ -65,11 +65,12 @@ supersede it on a routine `apt upgrade`. Hold the installed seven runtime libs
 (+ the codec libs):
 
 ```bash
-sudo apt-mark hold libavutil60 libavcodec62 libavformat62 libavdevice62 \
-                   libavfilter11 libswscale9 libswresample6
-# Current ffmpeg-rockchip-81 PPA candidate, once published:
-# sudo apt-mark hold libavutil61 libavcodec63 libavformat63 libavdevice63 \
-#                    libavfilter12 libswscale10 libswresample7
+# Current published ffmpeg-rockchip-81 PPA package:
+sudo apt-mark hold libavutil61 libavcodec63 libavformat63 libavdevice63 \
+                   libavfilter12 libswscale10 libswresample7
+# Older local-deb ABI, if that is what you installed:
+# sudo apt-mark hold libavutil60 libavcodec62 libavformat62 libavdevice62 \
+#                    libavfilter11 libswscale9 libswresample6
 # plus the codec libs of whichever era you installed:
 #   PPA:        librockchip-mpp1 librga2
 #   local-deb:  rockchip-codec-libs
@@ -77,8 +78,9 @@ sudo apt-mark hold libavutil60 libavcodec62 libavformat62 libavdevice62 \
 
 ### Exact rollback to stock Ubuntu FFmpeg (older libav*62 set)
 
-For the current `ffmpeg-rockchip-81` PPA candidate, exact rollback should be
-documented after publication against the actual package set. The older local
+For the current published `ffmpeg-rockchip-81` package, an ABI-63-to-ABI-62
+rollback still needs an on-board transaction test before this runbook prescribes
+it. The older local
 drop-in set rolled back with:
 
 ```bash
@@ -183,14 +185,15 @@ The broader artifact policy for sibling build workspaces is tracked in
   under `codec-udev/root/…` is gitignored); [`codec-udev/README.md`](codec-udev/README.md)
   owns *why* each line is needed (especially the required `dma_heap` grant).
 
-## Remaining PPA import gaps
+## Remaining PPA gates
 
 The PPA source packaging for `mpp`, `librga`, `ffmpeg`, GRD, the optional
 GDM greeter ACL package, and the co-installable forward-port kernel is now in this repo under
 [`ppa/`](ppa/README.md), along with the source-export helper and the 2026-07-06
-upload log. The remaining PPA import gaps are binary-build and board validation
-for [`ppa/kernel-forward-port/`](ppa/kernel-forward-port/README.md) and any old
-`UPLOAD.md` details not already captured in the current upload log.
+upload log. Launchpad binary builds now pass for the forward-port and both alpha
+kernels. The remaining gates are board install/reboot/revert validation for
+[`ppa/kernel-forward-port/`](ppa/kernel-forward-port/README.md), alpha-kernel
+hardware validation, and the held GRD/GDM uploads.
 Generated source packages, orig tarballs, signed `.changes`, `.deb`s, and
 Launchpad credentials stay out of git by policy.
 

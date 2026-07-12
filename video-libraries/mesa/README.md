@@ -18,7 +18,7 @@ every shared figure, asm listing, and validation result is owned here.
 | Developer focus | Preserve the Mali-G610 transfer investigation: BLIT precision failure, COMPUTE correctness, AFBC limitation, benchmark results, dEQP validation, and reproducible probes. |
 | Owns | [`blit-precision.md`](./docs/blit-precision.md), [`validation.md`](./docs/validation.md), [`texture-query-levels.md`](./docs/texture-query-levels.md), and [`reproducers/`](reproducers/README.md). |
 | Depends on | Local Mesa/Panfrost worktrees and the GRD profiling context that exposed the readback cost. |
-| Current state | The `gl_FragCoord` u_blitter fix is upstream as the 4-MR stack !42563 (unbind bugfix) / !42679 (isolated shared `u_blitter` fragcoord fix) / !42613 (panfrost opt-in + Joshua Watt's BLIT enablement) / !42614 (panfrost Gallium-test runtime setup + u_tests case). Final reviewed shape as of 2026-07-06 removes empty-blit handling from `u_blitter`, keeps zero-sized copies as front-end no-ops, and drops the impossible `PIPE_BUFFER` case from the TXF-fragcoord predicate/comment. !42563 and !42679 selected CI is green; the first !42613/!42614 selected G610 runs were red, now classified, force-pushed, and green on the selected G610 reruns. See [`status.md`](../../status.md). |
+| Current state | The `gl_FragCoord` u_blitter fix is upstream as the open 4-MR stack !42563 / !42679 / !42613 / !42614. The 2026-07-11 GitLab check found tips and pipelines unchanged and selected CI evidence still green; !42679 now reports `need_rebase`. See [`status.md`](../../status.md). |
 
 Hardware and software used for the local investigation:
 
@@ -46,7 +46,7 @@ Hardware and software used for the local investigation:
 | [`reproducers/`](reproducers/README.md) | Texture-transfer reproducers, transfer benchmark, archived BLIT-advertising patch, and the focused [`reproducers/interp_probe/`](reproducers/interp_probe/README.md) varying-interpolation proof set |
 | [`video-libraries/mesa/patches/0001-panfrost-advertise-transfer-blit-and-compute.patch`](patches/0001-panfrost-advertise-transfer-blit-and-compute.patch) | Archived `format-patch` of the BLIT-advertising commit — the only way to rebuild the failing BLIT configuration once upstream ships a non-BLIT default; reproduction-only, not for merging |
 
-## Status (verified 2026-07-06 against the local Mesa tree and GitLab API)
+## Status (last live-state check 2026-07-11; technical validation remains dated below)
 
 Current upstream stack:
 

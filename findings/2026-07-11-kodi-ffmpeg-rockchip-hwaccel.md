@@ -10,8 +10,8 @@
 
 > **Update, 2026-07-11:** the AV1 root cause is fixed directly on `main` in
 > forward-port commit `be367abfe6`. The package now exports that exact main tip
-> with no quilt series and is accepted as pending Launchpad source publication
-> `18615674`. The generic RKMPP path did send extradata,
+> with no quilt series. Launchpad source publication `18615674` and arm64 build
+> `33388714` are published. The generic RKMPP path did send extradata,
 > but omitted `mpp_packet_set_extra_data()`. MPP consequently treated the
 > leading `av1C` configuration bytes as an OBU instead of using its dedicated
 > extradata path, which strips the four-byte record header and parses the
@@ -117,7 +117,7 @@ re-test MP4/MKV and Kodi on RK3588. h264/hevc remain unaffected.
 The PPA `ffmpeg` source *is* `ffmpeg-rockchip-81` with the full Debian surface
 (`libavcodec63` … + `-dev`). Its arm64 build had been failing. Each Launchpad
 attempt exposed one bug; all three are now fixed in
-[`packaging/ppa/ffmpeg/`](../packaging/ppa/ffmpeg/README.md):
+[`packaging/ppa/`](../packaging/ppa/README.md#ffmpeg):
 
 | Rev | Bug | Failing stage | Fix |
 |-----|-----|---------------|-----|

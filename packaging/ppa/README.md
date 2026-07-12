@@ -9,12 +9,12 @@ FFmpeg 6.1 fork, GRD, and kernel source packages. The forward-port kernel has a
 tracked PPA source package under
 [`kernel-forward-port/`](kernel-forward-port/README.md); its local arm64 binary
 build and normalized Armbian payload comparison pass, its Launchpad source is
-published, and its Launchpad arm64 build is in progress. The alpha clean-room
+published, and its Launchpad arm64 build succeeded. The alpha clean-room
 rewrite kernels have separate co-installable source packages under
 [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) and
 [`kernel-rewrite-alpha-7.2-rc2/`](kernel-rewrite-alpha-7.2-rc2/README.md);
-their source uploads are accepted by Launchpad and waiting for publication/build
-completion. Kernel board install/revert gates are still pending. The optional
+their source and arm64 binaries are also public. Kernel board install/revert
+gates are still pending. The optional
 greeter ACL package has both the existing local deb source and a native PPA
 source wrapper under
 [`gdm-hwenc/`](gdm-hwenc/README.md).
@@ -22,26 +22,26 @@ source wrapper under
 ## Current State
 
 Last recorded in the public APT indexes and Launchpad API at
-`2026-07-11T21:10:12-07:00` and in
+`2026-07-11T21:44:09-07:00` and in
 [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md):
 
 | Package | Version in this repo | Public PPA state | Notes |
 |---------|----------------------|------------------|-------|
 | `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Source and arm64 binaries are published in the public PPA indexes. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
 | `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Source and arm64 binaries are published in the public PPA indexes; `-0ubuntu2~rk1` is superseded. | The `-0ubuntu3~rk1` retry succeeded after the earlier arm64 builder failure. |
-| `ffmpeg` | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Uploaded and accepted as pending source publication [`18615674`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18615674); no build record yet. Last public binary remains `~rk5`, whose arm64 build succeeded. | Exports `ffmpeg-rockchip-81` `main` at `be367abfe6`; the AV1 extradata and decoder `pix_fmts` fixes now live directly in source, so both quilt backports were removed. RK3588 AV1 MP4/MKV re-test pending. |
+| `ffmpeg` | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Source publication [`18615674`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18615674) is Published; arm64 build [`33388714`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33388714) succeeded, and the replacement binaries are public. | Exports `ffmpeg-rockchip-81` `main` at `be367abfe6`; the AV1 extradata and decoder `pix_fmts` fixes now live directly in source, so both quilt backports were removed. RK3588 AV1 MP4/MKV re-test pending. |
 | `ffmpeg` (baseline) | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Fixed arm64 build `33381225` completed successfully on 2026-07-10 UTC. | The `7:8.1.2-1+rk1` baseline upload published, but arm64 build `33366878` failed in the FATE frei0r tests. `-1+rk2` adds the `frei0r-plugins` build-dependency and still sorts below the Rockchip-81 forward-port. |
-| `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Source publication `18614552` is `Pending`; arm64 build `33387375` `Successfully built`. Source lintian passed and local arm64 binary validation passed. | Packages nyanmisaka FFmpeg 6.1 as `/opt/ffmpeg-rockchip` plus `ffmpeg-rockchip`/`ffprobe-rockchip`/`ffplay-rockchip`, not as the system `ffmpeg`; it can coexist with Ubuntu 26.04 FFmpeg 8.x and the Rockchip-81 replacement package because source and binary package names do not collide. |
+| `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Source publication `18614552` and successful arm64 build `33387375` are public. Source lintian and local arm64 binary validation passed. | Packages nyanmisaka FFmpeg 6.1 as `/opt/ffmpeg-rockchip` plus `ffmpeg-rockchip`/`ffprobe-rockchip`/`ffplay-rockchip`, not as the system `ffmpeg`; it can coexist with Ubuntu 26.04 FFmpeg 8.x and the Rockchip-81 replacement package because source and binary package names do not collide. |
 | `gnome-remote-desktop` | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1` | Source packaging imported, source lintian passed, and a local `nocheck` binary build passed against upstream FFmpeg `7:8.1.2-1+rk1`; not uploaded and not public in the PPA source index. | Reconstructed from `GRD_COMMIT` plus [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md), so it no longer depends on a dirty dev-box worktree. Wait for the FFmpeg dependency chain before upload, then rebuild once against upstream FFmpeg and once after `ffmpeg-rockchip-81` supersedes it. |
-| forward-port kernel | `6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Retry source publication `18614559` is `Pending`; arm64 build `33387391` is `Currently building` on `bos03-arm64-047`. Previous `~rk1` build `33387353` failed because `mkimage` was missing while generating `rockchip-fixup.scr`. | `~rk2` adds `u-boot-tools` to Build-Depends. Builds co-installable `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`; board install/revert validation is still pending. |
-| alpha rewrite kernel 6.18 | `6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Retry source publication `18614560` is `Pending`; arm64 build `33387392` is `Currently building` on `bos03-arm64-110`. Previous `~rk1` source `18614549` is `Published`, with build `33387366` still running at the last check. | `~rk2` adds `u-boot-tools` to Build-Depends. Builds co-installable `linux-image-ysp-alpha-6.18-rockchip64`, `linux-dtb-ysp-alpha-6.18-rockchip64`, and `linux-headers-ysp-alpha-6.18-rockchip64`; board validation is pending. |
-| alpha rewrite kernel 7.2-rc2 | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2` under [`kernel-rewrite-alpha-7.2-rc2/`](kernel-rewrite-alpha-7.2-rc2/README.md) | Retry source publication `18614561` is `Pending`; arm64 build `33387393` is `Currently building` on `bos03-arm64-074`. Previous `~rk1` source `18614550` is `Published`, with build `33387367` still running at the last check. | `~rk2` adds `u-boot-tools` to Build-Depends. Built from `rk3588-rewrite-mainline` rebased to official kernel.org `v7.2-rc2` at `083bdb98e715`; board validation is pending. |
+| forward-port kernel | `6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source publication `18614559` is Published; arm64 build `33387391` succeeded, and all image/DTB/header binaries are public. Previous `~rk1` build `33387353` failed because `mkimage` was missing. | `~rk2` adds `u-boot-tools` to Build-Depends. Packages are co-installable; board install/revert validation is still pending. |
+| alpha rewrite kernel 6.18 | `6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Source publication `18614560` is Published; arm64 build `33387392` succeeded, and all image/DTB/header binaries are public. | `~rk2` adds `u-boot-tools` to Build-Depends. Packages are co-installable; board validation is pending. |
+| alpha rewrite kernel 7.2-rc2 | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2` under [`kernel-rewrite-alpha-7.2-rc2/`](kernel-rewrite-alpha-7.2-rc2/README.md) | Source publication `18614561` is Published; arm64 build `33387393` succeeded, and all image/DTB/header binaries are public. | `~rk2` adds `u-boot-tools` to Build-Depends. Built from `rk3588-rewrite-mainline@083bdb98e715`; board validation is pending. |
 | `gnome-remote-desktop-gdm-hwenc` | `1.0` under [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source wrapper imported; not uploaded. | Optional greeter ACL package. The canonical rule also feeds the local deb source under [`../gdm-hwenc/`](../gdm-hwenc/README.md). |
 
-Install-facing state: **do not tell users to install the full stack from this
-PPA yet**. The public arm64 index now has MPP, librga, and the older FFmpeg
-`~rk5` binaries, but the new `main@be367abfe6` FFmpeg source is pending and the kernel `~rk2` retries are building,
-so the package set is not complete.
+Install-facing state: **do not present this PPA as the fully validated primary
+path yet**. The public arm64 index now has the userspace codec stack and all
+three co-installable kernels, but GRD/GDM are still held and none of the PPA
+kernels has passed board install/reboot/revert validation.
 
 The PPA targets **resolute** (Ubuntu 26.04 / Armbian userspace) on **arm64**.
 The PPA was corrected from its initial amd64-only setup during the 2026-07-06
@@ -296,9 +296,9 @@ publish.
 
 The replacement version `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1`
 exports the latest `main`, with both RKMPP fixes in source and no quilt series.
-It was source-built, linted, signed, uploaded, and accepted as pending source
-publication `18615674`; AV1 MP4/MKV still needs hardware re-validation on
-RK3588.
+It was source-built, linted, signed, uploaded, and published as source
+publication `18615674`. Arm64 build `33388714` succeeded and its binaries are
+in the public index; AV1 MP4/MKV still needs hardware re-validation on RK3588.
 
 Private FFmpeg helper packages are a separate case: a package such as
 `gnome-remote-desktop-ffmpeg-rk` that installs FFmpeg 6 libraries under
@@ -333,7 +333,7 @@ enables only the external Rockchip path plus basic compression/SDL support:
 `--enable-version3 --enable-libdrm --enable-rkmpp --enable-rkrga --enable-zlib
 --enable-bzlib --enable-sdl2`.
 
-Local validation built the source package, passed source lintian, and produced an arm64 binary package after disabling LTO for resource use and disabling upstream FATE tests because HLS list generation segfaulted in this fork. The signed source upload was accepted as Pending source publication `18614552`; arm64 build `33387375` successfully built on `bos03-arm64-043`.
+Local validation built the source package, passed source lintian, and produced an arm64 binary package after disabling LTO for resource use and disabling upstream FATE tests because HLS list generation segfaulted in this fork. Source publication `18614552` is public; arm64 build `33387375` successfully built on `bos03-arm64-043`, and the tool package is indexed.
 
 ### GNOME Remote Desktop
 

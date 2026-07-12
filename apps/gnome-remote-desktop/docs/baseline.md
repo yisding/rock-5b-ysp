@@ -299,12 +299,13 @@ exercise: mutter's RemoteDesktop API *evicts* an existing session, so it must be
 run with **no** other RDP client connected, and driving frames headlessly is
 unreliable. The full procedure — environment setup, swapping in a manual build,
 the eviction hazard, killing safely, and why the headless numbers are soft — is
-in [`testing.md`](testing.md). The two prototype worktrees (`grd-async-pbo-wt`,
-`grd-memfd-wt`) carry the opt-in env toggles (`GRD_ASYNC_READBACK`,
-`GRD_FORCE_MEMFD`) referenced above — ⚠️ both are **uncommitted diffs in
-local-only worktrees on the dev box** (async-PBO ≈ 506 lines in
-`grd-egl-thread.c` + the two pipewire-stream files; MemFd ≈ 21 lines), not
-archived anywhere citable. Their *conclusions* are fully recorded here and in
-[`capture-path.md`](capture-path.md) §5. Remaining archival action: export the
-two diffs as reference patches under this directory before the worktrees are
-lost.
+in [`testing.md`](testing.md). The two prototypes carry the opt-in env toggles
+(`GRD_ASYNC_READBACK`, `GRD_FORCE_MEMFD`) referenced above. Their original
+dev-box worktrees are no longer reliable Git entry points after a directory
+move, but the exact tracked-file diffs are now preserved as
+[`async-pbo-prototype.patch`](../patches/reference/async-pbo-prototype.patch)
+(506 changed lines across four files) and
+[`memfd-prototype.patch`](../patches/reference/memfd-prototype.patch) (21 changed
+lines across two files), both against `c14e09ef67e`. Their conclusions remain
+recorded here and in [`capture-path.md`](capture-path.md) §5; the reference
+patches are evidence, not shipping candidates.

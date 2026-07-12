@@ -14,7 +14,7 @@ package names and a distinct localversion.
 | Binary DTB package | `linux-dtb-ysp-alpha-7.2-rc2-rockchip64` |
 | Binary headers package | `linux-headers-ysp-alpha-7.2-rc2-rockchip64` |
 | Kernel release | `7.2.0-rc2-ysp-alpha-7.2-rc2-rockchip64` |
-| Upload state | Initial source publication `18614550` is `Published`; retry source publication `18614561` is `Pending`, and retry arm64 build `33387393` is `Currently building` on `bos03-arm64-074`. |
+| Upload state | Retry source publication `18614561` is Published; arm64 build `33387393` succeeded, and the image/DTB/header packages are in the public index. |
 | Debian version | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2` |
 
 ## Source Inputs
@@ -61,10 +61,12 @@ Passed:
 - Launchpad API check on 2026-07-10 23:49 PDT found retry source publication
   `18614561` in `Pending` state and retry arm64 build `33387393`
   `Currently building` on `bos03-arm64-074`.
+- Launchpad API/public-index check on 2026-07-11 21:44 PDT found source
+  publication `18614561` Published, build `33387393` `Successfully built`, and
+  the image, DTB, and headers packages public.
 
 Not done yet:
 
-- Launchpad source publication, arm64 build completion, and binary publication.
 - Local arm64 binary build from the generated source package.
 - Payload comparison against the forward-port and Armbian kernel packages.
 - Board install, reboot, rollback, and `kernel-revert.sh` recovery validation.

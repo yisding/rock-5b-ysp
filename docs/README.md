@@ -26,6 +26,7 @@ Repository-wide license status is not a cross-project doc; it lives at
 | `librockchip_mpp` and `librga` architecture | [`../vendor-libraries/`](../vendor-libraries/README.md) |
 | FFmpeg build/use, rebase, fix candidates; Mesa transfer investigation | [`../video-libraries/`](../video-libraries/README.md) |
 | Hardware H.264 RDP backend | [`../apps/gnome-remote-desktop/`](../apps/gnome-remote-desktop/README.md) |
+| Kodi RKMPP / DRM PRIME hardware decode | [`../apps/kodi/`](../apps/kodi/README.md) |
 | Armbian packaging and convert-in-place DT strategy | [`../packaging/`](../packaging/README.md) |
 
 ## Reading paths

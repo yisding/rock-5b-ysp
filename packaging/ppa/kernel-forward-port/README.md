@@ -3,9 +3,9 @@
 This directory tracks the Launchpad PPA path for the ROCK 5B forward-port
 kernel. The first Launchpad arm64 build failed because `mkimage` was missing
 while generating the Rockchip overlay fixup script. Retry source publication
-`18614559` adds the `u-boot-tools` build dependency and is building as arm64 build
-`33387391` on `bos03-arm64-047`. The local arm64 binary package build passes; Launchpad retry
-completion and board install/revert validation are still pending.
+`18614559` adds the `u-boot-tools` build dependency; arm64 build `33387391`
+succeeded and the image/DTB/header packages are public. The local arm64 binary
+package build also passes; board install/revert validation remains pending.
 
 The current kernel delivery path is still the Armbian wrapper in
 [`../../../kernel-drivers/scripts/build-armbian-deb.sh`](../../../kernel-drivers/scripts/build-armbian-deb.sh),
@@ -24,7 +24,7 @@ First PPA kernel package should be conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18.38 worktree with the self-contained-DT RK3588 MPP/RGA/AV1 forward-port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Initial source publication `18614540` is `Published`, but arm64 build `33387353` failed on missing `mkimage`. Retry source publication `18614559` is `Pending`; arm64 build `33387391` is `Currently building` on `bos03-arm64-047`. |
+| Upload state | Initial arm64 build `33387353` failed on missing `mkimage`. Retry source publication `18614559` is Published; arm64 build `33387391` succeeded, and all three binary packages are in the public index. |
 
 ## Source Inputs
 
@@ -112,6 +112,9 @@ Passed:
   generated `.dsc`, signs successfully, and was uploaded with `dput`.
 - Launchpad API check on 2026-07-10 23:49 PDT: retry source publication
   `18614559` is `Pending`; arm64 build `33387391` is `Currently building` on `bos03-arm64-047`.
+- Launchpad API/public-index check on 2026-07-11 21:44 PDT: retry source
+  publication `18614559` is Published, build `33387391` is `Successfully
+  built`, and the image, DTB, and headers packages are public.
 
 Notes:
 
@@ -127,13 +130,11 @@ Notes:
 
 Not done yet:
 
-- Wait for retry arm64 build `33387391` to finish and publish binaries.
 - Board install, reboot, rollback, and `kernel-revert.sh` recovery validation.
 - Full `lintian`; the source lint run was stopped after several minutes with no
   output because the kernel orig tarball scan was taking too long.
 
 ## Remaining Checklist
 
-1. Wait for retry arm64 build `33387391` to finish and publish binaries.
-2. Validate install, reboot, rollback, and `kernel-revert.sh` recovery on the
+1. Validate install, reboot, rollback, and `kernel-revert.sh` recovery on the
    board before giving install guidance.

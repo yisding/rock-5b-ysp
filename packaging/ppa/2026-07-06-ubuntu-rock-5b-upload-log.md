@@ -1632,3 +1632,18 @@ See ../../configure --help for available options.
   `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6` and uploaded with `dput`.
 - Launchpad accepted the upload at 2026-07-11 21:10 PDT as pending source
   publication `18615674`; no build record existed at that first API check.
+
+## Final publication and build update
+
+- Launchpad API and public arm64 index check at 2026-07-11 21:44 PDT:
+  - replacement Rockchip-81 FFmpeg source `18615674` is Published; arm64 build
+    `33388714` succeeded, and the `ffmpeg`/`libav*63` packages are indexed;
+  - co-installable `ffmpeg-rockchip` source `18614552` and successful arm64
+    build `33387375` are public;
+  - forward-port kernel source `18614559` and arm64 build `33387391` succeeded;
+  - alpha 6.18 source `18614560` and arm64 build `33387392` succeeded;
+  - alpha 7.2-rc2 source `18614561` and arm64 build `33387393` succeeded;
+  - all three kernel image/DTB/header sets appear in the public arm64 index.
+- Publication/build waiting gates are therefore closed. Remaining kernel gates
+  are board install, reboot, rollback, and recovery validation; GRD and GDM ACL
+  remain held.
