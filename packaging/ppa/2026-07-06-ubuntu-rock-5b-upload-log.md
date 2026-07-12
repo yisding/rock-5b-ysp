@@ -1608,3 +1608,27 @@ See ../../configure --help for available options.
   - forward-port source `18614559`, arm64 build `33387391` `Currently building` on `bos03-arm64-047`;
   - alpha 6.18 source `18614560`, arm64 build `33387392` `Currently building` on `bos03-arm64-110`;
   - alpha 7.2-rc2 source `18614561`, arm64 build `33387393` `Currently building` on `bos03-arm64-074`.
+
+## FFmpeg correctness fixes on main and replacement source upload
+
+- Applied the two RKMPP correctness fixes directly to `ffmpeg-rockchip-81`
+  `main` and pushed them:
+  - `8356739686` — drop the invalid static decoder `pix_fmts` advertisement;
+  - `be367abfe6` — mark codec extradata packets with MPP's extra-data flag.
+- Merged the updated main into `refactor/section-c` without a tree change and
+  pushed merge `844d95e047`, keeping PR #1 clean and mergeable while avoiding a
+  history rewrite.
+- Advanced `FFMPEG_COMMIT` to full main commit
+  `be367abfe67045b9c68812ecee3b6162c92f9776` and source version to
+  `8.1.2+rockchip81+git20260711.be367abfe6`.
+- Removed both Debian quilt backports; the exported source contains both fixes
+  directly and has no `debian/patches/series`.
+- Built source version
+  `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1`; verified version
+  ordering over public `~rk5`, source contents, and the absent quilt series.
+- Source lintian exited 0 with the existing standards-version, long-filename,
+  and stale copyright-pattern warnings only.
+- Signed the `.dsc`, `.buildinfo`, and `.changes` with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6` and uploaded with `dput`.
+- Launchpad accepted the upload at 2026-07-11 21:10 PDT as pending source
+  publication `18615674`; no build record existed at that first API check.

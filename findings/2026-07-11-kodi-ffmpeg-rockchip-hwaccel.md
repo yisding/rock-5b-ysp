@@ -8,6 +8,16 @@
 > Date: 2026-07-11
 > Trust: MEASURED (except the AV1-container item and the not-yet-run Kodi build/playback)
 
+> **Update, 2026-07-11:** the AV1 root cause is fixed directly on `main` in
+> forward-port commit `be367abfe6`. The package now exports that exact main tip
+> with no quilt series and is accepted as pending Launchpad source publication
+> `18615674`. The generic RKMPP path did send extradata,
+> but omitted `mpp_packet_set_extra_data()`. MPP consequently treated the
+> leading `av1C` configuration bytes as an OBU instead of using its dedicated
+> extradata path, which strips the four-byte record header and parses the
+> sequence-header OBU. The decoder and `ffmpeg` rebuild and the source package
+> assembles cleanly; MP4/MKV decode still needs an RK3588 hardware re-test.
+
 ## Goal
 
 Build Kodi so it hardware-decodes on the RK3588 through **our**
@@ -92,12 +102,15 @@ same stream muxed in **mp4 or mkv**:
 av1d_codec: read_uncompressed_header No sequence header available.
 ```
 
-The fork's `av1_rkmpp` does not forward the container's out-of-band sequence
-header (mp4 `av1C` / mkv `CodecPrivate`) to MPP. Note the decoder table
-(`DEFINE_RKMPP_DECODER`) gives h264/hevc an `mp4toannexb` bsf but av1 gets
-`NULL`. h264/hevc — the bulk of real content — are unaffected. **Follow-up:**
-teach `av1_rkmpp` to feed extradata (an av1 bsf, or send the `av1C` OBUs), then
-re-test in Kodi. Tracked on the status watchlist.
+The fork did forward the container's out-of-band data, but submitted it as a
+normal MPP packet. For MP4 `av1C` and Matroska `CodecPrivate`, the first byte is
+the configuration-record marker/version (`0x81`), not an OBU header. MPP's AV1
+decoder already has the correct configuration-record handling behind
+`MPP_PACKET_FLAG_EXTRA_DATA`: it skips the four-byte record header and parses
+the contained sequence-header OBU. The fix is therefore to call
+`mpp_packet_set_extra_data()` on the existing extradata packet before
+`decode_put_packet()`. This is implemented and compile/package-validated;
+re-test MP4/MKV and Kodi on RK3588. h264/hevc remain unaffected.
 
 ### 4. Three real fork-packaging bugs blocked the PPA `ffmpeg` build (all fixed)
 

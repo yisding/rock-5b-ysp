@@ -15,7 +15,7 @@ Project vocabulary (incl. `ffmpeg-rockchip` upstream vs the `ffmpeg-rockchip-81`
 | Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
 | Owns | The FFmpeg build recipe, companion docs in [`docs/`](docs/how-ffmpeg-works.md), pkg-config examples, and exported patch series in [`patches/`](patches/README.md). |
 | Depends on | Working kernel nodes from [`kernel-drivers/README.md`](../../kernel-drivers/README.md), staged or packaged libraries from [`vendor-libraries/README.md`](../../vendor-libraries/README.md), and the codec udev rule for non-root use. |
-| Current state | The original `ffmpeg-rockchip` build path is hardware-validated. The current local `ffmpeg-rockchip-81` forward-port at `75638e7f0b17` builds and packages, and its feature/encode/RGA-smoke validation passed; decode currently depends on selecting a fixed MPP runtime instead of the board's installed `/usr` MPP. See [`status.md`](../../status.md). |
+| Current state | The original `ffmpeg-rockchip` build path is hardware-validated. `ffmpeg-rockchip-81` main at `be367abfe6` builds, passes focused codec-registration FATE, and is the source of the pending PPA upload; broader feature/encode/RGA-smoke validation was recorded at the earlier `75638e7f0b17` snapshot. See [`status.md`](../../status.md). |
 
 ## Files
 
@@ -42,8 +42,9 @@ commits: **`github.com/yisding/ffmpeg-rockchip-81`** (nyanmisaka upstream:
 `github.com/nyanmisaka/ffmpeg-rockchip`). If you are building fresh today,
 prefer the rebased tree: it carries the documented fix groups
 ([`docs/fix-candidates.md`](docs/fix-candidates.md)), no longer needs
-`--disable-vulkan`, and is the tree behind the local package validation at
-`75638e7f0b17`. The older `main` export at `6cf02ab253` remains the 28-patch
+`--disable-vulkan`, and is the tree behind the current package at main
+`be367abfe6`. The earlier `75638e7f0b17` snapshot remains the broader local
+package-validation point, while `6cf02ab253` remains the 28-patch
 review series captured under [`patches/`](patches/README.md).
 
 This needs **no system install and no sudo to build** — everything goes into an

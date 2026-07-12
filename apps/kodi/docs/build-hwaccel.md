@@ -104,8 +104,12 @@ Confirm hardware decode in `~/.kodi/temp/kodi.log`:
 
 ## 6. Known limits
 
-- **AV1 from mp4/mkv fails** (`No sequence header available`) — the fork's
-  `av1_rkmpp` drops the container sequence header. AV1 works from IVF. h264/hevc
-  are unaffected. See the [finding](../../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) §3.
+- **AV1 from MP4/MKV needed an RKMPP extradata fix.** The fork already queued
+  the container extradata, but failed to mark that MPP packet as extra data.
+  MPP therefore parsed the four-byte `av1C` header as an OBU and reported
+  `No sequence header available`. The forward port now calls
+  `mpp_packet_set_extra_data()` before queueing it; the build passes, but the
+  RK3588 MP4/MKV playback re-test is still pending. See the
+  [finding](../../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) §3.
 - 10-bit (NV15) and AFBC plane routing on RK3588 can need attention (dynamic DRM
   plane selection); validate per-content on the board.

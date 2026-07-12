@@ -1,3 +1,25 @@
+ffmpeg (7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Advance to ffmpeg-rockchip-81 main commit
+    be367abfe67045b9c68812ecee3b6162c92f9776.
+  * Drop the RKMPP pix_fmts and extradata quilt backports: source commits
+    8356739686 and be367abfe6 now carry both fixes directly on main. Keep the remaining
+    Debian packaging corrections for RELEASE_NOTES and ffmpeg-doc.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sat, 11 Jul 2026 17:15:00 -0700
+
+ffmpeg (7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk6) resolute; urgency=medium
+
+  * debian/patches: mark RKMPP codec extradata packets with MPP's
+    MPP_PACKET_FLAG_EXTRA_DATA. The AV1 parser uses that flag to recognize an
+    MP4/Matroska AV1CodecConfigurationRecord, skip its four-byte av1C header,
+    and consume the contained sequence-header OBU. Without it, av1_rkmpp
+    treats the av1C header as frame data and fails with "No sequence header
+    available." The forward-port binary rebuilds successfully; an RK3588
+    hardware decode re-test is still required.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sat, 11 Jul 2026 12:00:00 -0700
+
 ffmpeg (7:8.1.2+rockchip81+git20260703.75638e7f0b-0ubuntu1~rk5) resolute; urgency=medium
 
   * debian/control: set ffmpeg-doc back to Architecture: all (an earlier
