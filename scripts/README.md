@@ -10,6 +10,7 @@ not belong to a single package or driver area.
 | [`check-doc-consistency.py`](check-doc-consistency.py) | Checks Markdown and operational-file README ownership, project briefs, finding metadata/index order, dashboard/next-gate/action-path/ledger alignment, watchlist contracts, stable support-coverage rows, synchronized kernel-package helpers, and selected terminology invariants. |
 | [`repo_files.py`](repo_files.py) | Shared Git-aware maintained Markdown/operational-file inventory for the Python checks, with a pruned source-archive fallback. |
 | [`tests/test_repo_checks.py`](tests/test_repo_checks.py) | Standard-library regression tests for file inventory/ownership, link classification, dashboard/watchlist contracts, support coverage, and synchronized package helpers. |
+| [`prepare-armbian-headless.sh`](prepare-armbian-headless.sh) | Prepares a mounted Armbian ROCK 5B root filesystem for Wi-Fi and root SSH key access, temporarily handling a read-only mount when needed. |
 | [`rock5b-spi-erase.sh`](rock5b-spi-erase.sh) | Backs up and erases the ROCK 5B SPI NOR so BootROM falls through to microSD/eMMC bootloader paths. |
 | [`rock5b-spi-restore-armbian.sh`](rock5b-spi-restore-armbian.sh) | Restores and verifies the Armbian ROCK 5B SPI bootloader image. |
 | [`rock5b-sd-uboot-hypothesis-test.sh`](rock5b-sd-uboot-hypothesis-test.sh) | Captures a pristine 26.2.1 raw-SD loader gap, applies one controlled 26.5.1 component substitution, verifies readback, and restores the baseline. |
@@ -25,6 +26,53 @@ update workflow and project-specific test expectations are in
 [`../CONTRIBUTING.md`](../CONTRIBUTING.md). The read-only
 [`repository-checks` workflow](../.github/workflows/repository-checks.yml) runs
 the same command on pushes and pull requests.
+
+## Prepare a mounted Armbian image for headless access
+
+`prepare-armbian-headless.sh` validates that its target is a mounted Armbian
+ROCK 5B root filesystem with a kernel, Netplan, and OpenSSH. It then adds a
+root-only Netplan Wi-Fi definition, merges the invoking user's
+`~/.ssh/authorized_keys` into the image's root account, forces public-key-only
+SSH authentication, and ensures `ssh.service` is enabled. If the filesystem
+was mounted read-only, the script temporarily remounts it read-write, syncs the
+changes, and returns it to read-only before exiting.
+
+Preview the target and planned files without prompting for a password:
+
+```bash
+bash scripts/prepare-armbian-headless.sh \
+  --root /mnt/mmcblk1p1 \
+  --ssid 'your-network' \
+  --country US \
+  --dry-run
+```
+
+Apply the configuration. The Wi-Fi password prompt does not echo input, and
+the script deliberately does not accept a password as a command-line value:
+
+```bash
+sudo bash scripts/prepare-armbian-headless.sh \
+  --root /mnt/mmcblk1p1 \
+  --ssid 'your-network' \
+  --country US
+```
+
+Under `sudo`, the key source defaults to the invoking user's
+`~/.ssh/authorized_keys`; pass `--authorized-keys FILE` to choose another
+public-key file. For automation, put the Wi-Fi password in a mode-`0600` file
+and pass `--wifi-password-file FILE`. The resulting Netplan file is also mode
+`0600`, because WPA credentials must remain available to the target system.
+
+After unmounting the card and booting it, find the DHCP lease in the router and
+connect with `ssh root@<board-ip>`. Armbian regenerates SSH host keys during its
+first-run service, so verify and retain the final host-key fingerprint. Its
+normal first-login setup may still ask for initial account choices.
+
+The ROCK 5B has no integrated Wi-Fi radio; an installed, kernel-supported M.2
+E-key module or USB adapter is required. The default interface match is `wl*`;
+override it with `--interface-match` only when the adapter uses a different
+name. This script validates partition-level boot files but cannot prove that
+the raw SD loader area or the board's SPI-to-SD boot path works.
 
 ## ROCK 5B SPI bootloader
 
