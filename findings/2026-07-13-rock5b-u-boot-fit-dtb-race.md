@@ -20,10 +20,11 @@ consumer. With the same delay and an initially empty output file, the FIT's
 `fdt` payload was 12,752 bytes and the log ordered `COPY u-boot.dtb` before
 `MKIMAGE u-boot.itb`.
 
-```diff
--u-boot.itb: u-boot-nodtb.bin dts/dt.dtb $(U_BOOT_ITS) FORCE
-+u-boot.itb: u-boot-nodtb.bin u-boot.dtb $(U_BOOT_ITS) FORCE
-```
+The [recorded patch](evidence/2026-07-13-u-boot-fit-dtb-race/Makefile-controlled-delay-and-fix.patch)
+preserves both changes exactly. Its first hunk adds `@sleep 3` immediately
+before the `u-boot.dtb` `COPY` recipe; it was test instrumentation only and
+was removed after the run. Its second hunk is the retained fix: make the FIT
+target depend on `u-boot.dtb`, which is the exact file included by the ITS.
 
 ## Evidence and reproduction
 
@@ -32,15 +33,18 @@ consumer. With the same delay and an initially empty output file, the FIT's
 - **Inspection:** `u-boot.its` declares
   `data = /incbin/("./u-boot.dtb");`; the original Makefile rule did not name
   that file as a prerequisite.
-- **Exercise:** truncate `u-boot.dtb`, temporarily sleep three seconds before
-  its `COPY` recipe, then run `make -j2 u-boot.dtb u-boot.itb`.
+- **Exercise:** truncate `u-boot.dtb`, apply the recorded temporary delay
+  immediately before its `COPY` recipe, then run
+  `make -j2 u-boot.dtb u-boot.itb`.
 - **Pre-fix signal:** `tools/dumpimage -l u-boot.itb` reported the `fdt` image
   `Data Size: 0 Bytes`; the final copied `u-boot.dtb` was 12,752 bytes.
 - **Post-fix signal:** the same inspection reported `Data Size: 12752 Bytes`;
   the build log placed `COPY u-boot.dtb` before `MKIMAGE u-boot.itb`.
-- **Artifacts:** ignored local capture directory
-  `downloads/uboot-race-test-39cd/.race-artifacts/` contains the pre-fix and
-  post-fix FITs and logs. The temporary delay was removed after the test.
+- **Artifacts:** the tracked [pre-fix build log](evidence/2026-07-13-u-boot-fit-dtb-race/controlled-delay-prepatch.log)
+  orders `MKIMAGE u-boot.itb` before `COPY u-boot.dtb`; the tracked
+  [post-fix log](evidence/2026-07-13-u-boot-fit-dtb-race/controlled-delay-postpatch.log)
+  reverses that order. The source-tree capture directory also retains the
+  corresponding local FITs. The temporary delay was removed after the test.
 
 ## Boundary
 
