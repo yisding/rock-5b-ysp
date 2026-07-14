@@ -19,9 +19,9 @@ Build-Depends: asciidoc-base,
                libepoxy-dev (>= 1.4),
                libfdk-aac-dev,
                libffmpeg-nvenc-dev (>= 11.1.5),
-# rkmpp encode backend: build against the PPA's FFmpeg 8.1.2 (h264_rkmpp)
-               libavcodec-dev (>= 7:8.1.2~),
-               libavutil-dev (>= 7:8.1.2~),
+# rkmpp encode backend: build against the PPA's FFmpeg 8.0 ABI (h264_rkmpp)
+               libavcodec-dev (>= 7:8.0.1~),
+               libavutil-dev (>= 7:8.0.1~),
                libfuse3-dev (>= 3.9.1),
                libgbm-dev,
                libglib2.0-dev (>= 2.75.0),

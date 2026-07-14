@@ -1,11 +1,14 @@
 # ppa/ - Launchpad source packages
 
-This directory holds the reproducible Debian packaging for the ROCK 5B
-media stack intended for `ppa:yi-ding/ubuntu-rock-5b`.
+This directory holds the reproducible Debian packaging for the ROCK 5B media
+stack. The ABI-compatible system stack belongs in
+`ppa:yi-ding/ubuntu-rock-5b`; ABI-changing FFmpeg builds and experimental
+rewrite kernels use dedicated PPAs.
 
 The PPA's implemented source packages are built by Launchpad and installed by
-`apt`: MPP, librga, FFmpeg with RKMPP/RKRGA, the co-installable nyanmisaka
-FFmpeg 6.1 fork, GRD, and kernel source packages. The forward-port kernel has a
+`apt`: the codec access rule, MPP, librga, FFmpeg with RKMPP/RKRGA, the
+co-installable nyanmisaka FFmpeg 6.1 fork, GRD, and kernel source packages. The
+forward-port kernel has a
 tracked PPA source package under
 [`kernel-forward-port/`](kernel-forward-port/README.md); its local arm64 binary
 build and normalized Armbian payload comparison pass, its Launchpad source is
@@ -19,46 +22,89 @@ greeter ACL package has both the existing local deb source and a native PPA
 source wrapper under
 [`gdm-hwenc/`](gdm-hwenc/README.md).
 
+## PPA Layout
+
+Each incompatible FFmpeg or rewrite-kernel line has its own archive. This
+avoids Launchpad's per-archive rule that a previously accepted source version
+cannot later be replaced by an earlier version, even after publications are
+deleted.
+
+| PPA | Contents |
+|-----|----------|
+| `ppa:yi-ding/ubuntu-rock-5b` | System stack: codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. |
+| `ppa:yi-ding/rock5b-ffmpeg81-upstream` | Upstream FFmpeg 8.1.2 baseline. |
+| `ppa:yi-ding/rock5b-ffmpeg81-rockchip` | FFmpeg 8.1.2 with the RKMPP/RKRGA forward port. Add the system PPA as well for MPP and librga runtime packages. |
+| `ppa:yi-ding/rock5b-kernel618-rewrite` | Experimental Linux 6.18 clean-room rewrite kernel. |
+| `ppa:yi-ding/rock5b-kernel72rc2-rewrite` | Experimental Linux 7.2-rc2 clean-room rewrite kernel. |
+
+`ppa:yi-ding/ubuntu-rock-5b-experimental` is a staging/holding archive, not an
+install target.
+
+For the primary 6.18 forward-port test path, run
+[`install-system-stack.sh`](install-system-stack.sh) on an arm64 Resolute
+system. It adds only the system PPA and installs the codec access rule, MPP/RGA
+runtime and development packages, FFmpeg, patched GNOME Remote Desktop, and the
+co-installable YSP kernel image, DTBs, and headers. Verify the boot entry and
+recovery path before rebooting; board install/revert validation remains a test
+gate.
+
+If the machine already has one of the earlier FFmpeg 8.1, private-FFmpeg, GRD,
+or rewrite-kernel test stacks, use
+[`clean-install-system-stack.sh`](clean-install-system-stack.sh) instead. It
+removes the incompatible PPA sources, verifies that the complete replacement
+set is published before touching installed packages, and runs an APT simulation
+before asking for confirmation. Shared `libav*` packages are downgraded in
+place to the exact FFmpeg 8.0.3 PPA version so unrelated desktop applications
+are not removed; incompatible ABI-only and private packages are purged. The
+machine's existing Armbian kernel is retained as a recovery boot option.
+
+```bash
+bash packaging/ppa/clean-install-system-stack.sh
+```
+
 ## Current State
 
 Last recorded in the public APT indexes and Launchpad API at
-`2026-07-11T21:44:09-07:00` and in
+`2026-07-14T10:23:00-07:00` and in
 [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md):
 
 | Package | Version in this repo | Public PPA state | Notes |
 |---------|----------------------|------------------|-------|
-| `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Source and arm64 binaries are published in the public PPA indexes. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
-| `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Source and arm64 binaries are published in the public PPA indexes; `-0ubuntu2~rk1` is superseded. | The `-0ubuntu3~rk1` retry succeeded after the earlier arm64 builder failure. |
-| `ffmpeg` | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Source publication [`18615674`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18615674) is Published; arm64 build [`33388714`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33388714) succeeded, and the replacement binaries are public. | Exports `ffmpeg-rockchip-81` `main` at `be367abfe6`; the AV1 extradata and decoder `pix_fmts` fixes now live directly in source, so both quilt backports were removed. RK3588 AV1 MP4/MKV re-test pending. |
-| `ffmpeg` (baseline) | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Fixed arm64 build `33381225` completed successfully on 2026-07-10 UTC. | The `7:8.1.2-1+rk1` baseline upload published, but arm64 build `33366878` failed in the FATE frei0r tests. `-1+rk2` adds the `frei0r-plugins` build-dependency and still sorts below the Rockchip-81 forward-port. |
-| `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Source publication `18614552` and successful arm64 build `33387375` are public. Source lintian and local arm64 binary validation passed. | Packages nyanmisaka FFmpeg 6.1 as `/opt/ffmpeg-rockchip` plus `ffmpeg-rockchip`/`ffprobe-rockchip`/`ffplay-rockchip`, not as the system `ffmpeg`; it can coexist with Ubuntu 26.04 FFmpeg 8.x and the Rockchip-81 replacement package because source and binary package names do not collide. |
-| `gnome-remote-desktop` | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1` | Source packaging imported, source lintian passed, and a local `nocheck` binary build passed against upstream FFmpeg `7:8.1.2-1+rk1`; not uploaded and not public in the PPA source index. | Reconstructed from `GRD_COMMIT` plus [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md), so it no longer depends on a dirty dev-box worktree. Wait for the FFmpeg dependency chain before upload, then rebuild once against upstream FFmpeg and once after `ffmpeg-rockchip-81` supersedes it. |
-| forward-port kernel | `6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source publication `18614559` is Published; arm64 build `33387391` succeeded, and all image/DTB/header binaries are public. Previous `~rk1` build `33387353` failed because `mkimage` was missing. | `~rk2` adds `u-boot-tools` to Build-Depends. Packages are co-installable; board install/revert validation is still pending. |
-| alpha rewrite kernel 6.18 | `6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Source publication `18614560` is Published; arm64 build `33387392` succeeded, and all image/DTB/header binaries are public. | `~rk2` adds `u-boot-tools` to Build-Depends. Packages are co-installable; board validation is pending. |
-| alpha rewrite kernel 7.2-rc2 | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2` under [`kernel-rewrite-alpha-7.2-rc2/`](kernel-rewrite-alpha-7.2-rc2/README.md) | Source publication `18614561` is Published; arm64 build `33387393` succeeded, and all image/DTB/header binaries are public. | `~rk2` adds `u-boot-tools` to Build-Depends. Built from `rk3588-rewrite-mainline@083bdb98e715`; board validation is pending. |
+| `rk3588-codec-udev` | `1.0` under [`codec-udev/`](codec-udev/README.md) | Fresh-main source publication [`18619789`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619789) is Pending; arm64-hosted `Architecture: all` build [`33397244`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397244) succeeded. | Installs the canonical non-root MPP/RGA/DMA-heap access rule. Source/binary builds and lintian pass. |
+| `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Copied into the fresh main PPA as source publication [`18619785`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619785); publication is Pending. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
+| `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Copied into the fresh main PPA as source publication [`18619786`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619786); publication is Pending. | The earlier arm64 builder retry succeeded; SONAME remains `librga.so.2`. |
+| `ffmpeg` | `7:8.0.3+rockchip+git20260713.463f542c-0ubuntu1~rk1` | Accepted in the fresh main PPA as source publication [`18619822`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619822); arm64 build [`33397317`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397317) is running. | Honest 8.0.3 version and Ubuntu ABI 62/60 family; full local package/FATE/hardware validation passed. |
+| `ffmpeg` 8.1.2 baseline | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Dedicated-PPA source publication [`18619544`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-upstream/+sourcepub/18619544) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-upstream`. |
+| `ffmpeg` 8.1.2 Rockchip | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Dedicated-PPA source publication [`18619545`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-rockchip/+sourcepub/18619545) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-rockchip`; it builds against the fresh main PPA for MPP/librga. |
+| `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Copied into the fresh main PPA as source publication [`18619787`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619787); publication is Pending. | Co-installable `/opt/ffmpeg-rockchip` tools; does not replace system FFmpeg. |
+| `gnome-remote-desktop` | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2` | Accepted as source publication [`18619824`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619824); arm64 build [`33397319`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397319) is queued. | Local build links the RKMPP backend against `libavcodec.so.62`/`libavutil.so.60`; source lintian reports only long-filename warnings. |
+| forward-port kernel | `6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Copied into the fresh main PPA as source publication [`18619788`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619788); publication is Pending. | Original arm64 build `33387391` succeeded. Packages are co-installable; board install/revert validation is pending. |
+| alpha rewrite kernel 6.18 | `6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Dedicated-PPA source publication [`18619546`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18619546) and all three copied binaries are Published. | Isolated in `ppa:yi-ding/rock5b-kernel618-rewrite`; board validation is pending. |
+| alpha rewrite kernel 7.2-rc2 | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2` under [`kernel-rewrite-alpha-7.2-rc2/`](kernel-rewrite-alpha-7.2-rc2/README.md) | Dedicated-PPA source publication [`18619548`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18619548) and all three copied binaries are Published. | Isolated in `ppa:yi-ding/rock5b-kernel72rc2-rewrite`; board validation is pending. |
 | `gnome-remote-desktop-gdm-hwenc` | `1.0` under [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source wrapper imported; not uploaded. | Optional greeter ACL package. The canonical rule also feeds the local deb source under [`../gdm-hwenc/`](../gdm-hwenc/README.md). |
 
 Install-facing state: **do not present this PPA as the fully validated primary
-path yet**. The public arm64 index now has the userspace codec stack and all
-three co-installable kernels, but GRD/GDM are still held and none of the PPA
-kernels has passed board install/reboot/revert validation.
+path yet**. The fresh main PPA is still publishing restored packages and
+building FFmpeg/GRD, and none of the PPA kernels has passed board
+install/reboot/revert validation.
 
 The PPA targets **resolute** (Ubuntu 26.04 / Armbian userspace) on **arm64**.
-The PPA was corrected from its initial amd64-only setup during the 2026-07-06
-run; package metadata now marks the imported binary packages as `Architecture:
-arm64`.
+The PPA is configured with only the `arm64` processor. Architecture-independent
+packages are built on arm64 and published as `Architecture: all`.
 
 ## Directory Contents
 
 | Path | Purpose |
 |------|---------|
 | [`build-source-packages.sh`](build-source-packages.sh) | Exports clean upstream git snapshots, overlays the packaging in this repo, and creates unsigned source packages under `packaging/ppa/out/artifacts/` by default. |
+| [`clean-install-system-stack.sh`](clean-install-system-stack.sh) | Replaces earlier incompatible test packages with exact versions from the system PPA while retaining the distro kernel as a recovery path. |
 | [`mpp/debian/`](mpp/debian/changelog) | Debian packaging for Rockchip MPP from `mpp-rockchip` commit `1375813c`. |
 | [`librga/debian/`](librga/debian/changelog) | Debian packaging for the local `librga-fork` commit `a632217`, including the P010/P210 work. |
-| [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg packaging retargeted to `ffmpeg-rockchip-81` `main` at `be367abfe6`. |
+| [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg 8.0.3 packaging retargeted to the `rockchip-8.0` RKMPP/RKRGA forward port at `463f542c32`. |
 | [`ffmpeg-rockchip/debian/`](ffmpeg-rockchip/debian/changelog) | Co-installable `/opt/ffmpeg-rockchip` packaging for nyanmisaka's FFmpeg 6.1 Rockchip fork at `40c412daccf0`. |
 | [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging retargeted to the `GRD_COMMIT` + `GRD_DELTA` source snapshot with `-Dffmpeg=enabled`. |
 | [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md) | Captured tracked-file GRD deltas needed to reconstruct dirty source-package snapshots. |
+| [`codec-udev/`](codec-udev/README.md) | Native PPA source wrapper for the canonical unprivileged MPP/RGA/DMA-heap access rule. |
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source-package wrapper for the optional GDM greeter hardware-encode ACL rule. |
 | [`kernel-forward-port/`](kernel-forward-port/README.md) | Launchpad source-package track for the forward-port kernel; records source inputs, packaging shape, generated artifacts, and remaining binary/board validation gates. |
 | [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Launchpad source-package track for the 6.18 alpha clean-room rewrite kernel. |
@@ -85,7 +131,7 @@ variables.
 | librga repo | `LIBRGA_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/librga-fork` |
 | librga commit | `LIBRGA_COMMIT` | `a632217` |
 | FFmpeg repo | `FFMPEG_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81` |
-| FFmpeg commit | `FFMPEG_COMMIT` | `be367abfe67045b9c68812ecee3b6162c92f9776` |
+| FFmpeg commit | `FFMPEG_COMMIT` | `463f542c325942f3e6b390cb940c32812570957d` |
 | nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
 | nyanmisaka FFmpeg Rockchip commit | `FFMPEG_ROCKCHIP_COMMIT` | `40c412daccf08164493da0de990eb99a8948116b` |
 | GRD repo | `GRD_REPO` | `$WORKSPACE_ROOT/gnome/grd/grd-ffmpeg` |
@@ -101,12 +147,15 @@ variables.
 | Alpha rewrite 7.2-rc2 kernel config | `KERNEL_ALPHA_72RC2_CONFIG` | [`kernel-rewrite-alpha-7.2-rc2/debian/config/arm64-rockchip64.config`](kernel-rewrite-alpha-7.2-rc2/debian/config/arm64-rockchip64.config) |
 | Alpha rewrite 7.2-rc2 kernel source version | `KERNEL_ALPHA_72RC2_UPSTREAM_VERSION` | `7.2.0~rc2+rk3588rewritealpha20260710` |
 | GDM greeter ACL rule | `GDM_HWENC_RULE` | [`../gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules`](../gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules) |
+| Codec access rule | `CODEC_UDEV_RULE` | [`../../kernel-drivers/scripts/99-rockchip-codec.rules`](../../kernel-drivers/scripts/99-rockchip-codec.rules) |
 
 Version strings can also be overridden with `MPP_UPSTREAM_VERSION`,
 `LIBRGA_UPSTREAM_VERSION`, `FFMPEG_UPSTREAM_VERSION`,
 `FFMPEG_ROCKCHIP_UPSTREAM_VERSION`, and `GRD_UPSTREAM_VERSION`. The kernel
 source name can be overridden with `KERNEL_PPA_SOURCE`, though
-`linux-rockchip64-ysp` is the current forward-port package name. The alpha
+`linux-rockchip64-ysp` is the current forward-port package name. The codec
+access source/version can be overridden with `CODEC_UDEV_SOURCE` and
+`CODEC_UDEV_VERSION`. The alpha
 kernel source names can be overridden with `KERNEL_ALPHA_618_SOURCE` and
 `KERNEL_ALPHA_72RC2_SOURCE`. The native greeter ACL source package name/version
 can be overridden with `GDM_HWENC_SOURCE` and `GDM_HWENC_VERSION`.
@@ -187,7 +236,7 @@ tree and does not create an orig tarball.
 Respect the build-dependency chain:
 
 ```text
-Wave A  mpp, librga
+Wave A  rk3588-codec-udev, mpp, librga
           wait for librockchip-mpp-dev and librga-dev to publish on arm64
 Wave B  ffmpeg-rockchip-81
           wait for libavcodec-dev/libavutil-dev/etc. to publish
@@ -214,13 +263,25 @@ Signing and upload are deliberately outside the helper:
 
 ```bash
 debsign -k <fingerprint> packaging/ppa/out/artifacts/*_source.changes
-dput ppa:yi-ding/ubuntu-rock-5b packaging/ppa/out/artifacts/<package>_source.changes
+dput ppa:yi-ding/ubuntu-rock-5b packaging/ppa/out/artifacts/<system-package>_source.changes
+dput ppa:yi-ding/rock5b-ffmpeg81-upstream packaging/ppa/out/artifacts/<ffmpeg-8.1-upstream>_source.changes
+dput ppa:yi-ding/rock5b-ffmpeg81-rockchip packaging/ppa/out/artifacts/<ffmpeg-8.1-rockchip>_source.changes
+dput ppa:yi-ding/rock5b-kernel618-rewrite packaging/ppa/out/artifacts/<kernel-6.18-rewrite>_source.changes
+dput ppa:yi-ding/rock5b-kernel72rc2-rewrite packaging/ppa/out/artifacts/<kernel-7.2-rc2-rewrite>_source.changes
 ```
 
 Use the exact files from the artifact directory; the upload log records the
 fingerprint and package-specific retry history from the 2026-07-06 run.
 
 ## Package Notes
+
+### Codec device access
+
+`rk3588-codec-udev` installs the canonical rule for `/dev/mpp_service`,
+`/dev/rga`, and `/dev/dma_heap/*`. It grants the `video` group and active local
+seat access and reloads/retriggers udev at installation time. This is required
+for unprivileged RKMPP allocation; access to the codec node alone is not enough
+when DMA-heap access is denied.
 
 ### MPP
 
@@ -255,21 +316,24 @@ The upstream project reports Meson version `2.1.0`, while the package version is
 
 The FFmpeg package uses the full Ubuntu/Debian packaging surface, not the smaller
 local `/opt` package under [`../ffmpeg-rockchip81/`](../ffmpeg-rockchip81/README.md).
-It is built from `ffmpeg-rockchip-81` `main` at `be367abfe6`
-and enables:
+The system package is based on the official FFmpeg `n8.0.3` tag plus the
+RKMPP/RKRGA forward-port and hardening series on branch `rockchip-8.0` at
+`463f542c3259`. It enables:
 
 - `--enable-rkmpp`
 - `--enable-rkrga`
 - `--enable-libdrm`
 - `--enable-version3`
 
-This source produces the ABI from that branch: `libavcodec63`, `libavutil61`,
-`libavformat63`, `libavfilter12`, `libavdevice63`, `libswscale10`, and
-`libswresample7`.
+This source retains Ubuntu Resolute's FFmpeg 8.0 ABI family: `libavcodec62`,
+`libavutil60`, `libavformat62`, `libavfilter11`, `libavdevice62`,
+`libswscale9`, and `libswresample6`. It therefore replaces Ubuntu's native
+FFmpeg stack without introducing the FFmpeg 8.1 SONAME transition.
 
-Getting the fork to build as a full Debian package took fixing three fork bugs,
-one per failed Launchpad build. A fourth runtime fix now handles AV1 container
-extradata. These are recorded in
+Getting the original FFmpeg 8.1 forward port to build as a full Debian package
+took fixing three fork bugs, one per failed Launchpad build. A fourth runtime
+fix handles AV1 container extradata. These fixes were carried into the 8.0
+branch and are recorded in
 [`../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md`](../../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md):
 
 1. **FATE `libavcodec-avcodec`** — the `*_rkmpp` decoders declared a static
@@ -287,20 +351,16 @@ extradata. These are recorded in
    `mpp_packet_set_extra_data()`, selecting MPP's configuration-record
    parser so it skips the `av1C` header and consumes the sequence-header OBU.
 
-As of 2026-07-11 PDT the last recorded public build is `~rk5`: `~rk3` failed FATE, `~rk4`
-(build `33387871`) failed `dh_install`, and `~rk5` (the `ffmpeg-doc` fix)
-**built successfully** on Launchpad — the source is `Published` and the arm64
-binaries are publishing. `~rk5` was also validated locally as a full arch+indep
-build emitting every deb, with FATE passing and `libavcodec63` carrying
-`av1_rkmpp`. The Rockchip-81 version sorts above the baseline version, so it
-supersedes the baseline `ffmpeg`/`libav*` packages in the PPA as the binaries
-publish.
+The FFmpeg 8.1 work that found and fixed the decoder `pix_fmts`, missing
+`RELEASE_NOTES`, `ffmpeg-doc`, and AV1 extradata problems remains available in
+`ppa:yi-ding/rock5b-ffmpeg81-rockchip`; the upstream comparison build is in
+`ppa:yi-ding/rock5b-ffmpeg81-upstream`.
 
-The replacement version `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1`
-exports the latest `main`, with both RKMPP fixes in source and no quilt series.
-It was source-built, linted, signed, uploaded, and published as source
-publication `18615674`. Arm64 build `33388714` succeeded and its binaries are
-in the public index; AV1 MP4/MKV still needs hardware re-validation on RK3588.
+Version `7:8.0.3+rockchip+git20260713.463f542c-0ubuntu1~rk1` has passed a full
+local binary build, executable/media FATE tests, extracted-package smoke tests,
+and RK3588 hardware tests for RKMPP encode, RKMPP decode, and the zero-copy
+RKMPP-to-RGA-scale-to-RKMPP path. Source extraction and lintian also pass; the
+only lintian result is the inherited newer-standards-version warning.
 
 Private FFmpeg helper packages are a separate case: a package such as
 `gnome-remote-desktop-ffmpeg-rk` that installs FFmpeg 6 libraries under

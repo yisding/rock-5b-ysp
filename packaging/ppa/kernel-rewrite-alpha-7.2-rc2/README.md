@@ -9,12 +9,13 @@ package names and a distinct localversion.
 
 | Field | Value |
 |-------|-------|
+| PPA | `ppa:yi-ding/rock5b-kernel72rc2-rewrite` |
 | Source package | `linux-rockchip64-ysp-alpha-7.2-rc2` |
 | Binary image package | `linux-image-ysp-alpha-7.2-rc2-rockchip64` |
 | Binary DTB package | `linux-dtb-ysp-alpha-7.2-rc2-rockchip64` |
 | Binary headers package | `linux-headers-ysp-alpha-7.2-rc2-rockchip64` |
 | Kernel release | `7.2.0-rc2-ysp-alpha-7.2-rc2-rockchip64` |
-| Upload state | Retry source publication `18614561` is Published; arm64 build `33387393` succeeded, and the image/DTB/header packages are in the public index. |
+| Upload state | Original build `33387393` succeeded; source and binaries were copied to the dedicated PPA as source publication `18619548`. |
 | Debian version | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2` |
 
 ## Source Inputs

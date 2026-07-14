@@ -1,0 +1,6 @@
+rk3588-codec-udev (1.0) resolute; urgency=medium
+
+  * Initial PPA-native source package for the canonical MPP, RGA, and
+    DMA-heap access rule.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 14 Jul 2026 09:20:00 -0700

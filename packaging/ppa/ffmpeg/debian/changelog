@@ -1,3 +1,20 @@
+ffmpeg (7:8.0.3+rockchip+git20260713.463f542c-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Replace the FFmpeg 8.1 Rockchip forward port with a compatibility branch
+    based on the latest FFmpeg 8.0 release, n8.0.3, at rockchip-8.0 commit
+    463f542c325a.
+  * Backport the complete RKMPP/RKRGA feature and hardening series while
+    retaining Ubuntu 26.04's native library ABI family: libavcodec62,
+    libavdevice62, libavfilter11, libavformat62, libavutil60,
+    libswresample6, and libswscale9.
+  * Restore the Ubuntu/Debian 8.0 symbols templates and package names so this
+    build upgrades the system FFmpeg stack instead of installing a parallel
+    ABI.
+  * Use the honest 8.0.3 upstream version in the newly recreated system PPA;
+    keep the ABI-changing FFmpeg 8.1 builds in dedicated PPAs.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Mon, 13 Jul 2026 22:46:49 -0700
+
 ffmpeg (7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1) resolute; urgency=medium
 
   * Advance to ffmpeg-rockchip-81 main commit

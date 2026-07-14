@@ -16,8 +16,8 @@ LIBRGA_COMMIT="${LIBRGA_COMMIT:-a632217}"
 LIBRGA_UPSTREAM_VERSION="${LIBRGA_UPSTREAM_VERSION:-2.2.0+git20260703.a632217}"
 
 FFMPEG_REPO="${FFMPEG_REPO:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81}"
-FFMPEG_COMMIT="${FFMPEG_COMMIT:-be367abfe67045b9c68812ecee3b6162c92f9776}"
-FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.1.2+rockchip81+git20260711.be367abfe6}"
+FFMPEG_COMMIT="${FFMPEG_COMMIT:-463f542c325942f3e6b390cb940c32812570957d}"
+FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.0.3+rockchip+git20260713.463f542c}"
 
 FFMPEG_ROCKCHIP_REPO="${FFMPEG_ROCKCHIP_REPO:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip}"
 FFMPEG_ROCKCHIP_COMMIT="${FFMPEG_ROCKCHIP_COMMIT:-40c412daccf08164493da0de990eb99a8948116b}"
@@ -47,11 +47,15 @@ GDM_HWENC_SOURCE="${GDM_HWENC_SOURCE:-gnome-remote-desktop-gdm-hwenc}"
 GDM_HWENC_VERSION="${GDM_HWENC_VERSION:-1.0}"
 GDM_HWENC_RULE="${GDM_HWENC_RULE:-$ROOT/packaging/gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules}"
 
+CODEC_UDEV_SOURCE="${CODEC_UDEV_SOURCE:-rk3588-codec-udev}"
+CODEC_UDEV_VERSION="${CODEC_UDEV_VERSION:-1.0}"
+CODEC_UDEV_RULE="${CODEC_UDEV_RULE:-$ROOT/kernel-drivers/scripts/99-rockchip-codec.rules}"
+
 usage() {
     cat <<'USAGE'
-Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [gdm-hwenc] [kernel] [kernel-alpha-6.18] [kernel-alpha-7.2-rc2]
+Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [codec-udev] [gdm-hwenc] [kernel] [kernel-alpha-6.18] [kernel-alpha-7.2-rc2]
 
-Build unsigned source packages for ppa:yi-ding/ubuntu-rock-5b.
+Build unsigned source packages for the Rock 5B PPAs.
 Artifacts are written under packaging/ppa/out/artifacts by default.
 Set OUT=/path/to/output to use a different output root.
 
@@ -77,8 +81,8 @@ overlay packaging/ppa/kernel-rewrite-alpha-6.18/debian and
 packaging/ppa/kernel-rewrite-alpha-7.2-rc2/debian respectively. They are also
 large and intentionally excluded from the no-argument default set.
 
-The gdm-hwenc target creates a small native source package and copies the
-canonical rule from packaging/gdm-hwenc at export time.
+The codec-udev and gdm-hwenc targets create small native source packages and
+copy their canonical rules into the generated source trees at export time.
 USAGE
 }
 
@@ -260,12 +264,14 @@ prepare_native_source() {
     local source="$1"
     local version="$2"
     local packaging_dir="$3"
+    local payload_source="$4"
+    local payload_name="$5"
     local source_dir="$WORK/${source}-${version}"
 
     rm -rf "$source_dir"
     mkdir -p "$source_dir"
     cp -a "$ROOT/$packaging_dir/debian" "$source_dir/debian"
-    cp -f "$GDM_HWENC_RULE" "$source_dir/70-gnome-remote-desktop-gdm-hwenc.rules"
+    cp -f "$payload_source" "$source_dir/$payload_name"
 
     (
         cd "$source_dir"
@@ -364,7 +370,18 @@ build_gdm_hwenc() {
     prepare_native_source \
         "$GDM_HWENC_SOURCE" \
         "$GDM_HWENC_VERSION" \
-        "packaging/ppa/gdm-hwenc"
+        "packaging/ppa/gdm-hwenc" \
+        "$GDM_HWENC_RULE" \
+        "70-gnome-remote-desktop-gdm-hwenc.rules"
+}
+
+build_codec_udev() {
+    prepare_native_source \
+        "$CODEC_UDEV_SOURCE" \
+        "$CODEC_UDEV_VERSION" \
+        "packaging/ppa/codec-udev" \
+        "$CODEC_UDEV_RULE" \
+        "99-rockchip-codec.rules"
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -375,7 +392,7 @@ fi
 mkdir -p "$WORK" "$ARTIFACTS"
 
 if [[ "$#" -eq 0 ]]; then
-    set -- mpp librga ffmpeg gnome-remote-desktop
+    set -- codec-udev mpp librga ffmpeg gnome-remote-desktop
 fi
 
 for package in "$@"; do
@@ -385,6 +402,7 @@ for package in "$@"; do
         ffmpeg) build_ffmpeg ;;
         ffmpeg-rockchip|nyanmisaka-ffmpeg-rockchip) build_ffmpeg_rockchip ;;
         gnome-remote-desktop|grd) build_grd ;;
+        codec-udev|rk3588-codec-udev) build_codec_udev ;;
         gdm-hwenc|gnome-remote-desktop-gdm-hwenc) build_gdm_hwenc ;;
         kernel|forward-port-kernel|linux-rockchip64-ysp) build_kernel_forward_port ;;
         kernel-alpha-6.18|rewrite-alpha-6.18|linux-rockchip64-ysp-alpha-6.18) build_kernel_alpha_618 ;;

@@ -1647,3 +1647,92 @@ See ../../configure --help for available options.
 - Publication/build waiting gates are therefore closed. Remaining kernel gates
   are board install, reboot, rollback, and recovery validation; GRD and GDM ACL
   remain held.
+
+## FFmpeg 8.0 compatibility port and PPA split
+
+- Created `ffmpeg-rockchip-81` branch `rockchip-8.0` from official tag
+  `n8.0.3` and ported the RKMPP/RKRGA feature and hardening series back to the
+  FFmpeg 8.0 ABI. The tested tip is
+  `463f542c325942f3e6b390cb940c32812570957d`.
+- The resulting distro-style package retains `libavcodec62`, `libavutil60`,
+  `libavformat62`, `libavfilter11`, `libavdevice62`, `libswscale9`, and
+  `libswresample6`. A full local binary build, executable/media FATE tests,
+  extracted-package smoke tests, and RK3588 RKMPP encode/decode plus zero-copy
+  RKMPP-to-RGA-to-RKMPP tests passed.
+- Replaced the temporary rollback version with the honest source version
+  `7:8.0.3+rockchip+git20260713.463f542c-0ubuntu1~rk1`. The source package was
+  built under `packaging/ppa/out/`, extracted successfully, linted with only
+  the inherited newer-standards-version warning, and signed with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`.
+- Created four arm64-only PPAs and copied source plus existing binaries:
+  - `ppa:yi-ding/rock5b-ffmpeg81-upstream`: upstream FFmpeg 8.1.2 source
+    publication `18619544`, 29 binary publications;
+  - `ppa:yi-ding/rock5b-ffmpeg81-rockchip`: Rockchip FFmpeg 8.1.2 source
+    publication `18619545`, 29 binary publications;
+  - `ppa:yi-ding/rock5b-kernel618-rewrite`: Linux 6.18 rewrite source
+    publication `18619546`, three binary publications;
+  - `ppa:yi-ding/rock5b-kernel72rc2-rewrite`: Linux 7.2-rc2 rewrite source
+    publication `18619548`, three binary publications.
+- An uncached Launchpad API check on 2026-07-14 PDT found all four dedicated
+  source publications and every copied binary `Published`.
+- Requested temporary source-plus-binary copies of MPP, librga, co-installable
+  FFmpeg 6.1, the 6.18 forward-port kernel, and patched GNOME Remote Desktop in
+  `ppa:yi-ding/ubuntu-rock-5b-experimental`. These holding copies protect the
+  stable package set while the old main archive is deleted and recreated.
+- Prepared GNOME Remote Desktop revision
+  `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2` for the recreated
+  main PPA. It lowers the FFmpeg development-package floor from 8.1.2 to 8.0.1.
+  The source extracts cleanly, and source lintian reports only long-filename
+  warnings.
+- Compiled and linked the GRD RKMPP backend against the isolated libraries from
+  the locally built FFmpeg 8.0 package. Meson selected `libavcodec 62.11.103`
+  and `libavutil 60.9.100`; the resulting daemon has `NEEDED` entries for
+  `libavcodec.so.62` and `libavutil.so.60`. A local `dpkg-shlibdeps` check with
+  the isolated package metadata generated matching `libavcodec62` and
+  `libavutil60` dependencies. Signed the GRD `~rk2` source upload with the same
+  PPA upload key.
+- Before deletion, downloaded the exact 12 stable arm64 binary packages from
+  the old main PPA into workspace storage and verified their package, version,
+  architecture, and SHA-256 checksums. The pending holding source records also
+  expose independent source-file URLs under the experimental PPA.
+- Launchpad accepted deletion of `ppa:yi-ding/ubuntu-rock-5b` on 2026-07-14 at
+  approximately 09:10 PDT. The API now exposes the old archive only as a
+  disabled/redacted tombstone. Immediate recreation correctly fails while
+  Launchpad's deletion grace period still reserves the name.
+- Added a native PPA source wrapper for `rk3588-codec-udev 1.0`, which installs
+  the canonical MPP/RGA/DMA-heap access rule. Its source and arm64-hosted `all`
+  binary builds pass, both source and binary lintian are clean, package contents
+  and dependencies are correct, and the source upload is signed. The main-stack
+  installer now installs this package and adds the invoking login user to the
+  `video` group when needed.
+- Launchpad released the deleted `ubuntu-rock-5b` name at 2026-07-14 09:56 PDT,
+  about 46 minutes after deletion. Recreated it with a fresh archive identity,
+  configured only the arm64 processor, and retained the owner-wide signing key
+  `EA233A9BF99005077CDDAE7ACB968BDF039404E2`.
+- Configured `ppa:yi-ding/rock5b-ffmpeg81-rockchip` to use the fresh main PPA
+  as an archive dependency for future MPP/librga build dependencies.
+- Restored source plus existing binaries from the holding PPA into the fresh
+  main archive:
+  - MPP source publication `18619785`;
+  - librga source publication `18619786`;
+  - co-installable FFmpeg 6.1 source publication `18619787`;
+  - 6.18 forward-port kernel source publication `18619788`.
+  The old GRD binary was deliberately not restored: inspection confirmed it
+  needs `libavcodec.so.63` and `libavutil.so.61`.
+- Uploaded signed `rk3588-codec-udev 1.0`; Launchpad accepted source
+  publication `18619789`, and arm64-hosted `Architecture: all` build `33397244`
+  succeeded.
+- Temporarily added the published holding PPA as a build dependency so the
+  honest FFmpeg upload could not race pending MPP/librga publication. Uploaded
+  `7:8.0.3+rockchip+git20260713.463f542c-0ubuntu1~rk1`; Launchpad accepted
+  source publication `18619822` and started arm64 build `33397317` on
+  `bos03-arm64-101`.
+- Uploaded GRD
+  `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2`. Launchpad
+  accepted source publication `18619824` and queued arm64 build `33397319`.
+  Building against Ubuntu's native 8.0 development headers is valid because
+  the backend uses the 8.0 public ABI and resolves `h264_rkmpp` at runtime; the
+  exact Rockchip-library link was already tested locally.
+- Removed the temporary main-to-holding archive dependency after FFmpeg started
+  with its dependencies resolved. An API check shows the fresh main PPA has
+  zero extra archive dependencies.

@@ -1,3 +1,12 @@
+gnome-remote-desktop (50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2) resolute; urgency=medium
+
+  * Rebuild the RKMPP encoder backend against the FFmpeg 8.0 ABI-compatible
+    Rockchip package.
+  * Relax the FFmpeg development-package floor from 8.1.2 to Ubuntu Resolute's
+    8.0.1 baseline; the backend uses APIs available in the 8.0 ABI family.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 14 Jul 2026 08:47:00 -0700
+
 gnome-remote-desktop (50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1) resolute; urgency=medium
 
   * Package the current grd-ffmpeg working tree for the ROCK 5B PPA.

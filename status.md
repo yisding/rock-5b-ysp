@@ -38,7 +38,7 @@ separate table below so both remain scannable.
 | 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
 | 7 | GNOME Remote Desktop backend | ✅ The series applies to GRD 50.1 and the hardware path sustains 60 fps; the reconnect fix is not submitted. | 2026-07-03 | [`profiling.md`](./apps/gnome-remote-desktop/docs/profiling.md) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ⚠️ MPP, librga, both FFmpeg tracks, and three kernels are public; GRD/GDM are held and kernel board gates are open. | 2026-07-11 | [`packaging/ppa/`](packaging/ppa/README.md) |
+| 9 | Launchpad PPA | ⚠️ Main PPA recreated cleanly with honest FFmpeg 8.0.3; four incompatible FFmpeg/kernel tracks are isolated in published PPAs, while fresh-main publication/builds and kernel board gates remain open. | 2026-07-14 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |

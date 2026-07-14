@@ -32,6 +32,7 @@ CONFIG := \
 	--disable-pocketsphinx \
 	--disable-libcaca \
 	--disable-libmfx \
+	--disable-omx \
 	--enable-gnutls \
 	--enable-libaom \
 	--enable-libass \
@@ -312,6 +313,17 @@ ifeq ($(filter pkg.ffmpeg.noextra,$(DEB_BUILD_PROFILES)),)
 	dh_install $(addprefix -p,$(EXTRA_PKGS)) --sourcedir=debian/tmp/extra
 endif
 	dh_install --remaining-packages
+
+debian/%.symbols: debian/%.symbols.in
+	sed 's/@DEB_VERSION@/${DEB_VERSION}/;s/@DEB_VERSION_EPOCH_UPSTREAM@/${DEB_VERSION_EPOCH_UPSTREAM}/' $< > $@
+
+execute_before_dh_makeshlibs: $(patsubst %,debian/%.symbols,$(SHLIB_PKGS))
+ifeq ($(filter pkg.ffmpeg.noextra,$(DEB_BUILD_PROFILES)),)
+	set -e && for pkg in $(EXTRA_PKGS); do \
+		mainpkg=`echo $$pkg | sed 's/-extra//'`; \
+		cp -f debian/$$mainpkg.symbols debian/$$pkg.symbols; \
+	done
+endif
 
 # avoid error: Unknown DWARF DW_OP_0
 override_dh_dwz:

@@ -1,0 +1,16 @@
+Source: rk3588-codec-udev
+Section: admin
+Priority: optional
+Maintainer: Yi Ding <yi.s.ding@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.3
+Rules-Requires-Root: no
+
+Package: rk3588-codec-udev
+Architecture: all
+Depends: ${misc:Depends}, acl
+Enhances: ffmpeg, gnome-remote-desktop
+Description: unprivileged RK3588 video codec and RGA device access
+ Installs a udev rule granting the video group and the active local seat
+ read/write access to the Rockchip MPP codec device, RGA accelerator, and DMA
+ heaps. DMA-heap access is required for RKMPP frame and stream allocation.

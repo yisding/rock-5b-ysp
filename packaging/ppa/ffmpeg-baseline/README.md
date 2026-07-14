@@ -1,8 +1,8 @@
 # ffmpeg upstream-baseline packaging
 
 This is the `debian/` tree for the upstream FFmpeg 8.1.2 **baseline** source
-package in `ppa:yi-ding/ubuntu-rock-5b`, distinct from the higher-version
-`ffmpeg-rockchip-81` forward-port packaging in [`../ffmpeg/`](../ffmpeg/).
+package in `ppa:yi-ding/rock5b-ffmpeg81-upstream`. It is isolated from both
+the system FFmpeg 8.0 stack and the FFmpeg 8.1 Rockchip forward port.
 
 Provenance: recovered on 2026-07-07 from the Launchpad source publication of
 `ffmpeg 7:8.1.2-1+rk1` (`ffmpeg_8.1.2-1+rk1.debian.tar.xz`, sha256
