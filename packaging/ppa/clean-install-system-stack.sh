@@ -319,8 +319,10 @@ for package in "${ffmpeg_downgrade_packages[@]}"; do
 done
 ((verification_failed == 0)) || exit 1
 
-if ! ffmpeg -hide_banner -encoders 2>/dev/null | grep -Eq '[[:space:]]h264_rkmpp([[:space:]]|$)'; then
-    die "installed ffmpeg does not advertise the h264_rkmpp encoder"
+[[ -x /usr/bin/ffmpeg ]] || die "the PPA ffmpeg executable is missing from /usr/bin"
+if ! /usr/bin/ffmpeg -hide_banner -encoders 2>/dev/null |
+    grep -Eq '[[:space:]]h264_rkmpp([[:space:]]|$)'; then
+    die "the PPA /usr/bin/ffmpeg does not advertise the h264_rkmpp encoder"
 fi
 
 login_user="${SUDO_USER:-}"
