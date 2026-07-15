@@ -45,6 +45,13 @@ filesystem-specific KSpace explanation remains a hypothesis. Docker overlay
 storage is not the direct path for this file: on Linux Armbian bind-mounts
 `cache/sources/u-boot-worktree` from the host.
 
+Radxa PR #188 independently identifies another missing prerequisite in the
+same FIT-generation block. It is the same bug class but a different race:
+its Python generator reads `./u-boot`, whereas issue #8227 is `mkimage`
+reading `./u-boot.dtb`. The exact ROCK 5B configuration uses Radxa's shell
+generator, not the Python generator named by #188, and #188 does not order
+`u-boot.dtb` before `u-boot.itb`.
+
 ## Controlled reproduction of the missing edge
 
 The vendor FIT rule invokes `mkimage` on `u-boot.its`, which contains:
@@ -127,8 +134,11 @@ whereas a one-call clone or offloaded copy may look more all-or-nothing. That
 does not make the race safe on Jammy:
 
 - The traced 12,752-byte DTB fit in one 128 KiB buffer and Jammy issued one
-  12,752-byte `write`. For a file this small, the old path does not provide a
-  dependable sequence of partially readable sizes either.
+  12,752-byte `write`. It first read the complete source after truncating the
+  destination, so a slow initial read would leave the destination at zero;
+  the subsequent write makes it jump directly to full size. For a file this
+  small, the old path does not provide a dependable sequence of partially
+  readable sizes either.
 - `mkimage` accepted a zero-length `/incbin/` and returned success in the
   controlled reproduction.
 - The FIT hash was the correct hash of the bytes actually embedded, including
@@ -189,6 +199,11 @@ Apple M2 Max, although no confirming artifact was posted. That is consistent
 with Jammy changing probability rather than fixing the graph.
 
 ## Exact KSpace build environment
+
+`KSpace` here is the name of an Armbian self-hosted GitHub Actions runner
+machine/pool, not a filesystem, copy engine, or Docker feature. `kspace-36`
+was the runner service assigned to the concrete failing job; Armbian then ran
+the build inside Docker on that Linux host.
 
 The concrete zero-DTB job was
 [armbian/os run 28326623973, job 83921496847](https://github.com/armbian/os/actions/runs/28326623973/job/83921496847):
@@ -295,6 +310,63 @@ correctness bugs. There is no hard evidence here of a general coreutils 9.4
 Mac reports should not be used as proof of KSpace's filesystem type. Armbian's
 own Darwin named-volume policy is the most directly applicable design signal.
 
+For a Mac host-mounted directory, a longer zero-byte window is nevertheless
+plausible. Linux `cp` inside the VM first truncates the host-visible pathname,
+then asks a sharing backend such as VirtioFS, gRPC FUSE, 9p, or SSHFS to
+perform or reject `FICLONE` and `copy_file_range`. Translation, rejection,
+and fallback can each add VM-to-host round trips while the pathname remains
+zero. This mechanism does not apply in the same way to a VM-local named
+volume, and the cited reports do not measure the exact DTB operation.
+
+## Related Radxa PR #188: same bug class, different edge
+
+[Radxa PR #188](https://github.com/radxa/u-boot/pull/188) changes the generic
+FIT-generator rule from:
+
+```make
+$(U_BOOT_ITS): FORCE
+```
+
+to:
+
+```make
+$(U_BOOT_ITS): u-boot FORCE
+```
+
+Its commit message states the concrete reason: `make_fit_atf.py` opens
+`./u-boot` as an ELF file to obtain the load address, but the `u-boot.its`
+target did not declare `u-boot` as an input. Under parallel Make the generator
+could therefore run before the link completed. That can produce a missing,
+partial, or stale ELF input rather than the zero-DTB artifact proven here.
+
+[Radxa PR #189](https://github.com/radxa/u-boot/pull/189), corresponding to
+issue #8227, repairs a later consumer. The generated ITS only writes the text
+`/incbin/("./u-boot.dtb")`; `mkimage` resolves that reference while creating
+`u-boot.itb`. The two missing edges are:
+
+| Fix | Producer that must finish | Consumer that reads it |
+|---|---|---|
+| PR #188 | `u-boot` | FIT generator creating `u-boot.its` |
+| PR #189 / #8227 | `u-boot.dtb` | `mkimage` creating `u-boot.itb` |
+
+Waiting for `u-boot` does not imply that the separate downstream
+`u-boot.dtb` copy has completed. A common completed ancestor does not order
+sibling targets, so #188 can perturb scheduling but cannot close the #8227
+edge.
+
+The exact failing ROCK 5B
+[defconfig](https://github.com/radxa/u-boot/blob/39cd993e5d6296635438e84f4576b3a9bf76f86e/configs/rock-5b-rk3588_defconfig)
+selects `arch/arm/mach-rockchip/make_fit_atf.sh`. That shell generator sources
+[`fit_args.sh`](https://github.com/radxa/u-boot/blob/39cd993e5d6296635438e84f4576b3a9bf76f86e/arch/arm/mach-rockchip/fit_args.sh)
+and
+[`fit_nodes.sh`](https://github.com/radxa/u-boot/blob/39cd993e5d6296635438e84f4576b3a9bf76f86e/arch/arm/mach-rockchip/fit_nodes.sh):
+it obtains the load address from `include/autoconf.mk` and emits references to
+`u-boot-nodtb.bin` and `u-boot.dtb`, but it does not open `./u-boot` as an ELF
+file. Therefore #188's exact Python-generator race does not appear to affect
+this ROCK 5B build. It can affect Armbian boards whose selected vendor U-Boot
+configuration uses `make_fit_atf.py`; the generic patch is still useful for
+those configurations.
+
 ## Minimal Armbian PR to test the fix
 
 [Armbian PR #9946](https://github.com/armbian/build/pull/9946) already merged
@@ -346,4 +418,7 @@ inspection proves the Jammy/Noble `cp` path difference and that Noble can
 wait inside clone preparation after exposing a zero-length destination. The
 KSpace load and filesystem mechanisms are plausible amplifiers, not yet
 measured causes. The exact historical Noble image package inventory and the
-KSpace host filesystem remain unknown.
+KSpace host filesystem remain unknown. PR #188 supplies independent evidence
+of the same missing-input pattern in Radxa's FIT Makefile, but it fixes a
+different producer/consumer pair and does not supersede the `u-boot.dtb`
+dependency.

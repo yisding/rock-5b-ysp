@@ -1,6 +1,6 @@
 # Jammy/Noble `cp`, Linux clone, and runner evidence
 
-> Captured: 2026-07-14
+> Captured: 2026-07-14; FIT dependency comparison expanded 2026-07-14
 > Purpose: reproducible evidence appendix for
 > [the ROCK 5B zero-DTB finding](../../2026-07-13-rock5b-u-boot-fit-dtb-race.md)
 
@@ -205,6 +205,50 @@ The job printed Docker-visible 64 CPUs, implying `-j96` from the pinned
 formula. Its public runner record listed 24 runners and 128 host vCPUs. The
 job did not print `findmnt`, `stat -f`, or the Docker storage driver, so the
 host filesystem type remains unknown.
+
+## Adjacent Radxa FIT dependency race
+
+[Radxa PR #188](https://github.com/radxa/u-boot/pull/188) contains commit
+[`8e9868bf`](https://github.com/radxa/u-boot/commit/8e9868bf70d2b2c04414e36e0617f701527b0b19),
+which changes:
+
+```diff
+-$(U_BOOT_ITS): FORCE
++$(U_BOOT_ITS): u-boot FORCE
+```
+
+The commit message says `make_fit_atf.py` needs `./u-boot` before generating
+`u-boot.its`. Source inspection confirms that the Python generator sets
+`uboot_elf="./u-boot"`, opens it with pyelftools, and reads its loadable ELF
+segment to calculate the U-Boot load address. This is a real undeclared-input
+race when that generator is selected.
+
+It is distinct from
+[Radxa PR #189](https://github.com/radxa/u-boot/pull/189):
+
+| Target recipe | File read by the recipe | Missing prerequisite |
+|---|---|---|
+| generate `u-boot.its` with `make_fit_atf.py` | `./u-boot` | `u-boot` on `$(U_BOOT_ITS)` |
+| generate `u-boot.itb` with `mkimage` | `./u-boot.dtb` named by the ITS | `u-boot.dtb` on `u-boot.itb` |
+
+The pinned ROCK 5B
+[`rock-5b-rk3588_defconfig`](https://github.com/radxa/u-boot/blob/39cd993e5d6296635438e84f4576b3a9bf76f86e/configs/rock-5b-rk3588_defconfig)
+selects `arch/arm/mach-rockchip/make_fit_atf.sh`, not the Python generator.
+At the same commit:
+
+- [`make_fit_atf.sh`](https://github.com/radxa/u-boot/blob/39cd993e5d6296635438e84f4576b3a9bf76f86e/arch/arm/mach-rockchip/make_fit_atf.sh)
+  sources the argument and node helpers and prints an ITS.
+- [`fit_args.sh`](https://github.com/radxa/u-boot/blob/39cd993e5d6296635438e84f4576b3a9bf76f86e/arch/arm/mach-rockchip/fit_args.sh)
+  obtains `UBOOT_LOAD_ADDR` from `include/autoconf.mk`.
+- [`fit_nodes.sh`](https://github.com/radxa/u-boot/blob/39cd993e5d6296635438e84f4576b3a9bf76f86e/arch/arm/mach-rockchip/fit_nodes.sh)
+  prints `/incbin/` references to `u-boot-nodtb.bin` and `./u-boot.dtb`; in
+  the uncompressed path it does not open `./u-boot` as an ELF file.
+
+Consequently the exact PR #188 Python-reader race is not established for the
+failing ROCK 5B build. The generic dependency change can affect scheduling,
+but it does not make `u-boot.itb` depend on `u-boot.dtb`; the #189 edge remains
+necessary. Other Armbian board configurations that select the Python
+generator can still be exposed to #188.
 
 ## Related container precedents
 
