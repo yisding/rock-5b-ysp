@@ -23,7 +23,9 @@ Both bit the FFmpeg build and will bite Kodi's cmake the same way:
 ## 1. Prerequisites (from the PPA)
 
 ```bash
+# MPP/librga come from the normal system archive; ABI-63 FFmpeg is isolated.
 sudo add-apt-repository -y ppa:yi-ding/ubuntu-rock-5b
+sudo add-apt-repository -y ppa:yi-ding/rock5b-ffmpeg81-rockchip
 sudo apt update
 # good MPP (1375813c) + RGA + the fork FFmpeg dev/runtime (libavcodec63)
 sudo apt install -y librockchip-mpp-dev librga-dev \
@@ -35,6 +37,12 @@ sudo apt install -y librockchip-mpp-dev librga-dev \
 `ffmpeg -hide_banner -decoders | grep rkmpp` must list `h264_rkmpp` etc. The
 board's stock `librockchip-mpp1 1.5.0-1+rk1` (`750e76e`) does **not** register
 the MPP parsers — the PPA `1375813c` build is required.
+
+The dedicated FFmpeg archive intentionally supersedes the normal system PPA's
+FFmpeg 8.0.3 packages with the ABI-63/61 fork. It is an application test stack,
+not the normal desktop stack. Use
+[`clean-install-system-stack.sh`](../../../packaging/ppa/clean-install-system-stack.sh)
+to return a test machine to the exact FFmpeg-8.0/GRD system package set.
 
 ## 2. Kodi build dependencies
 

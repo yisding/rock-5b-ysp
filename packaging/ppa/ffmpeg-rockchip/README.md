@@ -33,4 +33,9 @@ or binary package-name collisions.
 
 Local source-package validation passed, source `lintian` passed, and a local arm64 binary build produced the expected private tools with RKMPP encoders/decoders and RKRGA filters. The package disables LTO for local/Launchpad resource use and skips upstream FATE tests because this fork segfaults while generating HLS list test data.
 
-The signed source upload `6.1+git20260423.40c412dacc-0ubuntu1~rk1` is public as source publication `18614552`; arm64 build `33387375` successfully built on `bos03-arm64-043`, and the tool package is in the public index.
+The original signed source upload
+`6.1+git20260423.40c412dacc-0ubuntu1~rk1` produced successful arm64 build
+`33387375` on `bos03-arm64-043`. The recreated main PPA now publishes that
+source as publication `18619787` plus its arm64 tool binary. Holding source
+publication `18619559` and its copied binary remain Published in
+`ubuntu-rock-5b-experimental`, which is not an install target.

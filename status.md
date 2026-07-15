@@ -34,11 +34,11 @@ separate table below so both remain scannable.
 | 2 | BSP-audit fix series | ⚠️ Staged only: the split series diverges from the verified draft and does not compile until patch 0024 is regenerated. | 2026-07-01 | [`cleanup-split/`](./kernel-drivers/patches/cleanup-split/README.md) |
 | 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
 | 4 | Clean-room rewrite drivers | 🚧 Both alpha packages pass source/config gates and broad device-free validation; neither has booted hardware proof. | 2026-07-10 | [rewrite-driver track](./kernel-drivers/docs/rewrite-drivers.md) §6 |
-| 5 | ffmpeg tree | ⚠️ Rockchip-81 builds, passes focused tests, and is public in the PPA; AV1 MP4/MKV still lacks board re-validation. | 2026-07-11 | [Kodi/ffmpeg finding](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) |
+| 5 | ffmpeg tree | ⚠️ Rockchip-81 builds, passes focused tests, and is public in its dedicated PPA; AV1 MP4/MKV still lacks board re-validation. | 2026-07-14 | [Kodi/ffmpeg finding](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) |
 | 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
 | 7 | GNOME Remote Desktop backend | ✅ The series applies to GRD 50.1 and the hardware path sustains 60 fps; the reconnect fix is not submitted. | 2026-07-03 | [`profiling.md`](./apps/gnome-remote-desktop/docs/profiling.md) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ⚠️ Main PPA recreated cleanly with honest FFmpeg 8.0.3; four incompatible FFmpeg/kernel tracks are isolated in published PPAs, while fresh-main publication/builds and kernel board gates remain open. | 2026-07-14 | [`packaging/ppa/`](packaging/ppa/README.md) |
+| 9 | Launchpad PPA | ⚠️ The recreated main system PPA and all four dedicated FFmpeg/kernel PPAs have Published sources and binaries; the holding PPA remains isolated. Optional GDM upload and board migration/kernel gates remain open. | 2026-07-14 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
@@ -92,7 +92,7 @@ last-checked date.
 | W02 | [Armbian patcher precedence](#watch-w02) | 2026-07-11 | Core-wins behavior unchanged; rename workaround still required. |
 | W03 | [Armbian codec-udev upstreaming](#watch-w03) | 2026-07-11 | PR merged; future images should carry the rule. |
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-07-11 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
-| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-11 | Userspace and kernels public; board gates remain open. |
+| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-14 | Six-archive topology recorded; all intended sources/binaries public. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-07-11 | Four MRs open; !42679 needs a rebase. |
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-11 | Main and PR tips recorded; PR remains mergeable. |
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-11 | Fix built and public; board re-test pending. |
@@ -150,14 +150,21 @@ last-checked date.
 
 - **Why recheck:** Acceptance, build state, and binary publication can change
   after upload without a local repository edit.
-- **Last checked:** 2026-07-11
-- **State then:** The 21:44 PDT API/index check found Rockchip-81 FFmpeg source
-  [`18615674`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18615674)
-  published and build
-  [`33388714`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33388714)
-  successful, with `ffmpeg`/`libavcodec63` indexed. Co-installable
-  `ffmpeg-rockchip`, MPP, librga, and all three `~rk2` kernel sets were indexed.
-  GRD/GDM remained held; no kernel had passed its board gate.
+- **Last checked:** 2026-07-14
+- **State then:** At 20:28 PDT, the recreated `ubuntu-rock-5b` main PPA had all seven current
+  sources and their binaries Published: MPP, librga, co-installable FFmpeg 6.1,
+  the forward-port kernel, FFmpeg 8.0.3, GRD, and codec-udev 1.1. FFmpeg build
+  [`33397317`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397317),
+  GRD build
+  [`33397319`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397319),
+  and codec-udev build
+  [`33399688`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33399688)
+  succeeded, and the main PPA had zero archive dependencies. The upstream and
+  Rockchip FFmpeg 8.1 PPAs each had one source plus 29 binaries Published; the
+  6.18 and 7.2-rc2 rewrite-kernel PPAs each had one source plus three binaries
+  Published. `ubuntu-rock-5b-experimental` retained five Published source sets
+  and copied binaries solely as a holding archive. The optional GDM ACL package
+  was not uploaded, and no PPA kernel had passed its board gate.
 
 <a id="watch-w06"></a>
 ### W06 — Mesa MR stack

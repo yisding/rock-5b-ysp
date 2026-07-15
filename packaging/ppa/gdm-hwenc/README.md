@@ -10,3 +10,7 @@ source tree before running `dpkg-buildpackage -S`.
 
 This package is opt-in because it grants the `gdm` group access to the Rockchip
 codec nodes so the pre-login greeter can hardware-encode RDP.
+
+Current PPA state: the source wrapper is tracked and buildable, but it has not
+been uploaded to any of the six PPAs. Upload remains gated on choosing to widen
+codec access to the `gdm` group and validating the normal GRD system stack.

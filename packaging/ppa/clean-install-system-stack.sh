@@ -81,6 +81,8 @@ versions from $PPA. The script:
   * safely downgrades the installed FFmpeg 8.1 binary set to FFmpeg 8.0.3;
   * installs MPP, librga, patched GRD, codec permissions, and the forward-port
     kernel image, DTBs, and headers;
+  * verifies exact installed versions and the h264_rkmpp encoder from
+    /usr/bin/ffmpeg, independent of PATH;
   * leaves the current Armbian kernel installed as a recovery option.
 
 Options:

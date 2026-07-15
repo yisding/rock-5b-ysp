@@ -15,7 +15,7 @@ package names and a distinct localversion.
 | Binary DTB package | `linux-dtb-ysp-alpha-7.2-rc2-rockchip64` |
 | Binary headers package | `linux-headers-ysp-alpha-7.2-rc2-rockchip64` |
 | Kernel release | `7.2.0-rc2-ysp-alpha-7.2-rc2-rockchip64` |
-| Upload state | Original build `33387393` succeeded; source and binaries were copied to the dedicated PPA as source publication `18619548`. |
+| Upload state | Original build `33387393` succeeded; source publication `18619548` and all three copied binaries are Published in the dedicated PPA. |
 | Debian version | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2` |
 
 ## Source Inputs
@@ -79,6 +79,9 @@ Passed:
 - Launchpad API/public-index check on 2026-07-11 21:44 PDT found source
   publication `18614561` Published, build `33387393` `Successfully built`, and
   the image, DTB, and headers packages public.
+- Dedicated-PPA API recheck on 2026-07-14 20:28 PDT found source publication
+  `18619548` and all three copied binaries Published in
+  `ppa:yi-ding/rock5b-kernel72rc2-rewrite`.
 
 Not done yet:
 

@@ -307,11 +307,13 @@ sudo apt install ./gnome-remote-desktop-gdm-hwenc_1.0_all.deb    # optional
 #    (full signal table: profiling.md §7; the client must advertise AVC420 — §5).
 ```
 
-The full-stack Launchpad **PPA** path is still a packaging track, not the
-validated install path. MPP/librga/FFmpeg/GRD source packaging lives in
-[`packaging/ppa`](../../packaging/ppa), but the public arm64 binary index is not
-installable yet and the GRD source package has not been uploaded or
-Launchpad-build-validated.
+The full-stack Launchpad **PPA** path is now a published test path, not yet the
+validated install path. The recreated system PPA contains MPP, librga, Rockchip
+FFmpeg 8.0.3, and GRD revision `~rk2`; GRD source `18619824`, arm64 build
+`33397319`, and the binary are Published. That build links the 8.0 ABI
+(`libavcodec.so.62`/`libavutil.so.60`). The exact PPA stack still needs an
+on-board install/runtime pass, and the optional GDM ACL package is not uploaded.
+See [`packaging/ppa`](../../packaging/ppa) for the six-archive layout.
 
 ## Provenance & licensing
 
@@ -321,11 +323,13 @@ Launchpad-build-validated.
   of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`. The backend is a
   sibling of GRD's existing VA-API path and reuses its design (fixed QP 22 intent,
   the Vulkan view-creator, the frame controller).
-- It links **upstream FFmpeg 8.1.2** `8.1.2+rk1` (GPL-3 via `--enable-version3`,
-  for rkmpp), an ABI drop-in over Ubuntu's `ffmpeg`. This repo's
-  [`video-libraries/ffmpeg`](../../video-libraries/ffmpeg) documents ffmpeg-rockchip too; GRD uses upstream FFmpeg
-  8.1.2 for the in-place upgrade. Either works — ffmpeg-rockchip gives better
-  default quality (fixed QP), upstream FFmpeg 8.1.2 needs the bitrate fix.
+- The measured development deployment linked **upstream FFmpeg 8.1.2**
+  `8.1.2+rk1` (GPL-3 via `--enable-version3`) for rkmpp. The current system-PPA
+  rebuild instead links the ABI-compatible Rockchip FFmpeg 8.0.3 package so it
+  can coexist with Resolute's normal ABI-62/60 consumers. This repo's
+  [`video-libraries/ffmpeg`](../../video-libraries/ffmpeg) documents both
+  lineages; the earlier 8.1 deployment remains the hardware proof until the
+  published 8.0/GRD pair is re-run on the board.
 - `gnome-remote-desktop-gdm-hwenc` is a few lines of udev + a tiny package; GPL-2+.
 
 This directory is the *integration + the debugging story*; the remote-desktop

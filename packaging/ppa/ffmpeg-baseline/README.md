@@ -4,6 +4,10 @@ This is the `debian/` tree for the upstream FFmpeg 8.1.2 **baseline** source
 package in `ppa:yi-ding/rock5b-ffmpeg81-upstream`. It is isolated from both
 the system FFmpeg 8.0 stack and the FFmpeg 8.1 Rockchip forward port.
 
+Current publication state: dedicated-PPA source publication `18619544` and all
+29 copied binary publications were Published at the 2026-07-14 20:28 PDT API
+recheck.
+
 Provenance: recovered on 2026-07-07 from the Launchpad source publication of
 `ffmpeg 7:8.1.2-1+rk1` (`ffmpeg_8.1.2-1+rk1.debian.tar.xz`, sha256
 `88d622f3090478439cebb30d1ded7b966012a21362982d8101b99a7463742b07`, verified

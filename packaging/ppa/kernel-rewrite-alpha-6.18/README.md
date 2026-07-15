@@ -15,7 +15,7 @@ package names and a distinct localversion.
 | Binary DTB package | `linux-dtb-ysp-alpha-6.18-rockchip64` |
 | Binary headers package | `linux-headers-ysp-alpha-6.18-rockchip64` |
 | Kernel release | `6.18.0-ysp-alpha-6.18-rockchip64` |
-| Upload state | Original build `33387392` succeeded; source and binaries were copied to the dedicated PPA as source publication `18619546`. |
+| Upload state | Original build `33387392` succeeded; source publication `18619546` and all three copied binaries are Published in the dedicated PPA. |
 | Debian version | `6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2` |
 
 ## Source Inputs
@@ -74,6 +74,9 @@ Passed:
 - Launchpad API/public-index check on 2026-07-11 21:44 PDT found source
   publication `18614560` Published, build `33387392` `Successfully built`, and
   the image, DTB, and headers packages public.
+- Dedicated-PPA API recheck on 2026-07-14 20:28 PDT found source publication
+  `18619546` and all three copied binaries Published in
+  `ppa:yi-ding/rock5b-kernel618-rewrite`.
 
 Not done yet:
 

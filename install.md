@@ -17,7 +17,7 @@ in either case:
 |------|--------------|---------------|-----------------------------------------------|-------|
 | **(a) Combined Armbian kernel** | All three accelerators **built in (`=y`)** — no modules, no overlay | An Armbian build tree (§2) + a kernel install/reboot | ✅ **Hardware-validated** (build `Pb6ab-Cb831`, [kernel status](kernel-drivers/docs/forward-port-status.md)) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
 | **(b) DKMS on a stock kernel** | `rk_vcodec.ko` + `rga3.ko`, auto-rebuilt on every kernel update, + a boot-time DT overlay | A *stock* Armbian 6.18+ kernel, `dkms` + `dtc` installed | ⚠️ Compile-tested on **6.18 only**; overlay dtc-validated, **not boot-validated** | [`packaging/dkms/`](packaging/dkms/README.md) |
-| **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§8) | Source-built `ffmpeg-rockchip` is hardware-validated; public PPA arm64 indexes now contain MPP, librga, Rockchip-81 FFmpeg, and the co-installable FFmpeg 6.1 tools | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
+| **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§8) | Source-built `ffmpeg-rockchip` is hardware-validated; the system PPA publishes codec access, MPP, librga, FFmpeg 8.0.3, GRD, and co-installable FFmpeg 6.1, while dedicated PPAs publish both FFmpeg 8.1 tracks | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
 
 > **⚠️ Hard warning: (a) and (b) are mutually exclusive** — installing the DKMS
 > module on the combined kernel breaks the build. Mechanism and the exact
@@ -234,11 +234,12 @@ binary**. Get userspace one of two ways:
 - **Install it packaged**: the [`packaging/ppa/`](packaging/ppa/README.md)
   source packaging for MPP, librga, FFmpeg, GRD, the optional GDM greeter ACL
   package, and the co-installable forward-port kernel is in this repo. The
-  public PPA now contains MPP, librga, both FFmpeg tracks, and three
-  co-installable kernel builds, but GRD/GDM uploads and the kernel board gates
-  are still pending ([`status.md`](status.md)).
-  Until the full stack publishes and validates, the packaged route is the
-  local-deb flow documented in
+  recreated system PPA now publishes the complete normal stack, including GRD;
+  four dedicated PPAs publish the incompatible FFmpeg 8.1 and rewrite-kernel
+  tracks. The optional GDM upload, exact clean-migration transaction, and PPA
+  kernel board gates remain pending ([`status.md`](status.md)). Treat the PPA
+  as a published test route until those gates pass. The established local-deb
+  flow remains documented in
   [`packaging/README.md`](packaging/README.md) § Operations (including the
   `apt-mark hold` pinning guidance).
 

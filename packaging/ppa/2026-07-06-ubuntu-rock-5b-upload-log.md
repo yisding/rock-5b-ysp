@@ -17,16 +17,27 @@
 
 This is a chronological working log, not a finished-state doc. Current state:
 
-- **`mpp` and `librga` source and arm64 binary packages are published** in the
-  public PPA indexes.
-- **FFmpeg baseline retry built successfully, and both Rockchip FFmpeg tracks are now uploaded.** The upstream baseline `7:8.1.2-1+rk2` built successfully as arm64 build `33381225`. Rockchip-81 `~rk2` was uploaded and accepted as source publication `18614542`, but arm64 build `33387355` failed immediately during configure on unsupported `--disable-omx`; `~rk3` removes that flag, is accepted as Pending source publication `18614555`, and arm64 build `33387380` is currently building. The co-installable FFmpeg 6.1 tool package `ffmpeg-rockchip` is accepted as Pending source publication `18614552`, and arm64 build `33387375` successfully built.
-- **GRD / `grd-ffmpeg`** packaging prep exists; not uploaded.
+- **The recreated main PPA is fully published.** MPP, librga, co-installable
+  FFmpeg 6.1, the forward-port kernel, FFmpeg 8.0.3, patched GRD, and
+  `rk3588-codec-udev 1.1` all have current Published sources and binaries.
+  FFmpeg build `33397317`, GRD build `33397319`, and codec-udev build
+  `33399688` succeeded.
+- **Four incompatible tracks are isolated in dedicated PPAs.** The upstream
+  and Rockchip FFmpeg 8.1 archives each contain one Published source plus 29
+  binaries; the Linux 6.18 and 7.2-rc2 rewrite archives each contain one
+  Published source plus three binaries.
+- **The experimental PPA is a holding archive, not an install source.** It
+  retains five source sets and copied binaries from the deleted main archive,
+  including the superseded FFmpeg-8.1-linked GRD build. The recreated main PPA
+  has zero archive dependencies.
+- **Open gates are runtime gates.** The optional GDM greeter ACL package is not
+  uploaded, and the exact clean migration plus PPA kernel
+  install/reboot/revert paths have not passed board validation.
 
-**Do not tell users to install the full stack from this PPA yet** - treat it as
-a packaging track until FFmpeg publishes. The install path remains the combined
-Armbian kernel (see
-[`../../install.md`](../../install.md)). Public-index rechecks that can change
-this are in the [`../../status.md`](../../status.md) watchlist.
+The normal stack is available as a published **test path**. Do not present it
+as the validated primary path until the board gates above pass; the combined
+Armbian kernel remains the proven path described in
+[`../../install.md`](../../install.md).
 
 ## Contents
 
@@ -35,6 +46,8 @@ this are in the [`../../status.md`](../../status.md) watchlist.
 - Launchpad back-and-forth: [signing/first upload](#signing-and-first-upload-attempt) · [arch correction](#launchpad-architecture-correction) · [orig-tarball rejection](#launchpad-orig-tarball-rejection) · [arm64 enablement](#launchpad-arm64-enablement-retry) · [MPP published, librga retry](#mpp-published-and-librga-retry)
 - FFmpeg: [staging strategy](#ffmpeg-staging-strategy) · [8.1.2 build polling](#upstream-ffmpeg-812-build-polling) · [arm64 build failure](#upstream-ffmpeg-812-baseline-arm64-build-failure-build-33366878) · [baseline recovered + checked in](#baseline-packaging-recovered-from-launchpad-and-checked-in)
 - GRD: [packaging prep](#gnome-remote-desktop-and-grd-ffmpeg-packaging-prep) · [local binary validation](#gnome-remote-desktop-local-binary-validation)
+- Kernels and final 8.1 publication: [kernel source uploads](#kernel-source-uploads-and-alpha-rc2-refresh) · [final publication](#final-publication-and-build-update)
+- Six-PPA rebuild: [FFmpeg 8.0 compatibility and split](#ffmpeg-80-compatibility-port-and-ppa-split) · [review corrections](#pr-review-corrections) · [final live recheck](#final-six-ppa-publication-recheck)
 
 ## Packaging Policy
 
@@ -1648,6 +1661,8 @@ See ../../configure --help for available options.
   are board install, reboot, rollback, and recovery validation; GRD and GDM ACL
   remain held.
 
+### 2026-07-14
+
 ## FFmpeg 8.0 compatibility port and PPA split
 
 - Created `ffmpeg-rockchip-81` branch `rockchip-8.0` from official tag
@@ -1746,6 +1761,10 @@ See ../../configure --help for available options.
   any `Remv` or `Purg` action outside the explicitly discovered conflict set,
   including reverse-dependencies that APT would otherwise remove under
   `--yes`.
+- Added an exact post-transaction FFmpeg check. The migration invokes
+  `/usr/bin/ffmpeg` rather than trusting `PATH` and requires it to advertise
+  `h264_rkmpp`, preventing a private helper binary from masking a broken system
+  package install.
 - Advanced `rk3588-codec-udev` to `1.1`. Its post-install action now retriggers
   the live `/sys/class` paths for MPP, RGA, IEP, and each DMA heap, waits for
   udev, and verifies `root:video 0660` on every device exposed by the running
@@ -1759,3 +1778,36 @@ See ../../configure --help for available options.
   `.dsc` signatures, and uploaded it to `ppa:yi-ding/ubuntu-rock-5b` on
   2026-07-14 at approximately 19:00 PDT. Launchpad acceptance/publication was
   not monitored.
+
+## Final six-PPA publication recheck
+
+- Anonymous Launchpad API recheck at `2026-07-14T20:28:21-07:00` found every
+  current source and binary in the recreated main PPA Published:
+  - MPP source `18619785` plus five arm64 binaries;
+  - librga source `18619786` plus two arm64 binaries;
+  - co-installable FFmpeg 6.1 source `18619787` plus its arm64 tool package;
+  - forward-port kernel source `18619788` plus image, DTB, and headers;
+  - FFmpeg 8.0.3 source `18619822`, successful arm64 build `33397317`, and 29
+    binary publications;
+  - GRD source `18619824`, successful arm64 build `33397319`, and its arm64
+    binary;
+  - codec-udev 1.1 source `18620729`, successful arm64-hosted build
+    `33399688`, and its architecture-independent binary. Version 1.0 is
+    Superseded.
+- The four dedicated archives remain complete:
+  - `rock5b-ffmpeg81-upstream`: source `18619544` and 29 binaries Published;
+  - `rock5b-ffmpeg81-rockchip`: source `18619545` and 29 binaries Published;
+  - `rock5b-kernel618-rewrite`: source `18619546` and three binaries Published;
+  - `rock5b-kernel72rc2-rewrite`: source `18619548` and three binaries
+    Published.
+- The holding archive `ubuntu-rock-5b-experimental` still has five Published
+  source sets and their copied binaries: MPP, librga, co-installable FFmpeg
+  6.1, the forward-port kernel, and GRD `~rk1`. The GRD holding binary requires
+  `libavcodec.so.63`/`libavutil.so.61` and must not be used as the normal-stack
+  GRD package.
+- The recreated main PPA has zero archive dependencies. The temporary holding
+  dependency used during the FFmpeg build has not leaked into the final
+  archive configuration.
+- Publication/build waiting gates are closed. Remaining work is the optional
+  GDM ACL upload and board validation of the clean migration and all PPA kernel
+  install/reboot/revert paths.
