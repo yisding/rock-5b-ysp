@@ -48,7 +48,7 @@ GDM_HWENC_VERSION="${GDM_HWENC_VERSION:-1.0}"
 GDM_HWENC_RULE="${GDM_HWENC_RULE:-$ROOT/packaging/gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules}"
 
 CODEC_UDEV_SOURCE="${CODEC_UDEV_SOURCE:-rk3588-codec-udev}"
-CODEC_UDEV_VERSION="${CODEC_UDEV_VERSION:-1.0}"
+CODEC_UDEV_VERSION="${CODEC_UDEV_VERSION:-1.1}"
 CODEC_UDEV_RULE="${CODEC_UDEV_RULE:-$ROOT/kernel-drivers/scripts/99-rockchip-codec.rules}"
 
 usage() {

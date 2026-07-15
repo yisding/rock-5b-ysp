@@ -1736,3 +1736,26 @@ See ../../configure --help for available options.
 - Removed the temporary main-to-holding archive dependency after FFmpeg started
   with its dependencies resolved. An API check shows the fresh main PPA has
   zero extra archive dependencies.
+
+## PR review corrections
+
+- Reordered the clean migration so it adds the main PPA, refreshes APT, and
+  verifies the complete exact-version target set before removing any prior
+  split or experimental PPA source.
+- Added a removal allowlist to the APT simulation. The migration now rejects
+  any `Remv` or `Purg` action outside the explicitly discovered conflict set,
+  including reverse-dependencies that APT would otherwise remove under
+  `--yes`.
+- Advanced `rk3588-codec-udev` to `1.1`. Its post-install action now retriggers
+  the live `/sys/class` paths for MPP, RGA, IEP, and each DMA heap, waits for
+  udev, and verifies `root:video 0660` on every device exposed by the running
+  kernel.
+- Source and binary builds and lintian pass for `1.1`. Installing the local
+  package on the ROCK 5B successfully retriggered `/dev/mpp_service`,
+  `/dev/rga`, and the `reserved`, `system`, and `system-uncached` DMA heaps;
+  every node verified as `root:video 0660`.
+- Signed `rk3588-codec-udev_1.1_source.changes` with upload key
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`, verified the `.changes` and
+  `.dsc` signatures, and uploaded it to `ppa:yi-ding/ubuntu-rock-5b` on
+  2026-07-14 at approximately 19:00 PDT. Launchpad acceptance/publication was
+  not monitored.

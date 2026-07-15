@@ -1,3 +1,10 @@
+rk3588-codec-udev (1.1) resolute; urgency=medium
+
+  * Retrigger existing MPP, RGA, IEP, and DMA-heap devices through their
+    sysfs paths, then verify that the expected video:0660 access took effect.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 14 Jul 2026 18:56:19 -0700
+
 rk3588-codec-udev (1.0) resolute; urgency=medium
 
   * Initial PPA-native source package for the canonical MPP, RGA, and

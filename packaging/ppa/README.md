@@ -51,12 +51,13 @@ gate.
 If the machine already has one of the earlier FFmpeg 8.1, private-FFmpeg, GRD,
 or rewrite-kernel test stacks, use
 [`clean-install-system-stack.sh`](clean-install-system-stack.sh) instead. It
-removes the incompatible PPA sources, verifies that the complete replacement
-set is published before touching installed packages, and runs an APT simulation
-before asking for confirmation. Shared `libav*` packages are downgraded in
-place to the exact FFmpeg 8.0.3 PPA version so unrelated desktop applications
-are not removed; incompatible ABI-only and private packages are purged. The
-machine's existing Armbian kernel is retained as a recovery boot option.
+adds the system PPA and verifies that the complete replacement set is published
+before removing any incompatible PPA source. It then runs an APT simulation,
+rejects any removal outside the explicit conflict list, and asks for
+confirmation. Shared `libav*` packages are downgraded in place to the exact
+FFmpeg 8.0.3 PPA version so unrelated desktop applications are not removed;
+incompatible ABI-only and private packages are purged. The machine's existing
+Armbian kernel is retained as a recovery boot option.
 
 ```bash
 bash packaging/ppa/clean-install-system-stack.sh
@@ -70,7 +71,7 @@ Last recorded in the public APT indexes and Launchpad API at
 
 | Package | Version in this repo | Public PPA state | Notes |
 |---------|----------------------|------------------|-------|
-| `rk3588-codec-udev` | `1.0` under [`codec-udev/`](codec-udev/README.md) | Fresh-main source publication [`18619789`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619789) is Pending; arm64-hosted `Architecture: all` build [`33397244`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397244) succeeded. | Installs the canonical non-root MPP/RGA/DMA-heap access rule. Source/binary builds and lintian pass. |
+| `rk3588-codec-udev` | `1.1` under [`codec-udev/`](codec-udev/README.md) | Version `1.0` was accepted as fresh-main source publication [`18619789`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619789), and arm64-hosted `Architecture: all` build [`33397244`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397244) succeeded. The signed `1.1` review fix was uploaded on 2026-07-14 PDT; Launchpad acceptance/publication is pending. | Installs the canonical non-root MPP/RGA/DMA-heap access rule; `1.1` retriggers real sysfs devices and verifies the resulting permissions. Local source/binary builds, lintian, package installation, and live-device permission checks pass. |
 | `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Copied into the fresh main PPA as source publication [`18619785`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619785); publication is Pending. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
 | `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Copied into the fresh main PPA as source publication [`18619786`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619786); publication is Pending. | The earlier arm64 builder retry succeeded; SONAME remains `librga.so.2`. |
 | `ffmpeg` | `7:8.0.3+rockchip+git20260713.463f542c-0ubuntu1~rk1` | Accepted in the fresh main PPA as source publication [`18619822`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619822); arm64 build [`33397317`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397317) is running. | Honest 8.0.3 version and Ubuntu ABI 62/60 family; full local package/FATE/hardware validation passed. |

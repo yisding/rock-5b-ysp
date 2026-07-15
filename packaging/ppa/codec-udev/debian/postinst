@@ -1,10 +1,46 @@
 #!/bin/sh
 set -e
 
-if [ "$1" = "configure" ] && [ -d /run/udev ]; then
-	udevadm control --reload-rules || true
-	udevadm trigger --action=add --subsystem-match=dma_heap || true
-	udevadm trigger --action=add /dev/mpp_service /dev/rga /dev/iep 2>/dev/null || true
+verify_codec_node() {
+	node=$1
+
+	if [ ! -e "$node" ]; then
+		echo "rk3588-codec-udev: expected device node is missing: $node" >&2
+		return 1
+	fi
+	permissions=$(stat -c '%G:%a' "$node")
+	if [ "$permissions" != "video:660" ]; then
+		echo "rk3588-codec-udev: $node has $permissions; expected video:660" >&2
+		return 1
+	fi
+}
+
+trigger_codec_node() {
+	sysfs_path=$1
+	node=$2
+
+	[ -e "$sysfs_path" ] || return 0
+	if ! udevadm trigger --action=change --settle "$sysfs_path"; then
+		echo "rk3588-codec-udev: failed to retrigger $sysfs_path" >&2
+		return 1
+	fi
+	verify_codec_node "$node"
+}
+
+if [ "$1" = "configure" ] && [ -S /run/udev/control ]; then
+	if ! udevadm control --reload-rules; then
+		echo "rk3588-codec-udev: failed to reload udev rules" >&2
+		exit 1
+	fi
+	trigger_codec_node /sys/class/mpp_class/mpp_service /dev/mpp_service
+	trigger_codec_node /sys/class/misc/rga /dev/rga
+	for sysfs_path in /sys/class/*/iep; do
+		trigger_codec_node "$sysfs_path" /dev/iep
+	done
+	for sysfs_path in /sys/class/dma_heap/*; do
+		[ -e "$sysfs_path" ] || continue
+		trigger_codec_node "$sysfs_path" "/dev/dma_heap/${sysfs_path##*/}"
+	done
 fi
 
 #DEBHELPER#

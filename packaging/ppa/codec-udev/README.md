@@ -8,3 +8,8 @@ The rule remains canonical in
 [`../../../kernel-drivers/scripts/99-rockchip-codec.rules`](../../../kernel-drivers/scripts/99-rockchip-codec.rules).
 `build-source-packages.sh codec-udev` copies it into the generated native
 source tree before running `dpkg-buildpackage -S`.
+
+Version `1.1` reloads the rule, retriggers every existing MPP, RGA, IEP, and
+DMA-heap device through its `/sys/class` path, waits for udev to settle, and
+requires each resulting device node to be owned by group `video` with mode
+`0660`. Devices that are not exposed by the running kernel are skipped.

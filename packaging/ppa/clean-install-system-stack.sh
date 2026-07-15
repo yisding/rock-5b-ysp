@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export LC_ALL=C
 
 PPA="ppa:yi-ding/ubuntu-rock-5b"
 EXPECTED_CODENAME="resolute"
@@ -9,7 +10,7 @@ GRD_VERSION="50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2"
 MPP_VERSION="1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1"
 LIBRGA_VERSION="2.2.0+git20260703.a632217-0ubuntu3~rk1"
 KERNEL_VERSION="6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2"
-CODEC_UDEV_VERSION="1.0"
+CODEC_UDEV_VERSION="1.1"
 
 INCOMPATIBLE_PPAS=(
     ubuntu-rock-5b-experimental
@@ -74,8 +75,8 @@ Usage: $(basename "$0") [--yes]
 Replace incompatible Rock 5B test packages with the exact system-stack
 versions from $PPA. The script:
 
+  * verifies every target version is published before removing old PPA sources;
   * removes the experimental/split PPA sources from APT;
-  * verifies every target version is published before changing packages;
   * removes private FFmpeg, private GRD, and rewrite-kernel alternatives;
   * safely downgrades the installed FFmpeg 8.1 binary set to FFmpeg 8.0.3;
   * installs MPP, librga, patched GRD, codec permissions, and the forward-port
@@ -174,13 +175,7 @@ running_kernel_uses_package() {
         grep -Eq "^/boot/(vmlinuz|Image)-${running_kernel}$|^/lib/modules/${running_kernel}(/|$)"
 }
 
-echo "Configuring only $PPA for the Rock 5B system stack..."
-for slug in "${INCOMPATIBLE_PPAS[@]}"; do
-    if source_is_configured "$slug"; then
-        echo "Removing PPA source: ppa:yi-ding/$slug"
-        "${SUDO[@]}" add-apt-repository -y -n --remove "ppa:yi-ding/$slug"
-    fi
-done
+echo "Adding $PPA and checking the complete target set..."
 "${SUDO[@]}" add-apt-repository -y -n "$PPA"
 "${SUDO[@]}" apt-get update
 
@@ -196,11 +191,24 @@ for package in "${TARGET_PACKAGES[@]}"; do
 done
 
 if ((${#missing_versions[@]})); then
-    echo "The clean installation has not changed any packages." >&2
+    echo "No existing PPA source was removed and no package was changed." >&2
     echo "These exact versions are not currently available from APT:" >&2
     printf '  %s\n' "${missing_versions[@]}" >&2
     echo "Wait for the fresh PPA to finish publishing, then run this script again." >&2
     exit 1
+fi
+
+echo "The complete target set is available; removing incompatible PPA sources..."
+sources_removed=0
+for slug in "${INCOMPATIBLE_PPAS[@]}"; do
+    if source_is_configured "$slug"; then
+        echo "Removing PPA source: ppa:yi-ding/$slug"
+        "${SUDO[@]}" add-apt-repository -y -n --remove "ppa:yi-ding/$slug"
+        sources_removed=1
+    fi
+done
+if ((sources_removed)); then
+    "${SUDO[@]}" apt-get update
 fi
 
 declare -a installed_ffmpeg_packages=()
@@ -276,8 +284,38 @@ fi
 
 echo
 echo "APT simulation (no packages changed yet):"
-"${SUDO[@]}" apt-get -s install --allow-downgrades --reinstall --purge \
-    "${apt_actions[@]}"
+simulation_output="$(
+    "${SUDO[@]}" apt-get -s install --allow-downgrades --reinstall --purge \
+        "${apt_actions[@]}"
+)"
+printf '%s\n' "$simulation_output"
+
+# apt may remove reverse-dependencies while satisfying an explicit purge. Do
+# not rely on an operator noticing that in the simulation, especially with
+# --yes: only packages already selected above as conflicts may be removed.
+declare -A allowed_removals=()
+for package in "${purge_packages[@]}"; do
+    allowed_removals["${package%%:*}"]=1
+done
+
+declare -A unexpected_removal_seen=()
+declare -a unexpected_removals=()
+while read -r action package _; do
+    [[ "$action" == "Remv" || "$action" == "Purg" ]] || continue
+    package=${package%%:*}
+    if [[ -z "${allowed_removals[$package]+set}" &&
+        -z "${unexpected_removal_seen[$package]+set}" ]]; then
+        unexpected_removals+=("$package")
+        unexpected_removal_seen[$package]=1
+    fi
+done <<< "$simulation_output"
+
+if ((${#unexpected_removals[@]})); then
+    echo "error: APT would remove packages outside the explicit conflict list:" >&2
+    printf '  %s\n' "${unexpected_removals[@]}" >&2
+    echo "No package changes were applied. Resolve these dependencies manually." >&2
+    exit 1
+fi
 
 echo
 echo "The transaction will install the exact FFmpeg 8.0.3/GRD system stack."
