@@ -46,7 +46,7 @@ PROJECT_BRIEF_READMES = (
 KERNEL_PACKAGE_DIRS = (
     "packaging/ppa/kernel-forward-port",
     "packaging/ppa/kernel-rewrite-alpha-6.18",
-    "packaging/ppa/kernel-rewrite-alpha-7.2-rc2",
+    "packaging/ppa/kernel-rewrite-alpha-7.2-rc3",
 )
 KERNEL_PACKAGE_HELPERS = (
     "debian/scripts/install-kernel-packages.sh",

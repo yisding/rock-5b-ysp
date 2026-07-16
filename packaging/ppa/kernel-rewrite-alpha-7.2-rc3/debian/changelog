@@ -1,3 +1,11 @@
+linux-rockchip64-ysp-alpha-7.2-rc3 (7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1) resolute; urgency=medium
+
+  * Base the rewrite package on official v7.2-rc3 with Armbian's
+    rockchip64-bleedingedge patch set applied first.
+  * Apply the hardened clean-room rewrite driver series after Armbian.
+
+ -- Yi Ding <yi@example.com>  Wed, 15 Jul 2026 21:09:05 -0700
+
 linux-rockchip64-ysp-alpha-7.2-rc2 (7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2) resolute; urgency=medium
 
   * Add u-boot-tools to Build-Depends so Launchpad provides mkimage

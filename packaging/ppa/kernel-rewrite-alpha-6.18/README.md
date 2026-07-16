@@ -1,51 +1,35 @@
-# kernel-rewrite-alpha-6.18/ - PPA alpha rewrite kernel source package
+# kernel-rewrite-alpha-6.18/ - Armbian-based rewrite kernel package
 
-This directory tracks the Launchpad PPA path for the ROCK 5B 6.18 alpha
-clean-room rewrite kernel. It uses the same co-installable image, DTB, headers,
-and maintainer-script shape as the forward-port PPA kernel, but with distinct
-package names and a distinct localversion.
+This directory defines the co-installable ROCK 5B 6.18 rewrite kernel package.
+The replacement package now uses the exact Armbian current/forward-port source
+line first, then applies the clean-room rewrite series.
 
-## Package Shape
+## Package shape
 
 | Field | Value |
 |-------|-------|
 | PPA | `ppa:yi-ding/rock5b-kernel618-rewrite` |
 | Source package | `linux-rockchip64-ysp-alpha-6.18` |
-| Binary image package | `linux-image-ysp-alpha-6.18-rockchip64` |
-| Binary DTB package | `linux-dtb-ysp-alpha-6.18-rockchip64` |
-| Binary headers package | `linux-headers-ysp-alpha-6.18-rockchip64` |
-| Kernel release | `6.18.0-ysp-alpha-6.18-rockchip64` |
-| Upload state | Original build `33387392` succeeded; source publication `18619546` and all three copied binaries are Published in the dedicated PPA. |
-| Debian version | `6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2` |
+| Binary packages | `linux-image-ysp-alpha-6.18-rockchip64`, `linux-dtb-ysp-alpha-6.18-rockchip64`, `linux-headers-ysp-alpha-6.18-rockchip64` |
+| Kernel release | `6.18.38-ysp-alpha-6.18-rockchip64` |
+| Debian version | `6.18.38+rk3588rewritealpha20260715-0ubuntu1` |
+| Publication state | Replacement package is not uploaded yet; the PPA still contains the historical vanilla-based 6.18.0 package. |
 
-## Source Inputs
+## Source inputs
 
-`WORKSPACE_ROOT` defaults to the parent of this repository.
+| Layer | Pin |
+|-------|-----|
+| Linux/Armbian/forward-port snapshot | Linux 6.18.38, snapshot commit `2ff6303a64ce` |
+| Rewrite series source | `rk3588-rewrite-6.18` at `563f329dd8c4` |
+| Composite branch | `rk3588-rewrite-armbian-6.18.38` |
+| Composite package head | `8daf5e9513b8aa9de018dad7754b6efacfd0fd49` |
+| Default repository | `$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc`; the exporter archives the composite commit directly, independent of the checked-out branch |
+| Config | Armbian `linux-rockchip64-current.config` plus rewrite/KUnit enablement and conflicting MPP/RGA drivers disabled |
 
-| Input | Value |
-|-------|-------|
-| Kernel worktree | `$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc` (the original build used `/home/yi/Code/kernel/linux-6.18-rkvenc`) |
-| Branch | `rk3588-rewrite-6.18` |
-| Commit | `d1d15a3d052a` |
-| Config | `debian/config/arm64-rockchip64.config`, snapshotted from the worktree `.config` |
-
-> **Published-package pin:** this directory records the package that was
-> actually published. The source branch advanced on 2026-07-15 to hardened tip
-> `563f329dd8c4`; that commit is not present in version
-> `6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2`. Re-export the package before
-> using a packaged board run to validate the hardened source.
-
-## Debian helper scripts
-
-These `debian/rules` helpers are source-package-local copies of the
-forward-port package helpers. Keeping the copies makes each export
-self-contained; `scripts/check-doc-consistency.py` enforces byte identity
-across all three kernel package directories.
-
-| Helper | Role |
-|--------|------|
-| [`debian/scripts/install-kernel-packages.sh`](debian/scripts/install-kernel-packages.sh) | Stages the image/modules, DTBs, and buildable headers into their binary-package roots. |
-| [`debian/scripts/write-maintainer-scripts.sh`](debian/scripts/write-maintainer-scripts.sh) | Generates the Armbian-compatible image, DTB, and header maintainer scripts. |
+The base snapshot is the same patched Linux 6.18.38 worktree used to export the
+forward-port kernel package. That means this package inherits Armbian's
+`rockchip64-current` patches and the forward-port source additions before the
+rewrite commits are applied.
 
 ## Build
 
@@ -53,39 +37,22 @@ across all three kernel package directories.
 bash packaging/ppa/build-source-packages.sh kernel-alpha-6.18
 ```
 
-## Validation Status
+`build-source-packages.sh` archives the composite package pin above directly;
+the repository's checked-out branch does not affect the export.
 
-Passed:
+## Validation
 
-- Source package helper export and `dpkg-buildpackage -S`.
-- `dpkg-source -x` of the generated `.dsc`.
-- `debian/rules override_dh_auto_configure` in the extracted source.
-- Resolved config keeps the rewrite drivers built in:
-  `CONFIG_ROCKCHIP_MPP_REWRITE=y` and `CONFIG_ROCKCHIP_RGA_REWRITE=y`.
-- Resolved config keeps the rewrite KUnit suites built in and keeps
-  `CONFIG_KUNIT=y`.
-- Resolved config disables the stock RGA driver and keeps `CONFIG_VSI_IOMMU=y`.
-- `debsign` signed the `.dsc`, `.buildinfo`, and `.changes` with
-  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`.
-- `dput ppa:yi-ding/ubuntu-rock-5b` completed client-side upload of the signed
-  source package.
-- Launchpad API check on 2026-07-10 23:30 PDT found source publication
-  `18614549` in `Pending` state and arm64 build `33387366` `Currently building`
-  on `bos03-arm64-032`.
-- Retry `~rk2` adds `u-boot-tools` to Build-Depends, extracts cleanly from the
-  generated `.dsc`, signs successfully, and was uploaded with `dput`.
-- Launchpad API check on 2026-07-10 23:49 PDT found retry source publication
-  `18614560` in `Pending` state and retry arm64 build `33387392`
-  `Currently building` on `bos03-arm64-110`.
-- Launchpad API/public-index check on 2026-07-11 21:44 PDT found source
-  publication `18614560` Published, build `33387392` `Successfully built`, and
-  the image, DTB, and headers packages public.
-- Dedicated-PPA API recheck on 2026-07-14 20:28 PDT found source publication
-  `18619546` and all three copied binaries Published in
-  `ppa:yi-ding/rock5b-kernel618-rewrite`.
+The clean archive build gate passes warning-free at the composite head for the
+Rockchip IOMMU provider, both KUnit-enabled rewrite objects, and the ROCK 5B
+DTB. The source package and full native arm64 image, DTB, and headers builds
+pass. The resolved package config keeps the rewrite drivers and KUnit suites
+built in and disables the conflicting vendor MPP/RGA drivers. The full build's
+warnings are confined to inherited Armbian DRM and external Wi-Fi sources; the
+focused rewrite gate is warning-free. Hardware install, boot, rollback, and
+recovery validation remain required.
 
-Not done yet:
-
-- Local arm64 binary build from the generated source package.
-- Payload comparison against the forward-port and Armbian kernel packages.
-- Board install, reboot, rollback, and `kernel-revert.sh` recovery validation.
+The Debian helpers
+[`install-kernel-packages.sh`](debian/scripts/install-kernel-packages.sh) and
+[`write-maintainer-scripts.sh`](debian/scripts/write-maintainer-scripts.sh) are
+kept byte-identical with the forward-port package and the other rewrite
+package; `scripts/check-doc-consistency.py` enforces that invariant.

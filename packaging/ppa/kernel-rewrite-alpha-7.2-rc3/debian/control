@@ -1,4 +1,4 @@
-Source: linux-rockchip64-ysp-alpha-7.2-rc2
+Source: linux-rockchip64-ysp-alpha-7.2-rc3
 Section: kernel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
@@ -19,7 +19,7 @@ Rules-Requires-Root: no
 Standards-Version: 4.7.2
 Homepage: https://github.com/yisding/rock-5b-ysp
 
-Package: linux-image-ysp-alpha-7.2-rc2-rockchip64
+Package: linux-image-ysp-alpha-7.2-rc3-rockchip64
 Architecture: arm64
 Depends:
  initramfs-tools | linux-initramfs-tool,
@@ -32,7 +32,7 @@ Description: ROCK 5B YSP alpha rewrite Linux kernel image ${kernel:Release}
  This package contains the co-installable ROCK 5B YSP alpha clean-room rewrite
  kernel image, modules, and matching in-image DTB copy for ${kernel:Release}.
 
-Package: linux-dtb-ysp-alpha-7.2-rc2-rockchip64
+Package: linux-dtb-ysp-alpha-7.2-rc3-rockchip64
 Architecture: arm64
 Depends:
  ${misc:Depends},
@@ -43,7 +43,7 @@ Description: ROCK 5B YSP alpha rewrite Linux device trees ${kernel:Release}
  This package contains device tree blobs for the ROCK 5B YSP alpha clean-room
  rewrite kernel, installed under /boot/dtb-${kernel:Release}.
 
-Package: linux-headers-ysp-alpha-7.2-rc2-rockchip64
+Package: linux-headers-ysp-alpha-7.2-rc3-rockchip64
 Section: devel
 Architecture: arm64
 Depends:

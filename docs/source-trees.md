@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | tag `50.1` = `5ef1a2aa6bef`; anchor/full-series base = `c14e09ef67e9`; current PPA source = `rdp-handover-reconnect-v2@eb91daf476dc`, see §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `563f329dd8c4` + branch `rk3588-rewrite-mainline` rebased to official `v7.2-rc2` @ `856743fc3c3d`, including the July 15 MPP/RGA lifetime, DMA/IOMMU, topology, recovery, and diagnostic hardening; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | rewrite series sources `rk3588-rewrite-6.18@563f329dd8c4` and `rk3588-rewrite-mainline@856743fc3c3d`; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -234,6 +234,18 @@ of 2026-07-15:
   harden rewrite drivers"), rebased to official kernel.org `v7.2-rc2`
   in the sibling worktree `/home/yi/Code/kernel/linux`. The pre-rebase tip is
   preserved as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`.
+
+The Debian packages use composite branches so the rewrite is not tested on a
+vanilla-only base:
+
+- `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` starts from snapshot
+  `2ff6303a64ce`, the same patched Armbian current/forward-port Linux 6.18.38
+  source line used by the forward-port package, then applies the 6.18 rewrite
+  series through `563f329dd8c4`.
+- `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` starts from official
+  `v7.2-rc3` (`a13c140cc289`), applies Armbian build checkout `5cbc1c59c`'s
+  `rockchip64-bleedingedge` archive plus generated driver patch payload, records
+  that snapshot as `2657f01c9b9a`, and applies the mainline rewrite series last.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
 `drivers/video/rockchip/rga-rewrite/`. The 6.18 tree is the line-count source

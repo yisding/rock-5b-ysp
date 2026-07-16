@@ -15,9 +15,11 @@ build and normalized Armbian payload comparison pass, its Launchpad source is
 published, and its Launchpad arm64 build succeeded. The alpha clean-room
 rewrite kernels have separate co-installable source packages under
 [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) and
-[`kernel-rewrite-alpha-7.2-rc2/`](kernel-rewrite-alpha-7.2-rc2/README.md);
-their source and arm64 binaries are also public. Kernel board install/revert
-gates are still pending. The optional
+[`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md).
+Their historical vanilla-based packages are public; the replacement packages
+now layer the rewrite drivers after Armbian and pass local source and full
+native arm64 binary builds. They have not been uploaded. Kernel board
+install/revert gates are still pending. The optional
 greeter ACL package has both the existing local deb source and a native PPA
 source wrapper under
 [`gdm-hwenc/`](gdm-hwenc/README.md).
@@ -34,8 +36,8 @@ deleted.
 | `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | All seven current source packages and their arm64/architecture-independent binaries are Published. This is the only normal system-stack install target. |
 | `ppa:yi-ding/rock5b-ffmpeg81-upstream` | Upstream FFmpeg 8.1.2 comparison baseline. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-ffmpeg81-rockchip` | ABI-changing FFmpeg 8.1.2 RKMPP/RKRGA forward port. Add the system PPA as well for MPP and librga. | One source and 29 copied binary publications are Published. |
-| `ppa:yi-ding/rock5b-kernel618-rewrite` | Experimental Linux 6.18 clean-room rewrite kernel. | One source and three copied binary publications are Published. |
-| `ppa:yi-ding/rock5b-kernel72rc2-rewrite` | Experimental Linux 7.2-rc2 clean-room rewrite kernel. | One source and three copied binary publications are Published. |
+| `ppa:yi-ding/rock5b-kernel618-rewrite` | Experimental Linux 6.18.38 Armbian-based clean-room rewrite kernel. | Historical 6.18.0 source and binaries are Published; the locally source/binary-built 6.18.38 replacement is not uploaded yet. |
+| `ppa:yi-ding/rock5b-kernel72rc2-rewrite` | Experimental Linux 7.2-rc3 Armbian-based clean-room rewrite kernel (legacy archive name). | Historical 7.2-rc2 source and binaries are Published; the locally source/binary-built 7.2-rc3 replacement is not uploaded yet. |
 | `ppa:yi-ding/ubuntu-rock-5b-experimental` | Isolated staging archive for the GRD reconnect candidate, plus migration backups of MPP, librga, co-installable FFmpeg 6.1, the forward-port kernel, and the superseded FFmpeg-8.1-linked GRD build. | Reconnect-v2 source `18620800` was accepted and arm64 build `33399816` succeeded. This remains a staging archive, not a normal-stack install target; the fresh main PPA has no dependency on it. |
 
 For the primary 6.18 forward-port test path, run
@@ -82,8 +84,8 @@ Last recorded through the anonymous Launchpad API at
 | `gnome-remote-desktop` (normal stack) | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2` | Source publication [`18619824`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619824), successful arm64 build [`33397319`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397319), and the arm64 binary are Published. | Current normal-stack package; local build links the RKMPP backend against `libavcodec.so.62`/`libavutil.so.60`. |
 | `gnome-remote-desktop` (reconnect candidate) | `50.1+rkmpp+git20260714.eb91daf-0ubuntu1~exp1` | Experimental source publication [`18620800`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18620800) was accepted and arm64 build [`33399816`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33399816) succeeded. | Clean public branch tip `eb91daf`; local source and arm64 binary builds and the RDP test pass. Lintian reports only long-filename warnings. Exact macOS reconnect validation and promotion remain pending. |
 | forward-port kernel | `6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Fresh-main source publication [`18619788`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619788) and all three copied arm64 binaries are Published. | Original arm64 build `33387391` succeeded. Packages are co-installable; board install/revert validation is pending. |
-| alpha rewrite kernel 6.18 | `6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Dedicated-PPA source publication [`18619546`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18619546) and all three copied binaries are Published. | Isolated in `ppa:yi-ding/rock5b-kernel618-rewrite`; board validation is pending. |
-| alpha rewrite kernel 7.2-rc2 | `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2` under [`kernel-rewrite-alpha-7.2-rc2/`](kernel-rewrite-alpha-7.2-rc2/README.md) | Dedicated-PPA source publication [`18619548`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18619548) and all three copied binaries are Published. | Isolated in `ppa:yi-ding/rock5b-kernel72rc2-rewrite`; board validation is pending. |
+| alpha rewrite kernel 6.18 | `6.18.38+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Replacement is not uploaded. Historical 6.18.0 publication [`18619546`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18619546) remains Published. | Armbian current/forward-port 6.18.38 source layer, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
+| alpha rewrite kernel 7.2-rc3 | `7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Replacement is not uploaded. Historical 7.2-rc2 publication [`18619548`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18619548) remains Published. | Official v7.2-rc3 plus Armbian bleedingedge, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
 | `gnome-remote-desktop-gdm-hwenc` | `1.0` under [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source wrapper imported; not uploaded. | Optional greeter ACL package. The canonical rule also feeds the local deb source under [`../gdm-hwenc/`](../gdm-hwenc/README.md). |
 
 Install-facing state: the complete normal system stack is now published, apart
@@ -112,7 +114,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source-package wrapper for the optional GDM greeter hardware-encode ACL rule. |
 | [`kernel-forward-port/`](kernel-forward-port/README.md) | Launchpad source-package track for the forward-port kernel; records source inputs, packaging shape, generated artifacts, and remaining binary/board validation gates. |
 | [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Launchpad source-package track for the 6.18 alpha clean-room rewrite kernel. |
-| [`kernel-rewrite-alpha-7.2-rc2/`](kernel-rewrite-alpha-7.2-rc2/README.md) | Launchpad source-package track for the 7.2-rc2 alpha clean-room rewrite kernel. |
+| [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Launchpad source-package track for the Armbian-based 7.2-rc3 alpha clean-room rewrite kernel. |
 | [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md) | The detailed build, lintian, signing, upload, Launchpad, and retry log for the current run. |
 
 Generated `.dsc`, `.changes`, `.buildinfo`, orig tarballs, `.deb`, `.ddeb`, and
@@ -144,12 +146,14 @@ variables.
 | Forward-port kernel worktree | `KERNEL_PPA_REPO` | `$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Forward-port kernel config | `KERNEL_PPA_CONFIG` | `$KERNEL_PPA_REPO/.config` |
 | Forward-port kernel source version | `KERNEL_PPA_UPSTREAM_VERSION` | `6.18.38+rk3588av1fwport20260709` |
-| Alpha rewrite 6.18 kernel worktree | `KERNEL_ALPHA_618_REPO` | `$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc` |
-| Alpha rewrite 6.18 kernel config | `KERNEL_ALPHA_618_CONFIG` | [`kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config`](kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config) |
-| Alpha rewrite 6.18 kernel source version | `KERNEL_ALPHA_618_UPSTREAM_VERSION` | `6.18.0+rk3588rewritealpha20260710` |
-| Alpha rewrite 7.2-rc2 kernel worktree | `KERNEL_ALPHA_72RC2_REPO` | `$WORKSPACE_ROOT/kernel/linux` |
-| Alpha rewrite 7.2-rc2 kernel config | `KERNEL_ALPHA_72RC2_CONFIG` | [`kernel-rewrite-alpha-7.2-rc2/debian/config/arm64-rockchip64.config`](kernel-rewrite-alpha-7.2-rc2/debian/config/arm64-rockchip64.config) |
-| Alpha rewrite 7.2-rc2 kernel source version | `KERNEL_ALPHA_72RC2_UPSTREAM_VERSION` | `7.2.0~rc2+rk3588rewritealpha20260710` |
+| Alpha rewrite 6.18 kernel repository | `KERNEL_ALPHA_618_REPO` | `$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc` |
+| Alpha rewrite 6.18 kernel commit | `KERNEL_ALPHA_618_COMMIT` | `8daf5e9513b8aa9de018dad7754b6efacfd0fd49` |
+| Alpha rewrite 6.18 kernel config | fixed package input | [`kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config`](kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config) |
+| Alpha rewrite 6.18 kernel source version | `KERNEL_ALPHA_618_UPSTREAM_VERSION` | `6.18.38+rk3588rewritealpha20260715` |
+| Alpha rewrite 7.2-rc3 kernel repository | `KERNEL_ALPHA_72RC3_REPO` | `$WORKSPACE_ROOT/kernel/linux` |
+| Alpha rewrite 7.2-rc3 kernel commit | `KERNEL_ALPHA_72RC3_COMMIT` | `24f7424fb9589ea2118127084a5f2748aa762b63` |
+| Alpha rewrite 7.2-rc3 kernel config | fixed package input | [`kernel-rewrite-alpha-7.2-rc3/debian/config/arm64-rockchip64.config`](kernel-rewrite-alpha-7.2-rc3/debian/config/arm64-rockchip64.config) |
+| Alpha rewrite 7.2-rc3 kernel source version | `KERNEL_ALPHA_72RC3_UPSTREAM_VERSION` | `7.2.0~rc3+rk3588rewritealpha20260715` |
 | GDM greeter ACL rule | `GDM_HWENC_RULE` | [`../gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules`](../gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules) |
 | Codec access rule | `CODEC_UDEV_RULE` | [`../../kernel-drivers/scripts/99-rockchip-codec.rules`](../../kernel-drivers/scripts/99-rockchip-codec.rules) |
 
@@ -161,7 +165,7 @@ source name can be overridden with `KERNEL_PPA_SOURCE`, though
 access source/version can be overridden with `CODEC_UDEV_SOURCE` and
 `CODEC_UDEV_VERSION`. The alpha
 kernel source names can be overridden with `KERNEL_ALPHA_618_SOURCE` and
-`KERNEL_ALPHA_72RC2_SOURCE`. The native greeter ACL source package name/version
+`KERNEL_ALPHA_72RC3_SOURCE`. The native greeter ACL source package name/version
 can be overridden with `GDM_HWENC_SOURCE` and `GDM_HWENC_VERSION`.
 
 ## Build Source Packages
@@ -183,7 +187,7 @@ bash packaging/ppa/build-source-packages.sh grd
 bash packaging/ppa/build-source-packages.sh gdm-hwenc
 bash packaging/ppa/build-source-packages.sh kernel
 bash packaging/ppa/build-source-packages.sh kernel-alpha-6.18
-bash packaging/ppa/build-source-packages.sh kernel-alpha-7.2-rc2
+bash packaging/ppa/build-source-packages.sh kernel-alpha-7.2-rc3
 ```
 
 The kernel target exports the patched Armbian kernel worktree rather than using
@@ -214,9 +218,9 @@ bash packaging/ppa/build-source-packages.sh kernel
 For the alpha rewrite kernels:
 
 ```bash
-KERNEL_ALPHA_618_REPO=/path/to/linux-6.18-rkvenc \
-KERNEL_ALPHA_72RC2_REPO=/path/to/linux-mainline-rewrite \
-bash packaging/ppa/build-source-packages.sh kernel-alpha-6.18 kernel-alpha-7.2-rc2
+KERNEL_ALPHA_618_REPO=/path/to/6.18.38-armbian-rewrite \
+KERNEL_ALPHA_72RC3_REPO=/path/to/7.2-rc3-armbian-rewrite \
+bash packaging/ppa/build-source-packages.sh kernel-alpha-6.18 kernel-alpha-7.2-rc3
 ```
 
 The script reuses an existing orig tarball from the artifact directory unless
@@ -294,7 +298,7 @@ dput ppa:yi-ding/ubuntu-rock-5b packaging/ppa/out/artifacts/<system-package>_sou
 dput ppa:yi-ding/rock5b-ffmpeg81-upstream packaging/ppa/out/artifacts/<ffmpeg-8.1-upstream>_source.changes
 dput ppa:yi-ding/rock5b-ffmpeg81-rockchip packaging/ppa/out/artifacts/<ffmpeg-8.1-rockchip>_source.changes
 dput ppa:yi-ding/rock5b-kernel618-rewrite packaging/ppa/out/artifacts/<kernel-6.18-rewrite>_source.changes
-dput ppa:yi-ding/rock5b-kernel72rc2-rewrite packaging/ppa/out/artifacts/<kernel-7.2-rc2-rewrite>_source.changes
+dput ppa:yi-ding/rock5b-kernel72rc2-rewrite packaging/ppa/out/artifacts/<kernel-7.2-rc3-rewrite>_source.changes
 ```
 
 Use the exact files from the artifact directory; the upload log records the
@@ -467,7 +471,7 @@ group. It should be uploaded only after the GRD package path is otherwise ready.
 - Local binary-build, payload-comparison, and board install/revert validation
   for the alpha rewrite kernel source packages in
   [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) and
-  [`kernel-rewrite-alpha-7.2-rc2/`](kernel-rewrite-alpha-7.2-rc2/README.md).
+  [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md).
   Current local Armbian binary `.deb`s are still not valid PPA upload inputs.
 - The original dev-box `UPLOAD.md` runbook. The current run is captured in
   [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md)

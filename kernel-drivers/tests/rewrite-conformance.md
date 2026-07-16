@@ -98,10 +98,12 @@ The same maintenance pass also ran
 plus the same counter-default validation with `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1`; all
 passed, including the forced RGA userptr-IOMMU fallback counter-default wiring check.
 
-The Published 6.18 and 7.2-rc2 alpha packages still contain the pre-hardening
-parents `d1d15a3d052a` and `083bdb98e715`. Re-export a package from one of the
-current heads before treating a packaged board run as validation of the July 15
-hardening.
+The Published 6.18 and 7.2-rc2 alpha packages remain historical vanilla-based
+builds. Replacement local source packages export the Armbian-based composites
+`8daf5e9513b8` (6.18.38 current/forward-port base) and `24f7424fb958`
+(`v7.2-rc3` plus bleedingedge) with the July 15 rewrite hardening applied last.
+Upload and install those replacements before treating a packaged board run as
+validation of the current source.
 
 ## Expanded conformance bundle
 

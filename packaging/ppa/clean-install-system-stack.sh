@@ -36,6 +36,9 @@ CONFLICT_PACKAGES=(
     linux-image-ysp-alpha-7.2-rc2-rockchip64
     linux-dtb-ysp-alpha-7.2-rc2-rockchip64
     linux-headers-ysp-alpha-7.2-rc2-rockchip64
+    linux-image-ysp-alpha-7.2-rc3-rockchip64
+    linux-dtb-ysp-alpha-7.2-rc3-rockchip64
+    linux-headers-ysp-alpha-7.2-rc3-rockchip64
 )
 
 TARGET_PACKAGES=(

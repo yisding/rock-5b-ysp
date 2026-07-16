@@ -35,13 +35,13 @@ KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.38+rk3588av1fwp
 
 KERNEL_ALPHA_618_SOURCE="${KERNEL_ALPHA_618_SOURCE:-linux-rockchip64-ysp-alpha-6.18}"
 KERNEL_ALPHA_618_REPO="${KERNEL_ALPHA_618_REPO:-$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc}"
-KERNEL_ALPHA_618_CONFIG="${KERNEL_ALPHA_618_CONFIG:-$ROOT/packaging/ppa/kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config}"
-KERNEL_ALPHA_618_UPSTREAM_VERSION="${KERNEL_ALPHA_618_UPSTREAM_VERSION:-6.18.0+rk3588rewritealpha20260710}"
+KERNEL_ALPHA_618_COMMIT="${KERNEL_ALPHA_618_COMMIT:-8daf5e9513b8aa9de018dad7754b6efacfd0fd49}"
+KERNEL_ALPHA_618_UPSTREAM_VERSION="${KERNEL_ALPHA_618_UPSTREAM_VERSION:-6.18.38+rk3588rewritealpha20260715}"
 
-KERNEL_ALPHA_72RC2_SOURCE="${KERNEL_ALPHA_72RC2_SOURCE:-linux-rockchip64-ysp-alpha-7.2-rc2}"
-KERNEL_ALPHA_72RC2_REPO="${KERNEL_ALPHA_72RC2_REPO:-$WORKSPACE_ROOT/kernel/linux}"
-KERNEL_ALPHA_72RC2_CONFIG="${KERNEL_ALPHA_72RC2_CONFIG:-$ROOT/packaging/ppa/kernel-rewrite-alpha-7.2-rc2/debian/config/arm64-rockchip64.config}"
-KERNEL_ALPHA_72RC2_UPSTREAM_VERSION="${KERNEL_ALPHA_72RC2_UPSTREAM_VERSION:-7.2.0~rc2+rk3588rewritealpha20260710}"
+KERNEL_ALPHA_72RC3_SOURCE="${KERNEL_ALPHA_72RC3_SOURCE:-linux-rockchip64-ysp-alpha-7.2-rc3}"
+KERNEL_ALPHA_72RC3_REPO="${KERNEL_ALPHA_72RC3_REPO:-$WORKSPACE_ROOT/kernel/linux}"
+KERNEL_ALPHA_72RC3_COMMIT="${KERNEL_ALPHA_72RC3_COMMIT:-24f7424fb9589ea2118127084a5f2748aa762b63}"
+KERNEL_ALPHA_72RC3_UPSTREAM_VERSION="${KERNEL_ALPHA_72RC3_UPSTREAM_VERSION:-7.2.0~rc3+rk3588rewritealpha20260715}"
 
 GDM_HWENC_SOURCE="${GDM_HWENC_SOURCE:-gnome-remote-desktop-gdm-hwenc}"
 GDM_HWENC_VERSION="${GDM_HWENC_VERSION:-1.0}"
@@ -53,7 +53,7 @@ CODEC_UDEV_RULE="${CODEC_UDEV_RULE:-$ROOT/kernel-drivers/scripts/99-rockchip-cod
 
 usage() {
     cat <<'USAGE'
-Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [codec-udev] [gdm-hwenc] [kernel] [kernel-alpha-6.18] [kernel-alpha-7.2-rc2]
+Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [codec-udev] [gdm-hwenc] [kernel] [kernel-alpha-6.18] [kernel-alpha-7.2-rc3]
 
 Build unsigned source packages for the Rock 5B PPAs.
 Artifacts are written under packaging/ppa/out/artifacts by default.
@@ -75,10 +75,10 @@ worktree named by KERNEL_PPA_REPO, excluding build products and .git, then
 overlays packaging/ppa/kernel-forward-port/debian. It is intentionally not part
 of the no-argument default set because the orig tarball is large.
 
-The alpha rewrite kernel targets export the local clean-room rewrite kernel
-worktrees named by KERNEL_ALPHA_618_REPO and KERNEL_ALPHA_72RC2_REPO, then
+The alpha rewrite kernel targets archive the pinned Armbian-plus-rewrite kernel
+commits from KERNEL_ALPHA_618_REPO and KERNEL_ALPHA_72RC3_REPO, then
 overlay packaging/ppa/kernel-rewrite-alpha-6.18/debian and
-packaging/ppa/kernel-rewrite-alpha-7.2-rc2/debian respectively. They are also
+packaging/ppa/kernel-rewrite-alpha-7.2-rc3/debian respectively. They are also
 large and intentionally excluded from the no-argument default set.
 
 The codec-udev and gdm-hwenc targets create small native source packages and
@@ -354,21 +354,21 @@ build_kernel_forward_port() {
 }
 
 build_kernel_alpha_618() {
-    prepare_worktree_source \
+    prepare_source \
         "$KERNEL_ALPHA_618_SOURCE" \
         "$KERNEL_ALPHA_618_REPO" \
+        "$KERNEL_ALPHA_618_COMMIT" \
         "$KERNEL_ALPHA_618_UPSTREAM_VERSION" \
-        "packaging/ppa/kernel-rewrite-alpha-6.18" \
-        "$KERNEL_ALPHA_618_CONFIG"
+        "packaging/ppa/kernel-rewrite-alpha-6.18"
 }
 
-build_kernel_alpha_72rc2() {
-    prepare_worktree_source \
-        "$KERNEL_ALPHA_72RC2_SOURCE" \
-        "$KERNEL_ALPHA_72RC2_REPO" \
-        "$KERNEL_ALPHA_72RC2_UPSTREAM_VERSION" \
-        "packaging/ppa/kernel-rewrite-alpha-7.2-rc2" \
-        "$KERNEL_ALPHA_72RC2_CONFIG"
+build_kernel_alpha_72rc3() {
+    prepare_source \
+        "$KERNEL_ALPHA_72RC3_SOURCE" \
+        "$KERNEL_ALPHA_72RC3_REPO" \
+        "$KERNEL_ALPHA_72RC3_COMMIT" \
+        "$KERNEL_ALPHA_72RC3_UPSTREAM_VERSION" \
+        "packaging/ppa/kernel-rewrite-alpha-7.2-rc3"
 }
 
 build_gdm_hwenc() {
@@ -411,7 +411,7 @@ for package in "$@"; do
         gdm-hwenc|gnome-remote-desktop-gdm-hwenc) build_gdm_hwenc ;;
         kernel|forward-port-kernel|linux-rockchip64-ysp) build_kernel_forward_port ;;
         kernel-alpha-6.18|rewrite-alpha-6.18|linux-rockchip64-ysp-alpha-6.18) build_kernel_alpha_618 ;;
-        kernel-alpha-7.2-rc|kernel-alpha-7.2-rc2|rewrite-alpha-7.2-rc|rewrite-alpha-7.2-rc2|linux-rockchip64-ysp-alpha-7.2-rc2) build_kernel_alpha_72rc2 ;;
+        kernel-alpha-7.2-rc|kernel-alpha-7.2-rc3|rewrite-alpha-7.2-rc|rewrite-alpha-7.2-rc3|linux-rockchip64-ysp-alpha-7.2-rc3) build_kernel_alpha_72rc3 ;;
         *) echo "unknown package: $package" >&2; usage >&2; exit 2 ;;
     esac
 done

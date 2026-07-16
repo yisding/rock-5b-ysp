@@ -5,17 +5,17 @@ include /usr/share/dpkg/default.mk
 export ARCH := arm64
 export KBUILD_BUILD_USER := build
 export KBUILD_BUILD_HOST := launchpad
-export KBUILD_BUILD_TIMESTAMP := Fri, 10 Jul 2026 12:00:00 -0700
+export KBUILD_BUILD_TIMESTAMP := Wed, 15 Jul 2026 21:09:05 -0700
 
-KERNEL_BRANCH := ysp-alpha-7.2-rc2
+KERNEL_BRANCH := ysp-alpha-7.2-rc3
 KERNEL_FAMILY := rockchip64
 LOCALVERSION := -$(KERNEL_BRANCH)-$(KERNEL_FAMILY)
 KERNEL_VERSION := $(shell awk '/^VERSION =/{v=$$3} /^PATCHLEVEL =/{p=$$3} /^SUBLEVEL =/{s=$$3} /^EXTRAVERSION =/{e=$$3} END{print v "." p "." s e}' Makefile)
 KERNEL_RELEASE := $(KERNEL_VERSION)$(LOCALVERSION)
 
-IMAGE_PKG := linux-image-ysp-alpha-7.2-rc2-rockchip64
-DTB_PKG := linux-dtb-ysp-alpha-7.2-rc2-rockchip64
-HEADERS_PKG := linux-headers-ysp-alpha-7.2-rc2-rockchip64
+IMAGE_PKG := linux-image-ysp-alpha-7.2-rc3-rockchip64
+DTB_PKG := linux-dtb-ysp-alpha-7.2-rc3-rockchip64
+HEADERS_PKG := linux-headers-ysp-alpha-7.2-rc3-rockchip64
 
 JOBS := $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 ifeq ($(JOBS),)
