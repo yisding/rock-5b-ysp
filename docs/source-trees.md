@@ -308,9 +308,50 @@ real fault masking/pagefault-done/reset hooks for the BSP-derived MPP driver,
 adds 32-bit `MPP_IOC_CFG_V1` compat parsing, propagates IOMMU-refresh failures
 through reset paths, and records minimal vendor DT bindings for the RKMPP/RGA
 nodes. The latest pins also route the rewrite MPP/RGA IOMMU fault handlers
-through the Rockchip provider-local public hook first, with generic
-`iommu_set_fault_handler` fallback only when the provider hook is unavailable;
-the mainline branch carries the minimal
+through the Rockchip provider-local public hook. MPP deliberately does not use
+the legacy generic `iommu_set_fault_handler` fallback because it is set-once
+and cannot be safely unregistered from the long-lived default DMA domain;
+MPP and RGA cores with an attached domain fail probe when the provider hook is
+unavailable. RGA now also requires an exact physical source match inside a
+shared domain and clears every core's provider callback independently; provider
+unregistration waits for callbacks already running in the IOMMU IRQ path. Its
+queue-on-hardware declaration is no longer hidden inside the KUnit-only block,
+so a mainline configuration with RGA KUnit disabled also compiles. RGA
+acquire-fence callbacks now use the fence-lock-held status helper instead of
+recursively locking from callback context. Abort also atomically transfers each
+waiter and delays completion until the pending count's callback-arming sentinel
+and callback shares drain, so last-core removal cannot release the shared work
+reference while submit is still registering callbacks.
+For HARD-CCU decoder faults, the forward port preserves the exact physical
+provider source but derives the software recovery owner from that source
+link's `CFG_ADDR` descriptor IOVA. If no active same-coordinator job matches,
+it schedules any active HARD-CCU peer so the CCU force-stop and dependent-job
+abort path still runs rather than targeting only an empty per-core job slot.
+The software owner is published with one-copy semantics and ordered ahead of
+the `CFG_DONE` start doorbell, closing the immediate descriptor-fault window.
+If that peer's run lock is contended, the abort path now queues immediate work
+holding the exact active-job and hardware references; the worker rechecks the
+target after taking the lock, avoiding both the ordinary 500 ms timeout delay
+and an abort of a replacement job. The target snapshot now precedes the failed
+lock attempt, and both immediate and deferred paths cancel the timeout only
+after claiming that exact job, so a stale abort cannot strip a replacement
+job's watchdog.
+MPP dma-buf translation also now proves that the mapped SG entries form one
+full-size byte-contiguous 32-bit DMA span and rejects cumulative embedded plus
+separate register offsets that leave the buffer before hardware submission.
+Cache lookup resolves the current dma-buf before matching, so integer-fd reuse cannot
+select an obsolete mapping; stale cache owners are dropped while job-held
+references remain valid. Session reset now also advances a per-session epoch,
+cancels earlier same-ioctl staged jobs, rejects stale import/admission, and
+publishes active plus scheduler ownership atomically. Staged work snapshots
+client type, translation table, codec info, and RCB state so later controls do
+not retroactively change it; initialized sessions reject encoder/decoder
+rebinding with `-EBUSY`. RKVENC2 slice overflow is now a one-shot poll error
+rather than a permanent head-job poison, and non-split/empty `POLL_HW_IRQ`
+selects its full-frame/`-EIO` result before interpreting slice-only memory. The
+active-job hardware pointer is also pinned/detached under the session lock, so
+reset/close abort cannot race completion plus platform removal into an
+unpinned devm-hardware use. The mainline branch carries the minimal
 `include/soc/rockchip/rockchip_iommu.h` hook to match the 6.18 provider. The
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
