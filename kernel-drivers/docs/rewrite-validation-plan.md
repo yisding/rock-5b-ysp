@@ -8,8 +8,9 @@ hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
 > surface and heavily unit-tested — MPP **86 KUnit cases** and RGA **117 KUnit
-> cases** compile in the maintained worktrees based on the current §6 pins (`d1d15a3d052a` on 6.18,
-> `083bdb98e715` on mainline). The broader sanitizer object-build profiles were
+> cases** compile in the maintained worktrees based on the current §6 pins (`563f329dd8c4` on 6.18,
+> `856743fc3c3d` on mainline). The default `normal` gate passed at both heads on
+> 2026-07-15. The broader sanitizer object-build profiles were
 > last recorded at the immediately earlier `0a35c26a0fd7` / `938b1d2032c3`
 > pins. But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -36,7 +37,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | **KCSAN race kernel** | ⚠️ compile-only `race` profile exists in [`rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh); KCSAN is deliberately **off** in `debug-kernel.md` | **add** — a separate booted build (§3) |
 | **Fault injection & recovery** | ⚠️ [`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh) now orchestrates kill/close, reset-opener, and opt-in unbind/rebind loops around real workloads, and `VALIDATE_ONLY=1` checks its config; [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh) now has an opt-in `/proc/self/fail-nth` mode for syscall-local allocation/usercopy failures in non-submit ioctls; synthetic hardware timeout/IOMMU fault injection has not run | finish the recovery matrix (§4) |
 | **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps, plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; an optional syzkaller `make descriptions` compile check now exists for hosts with `SYZKALLER_DIR` + Go; the RGA3 userptr-IOMMU path has a scattered-userptr correctness fuzzer under [`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh); `VALIDATE_ONLY=1` conformance validation now checks syzlang ABI markers, optionally compiles the syzlang draft with syzkaller, checks the ioctl mutator build, and checks the RGA IOMMU fuzzer build, but neither fuzzer has been run under KCOV/KASAN | finish §5 |
-| **Rewrite-specific security/ABI audit** | ⚠️ first focused MPP pass completed 2026-07-14; it found and fixed the RK3588 VDPU381/VDPU383 CCU mismatch, core-removal queue race, unbounded session-switch message arrays, custom translation-table race, and procfs-disabled init failure | continue the full MPP/RGA checklist (§6) |
+| **Rewrite-specific security/ABI audit** | ⚠️ focused MPP/RGA hardening landed 2026-07-15; it fixed the RK3588 VDPU381/VDPU383 CCU mismatch plus broad topology, DMA/IOMMU, reset, fd/fence, watchdog, fault-attribution, and removal races | continue the remaining RGA checklist (§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
 ---
@@ -588,7 +589,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 201 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
+1. 203 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
    (today's tests never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —
    0 diffs (RGA pixels, VDEC YUV, VENC-vs-VENC bitstream).

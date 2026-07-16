@@ -29,6 +29,12 @@ package names and a distinct localversion.
 | Commit | `d1d15a3d052a` |
 | Config | `debian/config/arm64-rockchip64.config`, snapshotted from the worktree `.config` |
 
+> **Published-package pin:** this directory records the package that was
+> actually published. The source branch advanced on 2026-07-15 to hardened tip
+> `563f329dd8c4`; that commit is not present in version
+> `6.18.0+rk3588rewritealpha20260710-0ubuntu1~rk2`. Re-export the package before
+> using a packaged board run to validate the hardened source.
+
 ## Debian helper scripts
 
 These `debian/rules` helpers are source-package-local copies of the

@@ -77,11 +77,13 @@ kernel-drivers/tests/rewrite-build-gate.sh all
 source edits. Use it only when checking the last pushed state while another
 worktree has unrelated local changes.
 
-Last recorded compile gates: on 2026-07-06 the default `normal` profile passed
+Last recorded compile gates: on 2026-07-15 the default `normal` profile passed
 warning-free for the current committed rewrite tips
-`../kernel/linux-6.18-rkvenc@d1d15a3d052a` and
-`../kernel/linux@12f712d71144`. The broader `normal`, `memory`, and `race`
-profiles all passed warning-free the same day for the immediately earlier tips
+`../kernel/linux-6.18-rkvenc@563f329dd8c4` and
+`../kernel/linux@856743fc3c3d`. It built the Rockchip IOMMU provider, both
+KUnit-enabled rewrite objects, and the ROCK 5B DTB from clean archives. The
+broader `normal`, `memory`, and `race` profiles have not been rerun at those
+heads; all three last passed warning-free on 2026-07-06 for
 `../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and
 `../kernel/linux@938b1d2032c3`.
 After the gate was changed to remove each per-profile archive checkout as soon
@@ -96,12 +98,10 @@ The same maintenance pass also ran
 plus the same counter-default validation with `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1`; all
 passed, including the forced RGA userptr-IOMMU fallback counter-default wiring check.
 
-After the Rockchip IOMMU provider hardening slice, the default `normal` profile
-passed warning-free for the committed tips
-`../kernel/linux-6.18-rkvenc@d1d15a3d052a` and
-`../kernel/linux@12f712d71144`. The same slice also passed focused provider
-object builds of `drivers/iommu/rockchip-iommu.o` from clean temporary archives
-with the staged diff applied before commit.
+The Published 6.18 and 7.2-rc2 alpha packages still contain the pre-hardening
+parents `d1d15a3d052a` and `083bdb98e715`. Re-export a package from one of the
+current heads before treating a packaged board run as validation of the July 15
+hardening.
 
 ## Expanded conformance bundle
 

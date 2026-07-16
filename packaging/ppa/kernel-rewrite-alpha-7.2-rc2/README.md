@@ -30,6 +30,12 @@ package names and a distinct localversion.
 | Upstream base | official kernel.org `v7.2-rc2` |
 | Config | `debian/config/arm64-rockchip64.config`, seeded from Armbian `linux-rockchip64-bleedingedge.config` |
 
+> **Published-package pin:** this directory records the package that was
+> actually published. The source branch advanced on 2026-07-15 to hardened tip
+> `856743fc3c3d`; that commit is not present in version
+> `7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2`. Re-export the package
+> before using a packaged board run to validate the hardened source.
+
 The local rewrite branch was rebased from `v7.2-rc1` to the official kernel.org
 `v7.2-rc2` tag before this source package was generated. A backup branch exists
 in the kernel worktree as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`.

@@ -38,6 +38,7 @@ not repeat dated status or operational commands because those copies drift.
 | Capture the exact board/kernel/userspace baseline | [`docs/system-baseline.md`](docs/system-baseline.md) |
 | Record a newly discovered gap or result | [`findings/`](findings/README.md) |
 | Update or contribute to the record | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Review repository-specific agent instructions | [`AGENTS.md`](AGENTS.md) |
 | Review the kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
 | Understand the repo taxonomy | [`docs/work-packages.md`](docs/work-packages.md) |
 | Reconstruct an external source tree or resolve a code citation | [`docs/source-trees.md`](docs/source-trees.md) |
