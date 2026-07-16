@@ -1,10 +1,13 @@
 # Rebasing ffmpeg-rockchip onto current FFmpeg — trees, method, ledger
 
 How the 2026 rebase of nyanmisaka's ffmpeg-rockchip stack onto FFmpeg master
-was actually staged, which tree is current, and how to redo it for the next
-FFmpeg bump. Companion to [`fix-candidates.md`](fix-candidates.md) (what the
+was staged and then published as canonical master, 8.0, and 8.1 branches, and
+how to redo it for the next FFmpeg bump. Section 8 is the current topology;
+earlier sections preserve the replay chronology and historical pins. Companion
+to [`fix-candidates.md`](fix-candidates.md) (what the
 rebase review found) and [`video-libraries/ffmpeg/patches/README.md`](../patches/README.md) (the exported diffs).
-All branch/commit facts below verified 2026-07-01 against the working clones.
+Sections 1–6 were verified 2026-07-01 against the working clones; sections 7–8
+record the 2026-07-16 release replay, comparison, and publication pass.
 
 ## 1. Trees and pins, reconciled
 
@@ -158,9 +161,9 @@ earlier five-item list). Update this table (with dates) when anything is sent;
 
 ## 7. The real FFmpeg 8.1.2 replay
 
-The repository name `ffmpeg-rockchip-81` became misleading as `main` advanced:
-as of 2026-07-16, `main@be367abfe670` describes itself as
-`n8.2-dev-2123-gbe367abfe6`. It is a master-era replay, not an FFmpeg 8.1.x
+The repository name `ffmpeg-rockchip-81` became misleading as `main` advanced.
+At the start of this comparison, then-current `main@be367abfe670` described
+itself as `n8.2-dev-2123-gbe367abfe6`: a master-era replay, not an FFmpeg 8.1.x
 branch.
 
 To obtain a same-base comparison with Jellyfin, canonical `n8.1.2`
@@ -183,10 +186,57 @@ removing the small upstream RKMPP implementation. The V4L2 multi-planar changes
 were translated onto 8.1.2 APIs, and the public libavutil change was versioned
 as `60.27.100` rather than copying master's `61.3.100`. The resulting branch is
 63 commits above `n8.1.2` and changes 37 files (+9,507/-991). Its ten core
-RKMPP/RKRGA/hwcontext files are byte-for-byte identical to current `main`.
+RKMPP/RKRGA/hwcontext files were byte-for-byte identical to then-current
+`main@be367abfe670`.
 
 Both this branch and Jellyfin's effective 8.1.2 source compiled through the
 core Rockchip, registration, and public pixel-format objects. This was not a
 hardware test. The complete same-base comparison and the Jellyfin features to
 port are in
 [`rockchip-812-jellyfin-comparison.md`](rockchip-812-jellyfin-comparison.md).
+
+## 8. Canonical three-branch publication
+
+On 2026-07-16 the old master tip, the local 8.1.2 comparison replay, and all
+unique `refactor/section-c` work were consolidated into one logical patchset
+and replayed onto the latest fetched upstream tips. Three branches were pushed
+to `github.com/yisding/ffmpeg-rockchip-81`:
+
+| Branch | Upstream base | Published tip | Patch commits |
+|--------|---------------|---------------|--------------:|
+| `main` | `FFmpeg/master@ceabc9b306f5385d92efdd9cd18d210deb3055b3` (`n8.2-dev-2371-gceabc9b306`) | `8b57e531d1fc3b836dbf20a04e67ec9365cc4d1b` (`n8.2-dev-2444-g8b57e531d1`) | 73 |
+| `ffmpeg-80` | `FFmpeg/release/8.0@435ae0581deb56c34c12a23056dcb1e9350a5a2f` (`n8.0.3-27-g435ae0581d`) | `be753f3bbb2c178402ade0e21370eecd2f0cc29c` (`n8.0.3-100-gbe753f3bbb`) | 73 |
+| `ffmpeg-81` | `FFmpeg/release/8.1@94138f6973dd1ac6208ace92148ac0d172455d65` (`n8.1.2-22-g94138f6973`) | `8d3ca020b6a260d4de44e21301662f18d6a9669d` (`n8.1.2-93-g8d3ca020b6`) | 71 |
+
+The canonical stack is the old 65-commit Rockchip replay plus all eight unique
+commits from the refactor line. Those additions include the generic Jellyfin
+correctness import and the final encoder static-format/concurrency fix. The
+8.1 count is two lower because the already-satisfied `hwcontext_drm`
+preparation and the non-code fork README replacement do not become release
+commits. They are not missing implementation changes.
+
+Integration kept each upstream line's native APIs rather than forcing a
+master-shaped patch onto the releases:
+
+- current master retains upstream CUARRAY and shader-build structure, appends
+  `NV15`/`NV20_PACKED`, registers RKRGA in the current configure lists, and
+  records the public API change as libavutil `61.6.100` dated 2026-07-16;
+- 8.1 retains its release registrations and API surface while carrying the
+  same ten core RKMPP/RKRGA/hwcontext files as `main`;
+- 8.0 keeps its older filter-query, color-capability, and encoder-statistics
+  APIs. Its only core-file difference from the other lines is the required
+  `rkmppenc.c` statistics adaptation. A swscale mismatch patch is empty there
+  because the 8.0 restriction it fixes is absent.
+
+All three branches configured with RKMPP, RKRGA, libdrm, and `version3`
+enabled. Every affected core Rockchip, registration, V4L2, CLI filter/demux,
+swscale, DCA, and avformat object that was enabled in the builds compiled, and
+`fate-source` passed on each branch. `libopusenc.o` was not enabled because the
+host lacks `opus.h`; configure handled that optional dependency correctly.
+This is source/compile validation, not board runtime proof.
+
+Publication does not retarget any package record. The dedicated Rockchip-81
+PPA remains pinned to `be367abfe670`; the system PPA remains on its historical
+8.0 port; broader encode/RGA smoke evidence remains pinned to
+`refactor/section-c@75638e7f0b17`. A new versioned source-package and RK3588
+runtime-validation pass is required before any of those records can move.

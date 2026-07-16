@@ -34,7 +34,7 @@ separate table below so both remain scannable.
 | 2 | BSP-audit fix series | ⚠️ Staged only: the split series diverges from the verified draft and does not compile until patch 0024 is regenerated. | 2026-07-01 | [`cleanup-split/`](./kernel-drivers/patches/cleanup-split/README.md) |
 | 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
 | 4 | Clean-room rewrite drivers | 🚧 Hardened 6.18 and v7.2-rc2 source tips pass the clean normal build gate; the published alpha packages predate that hardening, and no rewrite kernel has booted hardware proof. | 2026-07-15 | [rewrite-driver track](./kernel-drivers/docs/rewrite-drivers.md) §6 |
-| 5 | ffmpeg tree | ⚠️ Rockchip-81 builds, passes focused tests, and is public in its dedicated PPA; AV1 MP4/MKV still lacks board re-validation. | 2026-07-14 | [Kodi/ffmpeg finding](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) |
+| 5 | ffmpeg tree | ⚠️ Canonical `main`, `ffmpeg-80`, and `ffmpeg-81` branches are published and source/FATE-validated; existing PPAs remain pinned to older tested commits, and AV1 MP4/MKV still lacks board re-validation. | 2026-07-16 | [FFmpeg status](./video-libraries/ffmpeg/README.md) |
 | 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
 | 7 | GNOME Remote Desktop backend | ✅ The backend sustains 60 fps; corrected reconnect-v2 is public at `eb91daf`, passes full/local package builds and the RDP test, and is staged in the experimental PPA. The original macOS reconnect scenario is not yet re-tested. | 2026-07-14 | [`patch series`](./apps/gnome-remote-desktop/patches/README.md) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
@@ -94,8 +94,8 @@ last-checked date.
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-07-11 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
 | W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-15 | Six-archive topology recorded; reconnect-v2 source accepted and arm64 build successful in the experimental PPA. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-07-11 | Four MRs open; !42679 needs a rebase. |
-| W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-11 | Main and PR tips recorded; PR remains mergeable. |
-| W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-11 | Fix built and public; board re-test pending. |
+| W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-16 | Three canonical branch tips published; source validation passed. |
+| W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-16 | Fix carried forward; board re-test pending. |
 | W09 | [Kodi build and tty1 playback](#watch-w09) | 2026-07-11 | Prerequisites ready; build/playback/package pending. |
 | W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-14 | Corrected branch and PPA candidate public; macOS runtime test and upstream MR pending. |
 | W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
@@ -191,22 +191,28 @@ last-checked date.
 <a id="watch-w07"></a>
 ### W07 — `ffmpeg-rockchip-81` tips
 
-- **Why recheck:** Main carries correctness fixes while refactor work remains
-  isolated in PR #1; either tip or mergeability can change.
-- **Last checked:** 2026-07-11
-- **State then:** GitHub API at 21:37 PDT reported `main@be367abfe6` and
-  `refactor/section-c@c8aca81111`. [PR #1](https://github.com/yisding/ffmpeg-rockchip-81/pull/1)
-  was open and mergeable; PPA source exported the exact main tip.
+- **Why recheck:** The canonical master, 8.0, and 8.1 lines follow moving
+  upstream branches; later upstream movement requires a fresh replay and test.
+- **Last checked:** 2026-07-16
+- **State then:** Published tips were `main@8b57e531d1fc` over
+  `FFmpeg/master@ceabc9b306f5`, `ffmpeg-80@be753f3bbb2c` over
+  `release/8.0@435ae0581deb`, and `ffmpeg-81@8d3ca020b6a2` over
+  `release/8.1@94138f6973dd`. The former PR #1/refactor lineage is integrated
+  into all three. Source builds and `fate-source` passed; no new hardware or
+  package validation was performed. The dedicated PPA remains at
+  `be367abfe6`.
 
 <a id="watch-w08"></a>
 ### W08 — AV1 container-extradata validation
 
 - **Why recheck:** Kodi AV1 playback from MP4/MKV depends on MPP recognizing the
   container's `av1C` extradata.
-- **Last checked:** 2026-07-11
+- **Last checked:** 2026-07-16
 - **State then:** `be367abfe6` fixed the missing `mpp_packet_set_extra_data()`
-  call that caused MPP to parse the `av1C` header as an OBU. Source build/FATE
-  and package validation passed; RK3588 MP4/MKV decode re-test remained pending.
+  call that caused MPP to parse the `av1C` header as an OBU; the fix is carried
+  by all three canonical branches. Earlier source build/FATE and package
+  validation passed, but the new branch tips have only source/FATE validation;
+  RK3588 MP4/MKV decode re-test remained pending.
   See [finding §3](findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md).
 
 <a id="watch-w09"></a>

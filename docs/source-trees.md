@@ -121,19 +121,21 @@ donor and is not cited by any doc.)
 | librga historical source base (study tree) | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | `2cffdf6f332c` (`v2.2.0`, the 2026-01-21 merge of `JeffyCN/mirrors:linux-rga-multi`); **recorded**, every librga file/function cite in how-the-userspace-libs-work.md re-verified against it 2026-07-01 (how-the-userspace-libs-work.md:11-14). Also the last open vendor-history tip used as the fixed-tree base above | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
 | librga prebuilt | `airockchip/librga` | `2b32edc` ("Update librga version to 1.10.6_[3]") | ffmpeg/README.md librga row |
 | ffmpeg-rockchip (documented build) | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` (2026-04-23); preserved locally as branch `backup-pre-upgrade-master` | ffmpeg/README.md, [`video-libraries/ffmpeg/docs/implementation-comparison.md`](../video-libraries/ffmpeg/docs/implementation-comparison.md) |
-| ffmpeg-rockchip-81 (master-era rebased successor) | `github.com/yisding/ffmpeg-rockchip-81` | current branch `main` = `be367abfe670` (`n8.2-dev-2123-gbe367abfe6`, 2026-07-11), **not FFmpeg 8.1.x**; exported review series remains `6cf02ab253` over original `upstream@87bd15dc3c`; package-validation tree remains local `refactor/section-c@75638e7f0b17` | [`video-libraries/ffmpeg/docs/fix-candidates.md`](../video-libraries/ffmpeg/docs/fix-candidates.md), [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md), [`video-libraries/ffmpeg/docs/submission-plan.md`](../video-libraries/ffmpeg/docs/submission-plan.md), [`video-libraries/ffmpeg/patches`](../video-libraries/ffmpeg/patches), [`findings/2026-07-06-ffmpeg-rockchip81-package-validation.md`](../findings/2026-07-06-ffmpeg-rockchip81-package-validation.md) |
-| ffmpeg-rockchip real 8.1.2 replay | local branch `rockchip-8.1.2` in `github.com/yisding/ffmpeg-rockchip-81` | `53b3551b9176` (`n8.1.2-63-g53b3551b91`), 63 commits over canonical `n8.1.2@38b88335f99e`; clean worktree `/home/yi/Code/ffmpeg/ffmpeg-rockchip-812` | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md) §7 |
+| ffmpeg-rockchip-81 canonical tip | `github.com/yisding/ffmpeg-rockchip-81`, branch `main` | `8b57e531d1fc` (`n8.2-dev-2444-g8b57e531d1`), 73 patch commits over current FFmpeg `master@ceabc9b306f5`; carries the reworked nyanmisaka stack, all unique refactor/Jellyfin correctness commits, and the encoder static-format/concurrency fix | [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md) §8, [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md) |
+| ffmpeg-rockchip-81 FFmpeg 8.0 line | `github.com/yisding/ffmpeg-rockchip-81`, branch `ffmpeg-80` | `be753f3bbb2c` (`n8.0.3-100-gbe753f3bbb`), 73 patch commits over current `release/8.0@435ae0581deb` | [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md) §8, [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md) |
+| ffmpeg-rockchip-81 FFmpeg 8.1 line | `github.com/yisding/ffmpeg-rockchip-81`, branch `ffmpeg-81` | `8d3ca020b6a2` (`n8.1.2-93-g8d3ca020b6`), 71 patch commits over current `release/8.1@94138f6973dd`; replaces the local `rockchip-8.1.2@53b3551b9176` comparison branch as the published release line | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md) §8 |
 | Jellyfin FFmpeg Rockchip reference | `jellyfin/jellyfin-ffmpeg` | `jellyfin@455bfe539220` (`v8.1.2-1-13-g455bfe53`); effective comparison applied all 96 Debian patches in scratch worktree `/home/yi/Code/ffmpeg/jellyfin-ffmpeg-applied` | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md`](../video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md) |
-| FFmpeg upstream release | `FFmpeg/FFmpeg` | tag `n8.1.2` = `38b88335f99e` (2026-06-17) | `video-libraries/ffmpeg/docs/implementation-comparison.md` baseline; the PPA/GRD ABI base |
-| FFmpeg upstream master (rebase base) | `FFmpeg/FFmpeg` | `87bd15dc3c` = `n8.2-dev-2058-g87bd15dc3c` | `video-libraries/ffmpeg/docs/fix-candidates.md`, `video-libraries/ffmpeg/docs/rebase-notes.md` |
+| FFmpeg upstream release tags | `FFmpeg/FFmpeg` | `n8.1.2@38b88335f99e` and `n8.0.3@151b17dd2400`; historical comparison/package bases | `video-libraries/ffmpeg/docs/implementation-comparison.md`; the PPA/GRD ABI base |
+| FFmpeg upstream publication bases | `FFmpeg/FFmpeg` | `master@ceabc9b306f5`, `release/8.0@435ae0581deb`, and `release/8.1@94138f6973dd`, fetched 2026-07-16 | `video-libraries/ffmpeg/docs/rebase-notes.md` §8 |
 
-**How the upstream FFmpeg pins and replay branches relate:** `n8.1.2`
-(`38b88335f99e`) sits on
-the `release/8.1` branch; `87bd15dc3c` is FFmpeg `master` well past the 8.1
-fork. Their merge-base is `67c886222f` ("Bump versions for release/8.1") — the
-8.1 branch point. The repository's `main` continued to `be367abfe670`, while
-the separate `rockchip-8.1.2` branch replays the same ten core Rockchip files
-onto the release ABI. The full topology and both replay procedures live in
+**How the upstream FFmpeg pins and published branches relate:** `main` follows
+FFmpeg master, while `ffmpeg-80` and `ffmpeg-81` follow the upstream 8.0 and
+8.1 release branches. All three carry the complete canonical Rockchip patchset
+as of 2026-07-16. The main and 8.1 core RKMPP/RKRGA files are byte-identical;
+the 8.0 line differs only where its older encoder-statistics API requires an
+adaptation. The old `6cf02ab253` export, `75638e7f0b17` package-validation
+snapshot, `be367abfe670` PPA source, and `53b3551b9176` comparison replay remain
+valid historical pins, not current branch tips. The full topology lives in
 [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md).
 
 > **The pins to watch.**

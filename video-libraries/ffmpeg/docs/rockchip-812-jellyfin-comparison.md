@@ -8,21 +8,33 @@ perform. It compares the full `ffmpeg-rockchip-81` Rockchip stack replayed onto
 canonical FFmpeg `n8.1.2` with Jellyfin's effective FFmpeg 8.1.2 source after
 its complete Debian patch queue is applied.
 
-The short result: use the replayed `rockchip-8.1.2` branch as the integration
-base. It has substantially stronger descriptor validation, frame/EOS lifetime
-handling, current librga APIs, V4L2 fixes, and public pixel-format hygiene.
-Jellyfin still has several valuable features to port selectively: HEVC Dolby
-Vision RPU side data, `reset_sar`, RKMPP-to-OpenCL/Vulkan derivation, and its
-packaging work.
+The short result was to use the replayed `rockchip-8.1.2` branch as the
+integration base. It has substantially stronger descriptor validation,
+frame/EOS lifetime handling, current librga APIs, V4L2 fixes, and public
+pixel-format hygiene. Jellyfin still has several valuable features to port
+selectively: HEVC Dolby Vision RPU side data, `reset_sar`,
+RKMPP-to-OpenCL/Vulkan derivation, and its packaging work.
+
+> **Publication follow-up (2026-07-16):** the comparison snapshot below remains
+> pinned to `rockchip-8.1.2@53b3551b9176` so its measured counts stay
+> reproducible. Its maintained successor is the published
+> `ffmpeg-81@8d3ca020b6a2`, 71 patch commits over
+> `release/8.1@94138f6973dd`. Canonical `main@8b57e531d1fc` and
+> `ffmpeg-80@be753f3bbb2c` carry the same complete logical patchset over current
+> master and 8.0 bases. All unique refactor work, including the generic
+> Jellyfin correctness import, is integrated. The Jellyfin-only DOVI,
+> `reset_sar`, OpenCL/Vulkan, and packaging features listed below remain
+> selective port candidates. The three new tips passed source compilation and
+> `fate-source`, not new RK3588 runtime validation.
 
 ## 1. Source identity and materialization
 
 | Source | Exact point | Materialized form |
 |--------|-------------|-------------------|
 | Canonical FFmpeg 8.1.2 | annotated tag `n8.1.2`, commit `38b88335f99e76ed89ff3c93f877fdefce736c13` | Release base for both effective trees. |
-| `ffmpeg-rockchip-81/main` | `be367abfe67045b9c68812ecee3b6162c92f9776`, described as `n8.2-dev-2123-gbe367abfe6` | The current master-era Rockchip replay. Despite the repository name, this branch is not FFmpeg 8.1.x. |
-| Existing 8.0 port | branch `rockchip-8.0` at `463f542c325942f3e6b390cb940c32812570957d`, described as `n8.0.3-65-g463f542c32` | Kept in `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81`; its untracked build outputs were left untouched. |
-| New release replay | branch `rockchip-8.1.2` at `53b3551b9176b8db0f75eb7b0addd7bc26d20d5e`, described as `n8.1.2-63-g53b3551b91` | Clean worktree `/home/yi/Code/ffmpeg/ffmpeg-rockchip-812`. It is 63 commits over canonical 8.1.2; `n8.1.2..HEAD` changes 37 files, with 9,507 insertions and 991 deletions. |
+| Historical `ffmpeg-rockchip-81/main` snapshot | `be367abfe67045b9c68812ecee3b6162c92f9776`, described as `n8.2-dev-2123-gbe367abfe6` | The master-era Rockchip replay used during this comparison and still exported by the dedicated PPA. It is not the current branch tip. |
+| Historical 8.0 port | branch `rockchip-8.0` at `463f542c325942f3e6b390cb940c32812570957d`, described as `n8.0.3-65-g463f542c32` | The earlier 8.0 source/package line, superseded for source work by published `ffmpeg-80@be753f3bbb2c`. |
+| Comparison release replay | branch `rockchip-8.1.2` at `53b3551b9176b8db0f75eb7b0addd7bc26d20d5e`, described as `n8.1.2-63-g53b3551b91` | Reproducible snapshot for the counts below, superseded for source work by published `ffmpeg-81@8d3ca020b6a2`. It is 63 commits over canonical 8.1.2; `n8.1.2..HEAD` changes 37 files, with 9,507 insertions and 991 deletions. |
 | Jellyfin FFmpeg | branch `jellyfin` at `455bfe53922014076d14c7f3f8c6631b4d3cd4c0`, described as `v8.1.2-1-13-g455bfe53` | Clean source/packaging checkout `/home/yi/Code/ffmpeg/jellyfin-ffmpeg`. |
 | Jellyfin effective source | the same Jellyfin head with all 96 entries from `debian/patches/series` applied | Detached scratch worktree `/home/yi/Code/ffmpeg/jellyfin-ffmpeg-applied`; the original checkout remained clean. |
 
@@ -48,10 +60,10 @@ replayed onto canonical `n8.1.2` with these integration decisions:
   accepting either side wholesale;
 - the public libavutil addition was versioned as `60.27.100`, following
   8.1.2's `60.26.102`, instead of copying master's `61.3.100` version;
-- the ten core Rockchip implementation files at the resulting branch are
-  byte-for-byte identical to `ffmpeg-rockchip-81/main`; the remaining branch
-  differences are release-base integration, registrations, API versioning,
-  tests, and V4L2 context.
+- the ten core Rockchip implementation files at the resulting branch were
+  byte-for-byte identical to then-current `ffmpeg-rockchip-81/main@be367abfe6`;
+  the remaining branch differences were release-base integration,
+  registrations, API versioning, tests, and V4L2 context.
 
 The two skipped source commits explain why the result is 63 commits above the
 release tag rather than 65.
@@ -267,8 +279,9 @@ rejection on hardware.
 
 ## 8. Integration recommendation
 
-Use `rockchip-8.1.2@53b3551b9176` as the FFmpeg 8.1.2 Rockchip base and port
-only these Jellyfin deltas first:
+Use published `ffmpeg-81@8d3ca020b6a2` as the maintained FFmpeg 8.1 Rockchip
+base. The generic Jellyfin correctness work is already integrated; port only
+these remaining Jellyfin deltas first:
 
 1. HEVC Dolby Vision RPU parsing/side data, adapted to the replay's frame queue;
 2. `vpp_rkrga=reset_sar`;

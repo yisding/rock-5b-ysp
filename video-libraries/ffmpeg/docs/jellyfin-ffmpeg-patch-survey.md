@@ -6,7 +6,10 @@ Date: 2026-07-11
 > generic patch policy at the older pins below. A later pass materialized all 96
 > Jellyfin patches at `455bfe539220`, created a real
 > `rockchip-8.1.2@53b3551b9176` release replay, and compared the effective source
-> trees directly. See
+> trees directly. That local replay has since been replaced by published
+> `ffmpeg-81@8d3ca020b6a2`; the generic correctness import and every other
+> unique refactor commit are also integrated into canonical `main` and
+> `ffmpeg-80`. See
 > [`rockchip-812-jellyfin-comparison.md`](rockchip-812-jellyfin-comparison.md)
 > for the core line counts, validation/lifecycle differences, Jellyfin-only
 > DOVI/`reset_sar`/OpenCL/Vulkan features, API hazards, compile checks, and the
@@ -135,8 +138,10 @@ Validation after applying:
   reference changed, but that target requires external FFmpeg samples and the
   local tree has no `SAMPLES` path configured.
 
-The external `ffmpeg-rockchip-81` patch import is committed as
-`214772cbdb86374dd70470e2df2801da3ded4224` on `refactor/section-c`. The YSP
-PPA export metadata still targets the earlier packaged commit until a separate
-versioned source-package pass retargets `FFMPEG_COMMIT`, updates version
-metadata, and generates a new changelog entry.
+The external `ffmpeg-rockchip-81` patch import was originally committed as
+`214772cbdb86374dd70470e2df2801da3ded4224` on `refactor/section-c`. Its unique
+work is now part of all three published canonical branches:
+`main@8b57e531d1fc`, `ffmpeg-80@be753f3bbb2c`, and
+`ffmpeg-81@8d3ca020b6a2`. The YSP PPA export metadata still targets the earlier
+packaged commit until a separate versioned source-package pass retargets
+`FFMPEG_COMMIT`, updates version metadata, and generates a new changelog entry.
