@@ -91,6 +91,7 @@ Read in this order when changing or reviewing kernel behavior:
 | What was changed during the forward-port? | [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md) |
 | How much code is vendor vs local? | [`docs/vendor-delta.md`](docs/vendor-delta.md) |
 | How does the forward port compare with Rockchip's 6.1 and 6.6 BSP media drivers? | [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
+| Which later Rockchip 5.10 RGA fixes still need to be adapted to the rewrite? | [`rga/rewrite-5.10-reconciliation.md`](rga/rewrite-5.10-reconciliation.md) |
 | How are RK3588 nodes, IRQs, IOMMUs, aliases, and SRAM wired? | [`docs/device-tree.md`](docs/device-tree.md) |
 | How does Armbian packaging apply the DT safely? | [`../packaging/docs/armbian-packaging.md`](../packaging/docs/armbian-packaging.md) |
 | What changes on vanilla mainline? | [`../kernel-versions/docs/vanilla-kernel.md`](../kernel-versions/docs/vanilla-kernel.md) |

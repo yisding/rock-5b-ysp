@@ -578,6 +578,15 @@ The architectural trade is therefore:
 | Physical/virtual/dma-buf and BSP MMU modes | Public dma-buf/userptr paths; physical addresses fail closed |
 | Existing BSP recovery and debugger surface | Exact-job recovery, quarantine, focused counters, and embedded KUnit |
 
+The later Rockchip `develop-5.10` RGA work is a separate reconciliation input,
+not code ancestry for the rewrite. The detailed assessment in
+[`../rga/rewrite-5.10-reconciliation.md`](../rga/rewrite-5.10-reconciliation.md)
+identifies five adaptations still needed: RK3588 RGA3 logic-clock and RGA2
+auto-reset quirks, RGA2 config/parse-error IRQ handling, per-mapping cache-line
+boundary shadows for userptr DMA, and the narrow RGA3 R2Y BT.709-limited
+`full_csc` compatibility exception. It also records which 5.10 fixes the
+rewrite's ownership, fence, IOVA, scale, and serial-task designs already cover.
+
 MPP follows the same ownership direction but has a different size/complexity
 profile: the forward port has a shared BSP MPP service plus pluggable encoder and
 decoder block drivers, while `mpp-rewrite` uses explicit session/job/hardware
