@@ -98,12 +98,14 @@ The same maintenance pass also ran
 plus the same counter-default validation with `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1`; all
 passed, including the forced RGA userptr-IOMMU fallback counter-default wiring check.
 
-The Published 6.18 and 7.2-rc2 alpha packages remain historical vanilla-based
-builds. Replacement local source packages export the Armbian-based composites
-`8daf5e9513b8` (6.18.38 current/forward-port base) and `24f7424fb958`
-(`v7.2-rc3` plus bleedingedge) with the July 15 rewrite hardening applied last.
-Upload and install those replacements before treating a packaged board run as
-validation of the current source.
+The Published 6.18 and 7.2-rc2 alpha binaries remain historical vanilla-based
+builds. The dedicated PPAs accepted replacement sources `18623665` and
+`18623666`, exporting the Armbian-based composites `8daf5e9513b8` (6.18.38
+current/forward-port base) and `24f7424fb958` (`v7.2-rc3` plus bleedingedge)
+with the July 15 rewrite hardening applied last. Their arm64 builds `33406491`
+and `33406492` were still running at 12:37 PDT on 2026-07-16. Wait for the
+replacement binaries to publish, then install and boot one before treating a
+packaged board run as validation of the current source.
 
 ## Expanded conformance bundle
 
@@ -1118,23 +1120,86 @@ development `.pc` files are missing.
 
 ## Rewrite acceptance (one command)
 
-For rewrite acceptance, boot a kernel where `ROCKCHIP_MPP_REWRITE` and
-`ROCKCHIP_RGA_REWRITE` own the device nodes, then run:
+### Post-reboot identity and ownership preflight
+
+Installing a co-installable rewrite package does not prove that the machine is
+running it. After reboot, run this preflight from the YSP repository root:
 
 ```bash
-sudo MPP_BUILD=<mpp-build> FFDIR=<ffmpeg-rockchip> STAGE=<stage> bash rewrite-smoke.sh
+uname -r
+
+grep -E '^(CONFIG_ROCKCHIP_(MPP|RGA)_REWRITE=y|# CONFIG_ROCKCHIP_MPP_SERVICE is not set|# CONFIG_VIDEO_ROCKCHIP_RGA is not set)$' \
+  /boot/config-"$(uname -r)"
+
+ls -l /dev/mpp_service /dev/rga
+sudo test -d /sys/kernel/debug/rk_mpp_rewrite
+sudo test -d /sys/kernel/debug/rk_rga_rewrite
+
+sudo journalctl -k -b --no-pager | \
+  grep -Ei 'mpp|rga|iommu|fault|timeout|oops|warning|panic'
+```
+
+The expected release is `6.18.38-ysp-alpha-6.18-rockchip64` for the 6.18.38
+package or `7.2.0-rc3-ysp-alpha-7.2-rc3-rockchip64` for the 7.2-rc3 package.
+Both character devices and both rewrite debugfs directories must exist. The
+debugfs check distinguishes rewrite ownership from a different driver that
+happens to expose the same device-node names. Review the complete filtered
+kernel log; the grep command intentionally shows normal driver messages along
+with fault signatures and is not by itself a pass/fail classifier.
+
+### Quick consumer smoke
+
+For rewrite acceptance, boot a kernel where `ROCKCHIP_MPP_REWRITE` and
+`ROCKCHIP_RGA_REWRITE` own the device nodes, then run the maintained
+sibling-worktree layout directly:
+
+```bash
+sudo \
+  MPP_BUILD=../rockchip-conformance/build/rockchip-mpp-suite \
+  FFDIR=../ffmpeg/ffmpeg-rockchip \
+  STAGE=../kernel/rock5b-kernel-build/ffmpeg-stack \
+  bash kernel-drivers/tests/rewrite-smoke.sh
+```
+
+For a different workspace layout, supply the equivalent paths explicitly:
+
+```bash
+sudo MPP_BUILD=<mpp-build> FFDIR=<ffmpeg-rockchip> STAGE=<stage> \
+  bash kernel-drivers/tests/rewrite-smoke.sh
 ```
 
 The same command is valid on the BSP-derived forward-port kernel, which makes it
 the quick parity check between the two implementations. (`rewrite-smoke.sh`
-itself is documented in [`README.md`](./README.md).)
+itself is documented in [`README.md`](./README.md).) It checks both device
+nodes, captures rewrite counters before and after the workloads, and exercises
+the non-submit ABI probe, hardware decode, hardware encode, and an
+RKMPP-to-RGA-scale-to-RKMPP FFmpeg transcode. Exit `0` and the final
+`ALL SELECTED REWRITE/FORWARD-PORT CONSUMER SMOKE TESTS PASSED` line are the
+quick acceptance result; exit `77` means the driver nodes are absent, and any
+other nonzero exit is a workload or environment failure.
+
+### Full standalone and paired parity gates
+
+After the smoke passes, run the expanded rewrite profile with hardware counter
+assertions:
+
+```bash
+sudo PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash kernel-drivers/tests/rewrite-conformance-run.sh
+```
+
+The counter checks prove that the required workloads reached MPP/RGA hardware,
+reject positive timeout/fault/error counters, and require tracked import gauges
+to return to zero. Keep a known-good Armbian or forward-port kernel installed as
+a recovery boot until the smoke and full profile pass.
 
 For the full userspace-visible parity gate, collect the full forward-port
 profile first, then reboot into the rewrite and compare against it:
 
 ```bash
-sudo PROFILE=forward-port bash rewrite-conformance-run.sh
-sudo PROFILE=rewrite RUN_COMPARE=1 bash rewrite-conformance-run.sh
+sudo PROFILE=forward-port \
+  bash kernel-drivers/tests/rewrite-conformance-run.sh
+sudo PROFILE=rewrite RUN_COUNTER_CHECKS=1 RUN_COMPARE=1 \
+  bash kernel-drivers/tests/rewrite-conformance-run.sh
 ```
 
 ## Raw ABI replay comparisons

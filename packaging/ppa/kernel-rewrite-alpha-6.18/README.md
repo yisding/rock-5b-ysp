@@ -13,7 +13,7 @@ line first, then applies the clean-room rewrite series.
 | Binary packages | `linux-image-ysp-alpha-6.18-rockchip64`, `linux-dtb-ysp-alpha-6.18-rockchip64`, `linux-headers-ysp-alpha-6.18-rockchip64` |
 | Kernel release | `6.18.38-ysp-alpha-6.18-rockchip64` |
 | Debian version | `6.18.38+rk3588rewritealpha20260715-0ubuntu1` |
-| Publication state | Replacement package is not uploaded yet; the PPA still contains the historical vanilla-based 6.18.0 package. |
+| Publication state | Source publication [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665) is accepted and arm64 build [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491) is running. The historical vanilla-based 6.18.0 binaries remain Published until the replacement build completes. |
 
 ## Source inputs
 
@@ -50,6 +50,22 @@ built in and disables the conflicting vendor MPP/RGA drivers. The full build's
 warnings are confined to inherited Armbian DRM and external Wi-Fi sources; the
 focused rewrite gate is warning-free. Hardware install, boot, rollback, and
 recovery validation remain required.
+
+## Runtime behavior and post-reboot validation
+
+When this package's `6.18.38-ysp-alpha-6.18-rockchip64` kernel is booted,
+`CONFIG_ROCKCHIP_MPP_REWRITE=y` and `CONFIG_ROCKCHIP_RGA_REWRITE=y` make the
+rewrite drivers the built-in owners of `/dev/mpp_service` and `/dev/rga`. The
+conflicting vendor MPP service and RGA drivers are disabled. Installing the
+co-installable package is not sufficient evidence by itself: verify the
+running release, rewrite debugfs ownership, boot log, hardware smoke workloads,
+and counter deltas after reboot.
+
+The exact preflight, quick smoke command for the maintained sibling-worktree
+layout, standalone full suite, and forward-port-vs-rewrite comparison are in
+[`rewrite-conformance.md`](../../../kernel-drivers/tests/rewrite-conformance.md#rewrite-acceptance-one-command).
+Keep the existing Armbian or forward-port kernel available as the recovery boot
+until this checklist passes.
 
 The Debian helpers
 [`install-kernel-packages.sh`](debian/scripts/install-kernel-packages.sh) and

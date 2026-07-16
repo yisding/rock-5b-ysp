@@ -1856,3 +1856,40 @@ See ../../configure --help for available options.
 - Remaining gate: reproduce the original reconnect from the macOS Windows App
   against `~exp1`. Do not promote it to the normal PPA or submit the upstream MR
   solely on compile/test coverage.
+
+## Armbian-based rewrite kernel publication — 2026-07-16
+
+- Revalidated the exact 6.18.38 and 7.2-rc3 source upload sets with
+  `dscverify --nosigcheck`; every `.dsc`, orig tarball, Debian tarball, and
+  source `.buildinfo` checksum passed. `lintian --fail-on error` passed for
+  both source `.changes` files.
+- Signed both source sets with upload key
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. Direct `gpg --verify` reported a
+  good signature from `Yi Ding <yi.s.ding@gmail.com>` on each signed
+  `.changes` file.
+- `dput` passed its supported-distribution, required-field, checksum,
+  suite-mismatch, source-only, and GPG checks and uploaded:
+  - `linux-rockchip64-ysp-alpha-6.18`
+    `6.18.38+rk3588rewritealpha20260715-0ubuntu1` to
+    `ppa:yi-ding/rock5b-kernel618-rewrite`;
+  - `linux-rockchip64-ysp-alpha-7.2-rc3`
+    `7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1` to the legacy-named
+    `ppa:yi-ding/rock5b-kernel72rc2-rewrite`.
+- Launchpad accepted upload `38664613` as 6.18.38 source publication
+  [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665)
+  and started arm64 build
+  [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491).
+  It accepted upload `38664614` as 7.2-rc3 source publication
+  [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666)
+  and started arm64 build
+  [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492).
+  Both builds were `Currently building` at `2026-07-16T12:37:41-07:00`; the
+  historical 6.18.0 and 7.2-rc2 binaries remain Published while the
+  replacements build.
+- Documented the boot contract and runtime gate. Booting the 6.18.38 package
+  selects built-in `ROCKCHIP_MPP_REWRITE` and `ROCKCHIP_RGA_REWRITE` while the
+  conflicting vendor MPP/RGA drivers are disabled. The post-reboot checklist
+  now requires exact release/config identity, both device nodes, both rewrite
+  debugfs owners, boot-log review, the decode/encode/transcode smoke, a full
+  rewrite run with hardware counter assertions, and a paired forward-port
+  comparison before treating the kernel as validated.

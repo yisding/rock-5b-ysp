@@ -13,7 +13,7 @@ package. It applies Armbian's `rockchip64-bleedingedge` patch layer to official
 | Binary packages | `linux-image-ysp-alpha-7.2-rc3-rockchip64`, `linux-dtb-ysp-alpha-7.2-rc3-rockchip64`, `linux-headers-ysp-alpha-7.2-rc3-rockchip64` |
 | Kernel release | `7.2.0-rc3-ysp-alpha-7.2-rc3-rockchip64` |
 | Debian version | `7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1` |
-| Publication state | Replacement package is not uploaded yet; the PPA still contains the historical 7.2-rc2 package. |
+| Publication state | Source publication [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666) is accepted and arm64 build [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492) is running. The historical 7.2-rc2 binaries remain Published until the replacement build completes. |
 
 ## Source inputs
 
@@ -53,6 +53,18 @@ built in and disables the conflicting stock RGA driver. The full build reports
 inherited warnings in the Rockchip DDR clock helper and Armbian's generated
 external Wi-Fi driver payload; the focused rewrite gate is warning-free.
 Hardware install, boot, rollback, and recovery validation remain required.
+
+## Runtime behavior and post-reboot validation
+
+When this package's `7.2.0-rc3-ysp-alpha-7.2-rc3-rockchip64` kernel is booted,
+the MPP and RGA rewrite drivers are built in and own `/dev/mpp_service` and
+`/dev/rga`; the conflicting stock RGA driver is disabled. Installing the
+co-installable package does not prove that this release is running.
+
+Use the package-identity, debugfs-owner, boot-log, smoke, full-suite, and paired
+comparison checklist in
+[`rewrite-conformance.md`](../../../kernel-drivers/tests/rewrite-conformance.md#rewrite-acceptance-one-command),
+and retain a known-good recovery kernel until the runtime gate passes.
 
 The Debian helpers
 [`install-kernel-packages.sh`](debian/scripts/install-kernel-packages.sh) and
