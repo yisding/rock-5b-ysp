@@ -38,7 +38,7 @@ separate table below so both remain scannable.
 | 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
 | 7 | GNOME Remote Desktop backend | ✅ The backend sustains 60 fps; corrected reconnect-v2 is public at `eb91daf`, passes full/local package builds and the RDP test, and is staged in the experimental PPA. The original macOS reconnect scenario is not yet re-tested. | 2026-07-14 | [`patch series`](./apps/gnome-remote-desktop/patches/README.md) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ⚠️ The recreated main system PPA and dedicated FFmpeg PPAs have Published sources and binaries. Armbian-based rewrite sources `18623665`/`18623666` are accepted and arm64 builds `33406491`/`33406492` are running in the two dedicated kernel PPAs. Experimental GRD reconnect-v2 build `33399816` succeeded. Optional GDM upload and board migration/kernel/GRD runtime gates remain open. | 2026-07-16 | [`packaging/ppa/`](packaging/ppa/README.md) |
+| 9 | Launchpad PPA | ⚠️ The recreated main system PPA and dedicated FFmpeg PPAs have Published sources and binaries. Main-PPA forward-port replacement source `18624245` and dedicated rewrite sources `18623665`/`18623666` are accepted; arm64 builds `33407351`, `33406491`, and `33406492` are running while prior kernel binaries remain Published. Experimental GRD reconnect-v2 build `33399816` succeeded. Optional GDM upload and board migration/kernel/GRD runtime gates remain open. | 2026-07-16 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
@@ -161,6 +161,12 @@ last-checked date.
   [`33399688`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33399688)
   succeeded, and the main PPA had zero archive dependencies. The upstream and
   Rockchip FFmpeg 8.1 PPAs each had one source plus 29 binaries Published.
+  At 16:07 PDT the main PPA had also accepted 5.10-reconciled forward-port
+  kernel source
+  [`18624245`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18624245);
+  arm64 build
+  [`33407351`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33407351)
+  was running while source `18619788` and its binaries remained Published.
   On 2026-07-16 the rewrite-kernel PPAs accepted Armbian-based 6.18.38 source
   [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665)
   and 7.2-rc3 source

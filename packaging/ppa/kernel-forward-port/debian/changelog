@@ -1,3 +1,13 @@
+linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260716-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Reconcile the RK3588 RGA driver with applicable Rockchip 5.10 fixes:
+    sequential hardware batching, low-voltage workarounds, request/fence
+    lifetime fixes, user-VA/IOMMU corrections, and register parameter fixes.
+  * Fix the RKVENC2 multi-slice error hang and harden its reset sequence.
+  * Retain the 6.18 VSI-IOMMU, shared-domain, RCB SRAM, and AV1 integration.
+
+ -- Yi Ding <yi@example.com>  Thu, 16 Jul 2026 16:10:00 -0700
+
 linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2) resolute; urgency=medium
 
   * Add u-boot-tools to Build-Depends so Launchpad provides mkimage

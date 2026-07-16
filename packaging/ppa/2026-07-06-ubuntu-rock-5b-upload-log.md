@@ -1893,3 +1893,39 @@ See ../../configure --help for available options.
   debugfs owners, boot-log review, the decode/encode/transcode smoke, a full
   rewrite run with hardware counter assertions, and a paired forward-port
   comparison before treating the kernel as validated.
+
+## Forward-port 5.10 reconciliation publication — 2026-07-16
+
+- Built the 6.18.38 Armbian integration tree with the 37-patch forward-port
+  series. The production-config image, DTBs, headers, and libc development
+  packages completed successfully with build identity `Pf618-Cb831`.
+- Generated source version
+  `6.18.38+rk3588av1fwport20260716-0ubuntu1~rk1` with a fresh deterministic
+  orig tarball. `dpkg-buildpackage -S -sa` completed, and `dpkg-source -x`
+  verified all checksums.
+- Inspected the extracted source rather than relying on the live worktree. It
+  contains sequential RGA batching, both RK3588 low-voltage workarounds,
+  config/parse-error reporting, cache-line shadow pages, request/fence and
+  IOMMU/register corrections, the RKVENC2 multi-slice terminal-error fix, and
+  the existing AV1/VSI-IOMMU/shared-domain/RCB series. The production config
+  enables `ROCKCHIP_MPP_SERVICE`, `ROCKCHIP_MPP_RKVENC2`,
+  `ROCKCHIP_MPP_RKVDEC2`, `ROCKCHIP_MPP_AV1DEC`, `ROCKCHIP_MULTI_RGA`,
+  `ROCKCHIP_IOMMU`, and `VSI_IOMMU`.
+- Signed the `.dsc`, source `.buildinfo`, and source `.changes` with key
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. Direct verification reported a
+  good EDDSA signature from `Yi Ding <yi.s.ding@gmail.com>`.
+- Final SHA-256 upload set:
+  - orig tarball: `85852d5cb9f31ccb464ea8346333b4ba252cc4427ed5ae9839afb2dd3313519e`;
+  - Debian tarball: `089486ad4c4de36786ed293c0a964db74b341a0590c34dd234ae5ce436bcb4b8`;
+  - signed `.dsc`: `0352de749acaea1955dc03eaab31f96cec6d8c9e8615d12b6e0d0fbbcd045b41`;
+  - signed source `.buildinfo`: `06bffff3b9f4b23d007e6c71d9005129a7cafb5eb8c7cc59a059e23e90123df6`;
+  - signed source `.changes`: `7ee408054748f01ad627d5a8eaafaacfbbe3236ef8b89c68bccce78139c5e6df`.
+- `dput` passed distribution, field, checksum, suite, source-only, and GPG
+  checks and uploaded all five artifacts to `ppa:yi-ding/ubuntu-rock-5b`.
+  Launchpad accepted upload `38666840` as source publication
+  [`18624245`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18624245)
+  and started arm64 build
+  [`33407351`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33407351)
+  on `bos03-arm64-097`. It was `Currently building` at
+  `2026-07-16T16:07:14-07:00`; the previous kernel source/binaries remain
+  Published until this replacement completes.
