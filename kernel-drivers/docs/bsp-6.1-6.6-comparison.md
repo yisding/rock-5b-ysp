@@ -193,6 +193,65 @@ IOMMU range and fails unsafe dma-buf mappings closed, which can supersede parts
 of the 5.10 reject-only implementation while leaving other cache-line and
 prefetch fixes applicable.
 
+## MPP and AV1 changes unique to 5.10
+
+The same subject-and-source comparison found only three MPP commits on 5.10
+without a counterpart on either 6.1 or 6.6. Only one is a missing RK3588
+runtime fix:
+
+| 5.10 commit | Difference | RK3588 forward-port result |
+|-------------|------------|----------------------------|
+| `40b88680bb93` | Treat an RKVENC2 error interrupt as the last slice so a multi-slice encode cannot wait forever; use the full non-VEPU510 reset sequence and a realistic reset-poll timeout | Applicable and ported locally as `8d78edbe910c` |
+| `576620f372f9` | Detach the previous shared IOMMU domain before attaching a different one | Already superseded: the forward port tracks the previous IOMMU owner, publishes explicit encoder/decoder CCU shared domains, detaches old shared domains, verifies fixed RCB windows, and fails unsafe reuse closed |
+| `e06ea0131423` | Avoid an unnecessary GRF operation in the legacy VDPU1 backend | Not applicable to the Rock 5B RKVDEC2/VDPU383 path |
+
+The encoder hang fix is small but significant. On an error during a split
+encode, older code can leave the job waiting for another slice IRQ that will
+never arrive. The port preserves the separate VEPU510 IRQ path while applying
+the fix to the RK3588 RKVENC2 backend.
+
+### Why the extra 5.10 AV1 code is not a newer feature
+
+`develop-5.10` has 180 lines in `mpp_av1dec.c` that are absent from both 6.1
+and 6.6. They implement a private `av1dec_bus`, manually create an
+`av1d-master` platform device, and explicitly register the BSP-private AV1 IOMMU
+driver. This is older kernel integration scaffolding, not a decoder enhancement.
+
+Rockchip deliberately removed it while adapting AV1 to 6.1 in `0e31084baa89`,
+then added the normal IOMMU provider in `2349ea26cbe4`. The 6.1 and 6.6 AV1
+decoder files are byte-identical at the compared tips. The 6.18 forward port
+goes further: it uses a standard `vsi-iommu` provider with normal DT probe
+ordering, per-domain page tables, identity/paging-domain transitions,
+runtime-PM-aware attach and TLB handling, and provider-local fault callbacks.
+Reintroducing the 5.10 private bus would regress that design.
+
+The AV1 audit therefore found no 5.10-only decoder fix to port. The useful AV1
+changes are already forward-port-local hardening: register-request validation,
+safe split-request accounting, one-time FD translation per valid register
+class, spurious-IRQ guards, AFBC IRQ ownership, and the modern VSI IOMMU
+integration documented in
+[`av1-bsp-audit.md`](../av1/docs/av1-bsp-audit.md).
+
+## 5.10 reconciliation status
+
+As of 2026-07-16, the local `rkvenc-fwport-6.18` worktree has 21 focused commits
+on top of the published AV1/IOMMU series at `18fae9957686`:
+
+- RK3588 RGA low-voltage clock/reset workarounds;
+- sequential hardware batching and its master/slave transition fix;
+- request/fence lifetime fixes;
+- IOMMU prefetch, unaligned-userptr shadow-page, mapping-size, and lookup-error
+  fixes;
+- applicable scale, interrupt, tile, rotation, and CSC parameter fixes; and
+- the RKVENC2 multi-slice error-hang fix above.
+
+The combined ARM64 build of `vsi-iommu`, MPP, and RGA3 passes at local commit
+`8d78edbe910c`. Features that only advertise RK3538/RK3572 or RGA2P
+capabilities—RKCFA, secure access, full-CSC 10-bit, and most AFBC32x8/format
+expansions—were not copied into the RK3588 RGA2E/RGA3 target without a matching
+hardware capability entry. The local kernel commits are not part of the
+published YSP patch series yet.
+
 ## Baseline forward port vs each BSP
 
 The baseline import remains overwhelmingly a 6.1-derived driver. Focused

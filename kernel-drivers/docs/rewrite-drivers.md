@@ -130,13 +130,14 @@ nodes* as the forward-port: `rockchip,rkv-encoder-v2-core`,
 the RGA2/RGA3 compatibles incl. the mainline `rockchip,rk3588-rga`
 (`rga_rewrite.c:16336-16344`).
 
-Important codec boundary: neither the forward-port nor the MPP rewrite currently
-exposes RK3588 AV1 through `/dev/mpp_service`. AV1 lives on a separate
+Important codec boundary: the MPP rewrite and the shipped base forward-port do
+not expose RK3588 AV1 through `/dev/mpp_service`. AV1 lives on a separate
 Verisilicon/VPU981 hardware block, with a separate BSP `mpp_av1dec.c` backend and
-a dedicated AV1 IOMMU. The newer upstream-style `../kernel/linux` tree has a clean
-`vsi-iommu` provider and Hantro/V4L2 stateless AV1 support, but that is not the
-same userspace ABI as RKMPP. See [RK3588 AV1 decode, IOMMU, and userspace
-paths](../av1/docs/av1-rk3588.md).
+a dedicated AV1 IOMMU. The AV1-capable `rkvenc-fwport-6.18` variant now carries
+that RKMPP backend on top of a clean `vsi-iommu` provider and has decoded AV1
+bit-exact on hardware; the rewrite still does not bind this block. The separate
+Hantro/V4L2 stateless AV1 path is not the same userspace ABI as RKMPP. See
+[RK3588 AV1 decode, IOMMU, and userspace paths](../av1/docs/av1-rk3588.md).
 
 The codec line is intentionally narrower than the names that FFmpeg and
 GStreamer can advertise. `ffmpeg-rockchip` registers AV1, H.263, H.264, HEVC,
@@ -441,21 +442,24 @@ same bit 6, submits the flagged task array as one ordered hardware command
 batch, and leaves unflagged tasks independently schedulable. Its follow-up
 `0c1499fbace4` fixes slave-mode execution after master mode.
 
-Neither current 6.18 implementation exactly matches that contract:
+At the published pins, neither 6.18 implementation exactly matches that
+contract; the later local reconciliation branch does:
 
 | Driver | Default job | `IM_JOB_FLAGS_EXEC_SEQUENTIAL` job |
 |--------|-------------|------------------------------------|
 | BSP 6.1 `b4ef083dc0c3` / BSP 6.6 `1ba51b059f25` | fans every task out as an independent `rga_job` | still fans out; the bit is stored but never interpreted |
 | Rockchip 5.10 `bfa51d2ab081` | fans unflagged tasks out independently | one ordered hardware command batch |
 | Forward-port `18fae9957686` | fans every task out as an independent `rga_job` | still fans out; its header does not define bit 6 and regular request commit never interprets it |
+| Reconciled local forward port `8d78edbe910c` | fans unflagged tasks out independently | one ordered hardware command batch, including the required master/slave follow-up |
 | Rewrite `563f329dd8c4` | executes tasks serially through `current_task` | also executes serially, so dependency ordering happens to be correct |
 
-The forward port favors the performance semantics of an independent batch but
-can violate the new dependency flag. The rewrite favors safe ordering but does
-not honor the performance distinction for an unflagged independent batch.
-Storing the request flags without using bit 6 is not full ABI behavior in either
-direction. This is a BSP-carried compatibility bug rather than a regression
-introduced by the forward port. See
+The published forward-port pin favors the performance semantics of an
+independent batch but can violate the new dependency flag; the reconciled local
+branch fixes that mismatch. The rewrite favors safe ordering but does not honor
+the performance distinction for an unflagged independent batch. Storing the
+request flags without using bit 6 is not full ABI behavior in either direction.
+This is a BSP-carried compatibility bug rather than a regression introduced by
+the forward port. See
 [the three-branch BSP comparison](./bsp-6.1-6.6-comparison.md#why-rockchip-510-is-the-newest-rga-donor)
 for the larger set of 5.10-only RGA changes and the recommended port order.
 

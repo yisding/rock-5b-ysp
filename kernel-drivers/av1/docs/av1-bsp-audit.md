@@ -22,7 +22,7 @@ tracked separately in [the forward-port review log](../../../kernel-versions/doc
 | Branch | `rkvenc-fwport-6.18` |
 | Primary BSP file | `drivers/video/rockchip/mpp/mpp_av1dec.c` |
 | Imported IOMMU provider | `drivers/iommu/vsi-iommu.c` from `../kernel/linux`, not the BSP private `rockchip-iommu-av1d.c` path |
-| Audit date | 2026-07-03 |
+| Audit date | 2026-07-03, with 5.10/6.1/6.6 lineage comparison updated 2026-07-16 |
 
 Line numbers below are against the experimental AV1 worktree after the first
 forward-port hardening pass. The "donor anchor" column names the original BSP
@@ -149,6 +149,22 @@ upstream-style Verisilicon IOMMU provider rather than forward-porting the BSP's
 private `third_iommu_ops_wrap` / `rockchip-iommu-av1d.c` integration. They are
 tracked here because they are required for the AV1 experiment to be supportable
 and because a failure there would present as an AV1 decoder bring-up bug.
+
+### 5.10, 6.1, and 6.6 AV1 lineage
+
+The 6.1 and 6.6 `mpp_av1dec.c` blobs are identical at the compared official
+branch tips. The 5.10 file has 180 additional integration lines, but those lines
+are the older private-bus model: they register `av1dec_bus`, create an
+`av1d-master` platform device manually, and register the private AV1 IOMMU
+driver from the decoder lifecycle. They do not add an AV1 decode mode, register
+format, scheduling rule, or error-recovery fix.
+
+Rockchip's `0e31084baa89` kernel-6.1 adaptation removes that private bus and the
+old `mpp_iommu_av1d.c`; `2349ea26cbe4` adds the normal 6.1 AV1 IOMMU provider.
+The forward port uses the still cleaner 6.18 `vsi-iommu` integration and normal
+device-tree supplier/consumer ordering. Consequently the 5.10-only AV1 delta
+is intentionally not ported. It is superseded kernel plumbing rather than a
+missing BSP feature.
 
 The second adversarial review also found broader forward-port debt that is not
 an original BSP bug. The Rockchip IOMMU item below was fixed after that review
