@@ -433,18 +433,31 @@ developer guide tells applications with task-to-task dependencies to pass that
 flag to `imbeginJob()` so the tasks execute in order. That implies the default
 job may contain independent tasks that are safe to overlap.
 
-Neither 6.18 implementation exactly matches that current contract:
+The original 6.1 and 6.6 BSP drivers do not implement the bit either. Rockchip
+added the first implementation found in this audit later on `develop-5.10`, in
+`02e0554b1e66` (`video: rockchip: rga3: support hardware batching`). That
+implementation defines kernel-side `RGA_REQUEST_FLAGS_EXEC_SEQUENTIAL` as the
+same bit 6, submits the flagged task array as one ordered hardware command
+batch, and leaves unflagged tasks independently schedulable. Its follow-up
+`0c1499fbace4` fixes slave-mode execution after master mode.
+
+Neither current 6.18 implementation exactly matches that contract:
 
 | Driver | Default job | `IM_JOB_FLAGS_EXEC_SEQUENTIAL` job |
 |--------|-------------|------------------------------------|
-| Forward-port oracle `e059aad8d68b` | fans every task out as an independent `rga_job` | still fans out; its header does not define bit 6 and regular request commit never interprets it |
+| BSP 6.1 `b4ef083dc0c3` / BSP 6.6 `1ba51b059f25` | fans every task out as an independent `rga_job` | still fans out; the bit is stored but never interpreted |
+| Rockchip 5.10 `bfa51d2ab081` | fans unflagged tasks out independently | one ordered hardware command batch |
+| Forward-port `18fae9957686` | fans every task out as an independent `rga_job` | still fans out; its header does not define bit 6 and regular request commit never interprets it |
 | Rewrite `563f329dd8c4` | executes tasks serially through `current_task` | also executes serially, so dependency ordering happens to be correct |
 
 The forward port favors the performance semantics of an independent batch but
 can violate the new dependency flag. The rewrite favors safe ordering but does
 not honor the performance distinction for an unflagged independent batch.
 Storing the request flags without using bit 6 is not full ABI behavior in either
-direction.
+direction. This is a BSP-carried compatibility bug rather than a regression
+introduced by the forward port. See
+[the three-branch BSP comparison](./bsp-6.1-6.6-comparison.md#why-rockchip-510-is-the-newest-rga-donor)
+for the larger set of 5.10-only RGA changes and the recommended port order.
 
 #### When the difference can matter
 

@@ -446,12 +446,17 @@ and left/right copy phases. Drawing helpers such as `imfillTaskArray`,
 `imrectangleTaskArray`, and `immosaicTaskArray` also expand arrays into several
 tasks in one request.
 
-The 6.18 forward port and rewrite implement opposite conservative halves of
-this newer flag contract. The forward port schedules every task independently
-and does not interpret the sequential bit; the rewrite executes every request's
-task array serially, whether or not the bit is set. Normal FFmpeg/GStreamer and
-ordinary IM2D calls are unaffected because they submit one task per request,
-and separate async requests remain eligible on different cores. See
+The 6.1/6.6 BSP drivers and the 6.18 forward port schedule every task
+independently and do not interpret the sequential bit. This is inherited BSP
+behavior, not a forward-port regression. Rockchip implemented the current
+contract later on `develop-5.10`: `02e0554b1e66` batches flagged tasks into one
+ordered hardware command stream while preserving independent fan-out for an
+unflagged job; `0c1499fbace4` supplies the required master/slave follow-up fix.
+The rewrite takes the opposite conservative position and executes every
+request's task array serially, whether or not the bit is set. Normal
+FFmpeg/GStreamer and ordinary IM2D calls are unaffected because they submit one
+task per request, and separate async requests remain eligible on different
+cores. See
 [rewrite-driver track](../../kernel-drivers/docs/rewrite-drivers.md#multi-task-request-model)
 for the exact execution shapes, current-consumer survey, and performance
 boundary.

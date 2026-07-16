@@ -1,28 +1,34 @@
-# Forward port vs Rockchip 6.1 and 6.6 BSP media drivers
+# Forward port vs Rockchip 5.10, 6.1 and 6.6 BSP media drivers
 
 Direct source comparison of the RK3588 MPP and RGA driver lineages. This note
-answers two separate questions that are easy to conflate:
+answers three separate questions that are easy to conflate:
 
 1. how much the original Linux 6.18 forward port changed its Rockchip donor;
 2. whether Rockchip's `develop-6.6` branch contains a materially newer media
-   architecture than `develop-6.1`.
+   architecture than `develop-6.1`; and
+3. whether the numerically older `develop-5.10` branch contains later vendor
+   driver work that never reached either newer-kernel branch.
 
 > **Result.** The original forward port is a narrowly adapted copy of the 6.1
 > BSP implementation, not a redesign. Rockchip's 6.6 MPP/RGA stack has the same
 > architecture and the same public ioctl headers. Its MPP implementation differs
 > from 6.1 by only 36 edited lines. RGA differs more, but primarily because the
 > current 6.1 branch contains later 2025 fixes that never reached the older 6.6
-> snapshot. The newer AV1/IOMMU forward-port branch adds significant mapping,
-> shared-domain, fault-recovery, and buffer-validation work, while retaining the
-> BSP task, scheduler, and register-generation model.
+> snapshot. Conversely, Rockchip continued developing RGA on `develop-5.10`
+> through June 2026. That branch contains sequential hardware batching,
+> RK3588 low-voltage workarounds, memory/IOMMU fixes, and format support absent
+> from both 6.1 and 6.6. The newer AV1/IOMMU forward-port branch adds significant
+> mapping, shared-domain, fault-recovery, and buffer-validation work, while
+> retaining the BSP task, scheduler, and register-generation model.
 
 ## Compared revisions
 
-The two Rockchip branch tips were verified against the official remote with
+The three Rockchip branch tips were verified against the official remote with
 `git ls-remote` on 2026-07-16.
 
 | Name | Revision | Role |
 |------|----------|------|
+| Rockchip 5.10 BSP | `rockchip-linux/kernel develop-5.10@bfa51d2ab08140d1309afc9a9fe0fc2878cee35a` | Numerically older kernel branch, but the newest RGA donor examined here |
 | Rockchip 6.1 BSP | `rockchip-linux/kernel develop-6.1@b4ef083dc0c3608e744deabb43dc6b781aadbe6e` | Original MPP/RGA donor and byte-level oracle |
 | Rockchip 6.6 BSP | `rockchip-linux/kernel develop-6.6@1ba51b059f25533c5529b7f68186190b47d6a7b3` | Vendor 6.6 comparison snapshot |
 | Baseline forward-port import | `linux-rock5b@924f4232546d` | The non-AV1 driver import represented by `patches/rk3588-rkvenc2-01-...patch` |
@@ -45,7 +51,8 @@ The official branch identities can be rechecked with:
 
 ```sh
 git ls-remote https://github.com/rockchip-linux/kernel.git \
-    refs/heads/develop-6.1 refs/heads/develop-6.6
+    refs/heads/develop-5.10 refs/heads/develop-6.1 \
+    refs/heads/develop-6.6
 ```
 
 The direct BSP comparison was measured with:
@@ -126,6 +133,66 @@ pressure. Ordinary dma-buf blits still pass through the same global
 `rga_drvdata`, policy scheduler, memory manager, backend vtable, and RGA2/RGA3
 register emitters.
 
+## Why Rockchip 5.10 is the newest RGA donor
+
+Linux 5.10 is an older upstream kernel than Linux 6.1 or 6.6, but Rockchip's
+vendor branches are maintained independently. The official branch tips make
+the inversion concrete: `develop-6.6` stops in September 2025,
+`develop-6.1` contains RGA work through December 2025, and `develop-5.10`
+contains RGA work through June 2026.
+
+A direct `develop-6.1..develop-5.10` RGA tree diff changes 20 files with 2,561
+additions and 690 deletions. Those raw counts include branch-specific kernel-API
+adaptation and are not a safe cherry-pick list. Comparing commit subjects and
+then checking the resulting source found 46 RGA commits from 2025-2026 with no
+same-subject counterpart in either 6.1 or 6.6. The major source-visible gaps
+are:
+
+| Area | 5.10-only work relevant to the comparison |
+|------|--------------------------------------------|
+| RK3588 reliability | Enable RGA3 `logic_clk_on` under low voltage (`561aab30f22b`); disable RGA2 `auto_rst` because it causes low-voltage timeouts (`718fad971319`) |
+| Multi-task execution | Hardware command batching for sequential jobs (`02e0554b1e66`) and the required slave-mode-after-master-mode fix (`0c1499fbace4`) |
+| Request lifecycle | Fix a failed multi-task-submit request leak (`3727985456c1`) and the acquire-fence callback race when the fence becomes signaled during installation (`f7643d9a9d22`) |
+| Memory/IOMMU safety | Bound IOMMU prefetch correctly (`e78e66240ba6`); handle cache-line-unaligned user VAs with shadow pages (`a4afb82d881c`, `6a74aeec3409`, `31aa12084e3b`); reject discontinuous DMA IOVAs (`f2f903866ece`) |
+| Formats and processing | RKCFA, secure access, Y1, RGBA/BGRA5551/4444 input, RGBA1010102/YUV101010, and full-CSC 10-bit |
+| AFBC32x8 | Expanded YUV/src1 input, output, non-block-aligned overlay, src1-only correction, and compressed color fill support |
+| Register/parameter fixes | Scale guards, MPI 90/270 output handling, tile4x4 base programming, slave-mode bounds checks, and CSC bit definitions |
+| Additional SoCs | RK3538 and RK3572 hardware descriptions; useful to a general sync, but not needed for RK3588 |
+
+### Sequential request semantics
+
+Current librga names request bit 6 `IM_JOB_FLAGS_EXEC_SEQUENTIAL`. The 6.1 and
+6.6 drivers store that bit in `request->flags` but never interpret it:
+`rga_request_commit()` fans every task out as an independent `rga_job`, so
+different cores can execute dependent tasks concurrently. The original 6.18
+forward port faithfully inherited that behavior; it is not a forward-port
+regression, but it is a compatibility bug against current librga.
+
+Rockchip fixed the contract on `develop-5.10` in `02e0554b1e66`. Its kernel
+header calls the same bit `RGA_REQUEST_FLAGS_EXEC_SEQUENTIAL`. A flagged request
+becomes one multi-command hardware job and runs in command order; an unflagged
+request retains the older independent per-task fan-out. The follow-up
+`0c1499fbace4` is part of the functional unit because it restores correct
+single-command slave-mode execution after hardware master mode has run.
+
+### Forward-port implications
+
+The 5.10 tree should be treated as a third donor, not copied wholesale. For the
+RK3588 forward port, review changes in this order:
+
+1. the two RK3588 low-voltage clock/reset workarounds;
+2. request-leak and acquire-fence lifecycle fixes;
+3. hardware batching together with its master/slave follow-up;
+4. memory/IOMMU fixes compared semantically with the forward port's newer
+   contiguous userptr mapping and 32-bit span hardening; and
+5. formats only when current librga or a real consumer requires them.
+
+The fourth item especially must not be a blind cherry-pick. The 6.18 forward
+port already maps scattered driver-owned userptr sg-tables into a contiguous
+IOMMU range and fails unsafe dma-buf mappings closed, which can supersede parts
+of the 5.10 reject-only implementation while leaving other cache-line and
+prefetch fixes applicable.
+
 ## Baseline forward port vs each BSP
 
 The baseline import remains overwhelmingly a 6.1-derived driver. Focused
@@ -186,8 +253,9 @@ nonblocking generic and encoder-slice polling with `-EAGAIN`. It advertises
 no-op path; the rewrite is stricter and explicitly validates then discards its
 payload.
 
-RGA's public `rga.h` remains byte-identical to both BSP branches, and its RGA2
-and RGA3 command emitters remain the 6.1 implementations. The current RGA
+RGA's public `rga.h` remains byte-identical to the 6.1 and 6.6 BSP branches,
+but it predates the request flag and formats added on 5.10. Its RGA2 and RGA3
+command emitters remain the 6.1 implementations. The current RGA
 changes concentrate in DMA/IOMMU mapping, fault handling, and address safety.
 
 ## Significance
@@ -197,11 +265,14 @@ changes concentrate in DMA/IOMMU mapping, fault handling, and address safety.
 | Is the forward port a rewritten MPP/RGA architecture? | **No.** It retains the vendor service, taskqueue, policy, memory-manager, backend, and register-emission design. |
 | Is Rockchip 6.6 a newer media architecture than 6.1? | **No.** The ABI and object model are the same. |
 | Is 6.6 the better donor merely because its kernel is newer? | **No.** Its media snapshot misses later fixes present on `develop-6.1`. |
+| Is 5.10 the newer kernel series? | **No**, but its RGA snapshot is newer and contains material fixes/features absent from both newer-kernel branches. |
+| Does the original BSP/forward-port implement librga's sequential flag? | **No.** The first examined implementation is the later 5.10 hardware-batching series. |
 | Are there meaningful runtime differences? | **Yes**, in watchdog timing, special RGA formats/imports, command-buffer allocation, IOMMU topology, fault recovery, and AV1 scope. |
 | Will ordinary H.264/H.265 and common dma-buf RGA jobs use different codec/image algorithms? | **Generally no.** The userspace register recipes and vendor command generators remain the same lineage. |
 
-For resync work, use the pinned 6.1 tree as the byte-lineage oracle, use 6.6 as
-an additional kernel-API/reference snapshot, and review the current
-forward-port hardening as a separate local series. Replacing the donor with the
-6.6 media subtree wholesale would regress the later 6.1 RGA fixes without
-providing a new architecture.
+For resync work, use the pinned 6.1 tree as the byte-lineage oracle, 6.6 as an
+additional kernel-API/reference snapshot, and the newer 5.10 RGA commits as a
+feature/fix donor. Review the current forward-port hardening as a separate local
+series. Replacing the donor wholesale with either 6.6 or 5.10 would respectively
+regress later fixes or discard 6.18-specific safety work; the correct target is
+a semantic superset of all three.
