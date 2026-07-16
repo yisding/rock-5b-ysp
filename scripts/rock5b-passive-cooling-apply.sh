@@ -34,8 +34,8 @@ saved NVMe HCTM value for rock5b-passive-cooling-revert.sh.
 
 Profile:
   * NVMe HCTM light/strong thresholds: 65 C / 68 C (saved by the controller)
-  * cool CPU ceilings: A55 1.416 GHz, A76 1.608 GHz
-  * progressively lower all CPU ceilings at 60, 65, 70, 75, 80, and 85 C
+  * stock CPU ceilings remain available below 65 C
+  * progressively lower CPU ceilings at 65, 70, 75, 80, 85, 90, and 95 C
   * restore every cpufreq policy's minimum to its hardware minimum
 
 Options:
@@ -292,17 +292,19 @@ choose_frequency() {
 temperature_level() {
     local temperature="$1"
 
-    if ((temperature >= 85000)); then
+    if ((temperature >= 95000)); then
+        printf '7\n'
+    elif ((temperature >= 90000)); then
         printf '6\n'
-    elif ((temperature >= 80000)); then
+    elif ((temperature >= 85000)); then
         printf '5\n'
-    elif ((temperature >= 75000)); then
+    elif ((temperature >= 80000)); then
         printf '4\n'
-    elif ((temperature >= 70000)); then
+    elif ((temperature >= 75000)); then
         printf '3\n'
-    elif ((temperature >= 65000)); then
+    elif ((temperature >= 70000)); then
         printf '2\n'
-    elif ((temperature >= 60000)); then
+    elif ((temperature >= 65000)); then
         printf '1\n'
     else
         printf '0\n'
@@ -312,23 +314,35 @@ temperature_level() {
 requested_cap() {
     local hardware_max="$1"
     local level="$2"
+    local little=0
 
-    case "$level" in
-        0)
-            if ((hardware_max <= 1800000)); then
-                printf '1416000\n'
-            else
-                printf '1608000\n'
-            fi
-            ;;
-        1) printf '1416000\n' ;;
-        2) printf '1200000\n' ;;
-        3) printf '1008000\n' ;;
-        4) printf '816000\n' ;;
-        5) printf '600000\n' ;;
-        6) printf '408000\n' ;;
-        *) die "invalid thermal level: $level" ;;
-    esac
+    ((hardware_max <= 1800000)) && little=1
+
+    if ((little == 1)); then
+        case "$level" in
+            0) printf '%s\n' "$hardware_max" ;;
+            1) printf '1608000\n' ;;
+            2) printf '1416000\n' ;;
+            3) printf '1200000\n' ;;
+            4) printf '1008000\n' ;;
+            5) printf '816000\n' ;;
+            6) printf '600000\n' ;;
+            7) printf '408000\n' ;;
+            *) die "invalid thermal level: $level" ;;
+        esac
+    else
+        case "$level" in
+            0) printf '%s\n' "$hardware_max" ;;
+            1) printf '2208000\n' ;;
+            2) printf '2016000\n' ;;
+            3) printf '1800000\n' ;;
+            4) printf '1608000\n' ;;
+            5) printf '1416000\n' ;;
+            6) printf '1200000\n' ;;
+            7) printf '816000\n' ;;
+            *) die "invalid thermal level: $level" ;;
+        esac
+    fi
 }
 
 apply_cpu_level() {

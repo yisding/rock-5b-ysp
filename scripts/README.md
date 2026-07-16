@@ -38,13 +38,14 @@ userspace policy while that device-tree policy remains in place:
 
 | SoC temperature | A55 ceiling | A76 ceiling |
 |-----------------|-------------|-------------|
-| below 60 C | 1.416 GHz | 1.608 GHz |
-| 60-64 C | 1.416 GHz | 1.416 GHz |
-| 65-69 C | 1.200 GHz | 1.200 GHz |
-| 70-74 C | 1.008 GHz | 1.008 GHz |
-| 75-79 C | 816 MHz | 816 MHz |
-| 80-84 C | 600 MHz | 600 MHz |
-| 85 C or higher | 408 MHz | 408 MHz |
+| below 65 C | 1.800 GHz | 2.400 GHz |
+| 65-69 C | 1.608 GHz | 2.208 GHz |
+| 70-74 C | 1.416 GHz | 2.016 GHz |
+| 75-79 C | 1.200 GHz | 1.800 GHz |
+| 80-84 C | 1.008 GHz | 1.608 GHz |
+| 85-89 C | 816 MHz | 1.416 GHz |
+| 90-94 C | 600 MHz | 1.200 GHz |
+| 95 C or higher | 408 MHz | 816 MHz |
 
 The script also restores every cpufreq minimum to its hardware minimum and
 sets the NVMe Host Controlled Thermal Management thresholds to 65 C (light)
