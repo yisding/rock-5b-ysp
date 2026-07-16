@@ -4,8 +4,8 @@ How to build [`ffmpeg-rockchip`](https://github.com/nyanmisaka/ffmpeg-rockchip)
 against the vendor **MPP** + **RGA** libraries so you get `h264_rkmpp` /
 `hevc_rkmpp` HW decode+encode and the `scale_rkrga` filter.
 
-Project vocabulary (incl. `ffmpeg-rockchip` upstream vs the `ffmpeg-rockchip-81`
-8.1.2 port): [`keywords.md`](keywords.md).
+Project vocabulary (including the master-era `ffmpeg-rockchip-81/main` replay
+and its separate real 8.1.2 release branch): [`keywords.md`](keywords.md).
 
 ## Package brief
 
@@ -15,7 +15,7 @@ Project vocabulary (incl. `ffmpeg-rockchip` upstream vs the `ffmpeg-rockchip-81`
 | Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
 | Owns | The FFmpeg build recipe, companion docs in [`docs/`](docs/how-ffmpeg-works.md), pkg-config examples, and exported patch series in [`patches/`](patches/README.md). |
 | Depends on | Working kernel nodes from [`kernel-drivers/README.md`](../../kernel-drivers/README.md), staged or packaged libraries from [`vendor-libraries/README.md`](../../vendor-libraries/README.md), and the codec udev rule for non-root use. |
-| Current state | The original `ffmpeg-rockchip` build path is hardware-validated. `ffmpeg-rockchip-81` main at `be367abfe6` builds, passes focused codec-registration FATE, and is published for arm64 in the dedicated `rock5b-ffmpeg81-rockchip` PPA; the normal system PPA carries the ABI-compatible 8.0.3 port. Broader feature/encode/RGA-smoke validation was recorded at the earlier `75638e7f0b17` snapshot. See [`status.md`](../../status.md). |
+| Current state | The original `ffmpeg-rockchip` build path is hardware-validated. Master-era `ffmpeg-rockchip-81/main` at `be367abfe6` builds, passes focused codec-registration FATE, and is published for arm64 in the dedicated `rock5b-ffmpeg81-rockchip` PPA; the normal system PPA carries the ABI-compatible 8.0.3 port. A separate real 8.1.2 replay now exists locally as `rockchip-8.1.2@53b3551b9176`; its comparison against Jellyfin is compile-validated but not hardware-validated. Broader feature/encode/RGA-smoke validation was recorded at the earlier `75638e7f0b17` snapshot. See [`status.md`](../../status.md). |
 
 ## Files
 
@@ -27,7 +27,8 @@ Project vocabulary (incl. `ffmpeg-rockchip` upstream vs the `ffmpeg-rockchip-81`
 | [`docs/review-learnings.md`](docs/review-learnings.md) | Reusable review traps from hardening the `ffmpeg-rockchip-81` rebase: V4L2 fallback, RKMPP AFBC/DRM, and RKRGA capability. |
 | [`docs/rebase-notes.md`](docs/rebase-notes.md) | Tree pins reconciled, how the fork was replayed onto FFmpeg master, and the submission ledger. |
 | [`docs/rockchip81-package-validation.md`](docs/rockchip81-package-validation.md) | Local package build and on-board RKMPP/RKRGA smoke validation, including the incomplete-MPP-runtime decode failure. |
-| [`docs/jellyfin-ffmpeg-patch-survey.md`](docs/jellyfin-ffmpeg-patch-survey.md) | 2026-07-11 comparison against Jellyfin FFmpeg 8.1.2: Rockchip sync status, correctness patches to apply directly, and sidecar-only patches. |
+| [`docs/jellyfin-ffmpeg-patch-survey.md`](docs/jellyfin-ffmpeg-patch-survey.md) | 2026-07-11 Jellyfin packaging/patch-queue survey: Rockchip sync status, correctness patches to apply directly, and sidecar-only patches. |
+| [`docs/rockchip-812-jellyfin-comparison.md`](docs/rockchip-812-jellyfin-comparison.md) | 2026-07-16 same-base source and compile comparison: the real FFmpeg 8.1.2 Rockchip replay vs Jellyfin's fully applied 8.1.2 patch queue, including unique features, hazards, and porting recommendations. |
 | [`docs/submission-plan.md`](docs/submission-plan.md) | 2026-07-02 full-branch targeting: which of the ~35 logical patches go to nyanmisaka's fork, which to FFmpeg upstream, and which stay here. |
 | [`patches/`](patches/README.md) | The exported 28-patch `git format-patch` series behind fix-candidates + submission-plan (`.patch` files + apply instructions). |
 
@@ -41,12 +42,16 @@ librga fix.
 then the whole stack was rebased onto FFmpeg master and given 28 review-fix
 commits: **`github.com/yisding/ffmpeg-rockchip-81`** (nyanmisaka upstream:
 `github.com/nyanmisaka/ffmpeg-rockchip`). If you are building fresh today,
-prefer the rebased tree: it carries the documented fix groups
+prefer the rebased stack: it carries the documented fix groups
 ([`docs/fix-candidates.md`](docs/fix-candidates.md)), no longer needs
 `--disable-vulkan`, and is the tree behind the current package at main
-`be367abfe6`. The earlier `75638e7f0b17` snapshot remains the broader local
-package-validation point, while `6cf02ab253` remains the 28-patch
-review series captured under [`patches/`](patches/README.md).
+`be367abfe6`. That `main` is `n8.2-dev-2123`, not FFmpeg 8.1.x. For an actual
+8.1.2 ABI base, use local branch `rockchip-8.1.2@53b3551b9176` in worktree
+`/home/yi/Code/ffmpeg/ffmpeg-rockchip-812`; its ten core Rockchip files match
+`main`, while the surrounding integration is based on canonical `n8.1.2`.
+The earlier `75638e7f0b17` snapshot remains the broader local
+package-validation point, while `6cf02ab253` remains the 28-patch review series
+captured under [`patches/`](patches/README.md).
 
 This needs **no system install and no sudo to build** — everything goes into an
 isolated staging prefix; only *running* it needs device access (root, or the udev

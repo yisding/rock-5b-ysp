@@ -155,3 +155,38 @@ earlier five-item list). Update this table (with dates) when anything is sent;
 | NV20 alias restoration + fate-imgutils ref fix | nyanmisaka/ffmpeg-rockchip | no | — | Fixes API break / broken FATE ref that exist only in his tree. |
 | DRM descriptor validation frameworks + `afbc_offset_y` descriptor field | nyanmisaka/ffmpeg-rockchip | no | — | Design proposal, not a patch dump; needs his buy-in (public-struct change, behavior changes). |
 | `NV15`/`NV20_PACKED` pixel formats | FFmpeg upstream | no | — | Only viable as a full feature series (formats + swscale + tests), not as fixes. |
+
+## 7. The real FFmpeg 8.1.2 replay
+
+The repository name `ffmpeg-rockchip-81` became misleading as `main` advanced:
+as of 2026-07-16, `main@be367abfe670` describes itself as
+`n8.2-dev-2123-gbe367abfe6`. It is a master-era replay, not an FFmpeg 8.1.x
+branch.
+
+To obtain a same-base comparison with Jellyfin, canonical `n8.1.2`
+(`38b88335f99e`) was imported and the 65-commit `upstream..main` Rockchip stack
+was replayed onto it. The result is local branch
+`rockchip-8.1.2@53b3551b9176`, worktree
+`/home/yi/Code/ffmpeg/ffmpeg-rockchip-812`, described as
+`n8.1.2-63-g53b3551b91`. The existing `rockchip-8.0@463f542c3259` checkout and
+its untracked build outputs were left untouched.
+
+Two source commits did not become commits on the release branch:
+
+- the `hwcontext_drm` preparation was already present on 8.1.2 and became
+  empty;
+- the fork-wide README replacement conflicted and was omitted as non-code
+  documentation.
+
+The first RKMPP replacement conflict preserved 8.1.2's OMX registration while
+removing the small upstream RKMPP implementation. The V4L2 multi-planar changes
+were translated onto 8.1.2 APIs, and the public libavutil change was versioned
+as `60.27.100` rather than copying master's `61.3.100`. The resulting branch is
+63 commits above `n8.1.2` and changes 37 files (+9,507/-991). Its ten core
+RKMPP/RKRGA/hwcontext files are byte-for-byte identical to current `main`.
+
+Both this branch and Jellyfin's effective 8.1.2 source compiled through the
+core Rockchip, registration, and public pixel-format objects. This was not a
+hardware test. The complete same-base comparison and the Jellyfin features to
+port are in
+[`rockchip-812-jellyfin-comparison.md`](rockchip-812-jellyfin-comparison.md).

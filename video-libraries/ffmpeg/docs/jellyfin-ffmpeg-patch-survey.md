@@ -2,6 +2,18 @@
 
 Date: 2026-07-11
 
+> **2026-07-16 follow-up:** this document surveys Jellyfin's packaging delta and
+> generic patch policy at the older pins below. A later pass materialized all 96
+> Jellyfin patches at `455bfe539220`, created a real
+> `rockchip-8.1.2@53b3551b9176` release replay, and compared the effective source
+> trees directly. See
+> [`rockchip-812-jellyfin-comparison.md`](rockchip-812-jellyfin-comparison.md)
+> for the core line counts, validation/lifecycle differences, Jellyfin-only
+> DOVI/`reset_sar`/OpenCL/Vulkan features, API hazards, compile checks, and the
+> selective-port recommendation. The newer comparison supersedes the sentence
+> "No Jellyfin Rockchip-specific code needed to be imported" for feature parity;
+> that sentence remains correct only for the two sync fixes examined here.
+
 ## Source Points
 
 | Tree | Pin | Notes |
