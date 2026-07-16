@@ -413,16 +413,48 @@ zero-copy, same buffer as how-the-drivers-work.md §5:
 (in `im2d_api/src/im2d.cpp`); reusing the handle avoids re-importing per op.
 
 **Batching (jobs).** Submitting one op per ioctl has per-call overhead. IM2D's
-**job** API (`im2d_api/src/im2d_job.cpp`) batches several ops:
+explicit **Task API** (`im2d_api/im2d_task.h`, implemented by
+`im2d_api/src/im2d.cpp` and `im2d_impl.cpp`) can batch several ops:
 
 ```c
 im_job_handle_t job = imbeginJob();
-imresizeTask(job, src, mid);
-imcvtcolorTask(job, mid, dst, ...);
-imendJob(job);     // one submission for the whole chain (imcancelJob to drop it)
+imresizeTask(job, src_a, dst_a);  // independent unless buffers overlap
+imresizeTask(job, src_b, dst_b);
+imendJob(job);                     // one request containing two tasks
 ```
 
-`improcess` itself uses this internally (`imbeginJob` → configure → `imendJob`).
+The pinned current source does **not** put ordinary `improcess`, `imresize`,
+`imcvtcolor`, and similar single-operation calls through this batch API. They
+call `rga_single_task_submit()` and issue one sync/async operation. A positive
+job handle is what makes `rga_task_submit()` append to `job->req[]`; `imendJob()`
+then passes the accumulated `task_count` to `RGA_IOC_REQUEST_SUBMIT`.
+
+Ordering is a separate part of the current contract. librga 2.2.10 defines
+`IM_JOB_FLAGS_EXEC_SEQUENTIAL` for tasks with dependencies:
+
+```c
+im_job_handle_t job = imbeginJob(IM_JOB_FLAGS_EXEC_SEQUENTIAL);
+imresizeTask(job, src, mid);
+imcvtcolorTask(job, mid, dst, ...);
+imendJob(job);                     // B must not start before A finishes
+```
+
+The library uses that flag internally for the LUT-update → CFA sequence in
+`imcfa()`. `immakeBorder()` is the other notable compound helper: it creates
+ordinary Task-API batches for independent constant-fill regions or top/bottom
+and left/right copy phases. Drawing helpers such as `imfillTaskArray`,
+`imrectangleTaskArray`, and `immosaicTaskArray` also expand arrays into several
+tasks in one request.
+
+The 6.18 forward port and rewrite implement opposite conservative halves of
+this newer flag contract. The forward port schedules every task independently
+and does not interpret the sequential bit; the rewrite executes every request's
+task array serially, whether or not the bit is set. Normal FFmpeg/GStreamer and
+ordinary IM2D calls are unaffected because they submit one task per request,
+and separate async requests remain eligible on different cores. See
+[rewrite-driver track](../../kernel-drivers/docs/rewrite-drivers.md#multi-task-request-model)
+for the exact execution shapes, current-consumer survey, and performance
+boundary.
 
 ---
 

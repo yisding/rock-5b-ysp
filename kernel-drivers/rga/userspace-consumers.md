@@ -22,6 +22,14 @@ mostly reuse the same two surfaces we already target:
 - legacy `c_RkRgaBlit()` paths over fd-backed or virtual buffers for
   scale/convert/rotate/copy into display, camera, or ML preprocessing buffers.
 
+The surveyed production consumers also submit these as individual operations;
+none made an explicit multi-operation `imbeginJob()`/`*Task()`/`imendJob()`
+batch its normal throughput path. Their useful parallelism is therefore between
+separate calls, frames, threads, or async fences, which both the forward port
+and rewrite can schedule across cores. The within-request parallelism difference
+is confined to explicit Task-API applications, librga compound helpers such as
+`immakeBorder()`, and task-array/drawing samples.
+
 That supports the current priority order: keep the rewrite strict around current
 `librga`/FFmpeg/GStreamer behavior, add optional conformance for representative
 external apps, and keep old raw/physical-address and RGA2-Pro/FBC tail behavior

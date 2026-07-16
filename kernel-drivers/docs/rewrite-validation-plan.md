@@ -130,6 +130,34 @@ scheduling claims can be checked directly in the conformance logs. This makes th
 harder to satisfy with a userspace-only pass that never reaches the rewrite
 hardware completion path.
 
+**RGA multi-task parallelism differential.** The current rewrite serializes
+tasks within one request, while preserving parallel execution between separate
+requests. That source-level distinction still needs one focused hardware A/B
+measurement against the forward port:
+
+1. Submit two equal, independent 4K RGA3-compatible copies or resizes in one
+   unflagged `imbeginJob()`/`imendJob()` request.
+2. Submit the same operations as two separate `IM_ASYNC` one-task requests.
+3. Repeat the single-request case with `IM_JOB_FLAGS_EXEC_SEQUENTIAL`, and add a
+   genuinely dependent `src -> tmp -> dst` chain as the correctness control.
+4. Record wall time, each release-fence completion time, output hashes, and the
+   per-core `started_rga3_core:*`, scheduled-job, completed-job, timeout, fault,
+   and IRQ-error counter deltas on both kernels.
+5. Repeat with small independent rectangle fills to separate hardware time from
+   mapping/IRQ/requeue overhead, and with large buffers to expose the DDR
+   bandwidth ceiling.
+
+Expected source-derived result: the forward port may overlap unflagged tasks in
+one request, whereas the rewrite will show only one task from that request
+active at a time. Both should overlap the two separate async requests, subject
+to core eligibility and load. The sequential/dependent control must preserve
+array order and bit-exact output; note that the current forward oracle stores
+but does not interpret librga's newer sequential bit, so that case may expose a
+forward-port correctness gap rather than a rewrite performance gap. Until this
+run exists, describe the current-stack impact as **probably immaterial for
+FFmpeg/GStreamer/ordinary IM2D calling shapes, but hardware-unmeasured for
+explicit independent Task-API batches**.
+
 - **RGA** is deterministic pixel math → expect **bit-exact** destination buffers.
   The in-repo `ysp_librga_smoke` path now writes destination dumps for direct
   im2d copy/resize/fill, dma-buf import/copy, RKNN/RKNPU-style

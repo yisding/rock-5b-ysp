@@ -338,6 +338,147 @@ one completion/release fence. This makes ordering and lifetime explicit, at the
 cost of less cross-core parallelism for independent tasks packed into one
 request.
 
+This is **per-request serialization**, not global RGA serialization. Three
+levels that userspace and the two drivers all call a "job" are worth separating:
+
+- an **operation/task** is one `struct rga_req` (for example one resize);
+- a userspace **request/job** is one `imbeginJob()` ... `imendJob()` container,
+  potentially holding several tasks;
+- a hardware **job** is the unit occupying one RGA core until an interrupt.
+
+For two independent tasks in one userspace request, the execution shapes are:
+
+```text
+Forward port                         Rewrite
+
+request {A, B}                       request {A, B}
+  A -> RGA3 core 0 ----+               A -> best core -> IRQ
+  B -> RGA3 core 1 ----+-> fence             |
+                                             +-> B -> best core -> IRQ -> fence
+```
+
+The rewrite can move task B to a different core after A finishes, but core
+mobility is not overlap. While A is active, however, a task from an unrelated
+request can run on another core:
+
+```text
+request 10, task A -> RGA3 core 0
+request 11, task X -> RGA3 core 1       (concurrent under either driver)
+request 10, task B -> selected only after A completes
+```
+
+The observable difference therefore depends on the userspace calling shape:
+
+| Calling shape | Forward port | Rewrite | Lost parallelism? |
+|---------------|--------------|---------|-------------------|
+| One task in one request | one hardware job | one hardware job | No |
+| Several separate async one-task requests | requests can occupy different cores | requests can occupy different cores | No |
+| Independent tasks packed into one request | one schedulable job per task | one task at a time from the parent job | Yes |
+| Dependent tasks packed into one request | can overlap in the 6.18 oracle | execute in array order | Rewrite ordering is desirable |
+| Tasks all forced to one core, or eligible on only one core | serialize at that core | serialize in the parent job | Usually no |
+
+#### Does the serialization match current userspace?
+
+For the current YSP media stack, mostly yes. The fixed librga tree
+`a6322179c944` uses `rga_single_task_submit()` for the ordinary `imresize`,
+`imcrop`, `imcvtcolor`, `improcess`, copy, rotate, blend, fill, mosaic, and
+related single-operation APIs (`im2d_api/src/im2d.cpp:935-1503,1553-1573`).
+With no positive job handle, `rga_task_submit()` issues one legacy sync/async
+ioctl; only the explicit Task API appends the generated `rga_req` to
+`job->req[]` and later sends `job->task_count` through
+`RGA_IOC_REQUEST_SUBMIT` (`im2d_api/src/im2d_impl.cpp:3028-3049,3192-3253`).
+
+The main current consumers have the same one-task-per-request shape:
+
+| Consumer | Kernel-visible submission shape | Where its parallelism comes from |
+|----------|---------------------------------|----------------------------------|
+| ffmpeg-rockchip `scale_rkrga`, `vpp_rkrga`, `overlay_rkrga` | one `c_RkRgaBlit()` per frame operation (`libavfilter/rkrga_common.c:1266-1300`) | separate async frame requests; default `async_depth=2`, configurable through 4 (`vf_vpp_rkrga.c:481`) |
+| JeffyCN GStreamer MPP conversion | one synchronous `c_RkRgaBlit()` per conversion (`gst/rockchipmpp/gstmpp.c:254`) | separate pipeline threads/instances, not a multi-task RGA request |
+| Ordinary IM2D applications and the surveyed RKNN/camera/display helpers | individual resize/convert/crop/blit calls | separate calls, threads, frames, or explicit async fences |
+| YSP's maintained multi-task smoke cases | rectangle-array and copy-chain jobs explicitly set `IM_JOB_FLAGS_EXEC_SEQUENTIAL` | serialization is requested; the copy chain is genuinely dependent and the rectangle case exercises the flag |
+
+FFmpeg is the most important practical example. It submits asynchronous frame
+operations and keeps a FIFO of release fences. At the default depth, frame N
+and frame N+1 are separate kernel jobs and remain eligible for the two RGA3
+cores concurrently under the rewrite. An overlay pre-processing blit is
+explicitly synchronous before the final asynchronous composite because those
+operations are dependent. The rewrite does not turn this into a globally
+single-job pipeline.
+
+The current source survey found no production Linux-media consumer that makes
+multi-operation Task-API batches its normal throughput path. The exceptions in
+the library and sample surface are narrower:
+
+- `imcfa()` may submit a LUT update followed by CFA processing and explicitly
+  creates the request with `IM_JOB_FLAGS_EXEC_SEQUENTIAL`; the dependency needs
+  the rewrite's ordering.
+- `immakeBorder()` uses ordinary, non-sequential Task-API jobs for up to four
+  constant fills, or for top/bottom and then left/right copy pairs. Tasks within
+  each phase normally touch independent regions and are a real, though
+  specialized, opportunity for the forward port to overlap work.
+- `imfillTaskArray()`, `imrectangleTaskArray()`, and `immosaicTaskArray()` can
+  pack many independent regions into one request, as can an application's own
+  `imbeginJob()`/`*Task()`/`imendJob()` sequence. Official librga drawing and
+  splice samples exercise these shapes even though the main FFmpeg/GStreamer
+  paths do not.
+- A custom ML preprocessor that batches independent images or crops into one
+  Task-API job would expose the difference directly. The public RKNN/RKNPU
+  examples surveyed for this project instead use individual resize/convert
+  calls.
+
+#### Sequential flag mismatch
+
+Current librga defines `IM_JOB_FLAGS_EXEC_SEQUENTIAL` as bit 6. Its 2.2.10
+developer guide tells applications with task-to-task dependencies to pass that
+flag to `imbeginJob()` so the tasks execute in order. That implies the default
+job may contain independent tasks that are safe to overlap.
+
+Neither 6.18 implementation exactly matches that current contract:
+
+| Driver | Default job | `IM_JOB_FLAGS_EXEC_SEQUENTIAL` job |
+|--------|-------------|------------------------------------|
+| Forward-port oracle `e059aad8d68b` | fans every task out as an independent `rga_job` | still fans out; its header does not define bit 6 and regular request commit never interprets it |
+| Rewrite `563f329dd8c4` | executes tasks serially through `current_task` | also executes serially, so dependency ordering happens to be correct |
+
+The forward port favors the performance semantics of an independent batch but
+can violate the new dependency flag. The rewrite favors safe ordering but does
+not honor the performance distinction for an unflagged independent batch.
+Storing the request flags without using bit 6 is not full ABI behavior in either
+direction.
+
+#### When the difference can matter
+
+For two large independent tasks eligible on the two RGA3 cores, the idealized
+batch latency changes from roughly `max(time(A), time(B))` in the forward port
+to `time(A) + time(B)` plus an IRQ/requeue boundary in the rewrite. A compatible
+mix of RGA2 and RGA3 work can expose another overlap opportunity. Real scaling
+will be lower than the core count when both operations compete for DDR
+bandwidth. For very small rectangles, command preparation, mapping, power, IRQ,
+and requeue overhead may dominate, although the absolute delay may still be
+small.
+
+The loss is therefore most credible for large independent images, many
+independent drawing regions, or explicit batched preprocessing. It should not
+affect ordinary single-operation calls, dependency chains, work forced to one
+core, or FFmpeg-style concurrency made from separate asynchronous requests.
+There is no paired forward-port/rewrite hardware timing in this repository yet,
+so this is a source-level conclusion rather than a measured claim.
+
+Userspace can retain parallelism today by submitting independent operations as
+separate `IM_ASYNC` one-task requests and waiting on their separate fences. The
+complete kernel-side design would preserve the rewrite's parent ownership and
+aggregate release fence while:
+
+1. keeping the current `current_task` progression when request bit 6 is set;
+2. creating independently schedulable child jobs for an unflagged request;
+3. completing the parent only after every child succeeds or fails; and
+4. draining all children through the same close, timeout, fault, and removal
+   ownership rules.
+
+That would restore current librga's ordering/performance distinction, but it
+also reintroduces the multi-child completion and teardown state that the
+rewrite's serial parent deliberately avoided.
+
 #### Scheduling and backend abstraction
 
 The forward port has a traditional BSP framework split:
