@@ -11,6 +11,8 @@ not belong to a single package or driver area.
 | [`repo_files.py`](repo_files.py) | Shared Git-aware maintained Markdown/operational-file inventory for the Python checks, with a pruned source-archive fallback. |
 | [`tests/test_repo_checks.py`](tests/test_repo_checks.py) | Standard-library regression tests for file inventory/ownership, link classification, dashboard/watchlist contracts, support coverage, and synchronized package helpers. |
 | [`prepare-armbian-headless.sh`](prepare-armbian-headless.sh) | Prepares a mounted Armbian ROCK 5B root filesystem for Wi-Fi and root SSH key access, temporarily handling a read-only mount when needed. |
+| [`rock5b-passive-cooling-apply.sh`](rock5b-passive-cooling-apply.sh) | Applies and persists a reversible passive CPU/NVMe cooling profile for the fanless ROCK 5B. |
+| [`rock5b-passive-cooling-revert.sh`](rock5b-passive-cooling-revert.sh) | Removes the passive-cooling service and restores its captured stock CPU/NVMe settings. |
 | [`rock5b-spi-erase.sh`](rock5b-spi-erase.sh) | Backs up and erases the ROCK 5B SPI NOR so BootROM falls through to microSD/eMMC bootloader paths. |
 | [`rock5b-spi-restore-armbian.sh`](rock5b-spi-restore-armbian.sh) | Restores and verifies the Armbian ROCK 5B SPI bootloader image. |
 | [`rock5b-sd-uboot-hypothesis-test.sh`](rock5b-sd-uboot-hypothesis-test.sh) | Captures a pristine 26.2.1 raw-SD loader gap, applies one controlled 26.5.1 component substitution, verifies readback, and restores the baseline. |
@@ -26,6 +28,59 @@ update workflow and project-specific test expectations are in
 [`../CONTRIBUTING.md`](../CONTRIBUTING.md). The read-only
 [`repository-checks` workflow](../.github/workflows/repository-checks.yml) runs
 the same command on pushes and pull requests.
+
+## ROCK 5B passive cooling
+
+The audited ROCK 5B is entirely passively cooled. Its running device tree maps
+the SoC thermal trips to an absent PWM fan rather than the registered cpufreq
+cooling devices. `rock5b-passive-cooling-apply.sh` supplies a reversible
+userspace policy while that device-tree policy remains in place:
+
+| SoC temperature | A55 ceiling | A76 ceiling |
+|-----------------|-------------|-------------|
+| below 60 C | 1.416 GHz | 1.608 GHz |
+| 60-64 C | 1.416 GHz | 1.416 GHz |
+| 65-69 C | 1.200 GHz | 1.200 GHz |
+| 70-74 C | 1.008 GHz | 1.008 GHz |
+| 75-79 C | 816 MHz | 816 MHz |
+| 80-84 C | 600 MHz | 600 MHz |
+| 85 C or higher | 408 MHz | 408 MHz |
+
+The script also restores every cpufreq minimum to its hardware minimum and
+sets the NVMe Host Controlled Thermal Management thresholds to 65 C (light)
+and 68 C (strong). It verifies that the controller supports those thresholds
+before making changes. The default invocation saves the controller setting and
+installs `rock5b-passive-cooling.service`, which reasserts the CPU policy every
+five seconds and after each boot:
+
+```bash
+sudo bash scripts/rock5b-passive-cooling-apply.sh
+```
+
+The first application writes a root-only stock snapshot under
+`/var/lib/rock5b-passive-cooling/`. It is deliberately not overwritten by
+later applications. Preview the current temperature level without writes, or
+apply settings only until the next reboot:
+
+```bash
+bash scripts/rock5b-passive-cooling-apply.sh --dry-run
+sudo bash scripts/rock5b-passive-cooling-apply.sh --once
+```
+
+Restore the exact cpufreq limits and saved NVMe HCTM value captured by the
+first application, then remove the service and snapshot:
+
+```bash
+sudo bash scripts/rock5b-passive-cooling-revert.sh --dry-run
+sudo bash scripts/rock5b-passive-cooling-revert.sh
+```
+
+These controls reduce hardware power but do not alter the parent shell's build
+environment. Keep large kernel package builds at two jobs:
+
+```bash
+DEB_BUILD_OPTIONS=parallel=2 packaging/ppa/build-source-packages.sh ...
+```
 
 ## Prepare a mounted Armbian image for headless access
 
