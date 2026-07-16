@@ -12,7 +12,7 @@ patches unless explicitly marked otherwise.
 |---|------|-------------|-----|
 | 1 | Forward-port kernel tree | [kernel driver guide](../kernel-drivers/docs/how-the-drivers-work.md), [uAPI guide](../kernel-drivers/docs/dev-uapis.md), [forward-port guide](../kernel-versions/docs/vendor-forward-port.md), [vendor delta](../kernel-drivers/docs/vendor-delta.md), [device-tree guide](../kernel-drivers/docs/device-tree.md); DKMS `KSRC` | `v6.18` + `kernel-drivers/patches/rk3588-rkvenc2-01…` (+ `02` for DT) |
 | 2 | Audited tree (BSP audit) | [BSP audit](../kernel-drivers/docs/bsp-audit.md), `kernel-drivers/patches/cleanup-draft/` line numbers | parent of `56e403ede081` = `5614909e5803` |
-| 3 | `$OURS` / `$BSP` measurement pair | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count" | tree 1 vs `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3` |
+| 3 | `$OURS` / `$BSP` measurement pair + BSP 6.6 comparison | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count", [BSP 6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) | tree 1 vs `rockchip-linux/kernel` `develop-6.1@b4ef083dc0c3`; comparison `develop-6.6@1ba51b059f25` |
 | 4 | Userspace libraries + FFmpeg | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), `ffmpeg/*` | table in §4 |
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | tag `50.1` = `5ef1a2aa6bef`; anchor/full-series base = `c14e09ef67e9`; current PPA source = `rdp-handover-reconnect-v2@eb91daf476dc`, see §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
@@ -102,6 +102,7 @@ code.
 |-----|------|-----|
 | `$OURS` | `<forward-port tree §1>/drivers/video/rockchip` | dev-box provenance: `/home/yi/Code/kernel/linux-6.18-rkvenc/drivers/video/rockchip` |
 | `$BSP` | `rockchip-linux/kernel` branch `develop-6.1`, `drivers/video/rockchip/` | clean checkout, observed @ `b4ef083dc0c3` (2026-07-01) |
+| `$BSP66` | `rockchip-linux/kernel` branch `develop-6.6`, `drivers/video/rockchip/` | clean tree @ `1ba51b059f25`; official remote tip verified 2026-07-16 for the [6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) |
 
 The BSP donor floats (it is a live vendor branch); vendor-delta.md already notes the
 measured integers drift against a future BSP while the ≈580-line / ≈1.7%
@@ -211,11 +212,14 @@ exact bytes dev-uapis.md documents:
 | MPP uAPI | `include/uapi/linux/rk-mpp.h` | +82 lines (`enum MPP_DEV_COMMAND_TYPE`, `struct mpp_request`, `MPP_IOC_CFG_V*`, `MPP_FLAGS_*`) |
 | RGA uAPI | `drivers/video/rockchip/rga3/include/rga.h` | +1007 lines (`rga_req`, `RGA_IOC_*`, image descriptors) |
 
-Note the **rewrite-driver uAPI extensions** (`MPP_CMD_SET_ERR_REF_HACK`,
-`MPP_FLAGS_REG_OFFSET_ALONE`, `MPP_FLAGS_POLL_NON_BLOCK`) are **not** in patch
-01's `rk-mpp.h` — they exist only in the rewrite commit documented in
-[rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §4 and cross-folded into
-[uAPI guide](../kernel-drivers/docs/dev-uapis.md).
+`MPP_CMD_SET_ERR_REF_HACK`, `MPP_FLAGS_REG_OFFSET_ALONE`, and
+`MPP_FLAGS_POLL_NON_BLOCK` are **not** in patch 01's `rk-mpp.h`. They are present
+in both the later AV1/IOMMU forward-port branch and the rewrite; their behavior
+and exact lineage are distinguished in the
+[6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) and
+[uAPI guide](../kernel-drivers/docs/dev-uapis.md). The rewrite-specific ledger
+and validation behavior remain documented in
+[rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §4.
 
 ## 8. Rewrite-driver tree
 

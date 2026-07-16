@@ -90,8 +90,8 @@ batching mechanism, driven by the `flag` field:
 | `LAST_MSG` | `0x2` | the final message of the batch — *now* start the task |
 | `REG_FD_NO_TRANS` | `0x4` | don't fd→iova-translate the register block |
 | `SCL_FD_NO_TRANS` | `0x8` | don't translate the scaling-list fd |
-| `REG_NO_OFFSET` | `0x10` | register addresses carry no patch offset — Rockchip's own userspace names this same bit **`MPP_FLAGS_REG_OFFSET_ALONE`** (libmpp `osal/inc/mpp_service.h:28`; set on `SET_REG_ADDR_OFFSET` messages and OR-ed onto every batch's last message, `osal/driver/mpp_service.c:451,:764`); the rewrite driver's header defines both names as aliases ([rewrite-driver track](./rewrite-drivers.md)) |
-| `POLL_NON_BLOCK` | `0x20` | **defined by libmpp, not by this port's kernel header** (`osal/inc/mpp_service.h:29`; libmpp's batch server sets it on `POLL_HW_FINISH` requests, `osal/driver/mpp_server.c:460`). The forward-ported BSP driver never tests the bit — its poll always blocks. The rewrite driver honours it: a not-yet-done job returns `-EAGAIN` ([rewrite-driver track](./rewrite-drivers.md)) |
+| `REG_NO_OFFSET` | `0x10` | register addresses carry no patch offset — Rockchip's own userspace names this same bit **`MPP_FLAGS_REG_OFFSET_ALONE`** (libmpp `osal/inc/mpp_service.h:28`; set on `SET_REG_ADDR_OFFSET` messages and OR-ed onto every batch's last message, `osal/driver/mpp_service.c:451,:764`). The original non-AV1 forward-port header has only `REG_NO_OFFSET`; the current AV1/IOMMU forward port and rewrite define both names as aliases ([BSP comparison](./bsp-6.1-6.6-comparison.md), [rewrite-driver track](./rewrite-drivers.md)). |
+| `POLL_NON_BLOCK` | `0x20` | Defined by libmpp (`osal/inc/mpp_service.h:29`; its dormant batch server sets it on `POLL_HW_FINISH`, `osal/driver/mpp_server.c:460`). The original non-AV1 forward-port header/driver lacks it and always blocks. The current AV1/IOMMU forward port and rewrite define it and return `-EAGAIN` without consuming an unfinished job ([forward-port review](../../kernel-versions/docs/forward-port-review-log.md), [rewrite-driver track](./rewrite-drivers.md)). |
 | `SECURE_MODE` | `0x10000` | requests a secure-memory path. The fixed RK3588 rewrite has no protected dma-buf/IOMMU/secure-monitor submission path and therefore rejects this flag with `-EOPNOTSUPP` before processing; current checked libmpp defines but does not send it. |
 
 (`MPP_IOC_CFG_V2` = `0x40047602` exists too — `rk-mpp.h` ~:16 — but `mpp_collect_msgs`
@@ -113,19 +113,26 @@ The kernel dispatches on each message's inner `cmd`, grouped by base value
 | | `SET_SESSION_FD` | **switch to another session** mid-batch (*not* a task-start — see below) |
 | **POLL** `0x300` | `POLL_HW_FINISH`, `POLL_HW_IRQ` | block until the task completes |
 | **CONTROL** `0x400` | `RESET_SESSION`, `TRANS_FD_TO_IOVA`, `RELEASE_FD`, `SEND_CODEC_INFO` | reset, fd↔iova, buffer release, codec hints |
-| | `SET_ERR_REF_HACK` (`CONTROL_BASE + 4`) | **not implemented by this port** — see below |
+| | `SET_ERR_REF_HACK` (`CONTROL_BASE + 4`) | absent from the original non-AV1 forward port; accepted by the current AV1/IOMMU forward port and rewrite — see below |
 
-**`MPP_CMD_SET_ERR_REF_HACK` — one command past this kernel's ceiling.** libmpp
-defines a fifth CONTROL command, `MPP_CMD_SET_ERR_REF_HACK = MPP_CMD_CONTROL_BASE + 4`
+**`MPP_CMD_SET_ERR_REF_HACK` — behavior depends on forward-port generation.**
+libmpp defines a fifth CONTROL command,
+`MPP_CMD_SET_ERR_REF_HACK = MPP_CMD_CONTROL_BASE + 4`
 (`osal/inc/mpp_service.h:80`), an error-resilience toggle its VDPU382 H.264 HAL
 wants to send. It **probes before sending**: the HAL checks whether the kernel's
 CONTROL-group ceiling (from `QUERY_CMD_SUPPORT`, see below) exceeds the command
 number — `cap->ctrl_cmd > MPP_CMD_SET_ERR_REF_HACK`
-(`mpp/hal/rkdec/h264d/hal_h264d_vdpu382.c:553`) — and only then issues it. On
-this port's kernel `MPP_CMD_CONTROL_BUTT` *equals* `CONTROL_BASE + 4`, so the
-probe says "unsupported" and libmpp silently skips the command; the clean-room
-rewrite driver accepts it as a validated copy-in/discard for exactly this
-probing sequence ([rewrite-driver track](./rewrite-drivers.md)).
+(`mpp/hal/rkdec/h264d/hal_h264d_vdpu382.c:553`) — and only then issues it.
+
+On the original non-AV1 patch, `MPP_CMD_CONTROL_BUTT` equals
+`CONTROL_BASE + 4`, so the probe says "unsupported" and libmpp skips the
+command. The current AV1/IOMMU forward port extends the header/ceiling,
+advertises it, and accepts it through the codec backend's unknown-command no-op
+path (with a diagnostic log). The clean-room rewrite instead validates and
+copies/discards its payload explicitly. Both newer paths satisfy current
+libmpp's acceptance requirement, but only the rewrite gives the command a
+dedicated validation path ([BSP comparison](./bsp-6.1-6.6-comparison.md),
+[rewrite-driver track](./rewrite-drivers.md)).
 
 **`SET_SESSION_FD` — switching sessions mid-batch (easy to misread).** This does
 *not* start a task. Inside one batched ioctl that spans **several sessions**, it tells

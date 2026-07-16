@@ -3,6 +3,12 @@
 A line-level accounting of the forward-port: how much of the validated driver
 code is Rockchip's, and precisely what our changes were and why.
 
+> **Scope boundary.** The 1.7% measurement here is the original validated
+> non-AV1 forward-port base, reconstructed from the top-level `01` driver patch.
+> The current AV1/IOMMU-hardened `rkvenc-fwport-6.18` branch intentionally has a
+> larger delta. The pinned baseline/current and Rockchip 6.1/6.6 comparisons are
+> separated in [forward port vs BSP 6.1/6.6](./bsp-6.1-6.6-comparison.md).
+
 > This doc is the **quantitative** side — counts, percentages, and the complete
 > per-change table. For the narrative rationale (why each hunk exists, the
 > `compat/` and `hack/` story), see [forward-port guide](../../kernel-versions/docs/vendor-forward-port.md).
