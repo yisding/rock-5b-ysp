@@ -130,15 +130,99 @@ we return `-EPROBE_DEFER` (`rkvenc_attach_ccu`, `mpp_rkvenc2.c:2931`;
 `rkvdec2_attach_ccu` in `mpp_rkvdec2.c`) and publish CCU `drvdata` last. Six sites,
 enumerated in `vendor-forward-port.md`.
 
-**Do not use `iommu_set_fault_handler()` for MPP DMA-domain faults.** On 6.18,
+**Do not use `iommu_set_fault_handler()` for rewrite-media DMA-domain faults.** On 6.18,
 `iommu_set_fault_handler()` rejects domains whose cookie is not
 `IOMMU_COOKIE_NONE`; the codec buffers use the normal DMA default domain. The
 forward-port therefore keeps mainline `drivers/iommu/rockchip-iommu.c` and adds a
 small Rockchip provider hook/export layer (`rockchip_iommu_set_fault_handler()`,
-mask/unmask, enable/disable/reset). MPP registers its task-aware fault callback
-through that provider hook, and only falls back to the generic API for genuinely
-cookie-less domains. A local MPP-only shim is not enough: it cannot access the
-provider's private MMU bases, clocks, IRQ mask register, or domain state.
+mask/unmask, enable/disable/reset). MPP and RGA register their task-aware fault
+callbacks through that provider hook. They do not fall back to the generic API: that
+legacy domain handler is set-once and has no safe unregister lifetime for the
+IOMMU-core-owned default DMA domain if a media module is removed. When a domain
+is attached, missing provider-hook support therefore fails core probe; genuine
+no-IOMMU operation remains allowed. A local MPP-only shim is not enough: it
+cannot access the provider's private MMU bases, clocks, IRQ mask register, or
+domain state.
+The provider hook is local to one physical IOMMU, not to its DMA domain. On the
+Rock 5B shared decoder domain, teardown must therefore clear the removed core's
+provider hook unconditionally; using "another core has the same domain" as the
+clear test leaves a stale callback and can redirect that controller's fault to
+the surviving decoder. The same rule applies to RGA: a reported physical source
+must match exactly rather than falling back to the first same-domain core, and
+clearing the provider hook must wait for an IRQ callback that already copied the
+old function pointer before driver or devm state is released.
+
+**DMA-fence callbacks already run with the fence spinlock held.** Calling
+`dma_fence_get_status()` from one recursively takes the same lock and deadlocks;
+use `dma_fence_get_status_locked()`. RGA async acquire callbacks also share one
+job/work reference, so close or last-core removal must not queue completion
+while the submit path is still arming callbacks. Keep an arming sentinel in the
+pending count and let callback removal or callback execution claim and drop each
+waiter's share exactly once.
+
+**A HARD-CCU IOMMU fault's physical source is not necessarily its software job
+owner.** The CCU may execute a descriptor on a peer decoder whose `active_job`
+slot is empty, so scheduling only that physical core's timeout work delays
+recovery until the ordinary job timeout. Keep exact provider/controller
+attribution first, then read the source link's `CFG_ADDR` descriptor IOVA and
+route recovery to its active same-coordinator owner. If the descriptor is
+unavailable or unmatched, schedule any active HARD-CCU job on that coordinator
+so the existing force-stop and dependent-job abort path fails closed.
+Publish the job's HARD-CCU-started ownership state before writing `CFG_DONE`,
+and order it with the descriptor writes. Publishing it after the doorbell
+allows an immediate descriptor-fetch fault to observe no eligible software
+owner and route recovery to an empty physical peer.
+
+**A recovery `mutex_trylock()` needs a guaranteed fallback.** After a HARD-CCU
+force-stop, silently returning because a peer core is still in its serialized
+start/completion section leaves that dependent job alive until the ordinary
+500 ms timeout. Queue work that holds both the hardware and the exact active
+job, but snapshot that job *before* the failed lock attempt and queue it only if
+it still owns the slot. Recheck identity after taking the run lock and cancel
+the timeout only after that exact claim. A generic "abort whatever is active
+later" worker can reset a replacement; canceling before the identity check is
+equally unsafe because it leaves the replacement active without a watchdog.
+
+**One codec register IOVA is not a scatterlist.** MPP register translation
+hands hardware one 32-bit base address, so accepting only the first DMA segment
+of a fragmented dma-buf silently exposes unmapped memory after that segment.
+The rewrite accepts a multi-entry mapped SG table only when its DMA entries form
+one byte-contiguous span covering the full dma-buf inside the 32-bit aperture;
+embedded plane offsets and later `SET_REG_ADDR_OFFSET` tuples are cumulative,
+and that combined offset must stay strictly inside the allocation without
+wrapping the 32-bit register IOVA.
+
+**A dma-buf fd number is reusable, not an object identity.** Looking up an MPP
+mapping by integer fd before `dma_buf_get()` can return a closed buffer's old
+IOVA after the process reuses that number. The rewrite resolves and pins the
+current dma-buf first, includes its object identity in the cache key, and drops
+obsolete cache ownership without invalidating references already held by a job.
+
+**`RESET_SESSION` must invalidate staged work, not only active work.** MPP
+multi-message ioctls are collected before jobs enter the scheduler, so a reset
+that only walks `active_jobs` can return and then submit an earlier register
+message from the same or a racing ioctl. Staged jobs carry a session epoch and
+immutable client/translation/codec/RCB snapshots; reset removes same-ioctl
+staged jobs, advances the epoch before aborting, and publishes active-list plus
+scheduler-queue ownership under one session-lock critical section. Import
+lookup/insertion checks that epoch as well, preventing pre-reset translation
+from repopulating the cleared cache. An initialized session may repeat its
+client type but cannot rebind between encoder and decoder (`-EBUSY`).
+
+**A slice-FIFO overflow must be recoverable.** If `POLL_HW_IRQ` checks a sticky
+overflow bit before every FIFO pop, the first overflow makes every retry return
+`-EOVERFLOW`; even a completed encoder job then remains forever at the session
+head. Report the overflow once and clear its latch so later polls can drain
+retained entries and consume completion. Also select the head job before
+validating the slice-only flexible buffer: non-split jobs use the ordinary
+full-frame path, while an empty session returns `-EIO` without touching it.
+
+**A job reference does not pin its detachable hardware pointer.** Completion
+drops `job->hw` early so platform removal is not held hostage by an unpolled
+completed result. If reset/close abort merely loads that pointer, completion
+can drop the final hardware reference and removal can free the devm object
+before abort cancels timeout work or takes the run lock. Serialize pointer
+pin/detach with the session lock and give abort its own hardware reference.
 
 **`CONFIG_CPU_RK3588` is never defined** in mainline/Armbian configs, so the BSP's
 guarded `of_device_id` entries don't register. Make the RK3588 match entries

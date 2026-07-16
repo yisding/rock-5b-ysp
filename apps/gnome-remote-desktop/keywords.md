@@ -12,8 +12,10 @@ GRD hardware-encode terms. Cross-cutting vocabulary is in
   fallback; backpressure recovery cycles AVC420 → CAPROGRESSIVE → AVC420.
 - **IDR** — instantaneous decoder refresh (key) frame; `MPP_ENC_SET_IDR_FRAME` /
   force-key-unit handling.
-- **handover-reconnect** — the parked fork fix (`rdp-handover-reconnect`,
-  `a3a1a32`) awaiting upstream submission.
+- **handover-reconnect** — the corrected fork series
+  (`rdp-handover-reconnect-v2`, `eb91daf`): restore GNOME 50's two-stage
+  `SetRemoteId` flow, fix handover ownership/timeout cleanup, and coalesce only
+  sockets that are concurrently pending.
 - **zero-copy capture (PBO / MemFd)** — the async-PBO and MemFd prototype
   worktrees for the capture path, still tracked as dev-box-only artifacts in
   the status watchlist.

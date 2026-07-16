@@ -1,3 +1,16 @@
+gnome-remote-desktop (50.1+rkmpp+git20260714.eb91daf-0ubuntu1~exp1) resolute; urgency=medium
+
+  * Build the experimental rdp-handover-reconnect-v2 branch.
+  * Restore GNOME 50's SetRemoteId-based reconnection handling using the
+    official 50.2 revert of the change that was not intended for GNOME 50.
+  * Fix RedirectClient's floating GVariant ownership and the taken socket
+    connection leak.
+  * Coalesce only concurrently pending redirected sockets; keep the routing
+    token reusable after TakeClient for the next handover stage or reconnect.
+  * Guard TakeClient without a socket and make handover timer cleanup robust.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 14 Jul 2026 20:59:16 -0700
+
 gnome-remote-desktop (50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2) resolute; urgency=medium
 
   * Rebuild the RKMPP encoder backend against the FFmpeg 8.0 ABI-compatible

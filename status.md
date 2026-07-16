@@ -36,9 +36,9 @@ separate table below so both remain scannable.
 | 4 | Clean-room rewrite drivers | 🚧 Both alpha packages pass source/config gates and broad device-free validation; neither has booted hardware proof. | 2026-07-10 | [rewrite-driver track](./kernel-drivers/docs/rewrite-drivers.md) §6 |
 | 5 | ffmpeg tree | ⚠️ Rockchip-81 builds, passes focused tests, and is public in its dedicated PPA; AV1 MP4/MKV still lacks board re-validation. | 2026-07-14 | [Kodi/ffmpeg finding](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) |
 | 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
-| 7 | GNOME Remote Desktop backend | ✅ The series applies to GRD 50.1 and the hardware path sustains 60 fps; the reconnect fix is not submitted. | 2026-07-03 | [`profiling.md`](./apps/gnome-remote-desktop/docs/profiling.md) |
+| 7 | GNOME Remote Desktop backend | ✅ The backend sustains 60 fps; corrected reconnect-v2 is public at `eb91daf`, passes full/local package builds and the RDP test, and is staged in the experimental PPA. The original macOS reconnect scenario is not yet re-tested. | 2026-07-14 | [`patch series`](./apps/gnome-remote-desktop/patches/README.md) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ⚠️ The recreated main system PPA and all four dedicated FFmpeg/kernel PPAs have Published sources and binaries; the holding PPA remains isolated. Optional GDM upload and board migration/kernel gates remain open. | 2026-07-14 | [`packaging/ppa/`](packaging/ppa/README.md) |
+| 9 | Launchpad PPA | ⚠️ The recreated main system PPA and all four dedicated FFmpeg/kernel PPAs have Published sources and binaries. Experimental GRD reconnect-v2 source `18620800` was accepted and build `33399816` succeeded in the isolated staging PPA. Optional GDM upload and board migration/kernel/GRD runtime gates remain open. | 2026-07-15 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
@@ -59,7 +59,7 @@ dashboard date and ledger row when public state changes.
 | 4 | Clean-room rewrite drivers | Boot one packaged alpha kernel on the board and capture the first hardware conformance log. | [Rewrite acceptance commands](./kernel-drivers/tests/rewrite-conformance.md#rewrite-acceptance-one-command) |
 | 5 | ffmpeg tree | Re-test AV1 from MP4 and MKV through `av1_rkmpp` on RK3588. | [AV1 follow-up evidence](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md#av1-follow-up) |
 | 6 | ffmpeg submissions | Submit the first patch from the ordered upstream/fork plan and record its review URL. | [Suggested first wave](./video-libraries/ffmpeg/docs/submission-plan.md#suggested-first-wave) |
-| 7 | GNOME Remote Desktop backend | Submit the handover-reconnect fix upstream and link the MR. | [Submission state and branch](#watch-w10) |
+| 7 | GNOME Remote Desktop backend | Reproduce the macOS Windows App reconnect against `~exp1`; if it passes, promote the package and open the upstream MR. | [Candidate state and branch](#watch-w10) |
 | 8 | Mesa / Panfrost | Rebase !42679 and rerun its selected CI coverage. | [MR tips and selected CI](./video-libraries/mesa/README.md#mr-status) |
 | 9 | Launchpad PPA | Install, boot, and revert the co-installable forward-port kernel on the ROCK 5B. | [Kernel package checklist](./packaging/ppa/kernel-forward-port/README.md#remaining-checklist) |
 | 10 | Binary publishing | Choose and record the repository-wide license required before a public release. | [License decision boundary](./LICENSE.md) |
@@ -92,12 +92,12 @@ last-checked date.
 | W02 | [Armbian patcher precedence](#watch-w02) | 2026-07-11 | Core-wins behavior unchanged; rename workaround still required. |
 | W03 | [Armbian codec-udev upstreaming](#watch-w03) | 2026-07-11 | PR merged; future images should carry the rule. |
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-07-11 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
-| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-14 | Six-archive topology recorded; all intended sources/binaries public. |
+| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-15 | Six-archive topology recorded; reconnect-v2 source accepted and arm64 build successful in the experimental PPA. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-07-11 | Four MRs open; !42679 needs a rebase. |
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-11 | Main and PR tips recorded; PR remains mergeable. |
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-11 | Fix built and public; board re-test pending. |
 | W09 | [Kodi build and tty1 playback](#watch-w09) | 2026-07-11 | Prerequisites ready; build/playback/package pending. |
-| W10 | [GRD handover-fix submission](#watch-w10) | 2026-07-11 | No upstream MR found. |
+| W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-14 | Corrected branch and PPA candidate public; macOS runtime test and upstream MR pending. |
 | W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
@@ -150,7 +150,7 @@ last-checked date.
 
 - **Why recheck:** Acceptance, build state, and binary publication can change
   after upload without a local repository edit.
-- **Last checked:** 2026-07-14
+- **Last checked:** 2026-07-15
 - **State then:** At 20:28 PDT, the recreated `ubuntu-rock-5b` main PPA had all seven current
   sources and their binaries Published: MPP, librga, co-installable FFmpeg 6.1,
   the forward-port kernel, FFmpeg 8.0.3, GRD, and codec-udev 1.1. FFmpeg build
@@ -162,9 +162,14 @@ last-checked date.
   succeeded, and the main PPA had zero archive dependencies. The upstream and
   Rockchip FFmpeg 8.1 PPAs each had one source plus 29 binaries Published; the
   6.18 and 7.2-rc2 rewrite-kernel PPAs each had one source plus three binaries
-  Published. `ubuntu-rock-5b-experimental` retained five Published source sets
-  and copied binaries solely as a holding archive. The optional GDM ACL package
-  was not uploaded, and no PPA kernel had passed its board gate.
+  Published. Later that evening, `ubuntu-rock-5b-experimental` accepted GRD
+  reconnect-v2 source publication
+  [`18620800`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18620800)
+  and arm64 build
+  [`33399816`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33399816).
+  A 2026-07-15 recheck confirmed the build succeeded.
+  The main PPA has no dependency on the experimental archive. The optional GDM
+  ACL package was not uploaded, and no PPA kernel had passed its board gate.
 
 <a id="watch-w06"></a>
 ### W06 — Mesa MR stack
@@ -216,13 +221,18 @@ last-checked date.
   [`apps/kodi/`](apps/kodi/README.md).
 
 <a id="watch-w10"></a>
-### W10 — GRD handover-fix submission
+### W10 — GRD reconnect validation/submission
 
-- **Why recheck:** Dashboard track 7's submission claim needs a public review
-  artifact.
-- **Last checked:** 2026-07-11
-- **State then:** GitLab project/fork MR queries found no submission for
-  `rdp-handover-reconnect`; the branch remained at `a3a1a32`.
+- **Why recheck:** The corrected series must reproduce the original macOS
+  reconnect failure before promotion, and the submission claim needs a public
+  review artifact.
+- **Last checked:** 2026-07-14
+- **State then:** Fork branch
+  [`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2)
+  was public at `eb91daf476dc`. Clean Meson/Ninja and Debian arm64 builds passed;
+  the GRD RDP test passed. Experimental source `18620800` was accepted and
+  build `33399816` succeeded. The exact macOS Windows App reconnect and an
+  upstream GNOME MR remained pending.
 
 <a id="watch-w11"></a>
 ### W11 — Repository-wide license

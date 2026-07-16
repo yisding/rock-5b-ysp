@@ -1,0 +1,71 @@
+From ba0e75c4860c469c955ddf07bdd7f9bb6155fb2e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jonas=20=C3=85dahl?= <jadahl@gmail.com>
+Date: Tue, 30 Jun 2026 17:22:15 +0200
+Subject: [PATCH] Revert "daemon-system: Simplify remote display reconnection
+ handling"
+
+This was not meant for GNOME 50.
+
+This reverts commit 5230bf33fba09394a201b0acc114715b4da6c054.
+
+Part-of: <https://gitlab.gnome.org/GNOME/gnome-remote-desktop/-/merge_requests/403>
+---
+ src/grd-daemon-system.c          | 19 +++++++++++++++----
+ src/org.gnome.DisplayManager.xml |  3 +++
+ 2 files changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/src/grd-daemon-system.c b/src/grd-daemon-system.c
+index 67654d0..4e5ab34 100644
+--- a/src/grd-daemon-system.c
++++ b/src/grd-daemon-system.c
+@@ -1099,6 +1099,7 @@ get_remote_id_from_remote_display (GrdDaemonSystem         *daemon_system,
+                                    GrdDBusGdmRemoteDisplay *remote_display)
+ {
+   const char *display_remote_id;
++  g_autofree char *new_remote_id = NULL;
+   g_autoptr (GError) error = NULL;
+ 
+   display_remote_id = grd_dbus_gdm_remote_display_get_remote_id (remote_display);
+@@ -1114,10 +1115,20 @@ get_remote_id_from_remote_display (GrdDaemonSystem         *daemon_system,
+       return g_strdup (display_remote_id);
+     }
+ 
+-  /* The remote display doesn't have a remote_id.
+-   * Generate a new one to store the remote client in the hash table.
+-   * GDM will update the remote_id later to a valid one. */
+-  return get_next_available_id (daemon_system);
++  /* If the remote display doesn't have a valid remote_id,
++   * generate a new one and set it */
++  new_remote_id = get_next_available_id (daemon_system);
++  if (!grd_dbus_gdm_remote_display_call_set_remote_id_sync (remote_display,
++                                                            new_remote_id,
++                                                            NULL,
++                                                            &error))
++    {
++      g_warning ("[DaemonSystem] Failed to set remote_id on display: %s",
++                 error->message);
++      return NULL;
++    }
++
++  return g_steal_pointer (&new_remote_id);
+ }
+ 
+ static GrdRemoteClient *
+diff --git a/src/org.gnome.DisplayManager.xml b/src/org.gnome.DisplayManager.xml
+index bc3710a..14e61fd 100644
+--- a/src/org.gnome.DisplayManager.xml
++++ b/src/org.gnome.DisplayManager.xml
+@@ -3,6 +3,9 @@
+   <interface name="org.gnome.DisplayManager.RemoteDisplay">
+     <property name="RemoteId" type="o" access="read"/>
+     <property name="SessionId" type="s" access="read"/>
++    <method name="SetRemoteId">
++      <arg name="remote_id" direction="in" type="o"/>
++    </method>
+   </interface>
+   <interface name="org.gnome.DisplayManager.RemoteDisplayFactory">
+     <method name="CreateRemoteDisplay">
+-- 
+2.55.0
+
+

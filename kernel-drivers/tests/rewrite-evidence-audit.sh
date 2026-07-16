@@ -303,12 +303,12 @@ set_counter_specs_for_suite()
 	mpp)
 		counter_check_positive=${MPP_REQUIRED_POSITIVE_COUNTERS:-}
 		counter_check_prefix=${MPP_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
-		counter_check_zero_after=${MPP_REQUIRED_ZERO_AFTER_COUNTERS:-}
+		counter_check_zero_after=${MPP_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count"}
 		;;
 	librga)
 		counter_check_positive=${LIBRGA_REQUIRED_POSITIVE_COUNTERS:-"rga:started_job_count rga:hw_total_ns"}
 		counter_check_prefix=${LIBRGA_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
-		counter_check_zero_after=${LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS:-}
+		counter_check_zero_after=${LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS:-"rga:import_count"}
 		if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ]; then
 			case " $counter_check_positive " in
 			*" rga_userptr_iommu:attempt "*)
@@ -336,17 +336,17 @@ set_counter_specs_for_suite()
 	gstreamer)
 		counter_check_positive=${GSTREAMER_REQUIRED_POSITIVE_COUNTERS:-"mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns"}
 		counter_check_prefix=${GSTREAMER_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
-		counter_check_zero_after=${GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS:-}
+		counter_check_zero_after=${GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count rga:import_count"}
 		;;
 	ffmpeg)
 		counter_check_positive=${FFMPEG_REQUIRED_POSITIVE_COUNTERS:-"mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns"}
 		counter_check_prefix=${FFMPEG_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
-		counter_check_zero_after=${FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS:-}
+		counter_check_zero_after=${FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count rga:import_count"}
 		;;
 	rkmppenc)
 		counter_check_positive=${RKMPPENC_REQUIRED_POSITIVE_COUNTERS:-"mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns"}
 		counter_check_prefix=${RKMPPENC_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
-		counter_check_zero_after=${RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS:-}
+		counter_check_zero_after=${RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count rga:import_count"}
 		;;
 	esac
 }
@@ -464,10 +464,12 @@ EOF
 component	counter	before	after	delta
 mpp	started_job_count	0	1	1
 mpp	hw_total_ns	0	1000	1000
+mpp	import_count	0	0	0
 mpp	timeout_count	0	0	0
 mpp	iommu_fault_count	0	0	0
 rga	started_job_count	0	1	1
 rga	hw_total_ns	0	1000	1000
+rga	import_count	0	0	0
 rga	timeout_count	0	0	0
 rga	irq_error_count	0	0	0
 rga	iommu_fault_count	0	0	0
@@ -506,6 +508,28 @@ selftest()
 	fi
 	sed -i 's/rga_userptr_iommu\tactive\t0\t1\t1/rga_userptr_iommu\tactive\t0\t0\t0/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-librga-suite/debugfs-counters-delta.tsv"
+
+	sed -i 's/rga\timport_count\t0\t0\t0/rga\timport_count\t0\t1\t1/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-librga-suite/debugfs-counters-delta.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="librga" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected retained RGA import audit to fail\n" >&2
+		return 1
+	fi
+	sed -i 's/rga\timport_count\t0\t1\t1/rga\timport_count\t0\t0\t0/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-librga-suite/debugfs-counters-delta.tsv"
+
+	sed -i 's/mpp\timport_count\t0\t0\t0/mpp\timport_count\t0\t1\t1/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/debugfs-counters-delta.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected retained MPP import audit to fail\n" >&2
+		return 1
+	fi
+	sed -i 's/mpp\timport_count\t0\t1\t1/mpp\timport_count\t0\t0\t0/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/debugfs-counters-delta.tsv"
 
 	sed -i 's/rga\tstarted_job_count\t0\t1\t1/rga\tstarted_job_count\t0\t0\t0/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/debugfs-counters-delta.tsv"

@@ -177,4 +177,4 @@ thread and traffic — not just trust the session-created log line.
 | upstream rkmpp: first-frame IDR + VBR quality | [`0007`](../patches) | [`README.md`](../README.md) #1, #2 |
 | hardware-encode backpressure/cooldown guard | [`0008`](../patches) | [`README.md`](../README.md) #4 |
 | greeter device permissions | — (udev) | [`packaging/gdm-hwenc`](../../../packaging/gdm-hwenc), [`README.md`](../README.md) #3 |
-| handover reconnect revert | — (packaging) | [`apps/gnome-remote-desktop/patches/README.md`](../patches/README.md) §"What's *not* here" (the full story), [`packaging/ppa`](../../../packaging/ppa) (the deb-side quilt revert) |
+| corrected handover reconnect | [`0009`–`0013`](../patches) | [`apps/gnome-remote-desktop/patches/README.md`](../patches/README.md) §"Reconnect history and design boundary", [`packaging/ppa`](../../../packaging/ppa) |

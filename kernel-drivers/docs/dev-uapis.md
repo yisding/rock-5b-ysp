@@ -92,7 +92,7 @@ batching mechanism, driven by the `flag` field:
 | `SCL_FD_NO_TRANS` | `0x8` | don't translate the scaling-list fd |
 | `REG_NO_OFFSET` | `0x10` | register addresses carry no patch offset — Rockchip's own userspace names this same bit **`MPP_FLAGS_REG_OFFSET_ALONE`** (libmpp `osal/inc/mpp_service.h:28`; set on `SET_REG_ADDR_OFFSET` messages and OR-ed onto every batch's last message, `osal/driver/mpp_service.c:451,:764`); the rewrite driver's header defines both names as aliases ([rewrite-driver track](./rewrite-drivers.md)) |
 | `POLL_NON_BLOCK` | `0x20` | **defined by libmpp, not by this port's kernel header** (`osal/inc/mpp_service.h:29`; libmpp's batch server sets it on `POLL_HW_FINISH` requests, `osal/driver/mpp_server.c:460`). The forward-ported BSP driver never tests the bit — its poll always blocks. The rewrite driver honours it: a not-yet-done job returns `-EAGAIN` ([rewrite-driver track](./rewrite-drivers.md)) |
-| `SECURE_MODE` | `0x10000` | secure-memory path |
+| `SECURE_MODE` | `0x10000` | requests a secure-memory path. The fixed RK3588 rewrite has no protected dma-buf/IOMMU/secure-monitor submission path and therefore rejects this flag with `-EOPNOTSUPP` before processing; current checked libmpp defines but does not send it. |
 
 (`MPP_IOC_CFG_V2` = `0x40047602` exists too — `rk-mpp.h` ~:16 — but `mpp_collect_msgs`
 rejects anything `!= MPP_IOC_CFG_V1` (`mpp_common.c` ~:1516), so V2 is reserved/unused
@@ -305,6 +305,13 @@ sequenceDiagram
 ```
 
 **Under the hood / notes.**
+- The 64-bit `rga_external_buffer.memory` field must contain a dma-buf fd that
+  fits losslessly in a nonnegative `int`; values with upper bits set are
+  rejected rather than truncated to an unrelated open descriptor.
+- RGA2 is constrained to 32-bit streaming/coherent DMA, while RGA3 uses a
+  40-bit streaming mask but keeps command buffers in the 32-bit coherent
+  aperture. The driver validates the whole command-buffer span before writing
+  its 32-bit hardware base register.
 - `task_num > 1` lets one submit carry several chained ops — the kernel side of
   IM2D's job batching (how-the-userspace-libs-work.md §B5).
 - async returns `release_fence_fd` (`-1` if the kernel lacks fence support); wait on

@@ -4,8 +4,9 @@
 # The gate intentionally builds from git-archive copies, not the live kernel
 # worktrees, so generated files and local object state cannot hide portability
 # problems. Each profile gets its own scratch tree, which is removed after that
-# profile passes unless KEEP_TMP=1. It only builds the two rewrite objects with
-# their optional KUnit coverage enabled.
+# profile passes unless KEEP_TMP=1. It builds the two rewrite objects with their
+# optional KUnit coverage, the Rockchip IOMMU provider used by MPP/RGA, and the
+# Rock 5B DTB that wires the media topology.
 set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,8 +23,10 @@ FAIL_ON_WARNING="${FAIL_ON_WARNING:-1}"
 REWRITE_BUILD_PROFILES="${REWRITE_BUILD_PROFILES:-normal}"
 
 TARGETS=(
+  drivers/iommu/rockchip-iommu.o
   drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o
   drivers/video/rockchip/rga-rewrite/rga_rewrite.o
+  rockchip/rk3588-rock-5b.dtb
 )
 
 tmp_root=
@@ -43,9 +46,9 @@ Environment:
   FAIL_ON_WARNING=0 do not fail on "warning:" lines in the build log
   REWRITE_BUILD_PROFILES
                     space-separated profiles: normal, memory, race
-                    normal: KUnit-enabled focused object build (default)
-                    memory: KASAN/fault-injection focused object build
-                    race: KCSAN/lockdep focused object build
+                    normal: KUnit-enabled provider/rewrite/DTB build (default)
+                    memory: KASAN/fault-injection provider/rewrite/DTB build
+                    race: KCSAN/lockdep provider/rewrite/DTB build
 EOF
 }
 
@@ -87,6 +90,7 @@ set_rewrite_config() {
     -e KUNIT_DEBUGFS \
     -e KUNIT_DEFAULT_ENABLED \
     -e KUNIT_AUTORUN_ENABLED \
+    -e ROCKCHIP_IOMMU \
     -e ROCKCHIP_MPP_REWRITE \
     -e ROCKCHIP_MPP_REWRITE_KUNIT_TEST \
     -e ROCKCHIP_RGA_REWRITE \
@@ -142,7 +146,7 @@ require_config() {
   if ! grep -qx "CONFIG_${symbol}=y" "$out/.config"; then
     echo "required config did not resolve to y: CONFIG_${symbol}" >&2
     echo "Relevant config lines:" >&2
-    grep -E "CONFIG_(ROCKCHIP_.*REWRITE|ROCKCHIP_MPP_SERVICE|ROCKCHIP_MULTI_RGA|VIDEO_ROCKCHIP_RGA|KUNIT|KASAN|KCSAN|FAULT_INJECTION|FAILSLAB|FAIL_PAGE_ALLOC|PROVE_LOCKING|DEBUG_KERNEL|EXPERT)" "$out/.config" >&2 || true
+    grep -E "CONFIG_(ROCKCHIP_(IOMMU|.*REWRITE)|ROCKCHIP_MPP_SERVICE|ROCKCHIP_MULTI_RGA|VIDEO_ROCKCHIP_RGA|KUNIT|KASAN|KCSAN|FAULT_INJECTION|FAILSLAB|FAIL_PAGE_ALLOC|PROVE_LOCKING|DEBUG_KERNEL|EXPERT)" "$out/.config" >&2 || true
     exit 1
   fi
 }
@@ -168,6 +172,7 @@ configure_tree() {
   make -C "$src" O="$out" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" olddefconfig
 
   require_config "$out" KUNIT
+  require_config "$out" ROCKCHIP_IOMMU
   require_config "$out" ROCKCHIP_MPP_REWRITE
   require_config "$out" ROCKCHIP_MPP_REWRITE_KUNIT_TEST
   require_config "$out" ROCKCHIP_RGA_REWRITE

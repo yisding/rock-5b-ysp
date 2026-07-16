@@ -33,11 +33,13 @@ kernel-drivers/tests/rewrite-build-gate.sh all
 
 The script builds from `git archive` copies of `../kernel/linux-6.18-rkvenc` and
 `../kernel/linux`, forces the mutually exclusive rewrite drivers plus their KUnit
-coverage, and builds only:
+coverage, and builds the provider/topology integration with them:
 
 ```text
+drivers/iommu/rockchip-iommu.o
 drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o
 drivers/video/rockchip/rga-rewrite/rga_rewrite.o
+rockchip/rk3588-rock-5b.dtb
 ```
 
 It fails on dirty kernel worktrees by default, fails if the resolved config does
@@ -45,8 +47,8 @@ not enable both rewrite KUnit suites, and treats compiler warnings as failures.
 The 6.18 run reuses that tree's `.config` when present, so it also covers the
 BTF helper path used by the current dev config; mainline falls back to
 `defconfig` unless a `.config` exists. The default `normal` profile is the
-strict KUnit object-build gate. `REWRITE_BUILD_PROFILES` can add compile-only
-sanitizer profiles:
+strict provider/rewrite/DTB build gate. `REWRITE_BUILD_PROFILES` can add
+compile-only sanitizer profiles:
 
 - `memory`: enables KASAN plus fault-injection options used by the fail-nth
   ioctl unwind tests.
@@ -54,8 +56,9 @@ sanitizer profiles:
 
 The sanitizer profiles intentionally set a higher `FRAME_WARN` threshold because
 KASAN/KCSAN instrumentation inflates KUnit stack frames; the normal profile keeps
-the existing stricter warning behavior. These profiles prove the rewrite objects
-compile with the relevant instrumentation on both kernel lines, but they are not
+the existing stricter warning behavior. These profiles prove the provider/rewrite
+objects and Rock 5B DTB compile with the relevant instrumentation on both kernel
+lines, but they are not
 a substitute for booted KASAN/KCSAN runtime evidence.
 
 Useful overrides:
@@ -831,10 +834,11 @@ logs.
 |------|-------|
 | `build-mpp-tests.sh` | no device access; writes staged MPP library/tests under `../rockchip-conformance/out/mpp` |
 | `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths; also builds `gstreamer-event-harness` into the GStreamer prefix. `GST_EVENT_HARNESS_VALIDATE_BUILD=1` compiles only the event harness and returns `77` when the GStreamer development `.pc` files are absent. |
-| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, optional `rkmppenc`, optional debugfs counter checks, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and checks runner wiring, syzkaller ABI markers, optional syzkaller description compilation when `SYZKALLER_DIR` and Go are available, ioctl mutator buildability, direct `librga` smoke buildability, optional GStreamer event-harness buildability, RGA IOMMU scatter-fuzzer buildability, recovery stress harness config, MPP/GStreamer case builders, FFmpeg case lists, optional `rkmppenc` case lists, comparator selftests, the ABI replay filter selftest, and the paired-evidence audit selftest. With `PROFILE=*rewrite* RUN_COUNTER_CHECKS=1`, the runner defaults to requiring counter files plus positive librga/GStreamer/FFmpeg hardware-start and busy-time counters, with `rkmppenc` positive MPP/RGA counters added only when `RUN_RKMPPENC_SUITE=1`, and MPP positive counters added when explicit MPP media cases are selected. Per-suite `*_REQUIRED_POSITIVE_COUNTER_PREFIXES` variables add multicore-spread requirements such as `mpp:started_rkvdec_core:2` or `rga:started_rga3_core:2`. If `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1` is also set, the librga counter gate additionally requires positive `rga_userptr_iommu:attempt` and `rga_userptr_iommu:ok` deltas. ABI replay also uses `/dev/dma_heap/*` when available to record MPP dma-buf translate/release, RGA dma-buf import/release parity, and raw RGA physical-address import behavior. |
+| `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, optional `rkmppenc`, optional debugfs counter checks, and optional comparator steps. `VALIDATE_ONLY=1` is device-free and checks runner wiring, the focused MPP debug-capture workflow, syzkaller ABI markers, optional syzkaller description compilation when `SYZKALLER_DIR` and Go are available, ioctl mutator buildability, direct `librga` smoke buildability, optional GStreamer event-harness buildability, RGA IOMMU scatter-fuzzer buildability, recovery stress harness config, MPP/GStreamer case builders, FFmpeg case lists, optional `rkmppenc` case lists, comparator selftests, the ABI replay filter selftest, and the paired-evidence audit selftest. With `PROFILE=*rewrite* RUN_COUNTER_CHECKS=1`, the runner defaults to requiring counter files plus positive librga/GStreamer/FFmpeg hardware-start and busy-time counters, with `rkmppenc` positive MPP/RGA counters added only when `RUN_RKMPPENC_SUITE=1`, and MPP positive counters added when explicit MPP media cases are selected. Per-suite `*_REQUIRED_POSITIVE_COUNTER_PREFIXES` variables add multicore-spread requirements such as `mpp:started_rkvdec_core:2` or `rga:started_rga3_core:2`. If `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1` is also set, the librga counter gate additionally requires positive `rga_userptr_iommu:attempt` and `rga_userptr_iommu:ok` deltas. ABI replay also uses `/dev/dma_heap/*` when available to record MPP dma-buf translate/release, RGA dma-buf import/release parity, and raw RGA physical-address import behavior. |
 | `rewrite-evidence-audit.sh` | no device access; reads the latest paired suite logs under `../rockchip-conformance/logs/$BASELINE` and `../rockchip-conformance/logs/$CANDIDATE` for MPP, librga, GStreamer, and FFmpeg by default. Normal mode requires required-case passes on both profiles, non-empty `artifacts.tsv`, non-empty `debugfs-counters-delta.tsv`, and comparator-clean results with `PERF_MAX_RATIO=1.25` unless `REQUIRE_ARTIFACTS=0`, `REQUIRE_COUNTER_DELTAS=0`, `PERF_MAX_RATIO=0`, or `RUN_COMPARATORS=0` deliberately relax the gate. Set `REQUIRE_DIAGNOSTIC_PASS=1` when an opt-in diagnostic run is meant to be hard evidence, and set `AUDIT_REQUIRED_CASES="suite:case ..."` to prove selected optional cases were actually recorded and passed on both profiles. `--selftest` is device-free and part of `VALIDATE_ONLY=1`; normal mode is expected to fail until booted forward-port and rewrite evidence has been collected. |
 | `ioctl-fuzz-smoke.sh` | device access for `/dev/mpp_service` and/or `/dev/rga`; no hardware-submit workload by design. `IOCTL_FUZZ_VALIDATE_BUILD=1` is device-free. `IOCTL_FUZZ_FAIL_NTH_MAX=N` additionally needs a fault-injection debug kernel exposing `/proc/self/fail-nth`, and exits `77` if fail-nth mode is requested on a kernel without that proc entry. Set `IOCTL_FUZZ_OUT=<dir>` for persisted logs and `IOCTL_FUZZ_DMESG_SCAN=1`/`IOCTL_FUZZ_REQUIRE_DMESG=1` for dmesg bracketing. |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode. `MPP_VALIDATE_CASES=1` is the device-free maintenance mode and only validates selected case-builder wiring. |
+| `mpp-debug-capture.sh` | root strongly preferred for runtime mode; needs readable rewrite `state`/`events`, and normally writable `events`/`trace_mask` plus readable dmesg for the focused bundle. It preserves the wrapped workload's exit code and uses exit `77` when the rewrite journal is absent. `MPP_DEBUG_VALIDATE_ONLY=1` is a device-free failure-path/trace-restore selftest. |
 | `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
 | `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
@@ -844,18 +848,19 @@ logs.
 | `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
 | `rkmppenc-suite.sh` | opt-in app-level `rkmppenc` coverage for `/dev/mpp_service` plus `/dev/rga`; needs `rkmppenc`, software `ffmpeg` via `RKMPPENC_GENERATOR` for generated Y4M/raw/H.264 inputs, optional staged runtime libraries via `RKMPPENC_LD_LIBRARY_PATH`, and readable debugfs/dmesg for full logs. Runtime cases check `--check-mppinfo`, `--check-rgainfo`, generated Y4M H.264/H.265 encode with RGA resize, generated raw NV12 H.264 encode with RGA resize, and a diagnostic hardware-decode/RGA-resize/encode transcode. `RKMPPENC_VALIDATE_CASES=1` is device-free and validates the optional case list without needing `rkmppenc` installed. |
 | `rkmppenc-suite-compare.sh` | no device access; reads two opt-in `rkmppenc` `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
-| `debugfs-counter-check.sh` | no device access after a suite has run; reads a suite directory's `debugfs-counters-delta.tsv` and optionally requires positive hardware counters such as `mpp:started_job_count`, `mpp:hw_total_ns`, `rga:started_job_count`, or `rga:hw_total_ns`. `REQUIRED_ZERO_AFTER_COUNTERS` requires selected gauges to be exactly zero after the run; the forced RGA userptr-IOMMU fallback gate uses this for `rga_userptr_iommu:active`. By default it fails positive rewrite timeout/fault/error counters when the counter file exists. |
+| `debugfs-counter-check.sh` | no device access after a suite has run; reads a suite directory's `debugfs-counters-delta.tsv` and optionally requires positive hardware counters such as `mpp:started_job_count`, `mpp:hw_total_ns`, `rga:started_job_count`, or `rga:hw_total_ns`. `REQUIRED_ZERO_AFTER_COUNTERS` requires selected gauges to be exactly zero after the run; rewrite profile/audit defaults use the relevant MPP/RGA `import_count` gauges, and the forced RGA userptr-IOMMU fallback gate adds `rga_userptr_iommu:active`. By default it fails positive rewrite timeout/fault/error counters when the counter file exists. |
 | `rewrite-recovery-stress.sh` | root strongly preferred for runtime mode; needs `/dev/mpp_service` and/or `/dev/rga`, the selected `RECOVERY_WORKLOAD_CMD` inputs/artifacts, readable dmesg, and readable rewrite debugfs counters. The `unbind` case also needs writable platform driver bind/unbind files and explicit `RECOVERY_UNBIND_TARGETS`. `RECOVERY_VALIDATE_ONLY=1` is device-free and only validates case/config wiring. |
 
 ## What each suite proves
 
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
-| `rewrite-conformance-run.sh` | **full profile conformance orchestration** | Runs the selected profile's system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and opt-in `rkmppenc` suite steps in a fixed order with deterministic per-suite output directories for that run id, then optionally runs debugfs counter checks and the latest forward-port-vs-rewrite comparators. For rewrite profiles, `RUN_COUNTER_CHECKS=1` defaults to hard hardware-start/busy-time checks for the suites that should submit RGA/MPP work, while avoiding a false MPP hardware requirement for the default `mpp_info_test`-only suite; `rkmppenc` counter checks are added only when `RUN_RKMPPENC_SUITE=1`. In `VALIDATE_ONLY=1` mode it also runs the syzkaller ABI-marker check, optional syzkaller description compilation, compile-only ioctl mutator, direct `librga` smoke, optional GStreamer event-harness, RGA IOMMU scatter-fuzzer, recovery stress harness config validation, MPP/GStreamer case-builder, FFmpeg and `rkmppenc` case-list validation, comparator selftest, ABI replay filter selftest, and evidence-audit selftest checks, so stale ioctl numbers, stale struct sizes, stale ABI replay filters, stale syzlang syntax, or broken fuzzer/smoke/helper sources fail the same device-free maintenance gate as the case builders, comparators, and evidence audit. A nonzero required suite, counter check, syzlang marker check, syzkaller compile check when required/configured, ioctl-fuzz build check, `librga` smoke build check, event-harness build check when dependencies are present, IOMMU-fuzzer build check, recovery harness config check, case-builder/case-list check, comparator result, ABI replay filter selftest, or evidence-audit selftest fails the runner; suite exit `77` still means the relevant device nodes are absent on this boot, while the optional event-harness and syzkaller compile steps use `77` to mean their local development dependencies are not installed/configured. |
+| `rewrite-conformance-run.sh` | **full profile conformance orchestration** | Runs the selected profile's system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and opt-in `rkmppenc` suite steps in a fixed order with deterministic per-suite output directories for that run id, then optionally runs debugfs counter checks and the latest forward-port-vs-rewrite comparators. For rewrite profiles, `RUN_COUNTER_CHECKS=1` defaults to hard hardware-start/busy-time checks for the suites that should submit RGA/MPP work, while avoiding a false MPP hardware requirement for the default `mpp_info_test`-only suite; `rkmppenc` counter checks are added only when `RUN_RKMPPENC_SUITE=1`. In `VALIDATE_ONLY=1` mode it also runs the focused MPP debug-capture selftest, syzkaller ABI-marker check, optional syzkaller description compilation, compile-only ioctl mutator, direct `librga` smoke, optional GStreamer event-harness, RGA IOMMU scatter-fuzzer, recovery stress harness config validation, MPP/GStreamer case-builder, FFmpeg and `rkmppenc` case-list validation, comparator selftest, ABI replay filter selftest, and evidence-audit selftest checks, so stale ioctl numbers, stale struct sizes, stale ABI replay filters, stale syzlang syntax, or broken capture/fuzzer/smoke/helper sources fail the same device-free maintenance gate as the case builders, comparators, and evidence audit. A nonzero required suite, counter check, debug-capture selftest, syzlang marker check, syzkaller compile check when required/configured, ioctl-fuzz build check, `librga` smoke build check, event-harness build check when dependencies are present, IOMMU-fuzzer build check, recovery harness config check, case-builder/case-list check, comparator result, ABI replay filter selftest, or evidence-audit selftest fails the runner; suite exit `77` still means the relevant device nodes are absent on this boot, while the optional event-harness and syzkaller compile steps use `77` to mean their local development dependencies are not installed/configured. |
 | `rewrite-evidence-audit.sh` | **paired forward-port/rewrite evidence gate** | Finds the latest MPP, librga, GStreamer, and FFmpeg suite summaries for the baseline and candidate profiles, verifies both sides have required cases and that every required case passed, requires non-empty artifact and counter-delta manifests by default, then runs the suite comparators with explicit summary paths and a default `PERF_MAX_RATIO=1.25` required-case slowdown ceiling. `REQUIRE_DIAGNOSTIC_PASS=1` promotes all recorded diagnostics in the selected summaries to pass/fail evidence, and `AUDIT_REQUIRED_CASES="suite:case ..."` requires named optional cases such as `gstreamer:rgaconvert_bgrx_to_nv12`, `gstreamer:videoflip_rga_nv12_clockwise`, or `rkmppenc:rkmppenc_avhw_h264_to_hevc_rga_resize` to exist and pass on both profiles. Set `PERF_MAX_RATIO=0` only for exploratory audits where timing is intentionally ignored. Its normal mode is the "do we actually have enough evidence to claim parity?" check and should fail before booted rewrite logs exist; use `--selftest` for the device-free maintenance check. |
 | `ioctl-fuzz-smoke.sh` | **non-submit ioctl parser/import fault smoke** | Mutates safe MPP/RGA parser, query, import/release, and request-lifetime ioctls without deliberately submitting register jobs or RGA blits. `IOCTL_FUZZ_FAIL_NTH_MAX=N` runs the same mutator repeatedly with `/proc/self/fail-nth` set immediately around each ioctl, which is the narrow debug-kernel gate for syscall-local allocation/usercopy unwind paths. `IOCTL_FUZZ_FAIL_NTH_REQUIRE_HIT=1` fails a run where the requested fail-nth value never reaches an injectable failure point. With `IOCTL_FUZZ_OUT` and `IOCTL_FUZZ_DMESG_SCAN=1`, each normal or fail-nth run leaves stdout/stderr logs, dmesg before/after snapshots, and fatal-signature files when KASAN/Oops/lockdep/DMA-debug lines appear. |
 | `abi-replay.sh` | **non-submit kernel ABI replay** | Runs the C ABI probe on the booted `/dev/mpp_service` and `/dev/rga`, saves raw/normalized logs, and extracts a comparable log plus the stable contract subset for forward-port-vs-rewrite diffing. It records ioctl numbers, struct sizes, version/query returns, safe MPP session controls, multi-message setup, bad-fd batch return markers, optional dma-heap-backed MPP `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA version/no-op behavior, virtual-address plus optional dma-buf import/release, and raw physical-address import behavior. `PROFILE=*rewrite*` defaults `ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT=1` so accepting raw physical-address import fails rewrite runs; `.compare.log` and `.contract.log` omit that intentionally pruned path so forward-port/default direct runs remain observational. `--selftest` verifies volatile-value normalization, physical-import pruning, and preservation of the modern `RGA_IOC_REQUEST_CONFIG` unsupported errno in `.contract.log`. Exit `77` means both device nodes are absent. |
-| `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Media cases write `artifacts.tsv` rows for produced decode/encode outputs; set `MPP_DUMP_OUTPUTS=1` to make decode cases dump YUV outputs for byte-exact comparison. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Set `MPP_VALIDATE_CASES=1` to validate the selected case builders without touching `/dev/mpp_service`. Exit `77` means `/dev/mpp_service` is absent in runtime mode. |
+| `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs the selected MPP official-test matrix under the selected `PROFILE`, records per-case logs/status/commands plus MPP procfs/debugfs snapshots and counter deltas, and fails required cases. When the new journal exists it saves dedicated before/after `state` and `events` files and clears old events before the selected cases, so the after journal is attributable to that suite (`MPP_CLEAR_DEBUG_EVENTS=0` opts out). Default required case is `mpp_info_test`; codec and performance cases are opt-in so missing assets do not masquerade as driver regressions. Media cases write `artifacts.tsv` rows for produced decode/encode outputs; set `MPP_DUMP_OUTPUTS=1` to make decode cases dump YUV outputs for byte-exact comparison. Explicit VP9 decode cases can generate a shared IVF input when `MPP_VP9_INPUT` is unset. Set `MPP_VALIDATE_CASES=1` to validate the selected case builders without touching `/dev/mpp_service`. Exit `77` means `/dev/mpp_service` is absent in runtime mode. |
+| `mpp-debug-capture.sh` | **one-reproduction MPP debug bundle** | Captures before/after live state, the bounded event journal, counters and deltas, procfs discovery, full/new dmesg, workload output/status, and a failure-focused event summary. It clears unrelated old events by default, can temporarily set `trace_mask`, restores that mask even when the workload fails, and exits with the wrapped command's status after preserving the after-state. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
 | `librga-suite.sh` | **official librga sample conformance plus direct artifact smoke** using `../rockchip-conformance/out/librga-samples/bin` and `librga-smoke.cpp` | Runs the broad current Linux/RK3588 sample set plus `ysp_librga_smoke` under the selected `PROFILE`, records per-case logs/status plus RGA debugfs snapshots and counter deltas, and fails required cases. The direct smoke case records deterministic destination buffers in `artifacts.tsv` for maintained im2d including fd-backed `imcvtcolor`, async `imresize` with release-fence wait, crop, flip, `imrectangle()` border drawing, and `imrectangleTaskArray()` job-array border drawing, RKNN/RKNPU-style preprocessing including RGBA crop/letterbox, an `rkmppenc`-shaped fd-backed crop/CSC/resize fence chain, pre-intr, AFBC16x16 and tile8x8 round-trips, Gaussian, GStreamer/display-shaped legacy `c_RkRgaBlit()` paths including virtual RGBA flip, fd-backed legacy `c_RkRgaColorFill()`, and a sequential IM2D task-job copy chain, logs a no-submit physical-address import probe, and records public-API AFBC32x8/RFBC64x4 destination-mode negative probes. `LIBRGA_SMOKE_DISPLAY_TAIL=1` adds opt-in public UI/display-tail BGRA, XRGB, and RGB565 fd-backed legacy display-rotation artifacts plus a BGRA partial-rectangle alpha-blend artifact. `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1` sets `userptr_iommu/force_remap` for the run and snapshots `rga_userptr_iommu` counters so virtual-address fallback attribution is deterministic instead of allocation-luck-dependent. `PROFILE=*rewrite*` defaults the physical/FBC-tail probes to hard negative assertions; forward-port runs keep them observational. Diagnostic outside-slice cases are recorded for parity investigation without turning the whole suite red. Exit `77` means `/dev/rga` is absent. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, paired `artifacts.tsv` manifests. A required baseline pass that is not a candidate pass, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` is a regression and exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=0` only for legacy pass/fail-only logs. |
@@ -871,7 +876,9 @@ logs.
 ## Running the suites and comparators
 
 ```bash
-VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/syzlang/syzkaller/ioctl-fuzz/librga-smoke/gstreamer-harness/iommu-fuzz/recovery/case/comparator/abi-replay/evidence wiring check
+VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/debug-capture/syzlang/syzkaller/ioctl-fuzz/librga-smoke/gstreamer-harness/iommu-fuzz/recovery/case/comparator/abi-replay/evidence wiring check
+MPP_DEBUG_VALIDATE_ONLY=1 bash mpp-debug-capture.sh  # device-free focused capture failure/restore selftest
+sudo bash mpp-debug-capture.sh -o /tmp/mpp-decode -- mpi_dec_test -i input.h264 -t 7  # one reproduction with state/events/counters/dmesg
 VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # also validate rewrite counter-default wiring
 VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 bash rewrite-conformance-run.sh  # also validate RGA userptr-IOMMU fallback counter-default wiring
 IOCTL_FUZZ_VALIDATE_BUILD=1 bash ioctl-fuzz-smoke.sh  # device-free mutator build check
@@ -942,9 +949,10 @@ candidate counter contents by default, not just that the candidate
 `debugfs-counters-delta.tsv` exists. The audit uses the same default positive
 hardware-start and busy-time counters as the profile runner for librga,
 GStreamer, FFmpeg, and optional `rkmppenc`; it keeps MPP positive counters
-opt-in because the default MPP suite is `mpp_info_test` only. The audit still
-uses `debugfs-counter-check.sh`'s default timeout/fault/error guard for every
-selected rewrite suite and adds the forced RGA userptr-IOMMU fallback `rga_userptr_iommu:attempt`,
+opt-in because the default MPP suite is `mpp_info_test` only. The audit requires
+the relevant MPP/RGA `import_count` gauges to be zero after every rewrite suite,
+still uses `debugfs-counter-check.sh`'s default timeout/fault/error guard, and
+adds the forced RGA userptr-IOMMU fallback `rga_userptr_iommu:attempt`,
 `rga_userptr_iommu:ok`, and zero-after `rga_userptr_iommu:active` requirements when
 `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1`. Use `AUDIT_COUNTER_CHECKS=0` only when intentionally
 inspecting old logs that predate the rewrite debugfs counter contract.
@@ -958,9 +966,11 @@ counter files are unambiguous. For `PROFILE=*rewrite*`, the profile runner also
 defaults to requiring the counter files plus positive librga/GStreamer/FFmpeg
 hardware-start and busy-time counters; it adds positive MPP counters only when
 `MPP_REQUIRED_CASES` explicitly selects media cases because the default
-`mpp_info_test` case does not submit hardware. Set `REWRITE_COUNTER_DEFAULTS=0`
-to disable those automatic requirements for a narrow diagnostic pass. The
-checker defaults to failing positive timeout/fault/error counters when the delta
+`mpp_info_test` case does not submit hardware. It also requires the relevant
+MPP/RGA `import_count` gauges to be zero after each suite. Set
+`REWRITE_COUNTER_DEFAULTS=0` to disable those automatic requirements for a
+narrow diagnostic pass. The checker defaults to failing positive
+timeout/fault/error counters when the delta
 file exists. To prove multicore spread, set
 `REQUIRED_POSITIVE_COUNTER_PREFIXES` directly, or the per-suite runner variables
 `MPP_REQUIRED_POSITIVE_COUNTER_PREFIXES`,
@@ -1172,7 +1182,67 @@ If `MPP_VP9_INPUT` is unset, `mpp-suite.sh` generates the IVF file under
 recipe (no suite) lives in [`README.md`](./README.md) § VP9 decode.
 At the kernel level, the current rewrite pins also include KUnit coverage for
 VP9 RKVDEC fd-to-IOVA register translation/validation, including rejection of
-unknown RKVDEC format-table indices.
+unknown RKVDEC format-table indices. They also pin the HARD-CCU DMA-visibility
+gate: online decoder peers must share one DMA/IOMMU domain before the
+coordinator may advertise or build an all-core descriptor mask. The Rock 5B DT
+now establishes that domain through the provider-level
+`rockchip,shared-domain-owner` link from `vdec1_mmu` to `vdec0_mmu`; targeted
+binding validation and `dtbs_check` must stay clean, and booted evidence must
+show both `fdc38000` and `fdc40000` decoder masters resolving to the same
+`iommu_group` symlink. Shared-domain fault coverage also pins exact
+controller/master matching and per-provider callback ownership: removing one
+decoder must clear that decoder IOMMU's hook without clearing or redirecting
+the surviving peer's hook. MPP deliberately has no legacy domain-handler
+fallback because that set-once API cannot provide module-safe unregister
+lifetime on the IOMMU-core-owned default DMA domain. An attached-domain core
+must fail probe if the provider hook is unavailable; a core with no IOMMU
+domain remains valid.
+HARD-CCU fault coverage additionally separates physical attribution from
+software job ownership. After matching the exact decoder controller, the
+handler reads that source link's `CFG_ADDR` descriptor IOVA and routes recovery
+to the active same-coordinator job that owns it. An unavailable or unmatched
+descriptor falls back to any active HARD-CCU job on the coordinator, ensuring
+the force-stop and dependent-job abort path runs instead of scheduling only an
+empty `active_job` slot. The software owner must be published before the
+`CFG_DONE` doorbell so the same routing remains valid for a fault raised by the
+first descriptor fetch. Once the coordinator is stopped, a peer with a
+contended run lock must queue an immediate exact-job abort rather than falling
+back to the ordinary 500 ms timeout. KUnit pins target replacement and
+reference lifetime. It also requires the target snapshot to precede the failed
+lock attempt and requires timeout cancellation to follow the worker's exact-job
+claim; a stale target must neither reset a replacement nor remove its watchdog.
+Booted recovery stress must additionally show that a replacement job completes
+or times out normally when the delayed worker finally acquires the lock.
+The import-side KUnit gate also requires every codec dma-buf mapping to cover
+the full allocation as a byte-contiguous 32-bit DMA span. Register provenance
+coverage rejects cumulative embedded plus `SET_REG_ADDR_OFFSET` values that
+leave the dma-buf or overflow the 32-bit IOVA register; literal non-fd register
+offsets remain additive. Runtime media cases should keep
+the rewrite `translate-fail` event count at zero for normal dma-heap buffers.
+Import-cache coverage additionally resolves the dma-buf before lookup and keys
+the mapping by object identity as well as fd and DMA device. A reused integer fd
+must select the new dma-buf, while stale cache ownership is dropped without
+invalidating mappings still referenced by an in-flight job.
+Session-control coverage additionally treats every staged register job as an
+immutable snapshot of its client type, translation table, codec information,
+inherited RCB descriptors, and reset epoch. A later control message starts a
+new staged job instead of retroactively changing earlier work. `RESET_SESSION`
+removes earlier staged jobs for that session from the current ioctl, advances
+the epoch before aborting queued/active work, and prevents a racing import or
+admission from repopulating the cleared cache or entering the scheduler.
+Active-list and scheduler-queue publication is one reset-atomic operation;
+repeating the bound client type remains valid, while changing an initialized
+session between encoder and decoder must return `-EBUSY`.
+Poll-lifecycle coverage additionally requires a slice-FIFO overflow to report
+`-EOVERFLOW` without permanently poisoning the head job: a later poll must be
+able to drain retained slice words and reach normal completion. A non-split
+`POLL_HW_IRQ` must take the full-frame path, and an empty session must return
+`-EIO`, before either path validates or touches a slice-only flexible buffer.
+Teardown-lifetime coverage additionally requires completion's `job->hw`
+detach and abort's hardware pin to share the session lock. An abort racing
+completion/removal must either acquire its own hardware reference or observe a
+detached `NULL`; it must never use an unpinned devm hardware pointer while
+platform removal waits for the final reference.
 They also cover `MPP_CMD_SET_ERR_REF_HACK` copy/discard behavior for the current
 libmpp VDPU382 probe path, and `SET_SESSION_FD` batch-server wait-array
 recognition plus collector-level rejection so the dormant multi-slot polling
@@ -1201,6 +1271,23 @@ thread-default priority API without making that full plugin a required
 conformance target. The kernel KUnit suite now also pins invalid public
 scheduler-core masks to `-EINVAL` for bitblit, fill, palette, and
 update-palette request shapes.
+RGA IOMMU-fault coverage now requires a reported master/controller to match the
+exact physical core even when another RGA shares its DMA domain; an unknown
+source must fall through to the provider's normal fault reporting rather than
+resetting the first peer. Attached-domain probe requires the unregisterable
+provider hook, per-core removal clears that physical callback regardless of
+same-domain peers, and the provider clear operation waits for callbacks already
+executing in the IRQ path. Unbind/rebind recovery stress should therefore show
+no fault callback, timeout work, or release-fence completion attributed to a
+removed or wrong RGA core.
+Acquire-fence recovery coverage also pins two callback contracts. Fence status
+is read with the lock-held helper because dma-fence invokes callbacks under its
+spinlock; using the locking wrapper recursively deadlocks the signaling path.
+Last-core abort interleaved with callback registration must also wait for the
+arming sentinel and every callback's pending-count share rather than releasing
+the shared work reference while the submit path can still register another
+callback. Booted close/unbind stress should produce exactly one release-fence
+completion with no hang or KASAN report for jobs blocked on acquire fences.
 
 **UNVERIFIED:** neither the generated GStreamer VP9 cases nor the direct MPP
 VP9 suite case has a forward-port/rewrite hardware log yet. If you run either,

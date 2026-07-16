@@ -45,7 +45,8 @@ implicit source.
 | `/home/yi/Code/kernel/rock5b-kernel-build/ffmpeg-stack` | Legacy test/runtime staging and media, not canonical source. Current test scripts live in `kernel-drivers/tests/`. |
 | `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81` | Upstream/fork source checkout pinned by `ppa/build-source-packages.sh`. Its untracked `kernel-drivers/tests/ffmpeg-suite.sh` copy is older than the ysp suite; do not import. |
 | `/home/yi/Code/ffmpeg/ffmpeg-ppa` | Old FFmpeg source-package export/build directory with generated package residue. Canonical packaging is `ppa/ffmpeg/` and `ppa/ffmpeg-baseline/`. |
-| `/home/yi/Code/gnome/grd/grd-ffmpeg` | GRD source checkout plus dirty tracked-file delta captured by `ppa/gnome-remote-desktop/source-deltas/`. Generated shaders/build dirs stay outside. |
+| `/home/yi/Code/gnome/grd/gnome-remote-desktop` | GRD fork checkout used by the PPA helper. Fetch `yding/rdp-handover-reconnect-v2`; the current clean source pin is `eb91daf476dc`. |
+| `/home/yi/Code/gnome/grd/grd-ffmpeg` | Historical GRD backend checkout. Its July 6 dirty tracked-file delta is preserved under `ppa/gnome-remote-desktop/source-deltas/`; it is no longer the default PPA source. Generated shaders/build dirs stay outside. |
 | `/home/yi/Code/gnome/grd/grd-pkg` and `/home/yi/Code/gnome/grd/grd-ppa` | Historical local package/source-package exports and generated `.deb`s. Canonical packaging is in `ppa/gnome-remote-desktop/`, `ppa/gdm-hwenc/`, and `gdm-hwenc/`. |
 | `/home/yi/Code/gnome/grd/grd-debs` and `/home/yi/Code/gnome/grd/grd-install` | Historical local binary deployments. Keep outside git; packaging history is summarized in `packaging/README.md`. |
 | `/home/yi/Code/rockchip-userspace/mpp-rockchip` and `/home/yi/Code/rockchip-userspace/librga-fork` | Upstream/source checkouts pinned by `ppa/build-source-packages.sh`. Their local `debian/` dirs are not the PPA packaging source of truth. |

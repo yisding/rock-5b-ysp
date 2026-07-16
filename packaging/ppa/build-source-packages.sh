@@ -23,10 +23,10 @@ FFMPEG_ROCKCHIP_REPO="${FFMPEG_ROCKCHIP_REPO:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rock
 FFMPEG_ROCKCHIP_COMMIT="${FFMPEG_ROCKCHIP_COMMIT:-40c412daccf08164493da0de990eb99a8948116b}"
 FFMPEG_ROCKCHIP_UPSTREAM_VERSION="${FFMPEG_ROCKCHIP_UPSTREAM_VERSION:-6.1+git20260423.40c412dacc}"
 
-GRD_REPO="${GRD_REPO:-$WORKSPACE_ROOT/gnome/grd/grd-ffmpeg}"
-GRD_COMMIT="${GRD_COMMIT:-a59c904c99088235eb4de31ca340747d334494f3}"
-GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260630.a59c904+dirty20260706}"
-GRD_DELTA="${GRD_DELTA:-$ROOT/packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch}"
+GRD_REPO="${GRD_REPO:-$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop}"
+GRD_COMMIT="${GRD_COMMIT:-eb91daf476dc1c4ba23ccfdd8c077b8b83e84773}"
+GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260714.eb91daf}"
+GRD_DELTA="${GRD_DELTA:-}"
 
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
 KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
@@ -66,9 +66,9 @@ Launchpad has already accepted. Set FORCE_ORIG=1 to regenerate an orig tarball.
 Source tree defaults are resolved below WORKSPACE_ROOT (the repository's parent
 directory by default). Override that shared root or use MPP_REPO, LIBRGA_REPO,
 FFMPEG_REPO, FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching *_COMMIT /
-*_UPSTREAM_VERSION variables. The GRD snapshot applies GRD_DELTA on top of
-GRD_COMMIT by default so the dirty20260706 source package is reconstructible
-from a clean checkout.
+*_UPSTREAM_VERSION variables. The default GRD snapshot is the clean
+rdp-handover-reconnect-v2 branch tip. Set GRD_DELTA only when reconstructing a
+historical source package that included an uncommitted source delta.
 
 The forward-port kernel target exports the already-patched Armbian kernel
 worktree named by KERNEL_PPA_REPO, excluding build products and .git, then
@@ -325,13 +325,18 @@ build_ffmpeg_rockchip() {
 }
 
 build_grd() {
+    local -a delta_args=()
+    if [[ -n "$GRD_DELTA" ]]; then
+        delta_args=(--patch "$GRD_DELTA")
+    fi
+
     prepare_source \
         "gnome-remote-desktop" \
         "$GRD_REPO" \
         "$GRD_COMMIT" \
         "$GRD_UPSTREAM_VERSION" \
         "packaging/ppa/gnome-remote-desktop" \
-        --patch "$GRD_DELTA" \
+        "${delta_args[@]}" \
         "_run/" \
         "build/" \
         "_build/" \

@@ -1,14 +1,21 @@
 # gnome-remote-desktop/patches/
 
-The **complete** patch set that adds the FFmpeg/rkmpp H.264 encode backend to
-gnome-remote-desktop — the seven backend commits from the
+The **complete shipping code series** for the FFmpeg/rkmpp H.264 backend and
+the corrected RDP handover reconnect path in gnome-remote-desktop: the seven
+backend commits from the
 [`ffmpeg-rkmpp-encode-backend`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/ffmpeg-rkmpp-encode-backend)
 branch of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`, plus
-`0008` as the July 3 backpressure/cooldown follow-up — as `git format-patch`.
-They apply, in order, on **pristine upstream GRD 50.1**
-(verified with `git am`). (Note this is a *different* pin than
+`0008` as the July 3 backpressure/cooldown follow-up and `0009`–`0013` from
+[`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2).
+
+The complete `0001`–`0013` series, including its `0001`–`0008` backend subset,
+applies to upstream commit `c14e09e` (`50.1` + 16). This base contains both the
+`cf250ed` VA-API revert required by `0003` and the GNOME-50 reconnection
+simplification that `0009` officially reverts. Replay is verified with
+`git am`; pristine tag `50.1` is **not** a valid base for this exported series.
+The series base is also
 [`apps/gnome-remote-desktop/docs/capture-path.md`](../docs/capture-path.md)'s line anchors, which resolve
-against `50.1`+16 — see its header.)
+against `50.1`+16 — see its header.
 
 > These change the gnome-remote-desktop **userspace**. The *kernel* drivers that
 > make `/dev/mpp_service` exist are in [`kernel-drivers/patches`](../../../kernel-drivers/patches).
@@ -23,11 +30,17 @@ against `50.1`+16 — see its header.)
 | 0006 | `rdp-view-creator-avc-fall-back-when-host_cached-...` | 1 | Retry the readback buffer without `HOST_CACHED` (panvk has no cached host memory type). |
 | 0007 | `encode-session-ffmpeg-make-the-mainline-rkmpp-encoder-…` | 1 | The two **mainline-rkmpp** runtime fixes: first-frame IDR (recreate the encoder) + VBR quality (`rc_max_rate`/`rc_min_rate` + target). See [`../README.md`](../README.md) #1, #2. |
 | 0008 | `rdp-avoid-hardware-encode-backpressure-stalls` | 9 | The hardware-encode backpressure guard: busy-session gating, stale-frame dropping, slow-encode cooldown fallback to software RFX/CAPROGRESSIVE, and automatic AVC retry after cooldown. See [`../README.md`](../README.md) #4. |
+| 0009 | `Revert-daemon-system-Simplify-remote-display-reconnection` | 2 | The official GNOME 50.2 revert of `5230bf3`, restoring `SetRemoteId` and the two-stage GDM→session handover contract. The reverted change was not intended for GNOME 50. |
+| 0010 | `daemon-system-Fix-RedirectClient-variant-ownership` | 1 | Sink the floating `GVariant` before `g_dbus_connection_emit_signal()` consumes it, preventing the observed double-unref assertion. |
+| 0011 | `daemon-handover-Release-taken-socket-connection` | 1 | Release the socket returned by `TakeClient` after the handover daemon has adopted its fd. |
+| 0012 | `daemon-system-Harden-handover-timeout-cleanup` | 1 | Reject `TakeClient` without a pending socket, re-arm/cancel the timeout consistently, and prevent a direct abort from leaving a live source behind. |
+| 0013 | `daemon-system-Coalesce-pending-redirected-connections` | 1 | Replace only a simultaneously pending redirected socket. Once `TakeClient` consumes it, the same routing token remains reusable for the next GDM→session stage or a later reconnect. |
 
 `0001`–`0003` are the backend; `0004`–`0006` are the panvk/hardware-enablement
 fixes ([`apps/gnome-remote-desktop/docs/design.md`](../docs/design.md)); `0007` is the mainline-rkmpp runtime fix
 ([`../README.md`](../README.md)); `0008` is the backpressure/cooldown guard
-([`../README.md`](../README.md) #4). Patch `0007` is a **no-op on the ffmpeg-rockchip
+([`../README.md`](../README.md) #4); and `0009`–`0013` are the corrected
+handover/reconnect series. Patch `0007` is a **no-op on the ffmpeg-rockchip
 fork**, which already does fixed-QP and honours forced IDR.
 
 ## Reference prototypes (not part of the series)
@@ -41,7 +54,7 @@ experiments that were previously available only as dirty dev-box worktrees:
 | [`memfd-prototype.patch`](reference/memfd-prototype.patch) | `c14e09ef67e916ae83a4eddee6a56591078e78e0` | Adds the opt-in `GRD_FORCE_MEMFD` negotiation and shm geometry (21 changed lines across two files). | Moves readback work into Mutter rather than removing it; not a performance fix. |
 
 These are raw working-tree diffs, not `git format-patch` commits, and are not
-included by the `0001`–`0008` apply command below. Generated SPIR-V files were
+included by either apply command below. Generated SPIR-V files were
 excluded. The measurements and conclusions are in
 [`../docs/baseline.md`](../docs/baseline.md) and
 [`../docs/capture-path.md`](../docs/capture-path.md).
@@ -49,55 +62,38 @@ excluded. The measurements and conclusions are in
 ## Apply
 
 ```bash
-# on a pristine gnome-remote-desktop 50.1 checkout:
+# On upstream gnome-remote-desktop c14e09ef67e916ae83a4eddee6a56591078e78e0:
 cd gnome-remote-desktop
-git am /path/to/000*-*.patch          # all eight, in order
-# — or as quilt patches in a Debian source package:
-cp 000*-*.patch debian/patches/ && ls 000*-*.patch | sed 's#.*/##' >> debian/patches/series
+git am /path/to/00*.patch
+
+# Backend only on that same base, if reconnect changes are intentionally omitted:
+git am /path/to/000[1-8]-*.patch
+
+# Or as quilt patches in a Debian source package (from the matching base):
+cp 00*.patch debian/patches/ && ls 00*.patch | sed 's#.*/##' >> debian/patches/series
 ```
 
-## What's *not* here
+## Reconnect history and design boundary
 
 - **Bug #3 (greeter access)** is a udev rule, not code — packaged separately as
   [`packaging/gdm-hwenc`](../../../packaging/gdm-hwenc).
-- **The handover-reconnect fix (cherry-picked, broke on 50.1, reverted —
-  parked on the fork awaiting upstreaming).** This is **our own fix**, not an
-  unrelated upstream change: commit `a3a1a32`
-  (`a3a1a32a56a3b6500b5e406c5c4b40c7f4eeef76`, 2026-06-27,
-  "rdp: make handover reconnect cleanup robust"), on the fork branch
-  [`rdp-handover-reconnect`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect).
-  It hardens `GrdDaemonSystem`'s system-daemon↔handover-daemon client handoff
-  (+130/−7 across `grd-daemon-system.c` + `grd-daemon-handover.c`), fixing,
-  per the diff:
-  - a **`GSocketConnection` ref leak** in `on_take_client_finished()`
-    (`g_autoptr`);
-  - `TakeClient` with no redirected connection now returns
-    **`G_IO_ERROR_CLOSED`** instead of dereferencing a NULL
-    `socket_connection`;
-  - a **`client_taken` flag** so stale duplicate redirected connections on a
-    single-use routing token (mstsc opens several connections) are discarded
-    instead of spawning a second handover/duplicate session;
-  - retried redirected connections **replace** the still-pending socket
-    *without* re-emitting `TakeClientReady` (a second
-    `TakeClient`/`GetSystemCredentials` cycle could clobber credentials), and
-    each fresh connection **re-arms the abort timer**;
-  - on abort: `handover_is_waiting` is cleared on **both** src/dst handover
-    D-Bus interfaces, a client that already has a registered remote display is
-    **preserved** rather than removed, and a direct `abort_handover()` call no
-    longer leaves a live timeout source firing on the freed client.
 
-  **History:** the identical patch body was cherry-picked onto this 50.1-based
-  backend branch as `4e0d599` (2026-06-29) and reverted the next day
-  (`afc8f55`, 2026-06-30) after it **broke GDM→session handover** in testing —
-  net zero, so it isn't in this series. *Why* it broke on 50.1 was never
-  root-caused (UNVERIFIED); a plausible factor is that the fix was authored on
-  `50.1`+16 (`c14e09e`), whose upstream commit `5230bf3` ("daemon-system:
-  Simplify remote display reconnection handling", −15 lines in
-  `grd-daemon-system.c` incl. dropping the `SetRemoteId` API) is absent from
-  the 50.1 base. The rebased fix sits on the fork branch
-  above (tip `a3a1a32`, on `50.1`+16) awaiting upstream submission — status:
-  [`status.md`](../../../status.md).
+The earlier `rdp-handover-reconnect@a3a1a32` experiment set a global
+`client_taken` flag and preserved registered displays on abort. It was
+cherry-picked as `4e0d599` and reverted as `afc8f55` after it broke the normal
+GDM→session transition: the routing token is intentionally reused for a second
+leg, so treating it as globally single-use discarded a legitimate connection;
+the preserve-on-abort path also left zombie remote displays.
 
-  The **deb** still carries the revert as a quilt patch, because its `orig`
-  snapshot happened to include the cherry-pick — see
-  [`packaging/ppa`](../../../packaging/ppa).
+The replacement branch fixes the actual boundaries. `0009` first restores the
+GNOME 50 `SetRemoteId` protocol using GNOME's own 50.2 revert. `0013` coalesces
+duplicates only while a socket is waiting for `TakeClient`; consuming that
+socket clears the pending state, allowing the same token to drive the next
+handover leg. No global `client_taken` state and no preserve-on-abort behavior
+remain. `0010`–`0012` carry the independently valid ownership, NULL-socket, and
+timeout cleanup fixes from the old experiment.
+
+The public branch tip is
+[`eb91daf476dc`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commit/eb91daf476dc1c4ba23ccfdd8c077b8b83e84773).
+It passed a full build and the GRD test suite; the exact macOS Windows App
+reconnect scenario still needs an on-box runtime re-test.

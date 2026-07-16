@@ -80,7 +80,7 @@ The convert (in `kernel-drivers/patches/...-02-...dt.patch`, applied in `rk3588-
 &{/aliases} { rkvdec0 = &vdec0; rkvdec1 = &vdec1; };   /* of_alias_get_id needs these */
 &vdec0 {                                     /* RETYPE media's node in place */
     compatible = "rockchip,rkv-decoder-v2";
-    reg = <0x0 0xfdc38100 0x0 0x400>, <0x0 0xfdc38000 0x0 0x100>;  reg-names = "regs","link";
+    reg = <0x0 0xfdc38100 0x0 0x600>, <0x0 0xfdc38000 0x0 0x100>;  reg-names = "regs","link";
     clocks/clock-names/resets/reset-names = <vendor layout>;
     rockchip,ccu/srv/core-mask/taskqueue/sram/rcb-* = ...;
     status = "okay";

@@ -21,6 +21,7 @@ MPP_DUMP_OUTPUTS=${MPP_DUMP_OUTPUTS:-0}
 MPP_CAPTURE_ARTIFACTS=${MPP_CAPTURE_ARTIFACTS:-1}
 MPP_ENC_FORMAT=${MPP_ENC_FORMAT:-${MPP_NV12_FORMAT:-0}}
 MPP_GENERATE_VP9_INPUT=${MPP_GENERATE_VP9_INPUT:-1}
+MPP_CLEAR_DEBUG_EVENTS=${MPP_CLEAR_DEBUG_EVENTS:-1}
 MPP_VP9_GENERATED_WIDTH=${MPP_VP9_GENERATED_WIDTH:-320}
 MPP_VP9_GENERATED_HEIGHT=${MPP_VP9_GENERATED_HEIGHT:-240}
 MPP_VP9_GENERATED_FPS=${MPP_VP9_GENERATED_FPS:-30}
@@ -556,6 +557,33 @@ snapshot_mpp_state()
 			} >> "$target" 2>/dev/null || true
 		fi
 	done
+
+	if [ -r /sys/kernel/debug/rk_mpp_rewrite/state ]; then
+		cat /sys/kernel/debug/rk_mpp_rewrite/state \
+			> "$OUT/mpp-debug-state-$label.txt" 2>/dev/null || true
+	fi
+	if [ -r /sys/kernel/debug/rk_mpp_rewrite/events ]; then
+		cat /sys/kernel/debug/rk_mpp_rewrite/events \
+			> "$OUT/mpp-debug-events-$label.txt" 2>/dev/null || true
+	fi
+}
+
+clear_mpp_debug_events()
+{
+	local events=/sys/kernel/debug/rk_mpp_rewrite/events
+	local log="$OUT/mpp-debug-events-clear.txt"
+
+	if [ "$MPP_CLEAR_DEBUG_EVENTS" != 1 ] || [ ! -e "$events" ]; then
+		return 0
+	fi
+	if [ ! -w "$events" ]; then
+		printf '%s is not writable; old entries retained\n' "$events" > "$log"
+		return 0
+	fi
+
+	if { printf '1\n' > "$events"; } 2> "$log"; then
+		printf 'cleared %s before MPP cases\n' "$events" > "$log"
+	fi
 }
 
 record_summary()
@@ -777,6 +805,7 @@ export LD_LIBRARY_PATH="$MPP_LIBDIR:${LD_LIBRARY_PATH:-}"
 snapshot_mpp_state before
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
 	mpp /sys/kernel/debug/rk_mpp_rewrite
+clear_mpp_debug_events
 
 for case_name in $required_cases; do
 	run_case required "$case_name"

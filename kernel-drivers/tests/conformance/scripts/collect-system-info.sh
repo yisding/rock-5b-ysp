@@ -354,6 +354,26 @@ unavailable() {
         echo "unavailable=$KERNEL_CONFIG"
     fi
 
+    section "rk3588-decoder-iommu-groups"
+    for address in fdc38000 fdc40000; do
+        found_decoder_master=0
+        for device_path in /sys/bus/platform/devices/"$address"*; do
+            [ -e "$device_path" ] || continue
+            found_decoder_master=1
+            printf 'address=%s\tdevice=%s\tiommu-group=' \
+                "$address" "$(basename "$device_path")"
+            if [ -L "$device_path/iommu_group" ]; then
+                readlink -f "$device_path/iommu_group" || echo unresolved
+            else
+                echo none
+            fi
+        done
+        if [ "$found_decoder_master" -eq 0 ]; then
+            printf 'address=%s\tdevice=unavailable\tiommu-group=unavailable\n' \
+                "$address"
+        fi
+    done
+
     section "devices"
     id
     for pattern in /dev/mpp_service /dev/rga /dev/rknpu /dev/video* \

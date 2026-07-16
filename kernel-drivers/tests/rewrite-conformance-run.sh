@@ -61,14 +61,28 @@ case "$PROFILE" in
 				LIBRGA_REQUIRED_POSITIVE_COUNTERS="$LIBRGA_REQUIRED_POSITIVE_COUNTERS rga_userptr_iommu:attempt rga_userptr_iommu:ok"
 			fi
 		fi
-		if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ] &&
-			[ -z "$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS" ]; then
-			LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS="rga_userptr_iommu:active"
+		if [ -z "$MPP_REQUIRED_ZERO_AFTER_COUNTERS" ]; then
+			MPP_REQUIRED_ZERO_AFTER_COUNTERS="mpp:import_count"
+		fi
+		if [ -z "$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS" ]; then
+			LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS="rga:import_count"
+		fi
+		if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ]; then
+			case " $LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS " in
+			*" rga_userptr_iommu:active "*)
+				;;
+			*)
+				LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS="$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS rga_userptr_iommu:active"
+				;;
+			esac
 		fi
 		: "${GSTREAMER_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
+		: "${GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS:=mpp:import_count rga:import_count}"
 		: "${FFMPEG_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
+		: "${FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS:=mpp:import_count rga:import_count}"
 		if [ "$RUN_RKMPPENC_SUITE" = "1" ]; then
 			: "${RKMPPENC_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
+			: "${RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS:=mpp:import_count rga:import_count}"
 		fi
 		if [ -n "${MPP_REQUIRED_CASES:-}" ]; then
 			: "${MPP_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count mpp:hw_total_ns}"
@@ -161,6 +175,20 @@ run_counter_check()
 		bash "$TEST_DIR/debugfs-counter-check.sh"
 }
 
+counter_list_has()
+{
+	local counters=$1
+	local required=$2
+
+	case " $counters " in
+	*" $required "*)
+		return 0
+		;;
+	esac
+
+	return 1
+}
+
 validate_counter_defaults()
 {
 	case "$PROFILE" in
@@ -193,6 +221,16 @@ validate_counter_defaults()
 		printf "rewrite counter defaults did not require librga counters\n" >&2
 		return 1
 	fi
+	if ! counter_list_has "$MPP_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"mpp:import_count"; then
+		printf "rewrite counter defaults did not require the MPP import gauge to return to zero\n" >&2
+		return 1
+	fi
+	if ! counter_list_has "$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"rga:import_count"; then
+		printf "rewrite counter defaults did not require the RGA import gauge to return to zero\n" >&2
+		return 1
+	fi
 	if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ]; then
 		case " $LIBRGA_REQUIRED_POSITIVE_COUNTERS " in
 		*" rga_userptr_iommu:attempt "*)
@@ -223,13 +261,35 @@ validate_counter_defaults()
 		printf "rewrite counter defaults did not require GStreamer counters\n" >&2
 		return 1
 	fi
+	if ! counter_list_has "$GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"mpp:import_count" ||
+		! counter_list_has "$GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"rga:import_count"; then
+		printf "rewrite counter defaults did not require GStreamer import gauges to return to zero\n" >&2
+		return 1
+	fi
 	if [ -z "$FFMPEG_REQUIRED_POSITIVE_COUNTERS" ]; then
 		printf "rewrite counter defaults did not require FFmpeg counters\n" >&2
+		return 1
+	fi
+	if ! counter_list_has "$FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"mpp:import_count" ||
+		! counter_list_has "$FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"rga:import_count"; then
+		printf "rewrite counter defaults did not require FFmpeg import gauges to return to zero\n" >&2
 		return 1
 	fi
 	if [ "$RUN_RKMPPENC_SUITE" = "1" ] &&
 		[ -z "$RKMPPENC_REQUIRED_POSITIVE_COUNTERS" ]; then
 		printf "rewrite counter defaults did not require rkmppenc counters\n" >&2
+		return 1
+	fi
+	if [ "$RUN_RKMPPENC_SUITE" = "1" ] &&
+		{ ! counter_list_has "$RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS" \
+			"mpp:import_count" ||
+		  ! counter_list_has "$RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS" \
+			"rga:import_count"; }; then
+		printf "rewrite counter defaults did not require rkmppenc import gauges to return to zero\n" >&2
 		return 1
 	fi
 	if [ -n "${MPP_REQUIRED_CASES:-}" ] &&
@@ -358,6 +418,10 @@ run_comparators()
 run_validation()
 {
 	run_step "counter defaults: validate wiring" validate_counter_defaults
+
+	run_step "debugging: validate focused MPP capture workflow" \
+		env MPP_DEBUG_VALIDATE_ONLY=1 \
+		bash "$TEST_DIR/mpp-debug-capture.sh"
 
 	run_step "fuzzing: validate syzlang ABI constants" \
 		bash "$TEST_DIR/syzkaller/check-rockchip-syzlang.sh"

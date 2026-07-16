@@ -9,14 +9,15 @@ rkmpp backend plugs in.
 
 > **Anchor tree (exact).** All `file:line` references resolve against upstream
 > GRD commit **`c14e09e`** (`c14e09ef67e916ae83a4eddee6a56591078e78e0`,
-> "Update Polish translation", tag `50.1` + 16 upstream commits) — the base of
-> the dev branch `rdp-handover-reconnect` (= `a3a1a32~1`), **before** this
+> "Update Polish translation", tag `50.1` + 16 upstream commits) — the base for
+> the complete backend/reconnect series, **before** this
 > repo's [`apps/gnome-remote-desktop/patches`](../patches). *Not* the pristine `50.1` tag: the two trees
 > differ in `grd-rdp-render-context.c` (upstream commit `cf250ed` reverts the
 > AMD VA-API disable between them), so §3's `:634`/`:553`/… only line up on
 > `c14e09e`; the `grd-rdp-pipewire-stream.c` and `grd-hwaccel-vulkan.c`
 > anchors happen to be identical in both (verified 2026-07-01). Note the
-> 8-patch series itself applies to pristine `50.1`
+> full `0001`–`0013` series and its backend-only subset both use `c14e09e`:
+> `0003` needs `cf250ed`, and `0009` reverts `5230bf3`, both present there
 > ([`apps/gnome-remote-desktop/patches/README.md`](../patches/README.md)) — a *different* pin than this
 > doc's anchors. To re-derive on a newer GRD, grep for the function names
 > given beside each anchor. Tree pins for the whole repo:

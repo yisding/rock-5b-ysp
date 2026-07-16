@@ -215,7 +215,7 @@ index 000000000000..f7b49c816891
 +
 +    video-codec@fdc38100 {
 +        compatible = "rockchip,rkv-decoder-v2";
-+        reg = <0x0 0xfdc38100 0x0 0x400>, <0x0 0xfdc38000 0x0 0x100>;
++        reg = <0x0 0xfdc38100 0x0 0x600>, <0x0 0xfdc38000 0x0 0x100>;
 +        reg-names = "regs", "link";
 +        rockchip,core-mask = <0x00010001>;
 +    };

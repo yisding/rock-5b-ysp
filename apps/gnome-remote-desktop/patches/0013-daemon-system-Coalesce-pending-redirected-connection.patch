@@ -1,0 +1,81 @@
+From eb91daf476dc1c4ba23ccfdd8c077b8b83e84773 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Tue, 14 Jul 2026 20:56:44 -0700
+Subject: [PATCH] daemon-system: Coalesce pending redirected connections
+
+---
+ src/grd-daemon-system.c | 32 +++++++++++++++++++++++++++-----
+ 1 file changed, 27 insertions(+), 5 deletions(-)
+
+diff --git a/src/grd-daemon-system.c b/src/grd-daemon-system.c
+index 2921269..16dcc70 100644
+--- a/src/grd-daemon-system.c
++++ b/src/grd-daemon-system.c
+@@ -121,6 +121,15 @@ disconnect_from_remote_display (GrdRemoteClient *remote_client)
+   g_clear_object (&remote_client->remote_display);
+ }
+ 
++static void
++clear_remote_client_socket_connection (GrdRemoteClient *remote_client)
++{
++  if (remote_client->socket_connection)
++    grd_close_connection_and_notify (remote_client->socket_connection);
++
++  g_clear_object (&remote_client->socket_connection);
++}
++
+ static gboolean
+ grd_daemon_system_is_ready (GrdDaemon *daemon)
+ {
+@@ -199,8 +208,7 @@ on_handle_take_client (GrdDBusRemoteDesktopRdpHandover *interface,
+                                                              fd_list,
+                                                              fd_variant);
+ 
+-  grd_close_connection_and_notify (remote_client->socket_connection);
+-  g_clear_object (&remote_client->socket_connection);
++  clear_remote_client_socket_connection (remote_client);
+   g_clear_handle_id (&remote_client->abort_handover_source_id, g_source_remove);
+ 
+   grd_dbus_remote_desktop_rdp_handover_set_handover_is_waiting (interface,
+@@ -593,9 +601,7 @@ grd_remote_client_free (GrdRemoteClient *remote_client)
+ 
+   g_clear_pointer (&remote_client->id, g_free);
+   g_clear_pointer (&remote_client->hostname, g_free);
+-  if (remote_client->socket_connection)
+-    grd_close_connection_and_notify (remote_client->socket_connection);
+-  g_clear_object (&remote_client->socket_connection);
++  clear_remote_client_socket_connection (remote_client);
+   unregister_handover_iface (remote_client, remote_client->handover_src);
+   unregister_handover_iface (remote_client, remote_client->handover_dst);
+   g_clear_pointer (&remote_client->handover_src, handover_iface_free);
+@@ -739,10 +745,26 @@ on_incoming_redirected_connection (GrdRdpServer      *rdp_server,
+       return;
+     }
+ 
++  /* Redirected retries use the same routing token. Keep the newest socket,
++   * but do not emit TakeClientReady again while a TakeClient call is already
++   * pending. Once TakeClient clears the socket, the token remains valid for
++   * the next handover stage or a later reconnect. */
++  if (remote_client->socket_connection)
++    {
++      g_debug ("[DaemonSystem] Replacing pending redirected client "
++               "connection for remote id %s", remote_client->id);
++      clear_remote_client_socket_connection (remote_client);
++      remote_client->socket_connection = g_object_ref (connection);
++      arm_abort_handover_timer (remote_client);
++      return;
++    }
++
+   remote_client->socket_connection = g_object_ref (connection);
+   remote_client->use_system_credentials = remote_client->is_client_mstsc &&
+                                           !requested_rdstls;
+ 
++  arm_abort_handover_timer (remote_client);
++
+   g_debug ("[DaemonSystem] At: %s, emitting TakeClientReady signal",
+            remote_client->handover_dst->object_path);
+ 
+-- 
+2.55.0
+
+

@@ -1,6 +1,6 @@
 # Finding: RK3588 CCU mode is now honored; HARD remains unvalidated
 
-**Date:** 2026-07-03 · **Track:** clean-room rewrite (`mpp-rewrite`) · **Status:** code mismatch fixed, needs hardware.
+**Date:** 2026-07-03 · **Updated:** 2026-07-14 · **Track:** clean-room rewrite (`mpp-rewrite`) · **Status:** code/topology mismatch fixed, needs hardware.
 
 The rewrite MPP driver originally drove the RK3588 dual-core decoder in **HARD
 CCU** mode on the actual rock-5b device tree, even though the BSP-validated
@@ -68,6 +68,24 @@ but the explicit `rockchip,ccu-mode = <1>` now keeps the rewrite on SOFT.
 **Net:** the shipped board DT no longer silently selects a multi-core mode the
 BSP deliberately avoids. The remaining question is runtime equivalence and
 performance on hardware.
+
+### Shared-IOMMU prerequisite
+
+HARD can dispatch a link table and its imported-buffer IOVAs to either decoder
+core, so both cores must use one DMA domain. The rewrite now has both halves of
+that safety contract:
+
+- Rock 5B's `vdec1_mmu` names `vdec0_mmu` with
+  `rockchip,shared-domain-owner`. The Rockchip provider returns the owner's
+  singleton group, letting IOMMU core create and attach one normal default DMA
+  domain and install ordinary DMA ops for both decoder masters.
+- MPP compares the public domain identity of every online peer before
+  advertising HARD support and again while building the descriptor mask. A
+  mixed cluster is not advertised and staging fails with `-EXDEV`.
+
+This removes the prior address-space blocker without making HARD the shipped
+default. The board still selects SOFT, and HARD still needs the stress and
+differential evidence below.
 
 ---
 

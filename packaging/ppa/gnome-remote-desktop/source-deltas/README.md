@@ -1,7 +1,9 @@
 # GRD source deltas
 
-This directory captures source changes needed to reconstruct PPA source snapshots
-that were exported from dirty local GRD worktrees.
+This directory preserves source changes needed to reconstruct historical PPA
+snapshots that were exported from dirty local GRD worktrees. Current GRD
+packaging uses the clean, public `rdp-handover-reconnect-v2` branch tip and does
+not apply a source delta by default.
 
 ## dirty20260706-worktree.patch
 
@@ -27,11 +29,17 @@ git checkout a59c904c99088235eb4de31ca340747d334494f3
 git apply /path/to/rock-5b-ysp/packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch
 ```
 
-The PPA helper applies this patch automatically by default:
+To reconstruct that historical snapshot with the current helper, opt in to the
+legacy delta explicitly:
 
 ```bash
+GRD_REPO=/path/to/grd-ffmpeg \
+GRD_COMMIT=a59c904c99088235eb4de31ca340747d334494f3 \
+GRD_UPSTREAM_VERSION=50.1+rkmpp+git20260630.a59c904+dirty20260706 \
+GRD_DELTA="$PWD/packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch" \
 bash packaging/ppa/build-source-packages.sh grd
 ```
 
-Override `GRD_REPO`, `GRD_COMMIT`, and `GRD_DELTA` together only when rebuilding
-from a different GRD source state.
+The default helper instead exports
+`eb91daf476dc1c4ba23ccfdd8c077b8b83e84773` directly, with an empty
+`GRD_DELTA`.

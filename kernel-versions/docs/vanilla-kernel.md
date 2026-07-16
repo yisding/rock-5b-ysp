@@ -92,7 +92,7 @@ rkvdec_ccu: rkvdec-ccu@fdc30000 {
 
 rkvdec0: rkvdec-core@fdc38000 {              /* DIFF: full node (convert form is `&vdec0 { … }`) */
     compatible = "rockchip,rkv-decoder-v2";
-    reg = <0x0 0xfdc38100 0x0 0x400>,        /* "regs" at core+0x100 -> io_base; MMU = io_base+0x600 = fdc38700 */
+    reg = <0x0 0xfdc38100 0x0 0x600>,        /* function+cache through +0x5ff; MMU = io_base+0x600 = fdc38700 */
           <0x0 0xfdc38000 0x0 0x100>;        /* "link" at core+0x000 */
     reg-names = "regs", "link";
     interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH 0>;  /* DIFF: present (inherited in convert). Verified on board 2026-07-01 */
@@ -137,7 +137,7 @@ rkvdec0_mmu: iommu@fdc38700 {                 /* DIFF: full node (convert reuses
 
 rkvdec1: rkvdec-core@fdc40000 {
     compatible = "rockchip,rkv-decoder-v2";
-    reg = <0x0 0xfdc40100 0x0 0x400>, <0x0 0xfdc40000 0x0 0x100>;
+    reg = <0x0 0xfdc40100 0x0 0x600>, <0x0 0xfdc40000 0x0 0x100>;
     reg-names = "regs", "link";
     interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH 0>;  /* verified on board 2026-07-01 */
     interrupt-names = "irq_rkvdec1";

@@ -1,0 +1,34 @@
+From d5689a55729b9d385e69f8f9f96c0e30372985cb Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Tue, 14 Jul 2026 20:55:45 -0700
+Subject: [PATCH] daemon-system: Fix RedirectClient variant ownership
+
+---
+ src/grd-daemon-system.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/src/grd-daemon-system.c b/src/grd-daemon-system.c
+index 4e5ab34..26e29e3 100644
+--- a/src/grd-daemon-system.c
++++ b/src/grd-daemon-system.c
+@@ -402,10 +402,12 @@ on_handle_start_handover (GrdDBusRemoteDesktopRdpHandover *interface,
+       connection = g_dbus_interface_skeleton_get_connection (
+                      G_DBUS_INTERFACE_SKELETON (
+                      remote_client->handover_src->interface));
+-      redirect_variant = g_variant_new ("(sss)",
+-                                        routing_token,
+-                                        username,
+-                                        password);
++      /* g_dbus_connection_emit_signal() consumes a floating variant. Sink the
++       * reference first so the g_autoptr cleanup remains the sole owner. */
++      redirect_variant = g_variant_ref_sink (g_variant_new ("(sss)",
++                                                            routing_token,
++                                                            username,
++                                                            password));
+       g_dbus_connection_emit_signal (connection,
+                                      remote_client->handover_src->sender_name,
+                                      remote_client->handover_src->object_path,
+-- 
+2.55.0
+
+

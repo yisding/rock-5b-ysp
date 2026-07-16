@@ -7,9 +7,9 @@ the plan that closes the gap [`rewrite-drivers.md`](./rewrite-drivers.md) §6 an
 hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
-> surface and heavily unit-tested — MPP **54 KUnit cases** and RGA **104 KUnit
-> cases** compile at the current §6 pins (`d1d15a3d052a` on 6.18,
-> `12f712d71144` on mainline). The broader sanitizer object-build profiles were
+> surface and heavily unit-tested — MPP **86 KUnit cases** and RGA **117 KUnit
+> cases** compile in the maintained worktrees based on the current §6 pins (`d1d15a3d052a` on 6.18,
+> `083bdb98e715` on mainline). The broader sanitizer object-build profiles were
 > last recorded at the immediately earlier `0a35c26a0fd7` / `938b1d2032c3`
 > pins. But every one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -31,12 +31,12 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md), including opt-in GStreamer display/KMS-capture, AV1, and legacy advertised-decode diagnostic cases; `VALIDATE_ONLY=1` now also validates MPP/GStreamer case builders, validates FFmpeg case-list wiring, compile-checks the direct `librga-smoke.cpp` source used for maintained RGA artifacts, runs comparator and evidence-audit selftests, and attempts an optional `gstreamer-event-harness.c` build when GStreamer development headers are installed | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing plus AFBC16x16 and tile8x8 round-trips, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
 | Paired evidence audit | ⚠️ [`kernel-drivers/tests/rewrite-evidence-audit.sh`](../tests/rewrite-evidence-audit.sh) now has a device-free selftest and a normal mode that requires paired forward-port/rewrite required-case passes, artifact manifests, counter deltas, and comparator-clean results | use as the §7 evidence gate; normal mode should fail until booted rewrite logs exist |
-| Per-core scheduler / timing counters | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` plus [`debugfs-counter-check.sh`](../tests/debugfs-counter-check.sh), including exact-counter gates and `component:counter_prefix:min_positive` multicore-spread gates | reuse as assertion hooks throughout |
+| Per-core scheduler / timing counters and MPP job diagnostics | ✅ debugfs `rk_mpp_rewrite/`, `rk_rga_rewrite/` plus [`debugfs-counter-check.sh`](../tests/debugfs-counter-check.sh); MPP additionally exposes a correlated live `state`, 64-entry `events` journal, opt-in `trace_mask`, completion/failure/IRQ counters, and [`mpp-debug-capture.sh`](../tests/mpp-debug-capture.sh) for one-reproduction bundles | reuse as assertion hooks throughout; attach the focused bundle to every MPP failure |
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ⚠️ compile-only `race` profile exists in [`rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh); KCSAN is deliberately **off** in `debug-kernel.md` | **add** — a separate booted build (§3) |
 | **Fault injection & recovery** | ⚠️ [`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh) now orchestrates kill/close, reset-opener, and opt-in unbind/rebind loops around real workloads, and `VALIDATE_ONLY=1` checks its config; [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh) now has an opt-in `/proc/self/fail-nth` mode for syscall-local allocation/usercopy failures in non-submit ioctls; synthetic hardware timeout/IOMMU fault injection has not run | finish the recovery matrix (§4) |
 | **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps, plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; an optional syzkaller `make descriptions` compile check now exists for hosts with `SYZKALLER_DIR` + Go; the RGA3 userptr-IOMMU path has a scattered-userptr correctness fuzzer under [`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh); `VALIDATE_ONLY=1` conformance validation now checks syzlang ABI markers, optionally compiles the syzlang draft with syzkaller, checks the ioctl mutator build, and checks the RGA IOMMU fuzzer build, but neither fuzzer has been run under KCOV/KASAN | finish §5 |
-| **Rewrite-specific security/ABI audit** | ❌ ([`bsp-audit.md`](./bsp-audit.md) is the *forward-port*) | **add** (§6) |
+| **Rewrite-specific security/ABI audit** | ⚠️ first focused MPP pass completed 2026-07-14; it found and fixed the RK3588 VDPU381/VDPU383 CCU mismatch, core-removal queue race, unbounded session-switch message arrays, custom translation-table race, and procfs-disabled init failure | continue the full MPP/RGA checklist (§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
 ---
@@ -49,12 +49,13 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 158 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 201 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
   `REWRITE_BUILD_PROFILES=memory kernel-drivers/tests/rewrite-build-gate.sh all`,
-  which only proves that both rewrite objects compile under this instrumentation.
+  which only proves that the provider/rewrite objects and Rock 5B DTB compile
+  under this instrumentation.
 - **Kernel B — race.** A *separate* build with `KCSAN=y` + lockdep. `debug-kernel.md`
   §3 turns KCSAN off on purpose (it conflicts with KASAN and adds noise), so the
   race pass needs its own kernel. This is the build that finds the
@@ -195,8 +196,8 @@ matrix below.
 
 | Trigger | How to induce | Assert (debugfs + behaviour) |
 |---|---|---|
-| **Job timeout** | wedge HW or shrink the 500 ms (MPP) / 1000 ms (RGA) window | `timeout_count++`, reset pulse, PM/clock released, `-ETIMEDOUT`/`-EBUSY` returned, next job dispatches, fence signalled |
-| **IOMMU fault** | submit deliberately bad IOVAs / unmapped register fd | `iommu_fault_count++`, job `-EIO`, `iommu_refresh_count++` (post-reset domain flush), device still usable, ramoops clean |
+| **Job timeout** | wedge HW or shrink the 500 ms (MPP) / 1000 ms (RGA) window | `timeout_count++`, reset pulse, PM/clock released, `-ETIMEDOUT`/`-EBUSY` returned, fence signalled; next job dispatches only after a successful reset. For either rewrite, a reset failure increments `recovery_failure_count`, quarantines that core, masks its IRQ, and drains its queue with `-EIO`; an MPP coordinator reset failure quarantines every dependent decoder core. |
+| **IOMMU fault** | submit deliberately bad IOVAs / unmapped register fd | `iommu_fault_count++`, job `-EIO`; a successful reset increments `iommu_refresh_count` and leaves the device usable, while a reset failure follows the same quarantine/drain assertions above; ramoops clean |
 | **Device unbind under load** | `echo > .../unbind` with jobs queued+active | queued+active jobs complete `-ENODEV`, exported release fences signalled, **no UAF (KASAN)** |
 | **close() / RESET_SESSION mid-flight** | close fd / reset while a job is active or an acquire fence is pending | session job list drains before imports/requests drop; no orphaned fence; race it under Kernel B |
 | **Allocation failure** | `failslab`/`fail_page_alloc` scoped to the driver, hit each site | dma_buf attach, `pin_user_pages`, DMA map, coherent cmd-buffer, CCU link-table node → graceful unwind, no leak (KMEMLEAK), no unsignalled fence |
@@ -279,12 +280,294 @@ remaining production evidence is still a booted rewrite run on RK3588 with
 RGA userptr-IOMMU fallback `attempt`/`ok` deltas, `active` returning to baseline, clean IOMMU fault
 counters, and correct output under the debug kernel.
 
-## 6. Security / ABI hardening review (net-new, human)
+## 6. Security / ABI hardening review (in progress, human)
 
 Tool passes don't replace reading these surfaces. Method mirrors
-[`bsp-audit.md`](./bsp-audit.md) (which is the *forward-port's* 89-finding audit —
-the rewrite is "refcount-disciplined by construction" but has had **no
-equivalent adversarial read**).
+[`bsp-audit.md`](./bsp-audit.md) (which is the *forward-port's* 89-finding audit).
+The 2026-07-14 focused MPP pass covered the decoder reference-data selection,
+encoder DCHS/overflow IRQ behavior, cross-core CCU completion,
+IRQ/timeout/reset/remove lifetime, V1 collector bounds, custom translation
+table concurrency, and procfs configuration. It corrected a critical
+hardware-family mismatch: the RK3588 core is VDPU381 and must use the vendor
+218-word/six-write-part `rkvdec_link_v2_hw_info`, link IRQ/work-mode register
+`0x00`, core status word 224, and error mask `0xf0`; the rewrite had used the
+RK3576 VDPU383 table and `0x48`/`0x4c` link registers. Focused KUnit assertions
+now pin those RK3588 values. The same pass serialized queue admission with
+core/CCU removal, bounded session-switch-only V1 arrays, locked translation
+table commit/snapshot, and verified a `CONFIG_PROC_FS=n` warning-clean build.
+The continuation made DCHS allocation failure stop submission, restored the
+VEPU580 circular-bitstream overflow advance, reset encoder/direct-decoder cores
+after hardware error IRQs, changed HARD-CCU IRQ completion to claim the actual
+table-done job across the coordinator instead of the interrupting core's
+software owner, and made member-core removal quiesce/abort the coupled cluster.
+It also found that the standalone rewrite did not reproduce the vendor driver's
+shared-IOMMU-domain setup: a HARD-CCU peer could therefore fetch link-table and
+import IOVAs mapped only for the selected core. HARD mode now requires equal
+DMA/IOMMU domains across every online peer, drops advertised decoder support and
+returns `-EXDEV` for mixed-domain descriptor staging, and constrains peer
+power-up to the validated mask/domain. Rock 5B now also supplies the required
+positive topology: `vdec1_mmu` points to `vdec0_mmu` with
+`rockchip,shared-domain-owner`, and the Rockchip provider returns the owner's
+singleton group so IOMMU core creates, attaches, and installs one ordinary
+default DMA domain for both decoder masters. Provider self-links/chains are
+rejected and unresolved owners defer; nodes without the property retain their
+singleton group. The runtime equal-domain test remains a fail-closed verifier,
+and the shipped SOFT-CCU default is unchanged.
+The shared-domain follow-up also made IOMMU fault hooks explicitly
+provider-owned: each physical decoder IOMMU is cleared independently on
+removal, and a callback with a controller/master source must match that exact
+core instead of falling back to the first core in the common domain.
+The HARD-CCU fault follow-up then separated physical source attribution from
+software job ownership. It reads the faulting peer's link `CFG_ADDR`, finds the
+active job that owns that descriptor IOVA, and schedules the existing
+coordinator-wide recovery on that job's active slot. An unmatched descriptor
+falls back to another active job in the same HARD coordinator, so a fault on an
+empty peer slot cannot disappear until the ordinary 500 ms timeout.
+The session-control follow-up then closed reset and multi-message ordering
+races. Each staged job snapshots the client type, translation table, codec
+information, inherited RCB descriptors, and session epoch. Reset removes
+earlier staged jobs for that session, advances the epoch before aborting active
+work, and rejects stale translations/admissions with `-ECANCELED`; active-list
+and scheduler-queue ownership become visible together under the session lock.
+Repeated client initialization is idempotent only for the already-bound type,
+while an encoder/decoder rebind fails with `-EBUSY`.
+The poll-lifecycle follow-up made RKVENC2 slice overflow recoverable instead of
+leaving a permanently unpollable completed job at the session head. It also
+defers slice-buffer validation until a split-mode job is selected, preserving
+the forward-port full-frame behavior for non-split `POLL_HW_IRQ` and the
+empty-session `-EIO` result without touching slice-only userspace memory. The
+VEPU580 follow-up then matched the vendor `0x03f0` reset mask: a bitstream
+overflow still advances/wraps the circular write pointer and lets the current
+frame continue, but its retained status now resets the core at terminal
+completion before another frame starts. The prior rewrite checked only generic
+error bits 5–8 and incorrectly omitted that post-overflow reset. The adjacent
+decoder readback audit also removed undefined signed-left-shift behavior from
+the RLC decoded-length adjustment: unsigned 32-bit delta/shift arithmetic keeps
+the BSP bit pattern even when error/wrap status falls below the stream start.
+The reset-containment follow-up then closed MPP's fail-open recovery edge.
+Reset assertion/deassertion failure now quarantines the core until reprobe,
+including a reset deassertion that fails during runtime power-up, removes it
+from support/selection/admission/dispatch, drains already queued jobs with
+`-EIO`, and leaves its IRQ masked across runtime suspend. A failed decoder
+coordinator reset applies the same policy to every dependent core, while
+`recovery_failure_count` and the per-hardware `recovery_failed` state expose the
+degradation. KUnit pins core/CCU admission rejection, selector skipping, and
+dispatcher refusal. The adjacent HARD-CCU table audit also moved the full BSP
+readback-destination span check into table materialization: a 285-word register
+image now fails with `-EINVAL` before the start doorbell rather than reaching
+hardware and failing only during completion readback. HARD-CCU completion now
+pins the table's software-owner hardware and blocks on its run lock before
+rechecking the exact slot. This closes the immediate-doorbell race where the
+threaded IRQ acknowledged a completed table, lost `mutex_trylock()`, and left
+the job to report a false 500 ms timeout; the pin also closes concurrent
+abort/removal use-after-free exposure around the previous raw `job->hw` load.
+The same counted snapshot now protects both passes over collected unfinished
+jobs during HARD-CCU reset/resend; retaining the job object no longer leaves its
+detached hardware pointer unprotected.
+The HARD-CCU power-ownership follow-up also made the initial chain owner hold a
+separate runtime-PM/clock reference on its selected core as well as every peer.
+Those references transfer together to the next listed job, so the first job's
+normal completion cannot power off its selected core while that core remains in
+the coordinator work mask for later descriptors.
+The link-pool audit then matched the vendor allocator's sentinel invariant:
+each per-core HARD pool keeps one unused next-table node, rejects pools smaller
+than two nodes at probe, and returns `-ENOSPC` before a full pool can produce a
+zero tail address. The ownership KUnit now fills the usable `capacity - 1`
+slots, verifies the sentinel remains unused across relinking, and pins the
+fail-closed final admission.
+The descriptor/MMIO separation audit then removed direct task-register and
+cache-control writes from HARD submission. Those values now exist only in the
+coherent table, and add-mode jobs no longer touch the selected core's link
+control either; the selected physical core can be busy executing a different
+software owner's descriptor. Direct MMIO remains the SOFT/direct-decoder path,
+while HARD per-core link/RCB setup is limited to an idle coordinator start.
+The adjacent codec-metadata audit made RKVDEC2 CCU watchdog sizing fail safe:
+an overflowing width/height/bitdepth pixel count now selects the longest 100 ms
+threshold rather than wrapping into the 20 ms range; the existing threshold
+KUnit case covers the maximum-width metadata boundary.
+The direct-encoder comparison then restored the BSP's per-frame VEPU580
+hardware-watchdog calculation. After the submitted registers and configured
+core clock are applied, the rewrite selects the 50/100/200/400/800 ms interval
+from the encoded resolution, preserves the upper submodule byte, and clamps the
+24-bit frame threshold; above-table metadata uses the longest interval instead
+of the vendor path's zero fallback. KUnit pins both the 1080p table boundary
+and saturation behavior, independently of the 500 ms software timeout.
+The shared-domain follow-up rejects self-referencing, chained, cyclic, and
+non-Rockchip owner phandles before provider deferral, and the mainline helper
+now verifies the attached IOMMU provider before reading Rockchip-private data.
+The adjacent ABI-arithmetic pass also makes literal `SET_REG_ADDR_OFFSET`
+updates reject cumulative 32-bit wrap; the existing offset KUnit case pins the
+failure and preserves the original register value.
+The teardown-lifetime follow-up serialized active-job hardware pin and detach
+under the session lock. Reset/close abort now owns a hardware reference before
+canceling timeout work or acquiring the run lock, so concurrent completion and
+platform removal cannot drop the final reference and free the devm hardware
+object between abort's pointer load and use.
+The HARD-CCU containment follow-up closed the contended-peer gap in the
+coordinator-wide abort path. A failed `mutex_trylock()` no longer silently
+leaves that peer active until its ordinary 500 ms timeout: it queues immediate
+work holding the exact job and hardware references. The worker acquires the run
+lock and aborts only if that same job still owns the active slot; KUnit pins
+same-target result updates, target replacement, and the corresponding job-ref
+lifetime. The follow-up closes the remaining pre-lock capture gap: the abort
+target is pinned before `mutex_trylock()`, is queued only while it still owns
+the slot, and its timeout is canceled only after the worker claims it. A stale
+target can therefore neither select a replacement nor remove that replacement's
+watchdog.
+The immediate-fault follow-up also publishes the HARD-CCU software-owner flag
+before the `CFG_DONE` doorbell, with a write barrier ordering both descriptor
+and ownership state ahead of hardware start. A fault generated as soon as the
+CCU fetches the descriptor can therefore still resolve the correct active slot
+instead of scheduling recovery on an empty physical peer.
+The IOMMU-fault completion follow-up split fault recovery from each core's
+ordinary delayed timeout work in both rewrites. The provider callback now
+records the active-slot activation generation, and dedicated work claims only
+that exact generation before canceling its watchdog. Delayed fault work can no
+longer complete a replacement job or consume the replacement's timeout; KUnit
+pins the matching-generation and stale-replacement cases in MPP and RGA.
+The IRQ/PM follow-up then closed the hard-top-half side of the same recovery
+race. Run locks serialize threaded completion but cannot stop an already-running
+hard IRQ handler from reading or clearing MMIO while timeout, fault, reset, or
+removal recovery resets and runtime-suspends the core. Both rewrites now disable
+the registered engine IRQ and drain its hard handler before claiming/resetting
+the slot, then re-enable it after the core is quiesced. RGA also publishes
+`removing` under the job lock shared by queue admission and the abort sweep,
+giving the selected-core removal race a real synchronization edge.
+The watchdog-target follow-up closed the ordinary-timeout version of the
+replacement race. Cancellation can lose to a delayed worker that has already
+started; after the completed job dispatches a successor, a worker that merely
+takes "the active job" would time out the successor. MPP and RGA watchdogs now
+hold an explicit reference to their target, workers claim only that job, and
+successor start uses `mod_delayed_work()` so its new timeout is queued even
+while the stale invocation exits. Focused KUnit cases pin target-reference
+release, replacement survival, and replacement watchdog rearming.
+The RGA fault-lifetime follow-up removed the generic DMA-domain handler
+fallback, which cannot register or unregister safely on the IOMMU-core-owned
+default DMA domain. Attached-domain cores now require the provider-local hook;
+shared-domain faults require an exact physical source instead of redirecting to
+the first peer, each provider callback is cleared independently, and provider
+unregister waits for already-running IOMMU IRQ callbacks. The same pass moved
+the queue-on-hardware prototype outside the KUnit-only block, fixing a current
+mainline build failure hidden by 6.18's KUnit-enabled configuration.
+The RGA acquire-fence follow-up fixed a recursive spinlock deadlock: dma-fence
+callbacks already run with the fence lock held, so status must be read with
+`dma_fence_get_status_locked()`. It also made callback ownership atomic during
+abort and made completion respect the callback-arming sentinel. KUnit now pins
+last-core abort interleaved between callback registrations, preventing teardown
+from dropping the callbacks' shared work reference while the submit path is
+still arming later fences.
+The release-fence publication follow-up removed an fd-reuse rollback race in
+both modern request submit and legacy async blit. The rewrite now reserves the
+fd and creates its `sync_file`, copies the fd number to userspace, and only then
+installs the file. If that copy faults, the still-uninstalled reservation is
+dropped directly instead of calling `close_fd()` on a number another thread
+could already have closed and reused. KUnit covers the reservation remaining
+invisible before installation and both install/abort ownership transitions.
+The close/dispatch handoff follow-up then closed the remaining scheduler gaps.
+A successful acquire worker could previously read its result before `release()`
+marked the session closing, then publish a hardware job after the close path had
+already swept every queue. A successful multi-task IRQ could do the same while
+moving a request from its completed core to the next task's selected core.
+Sessions now count workers and IRQ handoffs that have committed to dispatch;
+close rejects later handoffs and waits for earlier ones to publish their queue
+state before aborting hardware jobs. KUnit pins both the pre-close counted
+handoff and post-close `-EFAULT` completion path.
+The acquire-state follow-up removed the close path's cross-lock inference from
+`queued`, `hw`, `done`, and `result`. Deferred jobs now publish one explicit
+session-locked wait state, which close/removal claims exactly once before
+canceling callbacks. Submit also rechecks hardware availability after callback
+arming, so last-core removal just before wait-state publication completes the
+release fence with `-ENODEV` instead of leaving an unsignaled fence orphaned.
+Synchronous RGA completion now also publishes `result` before `done` with a
+release/acquire pair, removing the plain completion-flag race targeted by the
+KCSAN profile.
+The RGA hot-reprobe follow-up fixed public core-mask reuse after a partial
+unbind. Probe previously assigned a mask from the count of surviving same-class
+cores, so rebinding core 0 while core 1 remained gave both devices core 1's bit.
+Probe now claims the first vacant class-specific slot, rejects excess cores, and
+keeps forced-core routing and per-core counters unambiguous; KUnit models both
+RGA3 and RGA2 partial-reprobe cases.
+The dma-buf follow-up removed another first-segment assumption: codec imports
+now prove that all mapped DMA entries form one byte-contiguous span covering
+the allocation inside the 32-bit register aperture, and encoded plane offsets
+must remain inside that allocation.
+The cache-lifetime follow-up aligned the rewrite with the forward port's
+explicit dma-buf-identity rule: lookup pins the object named by the current fd
+before matching, preventing a reused integer fd from selecting an old mapping,
+and stale cache eviction preserves any reference already held by a job.
+The register-offset follow-up retains per-register dma-buf provenance after fd
+translation, then validates the cumulative embedded plus
+`SET_REG_ADDR_OFFSET` value against the allocation and 32-bit IOVA aperture.
+Literal non-fd registers retain the forward port's additive-offset behavior
+but reject cumulative 32-bit wrap instead of programming the wrapped value.
+The explicit-fd parser follow-up now requires `TRANS_FD_TO_IOVA` and
+`RELEASE_FD` payloads to be exact bounded arrays of 32-bit elements. Partial
+trailing bytes can no longer be accepted while silently escaping translation or
+release; KUnit pins zero, misaligned, oversized, and boundary-sized payloads.
+The explicit-IOVA affinity follow-up now maps every fd in a translation command
+on one DMA device, serializes translation against release/reset, and pins that
+device for later no-translate jobs. Partial core removal therefore returns
+`-ENODEV` instead of running a cached IOVA in another core's IOMMU domain, while
+rebinding the same platform device restores the mapping affinity; KUnit pins
+the online, offline, and same-device-rebind selections.
+The runtime-testability follow-up replaced the VP9 translation fixture's
+unresolvable synthetic fd with an exported test dma-buf, so the documented
+dma-buf-identity lookup is exercised instead of failing with `-EBADF` when the
+suite is booted. It also made both rewrite `import_count` files the live gauges
+required by the idle/leak gate: successful cache/handle publication increments
+the relevant gauge and final mapping release decrements it back to zero, even
+when a prepared job or configured request outlives the userspace handle.
+The follow-on RCB/SOFT-CCU pass retained the documented coherent-DRAM scratch
+model (rather than pretending to provide the vendor's driver-managed fixed-IOVA
+SRAM mapping), accepted valid DMA address zero, rechecked core/CCU/cancellation
+state under the coordinator run lock before final SOFT/HARD start writes, and
+added the vendor per-core force-idle/reset/error-clear/reconnect sequence for
+SOFT-CCU error, timeout, and IOMMU-fault recovery.
+The MPP profile-boundary follow-up then used the register-0 identities published
+by current libmpp and observed on Rock 5B to pin each hard-coded backend:
+RKVENC2 must report VEPU58x `0x50603312`, and RKVDEC2 must report VDPU38x
+`0x53813f05`. A zero or different ID now fails probe with `-ENODEV` before IRQ
+or IOMMU-fault registration, preventing the generic DT compatibles from
+silently applying RK3588 VEPU580/VDPU381 register and link-table layouts to a
+different Rockchip revision; KUnit covers required, absent, mismatched, and
+exact identities.
+The VDPU381 aperture follow-up fixed a soft-CCU hardware-sequence omission.
+The converted Rock 5B nodes exposed only `0x400` bytes from the function base,
+while the cache and max-outstanding-read registers used by every direct-core
+submission occupy offsets `0x510` through `0x59c`. Range-checked rewrite jobs
+therefore skipped all of those writes even though the forward port issued them.
+The maintained DT and overlay now expose a `0x600` function aperture ending at
+the MMU boundary, and probe requires at least `0x5a0`; KUnit pins rejection of
+the former truncated size and acceptance of the complete minimum.
+The same audit found that the opt-in HARD-CCU path never performed the vendor
+driver's cache-size, cache-clear, and max-outstanding-read setup when starting
+an idle chain. The rewrite now validates the entire cache register set before
+writing it, initializes every powered work-mask core before the coordinator
+doorbell, and leaves add-mode submissions untouched. The focused KUnit case
+checks fail-closed truncated-window behavior and all seven programmed values.
+The explicit-IOVA follow-up closed two ways around the rewrite's dma-buf
+ownership model. A session-provided translation table now augments rather than
+replaces the fixed RK3588 address-register table, so omitting a known DMA
+register cannot leave a literal address uninspected. `REG_FD_NO_TRANS` also
+requires prior device affinity, proves every known nonzero IOVA lies within a
+dma-buf mapped by that session on that exact core, and transfers mapping
+references to the job until completion. This prevents guessed cross-session or
+physical addresses and concurrent `RELEASE_FD` unmapping from reaching active
+codec DMA; KUnit pins missing affinity, custom-table omission, both range
+boundaries, deduplicated mapping retention, offline rejection, and same-device
+rebind.
+The RGA recovery follow-up then removed a fail-open reset path. RGA3 no longer
+turns a simultaneous DONE+ERROR status into success, and every RGA error IRQ
+resets before runtime suspend. A failed soft reset is recoverable only through
+a successful reset-controller pulse; otherwise the core is quarantined, skipped
+by mapping/scheduling, and prevented from retaining or accepting jobs. Existing
+queued jobs complete with `-EIO`, loss of the last usable core aborts deferred
+acquire-fence work, its IRQ remains masked across runtime suspend, and
+`recovery_failure_count` makes the permanent degradation visible. KUnit pins
+error precedence, the admission race, queue drain, and
+faulted-core selection.
+The remaining checklist still requires an equally adversarial RGA pass and
+booted sanitizer/fault-injection evidence.
 
 - Every `copy_from_user`/`copy_to_user`: size validated before use; no **TOCTOU**
   on a user pointer read twice (the V1 `data_ptr`, task arrays).
@@ -305,7 +588,7 @@ equivalent adversarial read**).
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 158 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
+1. 201 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
    (today's tests never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —
    0 diffs (RGA pixels, VDEC YUV, VENC-vs-VENC bitstream).
@@ -318,7 +601,8 @@ Ship only when **all** hold, each with a dated record in
    default artifact, counter-delta, and comparator requirements against paired
    forward-port/rewrite logs; its `--selftest` is only a maintenance check.
 4. **72 h+ multi-instance soak**: 0 KASAN / KCSAN / lockdep / KMEMLEAK /
-   DMA-debug splats; `import_count` and job counters return to baseline at idle.
+   DMA-debug splats; live `import_count` gauges and active queues return to
+   baseline at idle, while cumulative job counters stop changing.
 5. Every §4 fault scenario recovers cleanly, verified in a loop via debugfs.
 6. syzkaller: multi-day run, 0 crashes, coverage plateau that **includes the
    recovery lines**.

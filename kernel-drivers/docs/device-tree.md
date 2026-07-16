@@ -196,9 +196,11 @@ is annotated; the `reg`/MMU block is the part people get wrong.
 ```dts
 rkvdec0: rkvdec-core@fdc38000 {              /* unit-addr = link window; name has "core" -> CCU-attaching probe path */
     compatible = "rockchip,rkv-decoder-v2"; /* dispatches to the vendor core probe, not the V4L2 rk3588-vdec driver */
-    reg = <0x0 0xfdc38100 0x0 0x400>,        /* idx0 "regs": function block at core+0x100 -> becomes io_base (LOAD-BEARING) */
+    reg = <0x0 0xfdc38100 0x0 0x600>,        /* idx0 "regs": function+cache through +0x5ff (LOAD-BEARING) */
           <0x0 0xfdc38000 0x0 0x100>;        /* idx1 "link": link-mode command window at core+0x000 */
     reg-names = "regs", "link";
+    /* 0x600 includes cache/max-read registers through function offset 0x59c
+     * and ends exactly where the separate MMU aperture begins. */
     /* NB: no MMU reg here. The driver hardcodes ioremap(io_base + 0x600, 0x80)   */
     /* = 0xfdc38100 + 0x600 = 0xfdc38700 (mpp_rkvdec2.c:1944). Set idx0 to        */
     /* 0xfdc38000 by mistake and the MMU maps 0xfdc38600 -- the WRONG page.       */

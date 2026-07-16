@@ -1811,3 +1811,48 @@ See ../../configure --help for available options.
 - Publication/build waiting gates are closed. Remaining work is the optional
   GDM ACL upload and board validation of the clean migration and all PPA kernel
   install/reboot/revert paths.
+
+## GRD reconnect-v2 experimental candidate — 2026-07-14
+
+- Re-audited the old `rdp-handover-reconnect@a3a1a32` patch after the macOS
+  Windows App stalled at “Configuring remote PC.” The old global
+  `client_taken` state rejected the legitimate second GDM→session leg because
+  the routing token is reused. Its preserve-on-abort path also explained the
+  observed zombie remote displays.
+- Built a replacement on packaged GRD base `a59c904`. The public fork branch
+  [`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2)
+  ends at `eb91daf476dc1c4ba23ccfdd8c077b8b83e84773` and contains:
+  - `9347fee` — commit the already-validated hardware encode backpressure guard;
+  - `ba0e75c` — GNOME 50.2's official revert of `5230bf3`, restoring
+    `SetRemoteId` and the two-stage reconnect contract;
+  - `d5689a5` — sink the floating `RedirectClient` `GVariant` before signal
+    emission consumes it;
+  - `75dbc7c` — release the socket returned by `TakeClient` in the handover
+    daemon;
+  - `13fc01d` — guard a missing socket and make abort-timer ownership explicit;
+  - `eb91daf` — replace only a concurrently pending redirected socket, leaving
+    the routing token reusable after `TakeClient`.
+- A clean Meson/Ninja build passed, as did the GRD RDP test; TPM and hardware
+  EGL tests skipped because those devices were unavailable. A full native
+  arm64 `dpkg-buildpackage -b` completed and produced the package. Source and
+  binary lintian reported only long-filename warnings from the descriptive
+  version.
+- Built and signed source version
+  `50.1+rkmpp+git20260714.eb91daf-0ubuntu1~exp1` with upload key
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. `dput` passed checksum and GPG
+  checks and uploaded it to `ppa:yi-ding/ubuntu-rock-5b-experimental`.
+- SHA-256 of the signed upload set:
+  - orig tarball: `a72245614d8267154a71287e1e72d42bbd62277c16df1fb6a7736a19470ae825`;
+  - Debian tarball: `cf6f45caeb360c6be3a4c7e119122dbfb4e5e86dd200fba02f719f4b997a7c22`;
+  - signed `.dsc`: `c87fe0957611d00e9212e94ec5b1f0eab88b0feef67f5658a41a6047f55379a9`;
+  - signed source `.buildinfo`: `5d4c5cbcf0e3ff7c2f06dabdaceadf9906fb48b11998fbb9d43b84fc52324119`;
+  - signed source `.changes`: `baefc19eb0ffc2cf06ac6a3203792fb2c0a93e013dc634da77dfda84622fc690`.
+- Launchpad accepted upload `38656891` as source publication
+  [`18620800`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18620800)
+  and arm64 build
+  [`33399816`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33399816).
+  By 21:27 PDT the builder run had completed and Launchpad reported
+  `Uploading build`; a 2026-07-15 recheck confirmed `Successfully built`.
+- Remaining gate: reproduce the original reconnect from the macOS Windows App
+  against `~exp1`. Do not promote it to the normal PPA or submit the upstream MR
+  solely on compile/test coverage.

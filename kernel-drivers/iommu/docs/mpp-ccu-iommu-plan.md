@@ -66,6 +66,30 @@ originate from a secondary core, session DMA creation must be redirected to the
 cluster's main/global device, or the IOVAs may be allocated in the wrong default
 domain before the core is attached to the shared domain.
 
+## Clean-room rewrite integration
+
+The rewrite uses IOMMU-core ownership rather than borrowing or manually
+reattaching a domain inside MPP. On Rock 5B, the secondary decoder IOMMU provider
+contains:
+
+```dts
+rockchip,shared-domain-owner = <&vdec0_mmu>;
+```
+
+The Rockchip provider resolves that phandle only to a registered, unshared
+provider and returns the owner's singleton IOMMU group for both decoder masters.
+IOMMU core then allocates one normal default DMA domain, attaches both hardware
+IOMMUs through the provider's existing per-domain list, and installs DMA ops on
+both masters. Thus dma-buf attachments and coherent link-table allocations keep
+using the public DMA API; no `driver_managed_dma`, private mapper, or MPP-owned
+`iommu_attach_group()` lifecycle is introduced.
+
+The property is opt-in. Other Rockchip IOMMUs retain one group per provider, and
+the provider rejects self-links and chained owners while deferring an unresolved
+owner. The rewrite's HARD-CCU equal-domain check remains a runtime verifier: a
+mixed-domain or partially probed cluster is not advertised and descriptor
+staging returns `-EXDEV`.
+
 ## Current forward-port state
 
 The current 6.18 forward-port now uses the intended model: mainline's Rockchip
@@ -334,8 +358,8 @@ Minimum pre-merge checks:
 |-------|-----------------|
 | Focused arm64 build | `drivers/iommu/rockchip-iommu.o` and `drivers/video/rockchip/mpp/` build cleanly. |
 | `git diff --check` | no whitespace errors. |
-| DTB build | Rock 5B DTB still builds with encoder/decoder CCU, IOMMU, aliases, and RCB windows. |
-| Boot probe log | encoder and decoder cores attach to their CCU domains; only service-visible main cores register `/dev/mpp_service`. |
+| Binding + DTB | Rockchip IOMMU `dt_binding_check`, targeted Rock 5B `dtbs_check`, and the normal DTB build are clean with encoder/decoder CCU, IOMMU, aliases, and RCB windows. |
+| Boot probe/group | provider reports `vdec1_mmu` sharing with `vdec0_mmu`; the `fdc38000` and `fdc40000` decoder masters have the same `/sys/.../iommu_group` target; only service-visible main cores register `/dev/mpp_service`. |
 | Parallel decode | two independent H.264/H.265 decode jobs can run without IOMMU faults. |
 | Parallel encode | two independent encode jobs can run without IOMMU faults. |
 | Fault injection | bad/unmapped IOVA faults report the faulting core and recover or fail the task cleanly. |

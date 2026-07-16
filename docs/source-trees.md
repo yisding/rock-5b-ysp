@@ -14,7 +14,7 @@ patches unless explicitly marked otherwise.
 | 2 | Audited tree (BSP audit) | [BSP audit](../kernel-drivers/docs/bsp-audit.md), `kernel-drivers/patches/cleanup-draft/` line numbers | parent of `56e403ede081` = `5614909e5803` |
 | 3 | `$OURS` / `$BSP` measurement pair | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count" | tree 1 vs `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3` |
 | 4 | Userspace libraries + FFmpeg | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), `ffmpeg/*` | table in §4 |
-| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | tag `50.1` = `5ef1a2aa6bef`; PPA source snapshot = `a59c904c99088235eb4de31ca340747d334494f3` + `dirty20260706` delta, see §5 |
+| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | tag `50.1` = `5ef1a2aa6bef`; anchor/full-series base = `c14e09ef67e9`; current PPA source = `rdp-handover-reconnect-v2@eb91daf476dc`, see §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local branch `rk3588-rewrite-6.18` @ `d1d15a3d052a` + branch `rk3588-rewrite-mainline` rebased to official `v7.2-rc2` @ `083bdb98e715`, including Rockchip IOMMU media fault-reporting hardening on top of the display-tail RGB565/RGA3, XRGB/RGA2 rotation, invalid scheduler-core mask, dormant MPP batch-server rejection, and RGA userptr-IOMMU attribution slices; see §8 |
@@ -156,20 +156,28 @@ full topology and replay procedure live in
 
 All `file:line` anchors in
 [`apps/gnome-remote-desktop/docs/capture-path.md`](../apps/gnome-remote-desktop/docs/capture-path.md)
-(and the patch series in `apps/gnome-remote-desktop/patches/`) resolve against
-**upstream GRD tag `50.1` = commit `5ef1a2aa6bef`**
-(`gitlab.gnome.org/GNOME/gnome-remote-desktop`), *before* this repo's patches.
-The dev working branch `rdp-handover-reconnect` (tip `a3a1a32`, 17 commits atop
-`50.1`) carries the backend + the parked handover-reconnect fix — see
+(and the complete patch series in `apps/gnome-remote-desktop/patches/`) resolve
+against **upstream GRD commit `c14e09ef67e916ae83a4eddee6a56591078e78e0`**
+(`50.1` + 16), *before* this repo's patches. Both the full series and the
+backend-only `0001`–`0008` subset require this base: `0003` needs upstream
+`cf250ed`, while `0009` reverts `5230bf3`. Pristine **tag `50.1` =
+`5ef1a2aa6bef`** is recorded for lineage but is not a valid replay base for the
+exported patches.
+
+The public shipping branch is
+[`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2),
+tip `eb91daf476dc1c4ba23ccfdd8c077b8b83e84773`. It carries the backend,
+backpressure guard, GNOME 50.2's official `5230bf3` revert, and the corrected
+handover ownership/coalescing series. See
 `apps/gnome-remote-desktop/patches/README.md` and
 [`apps/gnome-remote-desktop/docs/profiling.md`](../apps/gnome-remote-desktop/docs/profiling.md).
 
-The staged GRD PPA source package uses a different local working tree:
-`/home/yi/Code/gnome/grd/grd-ffmpeg`, branch `ffmpeg-rkmpp-encode-backend`,
-commit `a59c904c99088235eb4de31ca340747d334494f3`, plus the dirty source delta
-captured at
+The current GRD PPA source package exports that clean commit directly as
+`50.1+rkmpp+git20260714.eb91daf-0ubuntu1~exp1`; no source delta is applied.
+The historical `a59c904` dirty snapshot remains reconstructible: commit
+`a59c904c99088235eb4de31ca340747d334494f3` plus the delta at
 [`packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch`](../packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch).
-That patch was generated from the dirty worktree used for the
+That legacy patch was generated from the worktree used for the
 `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1` source export and
 `git apply --check` passed against a clean archive of `a59c904c99088235eb4de31ca340747d334494f3`.
 

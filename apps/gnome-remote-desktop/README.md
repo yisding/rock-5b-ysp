@@ -16,9 +16,9 @@ a few percent CPU instead of a laggy, CPU-bound one.
 |-------|----------|
 | User outcome | Run an RDP session whose H.264 video stream is encoded by RK3588 hardware instead of software. |
 | Developer focus | Understand GRD's capture path, FFmpeg encode-session integration, RDP frame-ack behavior, zero-copy buffers, panvk RGB-to-NV12 conversion, and GDM greeter permissions. |
-| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 8-patch GRD backend series. |
+| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 13-patch GRD backend/reconnect series. |
 | Depends on | Kernel drivers, userspace libraries, an rkmpp-enabled FFmpeg build, Mesa/Panfrost Vulkan support, and optional GDM codec ACL packaging. |
-| Current state | The patch series applies to GRD 50.1; the hardware path sustains 60 fps in the measured setup; upstream submission remains pending. See [`status.md`](../../status.md). |
+| Current state | The series replays on `c14e09e` (`50.1` + 16), and the backend sustains 60 fps in the measured setup. Corrected reconnect is public at `rdp-handover-reconnect-v2@eb91daf`, builds/tests cleanly, and is in the experimental PPA; the exact macOS reconnect runtime gate remains. See [`status.md`](../../status.md). |
 
 | Piece | What | Status |
 |-------|------|--------|
@@ -45,7 +45,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | [`docs/testing.md`](docs/testing.md) | The benchmarking playbook (eviction hazard, env setup, HW-path checklist). |
 | [`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) | GRD-facing summary of the Mesa/Panfrost texture-transfer investigation behind the compute-path finding. |
 | [`bench/`](bench) | The benchmark this package owns — [`bench/README.md`](bench/README.md) plus [`readback_bench.c`](bench/readback_bench.c), the surfaceless `glReadPixels` readback timer behind `baseline.md`. |
-| [`patches/`](patches) | The full 8-patch GRD backend series plus clearly separated async-PBO/MemFd reference prototypes; [`patches/README.md`](patches/README.md) maps the shipping series and archival diffs. |
+| [`patches/`](patches) | The full 13-patch GRD backend/reconnect series plus clearly separated async-PBO/MemFd reference prototypes; [`patches/README.md`](patches/README.md) maps the bases, shipping series, and archival diffs. |
 
 Packaging the whole stack for a Launchpad PPA is covered in
 [`packaging/ppa`](../../packaging/ppa).
@@ -271,13 +271,18 @@ codec consumer:
 
 ## The patches
 
-The **full backend patch set** — eight commits that add the rkmpp encode backend
-to a pristine GRD 50.1 — is in [`patches/`](patches) (verified to `git am` on
-upstream). Patches `0001`–`0003` are the backend, `0004`–`0006` are the
+The **full code patch set** — eight commits for the rkmpp encode backend plus
+five for corrected handover reconnect — is in [`patches/`](patches). All 13,
+and the backend-only subset, are verified to `git am` on `c14e09e` (`50.1` +
+16); pristine tag `50.1` lacks the `cf250ed` context required by `0003`.
+Patches `0001`–`0003` are the backend, `0004`–`0006` are the
 panvk/hardware-enablement fixes (the "looked like a Mesa bug" journey — see
 [`design.md`](./docs/design.md)), `0007` is the two upstream-rkmpp runtime fixes
 above (#1 IDR, #2 bitrate), and `0008` is the hardware-encode
-backpressure/cooldown guard (#4). Full map: [`patches/README.md`](patches/README.md).
+backpressure/cooldown guard (#4). `0009`–`0013` restore GNOME 50's two-stage
+handover and fix variant/socket/timer ownership while coalescing only
+simultaneously pending redirected sockets. Full map:
+[`patches/README.md`](patches/README.md).
 
 Bug **#3** (greeter access) is not a code change — it's the udev package in
 [`packaging/gdm-hwenc`](../../packaging/gdm-hwenc). The design rationale (why FFmpeg
@@ -285,13 +290,14 @@ at all, and the panvk enablement story) is in [`design.md`](./docs/design.md).
 
 ## Packaging & install
 
-Three pieces, built from a vendored GRD fork (upstream 50.1 + the rkmpp backend):
+Three pieces, built from the public GRD fork (upstream 50.1 lineage + the rkmpp
+backend and corrected reconnect series):
 
 | Package | What | Needed? |
 |---------|------|:---:|
-| `gnome-remote-desktop` `50.1+rkmpp-2` | GRD with the rkmpp encode backend | required |
+| `gnome-remote-desktop` `50.1+rkmpp+git20260714.eb91daf-0ubuntu1~exp1` | GRD with the rkmpp encode backend and reconnect-v2 series | required |
 | `gnome-remote-desktop-gdm-hwenc` `1.0` | greeter codec ACL ([`packaging/gdm-hwenc`](../../packaging/gdm-hwenc)) | optional (login-screen HW) |
-| the codec stack | this repo's kernel + `libmpp` + FFmpeg `8.1.2+rk1` | required |
+| the codec stack | this repo's kernel + `libmpp` + ABI-compatible Rockchip FFmpeg 8.0.3 | required |
 
 ```bash
 # 1. Codec stack first — kernel drivers + udev + system FFmpeg with rkmpp.
@@ -299,7 +305,7 @@ Three pieces, built from a vendored GRD fork (upstream 50.1 + the rkmpp backend)
 #    the video-group udev rule.)
 
 # 2. GRD with the backend, + (optionally) the greeter access package:
-sudo apt install ./gnome-remote-desktop_50.1+rkmpp-2_arm64.deb
+sudo apt install ./gnome-remote-desktop_50.1+rkmpp+git20260714.eb91daf-0ubuntu1~exp1_arm64.deb
 sudo apt install ./gnome-remote-desktop-gdm-hwenc_1.0_all.deb    # optional
 
 # 3. Enable + connect an RDP client. Confirm it's on hardware:
@@ -312,7 +318,10 @@ validated install path. The recreated system PPA contains MPP, librga, Rockchip
 FFmpeg 8.0.3, and GRD revision `~rk2`; GRD source `18619824`, arm64 build
 `33397319`, and the binary are Published. That build links the 8.0 ABI
 (`libavcodec.so.62`/`libavutil.so.60`). The exact PPA stack still needs an
-on-board install/runtime pass, and the optional GDM ACL package is not uploaded.
+on-board install/runtime pass. The corrected reconnect build `~exp1` is source
+publication `18620800` / build `33399816` in the isolated experimental PPA;
+its macOS reconnect test and promotion to the normal PPA remain pending. The
+optional GDM ACL package is not uploaded.
 See [`packaging/ppa`](../../packaging/ppa) for the six-archive layout.
 
 ## Provenance & licensing
@@ -320,7 +329,8 @@ See [`packaging/ppa`](../../packaging/ppa) for the six-archive layout.
 - **gnome-remote-desktop** is GPL-2.0+. The rkmpp encode backend is our addition
   on top of upstream **50.1**, on the branch
   [`ffmpeg-rkmpp-encode-backend`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/ffmpeg-rkmpp-encode-backend)
-  of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`. The backend is a
+  and [`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2)
+  branches of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`. The backend is a
   sibling of GRD's existing VA-API path and reuses its design (fixed QP 22 intent,
   the Vulkan view-creator, the frame controller).
 - The measured development deployment linked **upstream FFmpeg 8.1.2**
