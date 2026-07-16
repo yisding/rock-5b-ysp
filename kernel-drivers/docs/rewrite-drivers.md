@@ -117,8 +117,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 | Kernel APIs | BSP-isms shimmed via `compat/` (vendor-forward-port.md §A) | public APIs only, no shims |
 | Kernel target | pinned to 6.18 API surface (resyncing.md hazards) | built on 6.18; being brought up on current mainline master too (§5) |
 | Userspace ABI | full BSP surface | the documented subset current `mpp-rockchip`/`librga`/`ffmpeg-rockchip` actually use |
-| Audit posture | 89 verified findings latent ([BSP audit](./bsp-audit.md)) | small, reviewable, refcount-disciplined by construction |
-| Size snapshot | MPP ~15,822 lines + RGA3 ~19,171 lines (forward-port observed 2026-07-06, vendor-delta.md method) | MPP rewrite 13,150 lines + RGA rewrite 19,485 lines (2026-07-15) |
+| Audit posture | 89 verified findings latent ([BSP audit](./bsp-audit.md)) | ownership-explicit and refcount-disciplined, with 86 MPP + 117 RGA KUnit cases |
+| Size snapshot | MPP ~15,822 lines; RGA3 19,173 code/build lines at the current forward oracle (`15,796` C + `3,305` headers + `72` Kconfig/Makefile) | MPP rewrite 13,150 C lines; RGA rewrite 19,510 code/build lines only because 8,653 lines are embedded KUnit, or 10,857 code/build lines with KUnit excluded; 20,109 incl. `ABI.rst` |
 
 Kconfig makes the two tracks **mutually exclusive per device node**:
 `ROCKCHIP_MPP_REWRITE` depends on `!ROCKCHIP_MPP_SERVICE` and registers
@@ -193,8 +193,10 @@ userspace-built register jobs and keeps the codec recipe policy in MPP userspace
 The RGA rewrite has already grown substantially as parity moved from
 copy/resize/fill into real `librga` and FFmpeg profiles: every extra RGA feature
 adds validation, format/layout math, command emission, lifetime handling, and
-tests. It remains smaller than the vendor RGA3 directory today, but it should no
-longer be expected to stay tiny if feature parity remains the goal.
+tests. Its raw checked-in source is now slightly larger than the vendor RGA3
+directory, but that comparison is dominated by the rewrite's embedded KUnit
+suite. The non-KUnit rewrite driver remains about 43% smaller; the exact
+accounting is below.
 
 The RGA rewrite is not a fundamentally different hardware model from the vendor
 RGA3 driver: the ABI and silicon force the same broad stages (copy request,
@@ -208,6 +210,222 @@ and jobs, job-owned per-core mappings, public dma-buf/DMA APIs, and explicit
 the vendor size, the win is still clearer ownership, less BSP baggage, and an
 auditable public-API driver. If it drifts into copied vendor tables and quirks,
 that advantage shrinks.
+
+### Exact RGA size accounting
+
+The source-size comparison uses the 6.18 forward-port oracle
+`e059aad8d68b` and rewrite pin `563f329dd8c4` from
+[source-tree pins](../../docs/source-trees.md) §8. The earlier rounded
+`~19,171` forward figure was an older two-line-different snapshot. At the
+current oracle, a like-for-like count is:
+
+| Content | Forward-port `rga3/` | Rewrite `rga-rewrite/` |
+|---------|---------------------:|-----------------------:|
+| Non-test C | 15,796 | 10,832 |
+| Headers | 3,305 | 0 |
+| Embedded KUnit | 0 | 8,653 |
+| Kconfig + Makefile | 72 | 25 |
+| **Driver code/build files** | **19,173** | **19,510** |
+| ABI documentation | — | 599 |
+| **Everything in the driver directory** | **19,173** | **20,109** |
+
+Therefore the checked-in rewrite is only 337 code/build lines (1.8%) larger
+when KUnit is counted, or 936 lines larger when its `ABI.rst` is counted too.
+With `ROCKCHIP_RGA_REWRITE_KUNIT_TEST` disabled, the rewrite has 10,857
+code/build lines — 8,316 lines (43%) fewer than the forward port. This is a
+source accounting, not an object-size measurement.
+
+The KUnit body occupies `rga_rewrite.c:5986-14634` (8,649 lines). Its
+conditional include at `:32-35` brings the total test-only source to 8,653
+lines, 44.4% of the C file. The rest of the current file is physically laid out
+as follows:
+
+| `rga_rewrite.c` range | Lines | Main responsibility |
+|-----------------------|------:|---------------------|
+| 1-1240 | 1,240 | Register/bit definitions, ABI-facing structures, and driver objects |
+| 1241-4417 | 3,177 | Sessions, dma-buf/userptr mapping, fences, job ownership, power, IRQ helpers, and recovery plumbing |
+| 4418-5985 | 1,568 | Format/layout helpers and first-stage operation validation |
+| 5986-14634 | 8,649 | KUnit implementation and 117 registered cases |
+| 14635-17014 | 2,380 | RGA2/RGA3 profile validation and command generation |
+| 17015-18024 | 1,010 | Core selection, scheduling, IRQ, timeout, and IOMMU-fault recovery |
+| 18025-19485 | 1,461 | Submit/import ioctls, platform probe/remove, and session teardown |
+
+The growth history makes the source crossover equally explicit:
+
+| Pin | Total C | Test-only | Non-test C | Meaning |
+|-----|--------:|----------:|-----------:|---------|
+| `fb1fba22d0c5` (initial rewrite) | 7,067 | 350 | 6,717 | Initial ABI and execution slice |
+| `d1d15a3d052a` (pre-hardening parent) | 18,321 | 8,111 | 10,210 | Feature-parity and lifetime coverage before the final hardening pass |
+| `563f329dd8c4` (current pin) | 19,485 | 8,653 | 10,832 | Topology, DMA/IOMMU, fence, queue/removal, and recovery hardening |
+
+Of the 12,418 C lines added since the initial rewrite, 8,303 (67%) are tests
+and 4,115 (33%) are runtime implementation. The rewrite crossed the forward
+port's raw source count only in the final hardening commit: it moved from
+18,321 to 19,485 lines, a net increase of 542 test-only plus 622 non-test lines.
+Those non-test additions cover exact hardware/version/topology validation,
+DMA-span checks, session and acquire-fence lifetime, queue/removal races,
+reset quarantine, and exact timeout/IOMMU-fault attribution.
+
+For comparison, the forward port's production size is spread across real BSP
+subsystems rather than tests: 3,391 C lines of RGA2 register generation, 2,306
+of RGA3 register generation, 2,556 in `rga_mm.c`, 1,724 in `rga_drv.c`, 1,555
+in `rga_job.c`, 1,004 in the debugger, 965 in common code, and 3,305 lines of
+headers. It has no comparable in-tree KUnit block.
+
+### RGA architecture: forward port vs rewrite
+
+Both drivers own `/dev/rga`, consume the same request shapes, bind the same
+RK3588 RGA2/RGA3 nodes, and ultimately perform the same silicon-mandated stages:
+copy and normalize a request, resolve buffers, choose a core, emit a command
+buffer, start hardware, and wait for an interrupt. The redesign is in how state
+and lifetime flow through those stages.
+
+The forward port is a **global BSP subsystem with pluggable backends**:
+
+```text
+open
+  -> lightweight session identity
+  -> request in the global pending-request manager
+  -> request expanded into N independent jobs
+  -> global policy chooses a scheduler/core for each job
+  -> global rga_mm resolves buffers
+  -> backend-ops table generates RGA2/RGA3 registers
+  -> per-core todo_list + running_job
+  -> IRQ looks the request up by id and updates completion counters
+```
+
+The rewrite is a **session/job/core ownership model**:
+
+```text
+open
+  -> owning session {request IDR, import IDR, submitted-job list}
+  -> configured request owns copied tasks/imports/fences
+  -> submit clones an immutable job snapshot
+  -> job selects and retains an eligible hardware core
+  -> job creates mappings and a command buffer for that core
+  -> per-core queue + active_job
+  -> IRQ/timeout/fault completes that exact job
+  -> session releases it only after every owner drains
+```
+
+The corresponding objects differ like this:
+
+| Object | Forward port | Rewrite |
+|--------|--------------|---------|
+| Global state | `rga_drvdata` owns schedulers, the memory manager, pending-request manager, session manager, fence context, and debugger | Global `rk_rga` is primarily a registry for hardware, sessions, counters, and the fence context |
+| Session | Mostly identity/process metadata plus a refcount | Owns import IDs, request IDs, submitted jobs, and close/dispatch state |
+| Request | Stored in a global pending-request IDR | Stored in the opening session's request IDR and owns copied tasks/import/fence references |
+| Imports | Stored in global `rga_mm`, tagged with a session, and associated with a mapping scheduler | Stored in the session and retained directly by configured requests and submitted jobs |
+| Job | Refers back to a request by numeric ID and obtains resources through global managers | Owns its task snapshot, import references, per-core mappings, fences, command buffer, session link, and hardware reference |
+| Hardware | Entry in the global scheduler array, with a backend-ops vtable, `todo_list`, and `running_job` | Refcounted object with its own queue, `active_job`, start/recovery lock, timeout/fault work, power state, and quarantine state |
+
+The rewrite still has global state; it deliberately moves user-resource
+ownership out of it. The service is a registry and coordination root, while the
+session and job own the resources whose teardown races with ioctls, fence
+callbacks, IRQs, timeouts, and platform removal.
+
+#### Multi-task request model
+
+The forward port's `rga_request_commit()` loops over the task array and creates
+one independently scheduled `rga_job` per task. Eligible tasks can land on
+different cores and run concurrently; the request completes when its
+finished-plus-failed count reaches the task count.
+
+The rewrite keeps `tasks[]` and `current_task` in one job. Completion advances
+the index and requeues that same job, optionally selecting a different RGA2 or
+RGA3 core for the next task. Tasks in one request therefore run serially under
+one completion/release fence. This makes ordering and lifetime explicit, at the
+cost of less cross-core parallelism for independent tasks packed into one
+request.
+
+#### Scheduling and backend abstraction
+
+The forward port has a traditional BSP framework split:
+
+- `rga_policy.c` decides which scheduler satisfies the request's formats,
+  transforms, features, and forced core mask.
+- Each `rga_scheduler_t` owns a priority-ordered `todo_list` and one
+  `running_job`.
+- `struct rga_backend_ops` supplies `init_reg`, `set_reg`, `soft_reset`,
+  readback, status, IRQ, and threaded-ISR operations.
+- `rga2_reg_info.c`, `rga3_reg_info.c`, and `rga_hw_config.c` carry the broad
+  multi-generation command and capability implementation.
+
+The rewrite validates the current task against explicit RGA2 and RGA3 profiles,
+then chooses the least-loaded eligible online core while honoring the public
+core mask and rotating equal-load choices. There is no generic backend vtable:
+the selected hardware type dispatches to a named RGA2/RGA3 validator and
+emitter, and an unmatched profile returns `-EOPNOTSUPP`. This is narrower and
+less reusable across SoCs, but prevents a generic capability table from
+advertising a path the RK3588-specific emitter does not implement.
+
+#### Mapping and command-buffer ownership
+
+The forward port's global `rga_mm` supports dma-buf handles, virtual addresses,
+physical addresses, fake/internal buffers, BSP page tables, and several MMU
+modes. It selects a scheduler before mapping, allocates a command buffer from
+that scheduler's persistent pool, powers the core for mapping/register
+initialization, and then enqueues the prepared job.
+
+The rewrite deliberately rejects physical-address imports. dma-bufs use public
+attach/map APIs; userptr imports pin pages and build owned sg-tables, with the
+contiguous-IOMMU fallback documented in [RGA userptr/IOMMU](../rga/userptr-iommu.md).
+The session owns the import, while each submitted job owns the mapping for the
+core that will execute it. At backend start the rewrite rebases images to that
+core's DMA device, synchronizes userptr memory, powers the core, allocates a
+job-owned coherent command buffer, emits commands, and starts hardware. A
+handle can therefore outlive one mapping without allowing release to invalidate
+an in-flight job.
+
+#### Fences, close, and removal
+
+The forward request owns its release fence; an acquire callback commits the
+request, and each completed job finds the request in the global manager to
+increment its completion counters. The rewrite job directly owns its acquire
+references/callbacks, release fence and pending fd reservation, session-list
+membership, and hardware reference.
+
+That ownership makes rewrite close deterministic: mark the session closing,
+reject new tracking, cancel jobs waiting on acquire fences, remove its queued
+jobs, reset its active jobs, wait for its job list and dispatch handoffs to
+drain, then release configured requests and imports. Release-fence publication
+also reserves and creates the sync file, copies the descriptor number to
+userspace, and installs it only after copyout succeeds, so rollback cannot close
+an unrelated descriptor reused by another thread.
+
+#### Completion and fail-closed recovery
+
+The forward port preserves the BSP state-bit, `running_job`, backend soft-reset,
+request-lookup, and diagnostic machinery. The rewrite serializes hardware
+start, IRQ completion, timeout, recovery, and removal with each core's run lock.
+Every activation has a generation, and timeout/fault work retains or rechecks
+the exact target before claiming the active slot. A stale worker therefore
+cannot reset a replacement job.
+
+After an error, timeout, or IOMMU fault, the rewrite resets the selected core,
+refreshes the attached IOMMU domain, completes the exact job and resumes its
+queue. If reset or domain recovery fails, the core is quarantined: routing skips
+it, queued work fails, and its IRQ remains disabled so powered-off MMIO cannot
+be touched. Loss of the last usable core also fails async jobs still waiting on
+acquire fences.
+
+The architectural trade is therefore:
+
+| Forward-port strength/cost | Rewrite strength/cost |
+|----------------------------|-----------------------|
+| Broad multi-generation BSP compatibility and proven hardware behavior | RK3588-specific profiles and no booted hardware proof yet |
+| Conventional subsystem files and backend vtables | One large translation unit, though logical ownership is stricter |
+| Independent jobs allow batch tasks to run across cores | Serial per-request task progression simplifies ordering/fences |
+| Global managers make cross-subsystem lookup convenient | Session/job ownership makes close, reset, IRQ, and removal locally auditable |
+| Physical/virtual/dma-buf and BSP MMU modes | Public dma-buf/userptr paths; physical addresses fail closed |
+| Existing BSP recovery and debugger surface | Exact-job recovery, quarantine, focused counters, and embedded KUnit |
+
+MPP follows the same ownership direction but has a different size/complexity
+profile: the forward port has a shared BSP MPP service plus pluggable encoder and
+decoder block drivers, while `mpp-rewrite` uses explicit session/job/hardware
+owners for the fixed RK3588 RKVENC2/RKVDEC2 profile. MPP remains mostly a
+register-job conveyor because userspace builds codec register recipes; RGA must
+interpret image operations and generate those recipes in the kernel.
 
 ### Upstream-style V4L2 RGA3 in `../kernel/linux`
 
