@@ -1,12 +1,14 @@
-# kernel-drivers/ — RK3588 codec and RGA kernel work
+# kernel-drivers/ — RK3588 media and accelerator kernel work
 
-The kernel-side work for the ROCK 5B: the vendor Rockchip MPP codec drivers, the
-RGA driver, their RK3588 device tree, the audit fix series, and the clean-room
-rewrite track. Driver code lives in the sibling kernel trees (`linux-6.18-rkvenc*`,
-`rockchip-kernel`); this project holds the architecture, the patch deliverables,
-and the on-hardware validation.
+The kernel-side work for the ROCK 5B: the vendor Rockchip MPP codec, RGA, and
+RKNPU accelerator drivers; their RK3588 device tree; the media audit fix series;
+and the media clean-room rewrite track. Driver code lives in sibling kernel
+trees (`linux-6.18-rkvenc*`, `rockchip-kernel`); this project holds architecture,
+patch deliverables, and on-hardware validation. The RKNPU project also crosses
+into the tightly coupled proprietary RKNN compiler/runtime because its kernel
+ABI cannot be understood usefully in isolation.
 
-Split into four sub-projects — `mpp`, `rga`, `av1`, `iommu` — each with its own
+Split into five sub-projects — `mpp`, `rga`, `av1`, `iommu`, `rknpu` — each with its own
 `README.md` + `keywords.md`. **Shared** driver architecture, uAPI, device tree,
 the combined patch series, board scripts, and on-hardware tests stay at this top
 level, because one combined patch series and one architecture doc cover mpp+rga
@@ -18,9 +20,9 @@ versions, the mainline-V4L2 alternative) live in
 
 | Field | Contents |
 |-------|----------|
-| Purpose | Boot a kernel that exposes `/dev/mpp_service` and `/dev/rga`, then validate that VEPU580 encode, VDPU381 decode, and RGA jobs run on hardware. |
-| Developer focus | The MPP service model, dma-buf/IOMMU lifetime, device-tree wiring, forward-port deltas, audit findings, and the rewrite-driver alternative. |
-| Owns | Shared kernel docs in [`docs/`](docs/how-the-drivers-work.md); the four sub-projects; patch deliverables in [`patches/`](patches/README.md); board scripts in [`scripts/`](scripts/README.md); hardware smoke tests in [`tests/`](tests/README.md). |
+| Purpose | Explain and validate the RK3588 media and NPU accelerator paths: MPP encode/decode, RGA jobs, and RKNN inference through RKNPU. |
+| Developer focus | Accelerator service/submit models, dma-buf/IOMMU lifetime, device-tree wiring, runtime ABIs, forward-port deltas, audits, and rewrite alternatives where applicable. |
+| Owns | Shared kernel docs in [`docs/`](docs/how-the-drivers-work.md); the five sub-projects; patch deliverables in [`patches/`](patches/README.md); board scripts in [`scripts/`](scripts/README.md); hardware smoke tests in [`tests/`](tests/README.md). |
 | Depends on | Armbian or vanilla 6.18 kernel build inputs, RK3588 device tree, and [`../vendor-libraries/`](../vendor-libraries/README.md). |
 | Current state | The combined Armbian kernel path is hardware-validated; DKMS compiles on 6.18 but its overlay is not boot-validated; audit-fix and rewrite tracks are not shippable replacements yet. See [`../status.md`](../status.md). |
 
@@ -30,18 +32,24 @@ versions, the mainline-V4L2 alternative) live in
 flowchart TB
   app["FFmpeg, GRD, tests"]
   libs["librockchip_mpp / librga"]
+  nnapp["RKNN model / C or Python app"]
+  rknn["RKNN Toolkit2 / librknnrt"]
   devs["/dev/mpp_service<br/>/dev/rga"]
+  npudev["DRM render node<br/>or /dev/rknpu"]
   service["MPP service core<br/>sessions, tasks, IOMMU"]
   codec["rkvenc2 / rkvdec2<br/>VEPU580 + VDPU381"]
   rga["RGA3 + RGA2<br/>2D jobs"]
+  npu["RKNPU<br/>memory, queues, IOMMU, PM"]
   dt["RK3588 device tree<br/>clocks, IRQs, IOMMUs, SRAM"]
   hw["ROCK 5B hardware"]
 
   app --> libs --> devs
   devs --> service --> codec --> hw
   devs --> rga --> hw
+  nnapp --> rknn --> npudev --> npu --> hw
   dt -. binds .-> service
   dt -. binds .-> rga
+  dt -. binds .-> npu
 ```
 
 ## Sub-projects
@@ -52,6 +60,7 @@ flowchart TB
 | [`rga/`](rga/README.md) | The RGA3/RGA2 2D blit/scale/convert driver. | shared driver docs + `tests/librga-*` |
 | [`av1/`](av1/README.md) | The RK3588 AV1 decode path and the BSP bugs the AV1 port exposed. | [`av1-rk3588.md`](av1/docs/av1-rk3588.md), [`av1-bsp-audit.md`](av1/docs/av1-bsp-audit.md) |
 | [`iommu/`](iommu/README.md) | CCU/IOMMU memory path: the net-new MMU plan and the SOFT/HARD CCU rewrite finding. | [`mpp-ccu-iommu-plan.md`](iommu/docs/mpp-ccu-iommu-plan.md), [`rewrite-hard-ccu-finding.md`](iommu/docs/rewrite-hard-ccu-finding.md) |
+| [`rknpu/`](rknpu/README.md) | End-to-end RKNN conversion/runtime and RKNPU memory, submission, multicore, IOMMU, SRAM, PM, and recovery. | [`how-rknpu-works.md`](rknpu/docs/how-rknpu-works.md) |
 
 The kernel work runs on three tracks across those sub-projects:
 
@@ -86,6 +95,7 @@ Read in this order when changing or reviewing kernel behavior:
 | Question | Canonical doc |
 |----------|---------------|
 | What does each driver layer do? | [`docs/how-the-drivers-work.md`](docs/how-the-drivers-work.md) |
+| How does an RKNN model become a three-core RKNPU job? | [`rknpu/docs/how-rknpu-works.md`](rknpu/docs/how-rknpu-works.md) |
 | What ioctl ABI does userspace depend on? | [`docs/dev-uapis.md`](docs/dev-uapis.md) |
 | Which parts of that ABI are dead/dormant — safe to not special-case? | [`docs/abi-dormancy.md`](docs/abi-dormancy.md) |
 | What was changed during the forward-port? | [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md) |
@@ -128,5 +138,5 @@ each sub-project's `README.md`).
 | [`patches/`](patches/README.md) | Forward-port driver + DT patches and the reviewable audit-fix series. |
 | [`scripts/`](scripts/README.md) | Combined-kernel build/install/validate wrappers and the codec udev rule. |
 | [`tests/`](tests/README.md) | On-hardware decode/encode/transcode smoke tests, plus the rewrite build gate and conformance suites. |
-| [`mpp/`](mpp/README.md) · [`rga/`](rga/README.md) · [`av1/`](av1/README.md) · [`iommu/`](iommu/README.md) | The four kernel-driver sub-projects. |
+| [`mpp/`](mpp/README.md) · [`rga/`](rga/README.md) · [`av1/`](av1/README.md) · [`iommu/`](iommu/README.md) · [`rknpu/`](rknpu/README.md) | The five kernel-driver sub-projects. |
 | [`../packaging/dkms/`](../packaging/dkms/README.md) | DKMS delivery channel for the same driver source. |

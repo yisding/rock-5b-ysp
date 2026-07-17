@@ -22,6 +22,19 @@ when comparing the encoder and decoder or reconstructing the Armbian port.
 - **RGA3 / RGA2** — *Raster Graphic Acceleration*, the 2D engine (scale,
   colour-convert, rotate, blend), via `/dev/rga` (`rga3/` driver → `multi_rga`,
   wrapped by `librga`).
+- **RKNPU** — Rockchip's neural-processing hardware family and the BSP kernel
+  driver under `drivers/rknpu`. On RK3588 it manages device memory, IOMMU
+  mappings, power, and queues for three NPU cores; it launches already-compiled
+  register tasks and does not interpret neural graphs. Full stack:
+  [RKNPU/RKNN guide](./kernel-drivers/rknpu/docs/how-rknpu-works.md).
+- **RKNN** — Rockchip's target-specific compiled neural-network format. An
+  `.rknn` contains lowered graph/weight/tensor information and NPU register
+  configuration, not merely a portable framework graph.
+- **RKNN-Toolkit2 / RKNNLite / RKNN Runtime** — respectively the model
+  conversion/analysis Python toolchain, the board-side Python deployment API,
+  and the proprietary native `librknnrt.so` that prepares memory and low-level
+  RKNPU submissions. [`rknn_server` is an optional connected-debug proxy](./kernel-drivers/rknpu/docs/how-rknpu-works.md#32-toolkit2-connected-debugging),
+  not a daemon required by native inference.
 - **IEP** — *Image Enhancement Processor*, the BSP's video post-processing
   block (expansion verified in Rockchip's own libmpp source:
   `mpp/vproc/iep{,2}/CMakeLists.txt` — "Image Enhancement Processor").

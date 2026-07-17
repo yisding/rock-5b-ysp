@@ -51,6 +51,12 @@ flowchart LR
 
 ## RKNPU in this BSP
 
+This section summarizes the BSP kernel surface. The first-class
+[`kernel-drivers/rknpu` guide](../../kernel-drivers/rknpu/docs/how-rknpu-works.md)
+continues through model conversion, RKNN Toolkit2/Lite2, the proprietary native
+runtime and debug server, tensor-memory paths, kernel submission, multicore
+execution, IOMMU/SRAM, power, and recovery.
+
 RKNPU is the kernel-facing execution, memory, and power driver for Rockchip NPU
 blocks. It is not the neural-network graph compiler and it does not understand
 RKNN models as high-level graphs. Rockchip userspace prepares low-level NPU task

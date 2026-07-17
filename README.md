@@ -16,7 +16,8 @@ and dated status of every track. Cross-cutting vocabulary (MPP, RGA, CCU, DCHS,
 `keywords.md`.
 
 The deepest body of evidence follows a Rockchip vendor **MPP** codec stack plus
-**RGA** from the Rockchip 6.1 BSP into Linux 6.18, then upward through
+**RGA** from the Rockchip 6.1 BSP into Linux 6.18, plus an end-to-end source
+inspection of the BSP **RKNPU/RKNN** stack, then upward through
 `ffmpeg-rockchip`, GNOME Remote Desktop, Kodi, Mesa/Panfrost, and package
 delivery. BSP-audit and clean-room rewrite work are recorded alongside that
 forward-port path rather than presented as interchangeable kernels.
@@ -40,6 +41,7 @@ not repeat dated status or operational commands because those copies drift.
 | Update or contribute to the record | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Review repository-specific agent instructions | [`AGENTS.md`](AGENTS.md) |
 | Review the kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
+| Understand RKNN conversion, userspace, and the RKNPU driver | [`kernel-drivers/rknpu/`](kernel-drivers/rknpu/README.md) |
 | Understand the repo taxonomy | [`docs/work-packages.md`](docs/work-packages.md) |
 | Reconstruct an external source tree or resolve a code citation | [`docs/source-trees.md`](docs/source-trees.md) |
 | Decode shared terms like MPP, RGA, CCU, DCHS | [`glossary.md`](glossary.md) |
@@ -61,7 +63,7 @@ flowchart TB
   board["Radxa ROCK 5B / RK3588"]
   boot["boot-firmware: BootROM · SPL · TF-A · U-Boot"]
   kver["kernel-versions<br/>BSP overlay · forward-port"]
-  kernel["kernel-drivers<br/>mpp · rga · av1 · iommu"]
+  kernel["kernel-drivers<br/>mpp · rga · av1 · iommu · rknpu"]
   libs["vendor-libraries<br/>librockchip_mpp · librga"]
   video["video-libraries<br/>ffmpeg · mesa"]
   apps["apps<br/>gnome-remote-desktop · kodi"]
@@ -79,7 +81,7 @@ flowchart TB
 |----------|-----------------|-------|
 | **boot-firmware** | Power-on through Linux handoff: U-Boot primer, RK3588 stages/artifacts, lineage comparison, and safe debugging. | [`boot-firmware/`](boot-firmware/README.md) |
 | **kernel-versions** | The kernel bases and moving between them: what the BSP adds vs stock, the forward-port narrative, the mainline-V4L2 alternative. | [`kernel-versions/`](kernel-versions/README.md) |
-| **kernel-drivers** | In-kernel accelerator drivers, split `mpp` · `rga` · `av1` · `iommu`; shared architecture docs, patches, scripts, on-hardware tests at the top. | [`kernel-drivers/`](kernel-drivers/README.md) |
+| **kernel-drivers** | In-kernel accelerator drivers, split `mpp` · `rga` · `av1` · `iommu` · `rknpu`; shared architecture docs, patches, scripts, on-hardware tests at the top. | [`kernel-drivers/`](kernel-drivers/README.md) |
 | **vendor-libraries** | Userspace vendor libs: `mpp` (librockchip_mpp), `rga` (librga). | [`vendor-libraries/`](vendor-libraries/README.md) |
 | **video-libraries** | `ffmpeg` (rkmpp codecs + rkrga filters) and `mesa` (Mali-G610 transfer work). | [`video-libraries/`](video-libraries/README.md) |
 | **apps** | Real applications on the stack: `gnome-remote-desktop` H.264 RDP encode and Kodi DRM PRIME hardware decode. | [`apps/`](apps/README.md) |
@@ -123,6 +125,11 @@ comparison and its dated trade-offs live in
   repo ships a prebuilt `.so`; the source lineage and build notes are linked
   from [`vendor-libraries/`](vendor-libraries/README.md) and
   [`docs/gotchas.md`](docs/gotchas.md).
+- RKNN-Toolkit2, RKNNLite, `librknnrt`, and `rknn_server` are distributed under
+  Rockchip's proprietary RKNN SDK license; public headers, manuals, and some
+  separately licensed examples do not make the compiler/runtime implementation
+  open source. The inspected boundary is recorded in the
+  [`RKNPU/RKNN guide`](kernel-drivers/rknpu/docs/how-rknpu-works.md#4-what-is-open-and-what-is-closed).
 - The mainline RGA-in-U-Boot / RGA-V4L2 context comes from Collabora's RK3588
   upstreaming work.
 - Repo-level licensing for this repo's own prose/scripts still needs an owner

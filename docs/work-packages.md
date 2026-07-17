@@ -41,6 +41,7 @@ flowchart TB
     rga["rga<br/>/dev/rga<br/>RGA3 + RGA2"]
     av1["av1<br/>rkvdec2 AV1 decode"]
     iommu["iommu<br/>CCU / dma-buf mapping"]
+    rknpu["rknpu<br/>RKNN runtime → three-core NPU"]
     kart["patches/ · scripts/ · tests/"]
   end
 
@@ -68,6 +69,7 @@ flowchart TB
   ffmpeg --> kodi
   rga --> librga --> ffmpeg
   av1 --> libmpp
+  bsp --> rknpu
   iommu -.-> mpp
   iommu -.-> rga
   mesa --> grd
@@ -83,7 +85,7 @@ flowchart TB
 |----------|---------|---------|-------|
 | boot-firmware | U-Boot | BootROM-to-Linux stages, Rockchip artifacts, Armbian/Radxa/upstream comparison, and safe boot debugging. | [`../boot-firmware/`](../boot-firmware/README.md) |
 | kernel-versions | — | Kernel bases and moving between them: BSP overlay vs stock, forward-port narrative, mainline-V4L2 alternative. | [`../kernel-versions/`](../kernel-versions/README.md) |
-| kernel-drivers | mpp / rga / av1 / iommu | In-kernel accelerator drivers. Shared driver model, DT, patches, scripts, tests at the top; per-block notes in each sub-project. | [`../kernel-drivers/`](../kernel-drivers/README.md) |
+| kernel-drivers | mpp / rga / av1 / iommu / rknpu | In-kernel accelerator drivers. Shared driver model, DT, patches, scripts, tests at the top; RKNPU also documents its tightly coupled RKNN userspace. | [`../kernel-drivers/`](../kernel-drivers/README.md) |
 | vendor-libraries | mpp / rga | `librockchip_mpp` and `librga` userspace: library/kernel split, ioctls, dma-buf imports, ABI facts. | [`../vendor-libraries/`](../vendor-libraries/README.md) |
 | video-libraries | ffmpeg / mesa | rkmpp codecs + rkrga filters, and the Mali-G610 transfer investigation behind GRD fallback. | [`../video-libraries/`](../video-libraries/README.md) |
 | apps | gnome-remote-desktop / kodi | Real application integration: zero-copy RDP encode and DRM PRIME media playback. | [`../apps/`](../apps/README.md) |
@@ -99,6 +101,7 @@ flowchart TB
 | Understand or diagnose SD/SPI/U-Boot behavior | [`../boot-firmware/`](../boot-firmware/README.md) -> [debugging guide](../boot-firmware/docs/debugging.md) -> [`../status.md`](../status.md) track 12 -> [`../scripts/`](../scripts/README.md) |
 | Capture a reproducible board/runtime baseline | [`system-baseline.md`](system-baseline.md) -> [`../kernel-drivers/tests/conformance/`](../kernel-drivers/tests/conformance/README.md) |
 | Get codecs working on a board | [`../install.md`](../install.md) -> [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) |
+| Understand or begin validating RKNN inference | [`../kernel-drivers/rknpu/`](../kernel-drivers/rknpu/README.md) -> [`how-rknpu-works.md`](../kernel-drivers/rknpu/docs/how-rknpu-works.md) -> [`support-coverage.md`](support-coverage.md) row C16 |
 | Build a command-line media stack | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`../video-libraries/ffmpeg/`](../video-libraries/ffmpeg/README.md) -> [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) |
 | Run accelerated RDP | [`../install.md`](../install.md) -> [`../packaging/`](../packaging/README.md) -> [`../apps/gnome-remote-desktop/`](../apps/gnome-remote-desktop/README.md) |
 | Build and test Kodi hardware decode | [`../apps/kodi/`](../apps/kodi/README.md) -> [`../apps/kodi/docs/build-hwaccel.md`](../apps/kodi/docs/build-hwaccel.md) |
@@ -111,6 +114,7 @@ flowchart TB
 | Compare or modify U-Boot | [`../boot-firmware/docs/u-boot-primer.md`](../boot-firmware/docs/u-boot-primer.md) -> [`../boot-firmware/docs/version-comparison.md`](../boot-firmware/docs/version-comparison.md) -> pinned sibling trees |
 | Review the kernel port | [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`how-the-drivers-work.md`](../kernel-drivers/docs/how-the-drivers-work.md) -> [`vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md) -> [`vendor-delta.md`](../kernel-drivers/docs/vendor-delta.md) |
 | Review userspace ABI compatibility | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`how-the-userspace-libs-work.md`](../vendor-libraries/docs/how-the-userspace-libs-work.md) -> [`dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) -> [`rewrite-drivers.md`](../kernel-drivers/docs/rewrite-drivers.md) |
+| Review the RKNN/RKNPU boundary | [`../kernel-drivers/rknpu/docs/how-rknpu-works.md`](../kernel-drivers/rknpu/docs/how-rknpu-works.md) -> [`driver-quality finding`](../findings/2026-07-16-rockchip-bsp-driver-quality.md#rknpu-deep-dive-capable-fixed-stack-unsafe-multi-client-abi) -> pinned sibling trees |
 | Maintain the package set | [`../packaging/`](../packaging/README.md) -> [`armbian-packaging.md`](../packaging/docs/armbian-packaging.md) -> [`resyncing.md`](../kernel-drivers/docs/resyncing.md) |
 | Upstream or rebase application work | [`../video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md), [`../video-libraries/ffmpeg/docs/fix-candidates.md`](../video-libraries/ffmpeg/docs/fix-candidates.md), [`../apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/README.md), [`../video-libraries/mesa/docs/validation.md`](../video-libraries/mesa/docs/validation.md) |
 
