@@ -46,6 +46,22 @@ names the stage. `rga_mm_force_releaser_buffer()` is retained for the
 driver-remove path (`rga_mm_buffer_destroy_for_idr()`), where all sessions are
 already gone.
 
+**Follow-up audit refined where the UAF is reachable (2026-07-17).** Tracing the
+teardown one level deeper: for a refcount-1 leaked dma-buf — the exact reported
+case — the close path is a clean, balanced attach/map → unmap/detach/put
+(`rga_dma_map_fd()` / `rga_dma_unmap_buf()`), and the refcount fix makes it take
+the *same* `rga_mm_unmap_buffer()` as the old force-free. So the force-free only
+becomes a use-after-free when a **direct pointer** to the freed `internal_buffer`
+survives; every userspace handle access goes through `idr_find()`, which fails
+safe once the entry is removed. The only direct-pointer holder is an in-flight
+job (`rga_mm_get_buffer()` takes the kref at submit time, `rga_job.c:470`, and
+holds it to completion), and a closing session's *own* jobs are drained first by
+`rga_request_session_destroy_abort()`. The reachable UAF is therefore
+specifically a job from **another** session referencing a buffer whose nominal
+owner closes — reachable because imports de-dup globally while `->session`
+records only the first importer. That is exactly what commit `bc086cbe03d7`
+prevents, and what the `cross` mode of the reproducer below targets.
+
 ## Evidence and reproduction
 
 - **Identity:** ROCK 5B, forward-port kernel `linux-6.18-rkvenc-av1-fwport`
@@ -74,6 +90,14 @@ already gone.
   Oops to the force-free path is INFERRED from the timeline plus code inspection,
   not from a captured trace. The refcount hazard itself is established by
   inspection (cross-session dedup + job references + unconditional free).
+- **The reported single-session probe does not match the reachable-UAF profile.**
+  Per the refined audit, the leaked handle was a lone dma-buf import with no job
+  and no cross-session sharing (refcount 1), and that teardown is clean by
+  inspection. So the force-free is unlikely to have crashed on the probe *in
+  isolation*; the reported Oops is now better treated as either coincidental to
+  the close or a distinct latent bug, pending a captured trace. The `leak` mode
+  of the reproducer is built to test exactly this: a quiet KASAN run there
+  corroborates that the refcount-1 path is not the crasher.
 - This run did **not** reproduce the earlier signature, which faulted immediately
   in `dcache_clean_poc()` importing physical `0x1000` — a different bug already
   addressed by `@1c9a110129fe` "validate physical import pages".
@@ -100,3 +124,12 @@ already gone.
   `bc086cbe03d7` and confirm the new
   `"handle[%d] still referenced at exit (refcount=%u)"` line does **not** appear
   in normal operation.
+- **Convert inference to proof with the reproducer.**
+  [`kernel-drivers/tests/rga-session-uaf.c`](../kernel-drivers/tests/rga-session-uaf.md)
+  drives two scenarios under KASAN: `leak` (deterministic; reproduces the
+  reported refcount-1 close — expected quiet on any kernel) and `cross`
+  (the reachable cross-session in-flight-job UAF — expected to KASAN-splat on the
+  unpatched fwport kernel and stay quiet on `bc086cbe03d7`). Boot a
+  `CONFIG_KASAN=y` build with working `ramoops`/pstore so the next trace
+  survives the reset, and confirm `cross` reports `async_submits > 0` — a quiet
+  run is only meaningful once real jobs entered the window.
