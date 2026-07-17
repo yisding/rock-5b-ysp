@@ -16,6 +16,12 @@ uses the wrong DMA API for normal RAM.
 Here, **Rockchip BSP** means Rockchip's out-of-tree vendor `rga3` driver. It does
 not mean the smaller RGA driver in mainline Linux.
 
+Forward-port commit `1c9a110129fe` now implements the minimal crash fix. It is
+represented by patch `0039` in
+[`patches/forward-port-rk3588-av1`](../patches/forward-port-rk3588-av1/README.md).
+The published `6.18.38+rk3588av1fwport20260716` package predates that commit
+and remains vulnerable until a rebuilt package is installed and booted.
+
 ## Observed failure
 
 The ABI probe submitted a no-job buffer import with:
@@ -123,10 +129,10 @@ August 2025 `dma_map_sg()` physical-import conversion. It changes cache
 synchronization for an already mapped buffer; it cannot prevent the initial
 `dma_map_sg()` call from trying to synchronize a bogus page during import.
 
-## Required forward-port hardening
+## Implemented forward-port hardening
 
-The forward port should keep the page/sg mapping model, while rejecting unsafe
-input before the sg-table reaches the DMA layer:
+The forward port keeps the page/sg mapping model and now rejects unsafe input
+before the sg-table reaches the DMA layer:
 
 1. Check physical-address and size arithmetic for overflow.
 2. Validate every page in the complete byte range, not only the first page.
@@ -145,13 +151,35 @@ Any future expansion should separately consider an authorization policy such
 as `CAP_SYS_RAWIO`; that would be an ABI/policy change rather than part of the
 minimal crash fix.
 
-## Test policy
+## Test containment
 
-Until a booted kernel contains the hardening and passes the negative probe, raw
-physical-address generation must be opt-in in the ABI probe, direct librga
-smoke, ioctl mutator, and syzkaller descriptions. The rewrite profile can keep
-an explicit negative test because it rejects `RGA_PHYSICAL_ADDRESS` before any
-mapping. Forward-port testing should first prove that `0x1000` returns an error
-without a new warning/oops, then test a known-valid physical allocation if a
-real compatibility consumer requires that ABI.
+Raw physical-address generation is now opt-in:
 
+| Harness | Explicit opt-in |
+|---------|-----------------|
+| `abi-probe.sh` | `ABI_PROBE_ENABLE_RGA_PHYSICAL=1` |
+| `librga-smoke.sh` | `LIBRGA_SMOKE_ENABLE_PHYSICAL_PROBE=1` |
+| `ioctl-fuzz-smoke.sh` | `IOCTL_FUZZ_ENABLE_RGA_PHYSICAL=1` |
+| syzkaller draft | separate `ioctl$rga_import_physical`, marked `disabled, no_generate` |
+
+The `PROFILE=*rewrite*` ABI replay and librga suite explicitly enable their
+physical probe and require `-EOPNOTSUPP`, preserving the rewrite negative gate.
+Setting either `*_EXPECT_*_PHYSICAL_REJECT=1` also enables the matching probe
+for backward compatibility. The syzlang ABI-marker check uses
+`ABI_PROBE_ABI_ONLY=1`, so its device-free mode emits compile-time constants
+without opening either device node.
+
+Do not enable raw physical probes on the published 20260716 forward kernel.
+After a rebuilt package containing `1c9a110129fe` is installed and booted,
+capture a dmesg/ramoops baseline and run the targeted negative probe first:
+
+```bash
+ABI_PROBE_ENABLE_RGA_PHYSICAL=1 bash kernel-drivers/tests/abi-probe.sh
+```
+
+For the forward port, `0x1000` should return an error (normally `EINVAL`)
+without a warning, oops, reboot, or new RGA/IOMMU fault. The rewrite profile
+continues to require `EOPNOTSUPP`. Run the wider ABI, librga, fuzz, decode,
+encode, and transcode suites only after that targeted gate and a clean dmesg.
+A known-valid physical allocation should be tested only if a real compatibility
+consumer requires that legacy ABI.
