@@ -835,7 +835,14 @@ static void probe_rga_dmabuf_import_release(int fd)
 	printf("  %-30s %u\n", "dmabuf_import_handle",
 	       buffers[0].handle);
 
-	if (!ret) {
+	/*
+	 * RGA_IOC_IMPORT_BUFFER returns the positive buffer handle on success,
+	 * not 0 (rga_ioctl_import_buffer() returns rga_mm_import_buffer()'s
+	 * handle). A `!ret` guard is only true for handle 0, so it leaked every
+	 * real import; release on any nonnegative result like the va/physical
+	 * probes do.
+	 */
+	if (ret >= 0) {
 		if (!buffers[0].handle) {
 			printf("  %-30s zero handle\n",
 			       "RGA dmabuf import result");

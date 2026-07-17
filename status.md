@@ -102,6 +102,7 @@ last-checked date.
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-08 | Native compile reached; BTF link remains unproven. |
+| W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed on the fwport tree; base patch still frozen with the old path. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -303,3 +304,24 @@ last-checked date.
   GCC 13.3.0 arm64-on-arm64; the BTF/`pahole` link remained unproven on 8 GB.
   `resolute` was marked supported and branch map was current=6.18, edge=7.1,
   vendor=6.1. See the [builder finding](findings/2026-07-08-armbian-builder-setup.md).
+
+<a id="watch-w15"></a>
+### W15 — RGA session-close fix vs. base patch
+
+- **Why recheck:** The RGA `/dev/rga`-close force-free hazard is fixed as a
+  fwport-tree commit, but the repo's shipped base patch is a frozen vendor
+  snapshot that still carries the old `rga_mm_force_releaser_buffer()` path, so
+  the two can silently diverge until the next regeneration.
+- **Last checked:** 2026-07-17
+- **State then:** Driver fix `linux-6.18-rkvenc-av1-fwport@bc086cbe03d7`
+  ("release session buffers by reference on close") makes
+  `rga_mm_session_release_buffer()` drop each buffer through
+  `kref_put(..., rga_mm_kref_release_buffer)` instead of force-freeing;
+  compile-verified, not yet re-exercised on hardware. The base patch
+  [`rk3588-rkvenc2-01-vcodec-rga-drivers.patch`](./kernel-drivers/patches/rk3588-rkvenc2-01-vcodec-rga-drivers.patch)
+  still contains the old force-free path (as does `@1c9a110129fe` "validate
+  physical import pages"); fold both fwport fixes in at the next base-patch
+  regeneration ([resyncing guide](./kernel-drivers/docs/resyncing.md)). The
+  triggering test leak is fixed in
+  [`abi-probe.c`](./kernel-drivers/tests/abi-probe.c). See the
+  [finding](findings/2026-07-17-rga-session-close-uaf.md).
