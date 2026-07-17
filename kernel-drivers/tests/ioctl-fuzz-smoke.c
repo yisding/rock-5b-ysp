@@ -526,7 +526,8 @@ static void rga_release_handle(int fd, uint32_t handle, struct fuzz_stats *stats
 }
 
 static void fuzz_rga_import(int fd, struct fuzz_rng *rng,
-			    struct fuzz_stats *stats, bool verbose)
+			    struct fuzz_stats *stats, bool verbose,
+			    bool enable_physical)
 {
 	struct rga_external_buffer buffers[6];
 	struct rga_buffer_pool pool;
@@ -540,6 +541,9 @@ static void fuzz_rga_import(int fd, struct fuzz_rng *rng,
 
 	for (i = 0; i < ARRAY_SIZE(buffers); i++) {
 		unsigned int type = rng_mod(rng, 4);
+
+		if (!enable_physical && type == RGA_PHYSICAL_ADDRESS)
+			type = UINT32_MAX;
 
 		buffers[i].type = type;
 		buffers[i].memory_info.width = rng_mod(rng, 8193);
@@ -565,7 +569,11 @@ static void fuzz_rga_import(int fd, struct fuzz_rng *rng,
 				buffers[i].memory_info.size = 4096;
 			break;
 		default:
-			buffers[i].type = rng_u32(rng);
+			/*
+			 * Keep unknown-type fuzzing away from all defined low
+			 * values, including kernel-only pointer imports.
+			 */
+			buffers[i].type = rng_u32(rng) | 0x80000000U;
 			buffers[i].memory = rng_next(rng);
 			break;
 		}
@@ -579,7 +587,8 @@ static void fuzz_rga_import(int fd, struct fuzz_rng *rng,
 }
 
 static void fuzz_rga_one(int fd, struct fuzz_rng *rng,
-			 struct fuzz_stats *stats, bool verbose)
+			 struct fuzz_stats *stats, bool verbose,
+			 bool enable_physical)
 {
 	struct rga_hw_versions_t hw_versions;
 	struct rga_version_t version;
@@ -621,7 +630,7 @@ static void fuzz_rga_one(int fd, struct fuzz_rng *rng,
 			   NULL, stats, verbose, "rga GET_RESULT");
 		break;
 	case 7:
-		fuzz_rga_import(fd, rng, stats, verbose);
+		fuzz_rga_import(fd, rng, stats, verbose, enable_physical);
 		break;
 	case 8:
 		random_handle = rng_u32(rng);
@@ -641,16 +650,17 @@ static void fuzz_rga_one(int fd, struct fuzz_rng *rng,
 }
 
 static void fuzz_rga(int fd, struct fuzz_rng *rng, unsigned int iters,
-		     bool verbose)
+		     bool verbose, bool enable_physical)
 {
 	struct fuzz_stats stats = {};
 	unsigned int i;
 
 	for (i = 0; i < iters; i++)
-		fuzz_rga_one(fd, rng, &stats, verbose);
+		fuzz_rga_one(fd, rng, &stats, verbose, enable_physical);
 
-	printf("rga fuzz: calls=%u ok=%u errors=%u\n",
-	       stats.calls, stats.ok, stats.errors);
+	printf("rga fuzz: calls=%u ok=%u errors=%u physical=%s\n",
+	       stats.calls, stats.ok, stats.errors,
+	       enable_physical ? "enabled" : "disabled");
 }
 
 int main(void)
@@ -663,6 +673,8 @@ int main(void)
 	unsigned int timeout = (unsigned int)env_u64("IOCTL_FUZZ_TIMEOUT",
 						    DEFAULT_TIMEOUT_S);
 	bool verbose = env_enabled("IOCTL_FUZZ_VERBOSE");
+	bool enable_rga_physical =
+		env_enabled("IOCTL_FUZZ_ENABLE_RGA_PHYSICAL");
 	int mpp_fd;
 	int rga_fd;
 
@@ -702,7 +714,7 @@ int main(void)
 	}
 
 	if (rga_fd >= 0) {
-		fuzz_rga(rga_fd, &rng, iters, verbose);
+		fuzz_rga(rga_fd, &rng, iters, verbose, enable_rga_physical);
 		close(rga_fd);
 	}
 

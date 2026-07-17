@@ -11,7 +11,9 @@ BASELINE="${BASELINE:-}"
 
 case "$PROFILE" in
   *rewrite*)
+    : "${ABI_PROBE_ENABLE_RGA_PHYSICAL:=1}"
     : "${ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT:=1}"
+    export ABI_PROBE_ENABLE_RGA_PHYSICAL
     export ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT
     ;;
 esac
@@ -32,7 +34,7 @@ normalize_log() {
 }
 
 extract_compare_log() {
-  awk '!/^[[:space:]]+(RGA_IOC_IMPORT_BUFFER physical|RGA_IOC_RELEASE_BUFFER physical|physical_import_handle|physical_import_reject)/'
+  awk '!/^[[:space:]]+(RGA_IOC_IMPORT_BUFFER physical|RGA_IOC_RELEASE_BUFFER physical|physical_import_handle|physical_import_probe|physical_import_reject)/'
 }
 
 extract_contract_log() {
@@ -69,6 +71,7 @@ rga:
   /dev/rga                       fd=7
   RGA_IOC_IMPORT_BUFFER physical ret=-1 errno=95 (Operation not supported)
   physical_import_reject         expected errno=95 (Operation not supported)
+  physical_import_probe          disabled
   RGA_IOC_GET_HW_VERSION         ret=1
   RGA_IOC_REQUEST_CONFIG unsupported ret=-1 errno=14 (Bad address)
   config_request_id              42

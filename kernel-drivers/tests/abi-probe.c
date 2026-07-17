@@ -648,6 +648,9 @@ static void probe_mpp(void)
 	printf("  %-30s %#x\n", "MPP_FLAGS_POLL_NON_BLOCK",
 	       MPP_FLAGS_POLL_NON_BLOCK);
 
+	if (env_enabled("ABI_PROBE_ABI_ONLY"))
+		return;
+
 	probe_mpp_proc_support_cmds();
 
 	fd = open_optional("/dev/mpp_service");
@@ -851,8 +854,15 @@ static void probe_rga_physical_import(int fd)
 	struct rga_buffer_pool pool;
 	bool expect_reject =
 		env_enabled("ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT");
+	bool enable_probe =
+		env_enabled("ABI_PROBE_ENABLE_RGA_PHYSICAL") || expect_reject;
 	int saved_errno;
 	int ret;
+
+	if (!enable_probe) {
+		printf("  %-30s disabled\n", "physical_import_probe");
+		return;
+	}
 
 	memset(&pool, 0, sizeof(pool));
 	buffers[0].memory = 0x1000;
@@ -1031,6 +1041,9 @@ static void probe_rga(void)
 	printf("  %-30s %zu\n", "sizeof rga_user_request",
 	       sizeof(struct rga_user_request));
 
+	if (env_enabled("ABI_PROBE_ABI_ONLY"))
+		return;
+
 	fd = open_optional("/dev/rga");
 	if (fd < 0)
 		return;
@@ -1092,6 +1105,11 @@ int main(void)
 
 	probe_mpp();
 	probe_rga();
+
+	if (env_enabled("ABI_PROBE_ABI_ONLY")) {
+		puts("PASS: compile-time ABI constants emitted without device access");
+		return 0;
+	}
 
 	if (!probed_devices) {
 		puts("SKIP: neither /dev/mpp_service nor /dev/rga is present");

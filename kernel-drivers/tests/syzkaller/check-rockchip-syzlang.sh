@@ -13,7 +13,8 @@ probe_build_dir="$(mktemp -d "${TMPDIR:-/tmp}/rk-syz-abi-build.XXXXXX")"
 trap 'rm -f "$tmp"; rm -rf "$probe_build_dir"' EXIT
 
 set +e
-BUILD_DIR="${BUILD_DIR:-$probe_build_dir}" "$PROBE" >"$tmp"
+ABI_PROBE_ABI_ONLY=1 BUILD_DIR="${BUILD_DIR:-$probe_build_dir}" \
+	"$PROBE" >"$tmp"
 probe_status=$?
 set -e
 

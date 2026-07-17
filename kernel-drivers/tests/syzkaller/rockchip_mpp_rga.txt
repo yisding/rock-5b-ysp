@@ -148,6 +148,10 @@ ioctl$rga_flush(fd fd_rga, cmd const[RGA_FLUSH], arg const[0])
 ioctl$rga_get_result(fd fd_rga, cmd const[RGA_GET_RESULT], arg const[0])
 ioctl$rga2_get_result(fd fd_rga, cmd const[RGA2_GET_RESULT], arg const[0])
 ioctl$rga_import_buffer(fd fd_rga, cmd const[RGA_IOC_IMPORT_BUFFER], arg ptr[inout, rga_buffer_pool])
+# Raw physical addresses can reach architecture DMA cache maintenance in BSP
+# drivers. Keep them out of generated programs until a hardened kernel is
+# running on a sacrificial target with ramoops.
+ioctl$rga_import_physical(fd fd_rga, cmd const[RGA_IOC_IMPORT_BUFFER], arg ptr[inout, rga_buffer_pool$physical]) (disabled, no_generate)
 ioctl$rga_release_buffer(fd fd_rga, cmd const[RGA_IOC_RELEASE_BUFFER], arg ptr[in, rga_buffer_pool$release])
 ioctl$rga_request_create(fd fd_rga, cmd const[RGA_IOC_REQUEST_CREATE], arg ptr[out, rga_request_id])
 ioctl$rga_request_cancel(fd fd_rga, cmd const[RGA_IOC_REQUEST_CANCEL], arg ptr[in, rga_request_id])
@@ -252,7 +256,7 @@ mpp_codec_info {
 	data	int64
 }
 
-rga_memory_types = RGA_DMA_BUFFER, RGA_VIRTUAL_ADDRESS, RGA_PHYSICAL_ADDRESS
+rga_memory_types = RGA_DMA_BUFFER, RGA_VIRTUAL_ADDRESS
 rga_render_modes = RGA_RENDER_BITBLT, RGA_RENDER_PALETTE, RGA_RENDER_FILL
 rga_rd_modes = RGA_RASTER_MODE, RGA_FBC_MODE, RGA_TILE_MODE, RGA_RKFBC_MODE, RGA_AFBC32X8_MODE
 rga_formats = RGA_FORMAT_RGBA_8888, RGA_FORMAT_RGBX_8888, RGA_FORMAT_RGB_888, RGA_FORMAT_BGRA_8888, RGA_FORMAT_RGB_565, RGA_FORMAT_BGR_888, RGA_FORMAT_YCBCR_420_SP, RGA_FORMAT_YCRCB_420_SP, RGA_FORMAT_BGRX_8888, RGA_FORMAT_YCBCR_420_SP_10B, RGA_FORMAT_YCRCB_420_SP_10B, RGA_FORMAT_ABGR_8888, RGA_FORMAT_XBGR_8888
@@ -274,6 +278,11 @@ rga_buffer_pool {
 	size	len[buffers, int32]
 } [size[16]]
 
+rga_buffer_pool$physical {
+	buffers	ptr64[inout, array[rga_external_buffer$physical, 1:4]]
+	size	len[buffers, int32]
+} [size[16]]
+
 rga_buffer_pool$release {
 	buffers	ptr64[in, array[rga_external_buffer$release, 1:4]]
 	size	len[buffers, int32]
@@ -282,6 +291,14 @@ rga_buffer_pool$release {
 rga_external_buffer {
 	memory	rga_import_memory
 	type	int32[rga_memory_types]
+	handle	rga_handle	(out)
+	memory_info	rga_memory_parm
+	reserve	array[int8, 252]
+} [size[288]]
+
+rga_external_buffer$physical {
+	memory	int64
+	type	const[RGA_PHYSICAL_ADDRESS, int32]
 	handle	rga_handle	(out)
 	memory_info	rga_memory_parm
 	reserve	array[int8, 252]

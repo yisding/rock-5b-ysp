@@ -2322,12 +2322,20 @@ out:
 static int run_physical_import_probe(void)
 {
 	const size_t phys_size = (size_t)64 * 64 * TEST_BPP;
+	const bool expect_reject =
+		env_enabled("LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT");
 	rga_buffer_handle_t handle;
+
+	if (!env_enabled("LIBRGA_SMOKE_ENABLE_PHYSICAL_PROBE") &&
+	    !expect_reject) {
+		printf("%-24s disabled\n", "physical import");
+		return 0;
+	}
 
 	handle = importbuffer_physicaladdr(0x1000, (int)phys_size);
 	if (handle) {
 		releasebuffer_handle(handle);
-		if (env_enabled("LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT")) {
+		if (expect_reject) {
 			fprintf(stderr,
 				"physical-address import was accepted; rewrite profile expects rejection\n");
 			return 1;
