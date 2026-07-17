@@ -8,10 +8,14 @@ arm64 build `33387391`. The source and image/DTB/header binaries are now
 Published in the recreated main PPA as source publication `18619788`.
 Replacement version `6.18.38+rk3588av1fwport20260716-0ubuntu1~rk1`, carrying
 the Rockchip 5.10 RGA reconciliation and RKVENC2 multi-slice error fix, was
-accepted as source publication `18624245`; arm64 build `33407351` was running
-at the 2026-07-16 16:07 PDT check. The previous binaries remain Published. The
-local arm64 integration build also passes; board install/revert validation
-remains pending.
+accepted as source publication `18624245`. Hardened version
+`6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1` additionally validates every
+raw RGA physical-import page before DMA cache maintenance and makes the unsafe
+raw-address probes opt-in. Its full Armbian integration build and exact
+PPA-source arm64 binary build both pass. Launchpad accepted the signed source
+as pending publication `18624583` and started arm64 build `33407863` on
+`bos03-arm64-036`; it was `Currently building` at the 2026-07-16 22:52 PDT
+check. Board install/revert validation remains pending.
 
 The current kernel delivery path is still the Armbian wrapper in
 [`../../../kernel-drivers/scripts/build-armbian-deb.sh`](../../../kernel-drivers/scripts/build-armbian-deb.sh),
@@ -30,7 +34,7 @@ First PPA kernel package should be conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18.38 worktree with the self-contained-DT RK3588 MPP/RGA/AV1 forward-port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Initial arm64 build `33387353` failed on missing `mkimage`. Retry build `33387391` succeeded; the previous source and all three binaries remain Published as source publication `18619788`. Replacement source `18624245` is accepted and arm64 build `33407351` is running. |
+| Upload state | Initial arm64 build `33387353` failed on missing `mkimage`. Retry build `33387391` succeeded. The 5.10-reconciled source is publication `18624245` / successful build `33407351`. Hardened `.1` source is pending publication `18624583`; arm64 build `33407863` is running. |
 
 ## Source Inputs
 
@@ -42,7 +46,7 @@ The local build wrapper currently owns these inputs:
 | Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Resolved kernel config | `KERNEL_PPA_CONFIG=$KERNEL_PPA_REPO/.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
-| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.38+rk3588av1fwport20260716` |
+| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.38+rk3588av1fwport20260716.1` |
 
 The exporter copies the patched worktree contents, including Armbian patch
 changes and untracked patch-added files, while excluding `.git`, `.config`,
@@ -83,14 +87,14 @@ bash packaging/ppa/build-source-packages.sh kernel
 
 The original source was generated on 2026-07-09, signed/uploaded on 2026-07-10
 local time, then rebuilt as `~rk2` with `u-boot-tools` in Build-Depends. The
-current 5.10-reconciled source was generated, validated, signed, and uploaded on
-2026-07-16:
+current physical-import-hardened source was generated, validated, signed, and
+uploaded on 2026-07-16:
 
 ```text
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716.orig.tar.gz
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716-0ubuntu1~rk1.debian.tar.xz
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716-0ubuntu1~rk1.dsc
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716-0ubuntu1~rk1_source.changes
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716.1.orig.tar.gz
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1.debian.tar.xz
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1.dsc
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1_source.changes
 ```
 
 The orig tarball is large (`272M` in the first export), so the kernel target is
@@ -157,6 +161,31 @@ Passed:
   Arm64 build
   [`33407351`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33407351)
   was `Currently building` at 16:07 PDT.
+- The physical-import hardening increased the Armbian forward-port series to
+  38 patches. A Docker-backed full integration build completed image, DTB, and
+  headers packages with build identity `P4825-Cb831`. The patch was present in
+  the applied worktree, and `rga_mm.o` compiled successfully.
+- Source version
+  `6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1` completed
+  `dpkg-buildpackage -S -sa`; `dscverify --nosigcheck` and a fresh
+  `dpkg-source -x` validated the source archive. Inspection of that extracted
+  source confirmed the per-page linear-map check and both overflow guards.
+- A cold, full arm64 binary build from the freshly extracted `.dsc` completed
+  with exit code 0. Its stable local artifacts are under
+  `packaging/ppa/out/artifacts/local-binaries/6.18.38+rk3588av1fwport20260716.1/`:
+  - image: `960ee91fdbde134f5b2fe0aa86410d51f0b0b8c491311ef1c5ef7ca45ed2ed57`;
+  - DTB: `7a6f656345067ddfee40e9f35270f4e9f203776fe01b7d1467ab33afd606e4c6`;
+  - headers: `7a54115d43907d12ca4f1f31adc71bdf50c77b98c5dec3043c1cfb70249461d3`.
+- `debsign` signed the hardened `.dsc`, source `.buildinfo`, and source
+  `.changes` with `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`.
+  Direct `gpg --verify` reported good signatures from
+  `Yi Ding <yi.s.ding@gmail.com>` on all three files. `dput` passed its
+  pre-upload checks and transferred all five source artifacts to the main PPA.
+- Launchpad accepted the hardened upload as pending source publication
+  [`18624583`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18624583)
+  and started arm64 build
+  [`33407863`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33407863)
+  on `bos03-arm64-036`. It was `Currently building` at 22:52 PDT.
 
 Notes:
 
@@ -173,8 +202,12 @@ Notes:
 Not done yet:
 
 - Board install, reboot, rollback, and `kernel-revert.sh` recovery validation.
-- Full `lintian`; the source lint run was stopped after several minutes with no
-  output because the kernel orig tarball scan was taking too long.
+- Full `lintian`; both source and binary scans were stopped after several
+  minutes with no output because traversing the kernel archive/payload was
+  taking too long.
+- Booted-board confirmation that an invalid raw RGA physical import returns an
+  errno without a warning, oops, or reboot. Do not enable the raw physical
+  probes on the older `20260716` kernel.
 
 ## Remaining Checklist
 

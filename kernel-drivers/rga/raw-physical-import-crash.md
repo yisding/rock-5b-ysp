@@ -21,6 +21,12 @@ represented by patch `0039` in
 [`patches/forward-port-rk3588-av1`](../patches/forward-port-rk3588-av1/README.md).
 The published `6.18.38+rk3588av1fwport20260716` package predates that commit
 and remains vulnerable until a rebuilt package is installed and booted.
+Hardened version
+`6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1` passed both a full Armbian
+integration build and a full binary build from the exact exported PPA source.
+Launchpad accepted its signed source as pending publication `18624583` and
+started arm64 build `33407863`; do not treat the fix as live until Launchpad
+publishes that version and the board boots it.
 
 ## Observed failure
 
@@ -170,7 +176,8 @@ for backward compatibility. The syzlang ABI-marker check uses
 without opening either device node.
 
 Do not enable raw physical probes on the published 20260716 forward kernel.
-After a rebuilt package containing `1c9a110129fe` is installed and booted,
+After the `.1` package containing `1c9a110129fe` is published, installed, and
+booted,
 capture a dmesg/ramoops baseline and run the targeted negative probe first:
 
 ```bash

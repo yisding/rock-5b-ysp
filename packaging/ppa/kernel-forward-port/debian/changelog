@@ -1,3 +1,13 @@
+linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1) resolute; urgency=high
+
+  * Validate every raw RGA physical-import page as mapped System RAM before
+    DMA cache maintenance, reject wrapped ranges, and remove the
+    user-triggerable warning that preceded the observed kernel crash.
+  * Make raw physical-address ABI, librga, ioctl-fuzz, and syzkaller probes
+    opt-in while retaining explicit rewrite-profile rejection coverage.
+
+ -- Yi Ding <yi@example.com>  Thu, 16 Jul 2026 20:40:00 -0700
+
 linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260716-0ubuntu1~rk1) resolute; urgency=medium
 
   * Reconcile the RK3588 RGA driver with applicable Rockchip 5.10 fixes:

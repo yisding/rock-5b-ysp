@@ -1929,3 +1929,63 @@ See ../../configure --help for available options.
   on `bos03-arm64-097`. It was `Currently building` at
   `2026-07-16T16:07:14-07:00`; the previous kernel source/binaries remain
   Published until this replacement completes.
+
+## Forward-port RGA physical-import hardening — 2026-07-16
+
+- Advanced the source package to
+  `6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1`. It carries forward-port
+  commit `1c9a110129fef3ca8ed2c5af15658666742774d0`, which validates every raw
+  RGA physical-import page as mapped System RAM before DMA cache maintenance,
+  checks both relevant range additions for overflow, and removes the
+  user-triggerable warning from the invalid-input path. The raw physical ABI,
+  librga, ioctl-fuzz, and syzkaller probes are now opt-in.
+- The Docker-backed Armbian integration build applied the complete 38-patch
+  series and produced image, DTB, and headers packages with build identity
+  `P4825-Cb831`. Local Armbian package SHA-256 values:
+  - image: `ecff3339043dcce6dcdbb0331d983c23d2cb325dd447a55441436be141d4c062`;
+  - DTB: `8346d6722f2080494e0b39926dae8c0f8494bbafe71af7d4543de0fc69ae2e94`;
+  - headers: `e1f0e19187a12d7e1e4969a9aa83abb3021d1ec2acf0c56ca5c9e9740e3b1512`.
+- Generated the PPA source with `dpkg-buildpackage -S -sa`.
+  `dscverify --nosigcheck` validated all source checksums, a fresh
+  `dpkg-source -x` succeeded, and inspection of the extracted source confirmed
+  the per-page linear-map check plus both overflow guards. The hardened
+  `rga_mm.o` also compiled during both full builds.
+- Built all three arm64 binaries from that freshly extracted `.dsc`, using a
+  workspace-local cold ccache. `dpkg-buildpackage -b` exited 0 and produced:
+  - `linux-image-ysp-rockchip64` (57 MiB), SHA-256
+    `960ee91fdbde134f5b2fe0aa86410d51f0b0b8c491311ef1c5ef7ca45ed2ed57`;
+  - `linux-dtb-ysp-rockchip64` (1.3 MiB), SHA-256
+    `7a6f656345067ddfee40e9f35270f4e9f203776fe01b7d1467ab33afd606e4c6`;
+  - `linux-headers-ysp-rockchip64` (16 MiB), SHA-256
+    `7a54115d43907d12ca4f1f31adc71bdf50c77b98c5dec3043c1cfb70249461d3`.
+  Stable local copies are under
+  `packaging/ppa/out/artifacts/local-binaries/6.18.38+rk3588av1fwport20260716.1/`.
+  Both source and binary `lintian` scans remained silent for several minutes
+  and were stopped rather than delaying the release; neither completed.
+- Signed the `.dsc`, source `.buildinfo`, and source `.changes` with key
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. Direct `gpg --verify` reported a
+  good EDDSA signature from `Yi Ding <yi.s.ding@gmail.com>` on all three.
+  `dscverify` without an explicit personal keyring could not locate that public
+  key, but its earlier checksum-only pass and the direct signature checks both
+  succeeded.
+- Final signed source SHA-256 upload set:
+  - orig tarball: `d00b14468710d9c12fa2be90769129c909767076ed241ffebd0545c931ebc20c`;
+  - Debian tarball: `47b8c48006655633c969f8f37de730513bbdf33e91f628c2aee6f1ab06f016db`;
+  - signed `.dsc`: `3c9daf92fda6e2538609fb803f1a11044fe29b2753cc64eda5d2a8edff42f21c`;
+  - signed source `.buildinfo`: `d90537b716dc9c844e8815dfbc8e53079eb9039b9137d037f1e12e63af50ded7`;
+  - signed source `.changes`: `e0ea15b122bc67d27053e523460ec8a3ec216842e7e4d452bf7204fb7825049b`.
+- `dput` passed its distribution, required-field, checksum, suite, source-only,
+  and GPG checks, transferred all five artifacts to
+  `ppa:yi-ding/ubuntu-rock-5b`, and exited 0 at approximately 22:46 PDT.
+  Launchpad accepted the upload as pending source publication
+  [`18624583`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18624583)
+  and started arm64 build
+  [`33407863`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33407863)
+  on `bos03-arm64-036`. It was `Currently building` at
+  `2026-07-16T22:52:17-07:00`. The preceding build `33407351` completed
+  successfully at 16:50 PDT.
+- Runtime status: the currently published `20260716` package predates the fix.
+  Do not enable raw RGA physical-address probes until `.1` is published,
+  installed, and booted. The first board gate is an invalid-import negative
+  test that must return an errno without a warning, oops, reboot, or new
+  RGA/IOMMU fault.
