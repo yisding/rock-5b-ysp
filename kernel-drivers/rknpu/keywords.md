@@ -19,6 +19,24 @@ in [`../../glossary.md`](../../glossary.md).
   tensors, prepares low-level NPU work, and calls the RKNPU kernel ABI.
 - **`librknnmrt.so`** — smaller runtime variant for RV1103/RV1106-class 32-bit
   uClibc systems; not the RK3588 runtime.
+- **RKLLM** — Rockchip's separate stack for large language models
+  (`airockchip/rknn-llm`), over the same `drivers/rknpu` kernel driver. It has
+  its own toolkit, `.rkllm` model format, and `librkllmrt.so` runtime — not part
+  of RKNN-Toolkit2/`librknnrt`. Full survey:
+  [`docs/rkllm-large-language-models.md`](docs/rkllm-large-language-models.md).
+- **RKLLM-Toolkit** — host Python toolchain that converts a Hugging Face (or
+  GGUF) transformer to `.rkllm`, quantizing to `w8a8` or `w4a16` and baking in
+  `max_context` and the target platform.
+- **RKLLM Runtime / `librkllmrt.so`** — board-side native runtime that tokenizes,
+  manages the KV-cache, submits per-token NPU work, and streams tokens through a
+  callback. Supports prompt/embedding/token/multimodal inputs, LoRA, and prompt
+  cache.
+- **`.rkllm`** — target-specific compiled LLM artifact (quantized weights, graph,
+  chat template). Analogous to `.rknn` but for the RKLLM runtime, not
+  interchangeable with it.
+- **w8a8 / w4a16** — RKLLM quantization modes: 8-bit weight/8-bit activation and
+  4-bit weight/16-bit activation. w4a16 roughly halves model RAM at some quality
+  cost.
 - **`rknn_server`** — board-side proxy used by x86 RKNN-Toolkit2 for connected
   debugging. It receives model/data/API requests over the ADB/USB transport,
   invokes the board runtime, and returns results. Native board applications do

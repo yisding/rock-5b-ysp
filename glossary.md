@@ -35,6 +35,12 @@ when comparing the encoder and decoder or reconstructing the Armbian port.
   and the proprietary native `librknnrt.so` that prepares memory and low-level
   RKNPU submissions. [`rknn_server` is an optional connected-debug proxy](./kernel-drivers/rknpu/docs/how-rknpu-works.md#32-toolkit2-connected-debugging),
   not a daemon required by native inference.
+- **RKLLM** — Rockchip's separate large-language-model stack
+  (`airockchip/rknn-llm`) over the same `drivers/rknpu` driver: a host toolkit
+  that converts Hugging Face transformers to the `.rkllm` format (`w8a8`/`w4a16`
+  quantization) and the `librkllmrt.so` runtime that streams tokens on the NPU.
+  Distinct from RKNN — different format and runtime. Survey:
+  [RKLLM stack](./kernel-drivers/rknpu/docs/rkllm-large-language-models.md).
 - **IEP** — *Image Enhancement Processor*, the BSP's video post-processing
   block (expansion verified in Rockchip's own libmpp source:
   `mpp/vproc/iep{,2}/CMakeLists.txt` — "Image Enhancement Processor").

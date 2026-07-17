@@ -10,13 +10,18 @@ RKNPU ioctl is too low-level to understand without the closed RKNN runtime that
 constructs it, and the runtime's memory/core/fence behavior is too easy to
 misread without the kernel implementation.
 
+Large language models use a sibling userspace stack, **RKLLM**, over the same
+kernel driver — a different toolkit, model format (`.rkllm`), and runtime
+(`librkllmrt.so`), documented in
+[`docs/rkllm-large-language-models.md`](docs/rkllm-large-language-models.md).
+
 ## Brief
 
 | Field | Contents |
 |---|---|
 | Purpose | Explain how a source model becomes an RKNN artifact and then an RK3588 NPU job, including conversion, runtime APIs, memory, multi-core execution, ioctls, IOMMU, fences, power, and recovery. |
 | Developer focus | Preserve the kernel/runtime/model compatibility tuple, understand which layer owns each transformation, and distinguish documented behavior from what remains hidden in proprietary userspace. |
-| Owns | The end-to-end [`how-rknpu-works.md`](docs/how-rknpu-works.md) guide, this front door, and [`keywords.md`](keywords.md). |
+| Owns | The end-to-end [`how-rknpu-works.md`](docs/how-rknpu-works.md) guide, the [`rkllm-large-language-models.md`](docs/rkllm-large-language-models.md) LLM-stack survey, this front door, and [`keywords.md`](keywords.md). |
 | Depends on | A BSP kernel with `CONFIG_ROCKCHIP_RKNPU`, enabled RK3588 NPU/IOMMU DT nodes, matching RKNN Runtime/Toolkit2, and suitable render-node or `/dev/rknpu` access. |
 | Code lives in | Kernel: sibling `rockchip-kernel/drivers/rknpu/`. Userspace distribution: official [`airockchip/rknn-toolkit2`](https://github.com/airockchip/rknn-toolkit2) repository (`rknn-toolkit2/`, `rknn-toolkit-lite2/`, `rknpu2/runtime/`). |
 | Inspected tuple | `rockchip-kernel@b4ef083dc0c3`, RKNPU driver 0.9.8 (`20240828`), and `airockchip/rknn-toolkit2@59a913d172e7`, containing RKNN Runtime 2.3.2. |
@@ -49,6 +54,7 @@ completion.
 | Question | Document |
 |---|---|
 | How does everything work, end to end? | [`docs/how-rknpu-works.md`](docs/how-rknpu-works.md) |
+| How do LLMs run on the NPU (RKLLM)? | [`docs/rkllm-large-language-models.md`](docs/rkllm-large-language-models.md) |
 | What does each RKNN/RKNPU term mean? | [`keywords.md`](keywords.md) |
 | What does the broader BSP add for GPU/NPU? | [`../../kernel-versions/bsp/07-gpu-npu-accelerators.md`](../../kernel-versions/bsp/07-gpu-npu-accelerators.md) |
 | How does RKNPU quality compare with mature drivers? | [`../../findings/2026-07-16-rockchip-bsp-driver-quality.md`](../../findings/2026-07-16-rockchip-bsp-driver-quality.md#rknpu-deep-dive-capable-fixed-stack-unsafe-multi-client-abi) |
