@@ -1,3 +1,13 @@
+ffmpeg (7:8.0.3+rockchip+git20260717.540657970e-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Bound synchronous RKMPP packet waits to 500 ms instead of using
+    MPP_TIMEOUT_BLOCK for low-delay encoding and drain. A missing hardware
+    completion now returns EAGAIN rather than wedging the caller indefinitely.
+  * Keep the normal asynchronous H.264/HEVC/MJPEG path nonblocking. This is an
+    internal encoder hardening change and adds no public or private AVOption.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Fri, 17 Jul 2026 13:05:00 -0700
+
 ffmpeg (7:8.0.3+rockchip+git20260713.463f542c-0ubuntu1~rk1) resolute; urgency=medium
 
   * Replace the FFmpeg 8.1 Rockchip forward port with a compatibility branch

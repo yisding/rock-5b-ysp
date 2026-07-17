@@ -16,16 +16,16 @@ LIBRGA_COMMIT="${LIBRGA_COMMIT:-a632217}"
 LIBRGA_UPSTREAM_VERSION="${LIBRGA_UPSTREAM_VERSION:-2.2.0+git20260703.a632217}"
 
 FFMPEG_REPO="${FFMPEG_REPO:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81}"
-FFMPEG_COMMIT="${FFMPEG_COMMIT:-463f542c325942f3e6b390cb940c32812570957d}"
-FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.0.3+rockchip+git20260713.463f542c}"
+FFMPEG_COMMIT="${FFMPEG_COMMIT:-540657970efd7ae774c49259fa3fa6553bdf950b}"
+FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.0.3+rockchip+git20260717.540657970e}"
 
 FFMPEG_ROCKCHIP_REPO="${FFMPEG_ROCKCHIP_REPO:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip}"
 FFMPEG_ROCKCHIP_COMMIT="${FFMPEG_ROCKCHIP_COMMIT:-40c412daccf08164493da0de990eb99a8948116b}"
 FFMPEG_ROCKCHIP_UPSTREAM_VERSION="${FFMPEG_ROCKCHIP_UPSTREAM_VERSION:-6.1+git20260423.40c412dacc}"
 
 GRD_REPO="${GRD_REPO:-$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop}"
-GRD_COMMIT="${GRD_COMMIT:-1c870bc82d1920edfac1e1544b61bd7c7b9a1873}"
-GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260717.1c870bc}"
+GRD_COMMIT="${GRD_COMMIT:-2571326322c754de7608ef4afb1dff8e4d031cbd}"
+GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260717.2571326}"
 GRD_DELTA="${GRD_DELTA:-}"
 
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
@@ -66,9 +66,10 @@ Launchpad has already accepted. Set FORCE_ORIG=1 to regenerate an orig tarball.
 Source tree defaults are resolved below WORKSPACE_ROOT (the repository's parent
 directory by default). Override that shared root or use MPP_REPO, LIBRGA_REPO,
 FFMPEG_REPO, FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching *_COMMIT /
-*_UPSTREAM_VERSION variables. The default GRD snapshot is the clean
-rdp-handover-reconnect-v2 branch tip. Set GRD_DELTA only when reconstructing a
-historical source package that included an uncommitted source delta.
+*_UPSTREAM_VERSION variables. The default GRD snapshot includes the reconnect
+fixes, pipeline diagnostics, and bounded RKMPP stall recovery. Set GRD_DELTA
+only when reconstructing a historical source package that included an
+uncommitted source delta.
 
 The forward-port kernel target exports the already-patched Armbian kernel
 worktree named by KERNEL_PPA_REPO, excluding build products and .git, then

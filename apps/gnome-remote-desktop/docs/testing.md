@@ -193,3 +193,33 @@ journalctl -b -g 'HWAccel.FFmpeg'
 The [`gdm-hwenc` README](../../../packaging/gdm-hwenc/README.md) covers the
 package-side verify (the `getfacl` line and what the greeter should
 negotiate); this section is the daemon-side confirmation.
+
+## 9. `~exp3` Firefox freeze regression gate
+
+Install the matching pair. The hardening is internal to `rkmppenc`, so there is
+intentionally no new FFmpeg option to probe; verify the package versions:
+
+```bash
+apt-cache policy ffmpeg libavcodec62 gnome-remote-desktop
+dpkg-query -W -f='${Package}\t${Version}\n' \
+  ffmpeg libavcodec62 gnome-remote-desktop
+```
+
+Then reconnect with an AVC420-capable client and repeat the actual trigger:
+
+1. follow the handover journal and preserve all `RDP.PIPELINE`,
+   `HWAccel.FFmpeg`, `Hardware encode`, and `Failed to lock bitstream` lines;
+2. start Firefox, open/resize several content-heavy pages, switch tabs, scroll,
+   play video, and toggle full-screen for at least ten minutes;
+3. confirm the remote image and input remain responsive, the client stays on
+   AVC420, and submitted-frame counters continue advancing;
+4. if a hardware timeout is injected or occurs naturally, require a failure
+   within about 500 ms, a hardware-cooldown log, continued CAPROGRESSIVE
+   software frames, and a later successful hardware retry; and
+5. disconnect/reconnect the macOS Windows App once after the stress run to
+   cover the independent handover fixes carried by the same package.
+
+A freeze is not accepted as fixed from process liveness alone. During the test,
+`journalctl -k` must remain free of codec/GPU/IOMMU faults, the independent
+pipeline watchdog must keep logging if submission stops, and the RDP socket's
+`bytes_sent` must continue increasing during visible motion.

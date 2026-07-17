@@ -5,10 +5,12 @@ the corrected RDP handover reconnect path in gnome-remote-desktop: the seven
 backend commits from the
 [`ffmpeg-rkmpp-encode-backend`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/ffmpeg-rkmpp-encode-backend)
 branch of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`, plus
-`0008` as the July 3 backpressure/cooldown follow-up and `0009`–`0013` from
-[`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2).
+`0008` as the July 3 backpressure/cooldown follow-up, `0009`–`0013` from
+[`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2),
+and the `00014`–`0015` diagnosis/recovery pair for the Firefox-triggered RKMPP
+stall.
 
-The complete `0001`–`0013` series, including its `0001`–`0008` backend subset,
+The complete `0001`–`0015` series, including its `0001`–`0008` backend subset,
 applies to upstream commit `c14e09e` (`50.1` + 16). This base contains both the
 `cf250ed` VA-API revert required by `0003` and the GNOME-50 reconnection
 simplification that `0009` officially reverts. Replay is verified with
@@ -35,13 +37,18 @@ against `50.1`+16 — see its header.
 | 0011 | `daemon-handover-Release-taken-socket-connection` | 1 | Release the socket returned by `TakeClient` after the handover daemon has adopted its fd. |
 | 0012 | `daemon-system-Harden-handover-timeout-cleanup` | 1 | Reject `TakeClient` without a pending socket, re-arm/cancel the timeout consistently, and prevent a direct abort from leaving a live source behind. |
 | 0013 | `daemon-system-Coalesce-pending-redirected-connections` | 1 | Replace only a simultaneously pending redirected socket. Once `TakeClient` consumes it, the same routing token remains reusable for the next GDM→session stage or a later reconnect. |
+| 0014 | `rdp-add-pipeline-starvation-diagnostics` | 4 | Rate-limited counters for capture, view creation, stale drops, encode, submission, refresh/reset, and hardware cooldown; this produced the evidence that localized the Firefox freeze. |
+| 0015 | `rdp-recover-from-stalled-hardware-encoding` | 7 | Rely on bounded low-delay waits in the matching FFmpeg package, reuse the smoke-tested context, refresh stale content with a forced IDR instead of recreating MPP, recover to software on an encode error, and put the watchdog on an independent thread. Requires FFmpeg `540657970e` or newer. |
 
 `0001`–`0003` are the backend; `0004`–`0006` are the panvk/hardware-enablement
 fixes ([`apps/gnome-remote-desktop/docs/design.md`](../docs/design.md)); `0007` is the mainline-rkmpp runtime fix
 ([`../README.md`](../README.md)); `0008` is the backpressure/cooldown guard
 ([`../README.md`](../README.md) #4); and `0009`–`0013` are the corrected
-handover/reconnect series. Patch `0007` is a **no-op on the ffmpeg-rockchip
-fork**, which already does fixed-QP and honours forced IDR.
+handover/reconnect series; `0014`–`0015` are the Firefox-stall diagnosis and
+recovery. Patch `0007`'s quality settings remain relevant to the mainline
+forward port, while `0015` supersedes its startup encoder recreation with a
+forced IDR on the packaged Rockchip FFmpeg, which honours
+`MPP_ENC_SET_IDR_FRAME`.
 
 ## Reference prototypes (not part of the series)
 
@@ -67,7 +74,7 @@ cd gnome-remote-desktop
 git am /path/to/00*.patch
 
 # Backend only on that same base, if reconnect changes are intentionally omitted:
-git am /path/to/000[1-8]-*.patch
+git am /path/to/000[1-8]-*.patch /path/to/001[45]-*.patch
 
 # Or as quilt patches in a Debian source package (from the matching base):
 cp 00*.patch debian/patches/ && ls 00*.patch | sed 's#.*/##' >> debian/patches/series
@@ -93,7 +100,9 @@ handover leg. No global `client_taken` state and no preserve-on-abort behavior
 remain. `0010`–`0012` carry the independently valid ownership, NULL-socket, and
 timeout cleanup fixes from the old experiment.
 
-The public branch tip is
+The published reconnect-only branch tip is
 [`eb91daf476dc`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commit/eb91daf476dc1c4ba23ccfdd8c077b8b83e84773).
-It passed a full build and the GRD test suite; the exact macOS Windows App
-reconnect scenario still needs an on-box runtime re-test.
+The local `~exp3` candidate is `2571326322c7` on top of diagnostic commit
+`1c870bc82d19`; it passes a full build and the RDP integration test. The exact
+Firefox stress plus macOS Windows App reconnect scenario still needs an on-box
+runtime re-test with matching FFmpeg commit `540657970efd` installed.

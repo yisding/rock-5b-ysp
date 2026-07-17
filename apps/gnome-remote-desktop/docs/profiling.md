@@ -167,7 +167,9 @@ queued work is outstanding, it also emits a `Suspected frame starvation`
 warning. That warning is limited to once every five seconds. This should
 separate the observed Firefox freeze into three broad cases: capture stopped
 (buffer age rises), frames are repeatedly discarded as stale (stale count and
-serial gap rise), or encoding/submission stopped after views completed.
+serial gap rise), or encoding/submission stopped after views completed. In
+`~exp2` this timer shares the graphics main context, so it cannot fire after
+that thread itself blocks; `~exp3` moves it to an independent context/thread.
 
 For the current handover service, capture just these diagnostics with:
 
@@ -181,7 +183,58 @@ For a standard non-handover unit, replace the unit name with
 and after the image freezes; the counters are cumulative, so the transition is
 more useful than a single final line.
 
-## 9. Open item: which DRM modifier does mutter's dma-buf carry?
+## 9. Firefox freeze diagnosis and the `~exp3` recovery design
+
+The `~exp2` logging made the Firefox-triggered freeze conclusive. The kernel
+and compositor remained alive, but the RDP pipeline stopped at 12:08:40 while
+constructing its sixth RKMPP encode session:
+
+- the last summary at 12:08:39 reported 23 buffers received, 25 frames queued,
+  25/24 view creations, two stale drops, 17/17 encodes, and 17 submitted
+  frames;
+- five earlier RKMPP smoke encodes completed, while the sixth logged encoder
+  open and smoke-frame preparation but never returned a packet;
+- the RDP graphics thread waited in a futex, the encode worker waited in
+  `poll`, and `mpp_h264e` waited in a futex; the service and RDP socket stayed
+  alive;
+- the boot journal contained no kernel Oops, IOMMU, RGA, codec, or GPU fault,
+  and Firefox itself did not hold `/dev/mpp_service`; and
+- the RKVENC interrupt counter stopped advancing. Attaching gdb was blocked by
+  the host ptrace policy, but the source/log/thread boundary is sufficient to
+  identify the synchronous wait.
+
+The blocking chain was:
+
+1. a Firefox damage burst made a completed view stale;
+2. the stale-drop path requested a full refresh **and render-context reset**;
+3. that destroyed and recreated the RKMPP encoder, including a synchronous
+   zero-copy smoke encode on the RDP graphics thread;
+4. GRD set `AV_CODEC_FLAG_LOW_DELAY`, and the Rockchip FFmpeg encoder therefore
+   selected `MPP_TIMEOUT_BLOCK` for `encode_get_packet()`; and
+5. one lost/missing completion left the graphics thread inside that call
+   indefinitely. The diagnostics timer could not report the stall because it
+   was attached to the same blocked main context.
+
+`~exp3` fixes each boundary rather than merely adding another warning:
+
+| Layer | Change | Failure behavior |
+|---|---|---|
+| FFmpeg `540657970e` | Internally replaces `MPP_TIMEOUT_BLOCK` with a 500 ms deadline for synchronous low-delay and drain waits; its asynchronous path stays nonblocking. It adds no AVOption or public API. | MPP timeout becomes libavcodec `EAGAIN`; no caller of the hardened encoder can remain blocked forever. |
+| GRD session open | Continues using the standard `AV_CODEC_FLAG_LOW_DELAY`; the Debian package requires the hardened FFmpeg version. | GRD remains source-compatible with normal libavcodec and has no Rockchip-specific timeout API. |
+| Smoke/refresh | Keeps the successfully smoke-tested encoder, requests an IDR for the first real frame, and separates content refresh from context reset. A stale drop requests an IDR plus full-frame content refresh only. | Firefox damage no longer causes rapid MPP close/open/smoke cycles. |
+| Encode error | Treats an AVC packet timeout as a hardware failure, not a fatal graphics-subsystem failure. | The failed frame/resource is released, the context is reset, software encoding runs for ten seconds, then hardware is retried. |
+| Diagnostics | Runs the one-second timer on a dedicated main context/thread and diagnoses outstanding view/encode work rather than only recently arriving buffers. | Starvation warnings continue even if the graphics thread itself stalls. |
+
+The 500 ms bound is deliberately much larger than the measured normal RKMPP
+encode time (about 1–2 ms) and larger than the existing 250 ms single-encode
+stall threshold. Compilation passed for both FFmpeg and GRD; GRD's RDP
+integration test passed three times. The remaining acceptance gate is the live
+Firefox stress/reconnect test with both `~exp3` and the matching FFmpeg package
+installed. Do not manually pair `~exp3` with the older FFmpeg: the package
+dependency prevents that unsupported combination because the old encoder can
+still wait indefinitely.
+
+## 10. Open item: which DRM modifier does mutter's dma-buf carry?
 
 Still the section's highest-value open measurement
 ([`baseline.md`](baseline.md) §2/§5): whether mutter's screencast dma-buf is

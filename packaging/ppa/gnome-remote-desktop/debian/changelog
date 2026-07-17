@@ -1,3 +1,19 @@
+gnome-remote-desktop (50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3) resolute; urgency=medium
+
+  * Use FFmpeg's existing AV_CODEC_FLAG_LOW_DELAY contract with the matching
+    hardened FFmpeg package, which bounds synchronous RKMPP waits internally.
+    No GRD-specific FFmpeg API or private option is introduced.
+  * Reuse a validated RKMPP context after the smoke test and on stale-frame
+    refreshes. Force an IDR and refresh the whole frame without repeatedly
+    destroying and reopening MPP.
+  * Treat a timed-out AVC hardware encode as recoverable: release the failed
+    frame, reset the render context, use software encoding for a cooldown, and
+    retry hardware later instead of failing the graphics subsystem.
+  * Move pipeline diagnostics to an independent main context/thread so the
+    starvation warning remains live if the RDP graphics thread blocks.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Fri, 17 Jul 2026 13:05:00 -0700
+
 gnome-remote-desktop (50.1+rkmpp+git20260717.1c870bc-0ubuntu1~exp2) resolute; urgency=medium
 
   * Add rate-limited RDP pipeline diagnostics for buffer arrival, frame
