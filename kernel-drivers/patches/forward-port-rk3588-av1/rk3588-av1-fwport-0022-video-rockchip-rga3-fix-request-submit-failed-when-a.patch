@@ -1,0 +1,68 @@
+From 06ee3db609ac24182247cf9ad1c10c2bbcbbf651 Mon Sep 17 00:00:00 2001
+From: Yu Qiaowei <cerf.yu@rock-chips.com>
+Date: Fri, 20 Mar 2026 16:04:46 +0800
+Subject: [PATCH 22/39] video: rockchip: rga3: fix request submit failed when
+ acquire_fence is already signaled
+
+There is a narrow race window between dma_fence_get_status() and
+dma_fence_add_callback() where the fence can become signaled. Missing
+the state check when adding the callback leads to submit failed.
+
+Change-Id: If7e3dd4fb9c43f197d0fd6d29f28314285f221b5
+Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
+(cherry picked from commit f7643d9a9d22e1b6884a098e7adaacbe46938209)
+---
+ drivers/video/rockchip/rga3/rga_fence.c |  1 -
+ drivers/video/rockchip/rga3/rga_job.c   | 13 ++++++++-----
+ 2 files changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_fence.c b/drivers/video/rockchip/rga3/rga_fence.c
+index 9c663f3be5ca..10cb6586d153 100644
+--- a/drivers/video/rockchip/rga3/rga_fence.c
++++ b/drivers/video/rockchip/rga3/rga_fence.c
+@@ -130,7 +130,6 @@ int rga_dma_fence_add_callback(struct dma_fence *fence, dma_fence_func_t func, v
+ 
+ 	ret = dma_fence_add_callback(fence, &waiter->waiter, func);
+ 	if (ret == -ENOENT) {
+-		rga_err("'input fence' has been already signaled.");
+ 		goto err_free_waiter;
+ 	} else if (ret == -EINVAL) {
+ 		rga_err("%s: failed to add callback to dma_fence, err: %d\n", __func__, ret);
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index 019c308591c1..9c133e9f2f35 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -619,7 +619,10 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
+ 
+ 	ret = rga_dma_fence_add_callback(acquire_fence, cb_func, (void *)request);
+ 	if (ret < 0) {
+-		if (ret != -ENOENT)
++		if (ret == -ENOENT)
++			/* The acquire fence has been signaled after the status check. */
++			ret = 1;
++		else
+ 			rga_req_err(request, "%s: failed to add fence callback\n", __func__);
+ 
+ 		mutex_lock(&request_manager->lock);
+@@ -1283,8 +1286,8 @@ int rga_request_submit(struct rga_request *request)
+ 	if (request->sync_mode == RGA_BLIT_ASYNC) {
+ 		release_fence = rga_dma_fence_alloc();
+ 		if (IS_ERR_OR_NULL(release_fence)) {
+-			rga_req_err(request, "Can not alloc release fence!\n");
+-			ret = IS_ERR(release_fence) ? PTR_ERR(release_fence) : -EINVAL;
++			ret = IS_ERR(release_fence) ? PTR_ERR(release_fence) : -EFAULT;
++			rga_req_err(request, "Can not alloc release fence!, ret = %d\n", ret);
+ 			goto err_abort_request;
+ 		}
+ 
+@@ -1303,8 +1306,8 @@ int rga_request_submit(struct rga_request *request)
+ 				/* acquire fence has been signaled */
+ 				goto request_commit;
+ 			} else {
+-				rga_req_err(request, "Failed to add callback with acquire fence fd[%d]!\n",
+-				       request->acquire_fence_fd);
++				rga_req_err(request, "Failed to add callback with acquire fence fd[%d]!, ret = %d\n",
++					request->acquire_fence_fd, ret);
+ 
+ 				rga_dma_fence_put(request->release_fence);
+ 				request->release_fence = NULL;

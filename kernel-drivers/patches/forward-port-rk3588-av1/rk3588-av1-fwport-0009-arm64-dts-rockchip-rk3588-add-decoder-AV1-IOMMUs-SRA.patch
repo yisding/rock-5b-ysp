@@ -1,7 +1,7 @@
 From 92e08bc80f544cab1a56105ab33d78a6b3edcc7b Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:43:41 -0700
-Subject: [PATCH 09/22] arm64: dts: rockchip: rk3588: add decoder/AV1 IOMMUs,
+Subject: [PATCH 09/39] arm64: dts: rockchip: rk3588: add decoder/AV1 IOMMUs,
  SRAM and node wiring
 
 Wire up the IOMMU topology and fixed SRAM windows for the RK3588 media

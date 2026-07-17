@@ -1,7 +1,7 @@
 From 538d69525532d2268afd42cf05906c320ffd6bf8 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:43:26 -0700
-Subject: [PATCH 07/22] video: rockchip: mpp: add RKMPP AV1 decoder
+Subject: [PATCH 07/39] video: rockchip: mpp: add RKMPP AV1 decoder
 
 Add the RK3588 hardware AV1 decoder backend (mpp_av1dec.c) to the MPP
 service framework behind CONFIG_ROCKCHIP_MPP_AV1DEC. It preserves the

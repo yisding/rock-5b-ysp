@@ -1,7 +1,7 @@
 From 2b52e8174c127a8c54ef877f21912b6a147f6ab2 Mon Sep 17 00:00:00 2001
 From: Codex <codex@example.invalid>
 Date: Sun, 5 Jul 2026 15:49:18 -0700
-Subject: [PATCH 16/22] media: rockchip: rga3: map scattered userptr through
+Subject: [PATCH 16/39] media: rockchip: rga3: map scattered userptr through
  IOMMU
 
 RGA3 command streams carry base addresses, not scatterlists. The

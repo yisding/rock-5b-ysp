@@ -1,7 +1,7 @@
 From 5983ccd09a76046cf7fcdaf17ae82c4ff7ebf0e1 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 20:39:20 -0700
-Subject: [PATCH 11/22] video: rockchip: mpp: harden CCU shared-domain RCB
+Subject: [PATCH 11/39] video: rockchip: mpp: harden CCU shared-domain RCB
  windows and reset paths
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

@@ -1,7 +1,7 @@
 From 5614909e58035e86228cab71fc0938eda4925591 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sun, 28 Jun 2026 08:34:01 -0700
-Subject: [PATCH 02/22] arm64: dts: rockchip: rk3588: VEPU580 encoder, rkvdec2
+Subject: [PATCH 02/39] arm64: dts: rockchip: rk3588: VEPU580 encoder, rkvdec2
  decoder, RGA3 nodes
 
 Add vendor MPP encoder (fdbd0000/fdbe0000) + decoder (fdc38000/fdc40000)
@@ -319,7 +319,7 @@ index e5c474e4d02a..edce7285b10e 100644
 +
 +&vdec0 {
 +	compatible = "rockchip,rkv-decoder-v2";
-+	reg = <0x0 0xfdc38100 0x0 0x600>, <0x0 0xfdc38000 0x0 0x100>;
++	reg = <0x0 0xfdc38100 0x0 0x400>, <0x0 0xfdc38000 0x0 0x100>;
 +	reg-names = "regs", "link";
 +	interrupt-names = "irq_rkvdec0";
 +	clocks = <&cru ACLK_RKVDEC0>, <&cru HCLK_RKVDEC0>,
@@ -356,7 +356,7 @@ index e5c474e4d02a..edce7285b10e 100644
 +
 +&vdec1 {
 +	compatible = "rockchip,rkv-decoder-v2";
-+	reg = <0x0 0xfdc40100 0x0 0x600>, <0x0 0xfdc40000 0x0 0x100>;
++	reg = <0x0 0xfdc40100 0x0 0x400>, <0x0 0xfdc40000 0x0 0x100>;
 +	reg-names = "regs", "link";
 +	interrupt-names = "irq_rkvdec1";
 +	clocks = <&cru ACLK_RKVDEC1>, <&cru HCLK_RKVDEC1>,

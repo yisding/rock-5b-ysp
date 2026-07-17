@@ -1,0 +1,27 @@
+From f099dd93d926dc2fe962ac646446abb834ef4f7b Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Thu, 16 Jul 2026 15:19:45 -0700
+Subject: [PATCH 33/39] video: rockchip: rga3: clear tile4x4 chroma bases
+
+RGA2 requires tile4x4 input base1 and base2 to be zero. Adapt Rockchip develop-5.10 commit c2df109b01ad without importing its unrelated AFBC32x8 refactor context.
+---
+ drivers/video/rockchip/rga3/rga2_reg_info.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
+index 6ba713bff7f6..e50093d9b40c 100644
+--- a/drivers/video/rockchip/rga3/rga2_reg_info.c
++++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
+@@ -942,7 +942,11 @@ static void RGA2_set_reg_src_info(u8 *base, struct rga2_req *msg)
+ 		*bRGA_SRC_ACT_INFO = (msg->src.act_w - 1) | ((msg->src.act_h - 1) << 16);
+ 	} else {
+ 		*bRGA_SRC_BASE0 = (u32)(msg->src.yrgb_addr + yrgb_offset);
+-		if (disable_uv_channel_en == 1) {
++		if (msg->src.rd_mode == RGA_TILE4x4_MODE) {
++			/* Hardware requires tile4x4 input base1/base2 to be zero. */
++			*bRGA_SRC_BASE1 = 0;
++			*bRGA_SRC_BASE2 = 0;
++		} else if (disable_uv_channel_en == 1) {
+ 			/*
+ 			 * When Y400 as the input format, because the current RGA does
+ 			 * not support closing the access of the UV channel, the address

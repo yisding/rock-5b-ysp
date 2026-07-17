@@ -1,7 +1,7 @@
 From 6b9dba7abcd01f8220c91533f1ae5b7f7a3fa651 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 4 Jul 2026 19:27:34 -0700
-Subject: [PATCH 14/22] video: rockchip: rga: keep IOVAs below 32-bit wrap
+Subject: [PATCH 14/39] video: rockchip: rga: keep IOVAs below 32-bit wrap
  guard
 
 ---

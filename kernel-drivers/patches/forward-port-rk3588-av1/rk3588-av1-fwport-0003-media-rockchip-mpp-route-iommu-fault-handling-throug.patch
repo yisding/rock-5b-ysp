@@ -1,7 +1,7 @@
 From 07742fdfbbff08ed1481bd2b0a816816619598bd Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:18:05 -0700
-Subject: [PATCH 03/22] media: rockchip: mpp: route iommu fault handling
+Subject: [PATCH 03/39] media: rockchip: mpp: route iommu fault handling
  through provider hooks
 
 The MPP iommu layer forward-port to 6.18 needs provider-local fault-handler,

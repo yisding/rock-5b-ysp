@@ -1,7 +1,7 @@
 From 72ad822990fbe07fe243a5678c8b743290e29c6b Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:42:49 -0700
-Subject: [PATCH 05/22] iommu: add Verisilicon IOMMU provider and Rockchip
+Subject: [PATCH 05/39] iommu: add Verisilicon IOMMU provider and Rockchip
  provider media hooks
 
 The RK3588 vendor media stack needs two things from the IOMMU layer that

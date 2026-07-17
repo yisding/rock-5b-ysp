@@ -1,0 +1,44 @@
+From 19d62bc48002ff138666a651ccf9146071ff0adf Mon Sep 17 00:00:00 2001
+From: Yu Qiaowei <cerf.yu@rock-chips.com>
+Date: Mon, 11 May 2026 20:28:29 +0800
+Subject: [PATCH 37/39] video: rockchip: rga3: skip full_csc check for R2Y-709L
+
+User-space task submit does not provide per-core config, which means
+a single config might enable different features across different cores.
+
+Currently, in R2Y, RGA2 is required to use the full_csc to workaround
+formula errors in older hardware versions. RGA3 however does not have
+this issue and actually lacks support for full_csc. Thus, skip the
+full_csc check for RGA3.
+
+Change-Id: Ide21e7ec25b8b9d0766e52f80b5b892ac586eaa9
+Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
+(cherry picked from commit b5061ad9d83f3eea9a0746e455c7668372e4dbe6)
+---
+ drivers/video/rockchip/rga3/rga_policy.c | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_policy.c b/drivers/video/rockchip/rga3/rga_policy.c
+index 83909898a19f..5df5f0d4db14 100644
+--- a/drivers/video/rockchip/rga3/rga_policy.c
++++ b/drivers/video/rockchip/rga3/rga_policy.c
+@@ -86,9 +86,18 @@ static bool rga_check_csc(const struct rga_hw_data *data, struct rga_req *rga_ba
+ 		break;
+ 	}
+ 
++	if ((rga_base->full_csc.flag & 0x1) &&
++	    !(data->feature & RGA_FULL_CSC)) {
++		/*
++		 * RGA2E requires FULL_CSC to execute R2Y BT.709-limit_range,
++		 * while RGA3 can directly support this CSC mode.
++		 */
++		if (data == &rga3_data &&
++		    (rga_base->yuv2rgb_mode & RGA_R2Y_MASK) == RGA_R2Y_BT709_LIMIT)
++			return true;
+ 
+-	if ((rga_base->full_csc.flag & 0x1) && !(data->feature & RGA_FULL_CSC))
+ 		return false;
++	}
+ 
+ 	return true;
+ }

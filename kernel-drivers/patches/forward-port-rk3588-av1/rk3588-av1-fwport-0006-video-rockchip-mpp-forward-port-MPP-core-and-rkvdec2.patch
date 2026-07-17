@@ -1,7 +1,7 @@
 From 23ff47eab6f682f08fe0dac38546a877652112f2 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:43:12 -0700
-Subject: [PATCH 06/22] video: rockchip: mpp: forward-port MPP core and
+Subject: [PATCH 06/39] video: rockchip: mpp: forward-port MPP core and
  rkvdec2/rkvenc2 to 6.18
 
 Forward-port the RK3588 vendor MPP service core and the rkvdec2/rkvenc2
@@ -215,7 +215,7 @@ index 000000000000..f7b49c816891
 +
 +    video-codec@fdc38100 {
 +        compatible = "rockchip,rkv-decoder-v2";
-+        reg = <0x0 0xfdc38100 0x0 0x600>, <0x0 0xfdc38000 0x0 0x100>;
++        reg = <0x0 0xfdc38100 0x0 0x400>, <0x0 0xfdc38000 0x0 0x100>;
 +        reg-names = "regs", "link";
 +        rockchip,core-mask = <0x00010001>;
 +    };

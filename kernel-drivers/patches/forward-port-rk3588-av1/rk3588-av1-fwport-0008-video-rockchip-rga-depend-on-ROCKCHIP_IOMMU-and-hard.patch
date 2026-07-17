@@ -1,7 +1,7 @@
 From 71bcd51ccb4387e6f6564ce2b02a7fcb6a886a5e Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 19:43:41 -0700
-Subject: [PATCH 08/22] video: rockchip: rga: depend on ROCKCHIP_IOMMU and
+Subject: [PATCH 08/39] video: rockchip: rga: depend on ROCKCHIP_IOMMU and
  harden version string
 
 Add an explicit ROCKCHIP_IOMMU dependency to ROCKCHIP_MULTI_RGA (the RGA2/

@@ -1,7 +1,7 @@
 From 924f4232546df251c645a63928229f2589bfba18 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sun, 28 Jun 2026 08:34:01 -0700
-Subject: [PATCH 01/22] video: rockchip: RK3588 vendor MPP (rkvenc2/rkvdec2) +
+Subject: [PATCH 01/39] video: rockchip: RK3588 vendor MPP (rkvenc2/rkvdec2) +
  RGA3/RGA2 drivers
 
 Forward-port of the Rockchip 6.1 BSP out-of-tree drivers to v6.18:

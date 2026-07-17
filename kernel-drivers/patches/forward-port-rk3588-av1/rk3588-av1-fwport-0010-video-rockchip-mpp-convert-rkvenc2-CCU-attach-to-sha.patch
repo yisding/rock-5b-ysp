@@ -1,7 +1,7 @@
 From 2dae7f05f5288d2ec9faa0a6ccd3d920f54d13c6 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 3 Jul 2026 20:28:54 -0700
-Subject: [PATCH 10/22] video: rockchip: mpp: convert rkvenc2 CCU attach to
+Subject: [PATCH 10/39] video: rockchip: mpp: convert rkvenc2 CCU attach to
  shared-domain helper
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

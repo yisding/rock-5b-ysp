@@ -1,7 +1,7 @@
 From 18fae99576869a9784b74a6e4cbabf4145ed3577 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sun, 5 Jul 2026 19:42:03 -0700
-Subject: [PATCH 17/22] media: rockchip: keep rkvenc RCB SRAM optional
+Subject: [PATCH 17/39] media: rockchip: keep rkvenc RCB SRAM optional
 
 RK3588 rkvenc-core device-tree nodes do not provide rockchip,rcb-iova or rockchip,sram. The BSP still calls rkvenc2_alloc_rcbbuf() during probe, but ignores its return so missing RCB SRAM backing does not prevent RKVENC registration.
 
