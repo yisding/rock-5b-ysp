@@ -1989,3 +1989,59 @@ See ../../configure --help for available options.
   installed, and booted. The first board gate is an invalid-import negative
   test that must return an errno without a warning, oops, reboot, or new
   RGA/IOMMU fault.
+
+## GRD pipeline-diagnostics candidate — 2026-07-17
+
+- The live handover session running reconnect-v2 `~exp1` froze after Firefox
+  opened. The board and kernel remained responsive and the kernel journal had
+  no new oops, warning, RGA/IOMMU fault, or codec fault, leaving userspace frame
+  starvation as the leading hypothesis rather than a proven cause.
+- Added diagnostic-only commit `1c870bc82d1920edfac1e1544b61bd7c7b9a1873`
+  on public branch `debug/exp1-frame-starvation`, directly on top of
+  `rdp-handover-reconnect-v2@eb91daf`. It emits rate-limited
+  `[RDP.PIPELINE]` summaries for buffer, queued-frame, view, stale-drop,
+  encode, submission, full-refresh, render-context-reset, and hardware-cooldown
+  progress. A warning fires after two seconds of outstanding queued work while
+  buffers continue arriving without a submitted frame, then at most once
+  every five seconds. The commit does not change scheduling or drop policy.
+- Clean Meson/Ninja validation succeeded with `/usr` as the install prefix.
+  The isolated GRD RDP integration test passed; TPM and hardware-EGL tests
+  skipped because their required devices were unavailable. `git diff --check`
+  passed.
+- Generated source package
+  `50.1+rkmpp+git20260717.1c870bc-0ubuntu1~exp2` and built the arm64 binary from
+  its exported source with `DEB_BUILD_OPTIONS=nocheck`. The binary contains the
+  daemon and optimized AVC shader and depends on the normal PPA's exact
+  Rockchip FFmpeg 8.0 ABI (`libavcodec62`/`libavutil60`). Source and binary
+  lintian completed without errors; the only findings were long-filename
+  warnings caused by the descriptive package version.
+- Local arm64 package:
+  `packaging/ppa/out/work/gnome-remote-desktop_50.1+rkmpp+git20260717.1c870bc-0ubuntu1~exp2_arm64.deb`,
+  SHA-256 `851b638d3982d7b038def33ebe2ecc0d4e663e1196710b7c1e6c99d331ab31f1`.
+- Signed the `.dsc`, source `.buildinfo`, and source `.changes` with key
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`; direct `gpg --verify` reported a
+  good EDDSA signature from `Yi Ding <yi.s.ding@gmail.com>` on all three.
+  `dscverify` without an explicit personal keyring could not locate the public
+  key, while its checksum-only validation and the direct signature checks
+  passed.
+- Final source SHA-256 upload set:
+  - orig tarball: `fe3ed45e85473cfdde50873e43b20842074e5b1930e827a971bbcad213441784`;
+  - Debian tarball: `761f39e43c43711d09f1312ec314fe6cc3dc30249b29c308235cabd0caad507f`;
+  - signed `.dsc`: `0ded95475482776b33dc7d8d8f2117d5f097722a63a36fe94e44df5f98e6f720`;
+  - signed source `.buildinfo`: `89055e8853e6cbc83d0c36f202847b0c47eb1454bb031f0cafb034c4173f0675`;
+  - signed source `.changes`: `797cb68357d48260856eb9bb6586eff95f62fe1ebf15ea8ed96e517cd3b1a852`.
+- `dput` passed its distribution, required-field, checksum, suite, source-only,
+  and GPG checks and uploaded all five source artifacts to
+  `ppa:yi-ding/ubuntu-rock-5b-experimental`. Launchpad accepted pending source
+  publication
+  [`18625943`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18625943)
+  and started arm64 build
+  [`33411510`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33411510)
+  on `bos03-arm64-050`. The uncached Launchpad API reported `Successfully
+  built` at `2026-07-17T11:43:57-07:00` after 6m24s. Source publication
+  `18625943` remained Pending and no binary publication was visible at
+  `2026-07-17T11:46:55-07:00`.
+- No package was installed or daemon restarted during the build/upload. The
+  active session remained on `~exp1`; after `~exp2` publishes, the next gate is
+  to reproduce the Firefox transition while preserving several seconds of
+  `[RDP.PIPELINE]` journal output before and after the freeze.

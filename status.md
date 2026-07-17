@@ -36,9 +36,9 @@ separate table below so both remain scannable.
 | 4 | Clean-room rewrite drivers | 🚧 Armbian-based 6.18.38 and v7.2-rc3 composites pass the warning-free focused build gate and local source/full arm64 package builds; both replacement sources are accepted in their dedicated PPAs and their arm64 builds are running, but no rewrite kernel has booted hardware proof. | 2026-07-16 | [rewrite-driver track](./kernel-drivers/docs/rewrite-drivers.md) §6 |
 | 5 | ffmpeg tree | ⚠️ Canonical `main`, `ffmpeg-80`, and `ffmpeg-81` branches are published and source/FATE-validated; existing PPAs remain pinned to older tested commits, and AV1 MP4/MKV still lacks board re-validation. | 2026-07-16 | [FFmpeg status](./video-libraries/ffmpeg/README.md) |
 | 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
-| 7 | GNOME Remote Desktop backend | ✅ The backend sustains 60 fps; corrected reconnect-v2 is public at `eb91daf`, passes full/local package builds and the RDP test, and is staged in the experimental PPA. The original macOS reconnect scenario is not yet re-tested. | 2026-07-14 | [`patch series`](./apps/gnome-remote-desktop/patches/README.md) |
+| 7 | GNOME Remote Desktop backend | ⚠️ The backend sustains 60 fps, but the live `~exp1` handover session froze after Firefox opened. Diagnostic-only `~exp2` at `1c870bc` adds rate-limited pipeline progress/starvation logging, passes full/local package builds and the RDP test, and built successfully in the experimental PPA. The freeze and original macOS reconnect scenario need re-testing. | 2026-07-17 | [`profiling and diagnostics`](./apps/gnome-remote-desktop/docs/profiling.md) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ⚠️ The recreated main system PPA and dedicated FFmpeg PPAs have Published sources and binaries. Main-PPA forward-port replacement source `18624245` and dedicated rewrite sources `18623665`/`18623666` are accepted; arm64 builds `33407351`, `33406491`, and `33406492` are running while prior kernel binaries remain Published. Experimental GRD reconnect-v2 build `33399816` succeeded. Optional GDM upload and board migration/kernel/GRD runtime gates remain open. | 2026-07-16 | [`packaging/ppa/`](packaging/ppa/README.md) |
+| 9 | Launchpad PPA | ⚠️ The recreated main system PPA and dedicated FFmpeg PPAs have Published sources and binaries. Main-PPA forward-port replacement source `18624245` and dedicated rewrite sources `18623665`/`18623666` are accepted. Experimental GRD diagnostic source `18625943` is accepted and arm64 build `33411510` succeeded; publication is pending. Optional GDM upload and board migration/kernel/GRD runtime gates remain open. | 2026-07-17 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
@@ -59,7 +59,7 @@ dashboard date and ledger row when public state changes.
 | 4 | Clean-room rewrite drivers | After the accepted Launchpad builds publish, install one replacement, boot it on the board, and capture the first hardware conformance log. | [Rewrite acceptance commands](./kernel-drivers/tests/rewrite-conformance.md#rewrite-acceptance-one-command) |
 | 5 | ffmpeg tree | Re-test AV1 from MP4 and MKV through `av1_rkmpp` on RK3588. | [AV1 follow-up evidence](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md#av1-follow-up) |
 | 6 | ffmpeg submissions | Submit the first patch from the ordered upstream/fork plan and record its review URL. | [Suggested first wave](./video-libraries/ffmpeg/docs/submission-plan.md#suggested-first-wave) |
-| 7 | GNOME Remote Desktop backend | Reproduce the macOS Windows App reconnect against `~exp1`; if it passes, promote the package and open the upstream MR. | [Candidate state and branch](#watch-w10) |
+| 7 | GNOME Remote Desktop backend | Reproduce the Firefox-triggered freeze against `~exp2`, preserve the `[RDP.PIPELINE]` transition, then re-test macOS Windows App reconnect before promotion. | [Diagnostic signals](./apps/gnome-remote-desktop/docs/profiling.md#8-pipeline-starvation-diagnostics-in-the-exp2-package) |
 | 8 | Mesa / Panfrost | Rebase !42679 and rerun its selected CI coverage. | [MR tips and selected CI](./video-libraries/mesa/README.md#mr-status) |
 | 9 | Launchpad PPA | Install, boot, and revert the co-installable forward-port kernel on the ROCK 5B. | [Kernel package checklist](./packaging/ppa/kernel-forward-port/README.md#remaining-checklist) |
 | 10 | Binary publishing | Choose and record the repository-wide license required before a public release. | [License decision boundary](./LICENSE.md) |
@@ -92,12 +92,12 @@ last-checked date.
 | W02 | [Armbian patcher precedence](#watch-w02) | 2026-07-11 | Core-wins behavior unchanged; rename workaround still required. |
 | W03 | [Armbian codec-udev upstreaming](#watch-w03) | 2026-07-11 | PR merged; future images should carry the rule. |
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-07-11 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
-| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-16 | Armbian-based rewrite sources accepted; both dedicated-PPA arm64 builds are running. |
+| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-17 | GRD `~exp2` source accepted and arm64 build `33411510` succeeded; publication is pending. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-07-11 | Four MRs open; !42679 needs a rebase. |
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-16 | Three canonical branch tips published; source validation passed. |
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-16 | Fix carried forward; board re-test pending. |
 | W09 | [Kodi build and tty1 playback](#watch-w09) | 2026-07-11 | Prerequisites ready; build/playback/package pending. |
-| W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-14 | Corrected branch and PPA candidate public; macOS runtime test and upstream MR pending. |
+| W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-17 | Diagnostic `~exp2` branch and source are public; Firefox-freeze capture, macOS reconnect test, and upstream MR remain pending. |
 | W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
@@ -246,13 +246,17 @@ last-checked date.
 - **Why recheck:** The corrected series must reproduce the original macOS
   reconnect failure before promotion, and the submission claim needs a public
   review artifact.
-- **Last checked:** 2026-07-14
-- **State then:** Fork branch
-  [`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2)
-  was public at `eb91daf476dc`. Clean Meson/Ninja and Debian arm64 builds passed;
-  the GRD RDP test passed. Experimental source `18620800` was accepted and
-  build `33399816` succeeded. The exact macOS Windows App reconnect and an
-  upstream GNOME MR remained pending.
+- **Last checked:** 2026-07-17
+- **State then:** The live `~exp1` handover session froze after Firefox opened,
+  while the kernel stayed responsive and showed no new fault. Public branch
+  [`debug/exp1-frame-starvation`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/debug/exp1-frame-starvation)
+  at `1c870bc82d19` adds rate-limited `[RDP.PIPELINE]` progress counters and a
+  suspected-starvation warning without changing renderer scheduling. Clean
+  Meson/Ninja and Debian arm64 builds passed; the RDP test passed. Experimental
+  `~exp2` source publication `18625943` was accepted and build `33411510`
+  succeeded in 6m24s. Publication, reproducing the Firefox freeze with the new
+  logs, the exact macOS
+  Windows App reconnect, and an upstream GNOME MR remained pending.
 
 <a id="watch-w11"></a>
 ### W11 — Repository-wide license

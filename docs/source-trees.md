@@ -170,7 +170,7 @@ backend-only `0001`–`0008` subset require this base: `0003` needs upstream
 `5ef1a2aa6bef`** is recorded for lineage but is not a valid replay base for the
 exported patches.
 
-The public shipping branch is
+The reconnect base remains
 [`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2),
 tip `eb91daf476dc1c4ba23ccfdd8c077b8b83e84773`. It carries the backend,
 backpressure guard, GNOME 50.2's official `5230bf3` revert, and the corrected
@@ -178,8 +178,16 @@ handover ownership/coalescing series. See
 `apps/gnome-remote-desktop/patches/README.md` and
 [`apps/gnome-remote-desktop/docs/profiling.md`](../apps/gnome-remote-desktop/docs/profiling.md).
 
-The current GRD PPA source package exports that clean commit directly as
-`50.1+rkmpp+git20260714.eb91daf-0ubuntu1~exp1`; no source delta is applied.
+The current diagnostic candidate is the public
+[`debug/exp1-frame-starvation`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/debug/exp1-frame-starvation)
+branch at `1c870bc82d1920edfac1e1544b61bd7c7b9a1873`. It adds only rate-limited
+pipeline observability on top of `eb91daf`: counters and serials for buffer,
+view, stale-drop, encode, submit, refresh, reset-wait, and cooldown progress,
+plus a suspected-starvation warning. It intentionally does not alter frame
+scheduling or backpressure behavior.
+
+The current GRD PPA source package exports `1c870bc` directly as
+`50.1+rkmpp+git20260717.1c870bc-0ubuntu1~exp2`; no source delta is applied.
 The historical `a59c904` dirty snapshot remains reconstructible: commit
 `a59c904c99088235eb4de31ca340747d334494f3` plus the delta at
 [`packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch`](../packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch).

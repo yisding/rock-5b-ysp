@@ -41,7 +41,7 @@ deleted.
 | `ppa:yi-ding/rock5b-ffmpeg81-rockchip` | ABI-changing FFmpeg 8.1.2 RKMPP/RKRGA forward port. Add the system PPA as well for MPP and librga. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-kernel618-rewrite` | Experimental Linux 6.18.38 Armbian-based clean-room rewrite kernel. | Replacement source `18623665` is accepted and arm64 build `33406491` is running; historical 6.18.0 binaries remain Published until the replacement completes. |
 | `ppa:yi-ding/rock5b-kernel72rc2-rewrite` | Experimental Linux 7.2-rc3 Armbian-based clean-room rewrite kernel (legacy archive name). | Replacement source `18623666` is accepted and arm64 build `33406492` is running; historical 7.2-rc2 binaries remain Published until the replacement completes. |
-| `ppa:yi-ding/ubuntu-rock-5b-experimental` | Isolated staging archive for the GRD reconnect candidate, plus migration backups of MPP, librga, co-installable FFmpeg 6.1, the forward-port kernel, and the superseded FFmpeg-8.1-linked GRD build. | Reconnect-v2 source `18620800` was accepted and arm64 build `33399816` succeeded. This remains a staging archive, not a normal-stack install target; the fresh main PPA has no dependency on it. |
+| `ppa:yi-ding/ubuntu-rock-5b-experimental` | Isolated staging archive for the GRD reconnect candidate, plus migration backups of MPP, librga, co-installable FFmpeg 6.1, the forward-port kernel, and the superseded FFmpeg-8.1-linked GRD build. | Diagnostic `~exp2` source `18625943` was accepted and arm64 build `33411510` succeeded; source/binary publication is pending. It supersedes reconnect-v2 `~exp1` only by adding rate-limited pipeline logging. This remains a staging archive, not a normal-stack install target; the fresh main PPA has no dependency on it. |
 
 For the primary 6.18 forward-port test path, run
 [`install-system-stack.sh`](install-system-stack.sh) on an arm64 Resolute
@@ -72,7 +72,7 @@ bash packaging/ppa/clean-install-system-stack.sh
 ## Current State
 
 Last recorded through the anonymous Launchpad API at
-`2026-07-16T22:52:17-07:00` and in
+`2026-07-17T11:46:55-07:00` and in
 [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md):
 
 | Package | Version in this repo | Public PPA state | Notes |
@@ -85,7 +85,7 @@ Last recorded through the anonymous Launchpad API at
 | `ffmpeg` 8.1.2 Rockchip | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Dedicated-PPA source publication [`18619545`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-rockchip/+sourcepub/18619545) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-rockchip`; it builds against the fresh main PPA for MPP/librga. |
 | `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Fresh-main source publication [`18619787`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619787) and its arm64 tool binary are Published. | Co-installable `/opt/ffmpeg-rockchip` tools; does not replace system FFmpeg. |
 | `gnome-remote-desktop` (normal stack) | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2` | Source publication [`18619824`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619824), successful arm64 build [`33397319`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397319), and the arm64 binary are Published. | Current normal-stack package; local build links the RKMPP backend against `libavcodec.so.62`/`libavutil.so.60`. |
-| `gnome-remote-desktop` (reconnect candidate) | `50.1+rkmpp+git20260714.eb91daf-0ubuntu1~exp1` | Experimental source publication [`18620800`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18620800) was accepted and arm64 build [`33399816`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33399816) succeeded. | Clean public branch tip `eb91daf`; local source and arm64 binary builds and the RDP test pass. Lintian reports only long-filename warnings. Exact macOS reconnect validation and promotion remain pending. |
+| `gnome-remote-desktop` (diagnostic reconnect candidate) | `50.1+rkmpp+git20260717.1c870bc-0ubuntu1~exp2` | Experimental source publication [`18625943`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18625943) is accepted and arm64 build [`33411510`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33411510) succeeded in 6m24s; source/binary publication is pending. | Clean public branch tip `1c870bc`; adds rate-limited `[RDP.PIPELINE]` progress and starvation diagnostics without changing scheduling. Local source and arm64 binary builds and the RDP test pass; lintian reports only long-filename warnings. Firefox-freeze reproduction, reconnect validation, and promotion remain pending. |
 | forward-port kernel | `6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Pending source publication [`18624583`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18624583) is accepted and arm64 build [`33407863`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33407863) is running. Preceding build `33407351` succeeded. | Adds per-page validation and overflow checks for raw RGA physical imports. Full local Armbian integration build `P4825-Cb831` and the exact PPA-source image/DTB/header build pass. Board install/revert and booted negative-probe validation are pending. |
 | alpha rewrite kernel 6.18 | `6.18.38+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Source publication [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665) is accepted and arm64 build [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491) is running. Historical 6.18.0 binaries remain Published. | Armbian current/forward-port 6.18.38 source layer, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
 | alpha rewrite kernel 7.2-rc3 | `7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Source publication [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666) is accepted and arm64 build [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492) is running. Historical 7.2-rc2 binaries remain Published. | Official v7.2-rc3 plus Armbian bleedingedge, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
@@ -144,7 +144,7 @@ variables.
 | nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
 | nyanmisaka FFmpeg Rockchip commit | `FFMPEG_ROCKCHIP_COMMIT` | `40c412daccf08164493da0de990eb99a8948116b` |
 | GRD repo | `GRD_REPO` | `$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop` |
-| GRD commit | `GRD_COMMIT` | `eb91daf476dc1c4ba23ccfdd8c077b8b83e84773` |
+| GRD commit | `GRD_COMMIT` | `1c870bc82d1920edfac1e1544b61bd7c7b9a1873` |
 | Optional GRD source delta | `GRD_DELTA` | Empty; set explicitly only for a historical dirty snapshot such as [`dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch) |
 | Forward-port kernel worktree | `KERNEL_PPA_REPO` | `$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Forward-port kernel config | `KERNEL_PPA_CONFIG` | `$KERNEL_PPA_REPO/.config` |
@@ -438,8 +438,12 @@ source publication `18619787` and the copied tool binary are Published.
 ### GNOME Remote Desktop
 
 The current GRD package is based on clean public commit
-[`eb91daf476dc`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commit/eb91daf476dc1c4ba23ccfdd8c077b8b83e84773)
-from `rdp-handover-reconnect-v2`. `build-source-packages.sh` exports that git
+[`1c870bc82d19`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commit/1c870bc82d1920edfac1e1544b61bd7c7b9a1873)
+from `debug/exp1-frame-starvation`. That commit is directly on top of
+`rdp-handover-reconnect-v2@eb91daf` and adds rate-limited `[RDP.PIPELINE]`
+counters, serials, progress summaries, and suspected-starvation warnings. It
+does not change renderer scheduling or backpressure policy.
+`build-source-packages.sh` exports that git
 archive directly, removes generated `*.spv` shader outputs, overlays
 [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog), and
 builds a `3.0 (quilt)` source package. The packaging enables the FFmpeg backend
@@ -448,14 +452,15 @@ and accepts the normal PPA's FFmpeg 8.0 development ABI. The older
 `dirty20260706` delta remains under `source-deltas/` only for historical
 reconstruction.
 
-The `~exp1` candidate passed clean Meson/Ninja and Debian arm64 binary builds;
+The `~exp2` candidate passed clean Meson/Ninja and Debian arm64 binary builds;
 the RDP test passed, while TPM and hardware-EGL tests skipped on unavailable
-devices. Source and binary lintian report only the package-version filename
-length. The signed source upload was accepted as experimental publication
-`18620800`; arm64 build `33399816` succeeded. The normal PPA remains on
-published `~rk2` (`18619824` / successful build `33397319`) until the macOS
-Windows App reconnect scenario passes on the board and the candidate is
-promoted.
+devices. Source and binary lintian report only package-version filename-length
+warnings. The signed source upload was accepted as experimental publication
+`18625943`; arm64 build `33411510` succeeded in 6m24s and awaits publication.
+The normal PPA remains on published
+`~rk2` (`18619824` / successful build `33397319`) until the Firefox freeze is
+reproduced with the new diagnostics, the macOS Windows App reconnect scenario
+passes on the board, and the candidate is promoted.
 
 ### GDM Greeter Hardware Encode ACL
 

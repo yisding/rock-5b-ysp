@@ -145,7 +145,43 @@ exercises only the encode session, not the view-creator
 ([`design.md`](design.md) §lesson). Run **multiple frames** and confirm the
 thread + fds + client-side AVC420 (§5).
 
-## 8. Open item: which DRM modifier does mutter's dma-buf carry?
+## 8. Pipeline-starvation diagnostics in the `~exp2` package
+
+The experimental `~exp2` package adds diagnostic-only instrumentation at
+`debug/exp1-frame-starvation@1c870bc`, directly on top of the reconnect-v2
+`~exp1` source. It does not change scheduling or drop policy. When pipeline
+state changes, the daemon emits one rate-limited `[RDP.PIPELINE]` summary per
+second with cumulative counters and the most recent frame serials for:
+
+- buffers received and frames queued;
+- view creations started/completed;
+- stale frames dropped, including the dropped and latest serials;
+- encodes started/completed and the most recent encode duration;
+- frames submitted to RDPGFX;
+- full-refresh requests/deferrals and render-context-reset waits;
+- hardware-encode cooldown starts/expirations; and
+- ages since the last buffer and submitted frame.
+
+If buffers continue arriving but no frame is submitted for two seconds while
+queued work is outstanding, it also emits a `Suspected frame starvation`
+warning. That warning is limited to once every five seconds. This should
+separate the observed Firefox freeze into three broad cases: capture stopped
+(buffer age rises), frames are repeatedly discarded as stale (stale count and
+serial gap rise), or encoding/submission stopped after views completed.
+
+For the current handover service, capture just these diagnostics with:
+
+```bash
+journalctl --user -u gnome-remote-desktop-handover.service -f \
+  | rg 'RDP\.PIPELINE'
+```
+
+For a standard non-handover unit, replace the unit name with
+`gnome-remote-desktop.service`. Preserve several seconds before Firefox opens
+and after the image freezes; the counters are cumulative, so the transition is
+more useful than a single final line.
+
+## 9. Open item: which DRM modifier does mutter's dma-buf carry?
 
 Still the section's highest-value open measurement
 ([`baseline.md`](baseline.md) §2/§5): whether mutter's screencast dma-buf is
