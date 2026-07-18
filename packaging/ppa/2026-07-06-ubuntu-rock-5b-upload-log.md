@@ -2045,3 +2045,92 @@ See ../../configure --help for available options.
   active session remained on `~exp1`; after `~exp2` publishes, the next gate is
   to reproduce the Firefox transition while preserving several seconds of
   `[RDP.PIPELINE]` journal output before and after the freeze.
+
+## Bounded FFmpeg, session-lifetime kernel, and GRD recovery candidate — 2026-07-17
+
+- Prepared normal-stack FFmpeg
+  `7:8.0.3+rockchip+git20260717.540657970e-0ubuntu1~rk1` from commit
+  `540657970efd7ae774c49259fa3fa6553bdf950b`. Synchronous low-delay and drain
+  packet waits now use a 500 ms bound instead of `MPP_TIMEOUT_BLOCK`; the
+  ordinary asynchronous path remains nonblocking.
+- `dscverify --nosigcheck` and a clean `dpkg-source -x` passed for the FFmpeg
+  source. A minimal extracted-source build with the system MPP headers compiled
+  `libavcodec/rkmppenc.o`. Source lintian exited 0 with only the inherited
+  newer-standards-version and long-filename warnings.
+- Signed the FFmpeg `.dsc`, source `.buildinfo`, and source `.changes` with key
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`; direct verification reported a
+  good signature from `Yi Ding <yi.s.ding@gmail.com>`. Final SHA-256 upload
+  set:
+  - orig tarball: `18447bdddab5ce42cef706b2b13b199a097fec863f5d19190223863569e1c5f3`;
+  - Debian tarball: `e0a45b0ec6a636f2830ddb613f36be0722ca1090a6e5a74d883c1a22cede1ac5`;
+  - signed `.dsc`: `797466858ccde2c119b799727223d4d48b1432e9f2ceeb6210d596d6b013cd14`;
+  - signed source `.buildinfo`: `6aa5d4ebb28d2c5635b9bb760ec3ee0d6b34c22fb7ba6c65ce885f776932c5cd`;
+  - signed source `.changes`: `04558c010b954a25e6f18ebd567dcbfb02623eeb844dc1f8474c84e2930d1770`.
+- `dput` uploaded FFmpeg to `ppa:yi-ding/ubuntu-rock-5b`. Launchpad accepted
+  pending source publication
+  [`18626515`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18626515)
+  and started arm64 build
+  [`33412598`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33412598)
+  on `bos03-arm64-082` at 17:38 PDT.
+- FFmpeg build `33412598` completed successfully. Its final log reports a
+  16m42s package build, and the live arm64 PPA index contains the exact
+  `libavcodec-dev` and runtime packages.
+- Advanced the forward-port kernel to
+  `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1`, carrying RGA fix
+  `bc086cbe03d7` and MPP fix `df0d7037213c`. The former drops a closing
+  session's buffer reference through kref instead of force-freeing an object
+  that can still be shared or in flight. The latter removes a session from the
+  service list before device-private teardown so procfs cannot inspect freed
+  encoder state.
+- The Docker-backed Armbian integration build applied 40 shipped patches (41
+  forward-port commits minus the libbpf fix already in the Armbian base),
+  rebuilt the changed MPP/RGA objects, and completed image, modules, DTBs,
+  headers, and Debian packaging in eight minutes. Build identity:
+  `Pbc61-C40aa`.
+- Generated the kernel source with `dpkg-buildpackage -S -sa`.
+  `dscverify --nosigcheck`, fresh extraction, changed-source inspection, and
+  packaged-config `olddefconfig` regeneration passed. The extracted config
+  retains `CONFIG_ROCKCHIP_MPP_AV1DEC=y` and
+  `CONFIG_VIDEO_ROCKCHIP_RGA=m`.
+- Signed and uploaded the kernel source to the normal PPA. Final SHA-256 set:
+  - orig tarball: `e3ea94609795205630be394fe70f572ad3c909432ac52c05d94fb194ddc9e305`;
+  - Debian tarball: `e2355782aae0b62b4a0028d944c6e9b06419774ab29fdcebd8018b5389f3508e`;
+  - signed `.dsc`: `ecfab23462756b21ac2ff6751e12fbc854d3e3b3e98d62f767961dee2923a1b2`;
+  - signed source `.buildinfo`: `2509834c593784d65e676e152831502bcd9eab626a8f58ad62b5c27e27830eb6`;
+  - signed source `.changes`: `ff7aaf9fb6fd17f95bb141f77093e7f54450ef0080b731493790a5ce42023f2a`.
+  Launchpad accepted pending source publication
+  [`18626523`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18626523)
+  and started arm64 build
+  [`33412608`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33412608).
+- Kernel build `33412608` completed successfully. Its final log reports a
+  41m45s build, and the live PPA index contains the exact
+  `linux-image-ysp-rockchip64` package and pool artifact.
+- Prepared experimental GRD
+  `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3` from commit
+  `2571326322c754de7608ef4afb1dff8e4d031cbd`. It reuses the smoke-tested
+  RKMPP context, uses forced-IDR full refreshes instead of repeated reopen,
+  recovers to software after a bounded hardware encode failure, and runs the
+  pipeline watchdog on an independent main context.
+- GRD source generation, checksum validation, extraction, Meson/Ninja build,
+  signing, and source lintian pass. The local RDP integration test timed out
+  after Mutter started but before the test daemon listened on localhost; it
+  never reached the changed encode path. TPM and EGL tests skipped for missing
+  hardware. Final signed source SHA-256 set:
+  - orig tarball: `af1645bb6581f7f96d7710c308541a44383db94cbcca0ad15a998334453b52e9`;
+  - Debian tarball: `7c5e9b74f72c64766f03d487c6a5ce27a70ba697721e8419ab33273a3ee73c82`;
+  - signed `.dsc`: `560e4a396deefab24b68d9b7938d87fc1f218697db2e83748b0faf5e6804c5fe`;
+  - signed source `.buildinfo`: `40cee4d8f797757393713bcef67ccbf8f304ee8f13bfef5e72f40d1dee47a0ff`;
+  - signed source `.changes`: `79161dfb7bef80c248922e31a005de1d9a07b6716358f97add3fa73b0094825f`.
+- The experimental PPA initially had no archive dependencies. Added the
+  normal PPA as a one-way `Release/main` build dependency and confirmed it in
+  the authenticated Launchpad view. The normal PPA has no dependency on the
+  experimental archive.
+- Held the GRD upload until the live normal-PPA arm64 index exposed the exact
+  new `libavcodec-dev`, avoiding a non-retrying dependency failure. `dput`
+  then uploaded all five signed source artifacts to the experimental PPA.
+  Launchpad accepted source publication
+  [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586)
+  and arm64 build
+  [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698)
+  completed successfully in 6m39s. Its build-time RDP test passed; TPM and EGL
+  skipped on unavailable devices. Binary publication is pending at this check.

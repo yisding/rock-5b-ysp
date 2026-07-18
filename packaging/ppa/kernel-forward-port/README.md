@@ -14,8 +14,14 @@ raw RGA physical-import page before DMA cache maintenance and makes the unsafe
 raw-address probes opt-in. Its full Armbian integration build and exact
 PPA-source arm64 binary build both pass. Launchpad accepted the signed source
 as pending publication `18624583` and started arm64 build `33407863` on
-`bos03-arm64-036`; it was `Currently building` at the 2026-07-16 22:52 PDT
-check. Board install/revert validation remains pending.
+`bos03-arm64-036`; that build completed successfully and the package is
+Published. Version `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1` adds the RGA
+session-close reference-lifetime fix and removes MPP sessions from procfs
+visibility before private teardown. Its complete Armbian integration build and
+source-package validation pass. Launchpad accepted source publication
+`18626523`; arm64 build `33412608` completed successfully in 41m45s and the
+exact image is in the live PPA index. Board install/revert validation remains
+pending.
 
 The current kernel delivery path is still the Armbian wrapper in
 [`../../../kernel-drivers/scripts/build-armbian-deb.sh`](../../../kernel-drivers/scripts/build-armbian-deb.sh),
@@ -34,7 +40,7 @@ First PPA kernel package should be conservative and recovery-friendly:
 | Binary packages | Co-installable names first: `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, and `linux-headers-ysp-rockchip64`. A later drop-in package can replace `linux-image-current-rockchip64` after boot/revert testing. |
 | Architecture | `arm64` only. |
 | Kernel variant | Armbian `rockchip64-current` 6.18.38 worktree with the self-contained-DT RK3588 MPP/RGA/AV1 forward-port applied. The older convert-in-place combined kernel can use the same source-package shape later if needed. |
-| Upload state | Initial arm64 build `33387353` failed on missing `mkimage`. Retry build `33387391` succeeded. The 5.10-reconciled source is publication `18624245` / successful build `33407351`. Hardened `.1` source is pending publication `18624583`; arm64 build `33407863` is running. |
+| Upload state | Initial arm64 build `33387353` failed on missing `mkimage`; retry `33387391` succeeded. The 5.10-reconciled build `33407351`, physical-import-hardened build `33407863`, and session-lifetime build `33412608` all succeeded. |
 
 ## Source Inputs
 
@@ -46,7 +52,7 @@ The local build wrapper currently owns these inputs:
 | Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Resolved kernel config | `KERNEL_PPA_CONFIG=$KERNEL_PPA_REPO/.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
-| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.38+rk3588av1fwport20260716.1` |
+| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.38+rk3588av1fwport20260717` |
 
 The exporter copies the patched worktree contents, including Armbian patch
 changes and untracked patch-added files, while excluding `.git`, `.config`,
@@ -87,14 +93,14 @@ bash packaging/ppa/build-source-packages.sh kernel
 
 The original source was generated on 2026-07-09, signed/uploaded on 2026-07-10
 local time, then rebuilt as `~rk2` with `u-boot-tools` in Build-Depends. The
-current physical-import-hardened source was generated, validated, signed, and
-uploaded on 2026-07-16:
+current session-lifetime source was generated, validated, signed, and uploaded
+on 2026-07-17:
 
 ```text
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716.1.orig.tar.gz
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1.debian.tar.xz
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1.dsc
-packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1_source.changes
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260717.orig.tar.gz
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1.debian.tar.xz
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1.dsc
+packaging/ppa/out/artifacts/linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1_source.changes
 ```
 
 The orig tarball is large (`272M` in the first export), so the kernel target is
@@ -186,6 +192,27 @@ Passed:
   and started arm64 build
   [`33407863`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33407863)
   on `bos03-arm64-036`. It was `Currently building` at 22:52 PDT.
+- The 2026-07-17 production integration build applied the complete 40-patch
+  shipped series (41 forward-port commits minus the libbpf fix already present
+  in Armbian), rebuilt `mpp_service.o` and `rga_mm.o`, and completed image,
+  modules, DTBs, headers, and Debian packaging in eight minutes with build
+  identity `Pbc61-C40aa`.
+- Source version
+  `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1` completed
+  `dpkg-buildpackage -S -sa`. `dscverify --nosigcheck` and a fresh
+  `dpkg-source -x` passed. Inspection of the extracted source confirmed the
+  kref-based RGA session release, early MPP service-list unlink, and defensive
+  RKVENC diagnostic guard; regenerating the packaged config with
+  `olddefconfig` retained `CONFIG_ROCKCHIP_MPP_AV1DEC=y` and
+  `CONFIG_VIDEO_ROCKCHIP_RGA=m`.
+- The `.dsc`, source `.buildinfo`, and source `.changes` carry good signatures
+  from `Yi Ding <yi.s.ding@gmail.com>`. `dput` uploaded all five artifacts;
+  Launchpad accepted pending source publication
+  [`18626523`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18626523)
+  and started arm64 build
+  [`33412608`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33412608).
+- Build `33412608` completed successfully in 41m45s. The live arm64 PPA index
+  contains the exact `linux-image-ysp-rockchip64` version and pool artifact.
 
 Notes:
 

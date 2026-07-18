@@ -1,3 +1,14 @@
+linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1) resolute; urgency=high
+
+  * Release RGA session buffers through their reference-counted lifetime path
+    on close instead of force-freeing objects that another session or an
+    in-flight job can still reference.
+  * Unlink MPP sessions before driver-private teardown so procfs readers cannot
+    observe freed encoder session state; defensively skip incomplete encoder
+    sessions in the diagnostic dump.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Fri, 17 Jul 2026 18:05:00 -0700
+
 linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1) resolute; urgency=high
 
   * Validate every raw RGA physical-import page as mapped System RAM before
