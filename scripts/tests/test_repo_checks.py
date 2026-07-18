@@ -150,6 +150,8 @@ class OperationalHelpTests(unittest.TestCase):
             "kernel-drivers/scripts/debug-kernel/enable-ramoops-capture.sh",
             "kernel-drivers/scripts/debug-kernel/disable-ramoops-capture.sh",
             "kernel-drivers/scripts/debug-kernel/enable-persistent-journal.sh",
+            "scripts/rock5b-passive-cooling-apply.sh",
+            "scripts/rock5b-passive-cooling-revert.sh",
             "scripts/rock5b-spi-erase.sh",
             "scripts/rock5b-spi-restore-armbian.sh",
         )
@@ -221,6 +223,104 @@ class OperationalHelpTests(unittest.TestCase):
                     self.assertIn("usage", output.casefold())
                     self.assertIn("workspace_root", output.casefold())
                     self.assertNotIn("/home/yi/", output)
+
+
+class PassiveCoolingScriptTests(unittest.TestCase):
+    script = SCRIPTS / "rock5b-passive-cooling-apply.sh"
+
+    def write_value(self, path: Path, value: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{value}\n", encoding="utf-8")
+
+    def add_policy(self, root: Path, name: str, hardware_max: int) -> None:
+        policy = root / name
+        self.write_value(policy / "cpuinfo_min_freq", "408000")
+        self.write_value(policy / "cpuinfo_max_freq", str(hardware_max))
+        self.write_value(policy / "scaling_min_freq", "408000")
+        self.write_value(policy / "scaling_max_freq", str(hardware_max))
+        self.write_value(
+            policy / "scaling_available_frequencies",
+            "408000 600000 816000 1008000 1200000 1416000 "
+            "1608000 1800000 2016000 2208000 2400000",
+        )
+
+    def add_zone(self, root: Path, number: int, zone_type: str, temp: int) -> None:
+        zone = root / f"thermal_zone{number}"
+        self.write_value(zone / "type", zone_type)
+        self.write_value(zone / "temp", str(temp))
+
+    def run_dry_run(self, root: Path) -> subprocess.CompletedProcess[str]:
+        thermal_root = root / "thermal"
+        cpufreq_root = root / "cpufreq"
+        self.add_policy(cpufreq_root, "policy0", 1_800_000)
+        self.add_policy(cpufreq_root, "policy4", 2_400_000)
+
+        tools = root / "bin"
+        nvme = tools / "nvme"
+        self.write_value(nvme, "#!/usr/bin/env bash\nexit 0")
+        nvme.chmod(0o755)
+
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "CPUFREQ_ROOT": str(cpufreq_root),
+                "NVME_CONTROLLER": "/dev/nvme0",
+                "PATH": f"{tools}:{environment['PATH']}",
+                "THERMAL_ROOT": str(thermal_root),
+            }
+        )
+        return subprocess.run(
+            ["bash", str(self.script), "--force-board", "--dry-run"],
+            cwd=REPO_ROOT,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_split_layout_uses_hottest_cpu_zone(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            thermal_root = root / "thermal"
+            self.add_zone(thermal_root, 0, "package-thermal", 82_230)
+            self.add_zone(thermal_root, 1, "bigcore0-thermal", 84_076)
+            self.add_zone(thermal_root, 2, "bigcore2-thermal", 83_153)
+            self.add_zone(thermal_root, 3, "littlecore-thermal", 82_230)
+            self.add_zone(thermal_root, 4, "gpu-thermal", 99_000)
+
+            result = self.run_dry_run(root)
+            output = result.stdout + result.stderr
+
+            self.assertEqual(result.returncode, 0, output)
+            self.assertIn("CPU temperature is 84 C (level 4)", output)
+            self.assertIn("policy0  min= 408000 kHz max=1008000 kHz", output)
+            self.assertIn("policy4  min= 408000 kHz max=1608000 kHz", output)
+
+    def test_legacy_layout_uses_soc_thermal_zone(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            thermal_root = root / "thermal"
+            self.add_zone(thermal_root, 0, "soc-thermal", 70_123)
+            self.add_zone(thermal_root, 1, "npu-thermal", 99_000)
+
+            result = self.run_dry_run(root)
+            output = result.stdout + result.stderr
+
+            self.assertEqual(result.returncode, 0, output)
+            self.assertIn("CPU temperature is 70 C (level 2)", output)
+
+    def test_accelerator_zones_are_not_cpu_temperature_fallbacks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            thermal_root = root / "thermal"
+            self.add_zone(thermal_root, 0, "gpu-thermal", 84_000)
+            self.add_zone(thermal_root, 1, "npu-thermal", 85_000)
+
+            result = self.run_dry_run(root)
+            output = result.stdout + result.stderr
+
+            self.assertNotEqual(result.returncode, 0, output)
+            self.assertIn("CPU thermal zone not found", output)
 
 
 class DocumentationConsistencyTests(unittest.TestCase):

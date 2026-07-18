@@ -34,6 +34,7 @@ saved NVMe HCTM value for rock5b-passive-cooling-revert.sh.
 
 Profile:
   * NVMe HCTM light/strong thresholds: 65 C / 68 C (saved by the controller)
+  * use the hottest recognized CPU thermal sensor on legacy and split layouts
   * stock CPU ceilings remain available below 65 C
   * progressively lower CPU ceilings at 65, 70, 75, 80, 85, 90, and 95 C
   * restore every cpufreq policy's minimum to its hardware minimum
@@ -135,17 +136,30 @@ check_nvme_path() {
         die "NVMe controller must look like /dev/nvmeN: $NVME_CONTROLLER"
 }
 
-find_soc_thermal_zone() {
-    local zone
+read_cpu_temperature() {
+    local zone zone_type temperature
+    local hottest=-1
+    local found=0
 
     for zone in "$THERMAL_ROOT"/thermal_zone*; do
         [[ -r $zone/type && -r $zone/temp ]] || continue
-        if [[ $(<"$zone/type") == soc-thermal ]]; then
-            printf '%s\n' "$zone"
-            return 0
+        zone_type="$(<"$zone/type")"
+        if [[ $zone_type != soc-thermal && $zone_type != package-thermal && \
+              $zone_type != littlecore-thermal && \
+              ! $zone_type =~ ^bigcore[0-9]+-thermal$ ]]; then
+            continue
         fi
+
+        temperature="$(<"$zone/temp")"
+        [[ $temperature =~ ^[0-9]+$ ]] || \
+            die "invalid CPU temperature in $zone ($zone_type): $temperature"
+        ((found = 1))
+        ((temperature > hottest)) && hottest="$temperature"
     done
-    return 1
+
+    ((found == 1)) || \
+        die "CPU thermal zone not found under $THERMAL_ROOT"
+    printf '%s\n' "$hottest"
 }
 
 list_policies() {
@@ -425,18 +439,16 @@ install_monitor() {
 }
 
 monitor_temperatures() {
-    local zone temperature level
-    zone="$(find_soc_thermal_zone)" || die "soc-thermal thermal zone not found"
+    local temperature level
 
     trap 'exit 0' TERM INT
     while true; do
-        temperature="$(<"$zone/temp")"
-        [[ $temperature =~ ^[0-9]+$ ]] || die "invalid SoC temperature: $temperature"
+        temperature="$(read_cpu_temperature)"
         level="$(temperature_level "$temperature")"
         apply_cpu_level "$level"
 
         if ((level != LAST_LEVEL)); then
-            note "SoC $((temperature / 1000)) C: applied passive-cooling level $level"
+            note "CPU $((temperature / 1000)) C: applied passive-cooling level $level"
             LAST_LEVEL="$level"
         fi
         sleep "$MONITOR_INTERVAL"
@@ -448,11 +460,9 @@ check_nvme_path
 validate_cpu_layout
 
 if ((DRY_RUN == 1)); then
-    zone="$(find_soc_thermal_zone)" || die "soc-thermal thermal zone not found"
-    temperature="$(<"$zone/temp")"
-    [[ $temperature =~ ^[0-9]+$ ]] || die "invalid SoC temperature: $temperature"
+    temperature="$(read_cpu_temperature)"
     level="$(temperature_level "$temperature")"
-    note "Dry run: SoC temperature is $((temperature / 1000)) C (level $level)."
+    note "Dry run: CPU temperature is $((temperature / 1000)) C (level $level)."
     apply_cpu_level "$level"
     apply_nvme
     ((PERSIST == 0)) || note "Would install and enable rock5b-passive-cooling.service"
@@ -472,9 +482,7 @@ need_command mktemp
 need_command mv
 need_command stat
 capture_stock_state
-zone="$(find_soc_thermal_zone)" || die "soc-thermal thermal zone not found"
-temperature="$(<"$zone/temp")"
-[[ $temperature =~ ^[0-9]+$ ]] || die "invalid SoC temperature: $temperature"
+temperature="$(read_cpu_temperature)"
 level="$(temperature_level "$temperature")"
 apply_cpu_level "$level"
 apply_nvme
@@ -487,5 +495,5 @@ else
     note "Applied until reboot; no service installed and HCTM was not saved."
 fi
 
-note "Passive-cooling profile active: SoC $((temperature / 1000)) C, level $level."
+note "Passive-cooling profile active: CPU $((temperature / 1000)) C, level $level."
 note "For kernel packages, continue to use DEB_BUILD_OPTIONS=parallel=2."

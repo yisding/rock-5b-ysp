@@ -31,12 +31,15 @@ the same command on pushes and pull requests.
 
 ## ROCK 5B passive cooling
 
-The audited ROCK 5B is entirely passively cooled. Its running device tree maps
-the SoC thermal trips to an absent PWM fan rather than the registered cpufreq
-cooling devices. `rock5b-passive-cooling-apply.sh` supplies a reversible
-userspace policy while that device-tree policy remains in place:
+The audited ROCK 5B is entirely passively cooled. Older kernels expose one
+`soc-thermal` zone and map its trips to an absent PWM fan. Current Rockchip64
+kernels expose `package-thermal` plus separate big- and little-core zones; the
+CPU zones have cpufreq cooling bindings, but their first passive trip is 85 C.
+`rock5b-passive-cooling-apply.sh` supplies a more conservative reversible
+userspace policy. It uses the hottest recognized CPU-zone reading across both
+thermal layouts and deliberately ignores accelerator-only zones:
 
-| SoC temperature | A55 ceiling | A76 ceiling |
+| CPU temperature | A55 ceiling | A76 ceiling |
 |-----------------|-------------|-------------|
 | below 65 C | 1.800 GHz | 2.400 GHz |
 | 65-69 C | 1.608 GHz | 2.208 GHz |
