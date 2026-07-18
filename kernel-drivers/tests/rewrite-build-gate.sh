@@ -21,6 +21,7 @@ KEEP_TMP="${KEEP_TMP:-0}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-0}"
 FAIL_ON_WARNING="${FAIL_ON_WARNING:-1}"
 REWRITE_BUILD_PROFILES="${REWRITE_BUILD_PROFILES:-normal}"
+REWRITE_BUILD_TMP_ROOT="${REWRITE_BUILD_TMP_ROOT:-$(dirname "$ROOT_DIR")}"
 
 TARGETS=(
   drivers/iommu/rockchip-iommu.o
@@ -41,7 +42,7 @@ Environment:
   ARCH              kernel ARCH (default: arm64)
   CROSS_COMPILE     cross compiler prefix (default: aarch64-linux-gnu-)
   JOBS              make parallelism (default: nproc)
-  KEEP_TMP=1        keep /tmp source/output/log directories
+  KEEP_TMP=1        keep scratch source/output/log directories
   ALLOW_DIRTY=1     allow dirty kernel worktrees, but still build HEAD archive
   FAIL_ON_WARNING=0 do not fail on "warning:" lines in the build log
   REWRITE_BUILD_PROFILES
@@ -49,6 +50,8 @@ Environment:
                     normal: KUnit-enabled provider/rewrite/DTB build (default)
                     memory: KASAN/fault-injection provider/rewrite/DTB build
                     race: KCSAN/lockdep provider/rewrite/DTB build
+  REWRITE_BUILD_TMP_ROOT
+                    scratch-directory parent (default: parent of this repo)
 EOF
 }
 
@@ -207,7 +210,8 @@ build_one_profile() {
 
   check_clean_tree "$tree"
   commit="$(git -C "$tree" rev-parse --short=12 HEAD)"
-  profile_tmp="$(mktemp -d -t "rkcompat-rewrite-build.$label.$profile.XXXXXX")"
+  mkdir -p "$REWRITE_BUILD_TMP_ROOT"
+  profile_tmp="$(mktemp -d "$REWRITE_BUILD_TMP_ROOT/rkcompat-rewrite-build.$label.$profile.XXXXXX")"
   tmp_root="$profile_tmp"
   src="$profile_tmp/src"
   out="$profile_tmp/out"

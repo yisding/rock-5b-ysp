@@ -69,6 +69,9 @@ KERNEL_MAINLINE=/path/to/linux \
 JOBS=16 KEEP_TMP=1 \
 kernel-drivers/tests/rewrite-build-gate.sh all
 
+REWRITE_BUILD_TMP_ROOT=/path/with-space-for-clean-archives \
+kernel-drivers/tests/rewrite-build-gate.sh all
+
 REWRITE_BUILD_PROFILES="normal memory race" \
 kernel-drivers/tests/rewrite-build-gate.sh all
 ```
@@ -77,26 +80,22 @@ kernel-drivers/tests/rewrite-build-gate.sh all
 source edits. Use it only when checking the last pushed state while another
 worktree has unrelated local changes.
 
-Last recorded compile gates: on 2026-07-15 the default `normal` profile passed
-warning-free for the current committed rewrite tips
-`../kernel/linux-6.18-rkvenc@563f329dd8c4` and
-`../kernel/linux@856743fc3c3d`. It built the Rockchip IOMMU provider, both
-KUnit-enabled rewrite objects, and the ROCK 5B DTB from clean archives. The
-broader `normal`, `memory`, and `race` profiles have not been rerun at those
-heads; all three last passed warning-free on 2026-07-06 for
-`../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and
-`../kernel/linux@938b1d2032c3`.
-After the gate was changed to remove each per-profile archive checkout as soon
-as that profile passes, the all-in-one
+Last recorded compile gates: on 2026-07-17 the `normal`, `memory`, and `race`
+profiles passed warning-free for both current committed rewrite tips,
+`../kernel/linux-6.18-rkvenc@0d71ded1690c` and
+`../kernel/linux@32696e87c9c7`. Each profile built the Rockchip IOMMU provider,
+both KUnit-enabled rewrite objects, and the Rock 5B DTB from a clean archive.
+The all-in-one
 `REWRITE_BUILD_PROFILES="normal memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
-run completed 6.18 `normal`/`memory`/`race` and mainline
-`normal`/`memory`/`race` in one invocation. `/tmp` returned to 7.4 GiB free
-after the run, with no leftover `rkcompat-rewrite-build.*` scratch directories.
-The same maintenance pass also ran
+run removes each per-profile tree immediately after success. Scratch defaults
+to the parent of this repository, not `/tmp`, and no
+`rkcompat-rewrite-build.*` directories remained after the recorded run. The
+same maintenance pass also ran
 `VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh` and
 `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`,
 plus the same counter-default validation with `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1`; all
-passed, including the forced RGA userptr-IOMMU fallback counter-default wiring check.
+passed, including the forced RGA userptr-IOMMU fallback counter-default wiring
+and the cache-line boundary-fuzzer build check.
 
 The Published 6.18 and 7.2-rc2 alpha binaries remain historical vanilla-based
 builds. The dedicated PPAs accepted replacement sources `18623665` and
@@ -961,6 +960,13 @@ adds the forced RGA userptr-IOMMU fallback `rga_userptr_iommu:attempt`,
 `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1`. Use `AUDIT_COUNTER_CHECKS=0` only when intentionally
 inspecting old logs that predate the rewrite debugfs counter contract.
 
+The focused `iommu-machinery-fuzz.sh` gate goes further when the boundary-shadow
+counters added by the 2026-07-17 reconciliation are present: it requires
+positive `shadow_copy_to_bytes` and `shadow_copy_from_bytes`, zero active
+head/tail shadow views after the run, and zero `shadow_setup_failure_count`
+delta. Its C++ workload sweeps all 64 cache-line offsets and checks guard bytes
+outside every active source and destination range.
+
 For rewrite runs with selected hardware cases, also gate the captured debugfs
 counter deltas so a userspace pass cannot hide a missing hardware submission or
 timer path. `rewrite-conformance-run.sh` can run those checks automatically with
@@ -1021,7 +1027,9 @@ to the runner, MPP/GStreamer case-builder, FFmpeg case-list, comparator,
 it also attempts a
 `GST_EVENT_HARNESS_VALIDATE_BUILD=1` GStreamer event-harness build when
 GStreamer development `.pc` files are installed. They were last verified on
-2026-07-06 after the syzkaller ABI-marker, ioctl-fuzz build, direct `librga`
+2026-07-17 after the cache-line boundary sweep and shadow-counter checks were
+added to the RGA IOMMU fuzzer. Earlier maintenance additions include the
+syzkaller ABI-marker, ioctl-fuzz build, direct `librga`
 smoke build, optional GStreamer event-harness build, IOMMU-fuzzer build,
 recovery stress config check, and MPP case-builder validation
 steps were wired into `rewrite-conformance-run.sh`, after the evidence-audit

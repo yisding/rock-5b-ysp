@@ -33,7 +33,8 @@ sub-project is the RGA-specific front door.
 - Raw physical-address import crash, affected Rockchip BSP branches, and the
   required validation fix:
   [`raw-physical-import-crash.md`](raw-physical-import-crash.md).
-- Detailed plan for adapting applicable Rockchip 5.10 RGA fixes to the rewrite:
+- Design, implementation, and validation record for the applicable Rockchip
+  5.10 RGA fixes adapted to the rewrite:
   [`rewrite-5.10-reconciliation.md`](rewrite-5.10-reconciliation.md).
 - Userspace side: [`../../vendor-libraries/rga/`](../../vendor-libraries/rga/README.md).
 

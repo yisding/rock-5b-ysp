@@ -1,26 +1,30 @@
 # RGA rewrite reconciliation with Rockchip 5.10
 
-Design record for the Rockchip RGA changes that landed on the vendor
-`develop-5.10` branch after the 6.1/6.6 RGA lineages diverged. This document is
-an implementation plan for `rga-rewrite`; it does **not** claim that these
-changes have been implemented or validated on hardware.
+Design and implementation record for the Rockchip RGA changes that landed on
+the vendor `develop-5.10` branch after the 6.1/6.6 RGA lineages diverged. The
+adaptation is implemented and clean-build validated; booted RK3588 validation
+is still required.
 
-> **Conclusion.** Five 5.10 change groups should be adapted to the rewrite:
+> **Conclusion.** Five 5.10 change groups were adapted to the rewrite:
 > the two RK3588 low-voltage workarounds, RGA2 config/parse-error interrupt
 > handling, cache-line-safe userptr boundary pages, and the RGA3 exception for
-> librga's R2Y BT.709-limited `full_csc` compatibility flag. The changes cannot
+> librga's R2Y BT.709-limited `full_csc` compatibility flag. The changes could not
 > be cherry-picked because the rewrite has different ownership, mapping,
-> scheduling, and IRQ models. Several other 5.10 fixes are already covered by
-> the rewrite or concern hardware modes that it deliberately rejects.
+> scheduling, and IRQ models. They landed as
+> `linux-6.18-rkvenc@0d71ded1690c` and `linux@32696e87c9c7`. Several other 5.10
+> fixes are already covered by the rewrite or concern hardware modes that it
+> deliberately rejects.
 
 ## Scope and source pins
 
-The comparison was made on 2026-07-16 against these trees:
+The comparison began on 2026-07-16 and the implementation was validated on
+2026-07-17 against these trees:
 
 | Role | Revision |
 |------|----------|
 | Newest Rockchip RGA donor examined | `rockchip-linux/kernel develop-5.10@bfa51d2ab08140d1309afc9a9fe0fc2878cee35a` |
-| Rewrite implementation being assessed | `linux-rock5b rk3588-rewrite-6.18@563f329dd8c4` |
+| Rewrite implementation | `linux-rock5b rk3588-rewrite-6.18@0d71ded1690c` |
+| Mainline mirror | `linux-rock5b rk3588-rewrite-mainline@32696e87c9c7` |
 | Rewrite source | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` |
 
 The broader branch comparison, including why the numerically older 5.10 tree
@@ -32,23 +36,59 @@ This note narrows that comparison to changes that affect the clean-room rewrite.
 
 | Priority | 5.10 change | Rewrite disposition |
 |----------|-------------|---------------------|
-| P0 | RGA3 `logic_clk_on` on RK3588 (`561aab30f22b`) | **Missing.** Add as an explicit RK3588/RGA3 hardware quirk. |
-| P0 | Disable RGA2 `AUTO_RST` on RK3588 (`718fad971319`) | **Missing.** The rewrite currently enables it unconditionally on the exact affected RGA2E revision. |
-| P0 | RGA2 config interrupt and parse status (`ae8e8c4da037`) | **Missing.** Add the interrupt bits, status register snapshot, terminal-error result, and diagnostics. |
-| P1 | Userptr cache-line shadow pages (`a4afb82d881c`, `6a74aeec3409`, `31aa12084e3b`) | **Missing.** Adapt to rewrite-owned imports/mappings and its contiguous-IOMMU Route B. Do not copy the BSP lifetime model. |
-| P1 | Skip RGA3 full-CSC rejection for R2Y BT.709 limited (`b5061ad9d83f`) | **Missing.** Accept only the narrow librga compatibility shape and continue to emit RGA3's direct R2Y mode. |
+| P0 | RGA3 `logic_clk_on` on RK3588 (`561aab30f22b`) | **Implemented.** RK3588/RGA3 match data sets the logic-clock quirk. |
+| P0 | Disable RGA2 `AUTO_RST` on RK3588 (`718fad971319`) | **Implemented.** The affected RGA2E match omits `AUTO_RST` and uses an explicit soft reset before each start. |
+| P0 | RGA2 config interrupt and parse status (`ae8e8c4da037`) | **Implemented.** The rewrite enables, clears, snapshots, classifies, counts, and reports config errors as terminal `-EACCES`. |
+| P1 | Userptr cache-line shadow pages (`a4afb82d881c`, `6a74aeec3409`, `31aa12084e3b`) | **Implemented.** Shadows are owned per mapping, including per-core rebound mappings and contiguous-IOMMU Route B. |
+| P1 | Skip RGA3 full-CSC rejection for R2Y BT.709 limited (`b5061ad9d83f`) | **Implemented.** Only the narrow librga compatibility shape is accepted; RGA3 continues to emit its direct R2Y mode. |
 | P2 | Sequential hardware batching (`02e0554b1e66`, `0c1499fbace4`) | Correctness is already covered because the rewrite always advances a request one task at a time. Hardware batching is an optional performance optimization. |
 | — | Acquire-fence race, failed-submit leak, discontinuous DMA IOVA, scale coefficient, R2Y bit shift, LUT validation | Already covered or independently superseded; retain tests, do not transplant. |
 | — | RGA2 internal prefetch and tile4x4 fixes | Not active because the rewrite does not enable the affected prefetch path and rejects RGA2 non-raster input. They become prerequisites if those modes are added. |
 | — | RGA2-Pro formats, AFBC32x8/RKFBC, secure mode, RK3538/RK3572 | Outside the current RK3588 RGA2E/RGA3 profile; add only for a demonstrated consumer requirement. |
 
-The P0/P1 labels are implementation order, not evidence that an observed
-rewrite failure already exists. No rewrite kernel has completed the board
-hardware-validation gate yet.
+The P0/P1 labels record implementation order, not evidence that an observed
+rewrite failure already existed. Both rewrite tips pass the normal, memory, and
+race clean-source build profiles. No rewrite kernel containing these commits
+has completed the board hardware-validation gate yet.
+
+## Implementation and host validation record
+
+The implementation deliberately follows rewrite ownership rather than copying
+the BSP objects:
+
+- RK3588 quirks live in hardware match data. The RGA2E start path performs a
+  bounded manual reset before programming a job when automatic reset is
+  disabled.
+- RGA2 config-error IRQ masks include flag bit 25, enable bit 26, clear bit 27,
+  and parse-status register `0x024`. Raw IRQ/status words and the config-error
+  count are exported for hardware evidence. The donor's `STATUS2` RPP failure
+  is bit 0; the rewrite's earlier bit-2 interpretation was corrected as part of
+  the same audit.
+- Each userptr DMA view owns its boundary shadows. Only active bytes are copied
+  before device sync and after CPU sync. Cross-core handoff syncs the mapping
+  that actually ran, and inactive mappings cannot overwrite the result with a
+  stale shadow. Route B retains a real DMA mapping for cache maintenance while
+  separately providing the contiguous manual IOVA.
+- The RGA3 CSC exception accepts only the known BT.709-limited R2Y flag shape;
+  RGA2 and all other custom/full-CSC shapes keep their existing validation.
+- KUnit covers quirk words, config masks/results, the boundary/overflow matrix,
+  inactive-byte guards, and positive/negative CSC cases. The focused object
+  build also passed `W=1`, and `checkpatch --strict` reported no findings.
+
+The conformance fuzzer now sweeps every offset modulo a 64-byte cache line and
+checks guard bytes on both sides of every source and destination range. When
+the new debugfs counters exist, the harness also requires positive shadow
+copy-to/copy-from deltas, zero active head/tail shadows after the run, and zero
+shadow setup failures. The clean-source gate stores scratch trees under the
+parent of this repository rather than filling `/tmp`.
+
+Sections 1–4 below preserve the pre-implementation mismatch analysis and design
+rationale. Statements about what the rewrite “currently” lacked refer to the
+parent of `0d71ded1690c`, not to the implementation tips recorded above.
 
 ## 1. Represent RK3588 workarounds as match-data quirks
 
-### Current rewrite behavior
+### Pre-implementation rewrite behavior
 
 The rewrite probes only exact RK3588 hardware tuples:
 
@@ -292,7 +332,7 @@ safer and matches current behavior.
 
 ## 4. Accept the narrow RGA3 R2Y BT.709-limited compatibility shape
 
-### Current mismatch
+### Pre-implementation mismatch
 
 Current librga may set `full_csc.flag` while requesting RGB-to-YUV BT.709
 limited because RGA2E needs its full-CSC path for that conversion. RGA3 can
@@ -383,9 +423,10 @@ RGA2-Pro RFBC64x4/AFBC32x8 modes. Keep those boundaries explicit until a
 current librga, FFmpeg, GStreamer, display, or NPU consumer demonstrates need.
 RK3538/RK3572 match data is outside this target entirely.
 
-## Implementation order and acceptance gate
+## Implemented order and remaining acceptance gate
 
-Implement as separate reviewable commits:
+The rewrite adaptation was implemented as one reviewable kernel commit mirrored
+across both rewrite branches, in this order:
 
 1. add match-data quirks and both RK3588 system-control fixes;
 2. add RGA2 config-error IRQ/status support;
@@ -394,8 +435,9 @@ Implement as separate reviewable commits:
 5. extend KUnit/conformance for all four changes before considering batching or
    new formats.
 
-Each commit must build independently. The complete series must pass the rewrite
-normal/memory/race build profiles and device-free conformance. It remains
+The complete change passes the rewrite normal/memory/race clean-source build
+profiles on both kernel lines. Device-free conformance validates the extended
+fuzzer and counter wiring. It remains
 **unvalidated** until a booted RK3588 run proves:
 
 - both RGA3 cores and RGA2 execute ordinary jobs without new errors/timeouts;
@@ -404,5 +446,5 @@ normal/memory/race build profiles and device-free conformance. It remains
 - unaligned userptr sentinels survive on Route A and forced Route B; and
 - the forced-RGA3 BT.709-limited librga request is pixel-correct.
 
-Only after those gates should the rewrite status ledger describe the 5.10 RGA
-reconciliation as implemented.
+The source reconciliation is implemented. Only after those gates should the
+rewrite status ledger describe it as hardware validated or conformant.

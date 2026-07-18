@@ -7,12 +7,11 @@ the plan that closes the gap [`rewrite-drivers.md`](./rewrite-drivers.md) §6 an
 hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
-> surface and heavily unit-tested — MPP **86 KUnit cases** and RGA **117 KUnit
-> cases** compile in the maintained worktrees based on the current §6 pins (`563f329dd8c4` on 6.18,
-> `856743fc3c3d` on mainline). The default `normal` gate passed at both heads on
-> 2026-07-15. The broader sanitizer object-build profiles were
-> last recorded at the immediately earlier `0a35c26a0fd7` / `938b1d2032c3`
-> pins. But every one of those tests is **logic-level**:
+> surface and heavily unit-tested — MPP **86 KUnit cases** and RGA **120 KUnit
+> cases** compile in the maintained worktrees based on the current §6 pins
+> (`0d71ded1690c` on 6.18, `32696e87c9c7` on mainline). The `normal`, `memory`,
+> and `race` clean-source profiles passed at both heads on 2026-07-17. But every
+> one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
 > is concentrated exactly where a from-scratch driver is weakest and where unit
@@ -36,8 +35,8 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ⚠️ compile-only `race` profile exists in [`rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh); KCSAN is deliberately **off** in `debug-kernel.md` | **add** — a separate booted build (§3) |
 | **Fault injection & recovery** | ⚠️ [`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh) now orchestrates kill/close, reset-opener, and opt-in unbind/rebind loops around real workloads, and `VALIDATE_ONLY=1` checks its config; [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh) now has an opt-in `/proc/self/fail-nth` mode for syscall-local allocation/usercopy failures in non-submit ioctls; synthetic hardware timeout/IOMMU fault injection has not run | finish the recovery matrix (§4) |
-| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps, plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; an optional syzkaller `make descriptions` compile check now exists for hosts with `SYZKALLER_DIR` + Go; the RGA3 userptr-IOMMU path has a scattered-userptr correctness fuzzer under [`../tests/iommu-machinery-fuzz.sh`](../tests/iommu-machinery-fuzz.sh); `VALIDATE_ONLY=1` conformance validation now checks syzlang ABI markers, optionally compiles the syzlang draft with syzkaller, checks the ioctl mutator build, and checks the RGA IOMMU fuzzer build, but neither fuzzer has been run under KCOV/KASAN | finish §5 |
-| **Rewrite-specific security/ABI audit** | ⚠️ focused MPP/RGA hardening landed 2026-07-15; it fixed the RK3588 VDPU381/VDPU383 CCU mismatch plus broad topology, DMA/IOMMU, reset, fd/fence, watchdog, fault-attribution, and removal races | continue the remaining RGA checklist (§6) |
+| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps, plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; an optional syzkaller `make descriptions` compile check now exists for hosts with `SYZKALLER_DIR` + Go; the RGA3 userptr-IOMMU fuzzer now sweeps all 64 cache-line offsets, protects inactive bytes with guards, and checks shadow-copy/leak/failure counters when the rewrite exports them; `VALIDATE_ONLY=1` checks its build, but neither fuzzer has been run under KCOV/KASAN | finish §5 |
+| **Rewrite-specific security/ABI audit** | ⚠️ focused MPP/RGA hardening through 2026-07-17 fixed the RK3588 VDPU381/VDPU383 CCU mismatch plus broad topology, DMA/IOMMU, reset, fd/fence, watchdog, fault-attribution, and removal races; the follow-up also adapted the five applicable RGA 5.10 reliability/cache-safety lessons and audited the forward-port MPP/RGA lifetime findings for structural equivalents | run the remaining booted hardware/KASAN matrix (§4/§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
 ---
@@ -303,7 +302,12 @@ The RGA userptr-IOMMU-specific first pass is
 builds `rga-iommu-fuzz.cpp` and can force scattered userptr RGA3 copy/resize/
 rotate/cvtcolor, reuse the bit-exact decode oracle, and run RGA scatter
 concurrently with AV1 decode while scanning dmesg/debugfs for IOMMU faults and
-RGA userptr-IOMMU fallback leaks. Device-free validation now compiles the RGA scatter fuzzer object
+RGA userptr-IOMMU fallback leaks. Its default boundary sweep submits every
+source offset modulo a 64-byte cache line with a complementary destination
+offset, and verifies guard bytes before and after every active range. When a
+rewrite exposes boundary-shadow counters, the harness requires positive
+copy-to/copy-from deltas, zero active head/tail views after the run, and no
+shadow setup failures. Device-free validation now compiles the RGA scatter fuzzer object
 through `IOMMU_FUZZ_VALIDATE_BUILD=1`; that is only a source/build gate. The
 remaining production evidence is still a booted rewrite run on RK3588 with
 RGA userptr-IOMMU fallback `attempt`/`ok` deltas, `active` returning to baseline, clean IOMMU fault
@@ -365,7 +369,24 @@ leaving a permanently unpollable completed job at the session head. It also
 defers slice-buffer validation until a split-mode job is selected, preserving
 the forward-port full-frame behavior for non-split `POLL_HW_IRQ` and the
 empty-session `-EIO` result without touching slice-only userspace memory. The
-VEPU580 follow-up then matched the vendor `0x03f0` reset mask: a bitstream
+2026-07-17 reconciliation rechecked the newer 5.10 rule that treats an encoder
+error IRQ as the last slice. No literal transplant is needed: every rewrite
+terminal error IRQ wakes threaded completion, marks the job done, wakes the
+session, and makes `POLL_HW_IRQ` consume the completed error instead of waiting
+for another slice. Existing split FIFO/poll lifecycle KUnit covers recovery of
+the session-head job and the non-split/empty-session distinctions.
+
+The same reconciliation checked the forward-port MPP procfs-session teardown
+UAF and RGA session-close UAF. The MPP rewrite has no service-wide unpinned
+session list for procfs to walk; its state/events readers traverse pinned jobs,
+hardware, and queues under their owning locks, while file-release KUnit covers
+cleanup. RGA close first unlinks and marks the session closing, waits dispatch
+idle, aborts pending-fence and active jobs, waits for its job list to drain, and
+only then drops imports and requests; session-close handoff KUnit pins that
+ordering. These findings are structural non-transplants, not permission to
+skip the booted KASAN close/reset/unbind matrix above.
+
+The VEPU580 follow-up then matched the vendor `0x03f0` reset mask: a bitstream
 overflow still advances/wraps the circular write pointer and lets the current
 frame continue, but its retained status now resets the core at terminal
 completion before another frame starts. The prior rewrite checked only generic

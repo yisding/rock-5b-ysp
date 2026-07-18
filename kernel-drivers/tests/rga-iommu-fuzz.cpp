@@ -40,6 +40,8 @@
 #include "rga.h"
 
 static const size_t PAGE = 4096;
+static const size_t CACHE_ALIGN = 64;
+static const uint8_t GUARD_BYTE = 0xD3;
 // RGA3 on RK3588 advertises a 68-pixel minimum width. Keep generated
 // dimensions on 16-pixel boundaries, so 80 is the first valid width.
 static const int RGA3_MIN_WIDTH = 80;
@@ -51,6 +53,7 @@ struct Buf {
     uint8_t *data = nullptr;                          // map + byte_offset (sub-page test)
     size_t size = 0; int w = 0, h = 0, fmt = 0;
     rga_buffer_handle_t handle = 0;
+    uint8_t guard = GUARD_BYTE;
 };
 
 static size_t bpp_num(int fmt) { // bytes-per-pixel numerator (den in bpp_den)
@@ -99,6 +102,8 @@ static bool alloc_buf(Buf &b, int w, int h, int fmt, bool scattered, size_t byte
         for (size_t i = 0; i < npages; i++) b.map[i * PAGE] = 1; // sequential -> coalesces
     }
 
+    // Bytes outside the imported image range must survive DMA cache maintenance.
+    memset(b.map, b.guard, b.map_len);
     b.data = b.map + byte_off;
     b.handle = importbuffer_virtualaddr(b.data, w, h, fmt);
     if (b.handle == 0) { fprintf(stderr, "importbuffer_virtualaddr failed\n"); return false; }
@@ -117,6 +122,28 @@ static rga_buffer_t wrap(Buf &b) { return wrapbuffer_handle(b.handle, b.w, b.h, 
 static long first_diff(const uint8_t *a, const uint8_t *c, size_t n) {
     for (size_t i = 0; i < n; i++) if (a[i] != c[i]) return (long)i;
     return -1;
+}
+
+static bool guards_intact(const Buf &b, const char *name) {
+    size_t prefix = (size_t)(b.data - b.map);
+    size_t active_end = prefix + b.size;
+
+    for (size_t i = 0; i < prefix; i++) {
+        if (b.map[i] != b.guard) {
+            fprintf(stderr, "  GUARD MISMATCH %s prefix byte=%zu got=%02x want=%02x\n",
+                    name, i, b.map[i], b.guard);
+            return false;
+        }
+    }
+    for (size_t i = active_end; i < b.map_len; i++) {
+        if (b.map[i] != b.guard) {
+            fprintf(stderr, "  GUARD MISMATCH %s suffix byte=%zu got=%02x want=%02x\n",
+                    name, i - active_end, b.map[i], b.guard);
+            return false;
+        }
+    }
+
+    return true;
 }
 
 // Run one op on src->dst; returns true on IM_STATUS_SUCCESS.
@@ -139,7 +166,7 @@ static bool run_op(Op op, Buf &src, Buf &dst) {
 }
 
 struct Cfg { int iters = 32; unsigned seed = 1; std::string op = "all"; std::string scat = "both";
-             int fixed_w = 0, fixed_h = 0; bool verbose = false; };
+             int fixed_w = 0, fixed_h = 0; bool boundary_sweep = true; bool verbose = false; };
 
 static int rnd_dim(uint32_t &s, int lo, int hi) { // multiple of 16 in [lo,hi]
     s = s * 1103515245u + 12345u;
@@ -149,12 +176,12 @@ static int rnd_dim(uint32_t &s, int lo, int hi) { // multiple of 16 in [lo,hi]
 
 // One differential trial for a given op. Returns true on pass.
 static bool trial(Op op, int w, int h, int sfmt, int dfmt, int dw, int dh,
-                  const std::string &scat, unsigned seed, bool verbose) {
+                  const std::string &scat, unsigned seed, size_t src_off,
+                  size_t dst_off, bool verbose) {
     bool ok = true;
-    // Two identical sources: one scattered, one contiguous. Sub-page offset varies.
-    size_t off = (size_t)(seed % 4) * 16;
+    // Two identical sources: one scattered, one contiguous. Sub-page offsets vary.
     Buf src_s, src_c;
-    if (!alloc_buf(src_s, w, h, sfmt, true,  off) ||
+    if (!alloc_buf(src_s, w, h, sfmt, true, src_off) ||
         !alloc_buf(src_c, w, h, sfmt, false, 0)) { free_buf(src_s); free_buf(src_c); return false; }
     std::vector<uint8_t> pat(src_s.size);
     fill_pattern(pat.data(), pat.size(), seed * 2654435761u + op);
@@ -166,7 +193,7 @@ static bool trial(Op op, int w, int h, int sfmt, int dfmt, int dw, int dh,
     bool scat_src = (scat == "src" || scat == "both");
     if (!scat_src) {
         free_buf(src_s);
-        if (!alloc_buf(src_s, w, h, sfmt, false, off)) {
+        if (!alloc_buf(src_s, w, h, sfmt, false, src_off)) {
             free_buf(src_s);
             free_buf(src_c);
             return false;
@@ -175,7 +202,7 @@ static bool trial(Op op, int w, int h, int sfmt, int dfmt, int dw, int dh,
     }
 
     Buf dst_a, dst_b;
-    if (!alloc_buf(dst_a, dw, dh, dfmt, scat_dst, 0) ||
+    if (!alloc_buf(dst_a, dw, dh, dfmt, scat_dst, dst_off) ||
         !alloc_buf(dst_b, dw, dh, dfmt, false, 0)) { free_buf(src_s); free_buf(src_c); free_buf(dst_a); free_buf(dst_b); return false; }
     memset(dst_a.data, 0, dst_a.size); memset(dst_b.data, 0, dst_b.size);
 
@@ -186,8 +213,8 @@ static bool trial(Op op, int w, int h, int sfmt, int dfmt, int dw, int dh,
         long d = first_diff(dst_a.data, dst_b.data, dst_a.size);
         if (d >= 0) {
             ok = false;
-            fprintf(stderr, "  DIFFERENTIAL MISMATCH op=%d %dx%d->%dx%d off=%zu at byte %ld (a=%02x b=%02x)\n",
-                    op, w, h, dw, dh, off, d, dst_a.data[d], dst_b.data[d]);
+            fprintf(stderr, "  DIFFERENTIAL MISMATCH op=%d %dx%d->%dx%d src_off=%zu dst_off=%zu at byte %ld (a=%02x b=%02x)\n",
+                    op, w, h, dw, dh, src_off, dst_off, d, dst_a.data[d], dst_b.data[d]);
         }
         if (op == OP_COPY) { // absolute check: copy must reproduce the pattern exactly
             long e = first_diff(dst_a.data, pat.data(), dst_a.size);
@@ -196,8 +223,12 @@ static bool trial(Op op, int w, int h, int sfmt, int dfmt, int dw, int dh,
                         e, dst_a.data[e], pat[e]); }
         }
     }
-    if (verbose && ok) fprintf(stderr, "  ok op=%d %dx%d->%dx%d off=%zu scat=%s\n",
-                               op, w, h, dw, dh, off, scat.c_str());
+    ok = guards_intact(src_s, "scattered-src") && ok;
+    ok = guards_intact(src_c, "contiguous-src") && ok;
+    ok = guards_intact(dst_a, "scattered-dst") && ok;
+    ok = guards_intact(dst_b, "contiguous-dst") && ok;
+    if (verbose && ok) fprintf(stderr, "  ok op=%d %dx%d->%dx%d src_off=%zu dst_off=%zu scat=%s\n",
+                               op, w, h, dw, dh, src_off, dst_off, scat.c_str());
     free_buf(src_s); free_buf(src_c); free_buf(dst_a); free_buf(dst_b);
     return ok;
 }
@@ -213,9 +244,10 @@ int main(int argc, char **argv) {
         else if (a == "-t") c.scat = next();
         else if (a == "-W") c.fixed_w = atoi(next());
         else if (a == "-H") c.fixed_h = atoi(next());
+        else if (a == "--no-boundary-sweep") c.boundary_sweep = false;
         else if (a == "-v") c.verbose = true;
         else { fprintf(stderr, "usage: %s [-n iters] [-s seed] [-o copy|resize|rotate|cvt|all] "
-                       "[-t src|dst|both] [-W w] [-H h] [-v]\n", argv[0]); return 2; }
+                       "[-t src|dst|both] [-W w] [-H h] [--no-boundary-sweep] [-v]\n", argv[0]); return 2; }
     }
     printf("rga-iommu-fuzz: iters=%d seed=%u op=%s scatter=%s\n", c.iters, c.seed, c.op.c_str(), c.scat.c_str());
 
@@ -245,6 +277,18 @@ int main(int argc, char **argv) {
 
     uint32_t rs = c.seed;
     int pass = 0, fail = 0;
+    if (c.boundary_sweep) {
+        int w = c.fixed_w ? c.fixed_w : RGA3_MIN_WIDTH;
+        int h = c.fixed_h ? c.fixed_h : 64;
+
+        for (size_t off = 0; off < CACHE_ALIGN; off++) {
+            bool ok = trial(OP_COPY, w, h, RK_FORMAT_RGBA_8888,
+                            RK_FORMAT_RGBA_8888, w, h, "both",
+                            c.seed + (unsigned)off, off,
+                            CACHE_ALIGN - 1 - off, c.verbose);
+            ok ? pass++ : fail++;
+        }
+    }
     for (int it = 0; it < c.iters; it++) {
         int w = c.fixed_w ? c.fixed_w : rnd_dim(rs, min_w, 1024);
         int h = c.fixed_h ? c.fixed_h : rnd_dim(rs, 64, 768);
@@ -253,7 +297,11 @@ int main(int argc, char **argv) {
             int dw = w, dh = h;
             if (op == OP_RESIZE) { dw = w / 2 & ~15; dh = h / 2 & ~15; if (dw < 16 || dh < 16) continue; }
             if (op == OP_CVT)    { dfmt = RK_FORMAT_YCbCr_420_SP; if (w & 1 || h & 1) continue; }
-            bool ok = trial(op, w, h, sfmt, dfmt, dw, dh, c.scat, c.seed + it * 131 + op, c.verbose);
+            unsigned trial_seed = c.seed + it * 131 + op;
+            size_t src_off = trial_seed % CACHE_ALIGN;
+            size_t dst_off = (trial_seed * 17U + 11U) % CACHE_ALIGN;
+            bool ok = trial(op, w, h, sfmt, dfmt, dw, dh, c.scat,
+                            trial_seed, src_off, dst_off, c.verbose);
             ok ? pass++ : fail++;
         }
     }

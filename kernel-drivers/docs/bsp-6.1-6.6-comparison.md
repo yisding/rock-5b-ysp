@@ -252,6 +252,14 @@ expansions—were not copied into the RK3588 RGA2E/RGA3 target without a matchin
 hardware capability entry. The local kernel commits are not part of the
 published YSP patch series yet.
 
+The separate clean-room rewrite audit adapted its five applicable RGA change
+groups at `rk3588-rewrite-6.18@0d71ded1690c` and
+`rk3588-rewrite-mainline@32696e87c9c7`: the two low-voltage quirks, config-error
+IRQ/status handling, per-mapping cache-line boundary shadows, and the narrow
+RGA3 BT.709-limited CSC compatibility shape. Both rewrite tips pass the
+normal/memory/race clean-source profiles; they still require the booted RK3588
+gate in [`rewrite-5.10-reconciliation.md`](../rga/rewrite-5.10-reconciliation.md).
+
 ## Baseline forward port vs each BSP
 
 The baseline import remains overwhelmingly a 6.1-derived driver. Focused

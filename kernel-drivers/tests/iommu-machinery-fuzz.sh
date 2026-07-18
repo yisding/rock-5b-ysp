@@ -186,6 +186,43 @@ check_rga_userptr_iommu_coverage() { # counters-delta.tsv
   fi
 }
 
+check_rga_shadow_coverage() { # counters-delta.tsv
+  local delta_file="$1"
+  local rows head_after tail_after failures copy_to copy_from
+
+  case "$PHASES" in
+    *A*|*C*) ;;
+    *) return 0 ;;
+  esac
+
+  rows=$(counter_row_count "$delta_file" shadow_copy_to_bytes '^rga_rewrite$')
+  [ "$rows" -gt 0 ] || return 0
+
+  head_after=$(counter_after_sum "$delta_file" shadow_head_active_count '^rga_rewrite$')
+  tail_after=$(counter_after_sum "$delta_file" shadow_tail_active_count '^rga_rewrite$')
+  failures=$(counter_delta_sum "$delta_file" shadow_setup_failure_count '^rga_rewrite$')
+  copy_to=$(counter_delta_sum "$delta_file" shadow_copy_to_bytes '^rga_rewrite$')
+  copy_from=$(counter_delta_sum "$delta_file" shadow_copy_from_bytes '^rga_rewrite$')
+
+  if [ "$copy_to" -le 0 ] || [ "$copy_from" -le 0 ]; then
+    log "  !! RGA shadow counters present but boundary copies were not exercised: to=$copy_to from=$copy_from"
+    overall=1
+  fi
+  if [ "$head_after" -ne 0 ] || [ "$tail_after" -ne 0 ]; then
+    log "  !! RGA shadow views remain active: head=$head_after tail=$tail_after"
+    overall=1
+  fi
+  if [ "$failures" -ne 0 ]; then
+    log "  !! RGA shadow setup failures recorded: delta=$failures"
+    overall=1
+  fi
+  if [ "$copy_to" -gt 0 ] && [ "$copy_from" -gt 0 ] &&
+     [ "$head_after" -eq 0 ] && [ "$tail_after" -eq 0 ] &&
+     [ "$failures" -eq 0 ]; then
+    log "  RGA shadow attribution: copy_to=$copy_to copy_from=$copy_from head=$head_after tail=$tail_after failures=$failures"
+  fi
+}
+
 # ---------------------------------------------------------------- preflight ---
 log "================= preflight ================="
 log "  kernel: $(uname -r) $(uname -v | grep -oE '#[0-9]+')"
@@ -286,6 +323,7 @@ if [ "$(wc -l < "$OUT/counters-delta.tsv" 2>/dev/null || echo 0)" -gt 1 ]; then
   leaked=$(awk -F'\t' 'NR>1 && $2 ~ /active/ && $5 != 0 && $5 != "" {print}' "$OUT/counters-delta.tsv")
   [ -z "$leaked" ] || { log "  !! LEAKED MAPPINGS (active gauge != baseline):"; echo "$leaked" | sed 's/^/     /'; overall=1; }
   check_rga_userptr_iommu_coverage "$OUT/counters-delta.tsv"
+  check_rga_shadow_coverage "$OUT/counters-delta.tsv"
 else
   # No counters in the delta. Three very different causes -- don't conflate them:
   #   (1) ran non-root: /sys/kernel/debug is 0700 root, so the snapshot read nothing

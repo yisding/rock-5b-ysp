@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | tag `50.1` = `5ef1a2aa6bef`; anchor/full-series base = `c14e09ef67e9`; current PPA source = `rdp-handover-reconnect-v2@eb91daf476dc`, see §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | rewrite series sources `rk3588-rewrite-6.18@563f329dd8c4` and `rk3588-rewrite-mainline@856743fc3c3d`; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | rewrite series sources `rk3588-rewrite-6.18@0d71ded1690c` and `rk3588-rewrite-mainline@32696e87c9c7`; earlier package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -233,17 +233,17 @@ and validation behavior remain documented in
 
 The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md))
 is reconstructible from the committed local branch tips targeting
-`github.com/yisding/linux-rock5b` as
-of 2026-07-15:
+`github.com/yisding/linux-rock5b` as of 2026-07-17:
 
-- branch `rk3588-rewrite-6.18`, commit `563f329dd8c4` ("media: rockchip:
-  harden rewrite drivers"), committed in the dev worktree
+- branch `rk3588-rewrite-6.18`, commit `0d71ded1690c` ("media: rockchip:
+  rga-rewrite: adapt latest RK3588 fixes"), committed in the dev worktree
   `/home/yi/Code/kernel/linux-6.18-rkvenc`. The sibling 6.18 forward-port
   oracle referenced by this rewrite track was
   `/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport` at
   `rkvenc-fwport-6.18` tip `e059aad8d68b` when these pins were recorded.
-- branch `rk3588-rewrite-mainline`, commit `856743fc3c3d` ("media: rockchip:
-  harden rewrite drivers"), rebased to official kernel.org `v7.2-rc2`
+- branch `rk3588-rewrite-mainline`, commit `32696e87c9c7` ("media: rockchip:
+  rga-rewrite: adapt latest RK3588 fixes"), based on the tree rebased to
+  official kernel.org `v7.2-rc2`
   in the sibling worktree `/home/yi/Code/kernel/linux`. The pre-rebase tip is
   preserved as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`.
 
@@ -253,11 +253,13 @@ vanilla-only base:
 - `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` starts from snapshot
   `2ff6303a64ce`, the same patched Armbian current/forward-port Linux 6.18.38
   source line used by the forward-port package, then applies the 6.18 rewrite
-  series through `563f329dd8c4`.
+  series through `563f329dd8c4`. It predates the 2026-07-17 RGA
+  reconciliation commit.
 - `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` starts from official
   `v7.2-rc3` (`a13c140cc289`), applies Armbian build checkout `5cbc1c59c`'s
   `rockchip64-bleedingedge` archive plus generated driver patch payload, records
   that snapshot as `2657f01c9b9a`, and applies the mainline rewrite series last.
+  It also predates the 2026-07-17 RGA reconciliation commit.
 
 Both trees contain `drivers/video/rockchip/mpp-rewrite/` and
 `drivers/video/rockchip/rga-rewrite/`. The 6.18 tree is the line-count source
@@ -385,23 +387,20 @@ unpinned devm-hardware use. The mainline branch carries the minimal
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
 KUnit-enabled provider/rewrite/DTB build. On 2026-07-15 its default `normal`
-profile completed warning-free for the current pins
-`../kernel/linux-6.18-rkvenc@563f329dd8c4` and
-`../kernel/linux@856743fc3c3d`, building `drivers/iommu/rockchip-iommu.o`, both
+profile completed warning-free for the then-current pins. On 2026-07-17 all
+three `normal`, `memory`, and `race` profiles completed warning-free for
+`../kernel/linux-6.18-rkvenc@0d71ded1690c` and
+`../kernel/linux@32696e87c9c7`, building `drivers/iommu/rockchip-iommu.o`, both
 rewrite objects, and `rockchip/rk3588-rock-5b.dtb`. The Published alpha packages
 remain reconstructible from the pre-hardening parents
 `../kernel/linux-6.18-rkvenc@d1d15a3d052a` and
 `../kernel/linux@083bdb98e715`; their source extraction/config coverage does not
-cover the July 15 heads. The broader
-`normal`, `memory`, and `race` archive build
-profiles last passed warning-free at the immediately earlier
-`../kernel/linux-6.18-rkvenc@0a35c26a0fd7` and
-`../kernel/linux@938b1d2032c3` pins after display-tail RGB565 and XRGB rotation
-coverage was added. The build gate now removes each per-profile archive
+cover the July 15 heads or the July 17 reconciliation. The build gate removes each per-profile archive
 checkout after a passing profile unless `KEEP_TMP=1`; after that change, the combined
 `REWRITE_BUILD_PROFILES="normal memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
 invocation completed all six profiles in one run and left no
-`rkcompat-rewrite-build.*` scratch directories under `/tmp`.
+`rkcompat-rewrite-build.*` scratch directories under its repo-adjacent scratch
+root. `REWRITE_BUILD_TMP_ROOT` can select a different parent.
 `VALIDATE_ONLY=1
 kernel-drivers/tests/rewrite-conformance-run.sh` also passed the device-free
 syzlang ABI-marker, case-builder, and comparator validation, including 26
