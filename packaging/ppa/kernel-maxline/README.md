@@ -142,6 +142,11 @@ SHA-256 hashes are recorded in [`manifest.yaml`](manifest.yaml). Generated
 packages remain under the ignored `packaging/ppa/out/maxline/package-*`
 directories on the build host; they are not Git artifacts.
 
+The complete implementation and validation record, including build-host
+versions, exact tree and payload sizes, package metadata, symbol checks,
+headers testing, and the remaining hardware boundary, is in
+[`findings/2026-07-17-rk3588-maxline-implementation-and-build-record.md`](../../../findings/2026-07-17-rk3588-maxline-implementation-and-build-record.md).
+
 The build emitted one non-fatal warning from the imported RK3588 crypto v2
 proposal (`rk2_crypto_skcipher.c`: unused local `v`). No package has been
 installed or booted on the ROCK 5B yet, so compile and payload verification

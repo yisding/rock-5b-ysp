@@ -463,6 +463,8 @@ the upstream stack.
 - **Artifacts:** the reproducible builder, pinned patches, ledgers, config,
   packaging, hashes, and verification record are in
   [`packaging/ppa/kernel-maxline`](../packaging/ppa/kernel-maxline/README.md).
+  The complete measured implementation/build record is
+  [`2026-07-17-rk3588-maxline-implementation-and-build-record.md`](2026-07-17-rk3588-maxline-implementation-and-build-record.md).
   The supplied source snapshot remains at `~/Code/kernel/mainline-status.md`
   and is intentionally not duplicated here.
 
