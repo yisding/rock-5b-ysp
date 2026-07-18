@@ -47,3 +47,107 @@ and while COMPUTE avoids that interpolator, a **COMPUTE-only** fix was rejected 
 AFBC-compressed resources — so the fix is being reworked toward a
 `gl_FragCoord`-based blit. Either way, `MESA_COMPUTE_PBO=1` stays a valid
 board-local mitigation for the numbers above.
+
+## `rkmpp_lifecycle_bench.c`
+
+Isolates the synchronous RKMPP encode stall described in
+[`../docs/profiling.md`](../docs/profiling.md) §9 from Firefox, PipeWire, Vulkan,
+and RDP. The bench retains the relevant GRD path:
+
+- a 64-byte-stride, linear NV12 dma-buf allocated from `/dev/dma_heap/system`;
+- an `AVDRMFrameDescriptor` passed zero-copy to `h264_rkmpp`;
+- GRD's dimensions, rate-control triplet, high profile, no B frames, one
+  reference, and `AV_CODEC_FLAG_LOW_DELAY`; and
+- synchronous one-frame-in/one-packet-out encoding.
+
+Its primary modes change only the encoder lifetime:
+
+| Mode | Lifecycle | Question answered |
+|---|---|---|
+| `reuse` | open once → encode N frames → close | Is steady-state RKMPP healthy? |
+| `churn` | N × (open → encode one → close) | Does rapid context teardown/recreation expose the stall? |
+| `exp2` | churn plus an idle second open/close per iteration | Does GRD `~exp2`'s exact post-smoke IDR workaround matter? |
+
+The process that calls FFmpeg is a child. A parent watchdog treats any phase
+with no output for 500 ms as a stall, emits `watchdog_timeout`, leaves a
+two-second capture window, and sends `SIGKILL` only to the child. It then waits
+at most 250 ms to reap the child and reports either `watchdog_worker_reaped` or
+`watchdog_worker_unreaped`. This makes the parent bounded even if the encoder
+task is stuck in uninterruptible kernel sleep. An older FFmpeg can still have
+an infinite synchronous RKMPP wait inside the child.
+The JSONL event immediately before `watchdog_timeout` identifies whether the
+stall occurred in open, send, receive, or close.
+
+Use the wrapper so the A/B run also captures RKVENC interrupts, task wait
+channels/kernel stacks (when permitted), package identity, and kernel logs. It
+deliberately never reads `/proc/mpp_service`: on an unpatched kernel, a procfs
+read concurrent with MPP session teardown can NULL-dereference in
+`rkvenc_dump_session()`.
+
+```bash
+# First disconnect every RDP session. Running as root improves kernel capture.
+sudo ./rkmpp_lifecycle_experiment.sh compare --iterations 1000
+
+# Reproduce the old GRD open/smoke/close/open sequence specifically.
+sudo ./rkmpp_lifecycle_experiment.sh exp2 --iterations 1000
+
+# If the basic run reproduces, log MPP worker wait/notify decisions too.
+sudo ./rkmpp_lifecycle_experiment.sh --mpp-enc-debug 0xb0 \
+  churn --iterations 1000
+
+# Causal control: retain churn but omit MPP_ENC_SET_IDR_FRAME.
+sudo ./rkmpp_lifecycle_experiment.sh churn --no-force-idr --iterations 1000
+```
+
+Artifacts default to `~/Code/rkmpp-lifecycle-runs/TIMESTAMP`; neither build nor
+capture data uses `/tmp`. An idle `--system` daemon is allowed, but the wrapper
+refuses to run when it sees a handover daemon, an established RDP connection,
+or a GRD process holding `/dev/mpp_service`, unless explicitly overridden.
+
+Interpretation:
+
+- `reuse` passes and forced-IDR `churn`/`exp2` stalls: inspect the last phase and
+  MPP debug ordering rather than assuming a lost hardware completion.
+- forced-IDR churn stalls while `--no-force-idr` churn passes: isolate the
+  trigger to the per-frame `MPP_ENC_SET_IDR_FRAME` control immediately before
+  input enqueue. Use `--mpp-enc-debug 0xb0` to capture control/wait ordering.
+- both modes stall at `receive_begin`, with a submitted/running task but no IRQ:
+  focus on interrupt/completion/timeout recovery.
+- a churn stall has no new RKVENC interrupt and the worker waits for input:
+  check whether input enqueue returned `MPP_NOK`/`EAGAIN` before looking for a
+  scheduler or interrupt loss.
+- both modes pass: the trigger needs another GRD condition (more concurrent
+  surfaces, Vulkan producer fences, or the Firefox reset cadence), or is too
+  rare for that iteration count.
+
+This is intentionally a stress experiment, not a normal smoke test. Although
+the userspace wait is bounded, a vulnerable kernel may leave the encoder
+unhealthy until reset. Do not run it against a live desktop session.
+
+### 2026-07-17 reference result
+
+On the ROCK 5B, `reuse --iterations 100` completed with one RKVENC interrupt
+per frame. Forced-IDR churn reproduced twice after 360 and 364 completed
+iterations, both at `send_begin`, with no new hardware task or interrupt. With
+`mpp_enc_debug=0xb0`, the last ordering was:
+
+1. FFmpeg issued `MPP_ENC_SET_IDR_FRAME`.
+2. libmpp acknowledged the control command before releasing `mFrmIn->cond_lock`.
+3. FFmpeg immediately called `encode_put_frame()`; libmpp's trylock failed and
+   returned `MPP_NOK`, which FFmpeg mapped to `EAGAIN`.
+4. The low-delay encode path nevertheless called blocking
+   `encode_get_packet()`. No input frame had been queued, so no packet or IRQ
+   could arrive; the MPP worker later slept waiting for input.
+
+This is a userspace control/input handoff race, not hundreds of milliseconds of
+hardware encode and not a lost completion. The root libmpp fix is to acknowledge
+the control only after the input lock and post-control work are complete. FFmpeg
+must also avoid a blocking packet receive when frame submission returned
+`EAGAIN`; its existing 500 ms deadline remains useful containment.
+
+The no-forced-IDR control completed 546 iterations before the old wrapper's
+high-frequency `/proc/mpp_service/sessions-summary` sampler raced the next
+session teardown and triggered the separate kernel Oops documented in
+[`../../../findings/2026-07-17-mpp-procfs-session-teardown-oops.md`](../../../findings/2026-07-17-mpp-procfs-session-teardown-oops.md).
+That run cannot be counted as a 1,000-iteration pass. Repeat it only after
+rebooting into a kernel with the procfs lifetime fix.

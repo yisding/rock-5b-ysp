@@ -105,6 +105,15 @@ the *exact* build we validated (the installer matches debs on it; see
   The `mpp_platform: client N driver is not ready!` lines for clients 1/3/12/13/18/19
   are *also* benign — MPP's RK3588 table lists legacy VDPU/JPEG clients this DT
   deliberately doesn't wire.
+- **MPP procfs session dumps before forward-port patch `0041` race session
+  teardown.** A high-frequency `sessions-summary` sampler produced a complete
+  NULL-dereference trace in `rkvenc_dump_session()` because teardown freed
+  `session->priv`/`session->dma` before unlinking the session under
+  `session_lock`. Commit `df0d7037213c` unlinks at common deinit entry before
+  private teardown and compiles clean, but remains boot-validation pending.
+  Until a fixed kernel is running, do not sample `/proc/mpp_service` during
+  open/close stress. See the
+  [finding](../../findings/2026-07-17-mpp-procfs-session-teardown-oops.md).
 - **Direct RGA3 im2d virtual-buffer samples exposed RGA/IOMMU forward-port
   gaps.** The upstream `airockchip/librga` copy/resize/rotate samples import
   malloc-backed buffers and can trigger `RGA3_core0 INTR[0x2]`, the RGA MMU

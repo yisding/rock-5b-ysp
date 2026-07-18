@@ -102,7 +102,8 @@ last-checked date.
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-08 | Native compile reached; BTF link remains unproven. |
-| W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed on the fwport tree; base patch still frozen with the old path. |
+| W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0040`; frozen base patch still has the old path. |
+| W16 | [MPP procfs/session lifetime fix](#watch-w16) | 2026-07-17 | Captured NULL dereference fixed in fwport patch `0041`; boot/reproduction gate pending. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -151,7 +152,7 @@ last-checked date.
 
 - **Why recheck:** Acceptance, build state, and binary publication can change
   after upload without a local repository edit.
-- **Last checked:** 2026-07-16
+- **Last checked:** 2026-07-17
 - **State then:** The recreated `ubuntu-rock-5b` main PPA had all seven current
   sources and their binaries Published: MPP, librga, co-installable FFmpeg 6.1,
   the forward-port kernel, FFmpeg 8.0.3, GRD, and codec-udev 1.1. FFmpeg build
@@ -183,6 +184,10 @@ last-checked date.
   and arm64 build
   [`33399816`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33399816).
   A 2026-07-15 recheck confirmed the build succeeded.
+  On 2026-07-17, the experimental archive accepted the GRD `~exp2` source and
+  arm64 build
+  [`33411510`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33411510)
+  succeeded; binary publication remained pending.
   The main PPA has no dependency on the experimental archive. The optional GDM
   ACL package was not uploaded, and no PPA kernel had passed its board gate.
 
@@ -317,7 +322,8 @@ last-checked date.
   ("release session buffers by reference on close") makes
   `rga_mm_session_release_buffer()` drop each buffer through
   `kref_put(..., rga_mm_kref_release_buffer)` instead of force-freeing;
-  compile-verified, not yet re-exercised on hardware. The base patch
+  compile-verified, not yet re-exercised on hardware. It is now exported as
+  forward-port patch `0040`. The base patch
   [`rk3588-rkvenc2-01-vcodec-rga-drivers.patch`](./kernel-drivers/patches/rk3588-rkvenc2-01-vcodec-rga-drivers.patch)
   still contains the old force-free path (as does `@1c9a110129fe` "validate
   physical import pages"); fold both fwport fixes in at the next base-patch
@@ -325,3 +331,21 @@ last-checked date.
   triggering test leak is fixed in
   [`abi-probe.c`](./kernel-drivers/tests/abi-probe.c). See the
   [finding](findings/2026-07-17-rga-session-close-uaf.md).
+
+<a id="watch-w16"></a>
+### W16 — MPP procfs/session lifetime fix
+
+- **Why recheck:** The captured `/proc/mpp_service/sessions-summary` Oops is
+  fixed in the forward-port source series, but the running kernel and frozen
+  base patch still have the unsafe teardown order; the new build has not been
+  booted or stress-tested.
+- **Last checked:** 2026-07-17
+- **State then:** The complete trace faults at `rwsem_read_trylock()` from
+  `rkvenc_dump_session()` with a NULL private pointer while a proc reader races
+  encoder close. Forward-port commit `df0d7037213c`, exported as patch `0041`,
+  removes sessions from the procfs-visible service list under `session_lock`
+  before device-private or DMA teardown. The three affected arm64 objects and
+  strict patch style checks pass. Next gate: package/install the fixed kernel,
+  reboot, run procfs/churn concurrency once, then repeat the 1,000-iteration
+  no-forced-IDR FFmpeg control. See the
+  [finding](findings/2026-07-17-mpp-procfs-session-teardown-oops.md).

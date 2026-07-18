@@ -200,8 +200,9 @@ constructing its sixth RKMPP encode session:
 - the boot journal contained no kernel Oops, IOMMU, RGA, codec, or GPU fault,
   and Firefox itself did not hold `/dev/mpp_service`; and
 - the RKVENC interrupt counter stopped advancing. Attaching gdb was blocked by
-  the host ptrace policy, but the source/log/thread boundary is sufficient to
-  identify the synchronous wait.
+  the host ptrace policy, but the source/log/thread boundary identified the
+  synchronous wait; it did not by itself distinguish a missing hardware
+  completion from an input frame that was never submitted.
 
 The blocking chain was:
 
@@ -211,15 +212,31 @@ The blocking chain was:
    zero-copy smoke encode on the RDP graphics thread;
 4. GRD set `AV_CODEC_FLAG_LOW_DELAY`, and the Rockchip FFmpeg encoder therefore
    selected `MPP_TIMEOUT_BLOCK` for `encode_get_packet()`; and
-5. one lost/missing completion left the graphics thread inside that call
-   indefinitely. The diagnostics timer could not report the stall because it
-   was attached to the same blocked main context.
+5. the first-frame path issued `MPP_ENC_SET_IDR_FRAME`; libmpp's asynchronous
+   control worker posted the command-complete semaphore before releasing
+   `mFrmIn->cond_lock` and completing its post-control work;
+6. FFmpeg immediately submitted the frame, but libmpp's input trylock failed
+   and returned `MPP_NOK`, which FFmpeg surfaced as `EAGAIN`;
+7. the low-delay encode wrapper still entered blocking `encode_get_packet()`
+   even though no input was queued, so no packet or RKVENC interrupt could
+   arrive; and
+8. the diagnostics timer could not report the stall because it was attached
+   to the same blocked main context.
+
+The exact control/input ordering was reproduced twice by the standalone
+[`../bench/rkmpp_lifecycle_bench.c`](../bench/rkmpp_lifecycle_bench.c) churn
+test after 360 and 364 successful lifecycles. MPP debug logs showed the control
+acknowledgement, failed input handoff, and worker returning to its input wait;
+the interrupt counter did not move because there was no hardware task. That
+causally explains the reproducer's stall. It is strongly consistent with the
+older Firefox incident at the same first-frame/IDR boundary, but the old
+incident lacked the MPP debug trace needed to prove that exact attribution.
 
 `~exp3` fixes each boundary rather than merely adding another warning:
 
 | Layer | Change | Failure behavior |
 |---|---|---|
-| FFmpeg `540657970e` | Internally replaces `MPP_TIMEOUT_BLOCK` with a 500 ms deadline for synchronous low-delay and drain waits; its asynchronous path stays nonblocking. It adds no AVOption or public API. | MPP timeout becomes libavcodec `EAGAIN`; no caller of the hardened encoder can remain blocked forever. |
+| FFmpeg `540657970e` | Internally replaces `MPP_TIMEOUT_BLOCK` with a 500 ms deadline for synchronous low-delay and drain waits; its asynchronous path stays nonblocking. It adds no AVOption or public API. | Containment: the empty packet wait becomes libavcodec `EAGAIN`; no caller of the hardened encoder can remain blocked forever. The separate correctness fix is to skip blocking receive when input submission returned `EAGAIN`. |
 | GRD session open | Continues using the standard `AV_CODEC_FLAG_LOW_DELAY`; the Debian package requires the hardened FFmpeg version. | GRD remains source-compatible with normal libavcodec and has no Rockchip-specific timeout API. |
 | Smoke/refresh | Keeps the successfully smoke-tested encoder, requests an IDR for the first real frame, and separates content refresh from context reset. A stale drop requests an IDR plus full-frame content refresh only. | Firefox damage no longer causes rapid MPP close/open/smoke cycles. |
 | Encode error | Treats an AVC packet timeout as a hardware failure, not a fatal graphics-subsystem failure. | The failed frame/resource is released, the context is reset, software encoding runs for ten seconds, then hardware is retried. |
