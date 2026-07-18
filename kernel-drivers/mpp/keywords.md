@@ -9,7 +9,7 @@ MPP service + codec-core terms. Cross-cutting vocabulary is in
   core attaches to (`rockchip,srv`).
 - **VEPU580 / `rkvenc2`** — the H.264/H.265 hardware encoder and its driver; two
   cores `fdbd0000`/`fdbe0000`.
-- **VDPU381 / `rkvdec2`** — the H.264/H.265/VP9 hardware decoder and its driver;
+- **VDPU381 / `rkvdec2`** — the H.264/H.265/VP9/AVS2 hardware decoder and its driver;
   two cores plus a real CCU block.
 - **DCHS** — dual-core hand-shake: hardware TX/RX channels in the VEPU580 core
   registers. Software assigns and links the channel IDs; the encoder has no

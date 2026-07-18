@@ -20,8 +20,12 @@ RUN_FFMPEG_SUITE=${RUN_FFMPEG_SUITE:-1}
 RUN_RKMPPENC_SUITE=${RUN_RKMPPENC_SUITE:-0}
 RUN_COMPARE=${RUN_COMPARE:-0}
 RUN_COUNTER_CHECKS=${RUN_COUNTER_CHECKS:-0}
+RUN_KUNIT_CHECK=${RUN_KUNIT_CHECK:-}
 VALIDATE_ONLY=${VALIDATE_ONLY:-0}
 REWRITE_COUNTER_DEFAULTS=${REWRITE_COUNTER_DEFAULTS:-1}
+SUITE_REQUIRE_DMESG_WAS_SET=${SUITE_REQUIRE_DMESG+x}
+SUITE_DMESG_SCAN=${SUITE_DMESG_SCAN:-1}
+SUITE_REQUIRE_DMESG=${SUITE_REQUIRE_DMESG:-0}
 LIBRGA_FORCE_RGA_USERPTR_IOMMU=${LIBRGA_FORCE_RGA_USERPTR_IOMMU:-${LIBRGA_FORCE_ROUTE_B:-0}}
 RUN_ID=${RUN_ID:-$(date +%Y%m%d-%H%M%S)}
 LOG_ROOT=${LOG_ROOT:-"$CONFORMANCE_ROOT/logs/$PROFILE"}
@@ -47,42 +51,48 @@ FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS=${FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS:-}
 RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS=${RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS:-}
 REQUIRE_COUNTER_FILE_WAS_SET=${REQUIRE_COUNTER_FILE+x}
 REQUIRE_COUNTER_FILE=${REQUIRE_COUNTER_FILE:-0}
+REQUIRE_FORBIDDEN_COUNTERS_WAS_SET=${REQUIRE_FORBIDDEN_COUNTERS+x}
+REQUIRE_FORBIDDEN_COUNTERS=${REQUIRE_FORBIDDEN_COUNTERS:-0}
+
+if [ -z "$RUN_KUNIT_CHECK" ]; then
+	case "$PROFILE" in
+	*rewrite*) RUN_KUNIT_CHECK=1 ;;
+	*) RUN_KUNIT_CHECK=0 ;;
+	esac
+fi
 
 case "$PROFILE" in
 *rewrite*)
+	if [ -z "$SUITE_REQUIRE_DMESG_WAS_SET" ]; then
+		SUITE_REQUIRE_DMESG=1
+	fi
 	if [ "$RUN_COUNTER_CHECKS" = "1" ] &&
 		[ "$REWRITE_COUNTER_DEFAULTS" = "1" ]; then
 		if [ -z "$REQUIRE_COUNTER_FILE_WAS_SET" ]; then
 			REQUIRE_COUNTER_FILE=1
 		fi
+		if [ -z "$REQUIRE_FORBIDDEN_COUNTERS_WAS_SET" ]; then
+			REQUIRE_FORBIDDEN_COUNTERS=1
+		fi
 		if [ -z "$LIBRGA_REQUIRED_POSITIVE_COUNTERS" ]; then
-			LIBRGA_REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns"
+			LIBRGA_REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns rga:release_fence_count"
 			if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ]; then
-				LIBRGA_REQUIRED_POSITIVE_COUNTERS="$LIBRGA_REQUIRED_POSITIVE_COUNTERS rga_userptr_iommu:attempt rga_userptr_iommu:ok"
+				LIBRGA_REQUIRED_POSITIVE_COUNTERS="$LIBRGA_REQUIRED_POSITIVE_COUNTERS *:attempt *:ok"
 			fi
 		fi
 		if [ -z "$MPP_REQUIRED_ZERO_AFTER_COUNTERS" ]; then
-			MPP_REQUIRED_ZERO_AFTER_COUNTERS="mpp:import_count"
+			MPP_REQUIRED_ZERO_AFTER_COUNTERS="mpp:import_count mpp:queued_job_count"
 		fi
 		if [ -z "$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS" ]; then
-			LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS="rga:import_count"
-		fi
-		if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ]; then
-			case " $LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS " in
-			*" rga_userptr_iommu:active "*)
-				;;
-			*)
-				LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS="$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS rga_userptr_iommu:active"
-				;;
-			esac
+			LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS="rga:import_count rga:shadow_head_active_count rga:shadow_tail_active_count *:active"
 		fi
 		: "${GSTREAMER_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
-		: "${GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS:=mpp:import_count rga:import_count}"
+		: "${GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS:=mpp:import_count mpp:queued_job_count rga:import_count rga:shadow_head_active_count rga:shadow_tail_active_count}"
 		: "${FFMPEG_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
-		: "${FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS:=mpp:import_count rga:import_count}"
+		: "${FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS:=mpp:import_count mpp:queued_job_count rga:import_count rga:shadow_head_active_count rga:shadow_tail_active_count}"
 		if [ "$RUN_RKMPPENC_SUITE" = "1" ]; then
 			: "${RKMPPENC_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns}"
-			: "${RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS:=mpp:import_count rga:import_count}"
+			: "${RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS:=mpp:import_count mpp:queued_job_count rga:import_count rga:shadow_head_active_count rga:shadow_tail_active_count}"
 		fi
 		if [ -n "${MPP_REQUIRED_CASES:-}" ]; then
 			: "${MPP_REQUIRED_POSITIVE_COUNTERS:=mpp:started_job_count mpp:hw_total_ns}"
@@ -90,6 +100,8 @@ case "$PROFILE" in
 	fi
 	;;
 esac
+
+export SUITE_DMESG_SCAN SUITE_REQUIRE_DMESG
 
 run_step()
 {
@@ -171,6 +183,7 @@ run_counter_check()
 		REQUIRED_POSITIVE_COUNTER_PREFIXES="$required_prefix" \
 		REQUIRED_ZERO_AFTER_COUNTERS="$required_zero_after" \
 		FORBID_POSITIVE_COUNTERS="${FORBID_POSITIVE_COUNTERS:-}" \
+		REQUIRE_FORBIDDEN_COUNTERS="$REQUIRE_FORBIDDEN_COUNTERS" \
 		REQUIRE_COUNTER_FILE="$REQUIRE_COUNTER_FILE" \
 		bash "$TEST_DIR/debugfs-counter-check.sh"
 }
@@ -205,6 +218,10 @@ validate_counter_defaults()
 			"$RUN_COUNTER_CHECKS"
 		return 0
 	fi
+	if [ "$REQUIRE_FORBIDDEN_COUNTERS" != "1" ]; then
+		printf "rewrite counter defaults did not require safety-counter presence\n" >&2
+		return 1
+	fi
 
 	if [ "$REWRITE_COUNTER_DEFAULTS" != "1" ]; then
 		printf "counter defaults skipped because REWRITE_COUNTER_DEFAULTS=%s\n" \
@@ -226,14 +243,25 @@ validate_counter_defaults()
 		printf "rewrite counter defaults did not require the MPP import gauge to return to zero\n" >&2
 		return 1
 	fi
+	if ! counter_list_has "$MPP_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"mpp:queued_job_count"; then
+		printf "rewrite counter defaults did not require the MPP queue gauge to return to zero\n" >&2
+		return 1
+	fi
 	if ! counter_list_has "$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS" \
 		"rga:import_count"; then
 		printf "rewrite counter defaults did not require the RGA import gauge to return to zero\n" >&2
 		return 1
 	fi
+	for counter in rga:shadow_head_active_count rga:shadow_tail_active_count '*:active'; do
+		if ! counter_list_has "$LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS" "$counter"; then
+			printf "rewrite counter defaults did not require librga idle gauge %s to return to zero\n" "$counter" >&2
+			return 1
+		fi
+	done
 	if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ]; then
 		case " $LIBRGA_REQUIRED_POSITIVE_COUNTERS " in
-		*" rga_userptr_iommu:attempt "*)
+		*" *:attempt "*)
 			;;
 		*)
 			printf "forced RGA userptr-IOMMU mode did not require attempts\n" >&2
@@ -241,18 +269,10 @@ validate_counter_defaults()
 			;;
 		esac
 		case " $LIBRGA_REQUIRED_POSITIVE_COUNTERS " in
-		*" rga_userptr_iommu:ok "*)
+		*" *:ok "*)
 			;;
 		*)
 			printf "forced RGA userptr-IOMMU mode did not require successes\n" >&2
-			return 1
-			;;
-		esac
-		case " $LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS " in
-		*" rga_userptr_iommu:active "*)
-			;;
-		*)
-			printf "forced RGA userptr-IOMMU mode did not require active gauge to return to zero\n" >&2
 			return 1
 			;;
 		esac
@@ -264,8 +284,14 @@ validate_counter_defaults()
 	if ! counter_list_has "$GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS" \
 		"mpp:import_count" ||
 		! counter_list_has "$GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS" \
-		"rga:import_count"; then
-		printf "rewrite counter defaults did not require GStreamer import gauges to return to zero\n" >&2
+		"mpp:queued_job_count" ||
+		! counter_list_has "$GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"rga:import_count" ||
+		! counter_list_has "$GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"rga:shadow_head_active_count" ||
+		! counter_list_has "$GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"rga:shadow_tail_active_count"; then
+		printf "rewrite counter defaults did not require GStreamer idle gauges to return to zero\n" >&2
 		return 1
 	fi
 	if [ -z "$FFMPEG_REQUIRED_POSITIVE_COUNTERS" ]; then
@@ -275,8 +301,14 @@ validate_counter_defaults()
 	if ! counter_list_has "$FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS" \
 		"mpp:import_count" ||
 		! counter_list_has "$FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS" \
-		"rga:import_count"; then
-		printf "rewrite counter defaults did not require FFmpeg import gauges to return to zero\n" >&2
+		"mpp:queued_job_count" ||
+		! counter_list_has "$FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"rga:import_count" ||
+		! counter_list_has "$FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"rga:shadow_head_active_count" ||
+		! counter_list_has "$FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS" \
+		"rga:shadow_tail_active_count"; then
+		printf "rewrite counter defaults did not require FFmpeg idle gauges to return to zero\n" >&2
 		return 1
 	fi
 	if [ "$RUN_RKMPPENC_SUITE" = "1" ] &&
@@ -288,8 +320,14 @@ validate_counter_defaults()
 		{ ! counter_list_has "$RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS" \
 			"mpp:import_count" ||
 		  ! counter_list_has "$RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS" \
-			"rga:import_count"; }; then
-		printf "rewrite counter defaults did not require rkmppenc import gauges to return to zero\n" >&2
+			"mpp:queued_job_count" ||
+		  ! counter_list_has "$RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS" \
+			"rga:import_count" ||
+		  ! counter_list_has "$RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS" \
+			"rga:shadow_head_active_count" ||
+		  ! counter_list_has "$RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS" \
+			"rga:shadow_tail_active_count"; }; then
+		printf "rewrite counter defaults did not require rkmppenc idle gauges to return to zero\n" >&2
 		return 1
 	fi
 	if [ -n "${MPP_REQUIRED_CASES:-}" ] &&
@@ -303,6 +341,12 @@ validate_counter_defaults()
 
 run_profile_suites()
 {
+	if [ "$RUN_KUNIT_CHECK" = "1" ]; then
+		run_step "kunit: require booted rewrite suites green" \
+			env KUNIT_REPORT="$LOG_ROOT/$RUN_ID-kunit.tsv" \
+			bash "$TEST_DIR/rewrite-kunit-log-check.sh"
+	fi
+
 	if [ "$RUN_SYSTEM_INFO" = "1" ]; then
 		run_step "system: collect profile state" run_system_info
 	fi
@@ -423,6 +467,12 @@ run_validation()
 		env MPP_DEBUG_VALIDATE_ONLY=1 \
 		bash "$TEST_DIR/mpp-debug-capture.sh"
 
+	run_step "kernel log: fatal-signature gate selftest" \
+		bash "$TEST_DIR/suite-common-selftest.sh"
+
+	run_step "kunit: boot-result parser selftest" \
+		bash "$TEST_DIR/rewrite-kunit-log-check.sh" --selftest
+
 	run_step "fuzzing: validate syzlang ABI constants" \
 		bash "$TEST_DIR/syzkaller/check-rockchip-syzlang.sh"
 
@@ -453,6 +503,12 @@ run_validation()
 		run_step "mpp: validate case builders" \
 			env MPP_VALIDATE_CASES=1 PROFILE="$PROFILE" \
 			CONFORMANCE_ROOT="$CONFORMANCE_ROOT" \
+			MPP_H264_INPUT=/dev/null MPP_H265_INPUT=/dev/null \
+			MPP_VP9_INPUT=/dev/null MPP_AVS2_INPUT=/dev/null \
+			MPP_DEC_INPUT=/dev/null MPP_DEC_TYPE=7 \
+			MPP_ENC_INPUT=/dev/null MPP_ENC_WIDTH=16 MPP_ENC_HEIGHT=16 \
+			MPP_ENC_TYPE=7 \
+			MPP_REQUIRED_CASES="mpp_info_test mpi_dec_h264 mpi_dec_h265 mpi_dec_vp9 mpi_dec_avs2 mpi_dec_custom mpi_dec_mt_h264 mpi_dec_mt_h265 mpi_dec_mt_vp9 mpi_dec_mt_avs2 mpi_dec_mt_custom mpi_dec_multi_h264 mpi_dec_multi_h265 mpi_dec_multi_vp9 mpi_dec_multi_avs2 mpi_dec_multi_custom mpi_enc_h264 mpi_enc_h265 mpi_enc_h264_slice mpi_enc_h265_slice mpi_enc_custom mpi_enc_mt_h264 mpi_enc_mt_h265 mpi_enc_mt_custom mpi_rc2_h264 mpi_rc2_h265 mpi_rc2_custom vpu_api_dec_h264 vpu_api_dec_h265 vpu_api_dec_avs2 vpu_api_dec_custom" \
 			bash "$TEST_DIR/mpp-suite.sh"
 	fi
 

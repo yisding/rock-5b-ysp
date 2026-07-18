@@ -20,6 +20,9 @@ MPP_INSTANCES=${MPP_INSTANCES:-4}
 MPP_DUMP_OUTPUTS=${MPP_DUMP_OUTPUTS:-0}
 MPP_CAPTURE_ARTIFACTS=${MPP_CAPTURE_ARTIFACTS:-1}
 MPP_ENC_FORMAT=${MPP_ENC_FORMAT:-${MPP_NV12_FORMAT:-0}}
+MPP_ENC_SPLIT_MODE=${MPP_ENC_SPLIT_MODE:-2}
+MPP_ENC_SPLIT_ARG=${MPP_ENC_SPLIT_ARG:-4}
+MPP_ENC_SPLIT_OUT=${MPP_ENC_SPLIT_OUT:-1}
 MPP_GENERATE_VP9_INPUT=${MPP_GENERATE_VP9_INPUT:-1}
 MPP_CLEAR_DEBUG_EVENTS=${MPP_CLEAR_DEBUG_EVENTS:-1}
 MPP_VP9_GENERATED_WIDTH=${MPP_VP9_GENERATED_WIDTH:-320}
@@ -30,6 +33,7 @@ MPP_VALIDATE_CASES=${MPP_VALIDATE_CASES:-0}
 MPP_CODING_AVC=7
 MPP_CODING_VP9=10
 MPP_CODING_HEVC=16777220
+MPP_CODING_AVS2=16777223
 
 required_cases_default="mpp_info_test"
 if [ -z "${MPP_REQUIRED_CASES+x}" ]; then
@@ -53,6 +57,7 @@ CURRENT_CLASS=
 CURRENT_CASE=
 CASE_ARTIFACT_KINDS=()
 CASE_ARTIFACT_PATHS=()
+CASE_ENV=()
 
 get_var()
 {
@@ -356,6 +361,20 @@ build_enc_custom_case()
 	append_if_var_set -fps MPP_ENC_FPS
 }
 
+build_enc_slice_case()
+{
+	local case_name=$1
+	local type=$2
+	local suffix=$3
+
+	build_enc_case mpi_enc_test "$case_name" "$type" "$suffix" || return $?
+	CASE_ENV=(
+		"split_mode=$MPP_ENC_SPLIT_MODE"
+		"split_arg=$MPP_ENC_SPLIT_ARG"
+		"split_out=$MPP_ENC_SPLIT_OUT"
+	)
+}
+
 build_rc2_case()
 {
 	local case_name=$1
@@ -449,6 +468,7 @@ build_case_command()
 
 	BUILD_ERROR=
 	CMD=()
+	CASE_ENV=()
 
 	case "$case_name" in
 	mpp_info_test)
@@ -463,6 +483,9 @@ build_case_command()
 	mpi_dec_vp9)
 		build_dec_case mpi_dec_test "$case_name" MPP_VP9_INPUT "$MPP_CODING_VP9" MPP_VP9_WIDTH MPP_VP9_HEIGHT
 		;;
+	mpi_dec_avs2)
+		build_dec_case mpi_dec_test "$case_name" MPP_AVS2_INPUT "$MPP_CODING_AVS2" MPP_AVS2_WIDTH MPP_AVS2_HEIGHT
+		;;
 	mpi_dec_custom)
 		build_dec_custom_case mpi_dec_test "$case_name"
 		;;
@@ -474,6 +497,9 @@ build_case_command()
 		;;
 	mpi_dec_mt_vp9)
 		build_dec_case mpi_dec_mt_test "$case_name" MPP_VP9_INPUT "$MPP_CODING_VP9" MPP_VP9_WIDTH MPP_VP9_HEIGHT
+		;;
+	mpi_dec_mt_avs2)
+		build_dec_case mpi_dec_mt_test "$case_name" MPP_AVS2_INPUT "$MPP_CODING_AVS2" MPP_AVS2_WIDTH MPP_AVS2_HEIGHT
 		;;
 	mpi_dec_mt_custom)
 		build_dec_custom_case mpi_dec_mt_test "$case_name"
@@ -487,6 +513,9 @@ build_case_command()
 	mpi_dec_multi_vp9)
 		build_dec_case mpi_dec_multi_test "$case_name" MPP_VP9_INPUT "$MPP_CODING_VP9" MPP_VP9_WIDTH MPP_VP9_HEIGHT
 		;;
+	mpi_dec_multi_avs2)
+		build_dec_case mpi_dec_multi_test "$case_name" MPP_AVS2_INPUT "$MPP_CODING_AVS2" MPP_AVS2_WIDTH MPP_AVS2_HEIGHT
+		;;
 	mpi_dec_multi_custom)
 		build_dec_custom_case mpi_dec_multi_test "$case_name"
 		;;
@@ -495,6 +524,12 @@ build_case_command()
 		;;
 	mpi_enc_h265)
 		build_enc_case mpi_enc_test "$case_name" "$MPP_CODING_HEVC" h265
+		;;
+	mpi_enc_h264_slice)
+		build_enc_slice_case "$case_name" "$MPP_CODING_AVC" h264
+		;;
+	mpi_enc_h265_slice)
+		build_enc_slice_case "$case_name" "$MPP_CODING_HEVC" h265
 		;;
 	mpi_enc_custom)
 		build_enc_custom_case mpi_enc_test "$case_name"
@@ -522,6 +557,9 @@ build_case_command()
 		;;
 	vpu_api_dec_h265)
 		build_vpu_api_dec_case "$case_name" MPP_H265_INPUT "$MPP_CODING_HEVC"
+		;;
+	vpu_api_dec_avs2)
+		build_vpu_api_dec_case "$case_name" MPP_AVS2_INPUT "$MPP_CODING_AVS2"
 		;;
 	vpu_api_dec_custom)
 		build_vpu_api_dec_custom_case
@@ -630,7 +668,8 @@ write_command_file()
 	local arg
 
 	: > "$target"
-	for arg in "${CMD[@]}"; do
+	printf "env " >> "$target"
+	for arg in "${CASE_ENV[@]}" "${CMD[@]}"; do
 		printf "%q " "$arg" >> "$target"
 	done
 	printf "\n" >> "$target"
@@ -654,6 +693,7 @@ run_case()
 	CURRENT_CASE=$case_name
 	CASE_ARTIFACT_KINDS=()
 	CASE_ARTIFACT_PATHS=()
+	CASE_ENV=()
 
 	if [ -z "$case_name" ]; then
 		return
@@ -694,9 +734,10 @@ run_case()
 	start=$(suite_now_ns)
 	set +e
 	if [ "$MPP_TIMEOUT" = "0" ]; then
-		"${CMD[@]}" > "$log" 2>&1
+		env "${CASE_ENV[@]}" "${CMD[@]}" > "$log" 2>&1
 	else
-		timeout "$MPP_TIMEOUT" "${CMD[@]}" > "$log" 2>&1
+		timeout "$MPP_TIMEOUT" env "${CASE_ENV[@]}" \
+			"${CMD[@]}" > "$log" 2>&1
 	fi
 	status=$?
 	set -e
@@ -737,6 +778,7 @@ validate_case_build()
 	CURRENT_CASE=$case_name
 	CASE_ARTIFACT_KINDS=()
 	CASE_ARTIFACT_PATHS=()
+	CASE_ENV=()
 
 	set +e
 	build_case_command "$case_name"
@@ -800,6 +842,11 @@ mkdir -p "$OUT"
 printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
 printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
 
+if ! suite_dmesg_start "$OUT"; then
+	echo "FAIL: dmesg is required but unreadable" >&2
+	exit 1
+fi
+
 export LD_LIBRARY_PATH="$MPP_LIBDIR:${LD_LIBRARY_PATH:-}"
 
 snapshot_mpp_state before
@@ -821,7 +868,11 @@ debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
 debugfs_counter_delta "$OUT/debugfs-counters-before.tsv" \
 	"$OUT/debugfs-counters-after.tsv" \
 	"$OUT/debugfs-counters-delta.tsv"
-dmesg | tail -n 500 > "$OUT/dmesg-tail.txt" 2>/dev/null || true
+if ! suite_dmesg_finish "$OUT"; then
+	echo "FAIL: new fatal kernel-log signature or unavailable required dmesg; see $OUT/dmesg-scan.tsv" >&2
+	failed=1
+fi
+tail -n 500 "$OUT/dmesg-after.txt" > "$OUT/dmesg-tail.txt" 2>/dev/null || true
 
 echo "$OUT"
 

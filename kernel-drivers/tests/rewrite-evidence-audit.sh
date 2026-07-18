@@ -12,11 +12,29 @@ CANDIDATE=${CANDIDATE:-rewrite}
 SUITES=${SUITES:-"mpp librga gstreamer ffmpeg"}
 REQUIRE_ARTIFACTS=${REQUIRE_ARTIFACTS:-1}
 REQUIRE_COUNTER_DELTAS=${REQUIRE_COUNTER_DELTAS:-1}
+REQUIRE_DMESG_EVIDENCE=${REQUIRE_DMESG_EVIDENCE:-1}
+REQUIRE_KUNIT_EVIDENCE=${REQUIRE_KUNIT_EVIDENCE:-}
+KUNIT_EVIDENCE_SUITES=${KUNIT_EVIDENCE_SUITES:-"rk_mpp_rewrite:86 rockchip-rga-rewrite:120"}
 REQUIRE_DIAGNOSTIC_PASS=${REQUIRE_DIAGNOSTIC_PASS:-0}
 AUDIT_REQUIRED_CASES=${AUDIT_REQUIRED_CASES:-}
+REQUIRE_MPP_CORE_CASES=${REQUIRE_MPP_CORE_CASES:-}
+MPP_CORE_CASE_NAMES=${MPP_CORE_CASE_NAMES:-"mpp_info_test mpi_dec_h264 mpi_dec_h265 mpi_dec_vp9 mpi_dec_avs2 mpi_dec_mt_h264 mpi_dec_multi_h265 mpi_enc_h264 mpi_enc_h265 mpi_enc_h264_slice mpi_enc_h265_slice mpi_enc_mt_h265 mpi_rc2_h264"}
 PERF_MAX_RATIO=${PERF_MAX_RATIO:-1.25}
 AUDIT_COUNTER_CHECKS=${AUDIT_COUNTER_CHECKS:-}
 RUN_COMPARATORS=${RUN_COMPARATORS:-1}
+
+if [ -z "$REQUIRE_KUNIT_EVIDENCE" ]; then
+	case "$CANDIDATE" in
+	*rewrite*) REQUIRE_KUNIT_EVIDENCE=1 ;;
+	*) REQUIRE_KUNIT_EVIDENCE=0 ;;
+	esac
+fi
+if [ -z "$REQUIRE_MPP_CORE_CASES" ]; then
+	case "$CANDIDATE" in
+	*rewrite*) REQUIRE_MPP_CORE_CASES=1 ;;
+	*) REQUIRE_MPP_CORE_CASES=0 ;;
+	esac
+fi
 
 if [ -z "$AUDIT_COUNTER_CHECKS" ]; then
 	case "$CANDIDATE" in
@@ -42,12 +60,23 @@ Environment:
   REQUIRE_ARTIFACTS=0    allow pass/fail-only suite logs
   REQUIRE_COUNTER_DELTAS=0
                           allow missing debugfs-counters-delta.tsv files
+  REQUIRE_DMESG_EVIDENCE=0
+                          allow missing or non-clean dmesg-scan.tsv records
+  REQUIRE_KUNIT_EVIDENCE=0
+                          allow a rewrite candidate without a persisted green
+                          booted-KUnit report from rewrite-conformance-run.sh
   REQUIRE_DIAGNOSTIC_PASS=1
                           require diagnostic cases recorded in the selected
                           summaries to pass too
   AUDIT_REQUIRED_CASES    whitespace-separated suite:case list that must be
                           present and passing in both profiles; use *:case to
                           match any selected suite
+  REQUIRE_MPP_CORE_CASES=0
+                          do not add the representative official-MPP codec,
+                          multi-thread, multi-instance, encode, and RC cases to
+                          audits that select the MPP suite (enabled by default
+                          when CANDIDATE contains "rewrite")
+  MPP_CORE_CASE_NAMES     override the default official-MPP core case list
   PERF_MAX_RATIO=1.25    fail comparator-clean audit if a required candidate
                           pass is slower than baseline by this ratio; set 0 to
                           disable the elapsed-time gate
@@ -208,6 +237,22 @@ suite_selected()
 	return 1
 }
 
+add_default_core_cases()
+{
+	local case_name
+
+	if [ "$REQUIRE_MPP_CORE_CASES" != "1" ]; then
+		return 0
+	fi
+	if ! suite_selected mpp; then
+		return 0
+	fi
+
+	for case_name in $MPP_CORE_CASE_NAMES; do
+		AUDIT_REQUIRED_CASES="$AUDIT_REQUIRED_CASES mpp:$case_name"
+	done
+}
+
 validate_named_case_specs()
 {
 	local spec
@@ -264,6 +309,39 @@ check_artifacts()
 	fi
 }
 
+check_core_mpp_artifacts()
+{
+	local summary=$1
+	local suite=$2
+	local profile=$3
+	local artifacts
+	local case_name
+
+	if [ "$suite" != "mpp" ] || [ "$REQUIRE_MPP_CORE_CASES" != "1" ] ||
+		[ "$REQUIRE_ARTIFACTS" != "1" ]; then
+		return 0
+	fi
+
+	artifacts="$(dirname "$summary")/artifacts.tsv"
+	for case_name in $MPP_CORE_CASE_NAMES; do
+		if [ "$case_name" = "mpp_info_test" ]; then
+			continue
+		fi
+		if ! awk -F '\t' -v required_case="$case_name" '
+			NR == 1 { next }
+			$3 == required_case && $5 ~ /^[0-9]+$/ && $5 + 0 > 0 &&
+			$6 != "" && $6 != "missing" {
+				found = 1;
+			}
+			END { exit found ? 0 : 1 }
+		' "$artifacts"; then
+			printf "missing core MPP artifact: profile=%s case=%s path=%s (decode runs need MPP_DUMP_OUTPUTS=1)\n" \
+				"$profile" "$case_name" "$artifacts" >&2
+			return 1
+		fi
+	done
+}
+
 check_counter_deltas()
 {
 	local summary=$1
@@ -291,6 +369,104 @@ check_counter_deltas()
 	fi
 }
 
+check_dmesg_evidence()
+{
+	local summary=$1
+	local suite=$2
+	local profile=$3
+	local report
+
+	report="$(dirname "$summary")/dmesg-scan.tsv"
+	if [ "$REQUIRE_DMESG_EVIDENCE" != "1" ]; then
+		printf "dmesg audit skipped: profile=%s suite=%s report=%s\n" \
+			"$profile" "$suite" "$report"
+		return 0
+	fi
+
+	if [ ! -s "$report" ]; then
+		printf "missing dmesg scan evidence: profile=%s suite=%s path=%s\n" \
+			"$profile" "$suite" "$report" >&2
+		return 1
+	fi
+
+	if ! awk -F '\t' '
+		$1 == "status" {
+			found = 1;
+			status = $2;
+		}
+		END {
+			exit found && status == "clean" ? 0 : 1;
+		}
+	' "$report"; then
+		printf "dmesg scan is not clean: profile=%s suite=%s path=%s\n" \
+			"$profile" "$suite" "$report" >&2
+		return 1
+	fi
+}
+
+check_kunit_evidence()
+{
+	local candidate_summary=$1
+	local audit_suite=$2
+	local candidate_dir
+	local candidate_run
+	local run_id
+	local report
+	local spec
+	local kunit_suite
+	local expected
+	local failed=0
+
+	if [ "$REQUIRE_KUNIT_EVIDENCE" != "1" ]; then
+		return 0
+	fi
+
+	candidate_dir=$(dirname "$candidate_summary")
+	candidate_run=$(basename "$candidate_dir")
+	case "$candidate_run" in
+	*"-$audit_suite-suite")
+		run_id=${candidate_run%-"$audit_suite"-suite}
+		;;
+	*)
+		printf "cannot correlate candidate suite with KUnit run: suite=%s summary=%s\n" \
+			"$audit_suite" "$candidate_summary" >&2
+		return 1
+		;;
+	esac
+	report="$(dirname "$candidate_dir")/$run_id-kunit.tsv"
+	if [ ! -s "$report" ]; then
+		printf "missing run-correlated booted KUnit evidence: candidate=%s suite=%s run=%s report=%s\n" \
+			"$CANDIDATE" "$audit_suite" "$run_id" "$report" >&2
+		return 1
+	fi
+
+	for spec in $KUNIT_EVIDENCE_SUITES; do
+		kunit_suite=${spec%%:*}
+		expected=${spec#*:}
+		if ! awk -F '\t' -v suite="$kunit_suite" -v expected="$expected" '
+			NR == 1 { next }
+			$1 == suite {
+				seen++;
+				if ($2 != expected || $3 != expected || $4 != expected ||
+				    $5 != 0 || $6 != 0 || $7 != "ok" || $8 != "pass" ||
+				    $9 == "")
+					bad = 1;
+			}
+			END { exit seen == 1 && !bad ? 0 : 1 }
+		' "$report"; then
+			printf "KUnit evidence is missing or not green: suite=%s expected=%s report=%s\n" \
+				"$kunit_suite" "$expected" "$report" >&2
+			failed=1
+		fi
+	done
+
+	if [ "$failed" -ne 0 ]; then
+		return 1
+	fi
+	printf "KUnit evidence ok: candidate=%s suite=%s run=%s report=%s\n" \
+		"$CANDIDATE" "$audit_suite" "$run_id" "$report"
+}
+
 set_counter_specs_for_suite()
 {
 	local suite=$1
@@ -303,32 +479,25 @@ set_counter_specs_for_suite()
 	mpp)
 		counter_check_positive=${MPP_REQUIRED_POSITIVE_COUNTERS:-}
 		counter_check_prefix=${MPP_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
-		counter_check_zero_after=${MPP_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count"}
+		counter_check_zero_after=${MPP_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count mpp:queued_job_count"}
 		;;
 	librga)
-		counter_check_positive=${LIBRGA_REQUIRED_POSITIVE_COUNTERS:-"rga:started_job_count rga:hw_total_ns"}
+		counter_check_positive=${LIBRGA_REQUIRED_POSITIVE_COUNTERS:-"rga:started_job_count rga:hw_total_ns rga:release_fence_count"}
 		counter_check_prefix=${LIBRGA_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
-		counter_check_zero_after=${LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS:-"rga:import_count"}
+		counter_check_zero_after=${LIBRGA_REQUIRED_ZERO_AFTER_COUNTERS:-"rga:import_count rga:shadow_head_active_count rga:shadow_tail_active_count *:active"}
 		if [ "$LIBRGA_FORCE_RGA_USERPTR_IOMMU" = "1" ]; then
 			case " $counter_check_positive " in
-			*" rga_userptr_iommu:attempt "*)
+			*" *:attempt "*)
 				;;
 			*)
-				counter_check_positive="$counter_check_positive rga_userptr_iommu:attempt"
+				counter_check_positive="$counter_check_positive *:attempt"
 				;;
 			esac
 			case " $counter_check_positive " in
-			*" rga_userptr_iommu:ok "*)
+			*" *:ok "*)
 				;;
 			*)
-				counter_check_positive="$counter_check_positive rga_userptr_iommu:ok"
-				;;
-			esac
-			case " $counter_check_zero_after " in
-			*" rga_userptr_iommu:active "*)
-				;;
-			*)
-				counter_check_zero_after="$counter_check_zero_after rga_userptr_iommu:active"
+				counter_check_positive="$counter_check_positive *:ok"
 				;;
 			esac
 		fi
@@ -336,17 +505,17 @@ set_counter_specs_for_suite()
 	gstreamer)
 		counter_check_positive=${GSTREAMER_REQUIRED_POSITIVE_COUNTERS:-"mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns"}
 		counter_check_prefix=${GSTREAMER_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
-		counter_check_zero_after=${GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count rga:import_count"}
+		counter_check_zero_after=${GSTREAMER_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count mpp:queued_job_count rga:import_count rga:shadow_head_active_count rga:shadow_tail_active_count"}
 		;;
 	ffmpeg)
 		counter_check_positive=${FFMPEG_REQUIRED_POSITIVE_COUNTERS:-"mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns"}
 		counter_check_prefix=${FFMPEG_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
-		counter_check_zero_after=${FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count rga:import_count"}
+		counter_check_zero_after=${FFMPEG_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count mpp:queued_job_count rga:import_count rga:shadow_head_active_count rga:shadow_tail_active_count"}
 		;;
 	rkmppenc)
 		counter_check_positive=${RKMPPENC_REQUIRED_POSITIVE_COUNTERS:-"mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns"}
 		counter_check_prefix=${RKMPPENC_REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
-		counter_check_zero_after=${RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count rga:import_count"}
+		counter_check_zero_after=${RKMPPENC_REQUIRED_ZERO_AFTER_COUNTERS:-"mpp:import_count mpp:queued_job_count rga:import_count rga:shadow_head_active_count rga:shadow_tail_active_count"}
 		;;
 	esac
 }
@@ -367,6 +536,7 @@ run_candidate_counter_check()
 		REQUIRED_POSITIVE_COUNTERS="$counter_check_positive" \
 		REQUIRED_POSITIVE_COUNTER_PREFIXES="$counter_check_prefix" \
 		REQUIRED_ZERO_AFTER_COUNTERS="$counter_check_zero_after" \
+		REQUIRE_FORBIDDEN_COUNTERS=1 \
 		REQUIRE_COUNTER_FILE=1 \
 		bash "$TEST_DIR/debugfs-counter-check.sh" >/dev/null; then
 		printf "candidate counter check failed: suite=%s summary=%s\n" \
@@ -426,9 +596,19 @@ audit_one_suite()
 		suite_failed=1
 	check_artifacts "$candidate_summary" "$suite" "$CANDIDATE" ||
 		suite_failed=1
+	check_core_mpp_artifacts "$baseline_summary" "$suite" "$BASELINE" ||
+		suite_failed=1
+	check_core_mpp_artifacts "$candidate_summary" "$suite" "$CANDIDATE" ||
+		suite_failed=1
 	check_counter_deltas "$baseline_summary" "$suite" "$BASELINE" ||
 		suite_failed=1
 	check_counter_deltas "$candidate_summary" "$suite" "$CANDIDATE" ||
+		suite_failed=1
+	check_dmesg_evidence "$baseline_summary" "$suite" "$BASELINE" ||
+		suite_failed=1
+	check_dmesg_evidence "$candidate_summary" "$suite" "$CANDIDATE" ||
+		suite_failed=1
+	check_kunit_evidence "$candidate_summary" "$suite" ||
 		suite_failed=1
 	run_candidate_counter_check "$candidate_summary" "$suite" ||
 		suite_failed=1
@@ -449,6 +629,8 @@ write_fixture_suite()
 	local profile=$2
 	local suite=$3
 	local dir="$root/logs/$profile/20260706-000000-$suite-suite"
+	local case_name
+	local kind
 
 	mkdir -p "$dir"
 	cat > "$dir/summary.tsv" <<EOF
@@ -456,26 +638,61 @@ profile	class	case	status	elapsed_s	result
 $profile	required	${suite}_required	0	1.000	pass
 $profile	diagnostic	${suite}_diagnostic	0	1.000	pass
 EOF
+	if [ "$suite" = "mpp" ]; then
+		for case_name in $MPP_CORE_CASE_NAMES; do
+			printf "%s\trequired\t%s\t0\t1.000\tpass\n" \
+				"$profile" "$case_name" >> "$dir/summary.tsv"
+		done
+	fi
 	cat > "$dir/artifacts.tsv" <<EOF
 profile	class	case	kind	bytes	sha256
 $profile	required	${suite}_required	output	4	0123456789abcdef
 EOF
+	if [ "$suite" = "mpp" ]; then
+		for case_name in $MPP_CORE_CASE_NAMES; do
+			if [ "$case_name" = "mpp_info_test" ]; then
+				continue
+			fi
+			case "$case_name" in
+			mpi_dec_*) kind=decoded ;;
+			*) kind=encoded ;;
+			esac
+			printf "%s\trequired\t%s\t%s\t4\t0123456789abcdef\n" \
+				"$profile" "$case_name" "$kind" >> "$dir/artifacts.tsv"
+		done
+	fi
 	cat > "$dir/debugfs-counters-delta.tsv" <<EOF
 component	counter	before	after	delta
 mpp	started_job_count	0	1	1
 mpp	hw_total_ns	0	1000	1000
 mpp	import_count	0	0	0
+mpp	queued_job_count	0	0	0
 mpp	timeout_count	0	0	0
+mpp	recovery_failure_count	0	0	0
 mpp	iommu_fault_count	0	0	0
+mpp	spurious_irq_count	0	0	0
 rga	started_job_count	0	1	1
 rga	hw_total_ns	0	1000	1000
+rga	release_fence_count	0	1	1
 rga	import_count	0	0	0
+rga	shadow_head_active_count	0	0	0
+rga	shadow_tail_active_count	0	0	0
 rga	timeout_count	0	0	0
 rga	irq_error_count	0	0	0
+rga	irq_spurious_count	0	0	0
+rga	rga2_config_error_count	0	0	0
 rga	iommu_fault_count	0	0	0
+rga	recovery_failure_count	0	0	0
+rga	shadow_setup_failure_count	0	0	0
 rga_userptr_iommu	attempt	0	1	1
 rga_userptr_iommu	ok	0	1	1
 rga_userptr_iommu	active	0	0	0
+EOF
+	cat > "$dir/dmesg-scan.tsv" <<EOF
+field	value
+status	clean
+new_lines	0
+fatal_lines	0
 EOF
 }
 
@@ -490,10 +707,77 @@ selftest()
 		write_fixture_suite "$tmp_root" "$BASELINE" "$suite"
 		write_fixture_suite "$tmp_root" "$CANDIDATE" "$suite"
 	done
+	mkdir -p "$tmp_root/logs/$CANDIDATE"
+	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" <<EOF
+suite	expected_cases	plan_cases	result_cases	failed_cases	skipped_cases	summary	verdict	kernel_release
+rk_mpp_rewrite	86	86	86	0	0	ok	pass	6.18.0-rewrite
+rockchip-rga-rewrite	120	120	120	0	0	ok	pass	6.18.0-rewrite
+EOF
+	mv "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" \
+		"$tmp_root/logs/$CANDIDATE/20260705-000000-kunit.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
+		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
+		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected stale KUnit evidence to fail run correlation\n" >&2
+		return 1
+	fi
+	mv "$tmp_root/logs/$CANDIDATE/20260705-000000-kunit.tsv" \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
 
 	CONFORMANCE_ROOT="$tmp_root" SUITES="mpp librga gstreamer ffmpeg rkmppenc" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		REQUIRE_DMESG_EVIDENCE=1 \
 		RUN_COMPARATORS=1 PERF_MAX_RATIO=1.25 "$0" >/dev/null
+
+	sed -i 's/status\tclean/status\tfatal/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/dmesg-scan.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
+		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
+		REQUIRE_DMESG_EVIDENCE=1 RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected fatal dmesg evidence to fail\n" >&2
+		return 1
+	fi
+	sed -i 's/status\tfatal/status\tclean/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/dmesg-scan.tsv"
+
+	sed -i 's/rk_mpp_rewrite\t86\t86\t86\t0\t0\tok\tpass/rk_mpp_rewrite\t86\t86\t86\t1\t0\tnot-ok\tfail/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
+		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
+		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected failing KUnit evidence to fail\n" >&2
+		return 1
+	fi
+	sed -i 's/rk_mpp_rewrite\t86\t86\t86\t1\t0\tnot-ok\tfail/rk_mpp_rewrite\t86\t86\t86\t0\t0\tok\tpass/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
+
+	sed -i '/\tmpi_dec_avs2\tdecoded\t/d' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/artifacts.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
+		REQUIRE_MPP_CORE_CASES=1 REQUIRE_ARTIFACTS=1 \
+		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected missing AVS2 artifact to fail\n" >&2
+		return 1
+	fi
+	printf "%s\trequired\tmpi_dec_avs2\tdecoded\t4\t0123456789abcdef\n" \
+		"$CANDIDATE" >> \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/artifacts.tsv"
+
+	sed -i '/\tmpi_dec_multi_h265\t/d' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/summary.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
+		REQUIRE_MPP_CORE_CASES=1 REQUIRE_ARTIFACTS=1 \
+		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
+		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		printf "selftest expected missing core MPP case to fail\n" >&2
+		return 1
+	fi
+	printf "%s\trequired\tmpi_dec_multi_h265\t0\t1.000\tpass\n" \
+		"$CANDIDATE" >> \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/summary.tsv"
 
 	CONFORMANCE_ROOT="$tmp_root" SUITES="librga" LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
@@ -618,6 +902,7 @@ case "${1:-}" in
 	;;
 esac
 
+add_default_core_cases
 validate_named_case_specs
 
 failed=0

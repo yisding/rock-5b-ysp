@@ -1441,22 +1441,6 @@ preflight_devices()
 	fi
 }
 
-capture_dmesg_tail()
-{
-	local full="$OUT/dmesg-full.txt"
-	local tail_file="$OUT/dmesg-tail.txt"
-
-	if dmesg > "$full" 2>&1; then
-		tail -n 500 "$full" > "$tail_file"
-		if scan_fault_log "$tail_file"; then
-			return 0
-		fi
-		failed=1
-	else
-		mv "$full" "$tail_file"
-	fi
-}
-
 run_runtime_cases()
 {
 	local runtime=$1
@@ -1500,6 +1484,11 @@ mkdir -p "$OUT/artifacts" "$FFMPEG_GENERATED_INPUT_CACHE"
 printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
 printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
 
+if ! suite_dmesg_start "$OUT"; then
+	echo "FAIL: dmesg is required but unreadable" >&2
+	exit 1
+fi
+
 preflight_devices
 snapshot_debugfs before
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
@@ -1517,7 +1506,11 @@ debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
 debugfs_counter_delta "$OUT/debugfs-counters-before.tsv" \
 	"$OUT/debugfs-counters-after.tsv" \
 	"$OUT/debugfs-counters-delta.tsv"
-capture_dmesg_tail
+if ! suite_dmesg_finish "$OUT"; then
+	echo "FAIL: new fatal kernel-log signature or unavailable required dmesg; see $OUT/dmesg-scan.tsv" >&2
+	failed=1
+fi
+tail -n 500 "$OUT/dmesg-after.txt" > "$OUT/dmesg-tail.txt" 2>/dev/null || true
 
 echo "$OUT"
 

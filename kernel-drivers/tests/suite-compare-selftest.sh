@@ -55,13 +55,29 @@ write_counter_delta()
 		printf "component\tcounter\tbefore\tafter\tdelta\n"
 		printf "mpp\tstarted_job_count\t0\t%s\t%s\n" "$started" "$started"
 		printf "mpp\thw_total_ns\t0\t%s\t%s\n" "$hw_ns" "$hw_ns"
+		printf "mpp\timport_count\t0\t0\t0\n"
+		printf "mpp\tqueued_job_count\t0\t0\t0\n"
 		printf "mpp\tstarted_rkvdec_core0_count\t0\t1\t1\n"
 		printf "mpp\tstarted_rkvdec_core1_count\t0\t1\t1\n"
 		printf "rga\tstarted_rga3_core0_count\t0\t1\t1\n"
 		printf "rga\tstarted_rga3_core1_count\t0\t1\t1\n"
 		printf "mpp\ttimeout_count\t0\t%s\t%s\n" "$timeout" "$timeout"
+		printf "mpp\trecovery_failure_count\t0\t0\t0\n"
 		printf "mpp\tiommu_fault_count\t0\t%s\t%s\n" "$fault" "$fault"
+		printf "mpp\tspurious_irq_count\t0\t0\t0\n"
+		printf "rga\tstarted_job_count\t0\t2\t2\n"
+		printf "rga\thw_total_ns\t0\t1000\t1000\n"
+		printf "rga\trelease_fence_count\t0\t1\t1\n"
+		printf "rga\timport_count\t0\t0\t0\n"
+		printf "rga\tshadow_head_active_count\t0\t0\t0\n"
+		printf "rga\tshadow_tail_active_count\t0\t0\t0\n"
+		printf "rga\ttimeout_count\t0\t0\t0\n"
 		printf "rga\tirq_error_count\t0\t0\t0\n"
+		printf "rga\tirq_spurious_count\t0\t0\t0\n"
+		printf "rga\trga2_config_error_count\t0\t0\t0\n"
+		printf "rga\tiommu_fault_count\t0\t0\t0\n"
+		printf "rga\trecovery_failure_count\t0\t0\t0\n"
+		printf "rga\tshadow_setup_failure_count\t0\t0\t0\n"
 		printf "rga_userptr_iommu\tattempt\t0\t%s\t%s\n" \
 			"$userptr_iommu_attempt" "$userptr_iommu_attempt"
 		printf "rga_userptr_iommu\tok\t0\t%s\t%s\n" "$userptr_iommu_ok" "$userptr_iommu_ok"
@@ -186,9 +202,12 @@ check_counter_check()
 {
 	local base_dir="$TMP_ROOT/counter-check"
 	local out_good="$TMP_ROOT/counter-check.good"
+	local out_component_scope="$TMP_ROOT/counter-check.component-scope"
 	local out_missing_required="$TMP_ROOT/counter-check.missing-required"
 	local out_missing_prefix="$TMP_ROOT/counter-check.missing-prefix"
 	local out_forbidden="$TMP_ROOT/counter-check.forbidden"
+	local out_recovery_failure="$TMP_ROOT/counter-check.recovery-failure"
+	local out_missing_safety="$TMP_ROOT/counter-check.missing-safety"
 	local out_nonzero_after="$TMP_ROOT/counter-check.nonzero-after"
 	local out_missing_file="$TMP_ROOT/counter-check.missing-file"
 	local out_missing_file_prefix="$TMP_ROOT/counter-check.missing-file-prefix"
@@ -211,9 +230,19 @@ check_counter_check()
 	grep -q "rga:started_rga3_core:2" "$out_good"
 	grep -q "forbid_spec" "$out_good"
 
+	# An MPP-only suite must require every captured MPP safety counter without
+	# incorrectly requiring RGA counters that the suite never snapshots.
+	sed -i '/^rga/d' "$base_dir/debugfs-counters-delta.tsv"
+	SUMMARY="$base_dir/summary.tsv" REQUIRE_FORBIDDEN_COUNTERS=1 \
+		REQUIRED_ZERO_AFTER_COUNTERS="mpp:import_count mpp:queued_job_count" \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_component_scope"
+	grep -q $'rga:timeout_count\tn/a\tcomponent-not-captured' \
+		"$out_component_scope"
+	write_counter_delta "$base_dir/debugfs-counters-delta.tsv"
+
 	set +e
 	SUMMARY="$base_dir/summary.tsv" \
-		REQUIRED_POSITIVE_COUNTERS="rga:started_job_count" \
+		REQUIRED_POSITIVE_COUNTERS="rga:missing_counter" \
 		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_missing_required"
 	status=$?
 	set -e
@@ -247,6 +276,36 @@ check_counter_check()
 		exit 1
 	fi
 	grep -q "forbidden-positive" "$out_forbidden"
+
+	write_counter_delta "$base_dir/debugfs-counters-delta.tsv"
+	sed -i 's/mpp\trecovery_failure_count\t0\t0\t0/mpp\trecovery_failure_count\t0\t1\t1/' \
+		"$base_dir/debugfs-counters-delta.tsv"
+	set +e
+	SUMMARY="$base_dir/summary.tsv" \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_recovery_failure"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "recovery-failure safety counter unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q $'mpp:recovery_failure_count\t1\tforbidden-positive' \
+		"$out_recovery_failure"
+
+	write_counter_delta "$base_dir/debugfs-counters-delta.tsv"
+	sed -i '/mpp\trecovery_failure_count\t/d' \
+		"$base_dir/debugfs-counters-delta.tsv"
+	set +e
+	SUMMARY="$base_dir/summary.tsv" REQUIRE_FORBIDDEN_COUNTERS=1 \
+		bash "$TEST_DIR/debugfs-counter-check.sh" > "$out_missing_safety"
+	status=$?
+	set -e
+	if [ "$status" -eq 0 ]; then
+		echo "missing safety counter unexpectedly passed" >&2
+		exit 1
+	fi
+	grep -q $'mpp:recovery_failure_count\tmissing\tmissing' \
+		"$out_missing_safety"
 
 	write_counter_delta "$base_dir/debugfs-counters-delta.tsv" 2 1000 0 0 3 3 1
 	set +e

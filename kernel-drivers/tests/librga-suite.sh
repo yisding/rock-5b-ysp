@@ -166,6 +166,11 @@ artifact_dir="$OUT/artifacts"
 artifact_summary="$OUT/artifacts.tsv"
 printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
 printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
+
+if ! suite_dmesg_start "$OUT"; then
+	echo "FAIL: dmesg is required but unreadable" >&2
+	exit 1
+fi
 mkdir -p "$artifact_dir"
 
 export LD_LIBRARY_PATH="$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
@@ -309,7 +314,11 @@ debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
 debugfs_counter_delta "$OUT/debugfs-counters-before.tsv" \
 	"$OUT/debugfs-counters-after.tsv" \
 	"$OUT/debugfs-counters-delta.tsv"
-dmesg | tail -n 500 > "$OUT/dmesg-tail.txt" 2>/dev/null || true
+if ! suite_dmesg_finish "$OUT"; then
+	echo "FAIL: new fatal kernel-log signature or unavailable required dmesg; see $OUT/dmesg-scan.tsv" >&2
+	failed=1
+fi
+tail -n 500 "$OUT/dmesg-after.txt" > "$OUT/dmesg-tail.txt" 2>/dev/null || true
 
 echo "$OUT"
 

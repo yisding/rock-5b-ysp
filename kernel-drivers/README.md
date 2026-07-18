@@ -114,6 +114,7 @@ Read in this order when changing or reviewing kernel behavior:
 | How does the mainline V4L2 `rkvdec` decoder work (the other stack)? | [`../kernel-versions/docs/mainline-rkvdec-v4l2.md`](../kernel-versions/docs/mainline-rkvdec-v4l2.md) |
 | How do we resync to a new kernel or BSP? | [`docs/resyncing.md`](docs/resyncing.md) |
 | How do we validate the rewrite drivers to production readiness? | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) |
+| Which conformance gaps were found after the forward-port reconciliation? | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) |
 
 ## Shared files
 
@@ -134,6 +135,7 @@ each sub-project's `README.md`).
 | [`docs/resyncing.md`](docs/resyncing.md) | Playbook for resyncing to a newer kernel or BSP. |
 | [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) | Public-API-only clean-room reimplementation track. |
 | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
+| [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | 2026-07-17 audit of claimed ABI/codec coverage, booted evidence, counter/lifetime assertions, and remaining hardware gates. |
 | [`docs/debug-kernel.md`](docs/debug-kernel.md) | Capture a crash / run the KASAN debug kernel. |
 | [`patches/`](patches/README.md) | Forward-port driver + DT patches and the reviewable audit-fix series. |
 | [`scripts/`](scripts/README.md) | Combined-kernel build/install/validate wrappers and the codec udev rule. |

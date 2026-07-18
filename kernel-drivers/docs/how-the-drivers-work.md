@@ -32,7 +32,7 @@ Three jobs, three blocks:
 | Block | What it does | The heavy math it replaces |
 |-------|--------------|----------------------------|
 | **VEPU580** (encoder) | raw frames → compressed H.264/H.265 | motion estimation, DCT/transform, quantisation, CABAC entropy coding |
-| **VDPU381** (decoder) | compressed H.264/H.265/VP9 → raw frames | entropy decode, inverse transform, motion compensation, in-loop filters |
+| **VDPU381** (decoder) | compressed H.264/H.265/VP9/AVS2 → raw frames | entropy decode, inverse transform, motion compensation, in-loop filters |
 | **RGA** (2D engine) | resize / rotate / colour-convert / blend | per-pixel scaling kernels, colour-space matrices, alpha compositing |
 
 **Under the hood.** Each is an independent IP block with its own MMIO register
@@ -211,7 +211,7 @@ threaded-IRQ registration uses a NULL thread_fn, see §9):
 ```mermaid
 flowchart LR
   raw[("raw frame<br/>NV12")] -->|VEPU580| h26x[("H.264/H.265<br/>bitstream")]
-  h26x2[("H.264/H.265/VP9<br/>bitstream")] -->|VDPU381| raw2[("raw frame<br/>NV12")]
+  h26x2[("H.264/H.265/VP9/AVS2<br/>bitstream")] -->|VDPU381| raw2[("raw frame<br/>NV12")]
   any[("image A")] -->|RGA| any2[("image B<br/>resized / rotated / recoloured")]
 ```
 

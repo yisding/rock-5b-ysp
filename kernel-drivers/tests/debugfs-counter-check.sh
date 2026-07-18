@@ -7,7 +7,8 @@ COUNTERS_FILE=${COUNTERS_FILE:-}
 REQUIRED_POSITIVE_COUNTERS=${REQUIRED_POSITIVE_COUNTERS:-}
 REQUIRED_POSITIVE_COUNTER_PREFIXES=${REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
 REQUIRED_ZERO_AFTER_COUNTERS=${REQUIRED_ZERO_AFTER_COUNTERS:-}
-FORBID_POSITIVE_COUNTERS=${FORBID_POSITIVE_COUNTERS:-"mpp:timeout_count mpp:iommu_fault_count rga:timeout_count rga:irq_error_count rga:iommu_fault_count"}
+FORBID_POSITIVE_COUNTERS=${FORBID_POSITIVE_COUNTERS:-"mpp:timeout_count mpp:recovery_failure_count mpp:iommu_fault_count mpp:spurious_irq_count rga:timeout_count rga:irq_error_count rga:irq_spurious_count rga:rga2_config_error_count rga:iommu_fault_count rga:recovery_failure_count rga:shadow_setup_failure_count"}
+REQUIRE_FORBIDDEN_COUNTERS=${REQUIRE_FORBIDDEN_COUNTERS:-0}
 REQUIRE_COUNTER_FILE=${REQUIRE_COUNTER_FILE:-0}
 
 if [ -z "$COUNTERS_FILE" ] && [ -n "$SUMMARY" ]; then
@@ -26,7 +27,8 @@ if [ ! -f "$COUNTERS_FILE" ]; then
 	if [ "$REQUIRE_COUNTER_FILE" = "1" ] ||
 		[ -n "$REQUIRED_POSITIVE_COUNTERS" ] ||
 		[ -n "$REQUIRED_POSITIVE_COUNTER_PREFIXES" ] ||
-		[ -n "$REQUIRED_ZERO_AFTER_COUNTERS" ]; then
+		[ -n "$REQUIRED_ZERO_AFTER_COUNTERS" ] ||
+		[ "$REQUIRE_FORBIDDEN_COUNTERS" = "1" ]; then
 		exit 1
 	fi
 	exit 0
@@ -36,6 +38,7 @@ awk -v required_specs="$REQUIRED_POSITIVE_COUNTERS" \
     -v required_prefix_specs="$REQUIRED_POSITIVE_COUNTER_PREFIXES" \
     -v required_zero_after_specs="$REQUIRED_ZERO_AFTER_COUNTERS" \
     -v forbid_specs="$FORBID_POSITIVE_COUNTERS" \
+    -v require_forbidden="$REQUIRE_FORBIDDEN_COUNTERS" \
     -v counter_file="$COUNTERS_FILE" '
 function split_specs(value, array,    n, i, token) {
 	n = split(value, tokens, /[[:space:]]+/);
@@ -103,6 +106,17 @@ function spec_seen_count(spec,    key, total) {
 	return total;
 }
 
+function spec_component_seen_count(spec,    key, parts, total) {
+	if (!split_spec(spec, parts))
+		return 0;
+	total = 0;
+	for (key in seen) {
+		if (parts[1] == "*" || parts[1] == component_by_key[key])
+			total++;
+	}
+	return total;
+}
+
 function spec_after_sum(spec,    key, total) {
 	total = 0;
 	for (key in after_by_key) {
@@ -145,6 +159,7 @@ BEGIN {
 	print "required_positive_prefixes", required_prefix_specs;
 	print "required_zero_after", required_zero_after_specs;
 	print "forbid_positive", forbid_specs;
+	print "require_forbidden_present", require_forbidden;
 	print "";
 	print "component", "counter", "before", "after", "delta", "verdict";
 }
@@ -248,6 +263,17 @@ END {
 	for (i = 1; i <= forbidden[0]; i++) {
 		if (!split_spec(forbidden[i], parts)) {
 			print forbidden[i], "n/a", "invalid-spec";
+			failed = 1;
+			continue;
+		}
+		seen_count = spec_seen_count(forbidden[i]);
+		component_seen = spec_component_seen_count(forbidden[i]);
+		if (require_forbidden == 1 && component_seen == 0) {
+			print forbidden[i], "n/a", "component-not-captured";
+			continue;
+		}
+		if (require_forbidden == 1 && seen_count == 0) {
+			print forbidden[i], "missing", "missing";
 			failed = 1;
 			continue;
 		}

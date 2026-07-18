@@ -638,8 +638,9 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 203 KUnit cases green **under KASAN**; hardware-in-the-loop kselftests added
-   (today's tests never open the device).
+1. 206 KUnit cases green **under KASAN** (86 MPP + 120 RGA), persisted from the
+   booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
+   kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —
    0 diffs (RGA pixels, VDEC YUV, VENC-vs-VENC bitstream).
 3. Full `mpp-suite` / `librga-suite` / `gstreamer-suite` / `ffmpeg-suite` pass via the comparators
@@ -648,11 +649,14 @@ Ship only when **all** hold, each with a dated record in
    hardware-start/busy-time plus timeout/fault/error counter gates pass (the
    `tests/rewrite-conformance.md` "expected rewrite result" rule, gated).
    `tests/rewrite-evidence-audit.sh` must also pass in normal mode with
-   default artifact, counter-delta, and comparator requirements against paired
+   default artifact, counter-delta, clean dmesg, booted-KUnit, representative
+   official-MPP core-case, and comparator requirements against paired
    forward-port/rewrite logs; its `--selftest` is only a maintenance check.
 4. **72 h+ multi-instance soak**: 0 KASAN / KCSAN / lockdep / KMEMLEAK /
-   DMA-debug splats; live `import_count` gauges and active queues return to
-   baseline at idle, while cumulative job counters stop changing.
+   DMA-debug splats; live import, MPP queue, RGA userptr-IOMMU, and boundary-
+   shadow gauges return to baseline at idle, while cumulative job and
+   `release_fence_count` counters stop changing. The latter is not an active-
+   fence gauge; add one before claiming direct fence-reference leak coverage.
 5. Every §4 fault scenario recovers cleanly, verified in a loop via debugfs.
 6. syzkaller: multi-day run, 0 crashes, coverage plateau that **includes the
    recovery lines**.

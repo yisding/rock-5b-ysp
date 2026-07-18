@@ -3049,6 +3049,10 @@ if [ "$GST_VALIDATE_CASES" = "1" ]; then
 fi
 
 snapshot_state before
+if ! suite_dmesg_start "$OUT"; then
+	echo "FAIL: dmesg is required but unreadable" >&2
+	exit 1
+fi
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
 	mpp /sys/kernel/debug/rk_mpp_rewrite \
 	rga /sys/kernel/debug/rk_rga_rewrite
@@ -3068,7 +3072,11 @@ debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
 debugfs_counter_delta "$OUT/debugfs-counters-before.tsv" \
 	"$OUT/debugfs-counters-after.tsv" \
 	"$OUT/debugfs-counters-delta.tsv"
-dmesg | tail -n 500 > "$OUT/dmesg-tail.txt" 2>/dev/null || true
+if ! suite_dmesg_finish "$OUT"; then
+	echo "FAIL: new fatal kernel-log signature or unavailable required dmesg; see $OUT/dmesg-scan.tsv" >&2
+	failed=1
+fi
+tail -n 500 "$OUT/dmesg-after.txt" > "$OUT/dmesg-tail.txt" 2>/dev/null || true
 
 echo "$OUT"
 
