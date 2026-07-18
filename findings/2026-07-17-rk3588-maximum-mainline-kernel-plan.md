@@ -35,11 +35,12 @@ another proposal. Some TODO features have no public code and therefore cannot
 be built at all. The distinction is recorded below instead of silently
 claiming coverage.
 
-This is an integration and build plan, not evidence that the proposed kernel
-boots. The current 6.18.38 YSP kernel and its packaging prove the Armbian boot
-contract, while the existing 7.2-rc3 source package proves that this repository
-can package a 7.2 kernel. The proposed-series combination still needs compile,
-boot, subsystem, suspend, and rollback testing.
+The plan has now been implemented under
+[`packaging/ppa/kernel-maxline`](../packaging/ppa/kernel-maxline/README.md).
+Both profiles compile and produce co-installable arm64 image, DTB, and headers
+packages. This is still not evidence that either kernel boots: the proposed
+series combination needs boot, subsystem, suspend, and rollback testing on the
+ROCK 5B.
 
 ## Why this base and not the tempting alternatives
 
@@ -88,11 +89,11 @@ Armbian-facing symlinks. Reuse that interface. Give the new build a unique
 localversion and binary package namespace, for example:
 
 ```text
-source:  linux-rockchip64-ysp-maxline
-image:   linux-image-ysp-maxline-rockchip64
-dtb:     linux-dtb-ysp-maxline-rockchip64
-headers: linux-headers-ysp-maxline-rockchip64
-release: 7.2.0-rc3-ysp-maxline-rockchip64
+source:  linux-rockchip64-ysp-maxline-{public,wip}
+image:   linux-image-ysp-maxline-{public,wip}-rockchip64
+dtb:     linux-dtb-ysp-maxline-{public,wip}-rockchip64
+headers: linux-headers-ysp-maxline-{public,wip}-rockchip64
+release: 7.2.0-rc3-ysp-maxline-{public,wip}-rockchip64
 ```
 
 The existing `packaging/ppa/kernel-rewrite-alpha-7.2-rc3/` source package
@@ -453,24 +454,33 @@ the upstream stack.
   Collabora's status and integration branch, kernel.org, and linked proposal
   cover letters/review mirrors.
 - **Exercise:** source/config/boot inspection plus proposal dependency and
-  supersession analysis; no maximum-mainline kernel was built in this finding.
-- **Pass/fail signal:** the plan passes documentation consistency and source
-  coverage review; kernel build and hardware pass signals are the gates above.
-- **Artifacts:** this finding; the supplied source snapshot remains at
-  `~/Code/kernel/mainline-status.md` and is intentionally not duplicated here.
+  supersession analysis; integration of 38 public series dispositions and 26
+  WIP donor commits; native arm64 `Image modules dtbs` builds for both profiles;
+  Debian package and extracted-headers external-module smoke tests.
+- **Pass/fail signal:** both profiles pass source integration, compilation,
+  packaging, payload, and headers-consumer checks. Boot and hardware gates
+  remain open.
+- **Artifacts:** the reproducible builder, pinned patches, ledgers, config,
+  packaging, hashes, and verification record are in
+  [`packaging/ppa/kernel-maxline`](../packaging/ppa/kernel-maxline/README.md).
+  The supplied source snapshot remains at `~/Code/kernel/mainline-status.md`
+  and is intentionally not duplicated here.
 
 ## Boundary
 
 The proposal inventory and upstream version are time-sensitive. A new series
 revision or an upstream merge can change the correct queue immediately. Refresh
-the manifest before implementation, but retain this dated ledger so changes are
-reviewable. Mailing-list review comments were sampled for material conflicts;
-this is not a substitute for reading every reply when importing a series.
+the manifest before any future rebase, but retain this dated ledger so changes
+are reviewable. Mailing-list review comments were sampled for material
+conflicts; this is not a substitute for reading every reply when importing a
+series.
 
-No kernel from this plan has been compiled or booted, proposed features have
-not been exercised on this board, and HDMI FRL/VP9 ports have not been audited.
-No-code TODOs, vendor ABI compatibility, 8K, HDCP, ARC, DMC scaling, and missing
-board/sensor DT work are not solved by stacking public patches.
+Both kernels have been compiled and packaged, but neither package set has been
+installed or booted. Proposed features have not been exercised on this board,
+and HDMI FRL/VP9 remain compile-verified experimental ports rather than audited
+hardware support. No-code TODOs, vendor ABI compatibility, 8K, HDCP, ARC, DMC
+scaling, and missing board/sensor DT work are not solved by stacking public
+patches.
 
 ## Primary references
 
@@ -486,9 +496,8 @@ board/sensor DT work are not solved by stacking public patches.
 
 ## Why it matters / follow-up
 
-Implement the integration repository and manifest first, before modifying this
-repository's packaging. The first useful milestone is `maxline-public` through
-the bus/PHY checkpoint, booted with the current audio blacklist. Add display,
-DP, and media checkpoints independently; only then create and install the
-co-installable package. Recheck the status document, upstream release, series
-revisions, and Collabora integration head on every refresh.
+Install the co-installable `maxline-public` package set first, retaining the
+known-good 6.18 kernel and current audio blacklist. Complete the platform,
+display, DP, and media gates above before trying `maxline-wip`; test FRL and VP9
+last. Recheck the status document, upstream release, series revisions, and
+Collabora integration head on every refresh.

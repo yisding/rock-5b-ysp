@@ -1,0 +1,3709 @@
+diff --git a/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c b/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c
+index 73f90059afcee..8ca2f8f32cf6d 100644
+--- a/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c
++++ b/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.c
+@@ -16,14 +16,17 @@
+ #include <linux/module.h>
+ #include <linux/mutex.h>
+ #include <linux/of.h>
++#include <linux/workqueue.h>
+ 
+ #include <drm/bridge/dw_hdmi_qp.h>
+ #include <drm/display/drm_hdmi_helper.h>
+ #include <drm/display/drm_hdmi_cec_helper.h>
+ #include <drm/display/drm_hdmi_state_helper.h>
++#include <drm/display/drm_scdc_helper.h>
+ #include <drm/drm_atomic.h>
+ #include <drm/drm_atomic_helper.h>
+ #include <drm/drm_bridge.h>
++#include <drm/drm_bridge_helper.h>
+ #include <drm/drm_connector.h>
+ #include <drm/drm_edid.h>
+ #include <drm/drm_modes.h>
+@@ -39,6 +42,22 @@
+ #define DDC_CI_ADDR		0x37
+ #define DDC_SEGMENT_ADDR	0x30
+ 
++/*
++ * Recommended N and Expected CTS Values in FRL Mode.
++ */
++static const struct dw_hdmi_qp_audio_frl_n {
++	unsigned int r_bit;
++	unsigned int n_32k;
++	unsigned int n_44k1;
++	unsigned int n_48k;
++} common_frl_n_table[] = {
++	{ .r_bit = 3,  .n_32k = 4224, .n_44k1 = 5292, .n_48k = 5760, },
++	{ .r_bit = 6,  .n_32k = 4032, .n_44k1 = 5292, .n_48k = 6048, },
++	{ .r_bit = 8,  .n_32k = 4032, .n_44k1 = 3969, .n_48k = 6048, },
++	{ .r_bit = 10, .n_32k = 3456, .n_44k1 = 3969, .n_48k = 5184, },
++	{ .r_bit = 12, .n_32k = 3072, .n_44k1 = 3969, .n_48k = 4752, },
++};
++
+ /*
+  * Unless otherwise noted, entries in this table are 100% optimization.
+  * Values can be obtained from dw_hdmi_qp_compute_n() but that function is
+@@ -95,9 +114,6 @@ static const struct dw_hdmi_audio_tmds_n {
+ 	/* For 297 MHz+ HDMI spec have some other rule for setting N */
+ 	{ .tmds = 297000000, .n_32k = 3073,  .n_44k1 = 4704,  .n_48k = 5120, },
+ 	{ .tmds = 594000000, .n_32k = 3073,  .n_44k1 = 9408,  .n_48k = 10240,},
+-
+-	/* End of table */
+-	{ .tmds = 0,         .n_32k = 0,     .n_44k1 = 0,     .n_48k = 0,    },
+ };
+ 
+ /*
+@@ -116,9 +132,6 @@ static const struct dw_hdmi_audio_tmds_cts {
+ 	{ .tmds = 54000000,  .cts_32k = 54000,  .cts_44k1 = 60000,  .cts_48k = 54000,  },
+ 	{ .tmds = 74250000,  .cts_32k = 74250,  .cts_44k1 = 82500,  .cts_48k = 74250,  },
+ 	{ .tmds = 148500000, .cts_32k = 148500, .cts_44k1 = 165000, .cts_48k = 148500, },
+-
+-	/* End of table */
+-	{ .tmds = 0,         .cts_32k = 0,      .cts_44k1 = 0,      .cts_48k = 0,      },
+ };
+ 
+ struct dw_hdmi_qp_i2c {
+@@ -162,10 +175,13 @@ struct dw_hdmi_qp {
+ 
+ 	unsigned long ref_clk_rate;
+ 	struct drm_connector *curr_conn;
++	struct work_struct flt_work;
++	bool flt_no_timeout;
++
+ 	struct regmap *regm;
+ 	int main_irq;
+ 
+-	unsigned long tmds_char_rate;
++	unsigned long long tmds_char_rate;
+ 	bool no_hpd;
+ };
+ 
+@@ -213,6 +229,49 @@ static void dw_hdmi_qp_set_cts_n(struct dw_hdmi_qp *hdmi, unsigned int cts,
+ 		       AUDPKT_ACR_CONTROL1);
+ }
+ 
++static int dw_hdmi_qp_match_frl_n_table(struct dw_hdmi_qp *hdmi,
++					unsigned long r_bit,
++					unsigned long freq)
++{
++	const struct dw_hdmi_qp_audio_frl_n *frl_n = NULL;
++	int i, n;
++
++	for (i = 0; i < ARRAY_SIZE(common_frl_n_table); i++) {
++		if (r_bit == common_frl_n_table[i].r_bit) {
++			frl_n = &common_frl_n_table[i];
++			break;
++		}
++	}
++
++	if (!frl_n) {
++		dev_err(hdmi->dev, "Unexpected FRL Rbit: %lu Gbps\n", r_bit);
++		return 0;
++	}
++
++	switch (freq) {
++	case 32000:
++	case 64000:
++	case 128000:
++		n = (freq / 32000) * frl_n->n_32k;
++		break;
++	case 44100:
++	case 88200:
++	case 176400:
++		n = (freq / 44100) * frl_n->n_44k1;
++		break;
++	case 48000:
++	case 96000:
++	case 192000:
++		n = (freq / 48000) * frl_n->n_48k;
++		break;
++	default:
++		dev_err(hdmi->dev, "Unexpected FRL freq: %lu Hz\n", freq);
++		n = 0;
++	}
++
++	return n;
++}
++
+ static int dw_hdmi_qp_match_tmds_n_table(struct dw_hdmi_qp *hdmi,
+ 					 unsigned long pixel_clk,
+ 					 unsigned long freq)
+@@ -220,7 +279,7 @@ static int dw_hdmi_qp_match_tmds_n_table(struct dw_hdmi_qp *hdmi,
+ 	const struct dw_hdmi_audio_tmds_n *tmds_n = NULL;
+ 	int i;
+ 
+-	for (i = 0; common_tmds_n_table[i].tmds != 0; i++) {
++	for (i = 0; i < ARRAY_SIZE(common_tmds_n_table); i++) {
+ 		if (pixel_clk == common_tmds_n_table[i].tmds) {
+ 			tmds_n = &common_tmds_n_table[i];
+ 			break;
+@@ -294,10 +353,18 @@ static unsigned int dw_hdmi_qp_compute_n(struct dw_hdmi_qp *hdmi,
+ static unsigned int dw_hdmi_qp_find_n(struct dw_hdmi_qp *hdmi, unsigned long pixel_clk,
+ 				      unsigned long sample_rate)
+ {
+-	int n = dw_hdmi_qp_match_tmds_n_table(hdmi, pixel_clk, sample_rate);
++	const struct dw_hdmi_qp_link_cfg *link_cfg;
++	int ret;
++
++	link_cfg = hdmi->phy.ops->get_link_cfg(hdmi, hdmi->phy.data);
++	if (link_cfg->frl_enabled)
++		return dw_hdmi_qp_match_frl_n_table(hdmi,
++						    link_cfg->frl_rate_per_lane,
++						    sample_rate);
+ 
+-	if (n > 0)
+-		return n;
++	ret = dw_hdmi_qp_match_tmds_n_table(hdmi, pixel_clk, sample_rate);
++	if (ret > 0)
++		return ret;
+ 
+ 	dev_warn(hdmi->dev, "Rate %lu missing; compute N dynamically\n",
+ 		 pixel_clk);
+@@ -311,7 +378,7 @@ static unsigned int dw_hdmi_qp_find_cts(struct dw_hdmi_qp *hdmi, unsigned long p
+ 	const struct dw_hdmi_audio_tmds_cts *tmds_cts = NULL;
+ 	int i;
+ 
+-	for (i = 0; common_tmds_cts_table[i].tmds != 0; i++) {
++	for (i = 0; i < ARRAY_SIZE(common_tmds_cts_table); i++) {
+ 		if (pixel_clk == common_tmds_cts_table[i].tmds) {
+ 			tmds_cts = &common_tmds_cts_table[i];
+ 			break;
+@@ -749,11 +816,475 @@ static struct i2c_adapter *dw_hdmi_qp_i2c_adapter(struct dw_hdmi_qp *hdmi)
+ 	return adap;
+ }
+ 
++enum dw_hdmi_qp_frl_lts {
++	LTS1,	/* Read EDID */
++	LTS2,	/* Prepare for FRL */
++	LTS3,	/* Training in progress */
++	LTS4,	/* Update FRL rate */
++	LTSP,	/* Training passed */
++	LTSL,	/* Legacy TMDS */
++	LTSU,	/* Undefined */
++};
++
++/*
++ * Check sink version and FLT no-timeout mode.
++ */
++static int dw_hdmi_qp_frl_lts1(struct dw_hdmi_qp *hdmi)
++{
++	int ret;
++	u8 val;
++
++	if (!hdmi->tmds_char_rate) {
++		dev_dbg(hdmi->dev, "lts1: hdmi disabled\n");
++		return LTSL;
++	}
++
++	dw_hdmi_qp_mod(hdmi, AVP_DATAPATH_VIDEO_SWDISABLE,
++		       AVP_DATAPATH_VIDEO_SWDISABLE, GLOBAL_SWDISABLE);
++
++	/* Reset AVP data path */
++	dw_hdmi_qp_write(hdmi, AVP_DATAPATH_SWINIT_P, GLOBAL_SWRESET_REQUEST);
++
++	ret = drm_scdc_readb(hdmi->bridge.ddc, SCDC_SINK_VERSION, &val);
++	if (ret) {
++		dev_err(hdmi->dev, "lts1: SCDC read failed\n");
++		return LTSL;
++	}
++
++	if (!val) {
++		dev_warn(hdmi->dev, "lts1: SCDC sink version is zero\n");
++		return LTSL;
++	}
++
++	ret = drm_scdc_writeb(hdmi->bridge.ddc, SCDC_SOURCE_VERSION, 1);
++	if (ret) {
++		dev_err(hdmi->dev, "lts1: SCDC write failed\n");
++		return LTSL;
++	}
++
++	ret = drm_scdc_readb(hdmi->bridge.ddc, SCDC_SOURCE_TEST_CONFIG, &val);
++	if (ret) {
++		dev_err(hdmi->dev, "lts1: SCDC read failed\n");
++		return LTSL;
++	}
++
++	hdmi->flt_no_timeout = !!(val & SCDC_FLT_NO_TIMEOUT);
++	dev_dbg(hdmi->dev, "lts1: flt_no_timeout=%d\n", hdmi->flt_no_timeout);
++
++	return LTS2;
++}
++
++/*
++ * Check if sink is ready to training. Set FRL rate & max FFE level.
++ */
++static int dw_hdmi_qp_frl_lts2(struct dw_hdmi_qp *hdmi)
++{
++	const struct dw_hdmi_qp_link_cfg *link_cfg;
++	int ret, i;
++	u8 val;
++
++	for (i = 0; i < 20; i++) {
++		ret = drm_scdc_readb(hdmi->bridge.ddc, SCDC_STATUS_FLAGS_0, &val);
++		if (ret) {
++			dev_err(hdmi->dev, "lts2: SCDC read failed\n");
++			return LTSL;
++		}
++
++		if (val & SCDC_FLT_READY) {
++			link_cfg = hdmi->phy.ops->get_link_cfg(hdmi, hdmi->phy.data);
++			val = hdmi->phy.ops->set_ffe_level ? link_cfg->max_ffe_level : 0;
++
++			dev_dbg(hdmi->dev, "lts2: set rate=%ux%u maxffe=%u\n",
++				link_cfg->frl_rate_per_lane, link_cfg->frl_lanes, val);
++
++			ret = drm_scdc_set_frl(hdmi->curr_conn, link_cfg->frl_rate_per_lane,
++					       link_cfg->frl_lanes, val);
++			if (ret)
++				ret = drm_scdc_writeb(hdmi->bridge.ddc, SCDC_CONFIG_0, 0);
++			else
++				ret = -EIO;
++
++			if (ret) {
++				dev_err(hdmi->dev, "lts2: SCDC write failed\n");
++				return LTSL;
++			}
++
++			return LTS3;
++		}
++
++		msleep(20);
++	}
++
++	dev_err(hdmi->dev, "lts2: sink flt not ready\n");
++	return LTSL;
++}
++
++/*
++ * Conduct link training for the specified FRL rate.
++ */
++static int dw_hdmi_qp_frl_lts3(struct dw_hdmi_qp *hdmi)
++{
++	u8 val, ffe_lv = 0;
++	int i, ret;
++
++	/* Set 2s timeout */
++	i = 4000;
++
++	while (i-- > 0 || hdmi->flt_no_timeout) {
++		/* Poll FLT_update flag every 2 ms or less */
++		usleep_range(400, 500);
++
++		if (!hdmi->tmds_char_rate) {
++			dev_dbg(hdmi->dev, "lts3: hdmi disabled\n");
++			return LTSL;
++		}
++
++		ret = drm_scdc_readb(hdmi->bridge.ddc, SCDC_UPDATE_0, &val);
++		if (ret) {
++			dev_err(hdmi->dev, "lts3: SCDC read failed\n");
++			return LTSL;
++		}
++
++		if (val & SCDC_SOURCE_TEST_UPDATE) {
++			u8 test_cfg;
++
++			ret = drm_scdc_readb(hdmi->bridge.ddc, SCDC_SOURCE_TEST_CONFIG,
++					     &test_cfg);
++			if (ret) {
++				dev_err(hdmi->dev, "lts3: SCDC read failed\n");
++				return LTSL;
++			}
++
++			if (hdmi->flt_no_timeout && !(test_cfg & SCDC_FLT_NO_TIMEOUT)) {
++				dev_dbg(hdmi->dev, "lts3: exit test mode\n");
++				hdmi->flt_no_timeout = false;
++			} else if (!hdmi->flt_no_timeout && (test_cfg & SCDC_FLT_NO_TIMEOUT)) {
++				dev_dbg(hdmi->dev, "lts3: enter test mode\n");
++				hdmi->flt_no_timeout = true;
++			}
++
++			/* Clear SCDC_SOURCE_TEST_UPDATE flag */
++			ret = drm_scdc_writeb(hdmi->bridge.ddc, SCDC_UPDATE_0,
++					      SCDC_SOURCE_TEST_UPDATE);
++			if (ret) {
++				dev_err(hdmi->dev, "lts3: SCDC write failed\n");
++				return LTSL;
++			}
++		}
++
++		if (val & SCDC_FLT_UPDATE) {
++			u8 ln0, ln1, ln2, ln3;
++			u32 flt_cfg;
++
++			ret = drm_scdc_get_frl_ltp_request(hdmi->curr_conn,
++							   &ln0, &ln1, &ln2, &ln3);
++			if (!ret) {
++				dev_err(hdmi->dev, "lts3: SCDC read failed\n");
++				return LTSL;
++			}
++
++			dev_dbg(hdmi->dev, "lts3: ln0=0x%x ln1=0x%x ln2=0x%x ln3=0x%x\n",
++				ln0, ln1, ln2, ln3);
++
++			if (!ln0 && !ln1 && !ln2 && !ln3) {
++				dw_hdmi_qp_write(hdmi, 0, FLT_CONFIG1);
++				return LTSP;
++			}
++
++			if (ln0 == 0xf && ln1 == 0xf && ln2 == 0xf && ln3 == 0xf) {
++				dev_dbg(hdmi->dev, "lts3: rate change request\n");
++				return LTS4;
++			}
++
++			if (ln0 == 0xe || ln1 == 0xe || ln2 == 0xe || ln3 == 0xe) {
++				if (!hdmi->phy.ops->set_ffe_level) {
++					dev_err(hdmi->dev, "lts3: ffe level update not expected\n");
++					return LTSL;
++				}
++
++				if (ffe_lv >= 3) {
++					dev_err(hdmi->dev, "lts3: ffe level limit reached\n");
++					return LTSL;
++				}
++
++				ffe_lv++;
++				dev_dbg(hdmi->dev, "lts3: ffe level up %d\n", ffe_lv);
++
++				ret = hdmi->phy.ops->set_ffe_level(hdmi, hdmi->phy.data, ffe_lv);
++				if (ret)
++					return LTSL;
++			} else {
++				flt_cfg = (ln3 << 16) | (ln2 << 12) | (ln1 << 8) |
++					  (ln0 << 4) | 0xf;
++
++				/* Support HFR1-10; send old LTP if ln0..3 == 0x3 */
++				if (!hdmi->flt_no_timeout && flt_cfg == 0x3333f)
++					flt_cfg = dw_hdmi_qp_read(hdmi, FLT_CONFIG1);
++
++				dw_hdmi_qp_write(hdmi, flt_cfg, FLT_CONFIG1);
++			}
++
++			/* Clear FLT_update flag */
++			ret = drm_scdc_writeb(hdmi->bridge.ddc, SCDC_UPDATE_0,
++					      SCDC_FLT_UPDATE);
++			if (ret) {
++				dev_err(hdmi->dev, "lts3: SCDC write failed\n");
++				return LTSL;
++			}
++		}
++	}
++
++	dev_err(hdmi->dev, "lts3: timed out\n");
++	return LTSL;
++}
++
++/*
++ * Handle FRL rate change request from sink.
++ */
++static int dw_hdmi_qp_frl_lts4(struct dw_hdmi_qp *hdmi)
++{
++	const struct dw_hdmi_qp_link_cfg *link_cfg;
++	u8 try_rate_per_lane, try_lanes, max_ffe_level;
++	int ret;
++
++	link_cfg = hdmi->phy.ops->get_link_cfg(hdmi, hdmi->phy.data);
++
++	/* Choose a reduced bandwidth FRL rate */
++	ret = drm_scdc_calc_lower_frl(link_cfg->frl_rate_per_lane, link_cfg->frl_lanes,
++				      &try_rate_per_lane, &try_lanes);
++	if (!ret) {
++		dev_err(hdmi->dev, "lts4: failed to compute lower frl\n");
++		return LTSL;
++	}
++
++	if (try_rate_per_lane < link_cfg->min_frl_rate_per_lane ||
++	    try_lanes < link_cfg->min_frl_lanes) {
++		dev_err(hdmi->dev, "lts4: unsupported %ux%u rate\n",
++			try_rate_per_lane, try_lanes);
++		return LTSL;
++	}
++
++	dev_dbg(hdmi->dev, "lts4: switching to %ux%u\n", try_rate_per_lane, try_lanes);
++
++	ret = drm_scdc_writeb(hdmi->bridge.ddc, SCDC_UPDATE_0, SCDC_FLT_UPDATE);
++	if (ret) {
++		dev_err(hdmi->dev, "lts4: SCDC write failed\n");
++		return LTSL;
++	}
++
++	/* Disable phy */
++	hdmi->phy.ops->disable(hdmi, hdmi->phy.data);
++
++	ret = hdmi->phy.ops->set_frl_rate(hdmi, hdmi->phy.data,
++					  try_rate_per_lane, try_lanes);
++	if (ret) {
++		dev_err(hdmi->dev, "lts4: failed to set phy link rate\n");
++		return LTSL;
++	}
++
++	/* Enable phy */
++	hdmi->phy.ops->init(hdmi, hdmi->phy.data);
++
++	max_ffe_level = hdmi->phy.ops->set_ffe_level ? link_cfg->max_ffe_level : 0;
++
++	/* Set new rate */
++	ret = drm_scdc_set_frl(hdmi->curr_conn, try_rate_per_lane, try_lanes,
++			       max_ffe_level);
++	if (ret)
++		ret = drm_scdc_writeb(hdmi->bridge.ddc, SCDC_UPDATE_0,
++				      SCDC_FLT_UPDATE);
++	else
++		ret = -EIO;
++
++	if (ret) {
++		dev_err(hdmi->dev, "lts4: SCDC write failed\n");
++		return LTSL;
++	}
++
++	return LTS3;
++}
++
++/*
++ * Training passed, wait for further changes.
++ */
++static int dw_hdmi_qp_frl_ltsp(struct dw_hdmi_qp *hdmi)
++{
++	int i, ret;
++	u8 val;
++
++	ret = drm_scdc_writeb(hdmi->bridge.ddc, SCDC_UPDATE_0, SCDC_FLT_UPDATE);
++	if (ret) {
++		dev_err(hdmi->dev, "ltsp: SCDC write failed\n");
++		return LTSL;
++	}
++
++	/* Set 2s timeout */
++	i = 4000;
++
++	while (i--) {
++		/* Poll Update Flags every 2 ms or less */
++		usleep_range(400, 500);
++
++		if (!hdmi->tmds_char_rate) {
++			dev_dbg(hdmi->dev, "ltsp: hdmi disabled\n");
++			return LTSL;
++		}
++
++		ret = drm_scdc_readb(hdmi->bridge.ddc, SCDC_UPDATE_0, &val);
++		if (ret) {
++			dev_err(hdmi->dev, "ltsp: SCDC read failed\n");
++			return LTSL;
++		}
++
++		if (val & SCDC_FRL_START) {
++			dw_hdmi_qp_mod(hdmi, 0, AVP_DATAPATH_VIDEO_SWDISABLE,
++				       GLOBAL_SWDISABLE);
++
++			ret = drm_scdc_writeb(hdmi->bridge.ddc, SCDC_UPDATE_0,
++					      SCDC_FRL_START);
++			if (ret) {
++				dev_err(hdmi->dev, "ltsp: SCDC write failed\n");
++				return LTSL;
++			}
++
++			dw_hdmi_qp_write(hdmi, PKTSCHED_GCP_CLEAR_AVMUTE,
++					 PKTSCHED_PKT_CONTROL0);
++			dw_hdmi_qp_mod(hdmi, PKTSCHED_GCP_TX_EN, PKTSCHED_GCP_TX_EN,
++				       PKTSCHED_PKT_EN);
++
++			dev_dbg(hdmi->dev, "ltsp: flt success\n");
++			break;
++		}
++
++		if (val & SCDC_FLT_UPDATE) {
++			dw_hdmi_qp_mod(hdmi, AVP_DATAPATH_VIDEO_SWDISABLE,
++				       AVP_DATAPATH_VIDEO_SWDISABLE, GLOBAL_SWDISABLE);
++
++			ret = drm_scdc_writeb(hdmi->bridge.ddc, SCDC_UPDATE_0,
++					      SCDC_FLT_UPDATE);
++			if (ret) {
++				dev_err(hdmi->dev, "ltsp: SCDC write failed\n");
++				return LTSL;
++			}
++
++			return LTS3;
++		}
++	}
++
++	if (i < 0) {
++		dev_err(hdmi->dev, "ltsp: timed out\n");
++		return LTSL;
++	}
++
++	/* Ensure FLT_update flag is polled at least once every 250 ms. */
++	i = 5;
++
++	while (true) {
++		msleep(20);
++
++		if (!hdmi->tmds_char_rate) {
++			dev_dbg(hdmi->dev, "ltsp: hdmi disabled\n");
++			break;
++		}
++
++		if (i) {
++			i--;
++			continue;
++		}
++
++		ret = drm_scdc_readb(hdmi->bridge.ddc, SCDC_UPDATE_0, &val);
++		if (ret) {
++			dev_err(hdmi->dev, "ltsp: SCDC read failed\n");
++			break;
++		}
++
++		if (val & SCDC_FLT_UPDATE) {
++			dw_hdmi_qp_write(hdmi, PKTSCHED_GCP_SET_AVMUTE,
++					 PKTSCHED_PKT_CONTROL0);
++			dw_hdmi_qp_mod(hdmi, PKTSCHED_GCP_TX_EN, PKTSCHED_GCP_TX_EN,
++				       PKTSCHED_PKT_EN);
++
++			msleep(50);
++			dw_hdmi_qp_mod(hdmi, AVP_DATAPATH_VIDEO_SWDISABLE,
++				       AVP_DATAPATH_VIDEO_SWDISABLE, GLOBAL_SWDISABLE);
++
++			ret = drm_scdc_writeb(hdmi->bridge.ddc, SCDC_UPDATE_0,
++					      SCDC_FLT_UPDATE);
++			if (ret) {
++				dev_err(hdmi->dev, "ltsp: SCDC write failed\n");
++				break;
++			}
++
++			return LTS2;
++		}
++
++		i = 5;
++	}
++
++	return LTSL;
++}
++
++/*
++ * Exit frl mode, i.e. for training failures or hdmi disabled.
++ */
++static int dw_hdmi_qp_frl_ltsl(struct dw_hdmi_qp *hdmi)
++{
++	enum drm_connector_status status;
++
++	status = hdmi->phy.ops->read_hpd(hdmi, hdmi->phy.data);
++
++	dev_dbg(hdmi->dev, "ltsl: conn_stat=%d\n", status);
++
++	if (status != connector_status_disconnected) {
++		drm_scdc_set_frl(hdmi->curr_conn, 0, 0, 0);
++		drm_scdc_writeb(hdmi->bridge.ddc, SCDC_UPDATE_0, SCDC_FLT_UPDATE);
++	}
++
++	dw_hdmi_qp_mod(hdmi, 0, AVP_DATAPATH_VIDEO_SWDISABLE, GLOBAL_SWDISABLE);
++
++	return LTSU;
++}
++
++static void dw_hdmi_qp_flt_work(struct work_struct *work)
++{
++	struct dw_hdmi_qp *hdmi = container_of(work, struct dw_hdmi_qp, flt_work);
++	enum dw_hdmi_qp_frl_lts state = LTS1;
++
++	while (true) {
++		switch (state) {
++		case LTS1:
++			state = dw_hdmi_qp_frl_lts1(hdmi);
++			break;
++		case LTS2:
++			state = dw_hdmi_qp_frl_lts2(hdmi);
++			break;
++		case LTS3:
++			state = dw_hdmi_qp_frl_lts3(hdmi);
++			break;
++		case LTS4:
++			state = dw_hdmi_qp_frl_lts4(hdmi);
++			break;
++		case LTSP:
++			state = dw_hdmi_qp_frl_ltsp(hdmi);
++			break;
++		case LTSL:
++			state = dw_hdmi_qp_frl_ltsl(hdmi);
++			break;
++		case LTSU:
++			return;
++		default:
++			dev_err(hdmi->dev, "unexpected flt state: %d\n", state);
++			return;
++		}
++	}
++}
++
+ static void dw_hdmi_qp_bridge_atomic_enable(struct drm_bridge *bridge,
+ 					    struct drm_atomic_commit *state)
+ {
+ 	struct dw_hdmi_qp *hdmi = bridge->driver_private;
+-	struct drm_connector_state *conn_state;
++	const struct drm_connector_state *conn_state;
++	const struct dw_hdmi_qp_link_cfg *link_cfg;
+ 	const struct drm_display_mode *mode;
+ 	struct drm_crtc_state *crtc_state;
+ 	unsigned int op_mode;
+@@ -768,15 +1299,25 @@ static void dw_hdmi_qp_bridge_atomic_enable(struct drm_bridge *bridge,
+ 	if (WARN_ON(!conn_state))
+ 		return;
+ 
++	link_cfg = hdmi->phy.ops->get_link_cfg(hdmi, hdmi->phy.data);
++
+ 	if (hdmi->curr_conn->display_info.is_hdmi) {
+ 		crtc_state = drm_atomic_get_new_crtc_state(state, conn_state->crtc);
+ 		mode = &crtc_state->mode;
++		dev_dbg(hdmi->dev, "%s mode=%ux%u@%uHz fmt=%s rate=%llu bpc=%u\n", __func__,
++			mode->hdisplay, mode->vdisplay, drm_mode_vrefresh(mode),
++			drm_hdmi_connector_get_output_format_name(conn_state->hdmi.output_format),
++			conn_state->hdmi.tmds_char_rate, conn_state->hdmi.output_bpc);
++
+ 		op_mode = 0;
+ 		hdmi->tmds_char_rate = conn_state->hdmi.tmds_char_rate;
+ 
+-		ret = drm_connector_hdmi_enable_scrambling(hdmi->curr_conn, conn_state);
+-		if (ret)
+-			dev_warn(hdmi->dev, "Failed to setup SCDC: %d\n", ret);
++		if (!link_cfg->frl_enabled) {
++			ret = drm_connector_hdmi_enable_scrambling(hdmi->curr_conn,
++							  conn_state);
++			if (ret)
++				dev_warn(hdmi->dev, "Failed to setup SCDC: %d\n", ret);
++		}
+ 
+ 		dev_dbg(hdmi->dev,
+ 			"%s mode=HDMI:%ux%u@%uHz fmt=%s rate=%llu bpc=%u scramb=%d\n",
+@@ -795,7 +1336,21 @@ static void dw_hdmi_qp_bridge_atomic_enable(struct drm_bridge *bridge,
+ 	dw_hdmi_qp_mod(hdmi, HDCP2_BYPASS, HDCP2_BYPASS, HDCP2LOGIC_CONFIG0);
+ 	dw_hdmi_qp_mod(hdmi, op_mode, OPMODE_DVI, LINK_CONFIG0);
+ 
++	dw_hdmi_qp_mod(hdmi,
++		       link_cfg->frl_enabled && link_cfg->frl_lanes == 4 ? OPMODE_FRL_4LANES : 0,
++		       OPMODE_FRL_4LANES, LINK_CONFIG0);
++	dw_hdmi_qp_mod(hdmi, link_cfg->frl_enabled, OPMODE_FRL, LINK_CONFIG0);
++
+ 	drm_atomic_helper_connector_hdmi_update_infoframes(hdmi->curr_conn, state);
++
++	if (link_cfg->frl_enabled) {
++		/* Ensure phy output is stable before starting FLT */
++		msleep(50);
++		schedule_work(&hdmi->flt_work);
++	} else {
++		dw_hdmi_qp_write(hdmi, PKTSCHED_GCP_CLEAR_AVMUTE, PKTSCHED_PKT_CONTROL0);
++		dw_hdmi_qp_mod(hdmi, PKTSCHED_GCP_TX_EN, PKTSCHED_GCP_TX_EN, PKTSCHED_PKT_EN);
++	}
+ }
+ 
+ static void dw_hdmi_qp_bridge_atomic_disable(struct drm_bridge *bridge,
+@@ -808,17 +1363,58 @@ static void dw_hdmi_qp_bridge_atomic_disable(struct drm_bridge *bridge,
+ 
+ 	hdmi->tmds_char_rate = 0;
+ 
++	dw_hdmi_qp_write(hdmi, PKTSCHED_GCP_SET_AVMUTE, PKTSCHED_PKT_CONTROL0);
++	msleep(50);
++
++	cancel_work_sync(&hdmi->flt_work);
+ 	drm_connector_hdmi_disable_scrambling(hdmi->curr_conn);
+ 
+ 	hdmi->curr_conn = NULL;
+ 	hdmi->phy.ops->disable(hdmi, hdmi->phy.data);
+ }
+ 
+-static enum drm_connector_status
+-dw_hdmi_qp_bridge_detect(struct drm_bridge *bridge, struct drm_connector *connector)
++static int dw_hdmi_qp_reset_crtc(struct dw_hdmi_qp *hdmi,
++				 struct drm_connector *connector,
++				 struct drm_modeset_acquire_ctx *ctx)
++{
++	u8 config;
++	int ret;
++
++	if (connector->hdmi.scrambler_enabled) {
++		ret = drm_scdc_readb(hdmi->bridge.ddc, SCDC_TMDS_CONFIG, &config);
++		if (ret < 0) {
++			dev_err(hdmi->dev, "Failed to read TMDS config: %d\n", ret);
++			return ret;
++		}
++
++		if (config & SCDC_SCRAMBLING_ENABLE)
++			return 0;
++	} else {
++		ret = drm_scdc_readb(hdmi->bridge.ddc, SCDC_CONFIG_1, &config);
++		if (ret < 0) {
++			dev_err(hdmi->dev, "Failed to read FRL config: %d\n", ret);
++			return ret;
++		}
++
++		if (config & SCDC_FRL_RATE_MASK && work_busy(&hdmi->flt_work))
++			return 0;
++	}
++
++	dev_dbg(hdmi->dev, "resetting crtc\n");
++
++	return drm_bridge_helper_reset_crtc(&hdmi->bridge, ctx);
++}
++
++static int dw_hdmi_qp_bridge_detect_ctx(struct drm_bridge *bridge,
++					struct drm_connector *connector,
++					struct drm_modeset_acquire_ctx *ctx)
+ {
+ 	struct dw_hdmi_qp *hdmi = bridge->driver_private;
++	const struct dw_hdmi_qp_link_cfg *link_cfg;
++	enum drm_connector_status status;
+ 	const struct drm_edid *drm_edid;
++	bool frl_active;
++	int ret;
+ 
+ 	if (hdmi->no_hpd) {
+ 		drm_edid = drm_edid_read_ddc(connector, bridge->ddc);
+@@ -828,7 +1424,24 @@ dw_hdmi_qp_bridge_detect(struct drm_bridge *bridge, struct drm_connector *connec
+ 			return connector_status_disconnected;
+ 	}
+ 
+-	return hdmi->phy.ops->read_hpd(hdmi, hdmi->phy.data);
++	status = hdmi->phy.ops->read_hpd(hdmi, hdmi->phy.data);
++
++	link_cfg = hdmi->phy.ops->get_link_cfg(hdmi, hdmi->phy.data);
++	frl_active = link_cfg->frl_enabled && hdmi->tmds_char_rate;
++
++	dev_dbg(hdmi->dev, "%s status=%d frl=%u scramb=%u\n", __func__,
++		status, frl_active, connector->hdmi.scrambler_enabled);
++
++	if (status == connector_status_connected &&
++	    (frl_active || connector->hdmi.scrambler_enabled)) {
++		ret = dw_hdmi_qp_reset_crtc(hdmi, connector, ctx);
++		if (ret == -EDEADLK)
++			return ret;
++		if (ret < 0)
++			status = connector_status_unknown;
++	}
++
++	return status;
+ }
+ 
+ static const struct drm_edid *
+@@ -885,12 +1498,47 @@ static int dw_hdmi_qp_bridge_scrambler_disable(struct drm_bridge *bridge)
+ 	return 0;
+ }
+ 
++static enum drm_mode_status
++dw_hdmi_qp_bridge_frl_rate_valid(const struct drm_bridge *bridge,
++				 const struct drm_display_mode *mode,
++				 unsigned long long frl_data_rate,
++				 unsigned long long frl_max_link_rate)
++{
++	struct dw_hdmi_qp *hdmi = bridge->driver_private;
++	const struct dw_hdmi_qp_link_cfg *link_cfg;
++	unsigned long long frl_bw;
++
++	if (!hdmi->phy.ops->set_frl_rate) {
++		dev_dbg(hdmi->dev, "Unsupported FRL rate: %lld\n", frl_data_rate);
++		return MODE_CLOCK_HIGH;
++	}
++
++	link_cfg = hdmi->phy.ops->get_link_cfg(hdmi, hdmi->phy.data);
++
++	frl_bw = link_cfg->max_frl_rate_per_lane *
++		 link_cfg->max_frl_lanes * 1000000000ULL;
++	if (frl_bw < frl_data_rate) {
++		dev_dbg(hdmi->dev, "Unsupported FRL data rate: req=%llu max=%llu\n",
++			frl_data_rate, frl_bw);
++		return MODE_CLOCK_HIGH;
++	}
++
++	frl_bw = link_cfg->min_frl_rate_per_lane *
++		 link_cfg->min_frl_lanes * 1000000000ULL;
++	if (frl_bw > frl_max_link_rate) {
++		dev_dbg(hdmi->dev, "Unsupported FRL link rate: req=%llu min=%llu\n",
++			frl_max_link_rate, frl_bw);
++		return MODE_CLOCK_LOW;
++	}
++
++	return MODE_OK;
++}
++
+ static int dw_hdmi_qp_bridge_clear_avi_infoframe(struct drm_bridge *bridge)
+ {
+ 	struct dw_hdmi_qp *hdmi = bridge->driver_private;
+ 
+-	dw_hdmi_qp_mod(hdmi, 0, PKTSCHED_AVI_TX_EN | PKTSCHED_GCP_TX_EN,
+-		       PKTSCHED_PKT_EN);
++	dw_hdmi_qp_mod(hdmi, 0, PKTSCHED_AVI_TX_EN, PKTSCHED_PKT_EN);
+ 
+ 	return 0;
+ }
+@@ -971,8 +1619,8 @@ static int dw_hdmi_qp_bridge_write_avi_infoframe(struct drm_bridge *bridge,
+ 	dw_hdmi_qp_write_infoframe(hdmi, buffer, len, PKT_AVI_CONTENTS0);
+ 
+ 	dw_hdmi_qp_mod(hdmi, 0, PKTSCHED_AVI_FIELDRATE, PKTSCHED_PKT_CONFIG1);
+-	dw_hdmi_qp_mod(hdmi, PKTSCHED_AVI_TX_EN | PKTSCHED_GCP_TX_EN,
+-		       PKTSCHED_AVI_TX_EN | PKTSCHED_GCP_TX_EN, PKTSCHED_PKT_EN);
++	dw_hdmi_qp_mod(hdmi, PKTSCHED_AVI_TX_EN, PKTSCHED_AVI_TX_EN,
++		       PKTSCHED_PKT_EN);
+ 
+ 	return 0;
+ }
+@@ -1254,13 +1902,14 @@ static const struct drm_bridge_funcs dw_hdmi_qp_bridge_funcs = {
+ 	.atomic_reset = drm_atomic_helper_bridge_reset,
+ 	.atomic_enable = dw_hdmi_qp_bridge_atomic_enable,
+ 	.atomic_disable = dw_hdmi_qp_bridge_atomic_disable,
+-	.detect = dw_hdmi_qp_bridge_detect,
++	.detect_ctx = dw_hdmi_qp_bridge_detect_ctx,
+ 	.hpd_enable = dw_hdmi_qp_bridge_hpd_enable,
+ 	.hpd_disable = dw_hdmi_qp_bridge_hpd_disable,
+ 	.edid_read = dw_hdmi_qp_bridge_edid_read,
+ 	.hdmi_tmds_char_rate_valid = dw_hdmi_qp_bridge_tmds_char_rate_valid,
+ 	.hdmi_scrambler_enable = dw_hdmi_qp_bridge_scrambler_enable,
+ 	.hdmi_scrambler_disable = dw_hdmi_qp_bridge_scrambler_disable,
++	.hdmi_frl_rate_valid = dw_hdmi_qp_bridge_frl_rate_valid,
+ 	.hdmi_clear_avi_infoframe = dw_hdmi_qp_bridge_clear_avi_infoframe,
+ 	.hdmi_write_avi_infoframe = dw_hdmi_qp_bridge_write_avi_infoframe,
+ 	.hdmi_clear_hdmi_infoframe = dw_hdmi_qp_bridge_clear_hdmi_infoframe,
+@@ -1335,7 +1984,8 @@ struct dw_hdmi_qp *dw_hdmi_qp_bind(struct platform_device *pdev,
+ 	int ret;
+ 
+ 	if (!plat_data->phy_ops || !plat_data->phy_ops->init ||
+-	    !plat_data->phy_ops->disable || !plat_data->phy_ops->read_hpd) {
++	    !plat_data->phy_ops->disable || !plat_data->phy_ops->read_hpd ||
++	    !plat_data->phy_ops->get_link_cfg) {
+ 		dev_err(dev, "Missing platform PHY ops\n");
+ 		return ERR_PTR(-ENODEV);
+ 	}
+@@ -1345,6 +1995,8 @@ struct dw_hdmi_qp *dw_hdmi_qp_bind(struct platform_device *pdev,
+ 	if (IS_ERR(hdmi))
+ 		return ERR_CAST(hdmi);
+ 
++	INIT_WORK(&hdmi->flt_work, dw_hdmi_qp_flt_work);
++
+ 	hdmi->dev = dev;
+ 
+ 	regs = devm_platform_ioremap_resource(pdev, 0);
+diff --git a/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.h b/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.h
+index c07847e8d7dd0..dfb8cb6614ad7 100644
+--- a/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.h
++++ b/drivers/gpu/drm/bridge/synopsys/dw-hdmi-qp.h
+@@ -23,6 +23,7 @@
+ #define GLOBAL_SWRESET_REQUEST				0x40
+ #define EARCRX_CMDC_SWINIT_P				BIT(27)
+ #define AVP_DATAPATH_PACKET_AUDIO_SWINIT_P		BIT(10)
++#define AVP_DATAPATH_SWINIT_P				BIT(6)
+ #define GLOBAL_SWDISABLE				0x44
+ #define CEC_SWDISABLE					BIT(17)
+ #define AVP_DATAPATH_PACKET_AUDIO_SWDISABLE		BIT(10)
+@@ -216,6 +217,8 @@
+ #define PKTSCHED_ACR_TX_EN				BIT(1)
+ #define PKTSCHED_NULL_TX_EN				BIT(0)
+ #define PKTSCHED_PKT_CONTROL0				0xaac
++#define PKTSCHED_GCP_CLEAR_AVMUTE			BIT(1)
++#define PKTSCHED_GCP_SET_AVMUTE				BIT(0)
+ #define PKTSCHED_PKT_SEND				0xab0
+ #define PKTSCHED_PKT_STATUS0				0xab4
+ #define PKTSCHED_PKT_STATUS1				0xab8
+diff --git a/drivers/gpu/drm/display/drm_bridge_connector.c b/drivers/gpu/drm/display/drm_bridge_connector.c
+index bab2eceb27de9..c783c797e585c 100644
+--- a/drivers/gpu/drm/display/drm_bridge_connector.c
++++ b/drivers/gpu/drm/display/drm_bridge_connector.c
+@@ -303,8 +303,11 @@ static int drm_bridge_connector_detect_ctx(struct drm_connector *connector,
+ 	int ret;
+ 
+ 	if (detect) {
+-		status = detect->funcs->detect(detect, connector);
++		ret = drm_bridge_detect_ctx(detect, connector, ctx);
++		if (ret < 0)
++			return ret;
+ 
++		status = ret;
+ 		if (hdmi) {
+ 			ret = drm_atomic_helper_connector_hdmi_hotplug(connector,
+ 								 status, ctx);
+@@ -447,6 +450,27 @@ drm_bridge_connector_tmds_char_rate_valid(const struct drm_connector *connector,
+ 		return MODE_OK;
+ }
+ 
++static enum drm_mode_status
++drm_bridge_connector_frl_rate_valid(const struct drm_connector *connector,
++				    const struct drm_display_mode *mode,
++				    unsigned long long frl_data_rate,
++				    unsigned long long frl_max_link_rate)
++{
++	struct drm_bridge_connector *bridge_connector =
++		to_drm_bridge_connector(connector);
++	struct drm_bridge *bridge;
++
++	bridge = bridge_connector->bridge_hdmi;
++	if (!bridge)
++		return MODE_ERROR;
++
++	if (bridge->funcs->hdmi_frl_rate_valid)
++		return bridge->funcs->hdmi_frl_rate_valid(bridge, mode,
++							  frl_data_rate,
++							  frl_max_link_rate);
++	return MODE_CLOCK_HIGH;
++}
++
+ static int drm_bridge_connector_clear_avi_infoframe(struct drm_connector *connector)
+ {
+ 	struct drm_bridge_connector *bridge_connector =
+@@ -624,6 +648,7 @@ drm_bridge_connector_read_edid(struct drm_connector *connector)
+ 
+ static const struct drm_connector_hdmi_funcs drm_bridge_connector_hdmi_funcs = {
+ 	.tmds_char_rate_valid = drm_bridge_connector_tmds_char_rate_valid,
++	.frl_rate_valid = drm_bridge_connector_frl_rate_valid,
+ 	.read_edid = drm_bridge_connector_read_edid,
+ 	.avi = {
+ 		.clear_infoframe = drm_bridge_connector_clear_avi_infoframe,
+diff --git a/drivers/gpu/drm/display/drm_hdmi_state_helper.c b/drivers/gpu/drm/display/drm_hdmi_state_helper.c
+index b273779e1be30..a773aa4d892d7 100644
+--- a/drivers/gpu/drm/display/drm_hdmi_state_helper.c
++++ b/drivers/gpu/drm/display/drm_hdmi_state_helper.c
+@@ -556,8 +556,30 @@ hdmi_clock_valid(const struct drm_connector *connector,
+ 	const struct drm_connector_hdmi_funcs *funcs = connector->hdmi.funcs;
+ 	const struct drm_display_info *info = &connector->display_info;
+ 
+-	if (info->max_tmds_clock && clock > info->max_tmds_clock * 1000)
+-		return MODE_CLOCK_HIGH;
++	if (info->max_tmds_clock && clock > info->max_tmds_clock * 1000) {
++		unsigned long long req_frl_bw, max_frl_bw;
++
++		/* Check if FRL is supported by the sink */
++		if (!info->hdmi.max_frl_rate_per_lane || !info->hdmi.max_lanes)
++			return MODE_CLOCK_HIGH;
++
++		/* Mandate further (i.e. driver) FRL checks */
++		if (!funcs || !funcs->frl_rate_valid)
++			return MODE_CLOCK_HIGH;
++
++		/*
++		 * Check required FRL bandwidth assuming 16b/18b encoding:
++		 * bw (bps) = clock (Hz) * 3 (channels) * 8 (bit) * 18 / 16
++		 */
++		req_frl_bw = clock * 27;
++		max_frl_bw = info->hdmi.max_frl_rate_per_lane *
++			     info->hdmi.max_lanes * 1000000000ULL;
++
++		if (req_frl_bw > max_frl_bw)
++			return MODE_CLOCK_HIGH;
++
++		return funcs->frl_rate_valid(connector, mode, req_frl_bw, max_frl_bw);
++	}
+ 
+ 	if (funcs && funcs->tmds_char_rate_valid) {
+ 		enum drm_mode_status status;
+diff --git a/drivers/gpu/drm/display/drm_scdc_helper.c b/drivers/gpu/drm/display/drm_scdc_helper.c
+index 7d36a04feed1f..13997d8ad522e 100644
+--- a/drivers/gpu/drm/display/drm_scdc_helper.c
++++ b/drivers/gpu/drm/display/drm_scdc_helper.c
+@@ -597,3 +597,188 @@ void drm_scdc_debugfs_init(struct drm_connector *connector, struct dentry *root)
+ 	debugfs_create_file("scdc_status", 0444, root, priv, &scdc_status_fops);
+ }
+ EXPORT_SYMBOL(drm_scdc_debugfs_init);
++
++static int drm_scdc_frl_config_to_rate(u8 config, u8 *rate_per_lane, u8 *lanes)
++{
++	switch (config) {
++	case SCDC_FRL_RATE_12GBPS_4LANE:
++		*rate_per_lane = 12;
++		*lanes = 4;
++		return 0;
++	case SCDC_FRL_RATE_10GBPS_4LANE:
++		*rate_per_lane = 10;
++		*lanes = 4;
++		return 0;
++	case SCDC_FRL_RATE_8GBPS_4LANE:
++		*rate_per_lane = 8;
++		*lanes = 4;
++		return 0;
++	case SCDC_FRL_RATE_6GBPS_4LANE:
++		*rate_per_lane = 6;
++		*lanes = 4;
++		return 0;
++	case SCDC_FRL_RATE_6GBPS_3LANE:
++		*rate_per_lane = 6;
++		*lanes = 3;
++		return 0;
++	case SCDC_FRL_RATE_3GBPS_3LANE:
++		*rate_per_lane = 3;
++		*lanes = 3;
++		return 0;
++	case SCDC_FRL_RATE_DISABLE:
++		*rate_per_lane = 0;
++		*lanes = 0;
++		return 0;
++	default:
++		return -EINVAL;
++	}
++}
++
++static int drm_scdc_frl_rate_to_config(u8 rate_per_lane, u8 lanes)
++{
++	if (lanes != 0 && lanes != 3 && lanes != 4)
++		return -EINVAL;
++
++	switch (rate_per_lane * lanes) {
++	case 48:
++		return SCDC_FRL_RATE_12GBPS_4LANE;
++	case 40:
++		return SCDC_FRL_RATE_10GBPS_4LANE;
++	case 32:
++		return SCDC_FRL_RATE_8GBPS_4LANE;
++	case 24:
++		return SCDC_FRL_RATE_6GBPS_4LANE;
++	case 18:
++		return SCDC_FRL_RATE_6GBPS_3LANE;
++	case 9:
++		return SCDC_FRL_RATE_3GBPS_3LANE;
++	case 0:
++		return SCDC_FRL_RATE_DISABLE;
++	default:
++		return -EINVAL;
++	}
++}
++
++/**
++ * drm_scdc_set_frl - set FRL rate and FFE
++ * @connector: connector
++ * @rate_per_lane: FRL rate for a single lane (Gbps)
++ * @lanes: FRL lane count (3 or 4)
++ * @max_ffe_level: max TxFFE level for indicated FRL Rate (0..3)
++ *
++ * Writes over SCDC the FRL config register over SCDC channel, and sets
++ * FRL_Rate according to rate_per_lane x lanes, as well as FFE_levels
++ * according to max_ffe_level.
++ *
++ * Returns:
++ * True if write is successful, false otherwise.
++ */
++bool drm_scdc_set_frl(struct drm_connector *connector,
++		      u8 rate_per_lane, u8 lanes, u8 max_ffe_level)
++{
++	u8 config;
++	int ret;
++
++	ret = drm_scdc_frl_rate_to_config(rate_per_lane, lanes);
++	if (ret < 0 || max_ffe_level > 3) {
++		drm_dbg_kms(connector->dev,
++			    "[CONNECTOR:%d:%s] Invalid FRL config: rate=%ux%u ffe=%u\n",
++			    connector->base.id, connector->name, rate_per_lane,
++			    lanes, max_ffe_level);
++		return false;
++	}
++
++	config = FIELD_PREP(SCDC_FRL_RATE_MASK, ret) |
++		 FIELD_PREP(SCDC_FFE_LEVELS_MASK, max_ffe_level);
++
++	ret = drm_scdc_writeb(connector->ddc, SCDC_CONFIG_1, config);
++	if (ret < 0) {
++		drm_dbg_kms(connector->dev,
++			    "[CONNECTOR:%d:%s] Failed to set FRL: %d\n",
++			    connector->base.id, connector->name, ret);
++		return false;
++	}
++
++	return true;
++}
++EXPORT_SYMBOL(drm_scdc_set_frl);
++
++/**
++ * drm_scdc_calc_lower_frl - compute a reduced bandwidth FRL rate
++ * @in_rate_per_lane: input FRL rate for a single lane (Gbps)
++ * @in_lanes: input FRL lane count (3 or 4)
++ * @out_rate_per_lane: output FRL rate for a single lane (Gbps)
++ * @out_lanes: output FRL lane count (3 or 4)
++ *
++ * Determinates the FRL rate configuration with the highest bandwidth that is
++ * still lower than the bandwidth corresponding to the given input configuration.
++ * The resulting configuration is stored in out_rate_per_lane and out_lanes.
++ *
++ * Returns:
++ * True if computation was successful, false otherwise.
++ */
++bool drm_scdc_calc_lower_frl(u8 in_rate_per_lane, u8 in_lanes,
++			     u8 *out_rate_per_lane, u8 *out_lanes)
++{
++	int ret;
++
++	ret = drm_scdc_frl_rate_to_config(in_rate_per_lane, in_lanes);
++	if (ret < 0)
++		return false;
++
++	ret--;
++
++	if (ret <= SCDC_FRL_RATE_DISABLE)
++		return false;
++
++	ret = drm_scdc_frl_config_to_rate(ret, out_rate_per_lane, out_lanes);
++
++	return ret == 0;
++}
++EXPORT_SYMBOL(drm_scdc_calc_lower_frl);
++
++/**
++ * drm_scdc_get_frl_ltp_request - read LTP requested by the Sink for FRL lanes
++ * @connector: connector
++ * @ln0: output LTP request for FRL lane 0
++ * @ln1: output LTP request for FRL lane 1
++ * @ln2: output LTP request for FRL lane 2
++ * @ln3: output LTP request for FRL lane 3
++ *
++ * Reads over SCDC the Link Training Pattern (LTP) requested by the Sink for
++ * each of the four FRL lanes and stores the values in ln0..3.
++ *
++ * Returns:
++ * True on success, false otherwise.
++ */
++bool drm_scdc_get_frl_ltp_request(struct drm_connector *connector,
++				  u8 *ln0, u8 *ln1, u8 *ln2, u8 *ln3)
++{
++	u8 status;
++	int ret;
++
++	ret = drm_scdc_readb(connector->ddc, SCDC_STATUS_FLAGS_1, &status);
++	if (ret < 0) {
++		drm_dbg_kms(connector->dev,
++			    "[CONNECTOR:%d:%s] Failed to read LTP{0,1}: %d\n",
++			    connector->base.id, connector->name, ret);
++		return false;
++	}
++
++	*ln0 = FIELD_GET(SCDC_FRL_LN0_LTP_REQ_MASK, status);
++	*ln1 = FIELD_GET(SCDC_FRL_LN1_LTP_REQ_MASK, status);
++
++	ret = drm_scdc_readb(connector->ddc, SCDC_STATUS_FLAGS_2, &status);
++	if (ret < 0) {
++		drm_dbg_kms(connector->dev,
++			    "[CONNECTOR:%d:%s] Failed to read LTP{2,3}: %d\n",
++			    connector->base.id, connector->name, ret);
++		return false;
++	}
++
++	*ln2 = FIELD_GET(SCDC_FRL_LN2_LTP_REQ_MASK, status);
++	*ln3 = FIELD_GET(SCDC_FRL_LN3_LTP_REQ_MASK, status);
++
++	return true;
++}
++EXPORT_SYMBOL(drm_scdc_get_frl_ltp_request);
+diff --git a/drivers/gpu/drm/drm_bridge.c b/drivers/gpu/drm/drm_bridge.c
+index 5cb1703288509..529c56b631a51 100644
+--- a/drivers/gpu/drm/drm_bridge.c
++++ b/drivers/gpu/drm/drm_bridge.c
+@@ -1463,9 +1463,9 @@ EXPORT_SYMBOL(drm_atomic_bridge_chain_check);
+  * @connector: attached connector
+  *
+  * If the bridge supports output detection, as reported by the
+- * DRM_BRIDGE_OP_DETECT bridge ops flag, call &drm_bridge_funcs.detect for the
+- * bridge and return the connection status. Otherwise return
+- * connector_status_unknown.
++ * DRM_BRIDGE_OP_DETECT bridge ops flag, call &drm_bridge_funcs.detect_ctx
++ * or &drm_bridge_funcs.detect for the bridge and return the connection status.
++ * Otherwise return connector_status_unknown.
+  *
+  * RETURNS:
+  * The detection status on success, or connector_status_unknown if the bridge
+@@ -1474,12 +1474,68 @@ EXPORT_SYMBOL(drm_atomic_bridge_chain_check);
+ enum drm_connector_status
+ drm_bridge_detect(struct drm_bridge *bridge, struct drm_connector *connector)
+ {
++	return drm_bridge_detect_ctx(bridge, connector, NULL);
++}
++EXPORT_SYMBOL_GPL(drm_bridge_detect);
++
++/**
++ * drm_bridge_detect_ctx - check if anything is attached to the bridge output
++ * @bridge: bridge control structure
++ * @connector: attached connector
++ * @ctx: acquire_ctx, or NULL to let this function handle locking
++ *
++ * If the bridge supports output detection, as reported by the
++ * DRM_BRIDGE_OP_DETECT bridge ops flag, call &drm_bridge_funcs.detect_ctx
++ * or &drm_bridge_funcs.detect for the bridge and return the connection status.
++ * Otherwise return connector_status_unknown.
++ *
++ * RETURNS:
++ * The detection status on success, or connector_status_unknown if the bridge
++ * doesn't support output detection.
++ * If @ctx is set, it might also return -EDEADLK.
++ */
++int drm_bridge_detect_ctx(struct drm_bridge *bridge,
++			  struct drm_connector *connector,
++			  struct drm_modeset_acquire_ctx *ctx)
++{
++	struct drm_modeset_acquire_ctx br_ctx;
++	int ret;
++
+ 	if (!(bridge->ops & DRM_BRIDGE_OP_DETECT))
+ 		return connector_status_unknown;
+ 
+-	return bridge->funcs->detect(bridge, connector);
++	if (!bridge->funcs->detect_ctx)
++		return bridge->funcs->detect(bridge, connector);
++
++	if (ctx) {
++		ret = bridge->funcs->detect_ctx(bridge, connector, ctx);
++		if (ret == -EDEADLK)
++			return ret;
++
++		goto out;
++	}
++
++	drm_modeset_acquire_init(&br_ctx, 0);
++retry:
++	ret = drm_modeset_lock(&connector->dev->mode_config.connection_mutex,
++			       &br_ctx);
++	if (!ret)
++		ret = bridge->funcs->detect_ctx(bridge, connector, &br_ctx);
++
++	if (ret == -EDEADLK) {
++		drm_modeset_backoff(&br_ctx);
++		goto retry;
++	}
++
++	drm_modeset_drop_locks(&br_ctx);
++	drm_modeset_acquire_fini(&br_ctx);
++out:
++	if (WARN_ON(ret < 0))
++		ret = connector_status_unknown;
++
++	return ret;
+ }
+-EXPORT_SYMBOL_GPL(drm_bridge_detect);
++EXPORT_SYMBOL_GPL(drm_bridge_detect_ctx);
+ 
+ /**
+  * drm_bridge_get_modes - fill all modes currently valid for the sink into the
+diff --git a/drivers/gpu/drm/rockchip/Kconfig b/drivers/gpu/drm/rockchip/Kconfig
+index e7f49fe845eae..12188ad1fb4aa 100644
+--- a/drivers/gpu/drm/rockchip/Kconfig
++++ b/drivers/gpu/drm/rockchip/Kconfig
+@@ -20,7 +20,7 @@ config DRM_ROCKCHIP
+ 	select DRM_INNO_HDMI if ROCKCHIP_INNO_HDMI
+ 	select GENERIC_PHY if ROCKCHIP_DW_MIPI_DSI
+ 	select GENERIC_PHY_MIPI_DPHY if ROCKCHIP_DW_MIPI_DSI
+-	select SND_SOC_HDMI_CODEC if ROCKCHIP_CDN_DP && SND_SOC
++	select SND_SOC_HDMI_CODEC if SND_SOC && (ROCKCHIP_CDN_DP || ROCKCHIP_DW_HDMI_QP || ROCKCHIP_DW_DP)
+ 	help
+ 	  Choose this option if you have a Rockchip soc chipset.
+ 	  This driver provides kernel mode setting and buffer
+diff --git a/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c b/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c
+index b8a0b51bed6cc..b913d93c2832a 100644
+--- a/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c
++++ b/drivers/gpu/drm/rockchip/dw_hdmi_qp-rockchip.c
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+  * Copyright (c) 2021-2022 Rockchip Electronics Co., Ltd.
+- * Copyright (c) 2024 Collabora Ltd.
++ * Copyright (c) 2024-2026 Collabora Ltd.
+  *
+  * Author: Algea Cao <algea.cao@rock-chips.com>
+  * Author: Cristian Ciocaltea <cristian.ciocaltea@collabora.com>
+@@ -58,13 +58,18 @@
+ #define RK3588_HDMI0_HPD_INT_CLR	BIT(12)
+ #define RK3588_HDMI1_HPD_INT_MSK	BIT(15)
+ #define RK3588_HDMI1_HPD_INT_CLR	BIT(14)
++
+ #define RK3588_GRF_SOC_CON7		0x031c
+ #define RK3588_HPD_HDMI0_IO_EN_MASK	BIT(12)
+ #define RK3588_HPD_HDMI1_IO_EN_MASK	BIT(13)
+ #define RK3588_GRF_SOC_STATUS1		0x0384
+ #define RK3588_HDMI0_LEVEL_INT		BIT(16)
+ #define RK3588_HDMI1_LEVEL_INT		BIT(24)
++
+ #define RK3588_GRF_VO1_CON3		0x000c
++#define RK3588_GRF_VO1_CON4		0x0010
++#define RK3588_HDMI21_MASK		BIT(0)
++
+ #define RK3588_GRF_VO1_CON6		0x0018
+ #define RK3588_COLOR_DEPTH_MASK		GENMASK(7, 4)
+ #define RK3588_8BPC			0x0
+@@ -74,12 +79,19 @@
+ #define RK3588_SDAIN_MASK		BIT(10)
+ #define RK3588_MODE_MASK		BIT(11)
+ #define RK3588_I2S_SEL_MASK		BIT(13)
++
++#define RK3588_GRF_VO1_CON7		0x001c
+ #define RK3588_GRF_VO1_CON9		0x0024
+ #define RK3588_HDMI0_GRANT_SEL		BIT(10)
+ #define RK3588_HDMI1_GRANT_SEL		BIT(12)
+ 
+ #define HOTPLUG_DEBOUNCE_MS		150
+ #define MAX_HDMI_PORT_NUM		2
++#define HDMI20_MAX_TMDS_RATE		600000000
++#define HDMI21_MAX_FRL_LANE_RATE	12
++#define HDMI21_MAX_FRL_LANE_NUM		4
++#define HDMI21_MIN_FRL_LANE_RATE	3
++#define HDMI21_MIN_FRL_LANE_NUM		3
+ 
+ #define RK_COLOR_FMT_RGB		0x0
+ #define RK_COLOR_FMT_YUV422		0x1
+@@ -93,11 +105,11 @@ struct rockchip_hdmi_qp {
+ 	struct rockchip_encoder encoder;
+ 	struct dw_hdmi_qp *hdmi;
+ 	struct phy *phy;
++	struct dw_hdmi_qp_link_cfg link_cfg;
+ 	struct gpio_desc *frl_enable_gpio;
+ 	struct delayed_work hpd_work;
+ 	int port_id;
+ 	const struct rockchip_hdmi_qp_ctrl_ops *ctrl_ops;
+-	unsigned long long tmds_char_rate;
+ };
+ 
+ struct rockchip_hdmi_qp_ctrl_ops {
+@@ -144,16 +156,24 @@ static int __pure dw_hdmi_qp_rockchip_bus_fmt_to_reg(u32 bus_fmt)
+ static void dw_hdmi_qp_rockchip_encoder_enable(struct drm_encoder *encoder)
+ {
+ 	struct rockchip_hdmi_qp *hdmi = to_rockchip_hdmi_qp(encoder);
++	const struct dw_hdmi_qp_link_cfg *lcfg = &hdmi->link_cfg;
+ 	struct drm_crtc *crtc = encoder->crtc;
++	struct rockchip_crtc_state *rks;
+ 
+-	/* Unconditionally switch to TMDS as FRL is not yet supported */
+-	gpiod_set_value_cansleep(hdmi->frl_enable_gpio, 0);
++	gpiod_set_value_cansleep(hdmi->frl_enable_gpio, lcfg->frl_enabled);
+ 
+ 	if (!crtc || !crtc->state)
+ 		return;
+ 
++	rks = to_rockchip_crtc_state(crtc->state);
++
+ 	if (hdmi->ctrl_ops->enc_init)
+-		hdmi->ctrl_ops->enc_init(hdmi, to_rockchip_crtc_state(crtc->state));
++		hdmi->ctrl_ops->enc_init(hdmi, rks);
++
++	dev_dbg(hdmi->dev, "%s port=%d tmds=%llu frl=%ux%u bpc=%u/%u\n",
++		__func__, hdmi->port_id, lcfg->tmds_char_rate,
++		lcfg->frl_rate_per_lane, lcfg->frl_lanes,
++		rks->output_bpc, lcfg->bpc);
+ }
+ 
+ /**
+@@ -192,11 +212,14 @@ dw_hdmi_qp_rockchip_encoder_atomic_check(struct drm_encoder *encoder,
+ 					 struct drm_connector_state *conn_state)
+ {
+ 	const struct drm_display_mode *adj_mode = &crtc_state->adjusted_mode;
++	const struct drm_display_info *info = &conn_state->connector->display_info;
+ 	struct rockchip_crtc_state *s = to_rockchip_crtc_state(crtc_state);
+ 	struct rockchip_hdmi_qp *hdmi = to_rockchip_hdmi_qp(encoder);
++	struct dw_hdmi_qp_link_cfg *lcfg = &hdmi->link_cfg;
+ 	union phy_configure_opts phy_cfg = {};
+ 	unsigned int overscan;
+ 	int ingest_fmt;
++	enum phy_hdmi_mode mode;
+ 	int ret;
+ 
+ 	ingest_fmt = dw_hdmi_qp_rockchip_get_vop_format(encoder, conn_state);
+@@ -209,7 +232,7 @@ dw_hdmi_qp_rockchip_encoder_atomic_check(struct drm_encoder *encoder,
+ 	s->tv_margins.top    = adj_mode->vdisplay * overscan / 200;
+ 	s->tv_margins.bottom = s->tv_margins.top;
+ 
+-	if (hdmi->tmds_char_rate == conn_state->hdmi.tmds_char_rate &&
++	if (lcfg->tmds_char_rate == conn_state->hdmi.tmds_char_rate &&
+ 	    s->output_bpc == conn_state->hdmi.output_bpc &&
+ 	    s->bus_format == ingest_fmt)
+ 		return 0;
+@@ -233,7 +256,6 @@ dw_hdmi_qp_rockchip_encoder_atomic_check(struct drm_encoder *encoder,
+ 		return -EINVAL;
+ 	}
+ 
+-	phy_cfg.hdmi.tmds_char_rate = conn_state->hdmi.tmds_char_rate;
+ 	/*
+ 	 * YUV422 always transmits two 12-bit components per clock cycle,
+ 	 * regardless of the color depth, which from a rate perspective is
+@@ -243,17 +265,58 @@ dw_hdmi_qp_rockchip_encoder_atomic_check(struct drm_encoder *encoder,
+ 	phy_cfg.hdmi.bpc = (s->output_mode == ROCKCHIP_OUT_MODE_YUV422 ?
+ 				8 : conn_state->hdmi.output_bpc);
+ 
+-	ret = phy_configure(hdmi->phy, &phy_cfg);
+-	if (!ret) {
+-		hdmi->tmds_char_rate = conn_state->hdmi.tmds_char_rate;
+-		s->output_type = DRM_MODE_CONNECTOR_HDMIA;
+-		s->output_bpc = conn_state->hdmi.output_bpc;
+-		s->bus_format = ingest_fmt;
++	if (conn_state->hdmi.tmds_char_rate > HDMI20_MAX_TMDS_RATE ||
++	    (info->max_tmds_clock &&
++	     conn_state->hdmi.tmds_char_rate > info->max_tmds_clock * 1000)) {
++		mode = PHY_HDMI_MODE_FRL;
++
++		if (info->hdmi.max_frl_rate_per_lane > lcfg->max_frl_rate_per_lane)
++			phy_cfg.hdmi.frl.rate_per_lane = lcfg->max_frl_rate_per_lane;
++		else
++			phy_cfg.hdmi.frl.rate_per_lane = info->hdmi.max_frl_rate_per_lane;
++
++		if (info->hdmi.max_lanes > lcfg->max_frl_lanes)
++			phy_cfg.hdmi.frl.lanes = lcfg->max_frl_lanes;
++		else
++			phy_cfg.hdmi.frl.lanes = info->hdmi.max_lanes;
+ 	} else {
++		mode = PHY_HDMI_MODE_TMDS;
++
++		phy_cfg.hdmi.tmds_char_rate = conn_state->hdmi.tmds_char_rate;
++	}
++
++	ret = phy_set_mode_ext(hdmi->phy, PHY_MODE_HDMI, mode);
++	if (ret) {
++		dev_err(hdmi->dev, "Failed to switch phy mode: %d\n", ret);
++		return ret;
++	}
++
++	ret = phy_configure(hdmi->phy, &phy_cfg);
++	if (ret) {
+ 		dev_err(hdmi->dev, "Failed to configure phy: %d\n", ret);
++		return ret;
+ 	}
+ 
+-	return ret;
++	lcfg->tmds_char_rate = conn_state->hdmi.tmds_char_rate;
++
++	if (mode == PHY_HDMI_MODE_FRL) {
++		lcfg->frl_enabled = true;
++		lcfg->frl_rate_per_lane = phy_cfg.hdmi.frl.rate_per_lane;
++		lcfg->frl_lanes = phy_cfg.hdmi.frl.lanes;
++	} else {
++		lcfg->frl_enabled = false;
++		lcfg->frl_rate_per_lane = 0;
++		lcfg->frl_lanes = 0;
++	}
++
++	lcfg->bpc = phy_cfg.hdmi.bpc;
++
++	s->output_type = DRM_MODE_CONNECTOR_HDMIA;
++	s->output_bpc = conn_state->hdmi.output_bpc;
++	s->bus_format = ingest_fmt;
++	s->frl_enabled = lcfg->frl_enabled;
++
++	return 0;
+ }
+ 
+ static const struct
+@@ -317,12 +380,68 @@ static void dw_hdmi_qp_rk3588_disable_hpd(struct dw_hdmi_qp *dw_hdmi, void *data
+ 	regmap_write(hdmi->regmap, RK3588_GRF_SOC_CON2, val);
+ }
+ 
++static const struct dw_hdmi_qp_link_cfg *
++dw_hdmi_qp_rk3588_get_link_cfg(struct dw_hdmi_qp *dw_hdmi, void *data)
++{
++	struct rockchip_hdmi_qp *hdmi = (struct rockchip_hdmi_qp *)data;
++
++	return &hdmi->link_cfg;
++}
++
++static int dw_hdmi_qp_rk3588_set_frl_rate(struct dw_hdmi_qp *dw_hdmi, void *data,
++					  u8 rate_per_lane, u8 lanes)
++{
++	struct rockchip_hdmi_qp *hdmi = (struct rockchip_hdmi_qp *)data;
++	union phy_configure_opts phy_cfg = {};
++	int ret;
++
++	if (!hdmi->link_cfg.frl_enabled || !rate_per_lane || !lanes)
++		return -EINVAL;
++
++	phy_cfg.hdmi.frl.rate_per_lane = rate_per_lane;
++	phy_cfg.hdmi.frl.lanes = lanes;
++	phy_cfg.hdmi.bpc = hdmi->link_cfg.bpc;
++
++	ret = phy_configure(hdmi->phy, &phy_cfg);
++	if (ret) {
++		dev_err(hdmi->dev, "Failed to set PHY FRL rate: %d\n", ret);
++	} else {
++		hdmi->link_cfg.frl_rate_per_lane = rate_per_lane;
++		hdmi->link_cfg.frl_lanes = lanes;
++	}
++
++	return ret;
++}
++
++static int dw_hdmi_qp_rk3588_set_ffe_level(struct dw_hdmi_qp *dw_hdmi, void *data,
++					   u8 ffe_level)
++{
++	struct rockchip_hdmi_qp *hdmi = (struct rockchip_hdmi_qp *)data;
++	union phy_configure_opts phy_cfg = {};
++	int ret;
++
++	if (!hdmi->link_cfg.frl_enabled)
++		return -EINVAL;
++
++	phy_cfg.hdmi.frl.ffe_level = ffe_level;
++	phy_cfg.hdmi.frl.set_ffe_level = true;
++
++	ret = phy_configure(hdmi->phy, &phy_cfg);
++	if (ret)
++		dev_err(hdmi->dev, "Failed to set PHY FFE level: %d\n", ret);
++
++	return ret;
++}
++
+ static const struct dw_hdmi_qp_phy_ops rk3588_hdmi_phy_ops = {
+ 	.init		= dw_hdmi_qp_rk3588_phy_init,
+ 	.disable	= dw_hdmi_qp_rk3588_phy_disable,
+ 	.read_hpd	= dw_hdmi_qp_rk3588_read_hpd,
+ 	.enable_hpd	= dw_hdmi_qp_rk3588_enable_hpd,
+ 	.disable_hpd	= dw_hdmi_qp_rk3588_disable_hpd,
++	.get_link_cfg	= dw_hdmi_qp_rk3588_get_link_cfg,
++	.set_frl_rate	= dw_hdmi_qp_rk3588_set_frl_rate,
++	.set_ffe_level	= dw_hdmi_qp_rk3588_set_ffe_level,
+ };
+ 
+ static enum drm_connector_status
+@@ -362,6 +481,9 @@ static const struct dw_hdmi_qp_phy_ops rk3576_hdmi_phy_ops = {
+ 	.read_hpd	= dw_hdmi_qp_rk3576_read_hpd,
+ 	.enable_hpd	= dw_hdmi_qp_rk3576_enable_hpd,
+ 	.disable_hpd	= dw_hdmi_qp_rk3576_disable_hpd,
++	.get_link_cfg	= dw_hdmi_qp_rk3588_get_link_cfg,
++	.set_frl_rate	= dw_hdmi_qp_rk3588_set_frl_rate,
++	.set_ffe_level	= dw_hdmi_qp_rk3588_set_ffe_level,
+ };
+ 
+ static void dw_hdmi_qp_rk3588_hpd_work(struct work_struct *work)
+@@ -473,6 +595,9 @@ static void dw_hdmi_qp_rk3576_enc_init(struct rockchip_hdmi_qp *hdmi,
+ 	int color = dw_hdmi_qp_rockchip_bus_fmt_to_reg(state->bus_format);
+ 	u32 val;
+ 
++	val = FIELD_PREP_WM16(RK3576_HDMI_FRL_MOD, hdmi->link_cfg.frl_enabled);
++	regmap_write(hdmi->vo_regmap, RK3576_VO0_GRF_SOC_CON1, val);
++
+ 	if (state->output_bpc == 10)
+ 		val = FIELD_PREP_WM16(RK3576_COLOR_DEPTH_MASK, RK3576_10BPC);
+ 	else
+@@ -490,6 +615,11 @@ static void dw_hdmi_qp_rk3588_enc_init(struct rockchip_hdmi_qp *hdmi,
+ 	int color = dw_hdmi_qp_rockchip_bus_fmt_to_reg(state->bus_format);
+ 	u32 val;
+ 
++	val = FIELD_PREP_WM16(RK3588_HDMI21_MASK, hdmi->link_cfg.frl_enabled);
++	regmap_write(hdmi->vo_regmap,
++		     hdmi->port_id ? RK3588_GRF_VO1_CON7 : RK3588_GRF_VO1_CON4,
++		     val);
++
+ 	if (state->output_bpc == 10)
+ 		val = FIELD_PREP_WM16(RK3588_COLOR_DEPTH_MASK, RK3588_10BPC);
+ 	else
+@@ -517,11 +647,24 @@ static const struct rockchip_hdmi_qp_ctrl_ops rk3588_hdmi_ctrl_ops = {
+ 	.hardirq_callback	= dw_hdmi_qp_rk3588_hardirq,
+ };
+ 
++enum rockchip_hdmi_qp_ffe_cfg {
++	FFE_LEVEL_AUTO = 0,
++	FFE_LEVEL_0,
++	FFE_LEVEL_1,
++	FFE_LEVEL_2,
++	FFE_LEVEL_3,
++};
++
+ struct rockchip_hdmi_qp_cfg {
+ 	unsigned int num_ports;
+ 	unsigned int port_ids[MAX_HDMI_PORT_NUM];
+ 	const struct rockchip_hdmi_qp_ctrl_ops *ctrl_ops;
+ 	const struct dw_hdmi_qp_phy_ops *phy_ops;
++	u8 max_frl_rate_per_lane;
++	u8 max_frl_lanes;
++	u8 min_frl_rate_per_lane;
++	u8 min_frl_lanes;
++	enum rockchip_hdmi_qp_ffe_cfg max_ffe;
+ };
+ 
+ static const struct rockchip_hdmi_qp_cfg rk3576_hdmi_cfg = {
+@@ -541,6 +684,9 @@ static const struct rockchip_hdmi_qp_cfg rk3588_hdmi_cfg = {
+ 	},
+ 	.ctrl_ops = &rk3588_hdmi_ctrl_ops,
+ 	.phy_ops = &rk3588_hdmi_phy_ops,
++	/* FIXME: Intermittent screen flicker if rate exceeds 40 Gbps */
++	.max_frl_rate_per_lane = 10,
++	.max_frl_lanes = 4,
+ };
+ 
+ static const struct of_device_id dw_hdmi_qp_rockchip_dt_ids[] = {
+@@ -555,12 +701,21 @@ static const struct of_device_id dw_hdmi_qp_rockchip_dt_ids[] = {
+ };
+ MODULE_DEVICE_TABLE(of, dw_hdmi_qp_rockchip_dt_ids);
+ 
++static u8 dw_hdmi_qp_rockchip_ffe_cfg_to_level(enum rockchip_hdmi_qp_ffe_cfg ffe)
++{
++	if (ffe == FFE_LEVEL_AUTO)
++		ffe = FFE_LEVEL_3;
++
++	return ffe - 1;
++}
++
+ static int dw_hdmi_qp_rockchip_bind(struct device *dev, struct device *master,
+ 				    void *data)
+ {
+ 	struct platform_device *pdev = to_platform_device(dev);
+ 	struct dw_hdmi_qp_plat_data plat_data = {};
+ 	const struct rockchip_hdmi_qp_cfg *cfg;
++	struct dw_hdmi_qp_link_cfg *lcfg;
+ 	struct drm_device *drm = data;
+ 	struct drm_connector *connector;
+ 	struct drm_encoder *encoder;
+@@ -661,6 +816,26 @@ static int dw_hdmi_qp_rockchip_bind(struct device *dev, struct device *master,
+ 	if (IS_ERR(hdmi->phy))
+ 		return dev_err_probe(dev, PTR_ERR(hdmi->phy), "Failed to get phy\n");
+ 
++	lcfg = &hdmi->link_cfg;
++	lcfg->max_frl_rate_per_lane = cfg->max_frl_rate_per_lane ?: HDMI21_MAX_FRL_LANE_RATE;
++	lcfg->max_frl_lanes = cfg->max_frl_lanes ?: HDMI21_MAX_FRL_LANE_NUM;
++	lcfg->min_frl_rate_per_lane = cfg->min_frl_rate_per_lane ?: HDMI21_MIN_FRL_LANE_RATE;
++	lcfg->min_frl_lanes = cfg->min_frl_lanes ?: HDMI21_MIN_FRL_LANE_NUM;
++
++	if (lcfg->max_frl_rate_per_lane < lcfg->min_frl_rate_per_lane ||
++	    lcfg->max_frl_lanes < lcfg->min_frl_lanes ||
++	    lcfg->max_frl_rate_per_lane > HDMI21_MAX_FRL_LANE_RATE ||
++	    lcfg->max_frl_rate_per_lane < HDMI21_MIN_FRL_LANE_RATE ||
++	    lcfg->max_frl_lanes > HDMI21_MAX_FRL_LANE_NUM ||
++	    lcfg->max_frl_lanes < HDMI21_MIN_FRL_LANE_NUM ||
++	    lcfg->min_frl_rate_per_lane > HDMI21_MAX_FRL_LANE_RATE ||
++	    lcfg->min_frl_rate_per_lane < HDMI21_MIN_FRL_LANE_RATE ||
++	    lcfg->min_frl_lanes > HDMI21_MAX_FRL_LANE_NUM ||
++	    lcfg->min_frl_lanes < HDMI21_MIN_FRL_LANE_NUM)
++		return dev_err_probe(hdmi->dev, -EINVAL, "Invalid FRL config\n");
++
++	lcfg->max_ffe_level = dw_hdmi_qp_rockchip_ffe_cfg_to_level(cfg->max_ffe);
++
+ 	cfg->ctrl_ops->io_init(hdmi);
+ 
+ 	INIT_DELAYED_WORK(&hdmi->hpd_work, dw_hdmi_qp_rk3588_hpd_work);
+diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_drv.h b/drivers/gpu/drm/rockchip/rockchip_drm_drv.h
+index d57620c66f16d..923345777a2fd 100644
+--- a/drivers/gpu/drm/rockchip/rockchip_drm_drv.h
++++ b/drivers/gpu/drm/rockchip/rockchip_drm_drv.h
+@@ -59,6 +59,7 @@ struct rockchip_crtc_state {
+ 	u32 bus_flags;
+ 	int color_space;
+ 	struct drm_connector_tv_margins tv_margins;
++	bool frl_enabled;
+ };
+ #define to_rockchip_crtc_state(s) \
+ 		container_of(s, struct rockchip_crtc_state, base)
+diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
+index e4cb229f84a33..f5d2f47c5dbf0 100644
+--- a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
++++ b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
+@@ -104,6 +104,8 @@ enum vop2_afbc_format {
+ };
+ 
+ #define VOP2_MAX_DCLK_RATE		600000000ULL
++#define VOP2_ACLK_RATE_DEFAULT		500000000UL
++#define VOP2_ACLK_RATE_FRL		750000000UL
+ 
+ /*
+  * bus-format types.
+@@ -1092,6 +1094,17 @@ static void vop2_crtc_atomic_disable(struct drm_crtc *crtc,
+ 
+ 	vp->enabled = false;
+ 
++	if (vop2->version == VOP_VERSION_RK3588) {
++		struct rockchip_crtc_state *vcstate = to_rockchip_crtc_state(old_crtc_state);
++
++		if (vcstate->frl_enabled) {
++			vop2->frl_vp_count--;
++
++			if (!vop2->frl_vp_count)
++				clk_set_rate(vop2->aclk, VOP2_ACLK_RATE_DEFAULT);
++		}
++	}
++
+ 	vop2->enable_count--;
+ 
+ 	if (!vop2->enable_count)
+@@ -1858,6 +1871,13 @@ static void vop2_crtc_atomic_enable(struct drm_crtc *crtc,
+ 
+ 	vop2->enable_count++;
+ 
++	if (vop2->version == VOP_VERSION_RK3588 && vcstate->frl_enabled) {
++		if (!vop2->frl_vp_count)
++			clk_set_rate(vop2->aclk, VOP2_ACLK_RATE_FRL);
++
++		vop2->frl_vp_count++;
++	}
++
+ 	vcstate->yuv_overlay = is_yuv_output(vcstate->bus_format);
+ 
+ 	vop2_crtc_enable_irq(vp, VP_INT_POST_BUF_EMPTY);
+diff --git a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
+index 52537278b21f3..f4fd0ea66bc95 100644
+--- a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
++++ b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
+@@ -333,6 +333,7 @@ struct vop2 {
+ 	 * we need a ref counter here.
+ 	 */
+ 	unsigned int enable_count;
++	unsigned int frl_vp_count;
+ 	struct clk *hclk;
+ 	struct clk *aclk;
+ 	struct clk *pclk;
+diff --git a/drivers/media/platform/rockchip/rkvdec/Makefile b/drivers/media/platform/rockchip/rkvdec/Makefile
+index e629d571e4d89..5eae59e87fce4 100644
+--- a/drivers/media/platform/rockchip/rkvdec/Makefile
++++ b/drivers/media/platform/rockchip/rkvdec/Makefile
+@@ -10,6 +10,8 @@ rockchip-vdec-y += \
+ 		   rkvdec-rcb.o \
+ 		   rkvdec-vdpu381-h264.o \
+ 		   rkvdec-vdpu381-hevc.o \
++		   rkvdec-vdpu381-vp9.o \
+ 		   rkvdec-vdpu383-h264.o \
+ 		   rkvdec-vdpu383-hevc.o \
++		   rkvdec-vp9-common.o \
+ 		   rkvdec-vp9.o
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-regs.h b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-regs.h
+index 6da36031df2dc..e5f28553558e5 100644
+--- a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-regs.h
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-regs.h
+@@ -4,6 +4,8 @@
+  *
+  * Copyright (C) 2024 Collabora, Ltd.
+  *  Detlev Casanova <detlev.casanova@collabora.com>
++ *
++ * Copyright (C) 2025 Venkata Atchuta Bheemeswara Sarma Darbha <vdarbha0473@gmail.com>
+  */
+ 
+ #include <linux/types.h>
+@@ -382,6 +384,212 @@ struct rkvdec_vdpu381_regs_hevc_params {
+ 
+ } __packed;
+ 
++struct rkvdec_vdpu381_vp9_set {
++	u32 vp9_cprheader_offset : 16;
++	u32 reserved			 : 16;
++}__packed;
++
++/* base: OFFSET_CODEC_PARAMS_REGS */
++struct rkvdec_vdpu381_regs_vp9_params {
++	struct rkvdec_vdpu381_vp9_set reg064;
++
++	u32 cur_top_poc;
++	u32 reserved0 ;
++
++	struct rkvdec_vdpu381_vp9_segid_grp {
++		u32 vp9_segid_abs_delta 		 : 1;
++		u32 vp9_segid_frame_qp_delta_en  : 1;
++		u32 vp9_segid_frame_qp_delta     : 9;
++		u32 vp9_segid_frame_loopfilter_value_en : 1;
++		u32 vp9_segid_frame_loopfilter_value : 7;
++		u32 vp9_segid_referinfo_en : 1;
++		u32 vp9_segid_referinfo : 2;
++		u32 vp9_segid_frame_skip_en : 1;
++		u32 reserved : 9;
++	} reg67_74[8];
++
++	struct rkvdec_vdpu381_vp9_info_lastframe {
++		u32 vp9_mode_deltas_lastframe : 14;
++		u32 reserved0 : 2;
++		u32 segmentation_enable_lstframe : 1;
++		u32 vp9_last_showframe : 1;
++		u32 vp9_last_intra_only : 1;
++		u32 vp9_last_widhheight_eqcur :1;
++		u32 vp9_color_sapce_lastkeyframe : 3;
++		u32 reserved1 : 9;
++	} reg75;
++
++
++	struct rkvdec_vdpu381_vp9_cprheader_config {
++		u32 vp9_tx_mode : 3;
++		u32 vp9_frame_reference_mode : 2;
++		u32 reserved : 27;
++	} reg76;
++
++	struct rkvdec_vdpu381_vp9_intercmd_num {
++		u32 vp9_intercmd_num : 24;
++		u32 reserved : 8;
++	} reg77;
++
++	u32 reg78_vp9_stream_size;
++
++	struct rkvdec_vdpu381_vp9_lastf_y_hor_virstride {
++		u32 vp9_lastfy_hor_virstride : 16;
++		u32 reserved : 16;
++	} reg79;
++
++	struct rkvdec_vdpu381_vp9_lastf_uv_hor_virstride {
++		u32 vp9_lastfuv_hor_virstride : 16;
++		u32 reserved : 16;
++	} reg80 ;
++
++	struct rkvdec_vdpu381_vp9_goldenf_y_hor_virstride {
++		u32 vp9_goldenfy_hor_virstride : 16;
++		u32 reserved : 16;
++	} reg81;
++
++	struct rkvdec_vdpu381_vp9_golden_uv_hot_virstride {
++		u32 vp9_goldenuv_hor_virstride : 16;
++		u32 reserved : 16;
++	} reg82;
++
++	struct rkvdec_vdpu381_vp9_altreff_y_hor_virstride {
++		u32 vp9_altreffy_hor_virstride :16;
++		u32 reserved : 16;
++	} reg83;
++
++	struct rkvdec_vdpu381_vp9_altreff_uv_hor_virstride {
++		u32 vp9_altreff_uv_hor_virstride : 16;
++		u32 reserved : 16;
++	} reg84;
++
++	struct rkvdec_vdpu381_vp9_lastf_y_virstride {
++		u32 vp9_lastfy_virstride : 28;
++		u32 reserved : 4;
++	} reg85;
++
++	struct rkvdec_vdpu381_vp9_golden_y_virstride {
++		u32 vp9_goldeny_virstride : 28;
++		u32 reserved : 4;
++	} reg86;
++
++	struct rkvdec_vdpu381_vp9_altref_y_virstride {
++		u32 vp9_altrefy_virstride : 28;
++		u32 reserved : 4;
++	} reg87;
++
++	struct rkvdec_vdpu381_vp9_lref_hor_scale {
++		u32 vp9_lref_hor_scale : 16;
++		u32 reserved : 16;
++	} reg88;
++
++	struct rkvdec_vdpu381_vp9_lref_ver_scale {
++		u32 vp9_lref_ver_scale : 16;
++		u32 reserved : 16;
++	} reg89;
++
++	struct rkvdec_vdpu381_vp9_gref_hor_scale {
++		u32 vp9_gref_hor_scale : 16;
++		u32 reserved : 16;
++	} reg90;
++
++	struct rkvdec_vdpu381_vp9_gref_ver_scale {
++		u32 vp9_gref_ver_scale :16;
++		u32 reserved : 16;
++	} reg91;
++
++	struct rkvdec_vdpu381_vp9_aref_hor_scale {
++		u32 vp9_aref_hor_scale : 16;
++		u32 reserved : 16;
++	} reg92;
++
++	struct rkvdec_vdpu381_vp9_aref_ver_scale {
++		u32 vp9_aref_ver_scale : 16;
++		u32 reserved : 16;
++	} reg93;
++
++	struct rkvdec_vdpu381_vp9_ref_deltas_lastframe {
++		u32 vp9_ref_deltas_lastframe : 28;
++		u32 reserved : 4;
++	} reg94;
++
++	u32 reg95_vp9_last_poc;
++
++	u32 reg96_vp9_golden_poc;
++
++	u32 reg97_vp9_altref_poc;
++
++	u32 reg98_vp9_col_ref_poc;
++
++	struct rkvdec_vdpu381_vp9_prob_ref_poc {
++		u32 vp9_prob_ref_poc : 16;
++		u32 reserved : 16;
++	} reg99;
++
++	struct rkvdec_vdpu381_vp9_segid_ref_poc {
++		u32 vp9_segid_ref_poc : 16;
++		u32 reserved : 16;
++	} reg100;
++
++	u32 reserved1[2];
++
++	struct rkvdec_vdpu381_vp9_prob_en {
++		u32 reserved : 20;
++		u32 vp9_prob_update_en : 1;
++		u32 vp9_refresh_en : 1;
++		u32 vp9_prob_save_en : 1;
++		u32 vp9_intra_only_flag : 1;
++		u32 vp9_txfmmode_rfsh_en : 1;
++		u32 vp9_ref_mode_rfsh_en : 1;
++		u32 vp9_single_ref_rfsh_en : 1;
++		u32 vp9_comp_ref_rfsh_en : 1;
++		u32 vp9_interp_filter_switch_en : 1;
++		u32 vp9_allow_high_precision_mv : 1;
++		u32 vp9_last_key_frame_flag : 1;
++		u32 vp9_inter_coef_rfsh_flag :1;
++	} reg103;
++
++	u32 reserved2;
++
++	struct rkvdec_vdpu381_vp9_cnt_upd_en_avs2_headlen {
++		u32 avs2_head_len : 4;
++		u32 vp9count_update_en : 1;
++		u32 reserved : 27;
++	} reg105;
++
++	struct rkvdec_vdpu381_vp9_frame_width_last {
++		u32 vp9_framewidth_last : 16;
++		u32 reserved : 16;
++	} reg106;
++
++	struct rkvdec_vdpu381_vp9_frame_height_last {
++		u32 vp9_frameheight_last: 16;
++		u32 reserved : 16;
++	} reg107;
++
++	struct rkvdec_vdpu381_vp9_frame_width_golden {
++		u32 vp9_framewidth_golden : 16;
++		u32 reserved : 16;
++	} reg108;
++
++	struct rkvdec_vdpu381_vp9_frame_height_golden {
++		u32 vp9_frameheight_golden : 16;
++		u32 reserved : 16;
++	} reg109;
++
++	struct rkvdec_vdpu381_vp9_frame_width_altref {
++		u32 vp9_framewidth_altref : 16;
++		u32 reserved : 16;
++	} reg110;
++
++	struct rkvdec_vdpu381_vp9_frame_height_altref {
++		u32 vp9_frameheight_altref : 16;
++		u32 reserved : 16;
++	} reg111;
++
++	u32 reserved3;
++} __packed;
++
+ /* base: OFFSET_CODEC_ADDR_REGS */
+ struct rkvdec_vdpu381_regs_h26x_addr {
+ 	u32 reserved_160;
+@@ -394,6 +602,26 @@ struct rkvdec_vdpu381_regs_h26x_addr {
+ 	u32 reg199_cabactbl_base;
+ } __packed;
+ 
++struct rkvdec_vdpu381_regs_vp9_addr {
++	u32 vp9_delta_prob_base;
++	u32 reserved0;
++	u32 vp9_last_prob_base;
++	u32 reserved1;
++	u32 vp9_referlast_base;
++	u32 vp9_refergolden_base;
++	u32 vp9_referalfter_base;
++	u32 vp9_count_base;
++	u32 vp9_segidlast_base;
++	u32 avp9_segidcur_base;
++	u32 vp9_refcolmv_base;
++	u32 vp9_intercmd_base;
++	u32 vp9_update_prob_wr_bas;
++	u32 reserved2[7];
++	u32 scanlist_addr;
++	u32 colmv_base[16];
++	u32 cabactbl_base;
++}__packed;
++
+ struct rkvdec_vdpu381_regs_h26x_highpoc {
+ 	struct {
+ 		u32 ref0_poc_highbit	: 4;
+@@ -427,4 +655,11 @@ struct rkvdec_vdpu381_regs_hevc {
+ 	struct rkvdec_vdpu381_regs_h26x_highpoc		hevc_highpoc;
+ } __packed;
+ 
++struct rkvdec_vdpu381_regs_vp9 {
++	struct rkvdec_vdpu381_regs_common 			common;
++	struct rkvdec_vdpu381_regs_vp9_params		vp9_param;
++	struct rkvdec_vdpu381_regs_common_addr		common_addr;
++	struct rkvdec_vdpu381_regs_vp9_addr			vp9_addr;
++}__packed;
++
+ #endif /* __RKVDEC_REGS_H__ */
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-vp9.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-vp9.c
+new file mode 100644
+index 0000000000000..437892fdcab59
+--- /dev/null
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-vp9.c
+@@ -0,0 +1,1003 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Rockchip Video Decoder VP9 backend
++ *
++ * Copyright (C) 2025 Venkata Atchuta Bheemeswara Sarma Darbha <vdarbha0473@gmail.com>
++ *
++ * Copyright (C) 2019 Collabora, Ltd.
++ *	Boris Brezillon <boris.brezillon@collabora.com>
++ * Copyright (C) 2021 Collabora, Ltd.
++ *	Andrzej Pietrasiewicz <andrzej.p@collabora.com>
++ *
++ * Copyright (C) 2016 Rockchip Electronics Co., Ltd.
++ *	Alpha Lin <Alpha.Lin@rock-chips.com>
++ */
++
++/*
++ * For following the vp9 spec please start reading this driver
++ * code from rkvdec_vp9_run() followed by rkvdec_vp9_done().
++ */
++
++
++#include <linux/kernel.h>
++#include <linux/vmalloc.h>
++#include <media/v4l2-mem2mem.h>
++#include <media/v4l2-vp9.h>
++
++
++#include "rkvdec-rcb.h"
++#include "rkvdec.h"
++#include "rkvdec-vdpu381-regs.h"
++#include "rkvdec-vp9-common.h"
++
++
++#define RKVDEC_VP9_PROBE_SIZE      4864
++#define RKVDEC_VP9_COUNT_SIZE      13208
++#define RKVDEC_VP9_MAX_SEGMAP_SIZE 73728
++
++/* Data structure describing auxiliary buffer format. */
++struct rkvdec_vp9_priv_tbl {
++	struct rkvdec_vp9_probs probs;
++	u8 segmap[2][RKVDEC_VP9_MAX_SEGMAP_SIZE];
++};
++
++struct rkvdec_vp9_refs_counts {
++	u32 eob[2];
++	u32 coeff[3];
++};
++
++struct rkvdec_vp9_inter_frame_symbol_counts {
++	u32 partition[16][4];
++	u32 skip[3][2];
++	u32 inter[4][2];
++	u32 tx32p[2][4];
++	u32 tx16p[2][4];
++	u32 tx8p[2][2];
++	u32 y_mode[4][10];
++	u32 uv_mode[10][10];
++	u32 comp[5][2];
++	u32 comp_ref[5][2];
++	u32 single_ref[5][2][2];
++	u32 mv_mode[7][4];
++	u32 filter[4][3];
++	u32 mv_joint[4];
++	u32 sign[2][2];
++	/* add 1 element for align */
++	u32 classes[2][11 + 1];
++	u32 class0[2][2];
++	u32 bits[2][10][2];
++	u32 class0_fp[2][2][4];
++	u32 fp[2][4];
++	u32 class0_hp[2][2];
++	u32 hp[2][2];
++	struct rkvdec_vp9_refs_counts ref_cnt[2][4][2][6][6];
++};
++
++struct rkvdec_vp9_intra_frame_symbol_counts {
++	u32 partition[4][4][4];
++	u32 skip[3][2];
++	u32 intra[4][2];
++	u32 tx32p[2][4];
++	u32 tx16p[2][4];
++	u32 tx8p[2][2];
++	struct rkvdec_vp9_refs_counts ref_cnt[2][4][2][6][6];
++};
++
++struct rkvdec_vp9_frame_info {
++	u32 valid : 1;
++	u32 segmapid : 1;
++	u32 frame_context_idx : 2;
++	u32 reference_mode : 2;
++	u32 tx_mode : 3;
++	u32 interpolation_filter : 3;
++	u32 flags;
++	u64 timestamp;
++	struct v4l2_vp9_segmentation seg;
++	struct v4l2_vp9_loop_filter lf;
++};
++
++struct rkvdec_vp9_ctx {
++	struct rkvdec_aux_buf priv_tbl;
++	struct rkvdec_aux_buf count_tbl;
++	struct v4l2_vp9_frame_symbol_counts inter_cnts;
++	struct v4l2_vp9_frame_symbol_counts intra_cnts;
++	struct v4l2_vp9_frame_context probability_tables;
++	struct v4l2_vp9_frame_context frame_context[4];
++	struct rkvdec_vp9_frame_info cur;
++	struct rkvdec_vp9_frame_info last;
++	struct rkvdec_vdpu381_regs_vp9 regs;
++};
++
++static void init_intra_only_probs(struct rkvdec_ctx *ctx,
++				  const struct rkvdec_vp9_run *run)
++{
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	struct rkvdec_vp9_priv_tbl *tbl = vp9_ctx->priv_tbl.cpu;
++	struct rkvdec_vp9_intra_only_frame_probs *rkprobs;
++	const struct v4l2_vp9_frame_context *probs;
++	unsigned int i, j, k;
++
++	rkprobs = &tbl->probs.intra_only;
++	probs = &vp9_ctx->probability_tables;
++
++	/*
++	 * intra only 149 x 128 bits ,aligned to 152 x 128 bits coeff related
++	 * prob 64 x 128 bits
++	 */
++	for (i = 0; i < ARRAY_SIZE(probs->coef); i++) {
++		for (j = 0; j < ARRAY_SIZE(probs->coef[0]); j++)
++			write_coeff_plane(probs->coef[i][j][0],
++					  rkprobs->coef_intra[i][j]);
++	}
++
++	/* intra mode prob  80 x 128 bits */
++	for (i = 0; i < ARRAY_SIZE(v4l2_vp9_kf_y_mode_prob); i++) {
++		unsigned int byte_count = 0;
++		int idx = 0;
++
++		/* vp9_kf_y_mode_prob */
++		for (j = 0; j < ARRAY_SIZE(v4l2_vp9_kf_y_mode_prob[0]); j++) {
++			for (k = 0; k < ARRAY_SIZE(v4l2_vp9_kf_y_mode_prob[0][0]);
++			     k++) {
++				u8 val = v4l2_vp9_kf_y_mode_prob[i][j][k];
++
++				rkprobs->intra_mode[i].y_mode[idx++] = val;
++				byte_count++;
++				if (byte_count == 27) {
++					byte_count = 0;
++					idx += 5;
++				}
++			}
++		}
++	}
++
++	for (i = 0; i < sizeof(v4l2_vp9_kf_uv_mode_prob); ++i) {
++		const u8 *ptr = (const u8 *)v4l2_vp9_kf_uv_mode_prob;
++
++		rkprobs->intra_mode[i / 23].uv_mode[i % 23] = ptr[i];
++	}
++}
++
++static void init_inter_probs(struct rkvdec_ctx *ctx,
++			     const struct rkvdec_vp9_run *run)
++{
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	struct rkvdec_vp9_priv_tbl *tbl = vp9_ctx->priv_tbl.cpu;
++	struct rkvdec_vp9_inter_frame_probs *rkprobs;
++	const struct v4l2_vp9_frame_context *probs;
++	unsigned int i, j, k;
++
++	rkprobs = &tbl->probs.inter;
++	probs = &vp9_ctx->probability_tables;
++
++	/*
++	 * inter probs
++	 * 151 x 128 bits, aligned to 152 x 128 bits
++	 * inter only
++	 * intra_y_mode & inter_block info 6 x 128 bits
++	 */
++
++	memcpy(rkprobs->y_mode, probs->y_mode, sizeof(rkprobs->y_mode));
++	memcpy(rkprobs->comp_mode, probs->comp_mode,
++	       sizeof(rkprobs->comp_mode));
++	memcpy(rkprobs->comp_ref, probs->comp_ref,
++	       sizeof(rkprobs->comp_ref));
++	memcpy(rkprobs->single_ref, probs->single_ref,
++	       sizeof(rkprobs->single_ref));
++	memcpy(rkprobs->inter_mode, probs->inter_mode,
++	       sizeof(rkprobs->inter_mode));
++	memcpy(rkprobs->interp_filter, probs->interp_filter,
++	       sizeof(rkprobs->interp_filter));
++
++	/* 128 x 128 bits coeff related */
++	for (i = 0; i < ARRAY_SIZE(probs->coef); i++) {
++		for (j = 0; j < ARRAY_SIZE(probs->coef[0]); j++) {
++			for (k = 0; k < ARRAY_SIZE(probs->coef[0][0]); k++)
++				write_coeff_plane(probs->coef[i][j][k],
++						  rkprobs->coef[k][i][j]);
++		}
++	}
++
++	/* intra uv mode 6 x 128 */
++	memcpy(rkprobs->uv_mode_0_2, &probs->uv_mode[0],
++	       sizeof(rkprobs->uv_mode_0_2));
++	memcpy(rkprobs->uv_mode_3_5, &probs->uv_mode[3],
++	       sizeof(rkprobs->uv_mode_3_5));
++	memcpy(rkprobs->uv_mode_6_8, &probs->uv_mode[6],
++	       sizeof(rkprobs->uv_mode_6_8));
++	memcpy(rkprobs->uv_mode_9, &probs->uv_mode[9],
++	       sizeof(rkprobs->uv_mode_9));
++
++	/* mv related 6 x 128 */
++	memcpy(rkprobs->mv.joint, probs->mv.joint,
++	       sizeof(rkprobs->mv.joint));
++	memcpy(rkprobs->mv.sign, probs->mv.sign,
++	       sizeof(rkprobs->mv.sign));
++	memcpy(rkprobs->mv.classes, probs->mv.classes,
++	       sizeof(rkprobs->mv.classes));
++	memcpy(rkprobs->mv.class0_bit, probs->mv.class0_bit,
++	       sizeof(rkprobs->mv.class0_bit));
++	memcpy(rkprobs->mv.bits, probs->mv.bits,
++	       sizeof(rkprobs->mv.bits));
++	memcpy(rkprobs->mv.class0_fr, probs->mv.class0_fr,
++	       sizeof(rkprobs->mv.class0_fr));
++	memcpy(rkprobs->mv.fr, probs->mv.fr,
++	       sizeof(rkprobs->mv.fr));
++	memcpy(rkprobs->mv.class0_hp, probs->mv.class0_hp,
++	       sizeof(rkprobs->mv.class0_hp));
++	memcpy(rkprobs->mv.hp, probs->mv.hp,
++	       sizeof(rkprobs->mv.hp));
++}
++
++static void init_probs(struct rkvdec_ctx *ctx,
++		       const struct rkvdec_vp9_run *run)
++{
++	const struct v4l2_ctrl_vp9_frame *dec_params;
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	struct rkvdec_vp9_priv_tbl *tbl = vp9_ctx->priv_tbl.cpu;
++	struct rkvdec_vp9_probs *rkprobs = &tbl->probs;
++	const struct v4l2_vp9_segmentation *seg;
++	const struct v4l2_vp9_frame_context *probs;
++	bool intra_only;
++
++	dec_params = run->decode_params;
++	probs = &vp9_ctx->probability_tables;
++	seg = &dec_params->seg;
++
++	memset(rkprobs, 0, sizeof(*rkprobs));
++
++	intra_only = !!(dec_params->flags &
++			(V4L2_VP9_FRAME_FLAG_KEY_FRAME |
++			 V4L2_VP9_FRAME_FLAG_INTRA_ONLY));
++
++	/* sb info  5 x 128 bit */
++	memcpy(rkprobs->partition,
++	       intra_only ? v4l2_vp9_kf_partition_probs : probs->partition,
++	       sizeof(rkprobs->partition));
++
++	memcpy(rkprobs->pred, seg->pred_probs, sizeof(rkprobs->pred));
++	memcpy(rkprobs->tree, seg->tree_probs, sizeof(rkprobs->tree));
++	memcpy(rkprobs->skip, probs->skip, sizeof(rkprobs->skip));
++	memcpy(rkprobs->tx32, probs->tx32, sizeof(rkprobs->tx32));
++	memcpy(rkprobs->tx16, probs->tx16, sizeof(rkprobs->tx16));
++	memcpy(rkprobs->tx8, probs->tx8, sizeof(rkprobs->tx8));
++	memcpy(rkprobs->is_inter, probs->is_inter, sizeof(rkprobs->is_inter));
++
++	if (intra_only)
++		init_intra_only_probs(ctx, run);
++	else
++		init_inter_probs(ctx, run);
++}
++
++static void config_ref_registers(struct rkvdec_ctx *ctx,
++				 const struct rkvdec_vp9_run *run,
++				 struct rkvdec_decoded_buffer *ref_buf,
++				 int i)
++{
++	unsigned int aligned_pitch, aligned_height, y_len, yuv_len;
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	struct rkvdec_vdpu381_regs_vp9 *regs = &vp9_ctx->regs;
++
++	aligned_height = round_up(ref_buf->vp9.height, 64);
++
++    switch(i) {
++        case 0:
++            regs->vp9_param.reg107.vp9_frameheight_last = ref_buf->vp9.height;
++            regs->vp9_param.reg106.vp9_framewidth_last = ref_buf->vp9.width;
++            break;
++        case 1:
++            regs->vp9_param.reg109.vp9_frameheight_golden = ref_buf->vp9.height;
++            regs->vp9_param.reg108.vp9_framewidth_golden = ref_buf->vp9.width;
++            break;
++        case 2:
++            regs->vp9_param.reg111.vp9_frameheight_altref = ref_buf->vp9.height;
++            regs->vp9_param.reg110.vp9_framewidth_altref = ref_buf->vp9.width;
++            break;
++    }
++
++    switch(i) {
++        case 0:
++            regs->vp9_addr.vp9_referlast_base = vb2_dma_contig_plane_dma_addr(&ref_buf->base.vb.vb2_buf, 0);
++            break;
++        case 1:
++            regs->vp9_addr.vp9_refergolden_base = vb2_dma_contig_plane_dma_addr(&ref_buf->base.vb.vb2_buf, 0);
++            break;
++        case 2:
++            regs->vp9_addr.vp9_referalfter_base = vb2_dma_contig_plane_dma_addr(&ref_buf->base.vb.vb2_buf, 0);
++            break;
++    }
++
++	if (&ref_buf->base.vb == run->base.bufs.dst)
++		return;
++
++	aligned_pitch = round_up(ref_buf->vp9.width * ref_buf->vp9.bit_depth, 512) / 8;
++	y_len = aligned_height * aligned_pitch;
++	yuv_len = (y_len * 3) / 2;
++
++    switch(i) {
++        case 0:
++            regs->vp9_param.reg79.vp9_lastfy_hor_virstride = aligned_pitch / 16;
++            regs->vp9_param.reg80.vp9_lastfuv_hor_virstride = aligned_pitch / 16;
++            regs->vp9_param.reg85.vp9_lastfy_virstride = y_len / 16;
++            break;
++        case 1:
++            regs->vp9_param.reg81.vp9_goldenfy_hor_virstride = aligned_pitch / 16;
++            regs->vp9_param.reg82.vp9_goldenuv_hor_virstride = aligned_pitch / 16;
++            regs->vp9_param.reg86.vp9_goldeny_virstride = y_len / 16;
++            break;
++        case 2:
++            regs->vp9_param.reg83.vp9_altreffy_hor_virstride= aligned_pitch / 16;
++            regs->vp9_param.reg84.vp9_altreff_uv_hor_virstride = aligned_pitch / 16;
++            regs->vp9_param.reg87.vp9_altrefy_virstride = y_len / 16;
++            break;
++    }
++}
++
++static void config_seg_registers(struct rkvdec_ctx *ctx, unsigned int segid)
++{
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	struct rkvdec_vdpu381_regs_vp9 *regs = &vp9_ctx->regs;
++	const struct v4l2_vp9_segmentation *seg;
++	s16 feature_val;
++	int feature_id;
++
++	seg = vp9_ctx->last.valid ? &vp9_ctx->last.seg : &vp9_ctx->cur.seg;
++	feature_id = V4L2_VP9_SEG_LVL_ALT_Q;
++	if (v4l2_vp9_seg_feat_enabled(seg->feature_enabled, feature_id, segid)) {
++		feature_val = seg->feature_data[segid][feature_id];
++		regs->vp9_param.reg67_74[segid].vp9_segid_frame_qp_delta_en = 1;
++		regs->vp9_param.reg67_74[segid].vp9_segid_frame_qp_delta = feature_val;
++	}
++
++	feature_id = V4L2_VP9_SEG_LVL_ALT_L;
++	if (v4l2_vp9_seg_feat_enabled(seg->feature_enabled, feature_id, segid)) {
++		feature_val = seg->feature_data[segid][feature_id];
++		regs->vp9_param.reg67_74[segid].vp9_segid_frame_loopfilter_value_en = 1;
++		regs->vp9_param.reg67_74[segid].vp9_segid_frame_loopfilter_value = feature_val;
++	}
++
++	feature_id = V4L2_VP9_SEG_LVL_REF_FRAME;
++	if (v4l2_vp9_seg_feat_enabled(seg->feature_enabled, feature_id, segid)) {
++		feature_val = seg->feature_data[segid][feature_id];
++		regs->vp9_param.reg67_74[segid].vp9_segid_referinfo_en = 1;
++		regs->vp9_param.reg67_74[segid].vp9_segid_referinfo = feature_val;
++	}
++
++	feature_id = V4L2_VP9_SEG_LVL_SKIP;
++	regs->vp9_param.reg67_74[segid].vp9_segid_frame_skip_en =
++		v4l2_vp9_seg_feat_enabled(seg->feature_enabled, feature_id, segid);
++
++	regs->vp9_param.reg67_74[segid].vp9_segid_abs_delta = !segid &&
++		(seg->flags & V4L2_VP9_SEGMENTATION_FLAG_ABS_OR_DELTA_UPDATE);
++
++}
++
++static void update_ctx_cur_info(struct rkvdec_vp9_ctx *vp9_ctx,
++				struct rkvdec_decoded_buffer *buf,
++				const struct v4l2_ctrl_vp9_frame *dec_params)
++{
++	vp9_ctx->cur.valid = true;
++	vp9_ctx->cur.reference_mode = dec_params->reference_mode;
++	vp9_ctx->cur.interpolation_filter = dec_params->interpolation_filter;
++	vp9_ctx->cur.flags = dec_params->flags;
++	vp9_ctx->cur.timestamp = buf->base.vb.vb2_buf.timestamp;
++	vp9_ctx->cur.seg = dec_params->seg;
++	vp9_ctx->cur.lf = dec_params->lf;
++}
++
++static void update_ctx_last_info(struct rkvdec_vp9_ctx *vp9_ctx)
++{
++	vp9_ctx->last = vp9_ctx->cur;
++}
++
++static void rkvdec_write_regs(struct rkvdec_ctx *ctx)
++{
++	struct rkvdec_core *core = ctx->core;
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++
++	rkvdec_memcpy_toio(core->regs + OFFSET_COMMON_REGS,
++			   &vp9_ctx->regs.common,
++			   sizeof(vp9_ctx->regs.common));
++	rkvdec_memcpy_toio(core->regs + OFFSET_CODEC_PARAMS_REGS,
++			   &vp9_ctx->regs.vp9_param,
++			   sizeof(vp9_ctx->regs.vp9_param));
++	rkvdec_memcpy_toio(core->regs + OFFSET_COMMON_ADDR_REGS,
++			   &vp9_ctx->regs.common_addr,
++			   sizeof(vp9_ctx->regs.common_addr));
++	rkvdec_memcpy_toio(core->regs + OFFSET_CODEC_ADDR_REGS,
++			   &vp9_ctx->regs.vp9_addr,
++			   sizeof(vp9_ctx->regs.vp9_addr));
++
++}
++
++static void config_registers(struct rkvdec_ctx *ctx,
++			     const struct rkvdec_vp9_run *run)
++{
++	unsigned int y_len, uv_len, yuv_len, bit_depth, aligned_height, aligned_pitch, stream_len;
++	const struct v4l2_ctrl_vp9_frame *dec_params;
++	struct rkvdec_decoded_buffer *ref_bufs[3];
++	struct rkvdec_decoded_buffer *dst, *last, *mv_ref;
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	struct rkvdec_vdpu381_regs_vp9 *regs = &vp9_ctx->regs;
++	u32 val;
++	const struct v4l2_vp9_segmentation *seg;
++    u32 pixels;
++
++	dma_addr_t rlc_addr, dst_addr;
++	bool intra_only;
++	unsigned int i;
++
++
++	dec_params = run->decode_params;
++	dst = vb2_to_rkvdec_decoded_buf(&run->base.bufs.dst->vb2_buf);
++	ref_bufs[0] = get_ref_buf_vp9(ctx, &dst->base.vb, dec_params->last_frame_ts);
++	ref_bufs[1] = get_ref_buf_vp9(ctx, &dst->base.vb, dec_params->golden_frame_ts);
++	ref_bufs[2] = get_ref_buf_vp9(ctx, &dst->base.vb, dec_params->alt_frame_ts);
++
++	if (vp9_ctx->last.valid)
++		last = get_ref_buf_vp9(ctx, &dst->base.vb, vp9_ctx->last.timestamp);
++	else
++		last = dst;
++
++	update_dec_buf_info(dst, dec_params);
++	update_ctx_cur_info(vp9_ctx, dst, dec_params);
++	seg = &dec_params->seg;
++
++	intra_only = !!(dec_params->flags &
++			(V4L2_VP9_FRAME_FLAG_KEY_FRAME |
++			 V4L2_VP9_FRAME_FLAG_INTRA_ONLY));
++
++	regs->common.reg009_dec_mode.dec_mode = VDPU381_MODE_VP9;
++
++    regs->vp9_param.reg103.vp9_intra_only_flag = intra_only;
++
++    /* Set config */
++	regs->common.reg011_important_en.buf_empty_en = 1;
++	regs->common.reg011_important_en.dec_clkgate_e = 1;
++	regs->common.reg011_important_en.dec_timeout_e = 1;
++
++
++	bit_depth = dec_params->bit_depth;
++    aligned_height = round_up(ctx->decoded_fmt.fmt.pix_mp.height, 64);
++
++	aligned_pitch = round_up(ctx->decoded_fmt.fmt.pix_mp.width *
++				 bit_depth,
++				 512) / 8;
++	y_len = aligned_height * aligned_pitch;
++	uv_len = y_len / 2;
++	yuv_len = y_len + uv_len;
++
++    pixels = ctx->decoded_fmt.fmt.pix_mp.height * ctx->decoded_fmt.fmt.pix_mp.width;
++
++	regs->common.reg018_y_hor_stride.y_hor_virstride = aligned_pitch / 16;
++	regs->common.reg019_uv_hor_stride.uv_hor_virstride = aligned_pitch / 16;
++	regs->common.reg020_y_stride.y_virstride = y_len / 16;
++
++
++	stream_len = vb2_get_plane_payload(&run->base.bufs.src->vb2_buf, 0);
++
++	regs->common.reg016_stream_len = stream_len;
++
++    /* Activate block gating */
++    regs->common.reg026_block_gating_en.reg_cfg_gating_en = 1;
++
++	/* Set timeout threshold */
++	if (pixels < RKVDEC_1080P_PIXELS)
++		regs->common.reg032_timeout_threshold = RKVDEC_TIMEOUT_1080p;
++	else if (pixels < RKVDEC_4K_PIXELS)
++		regs->common.reg032_timeout_threshold = RKVDEC_TIMEOUT_4K;
++	else if (pixels < RKVDEC_8K_PIXELS)
++		regs->common.reg032_timeout_threshold = RKVDEC_TIMEOUT_8K;
++    else
++		regs->common.reg032_timeout_threshold = RKVDEC_TIMEOUT_MAX;
++
++	/*
++	 * Reset count buffer, because decoder only output intra related syntax
++	 * counts when decoding intra frame, but update entropy need to update
++	 * all the probabilities.
++	 */
++	if (intra_only)
++		memset(vp9_ctx->count_tbl.cpu, 0, vp9_ctx->count_tbl.size);
++
++	vp9_ctx->cur.segmapid = vp9_ctx->last.segmapid;
++	if (!intra_only &&
++	    !(dec_params->flags & V4L2_VP9_FRAME_FLAG_ERROR_RESILIENT) &&
++	    (!(seg->flags & V4L2_VP9_SEGMENTATION_FLAG_ENABLED) ||
++	     (seg->flags & V4L2_VP9_SEGMENTATION_FLAG_UPDATE_MAP)))
++		vp9_ctx->cur.segmapid++;
++
++	for (i = 0; i < ARRAY_SIZE(ref_bufs); i++)
++		config_ref_registers(ctx, run, ref_bufs[i], i);
++
++	for (i = 0; i < 8; i++)
++		config_seg_registers(ctx, i);
++
++	regs->vp9_param.reg76.vp9_tx_mode = vp9_ctx->cur.tx_mode;
++	regs->vp9_param.reg76.vp9_frame_reference_mode = dec_params->reference_mode;
++
++	if (!intra_only) {
++		const struct v4l2_vp9_loop_filter *lf;
++
++		if (vp9_ctx->last.valid)
++			lf = &vp9_ctx->last.lf;
++		else
++			lf = &vp9_ctx->cur.lf;
++
++		val = 0;
++
++        for (i = 0; i < ARRAY_SIZE(lf->ref_deltas); i++) {
++            regs->vp9_param.reg94.vp9_ref_deltas_lastframe |= (lf->ref_deltas[i] & 0x7f) << (7 * i);
++        }
++
++        for(i = 0; i < ARRAY_SIZE(lf->mode_deltas); i++){
++            regs->vp9_param.reg75.vp9_mode_deltas_lastframe  |= (lf->mode_deltas[i] & 0x7f) << (7 * i);
++        }
++	}
++
++	regs->vp9_param.reg75.segmentation_enable_lstframe =
++		vp9_ctx->last.valid && !intra_only &&
++		vp9_ctx->last.seg.flags & V4L2_VP9_SEGMENTATION_FLAG_ENABLED;
++
++	regs->vp9_param.reg75.vp9_last_showframe =
++		vp9_ctx->last.valid &&
++		vp9_ctx->last.flags & V4L2_VP9_FRAME_FLAG_SHOW_FRAME;
++
++	regs->vp9_param.reg75.vp9_last_intra_only =
++		vp9_ctx->last.valid &&
++		vp9_ctx->last.flags &
++		(V4L2_VP9_FRAME_FLAG_KEY_FRAME | V4L2_VP9_FRAME_FLAG_INTRA_ONLY);
++
++	regs->vp9_param.reg75.vp9_last_widhheight_eqcur =
++		vp9_ctx->last.valid &&
++		last->vp9.width == dst->vp9.width &&
++		last->vp9.height == dst->vp9.height;
++
++	regs->vp9_param.reg78_vp9_stream_size = stream_len;
++
++
++	for (i = 0; !intra_only && i < ARRAY_SIZE(ref_bufs); i++) {
++		unsigned int refw = ref_bufs[i]->vp9.width;
++		unsigned int refh = ref_bufs[i]->vp9.height;
++		u32 hscale, vscale;
++
++		hscale = (refw << 14) /	dst->vp9.width;
++		vscale = (refh << 14) / dst->vp9.height;
++
++        switch(i) {
++            case 0:
++                regs->vp9_param.reg88.vp9_lref_hor_scale = hscale;
++                regs->vp9_param.reg89.vp9_lref_ver_scale = vscale;
++                break;
++            case 1:
++                regs->vp9_param.reg90.vp9_gref_hor_scale = hscale;
++                regs->vp9_param.reg91.vp9_gref_ver_scale = vscale;
++                break;
++            case 2:
++                regs->vp9_param.reg92.vp9_aref_hor_scale = hscale;
++                regs->vp9_param.reg93.vp9_aref_ver_scale = hscale;
++                break;
++        }
++
++
++	}
++
++    /* Set rlc base address (input stream) */
++	rlc_addr = vb2_dma_contig_plane_dma_addr(&run->base.bufs.src->vb2_buf, 0);
++	regs->common_addr.rlc_base = rlc_addr;
++    regs->common_addr.rlcwrite_base = rlc_addr;
++
++    /* Set output base address */
++	dst_addr = vb2_dma_contig_plane_dma_addr(&dst->base.vb.vb2_buf, 0);
++	regs->common_addr.decout_base = dst_addr;
++    regs->common_addr.error_ref_base = dst_addr;
++
++    /* Set colmv address */
++	regs->common_addr.colmv_cur_base = dst_addr + ctx->colmv_offset;
++
++    /* Set RCB addresses */
++	for (i = 0; i < rkvdec_rcb_buf_count(ctx); i++)
++		regs->common_addr.rcb_base[i] = rkvdec_rcb_buf_dma_addr(ctx, i);
++
++	regs->vp9_addr.cabactbl_base = vp9_ctx->priv_tbl.dma +
++		offsetof(struct rkvdec_vp9_priv_tbl, probs);
++
++	regs->vp9_addr.vp9_count_base = vp9_ctx->count_tbl.dma;
++
++	regs->vp9_addr.vp9_segidlast_base = vp9_ctx->priv_tbl.dma +
++		offsetof(struct rkvdec_vp9_priv_tbl, segmap) +
++		(RKVDEC_VP9_MAX_SEGMAP_SIZE * (!vp9_ctx->cur.segmapid));
++
++	regs->vp9_addr.avp9_segidcur_base = vp9_ctx->priv_tbl.dma +
++		offsetof(struct rkvdec_vp9_priv_tbl, segmap) +
++		(RKVDEC_VP9_MAX_SEGMAP_SIZE * vp9_ctx->cur.segmapid);
++
++	if (!intra_only &&
++	    !(dec_params->flags & V4L2_VP9_FRAME_FLAG_ERROR_RESILIENT) &&
++	    vp9_ctx->last.valid)
++		mv_ref = last;
++	else
++		mv_ref = dst;
++
++	regs->vp9_addr.vp9_refcolmv_base = get_mv_base_addr(mv_ref);
++
++    rkvdec_write_regs(ctx);
++
++}
++
++static int validate_dec_params(struct rkvdec_ctx *ctx,
++			       const struct v4l2_ctrl_vp9_frame *dec_params)
++{
++	unsigned int aligned_width, aligned_height;
++
++	aligned_width = round_up(dec_params->frame_width_minus_1 + 1, 64);
++	aligned_height = round_up(dec_params->frame_height_minus_1 + 1, 64);
++
++	/*
++	 * Userspace should update the capture/decoded format when the
++	 * resolution changes.
++	 */
++	if (aligned_width != ctx->decoded_fmt.fmt.pix_mp.width ||
++	    aligned_height != ctx->decoded_fmt.fmt.pix_mp.height) {
++		dev_err(ctx->dev->main_core->dev,
++			"unexpected bitstream resolution %dx%d\n",
++			dec_params->frame_width_minus_1 + 1,
++			dec_params->frame_height_minus_1 + 1);
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int rkvdec_vp9_run_preamble(struct rkvdec_ctx *ctx,
++				   struct rkvdec_vp9_run *run)
++{
++	const struct v4l2_ctrl_vp9_frame *dec_params;
++	const struct v4l2_ctrl_vp9_compressed_hdr *prob_updates;
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	struct v4l2_ctrl *ctrl;
++	unsigned int fctx_idx;
++	int ret;
++
++	/* v4l2-specific stuff */
++	rkvdec_run_preamble(ctx, &run->base);
++
++	ctrl = v4l2_ctrl_find(&ctx->ctrl_hdl,
++			      V4L2_CID_STATELESS_VP9_FRAME);
++	if (WARN_ON(!ctrl))
++		return -EINVAL;
++	dec_params = ctrl->p_cur.p;
++
++	ret = validate_dec_params(ctx, dec_params);
++	if (ret)
++		return ret;
++
++	run->decode_params = dec_params;
++
++	ctrl = v4l2_ctrl_find(&ctx->ctrl_hdl, V4L2_CID_STATELESS_VP9_COMPRESSED_HDR);
++	if (WARN_ON(!ctrl))
++		return -EINVAL;
++	prob_updates = ctrl->p_cur.p;
++	vp9_ctx->cur.tx_mode = prob_updates->tx_mode;
++
++	/*
++	 * vp9 stuff
++	 *
++	 * by this point the userspace has done all parts of 6.2 uncompressed_header()
++	 * except this fragment:
++	 * if ( FrameIsIntra || error_resilient_mode ) {
++	 *	setup_past_independence ( )
++	 *	if ( frame_type == KEY_FRAME || error_resilient_mode == 1 ||
++	 *	     reset_frame_context == 3 ) {
++	 *		for ( i = 0; i < 4; i ++ ) {
++	 *			save_probs( i )
++	 *		}
++	 *	} else if ( reset_frame_context == 2 ) {
++	 *		save_probs( frame_context_idx )
++	 *	}
++	 *	frame_context_idx = 0
++	 * }
++	 */
++	fctx_idx = v4l2_vp9_reset_frame_ctx(dec_params, vp9_ctx->frame_context);
++	vp9_ctx->cur.frame_context_idx = fctx_idx;
++
++	/* 6.1 frame(sz): load_probs() and load_probs2() */
++	vp9_ctx->probability_tables = vp9_ctx->frame_context[fctx_idx];
++
++	/*
++	 * The userspace has also performed 6.3 compressed_header(), but handling the
++	 * probs in a special way. All probs which need updating, except MV-related,
++	 * have been read from the bitstream and translated through inv_map_table[],
++	 * but no 6.3.6 inv_recenter_nonneg(v, m) has been performed. The values passed
++	 * by userspace are either translated values (there are no 0 values in
++	 * inv_map_table[]), or zero to indicate no update. All MV-related probs which need
++	 * updating have been read from the bitstream and (mv_prob << 1) | 1 has been
++	 * performed. The values passed by userspace are either new values
++	 * to replace old ones (the above mentioned shift and bitwise or never result in
++	 * a zero) or zero to indicate no update.
++	 * fw_update_probs() performs actual probs updates or leaves probs as-is
++	 * for values for which a zero was passed from userspace.
++	 */
++	v4l2_vp9_fw_update_probs(&vp9_ctx->probability_tables, prob_updates, dec_params);
++
++	return 0;
++}
++
++static int rkvdec_vp9_run(struct rkvdec_ctx *ctx)
++{
++	struct rkvdec_core *core = ctx->core;
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	struct rkvdec_vp9_run run = { };
++	int ret;
++
++	ret = rkvdec_vp9_run_preamble(ctx, &run);
++
++	if (ret) {
++		rkvdec_run_postamble(ctx, &run.base);
++		return ret;
++	}
++
++	/* Prepare probs. */
++	init_probs(ctx, &run);
++
++	/* Configure hardware registers. */
++	config_registers(ctx, &run);
++
++	rkvdec_run_postamble(ctx, &run.base);
++
++	rkvdec_schedule_watchdog(core,
++				 vp9_ctx->regs.common.reg032_timeout_threshold);
++
++	writel(VDPU381_DEC_E_BIT, core->regs + VDPU381_REG_DEC_E);
++
++	return 0;
++}
++
++#define copy_tx_and_skip(p1, p2)				\
++do {								\
++	memcpy((p1)->tx8, (p2)->tx8, sizeof((p1)->tx8));	\
++	memcpy((p1)->tx16, (p2)->tx16, sizeof((p1)->tx16));	\
++	memcpy((p1)->tx32, (p2)->tx32, sizeof((p1)->tx32));	\
++	memcpy((p1)->skip, (p2)->skip, sizeof((p1)->skip));	\
++} while (0)
++
++
++static void rkvdec_vp9_done(struct rkvdec_ctx *ctx,
++			    struct vb2_v4l2_buffer *src_buf,
++			    struct vb2_v4l2_buffer *dst_buf,
++			    enum vb2_buffer_state result)
++{
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	unsigned int fctx_idx;
++
++	/* v4l2-specific stuff */
++	if (result == VB2_BUF_STATE_ERROR)
++		goto out_update_last;
++
++	/*
++	 * vp9 stuff
++	 *
++	 * 6.1.2 refresh_probs()
++	 *
++	 * In the spec a complementary condition goes last in 6.1.2 refresh_probs(),
++	 * but it makes no sense to perform all the activities from the first "if"
++	 * there if we actually are not refreshing the frame context. On top of that,
++	 * because of 6.2 uncompressed_header() whenever error_resilient_mode == 1,
++	 * refresh_frame_context == 0. Consequently, if we don't jump to out_update_last
++	 * it means error_resilient_mode must be 0.
++	 */
++	if (!(vp9_ctx->cur.flags & V4L2_VP9_FRAME_FLAG_REFRESH_FRAME_CTX))
++		goto out_update_last;
++
++	fctx_idx = vp9_ctx->cur.frame_context_idx;
++
++	if (!(vp9_ctx->cur.flags & V4L2_VP9_FRAME_FLAG_PARALLEL_DEC_MODE)) {
++		/* error_resilient_mode == 0 && frame_parallel_decoding_mode == 0 */
++		struct v4l2_vp9_frame_context *probs = &vp9_ctx->probability_tables;
++		bool frame_is_intra = vp9_ctx->cur.flags &
++		    (V4L2_VP9_FRAME_FLAG_KEY_FRAME | V4L2_VP9_FRAME_FLAG_INTRA_ONLY);
++		struct tx_and_skip {
++			u8 tx8[2][1];
++			u8 tx16[2][2];
++			u8 tx32[2][3];
++			u8 skip[3];
++		} _tx_skip, *tx_skip = &_tx_skip;
++		struct v4l2_vp9_frame_symbol_counts *counts;
++
++		/* buffer the forward-updated TX and skip probs */
++		if (frame_is_intra)
++			copy_tx_and_skip(tx_skip, probs);
++
++		/* 6.1.2 refresh_probs(): load_probs() and load_probs2() */
++		*probs = vp9_ctx->frame_context[fctx_idx];
++
++		/* if FrameIsIntra then undo the effect of load_probs2() */
++		if (frame_is_intra)
++			copy_tx_and_skip(probs, tx_skip);
++
++		counts = frame_is_intra ? &vp9_ctx->intra_cnts : &vp9_ctx->inter_cnts;
++		v4l2_vp9_adapt_coef_probs(probs, counts,
++					  !vp9_ctx->last.valid ||
++					  vp9_ctx->last.flags & V4L2_VP9_FRAME_FLAG_KEY_FRAME,
++					  frame_is_intra);
++		if (!frame_is_intra) {
++			const struct rkvdec_vp9_inter_frame_symbol_counts *inter_cnts;
++			u32 classes[2][11];
++			int i;
++
++			inter_cnts = vp9_ctx->count_tbl.cpu;
++			for (i = 0; i < ARRAY_SIZE(classes); ++i)
++				memcpy(classes[i], inter_cnts->classes[i], sizeof(classes[0]));
++			counts->classes = &classes;
++
++			/* load_probs2() already done */
++			v4l2_vp9_adapt_noncoef_probs(&vp9_ctx->probability_tables, counts,
++						     vp9_ctx->cur.reference_mode,
++						     vp9_ctx->cur.interpolation_filter,
++						     vp9_ctx->cur.tx_mode, vp9_ctx->cur.flags);
++		}
++	}
++
++	/* 6.1.2 refresh_probs(): save_probs(fctx_idx) */
++	vp9_ctx->frame_context[fctx_idx] = vp9_ctx->probability_tables;
++
++out_update_last:
++	update_ctx_last_info(vp9_ctx);
++}
++
++static void rkvdec_init_v4l2_vp9_count_tbl(struct rkvdec_ctx *ctx)
++{
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	struct rkvdec_vp9_intra_frame_symbol_counts *intra_cnts = vp9_ctx->count_tbl.cpu;
++	struct rkvdec_vp9_inter_frame_symbol_counts *inter_cnts = vp9_ctx->count_tbl.cpu;
++	int i, j, k, l, m;
++
++	vp9_ctx->inter_cnts.partition = &inter_cnts->partition;
++	vp9_ctx->inter_cnts.skip = &inter_cnts->skip;
++	vp9_ctx->inter_cnts.intra_inter = &inter_cnts->inter;
++	vp9_ctx->inter_cnts.tx32p = &inter_cnts->tx32p;
++	vp9_ctx->inter_cnts.tx16p = &inter_cnts->tx16p;
++	vp9_ctx->inter_cnts.tx8p = &inter_cnts->tx8p;
++
++	vp9_ctx->intra_cnts.partition = (u32 (*)[16][4])(&intra_cnts->partition);
++	vp9_ctx->intra_cnts.skip = &intra_cnts->skip;
++	vp9_ctx->intra_cnts.intra_inter = &intra_cnts->intra;
++	vp9_ctx->intra_cnts.tx32p = &intra_cnts->tx32p;
++	vp9_ctx->intra_cnts.tx16p = &intra_cnts->tx16p;
++	vp9_ctx->intra_cnts.tx8p = &intra_cnts->tx8p;
++
++	vp9_ctx->inter_cnts.y_mode = &inter_cnts->y_mode;
++	vp9_ctx->inter_cnts.uv_mode = &inter_cnts->uv_mode;
++	vp9_ctx->inter_cnts.comp = &inter_cnts->comp;
++	vp9_ctx->inter_cnts.comp_ref = &inter_cnts->comp_ref;
++	vp9_ctx->inter_cnts.single_ref = &inter_cnts->single_ref;
++	vp9_ctx->inter_cnts.mv_mode = &inter_cnts->mv_mode;
++	vp9_ctx->inter_cnts.filter = &inter_cnts->filter;
++	vp9_ctx->inter_cnts.mv_joint = &inter_cnts->mv_joint;
++	vp9_ctx->inter_cnts.sign = &inter_cnts->sign;
++	/*
++	 * rk hardware actually uses "u32 classes[2][11 + 1];"
++	 * instead of "u32 classes[2][11];", so this must be explicitly
++	 * copied into vp9_ctx->classes when passing the data to the
++	 * vp9 library function
++	 */
++	vp9_ctx->inter_cnts.class0 = &inter_cnts->class0;
++	vp9_ctx->inter_cnts.bits = &inter_cnts->bits;
++	vp9_ctx->inter_cnts.class0_fp = &inter_cnts->class0_fp;
++	vp9_ctx->inter_cnts.fp = &inter_cnts->fp;
++	vp9_ctx->inter_cnts.class0_hp = &inter_cnts->class0_hp;
++	vp9_ctx->inter_cnts.hp = &inter_cnts->hp;
++
++#define INNERMOST_LOOP \
++	do {										\
++		for (m = 0; m < ARRAY_SIZE(vp9_ctx->inter_cnts.coeff[0][0][0][0]); ++m) {\
++			vp9_ctx->inter_cnts.coeff[i][j][k][l][m] =			\
++				&inter_cnts->ref_cnt[k][i][j][l][m].coeff;		\
++			vp9_ctx->inter_cnts.eob[i][j][k][l][m][0] =			\
++				&inter_cnts->ref_cnt[k][i][j][l][m].eob[0];		\
++			vp9_ctx->inter_cnts.eob[i][j][k][l][m][1] =			\
++				&inter_cnts->ref_cnt[k][i][j][l][m].eob[1];		\
++											\
++			vp9_ctx->intra_cnts.coeff[i][j][k][l][m] =			\
++				&intra_cnts->ref_cnt[k][i][j][l][m].coeff;		\
++			vp9_ctx->intra_cnts.eob[i][j][k][l][m][0] =			\
++				&intra_cnts->ref_cnt[k][i][j][l][m].eob[0];		\
++			vp9_ctx->intra_cnts.eob[i][j][k][l][m][1] =			\
++				&intra_cnts->ref_cnt[k][i][j][l][m].eob[1];		\
++		}									\
++	} while (0)
++
++	for (i = 0; i < ARRAY_SIZE(vp9_ctx->inter_cnts.coeff); ++i)
++		for (j = 0; j < ARRAY_SIZE(vp9_ctx->inter_cnts.coeff[0]); ++j)
++			for (k = 0; k < ARRAY_SIZE(vp9_ctx->inter_cnts.coeff[0][0]); ++k)
++				for (l = 0; l < ARRAY_SIZE(vp9_ctx->inter_cnts.coeff[0][0][0]); ++l)
++					INNERMOST_LOOP;
++#undef INNERMOST_LOOP
++}
++
++static int rkvdec_vp9_start(struct rkvdec_ctx *ctx)
++{
++	struct rkvdec_dev *rkvdec = ctx->dev;
++	struct rkvdec_vp9_priv_tbl *priv_tbl;
++	struct rkvdec_vp9_ctx *vp9_ctx;
++	unsigned char *count_tbl;
++    struct v4l2_ctrl *ctrl;
++	int ret;
++
++    /* frame header */
++	ctrl = v4l2_ctrl_find(&ctx->ctrl_hdl, V4L2_CID_STATELESS_VP9_FRAME);
++	if (!ctrl)
++		return -EINVAL;
++
++	vp9_ctx = kzalloc(sizeof(*vp9_ctx), GFP_KERNEL);
++	if (!vp9_ctx)
++		return -ENOMEM;
++
++	ctx->priv = vp9_ctx;
++
++	BUILD_BUG_ON(sizeof(priv_tbl->probs) % 16); /* ensure probs size is 128-bit aligned */
++	priv_tbl = dma_alloc_coherent(rkvdec->main_core->dev, sizeof(*priv_tbl),
++				      &vp9_ctx->priv_tbl.dma, GFP_KERNEL);
++	if (!priv_tbl) {
++		ret = -ENOMEM;
++		goto err_free_ctx;
++	}
++
++	vp9_ctx->priv_tbl.size = sizeof(*priv_tbl);
++	vp9_ctx->priv_tbl.cpu = priv_tbl;
++
++	count_tbl = dma_alloc_coherent(rkvdec->main_core->dev, RKVDEC_VP9_COUNT_SIZE,
++				       &vp9_ctx->count_tbl.dma, GFP_KERNEL);
++	if (!count_tbl) {
++		ret = -ENOMEM;
++		goto err_free_priv_tbl;
++	}
++
++	vp9_ctx->count_tbl.size = RKVDEC_VP9_COUNT_SIZE;
++	vp9_ctx->count_tbl.cpu = count_tbl;
++	rkvdec_init_v4l2_vp9_count_tbl(ctx);
++
++	return 0;
++
++err_free_priv_tbl:
++	dma_free_coherent(rkvdec->main_core->dev, vp9_ctx->priv_tbl.size,
++			  vp9_ctx->priv_tbl.cpu, vp9_ctx->priv_tbl.dma);
++
++err_free_ctx:
++	kfree(vp9_ctx);
++	return ret;
++}
++
++static void rkvdec_vp9_stop(struct rkvdec_ctx *ctx)
++{
++	struct rkvdec_vp9_ctx *vp9_ctx = ctx->priv;
++	struct rkvdec_dev *rkvdec = ctx->dev;
++
++	dma_free_coherent(rkvdec->main_core->dev, vp9_ctx->count_tbl.size,
++			  vp9_ctx->count_tbl.cpu, vp9_ctx->count_tbl.dma);
++
++	dma_free_coherent(rkvdec->main_core->dev, vp9_ctx->priv_tbl.size,
++			  vp9_ctx->priv_tbl.cpu, vp9_ctx->priv_tbl.dma);
++
++	kfree(vp9_ctx);
++
++}
++
++static int rkvdec_vp9_adjust_fmt(struct rkvdec_ctx *ctx,
++				 struct v4l2_format *f)
++{
++	struct v4l2_pix_format_mplane *fmt = &f->fmt.pix_mp;
++
++	fmt->num_planes = 1;
++	if (!fmt->plane_fmt[0].sizeimage)
++		fmt->plane_fmt[0].sizeimage = fmt->width * fmt->height * 2;
++	return 0;
++}
++
++
++const struct rkvdec_coded_fmt_ops rkvdec_vdpu381_vp9_fmt_ops = {
++	.adjust_fmt = rkvdec_vp9_adjust_fmt,
++	.start = rkvdec_vp9_start,
++	.stop = rkvdec_vp9_stop,
++	.run = rkvdec_vp9_run,
++	.done = rkvdec_vp9_done,
++};
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.c b/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.c
+new file mode 100644
+index 0000000000000..2eda3a42bd20b
+--- /dev/null
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.c
+@@ -0,0 +1,78 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Rockchip video decoder VP9 common functions
++ *
++ * Copyright (C) 2019 Collabora, Ltd.
++ *	Boris Brezillon <boris.brezillon@collabora.com>
++ * Copyright (C) 2021 Collabora, Ltd.
++ *	Andrzej Pietrasiewicz <andrzej.p@collabora.com>
++ *
++ * Copyright (C) 2016 Rockchip Electronics Co., Ltd.
++ *	Alpha Lin <Alpha.Lin@rock-chips.com>
++ */
++#include <linux/v4l2-common.h>
++#include <media/v4l2-h264.h>
++#include <media/v4l2-mem2mem.h>
++
++#include "rkvdec.h"
++#include "rkvdec-vp9-common.h"
++
++void write_coeff_plane(const u8 coef[6][6][3], u8 *coeff_plane)
++{
++	unsigned int idx = 0, byte_count = 0;
++	int k, m, n;
++	u8 p;
++
++	for (k = 0; k < 6; k++) {
++		for (m = 0; m < 6; m++) {
++			for (n = 0; n < 3; n++) {
++				p = coef[k][m][n];
++				coeff_plane[idx++] = p;
++				byte_count++;
++				if (byte_count == 27) {
++					idx += 5;
++					byte_count = 0;
++				}
++			}
++		}
++	}
++}
++
++struct rkvdec_decoded_buffer *
++get_ref_buf_vp9(struct rkvdec_ctx *ctx, struct vb2_v4l2_buffer *dst,
++		u64 timestamp)
++{
++	struct v4l2_m2m_ctx *m2m_ctx = ctx->fh.m2m_ctx;
++	struct vb2_queue *cap_q = &m2m_ctx->cap_q_ctx.q;
++	struct vb2_buffer *buf;
++
++	/*
++	 * If a ref is unused or invalid, address of current destination
++	 * buffer is returned.
++	 */
++	buf = vb2_find_buffer(cap_q, timestamp);
++	if (!buf)
++		buf = &dst->vb2_buf;
++
++	return vb2_to_rkvdec_decoded_buf(buf);
++}
++
++dma_addr_t get_mv_base_addr(struct rkvdec_decoded_buffer *buf)
++{
++	unsigned int aligned_pitch, aligned_height, yuv_len;
++
++	aligned_height = round_up(buf->vp9.height, 64);
++	aligned_pitch = round_up(buf->vp9.width * buf->vp9.bit_depth, 512) / 8;
++	yuv_len = (aligned_height * aligned_pitch * 3) / 2;
++
++	return vb2_dma_contig_plane_dma_addr(&buf->base.vb.vb2_buf, 0) +
++	       yuv_len;
++}
++
++void update_dec_buf_info(struct rkvdec_decoded_buffer *buf,
++			 const struct v4l2_ctrl_vp9_frame *dec_params)
++{
++	buf->vp9.width = dec_params->frame_width_minus_1 + 1;
++	buf->vp9.height = dec_params->frame_height_minus_1 + 1;
++	buf->vp9.bit_depth = dec_params->bit_depth;
++}
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.h b/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.h
+new file mode 100644
+index 0000000000000..414b6f5381dad
+--- /dev/null
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec-vp9-common.h
+@@ -0,0 +1,100 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Rockchip video decoder VP9 common functions
++ *
++ * Copyright (C) 2019 Collabora, Ltd.
++ *	Boris Brezillon <boris.brezillon@collabora.com>
++ * Copyright (C) 2021 Collabora, Ltd.
++ *	Andrzej Pietrasiewicz <andrzej.p@collabora.com>
++ *
++ * Copyright (C) 2016 Rockchip Electronics Co., Ltd.
++ *	Alpha Lin <Alpha.Lin@rock-chips.com>
++ */
++
++#ifndef RKVDEC_VP9_COMMON_H_
++#define RKVDEC_VP9_COMMON_H_
++
++#include <media/v4l2-h264.h>
++#include <media/v4l2-mem2mem.h>
++#include <media/v4l2-vp9.h>
++
++#include "rkvdec.h"
++
++struct rkvdec_vp9_run {
++	struct rkvdec_run base;
++	const struct v4l2_ctrl_vp9_frame *decode_params;
++};
++
++struct rkvdec_vp9_intra_mode_probs {
++	u8 y_mode[105];
++	u8 uv_mode[23];
++};
++
++struct rkvdec_vp9_intra_only_frame_probs {
++	u8 coef_intra[4][2][128];
++	struct rkvdec_vp9_intra_mode_probs intra_mode[10];
++};
++
++struct rkvdec_vp9_inter_frame_probs {
++	u8 y_mode[4][9];
++	u8 comp_mode[5];
++	u8 comp_ref[5];
++	u8 single_ref[5][2];
++	u8 inter_mode[7][3];
++	u8 interp_filter[4][2];
++	u8 padding0[11];
++	u8 coef[2][4][2][128];
++	u8 uv_mode_0_2[3][9];
++	u8 padding1[5];
++	u8 uv_mode_3_5[3][9];
++	u8 padding2[5];
++	u8 uv_mode_6_8[3][9];
++	u8 padding3[5];
++	u8 uv_mode_9[9];
++	u8 padding4[7];
++	u8 padding5[16];
++	struct {
++		u8 joint[3];
++		u8 sign[2];
++		u8 classes[2][10];
++		u8 class0_bit[2];
++		u8 bits[2][10];
++		u8 class0_fr[2][2][3];
++		u8 fr[2][3];
++		u8 class0_hp[2];
++		u8 hp[2];
++		u8 padding6[3];
++	} mv;
++};
++
++struct rkvdec_vp9_probs {
++	u8 partition[16][3];
++	u8 pred[3];
++	u8 tree[7];
++	u8 skip[3];
++	u8 tx32[2][3];
++	u8 tx16[2][2];
++	u8 tx8[2][1];
++	u8 is_inter[4];
++	/* 128 bit alignment */
++	u8 padding0[3];
++	union {
++		struct rkvdec_vp9_inter_frame_probs inter;
++		struct rkvdec_vp9_intra_only_frame_probs intra_only;
++	};
++	/* 128 bit alignment */
++	u8 padding1[8];
++};
++
++void write_coeff_plane(const u8 coef[6][6][3], u8 *coeff_plane);
++
++struct rkvdec_decoded_buffer *
++get_ref_buf_vp9(struct rkvdec_ctx *ctx, struct vb2_v4l2_buffer *dst,
++		u64 timestamp);
++
++dma_addr_t get_mv_base_addr(struct rkvdec_decoded_buffer *buf);
++
++void update_dec_buf_info(struct rkvdec_decoded_buffer *buf,
++			 const struct v4l2_ctrl_vp9_frame *dec_params);
++
++#endif /* RKVDEC_VP9_COMMON_H_ */
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.c b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+index 3e133ca93f81f..97de887a9a1ed 100644
+--- a/drivers/media/platform/rockchip/rkvdec/rkvdec.c
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+@@ -445,6 +445,42 @@ static const struct rkvdec_decoded_fmt_desc rkvdec_vp9_decoded_fmts[] = {
+ 	},
+ };
+ 
++static const struct rkvdec_ctrl_desc vdpu381_vp9_ctrl_descs[] = {
++	{
++		.cfg.id = V4L2_CID_STATELESS_VP9_FRAME,
++	},
++	{
++		.cfg.id = V4L2_CID_STATELESS_VP9_COMPRESSED_HDR,
++	},
++	{
++		.cfg.id = V4L2_CID_MPEG_VIDEO_VP9_PROFILE,
++		.cfg.min = V4L2_MPEG_VIDEO_VP9_PROFILE_0,
++		.cfg.max = V4L2_MPEG_VIDEO_VP9_PROFILE_2,
++		.cfg.def = V4L2_MPEG_VIDEO_VP9_PROFILE_0,
++	},
++	{
++		.cfg.id = V4L2_CID_MPEG_VIDEO_VP9_LEVEL,
++		.cfg.min = V4L2_MPEG_VIDEO_VP9_LEVEL_1_0,
++		.cfg.max = V4L2_MPEG_VIDEO_VP9_LEVEL_6_1,
++	},
++};
++
++static const struct rkvdec_ctrls vdpu381_vp9_ctrls = {
++	.ctrls = vdpu381_vp9_ctrl_descs,
++	.num_ctrls = ARRAY_SIZE(vdpu381_vp9_ctrl_descs),
++};
++
++static const struct rkvdec_decoded_fmt_desc rkvdec_vdpu381_vp9_decoded_fmts[] = {
++	{
++		.fourcc = V4L2_PIX_FMT_NV12,
++		.image_fmt = RKVDEC_IMG_FMT_420_8BIT,
++	},
++	{
++		.fourcc = V4L2_PIX_FMT_NV15,
++		.image_fmt = RKVDEC_IMG_FMT_420_10BIT,
++	},
++};
++
+ static const struct rkvdec_coded_fmt_desc rkvdec_coded_fmts[] = {
+ 	{
+ 		.fourcc = V4L2_PIX_FMT_HEVC_SLICE,
+@@ -491,7 +527,7 @@ static const struct rkvdec_coded_fmt_desc rkvdec_coded_fmts[] = {
+ 		.ops = &rkvdec_vp9_fmt_ops,
+ 		.num_decoded_fmts = ARRAY_SIZE(rkvdec_vp9_decoded_fmts),
+ 		.decoded_fmts = rkvdec_vp9_decoded_fmts,
+-	}
++	},
+ };
+ 
+ static const struct rkvdec_coded_fmt_desc rk3288_coded_fmts[] = {
+@@ -545,6 +581,21 @@ static const struct rkvdec_coded_fmt_desc vdpu381_coded_fmts[] = {
+ 		.decoded_fmts = rkvdec_h264_decoded_fmts,
+ 		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,
+ 	},
++	{
++		.fourcc = V4L2_PIX_FMT_VP9_FRAME,
++		.frmsize = {
++			.min_width = 64,
++			.max_width = 65472,
++			.step_width = 64,
++			.min_height = 64,
++			.max_height = 65472,
++			.step_height = 64,
++		},
++		.ctrls = &vdpu381_vp9_ctrls,
++		.ops = &rkvdec_vdpu381_vp9_fmt_ops,
++		.num_decoded_fmts = ARRAY_SIZE(rkvdec_vdpu381_vp9_decoded_fmts),
++		.decoded_fmts = rkvdec_vdpu381_vp9_decoded_fmts,
++	},
+ };
+ 
+ static const struct rkvdec_coded_fmt_desc vdpu383_coded_fmts[] = {
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.h b/drivers/media/platform/rockchip/rkvdec/rkvdec.h
+index c143dd84a87c3..e90c86576b93d 100644
+--- a/drivers/media/platform/rockchip/rkvdec/rkvdec.h
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.h
+@@ -205,6 +205,7 @@ extern const struct rkvdec_coded_fmt_ops rkvdec_vp9_fmt_ops;
+ /* VDPU381 ops */
+ extern const struct rkvdec_coded_fmt_ops rkvdec_vdpu381_h264_fmt_ops;
+ extern const struct rkvdec_coded_fmt_ops rkvdec_vdpu381_hevc_fmt_ops;
++extern const struct rkvdec_coded_fmt_ops rkvdec_vdpu381_vp9_fmt_ops;
+ 
+ /* VDPU383 ops */
+ extern const struct rkvdec_coded_fmt_ops rkvdec_vdpu383_h264_fmt_ops;
+diff --git a/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c b/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c
+index d8646f24e05e2..6a5670975d26a 100644
+--- a/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c
++++ b/drivers/phy/rockchip/phy-rockchip-samsung-hdptx.c
+@@ -333,6 +333,7 @@
+ #define FRL_3G3L_RATE			900000000
+ #define FRL_6G3L_RATE			1800000000
+ #define FRL_8G4L_RATE			3200000000
++#define FRL_FFE_MAX_LEVEL		3
+ 
+ enum dp_link_rate {
+ 	DP_BW_RBR,
+@@ -466,6 +467,16 @@ static const struct ropll_config rk_hdptx_tmds_ropll_cfg[] = {
+ 	{  25175000ULL,   84,    84,    1,    1,   15,  1,  168,    1,  16,  4,   1,    1, },
+ };
+ 
++static const struct ffe_config {
++	u8 pre_shoot;
++	u8 de_emphasis;
++} rk_hdptx_frl_ffe_cfg[FRL_FFE_MAX_LEVEL + 1] = {
++	{ 0x3, 0x4 },
++	{ 0x3, 0x6 },
++	{ 0x3, 0x8 },
++	{ 0x3, 0x9 },
++};
++
+ static const struct reg_sequence rk_hdptx_common_cmn_init_seq[] = {
+ 	REG_SEQ0(CMN_REG(0009), 0x0c),
+ 	REG_SEQ0(CMN_REG(000a), 0x83),
+@@ -1321,6 +1332,45 @@ static int rk_hdptx_tmds_ropll_mode_config(struct rk_hdptx_phy *hdptx)
+ 	return rk_hdptx_post_enable_lane(hdptx);
+ }
+ 
++static int rk_hdptx_frl_ffe_config(struct rk_hdptx_phy *hdptx, u8 ffe_level)
++{
++	u8 val;
++
++	if (ffe_level > FRL_FFE_MAX_LEVEL)
++		return -EINVAL;
++
++	val = rk_hdptx_frl_ffe_cfg[ffe_level].pre_shoot;
++
++	regmap_update_bits(hdptx->regmap, LANE_REG(0305),
++			   LN_TX_DRV_PRE_LVL_CTRL_MASK,
++			   FIELD_PREP(LN_TX_DRV_PRE_LVL_CTRL_MASK, val));
++	regmap_update_bits(hdptx->regmap, LANE_REG(0405),
++			   LN_TX_DRV_PRE_LVL_CTRL_MASK,
++			   FIELD_PREP(LN_TX_DRV_PRE_LVL_CTRL_MASK, val));
++	regmap_update_bits(hdptx->regmap, LANE_REG(0505),
++			   LN_TX_DRV_PRE_LVL_CTRL_MASK,
++			   FIELD_PREP(LN_TX_DRV_PRE_LVL_CTRL_MASK, val));
++	regmap_update_bits(hdptx->regmap, LANE_REG(0605),
++			   LN_TX_DRV_PRE_LVL_CTRL_MASK,
++			   FIELD_PREP(LN_TX_DRV_PRE_LVL_CTRL_MASK, val));
++
++	val = rk_hdptx_frl_ffe_cfg[ffe_level].de_emphasis;
++
++	regmap_update_bits(hdptx->regmap, LANE_REG(0304),
++			   LN_TX_DRV_POST_LVL_CTRL_MASK,
++			   FIELD_PREP(LN_TX_DRV_POST_LVL_CTRL_MASK, val));
++	regmap_update_bits(hdptx->regmap, LANE_REG(0404),
++			   LN_TX_DRV_POST_LVL_CTRL_MASK,
++			   FIELD_PREP(LN_TX_DRV_POST_LVL_CTRL_MASK, val));
++	regmap_update_bits(hdptx->regmap, LANE_REG(0504),
++			   LN_TX_DRV_POST_LVL_CTRL_MASK,
++			   FIELD_PREP(LN_TX_DRV_POST_LVL_CTRL_MASK, val));
++	regmap_update_bits(hdptx->regmap, LANE_REG(0604),
++			   LN_TX_DRV_POST_LVL_CTRL_MASK,
++			   FIELD_PREP(LN_TX_DRV_POST_LVL_CTRL_MASK, val));
++	return 0;
++}
++
+ static void rk_hdptx_dp_reset(struct rk_hdptx_phy *hdptx)
+ {
+ 	reset_control_assert(hdptx->rsts[RST_LANE].rstc);
+@@ -1735,6 +1785,13 @@ static int rk_hdptx_phy_verify_hdmi_config(struct rk_hdptx_phy *hdptx,
+ 		unsigned long long frl_rate = 100000000ULL * hdmi_in->frl.lanes *
+ 					      hdmi_in->frl.rate_per_lane;
+ 
++		if (hdmi_in->frl.set_ffe_level) {
++			if (hdmi_in->frl.ffe_level > FRL_FFE_MAX_LEVEL)
++				return -EINVAL;
++
++			return 0;
++		}
++
+ 		switch (hdmi_in->frl.rate_per_lane) {
+ 		case 3:
+ 		case 6:
+@@ -2081,11 +2138,18 @@ static int rk_hdptx_phy_configure(struct phy *phy, union phy_configure_opts *opt
+ 		if (ret) {
+ 			dev_err(hdptx->dev, "invalid hdmi params for phy configure\n");
+ 		} else {
+-			hdptx->pll_config_dirty = true;
+-
+-			dev_dbg(hdptx->dev, "%s %s rate=%llu bpc=%u\n", __func__,
+-				hdptx->hdmi_cfg.mode ? "FRL" : "TMDS",
+-				hdptx->hdmi_cfg.rate, hdptx->hdmi_cfg.bpc);
++			if (hdptx->hdmi_cfg.mode == PHY_HDMI_MODE_FRL &&
++			    opts->hdmi.frl.set_ffe_level) {
++				dev_dbg(hdptx->dev, "%s ffe_level=%u\n", __func__,
++					opts->hdmi.frl.ffe_level);
++				ret = rk_hdptx_frl_ffe_config(hdptx, opts->hdmi.frl.ffe_level);
++			} else {
++				hdptx->pll_config_dirty = true;
++
++				dev_dbg(hdptx->dev, "%s %s rate=%llu bpc=%u\n", __func__,
++					hdptx->hdmi_cfg.mode ? "FRL" : "TMDS",
++					hdptx->hdmi_cfg.rate, hdptx->hdmi_cfg.bpc);
++			}
+ 		}
+ 
+ 		return ret;
+@@ -2331,14 +2395,16 @@ static int rk_hdptx_phy_clk_determine_rate(struct clk_hw *hw,
+ 	 * to ensure rk_hdptx_phy_clk_set_rate() will be always invoked.
+ 	 * Otherwise, restrict the rate according to the PHY link setup.
+ 	 */
+-	if (hdptx->pll_config_dirty)
+-		req->rate = 0;
+-	else if (hdptx->hdmi_cfg.mode == PHY_HDMI_MODE_FRL)
++
++	if (hdptx->hdmi_cfg.mode == PHY_HDMI_MODE_FRL)
+ 		req->rate = hdptx->hdmi_cfg.rate;
+ 	else
+ 		req->rate = DIV_ROUND_CLOSEST_ULL(hdptx->hdmi_cfg.rate * 8,
+ 						  hdptx->hdmi_cfg.bpc);
+ 
++	if (hdptx->pll_config_dirty && req->rate == clk_hw_get_rate(hw))
++		req->rate = 0;
++
+ 	return 0;
+ }
+ 
+diff --git a/include/drm/bridge/dw_hdmi_qp.h b/include/drm/bridge/dw_hdmi_qp.h
+index ad33f9cafdebd..87d473a0051a9 100644
+--- a/include/drm/bridge/dw_hdmi_qp.h
++++ b/include/drm/bridge/dw_hdmi_qp.h
+@@ -1,23 +1,41 @@
+ /* SPDX-License-Identifier: GPL-2.0-or-later */
+ /*
+  * Copyright (c) 2021-2022 Rockchip Electronics Co., Ltd.
+- * Copyright (c) 2024 Collabora Ltd.
++ * Copyright (c) 2024-2026 Collabora Ltd.
+  */
+ 
+ #ifndef __DW_HDMI_QP__
+ #define __DW_HDMI_QP__
+ 
++#include <linux/types.h>
++
+ struct device;
+ struct drm_encoder;
+ struct dw_hdmi_qp;
+ struct platform_device;
+ 
++struct dw_hdmi_qp_link_cfg {
++	unsigned long long tmds_char_rate;
++	bool frl_enabled;
++	u8 frl_rate_per_lane;
++	u8 frl_lanes;
++	u8 max_frl_rate_per_lane;
++	u8 max_frl_lanes;
++	u8 min_frl_rate_per_lane;
++	u8 min_frl_lanes;
++	u8 max_ffe_level;
++	unsigned int bpc;
++};
++
+ struct dw_hdmi_qp_phy_ops {
+ 	int (*init)(struct dw_hdmi_qp *hdmi, void *data);
+ 	void (*disable)(struct dw_hdmi_qp *hdmi, void *data);
+ 	enum drm_connector_status (*read_hpd)(struct dw_hdmi_qp *hdmi, void *data);
+ 	void (*enable_hpd)(struct dw_hdmi_qp *hdmi, void *data);
+ 	void (*disable_hpd)(struct dw_hdmi_qp *hdmi, void *data);
++	const struct dw_hdmi_qp_link_cfg *(*get_link_cfg)(struct dw_hdmi_qp *hdmi, void *data);
++	int (*set_frl_rate)(struct dw_hdmi_qp *hdmi, void *data, u8 rate_per_lane, u8 lanes);
++	int (*set_ffe_level)(struct dw_hdmi_qp *hdmi, void *data, u8 ffe_level);
+ };
+ 
+ struct dw_hdmi_qp_plat_data {
+diff --git a/include/drm/display/drm_scdc.h b/include/drm/display/drm_scdc.h
+index 7f0b05b2f2800..8d6d074743bf1 100644
+--- a/include/drm/display/drm_scdc.h
++++ b/include/drm/display/drm_scdc.h
+@@ -31,6 +31,8 @@
+ #define SCDC_UPDATE_0 0x10
+ #define  SCDC_RSED_UPDATE (1 << 6)
+ #define  SCDC_FLT_UPDATE (1 << 5)
++#define  SCDC_FRL_START (1 << 4)
++#define  SCDC_SOURCE_TEST_UPDATE (1 << 3)
+ #define  SCDC_READ_REQUEST_TEST (1 << 2)
+ #define  SCDC_CED_UPDATE (1 << 1)
+ #define  SCDC_STATUS_UPDATE (1 << 0)
+@@ -46,11 +48,24 @@
+ #define  SCDC_SCRAMBLING_STATUS (1 << 0)
+ 
+ #define SCDC_CONFIG_0 0x30
++#define  SCDC_FLT_NO_RETRAIN (1 << 1)
+ #define  SCDC_READ_REQUEST_ENABLE (1 << 0)
+ 
+ #define SCDC_CONFIG_1 0x31
+-#define  SCDC_FRL_RATE   0x0f
+-#define  SCDC_FFE_LEVELS 0xf0
++#define  SCDC_FFE_LEVELS_MASK 0xf0
++#define  SCDC_FFE_LEVELS SCDC_FFE_LEVELS_MASK
++#define  SCDC_FRL_RATE_MASK 0x0f
++#define  SCDC_FRL_RATE SCDC_FRL_RATE_MASK
++#define  SCDC_FRL_RATE_DISABLE 0
++#define  SCDC_FRL_RATE_3GBPS_3LANE 1
++#define  SCDC_FRL_RATE_6GBPS_3LANE 2
++#define  SCDC_FRL_RATE_6GBPS_4LANE 3
++#define  SCDC_FRL_RATE_8GBPS_4LANE 4
++#define  SCDC_FRL_RATE_10GBPS_4LANE 5
++#define  SCDC_FRL_RATE_12GBPS_4LANE 6
++
++#define SCDC_SOURCE_TEST_CONFIG 0x35
++#define  SCDC_FLT_NO_TIMEOUT (1 << 5)
+ 
+ #define SCDC_STATUS_FLAGS_0 0x40
+ #define  SCDC_DSC_FAIL (1 << 7)
+@@ -64,9 +79,13 @@
+ #define  SCDC_CLOCK_DETECT (1 << 0)
+ 
+ #define SCDC_STATUS_FLAGS_1 0x41
++#define  SCDC_FRL_LN1_LTP_REQ_MASK 0xf0
++#define  SCDC_FRL_LN0_LTP_REQ_MASK 0x0f
+ #define  SCDC_LN_EVEN_TRAIN_PTRN 0x0f
+ #define  SCDC_LN_ODD_TRAIN_PTRN 0xf0
+ #define SCDC_STATUS_FLAGS_2 0x42
++#define  SCDC_FRL_LN3_LTP_REQ_MASK 0xf0
++#define  SCDC_FRL_LN2_LTP_REQ_MASK 0x0f
+ 
+ #define SCDC_ERR_DET_0_L 0x50
+ #define SCDC_ERR_DET_0_H 0x51
+diff --git a/include/drm/display/drm_scdc_helper.h b/include/drm/display/drm_scdc_helper.h
+index f1044ee796fed..927473c1f4405 100644
+--- a/include/drm/display/drm_scdc_helper.h
++++ b/include/drm/display/drm_scdc_helper.h
+@@ -161,4 +161,10 @@ int drm_scdc_read_state(struct drm_connector *connector,
+ 			struct drm_scdc_state *state);
+ void drm_scdc_debugfs_init(struct drm_connector *connector, struct dentry *root);
+ 
++bool drm_scdc_set_frl(struct drm_connector *connector,
++		      u8 rate_per_lane, u8 lanes, u8 max_ffe_level);
++bool drm_scdc_calc_lower_frl(u8 in_rate_per_lane, u8 in_lanes,
++			     u8 *out_rate_per_lane, u8 *out_lanes);
++bool drm_scdc_get_frl_ltp_request(struct drm_connector *connector,
++				  u8 *ln0, u8 *ln1, u8 *ln2, u8 *ln3);
+ #endif
+diff --git a/include/drm/drm_bridge.h b/include/drm/drm_bridge.h
+index e5db7d274f448..3f4493be04521 100644
+--- a/include/drm/drm_bridge.h
++++ b/include/drm/drm_bridge.h
+@@ -535,10 +535,12 @@ struct drm_bridge_funcs {
+ 	 *
+ 	 * Check if anything is attached to the bridge output.
+ 	 *
+-	 * This callback is optional, if not implemented the bridge will be
+-	 * considered as always having a component attached to its output.
+-	 * Bridges that implement this callback shall set the
+-	 * DRM_BRIDGE_OP_DETECT flag in their &drm_bridge->ops.
++	 * This is the non-atomic version of detect_ctx() callback, and is
++	 * optional. If both are implemented, it is ignored. If none is
++	 * implemented, the bridge will be considered as always having a
++	 * component attached to its output. Bridges that implement this
++	 * callback shall set the DRM_BRIDGE_OP_DETECT flag in their
++	 * &drm_bridge->ops.
+ 	 *
+ 	 * RETURNS:
+ 	 *
+@@ -547,6 +549,32 @@ struct drm_bridge_funcs {
+ 	enum drm_connector_status (*detect)(struct drm_bridge *bridge,
+ 					    struct drm_connector *connector);
+ 
++	/**
++	 * @detect_ctx:
++	 *
++	 * Check if anything is attached to the bridge output.
++	 *
++	 * This is the atomic version of detect() callback, and is optional.
++	 * If both are implemented, it takes precedence. If none is implemented,
++	 * the bridge will be considered as always having a component attached
++	 * to its output. Bridges that implement this callback shall set the
++	 * DRM_BRIDGE_OP_DETECT flag in their &drm_bridge->ops.
++	 *
++	 * To avoid races against concurrent connector state updates, the
++	 * helper libraries always call this with ctx set to a valid context,
++	 * and &drm_mode_config.connection_mutex will always be locked with
++	 * the ctx parameter set to this ctx. This allows taking additional
++	 * locks as required.
++	 *
++	 * RETURNS:
++	 *
++	 * &drm_connector_status indicating the bridge output status,
++	 * or the error code returned by drm_modeset_lock(), -EDEADLK.
++	 */
++	int (*detect_ctx)(struct drm_bridge *bridge,
++			  struct drm_connector *connector,
++			  struct drm_modeset_acquire_ctx *ctx);
++
+ 	/**
+ 	 * @get_modes:
+ 	 *
+@@ -716,6 +744,29 @@ struct drm_bridge_funcs {
+ 	 */
+ 	int (*hdmi_scrambler_disable)(struct drm_bridge *bridge);
+ 
++	/**
++	 * @hdmi_frl_rate_valid:
++	 *
++	 * Check whether a particular FRL data rate (given in bps) is
++	 * supported by the driver by using a FRL link rate that doesn't
++	 * exceed the maximum advertised by the sink (also given in bps).
++	 *
++	 * This callback is optional and should only be implemented by the
++	 * bridges that take part in the HDMI connector implementation and
++	 * need to advertise FRL support.  Bridges that implement it shall
++	 * set the DRM_BRIDGE_OP_HDMI flag in their &drm_bridge->ops.
++	 *
++	 * Returns:
++	 *
++	 * Either &drm_mode_status.MODE_OK or one of the failure reasons
++	 * in &enum drm_mode_status.
++	 */
++	enum drm_mode_status
++	(*hdmi_frl_rate_valid)(const struct drm_bridge *bridge,
++			       const struct drm_display_mode *mode,
++			       unsigned long long frl_data_rate,
++			       unsigned long long frl_max_link_rate);
++
+ 	/**
+ 	 * @hdmi_clear_avi_infoframe:
+ 	 *
+@@ -1051,8 +1102,8 @@ struct drm_bridge_timings {
+ enum drm_bridge_ops {
+ 	/**
+ 	 * @DRM_BRIDGE_OP_DETECT: The bridge can detect displays connected to
+-	 * its output. Bridges that set this flag shall implement the
+-	 * &drm_bridge_funcs->detect callback.
++	 * its output. Bridges that set this flag shall implement either the
++	 * &drm_bridge_funcs->detect or &drm_bridge_funcs->detect_ctx callbacks.
+ 	 */
+ 	DRM_BRIDGE_OP_DETECT = BIT(0),
+ 	/**
+@@ -1627,6 +1678,9 @@ drm_atomic_helper_bridge_propagate_bus_fmt(struct drm_bridge *bridge,
+ 
+ enum drm_connector_status
+ drm_bridge_detect(struct drm_bridge *bridge, struct drm_connector *connector);
++int drm_bridge_detect_ctx(struct drm_bridge *bridge,
++			  struct drm_connector *connector,
++			  struct drm_modeset_acquire_ctx *ctx);
+ int drm_bridge_get_modes(struct drm_bridge *bridge,
+ 			 struct drm_connector *connector);
+ const struct drm_edid *drm_bridge_edid_read(struct drm_bridge *bridge,
+diff --git a/include/drm/drm_connector.h b/include/drm/drm_connector.h
+index d2276f3765bd3..76efab247d83f 100644
+--- a/include/drm/drm_connector.h
++++ b/include/drm/drm_connector.h
+@@ -1432,6 +1432,28 @@ struct drm_connector_hdmi_funcs {
+ 				const struct drm_display_mode *mode,
+ 				unsigned long long tmds_rate);
+ 
++	/**
++	 * @frl_rate_valid:
++	 *
++	 * This callback is invoked at atomic_check time to figure out
++	 * whether a particular FRL data rate (given in bps) is supported
++	 * by the driver by using a FRL link rate that doesn't exceed the
++	 * maximum advertised by the sink (also expressed in bps).
++	 *
++	 * The @frl_rate_valid callback is only mandatory when drivers
++	 * need to advertise FRL support.
++	 *
++	 * Returns:
++	 *
++	 * Either &drm_mode_status.MODE_OK or one of the failure reasons
++	 * in &enum drm_mode_status.
++	 */
++	enum drm_mode_status
++	(*frl_rate_valid)(const struct drm_connector *connector,
++			  const struct drm_display_mode *mode,
++			  unsigned long long frl_data_rate,
++			  unsigned long long frl_max_link_rate);
++
+ 	/**
+ 	 * @read_edid:
+ 	 *
+diff --git a/include/linux/phy/phy-hdmi.h b/include/linux/phy/phy-hdmi.h
+index d4cf4430ee8f3..1d4b624750797 100644
+--- a/include/linux/phy/phy-hdmi.h
++++ b/include/linux/phy/phy-hdmi.h
+@@ -19,6 +19,10 @@ enum phy_hdmi_mode {
+  * @tmds_char_rate: HDMI TMDS Character Rate in Hertz.
+  * @frl.rate_per_lane: HDMI FRL Rate per Lane in Gbps.
+  * @frl.lanes: HDMI FRL lanes count.
++ * @frl.ffe_level: Transmitter Feed Forward Equalizer Level.
++ *	Optional, only meaningful when set_ffe_level flag is on.
++ * @frl.set_ffe_level: Flag indicating whether or not to reconfigure ffe_level.
++ *	All the other struct fields must be ignored when this is used.
+  *
+  * This structure is used to represent the configuration state of a HDMI phy.
+  */
+@@ -29,6 +33,8 @@ struct phy_configure_opts_hdmi {
+ 		struct {
+ 			u8 rate_per_lane;
+ 			u8 lanes;
++			u8 ffe_level;
++			u8 set_ffe_level : 1;
+ 		} frl;
+ 	};
+ };

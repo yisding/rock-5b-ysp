@@ -1,0 +1,65 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/default.mk
+
+export ARCH := arm64
+export KBUILD_BUILD_USER := build
+export KBUILD_BUILD_HOST := rock-5b-ysp
+export KBUILD_BUILD_TIMESTAMP := Fri, 17 Jul 2026 12:00:00 -0700
+
+KERNEL_BRANCH := ysp-maxline-@PROFILE@
+KERNEL_FAMILY := rockchip64
+LOCALVERSION := -$(KERNEL_BRANCH)-$(KERNEL_FAMILY)
+KERNEL_VERSION := $(shell awk '/^VERSION =/{v=$$3} /^PATCHLEVEL =/{p=$$3} /^SUBLEVEL =/{s=$$3} /^EXTRAVERSION =/{e=$$3} END{print v "." p "." s e}' Makefile)
+KERNEL_RELEASE := $(KERNEL_VERSION)$(LOCALVERSION)
+
+IMAGE_PKG := linux-image-ysp-maxline-@PROFILE@-rockchip64
+DTB_PKG := linux-dtb-ysp-maxline-@PROFILE@-rockchip64
+HEADERS_PKG := linux-headers-ysp-maxline-@PROFILE@-rockchip64
+
+JOBS := $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+ifeq ($(JOBS),)
+JOBS := $(shell nproc 2>/dev/null || echo 1)
+endif
+
+KERNEL_SOURCE := $(or $(strip $(MAXLINE_SOURCE_DIR)),$(CURDIR))
+MAKE_KERNEL = $(MAKE) -C "$(KERNEL_SOURCE)" ARCH=$(ARCH) LOCALVERSION=$(LOCALVERSION)
+BUILD_DIR := $(strip $(MAXLINE_BUILD_DIR))
+ifeq ($(BUILD_DIR),)
+CONFIG_TARGET := .config
+else
+MAKE_KERNEL += O="$(BUILD_DIR)"
+CONFIG_TARGET := $(BUILD_DIR)/.config
+endif
+
+%:
+	dh $@
+
+override_dh_auto_clean:
+	[ ! -f Makefile ] || $(MAKE_KERNEL) clean
+	rm -rf debian/$(IMAGE_PKG) debian/$(DTB_PKG) debian/$(HEADERS_PKG)
+	rm -f debian/*.substvars debian/$(IMAGE_PKG).* debian/$(DTB_PKG).* debian/$(HEADERS_PKG).*
+
+override_dh_auto_configure:
+	mkdir -p "$(dir $(CONFIG_TARGET))"
+	cp debian/config/arm64-rockchip64.config "$(CONFIG_TARGET)"
+	$(MAKE_KERNEL) olddefconfig
+
+override_dh_auto_build:
+	$(MAKE_KERNEL) -j$(JOBS) Image modules dtbs
+
+override_dh_auto_install:
+	debian/scripts/install-kernel-packages.sh "$(CURDIR)" "$(KERNEL_RELEASE)" "$(IMAGE_PKG)" "$(DTB_PKG)" "$(HEADERS_PKG)" "$(ARCH)" "$(LOCALVERSION)" "$(or $(BUILD_DIR),$(CURDIR))" "$(KERNEL_SOURCE)"
+
+override_dh_auto_test:
+
+override_dh_installdeb:
+	debian/scripts/write-maintainer-scripts.sh "$(KERNEL_RELEASE)" "$(IMAGE_PKG)" "$(DTB_PKG)" "$(HEADERS_PKG)" "$(ARCH)"
+	dh_installdeb
+
+override_dh_gencontrol:
+	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/substvars
+	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/$(IMAGE_PKG).substvars
+	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/$(DTB_PKG).substvars
+	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/$(HEADERS_PKG).substvars
+	dh_gencontrol

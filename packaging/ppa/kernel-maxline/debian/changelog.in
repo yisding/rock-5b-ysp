@@ -1,0 +1,7 @@
+linux-rockchip64-ysp-maxline-@PROFILE@ (@VERSION@) resolute; urgency=medium
+
+  * Build the @PROFILE@ maximum-mainline RK3588 integration profile from
+    upstream Linux v7.2-rc3 and the pinned exported integration delta.
+  * Package a unique kernel release, DTB tree, and headers for Armbian.
+
+ -- Yi Ding <yi@example.com>  Fri, 17 Jul 2026 12:00:00 -0700

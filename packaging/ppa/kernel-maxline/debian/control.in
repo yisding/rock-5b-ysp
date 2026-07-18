@@ -1,0 +1,63 @@
+Source: linux-rockchip64-ysp-maxline-@PROFILE@
+Section: kernel
+Priority: optional
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Yi Ding <yi@example.com>
+Build-Depends:
+ bc,
+ bison,
+ debhelper-compat (= 13),
+ flex,
+ kmod,
+ libelf-dev,
+ libssl-dev,
+ pahole | dwarves,
+ python3,
+ rsync,
+ u-boot-tools
+Rules-Requires-Root: no
+Standards-Version: 4.7.2
+Homepage: https://github.com/yisding/rock-5b-ysp
+
+Package: linux-image-ysp-maxline-@PROFILE@-rockchip64
+Architecture: arm64
+Depends:
+ initramfs-tools | linux-initramfs-tool,
+ ${misc:Depends},
+Provides:
+ linux-image,
+ linux-image-armbian,
+ wireguard-modules
+Description: ROCK 5B maximum-mainline @PROFILE@ kernel image ${kernel:Release}
+ This package contains the co-installable ROCK 5B maximum-mainline @PROFILE@
+ kernel image, modules, and matching in-image DTB copy for ${kernel:Release}.
+
+Package: linux-dtb-ysp-maxline-@PROFILE@-rockchip64
+Architecture: arm64
+Depends:
+ ${misc:Depends},
+Provides:
+ linux-dtb,
+ linux-dtb-armbian
+Description: ROCK 5B maximum-mainline @PROFILE@ device trees ${kernel:Release}
+ This package contains device tree blobs for the ROCK 5B maximum-mainline
+ @PROFILE@ kernel, installed under /boot/dtb-${kernel:Release}.
+
+Package: linux-headers-ysp-maxline-@PROFILE@-rockchip64
+Section: devel
+Architecture: arm64
+Depends:
+ bison,
+ flex,
+ gcc,
+ libc6-dev,
+ libelf-dev,
+ libssl-dev,
+ make,
+ pahole | dwarves,
+ ${misc:Depends},
+Provides:
+ linux-headers-armbian
+Description: ROCK 5B maximum-mainline @PROFILE@ headers ${kernel:Release}
+ This package provides kernel headers for ${kernel:Release}, suitable for
+ DKMS and external module builds.

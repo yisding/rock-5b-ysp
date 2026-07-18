@@ -1,0 +1,58 @@
+format: 1
+generated: 2026-07-17
+base:
+  tag: v7.2-rc3
+  commit: a13c140cc289c0b7b3770bce5b3ad42ab35074aa
+  source: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+profiles:
+  public:
+    integration_branch: rk3588-maxline-public
+    integration_commit: f12fb0acf7bb923c5958e9430edd0dae93400951
+    commits_after_base: 241
+    patch: patches/maxline-public.patch
+    patch_sha256: 735564cc1c2bc38e7b5e44a4a38e9dca716d674fedf6855115ad23d65a5e55bb
+    release: 7.2.0-rc3-ysp-maxline-public-rockchip64
+  wip:
+    integration_branch: rk3588-maxline-wip
+    integration_commit: 74b24e96da6245ef951ec34de481b7b8a2b91d34
+    commits_after_public: 21
+    patch: patches/maxline-wip.patch
+    patch_sha256: 77db87059b51b42385561921f56918f2adca4b2f372bddbf7758f3f68a495608
+    release: 7.2.0-rc3-ysp-maxline-wip-rockchip64
+config:
+  path: config/arm64-rockchip64.config
+  sha256: 2482e7cb8117c01aae3d0abc85c7538a929d4bcfc1a5e68447a1c62dd8efb78a
+public_series_ledger: public-series.tsv
+wip_donor_ledger: wip-donors.tsv
+verification:
+  date: 2026-07-17
+  architecture: arm64
+  compile_gate: Image modules dtbs
+  modules_per_profile: 3489
+  board_dtb: rockchip/rk3588-rock-5b.dtb
+  headers_external_module_smoke: passed
+  booted_on_rock_5b: false
+  public:
+    package_version: 7.2.0~rc3+rk3588maxlinepublic20260717-0ubuntu1
+    artifacts:
+      - file: linux-dtb-ysp-maxline-public-rockchip64_7.2.0~rc3+rk3588maxlinepublic20260717-0ubuntu1_arm64.deb
+        bytes: 693854
+        sha256: 4ad4d5834421b828debe3891a944a03c917580bdf1414dbcdb4f21b81c925190
+      - file: linux-headers-ysp-maxline-public-rockchip64_7.2.0~rc3+rk3588maxlinepublic20260717-0ubuntu1_arm64.deb
+        bytes: 16788148
+        sha256: a0c2a1718eb8f015a0fd5d85142bbf2d29173fdedaea1f525c0b63ac6b64f52c
+      - file: linux-image-ysp-maxline-public-rockchip64_7.2.0~rc3+rk3588maxlinepublic20260717-0ubuntu1_arm64.deb
+        bytes: 55551268
+        sha256: 43e5e553f480f088949ed99d8faecc0bdd0b285ce62cb4eccb7970bbd163bb67
+  wip:
+    package_version: 7.2.0~rc3+rk3588maxlinewip20260717-0ubuntu1
+    artifacts:
+      - file: linux-dtb-ysp-maxline-wip-rockchip64_7.2.0~rc3+rk3588maxlinewip20260717-0ubuntu1_arm64.deb
+        bytes: 693584
+        sha256: ef6a81166ad680c6c1fae171a9e05dace2f42e9d46b119bd4e15c3e81074eafb
+      - file: linux-headers-ysp-maxline-wip-rockchip64_7.2.0~rc3+rk3588maxlinewip20260717-0ubuntu1_arm64.deb
+        bytes: 16761736
+        sha256: 2db62d7d194c238f03245cbf47e5e93a5b4bd26a5726fbb0b9ef774cf5c266f1
+      - file: linux-image-ysp-maxline-wip-rockchip64_7.2.0~rc3+rk3588maxlinewip20260717-0ubuntu1_arm64.deb
+        bytes: 55569264
+        sha256: 2a0e06045b73f10dcf0d3cb43b85c2a2a17addc2d3ef79b2d7c0f080807bf369
