@@ -138,6 +138,11 @@ that RKMPP backend on top of a clean `vsi-iommu` provider and has decoded AV1
 bit-exact on hardware; the rewrite still does not bind this block. The separate
 Hantro/V4L2 stateless AV1 path is not the same userspace ABI as RKMPP. See
 [RK3588 AV1 decode, IOMMU, and userspace paths](../av1/docs/av1-rk3588.md).
+The scoped
+[AV1 rewrite assessment](../av1/docs/av1-rewrite-assessment.md) records the
+estimated effort, the class-aware register and translation-capacity refactors,
+the VSI fault-hook work, and the hardware gates required to add that backend
+without weakening the rewrite's current lifetime and address-provenance rules.
 
 The codec line is intentionally narrower than the names that FFmpeg and
 GStreamer can advertise. `ffmpeg-rockchip` registers AV1, H.263, H.264, HEVC,

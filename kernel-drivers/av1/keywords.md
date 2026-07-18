@@ -10,3 +10,8 @@ AV1-decode terms. Cross-cutting vocabulary is in [`../../glossary.md`](../../glo
   experimental AV1 forward-port.
 - **RKMPP AV1 port** — the experimental port whose bring-up surfaced BSP bugs
   cataloged in [`docs/av1-bsp-audit.md`](docs/av1-bsp-audit.md).
+- **AV1 rewrite assessment** — the bounded plan for adding the separate
+  `MPP_DEVICE_AV1DEC` backend to `mpp-rewrite`, including sparse register
+  classes, 103 built-in fd translations, VSI-IOMMU fault integration, checked
+  AFBC programming, and differential validation; see
+  [`docs/av1-rewrite-assessment.md`](docs/av1-rewrite-assessment.md).
