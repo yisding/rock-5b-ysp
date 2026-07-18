@@ -5,6 +5,7 @@ set -euo pipefail
 export LC_ALL=C
 
 NVME_CONTROLLER="${NVME_CONTROLLER:-/dev/nvme0}"
+NVME_SYSFS_ROOT="${NVME_SYSFS_ROOT:-/sys/class/nvme}"
 CPUFREQ_ROOT="${CPUFREQ_ROOT:-/sys/devices/system/cpu/cpufreq}"
 THERMAL_ROOT="${THERMAL_ROOT:-/sys/class/thermal}"
 STATE_DIR="${STATE_DIR:-/var/lib/rock5b-passive-cooling}"
@@ -15,13 +16,15 @@ UNIT_PATH="${UNIT_PATH:-/etc/systemd/system/rock5b-passive-cooling.service}"
 HCTM_TMT1_C=65
 HCTM_TMT2_C=68
 HCTM_VALUE=0x01520155
+NVME_CPU_OFFSET_MC=3000
+LEVEL_HYSTERESIS_MC=2000
 MONITOR_INTERVAL=5
 
 PERSIST=1
 MONITOR=0
 DRY_RUN=0
 FORCE_BOARD=0
-LAST_LEVEL=-1
+LAST_LEVEL="${LAST_LEVEL:--1}"
 
 usage() {
     cat <<'EOF'
@@ -34,7 +37,8 @@ saved NVMe HCTM value for rock5b-passive-cooling-revert.sh.
 
 Profile:
   * NVMe HCTM light/strong thresholds: 65 C / 68 C (saved by the controller)
-  * use the hottest recognized CPU thermal sensor on legacy and split layouts
+  * control from max(hottest CPU sensor, NVMe composite temperature + 3 C)
+  * relax a cooling level only after dropping 2 C below its entry threshold
   * stock CPU ceilings remain available below 65 C
   * progressively lower CPU ceilings at 65, 70, 75, 80, 85, 90, and 95 C
   * restore every cpufreq policy's minimum to its hardware minimum
@@ -160,6 +164,41 @@ read_cpu_temperature() {
     ((found == 1)) || \
         die "CPU thermal zone not found under $THERMAL_ROOT"
     printf '%s\n' "$hottest"
+}
+
+read_nvme_temperature() {
+    local controller_name input temperature
+    local hottest=-1
+    local found=0
+
+    controller_name="${NVME_CONTROLLER##*/}"
+    for input in "$NVME_SYSFS_ROOT/$controller_name"/hwmon*/temp1_input; do
+        [[ -r $input ]] || continue
+        temperature="$(<"$input")"
+        [[ $temperature =~ ^[0-9]+$ ]] || \
+            die "invalid NVMe composite temperature in $input: $temperature"
+        ((temperature <= 200000)) || \
+            die "NVMe composite temperature is out of range in $input: $temperature"
+        ((found = 1))
+        ((temperature > hottest)) && hottest="$temperature"
+    done
+
+    ((found == 1)) || \
+        die "NVMe composite temperature not found for $NVME_CONTROLLER under $NVME_SYSFS_ROOT"
+    printf '%s\n' "$hottest"
+}
+
+read_thermal_sample() {
+    local cpu_temperature nvme_temperature adjusted_nvme effective_temperature
+
+    cpu_temperature="$(read_cpu_temperature)" || return 1
+    nvme_temperature="$(read_nvme_temperature)" || return 1
+    adjusted_nvme=$((nvme_temperature + NVME_CPU_OFFSET_MC))
+    effective_temperature="$cpu_temperature"
+    ((adjusted_nvme > effective_temperature)) && \
+        effective_temperature="$adjusted_nvme"
+    printf '%s %s %s\n' \
+        "$cpu_temperature" "$nvme_temperature" "$effective_temperature"
 }
 
 list_policies() {
@@ -325,6 +364,44 @@ temperature_level() {
     fi
 }
 
+level_entry_temperature() {
+    local level="$1"
+
+    case "$level" in
+        1) printf '65000\n' ;;
+        2) printf '70000\n' ;;
+        3) printf '75000\n' ;;
+        4) printf '80000\n' ;;
+        5) printf '85000\n' ;;
+        6) printf '90000\n' ;;
+        7) printf '95000\n' ;;
+        *) die "invalid thermal level for entry threshold: $level" ;;
+    esac
+}
+
+temperature_level_with_hysteresis() {
+    local temperature="$1"
+    local previous="$2"
+    local raw_level entry_temperature release_temperature
+
+    [[ $previous =~ ^-?[0-9]+$ ]] && ((previous >= -1 && previous <= 7)) || \
+        die "invalid previous thermal level: $previous"
+    raw_level="$(temperature_level "$temperature")"
+
+    if ((previous < 0 || raw_level >= previous)); then
+        printf '%s\n' "$raw_level"
+        return 0
+    fi
+
+    while ((previous > raw_level)); do
+        entry_temperature="$(level_entry_temperature "$previous")"
+        release_temperature=$((entry_temperature - LEVEL_HYSTERESIS_MC))
+        ((temperature <= release_temperature)) || break
+        previous=$((previous - 1))
+    done
+    printf '%s\n' "$previous"
+}
+
 requested_cap() {
     local hardware_max="$1"
     local level="$2"
@@ -440,16 +517,20 @@ install_monitor() {
 }
 
 monitor_temperatures() {
-    local temperature level
+    local sample cpu_temperature nvme_temperature effective_temperature level
 
     trap 'exit 0' TERM INT
     while true; do
-        temperature="$(read_cpu_temperature)"
-        level="$(temperature_level "$temperature")"
+        sample="$(read_thermal_sample)"
+        read -r cpu_temperature nvme_temperature effective_temperature <<<"$sample"
+        level="$(temperature_level_with_hysteresis \
+            "$effective_temperature" "$LAST_LEVEL")"
         apply_cpu_level "$level"
 
         if ((level != LAST_LEVEL)); then
-            note "CPU $((temperature / 1000)) C: applied passive-cooling level $level"
+            note "CPU $((cpu_temperature / 1000)) C, NVMe $((nvme_temperature / 1000)) C" \
+                "(+3 C), effective $((effective_temperature / 1000)) C:" \
+                "applied passive-cooling level $level"
             LAST_LEVEL="$level"
         fi
         sleep "$MONITOR_INTERVAL"
@@ -461,9 +542,11 @@ check_nvme_path
 validate_cpu_layout
 
 if ((DRY_RUN == 1)); then
-    temperature="$(read_cpu_temperature)"
-    level="$(temperature_level "$temperature")"
-    note "Dry run: CPU temperature is $((temperature / 1000)) C (level $level)."
+    sample="$(read_thermal_sample)"
+    read -r cpu_temperature nvme_temperature effective_temperature <<<"$sample"
+    level="$(temperature_level_with_hysteresis "$effective_temperature" "$LAST_LEVEL")"
+    note "Dry run: CPU $((cpu_temperature / 1000)) C, NVMe $((nvme_temperature / 1000)) C" \
+        "(+3 C), effective $((effective_temperature / 1000)) C (level $level)."
     apply_cpu_level "$level"
     apply_nvme
     ((PERSIST == 0)) || note "Would install and enable rock5b-passive-cooling.service"
@@ -483,8 +566,9 @@ need_command mktemp
 need_command mv
 need_command stat
 capture_stock_state
-temperature="$(read_cpu_temperature)"
-level="$(temperature_level "$temperature")"
+sample="$(read_thermal_sample)"
+read -r cpu_temperature nvme_temperature effective_temperature <<<"$sample"
+level="$(temperature_level_with_hysteresis "$effective_temperature" "$LAST_LEVEL")"
 apply_cpu_level "$level"
 apply_nvme
 
@@ -496,5 +580,7 @@ else
     note "Applied until reboot; no service installed and HCTM was not saved."
 fi
 
-note "Passive-cooling profile active: CPU $((temperature / 1000)) C, level $level."
+note "Passive-cooling profile active: CPU $((cpu_temperature / 1000)) C," \
+    "NVMe $((nvme_temperature / 1000)) C (+3 C)," \
+    "effective $((effective_temperature / 1000)) C, level $level."
 note "For kernel packages, continue to use DEB_BUILD_OPTIONS=parallel=2."

@@ -36,11 +36,12 @@ The audited ROCK 5B is entirely passively cooled. Older kernels expose one
 kernels expose `package-thermal` plus separate big- and little-core zones; the
 CPU zones have cpufreq cooling bindings, but their first passive trip is 85 C.
 `rock5b-passive-cooling-apply.sh` supplies a more conservative reversible
-userspace policy. It uses the hottest recognized CPU-zone reading across both
-thermal layouts and deliberately ignores accelerator-only zones:
+userspace policy. It takes the maximum of the hottest recognized CPU-zone
+reading and the NVMe composite temperature plus 3 C. Accelerator-only zones
+remain excluded from the CPU policy:
 
-| CPU temperature | A55 ceiling | A76 ceiling |
-|-----------------|-------------|-------------|
+| Effective temperature | A55 ceiling | A76 ceiling |
+|-----------------------|-------------|-------------|
 | below 65 C | 1.800 GHz | 2.400 GHz |
 | 65-69 C | 1.608 GHz | 2.208 GHz |
 | 70-74 C | 1.416 GHz | 2.016 GHz |
@@ -49,6 +50,17 @@ thermal layouts and deliberately ignores accelerator-only zones:
 | 85-89 C | 816 MHz | 1.416 GHz |
 | 90-94 C | 600 MHz | 1.200 GHz |
 | 95 C or higher | 408 MHz | 816 MHz |
+
+Heating crosses those boundaries immediately. Cooling uses 2 C of hysteresis:
+after entering a level, the effective temperature must fall 2 C below that
+level's entry threshold before the script relaxes it. For example, level 3
+starts at 75 C but remains active until the effective temperature reaches
+73 C. This prevents repeated 2.016/1.800 GHz changes near 75 C.
+
+The NVMe input is the controller's composite hwmon sensor at
+`/sys/class/nvme/nvmeN/hwmon*/temp1_input`. A missing or malformed CPU or NVMe
+temperature stops the monitor rather than silently dropping that input;
+systemd then retries it after five seconds.
 
 The script also restores every cpufreq minimum to its hardware minimum and
 sets the NVMe Host Controlled Thermal Management thresholds to 65 C (light)

@@ -249,11 +249,22 @@ class PassiveCoolingScriptTests(unittest.TestCase):
         self.write_value(zone / "type", zone_type)
         self.write_value(zone / "temp", str(temp))
 
-    def run_dry_run(self, root: Path) -> subprocess.CompletedProcess[str]:
+    def run_dry_run(
+        self,
+        root: Path,
+        nvme_temperature: int | None = 40_000,
+        previous_level: int | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         thermal_root = root / "thermal"
         cpufreq_root = root / "cpufreq"
+        nvme_root = root / "nvme"
         self.add_policy(cpufreq_root, "policy0", 1_800_000)
         self.add_policy(cpufreq_root, "policy4", 2_400_000)
+        if nvme_temperature is not None:
+            self.write_value(
+                nvme_root / "nvme0/hwmon0/temp1_input",
+                str(nvme_temperature),
+            )
 
         tools = root / "bin"
         nvme = tools / "nvme"
@@ -265,10 +276,13 @@ class PassiveCoolingScriptTests(unittest.TestCase):
             {
                 "CPUFREQ_ROOT": str(cpufreq_root),
                 "NVME_CONTROLLER": "/dev/nvme0",
+                "NVME_SYSFS_ROOT": str(nvme_root),
                 "PATH": f"{tools}:{environment['PATH']}",
                 "THERMAL_ROOT": str(thermal_root),
             }
         )
+        if previous_level is not None:
+            environment["LAST_LEVEL"] = str(previous_level)
         return subprocess.run(
             ["bash", str(self.script), "--force-board", "--dry-run"],
             cwd=REPO_ROOT,
@@ -292,7 +306,7 @@ class PassiveCoolingScriptTests(unittest.TestCase):
             output = result.stdout + result.stderr
 
             self.assertEqual(result.returncode, 0, output)
-            self.assertIn("CPU temperature is 84 C (level 4)", output)
+            self.assertIn("effective 84 C (level 4)", output)
             self.assertIn("policy0  min= 408000 kHz max=1008000 kHz", output)
             self.assertIn("policy4  min= 408000 kHz max=1608000 kHz", output)
 
@@ -307,7 +321,37 @@ class PassiveCoolingScriptTests(unittest.TestCase):
             output = result.stdout + result.stderr
 
             self.assertEqual(result.returncode, 0, output)
-            self.assertIn("CPU temperature is 70 C (level 2)", output)
+            self.assertIn("effective 70 C (level 2)", output)
+
+    def test_nvme_plus_three_degrees_can_select_cpu_level(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.add_zone(root / "thermal", 0, "soc-thermal", 70_000)
+
+            result = self.run_dry_run(root, nvme_temperature=72_000)
+            output = result.stdout + result.stderr
+
+            self.assertEqual(result.returncode, 0, output)
+            self.assertIn("CPU 70 C, NVMe 72 C (+3 C), effective 75 C", output)
+            self.assertIn("effective 75 C (level 3)", output)
+            self.assertIn("policy4  min= 408000 kHz max=1800000 kHz", output)
+
+    def test_two_degree_hysteresis_holds_then_releases_level(self) -> None:
+        cases = ((74_000, 3), (73_000, 2))
+        for temperature, expected_level in cases:
+            with self.subTest(temperature=temperature):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    self.add_zone(root / "thermal", 0, "soc-thermal", temperature)
+
+                    result = self.run_dry_run(root, previous_level=3)
+                    output = result.stdout + result.stderr
+
+                    self.assertEqual(result.returncode, 0, output)
+                    self.assertIn(
+                        f"effective {temperature // 1000} C (level {expected_level})",
+                        output,
+                    )
 
     def test_accelerator_zones_are_not_cpu_temperature_fallbacks(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -321,6 +365,17 @@ class PassiveCoolingScriptTests(unittest.TestCase):
 
             self.assertNotEqual(result.returncode, 0, output)
             self.assertIn("CPU thermal zone not found", output)
+
+    def test_missing_nvme_composite_temperature_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.add_zone(root / "thermal", 0, "soc-thermal", 70_000)
+
+            result = self.run_dry_run(root, nvme_temperature=None)
+            output = result.stdout + result.stderr
+
+            self.assertNotEqual(result.returncode, 0, output)
+            self.assertIn("NVMe composite temperature not found", output)
 
     def test_monitor_does_not_require_nvme_character_device_unit(self) -> None:
         source = self.script.read_text(encoding="utf-8")
