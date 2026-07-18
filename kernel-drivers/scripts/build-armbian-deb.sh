@@ -8,15 +8,14 @@
 # against 6.18.37 / 26.08.0-trunk; re-check its skip list and core patch names
 # when the Armbian base moves.
 #
-# It differs from rock-5b-ysp's build-combined-kernel.sh in one load-bearing way:
-# this tree's device tree is SELF-CONTAINED. Commit "add decoder/AV1 IOMMUs,
+# This tree's device tree is SELF-CONTAINED. Commit "add decoder/AV1 IOMMUs,
 # SRAM and node wiring" adds the vdec0/vdec1 decoder nodes, their IOMMUs+SRAM,
 # and the av1d / vsi-iommu nodes directly into rk3588-base.dtsi. Armbian's core
 # patches media-0001 (rkvdec) and media-0007 (verisilicon AV1 iommu) add the
 # *same* nodes / the same new file (drivers/iommu/vsi-iommu.c) -> hard collision.
 # So this script DISABLES those two Armbian core patches (rename .patch ->
 # .patch.disabled; Armbian's patcher only picks files ending in .patch).
-# rock-5b-ysp's convert-in-place patch, by contrast, *needed* media-0001 present.
+# The retired convert-in-place build path, by contrast, *needed* media-0001 present.
 #
 # WHAT IT DOES
 #   1. Regenerate the port patches from git:  git format-patch v6.18..HEAD,
@@ -28,7 +27,7 @@
 #   5. Run ./compile.sh with USE_CCACHE passed as an ARGUMENT (see below).
 #   6. Print the new P####-C#### hash and the deb paths.
 #
-# THE ccache GOTCHA (inherited from rock-5b-ysp): USE_CCACHE must be a compile.sh
+# THE ccache GOTCHA: USE_CCACHE must be a compile.sh
 # command-line ARGUMENT, never a shell env var. Armbian can relaunch through
 # Docker or sudo; arguments survive both, while the Docker path was observed
 # silently dropping a bare env var and leaving ccache OFF.

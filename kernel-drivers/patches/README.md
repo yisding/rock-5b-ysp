@@ -56,7 +56,8 @@ Armbian's `media-0001` nodes in place ([Armbian packaging guide](../../packaging
 ```bash
 cp rk3588-rkvenc2-0*.patch \
    <armbian-build>/userpatches/kernel/archive/rockchip64-6.18/
-bash ../scripts/build-combined-kernel.sh
+cd <armbian-build>
+./compile.sh kernel BOARD=rock-5b BRANCH=current KERNEL_CONFIGURE=no USE_CCACHE=yes
 ```
 
 > Patch **02** assumes Armbian's `media-0001-Add-rkvdec-Support-v5.patch` is

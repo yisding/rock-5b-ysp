@@ -139,8 +139,8 @@ internals that drift on *their* schedule. **When Armbian bumps
    relocation). If Armbian's `rk3588-base.dtsi` gains/loses lines near there,
    the two patches can collide again — re-check that both apply in either order.
 3. **Re-derive the `P####-C####` hash and pass `PHASH`.** Any patch or config
-   change alters the Armbian deb-name hash;
-   `scripts/build-combined-kernel.sh` prints the new value (`:59`) — pass it to
+   change alters the Armbian deb-name hash. The Armbian build emits the new
+   value in each deb filename — pass it to
    `scripts/install-combined-kernel.sh` (`sudo RECOVERY_READY=1
    PHASH='P####-C####' ...`, after the recovery preflight in `install.md`) or
    the installer refuses the new debs.

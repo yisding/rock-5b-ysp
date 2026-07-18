@@ -15,7 +15,7 @@ in either case:
 
 | Path | What you get | What it needs | Validation status ([`status.md`](status.md)) | Where |
 |------|--------------|---------------|-----------------------------------------------|-------|
-| **(a) Combined Armbian kernel** | All three accelerators **built in (`=y`)** — no modules, no overlay | An Armbian build tree (§2) + a kernel install/reboot | ✅ **Hardware-validated** (build `Pb6ab-Cb831`, [kernel status](kernel-drivers/docs/forward-port-status.md)) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
+| **(a) Combined Armbian forward-port kernel** | MPP encode/decode (including AV1) and RGA **built in (`=y`)** — no modules, no overlay | The forward-port kernel tree + an Armbian build tree (§2) + a kernel install/reboot | ✅ **Hardware-validated** (AV1 build `P1c9d`, [kernel status](kernel-drivers/docs/forward-port-status.md)) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/forward-port-rk3588-av1/`](kernel-drivers/patches/forward-port-rk3588-av1/README.md) |
 | **(b) DKMS on a stock kernel** | `rk_vcodec.ko` + `rga3.ko`, auto-rebuilt on every kernel update, + a boot-time DT overlay | A *stock* Armbian 6.18+ kernel, `dkms` + `dtc` installed | ⚠️ Compile-tested on **6.18 only**; overlay dtc-validated, **not boot-validated** | [`packaging/dkms/`](packaging/dkms/README.md) |
 | **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§8) | Source-built `ffmpeg-rockchip` is hardware-validated; the system PPA publishes codec access, MPP, librga, FFmpeg 8.0.3, GRD, and co-installable FFmpeg 6.1, while dedicated PPAs publish both FFmpeg 8.1 tracks | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
 
@@ -49,19 +49,23 @@ native build. Choose one supported host mode:
 
 | Build-host mode | Requirement | Invocation through this repo |
 |-----------------|-------------|------------------------------|
-| Containerized (default) | A current Docker-capable Linux host; install/start Docker and give your user daemon access. | `bash kernel-drivers/scripts/build-combined-kernel.sh` |
-| Native | Armbian or Ubuntu 24.04 Noble, plus working `sudo`. The measured aarch64 VM path is documented in the [builder finding](findings/2026-07-08-armbian-builder-setup.md). | `bash kernel-drivers/scripts/build-combined-kernel.sh PREFER_DOCKER=no` |
+| Containerized (default) | A current Docker-capable Linux host; install/start Docker and give your user daemon access. | `bash kernel-drivers/scripts/build-armbian-deb.sh` |
+| Native | Armbian or Ubuntu 24.04 Noble, plus working `sudo`. The measured aarch64 VM path is documented in the [builder finding](findings/2026-07-08-armbian-builder-setup.md). | `bash kernel-drivers/scripts/build-armbian-deb.sh PREFER_DOCKER=no` |
 
 On a ROCK 5B already running the target Ubuntu 26.04 userspace, use the Docker
 mode unless Armbian adds Resolute to its native-host support list. See Armbian's
 official [build preparation](https://docs.armbian.com/Developer-Guide_Build-Preparation/)
 and [`PREFER_DOCKER` switch](https://docs.armbian.com/Developer-Guide_Build-Switches/#prefer_docker).
 
-`kernel-drivers/scripts/build-combined-kernel.sh` expects an Armbian build tree at
+`kernel-drivers/scripts/build-armbian-deb.sh` expects an Armbian build tree at
 **`$WORKSPACE/armbian-build`** — an external, gitignored build workspace
-(default `WORKSPACE=../kernel/rock5b-kernel-build`, override with `WORKSPACE=`).
-The bootstrap clones Armbian's configured branch (`main` by default) and checks
-out the conformance sources at the commits in their manifest:
+(default `WORKSPACE=../kernel/rock5b-kernel-build`, override with `WORKSPACE=`)
+and a forward-port Git tree at `KERNEL_TREE` (default
+`../kernel/linux-6.18-rkvenc-av1-fwport`). The tracked split series under
+[`kernel-drivers/patches/forward-port-rk3588-av1/`](kernel-drivers/patches/forward-port-rk3588-av1/README.md)
+records the source commits. The bootstrap clones Armbian's configured branch
+(`main` by default) and checks out the conformance sources at the commits in
+their manifest:
 
 ```bash
 bash kernel-drivers/scripts/bootstrap-workspaces.sh
@@ -129,23 +133,19 @@ the commands above are the actual preparation.
 export WORKSPACE="${WORKSPACE:-../kernel/rock5b-kernel-build}"
 bash kernel-drivers/scripts/bootstrap-workspaces.sh
 
-# 1. Stage the two port patches as Armbian userpatches.
-mkdir -p "$WORKSPACE/armbian-build/userpatches/kernel/archive/rockchip64-6.18"
-cp kernel-drivers/patches/rk3588-rkvenc2-0*.patch \
-   "$WORKSPACE/armbian-build/userpatches/kernel/archive/rockchip64-6.18/"
+# 1. Regenerate and stage the self-contained-DT forward-port patches, then build
+#    (~80-90 min cold, ~10-15 warm). USE_CCACHE must be an ARGUMENT, not an env
+#    var -- the wrapper gets this right (docs/gotchas.md). On a supported
+#    Noble/Armbian native host, append PREFER_DOCKER=no.
+bash kernel-drivers/scripts/build-armbian-deb.sh        # prints the new P####-C#### hash
 
-# 2. Build (~80-90 min cold, ~10-15 warm). USE_CCACHE must be an ARGUMENT,
-#    not an env var -- the wrapper gets this right (docs/gotchas.md).
-#    On a supported Noble/Armbian native host, append PREFER_DOCKER=no.
-bash kernel-drivers/scripts/build-combined-kernel.sh        # prints the new P####-C#### hash
-
-# 3. Install (pin the hash the build printed), reboot, validate:
+# 2. Install (pin the hash the build printed), reboot, validate:
 sudo RECOVERY_READY=1 WORKSPACE="$WORKSPACE" PHASH='P####-C####' \
   bash kernel-drivers/scripts/install-combined-kernel.sh
 sudo reboot
 sudo bash kernel-drivers/scripts/validate-combined.sh       # /dev/mpp_service, 4 cores, /dev/rga
 
-# 4. Non-root device access (recommended; REQUIRED for non-root ffmpeg).
+# 3. Non-root device access (recommended; REQUIRED for non-root ffmpeg).
 #    dma_heap is required, not just mpp_service -- rkmpp allocates buffers
 #    there (docs/gotchas.md). You must also be in the `video` group:
 sudo cp kernel-drivers/scripts/99-rockchip-codec.rules /etc/udev/rules.d/
@@ -153,9 +153,9 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
 A green `validate-combined.sh` shows the two encoder cores (`rkvenc-core0/1`),
-the two decoder cores (`video-codec0/1` on the combined kernel — the DT keeps
-mainline's node name, see [device-tree guide](./kernel-drivers/docs/device-tree.md); pre-combined
-revisions said `rkvdec-core0/1`), and `/dev/rga`.
+the two decoder cores (`rkvdec-core0/1` on the self-contained-DT forward port),
+and `/dev/rga`. The validator also accepts the older convert-in-place kernel's
+`video-codec0/1` names.
 
 ## 5. PHASH pinning — don't install the wrong build
 
@@ -165,7 +165,7 @@ the **applied patch set**, `C####` the **kernel config** — so the pair names a
 matches debs on `HASH` (kernel version) + `PHASH` so it can never grab a stale
 deb from `output/debs`. Workflow:
 
-1. `build-combined-kernel.sh` prints the new hash at the end of every build.
+1. `build-armbian-deb.sh` prints the new hash at the end of every build.
 2. After completing §3, pass it to the installer (`sudo RECOVERY_READY=1
    PHASH='…' bash kernel-drivers/scripts/install-combined-kernel.sh`).
 3. **Add a row to the log below** so the hash stays decodable later.
@@ -174,11 +174,12 @@ deb from `output/debs`. Workflow:
 
 | PHASH | Kernel | Patch set | Validated | Notes |
 |-------|--------|-----------|-----------|-------|
+| `P1c9d` (config hash not recorded) | 6.18.37-current-rockchip64 | Self-contained-DT MPP/RGA/AV1 forward port | ✅ hardware ([kernel status](kernel-drivers/docs/forward-port-status.md); AV1 re-run 2026-07-04) | First hardware-validated AV1 superset build. |
 | `Pb6ab-Cb831` | 6.18.37-current-rockchip64 | `kernel-drivers/patches/rk3588-rkvenc2-01` + `02` (current revision) | ✅ hardware ([kernel status](kernel-drivers/docs/forward-port-status.md); tests re-run 2026-07-01) | Known validated pair; `install-combined-kernel.sh` still requires it explicitly. |
 | `P8c75` (config hash not recorded) | 6.18.37 | functionally-identical predecessor revision | ✅ ([kernel status](./kernel-drivers/docs/forward-port-status.md)) | Superseded by `Pb6ab-Cb831`. |
 
-(Every new build you install gets a row; a PHASH change with *unchanged*
-`kernel-drivers/patches/` means the Armbian patch stack moved — run the
+(Every new build you install gets a row; a PHASH change with unchanged
+forward-port commits means the Armbian patch stack moved — run the
 [resyncing guide §4](./kernel-drivers/docs/resyncing.md) bump checklist.)
 
 ## 6. Path b — DKMS on a stock kernel

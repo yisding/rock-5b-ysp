@@ -1,8 +1,8 @@
 # scripts/
 
-The kernel **build → install → validate** tooling. Two build variants (the
-combined `=y` kernel and the self-contained-DT **av1 forward-port** deb) plus the
-shared ops scripts (revert, co-installable fallback, the canonical udev rule),
+The kernel **build → install → validate** tooling. The self-contained-DT **AV1
+forward-port** build plus the shared ops scripts (revert, co-installable
+fallback, the canonical udev rule),
 the [`debug-kernel/`](debug-kernel/README.md) KASAN build, and
 [`bootstrap-workspaces.sh`](bootstrap-workspaces.sh) which reconstructs the
 external build/conformance workspaces from Armbian's configured branch plus the
@@ -27,8 +27,8 @@ when it is not. Pass `PREFER_DOCKER=no` as an extra wrapper argument to force a
 supported native build:
 
 ```bash
-bash build-combined-kernel.sh                    # Docker when available
-bash build-combined-kernel.sh PREFER_DOCKER=no   # native Armbian/Noble host
+bash build-armbian-deb.sh                    # Docker when available
+bash build-armbian-deb.sh PREFER_DOCKER=no   # native Armbian/Noble host
 ```
 
 Both modes need roughly 8 GB RAM and 50 GB free disk. The aarch64 Noble native
@@ -43,7 +43,7 @@ The full prerequisite and mode chooser is canonical in
 |-------|----------|
 | User outcome | Build the combined Armbian kernel, install the exact intended debs, validate device probing, and install the canonical codec udev rule. |
 | Developer focus | Preserve the assumptions in the Armbian wrapper flow: userpatch location, `USE_CCACHE` handling, PHASH pinning, validation signals, and device-node policy. |
-| Owns | `build-combined-kernel.sh` + `build-armbian-deb.sh` (the two build variants), `install-combined-kernel.sh`, `validate-combined.sh`, `kernel-revert.sh`, `make-fallback-kernel-deb.sh`, `99-rockchip-codec.rules`, `bootstrap-workspaces.sh`, and the [`debug-kernel/`](debug-kernel/README.md) build. |
+| Owns | `build-armbian-deb.sh`, `install-combined-kernel.sh`, `validate-combined.sh`, `kernel-revert.sh`, `make-fallback-kernel-deb.sh`, `99-rockchip-codec.rules`, `bootstrap-workspaces.sh`, and the [`debug-kernel/`](debug-kernel/README.md) build. |
 | Depends on | Kernel patches in [`../patches/`](../patches/README.md), Armbian build tree setup from [`install.md`](../../install.md), and validation expectations from [`../tests/`](../tests/README.md). |
 | Current state | The combined-kernel flow produced the hardware-validated board state recorded in [`status.md`](../../status.md). |
 
@@ -73,28 +73,24 @@ needs no path edits. Override `ARMBIAN_BUILD=`/`WORKSPACE=` for another layout.
 
 | Script | Runs as | What it does |
 |--------|---------|--------------|
-| `build-combined-kernel.sh` | user | Wraps `./compile.sh kernel BOARD=rock-5b BRANCH=current KERNEL_CONFIGURE=no USE_CCACHE=yes`. Crucially passes `USE_CCACHE` as an **argument** so it survives Armbian's Docker/sudo relaunch (see [gotchas](../../docs/gotchas.md)). Prints ccache growth + the new `P####-C####` hash. |
 | `install-combined-kernel.sh` | root | After `RECOVERY_READY=1`, removes the obsolete `rkvdec2` boot overlay from `armbianEnv.txt` (backs it up), then `dpkg -i` the image + dtb + headers debs for the pinned `PHASH`. A same-name/version install can clobber the prior files; there is no boot menu, so prepare `kernel-revert.sh` and known-good debs first. `DEBS`/`PHASH` are env-overridable; `HASH` is an optional extra version filter. |
-| `build-armbian-deb.sh` | user | The **av1 forward-port** build variant. Regenerates the port patches from the kernel git tree (`KERNEL_TREE`, `git format-patch v6.18..HEAD`), restores/cleans the selected built-in Armbian kernel patch archive, clears the matching userpatch archive, stages the generated patch set, **disables** the two colliding Armbian core media patches (this tree's DT is self-contained), then the same ccache-correct `compile.sh`. `--restore` performs only the built-in archive reset. |
+| `build-armbian-deb.sh` | user | Builds the **AV1 forward-port** kernel. Regenerates the port patches from the kernel git tree (`KERNEL_TREE`, `git format-patch v6.18..HEAD`), restores/cleans the selected built-in Armbian kernel patch archive, clears the matching userpatch archive, stages the generated patch set, **disables** the two colliding Armbian core media patches (this tree's DT is self-contained), then runs the ccache-correct `compile.sh` and prints the new `P####-C####` hash. `--restore` performs only the built-in archive reset. |
 | `kernel-revert.sh` | root (SD rescue) | Get a bad board booting again: flip `/boot` symlinks (`switch`) or chroot-reinstall a good deb (`reinstall`) on the internal disk from an SD-card rescue. Subcommands `list`/`switch`/`reinstall`; target via `--auto`/`--device`/`--root`. |
 | `make-fallback-kernel-deb.sh` | user | Repackage a kernel deb (rename `Package:`, drop `Provides:`) into a **co-installable** fallback that won't clobber the primary `linux-image-current-rockchip64` — a permanent recovery kernel `kernel-revert.sh` can `switch` to. Defaults to the official 6.18.35 (26.5.1) debs. |
 | `bootstrap-workspaces.sh` | user | Reconstruct the external workspaces: clone `ARMBIAN_BRANCH` (`main` by default), clone the five conformance sources at `../tests/conformance/MANIFEST.tsv` commits, and deploy the tracked conformance skeleton. Existing checkouts are never moved and are reported as `branch@commit`; `--check` reports only. |
 | `validate-combined.sh` | root | Post-reboot: checks `/dev/mpp_service`, the four cores under `/proc/mpp_service` (`rkvenc-core0/1` + the two decoder cores, see naming note below), `/dev/rga`, and greps boot dmesg for clean probes / no faults. |
 | `99-rockchip-codec.rules` | (install to `/etc/udev/rules.d/`) | `GROUP="video" MODE="0660"` on `/dev/mpp_service`, `/dev/dma_heap/*`, and `/dev/rga` so ffmpeg-rockchip runs **without sudo** (you must be in the `video` group; the dma-heap line is **required** — rkmpp allocates buffers there, see [gotchas](../../docs/gotchas.md)). Packaged as a deb by [`packaging/codec-udev/README.md`](../../packaging/codec-udev/README.md), which copies this file at build time — this copy is canonical. |
 
-> **Decoder core naming.** On the combined kernel the decoder cores appear as
-> `/proc/mpp_service/video-codec0` and `video-codec1` — DT patch 02 converts
-> Armbian's mainline `video-codec@…` nodes **in place** and keeps the node name
-> (the driver dispatches by compatible, see
-> [device-tree guide](../docs/device-tree.md)). Verified 2026-07-01 on
-> 6.18.37-current-rockchip64 #7. Earlier standalone-node/overlay revisions named
-> them `rkvdec-core0/1`; `validate-combined.sh` accepts both.
+> **Decoder core naming.** The self-contained-DT forward-port names the decoder
+> cores `/proc/mpp_service/rkvdec-core0` and `rkvdec-core1`. The older
+> convert-in-place kernel kept Armbian's `video-codec0/1` node names.
+> `validate-combined.sh` accepts both forms.
 
 ## Typical flow
 
 ```bash
 # build (on Docker-capable Linux, or native Armbian/Ubuntu Noble)
-nohup bash build-combined-kernel.sh &            # ~80-90 min cold, ~10-15 warm
+nohup bash build-armbian-deb.sh &                # ~80-90 min cold, ~10-15 warm
 # set install-combined-kernel.sh PHASH to the printed hash (or pass it), then:
 sudo RECOVERY_READY=1 PHASH='P####-C####' bash install-combined-kernel.sh
 sudo reboot

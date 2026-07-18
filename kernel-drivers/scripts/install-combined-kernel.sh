@@ -34,10 +34,10 @@ DEBS="${DEBS:-${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}/output/debs}"
 ENV="${ENV:-/boot/armbianEnv.txt}"
 HASH="${HASH:-}"                  # optional kernel version filter, e.g. 6.18.38
 PHASH="${PHASH:-}"                # required patch+config hash pinning this exact build
-                                  # (printed by build-combined-kernel.sh/build-armbian-deb.sh)
+                                  # (printed by build-armbian-deb.sh)
 RECOVERY_READY="${RECOVERY_READY:-0}"
 
-[ -d "$DEBS" ] || { echo "No deb dir: $DEBS -- run build-combined-kernel.sh first (or set DEBS=)"; exit 1; }
+[ -d "$DEBS" ] || { echo "No deb dir: $DEBS -- run build-armbian-deb.sh first (or set DEBS=)"; exit 1; }
 
 print_recent_images() {
   echo "  recent image debs:"
