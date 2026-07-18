@@ -35,6 +35,15 @@ wrapper behavior for an unsupported handle-backed `RGA_IOC_REQUEST_CONFIG`.
 After the initial request-check stage succeeds, the observable ioctl errno is
 `EFAULT`, while legacy/backend unsupported paths can still use `EOPNOTSUPP`.
 
+Crash gate (2026-07-17): forward-port run `20260717-230531` completed ABI replay
+but the 6.18.38 kernel Oopsed while `mpp-suite.sh` captured its initial recursive
+`/proc/mpp_service` snapshot. The MPP suite's summary/state files are empty and
+no case command exists, so no media binary started. Do not resume the full
+forward-port conformance profile until the narrowed ABI-replay → procfs
+snapshot transition has run under KASAN with ramoops and produced either a
+quiet result or a complete trace; see the
+[finding](../../findings/2026-07-17-forward-port-conformance-preflight-oops.md).
+
 ## What each smoke test proves
 
 | Test | Exercises | Pass criterion |

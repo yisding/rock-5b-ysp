@@ -6,12 +6,14 @@
 > and the whole-project dated dashboard is [`status.md`](../../status.md) at the
 > repo root.
 
-Target: Radxa ROCK 5B (RK3588), Armbian, kernel **6.18.37** (`rockchip64-current`).
-Validated build hash: `Pb6ab-Cb831` (and its functionally-identical predecessor
+Target: Radxa ROCK 5B (RK3588), Armbian, kernel **6.18.38** (`rockchip64-current`).
+Historical validated build hash: `Pb6ab-Cb831` on 6.18.37 (and its functionally-identical predecessor
 `P8c75`). That hash is baked into the Armbian `.deb` package name — `P####` hashes
 the applied kernel patch set, `C####` hashes the kernel config — so the pair names
 the *exact* build we validated (the installer matches debs on it; see
-`scripts/install-combined-kernel.sh`).
+`scripts/install-combined-kernel.sh`). The 6.18.38 PPA session-fix build booted
+but is not validated: its first conformance run Oopsed during preflight as
+described below.
 
 ## ✅ Done — validated on real hardware
 
@@ -110,10 +112,27 @@ the *exact* build we validated (the installer matches debs on it; see
   NULL-dereference trace in `rkvenc_dump_session()` because teardown freed
   `session->priv`/`session->dma` before unlinking the session under
   `session_lock`. Commit `df0d7037213c` unlinks at common deinit entry before
-  private teardown and compiles clean, but remains boot-validation pending.
-  Until a fixed kernel is running, do not sample `/proc/mpp_service` during
-  open/close stress. See the
+  private teardown and compiles clean. A PPA kernel carrying the fix booted,
+  but the following untraced preflight Oops prevented validation of the fix.
+  Do not sample `/proc/mpp_service` during open/close stress except for the
+  narrowed KASAN+ramoops reproduction. See the
   [finding](../../findings/2026-07-17-mpp-procfs-session-teardown-oops.md).
+- **The preflight Oops is a pre-existing vendor `RESET_SESSION` double-free —
+  now traced by KASAN, fixed in source, rebuild/re-verify pending.** The first
+  booted `0040`/`0041` validation on PPA kernel
+  `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1` Oopsed after ABI replay with no
+  call trace, which initially read as a `/proc/mpp_service` snapshot race. The
+  KASAN+ramoops rebuild (`P712f-C40aa`) reproduced it on the first narrowed pass
+  and overturned that: `MPP_CMD_RESET_SESSION` (`mpp_common.c:1414`) calls
+  `mpp_dma_session_destroy(session->dma)` without clearing the pointer — unlike
+  the two other destroy sites — so the async `rkvdec2_soft_ccu_worker` teardown
+  re-destroys the freed `mpp_dma_session` and faults on `dma->list_mutex`
+  (slab-use-after-free). The defect is byte-identical in the pristine Rockchip
+  BSP (`develop-6.1`), so it is vendor-original, not forward-port-introduced.
+  One-line fix `session->dma = NULL` applied to the driver source; rebuild the
+  KASAN kernel, confirm a clean narrowed reproduction, then resume conformance.
+  See the [double-free finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md)
+  (which supersedes the [preflight finding](../../findings/2026-07-17-forward-port-conformance-preflight-oops.md)).
 - **Direct RGA3 im2d virtual-buffer samples exposed RGA/IOMMU forward-port
   gaps.** The upstream `airockchip/librga` copy/resize/rotate samples import
   malloc-backed buffers and can trigger `RGA3_core0 INTR[0x2]`, the RGA MMU

@@ -6,16 +6,13 @@ the console log across the reboot, KASAN/lockdep turn latent memory and locking
 bugs into loud reports, and `panic_on_oops` + `panic=10` guarantee the box
 comes back on its own.
 
-> Provenance: this workflow lives in the (non-git, dev-box-only) workspace
-> `/home/yi/Code/kernel/rock5b-kernel-build/debug-kernel/` — `build-debug-kernel.sh`,
-> `enable-/disable-ramoops-capture.sh`, `enable-persistent-journal.sh`,
-> `install-debug-kernel.sh`, `(restore recipe in debug-kernel/README.md)`, plus
-> `boot-backups/` snapshots. This doc transcribes everything needed to
-> reproduce it without that workspace. The same workspace's `armbian-build/`
-> tree is the one `scripts/build-combined-kernel.sh` drives (see
-> [`kernel-drivers/scripts/README.md`](../scripts/README.md)); its
-> `userpatches/kernel/archive/rockchip64-6.18/` carries the two codec patches,
-> so a debug build from it **also contains the codec drivers**.
+> Provenance: the tracked workflow lives in
+> [`scripts/debug-kernel/`](../scripts/debug-kernel/); only the Armbian build
+> tree and outputs live in the external
+> `/home/yi/Code/kernel/rock5b-kernel-build/` scratch workspace. The wrapper
+> calls `build-armbian-deb.sh --stage-only`, so it regenerates the complete
+> forward-port patch series and matching Armbian core-patch exclusions before
+> every debug build instead of trusting leftover userpatch state.
 
 ## 1. When you need this
 
@@ -34,15 +31,11 @@ comes back on its own.
 ## 2. Pin Armbian "current" to an exact upstream tag
 
 Armbian's `current` branch floats. For a debug kernel you want **the exact
-source of the installed kernel**, so module vermagic and line numbers match.
-The recorded pinning (June 2026, Armbian 26.5.1): the installed
-`linux-image-current-rockchip64` package metadata records commit
-`acb7cf4c1184e27622be0faf89244d5001ed1e87`, which is the peeled commit of tag
-**`v6.18.35`** — so the build config pins `KERNELBRANCH="tag:v6.18.35"`.
-For a re-run today, re-derive: read the commit from the installed package's
-changelog/metadata, find the stable tag whose peeled commit matches, pin that.
-(The board currently runs the combined kernel `6.18.37` #7 — a *different*
-build; verified 2026-07-01.)
+source of the installed kernel**, so line numbers and the driver patch stack
+match. The 2026-07-17 forward-port package uses Armbian's 6.18.38 stable-branch
+commit `e46dc0adfe39724bcf52cea47b8f9c9aed86a394`, so the tracked config pins that
+commit and the wrapper regenerates the forward-port commits as userpatches.
+Re-derive and update both inputs whenever the production kernel base moves.
 
 The mechanism is a plain Armbian userpatches config
 (`userpatches/config-rock5b-debug-kernel.conf.sh`):
@@ -50,7 +43,7 @@ The mechanism is a plain Armbian userpatches config
 ```bash
 BOARD="rock-5b"  BRANCH="current"  RELEASE="resolute"
 INSTALL_HEADERS="yes"
-KERNELBRANCH="tag:v6.18.35"     # ← the pin
+KERNELBRANCH="commit:e46dc0adfe39724bcf52cea47b8f9c9aed86a394"
 KERNEL_BTF="yes"                # keep DWARF/BTF even if RAM looks tight
 function custom_kernel_config__rock5b_hard_reboot_debug() {
     opts_y+=( ... )             # §3 below
@@ -59,8 +52,10 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 
 plus the base config seeded from the running kernel: the wrapper copies
 `/boot/config-$(uname -r)` to `userpatches/linux-rockchip64-current.config`
-before building. Build: `PREFER_DOCKER=no ./compile.sh rock5b-debug-kernel
-kernel` — output debs land in `armbian-build/output/debs/`. (Heavy build; the
+before building. It first runs `build-armbian-deb.sh --stage-only`, then invokes
+`PREFER_DOCKER=yes ./compile.sh rock5b-debug-kernel kernel` by default; output
+debs land in `armbian-build/output/debs/`. Set `PREFER_DOCKER=no` only when the
+native caller can satisfy Armbian's root relaunch. (Heavy build; the
 KASAN+lockdep kernel takes a long while on the board itself.)
 
 ## 3. The debug config set — and what each piece catches

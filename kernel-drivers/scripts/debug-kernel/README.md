@@ -1,17 +1,20 @@
 # debug-kernel
 
 A heavy-debug Armbian `current` Rock 5B kernel for crash reproduction and driver
-debugging — KASAN + lockdep/prove-locking + DMA-API checks + lockup/hung-task
-detectors + ramoops console/pmsg/ftrace + DRM memory/modeset debug. Built native
-(no Docker, no ccache) against the external Armbian build tree (`WORKSPACE`,
-default `../../../../kernel/rock5b-kernel-build`), with the config seeded from the
+debugging — KASAN + lockdep/prove-locking + DMA-API checks + fault injection +
+lockup/hung-task detectors + built-in ramoops console/pmsg/ftrace + DRM
+memory/modeset debug. Built through Armbian's Docker path by default against the
+external Armbian build tree (`WORKSPACE`, default
+`../../../../kernel/rock5b-kernel-build`), with the config seeded from the
 running `/boot/config-$(uname -r)`.
 
 The Armbian userpatch config is tracked here as
 [`config-rock5b-debug-kernel.conf.sh`](config-rock5b-debug-kernel.conf.sh).
-`build-debug-kernel.sh` installs it into
-`$WORKSPACE/armbian-build/userpatches/` before invoking `compile.sh`; the
-external build tree is scratch, not the source of truth.
+`build-debug-kernel.sh` first regenerates and stages the complete forward-port
+series through `build-armbian-deb.sh --stage-only`, then installs the config
+into `$WORKSPACE/armbian-build/userpatches/` before invoking `compile.sh`. The
+base is pinned to Armbian's exact 6.18.38 commit `e46dc0adfe39`; the external
+build tree is scratch, not the source of truth.
 
 > Perf numbers on this kernel are meaningless (KASAN instruments every access) —
 > use the production forward-port build for benchmarking.
@@ -23,6 +26,9 @@ external build tree is scratch, not the source of truth.
 ```
 Debs land in `$WORKSPACE/armbian-build/output/debs/`; the build prints the exact
 `P####-C####` needed by the installer.
+
+Set `PREFER_DOCKER=no` only on a supported host where the caller is already
+root or can satisfy Armbian's native `sudo` relaunch.
 
 ## Prepare recovery before install
 

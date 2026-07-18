@@ -20,8 +20,11 @@ session-close reference-lifetime fix and removes MPP sessions from procfs
 visibility before private teardown. Its complete Armbian integration build and
 source-package validation pass. Launchpad accepted source publication
 `18626523`; arm64 build `33412608` completed successfully in 41m45s and the
-exact image is in the live PPA index. Board install/revert validation remains
-pending.
+exact image is in the live PPA index. The package installed and booted on the
+ROCK 5B, but its first conformance pass Oopsed during the MPP procfs preflight
+before any media case. That boot therefore proves package/install viability,
+not driver conformance; rollback remains pending and crash attribution has
+moved to the exact forward-port KASAN+ramoops build.
 
 The current kernel delivery path is still the Armbian wrapper in
 [`../../../kernel-drivers/scripts/build-armbian-deb.sh`](../../../kernel-drivers/scripts/build-armbian-deb.sh),
@@ -228,7 +231,11 @@ Notes:
 
 Not done yet:
 
-- Board install, reboot, rollback, and `kernel-revert.sh` recovery validation.
+- Rollback and `kernel-revert.sh` recovery validation. Install and reboot of
+  the 20260717 image passed; conformance did not.
+- KASAN+ramoops attribution of the pre-media MPP procfs-snapshot Oops from
+  run `20260717-230531`; see the
+  [finding](../../../findings/2026-07-17-forward-port-conformance-preflight-oops.md).
 - Full `lintian`; both source and binary scans were stopped after several
   minutes with no output because traversing the kernel archive/payload was
   taking too long.
@@ -238,5 +245,7 @@ Not done yet:
 
 ## Remaining Checklist
 
-1. Validate install, reboot, rollback, and `kernel-revert.sh` recovery on the
-   board before giving install guidance.
+1. Boot the exact forward-port KASAN+ramoops build and obtain a complete trace
+   from the narrowed ABI-replay → MPP procfs-snapshot reproduction.
+2. Validate rollback and `kernel-revert.sh` recovery on the board before giving
+   install guidance. Install and reboot of the 20260717 image already pass.

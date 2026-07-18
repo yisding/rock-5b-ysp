@@ -12,9 +12,9 @@ BUILD_MINIMAL="no"
 INSTALL_HEADERS="yes"
 SHARE_LOGS="no"
 
-# Pin to the exact upstream stable tag/commit recorded by the installed
-# linux-image-current-rockchip64 26.5.1 package.
-KERNELBRANCH="tag:v6.18.35"
+# Pin the exact Armbian stable-branch commit used by the installed forward-port
+# 6.18.38 package. build-debug-kernel.sh stages the forward-port patches on top.
+KERNELBRANCH="commit:e46dc0adfe39724bcf52cea47b8f9c9aed86a394"
 
 # Keep full DWARF/BTF debug data. Armbian may otherwise disable this when RAM
 # looks tight, but this box has enough memory and debug symbols are useful.
@@ -43,6 +43,17 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 	)
 	opts_val["DEFAULT_HUNG_TASK_TIMEOUT"]="60"
 	opts_val["RCU_CPU_STALL_TIMEOUT"]="21"
+
+	# Exercise allocation and usercopy recovery paths deterministically from the
+	# bounded ioctl-fuzz harness. Keep these built in with the other detectors.
+	opts_y+=(
+		"FAULT_INJECTION"
+		"FAULT_INJECTION_DEBUG_FS"
+		"FAILSLAB"
+		"FAIL_PAGE_ALLOC"
+		"FAULT_INJECTION_USERCOPY"
+		"FUNCTION_ERROR_INJECTION"
+	)
 
 	# Better stack traces and symbols in crash output.
 	opts_y+=(

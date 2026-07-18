@@ -30,7 +30,7 @@ separate table below so both remain scannable.
 
 | # | Track | Public state | Verified | Detail |
 |---|-------|--------------|----------|--------|
-| 1 | Kernel forward-port | ✅ Primary path: combined kernel hardware-validated for H.264/H.265 encode/decode, RGA, transcode, and AV1/VP9 superset decode. | 2026-07-04 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
+| 1 | Kernel forward-port | ⚠️ The July 4 codec results remain the validated baseline. The KASAN+ramoops rebuild caught the preflight Oops: `MPP_CMD_RESET_SESSION` double-frees `session->dma`, faulting in a later async worker teardown. One-line source fix applied; rebuild + re-verify pending before this build can replace the baseline. | 2026-07-18 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
 | 2 | BSP-audit fix series | ⚠️ Staged only: the split series diverges from the verified draft and does not compile until patch 0024 is regenerated. | 2026-07-01 | [`cleanup-split/`](./kernel-drivers/patches/cleanup-split/README.md) |
 | 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
 | 4 | Clean-room rewrite drivers | 🚧 Current 6.18/mainline source tips incorporate the five applicable Rockchip 5.10 RGA reliability/cache-safety lessons and pass warning-free normal/memory/race clean-source gates. The post-reconciliation audit added booted 206-case KUnit evidence, before/after dmesg rejection, stronger safety/idle counters, required official-MPP core coverage, AVS2, and low-delay slice-poll cases; all device-free bad-fixture/build wiring passes. Existing package composites predate the source tip, and no current rewrite kernel has booted hardware proof. | 2026-07-17 | [conformance-gap audit](./kernel-drivers/docs/rewrite-conformance-gap-audit.md) |
@@ -53,7 +53,7 @@ dashboard date and ledger row when public state changes.
 
 | # | Track | Next proof | Action path |
 |---|-------|------------|-------------|
-| 1 | Kernel forward-port | No open kernel-function gate; rerun the hardware suite whenever the kernel or patch base changes. | [Hardware test runbook](./kernel-drivers/tests/README.md#run) |
+| 1 | Kernel forward-port | Rebuild with the `RESET_SESSION` `session->dma = NULL` fix, re-run the narrowed KASAN reproduction to confirm a clean log, then resume full conformance. | [Double-free root cause and fix](./findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md) |
 | 2 | BSP-audit fix series | Regenerate patch 0024 and prove the full split series compiles. | [Compile defect and remedy](./kernel-drivers/patches/cleanup-split/README.md#cleanup-split-compile-gate) |
 | 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. | [DKMS build and install](./packaging/dkms/README.md#dkms-build-install) |
 | 4 | Clean-room rewrite drivers | Rebuild/package one current July 17 source tip; persist 206 green booted KUnit results, then capture paired clean-dmesg/counter/artifact evidence including AVS2 and H.264/H.265 low-delay slice polling. | [Remaining rewrite hardware gates](./kernel-drivers/docs/rewrite-conformance-gap-audit.md#remaining-gaps-and-hardware-gates) |
@@ -103,7 +103,7 @@ last-checked date.
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-08 | Native compile reached; BTF link remains unproven. |
 | W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0040`; frozen base patch still has the old path. |
-| W16 | [MPP procfs/session lifetime fix](#watch-w16) | 2026-07-17 | Captured NULL dereference fixed in fwport patch `0041`; boot/reproduction gate pending. |
+| W16 | [MPP procfs/session lifetime fix](#watch-w16) | 2026-07-18 | KASAN traced the preflight Oops to a separate bug: `RESET_SESSION` double-frees `session->dma`. One-line fix applied; rebuild + re-verify pending. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -336,16 +336,26 @@ last-checked date.
 ### W16 — MPP procfs/session lifetime fix
 
 - **Why recheck:** The captured `/proc/mpp_service/sessions-summary` Oops is
-  fixed in the forward-port source series, but the running kernel and frozen
-  base patch still have the unsafe teardown order; the new build has not been
-  booted or stress-tested.
-- **Last checked:** 2026-07-17
-- **State then:** The complete trace faults at `rwsem_read_trylock()` from
+  fixed in the forward-port source series by patch `0041`, but the first booted
+  validation of that series hit a second Oops. KASAN has now traced that second
+  Oops to a **separate** bug — a `MPP_CMD_RESET_SESSION` double-free — with a
+  one-line fix applied but not yet rebuilt/re-verified. The frozen base patch
+  also still has the unsafe teardown order.
+- **Last checked:** 2026-07-18
+- **State then:** The `0041` procfs trace faults at `rwsem_read_trylock()` from
   `rkvenc_dump_session()` with a NULL private pointer while a proc reader races
-  encoder close. Forward-port commit `df0d7037213c`, exported as patch `0041`,
-  removes sessions from the procfs-visible service list under `session_lock`
-  before device-private or DMA teardown. The three affected arm64 objects and
-  strict patch style checks pass. Next gate: package/install the fixed kernel,
-  reboot, run procfs/churn concurrency once, then repeat the 1,000-iteration
-  no-forced-IDR FFmpeg control. See the
-  [finding](findings/2026-07-17-mpp-procfs-session-teardown-oops.md).
+  encoder close; commit `df0d7037213c` removes sessions from the procfs-visible
+  list under `session_lock` before teardown, and its objects/style checks pass.
+  The KASAN+ramoops rebuild (`P712f-C40aa`) then reproduced the preflight Oops
+  on the first narrowed ABI-replay pass and showed it is unrelated to procfs:
+  `MPP_CMD_RESET_SESSION` (`mpp_common.c:1414`) frees `session->dma` via
+  `mpp_dma_session_destroy()` without clearing the pointer, so the async
+  `rkvdec2_soft_ccu_worker` teardown re-destroys the freed `mpp_dma_session` and
+  faults on `dma->list_mutex` (slab-use-after-free, matching alloc/free/use
+  stacks). Fix `session->dma = NULL` committed as forward-port `83e4d357f8d2`
+  (patch `0042`); the KASAN kernel is rebuilding with it. Next gate: boot the
+  rebuild, re-run the narrowed reproduction for a clean log, then resume
+  conformance. See the
+  [original trace](findings/2026-07-17-mpp-procfs-session-teardown-oops.md),
+  the [superseded preflight finding](findings/2026-07-17-forward-port-conformance-preflight-oops.md),
+  and the [double-free root cause](findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md).

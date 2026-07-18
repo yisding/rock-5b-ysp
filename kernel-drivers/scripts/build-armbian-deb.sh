@@ -45,6 +45,7 @@
 #   KERNEL_TREE=/path/to/other-kernel PATCH_PREFIX=rk3588-rewrite bash build-armbian-deb.sh
 #   bash build-armbian-deb.sh KERNEL_CONFIGURE=yes      # extra args pass through
 #   IOMMU_DEBUG=yes bash build-armbian-deb.sh            # + DMA_API/KALLSYMS/IOMMU_DEBUGFS debug config
+#   bash build-armbian-deb.sh --stage-only               # prepare patches; do not compile
 #
 # Reset the built-in patch archive and generated userpatches without building
 # with:  --restore
@@ -150,8 +151,21 @@ stage_debug_config() {
 	fi
 }
 
-# --- --restore mode --------------------------------------------------------
-if [ "${1:-}" = "--restore" ]; then
+# --- mode selection --------------------------------------------------------
+MODE="build"
+case "${1:-}" in
+	--restore)
+		MODE="restore"
+		shift
+		;;
+	--stage-only)
+		MODE="stage-only"
+		shift
+		;;
+esac
+
+if [ "$MODE" = "restore" ]; then
+	[ "$#" -eq 0 ] || die "--restore does not accept compile arguments"
 	reset_core_patches
 	reset_userpatches
 	IOMMU_DEBUG=no stage_debug_config
@@ -221,6 +235,13 @@ for p in "${DISABLE_PATCHES[@]}"; do
 		say "  WARNING: expected core patch not found (Armbian moved it?): $p"
 	fi
 done
+
+# =============================================================================
+if [ "$MODE" = "stage-only" ]; then
+	[ "$#" -eq 0 ] || die "--stage-only does not accept compile arguments"
+	say "STAGED. Forward-port userpatches and core-patch exclusions are ready; compile was not run."
+	exit 0
+fi
 
 # =============================================================================
 say "STEP 5: build (ccache ON as a compile.sh ARGUMENT across Docker/sudo relaunch)"

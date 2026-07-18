@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CODE="$(cd "${ROOT_DIR}/../../../.." && pwd)"                # ~/Code (this lives in the ysp)
 WORKSPACE="${WORKSPACE:-${CODE}/kernel/rock5b-kernel-build}" # external build scratch (armbian-build lives here)
 BUILD_DIR="${WORKSPACE}/armbian-build"
+FORWARD_PORT_BUILDER="${ROOT_DIR}/../build-armbian-deb.sh"
 CONFIG_NAME="rock5b-debug-kernel"
 CONFIG_SOURCE="${ROOT_DIR}/config-${CONFIG_NAME}.conf.sh"
 CONFIG_DEST="${BUILD_DIR}/userpatches/config-${CONFIG_NAME}.conf.sh"
@@ -30,6 +31,13 @@ if [[ ! -x "${BUILD_DIR}/compile.sh" ]]; then
 	printf 'Missing Armbian build tree: %s\n' "${BUILD_DIR}" >&2
 	exit 1
 fi
+
+# Regenerate the patch stack from the forward-port source tree and apply the
+# same Armbian core-patch exclusions as the production build. This keeps the
+# debug package tied to the exact code being diagnosed instead of whatever
+# userpatches happen to be left in the external scratch tree.
+WORKSPACE="${WORKSPACE}" ARMBIAN_BUILD="${BUILD_DIR}" IOMMU_DEBUG=no \
+	bash "${FORWARD_PORT_BUILDER}" --stage-only
 
 install -D -m 0644 "${CONFIG_SOURCE}" "${CONFIG_DEST}"
 
@@ -73,7 +81,11 @@ cd "${BUILD_DIR}"
 printf 'Building debug kernel with Armbian config: %s\n' "${CONFIG_NAME}"
 printf 'This is a heavy KASAN/lockdep build and can take a while on the board.\n'
 
-PREFER_DOCKER="${PREFER_DOCKER:-no}" ./compile.sh "${CONFIG_NAME}" kernel
+# USE_CCACHE must be a compile.sh ARGUMENT, not an env var: Armbian's Docker
+# relaunch drops bare env vars and would silently build with ccache OFF. Same
+# gotcha handled in build-armbian-deb.sh. The KASAN objects from a prior debug
+# build stay cached, so a one-file rebuild is minutes instead of a full compile.
+PREFER_DOCKER="${PREFER_DOCKER:-yes}" ./compile.sh "${CONFIG_NAME}" kernel USE_CCACHE=yes
 
 printf '\nBuild output:\n'
 find "${BUILD_DIR}/output/debs" -maxdepth 1 -type f \
