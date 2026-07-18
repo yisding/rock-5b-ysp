@@ -322,6 +322,14 @@ class PassiveCoolingScriptTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0, output)
             self.assertIn("CPU thermal zone not found", output)
 
+    def test_monitor_does_not_require_nvme_character_device_unit(self) -> None:
+        source = self.script.read_text(encoding="utf-8")
+
+        self.assertNotIn('device_unit="dev-', source)
+        self.assertNotIn("Requires=%s", source)
+        self.assertIn("'Restart=on-failure'", source)
+        self.assertIn("'StartLimitIntervalSec=0'", source)
+
 
 class DocumentationConsistencyTests(unittest.TestCase):
     def write_status(self, root: Path, text: str) -> None:

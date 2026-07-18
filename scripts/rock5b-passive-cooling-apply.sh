@@ -408,18 +408,17 @@ apply_nvme() {
 }
 
 install_monitor() {
-    local self temporary device_unit
+    local self temporary
     self="$(readlink -f -- "$0")"
     temporary="$(mktemp)"
-    device_unit="dev-$(basename "$NVME_CONTROLLER").device"
 
     install -m 0755 "$self" "$INSTALL_PATH"
     {
         printf '%s\n' '[Unit]'
         printf '%s\n' 'Description=ROCK 5B passive CPU and NVMe cooling profile'
-        printf 'After=%s cpufrequtils.service armbian-hardware-optimization.service\n' \
-            "$device_unit"
-        printf 'Requires=%s\n' "$device_unit"
+        printf '%s\n' \
+            'After=cpufrequtils.service armbian-hardware-optimization.service'
+        printf '%s\n' 'StartLimitIntervalSec=0'
         printf '\n'
         printf '%s\n' '[Service]'
         printf '%s\n' 'Type=simple'
@@ -434,7 +433,9 @@ install_monitor() {
     rm -f -- "$temporary"
 
     systemctl daemon-reload
-    systemctl enable --now rock5b-passive-cooling.service
+    systemctl enable rock5b-passive-cooling.service
+    systemctl restart rock5b-passive-cooling.service || \
+        die "could not start rock5b-passive-cooling.service; inspect systemctl status"
     note "Installed and started rock5b-passive-cooling.service"
 }
 

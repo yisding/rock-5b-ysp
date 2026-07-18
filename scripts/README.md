@@ -55,7 +55,9 @@ sets the NVMe Host Controlled Thermal Management thresholds to 65 C (light)
 and 68 C (strong). It verifies that the controller supports those thresholds
 before making changes. The default invocation saves the controller setting and
 installs `rock5b-passive-cooling.service`, which reasserts the CPU policy every
-five seconds and after each boot:
+five seconds and after each boot. The service retries on failure until its NVMe
+controller is available; it does not wait on a systemd device unit because the
+NVMe controller character device is not systemd-ready on the audited kernel:
 
 ```bash
 sudo bash scripts/rock5b-passive-cooling-apply.sh
