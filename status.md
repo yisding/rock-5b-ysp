@@ -30,11 +30,11 @@ separate table below so both remain scannable.
 
 | # | Track | Public state | Verified | Detail |
 |---|-------|--------------|----------|--------|
-| 1 | Kernel forward-port | ⚠️ The July 4 codec results remain the validated baseline. The KASAN+ramoops rebuild caught the preflight Oops: `MPP_CMD_RESET_SESSION` double-frees `session->dma`, faulting in a later async worker teardown. One-line source fix applied; rebuild + re-verify pending before this build can replace the baseline. | 2026-07-18 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
+| 1 | Kernel forward-port | ⚠️ The July 4 codec results remain the validated production baseline. KASAN verifies forward-port patches `0042` (RESET_SESSION double-free) and `0043` (RKVENC2 post-free abort read): the narrowed rerun and the later codec-matrix memory-safety scan have zero flagged kernel lines. The production/PPA build still predates both fixes, and the contended KASAN run left multi-instance H.265 plus slice-encode functional failures to isolate. | 2026-07-19 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
 | 2 | BSP-audit fix series | ⚠️ Staged only: the split series diverges from the verified draft and does not compile until patch 0024 is regenerated. | 2026-07-01 | [`cleanup-split/`](./kernel-drivers/patches/cleanup-split/README.md) |
 | 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
 | 4 | Clean-room rewrite drivers | 🚧 Current 6.18/mainline source tips incorporate the five applicable Rockchip 5.10 RGA reliability/cache-safety lessons and pass warning-free normal/memory/race clean-source gates. The post-reconciliation audit added booted 206-case KUnit evidence, before/after dmesg rejection, stronger safety/idle counters, required official-MPP core coverage, AVS2, and low-delay slice-poll cases; all device-free bad-fixture/build wiring passes. Existing package composites predate the source tip, and no current rewrite kernel has booted hardware proof. | 2026-07-17 | [conformance-gap audit](./kernel-drivers/docs/rewrite-conformance-gap-audit.md) |
-| 5 | ffmpeg tree | ⚠️ Canonical `main`, `ffmpeg-80`, and `ffmpeg-81` branches are published and source/FATE-validated; existing PPAs remain pinned to older tested commits, and AV1 MP4/MKV still lacks board re-validation. | 2026-07-16 | [FFmpeg status](./video-libraries/ffmpeg/README.md) |
+| 5 | ffmpeg tree | ⚠️ Public refs for canonical `main`, `ffmpeg-80`, and `ffmpeg-81` remain at the source/FATE-validated tips. The normal PPA uses separate 8.0 branch `fix/rkmpp-output-timeout@da5befc806`; it is built/Published but still needs the combined GRD runtime gate. The canonical tips and AV1 MP4/MKV path still lack new board validation. | 2026-07-19 | [FFmpeg status](./video-libraries/ffmpeg/README.md) |
 | 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
 | 7 | GNOME Remote Desktop backend | ⚠️ The backend sustains 60 fps. Hardware-tested patch `0017` removes the uncached imported-buffer readback hang; the remaining intermittent hardware fallback was traced to transient MPP input-pool backpressure mishandled by FFmpeg. Wrapper fix `da5befc806` compiles and is Published in the normal PPA, but the combined RDP stress and macOS reconnect gates remain open. | 2026-07-19 | [`exp5 results and remaining gate`](./apps/gnome-remote-desktop/docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
@@ -53,7 +53,7 @@ dashboard date and ledger row when public state changes.
 
 | # | Track | Next proof | Action path |
 |---|-------|------------|-------------|
-| 1 | Kernel forward-port | Rebuild with the `RESET_SESSION` `session->dma = NULL` fix, re-run the narrowed KASAN reproduction to confirm a clean log, then resume full conformance. | [Double-free root cause and fix](./findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md) |
+| 1 | Kernel forward-port | Re-run the multi-instance H.265 and slice-encode failures without concurrent GRD contention, then rebuild/package production `0042`/`0043` and resume full conformance plus rollback validation. | [Latest KASAN fix and remaining gate](./findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md#remaining-gate) |
 | 2 | BSP-audit fix series | Regenerate patch 0024 and prove the full split series compiles. | [Compile defect and remedy](./kernel-drivers/patches/cleanup-split/README.md#cleanup-split-compile-gate) |
 | 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. | [DKMS build and install](./packaging/dkms/README.md#dkms-build-install) |
 | 4 | Clean-room rewrite drivers | Rebuild/package one current July 17 source tip; persist 206 green booted KUnit results, then capture paired clean-dmesg/counter/artifact evidence including AVS2 and H.264/H.265 low-delay slice polling. | [Remaining rewrite hardware gates](./kernel-drivers/docs/rewrite-conformance-gap-audit.md#remaining-gaps-and-hardware-gates) |
@@ -94,7 +94,7 @@ last-checked date.
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-07-11 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
 | W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-19 | Latest normal FFmpeg, GRD `~exp3`, and both rewrite-kernel replacements are Published with successful arm64 builds. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-07-11 | Four MRs open; !42679 needs a rebase. |
-| W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-16 | Three canonical branch tips published; source validation passed. |
+| W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-19 | Canonical public tips unchanged; separate normal-PPA timeout branch remains at `da5befc806`. |
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-16 | Fix carried forward; board re-test pending. |
 | W09 | [Kodi build and tty1 playback](#watch-w09) | 2026-07-11 | Prerequisites ready; build/playback/package pending. |
 | W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-19 | Readback patch `0017` passed hardware stress and the FFmpeg backpressure fix is Published; combined stress, macOS reconnect, packaging/promotion, and upstream review remain pending. |
@@ -103,7 +103,7 @@ last-checked date.
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-08 | Native compile reached; BTF link remains unproven. |
 | W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0040`; frozen base patch still has the old path. |
-| W16 | [MPP procfs/session lifetime fix](#watch-w16) | 2026-07-18 | KASAN traced the preflight Oops to a separate bug: `RESET_SESSION` double-frees `session->dma`. One-line fix applied; rebuild + re-verify pending. |
+| W16 | [Forward-port MPP/RKVENC lifetime fixes](#watch-w16) | 2026-07-19 | Patches `0042`/`0043` are exported and KASAN-verified; production packaging and isolated functional reruns remain. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -195,14 +195,17 @@ last-checked date.
 
 - **Why recheck:** The canonical master, 8.0, and 8.1 lines follow moving
   upstream branches; later upstream movement requires a fresh replay and test.
-- **Last checked:** 2026-07-16
-- **State then:** Published tips were `main@8b57e531d1fc` over
+- **Last checked:** 2026-07-19
+- **State then:** `git ls-remote` confirmed published tips remain
+  `main@8b57e531d1fc` over
   `FFmpeg/master@ceabc9b306f5`, `ffmpeg-80@be753f3bbb2c` over
   `release/8.0@435ae0581deb`, and `ffmpeg-81@8d3ca020b6a2` over
   `release/8.1@94138f6973dd`. The former PR #1/refactor lineage is integrated
   into all three. Source builds and `fate-source` passed; no new hardware or
-  package validation was performed. The dedicated PPA remains at
-  `be367abfe6`.
+  package validation was performed for those tips. The dedicated PPA remains
+  at `be367abfe6`; separate normal-PPA branch
+  `fix/rkmpp-output-timeout@da5befc806` is public, built, and Published, with
+  its combined GRD hardware gate still pending.
 
 <a id="watch-w08"></a>
 ### W08 — AV1 container-extradata validation
@@ -315,29 +318,24 @@ last-checked date.
   [finding](findings/2026-07-17-rga-session-close-uaf.md).
 
 <a id="watch-w16"></a>
-### W16 — MPP procfs/session lifetime fix
+### W16 — Forward-port MPP/RKVENC lifetime fixes
 
-- **Why recheck:** The captured `/proc/mpp_service/sessions-summary` Oops is
-  fixed in the forward-port source series by patch `0041`, but the first booted
-  validation of that series hit a second Oops. KASAN has now traced that second
-  Oops to a **separate** bug — a `MPP_CMD_RESET_SESSION` double-free — with a
-  one-line fix applied but not yet rebuilt/re-verified. The frozen base patch
-  also still has the unsafe teardown order.
-- **Last checked:** 2026-07-18
-- **State then:** The `0041` procfs trace faults at `rwsem_read_trylock()` from
-  `rkvenc_dump_session()` with a NULL private pointer while a proc reader races
-  encoder close; commit `df0d7037213c` removes sessions from the procfs-visible
-  list under `session_lock` before teardown, and its objects/style checks pass.
-  The KASAN+ramoops rebuild (`P712f-C40aa`) then reproduced the preflight Oops
-  on the first narrowed ABI-replay pass and showed it is unrelated to procfs:
-  `MPP_CMD_RESET_SESSION` (`mpp_common.c:1414`) frees `session->dma` via
-  `mpp_dma_session_destroy()` without clearing the pointer, so the async
-  `rkvdec2_soft_ccu_worker` teardown re-destroys the freed `mpp_dma_session` and
-  faults on `dma->list_mutex` (slab-use-after-free, matching alloc/free/use
-  stacks). Fix `session->dma = NULL` committed as forward-port `83e4d357f8d2`
-  (patch `0042`); the KASAN kernel is rebuilding with it. Next gate: boot the
-  rebuild, re-run the narrowed reproduction for a clean log, then resume
-  conformance. See the
-  [original trace](findings/2026-07-17-mpp-procfs-session-teardown-oops.md),
-  the [superseded preflight finding](findings/2026-07-17-forward-port-conformance-preflight-oops.md),
-  and the [double-free root cause](findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md).
+- **Why recheck:** The frozen base pair, maintained split series, PPA package,
+  and booted debug build can silently carry different lifetime fixes. Keep the
+  exported patch tail and the claimed production gate aligned with the exact
+  KASAN evidence.
+- **Last checked:** 2026-07-19
+- **State then:** The maintained series now exports all three fixes: `0041`
+  unlinks MPP sessions before private teardown; `0042@83e4d357f8d2` clears
+  `session->dma` after RESET_SESSION destroys it; and
+  `0043@655d178191807` samples the RKVENC2 abort flag before the final task
+  reference can free the object. Run `20260718-093751-kasan-narrowed` verifies
+  `0042` with zero flagged lines. Run `20260718-103917-kasan-mpp-suite`
+  exercises `0042`/`0043` with empty KASAN/fatal scans and passing ordinary
+  encode cases, but its multi-instance H.265 failure and slice timeouts were
+  contended by the simultaneous GRD readback cliff and still need isolation.
+  The published production kernel stops at `0041`, so rebuild/package,
+  functional conformance, and rollback remain open. Evidence:
+  [procfs fix](findings/2026-07-17-mpp-procfs-session-teardown-oops.md),
+  [RESET_SESSION fix](findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md),
+  and [RKVENC2 fix](findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md).

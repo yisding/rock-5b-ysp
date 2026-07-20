@@ -15,7 +15,7 @@ Project vocabulary (including the canonical `main`, `ffmpeg-80`, and
 | Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
 | Owns | The FFmpeg build recipe, companion docs in [`docs/`](docs/how-ffmpeg-works.md), pkg-config examples, and exported patch series in [`patches/`](patches/README.md). |
 | Depends on | Working kernel nodes from [`kernel-drivers/README.md`](../../kernel-drivers/README.md), staged or packaged libraries from [`vendor-libraries/README.md`](../../vendor-libraries/README.md), and the codec udev rule for non-root use. |
-| Current state | Three source branches are published at `main@8b57e531d1fc`, `ffmpeg-80@be753f3bbb2c`, and `ffmpeg-81@8d3ca020b6a2`. They track the latest fetched FFmpeg master, 8.0, and 8.1 upstream tips and carry the full canonical Rockchip/refactor/Jellyfin-correctness patchset. All three pass affected-object compilation and `fate-source`; this is not new hardware validation. The dedicated Rockchip-81 PPA still contains historical `be367abfe6`, the system PPA still contains the older 8.0 port, and broader feature/encode/RGA smoke proof remains at `75638e7f0b17`. See [`status.md`](../../status.md). |
+| Current state | Three source branches are published at `main@8b57e531d1fc`, `ffmpeg-80@be753f3bbb2c`, and `ffmpeg-81@8d3ca020b6a2`. They track the latest fetched FFmpeg master, 8.0, and 8.1 upstream tips and carry the full canonical Rockchip/refactor/Jellyfin-correctness patchset. All three pass affected-object compilation and `fate-source`; this is not new hardware validation. The dedicated Rockchip-81 PPA remains at historical `be367abfe6`. The normal PPA uses the separate 8.0 package branch `fix/rkmpp-output-timeout@da5befc806`, whose source/build are Published but whose GRD stress gate remains open. Broader feature/encode/RGA smoke proof remains at `75638e7f0b17`. See [`status.md`](../../status.md). |
 
 ## Files
 
@@ -50,13 +50,22 @@ validation. Fresh source work should use
 - `ffmpeg-81@8d3ca020b6a2` (`n8.1.2-93`) is the full patchset over
   `release/8.1@94138f6973dd`.
 
+Packaging has one additional maintained pin: the normal system PPA exports
+`fix/rkmpp-output-timeout@da5befc806`. That branch diverges from the current
+`ffmpeg-80` replay and carries the bounded synchronous-output wait plus the
+transient MPP input-backpressure fix used by the GRD acceptance candidate. Its
+Launchpad build passes; it is not yet the hardware-validation point for the
+combined GRD workload.
+
 The main and 8.1 core Rockchip files are byte-identical. The 8.0 branch differs
 only in `rkmppenc.c`, where the encoder-statistics API must match FFmpeg 8.0.
 All three include the unique former `refactor/section-c` work, including the
 generic Jellyfin correctness import and final encoder static-format/concurrency
 fix. The earlier `75638e7f0b17` package-validation point, `be367abfe6`
-dedicated-PPA source, and `6cf02ab253` 28-patch export remain historical proof;
-the new tips have not yet been packaged or exercised on RK3588 hardware.
+dedicated-PPA source, and `6cf02ab253` 28-patch export remain historical proof.
+The three canonical branch tips have not yet been packaged or exercised on
+RK3588 hardware; the separate `da5befc806` package branch has been built and
+published but still awaits its targeted GRD runtime test.
 
 This needs **no system install and no sudo to build** — everything goes into an
 isolated staging prefix; only *running* it needs device access (root, or the udev

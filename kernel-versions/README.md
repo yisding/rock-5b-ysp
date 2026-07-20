@@ -18,7 +18,7 @@ The concrete driver work — MPP/RGA architecture, patches, scripts, tests — i
 | Developer focus | The 6.1-BSP → 6.18 forward-port deltas, adversarial review of the glue, and the mainline V4L2 `rkvdec` trajectory. |
 | Owns | The `bsp/` subtree and the base-level docs below. |
 | Depends on | Nothing in-repo; upstream Armbian, Rockchip BSP, and mainline kernel trees. |
-| Current state | Shipped base is Armbian `rockchip64-6.18`; see [`../status.md`](../status.md) and the kernel scorecard [`../kernel-drivers/docs/forward-port-status.md`](../kernel-drivers/docs/forward-port-status.md). |
+| Current state | Target base is Armbian `rockchip64-current` 6.18. The July 4 build remains the validated baseline; the maintained 6.18.38 forward-port has newer KASAN-verified fixes but incomplete production conformance. See [`../status.md`](../status.md) and the kernel scorecard [`../kernel-drivers/docs/forward-port-status.md`](../kernel-drivers/docs/forward-port-status.md). |
 
 ## Files
 

@@ -24,7 +24,7 @@ versions, the mainline-V4L2 alternative) live in
 | Developer focus | Accelerator service/submit models, dma-buf/IOMMU lifetime, device-tree wiring, runtime ABIs, forward-port deltas, audits, and rewrite alternatives where applicable. |
 | Owns | Shared kernel docs in [`docs/`](docs/how-the-drivers-work.md); the five sub-projects; patch deliverables in [`patches/`](patches/README.md); board scripts in [`scripts/`](scripts/README.md); hardware smoke tests in [`tests/`](tests/README.md). |
 | Depends on | Armbian or vanilla 6.18 kernel build inputs, RK3588 device tree, and [`../vendor-libraries/`](../vendor-libraries/README.md). |
-| Current state | The combined Armbian kernel path is hardware-validated; DKMS compiles on 6.18 but its overlay is not boot-validated; audit-fix and rewrite tracks are not shippable replacements yet. See [`../status.md`](../status.md). |
+| Current state | The July 4 combined Armbian kernel is the hardware-validated baseline. The maintained AV1 forward-port series now includes KASAN-verified lifetime fixes `0042`/`0043`, but still needs a production rebuild and isolated functional conformance before replacing that baseline. DKMS compiles on 6.18 but its overlay is not boot-validated; audit-fix and rewrite tracks are not shippable replacements. See [`../status.md`](../status.md). |
 
 ## How the kernel package fits
 
@@ -66,7 +66,7 @@ The kernel work runs on three tracks across those sub-projects:
 
 | Track | What it is | Read next |
 |-------|------------|-----------|
-| Forward-port | The shipped stack: Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18 with compatibility shims and RK3588 bring-up fixes. | [`patches/`](patches/README.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
+| Forward-port | Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18. The frozen two-patch base owns the validated anchor; the 42-file AV1/PPA series owns current hardening work through patch `0043`. | [`patches/`](patches/README.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
 | Audit fixes | A reviewable 65-patch correctness/security cleanup series on top of the forward-port. | [`docs/bsp-audit.md`](docs/bsp-audit.md), [`patches/cleanup-split/`](patches/cleanup-split/README.md) |
 | Rewrite drivers | Public-API-only reimplementations of `/dev/mpp_service` and `/dev/rga`, as a learning + upstreamable-design track. | [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) |
 
@@ -137,7 +137,7 @@ each sub-project's `README.md`).
 | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
 | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | 2026-07-17 audit of claimed ABI/codec coverage, booted evidence, counter/lifetime assertions, and remaining hardware gates. |
 | [`docs/debug-kernel.md`](docs/debug-kernel.md) | Capture a crash / run the KASAN debug kernel. |
-| [`patches/`](patches/README.md) | Forward-port driver + DT patches and the reviewable audit-fix series. |
+| [`patches/`](patches/README.md) | Frozen validated base patches, the maintained AV1/PPA series, debug-only DT patch, and the reviewable audit-fix series. |
 | [`scripts/`](scripts/README.md) | Combined-kernel build/install/validate wrappers and the codec udev rule. |
 | [`tests/`](tests/README.md) | On-hardware decode/encode/transcode smoke tests, plus the rewrite build gate and conformance suites. |
 | [`mpp/`](mpp/README.md) · [`rga/`](rga/README.md) · [`av1/`](av1/README.md) · [`iommu/`](iommu/README.md) · [`rknpu/`](rknpu/README.md) | The five kernel-driver sub-projects. |

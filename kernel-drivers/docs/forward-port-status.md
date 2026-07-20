@@ -11,9 +11,11 @@ Historical validated build hash: `Pb6ab-Cb831` on 6.18.37 (and its functionally-
 `P8c75`). That hash is baked into the Armbian `.deb` package name — `P####` hashes
 the applied kernel patch set, `C####` hashes the kernel config — so the pair names
 the *exact* build we validated (the installer matches debs on it; see
-`scripts/install-combined-kernel.sh`). The 6.18.38 PPA session-fix build booted
-but is not validated: its first conformance run Oopsed during preflight as
-described below.
+`scripts/install-combined-kernel.sh`). The Published 6.18.38 PPA build through
+patch `0041` booted but is not validated: its first conformance run Oopsed
+during preflight. A later KASAN build verifies the resulting `0042` and `0043`
+lifetime fixes with clean memory-safety scans, but the production package still
+predates both and the contended functional suite was not fully green.
 
 ## ✅ Done — validated on real hardware
 
@@ -117,8 +119,9 @@ described below.
   Do not sample `/proc/mpp_service` during open/close stress except for the
   narrowed KASAN+ramoops reproduction. See the
   [finding](../../findings/2026-07-17-mpp-procfs-session-teardown-oops.md).
-- **The preflight Oops is a pre-existing vendor `RESET_SESSION` double-free —
-  now traced by KASAN, fixed in source, rebuild/re-verify pending.** The first
+- **The preflight Oops was a pre-existing vendor `RESET_SESSION` double-free;
+  KASAN now verifies `0042`, and a second forward-port UAF is fixed/verified as
+  `0043`.** The first
   booted `0040`/`0041` validation on PPA kernel
   `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1` Oopsed after ABI replay with no
   call trace, which initially read as a `/proc/mpp_service` snapshot race. The
@@ -129,10 +132,19 @@ described below.
   re-destroys the freed `mpp_dma_session` and faults on `dma->list_mutex`
   (slab-use-after-free). The defect is byte-identical in the pristine Rockchip
   BSP (`develop-6.1`), so it is vendor-original, not forward-port-introduced.
-  One-line fix `session->dma = NULL` applied to the driver source; rebuild the
-  KASAN kernel, confirm a clean narrowed reproduction, then resume conformance.
-  See the [double-free finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md)
-  (which supersedes the [preflight finding](../../findings/2026-07-17-forward-port-conformance-preflight-oops.md)).
+  Patch `0042` adds `session->dma = NULL`; rebuilt run
+  `20260718-093751-kasan-narrowed` exercises RESET_SESSION with zero flagged
+  lines. That boot then exposed a separate forward-port-introduced post-free
+  `task->state` read in `rkvenc2_wait_result`. Patch `0043` samples the abort
+  flag before the final reference drop, and run
+  `20260718-103917-kasan-mpp-suite` produced empty KASAN/fatal scans while its
+  ordinary encoder cases passed. That run was not a full functional pass:
+  multi-instance H.265 returned `EINVAL` and both slice encodes timed out amid
+  concurrent GRD readback contention. Isolate those cases, then rebuild the
+  production/PPA kernel with `0042`/`0043` and resume full conformance. See the
+  [double-free finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md),
+  [RKVENC2 finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),
+  and [superseded preflight finding](../../findings/2026-07-17-forward-port-conformance-preflight-oops.md).
 - **Direct RGA3 im2d virtual-buffer samples exposed RGA/IOMMU forward-port
   gaps.** The upstream `airockchip/librga` copy/resize/rotate samples import
   malloc-backed buffers and can trigger `RGA3_core0 INTR[0x2]`, the RGA MMU
@@ -156,7 +168,11 @@ described below.
 
 ## What "done" means here
 
-The forward-port is **functionally complete**: you can run
-`ffmpeg -hwaccel rkmpp -c:v hevc_rkmpp ...` on a stock-ish Armbian 6.18 kernel
-and it uses the hardware. The remaining items are performance polish (DVFS) and
-breadth (more codecs), not blockers.
+The July 4 forward-port baseline is **functionally complete for its tested,
+trusted-input codec scope**: `ffmpeg -hwaccel rkmpp -c:v hevc_rkmpp ...` uses
+the hardware on Armbian 6.18. That does not make the maintained source tip or
+the BSP-derived ABI generally shippable. The production package must absorb
+and pass `0042`/`0043`, the isolated functional failures need resolution, and
+the broader audit series still has compile/runtime gates. DVFS and codec breadth
+are optional polish; memory safety, regression conformance, and recovery are
+release blockers.

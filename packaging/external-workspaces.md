@@ -1,6 +1,7 @@
 # External Packaging Workspaces
 
-Last audited: 2026-07-09.
+Last full workspace audit: 2026-07-09. The GRD source-pin row was rechecked on
+2026-07-19 after the exporter moved beyond its public reconnect base.
 
 This repo is the source of truth for authored packaging, scripts, patch series,
 and reproducibility manifests. Sibling `~/Code` directories are allowed to hold
@@ -45,7 +46,7 @@ implicit source.
 | `/home/yi/Code/kernel/rock5b-kernel-build/ffmpeg-stack` | Legacy test/runtime staging and media, not canonical source. Current test scripts live in `kernel-drivers/tests/`. |
 | `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81` | Upstream/fork source checkout pinned by `ppa/build-source-packages.sh`. Its untracked `kernel-drivers/tests/ffmpeg-suite.sh` copy is older than the ysp suite; do not import. |
 | `/home/yi/Code/ffmpeg/ffmpeg-ppa` | Old FFmpeg source-package export/build directory with generated package residue. Canonical packaging is `ppa/ffmpeg/` and `ppa/ffmpeg-baseline/`. |
-| `/home/yi/Code/gnome/grd/gnome-remote-desktop` | GRD fork checkout used by the PPA helper. Fetch `yding/rdp-handover-reconnect-v2`; the current clean source pin is `eb91daf476dc`. |
+| `/home/yi/Code/gnome/grd/gnome-remote-desktop` | GRD fork checkout used by the PPA helper. Public reconnect base `yding/rdp-handover-reconnect-v2@eb91daf476dc` remains fetchable; the helper currently exports local commit `2571326322c754de7608ef4afb1dff8e4d031cbd` for `~exp3`, and hardware-tested local tip `b3f0e20bc6e1` is represented by the complete 17-patch series. The exact `~exp3` source is also recoverable from Launchpad publication `18626586`; see [`../docs/source-trees.md` §5](../docs/source-trees.md#5-gnome-remote-desktop-base). |
 | `/home/yi/Code/gnome/grd/grd-ffmpeg` | Historical GRD backend checkout. Its July 6 dirty tracked-file delta is preserved under `ppa/gnome-remote-desktop/source-deltas/`; it is no longer the default PPA source. Generated shaders/build dirs stay outside. |
 | `/home/yi/Code/gnome/grd/grd-pkg` and `/home/yi/Code/gnome/grd/grd-ppa` | Historical local package/source-package exports and generated `.deb`s. Canonical packaging is in `ppa/gnome-remote-desktop/`, `ppa/gdm-hwenc/`, and `gdm-hwenc/`. |
 | `/home/yi/Code/gnome/grd/grd-debs` and `/home/yi/Code/gnome/grd/grd-install` | Historical local binary deployments. Keep outside git; packaging history is summarized in `packaging/README.md`. |

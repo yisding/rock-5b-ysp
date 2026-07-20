@@ -271,6 +271,32 @@ class DebugRamoopsTests(unittest.TestCase):
         self.assertNotIn("ramoops@4fe000000", script)
 
 
+class ForwardPortPatchSeriesTests(unittest.TestCase):
+    series = REPO_ROOT / "kernel-drivers/patches/forward-port-rk3588-av1"
+
+    def test_series_contains_the_current_contiguous_patch_tail(self) -> None:
+        patches = sorted(self.series.glob("rk3588-av1-fwport-*.patch"))
+        numbers = [int(path.name.split("-")[3]) for path in patches]
+
+        self.assertEqual(numbers, [number for number in range(1, 44) if number != 12])
+        readme = (self.series / "README.md").read_text(encoding="utf-8")
+        self.assertIn("655d178191807e24e9ca4dd72e74401b449d2099", readme)
+        self.assertIn("42-file series", readme)
+
+    def test_series_mailboxes_are_well_formed(self) -> None:
+        for patch in sorted(self.series.glob("rk3588-av1-fwport-*.patch")):
+            with self.subTest(patch=patch.name):
+                result = subprocess.run(
+                    ["git", "apply", "--numstat", str(patch)],
+                    cwd=REPO_ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(result.stdout.strip())
+
+
 class PpaVersionConsistencyTests(unittest.TestCase):
     def test_clean_installer_ffmpeg_drift_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -292,6 +318,34 @@ class PpaVersionConsistencyTests(unittest.TestCase):
             DOC_CHECKER.check_ppa_ffmpeg_install_pin(root, errors)
 
             self.assertEqual(len(errors), 1)
+            self.assertIn("does not match latest changelog", errors[0])
+
+    def test_grd_exporter_commit_drift_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            exporter = root / "packaging/ppa/build-source-packages.sh"
+            exporter.parent.mkdir(parents=True)
+            exporter.write_text(
+                '#!/usr/bin/env bash\n'
+                'GRD_COMMIT="${GRD_COMMIT:-1111111aaaaaaaaaaaaaaaaaaaaaaaaa}"\n'
+                'GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+git.new2222}"\n',
+                encoding="utf-8",
+            )
+            changelog = (
+                root / "packaging/ppa/gnome-remote-desktop/debian/changelog"
+            )
+            changelog.parent.mkdir(parents=True)
+            changelog.write_text(
+                "gnome-remote-desktop "
+                "(50.1+git.new2222-0ubuntu1) resolute; urgency=medium\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_ppa_grd_source_pin(root, errors)
+
+            self.assertEqual(len(errors), 1)
+            self.assertIn("default GRD commit", errors[0])
             self.assertIn("does not match latest changelog", errors[0])
 
 

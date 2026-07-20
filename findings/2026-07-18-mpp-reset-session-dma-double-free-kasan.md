@@ -172,10 +172,11 @@ prior run and independent of the crash: `RGA2_GET_RESULT` returns `EINVAL`
 of `EFAULT`. These are conformance-contract gaps tracked separately, not
 memory-safety bugs.
 
-## Next gate
+## Follow-up gate
 
-1. Apply the one-line NULL and rebuild the forward-port kernel (production and,
-   for re-verification, the KASAN variant).
-2. Re-run `20260718-054814`-style narrowed reproduction on the KASAN kernel;
-   require a clean `kernel-log-flags.txt`.
-3. Only then resume the full MPP conformance suite on the production kernel.
+The one-line fix, KASAN rebuild, and narrowed clean reproduction are complete.
+The separate `rkvenc2_wait_result` UAF subsequently found on that build is also
+fixed and KASAN-verified as patch `0043`. The remaining gate is to rebuild the
+production/PPA forward-port with both patches, isolate the functional
+multi-instance/slice anomalies seen during the contended KASAN run, and resume
+full conformance plus rollback validation.

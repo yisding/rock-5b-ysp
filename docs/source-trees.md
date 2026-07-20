@@ -14,7 +14,7 @@ patches unless explicitly marked otherwise.
 | 2 | Audited tree (BSP audit) | [BSP audit](../kernel-drivers/docs/bsp-audit.md), `kernel-drivers/patches/cleanup-draft/` line numbers | parent of `56e403ede081` = `5614909e5803` |
 | 3 | `$OURS` / `$BSP` measurement pair + BSP 6.6 comparison | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count", [BSP 6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) | tree 1 vs `rockchip-linux/kernel` `develop-6.1@b4ef083dc0c3`; comparison `develop-6.6@1ba51b059f25` |
 | 4 | Userspace libraries + FFmpeg | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), `ffmpeg/*` | table in §4 |
-| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | tag `50.1` = `5ef1a2aa6bef`; anchor/full-series base = `c14e09ef67e9`; current PPA source = `rdp-handover-reconnect-v2@eb91daf476dc`, see §5 |
+| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | tag `50.1` = `5ef1a2aa6bef`; anchor/full-series base = `c14e09ef67e9`; public reconnect base = `eb91daf476dc`; experimental-PPA export = `2571326322c7`; hardware-tested local tip = `b3f0e20bc6e1`, see §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | rewrite series sources `rk3588-rewrite-6.18@0d71ded1690c` and `rk3588-rewrite-mainline@32696e87c9c7`; earlier package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
@@ -192,6 +192,13 @@ The current experimental-PPA source exports
 `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3`; source publication `18626586`,
 arm64 build `33412698`, and the exact binary are Published. It layers recovery
 patch `0015` on the diagnostics but predates exported patches `0016` and `0017`.
+That commit is present in the packaging checkout but was not advertised by any
+of the fork's 193 public refs when `git ls-remote` was rechecked on 2026-07-19.
+For an exact portable copy, retrieve the source package from publication
+`18626586`; for source-code review, replay patches `0001`–`0015` from this repo
+onto `c14e09e`. That replay produces the same compiled source but omits two
+GRD-tree documentation-only changes, so it is not a byte-for-byte replacement
+for the published orig tarball.
 The current hardware-tested behavior is local `exp5@b3f0e20`, whose patch
 `0017` cached-copy readback fix is exported under
 [`apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/).

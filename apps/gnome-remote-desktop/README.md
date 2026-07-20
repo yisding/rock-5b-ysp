@@ -58,7 +58,7 @@ flowchart TB
   view["GrdRdpViewCreatorAVC<br/>RGB→NV12 on the Mali GPU"]
   enc["GrdEncodeSessionFfmpeg<br/>NV12 → H.264"]
   gpu["/dev/dri/renderD128<br/>mesa/panvk — not this repo"]
-  ffmpeg["FFmpeg h264_rkmpp<br/>upstream FFmpeg 8.1.2, not ffmpeg-rockchip<br/>librockchip_mpp"]
+  ffmpeg["FFmpeg h264_rkmpp bridge<br/>8.1.2 hardware proof · 8.0.3 current PPA<br/>not ffmpeg-rockchip · librockchip_mpp"]
   mpp["/dev/mpp_service<br/>VEPU580"]
   heap["/dev/dma_heap/system<br/>frame/stream bufs"]
 
@@ -79,14 +79,15 @@ the **Mali GPU** (`/dev/dri/renderD128`, mesa/panvk — *not* from this repo), d
 the RGB→NV12 colour conversion in a Vulkan compute shader before handing the NV12
 dma-buf to the encoder zero-copy.
 
-> **Which FFmpeg?** GRD here links **upstream FFmpeg 8.1.2**'s `h264_rkmpp`
-> (`8.1.2+rk1`, an ABI-compatible drop-in over Ubuntu's `ffmpeg`), **not** the
-> [`ffmpeg-rockchip` fork](../../video-libraries/ffmpeg) this repo otherwise recommends. That choice
-> drove every bug below — upstream FFmpeg 8.1.2's rkmpp encoder is far thinner
-> than ffmpeg-rockchip's.
-> See the table.
+> **Which FFmpeg?** The hardware measurements and the bugs below came from the
+> upstream-style `h264_rkmpp` bridge deployed at **FFmpeg 8.1.2**, not the
+> [`ffmpeg-rockchip` fork](../../video-libraries/ffmpeg). The current normal-PPA
+> candidate links the same bridge lineage at FFmpeg 8.0.3, on package branch
+> `fix/rkmpp-output-timeout@da5befc806`. Its Launchpad build is Published, but
+> the combined patch-`0017`/fixed-FFmpeg board gate is still open. Keep the
+> measured 8.1.2 proof separate from the current 8.0.3 package state.
 
-## upstream FFmpeg 8.1.2 `h264_rkmpp` vs ffmpeg-rockchip
+## Upstream-style FFmpeg 8.1.2 `h264_rkmpp` vs ffmpeg-rockchip
 
 There are **two independent** `h264_rkmpp` encoders with the same name. **This is
 the single most load-bearing fact on this page** — knowing which one you have

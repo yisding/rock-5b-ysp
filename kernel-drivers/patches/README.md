@@ -6,11 +6,11 @@ The kernel-side patch deliverables of this repo:
 
 | Field | Contents |
 |-------|----------|
-| User outcome | Apply the validated base kernel patch pair through Armbian userpatches or use it as the source for the DKMS path. |
+| User outcome | Choose the frozen validated base pair, the actively maintained AV1 forward-port series, or the stock-kernel DKMS source without confusing their different validation states. |
 | Developer focus | Review the forward-port artifacts, the RK3588 DT patch, and the BSP-audit cleanup series without losing provenance. |
 | Owns | The generated forward-port patches, debug-only DT patch, `cleanup-split/`, and the historical `cleanup-draft/` verification record. |
 | Depends on | Source-tree pins in [`docs/source-trees.md`](../../docs/source-trees.md), kernel-driver explanations in [`kernel-drivers/README.md`](../README.md), and maintenance workflow in [`kernel-drivers/docs/resyncing.md`](../docs/resyncing.md). |
-| Current state | The forward-port patch pair is the validated kernel base; the cleanup series is staged but its runtime gate remains pending. See [`status.md`](../../status.md). |
+| Current state | The frozen two-patch non-AV1 base remains the July 4 hardware baseline and DKMS source. The maintained AV1/PPA series now runs through `0043`; KASAN verifies its two newest lifetime fixes, while a production rebuild and isolated functional conformance remain open. The cleanup series is staged and currently fails its compile gate. See [`status.md`](../../status.md). |
 
 | Path | What it is | Detail |
 |------|------------|--------|
@@ -19,12 +19,12 @@ The kernel-side patch deliverables of this repo:
 | [`cleanup-split/`](cleanup-split) | **THE reviewable BSP-audit fix series** — 65 one-issue-per-patch mailbox patches fixing the [BSP audit](../docs/bsp-audit.md) findings on top of the forward-port. Apply/review **this**, not the draft. | [`cleanup-split/README.md`](cleanup-split/README.md) |
 | [`cleanup-draft/`](cleanup-draft) | **Historical** per-file fix bundles (15 patches) + [`verification.md`](./cleanup-draft/verification.md), the adversarial-verification **record** for the same fixes. Kept as the audit's provenance trail; superseded for application by `cleanup-split/`. | [`cleanup-draft/README.md`](cleanup-draft/README.md) |
 | [`rga-userptr-iommu/`](rga-userptr-iommu) | **RGA3 scattered-userptr IOMMU fallback** — forward-port and rewrite patches that map scattered pinned userptr through a driver-owned contiguous IOVA span in the translated RGA domain. | [`rga-userptr-iommu/README.md`](rga-userptr-iommu/README.md) |
-| [`forward-port-rk3588-av1/`](forward-port-rk3588-av1) | Split RK3588 MPP/RGA/AV1 forward-port patch series imported from the external Armbian build workspace as source text. Generated fallback `.deb`s and patched worktrees stay outside git. | [`forward-port-rk3588-av1/README.md`](forward-port-rk3588-av1/README.md) |
+| [`forward-port-rk3588-av1/`](forward-port-rk3588-av1) | Actively maintained 42-file RK3588 MPP/RGA/AV1 forward-port series (`0001`–`0043`, with `0012` omitted), including the current KASAN-derived `0042`/`0043` lifetime fixes. This is the PPA/build source line; generated `.deb`s and worktrees stay outside git. | [`forward-port-rk3588-av1/README.md`](forward-port-rk3588-av1/README.md) |
 | [`debug-kernel/`](debug-kernel) | Debug-build-only ROCK 5B DT patch reserving the BSP-derived persistent low-memory window for upstream ramoops. Staged automatically by the debug-kernel builder; not part of production forward-port packages. | [debug-kernel guide](../docs/debug-kernel.md) |
 
 > **⚠️ Runtime gate PENDING** — the runtime codec regression test (encode/decode/transcode plus the targeted triggers listed in `patches/cleanup-draft/verification.md`) has **never been run** on a kernel carrying these fixes. Compile status alone is not verification. Do not ship the series without the runtime gate; track it in `status.md` and record the result in `patches/cleanup-draft/verification.md` when run.
 
-The generic Armbian apply flow below is for the two validated base patches named
+The generic Armbian apply flow below is for the two frozen base patches named
 `rk3588-rkvenc2-0*.patch`. Do not drop `rga-userptr-iommu/*.patch` into
 Armbian's patch archive as a pair: the RGA userptr-IOMMU patches have a
 separate consumption flow in
@@ -32,7 +32,7 @@ separate consumption flow in
 Patch 0001 is applied to the forward-port source tree and regenerated through
 `KERNEL_TREE=...`; patch 0002 is rewrite-only.
 
-The two numbered patches are generated against **pristine mainline `v6.18`** (two
+The two base patches are generated against **pristine mainline `v6.18`** (two
 commits on top of the `v6.18` tag) and map to the two dev-tree commits:
 
 ```

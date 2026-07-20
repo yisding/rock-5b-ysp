@@ -74,14 +74,18 @@ reads more than `sessions-summary` and the exact fault site is unknown. It also
 does not prove the RGA `0040` fix defective; the single-session ABI imports were
 released and the prior RGA attribution was already uncertain.
 
-## Next gate
+## Resolution (2026-07-18)
 
-Build and boot the exact 6.18.38 forward-port stack with generic inline KASAN,
-lockdep, symbols, fault injection, and built-in ramoops dmesg/console/pmsg.
-Enable the tracked ramoops capture policy and panic/reboot arguments before any
-reproduction. First run a narrowed ABI-replay → one-shot MPP proc snapshot while
-capturing pstore; do not resume the full conformance suite until that preflight
-is quiet or yields a complete KASAN trace.
+The KASAN gate completed and overturned the inference above. The narrowed run
+faulted during ABI replay, before the procfs snapshot, and identified a
+pre-existing RESET_SESSION double-free of `session->dma`. Forward-port patch
+`0042` fixes it; rebuilt run `20260718-093751-kasan-narrowed` exercises the same
+sequence with zero flagged kernel lines. A second, distinct RKVENC2 post-free
+read was then fixed and KASAN-verified as patch `0043`. Current evidence and
+the remaining production/functional gate live in the
+[`0042` finding](2026-07-18-mpp-reset-session-dma-double-free-kasan.md) and
+[`0043` finding](2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md); do not use
+this superseded finding as an active runbook.
 
 > **Workflow correction (2026-07-19):** the former high-DRAM DT overlay did
 > not survive RK3588 reset and has been retired. The current debug-kernel

@@ -125,11 +125,29 @@ return ret;
 `rkvenc2_task_timeout_process()` / abort handling), so sampling it before
 `default_process` preserves the intended semantics without touching freed memory.
 
-## Next gate
+## Applied and verified
 
-1. Apply the fix (forward-port patch 0043) and rebuild the KASAN kernel.
-2. Reboot, start a remote-desktop session (the natural reproducer), and confirm
-   no `rkvenc2_wait_result` KASAN report — pair with the encode cases in the MPP
-   suite.
-3. With `0042` already verified, a clean encoder path clears the last known
-   memory-safety blocker before resuming full forward-port conformance.
+The fix is forward-port commit
+`655d178191807e24e9ca4dd72e74401b449d2099` on top of `0042`; it exports as
+tracked forward-port patch `0043`.
+
+**VERIFIED FIXED (2026-07-18).** KASAN MPP-suite run
+`20260718-103917-kasan-mpp-suite` exercised the encoder paths with `0042` and
+`0043` present. `kernel-log-flags.txt` and `dmesg-fatal.txt` were both empty;
+the original `rkvenc2_wait_result`/slab-use-after-free signature appeared zero
+times, while ordinary H.264/H.265 and multi-thread H.265 encode cases passed.
+The same run drove the GRD hardware encoder and produced no replacement KASAN
+fault.
+
+This is a memory-safety verification, not a full functional-suite pass. The run
+also saw `mpi_dec_multi_h265` return `EINVAL` and both slice-encode cases time
+out while GRD's uncached-readback contention was active. Those anomalies need
+an isolated rerun; they do not contradict the absence of the post-free read.
+
+## Remaining gate
+
+1. Re-run the failed multi-instance/slice cases without concurrent GRD
+   contention and preserve their functional results.
+2. Rebuild the production/PPA forward-port with `0042` and `0043`, then resume
+   full conformance and rollback validation before promoting it over the July 4
+   baseline.

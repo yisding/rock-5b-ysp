@@ -238,9 +238,12 @@ binary**. Get userspace one of two ways:
   recreated system PPA now publishes the complete normal stack, including GRD;
   four dedicated PPAs publish the incompatible FFmpeg 8.1 and rewrite-kernel
   tracks. The optional GDM upload, exact clean-migration transaction, and PPA
-  kernel board gates remain pending ([`status.md`](status.md)). Treat the PPA
-  as a published test route until those gates pass. The established local-deb
-  flow remains documented in
+  kernel gates remain pending ([`status.md`](status.md)). The Published
+  forward-port kernel installed and booted but Oopsed during conformance and
+  predates KASAN-verified patches `0042`/`0043`; do not substitute it for path
+  (a)'s July 4 validated baseline yet. Treat the PPA as a published test route
+  until the production rebuild, functional conformance, and rollback gates
+  pass. The established local-deb flow remains documented in
   [`packaging/README.md`](packaging/README.md) § Operations (including the
   `apt-mark hold` pinning guidance).
 

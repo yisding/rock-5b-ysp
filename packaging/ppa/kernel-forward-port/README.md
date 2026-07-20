@@ -1,30 +1,24 @@
 # kernel-forward-port/ - PPA kernel source package
 
-This directory tracks the Launchpad PPA path for the ROCK 5B forward-port
-kernel. The first Launchpad arm64 build failed because `mkimage` was missing
-while generating the Rockchip overlay fixup script. Retry source publication
-`18614559` added the `u-boot-tools` build dependency and produced successful
-arm64 build `33387391`. The source and image/DTB/header binaries are now
-Published in the recreated main PPA as source publication `18619788`.
-Replacement version `6.18.38+rk3588av1fwport20260716-0ubuntu1~rk1`, carrying
-the Rockchip 5.10 RGA reconciliation and RKVENC2 multi-slice error fix, was
-accepted as source publication `18624245`. Hardened version
-`6.18.38+rk3588av1fwport20260716.1-0ubuntu1~rk1` additionally validates every
-raw RGA physical-import page before DMA cache maintenance and makes the unsafe
-raw-address probes opt-in. Its full Armbian integration build and exact
-PPA-source arm64 binary build both pass. Launchpad accepted the signed source
-as pending publication `18624583` and started arm64 build `33407863` on
-`bos03-arm64-036`; that build completed successfully and the package is
-Published. Version `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1` adds the RGA
-session-close reference-lifetime fix and removes MPP sessions from procfs
-visibility before private teardown. Its complete Armbian integration build and
-source-package validation pass. Launchpad accepted source publication
-`18626523`; arm64 build `33412608` completed successfully in 41m45s and the
-exact image is in the live PPA index. The package installed and booted on the
-ROCK 5B, but its first conformance pass Oopsed during the MPP procfs preflight
-before any media case. That boot therefore proves package/install viability,
-not driver conformance; rollback remains pending and crash attribution has
-moved to the exact forward-port KASAN+ramoops build.
+This directory owns the source-package path for the co-installable ROCK 5B
+forward-port kernel. The current published candidate is:
+
+| Field | Current evidence |
+|-------|------------------|
+| Version | `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1` |
+| Launchpad | Source publication `18626523`; successful arm64 build `33412608`; exact image present in the live PPA index. |
+| Contents | RGA session-close reference lifetime fix, early MPP procfs unlink, the preceding raw-import hardening, and the full MPP/RGA/AV1 forward port. |
+| Board result | Package install and boot passed. The first conformance preflight Oopsed before a media case, so driver conformance and rollback remain unproven. |
+| Newer source | Tracked forward-port patches `0042`/`0043` fix the KASAN-traced RESET_SESSION and RKVENC2 lifetime bugs and pass their memory-safety reruns. They are not in this Published package. |
+
+Earlier package iterations established the packaging path: the initial build
+failed because `mkimage` was absent; retry `18614559`/`33387391` added
+`u-boot-tools`; recreated-main publication `18619788` copied the working
+image/DTB/header set; and the 2026-07-16 replacements added the Rockchip 5.10
+RGA reconciliation, RKVENC2 multi-slice fix, and raw physical-import hardening.
+Their exact IDs and dated transitions remain in [Validation Status](#validation-status)
+and the [upload log](../2026-07-06-ubuntu-rock-5b-upload-log.md), instead of
+being mixed into the current-state summary.
 
 The current kernel delivery path is still the Armbian wrapper in
 [`../../../kernel-drivers/scripts/build-armbian-deb.sh`](../../../kernel-drivers/scripts/build-armbian-deb.sh),
@@ -33,9 +27,9 @@ Launchpad PPAs accept source uploads (`.dsc` + `*_source.changes`), not arbitrar
 prebuilt binary kernel `.deb`s, so those local artifacts cannot be added to
 `ppa:yi-ding/ubuntu-rock-5b` directly.
 
-## Target
+## Packaging policy
 
-First PPA kernel package should be conservative and recovery-friendly:
+The package remains conservative and recovery-friendly:
 
 | Field | Decision |
 |-------|----------|
@@ -216,6 +210,13 @@ Passed:
   [`33412608`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33412608).
 - Build `33412608` completed successfully in 41m45s. The live arm64 PPA index
   contains the exact `linux-image-ysp-rockchip64` version and pool artifact.
+- KASAN successor run `20260718-093751-kasan-narrowed` verifies forward-port
+  patch `0042`: RESET_SESSION completed and the original double-free signature
+  produced zero flagged kernel lines.
+- KASAN codec-matrix run `20260718-103917-kasan-mpp-suite` verifies the memory
+  paths through patches `0042`/`0043`: both kernel-log scans were empty and the
+  ordinary H.264/H.265 encode cases passed. This was a later Armbian debug
+  build, not a rebuild of the Published PPA package.
 
 Notes:
 
@@ -233,9 +234,12 @@ Not done yet:
 
 - Rollback and `kernel-revert.sh` recovery validation. Install and reboot of
   the 20260717 image passed; conformance did not.
-- KASAN+ramoops attribution of the pre-media MPP procfs-snapshot Oops from
-  run `20260717-230531`; see the
-  [finding](../../../findings/2026-07-17-forward-port-conformance-preflight-oops.md).
+- A production source/binary rebuild carrying tracked patches `0042` and
+  `0043`. The current Published package stops at `0041`.
+- An isolated rerun of the KASAN suite's functional failures:
+  `mpi_dec_multi_h265` returned `EINVAL`, and the H.264/H.265 slice cases timed
+  out while GRD's uncached-readback contention was active. Empty KASAN scans do
+  not turn those cases into passes.
 - Full `lintian`; both source and binary scans were stopped after several
   minutes with no output because traversing the kernel archive/payload was
   taking too long.
@@ -245,7 +249,9 @@ Not done yet:
 
 ## Remaining Checklist
 
-1. Boot the exact forward-port KASAN+ramoops build and obtain a complete trace
-   from the narrowed ABI-replay → MPP procfs-snapshot reproduction.
-2. Validate rollback and `kernel-revert.sh` recovery on the board before giving
+1. Re-run multi-instance H.265 and both slice-encode cases without concurrent
+   GRD contention; preserve the functional logs and clean KASAN scan.
+2. Rebuild/package the production forward-port with `0042`/`0043`, then run the
+   full conformance gate on that exact image.
+3. Validate rollback and `kernel-revert.sh` recovery on the board before giving
    install guidance. Install and reboot of the 20260717 image already pass.
