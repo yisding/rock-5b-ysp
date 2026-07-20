@@ -6,6 +6,7 @@ not belong to a single package or driver area.
 | Script | Purpose |
 |--------|---------|
 | [`check-repo.sh`](check-repo.sh) | Runs the common repository handoff gate: Markdown links, documentation contracts, and staged/unstaged/untracked whitespace. |
+| [`centralize-ccache.sh`](centralize-ccache.sh) | Reversibly merges the host, Mesa, and Armbian compiler caches into one size-limited shared store under `~/Code`. |
 | [`check-markdown-links.py`](check-markdown-links.py) | Checks local Markdown links for missing files and missing same-repo section anchors. |
 | [`check-doc-consistency.py`](check-doc-consistency.py) | Checks Markdown and operational-file README ownership, project briefs, finding metadata/index order, dashboard/next-gate/action-path/ledger alignment, watchlist contracts, stable support-coverage rows, synchronized kernel-package helpers, and selected terminology invariants. |
 | [`repo_files.py`](repo_files.py) | Shared Git-aware maintained Markdown/operational-file inventory for the Python checks, with a pruned source-archive fallback. |
@@ -28,6 +29,39 @@ update workflow and project-specific test expectations are in
 [`../CONTRIBUTING.md`](../CONTRIBUTING.md). The read-only
 [`repository-checks` workflow](../.github/workflows/repository-checks.yml) runs
 the same command on pushes and pull requests.
+
+## Centralize ccache
+
+`centralize-ccache.sh` merges the default host cache, the Mesa cache, and both
+known Armbian caches into `~/Code/.ccache`. It configures one 15 GB limit,
+compiler-content identity, and a group-writable umask. The original directories
+are retained as timestamped backups and their expected paths become symlinks,
+so the existing Mesa scripts and Armbian Docker mount configuration do not need
+path changes.
+
+Inspect the current layout without root access or writes:
+
+```bash
+bash scripts/centralize-ccache.sh --status
+```
+
+Run the staged migration when no compiler build is active:
+
+```bash
+sudo bash scripts/centralize-ccache.sh
+```
+
+Test one Mesa compile and one Docker-based Armbian build before removing the
+original caches. Preview the exact timestamped backups first, then explicitly
+delete them:
+
+```bash
+sudo bash scripts/centralize-ccache.sh --cleanup-backups
+sudo bash scripts/centralize-ccache.sh --cleanup-backups --yes
+```
+
+The cleanup mode refuses to act unless all four live cache paths still resolve
+to the shared store.
 
 ## ROCK 5B passive cooling
 
