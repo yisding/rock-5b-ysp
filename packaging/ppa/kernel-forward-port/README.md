@@ -10,6 +10,7 @@ forward-port kernel. The current published candidate is:
 | Contents | RGA session-close reference lifetime fix, early MPP procfs unlink, the preceding raw-import hardening, and the full MPP/RGA/AV1 forward port. |
 | Board result | Package install and boot passed. The first conformance preflight Oopsed before a media case, so driver conformance and rollback remain unproven. |
 | Newer source | Tracked forward-port patches `0042`/`0043` fix the KASAN-traced RESET_SESSION and RKVENC2 lifetime bugs and pass their memory-safety reruns. They are not in this Published package. |
+| Local successor | `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` exports both fixes. Exact-source, no-ccache Armbian build `Pf558-Cb831` completed image, modules, DTBs, headers, BTF, and Debian packaging; its unsigned PPA source package passes `dscverify`, fresh extraction, source inspection, and production-config inspection. It is not uploaded or board-tested. |
 
 Earlier package iterations established the packaging path: the initial build
 failed because `mkimage` was absent; retry `18614559`/`33387391` added
@@ -49,7 +50,7 @@ The local build wrapper currently owns these inputs:
 | Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Resolved kernel config | `KERNEL_PPA_CONFIG=$KERNEL_PPA_REPO/.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
-| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.38+rk3588av1fwport20260717` |
+| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.38+rk3588av1fwport20260720` |
 
 The exporter copies the patched worktree contents, including Armbian patch
 changes and untracked patch-added files, while excluding `.git`, `.config`,
@@ -217,6 +218,20 @@ Passed:
   paths through patches `0042`/`0043`: both kernel-log scans were empty and the
   ordinary H.264/H.265 encode cases passed. This was a later Armbian debug
   build, not a rebuild of the Published PPA package.
+- The 2026-07-20 production rebuild pinned Armbian to exact Linux 6.18.38
+  commit `e46dc0adfe39724bcf52cea47b8f9c9aed86a394`, removed the tracked
+  heavy-debug override, discarded stale Kbuild metadata with
+  `CLEAN_LEVEL=make-kernel`, and built without ccache. It completed all kernel,
+  BTF, module, DTB, header, and Debian-package stages in 109 minutes with
+  identity `Pf558-Cb831`. Inspection confirmed both lifetime fixes,
+  `CONFIG_ROCKCHIP_MPP_AV1DEC=y`, `CONFIG_VIDEO_ROCKCHIP_RGA=m`, and no KASAN,
+  lockdep, DMA-API-debug, or debug-SG options.
+- Unsigned source version
+  `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` completed
+  `dpkg-buildpackage -S -sa -us -uc`. `dscverify --nosigcheck` and a fresh
+  `dpkg-source -x` passed; the extracted source and packaged config retain both
+  fixes and the same AV1/RGA production settings. This candidate has not been
+  uploaded to Launchpad.
 
 Notes:
 
@@ -234,8 +249,8 @@ Not done yet:
 
 - Rollback and `kernel-revert.sh` recovery validation. Install and reboot of
   the 20260717 image passed; conformance did not.
-- A production source/binary rebuild carrying tracked patches `0042` and
-  `0043`. The current Published package stops at `0041`.
+- Upload and Launchpad arm64 build of the locally validated 20260720 source.
+  The current Published package still stops at `0041`.
 - An isolated rerun of the KASAN suite's functional failures:
   `mpi_dec_multi_h265` returned `EINVAL`, and the H.264/H.265 slice cases timed
   out while GRD's uncached-readback contention was active. Empty KASAN scans do
@@ -251,7 +266,7 @@ Not done yet:
 
 1. Re-run multi-instance H.265 and both slice-encode cases without concurrent
    GRD contention; preserve the functional logs and clean KASAN scan.
-2. Rebuild/package the production forward-port with `0042`/`0043`, then run the
-   full conformance gate on that exact image.
+2. Upload/build the validated 20260720 source in Launchpad, then install and
+   run the full conformance gate on that exact `0042`/`0043` image.
 3. Validate rollback and `kernel-revert.sh` recovery on the board before giving
    install guidance. Install and reboot of the 20260717 image already pass.

@@ -10,7 +10,7 @@ The kernel-side patch deliverables of this repo:
 | Developer focus | Review the forward-port artifacts, the RK3588 DT patch, and the BSP-audit cleanup series without losing provenance. |
 | Owns | The generated forward-port patches, debug-only DT patch, `cleanup-split/`, and the historical `cleanup-draft/` verification record. |
 | Depends on | Source-tree pins in [`docs/source-trees.md`](../../docs/source-trees.md), kernel-driver explanations in [`kernel-drivers/README.md`](../README.md), and maintenance workflow in [`kernel-drivers/docs/resyncing.md`](../docs/resyncing.md). |
-| Current state | The frozen two-patch non-AV1 base remains the July 4 hardware baseline and DKMS source. The maintained AV1/PPA series now runs through `0043`; KASAN verifies its two newest lifetime fixes, while a production rebuild and isolated functional conformance remain open. The cleanup series is staged and currently fails its compile gate. See [`status.md`](../../status.md). |
+| Current state | The frozen two-patch non-AV1 base remains the July 4 hardware baseline and DKMS source. The maintained AV1/PPA series now runs through `0043`; KASAN verifies its two newest lifetime fixes, and clean production build `Pf558-Cb831` plus fresh PPA source extraction pass. Isolated functional conformance, publication, board boot, and rollback remain open. The cleanup series is staged and currently fails its compile gate. See [`status.md`](../../status.md). |
 
 | Path | What it is | Detail |
 |------|------------|--------|

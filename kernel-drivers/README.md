@@ -24,7 +24,7 @@ versions, the mainline-V4L2 alternative) live in
 | Developer focus | Accelerator service/submit models, dma-buf/IOMMU lifetime, device-tree wiring, runtime ABIs, forward-port deltas, audits, and rewrite alternatives where applicable. |
 | Owns | Shared kernel docs in [`docs/`](docs/how-the-drivers-work.md); the five sub-projects; patch deliverables in [`patches/`](patches/README.md); board scripts in [`scripts/`](scripts/README.md); hardware smoke tests in [`tests/`](tests/README.md). |
 | Depends on | Armbian or vanilla 6.18 kernel build inputs, RK3588 device tree, and [`../vendor-libraries/`](../vendor-libraries/README.md). |
-| Current state | The July 4 combined Armbian kernel is the hardware-validated baseline. The maintained AV1 forward-port series now includes KASAN-verified lifetime fixes `0042`/`0043`, but still needs a production rebuild and isolated functional conformance before replacing that baseline. DKMS compiles on 6.18 but its overlay is not boot-validated; audit-fix and rewrite tracks are not shippable replacements. See [`../status.md`](../status.md). |
+| Current state | The July 4 combined Armbian kernel remains the hardware-validated baseline. The maintained AV1 forward-port series includes KASAN-verified lifetime fixes `0042`/`0043`; clean exact-6.18.38 production build `Pf558-Cb831` and its fresh PPA source extraction pass, but isolated functional conformance, upload/build, board install/boot, and rollback remain before it can replace that baseline. DKMS compiles on 6.18 but its overlay is not boot-validated; audit-fix and rewrite tracks are not shippable replacements. See [`../status.md`](../status.md). |
 
 ## How the kernel package fits
 

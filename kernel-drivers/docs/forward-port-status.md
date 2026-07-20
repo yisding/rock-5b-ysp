@@ -14,8 +14,10 @@ the *exact* build we validated (the installer matches debs on it; see
 `scripts/install-combined-kernel.sh`). The Published 6.18.38 PPA build through
 patch `0041` booted but is not validated: its first conformance run Oopsed
 during preflight. A later KASAN build verifies the resulting `0042` and `0043`
-lifetime fixes with clean memory-safety scans, but the production package still
-predates both and the contended functional suite was not fully green.
+lifetime fixes with clean memory-safety scans. Exact-6.18.38 production build
+`Pf558-Cb831` and its fresh unsigned PPA source extraction now carry both fixes
+with the expected non-debug config, but the Published package still predates
+them and the contended functional suite was not fully green.
 
 ## ✅ Done — validated on real hardware
 
@@ -140,8 +142,10 @@ predates both and the contended functional suite was not fully green.
   `20260718-103917-kasan-mpp-suite` produced empty KASAN/fatal scans while its
   ordinary encoder cases passed. That run was not a full functional pass:
   multi-instance H.265 returned `EINVAL` and both slice encodes timed out amid
-  concurrent GRD readback contention. Isolate those cases, then rebuild the
-  production/PPA kernel with `0042`/`0043` and resume full conformance. See the
+  concurrent GRD readback contention. The exact-6.18.38 clean production build
+  `Pf558-Cb831` and unsigned 20260720 PPA source export now pass with both fixes;
+  isolate those functional cases, upload/build the candidate, and resume board
+  conformance. See the
   [double-free finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md),
   [RKVENC2 finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),
   and [superseded preflight finding](../../findings/2026-07-17-forward-port-conformance-preflight-oops.md).
@@ -171,8 +175,9 @@ predates both and the contended functional suite was not fully green.
 The July 4 forward-port baseline is **functionally complete for its tested,
 trusted-input codec scope**: `ffmpeg -hwaccel rkmpp -c:v hevc_rkmpp ...` uses
 the hardware on Armbian 6.18. That does not make the maintained source tip or
-the BSP-derived ABI generally shippable. The production package must absorb
-and pass `0042`/`0043`, the isolated functional failures need resolution, and
-the broader audit series still has compile/runtime gates. DVFS and codec breadth
+the BSP-derived ABI generally shippable. The locally built production candidate
+now absorbs `0042`/`0043`, but the isolated functional failures, publication,
+board boot/conformance, and rollback still need resolution, and the broader
+audit series still has compile/runtime gates. DVFS and codec breadth
 are optional polish; memory safety, regression conformance, and recovery are
 release blockers.

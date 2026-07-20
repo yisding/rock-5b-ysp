@@ -1,3 +1,12 @@
+linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1) resolute; urgency=high
+
+  * Clear session->dma after MPP_CMD_RESET_SESSION destroys it so deferred
+    teardown cannot free the DMA session twice.
+  * Sample the RKVENC2 abort state before releasing the task's final reference
+    so wait_result does not read task state after the task has been freed.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Mon, 20 Jul 2026 09:35:00 -0700
+
 linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1) resolute; urgency=high
 
   * Release RGA session buffers through their reference-counted lifetime path

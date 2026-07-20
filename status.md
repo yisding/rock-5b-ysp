@@ -30,7 +30,7 @@ separate table below so both remain scannable.
 
 | # | Track | Public state | Verified | Detail |
 |---|-------|--------------|----------|--------|
-| 1 | Kernel forward-port | ⚠️ The July 4 codec results remain the validated production baseline. KASAN verifies forward-port patches `0042` (RESET_SESSION double-free) and `0043` (RKVENC2 post-free abort read): the narrowed rerun and the later codec-matrix memory-safety scan have zero flagged kernel lines. The production/PPA build still predates both fixes, and the contended KASAN run left multi-instance H.265 plus slice-encode functional failures to isolate. | 2026-07-19 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
+| 1 | Kernel forward-port | ⚠️ The July 4 codec results remain the hardware-validated baseline. KASAN verifies patches `0042` (RESET_SESSION double-free) and `0043` (RKVENC2 post-free abort read). Clean exact-6.18.38 production build `Pf558-Cb831` and its fresh unsigned 20260720 PPA source extraction carry both fixes with the expected non-debug AV1/RGA config. The Published PPA still predates them, and multi-instance H.265 plus slice-encode functional failures remain to isolate before upload, board install/boot, full conformance, and rollback. | 2026-07-20 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
 | 2 | BSP-audit fix series | ⚠️ Staged only: the split series diverges from the verified draft and does not compile until patch 0024 is regenerated. | 2026-07-01 | [`cleanup-split/`](./kernel-drivers/patches/cleanup-split/README.md) |
 | 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
 | 4 | Clean-room rewrite drivers | 🚧 Current 6.18/mainline source tips incorporate the five applicable Rockchip 5.10 RGA reliability/cache-safety lessons and pass warning-free normal/memory/race clean-source gates. The post-reconciliation audit added booted 206-case KUnit evidence, before/after dmesg rejection, stronger safety/idle counters, required official-MPP core coverage, AVS2, and low-delay slice-poll cases; all device-free bad-fixture/build wiring passes. Existing package composites predate the source tip, and no current rewrite kernel has booted hardware proof. | 2026-07-17 | [conformance-gap audit](./kernel-drivers/docs/rewrite-conformance-gap-audit.md) |
@@ -54,7 +54,7 @@ dashboard date and ledger row when public state changes.
 
 | # | Track | Next proof | Action path |
 |---|-------|------------|-------------|
-| 1 | Kernel forward-port | Re-run the multi-instance H.265 and slice-encode failures without concurrent GRD contention, then rebuild/package production `0042`/`0043` and resume full conformance plus rollback validation. | [Latest KASAN fix and remaining gate](./findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md#remaining-gate) |
+| 1 | Kernel forward-port | Re-run the multi-instance H.265 and slice-encode failures without concurrent GRD contention, then upload/build the validated 20260720 source and resume exact-image board conformance plus rollback validation. | [Latest KASAN fix and remaining gate](./findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md#remaining-gate) |
 | 2 | BSP-audit fix series | Regenerate patch 0024 and prove the full split series compiles. | [Compile defect and remedy](./kernel-drivers/patches/cleanup-split/README.md#cleanup-split-compile-gate) |
 | 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. | [DKMS build and install](./packaging/dkms/README.md#dkms-build-install) |
 | 4 | Clean-room rewrite drivers | Rebuild/package one current July 17 source tip; persist 206 green booted KUnit results, then capture paired clean-dmesg/counter/artifact evidence including AVS2 and H.264/H.265 low-delay slice polling. | [Remaining rewrite hardware gates](./kernel-drivers/docs/rewrite-conformance-gap-audit.md#remaining-gaps-and-hardware-gates) |
@@ -103,9 +103,9 @@ last-checked date.
 | W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
-| W14 | [YSP Armbian builder](#watch-w14) | 2026-07-08 | Native compile reached; BTF link remains unproven. |
+| W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
 | W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0040`; frozen base patch still has the old path. |
-| W16 | [Forward-port MPP/RKVENC lifetime fixes](#watch-w16) | 2026-07-19 | Patches `0042`/`0043` are exported and KASAN-verified; production packaging and isolated functional reruns remain. |
+| W16 | [Forward-port MPP/RKVENC lifetime fixes](#watch-w16) | 2026-07-20 | Patches `0042`/`0043` are exported, KASAN-verified, and present in locally validated production binary/source packages; isolated functional reruns, publication, board validation, and rollback remain. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 
 <a id="watch-w01"></a>
@@ -302,12 +302,14 @@ last-checked date.
 
 - **Why recheck:** Builder resources, supported releases, branch mapping, and
   Armbian trunk behavior can shift without a repo change.
-- **Last checked:** 2026-07-08
-- **State then:** The Noble 24.04 aarch64 VMware VM had 5 vCPU, 7.7 GiB RAM,
-  a 97 GB root LV, and `armbian/build 26.08.0-trunk`. Native compilation reached
-  GCC 13.3.0 arm64-on-arm64; the BTF/`pahole` link remained unproven on 8 GB.
-  `resolute` was marked supported and branch map was current=6.18, edge=7.1,
-  vendor=6.1. See the [builder finding](findings/2026-07-08-armbian-builder-setup.md).
+- **Last checked:** 2026-07-20
+- **State then:** Exact Linux 6.18.38 build `Pf558-Cb831` completed native
+  arm64 compilation, BTF, image/modules/DTBs/headers, and Debian packaging in
+  109 minutes. The wrapper pins commit `e46dc0adfe39724bcf52cea47b8f9c9aed86a394`,
+  rejects stale unknown user configs, removes its tracked heavy-debug override,
+  and forces `CLEAN_LEVEL=make-kernel` for that config-class transition so old
+  dependency metadata cannot corrupt the production build. The original VM
+  setup remains documented in the [builder finding](findings/2026-07-08-armbian-builder-setup.md).
 
 <a id="watch-w15"></a>
 ### W15 — RGA session-close fix vs. base patch
@@ -338,7 +340,7 @@ last-checked date.
   and booted debug build can silently carry different lifetime fixes. Keep the
   exported patch tail and the claimed production gate aligned with the exact
   KASAN evidence.
-- **Last checked:** 2026-07-19
+- **Last checked:** 2026-07-20
 - **State then:** The maintained series now exports all three fixes: `0041`
   unlinks MPP sessions before private teardown; `0042@83e4d357f8d2` clears
   `session->dma` after RESET_SESSION destroys it; and
@@ -348,8 +350,11 @@ last-checked date.
   exercises `0042`/`0043` with empty KASAN/fatal scans and passing ordinary
   encode cases, but its multi-instance H.265 failure and slice timeouts were
   contended by the simultaneous GRD readback cliff and still need isolation.
-  The published production kernel stops at `0041`, so rebuild/package,
-  functional conformance, and rollback remain open. Evidence:
+  Clean exact-6.18.38 production build `Pf558-Cb831` and the freshly extracted
+  unsigned 20260720 PPA source package carry both fixes with the non-debug
+  AV1/RGA config. The Published kernel still stops at `0041`, so isolated
+  functional conformance, upload/Launchpad build, board install/boot, and
+  rollback remain open. Evidence:
   [procfs fix](findings/2026-07-17-mpp-procfs-session-teardown-oops.md),
   [RESET_SESSION fix](findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md),
   and [RKVENC2 fix](findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md).

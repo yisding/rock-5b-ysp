@@ -16,7 +16,10 @@ published, and its Launchpad arm64 build succeeded. A physical-import-hardened
 replacement also passes full Armbian and exact PPA-source local binary builds;
 Launchpad published it successfully. The 20260717 replacement fixes RGA and
 MPP session teardown lifetime bugs, passes a full Armbian integration build,
-and built successfully on Launchpad. The alpha clean-room
+and built successfully on Launchpad. A local 20260720 successor adds the two
+KASAN-derived MPP/RKVENC lifetime fixes and passes a clean exact-6.18.38
+Armbian image/module/DTB/header build plus unsigned PPA source validation; it
+has not been uploaded or board-tested. The alpha clean-room
 rewrite kernels have separate co-installable source packages under
 [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) and
 [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md).
@@ -95,7 +98,7 @@ Last recorded through Launchpad's devel API and exact-version binary queries at
 | `gnome-remote-desktop` (normal stack) | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2` | Source publication [`18619824`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619824), successful arm64 build [`33397319`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397319), and the arm64 binary are Published. | Current normal-stack package; local build links the RKMPP backend against `libavcodec.so.62`/`libavutil.so.60`. |
 | `gnome-remote-desktop` (recovery candidate) | `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3` | Experimental source publication [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586), successful arm64 build [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698), and the exact arm64 binary are Published. | Reuses the smoke-tested RKMPP context, forces IDR refreshes without reopen, falls back to software after an encode timeout, and runs diagnostics independently. It predates exported readback patch `0017`; the local RDP harness timed out before its daemon listened, so the current combined board/reconnect gates remain. |
 | `gnome-remote-desktop` (local focus-return candidate) | `50.1+rkmpp+git20260720.8.3e4480e-0ubuntu1~exp7` | Source package and native arm64 binary build locally; lintian has only long-filename warnings. Installation/combined live validation remain. Predecessor `exp6@7e958e6` is installed and live-validates the ACK recovery on the ROCK 5B. Not published. | Adds exported patches `0016`–`0019`, requires FFmpeg `da5befc806`, recovers stalled reconstructed ACK history, and prevents focus-idle time from immediately tripping the hardware-starvation software fallback. The explicit same-day sequence keeps Debian version ordering above `exp6`. |
-| forward-port kernel | `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source publication [`18626523`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18626523) and arm64 build [`33412608`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33412608) succeeded; the exact image is in the live PPA index. | Full 40-patch Armbian build `Pbc61-C40aa`, source validation/extraction, install, and boot pass, but conformance Oopsed. The maintained series now adds KASAN-verified `0042`/`0043`; this Published package predates them. Rebuild, isolated functional conformance, and rollback remain. |
+| forward-port kernel | Published `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1`; local `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Published source [`18626523`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18626523) and arm64 build [`33412608`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33412608) succeeded; the live PPA still contains the 20260717 image. The 20260720 source is local only. | The Published 40-patch build installed/booted but Oopsed in conformance and predates `0042`/`0043`. Local exact-6.18.38 production build `Pf558-Cb831` and fresh PPA source extraction validate both fixes and the non-debug AV1/RGA config. Upload/Launchpad build, isolated functional conformance, board install/boot, and rollback remain. |
 | alpha rewrite kernel 6.18 | `6.18.38+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Source publication [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665), successful arm64 build [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491), and the exact binaries are Published. | Armbian current/forward-port 6.18.38 source layer, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
 | alpha rewrite kernel 7.2-rc3 | `7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Source publication [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666), successful arm64 build [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492), and the exact binaries are Published. | Official v7.2-rc3 plus Armbian bleedingedge, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
 | `gnome-remote-desktop-gdm-hwenc` | `1.0` under [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source wrapper imported; not uploaded. | Optional greeter ACL package. The canonical rule also feeds the local deb source under [`../gdm-hwenc/`](../gdm-hwenc/README.md). |
@@ -158,7 +161,7 @@ variables.
 | Optional GRD source delta | `GRD_DELTA` | Empty; set explicitly only for a historical dirty snapshot such as [`dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch) |
 | Forward-port kernel worktree | `KERNEL_PPA_REPO` | `$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Forward-port kernel config | `KERNEL_PPA_CONFIG` | `$KERNEL_PPA_REPO/.config` |
-| Forward-port kernel source version | `KERNEL_PPA_UPSTREAM_VERSION` | `6.18.38+rk3588av1fwport20260717` |
+| Forward-port kernel source version | `KERNEL_PPA_UPSTREAM_VERSION` | `6.18.38+rk3588av1fwport20260720` |
 | Alpha rewrite 6.18 kernel repository | `KERNEL_ALPHA_618_REPO` | `$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc` |
 | Alpha rewrite 6.18 kernel commit | `KERNEL_ALPHA_618_COMMIT` | `8daf5e9513b8aa9de018dad7754b6efacfd0fd49` |
 | Alpha rewrite 6.18 kernel config | fixed package input | [`kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config`](kernel-rewrite-alpha-6.18/debian/config/arm64-rockchip64.config) |
@@ -515,8 +518,9 @@ group. It should be uploaded only after the GRD package path is otherwise ready.
 
 ## What Is Still Not In This Repo
 
-- A PPA-native forward-port rebuild carrying tracked patches `0042`/`0043`,
-  followed by isolated functional conformance and rollback validation. The
+- Upload and Launchpad arm64 build of the locally source/binary-validated
+  20260720 forward-port carrying patches `0042`/`0043`, followed by isolated
+  functional conformance, board install/boot, and rollback validation. The
   Published `0041` package installed and booted but Oopsed during preflight.
 - Board install/revert validation for the Published alpha rewrite kernel source
   packages in
