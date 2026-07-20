@@ -7,6 +7,11 @@ Both start at the exact upstream `v7.2-rc3` commit. The integration deltas are
 checked in, so a rebuild does not depend on whatever a mailing-list endpoint
 calls "latest" in the future.
 
+For a reader-first comparison with Armbian 6.18, Ubuntu 26.04's 7.0 kernel,
+and vanilla upstream 7.2-rc3, including the distinction between code that is
+present and hardware the ROCK 5B device tree actually enables, see [what
+maxline adds for the ROCK 5B](board-support.md).
+
 ## Profiles
 
 - `public` is the recommended first-boot kernel. It contains the applicable
