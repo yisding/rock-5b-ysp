@@ -1,0 +1,118 @@
+From d241977082160f0e8c2c776f626c151b83ef4192 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Sat, 18 Jul 2026 11:16:15 -0700
+Subject: [PATCH] rdp: recover from pipeline starvation, not just warn
+
+The frame-starvation detector in log_pipeline_diagnostics() only logged a
+g_warning and returned; it never actuated recovery. Software fallback
+(start_hw_encode_cooldown) had only two triggers, both requiring a hardware
+encode to complete: a slow completion (note_hw_encode_duration) or an error
+completion (on_bitstream_locked with a NULL bitstream).
+
+When the VEPU is monopolised by another process, GRD s strict 1-in-1-out gate
+stops starting new encodes while a view/submission frame is outstanding, so no
+encode ever completes and neither trigger can fire. The stall persists with
+encodes_started == encodes_completed (nothing in flight); has_outstanding_work
+is true only via the view stage. The detector warned every interval while the
+session stayed wedged with graphical artifacts.
+
+Escalate a sustained stall (>= PIPELINE_STARVATION_RECOVERY_THRESHOLD_US, 3 s)
+by calling start_hw_encode_cooldown(), which forces software encoding and
+requests a full refresh with a render-context reset -- unsticking the
+view/submission stage regardless of which stage wedged. start_hw_encode_cooldown
+returns FALSE while a cooldown is already active, so a persistent stall escalates
+at most once per HW_ENCODE_COOLDOWN_US rather than every tick. Once software
+frames flow again last_submit_us advances and the escalation self-clears.
+
+This makes external VEPU contention survivable by graceful degradation to
+software instead of an unrecoverable wedge.
+---
+ src/grd-rdp-renderer.c | 39 ++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 36 insertions(+), 3 deletions(-)
+
+diff --git a/src/grd-rdp-renderer.c b/src/grd-rdp-renderer.c
+index 9eec3bb..56bf80d 100644
+--- a/src/grd-rdp-renderer.c
++++ b/src/grd-rdp-renderer.c
+@@ -49,6 +49,7 @@
+ #define PIPELINE_DIAGNOSTICS_INTERVAL_MS 1000
+ #define PIPELINE_STARVATION_THRESHOLD_US (2 * G_USEC_PER_SEC)
+ #define PIPELINE_STARVATION_WARNING_INTERVAL_US (5 * G_USEC_PER_SEC)
++#define PIPELINE_STARVATION_RECOVERY_THRESHOLD_US (3 * G_USEC_PER_SEC)
+ 
+ enum
+ {
+@@ -272,6 +273,10 @@ grd_rdp_renderer_notify_pipeline_event (GrdRdpRenderer      *renderer,
+   g_mutex_unlock (&renderer->pipeline_diagnostics_mutex);
+ }
+ 
++static gboolean start_hw_encode_cooldown (GrdRdpRenderer *renderer,
++                                          const char     *reason,
++                                          int64_t         duration_us);
++
+ static gboolean
+ log_pipeline_diagnostics (gpointer user_data)
+ {
+@@ -280,7 +285,9 @@ log_pipeline_diagnostics (gpointer user_data)
+   gboolean diagnostics_changed;
+   gboolean has_outstanding_work;
+   gboolean warn_about_starvation = FALSE;
++  gboolean recover_from_starvation = FALSE;
+   int64_t now_us = g_get_monotonic_time ();
++  int64_t stall_age_us = 0;
+   int64_t last_buffer_age_ms;
+   int64_t last_submit_age_ms;
+ 
+@@ -295,16 +302,28 @@ log_pipeline_diagnostics (gpointer user_data)
+   has_outstanding_work =
+     diagnostics.views_started > diagnostics.views_completed ||
+     diagnostics.encodes_started > diagnostics.encodes_completed;
++  stall_age_us =
++    now_us - MAX (diagnostics.last_submit_us, diagnostics.started_us);
+   if (has_outstanding_work &&
+-      now_us - MAX (diagnostics.last_submit_us,
+-                    diagnostics.started_us) >=
+-        PIPELINE_STARVATION_THRESHOLD_US &&
++      stall_age_us >= PIPELINE_STARVATION_THRESHOLD_US &&
+       now_us - diagnostics.last_starvation_warning_us >=
+         PIPELINE_STARVATION_WARNING_INTERVAL_US)
+     {
+       renderer->pipeline_diagnostics.last_starvation_warning_us = now_us;
+       warn_about_starvation = TRUE;
+     }
++  /*
++   * A stall where no hardware encode is in flight (e.g. the VEPU is being held
++   * by another process) never trips the completion-based cooldown triggers in
++   * note_hw_encode_duration()/on_bitstream_locked(). Escalate a sustained stall
++   * here so the diagnostics watchdog actually recovers instead of only warning:
++   * start_hw_encode_cooldown() forces software encoding and requests a full
++   * refresh with a render-context reset, which unsticks the view/submission
++   * stage regardless of which stage wedged.
++   */
++  if (has_outstanding_work &&
++      stall_age_us >= PIPELINE_STARVATION_RECOVERY_THRESHOLD_US)
++    recover_from_starvation = TRUE;
+   g_mutex_unlock (&renderer->pipeline_diagnostics_mutex);
+ 
+   last_buffer_age_ms = diagnostics.last_buffer_us > 0
+@@ -370,6 +389,20 @@ log_pipeline_diagnostics (gpointer user_data)
+                  diagnostics.encodes_completed);
+     }
+ 
++  /*
++   * Only warns when the cooldown actually starts (start_hw_encode_cooldown
++   * returns FALSE while a cooldown is already active), so a persistent stall
++   * escalates at most once per HW_ENCODE_COOLDOWN_US instead of every tick.
++   */
++  if (recover_from_starvation &&
++      start_hw_encode_cooldown (renderer, "pipeline starvation", stall_age_us))
++    {
++      g_warning ("[RDP.PIPELINE] Pipeline stalled for %" G_GINT64_FORMAT
++                 " ms with no frame submitted; forced software encoding and a "
++                 "full refresh (render-context reset) to recover",
++                 stall_age_us / 1000);
++    }
++
+   return G_SOURCE_CONTINUE;
+ }
+ 

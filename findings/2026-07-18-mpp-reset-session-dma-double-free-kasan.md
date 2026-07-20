@@ -146,10 +146,23 @@ the NULL is sufficient; no second guard is needed.
 regenerates as forward-port userpatch `0042`. In that tree the handler sits at
 `mpp_common.c:1461` and the NULL is added at `:1478`; the line numbers earlier
 in this finding (`:1414`) are from the `linux-6.18-rkvenc` reference tree used
-during root-cause inspection. The KASAN debug kernel is being rebuilt with this
-commit. After it boots, re-run this same narrowed reproduction and confirm a
-clean kernel log, then repeat under the full MPP suite before treating the
-forward-port baseline as validated.
+during root-cause inspection.
+
+**VERIFIED FIXED (2026-07-18).** The KASAN kernel was rebuilt with `0042`
+(`Pe8d3-C4ad2`; the built worktree source carries `session->dma = NULL` at
+`mpp_common.c:1478`) and booted. Re-running the identical narrowed reproduction
+(run `20260718-093751-kasan-narrowed`) exercised `RESET_SESSION` (ret=0) and
+produced `flagged_kernel_lines=0`: the double-free signature
+(`mpp_dma_session_destroy`/`__mutex_lock` UAF) appears zero times this boot,
+versus a first-pass hit on `P712f`. `abi_status=1` is only the two pre-existing
+RGA contract gaps (`RGA2_GET_RESULT` errno 22, unsupported `RGA_IOC_REQUEST_CONFIG`
+returns success), not memory safety. The reset-session double-free is resolved.
+
+Note: the same boot surfaced a **separate** encoder use-after-free in
+`rkvenc2_wait_result` driven by the remote-desktop H.264 encoder — unrelated to
+this reset-session bug. See
+[`2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md`](./2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md).
+Resume the full MPP suite only after that one is also resolved.
 
 ## Secondary (non-crash) observations
 

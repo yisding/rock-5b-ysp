@@ -8,9 +8,10 @@ branch of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`, plus
 `0008` as the July 3 backpressure/cooldown follow-up, `0009`–`0013` from
 [`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2),
 and the `00014`–`0015` diagnosis/recovery pair for the Firefox-triggered RKMPP
-stall.
+stall, and `0016` which makes the starvation detector actuate recovery under
+external VEPU contention.
 
-The complete `0001`–`0015` series, including its `0001`–`0008` backend subset,
+The complete `0001`–`0016` series, including its `0001`–`0008` backend subset,
 applies to upstream commit `c14e09e` (`50.1` + 16). This base contains both the
 `cf250ed` VA-API revert required by `0003` and the GNOME-50 reconnection
 simplification that `0009` officially reverts. Replay is verified with
@@ -39,13 +40,16 @@ against `50.1`+16 — see its header.
 | 0013 | `daemon-system-Coalesce-pending-redirected-connections` | 1 | Replace only a simultaneously pending redirected socket. Once `TakeClient` consumes it, the same routing token remains reusable for the next GDM→session stage or a later reconnect. |
 | 0014 | `rdp-add-pipeline-starvation-diagnostics` | 4 | Rate-limited counters for capture, view creation, stale drops, encode, submission, refresh/reset, and hardware cooldown; this produced the evidence that localized the Firefox freeze. |
 | 0015 | `rdp-recover-from-stalled-hardware-encoding` | 7 | Rely on bounded low-delay waits in the matching FFmpeg package, reuse the smoke-tested context, refresh stale content with a forced IDR instead of recreating MPP, recover to software on an encode error, and put the watchdog on an independent thread. Requires FFmpeg `540657970e` or newer. |
+| 0016 | `rdp-recover-from-pipeline-starvation-not-just-warn` | 1 | Make the starvation detector an **actuator** (escalate a sustained stall to `start_hw_encode_cooldown()`). ⚠️ **Does not fix the RK3588 wedge** — that turned out to be the `0017` readback cliff, not a recovery gap (the cooldown was already firing). Kept as a defensive improvement for genuine encode stalls; reconsider before upstreaming. See [finding](../../../findings/2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md). |
+| 0017 | `egl-thread-read-back-via-a-cached-GPU-copy` | 1 | **The actual RK3588 hang fix.** `download_in_impl` read the captured frame back with `glReadPixels(GL_BGRA)` straight off the imported dma-buf texture, which panthor maps **uncached**; Mesa's per-pixel `convert_ubyte` fallback over uncached memory costs seconds-to-minutes/frame → EGL thread pinned at 100% CPU → pipeline wedge. Copy the import into a cached, driver-owned scratch texture on the GPU (`glCopyTexSubImage2D`, GLES2-safe) and read *that* back cached; lazy/resized, falls back to the direct read. Upstream-general (helps any driver with uncached imports); see [finding](../../../findings/2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md) and the Mesa/panfrost bugs it also exposes. |
 
 `0001`–`0003` are the backend; `0004`–`0006` are the panvk/hardware-enablement
 fixes ([`apps/gnome-remote-desktop/docs/design.md`](../docs/design.md)); `0007` is the mainline-rkmpp runtime fix
 ([`../README.md`](../README.md)); `0008` is the backpressure/cooldown guard
 ([`../README.md`](../README.md) #4); and `0009`–`0013` are the corrected
 handover/reconnect series; `0014`–`0015` are the Firefox-stall diagnosis and
-recovery. Patch `0007`'s quality settings remain relevant to the mainline
+recovery; and `0016` extends that recovery to external VEPU contention by making
+the starvation detector actuate the software fallback. Patch `0007`'s quality settings remain relevant to the mainline
 forward port, while `0015` supersedes its startup encoder recreation with a
 forced IDR on the packaged Rockchip FFmpeg, which honours
 `MPP_ENC_SET_IDR_FRAME`.

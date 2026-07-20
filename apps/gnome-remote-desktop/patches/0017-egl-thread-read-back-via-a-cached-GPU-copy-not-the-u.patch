@@ -1,0 +1,152 @@
+From b3f0e20bc6e12b9cceb694136416dcdebfaa6bab Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Sat, 18 Jul 2026 15:56:09 -0700
+Subject: [PATCH] egl-thread: read back via a cached GPU copy, not the uncached
+ import
+
+download_in_impl() imported the captured dma-buf as a GL texture and read it
+back with glReadPixels(GL_BGRA) straight off it. On drivers that map imported
+buffers write-back-uncached (panthor on RK3588 does; only its own BOs get
+DRM_PANTHOR_BO_WB_MMAP), that drives Mesa's readpixels fallback --
+_mesa_format_convert/convert_ubyte -- across uncached memory a pixel at a time,
+which costs seconds to minutes per full-resolution frame. Under a busy desktop
+(e.g. video playback) the readbacks never drain and the RDP/VNC pipeline wedges
+with the EGL thread pinned at 100% CPU.
+
+Copy the imported texture into a driver-owned (cached) scratch texture on the
+GPU with glCopyTexSubImage2D (GLES2 core; no glBlitFramebuffer dependency), then
+glReadPixels from that cached copy. The convert now runs over cached memory and
+is cheap. The scratch target is created lazily and resized on demand, and the
+path falls back to the previous direct read if it cannot be set up, so there is
+no regression on drivers where the direct read was already fast.
+---
+ src/grd-egl-thread.c | 95 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 95 insertions(+)
+
+diff --git a/src/grd-egl-thread.c b/src/grd-egl-thread.c
+index 012d026..5256537 100644
+--- a/src/grd-egl-thread.c
++++ b/src/grd-egl-thread.c
+@@ -65,6 +65,19 @@ struct _GrdEglThread
+     int drm_render_node_fd;
+ 
+     GSource *egl_thread_source;
++
++    /*
++     * Scratch render target for readback. Imported dma-buf textures are mapped
++     * write-back-uncached on some drivers (e.g. panthor for RK3588), so reading
++     * them directly with glReadPixels drives Mesa's per-pixel format-convert
++     * fallback across uncached memory, which is catastrophically slow (seconds
++     * to minutes per full-resolution frame). Copy the imported texture into
++     * this driver-owned (cached) texture on the GPU first, then read that back.
++     */
++    GLuint readback_tex;
++    GLuint readback_fbo;
++    int readback_width;
++    int readback_height;
+   } impl;
+ };
+ 
+@@ -717,6 +730,11 @@ grd_egl_thread_func (gpointer user_data)
+     }
+   g_async_queue_unref (egl_thread->task_queue);
+ 
++  if (egl_thread->impl.readback_fbo)
++    glDeleteFramebuffers (1, &egl_thread->impl.readback_fbo);
++  if (egl_thread->impl.readback_tex)
++    glDeleteTextures (1, &egl_thread->impl.readback_tex);
++
+   g_clear_fd (&egl_thread->impl.drm_render_node_fd, NULL);
+   eglMakeCurrent (egl_thread->impl.egl_display,
+                   EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+@@ -965,6 +983,75 @@ read_pixels (uint8_t      *dst_data,
+                 dst_data);
+ }
+ 
++static gboolean
++ensure_readback_target (GrdEglThread *egl_thread,
++                        int           width,
++                        int           height)
++{
++  if (egl_thread->impl.readback_fbo &&
++      egl_thread->impl.readback_width == width &&
++      egl_thread->impl.readback_height == height)
++    return TRUE;
++
++  if (!egl_thread->impl.readback_tex)
++    glGenTextures (1, &egl_thread->impl.readback_tex);
++  glBindTexture (GL_TEXTURE_2D, egl_thread->impl.readback_tex);
++  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
++  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
++  glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
++                GL_RGBA, GL_UNSIGNED_BYTE, NULL);
++
++  if (!egl_thread->impl.readback_fbo)
++    glGenFramebuffers (1, &egl_thread->impl.readback_fbo);
++  glBindFramebuffer (GL_FRAMEBUFFER, egl_thread->impl.readback_fbo);
++  glFramebufferTexture2D (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
++                          GL_TEXTURE_2D, egl_thread->impl.readback_tex, 0);
++  if (glCheckFramebufferStatus (GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
++    {
++      g_warning ("[EGL Thread] readback target incomplete; "
++                 "falling back to direct readback");
++      egl_thread->impl.readback_width = 0;
++      egl_thread->impl.readback_height = 0;
++      return FALSE;
++    }
++
++  egl_thread->impl.readback_width = width;
++  egl_thread->impl.readback_height = height;
++  return TRUE;
++}
++
++/*
++ * Copy the imported (possibly uncached) source framebuffer into the cached,
++ * driver-owned readback texture on the GPU, and leave the readback FBO bound so
++ * the subsequent glReadPixels reads cached memory. Returns FALSE (leaving
++ * src_fbo bound) if the scratch target is unavailable, so the caller can read
++ * the source directly as before.
++ */
++static gboolean
++stage_readback_via_gpu_copy (GrdEglThread *egl_thread,
++                             GLuint        src_fbo,
++                             int           width,
++                             int           height)
++{
++  if (!ensure_readback_target (egl_thread, width, height))
++    {
++      glBindFramebuffer (GL_FRAMEBUFFER, src_fbo);
++      return FALSE;
++    }
++
++  glBindFramebuffer (GL_FRAMEBUFFER, src_fbo);
++  glBindTexture (GL_TEXTURE_2D, egl_thread->impl.readback_tex);
++  glCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
++  if (glGetError () != GL_NO_ERROR)
++    {
++      glBindFramebuffer (GL_FRAMEBUFFER, src_fbo);
++      return FALSE;
++    }
++
++  glBindFramebuffer (GL_FRAMEBUFFER, egl_thread->impl.readback_fbo);
++  return TRUE;
++}
++
+ static EGLSync
+ create_egl_sync_from_syncfile_fd_in_impl (GrdEglThread  *egl_thread,
+                                           int            syncfile_fd,
+@@ -1075,6 +1162,14 @@ download_in_impl (gpointer data,
+       eglDestroySync (egl_thread->impl.egl_display, sync);
+     }
+ 
++  /*
++   * Read back from a cached, driver-owned copy rather than directly from the
++   * imported dma-buf texture, which may be mapped uncached (see readback_tex).
++   * On failure this leaves the imported FBO bound, so the read still works.
++   */
++  if (fbo)
++    stage_readback_via_gpu_copy (egl_thread, fbo, task->width, task->height);
++
+   read_pixels (task->dst_data, task->width, task->height);
+ 
+   success = TRUE;
