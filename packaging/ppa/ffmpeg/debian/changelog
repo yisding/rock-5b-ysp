@@ -1,3 +1,20 @@
+ffmpeg (7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1) resolute; urgency=medium
+
+  * rkmppenc: absorb transient MPP input-task-pool backpressure on synchronous
+    (low-delay/drain) encode. A refused encode_put_frame (MPP_NOK, the finite
+    input pool momentarily full under sustained load) was mapped to EAGAIN and
+    the loop then waited the full 500 ms output deadline on a frame that was
+    never submitted, timed out, and surfaced AVERROR_EXTERNAL -- making a
+    1-in-1-out caller (gnome-remote-desktop) drop to software encoding while the
+    hardware was healthy.
+  * On a synchronous call, retry the refused put after a short backoff within a
+    single shared 500 ms deadline instead of blocking output on an unsent frame;
+    the asynchronous path keeps its drain-on-EAGAIN behavior. Map
+    MPP_ERR_TIMEOUT to EAGAIN, matching the bounded-wait contract. Internal
+    encoder hardening only; no public or private AVOption change.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sat, 19 Jul 2026 19:45:00 -0700
+
 ffmpeg (7:8.0.3+rockchip+git20260717.540657970e-0ubuntu1~rk1) resolute; urgency=medium
 
   * Bound synchronous RKMPP packet waits to 500 ms instead of using
