@@ -2,6 +2,11 @@
 
 > Scope: two upstream Mesa bugs found while root-causing the gnome-remote-desktop
 > RK3588 hang ([finding](./2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md)).
+> Source: `fdo/mesa@4c23f1db1f9`: `read_rgba_pixels()` in
+> `src/mesa/main/readpix.c`, `panfrost_ptr_map()` in
+> `src/gallium/drivers/panfrost/pan_resource.c`, and the imported-BO mapping in
+> `src/panfrost/lib/kmod/panthor_kmod.c`; correlated with build-id-matched GRD
+> gdb captures
 > Environment: RK3588 (Mali-G610, **panthor** kmod), Mesa `26.0.3-1ubuntu1`;
 > analysis against the `fdo/mesa` tree (`26.2.0-devel`, `4c23f1db1f9`).
 > Date: 2026-07-18

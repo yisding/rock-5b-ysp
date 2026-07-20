@@ -1,6 +1,13 @@
 # RK3588 maxline implementation and build record
 
+> Scope: RK3588 maxline `public` and `wip` Linux 7.2-rc3 integration,
+> configuration, native arm64 build, and Debian packaging for the ROCK 5B
+> Source: [`packaging/ppa/kernel-maxline`](../packaging/ppa/kernel-maxline/README.md)
+> manifest, public/WIP ledgers, exported patches, pinned configuration, and the
+> native build and package inspections recorded below
 > Date: 2026-07-17
+> Trust: MEASURED (build/package/header results) / SOURCE-INSPECTED (integrated
+> trees and package payloads) / CONFIG-INSPECTED (pinned final configuration)
 > Board/build host: Radxa ROCK 5B, native arm64
 > Host OS: Armbian 26.5.1 / Ubuntu 26.04 (`resolute`)
 > Running recovery kernel: `6.18.38-ysp-rockchip64`

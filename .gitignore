@@ -2,6 +2,10 @@
 .agents/
 .codex/
 
+# Local linked or nested worktrees are independent Git checkouts, not content
+# owned by this repository.
+.worktrees/
+
 # Built binaries never live in git — built .debs and dkms build output are
 # already covered by per-subdir .gitignores (packaging/*/.gitignore).
 # Publication policy for built artifacts: see packaging/README.md.

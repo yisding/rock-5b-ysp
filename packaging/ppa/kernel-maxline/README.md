@@ -124,6 +124,17 @@ contract: `/boot/vmlinuz-$release`, `/lib/modules/$release`,
 `/boot/dtb-$release`, `/usr/src/linux-headers-$release`, initramfs hooks, and
 the `/boot/Image` and `/boot/dtb` last-installed symlinks.
 
+The Debian rules delegate the package payload and lifecycle details to two
+tracked helpers:
+
+- [`debian/scripts/install-kernel-packages.sh`](debian/scripts/install-kernel-packages.sh)
+  installs the built image, modules, DTBs, and external-module-capable headers
+  into their three binary-package staging trees.
+- [`debian/scripts/write-maintainer-scripts.sh`](debian/scripts/write-maintainer-scripts.sh)
+  generates the image, DTB, and headers maintainer scripts that run kernel
+  hooks, maintain Armbian's last-installed `/boot` targets, and prepare headers
+  after installation.
+
 ## Verified build
 
 Both profiles passed a native arm64 `Image modules dtbs` build and Debian
