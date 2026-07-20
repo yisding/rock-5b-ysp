@@ -40,29 +40,61 @@ mpi: mpi_encode_get_packet leave ... ret -8     ← MPP_ERR_TIMEOUT (~500 ms)
 emits `output packet pts …` throughout — so this is a **transient** pool-exhaustion
 race under load, which is why it recovers on its own and recurs after a stretch.
 
-## Why GRD trips on it
+## Why GRD trips on it — the exact wrapper mechanism (resolved)
 
-The `AV_CODEC_FLAG_LOW_DELAY` strict 1-in-1-out `lock_bitstream` model (patches
-0007/0015) assumes each `send_frame` is immediately followed by one
-`receive_packet`. The MPP async encoder is **pipelined** with a finite input task
-pool and applies backpressure via `MPP_NOK` from `put_frame`. Under sustained
-high-frame-rate load the pipeline backs up, `put_frame` is refused, and the
-strict-pairing waiter times out instead of draining — so GRD declares the
-hardware encoder dead and drops to software for 10 s (the readback path fixed by
-0017), repeatedly.
+Read against the **deployed** encoder, `ffmpeg-rockchip-81 @ 540657970e`
+("avcodec/rkmppenc: bound synchronous output waits"), the loop in
+`rkmpp_encode_frame` is:
 
-## Fix directions (userspace)
+```
+send: put the oldest unsent frame; if MPP_NOK → EAGAIN → goto get
+get:  encode_get_packet(timeout = RKMPP_SYNC_TIMEOUT_MS = 500 ms)
+```
 
-1. **GRD encode session** (`grd-encode-session-ffmpeg.c`): on `send_frame`
-   `EAGAIN`/`put_frame` `MPP_NOK`, drain `receive_packet` to free input slots and
-   retry, instead of treating it as an encode failure — i.e. don't require strict
-   1-in-1-out against a pipelined encoder. This is the primary fix.
-2. **FFmpeg-rockchip `rkmppenc.c`**: handle the input-full `MPP_NOK` internally
-   (bounded retry with an interleaved get) so a transient full pool isn't surfaced
-   as `AVERROR_EXTERNAL`.
-3. **Tuning**: raise the MPP encoder input task/buffer count so momentary 60 fps
-   spikes don't exhaust the pool; and (mitigation, task c) shorten
-   `HW_ENCODE_COOLDOWN_US` so a transient costs far less software time.
+For GRD's `AV_CODEC_FLAG_LOW_DELAY` frame, when `put_frame` is refused
+(`MPP_NOK`, the finite input task pool momentarily full because the previous
+frame's slot is reclaimed asynchronously), the loop `goto get`s and **waits the
+full 500 ms on output for a frame that was never submitted**. The wait elapses
+(`MPP_ERR_TIMEOUT`, -8), which `rkmpp_get_packet` mapped to `AVERROR_EXTERNAL`,
+and GRD declares the hardware encoder dead → software for 10 s (readback hang
+fixed by 0017), repeatedly. The put-refused frame was **never retried**; the
+hardware was healthy and draining packets the whole time (companion finding).
+
+## Where the fix must live — and why not GRD
+
+The fix has to be **inside the ffmpeg-rockchip wrapper**, not GRD. GRD's
+synchronous `lock_bitstream` is strictly 1-in-1-out by construction
+(`grd-encode-session-ffmpeg.c`: `encode_frame` stashes the `AVFrame` per
+`image_view`; `lock_bitstream` steals *that* frame and demands *its* packet), so
+it cannot pipeline. And it cannot safely retry either: a submitted frame is
+already in MPP's pipeline, so re-`send` would double-submit, while re-`receive`
+enters the encode2 drain path (`rkmpp_submit_frame(NULL)` → `mpp_frame_set_eos`)
+and would **end the stream**. Only the wrapper, which owns the put/get pairing
+and the send queue, can absorb the transient without those hazards.
+
+## Fix — implemented
+
+`ffmpeg-rockchip-81` `fix/rkmpp-output-timeout` commit **`da5befc806`**
+("avcodec/rkmppenc: absorb transient input backpressure on sync encode"):
+
+1. On a **synchronous** call, a refused `put` is transient: back off
+   `RKMPP_INPUT_RETRY_US` (250 µs) and **retry the send** within the deadline,
+   instead of blocking output on an unsent frame. The async (nonblocking) path
+   keeps its drain-on-EAGAIN behavior.
+2. **One shared `RKMPP_SYNC_TIMEOUT_MS` deadline** across the put retries and the
+   output wait, so absorbing a full pool never runs a call past its 500 ms
+   budget; a genuine stall still fails fast → GRD software fallback.
+3. `MPP_ERR_TIMEOUT` → `AVERROR(EAGAIN)` in `rkmpp_get_packet`, matching the
+   `540657970e` comment's stated intent ("return EAGAIN after this deadline") — a
+   bounded wait elapsing means "no packet yet", not a hardware failure.
+
+Compile-verified (object build of `rkmppenc.o` in the configured tree). **Still
+needs a runtime rebuild + reproduce under sustained RDP video load** to confirm
+the wedge is gone. GRD needs no change; its fallback-on-genuine-stall is correct.
+
+Complementary (optional): raise the MPP input task/buffer count so momentary
+60 fps spikes don't exhaust the pool at all; and (task c) shorten
+`HW_ENCODE_COOLDOWN_US` so any residual transient costs far less software time.
 
 ## Cleanup after tracing
 
