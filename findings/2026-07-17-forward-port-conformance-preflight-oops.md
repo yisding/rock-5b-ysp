@@ -77,8 +77,13 @@ released and the prior RGA attribution was already uncertain.
 ## Next gate
 
 Build and boot the exact 6.18.38 forward-port stack with generic inline KASAN,
-lockdep, symbols, fault injection, and built-in ramoops console/pmsg/ftrace.
-Enable the tracked ramoops DT overlay and panic/reboot arguments before any
+lockdep, symbols, fault injection, and built-in ramoops dmesg/console/pmsg.
+Enable the tracked ramoops capture policy and panic/reboot arguments before any
 reproduction. First run a narrowed ABI-replay → one-shot MPP proc snapshot while
 capturing pstore; do not resume the full conformance suite until that preflight
 is quiet or yields a complete KASAN trace.
+
+> **Workflow correction (2026-07-19):** the former high-DRAM DT overlay did
+> not survive RK3588 reset and has been retired. The current debug-kernel
+> package adds the BSP-derived low-memory reservation to the base ROCK 5B DTB;
+> the enable script verifies that node and configures only boot/sysctl policy.

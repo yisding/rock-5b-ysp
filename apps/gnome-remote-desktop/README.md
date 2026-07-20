@@ -16,9 +16,9 @@ a few percent CPU instead of a laggy, CPU-bound one.
 |-------|----------|
 | User outcome | Run an RDP session whose H.264 video stream is encoded by RK3588 hardware instead of software. |
 | Developer focus | Understand GRD's capture path, FFmpeg encode-session integration, RDP frame-ack behavior, zero-copy buffers, panvk RGB-to-NV12 conversion, and GDM greeter permissions. |
-| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 13-patch GRD backend/reconnect series. |
+| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 17-patch GRD investigation series. |
 | Depends on | Kernel drivers, userspace libraries, an rkmpp-enabled FFmpeg build, Mesa/Panfrost Vulkan support, and optional GDM codec ACL packaging. |
-| Current state | The series replays on `c14e09e` (`50.1` + 16), and the backend sustains 60 fps in the measured setup. Corrected reconnect is public at `rdp-handover-reconnect-v2@eb91daf`, builds/tests cleanly, and is in the experimental PPA; the exact macOS reconnect runtime gate remains. See [`status.md`](../../status.md). |
+| Current state | The 17-patch investigation series replays on `c14e09e` (`50.1` + 16), and the backend sustains 60 fps. Patch `0017` passed its targeted hardware test; the matching FFmpeg backpressure fix is Published, while their combined stress/reconnect gate remains open. See [`status.md`](../../status.md). |
 
 | Piece | What | Status |
 |-------|------|--------|
@@ -45,7 +45,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | [`docs/testing.md`](docs/testing.md) | The benchmarking playbook (eviction hazard, env setup, HW-path checklist). |
 | [`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) | GRD-facing summary of the Mesa/Panfrost texture-transfer investigation behind the compute-path finding. |
 | [`bench/`](bench) | The benchmark this package owns — [`bench/README.md`](bench/README.md) plus [`readback_bench.c`](bench/readback_bench.c), the surfaceless `glReadPixels` readback timer behind `baseline.md`. |
-| [`patches/`](patches) | The full 13-patch GRD backend/reconnect series plus clearly separated async-PBO/MemFd reference prototypes; [`patches/README.md`](patches/README.md) maps the bases, shipping series, and archival diffs. |
+| [`patches/`](patches) | The full 17-patch GRD backend/reconnect/diagnostic series plus clearly separated async-PBO/MemFd reference prototypes; [`patches/README.md`](patches/README.md) maps the base, current disposition, and archival diffs. |
 
 Packaging the whole stack for a Launchpad PPA is covered in
 [`packaging/ppa`](../../packaging/ppa).
@@ -271,17 +271,20 @@ codec consumer:
 
 ## The patches
 
-The **full code patch set** — eight commits for the rkmpp encode backend plus
-five for corrected handover reconnect — is in [`patches/`](patches). All 13,
-and the backend-only subset, are verified to `git am` on `c14e09e` (`50.1` +
-16); pristine tag `50.1` lacks the `cf250ed` context required by `0003`.
+The **full exported investigation set** is in [`patches/`](patches). Patches
+`0001`–`0013` provide the rkmpp backend and corrected handover baseline;
+`0014`–`0017` preserve the later diagnostics, recovery, and uncached-readback
+work. The 17-patch set and the backend-only subset replay on `c14e09e` (`50.1`
++ 16); pristine tag `50.1` lacks the `cf250ed` context required by `0003`.
 Patches `0001`–`0003` are the backend, `0004`–`0006` are the
 panvk/hardware-enablement fixes (the "looked like a Mesa bug" journey — see
 [`design.md`](./docs/design.md)), `0007` is the two upstream-rkmpp runtime fixes
 above (#1 IDR, #2 bitrate), and `0008` is the hardware-encode
 backpressure/cooldown guard (#4). `0009`–`0013` restore GNOME 50's two-stage
 handover and fix variant/socket/timer ownership while coalescing only
-simultaneously pending redirected sockets. Full map:
+simultaneously pending redirected sockets. `0014`–`0015` add diagnostics and
+bounded recovery, `0016` is a defensive starvation actuator, and `0017` is the
+hardware-verified cached-copy fix for the uncached readback cliff. Full map:
 [`patches/README.md`](patches/README.md).
 
 Bug **#3** (greeter access) is not a code change — it's the udev package in
@@ -290,39 +293,23 @@ at all, and the panvk enablement story) is in [`design.md`](./docs/design.md).
 
 ## Packaging & install
 
-Three pieces, built from the public GRD fork (upstream 50.1 lineage + the rkmpp
-backend and corrected reconnect series):
+Three pieces make up the acceptance stack:
 
-| Package | What | Needed? |
-|---------|------|:---:|
-| `gnome-remote-desktop` `50.1+rkmpp+git20260714.eb91daf-0ubuntu1~exp1` | GRD with the rkmpp encode backend and reconnect-v2 series | required |
-| `gnome-remote-desktop-gdm-hwenc` `1.0` | greeter codec ACL ([`packaging/gdm-hwenc`](../../packaging/gdm-hwenc)) | optional (login-screen HW) |
-| the codec stack | this repo's kernel + `libmpp` + ABI-compatible Rockchip FFmpeg 8.0.3 | required |
+| Component | Current state | Needed? |
+|-----------|---------------|:---:|
+| `gnome-remote-desktop` | Normal-PPA `~rk2` is the older published baseline. Experimental `~exp3` (`2571326`, patches through `0015`) is Published, while hardware-tested local `exp5@b3f0e20` adds exported patch `0017` and is the current source behavior to package. | required |
+| Rockchip FFmpeg 8.0.3 | Normal-PPA `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` is Published; it absorbs the transient MPP input-pool backpressure exposed by exp5. | required |
+| `gnome-remote-desktop-gdm-hwenc` `1.0` | Local opt-in package granting the stable `gdm` group access to codec nodes; not uploaded. | optional (login-screen HW) |
 
-```bash
-# 1. Codec stack first — kernel drivers + udev + system FFmpeg with rkmpp.
-#    (../install.md is the chooser + quickstart; ../packaging/codec-udev/ is
-#    the video-group udev rule.)
-
-# 2. GRD with the backend, + (optionally) the greeter access package:
-sudo apt install ./gnome-remote-desktop_50.1+rkmpp+git20260714.eb91daf-0ubuntu1~exp1_arm64.deb
-sudo apt install ./gnome-remote-desktop-gdm-hwenc_1.0_all.deb    # optional
-
-# 3. Enable + connect an RDP client. Confirm it's on hardware:
-#    the session daemon has an "mpp_h264e" thread and an open /dev/mpp_service fd
-#    (full signal table: profiling.md §7; the client must advertise AVC420 — §5).
-```
-
-The full-stack Launchpad **PPA** path is now a published test path, not yet the
-validated install path. The recreated system PPA contains MPP, librga, Rockchip
-FFmpeg 8.0.3, and GRD revision `~rk2`; GRD source `18619824`, arm64 build
-`33397319`, and the binary are Published. That build links the 8.0 ABI
-(`libavcodec.so.62`/`libavutil.so.60`). The exact PPA stack still needs an
-on-board install/runtime pass. The corrected reconnect build `~exp1` is source
-publication `18620800` / build `33399816` in the isolated experimental PPA;
-its macOS reconnect test and promotion to the normal PPA remain pending. The
-optional GDM ACL package is not uploaded.
-See [`packaging/ppa`](../../packaging/ppa) for the six-archive layout.
+The Launchpad path is a **published test path**, not yet the validated install
+path. Do not treat `~exp3` as the final candidate: it predates patches `0016`
+and `0017`. The next package/runtime gate is a GRD build carrying `0017`, paired
+with FFmpeg `da5befc806`, followed by the sustained-video and macOS reconnect
+checks in [`profiling.md` §10](./docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback).
+Use [`packaging/ppa`](../../packaging/ppa) for exact publication IDs and the
+six-archive layout; use [`install.md`](../../install.md) for the kernel/codec
+stack chooser. Confirm a test session is really using hardware with the signal
+table in [`profiling.md` §7](./docs/profiling.md#7-verification-signals-what-to-grep).
 
 ## Provenance & licensing
 

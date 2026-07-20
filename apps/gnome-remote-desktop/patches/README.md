@@ -1,17 +1,17 @@
 # gnome-remote-desktop/patches/
 
-The **complete shipping code series** for the FFmpeg/rkmpp H.264 backend and
-the corrected RDP handover reconnect path in gnome-remote-desktop: the seven
+The **complete exported investigation series** for the FFmpeg/rkmpp H.264
+backend and corrected RDP handover reconnect path in gnome-remote-desktop: the seven
 backend commits from the
 [`ffmpeg-rkmpp-encode-backend`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/ffmpeg-rkmpp-encode-backend)
 branch of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`, plus
 `0008` as the July 3 backpressure/cooldown follow-up, `0009`–`0013` from
 [`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2),
-and the `00014`–`0015` diagnosis/recovery pair for the Firefox-triggered RKMPP
-stall, and `0016` which makes the starvation detector actuate recovery under
-external VEPU contention.
+and the `0014`–`0015` diagnosis/recovery pair for the Firefox-triggered RKMPP
+stall, `0016`'s defensive starvation actuator, and `0017`'s hardware-verified
+fix for uncached imported-buffer readback.
 
-The complete `0001`–`0016` series, including its `0001`–`0008` backend subset,
+The complete `0001`–`0017` series, including its `0001`–`0008` backend subset,
 applies to upstream commit `c14e09e` (`50.1` + 16). This base contains both the
 `cf250ed` VA-API revert required by `0003` and the GNOME-50 reconnection
 simplification that `0009` officially reverts. Replay is verified with
@@ -48,8 +48,9 @@ fixes ([`apps/gnome-remote-desktop/docs/design.md`](../docs/design.md)); `0007` 
 ([`../README.md`](../README.md)); `0008` is the backpressure/cooldown guard
 ([`../README.md`](../README.md) #4); and `0009`–`0013` are the corrected
 handover/reconnect series; `0014`–`0015` are the Firefox-stall diagnosis and
-recovery; and `0016` extends that recovery to external VEPU contention by making
-the starvation detector actuate the software fallback. Patch `0007`'s quality settings remain relevant to the mainline
+recovery; `0016` makes the starvation detector actuate the software fallback;
+and `0017` fixes the uncached readback cliff that `0016` could not recover from.
+Patch `0007`'s quality settings remain relevant to the mainline
 forward port, while `0015` supersedes its startup encoder recreation with a
 forced IDR on the packaged Rockchip FFmpeg, which honours
 `MPP_ENC_SET_IDR_FRAME`.
@@ -106,7 +107,8 @@ timeout cleanup fixes from the old experiment.
 
 The published reconnect-only branch tip is
 [`eb91daf476dc`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commit/eb91daf476dc1c4ba23ccfdd8c077b8b83e84773).
-The local `~exp3` candidate is `2571326322c7` on top of diagnostic commit
-`1c870bc82d19`; it passes a full build and the RDP integration test. The exact
-Firefox stress plus macOS Windows App reconnect scenario still needs an on-box
-runtime re-test with matching FFmpeg commit `540657970efd` installed.
+Published `~exp3` is `2571326322c7` on top of diagnostic commit `1c870bc82d19`;
+it passes a full build and the RDP integration test but predates patches `0016`
+and `0017`. Local `exp5@b3f0e20` hardware testing validates `0017`. The exact
+full-screen-video plus macOS Windows App reconnect scenario still needs an
+on-box run with the complete current series and FFmpeg `da5befc806` installed.

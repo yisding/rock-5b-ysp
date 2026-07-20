@@ -124,6 +124,7 @@ donor and is not cited by any doc.)
 | ffmpeg-rockchip (documented build) | `nyanmisaka/ffmpeg-rockchip` | `40c412daccf0` (2026-04-23); preserved locally as branch `backup-pre-upgrade-master` | ffmpeg/README.md, [`video-libraries/ffmpeg/docs/implementation-comparison.md`](../video-libraries/ffmpeg/docs/implementation-comparison.md) |
 | ffmpeg-rockchip-81 canonical tip | `github.com/yisding/ffmpeg-rockchip-81`, branch `main` | `8b57e531d1fc` (`n8.2-dev-2444-g8b57e531d1`), 73 patch commits over current FFmpeg `master@ceabc9b306f5`; carries the reworked nyanmisaka stack, all unique refactor/Jellyfin correctness commits, and the encoder static-format/concurrency fix | [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md) §8, [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md) |
 | ffmpeg-rockchip-81 FFmpeg 8.0 line | `github.com/yisding/ffmpeg-rockchip-81`, branch `ffmpeg-80` | `be753f3bbb2c` (`n8.0.3-100-gbe753f3bbb`), 73 patch commits over current `release/8.0@435ae0581deb` | [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md) §8, [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md) |
+| ffmpeg-rockchip-81 normal-PPA encoder line | `github.com/yisding/ffmpeg-rockchip-81`, branch `fix/rkmpp-output-timeout` | `da5befc806c5a6179da3df825c9423918c9a10d3`, based on the FFmpeg 8.0 Rockchip line; retries transient synchronous input backpressure inside one 500 ms deadline and is exported as `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` | [`packaging/ppa/README.md`](../packaging/ppa/README.md), [`findings/2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md`](../findings/2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md) |
 | ffmpeg-rockchip-81 FFmpeg 8.1 line | `github.com/yisding/ffmpeg-rockchip-81`, branch `ffmpeg-81` | `8d3ca020b6a2` (`n8.1.2-93-g8d3ca020b6`), 71 patch commits over current `release/8.1@94138f6973dd`; replaces the local `rockchip-8.1.2@53b3551b9176` comparison branch as the published release line | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md) §8 |
 | Jellyfin FFmpeg Rockchip reference | `jellyfin/jellyfin-ffmpeg` | `jellyfin@455bfe539220` (`v8.1.2-1-13-g455bfe53`); effective comparison applied all 96 Debian patches in scratch worktree `/home/yi/Code/ffmpeg/jellyfin-ffmpeg-applied` | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md`](../video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md) |
 | FFmpeg upstream release tags | `FFmpeg/FFmpeg` | `n8.1.2@38b88335f99e` and `n8.0.3@151b17dd2400`; historical comparison/package bases | `video-libraries/ffmpeg/docs/implementation-comparison.md`; the PPA/GRD ABI base |
@@ -178,7 +179,7 @@ handover ownership/coalescing series. See
 `apps/gnome-remote-desktop/patches/README.md` and
 [`apps/gnome-remote-desktop/docs/profiling.md`](../apps/gnome-remote-desktop/docs/profiling.md).
 
-The current diagnostic candidate is the public
+The historical diagnostic candidate is the public
 [`debug/exp1-frame-starvation`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/debug/exp1-frame-starvation)
 branch at `1c870bc82d1920edfac1e1544b61bd7c7b9a1873`. It adds only rate-limited
 pipeline observability on top of `eb91daf`: counters and serials for buffer,
@@ -186,8 +187,17 @@ view, stale-drop, encode, submit, refresh, reset-wait, and cooldown progress,
 plus a suspected-starvation warning. It intentionally does not alter frame
 scheduling or backpressure behavior.
 
-The current GRD PPA source package exports `1c870bc` directly as
-`50.1+rkmpp+git20260717.1c870bc-0ubuntu1~exp2`; no source delta is applied.
+The current experimental-PPA source exports
+`2571326322c754de7608ef4afb1dff8e4d031cbd` directly as
+`50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3`; source publication `18626586`,
+arm64 build `33412698`, and the exact binary are Published. It layers recovery
+patch `0015` on the diagnostics but predates exported patches `0016` and `0017`.
+The current hardware-tested behavior is local `exp5@b3f0e20`, whose patch
+`0017` cached-copy readback fix is exported under
+[`apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/).
+That run is reproducible from the recorded base plus the complete 17-patch
+series even though no exp5 package has been published.
+
 The historical `a59c904` dirty snapshot remains reconstructible: commit
 `a59c904c99088235eb4de31ca340747d334494f3` plus the delta at
 [`packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch`](../packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch).

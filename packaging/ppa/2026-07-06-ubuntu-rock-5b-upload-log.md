@@ -2134,3 +2134,27 @@ See ../../configure --help for available options.
   [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698)
   completed successfully in 6m39s. Its build-time RDP test passed; TPM and EGL
   skipped on unavailable devices. Binary publication is pending at this check.
+
+## FFmpeg input-backpressure fix and publication recheck — 2026-07-19
+
+- Advanced the normal-PPA FFmpeg source to
+  `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` from
+  `ffmpeg-rockchip-81@da5befc806c5a6179da3df825c9423918c9a10d3`. The wrapper
+  now retries a synchronous `MPP_NOK` input handoff within the existing shared
+  500 ms deadline instead of waiting for output from a frame that was never
+  submitted, and maps an elapsed packet wait to `EAGAIN`.
+- Generated, signed, and uploaded the source package to
+  `ppa:yi-ding/ubuntu-rock-5b`; source lintian produced warnings only.
+  Launchpad Published source
+  [`18628833`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18628833),
+  arm64 build
+  [`33417109`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33417109)
+  completed successfully in 14m53s, and an exact-version API query confirmed
+  the `ffmpeg` arm64 binary is Published. Board installation and the sustained
+  GRD workload remain pending.
+- Rechecked the other formerly pending package lines through Launchpad's devel
+  API and exact-version binary queries. Experimental GRD `~exp3` source
+  `18626586`, successful build `33412698`, and its arm64 binary are Published.
+  Rewrite-kernel sources `18623665`/`18623666` and builds
+  `33406491`/`33406492` are Published/successful. These publication results do
+  not replace the open GRD or kernel board-runtime gates.

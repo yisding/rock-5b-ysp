@@ -251,7 +251,38 @@ installed. Do not manually pair `~exp3` with the older FFmpeg: the package
 dependency prevents that unsupported combination because the old encoder can
 still wait indefinitely.
 
-## 10. Open item: which DRM modifier does mutter's dma-buf carry?
+## 10. Exp5 closes the readback hang and exposes a separate encoder fallback
+
+The later `exp5@b3f0e20` run separates two problems that earlier sessions
+presented as one generic freeze:
+
+1. Exported patch `0017` copies the imported linear dma-buf into a cached,
+   driver-owned texture before `glReadPixels`. A full-screen YouTube run proved
+   the multi-minute EGL-thread wedge is gone: the thread bursts and idles,
+   submit age stays below one second and recovers, and no fallback-to-direct
+   readback occurred. The software path remains CPU-heavy and drops stale
+   frames, but it is fluid rather than wedged.
+2. Once that path recovered reliably, intermittent hardware-to-software
+   fallbacks remained. MPP and rkvenc2 traces showed the hardware completing
+   normally. The deployed FFmpeg wrapper (`540657970e`) occasionally received
+   `MPP_NOK` when the finite input task pool was momentarily full, then waited
+   for output from the refused, never-submitted frame and surfaced the elapsed
+   wait as `AVERROR_EXTERNAL`.
+
+FFmpeg fix `da5befc806` retries a refused synchronous put within the same 500 ms
+deadline and maps an elapsed packet wait to `EAGAIN`. Its object compiles, and
+normal-PPA source `18628833` plus arm64 build `33417109` are Published. The
+remaining acceptance gate is one combined board run with patch `0017` and that
+FFmpeg package: sustain full-screen video without a readback wedge or transient
+hardware fallback, then repeat the macOS Windows App reconnect scenario.
+
+The detailed evidence is split by boundary:
+
+- [uncached readback diagnosis and exp5 proof](../../../findings/2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md);
+- [driver/hardware exclusion](../../../findings/2026-07-19-grd-rkmpp-encoder-wedge-userspace-not-driver.md); and
+- [MPP backpressure mechanism and FFmpeg fix](../../../findings/2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md).
+
+## 11. Open item: which DRM modifier does mutter's dma-buf carry?
 
 Still the section's highest-value open measurement
 ([`baseline.md`](baseline.md) §2/§5): whether mutter's screencast dma-buf is

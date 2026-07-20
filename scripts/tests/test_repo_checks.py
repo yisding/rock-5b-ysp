@@ -225,6 +225,76 @@ class OperationalHelpTests(unittest.TestCase):
                     self.assertNotIn("/home/yi/", output)
 
 
+class DebugRamoopsTests(unittest.TestCase):
+    patch = (
+        REPO_ROOT
+        / "kernel-drivers/patches/debug-kernel/"
+        "0001-arm64-dts-rockchip-add-persistent-ramoops-to-rock-5b.patch"
+    )
+
+    def test_debug_dtb_uses_rk3588_persistent_low_memory(self) -> None:
+        text = self.patch.read_text(encoding="utf-8")
+
+        self.assertIn("0x110000-0x1f0000", text)
+        self.assertIn("minidump", text)
+        self.assertIn("ramoops@118000", text)
+        self.assertIn("reg = <0x0 0x00118000 0x0 0x000d0000>;", text)
+        self.assertIn("record-size = <0x00040000>;", text)
+        self.assertIn("console-size = <0x00080000>;", text)
+        self.assertIn("pmsg-size = <0x00010000>;", text)
+        self.assertNotIn("ramoops@4fe000000", text)
+
+    def test_debug_dtb_patch_is_well_formed(self) -> None:
+        result = subprocess.run(
+            ["git", "apply", "--numstat", str(self.patch)],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dts", result.stdout)
+
+    def test_enable_script_rejects_a_dtb_without_the_fixed_node(self) -> None:
+        script = (
+            REPO_ROOT
+            / "kernel-drivers/scripts/debug-kernel/enable-ramoops-capture.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("verify_packaged_ramoops", script)
+        self.assertIn("/reserved-memory/ramoops@118000", script)
+        self.assertIn(
+            'remove_list_item "$ENV_FILE" "user_overlays" "ramoops"',
+            script,
+        )
+        self.assertNotIn("ramoops@4fe000000", script)
+
+
+class PpaVersionConsistencyTests(unittest.TestCase):
+    def test_clean_installer_ffmpeg_drift_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            changelog = root / "packaging/ppa/ffmpeg/debian/changelog"
+            changelog.parent.mkdir(parents=True)
+            changelog.write_text(
+                "ffmpeg (7:8.0.3+new-0ubuntu1) resolute; urgency=medium\n",
+                encoding="utf-8",
+            )
+            installer = root / "packaging/ppa/clean-install-system-stack.sh"
+            installer.parent.mkdir(parents=True, exist_ok=True)
+            installer.write_text(
+                '#!/usr/bin/env bash\nFFMPEG_VERSION="7:8.0.3+old-0ubuntu1"\n',
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_ppa_ffmpeg_install_pin(root, errors)
+
+            self.assertEqual(len(errors), 1)
+            self.assertIn("does not match latest changelog", errors[0])
+
+
 class PassiveCoolingScriptTests(unittest.TestCase):
     script = SCRIPTS / "rock5b-passive-cooling-apply.sh"
 

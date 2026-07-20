@@ -66,7 +66,7 @@ philosophy as [Armbian packaging guide](../../packaging/docs/armbian-packaging.m
 
 | Group | Options | Catches |
 |-------|---------|---------|
-| Persistent crash capture | `PSTORE`, `PSTORE_RAM`, `PSTORE_CONSOLE`, `PSTORE_PMSG`, `PSTORE_FTRACE`; `PSTORE_DEFAULT_KMSG_BYTES=262144` | console/ftrace/pmsg records preserved in RAM across a reboot (built-in so pstore exists before userspace) |
+| Persistent crash capture | `PSTORE`, `PSTORE_RAM`, `PSTORE_CONSOLE`, `PSTORE_PMSG`; `PSTORE_DEFAULT_KMSG_BYTES=262144` | dmesg/console/pmsg records preserved in RAM across a reboot (built-in so pstore exists before userspace) |
 | Fail loudly, come back | `PANIC_ON_OOPS`, `SOFTLOCKUP_DETECTOR`, `HARDLOCKUP_DETECTOR`, `DETECT_HUNG_TASK` (timeout 60 s), `WQ_WATCHDOG`, `RCU_CPU_STALL_TIMEOUT=21` | stalls/wedges become panics ramoops can record, instead of a silent hang |
 | Readable traces | `KALLSYMS_ALL`, `STACKTRACE`, `FRAME_POINTER`, `GDB_SCRIPTS` | symbolized stacks in the pstore dump |
 | Memory sanitizers | `KASAN` (`GENERIC`, `INLINE`, `VMALLOC`), `PAGE_OWNER`, `PAGE_POISONING`, `DEBUG_PAGEALLOC`, `PAGE_TABLE_CHECK`, `DMA_API_DEBUG(_SG)`, `DEBUG_SG`, `DEBUG_LIST`, `DEBUG_PLIST`, `DEBUG_NOTIFIERS` | UAF/OOB (the bsp-audit.md HIGH class), DMA mapping misuse (dma-buf import paths, how-the-drivers-work.md §6), corrupted lists |
@@ -85,26 +85,37 @@ KCSAN race kernel in [`rewrite-validation-plan.md`](./rewrite-validation-plan.md
 
 ## 4. Enable ramoops capture (+ persistent journal)
 
-Ramoops needs a reserved-memory region the kernel can find at boot. On Armbian
-this is a **user DT overlay** plus boot args — the enable script writes, the
-disable script removes, both back up `/boot/armbianEnv.txt` first:
+Ramoops needs a reserved-memory region the boot chain preserves. The debug DTB
+package carries `/reserved-memory/ramoops@118000`: `reg = <0x0 0x118000 0x0
+0xd0000>`, `no-map`, `record-size = 0x40000`, `console-size = 0x80000`,
+`pmsg-size = 0x10000`, and `ecc-size = <16>`. Rockchip's pinned 6.1 BSP
+(`develop-6.1@b4ef083dc0c3`, `rk3588-linux.dtsi`) reserves
+`0x110000-0x1f0000` for ramoops, uses the first 32 KiB for its firmware boot
+log, and starts a separate minidump slot at `0x1f0000`. The upstream node uses
+`0x118000-0x1e8000`, deliberately excluding both vendor-only areas and leaving
+the last 32 KiB unassigned. Linux RAM starts at `0x200000`. Upstream ramoops
+does not support Rockchip's vendor-only `boot-log-size` property.
 
-- Overlay `/boot/overlay-user/ramoops.dtbo` (from a ~20-line dts): under
-  `/reserved-memory`, node `ramoops@4fe000000` — `reg = <0x4 0xfe000000 0x0
-  0x00400000>` (4 MiB high in DRAM), `no-map`, `record-size = 0x40000`,
-  `console-size = 0x100000`, `ftrace-size = 0x100000`, `pmsg-size = 0x40000`,
-  `ecc-size = <16>`; `user_overlays=ramoops` in `armbianEnv.txt`.
+The old overlay at `0x4fe000000` was wrong: that top-of-DRAM range is rewritten
+across an RK3588 reset. Its ten persistent-RAM zones consequently failed ECC
+validation on every boot and `/sys/fs/pstore` stayed empty. The enable script
+now verifies the fixed node in `/boot/dtb/rockchip/rk3588-rock-5b.dtb`, removes
+the obsolete managed overlay and its `user_overlays=ramoops` selection, then
+configures the remaining boot/sysctl policy:
+
 - `extraargs` += `pstore.backend=ramoops pstore.kmsg_bytes=262144
   printk.always_kmsg_dump=1 panic=10`.
-- `/etc/modules-load.d/ramoops.conf` (module autoload) and
+- `/etc/modules-load.d/ramoops.conf` (harmless with the built-in driver) and
   `/etc/sysctl.d/99-ramoops-panic-on-oops.conf` (`kernel.panic_on_oops=1`).
 
-> This is a **runtime-applied-once-per-boot overlay**, which is fine — the
-> deadlock trap in [gotchas](../../docs/gotchas.md) is about `rmdir`ing a live
-> *configfs* overlay, not about boot-time `user_overlays`.
-
-Verify after reboot: `lsmod | grep ramoops`, `sysctl kernel.panic_on_oops`,
+Verify after reboot: `test -d /sys/module/ramoops`, `sysctl kernel.panic_on_oops`,
 `dmesg | grep -i 'ramoops\|pstore'`, `ls /sys/fs/pstore`.
+
+> **Validation state (2026-07-19):** the high-DRAM ECC failure is measured and
+> the replacement range is source-inspected against the pinned BSP. The tracked
+> patch is structurally validated, but the rebuilt DTB and a crash-across-reset
+> pstore record still need an on-board re-test before this is treated as a
+> proven capture path.
 
 **Persistent journal** (so the *previous boot's* userspace logs survive too):
 point `/var/log/journal` at `/var/log.hdd/journal` (Armbian's zram log
@@ -131,7 +142,7 @@ silently replace the debug kernel mid-investigation.
    headers separately with `|| true` once let a leftover locally-built KASAN
    headers package shadow the stock ones and silently break every out-of-tree
    module build — the lockstep reinstall is the fix.
-3. Run the ramoops disable script (§4 removals).
+3. Run the ramoops disable script (§4 policy/obsolete-overlay removals).
 4. **Verify header/kernel agreement**: diff the `CONFIG_KASAN`/
    `CONFIG_MODVERSIONS` lines of `/boot/config-$(uname -r)` vs
    `/lib/modules/$(uname -r)/build/.config`; if they differ, out-of-tree
@@ -161,7 +172,6 @@ Pstore mounts at `/sys/fs/pstore` (ramoops backend). After a captured crash:
 sudo ls -l /sys/fs/pstore
 # dmesg-ramoops-*    ← the oops/panic kmsg dump (what you usually want)
 # console-ramoops-0  ← last console output (PSTORE_CONSOLE)
-# ftrace-ramoops-0   ← function trace at crash (PSTORE_FTRACE)
 # pmsg-ramoops-0     ← userspace-written records (PSTORE_PMSG)
 sudo cat /sys/fs/pstore/dmesg-ramoops-0 | less
 ```

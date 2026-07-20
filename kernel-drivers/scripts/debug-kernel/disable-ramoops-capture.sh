@@ -6,7 +6,9 @@ usage() {
 Usage: sudo bash disable-ramoops-capture.sh
 
 Backs up /boot/armbianEnv.txt, removes only files marked as managed by the
-ramoops enable script, and removes its boot arguments/overlay selection.
+ramoops enable script, and removes its boot arguments/obsolete overlay
+selection. The debug DTB's fixed persistent-memory reservation remains until
+the stock DTB package is restored.
 EOF
 }
 
@@ -122,5 +124,6 @@ if [[ -d "$OVERLAY_DIR" ]] && ! find "$OVERLAY_DIR" -mindepth 1 -print -quit | g
 fi
 
 echo
-echo "Ramoops capture changes are removed. Reboot for the boot-time changes to stop applying:"
+echo "Ramoops panic policy changes are removed. The debug DTB still contains ramoops."
+echo "Restore the stock DTB package to remove its reservation, then reboot:"
 echo "  sudo reboot"

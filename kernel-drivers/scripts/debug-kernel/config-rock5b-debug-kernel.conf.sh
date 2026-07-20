@@ -22,13 +22,13 @@ KERNEL_BTF="yes"
 
 function custom_kernel_config__rock5b_hard_reboot_debug() {
 	# Persistent crash capture. Make ramoops built-in so pstore is available
-	# before userspace loads modules, and include console/pmsg/ftrace records.
+	# before userspace loads modules, and include console/pmsg records. The
+	# RK3588 persistent low-memory window is too small for a useful ftrace zone.
 	opts_y+=(
 		"PSTORE"
 		"PSTORE_RAM"
 		"PSTORE_CONSOLE"
 		"PSTORE_PMSG"
-		"PSTORE_FTRACE"
 	)
 	opts_val["PSTORE_DEFAULT_KMSG_BYTES"]="262144"
 
@@ -109,6 +109,7 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 	# KASAN is the main memory sanitizer for this build; do not also enable
 	# lighter-weight or race-oriented sanitizers that can conflict or add noise.
 	opts_n+=(
+		"PSTORE_FTRACE"
 		"KFENCE"
 		"KCSAN"
 		"DEBUG_INFO_NONE"

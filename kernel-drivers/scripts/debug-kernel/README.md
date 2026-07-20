@@ -2,7 +2,7 @@
 
 A heavy-debug Armbian `current` Rock 5B kernel for crash reproduction and driver
 debugging — KASAN + lockdep/prove-locking + DMA-API checks + fault injection +
-lockup/hung-task detectors + built-in ramoops console/pmsg/ftrace + DRM
+lockup/hung-task detectors + built-in ramoops dmesg/console/pmsg + DRM
 memory/modeset debug. Built through Armbian's Docker path by default against the
 external Armbian build tree (`WORKSPACE`, default
 `../../../../kernel/rock5b-kernel-build`), with the config seeded from the
@@ -12,9 +12,10 @@ The Armbian userpatch config is tracked here as
 [`config-rock5b-debug-kernel.conf.sh`](config-rock5b-debug-kernel.conf.sh).
 `build-debug-kernel.sh` first regenerates and stages the complete forward-port
 series through `build-armbian-deb.sh --stage-only`, then installs the config
-into `$WORKSPACE/armbian-build/userpatches/` before invoking `compile.sh`. The
-base is pinned to Armbian's exact 6.18.38 commit `e46dc0adfe39`; the external
-build tree is scratch, not the source of truth.
+and the debug-only ROCK 5B ramoops DT patch into
+`$WORKSPACE/armbian-build/userpatches/` before invoking `compile.sh`. The base
+is pinned to Armbian's exact 6.18.38 commit `e46dc0adfe39`; the external build
+tree is scratch, not the source of truth.
 
 > Perf numbers on this kernel are meaningless (KASAN instruments every access) —
 > use the production forward-port build for benchmarking.
@@ -48,7 +49,7 @@ rollback and cannot replace the known-good image/DTB debs.
 RECOVERY_READY=1 PHASH='P####-C####' \
   ./install-debug-kernel.sh                  # exact debs, diagnostic capture,
                                              # dpkg -i, then apt-mark hold
-sudo ./enable-ramoops-capture.sh             # ramoops DT overlay + panic_on_oops
+sudo ./enable-ramoops-capture.sh             # verify packaged DT + panic_on_oops
 sudo ./enable-persistent-journal.sh          # optional: journald survives reboots
 sudo reboot
 ```
@@ -66,8 +67,10 @@ After a panic/oops, pstore dumps land in `/sys/fs/pstore/`; pair them with
 
 ## Restore the stock kernel
 
-`./disable-ramoops-capture.sh` reverses the ramoops overlay/sysctl, then undo the
-apt hold and reinstall the stock package (this replaces the old
+`./disable-ramoops-capture.sh` reverses the crash-policy sysctl/boot arguments
+and removes the obsolete overlay selection. The fixed ramoops node remains in
+the debug DTB until the stock DTB is restored. Then undo the apt hold and
+reinstall the stock package (this replaces the old
 `restore-stock-current-kernel.sh`, removed in the 2026-07-04 consolidation):
 
 ```bash

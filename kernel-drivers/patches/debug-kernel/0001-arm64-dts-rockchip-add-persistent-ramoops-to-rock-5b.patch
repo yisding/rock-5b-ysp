@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ROCK 5B debug kernel <debug-kernel@localhost>
+Date: Sun, 19 Jul 2026 00:00:00 -0700
+Subject: [PATCH] arm64: dts: rockchip: add persistent ramoops to ROCK 5B
+
+The previous userspace overlay placed ramoops near the top of DRAM.  The
+RK3588 boot chain does not preserve that range across reset, so every boot
+reported bad ECC headers and pstore was always empty.
+
+Use the low persistent range selected by Rockchip's RK3588 BSP, below the
+Linux RAM start at 0x200000.  The BSP dedicates 0x110000-0x1f0000 to ramoops,
+uses 0x110000-0x118000 for firmware boot logs, and starts a separate minidump
+reservation at 0x1f0000.  Give upstream ramoops 0x118000-0x1e8000, avoiding
+both vendor-only areas and leaving the last 32 KiB unassigned.
+
+The selected 832 KiB holds one 256 KiB panic/oops record, a 512 KiB console
+record, and a 64 KiB pmsg record.  Keep ECC enabled so genuine corruption is
+reported.
+
+Signed-off-by: ROCK 5B debug kernel <debug-kernel@localhost>
+---
+ arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dts | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dts b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dts
+index da13dafcbc82..9306473bd7bd 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dts
+@@ -7,6 +7,23 @@
+ / {
+ 	model = "Radxa ROCK 5B";
+ 	compatible = "radxa,rock-5b", "rockchip,rk3588";
++
++	reserved-memory {
++		/*
++		 * The BSP's boot log ends at 0x118000 and its minidump starts
++		 * at 0x1f0000. Linux RAM starts at 0x200000.
++		 */
++		ramoops: ramoops@118000 {
++			compatible = "ramoops";
++			reg = <0x0 0x00118000 0x0 0x000d0000>;
++			no-map;
++			record-size = <0x00040000>;
++			console-size = <0x00080000>;
++			pmsg-size = <0x00010000>;
++			ecc-size = <16>;
++		};
++	};
++
+ };
+ 
+ &sdio {
+-- 
+2.43.0

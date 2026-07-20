@@ -54,7 +54,9 @@ KERNEL_PACKAGE_HELPERS = (
 )
 TRUST_TAGS = {
     "CODE-INSPECTED",
+    "COMPILE-VERIFIED",
     "CONFIG-INSPECTED",
+    "CONFIRMED",
     "DESIGN",
     "HYPOTHESIS",
     "INFERRED",
@@ -581,6 +583,67 @@ def check_kernel_package_helpers(
                 )
 
 
+def check_ppa_ffmpeg_install_pin(root: Path, errors: list[str]) -> None:
+    """Keep PPA export, documentation, and migration on one FFmpeg version."""
+    changelog_path = root / "packaging/ppa/ffmpeg/debian/changelog"
+    installer_path = root / "packaging/ppa/clean-install-system-stack.sh"
+    if not changelog_path.is_file() or not installer_path.is_file():
+        return
+
+    changelog_match = re.search(
+        r"^ffmpeg \(([^)]+)\)",
+        changelog_path.read_text(encoding="utf-8", errors="replace"),
+        re.MULTILINE,
+    )
+    installer_match = re.search(
+        r'^FFMPEG_VERSION="([^"]+)"',
+        installer_path.read_text(encoding="utf-8", errors="replace"),
+        re.MULTILINE,
+    )
+    if changelog_match is None:
+        errors.append("packaging/ppa/ffmpeg/debian/changelog: no leading ffmpeg version")
+        return
+    if installer_match is None:
+        errors.append(
+            "packaging/ppa/clean-install-system-stack.sh: no FFMPEG_VERSION pin"
+        )
+        return
+    if installer_match.group(1) != changelog_match.group(1):
+        errors.append(
+            "packaging/ppa/clean-install-system-stack.sh: FFMPEG_VERSION "
+            f"{installer_match.group(1)!r} does not match latest changelog "
+            f"{changelog_match.group(1)!r}"
+        )
+
+    latest_version = changelog_match.group(1)
+    readme_path = root / "packaging/ppa/README.md"
+    if readme_path.is_file() and latest_version not in readme_path.read_text(
+        encoding="utf-8", errors="replace"
+    ):
+        errors.append(
+            "packaging/ppa/README.md: latest FFmpeg changelog version "
+            f"{latest_version!r} is not documented"
+        )
+
+    exporter_path = root / "packaging/ppa/build-source-packages.sh"
+    if exporter_path.is_file():
+        exporter_match = re.search(
+            r'FFMPEG_UPSTREAM_VERSION="\$\{FFMPEG_UPSTREAM_VERSION:-([^}]+)\}"',
+            exporter_path.read_text(encoding="utf-8", errors="replace"),
+        )
+        if exporter_match is None:
+            errors.append(
+                "packaging/ppa/build-source-packages.sh: no default "
+                "FFMPEG_UPSTREAM_VERSION"
+            )
+        elif exporter_match.group(1) not in latest_version:
+            errors.append(
+                "packaging/ppa/build-source-packages.sh: default FFmpeg upstream "
+                f"version {exporter_match.group(1)!r} does not match latest "
+                f"changelog {latest_version!r}"
+            )
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     errors: list[str] = []
@@ -598,6 +661,7 @@ def main() -> int:
     check_load_bearing_terminology(root, errors)
     check_project_briefs(root, errors)
     check_kernel_package_helpers(root, errors)
+    check_ppa_ffmpeg_install_pin(root, errors)
 
     for error in errors:
         print(error, file=sys.stderr)

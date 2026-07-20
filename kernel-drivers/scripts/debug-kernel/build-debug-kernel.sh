@@ -10,6 +10,8 @@ CONFIG_NAME="rock5b-debug-kernel"
 CONFIG_SOURCE="${ROOT_DIR}/config-${CONFIG_NAME}.conf.sh"
 CONFIG_DEST="${BUILD_DIR}/userpatches/config-${CONFIG_NAME}.conf.sh"
 KERNEL_CONFIG="${BUILD_DIR}/userpatches/linux-rockchip64-current.config"
+RAMOOPS_PATCH_SOURCE="${ROOT_DIR}/../../patches/debug-kernel/0001-arm64-dts-rockchip-add-persistent-ramoops-to-rock-5b.patch"
+RAMOOPS_PATCH_DEST="${BUILD_DIR}/userpatches/kernel/archive/rockchip64-6.18/zz-rock5b-debug-ramoops.patch"
 
 usage() {
 	printf 'Usage: %s [--install-deps]\n' "$(basename "$0")"
@@ -38,6 +40,11 @@ fi
 # userpatches happen to be left in the external scratch tree.
 WORKSPACE="${WORKSPACE}" ARMBIAN_BUILD="${BUILD_DIR}" IOMMU_DEBUG=no \
 	bash "${FORWARD_PORT_BUILDER}" --stage-only
+
+# Keep the debug-only persistent RAM reservation in the package's base DTB.
+# The generic forward-port builder resets userpatches on every run, so stage
+# this after it has regenerated the shared series.
+install -D -m 0644 "${RAMOOPS_PATCH_SOURCE}" "${RAMOOPS_PATCH_DEST}"
 
 install -D -m 0644 "${CONFIG_SOURCE}" "${CONFIG_DEST}"
 

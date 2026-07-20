@@ -5,10 +5,12 @@
 > gnome-remote-desktop `exp5`, FFmpeg `8.0.3+rockchip+540657970e` `h264_rkmpp`,
 > MPP `1.0.12` (`mpp-rockchip @ 1375813c`), RK3588, full-screen video over RDP.
 > Source: MPP library trace (`mpp_enc_debug=0x101b0`, `mpi_debug=0x3`) captured
-> live across ~6 wedge events, daemon 452265.
+> live across ~6 wedge events, daemon 452265; `rkmppenc.c` at deployed commit
+> `540657970e` and fix commit `da5befc806`.
 > Date: 2026-07-19
 > Trust: MEASURED (mpi/mpp_enc trace at the failure) / SOURCE-INSPECTED
-> (`mpp.c` `mpp_put_frame_async`) / CONFIRMED (driver exonerated separately)
+> (`mpp.c` and both wrapper revisions) / COMPILE-VERIFIED (`rkmppenc.o`) /
+> UNVERIFIED (post-fix RDP runtime)
 
 ## Root cause
 
@@ -88,9 +90,13 @@ and the send queue, can absorb the transient without those hazards.
    `540657970e` comment's stated intent ("return EAGAIN after this deadline") — a
    bounded wait elapsing means "no packet yet", not a hardware failure.
 
-Compile-verified (object build of `rkmppenc.o` in the configured tree). **Still
-needs a runtime rebuild + reproduce under sustained RDP video load** to confirm
-the wedge is gone. GRD needs no change; its fallback-on-genuine-stall is correct.
+The changed `rkmppenc.o` compiled, and package
+`7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` built successfully as
+[Launchpad build `33417109`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33417109);
+its source and binaries are Published in the normal PPA. **A board install and
+sustained RDP video re-test are still required** to confirm the wedge is gone.
+GRD needs no change for this failure; its fallback on a genuine stall remains
+correct.
 
 Complementary (optional): raise the MPP input task/buffer count so momentary
 60 fps spikes don't exhaust the pool at all; and (task c) shorten

@@ -5,8 +5,9 @@ usage() {
   cat <<'EOF'
 Usage: sudo bash enable-ramoops-capture.sh
 
-Backs up /boot/armbianEnv.txt, installs a managed ramoops overlay/module/sysctl,
-and enables panic capture for the next boot. Reverse the managed changes with
+Verifies the debug kernel's packaged ramoops reservation, backs up
+/boot/armbianEnv.txt, removes the obsolete high-DRAM overlay, and enables panic
+capture for the next boot. Reverse the managed policy changes with
 disable-ramoops-capture.sh.
 EOF
 }
@@ -21,6 +22,7 @@ ENV_FILE="/boot/armbianEnv.txt"
 OVERLAY_DIR="/boot/overlay-user"
 DTS_FILE="${OVERLAY_DIR}/ramoops.dts"
 DTBO_FILE="${OVERLAY_DIR}/ramoops.dtbo"
+DTB_FILE="${DTB_FILE:-/boot/dtb/rockchip/rk3588-rock-5b.dtb}"
 MODULES_FILE="/etc/modules-load.d/ramoops.conf"
 SYSCTL_FILE="/etc/sysctl.d/99-ramoops-panic-on-oops.conf"
 MARKER="Managed by enable-ramoops-capture.sh"
@@ -128,44 +130,36 @@ remove_list_item() {
   mv "$tmp" "$file"
 }
 
-write_overlay() {
-  mkdir -p "$OVERLAY_DIR"
+verify_packaged_ramoops() {
+  local reg
 
-  if [[ -e "$DTS_FILE" ]] && ! grep -q "$MARKER" "$DTS_FILE"; then
-    echo "${DTS_FILE} already exists and is not managed by this script; refusing to overwrite it." >&2
+  if [[ ! -r "$DTB_FILE" ]]; then
+    echo "Missing selected ROCK 5B DTB: ${DTB_FILE}" >&2
+    echo "Install the rebuilt linux-dtb-current-rockchip64 package first." >&2
     exit 1
   fi
 
-  cat >"$DTS_FILE" <<EOF
-/* ${MARKER} */
-/dts-v1/;
-/plugin/;
+  reg="$(fdtget -t x "$DTB_FILE" /reserved-memory/ramoops@118000 reg 2>/dev/null || true)"
+  if [[ "$reg" != "0 118000 0 d0000" ]]; then
+    echo "${DTB_FILE} does not contain the fixed ramoops reservation." >&2
+    echo "Expected /reserved-memory/ramoops@118000 reg = <0 118000 0 d0000>." >&2
+    echo "Install the rebuilt linux-dtb-current-rockchip64 package first." >&2
+    exit 1
+  fi
+}
 
-/ {
-    fragment@0 {
-        target-path = "/reserved-memory";
-        __overlay__ {
-            #address-cells = <0x02>;
-            #size-cells = <0x02>;
+remove_legacy_overlay() {
+  local removed_dts=0
 
-            ramoops@4fe000000 {
-                compatible = "ramoops";
-                reg = <0x4 0xfe000000 0x0 0x00400000>;
-                no-map;
-                record-size = <0x00040000>;
-                console-size = <0x00100000>;
-                ftrace-size = <0x00100000>;
-                pmsg-size = <0x00040000>;
-                ecc-size = <16>;
-            };
-        };
-    };
-};
-EOF
-
-  dtc -@ -I dts -O dtb -o "$DTBO_FILE" "$DTS_FILE"
-  echo "Wrote ${DTS_FILE}"
-  echo "Compiled ${DTBO_FILE}"
+  if [[ -e "$DTS_FILE" ]] && grep -q "$MARKER" "$DTS_FILE"; then
+    rm -f "$DTS_FILE"
+    removed_dts=1
+    echo "Removed obsolete ${DTS_FILE}"
+  fi
+  if [[ -e "$DTBO_FILE" && "$removed_dts" -eq 1 ]]; then
+    rm -f "$DTBO_FILE"
+    echo "Removed obsolete ${DTBO_FILE}"
+  fi
 }
 
 write_modules_load() {
@@ -202,11 +196,12 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-require_command dtc
+require_command fdtget
+verify_packaged_ramoops
 
 backup_file "$ENV_FILE"
-write_overlay
-ensure_list_item "$ENV_FILE" "user_overlays" "ramoops"
+remove_list_item "$ENV_FILE" "user_overlays" "ramoops"
+remove_legacy_overlay
 for arg in "${OLD_RAMOOPS_ARGS[@]}"; do
   remove_list_item "$ENV_FILE" "extraargs" "$arg"
 done
@@ -221,7 +216,7 @@ echo "Ramoops capture is configured. Reboot for it to take effect:"
 echo "  sudo reboot"
 echo
 echo "After reboot, verify with:"
-echo "  lsmod | grep ramoops"
+echo "  test -d /sys/module/ramoops && echo 'ramoops loaded'"
 echo "  sysctl kernel.panic_on_oops"
 echo "  sudo dmesg | grep -i 'ramoops\\|pstore'"
 echo "  sudo ls -l /sys/fs/pstore"

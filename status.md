@@ -36,9 +36,9 @@ separate table below so both remain scannable.
 | 4 | Clean-room rewrite drivers | 🚧 Current 6.18/mainline source tips incorporate the five applicable Rockchip 5.10 RGA reliability/cache-safety lessons and pass warning-free normal/memory/race clean-source gates. The post-reconciliation audit added booted 206-case KUnit evidence, before/after dmesg rejection, stronger safety/idle counters, required official-MPP core coverage, AVS2, and low-delay slice-poll cases; all device-free bad-fixture/build wiring passes. Existing package composites predate the source tip, and no current rewrite kernel has booted hardware proof. | 2026-07-17 | [conformance-gap audit](./kernel-drivers/docs/rewrite-conformance-gap-audit.md) |
 | 5 | ffmpeg tree | ⚠️ Canonical `main`, `ffmpeg-80`, and `ffmpeg-81` branches are published and source/FATE-validated; existing PPAs remain pinned to older tested commits, and AV1 MP4/MKV still lacks board re-validation. | 2026-07-16 | [FFmpeg status](./video-libraries/ffmpeg/README.md) |
 | 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
-| 7 | GNOME Remote Desktop backend | ⚠️ The backend sustains 60 fps, but the live `~exp1` handover session froze after Firefox opened. Diagnostic-only `~exp2` at `1c870bc` adds rate-limited pipeline progress/starvation logging, passes full/local package builds and the RDP test, and built successfully in the experimental PPA. The freeze and original macOS reconnect scenario need re-testing. | 2026-07-17 | [`profiling and diagnostics`](./apps/gnome-remote-desktop/docs/profiling.md) |
+| 7 | GNOME Remote Desktop backend | ⚠️ The backend sustains 60 fps. Hardware-tested patch `0017` removes the uncached imported-buffer readback hang; the remaining intermittent hardware fallback was traced to transient MPP input-pool backpressure mishandled by FFmpeg. Wrapper fix `da5befc806` compiles and is Published in the normal PPA, but the combined RDP stress and macOS reconnect gates remain open. | 2026-07-19 | [`exp5 results and remaining gate`](./apps/gnome-remote-desktop/docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ⚠️ The recreated main system PPA and dedicated FFmpeg PPAs have Published sources and binaries. Main-PPA forward-port replacement source `18624245` and dedicated rewrite sources `18623665`/`18623666` are accepted. Experimental GRD diagnostic source `18625943` is accepted and arm64 build `33411510` succeeded; publication is pending. Optional GDM upload and board migration/kernel/GRD runtime gates remain open. | 2026-07-17 | [`packaging/ppa/`](packaging/ppa/README.md) |
+| 9 | Launchpad PPA | ⚠️ The normal system stack, both dedicated FFmpeg comparisons, both rewrite-kernel replacements, and experimental GRD `~exp3` now have Published sources and successful arm64 builds. The normal PPA's latest FFmpeg is backpressure fix `da5befc806` (`18628833` / `33417109`). Optional GDM upload and board migration/kernel/GRD runtime gates remain open. | 2026-07-19 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
@@ -59,7 +59,7 @@ dashboard date and ledger row when public state changes.
 | 4 | Clean-room rewrite drivers | Rebuild/package one current July 17 source tip; persist 206 green booted KUnit results, then capture paired clean-dmesg/counter/artifact evidence including AVS2 and H.264/H.265 low-delay slice polling. | [Remaining rewrite hardware gates](./kernel-drivers/docs/rewrite-conformance-gap-audit.md#remaining-gaps-and-hardware-gates) |
 | 5 | ffmpeg tree | Re-test AV1 from MP4 and MKV through `av1_rkmpp` on RK3588. | [AV1 follow-up evidence](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md#av1-follow-up) |
 | 6 | ffmpeg submissions | Submit the first patch from the ordered upstream/fork plan and record its review URL. | [Suggested first wave](./video-libraries/ffmpeg/docs/submission-plan.md#suggested-first-wave) |
-| 7 | GNOME Remote Desktop backend | Reproduce the Firefox-triggered freeze against `~exp2`, preserve the `[RDP.PIPELINE]` transition, then re-test macOS Windows App reconnect before promotion. | [Diagnostic signals](./apps/gnome-remote-desktop/docs/profiling.md#8-pipeline-starvation-diagnostics-in-the-exp2-package) |
+| 7 | GNOME Remote Desktop backend | Install the patch-`0017` GRD build with FFmpeg `da5befc806`, sustain the full-screen-video workload without a readback wedge or transient hardware fallback, then re-test macOS Windows App reconnect. | [Combined acceptance gate](./apps/gnome-remote-desktop/docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback) |
 | 8 | Mesa / Panfrost | Rebase !42679 and rerun its selected CI coverage. | [MR tips and selected CI](./video-libraries/mesa/README.md#mr-status) |
 | 9 | Launchpad PPA | Install, boot, and revert the co-installable forward-port kernel on the ROCK 5B. | [Kernel package checklist](./packaging/ppa/kernel-forward-port/README.md#remaining-checklist) |
 | 10 | Binary publishing | Choose and record the repository-wide license required before a public release. | [License decision boundary](./LICENSE.md) |
@@ -92,12 +92,12 @@ last-checked date.
 | W02 | [Armbian patcher precedence](#watch-w02) | 2026-07-11 | Core-wins behavior unchanged; rename workaround still required. |
 | W03 | [Armbian codec-udev upstreaming](#watch-w03) | 2026-07-11 | PR merged; future images should carry the rule. |
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-07-11 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
-| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-17 | GRD `~exp2` source accepted and arm64 build `33411510` succeeded; publication is pending. |
+| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-19 | Latest normal FFmpeg, GRD `~exp3`, and both rewrite-kernel replacements are Published with successful arm64 builds. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-07-11 | Four MRs open; !42679 needs a rebase. |
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-16 | Three canonical branch tips published; source validation passed. |
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-16 | Fix carried forward; board re-test pending. |
 | W09 | [Kodi build and tty1 playback](#watch-w09) | 2026-07-11 | Prerequisites ready; build/playback/package pending. |
-| W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-17 | Diagnostic `~exp2` branch and source are public; Firefox-freeze capture, macOS reconnect test, and upstream MR remain pending. |
+| W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-19 | Readback patch `0017` passed hardware stress and the FFmpeg backpressure fix is Published; combined stress, macOS reconnect, packaging/promotion, and upstream review remain pending. |
 | W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
@@ -152,44 +152,26 @@ last-checked date.
 
 - **Why recheck:** Acceptance, build state, and binary publication can change
   after upload without a local repository edit.
-- **Last checked:** 2026-07-17
-- **State then:** The recreated `ubuntu-rock-5b` main PPA had all seven current
-  sources and their binaries Published: MPP, librga, co-installable FFmpeg 6.1,
-  the forward-port kernel, FFmpeg 8.0.3, GRD, and codec-udev 1.1. FFmpeg build
-  [`33397317`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397317),
-  GRD build
-  [`33397319`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397319),
-  and codec-udev build
-  [`33399688`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33399688)
-  succeeded, and the main PPA had zero archive dependencies. The upstream and
-  Rockchip FFmpeg 8.1 PPAs each had one source plus 29 binaries Published.
-  At 16:07 PDT the main PPA had also accepted 5.10-reconciled forward-port
-  kernel source
-  [`18624245`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18624245);
-  arm64 build
-  [`33407351`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33407351)
-  was running while source `18619788` and its binaries remained Published.
-  On 2026-07-16 the rewrite-kernel PPAs accepted Armbian-based 6.18.38 source
-  [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665)
-  and 7.2-rc3 source
-  [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666);
-  arm64 builds
+- **Last checked:** 2026-07-19
+- **State then:** Launchpad's API and exact-version binary queries showed the
+  current package lines Published. In the normal PPA, FFmpeg source
+  [`18628833`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18628833)
+  carries `da5befc806`; arm64 build
+  [`33417109`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33417109)
+  succeeded and the exact `ffmpeg` binary is Published. The two Armbian-based
+  rewrite replacements are also Published: 6.18.38 source/build
+  [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665) /
   [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491)
-  and
-  [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492)
-  were still running at 12:37 PDT. Historical 6.18.0 and 7.2-rc2 binaries remain
-  Published until the replacements complete. The experimental archive accepted
-  GRD reconnect-v2 source publication
-  [`18620800`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18620800)
-  and arm64 build
-  [`33399816`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33399816).
-  A 2026-07-15 recheck confirmed the build succeeded.
-  On 2026-07-17, the experimental archive accepted the GRD `~exp2` source and
-  arm64 build
-  [`33411510`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33411510)
-  succeeded; binary publication remained pending.
-  The main PPA has no dependency on the experimental archive. The optional GDM
-  ACL package was not uploaded, and no PPA kernel had passed its board gate.
+  and 7.2-rc3 source/build
+  [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666) /
+  [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492).
+  Experimental GRD `~exp3` source
+  [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586),
+  successful build
+  [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698),
+  and its exact arm64 binary are Published. The normal PPA has no dependency on
+  the experimental archive. The optional GDM ACL package was not uploaded, and
+  no PPA kernel had passed its board gate.
 
 <a id="watch-w06"></a>
 ### W06 — Mesa MR stack
@@ -252,17 +234,17 @@ last-checked date.
 - **Why recheck:** The corrected series must reproduce the original macOS
   reconnect failure before promotion, and the submission claim needs a public
   review artifact.
-- **Last checked:** 2026-07-17
-- **State then:** The live `~exp1` handover session froze after Firefox opened,
-  while the kernel stayed responsive and showed no new fault. Public branch
-  [`debug/exp1-frame-starvation`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/debug/exp1-frame-starvation)
-  at `1c870bc82d19` adds rate-limited `[RDP.PIPELINE]` progress counters and a
-  suspected-starvation warning without changing renderer scheduling. Clean
-  Meson/Ninja and Debian arm64 builds passed; the RDP test passed. Experimental
-  `~exp2` source publication `18625943` was accepted and build `33411510`
-  succeeded in 6m24s. Publication, reproducing the Firefox freeze with the new
-  logs, the exact macOS
-  Windows App reconnect, and an upstream GNOME MR remained pending.
+- **Last checked:** 2026-07-19
+- **State then:** Diagnostic `~exp2` and recovery `~exp3` narrowed the original
+  graphics-thread stall; the latter is Published as source `18626586` and build
+  `33412698`. Subsequent local `exp5@b3f0e20` hardware testing proved exported
+  patch `0017` removes the uncached imported-buffer readback hang. The fluid
+  session then exposed a distinct intermittent encode fallback: MPP refused a
+  frame under transient input-pool pressure, while FFmpeg `540657970e` waited
+  for output from that never-submitted frame. Wrapper fix `da5befc806` is
+  Published in the normal PPA, but the combined patch-`0017`/fixed-FFmpeg stress
+  run, the exact macOS Windows App reconnect, packaging/promotion of the current
+  GRD source, and an upstream GNOME review remain pending.
 
 <a id="watch-w11"></a>
 ### W11 — Repository-wide license

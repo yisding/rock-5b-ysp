@@ -13,7 +13,7 @@ line first, then applies the clean-room rewrite series.
 | Binary packages | `linux-image-ysp-alpha-6.18-rockchip64`, `linux-dtb-ysp-alpha-6.18-rockchip64`, `linux-headers-ysp-alpha-6.18-rockchip64` |
 | Kernel release | `6.18.38-ysp-alpha-6.18-rockchip64` |
 | Debian version | `6.18.38+rk3588rewritealpha20260715-0ubuntu1` |
-| Publication state | Source publication [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665) is accepted and arm64 build [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491) is running. The historical vanilla-based 6.18.0 binaries remain Published until the replacement build completes. |
+| Publication state | Source publication [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665), successful arm64 build [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491), and the exact replacement binaries are Published. |
 
 ## Source inputs
 

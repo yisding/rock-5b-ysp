@@ -24,6 +24,9 @@ finding mixes evidence types:
 - **MEASURED** — observed on hardware or in a recorded run.
 - **CODE-INSPECTED**, **CONFIG-INSPECTED**, or **SOURCE-INSPECTED** — checked
   directly against the named pinned source.
+- **COMPILE-VERIFIED** — the affected source compiled, but runtime behavior was
+  not exercised.
+- **CONFIRMED** — independent evidence corroborates the stated attribution.
 - **INFERRED** — a conclusion supported by the recorded evidence but not
   observed directly.
 - **HYPOTHESIS** — a candidate explanation that still needs a discriminating
@@ -50,7 +53,7 @@ in the watchlist.
 
 Each row: `` `YYYY-MM-DD-slug.md` `` — one-line summary — trust tag.
 
-- `` `2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md` `` — the MPP userspace trace pins the encoder wedge: under sustained 60fps, `mpi_encode_put_frame` returns MPP_NOK (input task pool momentarily exhausted → backpressure) and GRD’s strict 1-in-1-out low-delay model then times out `get_packet` (MPP_ERR_TIMEOUT/-8 → AVERROR_EXTERNAL) instead of draining and retrying, so it drops to software; transient/recovers. Fix belongs in GRD’s ffmpeg encode session (honor the libavcodec send/receive EAGAIN contract) — MEASURED / SOURCE-INSPECTED / CONFIRMED.
+- `` `2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md` `` — sustained 60 fps can momentarily exhaust MPP's input task pool; the deployed FFmpeg wrapper waited for output from the refused, never-submitted frame and surfaced a timeout as hardware failure. The fix belongs in the wrapper, not GRD: `da5befc806` retries the refused synchronous put within one 500 ms deadline and maps an elapsed packet wait to `EAGAIN`. It compiles and is Published in the normal PPA; the live RDP stress re-test remains pending — MEASURED / SOURCE-INSPECTED / COMPILE-VERIFIED.
 - `` `2026-07-19-grd-rkmpp-encoder-wedge-userspace-not-driver.md` `` — driver task tracing at the exact failure second and a concurrent `mpi_enc_test` show GRD's frames completing normally in rkvenc2 while FFmpeg reports `AVERROR_EXTERNAL`, exonerating the kernel/hardware and narrowing the wedge to MPP/FFmpeg packet delivery; the exact mechanism was subsequently pinned as MPP input backpressure in the newer finding above — MEASURED / CONFIRMED / INFERRED.
 
 - `` `2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md` `` — the gnome-remote-desktop RDP session wedges under a busy desktop (e.g. YouTube); traced live with gdb + matched symbols to the "GRD EGL thread" spinning at 99.9% CPU in Mesa `convert_ubyte`, i.e. `download_in_impl`'s `glReadPixels(GL_BGRA)` reading the imported linear dma-buf that panthor maps **uncached**, so Mesa's per-pixel format-convert fallback crawls (seconds-minutes/frame) and the view-creation thread blocks on it. Fixed consumer-side by patch `0017` (GPU copy into a cached scratch texture, then read that back); the earlier starvation-recovery patch `0016` was based on a wrong premise and does not fix it. The two-gate deadlock and VEPU-starvation framings were symptoms — MEASURED / SOURCE-INSPECTED / CONFIRMED.

@@ -97,14 +97,14 @@ plus the same counter-default validation with `LIBRGA_FORCE_RGA_USERPTR_IOMMU=1`
 passed, including the forced RGA userptr-IOMMU fallback counter-default wiring
 and the cache-line boundary-fuzzer build check.
 
-The Published 6.18 and 7.2-rc2 alpha binaries remain historical vanilla-based
-builds. The dedicated PPAs accepted replacement sources `18623665` and
-`18623666`, exporting the Armbian-based composites `8daf5e9513b8` (6.18.38
+The dedicated PPAs now publish replacement sources `18623665` and `18623666`,
+exporting the Armbian-based composites `8daf5e9513b8` (6.18.38
 current/forward-port base) and `24f7424fb958` (`v7.2-rc3` plus bleedingedge)
 with the July 15 rewrite hardening applied last. Their arm64 builds `33406491`
-and `33406492` were still running at 12:37 PDT on 2026-07-16. Wait for the
-replacement binaries to publish, then install and boot one before treating a
-packaged board run as validation of the current source.
+and `33406492` succeeded, and exact replacement binaries are Published. Install
+and boot one before treating a packaged board run as validation of those
+composites; the newer July 17 source tips described above still require a fresh
+package before package testing can stand in for current-source validation.
 
 ## Expanded conformance bundle
 
