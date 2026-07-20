@@ -66,7 +66,7 @@ philosophy as [Armbian packaging guide](../../packaging/docs/armbian-packaging.m
 
 | Group | Options | Catches |
 |-------|---------|---------|
-| Persistent crash capture | `PSTORE`, `PSTORE_RAM`, `PSTORE_CONSOLE`, `PSTORE_PMSG`; `PSTORE_DEFAULT_KMSG_BYTES=262144` | dmesg/console/pmsg records preserved in RAM across a reboot (built-in so pstore exists before userspace) |
+| Persistent crash capture | `PSTORE`, `PSTORE_RAM`, `PSTORE_CONSOLE`, `PSTORE_PMSG`, `PSTORE_FTRACE`; `PSTORE_DEFAULT_KMSG_BYTES=262144` | dmesg/console/pmsg records preserved in RAM across a reboot (built-in so pstore exists before userspace; the ftrace frontend stays compiled but has no DT RAM zone) |
 | Fail loudly, come back | `PANIC_ON_OOPS`, `SOFTLOCKUP_DETECTOR`, `HARDLOCKUP_DETECTOR`, `DETECT_HUNG_TASK` (timeout 60 s), `WQ_WATCHDOG`, `RCU_CPU_STALL_TIMEOUT=21` | stalls/wedges become panics ramoops can record, instead of a silent hang |
 | Readable traces | `KALLSYMS_ALL`, `STACKTRACE`, `FRAME_POINTER`, `GDB_SCRIPTS` | symbolized stacks in the pstore dump |
 | Memory sanitizers | `KASAN` (`GENERIC`, `INLINE`, `VMALLOC`), `PAGE_OWNER`, `PAGE_POISONING`, `DEBUG_PAGEALLOC`, `PAGE_TABLE_CHECK`, `DMA_API_DEBUG(_SG)`, `DEBUG_SG`, `DEBUG_LIST`, `DEBUG_PLIST`, `DEBUG_NOTIFIERS` | UAF/OOB (the bsp-audit.md HIGH class), DMA mapping misuse (dma-buf import paths, how-the-drivers-work.md §6), corrupted lists |
