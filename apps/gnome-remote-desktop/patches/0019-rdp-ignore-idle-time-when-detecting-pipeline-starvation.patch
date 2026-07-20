@@ -1,0 +1,92 @@
+From 3e4480e066d30ba44015ae1b8cb3bbb92fe6414e Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Mon, 20 Jul 2026 08:42:46 -0700
+Subject: [PATCH] rdp: ignore idle time when detecting pipeline starvation
+
+The pipeline watchdog measures a stall from the most recent hardware
+submission. When output is suppressed while the RDP client is unfocused, that
+timestamp can become arbitrarily old even though no work is outstanding. The
+first captured frame after focus returns then appears to have been stalled for
+the entire idle interval and immediately forces software encoding.
+
+Record when the pipeline transitions from drained to having outstanding view
+or encode work, and include that timestamp in the starvation baseline. This
+preserves the existing watchdog for continuously busy pipelines while giving
+newly resumed work the normal timeout window.
+---
+ src/grd-rdp-renderer.c | 28 ++++++++++++++++++++++++++--
+ 1 file changed, 26 insertions(+), 2 deletions(-)
+
+diff --git a/src/grd-rdp-renderer.c b/src/grd-rdp-renderer.c
+index 56bf80d..50b3dda 100644
+--- a/src/grd-rdp-renderer.c
++++ b/src/grd-rdp-renderer.c
+@@ -90,6 +90,7 @@ typedef struct
+   int64_t started_us;
+   int64_t last_buffer_us;
+   int64_t last_submit_us;
++  int64_t outstanding_work_started_us;
+   int64_t last_encode_duration_us;
+   int64_t last_starvation_warning_us;
+ } RdpPipelineDiagnostics;
+@@ -212,9 +213,14 @@ grd_rdp_renderer_notify_pipeline_event (GrdRdpRenderer      *renderer,
+                                         int64_t              value)
+ {
+   RdpPipelineDiagnostics *diagnostics = &renderer->pipeline_diagnostics;
++  gboolean had_outstanding_work;
++  gboolean has_outstanding_work;
+   int64_t now_us = g_get_monotonic_time ();
+ 
+   g_mutex_lock (&renderer->pipeline_diagnostics_mutex);
++  had_outstanding_work =
++    diagnostics->views_started > diagnostics->views_completed ||
++    diagnostics->encodes_started > diagnostics->encodes_completed;
+   ++diagnostics->generation;
+ 
+   switch (event)
+@@ -270,6 +276,14 @@ grd_rdp_renderer_notify_pipeline_event (GrdRdpRenderer      *renderer,
+       break;
+     }
+ 
++  has_outstanding_work =
++    diagnostics->views_started > diagnostics->views_completed ||
++    diagnostics->encodes_started > diagnostics->encodes_completed;
++  if (!had_outstanding_work && has_outstanding_work)
++    diagnostics->outstanding_work_started_us = now_us;
++  else if (!has_outstanding_work)
++    diagnostics->outstanding_work_started_us = 0;
++
+   g_mutex_unlock (&renderer->pipeline_diagnostics_mutex);
+ }
+ 
+@@ -287,6 +301,7 @@ log_pipeline_diagnostics (gpointer user_data)
+   gboolean warn_about_starvation = FALSE;
+   gboolean recover_from_starvation = FALSE;
+   int64_t now_us = g_get_monotonic_time ();
++  int64_t starvation_baseline_us;
+   int64_t stall_age_us = 0;
+   int64_t last_buffer_age_ms;
+   int64_t last_submit_age_ms;
+@@ -302,8 +317,17 @@ log_pipeline_diagnostics (gpointer user_data)
+   has_outstanding_work =
+     diagnostics.views_started > diagnostics.views_completed ||
+     diagnostics.encodes_started > diagnostics.encodes_completed;
+-  stall_age_us =
+-    now_us - MAX (diagnostics.last_submit_us, diagnostics.started_us);
++  /*
++   * Do not charge an idle/output-suppressed interval to work that only became
++   * outstanding when capture resumed. The last submission still wins while a
++   * continuously busy pipeline is making progress.
++   */
++  starvation_baseline_us = MAX (diagnostics.last_submit_us,
++                                diagnostics.started_us);
++  if (diagnostics.outstanding_work_started_us > 0)
++    starvation_baseline_us = MAX (starvation_baseline_us,
++                                  diagnostics.outstanding_work_started_us);
++  stall_age_us = now_us - starvation_baseline_us;
+   if (has_outstanding_work &&
+       stall_age_us >= PIPELINE_STARVATION_THRESHOLD_US &&
+       now_us - diagnostics.last_starvation_warning_us >=
+-- 
+2.55.0
+

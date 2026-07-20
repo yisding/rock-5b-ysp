@@ -8,19 +8,20 @@ default.
 ## Current exporter pin
 
 The helper currently archives
-`GRD_COMMIT=2571326322c754de7608ef4afb1dff8e4d031cbd` as
-`50.1+rkmpp+git20260717.2571326`. That commit is clean, but it is not advertised
-by a public branch or tag: a 2026-07-19 `git ls-remote` check found the public
-reconnect base only at `rdp-handover-reconnect-v2@eb91daf476dc`.
+`GRD_COMMIT=3e4480e066d30ba44015ae1b8cb3bbb92fe6414e` as
+`50.1+rkmpp+git20260720.8.3e4480e`. That clean final candidate is published on
+the fork's `main`; its compiled source is reproducible from base
+`c14e09ef67e916ae83a4eddee6a56591078e78e0` plus tracked patches `0001`–`0019`
+under
+[`../../../../apps/gnome-remote-desktop/patches/`](../../../../apps/gnome-remote-desktop/patches/README.md).
 
 Use Launchpad source publication `18626586` for a byte-exact reconstruction of
-the `~exp3` source package. For code review, the public
-`c14e09ef67e916ae83a4eddee6a56591078e78e0` base plus tracked patches
-`0001`–`0015` under
-[`../../../../apps/gnome-remote-desktop/patches/`](../../../../apps/gnome-remote-desktop/patches/README.md)
-recreates the compiled source. It intentionally lacks two documentation-only
-changes from the GRD checkout and therefore is not a replacement orig tarball.
-The default helper still needs a checkout containing `2571326`; override
+the historical `~exp3@2571326` source package. The current default helper needs
+a checkout containing `3e4480e` (available on `yding/main`); the tracked
+19-patch replay is the portable
+code-review boundary but is not a byte-for-byte replacement for the local orig
+tarball because the source checkout also contains documentation-only history.
+Override
 `GRD_REPO`, `GRD_COMMIT`, `GRD_UPSTREAM_VERSION`, and `GRD_DELTA` together for
 any other snapshot.
 
@@ -59,5 +60,5 @@ GRD_DELTA="$PWD/packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-w
 bash packaging/ppa/build-source-packages.sh grd
 ```
 
-The default helper instead exports the `2571326` snapshot documented above,
+The default helper instead exports the `3e4480e` snapshot documented above,
 with an empty `GRD_DELTA`.

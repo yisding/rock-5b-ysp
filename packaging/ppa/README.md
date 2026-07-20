@@ -94,6 +94,7 @@ Last recorded through Launchpad's devel API and exact-version binary queries at
 | `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Fresh-main source publication [`18619787`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619787) and its arm64 tool binary are Published. | Co-installable `/opt/ffmpeg-rockchip` tools; does not replace system FFmpeg. |
 | `gnome-remote-desktop` (normal stack) | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2` | Source publication [`18619824`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619824), successful arm64 build [`33397319`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397319), and the arm64 binary are Published. | Current normal-stack package; local build links the RKMPP backend against `libavcodec.so.62`/`libavutil.so.60`. |
 | `gnome-remote-desktop` (recovery candidate) | `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3` | Experimental source publication [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586), successful arm64 build [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698), and the exact arm64 binary are Published. | Reuses the smoke-tested RKMPP context, forces IDR refreshes without reopen, falls back to software after an encode timeout, and runs diagnostics independently. It predates exported readback patch `0017`; the local RDP harness timed out before its daemon listened, so the current combined board/reconnect gates remain. |
+| `gnome-remote-desktop` (local focus-return candidate) | `50.1+rkmpp+git20260720.8.3e4480e-0ubuntu1~exp7` | Source package and native arm64 binary build locally; lintian has only long-filename warnings. Installation/combined live validation remain. Predecessor `exp6@7e958e6` is installed and live-validates the ACK recovery on the ROCK 5B. Not published. | Adds exported patches `0016`–`0019`, requires FFmpeg `da5befc806`, recovers stalled reconstructed ACK history, and prevents focus-idle time from immediately tripping the hardware-starvation software fallback. The explicit same-day sequence keeps Debian version ordering above `exp6`. |
 | forward-port kernel | `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source publication [`18626523`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18626523) and arm64 build [`33412608`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33412608) succeeded; the exact image is in the live PPA index. | Full 40-patch Armbian build `Pbc61-C40aa`, source validation/extraction, install, and boot pass, but conformance Oopsed. The maintained series now adds KASAN-verified `0042`/`0043`; this Published package predates them. Rebuild, isolated functional conformance, and rollback remain. |
 | alpha rewrite kernel 6.18 | `6.18.38+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Source publication [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665), successful arm64 build [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491), and the exact binaries are Published. | Armbian current/forward-port 6.18.38 source layer, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
 | alpha rewrite kernel 7.2-rc3 | `7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Source publication [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666), successful arm64 build [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492), and the exact binaries are Published. | Official v7.2-rc3 plus Armbian bleedingedge, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
@@ -119,7 +120,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`librga/debian/`](librga/debian/changelog) | Debian packaging for the local `librga-fork` commit `a632217`, including the P010/P210 work. |
 | [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg 8.0.3 packaging for the RKMPP/RKRGA forward port at backpressure-fix commit `da5befc806`. |
 | [`ffmpeg-rockchip/debian/`](ffmpeg-rockchip/debian/changelog) | Co-installable `/opt/ffmpeg-rockchip` packaging for nyanmisaka's FFmpeg 6.1 Rockchip fork at `40c412daccf0`. |
-| [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging retargeted to the pinned `GRD_COMMIT` source snapshot with `-Dffmpeg=enabled`; an optional `GRD_DELTA` reconstructs legacy dirty snapshots. The current commit is clean but is not advertised by a public branch or tag; see the [source reconstruction note](gnome-remote-desktop/source-deltas/README.md#current-exporter-pin). |
+| [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging retargeted to the pinned `GRD_COMMIT` source snapshot with `-Dffmpeg=enabled`; an optional `GRD_DELTA` reconstructs legacy dirty snapshots. The current clean commit is published on the fork's `main`; see the [source reconstruction note](gnome-remote-desktop/source-deltas/README.md#current-exporter-pin). |
 | [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md) | Historical tracked-file GRD deltas retained to reconstruct older dirty source-package snapshots. |
 | [`codec-udev/`](codec-udev/README.md) | Native PPA source wrapper for the canonical unprivileged MPP/RGA/DMA-heap access rule. |
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source-package wrapper for the optional GDM greeter hardware-encode ACL rule. |
@@ -153,7 +154,7 @@ variables.
 | nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
 | nyanmisaka FFmpeg Rockchip commit | `FFMPEG_ROCKCHIP_COMMIT` | `40c412daccf08164493da0de990eb99a8948116b` |
 | GRD repo | `GRD_REPO` | `$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop` |
-| GRD snapshot commit | `GRD_COMMIT` | `2571326322c754de7608ef4afb1dff8e4d031cbd` (present in the packaging checkout; not on a public ref as checked 2026-07-19) |
+| GRD snapshot commit | `GRD_COMMIT` | `3e4480e066d30ba44015ae1b8cb3bbb92fe6414e` (`yding/main`; portable code reconstruction is the 19-patch series on `c14e09e`) |
 | Optional GRD source delta | `GRD_DELTA` | Empty; set explicitly only for a historical dirty snapshot such as [`dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch) |
 | Forward-port kernel worktree | `KERNEL_PPA_REPO` | `$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Forward-port kernel config | `KERNEL_PPA_CONFIG` | `$KERNEL_PPA_REPO/.config` |
@@ -243,10 +244,10 @@ that its contents match the freshly exported source tree; stale orig tarballs
 fail loudly instead of silently changing the source-package delta.
 
 The GRD exporter archives the clean pinned `GRD_COMMIT` before creating the
-orig tarball. The current default (`2571326`) is not on a public ref, so a fresh
-clone of the public fork alone cannot satisfy that default. Retrieve the exact
-source from experimental-PPA publication `18626586`, or use the source-code
-replay boundary documented in
+orig tarball. The current default (`3e4480e`) is published on `yding/main`, so a
+fresh clone of the public fork can satisfy it. Its compiled code can also be
+reconstructed from `c14e09e` plus exported patches `0001`–`0019`; see the
+detailed boundary documented in
 [`source-deltas/README.md`](gnome-remote-desktop/source-deltas/README.md#current-exporter-pin).
 `GRD_DELTA` is empty by default; when explicitly non-empty, the helper applies
 it after the archive export. Override `GRD_REPO`, `GRD_COMMIT`,
@@ -462,12 +463,14 @@ source publication `18619787` and the copied tool binary are Published.
 
 ### GNOME Remote Desktop
 
-The current experimental GRD package is based on clean commit
-`2571326322c7`, directly on top of diagnostic commit `1c870bc82d19`. It keeps
-the reconnect-v2 and rate-limited `[RDP.PIPELINE]` diagnostics, reuses the
-smoke-tested RKMPP context, refreshes stale content with a forced IDR rather
-than repeatedly reopening MPP, falls back to software after a bounded encode
-failure, and moves the pipeline watchdog to an independent main context.
+The current local GRD package candidate is based on clean commit
+`3e4480e066d3`. It includes the published `~exp3@2571326` behavior, exported
+patches `0016`/`0017`, patch `0018`'s bounded RDPGFX acknowledgement-resume
+recovery, and patch `0019`'s focus-idle starvation-baseline correction. It
+reuses the smoke-tested RKMPP context, refreshes stale
+content with a forced IDR rather than repeatedly reopening MPP, falls back to
+software after a bounded encode failure, and moves the pipeline watchdog to an
+independent main context.
 `build-source-packages.sh` exports that git
 archive directly, removes generated `*.spv` shader outputs, overlays
 [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog), and
@@ -491,9 +494,14 @@ not reach the changed encode path. The experimental PPA uses the normal PPA's
 bounded-wait FFmpeg development package appeared in the live index, Launchpad
 accepted `~exp3` as source publication `18626586`; arm64 build `33412698`
 succeeded in 6m39s with the RDP test passing and TPM/EGL skipping. The source
-and exact arm64 binary are Published. This package predates exported patches
-`0016` and `0017`; local `exp5@b3f0e20` supplies the hardware-tested readback fix
-that the next candidate must include.
+and exact arm64 binary are Published. That package predates exported patches
+`0016`–`0019`. Local `exp5@b3f0e20` supplies the hardware-tested readback fix;
+installed `exp6@7e958e6` adds the ACK-resume candidate and passes focused tests
+plus a full arm64 binary build. Its live recovery restored hardware submissions
+after two stalled ACKs, and the same run exposed a false focus-idle starvation
+fallback; final candidate `exp7@3e4480e` adds `0019` and removes the
+noisy frame-slot diagnostic. Its source and native arm64 package builds pass;
+installation and the next live gate remain.
 
 ### GDM Greeter Hardware Encode ACL
 

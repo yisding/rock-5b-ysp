@@ -36,7 +36,7 @@ separate table below so both remain scannable.
 | 4 | Clean-room rewrite drivers | 🚧 Current 6.18/mainline source tips incorporate the five applicable Rockchip 5.10 RGA reliability/cache-safety lessons and pass warning-free normal/memory/race clean-source gates. The post-reconciliation audit added booted 206-case KUnit evidence, before/after dmesg rejection, stronger safety/idle counters, required official-MPP core coverage, AVS2, and low-delay slice-poll cases; all device-free bad-fixture/build wiring passes. Existing package composites predate the source tip, and no current rewrite kernel has booted hardware proof. | 2026-07-17 | [conformance-gap audit](./kernel-drivers/docs/rewrite-conformance-gap-audit.md) |
 | 5 | ffmpeg tree | ⚠️ Public refs for canonical `main`, `ffmpeg-80`, and `ffmpeg-81` remain at the source/FATE-validated tips. The normal PPA uses separate 8.0 branch `fix/rkmpp-output-timeout@da5befc806`; it is built/Published but still needs the combined GRD runtime gate. The canonical tips and AV1 MP4/MKV path still lack new board validation. | 2026-07-19 | [FFmpeg status](./video-libraries/ffmpeg/README.md) |
 | 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
-| 7 | GNOME Remote Desktop backend | ⚠️ The backend sustains 60 fps. Hardware-tested patch `0017` removes the uncached imported-buffer readback hang; the remaining intermittent hardware fallback was traced to transient MPP input-pool backpressure mishandled by FFmpeg. Wrapper fix `da5befc806` compiles and is Published in the normal PPA, but the combined RDP stress and macOS reconnect gates remain open. | 2026-07-19 | [`exp5 results and remaining gate`](./apps/gnome-remote-desktop/docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback) |
+| 7 | GNOME Remote Desktop backend | ⚠️ The backend sustains 60 fps; patch `0017` fixes uncached imported-buffer readback and published FFmpeg `da5befc806` fixes transient MPP input backpressure. Two macOS focus-return failures are now isolated: `0018@34145d9`'s reconstructed-ACK recovery is live-validated after two stalled ACKs, and GDB proved idle time was falsely charged as a 42.493-second pipeline stall (`0019@3e4480e`). The final 19-patch tip and `exp7` arm64 package build; combined install/live validation remains. | 2026-07-20 | [`ACK wedge`](./findings/2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md), [`false starvation`](./findings/2026-07-20-grd-focus-return-false-pipeline-starvation.md) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
 | 9 | Launchpad PPA | ⚠️ The normal system stack, both dedicated FFmpeg comparisons, both rewrite-kernel replacements, and experimental GRD `~exp3` now have Published sources and successful arm64 builds. The normal PPA's latest FFmpeg is backpressure fix `da5befc806` (`18628833` / `33417109`). Optional GDM upload and board migration/kernel/GRD runtime gates remain open. | 2026-07-19 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
@@ -60,7 +60,7 @@ dashboard date and ledger row when public state changes.
 | 4 | Clean-room rewrite drivers | Rebuild/package one current July 17 source tip; persist 206 green booted KUnit results, then capture paired clean-dmesg/counter/artifact evidence including AVS2 and H.264/H.265 low-delay slice polling. | [Remaining rewrite hardware gates](./kernel-drivers/docs/rewrite-conformance-gap-audit.md#remaining-gaps-and-hardware-gates) |
 | 5 | ffmpeg tree | Re-test AV1 from MP4 and MKV through `av1_rkmpp` on RK3588. | [AV1 follow-up evidence](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md#av1-follow-up) |
 | 6 | ffmpeg submissions | Submit the first patch from the ordered upstream/fork plan and record its review URL. | [Suggested first wave](./video-libraries/ffmpeg/docs/submission-plan.md#suggested-first-wave) |
-| 7 | GNOME Remote Desktop backend | Install the patch-`0017` GRD build with FFmpeg `da5befc806`, sustain the full-screen-video workload without a readback wedge or transient hardware fallback, then re-test macOS Windows App reconnect. | [Combined acceptance gate](./apps/gnome-remote-desktop/docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback) |
+| 7 | GNOME Remote Desktop backend | Build/install `exp7@3e4480e`, repeat macOS focus-away/return cycles, require uninterrupted progress or one bounded ACK recovery followed by hardware frames, and reject any immediate starvation cooldown inherited from idle time. | [Focus/resume acceptance gate](./apps/gnome-remote-desktop/docs/testing.md#10-exp6exp7-macos-focusresume-gate) |
 | 8 | Mesa / Panfrost | Rebase !42679 and rerun its selected CI coverage. | [MR tips and selected CI](./video-libraries/mesa/README.md#mr-status) |
 | 9 | Launchpad PPA | Install, boot, and revert the co-installable forward-port kernel on the ROCK 5B. | [Kernel package checklist](./packaging/ppa/kernel-forward-port/README.md#remaining-checklist) |
 | 10 | Binary publishing | Choose and record the repository-wide license required before a public release. | [License decision boundary](./LICENSE.md) |
@@ -99,7 +99,7 @@ last-checked date.
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-19 | Canonical public tips unchanged; separate normal-PPA timeout branch remains at `da5befc806`. |
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-16 | Fix carried forward; board re-test pending. |
 | W09 | [Kodi build and tty1 playback](#watch-w09) | 2026-07-11 | Prerequisites ready; build/playback/package pending. |
-| W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-19 | Readback patch `0017` passed hardware stress and the FFmpeg backpressure fix is Published; combined stress, macOS reconnect, packaging/promotion, and upstream review remain pending. |
+| W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-20 | The reconstructed-ACK recovery is live-validated and the separate idle-time false starvation actuator is source-fixed; final tip `3e4480e` and its `exp7` arm64 package build, while combined install/live validation, publication/promotion, and upstream review remain. |
 | W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
@@ -237,10 +237,10 @@ last-checked date.
 <a id="watch-w10"></a>
 ### W10 — GRD reconnect validation/submission
 
-- **Why recheck:** The corrected series must reproduce the original macOS
-  reconnect failure before promotion, and the submission claim needs a public
-  review artifact.
-- **Last checked:** 2026-07-19
+- **Why recheck:** The corrected series must survive the exact macOS
+  focus-away/focus-return sequence before promotion, and the submission claim
+  needs a public review artifact.
+- **Last checked:** 2026-07-20
 - **State then:** Diagnostic `~exp2` and recovery `~exp3` narrowed the original
   graphics-thread stall; the latter is Published as source `18626586` and build
   `33412698`. Subsequent local `exp5@b3f0e20` hardware testing proved exported
@@ -248,9 +248,20 @@ last-checked date.
   session then exposed a distinct intermittent encode fallback: MPP refused a
   frame under transient input-pool pressure, while FFmpeg `540657970e` waited
   for output from that never-submitted frame. Wrapper fix `da5befc806` is
-  Published in the normal PPA, but the combined patch-`0017`/fixed-FFmpeg stress
-  run, the exact macOS Windows App reconnect, packaging/promotion of the current
-  GRD source, and an upstream GNOME review remain pending.
+  Published in the normal PPA. The next macOS focus-return wedge was captured
+  independently: the resumed connection retained 908 reconstructed frame ACKs
+  and zero frame slots despite live input/transport and healthy hardware.
+  Cleaned patch `0018@34145d9` adds transition logs and a progress-gated
+  two-second recovery. Its functional `~exp6@7e958e6` predecessor passes tests
+  and a local arm64 package build and is installed. The watchdog fired once
+  with two stalled ACKs, forced refresh, and restored hardware submissions,
+  runtime-validating that recovery. The same live run caught a second failure:
+  GDB showed the first new work after focus return was about
+  1 ms old but inherited a 42.493-second pre-idle submit age and immediately
+  fired the software cooldown. Patch `0019@3e4480e` gives newly outstanding
+  work a fresh watchdog window. The final source and native arm64 `exp7`
+  package build; install/live validation, publication/promotion, and an
+  upstream GNOME review remain.
 
 <a id="watch-w11"></a>
 ### W11 — Repository-wide license

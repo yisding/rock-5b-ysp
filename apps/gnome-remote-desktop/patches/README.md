@@ -8,10 +8,12 @@ branch of the GNOME fork `gitlab.gnome.org/yding/gnome-remote-desktop`, plus
 `0008` as the July 3 backpressure/cooldown follow-up, `0009`–`0013` from
 [`rdp-handover-reconnect-v2`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/rdp-handover-reconnect-v2),
 and the `0014`–`0015` diagnosis/recovery pair for the Firefox-triggered RKMPP
-stall, `0016`'s defensive starvation actuator, and `0017`'s hardware-verified
-fix for uncached imported-buffer readback.
+stall, `0016`'s defensive starvation actuator, `0017`'s hardware-verified fix
+for uncached imported-buffer readback, `0018`'s bounded recovery from a stalled
+RDPGFX frame-acknowledgement resume, and `0019`'s correction for focus-idle time
+being misclassified as pipeline starvation.
 
-The complete `0001`–`0017` series, including its `0001`–`0008` backend subset,
+The complete `0001`–`0019` series, including its `0001`–`0008` backend subset,
 applies to upstream commit `c14e09e` (`50.1` + 16). This base contains both the
 `cf250ed` VA-API revert required by `0003` and the GNOME-50 reconnection
 simplification that `0009` officially reverts. Replay is verified with
@@ -42,6 +44,8 @@ against `50.1`+16 — see its header.
 | 0015 | `rdp-recover-from-stalled-hardware-encoding` | 7 | Rely on bounded low-delay waits in the matching FFmpeg package, reuse the smoke-tested context, refresh stale content with a forced IDR instead of recreating MPP, recover to software on an encode error, and put the watchdog on an independent thread. Requires FFmpeg `540657970e` or newer. |
 | 0016 | `rdp-recover-from-pipeline-starvation-not-just-warn` | 1 | Make the starvation detector an **actuator** (escalate a sustained stall to `start_hw_encode_cooldown()`). ⚠️ **Does not fix the RK3588 wedge** — that turned out to be the `0017` readback cliff, not a recovery gap (the cooldown was already firing). Kept as a defensive improvement for genuine encode stalls; reconsider before upstreaming. See [finding](../../../findings/2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md). |
 | 0017 | `egl-thread-read-back-via-a-cached-GPU-copy` | 1 | **The actual RK3588 hang fix.** `download_in_impl` read the captured frame back with `glReadPixels(GL_BGRA)` straight off the imported dma-buf texture, which panthor maps **uncached**; Mesa's per-pixel `convert_ubyte` fallback over uncached memory costs seconds-to-minutes/frame → EGL thread pinned at 100% CPU → pipeline wedge. Copy the import into a cached, driver-owned scratch texture on the GPU (`glCopyTexSubImage2D`, GLES2-safe) and read *that* back cached; lazy/resized, falls back to the direct read. Upstream-general (helps any driver with uncached imports); see [finding](../../../findings/2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md) and the Mesa/panfrost bugs it also exposes. |
+| 0018 | `rdp-recover-when-resumed-frame-acknowledgements-stall` | 1 | Log RDPGFX acknowledgement suspend/resume state. When a real resume reconstructs suspended history but `totalFramesDecoded` makes no progress for two seconds, clear only that stale acknowledgement state, unthrottle surfaces, and force a full refresh/fresh render context. This preserves normal slow-client throttling and the intended suspend semantics; see [finding](../../../findings/2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md). |
+| 0019 | `rdp-ignore-idle-time-when-detecting-pipeline-starvation` | 1 | Record when a drained pipeline first gains outstanding view/encode work and include that timestamp in the starvation baseline. This prevents a focus return from charging the preceding idle/output-suppressed interval as an immediate hardware stall while preserving the watchdog for continuously busy pipelines; see [finding](../../../findings/2026-07-20-grd-focus-return-false-pipeline-starvation.md). |
 
 `0001`–`0003` are the backend; `0004`–`0006` are the panvk/hardware-enablement
 fixes ([`apps/gnome-remote-desktop/docs/design.md`](../docs/design.md)); `0007` is the mainline-rkmpp runtime fix
@@ -49,7 +53,9 @@ fixes ([`apps/gnome-remote-desktop/docs/design.md`](../docs/design.md)); `0007` 
 ([`../README.md`](../README.md) #4); and `0009`–`0013` are the corrected
 handover/reconnect series; `0014`–`0015` are the Firefox-stall diagnosis and
 recovery; `0016` makes the starvation detector actuate the software fallback;
-and `0017` fixes the uncached readback cliff that `0016` could not recover from.
+`0017` fixes the uncached readback cliff that `0016` could not recover from;
+`0018` bounds a separate client-focus/RDPGFX acknowledgement-resume stall; and
+`0019` prevents focus-idle time from falsely firing `0016`'s actuator.
 Patch `0007`'s quality settings remain relevant to the mainline
 forward port, while `0015` supersedes its startup encoder recreation with a
 forced IDR on the packaged Rockchip FFmpeg, which honours
@@ -109,6 +115,9 @@ The published reconnect-only branch tip is
 [`eb91daf476dc`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commit/eb91daf476dc1c4ba23ccfdd8c077b8b83e84773).
 Published `~exp3` is `2571326322c7` on top of diagnostic commit `1c870bc82d19`;
 it passes a full build and the RDP integration test but predates patches `0016`
-and `0017`. Local `exp5@b3f0e20` hardware testing validates `0017`. The exact
-full-screen-video plus macOS Windows App reconnect scenario still needs an
-on-box run with the complete current series and FFmpeg `da5befc806` installed.
+through `0019`. Local `exp5@b3f0e20` hardware testing validates `0017`.
+Installed `exp6@7e958e6` fired `0018` once in the live focus workload and
+restored hardware submissions, while also exposing the separate false
+starvation actuator on focus return. Candidate `exp7@3e4480e` carries the
+cleaned `0018@34145d9` plus `0019`; source and arm64 package builds pass, while
+install/repeated macOS focus validation remains with FFmpeg `da5befc806`.

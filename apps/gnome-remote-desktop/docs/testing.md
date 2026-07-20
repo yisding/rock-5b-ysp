@@ -223,3 +223,54 @@ A freeze is not accepted as fixed from process liveness alone. During the test,
 `journalctl -k` must remain free of codec/GPU/IOMMU faults, the independent
 pipeline watchdog must keep logging if submission stops, and the RDP socket's
 `bytes_sent` must continue increasing during visible motion.
+
+## 10. exp6/exp7 macOS focus/resume gate
+
+Patches `0018` and `0019` target two separate focus-return failures. Windows
+App can suspend RDPGFX frame acknowledgements while it is in another macOS
+desktop, then resume with enough reconstructed history to leave GRD throttled
+at zero frame slots. Independently, the first new view after an idle interval
+can be charged against the old pre-idle hardware-submission timestamp and
+immediately trigger a false pipeline-starvation cooldown.
+
+The first live pass used installed `exp6@7e958e6`. Its ACK watchdog fired once
+with two stalled acknowledgements, forced refresh, and restored hardware
+submissions, validating that recovery. GDB also caught the separate false
+42.493-second starvation decision exactly. Repeat the combined gate with final
+`exp7@3e4480e` and the matching FFmpeg pair:
+
+```bash
+dpkg-query -W -f='${Package}\t${Version}\n' \
+  libavcodec62 gnome-remote-desktop
+journalctl --user -u gnome-remote-desktop-handover.service -f \
+  -o short-iso --no-pager
+```
+
+The final GRD version must be
+`50.1+rkmpp+git20260720.8.3e4480e-0ubuntu1~exp7`, and `libavcodec62` must be at
+least `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1`.
+
+1. Connect from macOS Windows App and confirm AVC420/hardware encode using §7.
+2. Start YouTube or another continuously changing full-screen workload.
+3. Switch to a different macOS desktop for 15–30 seconds, return to Windows
+   App, and repeat several times.
+4. Require the image and input to remain live after every return. A short burst
+   of accumulated frames is useful evidence but is not itself a failure.
+5. Preserve all `[RDP.RDPGFX.ACK]`, `[RDP.PIPELINE]`, `[HWAccel.FFmpeg]`, and
+   `Hardware encode` journal lines.
+
+Expected transition logs include `Frame acknowledgements suspended` and `Frame
+acknowledgements resumed`. If the client resumes but makes no decode progress,
+the bounded recovery must emit `No frame-ack progress for 2000 ms`, return the
+surface to an unthrottled state, force a full refresh, and continue hardware
+frames. A focus return must not immediately emit `Hardware encode is
+unavailable (pipeline starvation)` with a duration inherited from the time
+spent away; a genuine continuously outstanding stall may still fire after the
+normal three-second threshold. A disconnected session, repeated recovery loop,
+software-only continuation, stalled socket, or kernel codec/GPU/IOMMU fault
+fails the gate.
+
+The core-backed diagnosis and exact counters are recorded in the
+[focus/resume acknowledgement finding](../../../findings/2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md).
+The independently captured false-actuator transition is recorded in the
+[focus-return pipeline-starvation finding](../../../findings/2026-07-20-grd-focus-return-false-pipeline-starvation.md).

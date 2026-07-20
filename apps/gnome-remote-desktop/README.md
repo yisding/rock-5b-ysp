@@ -16,9 +16,9 @@ a few percent CPU instead of a laggy, CPU-bound one.
 |-------|----------|
 | User outcome | Run an RDP session whose H.264 video stream is encoded by RK3588 hardware instead of software. |
 | Developer focus | Understand GRD's capture path, FFmpeg encode-session integration, RDP frame-ack behavior, zero-copy buffers, panvk RGB-to-NV12 conversion, and GDM greeter permissions. |
-| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 17-patch GRD investigation series. |
+| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 19-patch GRD investigation series. |
 | Depends on | Kernel drivers, userspace libraries, an rkmpp-enabled FFmpeg build, Mesa/Panfrost Vulkan support, and optional GDM codec ACL packaging. |
-| Current state | The 17-patch investigation series replays on `c14e09e` (`50.1` + 16), and the backend sustains 60 fps. Patch `0017` passed its targeted hardware test; the matching FFmpeg backpressure fix is Published, while their combined stress/reconnect gate remains open. See [`status.md`](../../status.md). |
+| Current state | The 19-patch investigation series replays on `c14e09e` (`50.1` + 16), and the backend sustains 60 fps. Patch `0017` and the matching published FFmpeg fix close the readback/backpressure failures. Core/GDB evidence isolates two focus-return failures: `0018@34145d9`'s reconstructed-ACK recovery is now live-validated, while `0019@3e4480e` fixes idle time falsely charged as pipeline starvation. Final source and `exp7` arm64 package builds pass; install/live validation of the combined tip remains. See [`status.md`](../../status.md). |
 
 | Piece | What | Status |
 |-------|------|--------|
@@ -45,7 +45,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | [`docs/testing.md`](docs/testing.md) | The benchmarking playbook (eviction hazard, env setup, HW-path checklist). |
 | [`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) | GRD-facing summary of the Mesa/Panfrost texture-transfer investigation behind the compute-path finding. |
 | [`bench/`](bench) | The benchmark this package owns — [`bench/README.md`](bench/README.md) plus [`readback_bench.c`](bench/readback_bench.c), the surfaceless `glReadPixels` readback timer behind `baseline.md`. |
-| [`patches/`](patches) | The full 17-patch GRD backend/reconnect/diagnostic series plus clearly separated async-PBO/MemFd reference prototypes; [`patches/README.md`](patches/README.md) maps the base, current disposition, and archival diffs. |
+| [`patches/`](patches) | The full 19-patch GRD backend/reconnect/diagnostic/recovery series plus clearly separated async-PBO/MemFd reference prototypes; [`patches/README.md`](patches/README.md) maps the base, current disposition, and archival diffs. |
 
 Packaging the whole stack for a Launchpad PPA is covered in
 [`packaging/ppa`](../../packaging/ppa).
@@ -83,9 +83,10 @@ dma-buf to the encoder zero-copy.
 > upstream-style `h264_rkmpp` bridge deployed at **FFmpeg 8.1.2**, not the
 > [`ffmpeg-rockchip` fork](../../video-libraries/ffmpeg). The current normal-PPA
 > candidate links the same bridge lineage at FFmpeg 8.0.3, on package branch
-> `fix/rkmpp-output-timeout@da5befc806`. Its Launchpad build is Published, but
-> the combined patch-`0017`/fixed-FFmpeg board gate is still open. Keep the
-> measured 8.1.2 proof separate from the current 8.0.3 package state.
+> `fix/rkmpp-output-timeout@da5befc806`. Its Launchpad build is Published and is
+> installed beneath the local `exp6` GRD package; the final `exp7` package
+> builds and still needs install plus repeated video/focus-resume validation. Keep the measured 8.1.2 proof separate from the
+> current 8.0.3 package state.
 
 ## Upstream-style FFmpeg 8.1.2 `h264_rkmpp` vs ffmpeg-rockchip
 
@@ -274,9 +275,10 @@ codec consumer:
 
 The **full exported investigation set** is in [`patches/`](patches). Patches
 `0001`–`0013` provide the rkmpp backend and corrected handover baseline;
-`0014`–`0017` preserve the later diagnostics, recovery, and uncached-readback
-work. The 17-patch set and the backend-only subset replay on `c14e09e` (`50.1`
-+ 16); pristine tag `50.1` lacks the `cf250ed` context required by `0003`.
+`0014`–`0019` preserve the later diagnostics, recovery, uncached-readback,
+RDPGFX acknowledgement-resume, and focus-idle watchdog work. The 19-patch set and the backend-only
+subset replay on `c14e09e` (`50.1` + 16); pristine tag `50.1` lacks the
+`cf250ed` context required by `0003`.
 Patches `0001`–`0003` are the backend, `0004`–`0006` are the
 panvk/hardware-enablement fixes (the "looked like a Mesa bug" journey — see
 [`design.md`](./docs/design.md)), `0007` is the two upstream-rkmpp runtime fixes
@@ -284,8 +286,12 @@ above (#1 IDR, #2 bitrate), and `0008` is the hardware-encode
 backpressure/cooldown guard (#4). `0009`–`0013` restore GNOME 50's two-stage
 handover and fix variant/socket/timer ownership while coalescing only
 simultaneously pending redirected sockets. `0014`–`0015` add diagnostics and
-bounded recovery, `0016` is a defensive starvation actuator, and `0017` is the
-hardware-verified cached-copy fix for the uncached readback cliff. Full map:
+bounded recovery, `0016` is a defensive starvation actuator, `0017` is the
+hardware-verified cached-copy fix for the uncached readback cliff, `0018`
+adds a progress-gated escape from stalled reconstructed frame ACK history, and
+`0019` prevents new work after focus-idle from inheriting the pre-idle submit
+age.
+Full map:
 [`patches/README.md`](patches/README.md).
 
 Bug **#3** (greeter access) is not a code change — it's the udev package in
@@ -298,15 +304,17 @@ Three pieces make up the acceptance stack:
 
 | Component | Current state | Needed? |
 |-----------|---------------|:---:|
-| `gnome-remote-desktop` | Normal-PPA `~rk2` is the older published baseline. Experimental `~exp3` (`2571326`, patches through `0015`) is Published, while hardware-tested local `exp5@b3f0e20` adds exported patch `0017` and is the current source behavior to package. | required |
+| `gnome-remote-desktop` | Normal-PPA `~rk2` is the older published baseline and experimental `~exp3` stops at `0015`. Hardware-tested `exp5@b3f0e20` adds `0017`; installed `exp6@7e958e6` live-validates the ACK recovery and exposed a false focus-idle starvation fallback. Final source candidate `exp7@3e4480e` adds cleaned `0018` plus `0019`. | required |
 | Rockchip FFmpeg 8.0.3 | Normal-PPA `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` is Published; it absorbs the transient MPP input-pool backpressure exposed by exp5. | required |
 | `gnome-remote-desktop-gdm-hwenc` `1.0` | Local opt-in package granting the stable `gdm` group access to codec nodes; not uploaded. | optional (login-screen HW) |
 
 The Launchpad path is a **published test path**, not yet the validated install
 path. Do not treat `~exp3` as the final candidate: it predates patches `0016`
-and `0017`. The next package/runtime gate is a GRD build carrying `0017`, paired
-with FFmpeg `da5befc806`, followed by the sustained-video and macOS reconnect
-checks in [`profiling.md` §10](./docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback).
+through `0019`. The current runtime gate starts from installed `exp6`, paired with
+FFmpeg `da5befc806`, running the sustained-video checks in
+[`profiling.md` §10](./docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback)
+and the focus/resume ACK gate in
+[`testing.md` §10](./docs/testing.md#10-exp6exp7-macos-focusresume-gate).
 Use [`packaging/ppa`](../../packaging/ppa) for exact publication IDs and the
 six-archive layout; use [`install.md`](../../install.md) for the kernel/codec
 stack chooser. Confirm a test session is really using hardware with the signal
