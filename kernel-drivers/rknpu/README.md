@@ -15,7 +15,7 @@ kernel driver — a different toolkit, model format (`.rkllm`), and runtime
 (`librkllmrt.so`), documented in
 [`docs/rkllm-large-language-models.md`](docs/rkllm-large-language-models.md).
 
-## Brief
+## Project brief
 
 | Field | Contents |
 |---|---|
@@ -25,7 +25,7 @@ kernel driver — a different toolkit, model format (`.rkllm`), and runtime
 | Depends on | A BSP kernel with `CONFIG_ROCKCHIP_RKNPU`, enabled RK3588 NPU/IOMMU DT nodes, matching RKNN Runtime/Toolkit2, and suitable render-node or `/dev/rknpu` access. |
 | Code lives in | Kernel: sibling `rockchip-kernel/drivers/rknpu/`. Userspace distribution: official [`airockchip/rknn-toolkit2`](https://github.com/airockchip/rknn-toolkit2) repository (`rknn-toolkit2/`, `rknn-toolkit-lite2/`, `rknpu2/runtime/`). |
 | Inspected tuple | `rockchip-kernel@b4ef083dc0c3`, RKNPU driver 0.9.8 (`20240828`), and `airockchip/rknn-toolkit2@59a913d172e7`, containing RKNN Runtime 2.3.2. |
-| Current ROCK 5B state | Architecture/source-inspected only. The repo does not yet contain an on-board RKNN inference result for the Resolute image, so support coverage C16 remains `UNASSESSED`. |
+| Current state | Architecture/source-inspected only. The repo does not yet contain an on-board RKNN inference result for the Resolute image, so support coverage C16 remains `UNASSESSED`; no dedicated dashboard track exists until runtime evidence establishes a sustained workstream. See [`../../status.md`](../../status.md) and [`../../docs/support-coverage.md`](../../docs/support-coverage.md) row C16. |
 
 ## Stack at a glance
 

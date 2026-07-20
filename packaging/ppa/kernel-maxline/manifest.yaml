@@ -26,7 +26,7 @@ public_series_ledger: public-series.tsv
 wip_donor_ledger: wip-donors.tsv
 verification:
   date: 2026-07-17
-  report: ../../../findings/2026-07-17-rk3588-maxline-implementation-and-build-record.md
+  report: verification.md
   architecture: arm64
   compile_gate: Image modules dtbs
   modules_per_profile: 3489

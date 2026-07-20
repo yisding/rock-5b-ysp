@@ -28,12 +28,14 @@ PERSONAL_HOME_DEFAULT_RE = re.compile(
     r"\$\{[A-Za-z_][A-Za-z0-9_]*:-[\"']?/(?:home|Users)/)"
 )
 PROJECT_BRIEF_READMES = (
+    "boot-firmware/README.md",
     "kernel-versions/README.md",
     "kernel-drivers/README.md",
     "kernel-drivers/mpp/README.md",
     "kernel-drivers/rga/README.md",
     "kernel-drivers/av1/README.md",
     "kernel-drivers/iommu/README.md",
+    "kernel-drivers/rknpu/README.md",
     "vendor-libraries/README.md",
     "vendor-libraries/mpp/README.md",
     "vendor-libraries/rga/README.md",
@@ -42,6 +44,7 @@ PROJECT_BRIEF_READMES = (
     "apps/gnome-remote-desktop/README.md",
     "apps/kodi/README.md",
     "packaging/README.md",
+    "packaging/ppa/kernel-maxline/README.md",
 )
 KERNEL_PACKAGE_DIRS = (
     "packaging/ppa/kernel-forward-port",
@@ -84,20 +87,29 @@ FINDING_TEMPLATE_MARKERS = (
 
 
 def check_readme_indexes(root: Path, errors: list[str]) -> None:
-    """Require each Markdown file to be named by its nearest owning README."""
+    """Require Markdown files and nested projects in their owning README."""
     for path in repository_markdown_files(root):
-        if path.name in {"README.md", "TEMPLATE.md"}:
+        if path.name == "TEMPLATE.md" or path == root / "README.md":
             continue
 
-        owner = path.parent
+        owner = path.parent.parent if path.name == "README.md" else path.parent
         while owner != root and not (owner / "README.md").is_file():
             owner = owner.parent
         readme = owner / "README.md"
         if not readme.is_file():
             continue
 
-        relative = path.relative_to(owner).as_posix()
         text = readme.read_text(encoding="utf-8", errors="replace")
+        if path.name == "README.md":
+            relative = path.parent.relative_to(owner).as_posix()
+            if relative not in text:
+                errors.append(
+                    f"{path.relative_to(root)}: project README not named in owning "
+                    f"{readme.relative_to(root)}"
+                )
+            continue
+
+        relative = path.relative_to(owner).as_posix()
         if relative not in text and path.name not in text:
             errors.append(
                 f"{path.relative_to(root)}: not named in owning "

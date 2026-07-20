@@ -13,7 +13,7 @@ shipping, or operating** the artifacts.
 | Developer focus | Keep deploy artifacts reproducible and auditable: DKMS source staging, udev policy, PPA source packages, rollback, binary publishing, and package boundaries. |
 | Owns | Packaging docs for `codec-udev/`, `gdm-hwenc/`, `dkms/`, `ppa/`, and the operations runbook for the rkmpp FFmpeg stack. |
 | Depends on | Kernel-driver artifacts, userspace libraries, FFmpeg/GRD package sources, and the status gates recorded in [`../status.md`](../status.md). |
-| Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only. The recreated system PPA publishes MPP, librga, codec access, FFmpeg 8.0.3, GRD, co-installable FFmpeg 6.1, and the forward-port kernel; four dedicated PPAs publish both FFmpeg 8.1 tracks and both rewrite kernels. Optional GDM upload and board migration/kernel gates remain pending. See [../status.md](../status.md). |
+| Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only. The recreated system PPA publishes MPP, librga, codec access, FFmpeg 8.0.3, GRD, co-installable FFmpeg 6.1, and the forward-port kernel; four dedicated PPAs publish both FFmpeg 8.1 tracks and both rewrite kernels. The local maximum-mainline profiles build and package but remain unbooted. Optional GDM upload and board migration/kernel gates remain pending. See [../status.md](../status.md). |
 
 ## The four delivery channels
 

@@ -42,6 +42,7 @@ separate table below so both remain scannable.
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
+| 13 | Maximum-mainline kernel | 🚧 The pinned upstream 7.2-rc3 `public` and `wip` integrations are reproducible, and both passed native arm64 kernel, package, payload, and external-module-headers checks. Neither has been installed, booted, or hardware-tested. | 2026-07-17 | [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
 
 ## Next gates
 
@@ -65,6 +66,7 @@ dashboard date and ledger row when public state changes.
 | 10 | Binary publishing | Choose and record the repository-wide license required before a public release. | [License decision boundary](./LICENSE.md) |
 | 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. | [Kodi tty1 runbook](./apps/kodi/docs/build-hwaccel.md#5-test-on-tty1-gbm-needs-drm-master) |
 | 12 | ROCK 5B SD/SPI boot chain | Substitute the 26.5.1 `current` FIT, loader, and then both on a captured 26.2.1 SD baseline; record where each boot stops or succeeds. | [Raw-SD hypothesis test](./scripts/README.md#rock-5b-raw-sd-u-boot-hypothesis-test) |
+| 13 | Maximum-mainline kernel | Install the `public` profile first with the known-good 6.18 packages and physical/serial recovery retained; prove explicit boot, storage, network, display, suspend, and rollback before trying `wip`. | [Recovery-first install and test order](./packaging/ppa/kernel-maxline/README.md#install-and-test-order) |
 
 > **Runtime gate pending.** The BSP-audit cleanup series still needs the runtime
 > codec regression test before it can ship. Compile status alone is not
@@ -104,6 +106,7 @@ last-checked date.
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-08 | Native compile reached; BTF link remains unproven. |
 | W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0040`; frozen base patch still has the old path. |
 | W16 | [Forward-port MPP/RKVENC lifetime fixes](#watch-w16) | 2026-07-19 | Patches `0042`/`0043` are exported and KASAN-verified; production packaging and isolated functional reruns remain. |
+| W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -339,3 +342,20 @@ last-checked date.
   [procfs fix](findings/2026-07-17-mpp-procfs-session-teardown-oops.md),
   [RESET_SESSION fix](findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md),
   and [RKVENC2 fix](findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md).
+
+<a id="watch-w17"></a>
+### W17 — Maximum-mainline proposal-set drift
+
+- **Why recheck:** Upstream Linux, public proposal revisions, and integration
+  branches move independently. The checked-in profiles remain reproducible,
+  but "maximum current public support" becomes stale without changing this
+  repository.
+- **Last checked:** 2026-07-17
+- **State then:** The exact upstream `v7.2-rc3` base, public integration
+  `f12fb0acf7bb`, WIP integration `74b24e96da62`, 38 public series
+  dispositions, and 26 WIP donors were pinned in
+  [`manifest.yaml`](packaging/ppa/kernel-maxline/manifest.yaml),
+  [`public-series.tsv`](packaging/ppa/kernel-maxline/public-series.tsv), and
+  [`wip-donors.tsv`](packaging/ppa/kernel-maxline/wip-donors.tsv). Both profiles
+  compiled and packaged; neither booted. Refresh those ledgers and preserve the
+  old identities before claiming a newer proposal set.

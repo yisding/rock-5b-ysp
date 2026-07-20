@@ -29,6 +29,12 @@ greeter ACL package has both the existing local deb source and a native PPA
 source wrapper under
 [`gdm-hwenc/`](gdm-hwenc/README.md).
 
+The sibling [`kernel-maxline/`](kernel-maxline/README.md) workstream is
+different: it is a local, reproducible build/package track for pinned public
+and WIP maximum-mainline 7.2-rc3 integrations. It has not been uploaded to a
+PPA, installed, booted, or hardware-validated, so it is deliberately absent
+from the live-archive table below.
+
 ## PPA Layout
 
 Each incompatible FFmpeg or rewrite-kernel line has its own archive. This
@@ -120,6 +126,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`kernel-forward-port/`](kernel-forward-port/README.md) | Launchpad source-package track for the forward-port kernel; records source inputs, packaging shape, generated artifacts, and remaining binary/board validation gates. |
 | [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Launchpad source-package track for the 6.18 alpha clean-room rewrite kernel. |
 | [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Launchpad source-package track for the Armbian-based 7.2-rc3 alpha clean-room rewrite kernel. |
+| [`kernel-maxline/`](kernel-maxline/README.md) | Local reproducible build/package track for the pinned maximum-mainline 7.2-rc3 `public` and `wip` integrations; both build and package, but neither has passed a board boot gate. |
 | [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md) | The detailed build, lintian, signing, upload, Launchpad, and retry log for the current run. |
 
 Generated `.dsc`, `.changes`, `.buildinfo`, orig tarballs, `.deb`, `.ddeb`, and

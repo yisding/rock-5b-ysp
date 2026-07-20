@@ -24,7 +24,7 @@ Repository-wide license status is not a cross-project doc; it lives at
 |-------|--------------|
 | U-Boot, RK3588 boot stages, firmware lineage comparison, and boot debugging | [`../boot-firmware/`](../boot-firmware/README.md) |
 | What the Rockchip 6.1 BSP adds vs stock Linux (13-file subtree) | [`../kernel-versions/bsp/`](../kernel-versions/bsp/README.md) |
-| Forward-port narrative, review log, vanilla / mainline-V4L2 notes | [`../kernel-versions/docs/`](../kernel-versions/README.md) |
+| Forward-port narrative, review log, vanilla/mainline-V4L2 notes, and the maximum-mainline build comparison | [`../kernel-versions/`](../kernel-versions/README.md), then [`../packaging/ppa/kernel-maxline/`](../packaging/ppa/kernel-maxline/README.md) |
 | MPP/RGA driver architecture, uAPI, DT, audit, resync, rewrite; end-to-end RKNPU/RKNN architecture | [`../kernel-drivers/`](../kernel-drivers/README.md) |
 | `librockchip_mpp` and `librga` architecture | [`../vendor-libraries/`](../vendor-libraries/README.md) |
 | FFmpeg build/use, rebase, fix candidates; Mesa transfer investigation | [`../video-libraries/`](../video-libraries/README.md) |

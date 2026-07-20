@@ -126,8 +126,6 @@ package construction only.
 The exact source identities and build results are in
 [`manifest.yaml`](manifest.yaml). Every public input and its disposition is in
 [`public-series.tsv`](public-series.tsv); every WIP donor is in
-[`wip-donors.tsv`](wip-donors.tsv). The full technical rationale and validation
-record are in the [maximum-mainline
-plan](../../../findings/2026-07-17-rk3588-maximum-mainline-kernel-plan.md) and
-[implementation/build
-record](../../../findings/2026-07-17-rk3588-maxline-implementation-and-build-record.md).
+[`wip-donors.tsv`](wip-donors.tsv). The historical technical rationale is in
+[`integration-design-record.md`](integration-design-record.md); the measured
+build and package evidence is in [`verification.md`](verification.md).

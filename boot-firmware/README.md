@@ -1,27 +1,14 @@
 # Boot firmware — U-Boot on the ROCK 5B
 
-Purpose / user outcome: explain what happens between power-on and Linux, make
-the installed boot firmware identifiable, and keep SD/SPI/eMMC/NVMe recovery
-work understandable without requiring prior U-Boot knowledge.
+## Project brief
 
-Developer focus: the RK3588 BootROM → DDR init → SPL → TF-A → U-Boot proper
-chain, U-Boot's own device tree and environment, OS discovery, Rockchip image
-packaging, and the differences between the Armbian, Radxa, and upstream trees.
-
-Owns: the durable U-Boot primer, version comparison, debugging method, and
-boot-firmware vocabulary. Dated observations and raw captures still enter
-through [`../findings/`](../findings/README.md); destructive board operations
-remain in [`../scripts/`](../scripts/README.md).
-
-Depends on: Rockchip's immutable BootROM, an RK3588 DDR-training binary or TPL,
-TF-A BL31, the selected U-Boot source/configuration, and recoverable storage.
-
-Current state (2026-07-11): SPI → NVMe is the working baseline. The inspected
-Armbian 26.2.1 and 26.5.1 vendor FITs contain an empty required U-Boot control
-DTB, while the untested 26.5.1 current FIT contains a valid 12,752-byte DTB. A
-missing Radxa Makefile dependency makes a parallel-build race the leading
-code-supported explanation; it is not yet confirmed by the pending raw-SD
-hardware test.
+| Field | Contents |
+|-------|----------|
+| Purpose | Explain what happens between power-on and Linux, make the installed boot firmware identifiable, and keep SD/SPI/eMMC/NVMe recovery work understandable without requiring prior U-Boot knowledge. |
+| Developer focus | The RK3588 BootROM → DDR init → SPL → TF-A → U-Boot proper chain, U-Boot's own device tree and environment, OS discovery, Rockchip image packaging, and the differences between the Armbian, Radxa, and upstream trees. |
+| Owns | The durable U-Boot primer, version comparison, debugging method, and boot-firmware vocabulary. Dated observations and raw captures still enter through [`../findings/`](../findings/README.md); destructive board operations remain in [`../scripts/`](../scripts/README.md). |
+| Depends on | Rockchip's immutable BootROM, an RK3588 DDR-training binary or TPL, TF-A BL31, the selected U-Boot source/configuration, and recoverable storage. |
+| Current state | As of 2026-07-11, SPI → NVMe is the working baseline. The inspected Armbian 26.2.1 and 26.5.1 vendor FITs contain an empty required U-Boot control DTB, while the untested 26.5.1 current FIT contains a valid 12,752-byte DTB. A missing Radxa Makefile dependency makes a parallel-build race the leading code-supported explanation; it is not yet confirmed by the pending raw-SD hardware test. See [`../status.md` track 12](../status.md#dashboard). |
 
 ## Start here
 

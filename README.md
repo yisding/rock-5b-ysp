@@ -41,6 +41,7 @@ not repeat dated status or operational commands because those copies drift.
 | Update or contribute to the record | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Review repository-specific agent instructions | [`AGENTS.md`](AGENTS.md) |
 | Review the kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
+| Compare the validated vendor path with maximum-mainline RK3588 builds | [`kernel-versions/`](kernel-versions/README.md) |
 | Understand RKNN conversion, userspace, and the RKNPU driver | [`kernel-drivers/rknpu/`](kernel-drivers/rknpu/README.md) |
 | Understand the repo taxonomy | [`docs/work-packages.md`](docs/work-packages.md) |
 | Reconstruct an external source tree or resolve a code citation | [`docs/source-trees.md`](docs/source-trees.md) |
@@ -87,6 +88,7 @@ flowchart TB
 | **apps** | Real applications on the stack: `gnome-remote-desktop` H.264 RDP encode and Kodi DRM PRIME hardware decode. | [`apps/`](apps/README.md) |
 | **packaging** | Delivery channels: DKMS, udev/ACL debs, PPA source packages, binary policy. | [`packaging/`](packaging/README.md) |
 | **findings** | Raw capture inbox — drop a freshly-learned fact first, graduate it into a project doc later. | [`findings/`](findings/README.md) |
+| **captured evidence** | Small tracked inventories for forensic inputs; generated or bulky downloads stay outside Git. | [`downloads/armbian-rock5b-uboot-compare/`](downloads/armbian-rock5b-uboot-compare/README.md) |
 | **docs** + glossary | Cross-cutting: support coverage, package map, source-tree pins, whole-repo trap index, shared vocabulary. | [`docs/`](docs/README.md), [`glossary.md`](glossary.md) |
 
 The detailed package reading map is [`docs/work-packages.md`](docs/work-packages.md),

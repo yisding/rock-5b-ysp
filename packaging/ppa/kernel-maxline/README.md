@@ -1,16 +1,35 @@
 # RK3588 maximum-mainline kernel builds
 
-This directory turns the status review in
-[`findings/2026-07-17-rk3588-maximum-mainline-kernel-plan.md`](../../../findings/2026-07-17-rk3588-maximum-mainline-kernel-plan.md)
-into two reproducible, Armbian-compatible kernel packages for the ROCK 5B.
-Both start at the exact upstream `v7.2-rc3` commit. The integration deltas are
-checked in, so a rebuild does not depend on whatever a mailing-list endpoint
-calls "latest" in the future.
+This project builds two reproducible, Armbian-compatible maximum-mainline
+kernel package sets for the ROCK 5B. Both start at the exact upstream
+`v7.2-rc3` commit. The integration deltas are checked in, so a rebuild does not
+depend on whatever a mailing-list endpoint calls "latest" in the future.
 
 For a reader-first comparison with Armbian 6.18, Ubuntu 26.04's 7.0 kernel,
 and vanilla upstream 7.2-rc3, including the distinction between code that is
 present and hardware the ROCK 5B device tree actually enables, see [what
 maxline adds for the ROCK 5B](board-support.md).
+
+## Project brief
+
+| Field | Contents |
+|-------|----------|
+| User outcome | Compare the known-good 6.18 vendor-media path with a broad, auditable mainline RK3588 feature integration, without replacing the recovery kernel or confusing compilation with board support. |
+| Developer focus | Reproduce the pinned proposal integration, review conflict resolutions and profile boundaries, build co-installable packages, and advance them through explicit boot and hardware gates. |
+| Owns | The manifest, public/WIP ledgers, exported integration patches, pinned config, Debian packaging, build helper, board comparison, historical design record, and measured verification record in this directory. |
+| Depends on | Upstream Linux `v7.2-rc3`, the pinned proposal sources, Armbian's boot/package contract, and tested serial or physical recovery access before installation. |
+| Current state | Both profiles passed native arm64 compile, package, payload, and headers checks on 2026-07-17. Neither has been installed, booted, or hardware-tested. See [`status.md` track 13](../../../status.md#dashboard). |
+
+## Maintained records
+
+| Path | Purpose |
+|------|---------|
+| [`board-support.md`](board-support.md) | Reader-first comparison of upstream, Armbian, and maxline code versus ROCK 5B device-tree enablement and untested hardware. |
+| [`manifest.yaml`](manifest.yaml) | Exact base/profile commits, patch and config hashes, releases, package versions, artifact sizes/hashes, and verification boundary. |
+| [`public-series.tsv`](public-series.tsv) | Every pinned public mailbox, patch count, mailbox hash, and integration disposition. |
+| [`wip-donors.tsv`](wip-donors.tsv) | Every selected WIP donor commit, source, subject, and disposition. |
+| [`integration-design-record.md`](integration-design-record.md) | Historical proposal analysis and conflict plan that produced the profiles; the manifest and ledgers supersede its revision labels as operational truth. |
+| [`verification.md`](verification.md) | Native arm64 compile, package, payload, symbol, and external-module-headers evidence, plus the explicit unbooted boundary. |
 
 ## Profiles
 
@@ -158,10 +177,9 @@ SHA-256 hashes are recorded in [`manifest.yaml`](manifest.yaml). Generated
 packages remain under the ignored `packaging/ppa/out/maxline/package-*`
 directories on the build host; they are not Git artifacts.
 
-The complete implementation and validation record, including build-host
+The complete [`verification record`](verification.md) preserves build-host
 versions, exact tree and payload sizes, package metadata, symbol checks,
-headers testing, and the remaining hardware boundary, is in
-[`findings/2026-07-17-rk3588-maxline-implementation-and-build-record.md`](../../../findings/2026-07-17-rk3588-maxline-implementation-and-build-record.md).
+headers testing, and the remaining hardware boundary.
 
 The build emitted one non-fatal warning from the imported RK3588 crypto v2
 proposal (`rk2_crypto_skcipher.c`: unused local `v`). No package has been

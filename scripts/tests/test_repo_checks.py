@@ -692,6 +692,20 @@ class DocumentationConsistencyTests(unittest.TestCase):
 
             self.assertTrue(any("operational file not named" in e for e in errors))
 
+    def test_unindexed_child_readme_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            project = root / "project"
+            child = project / "hidden"
+            child.mkdir(parents=True)
+            (project / "README.md").write_text("# Project\n", encoding="utf-8")
+            (child / "README.md").write_text("# Hidden\n", encoding="utf-8")
+            errors: list[str] = []
+
+            DOC_CHECKER.check_readme_indexes(root, errors)
+
+            self.assertTrue(any("project README not named" in e for e in errors))
+
     def test_personal_home_default_in_operational_file_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

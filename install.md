@@ -32,6 +32,12 @@ Not sure? Take **(a)** — it is the only path validated end-to-end on hardware.
 Take (b) only if you cannot replace the kernel and accept the not-boot-validated
 overlay gate.
 
+The [`maximum-mainline 7.2-rc3 profiles`](packaging/ppa/kernel-maxline/README.md)
+are research comparison builds, not a third validated codec delivery model.
+Both compile and package, but neither has been installed or booted; follow
+[`status.md` track 13](status.md#dashboard) and its recovery-first gate before
+using either on a board.
+
 ## 2. Prerequisites (path a)
 
 [Armbian](glossary.md) is the Debian/Ubuntu-based distro + build framework this
