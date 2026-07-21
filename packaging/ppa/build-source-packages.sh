@@ -24,12 +24,9 @@ FFMPEG_ROCKCHIP_COMMIT="${FFMPEG_ROCKCHIP_COMMIT:-40c412daccf08164493da0de990eb9
 FFMPEG_ROCKCHIP_UPSTREAM_VERSION="${FFMPEG_ROCKCHIP_UPSTREAM_VERSION:-6.1+git20260423.40c412dacc}"
 
 GRD_REPO="${GRD_REPO:-$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop}"
-GRD_COMMIT="${GRD_COMMIT:-3e4480e066d30ba44015ae1b8cb3bbb92fe6414e}"
-GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260721.11.3e4480e+audioprobe1}"
-GRD_DEFAULT_DELTA="$ROOT/apps/gnome-remote-desktop/patches/0020-rdp-log-every-client-audio-format.patch"
-GRD_DEFAULT_DELTA+=":$ROOT/apps/gnome-remote-desktop/patches/0021-rdp-trace-audio-playback-and-disable-opus-offer.patch"
-GRD_DEFAULT_DELTA+=":$ROOT/apps/gnome-remote-desktop/patches/0022-rdp-add-runtime-legacy-audio-format-probe.patch"
-GRD_DELTA="${GRD_DELTA-$GRD_DEFAULT_DELTA}"
+GRD_COMMIT="${GRD_COMMIT:-5f61bb6b1c25e9fb3cb1f429e901d44f3a28465e}"
+GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260721.12.5f61bb6}"
+GRD_DELTA="${GRD_DELTA:-}"
 
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
 KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
@@ -69,13 +66,12 @@ Launchpad has already accepted. Set FORCE_ORIG=1 to regenerate an orig tarball.
 Source tree defaults are resolved below WORKSPACE_ROOT (the repository's parent
 directory by default). Override that shared root or use MPP_REPO, LIBRGA_REPO,
 FFMPEG_REPO, FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching *_COMMIT /
-*_UPSTREAM_VERSION variables. The default GRD snapshot includes the reconnect
-fixes, pipeline diagnostics, bounded RKMPP stall recovery, tracked patch
-0020's client AUDIO_FORMAT logging, 0021's end-to-end playback trace, and
-0022's runtime-selectable legacy-format negotiation probe. Patch paths in
-GRD_DELTA are colon-separated and applied in order. Set GRD_DELTA empty to
-omit those diagnostics, or override it when reconstructing a historical
-source package that included another source delta.
+*_UPSTREAM_VERSION variables. The default GRD snapshot is the cleaned release
+branch: RKMPP backend, reconnect fixes, cached readback, bounded encode recovery,
+and progress-gated frame-ack recovery. It contains no investigation diagnostics
+and applies no source delta. GRD_DELTA remains available for reconstructing a
+historical package; multiple patch paths are colon-separated and applied in
+order.
 
 The forward-port kernel target exports the already-patched Armbian kernel
 worktree named by KERNEL_PPA_REPO, excluding build products and .git, then

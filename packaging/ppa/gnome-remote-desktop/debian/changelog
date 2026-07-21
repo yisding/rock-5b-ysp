@@ -1,3 +1,16 @@
+gnome-remote-desktop (50.1+rkmpp+git20260721.12.5f61bb6-0ubuntu1~rc1) resolute; urgency=medium
+
+  * Rebuild the RKMPP/reconnect work as a 16-patch release series on the
+    c14e09e GNOME 50.1 snapshot.
+  * Keep the cached GPU-copy readback fix, bounded hardware-encode cooldown,
+    forced-IDR refresh, and progress-gated RDPGFX acknowledgement recovery.
+  * Remove the periodic pipeline watchdog, diagnostic thread, routine ACK
+    transition messages, per-format audio dump, playback trace, temporary Opus
+    suppression, and runtime legacy-format probe.
+  * Restore the normal upstream AAC, Opus, and PCM playback offer.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 21 Jul 2026 17:30:00 -0700
+
 gnome-remote-desktop (50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10) resolute; urgency=medium
 
   * Add a runtime-selectable, negotiation-only probe for the exact stereo

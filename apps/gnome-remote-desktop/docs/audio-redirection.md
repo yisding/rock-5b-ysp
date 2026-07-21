@@ -1,5 +1,11 @@
 # RDP audio redirection: protocol, GRD, and the PipeWire graph
 
+> **Release boundary:** the format dumps, playback trace, temporary Opus
+> suppression, and legacy-format environment probe described below are archived
+> investigation tools. The release branch contains none of them and restores
+> GRD's normal AAC/Opus/PCM offer. The observations and deferred A-law plan are
+> retained here as evidence and future work.
+
 This ROCK 5B does not hit an RDP audio protocol limitation. After completing
 the PipeWire desktop-audio migration and rebooting, the Microsoft macOS client
 audibly played GRD audio as stereo PCM over the static `RDPSND` channel. The
@@ -101,8 +107,8 @@ specific rejected tag.
 
 Local package
 `50.1+rkmpp+git20260721.10.3e4480e+audiotrace1-0ubuntu1~exp9` applies tracked
-patches [`0020`](../patches/0020-rdp-log-every-client-audio-format.patch) and
-[`0021`](../patches/0021-rdp-trace-audio-playback-and-disable-opus-offer.patch).
+patches [`0020`](../patches/archive/audio-negotiation/0020-rdp-log-every-client-audio-format.patch) and
+[`0021`](../patches/archive/audio-negotiation/0021-rdp-trace-audio-playback-and-disable-opus-offer.patch).
 `0020` emits one normal-priority journal line for every client `AUDIO_FORMAT`,
 including all scalar fields and at most 256 codec-specific bytes. `0021` adds
 normal-priority markers for channel selection, formats/quality mode, training,
@@ -392,7 +398,7 @@ Then connect and play a known stereo signal. The acceptance gate is all of:
 
 Diagnostic package
 `50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10`
-adds patch [`0022`](../patches/0022-rdp-add-runtime-legacy-audio-format-probe.patch).
+adds archived patch [`0022`](../patches/archive/audio-negotiation/0022-rdp-add-runtime-legacy-audio-format-probe.patch).
 One installed package can advertise any of the three exact Windows-compatible
 legacy tuples above. The daemon reads `GRD_RDP_AUDIO_FORMAT_PROBE` at startup;
 accepted values are `none`, `alaw`, `ms-adpcm`, `ima-adpcm`, `adpcm` (both

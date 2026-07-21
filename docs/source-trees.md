@@ -14,7 +14,7 @@ patches unless explicitly marked otherwise.
 | 2 | Audited tree (BSP audit) | [BSP audit](../kernel-drivers/docs/bsp-audit.md), `kernel-drivers/patches/cleanup-draft/` line numbers | parent of `56e403ede081` = `5614909e5803` |
 | 3 | `$OURS` / `$BSP` measurement pair + BSP 6.6 comparison | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count", [BSP 6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) | tree 1 vs `rockchip-linux/kernel` `develop-6.1@b4ef083dc0c3`; comparison `develop-6.6@1ba51b059f25` |
 | 4 | Userspace libraries + FFmpeg | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), `ffmpeg/*` | table in §4 |
-| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | tag `50.1` = `5ef1a2aa6bef`; anchor/full-series base = `c14e09ef67e9`; public reconnect base = `eb91daf476dc`; experimental-PPA export = `2571326322c7`; hardware-tested readback tip = `b3f0e20bc6e1`; ACK-resume/focus-idle candidate = `3e4480e066d30ba44015ae1b8cb3bbb92fe6414e`, see §5 |
+| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | tag `50.1` = `5ef1a2aa6bef`; release-series base = `c14e09ef67e9`; clean release tip = `5f61bb6b1c25`; historical experiment tips remain recorded in §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | rewrite series sources `rk3588-rewrite-6.18@0d71ded1690c` and `rk3588-rewrite-mainline@32696e87c9c7`; earlier package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
@@ -179,6 +179,17 @@ handover ownership/coalescing series. See
 `apps/gnome-remote-desktop/patches/README.md` and
 [`apps/gnome-remote-desktop/docs/profiling.md`](../apps/gnome-remote-desktop/docs/profiling.md).
 
+The current release source is branch `release/50.1-rkmpp` at
+`5f61bb6b1c25e9fb3cb1f429e901d44f3a28465e`. It is reconstructed exactly by
+applying the 16 root-level patches in
+[`apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/README.md)
+to `c14e09e`. Its last three commits retain the cached GPU-copy readback root
+fix, bounded hardware-encode recovery, and progress-gated ACK-resume recovery.
+The pipeline watchdog/diagnostic thread, idle-baseline workaround, routine ACK
+transition logging, and all audio probe/trace patches are excluded. Package
+export version `50.1+rkmpp+git20260721.12.5f61bb6` archives this commit directly
+with an empty `GRD_DELTA`.
+
 The historical diagnostic candidate is the public
 [`debug/exp1-frame-starvation`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/debug/exp1-frame-starvation)
 branch at `1c870bc82d1920edfac1e1544b61bd7c7b9a1873`. It adds only rate-limited
@@ -200,13 +211,13 @@ onto `c14e09e`. That replay produces the same compiled source but omits two
 GRD-tree documentation-only changes, so it is not a byte-for-byte replacement
 for the published orig tarball.
 The cached-copy readback behavior was hardware-tested at local `exp5@b3f0e20`;
-its patch `0017` is exported under
-[`apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/).
+its historical patch `0017` is preserved under the
+[`pipeline investigation archive`](../apps/gnome-remote-desktop/patches/archive/pipeline-investigation/).
 Installed `exp6@7e958e6` adds patch `0018`'s bounded RDPGFX
 acknowledgement-resume recovery; its source/binary package and focused RDP test
 pass, and one live recovery restored hardware submissions. That same run
 exposed a separate idle-time false starvation fallback.
-Current functional source candidate
+The historical functional source candidate
 `exp7@3e4480e066d30ba44015ae1b8cb3bbb92fe6414e` is published on the fork's
 `main`; it cleans the noisy diagnostic from `0018` and adds `0019`'s corrected
 starvation baseline. Local `exp8` applies tracked patch `0020` on top to log
@@ -217,9 +228,9 @@ strings, Lintian, and an APT upgrade simulation from installed `exp8` also
 pass. Installed `exp9` then traced the complete SVC fallback, exact PCM
 selection, PipeWire capture, `SNDC_WAVE2`, and wave confirmations; after the
 audio-stack migration reboot, the macOS client rendered audible audio. These
-states are reproducible from `c14e09e` plus the complete 22-patch tracked
-series; the first 19 patches are the functional candidate and `0020`–`0022`
-are temporary audio diagnostics. Local `exp10` adds `0022`'s
+historical patches are preserved under
+[`patches/archive/`](../apps/gnome-remote-desktop/patches/archive/README.md),
+not in the release series. Local `exp10` adds `0022`'s
 runtime-selectable, negotiation-only exact A-law/Microsoft-ADPCM/IMA-ADPCM
 probe so all client capability tests use one package. Its source and native
 arm64 builds, RDP integration test, packaged-string inspection, Lintian, and

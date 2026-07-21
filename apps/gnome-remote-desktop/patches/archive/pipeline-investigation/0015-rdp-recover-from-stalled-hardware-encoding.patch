@@ -1,17 +1,17 @@
-From 170d7794fda0cb18bcca8bc696e76b09578309f7 Mon Sep 17 00:00:00 2001
+From 2571326322c754de7608ef4afb1dff8e4d031cbd Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
-Date: Tue, 21 Jul 2026 08:08:30 -0700
-Subject: [PATCH 15/16] rdp: recover from stalled hardware encoding
+Date: Fri, 17 Jul 2026 12:57:16 -0700
+Subject: [PATCH] rdp: recover from stalled hardware encoding
 
 ---
- src/grd-encode-session-ffmpeg.c | 49 ++++++++++-------------
- src/grd-encode-session-vaapi.c  | 11 ++++++
- src/grd-encode-session.c        |  9 +++++
- src/grd-encode-session.h        |  3 ++
- src/grd-rdp-renderer.c          | 70 +++++++++++++++++++++------------
- src/grd-rdp-surface-renderer.c  | 20 ++++++++--
- src/grd-rdp-surface-renderer.h  |  2 +
- 7 files changed, 107 insertions(+), 57 deletions(-)
+ src/grd-encode-session-ffmpeg.c |  49 ++++++--------
+ src/grd-encode-session-vaapi.c  |  11 +++
+ src/grd-encode-session.c        |   9 +++
+ src/grd-encode-session.h        |   3 +
+ src/grd-rdp-renderer.c          | 115 ++++++++++++++++++++++----------
+ src/grd-rdp-surface-renderer.c  |  20 +++++-
+ src/grd-rdp-surface-renderer.h  |   2 +
+ 7 files changed, 143 insertions(+), 66 deletions(-)
 
 diff --git a/src/grd-encode-session-ffmpeg.c b/src/grd-encode-session-ffmpeg.c
 index c4ed356..5016a4f 100644
@@ -173,14 +173,61 @@ index e1a4939..6b10053 100644
                                            GrdEncodeContext  *encode_context,
                                            GrdImageView      *image_view,
 diff --git a/src/grd-rdp-renderer.c b/src/grd-rdp-renderer.c
-index eb4cf37..da9c220 100644
+index 5468ddd..9eec3bb 100644
 --- a/src/grd-rdp-renderer.c
 +++ b/src/grd-rdp-renderer.c
-@@ -218,14 +218,41 @@ schedule_hw_encode_cooldown_recovery (GrdRdpRenderer *renderer,
+@@ -147,6 +147,9 @@ struct _GrdRdpRenderer
+   uint32_t slow_hw_encode_samples;
+ 
+   GSource *pipeline_diagnostics_source;
++  GMainContext *pipeline_diagnostics_context;
++  GThread *pipeline_diagnostics_thread;
++  gint pipeline_diagnostics_shutdown;
+   GMutex pipeline_diagnostics_mutex;
+   RdpPipelineDiagnostics pipeline_diagnostics;
+ };
+@@ -275,6 +278,7 @@ log_pipeline_diagnostics (gpointer user_data)
+   GrdRdpRenderer *renderer = user_data;
+   RdpPipelineDiagnostics diagnostics;
+   gboolean diagnostics_changed;
++  gboolean has_outstanding_work;
+   gboolean warn_about_starvation = FALSE;
+   int64_t now_us = g_get_monotonic_time ();
+   int64_t last_buffer_age_ms;
+@@ -288,13 +292,13 @@ log_pipeline_diagnostics (gpointer user_data)
+     renderer->pipeline_diagnostics.last_reported_generation =
+       diagnostics.generation;
+ 
+-  if (diagnostics.last_buffer_us > 0 &&
+-      now_us - diagnostics.last_buffer_us <
+-        PIPELINE_STARVATION_THRESHOLD_US &&
++  has_outstanding_work =
++    diagnostics.views_started > diagnostics.views_completed ||
++    diagnostics.encodes_started > diagnostics.encodes_completed;
++  if (has_outstanding_work &&
+       now_us - MAX (diagnostics.last_submit_us,
+                     diagnostics.started_us) >=
+         PIPELINE_STARVATION_THRESHOLD_US &&
+-      diagnostics.frames_queued > diagnostics.frames_submitted &&
+       now_us - diagnostics.last_starvation_warning_us >=
+         PIPELINE_STARVATION_WARNING_INTERVAL_US)
+     {
+@@ -351,8 +355,8 @@ log_pipeline_diagnostics (gpointer user_data)
+ 
+   if (warn_about_starvation)
+     {
+-      g_warning ("[RDP.PIPELINE] Suspected frame starvation: buffers are "
+-                 "still arriving but no frame was submitted for %"
++      g_warning ("[RDP.PIPELINE] Suspected frame starvation: outstanding "
++                 "pipeline work but no frame was submitted for %"
+                  G_GINT64_FORMAT " ms (queued=%" G_GUINT64_FORMAT
+                  ", stale=%" G_GUINT64_FORMAT ", views=%" G_GUINT64_FORMAT
+                  "/%" G_GUINT64_FORMAT ", encodes=%" G_GUINT64_FORMAT
+@@ -428,14 +432,46 @@ schedule_hw_encode_cooldown_recovery (GrdRdpRenderer *renderer,
    g_main_context_wakeup (renderer->graphics_context);
  }
  
-+static void
++static gboolean
 +start_hw_encode_cooldown (GrdRdpRenderer *renderer,
 +                          const char     *reason,
 +                          int64_t         duration_us)
@@ -192,7 +239,7 @@ index eb4cf37..da9c220 100644
 +  if (now_us < renderer->hw_encode_cooldown_until_us)
 +    {
 +      g_mutex_unlock (&renderer->hw_encode_mutex);
-+      return;
++      return FALSE;
 +    }
 +
 +  cooldown_until_us = now_us + HW_ENCODE_COOLDOWN_US;
@@ -205,8 +252,13 @@ index eb4cf37..da9c220 100644
 +             G_GINT64_FORMAT " us); using software encoding for %"
 +             G_GINT64_FORMAT " us",
 +             reason, (gint64) duration_us, (gint64) HW_ENCODE_COOLDOWN_US);
++  grd_rdp_renderer_notify_pipeline_event (
++    renderer, GRD_RDP_PIPELINE_EVENT_HW_ENCODE_COOLDOWN_STARTED, 0,
++    duration_us);
 +  schedule_hw_encode_cooldown_recovery (renderer, cooldown_until_us);
 +  request_full_refresh_for_all_surfaces (renderer);
++
++  return TRUE;
 +}
 +
  static void
@@ -220,7 +272,7 @@ index eb4cf37..da9c220 100644
  
    g_mutex_lock (&renderer->hw_encode_mutex);
  
-@@ -255,25 +282,10 @@ note_hw_encode_duration (GrdRdpRenderer *renderer,
+@@ -465,28 +501,21 @@ note_hw_encode_duration (GrdRdpRenderer *renderer,
        renderer->slow_hw_encode_samples = 0;
      }
  
@@ -237,26 +289,58 @@ index eb4cf37..da9c220 100644
  
 -  if (!started_cooldown)
 -    return;
--
++  if (reason)
++    start_hw_encode_cooldown (renderer, reason, duration_us);
++}
+ 
 -  g_warning ("[RDP] Hardware encode is slow (%s, duration %" G_GINT64_FORMAT
 -             " us); using software encoding for %" G_GINT64_FORMAT " us",
 -             reason, (gint64) duration_us, (gint64) HW_ENCODE_COOLDOWN_US);
+-  grd_rdp_renderer_notify_pipeline_event (
+-    renderer, GRD_RDP_PIPELINE_EVENT_HW_ENCODE_COOLDOWN_STARTED, 0,
+-    duration_us);
 -  schedule_hw_encode_cooldown_recovery (renderer, cooldown_until_us);
 -  request_full_refresh_for_all_surfaces (renderer);
-+  if (reason)
-+    start_hw_encode_cooldown (renderer, reason, duration_us);
++static gpointer
++pipeline_diagnostics_thread_func (gpointer data)
++{
++  GrdRdpRenderer *renderer = data;
++
++  while (!g_atomic_int_get (&renderer->pipeline_diagnostics_shutdown))
++    g_main_context_iteration (renderer->pipeline_diagnostics_context, TRUE);
++
++  return NULL;
  }
  
  static void
-@@ -1026,6 +1038,7 @@ on_bitstream_locked (GrdEncodeSession *encode_session,
+@@ -1129,6 +1158,9 @@ grd_rdp_renderer_dispose (GObject *object)
+     }
+   if (renderer->pipeline_diagnostics_source)
+     {
++      g_atomic_int_set (&renderer->pipeline_diagnostics_shutdown, TRUE);
++      g_main_context_wakeup (renderer->pipeline_diagnostics_context);
++      g_clear_pointer (&renderer->pipeline_diagnostics_thread, g_thread_join);
+       g_source_destroy (renderer->pipeline_diagnostics_source);
+       g_clear_pointer (&renderer->pipeline_diagnostics_source, g_source_unref);
+     }
+@@ -1139,6 +1171,8 @@ grd_rdp_renderer_dispose (GObject *object)
+     }
+ 
+   g_clear_pointer (&renderer->graphics_context, g_main_context_unref);
++  g_clear_pointer (&renderer->pipeline_diagnostics_context,
++                   g_main_context_unref);
+   dispose_surfaces (renderer);
+ 
+   g_clear_pointer (&renderer->finished_frame_encodings, g_hash_table_unref);
+@@ -1251,6 +1285,7 @@ on_bitstream_locked (GrdEncodeSession *encode_session,
    GrdRdpRenderContext *render_context =
      grd_rdp_frame_get_render_context (rdp_frame);
    GrdRdpCodec codec = grd_rdp_render_context_get_codec (render_context);
 +  gboolean is_hardware_codec = FALSE;
  
-   switch (codec)
-     {
-@@ -1033,7 +1046,12 @@ on_bitstream_locked (GrdEncodeSession *encode_session,
+   grd_rdp_renderer_notify_pipeline_event (
+     renderer, GRD_RDP_PIPELINE_EVENT_ENCODE_COMPLETED,
+@@ -1262,7 +1297,12 @@ on_bitstream_locked (GrdEncodeSession *encode_session,
        break;
      case GRD_RDP_CODEC_AVC420:
      case GRD_RDP_CODEC_AVC444v2:
@@ -270,7 +354,7 @@ index eb4cf37..da9c220 100644
        break;
      }
  
-@@ -1046,14 +1064,15 @@ on_bitstream_locked (GrdEncodeSession *encode_session,
+@@ -1275,14 +1315,15 @@ on_bitstream_locked (GrdEncodeSession *encode_session,
      }
    else
      {
@@ -288,7 +372,7 @@ index eb4cf37..da9c220 100644
      renderer->graphics_subsystem_failed = TRUE;
    g_mutex_unlock (&renderer->frame_encodings_mutex);
  
-@@ -1130,12 +1149,15 @@ maybe_start_encodings (GrdRdpRenderer *renderer)
+@@ -1364,6 +1405,8 @@ maybe_start_encodings (GrdRdpRenderer *renderer)
        render_context = grd_rdp_frame_get_render_context (rdp_frame);
        surface_renderer = surface_renderer_from_frame (rdp_frame);
        view_creator = grd_rdp_render_context_get_view_creator (render_context);
@@ -296,8 +380,11 @@ index eb4cf37..da9c220 100644
 +        grd_rdp_render_context_get_encode_session (render_context);
  
        if (grd_rdp_surface_renderer_is_frame_stale (surface_renderer,
-                                                    rdp_frame))
-         {
+                                                    rdp_frame,
+@@ -1373,8 +1416,9 @@ maybe_start_encodings (GrdRdpRenderer *renderer)
+             renderer, GRD_RDP_PIPELINE_EVENT_STALE_FRAME_DROPPED,
+             grd_rdp_frame_get_source_serial (rdp_frame),
+             latest_source_serial);
 +          grd_encode_session_request_key_frame (encode_session);
            release_acquired_resource (renderer, render_context, view_creator);
 -          grd_rdp_surface_renderer_request_full_refresh (surface_renderer);
@@ -305,7 +392,7 @@ index eb4cf37..da9c220 100644
            g_hash_table_iter_remove (&iter);
            continue;
          }
-@@ -1152,8 +1174,6 @@ maybe_start_encodings (GrdRdpRenderer *renderer)
+@@ -1391,8 +1435,6 @@ maybe_start_encodings (GrdRdpRenderer *renderer)
                                           NULL, (gpointer *) &acquired_resources))
          g_assert_not_reached ();
  
@@ -314,11 +401,33 @@ index eb4cf37..da9c220 100644
        if (g_hash_table_contains (acquired_resources, encode_session))
          continue;
  
+@@ -1648,6 +1690,7 @@ grd_rdp_renderer_init (GrdRdpRenderer *renderer)
+   renderer->pipeline_diagnostics.started_us = g_get_monotonic_time ();
+ 
+   renderer->graphics_context = g_main_context_new ();
++  renderer->pipeline_diagnostics_context = g_main_context_new ();
+ 
+   surface_disposal_source = g_source_new (&source_funcs, sizeof (GSource));
+   g_source_set_callback (surface_disposal_source, dispose_surfaces,
+@@ -1674,8 +1717,12 @@ grd_rdp_renderer_init (GrdRdpRenderer *renderer)
+     g_timeout_source_new (PIPELINE_DIAGNOSTICS_INTERVAL_MS);
+   g_source_set_callback (pipeline_diagnostics_source,
+                          log_pipeline_diagnostics, renderer, NULL);
+-  g_source_attach (pipeline_diagnostics_source, renderer->graphics_context);
++  g_source_attach (pipeline_diagnostics_source,
++                   renderer->pipeline_diagnostics_context);
+   renderer->pipeline_diagnostics_source = pipeline_diagnostics_source;
++  renderer->pipeline_diagnostics_thread =
++    g_thread_new ("RDP pipeline diagnostics",
++                  pipeline_diagnostics_thread_func, renderer);
+ }
+ 
+ static void
 diff --git a/src/grd-rdp-surface-renderer.c b/src/grd-rdp-surface-renderer.c
-index 9a1020f..28e8c23 100644
+index 7793dd5..38c252c 100644
 --- a/src/grd-rdp-surface-renderer.c
 +++ b/src/grd-rdp-surface-renderer.c
-@@ -149,17 +149,31 @@ grd_rdp_surface_renderer_is_frame_stale (GrdRdpSurfaceRenderer *surface_renderer
+@@ -151,14 +151,16 @@ grd_rdp_surface_renderer_is_frame_stale (GrdRdpSurfaceRenderer *surface_renderer
    return is_stale;
  }
  
@@ -328,13 +437,17 @@ index 9a1020f..28e8c23 100644
 +request_refresh (GrdRdpSurfaceRenderer *surface_renderer,
 +                 gboolean               reset_render_context)
  {
+   uint64_t latest_source_serial;
+ 
    g_mutex_lock (&surface_renderer->render_mutex);
    surface_renderer->needs_full_refresh = TRUE;
 -  surface_renderer->pending_render_context_reset = TRUE;
 +  if (reset_render_context)
 +    surface_renderer->pending_render_context_reset = TRUE;
+   latest_source_serial = surface_renderer->latest_source_serial;
    g_mutex_unlock (&surface_renderer->render_mutex);
  
+@@ -170,6 +172,18 @@ grd_rdp_surface_renderer_request_full_refresh (GrdRdpSurfaceRenderer *surface_re
    grd_rdp_surface_renderer_trigger_render_source (surface_renderer);
  }
  
@@ -354,10 +467,10 @@ index 9a1020f..28e8c23 100644
  trigger_frame_upgrade_schedule (GrdRdpSurfaceRenderer *surface_renderer)
  {
 diff --git a/src/grd-rdp-surface-renderer.h b/src/grd-rdp-surface-renderer.h
-index bdb698e..f099d20 100644
+index a171958..ad48d75 100644
 --- a/src/grd-rdp-surface-renderer.h
 +++ b/src/grd-rdp-surface-renderer.h
-@@ -43,6 +43,8 @@ gboolean grd_rdp_surface_renderer_is_frame_stale (GrdRdpSurfaceRenderer *surface
+@@ -44,6 +44,8 @@ gboolean grd_rdp_surface_renderer_is_frame_stale (GrdRdpSurfaceRenderer *surface
  
  void grd_rdp_surface_renderer_request_full_refresh (GrdRdpSurfaceRenderer *surface_renderer);
  

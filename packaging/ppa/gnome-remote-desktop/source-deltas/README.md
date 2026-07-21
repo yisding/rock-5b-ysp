@@ -1,70 +1,38 @@
-# GRD source deltas
+# gnome-remote-desktop source deltas
 
-This directory preserves source changes needed to reconstruct historical PPA
-snapshots that were exported from dirty local GRD worktrees. The tracked file
-below is historical; current packaging instead applies the numbered diagnostic
-patches from `apps/gnome-remote-desktop/patches/`.
-
-## Current exporter pin
-
-The helper currently archives clean
-`GRD_COMMIT=3e4480e066d30ba44015ae1b8cb3bbb92fe6414e`, applies tracked diagnostic
-patches `0020`, `0021`, and `0022`, and exports
-`50.1+rkmpp+git20260721.11.3e4480e+audioprobe1`. The clean commit is published
-on the fork's `main`; the diagnostic package's compiled source is reproducible
-from base `c14e09ef67e916ae83a4eddee6a56591078e78e0` plus tracked patches
-`0001`–`0022` under
-[`../../../../apps/gnome-remote-desktop/patches/`](../../../../apps/gnome-remote-desktop/patches/README.md).
-
-Use Launchpad source publication `18626586` for a byte-exact reconstruction of
-the historical `~exp3@2571326` source package. The current default helper needs
-a checkout containing `3e4480e` (available on `yding/main`); the tracked
-22-patch replay is the portable code-review boundary but is not a
-byte-for-byte replacement for the local orig tarball because the source
-checkout also contains documentation-only history.
-Override
-`GRD_REPO`, `GRD_COMMIT`, `GRD_UPSTREAM_VERSION`, and `GRD_DELTA` together for
-any other snapshot. `GRD_DELTA` accepts colon-separated patch paths and applies
-them in order. Set `GRD_DELTA=` explicitly to omit `0020`–`0022` from a custom
-export; also supply the matching upstream version and Debian packaging when
-reconstructing an older package such as `exp7`.
-
-## dirty20260706-worktree.patch
-
-Applies to:
+The normal package export no longer uses a source delta. It archives the clean
+release commit directly:
 
 ```text
-repo:   gitlab.gnome.org/yding/gnome-remote-desktop
-branch: ffmpeg-rkmpp-encode-backend
-commit: a59c904c99088235eb4de31ca340747d334494f3
+GRD_COMMIT=5f61bb6b1c25e9fb3cb1f429e901d44f3a28465e
+GRD_UPSTREAM_VERSION=50.1+rkmpp+git20260721.12.5f61bb6
+GRD_DELTA=
 ```
 
-Purpose: the `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1`
-PPA source-package snapshot. It adds the hardware-encode cooldown/fallback,
-stale-frame filtering, and full-refresh recovery changes that were present in
-the local `grd-ffmpeg` worktree when the source package was generated.
+That commit is reproducible from upstream `c14e09e` plus the 16 root-level
+patches under
+[`../../../../apps/gnome-remote-desktop/patches/`](../../../../apps/gnome-remote-desktop/patches/README.md).
+Investigation patches under `patches/archive/` are deliberately excluded.
 
-Reconstruction:
+`GRD_DELTA` remains supported only for historical reconstruction. It accepts
+colon-separated patch paths and applies them in order before the orig tarball
+is created.
 
-```bash
-git clone https://gitlab.gnome.org/yding/gnome-remote-desktop grd-ffmpeg
-cd grd-ffmpeg
-git checkout a59c904c99088235eb4de31ca340747d334494f3
-git apply /path/to/rock-5b-ysp/packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch
-```
+## Historical dirty snapshot
 
-To reconstruct that historical snapshot with the current helper, opt in to the
-legacy delta explicitly:
+[`dirty20260706-worktree.patch`](dirty20260706-worktree.patch) preserves the
+tracked-file delta used by the old normal-PPA package based on
+`a59c904c99088235eb4de31ca340747d334494f3`. It is not part of the release.
 
 ```bash
-GRD_REPO=/path/to/grd-ffmpeg \
+GRD_REPO=/path/to/gnome-remote-desktop \
 GRD_COMMIT=a59c904c99088235eb4de31ca340747d334494f3 \
 GRD_UPSTREAM_VERSION=50.1+rkmpp+git20260630.a59c904+dirty20260706 \
 GRD_DELTA="$PWD/packaging/ppa/gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch" \
 bash packaging/ppa/build-source-packages.sh grd
 ```
 
-The default helper instead exports the `3e4480e` snapshot documented above and
-uses the colon-separated `0020-rdp-log-every-client-audio-format.patch` and
-`0021-rdp-trace-audio-playback-and-disable-opus-offer.patch` plus
-`0022-rdp-add-runtime-legacy-audio-format-probe.patch` series as `GRD_DELTA`.
+The audio-format and pipeline investigation patches used by later experimental
+packages are preserved under
+[`apps/gnome-remote-desktop/patches/archive/`](../../../../apps/gnome-remote-desktop/patches/archive/README.md),
+not here.

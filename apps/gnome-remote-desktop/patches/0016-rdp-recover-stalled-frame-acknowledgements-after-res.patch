@@ -1,0 +1,202 @@
+From 5f61bb6b1c25e9fb3cb1f429e901d44f3a28465e Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Tue, 21 Jul 2026 08:08:44 -0700
+Subject: [PATCH 16/16] rdp: recover stalled frame acknowledgements after
+ resume
+
+---
+ src/grd-rdp-dvc-graphics-pipeline.c | 116 +++++++++++++++++++++++++++-
+ 1 file changed, 114 insertions(+), 2 deletions(-)
+
+diff --git a/src/grd-rdp-dvc-graphics-pipeline.c b/src/grd-rdp-dvc-graphics-pipeline.c
+index 54cc438..b05f99c 100644
+--- a/src/grd-rdp-dvc-graphics-pipeline.c
++++ b/src/grd-rdp-dvc-graphics-pipeline.c
+@@ -45,6 +45,7 @@
+ #define PROTOCOL_TIMEOUT_MS (10 * 1000)
+ 
+ #define ENC_TIMES_CHECK_INTERVAL_MS 1000
++#define FRAME_ACK_RECOVERY_TIMEOUT_MS (2 * 1000)
+ #define MAX_TRACKED_ENC_FRAMES 1000
+ #define MIN_BW_MEASURE_SIZE (10 * 1024)
+ 
+@@ -106,6 +107,9 @@ struct _GrdRdpDvcGraphicsPipeline
+ 
+   GHashTable *serial_surface_table;
+   gboolean frame_acks_suspended;
++  GSource *frame_ack_recovery_source;
++  uint32_t latest_total_frames_decoded;
++  uint32_t frame_ack_recovery_total_frames_decoded;
+ 
+   GQueue *encoded_frames;
+   uint32_t total_frames_encoded;
+@@ -1871,9 +1875,101 @@ frame_serial_free (gpointer key,
+   return TRUE;
+ }
+ 
++static void
++cancel_frame_ack_recovery (GrdRdpDvcGraphicsPipeline *graphics_pipeline)
++{
++  if (!graphics_pipeline->frame_ack_recovery_source)
++    return;
++
++  g_source_destroy (graphics_pipeline->frame_ack_recovery_source);
++  g_clear_pointer (&graphics_pipeline->frame_ack_recovery_source,
++                   g_source_unref);
++}
++
++static void
++recover_frame_ack_state_in_gfx_surface (gpointer key,
++                                        gpointer value,
++                                        gpointer user_data)
++{
++  GrdRdpGfxSurface *gfx_surface = value;
++  GrdRdpSurface *rdp_surface =
++    grd_rdp_gfx_surface_get_rdp_surface (gfx_surface);
++  GrdRdpSurfaceRenderer *surface_renderer =
++    grd_rdp_surface_get_surface_renderer (rdp_surface);
++
++  clear_all_unacked_frames_in_gfx_surface (key, value, user_data);
++  grd_rdp_surface_renderer_request_full_refresh (surface_renderer);
++}
++
++static gboolean
++recover_stalled_frame_acknowledgement (gpointer user_data)
++{
++  GrdRdpDvcGraphicsPipeline *graphics_pipeline = user_data;
++  uint32_t n_pending_frame_acks;
++
++  g_mutex_lock (&graphics_pipeline->gfx_mutex);
++
++  n_pending_frame_acks =
++    g_hash_table_size (graphics_pipeline->frame_serial_table);
++  if (graphics_pipeline->frame_acks_suspended || n_pending_frame_acks == 0)
++    {
++      cancel_frame_ack_recovery (graphics_pipeline);
++      g_mutex_unlock (&graphics_pipeline->gfx_mutex);
++      return G_SOURCE_REMOVE;
++    }
++
++  if (graphics_pipeline->latest_total_frames_decoded !=
++      graphics_pipeline->frame_ack_recovery_total_frames_decoded)
++    {
++      graphics_pipeline->frame_ack_recovery_total_frames_decoded =
++        graphics_pipeline->latest_total_frames_decoded;
++      g_mutex_unlock (&graphics_pipeline->gfx_mutex);
++      return G_SOURCE_CONTINUE;
++    }
++
++  g_warning ("[RDP.RDPGFX.ACK] No frame-ack progress for %u ms after "
++             "acknowledgement resumed (total-decoded=%u, pending=%u); "
++             "clearing stale history and forcing a full refresh",
++             FRAME_ACK_RECOVERY_TIMEOUT_MS,
++             graphics_pipeline->latest_total_frames_decoded,
++             n_pending_frame_acks);
++
++  g_hash_table_foreach (graphics_pipeline->surface_table,
++                        recover_frame_ack_state_in_gfx_surface, NULL);
++  reduce_tracked_frame_infos (graphics_pipeline, 0);
++  g_hash_table_foreach_remove (graphics_pipeline->frame_serial_table,
++                               frame_serial_free, graphics_pipeline);
++  cancel_frame_ack_recovery (graphics_pipeline);
++
++  g_mutex_unlock (&graphics_pipeline->gfx_mutex);
++  return G_SOURCE_REMOVE;
++}
++
++static void
++arm_frame_ack_recovery (GrdRdpDvcGraphicsPipeline *graphics_pipeline)
++{
++  GMainContext *graphics_context =
++    grd_rdp_renderer_get_graphics_context (graphics_pipeline->renderer);
++
++  cancel_frame_ack_recovery (graphics_pipeline);
++  if (g_hash_table_size (graphics_pipeline->frame_serial_table) == 0)
++    return;
++
++  graphics_pipeline->frame_ack_recovery_total_frames_decoded =
++    graphics_pipeline->latest_total_frames_decoded;
++  graphics_pipeline->frame_ack_recovery_source =
++    g_timeout_source_new (FRAME_ACK_RECOVERY_TIMEOUT_MS);
++  g_source_set_callback (graphics_pipeline->frame_ack_recovery_source,
++                         recover_stalled_frame_acknowledgement,
++                         graphics_pipeline, NULL);
++  g_source_attach (graphics_pipeline->frame_ack_recovery_source,
++                   graphics_context);
++}
++
+ static void
+ suspend_frame_acknowledgement (GrdRdpDvcGraphicsPipeline *graphics_pipeline)
+ {
++  cancel_frame_ack_recovery (graphics_pipeline);
+   graphics_pipeline->frame_acks_suspended = TRUE;
+ 
+   g_hash_table_foreach (graphics_pipeline->surface_table,
+@@ -1889,8 +1985,13 @@ handle_frame_ack_event (GrdRdpDvcGraphicsPipeline          *graphics_pipeline,
+                         const RDPGFX_FRAME_ACKNOWLEDGE_PDU *frame_acknowledge)
+ {
+   uint32_t pending_frame_acks;
++  gboolean was_suspended;
++  gboolean suspending;
+   gpointer value = NULL;
+ 
++  was_suspended = graphics_pipeline->frame_acks_suspended;
++  suspending =
++    frame_acknowledge->queueDepth == SUSPEND_FRAME_ACKNOWLEDGEMENT;
+   pending_frame_acks = graphics_pipeline->total_frames_encoded -
+                        frame_acknowledge->totalFramesDecoded;
+   if (pending_frame_acks <= MAX_TRACKED_ENC_FRAMES &&
+@@ -1899,7 +2000,7 @@ handle_frame_ack_event (GrdRdpDvcGraphicsPipeline          *graphics_pipeline,
+     return;
+ 
+   maybe_rewrite_frame_history (graphics_pipeline, pending_frame_acks);
+-  if (frame_acknowledge->queueDepth != SUSPEND_FRAME_ACKNOWLEDGEMENT)
++  if (!suspending)
+     graphics_pipeline->frame_acks_suspended = FALSE;
+ 
+   if (g_hash_table_steal_extended (graphics_pipeline->frame_serial_table,
+@@ -1928,8 +2029,15 @@ handle_frame_ack_event (GrdRdpDvcGraphicsPipeline          *graphics_pipeline,
+       surface_serial_unref (graphics_pipeline, surface_serial);
+     }
+ 
+-  if (frame_acknowledge->queueDepth == SUSPEND_FRAME_ACKNOWLEDGEMENT)
++  if (suspending)
+     suspend_frame_acknowledgement (graphics_pipeline);
++  else
++    {
++      graphics_pipeline->latest_total_frames_decoded =
++        frame_acknowledge->totalFramesDecoded;
++      if (was_suspended)
++        arm_frame_ack_recovery (graphics_pipeline);
++    }
+ }
+ 
+ static uint32_t
+@@ -1956,6 +2064,7 @@ static void
+ reset_graphics_pipeline (GrdRdpDvcGraphicsPipeline *graphics_pipeline)
+ {
+   g_mutex_lock (&graphics_pipeline->gfx_mutex);
++  cancel_frame_ack_recovery (graphics_pipeline);
+   g_hash_table_foreach (graphics_pipeline->surface_table,
+                         clear_all_unacked_frames_in_gfx_surface, NULL);
+ 
+@@ -1968,6 +2077,8 @@ reset_graphics_pipeline (GrdRdpDvcGraphicsPipeline *graphics_pipeline)
+ 
+   g_mutex_lock (&graphics_pipeline->gfx_mutex);
+   graphics_pipeline->frame_acks_suspended = FALSE;
++  graphics_pipeline->latest_total_frames_decoded = 0;
++  graphics_pipeline->frame_ack_recovery_total_frames_decoded = 0;
+   graphics_pipeline->total_frames_encoded = 0;
+ 
+   g_assert (g_hash_table_size (graphics_pipeline->surface_table) == 0);
+@@ -2202,6 +2313,7 @@ grd_rdp_dvc_graphics_pipeline_dispose (GObject *object)
+   g_clear_signal_handler (&graphics_pipeline->gfx_initable_id,
+                           graphics_pipeline->renderer);
+ 
++  cancel_frame_ack_recovery (graphics_pipeline);
+   if (graphics_pipeline->protocol_timeout_source)
+     {
+       g_source_destroy (graphics_pipeline->protocol_timeout_source);
+-- 
+2.55.0
+
