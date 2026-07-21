@@ -1,0 +1,173 @@
+From c46bfd6622ba63b1e6d261d6aa58f16783e8c0f2 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 21 Jul 2026 15:56:38 -0700
+Subject: [PATCH] video: rockchip: rga3: drop the request initial reference
+ exactly once
+
+A request carries a single initial reference from rga_request_alloc()
+(kref_init). Four paths retire the request and drop that reference:
+async completion (rga_request_release_signal(), the "current submit
+request put"), the explicit cancel ioctl, the submit-time abort
+(rga_request_release_abort()), and owning-session close
+(rga_request_session_destroy_abort()). Nothing makes them mutually
+exclusive, and two of them run in different contexts: a job completing
+in the RGA IRQ thread and the owning /dev/rga session closing.
+
+When those two race, both call rga_request_put() on the same initial
+reference. The second put drops the refcount to zero and frees the
+request while rga_request_release_signal() is still mid-flight; it then
+reads request->finished_wq in wake_up() and issues its final put on the
+freed object. KASAN caught exactly this on a debug build under the
+session-close reproducer:
+
+  BUG: KASAN: slab-use-after-free in do_raw_spin_trylock
+   __wake_up
+   rga_request_release_signal          <- wake_up(&request->finished_wq)
+   rga_isr_thread
+  Freed by task N:
+   rga_request_free
+   rga_request_kref_release
+   rga_request_session_destroy_abort    <- /dev/rga close
+   rga_release
+  refcount_t: underflow; use-after-free.
+
+All four retire paths hold the pending-request-manager lock while
+dropping the reference, so make the drop idempotent under that lock: a
+new rga_request_release_ref() helper drops the initial reference only
+once, guarded by a release_ref_dropped flag, and every retire path goes
+through it. The completion path's own look-up reference (taken at the
+top of rga_request_release_signal()) is unaffected and still balances
+its final put, so the request is freed exactly once, by whichever path
+retires it first.
+
+This is distinct from the buffer force-free fixed earlier in the series
+(that freed rga_internal_buffer; this frees rga_request) and from the
+RKVENC2/MPP task lifetime fixes. Found by
+kernel-drivers/tests/rga-session-uaf.sh cross under KASAN; the booted
+gate is a quiet cross run with async_submits > 0.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/rga3/include/rga_drv.h |  6 +++
+ drivers/video/rockchip/rga3/include/rga_job.h |  1 +
+ drivers/video/rockchip/rga3/rga_drv.c         |  3 +-
+ drivers/video/rockchip/rga3/rga_job.c         | 38 ++++++++++++++++---
+ 4 files changed, 42 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
+index 29776251b5f88..95a14b437ba93 100644
+--- a/drivers/video/rockchip/rga3/include/rga_drv.h
++++ b/drivers/video/rockchip/rga3/include/rga_drv.h
+@@ -432,6 +432,12 @@ struct rga_request {
+ 
+ 	spinlock_t lock;
+ 	struct kref refcount;
++	/*
++	 * Set once the initial reference taken by rga_request_alloc() has been
++	 * dropped, so the several paths that retire a request cannot drop it
++	 * twice. Guarded by the pending-request-manager lock.
++	 */
++	bool release_ref_dropped;
+ 
+ 	pid_t pid;
+ 
+diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
+index ac206c2cb3776..f3b4f128c3840 100644
+--- a/drivers/video/rockchip/rga3/include/rga_job.h
++++ b/drivers/video/rockchip/rga3/include/rga_job.h
+@@ -40,6 +40,7 @@ void rga_request_scheduler_shutdown(struct rga_scheduler_t *scheduler);
+ void rga_request_scheduler_abort(struct rga_scheduler_t *scheduler);
+ void rga_request_session_destroy_abort(struct rga_session *session);
+ int rga_request_put(struct rga_request *request);
++void rga_request_release_ref(struct rga_request *request);
+ void rga_request_get(struct rga_request *request);
+ int rga_request_free(struct rga_request *request);
+ int rga_request_alloc(uint32_t flags, struct rga_session *session);
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index 73a347f3cac2e..a32457709df71 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -889,7 +889,8 @@ static long rga_ioctl_request_cancel(unsigned long arg)
+ 		return -EINVAL;
+ 	}
+ 
+-	rga_request_put(request);
++	/* Retire the request's initial reference (idempotent). */
++	rga_request_release_ref(request);
+ 
+ 	mutex_unlock(&request_manager->lock);
+ 
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index d99336d2e8409..cc8e9a7bc9655 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -919,8 +919,8 @@ static void rga_request_release_abort(struct rga_request *request, int err_code)
+ 	rga_dma_fence_signal(request->release_fence, err_code);
+ 
+ 	mutex_lock(&request_manager->lock);
+-	/* current submit request put */
+-	rga_request_put(request);
++	/* Retire the request's initial reference (idempotent). */
++	rga_request_release_ref(request);
+ 	mutex_unlock(&request_manager->lock);
+ }
+ 
+@@ -942,7 +942,7 @@ void rga_request_session_destroy_abort(struct rga_session *session)
+ 		if (session == request->session) {
+ 			rga_req_err(request, "destroy when the user exits, current refcount = %d\n",
+ 				kref_read(&request->refcount));
+-			rga_request_put(request);
++			rga_request_release_ref(request);
+ 		}
+ 	}
+ 
+@@ -1153,9 +1153,9 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
+ 		if (DEBUGGER_EN(MSG))
+ 			rga_job_log(job, "finished %d failed %d\n", finished_count, failed_count);
+ 
+-		/* current submit request put */
++		/* Retire the request's initial reference (idempotent). */
+ 		mutex_lock(&request_manager->lock);
+-		rga_request_put(request);
++		rga_request_release_ref(request);
+ 		mutex_unlock(&request_manager->lock);
+ 	}
+ 
+@@ -1625,6 +1625,34 @@ int rga_request_put(struct rga_request *request)
+ 	return kref_put(&request->refcount, rga_request_kref_release);
+ }
+ 
++/*
++ * Drop the initial reference taken by rga_request_alloc() exactly once.
++ *
++ * A request is retired from any of four paths -- async completion
++ * (rga_request_release_signal()), explicit cancel, submit-time abort, and
++ * owning-session close (rga_request_session_destroy_abort()) -- and two of
++ * them can run concurrently: a job completing in the RGA IRQ thread while the
++ * owning session closes. Without coordination both paths call
++ * rga_request_put() on the same initial reference, so it is dropped twice; the
++ * second put frees the request out from under the first, which then touches
++ * request->finished_wq in wake_up() (KASAN slab-use-after-free) and underflows
++ * the refcount. All four paths hold the pending-request-manager lock while
++ * retiring, so a plain flag under that lock makes the drop idempotent.
++ */
++void rga_request_release_ref(struct rga_request *request)
++{
++	struct rga_pending_request_manager *request_manager =
++		rga_drvdata->pend_request_manager;
++
++	WARN_ON(!mutex_is_locked(&request_manager->lock));
++
++	if (request->release_ref_dropped)
++		return;
++
++	request->release_ref_dropped = true;
++	rga_request_put(request);
++}
++
+ void rga_request_get(struct rga_request *request)
+ {
+ 	kref_get(&request->refcount);
+-- 
+2.55.0
+

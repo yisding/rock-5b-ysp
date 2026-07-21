@@ -12,6 +12,25 @@
 > alloc/free stacks captured) / **CODE-INSPECTED** (the racing paths) /
 > **INFERRED** (the exact double-put root cause and the fix direction).
 
+> **2026-07-21 fixed (patch `0052@c46bfd6622ba6`, awaiting booted gate).**
+> Root cause confirmed by full reference-model tracing: a request holds a
+> single initial reference from `rga_request_alloc()` (`kref_init`), and
+> **four** paths retire it by calling `rga_request_put()` on that reference —
+> async completion (`rga_request_release_signal()`'s "current submit request
+> put"), the cancel ioctl, submit-time abort (`rga_request_release_abort()`),
+> and owning-session close (`rga_request_session_destroy_abort()`). Jobs hold
+> **no** request reference (they store `request_id` and re-look-it-up), so
+> nothing serialises completion against close beyond the manager lock — and
+> the manager lock only orders the two puts, it does not stop both from
+> firing. Fix: a new `rga_request_release_ref()` helper drops the initial
+> reference exactly once under the manager lock, guarded by a
+> `release_ref_dropped` flag; all four retire paths route through it. The
+> completion path's own look-up reference is unaffected and still balances its
+> final put, so the request is freed exactly once by whichever path retires it
+> first. Compiles clean; checkpatch-clean (bar a false-positive `Fixes:`
+> suggestion from the KASAN text in the log). Booted gate: a quiet `cross` run
+> with `async_submits > 0` under KASAN on the next debug build.
+
 ## Result — a distinct, unfixed UAF (distribution blocker)
 
 The `cross` reproducer, written to trip the *buffer* force-free UAF that
