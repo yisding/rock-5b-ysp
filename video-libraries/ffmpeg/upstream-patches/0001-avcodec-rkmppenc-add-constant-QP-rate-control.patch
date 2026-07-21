@@ -1,0 +1,121 @@
+From eaadedce43db838ba554db3bcb81739249094c8d Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Tue, 21 Jul 2026 09:03:15 -0700
+Subject: [PATCH] avcodec/rkmppenc: add constant QP rate control
+
+Rockchip MPP provides a FIXQP rate-control mode, but the encoder
+wrapper does not expose it or configure the associated QP values.
+
+Add cqp and qp options. Select CQP automatically when qp is set while
+preserving VBR as the effective default. Pin the initial, minimum and
+maximum QP for inter and intra frames so MPP uses the requested value
+for the whole stream.
+
+Also expose qp_init as an alias for compatibility with ffmpeg-rockchip
+callers.
+
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ libavcodec/rkmppenc.c | 55 +++++++++++++++++++++++++++++++++----------
+ 1 file changed, 42 insertions(+), 13 deletions(-)
+
+diff --git a/libavcodec/rkmppenc.c b/libavcodec/rkmppenc.c
+index 09501f0bca..bdb5e2677f 100644
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -61,6 +61,7 @@ typedef struct RKMPPEncoderContext {
+     MppBuffer frame_buf;
+ 
+     MppEncRcMode rc_mode;
++    int qp;
+     bool eof_sent;
+ } RKMPPEncoderContext;
+ 
+@@ -182,6 +183,7 @@ out:
+ static av_cold int rkmpp_init_encoder(AVCodecContext *avctx)
+ {
+     RKMPPEncoderContext *ctx = avctx->priv_data;
++    MppEncRcMode rc_mode;
+     int ret;
+ 
+     MppCodingType codectype;
+@@ -273,20 +275,39 @@ static av_cold int rkmpp_init_encoder(AVCodecContext *avctx)
+     if (avctx->gop_size >= 0)
+         mpp_enc_cfg_set_s32(cfg, "rc:gop", avctx->gop_size);
+ 
+-    mpp_enc_cfg_set_u32(cfg, "rc:mode", ctx->rc_mode);
+-    if (avctx->bit_rate > 0) {
+-        mpp_enc_cfg_set_s32(cfg, "rc:bps_target", avctx->bit_rate);
+-        if (avctx->rc_buffer_size >= avctx->bit_rate) {
+-            int seconds = round((double)avctx->rc_buffer_size / avctx->bit_rate);
+-            // 60 is the upper bound from the doc
+-            seconds = FFMIN(seconds, 60);
+-            mpp_enc_cfg_set_s32(cfg, "rc:stats_time", seconds);
++    rc_mode = ctx->rc_mode;
++    if (rc_mode == MPP_ENC_RC_MODE_BUTT)
++        rc_mode = ctx->qp >= 0 ? MPP_ENC_RC_MODE_FIXQP
++                               : MPP_ENC_RC_MODE_VBR;
++
++    mpp_enc_cfg_set_u32(cfg, "rc:mode", rc_mode);
++    if (rc_mode == MPP_ENC_RC_MODE_FIXQP) {
++        int qp = ctx->qp >= 0 ? ctx->qp : 26;
++
++        mpp_enc_cfg_set_s32(cfg, "rc:qp_init", qp);
++        mpp_enc_cfg_set_s32(cfg, "rc:qp_min", qp);
++        mpp_enc_cfg_set_s32(cfg, "rc:qp_max", qp);
++        mpp_enc_cfg_set_s32(cfg, "rc:qp_min_i", qp);
++        mpp_enc_cfg_set_s32(cfg, "rc:qp_max_i", qp);
++        mpp_enc_cfg_set_s32(cfg, "rc:qp_ip", 0);
++    } else {
++        if (ctx->qp >= 0)
++            av_log(avctx, AV_LOG_WARNING,
++                   "The qp option is ignored in non-CQP rate-control mode\n");
++        if (avctx->bit_rate > 0) {
++            mpp_enc_cfg_set_s32(cfg, "rc:bps_target", avctx->bit_rate);
++            if (avctx->rc_buffer_size >= avctx->bit_rate) {
++                int seconds = round((double)avctx->rc_buffer_size / avctx->bit_rate);
++                // 60 is the upper bound from the doc
++                seconds = FFMIN(seconds, 60);
++                mpp_enc_cfg_set_s32(cfg, "rc:stats_time", seconds);
++            }
+         }
++        if (avctx->rc_max_rate > 0)
++            mpp_enc_cfg_set_s32(cfg, "rc:bps_max", avctx->rc_max_rate);
++        if (avctx->rc_min_rate > 0)
++            mpp_enc_cfg_set_s32(cfg, "rc:bps_min", avctx->rc_min_rate);
+     }
+-    if (avctx->rc_max_rate > 0)
+-        mpp_enc_cfg_set_s32(cfg, "rc:bps_max", avctx->rc_max_rate);
+-    if (avctx->rc_min_rate > 0)
+-        mpp_enc_cfg_set_s32(cfg, "rc:bps_min", avctx->rc_min_rate);
+ 
+     mpp_enc_cfg_set_u32(cfg, "rc:drop_mode", MPP_ENC_RC_DROP_FRM_DISABLED);
+ 
+@@ -537,13 +558,21 @@ static const AVCodecHWConfigInternal *const rkmpp_hw_configs[] = {
+ #define VE AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_ENCODING_PARAM
+ static const AVOption rkmpp_options[] = {
+     {"rc", "rate-control mode",
+-        OFFSET(rc_mode), AV_OPT_TYPE_INT,  { .i64 = MPP_ENC_RC_MODE_VBR }, MPP_ENC_RC_MODE_VBR, INT_MAX, VE, .unit = "rc"},
++        OFFSET(rc_mode), AV_OPT_TYPE_INT,  { .i64 = MPP_ENC_RC_MODE_BUTT }, MPP_ENC_RC_MODE_VBR, INT_MAX, VE, .unit = "rc"},
++        {"auto", "Choose mode automatically",
++            0, AV_OPT_TYPE_CONST, {.i64 = MPP_ENC_RC_MODE_BUTT}, 0, 0, VE, .unit = "rc"},
+         {"vbr", "Variable bitrate mode",
+             0, AV_OPT_TYPE_CONST, {.i64 = MPP_ENC_RC_MODE_VBR}, 0, 0, VE, .unit = "rc"},
+         {"cbr", "Constant bitrate mode",
+             0, AV_OPT_TYPE_CONST, {.i64 = MPP_ENC_RC_MODE_CBR}, 0, 0, VE, .unit = "rc"},
++        {"cqp", "Constant quantizer mode",
++            0, AV_OPT_TYPE_CONST, {.i64 = MPP_ENC_RC_MODE_FIXQP}, 0, 0, VE, .unit = "rc"},
+         {"avbr", "Adaptive bit rate mode",
+             0, AV_OPT_TYPE_CONST, {.i64 = MPP_ENC_RC_MODE_AVBR}, 0, 0, VE, .unit = "rc"},
++    {"qp", "Set the constant quantizer",
++        OFFSET(qp), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, 51, VE},
++    {"qp_init", "Alias for qp",
++        OFFSET(qp), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, 51, VE},
+     {NULL},
+ };
+ 
+
+base-commit: ccc57378b37d9129396a037df02c83a877d8eef0
+-- 
+2.55.0
+
