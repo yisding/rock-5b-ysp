@@ -36,6 +36,7 @@ fi
     librga-dev \
     ffmpeg \
     gnome-remote-desktop \
+    pipewire-audio \
     linux-image-ysp-rockchip64 \
     linux-dtb-ysp-rockchip64 \
     linux-headers-ysp-rockchip64
@@ -50,5 +51,5 @@ if [[ -n "$login_user" ]] && ! id -nG "$login_user" | tr ' ' '\n' | grep -qx vid
 fi
 
 echo
-echo "Installed the Rock 5B system stack from $PPA."
+echo "Installed the Rock 5B system stack from $PPA with PipeWire desktop audio."
 echo "Verify the selected boot entry before rebooting into the YSP kernel."

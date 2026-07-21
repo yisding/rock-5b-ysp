@@ -41,6 +41,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | [`docs/design.md`](docs/design.md) | Why FFmpeg (vs VA-API / GStreamer / direct MPP), and the panvk hardware-enablement journey. |
 | [`docs/baseline.md`](docs/baseline.md) | The measured *before*: why the software path costs ~20 ms/frame (the `glReadPixels` readback) and why HW encode is the only real fix. |
 | [`docs/capture-path.md`](docs/capture-path.md) | The code map: view-creators, encode-session selection, PipeWire buffer negotiation, and where the backend plugs in. |
+| [`docs/audio-redirection.md`](docs/audio-redirection.md) | Why RDP audio negotiated but remained silent on this image: GRD watches native PipeWire sinks while applications used standalone PulseAudio, plus the migration and acceptance gate. |
 | [`docs/profiling.md`](docs/profiling.md) | The measured *after*: per-stage timing of the HW path (60 fps sustained, jitter breakdown, the headless harness, the client-caps prerequisite, the verification-signal table). |
 | [`docs/testing.md`](docs/testing.md) | The benchmarking playbook (eviction hazard, env setup, HW-path checklist). |
 | [`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) | GRD-facing summary of the Mesa/Panfrost texture-transfer investigation behind the compute-path finding. |

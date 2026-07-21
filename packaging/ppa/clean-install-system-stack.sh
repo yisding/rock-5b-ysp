@@ -20,15 +20,18 @@ INCOMPATIBLE_PPAS=(
     rock5b-kernel72rc2-rewrite
 )
 
-# These packages are private/experimental alternatives, not dependencies of the
-# system stack. Remove them if present so test commands cannot accidentally use
-# a private FFmpeg or a rewrite-kernel package.
+# These packages are private/experimental alternatives or audio-stack
+# conflicts. Remove them if present so test commands cannot accidentally use a
+# private FFmpeg/rewrite kernel or leave applications on standalone PulseAudio
+# while GRD captures native PipeWire sinks.
 CONFLICT_PACKAGES=(
     ffmpeg-rockchip
     ffmpeg-rockchip81
     ffmpeg-rockchip-81
     gnome-remote-desktop-ffmpeg-rk
     gnome-remote-desktop-ffmpeg-mainline
+    pulseaudio
+    pulseaudio-module-bluetooth
     rockchip-codec-libs
     linux-image-ysp-alpha-6.18-rockchip64
     linux-dtb-ysp-alpha-6.18-rockchip64
@@ -39,6 +42,13 @@ CONFLICT_PACKAGES=(
     linux-image-ysp-alpha-7.2-rc3-rockchip64
     linux-dtb-ysp-alpha-7.2-rc3-rockchip64
     linux-headers-ysp-alpha-7.2-rc3-rockchip64
+)
+
+# Distro packages required by the integrated stack but intentionally not pinned
+# to this PPA. pipewire-audio replaces standalone PulseAudio with
+# pipewire-pulse, placing desktop applications and GRD in the same graph.
+DISTRO_PACKAGES=(
+    pipewire-audio
 )
 
 TARGET_PACKAGES=(
@@ -80,10 +90,11 @@ versions from $PPA. The script:
 
   * verifies every target version is published before removing old PPA sources;
   * removes the experimental/split PPA sources from APT;
-  * removes private FFmpeg, private GRD, and rewrite-kernel alternatives;
+  * removes private FFmpeg, private GRD, rewrite-kernel alternatives, and the
+    standalone PulseAudio daemon;
   * safely downgrades the installed FFmpeg 8.1 binary set to FFmpeg 8.0.3;
-  * installs MPP, librga, patched GRD, codec permissions, and the forward-port
-    kernel image, DTBs, and headers;
+  * installs MPP, librga, patched GRD, codec permissions, the complete PipeWire
+    desktop-audio stack, and the forward-port kernel image, DTBs, and headers;
   * verifies exact installed versions and the h264_rkmpp encoder from
     /usr/bin/ffmpeg, independent of PATH;
   * leaves the current Armbian kernel installed as a recovery option.
@@ -160,6 +171,14 @@ version_is_available() {
     apt-cache madison "$package" | awk '{print $3}' | grep -Fqx -- "$version"
 }
 
+candidate_is_available() {
+    local package=$1
+    local candidate
+
+    candidate="$(apt-cache policy "$package" | awk '/Candidate:/ { print $2; exit }')"
+    [[ -n "$candidate" && "$candidate" != "(none)" ]]
+}
+
 source_is_configured() {
     local slug=$1
     local -a source_paths=(/etc/apt/sources.list.d)
@@ -195,10 +214,23 @@ for package in "${TARGET_PACKAGES[@]}"; do
     fi
 done
 
-if ((${#missing_versions[@]})); then
+missing_packages=()
+for package in "${DISTRO_PACKAGES[@]}"; do
+    if ! candidate_is_available "$package"; then
+        missing_packages+=("$package")
+    fi
+done
+
+if ((${#missing_versions[@]} || ${#missing_packages[@]})); then
     echo "No existing PPA source was removed and no package was changed." >&2
-    echo "These exact versions are not currently available from APT:" >&2
-    printf '  %s\n' "${missing_versions[@]}" >&2
+    if ((${#missing_versions[@]})); then
+        echo "These exact versions are not currently available from APT:" >&2
+        printf '  %s\n' "${missing_versions[@]}" >&2
+    fi
+    if ((${#missing_packages[@]})); then
+        echo "These distro packages have no install candidate:" >&2
+        printf '  %s\n' "${missing_packages[@]}" >&2
+    fi
     echo "Wait for the fresh PPA to finish publishing, then run this script again." >&2
     exit 1
 fi
@@ -256,10 +288,14 @@ declare -A install_seen=()
 declare -a apt_actions=()
 add_install_action() {
     local package=$1
-    local version=$2
+    local version=${2:-}
 
     if [[ -z "${install_seen[$package]+set}" ]]; then
-        apt_actions+=("$package=$version")
+        if [[ -n "$version" ]]; then
+            apt_actions+=("$package=$version")
+        else
+            apt_actions+=("$package")
+        fi
         install_seen[$package]=1
     fi
 }
@@ -269,6 +305,9 @@ for package in "${ffmpeg_downgrade_packages[@]}"; do
 done
 for package in "${TARGET_PACKAGES[@]}"; do
     add_install_action "$package" "${TARGET_VERSIONS[$package]}"
+done
+for package in "${DISTRO_PACKAGES[@]}"; do
+    add_install_action "$package"
 done
 for package in "${purge_packages[@]}"; do
     apt_actions+=("$package-")
@@ -323,7 +362,8 @@ if ((${#unexpected_removals[@]})); then
 fi
 
 echo
-echo "The transaction will install the exact FFmpeg 8.0.3/GRD system stack."
+echo "The transaction will install the exact FFmpeg 8.0.3/GRD system stack"
+echo "and replace standalone PulseAudio with the PipeWire desktop-audio stack."
 if ((${#purge_packages[@]})); then
     echo "It will purge these incompatible alternatives:"
     printf '  %s\n' "${purge_packages[@]}"
@@ -350,6 +390,12 @@ for package in "${TARGET_PACKAGES[@]}"; do
     installed="$(dpkg-query -W -f='${Version}' "$package" 2>/dev/null || true)"
     if [[ "$installed" != "$expected" ]]; then
         echo "error: $package is $installed; expected $expected" >&2
+        verification_failed=1
+    fi
+done
+for package in "${DISTRO_PACKAGES[@]}"; do
+    if ! package_is_installed "$package"; then
+        echo "error: required distro package $package is not installed" >&2
         verification_failed=1
     fi
 done

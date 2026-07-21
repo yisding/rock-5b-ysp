@@ -57,10 +57,13 @@ deleted.
 For the primary 6.18 forward-port test path, run
 [`install-system-stack.sh`](install-system-stack.sh) on an arm64 Resolute
 system. It adds only the system PPA and installs the codec access rule, MPP/RGA
-runtime and development packages, FFmpeg, patched GNOME Remote Desktop, and the
-co-installable YSP kernel image, DTBs, and headers. Verify the boot entry and
-recovery path before rebooting; board install/revert validation remains a test
-gate.
+runtime and development packages, FFmpeg, patched GNOME Remote Desktop, the
+complete `pipewire-audio` desktop stack, and the co-installable YSP kernel image,
+DTBs, and headers. The audio package replaces standalone PulseAudio with
+`pipewire-pulse`, which is required because GRD captures native PipeWire sinks;
+see the [`RDP audio diagnosis`](../../apps/gnome-remote-desktop/docs/audio-redirection.md).
+Verify the boot entry and recovery path before rebooting; board
+install/revert validation remains a test gate.
 
 If the machine already has one of the earlier FFmpeg 8.1, private-FFmpeg, GRD,
 or rewrite-kernel test stacks, use
@@ -70,11 +73,14 @@ before removing any incompatible PPA source. It then runs an APT simulation,
 rejects any removal outside the explicit conflict list, and asks for
 confirmation. Shared `libav*` packages are downgraded in place to the exact
 FFmpeg 8.0.3 PPA version so unrelated desktop applications are not removed;
-incompatible ABI-only and private packages are purged. The machine's existing
+incompatible ABI-only and private packages are purged. Standalone `pulseaudio`
+and `pulseaudio-module-bluetooth` are the only additional intentional removals;
+the transaction installs Ubuntu's `pipewire-audio` replacement so desktop
+applications and GRD share one native PipeWire graph. The machine's existing
 Armbian kernel is retained as a recovery boot option. After installation the
-script checks every exact package version and invokes `/usr/bin/ffmpeg`
-directly to require the `h264_rkmpp` encoder, avoiding a private executable
-earlier in `PATH`.
+script checks every exact package version, verifies `pipewire-audio`, and
+invokes `/usr/bin/ffmpeg` directly to require the `h264_rkmpp` encoder, avoiding
+a private executable earlier in `PATH`.
 
 ```bash
 bash packaging/ppa/clean-install-system-stack.sh
