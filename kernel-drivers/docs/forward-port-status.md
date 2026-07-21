@@ -44,15 +44,22 @@ FFmpeg suite (`20260721-081448`, 14/14 required + bit-exact AV1 PSNR) all
 pass with clean kernel scans. The `0048` gate exposed one further 10-bit
 defect — `rga_convert_addr()` derives UV plane offsets at 1 byte/pixel, so
 P010 chroma was read from and written into the Y plane — fixed by
-`0049@a398364aaf8ed`, whose booted chroma gate awaits the next debug
-build. Patches `0050@473903525009a` (RGA2 page-table DMA ownership,
-closing the July 20 DMA-debug finding, plus the missing
+`0049@a398364aaf8ed`. Patches `0050@473903525009a` (RGA2 page-table DMA
+ownership, closing the July 20 DMA-debug finding, plus the missing
 `dma_set_max_seg_size()` and a page-preserving swiotlb min-align mask) and
-`0051@34a1d970da1c5` (over-4G memory served on RGA2 through DMA-API
-mappings that swiotlb-bounce below 4G, with `EOPNOTSUPP` fallback) are
-committed and checkpatch-clean; their booted gates — a DMA-debug-clean
-smoke, the P010 chroma probe, and the inverted `0047` probe (small over-4G
-system-heap imcopy content-exact on RGA2) — await the next debug build.
+`0051@13c503286f6e2` (over-4G memory served on RGA2 through DMA-API
+mappings that swiotlb-bounce below 4G, with `EOPNOTSUPP` fallback) round
+out the series. On debug build `P9636-C4ad2` (`#5`, `0049`–`0051`) the
+`0049` and `0050` gates pass: P010 copies bit-exact including chroma,
+FFmpeg `hevc_main10_p010_rga` bit-exact (PSNR inf, run `20260721-110029`),
+and the smoke (28 ok) / MPP (12/12) / ABI (`20260721-110007`) sweep runs
+with a completely clean DMA-debug/KASAN journal — the page-table splat and
+segment-size warning are gone. The `0051` over-4G probe ran on RGA2 (no
+more `EOPNOTSUPP`) but exposed a copy-back defect — the post-clean skipped
+IOMMU-mapped (default-map-core) origins, so the invalidate at put
+discarded the bounced-back destination — fixed in the amended
+`0051@13c503286f6e2` (post-clean keyed on bounce direction); its
+content-exact gate awaits the next debug build.
 See the
 [conformance root-cause finding](../../findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md)
 and the

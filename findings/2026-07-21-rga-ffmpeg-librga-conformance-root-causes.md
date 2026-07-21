@@ -168,3 +168,24 @@ deb, `CONFIG_KASAN=y` + `CONFIG_DMA_API_DEBUG=y`) verified:
   dma-buf — the forward-ported driver never calls
   `dma_set_max_seg_size()`, leaving the 64 KiB default. The mapping still
   proceeds (warning only). Tracked as a follow-up driver patch.
+
+## 2026-07-21 booted verification on `P9636-C4ad2` (0049)
+
+Debug build `P9636-C4ad2` (`#5`, md5-verified `/boot/vmlinuz` against the
+deb payload) carries `0049`–`0051`. The `0049` gate closes cleanly:
+
+- **P010→P010 copy BIT-EXACT and P010→NV12 chroma uniformly neutral 0x80**
+  (0/8192 chroma bytes deviate) on the direct im2d probe against the
+  patched librga fork — both failure signatures from the `P63dd` run are
+  gone.
+- **FFmpeg `hevc_main10_p010_rga` flips to bit-exact**: PSNR
+  `y:inf u:inf v:inf` (run `20260721-110029`), from luma ≈ 61 dB /
+  chroma ≈ 4.6 dB on `P63dd`. All 24 suite cases pass.
+- The full regression sweep on the same boot is green with clean journal
+  scans: librga smoke 28 ok / 0 fail, MPP 12/12, ABI replay
+  `abi_status=0 clean=1`, and zero DMA-debug/KASAN lines — the
+  `max_seg_size` warning recorded above is fixed by `0050`
+  (see the
+  [DMA scope finding](./2026-07-21-rga2-dma-api-ownership-and-over-4g-scope.md)
+  for the `0050`/`0051` gate detail, including the over-4G copy-back
+  defect found and fixed in `0051`).

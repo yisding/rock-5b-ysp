@@ -7,7 +7,7 @@
 > devices (DMA-debug flags 96 KiB CMA segments against the rga2 device's
 > 64 KiB default); it can ride with `0050` since both touch RGA2 DMA setup.
 
-> **2026-07-21 implemented:** `0050@473903525009a` and `0051@34a1d970da1c5`
+> **2026-07-21 implemented:** `0050@473903525009a` and `0051@13c503286f6e2`
 > are committed on `rkvenc-fwport-6.18` per this scope, checkpatch-clean,
 > and native-compiled. Deviations from the plan as written: `0050` carries
 > the DMA device parameters (`dma_set_max_seg_size`, and
@@ -21,6 +21,35 @@
 > cache invalidate cannot discard copied-back data (a raw sync, not the
 > shadow-aware helper, which would overwrite device output). The gates
 > below remain the booted verification plan.
+
+> **2026-07-21 booted gates on `P9636-C4ad2` (BOOT-VERIFIED, one defect
+> found and fixed):**
+>
+> - **`0050` PASSES.** Full librga smoke (28 ok / 0 fail, 10-bit cases
+>   included) with the kernel journal completely clean across the whole
+>   window: the July 20 `rga_dma_sync_flush_range` DMA-debug splat and the
+>   July 21 `mapping sg segment longer than device claims to support`
+>   warning are both gone, no KASAN, no other DMA-API output. ABI replay
+>   (`abi_status=0 clean=1`), the 12-case MPP matrix, and the 24-case
+>   FFmpeg suite (14 required + 10 diagnostic, all pass) are green on the
+>   same boot.
+> - **`0051` half-passed and exposed a copy-back defect.** The inverted
+>   `0047` probe (64×64 RGBA imcopy from `/dev/dma_heap/system`, RGA2-only
+>   by the 68 px RGA3 width floor) now *runs* on RGA2 — `EOPNOTSUPP` gone,
+>   DMA-debug clean — but the destination read back stale zeros even with
+>   proper `DMA_BUF_IOCTL_SYNC` brackets (a 256×256 control, which lands
+>   on RGA3, was content-exact). Root cause: the transient-bounce
+>   post-clean in `rga_mm_put_rga2_bounce()` was guarded with
+>   `!origin->dma_buffer->iommu_mapped`, which excludes exactly the normal
+>   case — handles import against the RGA3 *default map core*, which is
+>   IOMMU-backed — so the swiotlb copy-back stayed dirty in CPU cache and
+>   the subsequent `rga_mm_put_buffer()` `sync_for_cpu` invalidate
+>   discarded it. Fixed by keying the post-clean on the bounce direction
+>   instead (`bounce->dir != DMA_TO_DEVICE`; read-only bounces have
+>   nothing copied back); `0051` (originally `34a1d970da1c5`, the hash
+>   the `P9636` build carries) amended to `13c503286f6e2`,
+>   checkpatch-clean, native-compiled. The content-exact gate re-runs on
+>   the next debug build.
 
 > Scope: forward-port `rkvenc-fwport-6.18` RGA3 driver, RGA2 (`RGA_MMU`) core
 > paths in `rga_iommu.c`, `rga_mm.c`, `rga_dma_buf.c`, `rga_policy.c`.
