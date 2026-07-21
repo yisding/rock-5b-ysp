@@ -206,12 +206,15 @@ Installed `exp6@7e958e6` adds patch `0018`'s bounded RDPGFX
 acknowledgement-resume recovery; its source/binary package and focused RDP test
 pass, and one live recovery restored hardware submissions. That same run
 exposed a separate idle-time false starvation fallback.
-Current source candidate `exp7@3e4480e066d30ba44015ae1b8cb3bbb92fe6414e`
-is published on the fork's `main`; it
-cleans the noisy diagnostic from `0018` and adds `0019`'s corrected starvation
-baseline. Its source and arm64 package
-builds pass. These states are reproducible from `c14e09e` plus the complete
-19-patch series; final install/live validation remains.
+Current functional source candidate
+`exp7@3e4480e066d30ba44015ae1b8cb3bbb92fe6414e` is published on the fork's
+`main`; it cleans the noisy diagnostic from `0018` and adds `0019`'s corrected
+starvation baseline. Local `exp8` applies tracked patch `0020` on top to log
+every client `AUDIO_FORMAT` field without changing negotiation. Both source and
+arm64 package builds pass. These states are reproducible from `c14e09e` plus
+the complete 20-patch tracked series; the first 19 patches are the functional
+candidate and `0020` is the temporary audio diagnostic. Final install/live
+validation remains.
 
 The historical `a59c904` dirty snapshot remains reconstructible: commit
 `a59c904c99088235eb4de31ca340747d334494f3` plus the delta at

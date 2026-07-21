@@ -1,3 +1,12 @@
+gnome-remote-desktop (50.1+rkmpp+git20260720.9.3e4480e+audiofmt1-0ubuntu1~exp8) resolute; urgency=medium
+
+  * Log every AUDIO_FORMAT returned by the RDP client, including its format
+    tag, channel and rate fields, bitrate and alignment fields, sample depth,
+    and bounded codec-specific data. This distinguishes a missing AAC/Opus
+    offer from a near match rejected by GRD's strict comparison.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Mon, 20 Jul 2026 21:42:49 -0700
+
 gnome-remote-desktop (50.1+rkmpp+git20260720.8.3e4480e-0ubuntu1~exp7) resolute; urgency=medium
 
   * Keep the bounded RDPGFX acknowledgement-resume recovery while removing its

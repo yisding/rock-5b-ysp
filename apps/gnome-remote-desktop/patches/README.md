@@ -11,9 +11,11 @@ and the `0014`–`0015` diagnosis/recovery pair for the Firefox-triggered RKMPP
 stall, `0016`'s defensive starvation actuator, `0017`'s hardware-verified fix
 for uncached imported-buffer readback, `0018`'s bounded recovery from a stalled
 RDPGFX frame-acknowledgement resume, and `0019`'s correction for focus-idle time
-being misclassified as pipeline starvation.
+being misclassified as pipeline starvation. Diagnostic patch `0020` logs every
+client `AUDIO_FORMAT` field so an absent AAC/Opus offer can be distinguished
+from a format that GRD rejects only because one field differs.
 
-The complete `0001`–`0019` series, including its `0001`–`0008` backend subset,
+The complete `0001`–`0020` series, including its `0001`–`0008` backend subset,
 applies to upstream commit `c14e09e` (`50.1` + 16). This base contains both the
 `cf250ed` VA-API revert required by `0003` and the GNOME-50 reconnection
 simplification that `0009` officially reverts. Replay is verified with
@@ -46,6 +48,7 @@ against `50.1`+16 — see its header.
 | 0017 | `egl-thread-read-back-via-a-cached-GPU-copy` | 1 | **The actual RK3588 hang fix.** `download_in_impl` read the captured frame back with `glReadPixels(GL_BGRA)` straight off the imported dma-buf texture, which panthor maps **uncached**; Mesa's per-pixel `convert_ubyte` fallback over uncached memory costs seconds-to-minutes/frame → EGL thread pinned at 100% CPU → pipeline wedge. Copy the import into a cached, driver-owned scratch texture on the GPU (`glCopyTexSubImage2D`, GLES2-safe) and read *that* back cached; lazy/resized, falls back to the direct read. Upstream-general (helps any driver with uncached imports); see [finding](../../../findings/2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md) and the Mesa/panfrost bugs it also exposes. |
 | 0018 | `rdp-recover-when-resumed-frame-acknowledgements-stall` | 1 | Log RDPGFX acknowledgement suspend/resume state. When a real resume reconstructs suspended history but `totalFramesDecoded` makes no progress for two seconds, clear only that stale acknowledgement state, unthrottle surfaces, and force a full refresh/fresh render context. This preserves normal slow-client throttling and the intended suspend semantics; see [finding](../../../findings/2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md). |
 | 0019 | `rdp-ignore-idle-time-when-detecting-pipeline-starvation` | 1 | Record when a drained pipeline first gains outstanding view/encode work and include that timestamp in the starvation baseline. This prevents a focus return from charging the preceding idle/output-suppressed interval as an immediate hardware stall while preserving the watchdog for continuously busy pipelines; see [finding](../../../findings/2026-07-20-grd-focus-return-false-pipeline-starvation.md). |
+| 0020 | `rdp-log-every-client-audio-format` | 1 | Emit one normal-priority journal line per client `AUDIO_FORMAT`, including the tag, channels, sample rate, average byte rate, block alignment, sample depth, `cbSize`, and up to 256 codec-specific bytes. The cap prevents an untrusted client from creating an unbounded journal entry. |
 
 `0001`–`0003` are the backend; `0004`–`0006` are the panvk/hardware-enablement
 fixes ([`apps/gnome-remote-desktop/docs/design.md`](../docs/design.md)); `0007` is the mainline-rkmpp runtime fix
@@ -55,7 +58,9 @@ handover/reconnect series; `0014`–`0015` are the Firefox-stall diagnosis and
 recovery; `0016` makes the starvation detector actuate the software fallback;
 `0017` fixes the uncached readback cliff that `0016` could not recover from;
 `0018` bounds a separate client-focus/RDPGFX acknowledgement-resume stall; and
-`0019` prevents focus-idle time from falsely firing `0016`'s actuator.
+`0019` prevents focus-idle time from falsely firing `0016`'s actuator. `0020`
+is a temporary interoperability diagnostic for the RDP audio-format exchange;
+it does not alter codec selection.
 Patch `0007`'s quality settings remain relevant to the mainline
 forward port, while `0015` supersedes its startup encoder recreation with a
 forced IDR on the packaged Rockchip FFmpeg, which honours
@@ -121,3 +126,5 @@ restored hardware submissions, while also exposing the separate false
 starvation actuator on focus return. Candidate `exp7@3e4480e` carries the
 cleaned `0018@34145d9` plus `0019`; source and arm64 package builds pass, while
 install/repeated macOS focus validation remains with FFmpeg `da5befc806`.
+The local `exp8` diagnostic package applies `0020` on top of that clean commit
+to capture the client's exact AAC, Opus, PCM, or other format tuples.

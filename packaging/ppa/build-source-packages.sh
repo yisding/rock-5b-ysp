@@ -25,8 +25,8 @@ FFMPEG_ROCKCHIP_UPSTREAM_VERSION="${FFMPEG_ROCKCHIP_UPSTREAM_VERSION:-6.1+git202
 
 GRD_REPO="${GRD_REPO:-$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop}"
 GRD_COMMIT="${GRD_COMMIT:-3e4480e066d30ba44015ae1b8cb3bbb92fe6414e}"
-GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260720.8.3e4480e}"
-GRD_DELTA="${GRD_DELTA:-}"
+GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260720.9.3e4480e+audiofmt1}"
+GRD_DELTA="${GRD_DELTA-$ROOT/apps/gnome-remote-desktop/patches/0020-rdp-log-every-client-audio-format.patch}"
 
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
 KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
@@ -67,9 +67,10 @@ Source tree defaults are resolved below WORKSPACE_ROOT (the repository's parent
 directory by default). Override that shared root or use MPP_REPO, LIBRGA_REPO,
 FFMPEG_REPO, FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching *_COMMIT /
 *_UPSTREAM_VERSION variables. The default GRD snapshot includes the reconnect
-fixes, pipeline diagnostics, and bounded RKMPP stall recovery. Set GRD_DELTA
-only when reconstructing a historical source package that included an
-uncommitted source delta.
+fixes, pipeline diagnostics, bounded RKMPP stall recovery, and tracked patch
+0020's client AUDIO_FORMAT logging. Set GRD_DELTA empty to omit that diagnostic,
+or override it when reconstructing a historical source package that included
+another source delta.
 
 The forward-port kernel target exports the already-patched Armbian kernel
 worktree named by KERNEL_PPA_REPO, excluding build products and .git, then
@@ -152,7 +153,10 @@ prepare_source() {
         fi
         (
             cd "$upstream_tmp/${source}-${upstream_version}"
-            git apply "$patch_file"
+            # OUT normally lives under this repository. Prevent git apply from
+            # discovering the parent worktree, where source-relative paths are
+            # outside the current prefix and would otherwise be skipped.
+            GIT_CEILING_DIRECTORIES="$upstream_tmp" git apply "$patch_file"
         )
     fi
 

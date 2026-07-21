@@ -1,0 +1,99 @@
+From e85033e5795c32036dc11413d2ffb7707bbd993b Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Mon, 20 Jul 2026 21:42:49 -0700
+Subject: [PATCH] rdp: log every client audio format
+
+Log every scalar field and the codec-specific data for each AUDIO_FORMAT
+returned by the RDP client. This distinguishes an absent AAC or Opus format
+from a near match rejected by the strict compatibility check.
+
+Cap codec-specific data at 256 bytes per format to keep an untrusted client
+from producing an unbounded journal entry.
+---
+ src/grd-rdp-dvc-audio-playback.c | 59 ++++++++++++++++++++++++++++++++
+ 1 file changed, 59 insertions(+)
+
+diff --git a/src/grd-rdp-dvc-audio-playback.c b/src/grd-rdp-dvc-audio-playback.c
+index 59410d6..b005b10 100644
+--- a/src/grd-rdp-dvc-audio-playback.c
++++ b/src/grd-rdp-dvc-audio-playback.c
+@@ -44,6 +44,8 @@
+ #define TRAINING_PACKSIZE 1024
+ #define TRAINING_TIMESTAMP 0
+ 
++#define MAX_AUDIO_FORMAT_DATA_LOG_BYTES 256
++
+ typedef struct _AudioData
+ {
+   int16_t *data;
+@@ -495,6 +497,60 @@ are_audio_formats_equal (const AUDIO_FORMAT *audio_format_1,
+   return FALSE;
+ }
+ 
++static char *
++audio_format_data_to_string (const AUDIO_FORMAT *audio_format)
++{
++  GString *data_string;
++  uint16_t n_bytes;
++  uint16_t i;
++
++  if (audio_format->cbSize == 0)
++    return g_strdup ("<none>");
++  if (!audio_format->data)
++    return g_strdup ("<null>");
++
++  n_bytes = MIN (audio_format->cbSize, MAX_AUDIO_FORMAT_DATA_LOG_BYTES);
++  data_string = g_string_sized_new (n_bytes * 3);
++
++  for (i = 0; i < n_bytes; ++i)
++    g_string_append_printf (data_string, "%s%02X",
++                            i == 0 ? "" : ":",
++                            (unsigned int) audio_format->data[i]);
++
++  if (n_bytes < audio_format->cbSize)
++    g_string_append_printf (data_string, "...(+%u bytes)",
++                            (unsigned int) (audio_format->cbSize - n_bytes));
++
++  return g_string_free (data_string, FALSE);
++}
++
++static void
++log_client_audio_format (const AUDIO_FORMAT *audio_format,
++                         unsigned int        index,
++                         unsigned int        n_formats)
++{
++  g_autofree char *format_data = NULL;
++  const char *format_name;
++
++  format_data = audio_format_data_to_string (audio_format);
++  format_name = audio_format_get_tag_string (audio_format->wFormatTag);
++
++  g_message ("[RDP.AUDIO_PLAYBACK] Client AUDIO_FORMAT[%u/%u]: "
++             "tag=0x%04X (%s), channels=%u, sample_rate=%u, "
++             "avg_bytes_per_sec=%u, block_align=%u, bits_per_sample=%u, "
++             "cb_size=%u, data=%s",
++             index + 1, n_formats,
++             (unsigned int) audio_format->wFormatTag,
++             format_name ? format_name : "UNKNOWN",
++             (unsigned int) audio_format->nChannels,
++             (unsigned int) audio_format->nSamplesPerSec,
++             (unsigned int) audio_format->nAvgBytesPerSec,
++             (unsigned int) audio_format->nBlockAlign,
++             (unsigned int) audio_format->wBitsPerSample,
++             (unsigned int) audio_format->cbSize,
++             format_data);
++}
++
+ static const AUDIO_FORMAT audio_format_aac =
+ {
+   .wFormatTag = WAVE_FORMAT_AAC_MS,
+@@ -628,6 +684,9 @@ rdpsnd_activated (RdpsndServerContext *rdpsnd_context)
+     {
+       AUDIO_FORMAT *audio_format = &rdpsnd_context->client_formats[i];
+ 
++      log_client_audio_format (audio_format, i,
++                               rdpsnd_context->num_client_formats);
++
+       if (audio_playback->aac_client_format_idx < 0 &&
+           are_audio_formats_equal (audio_format, &audio_format_aac))
+         audio_playback->aac_client_format_idx = i;

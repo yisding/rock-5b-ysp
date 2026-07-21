@@ -103,7 +103,7 @@ Last recorded through Launchpad's devel API and exact-version binary queries at
 | `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Fresh-main source publication [`18619787`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619787) and its arm64 tool binary are Published. | Co-installable `/opt/ffmpeg-rockchip` tools; does not replace system FFmpeg. |
 | `gnome-remote-desktop` (normal stack) | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2` | Source publication [`18619824`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619824), successful arm64 build [`33397319`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397319), and the arm64 binary are Published. | Current normal-stack package; local build links the RKMPP backend against `libavcodec.so.62`/`libavutil.so.60`. |
 | `gnome-remote-desktop` (recovery candidate) | `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3` | Experimental source publication [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586), successful arm64 build [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698), and the exact arm64 binary are Published. | Reuses the smoke-tested RKMPP context, forces IDR refreshes without reopen, falls back to software after an encode timeout, and runs diagnostics independently. It predates exported readback patch `0017`; the local RDP harness timed out before its daemon listened, so the current combined board/reconnect gates remain. |
-| `gnome-remote-desktop` (local focus-return candidate) | `50.1+rkmpp+git20260720.8.3e4480e-0ubuntu1~exp7` | Source package and native arm64 binary build locally; lintian has only long-filename warnings. Installation/combined live validation remain. Predecessor `exp6@7e958e6` is installed and live-validates the ACK recovery on the ROCK 5B. Not published. | Adds exported patches `0016`–`0019`, requires FFmpeg `da5befc806`, recovers stalled reconstructed ACK history, and prevents focus-idle time from immediately tripping the hardware-starvation software fallback. The explicit same-day sequence keeps Debian version ordering above `exp6`. |
+| `gnome-remote-desktop` (local audio-format diagnostic) | `50.1+rkmpp+git20260720.9.3e4480e+audiofmt1-0ubuntu1~exp8` | Source and native arm64 package builds pass. The binary contains the diagnostic log string; Lintian reports only long-filename warnings, and APT simulation cleanly upgrades installed `exp6`. Installation and one fresh macOS Windows App connection remain. Not published. | Applies diagnostic patch `0020` on top of the built `exp7` source. It logs every client `AUDIO_FORMAT` field at normal journal priority without changing codec selection. |
 | forward-port kernel | Published `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1`; local `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Published source [`18626523`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18626523) and arm64 build [`33412608`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33412608) succeeded; the live PPA still contains the 20260717 image. The 20260720 source is local only. | The Published 40-patch build installed/booted but Oopsed in conformance and predates `0042`/`0043`. Local exact-6.18.38 production build `Pf558-Cb831` and fresh PPA source extraction validate both fixes and the non-debug AV1/RGA config. Upload/Launchpad build, isolated functional conformance, board install/boot, and rollback remain. |
 | alpha rewrite kernel 6.18 | `6.18.38+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Source publication [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665), successful arm64 build [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491), and the exact binaries are Published. | Armbian current/forward-port 6.18.38 source layer, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
 | alpha rewrite kernel 7.2-rc3 | `7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Source publication [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666), successful arm64 build [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492), and the exact binaries are Published. | Official v7.2-rc3 plus Armbian bleedingedge, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
@@ -129,7 +129,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`librga/debian/`](librga/debian/changelog) | Debian packaging for the local `librga-fork` commit `a632217`, including the P010/P210 work. |
 | [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg 8.0.3 packaging for the RKMPP/RKRGA forward port at backpressure-fix commit `da5befc806`. |
 | [`ffmpeg-rockchip/debian/`](ffmpeg-rockchip/debian/changelog) | Co-installable `/opt/ffmpeg-rockchip` packaging for nyanmisaka's FFmpeg 6.1 Rockchip fork at `40c412daccf0`. |
-| [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging retargeted to the pinned `GRD_COMMIT` source snapshot with `-Dffmpeg=enabled`; an optional `GRD_DELTA` reconstructs legacy dirty snapshots. The current clean commit is published on the fork's `main`; see the [source reconstruction note](gnome-remote-desktop/source-deltas/README.md#current-exporter-pin). |
+| [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging retargeted to the pinned `GRD_COMMIT` source snapshot with `-Dffmpeg=enabled`. `GRD_DELTA` defaults to tracked audio-format diagnostic patch `0020`; override it for legacy snapshots or set it empty to omit the diagnostic from a custom export. See the [source reconstruction note](gnome-remote-desktop/source-deltas/README.md#current-exporter-pin). |
 | [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md) | Historical tracked-file GRD deltas retained to reconstruct older dirty source-package snapshots. |
 | [`codec-udev/`](codec-udev/README.md) | Native PPA source wrapper for the canonical unprivileged MPP/RGA/DMA-heap access rule. |
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source-package wrapper for the optional GDM greeter hardware-encode ACL rule. |
@@ -163,8 +163,8 @@ variables.
 | nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
 | nyanmisaka FFmpeg Rockchip commit | `FFMPEG_ROCKCHIP_COMMIT` | `40c412daccf08164493da0de990eb99a8948116b` |
 | GRD repo | `GRD_REPO` | `$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop` |
-| GRD snapshot commit | `GRD_COMMIT` | `3e4480e066d30ba44015ae1b8cb3bbb92fe6414e` (`yding/main`; portable code reconstruction is the 19-patch series on `c14e09e`) |
-| Optional GRD source delta | `GRD_DELTA` | Empty; set explicitly only for a historical dirty snapshot such as [`dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch) |
+| GRD snapshot commit | `GRD_COMMIT` | `3e4480e066d30ba44015ae1b8cb3bbb92fe6414e` (`yding/main`; portable code reconstruction including the diagnostic is the 20-patch series on `c14e09e`) |
+| GRD source delta | `GRD_DELTA` | [`0020-rdp-log-every-client-audio-format.patch`](../../apps/gnome-remote-desktop/patches/0020-rdp-log-every-client-audio-format.patch); set empty to omit the diagnostic from a custom export or override it for a historical dirty snapshot such as [`dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch) |
 | Forward-port kernel worktree | `KERNEL_PPA_REPO` | `$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Forward-port kernel config | `KERNEL_PPA_CONFIG` | `$KERNEL_PPA_REPO/.config` |
 | Forward-port kernel source version | `KERNEL_PPA_UPSTREAM_VERSION` | `6.18.38+rk3588av1fwport20260720` |
@@ -252,14 +252,17 @@ contents. Before reuse, the helper extracts the existing orig tarball and checks
 that its contents match the freshly exported source tree; stale orig tarballs
 fail loudly instead of silently changing the source-package delta.
 
-The GRD exporter archives the clean pinned `GRD_COMMIT` before creating the
-orig tarball. The current default (`3e4480e`) is published on `yding/main`, so a
-fresh clone of the public fork can satisfy it. Its compiled code can also be
-reconstructed from `c14e09e` plus exported patches `0001`–`0019`; see the
+The GRD exporter archives the clean pinned `GRD_COMMIT`, applies the selected
+source delta, and then creates the orig tarball. The current commit (`3e4480e`)
+is published on `yding/main`, so a fresh clone of the public fork can satisfy
+it. The default diagnostic source can also be reconstructed from `c14e09e`
+plus exported patches `0001`–`0020`; see the
 detailed boundary documented in
 [`source-deltas/README.md`](gnome-remote-desktop/source-deltas/README.md#current-exporter-pin).
-`GRD_DELTA` is empty by default; when explicitly non-empty, the helper applies
-it after the archive export. Override `GRD_REPO`, `GRD_COMMIT`,
+`GRD_DELTA` defaults to patch `0020`; set it empty to omit the diagnostic from
+a custom export, or override it after the archive export for a historical
+snapshot. Override
+`GRD_REPO`, `GRD_COMMIT`,
 `GRD_UPSTREAM_VERSION`, and `GRD_DELTA` together when reconstructing another
 source state.
 
@@ -472,16 +475,17 @@ source publication `18619787` and the copied tool binary are Published.
 
 ### GNOME Remote Desktop
 
-The current local GRD package candidate is based on clean commit
-`3e4480e066d3`. It includes the published `~exp3@2571326` behavior, exported
+The current local GRD diagnostic package is based on clean commit
+`3e4480e066d3` plus tracked patch `0020`. The underlying `exp7` source includes
+the published `~exp3@2571326` behavior, exported
 patches `0016`/`0017`, patch `0018`'s bounded RDPGFX acknowledgement-resume
 recovery, and patch `0019`'s focus-idle starvation-baseline correction. It
 reuses the smoke-tested RKMPP context, refreshes stale
 content with a forced IDR rather than repeatedly reopening MPP, falls back to
 software after a bounded encode failure, and moves the pipeline watchdog to an
 independent main context.
-`build-source-packages.sh` exports that git
-archive directly, removes generated `*.spv` shader outputs, overlays
+`build-source-packages.sh` exports that git archive, applies the diagnostic,
+removes generated `*.spv` shader outputs, overlays
 [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog), and
 builds a `3.0 (quilt)` source package. The packaging enables the FFmpeg backend
 with `-Dffmpeg=enabled`, restricts the binary package to `Architecture: arm64`,
@@ -510,7 +514,11 @@ plus a full arm64 binary build. Its live recovery restored hardware submissions
 after two stalled ACKs, and the same run exposed a false focus-idle starvation
 fallback; final candidate `exp7@3e4480e` adds `0019` and removes the
 noisy frame-slot diagnostic. Its source and native arm64 package builds pass;
-installation and the next live gate remain.
+installation and the next live gate remain. Local `exp8` adds only the
+`AUDIO_FORMAT` journal dump needed to distinguish a missing codec offer from a
+strict tuple mismatch; it does not change negotiation or codec priority. Its
+source and native arm64 builds pass, the packaged daemon contains the expected
+format string, and binary Lintian passes with long-filename warnings only.
 
 ### GDM Greeter Hardware Encode ACL
 

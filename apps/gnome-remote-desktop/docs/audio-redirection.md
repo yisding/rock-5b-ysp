@@ -76,6 +76,40 @@ The playback object would not exist if the client had requested that sound
 remain at the remote console, so these messages also confirm the relevant
 client-side redirection setting.
 
+### Raw client format diagnostic
+
+Local package
+`50.1+rkmpp+git20260720.9.3e4480e+audiofmt1-0ubuntu1~exp8` applies tracked
+patch [`0020`](../patches/0020-rdp-log-every-client-audio-format.patch). It
+emits one normal-priority journal line for every `AUDIO_FORMAT` returned by the
+client before GRD performs its strict comparison. Each line contains the
+format tag, channels, sample rate, average encoded byte rate, block alignment,
+sample depth, `cbSize`, and codec-specific data. Codec-specific data is capped
+at 256 bytes so an untrusted client cannot create an unbounded journal entry.
+
+After installing the package from a local or SSH session, restart the handover
+daemon and make one fresh RDP connection. Restarting it disconnects any current
+RDP session:
+
+```bash
+systemctl --user restart gnome-remote-desktop-handover.service
+journalctl --user -b -u gnome-remote-desktop-handover.service \
+  --grep='Client AUDIO_FORMAT|Client Formats'
+```
+
+Compare any returned compressed formats with GRD's exact tuples:
+
+| Codec | Tag | Channels | Rate | Average bytes/s | Align | Bits | `cbSize` |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AAC | `0xA106` | 2 | 44100 | 12000 | 4 | 16 | 0 |
+| Opus | `0x704F` | 2 | 48000 | 12000 | 4 | 16 | 0 |
+| PCM | `0x0001` | 2 | 44100 | 176400 | 4 | 16 | 0 |
+
+If `0xA106` or `0x704F` is absent, that codec is a client limitation for the
+connection. If a tag is present but any other field differs, GRD's exact-match
+test—not codec availability—is rejecting the near match. The diagnostic does
+not force a codec or change the existing AAC, then Opus, then PCM priority.
+
 ### 2. ALSA and PulseAudio had real audio
 
 ALSA exposed the ES8316 playback and capture device:
