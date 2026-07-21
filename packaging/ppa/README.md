@@ -102,7 +102,7 @@ Last recorded through Launchpad's devel API and exact-version binary queries at
 | `ffmpeg` 8.1.2 Rockchip | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Dedicated-PPA source publication [`18619545`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-rockchip/+sourcepub/18619545) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-rockchip`; it builds against the fresh main PPA for MPP/librga. |
 | `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Fresh-main source publication [`18619787`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619787) and its arm64 tool binary are Published. | Co-installable `/opt/ffmpeg-rockchip` tools; does not replace system FFmpeg. |
 | `gnome-remote-desktop` (normal stack) | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2` | Source publication [`18619824`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619824), successful arm64 build [`33397319`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397319), and the arm64 binary are Published. | Current normal-stack package; local build links the RKMPP backend against `libavcodec.so.62`/`libavutil.so.60`. |
-| `gnome-remote-desktop` (clean release candidate) | `50.1+rkmpp+git20260721.12.5f61bb6-0ubuntu1~rc1` | Local release rebuild; publication and final live gate pending. | Sixteen clean commits: RKMPP backend, reconnect fixes, cached GPU-copy readback, bounded encode recovery, and progress-gated ACK-resume recovery. No pipeline watchdog, audio probe, verbose trace, or Opus suppression ships. |
+| `gnome-remote-desktop` (clean release candidate) | `50.1+rkmpp+git20260721.12.5f61bb6-0ubuntu1~rc1` | Source and native arm64 package builds pass; RDP integration passes, with TPM and hardware-EGL skipped as expected. Publication and the final live gate remain. | Sixteen clean commits: RKMPP backend, reconnect fixes, cached GPU-copy readback, bounded encode recovery, and progress-gated ACK-resume recovery. No pipeline watchdog, audio probe, verbose trace, or Opus suppression ships. |
 | `gnome-remote-desktop` (archived recovery build) | `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3` | Experimental source publication [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586), successful arm64 build [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698), and arm64 binary are Published. | Historical diagnostic build; superseded by the clean release candidate. |
 | `gnome-remote-desktop` (archived audio probe) | `50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10` | Source/native arm64 builds and live format probes passed; installed, not published. | Proved the macOS client accepts A-law plus PCM and rejects the tested ADPCM tuples. Its diagnostics and temporary Opus suppression are archived, not released. |
 | forward-port kernel | Published `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1`; local `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Published source [`18626523`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18626523) and arm64 build [`33412608`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33412608) succeeded; the live PPA still contains the 20260717 image. The 20260720 source is local only. | The Published 40-patch build installed/booted but Oopsed in conformance and predates `0042`/`0043`. Local exact-6.18.38 production build `Pf558-Cb831` and fresh PPA source extraction validate both lifetime fixes and the non-debug AV1/RGA config, but predate RGA ABI patches `0044`/`0045` (now green on booted KASAN debug replay). A complete-tip production rebuild, booted conformance, upload/Launchpad build, and rollback remain. |
@@ -491,9 +491,12 @@ package. The old dirty snapshot and diagnostic packages remain documented only
 for historical reproduction.
 
 The published normal PPA still carries `~rk2` (`18619824`, build `33397319`),
-and experimental `~exp3` remains available as historical evidence. Promotion
-now targets `50.1+rkmpp+git20260721.12.5f61bb6-0ubuntu1~rc1` after its clean
-source/native builds and final sustained video/focus gate.
+and experimental `~exp3` remains available as historical evidence. The clean
+`~rc1` source and native arm64 builds pass: RDP integration is green, TPM and
+hardware-EGL skip as expected on the build host, packaged-string inspection
+finds none of the removed probes, and Lintian reports only long-filename
+warnings. Promotion now targets this `~rc1` after install and the final
+sustained video/focus gate.
 
 ### GDM Greeter Hardware Encode ACL
 

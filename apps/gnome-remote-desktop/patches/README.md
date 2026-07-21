@@ -40,6 +40,17 @@ The release also restores the upstream AAC/Opus/PCM audio offer. It contains no
 per-format dump, no end-to-end audio tracing, no Opus suppression, and no
 runtime legacy-format probe.
 
+## Validation
+
+- Applying the 16 patches to `c14e09e` reproduces the release branch tree
+  exactly.
+- Debian source and native arm64 binary package builds pass with the system
+  multiarch `pkg-config` metadata.
+- The RDP integration test passes. TPM and hardware-EGL tests skip as expected
+  on the build host; no test fails.
+- Packaged-string inspection confirms the investigation log/probe strings are
+  absent, and Lintian reports only long-filename warnings.
+
 ## Apply
 
 ```bash

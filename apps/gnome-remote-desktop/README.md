@@ -18,7 +18,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | Developer focus | Understand GRD's capture path, FFmpeg encode-session integration, RDP frame-ack behavior, zero-copy buffers, panvk RGB-to-NV12 conversion, and GDM greeter permissions. |
 | Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the clean 16-patch GRD release series. Investigation patches are archived separately. |
 | Depends on | Kernel drivers, userspace libraries, an rkmpp-enabled FFmpeg build, Mesa/Panfrost Vulkan support, and optional GDM codec ACL packaging. |
-| Current state | The release branch `release/50.1-rkmpp@5f61bb6` is a clean 16-commit series on `c14e09e` (`50.1` + 16), and the measured backend sustains 60 fps. It keeps the cached-readback root fix, bounded hardware-encode recovery, and live-validated progress-gated ACK recovery while removing the pipeline watchdog and all audio probes/traces. Audio returns to the normal AAC/Opus/PCM offer. Clean package build and the final sustained video/focus gate remain before promotion. Historical PCM/A-law/ADPCM findings and the deferred A-law plan remain documented. See [`status.md`](../../status.md). |
+| Current state | The release branch `release/50.1-rkmpp@5f61bb6` is a clean 16-commit series on `c14e09e` (`50.1` + 16), and the measured backend sustains 60 fps. It keeps the cached-readback root fix, bounded hardware-encode recovery, and live-validated progress-gated ACK recovery while removing the pipeline watchdog and all audio probes/traces. Audio returns to the normal AAC/Opus/PCM offer. Clean source and native arm64 package builds pass, including the RDP integration test; the final install and sustained video/focus gate remain before promotion. Historical PCM/A-law/ADPCM findings and the deferred A-law plan remain documented. See [`status.md`](../../status.md). |
 
 | Piece | What | Status |
 |-------|------|--------|
@@ -85,8 +85,9 @@ dma-buf to the encoder zero-copy.
 > [`ffmpeg-rockchip` fork](../../video-libraries/ffmpeg). The current normal-PPA
 > candidate links the same bridge lineage at FFmpeg 8.0.3, on package branch
 > `fix/rkmpp-output-timeout@da5befc806`. Its Launchpad build is Published and is
-> installed beneath the local `exp6` GRD package; the final `exp7` package
-> builds and still needs install plus repeated video/focus-resume validation. Keep the measured 8.1.2 proof separate from the
+> installed beneath the historical local `exp6` GRD package. The clean `~rc1`
+> release package now builds and still needs install plus repeated
+> video/focus-resume validation. Keep the measured 8.1.2 proof separate from the
 > current 8.0.3 package state.
 
 ## Upstream-style FFmpeg 8.1.2 `h264_rkmpp` vs ffmpeg-rockchip
@@ -276,26 +277,21 @@ codec consumer:
 
 ## The patches
 
-The **full exported investigation set** is in [`patches/`](patches). Patches
-`0001`–`0013` provide the rkmpp backend and corrected handover baseline;
-`0014`–`0019` preserve the later diagnostics, recovery, uncached-readback,
-RDPGFX acknowledgement-resume, and focus-idle watchdog work. The 19-patch set and the backend-only
-subset replay on `c14e09e` (`50.1` + 16); pristine tag `50.1` lacks the
-`cf250ed` context required by `0003`.
-Patches `0001`–`0003` are the backend, `0004`–`0006` are the
-panvk/hardware-enablement fixes (the "looked like a Mesa bug" journey — see
-[`design.md`](./docs/design.md)), `0007` is the two upstream-rkmpp runtime fixes
-above (#1 IDR, #2 bitrate), and `0008` is the hardware-encode
-backpressure/cooldown guard (#4). `0009`–`0013` restore GNOME 50's two-stage
-handover and fix variant/socket/timer ownership while coalescing only
-simultaneously pending redirected sockets. `0014`–`0015` add diagnostics and
-bounded recovery, `0016` is a defensive starvation actuator, `0017` is the
-hardware-verified cached-copy fix for the uncached readback cliff, `0018`
-adds a progress-gated escape from stalled reconstructed frame ACK history, and
-`0019` prevents new work after focus-idle from inheriting the pre-idle submit
-age.
-Full map:
-[`patches/README.md`](patches/README.md).
+The root of [`patches/`](patches) is the **16-patch release series**. Patches
+`0001`–`0008` provide the rkmpp backend, panvk enablement, codec configuration,
+and bounded backpressure handling. Patches `0009`–`0013` restore GNOME 50's
+two-stage handover and fix variant, socket, timer, and pending-connection
+ownership. The final three retain only the fixes justified by the live
+investigation: cached GPU-copy readback (`0014`), bounded hardware-encode
+recovery (`0015`), and progress-gated frame-acknowledgement recovery (`0016`).
+
+The periodic pipeline diagnostics/watchdog, separate diagnostics thread,
+focus-idle workaround, routine ACK transition messages, audio traces, Opus
+suppression, and legacy codec probe are excluded from the release. They remain
+under [`patches/archive/`](patches/archive/) as investigation history. The
+release series replays on `c14e09e` (`50.1` + 16); pristine tag `50.1` lacks
+the `cf250ed` context required by `0003`. See
+[`patches/README.md`](patches/README.md) for the complete map and replay command.
 
 Bug **#3** (greeter access) is not a code change — it's the udev package in
 [`packaging/gdm-hwenc`](../../packaging/gdm-hwenc). The design rationale (why FFmpeg
@@ -307,14 +303,15 @@ Three pieces make up the acceptance stack:
 
 | Component | Current state | Needed? |
 |-----------|---------------|:---:|
-| `gnome-remote-desktop` | Normal-PPA `~rk2` is the older published baseline and experimental `~exp3` stops at `0015`. Hardware-tested `exp5@b3f0e20` adds `0017`; installed `exp6@7e958e6` live-validates the ACK recovery and exposed a false focus-idle starvation fallback. Final source candidate `exp7@3e4480e` adds cleaned `0018` plus `0019`. | required |
+| `gnome-remote-desktop` | Clean release candidate `50.1+rkmpp+git20260721.12.5f61bb6-0ubuntu1~rc1` has passing source/native arm64 builds and RDP integration; TPM and hardware-EGL tests skip as expected on the build host. The normal-PPA `~rk2` and experimental `~exp3` remain historical published baselines. | required |
 | Rockchip FFmpeg 8.0.3 | Normal-PPA `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` is Published; it absorbs the transient MPP input-pool backpressure exposed by exp5. | required |
 | `gnome-remote-desktop-gdm-hwenc` `1.0` | Local opt-in package granting the stable `gdm` group access to codec nodes; not uploaded. | optional (login-screen HW) |
 
 The Launchpad path is a **published test path**, not yet the validated install
-path. Do not treat `~exp3` as the final candidate: it predates patches `0016`
-through `0019`. The current runtime gate starts from installed `exp6`, paired with
-FFmpeg `da5befc806`, running the sustained-video checks in
+path. Do not treat `~exp3` as the final candidate: it predates the retained
+cached-readback and frame-acknowledgement fixes. The current runtime gate is to
+install the clean `~rc1`, paired with FFmpeg `da5befc806`, and run the
+sustained-video checks in
 [`profiling.md` §10](./docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback)
 and the focus/resume ACK gate in
 [`testing.md` §10](./docs/testing.md#10-exp6exp7-macos-focusresume-gate).
