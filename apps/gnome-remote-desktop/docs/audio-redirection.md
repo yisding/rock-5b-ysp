@@ -461,6 +461,42 @@ systemctl --user unset-environment GRD_RDP_AUDIO_FORMAT_PROBE
 systemctl --user restart gnome-remote-desktop-handover.service
 ```
 
+## Deferred A-law playback plan
+
+**Status: planned, not implemented.** Patch `0022` remains negotiation-only;
+the daemon must continue selecting PCM even when the client returns A-law.
+When this work resumes, keep the first implementation opt-in so its bandwidth
+benefit can be evaluated without silently reducing music quality for every
+PCM-capable client.
+
+The implementation is bounded to GRD's existing playback and DSP paths:
+
+1. Track an exact A-law client-format index alongside AAC, Opus, and PCM, and
+   include it in the negotiation-success condition.
+2. Add an opt-in selection policy that orders implemented formats as AAC,
+   Opus, A-law, then PCM. Leave the normal PCM fallback unchanged until the
+   live quality decision is made.
+3. Request stereo S16 samples from PipeWire at 22,050 Hz for the accepted
+   A-law tuple instead of using playback's 44.1 kHz default.
+4. Implement the stateless signed-16-bit PCM to G.711 A-law mapping in
+   `grd-rdp-dsp.c`, where A-law decoding and the codec enum already exist but
+   the encoder and frames-per-packet cases currently assert.
+5. Use 512 stereo frames per packet: about 23.2 ms, 2,048 raw PCM bytes, and
+   1,024 encoded bytes. Preserve the existing volume processing before
+   encoding and the existing `SendSamples2`/confirmation path afterward.
+6. Add known-vector, clipping/sign, encoded-size, and encode/decode tests, plus
+   negotiation tests proving opt-in A-law selection and PCM fallback.
+7. Build a diagnostic package and require a live macOS gate: exact A-law
+   selection at 22.05 kHz, `raw_bytes=2048`, `wire_bytes=1024`, continuing
+   `SNDC_WAVECONFIRM`, audible stereo, correct mute/volume behavior, and no
+   sustained stutter across reconnect.
+
+This plan does not require a DVC change, a FreeRDP protocol change, or an
+external codec library. ADPCM support and the separate AAC-format mismatch are
+out of scope. After the live gate, decide whether A-law remains opt-in or is
+preferred automatically over PCM; the tradeoff is 352.8 kbit/s instead of
+1.4112 Mbit/s at noticeably lower music fidelity.
+
 ## What belongs in GRD and what does not
 
 No new RDP transport or codec implementation was needed to fix the silence. A
@@ -479,11 +515,12 @@ Those would improve diagnosis and headless behavior. The first functional fix
 for this image was to unify desktop audio and GRD in the PipeWire graph.
 
 Compressed playback is a separate interoperability improvement. The macOS
-client does not accept GRD's AAC tuple, and its Windows control indicates a
-legacy compressed format over SVC. The next discriminating experiment is to
-capture the Windows client-format response or implement and offer one exact
-legacy format at a time. Chasing DVC first has no supporting evidence: this
-client rejects audio playback DVC against Windows too.
+client does not accept GRD's AAC tuple. Individual exact-format probes now show
+that it accepts stereo 22.05 kHz A-law over SVC but rejects both tested ADPCM
+tuples. The deferred plan above is the bounded next implementation if a
+lower-bandwidth fallback is desired. Chasing DVC first has no supporting
+evidence for this fallback: this client rejects audio playback DVC against
+Windows too.
 
 ## Evidence boundary
 
@@ -494,8 +531,13 @@ native PipeWire sink discovery, nonzero PCM capture, PCM `SNDC_WAVE2`
 submission, wave confirmation, and audible macOS client rendering over the SVC
 fallback.
 
-It does not establish AAC, A-law, or ADPCM selection, the exact codec in the
-Windows control, microphone redirection, physical capture quality, HDMI or
-Bluetooth audio, full channel-mapping coverage, or repeated
+The 2026-07-21 `exp10` run additionally establishes exact A-law capability at
+stereo 22.05 kHz and exact rejection of the tested Microsoft and IMA ADPCM
+tuples over the SVC fallback. It does not establish A-law playback: the probe
+package deliberately selected PCM and sent confirmed PCM blocks.
+
+It does not establish AAC, A-law, or ADPCM playback selection, the exact codec
+in the Windows control, microphone redirection, physical capture quality, HDMI
+or Bluetooth audio, full channel-mapping coverage, or repeated
 disconnect/reconnect durability. The temporary diagnostics and Opus-offer
 change are not yet publication or upstream candidates.
