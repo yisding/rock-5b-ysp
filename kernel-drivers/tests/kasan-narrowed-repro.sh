@@ -30,7 +30,7 @@ PROFILE="kasan-narrowed-$TS" bash "$TEST_DIR/abi-replay.sh" \
 	> "$OUT/abi-replay.log" 2>&1
 abi_status=$?
 set -e
-log "phase=abi-replay done status=$abi_status (non-zero is usually the two pre-existing RGA contract gaps, not memory)"
+log "phase=abi-replay done status=$abi_status (a non-zero ABI contract result is not itself a memory finding)"
 
 # Flush everything before the operation that crashed the original run.
 sync

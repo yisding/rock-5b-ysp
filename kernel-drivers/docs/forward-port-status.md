@@ -20,6 +20,8 @@ with the expected non-debug config, but the Published package still predates
 them. Corrected isolated and full official-MPP runs are now functionally green
 on the KASAN build; full conformance remains open because RGA2 DMA-debug found
 an invalid page-table sync and the host lacks the GStreamer development stack.
+Source patches `0044`/`0045` fix the two persistent RGA ABI replay gaps and
+compile under the same KASAN configuration, but need a rebuilt booted replay.
 
 ## ✅ Done — validated on real hardware
 
@@ -168,6 +170,13 @@ an invalid page-table sync and the host lacks the GStreamer development stack.
   allocation must retain a valid DMA address/lifetime; disabling the warning is
   not a fix. See the
   [RGA2 DMA-sync finding](../../findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md).
+- **The two persistent RGA ABI replay gaps are source-fixed but not yet booted.**
+  Patch `0044@72accfd1d5a14` accepts legacy `RGA2_GET_RESULT` as a no-op.
+  Patch `0045@27452e30a2cfd` rejects malformed/unknown staged task descriptors,
+  blocks replacement while a request runs, and frees the prior staged list.
+  Both affected objects compile from the installed KASAN configuration; the
+  exact booted ABI replay remains the gate. See the
+  [RGA ABI finding](../../findings/2026-07-21-rga-forward-port-abi-gaps.md).
 - **Direct RGA3 im2d virtual-buffer samples exposed RGA/IOMMU forward-port
   gaps.** The upstream `airockchip/librga` copy/resize/rotate samples import
   malloc-backed buffers and can trigger `RGA3_core0 INTR[0x2]`, the RGA MMU
@@ -195,10 +204,10 @@ The July 4 forward-port baseline is **functionally complete for its tested,
 trusted-input codec scope**: `ffmpeg -hwaccel rkmpp -c:v hevc_rkmpp ...` uses
 the hardware on Armbian 6.18. That does not make the maintained source tip or
 the BSP-derived ABI generally shippable. The locally built production candidate
-now absorbs `0042`/`0043`, but publication, board boot/conformance, and rollback
-still need resolution. The MPP functional
-failures are closed on the KASAN build, but the RGA2 DMA ownership
-warning, two RGA ABI contract failures, GStreamer dependency gate, and broader
-audit series still have compile/runtime work. DVFS and codec breadth
-are optional polish; memory safety, regression conformance, and recovery are
-release blockers.
+absorbs `0042`/`0043` but predates the compile-verified `0044`/`0045` ABI fixes;
+publication, board boot/conformance, and rollback still need resolution. The
+MPP functional failures are closed on the KASAN build, but the RGA2 DMA
+ownership warning, boot verification of the RGA ABI fixes, GStreamer dependency
+gate, and broader audit series still have compile/runtime work. DVFS and codec
+breadth are optional polish; memory safety, regression conformance, and recovery
+are release blockers.

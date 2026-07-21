@@ -988,6 +988,12 @@ static void probe_rga_request_config(int fd)
 
 	task.render_mode = update_patten_buff_mode;
 	errno = 0;
+	require_errno_value("RGA_IOC_REQUEST_CONFIG missing pat",
+			    ioctl(fd, RGA_IOC_REQUEST_CONFIG, &request),
+			    EFAULT);
+
+	task.render_mode = UINT8_MAX;
+	errno = 0;
 	require_errno_value("RGA_IOC_REQUEST_CONFIG unsupported",
 			    ioctl(fd, RGA_IOC_REQUEST_CONFIG, &request),
 			    EFAULT);

@@ -24,7 +24,7 @@ versions, the mainline-V4L2 alternative) live in
 | Developer focus | Accelerator service/submit models, dma-buf/IOMMU lifetime, device-tree wiring, runtime ABIs, forward-port deltas, audits, and rewrite alternatives where applicable. |
 | Owns | Shared kernel docs in [`docs/`](docs/how-the-drivers-work.md); the five sub-projects; patch deliverables in [`patches/`](patches/README.md); board scripts in [`scripts/`](scripts/README.md); hardware smoke tests in [`tests/`](tests/README.md). |
 | Depends on | Armbian or vanilla 6.18 kernel build inputs, RK3588 device tree, and [`../vendor-libraries/`](../vendor-libraries/README.md). |
-| Current state | The July 4 combined Armbian kernel remains the hardware-validated baseline. The maintained AV1 forward-port series includes KASAN-verified lifetime fixes `0042`/`0043`; clean exact-6.18.38 production build `Pf558-Cb831` and its fresh PPA source extraction pass, but isolated functional conformance, upload/build, board install/boot, and rollback remain before it can replace that baseline. DKMS compiles on 6.18 but its overlay is not boot-validated; audit-fix and rewrite tracks are not shippable replacements. See [`../status.md`](../status.md). |
+| Current state | The July 4 combined Armbian kernel remains the hardware-validated baseline. The maintained AV1 forward-port series includes KASAN-verified lifetime fixes `0042`/`0043` and compile-verified RGA ABI fixes `0044`/`0045`; corrected MPP/FFmpeg conformance passes on KASAN, while RGA DMA ownership, GStreamer, rebuild/boot, publication, exact-image validation, and rollback remain. Clean exact-6.18.38 production build `Pf558-Cb831` predates the ABI fixes. DKMS compiles on 6.18 but its overlay is not boot-validated; audit-fix and rewrite tracks are not shippable replacements. See [`../status.md`](../status.md). |
 
 ## How the kernel package fits
 
@@ -66,7 +66,7 @@ The kernel work runs on three tracks across those sub-projects:
 
 | Track | What it is | Read next |
 |-------|------------|-----------|
-| Forward-port | Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18. The frozen two-patch base owns the validated anchor; the 42-file AV1/PPA series owns current hardening work through patch `0043`. | [`patches/`](patches/README.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
+| Forward-port | Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18. The frozen two-patch base owns the validated anchor; the 44-file AV1/PPA series owns current hardening work through patch `0045`. | [`patches/`](patches/README.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
 | Audit fixes | A reviewable 65-patch correctness/security cleanup series on top of the forward-port. | [`docs/bsp-audit.md`](docs/bsp-audit.md), [`patches/cleanup-split/`](patches/cleanup-split/README.md) |
 | Rewrite drivers | Public-API-only reimplementations of `/dev/mpp_service` and `/dev/rga`, as a learning + upstreamable-design track. | [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) |
 

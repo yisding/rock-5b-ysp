@@ -31,9 +31,10 @@ delta file exists. That keeps placeholder or stale `debugfs-counters-delta.tsv`
 files from passing the branch-level parity audit.
 
 ABI-replay note: `abi-probe.sh` records the BSP-compatible modern RGA request
-wrapper behavior for an unsupported handle-backed `RGA_IOC_REQUEST_CONFIG`.
-After the initial request-check stage succeeds, the observable ioctl errno is
-`EFAULT`, while legacy/backend unsupported paths can still use `EOPNOTSUPP`.
+wrapper behavior for malformed and unsupported handle-backed
+`RGA_IOC_REQUEST_CONFIG` descriptors. After the initial request-check stage
+succeeds, the observable ioctl errno is `EFAULT`, while legacy/backend
+unsupported paths can still use `EOPNOTSUPP`.
 
 Forward-port crash gate (updated 2026-07-21): run `20260717-230531` Oopsed after
 ABI replay and before its first media case. KASAN subsequently separated and
@@ -50,8 +51,9 @@ cases with an empty journal/fatal scan, and the full 12-case official-MPP run
 `20260720-213542-mpp-suite` passed. The same KASAN boot passed the FFmpeg codec
 matrix and corrected H.264/H.265/VP9 bit-exact PSNR gate, but direct RGA2
 dma-buf submission exposed an unmapped-address DMA-API sync warning. ABI replay
-also retained its two known RGA contract failures. The GStreamer runtime matrix
-remains blocked on missing development packages. See the
+also retained two known RGA contract failures on that installed kernel. Source
+patches `0044`/`0045` now address them, with booted KASAN replay still pending.
+The GStreamer runtime matrix remains blocked on missing development packages. See the
 [`0042` finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md)
 and [`0043` finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),
 plus the new
@@ -81,7 +83,7 @@ findings.
 | `iommu-machinery-fuzz.sh` | **RGA3 userptr-IOMMU and RK3588 IOMMU stress** | Builds `rga-iommu-fuzz.cpp`, runs scattered-userptr RGA copy/resize/rotate/cvtcolor correctness checks across all 64 cache-line offsets, and protects inactive source/destination bytes with guards. It reuses `decode-differential.sh` for bit-exact H.264/H.265/VP9/AV1 decode and can run RGA scatter plus AV1 decode concurrently while bracketing dmesg and debugfs counters for IOMMU faults, RGA userptr-IOMMU leaks, boundary-shadow copy coverage, active-shadow leaks, and setup failures. Run on booted hardware, ideally the debug kernel in [`IOMMU-FUZZING.md`](./IOMMU-FUZZING.md). Set `IOMMU_FUZZ_VALIDATE_BUILD=1` for the device-free C++ compile check that is part of `VALIDATE_ONLY=1 rewrite-conformance-run.sh`; that mode does not touch devices, debugfs, or target librga shared libraries. |
 | `rewrite-recovery-stress.sh` | **reset/recovery stress harness** | Runs kill/close, reset-opener, and opt-in platform unbind/rebind loops around an explicit busy workload, then runs a post-case liveness command, scans new dmesg lines for fatal signatures, and snapshots MPP/RGA debugfs counter deltas. Set `RECOVERY_VALIDATE_ONLY=1` for device-free config validation; that mode is part of `VALIDATE_ONLY=1 rewrite-conformance-run.sh` and is not hardware recovery evidence. Runtime exit `77` means both device nodes are absent. |
 | `rga-session-uaf.sh` | **RGA `/dev/rga` session-close force-free reproducer** (⚠️ destructive) | Two KASAN scenarios for the [session-close UAF finding](../../findings/2026-07-17-rga-session-close-uaf.md): `leak` deterministically reproduces the reported refcount-1 leak-and-close (expected quiet on any kernel), and `cross` drives the reachable cross-session in-flight-job UAF (expected KASAN use-after-free on the unpatched fwport kernel, quiet on `bc086cbe03d7`). Provokes a real kernel memory-safety bug — run only on a disposable KASAN board with `ramoops`/pstore configured. Details in [`rga-session-uaf.md`](./rga-session-uaf.md). |
-| `kasan-narrowed-repro.sh` | **narrowed reset-session double-free reproduction** (KASAN kernel only) | Runs `abi-replay.sh` (MPP/RGA session churn incl. `MPP_CMD_RESET_SESSION`) then a one-shot recursive `/proc/mpp_service` snapshot, and scans the kernel log emitted during it. Isolates the [reset-session double-free](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md): a first-pass KASAN hit on the unpatched fwport kernel, quiet with patch `0042`. Non-zero `abi_status` is usually the two pre-existing RGA contract gaps, not memory; the gate is `flagged_kernel_lines=0`. |
+| `kasan-narrowed-repro.sh` | **narrowed reset-session double-free reproduction** (KASAN kernel only) | Runs `abi-replay.sh` (MPP/RGA session churn incl. `MPP_CMD_RESET_SESSION`) then a one-shot recursive `/proc/mpp_service` snapshot, and scans the kernel log emitted during it. Isolates the [reset-session double-free](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md): a first-pass KASAN hit on the unpatched fwport kernel, quiet with patch `0042`. A non-zero ABI-contract result is not itself a memory finding; the gate is `flagged_kernel_lines=0`. |
 | `kasan-mpp-suite.sh` | **full MPP codec matrix under KASAN** (memory-safety gate) | Drives `mpp-suite.sh` with the real decode/mt/multi/encode/slice/rc2 matrix against the tracked assets (AVS2 omitted — no asset), then scans the kernel log around it. This is the continuation past the preflight Oops that crashed forward-port run `20260717-230531`; it exercises the [reset-session `0042`](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md) and [`rkvenc2_wait_result` `0043`](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md) paths. Pass = every required case passes **and** `kernel-log-flags.txt` is empty. Override `MPP_REQUIRED_CASES` / `MPP_*_INPUT` to change the matrix. |
 
 ## Privileges

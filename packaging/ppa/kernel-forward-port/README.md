@@ -9,8 +9,8 @@ forward-port kernel. The current published candidate is:
 | Launchpad | Source publication `18626523`; successful arm64 build `33412608`; exact image present in the live PPA index. |
 | Contents | RGA session-close reference lifetime fix, early MPP procfs unlink, the preceding raw-import hardening, and the full MPP/RGA/AV1 forward port. |
 | Board result | Package install and boot passed. The first conformance preflight Oopsed before a media case, so driver conformance and rollback remain unproven. |
-| Newer source | Tracked forward-port patches `0042`/`0043` fix the KASAN-traced RESET_SESSION and RKVENC2 lifetime bugs and pass their memory-safety reruns. They are not in this Published package. |
-| Local successor | `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` exports both fixes. Exact-source, no-ccache Armbian build `Pf558-Cb831` completed image, modules, DTBs, headers, BTF, and Debian packaging; its unsigned PPA source package passes `dscverify`, fresh extraction, source inspection, and production-config inspection. Corrected MPP/FFmpeg conformance passes are from the installed KASAN build, not this production image. It is not uploaded or board-tested. |
+| Newer source | Tracked forward-port patches `0042`/`0043` fix the KASAN-traced RESET_SESSION and RKVENC2 lifetime bugs and pass their memory-safety reruns. Compile-verified `0044`/`0045` fix the two RGA ABI replay gaps but still need a rebuilt booted replay. None is in the Published package. |
+| Local successor | `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` exports `0042`/`0043`. Exact-source, no-ccache Armbian build `Pf558-Cb831` completed image, modules, DTBs, headers, BTF, and Debian packaging; its unsigned PPA source package passes `dscverify`, fresh extraction, source inspection, and production-config inspection. Corrected MPP/FFmpeg conformance passes are from the installed KASAN build, not this production image. It predates `0044`/`0045` and is not uploaded or board-tested. |
 
 Earlier package iterations established the packaging path: the initial build
 failed because `mkimage` was absent; retry `18614559`/`33387391` added
@@ -259,9 +259,9 @@ Not done yet:
 - Exact-production-image repetition of the corrected MPP and FFmpeg passes.
   The isolated KASAN functional failures are resolved, but those results do not
   validate the unbooted `Pf558-Cb831` package.
-- RGA completion: ABI replay still has the known `RGA2_GET_RESULT` and
-  unsupported `RGA_IOC_REQUEST_CONFIG` contract failures, and direct dma-buf
-  smoke exposed the
+- RGA completion: source patches `0044`/`0045` address the known
+  `RGA2_GET_RESULT` and `RGA_IOC_REQUEST_CONFIG` contract failures, but booted
+  ABI replay is pending. Direct dma-buf smoke also exposed the
   [RGA2 unmapped page-table DMA sync](../../../findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md).
 - The GStreamer runtime suite; its development pkg-config packages are absent
   on the current host.
@@ -274,11 +274,11 @@ Not done yet:
 
 ## Remaining Checklist
 
-1. Fix the two RGA ABI gaps and RGA2 page-table DMA ownership, install the
-   GStreamer development stack, and finish the remaining KASAN conformance
-   suites.
-2. Upload/build the validated 20260720 source in Launchpad, then install and
-   repeat the green MPP/FFmpeg plus completed RGA/GStreamer gate on that exact
-   `0042`/`0043` image.
+1. Fix RGA2 page-table DMA ownership, rebuild the KASAN tip with the
+   compile-verified `0044`/`0045` ABI fixes, install the GStreamer development
+   stack, and finish the remaining conformance suites.
+2. Build/upload a production source containing the complete current patch
+   tail, then install and repeat the green MPP/FFmpeg plus completed
+   RGA/GStreamer gate on that exact image.
 3. Validate rollback and `kernel-revert.sh` recovery on the board before giving
    install guidance. Install and reboot of the 20260717 image already pass.

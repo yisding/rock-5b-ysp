@@ -1,0 +1,113 @@
+From 4e5f977915e3639b421c28631b26105fb1f9fd8d Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 21 Jul 2026 02:44:51 -0700
+Subject: [PATCH 45/45] video: rockchip: rga3: validate staged request tasks
+
+RGA_IOC_REQUEST_CONFIG accepts malformed and unknown task descriptors
+because it only copies the array. Validate the channel requirements used
+later by the mapping path before replacing the staged task list, and reject
+reconfiguration while a request is running.
+
+Replace the old task list atomically and free it after dropping the request
+lock so repeated CONFIG calls do not leak each prior allocation. A failed
+replacement leaves the previous valid configuration intact.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/rga3/rga_job.c | 60 +++++++++++++++++++++++++++
+ 1 file changed, 60 insertions(+)
+
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index 9c133e9f2f350..755af53952ab1 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -660,6 +660,51 @@ int rga_request_check(struct rga_user_request *req)
+ 	return 0;
+ }
+ 
++static int rga_request_task_check(const struct rga_req *task)
++{
++	switch (task->render_mode) {
++	case BITBLT_MODE:
++	case COLOR_PALETTE_MODE:
++		if (!task->src.yrgb_addr || !task->dst.yrgb_addr)
++			return -EINVAL;
++
++		if (task->bsfilter_flag && !task->pat.yrgb_addr)
++			return -EINVAL;
++
++		break;
++	case COLOR_FILL_MODE:
++		if (!task->dst.yrgb_addr)
++			return -EINVAL;
++
++		break;
++	case UPDATE_PALETTE_TABLE_MODE:
++	case UPDATE_PATTEN_BUF_MODE:
++		if (!task->pat.yrgb_addr)
++			return -EINVAL;
++
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int rga_request_task_list_check(const struct rga_req *task_list,
++				       size_t task_count)
++{
++	size_t i;
++	int ret;
++
++	for (i = 0; i < task_count; i++) {
++		ret = rga_request_task_check(&task_list[i]);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
+ struct rga_request *rga_request_lookup(struct rga_pending_request_manager *manager, uint32_t id)
+ {
+ 	struct rga_request *request = NULL;
+@@ -1136,6 +1181,7 @@ struct rga_request *rga_request_config(struct rga_user_request *user_request)
+ 	unsigned long flags;
+ 	struct rga_pending_request_manager *request_manager;
+ 	struct rga_request *request;
++	struct rga_req *old_task_list;
+ 	struct rga_req *task_list;
+ 
+ 	request_manager = rga_drvdata->pend_request_manager;
+@@ -1170,8 +1216,21 @@ struct rga_request *rga_request_config(struct rga_user_request *user_request)
+ 		goto err_free_task_list;
+ 	}
+ 
++	ret = rga_request_task_list_check(task_list, user_request->task_num);
++	if (ret) {
++		rga_req_err(request, "invalid task list\n");
++		goto err_free_task_list;
++	}
++
+ 	spin_lock_irqsave(&request->lock, flags);
+ 
++	if (request->is_running) {
++		spin_unlock_irqrestore(&request->lock, flags);
++		ret = -EBUSY;
++		goto err_free_task_list;
++	}
++
++	old_task_list = request->task_list;
+ 	request->task_list = task_list;
+ 	request->task_count = user_request->task_num;
+ 	request->sync_mode = user_request->sync_mode;
+@@ -1180,6 +1239,7 @@ struct rga_request *rga_request_config(struct rga_user_request *user_request)
+ 	request->feature = task_list[0].feature;
+ 
+ 	spin_unlock_irqrestore(&request->lock, flags);
++	kfree(old_task_list);
+ 
+ 	return request;
+ 

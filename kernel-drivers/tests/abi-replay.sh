@@ -73,6 +73,7 @@ rga:
   physical_import_reject         expected errno=95 (Operation not supported)
   physical_import_probe          disabled
   RGA_IOC_GET_HW_VERSION         ret=1
+  RGA_IOC_REQUEST_CONFIG missing pat ret=-1 errno=14 (Bad address)
   RGA_IOC_REQUEST_CONFIG unsupported ret=-1 errno=14 (Bad address)
   config_request_id              42
   config_src_handle              43
@@ -96,6 +97,9 @@ EOF
   grep -Eq 'RGA_IOC_REQUEST_CONFIG unsupported[[:space:]]+ret=-1 errno=14' \
     "$tmp_root/contract.log" ||
     fail_selftest "unsupported request errno missing from contract log"
+  grep -Eq 'RGA_IOC_REQUEST_CONFIG missing pat[[:space:]]+ret=-1 errno=14' \
+    "$tmp_root/contract.log" ||
+    fail_selftest "missing-pattern request errno missing from contract log"
   if grep -Eq 'physical(_import| ret=)' "$tmp_root/contract.log"; then
     fail_selftest "physical import lines leaked into contract log"
   fi
