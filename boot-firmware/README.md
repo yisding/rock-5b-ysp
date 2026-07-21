@@ -17,6 +17,7 @@
 | What is U-Boot, and what runs before it? | [`docs/u-boot-primer.md`](docs/u-boot-primer.md) |
 | How do Armbian 26.2, 26.5, Radxa, and upstream differ? | [`docs/version-comparison.md`](docs/version-comparison.md) |
 | Where did a boot stop, and what should I inspect next? | [`docs/debugging.md`](docs/debugging.md) |
+| How do I check a published Rockchip image for the zero-DTB FIT race without downloading it in full? | [`scripts/audit-armbian-rockchip-fit.sh`](scripts/audit-armbian-rockchip-fit.sh); use [`scripts/audit-armbian-radxa-catalog.sh`](scripts/audit-armbian-radxa-catalog.sh) for every image linked from one or more board pages. |
 | What do SPL, BL31, FIT, Bootstd, and `idbloader.img` mean? | [`keywords.md`](keywords.md) |
 | What is the dated public state and next hardware proof? | [`../status.md`](../status.md) track 12 |
 | How do I back up, erase, or restore SPI safely? | [`../scripts/`](../scripts/README.md) |
