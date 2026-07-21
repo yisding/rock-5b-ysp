@@ -22,7 +22,15 @@ on the KASAN build; full conformance remains open because RGA2 DMA-debug found
 an invalid page-table sync and the host lacks the GStreamer development stack.
 Patches `0044`/`0045` fix the two persistent RGA ABI replay gaps; the rebuilt
 booted KASAN debug kernel `Pb999-C4ad2` passes the full ABI replay
-(`abi_status=0`) with a clean memory scan.
+(`abi_status=0`) with a clean memory scan. The same `Pb999` boot re-ran the
+12-case MPP matrix (`20260721-042445-kasan-mpp-suite`) and the full FFmpeg
+codec suite including the H.264/H.265/VP9 bit-exact PSNR gates
+(`20260721-042631-ffmpeg-codec-suite`) — all required cases pass with clean
+kernel scans, so the complete current patch tip `0001`–`0045` is
+hardware-validated for those gates. The librga im2d smoke still fails its
+known dmabuf/virtual-import cases (same `no core match` terminal failure as
+July 20; the RGA2 DMA warning did not recur this boot because no core matched
+the job, so the DMA-ownership finding remains open, not re-triggered).
 
 ## ✅ Done — validated on real hardware
 

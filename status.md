@@ -30,7 +30,7 @@ separate table below so both remain scannable.
 
 | # | Track | Public state | Verified | Detail |
 |---|-------|--------------|----------|--------|
-| 1 | Kernel forward-port | ⚠️ The July 4 codec results remain the production baseline. On the installed KASAN build, patches `0042`/`0043` have clean memory scans, the corrected 12-case official-MPP matrix passes, and the FFmpeg codec/bit-exact PSNR gates pass. Patches `0044`/`0045` close the two RGA ABI gaps: rebuilt KASAN debug build `Pb999-C4ad2` booted and passed the full ABI replay (`abi_status=0`) with a clean memory scan. An unchecked RKVENC2 slice-FIFO overflow, invalid RGA2 page-table DMA sync, and dependency-blocked GStreamer suite remain. Clean production build `Pf558-Cb831` predates `0044`/`0045`, is not uploaded or boot-tested, and the Published PPA stops at `0041`. | 2026-07-21 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
+| 1 | Kernel forward-port | ⚠️ The July 4 codec results remain the production baseline. On the installed KASAN build, patches `0042`/`0043` have clean memory scans, the corrected 12-case official-MPP matrix passes, and the FFmpeg codec/bit-exact PSNR gates pass. Patches `0044`/`0045` close the two RGA ABI gaps: rebuilt KASAN debug build `Pb999-C4ad2` booted and passed the full ABI replay (`abi_status=0`), the 12-case MPP matrix, and the full FFmpeg codec/bit-exact PSNR suite, all with clean memory scans — the complete current tip is hardware-validated for those gates. An unchecked RKVENC2 slice-FIFO overflow, invalid RGA2 page-table DMA sync, and dependency-blocked GStreamer suite remain. Clean production build `Pf558-Cb831` predates `0044`/`0045`, is not uploaded or boot-tested, and the Published PPA stops at `0041`. | 2026-07-21 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
 | 2 | BSP-audit fix series | ⚠️ Staged only: the split series diverges from the verified draft and does not compile until patch 0024 is regenerated. | 2026-07-01 | [`cleanup-split/`](./kernel-drivers/patches/cleanup-split/README.md) |
 | 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
 | 4 | Clean-room rewrite drivers | 🚧 Current 6.18/mainline source tips incorporate the five applicable Rockchip 5.10 RGA reliability/cache-safety lessons and pass warning-free normal/memory/race clean-source gates. The post-reconciliation audit added booted 206-case KUnit evidence, before/after dmesg rejection, stronger safety/idle counters, required official-MPP core coverage, AVS2, and low-delay slice-poll cases; all device-free bad-fixture/build wiring passes. Existing package composites predate the source tip, and no current rewrite kernel has booted hardware proof. | 2026-07-17 | [conformance-gap audit](./kernel-drivers/docs/rewrite-conformance-gap-audit.md) |
@@ -105,7 +105,7 @@ last-checked date.
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
 | W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0040`; frozen base patch still has the old path. |
-| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | Patches `0042`/`0043` are KASAN-verified and corrected MPP runs pass; RGA ABI fixes `0044`/`0045` pass booted KASAN ABI replay on rebuilt debug build `Pb999-C4ad2`, while slice-FIFO/DMA hardening, GStreamer, publication, exact-image validation, and rollback remain. |
+| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | Patches `0042`/`0043` are KASAN-verified and corrected MPP runs pass; RGA ABI fixes `0044`/`0045` pass booted KASAN ABI replay on rebuilt debug build `Pb999-C4ad2`, which also re-ran the MPP matrix and FFmpeg codec/PSNR gates green, while slice-FIFO/DMA hardening, GStreamer, publication, exact-image validation, and rollback remain. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 
 <a id="watch-w01"></a>
@@ -361,7 +361,11 @@ last-checked date.
   `0045@27452e30a2cfd` fix the two RGA ABI replay gaps: `rkvenc-fwport-6.18`
   was fast-forwarded to `27452e3`, rebuilt as KASAN debug build `Pb999-C4ad2`,
   installed, and booted, and run `20260721-034716-kasan-narrowed` passed the
-  full ABI replay (`abi_status=0`) with a clean memory scan.
+  full ABI replay (`abi_status=0`) with a clean memory scan. The same boot
+  re-ran the 12-case MPP matrix (`20260721-042445`) and full FFmpeg
+  codec/bit-exact PSNR suite (`20260721-042631`) green with clean scans; the
+  librga im2d smoke keeps its known pre-existing dmabuf/virtual failures and
+  did not re-trigger the RGA2 DMA warning this boot.
   Clean exact-6.18.38 production build `Pf558-Cb831` and the freshly extracted
   unsigned 20260720 PPA source package carry both lifetime fixes with the
   non-debug AV1/RGA config but predate `0044`/`0045`. The Published kernel still
