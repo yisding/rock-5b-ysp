@@ -9,6 +9,10 @@ Real applications driven by the RK3588 hardware-video stack.
 
 Jellyfin is not a project in this repo yet; FFmpeg/Jellyfin-relevant codec notes
 live under [`../video-libraries/ffmpeg/`](../video-libraries/ffmpeg/README.md).
+Other untracked applications (Firefox, Chromium, VLC, HandBrake, mpv, OBS) are
+assessed in the cross-project
+[app enablement map](../docs/app-enablement.md); an app graduates to its own
+directory here only once a `findings/` entry captures runtime evidence.
 
 State rollup: [`../status.md`](../status.md). Cross-cutting vocabulary:
 [`../glossary.md`](../glossary.md).
