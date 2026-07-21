@@ -78,7 +78,7 @@ kernel path this repo's BSP forward-port deliberately does not take (V4L2).
 | OBS | libavcodec encoders | Hours–a day; cheapest encode win after the CLI |
 | HandBrake | bundled FFmpeg + own encoder registry | Days; encode is the realistic value |
 | VLC | libavcodec *hwaccels*, not named wrappers | Days–weeks of patching; recommend skipping |
-| Firefox | VA-API (or stateful V4L2-M2M) | H.264+VP9 works **today** via rockchip-vaapi (sandbox off); solid via the fork-and-renovate plan. The libv4l-rkmpp shim does not reach it |
+| Firefox | **VA-API only** on Rockchip | H.264+VP9 works **today** via rockchip-vaapi (sandbox off); solid via the fork-and-renovate plan. It cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the ffmpeg rkmpp wrapper decoders (not a hwaccel) — see the [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
 | Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | Renovated rockchip-vaapi + a 1–3 week hardening pass (stock builds, runtime flags); or ~3–6 weeks re-targeting the libv4l-rkmpp shim (custom builds forever); or maxline |
 
 ### mpv — essentially free, and the right first proof
@@ -192,6 +192,13 @@ Three roads now exist, ordered by proof level:
    hours-long arm64 builds.
 2. **The maxline road** — mainline kernel + Chromium with stateless V4L2
    enabled, zero Chromium patches once mainline rkvdec2 covers the codecs.
+   Note this road is **Chromium-only**: mainline exposes decode via V4L2
+   stateless (request API), which Chromium's native decoder speaks but Firefox
+   cannot (Firefox's V4L2 support is stateful-M2M-only, no request-API). AV1 on
+   mainline has its own decoder (since 6.5) and — being stateless→stateless — a
+   VA-over-V4L2 AV1 shim would be far easier than the MPP bridge's OBU
+   reconstruction, but none exists yet. See the
+   [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md).
 3. **The VA-API road** (below) — no longer "most work": stock Chromium
    supports VA-API behind runtime flags, so a renovated rockchip-vaapi plus a
    1–3 week Chromium hardening pass needs zero Chromium patches; the sandbox
@@ -273,3 +280,4 @@ De-risk in this order:
 - [`../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md`](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md) — source-level survey of the archived ubuntu-rockchip stack this page's first revision is based on
 - [`../findings/2026-07-21-rockchip-vaapi-driver-review.md`](../findings/2026-07-21-rockchip-vaapi-driver-review.md) — full review of the PoC VA-API-over-MPP driver: fork-and-renovate verdict, Chromium/app reach, sandbox gate analysis
 - [`../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md`](../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) — the bitstream-reconstruction spectrum and why AV1 is scoped out of the driver's v1 (VP9 fallback)
+- [`../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md`](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) — mainline is V4L2-stateless not VA-API; why Firefox can use neither the mainline V4L2 route nor the ffmpeg rkmpp wrapper decoders, making VA-API its only path
