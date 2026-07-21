@@ -36,7 +36,7 @@ separate table below so both remain scannable.
 | 4 | Clean-room rewrite drivers | 🚧 Current 6.18/mainline source tips incorporate the five applicable Rockchip 5.10 RGA reliability/cache-safety lessons and pass warning-free normal/memory/race clean-source gates. The post-reconciliation audit added booted 206-case KUnit evidence, before/after dmesg rejection, stronger safety/idle counters, required official-MPP core coverage, AVS2, and low-delay slice-poll cases; all device-free bad-fixture/build wiring passes. Existing package composites predate the source tip, and no current rewrite kernel has booted hardware proof. | 2026-07-17 | [conformance-gap audit](./kernel-drivers/docs/rewrite-conformance-gap-audit.md) |
 | 5 | ffmpeg tree | ⚠️ Public refs for canonical `main`, `ffmpeg-80`, and `ffmpeg-81` remain at the source/FATE-validated tips. The normal PPA uses separate 8.0 branch `fix/rkmpp-output-timeout@da5befc806`; it is built/Published but still needs the combined GRD runtime gate. The canonical tips and AV1 MP4/MKV path still lack new board validation. | 2026-07-19 | [FFmpeg status](./video-libraries/ffmpeg/README.md) |
 | 6 | ffmpeg submissions | ❌ The targeting plan exists, but no patch has been submitted. | 2026-07-02 | [`submission-plan.md`](./video-libraries/ffmpeg/docs/submission-plan.md) |
-| 7 | GNOME Remote Desktop backend | ⚠️ The backend sustains 60 fps; patch `0017` fixes uncached imported-buffer readback and published FFmpeg `da5befc806` fixes transient MPP input backpressure. Two macOS focus-return failures are isolated by `0018`/`0019`, and the final 19-patch functional tip plus `exp7` build. `exp8` proved the Microsoft macOS client returns only exact stereo PCM. Installed `exp9` traced SVC fallback, PipeWire capture, PCM WAVE2 sends, and confirmations; after the PipeWire migration reboot, the macOS client rendered audible audio. The Windows control rejects playback DVC identically and appears to use a legacy compressed SVC format, not AAC. Exact compressed-codec interoperability, publication/promotion, and the remaining video focus gate remain. | 2026-07-21 | [`audio diagnosis`](./apps/gnome-remote-desktop/docs/audio-redirection.md), [`audio live result`](./findings/2026-07-21-grd-rdp-audio-live-validation-and-codec-control.md), [`ACK wedge`](./findings/2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md), [`false starvation`](./findings/2026-07-20-grd-focus-return-false-pipeline-starvation.md) |
+| 7 | GNOME Remote Desktop backend | ⚠️ Clean release branch `release/50.1-rkmpp@5f61bb6` rebuilds the work as 16 commits on `c14e09e`. It keeps the 60 fps RKMPP path, cached-readback root fix, bounded encode recovery, reconnect fixes, and live-validated progress-gated ACK recovery. The diagnostic pipeline watchdog/thread, idle-baseline workaround, routine ACK messages, audio format/flow traces, Opus suppression, and legacy-format probe are archived rather than shipped. The release restores AAC/Opus/PCM; clean package build, final focus/resume validation, and promotion remain. | 2026-07-21 | [`release patches`](./apps/gnome-remote-desktop/patches/README.md), [`audio diagnosis`](./apps/gnome-remote-desktop/docs/audio-redirection.md), [`ACK wedge`](./findings/2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
 | 9 | Launchpad PPA | ⚠️ The normal system stack, both dedicated FFmpeg comparisons, both rewrite-kernel replacements, and experimental GRD `~exp3` now have Published sources and successful arm64 builds. The normal PPA's latest FFmpeg is backpressure fix `da5befc806` (`18628833` / `33417109`). Optional GDM upload and board migration/kernel/GRD runtime gates remain open. | 2026-07-19 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
@@ -60,7 +60,7 @@ dashboard date and ledger row when public state changes.
 | 4 | Clean-room rewrite drivers | Rebuild/package one current July 17 source tip; persist 206 green booted KUnit results, then capture paired clean-dmesg/counter/artifact evidence including AVS2 and H.264/H.265 low-delay slice polling. | [Remaining rewrite hardware gates](./kernel-drivers/docs/rewrite-conformance-gap-audit.md#remaining-gaps-and-hardware-gates) |
 | 5 | ffmpeg tree | Re-test AV1 from MP4 and MKV through `av1_rkmpp` on RK3588. | [AV1 follow-up evidence](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md#av1-follow-up) |
 | 6 | ffmpeg submissions | Submit the first patch from the ordered upstream/fork plan and record its review URL. | [Suggested first wave](./video-libraries/ffmpeg/docs/submission-plan.md#suggested-first-wave) |
-| 7 | GNOME Remote Desktop backend | Repeat the `exp7`/`exp9` macOS focus-away/return video gate; separately identify the Windows control's exact returned audio tuple before implementing and forcing one legacy compressed playback format. | [Focus/resume acceptance gate](./apps/gnome-remote-desktop/docs/testing.md#10-exp6exp7-macos-focusresume-gate), [audio codec boundary](./apps/gnome-remote-desktop/docs/audio-redirection.md#sndc-wave-codec-boundary) |
+| 7 | GNOME Remote Desktop backend | Build/install the clean `~rc1`, repeat the macOS focus-away/return video gate, and confirm audible PCM with the restored normal codec offer. A-law implementation remains explicitly deferred. | [Focus/resume acceptance gate](./apps/gnome-remote-desktop/docs/testing.md#10-exp6exp7-macos-focusresume-gate), [audio release boundary](./apps/gnome-remote-desktop/docs/audio-redirection.md) |
 | 8 | Mesa / Panfrost | Rebase !42679 and rerun its selected CI coverage. | [MR tips and selected CI](./video-libraries/mesa/README.md#mr-status) |
 | 9 | Launchpad PPA | Install, boot, and revert the co-installable forward-port kernel on the ROCK 5B. | [Kernel package checklist](./packaging/ppa/kernel-forward-port/README.md#remaining-checklist) |
 | 10 | Binary publishing | Choose and record the repository-wide license required before a public release. | [License decision boundary](./LICENSE.md) |
@@ -102,10 +102,10 @@ last-checked date.
 | W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-21 | The reconstructed-ACK recovery is live-validated, the idle-time false starvation actuator is source-fixed, and installed `exp9` audibly validates PCM RDP output after the PipeWire migration; repeated focus/resume video validation, compressed-audio interoperability, publication/promotion, and upstream review remain. |
 | W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
-| W13 | [librga P010/P210 series](#watch-w13) | 2026-07-21 | Hardware gate ran on `Pb999-C4ad2`: the patched-librga request chain is verified correct in source, but RGA3 corrupts incompact P010 writes at the kernel/BSP level (~7 dB vs software); a `pixel_width` stride fix is the tracked candidate. |
+| W13 | [librga P010/P210 series](#watch-w13) | 2026-07-21 | On `P63dd-C4ad2` the `0048` stride fix makes P010 luma bit-exact; chroma still lands wrong because `rga_convert_addr()` derives UV offsets at 1 byte/px — fixed by kernel patch `0049`, booted chroma gate pending. |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
 | W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0040`; frozen base patch still has the old path. |
-| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | Patches `0042`/`0043` are KASAN-verified and corrected MPP runs pass; RGA ABI fixes `0044`/`0045` pass booted KASAN ABI replay on rebuilt debug build `Pb999-C4ad2`, which also re-ran the MPP matrix and FFmpeg codec/PSNR gates green. New RGA fixes `0046`–`0048` (legacy-virtual `0045` regression, under-4G `EOPNOTSUPP`, byte-literal 10-bit strides) are committed with booted gates pending, while slice-FIFO/DMA hardening, GStreamer, publication, exact-image validation, and rollback remain. |
+| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | RGA fixes `0046`–`0048` pass their booted gates on `P63dd-C4ad2` (legacy blits, `EOPNOTSUPP` probe, P010 luma bit-exact; smoke/MPP/FFmpeg/ABI replay all green, smoke fully green for the first time). The `0048` gate exposed the `0049` UV plane-offset fix (committed, booted gate pending); the missing rga2 `dma_set_max_seg_size()` joined the `0050`/`0051` DMA queue. Slice-FIFO hardening, GStreamer, publication, exact-image validation, and rollback remain. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 
 <a id="watch-w01"></a>
@@ -302,12 +302,13 @@ last-checked date.
 - **Last checked:** 2026-07-21
 - **State then:** The series from `2cffdf6` through `main@a632217` was exported
   under [`vendor-libraries/rga/patches/`](./vendor-libraries/rga/patches/README.md).
-  On `Pb999-C4ad2` the padded-P010 RKRGA hardware gate ran: with AFBC decoder
-  input the FFmpeg Main10→P010 conversion executes but produces ~7 dB output
-  with both the prebuilt 1.10.6 and the source-built `a632217` librga, while
-  the 8-bit control is bit-exact — the userspace flag chain is verified
-  correct in source and the corruption sits in the kernel/BSP RGA3 incompact
-  write path (`pixel_width` stride fix is the tracked candidate). Linear NV15
+  On `P63dd-C4ad2` (kernel `0048` stride fix) the direct im2d P010 probes
+  show luma bit-exact; the remaining chroma corruption is the kernel's
+  `rga_convert_addr()` deriving UV plane offsets at 1 byte/px, fixed by
+  kernel patch `0049@2abc978f92a64` (booted chroma gate pending). The
+  FFmpeg Main10→P010 case shows the matching signature (y≈61 dB,
+  u/v≈4.6 dB). The smoke's 10-bit im2d cases (luma-asserting) pass with
+  `LIBRGA_SMOKE_10BIT=1` on the source-built fork. Linear NV15
   input is separately not RGA-expressible at 1920 wide. See the
   [root-cause finding](./findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md)
   and [shipping guidance](./vendor-libraries/rga/docs/librga-p010-p210-rkrga.md).
@@ -378,8 +379,18 @@ last-checked date.
   the harness (13 cases green), and new RGA fixes `0046@e1d6d47d9565d`
   (legacy-virtual `0045` regression), `0047@0388a3efc829a` (under-4G
   `EOPNOTSUPP` reporting), and `0048@8e641bcd48a38` (byte-literal 10-bit
-  raster strides, the measured P010 corruption) are committed on
-  `rkvenc-fwport-6.18` with booted gates pending.
+  raster strides, the measured P010 corruption) passed their booted gates on
+  rebuilt debug build `P63dd-C4ad2`: legacy blits succeed, the exclusion
+  probe returns `EOPNOTSUPP` with the explanatory log, P010 luma is
+  bit-exact, the librga smoke is fully green for the first time (28 cases,
+  `LIBRGA_SMOKE_10BIT=1`), ABI replay `20260721-081456` and the 12-case MPP
+  matrix `20260721-081639` are clean, and FFmpeg `20260721-081448` passes
+  all 14 required cases plus bit-exact AV1 PSNR. The `0048` gate exposed a
+  final 10-bit defect — `rga_convert_addr()` places UV planes at 1 byte/px
+  offsets — fixed by `0049@2abc978f92a64` (booted chroma gate pending its
+  debug build). DMA-debug also flagged the missing
+  `dma_set_max_seg_size()` on the rga2 device (96 KiB CMA segments vs the
+  64 KiB default); queued with the renumbered `0050`/`0051` DMA work.
   Clean exact-6.18.38 production build `Pf558-Cb831` and the freshly extracted
   unsigned 20260720 PPA source package carry both lifetime fixes with the
   non-debug AV1/RGA config but predate `0044`/`0045`. The Published kernel still

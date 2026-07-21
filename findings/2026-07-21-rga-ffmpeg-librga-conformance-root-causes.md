@@ -124,3 +124,47 @@ bit-exact result.
   the 10-bit im2d cases behind it.
 - `0047`: a 64×64 dmabuf imcopy from the system heap (above 4G) must return
   `EOPNOTSUPP` with the explanatory log line instead of `EINVAL`.
+
+## 2026-07-21 booted verification on `P63dd-C4ad2` (0046–0048)
+
+Debug build `P63dd-C4ad2` (`#3`, md5-verified `/boot/vmlinuz` against the
+deb, `CONFIG_KASAN=y` + `CONFIG_DMA_API_DEBUG=y`) verified:
+
+- **0046 — pass.** The minimal legacy `RGA_BLIT_SYNC` virtual probe returns
+  0 with content match; every legacy suite case is green.
+- **0047 — pass.** The 64×64 system-heap imcopy returns `errno=95`
+  (`EOPNOTSUPP`) and logs "skipped by the under-4G memory limit; retry with
+  below-4G (e.g. CMA/DMA32) buffers". The same copy from
+  `default_cma_region`, or at 128×128 from the system heap (RGA3-eligible),
+  still succeeds.
+- **0048 — read/write strides fixed; exposed a second, previously masked
+  10-bit defect.** P010→NV12 luma is bit-exact on the direct im2d probe.
+  P010→P010 leaves the UV plane untouched: `rga_convert_addr()` derives
+  `uv_addr = yrgb + vir_w * vir_h` (1 byte/pixel), so for P010 both UV
+  bases point at the middle of the Y plane. Measured proof: the misplaced
+  chroma is overwritten by the later Y rows (Y bit-exact, UV never
+  written), and the NV12 probe's chroma bytes equal
+  `((h/2 + c) << 6) >> 8` — source Y row h/2 read as chroma. Fixed at the
+  source by patch `0049@2abc978f92a64`
+  ("derive 10-bit plane offsets byte-literally"), which derives the Y-plane
+  byte size from `compact_mode` (incompact 2 B/px, compact 10 bits/px).
+  Booted verification pending the next debug build.
+- **librga smoke fully green for the first time** (exit 0, 28 ok cases) on
+  the patched-librga build with `LIBRGA_SMOKE_10BIT=1`, after classifying
+  gauss and pre_intr as platform-unsupported skips (absent from the RK3588
+  RGA feature list) and switching the `imconfig` reset to the all-cores
+  mask (librga rejects `IM_SCHEDULER_DEFAULT` by design). Note the smoke's
+  10-bit cases assert luma only, which is why they pass while the direct
+  probe still catches the UV-offset bug.
+- **FFmpeg suite: 14/14 required pass; AV1 PSNR diagnostic passes
+  bit-exact** (run `20260721-081448`). `hevc_main10_p010_rga` remains
+  diagnostic-fail with luma ≈ 61 dB / chroma ≈ 4.6 dB — precisely the
+  UV-offset signature; expected to flip with `0049`.
+- **ABI replay green** (`20260721-081456-kasan-narrowed`, `abi_status=0`,
+  `flagged_kernel_lines=0`).
+- **New kernel finding:** DMA-debug flags
+  `rga2 fdb80000.rga2: mapping sg segment longer than device claims to
+  support [len=98304] [max=65536]` when a legacy blit imports a 96 KiB CMA
+  dma-buf — the forward-ported driver never calls
+  `dma_set_max_seg_size()`, leaving the 64 KiB default. The mapping still
+  proceeds (warning only). Tracked as a follow-up driver patch.

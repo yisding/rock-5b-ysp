@@ -1,4 +1,11 @@
-# Scope: RGA2 page-table DMA ownership (0049) and DMA-API over-4G path (0050)
+# Scope: RGA2 page-table DMA ownership (0050) and DMA-API over-4G path (0051)
+
+> **2026-07-21 renumbering:** this scope originally reserved `0049`/`0050`;
+> `0049` was taken by the 10-bit UV plane-offset fix
+> (`2abc978f92a64`), so the planned patches here are now `0050`/`0051`.
+> A third small item joined the queue: `dma_set_max_seg_size()` for the RGA
+> devices (DMA-debug flags 96 KiB CMA segments against the rga2 device's
+> 64 KiB default); it can ride with `0050` since both touch RGA2 DMA setup.
 
 > Scope: forward-port `rkvenc-fwport-6.18` RGA3 driver, RGA2 (`RGA_MMU`) core
 > paths in `rga_iommu.c`, `rga_mm.c`, `rga_dma_buf.c`, `rga_policy.c`.
@@ -48,7 +55,7 @@
    (per-core 40/32 masks, `GFP_DMA32` shadows, DMA-API mapping per core) both
    get bounce-or-place-below-4G behavior from the DMA API for free.
 
-## Patch 0049 — RGA2 page-table DMA ownership (closes the July 20 finding)
+## Patch 0050 — RGA2 page-table DMA ownership (closes the July 20 finding)
 
 Make the page-table memory a properly owned streaming DMA buffer of the RGA2
 device:
@@ -77,7 +84,7 @@ green and kernel scans clean.
 
 **Risk:** low; mechanical ownership fix confined to RGA2 table metadata.
 
-## Patch 0050 — RGA2 over-4G jobs via DMA-API mapping (staged, opt-in path)
+## Patch 0051 — RGA2 over-4G jobs via DMA-API mapping (staged, opt-in path)
 
 Adopt the upstream model for RGA2 *data* memory instead of rejecting >4G:
 
@@ -92,7 +99,7 @@ Adopt the upstream model for RGA2 *data* memory instead of rejecting >4G:
 - **B2 — virtual/userptr jobs:** same treatment after page pinning
   (`dma_map_sgtable()` on the RGA2 device instead of consuming raw
   `sg_phys()`).
-- **Policy interaction:** with 0050, `RGA_JOB_UNSUPPORT_RGA_MMU` is no
+- **Policy interaction:** with 0051, `RGA_JOB_UNSUPPORT_RGA_MMU` is no
   longer set purely from the phys range for mappable buffer types; RGA2
   stays a candidate and a mapping failure at commit time falls back to the
   `0047` `EOPNOTSUPP` + explanatory log.
@@ -103,7 +110,7 @@ Adopt the upstream model for RGA2 *data* memory instead of rejecting >4G:
   concurrency, so map-failure fallback to `EOPNOTSUPP` must stay.
 - A bounce is a full CPU copy per direction per job — often more expensive
   than the blit. Below-4G allocation (CMA/dma32) remains the documented fast
-  path; 0050 is a correctness/compatibility net, not a performance feature.
+  path; 0051 is a correctness/compatibility net, not a performance feature.
 - dma-buf bounce coherence depends on the exporter syncing attachments in
   its `begin/end_cpu_access`; the system heap does. Heaps that skip
   attachment syncs would need the explicit per-job `dma_sync_sgtable_*`
@@ -115,7 +122,7 @@ content-exact, with DMA-debug clean; the smoke and MPP/FFmpeg suites stay
 green; and with an artificially exhausted bounce pool the job must fail
 `EOPNOTSUPP`, not corrupt.
 
-**Ordering:** 0049 lands first (0050's sync brackets assume the table path
+**Ordering:** 0050 lands first (0051's sync brackets assume the table path
 is already legal), then B1, then B2. The alternative — porting the vendor
 dma32 heaps — remains rejected for now per the 2026-07-21 decision; it only
 helps heap-name-hardcoding userspace and adds no capability beyond what the

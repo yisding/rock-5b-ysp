@@ -34,8 +34,21 @@ harness; 13 cases including every dmabuf path now pass. New source patches
 `0046`–`0048` fix the legacy-blit virtual-address `EFAULT` (a `0045`
 validation regression), report the under-4G exclusion as `EOPNOTSUPP` with a
 clear log, and program byte-literal 10-bit raster strides (the measured
-incompact-P010 corruption, stock BSP behavior); their booted gates are
-pending. The RGA2 page-table DMA ownership warning remains open. See the
+incompact-P010 corruption, stock BSP behavior). All three passed their
+booted gates on rebuilt debug build `P63dd-C4ad2`: legacy blits succeed
+with content match, the exclusion probe returns `EOPNOTSUPP` with the
+explanatory log, P010 luma is bit-exact, the librga smoke is fully green
+for the first time (28 cases with `LIBRGA_SMOKE_10BIT=1`), and the ABI
+replay (`20260721-081456`), 12-case MPP matrix (`20260721-081639`), and
+FFmpeg suite (`20260721-081448`, 14/14 required + bit-exact AV1 PSNR) all
+pass with clean kernel scans. The `0048` gate exposed one further 10-bit
+defect — `rga_convert_addr()` derives UV plane offsets at 1 byte/pixel, so
+P010 chroma was read from and written into the Y plane — fixed by
+`0049@2abc978f92a64`, whose booted chroma gate awaits the next debug
+build. DMA-debug also flagged the driver's missing
+`dma_set_max_seg_size()` (96 KiB CMA segments vs the rga2 device's 64 KiB
+default); that and the RGA2 page-table DMA ownership warning are queued as
+`0050`/`0051`. See the
 [conformance root-cause finding](../../findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md).
 
 ## ✅ Done — validated on real hardware

@@ -58,10 +58,17 @@ then re-ran the 12-case MPP matrix (`20260721-042445-kasan-mpp-suite`) and the
 full FFmpeg codec/bit-exact PSNR suite (`20260721-042631-ffmpeg-codec-suite`)
 green with clean scans. The librga im2d smoke's chronic `no core match`
 failures were root-caused (RGA3's 68-pixel minimum × RGA2's below-4G limit on
-a dma32-heap-less kernel) and fixed in the harness — 13 cases including every
-dmabuf path now pass deterministically; the legacy-blit virtual `EFAULT` case
-and the RGA3 incompact-P010 write corruption remain kernel-side gaps. The AV1
-PSNR gate now passes bit-exact via a dav1d software reference. See the
+a dma32-heap-less kernel) and fixed in the harness. On debug build
+`P63dd-C4ad2` (kernel fixes `0046`–`0048`) the smoke is fully green for the
+first time — 28 cases pass with `LIBRGA_SMOKE_10BIT=1` against the
+source-built librga fork, with gauss/pre_intr classified as
+platform-unsupported skips and the `imconfig` reset using the all-cores mask
+(librga rejects `IM_SCHEDULER_DEFAULT`). The same boot passed ABI replay
+(`20260721-081456`), the 12-case MPP matrix (`20260721-081639`), and the
+FFmpeg suite (`20260721-081448`, 14/14 required); the AV1
+PSNR gate now passes bit-exact via a dav1d software reference. The Main10
+P010 case stays diagnostic-red (chroma-only) until the `0049` UV
+plane-offset fix boots. See the
 [conformance root-cause finding](../../findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md).
 The GStreamer runtime matrix remains blocked on missing development packages. See the
 [`0042` finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md)

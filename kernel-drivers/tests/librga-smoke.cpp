@@ -3372,6 +3372,13 @@ static int run_gauss_matrix_improcess(void)
 
 	ret = improcess(src, dst, {}, {}, {}, {}, -1, NULL, &opt,
 			IM_SYNC | IM_GAUSS);
+	if (ret == IM_STATUS_NOT_SUPPORTED) {
+		/* Gauss is an RGA2-Pro feature; absent on RK3588. */
+		printf("%-24s skip unsupported on this platform\n",
+		       "improcess gauss");
+		ret = 0;
+		goto out;
+	}
 	if (ret != IM_STATUS_SUCCESS) {
 		ret = fail_status("improcess gauss", ret);
 		goto out;
@@ -3450,8 +3457,15 @@ out:
 				reset_priority_ret);
 	}
 	if (core_set) {
+		/*
+		 * librga rejects IM_SCHEDULER_DEFAULT (0) in imconfig, so the
+		 * closest expressible reset is the full core mask, which gives
+		 * the kernel scheduler the same free choice as the default.
+		 */
 		reset_core_ret = imconfig(IM_CONFIG_SCHEDULER_CORE,
-					  IM_SCHEDULER_DEFAULT);
+					  IM_SCHEDULER_RGA3_CORE0 |
+					  IM_SCHEDULER_RGA3_CORE1 |
+					  IM_SCHEDULER_RGA2_CORE0);
 		if (reset_core_ret != IM_STATUS_SUCCESS)
 			fprintf(stderr,
 				"imconfig scheduler reset failed: %s (%d)\n",
@@ -3759,6 +3773,13 @@ int main(void)
 	opt.intr_config.write_step = 1;
 	ret = improcess(src, dst, {}, {}, {}, {}, -1, NULL, &opt,
 			IM_SYNC | IM_PRE_INTR);
+	if (ret == IM_STATUS_NOT_SUPPORTED) {
+		/* pre_intr is absent from the RK3588 RGA feature list. */
+		printf("%-24s skip unsupported on this platform\n",
+		       "improcess pre-intr");
+		ret = 0;
+		goto out;
+	}
 	if (ret != IM_STATUS_SUCCESS) {
 		ret = fail_status("improcess pre-intr", ret);
 		goto out;
