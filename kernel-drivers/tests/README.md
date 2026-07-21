@@ -56,8 +56,13 @@ also retained two known RGA contract failures on that installed kernel. Patches
 `20260721-034716-kasan-narrowed` with `abi_status=0` and a clean memory scan,
 then re-ran the 12-case MPP matrix (`20260721-042445-kasan-mpp-suite`) and the
 full FFmpeg codec/bit-exact PSNR suite (`20260721-042631-ffmpeg-codec-suite`)
-green with clean scans; the librga im2d smoke keeps its known pre-existing
-dmabuf/virtual-import failures without re-triggering the RGA2 DMA warning.
+green with clean scans. The librga im2d smoke's chronic `no core match`
+failures were root-caused (RGA3's 68-pixel minimum × RGA2's below-4G limit on
+a dma32-heap-less kernel) and fixed in the harness — 13 cases including every
+dmabuf path now pass deterministically; the legacy-blit virtual `EFAULT` case
+and the RGA3 incompact-P010 write corruption remain kernel-side gaps. The AV1
+PSNR gate now passes bit-exact via a dav1d software reference. See the
+[conformance root-cause finding](../../findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md).
 The GStreamer runtime matrix remains blocked on missing development packages. See the
 [`0042` finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md)
 and [`0043` finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),

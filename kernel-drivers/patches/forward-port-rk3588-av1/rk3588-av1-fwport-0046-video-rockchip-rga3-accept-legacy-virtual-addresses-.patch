@@ -1,0 +1,74 @@
+From e1d6d47d9565d1b1fa0fdc922bf8c6c8219b5aff Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 21 Jul 2026 06:12:44 -0700
+Subject: [PATCH 46/48] video: rockchip: rga3: accept legacy virtual addresses
+ in task check
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The staged-task validation added by "video: rockchip: rga3: validate
+staged request tasks" requires yrgb_addr on every active channel, but
+the legacy blit path carries user virtual addresses in uv_addr with
+yrgb_addr left at zero. Since RGA_BLIT_SYNC/ASYNC route through
+rga_request_config(), every legacy virtual-address blit was rejected
+with EFAULT — a regression against the pre-validation driver, which ran
+these jobs to hardware.
+
+Treat a channel as populated when either address slot is set. Truly
+empty channels (both slots zero) are still rejected, preserving the
+missing-pattern and unknown-render-mode ABI contract.
+---
+ drivers/video/rockchip/rga3/rga_job.c | 20 ++++++++++++++++----
+ 1 file changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index 755af53952ab1..eb3a9aa17c710 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -660,26 +660,38 @@ int rga_request_check(struct rga_user_request *req)
+ 	return 0;
+ }
+ 
++/*
++ * A channel carries a buffer when either address slot is set: handles and
++ * physical addresses arrive in yrgb_addr, while the legacy blit path puts
++ * user virtual addresses in uv_addr with yrgb_addr left at zero.
++ */
++static bool rga_request_channel_has_buffer(const struct rga_img_info_t *img)
++{
++	return img->yrgb_addr > 0 || img->uv_addr > 0;
++}
++
+ static int rga_request_task_check(const struct rga_req *task)
+ {
+ 	switch (task->render_mode) {
+ 	case BITBLT_MODE:
+ 	case COLOR_PALETTE_MODE:
+-		if (!task->src.yrgb_addr || !task->dst.yrgb_addr)
++		if (!rga_request_channel_has_buffer(&task->src) ||
++		    !rga_request_channel_has_buffer(&task->dst))
+ 			return -EINVAL;
+ 
+-		if (task->bsfilter_flag && !task->pat.yrgb_addr)
++		if (task->bsfilter_flag &&
++		    !rga_request_channel_has_buffer(&task->pat))
+ 			return -EINVAL;
+ 
+ 		break;
+ 	case COLOR_FILL_MODE:
+-		if (!task->dst.yrgb_addr)
++		if (!rga_request_channel_has_buffer(&task->dst))
+ 			return -EINVAL;
+ 
+ 		break;
+ 	case UPDATE_PALETTE_TABLE_MODE:
+ 	case UPDATE_PATTEN_BUF_MODE:
+-		if (!task->pat.yrgb_addr)
++		if (!rga_request_channel_has_buffer(&task->pat))
+ 			return -EINVAL;
+ 
+ 		break;
+-- 
+2.55.0
+

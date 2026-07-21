@@ -66,7 +66,7 @@ The kernel work runs on three tracks across those sub-projects:
 
 | Track | What it is | Read next |
 |-------|------------|-----------|
-| Forward-port | Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18. The frozen two-patch base owns the validated anchor; the 44-file AV1/PPA series owns current hardening work through patch `0045`. | [`patches/`](patches/README.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
+| Forward-port | Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18. The frozen two-patch base owns the validated anchor; the 47-file AV1/PPA series owns current hardening work through patch `0048`. | [`patches/`](patches/README.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
 | Audit fixes | A reviewable 65-patch correctness/security cleanup series on top of the forward-port. | [`docs/bsp-audit.md`](docs/bsp-audit.md), [`patches/cleanup-split/`](patches/cleanup-split/README.md) |
 | Rewrite drivers | Public-API-only reimplementations of `/dev/mpp_service` and `/dev/rga`, as a learning + upstreamable-design track. | [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) |
 

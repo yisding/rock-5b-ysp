@@ -102,10 +102,10 @@ last-checked date.
 | W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-21 | The reconstructed-ACK recovery is live-validated, the idle-time false starvation actuator is source-fixed, and installed `exp9` audibly validates PCM RDP output after the PipeWire migration; repeated focus/resume video validation, compressed-audio interoperability, publication/promotion, and upstream review remain. |
 | W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
-| W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
+| W13 | [librga P010/P210 series](#watch-w13) | 2026-07-21 | Hardware gate ran on `Pb999-C4ad2`: the patched-librga request chain is verified correct in source, but RGA3 corrupts incompact P010 writes at the kernel/BSP level (~7 dB vs software); a `pixel_width` stride fix is the tracked candidate. |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
 | W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0040`; frozen base patch still has the old path. |
-| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | Patches `0042`/`0043` are KASAN-verified and corrected MPP runs pass; RGA ABI fixes `0044`/`0045` pass booted KASAN ABI replay on rebuilt debug build `Pb999-C4ad2`, which also re-ran the MPP matrix and FFmpeg codec/PSNR gates green, while slice-FIFO/DMA hardening, GStreamer, publication, exact-image validation, and rollback remain. |
+| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | Patches `0042`/`0043` are KASAN-verified and corrected MPP runs pass; RGA ABI fixes `0044`/`0045` pass booted KASAN ABI replay on rebuilt debug build `Pb999-C4ad2`, which also re-ran the MPP matrix and FFmpeg codec/PSNR gates green. New RGA fixes `0046`–`0048` (legacy-virtual `0045` regression, under-4G `EOPNOTSUPP`, byte-literal 10-bit strides) are committed with booted gates pending, while slice-FIFO/DMA hardening, GStreamer, publication, exact-image validation, and rollback remain. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 
 <a id="watch-w01"></a>
@@ -299,12 +299,18 @@ last-checked date.
 
 - **Why recheck:** The fix must remain reconstructible and its 10-bit shipping
   gate must not be mistaken for completed hardware validation.
-- **Last checked:** 2026-07-11
+- **Last checked:** 2026-07-21
 - **State then:** The series from `2cffdf6` through `main@a632217` was exported
   under [`vendor-libraries/rga/patches/`](./vendor-libraries/rga/patches/README.md).
-  `LIBRGA_SMOKE_10BIT=1 kernel-drivers/tests/librga-smoke.sh` provided the direct
-  IM2D gate; padded P010/P210 RKRGA hardware validation remained pending. See
-  [shipping guidance](./vendor-libraries/rga/docs/librga-p010-p210-rkrga.md).
+  On `Pb999-C4ad2` the padded-P010 RKRGA hardware gate ran: with AFBC decoder
+  input the FFmpeg Main10→P010 conversion executes but produces ~7 dB output
+  with both the prebuilt 1.10.6 and the source-built `a632217` librga, while
+  the 8-bit control is bit-exact — the userspace flag chain is verified
+  correct in source and the corruption sits in the kernel/BSP RGA3 incompact
+  write path (`pixel_width` stride fix is the tracked candidate). Linear NV15
+  input is separately not RGA-expressible at 1920 wide. See the
+  [root-cause finding](./findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md)
+  and [shipping guidance](./vendor-libraries/rga/docs/librga-p010-p210-rkrga.md).
 
 <a id="watch-w14"></a>
 ### W14 — YSP Armbian builder
@@ -367,9 +373,13 @@ last-checked date.
   installed, and booted, and run `20260721-034716-kasan-narrowed` passed the
   full ABI replay (`abi_status=0`) with a clean memory scan. The same boot
   re-ran the 12-case MPP matrix (`20260721-042445`) and full FFmpeg
-  codec/bit-exact PSNR suite (`20260721-042631`) green with clean scans; the
-  librga im2d smoke keeps its known pre-existing dmabuf/virtual failures and
-  did not re-trigger the RGA2 DMA warning this boot.
+  codec/bit-exact PSNR suite (`20260721-042631`) green with clean scans. The
+  librga smoke's `no core match` flakiness was then root-caused and fixed in
+  the harness (13 cases green), and new RGA fixes `0046@e1d6d47d9565d`
+  (legacy-virtual `0045` regression), `0047@0388a3efc829a` (under-4G
+  `EOPNOTSUPP` reporting), and `0048@8e641bcd48a38` (byte-literal 10-bit
+  raster strides, the measured P010 corruption) are committed on
+  `rkvenc-fwport-6.18` with booted gates pending.
   Clean exact-6.18.38 production build `Pf558-Cb831` and the freshly extracted
   unsigned 20260720 PPA source package carry both lifetime fixes with the
   non-debug AV1/RGA config but predate `0044`/`0045`. The Published kernel still

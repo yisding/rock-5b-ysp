@@ -73,3 +73,11 @@ exact-image conformance, and rollback remain tracked in
 These ABI fixes do not address the separately measured RGA2 page-table DMA
 ownership violation; that remains tracked in
 [`2026-07-20-rga2-unmapped-page-table-dma-sync.md`](./2026-07-20-rga2-unmapped-page-table-dma-sync.md).
+
+**2026-07-21 follow-up:** `0045`'s task validation proved too strict for the
+legacy blit convention — it required `yrgb_addr` on active channels, but
+legacy virtual-address requests carry the pointer in `uv_addr` with
+`yrgb_addr` zero, so every legacy virtual `RGA_BLIT` regressed to `EFAULT`.
+Patch `0046` relaxes the presence test to either address slot while keeping
+the empty-channel and unknown-mode rejections. Details in
+[`2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md`](./2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md).

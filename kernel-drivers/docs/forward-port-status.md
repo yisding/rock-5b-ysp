@@ -27,10 +27,16 @@ booted KASAN debug kernel `Pb999-C4ad2` passes the full ABI replay
 codec suite including the H.264/H.265/VP9 bit-exact PSNR gates
 (`20260721-042631-ffmpeg-codec-suite`) — all required cases pass with clean
 kernel scans, so the complete current patch tip `0001`–`0045` is
-hardware-validated for those gates. The librga im2d smoke still fails its
-known dmabuf/virtual-import cases (same `no core match` terminal failure as
-July 20; the RGA2 DMA warning did not recur this boot because no core matched
-the job, so the DMA-ownership finding remains open, not re-triggered).
+hardware-validated for those gates. The librga im2d smoke's chronic
+`no core match` failures were root-caused (RGA3's 68-pixel minimum width ×
+RGA2's below-4G limit on a kernel without dma32 heaps) and fixed in the
+harness; 13 cases including every dmabuf path now pass. New source patches
+`0046`–`0048` fix the legacy-blit virtual-address `EFAULT` (a `0045`
+validation regression), report the under-4G exclusion as `EOPNOTSUPP` with a
+clear log, and program byte-literal 10-bit raster strides (the measured
+incompact-P010 corruption, stock BSP behavior); their booted gates are
+pending. The RGA2 page-table DMA ownership warning remains open. See the
+[conformance root-cause finding](../../findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md).
 
 ## ✅ Done — validated on real hardware
 

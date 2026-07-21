@@ -1,0 +1,84 @@
+From 0388a3efc829a69d3bb096ac9d487e17209fbc94 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 21 Jul 2026 06:12:59 -0700
+Subject: [PATCH 47/48] video: rockchip: rga3: report under-4G memory exclusion
+ distinctly
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When core assignment fails, userspace currently gets a bare EINVAL and
+a generic "no core match" log line even when the only reason a core
+was skipped is that the job's memory sits above the RGA2 4G limit —
+a common situation on large-memory boards without dma32 heaps, where
+system-heap and malloc-backed buffers land above 4G by allocation
+luck and small (sub-68-pixel) jobs cannot fall back to RGA3.
+
+Track cores excluded by the under-4G rule; when assignment then finds
+no candidate, log that the job may succeed with below-4G (CMA/DMA32)
+buffers and return EOPNOTSUPP instead of EINVAL, and propagate the
+distinct errno through rga_job_schedule() to the ioctl.
+---
+ drivers/video/rockchip/rga3/rga_job.c    |  2 +-
+ drivers/video/rockchip/rga3/rga_policy.c | 17 ++++++++++++++++-
+ 2 files changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index eb3a9aa17c710..bdd29ee37eb99 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -397,7 +397,7 @@ static struct rga_scheduler_t *rga_job_schedule(struct rga_job *job)
+ 		job->core = rga_job_assign(job);
+ 		if (job->core <= 0) {
+ 			rga_job_err(job, "job assign failed");
+-			return ERR_PTR(-EINVAL);
++			return ERR_PTR(job->core < 0 ? job->core : -EINVAL);
+ 		}
+ 	} else {
+ 		job->core = rga_drvdata->scheduler[0]->core;
+diff --git a/drivers/video/rockchip/rga3/rga_policy.c b/drivers/video/rockchip/rga3/rga_policy.c
+index 5df5f0d4db143..935efd8b91d06 100644
+--- a/drivers/video/rockchip/rga3/rga_policy.c
++++ b/drivers/video/rockchip/rga3/rga_policy.c
+@@ -317,6 +317,7 @@ static int rga_task_assign(struct rga_job *job, struct rga_req *rga_base)
+ 	int feature;
+ 	int optional_cores = RGA_NONE_CORE;
+ 	int specified_cores = RGA_NONE_CORE;
++	int mem_excluded_cores = RGA_NONE_CORE;
+ 	int i;
+ 	int need_swap = false;
+ 
+@@ -348,6 +349,7 @@ static int rga_task_assign(struct rga_job *job, struct rga_req *rga_base)
+ 		    job->flags & RGA_JOB_UNSUPPORT_RGA_MMU) {
+ 			if (DEBUGGER_EN(MSG))
+ 				rga_job_log(job, "RGA2 only support under 4G memory!\n");
++			mem_excluded_cores |= scheduler->core;
+ 			continue;
+ 		}
+ 
+@@ -477,8 +479,21 @@ static int rga_task_assign(struct rga_job *job, struct rga_req *rga_base)
+ 	}
+ 
+ 	if (optional_cores == 0) {
++		/*
++		 * When a core was skipped because the job's memory sits above
++		 * the RGA2 4G limit, the caller may succeed by retrying with
++		 * below-4G (e.g. CMA/DMA32) buffers — report that explicitly
++		 * instead of a generic assignment failure.
++		 */
++		if (mem_excluded_cores != RGA_NONE_CORE) {
++			rga_job_err(job,
++				    "no core match: core[%#x] skipped by the under-4G memory limit; retry with below-4G (e.g. CMA/DMA32) buffers\n",
++				    mem_excluded_cores);
++			return -EOPNOTSUPP;
++		}
++
+ 		rga_job_err(job, "no core match\n");
+-		return -1;
++		return -EINVAL;
+ 	}
+ 
+ 	return optional_cores;
+-- 
+2.55.0
+

@@ -37,10 +37,18 @@
 #define IM_JOB_FLAGS_EXEC_SEQUENTIAL ((uint32_t)(1 << 6))
 #endif
 
-#define TEST_SRC_W 64
-#define TEST_SRC_H 64
-#define TEST_DST_W 32
-#define TEST_DST_H 32
+/*
+ * RGA3's raster input and output ranges start at 68 pixels wide. Anything
+ * smaller is RGA2-only, and RGA2 only accepts below-4G memory — so a
+ * sub-68-wide case with malloc-backed virtual imports on a large-memory
+ * board fails core assignment ("no core match") whenever the pages land
+ * above 4G. Keep both surfaces at/above the RGA3 minimum so every case has
+ * an IOMMU-backed core available regardless of physical placement.
+ */
+#define TEST_SRC_W 128
+#define TEST_SRC_H 128
+#define TEST_DST_W 96
+#define TEST_DST_H 96
 #define TEST_BPP 4
 #define RGA_TEST_FORMAT_P010 (0x40 << 8)
 #define RGA_TEST_FORMAT_P210 (0x41 << 8)
@@ -300,6 +308,14 @@ static int dmabuf_alloc_any(size_t size, struct dmabuf_test_buffer *buf)
 	static const char * const heap_paths[] = {
 		"/dev/dma_heap/system-uncached-dma32",
 		"/dev/dma_heap/system-dma32",
+		/*
+		 * Upstream-style kernels expose no dma32 heaps. Prefer the
+		 * upstream CMA heap over the system heap: RGA2-only jobs
+		 * (below RGA3's 68-pixel minimum input width) need below-4G
+		 * memory, and a system-heap allocation only lands there by
+		 * luck on a large-memory board.
+		 */
+		"/dev/dma_heap/default_cma_region",
 		"/dev/dma_heap/system-uncached",
 		"/dev/dma_heap/system",
 		"/dev/dma_heap/cma-uncached",
@@ -779,8 +795,8 @@ static int run_10bit_im2d_convert(const char *name, int src_format,
 				  size_t dst_size,
 				  void (*fill_src)(uint8_t *, int, int))
 {
-	const int width = 64;
-	const int height = 64;
+	const int width = 256;
+	const int height = 256;
 	struct dmabuf_test_buffer dma_src = {};
 	struct dmabuf_test_buffer dma_dst = {};
 	rga_buffer_handle_t src_handle = 0;
@@ -887,8 +903,8 @@ out:
 
 static int run_10bit_im2d_conversions(void)
 {
-	const int width = 64;
-	const int height = 64;
+	const int width = 256;
+	const int height = 256;
 	int ret;
 
 	ret = run_10bit_im2d_convert("im2d P010->NV12",
@@ -910,10 +926,10 @@ static int run_10bit_im2d_conversions(void)
 
 static int run_rknn_virtual_rgb_resize(void)
 {
-	const int src_w = 64;
-	const int src_h = 64;
-	const int dst_w = 32;
-	const int dst_h = 32;
+	const int src_w = 256;
+	const int src_h = 256;
+	const int dst_w = 128;
+	const int dst_h = 128;
 	const size_t src_size = (size_t)src_w * src_h * 3;
 	const size_t dst_size = (size_t)dst_w * dst_h * 3;
 	rga_buffer_handle_t src_handle = 0;
@@ -984,10 +1000,10 @@ static int run_rknn_fd_improcess(const char *name, const char *artifact,
 				 size_t src_size, size_t dst_size,
 				 void (*fill_src)(uint8_t *, int, int))
 {
-	const int src_w = 64;
-	const int src_h = 64;
-	const int dst_w = 32;
-	const int dst_h = 32;
+	const int src_w = 256;
+	const int src_h = 256;
+	const int dst_w = 128;
+	const int dst_h = 128;
 	struct dmabuf_test_buffer dma_src = {};
 	struct dmabuf_test_buffer dma_dst = {};
 	rga_buffer_handle_t src_handle = 0;
@@ -1112,8 +1128,8 @@ static int run_rknn_fd_improcess_cases(void)
 				    "rknn_fd_rgb_to_nv12_improcess",
 				    RK_FORMAT_RGB_888,
 				    RK_FORMAT_YCbCr_420_SP,
-				    (size_t)64 * 64 * 3,
-				    (size_t)32 * 32 * 3 / 2,
+				    (size_t)256 * 256 * 3,
+				    (size_t)128 * 128 * 3 / 2,
 				    fill_rgb_pattern);
 	if (ret)
 		return ret;
@@ -1122,8 +1138,8 @@ static int run_rknn_fd_improcess_cases(void)
 				    "rknn_fd_nv12_to_rgb_improcess",
 				    RK_FORMAT_YCbCr_420_SP,
 				    RK_FORMAT_RGB_888,
-				    (size_t)64 * 64 * 3 / 2,
-				    (size_t)32 * 32 * 3,
+				    (size_t)256 * 256 * 3 / 2,
+				    (size_t)128 * 128 * 3,
 				    fill_nv12_pattern);
 	if (ret)
 		return ret;
@@ -1132,15 +1148,15 @@ static int run_rknn_fd_improcess_cases(void)
 				     "rknn_fd_nv21_to_rgb_improcess",
 				     RK_FORMAT_YCrCb_420_SP,
 				     RK_FORMAT_RGB_888,
-				     (size_t)64 * 64 * 3 / 2,
-				     (size_t)32 * 32 * 3,
+				     (size_t)256 * 256 * 3 / 2,
+				     (size_t)128 * 128 * 3,
 				     fill_nv21_pattern);
 }
 
 static int run_dmabuf_imcvtcolor_rgb_to_nv12(void)
 {
-	const int width = 64;
-	const int height = 64;
+	const int width = 256;
+	const int height = 256;
 	const int src_format = RK_FORMAT_RGB_888;
 	const int dst_format = RK_FORMAT_YCbCr_420_SP;
 	const size_t src_size = (size_t)width * height * 3;
@@ -1263,10 +1279,10 @@ out:
 
 static int run_dmabuf_imresize_async_rgba(void)
 {
-	const int src_w = 64;
-	const int src_h = 64;
-	const int dst_w = 32;
-	const int dst_h = 32;
+	const int src_w = 256;
+	const int src_h = 256;
+	const int dst_w = 128;
+	const int dst_h = 128;
 	const size_t src_size = (size_t)src_w * src_h * TEST_BPP;
 	const size_t dst_size = (size_t)dst_w * dst_h * TEST_BPP;
 	struct dmabuf_test_buffer dma_src = {};
@@ -1403,12 +1419,12 @@ out:
 
 static int run_dmabuf_imcrop_rgba(void)
 {
-	const int src_w = 64;
-	const int src_h = 64;
-	const int crop_x = 10;
-	const int crop_y = 12;
-	const int crop_w = 32;
-	const int crop_h = 24;
+	const int src_w = 256;
+	const int src_h = 256;
+	const int crop_x = 40;
+	const int crop_y = 48;
+	const int crop_w = 128;
+	const int crop_h = 96;
 	const size_t src_size = (size_t)src_w * src_h * TEST_BPP;
 	const size_t dst_size = (size_t)crop_w * crop_h * TEST_BPP;
 	struct dmabuf_test_buffer dma_src = {};
@@ -1530,8 +1546,8 @@ out:
 
 static int run_dmabuf_imflip_rgba(void)
 {
-	const int width = 64;
-	const int height = 48;
+	const int width = 256;
+	const int height = 192;
 	const size_t size = (size_t)width * height * TEST_BPP;
 	struct dmabuf_test_buffer dma_src = {};
 	struct dmabuf_test_buffer dma_dst = {};
@@ -1645,10 +1661,10 @@ out:
 
 static int run_rknn_fd_rgba_letterbox(void)
 {
-	const int src_w = 64;
-	const int src_h = 64;
-	const int dst_w = 64;
-	const int dst_h = 48;
+	const int src_w = 256;
+	const int src_h = 256;
+	const int dst_w = 256;
+	const int dst_h = 192;
 	const size_t src_size = (size_t)src_w * src_h * 4;
 	const size_t dst_size = (size_t)dst_w * dst_h * 3;
 	struct dmabuf_test_buffer dma_src = {};
@@ -1771,14 +1787,14 @@ out:
 
 static int run_rkmppenc_fd_filter_chain(void)
 {
-	const int src_w = 64;
-	const int src_h = 64;
-	const int crop_x = 8;
-	const int crop_y = 6;
-	const int crop_w = 48;
-	const int crop_h = 40;
-	const int dst_w = 32;
-	const int dst_h = 24;
+	const int src_w = 256;
+	const int src_h = 256;
+	const int crop_x = 32;
+	const int crop_y = 24;
+	const int crop_w = 192;
+	const int crop_h = 160;
+	const int dst_w = 128;
+	const int dst_h = 96;
 	const size_t src_size = (size_t)src_w * src_h * 3;
 	const size_t tmp_size = (size_t)crop_w * crop_h * 3 / 2;
 	const size_t dst_size = (size_t)dst_w * dst_h * 3 / 2;
@@ -1978,10 +1994,10 @@ out:
 
 static int run_rknn_legacy_rgb_resize(void)
 {
-	const int src_w = 64;
-	const int src_h = 64;
-	const int dst_w = 32;
-	const int dst_h = 32;
+	const int src_w = 256;
+	const int src_h = 256;
+	const int dst_w = 128;
+	const int dst_h = 128;
 	const size_t src_size = (size_t)src_w * src_h * 3;
 	const size_t dst_size = (size_t)dst_w * dst_h * 3;
 	rga_info_t src = {};
@@ -2352,8 +2368,8 @@ static int run_physical_import_probe(void)
 
 static int run_fbc_tail_reject_probe_one(const char *name, int rd_mode)
 {
-	const int width = 64;
-	const int height = 64;
+	const int width = 256;
+	const int height = 256;
 	const int format = RK_FORMAT_YCbCr_420_SP;
 	const size_t raster_size = (size_t)width * height * 3 / 2;
 	const size_t fbc_size = raster_size * 4;
@@ -2437,8 +2453,8 @@ static int run_fbc_tail_reject_probes(void)
 
 static int run_afbc16x16_roundtrip(void)
 {
-	const int width = 64;
-	const int height = 64;
+	const int width = 256;
+	const int height = 256;
 	const int format = RK_FORMAT_YCbCr_420_SP;
 	const size_t raster_size = (size_t)width * height * 3 / 2;
 	const size_t fbc_size = raster_size * 3 / 2;
@@ -2522,8 +2538,8 @@ out:
 
 static int run_tile8x8_roundtrip(void)
 {
-	const int width = 64;
-	const int height = 64;
+	const int width = 256;
+	const int height = 256;
 	const int format = RK_FORMAT_YCbCr_420_SP;
 	const size_t size = (size_t)width * height * 3 / 2;
 	rga_buffer_handle_t src_handle = 0;
@@ -2605,10 +2621,10 @@ out:
 
 static int run_legacy_virtual_to_dmabuf_convert(void)
 {
-	const int src_w = 64;
-	const int src_h = 64;
-	const int dst_w = 32;
-	const int dst_h = 32;
+	const int src_w = 256;
+	const int src_h = 256;
+	const int dst_w = 128;
+	const int dst_h = 128;
 	const size_t src_size = (size_t)src_w * src_h * TEST_BPP;
 	const size_t dst_size = (size_t)dst_w * dst_h * 3 / 2;
 	struct dmabuf_test_buffer dma_dst = {};
@@ -2701,10 +2717,10 @@ out:
 
 static int run_legacy_dmabuf_to_dmabuf_rotate_convert(void)
 {
-	const int src_w = 64;
-	const int src_h = 32;
-	const int dst_w = 32;
-	const int dst_h = 64;
+	const int src_w = 256;
+	const int src_h = 128;
+	const int dst_w = 128;
+	const int dst_h = 256;
 	const size_t src_size = (size_t)src_w * src_h * 3 / 2;
 	const size_t dst_size = (size_t)dst_w * dst_h * TEST_BPP;
 	struct dmabuf_test_buffer dma_src = {};
@@ -2818,8 +2834,8 @@ static int run_legacy_display_rgb_rotate_one(const char *label,
 							  int width,
 							  int height))
 {
-	const int src_w = 64;
-	const int src_h = 32;
+	const int src_w = 256;
+	const int src_h = 128;
 	const bool swaps_axes = rotation == HAL_TRANSFORM_ROT_90 ||
 				rotation == HAL_TRANSFORM_ROT_270;
 	const int dst_w = swaps_axes ? src_h : src_w;
@@ -2937,10 +2953,10 @@ static int run_legacy_display_rgb_rotate(void)
 
 static int run_display_tail_bgra_partial_blend(void)
 {
-	const int src_w = 64;
-	const int src_h = 48;
-	const int dst_w = 80;
-	const int dst_h = 64;
+	const int src_w = 256;
+	const int src_h = 192;
+	const int dst_w = 320;
+	const int dst_h = 256;
 	const uint8_t sentinel = 0x11;
 	const int blend_usage = IM_ALPHA_BLEND_SRC_OVER |
 				IM_ALPHA_BLEND_PRE_MUL;
@@ -3091,8 +3107,8 @@ static int run_legacy_display_tail_rotate(void)
 
 static int run_legacy_virtual_rgba_flip(void)
 {
-	const int width = 64;
-	const int height = 48;
+	const int width = 256;
+	const int height = 192;
 	const size_t size = (size_t)width * height * TEST_BPP;
 	rga_info_t src = {};
 	rga_info_t dst = {};
@@ -3155,8 +3171,8 @@ out:
 
 static int run_legacy_planar_to_semiplanar_convert(void)
 {
-	const int width = 64;
-	const int height = 64;
+	const int width = 256;
+	const int height = 256;
 	const size_t image_size = (size_t)width * height * 3 / 2;
 	struct dmabuf_test_buffer dma_src = {};
 	struct dmabuf_test_buffer dma_dst = {};
@@ -3262,8 +3278,8 @@ out:
 
 static int run_gauss_matrix_improcess(void)
 {
-	const int width = 64;
-	const int height = 64;
+	const int width = 256;
+	const int height = 256;
 	const int format = RK_FORMAT_RGBA_8888;
 	const size_t image_size = (size_t)width * height * TEST_BPP;
 	struct dmabuf_test_buffer dma_src = {};

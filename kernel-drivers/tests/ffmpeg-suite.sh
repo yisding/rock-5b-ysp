@@ -501,6 +501,14 @@ run_ffmpeg()
 	run_timeout "$FFMPEG_TIMEOUT" "$FF" -hide_banner -nostdin -y -loglevel info "$@"
 }
 
+run_ffmpeg_sw_reference()
+{
+	# The suite FFmpeg build has no software AV1 decoder (its native av1
+	# decoder is a hwaccel-only wrapper without libdav1d/libaom), so
+	# software reference legs that need one use the generator FFmpeg.
+	run_timeout "$FFMPEG_TIMEOUT" "$FFMPEG_GENERATOR" -hide_banner -nostdin -y -loglevel info "$@"
+}
+
 run_ffprobe()
 {
 	run_runtime "$PROBE" "$@"
@@ -735,8 +743,13 @@ decode_psnr_inf()
 	# differs from their generated timestamps. Disable output vsync so FFmpeg
 	# does not independently duplicate/drop the SW and RKMPP decode frames
 	# before the byte-for-byte PSNR comparison.
-	run_ffmpeg -i "$input" -map 0:v:0 -an -pix_fmt yuv420p \
-		-fps_mode passthrough -f rawvideo "$sw_yuv"
+	if [ "$input_codec" = av1 ]; then
+		run_ffmpeg_sw_reference -i "$input" -map 0:v:0 -an -pix_fmt yuv420p \
+			-fps_mode passthrough -f rawvideo "$sw_yuv"
+	else
+		run_ffmpeg -i "$input" -map 0:v:0 -an -pix_fmt yuv420p \
+			-fps_mode passthrough -f rawvideo "$sw_yuv"
+	fi
 	run_ffmpeg \
 		-hwaccel rkmpp -hwaccel_output_format drm_prime \
 		-c:v "${input_codec}_rkmpp" -i "$input" \
@@ -954,14 +967,41 @@ run_overlay_transcode()
 run_hevc_main10_p010_rga()
 {
 	local input
+	local size
+	local safe_case
+	local sw_yuv
+	local hw_yuv
+	local stats_file
 
 	input=$(ensure_input hevc_main10)
+	size=$(probe_size "$input")
+	safe_case=$(sanitize "$(case_runtime_name "$CURRENT_CASE")")
+	sw_yuv="$OUT/artifacts/$safe_case-sw.yuv"
+	hw_yuv="$OUT/artifacts/$safe_case-hw.yuv"
+	stats_file="$OUT/artifacts/$safe_case-psnr.stats"
+
+	rm -f "$sw_yuv" "$hw_yuv" "$stats_file"
+	# Linear NV15 decoder output is not RGA-expressible at this width: MPP
+	# pads hor_stride to a byte count that is not a whole number of packed
+	# 10-bit pixels, so the RGA input must come from the AFBC decoder path.
+	# The same-size NV15->P010 conversion is a pure 10-bit repack and must
+	# be bit-exact against the software decode. RGA3 currently corrupts
+	# incompact P010 writes (stock BSP behavior, same defect Jellyfin works
+	# around with an NV15 first pass), so this diagnostic stays red until a
+	# kernel-side fix lands.
+	run_ffmpeg -i "$input" -map 0:v:0 -an -pix_fmt p010le \
+		-fps_mode passthrough -f rawvideo "$sw_yuv"
 	run_ffmpeg \
 		-hwaccel rkmpp -hwaccel_output_format drm_prime \
-		-c:v hevc_rkmpp -i "$input" \
+		-afbc rga -c:v hevc_rkmpp -i "$input" \
 		-map 0:v:0 -an \
-		-vf "scale_rkrga=w=640:h=360:format=p010le,hwdownload,format=p010le" \
-		-f null -
+		-vf "scale_rkrga=w=${size%x*}:h=${size#*x}:format=p010le,hwdownload,format=p010le" \
+		-fps_mode passthrough -f rawvideo "$hw_yuv"
+	run_ffmpeg \
+		-f rawvideo -pix_fmt p010le -s:v "$size" -r "$FFMPEG_FPS" -i "$sw_yuv" \
+		-f rawvideo -pix_fmt p010le -s:v "$size" -r "$FFMPEG_FPS" -i "$hw_yuv" \
+		-lavfi "psnr=stats_file=${stats_file}" -f null -
+	assert_psnr_inf "$CURRENT_LOG"
 }
 
 run_reschange_decode()
