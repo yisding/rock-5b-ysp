@@ -272,6 +272,24 @@ recovery hid the corruption):
 - The installed `.deb` passes the same gate through the standard
   `/usr/lib/aarch64-linux-gnu/dri` libva path, not just the source dir.
 
+**Incidental cross-validation of the forward-port decode path.** The
+rockchip-vaapi driver does no pixel decoding — it reconstructs bitstream and
+routes surfaces; the decoded pixels come entirely from `librockchip_mpp` +
+the kernel `mpp_rkvdec2` driver. The runs were on the booted forward-port
+kernel `6.18.38-current-rockchip64` `#5` (debug build `P9636-C4ad2`, the tip
+carrying RGA `0044`–`0051`; dmesg banner `mpp_service: 6.18-rkvenc-fwport`).
+Because H.264/VP9 inverse transforms are spec-exact and the NV12→I420 md5
+normalization is a lossless reshuffle, the bit-exact results are direct,
+independent evidence that the **forward-port's rkvdec2 H.264 and VP9 hardware
+decode is correct** — a different harness (ffmpeg-vaapi) than the 2026-07-04
+`decode-differential.sh` validation, re-confirmed on the current RGA-patched
+tip. Scope is smoke-level, not conformance: VP9 Profile 0 and H.264
+CB/Main/High, 8-bit, synthetic `testsrc2`, 720p (+ one 4K H.264), ~120
+frames. VP9 Profile 2 / 10-bit is explicitly *not* covered (the driver
+disables it). It does not broaden the existing forward-port decode claim, but
+it independently corroborates it and shows the RGA `0044`–`0051` tail did not
+regress decode.
+
 **Also done in the fork:** withdrew the un-implemented profiles from
 advertising (HEVC, VP8, 10-bit — apps now fall back to software instead of
 failing, confirming §2's "HEVC advertised but non-functional" and that VP8

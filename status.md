@@ -43,6 +43,7 @@ separate table below so both remain scannable.
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
 | 13 | Maximum-mainline kernel | 🚧 The pinned upstream 7.2-rc3 `public` and `wip` integrations are reproducible, and both passed native arm64 kernel, package, payload, and external-module-headers checks. Neither has been installed, booted, or hardware-tested. | 2026-07-17 | [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
+| 14 | Desktop-app HW video (browsers) | 🚧 Survey of the enablement landscape (three roads: VA-API driver, `libv4l-rkmpp` Chromium shim, maxline kernel V4L2) is mapped. Phase one of the leading road executed: the `rockchip-vaapi` VA-API-over-MPP driver was forked to `yisding/rockchip-vaapi@ysp/cleanup`, built against the ysp stack, and three bit-exactness bugs found and fixed — H.264 (ref×bframes matrix + 4K) and VP9 (×10) now bit-exact vs software via ffmpeg-vaapi, packaged as a `.deb`. Since the driver only shims bitstream/surfaces (MPP + `mpp_rkvdec2` do the decode), those bit-exact results also independently re-validate the forward-port's H.264/VP9 rkvdec2 decode on the current tip (build `#5` `P9636-C4ad2`, RGA `0044`–`0051`) — smoke-scope, 8-bit, Profile 0. The substantive renovation (zero-copy buffer model, drain-thread sync, HEVC writer, 10-bit NV15→P010) and any real Firefox/Chromium end-to-end run remain. | 2026-07-21 | [enablement map](./docs/app-enablement.md), [driver review](./findings/2026-07-21-rockchip-vaapi-driver-review.md) |
 
 ## Next gates
 
@@ -67,6 +68,7 @@ dashboard date and ledger row when public state changes.
 | 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. | [Kodi tty1 runbook](./apps/kodi/docs/build-hwaccel.md#5-test-on-tty1-gbm-needs-drm-master) |
 | 12 | ROCK 5B SD/SPI boot chain | Substitute the 26.5.1 `current` FIT, loader, and then both on a captured 26.2.1 SD baseline; record where each boot stops or succeeds. | [Raw-SD hypothesis test](./scripts/README.md#rock-5b-raw-sd-u-boot-hypothesis-test) |
 | 13 | Maximum-mainline kernel | Install the `public` profile first with the known-good 6.18 packages and physical/serial recovery retained; prove explicit boot, storage, network, display, suspend, and rollback before trying `wip`. | [Recovery-first install and test order](./packaging/ppa/kernel-maxline/README.md#install-and-test-order) |
+| 14 | Desktop-app HW video (browsers) | Run the installed `rockchip-vaapi` `.deb` end-to-end in Firefox (H.264/VP9, sandbox off) on the board, then decide the fork-and-renovate go/no-go before starting the buffer-model/sync renovation. | [Phase-one results and probe order](./findings/2026-07-21-rockchip-vaapi-driver-review.md#9-phase-one-results-measured-board-validated-2026-07-21) |
 
 > **Runtime gate pending.** The BSP-audit cleanup series still needs the runtime
 > codec regression test before it can ship. Compile status alone is not
@@ -107,6 +109,7 @@ last-checked date.
 | W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0040`; frozen base patch still has the old path. |
 | W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | RGA fixes `0046`–`0048` pass their booted gates on `P63dd-C4ad2` (legacy blits, `EOPNOTSUPP` probe, P010 luma bit-exact; smoke/MPP/FFmpeg/ABI replay all green, smoke fully green for the first time). The `0048` gate exposed the `0049` UV plane-offset fix; `0049`–`0051` (UV offsets, RGA2 page-table DMA ownership + device DMA parameters, over-4G service via swiotlb-bounced DMA mappings) are committed and checkpatch-clean with booted gates pending the next debug build. Slice-FIFO hardening, GStreamer, publication, exact-image validation, and rollback remain. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
+| W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -419,3 +422,19 @@ last-checked date.
   [`wip-donors.tsv`](packaging/ppa/kernel-maxline/wip-donors.tsv). Both profiles
   compiled and packaged; neither booted. Refresh those ledgers and preserve the
   old identities before claiming a newer proposal set.
+
+<a id="watch-w18"></a>
+### W18 — rockchip-vaapi fork state
+
+- **Why recheck:** The VA-API-driver track lives in an external fork, not this
+  repo; the fork branch and the upstream it descends from move independently
+  of any change here.
+- **Last checked:** 2026-07-21
+- **State then:** The phase-one correctness/packaging work is committed to
+  `git@github.com:yisding/rockchip-vaapi.git` branch `ysp/cleanup` (built
+  `rockchip-vaapi_1.0.11+ysp1_arm64.deb`, board-validated). `origin` is
+  upstream `woodyst/rockchip-vaapi@e8c64dd` (v1.0.11), quiet since
+  2026-05-28. The ysp source of truth for the *decision and evidence* is
+  [`findings/2026-07-21-rockchip-vaapi-driver-review.md`](./findings/2026-07-21-rockchip-vaapi-driver-review.md);
+  the *code* is only in the fork. If the renovation proceeds, re-check whether
+  upstream has revived (offer changes back) before diverging further.
