@@ -20,8 +20,9 @@ with the expected non-debug config, but the Published package still predates
 them. Corrected isolated and full official-MPP runs are now functionally green
 on the KASAN build; full conformance remains open because RGA2 DMA-debug found
 an invalid page-table sync and the host lacks the GStreamer development stack.
-Source patches `0044`/`0045` fix the two persistent RGA ABI replay gaps and
-compile under the same KASAN configuration, but need a rebuilt booted replay.
+Patches `0044`/`0045` fix the two persistent RGA ABI replay gaps; the rebuilt
+booted KASAN debug kernel `Pb999-C4ad2` passes the full ABI replay
+(`abi_status=0`) with a clean memory scan.
 
 ## ✅ Done — validated on real hardware
 
@@ -170,12 +171,14 @@ compile under the same KASAN configuration, but need a rebuilt booted replay.
   allocation must retain a valid DMA address/lifetime; disabling the warning is
   not a fix. See the
   [RGA2 DMA-sync finding](../../findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md).
-- **The two persistent RGA ABI replay gaps are source-fixed but not yet booted.**
+- **The two persistent RGA ABI replay gaps are fixed and pass booted replay.**
   Patch `0044@72accfd1d5a14` accepts legacy `RGA2_GET_RESULT` as a no-op.
   Patch `0045@27452e30a2cfd` rejects malformed/unknown staged task descriptors,
   blocks replacement while a request runs, and frees the prior staged list.
-  Both affected objects compile from the installed KASAN configuration; the
-  exact booted ABI replay remains the gate. See the
+  Rebuilt KASAN debug build `Pb999-C4ad2` booted and passed run
+  `20260721-034716-kasan-narrowed` with `abi_status=0` and a clean memory scan —
+  the first fully green ABI replay on a forward-port kernel. The production
+  package still predates these patches. See the
   [RGA ABI finding](../../findings/2026-07-21-rga-forward-port-abi-gaps.md).
 - **Direct RGA3 im2d virtual-buffer samples exposed RGA/IOMMU forward-port
   gaps.** The upstream `airockchip/librga` copy/resize/rotate samples import
@@ -204,10 +207,10 @@ The July 4 forward-port baseline is **functionally complete for its tested,
 trusted-input codec scope**: `ffmpeg -hwaccel rkmpp -c:v hevc_rkmpp ...` uses
 the hardware on Armbian 6.18. That does not make the maintained source tip or
 the BSP-derived ABI generally shippable. The locally built production candidate
-absorbs `0042`/`0043` but predates the compile-verified `0044`/`0045` ABI fixes;
-publication, board boot/conformance, and rollback still need resolution. The
-MPP functional failures are closed on the KASAN build, but the RGA2 DMA
-ownership warning, boot verification of the RGA ABI fixes, GStreamer dependency
+absorbs `0042`/`0043` but predates the `0044`/`0045` ABI fixes, which now pass
+booted KASAN ABI replay; publication, board boot/conformance, and rollback
+still need resolution. The MPP functional failures and RGA ABI gaps are closed
+on the KASAN build, but the RGA2 DMA ownership warning, GStreamer dependency
 gate, and broader audit series still have compile/runtime work. DVFS and codec
 breadth are optional polish; memory safety, regression conformance, and recovery
 are release blockers.

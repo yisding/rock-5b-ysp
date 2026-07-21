@@ -1,17 +1,18 @@
-# RGA forward-port ABI replay gaps are fixed in source
+# RGA forward-port ABI replay gaps are fixed and pass booted replay
 
 > Scope: RK3588 RGA3/RGA2 forward port on Linux 6.18.38; legacy
 > `RGA2_GET_RESULT` and modern `RGA_IOC_REQUEST_CONFIG` staging.
 >
-> Source: `rkvenc-fwport-6.18@655d178191807` plus fixes
+> Source: `rkvenc-fwport-6.18@27452e30a2cfd` (fast-forwarded over fixes
 > `72accfd1d5a1474e5790a9b1e46cd643ac18700f` and
-> `27452e30a2cfd93ea518bb9cf0379e771808c06f`; ABI replay run
-> `20260717-230531` and the later KASAN reruns.
+> `27452e30a2cfd93ea518bb9cf0379e771808c06f`); pre-fix ABI replay run
+> `20260717-230531`, the later KASAN reruns, and post-fix booted run
+> `20260721-034716-kasan-narrowed` on debug build `Pb999-C4ad2`.
 >
 > Date: 2026-07-21
 >
-> Trust: **MEASURED** (pre-fix ABI results) / **CODE-INSPECTED** /
-> **COMPILE-VERIFIED** (fixes) / **OPEN** (booted replay pending).
+> Trust: **MEASURED** (pre-fix and post-fix booted ABI replay) /
+> **CODE-INSPECTED**.
 
 ## Result
 
@@ -44,16 +45,30 @@ installed.
   actually unknown render mode; both require the public wrapper result
   `EFAULT`. Its normalized replay self-test covers both contract lines.
 
-## Remaining gate
+## Booted replay result — gate closed
 
-The currently booted KASAN kernel predates `0044`/`0045`, so it cannot prove
-the runtime result. Rebuild and boot the exact forward-port tip, rerun
-`abi-replay.sh`, and require:
+`rkvenc-fwport-6.18` was fast-forwarded to `27452e30a2cfd`, the KASAN debug
+kernel was rebuilt as `Pb999-C4ad2` (same `C4ad2` debug config as the prior
+`Ped06` build; Armbian's pinned `KBUILD_BUILD_TIMESTAMP` keeps the July 4 date
+string, so the discriminators are the `#2` build counter, `CONFIG_KASAN=y`,
+and an md5-verified `/boot/vmlinuz` against the deb), installed, and booted.
+`kasan-narrowed-repro.sh` run `20260721-034716-kasan-narrowed` then met every
+gate condition:
 
-- `RGA2_GET_RESULT` succeeds;
-- valid CONFIG succeeds;
-- missing-pattern and unknown-mode CONFIG both return `EFAULT`;
-- the surrounding KASAN/fatal scan is empty.
+- `RGA2_GET_RESULT` returns 0 (previously `EINVAL`);
+- valid CONFIG returns 0;
+- missing-pattern and unknown-mode CONFIG both return `EFAULT`
+  (unknown mode previously returned success);
+- `abi_status=0` — the first fully green ABI replay on a forward-port kernel —
+  with `flagged_kernel_lines=0` on the surrounding KASAN/fatal scan.
+
+Contract evidence:
+`kernel-drivers/tests/logs/abi-replay/kasan-narrowed-20260721-034716.contract.log`
+and run directory
+`../rockchip-conformance/logs/forward-port/20260721-034716-kasan-narrowed/`.
+The production package still predates these patches; rebuild, upload,
+exact-image conformance, and rollback remain tracked in
+[`status.md`](../status.md).
 
 These ABI fixes do not address the separately measured RGA2 page-table DMA
 ownership violation; that remains tracked in

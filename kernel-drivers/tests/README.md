@@ -51,8 +51,9 @@ cases with an empty journal/fatal scan, and the full 12-case official-MPP run
 `20260720-213542-mpp-suite` passed. The same KASAN boot passed the FFmpeg codec
 matrix and corrected H.264/H.265/VP9 bit-exact PSNR gate, but direct RGA2
 dma-buf submission exposed an unmapped-address DMA-API sync warning. ABI replay
-also retained two known RGA contract failures on that installed kernel. Source
-patches `0044`/`0045` now address them, with booted KASAN replay still pending.
+also retained two known RGA contract failures on that installed kernel. Patches
+`0044`/`0045` fix them: rebuilt KASAN debug build `Pb999-C4ad2` passed run
+`20260721-034716-kasan-narrowed` with `abi_status=0` and a clean memory scan.
 The GStreamer runtime matrix remains blocked on missing development packages. See the
 [`0042` finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md)
 and [`0043` finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),

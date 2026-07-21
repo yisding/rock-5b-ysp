@@ -59,8 +59,8 @@ build, while the complete current tip still needs a clean package rebuild and
 boot. See the
 [`0042` finding](../../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md)
 and [`0043` finding](../../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md).
-The `0044`/`0045` objects compile from the KASAN configuration; booted ABI
-replay remains pending. See the
+The `0044`/`0045` fixes pass booted KASAN ABI replay on rebuilt debug build
+`Pb999-C4ad2` (`abi_status=0`, clean memory scan). See the
 [`0044`/`0045` finding](../../../findings/2026-07-21-rga-forward-port-abi-gaps.md).
 
 ## Relationship To Other Patch Sets
