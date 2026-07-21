@@ -9,25 +9,25 @@ patches from `apps/gnome-remote-desktop/patches/`.
 
 The helper currently archives clean
 `GRD_COMMIT=3e4480e066d30ba44015ae1b8cb3bbb92fe6414e`, applies tracked diagnostic
-patches `0020` and `0021`, and exports
-`50.1+rkmpp+git20260721.10.3e4480e+audiotrace1`. The clean commit is published on
-the fork's `main`; the diagnostic package's compiled source is reproducible
+patches `0020`, `0021`, and `0022`, and exports
+`50.1+rkmpp+git20260721.11.3e4480e+audioprobe1`. The clean commit is published
+on the fork's `main`; the diagnostic package's compiled source is reproducible
 from base `c14e09ef67e916ae83a4eddee6a56591078e78e0` plus tracked patches
-`0001`–`0021` under
+`0001`–`0022` under
 [`../../../../apps/gnome-remote-desktop/patches/`](../../../../apps/gnome-remote-desktop/patches/README.md).
 
 Use Launchpad source publication `18626586` for a byte-exact reconstruction of
 the historical `~exp3@2571326` source package. The current default helper needs
 a checkout containing `3e4480e` (available on `yding/main`); the tracked
-21-patch replay is the portable code-review boundary but is not a
+22-patch replay is the portable code-review boundary but is not a
 byte-for-byte replacement for the local orig tarball because the source
 checkout also contains documentation-only history.
 Override
 `GRD_REPO`, `GRD_COMMIT`, `GRD_UPSTREAM_VERSION`, and `GRD_DELTA` together for
 any other snapshot. `GRD_DELTA` accepts colon-separated patch paths and applies
-them in order. Set `GRD_DELTA=` explicitly to omit `0020` and `0021` from a
-custom export; also supply the matching upstream version and Debian packaging
-when reconstructing an older package such as `exp7`.
+them in order. Set `GRD_DELTA=` explicitly to omit `0020`–`0022` from a custom
+export; also supply the matching upstream version and Debian packaging when
+reconstructing an older package such as `exp7`.
 
 ## dirty20260706-worktree.patch
 
@@ -66,5 +66,5 @@ bash packaging/ppa/build-source-packages.sh grd
 
 The default helper instead exports the `3e4480e` snapshot documented above and
 uses the colon-separated `0020-rdp-log-every-client-audio-format.patch` and
-`0021-rdp-trace-audio-playback-and-disable-opus-offer.patch` series as
-`GRD_DELTA`.
+`0021-rdp-trace-audio-playback-and-disable-opus-offer.patch` plus
+`0022-rdp-add-runtime-legacy-audio-format-probe.patch` series as `GRD_DELTA`.

@@ -217,10 +217,18 @@ strings, Lintian, and an APT upgrade simulation from installed `exp8` also
 pass. Installed `exp9` then traced the complete SVC fallback, exact PCM
 selection, PipeWire capture, `SNDC_WAVE2`, and wave confirmations; after the
 audio-stack migration reboot, the macOS client rendered audible audio. These
-states are reproducible from `c14e09e` plus the complete 21-patch tracked
-series; the first 19 patches are the functional candidate and `0020`–`0021`
-are temporary audio diagnostics. Compressed-codec interoperability,
-publication/promotion, and the remaining video focus gate remain.
+states are reproducible from `c14e09e` plus the complete 22-patch tracked
+series; the first 19 patches are the functional candidate and `0020`–`0022`
+are temporary audio diagnostics. Local `exp10` adds `0022`'s
+runtime-selectable, negotiation-only exact A-law/Microsoft-ADPCM/IMA-ADPCM
+probe so all client capability tests use one package. Its source and native
+arm64 builds, RDP integration test, packaged-string inspection, Lintian, and
+APT upgrade simulation from installed `exp9` pass; the TPM and hardware-EGL
+tests skip on the build host. Installed individual probes show that Windows App
+for macOS `11.3.7.3040` rejects both exact ADPCM tuples but returns the exact
+stereo 22.05 kHz A-law tuple plus PCM over RDPSND SVC; the diagnostic package
+still selects PCM. A-law/AAC playback interoperability, publication/promotion,
+and the remaining video focus gate remain.
 
 The historical `a59c904` dirty snapshot remains reconstructible: commit
 `a59c904c99088235eb4de31ca340747d334494f3` plus the delta at

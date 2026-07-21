@@ -388,6 +388,79 @@ Then connect and play a known stereo signal. The acceptance gate is all of:
 4. local mute and volume changes behave as expected; and
 5. the result survives a disconnect/reconnect and reboot.
 
+## One-package legacy-format negotiation probe
+
+Diagnostic package
+`50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10`
+adds patch [`0022`](../patches/0022-rdp-add-runtime-legacy-audio-format-probe.patch).
+One installed package can advertise any of the three exact Windows-compatible
+legacy tuples above. The daemon reads `GRD_RDP_AUDIO_FORMAT_PROBE` at startup;
+accepted values are `none`, `alaw`, `ms-adpcm`, `ima-adpcm`, `adpcm` (both
+ADPCM variants), `all`, or a comma-separated combination.
+
+The source and native arm64 builds pass. The RDP integration test passes; the
+TPM and hardware-EGL tests skip on this build host, with no failures. Install
+the resulting local package from the repository root:
+
+```bash
+sudo apt install ./packaging/ppa/out/artifacts/gnome-remote-desktop_50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10_arm64.deb
+systemctl --user daemon-reload
+```
+
+These are deliberately **negotiation-only** formats. GRD logs whether the
+client returns each exact tuple but never selects A-law or ADPCM for playback,
+because its playback DSP cannot yet encode them. AAC and PCM remain in every
+offer. If a client returns only a probe format, GRD records the positive result
+and then safely terminates audio negotiation instead of sending mislabeled PCM.
+
+Change modes through the systemd user manager from SSH or a local terminal;
+restarting the handover service disconnects the current RDP session:
+
+```bash
+systemctl --user set-environment GRD_RDP_AUDIO_FORMAT_PROBE=ms-adpcm
+systemctl --user restart gnome-remote-desktop-handover.service
+```
+
+Make one fresh Mac connection, disconnect it, and inspect:
+
+```bash
+journalctl --user -b -u gnome-remote-desktop-handover.service \
+  --grep='Server SNDC_FORMATS|Client AUDIO_FORMAT|Client Probe Formats|Audio Format negotiation'
+```
+
+The concise verdict is:
+
+```text
+Client Probe Formats (exact tuple):
+  [MS-ADPCM: true|false, IMA-ADPCM: true|false, A-law: true|false]
+```
+
+Repeat with `ima-adpcm` and `alaw`. An initial `all` run is convenient, but the
+three individual runs are authoritative if the client returns only one
+preferred format.
+
+The live Windows App for macOS `11.3.7.3040` results on 2026-07-21 were:
+
+| Individual server probe | Client response | Exact-tuple result |
+|-------------------------|-----------------|--------------------|
+| Microsoft ADPCM: stereo, 44.1 kHz, 4-bit, 2048-byte blocks | PCM only | Rejected |
+| IMA/DVI ADPCM: stereo, 44.1 kHz, 4-bit, 2048-byte blocks | PCM only | Rejected |
+| A-law: stereo, 22.05 kHz, 8-bit, 44,100 bytes/s | A-law followed by PCM | Accepted |
+
+The successful A-law response exactly matched tag `0x0006`, two channels,
+22,050 samples/s, 44,100 bytes/s, two-byte block alignment, eight bits/sample,
+and `cbSize=0`. The exchange occurred after the playback DVC was rejected and
+GRD opened its RDPSND SVC fallback. Because `0022` makes probe formats
+negotiation-only, GRD selected returned format index 1 (PCM) and sent confirmed
+PCM `SNDC_WAVE2` blocks; this run proves client capability, not A-law playback.
+
+Restore the known PCM behavior without reinstalling:
+
+```bash
+systemctl --user unset-environment GRD_RDP_AUDIO_FORMAT_PROBE
+systemctl --user restart gnome-remote-desktop-handover.service
+```
+
 ## What belongs in GRD and what does not
 
 No new RDP transport or codec implementation was needed to fix the silence. A

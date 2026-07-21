@@ -1,0 +1,249 @@
+From 4a4048bc29a119e34504309716779a4a2f30bb64 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Tue, 21 Jul 2026 15:30:00 -0700
+Subject: [PATCH] rdp: add runtime legacy audio format probe
+
+Allow one diagnostic package to advertise exact Windows-compatible A-law,
+Microsoft ADPCM, and IMA ADPCM tuples selected through the
+GRD_RDP_AUDIO_FORMAT_PROBE environment variable.
+
+The probe formats are negotiation-only. Log whether the client returns each
+exact tuple, but continue to select only GRD's implemented AAC, Opus, or PCM
+playback formats. This avoids claiming encoder support or sending a legacy
+codec that GRD cannot currently produce.
+---
+ src/grd-rdp-dvc-audio-playback.c | 175 +++++++++++++++++++++++++++++--
+ 1 file changed, 164 insertions(+), 11 deletions(-)
+
+diff --git a/src/grd-rdp-dvc-audio-playback.c b/src/grd-rdp-dvc-audio-playback.c
+--- a/src/grd-rdp-dvc-audio-playback.c
++++ b/src/grd-rdp-dvc-audio-playback.c
+@@ -47,6 +47,16 @@
+ #define MAX_AUDIO_FORMAT_DATA_LOG_BYTES 256
+ #define AUDIO_DIAGNOSTIC_INTERVAL_US (5 * G_USEC_PER_SEC)
+ #define AUDIO_SINK_DISCOVERY_TIMEOUT_SECONDS 3
++#define AUDIO_FORMAT_PROBE_ENV "GRD_RDP_AUDIO_FORMAT_PROBE"
++#define MAX_SERVER_AUDIO_FORMATS 5
++
++typedef enum
++{
++  AUDIO_FORMAT_PROBE_NONE = 0,
++  AUDIO_FORMAT_PROBE_ALAW = 1 << 0,
++  AUDIO_FORMAT_PROBE_MS_ADPCM = 1 << 1,
++  AUDIO_FORMAT_PROBE_IMA_ADPCM = 1 << 2,
++} AudioFormatProbeFlags;
+ 
+ typedef struct _AudioData
+ {
+@@ -66,6 +76,8 @@ struct _GrdRdpDvcAudioPlayback
+   GrdRdpDvc parent;
+ 
+   RdpsndServerContext *rdpsnd_context;
++  AUDIO_FORMAT *server_formats;
++  AudioFormatProbeFlags audio_format_probe_flags;
+   gboolean channel_opened;
+ 
+   gboolean prevent_dvc_initialization;
+@@ -615,12 +627,139 @@ static const AUDIO_FORMAT audio_format_pcm =
+   .cbSize = 0,
+ };
+ 
+-static AUDIO_FORMAT server_formats[] =
++static uint8_t audio_format_ms_adpcm_data[] =
++{
++  0xf4, 0x07, 0x07, 0x00, 0x00, 0x01, 0x00, 0x00,
++  0x00, 0x02, 0x00, 0xff, 0x00, 0x00, 0x00, 0x00,
++  0xc0, 0x00, 0x40, 0x00, 0xf0, 0x00, 0x00, 0x00,
++  0xcc, 0x01, 0x30, 0xff, 0x88, 0x01, 0x18, 0xff,
++};
++
++static const AUDIO_FORMAT audio_format_ms_adpcm =
++{
++  .wFormatTag = WAVE_FORMAT_ADPCM,
++  .nChannels = 2,
++  .nSamplesPerSec = 44100,
++  .nAvgBytesPerSec = 44359,
++  .nBlockAlign = 2048,
++  .wBitsPerSample = 4,
++  .cbSize = sizeof (audio_format_ms_adpcm_data),
++  .data = audio_format_ms_adpcm_data,
++};
++
++static uint8_t audio_format_ima_adpcm_data[] = { 0xf9, 0x07 };
++
++static const AUDIO_FORMAT audio_format_ima_adpcm =
+ {
+-  audio_format_aac,
+-  audio_format_pcm,
++  .wFormatTag = WAVE_FORMAT_DVI_ADPCM,
++  .nChannels = 2,
++  .nSamplesPerSec = 44100,
++  .nAvgBytesPerSec = 44251,
++  .nBlockAlign = 2048,
++  .wBitsPerSample = 4,
++  .cbSize = sizeof (audio_format_ima_adpcm_data),
++  .data = audio_format_ima_adpcm_data,
+ };
+ 
++static const AUDIO_FORMAT audio_format_alaw =
++{
++  .wFormatTag = WAVE_FORMAT_ALAW,
++  .nChannels = 2,
++  .nSamplesPerSec = 22050,
++  .nAvgBytesPerSec = 44100,
++  .nBlockAlign = 2,
++  .wBitsPerSample = 8,
++  .cbSize = 0,
++};
++
++static AudioFormatProbeFlags
++parse_audio_format_probe (const char *probe_value)
++{
++  g_auto (GStrv) tokens = NULL;
++  AudioFormatProbeFlags flags = AUDIO_FORMAT_PROBE_NONE;
++  unsigned int i;
++
++  if (!probe_value || probe_value[0] == '\0' ||
++      g_str_equal (probe_value, "none"))
++    return AUDIO_FORMAT_PROBE_NONE;
++
++  tokens = g_strsplit (probe_value, ",", -1);
++  for (i = 0; tokens[i]; ++i)
++    {
++      const char *token = g_strstrip (tokens[i]);
++
++      if (g_str_equal (token, "all"))
++        flags |= AUDIO_FORMAT_PROBE_ALAW |
++                 AUDIO_FORMAT_PROBE_MS_ADPCM |
++                 AUDIO_FORMAT_PROBE_IMA_ADPCM;
++      else if (g_str_equal (token, "alaw"))
++        flags |= AUDIO_FORMAT_PROBE_ALAW;
++      else if (g_str_equal (token, "ms-adpcm"))
++        flags |= AUDIO_FORMAT_PROBE_MS_ADPCM;
++      else if (g_str_equal (token, "ima-adpcm"))
++        flags |= AUDIO_FORMAT_PROBE_IMA_ADPCM;
++      else if (g_str_equal (token, "adpcm"))
++        flags |= AUDIO_FORMAT_PROBE_MS_ADPCM |
++                 AUDIO_FORMAT_PROBE_IMA_ADPCM;
++      else if (!g_str_equal (token, "none") && token[0] != '\0')
++        g_warning ("[RDP.AUDIO_PLAYBACK] Ignoring unknown %s token '%s'; "
++                   "expected none, alaw, ms-adpcm, ima-adpcm, adpcm, or all",
++                   AUDIO_FORMAT_PROBE_ENV, token);
++    }
++
++  return flags;
++}
++
++static void
++append_server_audio_format (GrdRdpDvcAudioPlayback *audio_playback,
++                            size_t                 *n_formats,
++                            const AUDIO_FORMAT     *audio_format)
++{
++  g_assert (*n_formats < MAX_SERVER_AUDIO_FORMATS);
++
++  audio_playback->server_formats[*n_formats] = *audio_format;
++  ++*n_formats;
++}
++
++static void
++configure_server_audio_formats (GrdRdpDvcAudioPlayback *audio_playback)
++{
++  RdpsndServerContext *rdpsnd_context = audio_playback->rdpsnd_context;
++  const char *probe_value = g_getenv (AUDIO_FORMAT_PROBE_ENV);
++  AudioFormatProbeFlags flags;
++  size_t n_formats = 0;
++
++  flags = parse_audio_format_probe (probe_value);
++  audio_playback->audio_format_probe_flags = flags;
++  audio_playback->server_formats =
++    g_new0 (AUDIO_FORMAT, MAX_SERVER_AUDIO_FORMATS);
++
++  append_server_audio_format (audio_playback, &n_formats, &audio_format_aac);
++  if (flags & AUDIO_FORMAT_PROBE_MS_ADPCM)
++    append_server_audio_format (audio_playback, &n_formats,
++                                &audio_format_ms_adpcm);
++  if (flags & AUDIO_FORMAT_PROBE_IMA_ADPCM)
++    append_server_audio_format (audio_playback, &n_formats,
++                                &audio_format_ima_adpcm);
++  if (flags & AUDIO_FORMAT_PROBE_ALAW)
++    append_server_audio_format (audio_playback, &n_formats, &audio_format_alaw);
++  append_server_audio_format (audio_playback, &n_formats, &audio_format_pcm);
++
++  rdpsnd_context->server_formats = audio_playback->server_formats;
++  rdpsnd_context->num_server_formats = n_formats;
++
++  g_message ("[RDP.AUDIO_PLAYBACK] Server SNDC_FORMATS offer: "
++             "AAC=true, Opus=false, MS-ADPCM=%s (probe-only), "
++             "IMA-ADPCM=%s (probe-only), A-law=%s (probe-only), "
++             "PCM=true, format_count=%zu, %s=%s; probe formats will "
++             "be logged but never selected for playback",
++             flags & AUDIO_FORMAT_PROBE_MS_ADPCM ? "true" : "false",
++             flags & AUDIO_FORMAT_PROBE_IMA_ADPCM ? "true" : "false",
++             flags & AUDIO_FORMAT_PROBE_ALAW ? "true" : "false",
++             n_formats, AUDIO_FORMAT_PROBE_ENV,
++             probe_value && probe_value[0] != '\0' ? probe_value : "none");
++}
++
+ static uint32_t
+ get_sample_rate (GrdRdpDvcAudioPlayback *audio_playback)
+ {
+@@ -695,6 +834,9 @@ rdpsnd_activated (RdpsndServerContext *rdpsnd_context)
+   GrdRdpDvcAudioPlayback *audio_playback = rdpsnd_context->data;
+   uint8_t training_data[TRAINING_PACKSIZE] = {};
+   uint32_t channel_status;
++  gboolean has_alaw = FALSE;
++  gboolean has_ms_adpcm = FALSE;
++  gboolean has_ima_adpcm = FALSE;
+   uint16_t i;
+ 
+   if (!audio_playback->pending_client_formats)
+@@ -738,7 +880,23 @@ rdpsnd_activated (RdpsndServerContext *rdpsnd_context)
+       if (audio_playback->pcm_client_format_idx < 0 &&
+           are_audio_formats_equal (audio_format, &audio_format_pcm))
+         audio_playback->pcm_client_format_idx = i;
+-    }
++      if (!has_alaw &&
++          are_audio_formats_equal (audio_format, &audio_format_alaw))
++        has_alaw = TRUE;
++      if (!has_ms_adpcm &&
++          are_audio_formats_equal (audio_format, &audio_format_ms_adpcm))
++        has_ms_adpcm = TRUE;
++      if (!has_ima_adpcm &&
++          are_audio_formats_equal (audio_format, &audio_format_ima_adpcm))
++        has_ima_adpcm = TRUE;
++    }
++
++  if (audio_playback->audio_format_probe_flags != AUDIO_FORMAT_PROBE_NONE)
++    g_message ("[RDP.AUDIO_PLAYBACK] Client Probe Formats (exact tuple): "
++               "[MS-ADPCM: %s, IMA-ADPCM: %s, A-law: %s]",
++               has_ms_adpcm ? "true" : "false",
++               has_ima_adpcm ? "true" : "false",
++               has_alaw ? "true" : "false");
+ 
+   if (audio_playback->aac_client_format_idx < 0 &&
+       audio_playback->opus_client_format_idx < 0 &&
+@@ -888,13 +1046,7 @@ grd_rdp_dvc_audio_playback_new (GrdSessionRdp    *session_rdp,
+                                GRD_RDP_CHANNEL_AUDIO_PLAYBACK);
+ 
+   rdpsnd_context->use_dynamic_virtual_channel = TRUE;
+-  rdpsnd_context->server_formats = server_formats;
+-  rdpsnd_context->num_server_formats = G_N_ELEMENTS (server_formats);
+-
+-  g_message ("[RDP.AUDIO_PLAYBACK] Server SNDC_FORMATS offer: "
+-             "AAC=true, Opus=false (temporarily disabled), PCM=true, "
+-             "format_count=%zu",
+-             rdpsnd_context->num_server_formats);
++  configure_server_audio_formats (audio_playback);
+ 
+   rdpsnd_context->ChannelIdAssigned = rdpsnd_channel_id_assigned;
+   rdpsnd_context->Activated = rdpsnd_activated;
+@@ -949,6 +1101,7 @@ grd_rdp_dvc_audio_playback_dispose (GObject *object)
+ 
+   if (audio_playback->rdpsnd_context)
+     audio_playback->rdpsnd_context->server_formats = NULL;
++  g_clear_pointer (&audio_playback->server_formats, g_free);
+ 
+   g_mutex_lock (&audio_playback->streams_mutex);
+   g_hash_table_remove_all (audio_playback->audio_streams);
+-- 
+2.53.0

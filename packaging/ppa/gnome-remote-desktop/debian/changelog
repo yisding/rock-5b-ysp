@@ -1,3 +1,13 @@
+gnome-remote-desktop (50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10) resolute; urgency=medium
+
+  * Add a runtime-selectable, negotiation-only probe for the exact stereo
+    A-law, Microsoft ADPCM, and IMA ADPCM tuples in FreeRDP's Windows-compatible
+    format table.
+  * Keep AAC and PCM in every offer, log the exact legacy formats returned by
+    the client, and never select an unimplemented probe format for playback.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 21 Jul 2026 15:30:00 -0700
+
 gnome-remote-desktop (50.1+rkmpp+git20260721.10.3e4480e+audiotrace1-0ubuntu1~exp9) resolute; urgency=medium
 
   * Add normal-priority diagnostics for the RDP audio playback lifecycle:

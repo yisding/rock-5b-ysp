@@ -16,9 +16,9 @@ a few percent CPU instead of a laggy, CPU-bound one.
 |-------|----------|
 | User outcome | Run an RDP session whose H.264 video stream is encoded by RK3588 hardware instead of software. |
 | Developer focus | Understand GRD's capture path, FFmpeg encode-session integration, RDP frame-ack behavior, zero-copy buffers, panvk RGB-to-NV12 conversion, and GDM greeter permissions. |
-| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the 19-patch GRD investigation series. |
+| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, the 19-patch functional GRD series, and three temporary audio-diagnostic patches. |
 | Depends on | Kernel drivers, userspace libraries, an rkmpp-enabled FFmpeg build, Mesa/Panfrost Vulkan support, and optional GDM codec ACL packaging. |
-| Current state | The 19-patch functional investigation series replays on `c14e09e` (`50.1` + 16), and the backend sustains 60 fps. Patch `0017` and the matching published FFmpeg fix close the readback/backpressure failures. Core/GDB evidence isolates two focus-return failures: `0018@34145d9`'s reconstructed-ACK recovery is now live-validated, while `0019@3e4480e` fixes idle time falsely charged as pipeline starvation. Final source and `exp7` arm64 package builds pass. `exp8`/`0020` captured the Microsoft macOS client's sole exact PCM format. Installed `exp9`/`0021` traces the complete SVC fallback, PipeWire capture, PCM `SNDC_WAVE2`, and confirmation path; after the PipeWire migration and reboot, the client rendered audible audio. AAC/legacy-compressed interoperability, publication/promotion, and the remaining video focus gate are still open. See [`status.md`](../../status.md). |
+| Current state | The 19-patch functional investigation series replays on `c14e09e` (`50.1` + 16), and the backend sustains 60 fps. Patch `0017` and the matching published FFmpeg fix close the readback/backpressure failures. Core/GDB evidence isolates two focus-return failures: `0018@34145d9`'s reconstructed-ACK recovery is now live-validated, while `0019@3e4480e` fixes idle time falsely charged as pipeline starvation. Final source and `exp7` arm64 package builds pass. `exp8`/`0020` captured the Microsoft macOS client's sole exact PCM format. Installed `exp9`/`0021` traces the complete SVC fallback, PipeWire capture, PCM `SNDC_WAVE2`, and confirmation path; after the PipeWire migration and reboot, the client rendered audible audio. Installed `exp10`/`0022` proves the client accepts the exact stereo 22.05 kHz A-law tuple but rejects both exact ADPCM tuples; playback remains PCM because the probes are negotiation-only. AAC/A-law playback interoperability, publication/promotion, and the remaining video focus gate are still open. See [`status.md`](../../status.md). |
 
 | Piece | What | Status |
 |-------|------|--------|
@@ -46,7 +46,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | [`docs/testing.md`](docs/testing.md) | The benchmarking playbook (eviction hazard, env setup, HW-path checklist). |
 | [`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) | GRD-facing summary of the Mesa/Panfrost texture-transfer investigation behind the compute-path finding. |
 | [`bench/`](bench) | The benchmark this package owns — [`bench/README.md`](bench/README.md) plus [`readback_bench.c`](bench/readback_bench.c), the surfaceless `glReadPixels` readback timer behind `baseline.md`. |
-| [`patches/`](patches) | The full 19-patch GRD backend/reconnect/diagnostic/recovery series plus clearly separated async-PBO/MemFd reference prototypes; [`patches/README.md`](patches/README.md) maps the base, current disposition, and archival diffs. |
+| [`patches/`](patches) | The 19-patch GRD backend/reconnect/diagnostic/recovery series, three temporary audio-diagnostic patches, and clearly separated async-PBO/MemFd reference prototypes; [`patches/README.md`](patches/README.md) maps the base, current disposition, and archival diffs. |
 
 Packaging the whole stack for a Launchpad PPA is covered in
 [`packaging/ppa`](../../packaging/ppa).

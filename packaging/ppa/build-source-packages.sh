@@ -25,9 +25,10 @@ FFMPEG_ROCKCHIP_UPSTREAM_VERSION="${FFMPEG_ROCKCHIP_UPSTREAM_VERSION:-6.1+git202
 
 GRD_REPO="${GRD_REPO:-$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop}"
 GRD_COMMIT="${GRD_COMMIT:-3e4480e066d30ba44015ae1b8cb3bbb92fe6414e}"
-GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260721.10.3e4480e+audiotrace1}"
+GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260721.11.3e4480e+audioprobe1}"
 GRD_DEFAULT_DELTA="$ROOT/apps/gnome-remote-desktop/patches/0020-rdp-log-every-client-audio-format.patch"
 GRD_DEFAULT_DELTA+=":$ROOT/apps/gnome-remote-desktop/patches/0021-rdp-trace-audio-playback-and-disable-opus-offer.patch"
+GRD_DEFAULT_DELTA+=":$ROOT/apps/gnome-remote-desktop/patches/0022-rdp-add-runtime-legacy-audio-format-probe.patch"
 GRD_DELTA="${GRD_DELTA-$GRD_DEFAULT_DELTA}"
 
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
@@ -69,11 +70,12 @@ Source tree defaults are resolved below WORKSPACE_ROOT (the repository's parent
 directory by default). Override that shared root or use MPP_REPO, LIBRGA_REPO,
 FFMPEG_REPO, FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching *_COMMIT /
 *_UPSTREAM_VERSION variables. The default GRD snapshot includes the reconnect
-fixes, pipeline diagnostics, bounded RKMPP stall recovery, and tracked patch
-0020's client AUDIO_FORMAT logging and 0021's end-to-end playback trace. Patch
-paths in GRD_DELTA are colon-separated and applied in order. Set GRD_DELTA
-empty to omit those diagnostics, or override it when reconstructing a
-historical source package that included another source delta.
+fixes, pipeline diagnostics, bounded RKMPP stall recovery, tracked patch
+0020's client AUDIO_FORMAT logging, 0021's end-to-end playback trace, and
+0022's runtime-selectable legacy-format negotiation probe. Patch paths in
+GRD_DELTA are colon-separated and applied in order. Set GRD_DELTA empty to
+omit those diagnostics, or override it when reconstructing a historical
+source package that included another source delta.
 
 The forward-port kernel target exports the already-patched Armbian kernel
 worktree named by KERNEL_PPA_REPO, excluding build products and .git, then

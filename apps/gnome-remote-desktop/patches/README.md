@@ -16,9 +16,12 @@ client `AUDIO_FORMAT` field so an absent AAC/Opus offer can be distinguished
 from a format that GRD rejects only because one field differs. Diagnostic
 patch `0021` traces every boundary from channel setup through PipeWire capture
 and `SNDC_WAVE2` confirmation, and temporarily removes Opus from the advertised
-server formats for the Microsoft macOS client experiment.
+server formats for the Microsoft macOS client experiment. Diagnostic patch
+`0022` adds a runtime-selectable, negotiation-only probe for the exact A-law,
+Microsoft ADPCM, and IMA ADPCM tuples used by FreeRDP's Windows-compatible
+format table.
 
-The complete `0001`–`0021` series, including its `0001`–`0008` backend subset,
+The complete `0001`–`0022` series, including its `0001`–`0008` backend subset,
 applies to upstream commit `c14e09e` (`50.1` + 16). This base contains both the
 `cf250ed` VA-API revert required by `0003` and the GNOME-50 reconnection
 simplification that `0009` officially reverts. Replay is verified with
@@ -53,6 +56,7 @@ against `50.1`+16 — see its header.
 | 0019 | `rdp-ignore-idle-time-when-detecting-pipeline-starvation` | 1 | Record when a drained pipeline first gains outstanding view/encode work and include that timestamp in the starvation baseline. This prevents a focus return from charging the preceding idle/output-suppressed interval as an immediate hardware stall while preserving the watchdog for continuously busy pipelines; see [finding](../../../findings/2026-07-20-grd-focus-return-false-pipeline-starvation.md). |
 | 0020 | `rdp-log-every-client-audio-format` | 1 | Emit one normal-priority journal line per client `AUDIO_FORMAT`, including the tag, channels, sample rate, average byte rate, block alignment, sample depth, `cbSize`, and up to 256 codec-specific bytes. The cap prevents an untrusted client from creating an unbounded journal entry. |
 | 0021 | `rdp-trace-audio-playback-and-disable-opus-offer` | 2 | Log DVC/SVC setup, formats/quality mode, training, delayed absence of PipeWire sinks, sink stream state, PCM buffers, first queueing, rate-limited `SNDC_WAVE2` sends, and rate-limited wave confirms. Temporarily advertise only AAC and PCM; the Opus implementation remains intact for restoration after the client investigation. |
+| 0022 | `rdp-add-runtime-legacy-audio-format-probe` | 1 | Read `GRD_RDP_AUDIO_FORMAT_PROBE` at daemon startup and optionally add exact stereo A-law, Microsoft ADPCM, and/or IMA ADPCM tuples to the AAC/PCM server offer. Report exact returned probe tuples, but never select them for playback because GRD has no matching encoder path yet. |
 
 `0001`–`0003` are the backend; `0004`–`0006` are the panvk/hardware-enablement
 fixes ([`apps/gnome-remote-desktop/docs/design.md`](../docs/design.md)); `0007` is the mainline-rkmpp runtime fix
@@ -65,7 +69,9 @@ recovery; `0016` makes the starvation detector actuate the software fallback;
 `0019` prevents focus-idle time from falsely firing `0016`'s actuator. `0020`
 logs the RDP audio-format exchange without changing selection, while `0021`
 adds the end-to-end playback trace and temporarily changes the server offer
-from AAC/Opus/PCM to AAC/PCM.
+from AAC/Opus/PCM to AAC/PCM. `0022` optionally inserts legacy formats into
+that offer without making them selectable, allowing all negotiation tests to
+use one package.
 Patch `0007`'s quality settings remain relevant to the mainline
 forward port, while `0015` supersedes its startup encoder recreation with a
 forced IDR on the packaged Rockchip FFmpeg, which honours
@@ -139,4 +145,12 @@ from installed `exp8`. The package was then installed and traced a complete
 SVC fallback through PipeWire PCM capture, `SNDC_WAVE2`, wave confirmation, and
 audible macOS rendering after the PipeWire migration reboot. It remains a
 temporary diagnostic build; compressed-codec interoperability and
-publication/promotion remain.
+publication/promotion remain. Local `exp10` adds `0022` so A-law, Microsoft
+ADPCM, and IMA ADPCM can be tested individually from one installed package by
+changing the systemd user-manager environment and restarting the handover
+daemon. Its source and native arm64 builds, RDP integration test,
+packaged-string inspection, Lintian, and APT upgrade simulation from installed
+`exp9` pass; the TPM and hardware-EGL tests skip on the build host. Live
+individual probes with Windows App for macOS `11.3.7.3040` reject both exact
+ADPCM tuples and return the exact A-law tuple plus PCM. GRD still selects PCM,
+as required by the negotiation-only safety boundary.
