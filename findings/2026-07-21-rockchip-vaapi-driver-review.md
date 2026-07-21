@@ -7,12 +7,13 @@
 > Source: `github.com/woodyst/rockchip-vaapi@e8c64dd` (clone at
 > `~/Code/rockchip-vaapi`); ioctl numbers cross-checked against
 > [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md)
-> Date: 2026-07-21
+> Date: 2026-07-21 (§9 phase-one results appended same day)
 > Trust: SOURCE-INSPECTED for everything stated about the driver code;
-> INFERRED for app-portability judgments and effort estimates; UNVERIFIED
-> (flagged inline) for Firefox/Chromium sandbox-internals claims, which are
-> from model knowledge and need pinning against current browser sources
-> before being baked into a plan
+> MEASURED for the §9 phase-one build/validation results; INFERRED for
+> app-portability judgments and effort estimates; UNVERIFIED (flagged
+> inline) for Firefox/Chromium sandbox-internals claims, which are from
+> model knowledge and need pinning against current browser sources before
+> being baked into a plan
 
 ## Result
 
@@ -230,10 +231,69 @@ every sandbox allowlist.
    track and the fork decision; a structural failure reverts the verdict to
    PoC-only.
 
+## 9. Phase-one results (MEASURED, board-validated 2026-07-21)
+
+Probe steps 1–3 were executed on the ROCK 5B (RK3588, vendor MPP
+`1.5.0+git20260529` on the 6.18 kernel, libva 2.23, system ffmpeg 8.1 with
+`--enable-rkmpp`). The driver built unmodified against our stack on the first
+try (only `-I/usr/include/rockchip` needed, already in its Makefile) and MPP
+initialized over `/dev/mpp_service` — confirming the kernel-agnostic
+portability claim. It was then cleaned up, repackaged, and forked to
+`yisding/rockchip-vaapi` branch `ysp/cleanup`.
+
+**Validation method.** H.264 and VP9 inverse transforms are spec-exact, so a
+correct hardware decode must be byte-identical to software decode. The gate
+(`tests/validate.sh`, `make check`) compares `-hwaccel vaapi` vs software
+`framemd5` per frame. Any difference is a driver bug, not hardware tolerance.
+
+**Bugs found and fixed** (each reproduced, fixed, and re-validated; the PoC's
+"Firefox H.264+VP9 works" masked all three because Firefox's own error
+recovery hid the corruption):
+
+1. *Multi-reference/B-frame H.264 corruption.* The reconstructed PPS
+   hardcoded `num_ref_idx_l0/l1_default_active_minus1 = 0`; streams whose
+   slices rely on the PPS default (x264 `ref>1` without the per-slice
+   override flag) decoded 109–117 of 120 frames wrong. Fix: re-emit the PPS
+   before every frame with the counts taken from the frame's own
+   `VASliceParameterBufferH264`. This confirms weakness §4.2 was real and
+   under-stated (it corrupts common web H.264, not an edge case).
+2. *Nondeterministic VP9 frame drops.* Non-blocking `EndPicture` treated a
+   full-MPP-input-queue `decode_put_packet` failure as fatal; ffmpeg then
+   silently dropped up to 38 of 120 packets, nondeterministically (5/10 runs
+   corrupt). Fix: drain output frames and retry the put, bounded.
+3. *VP9 PTS mis-routing.* A `show_existing_frame` repeat of a hidden altref
+   surfaced with the altref packet's PTS, desyncing all later frames. Fix:
+   route VP9 output by the submission FIFO and ignore PTS.
+
+**Results after fixes** (all bit-exact vs software):
+- H.264: `ref ∈ {1,2,4,8} × bframes ∈ {0,2,3}` — 6/6 configs; plus a
+  3840×2160 `ref=3:bframes=2` clip.
+- VP9 Profile 0: 10/10 repeated runs identical (determinism gate).
+- The installed `.deb` passes the same gate through the standard
+  `/usr/lib/aarch64-linux-gnu/dri` libva path, not just the source dir.
+
+**Also done in the fork:** withdrew the un-implemented profiles from
+advertising (HEVC, VP8, 10-bit — apps now fall back to software instead of
+failing, confirming §2's "HEVC advertised but non-functional" and that VP8
+segfaults); defaulted the packaging's system-wide `MOZ_DISABLE_RDD_SANDBOX`
+debconf prompt to false with a security note (per §7); multiarch/DESTDIR
+Makefile and a `make check` gate.
+
+**Not yet done** (the substantive renovation from §5, still ahead): the
+zero-copy buffer model (still per-frame CPU memcpy), the drain-thread sync
+model and table locking, the HEVC header writer, RGA-backed NV15→P010 10-bit,
+and any actual Firefox/Chromium end-to-end run (only the ffmpeg-vaapi client
+was exercised). The §6 desktop-reach and §7 sandbox conclusions remain
+INFERRED/UNVERIFIED. Confidence in the fork-and-renovate verdict is now
+higher: the architecture held on our hardware and the codebase took
+correctness surgery cleanly.
+
 ## Local artifacts
 
-- Clone: `~/Code/rockchip-vaapi@e8c64dd` (v1.0.11, upstream quiet since
-  2026-05-28).
+- Working checkout: `~/Code/rockchip-vaapi`, forked to
+  `yisding/rockchip-vaapi` (`fork` remote), branch `ysp/cleanup`; `origin`
+  is upstream woodyst `@e8c64dd` (v1.0.11, quiet since 2026-05-28). Built
+  package `rockchip-vaapi_1.0.11+ysp1_arm64.deb`.
 - This finding supersedes the "no VA-API driver over MPP exists anywhere"
   claim in the [app enablement map](../docs/app-enablement.md) (corrected
   same day) and in the
