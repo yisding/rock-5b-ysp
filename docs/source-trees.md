@@ -214,10 +214,13 @@ every client `AUDIO_FORMAT` field without changing negotiation. Local `exp9`
 adds patch `0021`'s channel/training/PipeWire/WAVE2 trace and temporarily omits
 Opus from the server offer. Its source and native arm64 builds pass; packaged
 strings, Lintian, and an APT upgrade simulation from installed `exp8` also
-pass. These states are reproducible from `c14e09e` plus the complete 21-patch
-tracked series; the first 19 patches are the functional candidate and
-`0020`–`0021` are temporary audio diagnostics. Final install/live validation
-remains.
+pass. Installed `exp9` then traced the complete SVC fallback, exact PCM
+selection, PipeWire capture, `SNDC_WAVE2`, and wave confirmations; after the
+audio-stack migration reboot, the macOS client rendered audible audio. These
+states are reproducible from `c14e09e` plus the complete 21-patch tracked
+series; the first 19 patches are the functional candidate and `0020`–`0021`
+are temporary audio diagnostics. Compressed-codec interoperability,
+publication/promotion, and the remaining video focus gate remain.
 
 The historical `a59c904` dirty snapshot remains reconstructible: commit
 `a59c904c99088235eb4de31ca340747d334494f3` plus the delta at

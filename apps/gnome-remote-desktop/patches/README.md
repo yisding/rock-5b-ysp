@@ -135,4 +135,8 @@ The local `exp8` diagnostic package applies `0020` on top of that clean commit
 to capture the client's exact AAC, Opus, PCM, or other format tuples. Local
 `exp9` adds `0021`; its source and native arm64 builds pass, the packaged
 daemon contains the expected trace strings, and APT simulates a clean upgrade
-from installed `exp8`. Installation and a live client trace remain.
+from installed `exp8`. The package was then installed and traced a complete
+SVC fallback through PipeWire PCM capture, `SNDC_WAVE2`, wave confirmation, and
+audible macOS rendering after the PipeWire migration reboot. It remains a
+temporary diagnostic build; compressed-codec interoperability and
+publication/promotion remain.

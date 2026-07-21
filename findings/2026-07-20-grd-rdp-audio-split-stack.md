@@ -10,4 +10,5 @@ Promoted →
 [`apps/gnome-remote-desktop/docs/audio-redirection.md`](../apps/gnome-remote-desktop/docs/audio-redirection.md)
 (2026-07-20). The canonical guide preserves the system identity, successful
 `RDPSND`/PCM negotiation, live PulseAudio/FluidSynth path, empty native
-PipeWire audio graph, GRD source path, remediation, and untested boundary.
+PipeWire audio graph, GRD source path, remediation, and the boundary later
+closed by the audible 2026-07-21 `exp9` run.
