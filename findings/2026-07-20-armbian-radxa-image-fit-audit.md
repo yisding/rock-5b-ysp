@@ -26,6 +26,11 @@ image links, the checker streamed only enough xz data to recover the 4 MiB
 U-Boot window at raw offset 8 MiB. It transferred 3,196,074,913 compressed
 bytes in total, 12,615,680 to 20,971,520 bytes per image.
 
+The follow-up
+[non-Radxa Radxa-U-Boot audit](2026-07-20-armbian-non-radxa-radxa-uboot-audit.md)
+uses resolved board/branch configuration to cover inheriting Orange Pi,
+Banana Pi, NanoPC, MekoTronics, and other non-Radxa images.
+
 ### Potentially affected Radxa families
 
 | Board | Broken | Clean | Not applicable |

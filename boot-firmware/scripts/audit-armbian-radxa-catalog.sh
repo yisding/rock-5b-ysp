@@ -13,8 +13,9 @@ Usage: audit-armbian-radxa-catalog.sh BOARD_SLUG [BOARD_SLUG ...]
 Read each board's current Armbian download catalog and audit every linked
 image with the prefix-only Rockchip FIT checker. Results are emitted as TSV.
 
-BOARD_SLUG is the final component of an Armbian board-page URL, for example
-rock-5b or radxa-zero3.
+BOARD_SLUG is the final component of any Armbian board-page URL, for example
+rock-5b, radxa-zero3, or orangepi5-plus. The historical script name does not
+restrict it to Radxa-branded boards.
 EOF
 }
 
