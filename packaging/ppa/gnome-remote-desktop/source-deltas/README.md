@@ -2,31 +2,32 @@
 
 This directory preserves source changes needed to reconstruct historical PPA
 snapshots that were exported from dirty local GRD worktrees. The tracked file
-below is historical; current packaging does not apply a source delta by
-default.
+below is historical; current packaging instead applies the numbered diagnostic
+patches from `apps/gnome-remote-desktop/patches/`.
 
 ## Current exporter pin
 
 The helper currently archives clean
 `GRD_COMMIT=3e4480e066d30ba44015ae1b8cb3bbb92fe6414e`, applies tracked diagnostic
-patch `0020`, and exports
-`50.1+rkmpp+git20260720.9.3e4480e+audiofmt1`. The clean commit is published on
+patches `0020` and `0021`, and exports
+`50.1+rkmpp+git20260721.10.3e4480e+audiotrace1`. The clean commit is published on
 the fork's `main`; the diagnostic package's compiled source is reproducible
 from base `c14e09ef67e916ae83a4eddee6a56591078e78e0` plus tracked patches
-`0001`–`0020` under
+`0001`–`0021` under
 [`../../../../apps/gnome-remote-desktop/patches/`](../../../../apps/gnome-remote-desktop/patches/README.md).
 
 Use Launchpad source publication `18626586` for a byte-exact reconstruction of
 the historical `~exp3@2571326` source package. The current default helper needs
 a checkout containing `3e4480e` (available on `yding/main`); the tracked
-20-patch replay is the portable code-review boundary but is not a
+21-patch replay is the portable code-review boundary but is not a
 byte-for-byte replacement for the local orig tarball because the source
 checkout also contains documentation-only history.
 Override
 `GRD_REPO`, `GRD_COMMIT`, `GRD_UPSTREAM_VERSION`, and `GRD_DELTA` together for
-any other snapshot. Set `GRD_DELTA=` explicitly to omit `0020` from a custom
-export; also supply the matching upstream version and Debian packaging when
-reconstructing an older package such as `exp7`.
+any other snapshot. `GRD_DELTA` accepts colon-separated patch paths and applies
+them in order. Set `GRD_DELTA=` explicitly to omit `0020` and `0021` from a
+custom export; also supply the matching upstream version and Debian packaging
+when reconstructing an older package such as `exp7`.
 
 ## dirty20260706-worktree.patch
 
@@ -64,4 +65,6 @@ bash packaging/ppa/build-source-packages.sh grd
 ```
 
 The default helper instead exports the `3e4480e` snapshot documented above and
-uses `0020-rdp-log-every-client-audio-format.patch` as `GRD_DELTA`.
+uses the colon-separated `0020-rdp-log-every-client-audio-format.patch` and
+`0021-rdp-trace-audio-playback-and-disable-opus-offer.patch` series as
+`GRD_DELTA`.

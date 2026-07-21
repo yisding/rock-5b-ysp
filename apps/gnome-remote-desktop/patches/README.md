@@ -13,9 +13,12 @@ for uncached imported-buffer readback, `0018`'s bounded recovery from a stalled
 RDPGFX frame-acknowledgement resume, and `0019`'s correction for focus-idle time
 being misclassified as pipeline starvation. Diagnostic patch `0020` logs every
 client `AUDIO_FORMAT` field so an absent AAC/Opus offer can be distinguished
-from a format that GRD rejects only because one field differs.
+from a format that GRD rejects only because one field differs. Diagnostic
+patch `0021` traces every boundary from channel setup through PipeWire capture
+and `SNDC_WAVE2` confirmation, and temporarily removes Opus from the advertised
+server formats for the Microsoft macOS client experiment.
 
-The complete `0001`–`0020` series, including its `0001`–`0008` backend subset,
+The complete `0001`–`0021` series, including its `0001`–`0008` backend subset,
 applies to upstream commit `c14e09e` (`50.1` + 16). This base contains both the
 `cf250ed` VA-API revert required by `0003` and the GNOME-50 reconnection
 simplification that `0009` officially reverts. Replay is verified with
@@ -49,6 +52,7 @@ against `50.1`+16 — see its header.
 | 0018 | `rdp-recover-when-resumed-frame-acknowledgements-stall` | 1 | Log RDPGFX acknowledgement suspend/resume state. When a real resume reconstructs suspended history but `totalFramesDecoded` makes no progress for two seconds, clear only that stale acknowledgement state, unthrottle surfaces, and force a full refresh/fresh render context. This preserves normal slow-client throttling and the intended suspend semantics; see [finding](../../../findings/2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md). |
 | 0019 | `rdp-ignore-idle-time-when-detecting-pipeline-starvation` | 1 | Record when a drained pipeline first gains outstanding view/encode work and include that timestamp in the starvation baseline. This prevents a focus return from charging the preceding idle/output-suppressed interval as an immediate hardware stall while preserving the watchdog for continuously busy pipelines; see [finding](../../../findings/2026-07-20-grd-focus-return-false-pipeline-starvation.md). |
 | 0020 | `rdp-log-every-client-audio-format` | 1 | Emit one normal-priority journal line per client `AUDIO_FORMAT`, including the tag, channels, sample rate, average byte rate, block alignment, sample depth, `cbSize`, and up to 256 codec-specific bytes. The cap prevents an untrusted client from creating an unbounded journal entry. |
+| 0021 | `rdp-trace-audio-playback-and-disable-opus-offer` | 2 | Log DVC/SVC setup, formats/quality mode, training, delayed absence of PipeWire sinks, sink stream state, PCM buffers, first queueing, rate-limited `SNDC_WAVE2` sends, and rate-limited wave confirms. Temporarily advertise only AAC and PCM; the Opus implementation remains intact for restoration after the client investigation. |
 
 `0001`–`0003` are the backend; `0004`–`0006` are the panvk/hardware-enablement
 fixes ([`apps/gnome-remote-desktop/docs/design.md`](../docs/design.md)); `0007` is the mainline-rkmpp runtime fix
@@ -59,8 +63,9 @@ recovery; `0016` makes the starvation detector actuate the software fallback;
 `0017` fixes the uncached readback cliff that `0016` could not recover from;
 `0018` bounds a separate client-focus/RDPGFX acknowledgement-resume stall; and
 `0019` prevents focus-idle time from falsely firing `0016`'s actuator. `0020`
-is a temporary interoperability diagnostic for the RDP audio-format exchange;
-it does not alter codec selection.
+logs the RDP audio-format exchange without changing selection, while `0021`
+adds the end-to-end playback trace and temporarily changes the server offer
+from AAC/Opus/PCM to AAC/PCM.
 Patch `0007`'s quality settings remain relevant to the mainline
 forward port, while `0015` supersedes its startup encoder recreation with a
 forced IDR on the packaged Rockchip FFmpeg, which honours
@@ -127,4 +132,7 @@ starvation actuator on focus return. Candidate `exp7@3e4480e` carries the
 cleaned `0018@34145d9` plus `0019`; source and arm64 package builds pass, while
 install/repeated macOS focus validation remains with FFmpeg `da5befc806`.
 The local `exp8` diagnostic package applies `0020` on top of that clean commit
-to capture the client's exact AAC, Opus, PCM, or other format tuples.
+to capture the client's exact AAC, Opus, PCM, or other format tuples. Local
+`exp9` adds `0021`; its source and native arm64 builds pass, the packaged
+daemon contains the expected trace strings, and APT simulates a clean upgrade
+from installed `exp8`. Installation and a live client trace remain.

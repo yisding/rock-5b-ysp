@@ -25,8 +25,10 @@ FFMPEG_ROCKCHIP_UPSTREAM_VERSION="${FFMPEG_ROCKCHIP_UPSTREAM_VERSION:-6.1+git202
 
 GRD_REPO="${GRD_REPO:-$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop}"
 GRD_COMMIT="${GRD_COMMIT:-3e4480e066d30ba44015ae1b8cb3bbb92fe6414e}"
-GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260720.9.3e4480e+audiofmt1}"
-GRD_DELTA="${GRD_DELTA-$ROOT/apps/gnome-remote-desktop/patches/0020-rdp-log-every-client-audio-format.patch}"
+GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+rkmpp+git20260721.10.3e4480e+audiotrace1}"
+GRD_DEFAULT_DELTA="$ROOT/apps/gnome-remote-desktop/patches/0020-rdp-log-every-client-audio-format.patch"
+GRD_DEFAULT_DELTA+=":$ROOT/apps/gnome-remote-desktop/patches/0021-rdp-trace-audio-playback-and-disable-opus-offer.patch"
+GRD_DELTA="${GRD_DELTA-$GRD_DEFAULT_DELTA}"
 
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
 KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
@@ -68,9 +70,10 @@ directory by default). Override that shared root or use MPP_REPO, LIBRGA_REPO,
 FFMPEG_REPO, FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching *_COMMIT /
 *_UPSTREAM_VERSION variables. The default GRD snapshot includes the reconnect
 fixes, pipeline diagnostics, bounded RKMPP stall recovery, and tracked patch
-0020's client AUDIO_FORMAT logging. Set GRD_DELTA empty to omit that diagnostic,
-or override it when reconstructing a historical source package that included
-another source delta.
+0020's client AUDIO_FORMAT logging and 0021's end-to-end playback trace. Patch
+paths in GRD_DELTA are colon-separated and applied in order. Set GRD_DELTA
+empty to omit those diagnostics, or override it when reconstructing a
+historical source package that included another source delta.
 
 The forward-port kernel target exports the already-patched Armbian kernel
 worktree named by KERNEL_PPA_REPO, excluding build products and .git, then
@@ -123,11 +126,11 @@ prepare_source() {
     local upstream_version="$4"
     local packaging_dir="$5"
     shift 5
-    local patch_file=""
-    if [[ "${1:-}" == "--patch" ]]; then
-        patch_file="$2"
+    local -a patch_files=()
+    while [[ "${1:-}" == "--patch" ]]; do
+        patch_files+=("$2")
         shift 2
-    fi
+    done
     local excludes=("$@")
     local source_dir="$WORK/${source}-${upstream_version}"
     local upstream_tmp="$WORK/upstream-${source}"
@@ -147,7 +150,8 @@ prepare_source() {
     for exclude in "${excludes[@]}"; do
         rm -rf "$upstream_tmp/${source}-${upstream_version}/$exclude"
     done
-    if [[ -n "$patch_file" ]]; then
+    local patch_file
+    for patch_file in "${patch_files[@]}"; do
         if [[ "$patch_file" != /* ]]; then
             patch_file="$ROOT/$patch_file"
         fi
@@ -158,7 +162,7 @@ prepare_source() {
             # outside the current prefix and would otherwise be skipped.
             GIT_CEILING_DIRECTORIES="$upstream_tmp" git apply "$patch_file"
         )
-    fi
+    done
 
     if [[ -f "$artifact_orig" && "$force_orig" != "1" ]]; then
         assert_orig_matches_source "$artifact_orig" "$upstream_tmp/${source}-${upstream_version}"
@@ -331,8 +335,13 @@ build_ffmpeg_rockchip() {
 
 build_grd() {
     local -a delta_args=()
+    local -a delta_patches=()
+    local delta_patch
     if [[ -n "$GRD_DELTA" ]]; then
-        delta_args=(--patch "$GRD_DELTA")
+        IFS=: read -r -a delta_patches <<< "$GRD_DELTA"
+        for delta_patch in "${delta_patches[@]}"; do
+            delta_args+=(--patch "$delta_patch")
+        done
     fi
 
     prepare_source \

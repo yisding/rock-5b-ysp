@@ -1,0 +1,466 @@
+From 8e82059b856f881189f096897f7823fd4d8e4f5a Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Tue, 21 Jul 2026 03:30:00 -0700
+Subject: [PATCH] rdp: trace audio playback and disable Opus offer
+
+Temporarily stop advertising Opus while diagnosing the Microsoft macOS
+client, which rejects that server format and returns only PCM.
+
+Add normal-priority, rate-limited diagnostics at each remaining audio
+playback boundary: DVC/SVC setup, formats and quality-mode receipt,
+training, PipeWire registry and sink setup, PCM capture, queueing, WAVE2
+submission, and wave confirmation. Warn when no PipeWire Audio/Sink appears
+within three seconds after successful protocol training.
+
+Keep the Opus implementation intact so the offer can be restored after the
+interoperability investigation.
+---
+ src/grd-rdp-audio-output-stream.c |  57 +++++++++++-
+ src/grd-rdp-dvc-audio-playback.c  | 182 +++++++++++++++++++++++++++++++++++--
+ 2 files changed, 223 insertions(+), 16 deletions(-)
+
+diff --git a/src/grd-rdp-dvc-audio-playback.c b/src/grd-rdp-dvc-audio-playback.c
+--- a/src/grd-rdp-dvc-audio-playback.c
++++ b/src/grd-rdp-dvc-audio-playback.c
+@@ -45,6 +45,8 @@
+ #define TRAINING_TIMESTAMP 0
+ 
+ #define MAX_AUDIO_FORMAT_DATA_LOG_BYTES 256
++#define AUDIO_DIAGNOSTIC_INTERVAL_US (5 * G_USEC_PER_SEC)
++#define AUDIO_SINK_DISCOVERY_TIMEOUT_SECONDS 3
+ 
+ typedef struct _AudioData
+ {
+@@ -76,6 +78,14 @@ struct _GrdRdpDvcAudioPlayback
+   gboolean pending_training_confirm;
+   gboolean protocol_stopped;
+ 
++  uint64_t n_sent_blocks;
++  uint64_t n_sent_bytes;
++  int64_t last_send_log_us;
++  uint64_t n_confirmed_blocks;
++  int64_t last_confirm_log_us;
++  gboolean logged_queued_audio;
++  gboolean logged_encode_failure;
++
+   int32_t aac_client_format_idx;
+   int32_t opus_client_format_idx;
+   int32_t pcm_client_format_idx;
+@@ -94,6 +104,7 @@ struct _GrdRdpDvcAudioPlayback
+   BlockInfo block_infos[256];
+ 
+   GSource *pipewire_setup_source;
++  GSource *audio_sink_timeout_source;
+   GSource *pipewire_source;
+ 
+   struct pw_context *pipewire_context;
+@@ -159,6 +170,9 @@ grd_rdp_dvc_audio_playback_maybe_init (GrdRdpDvc *dvc)
+     }
+   audio_playback->channel_opened = TRUE;
+ 
++  g_message ("[RDP.AUDIO_PLAYBACK] Requested AUDIO_PLAYBACK_DVC; server "
++             "SNDC_FORMATS will follow if the client accepts it");
++
+   g_assert (!audio_playback->protocol_timeout_source);
+ 
+   audio_playback->protocol_timeout_source =
+@@ -423,6 +437,16 @@ grd_rdp_dvc_audio_playback_maybe_submit_samples (GrdRdpDvcAudioPlayback *audio_p
+ 
+       g_queue_push_tail (audio_playback->pending_frames, audio_data);
+ 
++      if (!audio_playback->logged_queued_audio)
++        {
++          g_message ("[RDP.AUDIO_PLAYBACK] Queued first PipeWire PCM samples: "
++                     "node_id=%u, bytes=%u, pending_before=%u, "
++                     "packet_threshold=%u",
++                     node_id, size, pending_size,
++                     audio_playback->sample_buffer_size);
++          audio_playback->logged_queued_audio = TRUE;
++        }
++
+       if (pending_size + size >= audio_playback->sample_buffer_size)
+         pending_encode = TRUE;
+     }
+@@ -445,6 +469,13 @@ dvc_creation_status (gpointer user_data,
+                  creation_status);
+       g_source_set_ready_time (audio_playback->svc_setup_source, 0);
+     }
++  else
++    {
++      g_message ("[RDP.AUDIO_PLAYBACK] AUDIO_PLAYBACK_DVC creation "
++                 "succeeded (CreationStatus %i); waiting for client "
++                 "SNDC_FORMATS/QUALITYMODE response",
++                 creation_status);
++    }
+ }
+ 
+ static BOOL
+@@ -587,7 +618,6 @@ static const AUDIO_FORMAT audio_format_pcm =
+ static AUDIO_FORMAT server_formats[] =
+ {
+   audio_format_aac,
+-  audio_format_opus,
+   audio_format_pcm,
+ };
+ 
+@@ -651,9 +681,12 @@ prepare_client_format (GrdRdpDvcAudioPlayback *audio_playback)
+ 
+   audio_playback->sample_buffer_size = N_BLOCK_ALIGN_PCM * frames_per_packet;
+ 
+-  g_debug ("[RDP.AUDIO_PLAYBACK] Using codec %s with sample buffer size %u",
+-           grd_rdp_dsp_codec_to_string (audio_playback->codec),
+-           audio_playback->sample_buffer_size);
++  g_message ("[RDP.AUDIO_PLAYBACK] Selected client format: index=%i, "
++             "codec=%s, sample_rate=%u, sample_buffer_size=%u",
++             audio_playback->client_format_idx,
++             grd_rdp_dsp_codec_to_string (audio_playback->codec),
++             audio_playback->n_samples_per_sec,
++             audio_playback->sample_buffer_size);
+ }
+ 
+ static void
+@@ -661,6 +694,7 @@ rdpsnd_activated (RdpsndServerContext *rdpsnd_context)
+ {
+   GrdRdpDvcAudioPlayback *audio_playback = rdpsnd_context->data;
+   uint8_t training_data[TRAINING_PACKSIZE] = {};
++  uint32_t channel_status;
+   uint16_t i;
+ 
+   if (!audio_playback->pending_client_formats)
+@@ -680,6 +714,14 @@ rdpsnd_activated (RdpsndServerContext *rdpsnd_context)
+       return;
+     }
+ 
++  g_message ("[RDP.AUDIO_PLAYBACK] Received client "
++             "SNDC_FORMATS/QUALITYMODE: transport=%s, version=%u, "
++             "quality_mode=%u, formats=%u",
++             rdpsnd_context->use_dynamic_virtual_channel ? "DVC" : "RDPSND SVC",
++             rdpsnd_context->clientVersion,
++             rdpsnd_context->qualityMode,
++             rdpsnd_context->num_client_formats);
++
+   for (i = 0; i < rdpsnd_context->num_client_formats; ++i)
+     {
+       AUDIO_FORMAT *audio_format = &rdpsnd_context->client_formats[i];
+@@ -716,8 +758,16 @@ rdpsnd_activated (RdpsndServerContext *rdpsnd_context)
+ 
+   prepare_client_format (audio_playback);
+ 
+-  rdpsnd_context->Training (rdpsnd_context, TRAINING_TIMESTAMP,
+-                            TRAINING_PACKSIZE, training_data);
++  g_message ("[RDP.AUDIO_PLAYBACK] Sending SNDC_TRAINING: timestamp=%u, "
++             "packsize=%u",
++             TRAINING_TIMESTAMP, TRAINING_PACKSIZE);
++  channel_status = rdpsnd_context->Training (rdpsnd_context,
++                                             TRAINING_TIMESTAMP,
++                                             TRAINING_PACKSIZE,
++                                             training_data);
++  if (channel_status != CHANNEL_RC_OK)
++    g_warning ("[RDP.AUDIO_PLAYBACK] Failed to send SNDC_TRAINING: "
++               "channel_status=%u", channel_status);
+ }
+ 
+ static uint32_t
+@@ -743,7 +793,10 @@ rdpsnd_training_confirm (RdpsndServerContext *rdpsnd_context,
+       return CHANNEL_RC_OK;
+     }
+ 
+-  g_debug ("[RDP.AUDIO_PLAYBACK] Received Training Confirm PDU");
++  g_message ("[RDP.AUDIO_PLAYBACK] Received SNDC_TRAINING "
++             "(Training Confirm): timestamp=%u, packsize=%u; "
++             "negotiation complete",
++             timestamp, packsize);
+ 
+   g_mutex_lock (&audio_playback->protocol_timeout_mutex);
+   if (audio_playback->protocol_timeout_source)
+@@ -773,6 +826,7 @@ rdpsnd_confirm_block (RdpsndServerContext *rdpsnd_context,
+ {
+   GrdRdpDvcAudioPlayback *audio_playback = rdpsnd_context->data;
+   BlockInfo *block_info;
++  int64_t current_time_us;
+ 
+   g_mutex_lock (&audio_playback->block_mutex);
+   block_info = &audio_playback->block_infos[confirm_block_num];
+@@ -784,6 +838,19 @@ rdpsnd_confirm_block (RdpsndServerContext *rdpsnd_context,
+     }
+   g_mutex_unlock (&audio_playback->block_mutex);
+ 
++  ++audio_playback->n_confirmed_blocks;
++  current_time_us = g_get_monotonic_time ();
++  if (audio_playback->last_confirm_log_us == 0 ||
++      current_time_us - audio_playback->last_confirm_log_us >=
++        AUDIO_DIAGNOSTIC_INTERVAL_US)
++    {
++      g_message ("[RDP.AUDIO_PLAYBACK] Received SNDC_WAVECONFIRM: "
++                 "block=%u, client_latency_ms=%u, confirmed_blocks=%" G_GUINT64_FORMAT,
++                 confirm_block_num, wtimestamp,
++                 audio_playback->n_confirmed_blocks);
++      audio_playback->last_confirm_log_us = current_time_us;
++    }
++
+   return CHANNEL_RC_OK;
+ }
+ 
+@@ -824,6 +891,11 @@ grd_rdp_dvc_audio_playback_new (GrdSessionRdp    *session_rdp,
+   rdpsnd_context->server_formats = server_formats;
+   rdpsnd_context->num_server_formats = G_N_ELEMENTS (server_formats);
+ 
++  g_message ("[RDP.AUDIO_PLAYBACK] Server SNDC_FORMATS offer: "
++             "AAC=true, Opus=false (temporarily disabled), PCM=true, "
++             "format_count=%zu",
++             rdpsnd_context->num_server_formats);
++
+   rdpsnd_context->ChannelIdAssigned = rdpsnd_channel_id_assigned;
+   rdpsnd_context->Activated = rdpsnd_activated;
+   rdpsnd_context->TrainingConfirm = rdpsnd_training_confirm;
+@@ -913,6 +985,12 @@ grd_rdp_dvc_audio_playback_dispose (GObject *object)
+       g_source_destroy (audio_playback->pipewire_setup_source);
+       g_clear_pointer (&audio_playback->pipewire_setup_source, g_source_unref);
+     }
++  if (audio_playback->audio_sink_timeout_source)
++    {
++      g_source_destroy (audio_playback->audio_sink_timeout_source);
++      g_clear_pointer (&audio_playback->audio_sink_timeout_source,
++                       g_source_unref);
++    }
+   if (audio_playback->encode_source)
+     {
+       g_source_destroy (audio_playback->encode_source);
+@@ -984,6 +1062,9 @@ set_up_static_virtual_channel (gpointer user_data)
+     }
+   audio_playback->channel_opened = TRUE;
+ 
++  g_message ("[RDP.AUDIO_PLAYBACK] RDPSND SVC fallback opened; waiting for "
++             "client SNDC_FORMATS/QUALITYMODE response");
++
+   return G_SOURCE_REMOVE;
+ }
+ 
+@@ -1095,6 +1176,9 @@ maybe_send_frames (GrdRdpDvcAudioPlayback      *audio_playback,
+   g_autofree uint8_t *out_data = NULL;
+   uint32_t out_size = 0;
+   gboolean success = FALSE;
++  uint32_t channel_status;
++  uint8_t block_no;
++  int64_t current_time_us;
+   BlockInfo *block_info;
+ 
+   g_assert (N_BLOCK_ALIGN_PCM > 0);
+@@ -1178,7 +1262,16 @@ maybe_send_frames (GrdRdpDvcAudioPlayback      *audio_playback,
+     }
+ 
+   if (!success)
+-    return;
++    {
++      if (!audio_playback->logged_encode_failure)
++        {
++          g_warning ("[RDP.AUDIO_PLAYBACK] Failed to encode first pending "
++                     "audio packet with codec %s",
++                     grd_rdp_dsp_codec_to_string (codec));
++          audio_playback->logged_encode_failure = TRUE;
++        }
++      return;
++    }
+ 
+   g_mutex_lock (&audio_playback->block_mutex);
+   block_info = &audio_playback->block_infos[rdpsnd_context->block_no];
+@@ -1186,8 +1279,35 @@ maybe_send_frames (GrdRdpDvcAudioPlayback      *audio_playback,
+   block_info->render_latency_ms = 0;
+   g_mutex_unlock (&audio_playback->block_mutex);
+ 
+-  rdpsnd_context->SendSamples2 (rdpsnd_context, client_format_idx,
+-                                out_data, out_size, 0, 0);
++  block_no = rdpsnd_context->block_no;
++  channel_status = rdpsnd_context->SendSamples2 (rdpsnd_context,
++                                                 client_format_idx,
++                                                 out_data, out_size, 0, 0);
++  if (channel_status != CHANNEL_RC_OK)
++    {
++      g_warning ("[RDP.AUDIO_PLAYBACK] Failed to send SNDC_WAVE2: "
++                 "block=%u, format_index=%i, bytes=%u, channel_status=%u",
++                 block_no, client_format_idx, out_size, channel_status);
++      return;
++    }
++
++  ++audio_playback->n_sent_blocks;
++  audio_playback->n_sent_bytes += out_size;
++  current_time_us = g_get_monotonic_time ();
++  if (audio_playback->last_send_log_us == 0 ||
++      current_time_us - audio_playback->last_send_log_us >=
++        AUDIO_DIAGNOSTIC_INTERVAL_US)
++    {
++      g_message ("[RDP.AUDIO_PLAYBACK] Sent SNDC_WAVE2: transport=%s, "
++                 "block=%u, format_index=%i, codec=%s, raw_bytes=%u, "
++                 "wire_bytes=%u, sent_blocks=%" G_GUINT64_FORMAT ", "
++                 "sent_bytes=%" G_GUINT64_FORMAT,
++                 rdpsnd_context->use_dynamic_virtual_channel ? "DVC" : "RDPSND SVC",
++                 block_no, client_format_idx,
++                 grd_rdp_dsp_codec_to_string (codec), copied_data, out_size,
++                 audio_playback->n_sent_blocks, audio_playback->n_sent_bytes);
++      audio_playback->last_send_log_us = current_time_us;
++    }
+ }
+ 
+ static gboolean
+@@ -1293,8 +1413,16 @@ registry_event_global (void                  *user_data,
+   if (!found_audio_sink)
+     return;
+ 
+-  g_debug ("[RDP.AUDIO_PLAYBACK] Found audio sink: id: %u, type: %s/%u, "
+-           "name: %s", id, type, version, node_name);
++  g_message ("[RDP.AUDIO_PLAYBACK] Found PipeWire Audio/Sink: "
++             "id=%u, type=%s/%u, name=%s",
++             id, type, version, node_name ? node_name : "<unnamed>");
++
++  if (audio_playback->audio_sink_timeout_source)
++    {
++      g_source_destroy (audio_playback->audio_sink_timeout_source);
++      g_clear_pointer (&audio_playback->audio_sink_timeout_source,
++                       g_source_unref);
++    }
+ 
+   locker = g_mutex_locker_new (&audio_playback->streams_mutex);
+   if (g_hash_table_contains (audio_playback->audio_streams,
+@@ -1356,6 +1484,26 @@ static const struct pw_registry_events registry_events =
+ };
+ 
+ static gboolean
++warn_if_no_audio_sink (gpointer user_data)
++{
++  GrdRdpDvcAudioPlayback *audio_playback = user_data;
++  unsigned int n_audio_sinks;
++
++  g_clear_pointer (&audio_playback->audio_sink_timeout_source, g_source_unref);
++
++  g_mutex_lock (&audio_playback->streams_mutex);
++  n_audio_sinks = g_hash_table_size (audio_playback->audio_streams);
++  g_mutex_unlock (&audio_playback->streams_mutex);
++
++  if (n_audio_sinks == 0)
++    g_warning ("[RDP.AUDIO_PLAYBACK] PipeWire registry exposed no Audio/Sink "
++               "within %u seconds; no PCM can reach SNDC_WAVE2",
++               AUDIO_SINK_DISCOVERY_TIMEOUT_SECONDS);
++
++  return G_SOURCE_REMOVE;
++}
++
++static gboolean
+ set_up_registry_listener (GrdRdpDvcAudioPlayback  *audio_playback,
+                           GError                 **error)
+ {
+@@ -1420,8 +1568,18 @@ set_up_pipewire (gpointer user_data)
+       g_warning ("[RDP.AUDIO_PLAYBACK] Failed to setup registry listener: %s",
+                  error->message);
+       grd_rdp_dvc_queue_channel_tear_down (GRD_RDP_DVC (audio_playback));
++      return G_SOURCE_REMOVE;
+     }
+ 
++  g_message ("[RDP.AUDIO_PLAYBACK] PipeWire registry connected; waiting for "
++             "Audio/Sink nodes");
++
++  audio_playback->audio_sink_timeout_source =
++    g_timeout_source_new_seconds (AUDIO_SINK_DISCOVERY_TIMEOUT_SECONDS);
++  g_source_set_callback (audio_playback->audio_sink_timeout_source,
++                         warn_if_no_audio_sink, audio_playback, NULL);
++  g_source_attach (audio_playback->audio_sink_timeout_source, NULL);
++
+   return G_SOURCE_REMOVE;
+ }
+ 
+diff --git a/src/grd-rdp-audio-output-stream.c b/src/grd-rdp-audio-output-stream.c
+--- a/src/grd-rdp-audio-output-stream.c
++++ b/src/grd-rdp-audio-output-stream.c
+@@ -27,6 +27,8 @@
+ 
+ #include "grd-rdp-dvc-audio-playback.h"
+ 
++#define AUDIO_CAPTURE_LOG_INTERVAL_US (5 * G_USEC_PER_SEC)
++
+ struct _GrdRdpAudioOutputStream
+ {
+   GObject parent;
+@@ -45,6 +47,10 @@ struct _GrdRdpAudioOutputStream
+   gboolean audio_muted;
+   float volumes[SPA_AUDIO_MAX_CHANNELS];
+   uint32_t n_volumes;
++
++  uint64_t n_processed_buffers;
++  uint64_t n_processed_bytes;
++  int64_t last_process_log_us;
+ };
+ 
+ G_DEFINE_TYPE (GrdRdpAudioOutputStream, grd_rdp_audio_output_stream, G_TYPE_OBJECT)
+@@ -147,10 +153,10 @@ pipewire_stream_state_changed (void                 *user_data,
+ {
+   GrdRdpAudioOutputStream *audio_output_stream = user_data;
+ 
+-  g_debug ("[RDP.AUDIO_PLAYBACK] Node %u: PipeWire stream state changed from "
+-           "%s to %s", audio_output_stream->target_node_id,
+-           pw_stream_state_as_string (old),
+-           pw_stream_state_as_string (state));
++  g_message ("[RDP.AUDIO_PLAYBACK] Node %u: PipeWire stream state changed "
++             "from %s to %s", audio_output_stream->target_node_id,
++             pw_stream_state_as_string (old),
++             pw_stream_state_as_string (state));
+ 
+   switch (state)
+     {
+@@ -190,6 +196,48 @@ pipewire_stream_param_changed (void                 *user_data,
+ }
+ 
+ static void
++log_pipewire_buffer (GrdRdpAudioOutputStream *audio_output_stream,
++                     int16_t                 *data,
++                     uint32_t                 size,
++                     GrdRdpAudioVolumeData   *volume_data)
++{
++  gboolean pcm_all_zero = TRUE;
++  int64_t current_time_us;
++  uint32_t i;
++
++  ++audio_output_stream->n_processed_buffers;
++  audio_output_stream->n_processed_bytes += size;
++
++  current_time_us = g_get_monotonic_time ();
++  if (audio_output_stream->last_process_log_us != 0 &&
++      current_time_us - audio_output_stream->last_process_log_us <
++        AUDIO_CAPTURE_LOG_INTERVAL_US)
++    return;
++
++  for (i = 0; i < size / sizeof (int16_t); ++i)
++    {
++      if (data[i] != 0)
++        {
++          pcm_all_zero = FALSE;
++          break;
++        }
++    }
++
++  g_message ("[RDP.AUDIO_PLAYBACK] PipeWire PCM capture: node_id=%u, "
++             "latest_bytes=%u, sink_muted=%s, volume_channels=%u, "
++             "pcm_all_zero=%s, buffers=%" G_GUINT64_FORMAT ", "
++             "bytes=%" G_GUINT64_FORMAT,
++             audio_output_stream->target_node_id, size,
++             volume_data->audio_muted ? "true" : "false",
++             volume_data->n_volumes,
++             pcm_all_zero ? "true" : "false",
++             audio_output_stream->n_processed_buffers,
++             audio_output_stream->n_processed_bytes);
++
++  audio_output_stream->last_process_log_us = current_time_us;
++}
++
++static void
+ pipewire_stream_process (void *user_data)
+ {
+   GrdRdpAudioOutputStream *audio_output_stream = user_data;
+@@ -224,6 +272,7 @@ pipewire_stream_process (void *user_data)
+ 
+       grd_rdp_audio_output_stream_get_volume_data (audio_output_stream,
+                                                    &volume_data);
++      log_pipewire_buffer (audio_output_stream, data, size, &volume_data);
+       grd_rdp_dvc_audio_playback_maybe_submit_samples (audio_playback, node_id,
+                                                        &volume_data, data, size);
+     }
+-- 
+2.53.0

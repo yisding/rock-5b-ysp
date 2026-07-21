@@ -76,16 +76,42 @@ The playback object would not exist if the client had requested that sound
 remain at the remote console, so these messages also confirm the relevant
 client-side redirection setting.
 
-### Raw client format diagnostic
+The Microsoft macOS Windows App trace from 2026-07-21 independently confirms
+that fallback. Its active implementation is `RdpAudioOutputSVCPlugin`, and the
+trace labels the path `-legacy-`; `fFromLossyChannel: 0` identifies the reliable
+path. It receives the server's `SNDC_FORMATS` with three formats, emits one
+`Unsupported sound format encountered` warning while choosing among them, and
+writes a 42-byte client response. That is the complete fixed client-formats PDU
+header/body plus one 18-byte `AUDIO_FORMAT`, consistent with the one PCM tuple
+GRD later logs. The trace then writes the separate 8-byte quality-mode PDU but
+contains no wave-data receipt, decoder, or renderer line. Therefore it
+proves SVC negotiation, but does not prove that GRD ever called
+`SendSamples2()` or that the client received `SNDC_WAVE2`.
+
+The unsupported warning is consistent with the advertised Opus tuple, but the
+client log does not name the rejected format. Removing Opus in `exp9` is an
+experiment: disappearance of that single warning will establish the mapping;
+otherwise AAC or another conversion boundary remains responsible.
+
+### End-to-end audio diagnostic
 
 Local package
-`50.1+rkmpp+git20260720.9.3e4480e+audiofmt1-0ubuntu1~exp8` applies tracked
-patch [`0020`](../patches/0020-rdp-log-every-client-audio-format.patch). It
-emits one normal-priority journal line for every `AUDIO_FORMAT` returned by the
-client before GRD performs its strict comparison. Each line contains the
-format tag, channels, sample rate, average encoded byte rate, block alignment,
-sample depth, `cbSize`, and codec-specific data. Codec-specific data is capped
-at 256 bytes so an untrusted client cannot create an unbounded journal entry.
+`50.1+rkmpp+git20260721.10.3e4480e+audiotrace1-0ubuntu1~exp9` applies tracked
+patches [`0020`](../patches/0020-rdp-log-every-client-audio-format.patch) and
+[`0021`](../patches/0021-rdp-trace-audio-playback-and-disable-opus-offer.patch).
+`0020` emits one normal-priority journal line for every client `AUDIO_FORMAT`,
+including all scalar fields and at most 256 codec-specific bytes. `0021` adds
+normal-priority markers for channel selection, formats/quality mode, training,
+PipeWire setup, PCM capture, queueing, `SNDC_WAVE2` submission, and
+`SNDC_WAVECONFIRM`. High-frequency capture, send, and confirm summaries are
+limited to one line every five seconds.
+
+For this temporary interoperability run, `0021` removes Opus only from the
+server's advertised array. GRD still compiles and retains its Opus encoder and
+matching code, so restoring the offer is a one-line change. The offer sent to
+the client is AAC then PCM. This should also remove the Microsoft client's
+single unsupported-server-format warning if that warning was caused by Opus;
+the client trace is needed to prove that attribution.
 
 After installing the package from a local or SSH session, restart the handover
 daemon and make one fresh RDP connection. Restarting it disconnects any current
@@ -94,8 +120,34 @@ RDP session:
 ```bash
 systemctl --user restart gnome-remote-desktop-handover.service
 journalctl --user -b -u gnome-remote-desktop-handover.service \
-  --grep='Client AUDIO_FORMAT|Client Formats'
+  --grep='RDP.AUDIO_PLAYBACK'
 ```
+
+The successful path should advance in this order:
+
+```text
+Server SNDC_FORMATS offer
+RDPSND SVC fallback opened
+Received client SNDC_FORMATS/QUALITYMODE
+Client AUDIO_FORMAT
+Selected client format
+Sending SNDC_TRAINING
+Received SNDC_TRAINING (Training Confirm)
+PipeWire registry connected
+Found PipeWire Audio/Sink
+PipeWire stream ... streaming
+PipeWire PCM capture
+Queued first PipeWire PCM samples
+Sent SNDC_WAVE2
+Received SNDC_WAVECONFIRM
+```
+
+The first absent line localizes the stop. In particular, the delayed
+`no Audio/Sink` warning proves that RDP negotiation finished but PipeWire had
+nothing GRD could capture. Repeated `pcm_all_zero=true` or `sink_muted=true`
+locates the failure in the captured signal. `Sent SNDC_WAVE2` without
+`SNDC_WAVECONFIRM` moves the investigation to the client or transport. A wave
+confirm proves client receipt, not necessarily successful speaker rendering.
 
 Compare any returned compressed formats with GRD's exact tuples:
 
@@ -105,10 +157,13 @@ Compare any returned compressed formats with GRD's exact tuples:
 | Opus | `0x704F` | 2 | 48000 | 12000 | 4 | 16 | 0 |
 | PCM | `0x0001` | 2 | 44100 | 176400 | 4 | 16 | 0 |
 
-If `0xA106` or `0x704F` is absent, that codec is a client limitation for the
-connection. If a tag is present but any other field differs, GRD's exact-match
-test—not codec availability—is rejecting the near match. The diagnostic does
-not force a codec or change the existing AAC, then Opus, then PCM priority.
+The captured Microsoft macOS client returned exactly one format: stereo
+44.1-kHz, 16-bit PCM with `nAvgBytesPerSec=176400`, block alignment 4, and
+`cbSize=0`. It offered neither AAC nor Opus. If a future compressed tag is
+present but any other field differs, GRD's exact-match test—not codec
+availability—is rejecting the near match. During `exp9`, Opus cannot be
+selected because it is intentionally absent from the server offer; AAC remains
+preferred over PCM if the client returns the exact AAC tuple.
 
 ### 2. ALSA and PulseAudio had real audio
 

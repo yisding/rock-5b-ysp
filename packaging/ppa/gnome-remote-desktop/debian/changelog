@@ -1,3 +1,15 @@
+gnome-remote-desktop (50.1+rkmpp+git20260721.10.3e4480e+audiotrace1-0ubuntu1~exp9) resolute; urgency=medium
+
+  * Add normal-priority diagnostics for the RDP audio playback lifecycle:
+    DVC/SVC setup, formats and quality mode, training, PipeWire sink discovery
+    and PCM capture, sample queueing, SNDC_WAVE2 sends, and wave confirms.
+  * Warn when successful protocol negotiation is followed by no PipeWire
+    Audio/Sink for three seconds.
+  * Temporarily omit Opus from the server format offer while testing the
+    Microsoft macOS client; keep the Opus implementation available to restore.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 21 Jul 2026 03:30:00 -0700
+
 gnome-remote-desktop (50.1+rkmpp+git20260720.9.3e4480e+audiofmt1-0ubuntu1~exp8) resolute; urgency=medium
 
   * Log every AUDIO_FORMAT returned by the RDP client, including its format
