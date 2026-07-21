@@ -145,7 +145,7 @@ deb, `CONFIG_KASAN=y` + `CONFIG_DMA_API_DEBUG=y`) verified:
   chroma is overwritten by the later Y rows (Y bit-exact, UV never
   written), and the NV12 probe's chroma bytes equal
   `((h/2 + c) << 6) >> 8` — source Y row h/2 read as chroma. Fixed at the
-  source by patch `0049@2abc978f92a64`
+  source by patch `0049@a398364aaf8ed`
   ("derive 10-bit plane offsets byte-literally"), which derives the Y-plane
   byte size from `compact_mode` (incompact 2 B/px, compact 10 bits/px).
   Booted verification pending the next debug build.

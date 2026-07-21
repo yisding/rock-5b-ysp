@@ -2,10 +2,25 @@
 
 > **2026-07-21 renumbering:** this scope originally reserved `0049`/`0050`;
 > `0049` was taken by the 10-bit UV plane-offset fix
-> (`2abc978f92a64`), so the planned patches here are now `0050`/`0051`.
+> (`a398364aaf8ed`), so the planned patches here are now `0050`/`0051`.
 > A third small item joined the queue: `dma_set_max_seg_size()` for the RGA
 > devices (DMA-debug flags 96 KiB CMA segments against the rga2 device's
 > 64 KiB default); it can ride with `0050` since both touch RGA2 DMA setup.
+
+> **2026-07-21 implemented:** `0050@473903525009a` and `0051@34a1d970da1c5`
+> are committed on `rkvenc-fwport-6.18` per this scope, checkpatch-clean,
+> and native-compiled. Deviations from the plan as written: `0050` carries
+> the DMA device parameters (`dma_set_max_seg_size`, and
+> `dma_set_min_align_mask(PAGE_SIZE - 1)` so swiotlb bounces stay
+> page-aligned for the MMU); `0051` folds B1 and B2 into one patch and also
+> covers the per-job (non-handle) path, whose buffers were already mapped
+> against the executing RGA2 device — they just needed the page-granular
+> mapping contract (multi-segment allowed, per-segment 32-bit span checks)
+> and the dormant `use_dma_address` fill branch. Transient handle bounces
+> post-clean the origin pages through their persistent mapping so a later
+> cache invalidate cannot discard copied-back data (a raw sync, not the
+> shadow-aware helper, which would overwrite device output). The gates
+> below remain the booted verification plan.
 
 > Scope: forward-port `rkvenc-fwport-6.18` RGA3 driver, RGA2 (`RGA_MMU`) core
 > paths in `rga_iommu.c`, `rga_mm.c`, `rga_dma_buf.c`, `rga_policy.c`.

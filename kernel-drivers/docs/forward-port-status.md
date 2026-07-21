@@ -44,12 +44,19 @@ FFmpeg suite (`20260721-081448`, 14/14 required + bit-exact AV1 PSNR) all
 pass with clean kernel scans. The `0048` gate exposed one further 10-bit
 defect — `rga_convert_addr()` derives UV plane offsets at 1 byte/pixel, so
 P010 chroma was read from and written into the Y plane — fixed by
-`0049@2abc978f92a64`, whose booted chroma gate awaits the next debug
-build. DMA-debug also flagged the driver's missing
-`dma_set_max_seg_size()` (96 KiB CMA segments vs the rga2 device's 64 KiB
-default); that and the RGA2 page-table DMA ownership warning are queued as
-`0050`/`0051`. See the
-[conformance root-cause finding](../../findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md).
+`0049@a398364aaf8ed`, whose booted chroma gate awaits the next debug
+build. Patches `0050@473903525009a` (RGA2 page-table DMA ownership,
+closing the July 20 DMA-debug finding, plus the missing
+`dma_set_max_seg_size()` and a page-preserving swiotlb min-align mask) and
+`0051@34a1d970da1c5` (over-4G memory served on RGA2 through DMA-API
+mappings that swiotlb-bounce below 4G, with `EOPNOTSUPP` fallback) are
+committed and checkpatch-clean; their booted gates — a DMA-debug-clean
+smoke, the P010 chroma probe, and the inverted `0047` probe (small over-4G
+system-heap imcopy content-exact on RGA2) — await the next debug build.
+See the
+[conformance root-cause finding](../../findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md)
+and the
+[DMA scope finding](../../findings/2026-07-21-rga2-dma-api-ownership-and-over-4g-scope.md).
 
 ## ✅ Done — validated on real hardware
 
