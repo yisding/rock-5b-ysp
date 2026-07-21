@@ -35,18 +35,30 @@ wrapper behavior for an unsupported handle-backed `RGA_IOC_REQUEST_CONFIG`.
 After the initial request-check stage succeeds, the observable ioctl errno is
 `EFAULT`, while legacy/backend unsupported paths can still use `EOPNOTSUPP`.
 
-Forward-port crash gate (updated 2026-07-19): run `20260717-230531` Oopsed after
+Forward-port crash gate (updated 2026-07-21): run `20260717-230531` Oopsed after
 ABI replay and before its first media case. KASAN subsequently separated and
 closed two lifetime faults: narrowed run `20260718-093751-kasan-narrowed`
 verifies RESET_SESSION patch `0042`, and
 `20260718-103917-kasan-mpp-suite` verifies the `0042`/`0043` memory paths with
 empty kernel-fatal scans. The latter is **not** a full suite pass:
-`mpi_dec_multi_h265` returned `EINVAL`, and both slice encodes timed out while
-concurrent GRD uncached readback was consuming the board. Re-run those cases in
-isolation before treating the maintained source tip as functionally green,
-then repeat on the exact production package. See the
+`mpi_dec_multi_h265` returned its average FPS as the process status rather than
+a success code, and both slice encodes used the single-threaded test binary,
+which cannot drain low-delay callbacks while `encode_put_frame` is blocked.
+Isolated testing on 2026-07-20 identified and corrected both harness defects.
+Run `20260720-213128-kasan-mpp-suite` then passed all three corrected 120-frame
+cases with an empty journal/fatal scan, and the full 12-case official-MPP run
+`20260720-213542-mpp-suite` passed. The same KASAN boot passed the FFmpeg codec
+matrix and corrected H.264/H.265/VP9 bit-exact PSNR gate, but direct RGA2
+dma-buf submission exposed an unmapped-address DMA-API sync warning. ABI replay
+also retained its two known RGA contract failures. The GStreamer runtime matrix
+remains blocked on missing development packages. See the
 [`0042` finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md)
-and [`0043` finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md).
+and [`0043` finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),
+plus the new
+[`slice-FIFO`](../../findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md)
+and
+[`RGA2 DMA-sync`](../../findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md)
+findings.
 
 ## What each smoke test proves
 
@@ -107,7 +119,8 @@ The smoke tests differ in what device access they need:
 > | `FFMPEG_REQUIRE_AV1` | `ffmpeg-suite.sh` | promote AV1 RKMPP decode, AV1->RGA->H.264/H.265 transcodes, AV1 PSNR, and AV1 AFBC probes from diagnostics to required cases (`0` by default because AV1 is outside the rewrite base gate). |
 > | `FFMPEG_AV1_INPUT`, `FFMPEG_VP9_INPUT`, `FFMPEG_HEVC_MAIN10_INPUT` | `ffmpeg-suite.sh` | optional explicit inputs; otherwise the suite generates software AV1/VP9/Main10 inputs under `../rockchip-conformance/assets/ffmpeg-generated` when the needed software encoders are installed. |
 > | `MPP_AVS2_INPUT`, `MPP_AVS2_WIDTH`, `MPP_AVS2_HEIGHT` | `mpp-suite.sh` | AVS2 elementary stream and optional dimensions for the RK3588 VDPU381 AVS2 cases; unlike VP9, the wrapper cannot generate this asset with the ordinary FFmpeg toolchain |
-> | `MPP_ENC_SPLIT_MODE`, `MPP_ENC_SPLIT_ARG`, `MPP_ENC_SPLIT_OUT` | `mpp-suite.sh` | low-delay slice-case settings; defaults `2`, `4`, and `1` select CTU splitting plus segmented low-delay output so `MPP_CMD_POLL_HW_IRQ` is exercised |
+> | `MPP_ENC_SPLIT_MODE`, `MPP_ENC_SPLIT_ARG`, `MPP_ENC_SPLIT_OUT` | `mpp-suite.sh` | low-delay slice-case settings; defaults `2`, `120`, and `1` select CTU splitting plus segmented low-delay output so `MPP_CMD_POLL_HW_IRQ` is exercised without exceeding the kernel's 256-entry per-task slice FIFO |
+> | `MPP_ENC_SLICE_INSTANCES` | `mpp-suite.sh` | number of concurrent `mpi_enc_mt_test` channels for low-delay slice cases; defaults to `1` because the separate output thread, not multi-channel load, is what the polling test requires |
 > | `FFMPEG_SOAK_SECONDS`, `FFMPEG_STRESS_LOOPS` | `ffmpeg-suite.sh` | tune the opt-in FFmpeg stress/soak cases enabled by `FFMPEG_RUN_STRESS=1`. |
 > | `IN` | transcode | 1080p H.264 Annex-B input (default `$STAGE/testdata/input-1080p.h264`; regeneration below) |
 > | `RUN_LIBRGA` | rewrite smoke | optional direct librga/im2d functional smoke (`0` by default; set `1` to run) |

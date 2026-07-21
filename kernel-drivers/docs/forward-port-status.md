@@ -17,7 +17,9 @@ during preflight. A later KASAN build verifies the resulting `0042` and `0043`
 lifetime fixes with clean memory-safety scans. Exact-6.18.38 production build
 `Pf558-Cb831` and its fresh unsigned PPA source extraction now carry both fixes
 with the expected non-debug config, but the Published package still predates
-them and the contended functional suite was not fully green.
+them. Corrected isolated and full official-MPP runs are now functionally green
+on the KASAN build; full conformance remains open because RGA2 DMA-debug found
+an invalid page-table sync and the host lacks the GStreamer development stack.
 
 ## ✅ Done — validated on real hardware
 
@@ -140,15 +142,32 @@ them and the contended functional suite was not fully green.
   `task->state` read in `rkvenc2_wait_result`. Patch `0043` samples the abort
   flag before the final reference drop, and run
   `20260718-103917-kasan-mpp-suite` produced empty KASAN/fatal scans while its
-  ordinary encoder cases passed. That run was not a full functional pass:
-  multi-instance H.265 returned `EINVAL` and both slice encodes timed out amid
-  concurrent GRD readback contention. The exact-6.18.38 clean production build
-  `Pf558-Cb831` and unsigned 20260720 PPA source export now pass with both fixes;
-  isolate those functional cases, upload/build the candidate, and resume board
-  conformance. See the
+  ordinary encoder cases passed. The apparent remaining failures were harness
+  defects, not GRD contention: the multi-instance test returns average FPS as
+  its status, and single-thread `mpi_enc_test` cannot drain low-delay slice
+  callbacks. Corrected 120-frame run `20260720-213128-kasan-mpp-suite` passed
+  all three cases with an empty kernel scan; full run
+  `20260720-213542-mpp-suite` passed the selected 12-case MPP matrix. The
+  exact-6.18.38 clean production build `Pf558-Cb831` and unsigned 20260720 PPA
+  source export carry both fixes but are not the installed KASAN image; upload,
+  exact-package boot/conformance, and rollback remain. See the
   [double-free finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md),
   [RKVENC2 finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),
   and [superseded preflight finding](../../findings/2026-07-17-forward-port-conformance-preflight-oops.md).
+- **High-count low-delay H.264 can overflow RKVENC2's 256-entry slice FIFO and
+  lose the terminal marker.** Both `kfifo_in()` calls ignore failure, while the
+  MPP VEPU580 H.264 HAL ignores poll errors and loops on an uninitialized
+  `slice_last`. The conformance suite now uses the multi-thread test and a safe
+  `split_arg=120`; the kernel and MPP still need explicit overflow/error
+  hardening. See the
+  [slice-FIFO finding](../../findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md).
+- **RGA2 syncs page-table memory through an address that was never DMA-mapped.**
+  The direct dma-buf smoke on the DMA-debug KASAN kernel produced a complete
+  `debug_dma_sync_single_for_device` warning through
+  `rga_dma_sync_flush_range()` and `rga_set_mmu_base()`. RGA2 page-table
+  allocation must retain a valid DMA address/lifetime; disabling the warning is
+  not a fix. See the
+  [RGA2 DMA-sync finding](../../findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md).
 - **Direct RGA3 im2d virtual-buffer samples exposed RGA/IOMMU forward-port
   gaps.** The upstream `airockchip/librga` copy/resize/rotate samples import
   malloc-backed buffers and can trigger `RGA3_core0 INTR[0x2]`, the RGA MMU
@@ -176,8 +195,10 @@ The July 4 forward-port baseline is **functionally complete for its tested,
 trusted-input codec scope**: `ffmpeg -hwaccel rkmpp -c:v hevc_rkmpp ...` uses
 the hardware on Armbian 6.18. That does not make the maintained source tip or
 the BSP-derived ABI generally shippable. The locally built production candidate
-now absorbs `0042`/`0043`, but the isolated functional failures, publication,
-board boot/conformance, and rollback still need resolution, and the broader
-audit series still has compile/runtime gates. DVFS and codec breadth
+now absorbs `0042`/`0043`, but publication, board boot/conformance, and rollback
+still need resolution. The MPP functional
+failures are closed on the KASAN build, but the RGA2 DMA ownership
+warning, two RGA ABI contract failures, GStreamer dependency gate, and broader
+audit series still have compile/runtime work. DVFS and codec breadth
 are optional polish; memory safety, regression conformance, and recovery are
 release blockers.

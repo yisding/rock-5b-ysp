@@ -10,7 +10,7 @@ forward-port kernel. The current published candidate is:
 | Contents | RGA session-close reference lifetime fix, early MPP procfs unlink, the preceding raw-import hardening, and the full MPP/RGA/AV1 forward port. |
 | Board result | Package install and boot passed. The first conformance preflight Oopsed before a media case, so driver conformance and rollback remain unproven. |
 | Newer source | Tracked forward-port patches `0042`/`0043` fix the KASAN-traced RESET_SESSION and RKVENC2 lifetime bugs and pass their memory-safety reruns. They are not in this Published package. |
-| Local successor | `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` exports both fixes. Exact-source, no-ccache Armbian build `Pf558-Cb831` completed image, modules, DTBs, headers, BTF, and Debian packaging; its unsigned PPA source package passes `dscverify`, fresh extraction, source inspection, and production-config inspection. It is not uploaded or board-tested. |
+| Local successor | `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` exports both fixes. Exact-source, no-ccache Armbian build `Pf558-Cb831` completed image, modules, DTBs, headers, BTF, and Debian packaging; its unsigned PPA source package passes `dscverify`, fresh extraction, source inspection, and production-config inspection. Corrected MPP/FFmpeg conformance passes are from the installed KASAN build, not this production image. It is not uploaded or board-tested. |
 
 Earlier package iterations established the packaging path: the initial build
 failed because `mkimage` was absent; retry `18614559`/`33387391` added
@@ -218,6 +218,11 @@ Passed:
   paths through patches `0042`/`0043`: both kernel-log scans were empty and the
   ordinary H.264/H.265 encode cases passed. This was a later Armbian debug
   build, not a rebuild of the Published PPA package.
+- Corrected run `20260720-213128-kasan-mpp-suite` passed the formerly failing
+  multi-instance H.265 and both 120-frame low-delay slice cases with no flagged
+  kernel line. Full `20260720-213542-mpp-suite` passed all 12 selected official
+  MPP cases. The FFmpeg codec matrix and corrected H.264/H.265/VP9 bit-exact
+  PSNR gate also passed with empty KASAN scans.
 - The 2026-07-20 production rebuild pinned Armbian to exact Linux 6.18.38
   commit `e46dc0adfe39724bcf52cea47b8f9c9aed86a394`, removed the tracked
   heavy-debug override, discarded stale Kbuild metadata with
@@ -251,10 +256,15 @@ Not done yet:
   the 20260717 image passed; conformance did not.
 - Upload and Launchpad arm64 build of the locally validated 20260720 source.
   The current Published package still stops at `0041`.
-- An isolated rerun of the KASAN suite's functional failures:
-  `mpi_dec_multi_h265` returned `EINVAL`, and the H.264/H.265 slice cases timed
-  out while GRD's uncached-readback contention was active. Empty KASAN scans do
-  not turn those cases into passes.
+- Exact-production-image repetition of the corrected MPP and FFmpeg passes.
+  The isolated KASAN functional failures are resolved, but those results do not
+  validate the unbooted `Pf558-Cb831` package.
+- RGA completion: ABI replay still has the known `RGA2_GET_RESULT` and
+  unsupported `RGA_IOC_REQUEST_CONFIG` contract failures, and direct dma-buf
+  smoke exposed the
+  [RGA2 unmapped page-table DMA sync](../../../findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md).
+- The GStreamer runtime suite; its development pkg-config packages are absent
+  on the current host.
 - Full `lintian`; both source and binary scans were stopped after several
   minutes with no output because traversing the kernel archive/payload was
   taking too long.
@@ -264,9 +274,11 @@ Not done yet:
 
 ## Remaining Checklist
 
-1. Re-run multi-instance H.265 and both slice-encode cases without concurrent
-   GRD contention; preserve the functional logs and clean KASAN scan.
+1. Fix the two RGA ABI gaps and RGA2 page-table DMA ownership, install the
+   GStreamer development stack, and finish the remaining KASAN conformance
+   suites.
 2. Upload/build the validated 20260720 source in Launchpad, then install and
-   run the full conformance gate on that exact `0042`/`0043` image.
+   repeat the green MPP/FFmpeg plus completed RGA/GStreamer gate on that exact
+   `0042`/`0043` image.
 3. Validate rollback and `kernel-revert.sh` recovery on the board before giving
    install guidance. Install and reboot of the 20260717 image already pass.

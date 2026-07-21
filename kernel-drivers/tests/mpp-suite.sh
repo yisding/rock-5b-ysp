@@ -17,11 +17,12 @@ MPP_TIMEOUT=${MPP_TIMEOUT:-180}
 MPP_DEC_FRAMES=${MPP_DEC_FRAMES:-120}
 MPP_ENC_FRAMES=${MPP_ENC_FRAMES:-120}
 MPP_INSTANCES=${MPP_INSTANCES:-4}
+MPP_ENC_SLICE_INSTANCES=${MPP_ENC_SLICE_INSTANCES:-1}
 MPP_DUMP_OUTPUTS=${MPP_DUMP_OUTPUTS:-0}
 MPP_CAPTURE_ARTIFACTS=${MPP_CAPTURE_ARTIFACTS:-1}
 MPP_ENC_FORMAT=${MPP_ENC_FORMAT:-${MPP_NV12_FORMAT:-0}}
 MPP_ENC_SPLIT_MODE=${MPP_ENC_SPLIT_MODE:-2}
-MPP_ENC_SPLIT_ARG=${MPP_ENC_SPLIT_ARG:-4}
+MPP_ENC_SPLIT_ARG=${MPP_ENC_SPLIT_ARG:-120}
 MPP_ENC_SPLIT_OUT=${MPP_ENC_SPLIT_OUT:-1}
 MPP_GENERATE_VP9_INPUT=${MPP_GENERATE_VP9_INPUT:-1}
 MPP_CLEAR_DEBUG_EVENTS=${MPP_CLEAR_DEBUG_EVENTS:-1}
@@ -288,6 +289,7 @@ build_enc_case()
 	local case_name=$2
 	local type=$3
 	local suffix=$4
+	local instances=${5:-$MPP_INSTANCES}
 	local input
 	local width
 	local height
@@ -314,7 +316,7 @@ build_enc_case()
 	)
 	register_artifact encoded "$output"
 	if [ "$exe" = "mpi_enc_mt_test" ]; then
-		CMD+=(-s "$MPP_INSTANCES")
+		CMD+=(-s "$instances")
 	fi
 	append_if_var_set -hstride MPP_ENC_HSTRIDE
 	append_if_var_set -vstride MPP_ENC_VSTRIDE
@@ -367,12 +369,48 @@ build_enc_slice_case()
 	local type=$2
 	local suffix=$3
 
-	build_enc_case mpi_enc_test "$case_name" "$type" "$suffix" || return $?
+	# Low-delay slice callbacks must be drained by an output thread while the
+	# encoder thread is still blocked in POLL_HW_IRQ. The single-threaded
+	# mpi_enc_test cannot consume those callbacks until encode_put_frame returns.
+	build_enc_case mpi_enc_mt_test "$case_name" "$type" "$suffix" \
+		"$MPP_ENC_SLICE_INSTANCES" || return $?
 	CASE_ENV=(
 		"split_mode=$MPP_ENC_SPLIT_MODE"
 		"split_arg=$MPP_ENC_SPLIT_ARG"
 		"split_out=$MPP_ENC_SPLIT_OUT"
 	)
+}
+
+multi_decode_log_complete()
+{
+	local case_name=$1
+	local log=$2
+
+	case "$case_name" in
+	mpi_dec_multi_*) ;;
+	*) return 1 ;;
+	esac
+
+	# mpi_dec_multi_test returns its average FPS cast to int, not a success
+	# code. Require every channel to report the requested frame count and a
+	# positive aggregate rate before normalizing that arbitrary exit status.
+	awk -v expected_frames="$MPP_DEC_FRAMES" \
+		-v expected_instances="$MPP_INSTANCES" '
+		/chn[[:space:]]+[0-9]+ decode [0-9]+ frames/ {
+			for (i = 1; i <= NF; i++) {
+				if ($i == "decode" && $(i + 1) == expected_frames &&
+				    $(i + 2) == "frames")
+					complete++
+			}
+		}
+		/average frame rate/ {
+			average_seen = 1
+			average = $NF + 0
+		}
+		END {
+			exit !(complete == expected_instances && average_seen && average > 0)
+		}
+	' "$log"
 }
 
 build_rc2_case()
@@ -686,6 +724,7 @@ run_case()
 	local end
 	local elapsed
 	local status
+	local raw_status
 	local result
 	local build_status
 
@@ -739,10 +778,22 @@ run_case()
 		timeout "$MPP_TIMEOUT" env "${CASE_ENV[@]}" \
 			"${CMD[@]}" > "$log" 2>&1
 	fi
-	status=$?
+	raw_status=$?
 	set -e
 	end=$(suite_now_ns)
 	elapsed=$(suite_elapsed_s "$start" "$end")
+
+	status=$raw_status
+	case "$case_name" in
+	mpi_dec_multi_*)
+		printf "%s\n" "$raw_status" > "$OUT/$case_name.raw-status"
+		if multi_decode_log_complete "$case_name" "$log"; then
+			status=0
+		elif [ "$status" -eq 0 ]; then
+			status=1
+		fi
+		;;
+	esac
 
 	printf "%s\n" "$status" > "$status_file"
 	if [ "$status" -eq 0 ]; then

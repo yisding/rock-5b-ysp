@@ -30,7 +30,7 @@ separate table below so both remain scannable.
 
 | # | Track | Public state | Verified | Detail |
 |---|-------|--------------|----------|--------|
-| 1 | Kernel forward-port | ⚠️ The July 4 codec results remain the hardware-validated baseline. KASAN verifies patches `0042` (RESET_SESSION double-free) and `0043` (RKVENC2 post-free abort read). Clean exact-6.18.38 production build `Pf558-Cb831` and its fresh unsigned 20260720 PPA source extraction carry both fixes with the expected non-debug AV1/RGA config. The Published PPA still predates them, and multi-instance H.265 plus slice-encode functional failures remain to isolate before upload, board install/boot, full conformance, and rollback. | 2026-07-20 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
+| 1 | Kernel forward-port | ⚠️ The July 4 codec results remain the production baseline. On the installed KASAN build, patches `0042`/`0043` have clean memory scans, the corrected 12-case official-MPP matrix passes, and the FFmpeg codec/bit-exact PSNR gates pass. Conformance also exposed an unchecked RKVENC2 slice-FIFO overflow and an invalid RGA2 page-table DMA sync; two RGA ABI gaps and the dependency-blocked GStreamer suite remain. Clean production build `Pf558-Cb831` carries `0042`/`0043` but is not uploaded or boot-tested, and the Published PPA predates them. | 2026-07-21 | [kernel status](./kernel-drivers/docs/forward-port-status.md) |
 | 2 | BSP-audit fix series | ⚠️ Staged only: the split series diverges from the verified draft and does not compile until patch 0024 is regenerated. | 2026-07-01 | [`cleanup-split/`](./kernel-drivers/patches/cleanup-split/README.md) |
 | 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
 | 4 | Clean-room rewrite drivers | 🚧 Current 6.18/mainline source tips incorporate the five applicable Rockchip 5.10 RGA reliability/cache-safety lessons and pass warning-free normal/memory/race clean-source gates. The post-reconciliation audit added booted 206-case KUnit evidence, before/after dmesg rejection, stronger safety/idle counters, required official-MPP core coverage, AVS2, and low-delay slice-poll cases; all device-free bad-fixture/build wiring passes. Existing package composites predate the source tip, and no current rewrite kernel has booted hardware proof. | 2026-07-17 | [conformance-gap audit](./kernel-drivers/docs/rewrite-conformance-gap-audit.md) |
@@ -54,7 +54,7 @@ dashboard date and ledger row when public state changes.
 
 | # | Track | Next proof | Action path |
 |---|-------|------------|-------------|
-| 1 | Kernel forward-port | Re-run the multi-instance H.265 and slice-encode failures without concurrent GRD contention, then upload/build the validated 20260720 source and resume exact-image board conformance plus rollback validation. | [Latest KASAN fix and remaining gate](./findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md#remaining-gate) |
+| 1 | Kernel forward-port | Fix the RGA ABI/DMA-sync and RKVENC2 overflow paths, install the GStreamer development dependencies, finish the KASAN matrix, then repeat it on the uploaded 20260720 production image and validate rollback. | [RGA2 DMA-sync gate](./findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md#verification-gate), [slice-FIFO gate](./findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md#verification-gate) |
 | 2 | BSP-audit fix series | Regenerate patch 0024 and prove the full split series compiles. | [Compile defect and remedy](./kernel-drivers/patches/cleanup-split/README.md#cleanup-split-compile-gate) |
 | 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. | [DKMS build and install](./packaging/dkms/README.md#dkms-build-install) |
 | 4 | Clean-room rewrite drivers | Rebuild/package one current July 17 source tip; persist 206 green booted KUnit results, then capture paired clean-dmesg/counter/artifact evidence including AVS2 and H.264/H.265 low-delay slice polling. | [Remaining rewrite hardware gates](./kernel-drivers/docs/rewrite-conformance-gap-audit.md#remaining-gaps-and-hardware-gates) |
@@ -105,7 +105,7 @@ last-checked date.
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-11 | Series exported; 10-bit hardware gate remains. |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
 | W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0040`; frozen base patch still has the old path. |
-| W16 | [Forward-port MPP/RKVENC lifetime fixes](#watch-w16) | 2026-07-20 | Patches `0042`/`0043` are exported, KASAN-verified, and present in locally validated production binary/source packages; isolated functional reruns, publication, board validation, and rollback remain. |
+| W16 | [Forward-port MPP/RKVENC lifetime fixes](#watch-w16) | 2026-07-21 | Patches `0042`/`0043` are exported and KASAN-verified; corrected isolated and full MPP functional runs pass, while slice-FIFO hardening, RGA/GStreamer completion, publication, exact-image board validation, and rollback remain. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 
 <a id="watch-w01"></a>
@@ -342,7 +342,7 @@ last-checked date.
   and booted debug build can silently carry different lifetime fixes. Keep the
   exported patch tail and the claimed production gate aligned with the exact
   KASAN evidence.
-- **Last checked:** 2026-07-20
+- **Last checked:** 2026-07-21
 - **State then:** The maintained series now exports all three fixes: `0041`
   unlinks MPP sessions before private teardown; `0042@83e4d357f8d2` clears
   `session->dma` after RESET_SESSION destroys it; and
@@ -350,16 +350,20 @@ last-checked date.
   reference can free the object. Run `20260718-093751-kasan-narrowed` verifies
   `0042` with zero flagged lines. Run `20260718-103917-kasan-mpp-suite`
   exercises `0042`/`0043` with empty KASAN/fatal scans and passing ordinary
-  encode cases, but its multi-instance H.265 failure and slice timeouts were
-  contended by the simultaneous GRD readback cliff and still need isolation.
+  encode cases. Corrected run `20260720-213128-kasan-mpp-suite` proves the
+  apparent multi-instance H.265 and slice failures were harness defects; all
+  three 120-frame cases pass, and full `20260720-213542-mpp-suite` passes the
+  selected 12-case matrix. An abusive split control separately found an open
+  RKVENC2 slice-FIFO overflow.
   Clean exact-6.18.38 production build `Pf558-Cb831` and the freshly extracted
   unsigned 20260720 PPA source package carry both fixes with the non-debug
-  AV1/RGA config. The Published kernel still stops at `0041`, so isolated
-  functional conformance, upload/Launchpad build, board install/boot, and
+  AV1/RGA config. The Published kernel still stops at `0041`, so RGA/GStreamer
+  completion, upload/Launchpad build, exact-image board conformance, and
   rollback remain open. Evidence:
   [procfs fix](findings/2026-07-17-mpp-procfs-session-teardown-oops.md),
   [RESET_SESSION fix](findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md),
-  and [RKVENC2 fix](findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md).
+  [RKVENC2 fix](findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),
+  and [slice-FIFO finding](findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md).
 
 <a id="watch-w17"></a>
 ### W17 — Maximum-mainline proposal-set drift

@@ -139,15 +139,25 @@ times, while ordinary H.264/H.265 and multi-thread H.265 encode cases passed.
 The same run drove the GRD hardware encoder and produced no replacement KASAN
 fault.
 
-This is a memory-safety verification, not a full functional-suite pass. The run
-also saw `mpi_dec_multi_h265` return `EINVAL` and both slice-encode cases time
-out while GRD's uncached-readback contention was active. Those anomalies need
-an isolated rerun; they do not contradict the absence of the post-free read.
+The original run was a memory-safety verification rather than a full
+functional-suite pass: `mpi_dec_multi_h265` returned a nonzero status and both
+slice cases timed out. Isolated work on 2026-07-20 showed that the multi-instance
+binary returns its average FPS cast to an exit status, while the slice harness
+incorrectly used the single-thread binary for callbacks that require an output
+thread. Corrected run `20260720-213128-kasan-mpp-suite` passed all three
+120-frame cases and recorded no kernel-fatal line. Full official-MPP run
+`20260720-213542-mpp-suite` then passed all 12 selected cases.
+
+An intentionally abusive `split_arg=4` control also exposed a separate
+unchecked 256-entry slice-FIFO overflow; that robustness defect is tracked in
+the
+[`slice-FIFO finding`](./2026-07-20-rkvenc2-slice-fifo-terminal-drop.md) and is
+not a regression in the `0043` lifetime fix.
 
 ## Remaining gate
 
-1. Re-run the failed multi-instance/slice cases without concurrent GRD
-   contention and preserve their functional results.
+1. **Completed:** the isolated corrected cases and full 12-case MPP matrix pass
+   on the KASAN build with clean bracketed kernel logs.
 2. Rebuild the production/PPA forward-port with `0042` and `0043`, then resume
-   full conformance and rollback validation before promoting it over the July 4
-   baseline.
+   exact-image conformance and rollback validation before promoting it over the
+   July 4 baseline. RGA and GStreamer still have separate open gates.

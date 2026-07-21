@@ -731,13 +731,18 @@ decode_psnr_inf()
 	stats_file="$OUT/artifacts/$safe_case-psnr.stats"
 
 	rm -f "$sw_yuv" "$hw_yuv" "$stats_file"
-	run_ffmpeg -i "$input" -map 0:v:0 -an -pix_fmt yuv420p -f rawvideo "$sw_yuv"
+	# Elementary H.264/H.265 streams can advertise a nominal frame rate that
+	# differs from their generated timestamps. Disable output vsync so FFmpeg
+	# does not independently duplicate/drop the SW and RKMPP decode frames
+	# before the byte-for-byte PSNR comparison.
+	run_ffmpeg -i "$input" -map 0:v:0 -an -pix_fmt yuv420p \
+		-fps_mode passthrough -f rawvideo "$sw_yuv"
 	run_ffmpeg \
 		-hwaccel rkmpp -hwaccel_output_format drm_prime \
 		-c:v "${input_codec}_rkmpp" -i "$input" \
 		-map 0:v:0 -an \
 		-vf "hwdownload,format=nv12,format=yuv420p" \
-		-f rawvideo "$hw_yuv"
+		-fps_mode passthrough -f rawvideo "$hw_yuv"
 	run_ffmpeg \
 		-f rawvideo -pix_fmt yuv420p -s:v "$size" -r "$FFMPEG_FPS" -i "$sw_yuv" \
 		-f rawvideo -pix_fmt yuv420p -s:v "$size" -r "$FFMPEG_FPS" -i "$hw_yuv" \

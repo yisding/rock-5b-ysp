@@ -3534,7 +3534,9 @@ int main(void)
 		return 1;
 
 	ret = imcheckHeader();
-	if (ret != IM_STATUS_NOERROR)
+	/* Current librga returns IM_STATUS_SUCCESS here; older releases used
+	 * IM_STATUS_NOERROR. Both are successful status values. */
+	if (ret != IM_STATUS_SUCCESS && ret != IM_STATUS_NOERROR)
 		return fail_status("imcheckHeader", ret);
 
 	printf("%-24s %s\n", "querystring(RGA_VERSION)",

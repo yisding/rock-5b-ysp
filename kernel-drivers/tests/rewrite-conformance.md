@@ -401,9 +401,12 @@ MPP_REQUIRED_CASES="mpp_info_test mpi_dec_h264 mpi_dec_h265 mpi_dec_vp9 mpi_dec_
 Useful case names are `mpi_dec_h264`, `mpi_dec_h265`, `mpi_dec_vp9`,
 `mpi_dec_avs2`, `mpi_dec_mt_*`, `mpi_dec_multi_*`, `mpi_enc_h264`,
 `mpi_enc_h265`, `mpi_enc_h264_slice`, `mpi_enc_h265_slice`, `mpi_enc_mt_*`,
-`mpi_rc2_h264`, and `mpi_rc2_h265`. The slice cases set the official test's
-`split_mode=2`, `split_out=1`, and `split_arg=4` defaults so real hardware uses
-the `MPP_CMD_POLL_HW_IRQ` low-delay path; tune them with `MPP_ENC_SPLIT_*`.
+`mpi_rc2_h264`, and `mpi_rc2_h265`. The slice cases use the official
+multi-thread test so its output thread can drain low-delay callbacks while
+encoding is in progress. Their `split_mode=2`, `split_out=1`, and
+`split_arg=120` defaults make 1280x720 H.264 and H.265 produce multiple slices
+without overflowing the kernel's 256-entry per-task slice FIFO; tune them with
+`MPP_ENC_SPLIT_*` and `MPP_ENC_SLICE_INSTANCES`.
 The legacy Android/libvpu path is available as an explicit diagnostic case
 (`vpu_api_dec_h264`, `vpu_api_dec_h265`, `vpu_api_dec_avs2`) but is not part of
 the default Linux/RK3588 pass gate.

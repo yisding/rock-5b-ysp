@@ -261,6 +261,7 @@ the VEPU, no CPU readback → single-digit % CPU). Why it's on the software path
 - The contention was produced by the KASAN MPP suite
   (`kasan-mpp-suite.sh`); that run also confirmed the kernel is memory-clean
   under the full codec matrix (`0042`/`0043` hold, zero KASAN). The MPP-side
-  functional anomalies observed in the same run (`mpi_dec_multi_h265` EINVAL,
-  slice-encode timeouts) are entangled with this contention and need an isolated
-  re-run once GRD is recovered.
+  functional anomalies observed in the same run were later isolated as harness
+  defects, not effects of this contention. Corrected run
+  `20260720-213128-kasan-mpp-suite` passed multi-instance H.265 and both slice
+  cases; full `20260720-213542-mpp-suite` passed the 12-case MPP matrix.
