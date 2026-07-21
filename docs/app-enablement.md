@@ -4,9 +4,11 @@ How desktop applications (Firefox, Chromium, VLC, HandBrake, mpv, OBS, …) coul
 reach the RK3588 BSP hardware decode/encode stack, and roughly how much work
 each would be.
 
-**Assessed:** 2026-07-21. This page is a planning assessment, not runtime
-evidence — nothing here is hardware-validated except where it links to an
-existing tracked project. Per [`../status.md`](../status.md), an app absent from
+**Assessed:** 2026-07-21; revised the same day after the
+[ubuntu-rockchip piggyback survey](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md)
+overturned the "no V4L2 bridge exists" premise. This page is a planning
+assessment, not runtime evidence — nothing here is hardware-validated except
+where it links to an existing tracked project. Per [`../status.md`](../status.md), an app absent from
 the dashboard stays **untracked** until a `findings/` entry captures real
 runtime evidence; promote an app to its own `apps/` project (and a status
 track) only at that point.
@@ -19,9 +21,9 @@ plumbing layers. Which layer an app speaks decides its cost almost entirely:
 | Layer | State on this stack |
 |-------|---------------------|
 | **libavcodec named codecs** (`h264_rkmpp`, `hevc_rkmpp`, …) | ✅ Shipped: [`ffmpeg-rockchip`](../video-libraries/ffmpeg/README.md) fork, built and Published in the [normal PPA](../packaging/ppa/README.md) as the system FFmpeg replacement. |
-| **GStreamer elements** (`mppvideodec`, `mpph26xenc`) | ⚠️ Rockchip's external `gstreamer-rockchip` plugin exists upstream but is not packaged here; the kernel track's GStreamer test suite is still dependency-blocked. |
+| **GStreamer elements** (`mppvideodec`, `mpph26xenc`) | ⚠️ Rockchip's external `gstreamer-rockchip` plugin exists upstream but is not packaged here; ubuntu-rockchip shipped a working (if crudely packaged) build of it — one clean repackage away. The kernel track's GStreamer test suite is still dependency-blocked. |
 | **VA-API** (the de-facto Linux desktop hwaccel API) | ❌ No maintained VA-API driver over MPP exists anywhere, to current knowledge. |
-| **V4L2** (stateful M2M or stateless request API) | ❌ On the BSP kernel the codecs are exposed only via the vendor `/dev/mpp_service` ioctl interface, not V4L2. Only a mainline kernel ([`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md), mainline rkvdec2 work) exposes V4L2 stateless nodes. |
+| **V4L2** (stateful M2M or stateless request API) | ⚠️ The BSP kernel exposes the codecs only via the vendor `/dev/mpp_service` ioctl interface, not V4L2 — but a **userspace** V4L2-stateful-over-MPP bridge exists: JeffyCN's `libv4l-rkmpp` (a libv4l2 plugin emulating a stateful M2M decoder/encoder in-process, no kernel device), proven in Joshua Riek's archived ubuntu-rockchip images as the engine behind Chromium 4K playback. It is kernel-agnostic and only reachable through a patched libv4l2, which in practice makes it a Chromium-only bridge. See the [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md). A real kernel V4L2 stateless path still needs a mainline kernel ([`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md), mainline rkvdec2 work). |
 
 ```mermaid
 flowchart TB
@@ -40,6 +42,7 @@ flowchart TB
   gst["gstreamer-rockchip<br/>mppvideodec · mpph26xenc"]
   vaapi["VA-API<br/>(no MPP driver exists)"]
   v4l2["V4L2 stateless<br/>(mainline kernel only)"]
+  shim["libv4l-rkmpp<br/>userspace V4L2-stateful shim<br/>(needs patched libv4l2)"]
   mpplib["librockchip_mpp"]
   svc["/dev/mpp_service<br/>rkvdec2 · rkvenc2"]
 
@@ -51,9 +54,11 @@ flowchart TB
   ff -.-> vaapi
   cr -.-> vaapi
   cr -.-> v4l2
+  cr -.-> shim
   lavc --> mpplib
   gst --> mpplib
   vaapi -.-> mpplib
+  shim --> mpplib
   mpplib --> svc
 ```
 
@@ -71,8 +76,8 @@ kernel path this repo's BSP forward-port deliberately does not take (V4L2).
 | OBS | libavcodec encoders | Hours–a day; cheapest encode win after the CLI |
 | HandBrake | bundled FFmpeg + own encoder registry | Days; encode is the realistic value |
 | VLC | libavcodec *hwaccels*, not named wrappers | Days–weeks of patching; recommend skipping |
-| Firefox | VA-API (or stateful V4L2-M2M) | Weeks of fork-patching, or blocked on a VA-API bridge |
-| Chromium / Electron | VA-API or stateless V4L2 | Hardest; weeks–months, or a kernel-path change to maxline |
+| Firefox | VA-API (or stateful V4L2-M2M) | Weeks of fork-patching, or blocked on a VA-API bridge; the libv4l-rkmpp shim does not reach it |
+| Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | ~3–6 weeks reviving/re-targeting the proven ubuntu-rockchip shim path, or a kernel-path change to maxline |
 
 ### mpv — essentially free, and the right first proof
 
@@ -83,18 +88,36 @@ free win, it is the cheapest end-to-end proof of the **display** path — dmabuf
 import of decoder output into the GL/Vulkan output via Panfrost — which every
 other playback app also depends on (see cross-cutting notes below).
 
+Concrete starting material exists: ubuntu-rockchip's mpv needed exactly one
+functional patch (reordering `add_all_hwdec_methods()` so
+`AV_CODEC_HW_CONFIG_METHOD_INTERNAL` is preferred — without it
+`--hwdec=rkmpp` never registers), NV16/P010/P210 drmprime format additions
+(possibly upstream by now), and a shipped `/etc/mpv/mpv.conf` with
+`hwdec=rkmpp` and `vf-add=scale_rkrga=force_yuv=auto` as the 10-bit/HDR
+workaround — the same conversion layer as the RGA W13 work. Re-diff against
+current mpv (hwdec selection was reworked after 0.37) and re-evaluate their
+`gpu-context=x11egl` choice for a Wayland desktop.
+
 ### Kodi — already a tracked project
 
 [`apps/kodi`](../apps/kodi/README.md) established that stock Kodi needs no
 patch: decoder selection plus the fork's `libavcodec63` packages cover it. The
 remaining work is exactly the existing status gate (GBM/GLES build, `kodi-gbm`
-tty1 playback).
+tty1 playback). If that gate hits DRM-plane or crop problems, ubuntu-rockchip
+carried two boogie/hbiyik Kodi patches aimed at exactly those: GBM dynamic
+plane selection by format/modifier with zpos ordering, and AFBC crop-offset
+passthrough to the `SRC_X`/`SRC_Y` plane properties — check Kodi 22 for
+upstream absorption before porting.
 
 ### OBS — cheapest encode win
 
 OBS drives libavcodec encoders through its FFmpeg output; registering the
 rkmpp encoders is a small patch or even just a custom-output configuration
-against the already-installed fork.
+against the already-installed fork. ubuntu-rockchip never solved this
+natively (its obs-studio upload claims rockchip patches but verifiably
+contains none; encode there meant hand-built `mpph264enc` GStreamer pipeline
+strings via obs-gstreamer), so an obs-ffmpeg whitelist patch would be new
+work, not a port.
 
 ### HandBrake — the interesting encode case
 
@@ -118,7 +141,9 @@ VLC's avcodec module selects hardware via *hwaccel* contexts
 rkmpp wrappers and teaching a video output to consume DRM PRIME frames —
 days to weeks against a codebase not structured for it. mpv and Kodi cover the
 playback use case; VLC only earns the effort if its ecosystem (streaming
-server features, …) is specifically needed.
+server features, …) is specifically needed. Independently confirmed:
+ubuntu-rockchip's VLC is a plain rebuild with zero rockchip patches — nobody
+in that ecosystem solved VLC either.
 
 ### Firefox — hard on the BSP kernel
 
@@ -135,18 +160,32 @@ neither. Options, in ascending ambition:
 3. Wait for / bet on the mainline V4L2 path (which Firefox's stateless story
    still would not cover; its V4L2 support is stateful-only today).
 
+Note that the `libv4l-rkmpp` shim does **not** help Firefox: its ARM V4L2
+path is FFmpeg `v4l2m2m`, which raw-`open()`s `/dev/video*` char devices and
+never routes through libv4l2 plugins, while the shim only attaches to its
+non-char-device config files. Both ends would need modification.
+
 ### Chromium and Electron apps — same wall, different shape
 
-Desktop Chromium's hardware decode is `VaapiVideoDecoder`; its
-`V4L2VideoDecoder` (stateless request API) is real and maintained but is a
-ChromeOS/ARM build-flag path — and it needs V4L2 stateless nodes, which the
-mainline kernel is growing for RK3588 (rkvdec2 upstreaming) and the BSP kernel
-does not provide. Chromium is therefore the one app where the
-[`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md) track is the
-natural road rather than the BSP: mainline kernel + Chromium built with V4L2
-decode enabled is the community-proven direction. On the BSP stack, Chromium
-means either Rockchip's own heavily patched Chromium forks (Android/BSP
-lineage, painful to maintain) or the VA-API bridge.
+Desktop Chromium's hardware decode is `VaapiVideoDecoder`; its V4L2 decoders
+are ChromeOS/ARM build-flag paths needing either real V4L2 nodes or a shim.
+Three roads now exist, ordered by proof level:
+
+1. **Revive the ubuntu-rockchip approach on the BSP kernel** — the
+   [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md)
+   established that their "4K Chromium" is `libv4l-rkmpp` (userspace
+   V4L2-stateful-over-MPP, kernel-agnostic, runs on this stack by
+   construction) plus ~20 Chromium patches and a patched libv4l2. The
+   Chromium patches target the legacy VDA path deleted upstream (~M121–126),
+   so this is a **re-target** onto the modern `V4L2StatefulVideoDecoder`
+   (which conveniently speaks exactly the stateful contract the shim
+   emulates): roughly 2–4 weeks Chromium-side plus 1–2 weeks shim-side (real
+   `V4L2_DEC_CMD_STOP`/`FLAG_LAST` flush semantics instead of the Chromium-114
+   magic-timestamp hack), plus a permanent per-milestone rebase tax on
+   hours-long arm64 builds.
+2. **The maxline road** — mainline kernel + Chromium with stateless V4L2
+   enabled, zero Chromium patches once mainline rkvdec2 covers the codecs.
+3. **The VA-API bridge** (below) — most work, broadest payoff.
 
 ## Cross-cutting observations
 
@@ -155,13 +194,22 @@ lineage, painful to maintain) or the VA-API bridge.
 One `libva` backend translating to MPP would unlock Firefox, Chromium,
 Electron apps, and VLC simultaneously, with zero per-app patches. It is a
 serious project — VA-API's slice-level parameter surface has to be mapped onto
-MPP's packet-level API. That impedance mismatch is actually *helpful* in this
-direction: MPP does its own parsing, so a bridge can largely ignore VA's
-parsed slice parameters for decode and feed reconstructed bitstream — the
-trick the libva-v4l2-request-era projects struggled with in reverse. Rough
-order: months for H.264/HEVC decode. It converts the two hardest apps from
-"fork and rebase forever" into "install a driver", and is the honest path if
-browsers must run on the BSP kernel.
+MPP's packet-level API: the bridge can largely ignore VA's parsed slice
+parameters for decode and feed reconstructed bitstream (MPP re-parses), but it
+must also lash MPP's internally managed DPB/buffer lifecycle to VA's
+caller-owned surfaces — the genuinely hard, correctness-critical part. Rough
+order: months for H.264/HEVC decode.
+
+The trade against the now-known V4L2-stateful shim is exactly inverted
+effort placement: `libv4l-rkmpp` is thin (~4k lines, near-1:1 semantics with
+MPP) but reaches only Chromium, only via a patched libv4l2, and costs a
+Chromium patch stack forever; a VA-API bridge is thick to build but is
+libva's *sanctioned* plugin mechanism (one driver `.so`, no fake device
+nodes, no patched system libraries), after which the entire desktop works
+unpatched. Full comparison table in the
+[survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md).
+If the goal is Chromium soonish on the BSP kernel, modernize the shim; if the
+goal is "the desktop just works", VA-API remains the honest path.
 
 ### Every playback app depends on the dmabuf display path already under repair
 
@@ -180,10 +228,14 @@ De-risk in this order:
 1. **mpv** (hours) — proves the display path cheaply.
 2. **Finish the Kodi gate** — already tracked.
 3. **OBS / HandBrake encode** (days) — no display path needed.
-4. **Decide the browser question** — really "VA-API bridge on BSP" vs. "bet on
-   the maxline kernel + Chromium V4L2". Given the maxline track is already
-   maintained, prototype Chromium's V4L2 decoder against whatever codec nodes
-   the pinned 7.2-rc3 tree actually exposes *before* committing to a bridge.
+4. **Decide the browser question** — now three-way: "modernize libv4l-rkmpp +
+   re-target Chromium" (shortest proven path on the BSP kernel) vs. "VA-API
+   bridge" (most work, whole desktop) vs. "maxline kernel + stock Chromium
+   V4L2". Cheap first probes: build current `libv4l-rkmpp` 1.8.0 against the
+   ysp MPP stack and exercise it with a patched-libv4l2 test client on the
+   6.18 kernel; and prototype Chromium's V4L2 decoder against whatever codec
+   nodes the pinned 7.2-rc3 tree actually exposes — both before committing to
+   any bridge work.
 
 ## Related pages
 
@@ -192,3 +244,4 @@ De-risk in this order:
 - [`../apps/gnome-remote-desktop/README.md`](../apps/gnome-remote-desktop/README.md) — the tracked encode consumer
 - [`../packaging/ppa/kernel-maxline/README.md`](../packaging/ppa/kernel-maxline/README.md) — the mainline/V4L2 fork in the road
 - [`../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md`](../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) — decoder-selection evidence backing the "no app patch needed" pattern
+- [`../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md`](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md) — source-level survey of the archived ubuntu-rockchip stack this page's revision is based on

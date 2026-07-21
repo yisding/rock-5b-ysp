@@ -52,6 +52,8 @@ implicit source.
 | `/home/yi/Code/gnome/grd/grd-debs` and `/home/yi/Code/gnome/grd/grd-install` | Historical local binary deployments. Keep outside git; packaging history is summarized in `packaging/README.md`. |
 | `/home/yi/Code/rockchip-userspace/mpp-rockchip` and `/home/yi/Code/rockchip-userspace/librga-fork` | Upstream/source checkouts pinned by `ppa/build-source-packages.sh`. Their local `debian/` dirs are not the PPA packaging source of truth. |
 | `/home/yi/Code/rockchip-conformance` | Deployed test bundle with logs/assets/build output. The tracked skeleton and patches live under `kernel-drivers/tests/conformance/`. |
+| `/home/yi/Code/ubuntu-rockchip` and `/home/yi/Code/ubuntu-rockchip-settings` | Reference clones of Joshua Riek's archived ubuntu-rockchip image builder (`@38dfb49`) and settings package, surveyed 2026-07-21. Read-only quarry; findings captured in [`findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md`](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md). Reconstructible by re-cloning GitHub. |
+| `downloads/ubuntu-rockchip-ppa/` in this repo | Downloaded `ppa:jjriek/rockchip-multimedia` source packaging (`.dsc` + debian tarballs, extractions under `x/`), git-ignored. Reconstruction recipe is in the survey finding (Launchpad `getPublishedSources` → `sourceFileUrls`). |
 | `downloads/` in this repo | Local downloads, board backups, and build scratch. Ignored by git. Promote only small text findings into `docs/`, `findings/`, or package docs. |
 | `packaging/ppa/out/` in this repo | Ignored local source-package output. `artifacts/` may hold upload candidates; `work/` is rebuild scratch. |
 
