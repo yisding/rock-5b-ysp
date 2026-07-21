@@ -119,6 +119,20 @@ and the
 
 ## ⚠️ Known limitations
 
+- **DISTRIBUTION BLOCKER — `rga_request` completion vs `/dev/rga` close UAF
+  (2026-07-21, `162edad7bb9c7`, KASAN build `P7589-C4ad2`).** The `cross`
+  session-close reproducer tripped a slab-use-after-free: the RGA2 IRQ
+  completion thread reads `&request->finished_wq.lock` in `wake_up()`
+  (`rga_request_release_signal`) after the close path
+  (`rga_request_session_destroy_abort` → `rga_request_kref_release` →
+  `kfree`) freed the `rga_request`, with a concurrent `refcount_t: underflow`
+  — inferred double-put of the submit reference. It is **distinct from the
+  buffer force-free `0040` fixed** (which the `leak` mode confirms quiet) and
+  is reachable by any process that closes `/dev/rga` while an async RGA job
+  is still completing. Must be fixed (candidate `0052`) before the kernel is
+  offered to a broader audience; booted gate is a quiet `cross` run with
+  `async_submits > 0`. See the
+  [request-completion UAF finding](../../findings/2026-07-21-rga-request-completion-vs-session-close-uaf-kasan.md).
 - **The validated forward-port drivers still carry every bug the BSP audit found.** This
   forward-port is deliberately conservative (~98% byte-identical BSP —
   [vendor delta](./vendor-delta.md)), so the [BSP audit](./bsp-audit.md) audit's
