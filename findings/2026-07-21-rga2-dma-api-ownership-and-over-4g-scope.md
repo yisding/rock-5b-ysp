@@ -7,7 +7,7 @@
 > devices (DMA-debug flags 96 KiB CMA segments against the rga2 device's
 > 64 KiB default); it can ride with `0050` since both touch RGA2 DMA setup.
 
-> **2026-07-21 implemented:** `0050@473903525009a` and `0051@13c503286f6e2`
+> **2026-07-21 implemented:** `0050@473903525009a` and `0051@162edad7bb9c7`
 > are committed on `rkvenc-fwport-6.18` per this scope, checkpatch-clean,
 > and native-compiled. Deviations from the plan as written: `0050` carries
 > the DMA device parameters (`dma_set_max_seg_size`, and
@@ -47,9 +47,82 @@
 >   discarded it. Fixed by keying the post-clean on the bounce direction
 >   instead (`bounce->dir != DMA_TO_DEVICE`; read-only bounces have
 >   nothing copied back); `0051` (originally `34a1d970da1c5`, the hash
->   the `P9636` build carries) amended to `13c503286f6e2`,
+>   the `P9636` build carries) amended to `162edad7bb9c7`,
 >   checkpatch-clean, native-compiled. The content-exact gate re-runs on
 >   the next debug build.
+
+> **2026-07-21 re-run on `P9412-C4ad2` (BOOT-VERIFIED FAIL — second,
+> deeper root cause found):** the 64×64 gate still read stale zeros on
+> the kernel carrying the post-clean fix (256×256 RGA3 control
+> content-exact, journal clean). The post-clean was never the
+> first-order bug: the channel *get side* passes `DMA_TO_DEVICE` for
+> **every** channel — including dst, whose `DMA_FROM_DEVICE` only
+> appears on the put side (`rga_mm_get_handle_info` vs
+> `rga_mm_put_handle_info`) — and that get-side `dir` flowed into the
+> transient bounce mapping. A `DMA_TO_DEVICE`-mapped dst bounce gets
+> **no swiotlb copy-back at unmap** (only `FROM_DEVICE`/
+> `BIDIRECTIONAL` unmaps copy bounce→origin), so the device output was
+> discarded outright; the post-clean guard (`bounce->dir !=
+> DMA_TO_DEVICE`) was skipping consistently on top of that. Fixed in
+> `rga_mm_get_rga2_sgt()` by mapping every transient bounce
+> `DMA_BIDIRECTIONAL` regardless of the channel get-side dir — the same
+> convention the driver's persistent mappings already use, and the
+> map-time forward copy also preserves destination pixels outside the
+> blit rect across the whole-range copy-back. `0051` amended to
+> `162edad7bb9c7` (supersedes `13c503286f6e2`, which the `P9412` build
+> carries), checkpatch-clean, native-compiled; the content-exact gate
+> re-runs on the next debug build.
+
+> **2026-07-21 differential matrix on `P9412-C4ad2` (BOOT-VERIFIED —
+> src legs and the fallback gate pass; only the dst copy-back is
+> broken):** run while the fixed build compiled, using the extended
+> probe (independent src/dst backing: heap path or `malloc`, optional
+> over-allocation):
+>
+> | src → dst (dim=64, RGA2-forced) | result | meaning |
+> |---|---|---|
+> | cma → cma | match | control, no bounce |
+> | **system → cma** | **match** | src-only bounce leg works: transient dma-buf attach, map-time forward copy, PTE fill from `sg_dma_address` all correct |
+> | **cma → system** | **MISMATCH** | dst-only leg reproduces the defect — pins the failure to exactly the missing unmap copy-back |
+> | **malloc → cma** | **match** | first exercise of the `RGA_VIRTUAL_ADDRESS` (userptr pin + `rga_dma_map_sgt_pages`) bounce branch — works |
+> | system → system, dim=256 | match | RGA3 control |
+> | system → system, 128 MiB allocs | `EOPNOTSUPP` | mapping-failure fallback gate: userspace gets `errno=95`, kernel logs `swiotlb buffer is full (sz: 1048576 …)` + the `0047`-style explanatory line, job aborts cleanly, no WARN/KASAN |
+>
+> The 128 MiB case also revealed the practical bounce envelope: swiotlb
+> caps a *single* mapping at 256 KiB (`IO_TLB_SEGSIZE` × 2 KiB), and the
+> system heap hands out 1 MiB/64 KiB/4 KiB chunks, so any over-4G buffer
+> containing a ≥1 MiB exporter segment takes the `EOPNOTSUPP` fallback
+> (the journal showed `used 4 (slots)` — the 64 MiB pool was nearly
+> empty; it is the per-mapping cap, not exhaustion, that bounds real
+> buffers). The bounce path therefore serves small-chunk allocations;
+> large video-frame system-heap buffers above 4G keep failing over to
+> the explanatory `EOPNOTSUPP`, matching the "correctness net, not a
+> performance feature" framing. The gate list's "artificially exhausted
+> bounce pool" scenario is closed by this same code path
+> (map-failure → `EOPNOTSUPP`, no corruption).
+
+> **2026-07-21 `0051` gate CLOSED on `P7589-C4ad2` (`#7`, carrying the
+> `162edad7bb9c7` amendment — BOOT-VERIFIED PASS):** the full
+> differential matrix is content-exact: system→system 64×64 (both legs
+> bouncing over-4G on RGA2 — the primary inverted-`0047` gate),
+> cma→system (the dst-only leg that failed on both prior builds),
+> system→cma, malloc→cma, and malloc→system (userptr src + dma-buf dst
+> both bouncing), plus the cma→cma and 256×256 RGA3 controls; the
+> 128 MiB mapping-failure case still fails cleanly with `EOPNOTSUPP` +
+> the explanatory log. On the same boot: librga smoke 28 ok / 0 FAIL
+> (10-bit cases included), P010 probe (copy BIT-EXACT, chroma neutral
+> 0/8192), NV15 probe (256/1920 all exact), KASAN narrowed ABI replay
+> `abi_status=0 clean=1` (`20260721-145234`), MPP suite
+> `suite_status=0 clean=1` (`20260721-145243`), FFmpeg suite 24/24 pass
+> with `hevc_main10_p010_rga` PSNR `inf/inf/inf` (`20260721-145258`),
+> and the whole-window kernel journal has zero flagged lines (the only
+> RGA output is the expected fallback logging). `0049`–`0051` are all
+> BOOT-VERIFIED on one kernel. One caveat noted for the watchlist: the
+> *first* boot attempt of `P7589` hung ~2 min in (journal ends after
+> routine deferred-probe/network lines, no oops/panic, empty pstore)
+> and needed a hard reset; the identical kernel booted cleanly on the
+> second attempt, and nothing in `0051` touches boot paths — watch for
+> recurrence rather than chase.
 
 > Scope: forward-port `rkvenc-fwport-6.18` RGA3 driver, RGA2 (`RGA_MMU`) core
 > paths in `rga_iommu.c`, `rga_mm.c`, `rga_dma_buf.c`, `rga_policy.c`.

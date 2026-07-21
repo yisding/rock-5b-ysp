@@ -47,7 +47,7 @@ P010 chroma was read from and written into the Y plane — fixed by
 `0049@a398364aaf8ed`. Patches `0050@473903525009a` (RGA2 page-table DMA
 ownership, closing the July 20 DMA-debug finding, plus the missing
 `dma_set_max_seg_size()` and a page-preserving swiotlb min-align mask) and
-`0051@13c503286f6e2` (over-4G memory served on RGA2 through DMA-API
+`0051@162edad7bb9c7` (over-4G memory served on RGA2 through DMA-API
 mappings that swiotlb-bounce below 4G, with `EOPNOTSUPP` fallback) round
 out the series. On debug build `P9636-C4ad2` (`#5`, `0049`–`0051`) the
 `0049` and `0050` gates pass: P010 copies bit-exact including chroma,
@@ -55,11 +55,38 @@ FFmpeg `hevc_main10_p010_rga` bit-exact (PSNR inf, run `20260721-110029`),
 and the smoke (28 ok) / MPP (12/12) / ABI (`20260721-110007`) sweep runs
 with a completely clean DMA-debug/KASAN journal — the page-table splat and
 segment-size warning are gone. The `0051` over-4G probe ran on RGA2 (no
-more `EOPNOTSUPP`) but exposed a copy-back defect — the post-clean skipped
-IOMMU-mapped (default-map-core) origins, so the invalidate at put
-discarded the bounced-back destination — fixed in the amended
-`0051@13c503286f6e2` (post-clean keyed on bounce direction); its
-content-exact gate awaits the next debug build.
+more `EOPNOTSUPP`) but read back a stale destination on two successive
+debug builds, exposing two copy-back defects: the post-clean skipped
+IOMMU-mapped (default-map-core) origins (fixed on `P9636`, keyed on
+bounce direction), and — first-order, exposed by the `P9412` (`#6`)
+re-run — the transient dst bounce was mapped with the channel get-side
+`DMA_TO_DEVICE`, so swiotlb never copied the device output back at
+unmap. Fixed in the amended `0051@162edad7bb9c7` (every transient
+bounce mapped `DMA_BIDIRECTIONAL`, matching the persistent mappings);
+its content-exact gate awaits the next debug build. A mixed-heap
+differential matrix on `P9412` isolates the defect to the dst leg
+alone (src-only and userptr bounce legs content-exact) and closes the
+mapping-failure fallback gate: 128 MiB over-4G buffers fail cleanly
+with `EOPNOTSUPP` and the explanatory log — swiotlb's 256 KiB
+per-mapping cap (not pool exhaustion) is the practical bound, so
+over-4G buffers with ≥1 MiB exporter chunks always take the fallback.
+The same boot also closed the last `0048` caveat: the compact-NV15
+raster leg is hardware-validated by `rga-nv15-test` (semantic
+NV15→NV12 read, CPU-unpacked P010→NV15 write, bit-exact NV15 copy at
+256/320/1920 widths, clean journal). On debug build `P7589-C4ad2`
+(`#7`, carrying the amended `0051`) the gate CLOSES: the full
+differential matrix is content-exact — including the primary
+system→system 64×64 both-legs bounce, the previously-failing dst-only
+leg, and userptr bounces — the mapping-failure fallback stays a clean
+`EOPNOTSUPP`, and the same-boot smoke (28 ok / 0 FAIL), P010/NV15
+probes, KASAN ABI replay (`20260721-145234`, `abi_status=0 clean=1`),
+MPP suite (`20260721-145243`, `suite_status=0 clean=1`), and FFmpeg
+suite (`20260721-145258`, 24/24, Main10→P010 PSNR inf) are all green
+with a zero-flagged-line journal — `0044`–`0051` are BOOT-VERIFIED on
+one kernel. (Watchlist note: `P7589`'s *first* boot attempt hung ~2
+min in with no oops/panic/pstore capture and needed a hard reset; the
+second boot of the identical kernel was clean, and `0051` touches no
+boot path — watching for recurrence.)
 See the
 [conformance root-cause finding](../../findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md)
 and the

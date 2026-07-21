@@ -99,9 +99,15 @@ bit-exact result.
    A P010→P010 copy corrupts likewise. Patch `0048@8e641bcd48a38` programs
    byte-literal strides for both layouts (incompact 2 bytes/pixel, compact
    10 bits/pixel, UV rows equal to Y rows in both); the incompact leg is
-   measured, the compact raster leg matches the layout math but needs
-   hardware validation. Booted verification runs the bit-exact P010 suite
-   gate.
+   measured, and the compact raster leg is now hardware-validated too
+   (2026-07-21, `P9412-C4ad2` boot, `rga-nv15-test` on CMA dmabufs):
+   NV15→NV12 reads the LSB-first 4-pixels-in-5-bytes packing semantically
+   exactly (Y ramp exact, chroma neutral), P010→NV15 writes it exactly
+   (CPU-unpacked 10-bit compare), and an NV15→NV15 copy is bit-exact, at
+   256/320/1920 widths with a clean journal (librga itself rejects
+   non-64-aligned NV15 width strides in userspace, so narrower widths are
+   unreachable by design). Booted verification runs the bit-exact P010
+   suite gate.
 
 ## Suite changes landed with this finding
 
