@@ -9,9 +9,14 @@ Port-only issues found after the BSP audit, such as VSI provider lookup,
 fault-masking, and reset-unwind bugs introduced by the 6.18 integration, are
 tracked separately in [the forward-port review log](../../../kernel-versions/docs/forward-port-review-log.md).
 
-> **Status:** these fixes currently live in the experimental AV1 worktree. They
-> are not yet packaged as a YSP split patch series, and they have not had the
-> same runtime gate as the validated encoder/decoder work.
+> **Historical status:** this document records the first 2026-07-03 hardening
+> pass. The fixes are now exported in the tracked
+> [`forward-port-rk3588-av1`](../../patches/forward-port-rk3588-av1/README.md)
+> series, and AV1 completed a 30/30-frame bit-exact board run on 2026-07-04.
+> A later adversarial review found additional unresolved common-core, session,
+> DMA-provenance, IOMMU, and recovery issues; use the
+> [2026-07-20 BSP/forward-port review](av1-bsp-forward-port-review-2026-07-20.md)
+> for the current safety assessment.
 
 ## Scope and pins
 
@@ -224,11 +229,13 @@ logic. The fixes now in the worktrees are:
 | ROCK 5B AV1-enabled DTB | PASS: `make O=/tmp/linux-6.18-rkvenc-av1-build ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- rockchip/rk3588-rock-5b.dtb` |
 | Vendor MPP/RGA binding check | PASS: targeted `dt_binding_check` for `rockchip,mpp-service.yaml`, `rockchip,rkvenc2.yaml`, `rockchip,rkvdec2.yaml`, and `rockchip,rga-vendor.yaml` in both worktrees with `dtschema` 2026.6, including yamllint and generated example DTC |
 | Focused RGA W=1 build | PASS: `CONFIG_ROCKCHIP_MULTI_RGA=y W=1` directory build for `drivers/video/rockchip/rga3/` in both worktrees |
-| Runtime AV1 decode | PENDING: no board boot or `av1_rkmpp` userspace validation yet |
+| Runtime AV1 decode | Historical at first audit; later PASS: 30/30 frames bit-exact on the AV1 forward-port board build (2026-07-04) |
 
 ## Open follow-ups
 
-1. Add a runtime gate for `ffmpeg-rockchip` `av1_rkmpp` once the DTB packages.
+1. Extend the runtime gate beyond the 30-frame happy path with the adversarial,
+   race, fault-injection, and boundary cases listed in the
+   [2026-07-20 review](av1-bsp-forward-port-review-2026-07-20.md).
 2. Re-review `av1dec_set_afbc()` arithmetic once runtime traces show which AV1
    profiles and output formats userspace submits.
 3. If we decide to upstream any fixes to Rockchip BSP, split `AV1-BSP-*` into
