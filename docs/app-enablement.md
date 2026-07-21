@@ -6,7 +6,9 @@ each would be.
 
 **Assessed:** 2026-07-21; revised the same day after the
 [ubuntu-rockchip piggyback survey](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md)
-overturned the "no V4L2 bridge exists" premise. This page is a planning
+overturned the "no V4L2 bridge exists" premise, and again after the
+[rockchip-vaapi driver review](../findings/2026-07-21-rockchip-vaapi-driver-review.md)
+overturned the "no VA-API driver exists" premise. This page is a planning
 assessment, not runtime evidence — nothing here is hardware-validated except
 where it links to an existing tracked project. Per [`../status.md`](../status.md), an app absent from
 the dashboard stays **untracked** until a `findings/` entry captures real
@@ -22,7 +24,7 @@ plumbing layers. Which layer an app speaks decides its cost almost entirely:
 |-------|---------------------|
 | **libavcodec named codecs** (`h264_rkmpp`, `hevc_rkmpp`, …) | ✅ Shipped: [`ffmpeg-rockchip`](../video-libraries/ffmpeg/README.md) fork, built and Published in the [normal PPA](../packaging/ppa/README.md) as the system FFmpeg replacement. |
 | **GStreamer elements** (`mppvideodec`, `mpph26xenc`) | ⚠️ Rockchip's external `gstreamer-rockchip` plugin exists upstream but is not packaged here; ubuntu-rockchip shipped a working (if crudely packaged) build of it — one clean repackage away. The kernel track's GStreamer test suite is still dependency-blocked. |
-| **VA-API** (the de-facto Linux desktop hwaccel API) | ❌ No maintained VA-API driver over MPP exists anywhere, to current knowledge. |
+| **VA-API** (the de-facto Linux desktop hwaccel API) | ⚠️ A PoC driver now exists: woodyst/rockchip-vaapi (LGPL, reviewed in the [driver review finding](../findings/2026-07-21-rockchip-vaapi-driver-review.md)) — the right architecture, effectively Firefox H.264+VP9 today, upstream inactive; verdict is fork-and-renovate (~4–8 weeks to desktop grade). |
 | **V4L2** (stateful M2M or stateless request API) | ⚠️ The BSP kernel exposes the codecs only via the vendor `/dev/mpp_service` ioctl interface, not V4L2 — but a **userspace** V4L2-stateful-over-MPP bridge exists: JeffyCN's `libv4l-rkmpp` (a libv4l2 plugin emulating a stateful M2M decoder/encoder in-process, no kernel device), proven in Joshua Riek's archived ubuntu-rockchip images as the engine behind Chromium 4K playback. It is kernel-agnostic and only reachable through a patched libv4l2, which in practice makes it a Chromium-only bridge. See the [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md). A real kernel V4L2 stateless path still needs a mainline kernel ([`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md), mainline rkvdec2 work). |
 
 ```mermaid
@@ -40,7 +42,7 @@ flowchart TB
   end
   lavc["libavcodec named codecs<br/>h264_rkmpp · hevc_rkmpp"]
   gst["gstreamer-rockchip<br/>mppvideodec · mpph26xenc"]
-  vaapi["VA-API<br/>(no MPP driver exists)"]
+  vaapi["VA-API<br/>rockchip-vaapi PoC (fork candidate)"]
   v4l2["V4L2 stateless<br/>(mainline kernel only)"]
   shim["libv4l-rkmpp<br/>userspace V4L2-stateful shim<br/>(needs patched libv4l2)"]
   mpplib["librockchip_mpp"]
@@ -76,8 +78,8 @@ kernel path this repo's BSP forward-port deliberately does not take (V4L2).
 | OBS | libavcodec encoders | Hours–a day; cheapest encode win after the CLI |
 | HandBrake | bundled FFmpeg + own encoder registry | Days; encode is the realistic value |
 | VLC | libavcodec *hwaccels*, not named wrappers | Days–weeks of patching; recommend skipping |
-| Firefox | VA-API (or stateful V4L2-M2M) | Weeks of fork-patching, or blocked on a VA-API bridge; the libv4l-rkmpp shim does not reach it |
-| Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | ~3–6 weeks reviving/re-targeting the proven ubuntu-rockchip shim path, or a kernel-path change to maxline |
+| Firefox | VA-API (or stateful V4L2-M2M) | H.264+VP9 works **today** via rockchip-vaapi (sandbox off); solid via the fork-and-renovate plan. The libv4l-rkmpp shim does not reach it |
+| Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | Renovated rockchip-vaapi + a 1–3 week hardening pass (stock builds, runtime flags); or ~3–6 weeks re-targeting the libv4l-rkmpp shim (custom builds forever); or maxline |
 
 ### mpv — essentially free, and the right first proof
 
@@ -143,7 +145,9 @@ days to weeks against a codebase not structured for it. mpv and Kodi cover the
 playback use case; VLC only earns the effort if its ecosystem (streaming
 server features, …) is specifically needed. Independently confirmed:
 ubuntu-rockchip's VLC is a plain rebuild with zero rockchip patches — nobody
-in that ecosystem solved VLC either.
+in that ecosystem solved VLC either. **Except**: a working VA-API driver
+(rockchip-vaapi road) flips VLC to nearly free via its stock libavcodec
+VAAPI + GL-interop path — no VLC patches at all.
 
 ### Firefox — hard on the BSP kernel
 
@@ -155,8 +159,11 @@ neither. Options, in ascending ambition:
    decoders and import DRM PRIME frames into WebRender — done in one-off
    community forks for other SoCs, but weeks of work plus a permanent rebase
    burden.
-2. Build a VA-API-over-MPP bridge (below) — unlocks Firefox with zero Firefox
-   patches.
+2. The VA-API road (below) — **works today** for H.264+VP9 via
+   rockchip-vaapi with `MOZ_DISABLE_RDD_SANDBOX=1`; shipping-grade needs the
+   fork-and-renovate plan plus a small RDD sandbox-policy patch (Firefox's
+   seccomp filters ioctls by request family, so device-node aliasing cannot
+   sidestep it — see the [driver review](../findings/2026-07-21-rockchip-vaapi-driver-review.md) §7).
 3. Wait for / bet on the mainline V4L2 path (which Firefox's stateless story
    still would not cover; its V4L2 support is stateful-only today).
 
@@ -185,20 +192,37 @@ Three roads now exist, ordered by proof level:
    hours-long arm64 builds.
 2. **The maxline road** — mainline kernel + Chromium with stateless V4L2
    enabled, zero Chromium patches once mainline rkvdec2 covers the codecs.
-3. **The VA-API bridge** (below) — most work, broadest payoff.
+3. **The VA-API road** (below) — no longer "most work": stock Chromium
+   supports VA-API behind runtime flags, so a renovated rockchip-vaapi plus a
+   1–3 week Chromium hardening pass needs zero Chromium patches; the sandbox
+   question may even be sidesteppable for deb Chromium via device-node
+   aliasing under `/dev/dri/` (snap Chromium adds a major:minor device-cgroup
+   gate — see the [driver review](../findings/2026-07-21-rockchip-vaapi-driver-review.md) §7).
 
 ## Cross-cutting observations
 
 ### The highest-leverage single project is a VA-API↔MPP bridge
 
-One `libva` backend translating to MPP would unlock Firefox, Chromium,
-Electron apps, and VLC simultaneously, with zero per-app patches. It is a
-serious project — VA-API's slice-level parameter surface has to be mapped onto
-MPP's packet-level API: the bridge can largely ignore VA's parsed slice
-parameters for decode and feed reconstructed bitstream (MPP re-parses), but it
-must also lash MPP's internally managed DPB/buffer lifecycle to VA's
-caller-owned surfaces — the genuinely hard, correctness-critical part. Rough
-order: months for H.264/HEVC decode.
+One `libva` backend translating to MPP unlocks Firefox, Chromium, Electron
+apps, VLC, mpv, the GStreamer `va` world, and **stock distro FFmpeg**
+simultaneously, with zero per-app patches. The two hard parts are mapping
+VA's slice-level surface onto MPP's packet-level API (feed reconstructed
+bitstream; MPP re-parses) and lashing MPP's internally managed DPB/buffer
+lifecycle to VA's caller-owned surfaces. **This is no longer hypothetical**:
+woodyst/rockchip-vaapi proves the architecture end-to-end (Firefox H.264+VP9
+today), and the [driver review](../findings/2026-07-21-rockchip-vaapi-driver-review.md)
+concludes fork-and-renovate — replace its per-frame CPU copy with an
+external-buffer-group zero-copy model and its polling sync with a drain
+thread, add a spec-honest HEVC header writer and RGA-backed NV15→P010 —
+lands a desktop-grade H.264+HEVC+VP9 driver in ~4–8 weeks instead of months.
+Encode (`VAEntrypointEncSlice` over MPP) is a coherent phase-2 that would add
+OBS/GStreamer/WebRTC encode. The remaining structural cost of any MPP-backed
+VA driver is the **browser sandbox tax**: pathname-broker checks can be
+sidestepped by aliasing device nodes under `/dev/dri/` (plus an MPP
+path-override patch), which plausibly suffices for deb Chromium, but
+Firefox's RDD seccomp filters ioctls by request family (`MPP_IOC_CFG_V1`
+magic `'v'` is not whitelisted) and needs a small sandbox-policy patch —
+gate-by-gate analysis in the review finding.
 
 The trade against the now-known V4L2-stateful shim is exactly inverted
 effort placement: `libv4l-rkmpp` is thin (~4k lines, near-1:1 semantics with
@@ -208,8 +232,9 @@ libva's *sanctioned* plugin mechanism (one driver `.so`, no fake device
 nodes, no patched system libraries), after which the entire desktop works
 unpatched. Full comparison table in the
 [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md).
-If the goal is Chromium soonish on the BSP kernel, modernize the shim; if the
-goal is "the desktop just works", VA-API remains the honest path.
+With rockchip-vaapi as a head start, the VA-API road is now the likely
+winner even for Chromium-soonish goals; the shim road's remaining edge is
+only that its Chromium integration was once proven end-to-end.
 
 ### Every playback app depends on the dmabuf display path already under repair
 
@@ -228,14 +253,15 @@ De-risk in this order:
 1. **mpv** (hours) — proves the display path cheaply.
 2. **Finish the Kodi gate** — already tracked.
 3. **OBS / HandBrake encode** (days) — no display path needed.
-4. **Decide the browser question** — now three-way: "modernize libv4l-rkmpp +
-   re-target Chromium" (shortest proven path on the BSP kernel) vs. "VA-API
-   bridge" (most work, whole desktop) vs. "maxline kernel + stock Chromium
-   V4L2". Cheap first probes: build current `libv4l-rkmpp` 1.8.0 against the
-   ysp MPP stack and exercise it with a patched-libv4l2 test client on the
-   6.18 kernel; and prototype Chromium's V4L2 decoder against whatever codec
-   nodes the pinned 7.2-rc3 tree actually exposes — both before committing to
-   any bridge work.
+4. **Decide the browser question** — three roads: "fork-and-renovate
+   rockchip-vaapi" (VA-API; whole desktop; now the likely winner), "modernize
+   libv4l-rkmpp + re-target Chromium" (Chromium-only, custom builds forever),
+   "maxline kernel + stock Chromium V4L2". Cheap first probes, in order:
+   build rockchip-vaapi v1.0.11 unmodified on the 6.18 board and smoke-test
+   Firefox H.264/VP9 (~1 day, also the regression baseline for any fork);
+   mpv `--hwdec=vaapi` against it; the deb-Chromium `/dev/dri/` alias
+   experiment; and optionally the libv4l-rkmpp 1.8.0 build as the comparison
+   point — all before committing to fork work.
 
 ## Related pages
 
@@ -244,4 +270,5 @@ De-risk in this order:
 - [`../apps/gnome-remote-desktop/README.md`](../apps/gnome-remote-desktop/README.md) — the tracked encode consumer
 - [`../packaging/ppa/kernel-maxline/README.md`](../packaging/ppa/kernel-maxline/README.md) — the mainline/V4L2 fork in the road
 - [`../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md`](../findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md) — decoder-selection evidence backing the "no app patch needed" pattern
-- [`../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md`](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md) — source-level survey of the archived ubuntu-rockchip stack this page's revision is based on
+- [`../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md`](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md) — source-level survey of the archived ubuntu-rockchip stack this page's first revision is based on
+- [`../findings/2026-07-21-rockchip-vaapi-driver-review.md`](../findings/2026-07-21-rockchip-vaapi-driver-review.md) — full review of the PoC VA-API-over-MPP driver: fork-and-renovate verdict, Chromium/app reach, sandbox gate analysis
