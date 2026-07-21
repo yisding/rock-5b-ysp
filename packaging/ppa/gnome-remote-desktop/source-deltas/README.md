@@ -4,13 +4,14 @@ The normal package export no longer uses a source delta. It archives the clean
 release commit directly:
 
 ```text
-GRD_COMMIT=5f61bb6b1c25e9fb3cb1f429e901d44f3a28465e
-GRD_UPSTREAM_VERSION=50.1+rkmpp+git20260721.12.5f61bb6
+GRD_COMMIT=cf60b4d9d2c5adb6ea9f4b7f3397449895f069f2
+GRD_UPSTREAM_VERSION=50.2+rkmpp+git20260721.13.cf60b4d
 GRD_DELTA=
 ```
 
-That commit is reproducible from upstream `c14e09e` plus the 16 root-level
-patches under
+That commit is the public `release/50.2-rkmpp` branch: upstream 50.2 commit
+`60423c8` plus 15 release commits. The older 50.1 reconstruction remains
+available as the 16 root-level patches under
 [`../../../../apps/gnome-remote-desktop/patches/`](../../../../apps/gnome-remote-desktop/patches/README.md).
 Investigation patches under `patches/archive/` are deliberately excluded.
 

@@ -16,9 +16,9 @@ a few percent CPU instead of a laggy, CPU-bound one.
 |-------|----------|
 | User outcome | Run an RDP session whose H.264 video stream is encoded by RK3588 hardware instead of software. |
 | Developer focus | Understand GRD's capture path, FFmpeg encode-session integration, RDP frame-ack behavior, zero-copy buffers, panvk RGB-to-NV12 conversion, and GDM greeter permissions. |
-| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the clean 16-patch GRD release series. Investigation patches are archived separately. |
+| Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the portable 16-patch 50.1 replay behind the current 50.2 release branch. Investigation patches are archived separately. |
 | Depends on | Kernel drivers, userspace libraries, an rkmpp-enabled FFmpeg build, Mesa/Panfrost Vulkan support, and optional GDM codec ACL packaging. |
-| Current state | The release branch `release/50.1-rkmpp@5f61bb6` is a clean 16-commit series on `c14e09e` (`50.1` + 16), and the measured backend sustains 60 fps. It keeps the cached-readback root fix, bounded hardware-encode recovery, and live-validated progress-gated ACK recovery while removing the pipeline watchdog and all audio probes/traces. Audio returns to the normal AAC/Opus/PCM offer. Clean source and native arm64 package builds pass, including the RDP integration test; the final install and sustained video/focus gate remain before promotion. Historical PCM/A-law/ADPCM findings and the deferred A-law plan remain documented. See [`status.md`](../../status.md). |
+| Current state | Public release branch `release/50.2-rkmpp@cf60b4d` is a clean 15-commit series on upstream 50.2 `60423c8`, and the measured backend sustains 60 fps. It keeps the cached-readback root fix, bounded hardware-encode recovery, and live-validated progress-gated ACK recovery while removing the pipeline watchdog and all audio probes/traces. Audio uses the normal AAC/Opus/PCM offer. Exact source/native arm64 package builds and RDP integration pass; normal-PPA source `18632058` is accepted and build `33422570` is running. The final install and sustained video/focus gate remain. Historical PCM/A-law/ADPCM findings and the deferred A-law plan remain documented. See [`status.md`](../../status.md). |
 
 | Piece | What | Status |
 |-------|------|--------|
@@ -46,7 +46,7 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | [`docs/testing.md`](docs/testing.md) | The benchmarking playbook (eviction hazard, env setup, HW-path checklist). |
 | [`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) | GRD-facing summary of the Mesa/Panfrost texture-transfer investigation behind the compute-path finding. |
 | [`bench/`](bench) | The benchmark this package owns — [`bench/README.md`](bench/README.md) plus [`readback_bench.c`](bench/readback_bench.c), the surfaceless `glReadPixels` readback timer behind `baseline.md`. |
-| [`patches/`](patches) | The clean 16-patch release series, plus clearly separated investigation and async-PBO/MemFd archives; [`patches/README.md`](patches/README.md) defines the release boundary. |
+| [`patches/`](patches) | The portable 16-patch 50.1 replay, plus clearly separated investigation and async-PBO/MemFd archives; [`patches/README.md`](patches/README.md) relates it to the current public 50.2 release branch. |
 
 Packaging the whole stack for a Launchpad PPA is covered in
 [`packaging/ppa`](../../packaging/ppa).
@@ -85,8 +85,9 @@ dma-buf to the encoder zero-copy.
 > [`ffmpeg-rockchip` fork](../../video-libraries/ffmpeg). The current normal-PPA
 > candidate links the same bridge lineage at FFmpeg 8.0.3, on package branch
 > `fix/rkmpp-output-timeout@da5befc806`. Its Launchpad build is Published and is
-> installed beneath the historical local `exp6` GRD package. The clean `~rc1`
-> release package now builds and still needs install plus repeated
+> installed beneath the historical local `exp6` GRD package. The clean 50.2
+> `~rk1` source is accepted in the normal PPA and still needs publication,
+> install, and repeated
 > video/focus-resume validation. Keep the measured 8.1.2 proof separate from the
 > current 8.0.3 package state.
 
@@ -277,7 +278,7 @@ codec consumer:
 
 ## The patches
 
-The root of [`patches/`](patches) is the **16-patch release series**. Patches
+The root of [`patches/`](patches) is the portable **16-patch 50.1 replay**. Patches
 `0001`–`0008` provide the rkmpp backend, panvk enablement, codec configuration,
 and bounded backpressure handling. Patches `0009`–`0013` restore GNOME 50's
 two-stage handover and fix variant, socket, timer, and pending-connection
@@ -285,6 +286,9 @@ ownership. The final three retain only the fixes justified by the live
 investigation: cached GPU-copy readback (`0014`), bounded hardware-encode
 recovery (`0015`), and progress-gated frame-acknowledgement recovery (`0016`).
 
+The current package instead archives public branch `release/50.2-rkmpp` at
+`cf60b4d`: the same authored release work as 15 commits on upstream 50.2, whose
+base already includes the reconnect revert represented by replay patch `0009`.
 The periodic pipeline diagnostics/watchdog, separate diagnostics thread,
 focus-idle workaround, routine ACK transition messages, audio traces, Opus
 suppression, and legacy codec probe are excluded from the release. They remain
@@ -303,14 +307,14 @@ Three pieces make up the acceptance stack:
 
 | Component | Current state | Needed? |
 |-----------|---------------|:---:|
-| `gnome-remote-desktop` | Clean release candidate `50.1+rkmpp+git20260721.12.5f61bb6-0ubuntu1~rc1` has passing source/native arm64 builds and RDP integration; TPM and hardware-EGL tests skip as expected on the build host. The normal-PPA `~rk2` and experimental `~exp3` remain historical published baselines. | required |
+| `gnome-remote-desktop` | Clean 50.2 candidate `50.2+rkmpp+git20260721.13.cf60b4d-0ubuntu1~rk1` has passing exact source/native arm64 builds and RDP integration; TPM and hardware-EGL skip as expected. Normal-PPA source `18632058` is accepted and arm64 build `33422570` is running; old 50.1 `~rk2` and experimental `~exp3` remain the currently Published baselines. | required |
 | Rockchip FFmpeg 8.0.3 | Normal-PPA `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` is Published; it absorbs the transient MPP input-pool backpressure exposed by exp5. | required |
 | `gnome-remote-desktop-gdm-hwenc` `1.0` | Local opt-in package granting the stable `gdm` group access to codec nodes; not uploaded. | optional (login-screen HW) |
 
-The Launchpad path is a **published test path**, not yet the validated install
-path. Do not treat `~exp3` as the final candidate: it predates the retained
-cached-readback and frame-acknowledgement fixes. The current runtime gate is to
-install the clean `~rc1`, paired with FFmpeg `da5befc806`, and run the
+The Launchpad path is a **test path**, not yet the validated install path. Do
+not treat `~exp3` as the final candidate: it predates the retained cached-readback
+and frame-acknowledgement fixes. Once published, the runtime gate is to install
+the clean 50.2 `~rk1`, paired with FFmpeg `da5befc806`, and run the
 sustained-video checks in
 [`profiling.md` §10](./docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback)
 and the focus/resume ACK gate in

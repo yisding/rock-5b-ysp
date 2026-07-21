@@ -2158,3 +2158,36 @@ See ../../configure --help for available options.
   Rewrite-kernel sources `18623665`/`18623666` and builds
   `33406491`/`33406492` are Published/successful. These publication results do
   not replace the open GRD or kernel board-runtime gates.
+
+## GNOME Remote Desktop 50.2 normal-PPA upload — 2026-07-21
+
+- Advanced the clean package export to public branch
+  `release/50.2-rkmpp@cf60b4d9d2c5adb6ea9f4b7f3397449895f069f2`, containing
+  15 release commits on upstream 50.2 commit `60423c896a54`. The official
+  reconnect revert is now part of the upstream base; the retained RKMPP,
+  handover ownership, cached-readback, bounded encode-recovery, and
+  progress-gated ACK-recovery changes are otherwise unchanged.
+- Built source package
+  `50.2+rkmpp+git20260721.13.cf60b4d-0ubuntu1~rk1`, extracted it fresh, and
+  completed an exact native arm64 binary build with `/usr/bin/pkg-config`.
+  The RDP integration test passed; TPM and EGL skipped on unavailable hardware.
+  Source and binary Lintian runs reported only long-filename warnings.
+- The binary package contains the optimized AVC shader, depends on
+  `libavcodec62` at the published bounded-wait FFmpeg revision, and was not
+  installed during this upload workflow.
+- Signed the `.dsc`, source `.buildinfo`, and source `.changes` with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`; direct verification reported a
+  good signature from `Yi Ding <yi.s.ding@gmail.com>`. Final SHA-256 upload set:
+  - orig tarball: `1384e294bea1265685136fed4679b9f3e1704169b1b574a909fe90a40e2d8ef8`;
+  - Debian tarball: `1475e152663547d1b00de9b66dd225d029709c473f641872bb7b141f4c44a6ef`;
+  - signed `.dsc`: `0dc8672c3febd55cad268f3c89bf5988e8d9fcd93ccc99ea10fd1963dadddd1b`;
+  - signed source `.buildinfo`: `91e474985e4fc276dc37ba68de85b02c1bad768088a17ea835daedf5ec99bbe8`;
+  - signed source `.changes`: `3934a232d94d9135fa90354bf9b7259da54ca5b7efd04e44164583ba580260dd`.
+- `dput` passed distribution, required-field, checksum, suite, source-only,
+  and GPG checks and transferred all five source artifacts to
+  `ppa:yi-ding/ubuntu-rock-5b`. Launchpad accepted source publication
+  [`18632058`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18632058)
+  and started arm64 build
+  [`33422570`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33422570)
+  on `bos03-arm64-015`. The source is Pending and the build is running at this
+  check.

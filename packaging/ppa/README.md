@@ -47,7 +47,7 @@ deleted.
 
 | PPA | Role | Live state at the check below |
 |-----|------|-------------------------------|
-| `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | Backpressure-fixed FFmpeg source `18628833` / arm64 build `33417109` and session-lifetime kernel source `18626523` / arm64 build `33412608` succeeded; their exact binaries are Published. This is the only normal system-stack install target. |
+| `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | GRD 50.2 source `18632058` is accepted/Pending and arm64 build `33422570` is running. Backpressure-fixed FFmpeg source `18628833` / build `33417109` and session-lifetime kernel source `18626523` / build `33412608` succeeded; their exact binaries are Published. This is the only normal system-stack install target. |
 | `ppa:yi-ding/rock5b-ffmpeg81-upstream` | Upstream FFmpeg 8.1.2 comparison baseline. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-ffmpeg81-rockchip` | ABI-changing FFmpeg 8.1.2 RKMPP/RKRGA forward port. Add the system PPA as well for MPP and librga. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-kernel618-rewrite` | Experimental Linux 6.18.38 Armbian-based clean-room rewrite kernel. | Replacement source `18623665`, successful arm64 build `33406491`, and exact binaries are Published. |
@@ -102,7 +102,7 @@ Last recorded through Launchpad's devel API and exact-version binary queries at
 | `ffmpeg` 8.1.2 Rockchip | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Dedicated-PPA source publication [`18619545`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-rockchip/+sourcepub/18619545) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-rockchip`; it builds against the fresh main PPA for MPP/librga. |
 | `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Fresh-main source publication [`18619787`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619787) and its arm64 tool binary are Published. | Co-installable `/opt/ffmpeg-rockchip` tools; does not replace system FFmpeg. |
 | `gnome-remote-desktop` (normal stack) | `50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk2` | Source publication [`18619824`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619824), successful arm64 build [`33397319`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33397319), and the arm64 binary are Published. | Current normal-stack package; local build links the RKMPP backend against `libavcodec.so.62`/`libavutil.so.60`. |
-| `gnome-remote-desktop` (clean release candidate) | `50.1+rkmpp+git20260721.12.5f61bb6-0ubuntu1~rc1` | Source and native arm64 package builds pass; RDP integration passes, with TPM and hardware-EGL skipped as expected. Publication and the final live gate remain. | Sixteen clean commits: RKMPP backend, reconnect fixes, cached GPU-copy readback, bounded encode recovery, and progress-gated ACK-resume recovery. No pipeline watchdog, audio probe, verbose trace, or Opus suppression ships. |
+| `gnome-remote-desktop` (50.2 candidate) | `50.2+rkmpp+git20260721.13.cf60b4d-0ubuntu1~rk1` | Exact source/native arm64 builds pass locally; RDP integration passes and TPM/EGL skip as expected. Source publication [`18632058`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18632058) is Pending and arm64 build [`33422570`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33422570) is running. | Fifteen clean commits on upstream 50.2: RKMPP backend, reconnect fixes, cached GPU-copy readback, bounded encode recovery, and progress-gated ACK-resume recovery. No pipeline watchdog, audio probe, verbose trace, or Opus suppression ships. |
 | `gnome-remote-desktop` (archived recovery build) | `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3` | Experimental source publication [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586), successful arm64 build [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698), and arm64 binary are Published. | Historical diagnostic build; superseded by the clean release candidate. |
 | `gnome-remote-desktop` (archived audio probe) | `50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10` | Source/native arm64 builds and live format probes passed; installed, not published. | Proved the macOS client accepts A-law plus PCM and rejects the tested ADPCM tuples. Its diagnostics and temporary Opus suppression are archived, not released. |
 | forward-port kernel | Published `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1`; local `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Published source [`18626523`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18626523) and arm64 build [`33412608`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33412608) succeeded; the live PPA still contains the 20260717 image. The 20260720 source is local only. | The Published 40-patch build installed/booted but Oopsed in conformance and predates `0042`/`0043`. Local exact-6.18.38 production build `Pf558-Cb831` and fresh PPA source extraction validate both lifetime fixes and the non-debug AV1/RGA config, but predate RGA ABI patches `0044`/`0045` (now green on booted KASAN debug replay). A complete-tip production rebuild, booted conformance, upload/Launchpad build, and rollback remain. |
@@ -164,7 +164,7 @@ variables.
 | nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
 | nyanmisaka FFmpeg Rockchip commit | `FFMPEG_ROCKCHIP_COMMIT` | `40c412daccf08164493da0de990eb99a8948116b` |
 | GRD repo | `GRD_REPO` | `$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop` |
-| GRD snapshot commit | `GRD_COMMIT` | `5f61bb6b1c25e9fb3cb1f429e901d44f3a28465e` (`release/50.1-rkmpp`; reproducible from the 16-patch release series on `c14e09e`) |
+| GRD snapshot commit | `GRD_COMMIT` | `cf60b4d9d2c5adb6ea9f4b7f3397449895f069f2` (`release/50.2-rkmpp`; 15 release commits on upstream 50.2 commit `60423c8`) |
 | GRD source delta | `GRD_DELTA` | Empty for release. Override only to reconstruct a historical snapshot such as [`dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch). |
 | Forward-port kernel worktree | `KERNEL_PPA_REPO` | `$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Forward-port kernel config | `KERNEL_PPA_CONFIG` | `$KERNEL_PPA_REPO/.config` |
@@ -254,9 +254,10 @@ that its contents match the freshly exported source tree; stale orig tarballs
 fail loudly instead of silently changing the source-package delta.
 
 The GRD exporter archives the clean pinned `GRD_COMMIT` and creates the orig
-tarball without a source delta. The same source is reconstructed by applying
-the 16 root-level GRD patches to `c14e09e`. Diagnostic patches live under the
-patch archive and are not considered package inputs. Override `GRD_REPO`,
+tarball without a source delta. The current source is the public 50.2 release
+branch; the older 16-patch replay on `c14e09e` remains documented for lineage.
+Diagnostic patches live under the patch archive and are not considered package
+inputs. Override `GRD_REPO`,
 `GRD_COMMIT`, `GRD_UPSTREAM_VERSION`, and `GRD_DELTA` together only when
 reconstructing a historical source state.
 
@@ -469,9 +470,9 @@ source publication `18619787` and the copied tool binary are Published.
 
 ### GNOME Remote Desktop
 
-The release candidate is the clean `release/50.1-rkmpp` branch at
-`5f61bb6b1c25`. It contains 16 reviewable commits on `c14e09e`: the RKMPP
-backend and hardware enablement, reconnect/handover fixes, the hardware-verified
+The release candidate is the clean `release/50.2-rkmpp` branch at
+`cf60b4d9d2c5`. It contains 15 reviewable commits on upstream 50.2 `60423c8`:
+the RKMPP backend and hardware enablement, reconnect/handover fixes, the hardware-verified
 cached GPU-copy readback fix, bounded encode failure/cooldown recovery, and the
 progress-gated RDPGFX acknowledgement-resume recovery.
 
@@ -490,13 +491,12 @@ the binary to `Architecture: arm64`, and uses the matching bounded-wait FFmpeg
 package. The old dirty snapshot and diagnostic packages remain documented only
 for historical reproduction.
 
-The published normal PPA still carries `~rk2` (`18619824`, build `33397319`),
-and experimental `~exp3` remains available as historical evidence. The clean
-`~rc1` source and native arm64 builds pass: RDP integration is green, TPM and
-hardware-EGL skip as expected on the build host, packaged-string inspection
-finds none of the removed probes, and Lintian reports only long-filename
-warnings. Promotion now targets this `~rc1` after install and the final
-sustained video/focus gate.
+The published normal PPA still serves the historical 50.1 `~rk2` while the
+accepted 50.2 source `18632058` and arm64 build `33422570` are pending. Exact
+50.2 source/native arm64 builds pass locally: RDP integration is green, TPM
+and hardware-EGL skip as expected, and Lintian reports only long-filename
+warnings. Experimental `~exp3` remains available as historical evidence. The
+final sustained video/focus board gate remains after 50.2 publication/install.
 
 ### GDM Greeter Hardware Encode ACL
 

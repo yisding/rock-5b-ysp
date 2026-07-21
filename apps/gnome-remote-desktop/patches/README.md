@@ -1,18 +1,24 @@
 # gnome-remote-desktop release patches
 
-This directory contains the **16-patch release series** for the RK3588
+This directory contains the portable **16-patch 50.1 replay** for the RK3588
 FFmpeg/rkmpp backend, RDP handover/reconnect fixes, and the two bounded runtime
 recoveries retained after hardware validation.
+
+The current package source is public branch `release/50.2-rkmpp` at
+`cf60b4d9d2c5adb6ea9f4b7f3397449895f069f2`: 15 authored release commits on
+upstream 50.2 commit `60423c896a54e3eacb65bd93167e91c1ce5e648c`. Upstream
+50.2 already contains the reconnect revert represented by replay patch `0009`,
+so the package archives that branch directly and does not apply this directory.
 
 The series applies to upstream gnome-remote-desktop commit
 `c14e09ef67e916ae83a4eddee6a56591078e78e0` (`50.1` plus 16 commits). It does
 not apply to the pristine `50.1` tag: the base includes the VA-API revert needed
 by `0003` and the GNOME 50 reconnect change that `0009` reverts.
 
-The release tip is `5f61bb6` on branch `release/50.1-rkmpp`. The root of this
-directory intentionally contains only release patches. Investigation-only
-watchdogs and audio probes are preserved under [`archive/`](archive/) and are
-not applied by the package build.
+The replay tip is `5f61bb6` on branch `release/50.1-rkmpp`. The root of this
+directory intentionally contains only the portable release replay.
+Investigation-only watchdogs and audio probes are preserved under
+[`archive/`](archive/) and are not applied by the package build.
 
 > These patches change gnome-remote-desktop userspace. The kernel drivers that
 > provide `/dev/mpp_service` live under
