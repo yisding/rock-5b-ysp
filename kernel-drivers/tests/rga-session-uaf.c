@@ -96,13 +96,25 @@ static bool env_enabled(const char *name)
 static int dmabuf_alloc(struct test_dmabuf *buf, size_t size)
 {
 	static const char * const heaps[] = {
+		/*
+		 * Prefer the below-4G CMA regions first: the small RGBA blit this
+		 * reproducer submits only maps to RGA2 (core 0x4), which has a
+		 * 32-bit under-4G address limit. On a >4G board the plain "system"
+		 * heap returns memory above 4G, so RGA2 is excluded ("no core
+		 * match ... under-4G memory limit") and the cross-session async
+		 * window never opens. Armbian 6.18 exposes the CMA pool as
+		 * "default_cma_region" (no *-dma32 / cma aliases), so name it
+		 * explicitly.
+		 */
+		"/dev/dma_heap/default_cma_region",
+		"/dev/dma_heap/reserved",
+		"/dev/dma_heap/cma-uncached",
+		"/dev/dma_heap/cma",
+		"/dev/rk_dma_heap/rk-dma-heap-cma",
 		"/dev/dma_heap/system-uncached-dma32",
 		"/dev/dma_heap/system-dma32",
 		"/dev/dma_heap/system-uncached",
 		"/dev/dma_heap/system",
-		"/dev/dma_heap/cma-uncached",
-		"/dev/dma_heap/cma",
-		"/dev/rk_dma_heap/rk-dma-heap-cma",
 	};
 	int first_err = -ENOENT;
 	size_t i;

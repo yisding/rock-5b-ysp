@@ -1,8 +1,10 @@
-# MPP client-less session NULL-deref hard crash — VP9 `show_existing_frame` corrupts buffer state, async worker faults
+# MPP client-less session NULL-deref hard crash — `RELEASE_FD` dereferences a NULL `session->dma`
 
-*(The `not find client 0` symptom surfaces in `mpp_collect_msgs`; the fatal
-deref is in the async task worker `mpp_task_worker_default`. Filename kept for
-link stability.)*
+*(PROVEN root cause: `mpp_dma_release_fd()` derefs `dma->dev` on a session with
+no DMA. The `not find client 0` symptom in `mpp_collect_msgs` is the preceding
+commands; the fatal deref is synchronous in the ioctl thread, **not** the async
+worker `mpp_task_worker_default` as originally inferred. See the PROVEN block
+below. Title/filename kept for link stability.)*
 
 > Scope: RK3588 MPP (`/dev/mpp_service`, `rk_vcodec`) on the forward-port
 > kernel, KASAN debug build `P7589-C4ad2` (`#7`).
@@ -21,6 +23,104 @@ link stability.)*
 > still **UNPROVEN at the PC** (no call trace survived — ramoops does not
 > persist across reset here; see the [ramoops
 > finding](./2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md)).
+
+> ## 2026-07-21 UPDATE — RECURRED on `P70a5-C4ad2` (`0053`+`0054`+`0055`+`0056`). The leg-3 attribution is WRONG.
+>
+> The **identical** crash reproduced on debug build `P70a5-C4ad2` — which
+> already carries the leg-3 worker guard (`0053`) and its wait-result sibling
+> (`0054`). Verbatim from `boot -1` (monotonic `1109.34s`), byte-for-byte the
+> same fault address and command trail as the P7589 crash:
+>
+> ```
+> rk_vcodec: mpp_process_request:1593: pid 23464 not find client 0
+> rk_vcodec: mpp_collect_msgs:1770: session 0 process cmd 403 ret -22
+> rk_vcodec: mpp_dev_ioctl_common:1887: collect msgs failed -22
+> rk_vcodec: mpp_collect_msgs:1770: session 0 process cmd 400 ret -22
+> Unable to handle kernel paging request at virtual address dfff800000000363
+> ```
+>
+> **Consequences for this finding (corrections):**
+>
+> 1. **`0053`/`0054` do NOT fix this crash.** Because the crash survives the
+>    `mpp_task_worker_default()` / `mpp_wait_result_default()` guards, the
+>    fatal deref is **not** (solely) in those workers. The "STRONGLY INFERRED
+>    leg-3 crash site" above is **disproven as the fix**. Leg 3's guards are
+>    still correct hardening, but they are not sufficient — an unguarded
+>    **sibling** NULL-deref remains, reachable from a client-less session.
+>
+> 2. **Corrected command decode.** `mpp_collect_msgs()` logs `req->cmd` with
+>    `%x`, so the trail is **hex**: `cmd 0x400` = `MPP_CMD_RESET_SESSION`,
+>    `cmd 0x403` = `MPP_CMD_SEND_CODEC_INFO` (not the decimal `0x190/0x193`
+>    guessed earlier). Both hit the guarded `default:`/`RESET_SESSION` arms and
+>    return `-EINVAL` **safely**; the fatal deref is **after** these returns.
+>
+> 3. **Independent of the RGA UAF.** At the same instant (`1109.328s`, 12 ms
+>    before the MPP fault) the RGA IRQ thread logged
+>    `ID[65995]: can not find internal request` — a *deferred* async
+>    completion (a job stuck ~471 s, consistent with the
+>    [RGA job-vs-session UAF](./2026-07-21-rga-job-vs-session-close-uaf-kasan.md)),
+>    but it **failed safe** (lookup returned NULL, clean return). So the fatal
+>    deref is the **MPP** side and the RGA `0057` fix will not address it.
+>
+> 4. **No on-board trace, no serial capture available.** Only the single fault
+>    line reached journald before the hard hang (printk could not drain — the
+>    fault is in an IRQ/atomic or lock-held context). The full oops went to the
+>    consoles (`tty1`, `ttyS2`) but nothing was capturing `ttyS2`. Next step is
+>    therefore a **code audit of every client-less-reachable NULL-deref sibling**
+>    plus fail-safe hardening (as `0053`/`0054` did), and/or `pstore/blk` on the
+>    boot media + `panic_on_oops=1` so `kmsg_dump` persists the ring buffer
+>    across the reset the DRAM ramoops cannot survive.
+
+> ## 2026-07-21 ROOT CAUSE PROVEN — synchronous `mpp_dma_release_fd()` NULL deref (patch `0058`). The async-worker theory below is superseded.
+>
+> With `panic_on_oops=0` (so a process-context oops prints its trace instead of
+> rebooting) a **minimal deterministic reproducer** produced the exact crash on
+> `P70a5-C4ad2`, with a full call trace — no VP9, no async worker, no race:
+>
+> ```
+> Unable to handle kernel paging request at virtual address dfff800000000363
+> KASAN: probably user-memory-access in range [0x0000000000001b18-0x0000000000001b1f]
+> pc : mpp_dma_release_fd+0x38/0x148
+> lr : mpp_process_request+0x1564/0x1ff0
+> Call trace:
+>  mpp_dma_release_fd+0x38/0x148
+>  mpp_process_request+0x1564/0x1ff0
+>  mpp_dev_ioctl_common.isra.0 -> mpp_dev_ioctl -> __arm64_sys_ioctl -> el0_svc
+> Comm: mpp-clientless-  PID: 38208
+> ```
+>
+> **Reproducer** (`kernel-drivers/tests/mpp-clientless-release-fd-uaf.c`): open
+> `/dev/mpp_service`, do **not** send `MPP_CMD_INIT_CLIENT_TYPE`, then send one
+> `MPP_CMD_RELEASE_FD` message. That is the whole trigger.
+>
+> **Mechanism (offset-verified).** `pahole` puts `struct device *dev` at offset
+> **6936** in `struct mpp_dma_session` (size 6944). `0x363 << 3 = 0x1b18 = 6936`
+> — the fault address is precisely `((struct mpp_dma_session *)NULL)->dev`.
+> `session->dma` is allocated only at `INIT_CLIENT_TYPE` (`mpp_common.c:1425`)
+> and NULLed by `RESET_SESSION` (`:1521`). The `MPP_CMD_RELEASE_FD` arm of
+> `mpp_process_request()` called `mpp_dma_release_fd(session->dma, fd)` with
+> **no NULL guard**, and `mpp_dma_release_fd()` dereferenced `dma->dev` as its
+> first statement (`mpp_iommu.c:182`). RELEASE_FD faults *before* it can log,
+> which is why the last lines before the organic crash were the *preceding*
+> commands (`0x403` `SEND_CODEC_INFO`, `0x400` `RESET_SESSION`, both returning
+> `-EINVAL` safely) — the fatal `0x402` `RELEASE_FD` left no trace.
+>
+> **Corrections to everything below:** the crash is **synchronous in the ioctl
+> thread**, not in an async worker; the "~47 s deferred" timing and the leg-3
+> `mpp_task_worker_default` attribution are **wrong**. `0053`/`0054` are still
+> valid hardening but were never relevant to this crash. It is an
+> **unprivileged local DoS**: any process that can open `/dev/mpp_service` (mode
+> allows the `video` group) crashes the kernel with ~10 lines of C.
+>
+> **Fix (`0058`, defense-in-depth):**
+> 1. `mpp_dma_release_fd()` and `mpp_dma_release()` reject a NULL `dma`
+>    (`mpp_iommu.c`) before dereferencing it — protects every caller.
+> 2. The `MPP_CMD_RELEASE_FD` case rejects `!session->dma` up front
+>    (`mpp_common.c`). It checks `session->dma`, **not** `session->mpp`, because
+>    after `RESET_SESSION` `session->mpp` stays set while `session->dma` is NULL.
+>
+> Gate: re-run the reproducer on an `0058` build — the ioctl must return
+> `-EINVAL` and the board must stay up with a clean KASAN journal.
 
 ## Result — a second, *fatal* kernel bug, distinct from the RGA UAF
 

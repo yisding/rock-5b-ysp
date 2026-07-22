@@ -110,6 +110,33 @@ newer:
 - `0056` unmaps the RKVDEC2/RKVENC2 RCB IOVA before freeing its backing
   pages (was `__free_pages()` then `iommu_unmap()`), so reused pages are no
   longer reachable through a stale IOMMU mapping (audit finding F8).
+- `0057` makes an RGA job hold its own reference on the owning session for
+  the job's whole lifetime. The async completion path
+  (`rga_request_release_signal()` in the RGA2 IRQ thread) dereferences
+  `job->session` (`->last_active`, `->pname`) long after the ioctl returned,
+  but the job cached `job->session` with no reference — the session's only
+  protection was the *request's* reference, dropped when the request retires.
+  On owning-fd close the request is retired and the session freed while an
+  async job is still on hardware, so the IRQ thread reads a freed
+  `rga_session` (KASAN slab-use-after-free on `session->tgid`, reproduced on
+  `P70a5` by the `cross` session-close test once its buffers are below-4G
+  CMA so RGA2 accepts the blit and async jobs submit). `0052` fixed the
+  *request* refcount; this is the distinct *job*-vs-*session* lifetime. The
+  job takes `rga_session_get()` when it caches `job->session` and drops it in
+  `rga_job_free()`.
+- `0058` rejects `MPP_CMD_RELEASE_FD` on a session with no DMA session,
+  closing an unprivileged local DoS. `session->dma` is NULL until
+  `INIT_CLIENT_TYPE` binds a device (and again after `RESET_SESSION`), but the
+  `RELEASE_FD` arm called `mpp_dma_release_fd(session->dma, fd)` unguarded and
+  the helper dereferenced `dma->dev` first thing — oopsing on
+  `((struct mpp_dma_session *)NULL)->dev` at offset `0x1b18` (the observed
+  fault `dfff800000000363`). Proven with a 10-line deterministic reproducer
+  (open `/dev/mpp_service`, one `RELEASE_FD`, no client init); the crash is
+  **synchronous in the ioctl thread**, so `0053`/`0054` (async-worker guards)
+  never covered it. Fix is defense-in-depth: `mpp_dma_release_fd()` /
+  `mpp_dma_release()` reject a NULL `dma`, and the `RELEASE_FD` case rejects
+  `!session->dma` up front (checking `dma`, not `mpp`, since `RESET_SESSION`
+  NULLs `dma` while leaving `mpp` set).
 
 There is no `0012` in the imported sequence because that const-correctness
 commit is already carried by the Armbian kernel base and the build wrapper
