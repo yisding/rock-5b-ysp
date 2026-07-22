@@ -60,7 +60,11 @@ PROBE_OFFSETS=(0x118000 0x138000 0x158000 0x198000 0x1d8000 0x1e7000)
 BLOCK=4096
 STATE_DIR="/var/tmp/ramoops-probe"
 
-if [[ -d /sys/module/ramoops || -e /dev/pmsg0 ]]; then
+# /sys/module/ramoops exists whenever the driver is built-in (it only holds
+# module parameters), so it says nothing about whether the driver ran. The
+# driver actually being active means its platform driver registered (which
+# initcall_blacklist=ramoops_init prevents) or /dev/pmsg0 was created.
+if [[ -d /sys/bus/platform/drivers/ramoops || -e /dev/pmsg0 ]]; then
   echo "WARNING: ramoops driver appears active this boot." >&2
   echo "Its console zone overwrites probes continuously and its init zaps" >&2
   echo "invalid zones. Boot with initcall_blacklist=ramoops_init for a" >&2
