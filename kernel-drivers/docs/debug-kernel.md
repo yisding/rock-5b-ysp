@@ -67,7 +67,7 @@ philosophy as [Armbian packaging guide](../../packaging/docs/armbian-packaging.m
 | Group | Options | Catches |
 |-------|---------|---------|
 | Persistent crash capture | `PSTORE`, `PSTORE_RAM`, `PSTORE_CONSOLE`, `PSTORE_PMSG`, `PSTORE_FTRACE`; `PSTORE_DEFAULT_KMSG_BYTES=262144` | dmesg/console/pmsg records preserved in RAM across a reboot (built-in so pstore exists before userspace; the ftrace frontend stays compiled but has no DT RAM zone) |
-| Fail loudly, come back | `PANIC_ON_OOPS`, `SOFTLOCKUP_DETECTOR`, `HARDLOCKUP_DETECTOR`, `DETECT_HUNG_TASK` (timeout 60 s), `WQ_WATCHDOG`, `RCU_CPU_STALL_TIMEOUT=21` | stalls/wedges become panics ramoops can record, instead of a silent hang |
+| Fail loudly, stay up | `SOFTLOCKUP_DETECTOR`, `HARDLOCKUP_DETECTOR`, `DETECT_HUNG_TASK` (timeout 60 s), `WQ_WATCHDOG`, `RCU_CPU_STALL_TIMEOUT=21` — **`PANIC_ON_OOPS` deliberately OFF** (`opts_n`) | detectors log stalls/wedges; with `panic_on_oops=0` a process-context oops prints its full trace and the board stays up for journald to capture it live, instead of panic-rebooting into a ramoops region RK3588 discards on reset |
 | Readable traces | `KALLSYMS_ALL`, `STACKTRACE`, `FRAME_POINTER`, `GDB_SCRIPTS` | symbolized stacks in the pstore dump |
 | Memory sanitizers | `KASAN` (`GENERIC`, `INLINE`, `VMALLOC`), `PAGE_OWNER`, `PAGE_POISONING`, `DEBUG_PAGEALLOC`, `PAGE_TABLE_CHECK`, `DMA_API_DEBUG(_SG)`, `DEBUG_SG`, `DEBUG_LIST`, `DEBUG_PLIST`, `DEBUG_NOTIFIERS` | UAF/OOB (the bsp-audit.md HIGH class), DMA mapping misuse (dma-buf import paths, how-the-drivers-work.md §6), corrupted lists |
 | Fault injection | `FAULT_INJECTION`, `FAULT_INJECTION_DEBUG_FS`, `FAILSLAB`, `FAIL_PAGE_ALLOC`, `FAULT_INJECTION_USERCOPY`, `FUNCTION_ERROR_INJECTION` | scoped allocation/usercopy failure tests for rewrite parser/import/control unwind paths via `ioctl-fuzz-smoke.sh` `IOCTL_FUZZ_FAIL_NTH_MAX`, plus the broader recovery-matrix work in `rewrite-validation-plan.md` §4 |
@@ -106,7 +106,9 @@ configures the remaining boot/sysctl policy:
 - `extraargs` += `pstore.backend=ramoops pstore.kmsg_bytes=262144
   printk.always_kmsg_dump=1 panic=10`.
 - `/etc/modules-load.d/ramoops.conf` (harmless with the built-in driver) and
-  `/etc/sysctl.d/99-ramoops-panic-on-oops.conf` (`kernel.panic_on_oops=1`).
+  `/etc/sysctl.d/99-ramoops-panic-on-oops.conf` (`kernel.panic_on_oops=0` —
+  debug builds keep the board up on a process-context oops so journald captures
+  the live trace; ramoops does not survive an RK3588 reset).
 
 Verify after reboot: `test -d /sys/module/ramoops`, `sysctl kernel.panic_on_oops`,
 `dmesg | grep -i 'ramoops\|pstore'`, `ls /sys/fs/pstore`.
