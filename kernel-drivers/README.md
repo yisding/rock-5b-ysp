@@ -95,6 +95,7 @@ Read in this order when changing or reviewing kernel behavior:
 | Question | Canonical doc |
 |----------|---------------|
 | What does each driver layer do? | [`docs/how-the-drivers-work.md`](docs/how-the-drivers-work.md) |
+| How is a newly built or booted kernel validated, end to end? | [`docs/kernel-validation-runbook.md`](docs/kernel-validation-runbook.md) |
 | How does an RKNN model become a three-core RKNPU job? | [`rknpu/docs/how-rknpu-works.md`](rknpu/docs/how-rknpu-works.md) |
 | What ioctl ABI does userspace depend on? | [`docs/dev-uapis.md`](docs/dev-uapis.md) |
 | Which parts of that ABI are dead/dormant — safe to not special-case? | [`docs/abi-dormancy.md`](docs/abi-dormancy.md) |
