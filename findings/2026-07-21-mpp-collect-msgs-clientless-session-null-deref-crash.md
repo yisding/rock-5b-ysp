@@ -74,13 +74,17 @@ the boot.
 
 ## Was anything captured? (ramoops / journal)
 
-- **ramoops/pstore: nothing.** The board was recovered by a **hard
-  power-cycle**, and ramoops is DRAM-backed
-  (`ramoops: using 0xd0000@0x118000`), so the reset wiped it. The next boot
-  confirms it: `systemd-pstore.service … skipped, unmet condition
-  ConditionDirectoryNotEmpty=/sys/fs/pstore` — pstore was empty. A **soft**
-  panic (the configured `panic=10` auto-reboot) would have preserved the
-  record across a warm reboot; a physical power-cut does not.
+- **ramoops/pstore: nothing** — and it turns out ramoops would not have
+  captured this crash regardless. It was originally assumed the hard
+  power-cycle wiped the DRAM-backed ramoops
+  (`ramoops: using 0xd0000@0x118000`), but a later controlled test showed even
+  a clean `panic=10` **self-reboot** leaves `/sys/fs/pstore` empty on this
+  board: RK3588 re-initializes DRAM on every reset and this Armbian firmware
+  does not preserve the `0x118000` window. So pstore cannot capture crashes
+  here at all — see
+  [`ramoops-not-preserved-across-warm-reset-rk3588`](./2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md).
+  The next boot confirmed empty (`systemd-pstore.service … skipped, unmet
+  condition ConditionDirectoryNotEmpty=/sys/fs/pstore`).
 - **journal: the crash line only.** The oops header
   (`Unable to handle kernel paging request …`) was the last line flushed; the
   Mem-abort details, PC/LR, and call trace never reached persistent storage
@@ -95,10 +99,11 @@ the boot.
   `console=ttyS2,1500000`. If a UART is attached, the full oops went out the
   serial port even though it never reached the journal or the (power-cycled)
   ramoops. Capture ttyS2 on the P9c12 boot.
-- **Preserve ramoops:** if the board appears hung after a crash, wait for the
-  `panic=10` auto-reboot (≥10 s) instead of power-cycling — a warm reboot
-  keeps the DRAM ramoops so the next boot's `systemd-pstore` archives it to
-  `/var/lib/systemd/pstore/`.
+- **ramoops will not help** (superseded understanding): even a clean warm
+  `panic=10` reboot does not preserve the region on this board, so don't wait
+  on pstore — go straight to serial/netconsole. Still prefer letting the board
+  self-reboot over power-cycling, but only so the next boot comes up clean, not
+  for ramoops.
 - **Reproduce under KASAN:** run MPP decode concurrently with session
   reset/close (an `mpp_dec` loop racing `MPP_CMD_RESET_SESSION` /
   fd close) on the P9c12 KASAN kernel; a KASAN report on the client-less

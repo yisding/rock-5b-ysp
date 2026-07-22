@@ -61,9 +61,21 @@ goes to `$WORKSPACE/boot-backups/<timestamp>/`.
 
 ## Reading a crash
 
-After a panic/oops, pstore dumps land in `/sys/fs/pstore/`; pair them with
-`journalctl -b -1`. Full workflow + config rationale:
-`../../docs/debug-kernel.md`.
+> ⚠️ **ramoops/pstore does not survive a reset on this board — do not rely on
+> it.** Measured 2026-07-21: even a clean `panic=10` self-reboot leaves
+> `/sys/fs/pstore` empty (the continuously-written console zone vanishes too),
+> because RK3588 re-initializes/re-trains DRAM on every `SYSTEM_RESET` and this
+> Armbian firmware stack (`ddr-v1.20 / bl31-v1.48 / uboot-rmbian`) does not
+> preserve the `0x118000` window the way the Rockchip BSP firmware does. See
+> [`ramoops-not-preserved-across-warm-reset-rk3588`](../../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md).
+> For an actual call trace use **off-board capture** — serial console on
+> `ttyS2` (1500000 baud, USB-TTL adapter) or netconsole to a listener — which
+> records the oops before the board resets. `journalctl -b -1` still gives the
+> pre-crash tail and usually the oops *header*, but not the trace.
+
+After a panic/oops, `journalctl -b -1` holds the pre-crash tail; the pstore
+dumps that *would* pair with it are lost to the reset (above). Full workflow +
+config rationale: `../../docs/debug-kernel.md`.
 
 ## Restore the stock kernel
 
