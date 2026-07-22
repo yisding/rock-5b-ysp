@@ -8,6 +8,15 @@ history and the home of the verification record
 ([`verification.md`](../cleanup-draft/verification.md)). Findings and rationale:
 [BSP audit](../../docs/bsp-audit.md).
 
+> **Current forward-port users:** do not replay the old HIGH patches from this
+> series onto the evolved `0058` source. Two of the audit's 13 distinct HIGH
+> bugs were already fixed by later forward-port/RGA reconciliation work, and
+> the remaining 11 were semantically ported around the current RGA2 bounce and
+> lifetime code as forward-port patches `0059`-`0069`. That subset is
+> checkpatch- and compile-clean but still needs its boot/runtime gate. This
+> directory remains the reviewable fix source for the original audited tree
+> and for MEDIUM/LOW/cleanup work not yet ported.
+
 Every patch commit message contains:
 
 - `Plain-language impact:` what a normal user should understand.

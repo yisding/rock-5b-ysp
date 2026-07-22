@@ -526,6 +526,7 @@ static void probe_mpp_session_switch_markers(void)
 		.fd = UINT32_MAX,
 		.ret = 1234,
 	};
+	int foreign_fd;
 	int fd;
 
 	fd = open_optional("/dev/mpp_service");
@@ -545,6 +546,36 @@ static void probe_mpp_session_switch_markers(void)
 			       -EBADF);
 			failures++;
 		}
+	}
+
+	if (env_enabled("ABI_PROBE_ENABLE_MPP_FOREIGN_FD")) {
+		foreign_fd = open("/dev/null", O_RDWR | O_CLOEXEC);
+		if (foreign_fd < 0) {
+			print_status("open foreign session fd", foreign_fd);
+			failures++;
+		} else {
+			bat.fd = foreign_fd;
+			bat.flag = 0;
+			bat.ret = 1234;
+			if (!mpp_cfg(fd, "SET_SESSION_FD foreign fd",
+				     &(struct mpp_request) {
+					.cmd = MPP_CMD_SET_SESSION_FD,
+					.size = sizeof(bat),
+					.data = &bat,
+				     })) {
+				printf("  %-30s %d\n", "foreign_fd_bat_ret",
+				       bat.ret);
+				if (bat.ret != -EBADF) {
+					printf("  %-30s expected %d\n",
+					       "foreign_fd_bat_ret", -EBADF);
+					failures++;
+				}
+			}
+			close(foreign_fd);
+		}
+	} else {
+		printf("  %-30s skipped (set ABI_PROBE_ENABLE_MPP_FOREIGN_FD=1)\n",
+		       "SET_SESSION_FD foreign fd");
 	}
 
 	bat.flag = MPP_BAT_MSG_DONE;

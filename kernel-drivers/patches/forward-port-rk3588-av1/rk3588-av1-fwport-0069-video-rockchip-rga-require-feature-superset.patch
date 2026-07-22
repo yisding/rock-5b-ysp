@@ -1,0 +1,30 @@
+From 62f82902f6a1a632376ef3d24391ebd5c5ff1f56 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Wed, 22 Jul 2026 08:18:23 -0700
+Subject: [PATCH 69/69] video: rockchip: rga: require feature superset
+
+A core is compatible only when it implements every feature requested
+by the job. Replace the any-overlap test with a full feature-mask
+containment check.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/rga3/rga_policy.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_policy.c b/drivers/video/rockchip/rga3/rga_policy.c
+index 935efd8b91d06..ecd940c4bdb11 100644
+--- a/drivers/video/rockchip/rga3/rga_policy.c
++++ b/drivers/video/rockchip/rga3/rga_policy.c
+@@ -354,7 +354,7 @@ static int rga_task_assign(struct rga_job *job, struct rga_req *rga_base)
+ 		}
+ 
+ 		if (feature > 0) {
+-			if (!(feature & data->feature)) {
++			if ((feature & data->feature) != feature) {
+ 				if (DEBUGGER_EN(MSG))
+ 					rga_job_log(job, "%s(%#x), break on feature\n",
+ 						rga_get_core_name(scheduler->core),
+-- 
+2.55.0
+

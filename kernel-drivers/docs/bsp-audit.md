@@ -6,7 +6,23 @@ A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA drive
 > forward-port. The experimental RKMPP AV1 decoder work has its own tracker:
 > [AV1 BSP audit](../av1/docs/av1-bsp-audit.md).
 
-> **📦 How to consume the fixes.** Review and apply via
+> **2026-07-22 current-tip disposition.** The original headline is **16 HIGH
+> reviewer rows, collapsing to 13 distinct bugs**. Two distinct bugs were
+> subsequently fixed by normal forward-port work: the RKVENC2 core-probe unwind
+> (`23ff47eab6f682`) and the duplicated RGA request-submit reference leak
+> (`b6ea72cb5f56e`). The remaining **13 rows / 11 distinct bugs** are now
+> source-ported on top of the hardware-validated `0058` tip as forward-port
+> patches `0059`-`0069`. That source passes per-commit `checkpatch.pl` and a
+> native build of `drivers/video/rockchip/`, but is **not boot- or
+> runtime-validated**. Thus the source tip has no remaining HIGH row from this
+> audit; the currently booted `Pd222-C4ad2` kernel still carries the 11 until a
+> new package is built and booted.
+
+> **📦 How to consume the fixes.** For the maintained current forward-port,
+> consume the HIGH subset via
+> [`kernel-drivers/patches/forward-port-rk3588-av1`](../patches/forward-port-rk3588-av1)
+> patches `0059`-`0069`. For the original audited tree and the remaining
+> MEDIUM/LOW/cleanup findings, review and apply via
 > [`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split) — **the** reviewable
 > series: 65 ordered per-issue mailbox patches (each commit message carries
 > `Plain-language impact:` + `Kernel details:` trailers). Byte-identity with

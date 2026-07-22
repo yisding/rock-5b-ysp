@@ -1,0 +1,75 @@
+From 086925697b43455193d8df2a0986673329ee5cf3 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 21 Jul 2026 22:20:55 -0700
+Subject: [PATCH 57/69] =?UTF-8?q?rga:=200057=20=E2=80=94=20job=20holds=20a?=
+ =?UTF-8?q?=20session=20reference=20across=20its=20lifetime?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The async completion path (rga_request_release_signal in the RGA2 IRQ
+thread) dereferences job->session (->last_active, ->pname) long after the
+submitting ioctl returned. The job cached job->session in rga_job_commit()
+with no reference; the owning session's only protection was the *request's*
+session reference, which is dropped when the request retires. On owning-fd
+close, rga_request_session_destroy_abort() retires the requests and
+rga_release() then drops the session's own reference while an async job may
+still be executing on hardware — freeing the rga_session under the completing
+IRQ thread.
+
+KASAN slab-use-after-free (read of session->tgid at rga_request_release_signal)
+reproduced on debug build P70a5 via kernel-drivers/tests/rga-session-uaf.sh
+cross once the reproducer allocates below-4G CMA buffers so the small RGBA blit
+is assignable to RGA2 and async jobs actually submit.
+
+0052 made the *request* refcount drop idempotent; this is the distinct *job*
+vs *session* lifetime. Take an independent rga_session_get() when the job
+caches job->session and release it in rga_job_free() (the single terminal free
+for both the kref and early-error paths; kzalloc leaves job->session NULL so
+the put is NULL-guarded).
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+---
+ drivers/video/rockchip/rga3/rga_job.c | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index cc8e9a7bc9655..ec709f5b84d83 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -26,6 +26,14 @@ static void rga_job_free(struct rga_job *job)
+ 	kfree(job->task_buffers);
+ 	job->task_buffers = NULL;
+ 
++	/*
++	 * Balance the rga_session_get() taken in rga_job_commit() when the job
++	 * cached job->session. NULL on jobs freed before the session was
++	 * assigned (early rga_job_alloc error paths); kzalloc leaves it NULL.
++	 */
++	if (job->session)
++		rga_session_put(job->session);
++
+ 	kfree(job);
+ }
+ 
+@@ -425,6 +433,17 @@ int rga_job_commit(struct rga_req *task_list, size_t task_count, struct rga_requ
+ 
+ 	job->request_id = request->id;
+ 	job->session = request->session;
++	/*
++	 * The job caches the owning session pointer and dereferences it from
++	 * the async completion path (job->session->last_active / ->pname), which
++	 * runs in the hardware IRQ thread long after the ioctl returns. The
++	 * request's session reference is dropped when the request retires, which
++	 * can happen (on owning-fd close) while this job is still in flight on
++	 * hardware. Hold an independent session reference for the job's lifetime
++	 * so the session cannot be freed under the completing IRQ thread; it is
++	 * released in rga_job_free().
++	 */
++	rga_session_get(request->session);
+ 	job->mm = request->current_mm;
+ 
+ 	scheduler = rga_job_schedule(job);
+-- 
+2.55.0
+

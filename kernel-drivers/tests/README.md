@@ -148,6 +148,7 @@ The smoke tests differ in what device access they need:
 > | `IN` | transcode | 1080p H.264 Annex-B input (default `$STAGE/testdata/input-1080p.h264`; regeneration below) |
 > | `RUN_LIBRGA` | rewrite smoke | optional direct librga/im2d functional smoke (`0` by default; set `1` to run) |
 > | `ABI_PROBE_ABI_ONLY` | `abi-probe.sh` | emit compile-time ioctl/structure constants without opening procfs or either device; used by the device-free syzlang marker check |
+> | `ABI_PROBE_ENABLE_MPP_FOREIGN_FD` | `abi-probe.sh` / `abi-replay.sh` | pass a valid non-MPP `/dev/null` fd to `MPP_CMD_SET_SESSION_FD` and require the batch result to be `-EBADF`; opt-in because the pre-`0060` BSP path type-confuses the foreign file and can crash the kernel |
 > | `ABI_PROBE_ENABLE_RGA_PHYSICAL` | `abi-probe.sh` / `abi-replay.sh` | opt into the raw physical-address import probe, which is disabled by default after the 2026-07-16 forward-port crash; do not enable it on an unpatched forward kernel |
 > | `ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT` | `abi-probe.sh` / `abi-replay.sh` | enable the physical probe and require `EOPNOTSUPP`; `abi-replay.sh` sets this and `ABI_PROBE_ENABLE_RGA_PHYSICAL=1` for `PROFILE=*rewrite*` |
 > | `LIBRGA_SMOKE_10BIT` | `librga-smoke.sh` | optional direct P010/P210 IM2D dma-buf conversion cases (`0` by default; set `1` when validating a patched librga/kernel pair) |

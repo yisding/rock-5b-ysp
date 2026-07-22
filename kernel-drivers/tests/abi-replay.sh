@@ -42,7 +42,7 @@ extract_contract_log() {
     -e '^rkcompat abi probe$' \
     -e '^mpp:$' \
     -e '^rga:$' \
-    -e '^[[:space:]]+(MPP_IOC_CFG_V[12]|sizeof mpp_|MPP_FLAGS_|QUERY_HW_SUPPORT|hw_support|QUERY_CMD_SUPPORT|cmd_butt|INIT_CLIENT_TYPE|QUERY_HW_ID|hw_id|INIT_DRIVER_DATA zero|SEND_CODEC_INFO width|SET_ERR_REF_HACK|RESET_SESSION|MULTI init\+driver|SET_SESSION_FD|bad_fd_bat_ret|done_bat_ret|TRANS_FD_TO_IOVA dmabuf|dmabuf_iova|RELEASE_FD dmabuf)' \
+    -e '^[[:space:]]+(MPP_IOC_CFG_V[12]|sizeof mpp_|MPP_FLAGS_|QUERY_HW_SUPPORT|hw_support|QUERY_CMD_SUPPORT|cmd_butt|INIT_CLIENT_TYPE|QUERY_HW_ID|hw_id|INIT_DRIVER_DATA zero|SEND_CODEC_INFO width|SET_ERR_REF_HACK|RESET_SESSION|MULTI init\+driver|SET_SESSION_FD|bad_fd_bat_ret|foreign_fd_bat_ret|done_bat_ret|TRANS_FD_TO_IOVA dmabuf|dmabuf_iova|RELEASE_FD dmabuf)' \
     -e '^[[:space:]]+(RGA_(BLIT|FLUSH|GET|CACHE|IOC)|RGA2_GET|sizeof rga_|legacy_|driver_version_|hw_version_count|hw\[[0-9]+]|dmabuf_import_handle)' |
     extract_compare_log
 }

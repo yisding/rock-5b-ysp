@@ -171,20 +171,22 @@ and the
   [request-completion UAF finding](../../findings/2026-07-21-rga-request-completion-vs-session-close-uaf-kasan.md)
   and the
   [job-vs-session UAF finding](../../findings/2026-07-21-rga-job-vs-session-close-uaf-kasan.md).
-- **The validated forward-port drivers still carry every bug the BSP audit found.** This
-  forward-port is deliberately conservative (~98% byte-identical BSP —
-  [vendor delta](./vendor-delta.md)), so the [BSP audit](./bsp-audit.md) audit's
-  **16 HIGH-severity findings remain present in the code you boot** — including
-  memory-safety bugs reachable from an unprivileged ioctl (several "directly
-  exploitable by any process that can open the device node", per bsp-audit.md) and
-  the `mpp_check_req()` overflow-clamp bug that
-  [kernel driver guide §9](./how-the-drivers-work.md) documents. Treat `/dev/mpp_service`
-  and `/dev/rga` as **trusted-input-only** (the udev rule grants them to the
-  `video` group — that group is a security boundary). Fixes are staged as the
-  65-patch review series in [`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split)
-  (verification record: [`kernel-drivers/patches/cleanup-draft/verification.md`](../patches/cleanup-draft/verification.md)),
-  but the **runtime regression gate is still PENDING** — the fixed series has
-  not yet been rebuilt, booted, and re-run through `tests/`.
+- **BSP-audit HIGH fixes are source-ported, but not boot-validated.** The
+  audit's 16 HIGH reviewer rows collapse to 13 distinct bugs. Later
+  forward-port work independently fixed the RKVENC2 probe unwind and the
+  duplicated RGA request-submit reference leak, leaving **13 rows / 11 bugs in
+  the booted `Pd222-C4ad2` kernel**. Those 11 are now ported around the current
+  RGA2 bounce/lifetime code as forward-port patches `0059`-`0069`; every commit
+  is checkpatch-clean and the native `drivers/video/rockchip/` build passes.
+  The resulting source has no remaining HIGH from this audit, but it has not
+  been packaged, booted, KASAN/hostile-ioctl tested, or codec/RGA
+  regression-tested. Until that gate passes, treat `/dev/mpp_service` and
+  `/dev/rga` as **trusted-input-only** (the udev rule grants them to the
+  `video` group — that group is a security boundary). MEDIUM/LOW findings such
+  as the `mpp_check_req()` overflow-clamp bug remain outside this HIGH-only
+  port; their historical full fix set is the 65-patch
+  [`cleanup-split`](../patches/cleanup-split) series, whose strengthened form
+  still has the documented verification and compile caveats.
 - **We link `airockchip/librga`'s prebuilt `.so` for convenience — but librga is
   open source** (Apache-2.0): the *official* repo just ships a prebuilt `.so`, so
   it looks closed, but the real source is published (JeffyCN mirror lineage) and
