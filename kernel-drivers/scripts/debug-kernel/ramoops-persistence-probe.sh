@@ -71,13 +71,35 @@ if [[ -d /sys/bus/platform/drivers/ramoops || -e /dev/pmsg0 ]]; then
   echo "clean test (see --help). Continuing anyway..." >&2
 fi
 
+# /dev/mem must be accessed via mmap here, not read()/write(): on arm64,
+# read_mem/write_mem go through valid_phys_addr_range(), which rejects any
+# MEMBLOCK_NOMAP range (arch/arm64/mm/mmap.c) -- exactly what our no-map
+# ramoops reservation is, so dd fails with EFAULT ("Bad address"). The mmap
+# path only checks devmem_is_allowed(), which permits non-System-RAM pages,
+# and arm64 maps no-map pfns noncached automatically.
+PYMEM='
+import mmap, os, sys
+mode, off = sys.argv[1], int(sys.argv[2], 0)
+BLOCK = 4096
+if mode == "write":
+    data = open(sys.argv[3], "rb").read(BLOCK)
+    fd = os.open("/dev/mem", os.O_RDWR | os.O_SYNC)
+    mm = mmap.mmap(fd, BLOCK, mmap.MAP_SHARED,
+                   mmap.PROT_READ | mmap.PROT_WRITE, offset=off)
+    mm[:len(data)] = data
+else:
+    fd = os.open("/dev/mem", os.O_RDONLY | os.O_SYNC)
+    mm = mmap.mmap(fd, BLOCK, mmap.MAP_SHARED, mmap.PROT_READ, offset=off)
+    sys.stdout.buffer.write(mm[:])
+mm.close(); os.close(fd)
+'
+
 read_block() { # offset -> stdout
-  dd if=/dev/mem bs="${BLOCK}" skip=$(( $1 / BLOCK )) count=1 status=none
+  /usr/bin/python3 -c "${PYMEM}" read "$1"
 }
 
 write_block() { # offset, file
-  dd if="$2" of=/dev/mem bs="${BLOCK}" seek=$(( $1 / BLOCK )) count=1 \
-     conv=notrunc status=none
+  /usr/bin/python3 -c "${PYMEM}" write "$1" "$2"
 }
 
 case "${MODE}" in
@@ -90,8 +112,8 @@ case "${MODE}" in
       # Fill exactly BLOCK bytes with the repeating text line.
       yes "${line}" | tr -d '\n' | head -c "${BLOCK}" > "${ref}"
       write_block "${off}" "${ref}"
-      # Immediate read-back sanity check (writes go through an uncached
-      # kernel mapping, so this verifies the pattern landed in DRAM).
+      # Immediate read-back sanity check (the mapping is noncached, so
+      # this verifies the pattern landed in DRAM).
       if cmp -s "${ref}" <(read_block "${off}"); then
         echo "wrote ${off}: OK (read-back verified)"
       else
