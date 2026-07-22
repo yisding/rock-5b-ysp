@@ -92,6 +92,34 @@ See the
 and the
 [DMA scope finding](../../findings/2026-07-21-rga2-dma-api-ownership-and-over-4g-scope.md).
 
+Patches `0052`–`0058` close the remaining lifetime/robustness gaps found by
+the KASAN sweep after `0051`, and the full conformance sweep now passes on one
+booted debug build. `0052` fixes the RGA request-completion-vs-session-close
+refcount; `0053`–`0056` harden the MPP session teardown/collect paths;
+`0057@086925697b434` holds a session refcount for a job's lifetime, closing a
+second, distinct RGA use-after-free (the async-completion `job->session` deref,
+separate from the `0052` request refcount); and `0058@570519704bd46` rejects a
+`MPP_CMD_RELEASE_FD` on a client-less session (`session->dma == NULL`) instead
+of NULL-dereferencing `mpp_dma_release_fd` — an unprivileged local DoS that
+`RESET_SESSION` could set up. On booted KASAN debug build **`Pd222-C4ad2`**
+(`#4`, patches `0001`–`0058` less `0012`; vmlinuz md5 matched the deb;
+`panic_on_oops=0`) the complete sweep is GREEN with a zero-flagged journal:
+the `0058` deterministic reproducer returns `EINVAL` with the guard log and no
+`mpp_dma_release_fd` fault; the `0057` `rga-session-uaf.sh cross` reproducer
+runs `async_submits=256000 dedup_shared=4000 submit_fail=0` with zero KASAN/UAF
+lines; and the regression + conformance gates all pass — MPP suite
+(`20260722-073705`, 12/12 `clean=1`), librga smoke (green), KASAN ABI replay
+(`20260722-073858`, `abi_status=0 clean=1`), and FFmpeg codec suite
+(`20260722-073958`, **24/24** including AV1 decode/transcode/PSNR, HEVC/VP9
+bit-exact PSNR inf, Main10→P010 RGA, and resolution-change). A whole-session
+root journal sweep found zero KASAN/BUG/Oops/iommu-fault signatures. So the
+complete patch tip `0001`–`0058` is hardware-validated for the memory-safety,
+ABI, and codec-conformance gates on `Pd222`. Both former distribution blockers
+are cleared — see the
+[RGA job-vs-session UAF finding](../../findings/2026-07-21-rga-job-vs-session-close-uaf-kasan.md)
+and the
+[MPP client-less RELEASE_FD finding](../../findings/2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md).
+
 ## ✅ Done — validated on real hardware
 
 | Item | Evidence |
@@ -112,14 +140,14 @@ and the
 | ~~**VP9 decode**~~ → ✅ **validated 2026-07-04** | **No longer deferred.** `mpi_dec_test -t 10` on a software-encoded VP9 IVF decoded 30/30 frames **bit-exact (PSNR=inf)** vs a software reference on the av1-fwport board build (shared rkvdec2 path); see [`tests/decode-differential.sh`](../tests/decode-differential.sh). The GStreamer/direct-MPP suite VP9 cases (generated IVF) remain the broader-coverage path; the *rewrite* still needs its own VP9 hardware log. |
 | **JPEG encode/decode** | `mjpeg_rkmpp` exists in ffmpeg-rockchip but was not a goal; the vendor JPEG encoder block is not wired in the DT and no JPEG validation was run. |
 | **RK3588 AV1 decode** | Not in *this* build (`Pb6ab` has no `mpp_av1dec.c`) — but **the av1-fwport variant now supplies it and is hardware-validated.** The sibling build `P1c9d` (kernel `6.18.37 #8` = this base **plus** the vendor `mpp_av1dec.c` backend + VSI-IOMMU provider) exposes AV1 through `/dev/mpp_service` (`supports-device` → `AV1DEC HW_ID:0x80019000`) and decodes **bit-exact (PSNR=inf) vs a software reference** (`mpi_dec_test -t 16777224`, 2026-07-04). The separate upstream Hantro/V4L2-stateless AV1 path (also `vsi-iommu`-backed) still exists as the mainline alternative. Full write-up + the `av1_rkmpp` distro-lib caveat: [AV1 note](../av1/docs/av1-rk3588.md) § 2026-07-04 update. |
-| **Expanded MPP/RGA/GStreamer/FFmpeg conformance** | RGA is validated *through* ffmpeg's `scale_rkrga`, and the in-repo `librga-smoke.sh` covers direct im2d paths including virtual-address imports, dma-buf fd imports, RKNN/RKNPU-style RGB/NV12/NV21 preprocessing, GStreamer-style legacy `c_RkRgaBlit()` conversions, a no-submit physical-address import probe, forced-core/pre-intr submission, and async fences. The support repo now has wrappers and comparators for the official MPP tests, official `airockchip/librga` sample suite, JeffyCN GStreamer Rockchip plugin, and ffmpeg-rockchip CLI coverage under `../rockchip-conformance`, including generated VP9 IVF decode, generated H.265 Main10 decode/RGA/fallback coverage, optional generated H.265 4:2:2 10-bit coverage, encoder force-key-unit events, explicit encoder control-property pipelines, codec-specific H.264/H.265 QP controls, H.264 profile/level plus max-pending and unaligned-vstride controls, MPP-only `GST_MPP_NO_RGA=1` encode/decode, strict decoder-property pipelines plus env-default decoder control, DMA-feature, output-format coverage, and external-media H.265 10-bit fallback coverage for `GST_MPP_DEC_DISABLE_NV12_10`/`GST_MPP_DEC_DISABLE_NV16_10`, required parallel encode/decode/transcode pipelines for multicore scheduling evidence, diagnostic decoder crop-meta, env-default FBC output, RFBC caps negotiation via `GST_MPP_DEC_FBC_IS_RFBC=1`, diagnostic VP8/JPEG/VPx-alpha GStreamer element visibility including VP8 QP and JPEG quality-factor property setters, opt-in Rockchip display/DMABuf sink cases including `KMSSINK_DISABLE_VSYNC=1`, `GST_RKXIMAGE_USE_COLORKEY=1`, and `GST_KMSSRC_DMA_FEATURE=1` KMS capture, plus FFmpeg decoder-option, `scale_rkrga` forced-core/async/AFBC-output, `vpp_rkrga` crop/transpose, diagnostic decoder `afbc=rga`, and `overlay_rkrga` alpha-composition cases. MPP test binaries and the full librga sample build helper have been staged locally; the GStreamer plugin build wrapper is present but the current host still lacks the GStreamer development `.pc` packages. None of these expanded suites has paired forward-port/rewrite hardware logs yet. |
+| **Expanded MPP/RGA/GStreamer/FFmpeg conformance** | RGA is validated *through* ffmpeg's `scale_rkrga`, and the in-repo `librga-smoke.sh` covers direct im2d paths including virtual-address imports, dma-buf fd imports, RKNN/RKNPU-style RGB/NV12/NV21 preprocessing, GStreamer-style legacy `c_RkRgaBlit()` conversions, a no-submit physical-address import probe, forced-core/pre-intr submission, and async fences. The support repo now has wrappers and comparators for the official MPP tests, official `airockchip/librga` sample suite, JeffyCN GStreamer Rockchip plugin, and ffmpeg-rockchip CLI coverage under `../rockchip-conformance`, including generated VP9 IVF decode, generated H.265 Main10 decode/RGA/fallback coverage, optional generated H.265 4:2:2 10-bit coverage, encoder force-key-unit events, explicit encoder control-property pipelines, codec-specific H.264/H.265 QP controls, H.264 profile/level plus max-pending and unaligned-vstride controls, MPP-only `GST_MPP_NO_RGA=1` encode/decode, strict decoder-property pipelines plus env-default decoder control, DMA-feature, output-format coverage, and external-media H.265 10-bit fallback coverage for `GST_MPP_DEC_DISABLE_NV12_10`/`GST_MPP_DEC_DISABLE_NV16_10`, required parallel encode/decode/transcode pipelines for multicore scheduling evidence, diagnostic decoder crop-meta, env-default FBC output, RFBC caps negotiation via `GST_MPP_DEC_FBC_IS_RFBC=1`, diagnostic VP8/JPEG/VPx-alpha GStreamer element visibility including VP8 QP and JPEG quality-factor property setters, opt-in Rockchip display/DMABuf sink cases including `KMSSINK_DISABLE_VSYNC=1`, `GST_RKXIMAGE_USE_COLORKEY=1`, and `GST_KMSSRC_DMA_FEATURE=1` KMS capture, plus FFmpeg decoder-option, `scale_rkrga` forced-core/async/AFBC-output, `vpp_rkrga` crop/transpose, diagnostic decoder `afbc=rga`, and `overlay_rkrga` alpha-composition cases. MPP test binaries and the full librga sample build helper have been staged locally. **The GStreamer suite now RUNS on the forward-port kernel (`Pd222-C4ad2`, 2026-07-22):** after installing the GStreamer dev/tools packages (`libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev`, `gstreamer1.0-tools`, `gstreamer1.0-plugins-bad` for the `h264/h265/vp9/av1/ivf` parsers) and building the JeffyCN `libgstrockchipmpp.so` (build script now pins `--libdir lib`), the suite scores **98/102 required pass with a completely clean kernel journal** (zero KASAN/BUG/Oops/iommu-fault) — H.264/H.265 encode/decode/transcode/roundtrip, all 8-bit RGA color/rotate/scale, caps renegotiation, EOS/flush on encode, force-key events, parallel encode, 10-bit decode, AFBC, mp4, and VP9 decode all pass. Two harness bugs were fixed in the process: VP9 input generation used a non-existent `ivfmux` (now generates IVF via the ffmpeg `libvpx-vp9` path like AV1), and the force-key-unit event harness sent the upstream event to a downstream sink pad (now sent to the encoder src pad). The **4 remaining required failures are all userspace (plugin/harness/librga), not kernel** — see the [GStreamer conformance finding](../../findings/2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md): the JeffyCN plugin's internal legacy-`c_RkRgaBlit` 10-bit convert path returns `EACCES` from librga (2 cases; kernel RGA is fine — 8-bit legacy passes and 10-bit P010 is bit-exact via ffmpeg im2d), the `dma-feature=true` transcode caps-negotiates as `not-negotiated` (plain transcode passes), and the decoder flush harness injects a raw `flush_stop(reset_time=TRUE)` with no following SEGMENT (encode flush passes). None of these expanded suites has paired forward-port/rewrite hardware logs yet, but the forward-port GStreamer gate is now green modulo the four documented userspace gaps. |
 | **OPP/voltage scaling, RGA genpool** (`ROCKCHIP_RGA_GENPOOL`) | gen_pool (the kernel `genalloc` carved-out memory allocator) is an alternate RGA buffer path; not needed for correctness. |
 | **Netboot / diskless** | Possible on current mainline U-Boot (RTL8125B + PCIe are upstream now) but needs a U-Boot config rebuild + ~100 Mbps; not worth it vs `scp` deb + reboot. |
 | **Second encoder devfreq island, thermal throttling** | Tier-2; encoder is static-clock. |
 
 ## ⚠️ Known limitations
 
-- **DISTRIBUTION BLOCKER (fix staged, booted gate pending) — `rga_request`
+- **RESOLVED — VERIFIED FIXED on `Pd222-C4ad2` (2026-07-22) — `rga_request`
   completion vs `/dev/rga` close UAF (2026-07-21, found on `162edad7bb9c7`,
   KASAN build `P7589-C4ad2`).** The `cross` session-close reproducer tripped
   a slab-use-after-free: the RGA2 IRQ completion thread reads
@@ -135,10 +163,14 @@ and the
   reachable by any process that closes `/dev/rga` while an async RGA job is
   still completing. Fixed by `0052@c46bfd6622ba6` (a `rga_request_release_ref()`
   helper that drops the initial reference exactly once under the
-  pending-request-manager lock); compiled clean, **booted gate — a quiet
-  `cross` run with `async_submits > 0` under KASAN — pending the next debug
-  build.** See the
-  [request-completion UAF finding](../../findings/2026-07-21-rga-request-completion-vs-session-close-uaf-kasan.md).
+  pending-request-manager lock). **Booted gate PASSED on `Pd222-C4ad2`:** the
+  `cross` reproducer ran `async_submits=256000 dedup_shared=4000 submit_fail=0`
+  with zero KASAN/UAF lines and no `refcount_t` underflow. (The same `cross`
+  run also validates the distinct `0057` job-vs-session UAF, since both faults
+  are exercised by the async-completion path it drives.) See the
+  [request-completion UAF finding](../../findings/2026-07-21-rga-request-completion-vs-session-close-uaf-kasan.md)
+  and the
+  [job-vs-session UAF finding](../../findings/2026-07-21-rga-job-vs-session-close-uaf-kasan.md).
 - **The validated forward-port drivers still carry every bug the BSP audit found.** This
   forward-port is deliberately conservative (~98% byte-identical BSP —
   [vendor delta](./vendor-delta.md)), so the [BSP audit](./bsp-audit.md) audit's

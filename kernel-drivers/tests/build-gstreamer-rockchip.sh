@@ -104,6 +104,7 @@ fi
 
 meson setup "$BUILD_DIR" "$SRC_ROOT" \
 	--prefix "$PREFIX" \
+	--libdir lib \
 	-Drockchipmpp="$ROCKCHIPMPP_FEATURE" \
 	-Drga="$RGA_FEATURE" \
 	-Drkximage="$RKXIMAGE_FEATURE" \

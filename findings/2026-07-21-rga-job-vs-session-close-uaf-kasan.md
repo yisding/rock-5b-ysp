@@ -124,3 +124,18 @@ exclusion then correctly rejects ("no core match ... under-4G memory limit").
 The reproducer now prefers `default_cma_region` (below 4G) so a valid async
 job actually submits and the cross-session window opens. This is why the UAF
 was not seen on earlier boots — the race window was never exercised.
+
+## VERIFIED FIXED on Pd222-C4ad2 (2026-07-22)
+
+Booted the KASAN debug build `Pd222-C4ad2` (`0057` compiled in;
+`rga_session_get(request->session)` present in the build worktree). Ran
+`rga-session-uaf.sh cross` with `RGA_UAF_ITERS=4000 RGA_UAF_BURST=64`:
+
+- `async_submits=256000` (window wide open), `dedup_shared=4000` (cross-session
+  sharing precondition held), `submit_fail=0`.
+- **Zero** KASAN / use-after-free / Oops lines; board stayed up under load.
+
+The async-completion `job->session` deref that previously tripped a slab
+use-after-free is now covered by the session refcount held for the job's
+lifetime. Regression: `librga-smoke.sh` exit 0 (all roundtrip/legacy/im2d cases
+`ok`). **Distribution blocker cleared.**

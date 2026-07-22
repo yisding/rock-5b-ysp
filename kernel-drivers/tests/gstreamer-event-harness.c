@@ -142,18 +142,17 @@ static gboolean do_force_key_unit(struct harness *h)
 {
 	GstStructure *structure;
 	GstEvent *event;
-	GstPad *peer;
 	gboolean ok;
-
-	peer = gst_pad_get_peer(h->target_src);
-	if (!peer) {
-		fail(h, "target src pad has no downstream peer");
-		return FALSE;
-	}
 
 	/*
 	 * Equivalent to gst_video_event_new_upstream_force_key_unit(), but kept
 	 * local so the harness only needs core GStreamer at compile time.
+	 *
+	 * A force-key-unit request is an UPSTREAM custom event: it originates
+	 * downstream and travels up to the encoder, which handles it on its src
+	 * pad. Send it straight to the encoder's src pad — sending it to the
+	 * downstream peer (a sink pad) makes GStreamer warn "custom-upstream
+	 * event in wrong direction" and drop it.
 	 */
 	structure = gst_structure_new("GstForceKeyUnit",
 				      "running-time", GST_TYPE_CLOCK_TIME,
@@ -162,8 +161,7 @@ static gboolean do_force_key_unit(struct harness *h)
 				      "count", G_TYPE_UINT,
 				      h->before_buffers + 1, NULL);
 	event = gst_event_new_custom(GST_EVENT_CUSTOM_UPSTREAM, structure);
-	ok = gst_pad_send_event(peer, event);
-	gst_object_unref(peer);
+	ok = gst_pad_send_event(h->target_src, event);
 	if (!ok) {
 		fail(h, "target force-key-unit event was rejected");
 		return FALSE;

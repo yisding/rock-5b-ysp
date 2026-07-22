@@ -361,3 +361,20 @@ severe in impact than — the RGA UAF**: it hard-locks the machine rather than
 being caught by KASAN. It must be root-caused (with a trace) and fixed before
 the forward-port kernel ships broadly. Tracked alongside the
 [RGA request UAF finding](./2026-07-21-rga-request-completion-vs-session-close-uaf-kasan.md).
+
+## VERIFIED FIXED on Pd222-C4ad2 (2026-07-22)
+
+Booted the KASAN debug build `Pd222-C4ad2` (`0058` compiled in; vmlinuz md5
+matched the deb) with `panic_on_oops=0`. Ran the deterministic reproducer
+`tests/mpp-clientless-release-fd-uaf.c` (open `/dev/mpp_service`, skip
+`INIT_CLIENT_TYPE`, one `MPP_CMD_RELEASE_FD`):
+
+- ioctl returned `-1`/`EINVAL` (was: hard NULL deref at `mpp_dma_release_fd+0x38`,
+  the `0x1b18` = `offsetof(struct mpp_dma_session, dev)` fault).
+- Kernel logged the new guard: `rk_vcodec: mpp_process_request:1580: pid <n>
+  release fd on session 0 with no dma`.
+- Board stayed up; KASAN silent.
+
+Regression: `kasan-mpp-suite.sh` 12/12 pass, `flagged_kernel_lines=0 clean=1` —
+the guard does not perturb normal client sessions (which hold a valid
+`session->dma` from `INIT_CLIENT_TYPE`). **Distribution blocker cleared.**

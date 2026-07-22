@@ -934,9 +934,11 @@ select_generated_codec()
 		GENERATED_SUFFIX=ivf
 		;;
 	vp9)
-		GENERATED_ENCODER=vp9enc
+		# GStreamer has no ivfmux element, so package the VP9 elementary
+		# stream into IVF with the ffmpeg generator (mirrors av1 below).
+		GENERATED_ENCODER=__ffmpeg_libvpx_vp9
 		GENERATED_ENCODER_ARGS=()
-		GENERATED_MUXER=ivfmux
+		GENERATED_MUXER=
 		GENERATED_PARSER=ivfparse
 		GENERATED_SUFFIX=ivf
 		;;
@@ -989,7 +991,25 @@ ensure_generated_input()
 		return 0
 	fi
 
-	if [ "$GENERATED_ENCODER" = "__ffmpeg_libaom_av1" ]; then
+	if [ "$GENERATED_ENCODER" = "__ffmpeg_libaom_av1" ] ||
+		[ "$GENERATED_ENCODER" = "__ffmpeg_libvpx_vp9" ]; then
+		if [ "$GENERATED_ENCODER" = "__ffmpeg_libvpx_vp9" ]; then
+			CMD=(
+				"$GST_GENERATOR"
+				-y
+				-f lavfi
+				-i "testsrc2=size=${GENERATED_WIDTH}x${GENERATED_HEIGHT}:rate=${GST_FRAMERATE}"
+				-frames:v "$GST_GENERATED_INPUT_BUFFERS"
+				-pix_fmt yuv420p
+				-c:v libvpx-vp9
+				-cpu-used 8
+				-row-mt 1
+				-crf 42
+				-b:v 0
+				-f ivf
+				"$GENERATED_INPUT_PATH"
+			)
+		else
 		CMD=(
 			"$GST_GENERATOR"
 			-y
@@ -1005,6 +1025,7 @@ ensure_generated_input()
 			-f ivf
 			"$GENERATED_INPUT_PATH"
 		)
+		fi
 		printf "generating %s input: " "$codec"
 		print_current_command
 		run_current_command || return $?
