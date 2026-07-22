@@ -158,7 +158,7 @@ sequenceDiagram
 
   App->>RT: rknn_init(model, flags)
   RT->>K: open render node or /dev/rknpu
-  RT->>K: query version/capabilities; allocate/map memory
+  RT->>K: query version/capabilities#59; allocate/map memory
   RT-->>App: context
   App->>RT: query tensor attributes
   App->>RT: set inputs or bind tensor memory
@@ -569,7 +569,7 @@ sequenceDiagram
   Q->>C: program PC registers and start
   C-->>I: per-core completion interrupt
   I->>I: validate status, account busy time, finish core
-  I->>Q: release domain; schedule next queued job
+  I->>Q: release domain#59; schedule next queued job
   I-->>R: wake blocking submit or signal output fence
   R-->>A: status, frame id, hardware duration
 ```
