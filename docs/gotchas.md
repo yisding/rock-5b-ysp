@@ -27,6 +27,9 @@ stays the master list.
 
 ## Build / patching
 
+> The two ccache traps below are expanded into a complete operational guide:
+> [kernel build ccache guide](../kernel-drivers/docs/kernel-build-ccache.md).
+
 **`hack/` files look deletable — they aren't.** `mpp_rkvdec2.c` `#include`s
 `hack/mpp_rkvdec2_hack_rk3568.c`; removing the `hack/` dir fails the build
 (`No such file or directory`). The other-SoC bodies are `#ifdef`'d out on RK3588

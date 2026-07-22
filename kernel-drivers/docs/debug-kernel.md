@@ -13,6 +13,9 @@ comes back on its own.
 > calls `build-armbian-deb.sh --stage-only`, so it regenerates the complete
 > forward-port patch series and matching Armbian core-patch exclusions before
 > every debug build instead of trusting leftover userpatch state.
+> Build-cache behavior, including why a changed `.config` can force broad
+> Kbuild work without deleting ccache, is documented in the
+> [kernel build ccache guide](./kernel-build-ccache.md).
 
 ## 1. When you need this
 

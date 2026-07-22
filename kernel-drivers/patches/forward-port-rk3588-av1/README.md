@@ -178,8 +178,12 @@ This snapshot was regenerated from `rkvenc-fwport-6.18` at
 omitted), forming the 68-file series consumed by `build-armbian-deb.sh`.
 The `0059`-`0069` current-tip HIGH subset is commit-by-commit
 `checkpatch.pl` clean and the complete `drivers/video/rockchip/` subtree
-compiles with the native system toolchain. It has **not** been packaged,
-booted, or runtime-gated; `Pd222-C4ad2` validates only through `0058`.
+compiles with the native system toolchain. Pinned-6.18.38 KASAN/lockdep debug
+build `Pabd5-C4ad2` packages that tip into image, DTB, headers, and libc-dev
+arm64 Debian artifacts; the embedded debug config, ramoops DTB, and every
+source file touched by `0059`-`0069` pass package inspection. It has **not**
+been installed, booted, or runtime-gated; `Pd222-C4ad2` validates only through
+`0058`.
 KASAN verified the `0042` narrowed reproduction and the `0042`/`0043` memory
 safety paths; corrected MPP and FFmpeg functional gates pass on that KASAN
 build, while the complete current tip still needs a clean package rebuild and

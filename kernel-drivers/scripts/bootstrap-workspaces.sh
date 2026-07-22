@@ -72,9 +72,13 @@ clone_at "$ARMBIAN_REMOTE" "$ARMBIAN_BRANCH" "" "$WORKSPACE/armbian-build"
 if [ "$CHECK" = 0 ]; then
 	CC_DIR="$WORKSPACE/armbian-build/cache/ccache"; mkdir -p "$CC_DIR"
 	if ! grep -qs '^compiler_check *= *content' "$CC_DIR/ccache.conf" 2>/dev/null; then
-		printf 'compiler_check = content\nmax_size = 15.0G\n' >> "$CC_DIR/ccache.conf"
-		say "  hardened ccache.conf (compiler_check=content, max_size=15G)"
-	else say "  ccache.conf already hardened"; fi
+		printf 'compiler_check = content\n' >> "$CC_DIR/ccache.conf"
+		say "  hardened ccache compiler identity (compiler_check=content)"
+	else say "  ccache compiler identity already hardened"; fi
+	if ! grep -qs '^max_size *=' "$CC_DIR/ccache.conf" 2>/dev/null; then
+		printf 'max_size = 15.0G\n' >> "$CC_DIR/ccache.conf"
+		say "  set default ccache maximum size to 15G"
+	else say "  preserving existing ccache maximum size"; fi
 fi
 
 echo; say "2) Conformance userspace source checkouts (pinned in MANIFEST.tsv)"

@@ -178,9 +178,12 @@ and the
   the booted `Pd222-C4ad2` kernel**. Those 11 are now ported around the current
   RGA2 bounce/lifetime code as forward-port patches `0059`-`0069`; every commit
   is checkpatch-clean and the native `drivers/video/rockchip/` build passes.
-  The resulting source has no remaining HIGH from this audit, but it has not
-  been packaged, booted, KASAN/hostile-ioctl tested, or codec/RGA
-  regression-tested. Until that gate passes, treat `/dev/mpp_service` and
+  KASAN/lockdep debug package `Pabd5-C4ad2` builds all four arm64 Debian
+  artifacts from that source, and its embedded config, ramoops DTB, and seven
+  HIGH-touched source files pass package inspection. The resulting source has
+  no remaining HIGH from this audit, but the package has not been installed,
+  booted, KASAN/hostile-ioctl tested, or codec/RGA regression-tested. Until
+  that gate passes, treat `/dev/mpp_service` and
   `/dev/rga` as **trusted-input-only** (the udev rule grants them to the
   `video` group — that group is a security boundary). MEDIUM/LOW findings such
   as the `mpp_check_req()` overflow-clamp bug remain outside this HIGH-only

@@ -104,6 +104,7 @@ Read in this order when changing or reviewing kernel behavior:
 | How were the applicable later Rockchip 5.10 RGA fixes adapted to the rewrite? | [`rga/rewrite-5.10-reconciliation.md`](rga/rewrite-5.10-reconciliation.md) |
 | How are RK3588 nodes, IRQs, IOMMUs, aliases, and SRAM wired? | [`docs/device-tree.md`](docs/device-tree.md) |
 | How does Armbian packaging apply the DT safely? | [`../packaging/docs/armbian-packaging.md`](../packaging/docs/armbian-packaging.md) |
+| How do Kbuild, ccache, Docker, config changes, and clean rebuilds interact? | [`docs/kernel-build-ccache.md`](docs/kernel-build-ccache.md) |
 | What changes on vanilla mainline? | [`../kernel-versions/docs/vanilla-kernel.md`](../kernel-versions/docs/vanilla-kernel.md) |
 | What are the known traps? | [`../docs/gotchas.md`](../docs/gotchas.md) |
 | What did the BSP audit find? | [`docs/bsp-audit.md`](docs/bsp-audit.md) |

@@ -208,4 +208,7 @@ relaunch on Armbian or Ubuntu Noble; the Docker relaunch was observed silently
 dropping the bare env var, so ccache stayed **off** (`hit=0 miss=0`).
 `kernel-drivers/scripts/build-armbian-deb.sh` passes it correctly for either
 mode. Full explanation (and the `ARMBIAN_CLI_RELAUNCH_PARAMS` mechanism) in
-[gotchas](../../docs/gotchas.md) (§ ccache).
+[gotchas](../../docs/gotchas.md) (§ ccache); the distinction between Kbuild
+state, compiler-cache keys, clean rebuilds, and legitimate config/toolchain
+misses is covered in the
+[kernel build ccache guide](../../kernel-drivers/docs/kernel-build-ccache.md).

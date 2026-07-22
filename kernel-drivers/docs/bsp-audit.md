@@ -13,10 +13,12 @@ A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA drive
 > (`b6ea72cb5f56e`). The remaining **13 rows / 11 distinct bugs** are now
 > source-ported on top of the hardware-validated `0058` tip as forward-port
 > patches `0059`-`0069`. That source passes per-commit `checkpatch.pl` and a
-> native build of `drivers/video/rockchip/`, but is **not boot- or
-> runtime-validated**. Thus the source tip has no remaining HIGH row from this
+> native build of `drivers/video/rockchip/`. Debug package `Pabd5-C4ad2` also
+> completed the pinned 6.18.38 KASAN/lockdep build, with all four arm64 Debian
+> artifacts plus packaged config, ramoops DTB, and compiled-source comparison
+> checks, but is **not boot- or runtime-validated**. Thus the source tip has no remaining HIGH row from this
 > audit; the currently booted `Pd222-C4ad2` kernel still carries the 11 until a
-> new package is built and booted.
+> new package is installed and booted.
 
 > **📦 How to consume the fixes.** For the maintained current forward-port,
 > consume the HIGH subset via
