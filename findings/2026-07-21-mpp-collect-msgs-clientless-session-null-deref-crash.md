@@ -136,6 +136,36 @@ RKMPP) differ from `pid 68650` seen at the crash instant, and no call trace
 survived, so the exact PID→fault link is not proven — but the vector, the
 two-path buffer corruption, and the ~47 s deferred timing make the chain strong.
 
+## Three distinct failure legs — same vector, different bugs
+
+The one difficult vector produces **three separate defects**; conflating them
+would mis-scope the fixes. They are distinct in mechanism, memory domain, and
+symptom:
+
+| Leg | Where | Mechanism | Symptom | Status |
+|-----|-------|-----------|---------|--------|
+| **1. VA-API driver under-allocates vs MPP's stride** | `rockchip-vaapi` (userspace) | MPP reports a 768-byte stride for the shown frame (a previously-decoded reference is larger than the nominal 352×288 — the `show_existing_frame` tell); the driver allocated the nominal size and copied/exported the `768×288×1.5 = 331,776`-byte layout → **~27 KB CPU-copy overrun past the mmap**, caught by the MMU | **segfault** (PID 62468) | **fixed userspace-side** — conservative MPP-aligned alloc + checked NV12 copy in `rockchip-vaapi` `src/frame_layout.c`, unexpected layouts now return `VA_STATUS_ERROR_DECODING_ERROR` (`src/rockchip_drv_video.c`), regression test `tests/frame_layout_test.c`, recorded against track 14 in that repo's `docs/ROADMAP.md`. Also a **track-14 (`rockchip-vaapi`) bug** in its own right. |
+| **2. MPP-core VP9 buffer-slot / refcount mismanagement** | `librockchip_mpp` (userspace) | `show_existing_frame`/superframe reference-buffer ownership mishandled (the shared reference slot) | invalid ref-counts, buffer-slot assertions, **leaked buffers** (direct RKMPP, PID 63196 — no VA-API driver involved) | **open** — the decode-side root cause; not touched by the leg-1 fix |
+| **3. Kernel worker NULL-derefs a device-less session's task** | `rk_vcodec` (`mpp_common.c`, this finding) | async worker dereferences `task->session->mpp == NULL` for a torn-down/never-bound session | **hard lockup** ~47 s later (deferred) | **fixed** — `0053` (worker + orphan pop/free/running) and `0054` (wait-result sibling) |
+
+**Why legs 1 and 3 are distinct (high confidence, not certain).** Leg 1 is a
+CPU copy past a userspace mmap that hit an unmapped page → **SIGSEGV**; the MMU
+stopped it, so it corrupted userspace and killed the process, it did not reach
+kernel memory. Leg 3 is a NULL dereference of kernel session/task state in an
+async kthread, ~47 s later. A userspace stride overrun does not make the
+kernel's session lose its bound device. The one scenario that *would* unify
+them — the overrun writing into a **dma-buf** whose adjacent physical pages
+held kernel MPP structs — is contradicted by the segfault (an MMU-caught
+unmapped-page access, not silent kernel corruption). Still unprovable without
+the kernel trace ramoops ate, so held as *distinct, high-confidence*.
+
+**How the legs interact.** Fixing leg 1 stops the VA-API segfault, which
+removes *one* trigger for leg 3 (a segfaulting process closes its fd and can
+race the kernel teardown into orphaning a task). But leg 3 is reachable by any
+clean close-with-pending-task, and leg 2 is an independent trigger, so the
+kernel guards (`0053`/`0054`) are still required, and **leg 2 remains the open
+decode-side root cause** regardless of the leg-1 fix.
+
 ## What ran / how it was reached (original journal view)
 
 The crashing-boot journal showed MPP **decode** activity — `mpp[63274]`/
@@ -184,14 +214,17 @@ Two layers; **layer 1 is implemented**, layer 2 is not.
      rather than dereferencing `mpp->irq`.
 
    Net: a torn-down/never-bound session's task becomes a dropped task + error
-   log instead of a hard lockup. This defends the crash; it does **not** fix
-   the upstream corruption.
-2. **Decode side — the VP9 `show_existing_frame` reference-buffer refcount
-   bug (not fixed).** The userspace assertions (invalid ref counts, buffer-slot
-   asserts, leaked buffers) point at MPP's VP9 `show_existing_frame`/superframe
-   buffer ownership mishandling the shared reference frame — the trigger that
-   drives the session into the bad state. Likely in `librockchip_mpp` VP9
-   (`vp9d`) buffer/slot management rather than the kernel.
+   log instead of a hard lockup. This defends the crash (leg 3 above); it does
+   **not** fix the upstream corruption.
+2. **Decode side — leg 2, the MPP-core VP9 `show_existing_frame`
+   reference-buffer refcount bug (not fixed).** The direct-RKMPP assertions
+   (invalid ref counts, buffer-slot asserts, leaked buffers) point at MPP's VP9
+   `show_existing_frame`/superframe buffer ownership mishandling the shared
+   reference slot — the decode-side root cause. Likely in `librockchip_mpp`
+   VP9 (`vp9d`) buffer/slot management rather than the kernel. **Leg 1** (the
+   `rockchip-vaapi` stride under-allocation → segfault) is a *separate*
+   userspace defect and is already fixed in that repo — see the three-leg
+   table above; it is not this decode-side root cause.
 
 **Related sibling — fixed (`0054@e4c9b62669526`).** `mpp_wait_result_default()`
 (`mpp_common.c`, the synchronous poll/wait path) had the same
@@ -211,7 +244,7 @@ deferred worker), but the same bug class on the sibling path, now closed.
   (see the ramoops finding), capture off-board — **serial console on `ttyS2`
   @ 1500000** (immune to the reset) or netconsole — while re-running the
   reproducer. A captured PC/call-trace at `mpp_task_worker_default` would
-  confirm layer 1.
+  confirm the leg-3 crash site (and that `0053`/`0054` catch it).
 - **Reproduce under KASAN (repeatable):** on the P9c12 KASAN kernel, re-run the
   VA-API + RKMPP `vp90-2-10-show-existing-frame2.webm` sequences above (the
   reporting agent warns this may crash the box again). A KASAN report on the
