@@ -1,14 +1,26 @@
-# MPP `mpp_collect_msgs` on a client-less session: fatal near-NULL deref that hard-crashed the board
+# MPP client-less session NULL-deref hard crash — VP9 `show_existing_frame` corrupts buffer state, async worker faults
+
+*(The `not find client 0` symptom surfaces in `mpp_collect_msgs`; the fatal
+deref is in the async task worker `mpp_task_worker_default`. Filename kept for
+link stability.)*
 
 > Scope: RK3588 MPP (`/dev/mpp_service`, `rk_vcodec`) on the forward-port
 > kernel, KASAN debug build `P7589-C4ad2` (`#7`).
 > Source: journal of the crashed boot (`boot -1`, 14:44:07 → 15:12:27 crash),
 > `rk_vcodec` `mpp_process_request()` / `mpp_collect_msgs()` /
-> `mpp_dev_ioctl_common()`.
+> `mpp_dev_ioctl_common()`, and the **async task worker
+> `mpp_task_worker_default()`** (`mpp_common.c:982`, unguarded
+> `task->session->mpp` deref at `:1003`); reproduced from
+> `~/Code/rockchip-vaapi` by a parallel agent on the VP9 vectors below.
 > Date: 2026-07-21
-> Trust: **MEASURED** (the oops line + the driver error trail preceding it) /
-> **INFERRED** (the exact faulting deref and call path — no call trace was
-> preserved; see Boundary).
+> Trust: **MEASURED** (the oops line + driver error trail + a repeatable
+> trigger sequence + the ~47 s delayed-fault timing + userspace buffer-refcount
+> assertions on the trigger vector) / **STRONGLY INFERRED** (the crash site: an
+> async worker NULL-deref of a torn-down session's pending task — from the
+> delayed-fault timing plus the guarded-vs-unguarded `session->mpp` asymmetry) /
+> still **UNPROVEN at the PC** (no call trace survived — ramoops does not
+> persist across reset here; see the [ramoops
+> finding](./2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md)).
 
 ## Result — a second, *fatal* kernel bug, distinct from the RGA UAF
 
@@ -53,24 +65,83 @@ client in its `default:` case by logging `not find client` and returning
 `-EINVAL`; `mpp_collect_msgs()` at :1727 propagates that `-EINVAL` up cleanly
 (the `collect msgs failed -22` at `mpp_dev_ioctl_common:1844`). The journal
 shows **three** such clean `-EINVAL` cycles (cmd 403, 403, 400) and *then* the
-fault — so the oops is **not** at :1550/:1727. The near-NULL deref is a
-separate access on the same torn-down session, most plausibly on the MPP
-**service/worker thread** (`session->srv`) or a task-processing path that
-touches `session->mpp`/`session->srv`/a task struct **without** the NULL-client
-guard the ioctl path has, racing the teardown that nulled the client. The
-`0x1b18`-ish offset is consistent with a field deep inside the `mpp_dev` /
-`mpp_taskqueue` / task struct reached through the NULL client pointer.
+fault — so the oops is **not** at :1550/:1727. The `not find client 0` lines
+are a **symptom** (that session's `session->mpp` is NULL), not the crash.
 
-## What ran / how it was reached
+## Root-cause candidate: the async worker derefs a torn-down session's task
 
-The crashing workload was MPP **decode** — `mpp[63274]`/`mpp[63353]` logged
-`mpp_dec: can not enable fast parse while hal not support` at 15:11:39–40,
-then the client-less collect loop and crash at 15:12:27. The launching
-process was not a tracked systemd unit (no suite "Starting" line), so the
-exact command is unconfirmed — plausibly the repo's own MPP decode path or the
-background auto-commit/exerciser agent. The `not find client 0` condition
-appeared **only** at the crash instant, with no precursor warnings earlier in
-the boot.
+The crash was **not synchronous** with an ioctl. Per the reproducing agent, the
+last actual hardware decode finished at ~15:11:40 and the fault landed at
+**15:12:27 — ~47 s later**, with only header/checksum shell commands in between.
+A delayed fault means a **deferred kernel context** tripped over state left
+corrupted by the decode, not the decode syscall itself.
+
+That points at the MPP task worker. `mpp_task_worker_default()` (a
+`kthread_work` handler, `mpp_common.c:982`) pops a pending task and does, at
+**`:1003`**, an **unguarded**:
+
+```c
+mpp = task->session->mpp;          /* :1003 — no NULL check */
+...
+if (mpp->dev_ops->prepare)         /* :1011 — derefs mpp */
+```
+
+The **ioctl** path reads the identical field but guards it — `mpp_process_task_default()` at `:615`:
+
+```c
+struct mpp_dev *mpp = session->mpp;
+if (unlikely(!mpp)) { ... return -EINVAL; }   /* :618 — the guard the worker lacks */
+```
+
+So a task submitted while the session was healthy, left **pending** when the
+session's client is later torn down (`session->mpp` set NULL — the same "not
+find client 0" condition), gets popped by the async worker which derefs the now
+-NULL `mpp` → the fatal near-NULL fault. `mpp->dev_ops` + `->prepare` is a
+function-pointer read a small offset off NULL, matching the observed
+`~0x1b18`. This is the guarded-vs-unguarded asymmetry that makes the worker the
+prime suspect; it is a **distinct** site from the series' existing MPP
+teardown fixes (`0041` procfs unlink, `0042` `session->dma` clear).
+
+## What ran / how it was reached (reproducer)
+
+Traced by a parallel agent in `~/Code/rockchip-vaapi`. The trigger is the VP9
+`show_existing_frame` conformance vector, which stresses reference-buffer
+management — and it corrupted MPP/`rk_vcodec` buffer state through **two
+independent userspace paths**:
+
+1. **~15:11:18 — VA-API path segfaults.**
+   `ffmpeg -hwaccel vaapi -vaapi_device /dev/dri/renderD128 -i
+   tests/vectors/vp90-2-10-show-existing-frame2.webm -an -f null -` (the
+   `rockchip-vaapi` driver, `LIBVA_DRIVER_NAME=rockchip`) **segfaulted**
+   (PID 62468). The shell used `;` not `&&`, so it continued.
+2. **~15:11:34–40 — direct RKMPP decode asserts on buffers.**
+   `ffmpeg -hwaccel rkmpp -i vp90-2-10-show-existing-frame2.webm …` (PID 63196)
+   produced **invalid reference-count and buffer-slot assertions and leaked
+   buffers** on the same vector.
+3. **15:12:20** — last shell command (awk/join on framemd5 files, no HW).
+4. **15:12:27** — the fatal `rk_vcodec` paging fault, ~7 s later, with **no HW
+   decode command in the interval** — i.e. a deferred worker firing on the
+   corrupted state.
+
+The reproducing agent's note: *"Re-running the first two sequences may crash
+the machine again."* So this is a **repeatable** trigger. `show_existing_frame`
+(display an already-decoded reference frame with no new frame data) and the
+companion `vp90-2-20-big_superframe-01.webm` both stress buffer/reference
+ownership; the underlying decode-side defect is the VP9 reference-buffer
+refcount mismanagement that produced the userspace assertions, and the kernel's
+sin is turning that corrupted state into a fatal crash instead of failing safe.
+
+**Caveat on attribution.** The processes that decoded (62468 VA-API, 63196
+RKMPP) differ from `pid 68650` seen at the crash instant, and no call trace
+survived, so the exact PID→fault link is not proven — but the vector, the
+two-path buffer corruption, and the ~47 s deferred timing make the chain strong.
+
+## What ran / how it was reached (original journal view)
+
+The crashing-boot journal showed MPP **decode** activity — `mpp[63274]`/
+`mpp[63353]` logging `mpp_dec: can not enable fast parse while hal not support`
+at 15:11:39–40 — then the client-less collect loop and crash at 15:12:27, with
+`not find client 0` appearing **only** at the crash instant.
 
 ## Was anything captured? (ramoops / journal)
 
@@ -90,25 +161,43 @@ the boot.
   Mem-abort details, PC/LR, and call trace never reached persistent storage
   because the crash killed logging before flush.
 
-## Boundary / how to get the trace next time
+## Fix direction
 
-- **No call trace was captured**, so the faulting function and the precise
-  client-less access are INFERRED from the driver error strings + the
-  near-NULL KASAN-shadow fault address, not proven.
-- **Serial console is the best capture path:** the kernel cmdline carries
-  `console=ttyS2,1500000`. If a UART is attached, the full oops went out the
-  serial port even though it never reached the journal or the (power-cycled)
-  ramoops. Capture ttyS2 on the P9c12 boot.
-- **ramoops will not help** (superseded understanding): even a clean warm
-  `panic=10` reboot does not preserve the region on this board, so don't wait
-  on pstore — go straight to serial/netconsole. Still prefer letting the board
-  self-reboot over power-cycling, but only so the next boot comes up clean, not
-  for ramoops.
-- **Reproduce under KASAN:** run MPP decode concurrently with session
-  reset/close (an `mpp_dec` loop racing `MPP_CMD_RESET_SESSION` /
-  fd close) on the P9c12 KASAN kernel; a KASAN report on the client-less
-  access would name the exact field and path. This is the next step before it
-  can be fixed.
+Two layers, both worth doing:
+
+1. **Kernel — make the async worker fail safe (defensive, low-risk).** Give
+   `mpp_task_worker_default()` at `mpp_common.c:1003` the same NULL-client guard
+   the ioctl path already has at `:615`: after `mpp = task->session->mpp;`,
+   `if (unlikely(!mpp)) { abort/drop the task; continue; }` instead of
+   dereferencing it. Better still, ensure session/client teardown **drains or
+   aborts pending tasks before clearing `session->mpp`**, so a task never
+   outlives its client in the queue. This turns the hard crash into a clean
+   error regardless of what userspace did — the kernel must not oops on a
+   torn-down session. (This defends the crash; it does not fix the upstream
+   buffer corruption.)
+2. **Decode side — the VP9 `show_existing_frame` reference-buffer refcount
+   bug.** The userspace assertions (invalid ref counts, buffer-slot asserts,
+   leaked buffers) point at MPP's VP9 `show_existing_frame`/superframe buffer
+   ownership mishandling the shared reference frame. That is the trigger that
+   drives the session into the bad state; fixing it removes the cause. Likely in
+   `librockchip_mpp` VP9 (`vp9d`) buffer/slot management rather than the kernel.
+
+## Boundary / how to confirm the crash site
+
+- **The PC is not yet proven.** The worker NULL-deref at `:1003`/`:1011` is a
+  strong candidate (delayed-fault timing + guarded-vs-unguarded asymmetry +
+  near-NULL offset), but no call trace survived, so it remains inference.
+- **Get the trace:** because ramoops does not persist across reset on this board
+  (see the ramoops finding), capture off-board — **serial console on `ttyS2`
+  @ 1500000** (immune to the reset) or netconsole — while re-running the
+  reproducer. A captured PC/call-trace at `mpp_task_worker_default` would
+  confirm layer 1.
+- **Reproduce under KASAN (repeatable):** on the P9c12 KASAN kernel, re-run the
+  VA-API + RKMPP `vp90-2-10-show-existing-frame2.webm` sequences above (the
+  reporting agent warns this may crash the box again). A KASAN report on the
+  client-less worker access would name the exact field and path. Do this only
+  with serial capture attached, since the fault hard-locks the board and — per
+  the ramoops finding — nothing on-board survives.
 
 ## Why it matters
 
