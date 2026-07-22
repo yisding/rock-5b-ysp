@@ -193,12 +193,14 @@ Two layers; **layer 1 is implemented**, layer 2 is not.
    drives the session into the bad state. Likely in `librockchip_mpp` VP9
    (`vp9d`) buffer/slot management rather than the kernel.
 
-**Related unhardened sibling (follow-up):** `mpp_wait_result_default()`
-(`mpp_common.c`, the synchronous poll/wait path) has the same
-`mpp->dev_ops->result` deref without a NULL guard. It was not the observed
-crash (that path is synchronous; the fault was the async worker, ~47 s
-deferred), so `0053` leaves it — but it is the same bug class and worth the
-same guard.
+**Related sibling — fixed (`0054@e4c9b62669526`).** `mpp_wait_result_default()`
+(`mpp_common.c`, the synchronous poll/wait path) had the same
+`mpp->dev_ops->result` deref without a NULL guard — the synchronous twin of
+the worker bug. `0054` guards it right after the device fetch (before the poll
+and the blocking wait), failing and dropping a device-less task in every mode
+(`mpp_free_task` is NULL-safe as of `0053`, so the pop is safe). Not the
+observed crash (that path is synchronous; the reported fault was the ~47 s
+deferred worker), but the same bug class on the sibling path, now closed.
 
 ## Boundary / how to confirm the crash site
 
