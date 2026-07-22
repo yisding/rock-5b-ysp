@@ -109,8 +109,12 @@ case "${MODE}" in
     for off in "${PROBE_OFFSETS[@]}"; do
       ref="${STATE_DIR}/probe-${off}.bin"
       line="RAMOOPS-PROBE off=${off} ${stamp} "
-      # Fill exactly BLOCK bytes with the repeating text line.
-      yes "${line}" | tr -d '\n' | head -c "${BLOCK}" > "${ref}"
+      # Fill exactly BLOCK bytes with the repeating text line. Built in a
+      # variable, not `yes | head -c` -- under `set -o pipefail` head's
+      # early exit SIGPIPEs yes (141) and silently kills the script.
+      buf=""
+      while (( ${#buf} < BLOCK )); do buf+="${line}"; done
+      printf '%s' "${buf:0:BLOCK}" > "${ref}"
       write_block "${off}" "${ref}"
       # Immediate read-back sanity check (the mapping is noncached, so
       # this verifies the pattern landed in DRAM).
@@ -137,11 +141,12 @@ case "${MODE}" in
       read_block "${off}" > "${cur}"
       if cmp -s "${ref}" "${cur}"; then
         verdict="INTACT"
-      elif ! tr -d '\0' < "${cur}" | head -c1 | grep -q .; then
+      elif [[ -z "$(tr -d '\0' < "${cur}")" ]]; then
         verdict="ZEROED"
       else
         # Count differing bytes to separate bit-decay from total loss.
-        diff_bytes=$(cmp -l "${ref}" "${cur}" 2>/dev/null | wc -l)
+        # (cmp exits 1 on difference; keep that from tripping set -e.)
+        diff_bytes=$( (cmp -l "${ref}" "${cur}" 2>/dev/null || true) | wc -l)
         if (( diff_bytes < BLOCK / 4 )); then
           verdict="CORRUPTED (${diff_bytes}/${BLOCK} bytes differ)"
         else
