@@ -73,15 +73,15 @@ goes to `$WORKSPACE/boot-backups/<timestamp>/`.
 > records the oops before the board resets. `journalctl -b -1` still gives the
 > pre-crash tail and usually the oops *header*, but not the trace.
 >
-> Measured 2026-07-22 with `./ramoops-persistence-probe.sh` (ramoops driver
-> blacklisted, patterns stamped via /dev/mem, warm reset): the whole window
-> comes back **uniformly ZEROED** — an active zeroer in the boot chain, most
-> likely BL31's 1–2 MB share-memory pool init, not bit decay and not the
-> kernel's ECC zap. No address inside 1–2 MB can work under this firmware.
-> Whether *other* DRAM addresses survive is being tested with the
-> `ramoops-probe-nomap.dts` overlay (islands at 1/2/6 GB); if one survives,
-> the ramoops reservation moves there. See the finding above for the full
-> audit + probe trail.
+> Settled 2026-07-22 with `./ramoops-persistence-probe.sh` (ramoops driver
+> blacklisted, patterns stamped via /dev/mem, verified warm resets): the
+> 1–2 MB BSP window comes back **uniformly ZEROED** (active zeroer, most
+> likely BL31's share-memory pool init) and no-map islands at 2 GB and 6 GB
+> (`ramoops-probe-nomap.dts` overlay) come back **100 % GARBAGE** — DRAM is
+> unreadable after re-init everywhere, consistent with scrambler re-key /
+> retraining, and ddrbin_tool has no knob for it. **No ramoops address can
+> work on this board + firmware; off-board capture is the only path.** Full
+> audit + probe trail in the finding above.
 
 After a panic/oops, `journalctl -b -1` holds the pre-crash tail; the pstore
 dumps that *would* pair with it are lost to the reset (above). Full workflow +

@@ -172,18 +172,44 @@ warm-reboot, `read` with the same offsets.
 - All ZEROED/GARBAGE → DRAM-wide destruction (DDR blob scrub or retraining);
   off-board capture (netconsole / ttyS2 serial) is the only path.
 
+## 2026-07-22 island probe result: DRAM-wide destruction — ramoops is dead on this stack
+
+**MEASURED**, and it closes the question. With the islands installed and a
+verified-clean warm reboot (systemd shutdown → back up 2 s later, no
+power-cycle):
+
+- `0x40000000` (1 GB): **ZEROED**
+- `0x80000000` (2 GB): **GARBAGE** (4096/4096 bytes differ)
+- `0x180000000` (6 GB): **GARBAGE** (4096/4096 bytes differ)
+
+100%-of-bytes garbage at two widely separated addresses means DRAM content
+is not readable after a warm reset *anywhere* — consistent with the DDR
+controller's data scrambling being re-keyed (or retraining trashing the
+array) on every re-init. The zeroing observed at 1 GB and in the 1–2 MB
+window are just local actors (some boot-stage workspace; BL31's share-mem
+pool) on top of that global loss. The rkbin `ddrbin_tool` exposes no
+scramble/persistence knob (only skew, frequency, and log parameters), so
+there is no supported firmware configuration that changes this.
+
+**Final verdict: no ramoops address can survive a warm reset on this
+board + firmware stack. Crash capture must be off-board** — netconsole
+(wired) or ttyS2 serial (1500000 baud), per the Consequences section below.
+How the Rockchip BSP Android stack makes 0x110000 persist remains unknown
+(possibly a different DDR-init path or BL31-mediated log copy); it is not
+reproducible from the pieces this stack uses.
+
+Cleanup after the experiment: remove `initcall_blacklist=ramoops_init`
+from `extraargs` and `ramoops-probe-nomap` from `user_overlays` in
+`/boot/armbianEnv.txt`, delete `/boot/overlay-user/ramoops-probe-nomap.dtbo`,
+and optionally `rm -r /var/tmp/ramoops-probe`.
+
 ## Boundary / what is not yet known
 
-- **Full-DRAM-loss vs targeted-clobber is unresolved.** Either the DDR-controller
-  reset drops the whole array (then *no* ramoops address can work here — only
-  getting the trace off-board can), or only this low ~1.1 MB window is
-  clobbered (SPL/U-Boot/TF-A all load and run in low memory, right where
-  `0x118000` sits), in which case some other reserved region might survive.
-  Distinguishing needs a multi-address ramoops sweep across reboots, or reading
-  what the `ddr` blob / TF-A do to low memory — firmware-level work the running
-  kernel cannot answer. Prior leans toward "no address is a safe bet," because
-  the DDR-controller-reset mechanism is address-agnostic, but that is not
-  proven.
+- **Full-DRAM-loss vs targeted-clobber: RESOLVED 2026-07-22 — it is both.**
+  The island probe (above) measured garbage at 2 GB and 6 GB after a clean
+  warm reset: the whole array is unreadable after re-init, with additional
+  targeted zeroing of the 1–2 MB window and the 1 GB area. No address
+  survives; only off-board capture works.
 - The DDR/TF-A/U-Boot versions are specific to this Armbian firmware; a
   different bootloader (e.g. genuine Rockchip BSP U-Boot, or a mainline TF-A
   build that reserves the window) could change the result.
