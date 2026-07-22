@@ -1,0 +1,47 @@
+/dts-v1/;
+/plugin/;
+
+/*
+ * Adds small no-map reserved-memory islands at 1 GB, 2 GB and 6 GB so
+ * ramoops-persistence-probe.sh can stamp/read them via /dev/mem (the kernel
+ * only exposes non-System-RAM to the mmap path). Purpose: determine whether
+ * the boot-chain zeroing measured across the 0x110000-0x1f0000 BSP window
+ * (2026-07-22, all probes ZEROED after a warm reset) is specific to BL31's
+ * 1-2 MB share-memory pool or applies to all of DRAM. If any island
+ * survives a warm reset, ramoops can simply live there instead.
+ *
+ * Install: sudo armbian-add-overlay ramoops-probe-nomap.dts
+ * Remove:  delete from user_overlays in /boot/armbianEnv.txt and remove
+ *          /boot/overlay-user/ramoops-probe-nomap.dtbo
+ *
+ * Addresses avoid everything u-boot loads (kernel 0x400000+, initrd/fdt
+ * ~0xa000000-0x10000000) and stay below this board's 16 GB. 6 GB probes
+ * the above-4GB DRAM bank.
+ */
+
+/ {
+	compatible = "radxa,rock-5b", "rockchip,rk3588";
+
+	fragment@0 {
+		target-path = "/reserved-memory";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <2>;
+
+			probe@40000000 {
+				reg = <0x0 0x40000000 0x0 0x10000>;
+				no-map;
+			};
+
+			probe@80000000 {
+				reg = <0x0 0x80000000 0x0 0x10000>;
+				no-map;
+			};
+
+			probe@180000000 {
+				reg = <0x1 0x80000000 0x0 0x10000>;
+				no-map;
+			};
+		};
+	};
+};

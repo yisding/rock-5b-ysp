@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: sudo bash ramoops-persistence-probe.sh <write|read|dump>
+Usage: sudo bash ramoops-persistence-probe.sh <write|read|dump> [offset...]
 
 Decisive test for whether the ramoops window (0x118000-0x1e8000) survives a
 warm reset on this board, independent of the kernel's ramoops driver.
@@ -38,8 +38,17 @@ Interpretation:
   GARBAGE    DRAM content is lost or scrambled across the reset; no ramoops
              address can work. Use netconsole or serial console instead.
 
-Probes only touch the no-map reserved region the debug-kernel DT patch
-declares (0x118000 + 0xd0000). Nothing outside it is written.
+By default probes touch only the no-map reserved region the debug-kernel DT
+patch declares (0x118000 + 0xd0000). Extra offsets given after the mode
+REPLACE the default list — used with the ramoops-probe-nomap.dts overlay
+(sudo armbian-add-overlay ramoops-probe-nomap.dts, then reboot) to test
+no-map islands elsewhere in DRAM, e.g.:
+
+  sudo bash ramoops-persistence-probe.sh write 0x40000000 0x80000000 0x180000000
+
+This is inherently safe: the kernel rejects mmap of System RAM through
+/dev/mem (STRICT_DEVMEM), so an offset that is not inside a no-map
+reservation fails with EPERM instead of corrupting live memory.
 EOF
 }
 
@@ -54,9 +63,14 @@ if [[ "${EUID}" -ne 0 ]]; then
   exec sudo "$0" "$@"
 fi
 
-# All offsets lie inside the kernel's no-map reservation 0x118000-0x1e8000
+# Default offsets lie inside the kernel's no-map reservation 0x118000-0x1e8000
 # (spread across the record, console and pmsg zones plus the tail page).
-PROBE_OFFSETS=(0x118000 0x138000 0x158000 0x198000 0x1d8000 0x1e7000)
+# Any offsets given after the mode replace this list (see --help).
+if [[ $# -gt 1 ]]; then
+  PROBE_OFFSETS=("${@:2}")
+else
+  PROBE_OFFSETS=(0x118000 0x138000 0x158000 0x198000 0x1d8000 0x1e7000)
+fi
 BLOCK=4096
 STATE_DIR="/var/tmp/ramoops-probe"
 

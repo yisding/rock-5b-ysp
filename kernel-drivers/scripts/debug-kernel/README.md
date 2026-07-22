@@ -73,13 +73,15 @@ goes to `$WORKSPACE/boot-backups/<timestamp>/`.
 > records the oops before the board resets. `journalctl -b -1` still gives the
 > pre-crash tail and usually the oops *header*, but not the trace.
 >
-> Whether the window is truly unrecoverable is not yet settled: a 2026-07-21
-> audit of the installed u-boot (radxa `next-dev` BSP tree, built by Armbian)
-> found **nothing in TPL/SPL/BL31/U-Boot that writes 1–2 MB** — the BSP's
-> "protection" is just a passive `MEM_SHM` reservation this build also has.
-> Run `./ramoops-persistence-probe.sh` (see its `--help` for the two-reboot
-> procedure) to classify the failure as kernel-side ECC zapping vs bit decay
-> vs active zeroing vs total DRAM loss.
+> Measured 2026-07-22 with `./ramoops-persistence-probe.sh` (ramoops driver
+> blacklisted, patterns stamped via /dev/mem, warm reset): the whole window
+> comes back **uniformly ZEROED** — an active zeroer in the boot chain, most
+> likely BL31's 1–2 MB share-memory pool init, not bit decay and not the
+> kernel's ECC zap. No address inside 1–2 MB can work under this firmware.
+> Whether *other* DRAM addresses survive is being tested with the
+> `ramoops-probe-nomap.dts` overlay (islands at 1/2/6 GB); if one survives,
+> the ramoops reservation moves there. See the finding above for the full
+> audit + probe trail.
 
 After a panic/oops, `journalctl -b -1` holds the pre-crash tail; the pstore
 dumps that *would* pair with it are lost to the reset (above). Full workflow +

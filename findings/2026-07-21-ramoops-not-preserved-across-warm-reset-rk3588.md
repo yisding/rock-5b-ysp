@@ -124,6 +124,54 @@ INTACT/CORRUPTED → fix is kernel-side (likely drop `ecc-size=16`); ZEROED →
 hunt the dynamic clearer (different rkbin DDR blob / ddrbin pstore config);
 GARBAGE → DRAM truly lost, off-board capture is the only path.
 
+(Probe implementation note: on arm64 `read()`/`write()` on `/dev/mem` reject
+any `MEMBLOCK_NOMAP` range — `valid_phys_addr_range()`,
+`arch/arm64/mm/mmap.c` — so `dd` gets EFAULT on the window; only `mmap()`
+works, gated by `devmem_is_allowed()` which permits non-System-RAM pages.)
+
+## 2026-07-22 probe result: the window is actively ZEROED across a warm reset
+
+**MEASURED.** With `initcall_blacklist=ramoops_init` active on *both* boots
+(verified: `initcall ramoops_init blacklisted` in the kernel log, no ramoops
+platform driver, no `/dev/pmsg0`), all six stamped offsets
+(0x118000/0x138000/0x158000/0x198000/0x1d8000/0x1e7000) read back
+read-back-verified before a `reboot` warm reset — and came back **ZEROED**,
+uniformly, after it.
+
+What this rules out and rules in:
+
+- **Not the kernel's ECC zap** — the ramoops driver never ran in either boot,
+  so the `ecc-size=16` zap hypothesis from the 2026-07-21 follow-up is dead.
+  Dropping `ecc-size` will not help.
+- **Not bit decay / training scramble** — that would read as GARBAGE. Uniform
+  zeros across 832 KiB mean **something in the boot chain deliberately writes
+  zeros over the window on the way up**.
+- u-boot's own code has no bulk clearer for the region (audited above; the
+  only DRAM memsets are ATAGS at 2 MB−8 KB and small structs). TPL/SPL/BL31
+  are the remaining candidates, and the prime suspect is **BL31's
+  share-memory pool init**: the 1–2 MB region is BL31's `SIP_SHARE_MEM`
+  allocation pool (`sip_smc_request_share_mem()` hands out pages from it),
+  and BL31's SCMI shmem at `0x10f000` — directly below the window, declared
+  in the mainline DT and used by the kernel's clock driver every boot —
+  proves BL31 actively manages this area on this stack. BL31 is a closed
+  rkbin blob (`bl31-v1.48`), so this can't be confirmed in source.
+
+Consequence: **no address inside 1–2 MB can work under this firmware**, and
+the BSP's choice of 0x110000 presumably works on BSP stacks only because
+their BL31/kernel share-mem handshake preserves it (or BSP pstore tolerates
+it). The next question is whether the zeroing is specific to the share-mem
+pool or DRAM-wide. `ramoops-probe-nomap.dts` (same directory) adds 64 KiB
+no-map islands at 1 GB / 2 GB / 6 GB; install with
+`sudo armbian-add-overlay ramoops-probe-nomap.dts`, reboot, then run the
+probe with explicit offsets:
+`ramoops-persistence-probe.sh write 0x40000000 0x80000000 0x180000000`,
+warm-reboot, `read` with the same offsets.
+
+- Any island INTACT/CORRUPTED → move the ramoops reservation there in the
+  debug-kernel DT patch and ramoops works (plain, without ecc if CORRUPTED).
+- All ZEROED/GARBAGE → DRAM-wide destruction (DDR blob scrub or retraining);
+  off-board capture (netconsole / ttyS2 serial) is the only path.
+
 ## Boundary / what is not yet known
 
 - **Full-DRAM-loss vs targeted-clobber is unresolved.** Either the DDR-controller
