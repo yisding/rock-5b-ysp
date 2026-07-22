@@ -79,6 +79,51 @@ window across the reset. This board runs Armbian's stack
 that guard for this region. The patch inherited the address but not the
 firmware behaviour that makes the address special — that is the gap.
 
+## 2026-07-21 follow-up: audit of the installed u-boot (BSP protection is passive, and our build has it too)
+
+Audited the exact source of the installed `linux-u-boot-rock-5b-current 26.5.1`
+(extracted at `~/Code/u-boot/rock-5b-armbian-26.5.1-u-boot`; Armbian builds
+`radxa/u-boot` branch `next-dev-v2024.10`, which **is** the Rockchip BSP u-boot
+lineage — the `androidboot.fwver=` on our cmdline is that tree's own stamp).
+
+How the BSP "protects" the window — all of it present in our build:
+
+- `arch/arm/mach-rockchip/param.c:146` `param_parse_common_resv_mem()`: on
+  ARM64 the range **1 MB–2 MB is reserved as `MEM_SHM`** (aliases "ramoops",
+  "minidump", `arch/arm/mach-rockchip/memblk.c:44`) via
+  `board_bidram_reserve()`. It is a *passive* keep-out for u-boot's own image
+  placement — no preservation logic, no self-refresh handoff.
+- The whole memory map already avoids 1–2 MB: SPL at `0x0–0x40000` (BSS/stack
+  at `0x3fe0000`), u-boot proper at `0x200000`, ATAGS at 2 MB−8 KB,
+  `kernel_addr_r=0x400000` — `include/configs/rk3588_common.h` even carries a
+  comment naming "share memory region 0x100000~0x200000" as the reason the
+  decompressed kernel starts at 4 MB.
+- rkbin BL31 (v1.54 ELF inspected) loads at `0x60000–0xd1000` + `0xf0000–0xf6000`
+  — below 1 MB, clear of the window.
+- `CONFIG_PSTORE` in this u-boot (off in both Armbian `current` and `vendor`
+  builds, and **also off in Radxa's own `rock-5b-rk3588_defconfig`**) only adds
+  *u-boot's log* to the buffer; likewise the rkbin ddrbin params
+  (`pstore_base_addr`, `tpl_log_en`, … — `rkbin/tools/ddrbin_tool_user_guide.txt`)
+  make the *DDR blob's log* land there ("last log"). Neither is a preservation
+  mechanism; BSP persistence rests on "nothing touches 1–2 MB + DRAM retains
+  content across the short reset".
+
+Consequence: **no component of our up-path (TPL blob / SPL / BL31 / u-boot)
+statically writes 0x110000–0x1f0000**, and the reservation the BSP relies on is
+compiled into the u-boot we already run. So "Armbian firmware lacks the guard"
+(the inference above) is wrong in its strong form — either something clears the
+window dynamically, or the content decays/scrambles across the reset, or the
+kernel-side ramoops init (with `ecc-size=16`, it *zeroes* zones whose
+header/ECC fails validation) destroyed the evidence before we looked — the
+observed "silent zeros" is exactly what a post-zap read would show.
+
+`kernel-drivers/scripts/debug-kernel/ramoops-persistence-probe.sh` settles it:
+boot with `initcall_blacklist=ramoops_init`, stamp patterns across the window
+via `/dev/mem`, warm-reboot, classify INTACT / CORRUPTED / ZEROED / GARBAGE.
+INTACT/CORRUPTED → fix is kernel-side (likely drop `ecc-size=16`); ZEROED →
+hunt the dynamic clearer (different rkbin DDR blob / ddrbin pstore config);
+GARBAGE → DRAM truly lost, off-board capture is the only path.
+
 ## Boundary / what is not yet known
 
 - **Full-DRAM-loss vs targeted-clobber is unresolved.** Either the DDR-controller

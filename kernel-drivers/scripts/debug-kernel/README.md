@@ -72,6 +72,14 @@ goes to `$WORKSPACE/boot-backups/<timestamp>/`.
 > `ttyS2` (1500000 baud, USB-TTL adapter) or netconsole to a listener — which
 > records the oops before the board resets. `journalctl -b -1` still gives the
 > pre-crash tail and usually the oops *header*, but not the trace.
+>
+> Whether the window is truly unrecoverable is not yet settled: a 2026-07-21
+> audit of the installed u-boot (radxa `next-dev` BSP tree, built by Armbian)
+> found **nothing in TPL/SPL/BL31/U-Boot that writes 1–2 MB** — the BSP's
+> "protection" is just a passive `MEM_SHM` reservation this build also has.
+> Run `./ramoops-persistence-probe.sh` (see its `--help` for the two-reboot
+> procedure) to classify the failure as kernel-side ECC zapping vs bit decay
+> vs active zeroing vs total DRAM loss.
 
 After a panic/oops, `journalctl -b -1` holds the pre-crash tail; the pstore
 dumps that *would* pair with it are lost to the reset (above). Full workflow +
