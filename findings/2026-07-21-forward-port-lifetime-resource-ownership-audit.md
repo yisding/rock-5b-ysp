@@ -12,6 +12,32 @@
 > schedule-dependent impact; previously captured KASAN failures are linked and
 > retain their own **MEASURED** tags.
 
+> **2026-07-21 disposition (fixes applied):** the three unambiguous
+> memory-corruption items with clean, low-risk fixes are patched and
+> compile-verified. **`0055`** (AV1-R1 + AV1-R8) closes the two
+> unprivileged-reachable out-of-bounds writes into `struct mpp_task`'s
+> 80-entry translation storage — `mpp_task_attach_fd()` off-by-one (`>` →
+> `>=`) and `mpp_extract_reg_offset_info()` floored-count/raw-byte-copy
+> (reject non-whole-element sizes, copy the validated length). **`0056`**
+> (F8) reverses the RCB free order in `rkvdec2_free_rcbbuf()` /
+> `rkvenc2_free_rcbbuf()` so the IOVA is unmapped before the pages are
+> freed. Neither affects normal decode. **Deferred** (need design +
+> KASAN/fault-injection gates, not blind edits): the architectural
+> ownership repairs F1/F5 (per-session RGA import ledger — a `kref_get`/
+> `kref_put` band-aid only moves the boundary, per the audit itself), F2
+> (result-waiter ownership), F3 (timeout-work ownership), F7 (PFNMAP
+> backing lifetime), F18/F19 (DMA-lookup ABA / reset admission), and the
+> probe/remove error-path UAFs (F9–F12, F15) that are unreachable on the
+> built-in fixed-DT ROCK 5B. **F4 re-examined:** its premise is weaker
+> than stated — `session->mpp` is set at bind and *never* cleared, and
+> task creation requires it non-NULL, so a device-less task only arises
+> from prior corruption; the leak it describes is confined to that
+> already-corrupted crash-recovery path, and its real fix is a
+> destructor-identity refactor, so it is deferred rather than
+> band-aided. The AV1 backend's full 103-translation demand (vs the
+> 80-slot storage) still needs the storage resized — a separate change
+> beyond the `0055` fail-closed safety fix.
+
 ## Result
 
 The current forward-port driver still has at least three high-confidence paths
