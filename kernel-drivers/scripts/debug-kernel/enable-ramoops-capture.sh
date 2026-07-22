@@ -184,10 +184,14 @@ write_sysctl() {
 
   cat >"$SYSCTL_FILE" <<EOF
 # ${MARKER}
-kernel.panic_on_oops = 1
+# Debug builds boot with panic_on_oops=0: RK3588 firmware re-inits DRAM on
+# reset, so ramoops does not survive a panic reboot (measured). Keeping the
+# board up on a process-context oops lets journald capture the full trace live.
+# The distributable kernel keeps the fail-fast default (panic_on_oops=1).
+kernel.panic_on_oops = 0
 EOF
 
-  sysctl -w kernel.panic_on_oops=1 >/dev/null
+  sysctl -w kernel.panic_on_oops=0 >/dev/null
   echo "Wrote ${SYSCTL_FILE}"
 }
 

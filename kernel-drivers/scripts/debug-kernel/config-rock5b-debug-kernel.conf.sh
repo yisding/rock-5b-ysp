@@ -33,10 +33,14 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 	)
 	opts_val["PSTORE_DEFAULT_KMSG_BYTES"]="262144"
 
-	# Turn latent faults and stalls into logged reports or panics that ramoops
-	# has a chance to preserve across the reboot.
+	# Turn latent faults and stalls into logged reports. NOTE: PANIC_ON_OOPS is
+	# deliberately NOT enabled here (see opts_n below) — on RK3588 the firmware
+	# re-inits DRAM on reset, so ramoops does not survive a panic reboot
+	# (measured; see findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md).
+	# With panic_on_oops=0 a process-context oops instead prints its full trace
+	# and the board stays up long enough for journald to capture it live — how
+	# the 0058 RELEASE_FD crash was finally root-caused.
 	opts_y+=(
-		"PANIC_ON_OOPS"
 		"SOFTLOCKUP_DETECTOR"
 		"HARDLOCKUP_DETECTOR"
 		"DETECT_HUNG_TASK"
@@ -114,5 +118,10 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 		"KCSAN"
 		"DEBUG_INFO_NONE"
 		"DEBUG_INFO_REDUCED"
+		# Boot with panic_on_oops=0 (default when unset): capture the live oops
+		# trace via journald instead of panicking into a ramoops region that
+		# RK3588's DRAM re-init discards on reset. Debug builds only — the
+		# distributable kernel keeps the fail-fast default.
+		"PANIC_ON_OOPS"
 	)
 }
