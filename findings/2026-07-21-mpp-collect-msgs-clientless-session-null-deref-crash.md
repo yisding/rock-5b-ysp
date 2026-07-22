@@ -161,26 +161,44 @@ at 15:11:39–40 — then the client-less collect loop and crash at 15:12:27, wi
   Mem-abort details, PC/LR, and call trace never reached persistent storage
   because the crash killed logging before flush.
 
-## Fix direction
+## Fix
 
-Two layers, both worth doing:
+Two layers; **layer 1 is implemented**, layer 2 is not.
 
-1. **Kernel — make the async worker fail safe (defensive, low-risk).** Give
-   `mpp_task_worker_default()` at `mpp_common.c:1003` the same NULL-client guard
-   the ioctl path already has at `:615`: after `mpp = task->session->mpp;`,
-   `if (unlikely(!mpp)) { abort/drop the task; continue; }` instead of
-   dereferencing it. Better still, ensure session/client teardown **drains or
-   aborts pending tasks before clearing `session->mpp`**, so a task never
-   outlives its client in the queue. This turns the hard crash into a clean
-   error regardless of what userspace did — the kernel must not oops on a
-   torn-down session. (This defends the crash; it does not fix the upstream
-   buffer corruption.)
+1. **Kernel — worker fails safe (implemented, `0053@98232d5c06fab`,
+   checkpatch-clean, compiles).** Investigating the guard turned up that the
+   orphan is un-disposable, not just un-dereferenceable, so the fix is four
+   coordinated edits in `mpp_common.c`:
+   - the worker (`mpp_task_worker_default`) now fetches the device via
+     `mpp_get_task_used_device()` (honouring `task->mpp`, like every other
+     task site) and, if NULL, logs and **drops** the orphaned task instead of
+     dereferencing it;
+   - `mpp_taskqueue_pop_pending()` dropped its `!task->session->mpp` guard
+     (kept `!task->session`) — that guard made a NULL-device task
+     **unremovable**, so the pre-existing abort branch would have **spun
+     forever** and leaked it;
+   - `mpp_free_task()` skips the device-side free and the `mpp->task_count`
+     decrement when there is no device (an orphan never bound one / never
+     incremented it), so freeing the orphan does not itself NULL-deref;
+   - `try_process_running_task()` skips a running entry whose device is NULL
+     rather than dereferencing `mpp->irq`.
+
+   Net: a torn-down/never-bound session's task becomes a dropped task + error
+   log instead of a hard lockup. This defends the crash; it does **not** fix
+   the upstream corruption.
 2. **Decode side — the VP9 `show_existing_frame` reference-buffer refcount
-   bug.** The userspace assertions (invalid ref counts, buffer-slot asserts,
-   leaked buffers) point at MPP's VP9 `show_existing_frame`/superframe buffer
-   ownership mishandling the shared reference frame. That is the trigger that
-   drives the session into the bad state; fixing it removes the cause. Likely in
-   `librockchip_mpp` VP9 (`vp9d`) buffer/slot management rather than the kernel.
+   bug (not fixed).** The userspace assertions (invalid ref counts, buffer-slot
+   asserts, leaked buffers) point at MPP's VP9 `show_existing_frame`/superframe
+   buffer ownership mishandling the shared reference frame — the trigger that
+   drives the session into the bad state. Likely in `librockchip_mpp` VP9
+   (`vp9d`) buffer/slot management rather than the kernel.
+
+**Related unhardened sibling (follow-up):** `mpp_wait_result_default()`
+(`mpp_common.c`, the synchronous poll/wait path) has the same
+`mpp->dev_ops->result` deref without a NULL guard. It was not the observed
+crash (that path is synchronous; the fault was the async worker, ~47 s
+deferred), so `0053` leaves it — but it is the same bug class and worth the
+same guard.
 
 ## Boundary / how to confirm the crash site
 
