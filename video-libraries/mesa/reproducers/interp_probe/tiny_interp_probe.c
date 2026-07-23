@@ -18,6 +18,8 @@
 //        ./tiny_interp_probe 12288 fragcoord  # control: passes
 //        ./tiny_interp_probe 8192             # pow2 control: passes
 //        ./tiny_interp_probe 16307 varying    # width used in older captures
+//        ./tiny_interp_probe 12288 varying polygon-offset
+//                                             # hardware-erratum workaround
 //
 // Exits 0 when every pixel satisfies floor(v) == x, 2 when any pixel fails,
 // 1 on usage or EGL/GL setup errors.
@@ -86,12 +88,20 @@ main(int argc, char **argv)
 {
    int width = 12288;
    const char *mode = "varying";
+   const char *workaround = "baseline";
+
+   if (argc > 4) {
+      fprintf(stderr, "usage: %s [width] [varying|fragcoord] "
+                      "[baseline|polygon-offset]\n", argv[0]);
+      return 1;
+   }
 
    if (argc > 1) {
       char *end;
       long w = strtol(argv[1], &end, 10);
       if (*argv[1] == '\0' || *end != '\0' || w < 1 || w > (1 << 23)) {
-         fprintf(stderr, "usage: %s [width] [varying|fragcoord]\n", argv[0]);
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] "
+                         "[baseline|polygon-offset]\n", argv[0]);
          return 1;
       }
       width = (int)w;
@@ -99,11 +109,22 @@ main(int argc, char **argv)
    if (argc > 2) {
       mode = argv[2];
       if (strcmp(mode, "varying") != 0 && strcmp(mode, "fragcoord") != 0) {
-         fprintf(stderr, "usage: %s [width] [varying|fragcoord]\n", argv[0]);
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] "
+                         "[baseline|polygon-offset]\n", argv[0]);
+         return 1;
+      }
+   }
+   if (argc > 3) {
+      workaround = argv[3];
+      if (strcmp(workaround, "baseline") != 0 &&
+          strcmp(workaround, "polygon-offset") != 0) {
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] "
+                         "[baseline|polygon-offset]\n", argv[0]);
          return 1;
       }
    }
    int use_fragcoord = strcmp(mode, "fragcoord") == 0;
+   int use_polygon_offset = strcmp(workaround, "polygon-offset") == 0;
 
    PFNEGLGETPLATFORMDISPLAYEXTPROC get_platform_display =
       (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress(
@@ -163,7 +184,13 @@ main(int argc, char **argv)
    CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
    glViewport(0, 0, width, 1);
 
+   CHECK(glGetError() == GL_NO_ERROR);
+   if (use_polygon_offset) {
+      glEnable(GL_POLYGON_OFFSET_FILL);
+      glPolygonOffset(0.0f, 0.0f);
+   }
    glDrawArrays(GL_TRIANGLES, 0, 3);
+   CHECK(glGetError() == GL_NO_ERROR);
 
    // Format-matching readback: R32UI read as RED_INTEGER moves raw bits with
    // no conversion. (Not the ES-mandated RGBA_INTEGER combo, but supported
@@ -190,9 +217,9 @@ main(int argc, char **argv)
    double ideal = (double)width - 0.5;
    double rel_err = (ideal - (double)last) / ideal;
 
-   printf("mode=%s width=%d: floor(v) != x at %ld of %d pixels "
-          "(first at x=%d)\n",
-          mode, width, bad, width, first_bad);
+   printf("mode=%s workaround=%s width=%d: "
+          "floor(v) != x at %ld of %d pixels (first at x=%d)\n",
+          mode, workaround, width, bad, width, first_bad);
    printf("last pixel x=%d: v=%.4f expected=%.1f relative_error=%.3e "
           "(%.3f * 2^-10)\n",
           width - 1, last, ideal, rel_err, rel_err * 1024.0);

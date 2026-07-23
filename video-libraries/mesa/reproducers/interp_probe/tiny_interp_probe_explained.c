@@ -66,6 +66,7 @@
  *   ./tiny_interp_probe_explained 12288 fragcoord
  *   ./tiny_interp_probe_explained 8192
  *   ./tiny_interp_probe_explained 16307 varying
+ *   ./tiny_interp_probe_explained 12288 varying polygon-offset
  *
  * Exit codes:
  *
@@ -185,6 +186,7 @@ main(int argc, char **argv)
     *
     *   argv[1] = width, default 12288
     *   argv[2] = "varying" or "fragcoord", default "varying"
+    *   argv[3] = "baseline" or "polygon-offset", default "baseline"
     *
     * Width 12288 is useful because it shows nearly a 2^-10 relative error on
     * the target Mali-G610 system. Width 8192 is a power-of-two control that
@@ -192,12 +194,20 @@ main(int argc, char **argv)
     */
    int width = 12288;
    const char *mode = "varying";
+   const char *workaround = "baseline";
+
+   if (argc > 4) {
+      fprintf(stderr, "usage: %s [width] [varying|fragcoord] "
+                      "[baseline|polygon-offset]\n", argv[0]);
+      return 1;
+   }
 
    if (argc > 1) {
       char *end;
       long w = strtol(argv[1], &end, 10);
       if (*argv[1] == '\0' || *end != '\0' || w < 1 || w > (1 << 23)) {
-         fprintf(stderr, "usage: %s [width] [varying|fragcoord]\n", argv[0]);
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] "
+                         "[baseline|polygon-offset]\n", argv[0]);
          return 1;
       }
       width = (int)w;
@@ -206,12 +216,24 @@ main(int argc, char **argv)
    if (argc > 2) {
       mode = argv[2];
       if (strcmp(mode, "varying") != 0 && strcmp(mode, "fragcoord") != 0) {
-         fprintf(stderr, "usage: %s [width] [varying|fragcoord]\n", argv[0]);
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] "
+                         "[baseline|polygon-offset]\n", argv[0]);
+         return 1;
+      }
+   }
+
+   if (argc > 3) {
+      workaround = argv[3];
+      if (strcmp(workaround, "baseline") != 0 &&
+          strcmp(workaround, "polygon-offset") != 0) {
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] "
+                         "[baseline|polygon-offset]\n", argv[0]);
          return 1;
       }
    }
 
    int use_fragcoord = strcmp(mode, "fragcoord") == 0;
+   int use_polygon_offset = strcmp(workaround, "polygon-offset") == 0;
 
    /*
     * Create an EGL context.
@@ -304,8 +326,19 @@ main(int argc, char **argv)
    /*
     * Draw the one big triangle. There is no vertex buffer because the vertex
     * shader invents the three vertices from gl_VertexID.
+    *
+    * The optional polygon-offset state is the hardware-erratum workaround
+    * suggested by Kusma in Mesa MR !42679. The zero factor and units do not
+    * move the triangle; enabling this state selects the unaffected hardware
+    * path. Keep these calls immediately before the draw as prescribed.
     */
+   CHECK(glGetError() == GL_NO_ERROR);
+   if (use_polygon_offset) {
+      glEnable(GL_POLYGON_OFFSET_FILL);
+      glPolygonOffset(0.0f, 0.0f);
+   }
    glDrawArrays(GL_TRIANGLES, 0, 3);
+   CHECK(glGetError() == GL_NO_ERROR);
 
    /*
     * Read back the raw bits. The format/type pair asks GL for unsigned integer
@@ -343,9 +376,9 @@ main(int argc, char **argv)
    double ideal = (double)width - 0.5;
    double rel_err = (ideal - (double)last) / ideal;
 
-   printf("mode=%s width=%d: floor(v) != x at %ld of %d pixels "
-          "(first at x=%d)\n",
-          mode, width, bad, width, first_bad);
+   printf("mode=%s workaround=%s width=%d: "
+          "floor(v) != x at %ld of %d pixels (first at x=%d)\n",
+          mode, workaround, width, bad, width, first_bad);
    printf("last pixel x=%d: v=%.4f expected=%.1f relative_error=%.3e "
           "(%.3f * 2^-10)\n",
           width - 1, last, ideal, rel_err, rel_err * 1024.0);

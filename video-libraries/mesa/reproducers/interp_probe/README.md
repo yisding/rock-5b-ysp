@@ -133,6 +133,7 @@ current working directory.
 ./tiny_interp_probe 12288 fragcoord
 ./tiny_interp_probe 8192
 ./tiny_interp_probe 16307 varying
+./tiny_interp_probe 12288 varying polygon-offset
 # ARM Mali blob: use the X11 variant (needs a running X server; see
 # arm-mali-reproducer.md). The GBM tiny_interp_probe_arm_blob crashes this kernel.
 DISPLAY=:0 ./tiny_interp_probe_arm_blob_x11 8192 fragcoord
@@ -155,6 +156,7 @@ The explained copies take the same arguments:
 
 ./tiny_interp_probe_explained
 ./tiny_interp_probe_explained 12288 fragcoord
+./tiny_interp_probe_explained 12288 varying polygon-offset
 ./tiny_interp_probe_arm_blob_explained
 ./tiny_interp_probe_arm_blob_explained 12288 fragcoord
 
@@ -197,6 +199,11 @@ surfaceless EGL, links `libGLESv2` directly, draws one large
 `GL_RED_INTEGER`/`GL_UNSIGNED_INT`. Mode `varying` is the test. Mode
 `fragcoord` stores `gl_FragCoord.x` as the raster/readback control. It prints
 `GL_RENDERER` and `GL_VERSION` to stderr so the driver actually used is visible.
+An optional third argument, `polygon-offset`, enables `GL_POLYGON_OFFSET_FILL`
+and sets `glPolygonOffset(0.0f, 0.0f)` immediately before the draw. Kusma
+identified this in [Mesa MR !42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679#note_3578636)
+as a workaround for the confirmed hardware erratum. The default `baseline`
+mode leaves the state untouched for an A/B comparison.
 
 `vk_interp_probe.c` ports the same test to Vulkan. It creates a `W x 1`
 `VK_FORMAT_R32_UINT` color target, renders with dynamic rendering, then copies
@@ -209,24 +216,33 @@ same binary on software.
 ## Expected Results
 
 On ROCK 5B / Mali-G610, the system Mesa 26.0.3 Panfrost/panvk stack shows the
-same failure in GL and Vulkan:
+same baseline failure in GL and Vulkan. The polygon-offset workaround removes
+the GL failure completely (measured 2026-07-22):
 
 ```text
 $ ./tiny_interp_probe
-mode=varying width=12288: floor(v) != x at 11744 of 12288 pixels (first at x=529)
+mode=varying workaround=baseline width=12288: floor(v) != x at 11744 of 12288 pixels (first at x=529)
 last pixel x=12287: v=12275.5312 expected=12287.5 relative_error=9.741e-04 (0.997 * 2^-10)
 
+$ ./tiny_interp_probe 12288 varying polygon-offset
+mode=varying workaround=polygon-offset width=12288: floor(v) != x at 0 of 12288 pixels (first at x=-1)
+last pixel x=12287: v=12287.5000 expected=12287.5 relative_error=0.000e+00 (0.000 * 2^-10)
+
 $ ./tiny_interp_probe 12288 fragcoord
-mode=fragcoord width=12288: floor(v) != x at 0 of 12288 pixels (first at x=-1)
+mode=fragcoord workaround=baseline width=12288: floor(v) != x at 0 of 12288 pixels (first at x=-1)
 last pixel x=12287: v=12287.5000 expected=12287.5 relative_error=0.000e+00 (0.000 * 2^-10)
 
 $ ./tiny_interp_probe 8192
-mode=varying width=8192: floor(v) != x at 0 of 8192 pixels (first at x=-1)
+mode=varying workaround=baseline width=8192: floor(v) != x at 0 of 8192 pixels (first at x=-1)
 last pixel x=8191: v=8191.5000 expected=8191.5 relative_error=0.000e+00 (0.000 * 2^-10)
 
 $ ./tiny_interp_probe 16307 varying
-mode=varying width=16307: floor(v) != x at 15672 of 16307 pixels (first at x=623)
+mode=varying workaround=baseline width=16307: floor(v) != x at 15672 of 16307 pixels (first at x=623)
 last pixel x=16306: v=16293.2832 expected=16306.5 relative_error=8.105e-04 (0.830 * 2^-10)
+
+$ ./tiny_interp_probe 16307 varying polygon-offset
+mode=varying workaround=polygon-offset width=16307: floor(v) != x at 0 of 16307 pixels (first at x=-1)
+last pixel x=16306: v=16306.5000 expected=16306.5 relative_error=0.000e+00 (0.000 * 2^-10)
 ```
 
 Vulkan/panvk reproduces the GL numbers bit-for-bit at the same widths:
@@ -246,6 +262,8 @@ mode=varying width=12288 device=llvmpipe (LLVM 21.1.8, 128 bits): floor(v) != x 
 
 The controls matter:
 
+- `polygon-offset` passes at both failing widths tested (`12288` and `16307`),
+  confirming the maintainer-provided hardware-erratum workaround on G610.
 - `fragcoord` passes on Mali, so rasterization and readback are sound.
 - Power-of-two widths such as `8192` and `16384` pass, so the failure is
   width-dependent, not a blanket "all f32 varyings are 10-bit" rule.
@@ -263,6 +281,8 @@ Measured width behavior on this board:
   (`x=2048..2079`). Failing widths are sparse and non-monotone below roughly
   `4300`, then become dense.
 
-The result is consistent with the interpolated-varying path losing precision
-for large non-power-of-two extents. It is not evidence that u_blitter, texture
-sampling, TXF, filtering, or readback conversion is wrong.
+The baseline result is a confirmed Mali hardware erratum in the
+interpolated-varying path for large non-power-of-two extents. It is not
+evidence that u_blitter, texture sampling, TXF, filtering, or readback
+conversion is wrong. Enabling zero-valued polygon offset selects the unaffected
+hardware path without moving the primitive.
