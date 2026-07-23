@@ -92,6 +92,39 @@ one-shot bind ioctl should behave.) Fold into both the forward-port tail and
 the BSP backport set in
 [`patch-catalog.md`](../kernel-drivers/docs/patch-catalog.md).
 
+## Severity escalation — it is a use-after-free, not just a WARN (2026-07-22)
+
+Building the OOB reproducers surfaced the real impact. After the deterministic
+double-init reproducer corrupted `queue->session_attach` at 20:00, a **later,
+single, ordinary `INIT_CLIENT_TYPE`** (from an unrelated PoC at 20:29) tripped a
+**KASAN slab-use-after-free** at the same `list_add` site:
+
+```
+BUG: KASAN: slab-use-after-free in __list_add_valid_or_report … by task mpp-reg-offset-/131080 (UID 1000)
+  mpp_process_request+0x11a8  (mpp_session_attach_workqueue list_add_tail)
+The buggy address belongs to the object … kmalloc-1k … pointer offset 408
+Freed by task 55846:  kfree … mpp_process_request+0x11a8 …
+```
+
+The freed object is a **`struct mpp_session`** (kmalloc-1k, `session_link` at
+offset 408) freed on session close. Because the earlier double-add left the
+freed session's `session_link` still linked into `queue->session_attach`, a new
+session's `list_add_tail` reads the freed node. So the double-init defect is not
+a self-contained WARN: it **persistently corrupts a kernel-wide list**, and the
+use-after-free is then reachable by **any subsequent unprivileged
+`INIT_CLIENT_TYPE`** on `/dev/mpp_service`, reading (and on the next add,
+writing through) freed slab memory. That is a genuine UAF write/read primitive,
+not merely a DEBUG_LIST diagnostic. On a production kernel without DEBUG_LIST the
+corruption is silent until the freed-node access faults.
+
+This moves the bug into the same **memory-corruption submit-now tier** as
+`0055`/`0060`/`0052`/`0057` in the
+[upstream-submission-priority finding](2026-07-22-bsp-bug-upstream-submission-priority.md).
+
+> The currently booted `Pabd5-C4ad2` lacks the `0070` fix, so its
+> `session_attach` list is corrupted for the rest of this boot; reboot onto the
+> `0070` build before further MPP testing.
+
 ## Fix applied
 
 The `-EBUSY` guard is committed to the forward-port branch

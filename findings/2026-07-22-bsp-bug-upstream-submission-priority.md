@@ -42,10 +42,29 @@ root-only/appliance-only surface.
 | **0058** | Clientless `MPP_CMD_RELEASE_FD` NULL-deref (`session->dma == NULL`) | **10-line deterministic reproducer**, unprivileged, synchronous crash → trivial local DoS; low-complexity/high-certainty ideal for a first submission | [`tests/mpp-clientless-release-fd-uaf.c`](../kernel-drivers/tests/mpp-clientless-release-fd-uaf.c) ✓ |
 | **0052 / 0057** | RGA request / job vs `/dev/rga`-close **use-after-free** (+ refcount underflow) | KASAN-proven UAFs, unprivileged; UAF → LPE potential | [`tests/rga-session-uaf.c`](../kernel-drivers/tests/rga-session-uaf.c) `cross` ✓ (64k async submits clean on the fixed build) |
 | **0042** | MPP `RESET_SESSION` **double-free** | Deterministic KASAN double-free, unprivileged | [`tests/kasan-narrowed-repro.sh`](../kernel-drivers/tests/kasan-narrowed-repro.sh) ✓ |
+| **0070** | `INIT_CLIENT_TYPE` double-init → persistent `session_attach` list corruption → **KASAN slab-use-after-free of a freed `struct mpp_session`**, reachable by any *later* unprivileged `INIT_CLIENT_TYPE` | Deterministic; escalated from WARN to UAF while building these PoCs (see [finding](2026-07-22-mpp-process-request-list-add-double-add-warn.md)) | [`tests/mpp-double-init-repro.c`](../kernel-drivers/tests/mpp-double-init-repro.c) ✓ |
 
-**Pick two to file first:** `0055` (deterministic OOB write over a `work_struct`)
-and `0060` (type confusion) — the CVE-class pair. Bundle `0058` as the
-undeniable, low-risk DoS opener.
+**Pick to file first:** `0055` (deterministic OOB write over a `work_struct`),
+`0060` (type confusion), and `0070` (double-init UAF of a freed session) — the
+CVE-class set. Bundle `0058` as the undeniable, low-risk DoS opener.
+
+**PoCs written and fix-validated on the booted kernel (2026-07-22):**
+
+- `0060` — [`tests/mpp-foreign-session-fd-repro.c`](../kernel-drivers/tests/mpp-foreign-session-fd-repro.c):
+  a foreign eventfd and `/dev/null` passed to `SET_SESSION_FD` both return
+  `-EBADF` on the fixed kernel (no dereference). Standalone, unprivileged.
+- `0055` — [`tests/mpp-reg-offset-oob-repro.c`](../kernel-drivers/tests/mpp-reg-offset-oob-repro.c):
+  `SET_REG_ADDR_OFFSET` with `size=647` makes the fixed extractor log
+  `invalid reg offset size 647` and copy nothing — the guard fires, no OOB.
+  (This run also incidentally tripped the `0070` UAF via its bind, since the
+  boot's `session_attach` was already poisoned — see that finding.)
+- `0070` — [`tests/mpp-double-init-repro.c`](../kernel-drivers/tests/mpp-double-init-repro.c):
+  two `INIT_CLIENT_TYPE` on one session; the second trips the list_add and, as
+  shown above, leaves a UAF for later sessions.
+
+Each PoC is attachable to the upstream report and doubles as a runtime gate:
+on a fixed kernel it fails closed; on a vulnerable kernel it produces the KASAN
+report / crash to cite.
 
 ### Second priority (same batch)
 
@@ -54,10 +73,9 @@ undeniable, low-risk DoS opener.
 - **0053 / 0054** — device-less-task NULL-deref **hard lockup** = full-board DoS.
 - **0061 / 0063** — more unprivileged OOB writes (RKVDEC2 RCB index, RKVENC2
   request fan-out), same class as `0055`, no isolated repro yet.
-- **0070** — the `INIT_CLIENT_TYPE` double-init list corruption + `dma` leak
-  ([finding](2026-07-22-mpp-process-request-list-add-double-add-warn.md));
-  deterministic repro, but hold one cycle until its gate passes on the rebuilt
-  debug kernel.
+
+(`0070` was promoted from here into the submit-now tier above once building the
+PoCs showed it is a UAF, not a WARN.)
 
 ### Not urgent (batched follow-up)
 
@@ -70,11 +88,12 @@ not attacker-reachable memory corruption: `0039` physical-import validation,
 
 Severity here is reasoned from the patch mechanics and the `video`-group
 reachability, not from a demonstrated end-to-end exploit: none of these has been
-driven to a controlled read/write or code-exec primitive. `0055`/`0060`/`0061`/
-`0063` are code-confirmed and fuzz-reachable but lack a standalone PoC — write
-minimal reproducers for `0055` and `0060` before filing, since a working PoC is
-what turns a report into a triaged CVE. The reproduced rows (`0042`, `0052`,
-`0057`, `0058`, `0070`) are submission-ready as memory-safety reports today.
+driven to a controlled read/write or code-exec primitive. `0055`, `0060`, and
+`0070` now have standalone unprivileged PoCs (above) that reach the vulnerable
+path and validate the fix on hardware; `0061`/`0063` remain code-confirmed and
+fuzz-reachable without an isolated repro. The reproduced rows (`0042`, `0052`,
+`0055`, `0057`, `0058`, `0060`, `0070`) are submission-ready as memory-safety
+reports today.
 
 ## Why it matters / follow-up
 

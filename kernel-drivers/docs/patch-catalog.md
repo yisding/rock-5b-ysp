@@ -233,10 +233,21 @@ fixes), `0018`–`0037` (already Rockchip's), `0043` (port-introduced bug),
   equally latent in the BSP and live only in `cleanup-split/`; none are ported
   to the current tip.
 
-### Submission status
+### Submission status and priority
 
 Nothing has been submitted to Rockchip, Armbian, or mainline as of
 2026-07-22. The [audit's upstreaming note](./bsp-audit.md) records the
 submission-target decision (Rockchip BSP vs Armbian vs mainline alongside the
 [rewrite drivers](./rewrite-drivers.md)) as awaiting an owner decision; this
 catalog is the per-patch inventory that decision needs.
+
+**Which to report immediately** (severity triage, venue, and CVE candidates)
+is worked out in
+[`findings/2026-07-22-bsp-bug-upstream-submission-priority.md`](../../findings/2026-07-22-bsp-bug-upstream-submission-priority.md):
+the unprivileged memory-corruption subset — `0055` (OOB write over a
+`work_struct`), `0060` (type confusion), `0070` (double-init UAF of a freed
+`mpp_session`), `0052`/`0057`/`0042` (UAF/double-free), and `0058` (DoS) —
+clears the report-now bar; `0055`/`0060`/`0070` have standalone unprivileged
+PoCs under [`kernel-drivers/tests/`](../tests). Venue is the Rockchip BSP +
+Armbian (this code is not in mainline), with CVEs for the OOB/type-confusion/UAF
+rows.

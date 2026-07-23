@@ -110,7 +110,7 @@ last-checked date.
 | W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | RGA fixes `0046`–`0048` pass their booted gates on `P63dd-C4ad2` (legacy blits, `EOPNOTSUPP` probe, P010 luma bit-exact; smoke/MPP/FFmpeg/ABI replay all green, smoke fully green for the first time). The `0048` gate exposed the `0049` UV plane-offset fix; `0049`–`0051` (UV offsets, RGA2 page-table DMA ownership + device DMA parameters, over-4G service via swiotlb-bounced DMA mappings) are committed and checkpatch-clean with booted gates pending the next debug build. Slice-FIFO hardening, GStreamer, publication, exact-image validation, and rollback remain. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
-| W19 | [MPP `INIT_CLIENT_TYPE` double-call list corruption](#watch-w19) | 2026-07-22 | **Root-caused, reproduced, fix committed as `0070`** (`-EBUSY` re-init guard, checkpatch-clean). Two `INIT_CLIENT_TYPE` ioctls on one session double-add `session->session_link` + leak `session->dma`; unprivileged, BSP-identical, untouched by `0059`-`0069`. A new debug build carrying `0070` is being built; gate = reproducer returns `-EBUSY` + clean regression on the rebuilt boot. |
+| W19 | [MPP `INIT_CLIENT_TYPE` double-call → UAF](#watch-w19) | 2026-07-22 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0070`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0059`-`0069`. Booted `Pabd5` list is poisoned for this boot; gate = reproducer returns `-EBUSY` on the rebuilt `0070` boot. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -441,21 +441,26 @@ last-checked date.
   upstream has revived (offer changes back) before diverging further.
 
 <a id="watch-w19"></a>
-### W19 — MPP `INIT_CLIENT_TYPE` double-call list corruption
+### W19 — MPP `INIT_CLIENT_TYPE` double-call → use-after-free
 
-- **Why recheck:** A real unprivileged-reachable list corruption, currently only
-  a WARN because `Pabd5-C4ad2` carries `CONFIG_DEBUG_LIST`. On a production kernel
-  the double-add is silent but `queue->session_attach` still ends up corrupt, so a
-  later worker traversal could fault. The fix is proposed but not yet applied or
-  gated, so it stays live until a rebuilt kernel returns `-EBUSY`.
+- **Why recheck:** A real unprivileged-reachable **use-after-free**, not just a
+  WARN. On `Pabd5-C4ad2` (`CONFIG_DEBUG_LIST` + KASAN) the double-init WARNs, but
+  it **persistently corrupts `queue->session_attach`**, and a *later* ordinary
+  INIT then reads a freed `struct mpp_session` (KASAN slab-use-after-free). On a
+  production kernel the corruption is silent until the freed-node access faults.
+  Stays live until the `0070` build is booted and the reproducer returns `-EBUSY`.
 - **Last checked:** 2026-07-22
-- **State then:** Root-caused and deterministically reproduced. Two
-  `MPP_CMD_INIT_CLIENT_TYPE` ioctls on one `/dev/mpp_service` session double-add
-  `session->session_link` — `mpp_session_attach_workqueue()` (`mpp_common.c:492`)
-  does an unconditional `list_add_tail`, and the `INIT_CLIENT_TYPE` case (`:1448`)
-  has no re-init guard; the second call also leaks the first `session->dma`.
-  Reachable as UID 1000; both ioctls return 0. BSP-identical unguarded code
-  (direct donor comparison), untouched by `0059`-`0069`. Fix = reject re-init with
-  `-EBUSY` at the top of the case; carry to the forward-port tail + BSP backport.
+- **State then:** Root-caused, deterministically reproduced, and escalated to a
+  UAF while building the OOB PoCs. Two `MPP_CMD_INIT_CLIENT_TYPE` ioctls on one
+  `/dev/mpp_service` session double-add `session->session_link`
+  (`mpp_session_attach_workqueue()`, `mpp_common.c:492`; the `:1448` INIT case has
+  no re-init guard) and leak the first `session->dma`. A subsequent single INIT
+  from an unrelated PoC then hit `BUG: KASAN: slab-use-after-free` at the
+  `list_add`, reading a freed kmalloc-1k `mpp_session` (`session_link` offset
+  408). Reachable as UID 1000. BSP-identical unguarded code, untouched by
+  `0059`-`0069`; in the **submit-now/CVE tier**
+  ([submission priority](./findings/2026-07-22-bsp-bug-upstream-submission-priority.md)).
+  Fix = reject re-init with `-EBUSY`, committed as `0070`; a debug build carrying
+  it is being produced (the current boot's list stays poisoned until reboot).
   Reproducer: [`kernel-drivers/tests/mpp-double-init-repro.c`](./kernel-drivers/tests/mpp-double-init-repro.c).
   Detail: [`findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md`](./findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md).
