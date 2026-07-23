@@ -450,7 +450,7 @@ last-checked date.
   INIT then reads a freed `struct mpp_session` (KASAN slab-use-after-free). On a
   production kernel the corruption is silent until the freed-node access faults.
   Stays live until the `0070` build is booted and the reproducer returns `-EBUSY`.
-- **Last checked:** 2026-07-22
+- **Last checked:** 2026-07-23
 - **State then:** Root-caused, deterministically reproduced, and escalated to a
   UAF while building the OOB PoCs. Two `MPP_CMD_INIT_CLIENT_TYPE` ioctls on one
   `/dev/mpp_service` session double-add `session->session_link`
@@ -513,7 +513,12 @@ last-checked date.
   PPA backport,
   `24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1`, now has exact-source
   checksum verification, source/native-arm64 builds, a three-file `debdiff`,
-  and clean binary lintian locally; upload is pending.
+  and clean binary lintian locally. Signed source publication
+  [`18636085`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18636085)
+  is accepted; Launchpad arm64 build
+  [`33428910`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33428910)
+  succeeded, and all nine binary publications are accepted/Pending the PPA
+  publisher.
   Gate after reboot: confirm the cmdline token, skipped Plymouth start, completed
   read-write unit, and reached sysinit/basic targets. If retaining Plymouth,
   client reply timeouts must cover read-write/show-splash and finite systemd

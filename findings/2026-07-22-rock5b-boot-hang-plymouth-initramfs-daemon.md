@@ -324,7 +324,12 @@ The YSP PPA backport is tracked under
 checksum-verifies the exact Resolute source, applies only upstream `45655f12`,
 and produces the source upload. The source and native arm64 builds pass;
 `debdiff` shows only the changelog, DEP-3 patch, and series entry, and binary
-lintian is clean. PPA upload is pending.
+lintian is clean. Signed source publication
+[`18636085`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18636085)
+was accepted on 2026-07-23. Launchpad arm64 build
+[`33428910`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33428910)
+succeeded, and all nine binary publications were accepted; they remain
+`Pending` until the PPA publisher updates the public repository index.
 
 ### Package-level hardening if Plymouth must remain enabled
 

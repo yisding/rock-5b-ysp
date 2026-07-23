@@ -43,6 +43,16 @@ dput ppa:yi-ding/ubuntu-rock-5b \
   packaging/ppa/out/artifacts/plymouth_24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1_source.changes
 ```
 
+The signed source upload was accepted on 2026-07-23 as Launchpad source
+publication
+[`18636085`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18636085).
+Its arm64 build
+[`33428910`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33428910)
+completed successfully, and Launchpad accepted all nine binary publications.
+They remain `Pending` until the PPA publisher writes them to the public
+repository index; do not install the package until the version appears in
+`apt-cache policy`.
+
 Installing the rebuilt `plymouth` package queues Ubuntu's `update-initramfs`
 trigger. Confirm that the target initramfs contains the PPA's rebuilt
 `libply-splash-core.so.5` before rebooting.
