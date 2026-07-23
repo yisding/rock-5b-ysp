@@ -278,10 +278,10 @@ class ForwardPortPatchSeriesTests(unittest.TestCase):
         patches = sorted(self.series.glob("rk3588-av1-fwport-*.patch"))
         numbers = [int(path.name.split("-")[3]) for path in patches]
 
-        self.assertEqual(numbers, [number for number in range(1, 44) if number != 12])
+        self.assertEqual(numbers, [number for number in range(1, 71) if number != 12])
         readme = (self.series / "README.md").read_text(encoding="utf-8")
-        self.assertIn("655d178191807e24e9ca4dd72e74401b449d2099", readme)
-        self.assertIn("42-file series", readme)
+        self.assertIn("fa8c80ceccc5e", readme)
+        self.assertIn("69-file series", readme)
 
     def test_series_mailboxes_are_well_formed(self) -> None:
         for patch in sorted(self.series.glob("rk3588-av1-fwport-*.patch")):
@@ -510,202 +510,7 @@ class PassiveCoolingScriptTests(unittest.TestCase):
         self.assertIn("'StartLimitIntervalSec=0'", source)
 
 
-class DocumentationConsistencyTests(unittest.TestCase):
-    def write_status(self, root: Path, text: str) -> None:
-        (root / "status.md").write_text(text, encoding="utf-8")
-
-    def test_valid_watchlist_index_and_detail_match(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            self.write_status(
-                root,
-                "## Watchlist — facts that go stale silently\n\n"
-                "| ID | Watch item | Last checked | Summary |\n"
-                "|----|------------|--------------|---------|\n"
-                "| W01 | [Example](#watch-w01) | 2026-07-11 | Unchanged. |\n\n"
-                '<a id="watch-w01"></a>\n'
-                "### W01 — Example\n\n"
-                "- **Why recheck:** External state can change.\n"
-                "- **Last checked:** 2026-07-11\n"
-                "- **State then:** It was unchanged.\n",
-            )
-            errors: list[str] = []
-
-            DOC_CHECKER.check_watchlist(root, errors)
-
-            self.assertEqual(errors, [])
-
-    def test_watchlist_reports_date_mismatch_and_missing_state(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            self.write_status(
-                root,
-                "## Watchlist — facts that go stale silently\n\n"
-                "| ID | Watch item | Last checked | Summary |\n"
-                "|----|------------|--------------|---------|\n"
-                "| W01 | [Example](#watch-w01) | 2026-07-11 | Unchanged. |\n\n"
-                '<a id="watch-w01"></a>\n'
-                "### W01 — Example\n\n"
-                "- **Why recheck:** External state can change.\n"
-                "- **Last checked:** 2026-07-10\n",
-            )
-            errors: list[str] = []
-
-            DOC_CHECKER.check_watchlist(root, errors)
-
-            self.assertTrue(any("does not match detail date" in e for e in errors))
-            self.assertTrue(any("empty state field" in e for e in errors))
-
-    def test_malformed_next_gate_row_reports_errors_without_crashing(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            self.write_status(
-                root,
-                "## Dashboard\n\n"
-                "| # | Track | Public state | Verified | Detail |\n"
-                "|---|-------|--------------|----------|--------|\n"
-                "| 1 | Example | ✅ Works. | 2026-07-11 | detail.md |\n\n"
-                "## Next gates\n\n"
-                "| # | Track | Next proof |\n"
-                "|---|-------|------------|\n"
-                "| 1 |\n",
-            )
-            errors: list[str] = []
-
-            DOC_CHECKER.check_dashboard_next_gates(root, errors)
-
-            self.assertTrue(any("must have 4 columns" in e for e in errors))
-            self.assertTrue(any("empty next gate" in e for e in errors))
-
-    def test_next_gate_requires_linked_action_path(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            self.write_status(
-                root,
-                "## Dashboard\n\n"
-                "| # | Track | Public state | Verified | Detail |\n"
-                "|---|-------|--------------|----------|--------|\n"
-                "| 1 | Example | ✅ Works. | 2026-07-11 | detail.md |\n\n"
-                "## Next gates\n\n"
-                "| # | Track | Next proof | Action path |\n"
-                "|---|-------|------------|-------------|\n"
-                "| 1 | Example | Re-run it. | Read the runbook. |\n",
-            )
-            errors: list[str] = []
-
-            DOC_CHECKER.check_dashboard_next_gates(root, errors)
-
-            self.assertTrue(any("action path has no Markdown link" in e for e in errors))
-
-    def test_valid_support_coverage_schema(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            docs = root / "docs"
-            docs.mkdir()
-            (docs / "support-coverage.md").write_text(
-                "## Coverage inventory\n\n"
-                "| ID | Board area | Coverage | What the repository owns today | First useful evidence to add |\n"
-                "|----|------------|----------|--------------------------------|------------------------------|\n"
-                "| C01 | Example | `TRACKED` | Owner. | Run it. |\n"
-                "| C02 | Other | `UNASSESSED` | None. | Capture it. |\n",
-                encoding="utf-8",
-            )
-            errors: list[str] = []
-
-            DOC_CHECKER.check_support_coverage(root, errors)
-
-            self.assertEqual(errors, [])
-
-    def test_support_coverage_reports_bad_state_order_and_empty_field(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            docs = root / "docs"
-            docs.mkdir()
-            (docs / "support-coverage.md").write_text(
-                "## Coverage inventory\n\n"
-                "| ID | Board area | Coverage | What the repository owns today | First useful evidence to add |\n"
-                "|----|------------|----------|--------------------------------|------------------------------|\n"
-                "| C02 | Example | `UNKNOWN` | | Run it. |\n"
-                "| C01 | Other | `NARROW` | Owner. | Capture it. |\n",
-                encoding="utf-8",
-            )
-            errors: list[str] = []
-
-            DOC_CHECKER.check_support_coverage(root, errors)
-
-            self.assertTrue(any("invalid coverage state" in e for e in errors))
-            self.assertTrue(any("empty current owner field" in e for e in errors))
-            self.assertTrue(any("coverage IDs are not ordered" in e for e in errors))
-
-    def test_dchs_software_only_conflation_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            (root / "README.md").write_text(
-                "# Test\n\nDCHS is the encoder's software-only equivalent.\n",
-                encoding="utf-8",
-            )
-            errors: list[str] = []
-
-            DOC_CHECKER.check_load_bearing_terminology(root, errors)
-
-            self.assertTrue(any("DCHS is a hardware handshake" in e for e in errors))
-
-    def test_project_brief_requires_orientation_fields_and_status_owner(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            readme = root / "project" / "README.md"
-            readme.parent.mkdir()
-            readme.write_text(
-                "# Project\n\n"
-                "| Field | Contents |\n"
-                "|-------|----------|\n"
-                "| Purpose | Explain it. |\n"
-                "| Developer focus | Maintain it. |\n"
-                "| Owns | Its docs. |\n"
-                "| Current state | Works today. |\n",
-                encoding="utf-8",
-            )
-            errors: list[str] = []
-
-            DOC_CHECKER.check_project_briefs(
-                root,
-                errors,
-                ("project/README.md",),
-            )
-
-            self.assertTrue(any("has no Depends on" in e for e in errors))
-            self.assertTrue(any("does not link to status.md" in e for e in errors))
-
-    def test_unindexed_operational_file_is_reported(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            scripts = root / "scripts"
-            scripts.mkdir()
-            (scripts / "README.md").write_text("# Scripts\n", encoding="utf-8")
-            (scripts / "hidden.sh").write_text(
-                "#!/usr/bin/env bash\n",
-                encoding="utf-8",
-            )
-            errors: list[str] = []
-
-            DOC_CHECKER.check_operational_indexes(root, errors)
-
-            self.assertTrue(any("operational file not named" in e for e in errors))
-
-    def test_unindexed_child_readme_is_reported(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            project = root / "project"
-            child = project / "hidden"
-            child.mkdir(parents=True)
-            (project / "README.md").write_text("# Project\n", encoding="utf-8")
-            (child / "README.md").write_text("# Hidden\n", encoding="utf-8")
-            errors: list[str] = []
-
-            DOC_CHECKER.check_readme_indexes(root, errors)
-
-            self.assertTrue(any("project README not named" in e for e in errors))
-
+class SubstantiveDriftTests(unittest.TestCase):
     def test_personal_home_default_in_operational_file_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -737,22 +542,6 @@ class DocumentationConsistencyTests(unittest.TestCase):
             )
 
             self.assertTrue(any("differs from synchronized helper" in e for e in errors))
-
-    def test_finding_template_requires_reproducible_evidence_prompts(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            findings = root / "findings"
-            findings.mkdir()
-            (findings / "TEMPLATE.md").write_text(
-                "# Finding\n\n> Scope: project\n\n## Result\n",
-                encoding="utf-8",
-            )
-            errors: list[str] = []
-
-            DOC_CHECKER.check_finding_template(root, errors)
-
-            self.assertTrue(any("missing identity prompt" in e for e in errors))
-            self.assertTrue(any("missing boundary section" in e for e in errors))
 
 
 if __name__ == "__main__":

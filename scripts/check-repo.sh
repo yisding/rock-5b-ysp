@@ -44,7 +44,7 @@ python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 printf 'Checking maintained shell scripts...\n'
 check_shell_scripts
 
-printf 'Checking repository documentation contracts...\n'
+printf 'Checking packaging version pins and portable defaults...\n'
 python3 scripts/check-doc-consistency.py "$ROOT"
 
 printf 'Checking unstaged, staged, and untracked whitespace...\n'
