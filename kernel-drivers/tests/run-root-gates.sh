@@ -8,8 +8,7 @@
 # suite, the PoC ladder, librga-smoke, rga-session-uaf, ffmpeg-suite); this
 # script covers what's left.
 #
-#   sudo bash kernel-drivers/tests/run-root-gates.sh              # safe gates
-#   sudo bash kernel-drivers/tests/run-root-gates.sh --with-vp9-crash
+#   sudo bash kernel-drivers/tests/run-root-gates.sh
 #
 # Each gate is run with its output captured under $OUT and a per-gate kernel-log
 # scan (journalctl cursor) for KASAN/BUG/Oops/UAF/OOB/WARN/iommu-fault. A gate is
@@ -19,11 +18,12 @@
 # (8.0.3-rk1, rkmpp+rkrga) for every ffmpeg-consuming gate, so a linuxbrew (or
 # any other) ffmpeg on PATH is bypassed. Override with FFMPEG=/path/to/ffmpeg.
 #
-# --with-vp9-crash adds mpp-vp9-show-existing-repro.sh, which is DESTRUCTIVE by
-# design: it drives the VP9 show_existing_frame NULL-deref that has hard-locked
-# this board. It is opt-in, runs last, and sets kernel.panic_on_oops=0 first so a
-# process-context oops prints its trace instead of rebooting. Do not use it on a
-# board you can't afford to lose.
+# The VP9 show_existing_frame gate (mpp-vp9-show-existing-repro.sh) runs last, by
+# default. It drives the show_existing_frame path that once NULL-deref'd and
+# hard-locked this board; that crash is fixed (0053/0058), so it is now a normal
+# regression gate rather than an opt-in. It still sets kernel.panic_on_oops=0 for
+# its window so a would-be process-context oops prints a trace instead of
+# rebooting.
 # =============================================================================
 set -uo pipefail
 
@@ -44,10 +44,8 @@ if [ ! -x "$FFMPEG" ] || ! "$FFMPEG" -hide_banner -hwaccels 2>/dev/null | grep -
 fi
 echo "ffmpeg (hw): $("$FFMPEG" -hide_banner -version 2>/dev/null | head -1)"
 
-WITH_VP9_CRASH=0
 for a in "$@"; do
 	case "$a" in
-	--with-vp9-crash) WITH_VP9_CRASH=1 ;;
 	-h|--help) sed -n '2,34p' "$0"; exit 0 ;;
 	*) echo "unknown arg: $a" >&2; exit 2 ;;
 	esac
@@ -157,16 +155,14 @@ run_gate mpp-debug-capture \
 	"$CONFORMANCE_ROOT/out/mpp/bin/mpi_dec_test" -t 7 \
 	-i "$CONFORMANCE_ROOT/assets/test_h264.h264" -n 60
 
-# --- destructive gate (opt-in) ----------------------------------------------
-if [ "$WITH_VP9_CRASH" -eq 1 ]; then
-	echo "!!! --with-vp9-crash: driving the VP9 show_existing_frame NULL-deref."
-	echo "!!! Setting kernel.panic_on_oops=0 so the trace prints instead of rebooting."
-	prev_poo=$(cat /proc/sys/kernel/panic_on_oops 2>/dev/null)
-	sysctl -w kernel.panic_on_oops=0 >/dev/null
-	run_gate vp9-show-existing-crash \
-		-- bash "$TEST_DIR/mpp-vp9-show-existing-repro.sh"
-	[ -n "${prev_poo:-}" ] && sysctl -w kernel.panic_on_oops="$prev_poo" >/dev/null
-fi
+# 6. VP9 show_existing_frame regression gate. Once a NULL-deref board hard-lock,
+#    now fixed (0053/0058), so it runs every time. panic_on_oops=0 for its window
+#    so a regression prints a process-context trace instead of rebooting.
+prev_poo=$(cat /proc/sys/kernel/panic_on_oops 2>/dev/null)
+sysctl -w kernel.panic_on_oops=0 >/dev/null
+run_gate vp9-show-existing \
+	-- bash "$TEST_DIR/mpp-vp9-show-existing-repro.sh"
+[ -n "${prev_poo:-}" ] && sysctl -w kernel.panic_on_oops="$prev_poo" >/dev/null
 
 # --- verdict -----------------------------------------------------------------
 echo "==================== SUMMARY ===================="

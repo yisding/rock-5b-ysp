@@ -56,7 +56,7 @@ dashboard date and ledger row when public state changes.
 | # | Track | Next proof | Action path |
 |---|-------|------------|-------------|
 | 1 | Kernel forward-port | Fix the RGA2 DMA-sync and RKVENC2 overflow paths, install the GStreamer development dependencies, finish the KASAN matrix, then rebuild/upload a production image with the complete patch tail, repeat the green gates on it, and validate rollback. | [RGA2 DMA-sync gate](./findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md#verification-gate), [slice-FIFO gate](./findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md#verification-gate) |
-| 2 | BSP-audit fixes | Correctness + destructive `0059`-`0069` gates are green on booted `Pabd5-C4ad2`; `0070`/`0071` (mm_session UAF) verified on `Pc1f8-C9fc5`. The previously-skipped **root-only gates were run on `Pc1f8` 2026-07-23**: encoder ✓, transcode ✓, rga-mmu-debug ✓ (the `0071` mm_session gate — no D-state wedge), vp9-show-existing ✓ (board survived; the crash's proven fix is `0058`, clientless-RELEASE_FD reproducer returns `-EINVAL`), and iommu-machinery-fuzz surfaced a **new** scattered-userptr zero-output bug now fixed as `0072` (reject). Remaining: isolate the `mpp_process_request()` list_add double-add to one fuzz cmd and fix it; runtime-verify `0072` after its rebuild; and rebuild a production (non-KASAN) image of this tail for install/rollback + perf. | [Port record](./findings/2026-07-22-bsp-high-current-tip-port.md), [list_add finding](./findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md), [runtime gate inventory](./kernel-drivers/patches/cleanup-draft/verification.md#runtime-gate-result-record-here-when-run) |
+| 2 | BSP-audit fixes | Correctness + destructive `0059`-`0069` gates are green on booted `Pabd5-C4ad2`; `0070`/`0071` (mm_session UAF) verified on `Pc1f8-C9fc5`. The previously-skipped **root-only gates were run on `Pc1f8` 2026-07-23**: encoder ✓, transcode ✓, rga-mmu-debug ✓ (the `0071` mm_session gate — no D-state wedge), vp9-show-existing ✓ (board survived; the crash's proven fix is `0058`, clientless-RELEASE_FD reproducer returns `-EINVAL`), and iommu-machinery-fuzz surfaced a **new** scattered-userptr zero-output bug now fixed as `0072` (reject). **`0072` is now runtime-verified** on a booted KASAN `#8` build (`av1-fwport@4401383a6d9b5`, tail `0001`–`0072`, built 2026-07-23 07:39): the `rga-iommu-fuzz` scatter probe shows the driver rejecting a non-16-aligned IOMMU base (`-EINVAL`) instead of silent zero output, and the fuzz oracle was corrected to expect that reject ([validation run](./findings/2026-07-23-forward-port-current-tip-full-validation-run.md)). Remaining: isolate the `mpp_process_request()` list_add double-add to one fuzz cmd and fix it; run the root-only gates with `sudo` on this tip; and rebuild a production (non-KASAN) image of this tail for install/rollback + perf. | [Port record](./findings/2026-07-22-bsp-high-current-tip-port.md), [list_add finding](./findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md), [runtime gate inventory](./kernel-drivers/patches/cleanup-draft/verification.md#runtime-gate-result-record-here-when-run) |
 | 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. | [DKMS build and install](./packaging/dkms/README.md#dkms-build-install) |
 | 4 | Clean-room rewrite drivers | Rebuild/package one current July 22 source tip; persist 208 green booted KUnit results, then capture paired clean-dmesg/counter/artifact evidence including AVS2 and H.264/H.265 low-delay slice polling. | [Remaining rewrite hardware gates](./kernel-drivers/docs/rewrite-conformance-gap-audit.md#remaining-gaps-and-hardware-gates) |
 | 5 | ffmpeg tree | Re-test AV1 from MP4 and MKV through `av1_rkmpp` on RK3588. | [AV1 follow-up evidence](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md#av1-follow-up) |
@@ -111,7 +111,8 @@ last-checked date.
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → UAF](#watch-w19) | 2026-07-22 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0070`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0059`-`0069`. Fix build **`P29f4-C9fc5`** (config byte-identical to `Pabd5`) is built but not installed; booted `Pabd5` list is poisoned for this boot; gate = install/boot `P29f4` and confirm the reproducer returns `-EBUSY`. |
-| W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-22 | **High-confidence internal root cause found; malformed initramfs and DRM excluded:** `splash=verbose` plus active `ttyS2 tty1` routes Plymouth into terminal-only mode and returns before its udev/DRM path. The installed pre-fix 24.004.60 snapshot has upstream issue #321's non-advancing incomplete-CSI loop, whose ARM64 serial-console boot-hang reproduction matches this board. Immediate fix: append `plymouth.enable=0`; package fix: backport upstream `45655f12`. |
+| W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | **CSI-loop attribution falsified as sole cause:** the stall recurred on 2026-07-23 with the patched `~rk1` package binary-verified in the booted initramfs (identical fingerprint, no `SIGRTMIN+20`). Boot-transaction mechanism reconfirmed; internal daemon wedge unknown again. Mitigation `plymouth.enable=0` still unapplied; next hang needs a live `plymouthd` stack via `debug-shell.service` instead of a reset. |
+| W21 | [ffmpeg-rockchip `rkmpp` transcode deadlock](#watch-w21) | 2026-07-23 | On the `FFDIR` `ffmpeg-rockchip` build, `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines deadlock (all threads on `futex`, empty/truncated output); other directions and AV1 transcodes are fine, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Matches the `fix/rkmpp-output-timeout@da5befc806` fix this build lacks. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -476,10 +477,23 @@ last-checked date.
   `systemd-networkd-wait-online` timeout in the log is **not** the cause — it is
   chronic and non-fatal (the healthy boot logs the identical timeout *and* the
   identical PCIe PMU-notifier lockdep splat, yet reaches `graphical.target`).
-  Stays live until the upstream parser fix is installed and repeated boots
-  validate it, or Plymouth is disabled for an exclusion boot.
-- **Last checked:** 2026-07-22
-- **State then:** Root cause at the boot-transaction level is an unresponsive
+  Stays live until the internal wedge is captured live (the parser fix alone
+  did **not** stop it), or Plymouth is disabled for an exclusion boot.
+- **Last checked:** 2026-07-23
+- **State then (2026-07-23):** The stall recurred at 09:56 PDT on a boot that
+  provably ran the patched `~rk1` Plymouth: packages installed 05:35,
+  initramfs/uInitrd regenerated 05:41, uInitrd payload byte-identical to the
+  installed files, and disassembly confirms upstream `45655f12`'s
+  `continue`→`break` fix in the running `libply-splash-core`. Identical
+  fingerprint (both Plymouth jobs stuck, no `SIGRTMIN+20`, no
+  `sysinit.target`), so the incomplete-CSI loop is falsified as the sole
+  internal cause; details in
+  [`findings/2026-07-23-rock5b-boot-hang-recurred-with-patched-plymouth.md`](./findings/2026-07-23-rock5b-boot-hang-recurred-with-patched-plymouth.md).
+  Next discriminator: enable `debug-shell.service` +
+  `plymouth.debug=stream:/dev/ttyS2` and capture the wedged daemon's
+  `/proc/<pid>/stack`/`wchan`/`syscall` instead of resetting.
+  `plymouth.enable=0` remains the reliable mitigation and clean exclusion test.
+- **State 2026-07-22:** Root cause at the boot-transaction level is an unresponsive
   initramfs-inherited `plymouthd`: it owns the abstract socket but never
   dispatches the real-root system-initialized request. Plymouth clients have no
   timeout, so `plymouth-read-write.service` (infinite start timeout,
@@ -525,3 +539,26 @@ last-checked date.
   timeouts must also cover quit/quit-wait. For internal capture use
   `plymouth.debug=stream:/dev/ttyS2`. Detail:
   [`findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md`](./findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md).
+
+<a id="watch-w21"></a>
+### W21 — ffmpeg-rockchip `rkmpp` transcode deadlock
+
+- **Why recheck:** Surfaced during the 2026-07-23 `Pc1f8-C9fc5` validation run.
+  It is a **userspace** `ffmpeg-rockchip` bug, so it can be mistaken for a kernel
+  regression, and it hangs the FFmpeg conformance suite (the per-case
+  `timeout 180` has no SIGKILL fallback, so a futex-deadlocked ffmpeg is never
+  reaped).
+- **Last checked:** 2026-07-23
+- **State then:** On the `FFDIR` build
+  (`../ffmpeg/ffmpeg-rockchip`), the `h264_rkmpp → scale_rkrga → hevc_rkmpp`
+  transcode and the `hevc_main10 → scale_rkrga=p010le → hwdownload` case
+  deadlock — all threads `S`-state on `futex_do_wait`, 0-byte / ~1-frame output.
+  The reverse `hevc→h264` and both AV1 transcodes produce valid output through
+  the same kernel RGA/MPP, and the kernel logs a clean RGA `soft reset` on
+  session exit with no `hung_task`/D-state/KASAN — so the **kernel is not
+  implicated**. Signature matches the `rkmpp` output-timeout deadlock fixed on
+  the separate `fix/rkmpp-output-timeout@da5befc806` branch, which this `FFDIR`
+  build does not carry. Fix path: point `FFDIR` at a build with `da5befc806`
+  (or port it) and re-run; also harden `ffmpeg-suite.sh` to fail a width/height-0
+  transcode and to `timeout -k` its cases. Detail:
+  [`findings/2026-07-23-forward-port-current-tip-full-validation-run.md`](./findings/2026-07-23-forward-port-current-tip-full-validation-run.md).

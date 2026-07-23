@@ -3,7 +3,7 @@
 > Scope: forward-port RGA driver (`rga3`/`rga2`) on the `Pc1f8-C9fc5` KASAN+lockdep debug build (`6.18-rkvenc-fwport`, `6.18.38-current-rockchip64 #7`); driver-owned scattered-userptr IOMMU / cache-line-unaligned-VA path
 > Source: on-hardware run of `iommu-machinery-fuzz.sh` (root gate) 2026-07-23, then narrowed with `rga-iommu-fuzz` directly; commits `2b52e8174c127` (map scattered userptr through IOMMU), `d54523f5de378` (shadow_page for cache-line unaligned VA), `392db056b2a07` (cache-line unaligned VA fault fix) — all present in the build
 > Date: 2026-07-23
-> Trust: MEASURED (deterministic, reproduced) / SOURCE-CONFIRMED (root cause) / FIX-COMMITTED (`0072`, compile-verified)
+> Trust: MEASURED (deterministic, reproduced) / SOURCE-CONFIRMED (root cause) / FIX-RUNTIME-VERIFIED (`0072`, booted KASAN `#8` @ `4401383a6d9b5`)
 
 ## Result
 
@@ -100,13 +100,19 @@ This is why `0072` is `FWPORT-ROBUSTNESS`, not a BSP backport.
 ## Boundary
 
 Root cause is source-confirmed against the register/mapping code and the exact
-pass/fail-by-offset signature; the reject fix is **COMPILE-VERIFIED only** —
-re-run `iommu-machinery-fuzz` on a rebuilt kernel to confirm misaligned cases now
-return `-EINVAL` (the fuzzer treats that as a failure too, since it forces an
-unsupported input, so it will not go green — that is expected). Still worth
-confirming reproduction on a **non-KASAN production** kernel and whether `rga2`
-(its own page-table path) shares the defect. Real-world exposure is narrow —
-userptr (not dma-buf) + physically-fragmented + non-16-aligned source.
+pass/fail-by-offset signature; the reject fix is now **RUNTIME-VERIFIED** on a
+booted KASAN `#8` build (`av1-fwport@4401383a6d9b5`, tail `0001`–`0072`, built
+2026-07-23 07:39): `rga-iommu-fuzz` shows the driver rejecting a non-16-aligned
+IOMMU base (`-EINVAL`; kernel log `Can't get src buffer info from handle` →
+`submit failed`) rather than returning zero output
+([validation run](./2026-07-23-forward-port-current-tip-full-validation-run.md)).
+The fuzzer's oracle was corrected to **expect** that reject (a reject on a
+non-16-aligned base is a pass), so `iommu-machinery-fuzz` now goes green on the
+fixed kernel. Still worth confirming on a **non-KASAN production** kernel and
+whether `rga2` (its own page-table path) shares the defect. Real-world exposure
+is narrow — userptr (not dma-buf) + non-16-aligned source (the corruption hits
+the shadow-head path, which any non-cache-aligned userptr takes, contiguous or
+fragmented).
 
 ## Why it matters / follow-up
 
@@ -115,9 +121,11 @@ return — the silent failure is the concerning part, more than the narrow trigg
 Distinct from the `0071` `mm_session` UAF (teardown) and the earlier RGA
 request/session UAFs (`0052`/`0057`); this is a **data-path correctness** bug in
 the scattered-userptr / cache-line-unaligned-VA handling. Root-caused and the
-reject fix landed as `0072` (`4401383a6d9b5`). Remaining follow-up: (1) rebuild +
-boot and re-run `iommu-machinery-fuzz` to confirm misaligned cases now return
-`-EINVAL`; (2) re-run on a **non-KASAN** build to rule out a debug-config
-interaction; (3) optional enhancement — support the pixel-aligned-but-not-16
-subset via a 16-aligned base + `WIN_ACT_OFF` x-offset (format-aware, job-layer).
-Add a status.md watchlist row for (1)/(2).
+reject fix landed as `0072` (`4401383a6d9b5`) and is **runtime-verified** (above).
+Remaining follow-up: (1) re-run on a **non-KASAN** production build to rule out a
+debug-config interaction and for perf; (2) optional enhancement — support the
+pixel-aligned-but-not-16 subset via a 16-aligned base + `WIN_ACT_OFF` x-offset
+(format-aware, job-layer). Note the reject is *precise*, not collateral: any
+`offset % 16 != 0` necessarily also misses cache-line alignment, so it always
+coincides with an unowned shadow head — the reject set equals the corrupt set, so
+no previously-working caller is broken.

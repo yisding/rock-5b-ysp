@@ -18,10 +18,14 @@
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$REPO_ROOT/../rockchip-conformance}"
 # shellcheck source=kasan-scan.sh disable=SC1091
 source "$TEST_DIR/kasan-scan.sh"
 
-IVF="${IVF:-/tmp/claude-1000/-home-yi-Code-rock-5b-ysp/f7d52d0c-e2c3-4cd9-8dd0-4fcf600d2f2d/scratchpad/vp9-show-existing.ivf}"
+# The show_existing_frame conformance vector is tracked under the conformance
+# assets; override with IVF=... to point at another copy.
+IVF="${IVF:-$CONFORMANCE_ROOT/assets/vp9-show-existing.ivf}"
 OUT="${OUT:-$TEST_DIR/logs/2026-07-21-p70a5-gates/mpp-vp9-crash}"
 LOOPS="${LOOPS:-30}"
 CONCURRENCY="${CONCURRENCY:-4}"

@@ -23,7 +23,17 @@
 //   A scatter-induced bug (wrong base+offset, off-by-page, or non-coherent cache
 //   staleness on this non-coherent device) shows up as a byte mismatch.
 //
-// Exit 0 iff every check passed. Non-zero + first-diff report on any mismatch.
+// ALIGNMENT REJECT (forward-port 0072)
+//   RGA3 fetches a window base on 16-byte granularity (the low 4 bits of *_BASE
+//   are dropped), so the driver rejects a scattered/IOMMU-mapped base whose
+//   sub-page offset is not 16-byte aligned with -EINVAL instead of silently
+//   returning all-zero pixels. A scattered buffer at a non-16-aligned offset is
+//   therefore EXPECTED to be rejected -- that rejection is a pass here. Only a
+//   16-aligned scattered base (and the always-offset-0 contiguous reference) must
+//   run and match. A wrong-content success (the old silent-zero bug) or a reject
+//   of an aligned/contiguous op still fails.
+//
+// Exit 0 iff every check passed. Non-zero + first-diff/first-reject report.
 // Build: see rga-iommu-fuzz.sh (g++ -I<librga>/include -L<librga>/libs ... -lrga)
 // =============================================================================
 #include <cstdio>
@@ -41,6 +51,9 @@
 
 static const size_t PAGE = 4096;
 static const size_t CACHE_ALIGN = 64;
+// RGA3 fetches a window base on 16-byte granularity; the driver (forward-port
+// 0072) rejects a scattered/IOMMU-mapped base that is not 16-byte aligned.
+static const size_t RGA_IOMMU_ADDR_ALIGN = 16;
 static const uint8_t GUARD_BYTE = 0xD3;
 // RGA3 on RK3588 advertises a 68-pixel minimum width. Keep generated
 // dimensions on 16-pixel boundaries, so 80 is the first valid width.
@@ -206,10 +219,41 @@ static bool trial(Op op, int w, int h, int sfmt, int dfmt, int dw, int dh,
         !alloc_buf(dst_b, dw, dh, dfmt, false, 0)) { free_buf(src_s); free_buf(src_c); free_buf(dst_a); free_buf(dst_b); return false; }
     memset(dst_a.data, 0, dst_a.size); memset(dst_b.data, 0, dst_b.size);
 
-    // A = op(scattered/forced src) -> (scattered dst); B = op(contiguous src)->(contiguous dst)
-    if (!run_op(op, src_s, dst_a) || !run_op(op, src_c, dst_b)) ok = false;
+    // A userptr window whose IOMMU base is not 16-byte aligned is rejected by the
+    // driver (0072): an unaligned base cannot be expressed on RGA3's 16-byte base
+    // granularity, so the job fails -EINVAL rather than returning all-zero pixels.
+    // This applies to the base of *either* userptr buffer and to both the
+    // scattered and the contiguous userptr paths (an imported virtaddr carries its
+    // sub-page byte offset into the IOMMU base). The B reference uses offset-0
+    // buffers, so only src_off/dst_off can be unaligned. A reject is therefore the
+    // expected, accepted result whenever either offset is non-16-aligned.
+    bool expect_reject =
+        (src_off % RGA_IOMMU_ADDR_ALIGN != 0) ||
+        (dst_off % RGA_IOMMU_ADDR_ALIGN != 0);
 
-    if (ok) {
+    // A = op(scattered/forced src) -> (scattered dst); B = op(contiguous src)->(contiguous dst)
+    bool a_ok = run_op(op, src_s, dst_a);
+    bool b_ok = run_op(op, src_c, dst_b);
+
+    if (!b_ok) {
+        // The contiguous reference is always aligned and must run.
+        ok = false;
+        fprintf(stderr, "  CONTIGUOUS REFERENCE FAILED op=%d %dx%d->%dx%d src_off=%zu dst_off=%zu\n",
+                op, w, h, dw, dh, src_off, dst_off);
+    } else if (!a_ok) {
+        // Scattered op rejected: a pass iff a reject was expected (unaligned base).
+        if (!expect_reject) {
+            ok = false;
+            fprintf(stderr, "  UNEXPECTED REJECT op=%d %dx%d->%dx%d src_off=%zu dst_off=%zu (16-aligned scattered base should succeed)\n",
+                    op, w, h, dw, dh, src_off, dst_off);
+        } else if (verbose) {
+            fprintf(stderr, "  reject-ok op=%d %dx%d->%dx%d src_off=%zu dst_off=%zu scat=%s (unaligned base rejected as designed)\n",
+                    op, w, h, dw, dh, src_off, dst_off, scat.c_str());
+        }
+    } else {
+        // Both ops ran: output must be bit-exact. (A success on an unaligned base
+        // means the buffer took a non-IOMMU path where alignment is irrelevant --
+        // still valid as long as the content matches.)
         long d = first_diff(dst_a.data, dst_b.data, dst_a.size);
         if (d >= 0) {
             ok = false;
@@ -227,7 +271,7 @@ static bool trial(Op op, int w, int h, int sfmt, int dfmt, int dw, int dh,
     ok = guards_intact(src_c, "contiguous-src") && ok;
     ok = guards_intact(dst_a, "scattered-dst") && ok;
     ok = guards_intact(dst_b, "contiguous-dst") && ok;
-    if (verbose && ok) fprintf(stderr, "  ok op=%d %dx%d->%dx%d src_off=%zu dst_off=%zu scat=%s\n",
+    if (verbose && ok && a_ok) fprintf(stderr, "  ok op=%d %dx%d->%dx%d src_off=%zu dst_off=%zu scat=%s\n",
                                op, w, h, dw, dh, src_off, dst_off, scat.c_str());
     free_buf(src_s); free_buf(src_c); free_buf(dst_a); free_buf(dst_b);
     return ok;

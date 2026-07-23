@@ -1,5 +1,11 @@
 # ROCK 5B boot was held by an unresponsive initramfs Plymouth daemon
 
+> **2026-07-23 update:** the hang recurred with the patched `~rk1` Plymouth
+> provably in the boot path (binary-verified). The incomplete-CSI parser
+> attribution below is falsified as the sole internal cause; the
+> boot-transaction analysis stands. See
+> [`2026-07-23-rock5b-boot-hang-recurred-with-patched-plymouth.md`](2026-07-23-rock5b-boot-hang-recurred-with-patched-plymouth.md).
+
 > Scope: ROCK 5B dev board, running debug (lockdep-enabled) `6.18.38-current-rockchip64` while hunting Rockchip video-codec (rkvdec2/rkvenc/mpp) driver bugs
 > Source: on-board `journalctl` of two failed boots and adjacent healthy boots, captured 2026-07-22; exact installed kernel and Plymouth sources
 > Date: 2026-07-22
