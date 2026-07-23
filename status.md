@@ -111,7 +111,7 @@ last-checked date.
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → UAF](#watch-w19) | 2026-07-22 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0070`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0059`-`0069`. Fix build **`P29f4-C9fc5`** (config byte-identical to `Pabd5`) is built but not installed; booted `Pabd5` list is poisoned for this boot; gate = install/boot `P29f4` and confirm the reproducer returns `-EBUSY`. |
-| W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-22 | **Root-caused at the boot-transaction level:** on two failed boots, the initramfs-inherited `plymouthd` retains its socket but never completes the real-root handshake; timeout-free `plymouth-read-write` and `show-splash` clients then hold `sysinit.target` forever. Healthy boots receive `SIGRTMIN+20` and finish in 30–60 ms. Every forward-port MPP probe completed; `fdba*.video-codec` is routine Hantro JPEG. Internal daemon wedge remains uncaptured; exclusion gate = boot with `plymouth.enable=0`. |
+| W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-22 | **Root-caused at the boot-transaction level:** on two failed boots, the initramfs-inherited `plymouthd` retains its socket but never completes the real-root handshake; timeout-free `plymouth-read-write` and `show-splash` clients then hold `sysinit.target` forever. Healthy boots receive `SIGRTMIN+20` and finish in 30–60 ms. Every forward-port MPP probe completed; `fdba*.video-codec` is routine Hantro JPEG. Immediate fix: append `plymouth.enable=0` to Armbian `extraargs` (`bootlogo=false` alone still emits `splash=verbose`); internal daemon wedge remains uncaptured. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -488,6 +488,12 @@ last-checked date.
   `SIGRTMIN+20` and finish in 30–60 ms. Exact forward-port source plus both
   failed journals prove all MPP probes returned; the `fdba*` sync markers are
   routine Hantro JPEG. Internal daemon event-loop wedge remains unlocalized.
-  Next gate: append `plymouth.enable=0` for exclusion; for capture use
+  Immediate board fix: append `plymouth.enable=0` to
+  `/boot/armbianEnv.txt`'s existing `extraargs=` line; `bootlogo=false` alone
+  still injects `splash=verbose`. No initramfs/boot-script rebuild is needed.
+  Gate after reboot: confirm the cmdline token, skipped Plymouth start, completed
+  read-write unit, and reached sysinit/basic targets. If retaining Plymouth,
+  client reply timeouts must cover read-write/show-splash and finite systemd
+  timeouts must also cover quit/quit-wait. For internal capture use
   `plymouth.debug=stream:/dev/ttyS2`. Detail:
   [`findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md`](./findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md).

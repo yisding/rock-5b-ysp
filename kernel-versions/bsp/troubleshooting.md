@@ -161,9 +161,20 @@ this path, and the read-write unit is `Before=sysinit.target` with an infinite
 start timeout. A second `plymouthd` cannot replace the socket owner; its
 `show-splash` post-command blocks on the same server.
 
-Exclude with `plymouth.enable=0` after any `splash` argument. Capture with
-`plymouth.debug=stream:/dev/ttyS2`; plain `plymouth.debug` may remain buffered
-because its normal file flush is triggered by the blocked read-write request.
+On Armbian, `bootlogo=false` still injects `splash=verbose`; it does **not**
+disable Plymouth. Append `plymouth.enable=0` to `/boot/armbianEnv.txt`'s
+`extraargs=` line. `extraargs` follows `consoleargs`, so the later disable token
+wins without regenerating the initramfs or `boot.scr`.
+
+If Plymouth must remain enabled, make non-interactive control requests
+fail-open: add client-side reply timeouts for `update-root-fs --read-write` and
+`show-splash`, plus finite systemd start timeouts for the read-write, start,
+quit, and quit-wait units. A start-only timeout is insufficient because the
+later quit-wait client also has an unlimited wait.
+
+Capture with `plymouth.debug=stream:/dev/ttyS2`; plain `plymouth.debug` may
+remain buffered because its normal file flush is triggered by the blocked
+read-write request.
 See
 [`findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md`](../../findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md)
 and watchlist [`W20`](../../status.md#watch-w20).

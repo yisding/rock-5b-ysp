@@ -100,16 +100,71 @@ a renderer/DRM cause would be speculation.
 
 ## Why it matters / follow-up
 
-The deterministic exclusion test is to boot once with `plymouth.enable=0`
-appended after `splash=verbose` (or remove the splash argument). This prevents
-the initramfs daemon from starting; the unconditional read-write client then
-finds no socket and exits.
+### Recommended ROCK 5B fix: disable the unused splash
+
+The live `/boot/armbianEnv.txt` already says `bootlogo=false`, but Armbian's
+`boot.cmd` implements that setting by adding `splash=verbose`, not by removing
+Plymouth:
+
+```text
+if test "${bootlogo}" = "true"; then
+    setenv consoleargs "splash plymouth.ignore-serial-consoles ${consoleargs}"
+else
+    setenv consoleargs "splash=verbose ${consoleargs}"
+fi
+...
+setenv bootargs "... ${consoleargs} ... ${extraargs} ..."
+```
+
+Append `plymouth.enable=0` to the existing `extraargs=` line in
+`/boot/armbianEnv.txt`. For this board it becomes:
+
+```text
+extraargs=cma=256M module_blacklist=snd_soc_hdmi_codec modprobe.blacklist=snd_soc_hdmi_codec pstore.backend=ramoops pstore.kmsg_bytes=262144 printk.always_kmsg_dump=1 panic=10 plymouth.enable=0
+```
+
+No `update-initramfs` or `mkimage` is required: `boot.scr` reads
+`armbianEnv.txt` at boot. `extraargs` appears after `splash=verbose`, and the
+initramfs Plymouth script processes the command line left-to-right, so the later
+`plymouth.enable=0` wins. It prevents the initramfs daemon from starting and
+causes `plymouth-start.service` to fail its condition. The unconditional
+read-write client then finds no socket and exits immediately.
+
+After reboot, verify:
+
+```bash
+tr ' ' '\n' </proc/cmdline | grep -x plymouth.enable=0
+journalctl -b -o short-monotonic --no-pager |
+    grep -E 'plymouth|Reached target (sysinit|basic)\.target'
+```
+
+Expected: no initramfs `plymouthd`, `plymouth-start.service` skipped,
+`plymouth-read-write.service` completes rather than remaining in `Starting`,
+and both targets are reached.
+
+### Package-level hardening if Plymouth must remain enabled
+
+Preventing a cosmetic splash failure from stopping boot requires a fail-open
+path even before the daemon's internal wedge is localized:
+
+1. Extend the existing `on_ping_timeout()` event-loop mechanism in
+   `src/client/plymouth.c` to finite-time non-interactive control requests,
+   especially `update-root-fs --read-write` and `show-splash`. Password prompts
+   and the intentional `--wait` operation need separate semantics.
+2. Add finite `TimeoutStartSec` safety nets to
+   `plymouth-read-write.service`, `plymouth-start.service`,
+   `plymouth-quit.service`, and `plymouth-quit-wait.service`. The installed
+   read-write unit currently has an infinite start timeout, and quit-wait
+   explicitly uses `TimeoutSec=0`.
+3. On timeout, capture the socket owner's PID, `/proc/<pid>/syscall`,
+   `wchan`, file descriptors, and a `strace`/debug trace before recovery.
+   Restarting it safely also needs VT/DRM cleanup; blindly removing the pid file
+   or starting another daemon cannot replace an abstract socket that is still
+   owned by the wedged process.
 
 For one instrumented reproduction, use
 `plymouth.debug=stream:/dev/ttyS2` so daemon traces go directly to the existing
 serial console. Plain `plymouth.debug` buffers early traces in memory and only
 flushes them when the very system-initialized request that is hanging succeeds.
-If Plymouth must stay enabled, add finite start timeouts to both units so a
-wedged splash cannot hold sysinit indefinitely.
 
 Tracked as status.md watchlist [`W20`](../status.md#watch-w20).
