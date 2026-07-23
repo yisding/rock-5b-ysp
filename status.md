@@ -111,7 +111,7 @@ last-checked date.
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → UAF](#watch-w19) | 2026-07-22 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0070`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0059`-`0069`. Fix build **`P29f4-C9fc5`** (config byte-identical to `Pabd5`) is built but not installed; booted `Pabd5` list is poisoned for this boot; gate = install/boot `P29f4` and confirm the reproducer returns `-EBUSY`. |
-| W20 | [Intermittent boot transaction stall after driver probe](#watch-w20) | 2026-07-22 | Corrected attribution: **every forward-port MPP/AV1/rkvdec2/rkvenc2 probe completed** by 13.341 s. The later `fdba*.video-codec` sync markers are mainline Hantro VEPU121 JPEG instances and recur on the healthy boot. Failed boot finished udev settle but never reached `sysinit.target`/`basic.target` or NetworkManager; the unmatched systemd job is now the investigation locus. The chronic networkd-wait timeout and PCIe lockdep warning occur on the healthy boot too. |
+| W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-22 | **Root-caused at the boot-transaction level:** on two failed boots, the initramfs-inherited `plymouthd` retains its socket but never completes the real-root handshake; timeout-free `plymouth-read-write` and `show-splash` clients then hold `sysinit.target` forever. Healthy boots receive `SIGRTMIN+20` and finish in 30–60 ms. Every forward-port MPP probe completed; `fdba*.video-codec` is routine Hantro JPEG. Internal daemon wedge remains uncaptured; exclusion gate = boot with `plymouth.enable=0`. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -468,22 +468,26 @@ last-checked date.
   Detail: [`findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md`](./findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md).
 
 <a id="watch-w20"></a>
-### W20 — Intermittent boot transaction stall after driver probe
+### W20 — Intermittent Plymouth initramfs-daemon boot stall
 
 - **Why recheck:** Intermittent, so it goes quiet between hits and is easy to
-  misattribute. A reboot on 2026-07-22 never reached `multi-user.target`, sat
-  ~6 min, then was hard power-cycled. The loud
+  misattribute. Two boots on 2026-07-22 (`#3` and `#6`) never reached
+  `sysinit.target` and were hard power-cycled. The loud
   `systemd-networkd-wait-online` timeout in the log is **not** the cause — it is
   chronic and non-fatal (the healthy boot logs the identical timeout *and* the
   identical PCIe PMU-notifier lockdep splat, yet reaches `graphical.target`).
-  Stays live until the incomplete systemd job is identified.
+  Stays live until Plymouth is disabled for an exclusion boot or its daemon
+  event loop is captured.
 - **Last checked:** 2026-07-22
-- **State then:** Exact source and failed-boot journal prove every forward-port
-  MPP/AV1/rkvdec2/rkvenc2 probe returned by monotonic 13.341 s. The three later
-  `fdba*.video-codec` messages are routine mainline Hantro VEPU121 JPEG
-  secondary-instance/sync-state messages also present on the healthy boot.
-  Failed boot finishes udev settle at 17.826 s but never reaches
-  `sysinit.target`, `basic.target`, or NetworkManager; healthy boot reaches them
-  at 18.578/18.729/19.742 s. Next gate: identify the systemd start without a
-  matching completion that holds sysinit. Detail:
-  [`findings/2026-07-22-rock5b-boot-hang-forward-port-probes-completed.md`](./findings/2026-07-22-rock5b-boot-hang-forward-port-probes-completed.md).
+- **State then:** Root cause at the boot-transaction level is an unresponsive
+  initramfs-inherited `plymouthd`: it owns the abstract socket but never
+  dispatches the real-root system-initialized request. Plymouth clients have no
+  timeout, so `plymouth-read-write.service` (infinite start timeout,
+  `Before=sysinit.target`) and `plymouth-start`'s `show-splash` post-command
+  remain active indefinitely. Adjacent healthy boots log the daemon's
+  `SIGRTMIN+20` and finish in 30–60 ms. Exact forward-port source plus both
+  failed journals prove all MPP probes returned; the `fdba*` sync markers are
+  routine Hantro JPEG. Internal daemon event-loop wedge remains unlocalized.
+  Next gate: append `plymouth.enable=0` for exclusion; for capture use
+  `plymouth.debug=stream:/dev/ttyS2`. Detail:
+  [`findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md`](./findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md).

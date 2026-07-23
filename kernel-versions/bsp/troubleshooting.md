@@ -142,6 +142,28 @@ reboot instead of a manual wait.
   the machine; treat it as a secondary suspect, not proof, unless a capture shows
   the probe wedged there.
 
-See [`findings/2026-07-22-rock5b-boot-hang-forward-port-probes-completed.md`](../../findings/2026-07-22-rock5b-boot-hang-forward-port-probes-completed.md)
-for the incident this was distilled from, and watchlist
-[`W20`](../../status.md#watch-w20).
+This probe-capture playbook is generic. The 2026-07-22 incident that initially
+motivated it was subsequently proven to be a Plymouth userspace stall, not a
+stuck probe.
+
+## Plymouth stall before `sysinit.target`
+
+Fingerprint:
+
+- `plymouth-read-write.service` logs `Starting` but never `Finished`;
+- `plymouth-start.service` logs `Starting` but never `Started`;
+- no `Received SIGRTMIN+20 from PID … (plymouthd)`;
+- udev settle finishes, but `sysinit.target` and `basic.target` never arrive.
+
+The initramfs-started daemon retains Plymouth's abstract socket but does not
+complete the real-root handshake. Ordinary Plymouth clients have no timeout for
+this path, and the read-write unit is `Before=sysinit.target` with an infinite
+start timeout. A second `plymouthd` cannot replace the socket owner; its
+`show-splash` post-command blocks on the same server.
+
+Exclude with `plymouth.enable=0` after any `splash` argument. Capture with
+`plymouth.debug=stream:/dev/ttyS2`; plain `plymouth.debug` may remain buffered
+because its normal file flush is triggered by the blocked read-write request.
+See
+[`findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md`](../../findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md)
+and watchlist [`W20`](../../status.md#watch-w20).
