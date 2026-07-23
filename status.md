@@ -110,7 +110,7 @@ last-checked date.
 | W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | RGA fixes `0046`–`0048` pass their booted gates on `P63dd-C4ad2` (legacy blits, `EOPNOTSUPP` probe, P010 luma bit-exact; smoke/MPP/FFmpeg/ABI replay all green, smoke fully green for the first time). The `0048` gate exposed the `0049` UV plane-offset fix; `0049`–`0051` (UV offsets, RGA2 page-table DMA ownership + device DMA parameters, over-4G service via swiotlb-bounced DMA mappings) are committed and checkpatch-clean with booted gates pending the next debug build. Slice-FIFO hardening, GStreamer, publication, exact-image validation, and rollback remain. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
-| W19 | [MPP `mpp_process_request` list_add double-add](#watch-w19) | 2026-07-22 | Unprivileged ioctl fuzz on `Pabd5-C4ad2` tripped a `DEBUG_LIST` list_add double-add WARN in BSP-shared `mpp_process_request()` (untouched by `0059`-`0069`). WARN-level, board survived; not yet isolated to one fuzz cmd. Fix belongs in both the forward-port tail and the BSP backport set. |
+| W19 | [MPP `INIT_CLIENT_TYPE` double-call list corruption](#watch-w19) | 2026-07-22 | **Root-caused + reproduced.** Two `INIT_CLIENT_TYPE` ioctls on one `/dev/mpp_service` session double-add `session->session_link` (unguarded `mpp_session_attach_workqueue`), corrupting the taskqueue list + leaking `session->dma`. Unprivileged; BSP-identical, untouched by `0059`-`0069`. Fix = `-EBUSY` re-init guard; not yet applied/gated. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -441,19 +441,21 @@ last-checked date.
   upstream has revived (offer changes back) before diverging further.
 
 <a id="watch-w19"></a>
-### W19 — MPP `mpp_process_request` list_add double-add
+### W19 — MPP `INIT_CLIENT_TYPE` double-call list corruption
 
 - **Why recheck:** A real unprivileged-reachable list corruption, currently only
   a WARN because `Pabd5-C4ad2` carries `CONFIG_DEBUG_LIST`. On a production kernel
-  the double-add is silent but the list still ends up corrupt, so a later
-  add/traversal could fault. It is not yet isolated to one fuzz cmd, so it can be
-  forgotten between debug boots.
+  the double-add is silent but `queue->session_attach` still ends up corrupt, so a
+  later worker traversal could fault. The fix is proposed but not yet applied or
+  gated, so it stays live until a rebuilt kernel returns `-EBUSY`.
 - **Last checked:** 2026-07-22
-- **State then:** `ioctl-fuzz-smoke.sh` on `Pabd5-C4ad2` tripped
-  `__list_add_valid_or_report` (list_debug.c:32/:35) in `mpp_process_request()`
-  (`mpp_common.c`, task-submit path), reachable as UID 1000 on `/dev/mpp_service`.
-  Board survived (WARN, `G W` taint). Not a `0059`-`0069` regression — that code
-  is untouched by the HIGH subset and byte-identical to BSP 6.1. Next: bisect the
-  fuzzer op list to the offending ioctl, find the missing list guard, and fix in
-  the forward-port tail + BSP backport set. See
-  [`findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md`](./findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md).
+- **State then:** Root-caused and deterministically reproduced. Two
+  `MPP_CMD_INIT_CLIENT_TYPE` ioctls on one `/dev/mpp_service` session double-add
+  `session->session_link` — `mpp_session_attach_workqueue()` (`mpp_common.c:492`)
+  does an unconditional `list_add_tail`, and the `INIT_CLIENT_TYPE` case (`:1448`)
+  has no re-init guard; the second call also leaks the first `session->dma`.
+  Reachable as UID 1000; both ioctls return 0. BSP-identical unguarded code
+  (direct donor comparison), untouched by `0059`-`0069`. Fix = reject re-init with
+  `-EBUSY` at the top of the case; carry to the forward-port tail + BSP backport.
+  Reproducer: [`kernel-drivers/tests/mpp-double-init-repro.c`](./kernel-drivers/tests/mpp-double-init-repro.c).
+  Detail: [`findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md`](./findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md).
