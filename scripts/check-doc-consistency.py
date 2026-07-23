@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Check substantive repository drift: packaging version pins and portable defaults."""
+"""Check substantive drift and completeness: version pins, portable defaults, index linkage.
+
+Deliberately excludes documentation-formatting pedantry (finding headers, entry
+ordering, dashboard/ledger date-matching, watchlist name/date exactness,
+support-coverage schema, project-brief fields, terminology). It reports only
+things that break navigation or ship wrong bits: unlinked/dangling findings,
+unpaired watchlist halves, drifted packaging version pins, out-of-sync kernel
+package helpers, and personal-home executable defaults.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +18,9 @@ from pathlib import Path
 from repo_files import repository_operational_files
 
 
+FINDING_NAME_RE = re.compile(r"20\d{2}-\d{2}-\d{2}-[a-z0-9][a-z0-9.-]*\.md")
+WATCH_ID_RE = re.compile(r"^W\d{2}$")
+WATCH_HEADING_RE = re.compile(r"^### (W\d{2}) — ")
 PERSONAL_HOME_DEFAULT_RE = re.compile(
     r"(?:^[A-Z][A-Z0-9_]*=[\"']?/(?:home|Users)/|"
     r"\$\{[A-Za-z_][A-Za-z0-9_]*:-[\"']?/(?:home|Users)/)"
@@ -46,6 +57,63 @@ def check_portable_operational_defaults(root: Path, errors: list[str]) -> None:
                     "used as an executable default; derive it from the repository "
                     "or a shared workspace variable"
                 )
+
+
+def check_findings_index(root: Path, errors: list[str]) -> None:
+    """Light completeness: every finding is linked, every link has a file.
+
+    Intentionally does not enforce ordering, deduplication, or entry prose —
+    only that no finding is invisible and no index entry dangles.
+    """
+    findings = root / "findings"
+    readme = findings / "README.md"
+    if not readme.is_file():
+        return
+
+    text = readme.read_text(encoding="utf-8", errors="replace")
+    referenced = set(FINDING_NAME_RE.findall(text))
+    present = {path.name for path in findings.glob("20??-??-??-*.md")}
+
+    for name in sorted(present - referenced):
+        errors.append(f"findings/README.md: {name} is not linked from the index")
+    for name in sorted(referenced - present):
+        if not (findings / name).is_file():
+            errors.append(f"findings/README.md: index links {name} but no such file exists")
+
+
+def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
+    """Light completeness: every watchlist index row has a detail block, and back.
+
+    Does not check dates, names, ordering, or field presence — only that the
+    two halves of each W## entry both exist.
+    """
+    path = root / "status.md"
+    if not path.is_file():
+        return
+
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    heading = "## Watchlist — facts that go stale silently"
+    if heading not in lines:
+        return
+    section = lines[lines.index(heading) + 1 :]
+
+    index_ids: set[str] = set()
+    detail_ids: set[str] = set()
+    for line in section:
+        if line.startswith("## "):
+            break
+        if line.startswith("|"):
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if cells and WATCH_ID_RE.fullmatch(cells[0]):
+                index_ids.add(cells[0])
+        detail = WATCH_HEADING_RE.match(line)
+        if detail:
+            detail_ids.add(detail.group(1))
+
+    for watch_id in sorted(index_ids - detail_ids):
+        errors.append(f"status.md watchlist {watch_id}: index row has no detail block")
+    for watch_id in sorted(detail_ids - index_ids):
+        errors.append(f"status.md watchlist {watch_id}: detail block has no index row")
 
 
 def check_kernel_package_helpers(
@@ -209,6 +277,8 @@ def main() -> int:
     errors: list[str] = []
 
     check_portable_operational_defaults(root, errors)
+    check_findings_index(root, errors)
+    check_watchlist_pairing(root, errors)
     check_kernel_package_helpers(root, errors)
     check_ppa_ffmpeg_install_pin(root, errors)
     check_ppa_grd_source_pin(root, errors)

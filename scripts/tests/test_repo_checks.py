@@ -543,6 +543,56 @@ class SubstantiveDriftTests(unittest.TestCase):
 
             self.assertTrue(any("differs from synchronized helper" in e for e in errors))
 
+    def test_findings_index_reports_orphan_and_dangling_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            findings = root / "findings"
+            findings.mkdir()
+            (findings / "2026-01-01-linked.md").write_text("# Linked\n", encoding="utf-8")
+            (findings / "2026-01-02-orphan.md").write_text("# Orphan\n", encoding="utf-8")
+            (findings / "README.md").write_text(
+                "## Index\n\n"
+                "- `` `2026-01-02-orphan-typo.md` `` — dangling link.\n"
+                "- `` `2026-01-01-linked.md` `` — present.\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_findings_index(root, errors)
+
+            self.assertTrue(
+                any("2026-01-02-orphan.md is not linked" in e for e in errors)
+            )
+            self.assertTrue(
+                any("2026-01-02-orphan-typo.md but no such file" in e for e in errors)
+            )
+            # Ordering is intentionally not enforced: the linked pair is silent.
+            self.assertFalse(any("newest first" in e for e in errors))
+
+    def test_watchlist_pairing_reports_unpaired_halves_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "status.md").write_text(
+                "## Watchlist — facts that go stale silently\n\n"
+                "| ID | Watch item | Last checked | Summary |\n"
+                "|----|------------|--------------|---------|\n"
+                "| W01 | [Paired](#watch-w01) | 2026-07-11 | Fine. |\n"
+                "| W02 | [No detail](#watch-w02) | 2026-07-11 | Missing detail. |\n\n"
+                "### W01 — Paired\n\n"
+                "- **State then:** ok\n\n"
+                "### W03 — Orphan detail\n\n"
+                "- **State then:** ok\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_watchlist_pairing(root, errors)
+
+            self.assertTrue(any("W02: index row has no detail" in e for e in errors))
+            self.assertTrue(any("W03: detail block has no index" in e for e in errors))
+            # The correctly paired W01 (and any date/name skew) is not flagged.
+            self.assertFalse(any("W01" in e for e in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

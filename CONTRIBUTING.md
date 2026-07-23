@@ -82,10 +82,14 @@ and its detail block, keeping the item name and last-checked date identical.
 Every detail records **Why recheck**, **Last checked**, and **State then**; do not
 renumber the remaining items when one is retired.
 
-Dashboard, next-gate, ledger, watchlist, and coverage structure are maintained
-by hand — they are conventions, not mechanically enforced. `scripts/check-doc-consistency.py`
-now checks only substantive drift: packaging version pins (FFmpeg/GRD) and
-personal-home defaults in operational scripts.
+Dashboard, next-gate, ledger, and coverage prose (dates, names, ordering,
+required fields) is maintained by hand — it is convention, not mechanically
+enforced. `scripts/check-doc-consistency.py` checks only substantive drift and
+completeness: packaging version pins (FFmpeg/GRD), personal-home defaults in
+operational scripts, that every finding is linked from the findings index (and
+every index link resolves to a file), and that each `W##` watchlist entry has
+both its index row and its detail block. It does not police their dates, names,
+or order.
 
 ## Updating whole-board coverage
 
@@ -141,8 +145,9 @@ bash scripts/check-repo.sh
 
 This checks local Markdown paths and anchors, runs the repository-check
 regression tests, runs ShellCheck at warning-or-higher severity across every
-maintained shell file, checks substantive drift (packaging version pins and
-personal-home defaults in operational scripts), and finds whitespace errors in
+maintained shell file, checks substantive drift and completeness (packaging
+version pins, personal-home defaults in operational scripts, findings-index
+linkage, and watchlist index/detail pairing), and finds whitespace errors in
 staged, unstaged, and untracked files. Run `bash -n` on changed shell scripts as
 an additional syntax gate. Run project-specific build or hardware
 tests in proportion to the behavior changed, and report exactly what was and
