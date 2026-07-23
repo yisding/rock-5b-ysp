@@ -13,6 +13,7 @@ varying.
 |---|---|
 | [`probe_interp.c`](probe_interp.c) | Original GBM/EGL/GLES probe. Draws a two-triangle quad with an explicit vertex attribute varying from `0` to `W`, then compares the interpolated value with `i + 0.5`. Includes `smooth`, attempted `noperspective`, and `gl_FragCoord.x` modes. |
 | [`tiny_interp_probe.c`](tiny_interp_probe.c) | Minimal surfaceless EGL/GLES proof. Uses one `gl_VertexID` triangle, no texture, no TXF, no u_blitter, no GBM, and no format-changing readback. This is the canonical GL reproducer. |
+| [`tex_interp_probe.c`](tex_interp_probe.c) | Ordinary-TEX counterpart. Carries a normalized non-integer `0→1` varying into `texture()` with `GL_NEAREST` and samples an `R32F` ramp, proving the workaround is not specific to raw varying readback or integer-coordinate TXF. |
 | [`vk_interp_probe.c`](vk_interp_probe.c) | Vulkan/panvk port of the tiny probe. Removes Gallium, u_blitter, and the GL state tracker from the stack. Uses dynamic rendering and copies raw `R32_UINT` bits back with Vulkan. |
 | [`tiny_interp_probe_arm_blob_x11.c`](tiny_interp_probe_arm_blob_x11.c) | **RK3588 proprietary ARM Mali variant — the runnable one.** Renders as a client of a running X server, so libmali never issues the kernel-crashing `SET_VERSION`. Shader/draw/readback/checker identical to the tiny probe. |
 | [`tiny_interp_probe_arm_blob.c`](tiny_interp_probe_arm_blob.c) | RK3588 ARM Mali variant via a GBM display. **⚠ Crashes the Radxa 5.10 vendor kernel** (NULL-deref in `drm_setversion`); refuses to run by default. Kept for the record — use the X11 variant instead. |
@@ -59,8 +60,8 @@ export EGL_PLATFORM=surfaceless
 ```
 
 `probe_interp*.c` uses GBM and hardcodes `/dev/dri/renderD128`.
-`tiny_interp_probe.c` and `tiny_interp_probe_explained.c` use surfaceless EGL
-and open no DRM node themselves.
+`tiny_interp_probe.c`, `tiny_interp_probe_explained.c`, and
+`tex_interp_probe.c` use surfaceless EGL and open no DRM node themselves.
 `tiny_interp_probe_arm_blob_x11.c` connects to a running X server and opens no
 DRM node itself; `tiny_interp_probe_arm_blob.c` (GBM) defaults to
 `/dev/dri/renderD128` but crashes this kernel and is gated off.
@@ -86,6 +87,7 @@ the GBM one crashes this kernel (see
 ```bash
 cc -O2 -o probe_interp probe_interp.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
+cc -O2 -o tex_interp_probe tex_interp_probe.c -lEGL -lGLESv2
 cc -O2 -o tiny_interp_probe_arm_blob_x11 \
   tiny_interp_probe_arm_blob_x11.c -lmali -lX11 -lm
 cc -O2 -o tiny_interp_probe_arm_blob \
@@ -134,6 +136,12 @@ current working directory.
 ./tiny_interp_probe 8192
 ./tiny_interp_probe 16307 varying
 ./tiny_interp_probe 12288 varying polygon-offset
+
+./tex_interp_probe 12288 baseline
+./tex_interp_probe 12288 polygon-offset
+./tex_interp_probe 16307 baseline
+./tex_interp_probe 16307 polygon-offset
+
 # ARM Mali blob: use the X11 variant (needs a running X server; see
 # arm-mali-reproducer.md). The GBM tiny_interp_probe_arm_blob crashes this kernel.
 DISPLAY=:0 ./tiny_interp_probe_arm_blob_x11 8192 fragcoord
@@ -166,10 +174,10 @@ The explained copies take the same arguments:
 ./vk_interp_probe_arm_blob_explained 12288 fragcoord
 ```
 
-Exit codes:
+Exit codes (for `tiny_interp_probe` and `tex_interp_probe`):
 
-- `0`: every pixel satisfies `floor(v) == x`.
-- `2`: the probe ran and found at least one pixel where `floor(v) != x`.
+- `0`: every pixel produced its expected value.
+- `2`: the probe ran and found at least one wrong pixel.
 - `1`: usage, EGL/GL/Vulkan setup, shader compile, or readback setup error.
 
 ## What The Probes Do
@@ -204,6 +212,15 @@ and sets `glPolygonOffset(0.0f, 0.0f)` immediately before the draw. Kusma
 identified this in [Mesa MR !42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679#note_3578636)
 as a workaround for the confirmed hardware erratum. The default `baseline`
 mode leaves the state untouched for an A/B comparison.
+
+`tex_interp_probe.c` tests the non-integer coordinate case with an actual
+ordinary texture operation. Its smooth varying runs from normalized `0` to `1`;
+the fragment shader passes that coordinate to GLSL `texture()` with
+`GL_NEAREST`, samples an `R32F` ramp whose texel `x` contains `float(x)`, and
+stores the sampled float's raw bits in `R32UI`. Thus pixel `x` must return
+`float(x)`. A compiler dump confirmed that Panfrost emits an ordinary
+computed-LOD `TEX_SINGLE` instruction, not TXF. It accepts the same
+`baseline|polygon-offset` A/B choice as the tiny probe.
 
 `vk_interp_probe.c` ports the same test to Vulkan. It creates a `W x 1`
 `VK_FORMAT_R32_UINT` color target, renders with dynamic rendering, then copies
@@ -245,6 +262,27 @@ mode=varying workaround=polygon-offset width=16307: floor(v) != x at 0 of 16307 
 last pixel x=16306: v=16306.5000 expected=16306.5 relative_error=0.000e+00 (0.000 * 2^-10)
 ```
 
+The ordinary-TEX probe shows the same result for normalized, non-integer
+coordinates:
+
+```text
+$ ./tex_interp_probe 12288 baseline
+fetch=TEX filter=nearest workaround=baseline width=12288: sampled texel != x at 11744 of 12288 pixels (first at x=529, sampled=528)
+last pixel x=12287: sampled=12275 expected=12287 shift=-12
+
+$ ./tex_interp_probe 12288 polygon-offset
+fetch=TEX filter=nearest workaround=polygon-offset width=12288: sampled texel != x at 0 of 12288 pixels (first at x=-1)
+last pixel x=12287: sampled=12287 expected=12287 shift=+0
+
+$ ./tex_interp_probe 16307 baseline
+fetch=TEX filter=nearest workaround=baseline width=16307: sampled texel != x at 15670 of 16307 pixels (first at x=623, sampled=622)
+last pixel x=16306: sampled=16293 expected=16306 shift=-13
+
+$ ./tex_interp_probe 16307 polygon-offset
+fetch=TEX filter=nearest workaround=polygon-offset width=16307: sampled texel != x at 0 of 16307 pixels (first at x=-1)
+last pixel x=16306: sampled=16306 expected=16306 shift=+0
+```
+
 Vulkan/panvk reproduces the GL numbers bit-for-bit at the same widths:
 
 ```text
@@ -264,6 +302,8 @@ The controls matter:
 
 - `polygon-offset` passes at both failing widths tested (`12288` and `16307`),
   confirming the maintainer-provided hardware-erratum workaround on G610.
+- The same workaround also passes the ordinary-TEX probe at both widths;
+  baseline fails, while the 8192-wide baseline and llvmpipe controls pass.
 - `fragcoord` passes on Mali, so rasterization and readback are sound.
 - Power-of-two widths such as `8192` and `16384` pass, so the failure is
   width-dependent, not a blanket "all f32 varyings are 10-bit" rule.

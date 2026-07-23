@@ -15,6 +15,15 @@
 > Trust: CODE-INSPECTED (the diff) / DESIGN (the proposed unified fix); the
 > precision numbers it builds on are MEASURED (cross-refs above).
 
+> **Correction, 2026-07-22:** A Mesa maintainer subsequently confirmed a
+> hardware erratum and supplied a zero-valued polygon-offset workaround that
+> makes both raw varying and ordinary TEX exact at the failing widths. The
+> measured `~2^-10` drift below is an erratum signature, not an inherent
+> varying-precision limit. The NIR/`pixel_coord` design remains a valid
+> avoidance strategy, but it is no longer established as the only or proper
+> root-cause fix. See
+> [`2026-07-22-mali-varying-depth-bias-erratum-workaround.md`](2026-07-22-mali-varying-depth-bias-erratum-workaround.md).
+
 ## The fact
 
 The clean home for the wide-blit precision fix is **NIR, not TGSI**, and the
@@ -23,11 +32,11 @@ together, and both stop relying on the interpolated coordinate varying.
 
 ### Why NIR, and why the original fix was TGSI
 
-- The bug: `u_blitter` bakes the source coordinate into a varying that ramps
-  `0→W` and lets the interpolator reconstruct it. Mali's varying interpolation
-  carries ~10 fractional bits **relative** to magnitude, so the delivered value
-  has ≈`2^-10` relative error. TXF needs the integer texel index (absolute error
-  < 0.5), which fails once the coordinate exceeds ~512 px. (Full mechanism in
+- The observed failure: `u_blitter` bakes the source coordinate into a varying
+  that ramps `0→W` and lets the interpolator reconstruct it. The G610 erratum
+  produces ≈`2^-10` relative error at the main measured widths. TXF needs the
+  integer texel index (absolute error < 0.5), so that signature fails once the
+  coordinate exceeds ~512 px. (Full mechanism and correction in
   `blit-precision.md`.)
 - The cure is the rasterizer's exact integer pixel index. **NIR has it as a
   first-class intrinsic** — `nir_load_pixel_coord` (`SYSTEM_VALUE_PIXEL_COORD`,

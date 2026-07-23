@@ -17,7 +17,7 @@ Panfrost. The standalone interpolation probes now live in
 | [`repro_blit_flip.c`](repro_blit_flip.c) | Flipped `glBlitFramebuffer` probe (negative scale); caught the pixel-center-convention bug, revealed the power-of-two-extent exactness, and proved the system Mesa 26.0.3 driver corrupts wide non-pow2 blits |
 | [`repro_blit_scissor.c`](repro_blit_scissor.c) | Scissored wide identity blit: verifies clipping doesn't shift the fragcoord mapping and untouched texels keep their sentinel |
 | [`repro_blit_array.c`](repro_blit_array.c) | 2D-array-layer readback: found the array regression (15672/16307), now exact via the series' single-layer view commit |
-| [`interp_probe/`](interp_probe/README.md) | Standalone interpolation probes: historical GBM/GLES probe, minimal surfaceless GLES probe, and Vulkan/panvk port; documents exactly what each isolates and how to build/run the controls |
+| [`interp_probe/`](interp_probe/README.md) | Standalone interpolation probes: historical GBM/GLES, minimal surfaceless raw-varying, normalized-coordinate ordinary-TEX, and Vulkan/panvk variants; includes the zero-valued depth-bias workaround A/B controls |
 | [`probe_const.c`](probe_const.c) | Constant-varying exactness probe: shows all-vertices-equal smooth varyings interpolate bit-exactly at every magnitude |
 | [`probe_wcorr.c`](probe_wcorr.c) | Shader-side recovery probe: disproves `gl_FragCoord.w` and `dFdx`-based correction |
 | [`repro_afbc.c`](repro_afbc.c) | Scoped negative result: the AFBC CPU-map staging path is clean on unfixed drivers (direct wide blits are NOT — see `repro_blit_flip.c`) |
@@ -26,9 +26,9 @@ Panfrost. The standalone interpolation probes now live in
 
 The older top-level GL probes load all GL entrypoints via `eglGetProcAddress`
 specifically to bypass glvnd and guarantee the locally built Mesa driver is
-exercised. The interpolation-probe directory documents its two exceptions:
-`tiny_interp_probe.c` links `libGLESv2` directly, and `vk_interp_probe.c` uses
-Vulkan/panvk.
+exercised. The interpolation-probe directory documents its exceptions:
+`tiny_interp_probe.c` and `tex_interp_probe.c` link `libGLESv2` directly, and
+`vk_interp_probe.c` uses Vulkan/panvk.
 
 ## Build
 
@@ -51,6 +51,7 @@ Build the interpolation probes from their own directory:
 cd interp_probe
 cc -O2 -o probe_interp probe_interp.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
+cc -O2 -o tex_interp_probe tex_interp_probe.c -lEGL -lGLESv2
 glslc vk_interp_probe.vert           -o vk_interp_probe.vert.spv
 glslc vk_interp_probe.varying.frag   -o vk_interp_probe.varying.frag.spv
 glslc vk_interp_probe.fragcoord.frag -o vk_interp_probe.fragcoord.frag.spv

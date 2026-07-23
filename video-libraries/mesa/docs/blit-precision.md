@@ -1,9 +1,21 @@
-# BLIT Precision Root Cause
+# BLIT Precision Root Cause and Erratum Update
 
 This is the detailed chain from "Panfrost should enable texture transfers" to
 "the sampled BLIT path cannot be trusted with integer texel addresses on
 Mali-G610" — and what that leaves as viable fixes. Status and dated MR
 lifecycle live in [`README.md` § Status](../README.md).
+
+> **Correction, 2026-07-22:** A Mesa maintainer confirmed that the wide
+> non-power-of-two varying drift is a **hardware erratum** and supplied a
+> zero-valued polygon-offset workaround. Enabling `GL_POLYGON_OFFSET_FILL`
+> with factor and units zero makes the same raw varying exact at 12288 and
+> 16307; it also makes a new normalized-coordinate ordinary-`texture()` test
+> exact. The `~2^-10` values below remain measured failure signatures, but
+> they are not evidence of an inherent ten-fractional-bit varying format.
+> `gl_FragCoord` reconstruction remains a valid way for !42679 to avoid the
+> affected path, not the now-established root cause or the only possible
+> workaround. See the
+> [dated finding](../../../findings/2026-07-22-mali-varying-depth-bias-erratum-workaround.md).
 
 ## The idea in plain English
 
@@ -12,9 +24,9 @@ destination pixel, which source pixel to read. Today the driver figures that out
 by writing a number on each *corner* of the image and letting the hardware
 smoothly fill in all the numbers in between — like stamping "0" on the first
 fence post and "5280" on the last, then eyeballing the label on every post
-between. That fill-in-between step is only accurate to about one part in a
-thousand. On a small image nobody notices. On a big one the eyeballed numbers
-drift: by the far edge they're off by several whole pixels (~15 at 16k wide), so
+between. A Mali hardware erratum makes that fill-in-between result drift for
+some wide, non-power-of-two triangles. At the measured 12k/16k widths the error
+is about one part in a thousand; by the far edge it is several whole pixels, so
 the GPU reads the wrong source pixels and the copy comes out smeared or shifted.
 
 **The fix.** Stop eyeballing the labels. The GPU already knows *exactly* which
@@ -334,10 +346,12 @@ The same runs reproduce the varying drift bit-identically (11744/12288 bad,
 `0.997 * 2^-10`) while the `gl_FragCoord` control reads back exact — which
 also confirms the drift persists on the fixed MR stack, as it must: the fix
 reroutes u_blitter's TXF coordinates around varyings; it does not (and
-cannot) repair varying interpolation. So the 2^-10 error originates in
-varying interpolation itself — not in u_blitter, any blit, or the readback.
+does not attempt to) repair varying interpolation. So the 2^-10-class error is
+produced in the affected varying-interpolation path — not in u_blitter's TXF
+instruction or the readback. The zero-valued depth-bias workaround documented
+above proves that the error is conditional, not an inherent precision limit.
 
-## What The `2^-10` Means
+## What The `2^-10` Signature Means
 
 For normal texture coordinates, a relative error around `2^-10` is often
 tolerable. For an integer texel-address path it is not.
@@ -353,16 +367,14 @@ The observed right-edge error was about 13 texels. After
 why a small relative interpolation error becomes a large integer readback
 failure.
 
-This is the measured behavior of the Panfrost/Mali smooth-varying path at
-specific non-power-of-two widths; the error is width-dependent (`2^-12` at
-`W=2080`, `2^-14` at `W=16383`, ~`2^-10` at `W=12288`/`W=16307`) and is never
-seen at power-of-two extents. If the hardware contract says the f32 varying
-path should be more accurate than this, the tiny probe narrows the
-investigation to the non-power-of-two interpolation setup — in the hardware
-or in the varying descriptors the drivers program (pandecode shows those as
-plain `R32F` with sane flags, and Mali has no driver-computed plane
-coefficients at all) — rather than `u_blitter`'s texture operation, which
-the panvk reproduction removes from the stack entirely.
+This is the measured erratum signature at specific non-power-of-two widths;
+the error is width-dependent (`2^-12` at `W=2080`, `2^-14` at `W=16383`,
+~`2^-10` at `W=12288`/`W=16307`) and is never seen at power-of-two extents.
+The tiny and panvk probes narrowed the failure to the hardware interpolation
+setup rather than `u_blitter` or its texture operation. The 2026-07-22
+zero-valued depth-bias result then supplied the discriminator the original
+investigation lacked: the identical varying becomes exact when the Valhall
+depth-bias-enable state bit is set.
 
 ## Why `noperspective` Did Not Fix It
 

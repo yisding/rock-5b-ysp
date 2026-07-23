@@ -276,9 +276,14 @@ GPU:
 
 Two stacks that share only the GPU — different EGL/GL userspace, compilers, and
 kernel driver (`bifrost_kbase` vs Panfrost) — emit the same bits, so **the drift
-is hardware**: the Valhall fixed-function varying interpolator at ~10
-fractional-bit (`2⁻¹⁰`) precision, not a Panfrost/Mesa compiler bug. The exact
-proprietary-compiler question in the old "Current Unknowns" is answered by this.
+is hardware**, not a Panfrost/Mesa compiler bug. **Correction, 2026-07-22:** a
+Mesa maintainer identified it as a hardware erratum, and zero-valued polygon
+offset makes the same Panfrost varying exact. The `~2⁻¹⁰` value is therefore a
+measured signature at these widths, not an inherent ten-fractional-bit Valhall
+limit. The workaround has not yet been run on the proprietary stack; see the
+[dated finding](../../../findings/2026-07-22-mali-varying-depth-bias-erratum-workaround.md).
+The proprietary-compiler question in the old "Current Unknowns" is still
+answered by the bit-identical baseline.
 
 ### Vulkan: unavailable from these repos
 

@@ -18,7 +18,7 @@ every shared figure, asm listing, and validation result is owned here.
 | Developer focus | Preserve the Mali-G610 transfer investigation: BLIT precision failure, COMPUTE correctness, AFBC limitation, benchmark results, dEQP validation, and reproducible probes. |
 | Owns | [`blit-precision.md`](./docs/blit-precision.md), [`validation.md`](./docs/validation.md), [`texture-query-levels.md`](./docs/texture-query-levels.md), and [`reproducers/`](reproducers/README.md). |
 | Depends on | Local Mesa/Panfrost worktrees and the GRD profiling context that exposed the readback cost. |
-| Current state | The `gl_FragCoord` u_blitter fix is upstream as the open 4-MR stack !42563 / !42679 / !42613 / !42614. The 2026-07-11 GitLab check found tips and pipelines unchanged and selected CI evidence still green; !42679 now reports `need_rebase`. See [`status.md`](../../status.md). |
+| Current state | The `gl_FragCoord` u_blitter fix is upstream as the open 4-MR stack !42563 / !42679 / !42613 / !42614. The 2026-07-11 GitLab check found tips and pipelines unchanged and selected CI evidence still green; !42679 reported `need_rebase`. On 2026-07-22 a maintainer confirmed the varying failure is a hardware erratum and supplied a zero-valued depth-bias workaround, now verified for raw varying and ordinary TEX. See the [dated finding](../../findings/2026-07-22-mali-varying-depth-bias-erratum-workaround.md) and [`status.md`](../../status.md). |
 
 Hardware and software used for the local investigation:
 
@@ -36,14 +36,14 @@ Hardware and software used for the local investigation:
 | Path | One-liner |
 |---|---|
 | [`docs/fix-walkthrough.md`](./docs/fix-walkthrough.md) | Start here if new to Mesa/C: from-first-principles explainer of the whole series — blits, TXF, varying interpolation, the `gl_FragCoord` fix, each of the four MRs, and why COMPUTE/CPU were rejected |
-| [`docs/blit-precision.md`](./docs/blit-precision.md) | Root cause: why sampled-BLIT transfers are not bit-exact on G610 (`LD_VAR_IMM` ~2^-10 drift), everything ruled out, the options grid, and the AFBC constraint on COMPUTE |
+| [`docs/blit-precision.md`](./docs/blit-precision.md) | Erratum investigation: the measured `LD_VAR_IMM` drift signature, the 2026-07-22 corrected attribution and depth-bias workaround, everything ruled out, the options grid, and the AFBC constraint on COMPUTE |
 | [`docs/arm-mali-blob-stack.md`](./docs/arm-mali-blob-stack.md) | Proprietary RK3588/G610 libmali userspace notes: package metadata, GBM/EGL/Vulkan wrapper model, inspected blob hashes, surfaceless extension strings, and runtime verification checklist |
 | [`docs/validation.md`](./docs/validation.md) | What was tested: patch shapes, BLIT-vs-COMPUTE timings, GRD readback timings, dEQP reruns, exact dEQP invocation, build checks |
 | [`docs/rebuild-and-test.md`](./docs/rebuild-and-test.md) | On-device rebuild + revalidation log: how to drive `scripts/`, the environment gotchas (wiped `/tmp` build state, `mise` python shadowing, glvnd for piglit), and the latest reproducer/dEQP/piglit results |
 | [`docs/mr-review-findings.md`](./docs/mr-review-findings.md) | 2026-07-06 structured review of the four open MRs: verdicts (no blockers), should-fix list with proposed patches (G52/G57 expectations, `st_TexSubImage` guard hoist, gate-sync helper, root-cause rewording), live u_test verification both directions, and the stack-topology/rebase-health audit |
 | [`docs/texture-query-levels.md`](./docs/texture-query-levels.md) | Separate work product on the same branch: `textureQueryLevels()` for Valhall + the texture-descriptor layout facts (LD_PKA, table 62, word2 lod_count field) |
 | [`scripts/`](scripts/README.md) | Rebuild + test entry point: surfaceless Mesa build, runtime env, and the reproducer / dEQP / piglit runners; see [`scripts/README.md`](scripts/README.md) |
-| [`reproducers/`](reproducers/README.md) | Texture-transfer reproducers, transfer benchmark, archived BLIT-advertising patch, and the focused [`reproducers/interp_probe/`](reproducers/interp_probe/README.md) varying-interpolation proof set |
+| [`reproducers/`](reproducers/README.md) | Texture-transfer reproducers, transfer benchmark, archived BLIT-advertising patch, and the focused [`reproducers/interp_probe/`](reproducers/interp_probe/README.md) raw-varying plus ordinary-TEX proof set |
 | [`video-libraries/mesa/patches/0001-panfrost-advertise-transfer-blit-and-compute.patch`](patches/0001-panfrost-advertise-transfer-blit-and-compute.patch) | Archived `format-patch` of the BLIT-advertising commit — the only way to rebuild the failing BLIT configuration once upstream ships a non-BLIT default; reproduction-only, not for merging |
 
 <a id="mr-status"></a>
@@ -111,6 +111,7 @@ as the COMPUTE experiment and is now the reviewed unbind bugfix; the shared
 | 2026-07-06 | **MRs force-pushed with the classified fixes.** !42613 was rebuilt to `a9d6caeeb53` as !42563 -> !42679 -> Panfrost opt-in -> `st/mesa: skip TexSubImage for allocation-only TexImage` -> Joshua Watt's BLIT enablement. !42614 was rebuilt to `60eb35d6ee1` on that corrected stack; its two unique commits are content-unchanged. MR descriptions were updated with the G610 root-cause notes. Local corrected-stack smoke passed `ninja -C .codex-tmp/build-g610-debug`, `pbo-getteximage -auto`, and `max-texture-size -auto -fbo`. Pipeline 1700150 (!42613) later exposed the stale expectation recorded below; pipeline 1700149 (!42614) was superseded before final G610 results. |
 | 2026-07-06 | **Rerun exposed one stale G610 expectation, not another transfer crash.** In pipeline 1700150, !42613 had `panfrost-g610-gl` 1/2 and 2/2 green plus `panfrost-g610-piglit` 1/2 green; `panfrost-g610-piglit` 2/2 failed only because `glx@glx-copy-sub-buffer` was still listed in `src/panfrost/ci/panfrost-g610-fails.txt` but passed twice (`UnexpectedImprovement(Pass)`). The transfer/readback crash set was gone from that shard. !42613 was force-pushed again to `8875a22856d` with `panfrost/ci: drop fixed G610 glx-copy-sub-buffer fail`; !42614 was rebuilt to `4c23f1db1f9`. Final selected reruns 1700162 (!42613) and 1700163 (!42614) then passed all four targeted G610 shards on each branch. Manual API job starting still fans out unrelated freedreno/zink/other-ARM jobs after dependencies finish, so those must be canceled when not using the helper's cancel logic. |
 | 2026-07-06 | **Structured review of all four open MRs** ([`docs/mr-review-findings.md`](./docs/mr-review-findings.md)): no blockers anywhere; the !42614 u_test was verified live in both directions on the G610 (pass on the fixed path, fail with exactly the commit message's 40884 wrong texels with `use_txf_fragcoord` flipped off in gdb). Should-fix before the next force-push: G52/G57 still carry the `glx@glx-copy-sub-buffer,Fail` expectation the G610 commit drops (UnexpectedPass risk on full pipelines); the allocation-only guard belongs in `st_TexSubImage` (a direct NULL-pixels `glTexSubImage` still reaches the huge staging alloc); the two `arch >= 6` gates should share a predicate; and the commit messages' hardware-mechanism claims need the measurement-first rewording now that the probe evidence contradicts them. Stack topology: the duplicated u_blitter commit has identical patch-ids (no drift) but !42679 is not an ancestor of !42613 — regenerate !42613 from !42679's tip at the next update. `git merge-tree` vs origin/main: zero conflicts, zero upstream churn on the stack's source files. |
+| 2026-07-22 | **Maintainer diagnosis and workaround verified.** Kusma confirmed the varying failure as a hardware erratum and identified `GL_POLYGON_OFFSET_FILL` with factor/units zero as a workaround. On G610 it changes Mesa's Valhall `depth_bias_enable` descriptor bit without numerically moving depth and makes the raw varying exact at 12288/16307. A new normalized-coordinate `texture()`/TEX-nearest probe fails at the same baseline widths and passes with the workaround, proving the effect is not specific to f32-to-integer conversion or TXF. Exact hardware internals remain inferred; an internal `u_blitter` draw must install the safe rasterizer state itself. |
 
 Neither !38433 nor the new stack had merged upstream as of the last check
 (2026-07-06, via `glab api`; all `state: opened`).
@@ -137,8 +138,9 @@ for some integer format-changing transfers. The problematic path is:
 2. `u_blitter` emits a fragment shader that reads interpolated texture
    coordinates.
 3. The shader truncates those coordinates and performs `TEX_FETCH`/TXF.
-4. Mali-G610's `LD_VAR_IMM` varying interpolation drifts at non-power-of-two
-   widths — by about `2^-10` at the widths involved here.
+4. A confirmed Mali-G610 hardware erratum corrupts varying interpolation at
+   some non-power-of-two widths — with a `~2^-10` signature at the widths
+   involved here.
 5. Truncation turns that coordinate drift into wrong texel selection.
 
 The exact key instruction sequence from the generated blit fragment shader
@@ -155,8 +157,8 @@ TEX_FETCH.slot1.reserved.32.2d.texel_offset.wait0126 @r0:r1:r2:r3, @r0:r1:r2, [r
 
 The compiler did not obviously choose the wrong operation. The generated code
 loads an interpolated f32 coordinate, truncates it, then does a texel fetch.
-The problem is that the interpolation result is not precise enough for an
-integer texel address.
+The problem is that the hardware erratum has already corrupted the
+interpolation result before it is used as an integer texel address.
 
 The MR's second direction was:
 
@@ -178,8 +180,10 @@ integer format-changing cases elsewhere.
 This list is a **summary**; the canonical, evidence-carrying copies live in
 [`blit-precision.md`](./docs/blit-precision.md) and [`validation.md`](./docs/validation.md).
 
-- The failure is specific to sampled BLIT paths that need an exact integer
-  texel coordinate after interpolation and truncation.
+- The original corruption was exposed by a sampled BLIT path needing an exact
+  integer texel coordinate, but the underlying hardware erratum is broader:
+  the raw varying fails without any texture operation, and normalized
+  non-integer coordinates can select wrong texels through ordinary TEX-nearest.
 - The failing dEQP symptom was in shader precision tests, but the shader math
   was not the underlying bug. The precision tests happened to read back a very
   wide one-row integer buffer through a format-changing blit.
@@ -198,6 +202,12 @@ This list is a **summary**; the canonical, evidence-carrying copies live in
   ~`2^-10` at 12288/16307) — the drift is in the varying path itself, not in
   u_blitter's use of it
   ([`reproducers/interp_probe/README.md`](reproducers/interp_probe/README.md)).
+- The maintainer-provided workaround (2026-07-22) enables polygon-offset fill
+  with factor/units zero. It makes the raw varying and the new
+  `tex_interp_probe.c` ordinary-TEX case exact at 12288 and 16307. Mesa source
+  maps that enable to Valhall's `depth_bias_enable` descriptor bit while the
+  zero parameters leave depth unchanged; the microarchitectural reason that
+  this selects the unaffected path is not public.
 - A Vulkan port of the probe (`vk_interp_probe.c`, 2026-07-06) reproduces the
   drift **bit-for-bit on panvk** — Mesa's Vulkan driver for Mali, a stack
   with no Gallium, no u_blitter, and no GL state tracker anywhere
