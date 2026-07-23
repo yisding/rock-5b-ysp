@@ -23,7 +23,7 @@ one requires more driver instrumentation.
 
 | Gap | Why the old evidence could pass incorrectly | Resolution |
 |-----|---------------------------------------------|------------|
-| Compiled or stale KUnit was treated as current green KUnit | The build profiles enabled both suites, but nothing read the booted results; an unrelated older report could also be combined with newer suite logs. | [`rewrite-kunit-log-check.sh`](../tests/rewrite-kunit-log-check.sh) requires exactly 86 MPP and 120 RGA cases, with no failure or skip, and the profile runner persists a structured report. The evidence audit requires the report whose run ID matches every selected rewrite-candidate suite. |
+| Compiled or stale KUnit was treated as current green KUnit | The build profiles enabled both suites, but nothing read the booted results; an unrelated older report could also be combined with newer suite logs. | [`rewrite-kunit-log-check.sh`](../tests/rewrite-kunit-log-check.sh) requires exactly 86 MPP and 122 RGA cases, with no failure or skip, and the profile runner persists a structured report. The evidence audit requires the report whose run ID matches every selected rewrite-candidate suite. |
 | Userspace success could hide a kernel warning | Main suites saved only a dmesg tail; they did not compare or gate new messages. | All five suite wrappers now capture before/after dmesg, isolate new lines across ordinary growth or ring wrap, and reject KASAN/KCSAN/UBSAN/KFENCE, Oops/BUG/WARNING, lockdep/RCU/hung-task, DMA-API, and MPP/RGA/IOMMU fault signatures. The evidence audit requires a clean `dmesg-scan.tsv` on both profiles. |
 | Error and idle counters were under-specified | Timeout/fault checks omitted recovery failure, spurious IRQ, RGA2 config error, and boundary-shadow setup failure; a missing safety counter looked like a zero delta; zero-after checks covered only imports. | Default forbidden deltas now include those safety counters and rewrite audits require every listed counter for each component captured by a suite to be present. Rewrite suites also require `mpp:queued_job_count`, RGA import and boundary-shadow active gauges, and the direct librga userptr-IOMMU active gauge to return to zero. The latter uses `*:active` so both `userptr_iommu` and legacy `route_b` debugfs names work. |
 | The direct MPP evidence could be `mpp_info_test` only | Plugin/FFmpeg coverage exercises codecs, but does not prove the official MPP multi-thread, multi-instance, and rate-control paths selected for parity. | Normal evidence audits selecting MPP now require a representative named core matrix on both profiles and a nonempty checksum artifact for every media case. Decode evidence therefore needs `MPP_DUMP_OUTPUTS=1`. `REQUIRE_MPP_CORE_CASES=0` is an explicit relaxation for old/exploratory logs. |
@@ -33,6 +33,31 @@ one requires more driver instrumentation.
 Device-free parser, dmesg, counter, comparator, case-builder, and evidence-audit
 selftests cover the new wiring. They prove that the gates reject bad fixtures;
 they are not substitutes for a booted RK3588 run.
+
+## Addendum — 2026-07-22: forward-port RGA bugfixes ported to the rewrite
+
+Auditing the 21 forward-port fixes `0049`–`0069` against the rewrite found that
+most are dissolved by the rewrite's architecture (system-IOMMU mapping, per-job
+device selection, un-refcounted requests with idempotent IDR retire, plane
+handles resolved to IOVA integers, full-validator core containment). Five real
+defects remained and were ported to both rewrite tips as
+`linux-6.18-rkvenc@8469183da227` (6.18) and `linux@9ff18809b5e0` (mainline):
+
+| Fix | Site | Forward-port analogue |
+|-----|------|-----------------------|
+| First-job `rk_rga_job_put(NULL)` deref (pre-existing crash, not a port) | `rk_rga_job_put()` gains a NULL guard; `rk_rga_hw_schedule_timeout()` puts a NULL previous-timeout job on every first arm | — |
+| 10-bit semi-planar chroma offset inside the Y plane | `rk_rga_img_layout()` derives Y/UV byte sizes from `compact_mode` (×10/8 compact, ×2 incompact) | `0049` |
+| Multi-entry dma-buf imports >64 KiB spuriously rejected | `rk_rga_hw_probe()` sets a 4 GiB `dma_set_max_seg_size` | `0050` sub-item |
+| Import reference released twice on plane-arithmetic failure | `rk_rga_materialize_img_import()` resolves all plane addresses before appending the import to `imports[]` | `0067` class |
+| Acquire-callback vs abort UAF (session-close race) | `rk_rga_job_cancel_acquire_callbacks()` reports the zero-crossing; abort queues the acquire work only when its own decrement crossed zero | `0052` class |
+
+The two new RGA KUnit cases (`rk_rga_layout_yuv10_kunit`,
+`rk_rga_acquire_abort_queues_last_kunit`) raise the RGA suite to 122 and the
+booted-report requirement to 208. These commits are compile-verified on both
+branches; the `normal`/`memory`/`race` clean-source gates and the booted KUnit
+run have **not** been re-executed at the new tip. Both armbian packaging
+branches predate these tips and pick the fixes up on their next rebuild from
+tip, per gate 1 below.
 
 ## Remaining gaps and hardware gates
 
@@ -51,7 +76,7 @@ stress; do not mislabel the cumulative counter as a leak gauge.
 
 The following cannot be closed by repository selftests:
 
-1. Boot KASAN and KCSAN rewrite kernels, persist the 206-case green KUnit report,
+1. Boot KASAN and KCSAN rewrite kernels, persist the 208-case green KUnit report,
    and run the full paired suite matrix with clean dmesg evidence.
 2. Supply an AVS2 elementary stream and record forward-port/rewrite
    `mpi_dec_avs2` output parity.

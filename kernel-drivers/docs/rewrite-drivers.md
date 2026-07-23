@@ -117,8 +117,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 | Kernel APIs | BSP-isms shimmed via `compat/` (vendor-forward-port.md §A) | public APIs only, no shims |
 | Kernel target | pinned to 6.18 API surface (resyncing.md hazards) | built on 6.18; being brought up on current mainline master too (§5) |
 | Userspace ABI | full BSP surface | the documented subset current `mpp-rockchip`/`librga`/`ffmpeg-rockchip` actually use |
-| Audit posture | 89 verified findings latent ([BSP audit](./bsp-audit.md)) | ownership-explicit and refcount-disciplined, with 86 MPP + 120 RGA KUnit cases |
-| Size snapshot | MPP ~15,822 lines; RGA3 19,173 code/build lines at the current forward oracle (`15,796` C + `3,305` headers + `72` Kconfig/Makefile) | MPP rewrite 13,150 C lines; RGA rewrite 20,073 code/build lines because 8,797 lines are embedded KUnit, or 11,276 code/build lines with KUnit excluded; 20,698 incl. `ABI.rst` |
+| Audit posture | 89 verified findings latent ([BSP audit](./bsp-audit.md)) | ownership-explicit and refcount-disciplined, with 86 MPP + 122 RGA KUnit cases |
+| Size snapshot | MPP ~15,822 lines; RGA3 19,173 code/build lines at the current forward oracle (`15,796` C + `3,305` headers + `72` Kconfig/Makefile) | MPP rewrite 13,150 C lines; RGA rewrite 20,219 code/build lines because 8,885 lines are embedded KUnit, or 11,334 code/build lines with KUnit excluded; 20,844 incl. `ABI.rst` |
 
 Kconfig makes the two tracks **mutually exclusive per device node**:
 `ROCKCHIP_MPP_REWRITE` depends on `!ROCKCHIP_MPP_SERVICE` and registers
@@ -227,30 +227,30 @@ current oracle, a like-for-like count is:
 
 | Content | Forward-port `rga3/` | Rewrite `rga-rewrite/` |
 |---------|---------------------:|-----------------------:|
-| Non-test C | 15,796 | 11,251 |
+| Non-test C | 15,796 | 11,309 |
 | Headers | 3,305 | 0 |
-| Embedded KUnit | 0 | 8,797 |
+| Embedded KUnit | 0 | 8,885 |
 | Kconfig + Makefile | 72 | 25 |
-| **Driver code/build files** | **19,173** | **20,073** |
+| **Driver code/build files** | **19,173** | **20,219** |
 | ABI documentation | — | 625 |
-| **Everything in the driver directory** | **19,173** | **20,698** |
+| **Everything in the driver directory** | **19,173** | **20,844** |
 
-Therefore the checked-in rewrite is 900 code/build lines (4.7%) larger when
-KUnit is counted, or 1,525 lines larger when its `ABI.rst` is counted too. With
-`ROCKCHIP_RGA_REWRITE_KUNIT_TEST` disabled, the rewrite has 11,276 code/build
-lines — 7,897 lines (41.2%) fewer than the forward port. This is a
+Therefore the checked-in rewrite is 1,046 code/build lines (5.5%) larger when
+KUnit is counted, or 1,671 lines larger when its `ABI.rst` is counted too. With
+`ROCKCHIP_RGA_REWRITE_KUNIT_TEST` disabled, the rewrite has 11,334 code/build
+lines — 7,839 lines (40.9%) fewer than the forward port. This is a
 source accounting, not an object-size measurement.
 
-The KUnit body occupies `rga_rewrite.c:6337-15129` (8,793 lines). Its
-conditional include at `:34-37` brings the total test-only source to 8,797
-lines, 43.9% of the C file. The current file is physically laid out at a high
+The KUnit body occupies `rga_rewrite.c:6386-15266` (8,881 lines). Its
+conditional include at `:34-37` brings the total test-only source to 8,885
+lines, 44.0% of the C file. The current file is physically laid out at a high
 level as follows:
 
 | `rga_rewrite.c` range | Lines | Main responsibility |
 |-----------------------|------:|---------------------|
-| 1-6336 | 6,336 | Registers, driver objects, sessions, DMA/userptr mapping and shadows, fences, recovery helpers, and first-stage validation |
-| 6337-15129 | 8,793 | KUnit implementation and 120 registered cases |
-| 15131-20048 | 4,918 | RGA2/RGA3 profile validation and emission, scheduling/IRQ/recovery, ioctls, probe/remove, and session teardown |
+| 1-6385 | 6,385 | Registers, driver objects, sessions, DMA/userptr mapping and shadows, fences, recovery helpers, and first-stage validation |
+| 6386-15266 | 8,881 | KUnit implementation and 122 registered cases |
+| 15267-20194 | 4,928 | RGA2/RGA3 profile validation and emission, scheduling/IRQ/recovery, ioctls, probe/remove, and session teardown |
 
 The growth history makes the source crossover equally explicit:
 
@@ -259,14 +259,17 @@ The growth history makes the source crossover equally explicit:
 | `fb1fba22d0c5` (initial rewrite) | 7,067 | 350 | 6,717 | Initial ABI and execution slice |
 | `d1d15a3d052a` (pre-hardening parent) | 18,321 | 8,111 | 10,210 | Feature-parity and lifetime coverage before the final hardening pass |
 | `563f329dd8c4` | 19,485 | 8,653 | 10,832 | Topology, DMA/IOMMU, fence, queue/removal, and recovery hardening |
-| `0d71ded1690c` (current pin) | 20,048 | 8,797 | 11,251 | RK3588 RGA quirks, config-error IRQs, cache-line shadows, CSC compatibility, and tests |
+| `0d71ded1690c` | 20,048 | 8,797 | 11,251 | RK3588 RGA quirks, config-error IRQs, cache-line shadows, CSC compatibility, and tests |
+| `8469183da227` (current pin) | 20,194 | 8,885 | 11,309 | Ported forward-port RGA bugfixes (10-bit plane offsets, max-seg-size, import double-put, acquire-abort race, job_put NULL guard) and two KUnit cases |
 
-Of the 12,981 C lines added since the initial rewrite, 8,447 (65%) are tests
-and 4,534 (35%) are runtime implementation. The rewrite crossed the forward
-port's raw source count in the hardening commit. The later 5.10 reconciliation
+Of the 13,127 C lines added since the initial rewrite, 8,535 (65%) are tests
+and 4,592 (35%) are runtime implementation. The rewrite crossed the forward
+port's raw source count in the hardening commit. The 5.10 reconciliation
 moved it from 19,485 to 20,048 lines: 144 test-only and 419 runtime lines for
 the RK3588 quirks, config-error path, per-mapping cache-line shadows, and narrow
-CSC compatibility rule.
+CSC compatibility rule. The 2026-07-22 forward-port bugfix pin `8469183` added
+a further 146 lines: 88 test-only across two new cases and 58 runtime lines for
+the five ported fixes.
 
 For comparison, the forward port's production size is spread across real BSP
 subsystems rather than tests: 3,391 C lines of RGA2 register generation, 2,306
@@ -1129,7 +1132,7 @@ confirm against the TRM before treating either as canonical.
 
 | Item | State (2026-07-17) |
 |------|--------------------|
-| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 13,150 lines; 13,824 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 20,048 lines; 20,698 total incl. `ABI.rst`, `Kconfig`, `Makefile`). The trees contain 86 MPP and 120 RGA KUnit cases. |
+| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 13,150 lines; 13,824 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 20,194 lines; 20,844 total incl. `ABI.rst`, `Kconfig`, `Makefile`). The trees contain 86 MPP and 122 RGA KUnit cases. |
 | 6.18 state | committed branch `rk3588-rewrite-6.18` at **`0d71ded1690c`** ("media: rockchip: rga-rewrite: adapt latest RK3588 fixes") in `/home/yi/Code/kernel/linux-6.18-rkvenc`. It layers the July 17 RGA low-voltage quirks, config-error IRQ handling, cache-line-safe per-mapping userptr shadows, and narrow CSC compatibility rule over the July 15 MPP/RGA hardening. |
 | Mainline state | committed branch `rk3588-rewrite-mainline` at **`32696e87c9c7`** ("media: rockchip: rga-rewrite: adapt latest RK3588 fixes") in `/home/yi/Code/kernel/linux`, based on the tree rebased to official kernel.org `v7.2-rc2`. It carries matching behavior plus the mainline DT/wiring and provider integration; the pre-rebase tip remains preserved as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`. |
 | Package composites | `rk3588-rewrite-armbian-6.18.38` at **`8daf5e9513b8`** layers the rewrite after the exact Armbian current/forward-port Linux 6.18.38 source snapshot. `rk3588-rewrite-armbian-7.2-rc3` at **`24f7424fb958`** layers it after official `v7.2-rc3` plus Armbian `rockchip64-bleedingedge`. The latter's Armbian snapshot is `2657f01c9b9a`, produced from build checkout `5cbc1c59c`. |

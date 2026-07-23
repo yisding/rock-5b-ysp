@@ -173,7 +173,7 @@ For a kernel replacing a validated one, finish with the comparators
 (`*-suite-compare.sh`) against the last validated run: any required
 baseline-pass that the candidate fails, artifact SHA mismatch, or slowdown
 beyond `PERF_MAX_RATIO` is a regression. The rewrite additionally requires
-its paired-evidence audit (`rewrite-evidence-audit.sh`) and 206 green booted
+its paired-evidence audit (`rewrite-evidence-audit.sh`) and 208 green booted
 KUnit cases — see
 [`rewrite-validation-plan.md`](./rewrite-validation-plan.md) §7 for its full
 definition of done.
@@ -257,7 +257,7 @@ Per [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) and
 | | Forward-port | Rewrite | Maxline |
 |---|---|---|---|
 | Reference oracle | software decode / vendor encoder | the forward-port (dual-boot A/B, bit-exact) | n/a (subsystem support matrix) |
-| Extra required gates | GStreamer suite; RGA patch-gate probes (P010/NV15/legacy-blit/over-4G) | 206 booted KUnit; counter checks; paired evidence audit; KCSAN race kernel; fault-injection matrix; 72 h soak | recovery-first subsystem order; `public` before `wip`; blacklist handling for HDMI audio |
+| Extra required gates | GStreamer suite; RGA patch-gate probes (P010/NV15/legacy-blit/over-4G) | 208 booted KUnit; counter checks; paired evidence audit; KCSAN race kernel; fault-injection matrix; 72 h soak | recovery-first subsystem order; `public` before `wip`; blacklist handling for HDMI audio |
 | Perf-valid build | production combined build only | Kernel C only | production only |
 | Current state anchor | [`forward-port-status.md`](./forward-port-status.md) | [`rewrite-conformance-gap-audit.md`](./rewrite-conformance-gap-audit.md) | [`kernel-maxline/README.md`](../../packaging/ppa/kernel-maxline/README.md) |
 
