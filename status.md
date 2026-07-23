@@ -56,7 +56,7 @@ dashboard date and ledger row when public state changes.
 | # | Track | Next proof | Action path |
 |---|-------|------------|-------------|
 | 1 | Kernel forward-port | Fix the RGA2 DMA-sync and RKVENC2 overflow paths, install the GStreamer development dependencies, finish the KASAN matrix, then rebuild/upload a production image with the complete patch tail, repeat the green gates on it, and validate rollback. | [RGA2 DMA-sync gate](./findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md#verification-gate), [slice-FIFO gate](./findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md#verification-gate) |
-| 2 | BSP-audit fixes | Correctness + destructive `0059`-`0069` gates are green on booted `Pabd5-C4ad2`; `0070`/`0071` (mm_session UAF) verified on `Pc1f8-C9fc5`. The previously-skipped **root-only gates were run on `Pc1f8` 2026-07-23**: encoder ✓, transcode ✓, rga-mmu-debug ✓ (the `0071` mm_session gate — no D-state wedge), vp9-show-existing ✓ (board survived; the crash's proven fix is `0058`, clientless-RELEASE_FD reproducer returns `-EINVAL`), and iommu-machinery-fuzz surfaced a **new** scattered-userptr zero-output bug now fixed as `0072` (reject). **`0072` is now runtime-verified** on a booted KASAN `#8` build (`av1-fwport@4401383a6d9b5`, tail `0001`–`0072`, built 2026-07-23 07:39): the `rga-iommu-fuzz` scatter probe shows the driver rejecting a non-16-aligned IOMMU base (`-EINVAL`) instead of silent zero output, and the fuzz oracle was corrected to expect that reject ([validation run](./findings/2026-07-23-forward-port-current-tip-full-validation-run.md)). Remaining: isolate the `mpp_process_request()` list_add double-add to one fuzz cmd and fix it; run the root-only gates with `sudo` on this tip; and rebuild a production (non-KASAN) image of this tail for install/rollback + perf. | [Port record](./findings/2026-07-22-bsp-high-current-tip-port.md), [list_add finding](./findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md), [runtime gate inventory](./kernel-drivers/patches/cleanup-draft/verification.md#runtime-gate-result-record-here-when-run) |
+| 2 | BSP-audit fixes | Correctness + destructive `0059`-`0069` gates are green on booted `Pabd5-C4ad2`; `0070`/`0071` (mm_session UAF) verified on `Pc1f8-C9fc5`. The previously-skipped **root-only gates were run on `Pc1f8` 2026-07-23**: encoder ✓, transcode ✓, rga-mmu-debug ✓ (the `0071` mm_session gate — no D-state wedge), vp9-show-existing ✓ (board survived; the crash's proven fix is `0058`, clientless-RELEASE_FD reproducer returns `-EINVAL`), and iommu-machinery-fuzz surfaced a **new** scattered-userptr zero-output bug now fixed as `0072` (reject). **`0072` is now runtime-verified** on a booted KASAN `#8` build (`av1-fwport@4401383a6d9b5`, tail `0001`–`0072`, built 2026-07-23 07:39): the `rga-iommu-fuzz` scatter probe shows the driver rejecting a non-16-aligned IOMMU base (`-EINVAL`) instead of silent zero output, and the fuzz oracle was corrected to expect that reject ([validation run](./findings/2026-07-23-forward-port-current-tip-full-validation-run.md)). The root-only gates were re-run green on this `0072` tip (`20260723-141619`): encoder/transcode/rga-mmu/iommu-fuzz PASS, `mpp-debug-capture` expected SKIP, and VP9 `show_existing_frame` survived clean (30×4 loops, `flagged_kernel_lines=0`). Remaining: isolate the `mpp_process_request()` list_add double-add to one fuzz cmd and fix it; and rebuild a production (non-KASAN) image of this tail for install/rollback + perf. | [Port record](./findings/2026-07-22-bsp-high-current-tip-port.md), [list_add finding](./findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md), [runtime gate inventory](./kernel-drivers/patches/cleanup-draft/verification.md#runtime-gate-result-record-here-when-run) |
 | 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. | [DKMS build and install](./packaging/dkms/README.md#dkms-build-install) |
 | 4 | Clean-room rewrite drivers | Rebuild/package one current July 22 source tip; persist 208 green booted KUnit results, then capture paired clean-dmesg/counter/artifact evidence including AVS2 and H.264/H.265 low-delay slice polling. | [Remaining rewrite hardware gates](./kernel-drivers/docs/rewrite-conformance-gap-audit.md#remaining-gaps-and-hardware-gates) |
 | 5 | ffmpeg tree | Re-test AV1 from MP4 and MKV through `av1_rkmpp` on RK3588. | [AV1 follow-up evidence](./findings/2026-07-11-kodi-ffmpeg-rockchip-hwaccel.md#av1-follow-up) |
@@ -112,7 +112,7 @@ last-checked date.
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → UAF](#watch-w19) | 2026-07-22 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0070`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0059`-`0069`. Fix build **`P29f4-C9fc5`** (config byte-identical to `Pabd5`) is built but not installed; booted `Pabd5` list is poisoned for this boot; gate = install/boot `P29f4` and confirm the reproducer returns `-EBUSY`. |
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | **CSI-loop attribution falsified as sole cause:** the stall recurred on 2026-07-23 with the patched `~rk1` package binary-verified in the booted initramfs (identical fingerprint, no `SIGRTMIN+20`). Boot-transaction mechanism reconfirmed; internal daemon wedge unknown again. Mitigation `plymouth.enable=0` still unapplied; next hang needs a live `plymouthd` stack via `debug-shell.service` instead of a reset. |
-| W21 | [ffmpeg-rockchip `rkmpp` transcode deadlock](#watch-w21) | 2026-07-23 | On the `FFDIR` `ffmpeg-rockchip` build, `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines deadlock (all threads on `futex`, empty/truncated output); other directions and AV1 transcodes are fine, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Matches the `fix/rkmpp-output-timeout@da5befc806` fix this build lacks. |
+| W21 | [ffmpeg-rockchip transcode deadlock without `da5befc806`](#watch-w21) | 2026-07-23 | The harness's default `FFDIR` binary (FFmpeg-**master**, `libavcodec 63`; its dir's `RELEASE` file misleadingly says 6.1) deadlocks on `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines (all threads on `futex`). The **shipping `/usr/bin/ffmpeg 8.0.3~rk1` (`libavcodec 62`, carries `da5befc806`) runs both cleanly**, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Already-catalogued encoder-backpressure/decoder-hang class (submission-plan §B), fixed on our 8.0 line — not a new finding; not yet forward-ported to main or upstreamed. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -541,24 +541,35 @@ last-checked date.
   [`findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md`](./findings/2026-07-22-rock5b-boot-hang-plymouth-initramfs-daemon.md).
 
 <a id="watch-w21"></a>
-### W21 — ffmpeg-rockchip `rkmpp` transcode deadlock
+### W21 — ffmpeg-rockchip `rkmpp` transcode deadlock without the `da5befc806` backpressure fix
 
-- **Why recheck:** Surfaced during the 2026-07-23 `Pc1f8-C9fc5` validation run.
-  It is a **userspace** `ffmpeg-rockchip` bug, so it can be mistaken for a kernel
-  regression, and it hangs the FFmpeg conformance suite (the per-case
-  `timeout 180` has no SIGKILL fallback, so a futex-deadlocked ffmpeg is never
-  reaped).
+- **Why recheck:** Surfaced during the 2026-07-23 validation run and initially
+  mislabelled (twice) by version: it is **not** a kernel bug and **not** in the
+  shipping 8.0.3 port. It hangs the FFmpeg suite when the runtime ffmpeg-rockchip
+  build lacks the input-backpressure fix, so it can be mistaken for a kernel
+  regression.
 - **Last checked:** 2026-07-23
-- **State then:** On the `FFDIR` build
-  (`../ffmpeg/ffmpeg-rockchip`), the `h264_rkmpp → scale_rkrga → hevc_rkmpp`
-  transcode and the `hevc_main10 → scale_rkrga=p010le → hwdownload` case
-  deadlock — all threads `S`-state on `futex_do_wait`, 0-byte / ~1-frame output.
-  The reverse `hevc→h264` and both AV1 transcodes produce valid output through
-  the same kernel RGA/MPP, and the kernel logs a clean RGA `soft reset` on
-  session exit with no `hung_task`/D-state/KASAN — so the **kernel is not
-  implicated**. Signature matches the `rkmpp` output-timeout deadlock fixed on
-  the separate `fix/rkmpp-output-timeout@da5befc806` branch, which this `FFDIR`
-  build does not carry. Fix path: point `FFDIR` at a build with `da5befc806`
-  (or port it) and re-run; also harden `ffmpeg-suite.sh` to fail a width/height-0
-  transcode and to `timeout -k` its cases. Detail:
+- **Identity caveat:** the deadlocking binary is `FFDIR=../ffmpeg/ffmpeg-rockchip/ffmpeg`,
+  which reports `libavcodec 63` (FFmpeg **master**, version `N-125363-g53e76abdc7`).
+  Note the *source tree* at that path is mismatched — its `RELEASE` reads `6.1`
+  and headers say `LIBAVCODEC_VERSION_MAJOR 60`, so the binary is a stale
+  master-based build, not from the checked-out 6.1 source. The **authoritative
+  fingerprint is the runtime libavcodec version, not the RELEASE file** (an
+  earlier note wrongly called this a "6.1" build).
+- **State then:** On that FFmpeg-master build the
+  `h264_rkmpp → scale_rkrga → hevc_rkmpp` transcode and the
+  `hevc_main10 → scale_rkrga=p010le → hwdownload` case deadlock — all threads
+  `S`-state on `futex_do_wait`, 0-byte / ~1-frame output. The **installed
+  `/usr/bin/ffmpeg 8.0.3-0ubuntu1~rk1`** (`libavcodec 62`, carries our
+  `fix/rkmpp-output-timeout@da5befc806`) runs **both** cases cleanly —
+  `run-root-gates.sh` transcode gate PASS (48 frames, both directions), and a
+  direct `main10→p010` run produced the full 373 MB output. Same kernel/RGA/MPP
+  for both, clean RGA `soft reset`, no `hung_task`/D-state/KASAN, so the **kernel
+  is not implicated**; only the build without `da5befc806` hangs. This is the
+  encoder input-backpressure / decoder receive-loop hang class already catalogued
+  in the [ffmpeg submission plan](../video-libraries/ffmpeg/docs/submission-plan.md)
+  §B and fixed on our 8.0 line — **not a new finding**. Our fix is not yet
+  forward-ported to the main/master branch or submitted upstream (status row 6).
+  Harness: `ffmpeg-suite.sh` now uses `timeout -k` (reaps a deadlock) and prints
+  the runtime `libavcodec` version for attribution. Detail:
   [`findings/2026-07-23-forward-port-current-tip-full-validation-run.md`](./findings/2026-07-23-forward-port-current-tip-full-validation-run.md).

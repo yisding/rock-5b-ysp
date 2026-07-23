@@ -493,7 +493,11 @@ run_timeout()
 	local limit=${1:-$FFMPEG_TIMEOUT}
 	shift
 
-	run_runtime timeout "$limit" "$@"
+	# -k: escalate to SIGKILL if the child ignores SIGTERM. An ffmpeg-rockchip
+	# rkmpp/rkrga pipeline can deadlock in userspace (all threads on a futex; see
+	# status.md W21 — the FFmpeg-6.1 base), and its SIGTERM handler deadlocks on
+	# the same lock, so without -k `timeout` would wait forever and hang the suite.
+	run_runtime timeout -k "${FFMPEG_TIMEOUT_KILL:-15}" "$limit" "$@"
 }
 
 run_ffmpeg()
@@ -1496,6 +1500,19 @@ run_runtime_cases()
 	if [ -n "$CURRENT_LD_LIBRARY_PATH" ]; then
 		echo "LD_LIBRARY_PATH=$CURRENT_LD_LIBRARY_PATH"
 	fi
+
+	# Known-issue advisory (status.md W21): ffmpeg-rockchip builds that lack the
+	# rkmpp input-backpressure fix (`da5befc806`, on our 8.0 line) can deadlock the
+	# h264->hevc and hevc_main10->p010 transcodes (all threads on a futex). Observed
+	# on the FFmpeg-master build (libavcodec 63) the harness defaults FF to; the
+	# shipping /usr/bin/ffmpeg 8.0.3~rk1 (libavcodec 62, carries da5befc806) is
+	# clean. It is a userspace bug, not the kernel. We keep the case in the matrix;
+	# a deadlock is reaped by the run_timeout SIGKILL fallback and scored as a real
+	# failure. Report the runtime libavcodec so a failure here is easy to attribute.
+	local lavc_ver
+	lavc_ver=$("$FF" -hide_banner -version 2>/dev/null |
+		sed -n 's/^libavcodec[[:space:]]*\([0-9][0-9.]*\).*/\1/p' | head -1)
+	[ -n "$lavc_ver" ] && echo "FF=$FF libavcodec=$lavc_ver (W21: transcode deadlocks unless this build carries da5befc806)"
 
 	for case_name in $required_cases; do
 		run_case required "$case_name"

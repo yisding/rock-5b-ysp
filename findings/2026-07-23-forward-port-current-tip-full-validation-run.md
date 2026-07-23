@@ -15,11 +15,14 @@ that carries the full `0059`–`0072` tail, including the `0072` RGA3
 unaligned-base reject — as far as an unprivileged (`video` + `systemd-journal`)
 session allows. **Every correctness and memory-safety rung is green, and `0072`
 is confirmed present and working on this boot** (the scattered-userptr fuzzer now
-fails closed with a driver reject instead of silently returning zero output). One
-**userspace defect** surfaced, unrelated to the kernel: the `FFDIR`
-`ffmpeg-rockchip` build deadlocks on two `rkmpp`/`rkrga` encode pipelines.
-Root-only gates (encoder, transcode-with-dmesg, `run-root-gates.sh`) are **blocked
-on an interactive `sudo` password** and remain open.
+fails closed with a driver reject instead of silently returning zero output). The **root-only gates
+were then run with `sudo` and are all green** (encoder, transcode, rga-mmu,
+iommu-fuzz, VP9 `show_existing_frame` survives clean; `mpp-debug-capture` an
+expected forward-port skip). One **userspace defect** surfaced, unrelated to the
+kernel: the harness's default `FFDIR` ffmpeg-rockchip binary (FFmpeg-**master**,
+`libavcodec 63`) deadlocks on two `rkmpp`/`rkrga` transcode pipelines because it
+lacks our `da5befc806` backpressure fix, while the shipping `/usr/bin/ffmpeg
+8.0.3~rk1` (`libavcodec 62`, carries the fix) runs the same transcodes cleanly.
 
 Because this is a KASAN/lockdep build, these results close **correctness and
 memory-safety** only — no performance/soak claims (runbook principle 2).
@@ -89,6 +92,17 @@ memory-safety** only — no performance/soak claims (runbook principle 2).
   `../rockchip-conformance/logs/rewrite/20260723-104740-ffmpeg-suite/`.
   Raw captures, not committed.
 
+## Root-only gates — RUN 2026-07-23, all green
+
+`sudo run-root-gates.sh` on this boot (`20260723-141619-root-gates`):
+`encode-test-tiny` PASS, `transcode` PASS, `rga-mmu-debug` PASS,
+**`iommu-machinery-fuzz` PASS** (the `0072` scatter reject end-to-end, with the
+corrected oracle), `mpp-debug-capture` SKIP (exit 77 — reads rewrite debugfs
+absent on a forward-port kernel), `vp9-show-existing` PASS (30 loops × 4
+concurrent decodes of the `show_existing_frame` vector + 60 s deferred-fault wait;
+board survived, `flagged_kernel_lines=0 clean=1`, no trace — the `0053`/`0054`/`0058`
+fixes hold). Every fatal-signature kernel scan was clean.
+
 ## Test-harness fixes applied this run
 
 - `rga-iommu-fuzz.cpp`: the oracle scored the `0072` reject as a failure
@@ -101,36 +115,51 @@ memory-safety** only — no performance/soak claims (runbook principle 2).
   (`mpp-vp9-show-existing-repro.sh`) is no longer behind `--with-vp9-crash`; it
   runs by default as a normal regression gate (the crash is fixed by `0053`/`0058`),
   still wrapped in `kernel.panic_on_oops=0` for its window.
+- `mpp-vp9-show-existing-repro.sh`: its default `IVF` was a stale absolute path
+  from a *prior session's* scratchpad (a dead file), so the gate failed
+  `missing VP9 ES` before decoding anything. Repointed the default to the tracked
+  vector `$CONFORMANCE_ROOT/assets/vp9-show-existing.ivf` (overridable via `IVF=`).
 
-## The two FFmpeg failures (userspace deadlock, kernel not implicated)
+## The two FFmpeg failures (userspace ffmpeg-rockchip missing `da5befc806`; kernel + shipping 8.0.3 clean)
 
-- `system_ffmpeg_transcode_h264_to_hevc_rkrga` (**required**): the
-  `h264_rkmpp → scale_rkrga → hevc_rkmpp` pipeline **deadlocked** — all 17 threads
-  `S`-state on `futex_do_wait`, **0-byte** output (`ffprobe` → `hevc,0,0`). Ran
-  ~30 min until manually `SIGKILL`ed; the suite's per-case `timeout 180` sent
-  `SIGTERM` but ffmpeg's cleanup deadlocked on the same futex and `timeout` has no
-  `-k` fallback. **The suite mis-scored this required case as `pass`** (its
-  verification accepts any stream line even at width 0) — a harness gap.
-- `system_ffmpeg_hevc_main10_p010_rga` (**diagnostic**): same signature,
-  `SIGKILL`ed at 210 s, correctly recorded `diagnostic-fail`.
+The deadlocks are in the `FFDIR` binary (`../ffmpeg/ffmpeg-rockchip/ffmpeg`),
+which reports **`libavcodec 63` (FFmpeg master**, `N-125363-g53e76abdc7`). Its
+directory's `RELEASE` file says 6.1 and the checked-out source headers say
+`LIBAVCODEC_VERSION_MAJOR 60`, so the *binary is a stale master build mismatched
+with the 6.1 source now at that path* — the runtime `libavcodec` version is the
+authoritative fingerprint, not the RELEASE file. The **installed
+`/usr/bin/ffmpeg 8.0.3-0ubuntu1~rk1`** (`libavcodec 62`, carries our
+`fix/rkmpp-output-timeout@da5befc806`) runs the *same* transcodes cleanly.
+
+- `system_ffmpeg_transcode_h264_to_hevc_rkrga` (**required**, `FFDIR` master
+  binary): the `h264_rkmpp → scale_rkrga → hevc_rkmpp` pipeline **deadlocked** —
+  all 17 threads `S`-state on `futex_do_wait`, **0-byte** output (`ffprobe` →
+  `hevc,0,0`). Ran ~30 min until manually `SIGKILL`ed; the suite's per-case
+  `timeout 180` had no `-k` fallback and ffmpeg's `SIGTERM` handler deadlocked on
+  the same futex, so it was never reaped (now fixed — `timeout -k`).
+- `system_ffmpeg_hevc_main10_p010_rga` (**diagnostic**, `FFDIR` master): same
+  signature, `SIGKILL`ed at 210 s, recorded `diagnostic-fail`.
+- **Shipping 8.0.3 is clean on both:** `run-root-gates.sh` forces
+  `/usr/bin/ffmpeg` and its transcode gate PASSED (48 frames, both directions);
+  a direct `hevc_main10 → scale_rkrga=p010le → hwdownload` run on 8.0.3 produced
+  the full 373 MB output (exit 0).
 - **Kernel attribution ruled out:** threads block on a userspace `futex` (not
   D-state); the RGA driver logged a clean `soft reset` on session exit; no
-  `hung_task`, no paging fault, no KASAN; the reverse + AV1 transcodes drove the
-  same kernel RGA/MPP fine. Matches the `rkmpp` output-timeout deadlock fixed on
-  the separate `fix/rkmpp-output-timeout@da5befc806` branch, which this `FFDIR`
-  build does not carry (status watchlist W21).
+  `hung_task`, no paging fault, no KASAN; the reverse + AV1 transcodes (even on
+  the master build) drove the same kernel RGA/MPP fine — same kernel, two
+  userspace builds, only the one without `da5befc806` hangs. This is the encoder
+  input-backpressure / decoder receive-loop hang class already listed in the
+  [ffmpeg submission plan](../video-libraries/ffmpeg/docs/submission-plan.md) §B
+  and fixed on our 8.0 line — **not a new finding** (status watchlist W21). The
+  fix is not yet forward-ported to main/master or submitted upstream.
 
 ## Boundary
 
 - **KASAN build → no performance/soak/throughput claims.** Steps 8 (soak) and the
   production-build perf rungs are untouched.
-- **Root-only gates OPEN (blocked on `sudo` password):** `encode-test-tiny.sh`,
-  `transcode-test.sh`, and `run-root-gates.sh` (`rga-mmu-debug`,
-  `iommu-machinery-fuzz`, `mpp-debug-capture`, and now the default VP9 gate). The
-  encoder *core* is exercised indirectly (MPP `mpi_enc_*` + ffmpeg encode-option
-  cases pass), but the IOMMU-fault-marker encoder gate did not run. Note: with the
-  corrected oracle, `iommu-machinery-fuzz` should now **pass** on this build (the
-  scatter reject is expected), not reproduce the zero-output bug.
+- **Root-only gates: RUN and green** (see section above) — `encode-test-tiny`,
+  `transcode`, `rga-mmu-debug`, `iommu-machinery-fuzz`, `vp9-show-existing` all
+  PASS; `mpp-debug-capture` an expected SKIP. No longer blocked.
 - **P010 correctness NOT re-established this run:** the librga 10-bit smoke and the
   FFmpeg Main10→P010 case were blocked by the unpatched staged librga and the
   userspace deadlock respectively. The kernel `0049`/`0051` P010 fixes were
@@ -143,8 +172,8 @@ memory-safety** only — no performance/soak claims (runbook principle 2).
 - The forward-port tip `0001`–`0072` is **memory-safety- and correctness-clean on
   hardware** for every gate a non-root session can drive, and `0072`'s reject is
   now runtime-verified (previously compile-verified only).
-- **Follow-up:** run the root-only gates with `sudo` (now includes the corrected
-  scatter fuzzer and the un-gated VP9 regression); then rebuild a **production**
-  (non-KASAN) image of this `0072` tail for the performance/soak rungs,
-  install/rollback. The `FFDIR` ffmpeg-rockchip transcode deadlock (W21) and the
-  `ffmpeg-suite.sh` width-0/`timeout -k` harness gaps remain.
+- The root-only gates are now green on this tip too (correctness scope).
+- **Follow-up:** rebuild a **production** (non-KASAN) image of this `0072` tail for
+  the performance/soak rungs and install/rollback. The `FFDIR` ffmpeg-rockchip
+  transcode deadlock (W21) and the `ffmpeg-suite.sh` width-0/`timeout -k` harness
+  gaps remain.
