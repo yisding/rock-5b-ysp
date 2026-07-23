@@ -75,6 +75,59 @@ kernel freeze at the video probe.
   `plymouth-read-write.service` is `Before=sysinit.target` with
   `TimeoutStartUSec=infinity`.
 
+## The initramfs image itself is not malformed
+
+The failed build-`#6` boot began at 21:32:02 PDT and its immediately adjacent
+healthy build-`#6` boot began at 21:38:48. Both used the same
+`/boot/initrd.img-6.18.38-current-rockchip64`, which had already been generated
+at 21:25:23:
+
+```text
+size:   43258724 bytes
+sha256: 12265d7bab9bd83cf9531c24213fb7d083c1bd18d13d908b5cb813900c15eff6
+```
+
+The image was not regenerated between those boots. A deterministic omission or
+corruption in the initramfs therefore cannot explain why the first boot stalled
+and the next one completed.
+
+An extraction of that exact image also contains the expected complete path:
+
+- the `init-premount`, `init-bottom`, and panic Plymouth scripts;
+- `/usr/bin/plymouth`, `/usr/sbin/plymouthd`, the Plymouth core/graphics
+  libraries, DRM and framebuffer renderers, and two-step/details/text plugins;
+- the configured Armbian theme and all of its assets;
+- `libdrm`, `libudev`, `libevdev`, and the direct ELF dependencies of the
+  Plymouth client, daemon, renderer, and theme plugin;
+- `rockchipdrm.ko`, its DRM/bridge/PHY dependencies, and
+  `usr/lib/firmware/rockchip/dptx.bin`.
+
+The embedded client, daemon, renderers, core libraries, theme plugins, and all
+three handoff scripts are byte-for-byte identical to their installed
+counterparts. `dpkg -V` found no modified Plymouth package file.
+
+The transition protocol narrows the failure further. Initramfs runs:
+
+```text
+plymouth update-root-fs --new-root-dir=${rootmnt}
+```
+
+The daemon does not ACK that command until its single event loop has dispatched
+the request, chrooted into the mounted real root, loaded the progress cache, and
+called the theme's root-mounted callback. The initramfs cannot finish and start
+the real-root PID 1 while this client is still waiting. Because PID 1 did start
+on the failed boot, the inherited daemon was alive and responsive through that
+ACK. It stopped servicing requests only **after** the root handoff and before
+`plymouth-read-write.service` sent its read-write request at 14.106 s.
+
+This makes the remaining defect a runtime race or blocking callback in the
+post-pivot daemon, not an initramfs construction failure. Plymouth keeps its
+udev monitor and renderer file descriptors across the chroot. Its udev callback
+synchronously drains DRM events and may synchronously open/re-probe the
+renderer through DRM ioctls. Rockchip DRM finishes binding immediately before
+PID 1 starts, so that path is a plausible timing-sensitive suspect, but it is
+not proven: the same DRM messages and device path occur on the healthy boot.
+
 ## Forward-port driver exclusion
 
 The exact installed-kernel tree is
@@ -92,11 +145,13 @@ power-domain sync markers occur on healthy boots.
 ## Boundary
 
 The boot-level cause is proven: an unresponsive inherited Plymouth socket owner
-plus unbounded client waits held sysinit. The postmortem does **not** identify the
-syscall or callback that stopped the daemon's single event loop. There is no
-Plymouth debug stream or live task stack from the failed boots. The same
-Rockchip DRM "Cannot find any crtc or sizes" messages occur in healthy boots, so
-a renderer/DRM cause would be speculation.
+plus unbounded client waits held sysinit. The initramfs artifact and its payload
+are also excluded, and the daemon is proven responsive through the new-root
+ACK. The postmortem does **not** identify the syscall or callback that stopped
+the daemon's single event loop after pivot. There is no Plymouth debug stream or
+live task stack from the failed boots. The same Rockchip DRM "Cannot find any
+crtc or sizes" messages occur in healthy boots, so calling DRM the internal root
+cause would still be speculation.
 
 ## Why it matters / follow-up
 

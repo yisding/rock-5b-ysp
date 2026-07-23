@@ -156,10 +156,19 @@ Fingerprint:
 - udev settle finishes, but `sysinit.target` and `basic.target` never arrive.
 
 The initramfs-started daemon retains Plymouth's abstract socket but does not
-complete the real-root handshake. Ordinary Plymouth clients have no timeout for
-this path, and the read-write unit is `Before=sysinit.target` with an infinite
-start timeout. A second `plymouthd` cannot replace the socket owner; its
-`show-splash` post-command blocks on the same server.
+complete the real-root read-write handshake. Ordinary Plymouth clients have no
+timeout for this path, and the read-write unit is `Before=sysinit.target` with
+an infinite start timeout. A second `plymouthd` cannot replace the socket owner;
+its `show-splash` post-command blocks on the same server.
+
+This is not evidence of a malformed initramfs. In the captured incident, the
+same pre-existing build-`#6` initrd failed once and booted successfully on the
+next attempt. Its extracted Plymouth binaries/scripts were package-identical,
+and its Plymouth theme, DRM renderer, Rockchip DRM modules/dependencies, and
+DPTX firmware were present. Real-root PID 1 also proves that the daemon had
+already processed and ACKed initramfs's new-root request. The remaining defect
+is a post-pivot daemon event-loop wedge; udev/DRM activity is a timing suspect,
+not yet a proven internal cause.
 
 On Armbian, `bootlogo=false` still injects `splash=verbose`; it does **not**
 disable Plymouth. Append `plymouth.enable=0` to `/boot/armbianEnv.txt`'s
