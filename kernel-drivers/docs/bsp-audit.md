@@ -16,9 +16,13 @@ A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA drive
 > native build of `drivers/video/rockchip/`. Debug package `Pabd5-C4ad2` also
 > completed the pinned 6.18.38 KASAN/lockdep build, with all four arm64 Debian
 > artifacts plus packaged config, ramoops DTB, and compiled-source comparison
-> checks, but is **not boot- or runtime-validated**. Thus the source tip has no remaining HIGH row from this
-> audit; the currently booted `Pd222-C4ad2` kernel still carries the 11 until a
-> new package is installed and booted.
+> checks. It was **installed and booted 2026-07-22** (fingerprint-verified),
+> with clean boot health, a bit-exact four-codec decode differential, and a
+> clean KASAN MPP suite; the targeted hostile-ioctl gates and the full
+> codec/RGA regression sweep on that boot are **still open** — see the
+> [port record](../../findings/2026-07-22-bsp-high-current-tip-port.md).
+> Thus the source tip has no remaining HIGH row from this audit, and the
+> booted kernel now carries all 11 fixes.
 
 > **📦 How to consume the fixes.** For the maintained current forward-port,
 > consume the HIGH subset via

@@ -186,9 +186,13 @@ The `0059`-`0069` current-tip HIGH subset is commit-by-commit
 compiles with the native system toolchain. Pinned-6.18.38 KASAN/lockdep debug
 build `Pabd5-C4ad2` packages that tip into image, DTB, headers, and libc-dev
 arm64 Debian artifacts; the embedded debug config, ramoops DTB, and every
-source file touched by `0059`-`0069` pass package inspection. It has **not**
-been installed, booted, or runtime-gated; `Pd222-C4ad2` validates only through
-`0058`.
+source file touched by `0059`-`0069` pass package inspection. `Pabd5-C4ad2`
+was **installed and booted 2026-07-22** (vmlinuz-md5 fingerprint match) with
+clean boot health, a bit-exact four-codec HW-vs-SW decode differential, and a
+clean KASAN MPP suite; the targeted `0059`-`0069` hostile-ioctl gates and the
+librga/ABI/FFmpeg/GStreamer sweep on that boot are still open — see the
+[port record](../../../findings/2026-07-22-bsp-high-current-tip-port.md).
+`Pd222-C4ad2` validated through `0058`.
 KASAN verified the `0042` narrowed reproduction and the `0042`/`0043` memory
 safety paths; corrected MPP and FFmpeg functional gates pass on that KASAN
 build, while the complete current tip still needs a clean package rebuild and

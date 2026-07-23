@@ -86,3 +86,34 @@ acquire-fence stress, missing-plane and partial-handle failures, shutdown, and
 the full MPP/librga/ABI/FFmpeg regression sweep with a clean kernel journal.
 The currently booted `Pd222-C4ad2` kernel validates only through `0058` and
 therefore still carries the 11 distinct bugs until replaced.
+
+## 2026-07-22 evening update — installed, booted, first gates green
+
+`Pabd5-C4ad2` was installed at 17:16 and booted at 17:21 PDT. Identity per the
+[validation runbook](../kernel-drivers/docs/kernel-validation-runbook.md):
+`/boot/vmlinuz-6.18.38-current-rockchip64` md5
+`d058837408638134c0e63639f9be5c98` equals the `Pabd5-C4ad2-H17f8` image-deb
+payload (the `Pd222` payload differs), `CONFIG_KASAN=y` +
+`CONFIG_PROVE_LOCKING=y` confirmed in `/proc/config.gz`. Note the pinned
+kernel timestamp makes `uname -a` still read `#5 … Jul 4` — only the md5
+fingerprint distinguishes this build.
+
+Evidence so far, in
+`~/Code/rockchip-conformance/logs/forward-port/20260722-172558-pabd5-full-validation/`:
+
+- Boot health clean: `tainted=0`, both encoder cores, all three decoder cores,
+  RGA3×2 + RGA2 probed, AV1DEC/RKVDEC/RKVENC advertised.
+- One flagged boot-journal item: a lockdep "possible recursive locking"
+  report during PCI probe. Triaged **not ours** — the trace is entirely
+  upstream `dwc_pcie_pmu_notifier` → `platform_device_register_full` nesting
+  two bus-notifier rwsems of the same lockdep class (missing nesting
+  annotation in the DWC PCIe PMU driver); no rockchip/mpp/rga/iommu-provider
+  frames.
+- Four-codec HW-vs-SW decode differential: H.264, H.265, VP9, AV1 all
+  **bit-exact** (`decode_differential_rc=0`).
+- KASAN MPP suite: `suite_status=0`, `flagged_kernel_lines=0`.
+
+Still open from the gate list above: the targeted `0059`-`0069` hostile-ioctl
+gates (foreign-fd, RCB/request bounds, acquire-fence, missing-plane /
+partial-handle), librga smoke, ABI replay, and the FFmpeg + GStreamer suites
+on this boot.

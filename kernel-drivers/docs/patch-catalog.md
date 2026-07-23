@@ -34,9 +34,14 @@ provenance/backport layer on top and does not repeat full fix mechanics.
   (full conformance + GStreamer suites green). Individual fixes in the
   `0042`–`0058` tail each also carry their own targeted KASAN/gate evidence on
   the earlier debug builds (`Pb999`, `P63dd`, `P9636`, `P7589`, `P9c12`).
-- `0059`–`0069`: per-commit checkpatch-clean, subtree compiles, packaged in
-  KASAN/lockdep build `Pabd5-C4ad2` — **not installed, booted, or
-  runtime-gated**.
+- `0059`–`0069`: per-commit checkpatch-clean, packaged in KASAN/lockdep build
+  `Pabd5-C4ad2`, **installed and booted 2026-07-22** (fingerprint-verified)
+  with clean boot health, a bit-exact four-codec decode differential, and a
+  clean KASAN MPP suite. The targeted hostile-ioctl gates
+  (foreign-fd, RCB/request bounds, acquire-fence, missing-plane /
+  partial-handle) and the librga/ABI/FFmpeg/GStreamer sweep on that boot are
+  still open — see the
+  [port record](../../findings/2026-07-22-bsp-high-current-tip-port.md).
 - The Published PPA package stops at `0041`; production `Pf558-Cb831` carries
   through `0043`.
 
