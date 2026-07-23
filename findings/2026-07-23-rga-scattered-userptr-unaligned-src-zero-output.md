@@ -3,7 +3,7 @@
 > Scope: forward-port RGA driver (`rga3`/`rga2`) on the `Pc1f8-C9fc5` KASAN+lockdep debug build (`6.18-rkvenc-fwport`, `6.18.38-current-rockchip64 #7`); driver-owned scattered-userptr IOMMU / cache-line-unaligned-VA path
 > Source: on-hardware run of `iommu-machinery-fuzz.sh` (root gate) 2026-07-23, then narrowed with `rga-iommu-fuzz` directly; commits `2b52e8174c127` (map scattered userptr through IOMMU), `d54523f5de378` (shadow_page for cache-line unaligned VA), `392db056b2a07` (cache-line unaligned VA fault fix) — all present in the build
 > Date: 2026-07-23
-> Trust: MEASURED (deterministic, reproduced) / SOURCE-CONFIRMED (root cause) / DESIGN (proposed fix, untested)
+> Trust: MEASURED (deterministic, reproduced) / SOURCE-CONFIRMED (root cause) / FIX-COMMITTED (`0072`, compile-verified)
 
 ## Result
 
@@ -61,25 +61,36 @@ unaffected only because the fuzzer fills the whole buffer with the pattern, so a
 real page's pre-offset bytes are also `a5`; the shadow's zeroed head is what makes
 the misaligned fetch visible.
 
-## Proposed fix (design, untested)
+## Fix (committed `4401383a6d9b5`, compile-verified)
 
-Keep the RGA source base 16-byte aligned and move the residual into the window
-offset: program `yrgb_addr = iova + (real_offset & ~0xf)` and add
-`(real_offset & 0xf)` (converted to pixels) to the source `WIN0_ACT_OFF` x-offset
-(`rga3_reg_info.c:404`). Alternative: extend the **source** shadow copy down to the
-16-aligned boundary (`offset & ~0xf`) so the aligned-down read hits real data —
-safe for reads, but the write-back region for a **destination** shadow must not be
-extended. The base-alignment fix is cleaner and covers both directions.
+Reject rather than corrupt: `rga_mm_get_buffer_info()` (RGA_IOMMU case) now
+returns `-EINVAL` when the resolved IOMMU base is not 16-byte aligned, turning
+the **silent all-zero output into a clear error**. This is the correct behavior
+for the unsupported cases and is low-risk — aligned userptr and dma-buf always
+resolve to a `>=`page-aligned base, so the normal path is untouched. Committed as
+forward-port `0072`.
+
+Why *reject* and not the "align base + push residual into `WIN0_ACT_OFF`"
+approach first proposed here: the residual can be **sub-pixel**. For RGBA_8888
+(4 bytes/pixel) only 4-byte-multiple offsets are valid pixel positions, so of the
+failing offsets only the pixel-aligned-but-not-16 subset (4, 8, 12, …) is even
+expressible as a whole-pixel window offset; 1/2/3-byte offsets are fundamentally
+unrepresentable and must be rejected. A base whose data spans multiple pages also
+cannot be relocated to a 16-aligned position (page-granular IOMMU mapping keeps
+the offset). So full support would (a) only help a quarter of the cases and (b)
+be a format-aware change in the well-tested job/geometry layer — deferred as a
+possible follow-up; the reject fully closes the silent-corruption severity.
 
 ## Boundary
 
 Root cause is source-confirmed against the register/mapping code and the exact
-pass/fail-by-offset signature; the **fix is unimplemented and untested**. Still
-worth confirming: reproduction on a **non-KASAN production** kernel (rule out any
-debug-config interaction) and whether `rga2` (which has its own page-table path)
-shares the defect. Real-world exposure is narrow — userptr (not dma-buf) +
-physically-fragmented + non-16-aligned source — which is why it went unnoticed
-until the fuzzer forced it; the concern is the silent zero output with no error.
+pass/fail-by-offset signature; the reject fix is **COMPILE-VERIFIED only** —
+re-run `iommu-machinery-fuzz` on a rebuilt kernel to confirm misaligned cases now
+return `-EINVAL` (the fuzzer treats that as a failure too, since it forces an
+unsupported input, so it will not go green — that is expected). Still worth
+confirming reproduction on a **non-KASAN production** kernel and whether `rga2`
+(its own page-table path) shares the defect. Real-world exposure is narrow —
+userptr (not dma-buf) + physically-fragmented + non-16-aligned source.
 
 ## Why it matters / follow-up
 
@@ -87,10 +98,10 @@ A valid-looking RGA API call silently produces wrong (zero) pixels with no error
 return — the silent failure is the concerning part, more than the narrow trigger.
 Distinct from the `0071` `mm_session` UAF (teardown) and the earlier RGA
 request/session UAFs (`0052`/`0057`); this is a **data-path correctness** bug in
-the scattered-userptr / cache-line-unaligned-VA handling. Follow-up: (1) re-run
-`rga-iommu-fuzz` on a non-KASAN build to confirm it is not a debug-config
-artifact; (2) source-trace the `shadow_page` head handling in `rga_dma_buf.c` /
-`rga_mm.c` for the scattered multi-segment case against the 16-byte source
-requirement; (3) decide whether the driver should correctly handle or explicitly
-reject a non-16-aligned scattered userptr source instead of returning zeros. Add
-a status.md watchlist row.
+the scattered-userptr / cache-line-unaligned-VA handling. Root-caused and the
+reject fix landed as `0072` (`4401383a6d9b5`). Remaining follow-up: (1) rebuild +
+boot and re-run `iommu-machinery-fuzz` to confirm misaligned cases now return
+`-EINVAL`; (2) re-run on a **non-KASAN** build to rule out a debug-config
+interaction; (3) optional enhancement — support the pixel-aligned-but-not-16
+subset via a 16-aligned base + `WIN_ACT_OFF` x-offset (format-aware, job-layer).
+Add a status.md watchlist row for (1)/(2).

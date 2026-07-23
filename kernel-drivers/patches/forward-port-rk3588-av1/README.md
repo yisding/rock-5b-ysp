@@ -196,14 +196,23 @@ newer:
   `buffer->session = NULL`. Unlike `0070`, this is **our regression** (from
   `bc086cbe03d72c`), not a BSP defect. See the
   [mm_session UAF finding](../../../findings/2026-07-22-rga-mm-session-debugfs-uaf-freed-task-struct.md).
+- `0072` rejects a non-16-byte-aligned IOMMU window base in
+  `rga_mm_get_buffer_info()` with `-EINVAL`. RGA3 fetches a window base on a
+  16-byte granularity; the scattered-userptr `shadow_page` path carried the raw
+  sub-page byte offset in the base with a zeroed head, so a non-16-aligned source
+  read the zero head and the hardware **silently returned all-zero pixels**
+  (surfaced by the first on-hardware `iommu-machinery-fuzz` run — correct only at
+  `src_off` ∈ {0,16,32,48}). Fail-loud instead of corrupting data; aligned userptr
+  and dma-buf land on a `>=`page-aligned base and are unaffected. See the
+  [scattered-userptr finding](../../../findings/2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md).
 
 There is no `0012` in the imported sequence because that const-correctness
 commit is already carried by the Armbian kernel base and the build wrapper
 removes it through `SKIP_COMMITS`.
 
 This snapshot was regenerated from `rkvenc-fwport-6.18` at
-`bsp-high-port-20260722@e7eaa8f8c69b4` (`v6.18..HEAD`, with `0012`
-omitted), forming the 70-file series (`0001`-`0071`) consumed by
+`bsp-high-port-20260722@4401383a6d9b5` (`v6.18..HEAD`, with `0012`
+omitted), forming the 71-file series (`0001`-`0072`) consumed by
 `build-armbian-deb.sh`. The `0059`-`0069` HIGH subset, the `0070`
 list-corruption fix, and the `0071` RGA `mm->lock` teardown fix are
 commit-by-commit `checkpatch.pl` clean and the complete

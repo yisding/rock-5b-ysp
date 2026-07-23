@@ -190,6 +190,16 @@ it is a regression introduced by our own forward-port RGA lifetime rework.
 |---|--------------|-------|--------------|----------|
 | 0071 | RGA: in `rga_mm_session_release_buffer()`, free the last buffer reference with `rga_mm_force_releaser_buffer()` (under the held `mm->lock`) instead of `kref_put(rga_mm_kref_release_buffer)`, which dropped and re-acquired `mm->lock` mid-`idr_for_each_entry` and left it owned by an exited/freed `task_struct`; plus a NULL-guard on `dump_buffer->session` in `rga_mm_session_show()`. | `FWPORT-REGRESSION` | Regression from forward-port `bc086cbe03d72c` (RGA lifetime rework); the Rockchip BSP force-releases under the held lock and is **not** affected. | **No** — BSP unaffected; see [finding](../../findings/2026-07-22-rga-mm-session-debugfs-uaf-freed-task-struct.md) |
 
+## 0072 — scattered-userptr 16-byte alignment robustness
+
+Found by the first on-hardware run of the scattered-userptr IOMMU fuzzer (the
+`iommu-machinery-fuzz` root gate, never run before). Hardens a forward-port path
+against a silent-corruption case rather than fixing a specific commit's mistake.
+
+| # | What it does | Class | BSP evidence | Backport |
+|---|--------------|-------|--------------|----------|
+| 0072 | RGA3: reject a non-16-byte-aligned IOMMU window base in `rga_mm_get_buffer_info()` with `-EINVAL` instead of silently returning all-zero pixels. RGA3 fetches the base on a 16-byte granularity; the scattered-userptr `shadow_page` path carries the raw sub-page byte offset in the base with a zeroed head, so a non-16-aligned source read the zero head. | `FWPORT-ROBUSTNESS` | Concerns forward-port-only scattered-userptr / `shadow_page` code (not in the BSP); fail-loud, no functional change to aligned userptr or dma-buf. | **No** — forward-port-specific path; see [finding](../../findings/2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md) |
+
 ## The BSP backport set
 
 What should go back to Rockchip's `develop-6.1`, in priority order:
