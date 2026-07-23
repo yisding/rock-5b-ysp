@@ -86,6 +86,7 @@ set_rewrite_config() {
   local out="$2"
 
   "$src/scripts/config" --file "$out/.config" \
+    -e ARCH_ROCKCHIP \
     -d ROCKCHIP_MPP_SERVICE \
     -d ROCKCHIP_MULTI_RGA \
     -d VIDEO_ROCKCHIP_RGA \
@@ -149,7 +150,7 @@ require_config() {
   if ! grep -qx "CONFIG_${symbol}=y" "$out/.config"; then
     echo "required config did not resolve to y: CONFIG_${symbol}" >&2
     echo "Relevant config lines:" >&2
-    grep -E "CONFIG_(ROCKCHIP_(IOMMU|.*REWRITE)|ROCKCHIP_MPP_SERVICE|ROCKCHIP_MULTI_RGA|VIDEO_ROCKCHIP_RGA|KUNIT|KASAN|KCSAN|FAULT_INJECTION|FAILSLAB|FAIL_PAGE_ALLOC|PROVE_LOCKING|DEBUG_KERNEL|EXPERT)" "$out/.config" >&2 || true
+    grep -E "CONFIG_(ARCH_ROCKCHIP|ROCKCHIP_(IOMMU|.*REWRITE)|ROCKCHIP_MPP_SERVICE|ROCKCHIP_MULTI_RGA|VIDEO_ROCKCHIP_RGA|KUNIT|KASAN|KCSAN|FAULT_INJECTION|FAILSLAB|FAIL_PAGE_ALLOC|PROVE_LOCKING|DEBUG_KERNEL|EXPERT)" "$out/.config" >&2 || true
     exit 1
   fi
 }
@@ -175,6 +176,7 @@ configure_tree() {
   make -C "$src" O="$out" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" olddefconfig
 
   require_config "$out" KUNIT
+  require_config "$out" ARCH_ROCKCHIP
   require_config "$out" ROCKCHIP_IOMMU
   require_config "$out" ROCKCHIP_MPP_REWRITE
   require_config "$out" ROCKCHIP_MPP_REWRITE_KUNIT_TEST
