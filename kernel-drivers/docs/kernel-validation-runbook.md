@@ -76,7 +76,7 @@ repointing or reinstalling from an SD rescue boot, so recovery is staged
 Every build is named by its patch/config hash pair `P####-C####`, printed by
 `build-kernel.sh` and embedded in the deb filenames. Record, at build
 time: the `P####-C####`, the patch tail it corresponds to (e.g.
-`0001`–`0058` less `0012`), the base commit pin, and whether the config class
+`0001`–`0057`), the base commit pin, and whether the config class
 is production or debug/KASAN. A config-class change (debug ⇄ production)
 changes `C####`; treat a surprising `C####` as a stopped-clock error, not a
 detail ([`resyncing.md`](./resyncing.md) §4/§6 make re-deriving the pair a
@@ -139,10 +139,10 @@ fatal-signature scan (`SUITE_DMESG_FATAL_RE` in `suite-common.sh` /
   with a clean scan.
 - Targeted reproducers for every previously fixed memory-safety bug that a
   patch-tail or flavor regression could reopen — currently
-  `kasan-narrowed-repro.sh` (RESET_SESSION double-free, `0042`),
-  `rga-session-uaf.sh cross` (⚠️ can crash unpatched kernels; `0052`/`0057`),
+  `kasan-narrowed-repro.sh` (RESET_SESSION double-free, `0041`),
+  `rga-session-uaf.sh cross` (⚠️ can crash unpatched kernels; `0051`/`0056`),
   and the clientless `RELEASE_FD` reproducer
-  (`mpp-clientless-release-fd-uaf.c`, `0058` — the proven root cause of the
+  (`mpp-clientless-release-fd-uaf.c`, `0057` — the proven root cause of the
   VP9 `show_existing_frame` board hard-lock; see the
   [crash finding](../../findings/2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md)).
   Expected result on a fixed kernel: clean errno (`-EINVAL` where
@@ -207,8 +207,8 @@ identity, and enabling it on a *new* kernel build is a deliberate,
 audit-backed act:
 
 1. **Audit** the new kernel's patch tail for the crash fixes (currently the
-   `0055` register-translation bounds check and the `0058` clientless
-   `RELEASE_FD` guard, plus the `0053`/`0054` hardening; re-derive this list
+   `0054` register-translation bounds check and the `0057` clientless
+   `RELEASE_FD` guard, plus the `0052`/`0053` hardening; re-derive this list
    from the crash finding if the tail has moved).
 2. **Verify on the booted build** — run the deterministic reproducers from
    step 4 on this exact boot; they must fail safe with a clean journal.
@@ -263,11 +263,11 @@ Per [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) and
 
 ## Worked example — forward-port debug build `Pd222-C4ad2` (2026-07-22)
 
-The Jul 22 validation of the `0001`–`0058` (less `0012`) tail followed this
+The Jul 22 validation of the `0001`–`0057` tail followed this
 ladder end-to-end and is the template for reading the steps above: identity
 (`6.18.38-current-rockchip64` `#4`, vmlinuz md5 matched the deb, notes
-`db292410…`); step 4 on this boot — `0058` reproducer returns `-EINVAL`
-with the guard log, `0057` cross reproducer 256,000 async submits clean,
+`db292410…`); step 4 on this boot — `0057` reproducer returns `-EINVAL`
+with the guard log, `0056` cross reproducer 256,000 async submits clean,
 whole-session journal sweep zero flagged lines; step 5 — MPP 12/12
 (`20260722-073705`), KASAN ABI replay clean (`20260722-073858`), FFmpeg
 24/24 (`20260722-073958`), GStreamer 98/102 with the four failures

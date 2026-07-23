@@ -12,26 +12,26 @@ Historical validated build hash: `Pb6ab-Cb831` on 6.18.37 (and its functionally-
 the applied kernel patch set, `C####` hashes the kernel config — so the pair names
 the *exact* build we validated (the installer matches debs on it; see
 `scripts/install-combined-kernel.sh`). The Published 6.18.38 PPA build through
-patch `0041` booted but is not validated: its first conformance run Oopsed
-during preflight. A later KASAN build verifies the resulting `0042` and `0043`
+patch `0040` booted but is not validated: its first conformance run Oopsed
+during preflight. A later KASAN build verifies the resulting `0041` and `0042`
 lifetime fixes with clean memory-safety scans. Exact-6.18.38 production build
 `Pf558-Cb831` and its fresh unsigned PPA source extraction now carry both fixes
 with the expected non-debug config, but the Published package still predates
 them. Corrected isolated and full official-MPP runs are now functionally green
 on the KASAN build; full conformance remains open because RGA2 DMA-debug found
 an invalid page-table sync and the host lacks the GStreamer development stack.
-Patches `0044`/`0045` fix the two persistent RGA ABI replay gaps; the rebuilt
+Patches `0043`/`0044` fix the two persistent RGA ABI replay gaps; the rebuilt
 booted KASAN debug kernel `Pb999-C4ad2` passes the full ABI replay
 (`abi_status=0`) with a clean memory scan. The same `Pb999` boot re-ran the
 12-case MPP matrix (`20260721-042445-kasan-mpp-suite`) and the full FFmpeg
 codec suite including the H.264/H.265/VP9 bit-exact PSNR gates
 (`20260721-042631-ffmpeg-codec-suite`) — all required cases pass with clean
-kernel scans, so the complete current patch tip `0001`–`0045` is
+kernel scans, so the complete current patch tip `0001`–`0044` is
 hardware-validated for those gates. The librga im2d smoke's chronic
 `no core match` failures were root-caused (RGA3's 68-pixel minimum width ×
 RGA2's below-4G limit on a kernel without dma32 heaps) and fixed in the
 harness; 13 cases including every dmabuf path now pass. New source patches
-`0046`–`0048` fix the legacy-blit virtual-address `EFAULT` (a `0045`
+`0045`–`0047` fix the legacy-blit virtual-address `EFAULT` (a `0044`
 validation regression), report the under-4G exclusion as `EOPNOTSUPP` with a
 clear log, and program byte-literal 10-bit raster strides (the measured
 incompact-P010 corruption, stock BSP behavior). All three passed their
@@ -41,27 +41,27 @@ explanatory log, P010 luma is bit-exact, the librga smoke is fully green
 for the first time (28 cases with `LIBRGA_SMOKE_10BIT=1`), and the ABI
 replay (`20260721-081456`), 12-case MPP matrix (`20260721-081639`), and
 FFmpeg suite (`20260721-081448`, 14/14 required + bit-exact AV1 PSNR) all
-pass with clean kernel scans. The `0048` gate exposed one further 10-bit
+pass with clean kernel scans. The `0047` gate exposed one further 10-bit
 defect — `rga_convert_addr()` derives UV plane offsets at 1 byte/pixel, so
 P010 chroma was read from and written into the Y plane — fixed by
-`0049@a398364aaf8ed`. Patches `0050@473903525009a` (RGA2 page-table DMA
+`0048@6c7eb3efa3f0`. Patches `0049@c4bf430d907f` (RGA2 page-table DMA
 ownership, closing the July 20 DMA-debug finding, plus the missing
 `dma_set_max_seg_size()` and a page-preserving swiotlb min-align mask) and
-`0051@162edad7bb9c7` (over-4G memory served on RGA2 through DMA-API
+`0050@afcd69845942` (over-4G memory served on RGA2 through DMA-API
 mappings that swiotlb-bounce below 4G, with `EOPNOTSUPP` fallback) round
-out the series. On debug build `P9636-C4ad2` (`#5`, `0049`–`0051`) the
-`0049` and `0050` gates pass: P010 copies bit-exact including chroma,
+out the series. On debug build `P9636-C4ad2` (`#5`, `0048`–`0050`) the
+`0048` and `0049` gates pass: P010 copies bit-exact including chroma,
 FFmpeg `hevc_main10_p010_rga` bit-exact (PSNR inf, run `20260721-110029`),
 and the smoke (28 ok) / MPP (12/12) / ABI (`20260721-110007`) sweep runs
 with a completely clean DMA-debug/KASAN journal — the page-table splat and
-segment-size warning are gone. The `0051` over-4G probe ran on RGA2 (no
+segment-size warning are gone. The `0050` over-4G probe ran on RGA2 (no
 more `EOPNOTSUPP`) but read back a stale destination on two successive
 debug builds, exposing two copy-back defects: the post-clean skipped
 IOMMU-mapped (default-map-core) origins (fixed on `P9636`, keyed on
 bounce direction), and — first-order, exposed by the `P9412` (`#6`)
 re-run — the transient dst bounce was mapped with the channel get-side
 `DMA_TO_DEVICE`, so swiotlb never copied the device output back at
-unmap. Fixed in the amended `0051@162edad7bb9c7` (every transient
+unmap. Fixed in the amended `0050@afcd69845942` (every transient
 bounce mapped `DMA_BIDIRECTIONAL`, matching the persistent mappings);
 its content-exact gate awaits the next debug build. A mixed-heap
 differential matrix on `P9412` isolates the defect to the dst leg
@@ -70,11 +70,11 @@ mapping-failure fallback gate: 128 MiB over-4G buffers fail cleanly
 with `EOPNOTSUPP` and the explanatory log — swiotlb's 256 KiB
 per-mapping cap (not pool exhaustion) is the practical bound, so
 over-4G buffers with ≥1 MiB exporter chunks always take the fallback.
-The same boot also closed the last `0048` caveat: the compact-NV15
+The same boot also closed the last `0047` caveat: the compact-NV15
 raster leg is hardware-validated by `rga-nv15-test` (semantic
 NV15→NV12 read, CPU-unpacked P010→NV15 write, bit-exact NV15 copy at
 256/320/1920 widths, clean journal). On debug build `P7589-C4ad2`
-(`#7`, carrying the amended `0051`) the gate CLOSES: the full
+(`#7`, carrying the amended `0050`) the gate CLOSES: the full
 differential matrix is content-exact — including the primary
 system→system 64×64 both-legs bounce, the previously-failing dst-only
 leg, and userptr bounces — the mapping-failure fallback stays a clean
@@ -82,30 +82,30 @@ leg, and userptr bounces — the mapping-failure fallback stays a clean
 probes, KASAN ABI replay (`20260721-145234`, `abi_status=0 clean=1`),
 MPP suite (`20260721-145243`, `suite_status=0 clean=1`), and FFmpeg
 suite (`20260721-145258`, 24/24, Main10→P010 PSNR inf) are all green
-with a zero-flagged-line journal — `0044`–`0051` are BOOT-VERIFIED on
+with a zero-flagged-line journal — `0043`–`0050` are BOOT-VERIFIED on
 one kernel. (Watchlist note: `P7589`'s *first* boot attempt hung ~2
 min in with no oops/panic/pstore capture and needed a hard reset; the
-second boot of the identical kernel was clean, and `0051` touches no
+second boot of the identical kernel was clean, and `0050` touches no
 boot path — watching for recurrence.)
 See the
 [conformance root-cause finding](../../findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md)
 and the
 [DMA scope finding](../../findings/2026-07-21-rga2-dma-api-ownership-and-over-4g-scope.md).
 
-Patches `0052`–`0058` close the remaining lifetime/robustness gaps found by
-the KASAN sweep after `0051`, and the full conformance sweep now passes on one
-booted debug build. `0052` fixes the RGA request-completion-vs-session-close
-refcount; `0053`–`0056` harden the MPP session teardown/collect paths;
-`0057@086925697b434` holds a session refcount for a job's lifetime, closing a
+Patches `0051`–`0057` close the remaining lifetime/robustness gaps found by
+the KASAN sweep after `0050`, and the full conformance sweep now passes on one
+booted debug build. `0051` fixes the RGA request-completion-vs-session-close
+refcount; `0052`–`0055` harden the MPP session teardown/collect paths;
+`0056@dea09c9d02cd` holds a session refcount for a job's lifetime, closing a
 second, distinct RGA use-after-free (the async-completion `job->session` deref,
-separate from the `0052` request refcount); and `0058@570519704bd46` rejects a
+separate from the `0051` request refcount); and `0057@09030239b5e4` rejects a
 `MPP_CMD_RELEASE_FD` on a client-less session (`session->dma == NULL`) instead
 of NULL-dereferencing `mpp_dma_release_fd` — an unprivileged local DoS that
 `RESET_SESSION` could set up. On booted KASAN debug build **`Pd222-C4ad2`**
-(`#4`, patches `0001`–`0058` less `0012`; vmlinuz md5 matched the deb;
+(`#4`, patches `0001`–`0057`; vmlinuz md5 matched the deb;
 `panic_on_oops=0`) the complete sweep is GREEN with a zero-flagged journal:
-the `0058` deterministic reproducer returns `EINVAL` with the guard log and no
-`mpp_dma_release_fd` fault; the `0057` `rga-session-uaf.sh cross` reproducer
+the `0057` deterministic reproducer returns `EINVAL` with the guard log and no
+`mpp_dma_release_fd` fault; the `0056` `rga-session-uaf.sh cross` reproducer
 runs `async_submits=256000 dedup_shared=4000 submit_fail=0` with zero KASAN/UAF
 lines; and the regression + conformance gates all pass — MPP suite
 (`20260722-073705`, 12/12 `clean=1`), librga smoke (green), KASAN ABI replay
@@ -113,7 +113,7 @@ lines; and the regression + conformance gates all pass — MPP suite
 (`20260722-073958`, **24/24** including AV1 decode/transcode/PSNR, HEVC/VP9
 bit-exact PSNR inf, Main10→P010 RGA, and resolution-change). A whole-session
 root journal sweep found zero KASAN/BUG/Oops/iommu-fault signatures. So the
-complete patch tip `0001`–`0058` is hardware-validated for the memory-safety,
+complete patch tip `0001`–`0057` is hardware-validated for the memory-safety,
 ABI, and codec-conformance gates on `Pd222`. Both former distribution blockers
 are cleared — see the
 [RGA job-vs-session UAF finding](../../findings/2026-07-21-rga-job-vs-session-close-uaf-kasan.md)
@@ -159,14 +159,14 @@ and the
   single initial reference is dropped by **four** unserialised retire paths
   (async completion, cancel, submit-abort, owning-session close), so
   completion and close double-drop it. It is **distinct from the buffer
-  force-free `0040` fixed** (which the `leak` mode confirms quiet) and is
+  force-free `0039` fixed** (which the `leak` mode confirms quiet) and is
   reachable by any process that closes `/dev/rga` while an async RGA job is
-  still completing. Fixed by `0052@c46bfd6622ba6` (a `rga_request_release_ref()`
+  still completing. Fixed by `0051@039d880127e7` (a `rga_request_release_ref()`
   helper that drops the initial reference exactly once under the
   pending-request-manager lock). **Booted gate PASSED on `Pd222-C4ad2`:** the
   `cross` reproducer ran `async_submits=256000 dedup_shared=4000 submit_fail=0`
   with zero KASAN/UAF lines and no `refcount_t` underflow. (The same `cross`
-  run also validates the distinct `0057` job-vs-session UAF, since both faults
+  run also validates the distinct `0056` job-vs-session UAF, since both faults
   are exercised by the async-completion path it drives.) See the
   [request-completion UAF finding](../../findings/2026-07-21-rga-request-completion-vs-session-close-uaf-kasan.md)
   and the
@@ -176,7 +176,7 @@ and the
   forward-port work independently fixed the RKVENC2 probe unwind and the
   duplicated RGA request-submit reference leak, leaving **13 rows / 11 bugs in
   the booted `Pd222-C4ad2` kernel**. Those 11 are now ported around the current
-  RGA2 bounce/lifetime code as forward-port patches `0059`-`0069`; every commit
+  RGA2 bounce/lifetime code as forward-port patches `0057`-`0067`; every commit
   is checkpatch-clean and the native `drivers/video/rockchip/` build passes.
   KASAN/lockdep debug package `Pabd5-C4ad2` builds all four arm64 Debian
   artifacts from that source, and its embedded config, ramoops DTB, and seven
@@ -241,7 +241,7 @@ and the
   The `mpp_platform: client N driver is not ready!` lines for clients 1/3/12/13/18/19
   are *also* benign — MPP's RK3588 table lists legacy VDPU/JPEG clients this DT
   deliberately doesn't wire.
-- **MPP procfs session dumps before forward-port patch `0041` race session
+- **MPP procfs session dumps before forward-port patch `0040` race session
   teardown.** A high-frequency `sessions-summary` sampler produced a complete
   NULL-dereference trace in `rkvenc_dump_session()` because teardown freed
   `session->priv`/`session->dma` before unlinking the session under
@@ -252,9 +252,9 @@ and the
   narrowed KASAN+ramoops reproduction. See the
   [finding](../../findings/2026-07-17-mpp-procfs-session-teardown-oops.md).
 - **The preflight Oops was a pre-existing vendor `RESET_SESSION` double-free;
-  KASAN now verifies `0042`, and a second forward-port UAF is fixed/verified as
-  `0043`.** The first
-  booted `0040`/`0041` validation on PPA kernel
+  KASAN now verifies `0041`, and a second forward-port UAF is fixed/verified as
+  `0042`.** The first
+  booted `0039`/`0040` validation on PPA kernel
   `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1` Oopsed after ABI replay with no
   call trace, which initially read as a `/proc/mpp_service` snapshot race. The
   KASAN+ramoops rebuild (`P712f-C40aa`) reproduced it on the first narrowed pass
@@ -264,10 +264,10 @@ and the
   re-destroys the freed `mpp_dma_session` and faults on `dma->list_mutex`
   (slab-use-after-free). The defect is byte-identical in the pristine Rockchip
   BSP (`develop-6.1`), so it is vendor-original, not forward-port-introduced.
-  Patch `0042` adds `session->dma = NULL`; rebuilt run
+  Patch `0041` adds `session->dma = NULL`; rebuilt run
   `20260718-093751-kasan-narrowed` exercises RESET_SESSION with zero flagged
   lines. That boot then exposed a separate forward-port-introduced post-free
-  `task->state` read in `rkvenc2_wait_result`. Patch `0043` samples the abort
+  `task->state` read in `rkvenc2_wait_result`. Patch `0042` samples the abort
   flag before the final reference drop, and run
   `20260718-103917-kasan-mpp-suite` produced empty KASAN/fatal scans while its
   ordinary encoder cases passed. The apparent remaining failures were harness
@@ -297,8 +297,8 @@ and the
   not a fix. See the
   [RGA2 DMA-sync finding](../../findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md).
 - **The two persistent RGA ABI replay gaps are fixed and pass booted replay.**
-  Patch `0044@72accfd1d5a14` accepts legacy `RGA2_GET_RESULT` as a no-op.
-  Patch `0045@27452e30a2cfd` rejects malformed/unknown staged task descriptors,
+  Patch `0043@bb15076cd6fa` accepts legacy `RGA2_GET_RESULT` as a no-op.
+  Patch `0044@2d6367ad0b05` rejects malformed/unknown staged task descriptors,
   blocks replacement while a request runs, and frees the prior staged list.
   Rebuilt KASAN debug build `Pb999-C4ad2` booted and passed run
   `20260721-034716-kasan-narrowed` with `abi_status=0` and a clean memory scan —
@@ -332,7 +332,7 @@ The July 4 forward-port baseline is **functionally complete for its tested,
 trusted-input codec scope**: `ffmpeg -hwaccel rkmpp -c:v hevc_rkmpp ...` uses
 the hardware on Armbian 6.18. That does not make the maintained source tip or
 the BSP-derived ABI generally shippable. The locally built production candidate
-absorbs `0042`/`0043` but predates the `0044`/`0045` ABI fixes, which now pass
+absorbs `0041`/`0042` but predates the `0043`/`0044` ABI fixes, which now pass
 booted KASAN ABI replay; publication, board boot/conformance, and rollback
 still need resolution. The MPP functional failures and RGA ABI gaps are closed
 on the KASAN build, but the RGA2 DMA ownership warning, GStreamer dependency

@@ -73,11 +73,11 @@ AV1 stays diagnostic-only in the suites so the omission is explicit.
 
 **Forward-port — open defects a full run must still gate:**
 - RKVENC2 256-entry slice-FIFO overflow — kernel + MPP unhardened (harness-mitigated only).
-- VP9 `show_existing_frame` leg-2 (MPP userspace buffer-slot/refcount) still open; kernel `0053`/`0054` fix not yet booted-gated.
-- MPP `process_request()` `list_add` double-add WARN — BSP-shared, untouched by `0059`-`0069`.
-- No production (non-KASAN) image validated; Published PPA stops at `0041`.
-- **Root-only gates** (encode/transcode/iommu-fuzz/vp9-crash) — pending; now unblocked by the `Pc1f8-C9fc5` debug build (carries the `0071` RGA fix).
-- RGA `mm_session` debugfs UAF fix (`0071`) is COMPILE-VERIFIED only — runtime gate pending on `Pc1f8`.
+- VP9 `show_existing_frame` leg-2 (MPP userspace buffer-slot/refcount) still open; kernel `0052`/`0053` fix not yet booted-gated.
+- MPP `process_request()` `list_add` double-add WARN — BSP-shared, untouched by `0057`-`0067`.
+- No production (non-KASAN) image validated; Published PPA stops at `0040`.
+- **Root-only gates** (encode/transcode/iommu-fuzz/vp9-crash) — pending; now unblocked by the `Pc1f8-C9fc5` debug build (carries the `0070` RGA fix).
+- RGA `mm_session` debugfs UAF fix (`0070`) is COMPILE-VERIFIED only — runtime gate pending on `Pc1f8`.
 
 ## The consistent plan to fully test the rewrite
 
