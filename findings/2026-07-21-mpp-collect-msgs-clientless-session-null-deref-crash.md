@@ -6,6 +6,23 @@ commands; the fatal deref is synchronous in the ioctl thread, **not** the async
 worker `mpp_task_worker_default` as originally inferred. See the PROVEN block
 below. Title/filename kept for link stability.)*
 
+> ## 2026-07-23 GATE VERIFIED on `Pc1f8-C9fc5` (carries `0058`)
+>
+> The proven fix (`0058`) holds on hardware. The `mpp-clientless-release-fd-uaf.c`
+> reproducer — the whole trigger: open `/dev/mpp_service`, no `INIT_CLIENT_TYPE`,
+> one `MPP_CMD_RELEASE_FD` — returns `-1`/`-EINVAL` and the board stays up with a
+> clean KASAN journal (was: hard, unkillable oops on a pre-`0058` kernel). Meets
+> the gate at the end of the PROVEN block below.
+>
+> Separately, the original VP9 `show_existing_frame` trigger vector
+> (`vp90-2-10-show-existing-frame2.webm`) was run via `mpp-vp9-show-existing-repro.sh`
+> — 30 loops × 4 concurrent `mpi_dec_test` — with the board **surviving** the 60 s
+> deferred-fault window and a clean kernel log (`flagged_kernel_lines=0`). The
+> userspace **leg-2** anomaly still fires (MPP `clear_slots_impl` slot-history
+> dumps appear) but is now **non-fatal** — consistent with the crash never having
+> been the VP9/async-worker path. Leg-2 (MPP-userspace buffer-slot refcount)
+> remains a separate, open userspace item; the kernel is no longer crashable here.
+
 > Scope: RK3588 MPP (`/dev/mpp_service`, `rk_vcodec`) on the forward-port
 > kernel, KASAN debug build `P7589-C4ad2` (`#7`).
 > Source: journal of the crashed boot (`boot -1`, 14:44:07 → 15:12:27 crash),
