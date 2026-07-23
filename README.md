@@ -41,6 +41,7 @@ not repeat dated status or operational commands because those copies drift.
 | Update or contribute to the record | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Review repository-specific agent instructions | [`AGENTS.md`](AGENTS.md) |
 | Review the kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
+| See what each forward-port patch does and which fixes belong back in the BSP | [`kernel-drivers/docs/patch-catalog.md`](kernel-drivers/docs/patch-catalog.md) |
 | Compare the validated vendor path with maximum-mainline RK3588 builds | [`kernel-versions/`](kernel-versions/README.md) |
 | Understand RKNN conversion, userspace, and the RKNPU driver | [`kernel-drivers/rknpu/`](kernel-drivers/rknpu/README.md) |
 | Understand the repo taxonomy | [`docs/work-packages.md`](docs/work-packages.md) |

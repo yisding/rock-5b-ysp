@@ -3,6 +3,11 @@
 Split AV1/RK3588 forward-port patch series generated from the external Armbian
 kernel build workspace and kept here as source text.
 
+> Per-patch provenance (port infrastructure vs vendor import vs BSP bug) and
+> the BSP backport verdicts live in the
+> [patch catalog](../../docs/patch-catalog.md); this README stays the
+> mechanical what-each-patch-does record.
+
 ## Provenance
 
 Imported from:
