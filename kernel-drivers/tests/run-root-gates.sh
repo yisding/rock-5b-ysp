@@ -59,7 +59,9 @@ mkdir -p "$OUT"
 echo "OUT: $OUT"
 echo "kernel: $(uname -r)  build: $(cat /proc/mpp_service/version 2>/dev/null)"
 
-FATAL_RE='KASAN|KFENCE|UBSAN|kernel BUG|BUG:|Oops|use-after-free|out-of-bounds|slab-out|slab-use|general protection|WARNING:|list_[a-z_]* corruption|refcount_t:|hung task|blocked for more than|RCU stall|Unable to handle|iommu[^[:alnum:]]*(fault|panic|oops)'
+# NB: \bBUG: (word boundary), not bare BUG: — the scan runs case-insensitively
+# and a bare BUG: matches the "de(bug:)" in gate markers like "rga-mmu-debug:".
+FATAL_RE='KASAN|KFENCE|UBSAN|kernel BUG|\bBUG:|Oops|use-after-free|out-of-bounds|slab-out|slab-use|general protection|WARNING:|list_[a-z_]* corruption|refcount_t:|hung task|blocked for more than|RCU stall|Unable to handle|iommu[^[:alnum:]]*(fault|panic|oops)'
 
 SUMMARY="$OUT/summary.tsv"
 printf 'gate\texit\tkernel_flags\tresult\n' > "$SUMMARY"
@@ -80,8 +82,12 @@ run_gate() {
 	# UAF, findings/2026-07-22-rga-mm-session-debugfs-uaf-freed-task-struct.md).
 	# timeout lets the wrapper detach and run the remaining gates -- but note a
 	# D-state task survives SIGKILL, so the orphan lingers until reboot.
+	# Redirect stdin from /dev/null: a gate child that reads the terminal
+	# (e.g. ffmpeg's interactive control) would otherwise take SIGTTIN and stop
+	# (state T) when this script isn't the foreground process group -- as happens
+	# when launched via the Claude Code `!` prefix -- silently stalling the gate.
 	timeout --signal=KILL "${GATE_TIMEOUT:-900}" \
-		env "${envs[@]}" "$@" >"$log" 2>&1
+		env "${envs[@]}" "$@" >"$log" 2>&1 </dev/null
 	local ec=$?
 	[ "$ec" -eq 137 ] && echo "  (gate hit GATE_TIMEOUT=${GATE_TIMEOUT:-900}s and was killed; a D-state kernel hang may persist until reboot)"
 
@@ -89,8 +95,14 @@ run_gate() {
 	local flags
 	flags=$(grep -icE "$FATAL_RE" "$klog")
 
+	# Exit 77 is the conventional "skipped" code (e.g. mpp-debug-capture when the
+	# rewrite debugfs is absent on a forward-port kernel) — not a failure.
 	local result="PASS"
-	{ [ "$ec" -ne 0 ] || [ "$flags" -ne 0 ]; } && result="FAIL"
+	if [ "$ec" -eq 77 ]; then
+		result="SKIP"
+	elif [ "$ec" -ne 0 ] || [ "$flags" -ne 0 ]; then
+		result="FAIL"
+	fi
 	printf '%s\t%s\t%s\t%s\n' "$label" "$ec" "$flags" "$result" | tee -a "$SUMMARY"
 	[ "$result" = "FAIL" ] && {
 		echo "  --- last log lines ---"; tail -6 "$log"

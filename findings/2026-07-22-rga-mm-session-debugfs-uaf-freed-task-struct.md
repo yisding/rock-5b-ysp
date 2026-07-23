@@ -3,7 +3,7 @@
 > Scope: forward-port RGA driver (`rga3`/`rga2`, `rk_vcodec` sibling) on the `6.18-rkvenc-fwport` KASAN+lockdep build; handler `rga_mm_session_show()` behind `/sys/kernel/debug/rkrga/mm_session`
 > Source: on-hardware KASAN report captured 2026-07-22 22:38 PDT while running the root-gate `rga-mmu-debug.sh` after the 320K-submit RGA cross-session UAF stress; kernel `6.18.38-current-rockchip64`, build `6.18-rkvenc-fwport`
 > Date: 2026-07-22
-> Trust: MEASURED (KASAN slab-use-after-free) / SOURCE-CONFIRMED (root cause + provenance) / FIX-COMMITTED
+> Trust: MEASURED (KASAN slab-use-after-free) / SOURCE-CONFIRMED (root cause + provenance) / FIX-RUNTIME-VERIFIED (Pc1f8-C9fc5, 2026-07-23)
 
 ## Result
 
@@ -75,22 +75,24 @@ under the held `mm->lock`, as the BSP does) instead of the lock-dropping
 ## Boundary
 
 Root cause and provenance are source-confirmed (BSP diff + `git blame` of
-`bc086cbe03d72c`). COMPILE-VERIFIED only — **not yet runtime-verified**: the fix
-must be built into a full kernel, installed, and booted, then re-run the
-`rga-mmu-debug` gate / a churn+`cat mm_session` cycle to confirm the UAF and the
-D-state hang are gone. On a non-KASAN production kernel the same lock-drop would
-leave the leaked lock silent (no UAF report) but the permanent D-state hang on
-the freed mutex would still occur, so this is a real production defect, not a
-debug-only artifact.
+`bc086cbe03d72c`). **RUNTIME-VERIFIED 2026-07-23** on debug build `Pc1f8-C9fc5`
+(carries `0071` = `e7eaa8f8c69b4`): a 320K-submit `rga-session-uaf.sh cross`
+churn ran clean with a healthy post-churn RGA re-check, and the `rga-mmu-debug`
+root gate — which reads `/sys/kernel/debug/rkrga/mm_session`, the exact operation
+that hard-wedged the pre-fix kernel — **completed with no D-state task and no
+KASAN report**. On a non-KASAN production kernel the pre-fix lock-drop would leave
+the leaked lock silent (no UAF report) but the permanent D-state hang on the freed
+mutex would still occur, so this is a real production defect, not a debug-only
+artifact.
 
 ## Why it matters / follow-up
 
 New forward-port RGA defect distinct from the `rga_request` close-race UAFs
 (`0052`/`0057`): this is **session-teardown lock discipline** vs. the debugfs
 session dump. Belongs in the submit-now/CVE consideration set alongside the other
-RGA UAFs (root-reachable UAF + unkillable-hang DoS). Follow-up: fold
-`e7eaa8f8c69b4` into the tracked forward-port patch series (a new `0071`) and
-rebuild the debug package for the runtime gate.
+RGA UAFs (root-reachable UAF + unkillable-hang DoS). Landed: `e7eaa8f8c69b4`
+folded into the tracked series as `0071`, packaged in debug build `Pc1f8-C9fc5`,
+booted, and runtime-verified 2026-07-23 (see Boundary).
 
 Immediate recovery for the current boot: the D-state `cat` cannot be killed, and
 the running kernel still has the bug; **reboot** to clear the wedged task (mind

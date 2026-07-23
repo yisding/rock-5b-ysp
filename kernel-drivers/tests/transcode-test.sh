@@ -66,7 +66,7 @@ probe_check() {
 rc1=0; rc2=0
 
 echo "================= TEST 1: h264 -> [RGA 1080p->720p] -> HEVC ================="
-"$FF" -hide_banner -y -loglevel info \
+"$FF" -hide_banner -nostdin -y -loglevel info \
   -hwaccel rkmpp -hwaccel_output_format drm_prime \
   -i "$IN" \
   -vf scale_rkrga=w=1280:h=720:format=nv12 \
@@ -79,7 +79,7 @@ probe_check "$OUT1" hevc 1280 720 "Test 1" || rc1=1
 echo
 
 echo "================= TEST 2: HEVC -> [RGA 720p->480p] -> h264 ================="
-"$FF" -hide_banner -y -loglevel info \
+"$FF" -hide_banner -nostdin -y -loglevel info \
   -hwaccel rkmpp -hwaccel_output_format drm_prime \
   -i "$OUT1" \
   -vf scale_rkrga=w=640:h=480:format=nv12:force_original_aspect_ratio=disable \
