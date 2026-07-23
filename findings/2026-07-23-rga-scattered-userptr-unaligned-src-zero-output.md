@@ -81,6 +81,22 @@ the offset). So full support would (a) only help a quarter of the cases and (b)
 be a format-aware change in the well-tested job/geometry layer — deferred as a
 possible follow-up; the reject fully closes the silent-corruption severity.
 
+## BSP comparison (forward-port-introduced, nothing to backport)
+
+The Rockchip BSP does **not** have this path. The three commits that build it —
+`2b52e8174c127` (map scattered userptr through IOMMU), `d54523f5de378` (shadow_page
+for cache-line unaligned VA), `392db056b2a07` (cache-line unaligned VA fault fix) —
+are **absent from the BSP tree** (`git cat-file -e` → absent). BSP `rga_mm.c` has
+no `shadow_page`, no `map_offset=0`/`real_offset` split, and no base-alignment
+guard, though it computes the base identically (`rga_mm_lookup_iova = iova +
+offset`) and maps a scattered userptr with plain `rga_dma_map_sgt`. Without a
+shadow there is **no zeroed head**, so the BSP cannot produce the all-zero output;
+its behavior for a cache-line-unaligned userptr is what the forward-port commit
+`392db056b2a07` is named for — an **access fault** (or a `dma_map_sg` swiotlb
+bounce) — i.e. fault/bounce, not silent corruption. The bug is a side effect of
+the forward-port `shadow_page` optimization that replaced that fault/bounce path.
+This is why `0072` is `FWPORT-ROBUSTNESS`, not a BSP backport.
+
 ## Boundary
 
 Root cause is source-confirmed against the register/mapping code and the exact
