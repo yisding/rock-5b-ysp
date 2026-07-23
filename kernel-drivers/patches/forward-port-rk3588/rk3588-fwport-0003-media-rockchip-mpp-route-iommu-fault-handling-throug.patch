@@ -1,0 +1,135 @@
+From 07742fdfbbff08ed1481bd2b0a816816619598bd Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Fri, 3 Jul 2026 19:18:05 -0700
+Subject: [PATCH 03/71] media: rockchip: mpp: route iommu fault handling
+ through provider hooks
+
+The MPP iommu layer forward-port to 6.18 needs provider-local fault-handler,
+refresh and IRQ-mask hooks: on 6.18 the generic iommu_set_fault_handler()
+WARNs and bails when the domain already owns a DMA cookie (the default DMA
+domain from iommu_get_domain_for_dev()), so it can no longer be the primary
+path for Rockchip/VSI IOMMUs.
+
+Register fault handlers through the Rockchip provider hook first, fall back
+to the VSI provider hook, and only fall back to the generic handler on a
+cookie-less domain. Mirror the same rockchip-then-vsi split in refresh
+(rockchip_iommu_disable/enable, else vsi_iommu_refresh, else flush TLB), in
+the pagefault IRQ mask, and in activate/remove teardown. Drop the now-unused
+mpp_av1_iommu_{enable,disable} declarations.
+
+No functional change for the single-provider case; this only makes the
+fault/refresh plumbing explicit about which provider owns each core.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ drivers/video/rockchip/mpp/mpp_iommu.c | 46 ++++++++++++++++++++------
+ drivers/video/rockchip/mpp/mpp_iommu.h |  2 --
+ 2 files changed, 35 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index cdba2d3499d02..5795f785306ed 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -26,6 +26,7 @@
+ #include <asm/dma-iommu.h>
+ #endif
+ #include <soc/rockchip/rockchip_iommu.h>
++#include <soc/rockchip/vsi_iommu.h>
+ 
+ #include "mpp_debug.h"
+ #include "mpp_iommu.h"
+@@ -489,8 +490,10 @@ static int mpp_iommu_handle(struct iommu_domain *iommu,
+ 	 * Mask iommu irq, in order for iommu not repeatedly trigger pagefault.
+ 	 * Until the pagefault task finish by hw timeout.
+ 	 */
+-	if (mpp)
++	if (mpp) {
+ 		rockchip_iommu_mask_irq(mpp->dev);
++		vsi_iommu_mask_irq(mpp->dev);
++	}
+ 
+ 	dev_err(iommu_dev, "fault addr 0x%08lx status %x arg %p\n",
+ 		iova, status, arg);
+@@ -609,6 +612,8 @@ int mpp_iommu_remove(struct mpp_iommu_info *info)
+ 	if (info->shared)
+ 		mpp_iommu_attach(info);
+ 
++	rockchip_iommu_set_fault_handler(info->dev, NULL, NULL);
++	vsi_iommu_set_fault_handler(info->dev, NULL, NULL);
+ 	iommu_group_put(info->group);
+ 	platform_device_put(info->pdev);
+ 
+@@ -624,6 +629,12 @@ int mpp_iommu_refresh(struct mpp_iommu_info *info, struct device *dev)
+ 
+ 	/* disable iommu */
+ 	ret = rockchip_iommu_disable(dev);
++	if (ret == -ENODEV) {
++		ret = vsi_iommu_refresh(dev);
++		if (ret == -ENODEV)
++			return mpp_iommu_flush_tlb(info);
++		return ret;
++	}
+ 	if (ret)
+ 		return ret;
+ 	/* re-enable iommu */
+@@ -659,17 +670,26 @@ int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev)
+ 	} else {
+ 		info->dev_active = dev;
+ 		/*
+-		 * Switch domain pagefault handler and arg depending on device.
+-		 * Since the IOMMU core gained cookie tracking, iommu_set_fault_handler()
+-		 * WARNs and bails when the domain already owns a cookie (e.g. the default
+-		 * DMA domain from iommu_get_domain_for_dev()). Only register our handler
+-		 * on a cookie-less domain; on a DMA-managed domain the IOMMU core reports
+-		 * faults itself. (Forward-port fix for 6.18; was unconditional.)
++		 * MPP uses normal DMA domains, so the generic fault-handler cookie path
++		 * cannot be used for Rockchip IOMMUs. The provider hook handles that
++		 * path and we keep the generic fallback for any cookie-less domain.
+ 		 */
+-		if (info->domain &&
+-		    info->domain->cookie_type == IOMMU_COOKIE_NONE)
+-			iommu_set_fault_handler(info->domain, dev->fault_handler ?
+-						dev->fault_handler : mpp_iommu_handle, dev);
++		ret = rockchip_iommu_set_fault_handler(info->dev,
++			dev->fault_handler ? dev->fault_handler : mpp_iommu_handle,
++			dev);
++		if (ret == -ENODEV)
++			ret = vsi_iommu_set_fault_handler(info->dev,
++				dev->fault_handler ? dev->fault_handler : mpp_iommu_handle,
++				dev);
++		if (ret == -ENODEV) {
++			if (info->domain &&
++			    info->domain->cookie_type == IOMMU_COOKIE_NONE)
++				iommu_set_fault_handler(info->domain,
++					dev->fault_handler ?
++					dev->fault_handler : mpp_iommu_handle,
++					dev);
++			ret = 0;
++		}
+ 
+ 		dev_dbg(info->dev, "activate -> %p %s\n", dev, dev_name(dev->dev));
+ 	}
+@@ -694,6 +714,10 @@ int mpp_iommu_dev_deactivate(struct mpp_iommu_info *info, struct mpp_dev *dev)
+ 			info->dev_active ? dev_name(info->dev_active->dev) : NULL);
+ 
+ 	dev_dbg(info->dev, "deactivate %p\n", info->dev_active);
++	if (info->dev_active == dev) {
++		rockchip_iommu_set_fault_handler(info->dev, NULL, NULL);
++		vsi_iommu_set_fault_handler(info->dev, NULL, NULL);
++	}
+ 	info->dev_active = NULL;
+ 	spin_unlock_irqrestore(&info->dev_lock, flags);
+ 
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
+index 7b4686a795993..9d91feae1f92b 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.h
++++ b/drivers/video/rockchip/mpp/mpp_iommu.h
+@@ -139,8 +139,6 @@ int mpp_iommu_detach(struct mpp_iommu_info *info);
+ 
+ int mpp_iommu_refresh(struct mpp_iommu_info *info, struct device *dev);
+ int mpp_iommu_flush_tlb(struct mpp_iommu_info *info);
+-int mpp_av1_iommu_disable(struct device *dev);
+-int mpp_av1_iommu_enable(struct device *dev);
+ 
+ int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev);
+ int mpp_iommu_dev_deactivate(struct mpp_iommu_info *info, struct mpp_dev *dev);

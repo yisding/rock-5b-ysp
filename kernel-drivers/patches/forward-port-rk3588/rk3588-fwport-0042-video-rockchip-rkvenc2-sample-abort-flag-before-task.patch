@@ -1,0 +1,60 @@
+From e2a89c17275822a31a2a602fd2631684e47996d8 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 18 Jul 2026 09:42:03 -0700
+Subject: [PATCH 42/71] video: rockchip: rkvenc2: sample abort flag before task
+ is freed
+
+The forward-port added abort-status propagation to rkvenc2_wait_result():
+
+    ret = rkvenc2_task_default_process(mpp, task);
+    if (!ret && test_bit(TASK_STATE_ABORT, &task->state))
+            ret = -EIO;
+
+but rkvenc2_task_default_process() calls rkvenc2_task_pop_pending(), which
+kref_put()s the task with mpp_free_task. When the blocking waiter returns after
+TASK_STATE_DONE the hardware worker has already dropped its reference, so this
+put is the last one and frees the task. The following test_bit() then reads
+task->state from freed memory, which KASAN reports as a slab-use-after-free in
+rkvenc2_wait_result (both statics inline into it). The RK3588 hardware H.264
+encoder driven by gnome-remote-desktop hits this on every frame.
+
+The pristine Rockchip BSP returns default_process() directly and never reads
+task->state afterwards; the offending read is forward-port-introduced
+(23ff47eab6f6). Sample TASK_STATE_ABORT into a local before default_process so
+the abort semantics are preserved without touching freed memory. The abort bit
+is set before the waiter is released, so the pre-sample sees the same value.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 1bb7ef85a7e71..3549f3bda235d 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -2715,6 +2715,7 @@ static int rkvenc2_wait_result(struct mpp_session *session,
+ 	union rkvenc2_slice_len_info slice_info;
+ 	u32 task_id;
+ 	bool got_slice;
++	bool aborted;
+ 	int ret = 0;
+ 
+ 	mutex_lock(&session->pending_lock);
+@@ -2748,8 +2749,15 @@ static int rkvenc2_wait_result(struct mpp_session *session,
+ 			}
+ 		}
+ 
++		/*
++		 * Sample the abort flag before default_process: it pops the
++		 * task off the pending list and drops the reference that can
++		 * free the task, so reading task->state afterwards is a
++		 * use-after-free once the hardware worker's ref is already gone.
++		 */
++		aborted = test_bit(TASK_STATE_ABORT, &task->state);
+ 		ret = rkvenc2_task_default_process(mpp, task);
+-		if (!ret && test_bit(TASK_STATE_ABORT, &task->state))
++		if (!ret && aborted)
+ 			ret = -EIO;
+ 
+ 		return ret;

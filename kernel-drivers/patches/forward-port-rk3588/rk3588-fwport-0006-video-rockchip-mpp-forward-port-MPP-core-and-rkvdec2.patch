@@ -1,0 +1,1571 @@
+From 23ff47eab6f682f08fe0dac38546a877652112f2 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Fri, 3 Jul 2026 19:43:12 -0700
+Subject: [PATCH 06/71] video: rockchip: mpp: forward-port MPP core and
+ rkvdec2/rkvenc2 to 6.18
+
+Forward-port the RK3588 vendor MPP service core and the rkvdec2/rkvenc2
+codec drivers onto the mainline 6.18 IOMMU/DMA APIs and the Rockchip/VSI
+provider hooks. Drop the compat <soc/rockchip/rockchip_iommu.h> shim (now
+provided in-tree) and delete it.
+
+Notable changes:
+  - use the Rockchip provider fault/refresh/mask hooks instead of
+    BSP-private IOMMU APIs;
+  - rkvdec2 CCU attach now establishes an explicit cluster shared IOMMU
+    domain via mpp_iommu_shared_domain_*(): core 0 owns the shared domain
+    and secondary cores join it (borrowing its rw_sem too), replacing the
+    open-coded per-core domain field swap and bringing the decoder up to the
+    encoder's serialization level;
+  - EPROBE_DEFER-safe CCU/core probe ordering with proper unwind;
+  - 6.18 dma-buf (_unlocked map/unmap) and iommu_map() gfp updates;
+  - rk-mpp uapi: add MPP_CMD_SET_ERR_REF_HACK and the REG_OFFSET_ALONE /
+    POLL_NON_BLOCK flags (REG_NO_OFFSET kept as an alias).
+
+The rkvenc2 CCU attach still uses the older in-place field swap; converting
+it onto mpp_iommu_shared_domain_*() is a follow-up. No userspace ABI change
+(/dev/mpp_service preserved). Add the mpp-service, rkvdec2 and rkvenc2
+devicetree bindings.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ .../bindings/media/rockchip,mpp-service.yaml  |  43 +++++
+ .../bindings/media/rockchip,rkvdec2.yaml      | 116 +++++++++++++
+ .../bindings/media/rockchip,rkvenc2.yaml      |  84 +++++++++
+ drivers/video/rockchip/mpp/Kconfig            |   3 +-
+ drivers/video/rockchip/mpp/Makefile           |   7 +-
+ .../mpp/compat/soc/rockchip/rockchip_iommu.h  |  41 -----
+ drivers/video/rockchip/mpp/mpp_common.c       | 145 +++++++++++++---
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c      |  52 ++++--
+ drivers/video/rockchip/mpp/mpp_rkvdec2.h      |   2 +-
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 131 ++++++++++----
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.h |   3 +
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c      | 161 +++++++++++++-----
+ drivers/video/rockchip/mpp/mpp_service.c      |   1 +
+ include/uapi/linux/rk-mpp.h                   |   5 +-
+ 14 files changed, 638 insertions(+), 156 deletions(-)
+ create mode 100644 Documentation/devicetree/bindings/media/rockchip,mpp-service.yaml
+ create mode 100644 Documentation/devicetree/bindings/media/rockchip,rkvdec2.yaml
+ create mode 100644 Documentation/devicetree/bindings/media/rockchip,rkvenc2.yaml
+ delete mode 100644 drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h
+
+diff --git a/Documentation/devicetree/bindings/media/rockchip,mpp-service.yaml b/Documentation/devicetree/bindings/media/rockchip,mpp-service.yaml
+new file mode 100644
+index 0000000000000..cd7daab04364c
+--- /dev/null
++++ b/Documentation/devicetree/bindings/media/rockchip,mpp-service.yaml
+@@ -0,0 +1,43 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/media/rockchip,mpp-service.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Rockchip vendor MPP service coordinator
++
++maintainers:
++  - RKMPP forward-port maintainers <rkmpp-forward-port@example.invalid>
++
++description:
++  The vendor MPP service node is a virtual coordinator used by Rockchip's
++  /dev/mpp_service encoder and decoder drivers. It has no register window and
++  owns shared taskqueue/resetgroup numbering for child codec cores.
++
++properties:
++  compatible:
++    const: rockchip,mpp-service
++
++  rockchip,taskqueue-count:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Number of MPP task queues owned by the service coordinator.
++
++  rockchip,resetgroup-count:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Number of shared reset groups owned by the service coordinator.
++
++required:
++  - compatible
++
++additionalProperties: true
++
++examples:
++  - |
++    mpp-srv {
++        compatible = "rockchip,mpp-service";
++        rockchip,taskqueue-count = <12>;
++        rockchip,resetgroup-count = <1>;
++    };
++...
+diff --git a/Documentation/devicetree/bindings/media/rockchip,rkvdec2.yaml b/Documentation/devicetree/bindings/media/rockchip,rkvdec2.yaml
+new file mode 100644
+index 0000000000000..f7b49c8168910
+--- /dev/null
++++ b/Documentation/devicetree/bindings/media/rockchip,rkvdec2.yaml
+@@ -0,0 +1,116 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/media/rockchip,rkvdec2.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Rockchip vendor RKVDEC2 decoder nodes
++
++maintainers:
++  - RKMPP forward-port maintainers <rkmpp-forward-port@example.invalid>
++
++description:
++  Vendor MPP VDPU381/RKVDEC2 decoder binding used by Rockchip userspace through
++  /dev/mpp_service. The CCU node coordinates the two decoder cores; board files
++  may convert base video-codec nodes to the vendor-compatible core binding.
++
++properties:
++  compatible:
++    enum:
++      - rockchip,rkv-decoder-v2
++      - rockchip,rkv-decoder-v2-ccu
++
++  reg: true
++  reg-names: true
++  interrupts: true
++  interrupt-names: true
++  clocks: true
++  clock-names: true
++  assigned-clocks: true
++  assigned-clock-rates: true
++  resets: true
++  reset-names: true
++  iommus: true
++  power-domains: true
++
++  rockchip,srv:
++    $ref: /schemas/types.yaml#/definitions/phandle
++    description:
++      Phandle to the vendor MPP service coordinator node.
++
++  rockchip,ccu:
++    $ref: /schemas/types.yaml#/definitions/phandle
++    description:
++      Phandle to the decoder CCU node used by dual-core decoder instances.
++
++  rockchip,sram:
++    $ref: /schemas/types.yaml#/definitions/phandle
++    description:
++      Phandle to the SRAM pool used for decoder row-column buffers.
++
++  rockchip,core-mask:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Bitmask identifying the decoder core in the vendor CCU register layout.
++
++  rockchip,taskqueue-node:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      MPP service task-queue index used by this decoder node.
++
++  rockchip,task-capacity:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Maximum number of queued MPP tasks for this decoder node.
++
++  rockchip,rcb-iova:
++    $ref: /schemas/types.yaml#/definitions/uint32-array
++    minItems: 2
++    maxItems: 2
++    description:
++      IOVA base and size reserved for decoder row-column buffers.
++  rockchip,rcb-info:
++    $ref: /schemas/types.yaml#/definitions/uint32-matrix
++    items:
++      minItems: 2
++      maxItems: 2
++    description:
++      Decoder row-column buffer register and size pairs.
++  rockchip,rcb-min-width:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Minimum frame width at which the row-column buffer path is enabled.
++  rockchip,ccu-mode:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Vendor CCU scheduling mode selected by the decoder driver.
++  rockchip,normal-rates:
++    $ref: /schemas/types.yaml#/definitions/uint32-array
++    description:
++      Normal operating clock rates programmed by the vendor MPP driver.
++  rockchip,skip-pmu-idle-request:
++    $ref: /schemas/types.yaml#/definitions/flag
++    description:
++      Present when the driver must skip Rockchip PMU idle request calls.
++
++required:
++  - compatible
++
++additionalProperties: true
++
++examples:
++  - |
++    rkvdec-ccu@fdc30000 {
++        compatible = "rockchip,rkv-decoder-v2-ccu";
++        reg = <0x0 0xfdc30000 0x0 0x100>;
++        reg-names = "ccu";
++        rockchip,ccu-mode = <1>;
++    };
++
++    video-codec@fdc38100 {
++        compatible = "rockchip,rkv-decoder-v2";
++        reg = <0x0 0xfdc38100 0x0 0x400>, <0x0 0xfdc38000 0x0 0x100>;
++        reg-names = "regs", "link";
++        rockchip,core-mask = <0x00010001>;
++    };
++...
+diff --git a/Documentation/devicetree/bindings/media/rockchip,rkvenc2.yaml b/Documentation/devicetree/bindings/media/rockchip,rkvenc2.yaml
+new file mode 100644
+index 0000000000000..5e90d404058bf
+--- /dev/null
++++ b/Documentation/devicetree/bindings/media/rockchip,rkvenc2.yaml
+@@ -0,0 +1,84 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/media/rockchip,rkvenc2.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Rockchip vendor RKVENC2 encoder nodes
++
++maintainers:
++  - RKMPP forward-port maintainers <rkmpp-forward-port@example.invalid>
++
++description:
++  Vendor MPP VEPU580/RKVENC2 encoder binding used by Rockchip userspace through
++  /dev/mpp_service. The CCU node is virtual and the core nodes describe the
++  MMIO encoder instances behind Rockchip IOMMUs.
++
++properties:
++  compatible:
++    enum:
++      - rockchip,rkv-encoder-v2-ccu
++      - rockchip,rkv-encoder-v2-core
++
++  reg: true
++  reg-names: true
++  interrupts: true
++  interrupt-names: true
++  clocks: true
++  clock-names: true
++  assigned-clocks: true
++  assigned-clock-rates: true
++  resets: true
++  reset-names: true
++  iommus: true
++  power-domains: true
++
++  rockchip,srv:
++    $ref: /schemas/types.yaml#/definitions/phandle
++    description:
++      Phandle to the vendor MPP service coordinator node.
++
++  rockchip,ccu:
++    $ref: /schemas/types.yaml#/definitions/phandle
++    description:
++      Phandle to the encoder CCU node used by dual-core encoder instances.
++
++  rockchip,taskqueue-node:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      MPP service task-queue index used by this encoder node.
++
++  rockchip,task-capacity:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      Maximum number of queued MPP tasks for this encoder node.
++
++  rockchip,normal-rates:
++    $ref: /schemas/types.yaml#/definitions/uint32-array
++    description:
++      Normal operating clock rates programmed by the vendor MPP driver.
++  rockchip,skip-pmu-idle-request:
++    $ref: /schemas/types.yaml#/definitions/flag
++    description:
++      Present when the driver must skip Rockchip PMU idle request calls.
++
++required:
++  - compatible
++
++additionalProperties: true
++
++examples:
++  - |
++    rkvenc-ccu {
++        compatible = "rockchip,rkv-encoder-v2-ccu";
++    };
++
++    rkvenc-core@fdbd0000 {
++        compatible = "rockchip,rkv-encoder-v2-core";
++        reg = <0x0 0xfdbd0000 0x0 0x6000>;
++        interrupts = <101>;
++        interrupt-names = "irq_rkvenc0";
++        rockchip,taskqueue-node = <7>;
++        rockchip,task-capacity = <8>;
++    };
++...
+diff --git a/drivers/video/rockchip/mpp/Kconfig b/drivers/video/rockchip/mpp/Kconfig
+index 9b38f3b35b558..9245dd8d1ed6c 100644
+--- a/drivers/video/rockchip/mpp/Kconfig
++++ b/drivers/video/rockchip/mpp/Kconfig
+@@ -1,7 +1,7 @@
+ # SPDX-License-Identifier: GPL-2.0
+ config ROCKCHIP_MPP_SERVICE
+ 	tristate "Rockchip MPP service framework"
+-	depends on ARCH_ROCKCHIP
++	depends on ARCH_ROCKCHIP && ROCKCHIP_IOMMU
+ 	default y
+ 	select DMA_SHARED_BUFFER
+ 	help
+@@ -13,6 +13,7 @@ if ROCKCHIP_MPP_SERVICE
+ 
+ config ROCKCHIP_MPP_PROC_FS
+ 	bool "Rockchip MPP procfs"
++	depends on PROC_FS
+ 	default y
+ 	help
+ 	  Expose per-device runtime state under /proc/mpp_service.
+diff --git a/drivers/video/rockchip/mpp/Makefile b/drivers/video/rockchip/mpp/Makefile
+index b74afd6db1f30..53938164c1195 100644
+--- a/drivers/video/rockchip/mpp/Makefile
++++ b/drivers/video/rockchip/mpp/Makefile
+@@ -2,9 +2,10 @@
+ #
+ # Rockchip MPP service framework - VEPU580 / rkvenc2 (H.264/H.265) encoder.
+ #
+-# compat/ holds small inline shims for the BSP-only <soc/rockchip/*.h> services
+-# that are absent on mainline; -I$(src)/compat lets the donor sources build
+-# unmodified. MPP_VERSION replaces the donor's git-shellout version string.
++# compat/ holds small inline shims for BSP-only <soc/rockchip/*.h> services
++# that are still absent on mainline. The Rockchip IOMMU helpers now live in
++# include/soc/rockchip and drivers/iommu/rockchip-iommu.c.
++# MPP_VERSION replaces the donor's git-shellout version string.
+ 
+ ccflags-y += -I$(src)/compat
+ ccflags-y += -DMPP_VERSION=\"6.18-rkvenc-fwport\"
+diff --git a/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h b/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h
+deleted file mode 100644
+index 300563f3743b2..0000000000000
+--- a/drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h
++++ /dev/null
+@@ -1,41 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0 */
+-/*
+- * Forward-port compat shim for RK3588 VEPU580 (rkvenc2) on mainline 6.18.
+- *
+- * The BSP header <soc/rockchip/rockchip_iommu.h> does not exist upstream
+- * (confirmed: `git -C linux ls-tree v6.18 include/soc/rockchip/rockchip_iommu.h`
+- * is empty).  Resolved via `ccflags-y += -I $(src)/compat` in the mpp Makefile,
+- * so the unchanged `#include <soc/rockchip/rockchip_iommu.h>` in mpp_iommu.c /
+- * mpp_rkvenc2.c picks up this file.
+- *
+- * The minimal rkvenc2 module only ever calls:
+- *   - rockchip_iommu_mask_irq()  (fault-storm guard in the pagefault handler;
+- *                                 mpp_iommu.c, mpp_rkvenc2.c)
+- *   - rockchip_iommu_enable()/_disable()  (mpp_iommu_refresh() error-recovery
+- *                                          re-attach; retval ignored)
+- *
+- * IMPORTANT: the BSP header declared these as real externs behind
+- * `IS_REACHABLE(CONFIG_ROCKCHIP_IOMMU)` and only provided inline stubs in the
+- * #else.  Mainline DOES define CONFIG_ROCKCHIP_IOMMU (drivers/iommu/
+- * rockchip-iommu.c), so reusing the BSP header verbatim would leave these
+- * symbols as UNRESOLVED externs at modpost/link time.  We therefore provide
+- * UNCONDITIONAL inline stubs here.  See "Residual TODOs" for the production
+- * (real fault-mask) path.
+- */
+-#ifndef _MPP_COMPAT_SOC_ROCKCHIP_IOMMU_H
+-#define _MPP_COMPAT_SOC_ROCKCHIP_IOMMU_H
+-
+-#include <linux/types.h>
+-#include <linux/errno.h>
+-
+-struct device;
+-
+-static inline void rockchip_iommu_mask_irq(struct device *dev) { }
+-static inline void rockchip_iommu_unmask_irq(struct device *dev) { }
+-static inline int rockchip_iommu_enable(struct device *dev) { return -ENODEV; }
+-static inline int rockchip_iommu_disable(struct device *dev) { return -ENODEV; }
+-static inline bool rockchip_iommu_is_enabled(struct device *dev) { return false; }
+-static inline int rockchip_iommu_force_reset(struct device *dev) { return -ENODEV; }
+-static inline int rockchip_pagefault_done(struct device *master_dev) { return 0; }
+-
+-#endif /* _MPP_COMPAT_SOC_ROCKCHIP_IOMMU_H */
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index a66a51a0efded..d56b4ca80c832 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -9,6 +9,7 @@
+  *
+  */
+ 
++#undef pr_fmt
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
+ #include <linux/clk.h>
+@@ -29,6 +30,9 @@
+ #include <linux/slab.h>
+ #include <linux/uaccess.h>
+ #include <linux/nospec.h>
++#ifdef CONFIG_COMPAT
++#include <linux/compat.h>
++#endif
+ 
+ #include <soc/rockchip/pm_domains.h>
+ 
+@@ -45,6 +49,16 @@ struct mpp_msg_v1 {
+ 	__u64 data_ptr;
+ };
+ 
++#ifdef CONFIG_COMPAT
++struct mpp_msg_v1_compat {
++	__u32 cmd;
++	__u32 flags;
++	__u32 size;
++	__u32 offset;
++	compat_uptr_t data_ptr;
++};
++#endif
++
+ #ifdef CONFIG_ROCKCHIP_MPP_PROC_FS
+ const char *mpp_device_name[MPP_DEVICE_BUTT] = {
+ 	[MPP_DEVICE_VDPU1]		= "VDPU1",
+@@ -688,6 +702,8 @@ mpp_reset_control_get(struct mpp_dev *mpp, enum MPP_RESET_TYPE type, const char
+ 
+ int mpp_dev_reset(struct mpp_dev *mpp)
+ {
++	int ret;
++
+ 	dev_info(mpp->dev, "resetting...\n");
+ 
+ 	disable_irq(mpp->irq);
+@@ -716,7 +732,9 @@ int mpp_dev_reset(struct mpp_dev *mpp)
+ 	 * as an empty operation. Therefore, force to close and then open,
+ 	 * will be update the domain. In this way, domain can really attach.
+ 	 */
+-	mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
++	ret = mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
++	if (ret)
++		dev_err(mpp->dev, "failed to refresh iommu: %d\n", ret);
+ 
+ 	mpp_reset_up_write(mpp->reset_group);
+ 	mpp_iommu_up_write(mpp->iommu_info);
+@@ -727,7 +745,7 @@ int mpp_dev_reset(struct mpp_dev *mpp)
+ 
+ 	dev_info(mpp->dev, "reset done\n");
+ 
+-	return 0;
++	return ret;
+ }
+ 
+ void mpp_task_run_begin(struct mpp_task *task, u32 timing_en, u32 timeout)
+@@ -974,7 +992,7 @@ static void mpp_task_worker_default(struct kthread_work *work_s)
+ static int mpp_wait_result_default(struct mpp_session *session,
+ 				   struct mpp_task_msgs *msgs)
+ {
+-	int ret;
++	int ret = 0;
+ 	struct mpp_task *task;
+ 	struct mpp_dev *mpp;
+ 
+@@ -986,12 +1004,23 @@ static int mpp_wait_result_default(struct mpp_session *session,
+ 	}
+ 	mpp = mpp_get_task_used_device(task, session);
+ 
+-	ret = wait_event_interruptible(task->wait, test_bit(TASK_STATE_DONE, &task->state));
+-	if (ret == -ERESTARTSYS)
+-		mpp_err("wait task break by signal\n");
++	if (msgs->flags & MPP_FLAGS_POLL_NON_BLOCK) {
++		if (!test_bit(TASK_STATE_DONE, &task->state))
++			return -EAGAIN;
++	} else {
++		ret = wait_event_interruptible(task->wait,
++					       test_bit(TASK_STATE_DONE, &task->state));
++		if (ret) {
++			if (ret == -ERESTARTSYS)
++				mpp_err("wait task break by signal\n");
++			return ret;
++		}
++	}
+ 
+ 	if (mpp->dev_ops->result)
+ 		ret = mpp->dev_ops->result(mpp, task, msgs);
++	if (!ret && test_bit(TASK_STATE_ABORT, &task->state))
++		ret = -EIO;
+ 	mpp_debug_func(DEBUG_TASK_INFO, "wait done session %d:%d count %d task %d state %lx\n",
+ 		       session->device_type, session->index, atomic_read(&session->task_count),
+ 		       task->task_index, task->state);
+@@ -1504,8 +1533,37 @@ static void task_msgs_add(struct mpp_task_msgs *msgs, struct list_head *head)
+ 	}
+ }
+ 
++static int mpp_copy_msg_v1(struct mpp_msg_v1 *msg_v1, void __user **msg,
++				   bool compat_ioctl)
++{
++#ifdef CONFIG_COMPAT
++	if (compat_ioctl) {
++		struct mpp_msg_v1_compat msg_v1_compat;
++
++		if (copy_from_user(&msg_v1_compat, *msg, sizeof(msg_v1_compat)))
++			return -EFAULT;
++
++		msg_v1->cmd = msg_v1_compat.cmd;
++		msg_v1->flags = msg_v1_compat.flags;
++		msg_v1->size = msg_v1_compat.size;
++		msg_v1->offset = msg_v1_compat.offset;
++		msg_v1->data_ptr = (unsigned long)compat_ptr(msg_v1_compat.data_ptr);
++		*msg = (void __user *)((u8 __user *)*msg + sizeof(msg_v1_compat));
++
++		return 0;
++	}
++#endif
++
++	if (copy_from_user(msg_v1, *msg, sizeof(*msg_v1)))
++		return -EFAULT;
++
++	*msg = (void __user *)((u8 __user *)*msg + sizeof(*msg_v1));
++
++	return 0;
++}
++
+ static int mpp_collect_msgs(struct list_head *head, struct mpp_session *session,
+-			    unsigned int cmd, void __user *msg)
++			    unsigned int cmd, void __user *msg, bool compat_ioctl)
+ {
+ 	struct mpp_msg_v1 msg_v1;
+ 	struct mpp_request *req;
+@@ -1520,10 +1578,9 @@ static int mpp_collect_msgs(struct list_head *head, struct mpp_session *session,
+ 
+ next:
+ 	/* first, parse to fixed struct */
+-	if (copy_from_user(&msg_v1, msg, sizeof(msg_v1)))
+-		return -EFAULT;
+-
+-	msg += sizeof(msg_v1);
++	ret = mpp_copy_msg_v1(&msg_v1, &msg, compat_ioctl);
++	if (ret)
++		return ret;
+ 
+ 	mpp_debug(DEBUG_IOCTL, "cmd %x collect flags %08x, size %d, offset %x\n",
+ 		  msg_v1.cmd, msg_v1.flags, msg_v1.size, msg_v1.offset);
+@@ -1678,9 +1735,10 @@ static void mpp_msgs_trigger(struct list_head *msgs_list)
+ 	}
+ }
+ 
+-static void mpp_msgs_wait(struct list_head *msgs_list)
++static int mpp_msgs_wait(struct list_head *msgs_list)
+ {
+ 	struct mpp_task_msgs *msgs, *n;
++	int first_ret = 0;
+ 
+ 	/* poll and release each task */
+ 	list_for_each_entry_safe(msgs, n, msgs_list, list) {
+@@ -1692,15 +1750,20 @@ static void mpp_msgs_wait(struct list_head *msgs_list)
+ 			if (ret) {
+ 				mpp_err("session %d wait result ret %d\n",
+ 					session->index, ret);
++				if (!first_ret)
++					first_ret = ret;
+ 			}
+ 		}
+ 
+ 		put_task_msgs(msgs);
+ 
+ 	}
++
++	return first_ret;
+ }
+ 
+-static long mpp_dev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
++static long mpp_dev_ioctl_common(struct file *filp, unsigned int cmd,
++					 unsigned long arg, bool compat_ioctl)
+ {
+ 	struct mpp_service *srv;
+ 	struct mpp_session *session = (struct mpp_session *)filp->private_data;
+@@ -1727,19 +1790,37 @@ static long mpp_dev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
+ 
+ 	INIT_LIST_HEAD(&msgs_list);
+ 
+-	ret = mpp_collect_msgs(&msgs_list, session, cmd, (void __user *)arg);
++	ret = mpp_collect_msgs(&msgs_list, session, cmd, (void __user *)arg,
++			       compat_ioctl);
+ 	if (ret)
+ 		mpp_err("collect msgs failed %d\n", ret);
+ 
+ 	mpp_msgs_trigger(&msgs_list);
+ 
+-	mpp_msgs_wait(&msgs_list);
++	if (!ret)
++		ret = mpp_msgs_wait(&msgs_list);
++	else
++		mpp_msgs_wait(&msgs_list);
+ 
+ 	mpp_debug_leave();
+ 
+ 	return ret;
+ }
+ 
++static long mpp_dev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
++{
++	return mpp_dev_ioctl_common(filp, cmd, arg, false);
++}
++
++#ifdef CONFIG_COMPAT
++static long mpp_dev_compat_ioctl(struct file *filp, unsigned int cmd,
++				 unsigned long arg)
++{
++	return mpp_dev_ioctl_common(filp, cmd,
++				      (unsigned long)compat_ptr(arg), true);
++}
++#endif
++
+ static int mpp_dev_open(struct inode *inode, struct file *filp)
+ {
+ 	struct mpp_session *session = NULL;
+@@ -1799,7 +1880,7 @@ const struct file_operations rockchip_mpp_fops = {
+ 	.release	= mpp_dev_release,
+ 	.unlocked_ioctl = mpp_dev_ioctl,
+ #ifdef CONFIG_COMPAT
+-	.compat_ioctl   = mpp_dev_ioctl,
++	.compat_ioctl   = mpp_dev_compat_ioctl,
+ #endif
+ };
+ 
+@@ -2021,13 +2102,26 @@ int mpp_task_finish(struct mpp_session *session,
+ 		    struct mpp_task *task)
+ {
+ 	struct mpp_dev *mpp = mpp_get_task_used_device(task, session);
++	int ret = 0;
++	int reset_ret;
+ 
+ 	if (mpp->dev_ops->finish)
+-		mpp->dev_ops->finish(mpp, task);
++		ret = mpp->dev_ops->finish(mpp, task);
++	if (ret) {
++		dev_err(mpp->dev, "task finish failed: %d\n", ret);
++		set_bit(TASK_STATE_ABORT, &task->state);
++	}
+ 
+ 	mpp_reset_up_read(mpp->reset_group);
+-	if (atomic_read(&mpp->reset_request) > 0)
+-		mpp_dev_reset(mpp);
++	if (atomic_read(&mpp->reset_request) > 0) {
++		reset_ret = mpp_dev_reset(mpp);
++		if (reset_ret) {
++			dev_err(mpp->dev, "reset recovery failed: %d\n", reset_ret);
++			set_bit(TASK_STATE_ABORT, &task->state);
++			if (!ret)
++				ret = reset_ret;
++		}
++	}
+ 	mpp_power_off(mpp);
+ 
+ 	set_bit(TASK_STATE_FINISH, &task->state);
+@@ -2049,7 +2143,7 @@ int mpp_task_finish(struct mpp_session *session,
+ 	wake_up(&task->wait);
+ 	mpp_taskqueue_pop_running(mpp->queue, task);
+ 
+-	return 0;
++	return ret;
+ }
+ 
+ int mpp_task_finalize(struct mpp_session *session,
+@@ -2231,14 +2325,13 @@ int mpp_dev_probe(struct mpp_dev *mpp,
+ 	}
+ 	mpp->io_base = res->start;
+ 
+-	/*
+-	 * TODO: here or at the device itself, some device does not
+-	 * have the iommu, maybe in the device is better.
+-	 */
++	/* The forward-ported RK3588 MPP blocks require an attached IOMMU. */
+ 	mpp->iommu_info = mpp_iommu_probe(dev);
+ 	if (IS_ERR(mpp->iommu_info)) {
+-		dev_err(dev, "failed to attach iommu\n");
++		ret = PTR_ERR(mpp->iommu_info);
++		dev_err(dev, "failed to attach iommu: %d\n", ret);
+ 		mpp->iommu_info = NULL;
++		goto failed;
+ 	} else {
+ 		mpp->iommu_info->queue = mpp->queue;
+ 	}
+@@ -2263,6 +2356,8 @@ int mpp_dev_probe(struct mpp_dev *mpp,
+ 
+ 	return ret;
+ failed:
++	mpp_iommu_remove(mpp->iommu_info);
++	mpp->iommu_info = NULL;
+ 	mpp_detach_workqueue(mpp);
+ 	device_init_wakeup(dev, false);
+ 	pm_runtime_disable(dev);
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index ce73e17e7215f..29f1c79509aaa 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -27,6 +27,8 @@
+ #include "../drivers/devfreq/governor.h"
+ #endif
+ 
++static int rkvdec2_free_rcbbuf(struct platform_device *pdev, struct rkvdec2_dev *dec);
++
+ /*
+  * hardware information
+  */
+@@ -1632,7 +1634,7 @@ static const struct mpp_dev_var rkvdec_v2_data = {
+ 	.dev_ops = &rkvdec_v2_dev_ops,
+ };
+ 
+-static const struct mpp_dev_var rkvdec_rk3568_data = {
++static const struct mpp_dev_var rkvdec_rk3568_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_rk356x_hw_info,
+ 	.trans_info = rkvdec_v2_trans,
+@@ -1640,7 +1642,7 @@ static const struct mpp_dev_var rkvdec_rk3568_data = {
+ 	.dev_ops = &rkvdec_rk3568_dev_ops,
+ };
+ 
+-static const struct mpp_dev_var rkvdec_rk3528_data = {
++static const struct mpp_dev_var rkvdec_rk3528_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_vdpu382_hw_info,
+ 	.trans_info = rkvdec_v2_trans,
+@@ -1648,7 +1650,7 @@ static const struct mpp_dev_var rkvdec_rk3528_data = {
+ 	.dev_ops = &rkvdec_v2_dev_ops,
+ };
+ 
+-static const struct mpp_dev_var rkvdec_rk3562_data = {
++static const struct mpp_dev_var rkvdec_rk3562_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_vdpu382_hw_info,
+ 	.trans_info = rkvdec_v2_trans,
+@@ -1664,7 +1666,7 @@ static const struct mpp_dev_var rkvdec_rk3588_data = {
+ 	.dev_ops = &rkvdec_v2_dev_ops,
+ };
+ 
+-static const struct mpp_dev_var rkvdec_rk3576_data = {
++static const struct mpp_dev_var rkvdec_rk3576_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_vdpu383_hw_info,
+ 	.trans_info = rkvdec_vdpu383_trans,
+@@ -1672,7 +1674,7 @@ static const struct mpp_dev_var rkvdec_rk3576_data = {
+ 	.dev_ops = &rkvdec_vdpu383_dev_ops,
+ };
+ 
+-static const struct mpp_dev_var rkvdec_rv1126b_data = {
++static const struct mpp_dev_var rkvdec_rv1126b_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_vdpu384a_hw_info,
+ 	.trans_info = rkvdec_vdpu384a_trans,
+@@ -1754,7 +1756,6 @@ static int rkvdec2_ccu_probe(struct platform_device *pdev)
+ 	atomic_set(&ccu->power_enabled, 0);
+ 	INIT_LIST_HEAD(&ccu->unused_list);
+ 	INIT_LIST_HEAD(&ccu->used_list);
+-	platform_set_drvdata(pdev, ccu);
+ 
+ 	if (!of_property_read_u32(dev->of_node, "rockchip,ccu-mode", &ccu_mode)) {
+ 		if (ccu_mode <= RKVDEC2_CCU_MODE_NULL || ccu_mode >= RKVDEC2_CCU_MODE_BUTT)
+@@ -1790,6 +1791,7 @@ static int rkvdec2_ccu_probe(struct platform_device *pdev)
+ 	device_init_wakeup(dev, true);
+ 	pm_runtime_enable(dev);
+ 
++	platform_set_drvdata(pdev, ccu);
+ 	dev_info(dev, "ccu-mode: %d\n", ccu->ccu_mode);
+ 	return 0;
+ }
+@@ -1949,7 +1951,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 	ret = rkvdec2_attach_ccu(dev, dec);
+ 	if (ret) {
+ 		dev_err(dev, "attach ccu failed\n");
+-		return ret;
++		goto err_remove_mpp;
+ 	}
+ 
+ 	/* alloc rcb buffer */
+@@ -1958,7 +1960,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 	/* set device for link */
+ 	ret = rkvdec2_ccu_link_init(pdev, dec);
+ 	if (ret)
+-		return ret;
++		goto err_free_rcb;
+ 
+ 	mpp->dev_ops->alloc_task = rkvdec2_ccu_alloc_task;
+ 	if (dec->ccu->ccu_mode == RKVDEC2_CCU_TASK_SOFT) {
+@@ -1970,7 +1972,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 			dec->link_dec->task_capacity = mpp->task_capacity;
+ 			ret = rkvdec2_ccu_alloc_table(dec, dec->link_dec);
+ 			if (ret)
+-				return ret;
++				goto err_remove_link;
+ 		}
+ 		mpp->dev_ops->task_worker = rkvdec2_hard_ccu_worker;
+ 		irq_proc = rkvdec2_hard_ccu_irq;
+@@ -1983,7 +1985,7 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 					IRQF_SHARED, dev_name(dev), mpp);
+ 	if (ret) {
+ 		dev_err(dev, "register interrupter runtime failed\n");
+-		return -EINVAL;
++		goto err_remove_link;
+ 	}
+ 	/*make sure mpp->irq is startup then can be en/disable*/
+ 	mpp->is_irq_startup = true;
+@@ -1996,6 +1998,16 @@ static int rkvdec2_core_probe(struct platform_device *pdev)
+ 		mpp_dev_register_srv(mpp, mpp->srv);
+ 
+ 	return ret;
++
++err_remove_link:
++	rkvdec2_link_remove(mpp, dec->link_dec);
++err_free_rcb:
++	rkvdec2_free_rcbbuf(pdev, dec);
++err_remove_mpp:
++	if (dec->mmu_base)
++		iounmap(dec->mmu_base);
++	mpp_dev_remove(mpp);
++	return ret;
+ }
+ 
+ static int rkvdec2_probe_default(struct platform_device *pdev)
+@@ -2044,7 +2056,7 @@ static int rkvdec2_probe_default(struct platform_device *pdev)
+ 					IRQF_SHARED, dev_name(dev), mpp);
+ 	if (ret) {
+ 		dev_err(dev, "register interrupter runtime failed\n");
+-		return -EINVAL;
++		goto err_remove_link;
+ 	}
+ 
+ 	mpp->is_irq_startup = true;
+@@ -2063,6 +2075,12 @@ static int rkvdec2_probe_default(struct platform_device *pdev)
+ 		mpp->hw_ops->hack_run(mpp);
+ 
+ 	return ret;
++
++err_remove_link:
++	rkvdec2_link_remove(mpp, dec->link_dec);
++	rkvdec2_free_rcbbuf(pdev, dec);
++	mpp_dev_remove(mpp);
++	return ret;
+ }
+ 
+ static int rkvdec2_probe(struct platform_device *pdev)
+@@ -2151,6 +2169,7 @@ static int __maybe_unused rkvdec2_runtime_suspend(struct device *dev)
+ 		mpp_clk_safe_disable(ccu->aclk_info.clk);
+ 	} else {
+ 		struct mpp_dev *mpp = dev_get_drvdata(dev);
++		int ret;
+ 
+ 		if (mpp->is_irq_startup) {
+ 			/* disable core irq */
+@@ -2166,7 +2185,16 @@ static int __maybe_unused rkvdec2_runtime_suspend(struct device *dev)
+ 		 */
+ 		if (mpp->hw_ops->reset)
+ 			mpp->hw_ops->reset(mpp);
+-		mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
++		ret = mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
++		if (ret) {
++			dev_err(dev, "failed to refresh iommu: %d\n", ret);
++			if (mpp->is_irq_startup) {
++				if (mpp->iommu_info && mpp->iommu_info->got_irq)
++					enable_irq(mpp->iommu_info->irq);
++				enable_irq(mpp->irq);
++			}
++			return ret;
++		}
+ 
+ 		if (mpp->hw_ops->clk_off)
+ 			mpp->hw_ops->clk_off(mpp);
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.h b/drivers/video/rockchip/mpp/mpp_rkvdec2.h
+index 1d14d184933ff..fc958bfacb0e5 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.h
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.h
+@@ -182,7 +182,7 @@ struct rkvdec2_dev {
+ 	struct reset_control *rst_cabac;
+ 	struct reset_control *rst_hevc_cabac;
+ 
+-#ifdef CONFIG_PM_DEVFREQ
++#ifdef CONFIG_ROCKCHIP_MPP_RKVDEC2_DEVFREQ
+ 	struct regulator *vdd;
+ 	struct devfreq *devfreq;
+ 	unsigned long volt;
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index f52df09f05476..7c9220a1c4fcc 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -634,6 +634,7 @@ static void *rkvdec2_link_prepare(struct mpp_dev *mpp,
+ 
+ static int rkvdec2_link_reset(struct mpp_dev *mpp)
+ {
++	int ret;
+ 
+ 	dev_info(mpp->dev, "resetting...\n");
+ 
+@@ -656,7 +657,9 @@ static int rkvdec2_link_reset(struct mpp_dev *mpp)
+ 	 * as an empty operation. Therefore, force to close and then open,
+ 	 * will be update the domain. In this way, domain can really attach.
+ 	 */
+-	mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
++	ret = mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
++	if (ret)
++		dev_err(mpp->dev, "failed to refresh iommu: %d\n", ret);
+ 
+ 	mpp_reset_up_write(mpp->reset_group);
+ 	mpp_iommu_up_write(mpp->iommu_info);
+@@ -665,7 +668,7 @@ static int rkvdec2_link_reset(struct mpp_dev *mpp)
+ 	mpp_iommu_enable_irq(mpp->iommu_info);
+ 	dev_info(mpp->dev, "reset done\n");
+ 
+-	return 0;
++	return ret;
+ }
+ 
+ static int rkvdec2_link_irq(struct mpp_dev *mpp)
+@@ -1103,6 +1106,7 @@ static void rkvdec2_link_try_dequeue(struct mpp_dev *mpp)
+ 		      readl(link_dec->reg_base + RKVDEC_LINK_EN_BASE) : 0;
+ 	u32 force_dequeue = iommu_fault || !link_en;
+ 	u32 dequeue_cnt = 0;
++	int reset_ret = 0;
+ 	unsigned long flags;
+ 
+ 	list_for_each_entry_safe(mpp_task, n, &queue->running_list, queue_link) {
+@@ -1153,11 +1157,17 @@ static void rkvdec2_link_try_dequeue(struct mpp_dev *mpp)
+ 			dev_err(mpp->dev, "session %d task %d timeout %d abort %d force_dequeue %d\n",
+ 				mpp_task->session->index, mpp_task->task_index,
+ 				timeout_flag, abort_flag, force_dequeue);
+-			rkvdec2_link_reset(mpp);
++			reset_ret = rkvdec2_link_reset(mpp);
++			if (reset_ret) {
++				dev_err(mpp->dev, "link reset failed: %d\n", reset_ret);
++				set_bit(TASK_STATE_ABORT, &mpp_task->state);
++			}
+ 			reset_flag = 1;
+-			dec->mmu_fault = 0;
+-			mpp->irq_status = 0;
+-			force_dequeue = 0;
++			if (!reset_ret) {
++				dec->mmu_fault = 0;
++				mpp->irq_status = 0;
++				force_dequeue = 0;
++			}
+ 		}
+ 
+ 		cancel_delayed_work_sync(&mpp_task->timeout_work);
+@@ -1198,11 +1208,16 @@ static void rkvdec2_link_try_dequeue(struct mpp_dev *mpp)
+ 		wake_up(&mpp_task->wait);
+ 		mpp_dev_load(mpp, mpp_task);
+ 		kref_put(&mpp_task->ref, rkvdec2_link_free_task);
++		if (reset_ret)
++			break;
+ 	}
+ 
+ 	/* resend running task after reset */
+-	if (reset_flag && !list_empty(&queue->running_list))
++	if (reset_flag && reset_ret) {
++		atomic_set(&mpp->reset_request, 1);
++	} else if (reset_flag && !list_empty(&queue->running_list)) {
+ 		rkvdec2_link_resend(mpp);
++	}
+ }
+ 
+ static int mpp_task_queue(struct mpp_dev *mpp, struct mpp_task *mpp_task)
+@@ -1426,7 +1441,13 @@ void rkvdec2_link_worker(struct kthread_work *work_s)
+ 
+ 	/* process reset */
+ 	if (atomic_read(&mpp->reset_request)) {
+-		rkvdec2_link_reset(mpp);
++		int ret = rkvdec2_link_reset(mpp);
++
++		if (ret) {
++			dev_err(mpp->dev, "link reset failed: %d\n", ret);
++			atomic_set(&mpp->reset_request, 1);
++			goto done;
++		}
+ 		/* resend running task after reset */
+ 		if (!list_empty(&queue->running_list))
+ 			rkvdec2_link_resend(mpp);
+@@ -1554,33 +1575,50 @@ int rkvdec2_attach_ccu(struct device *dev, struct rkvdec2_dev *dec)
+ 	}
+ 
+ 	ret = of_property_read_u32(dev->of_node, "rockchip,core-mask", &dec->core_mask);
+-	if (ret)
++	if (ret) {
++		put_device(&pdev->dev);
+ 		return ret;
++	}
+ 	dev_info(dev, "core_mask=%08x\n", dec->core_mask);
+ 
+-	/* if not the main-core, then attach the main core domain to current */
+-	if (dec->mpp.core_id != 0) {
+-		struct mpp_taskqueue *queue;
+-		struct mpp_iommu_info *ccu_info, *cur_info;
+-
+-		queue = dec->mpp.queue;
++	/*
++	 * Establish or join the cluster's shared IOMMU domain. Core 0 is the
++	 * service-visible owner, so its default DMA domain is the shared IOVA
++	 * space; secondary cores join that domain (borrowing its rw_sem too) so
++	 * a task dispatched to any core sees the same mappings. This replaces
++	 * the old open-coded per-core domain swap; unlike it, the decoder now
++	 * also shares the owner's rw_sem, matching the encoder.
++	 */
++	if (dec->mpp.core_id == 0) {
++		/* the CCU decoder cluster requires an IOMMU on its owner core */
++		if (!dec->mpp.iommu_info) {
++			put_device(&pdev->dev);
++			return -ENODEV;
++		}
++		ret = mpp_iommu_shared_domain_init(&ccu->iommu, dec->mpp.iommu_info);
++		if (ret) {
++			put_device(&pdev->dev);
++			return ret;
++		}
++	} else {
+ 		/*
+-		 * A secondary core attaches to the main core's (core 0) IOMMU
+-		 * domain. If core 0 has not registered in the queue yet, defer so
+-		 * this core retries after core 0 probes -- otherwise queue->cores[0]
+-		 * is NULL and we oops. (Only guaranteed core0-first for a built-in
+-		 * driver / correct boot order.)
++		 * If core 0 has not established the shared domain yet, defer so
++		 * this core retries after core 0 probes -- only guaranteed
++		 * core0-first for a built-in driver / correct boot order.
+ 		 */
+-		if (!queue || !queue->cores[0]) {
++		if (!ccu->iommu.owner) {
+ 			put_device(&pdev->dev);
+ 			return -EPROBE_DEFER;
+ 		}
+-		/* set the ccu-domain for current device */
+-		ccu_info = queue->cores[0]->iommu_info;
+-		cur_info = dec->mpp.iommu_info;
+-		if (cur_info)
+-			cur_info->domain = ccu_info->domain;
+-		mpp_iommu_attach(cur_info);
++		if (!dec->mpp.iommu_info) {
++			put_device(&pdev->dev);
++			return -ENODEV;
++		}
++		ret = mpp_iommu_shared_domain_bind(&ccu->iommu, dec->mpp.iommu_info);
++		if (ret) {
++			put_device(&pdev->dev);
++			return ret;
++		}
+ 	}
+ 
+ 	dec->ccu = ccu;
+@@ -1780,9 +1818,11 @@ static int rkvdec2_soft_ccu_reset(struct mpp_taskqueue *queue,
+ 				  struct rkvdec2_ccu *ccu)
+ {
+ 	int i;
++	int first_ret = 0;
+ 
+ 	for (i = queue->core_count - 1; i >= 0; i--) {
+ 		u32 val;
++		int ret;
+ 
+ 		struct mpp_dev *mpp = queue->cores[i];
+ 		struct rkvdec2_dev *dec = to_rkvdec2_dev(mpp);
+@@ -1823,7 +1863,12 @@ static int rkvdec2_soft_ccu_reset(struct mpp_taskqueue *queue,
+ 		/* connect core and ccu */
+ 		writel(dec->core_mask & RKVDEC_CCU_CORE_RW_MASK,
+ 		       ccu->reg_base + RKVDEC_CCU_CORE_IDLE_BASE);
+-		mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
++		ret = mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
++		if (ret) {
++			dev_err(mpp->dev, "iommu refresh failed: %d\n", ret);
++			if (!first_ret)
++				first_ret = ret;
++		}
+ 		atomic_set(&mpp->reset_request, 0);
+ 
+ 		enable_irq(mpp->irq);
+@@ -1831,7 +1876,7 @@ static int rkvdec2_soft_ccu_reset(struct mpp_taskqueue *queue,
+ 	}
+ 	atomic_set(&queue->reset_request, 0);
+ 
+-	return 0;
++	return first_ret;
+ }
+ 
+ void *rkvdec2_ccu_alloc_task(struct mpp_session *session,
+@@ -2120,6 +2165,7 @@ void rkvdec2_soft_ccu_worker(struct kthread_work *work_s)
+ 	struct mpp_dev *mpp = container_of(work_s, struct mpp_dev, work);
+ 	struct mpp_taskqueue *queue = mpp->queue;
+ 	struct rkvdec2_dev *dec = to_rkvdec2_dev(mpp);
++	int ret;
+ 
+ 	mpp_debug_enter();
+ 
+@@ -2130,7 +2176,11 @@ void rkvdec2_soft_ccu_worker(struct kthread_work *work_s)
+ 	if (atomic_read(&queue->reset_request)) {
+ 		if (!rkvdec2_core_working(queue)) {
+ 			rkvdec2_ccu_power_on(queue, dec->ccu);
+-			rkvdec2_soft_ccu_reset(queue, dec->ccu);
++			ret = rkvdec2_soft_ccu_reset(queue, dec->ccu);
++			if (ret) {
++				dev_err(mpp->dev, "soft ccu reset failed: %d\n", ret);
++				atomic_set(&queue->reset_request, 1);
++			}
+ 		}
+ 	}
+ 
+@@ -2398,12 +2448,14 @@ static int rkvdec2_hard_ccu_dequeue(struct mpp_taskqueue *queue,
+ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_ccu *ccu)
+ {
+ 	u32 i = 0;
++	int first_ret = 0;
+ 
+ 	mpp_debug_enter();
+ 
+ 	/* reset and active core */
+ 	for (i = 0; i < queue->core_count; i++) {
+ 		u32 val = 0;
++		int ret;
+ 		struct mpp_dev *mpp = queue->cores[i];
+ 		struct rkvdec2_dev *dec = to_rkvdec2_dev(mpp);
+ 
+@@ -2436,7 +2488,12 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+ #else
+ 		rkvdec2_reset(mpp);
+ #endif
+-		mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
++		ret = mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
++		if (ret) {
++			dev_err(mpp->dev, "iommu refresh failed: %d\n", ret);
++			if (!first_ret)
++				first_ret = ret;
++		}
+ 		enable_irq(mpp->irq);
+ 		atomic_set(&mpp->reset_request, 0);
+ 		val = mpp_read_relaxed(mpp, 272*4);
+@@ -2448,7 +2505,7 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+ 	mpp_safe_unreset(ccu->rst_a);
+ 
+ 	mpp_debug_leave();
+-	return 0;
++	return first_ret;
+ }
+ 
+ static struct mpp_task *
+@@ -2690,6 +2747,7 @@ void rkvdec2_hard_ccu_worker(struct kthread_work *work_s)
+ 	struct mpp_dev *mpp = container_of(work_s, struct mpp_dev, work);
+ 	struct mpp_taskqueue *queue = mpp->queue;
+ 	struct rkvdec2_dev *dec = to_rkvdec2_dev(mpp);
++	int ret;
+ 
+ 	mpp_debug_enter();
+ 
+@@ -2709,7 +2767,12 @@ void rkvdec2_hard_ccu_worker(struct kthread_work *work_s)
+ 			cancel_delayed_work(&loop->timeout_work);
+ 		}
+ 		/* reset process */
+-		rkvdec2_hard_ccu_reset(queue, dec->ccu);
++		ret = rkvdec2_hard_ccu_reset(queue, dec->ccu);
++		if (ret) {
++			dev_err(mpp->dev, "hard ccu reset failed: %d\n", ret);
++			atomic_set(&queue->reset_request, 1);
++			goto skip_resend;
++		}
+ 		atomic_set(&queue->reset_request, 0);
+ 
+ 		/* relink running task iova in list, and resend them to hw */
+@@ -2717,6 +2780,8 @@ void rkvdec2_hard_ccu_worker(struct kthread_work *work_s)
+ 			rkvdec2_hard_ccu_resend_tasks(mpp, queue);
+ 	}
+ 
++skip_resend:
++
+ 	/* 3. process pending task */
+ 	while (1) {
+ 		if (atomic_read(&queue->reset_request))
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
+index a8796bf6078be..c5b4b53f13731 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.h
+@@ -211,6 +211,9 @@ struct rkvdec2_ccu {
+ 	struct list_head unused_list;
+ 	struct list_head used_list;
+ 	u32 timeout_flag;
++
++	/* cluster shared IOMMU domain, established by core 0 (the owner) */
++	struct mpp_iommu_shared_domain iommu;
+ };
+ 
+ extern struct rkvdec_link_info rkvdec_link_rk356x_hw_info;
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 988151ebf488b..54ce553979199 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -33,7 +33,7 @@
+ #include <soc/rockchip/rockchip_system_monitor.h>
+ #include <soc/rockchip/rockchip_iommu.h>
+ 
+-#ifdef CONFIG_PM_DEVFREQ
++#ifdef CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ
+ #include "../../../devfreq/governor.h"
+ #endif
+ 
+@@ -57,7 +57,7 @@
+ #define to_rkvenc_dev(dev)		\
+ 		container_of(dev, struct rkvenc_dev, mpp)
+ 
+-#ifdef CONFIG_PM_DEVFREQ
++#ifdef CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ
+ static DEFINE_MUTEX(venc_governor_mutex);
+ static int venc_governor_count;
+ #endif
+@@ -335,7 +335,7 @@ struct rkvenc_dev {
+ 
+ 	u32 bs_overflow;
+ 
+-#ifdef CONFIG_PM_DEVFREQ
++#ifdef CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ
+ 	struct devfreq *devfreq;
+ 	unsigned long core_rate_hz;
+ 	unsigned long core_current_rate_hz;
+@@ -355,6 +355,8 @@ struct rkvenc_ccu {
+ 	union rkvenc2_dual_core_handshake_id dchs[RKVENC_MAX_CORE_NUM];
+ };
+ 
++static int rkvenc2_free_rcbbuf(struct platform_device *pdev, struct rkvenc_dev *enc);
++
+ static struct rkvenc_hw_info rkvenc_v2_hw_info = {
+ 	.hw = {
+ 		.reg_num = 254,
+@@ -2134,7 +2136,7 @@ static inline int rkvenc_procfs_ccu_init(struct mpp_dev *mpp)
+ }
+ #endif
+ 
+-#ifdef CONFIG_PM_DEVFREQ
++#ifdef CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ
+ static int rkvenc_devfreq_target(struct device *dev,
+ 				 unsigned long *freq, u32 flags)
+ {
+@@ -2404,7 +2406,7 @@ static int rkvenc_init(struct mpp_dev *mpp)
+ 	if (!enc->rst_core)
+ 		mpp_err("No core reset resource define\n");
+ 
+-#ifdef CONFIG_PM_DEVFREQ
++#ifdef CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ
+ 	ret = rkvenc_devfreq_init(mpp);
+ 	if (ret)
+ 		dev_dbg(mpp->dev, "venc devfreq not enabled (core clock pinned via DT)\n");
+@@ -2415,7 +2417,7 @@ static int rkvenc_init(struct mpp_dev *mpp)
+ 
+ static int rkvenc_exit(struct mpp_dev *mpp)
+ {
+-#ifdef CONFIG_PM_DEVFREQ
++#ifdef CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ
+ 	rkvenc_devfreq_remove(mpp);
+ #endif
+ 
+@@ -2458,7 +2460,7 @@ static int rkvenc_reset(struct mpp_dev *mpp)
+ 
+ 	mpp_debug_enter();
+ 
+-#ifdef CONFIG_PM_DEVFREQ
++#ifdef CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ
+ 	if (enc->devfreq)
+ 		mutex_lock(&enc->devfreq->lock);
+ #endif
+@@ -2490,7 +2492,7 @@ static int rkvenc_reset(struct mpp_dev *mpp)
+ 
+ 	mpp_dbg_core("core %d reset idle %lx\n", mpp->core_id, queue->core_idle);
+ 
+-#ifdef CONFIG_PM_DEVFREQ
++#ifdef CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ
+ 	if (enc->devfreq)
+ 		mutex_unlock(&enc->devfreq->lock);
+ #endif
+@@ -2529,7 +2531,7 @@ static int rkvenc_set_freq(struct mpp_dev *mpp, struct mpp_task *mpp_task)
+ 
+ 	mpp_clk_set_rate(&enc->aclk_info, task->clk_mode);
+ 
+-#ifdef CONFIG_PM_DEVFREQ
++#ifdef CONFIG_ROCKCHIP_MPP_RKVENC2_DEVFREQ
+ 	if (enc->devfreq) {
+ 		unsigned long core_rate_hz;
+ 
+@@ -2642,22 +2644,45 @@ static int rkvenc2_wait_result(struct mpp_session *session,
+ 
+ 	if (!enc_task->task_split || enc_task->task_split_done) {
+ task_done_ret:
+-		ret = wait_event_interruptible(task->wait, test_bit(TASK_STATE_DONE, &task->state));
+-		if (ret == -ERESTARTSYS)
+-			mpp_err("wait task break by signal in normal mode\n");
++		if (msgs->flags & MPP_FLAGS_POLL_NON_BLOCK) {
++			if (!test_bit(TASK_STATE_DONE, &task->state))
++				return -EAGAIN;
++		} else {
++			ret = wait_event_interruptible(task->wait,
++						       test_bit(TASK_STATE_DONE, &task->state));
++			if (ret) {
++				if (ret == -ERESTARTSYS)
++					mpp_err("wait task break by signal in normal mode\n");
++				return ret;
++			}
++		}
++
++		ret = rkvenc2_task_default_process(mpp, task);
++		if (!ret && test_bit(TASK_STATE_ABORT, &task->state))
++			ret = -EIO;
+ 
+-		return rkvenc2_task_default_process(mpp, task);
++		return ret;
+ 
+ 	}
+ 
+ 	/* not slice return just wait all slice length */
+ 	if (!req) {
+ 		do {
+-			ret = wait_event_interruptible(task->wait, kfifo_out(&enc_task->slice_info,
+-									     &slice_info, 1));
+-			if (ret == -ERESTARTSYS) {
+-				mpp_err("wait task break by signal in slice all mode\n");
+-				return 0;
++			if (msgs->flags & MPP_FLAGS_POLL_NON_BLOCK) {
++				if (!kfifo_out(&enc_task->slice_info, &slice_info, 1)) {
++					if (test_bit(TASK_STATE_DONE, &task->state))
++						goto task_done_ret;
++					return -EAGAIN;
++				}
++			} else {
++				ret = wait_event_interruptible(task->wait,
++							       kfifo_out(&enc_task->slice_info,
++								 &slice_info, 1));
++				if (ret) {
++					if (ret == -ERESTARTSYS)
++						mpp_err("wait task break by signal in slice all mode\n");
++					return ret;
++				}
+ 			}
+ 			mpp_dbg_slice("task %d rd %3d len %d %s\n",
+ 					task_id, enc_task->slice_rd_cnt, slice_info.slice_len,
+@@ -2681,11 +2706,21 @@ static int rkvenc2_wait_result(struct mpp_session *session,
+ 
+ 	/* handle slice mode poll return */
+ 	do {
+-		ret = wait_event_interruptible(task->wait, kfifo_out(&enc_task->slice_info,
+-								     &slice_info, 1));
+-		if (ret == -ERESTARTSYS) {
+-			mpp_err("wait task break by signal in slice one mode\n");
+-			return 0;
++		if (msgs->flags & MPP_FLAGS_POLL_NON_BLOCK) {
++			if (!kfifo_out(&enc_task->slice_info, &slice_info, 1)) {
++				if (test_bit(TASK_STATE_DONE, &task->state))
++					goto task_done_ret;
++				return -EAGAIN;
++			}
++		} else {
++			ret = wait_event_interruptible(task->wait,
++						       kfifo_out(&enc_task->slice_info,
++							 &slice_info, 1));
++			if (ret) {
++				if (ret == -ERESTARTSYS)
++					mpp_err("wait task break by signal in slice one mode\n");
++				return ret;
++			}
+ 		}
+ 		mpp_dbg_slice("core %d task %d rd %3d len %d %s\n", task_id,
+ 				mpp->core_id, enc_task->slice_rd_cnt, slice_info.slice_len,
+@@ -2785,7 +2820,7 @@ static const struct mpp_dev_var rkvenc_v2_data = {
+ 	.dev_ops = &rkvenc_dev_ops_v2,
+ };
+ 
+-static const struct mpp_dev_var rkvenc_540c_data = {
++static const struct mpp_dev_var rkvenc_540c_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVENC,
+ 	.hw_info = &rkvenc_540c_hw_info.hw,
+ 	.trans_info = trans_rkvenc_540c,
+@@ -2793,7 +2828,7 @@ static const struct mpp_dev_var rkvenc_540c_data = {
+ 	.dev_ops = &vepu540c_dev_ops_v2,
+ };
+ 
+-static const struct mpp_dev_var rkvenc_510_data = {
++static const struct mpp_dev_var rkvenc_510_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVENC,
+ 	.hw_info = &rkvenc_510_hw_info.hw,
+ 	.trans_info = trans_rkvenc_540c,
+@@ -2801,7 +2836,7 @@ static const struct mpp_dev_var rkvenc_510_data = {
+ 	.dev_ops = &rkvenc_dev_ops_v2,
+ };
+ 
+-static const struct mpp_dev_var rkvenc_511_data = {
++static const struct mpp_dev_var rkvenc_511_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVENC,
+ 	.hw_info = &rkvenc_511_hw_info.hw,
+ 	.trans_info = trans_rkvenc_511,
+@@ -2817,7 +2852,7 @@ static const struct mpp_dev_var rkvenc_ccu_data = {
+ 	.dev_ops = &rkvenc_ccu_dev_ops,
+ };
+ 
+-static const struct mpp_dev_var rkvenc_rk3576_ccu_data = {
++static const struct mpp_dev_var rkvenc_rk3576_ccu_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVENC,
+ 	.hw_info = &rkvenc_510_hw_info.hw,
+ 	.trans_info = trans_rkvenc_540c,
+@@ -2903,6 +2938,7 @@ static int rkvenc_ccu_probe(struct platform_device *pdev)
+ 
+ static int rkvenc_attach_ccu(struct device *dev, struct rkvenc_dev *enc)
+ {
++	int ret = 0;
+ 	struct device_node *np;
+ 	struct platform_device *pdev;
+ 	struct rkvenc_ccu *ccu;
+@@ -2946,16 +2982,28 @@ static int rkvenc_attach_ccu(struct device *dev, struct rkvenc_dev *enc)
+ 		ccu->main_core = &enc->mpp;
+ 	} else {
+ 		struct mpp_iommu_info *ccu_info, *cur_info;
++		struct iommu_domain *old_domain;
++		struct rw_semaphore *old_rw_sem;
+ 
+ 		/* set the ccu-domain for current device */
+ 		ccu_info = ccu->main_core->iommu_info;
+ 		cur_info = enc->mpp.iommu_info;
++		if (!ccu_info || !cur_info) {
++			ret = -ENODEV;
++			goto err_detach_core;
++		}
+ 
+-		if (cur_info) {
+-			cur_info->domain = ccu_info->domain;
+-			cur_info->rw_sem = ccu_info->rw_sem;
++		old_domain = cur_info->domain;
++		old_rw_sem = cur_info->rw_sem;
++		cur_info->domain = ccu_info->domain;
++		cur_info->rw_sem = ccu_info->rw_sem;
++
++		ret = mpp_iommu_attach(cur_info);
++		if (ret) {
++			cur_info->domain = old_domain;
++			cur_info->rw_sem = old_rw_sem;
++			goto err_detach_core;
+ 		}
+-		mpp_iommu_attach(cur_info);
+ 
+ 		/* increase main core message capacity */
+ 		ccu->main_core->msgs_cap++;
+@@ -2967,6 +3015,39 @@ static int rkvenc_attach_ccu(struct device *dev, struct rkvenc_dev *enc)
+ 	mpp_debug_enter();
+ 
+ 	return 0;
++
++err_detach_core:
++	mutex_lock(&ccu->lock);
++	list_del_init(&enc->core_link);
++	ccu->core_num--;
++	mutex_unlock(&ccu->lock);
++	put_device(&pdev->dev);
++	return ret;
++}
++
++static void rkvenc_detach_ccu(struct rkvenc_dev *enc)
++{
++	struct rkvenc_ccu *ccu = enc->ccu;
++
++	if (!ccu)
++		return;
++
++	mutex_lock(&ccu->lock);
++	if (!list_empty(&enc->core_link)) {
++		list_del_init(&enc->core_link);
++		if (ccu->core_num)
++			ccu->core_num--;
++	}
++
++	if (ccu->main_core == &enc->mpp) {
++		ccu->main_core = NULL;
++	} else if (ccu->main_core && !enc->mpp.msgs_cap &&
++		   ccu->main_core->msgs_cap) {
++		ccu->main_core->msgs_cap--;
++	}
++	mutex_unlock(&ccu->lock);
++
++	enc->ccu = NULL;
+ }
+ 
+ static int rkvenc2_alloc_rcbbuf(struct platform_device *pdev, struct rkvenc_dev *enc)
+@@ -3140,7 +3221,7 @@ static int rkvenc_core_probe(struct platform_device *pdev)
+ 	ret = rkvenc_attach_ccu(dev, enc);
+ 	if (ret) {
+ 		dev_err(dev, "attach ccu failed\n");
+-		return ret;
++		goto err_remove_mpp;
+ 	}
+ 	rkvenc2_alloc_rcbbuf(pdev, enc);
+ 
+@@ -3151,7 +3232,7 @@ static int rkvenc_core_probe(struct platform_device *pdev)
+ 					dev_name(dev), mpp);
+ 	if (ret) {
+ 		dev_err(dev, "register interrupter runtime failed\n");
+-		return -EINVAL;
++		goto err_detach_ccu;
+ 	}
+ 	mpp->session_max_buffers = RKVENC_SESSION_MAX_BUFFERS;
+ 	enc->hw_info = to_rkvenc_info(mpp->var->hw_info);
+@@ -3164,6 +3245,13 @@ static int rkvenc_core_probe(struct platform_device *pdev)
+ 		mpp_dev_register_srv(mpp, mpp->srv);
+ 
+ 	return 0;
++
++err_detach_ccu:
++	rkvenc2_free_rcbbuf(pdev, enc);
++	rkvenc_detach_ccu(enc);
++err_remove_mpp:
++	mpp_dev_remove(mpp);
++	return ret;
+ }
+ 
+ static int rkvenc_probe_default(struct platform_device *pdev)
+@@ -3265,12 +3353,7 @@ static void rkvenc_remove(struct platform_device *pdev)
+ 		struct rkvenc_dev *enc = to_rkvenc_dev(mpp);
+ 
+ 		dev_info(dev, "remove core\n");
+-		if (enc->ccu) {
+-			mutex_lock(&enc->ccu->lock);
+-			list_del_init(&enc->core_link);
+-			enc->ccu->core_num--;
+-			mutex_unlock(&enc->ccu->lock);
+-		}
++		rkvenc_detach_ccu(enc);
+ 		rkvenc2_free_rcbbuf(pdev, enc);
+ 		mpp_dev_remove(&enc->mpp);
+ 		rkvenc_procfs_remove(&enc->mpp);
+diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
+index 6303756e0c24b..8d397e979e83d 100644
+--- a/drivers/video/rockchip/mpp/mpp_service.c
++++ b/drivers/video/rockchip/mpp/mpp_service.c
+@@ -8,6 +8,7 @@
+  *	Ding Wei, leo.ding@rock-chips.com
+  *
+  */
++#undef pr_fmt
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
+ #include <linux/completion.h>
+diff --git a/include/uapi/linux/rk-mpp.h b/include/uapi/linux/rk-mpp.h
+index 9a24407001ec6..2244b63f405c9 100644
+--- a/include/uapi/linux/rk-mpp.h
++++ b/include/uapi/linux/rk-mpp.h
+@@ -49,6 +49,7 @@ enum MPP_DEV_COMMAND_TYPE {
+ 	MPP_CMD_TRANS_FD_TO_IOVA	= MPP_CMD_CONTROL_BASE + 1,
+ 	MPP_CMD_RELEASE_FD		= MPP_CMD_CONTROL_BASE + 2,
+ 	MPP_CMD_SEND_CODEC_INFO		= MPP_CMD_CONTROL_BASE + 3,
++	MPP_CMD_SET_ERR_REF_HACK	= MPP_CMD_CONTROL_BASE + 4,
+ 	MPP_CMD_CONTROL_BUTT,
+ 
+ 	MPP_CMD_BUTT,
+@@ -59,7 +60,9 @@ enum MPP_DEV_COMMAND_TYPE {
+ #define MPP_FLAGS_LAST_MSG		(0x00000002)
+ #define MPP_FLAGS_REG_FD_NO_TRANS	(0x00000004)
+ #define MPP_FLAGS_SCL_FD_NO_TRANS	(0x00000008)
+-#define MPP_FLAGS_REG_NO_OFFSET		(0x00000010)
++#define MPP_FLAGS_REG_OFFSET_ALONE	(0x00000010)
++#define MPP_FLAGS_REG_NO_OFFSET		MPP_FLAGS_REG_OFFSET_ALONE
++#define MPP_FLAGS_POLL_NON_BLOCK	(0x00000020)
+ #define MPP_FLAGS_SECURE_MODE		(0x00010000)
+ 
+ /* data common struct for parse out */

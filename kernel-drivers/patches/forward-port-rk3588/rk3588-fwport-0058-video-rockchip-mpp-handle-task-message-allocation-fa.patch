@@ -1,0 +1,41 @@
+From 1fee90f5b9c5c5f2fed7e40b94e02b8399ffadcb Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Wed, 22 Jul 2026 08:11:21 -0700
+Subject: [PATCH 58/71] video: rockchip: mpp: handle task message allocation
+ failure
+
+get_task_msgs() dereferenced a failed kzalloc before its caller
+could handle NULL. Return NULL cleanly and release the held session
+fd when SET_SESSION_FD cannot allocate its message batch.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/mpp/mpp_common.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 1ac08b3144cb3..2b5fb5bbf0e0b 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -291,6 +291,8 @@ static struct mpp_task_msgs *get_task_msgs(struct mpp_session *session)
+ 	spin_unlock_irqrestore(&session->lock_msgs, flags);
+ 
+ 	msgs = kzalloc(sizeof(*msgs), GFP_KERNEL);
++	if (!msgs)
++		return NULL;
+ 	task_msgs_init(msgs, session);
+ 	INIT_LIST_HEAD(&msgs->list_session);
+ 
+@@ -1739,7 +1741,11 @@ static int mpp_collect_msgs(struct list_head *head, struct mpp_session *session,
+ 		/* switch session */
+ 		session = fd_file(f)->private_data;
+ 		msgs = get_task_msgs(session);
+-
++		if (!msgs) {
++			/* alloc failed: release the held fd, don't deref NULL */
++			fdput(f);
++			return -ENOMEM;
++		}
+ 		if (fd_file(f)->private_data == session)
+ 			msgs->ext_fd = bat_msg.fd;
+ 

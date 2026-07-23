@@ -93,7 +93,7 @@ Validation completed without touching the wedged runtime device:
   `mpp_rkvdec2_link.o` all compile successfully against the forward-port config.
 
 The fix is exported as
-`kernel-drivers/patches/forward-port-rk3588-av1/rk3588-av1-fwport-0041-*`.
+`kernel-drivers/patches/forward-port-rk3588/rk3588-fwport-0040-*`.
 The preceding `0040` folds the already-reviewed RGA session-refcount fix into
 the same canonical series through sequence number `0041` (`0012` is omitted
 because the base already carries it).

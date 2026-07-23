@@ -1,0 +1,109 @@
+From 2dae7f05f5288d2ec9faa0a6ccd3d920f54d13c6 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Fri, 3 Jul 2026 20:28:54 -0700
+Subject: [PATCH 10/71] video: rockchip: mpp: convert rkvenc2 CCU attach to
+ shared-domain helper
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Move rkvenc_attach_ccu()/rkvenc_detach_ccu() onto the mpp_iommu_shared_domain
+object (plan §4), completing the CCU IOMMU rework started for the decoder:
+
+  - the first attached core initializes ccu->iommu from its own iommu_info and
+    becomes main_core (the owner);
+  - secondary cores join through mpp_iommu_shared_domain_bind() instead of the
+    open-coded domain/rw_sem swap; the borrowed fields roll back on attach
+    failure exactly as before;
+  - msgs_cap bookkeeping still happens only after the IOMMU join succeeds, and
+    the err_detach_core unwind is preserved;
+  - detach resets ccu->iommu when the owner leaves so a re-attach re-inits.
+
+No functional change: the encoder already shared the owner's rw_sem, so this is
+a mechanical move to explicit cluster-owned domain state. Encoder and decoder
+now use the same helper; the owner is main_core (encoder) / core 0 (decoder),
+matching which core registers /dev/mpp_service.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 45 ++++++++++++------------
+ 1 file changed, 22 insertions(+), 23 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 54ce553979199..5a7bce7841966 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -350,6 +350,8 @@ struct rkvenc_ccu {
+ 	struct mutex lock;
+ 	struct list_head core_list;
+ 	struct mpp_dev *main_core;
++	/* cluster shared IOMMU domain, owned by main_core */
++	struct mpp_iommu_shared_domain iommu;
+ 
+ 	spinlock_t lock_dchs;
+ 	union rkvenc2_dual_core_handshake_id dchs[RKVENC_MAX_CORE_NUM];
+@@ -2973,37 +2975,32 @@ static int rkvenc_attach_ccu(struct device *dev, struct rkvenc_dev *enc)
+ 	list_add_tail(&enc->core_link, &ccu->core_list);
+ 	mutex_unlock(&ccu->lock);
+ 
+-	/* attach the ccu-domain to current core */
++	/*
++	 * Establish or join the cluster's shared IOMMU domain. The first core to
++	 * attach becomes the main core and owns the shared domain (its default
++	 * DMA domain); later cores join it -- borrowing its domain and rw_sem --
++	 * through the helper, replacing the old open-coded per-core field swap.
++	 */
+ 	if (!ccu->main_core) {
+-		/**
+-		 * set the first device for the main-core,
+-		 * then the domain of the main-core named ccu-domain
+-		 */
++		if (!enc->mpp.iommu_info) {
++			ret = -ENODEV;
++			goto err_detach_core;
++		}
++		ret = mpp_iommu_shared_domain_init(&ccu->iommu, enc->mpp.iommu_info);
++		if (ret)
++			goto err_detach_core;
+ 		ccu->main_core = &enc->mpp;
+ 	} else {
+-		struct mpp_iommu_info *ccu_info, *cur_info;
+-		struct iommu_domain *old_domain;
+-		struct rw_semaphore *old_rw_sem;
+-
+-		/* set the ccu-domain for current device */
+-		ccu_info = ccu->main_core->iommu_info;
+-		cur_info = enc->mpp.iommu_info;
+-		if (!ccu_info || !cur_info) {
++		struct mpp_iommu_info *cur_info = enc->mpp.iommu_info;
++
++		if (!cur_info) {
+ 			ret = -ENODEV;
+ 			goto err_detach_core;
+ 		}
+ 
+-		old_domain = cur_info->domain;
+-		old_rw_sem = cur_info->rw_sem;
+-		cur_info->domain = ccu_info->domain;
+-		cur_info->rw_sem = ccu_info->rw_sem;
+-
+-		ret = mpp_iommu_attach(cur_info);
+-		if (ret) {
+-			cur_info->domain = old_domain;
+-			cur_info->rw_sem = old_rw_sem;
++		ret = mpp_iommu_shared_domain_bind(&ccu->iommu, cur_info);
++		if (ret)
+ 			goto err_detach_core;
+-		}
+ 
+ 		/* increase main core message capacity */
+ 		ccu->main_core->msgs_cap++;
+@@ -3041,6 +3038,8 @@ static void rkvenc_detach_ccu(struct rkvenc_dev *enc)
+ 
+ 	if (ccu->main_core == &enc->mpp) {
+ 		ccu->main_core = NULL;
++		/* owner is gone; reset the shared domain so a re-attach re-inits */
++		memset(&ccu->iommu, 0, sizeof(ccu->iommu));
+ 	} else if (ccu->main_core && !enc->mpp.msgs_cap &&
+ 		   ccu->main_core->msgs_cap) {
+ 		ccu->main_core->msgs_cap--;

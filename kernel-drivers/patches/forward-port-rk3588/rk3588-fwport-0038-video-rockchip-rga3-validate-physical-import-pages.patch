@@ -1,0 +1,101 @@
+From 25e630cbcfca2ae9b1b3a6e9aaea5c469f3d5d4d Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Thu, 16 Jul 2026 20:20:08 -0700
+Subject: [PATCH 38/71] video: rockchip: rga3: validate physical import pages
+
+RGA physical-address imports currently accept any pfn_valid() base.
+They pass the resulting pages to dma_map_sg(). On arm64, pfn_valid()
+can be true for sparse-memory holes and no-map ranges. An invalid
+userspace address can then reach cache maintenance through a bogus
+direct-map alias and crash the kernel.
+
+Reject byte ranges that overflow phys_addr_t. Validate every page with
+virt_addr_valid() before constructing the scatterlist, and detect
+page-step overflow. This keeps valid mapped System RAM imports working
+while rejecting holes before DMA mapping. Also remove the user-triggerable
+WARN_ON_ONCE().
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/rga3/rga_mm.c | 34 +++++++++++++++++++---------
+ 1 file changed, 23 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 1994ef25aaae7..3d54c39b026e8 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -5,6 +5,8 @@
+  * Author: Cerf Yu <cerf.yu@rock-chips.com>
+  */
+ 
++#include <linux/overflow.h>
++
+ #include "rga.h"
+ #include "rga_job.h"
+ #include "rga_mm.h"
+@@ -356,16 +358,23 @@ static int rga_get_user_pages(struct page **pages, unsigned long Memory,
+ 
+ static int rga_get_phys_addr_pages(struct page **pages, phys_addr_t phys_addr, uint32_t page_count)
+ {
+-	int i;
++	u32 i;
+ 	phys_addr_t addr;
+ 
+-	if (WARN_ON_ONCE(!pfn_valid(PHYS_PFN(phys_addr))))
+-		return -EINVAL;
+-
+ 	addr = phys_addr;
+ 	for (i = 0; i < page_count; i++) {
++		/*
++		 * pfn_valid() only proves that a struct page exists.  It can be
++		 * true for sparse-memory holes and no-map ranges which cannot be
++		 * passed to dma_map_sg().
++		 */
++		if (!virt_addr_valid(phys_to_virt(addr)))
++			return -EINVAL;
++
+ 		pages[i] = phys_to_page(addr);
+-		addr += PAGE_SIZE;
++		if (i + 1 < page_count &&
++		    check_add_overflow(addr, (phys_addr_t)PAGE_SIZE, &addr))
++			return -EOVERFLOW;
+ 	}
+ 
+ 	return 0;
+@@ -559,11 +568,6 @@ static int rga_mm_check_range_sgt(struct sg_table *sgt)
+ 	return 1;
+ }
+ 
+-static inline int rga_mm_check_range_phys_addr(phys_addr_t paddr, size_t size)
+-{
+-	return ((paddr + size) <= 0xffffffff);
+-}
+-
+ static inline bool rga_mm_check_contiguous_sgt(struct sg_table *sgt)
+ {
+ 	if (sgt->orig_nents == 1)
+@@ -912,6 +916,7 @@ static int rga_mm_map_phys_addr(struct rga_external_buffer *external_buffer,
+ 	size_t offset;
+ 	uint32_t mm_flag = 0;
+ 	uint32_t page_count;
++	phys_addr_t phys_addr_end;
+ 	phys_addr_t phys_addr, phys_addr_aligned;
+ 	struct page **pages = NULL;
+ 	struct sg_table *sgt = NULL;
+@@ -940,8 +945,15 @@ static int rga_mm_map_phys_addr(struct rga_external_buffer *external_buffer,
+ 	}
+ 
+ 	phys_addr = external_buffer->memory;
++	if (check_add_overflow(phys_addr, (phys_addr_t)buffer_size - 1,
++			       &phys_addr_end)) {
++		rga_err("physical address range overflows: address = 0x%llx, size = %d\n",
++			(unsigned long long)phys_addr, buffer_size);
++		return -EOVERFLOW;
++	}
++
+ 	mm_flag |= RGA_MEM_PHYSICAL_CONTIGUOUS;
+-	if (rga_mm_check_range_phys_addr(phys_addr, buffer_size))
++	if (phys_addr <= U32_MAX && phys_addr_end <= U32_MAX)
+ 		mm_flag |= RGA_MEM_UNDER_4G;
+ 
+ 	if (!rga_mm_check_memory_limit(scheduler, mm_flag)) {

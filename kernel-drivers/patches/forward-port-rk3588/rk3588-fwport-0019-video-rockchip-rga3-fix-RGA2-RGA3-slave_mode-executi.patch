@@ -1,0 +1,104 @@
+From be4fe6f1b7a1514b75c5b472e3fc1810ae17c4a6 Mon Sep 17 00:00:00 2001
+From: Yu Qiaowei <cerf.yu@rock-chips.com>
+Date: Thu, 9 Apr 2026 20:44:30 +0800
+Subject: [PATCH 19/71] video: rockchip: rga3: fix RGA2/RGA3 slave_mode
+ execution failure after master_mode
+
+Change-Id: I646a548655eb495a7a653c0dab9ce7f69a757530
+Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
+(cherry picked from commit 0c1499fbace40fced764935e62893bad0875352d)
+---
+ drivers/video/rockchip/rga3/rga2_reg_info.c | 15 +++++++++------
+ drivers/video/rockchip/rga3/rga3_reg_info.c | 18 ++++++++++--------
+ 2 files changed, 19 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga2_reg_info.c b/drivers/video/rockchip/rga3/rga2_reg_info.c
+index 501c31a7608df..577374fb2635b 100644
+--- a/drivers/video/rockchip/rga3/rga2_reg_info.c
++++ b/drivers/video/rockchip/rga3/rga2_reg_info.c
+@@ -3237,12 +3237,10 @@ static int rga2_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
+ 		  RGA2_INT, scheduler);
+ 
+ 	if (master_mode_en) {
+-		/* master mode */
+-		sys_ctrl |= s_RGA2_SYS_CTRL_CMD_MODE(1);
+-
+ 		/* set cmd_addr */
+ 		rga_write(job->cmd_buf->dma_addr, RGA2_CMD_BASE, scheduler);
+-		rga_write(sys_ctrl, RGA2_SYS_CTRL, scheduler);
++		/* master mode */
++		rga_write(sys_ctrl | s_RGA2_SYS_CTRL_CMD_MODE(1), RGA2_SYS_CTRL, scheduler);
+ 
+ 		rga_write(s_RGA2_MAX_RD_OUTSTANDING(RGA2_MAX_RD_OUTSTANDING) |
+ 			  s_RGA2_CMD_CTRL_INCR_NUM(job->task_count - 1) |
+@@ -3251,14 +3249,19 @@ static int rga2_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
+ 			  RGA2_CMD_CTRL, scheduler);
+ 	} else {
+ 		/* slave mode */
+-		sys_ctrl |= s_RGA2_SYS_CTRL_CMD_MODE(0) | m_RGA2_SYS_CTRL_CMD_OP_ST_P;
++		rga_write(sys_ctrl | s_RGA2_SYS_CTRL_CMD_MODE(0), RGA2_SYS_CTRL, scheduler);
++		rga_write(0, RGA2_CMD_BASE, scheduler);
++		rga_write(s_RGA2_MAX_RD_OUTSTANDING(RGA2_MAX_RD_OUTSTANDING),
++			  RGA2_CMD_CTRL, scheduler);
+ 
+ 		/* set cmd_reg */
+ 		cmd = job->cmd_buf->vaddr;
+ 		for (i = 0; i < scheduler->data->cmd_reg_size; i++)
+ 			rga_write(cmd[i], 0x100 + i * 4, scheduler);
+ 
+-		rga_write(sys_ctrl, RGA2_SYS_CTRL, scheduler);
++		rga_write(sys_ctrl |
++			  s_RGA2_SYS_CTRL_CMD_MODE(0) |
++			  m_RGA2_SYS_CTRL_CMD_OP_ST_P, RGA2_SYS_CTRL, scheduler);
+ 	}
+ 
+ 	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+diff --git a/drivers/video/rockchip/rga3/rga3_reg_info.c b/drivers/video/rockchip/rga3/rga3_reg_info.c
+index fceca4a067918..4506ab7063f4f 100644
+--- a/drivers/video/rockchip/rga3/rga3_reg_info.c
++++ b/drivers/video/rockchip/rga3/rga3_reg_info.c
+@@ -2157,6 +2157,8 @@ static int rga3_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
+ 		rga3_dump_read_back_iommu_reg(job, scheduler);
+ 	}
+ 
++	sys_ctrl = m_RGA3_SYS_CTRL_RGA_LGC_CLK_ON;
++
+ 	/* All CMD finish int */
+ 	if (master_mode_en)
+ 		int_en = m_RGA3_INT_CMD_LINE_FINISH | m_RGA3_INT_ERROR_MASK;
+@@ -2164,27 +2166,27 @@ static int rga3_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
+ 		int_en = m_RGA3_INT_FRM_DONE | m_RGA3_INT_CMD_LINE_FINISH | m_RGA3_INT_ERROR_MASK;
+ 	rga_write(int_en, RGA3_INT_EN, scheduler);
+ 
+-	sys_ctrl = m_RGA3_SYS_CTRL_RGA_LGC_CLK_ON;
+-
+ 	if (master_mode_en) {
+-		/* master mode */
+-		sys_ctrl |= s_RGA3_SYS_CTRL_CMD_MODE(1);
+-
+ 		rga_write(job->cmd_buf->dma_addr, RGA3_CMD_ADDR, scheduler);
+-		rga_write(sys_ctrl, RGA3_SYS_CTRL, scheduler);
++		/* master mode */
++		rga_write(sys_ctrl | s_RGA3_SYS_CTRL_CMD_MODE(1), RGA3_SYS_CTRL, scheduler);
+ 		rga_write(s_RGA3_CMD_CTRL_CMD_INCR_NUM(job->task_count - 1) |
+ 			  s_RGA3_CMD_CTRL_CMD_STOP_MODE(0) |
+ 			  m_RGA3_CMD_CTRL_CMD_LINE_ST_P,
+ 			  RGA3_CMD_CTRL, scheduler);
+ 	} else {
+ 		/* slave mode */
+-		sys_ctrl |= s_RGA3_SYS_CTRL_CMD_MODE(0) | m_RGA3_SYS_CTRL_RGA_SART;
++		rga_write(sys_ctrl | s_RGA3_SYS_CTRL_CMD_MODE(0), RGA3_SYS_CTRL, scheduler);
++		rga_write(0, RGA3_CMD_ADDR, scheduler);
++		rga_write(0, RGA3_CMD_CTRL, scheduler);
+ 
+ 		cmd = job->cmd_buf->vaddr;
+ 		for (i = 0; i < scheduler->data->cmd_reg_size; i++)
+ 			rga_write(cmd[i], 0x100 + i * 4, scheduler);
+ 
+-		rga_write(sys_ctrl, RGA3_SYS_CTRL, scheduler);
++		rga_write(sys_ctrl |
++			  s_RGA3_SYS_CTRL_CMD_MODE(0) |
++			  m_RGA3_SYS_CTRL_RGA_SART, RGA3_SYS_CTRL, scheduler);
+ 	}
+ 
+ 	if (DEBUGGER_EN(TIME))

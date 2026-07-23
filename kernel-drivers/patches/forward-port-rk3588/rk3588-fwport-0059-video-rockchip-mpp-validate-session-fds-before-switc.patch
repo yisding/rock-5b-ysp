@@ -1,0 +1,49 @@
+From 40871595bbd191ebeb7d2825905a2b2dbd91f4a0 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Wed, 22 Jul 2026 08:11:53 -0700
+Subject: [PATCH 59/71] video: rockchip: mpp: validate session fds before
+ switching
+
+MPP_CMD_SET_SESSION_FD compared private_data with the value just
+assigned from private_data, so any fd passed the check. Require
+the Rockchip MPP file operations before treating private_data as
+an mpp_session.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/mpp/mpp_common.c | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 2b5fb5bbf0e0b..8690232fd23eb 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -1738,6 +1738,17 @@ static int mpp_collect_msgs(struct list_head *head, struct mpp_session *session,
+ 			msgs = NULL;
+ 		}
+ 
++		/* validate the fd actually refers to an mpp device file */
++		if (fd_file(f)->f_op != &rockchip_mpp_fops) {
++			int ret = -EBADF;
++
++			mpp_err("fd %d is not an mpp session\n", bat_msg.fd);
++			fdput(f);
++			if (copy_to_user(&usr_cmd->ret, &ret, sizeof(usr_cmd->ret)))
++				mpp_err("copy_to_user failed.\n");
++			goto session_switch_done;
++		}
++
+ 		/* switch session */
+ 		session = fd_file(f)->private_data;
+ 		msgs = get_task_msgs(session);
+@@ -1746,9 +1757,7 @@ static int mpp_collect_msgs(struct list_head *head, struct mpp_session *session,
+ 			fdput(f);
+ 			return -ENOMEM;
+ 		}
+-		if (fd_file(f)->private_data == session)
+-			msgs->ext_fd = bat_msg.fd;
+-
++		msgs->ext_fd = bat_msg.fd;
+ 		msgs->f = f;
+ 
+ 		mpp_debug(DEBUG_IOCTL, "fd %d, session %d msg_cnt %d\n",

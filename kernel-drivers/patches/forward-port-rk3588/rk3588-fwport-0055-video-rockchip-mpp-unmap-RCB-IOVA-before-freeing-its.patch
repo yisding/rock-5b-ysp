@@ -1,0 +1,78 @@
+From b444c0e4df7f72634a31cb0b10ac4926406af4f9 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 21 Jul 2026 18:04:34 -0700
+Subject: [PATCH 55/71] video: rockchip: mpp: unmap RCB IOVA before freeing its
+ pages
+
+rkvdec2_free_rcbbuf() and rkvenc2_free_rcbbuf() called __free_pages() on
+the RCB backing pages before iommu_unmap() removed their fixed-IOVA
+mapping. That returns the pages to the allocator while the IOMMU still
+translates the IOVA to them, so a subsequent allocation of the same
+pages can be written by in-flight or replayed hardware DMA through the
+stale mapping.
+
+Reverse the order in both free helpers: remove the IOMMU mapping first,
+then free the pages. This is the F8 finding from the forward-port
+lifetime audit; the ordering is unchanged BSP code. Reachable on
+probe-failure unwind and platform remove/unbind.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c | 9 +++++++--
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 9 +++++++--
+ 2 files changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index 4e36f7ad897fd..b54341ba4d8e1 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -2166,6 +2166,13 @@ int rkvdec2_free_rcbbuf(struct platform_device *pdev, struct rkvdec2_dev *dec)
+ 	struct mpp_iommu_info *info = dec->mpp.iommu_info;
+ 	struct iommu_domain *domain = info ? info->domain : NULL;
+ 
++	/*
++	 * Remove the IOMMU mapping before returning the pages to the
++	 * allocator; otherwise reused pages remain reachable through the
++	 * still-live IOVA and hardware DMA can land in another owner's memory.
++	 */
++	if (dec->rcb_iova && domain)
++		iommu_unmap(domain, dec->rcb_iova, dec->rcb_size);
+ 	if (dec->rcb_page) {
+ 		size_t page_size = PAGE_ALIGN(dec->rcb_size - dec->sram_size);
+ 		int order = min(get_order(page_size), MAX_PAGE_ORDER);
+@@ -2173,8 +2180,6 @@ int rkvdec2_free_rcbbuf(struct platform_device *pdev, struct rkvdec2_dev *dec)
+ 		__free_pages(dec->rcb_page, order);
+ 		dec->rcb_page = NULL;
+ 	}
+-	if (dec->rcb_iova && domain)
+-		iommu_unmap(domain, dec->rcb_iova, dec->rcb_size);
+ 	if (dec->rcb_iova && info)
+ 		mpp_iommu_unreserve_iova(info, dec->rcb_iova, dec->rcb_size);
+ 	if (dec->rcb_iova && dec->ccu)
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 3549f3bda235d..5bade0e3880c9 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -3511,6 +3511,13 @@ static int rkvenc2_free_rcbbuf(struct platform_device *pdev, struct rkvenc_dev *
+ 	struct mpp_iommu_info *info = enc->mpp.iommu_info;
+ 	struct iommu_domain *domain = info ? info->domain : NULL;
+ 
++	/*
++	 * Remove the IOMMU mapping before returning the pages to the
++	 * allocator; otherwise reused pages remain reachable through the
++	 * still-live IOVA and hardware DMA can land in another owner's memory.
++	 */
++	if (enc->sram_iova && domain)
++		iommu_unmap(domain, enc->sram_iova, enc->sram_used);
+ 	if (enc->rcb_page) {
+ 		size_t page_size = PAGE_ALIGN(enc->sram_used - enc->sram_size);
+ 		int order = min(get_order(page_size), MAX_PAGE_ORDER);
+@@ -3518,8 +3525,6 @@ static int rkvenc2_free_rcbbuf(struct platform_device *pdev, struct rkvenc_dev *
+ 		__free_pages(enc->rcb_page, order);
+ 		enc->rcb_page = NULL;
+ 	}
+-	if (enc->sram_iova && domain)
+-		iommu_unmap(domain, enc->sram_iova, enc->sram_used);
+ 	if (enc->sram_iova && info)
+ 		mpp_iommu_unreserve_iova(info, enc->sram_iova, enc->sram_used);
+ 	if (enc->sram_iova && enc->ccu)

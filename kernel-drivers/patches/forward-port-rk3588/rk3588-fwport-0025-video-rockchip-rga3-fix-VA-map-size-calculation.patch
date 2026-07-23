@@ -1,0 +1,34 @@
+From 522f3e122206efb1d90cdf1c497b4ed83596e5a7 Mon Sep 17 00:00:00 2001
+From: Yu Qiaowei <cerf.yu@rock-chips.com>
+Date: Thu, 30 Apr 2026 10:30:46 +0800
+Subject: [PATCH 25/71] video: rockchip: rga3: fix VA map size calculation
+
+When shadow_page is active, the map size calculation did not account for
+the case where the offset is 0.
+
+Fixes: d242553f4281 ("video: rockchip: rga3: fix cache-line unaligned VA access fault")
+
+Change-Id: Ie3048d56970b118b80232a84835c4c99f3b77168
+Signed-off-by: Yu Qiaowei <cerf.yu@rock-chips.com>
+(cherry picked from commit 31aa12084e3b5e40e4f959beccf67695e4257f37)
+---
+ drivers/video/rockchip/rga3/rga_mm.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 9391d72188c1f..88623fca782dc 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -786,9 +786,10 @@ static int rga_mm_map_virt_addr(struct rga_external_buffer *external_buffer,
+ 			map_offset = 0;
+ 			map_size = (size_t)virt_addr->page_count << PAGE_SHIFT;
+ 		} else {
+-			map_offset = virt_addr->offset;
+ 			real_offset = 0;
+-			map_size = ((virt_addr->page_count - 1) << PAGE_SHIFT) + virt_addr->offset;
++			map_offset = virt_addr->offset;
++			map_size =
++				((size_t)virt_addr->page_count << PAGE_SHIFT) - virt_addr->offset;
+ 		}
+ 	} else {
+ 		real_offset = 0;

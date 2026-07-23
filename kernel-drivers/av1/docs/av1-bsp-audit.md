@@ -11,7 +11,7 @@ tracked separately in [the forward-port review log](../../../kernel-versions/doc
 
 > **Historical status:** this document records the first 2026-07-03 hardening
 > pass. The fixes are now exported in the tracked
-> [`forward-port-rk3588-av1`](../../patches/forward-port-rk3588-av1/README.md)
+> [`forward-port-rk3588`](../../patches/forward-port-rk3588/README.md)
 > series, and AV1 completed a 30/30-frame bit-exact board run on 2026-07-04.
 > A later adversarial review found additional unresolved common-core, session,
 > DMA-provenance, IOMMU, and recovery issues; use the

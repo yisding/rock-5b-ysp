@@ -1,0 +1,126 @@
+From b1de79e7e0f7f859f3d8b1ccda4b6f33ba6b873e Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 21 Jul 2026 17:21:00 -0700
+Subject: [PATCH 52/71] video: rockchip: mpp: don't oops when a task's session
+ has no device
+
+The async task worker mpp_task_worker_default() reads
+task->session->mpp directly and immediately dereferences it
+(mpp->dev_ops->prepare) with no NULL check, while the submit path
+mpp_process_task_default() guards the identical read
+(if (unlikely(!mpp)) return -EINVAL). A pending task whose session has
+no bound device therefore oopses the worker kthread on a NULL device
+pointer.
+
+This is the fatal rk_vcodec paging fault seen on the RK3588 forward-port
+KASAN build: the VP9 show_existing_frame conformance vector
+(vp90-2-10-show-existing-frame2.webm) corrupted MPP buffer state (the
+userspace decoders reported invalid buffer reference counts, buffer-slot
+assertions and leaked buffers), and ~47 s later -- asynchronously, not in
+any decode syscall -- the worker popped an orphaned pending task and
+faulted at 'Unable to handle kernel paging request' (a KASAN-shadow
+access for a near-NULL pointer, i.e. mpp->dev_ops off a NULL mpp). No
+call trace survived (ramoops does not persist across reset on this
+board), so the exact PC is inferred from the delayed-fault timing and the
+guarded-vs-unguarded asymmetry.
+
+Guard the worker and make orphaned tasks disposable end to end:
+
+- worker: fetch the device with mpp_get_task_used_device() (as every
+  other task site does, honouring task->mpp) and, if NULL, log and drop
+  the orphaned task via the pending pop instead of dereferencing it;
+- mpp_taskqueue_pop_pending(): only require task->session, not
+  task->session->mpp -- a NULL device must not make a task unremovable,
+  or the abort path spins on it forever (and leaks it);
+- mpp_free_task(): skip the device-side free and the mpp->task_count
+  decrement when there is no device (an orphan never bound one and never
+  incremented that counter), so freeing the orphan does not itself
+  dereference NULL;
+- try_process_running_task(): skip a running entry whose device is NULL
+  rather than dereferencing mpp->irq.
+
+The kernel must not crash regardless of what userspace decode did; this
+turns the hard lockup into a dropped task plus an error log. The upstream
+trigger -- the VP9 show_existing_frame reference-buffer refcount bug that
+corrupts the session in the first place -- is separate and lives in the
+MPP userspace decoder.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/mpp/mpp_common.c | 38 ++++++++++++++++++++++---
+ 1 file changed, 34 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 65cb3a625f5b3..f19728d8f73e1 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -103,7 +103,13 @@ static int
+ mpp_taskqueue_pop_pending(struct mpp_taskqueue *queue,
+ 			  struct mpp_task *task)
+ {
+-	if (!task->session || !task->session->mpp)
++	/*
++	 * Only the session backpointer is needed to unlink and drop the task.
++	 * A task whose session has no bound device (session->mpp == NULL) must
++	 * still be removable here -- otherwise an orphaned task becomes
++	 * unremovable and the worker's abort path spins on it forever.
++	 */
++	if (!task->session)
+ 		return -EINVAL;
+ 
+ 	mutex_lock(&queue->pending_lock);
+@@ -565,12 +571,18 @@ void mpp_free_task(struct kref *ref)
+ 		       task->state, atomic_read(&task->abort_request));
+ 
+ 	mpp = mpp_get_task_used_device(task, session);
+-	if (mpp->dev_ops->free_task)
++	/*
++	 * An orphaned task (session never bound a device, so both task->mpp
++	 * and session->mpp are NULL) must still be freeable without
++	 * dereferencing the missing device.
++	 */
++	if (mpp && mpp->dev_ops->free_task)
+ 		mpp->dev_ops->free_task(session, task);
+ 
+ 	/* Decrease reference count */
+ 	atomic_dec(&session->task_count);
+-	atomic_dec(&mpp->task_count);
++	if (mpp)
++		atomic_dec(&mpp->task_count);
+ }
+ 
+ static void mpp_task_timeout_work(struct work_struct *work_s)
+@@ -957,6 +969,8 @@ static void try_process_running_task(struct mpp_dev *mpp)
+ 	/* try process running task */
+ 	list_for_each_entry_safe(mpp_task, n, &queue->running_list, queue_link) {
+ 		mpp = mpp_get_task_used_device(mpp_task, mpp_task->session);
++		if (unlikely(!mpp))
++			continue;
+ 		disable_irq(mpp->irq);
+ 		if (!test_bit(TASK_STATE_HANDLE, &mpp_task->state)) {
+ 			enable_irq(mpp->irq);
+@@ -1000,7 +1014,23 @@ static void mpp_task_worker_default(struct kthread_work *work_s)
+ 	}
+ 
+ 	/* get device for current task */
+-	mpp = task->session->mpp;
++	mpp = mpp_get_task_used_device(task, task->session);
++	if (unlikely(!mpp)) {
++		/*
++		 * The task's session has no bound device (client never
++		 * completed init, or its state was corrupted after a decode
++		 * error). The submit path guards this same dereference
++		 * (mpp_process_task_default); the worker must too, or it
++		 * oopses on a NULL device pointer -- the fatal rk_vcodec
++		 * paging fault observed on the VP9 show_existing_frame
++		 * vector. Drop the orphaned task so the queue makes progress
++		 * instead of dereferencing NULL.
++		 */
++		mpp_err("session %d:%d task has no device, dropping\n",
++			task->session->device_type, task->session->index);
++		mpp_taskqueue_pop_pending(queue, task);
++		goto again;
++	}
+ 
+ 	/*
+ 	 * In the link table mode, the prepare function of the device

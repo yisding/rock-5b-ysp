@@ -4,7 +4,7 @@
 > Linux 6.18 forward-port series through `0054`; resource ownership during
 > submit, completion, reset, close, probe failure, and remove/unbind.
 > Source: forward tree `linux-6.18-rkvenc-av1-fwport@e4c9b62669526` and the
-> tracked [`forward-port-rk3588-av1`](../kernel-drivers/patches/forward-port-rk3588-av1/README.md)
+> tracked [`forward-port-rk3588`](../kernel-drivers/patches/forward-port-rk3588/README.md)
 > series, compared directly with Rockchip BSP `develop-6.1@b4ef083dc0c3` and
 > `develop-6.6@1ba51b059f25`.
 > Date: 2026-07-21

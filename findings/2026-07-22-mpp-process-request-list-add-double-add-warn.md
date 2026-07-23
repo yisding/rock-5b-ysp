@@ -131,7 +131,7 @@ The `-EBUSY` guard is committed to the forward-port branch
 `bsp-high-port-20260722` as patch **`0070`**
 (`video: rockchip: mpp: reject re-init of an already-bound session`,
 `fa8c80ceccc5e`), checkpatch-clean, and staged into the tracked series at
-[`patches/forward-port-rk3588-av1/…-0070-…`](../kernel-drivers/patches/forward-port-rk3588-av1).
+[`patches/forward-port-rk3588/…-0070-…`](../kernel-drivers/patches/forward-port-rk3588).
 The KASAN/lockdep debug build carrying `0070` completed 2026-07-22 as
 **`P29f4-C9fc5`** (image sha256 `5cc3abe29a3f…`); its `.config` is byte-identical
 to the booted `Pabd5-C4ad2` (the `C9fc5` vs `C4ad2` hash differs only because

@@ -15,7 +15,7 @@ in either case:
 
 | Path | What you get | What it needs | Validation status ([`status.md`](status.md)) | Where |
 |------|--------------|---------------|-----------------------------------------------|-------|
-| **(a) Combined Armbian forward-port kernel** | MPP encode/decode (including AV1) and RGA **built in (`=y`)** — no modules, no overlay | The forward-port kernel tree + an Armbian build tree (§2) + a kernel install/reboot | ✅ **Hardware-validated** (AV1 build `P1c9d`, [kernel status](kernel-drivers/docs/forward-port-status.md)) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/forward-port-rk3588-av1/`](kernel-drivers/patches/forward-port-rk3588-av1/README.md) |
+| **(a) Combined Armbian forward-port kernel** | MPP encode/decode (including AV1) and RGA **built in (`=y`)** — no modules, no overlay | The forward-port kernel tree + an Armbian build tree (§2) + a kernel install/reboot | ✅ **Hardware-validated** (AV1 build `P1c9d`, [kernel status](kernel-drivers/docs/forward-port-status.md)) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/forward-port-rk3588/`](kernel-drivers/patches/forward-port-rk3588/README.md) |
 | **(b) DKMS on a stock kernel** | `rk_vcodec.ko` + `rga3.ko`, auto-rebuilt on every kernel update, + a boot-time DT overlay | A *stock* Armbian 6.18+ kernel, `dkms` + `dtc` installed | ⚠️ Compile-tested on **6.18 only**; overlay dtc-validated, **not boot-validated** | [`packaging/dkms/`](packaging/dkms/README.md) |
 | **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§8) | Source-built `ffmpeg-rockchip` is hardware-validated; the system PPA publishes codec access, MPP, librga, FFmpeg 8.0.3, GRD, and co-installable FFmpeg 6.1, while dedicated PPAs publish both FFmpeg 8.1 tracks | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
 
@@ -68,7 +68,7 @@ and [`PREFER_DOCKER` switch](https://docs.armbian.com/Developer-Guide_Build-Swit
 (default `WORKSPACE=../kernel/rock5b-kernel-build`, override with `WORKSPACE=`)
 and a forward-port Git tree at `KERNEL_TREE` (default
 `../kernel/linux-6.18-rkvenc-av1-fwport`). The tracked split series under
-[`kernel-drivers/patches/forward-port-rk3588-av1/`](kernel-drivers/patches/forward-port-rk3588-av1/README.md)
+[`kernel-drivers/patches/forward-port-rk3588/`](kernel-drivers/patches/forward-port-rk3588/README.md)
 records the source commits. The bootstrap clones Armbian's configured branch
 (`main` by default) and checks out the conformance sources at the commits in
 their manifest:

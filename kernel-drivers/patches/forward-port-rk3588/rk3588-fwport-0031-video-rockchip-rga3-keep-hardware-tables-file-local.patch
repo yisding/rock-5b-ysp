@@ -1,0 +1,185 @@
+From ebeb267cada5fbb78255e96785b6239a57897529 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Thu, 16 Jul 2026 15:18:50 -0700
+Subject: [PATCH 31/71] video: rockchip: rga3: keep hardware tables file-local
+
+Adapt Rockchip develop-5.10 commit d90086843793 without importing its unrelated RK3572 and newer-format table context.
+---
+ drivers/video/rockchip/rga3/rga_hw_config.c | 38 ++++++++++-----------
+ 1 file changed, 19 insertions(+), 19 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_hw_config.c b/drivers/video/rockchip/rga3/rga_hw_config.c
+index 581693e82cb96..6fe05d4e87992 100644
+--- a/drivers/video/rockchip/rga3/rga_hw_config.c
++++ b/drivers/video/rockchip/rga3/rga_hw_config.c
+@@ -11,7 +11,7 @@
+ /* RGA 1Word = 4Byte */
+ #define WORD_TO_BYTE(w) ((w) * 4)
+ 
+-const uint32_t rga3_input_raster_format[] = {
++static const uint32_t rga3_input_raster_format[] = {
+ 	RGA_FORMAT_RGBA_8888,
+ 	RGA_FORMAT_BGRA_8888,
+ 	RGA_FORMAT_RGBX_8888,
+@@ -38,7 +38,7 @@ const uint32_t rga3_input_raster_format[] = {
+ 	RGA_FORMAT_XBGR_8888,
+ };
+ 
+-const uint32_t rga3_output_raster_format[] = {
++static const uint32_t rga3_output_raster_format[] = {
+ 	RGA_FORMAT_RGBA_8888,
+ 	RGA_FORMAT_BGRA_8888,
+ 	RGA_FORMAT_RGBX_8888,
+@@ -61,7 +61,7 @@ const uint32_t rga3_output_raster_format[] = {
+ 	RGA_FORMAT_YCrCb_422_SP_10B,
+ };
+ 
+-const uint32_t rga3_fbcd_format[] = {
++static const uint32_t rga3_fbcd_format[] = {
+ 	RGA_FORMAT_RGBA_8888,
+ 	RGA_FORMAT_BGRA_8888,
+ 	RGA_FORMAT_RGBX_8888,
+@@ -84,7 +84,7 @@ const uint32_t rga3_fbcd_format[] = {
+ 	RGA_FORMAT_YCrCb_422_SP_10B,
+ };
+ 
+-const uint32_t rga3_fbce_format[] = {
++static const uint32_t rga3_fbce_format[] = {
+ 	RGA_FORMAT_RGBA_8888,
+ 	RGA_FORMAT_BGRA_8888,
+ 	RGA_FORMAT_RGBX_8888,
+@@ -103,7 +103,7 @@ const uint32_t rga3_fbce_format[] = {
+ 	RGA_FORMAT_YCrCb_422_SP_10B,
+ };
+ 
+-const uint32_t rga3_tile_format[] = {
++static const uint32_t rga3_tile_format[] = {
+ 	RGA_FORMAT_YCbCr_422_SP,
+ 	RGA_FORMAT_YCbCr_420_SP,
+ 	RGA_FORMAT_YCrCb_422_SP,
+@@ -114,7 +114,7 @@ const uint32_t rga3_tile_format[] = {
+ 	RGA_FORMAT_YCrCb_422_SP_10B,
+ };
+ 
+-const uint32_t rga2e_input_raster_format[] = {
++static const uint32_t rga2e_input_raster_format[] = {
+ 	RGA_FORMAT_RGBA_8888,
+ 	RGA_FORMAT_RGBX_8888,
+ 	RGA_FORMAT_BGRA_8888,
+@@ -154,7 +154,7 @@ const uint32_t rga2e_input_raster_format[] = {
+ 	RGA_FORMAT_ABGR_4444,
+ };
+ 
+-const uint32_t rga2e_output_raster_format[] = {
++static const uint32_t rga2e_output_raster_format[] = {
+ 	RGA_FORMAT_RGBA_8888,
+ 	RGA_FORMAT_RGBX_8888,
+ 	RGA_FORMAT_BGRA_8888,
+@@ -195,7 +195,7 @@ const uint32_t rga2e_output_raster_format[] = {
+ 	RGA_FORMAT_ABGR_4444,
+ };
+ 
+-const uint32_t rga2p_input_raster_format[] = {
++static const uint32_t rga2p_input_raster_format[] = {
+ 	RGA_FORMAT_RGBA_8888,
+ 	RGA_FORMAT_RGBX_8888,
+ 	RGA_FORMAT_BGRA_8888,
+@@ -239,7 +239,7 @@ const uint32_t rga2p_input_raster_format[] = {
+ 	RGA_FORMAT_YCrCb_444_SP,
+ };
+ 
+-const uint32_t rga2p_input1_raster_format[] = {
++static const uint32_t rga2p_input1_raster_format[] = {
+ 	RGA_FORMAT_RGBA_8888,
+ 	RGA_FORMAT_BGRA_8888,
+ 	RGA_FORMAT_RGBX_8888,
+@@ -259,7 +259,7 @@ const uint32_t rga2p_input1_raster_format[] = {
+ 	RGA_FORMAT_A8,
+ };
+ 
+-const uint32_t rga2p_output_raster_format[] = {
++static const uint32_t rga2p_output_raster_format[] = {
+ 	RGA_FORMAT_RGBA_8888,
+ 	RGA_FORMAT_RGBX_8888,
+ 	RGA_FORMAT_BGRA_8888,
+@@ -307,7 +307,7 @@ const uint32_t rga2p_output_raster_format[] = {
+ 	RGA_FORMAT_YCrCb_444_SP,
+ };
+ 
+-const uint32_t rga2p_tile4x4_format[] = {
++static const uint32_t rga2p_tile4x4_format[] = {
+ 	RGA_FORMAT_YCbCr_400,
+ 	RGA_FORMAT_YCbCr_420_SP,
+ 	RGA_FORMAT_YCrCb_420_SP,
+@@ -321,7 +321,7 @@ const uint32_t rga2p_tile4x4_format[] = {
+ 	RGA_FORMAT_YCrCb_422_SP_10B,
+ };
+ 
+-const uint32_t rga2p_rkfbc64x4_format[] = {
++static const uint32_t rga2p_rkfbc64x4_format[] = {
+ 	RGA_FORMAT_YCbCr_400,
+ 	RGA_FORMAT_YCbCr_420_SP,
+ 	RGA_FORMAT_YCrCb_420_SP,
+@@ -335,7 +335,7 @@ const uint32_t rga2p_rkfbc64x4_format[] = {
+ 	RGA_FORMAT_YCrCb_422_SP_10B,
+ };
+ 
+-const uint32_t rga2p_afbc32x8_format[] = {
++static const uint32_t rga2p_afbc32x8_format[] = {
+ 	RGA_FORMAT_RGBA_8888,
+ 	RGA_FORMAT_BGRA_8888,
+ 	RGA_FORMAT_RGBX_8888,
+@@ -348,7 +348,7 @@ const uint32_t rga2p_afbc32x8_format[] = {
+ 	RGA_FORMAT_BGR_888,
+ };
+ 
+-const struct rga_win_data rga3_win_data[] = {
++static const struct rga_win_data rga3_win_data[] = {
+ 	{
+ 		.name = "rga3-win0",
+ 		.formats[RGA_RASTER_INDEX] = rga3_input_raster_format,
+@@ -395,7 +395,7 @@ const struct rga_win_data rga3_win_data[] = {
+ 	},
+ };
+ 
+-const struct rga_win_data rga2e_win_data[] = {
++static const struct rga_win_data rga2e_win_data[] = {
+ 	{
+ 		.name = "rga2e-src0",
+ 		.formats[RGA_RASTER_INDEX] = rga2e_input_raster_format,
+@@ -430,7 +430,7 @@ const struct rga_win_data rga2e_win_data[] = {
+ 	},
+ };
+ 
+-const struct rga_win_data rga2e_3506_win_data[] = {
++static const struct rga_win_data rga2e_3506_win_data[] = {
+ 	{
+ 		.name = "rga2e-src0",
+ 		.formats[RGA_RASTER_INDEX] = rga2e_input_raster_format,
+@@ -465,7 +465,7 @@ const struct rga_win_data rga2e_3506_win_data[] = {
+ 	},
+ };
+ 
+-const struct rga_win_data rga2p_win_data[] = {
++static const struct rga_win_data rga2p_win_data[] = {
+ 	{
+ 		.name = "rga2p-src0",
+ 		.formats[RGA_RASTER_INDEX] = rga2p_input_raster_format,
+@@ -508,7 +508,7 @@ const struct rga_win_data rga2p_win_data[] = {
+ 	},
+ };
+ 
+-const struct rga_win_data rga2p_non_fbc_win_data[] = {
++static const struct rga_win_data rga2p_non_fbc_win_data[] = {
+ 	{
+ 		.name = "rga2p-src0",
+ 		.formats[RGA_RASTER_INDEX] = rga2p_input_raster_format,
+@@ -545,7 +545,7 @@ const struct rga_win_data rga2p_non_fbc_win_data[] = {
+ 	},
+ };
+ 
+-const struct rga_win_data rga2p_lite_win_data[] = {
++static const struct rga_win_data rga2p_lite_win_data[] = {
+ 	{
+ 		.name = "rga2e-src0",
+ 		.formats[RGA_RASTER_INDEX] = rga2e_input_raster_format,

@@ -4,7 +4,7 @@
 > BSP pin: `rockchip-kernel` `develop-6.1@b4ef083dc0c3608e744deabb43dc6b781aadbe6e`<br>
 > Forward-port pin: `linux-6.18-rkvenc-av1-fwport`
 > `rkvenc-fwport-6.18@655d178191807e24e9ca4dd72e74401b449d2099`<br>
-> Tracked export: [`forward-port-rk3588-av1/`](../../patches/forward-port-rk3588-av1/README.md),
+> Tracked export: [`forward-port-rk3588/`](../../patches/forward-port-rk3588/README.md),
 > 42 patches (`0001` through `0043`, with `0012` intentionally omitted)<br>
 > Method: three independent static reviews, source/differential inspection,
 > patch-ID comparison, patch parse checks, and DWARF layout inspection. No new

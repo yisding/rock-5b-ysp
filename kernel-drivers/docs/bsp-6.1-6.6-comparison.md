@@ -37,7 +37,7 @@ The three Rockchip branch tips were verified against the official remote with
 The distinction between the last two rows matters. The quantitative
 [`vendor-delta.md`](./vendor-delta.md) result belongs to the baseline non-AV1
 port. The newer split series is summarized in
-[`patches/forward-port-rk3588-av1/`](../patches/forward-port-rk3588-av1/README.md)
+[`patches/forward-port-rk3588/`](../patches/forward-port-rk3588/README.md)
 and intentionally has a larger delta.
 
 ## Measurement method

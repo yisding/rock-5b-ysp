@@ -1,11 +1,19 @@
 # Forward-port patch catalog — provenance and BSP backport verdicts
 
 The complete per-patch accounting of the maintained forward-port series
-[`patches/forward-port-rk3588-av1/`](../patches/forward-port-rk3588-av1/README.md)
-(`0001`–`0071`, no `0012`): what each patch does, where its change *comes from*,
-and — the question this document exists to answer — **which fixes should be
-carried back to the Rockchip BSP** (`develop-6.1`), because the defect they fix
-lives in Rockchip's own code, not in our port.
+[`patches/forward-port-rk3588/`](../patches/forward-port-rk3588/README.md): what
+each patch does, where its change *comes from*, and — the question this document
+exists to answer — **which fixes should be carried back to the Rockchip BSP**
+(`develop-6.1`), because the defect they fix lives in Rockchip's own code, not in
+our port.
+
+> **Numbering note (bridge).** This page was compiled 2026-07-22 and uses the
+> **pre-cleanup patch numbers** (`0001`–`0072`, with a `0012` gap). On 2026-07-23
+> the series was renumbered contiguous `0001`–`0071` (a stray `libbpf` commit at
+> old-`0012` was dropped; old N → new N−1 for N ≥ 13). The current numbers,
+> titles, and the full old→new map are the authoritative index in the
+> [series README](../patches/forward-port-rk3588/README.md). Read the numbers
+> below as the pre-cleanup scheme and cite patches by **title**.
 
 Compiled 2026-07-22 from the patch commit messages, the
 [BSP audit](./bsp-audit.md), the

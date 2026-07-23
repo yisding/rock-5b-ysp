@@ -1,0 +1,37 @@
+From f29f87c22034658c74612253b969ecfb3399aa13 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Wed, 22 Jul 2026 08:12:19 -0700
+Subject: [PATCH 60/71] video: rockchip: rkvdec2: bound RCB register indexes
+
+RCB register indexes come from userspace and were used directly
+to index the fixed task register array. Reject indexes outside
+RKVDEC_REG_NUM and constrain speculative indexing before the write.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index b54341ba4d8e1..236ee0ada3d95 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -349,6 +349,10 @@ int mpp_set_rcbbuf(struct mpp_dev *mpp, struct mpp_session *session,
+ 		for (i = 0; i < rcb_inf->cnt; i++) {
+ 			reg_idx = rcb_inf->elem[i].index;
+ 			rcb_size = rcb_inf->elem[i].size;
++			if (reg_idx >= RKVDEC_REG_NUM) {
++				mpp_err("invalid rcb reg index %u\n", reg_idx);
++				continue;
++			}
+ 			if ((rcb_offset + rcb_size) > dec->rcb_size) {
+ 				mpp_debug(DEBUG_SRAM_INFO,
+ 					  "rcb: reg %d use original buffer\n", reg_idx);
+@@ -356,6 +360,7 @@ int mpp_set_rcbbuf(struct mpp_dev *mpp, struct mpp_session *session,
+ 			}
+ 			mpp_debug(DEBUG_SRAM_INFO, "rcb: reg %d offset %d, size %d\n",
+ 				  reg_idx, rcb_offset, rcb_size);
++			reg_idx = array_index_nospec(reg_idx, RKVDEC_REG_NUM);
+ 			task->reg[reg_idx] = dec->rcb_iova + rcb_offset;
+ 			rcb_offset += rcb_size;
+ 		}

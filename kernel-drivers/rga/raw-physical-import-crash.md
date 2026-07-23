@@ -18,7 +18,7 @@ not mean the smaller RGA driver in mainline Linux.
 
 Forward-port commit `1c9a110129fe` now implements the minimal crash fix. It is
 represented by patch `0039` in
-[`patches/forward-port-rk3588-av1`](../patches/forward-port-rk3588-av1/README.md).
+[`patches/forward-port-rk3588`](../patches/forward-port-rk3588/README.md).
 The published `6.18.38+rk3588av1fwport20260716` package predates that commit
 and remains vulnerable until a rebuilt package is installed and booted.
 Hardened version

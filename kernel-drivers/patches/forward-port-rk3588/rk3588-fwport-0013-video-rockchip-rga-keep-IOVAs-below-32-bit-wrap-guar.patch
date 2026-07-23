@@ -1,0 +1,44 @@
+From 27cbfcb3254d87d430c7d20f3d39ecfa454ed882 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 4 Jul 2026 19:27:34 -0700
+Subject: [PATCH 13/71] video: rockchip: rga: keep IOVAs below 32-bit wrap
+ guard
+
+---
+ drivers/video/rockchip/rga3/rga_drv.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index 3ecd7ff6a3259..320d89ca23702 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -20,6 +20,8 @@
+ 
+ struct rga_drvdata_t *rga_drvdata;
+ 
++#define RGA_IOMMU_DMA_LIMIT	(DMA_BIT_MASK(32) - SZ_512M)
++
+ /* set hrtimer */
+ static struct hrtimer timer;
+ static ktime_t kt;
+@@ -49,6 +51,12 @@ static int rga_mpi_set_channel_buffer(struct dma_buf *dma_buf,
+ 	return 0;
+ }
+ 
++static void rga_set_iommu_dma_limit(struct device *dev)
++{
++	if (!dev->bus_dma_limit || dev->bus_dma_limit > RGA_IOMMU_DMA_LIMIT)
++		dev->bus_dma_limit = RGA_IOMMU_DMA_LIMIT;
++}
++
+ static void rga_mpi_set_channel_info(uint32_t flags_mask, uint32_t flags,
+ 				     struct rga_video_frame_info *mpi_frame,
+ 				     struct rga_img_info_t *channel_info,
+@@ -1485,6 +1493,7 @@ static int rga_drv_probe(struct platform_device *pdev)
+ 
+ 		dma_set_mask(dev, DMA_BIT_MASK(40));
+ 		dma_set_coherent_mask(dev, DMA_BIT_MASK(32));
++		rga_set_iommu_dma_limit(dev);
+ 	} else {
+ 		dma_set_mask(dev, DMA_BIT_MASK(32));
+ 		dma_set_coherent_mask(dev, DMA_BIT_MASK(32));
