@@ -111,7 +111,7 @@ last-checked date.
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → UAF](#watch-w19) | 2026-07-22 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0070`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0059`-`0069`. Fix build **`P29f4-C9fc5`** (config byte-identical to `Pabd5`) is built but not installed; booted `Pabd5` list is poisoned for this boot; gate = install/boot `P29f4` and confirm the reproducer returns `-EBUSY`. |
-| W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-22 | **Root-caused at the boot-transaction level; malformed initramfs excluded:** the same build-`#6` initrd failed once and booted immediately afterward, its Plymouth/DRM payload is complete and package-identical, and real-root PID 1 proves the daemon ACKed the new-root handoff. It wedges only after pivot; timeout-free read-write/show-splash clients then hold `sysinit.target`. Immediate fix: append `plymouth.enable=0` to Armbian `extraargs`; the exact post-pivot callback remains uncaptured. |
+| W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-22 | **High-confidence internal root cause found; malformed initramfs and DRM excluded:** `splash=verbose` plus active `ttyS2 tty1` routes Plymouth into terminal-only mode and returns before its udev/DRM path. The installed pre-fix 24.004.60 snapshot has upstream issue #321's non-advancing incomplete-CSI loop, whose ARM64 serial-console boot-hang reproduction matches this board. Immediate fix: append `plymouth.enable=0`; package fix: backport upstream `45655f12`. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -476,8 +476,8 @@ last-checked date.
   `systemd-networkd-wait-online` timeout in the log is **not** the cause — it is
   chronic and non-fatal (the healthy boot logs the identical timeout *and* the
   identical PCIe PMU-notifier lockdep splat, yet reaches `graphical.target`).
-  Stays live until Plymouth is disabled for an exclusion boot or its daemon
-  event loop is captured.
+  Stays live until the upstream parser fix is installed and repeated boots
+  validate it, or Plymouth is disabled for an exclusion boot.
 - **Last checked:** 2026-07-22
 - **State then:** Root cause at the boot-transaction level is an unresponsive
   initramfs-inherited `plymouthd`: it owns the abstract socket but never
@@ -490,12 +490,24 @@ last-checked date.
   routine Hantro JPEG. The failed and adjacent healthy build-`#6` boots used the
   same initrd, generated before both; extraction shows a complete,
   package-identical Plymouth/DRM payload. Starting real-root PID 1 also proves
-  the daemon processed and ACKed initramfs's new-root request. The event-loop
-  wedge is after pivot and before the read-write request; a synchronous
-  udev/DRM callback is plausible but remains unlocalized.
+  the daemon processed and ACKed initramfs's new-root request.
+  `splash=verbose`, active `ttyS2 tty1`, and the absence of
+  `plymouth.ignore-serial-consoles` make the exact Plymouth source create
+  terminal-only devices and return before starting udev or a DRM renderer.
+  Its active terminal keyboard parser contains upstream issue #321's
+  incomplete-CSI infinite loop (`continue` without advancing the buffer).
+  That issue reproduced timing-sensitive hangs on ARM64 systems attached to a
+  serial-console server and was fixed after this Ubuntu snapshot by upstream
+  commit `45655f12` (`continue` → `break`). The failed boot lacks a live stack
+  or saved input bytes, so the internal attribution is a source match rather
+  than a directly sampled task-state proof.
   Immediate board fix: append `plymouth.enable=0` to
   `/boot/armbianEnv.txt`'s existing `extraargs=` line; `bootlogo=false` alone
   still injects `splash=verbose`. No initramfs/boot-script rebuild is needed.
+  If retaining Plymouth, backport upstream `45655f12`, rebuild/install
+  `libplymouth5` plus `plymouth`, and regenerate the initramfs.
+  `plymouth.ignore-serial-consoles` is a narrower mitigation that removes the
+  likely serial trigger but does not fix the parser.
   Gate after reboot: confirm the cmdline token, skipped Plymouth start, completed
   read-write unit, and reached sysinit/basic targets. If retaining Plymouth,
   client reply timeouts must cover read-write/show-splash and finite systemd

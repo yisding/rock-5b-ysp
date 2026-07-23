@@ -3,7 +3,7 @@
 > Scope: ROCK 5B dev board, running debug (lockdep-enabled) `6.18.38-current-rockchip64` while hunting Rockchip video-codec (rkvdec2/rkvenc/mpp) driver bugs
 > Source: on-board `journalctl` of two failed boots and adjacent healthy boots, captured 2026-07-22; exact installed kernel and Plymouth sources
 > Date: 2026-07-22
-> Trust: ROOT-CAUSED for the boot transaction; MEASURED for the boot/probe sequence; SOURCE-INSPECTED for the IPC and unit behavior; OPEN for why the inherited daemon stopped servicing its event loop
+> Trust: ROOT-CAUSED for the boot transaction; MEASURED for the boot/probe sequence; SOURCE-INSPECTED for the IPC, device routing, and parser defect; HIGH-CONFIDENCE SOURCE MATCH for the internal daemon wedge (the failed boot lacks a live task stack/input-byte capture)
 
 ## Result
 
@@ -28,6 +28,93 @@ This exact fingerprint occurred twice on 2026-07-22: boot `-6` on kernel build
 jobs, no `SIGRTMIN+20` response from the inherited daemon, and no
 `sysinit.target`. Their adjacent healthy boots complete the Plymouth handshake
 in 30–60 ms and continue immediately.
+
+## Internal root cause: Plymouth's incomplete-CSI infinite loop
+
+The best-supported internal cause is upstream Plymouth issue
+[`#321`](https://gitlab.freedesktop.org/plymouth/plymouth/-/issues/321), fixed by
+commit
+[`45655f12`](https://gitlab.freedesktop.org/plymouth/plymouth/-/commit/45655f12fa2d5553ab4ba509f2e203c249191664)
+on 2026-01-27:
+
+> `ply-keyboard: Fix hang on read of incomplete terminal control sequence`
+
+The affected parser is part of `libply-splash-core`, used by `plymouthd`. If a
+terminal read ends after a CSI prefix (`ESC [`) and parameter bytes but before
+the final byte in the range `0x40`–`0x7e`, `on_key_event()` enters this branch:
+
+```c
+if (csi_seq_size == 0) /* No final byte found */
+        continue;
+```
+
+Neither `i` nor the input buffer changes before `continue`, so the daemon loops
+forever in one callback of its single event loop. The upstream fix is exactly:
+
+```diff
+-        continue;
++        break;
+```
+
+Breaking preserves the incomplete bytes in the buffer so the next terminal
+read can complete the sequence.
+
+The installed Ubuntu package,
+`24.004.60+git20250831.4a3c171d-0ubuntu8`, contains the vulnerable `continue`
+and does not contain the fix. Its candidate version in the configured Ubuntu
+Resolute archive is still the same package. Git ancestry confirms that snapshot
+`4a3c171d` contains the 2022 CSI-parser change that introduced the defect and
+predates the 2026 fix.
+
+The upstream reproduction is an unusually close match:
+
+- Plymouth 24.004.60 on ARM64 server hardware;
+- a serial-console server connected to an active console;
+- intermittent, timing-sensitive boot hangs (reported at about 60%);
+- an alive `plymouthd` stuck in
+  `ply_event_loop_run()` → `on_tty_input()` → `on_key_event()`;
+- a partial terminal response left in the input buffer; and
+- the one-line `continue` → `break` patch confirmed to stop the hangs.
+
+The corresponding
+[Red Hat bug 2433079](https://bugzilla.redhat.com/show_bug.cgi?id=2433079)
+states explicitly that the serial-console server was involved in sending the
+triggering input. Fedora shipped the fix in
+`plymouth-24.004.60-24.fc43`/`-24.fc44`.
+
+## Why this Plymouth instance is not using DRM
+
+The running board's command line contains:
+
+```text
+splash=verbose console=ttyS2,1500000 console=tty1
+```
+
+`/sys/class/tty/console/active` reports `ttyS2 tty1`, and the command line does
+not contain `plymouth.ignore-serial-consoles`. In the exact installed source:
+
+1. `splash=verbose` makes `plymouth_should_show_default_splash()` false, setting
+   both `PLY_DEVICE_MANAGER_FLAGS_SKIP_RENDERERS` and
+   `PLY_DEVICE_MANAGER_FLAGS_IGNORE_UDEV`.
+2. Before either flag is checked, `ply_device_manager_watch_devices()` reads
+   `/sys/class/tty/console/active`.
+3. The detected serial console causes Plymouth to create terminal-only devices
+   (`PLY_RENDERER_TYPE_NONE`) for the consoles and return immediately.
+4. Showing the details splash activates a terminal keyboard for each device.
+   `on_terminal_data()` reads the console input and passes it to the vulnerable
+   `on_key_event()` parser.
+
+Plymouth therefore does not create a DRM renderer, start its udev monitor, or
+dispatch DRM events in this configuration. The Rockchip DRM bind immediately
+before pivot is a timing correlation in the kernel log, not a callback that can
+have wedged this Plymouth process.
+
+The likely trigger on this board is a CSI response fragmented across reads on
+`ttyS2`, just as in the upstream ARM64 serial-console reproduction. That last
+link is not postmortem-captured: the failed boots have no `plymouthd` stack or
+saved input bytes. A local keyboard on `tty1` can also produce CSI sequences.
+The source/configuration match is strong enough to make the parser bug the
+primary root-cause attribution, while retaining that evidence boundary.
 
 ## Discriminating boot diff
 
@@ -121,12 +208,10 @@ ACK. It stopped servicing requests only **after** the root handoff and before
 `plymouth-read-write.service` sent its read-write request at 14.106 s.
 
 This makes the remaining defect a runtime race or blocking callback in the
-post-pivot daemon, not an initramfs construction failure. Plymouth keeps its
-udev monitor and renderer file descriptors across the chroot. Its udev callback
-synchronously drains DRM events and may synchronously open/re-probe the
-renderer through DRM ioctls. Rockchip DRM finishes binding immediately before
-PID 1 starts, so that path is a plausible timing-sensitive suspect, but it is
-not proven: the same DRM messages and device path occur on the healthy boot.
+post-pivot daemon, not an initramfs construction failure. The exact
+configuration routes Plymouth away from udev/DRM and into terminal input
+handling, where the installed source has the matching incomplete-CSI infinite
+loop.
 
 ## Forward-port driver exclusion
 
@@ -146,12 +231,17 @@ power-domain sync markers occur on healthy boots.
 
 The boot-level cause is proven: an unresponsive inherited Plymouth socket owner
 plus unbounded client waits held sysinit. The initramfs artifact and its payload
-are also excluded, and the daemon is proven responsive through the new-root
-ACK. The postmortem does **not** identify the syscall or callback that stopped
-the daemon's single event loop after pivot. There is no Plymouth debug stream or
-live task stack from the failed boots. The same Rockchip DRM "Cannot find any
-crtc or sizes" messages occur in healthy boots, so calling DRM the internal root
-cause would still be speculation.
+are excluded, and the daemon is proven responsive through the new-root ACK.
+Source inspection proves that this Plymouth configuration does not activate its
+DRM/udev path and that its active terminal parser has a known boot-hanging
+infinite loop fixed upstream after the installed snapshot. The upstream
+ARM64/serial-console reproduction matches this board closely.
+
+What is not available from the failed boot is a live `plymouthd` stack or the
+actual input bytes. The incomplete-CSI parser bug is therefore a
+high-confidence source match rather than a directly sampled task-state proof.
+Calling Rockchip DRM the internal cause is contradicted by Plymouth's device
+routing.
 
 ## Why it matters / follow-up
 
@@ -196,6 +286,31 @@ journalctl -b -o short-monotonic --no-pager |
 Expected: no initramfs `plymouthd`, `plymouth-start.service` skipped,
 `plymouth-read-write.service` completes rather than remaining in `Starting`,
 and both targets are reached.
+
+### Package fix if Plymouth is retained
+
+Backport upstream commit `45655f12` to the Ubuntu source package. The functional
+change is the one-line `continue` → `break` edit in
+`src/libply-splash-core/ply-keyboard.c`. Rebuild the native package with the
+repository-required system tool path:
+
+```bash
+PATH=/usr/sbin:/usr/bin:/sbin:/bin dpkg-buildpackage -b -uc -us
+```
+
+Install the rebuilt `libplymouth5` and matching `plymouth` packages. Plymouth's
+`postinst` queues the `update-initramfs` trigger; if installing only the rebuilt
+library, run
+`update-initramfs -u -k 6.18.38-current-rockchip64` explicitly. The initramfs
+embeds both `plymouthd` and `libply-splash-core`, so updating only the real-root
+library without regenerating the image leaves the boot-time daemon vulnerable.
+
+Until a patched package is installed, adding
+`plymouth.ignore-serial-consoles` removes the most likely `ttyS2` trigger while
+retaining terminal-only Plymouth on `tty1`. It is a narrower mitigation, not a
+complete parser fix: incomplete CSI input from the local console can still hit
+the same loop. `plymouth.enable=0` remains the safest board-level fix when no
+splash is needed.
 
 ### Package-level hardening if Plymouth must remain enabled
 
