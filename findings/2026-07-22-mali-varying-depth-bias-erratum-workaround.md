@@ -228,6 +228,73 @@ not provide an obviously sufficient smooth-varying predicate. The
 product-scoped descriptor workaround is mechanically simpler, subject to CTS
 and performance validation.
 
+## Panfrost OpenGL implementation implications
+
+Source inspection shows that general OpenGL triangle draws can also be
+worked around inside the Panfrost driver. The obstacle is validation and safe
+scoping rather than an inability to express the required hardware state.
+
+The Mesa state tracker maps the three OpenGL polygon-offset enables and their
+numeric values into `pipe_rasterizer_state` in
+`src/mesa/state_tracker/st_atom_rasterizer.c:153-164`. On Valhall,
+`panfrost_emit_depth_stencil()` copies `offset_tri` and those values directly
+into the depth/stencil descriptor at draw time
+(`src/gallium/drivers/panfrost/pan_cmdstream.c:865-902`).
+
+The same G610 model quirk proposed for PanVK can therefore be consumed in that
+function:
+
+```c
+struct panfrost_device *dev = pan_device(ctx->base.screen);
+const bool app_bias = rast->base.offset_tri;
+const bool wa = dev->model->quirks.varying_interp_depth_bias_wa;
+
+cfg.depth_bias_enable = app_bias || wa;
+cfg.depth_units =
+   app_bias ? panfrost_z_depth_offset(ctx, rast->base.offset_units) : 0.0f;
+cfg.depth_factor = app_bias ? rast->base.offset_scale : 0.0f;
+cfg.depth_bias_clamp = app_bias ? rast->base.offset_clamp : 0.0f;
+```
+
+As in PanVK, forcing only the enable bit is unsafe. In desktop OpenGL, polygon
+offset may be enabled for points or lines with nonzero factor, units, or clamp
+while offset for filled triangles remains disabled. Gallium then carries
+nonzero numeric values with `offset_tri == false`; using those values for the
+forced triangle path would visibly move depth. The conditional above preserves
+the application's real filled-triangle offset and supplies explicit zeros only
+for the workaround.
+
+A broad product-scoped override needs no new state tracking. Panfrost already
+re-emits the descriptor when rasterizer, depth/stencil, or fragment-shader
+state is dirty (`pan_cmdstream.c:3244-3247`). Narrowing the override to triangle
+draw modes is more involved: `panfrost_update_active_prim()` updates the active
+primitive and fragment-shader variant on a primitive-class transition, but it
+does not itself dirty the depth/stencil descriptor
+(`pan_cmdstream.c:3365-3378`). Such a predicate must also force descriptor
+re-emission when entering or leaving triangle draws.
+
+The existing compiled-shader metadata does not provide an obviously complete
+alternative predicate for affected smooth varyings:
+
+- `uses_ld_var` deliberately excludes `LD_VAR_BUF` instructions.
+- `uses_flat_shading` reports whether any flat varying is loaded, not whether
+  any affected smooth varying is loaded.
+- The varying layout records formats and storage sections, but not a sufficient
+  interpolation-mode summary for this decision.
+
+Adding explicit compiler metadata for affected interpolated inputs could make
+the workaround narrower, but would increase the patch surface and still could
+not cheaply identify the runtime primitive extents that trigger the erratum.
+
+The OpenGL-only implementation is therefore low complexity, approximately
+15-25 lines across the shared model quirk and Panfrost draw code. Upstream
+confidence requires substantially more work: Piglit and GL/GLES CTS coverage
+for disabled and genuine nonzero polygon offset, point/line/triangle
+transitions, fixed-point and floating-point depth buffers, no depth attachment,
+fragment depth writes, early-Z, MSAA, and flat, smooth, noperspective, centroid,
+and sample interpolation, plus performance measurement of the always-enabled
+zero-valued path.
+
 ## Non-integer ordinary-TEX A/B evidence
 
 [`tex_interp_probe.c`](../video-libraries/mesa/reproducers/interp_probe/tex_interp_probe.c)
@@ -298,4 +365,8 @@ that blits can be worked around properly; general application draws are harder
 because the workaround changes rasterizer state. For PanVK specifically, the
 general-draw code is localized and small, but selecting the correct affected
 GPU range and proving semantic and performance safety require the bulk of the
-work.
+work. The same is true for Panfrost OpenGL: its Valhall draw-time descriptor
+offers a direct override point, provided the driver zeros numeric bias values
+when polygon offset for filled triangles is disabled. The maintainer's concern
+therefore describes the breadth and validation burden of a general-draw fix,
+not a missing implementation mechanism.

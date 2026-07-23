@@ -38,14 +38,19 @@ Rank = demonstrated severity × reproduction strength.
 7. **`0053` / `0054`** — device-less-task NULL-deref hard lockup (full-board DoS).
 8. **`0056`** — unmap-after-free leaving a stale IOMMU mapping onto freed pages.
 
-**P2 — real but not yet reduced to a PoC (write one before filing):**
+**P1 — unprivileged OOB writes, now PoC-validated (same write class as `0055`):**
 
-9. **`0061` / `0063`** — further unprivileged OOB writes (RKVDEC2 RCB index,
-   RKVENC2 request fan-out), same class as `0055`.
+9. **`0061`** — RKVDEC2 RCB register-index OOB write: `SET_RCB_INFO` with an
+   out-of-range `index` writes `task->reg[index]` past the array. PoC reaches
+   `mpp_set_rcbbuf`; fixed kernel logs `invalid rcb reg index 65535`.
+10. **`0063`** — RKVENC2 request fan-out OOB write: class-spanning
+    `SET_REG_WRITE` messages overflow `w_reqs[16]`. PoC reaches the loop; fixed
+    kernel logs `w_req_cnt 16 overflow`.
 
 **If you file exactly one thing today: `0070`** (observed UAF, deterministic PoC,
-unprivileged). **If you file one write-primitive: `0055`.** Everything below P1
-is correctness/hardening and can wait for a batched follow-up.
+unprivileged). **If you file one write-primitive: `0055`** (`work_struct`
+adjacency), with `0061`/`0063` as the sibling OOB-write reports. Everything below
+P1 is correctness/hardening and can wait for a batched follow-up.
 
 Venue: **Rockchip BSP (`rockchip-linux/kernel`, `develop-6.1`) + Armbian** — not
 mainline (this code is out-of-tree). Full rationale below.
@@ -106,10 +111,19 @@ CVE-class set. Bundle `0058` as the undeniable, low-risk DoS opener.
 - `0070` — [`tests/mpp-double-init-repro.c`](../kernel-drivers/tests/mpp-double-init-repro.c):
   two `INIT_CLIENT_TYPE` on one session; the second trips the list_add and, as
   shown above, leaves a UAF for later sessions.
+- `0061` — [`tests/rkvdec2-rcb-index-oob-repro.c`](../kernel-drivers/tests/rkvdec2-rcb-index-oob-repro.c):
+  binds RKVDEC, sets a decode width, submits `SET_RCB_INFO` with `index=65535`;
+  the fixed kernel logs `mpp_set_rcbbuf: invalid rcb reg index 65535` (path
+  reached, write skipped).
+- `0063` — [`tests/rkvenc2-req-fanout-oob-repro.c`](../kernel-drivers/tests/rkvenc2-req-fanout-oob-repro.c):
+  binds RKVENC, submits three `SET_REG_WRITE` messages spanning all nine
+  register classes (0x0000–0x5358); the fixed kernel logs
+  `rkvenc_extract_task_msg: w_req_cnt 16 overflow` (path reached, copy rejected).
 
 Each PoC is attachable to the upstream report and doubles as a runtime gate:
-on a fixed kernel it fails closed; on a vulnerable kernel it produces the KASAN
-report / crash to cite.
+on a fixed kernel it fails closed (guard log, no corruption); on a vulnerable
+kernel it produces the KASAN out-of-bounds / use-after-free report to cite.
+All five reach their vulnerable path on the booted kernel — verified 2026-07-22.
 
 ### Second priority (same batch)
 
@@ -117,10 +131,12 @@ report / crash to cite.
   pages (DMA reachability to freed memory).
 - **0053 / 0054** — device-less-task NULL-deref **hard lockup** = full-board DoS.
 - **0061 / 0063** — more unprivileged OOB writes (RKVDEC2 RCB index, RKVENC2
-  request fan-out), same class as `0055`, no isolated repro yet.
+  request fan-out), same class as `0055`; **now have PoCs** (both reach the
+  vulnerable path, fix logs confirmed) and are promoted to the P1 OOB-write set
+  in the disclosure order above.
 
-(`0070` was promoted from here into the submit-now tier above once building the
-PoCs showed it is a UAF, not a WARN.)
+(`0070` was promoted into the submit-now tier once building the PoCs showed it
+is a UAF, not a WARN.)
 
 ### Not urgent (batched follow-up)
 
@@ -133,11 +149,12 @@ not attacker-reachable memory corruption: `0039` physical-import validation,
 
 Severity here is reasoned from the patch mechanics and the `video`-group
 reachability, not from a demonstrated end-to-end exploit: none of these has been
-driven to a controlled read/write or code-exec primitive. `0055`, `0060`, and
-`0070` now have standalone unprivileged PoCs (above) that reach the vulnerable
-path and validate the fix on hardware; `0061`/`0063` remain code-confirmed and
-fuzz-reachable without an isolated repro. The reproduced rows (`0042`, `0052`,
-`0055`, `0057`, `0058`, `0060`, `0070`) are submission-ready as memory-safety
+driven to a controlled read/write or code-exec primitive. `0055`, `0060`,
+`0061`, `0063`, and `0070` now have standalone unprivileged PoCs (above) that
+reach the vulnerable path and validate the fix on hardware (the guard log fires;
+the actual OOB/UAF would appear on a pre-fix kernel, except `0070`'s UAF which
+was observed on this boot). The reproduced rows (`0042`, `0052`, `0055`, `0057`,
+`0058`, `0060`, `0061`, `0063`, `0070`) are submission-ready as memory-safety
 reports today.
 
 ## Why it matters / follow-up
