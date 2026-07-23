@@ -10,7 +10,9 @@ lifecycle live in [`README.md` § Status](../README.md).
 > zero-valued polygon-offset workaround. Enabling `GL_POLYGON_OFFSET_FILL`
 > with factor and units zero makes the same raw varying exact at 12288 and
 > 16307; it also makes a new normalized-coordinate ordinary-`texture()` test
-> exact. The `~2^-10` values below remain measured failure signatures, but
+> exact. PanVK's equivalent zero-valued Vulkan depth-bias state makes its
+> bit-identical raw-varying failure exact at both widths as well. The
+> `~2^-10` values below remain measured failure signatures, but
 > they are not evidence of an inherent ten-fractional-bit varying format.
 > `gl_FragCoord` reconstruction remains a valid way for !42679 to avoid the
 > affected path, not the now-established root cause or the only possible

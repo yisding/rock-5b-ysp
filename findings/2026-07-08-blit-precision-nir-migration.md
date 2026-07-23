@@ -18,6 +18,7 @@
 > **Correction, 2026-07-22:** A Mesa maintainer subsequently confirmed a
 > hardware erratum and supplied a zero-valued polygon-offset workaround that
 > makes both raw varying and ordinary TEX exact at the failing widths. The
+> equivalent zero-valued Vulkan depth-bias state also makes PanVK exact. The
 > measured `~2^-10` drift below is an erratum signature, not an inherent
 > varying-precision limit. The NIR/`pixel_coord` design remains a valid
 > avoidance strategy, but it is no longer established as the only or proper

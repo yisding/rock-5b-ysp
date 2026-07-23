@@ -8,7 +8,8 @@
 // memory (raw bits, no format conversion). CPU checks floor(v) == x.
 //
 // Modes: "varying" (the test) and "fragcoord" (control: gl_FragCoord.x
-// through the identical pipeline).
+// through the identical pipeline). The optional "depth-bias" workaround
+// enables Vulkan depth bias with constant, clamp, and slope factors all zero.
 //
 // Device selection by substring of VkPhysicalDeviceProperties::deviceName
 // (default "Mali"); pass "llvmpipe" for a same-binary software control.
@@ -20,6 +21,7 @@
 //   cc -O2 -o vk_interp_probe vk_interp_probe.c -lvulkan -lm
 // Run:
 //   ./vk_interp_probe [width] [varying|fragcoord] [device-substring]
+//                     [baseline|depth-bias]
 //
 // Exit 0 = all pixels satisfy floor(v) == x, 2 = mismatches, 1 = setup error.
 
@@ -86,13 +88,20 @@ main(int argc, char **argv)
    int width = 12288;
    const char *mode = "varying";
    const char *want_dev = "Mali";
+   const char *workaround = "baseline";
+
+   if (argc > 5) {
+      fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device] "
+                      "[baseline|depth-bias]\n", argv[0]);
+      return 1;
+   }
 
    if (argc > 1) {
       char *end;
       long w = strtol(argv[1], &end, 10);
       if (*argv[1] == '\0' || *end != '\0' || w < 1 || w > (1 << 23)) {
-         fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device]\n",
-                 argv[0]);
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device] "
+                         "[baseline|depth-bias]\n", argv[0]);
          return 1;
       }
       width = (int)w;
@@ -100,14 +109,24 @@ main(int argc, char **argv)
    if (argc > 2) {
       mode = argv[2];
       if (strcmp(mode, "varying") != 0 && strcmp(mode, "fragcoord") != 0) {
-         fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device]\n",
-                 argv[0]);
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device] "
+                         "[baseline|depth-bias]\n", argv[0]);
          return 1;
       }
    }
    if (argc > 3)
       want_dev = argv[3];
+   if (argc > 4) {
+      workaround = argv[4];
+      if (strcmp(workaround, "baseline") != 0 &&
+          strcmp(workaround, "depth-bias") != 0) {
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device] "
+                         "[baseline|depth-bias]\n", argv[0]);
+         return 1;
+      }
+   }
    int use_fragcoord = strcmp(mode, "fragcoord") == 0;
+   int use_depth_bias = strcmp(workaround, "depth-bias") == 0;
 
    /* Instance */
    VkApplicationInfo app = {
@@ -314,6 +333,10 @@ main(int argc, char **argv)
       .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
       .polygonMode = VK_POLYGON_MODE_FILL,
       .cullMode = VK_CULL_MODE_NONE,
+      .depthBiasEnable = use_depth_bias ? VK_TRUE : VK_FALSE,
+      .depthBiasConstantFactor = 0.0f,
+      .depthBiasClamp = 0.0f,
+      .depthBiasSlopeFactor = 0.0f,
       .lineWidth = 1.0f,
    };
    VkPipelineMultisampleStateCreateInfo ms = {
@@ -472,9 +495,11 @@ main(int argc, char **argv)
    double ideal = (double)width - 0.5;
    double rel_err = (ideal - (double)last) / ideal;
 
-   printf("mode=%s width=%d device=%s: floor(v) != x at %ld of %d pixels "
+   printf("mode=%s workaround=%s width=%d device=%s: "
+          "floor(v) != x at %ld of %d pixels "
           "(first at x=%d, unwritten=%ld)\n",
-          mode, width, pprops.deviceName, bad, width, first_bad, unwritten);
+          mode, workaround, width, pprops.deviceName, bad, width, first_bad,
+          unwritten);
    printf("last pixel x=%d: v=%.4f expected=%.1f relative_error=%.3e "
           "(%.3f * 2^-10)\n",
           width - 1, last, ideal, rel_err, rel_err * 1024.0);

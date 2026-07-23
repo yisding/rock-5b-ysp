@@ -38,6 +38,7 @@
  *   ./vk_interp_probe_explained 12288 fragcoord
  *   ./vk_interp_probe_explained 16307 varying
  *   ./vk_interp_probe_explained 12288 varying llvmpipe
+ *   ./vk_interp_probe_explained 12288 varying Mali depth-bias
  *
  * Exit codes:
  *
@@ -144,6 +145,7 @@ main(int argc, char **argv)
     *   argv[1] = width, default 12288
     *   argv[2] = "varying" or "fragcoord", default "varying"
     *   argv[3] = device-name substring, default "Mali"
+    *   argv[4] = "baseline" or "depth-bias", default "baseline"
     *
     * Passing "llvmpipe" is useful because it runs the same Vulkan program on a
     * software renderer. That proves the checker itself is not bogus.
@@ -151,13 +153,20 @@ main(int argc, char **argv)
    int width = 12288;
    const char *mode = "varying";
    const char *want_dev = "Mali";
+   const char *workaround = "baseline";
+
+   if (argc > 5) {
+      fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device] "
+                      "[baseline|depth-bias]\n", argv[0]);
+      return 1;
+   }
 
    if (argc > 1) {
       char *end;
       long w = strtol(argv[1], &end, 10);
       if (*argv[1] == '\0' || *end != '\0' || w < 1 || w > (1 << 23)) {
-         fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device]\n",
-                 argv[0]);
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device] "
+                         "[baseline|depth-bias]\n", argv[0]);
          return 1;
       }
       width = (int)w;
@@ -166,16 +175,26 @@ main(int argc, char **argv)
    if (argc > 2) {
       mode = argv[2];
       if (strcmp(mode, "varying") != 0 && strcmp(mode, "fragcoord") != 0) {
-         fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device]\n",
-                 argv[0]);
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device] "
+                         "[baseline|depth-bias]\n", argv[0]);
          return 1;
       }
    }
 
    if (argc > 3)
       want_dev = argv[3];
+   if (argc > 4) {
+      workaround = argv[4];
+      if (strcmp(workaround, "baseline") != 0 &&
+          strcmp(workaround, "depth-bias") != 0) {
+         fprintf(stderr, "usage: %s [width] [varying|fragcoord] [device] "
+                         "[baseline|depth-bias]\n", argv[0]);
+         return 1;
+      }
+   }
 
    int use_fragcoord = strcmp(mode, "fragcoord") == 0;
+   int use_depth_bias = strcmp(workaround, "depth-bias") == 0;
 
    /*
     * 1. Create a Vulkan instance.
@@ -471,6 +490,15 @@ main(int argc, char **argv)
       .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
       .polygonMode = VK_POLYGON_MODE_FILL,
       .cullMode = VK_CULL_MODE_NONE,
+      /*
+       * Vulkan's depthBiasEnable reaches the same Valhall depth-bias-enable
+       * descriptor bit as GL_POLYGON_OFFSET_FILL. All three numeric values are
+       * zero, so this changes the hardware path without shifting depth.
+       */
+      .depthBiasEnable = use_depth_bias ? VK_TRUE : VK_FALSE,
+      .depthBiasConstantFactor = 0.0f,
+      .depthBiasClamp = 0.0f,
+      .depthBiasSlopeFactor = 0.0f,
       .lineWidth = 1.0f,
    };
 
@@ -692,9 +720,11 @@ main(int argc, char **argv)
    double ideal = (double)width - 0.5;
    double rel_err = (ideal - (double)last) / ideal;
 
-   printf("mode=%s width=%d device=%s: floor(v) != x at %ld of %d pixels "
+   printf("mode=%s workaround=%s width=%d device=%s: "
+          "floor(v) != x at %ld of %d pixels "
           "(first at x=%d, unwritten=%ld)\n",
-          mode, width, pprops.deviceName, bad, width, first_bad, unwritten);
+          mode, workaround, width, pprops.deviceName, bad, width, first_bad,
+          unwritten);
    printf("last pixel x=%d: v=%.4f expected=%.1f relative_error=%.3e "
           "(%.3f * 2^-10)\n",
           width - 1, last, ideal, rel_err, rel_err * 1024.0);

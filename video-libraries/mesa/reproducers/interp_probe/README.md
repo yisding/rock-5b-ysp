@@ -14,7 +14,7 @@ varying.
 | [`probe_interp.c`](probe_interp.c) | Original GBM/EGL/GLES probe. Draws a two-triangle quad with an explicit vertex attribute varying from `0` to `W`, then compares the interpolated value with `i + 0.5`. Includes `smooth`, attempted `noperspective`, and `gl_FragCoord.x` modes. |
 | [`tiny_interp_probe.c`](tiny_interp_probe.c) | Minimal surfaceless EGL/GLES proof. Uses one `gl_VertexID` triangle, no texture, no TXF, no u_blitter, no GBM, and no format-changing readback. This is the canonical GL reproducer. |
 | [`tex_interp_probe.c`](tex_interp_probe.c) | Ordinary-TEX counterpart. Carries a normalized non-integer `0→1` varying into `texture()` with `GL_NEAREST` and samples an `R32F` ramp, proving the workaround is not specific to raw varying readback or integer-coordinate TXF. |
-| [`vk_interp_probe.c`](vk_interp_probe.c) | Vulkan/panvk port of the tiny probe. Removes Gallium, u_blitter, and the GL state tracker from the stack. Uses dynamic rendering and copies raw `R32_UINT` bits back with Vulkan. |
+| [`vk_interp_probe.c`](vk_interp_probe.c) | Vulkan/panvk port of the tiny probe. Removes Gallium, u_blitter, and the GL state tracker from the stack. Uses dynamic rendering, copies raw `R32_UINT` bits back with Vulkan, and provides a zero-valued `depthBiasEnable` A/B mode. |
 | [`tiny_interp_probe_arm_blob_x11.c`](tiny_interp_probe_arm_blob_x11.c) | **RK3588 proprietary ARM Mali variant — the runnable one.** Renders as a client of a running X server, so libmali never issues the kernel-crashing `SET_VERSION`. Shader/draw/readback/checker identical to the tiny probe. |
 | [`tiny_interp_probe_arm_blob.c`](tiny_interp_probe_arm_blob.c) | RK3588 ARM Mali variant via a GBM display. **⚠ Crashes the Radxa 5.10 vendor kernel** (NULL-deref in `drm_setversion`); refuses to run by default. Kept for the record — use the X11 variant instead. |
 | [`vk_interp_probe_arm_blob.c`](vk_interp_probe_arm_blob.c) | ARM-named Vulkan entry point for scripts/logs. It includes `vk_interp_probe.c` directly because the RK3588 libmali ICD advertises Vulkan 1.3, so no Vulkan source fork is needed. (The installed g6p0 blob ships no Vulkan ICD, so this is currently unrunnable on this board.) |
@@ -151,6 +151,8 @@ DISPLAY=:0 ./tiny_interp_probe_arm_blob_x11 16307 varying
 ./vk_interp_probe
 ./vk_interp_probe 12288 fragcoord
 ./vk_interp_probe 16307 varying
+./vk_interp_probe 12288 varying Mali depth-bias
+./vk_interp_probe 16307 varying Mali depth-bias
 ./vk_interp_probe 12288 varying llvmpipe
 ./vk_interp_probe_arm_blob
 ./vk_interp_probe_arm_blob 12288 fragcoord
@@ -169,12 +171,14 @@ The explained copies take the same arguments:
 ./tiny_interp_probe_arm_blob_explained 12288 fragcoord
 
 ./vk_interp_probe_explained
+./vk_interp_probe_explained 12288 varying Mali depth-bias
 ./vk_interp_probe_explained 12288 varying llvmpipe
 ./vk_interp_probe_arm_blob_explained
 ./vk_interp_probe_arm_blob_explained 12288 fragcoord
 ```
 
-Exit codes (for `tiny_interp_probe` and `tex_interp_probe`):
+Exit codes (for `tiny_interp_probe`, `tex_interp_probe`, and
+`vk_interp_probe`):
 
 - `0`: every pixel produced its expected value.
 - `2`: the probe ran and found at least one wrong pixel.
@@ -228,7 +232,11 @@ the image to a host-visible buffer with `vkCmdCopyImageToBuffer`. The readback
 is raw bits, not a format conversion. The buffer is initialized with a sentinel,
 and the printed `unwritten` count is a coverage sanity check; it should be `0`.
 The default physical-device substring is `Mali`; pass `llvmpipe` to run the
-same binary on software.
+same binary on software. Its optional fourth argument is
+`baseline|depth-bias`. `depth-bias` sets
+`VkPipelineRasterizationStateCreateInfo::depthBiasEnable` to `VK_TRUE` while
+leaving constant factor, clamp, and slope factor at zero. PanVK maps that state
+to the same Valhall `depth_bias_enable` descriptor bit as the GL workaround.
 
 ## Expected Results
 
@@ -283,25 +291,40 @@ fetch=TEX filter=nearest workaround=polygon-offset width=16307: sampled texel !=
 last pixel x=16306: sampled=16306 expected=16306 shift=+0
 ```
 
-Vulkan/panvk reproduces the GL numbers bit-for-bit at the same widths:
+Vulkan/panvk reproduces the GL numbers bit-for-bit at the same widths and the
+equivalent zero-valued depth-bias state removes the failure:
 
 ```text
 $ ./vk_interp_probe
-mode=varying width=12288 device=Mali-G610 MC4: floor(v) != x at 11744 of 12288 pixels (first at x=529, unwritten=0)
+mode=varying workaround=baseline width=12288 device=Mali-G610 MC4: floor(v) != x at 11744 of 12288 pixels (first at x=529, unwritten=0)
 last pixel x=12287: v=12275.5312 expected=12287.5 relative_error=9.741e-04 (0.997 * 2^-10)
 
+$ ./vk_interp_probe 12288 varying Mali depth-bias
+mode=varying workaround=depth-bias width=12288 device=Mali-G610 MC4: floor(v) != x at 0 of 12288 pixels (first at x=-1, unwritten=0)
+last pixel x=12287: v=12287.5000 expected=12287.5 relative_error=0.000e+00 (0.000 * 2^-10)
+
+$ ./vk_interp_probe 16307 varying Mali baseline
+mode=varying workaround=baseline width=16307 device=Mali-G610 MC4: floor(v) != x at 15672 of 16307 pixels (first at x=623, unwritten=0)
+last pixel x=16306: v=16293.2832 expected=16306.5 relative_error=8.105e-04 (0.830 * 2^-10)
+
+$ ./vk_interp_probe 16307 varying Mali depth-bias
+mode=varying workaround=depth-bias width=16307 device=Mali-G610 MC4: floor(v) != x at 0 of 16307 pixels (first at x=-1, unwritten=0)
+last pixel x=16306: v=16306.5000 expected=16306.5 relative_error=0.000e+00 (0.000 * 2^-10)
+
 $ ./vk_interp_probe 12288 fragcoord
-mode=fragcoord width=12288 device=Mali-G610 MC4: floor(v) != x at 0 of 12288 pixels (first at x=-1, unwritten=0)
+mode=fragcoord workaround=baseline width=12288 device=Mali-G610 MC4: floor(v) != x at 0 of 12288 pixels (first at x=-1, unwritten=0)
 last pixel x=12287: v=12287.5000 expected=12287.5 relative_error=0.000e+00 (0.000 * 2^-10)
 
 $ ./vk_interp_probe 12288 varying llvmpipe
-mode=varying width=12288 device=llvmpipe (LLVM 21.1.8, 128 bits): floor(v) != x at 0 of 12288 pixels (first at x=-1, unwritten=0)
+mode=varying workaround=baseline width=12288 device=llvmpipe (LLVM 21.1.8, 128 bits): floor(v) != x at 0 of 12288 pixels (first at x=-1, unwritten=0)
 ```
 
 The controls matter:
 
 - `polygon-offset` passes at both failing widths tested (`12288` and `16307`),
   confirming the maintainer-provided hardware-erratum workaround on G610.
+- Vulkan `depth-bias` passes at the same two widths with the same zero-valued
+  state, confirming that the descriptor-bit workaround is API-independent.
 - The same workaround also passes the ordinary-TEX probe at both widths;
   baseline fails, while the 8192-wide baseline and llvmpipe controls pass.
 - `fragcoord` passes on Mali, so rasterization and readback are sound.
@@ -324,5 +347,5 @@ Measured width behavior on this board:
 The baseline result is a confirmed Mali hardware erratum in the
 interpolated-varying path for large non-power-of-two extents. It is not
 evidence that u_blitter, texture sampling, TXF, filtering, or readback
-conversion is wrong. Enabling zero-valued polygon offset selects the unaffected
-hardware path without moving the primitive.
+conversion is wrong. Enabling zero-valued polygon offset in GL or depth bias
+in Vulkan selects the unaffected hardware path without moving the primitive.

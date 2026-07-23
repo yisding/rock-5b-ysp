@@ -1,16 +1,16 @@
-# Mali-G610 varying erratum: zero-valued depth bias repairs raw varying and ordinary TEX
+# Mali-G610 varying erratum: zero-valued depth bias repairs GL, Vulkan, and ordinary TEX
 
-> Scope: Mali-G610 MC4 on ROCK 5B, Panfrost OpenGL ES, wide
-> non-power-of-two triangle draws, and the workaround discussed on Mesa
-> MR [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679#note_3578636).
+> Scope: Mali-G610 MC4 on ROCK 5B, Panfrost OpenGL ES, PanVK Vulkan, wide
+> non-power-of-two triangle draws, and the workaround discussed on Mesa MR
+> [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679#note_3578636).
 > Source: maintainer diagnosis in MR !42679; local A/B runs against system
 > Mesa 26.0.3; shader dumps from that driver; and Mesa source inspection at
 > `4c23f1db1f9c`.
 > Date: 2026-07-22.
 > Trust: CONFIRMED (maintainer classification as a hardware erratum) /
-> MEASURED (raw-varying and ordinary-TEX A/B results) / SOURCE-INSPECTED
-> (GL-to-Valhall state mapping) / INFERRED (the internal hardware path selected
-> by the descriptor bit).
+> MEASURED (OpenGL raw-varying, ordinary-TEX, and Vulkan raw-varying A/B
+> results) / SOURCE-INSPECTED (GL- and Vulkan-to-Valhall state mappings) /
+> INFERRED (the internal hardware path selected by the descriptor bit).
 
 ## Result
 
@@ -30,6 +30,10 @@ It makes both the raw-varying probe and an ordinary normalized-coordinate
 `texture()` probe exact at the two failing widths tested. Because factor and
 units are both zero, it does not numerically move the primitive in depth.
 
+The Vulkan equivalent is also confirmed. A graphics pipeline with
+`depthBiasEnable = VK_TRUE` and constant factor, clamp, and slope factor all
+zero makes PanVK's raw-varying probe exact at the same widths.
+
 ## Why the workaround works
 
 The source-visible state chain is:
@@ -38,6 +42,10 @@ The source-visible state chain is:
 GL_POLYGON_OFFSET_FILL
   -> gl_context::Polygon.OffsetFill
   -> pipe_rasterizer_state::offset_tri
+  -> mali_depth_stencil::depth_bias_enable
+
+VkPipelineRasterizationStateCreateInfo::depthBiasEnable
+  -> vk_rasterization_state::depth_bias.enable
   -> mali_depth_stencil::depth_bias_enable
 ```
 
@@ -54,6 +62,11 @@ At the inspected Mesa revision:
   `offset_tri` and carries the zero-valued parameters.
 - `src/gallium/drivers/panfrost/pan_cmdstream.c:887-890` maps `offset_tri` to
   `cfg.depth_bias_enable` in the packed depth/stencil descriptor.
+- `src/vulkan/runtime/vk_graphics_state.c:624-629` imports Vulkan's
+  `depthBiasEnable` and its three numeric values.
+- `src/panfrost/vulkan/csf/panvk_vX_cmd_draw.c:1995-2000` maps that PanVK
+  rasterization state to the same `cfg.depth_bias_enable`, depth-units,
+  depth-factor, and clamp fields.
 - `src/panfrost/genxml/v10.xml:2100-2104` defines the Valhall v10
   `Depth bias enable` bit and its factor, units, and clamp fields.
 
@@ -88,6 +101,45 @@ cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
 ./tiny_interp_probe 16307 varying baseline
 ./tiny_interp_probe 16307 varying polygon-offset
 ```
+
+## Vulkan A/B evidence
+
+[`vk_interp_probe.c`](../video-libraries/mesa/reproducers/interp_probe/vk_interp_probe.c)
+now accepts a backward-compatible fourth `baseline|depth-bias` argument. The
+workaround mode creates the otherwise identical pipeline with:
+
+```c
+.depthBiasEnable = VK_TRUE,
+.depthBiasConstantFactor = 0.0f,
+.depthBiasClamp = 0.0f,
+.depthBiasSlopeFactor = 0.0f,
+```
+
+PanVK on the same G610 produces:
+
+| width | mode | wrong pixels | first bad x | last value (expected) |
+|---:|---|---:|---:|---:|
+| 12288 | baseline | 11744 / 12288 | 529 | 12275.5312 (12287.5) |
+| 12288 | depth bias, zero values | 0 / 12288 | none | 12287.5000 (12287.5) |
+| 16307 | baseline | 15672 / 16307 | 623 | 16293.2832 (16306.5) |
+| 16307 | depth bias, zero values | 0 / 16307 | none | 16306.5000 (16306.5) |
+
+The `gl_FragCoord` plus depth-bias control passes at 12288. llvmpipe also
+passes both baseline and depth-bias modes at 12288.
+
+Reproduce after compiling the shaders and executable per the reproducer
+README:
+
+```bash
+./vk_interp_probe 12288 varying Mali baseline
+./vk_interp_probe 12288 varying Mali depth-bias
+./vk_interp_probe 16307 varying Mali baseline
+./vk_interp_probe 16307 varying Mali depth-bias
+```
+
+This proves that the workaround is not OpenGL-specific. Both APIs reach the
+same Valhall descriptor bit and both become exact when that bit is enabled
+with zero-valued parameters.
 
 ## Non-integer ordinary-TEX A/B evidence
 
@@ -127,17 +179,20 @@ from reaching an ordinary filtered texture instruction too.
 
 ## Boundary
 
-- This validates direct, single-sample OpenGL triangle draws on G610 with
-  ordinary TEX-nearest at 1:1 scale. Scaled sampling, linear filtering, MSAA,
-  Midgard, and other Mali generations remain untested.
+- This validates direct, single-sample OpenGL and Vulkan triangle draws on
+  G610, plus OpenGL ordinary TEX-nearest at 1:1 scale. Scaled sampling, linear
+  filtering, MSAA, Midgard, and other Mali generations remain untested.
 - Enabling polygon offset in an application does not automatically alter
   rasterizer state saved and installed by Mesa's internal `u_blitter`.
   A production Mesa blit workaround must explicitly select the safe state for
   the internal blitter draw.
+- Likewise, an application's Vulkan graphics-pipeline state does not control
+  PanVK's internal meta pipelines. Any affected Vulkan meta blit must install
+  the safe depth-bias state itself.
 - The proprietary Mali userspace stack reproduced the baseline varying values
   bit-for-bit before this workaround was known, supporting a hardware
-  attribution. The workaround itself has only been exercised here on
-  Panfrost.
+  attribution. The workaround itself has been exercised here on Panfrost and
+  PanVK, but not the proprietary stack.
 - Reconstructing coordinates from `gl_FragCoord` remains a valid avoidance
   technique for !42679's TXF path, but the new evidence supersedes the claim
   that an inherent low-precision varying format is the root cause.
@@ -148,6 +203,7 @@ The finding changes both diagnosis and scope. The original TXF corruption is
 still real, and the `gl_FragCoord` reconstruction still avoids it, but the
 underlying defect is a conditional hardware erratum. The ordinary-TEX result
 also proves that fixing only the f32-to-integer conversion does not address
-the whole affected draw class. For a general Mesa fix, the maintainer notes
+the whole affected draw class, while the Vulkan result proves the descriptor
+workaround crosses API frontends. For a general Mesa fix, the maintainer notes
 that blits can be worked around properly; general application draws are harder
 because the workaround changes rasterizer state.
