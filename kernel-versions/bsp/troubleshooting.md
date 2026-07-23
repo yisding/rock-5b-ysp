@@ -74,3 +74,74 @@ Use this page to decide which BSP area to inspect first.
 5. Check whether a product DTS overlay disabled or replaced the base node.
 6. Check whether the block uses normal `rockchip,iommu-v2` or a special provider
    such as `rockchip,iommu-av1d`.
+
+## Silent probe/boot hang: making it self-report
+
+For a boot that **soft-hangs during device probe** — never reaches
+`multi-user.target`, no clean shutdown, no oops/panic, and a manual power-cycle is
+needed. This is a *sleeping* hang (a probe blocked on a mutex/completion, or a
+stuck `deferred_probe_work_func` worker), not a CPU spin.
+
+**Key insight — the detectors are usually already armed; the output has nowhere to
+land.** On the dev box, `kernel.hung_task_timeout_secs=60` and
+`workqueue.watchdog_thresh=30` are on, and deferred probe runs on a workqueue, so
+a stuck probe *does* print `BUG: workqueue lockup` (~30 s) and a hung-task
+backtrace (~60 s) into the ring buffer. You just never see them because no console
+is attached, journald cannot flush a frozen boot, and ramoops came up empty
+(RK3588 does not preserve ramoops across a **warm** reset — see
+[`findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md`](../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md)).
+`soft/hardlockup` and the NMI watchdog do **not** fire on a sleeping hang.
+
+So the triage priority is: give those dumps a durable channel, then force a fast
+reboot instead of a manual wait.
+
+1. **netconsole** — the no-cable alternative to serial. Stream printk over UDP to
+   another host (`modprobe netconsole netconsole=@/,@<host>/`, or a `netconsole=`
+   cmdline arg for early boot). Receives the already-armed hung-task and
+   workqueue-watchdog dumps live.
+2. **Make ramoops capture** — recover the dump with a **cold power-off** (not a
+   warm reboot), and pair with step 3 so the hang panics and its dump lands in
+   ramoops to read on the next boot.
+3. **Force reboot + dump** — set `kernel.hung_task_panic=1` (default here is `0` =
+   warn-only); with `panic=10` already on the cmdline the blocked task panics at
+   60 s and self-recovers in seconds instead of a ~6-minute dead wait.
+4. **Enable SysRq debug dumps** — the box ships `kernel.sysrq=176`
+   (reboot/sync/remount-ro only; **not** the debug-dump bit 8). Set
+   `kernel.sysrq=1`, then while hung trigger `SysRq-w` (blocked/D-state tasks —
+   the smoking gun), `SysRq-t` (all tasks), `SysRq-d` (held locks; works because
+   lockdep is on), `SysRq-l` (per-CPU backtraces). Output still needs a console
+   (serial or netconsole).
+5. **`initcall_debug ignore_loglevel`** — makes probe self-describing: every driver
+   logs `calling <driver>…` / `probe of <dev> returned N after M usecs`. The last
+   `calling` with no matching `returned` names the exact stuck driver.
+6. **Bisect the suspects** — blacklist the candidate drivers
+   (`module_blacklist=…` or drop the DT nodes) and see if the hang vanishes; test
+   independent suspects separately (e.g. the `fdba*.video-codec` codec probes vs.
+   the `dwc_pcie_pmu` notifier path) to convert "unproven suspect" into evidence.
+7. **Automated reboot-loop harness** — for an intermittent hang, script N reboots
+   to measure the hit-rate, gather multiple captures, and provide a regression
+   test for any fix. Pair with the RK3588 **hardware watchdog** so each hang
+   auto-recovers and the loop runs unattended.
+8. **kgdb/kdb** — interactive escalation (break in, inspect live) via `kgdboc`
+   over the serial port, if passive capture is not enough.
+
+**Reading two adjacent messages that often appear at such a freeze:**
+
+- `rockchip-pm-domain …: sync_state() pending due to <addr>.video-codec` is
+  **benign**. `sync_state()` only runs once *every* consumer of a
+  bootloader-left-on resource (power domain, clock, regulator) has probed; the
+  message just says those consumers are not all in yet, and it clears on healthy
+  boots too. Its only value at a freeze is as a **timing marker** — those devices
+  were still mid-probe when logging stopped.
+- The Rockchip PCIe PMU-notifier lockdep splat (`WARNING: possible recursive
+  locking … dwc_pcie_pmu_notifier → dwc_pcie_register_dev → device_add →
+  blocking_notifier_call_chain`) is a **real** report — a re-entrant `down_read`
+  of the same-class notifier rwsem, which deadlocks only if a writer queues
+  between the two reads (timing-dependent, fits an intermittent hang). But it
+  fires on **every** boot including healthy ones, so on its own it does not hang
+  the machine; treat it as a secondary suspect, not proof, unless a capture shows
+  the probe wedged there.
+
+See [`findings/2026-07-22-rock5b-boot-hang-video-codec-probe-not-network.md`](../../findings/2026-07-22-rock5b-boot-hang-video-codec-probe-not-network.md)
+for the incident this was distilled from, and watchlist
+[`W20`](../../status.md#watch-w20).

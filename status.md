@@ -111,6 +111,7 @@ last-checked date.
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → UAF](#watch-w19) | 2026-07-22 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0070`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0059`-`0069`. Fix build **`P29f4-C9fc5`** (config byte-identical to `Pabd5`) is built but not installed; booted `Pabd5` list is poisoned for this boot; gate = install/boot `P29f4` and confirm the reproducer returns `-EBUSY`. |
+| W20 | [Intermittent debug-kernel boot hang during device probe](#watch-w20) | 2026-07-22 | A 2026-07-22 reboot **soft-hung during device probe** (never reached `multi-user.target`, no clean shutdown, no panic → pstore empty; sat ~6 min then hard power-cycled). **Not the network:** the `systemd-networkd-wait-online` timeout is chronic/non-fatal — the healthy next boot logs the identical timeout *and* the identical PCIe PMU-notifier lockdep splat yet reaches `graphical.target`. Last kernel activity was `sync_state() pending due to …video-codec`; unproven suspect = rkvdec2/rkvenc/mpp probe stall. No `hung_task`/oops flushed; gate = catch it with raised `loglevel` + `ttyS2` serial capture. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -465,3 +466,25 @@ last-checked date.
   installed (the current boot's list stays poisoned until reboot).
   Reproducer: [`kernel-drivers/tests/mpp-double-init-repro.c`](./kernel-drivers/tests/mpp-double-init-repro.c).
   Detail: [`findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md`](./findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md).
+
+<a id="watch-w20"></a>
+### W20 — Intermittent debug-kernel boot hang during device probe
+
+- **Why recheck:** Intermittent, so it goes quiet between hits and is easy to
+  misattribute. A reboot on 2026-07-22 hung during device probe (never reached
+  `multi-user.target`, no clean shutdown, no panic — pstore empty, `panic=10`
+  would have rebooted in 10 s), sat ~6 min, then was hard power-cycled. The loud
+  `systemd-networkd-wait-online` timeout in the log is **not** the cause — it is
+  chronic and non-fatal (the healthy boot logs the identical timeout *and* the
+  identical PCIe PMU-notifier lockdep splat, yet reaches `graphical.target`).
+  Stays live until the faulting driver is caught with a serial capture.
+- **Last checked:** 2026-07-22
+- **State then:** Last kernel activity before the freeze was `sync_state()
+  pending due to fdba4000/fdba8000/fdbac000.video-codec`; leading (unproven)
+  suspect is an rkvdec2/rkvenc/mpp probe stall on the debug kernel, with the
+  re-entrant `dwc_pcie_pmu_notifier` blocking-notifier rwsem lockdep path as a
+  secondary candidate. No `hung_task`/RCU-stall/oops was flushed, so the culprit
+  is not proven. Next hit: raise `loglevel` (currently `1`), confirm
+  `hung_task_timeout_secs` is armed, and capture `console=ttyS2,1500000` (journald
+  cannot flush during the hang). boot `-2` ran clean 17:21 → the 21:32 reboot.
+  Detail: [`findings/2026-07-22-rock5b-boot-hang-video-codec-probe-not-network.md`](./findings/2026-07-22-rock5b-boot-hang-video-codec-probe-not-network.md).
