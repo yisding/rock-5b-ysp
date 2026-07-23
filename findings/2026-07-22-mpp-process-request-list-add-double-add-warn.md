@@ -132,9 +132,15 @@ The `-EBUSY` guard is committed to the forward-port branch
 (`video: rockchip: mpp: reject re-init of an already-bound session`,
 `fa8c80ceccc5e`), checkpatch-clean, and staged into the tracked series at
 [`patches/forward-port-rk3588-av1/…-0070-…`](../kernel-drivers/patches/forward-port-rk3588-av1).
-A new KASAN/lockdep debug build carrying `0070` is being produced; its gate is
-the reproducer returning `-EBUSY` on the second `INIT_CLIENT_TYPE` and a clean
-codec/RGA regression pass on the rebuilt boot.
+The KASAN/lockdep debug build carrying `0070` completed 2026-07-22 as
+**`P29f4-C9fc5`** (image sha256 `5cc3abe29a3f…`); its `.config` is byte-identical
+to the booted `Pabd5-C4ad2` (the `C9fc5` vs `C4ad2` hash differs only because
+Armbian hashes the config *input* re-seeded from the now-running kernel — the
+resolved config matches, md5 `d8fad6fb…`, full debug class intact). **Not yet
+installed/booted.** Gate: install `P29f4-C9fc5`, reboot, run
+`mpp-double-init-repro` (second `INIT_CLIENT_TYPE` must return `-EBUSY`, no WARN,
+clean `session_attach`), then re-run the five memory-corruption PoCs on the
+unpoisoned list plus the codec/RGA regression sweep.
 
 ## Boundary
 
