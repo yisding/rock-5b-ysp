@@ -173,26 +173,37 @@ newer:
   later source/destination/pattern channel fails.
 - `0069` requires an RGA core's feature mask to be a superset of every feature
   requested by the job, instead of accepting any overlapping bit.
+- `0070` rejects a second `MPP_CMD_INIT_CLIENT_TYPE` on an already-bound
+  session with `-EBUSY`. The handler was unguarded, so a repeated bind re-added
+  the already-linked `session->session_link` to `queue->session_attach` (a
+  `DEBUG_LIST` "list_add double add" reachable from an unprivileged
+  `/dev/mpp_service` fd, corrupting the taskqueue list on a production kernel)
+  and leaked the first `session->dma`. Root-caused and deterministically
+  reproduced on the booted `Pabd5-C4ad2` full-exercise; the unguarded sequence
+  is byte-identical in the Rockchip 6.1 BSP, so a pre-existing BSP defect, not a
+  `0059`-`0069` regression. See the
+  [list_add finding](../../../findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md).
 
 There is no `0012` in the imported sequence because that const-correctness
 commit is already carried by the Armbian kernel base and the build wrapper
 removes it through `SKIP_COMMITS`.
 
 This snapshot was regenerated from `rkvenc-fwport-6.18` at
-`bsp-high-port-20260722@62f82902f6a1a` (`v6.18..HEAD`, with `0012`
-omitted), forming the 68-file series consumed by `build-armbian-deb.sh`.
-The `0059`-`0069` current-tip HIGH subset is commit-by-commit
-`checkpatch.pl` clean and the complete `drivers/video/rockchip/` subtree
-compiles with the native system toolchain. Pinned-6.18.38 KASAN/lockdep debug
-build `Pabd5-C4ad2` packages that tip into image, DTB, headers, and libc-dev
-arm64 Debian artifacts; the embedded debug config, ramoops DTB, and every
-source file touched by `0059`-`0069` pass package inspection. `Pabd5-C4ad2`
-was **installed and booted 2026-07-22** (vmlinuz-md5 fingerprint match) with
-clean boot health, a bit-exact four-codec HW-vs-SW decode differential, and a
-clean KASAN MPP suite; the targeted `0059`-`0069` hostile-ioctl gates and the
-librga/ABI/FFmpeg/GStreamer sweep on that boot are still open — see the
-[port record](../../../findings/2026-07-22-bsp-high-current-tip-port.md).
-`Pd222-C4ad2` validated through `0058`.
+`bsp-high-port-20260722@fa8c80ceccc5e` (`v6.18..HEAD`, with `0012`
+omitted), forming the 69-file series (`0001`-`0070`) consumed by
+`build-armbian-deb.sh`. The `0059`-`0069` HIGH subset and the `0070`
+list-corruption fix are commit-by-commit `checkpatch.pl` clean and the complete
+`drivers/video/rockchip/` subtree compiles with the native system toolchain.
+Pinned-6.18.38 KASAN/lockdep debug build `Pabd5-C4ad2` packaged the
+`0001`-`0069` tip and was **installed, booted, and fully exercised 2026-07-22**
+(vmlinuz-md5 fingerprint match): clean boot health, bit-exact four-codec
+HW-vs-SW decode differential, FFmpeg 24/24, GStreamer 129/4-known-userspace,
+clean KASAN MPP suite, and the destructive `0059`-`0069` ladder (foreign-fd,
+physical-import, RESET_SESSION, clientless-RELEASE_FD, and the cross-session
+UAF with 64k async submits) all clean. That exercise surfaced the
+`INIT_CLIENT_TYPE` double-init list corruption now fixed by `0070`; a new debug
+build carrying `0070` is being built for its gate. `Pd222-C4ad2` validated
+through `0058`.
 KASAN verified the `0042` narrowed reproduction and the `0042`/`0043` memory
 safety paths; corrected MPP and FFmpeg functional gates pass on that KASAN
 build, while the complete current tip still needs a clean package rebuild and

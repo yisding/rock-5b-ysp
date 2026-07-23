@@ -169,6 +169,16 @@ fixed by `b6ea72cb5f56e` — both of those fixes are themselves BSP-relevant.)
 | 0068 | RGA: idempotent per-channel cleanup; unwind partial handle acquisition. | `rga_mm.c:1776` | **Yes** |
 | 0069 | RGA policy: require the core feature mask to be a **superset** of the job's request, not any-overlap. | `rga_policy.c:351` | **Yes** |
 
+## 0070 — the full-exercise follow-up
+
+Found by running the destructive/fuzz ladder on the booted `0059`-`0069`
+kernel (`Pabd5-C4ad2`), not by the audit. Same BSP-latent character as the
+tier-1 fixes.
+
+| # | What it does | Class | BSP evidence | Backport |
+|---|--------------|-------|--------------|----------|
+| 0070 | MPP: reject a second `INIT_CLIENT_TYPE` on an already-bound session with `-EBUSY`, closing the `session_link` list_add double-add (`mpp_session_attach_workqueue`) and the `session->dma` leak. | `BSP-BUG` | Unguarded `INIT_CLIENT_TYPE` bind sequence is byte-identical in the Rockchip 6.1 BSP; untouched by `0059`-`0069`. Deterministic unprivileged reproducer. | **Yes** — see [finding](../../findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md) |
+
 ## The BSP backport set
 
 What should go back to Rockchip's `develop-6.1`, in priority order:

@@ -92,11 +92,21 @@ one-shot bind ioctl should behave.) Fold into both the forward-port tail and
 the BSP backport set in
 [`patch-catalog.md`](../kernel-drivers/docs/patch-catalog.md).
 
+## Fix applied
+
+The `-EBUSY` guard is committed to the forward-port branch
+`bsp-high-port-20260722` as patch **`0070`**
+(`video: rockchip: mpp: reject re-init of an already-bound session`,
+`fa8c80ceccc5e`), checkpatch-clean, and staged into the tracked series at
+[`patches/forward-port-rk3588-av1/…-0070-…`](../kernel-drivers/patches/forward-port-rk3588-av1).
+A new KASAN/lockdep debug build carrying `0070` is being produced; its gate is
+the reproducer returning `-EBUSY` on the second `INIT_CLIENT_TYPE` and a clean
+codec/RGA regression pass on the rebuilt boot.
+
 ## Boundary
 
-The fix above is proposed, not yet applied or gated — it needs a rebuild, the
-reproducer returning `-EBUSY` on the second call, and a clean codec/RGA
-regression pass. Not confirmed on a non-DEBUG_LIST production build (the
+Until that build is installed and gated, the fix is compile-staged only — the
+`-EBUSY` behavior and the absence of the WARN are not yet confirmed on hardware. Not confirmed on a non-DEBUG_LIST production build (the
 double-add is silent there; the downstream fault from the corrupted
 `session_attach` list is inferred, not observed). Legitimate userspace calls
 `INIT_CLIENT_TYPE` once, so normal decode/encode is unaffected; the exposure is

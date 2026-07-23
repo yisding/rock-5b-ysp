@@ -1,0 +1,60 @@
+From fa8c80ceccc5e28d93264962c56073375657919f Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Wed, 22 Jul 2026 20:05:18 -0700
+Subject: [PATCH] video: rockchip: mpp: reject re-init of an already-bound
+ session
+
+MPP_CMD_INIT_CLIENT_TYPE binds a /dev/mpp_service session to a device: it
+sets session->dma via mpp_dma_session_create(), session->mpp, the dev-ops
+callbacks, and calls mpp_session_attach_workqueue(), which does an
+unconditional list_add_tail() of session->session_link onto
+queue->session_attach.
+
+The handler has no guard against being called twice on the same session.
+session->session_link is INIT_LIST_HEAD'd once at session creation, so a
+first INIT_CLIENT_TYPE attaches cleanly but a second re-adds the
+already-linked node, corrupting queue->session_attach. With
+CONFIG_DEBUG_LIST this is a "list_add double add" WARN reached from
+mpp_process_request(); on a production kernel the corruption is silent and
+the taskqueue worker later walks a broken list. The second call also
+overwrites session->dma without destroying the first, leaking the prior
+DMA session.
+
+Both are reachable from an unprivileged /dev/mpp_service fd (video group):
+open, then issue INIT_CLIENT_TYPE twice. A legitimate client binds once, so
+normal decode/encode is unaffected.
+
+Reject a second bind with -EBUSY before mutating session state, closing
+both the double-add and the dma-session leak. The unguarded sequence is
+present in the pristine Rockchip 6.1 BSP (develop-6.1) too, where
+mpp_common.c is byte-identical, so this is a latent BSP defect rather than
+a forward-port regression.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/mpp/mpp_common.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 8690232fd23eb..804e19e2eb969 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -1423,6 +1423,18 @@ static int mpp_process_request(struct mpp_session *session,
+ 		if (!mpp)
+ 			return -EINVAL;
+ 
++		/*
++		 * INIT_CLIENT_TYPE binds the session to a device exactly once.
++		 * A second call would re-create session->dma (leaking the
++		 * first) and re-run mpp_session_attach_workqueue(), which
++		 * list_add_tail()s the already-linked session->session_link and
++		 * corrupts queue->session_attach (a DEBUG_LIST "list_add double
++		 * add", reachable from an unprivileged /dev/mpp_service fd).
++		 * Reject re-init.
++		 */
++		if (session->mpp)
++			return -EBUSY;
++
+ 		session->device_type = (enum MPP_DEVICE_TYPE)client_type;
+ 		session->dma = mpp_dma_session_create(mpp->dev, mpp->session_max_buffers);
+ 		session->mpp = mpp;
