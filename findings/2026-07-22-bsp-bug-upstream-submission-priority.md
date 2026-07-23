@@ -5,14 +5,59 @@
 > Date: 2026-07-22
 > Trust: SOURCE-INSPECTED (patch messages + donor comparison); the reproduced rows also MEASURED (KASAN on hardware)
 
+## Disclose in this order (TL;DR)
+
+All are unprivileged (any process with `video`-group access to
+`/dev/mpp_service` or `/dev/rga`) and present in the shipping Rockchip 6.1 BSP.
+Rank = demonstrated severity × reproduction strength.
+
+**P0 — file these first, together, as a coordinated memory-corruption report
+(request CVEs):**
+
+1. **`0070` — MPP `INIT_CLIENT_TYPE` double-init use-after-free.** *File this
+   first.* It is the only one with a **use-after-free actually observed on
+   hardware** (KASAN slab-use-after-free reading a freed `struct mpp_session`),
+   from a **deterministic, self-contained PoC**, fully unprivileged. Strongest,
+   least-arguable submission.
+2. **`0055` — MPP register-offset out-of-bounds kernel write.** Highest
+   exploitation *ceiling*: a controlled OOB **write** over adjacent
+   `struct mpp_task` fields including a `work_struct` (classic LPE primitive).
+   Deterministic trigger; PoC reaches the path.
+3. **`0060` — `MPP_CMD_SET_SESSION_FD` type confusion.** Any fd is accepted and
+   its `private_data` is used as an `mpp_session` — an attacker-chosen kernel
+   object dereferenced as a driver struct. PoC confirms the path.
+
+**P0 (same batch) — reproduced UAF / double-free, KASAN-proven:**
+
+4. **`0052` + `0057`** — RGA request/job vs `/dev/rga`-close use-after-free.
+5. **`0042`** — MPP `RESET_SESSION` double-free.
+
+**P1 — bundle as the low-risk opener / follow-ups:**
+
+6. **`0058`** — clientless `RELEASE_FD` NULL-deref (trivial deterministic DoS).
+7. **`0053` / `0054`** — device-less-task NULL-deref hard lockup (full-board DoS).
+8. **`0056`** — unmap-after-free leaving a stale IOMMU mapping onto freed pages.
+
+**P2 — real but not yet reduced to a PoC (write one before filing):**
+
+9. **`0061` / `0063`** — further unprivileged OOB writes (RKVDEC2 RCB index,
+   RKVENC2 request fan-out), same class as `0055`.
+
+**If you file exactly one thing today: `0070`** (observed UAF, deterministic PoC,
+unprivileged). **If you file one write-primitive: `0055`.** Everything below P1
+is correctness/hardening and can wait for a batched follow-up.
+
+Venue: **Rockchip BSP (`rockchip-linux/kernel`, `develop-6.1`) + Armbian** — not
+mainline (this code is out-of-tree). Full rationale below.
+
 ## Result
 
 A subset of the `BSP-BUG`-class fixes clears the bar for **reporting to
 Rockchip/Armbian now** rather than in a batched correctness series: the
-unprivileged, attacker-reachable **memory-corruption** bugs. Two of them
-(`0055`, `0060`) are arguably CVE-worthy. The correctness/hardening/environment
-fixes are real but not attacker-reachable memory corruption and can ride a
-follow-up submission.
+unprivileged, attacker-reachable **memory-corruption** bugs. Three of them
+(`0070`, `0055`, `0060`) are the lead CVE candidates. The
+correctness/hardening/environment fixes are real but not attacker-reachable
+memory corruption and can ride a follow-up submission.
 
 ### Venue — not mainline
 
