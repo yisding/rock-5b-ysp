@@ -2,7 +2,7 @@
 
 The complete per-patch accounting of the maintained forward-port series
 [`patches/forward-port-rk3588-av1/`](../patches/forward-port-rk3588-av1/README.md)
-(`0001`–`0069`, no `0012`): what each patch does, where its change *comes from*,
+(`0001`–`0071`, no `0012`): what each patch does, where its change *comes from*,
 and — the question this document exists to answer — **which fixes should be
 carried back to the Rockchip BSP** (`develop-6.1`), because the defect they fix
 lives in Rockchip's own code, not in our port.
@@ -178,6 +178,17 @@ tier-1 fixes.
 | # | What it does | Class | BSP evidence | Backport |
 |---|--------------|-------|--------------|----------|
 | 0070 | MPP: reject a second `INIT_CLIENT_TYPE` on an already-bound session with `-EBUSY`, closing the `session_link` list_add double-add (`mpp_session_attach_workqueue`) and the `session->dma` leak. | `BSP-BUG` | Unguarded `INIT_CLIENT_TYPE` bind sequence is byte-identical in the Rockchip 6.1 BSP; untouched by `0059`-`0069`. Deterministic unprivileged reproducer. | **Yes** — see [finding](../../findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md) |
+
+## 0071 — forward-port regression fix (our bug, not the BSP's)
+
+Found by running the root-only gate ladder on the booted `0059`-`0070` kernel:
+reading `/sys/kernel/debug/rkrga/mm_session` KASAN-faulted and wedged the reader
+in unkillable D state. Unlike the tier-1 fixes, this one is **not** BSP-latent —
+it is a regression introduced by our own forward-port RGA lifetime rework.
+
+| # | What it does | Class | BSP evidence | Backport |
+|---|--------------|-------|--------------|----------|
+| 0071 | RGA: in `rga_mm_session_release_buffer()`, free the last buffer reference with `rga_mm_force_releaser_buffer()` (under the held `mm->lock`) instead of `kref_put(rga_mm_kref_release_buffer)`, which dropped and re-acquired `mm->lock` mid-`idr_for_each_entry` and left it owned by an exited/freed `task_struct`; plus a NULL-guard on `dump_buffer->session` in `rga_mm_session_show()`. | `FWPORT-REGRESSION` | Regression from forward-port `bc086cbe03d72c` (RGA lifetime rework); the Rockchip BSP force-releases under the held lock and is **not** affected. | **No** — BSP unaffected; see [finding](../../findings/2026-07-22-rga-mm-session-debugfs-uaf-freed-task-struct.md) |
 
 ## The BSP backport set
 

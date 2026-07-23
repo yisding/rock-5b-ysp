@@ -183,16 +183,30 @@ newer:
   is byte-identical in the Rockchip 6.1 BSP, so a pre-existing BSP defect, not a
   `0059`-`0069` regression. See the
   [list_add finding](../../../findings/2026-07-22-mpp-process-request-list-add-double-add-warn.md).
+- `0071` stops `rga_mm_session_release_buffer()` from dropping `mm->lock` during
+  session teardown. The forward-port RGA lifetime rework freed the last buffer
+  reference via `kref_put(rga_mm_kref_release_buffer)`, whose release callback
+  unlocks and re-locks `mm->lock` around the sleeping unmap — i.e. mid
+  `idr_for_each_entry`. Under heavy churn that left the global `mm->lock` owned
+  by an exited/RCU-freed `task_struct`, so the next waiter (the
+  `rkrga/mm_session` debugfs reader) KASAN-faulted in `mutex_can_spin_on_owner`
+  and wedged in unkillable D state. Now the last reference is freed in place with
+  `rga_mm_force_releaser_buffer()` under the held lock (BSP behavior); a NULL
+  guard is also added to `rga_mm_session_show()` for the rework's
+  `buffer->session = NULL`. Unlike `0070`, this is **our regression** (from
+  `bc086cbe03d72c`), not a BSP defect. See the
+  [mm_session UAF finding](../../../findings/2026-07-22-rga-mm-session-debugfs-uaf-freed-task-struct.md).
 
 There is no `0012` in the imported sequence because that const-correctness
 commit is already carried by the Armbian kernel base and the build wrapper
 removes it through `SKIP_COMMITS`.
 
 This snapshot was regenerated from `rkvenc-fwport-6.18` at
-`bsp-high-port-20260722@fa8c80ceccc5e` (`v6.18..HEAD`, with `0012`
-omitted), forming the 69-file series (`0001`-`0070`) consumed by
-`build-armbian-deb.sh`. The `0059`-`0069` HIGH subset and the `0070`
-list-corruption fix are commit-by-commit `checkpatch.pl` clean and the complete
+`bsp-high-port-20260722@e7eaa8f8c69b4` (`v6.18..HEAD`, with `0012`
+omitted), forming the 70-file series (`0001`-`0071`) consumed by
+`build-armbian-deb.sh`. The `0059`-`0069` HIGH subset, the `0070`
+list-corruption fix, and the `0071` RGA `mm->lock` teardown fix are
+commit-by-commit `checkpatch.pl` clean and the complete
 `drivers/video/rockchip/` subtree compiles with the native system toolchain.
 Pinned-6.18.38 KASAN/lockdep debug build `Pabd5-C4ad2` packaged the
 `0001`-`0069` tip and was **installed, booted, and fully exercised 2026-07-22**
