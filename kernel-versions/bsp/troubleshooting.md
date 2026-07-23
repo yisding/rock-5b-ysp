@@ -114,10 +114,8 @@ reboot instead of a manual wait.
 5. **`initcall_debug ignore_loglevel`** — makes probe self-describing: every driver
    logs `calling <driver>…` / `probe of <dev> returned N after M usecs`. The last
    `calling` with no matching `returned` names the exact stuck driver.
-6. **Bisect the suspects** — blacklist the candidate drivers
-   (`module_blacklist=…` or drop the DT nodes) and see if the hang vanishes; test
-   independent suspects separately (e.g. the `fdba*.video-codec` codec probes vs.
-   the `dwc_pcie_pmu` notifier path) to convert "unproven suspect" into evidence.
+6. **Bisect only unmatched probes** — blacklist a driver only when its probe
+   start lacks a matching return. A completion line closes that path.
 7. **Automated reboot-loop harness** — for an intermittent hang, script N reboots
    to measure the hit-rate, gather multiple captures, and provide a regression
    test for any fix. Pair with the RK3588 **hardware watchdog** so each hang
@@ -127,12 +125,14 @@ reboot instead of a manual wait.
 
 **Reading two adjacent messages that often appear at such a freeze:**
 
-- `rockchip-pm-domain …: sync_state() pending due to <addr>.video-codec` is
+- `rockchip-pm-domain …: sync_state() pending due to <addr>.video-codec` can be
   **benign**. `sync_state()` only runs once *every* consumer of a
   bootloader-left-on resource (power domain, clock, regulator) has probed; the
-  message just says those consumers are not all in yet, and it clears on healthy
-  boots too. Its only value at a freeze is as a **timing marker** — those devices
-  were still mid-probe when logging stopped.
+  message alone says only that consumers are not all bound. In the 2026-07-22
+  incident, the `fdba4000/fdba8000/fdbac000` nodes are Hantro VEPU121 JPEG
+  secondary instances that Hantro intentionally ignores, and the same pending
+  messages occur on the healthy boot. They do not imply a forward-port MPP probe
+  was still running.
 - The Rockchip PCIe PMU-notifier lockdep splat (`WARNING: possible recursive
   locking … dwc_pcie_pmu_notifier → dwc_pcie_register_dev → device_add →
   blocking_notifier_call_chain`) is a **real** report — a re-entrant `down_read`
@@ -142,6 +142,6 @@ reboot instead of a manual wait.
   the machine; treat it as a secondary suspect, not proof, unless a capture shows
   the probe wedged there.
 
-See [`findings/2026-07-22-rock5b-boot-hang-video-codec-probe-not-network.md`](../../findings/2026-07-22-rock5b-boot-hang-video-codec-probe-not-network.md)
+See [`findings/2026-07-22-rock5b-boot-hang-forward-port-probes-completed.md`](../../findings/2026-07-22-rock5b-boot-hang-forward-port-probes-completed.md)
 for the incident this was distilled from, and watchlist
 [`W20`](../../status.md#watch-w20).
