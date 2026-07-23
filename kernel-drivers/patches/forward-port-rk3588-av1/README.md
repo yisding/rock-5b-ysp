@@ -213,7 +213,7 @@ removes it through `SKIP_COMMITS`.
 This snapshot was regenerated from `rkvenc-fwport-6.18` at
 `bsp-high-port-20260722@4401383a6d9b5` (`v6.18..HEAD`, with `0012`
 omitted), forming the 71-file series (`0001`-`0072`) consumed by
-`build-armbian-deb.sh`. The `0059`-`0069` HIGH subset, the `0070`
+`build-kernel.sh`. The `0059`-`0069` HIGH subset, the `0070`
 list-corruption fix, and the `0071` RGA `mm->lock` teardown fix are
 commit-by-commit `checkpatch.pl` clean and the complete
 `drivers/video/rockchip/` subtree compiles with the native system toolchain.

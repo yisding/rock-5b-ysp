@@ -34,7 +34,8 @@ rewrite commits are applied.
 ## Build
 
 ```sh
-bash packaging/ppa/build-source-packages.sh kernel-alpha-6.18
+bash kernel-drivers/scripts/build-kernel.sh ppa-rewrite-6.18
+# (delegates to packaging/ppa/build-source-packages.sh kernel-alpha-6.18)
 ```
 
 `build-source-packages.sh` archives the composite package pin above directly;

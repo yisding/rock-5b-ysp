@@ -26,7 +26,7 @@ this combination:
 
 ```bash
 ARMBIAN_CLEAN_LEVEL=make-kernel \
-  bash kernel-drivers/scripts/build-armbian-deb.sh
+  bash kernel-drivers/scripts/build-kernel.sh forward-port
 ```
 
 That discards stale kernel objects and dependency metadata while retaining the
@@ -117,14 +117,14 @@ Production/combined kernel, Docker-backed by default:
 
 ```bash
 PATH=/usr/sbin:/usr/bin:/sbin:/bin \
-  bash kernel-drivers/scripts/build-armbian-deb.sh
+  bash kernel-drivers/scripts/build-kernel.sh forward-port
 ```
 
 Debug KASAN/lockdep kernel:
 
 ```bash
 PATH=/usr/sbin:/usr/bin:/sbin:/bin PREFER_DOCKER=yes \
-  bash kernel-drivers/scripts/debug-kernel/build-debug-kernel.sh
+  bash kernel-drivers/scripts/build-kernel.sh forward-port-debug
 ```
 
 Native builds on a supported host must also use the system-only path so
@@ -132,7 +132,7 @@ Homebrew/Linuxbrew's `pkg-config` cannot hide Ubuntu multiarch metadata:
 
 ```bash
 PATH=/usr/sbin:/usr/bin:/sbin:/bin PREFER_DOCKER=no \
-  bash kernel-drivers/scripts/build-armbian-deb.sh
+  bash kernel-drivers/scripts/build-kernel.sh forward-port
 ```
 
 The native Armbian path may relaunch through `sudo`; use Docker when the session
@@ -220,7 +220,7 @@ For more detail, pass `SHOW_CCACHE=yes` as an Armbian argument where the wrapper
 accepts extra compile arguments:
 
 ```bash
-bash kernel-drivers/scripts/build-armbian-deb.sh SHOW_CCACHE=yes
+bash kernel-drivers/scripts/build-kernel.sh forward-port SHOW_CCACHE=yes
 ```
 
 Or inspect the persistent cache separately:
@@ -253,7 +253,7 @@ Work down this list before clearing anything.
 
    ```bash
    ARMBIAN_CLEAN_LEVEL=make-kernel \
-     bash kernel-drivers/scripts/build-armbian-deb.sh
+     bash kernel-drivers/scripts/build-kernel.sh forward-port
    ```
 
 10. Run a deliberately uncached comparison only when investigating a suspected
@@ -261,7 +261,7 @@ Work down this list before clearing anything.
 
     ```bash
     ARMBIAN_USE_CCACHE=no ARMBIAN_CLEAN_LEVEL=make-kernel \
-      bash kernel-drivers/scripts/build-armbian-deb.sh
+      bash kernel-drivers/scripts/build-kernel.sh forward-port
     ```
 
 That last command bypasses the cache without deleting it, so the existing warm

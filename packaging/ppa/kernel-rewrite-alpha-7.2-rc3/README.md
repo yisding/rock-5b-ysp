@@ -37,7 +37,8 @@ layer in the composite branch.
 ## Build
 
 ```sh
-bash packaging/ppa/build-source-packages.sh kernel-alpha-7.2-rc3
+bash kernel-drivers/scripts/build-kernel.sh ppa-rewrite-7.2-rc3
+# (delegates to packaging/ppa/build-source-packages.sh kernel-alpha-7.2-rc3)
 ```
 
 `build-source-packages.sh` archives the composite package pin above directly;

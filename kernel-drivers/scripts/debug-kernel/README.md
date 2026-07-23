@@ -8,22 +8,40 @@ external Armbian build tree (`WORKSPACE`, default
 `../../../../kernel/rock5b-kernel-build`), with the config seeded from the
 running `/boot/config-$(uname -r)`.
 
-The Armbian userpatch config is tracked here as
-[`config-rock5b-debug-kernel.conf.sh`](config-rock5b-debug-kernel.conf.sh).
-`build-debug-kernel.sh` first regenerates and stages the complete forward-port
-series through `build-armbian-deb.sh --stage-only`, then installs the config
-and the debug-only ROCK 5B ramoops DT patch into
+Both debug kernels are built through the unified entry point
+[`../build-kernel.sh`](../build-kernel.sh) (see the
+[kernel-builds map](../../docs/kernel-builds.md)); this directory tracks their
+Armbian userpatch configs and the install/ramoops/rollback tooling. The two
+flavor configs — [`config-rock5b-debug-kernel.conf.sh`](config-rock5b-debug-kernel.conf.sh)
+(forward-port) and
+[`config-rock5b-rewrite-debug-kernel.conf.sh`](config-rock5b-rewrite-debug-kernel.conf.sh)
+(rewrite) — source the shared
+[`ysp-debug-instrumentation.conf.sh`](ysp-debug-instrumentation.conf.sh)
+fragment, so both carry byte-identical KASAN/lockdep/DMA-debug instrumentation.
+For either flavor, `build-kernel.sh` regenerates and stages the flavor's
+complete patch series, then installs the config, the shared fragment, and the
+debug-only ROCK 5B ramoops DT patch into
 `$WORKSPACE/armbian-build/userpatches/` before invoking `compile.sh`. The base
 is pinned to Armbian's exact 6.18.38 commit `e46dc0adfe39`; the external build
 tree is scratch, not the source of truth.
 
-> Perf numbers on this kernel are meaningless (KASAN instruments every access) —
+> Perf numbers on these kernels are meaningless (KASAN instruments every access) —
 > use the production forward-port build for benchmarking.
+
+The **rewrite flavor** builds the MPP/RGA rewrite drivers + their KUnit suites
+in while disabling the vendor forward-port drivers, mirroring the
+[rewrite package config](../../../packaging/ppa/kernel-rewrite-alpha-6.18/README.md)
+("Kernel A" of [`rewrite-validation-plan.md`](../../docs/rewrite-validation-plan.md) §1).
+Its staged series is the `rk3588-rewrite-6.18` tip of `linux-6.18-rkvenc`; the
+build fails closed if that worktree is on another branch or dirty.
+Install/hold/restore below applies to both flavors unchanged — they produce
+the same `linux-*-current-rockchip64` package names.
 
 ## Build
 
 ```bash
-./build-debug-kernel.sh --install-deps      # --install-deps only needed once
+../build-kernel.sh forward-port-debug --install-deps   # --install-deps only needed once
+../build-kernel.sh rewrite-debug                       # rewrite flavor
 ```
 Debs land in `$WORKSPACE/armbian-build/output/debs/`; the build prints the exact
 `P####-C####` needed by the installer.

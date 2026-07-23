@@ -129,6 +129,6 @@ else
 fi
 
 echo; say "DONE. Next:"
-say "  Build a kernel deb:   bash $HERE/build-armbian-deb.sh"
+say "  Build a kernel deb:   bash $HERE/build-kernel.sh forward-port"
 say "  Build MPP test bins:  bash $CONFORMANCE_DIR/scripts/build-mpp.sh"
 say "  Run the suites:       PROFILE=forward-port bash $HERE/../tests/rewrite-conformance-run.sh"

@@ -51,7 +51,7 @@ find_deb() {
 }
 
 if [[ ! "$PHASH" =~ ^P[0-9a-f]{4,}-C[0-9a-f]{4,}$ ]]; then
-	printf 'Set PHASH to the exact P####-C#### printed by build-debug-kernel.sh.\n' >&2
+	printf 'Set PHASH to the exact P####-C#### printed by build-kernel.sh.\n' >&2
 	usage >&2
 	exit 2
 fi
@@ -64,7 +64,7 @@ headers_deb="$(find_deb linux-headers-current-rockchip64 || true)"
 if [[ -z "${image_deb}" || -z "${dtb_deb}" ]]; then
 	printf 'Could not find debug image + DTB debs matching PHASH=%s HASH=%s in %s\n' \
 		"$PHASH" "${HASH:-<any>}" "$DEB_DIR" >&2
-	printf 'Run ./build-debug-kernel.sh first.\n' >&2
+	printf 'Run build-kernel.sh forward-port-debug (or rewrite-debug) first.\n' >&2
 	exit 1
 fi
 

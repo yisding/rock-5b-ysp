@@ -55,7 +55,7 @@ native build. Choose one supported host mode:
 
 | Build-host mode | Requirement | Invocation through this repo |
 |-----------------|-------------|------------------------------|
-| Containerized (default) | A current Docker-capable Linux host; install/start Docker and give your user daemon access. | `bash kernel-drivers/scripts/build-armbian-deb.sh` |
+| Containerized (default) | A current Docker-capable Linux host; install/start Docker and give your user daemon access. | `bash kernel-drivers/scripts/build-kernel.sh forward-port` |
 | Native | Armbian or Ubuntu 24.04 Noble, plus working `sudo`. The measured aarch64 VM path is documented in the [builder finding](findings/2026-07-08-armbian-builder-setup.md). | `bash kernel-drivers/scripts/build-armbian-deb.sh PREFER_DOCKER=no` |
 
 On a ROCK 5B already running the target Ubuntu 26.04 userspace, use the Docker
@@ -63,7 +63,7 @@ mode unless Armbian adds Resolute to its native-host support list. See Armbian's
 official [build preparation](https://docs.armbian.com/Developer-Guide_Build-Preparation/)
 and [`PREFER_DOCKER` switch](https://docs.armbian.com/Developer-Guide_Build-Switches/#prefer_docker).
 
-`kernel-drivers/scripts/build-armbian-deb.sh` expects an Armbian build tree at
+`kernel-drivers/scripts/build-kernel.sh` expects an Armbian build tree at
 **`$WORKSPACE/armbian-build`** — an external, gitignored build workspace
 (default `WORKSPACE=../kernel/rock5b-kernel-build`, override with `WORKSPACE=`)
 and a forward-port Git tree at `KERNEL_TREE` (default
@@ -143,7 +143,7 @@ bash kernel-drivers/scripts/bootstrap-workspaces.sh
 #    (~80-90 min cold, ~10-15 warm). USE_CCACHE must be an ARGUMENT, not an env
 #    var -- the wrapper gets this right (docs/gotchas.md). On a supported
 #    Noble/Armbian native host, append PREFER_DOCKER=no.
-bash kernel-drivers/scripts/build-armbian-deb.sh        # prints the new P####-C#### hash
+bash kernel-drivers/scripts/build-kernel.sh forward-port # prints the new P####-C#### hash
 
 # 2. Install (pin the hash the build printed), reboot, validate:
 sudo RECOVERY_READY=1 WORKSPACE="$WORKSPACE" PHASH='P####-C####' \
@@ -171,7 +171,7 @@ the **applied patch set**, `C####` the **kernel config** — so the pair names a
 matches debs on `HASH` (kernel version) + `PHASH` so it can never grab a stale
 deb from `output/debs`. Workflow:
 
-1. `build-armbian-deb.sh` prints the new hash at the end of every build.
+1. `build-kernel.sh` prints the new hash at the end of every build.
 2. After completing §3, pass it to the installer (`sudo RECOVERY_READY=1
    PHASH='…' bash kernel-drivers/scripts/install-combined-kernel.sh`).
 3. **Add a row to the log below** so the hash stays decodable later.

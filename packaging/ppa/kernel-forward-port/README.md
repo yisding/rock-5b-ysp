@@ -22,7 +22,7 @@ and the [upload log](../2026-07-06-ubuntu-rock-5b-upload-log.md), instead of
 being mixed into the current-state summary.
 
 The current kernel delivery path is still the Armbian wrapper in
-[`../../../kernel-drivers/scripts/build-armbian-deb.sh`](../../../kernel-drivers/scripts/build-armbian-deb.sh),
+[`../../../kernel-drivers/scripts/build-kernel.sh`](../../../kernel-drivers/scripts/build-kernel.sh),
 which produces local binary `.deb`s under the external Armbian build workspace.
 Launchpad PPAs accept source uploads (`.dsc` + `*_source.changes`), not arbitrary
 prebuilt binary kernel `.deb`s, so those local artifacts cannot be added to
@@ -86,7 +86,8 @@ three copies remain byte-identical.
 ## Build Source Package
 
 ```bash
-bash packaging/ppa/build-source-packages.sh kernel
+bash kernel-drivers/scripts/build-kernel.sh ppa-forward-port
+# (delegates to packaging/ppa/build-source-packages.sh kernel)
 ```
 
 The original source was generated on 2026-07-09, signed/uploaded on 2026-07-10

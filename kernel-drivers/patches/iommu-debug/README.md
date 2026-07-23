@@ -19,7 +19,7 @@ The clean forward-port branch now stops before these diagnostics.
 | 4 | `kconfig-debug.fragment` | `DMA_API_DEBUG`, `KALLSYMS_ALL`, `IOMMU_DEBUGFS` | `DMA-API:` dmesg lines |
 
 > **Status.** The driver instrumentation is archived here, not carried by the
-> clean forward-port branch. A plain `build-armbian-deb.sh` run therefore builds
+> clean forward-port branch. A plain `build-kernel.sh forward-port` run therefore builds
 > the functional RGA userptr-IOMMU forward-port without `DIAG` dmesg traces, per-master
 > debugfs fault counters, or `rkrga/userptr_iommu/*` counters/force knob.
 >
@@ -192,7 +192,7 @@ branches deterministically. Lower priority; ask and I'll write it.
 Clean Armbian .deb build, with the archived diagnostics excluded:
 
 ```sh
-bash kernel-drivers/scripts/build-armbian-deb.sh
+bash kernel-drivers/scripts/build-kernel.sh forward-port
 ```
 
 Diagnostic Armbian .deb build with the archived RGA userptr-IOMMU/IOMMU instrumentation:
@@ -201,7 +201,7 @@ Diagnostic Armbian .deb build with the archived RGA userptr-IOMMU/IOMMU instrume
 cd ../kernel/linux-6.18-rkvenc-av1-fwport
 git switch rkvenc-fwport-6.18-iommu-debug-20260706
 cd ../../rock-5b-ysp
-IOMMU_DEBUG=yes bash kernel-drivers/scripts/build-armbian-deb.sh
+IOMMU_DEBUG=yes bash kernel-drivers/scripts/build-kernel.sh forward-port
 # reboot into the new kernel, then:
 sudo env IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS=1 \
   PHASES=ABC RGA_ITERS=128 DECODE_LOOPS=3 \

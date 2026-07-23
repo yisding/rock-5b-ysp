@@ -24,7 +24,7 @@ There are two useful forward-port source profiles:
   they can be dropped cleanly before publishing.
 
 Use a temporary git worktree so the source tree stays clean after the test.
-`build-armbian-deb.sh` intentionally mutates the external Armbian build
+`build-kernel.sh` intentionally mutates the external Armbian build
 workspace: it resets the generated userpatch archive, stages patches generated
 from `KERNEL_TREE`, and disables the colliding built-in media patches for this
 self-contained DT build. `KERNEL_TREE` must therefore name a source tree whose
@@ -55,12 +55,12 @@ fi
 KERNEL_TREE="$TEST" \
 PATCH_PREFIX=rk3588-av1-rga-userptr-iommu \
 STAGING=/tmp/rga-userptr-iommu-fw-runtime-patches \
-  bash /home/yi/Code/rock-5b-ysp/kernel-drivers/scripts/build-armbian-deb.sh
+  bash /home/yi/Code/rock-5b-ysp/kernel-drivers/scripts/build-kernel.sh forward-port
 ```
 
 If you are starting from a pre-RGA-userptr-IOMMU base instead of the prepared local branch,
 apply patch 0001 once in that temporary worktree before running the same
-`KERNEL_TREE=... build-armbian-deb.sh` command:
+`KERNEL_TREE=... build-kernel.sh forward-port` command:
 
 ```bash
 BASE=backup/rkvenc-fwport-6.18-before-rga-userptr-iommu-20260705-180636
@@ -111,7 +111,7 @@ archive and clear generated userpatches before switching to another kernel
 build:
 
 ```bash
-bash /home/yi/Code/rock-5b-ysp/kernel-drivers/scripts/build-armbian-deb.sh --restore
+bash /home/yi/Code/rock-5b-ysp/kernel-drivers/scripts/build-kernel.sh --restore
 ```
 
 ## Forward-Port Runtime Gate

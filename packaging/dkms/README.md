@@ -3,7 +3,7 @@
 Ship the vendor MPP codec (`rk_vcodec.ko`) + RGA (`rga3.ko`) drivers as a **DKMS**
 package that builds out-of-tree against a *stock* kernel and **rebuilds itself on
 every kernel update** — the alternative to rebuilding the in-tree forward-port
-kernel with `kernel-drivers/scripts/build-armbian-deb.sh` (chooser in
+kernel with `kernel-drivers/scripts/build-kernel.sh` (chooser in
 [`../../install.md`](../../install.md)).
 
 > ⚠️ **Mutually exclusive with the combined kernel.** On a kernel that already

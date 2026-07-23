@@ -74,7 +74,7 @@ repointing or reinstalling from an SD rescue boot, so recovery is staged
 ## Step 1 — build identity going in
 
 Every build is named by its patch/config hash pair `P####-C####`, printed by
-`build-armbian-deb.sh` and embedded in the deb filenames. Record, at build
+`build-kernel.sh` and embedded in the deb filenames. Record, at build
 time: the `P####-C####`, the patch tail it corresponds to (e.g.
 `0001`–`0058` less `0012`), the base commit pin, and whether the config class
 is production or debug/KASAN. A config-class change (debug ⇄ production)

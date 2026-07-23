@@ -6,13 +6,15 @@ the console log across the reboot, KASAN/lockdep turn latent memory and locking
 bugs into loud reports, and `panic_on_oops` + `panic=10` guarantee the box
 comes back on its own.
 
-> Provenance: the tracked workflow lives in
-> [`scripts/debug-kernel/`](../scripts/debug-kernel/); only the Armbian build
-> tree and outputs live in the external
-> `/home/yi/Code/kernel/rock5b-kernel-build/` scratch workspace. The wrapper
-> calls `build-armbian-deb.sh --stage-only`, so it regenerates the complete
-> forward-port patch series and matching Armbian core-patch exclusions before
-> every debug build instead of trusting leftover userpatch state.
+> Provenance: the tracked configs and install tooling live in
+> [`scripts/debug-kernel/`](../scripts/debug-kernel/); the build itself runs
+> through the unified [`scripts/build-kernel.sh`](../scripts/build-kernel.sh)
+> (`forward-port-debug` / `rewrite-debug` flavors, see the
+> [kernel-builds map](./kernel-builds.md)). Only the Armbian build tree and
+> outputs live in the external `/home/yi/Code/kernel/rock5b-kernel-build/`
+> scratch workspace. The entry point regenerates the complete flavor patch
+> series and matching Armbian core-patch exclusions before every debug build
+> instead of trusting leftover userpatch state.
 > Build-cache behavior, including why a changed `.config` can force broad
 > Kbuild work without deleting ccache, is documented in the
 > [kernel build ccache guide](./kernel-build-ccache.md).
@@ -41,25 +43,26 @@ commit and the wrapper regenerates the forward-port commits as userpatches.
 Re-derive and update both inputs whenever the production kernel base moves.
 
 The mechanism is a plain Armbian userpatches config
-(`userpatches/config-rock5b-debug-kernel.conf.sh`):
+(`userpatches/config-rock5b-debug-kernel.conf.sh`, or the
+`config-rock5b-rewrite-debug-kernel.conf.sh` sibling for the rewrite flavor):
 
 ```bash
 BOARD="rock-5b"  BRANCH="current"  RELEASE="resolute"
 INSTALL_HEADERS="yes"
 KERNELBRANCH="commit:e46dc0adfe39724bcf52cea47b8f9c9aed86a394"
 KERNEL_BTF="yes"                # keep DWARF/BTF even if RAM looks tight
-function custom_kernel_config__rock5b_hard_reboot_debug() {
-    opts_y+=( ... )             # §3 below
-}
+source ".../ysp-debug-instrumentation.conf.sh"  # defines the shared hook:
+# custom_kernel_config__rock5b_hard_reboot_debug() { opts_y+=( ... ) }  # §3 below
 ```
 
-plus the base config seeded from the running kernel: the wrapper copies
+plus the base config seeded from the running kernel: `build-kernel.sh` copies
 `/boot/config-$(uname -r)` to `userpatches/linux-rockchip64-current.config`
-before building. It first runs `build-armbian-deb.sh --stage-only`, then invokes
-`PREFER_DOCKER=yes ./compile.sh rock5b-debug-kernel kernel` by default; output
-debs land in `armbian-build/output/debs/`. Set `PREFER_DOCKER=no` only when the
-native caller can satisfy Armbian's root relaunch. (Heavy build; the
-KASAN+lockdep kernel takes a long while on the board itself.)
+before building. It first stages the flavor's patch series, then invokes
+`PREFER_DOCKER=yes ./compile.sh rock5b-debug-kernel kernel` (or the rewrite
+config name) by default; output debs land in `armbian-build/output/debs/`. Set
+`PREFER_DOCKER=no` only when the native caller can satisfy Armbian's root
+relaunch. (Heavy build; the KASAN+lockdep kernel takes a long while on the
+board itself.)
 
 ## 3. The debug config set — and what each piece catches
 

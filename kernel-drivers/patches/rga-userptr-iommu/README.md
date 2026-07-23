@@ -20,7 +20,7 @@ Runtime validation instructions live in [`runtime-validation.md`](runtime-valida
 
 ## Consumption Boundary
 
-For the RK3588 forward-port runtime test, point `build-armbian-deb.sh` at a
+For the RK3588 forward-port runtime test, point `build-kernel.sh` at a
 source tree whose checked-out commit already contains patch 0001 with
 `KERNEL_TREE=...`. If starting from a pre-RGA-userptr-IOMMU base, apply patch 0001 once in
 that source tree first. Do not apply patch 0001 again on top of a RGA-userptr-IOMMU branch.

@@ -27,8 +27,8 @@ when it is not. Pass `PREFER_DOCKER=no` as an extra wrapper argument to force a
 supported native build:
 
 ```bash
-bash build-armbian-deb.sh                    # Docker when available
-bash build-armbian-deb.sh PREFER_DOCKER=no   # native Armbian/Noble host
+bash build-kernel.sh forward-port                    # Docker when available
+bash build-kernel.sh forward-port PREFER_DOCKER=no   # native Armbian/Noble host
 ```
 
 Both modes need roughly 8 GB RAM and 50 GB free disk. The aarch64 Noble native
@@ -43,7 +43,7 @@ The full prerequisite and mode chooser is canonical in
 |-------|----------|
 | User outcome | Build the combined Armbian kernel, install the exact intended debs, validate device probing, and install the canonical codec udev rule. |
 | Developer focus | Preserve the assumptions in the Armbian wrapper flow: userpatch location, `USE_CCACHE` handling, PHASH pinning, validation signals, and device-node policy. |
-| Owns | `build-armbian-deb.sh`, `install-combined-kernel.sh`, `validate-combined.sh`, `kernel-revert.sh`, `make-fallback-kernel-deb.sh`, `99-rockchip-codec.rules`, `bootstrap-workspaces.sh`, and the [`debug-kernel/`](debug-kernel/README.md) build. |
+| Owns | `build-kernel.sh` (the unified kernel-build entry point, see [`../docs/kernel-builds.md`](../docs/kernel-builds.md)), `install-combined-kernel.sh`, `validate-combined.sh`, `kernel-revert.sh`, `make-fallback-kernel-deb.sh`, `99-rockchip-codec.rules`, `bootstrap-workspaces.sh`, and the [`debug-kernel/`](debug-kernel/README.md) configs. |
 | Depends on | Kernel patches in [`../patches/`](../patches/README.md), Armbian build tree setup from [`install.md`](../../install.md), and validation expectations from [`../tests/`](../tests/README.md). |
 | Current state | The combined-kernel flow produced the hardware-validated board state recorded in [`status.md`](../../status.md). |
 
@@ -64,7 +64,7 @@ bash bootstrap-workspaces.sh          # Armbian branch + pinned conformance sour
 ```
 
 Stage the port patches per [`packaging/docs/armbian-packaging.md`](../../packaging/docs/armbian-packaging.md)
-(the av1 `build-armbian-deb.sh` regenerates + stages them for you). Debs land in
+(`build-kernel.sh` regenerates + stages them for you). Debs land in
 `$WORKSPACE/armbian-build/output/debs`, which is exactly where
 `install-combined-kernel.sh` looks by default — the build → install handoff
 needs no path edits. Override `ARMBIAN_BUILD=`/`WORKSPACE=` for another layout.
@@ -74,7 +74,7 @@ needs no path edits. Override `ARMBIAN_BUILD=`/`WORKSPACE=` for another layout.
 | Script | Runs as | What it does |
 |--------|---------|--------------|
 | `install-combined-kernel.sh` | root | After `RECOVERY_READY=1`, removes the obsolete `rkvdec2` boot overlay from `armbianEnv.txt` (backs it up), then `dpkg -i` the image + dtb + headers debs for the pinned `PHASH`. A same-name/version install can clobber the prior files; there is no boot menu, so prepare `kernel-revert.sh` and known-good debs first. `DEBS`/`PHASH` are env-overridable; `HASH` is an optional extra version filter. |
-| `build-armbian-deb.sh` | user | Builds the **AV1 forward-port** kernel. Regenerates the port patches from the kernel git tree (`KERNEL_TREE`, `git format-patch v6.18..HEAD`), restores/cleans the selected built-in Armbian kernel patch archive, clears the matching userpatch archive, stages the generated patch set, **disables** the two colliding Armbian core media patches (this tree's DT is self-contained), rejects stale heavy-debug user configs, pins the KASAN-verified 6.18.38 source commit unless `ARMBIAN_KERNELBRANCH` is deliberately overridden, then runs `compile.sh` and prints the new `P####-C####` hash. Removing a tracked debug config automatically requests `CLEAN_LEVEL=make-kernel` so stale Kbuild metadata cannot leak across config classes. Ccache is on by default; set `ARMBIAN_USE_CCACHE=no` or explicitly set `ARMBIAN_CLEAN_LEVEL=make-kernel` for a clean retry. `--restore` performs only the built-in archive reset. |
+| `build-kernel.sh` | user | **Unified entry point for every ysp kernel build** — `build-kernel.sh <flavor>` with local flavors `forward-port` (production AV1 forward-port), `forward-port-debug`, and `rewrite-debug` (KASAN/lockdep debug builds), plus delegated flavors `ppa-forward-port` / `ppa-rewrite-6.18` / `ppa-rewrite-7.2-rc3` (source packages) and `maxline-public` / `maxline-wip`. The flavor map is documented in [`../docs/kernel-builds.md`](../docs/kernel-builds.md). For local flavors it regenerates the flavor's patch series from its git tree (`git format-patch v6.18..HEAD`), restores/cleans the selected built-in Armbian kernel patch archive, clears the matching userpatch archive, stages the generated patch set, **disables** the two colliding Armbian core media patches (the trees' DT is self-contained), sweeps stale heavy-debug user configs, pins the KASAN-verified 6.18.38 source commit unless `ARMBIAN_KERNELBRANCH` is deliberately overridden, then runs `compile.sh` and prints the new `P####-C####` hash. Debug flavors additionally stage the ramoops DT patch plus their tracked Armbian config (both sourcing the shared `debug-kernel/ysp-debug-instrumentation.conf.sh` fragment) and seed the base `.config` from the running kernel. Sweeping a *different* flavor's debug config automatically requests `CLEAN_LEVEL=make-kernel` so stale Kbuild metadata cannot leak across config classes. Ccache is on by default; set `ARMBIAN_USE_CCACHE=no` or explicitly set `ARMBIAN_CLEAN_LEVEL=make-kernel` for a clean retry. `--restore` performs only the built-in archive reset. |
 | `kernel-revert.sh` | root (SD rescue) | Get a bad board booting again: flip `/boot` symlinks (`switch`) or chroot-reinstall a good deb (`reinstall`) on the internal disk from an SD-card rescue. Subcommands `list`/`switch`/`reinstall`; target via `--auto`/`--device`/`--root`. |
 | `make-fallback-kernel-deb.sh` | user | Repackage a kernel deb (rename `Package:`, drop `Provides:`) into a **co-installable** fallback that won't clobber the primary `linux-image-current-rockchip64` — a permanent recovery kernel `kernel-revert.sh` can `switch` to. Defaults to the official 6.18.35 (26.5.1) debs. |
 | `bootstrap-workspaces.sh` | user | Reconstruct the external workspaces: clone `ARMBIAN_BRANCH` (`main` by default), harden the persistent Armbian ccache with compiler-content identity while preserving an existing size policy, clone the five conformance sources at `../tests/conformance/MANIFEST.tsv` commits, and deploy the tracked conformance skeleton. Existing checkouts are never moved and are reported as `branch@commit`; `--check` reports only. Cache rationale: [`../docs/kernel-build-ccache.md`](../docs/kernel-build-ccache.md). |
@@ -90,7 +90,7 @@ needs no path edits. Override `ARMBIAN_BUILD=`/`WORKSPACE=` for another layout.
 
 ```bash
 # build (on Docker-capable Linux, or native Armbian/Ubuntu Noble)
-nohup bash build-armbian-deb.sh &                # ~80-90 min cold, ~10-15 warm
+nohup bash build-kernel.sh forward-port &        # ~80-90 min cold, ~10-15 warm
 # set install-combined-kernel.sh PHASH to the printed hash (or pass it), then:
 sudo RECOVERY_READY=1 PHASH='P####-C####' bash install-combined-kernel.sh
 sudo reboot

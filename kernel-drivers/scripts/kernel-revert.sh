@@ -15,7 +15,7 @@
 # also works live (sudo, on '/') to flip back to another installed kernel.
 #
 # THE CLOBBER GOTCHA
-#   Our AV1 build (kernel-drivers/scripts/build-armbian-deb.sh) keeps the exact kernel
+#   Our AV1 build (kernel-drivers/scripts/build-kernel.sh) keeps the exact kernel
 #   version "6.18.37-current-rockchip64", so `dpkg -i` OVERWRITES the shipping
 #   kernel's vmlinuz/dtb/modules. After that, `switch` can only reach a *different*
 #   version (e.g. 7.1.0-edge, 6.1.115-vendor). To get the shipping 6.18.37 back you

@@ -57,7 +57,7 @@ Armbian or Ubuntu Noble. The Docker path only forwards parsed `KEY=VALUE`
 `lib/functions/cli/utils-cli.sh`); `USE_CCACHE=yes ./compile.sh` (env var) was
 observed being dropped → `Ccache result: hit=0 miss=0 (0%)`. Pass it as an
 **argument** in either mode: `./compile.sh kernel BOARD=rock-5b … USE_CCACHE=yes`
-(`kernel-drivers/scripts/build-armbian-deb.sh` does this). First build is cold (~80–90 min,
+(`kernel-drivers/scripts/build-kernel.sh` does this). First build is cold (~80–90 min,
 seeds ~5 GB); subsequent patch-only builds hit the cache (~10–15 min). Worktree
 re-patching churns mtimes and defeats Armbian's *worktree-incremental*, but
 content-addressed ccache survives it.
