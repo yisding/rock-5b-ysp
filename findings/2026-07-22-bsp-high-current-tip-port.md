@@ -117,3 +117,52 @@ Still open from the gate list above: the targeted `0059`-`0069` hostile-ioctl
 gates (foreign-fd, RCB/request bounds, acquire-fence, missing-plane /
 partial-handle), librga smoke, ABI replay, and the FFmpeg + GStreamer suites
 on this boot.
+
+### 2026-07-22 ~19:20–19:34 — full exercise on `Pabd5-C4ad2`
+
+The remaining ladder was run on this boot (logs under
+`rockchip-conformance/logs/forward-port/2026072*` and this session's
+scratchpad). Board stayed up throughout (`uptime` continuous, no reboot).
+
+**Conformance / correctness — green:**
+
+- **FFmpeg suite 24/24** (`20260722-191912-ffmpeg-suite`) — H.264/H.265/VP9/AV1
+  bit-exact PSNR and Main10→P010 RGA. Strongest correctness gate, clean.
+- **ABI replay** `rc=0`.
+- **GStreamer 129 pass / 4 fail** (`20260722-191946-gstreamer-suite`) — the 4
+  fails are the documented userspace gaps
+  ([finding](2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md)):
+  `generated_transcode_h264_dmabuf_to_h265`, `event_flush_dec_h264`,
+  `generated_dec_h265_10_rga_scale`, `generated_dec_h265_10_env_disable_nv12_10`.
+- Four-codec decode differential (17:29 run) and KASAN MPP suite (17:30) already
+  green on this boot.
+
+**Destructive / hostile-ioctl — the fixes under test hold:**
+
+| Gate | Fix | Result |
+|------|-----|--------|
+| foreign-fd (`ABI_PROBE_ENABLE_MPP_FOREIGN_FD=1`) | `0060` | batch returns `-EBADF` (`-9`) as required; no crash |
+| raw physical import | `0039` | safely rejected `-EINVAL`; no crash. (Probe reported FAIL only because this run mis-set the *rewrite*-profile `EXPECT_RGA_PHYSICAL_REJECT=EOPNOTSUPP`; forward-port `0039` rejects with `EINVAL` by design.) |
+| RESET_SESSION double-free | `0042` | `kasan-narrowed-repro.sh` clean, `flagged_kernel_lines=0` |
+| clientless `RELEASE_FD` | `0058` | ioctl returns `-1`/`-EINVAL`, board up ("kernel is NOT vulnerable") |
+| cross-session request/job UAF | `0052`/`0057` | `cross`: iters=2000, **async_submits=64000**, submit_fail=0, **0 KASAN flags** — strongest result; the race window genuinely opened (below-4G CMA) and stayed clean |
+| ioctl fuzz smoke | — | exits PASS, but surfaced a **new** unprivileged list-corruption WARN (below) |
+
+**Root-only gates NOT run** (owner decision — `sudo` needs a password):
+encoder-tiny, transcode pipeline, `iommu-machinery-fuzz`, `mpp-debug-capture`,
+`mpp-vp9-show-existing-repro`. These stay OPEN.
+
+**librga suites — environment, not kernel:** the official 48-sample
+`librga-suite` (7 pass / 41 fail / 5 missing) and `librga-smoke` fail on
+`Could not open /data/…bin` (samples hardcode `/data/` inputs) and
+`alloc dma32_heap/CMA buffer failed!` (no dma32 heap; CMA limited to `cma=256M`),
+plus userspace format-enum gaps (P010 `0x4000` "unknown", AFBC32x8/RFBC64x4).
+Every RGA op not needing those — rotate/flip/center-rotate transforms, dma-buf
+roundtrips — reported `running success!`. No `no core match`, no `EOPNOTSUPP`,
+no driver fault: `0069`'s feature-superset check is **not** over-rejecting.
+
+**New defect surfaced:** the ioctl fuzz tripped a `CONFIG_DEBUG_LIST`
+"list_add double add" WARN in `mpp_process_request()` — unprivileged-reachable,
+WARN-level, in BSP-shared core code untouched by `0059`-`0069`. Recorded
+separately:
+[list_add double-add finding](2026-07-22-mpp-process-request-list-add-double-add-warn.md).
