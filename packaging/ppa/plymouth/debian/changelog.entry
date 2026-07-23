@@ -1,0 +1,7 @@
+plymouth (24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1) resolute; urgency=medium
+
+  * Backport upstream 45655f12 to stop plymouthd looping forever when a
+    terminal read ends in the middle of a CSI control sequence. This prevents
+    timing-sensitive boot hangs on systems using a serial console.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Wed, 22 Jul 2026 23:15:23 -0700

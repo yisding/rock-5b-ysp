@@ -47,7 +47,7 @@ deleted.
 
 | PPA | Role | Live state at the check below |
 |-----|------|-------------------------------|
-| `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | GRD 50.2 source `18632058` is accepted/Pending and arm64 build `33422570` is running. Backpressure-fixed FFmpeg source `18628833` / build `33417109` and session-lifetime kernel source `18626523` / build `33412608` succeeded; their exact binaries are Published. This is the only normal system-stack install target. |
+| `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: Plymouth boot-hang fix, codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | Plymouth `-0ubuntu8.1~rk1` is locally source/native-arm64 validated and awaiting upload. GRD 50.2 source `18632058` is accepted/Pending and arm64 build `33422570` is running. Backpressure-fixed FFmpeg source `18628833` / build `33417109` and session-lifetime kernel source `18626523` / build `33412608` succeeded; their exact binaries are Published. This is the only normal system-stack install target. |
 | `ppa:yi-ding/rock5b-ffmpeg81-upstream` | Upstream FFmpeg 8.1.2 comparison baseline. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-ffmpeg81-rockchip` | ABI-changing FFmpeg 8.1.2 RKMPP/RKRGA forward port. Add the system PPA as well for MPP and librga. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-kernel618-rewrite` | Experimental Linux 6.18.38 Armbian-based clean-room rewrite kernel. | Replacement source `18623665`, successful arm64 build `33406491`, and exact binaries are Published. |
@@ -94,6 +94,7 @@ Last recorded through Launchpad's devel API and exact-version binary queries at
 
 | Package | Version in this repo | Public PPA state | Notes |
 |---------|----------------------|------------------|-------|
+| `plymouth` | `24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1` under [`plymouth/`](plymouth/README.md) | Source and native arm64 binary builds pass locally; upload pending. | Exact Ubuntu Resolute `-0ubuntu8` source plus upstream `45655f12`, fixing the incomplete-CSI non-advancing loop that can hang `plymouthd` on serial-console input. `debdiff` contains only the changelog, one DEP-3 patch, and its series entry; source/binary lintian has no warning or error introduced by the backport. |
 | `rk3588-codec-udev` | `1.1` under [`codec-udev/`](codec-udev/README.md) | Source publication [`18620729`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18620729) and arm64-hosted `Architecture: all` build [`33399688`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33399688) are Published/successful. Version 1.0 is superseded. | Installs the canonical non-root MPP/RGA/DMA-heap access rule; `1.1` retriggers real sysfs devices and verifies the resulting permissions. Local source/binary builds, lintian, package installation, and live-device permission checks pass. |
 | `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Fresh-main source publication [`18619785`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619785) and all five arm64 binaries are Published. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
 | `librga` | `2.2.0+git20260703.a632217-0ubuntu3~rk1` | Fresh-main source publication [`18619786`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619786) and both arm64 binaries are Published. | The earlier arm64 builder retry succeeded; SONAME remains `librga.so.2`. |
@@ -124,6 +125,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | Path | Purpose |
 |------|---------|
 | [`build-source-packages.sh`](build-source-packages.sh) | Exports clean upstream git snapshots, overlays the packaging in this repo, and creates unsigned source packages under `packaging/ppa/out/artifacts/` by default. |
+| [`plymouth/`](plymouth/README.md) | Exact Ubuntu Resolute source download/verification plus the one-patch upstream incomplete-CSI boot-hang backport. |
 | [`install-system-stack.sh`](install-system-stack.sh) | Installs the published normal stack on a clean arm64 Resolute system while retaining the existing distro kernel for recovery. |
 | [`clean-install-system-stack.sh`](clean-install-system-stack.sh) | Replaces earlier incompatible test packages with exact versions from the system PPA while retaining the distro kernel as a recovery path. |
 | [`mpp/debian/`](mpp/debian/changelog) | Debian packaging for Rockchip MPP from `mpp-rockchip` commit `1375813c`. |
@@ -207,6 +209,7 @@ bash packaging/ppa/build-source-packages.sh ffmpeg
 bash packaging/ppa/build-source-packages.sh ffmpeg-rockchip
 bash packaging/ppa/build-source-packages.sh gnome-remote-desktop
 bash packaging/ppa/build-source-packages.sh grd
+bash packaging/ppa/build-source-packages.sh plymouth
 bash packaging/ppa/build-source-packages.sh gdm-hwenc
 bash packaging/ppa/build-source-packages.sh kernel
 bash packaging/ppa/build-source-packages.sh kernel-alpha-6.18
@@ -295,7 +298,7 @@ historical helper predates the current automatic source-tree/orig comparison.
 Respect the build-dependency chain:
 
 ```text
-Wave A  rk3588-codec-udev, mpp, librga
+Wave A  plymouth, rk3588-codec-udev, mpp, librga
           wait for librockchip-mpp-dev and librga-dev to publish on arm64
 Wave B  ffmpeg 8.0.3 Rockchip system package
           wait for libavcodec-dev/libavutil-dev/etc. to publish
@@ -330,6 +333,20 @@ Use the exact files from the artifact directory; the upload log records the
 fingerprint and package-specific retry history from the 2026-07-06 run.
 
 ## Package Notes
+
+### Plymouth
+
+The Plymouth helper pins and verifies Ubuntu Resolute's exact
+`24.004.60+git20250831.4a3c171d-0ubuntu8` source files, then adds only upstream
+commit `45655f12` and a PPA changelog entry. Ubuntu Resolute, Stonking, Noble
+updates/proposed, Debian sid, and the current Ubuntu packaging branches all
+still contain the vulnerable `continue`; Launchpad showed no pending Ubuntu
+Plymouth upload when the backport was prepared.
+
+The package-level regression surface is one control-flow statement in
+`libply-splash-core`. The native arm64 build completes with the required system
+`pkg-config`; the binary lintian run is clean, and source lintian reports only
+pre-existing informational/pedantic Ubuntu-source tags.
 
 ### Codec device access
 

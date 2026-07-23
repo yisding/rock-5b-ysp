@@ -53,7 +53,7 @@ CODEC_UDEV_RULE="${CODEC_UDEV_RULE:-$ROOT/kernel-drivers/scripts/99-rockchip-cod
 
 usage() {
     cat <<'USAGE'
-Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [codec-udev] [gdm-hwenc] [kernel] [kernel-alpha-6.18] [kernel-alpha-7.2-rc3]
+Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [plymouth] [codec-udev] [gdm-hwenc] [kernel] [kernel-alpha-6.18] [kernel-alpha-7.2-rc3]
 
 Build unsigned source packages for the Rock 5B PPAs.
 Artifacts are written under packaging/ppa/out/artifacts by default.
@@ -86,6 +86,10 @@ large and intentionally excluded from the no-argument default set.
 
 The codec-udev and gdm-hwenc targets create small native source packages and
 copy their canonical rules into the generated source trees at export time.
+
+The plymouth target delegates to its package-specific helper, which downloads
+and verifies Ubuntu Resolute's exact source package before applying the tracked
+one-patch backport. It is not part of the default set.
 USAGE
 }
 
@@ -401,6 +405,10 @@ build_codec_udev() {
         "99-rockchip-codec.rules"
 }
 
+build_plymouth() {
+    OUT="$OUT" "$ROOT/packaging/ppa/plymouth/build-source-package.sh"
+}
+
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     usage
     exit 0
@@ -419,6 +427,7 @@ for package in "$@"; do
         ffmpeg) build_ffmpeg ;;
         ffmpeg-rockchip|nyanmisaka-ffmpeg-rockchip) build_ffmpeg_rockchip ;;
         gnome-remote-desktop|grd) build_grd ;;
+        plymouth) build_plymouth ;;
         codec-udev|rk3588-codec-udev) build_codec_udev ;;
         gdm-hwenc|gnome-remote-desktop-gdm-hwenc) build_gdm_hwenc ;;
         kernel|forward-port-kernel|linux-rockchip64-ysp) build_kernel_forward_port ;;

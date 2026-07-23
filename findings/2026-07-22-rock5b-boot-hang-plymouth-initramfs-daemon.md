@@ -312,6 +312,20 @@ complete parser fix: incomplete CSI input from the local console can still hit
 the same loop. `plymouth.enable=0` remains the safest board-level fix when no
 splash is needed.
 
+An archive audit on 2026-07-22 found no Ubuntu or Debian package carrying this
+fix. Resolute and Stonking publish
+`24.004.60+git20250831.4a3c171d-0ubuntu8`; the latest Noble updates/proposed
+source, Debian sid, and every current applied Ubuntu packaging branch still
+contain the vulnerable `continue`. Launchpad had no pending Plymouth upload.
+
+The YSP PPA backport is tracked under
+[`packaging/ppa/plymouth/`](../packaging/ppa/plymouth/README.md) as
+`24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1`. Its helper downloads and
+checksum-verifies the exact Resolute source, applies only upstream `45655f12`,
+and produces the source upload. The source and native arm64 builds pass;
+`debdiff` shows only the changelog, DEP-3 patch, and series entry, and binary
+lintian is clean. PPA upload is pending.
+
 ### Package-level hardening if Plymouth must remain enabled
 
 Preventing a cosmetic splash failure from stopping boot requires a fail-open

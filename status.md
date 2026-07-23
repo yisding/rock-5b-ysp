@@ -508,6 +508,12 @@ last-checked date.
   `libplymouth5` plus `plymouth`, and regenerate the initramfs.
   `plymouth.ignore-serial-consoles` is a narrower mitigation that removes the
   likely serial trigger but does not fix the parser.
+  Ubuntu has not packaged the fix in Resolute, Stonking, Noble
+  updates/proposed, its current packaging branches, or Debian sid. A minimal
+  PPA backport,
+  `24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1`, now has exact-source
+  checksum verification, source/native-arm64 builds, a three-file `debdiff`,
+  and clean binary lintian locally; upload is pending.
   Gate after reboot: confirm the cmdline token, skipped Plymouth start, completed
   read-write unit, and reached sysinit/basic targets. If retaining Plymouth,
   client reply timeouts must cover read-write/show-splash and finite systemd
