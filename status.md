@@ -96,7 +96,7 @@ last-checked date.
 | W02 | [Armbian patcher precedence](#watch-w02) | 2026-07-11 | Core-wins behavior unchanged; rename workaround still required. |
 | W03 | [Armbian codec-udev upstreaming](#watch-w03) | 2026-07-11 | PR merged; future images should carry the rule. |
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-07-11 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
-| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-19 | Latest normal FFmpeg, GRD `~exp3`, and both rewrite-kernel replacements are Published with successful arm64 builds. |
+| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-23 | Production forward-port kernel `…20260723` (complete current tip, `0001`-`0071`) `dput`-uploaded 2026-07-23; **Launchpad processing pending** (not yet visible in the API — verify publication + arm64 build). Prior: latest normal FFmpeg, GRD `~exp3`, and both rewrite-kernel replacements Published with successful arm64 builds. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-07-11 | Four MRs open; !42679 needs a rebase. |
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-19 | Canonical public tips unchanged; separate normal-PPA timeout branch remains at `da5befc806`. |
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-16 | Fix carried forward; board re-test pending. |
@@ -161,8 +161,21 @@ last-checked date.
 
 - **Why recheck:** Acceptance, build state, and binary publication can change
   after upload without a local repository edit.
-- **Last checked:** 2026-07-19
-- **State then:** Launchpad's API and exact-version binary queries showed the
+- **Last checked:** 2026-07-23
+- **State 2026-07-23 (forward-port kernel):** The production (non-debug) source
+  package `linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1`
+  — the complete current tip (single `rk3588-video-6.18` branch, contiguous
+  `0001`–`0071`), built locally as production kernel `P5618-Cb831`
+  (`CONFIG_KASAN` off, AV1 on) — was `debsign`-signed (`0FDDE6BC…AA2228E6`) and
+  `dput`-uploaded to `ppa:yi-ding/ubuntu-rock-5b`; all client-side checks
+  (GPG/checksums/required-fields) passed and **Launchpad accepted it** — source
+  publication
+  [`18639187`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18639187),
+  status **Pending**. Next check: confirm it reaches Published and its arm64
+  build succeeds, then board-install/boot/conformance/rollback this production
+  image. The previous local `…20260720` was never uploaded, and the Published
+  line had stopped at `…20260717` (patch `0041`-era).
+- **State then (2026-07-19):** Launchpad's API and exact-version binary queries showed the
   current package lines Published. In the normal PPA, FFmpeg source
   [`18628833`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18628833)
   carries `da5befc806`; arm64 build

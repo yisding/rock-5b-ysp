@@ -1,7 +1,23 @@
 # kernel-forward-port/ - PPA kernel source package
 
 This directory owns the source-package path for the co-installable ROCK 5B
-forward-port kernel. The current published candidate is:
+forward-port kernel.
+
+**Uploaded 2026-07-23 (latest):** `6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1`
+— a **production (non-debug)** source package of the **complete current tip**
+(the single `rk3588-video-6.18` branch, contiguous series `0001`–`0071`, i.e.
+everything through the old `0072` RGA3 unaligned-userptr reject). Built locally as
+production kernel `P5618-Cb831` (`CONFIG_KASAN` off, `CONFIG_ROCKCHIP_MPP_AV1DEC=y`),
+source-packaged from that worktree, `dpkg-source -x`-verified (current tip + prod
+config present), `debsign`-signed with `0FDDE6BC…AA2228E6`, and `dput`-uploaded to
+`ppa:yi-ding/ubuntu-rock-5b` (all client-side checks passed). **Launchpad
+accepted it** — source publication
+[`18639187`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18639187),
+status **Pending** at time of writing; confirm it reaches Published and that the
+arm64 build succeeds (see status.md [W05](../../../status.md)). Board install,
+boot, conformance, and rollback on this production image remain to be run.
+
+The previous published candidate:
 
 | Field | Current evidence |
 |-------|------------------|
@@ -9,8 +25,7 @@ forward-port kernel. The current published candidate is:
 | Launchpad | Source publication `18626523`; successful arm64 build `33412608`; exact image present in the live PPA index. |
 | Contents | RGA session-close reference lifetime fix, early MPP procfs unlink, the preceding raw-import hardening, and the full MPP/RGA/AV1 forward port. |
 | Board result | Package install and boot passed. The first conformance preflight Oopsed before a media case, so driver conformance and rollback remain unproven. |
-| Newer source | Tracked forward-port patches `0042`/`0043` fix the KASAN-traced RESET_SESSION and RKVENC2 lifetime bugs and pass their memory-safety reruns. `0044`/`0045` fix the two RGA ABI replay gaps and pass booted KASAN ABI replay on rebuilt debug build `Pb999-C4ad2`. None is in the Published package. |
-| Local successor | `6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1` exports `0042`/`0043`. Exact-source, no-ccache Armbian build `Pf558-Cb831` completed image, modules, DTBs, headers, BTF, and Debian packaging; its unsigned PPA source package passes `dscverify`, fresh extraction, source inspection, and production-config inspection. Corrected MPP/FFmpeg conformance passes are from the installed KASAN build, not this production image. It predates `0044`/`0045` and is not uploaded or board-tested. |
+| Superseded by | The `20260723` upload above carries the entire `0044`-onward tail (RGA ABI/10-bit/DMA fixes, the `0052`-`0058` lifetime fixes, the BSP-audit HIGH port, and the `0070`/`0071`/`0072`-era fixes), all renumbered into the contiguous `0001`–`0071` series. The intermediate local `…20260720` (0042/0043 only, build `Pf558-Cb831`) was never uploaded. |
 
 Earlier package iterations established the packaging path: the initial build
 failed because `mkimage` was absent; retry `18614559`/`33387391` added

@@ -1,3 +1,35 @@
+linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1) resolute; urgency=high
+
+  * RGA legacy-ABI compatibility: accept the legacy RGA2_GET_RESULT no-op and
+    the historical virtual-address blit convention; validate staged
+    REQUEST_CONFIG task lists and report the RGA2 under-4G exclusion distinctly.
+  * RGA 10-bit correctness: program byte-literal WIN/WR strides and derive UV
+    plane offsets byte-literally for P010/P210/NV15, fixing the stock-vendor
+    10-bit corruption.
+  * RGA2 DMA integrity: own the MMU page tables through the DMA API and serve
+    over-4G memory via a swiotlb-bounced mapping instead of an illegal
+    virt_to_phys() streaming sync.
+  * Memory-safety fixes on driver code shared with the Rockchip BSP: drop an RGA
+    request's initial reference exactly once (UAF/refcount underflow); hold a
+    session reference for a job's lifetime (IRQ-thread UAF); guard the MPP async
+    worker and wait/poll paths against a device-less orphan task (NULL-deref
+    hard lockup); bounds-check register-translation imports (OOB writes); unmap
+    the RCB IOVA before freeing its pages; and reject RELEASE_FD on a session
+    with no DMA context.
+  * BSP-audit HIGH port: validate session fds before switching (type confusion),
+    bound RCB/class register indexes, test each core's own disable flag, balance
+    acquire-fence references, clean shutdown jobs outside the IRQ lock
+    (sleep-in-atomic), validate multi-plane handles, make get-buffer error
+    ownership symmetric, unwind partial handle acquisition, and require the core
+    feature mask to be a superset of the request.
+  * MPP: reject a second INIT_CLIENT_TYPE on an already-bound session with
+    -EBUSY, closing an unprivileged double-init use-after-free.
+  * RGA: do not drop mm->lock during session-release teardown (forward-port
+    regression fix); reject a non-16-byte-aligned RGA3 IOMMU window base with
+    -EINVAL instead of silently returning all-zero pixels.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Thu, 23 Jul 2026 20:05:15 -0700
+
 linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260720-0ubuntu1~rk1) resolute; urgency=high
 
   * Clear session->dma after MPP_CMD_RESET_SESSION destroys it so deferred
