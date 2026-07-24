@@ -1,18 +1,61 @@
 # Rewrite-driver architecture: a kernel-driver learning guide
 
-This guide explains the architecture of the Rockchip MPP and RGA rewrite
-drivers as a case study in writing Linux kernel drivers. It is meant for a
-reader who understands C but is still learning kernel concepts such as platform
-drivers, device tree, misc devices, DMA, IOMMUs, runtime power management,
-interrupts, workqueues, reference counting, and safe teardown.
+This is a beginner-oriented tour of two Linux drivers for the Rockchip RK3588.
+It assumes that you can read C, but it does not assume that you already know
+how a platform driver, an ioctl, DMA, an IOMMU, an interrupt, a workqueue, or a
+reference count fit together. Those terms are introduced at the point where
+the driver needs them.
 
-The two drivers expose Rockchip's established userspace interfaces:
+## What “rewrite kernel” means
 
-- `mpp-rewrite` provides `/dev/mpp_service` for the RK3588 RKVENC2 encoder and
-  RKVDEC2 decoder cores.
-- `rga-rewrite` provides `/dev/rga` for the RK3588 RGA2 and RGA3 2D engines.
+The project often says **rewrite kernel** as shorthand. Linux itself was not
+rewritten. The kernel is an otherwise normal Linux kernel in which two
+Rockchip vendor-driver stacks are replaced:
 
-The guide describes the sources committed on 2026-07-22:
+| Replacement driver | Device file kept compatible | Hardware controlled |
+|--------------------|-----------------------------|---------------------|
+| `mpp-rewrite` | `/dev/mpp_service` | RK3588 RKVENC2 video encoders and RKVDEC2 video decoders |
+| `rga-rewrite` | `/dev/rga` | RK3588 RGA2 and RGA3 2D image engines |
+
+Applications still call the same userspace libraries. FFmpeg or GStreamer
+calls `librockchip_mpp` for video work or `librga` for image work; the library
+opens the familiar device file and sends the familiar ioctls. The change is
+below that device-file boundary:
+
+```text
+application
+  -> FFmpeg / GStreamer / direct test
+  -> librockchip_mpp or librga
+  -> ioctl on /dev/mpp_service or /dev/rga
+  -> rewrite driver
+  -> RK3588 hardware
+```
+
+The forward-port kernel takes the opposite approach: it carries the existing
+Rockchip BSP drivers into a newer kernel with small compatibility changes. The
+rewrite starts again from the documented userspace contract and uses public
+kernel APIs. Only one implementation may own each hardware/device-file family
+in a build. The comparison profiles select the forward-port pair or rewrite
+pair; they cannot A/B the same device node during one boot.
+
+That distinction explains the project goals:
+
+- **Compatibility:** keep current Rockchip Linux media applications working
+  without changing their device-file ABI.
+- **Safety:** make buffer, job, hardware, interrupt, timeout, and teardown
+  ownership explicit.
+- **Maintainability:** use public Linux driver APIs instead of private BSP
+  helpers.
+- **Learning:** provide a smaller conceptual model for studying asynchronous
+  DMA drivers.
+
+It also explains what this is not. It is not an upstream submission, not a new
+userspace API, not a rewrite of the codec libraries, and not a claim that every
+historical Rockchip hardware block or legacy ioctl must be supported.
+
+## Current status
+
+This guide describes the sources committed on 2026-07-23:
 
 | Kernel branch | Commit |
 |---------------|--------|
@@ -26,16 +69,65 @@ drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
 drivers/video/rockchip/rga-rewrite/rga_rewrite.c
 ```
 
-Use [rewrite drivers](./rewrite-drivers.md) for the ABI/status ledger,
-[device tree](./device-tree.md) for the RK3588 hardware wiring, and
+The two commits contain byte-identical MPP/RGA rewrite sources; the surrounding
+kernel and device-tree integration differ. The current evidence is:
+
+| Area | What exists now | What that proves |
+|------|-----------------|------------------|
+| Driver code | MPP and RGA implementations on both kernel branches | The same driver design is maintained on the 6.18 and current-mainline tracks. |
+| ABI coverage | MPP covers the observed RK3588 RKVENC2/RKVDEC2 contract; RGA covers a broad current `librga`/FFmpeg/GStreamer subset and explicitly rejects recognized unsafe or unimplemented paths | Expected current requests can be parsed and represented; an explicit rejection is preferable to silently misprogramming hardware. |
+| In-source tests | 85 MPP and 147 RGA KUnit cases, 232 total | Pure logic such as parsing, bounds, routing, register emission, and race-state transitions has executable coverage without requiring the board. |
+| Build evidence | On 2026-07-23 all six normal, memory-safety, and race-oriented clean-source profiles passed without compiler warnings at the cited tips | Both branches build the IOMMU provider, KUnit-enabled rewrite objects, and ROCK 5B DTB under the intended configurations. A build is not hardware proof. |
+| Latest recovery work | Generation-aware timeout/fault ownership, stricter CCU recovery, close/remove handoffs, and fail-closed MPP containment when a reset cannot prove that DMA stopped | The code has a defined terminal branch for dangerous recovery failures instead of assuming reset always works. |
+| Hardware evidence | No current rewrite tip has a recorded, complete booted RK3588 conformance run | The rewrite is **not yet** the validated replacement for the forward port. |
+| Packages | Existing rewrite package composites predate the current source tips | Those packages must not be treated as evidence for the code described here. |
+
+The practical hardware scope is deliberately narrower than every name a
+userspace library can advertise:
+
+| Path | Rewrite scope |
+|------|---------------|
+| H.264/H.265 encode and decode | Required RKVENC2/RKVDEC2 paths |
+| VP9 decode | Required decoder-parity path, still awaiting current-tip hardware evidence |
+| AV1 through RKMPP | Not in this rewrite; RK3588 AV1 uses a separate hardware block, IOMMU, and backend |
+| Older VDPU/VPU and JPEG blocks | Outside the current ROCK 5B rewrite profile |
+| RGA | Current Linux `librga`, FFmpeg, GStreamer, RKNN/RKNPU preprocessing, and common display-shaped operations covered by the ABI ledger |
+| Raw physical imports and unsupported legacy/RGA2-Pro modes | Rejected rather than accepted without safe ownership and command-emission support |
+
+The hardware-evidence and package rows in the status table are the important
+boundary. KUnit can prove that a function rejects an overflowing address or
+that only one simulated completion path wins. It cannot prove that a register
+recipe makes real silicon produce the correct pixels, that an interrupt
+arrives, or that a reset stops a wedged DMA engine. Those claims require a
+kernel built from the cited tip, booted on a ROCK 5B, followed by the
+differential and fault-injection gates in the
+[rewrite validation plan](./rewrite-validation-plan.md).
+
+Until that evidence exists, the hardware-validated forward port remains the
+runtime baseline. The rewrite is best described as **advanced bring-up with a
+detailed safety architecture**, not production-ready hardware enablement.
+
+Use [rewrite drivers](./rewrite-drivers.md) for the command-by-command ABI
+ledger, [device tree](./device-tree.md) for the RK3588 hardware wiring, and the
 [rewrite validation plan](./rewrite-validation-plan.md) for the production
 qualification plan. This document focuses on how the driver code is organized
 and why.
 
-> **Current status.** These are compatibility rewrites, not upstream drivers
-> and not yet the hardware-validated replacement for the forward port. Their
-> architecture is nevertheless useful because ownership, error handling, and
-> teardown are made unusually explicit.
+## How to read this guide
+
+The guide has three layers:
+
+1. Sections 1 and 2 establish the reusable driver ideas: ownership, trust
+   boundaries, probing, power, interrupt context, and public kernel APIs.
+2. Sections 3 and 4 follow the MPP and RGA implementations separately. Read
+   only the one you care about first.
+3. Sections 5 through 13 turn the implementation into design, review,
+   debugging, and testing lessons that apply to other DMA-capable drivers.
+
+If a term is unfamiliar, keep reading until the nearby explanation before
+jumping to the glossary. The source-reading order in §10 is intentionally late:
+understanding the lifetime model first makes the large C files much easier to
+navigate.
 
 ---
 
@@ -78,7 +170,64 @@ flowchart LR
 The code is safest when each arrow has an explicit ownership rule. Register
 programming is only one stage in the middle.
 
-### 1.1 Four boundaries to keep separate
+### 1.1 One submission from beginning to end
+
+Before looking at structures and locks, follow one ordinary operation:
+
+1. A process calls a userspace library. For example, it asks `librga` to resize
+   an image.
+2. The library opens `/dev/rga` and calls `ioctl()`. An ioctl is a syscall for
+   device-specific commands; its argument points to a request in the process's
+   address space.
+3. The kernel copies the request. It must not keep the userspace pointer:
+   another thread could change or unmap that memory as soon as the syscall
+   continues.
+4. The driver checks every count, offset, image dimension, format, flag, and
+   arithmetic result. It resolves buffer handles into kernel objects and takes
+   references that keep them alive.
+5. The driver creates a **job**, a kernel-owned snapshot containing everything
+   later asynchronous code needs.
+6. A scheduler selects a compatible RGA core and puts the job on that core's
+   queue.
+7. When the core is free, the driver powers it, maps buffers into that device's
+   address space, writes its registers, and finally writes the start bit.
+8. `ioctl()` may already have returned for an asynchronous request. The job,
+   mappings, and session must therefore survive independently of the original
+   syscall stack.
+9. The engine performs DMA: it reads and writes memory directly without the
+   CPU copying every pixel.
+10. The engine raises an interrupt. A short hard-interrupt handler acknowledges
+    it; a sleep-capable interrupt thread performs the longer completion work.
+11. The completion path stops using the hardware, makes device writes visible
+    to the CPU, unmaps or copies back buffers, records the result, and only then
+    signals a fence or wakes a waiting process.
+12. References are dropped. The job is freed only when the queue, active slot,
+    session, timeout, fence callbacks, and other possible owners have all let
+    go.
+
+MPP follows the same outline, but userspace supplies a mostly register-shaped
+codec job and later polls for result registers instead of describing an image
+operation and receiving an RGA release fence.
+
+This walk-through introduces the main vocabulary:
+
+| Term | Plain-language meaning here |
+|------|-----------------------------|
+| **request** | Data copied from one userspace command before it is accepted |
+| **session** | Kernel state belonging to one open device file |
+| **job** | Stable kernel snapshot of accepted work that may outlive the ioctl |
+| **queue** | Jobs accepted by software but not yet running on a core |
+| **active slot** | The one job a particular hardware core currently owns |
+| **mapping** | A buffer made addressable by a particular DMA device |
+| **IRQ/interrupt** | Hardware notifying the CPU that something happened |
+| **fence/waitqueue** | A way to notify a dependent job or userspace that work completed |
+| **reference** | A counted ownership claim that prevents an object from being freed |
+
+A useful first principle follows: returning from `ioctl()` ends a syscall, not
+necessarily the operation. Any object needed afterward requires an explicit
+asynchronous owner.
+
+### 1.2 Four boundaries to keep separate
 
 Both rewrites separate four kinds of state:
 
@@ -95,7 +244,27 @@ Do not collapse these lifetimes into one global structure. A file can close
 while a job still exists, and a platform device can begin removal while a file
 is still open. Refcounts and drain protocols bridge those lifetime gaps.
 
-### 1.2 The trust boundary
+One concrete close race shows why:
+
+```text
+thread A                       thread B / hardware
+--------                       -------------------
+submit async job
+ioctl returns
+close(fd)
+release session owner   <---- job still retains session + buffers
+                               IRQ completes job
+                               job drops final references
+                               session and buffers may now be freed
+```
+
+If `close()` directly freed the session, the interrupt would dereference freed
+memory. If `close()` waited without first preventing new submissions and
+callbacks, it could wait forever. The correct design closes admission, cancels
+or claims work, waits for asynchronous handoffs to drain, and then drops the
+file's ownership reference.
+
+### 1.3 The trust boundary
 
 Every ioctl argument is untrusted. The driver must establish this ordering:
 
@@ -112,6 +281,24 @@ copy fixed-size descriptor
 Publishing before the snapshot is complete creates races in which another
 thread can mutate, release, or replace part of the request.
 
+“Untrusted” does not mean the normal library is malicious. It means the kernel
+cannot make safety depend on every process being correct. A library bug, a
+process killed midway through a request, a deliberately malformed test, and a
+hostile local process all cross the same syscall boundary. Kernel validation
+must make every one of them safe.
+
+Validation also has two different levels:
+
+- **Shape validation** asks whether data is well formed: sizes fit, arrays are
+  bounded, flags are known, and arithmetic does not overflow.
+- **Meaning validation** asks whether the operation is safe for this hardware:
+  the selected core supports the format, every image plane fits its backing
+  buffer, an IOVA belongs to a retained mapping, and source/destination aliases
+  are legal.
+
+Passing the first level is not permission to program hardware. Both must pass
+before the job is published.
+
 ---
 
 ## 2. Linux plumbing shared by both rewrites
@@ -123,6 +310,17 @@ The drivers combine two Linux interfaces:
 - A **misc character device** provides the userspace file in `/dev`.
 
 These interfaces have different lifetimes and should not be confused.
+
+Think of them as two views of the same driver:
+
+| View | Question it answers | Typical lifetime |
+|------|---------------------|------------------|
+| Platform/hardware view | “Which physical cores exist, and where are their registers, interrupts, clocks, resets, and IOMMUs?” | From device probe until device removal |
+| Character-device/user view | “What happens when a process opens, configures, submits, waits, and closes?” | One session per `open()` |
+
+The device tree describes hardware, not open files. Conversely, opening
+`/dev/rga` does not discover or construct an RGA core; it creates a session
+that may route work to cores already found by the platform driver.
 
 ### 2.1 Module initialization
 
@@ -142,6 +340,21 @@ service.
 On module exit, the character device is deregistered before the platform driver
 is unregistered. That prevents new opens while hardware instances are being
 removed.
+
+There are therefore three related but distinct events:
+
+```text
+module loaded
+  -> platform nodes probe and publish hardware
+  -> process opens misc device and creates a session
+  -> process closes session
+  -> platform nodes remove and unpublish hardware
+  -> module unload completes
+```
+
+Many embedded kernels build these drivers in, so module load/unload may never
+occur at runtime. Probe, open, close, shutdown, and error recovery still need
+correct lifetimes; a built-in driver is not exempt from teardown races.
 
 ### 2.2 Device-tree matching
 
@@ -169,6 +382,17 @@ The MPP driver matches four kinds of nodes:
 The RGA driver matches RGA2 and RGA3 cores. Every core becomes an independent
 `struct rk_rga_hw`.
 
+Device tree provides facts that software cannot safely guess: physical register
+addresses, IRQ lines, power-domain links, clock names, reset lines, IOMMU
+connections, and relationships between a core and a coordinator. The
+`compatible` string chooses code; the remaining properties describe this
+particular SoC instance.
+
+A probe succeeds only when the node is both individually usable and consistent
+with the topology around it. For example, two decoder cores can each have valid
+register windows while still being unsafe in hard-CCU mode if their DMA
+domains do not satisfy the coordinator's sharing rules.
+
 ### 2.3 What probe owns
 
 A successful hardware probe typically establishes:
@@ -185,6 +409,13 @@ A successful hardware probe typically establishes:
 `devm_*` removes much manual unwind code, but it does not solve logical races.
 The driver must still stop jobs, cancel work, unregister callbacks, and wait for
 references before devres releases MMIO and IRQ resources.
+
+`devm_*` means “release this resource when the device is detached.” It does not
+mean “the resource cannot be used after logical removal begins.” If an IRQ
+thread, timeout worker, job, or mapping still holds a pointer into the hardware
+object when probe's owner returns, automatic cleanup can turn that pointer into
+a use-after-free. The driver's drain protocol must finish before devres becomes
+the final cleanup mechanism.
 
 ### 2.4 Runtime power sequence
 
@@ -210,6 +441,12 @@ The rule for a learner is simple: an MMIO access is legal only while the
 driver has proved the device is powered and clocked, except for registers whose
 binding explicitly says otherwise.
 
+Runtime PM is reference-counted permission to use the powered device. A
+successful `pm_runtime_resume_and_get()` is an ownership event just like
+getting a job or buffer reference; every successful get needs one matching
+put. Error paths must know whether power was acquired before trying to release
+it.
+
 ### 2.5 Hard IRQ versus threaded IRQ
 
 Both drivers use threaded IRQs.
@@ -233,6 +470,22 @@ The **IRQ thread**:
 This split keeps slow operations, sleeping locks, runtime PM, and memory
 teardown out of hard-IRQ context.
 
+The same source file can run in several execution contexts:
+
+| Context | May sleep? | Typical work in these drivers |
+|---------|------------|-------------------------------|
+| Syscall/process context | Yes | copy and validate ioctl data, allocate, map, submit, close |
+| Hard IRQ | No | read/acknowledge status, update small spinlock-protected state |
+| Threaded IRQ | Yes | claim completion, reset if required, power down, unmap, wake |
+| Workqueue | Yes | schedule queued work, handle timeout/IOMMU recovery, deferred fence work |
+| IOMMU fault callback | Treat as constrained | identify the faulting source and queue recovery |
+
+This is why “put a mutex around it” is not a complete concurrency design. A
+hard IRQ cannot take a sleeping mutex, while holding a spinlock across runtime
+PM or DMA unmap would be illegal. The drivers use a short spinlock operation to
+publish or claim IRQ-visible state, then a mutex in a sleep-capable context to
+perform the longer transaction.
+
 ### 2.6 Public API design
 
 The rewrites intentionally use kernel APIs exported to ordinary drivers:
@@ -249,6 +502,12 @@ The rewrites intentionally use kernel APIs exported to ordinary drivers:
 This makes the dependency surface visible. A driver that depends on internal
 helpers from another subsystem may compile in one vendor tree but fail as a
 module or during a forward port.
+
+“Public” here means a supported interface made available to ordinary kernel
+drivers, not an interface callable from userspace. The userspace ABI is the
+ioctl contract; the public kernel API is the set of in-kernel services used to
+implement it. Keeping those two boundaries separate is one of the rewrite's
+main maintainability choices.
 
 ---
 
@@ -270,7 +529,36 @@ flowchart LR
 
 The kernel is not deciding H.264 motion-search policy or constructing a decoder
 recipe. It is protecting the kernel and hardware while transporting a recipe
-created by a trusted userspace library through an untrusted syscall boundary.
+normally created by `librockchip_mpp` through an untrusted syscall boundary.
+The library is the expected producer, but the kernel applies the same checks if
+a test or hostile process constructs the ioctl directly.
+
+A simplified decode submission looks like this:
+
+```text
+userspace message: INIT_CLIENT_TYPE = RKVDEC
+userspace messages:
+    SET_REG_WRITE      (decoder register image)
+    SET_REG_ADDR_OFFSET
+    SET_RCB_INFO
+    POLL_HW_FINISH
+kernel:
+    copy messages -> build job -> select decoder core
+    translate designated dma-buf fds to that core's IOVAs
+    validate VDPU38x register ranges and topology
+    queue -> power -> write registers -> start
+hardware:
+    fetch bitstream/reference buffers -> decode -> IRQ
+kernel:
+    read requested result words -> mark job done -> wake poller
+userspace:
+    receive status/readback and use the decoded frame
+```
+
+The messages describe one operation, but they are not executed piecemeal as
+they arrive. The driver first creates a complete, validated job. Otherwise an
+early message could publish a half-built register image before a later message
+fails.
 
 ### 3.1 MPP object graph
 
@@ -375,6 +663,19 @@ dereference the original userspace pointer.
 MPP register images contain buffer references in selected register words.
 Translation tables identify those words for each codec profile.
 
+Three kinds of address are easy to confuse:
+
+```text
+userspace virtual address -- meaningful to the process/CPU
+physical page address     -- location in system memory
+IOVA                      -- address emitted by this DMA device
+```
+
+An IOMMU translates the last address to physical pages. The same DMA-BUF may
+receive different IOVAs when attached to two devices, and an IOVA from one
+domain is just an unproven number in another. That is why the mapping belongs
+to a `(buffer, device)` pair rather than to the buffer alone.
+
 For an fd-backed word, the driver:
 
 1. calls `dma_buf_get(fd)`;
@@ -393,6 +694,12 @@ buffer.
 The device is also part of the identity because an IOVA is meaningful in the
 mapping context of a particular DMA device/domain. A mapping produced for core
 0 is not automatically a valid mapping for core 1.
+
+The contiguous-span check is about the device-visible address range, not
+whether the buffer occupies adjacent physical RAM. An IOMMU may map scattered
+physical pages into one continuous IOVA window. The codec registers can then
+walk that window, but only after the DMA mapping API and driver have proved it
+covers the complete allocation and fits the 32-bit register aperture.
 
 #### Explicit IOVA mode
 
@@ -604,6 +911,12 @@ Why the entire IOMMU group? Isolation is a group property. Attaching an empty
 domain to only one conceptual core is not enough if a sibling or coordinator
 shares the group and may still issue DMA.
 
+An **IOMMU domain** is an address-translation table. An **IOMMU group** is the
+kernel's statement that a set of devices cannot safely be isolated from one
+another at finer granularity. Moving the group to an empty domain gives every
+member a translation table with no valid memory mappings. A stray DMA request
+then faults instead of reaching a buffer that software may soon free.
+
 Why preallocate the empty domain at probe? Allocation may fail, sleep, or be
 unsafe when the fatal path already needs a guaranteed containment mechanism.
 
@@ -654,6 +967,29 @@ flowchart LR
 ```
 
 That semantic work explains why the RGA rewrite is larger than MPP.
+
+A concrete NV12-to-RGB resize illustrates the difference:
+
+```text
+request says:
+    source = NV12, 1920x1080, two planes, crop rectangle
+    destination = RGB888, 640x360, one plane
+    operation = scale + YUV-to-RGB conversion
+
+driver must derive and prove:
+    source luma/chroma strides and byte extents
+    destination stride and byte extent
+    crop and scaling ratios are legal
+    every plane fits its retained backing buffer
+    source and destination do not overlap illegally
+    RGA2 and/or RGA3 can express this exact combination
+    selected core can address each mapped buffer
+    register fields encode the requested format, geometry, and conversion
+```
+
+MPP validates a mostly prebuilt register recipe; RGA has to translate a
+semantic operation into a recipe. More of RGA's source is consequently format,
+layout, feature, and command-emission code.
 
 ### 4.1 RGA object graph
 
@@ -725,6 +1061,17 @@ hardware sees them.
 
 An import proves ownership and retains backing memory. It must not imply that
 one IOVA remains valid forever on every core.
+
+It helps to separate two questions:
+
+1. **Import:** “Which memory object did userspace mean, how large is it, and
+   what reference keeps it alive?”
+2. **Execution mapping:** “At what IOVA may this particular core access that
+   object for this particular read/write role right now?”
+
+An import is like retaining a file; a mapping is like creating a temporary
+device-specific view of its contents. The first can outlive many jobs. The
+second ends when the task completes or the selected hardware disappears.
 
 DMA-BUF exporters may move storage after an attachment is unmapped. RGA cores
 may also have different DMA/IOMMU contexts. Therefore execution builds
@@ -800,6 +1147,12 @@ copyback and non-overlap.
 An acquire fence says, "do not read/write these buffers until prior work
 finishes." A release fence says, "this RGA job and its memory side effects are
 complete."
+
+For example, a video decoder may be writing a frame that RGA will scale. RGA's
+acquire fence prevents it from reading the half-written frame. A display or
+encoder may then wait on RGA's release fence before consuming the scaled
+result. Fences order independent devices without making the CPU synchronously
+wait between every stage.
 
 #### Synchronous submission
 
@@ -1086,6 +1439,23 @@ The common architecture is more important than the differences:
 
 ## 6. How to design a driver like this
 
+Several kernel mechanisms appear together because they solve different
+problems:
+
+| Mechanism | Question it answers | What it does not answer |
+|-----------|---------------------|-------------------------|
+| Reference count | “May this object be freed yet?” | Whether its fields may be changed concurrently |
+| Lock | “Who may inspect or mutate this state now?” | Whether a pointer remains alive after the lock is dropped |
+| Generation number | “Does this delayed event belong to the current activation?” | Whether the object itself remains allocated |
+| Work cancellation/drain | “Can this callback still start or be running?” | Whether some other callback owns the same job |
+| Fence/waitqueue | “When may another participant continue?” | Whether memory cleanup happened before the signal |
+
+A robust design often needs all five. For example, a timeout worker retains a
+job reference, takes a lock to compare the active slot, compares a generation
+to reject stale work, is drained during removal, and completes through the same
+path that eventually wakes the waiter. Replacing any of those steps with “the
+pointer is probably still valid” leaves a different race open.
+
 ### 6.1 Start with an ownership table
 
 Before writing functions, list every resource:
@@ -1346,13 +1716,30 @@ on hardware:
 - task progression and command emission;
 - close/remove handoffs.
 
-The build gate runs both kernel lines under normal, memory-safety, and
+The evidence levels must not be collapsed:
+
+| Level | Example | What it can establish | What it cannot establish |
+|-------|---------|-----------------------|--------------------------|
+| Source inspection | Review ownership and lock order | Intended invariants and obvious missing paths | That every race or hardware behavior matches the design |
+| Compile/build gate | Build both drivers, provider, DTB, and KUnit objects | API compatibility and configuration coverage | That the tests ran or the board boots |
+| KUnit execution | Boot and record all 232 cases | Pure helper/state-machine behavior in the running kernel | Correct pixels, bitstreams, IRQ wiring, or real reset behavior |
+| Hardware smoke | Run one encode/decode/blit per backend and inspect counters | Basic probe, power, MMIO, DMA, and IRQ function | Broad ABI compatibility or stress safety |
+| Differential conformance | Compare outputs and behavior with the forward port | Compatibility across real applications and data paths | Exhaustive recovery/security behavior |
+| Fault/race/soak gates | KASAN, KCSAN, failure injection, close/unbind stress, long runs | Evidence for rare lifetime and recovery paths | A mathematical proof that no defect remains |
+
+The build gate builds both kernel lines under normal, memory-safety, and
 race/concurrency configurations:
 
 ```bash
 REWRITE_BUILD_PROFILES='normal memory race' \
   kernel-drivers/tests/rewrite-build-gate.sh all
 ```
+
+All six profiles completed without compiler warnings at the cited tips on
+2026-07-23. That is current compile evidence, not a boot or hardware result.
+For a release claim, also record the exact kernel configuration, boot identity,
+KUnit log, suite logs, debugfs counter deltas, artifacts, and before/after
+kernel-fatal scan.
 
 KUnit and compile-time tests cannot establish that register programming matches
 silicon. On-board conformance must additionally exercise:
@@ -1365,6 +1752,13 @@ silicon. On-board conformance must additionally exercise:
 - session close under load;
 - driver unbind/rebind where safe;
 - counters proving hardware execution.
+
+The immediate status-changing milestone is therefore not “add another unit
+test.” It is: build and package the cited source tip, boot it on the ROCK 5B,
+record all 232 KUnit cases, prove that each expected hardware family starts,
+then run paired rewrite-versus-forward-port conformance with clean kernel logs.
+Timeout, IOMMU-fault, reset-failure, close, and removal stress follow before a
+production-readiness claim.
 
 ---
 
@@ -1454,19 +1848,31 @@ model needs more work.
 | Term | Meaning in these drivers |
 |------|--------------------------|
 | **ABI/uAPI** | Binary ioctl contract between userspace and kernel |
+| **device tree** | Firmware data describing which hardware exists and how its registers, IRQs, clocks, resets, power, and IOMMUs are wired |
+| **platform driver** | Kernel driver that binds those device-tree hardware nodes |
+| **misc device** | Simple character-device registration used to create `/dev/mpp_service` or `/dev/rga` |
+| **probe/remove** | Platform-driver callbacks that acquire/publish a hardware instance and later stop/unpublish it |
+| **ioctl** | Device-specific syscall used by a process to send an ABI command |
 | **CCU** | Codec coordination unit for multicore scheduling/execution |
 | **DCHS** | RKVENC2 dual-core handshake state patched per active encoder job |
+| **DMA** | Hardware reading or writing memory directly, independently of CPU loads/stores |
 | **DMA-BUF** | Refcounted shared-buffer object represented to userspace by an fd |
 | **DMA mapping** | Device-specific translation/cache ownership for a buffer |
+| **scatterlist/SG table** | Kernel description of the memory segments backing a DMA mapping |
 | **IOMMU** | Translates an IOVA issued by hardware to physical memory |
 | **IOVA** | Device-visible virtual address; meaningful only in its DMA/IOMMU context |
 | **IDR** | Kernel integer-ID-to-pointer map used for RGA handles/requests |
 | **MMIO** | Memory-mapped device registers accessed with `readl`/`writel` |
 | **RCB** | Decoder row/column scratch buffer represented by DMA-coherent memory |
+| **reference count** | Number of live ownership claims preventing an object from being freed |
+| **mutex** | Sleep-capable lock used to serialize longer process/threaded operations |
+| **spinlock** | Non-sleeping lock used for short state changes visible to hard IRQ context |
 | **runtime PM** | Kernel framework that powers devices on demand |
+| **devres/`devm_*`** | Device-managed resource lifetime that automatically releases probe resources after remove has logically drained them |
 | **hard IRQ** | Non-sleeping interrupt top half |
 | **threaded IRQ** | Sleep-capable interrupt continuation |
 | **workqueue** | Process-context execution for deferred scheduling/recovery |
+| **KUnit** | Linux in-kernel unit-test framework used for the hardware-independent cases |
 | **acquire fence** | Dependency that must complete before this job starts |
 | **release fence** | Completion object signaled after this job and memory effects finish |
 | **quarantine** | Permanently stop routing work to hardware after unsafe recovery |
