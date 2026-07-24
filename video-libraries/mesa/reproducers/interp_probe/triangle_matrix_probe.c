@@ -30,10 +30,16 @@
 //      --shape oversized --corner bl --winding ccw --ramp forward
 //      --sample both --offset both
 //
+// Print only aggregate failure counts:
+//   ./triangle_matrix_probe --summary-only
+//
+// Print only failing cases plus the aggregate counts:
+//   ./triangle_matrix_probe --fail-only --long 16307 --short 16
+//
 // Scan short-axis sizes 1..N with a canonical oversized triangle.  The scan
 // still checks both long-axis directions, both sample modes, and both offset
 // states:
-//   ./triangle_matrix_probe --long 12288 --scan-short 32
+//   ./triangle_matrix_probe --summary-only --long 12288 --scan-short 32
 //
 // Exit status is 0 if every selected case is exact, 2 if any selected case
 // has a precision or coverage failure, and 1 for usage/setup errors.
@@ -120,6 +126,18 @@ struct selections {
    unsigned offset;
 };
 
+struct fail_totals {
+   unsigned tests;
+   unsigned failed;
+   unsigned axis[2];
+   unsigned shape[2];
+   unsigned corner[4];
+   unsigned winding[2];
+   unsigned ramp[2];
+   unsigned sample[2];
+   unsigned offset[2];
+};
+
 struct vertex {
    float x;
    float y;
@@ -129,8 +147,6 @@ struct vertex {
 struct gl_state {
    GLuint varying_program;
    GLuint tex_program;
-   GLint varying_vertical;
-   GLint tex_vertical;
    GLuint vao;
    GLuint vbo;
    GLuint source_tex;
@@ -152,7 +168,6 @@ static const char *vs_src =
 
 static const char *varying_fs_src =
    "#version 300 es\n"
-   "uniform bool vertical;\n"
    "in highp float v;\n"
    "layout(location = 0) out highp uint bits;\n"
    "void main() { bits = floatBitsToUint(v); }\n";
@@ -160,12 +175,10 @@ static const char *varying_fs_src =
 static const char *tex_fs_src =
    "#version 300 es\n"
    "uniform highp sampler2D source_tex;\n"
-   "uniform bool vertical;\n"
    "in highp float v;\n"
    "layout(location = 0) out highp uint bits;\n"
    "void main() {\n"
-   "   highp vec2 uv = vertical ? vec2(v, 0.5) : vec2(v, 0.5);\n"
-   "   bits = floatBitsToUint(texture(source_tex, uv).r);\n"
+   "   bits = floatBitsToUint(texture(source_tex, vec2(v, 0.5)).r);\n"
    "}\n";
 
 static GLuint
@@ -225,6 +238,8 @@ usage(const char *program)
            "  --ramp forward|reverse|both\n"
            "  --sample varying|tex|both\n"
            "  --offset baseline|polygon-offset|both\n"
+           "  --fail-only                 print only failing per-case rows\n"
+           "  --summary-only              suppress per-case output\n"
            "  --scan-short N              scan short extents 1..N using the\n"
            "                              canonical oversized triangle\n"
            "  --help\n",
@@ -259,6 +274,39 @@ parse_choice(const char *text, const char *const *names, size_t count,
    }
 
    return 0;
+}
+
+static void
+print_fail_counts(const char *label, const char *const *names,
+                  const unsigned *counts, size_t count)
+{
+   if (!count)
+      return;
+
+   printf("FAIL %s", label);
+   for (size_t i = 0; i < count; i++)
+      printf(" %s=%u", names[i], counts[i]);
+   printf("\n");
+}
+
+static void
+print_totals(const struct fail_totals *totals)
+{
+   if (!totals->failed)
+      return;
+
+   print_fail_counts("axis", axis_names, totals->axis, ARRAY_SIZE(axis_names));
+   print_fail_counts("shape", shape_names, totals->shape,
+                     ARRAY_SIZE(shape_names));
+   print_fail_counts("corner", corner_names, totals->corner,
+                     ARRAY_SIZE(corner_names));
+   print_fail_counts("winding", winding_names, totals->winding,
+                     ARRAY_SIZE(winding_names));
+   print_fail_counts("ramp", ramp_names, totals->ramp, ARRAY_SIZE(ramp_names));
+   print_fail_counts("sample", sample_names, totals->sample,
+                     ARRAY_SIZE(sample_names));
+   print_fail_counts("offset", offset_names, totals->offset,
+                     ARRAY_SIZE(offset_names));
 }
 
 static void
@@ -335,7 +383,7 @@ static int
 run_case(struct gl_state *gl, uint32_t *bits, int long_size, int short_size,
          enum axis axis, enum shape shape, enum corner corner,
          enum winding winding, enum ramp ramp, enum sample sample,
-         enum offset offset)
+         enum offset offset, int fail_only, int summary_only)
 {
    const int width = axis == AXIS_WIDE ? long_size : short_size;
    const int height = axis == AXIS_WIDE ? short_size : long_size;
@@ -345,10 +393,7 @@ run_case(struct gl_state *gl, uint32_t *bits, int long_size, int short_size,
 
    const GLuint program =
       sample == SAMPLE_VARYING ? gl->varying_program : gl->tex_program;
-   const GLint vertical =
-      sample == SAMPLE_VARYING ? gl->varying_vertical : gl->tex_vertical;
    glUseProgram(program);
-   glUniform1i(vertical, axis == AXIS_TALL);
    if (sample == SAMPLE_TEX) {
       glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_2D, gl->source_tex);
@@ -408,33 +453,35 @@ run_case(struct gl_state *gl, uint32_t *bits, int long_size, int short_size,
 
    const long missing = shape == SHAPE_OVERSIZED ? total - covered : 0;
    const int failed = bad || missing || !covered;
-   printf("axis=%s shape=%s corner=%s winding=%s ramp=%s sample=%s "
-          "offset=%s size=%dx%d aspect=%.3f covered=%ld/%ld bad=%ld",
-          axis_names[axis], shape_names[shape], corner_names[corner],
-          winding_names[winding], ramp_names[ramp], sample_names[sample],
-          offset_names[offset], width, height,
-          (double)long_size / short_size, covered, total, bad);
-   if (missing)
-      printf(" missing=%ld", missing);
-   if (first_bad >= 0) {
-      const int bad_x = first_bad % width;
-      const int bad_y = first_bad / width;
-      printf(" first=(%d,%d) value=%.9g", bad_x, bad_y, first_value);
+   if (!summary_only && (!fail_only || failed)) {
+      printf("axis=%s shape=%s corner=%s winding=%s ramp=%s sample=%s "
+             "offset=%s size=%dx%d aspect=%.3f covered=%ld/%ld bad=%ld",
+             axis_names[axis], shape_names[shape], corner_names[corner],
+             winding_names[winding], ramp_names[ramp], sample_names[sample],
+             offset_names[offset], width, height,
+             (double)long_size / short_size, covered, total, bad);
+      if (missing)
+         printf(" missing=%ld", missing);
+      if (first_bad >= 0) {
+         const int bad_x = first_bad % width;
+         const int bad_y = first_bad / width;
+         printf(" first=(%d,%d) value=%.9g", bad_x, bad_y, first_value);
+      }
+      printf(" result=%s\n", failed ? "FAIL" : "PASS");
    }
-   printf(" result=%s\n", failed ? "FAIL" : "PASS");
    return failed;
 }
 
 static int
 run_matrix(struct gl_state *gl, int long_size, int short_size,
-           const struct selections *selections)
+           const struct selections *selections, int fail_only,
+           int summary_only)
 {
    const size_t pixels = (size_t)long_size * short_size;
    uint32_t *bits = malloc(pixels * sizeof(*bits));
    CHECK(bits);
 
-   int failed = 0;
-   unsigned tests = 0;
+   struct fail_totals totals = {0};
    for (unsigned axis = 0; axis < ARRAY_SIZE(axis_names); axis++) {
       if (!(selections->axis & (1u << axis)))
          continue;
@@ -464,10 +511,21 @@ run_matrix(struct gl_state *gl, int long_size, int short_size,
                           offset < ARRAY_SIZE(offset_names); offset++) {
                         if (!(selections->offset & (1u << offset)))
                            continue;
-                        failed += run_case(
+                        const int case_failed = run_case(
                            gl, bits, long_size, short_size, axis, shape, corner,
-                           winding, ramp, sample, offset);
-                        tests++;
+                           winding, ramp, sample, offset, fail_only,
+                           summary_only);
+                        totals.tests++;
+                        if (case_failed) {
+                           totals.failed++;
+                           totals.axis[axis]++;
+                           totals.shape[shape]++;
+                           totals.corner[corner]++;
+                           totals.winding[winding]++;
+                           totals.ramp[ramp]++;
+                           totals.sample[sample]++;
+                           totals.offset[offset]++;
+                        }
                      }
                   }
                }
@@ -476,10 +534,12 @@ run_matrix(struct gl_state *gl, int long_size, int short_size,
       }
    }
 
-   printf("SUMMARY long=%d short=%d aspect=%.3f tests=%u failed=%d\n",
-          long_size, short_size, (double)long_size / short_size, tests, failed);
+   printf("SUMMARY long=%d short=%d aspect=%.3f tests=%u failed=%u\n",
+          long_size, short_size, (double)long_size / short_size, totals.tests,
+          totals.failed);
+   print_totals(&totals);
    free(bits);
-   return failed;
+   return totals.failed;
 }
 
 static void
@@ -522,9 +582,6 @@ init_gl(struct gl_state *gl, int long_size)
    memset(gl, 0, sizeof(*gl));
    gl->varying_program = link_program(varying_fs_src);
    gl->tex_program = link_program(tex_fs_src);
-   gl->varying_vertical =
-      glGetUniformLocation(gl->varying_program, "vertical");
-   gl->tex_vertical = glGetUniformLocation(gl->tex_program, "vertical");
    glUseProgram(gl->tex_program);
    glUniform1i(glGetUniformLocation(gl->tex_program, "source_tex"), 0);
 
@@ -568,6 +625,8 @@ main(int argc, char **argv)
    int long_size = 12288;
    int short_size = 1;
    int scan_short = 0;
+   int fail_only = 0;
+   int summary_only = 0;
    struct selections selections = {
       .axis = ALL_AXIS,
       .shape = ALL_SHAPE,
@@ -582,6 +641,14 @@ main(int argc, char **argv)
       if (!strcmp(argv[i], "--help")) {
          usage(argv[0]);
          return 0;
+      }
+      if (!strcmp(argv[i], "--summary-only")) {
+         summary_only = 1;
+         continue;
+      }
+      if (!strcmp(argv[i], "--fail-only")) {
+         fail_only = 1;
+         continue;
       }
       if (i + 1 >= argc) {
          usage(argv[0]);
@@ -661,9 +728,11 @@ main(int argc, char **argv)
          .offset = ALL_OFFSET,
       };
       for (int current = 1; current <= scan_short; current++)
-         failed += run_matrix(&gl, long_size, current, &scan);
+         failed += run_matrix(&gl, long_size, current, &scan, fail_only,
+                              summary_only);
    } else {
-      failed = run_matrix(&gl, long_size, short_size, &selections);
+      failed = run_matrix(&gl, long_size, short_size, &selections,
+                          fail_only, summary_only);
    }
 
    return failed ? 2 : 0;

@@ -14,6 +14,7 @@ varying.
 | [`probe_interp.c`](probe_interp.c) | Original GBM/EGL/GLES probe. Draws a two-triangle quad with an explicit vertex attribute varying from `0` to `W`, then compares the interpolated value with `i + 0.5`. Includes `smooth`, attempted `noperspective`, and `gl_FragCoord.x` modes. |
 | [`tiny_interp_probe.c`](tiny_interp_probe.c) | Minimal surfaceless EGL/GLES proof. Uses one `gl_VertexID` triangle, no texture, no TXF, no u_blitter, no GBM, and no format-changing readback. This is the canonical GL reproducer. |
 | [`tex_interp_probe.c`](tex_interp_probe.c) | Ordinary-TEX counterpart. Carries a normalized non-integer `0→1` varying into `texture()` with `GL_NEAREST` and samples an `R32F` ramp, proving the workaround is not specific to raw varying readback or integer-coordinate TXF. |
+| [`triangle_matrix_probe.c`](triangle_matrix_probe.c) | MR !43161 option matrix. Sweeps wide/tall targets, exact half-rectangle and oversized triangles, all right-angle corners, both windings, both long-axis directions, raw-varying vs normalized `texture()` sampling, and baseline vs zero-valued polygon offset. |
 | [`vk_interp_probe.c`](vk_interp_probe.c) | Vulkan/panvk port of the tiny probe. Removes Gallium, u_blitter, and the GL state tracker from the stack. Uses dynamic rendering, copies raw `R32_UINT` bits back with Vulkan, and provides a zero-valued `depthBiasEnable` A/B mode. |
 | [`tiny_interp_probe_arm_blob_x11.c`](tiny_interp_probe_arm_blob_x11.c) | **RK3588 proprietary ARM Mali variant — the runnable one.** Renders as a client of a running X server, so libmali never issues the kernel-crashing `SET_VERSION`. Shader/draw/readback/checker identical to the tiny probe. |
 | [`tiny_interp_probe_arm_blob.c`](tiny_interp_probe_arm_blob.c) | RK3588 ARM Mali variant via a GBM display. **⚠ Crashes the Radxa 5.10 vendor kernel** (NULL-deref in `drm_setversion`); refuses to run by default. Kept for the record — use the X11 variant instead. |
@@ -60,8 +61,9 @@ export EGL_PLATFORM=surfaceless
 ```
 
 `probe_interp*.c` uses GBM and hardcodes `/dev/dri/renderD128`.
-`tiny_interp_probe.c`, `tiny_interp_probe_explained.c`, and
-`tex_interp_probe.c` use surfaceless EGL and open no DRM node themselves.
+`tiny_interp_probe.c`, `tiny_interp_probe_explained.c`, `tex_interp_probe.c`,
+and `triangle_matrix_probe.c` use surfaceless EGL and open no DRM node
+themselves.
 `tiny_interp_probe_arm_blob_x11.c` connects to a running X server and opens no
 DRM node itself; `tiny_interp_probe_arm_blob.c` (GBM) defaults to
 `/dev/dri/renderD128` but crashes this kernel and is gated off.
@@ -88,6 +90,8 @@ the GBM one crashes this kernel (see
 cc -O2 -o probe_interp probe_interp.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
 cc -O2 -o tex_interp_probe tex_interp_probe.c -lEGL -lGLESv2
+cc -O2 -Wall -Wextra -o triangle_matrix_probe \
+  triangle_matrix_probe.c -lEGL -lGLESv2 -lm
 cc -O2 -o tiny_interp_probe_arm_blob_x11 \
   tiny_interp_probe_arm_blob_x11.c -lmali -lX11 -lm
 cc -O2 -o tiny_interp_probe_arm_blob \
@@ -142,6 +146,12 @@ current working directory.
 ./tex_interp_probe 16307 baseline
 ./tex_interp_probe 16307 polygon-offset
 
+./triangle_matrix_probe --summary-only --long 12288 --short 1
+./triangle_matrix_probe --summary-only --long 12848 --short 14
+./triangle_matrix_probe --summary-only --long 9350 --short 11
+./triangle_matrix_probe --fail-only --long 16307 --short 16
+./triangle_matrix_probe --summary-only --long 12288 --scan-short 40
+
 # ARM Mali blob: use the X11 variant (needs a running X server; see
 # arm-mali-reproducer.md). The GBM tiny_interp_probe_arm_blob crashes this kernel.
 DISPLAY=:0 ./tiny_interp_probe_arm_blob_x11 8192 fragcoord
@@ -177,8 +187,8 @@ The explained copies take the same arguments:
 ./vk_interp_probe_arm_blob_explained 12288 fragcoord
 ```
 
-Exit codes (for `tiny_interp_probe`, `tex_interp_probe`, and
-`vk_interp_probe`):
+Exit codes (for `tiny_interp_probe`, `tex_interp_probe`,
+`triangle_matrix_probe`, and `vk_interp_probe`):
 
 - `0`: every pixel produced its expected value.
 - `2`: the probe ran and found at least one wrong pixel.
@@ -225,6 +235,17 @@ stores the sampled float's raw bits in `R32UI`. Thus pixel `x` must return
 `float(x)`. A compiler dump confirmed that Panfrost emits an ordinary
 computed-LOD `TEX_SINGLE` instruction, not TXF. It accepts the same
 `baseline|polygon-offset` A/B choice as the tiny probe.
+
+`triangle_matrix_probe.c` tests the same hardware path as a triangle option
+matrix. It draws either exact half-rectangle triangles or oversized full-target
+triangles. For exact triangles, only covered pixels are checked; for oversized
+triangles, full coverage is required. The four right-angle corners cover both
+diagonal splits of a rectangle, and the winding option distinguishes the order
+in which the same triangle reaches setup. `sample=varying` writes the raw
+varying bits and checks `floor(v)`. `sample=tex` is the non-integer case: it
+passes a normalized coordinate to ordinary nearest-filtered `texture()` and
+checks the sampled `R32F` ramp. `--summary-only` prints aggregate failure counts;
+`--fail-only` prints only the failing per-case rows plus those aggregates.
 
 `vk_interp_probe.c` ports the same test to Vulkan. It creates a `W x 1`
 `VK_FORMAT_R32_UINT` color target, renders with dynamic rendering, then copies
@@ -290,6 +311,37 @@ $ ./tex_interp_probe 16307 polygon-offset
 fetch=TEX filter=nearest workaround=polygon-offset width=16307: sampled texel != x at 0 of 16307 pixels (first at x=-1)
 last pixel x=16306: sampled=16306 expected=16306 shift=+0
 ```
+
+The triangle matrix probe answers which GL triangle choices are affected. On
+ROCK 5B / Mali-G610 with system Mesa 26.0.3, all failures are baseline-only;
+every zero-valued polygon-offset case passes, including the normalized
+`texture()` cases:
+
+| Case | Result |
+|---|---|
+| `12288x1`, full 256-case matrix | 128 failures: all baseline cases fail across wide/tall, exact/oversized, all corners, both windings, both ramps, and raw-varying plus ordinary `texture()`; all 128 polygon-offset cases pass. |
+| `12848x14` (`aspect=917.714`, from Mesa MR !43161 discussion), full matrix | Same 128 baseline-only failures. |
+| `9350x11` (`aspect=850.000`, from Mesa MR !43161 discussion), full matrix | Same 128 baseline-only failures. |
+| `16307x15` (`aspect=1087.133`), full matrix | Same 128 baseline-only failures. |
+| `16307x16` and sampled transition sizes up to `16307x63` | Exact half-rectangle triangles pass. Oversized baseline triangles still fail for specific corner/winding combinations; both ramps and both sample modes fail for those combinations, and polygon offset passes. |
+| `16307x64` | Full 256-case matrix passes. |
+| `16384x1` and `16384x16` | Full 256-case matrix passes despite high aspect ratio, matching the power-of-two control in the Mesa thread. |
+
+For `16307x16` and `16307x33`, `--fail-only` printed the same failing
+oversized corner/winding set:
+
+| Axis | Failing oversized baseline corner/winding pairs |
+|---|---|
+| wide | `bl/cw`, `br/ccw`, `br/cw`, `tr/ccw` |
+| tall | `bl/ccw`, `tl/ccw`, `tl/cw`, `tr/cw` |
+
+The canonical oversized-triangle scans found these short-axis boundaries:
+
+| Long extent | Failing short extents | First passing short extent |
+|---:|---|---:|
+| 9350 | `1..15` (`aspect` down to `623.333`) | `16` (`584.375`) |
+| 12288 | `1..16` (`aspect` down to `768.000`) | `17` (`722.824`) |
+| 12848 | `1..15` (`aspect` down to `856.533`) | `16` (`803.000`) |
 
 Vulkan/panvk reproduces the GL numbers bit-for-bit at the same widths and the
 equivalent zero-valued depth-bias state removes the failure:
