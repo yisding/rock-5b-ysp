@@ -68,7 +68,7 @@ The kernel work runs on three tracks across those sub-projects:
 |-------|------------|-----------|
 | Forward-port | Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18. The frozen two-patch base owns the validated anchor; the 68-file AV1/PPA series owns current hardening work through patch `0069`. | [`patches/`](patches/README.md), [`docs/patch-catalog.md`](docs/patch-catalog.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
 | Audit fixes | A reviewable 65-patch correctness/security cleanup series on top of the forward-port. | [`docs/bsp-audit.md`](docs/bsp-audit.md), [`patches/cleanup-split/`](patches/cleanup-split/README.md) |
-| Rewrite drivers | Public-API-only reimplementations of `/dev/mpp_service` and `/dev/rga`, as a learning + upstreamable-design track. | [`docs/rewrite-driver-architecture.md`](docs/rewrite-driver-architecture.md), [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) |
+| Rewrite drivers | Public-API-only reimplementations of `/dev/mpp_service` and `/dev/rga`, as a learning + upstreamable-design track. | [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md), [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) |
 
 ## User path
 
@@ -95,7 +95,7 @@ Read in this order when changing or reviewing kernel behavior:
 | Question | Canonical doc |
 |----------|---------------|
 | What does each driver layer do? | [`docs/how-the-drivers-work.md`](docs/how-the-drivers-work.md) |
-| How are the rewrite drivers structured, synchronized, and made safe to tear down? | [`docs/rewrite-driver-architecture.md`](docs/rewrite-driver-architecture.md) |
+| How are the rewrite drivers structured, synchronized, and made safe to tear down? | [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md) |
 | How are these drivers tested — what's proven per track, and what's left? | [`docs/validation-index.md`](docs/validation-index.md) (entry point / coverage matrix) |
 | How is a newly built or booted kernel validated, end to end? | [`docs/kernel-validation-runbook.md`](docs/kernel-validation-runbook.md) |
 | How does an RKNN model become a three-core RKNPU job? | [`rknpu/docs/how-rknpu-works.md`](rknpu/docs/how-rknpu-works.md) |
@@ -138,7 +138,7 @@ each sub-project's `README.md`).
 | [`rga/raw-physical-import-crash.md`](rga/raw-physical-import-crash.md) | Root cause, BSP branch history, kernel hardening, test containment, and reboot gate for the raw-physical RGA import crash found on 2026-07-16. |
 | [`docs/bsp-audit.md`](docs/bsp-audit.md) | Multi-agent audit findings and the draft cleanup series. |
 | [`docs/resyncing.md`](docs/resyncing.md) | Playbook for resyncing to a newer kernel or BSP. |
-| [`docs/rewrite-driver-architecture.md`](docs/rewrite-driver-architecture.md) | Source-level MPP/RGA rewrite architecture and kernel-driver learning guide. |
+| [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md) | Chaptered source-level MPP/RGA rewrite architecture and kernel-driver learning guide. |
 | [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) | Public-API-only clean-room reimplementation track. |
 | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
 | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | 2026-07-17 audit of claimed ABI/codec coverage, booted evidence, counter/lifetime assertions, and remaining hardware gates. |
