@@ -80,11 +80,16 @@ these tips on 2026-07-23 and all six pass clean** (no compiler warnings under
 `FAIL_ON_WARNING=1`): 6.18 `1fe46df86f1ca` normal/memory/race and mainline
 `ec9a4a06ecf12` normal/memory/race, each building the Rockchip IOMMU provider,
 both rewrite objects with KUnit, and the Rock 5B DTB from a clean `git archive`.
-This closes the "clean-source gates not re-executed" caveat above. The **booted
-KUnit run and every hardware gate in the next section remain open** — no rewrite
-kernel of this tip has been built into a bootable image or run on the ROCK 5B,
-and this large recovery-hardening churn is *only* compile- and unit-scaffold
-proven, never exercised on hardware.
+This closes the "clean-source gates not re-executed" caveat above. A KASAN
+rewrite image **at this tip was also built** on 2026-07-23 — Armbian debug build
+`P3695-C9fc5` (`CONFIG_KASAN=y`, `ROCKCHIP_MPP_REWRITE`/`RGA_REWRITE=y`, vendor
+MPP/RGA off), confirmed to carry the `0239` recovery-hardening commit by the
+symbols `rk_rga_dmabuf_extent_cmp` and `rk_rga_get_map_hw_for_import` in its
+`System.map` (both introduced by `1fe46df`, absent in parent `8469183`). **The
+booted KUnit run and every hardware gate in the next section remain open** — that
+image has not been installed, booted, or run on the ROCK 5B (no captured
+232-case KUnit report or hardware evidence), so this large recovery-hardening
+churn is *only* compile- and unit-scaffold proven, never exercised on hardware.
 
 ## Remaining gaps and hardware gates
 
