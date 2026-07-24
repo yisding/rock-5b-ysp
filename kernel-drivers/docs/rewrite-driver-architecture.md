@@ -6,6 +6,7 @@ Start with the
 [guide overview and current status](rewrite-driver-architecture/README.md), or
 jump directly to:
 
+0. [Kernel development primer](rewrite-driver-architecture/00-kernel-development-primer.md)
 1. [Ownership and Linux driver foundations](rewrite-driver-architecture/01-foundations.md)
 2. [MPP rewrite driver](rewrite-driver-architecture/02-mpp-driver.md)
 3. [RGA rewrite driver](rewrite-driver-architecture/03-rga-driver.md)

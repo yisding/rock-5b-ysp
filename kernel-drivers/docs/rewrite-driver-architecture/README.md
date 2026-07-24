@@ -117,6 +117,7 @@ organized and why.
 
 | Chapter | What it covers |
 |---------|----------------|
+| [0. Kernel development primer](00-kernel-development-primer.md) | Kernel versus userspace, execution contexts, locks and references, address spaces and DMA, uAPI, hardware access, kernel C idioms, error handling, source navigation, and a safe first-change workflow |
 | [1. Ownership and Linux driver foundations](01-foundations.md) | One complete submission, service/session/job/hardware lifetimes, trust boundaries, platform and misc devices, probe, power, IRQ contexts, and public APIs |
 | [2. MPP rewrite driver](02-mpp-driver.md) | Message collection, register jobs, DMA-BUF translation, scheduling, encoder/decoder backends, completion, recovery, isolation, and locks |
 | [3. RGA rewrite driver](03-rga-driver.md) | Semantic image requests, imports and mappings, USERPTR, layout validation, fences, core selection, command emission, completion, close, and removal |
@@ -124,9 +125,10 @@ organized and why.
 | [5. Observability and testing](05-observability-and-testing.md) | Debug counters, the 232-case KUnit split, the evidence ladder, build gates, and remaining hardware validation |
 | [6. Source reading and review](06-source-reading-and-review.md) | Suggested source-reading order, review checklist, expanded glossary, and the final invariant |
 
-New driver developers should read chapters 1, 2 or 3, then 4. Chapters 5 and
-6 are useful when testing or reviewing changes. If a term is unfamiliar, the
+Developers without kernel experience should read chapters 0 and 1, then the MPP
+or RGA chapter, followed by chapter 4. Chapters 5 and 6 are useful when testing
+or reviewing changes. If a term is unfamiliar, the
 [glossary](06-source-reading-and-review.md#12-glossary) is available without
 having to scroll through the implementation chapters.
 
-[Next: ownership and Linux driver foundations →](01-foundations.md)
+[Next: kernel development primer →](00-kernel-development-primer.md)

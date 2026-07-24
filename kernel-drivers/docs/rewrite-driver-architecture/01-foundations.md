@@ -1,5 +1,6 @@
 # Ownership and Linux driver foundations
 
+[← Kernel development primer](00-kernel-development-primer.md) ·
 [Guide home](README.md) · [Next: MPP rewrite driver →](02-mpp-driver.md)
 
 This chapter builds the common model used by both rewrite drivers before
@@ -385,4 +386,5 @@ main maintainability choices.
 
 ---
 
-[← Guide overview](README.md) · [Next: MPP rewrite driver →](02-mpp-driver.md)
+[← Kernel development primer](00-kernel-development-primer.md) ·
+[Guide home](README.md) · [Next: MPP rewrite driver →](02-mpp-driver.md)
