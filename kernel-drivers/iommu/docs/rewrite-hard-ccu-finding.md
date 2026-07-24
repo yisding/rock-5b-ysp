@@ -1,6 +1,6 @@
 # Finding: RK3588 CCU mode is now honored; HARD remains unvalidated
 
-**Date:** 2026-07-03 · **Updated:** 2026-07-14 · **Track:** clean-room rewrite (`mpp-rewrite`) · **Status:** code/topology mismatch fixed, needs hardware.
+**Date:** 2026-07-03 · **Updated:** 2026-07-24 · **Track:** clean-room rewrite (`mpp-rewrite`) · **Status:** code/topology mismatch fixed, needs hardware.
 
 The rewrite MPP driver originally drove the RK3588 dual-core decoder in **HARD
 CCU** mode on the actual rock-5b device tree, even though the BSP-validated
@@ -22,8 +22,12 @@ rewrite-specific consequence of that, plus a validation plan.
 > track 4 in [status.md](../../../status.md)). Vendor `file:line`
 > resolve against the forward-ported `drivers/video/rockchip/mpp/`. DT lines are in
 > that same tree's `arch/arm64/boot/dts/rockchip/`. The "HARD is unreliable" claim
-> is **secondary/web-sourced** (see § 7 of the multicore doc) — treat as a
-> hypothesis to disprove, not a measured fact.
+> was originally **secondary/web-sourced** (see § 7 of the multicore doc); the
+> [vendor BSP git history](#vendor-bsp-history--was-hard-ever-on-primary-evidence)
+> section below now backs it with **primary evidence** (default-SOFT since HARD's
+> birth, a ~5.5× maintenance asymmetry, and a real HARD-only reset bug) — still
+> short of a measured "HARD is broken on current silicon" proof, but no longer a
+> bare hypothesis.
 
 ---
 
@@ -86,6 +90,52 @@ that safety contract:
 This removes the prior address-space blocker without making HARD the shipped
 default. The board still selects SOFT, and HARD still needs the stress and
 differential evidence below.
+
+---
+
+## Vendor BSP history — was HARD ever on? (primary evidence)
+
+Traced 2026-07-24 against `rockchip-kernel` branch `develop-6.1` (Rockchip's
+official 6.1 BSP). **Conclusion: HARD was never the default, and the HARD path
+was chronically under-maintained and hit a real recovery bug.** That upgrades the
+former web-sourced "HARD is unreliable" hypothesis to git-grounded evidence,
+though it stops short of proving HARD is broken on *current* silicon.
+
+- **SOFT was the default from the moment HARD existed — there is no "flip to
+  SOFT" event.** `c2f143006f0c` (2021-12-28) adds soft-ccu; the very commit that
+  adds HARD, `e9490005011e` (2022-01-26, "rkvdec2: Add hard-ccu mode"), sets the
+  probe default to `RKVDEC2_CCU_TASK_SOFT` (`mpp_rkvdec2.c:1747-1757`, comment
+  "use task-level soft ccu default"), overridden only by an explicit *valid*
+  `rockchip,ccu-mode`; an invalid value also normalizes back to SOFT.
+- **The device tree never requested HARD.** The `rkvdec-ccu@fdc30000` node was
+  introduced already carrying `rockchip,ccu-mode = <1>` (`0eead2352fed`,
+  2022-09-08, "rkvdec add hw ccu mode for rk3588" — the title means it added the
+  *node/capability*, not that it enabled HARD). No `develop-6.1` DT ever set
+  `<2>`.
+- **HARD received a fraction of SOFT's maintenance.** Commits touching the worker
+  bodies over the tree's life: `rkvdec2_soft_ccu_worker` = **11**,
+  `rkvdec2_hard_ccu_irq` = **2**. SOFT got dedicated reset hardening HARD never
+  did — `db7cef2b18d8` (2022-01-14, "Disable irq when soft ccu reset"),
+  `a8e9b2055a4e` (2022-02-21, "sip reset for soft-ccu") — and `8b15ae280af3`
+  (2023-11-16, "optimize iommu faul handle for ccu flow") *adds* IOMMU-fault
+  handling for the SOFT flow while only "optimizing" it for HARD.
+- **The one HARD-specific bug is in exactly the fragile part — reset recovery.**
+  `900dde95ad88` (2023-08-22, "fix task re-add running_list issue"): in the hard
+  ccu worker, tasks resent to hardware on decoder reset could be **re-added to
+  `running_list`** (list corruption). The fix moves
+  `mpp_taskqueue_pending_to_run()` out of `rkvdec2_hard_ccu_enqueue()` — which is
+  reused on the resend-after-reset path — into the worker's initial enqueue only.
+  That is precisely the "if one core errors, wait for dual-core idle, reset both
+  cores + CCU, re-run unfinished tasks" flow the add-commit described, and it
+  maps directly onto the § 3 reset-recovery suspect below.
+
+**Caveats.** The search covered `develop-6.1` only (the cross-branch `--all`
+history search times out on this tree). No commit states outright "default SOFT
+because HARD is unreliable" — the intent is inferred from the default-from-birth
+choice, the maintenance asymmetry, and the reset bug, not stated. After the 2023
+fix HARD may well work; this evidence shows it was experimental and never
+production-validated, which justifies keeping it opt-in and still gating it
+behind the § 4 differential-soak plan.
 
 ---
 

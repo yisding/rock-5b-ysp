@@ -197,14 +197,18 @@ silicon: SOFT = CPU owns dispatch (maps onto mem2mem); HARD = CCU owns dispatch
 
 ### The two facts that decide the strategy
 
-1. **Even Rockchip defaults to SOFT; HARD is effectively unvalidated** ("doesn't
-   work as expected" per secondary sources). Building on HARD depends on a path
-   the vendor themselves avoid, on closed silicon. The clean-room rewrite now
-   honors `rockchip,ccu-mode`, defaults to SOFT, and keeps HARD opt-in, but HARD
-   still needs differential soak testing before it can be treated as a safe
-   performance path. See
-   [rewrite-hard-ccu-finding.md](../../iommu/docs/rewrite-hard-ccu-finding.md) for the fixed
-   divergence, remaining test-coverage gap, and validation/fuzz plan.
+1. **Even Rockchip defaults to SOFT; HARD is effectively unvalidated.** This is
+   no longer just "doesn't work as expected" per secondary sources — the vendor
+   6.1 BSP git history (`rockchip-kernel` `develop-6.1`) shows HARD was
+   default-off from the commit that introduced it, received ~5.5× less
+   maintenance than SOFT, and hit a real HARD-only reset bug
+   (`900dde95ad88`, task re-added to `running_list` on decoder reset). Building
+   on HARD depends on a path the vendor themselves avoid, on closed silicon. The
+   clean-room rewrite now honors `rockchip,ccu-mode`, defaults to SOFT, and keeps
+   HARD opt-in, but HARD still needs differential soak testing before it can be
+   treated as a safe performance path. See
+   [rewrite-hard-ccu-finding.md](../../iommu/docs/rewrite-hard-ccu-finding.md) for the vendor
+   git evidence, the fixed divergence, remaining test-coverage gap, and validation/fuzz plan.
 2. **Mainline's multicore series is already doing SOFT — without the CCU.** The
    vendor's `rkvdec2_attach_ccu` shares the IOMMU domain by attaching non-main
    cores to the main core's domain (`if core_id != 0 → attach main domain`). The
