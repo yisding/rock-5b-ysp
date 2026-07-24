@@ -23,6 +23,12 @@
 //      Same top-right sampled scan, but only for pairs where the larger
 //      dimension is a power of two.
 //
+//   --main-results
+//      Curated full-surface reproducer for the main baseline-vs-zero-offset
+//      bit-equality result: both dimensions powers of two produce the same bits,
+//      while representative non-power-of-two cases do not, including
+//      one-dimension-power-of-two and low-aspect cases.
+//
 // Build:
 //   cc -O2 -Wall -Wextra -Werror -o exact_offset_scan2d exact_offset_scan2d.c -lEGL -lGLESv2 -lm
 //
@@ -30,6 +36,7 @@
 //   ./exact_offset_scan2d --lines --pow2
 //   ./exact_offset_scan2d --sample-grid --max 4096
 //   ./exact_offset_scan2d --sample-major-pow2 --max 4096
+//   ./exact_offset_scan2d --main-results
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -103,6 +110,12 @@ struct line_result {
    unsigned offset_exact;
    unsigned baseline_floor_pass;
    unsigned offset_floor_pass;
+};
+
+struct main_result_case {
+   const char *label;
+   int width;
+   int height;
 };
 
 static GLuint
@@ -275,6 +288,92 @@ print_result(const char *prefix, const struct compare_result *r)
              r->offset_first_exact_bad_x, r->offset_first_exact_bad_y);
 
    printf("\n");
+}
+
+static const char *
+same_label(int same)
+{
+   return same ? "same" : "different";
+}
+
+static const char *
+pass_label(int pass)
+{
+   return pass ? "PASS" : "FAIL";
+}
+
+static int
+run_main_results(struct gl_state *gl)
+{
+   const struct main_result_case cases[] = {
+      {"both-pow2-rect", 1024, 2048},
+      {"both-pow2-square", 2048, 2048},
+      {"both-pow2-max", 4096, 4096},
+      {"one-dim-pow2-wide", 4096, 3},
+      {"one-dim-pow2-tall", 3, 4096},
+      {"one-dim-pow2-near-square", 4096, 4095},
+      {"both-nonpow2-near-square", 4095, 4095},
+      {"both-nonpow2-aspect-10", 4095, 383},
+      {"both-nonpow2-aspect-12", 4095, 341},
+   };
+   unsigned passed = 0;
+   unsigned failed = 0;
+   unsigned same_cases = 0;
+   unsigned different_cases = 0;
+
+   printf("MAIN-RESULT-PREDICATE suite_expected_same_as_offset="
+          "both_dimensions_are_powers_of_two\n");
+
+   for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+      const struct main_result_case *c = &cases[i];
+      struct compare_result r = full_compare(gl, c->width, c->height);
+      const int expected_same =
+         is_pow2_or_one((unsigned)c->width) &&
+         is_pow2_or_one((unsigned)c->height);
+      const int actual_same = r.diff_pixels == 0;
+      const int baseline_floor = r.baseline_floor_bad == 0;
+      const int offset_floor = r.offset_floor_bad == 0;
+      const int ok = actual_same == expected_same;
+      const double aspect = c->width > c->height ?
+         (double)c->width / (double)c->height :
+         (double)c->height / (double)c->width;
+
+      same_cases += actual_same;
+      different_cases += !actual_same;
+      passed += ok;
+      failed += !ok;
+
+      printf("MAIN-RESULT label=%s size=%dx%d aspect=%.6f expected=%s "
+             "observed=%s verdict=%s same_as_offset=%u baseline_exact=%u "
+             "offset_exact=%u baseline_floor=%u offset_floor=%u "
+             "diff=%" PRIu64 " baseline_exact_bad=%" PRIu64
+             " offset_exact_bad=%" PRIu64 " baseline_floor_bad=%" PRIu64
+             " offset_floor_bad=%" PRIu64,
+             c->label, c->width, c->height, aspect,
+             same_label(expected_same), same_label(actual_same),
+             pass_label(ok), r.diff_pixels == 0,
+             r.baseline_exact_bad == 0, r.offset_exact_bad == 0,
+             baseline_floor, offset_floor, r.diff_pixels,
+             r.baseline_exact_bad, r.offset_exact_bad, r.baseline_floor_bad,
+             r.offset_floor_bad);
+
+      if (r.first_diff_x >= 0)
+         printf(" first_diff=(%d,%d)", r.first_diff_x, r.first_diff_y);
+      if (r.baseline_first_exact_bad_x >= 0)
+         printf(" baseline_first_exact_bad=(%d,%d)",
+                r.baseline_first_exact_bad_x, r.baseline_first_exact_bad_y);
+      if (r.offset_first_exact_bad_x >= 0)
+         printf(" offset_first_exact_bad=(%d,%d)",
+                r.offset_first_exact_bad_x, r.offset_first_exact_bad_y);
+
+      printf("\n");
+   }
+
+   printf("MAIN-RESULT-SUMMARY cases=%u passed=%u failed=%u same=%u "
+          "different=%u\n",
+          passed + failed, passed, failed, same_cases, different_cases);
+
+   return failed;
 }
 
 static unsigned
@@ -489,6 +588,7 @@ run_sample_grid(struct gl_state *gl, int max_size, int progress_step)
    uint64_t offset_floor_failures = 0;
    uint64_t baseline_floor_fail_h1 = 0;
    uint64_t baseline_floor_fail_w1 = 0;
+   uint64_t baseline_floor_fail_both_nonpow2 = 0;
    int baseline_floor_fail_min_w = 0;
    int baseline_floor_fail_max_w = 0;
    int baseline_floor_fail_min_h = 0;
@@ -497,6 +597,15 @@ run_sample_grid(struct gl_state *gl, int max_size, int progress_step)
    int baseline_floor_fail_first_h = 0;
    int baseline_floor_fail_last_w = 0;
    int baseline_floor_fail_last_h = 0;
+   int baseline_floor_fail_square_w = 0;
+   int baseline_floor_fail_square_h = 0;
+   double baseline_floor_fail_square_aspect = 0.0;
+   int baseline_floor_fail_both_nonpow2_square_w = 0;
+   int baseline_floor_fail_both_nonpow2_square_h = 0;
+   double baseline_floor_fail_both_nonpow2_square_aspect = 0.0;
+   int baseline_floor_fail_both_nonpow2_largest_min_w = 0;
+   int baseline_floor_fail_both_nonpow2_largest_min_h = 0;
+   int baseline_floor_fail_both_nonpow2_largest_min = 0;
    unsigned printed_floor_failures = 0;
 
    render_sample_grid_pass(gl, max_size, 0, "baseline", progress_step,
@@ -555,6 +664,36 @@ run_sample_grid(struct gl_state *gl, int max_size, int progress_step)
                baseline_floor_fail_max_h = height;
             baseline_floor_fail_h1 += height == 1;
             baseline_floor_fail_w1 += width == 1;
+
+            const double aspect = width > height ?
+               (double)width / (double)height :
+               (double)height / (double)width;
+            if (!baseline_floor_fail_square_w ||
+                aspect < baseline_floor_fail_square_aspect) {
+               baseline_floor_fail_square_w = width;
+               baseline_floor_fail_square_h = height;
+               baseline_floor_fail_square_aspect = aspect;
+            }
+
+            if (!is_pow2_or_one((unsigned)width) &&
+                !is_pow2_or_one((unsigned)height)) {
+               const int minor = width < height ? width : height;
+
+               baseline_floor_fail_both_nonpow2++;
+
+               if (!baseline_floor_fail_both_nonpow2_square_w ||
+                   aspect < baseline_floor_fail_both_nonpow2_square_aspect) {
+                  baseline_floor_fail_both_nonpow2_square_w = width;
+                  baseline_floor_fail_both_nonpow2_square_h = height;
+                  baseline_floor_fail_both_nonpow2_square_aspect = aspect;
+               }
+
+               if (minor > baseline_floor_fail_both_nonpow2_largest_min) {
+                  baseline_floor_fail_both_nonpow2_largest_min = minor;
+                  baseline_floor_fail_both_nonpow2_largest_min_w = width;
+                  baseline_floor_fail_both_nonpow2_largest_min_h = height;
+               }
+            }
          }
 
          if ((!b_floor || !o_floor) && printed_floor_failures < MAX_FAIL_EXAMPLES) {
@@ -577,6 +716,13 @@ run_sample_grid(struct gl_state *gl, int max_size, int progress_step)
           " baseline_floor_fail_height_range=%d..%d"
           " baseline_floor_fail_first=%dx%d"
           " baseline_floor_fail_last=%dx%d"
+          " baseline_floor_fail_most_square=%dx%d"
+          " baseline_floor_fail_most_square_aspect=%.6f"
+          " baseline_floor_fail_both_nonpow2=%" PRIu64
+          " baseline_floor_fail_both_nonpow2_most_square=%dx%d"
+          " baseline_floor_fail_both_nonpow2_most_square_aspect=%.6f"
+          " baseline_floor_fail_both_nonpow2_largest_min=%dx%d"
+          " baseline_floor_fail_both_nonpow2_largest_min_dim=%d"
           " baseline_floor_fail_h1=%" PRIu64
           " baseline_floor_fail_w1=%" PRIu64 "\n",
           max_size, pairs, same_count, baseline_exact_count,
@@ -587,8 +733,16 @@ run_sample_grid(struct gl_state *gl, int max_size, int progress_step)
           baseline_floor_fail_max_w, baseline_floor_fail_min_h,
           baseline_floor_fail_max_h, baseline_floor_fail_first_w,
           baseline_floor_fail_first_h, baseline_floor_fail_last_w,
-          baseline_floor_fail_last_h, baseline_floor_fail_h1,
-          baseline_floor_fail_w1);
+          baseline_floor_fail_last_h, baseline_floor_fail_square_w,
+          baseline_floor_fail_square_h, baseline_floor_fail_square_aspect,
+          baseline_floor_fail_both_nonpow2,
+          baseline_floor_fail_both_nonpow2_square_w,
+          baseline_floor_fail_both_nonpow2_square_h,
+          baseline_floor_fail_both_nonpow2_square_aspect,
+          baseline_floor_fail_both_nonpow2_largest_min_w,
+          baseline_floor_fail_both_nonpow2_largest_min_h,
+          baseline_floor_fail_both_nonpow2_largest_min,
+          baseline_floor_fail_h1, baseline_floor_fail_w1);
 }
 
 static void
@@ -747,6 +901,7 @@ usage(const char *argv0)
            "  --pow2            full scans of all power-of-two W,H combos\n"
            "  --sample-grid     scissored top-right sample for every WxH pair\n"
            "  --sample-major-pow2 scissored sample where max(W,H) is pow2\n"
+           "  --main-results    curated full-surface same-as-offset reproducer\n"
            "  --case W H        full scan of one size\n"
            "  --progress N      sampled-render progress interval (default 256)\n"
            "  --help\n",
@@ -828,6 +983,7 @@ main(int argc, char **argv)
    int run_pow2 = 0;
    int run_samples = 0;
    int run_major_pow2_samples = 0;
+   int run_main_result_cases = 0;
    int run_case = 0;
    int case_width = 0;
    int case_height = 0;
@@ -845,6 +1001,8 @@ main(int argc, char **argv)
          run_samples = 1;
       } else if (!strcmp(argv[i], "--sample-major-pow2")) {
          run_major_pow2_samples = 1;
+      } else if (!strcmp(argv[i], "--main-results")) {
+         run_main_result_cases = 1;
       } else if (!strcmp(argv[i], "--max") && i + 1 < argc) {
          max_size = atoi(argv[++i]);
       } else if (!strcmp(argv[i], "--progress") && i + 1 < argc) {
@@ -872,16 +1030,20 @@ main(int argc, char **argv)
    }
 
    if (!run_lines && !run_pow2 && !run_samples && !run_major_pow2_samples &&
-       !run_case)
+       !run_main_result_cases && !run_case)
       run_lines = run_pow2 = 1;
 
    struct gl_state gl;
    init_gl(&gl, max_size);
+   int main_result_failures = 0;
 
    if (run_case) {
       struct compare_result r = full_compare(&gl, case_width, case_height);
       print_result("CASE", &r);
    }
+
+   if (run_main_result_cases)
+      main_result_failures = run_main_results(&gl);
 
    if (run_lines) {
       run_line_scan(&gl, "Wx1", max_size, 1, 1);
@@ -901,5 +1063,5 @@ main(int argc, char **argv)
 
    free(gl.offset);
    free(gl.baseline);
-   return 0;
+   return main_result_failures ? 2 : 0;
 }

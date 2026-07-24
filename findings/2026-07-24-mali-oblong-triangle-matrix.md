@@ -54,7 +54,8 @@ sharper:
 | `2047x1`, `2047x1 --coord-long 6141`, `2048x1 --coord-long 6144`, `4096x1 --coord-long 12288` | Pass; source-coordinate range alone did not trigger failures when the destination extent stayed in a passing family. |
 | `exact_offset_scan 1..4096` | Bitwise baseline-vs-offset equality, baseline exactness, and offset exactness all occur only for `1`, `2`, and powers of two through `4096`; non-powers differ from width `3`. The weaker integer-bin condition still passes for baseline at 3429/4096 widths and for offset at all 4096 widths. |
 | `exact_offset_scan2d --lines --pow2` | Full 2D line scans preserve the same exactness set (`1`, `2`, powers of two) for `Wx1`, `1xH`, `Wx2`, and `2xH`; all 169 power-of-two `WxH` combinations through `4096x4096` are fully bit-exact baseline-vs-offset and exact-vs-expected. |
-| `exact_offset_scan2d --sample-grid` | Top-right sample for every `WxH` pair through `4096x4096`: 1,690/16,777,216 baseline samples cross an integer bin; zero-offset has 0 integer-bin failures. |
+| `exact_offset_scan2d --main-results` | One command reproduces the baseline-vs-zero-offset bit-equality result with full surfaces: both-dimension power-of-two controls match bit-for-bit, while `4096x3`, `3x4096`, `4096x4095`, `4095x4095`, `4095x383`, and `4095x341` differ. The `diff` field is the baseline-vs-zero-offset bit comparison. |
+| `exact_offset_scan2d --sample-grid` | Top-right sample for every `WxH` pair through `4096x4096`: 1,690/16,777,216 baseline samples cross an integer bin; zero-offset has 0 integer-bin failures. The closest-to-square top-right integer-bin failure is still very oblong, `2x2929` (`aspect=1464.5`), and there are 0 top-right integer-bin failures where both dimensions are non-powers of two. |
 | `exact_offset_scan2d --sample-major-pow2` | Top-right sample for every pair where `max(W,H)` is a power of two through `4096`: the larger-dimension power-of-two predicate is not an exactness guarantee. 16,012/16,369 samples are non-exact; only the weaker integer-bin condition passes for every baseline and offset sample. |
 | `exact_offset_scan2d --case 4096 3`, `--case 3 4096`, `--case 4096 4095`, `--case 4096 4096` | Full-surface controls confirm the sampled result: `4096x3`, `3x4096`, and `4096x4095` are broadly non-exact with no integer-bin failures, while `4096x4096` is fully exact. |
 | `10000x15` | Broad 128/256 baseline-only failure. |
@@ -62,8 +63,11 @@ sharper:
 | `8191x1` | 112/256 baseline-only failures. |
 | `8191x16`, `8191x32`, `8191x96` | Pass, including `aspect=511.938` at `8191x16`. |
 | `16383x1` | 112/256 baseline-only failures. |
+| `16383x127` | Both dimensions non-power; oversized raw-varying baseline-only integer-bin failure at `aspect=129.000`, zero-offset fixes all selected failures. This is the lowest measured integer-bin failure aspect so far. |
 | `16383x96` | Oversized-only 8/256 baseline-only failure at `aspect=170.656`. |
 | `16383x100`, `16383x104`, `16383x112`, `16383x128` | Pass. |
+| `10923x683`, `10923x341`, `10923x171`, `10923x85`, `10923x43`, `10923x21` | Odd long dimension about one third from `8192` to `16384`; low/mid-aspect oversized raw-varying matrices pass from `aspect=15.993` through `520.143`. |
+| `10923x11` | Same odd far-from-power long dimension enters the broad integer-bin failure class at `aspect=993.000`; all selected failures are baseline-only and zero-offset fixes them. |
 
 The scaled-coordinate TEX cases need care: even-integer scales can put ordinary
 nearest samples exactly on tie boundaries and produce non-erratum differences
@@ -260,6 +264,14 @@ SUMMARY max_width=2081 same_as_offset=12 baseline_exact=12 offset_exact=12 basel
 - 2D exact/sampled scans:
 
 ```text
+$ ./exact_offset_scan2d --main-results --progress 0
+MAIN-RESULT-PREDICATE suite_expected_same_as_offset=both_dimensions_are_powers_of_two
+MAIN-RESULT label=both-pow2-max size=4096x4096 aspect=1.000000 expected=same observed=same verdict=PASS same_as_offset=1 baseline_exact=1 offset_exact=1 baseline_floor=1 offset_floor=1 diff=0 baseline_exact_bad=0 offset_exact_bad=0 baseline_floor_bad=0 offset_floor_bad=0
+MAIN-RESULT label=one-dim-pow2-tall size=3x4096 aspect=1365.333333 expected=different observed=different verdict=PASS same_as_offset=0 baseline_exact=0 offset_exact=0 baseline_floor=1 offset_floor=1 diff=12288 baseline_exact_bad=12288 offset_exact_bad=6144 baseline_floor_bad=0 offset_floor_bad=0 first_diff=(0,0) baseline_first_exact_bad=(0,0) offset_first_exact_bad=(0,0)
+MAIN-RESULT label=both-nonpow2-near-square size=4095x4095 aspect=1.000000 expected=different observed=different verdict=PASS same_as_offset=0 baseline_exact=0 offset_exact=0 baseline_floor=1 offset_floor=1 diff=16769025 baseline_exact_bad=16769025 offset_exact_bad=16768514 baseline_floor_bad=0 offset_floor_bad=0 first_diff=(0,0) baseline_first_exact_bad=(0,0) offset_first_exact_bad=(0,0)
+MAIN-RESULT label=both-nonpow2-aspect-10 size=4095x383 aspect=10.691906 expected=different observed=different verdict=PASS same_as_offset=0 baseline_exact=0 offset_exact=0 baseline_floor=1 offset_floor=1 diff=1568385 baseline_exact_bad=1568385 offset_exact_bad=1357021 baseline_floor_bad=0 offset_floor_bad=0 first_diff=(0,0) baseline_first_exact_bad=(0,0) offset_first_exact_bad=(0,0)
+MAIN-RESULT-SUMMARY cases=9 passed=9 failed=0 same=3 different=6
+
 $ ./exact_offset_scan2d --max 4096 --lines --pow2
 LINE-SUMMARY Wx1 max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3429 offset_floor_pass=4096 floor_failing_cases=667
 LINE-SUMMARY 1xH max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=2762 offset_floor_pass=4096 floor_failing_cases=1334
@@ -268,7 +280,7 @@ LINE-SUMMARY 2xH max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 ba
 POW2-SUMMARY max=4096 cases=169 same_as_offset=169 baseline_exact=169 offset_exact=169 baseline_floor_pass=169 offset_floor_pass=169 nonexact_cases=0
 
 $ ./exact_offset_scan2d --max 4096 --sample-grid --progress 1024
-SAMPLE-GRID-SUMMARY max=4096 sample=top-right pairs=16777216 same_as_offset=108346 baseline_exact=7976 offset_exact=5119056 baseline_floor_pass=16775526 offset_floor_pass=16777216 same_pred_mismatch=108177 baseline_exact_pred_mismatch=7807 offset_exact_pred_mismatch=5118887 baseline_floor_failures=1690 offset_floor_failures=0 baseline_floor_fail_width_range=1..4095 baseline_floor_fail_height_range=1..4095 baseline_floor_fail_first=2080x1 baseline_floor_fail_last=1x4095 baseline_floor_fail_h1=666 baseline_floor_fail_w1=697
+SAMPLE-GRID-SUMMARY max=4096 sample=top-right pairs=16777216 same_as_offset=108346 baseline_exact=7976 offset_exact=5119056 baseline_floor_pass=16775526 offset_floor_pass=16777216 same_pred_mismatch=108177 baseline_exact_pred_mismatch=7807 offset_exact_pred_mismatch=5118887 baseline_floor_failures=1690 offset_floor_failures=0 baseline_floor_fail_width_range=1..4095 baseline_floor_fail_height_range=1..4095 baseline_floor_fail_first=2080x1 baseline_floor_fail_last=1x4095 baseline_floor_fail_most_square=2x2929 baseline_floor_fail_most_square_aspect=1464.500000 baseline_floor_fail_both_nonpow2=0 baseline_floor_fail_both_nonpow2_most_square=0x0 baseline_floor_fail_both_nonpow2_most_square_aspect=0.000000 baseline_floor_fail_both_nonpow2_largest_min=0x0 baseline_floor_fail_both_nonpow2_largest_min_dim=0 baseline_floor_fail_h1=666 baseline_floor_fail_w1=697
 
 $ ./exact_offset_scan2d --max 4096 --sample-major-pow2 --progress 0
 SAMPLE-MAJOR-POW2-SUMMARY max=4096 sample=top-right pairs=16369 both_pow2_pairs=169 same_as_offset=507 baseline_exact=401 offset_exact=9181 baseline_floor_pass=16369 offset_floor_pass=16369 nonexact_cases=16012 same_pred_mismatch=338 baseline_exact_pred_mismatch=232 offset_exact_pred_mismatch=9012 baseline_floor_failures=0 offset_floor_failures=0
@@ -305,11 +317,30 @@ SUMMARY long=16383 short=96 aspect=170.656 tests=256 failed=8
 FAIL shape exact=0 oversized=8
 FAIL offset baseline=8 polygon-offset=0
 
+$ ./triangle_matrix_probe --fail-only --long 16383 --short 127 \
+    --axis wide --shape oversized --corner bl --winding cw \
+    --ramp both --sample varying --offset both
+SUMMARY long=16383 short=127 aspect=129.000 tests=4 failed=2
+FAIL offset baseline=2 polygon-offset=0
+
 $ ./triangle_matrix_probe --summary-only --long 16383 --short 100
 SUMMARY long=16383 short=100 aspect=163.830 tests=256 failed=0
 
 $ ./triangle_matrix_probe --summary-only --long 16384 --short 96
 SUMMARY long=16384 short=96 aspect=170.667 tests=256 failed=0
+
+$ ./triangle_matrix_probe --fail-only --long 10923 --short 341 \
+    --shape oversized --sample varying --offset both
+SUMMARY long=10923 short=341 aspect=32.032 tests=64 failed=0
+
+$ ./triangle_matrix_probe --fail-only --long 10923 --short 21 \
+    --shape oversized --sample varying --offset both
+SUMMARY long=10923 short=21 aspect=520.143 tests=64 failed=0
+
+$ ./triangle_matrix_probe --fail-only --long 10923 --short 11 \
+    --shape oversized --sample varying --offset both
+SUMMARY long=10923 short=11 aspect=993.000 tests=64 failed=32
+FAIL offset baseline=32 polygon-offset=0
 ```
 
 The sandbox llvmpipe control also passed the full `12288x1` matrix:
