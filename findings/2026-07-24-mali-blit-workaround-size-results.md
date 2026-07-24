@@ -23,10 +23,14 @@ canonical scan through `1024x1024` with the same result and then through
 FULL-GRID-FLOOR-SUMMARY max=500 path=baseline cases=250000 pixels=15687562500 failing_cases=0
 FULL-GRID-FLOOR-SUMMARY max=1024 path=baseline cases=1048576 pixels=275415040000 failing_cases=0
 FULL-GRID-FLOOR-SUMMARY max=1500 path=baseline cases=2250000 pixels=1267313062500 failing_cases=2 first_failure=1x1480 last_failure=1x1490
+FULL-GRID-FLOOR-SUMMARY max=2080 path=baseline cases=4326400 pixels=4683934777600 failing_cases=85 first_failure=2080x1 last_failure=2x2080 most_square_failure=2x2080 most_square_failure_aspect=1040.000000
 ```
 
-The two `1500` failures are both `1xN` edge cases; no other canonical
-fullscreen-triangle integer-bin failures were found in `1x1..1500x1500`. This
+The two `1500` failures are both `1xN` edge cases. Extending the canonical scan
+through `2080x2080` found 85 integer-bin failures total; the follow-up line
+scan accounts for all of them as `2080x1`, sparse `1xH` failures starting at
+`1x1480`, and `2x2080`. No canonical integer-bin failures were found through
+`2080x2080` where both dimensions are at least `3`. This
 does not prove that arbitrary triangle topologies are safe below `1480x1480`;
 the full 256-case topology matrix was only run at selected sizes. The scan is
 evidence for the fullscreen-style triangle used by the Panfrost internal blit
@@ -80,6 +84,11 @@ down in the 100s for oversized/fullscreen-style triangles, and nearby passes.
 | `16384x96` | 170.667 | power-of-two control passes |
 | `16383x100`, `16383x104`, `16383x112`, `16383x128` | 163.830 down to 127.992 | sampled/full checks passed |
 
+The `16383x127` result is topology-sensitive. The canonical BL/CCW
+fullscreen-style probe passes as wide (`16383x127`, `baseline_floor_bad=0`) but
+fails when transposed (`127x16383`, `baseline_floor_bad=44704`). The full matrix
+finds the failing oversized orientations in both axes.
+
 The safest conclusion is that we do not know an exact aspect-ratio boundary.
 The measured field is jagged enough that `1000`, `500`, or a lower threshold is
 a policy compromise, not the hardware predicate. The robust predicate remains:
@@ -108,6 +117,7 @@ Measured wall-clock on this board:
 - direct `1x1..500x500` integer-bin scan: `real 2.72s`
 - direct `1x1..1024x1024` integer-bin scan: `real 28.99s`
 - direct `1x1..1500x1500` integer-bin scan: `real 113.17s`
+- direct `1x1..2080x2080` integer-bin scan: `real 387.57s`
 - full default wrapper, including exactness/aspect/TEX cases: about 2–3 minutes
 
 Expected on ROCK 5B / Mali-G610 MC4 / Panfrost:
