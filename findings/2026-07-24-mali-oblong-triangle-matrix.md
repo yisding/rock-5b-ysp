@@ -55,6 +55,7 @@ sharper:
 | `exact_offset_scan 1..4096` | Bitwise baseline-vs-offset equality, baseline exactness, and offset exactness all occur only for `1`, `2`, and powers of two through `4096`; non-powers differ from width `3`. The weaker integer-bin condition still passes for baseline at 3429/4096 widths and for offset at all 4096 widths. |
 | `exact_offset_scan2d --lines --pow2` | Full 2D line scans preserve the same exactness set (`1`, `2`, powers of two) for `Wx1`, `1xH`, `Wx2`, and `2xH`; all 169 power-of-two `WxH` combinations through `4096x4096` are fully bit-exact baseline-vs-offset and exact-vs-expected. |
 | `exact_offset_scan2d --main-results` | One command reproduces the baseline-vs-zero-offset bit-equality result with full surfaces: both-dimension power-of-two controls match bit-for-bit, while `4096x3`, `3x4096`, `4096x4095`, `4095x4095`, `4095x383`, and `4095x341` differ. The `diff` field is the baseline-vs-zero-offset bit comparison. |
+| `exact_offset_scan2d --full-grid-floor --max 500` | Full-pixel baseline integer-bin scan for every size from `1x1` through `500x500`: 250,000 sizes / 15,687,562,500 baseline pixels tested, 0 integer-bin failures. |
 | `exact_offset_scan2d --sample-grid` | Top-right sample for every `WxH` pair through `4096x4096`: 1,690/16,777,216 baseline samples cross an integer bin; zero-offset has 0 integer-bin failures. The closest-to-square top-right integer-bin failure is still very oblong, `2x2929` (`aspect=1464.5`), and there are 0 top-right integer-bin failures where both dimensions are non-powers of two. |
 | `exact_offset_scan2d --sample-major-pow2` | Top-right sample for every pair where `max(W,H)` is a power of two through `4096`: the larger-dimension power-of-two predicate is not an exactness guarantee. 16,012/16,369 samples are non-exact; only the weaker integer-bin condition passes for every baseline and offset sample. |
 | `exact_offset_scan2d --case 4096 3`, `--case 3 4096`, `--case 4096 4095`, `--case 4096 4096` | Full-surface controls confirm the sampled result: `4096x3`, `3x4096`, and `4096x4095` are broadly non-exact with no integer-bin failures, while `4096x4096` is fully exact. |
@@ -271,6 +272,9 @@ MAIN-RESULT label=one-dim-pow2-tall size=3x4096 aspect=1365.333333 expected=diff
 MAIN-RESULT label=both-nonpow2-near-square size=4095x4095 aspect=1.000000 expected=different observed=different verdict=PASS same_as_offset=0 baseline_exact=0 offset_exact=0 baseline_floor=1 offset_floor=1 diff=16769025 baseline_exact_bad=16769025 offset_exact_bad=16768514 baseline_floor_bad=0 offset_floor_bad=0 first_diff=(0,0) baseline_first_exact_bad=(0,0) offset_first_exact_bad=(0,0)
 MAIN-RESULT label=both-nonpow2-aspect-10 size=4095x383 aspect=10.691906 expected=different observed=different verdict=PASS same_as_offset=0 baseline_exact=0 offset_exact=0 baseline_floor=1 offset_floor=1 diff=1568385 baseline_exact_bad=1568385 offset_exact_bad=1357021 baseline_floor_bad=0 offset_floor_bad=0 first_diff=(0,0) baseline_first_exact_bad=(0,0) offset_first_exact_bad=(0,0)
 MAIN-RESULT-SUMMARY cases=9 passed=9 failed=0 same=3 different=6
+
+$ ./exact_offset_scan2d --max 500 --full-grid-floor --progress 50
+FULL-GRID-FLOOR-SUMMARY max=500 path=baseline cases=250000 pixels=15687562500 failing_cases=0 first_failure=0x0 last_failure=0x0 most_square_failure=0x0 most_square_failure_aspect=0.000000
 
 $ ./exact_offset_scan2d --max 4096 --lines --pow2
 LINE-SUMMARY Wx1 max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3429 offset_floor_pass=4096 floor_failing_cases=667

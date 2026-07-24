@@ -29,6 +29,11 @@
 //      while representative non-power-of-two cases do not, including
 //      one-dimension-power-of-two and low-aspect cases.
 //
+//   --full-grid-floor
+//      Full-pixel baseline integer-bin scan for every WxH pair in 1..max,
+//      capped at max=500.  Uses an occlusion-query shader to avoid reading the
+//      full surfaces back to the CPU.
+//
 // Build:
 //   cc -O2 -Wall -Wextra -Werror -o exact_offset_scan2d exact_offset_scan2d.c -lEGL -lGLESv2 -lm
 //
@@ -37,6 +42,7 @@
 //   ./exact_offset_scan2d --sample-grid --max 4096
 //   ./exact_offset_scan2d --sample-major-pow2 --max 4096
 //   ./exact_offset_scan2d --main-results
+//   ./exact_offset_scan2d --full-grid-floor --max 500 --progress 50
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -59,6 +65,7 @@
 
 #define COMPONENTS 2
 #define MAX_FAIL_EXAMPLES 16
+#define FLOOR_QUERY_BATCH 1024
 
 static const char *vs_src =
    "#version 300 es\n"
@@ -77,9 +84,22 @@ static const char *fs_src =
    "out highp uvec2 bits;\n"
    "void main() { bits = uvec2(floatBitsToUint(v.x), floatBitsToUint(v.y)); }\n";
 
+static const char *fs_floor_src =
+   "#version 300 es\n"
+   "in highp vec2 v;\n"
+   "out highp uvec2 bits;\n"
+   "void main() {\n"
+   "   ivec2 p = ivec2(gl_FragCoord.xy);\n"
+   "   if (int(floor(v.x)) == p.x && int(floor(v.y)) == p.y)\n"
+   "      discard;\n"
+   "   bits = uvec2(1u, 0u);\n"
+   "}\n";
+
 struct gl_state {
    GLuint prog;
+   GLuint floor_prog;
    GLint extent_loc;
+   GLint floor_extent_loc;
    GLuint tex;
    GLuint fbo;
    uint32_t *baseline;
@@ -116,6 +136,22 @@ struct main_result_case {
    const char *label;
    int width;
    int height;
+};
+
+struct full_grid_floor_result {
+   uint64_t cases;
+   uint64_t pixels;
+   uint64_t failing_cases;
+   int first_w;
+   int first_h;
+   int last_w;
+   int last_h;
+   int most_square_w;
+   int most_square_h;
+   double most_square_aspect;
+   unsigned example_count;
+   int example_w[MAX_FAIL_EXAMPLES];
+   int example_h[MAX_FAIL_EXAMPLES];
 };
 
 static GLuint
@@ -164,6 +200,7 @@ draw_and_read(struct gl_state *gl, int width, int height, int use_offset,
               int scissor, int sx, int sy, int read_width, int read_height,
               uint32_t *bits)
 {
+   glUseProgram(gl->prog);
    glUniform2f(gl->extent_loc, (float)width, (float)height);
    glViewport(0, 0, width, height);
 
@@ -374,6 +411,127 @@ run_main_results(struct gl_state *gl)
           passed + failed, passed, failed, same_cases, different_cases);
 
    return failed;
+}
+
+static double
+aspect_ratio(int width, int height)
+{
+   return width > height ?
+      (double)width / (double)height :
+      (double)height / (double)width;
+}
+
+static void
+record_full_grid_floor_failure(struct full_grid_floor_result *r,
+                               int width, int height)
+{
+   const double aspect = aspect_ratio(width, height);
+
+   if (!r->first_w) {
+      r->first_w = width;
+      r->first_h = height;
+   }
+
+   r->last_w = width;
+   r->last_h = height;
+
+   if (!r->most_square_w || aspect < r->most_square_aspect) {
+      r->most_square_w = width;
+      r->most_square_h = height;
+      r->most_square_aspect = aspect;
+   }
+
+   if (r->example_count < MAX_FAIL_EXAMPLES) {
+      r->example_w[r->example_count] = width;
+      r->example_h[r->example_count] = height;
+      r->example_count++;
+   }
+
+   r->failing_cases++;
+}
+
+static void
+issue_floor_query(struct gl_state *gl, int width, int height, GLuint query)
+{
+   glUniform2f(gl->floor_extent_loc, (float)width, (float)height);
+   glViewport(0, 0, width, height);
+   glBeginQuery(GL_ANY_SAMPLES_PASSED, query);
+   glDrawArrays(GL_TRIANGLES, 0, 3);
+   glEndQuery(GL_ANY_SAMPLES_PASSED);
+}
+
+static void
+drain_floor_queries(GLuint *queries, int *widths, int *heights, unsigned count,
+                    struct full_grid_floor_result *result)
+{
+   for (unsigned i = 0; i < count; i++) {
+      GLuint any_failed = 0;
+      glGetQueryObjectuiv(queries[i], GL_QUERY_RESULT, &any_failed);
+      if (any_failed)
+         record_full_grid_floor_failure(result, widths[i], heights[i]);
+   }
+}
+
+static void
+run_full_grid_floor(struct gl_state *gl, int max_size, int progress_step)
+{
+   struct full_grid_floor_result result;
+   GLuint queries[FLOOR_QUERY_BATCH];
+   int widths[FLOOR_QUERY_BATCH];
+   int heights[FLOOR_QUERY_BATCH];
+   unsigned pending = 0;
+
+   memset(&result, 0, sizeof(result));
+   glGenQueries(FLOOR_QUERY_BATCH, queries);
+
+   glUseProgram(gl->floor_prog);
+   glDisable(GL_SCISSOR_TEST);
+   glDisable(GL_POLYGON_OFFSET_FILL);
+
+   for (int height = 1; height <= max_size; height++) {
+      for (int width = 1; width <= max_size; width++) {
+         if (pending == FLOOR_QUERY_BATCH) {
+            CHECK(glGetError() == GL_NO_ERROR);
+            drain_floor_queries(queries, widths, heights, pending, &result);
+            pending = 0;
+         }
+
+         widths[pending] = width;
+         heights[pending] = height;
+         result.cases++;
+         result.pixels += (uint64_t)width * (uint64_t)height;
+
+         issue_floor_query(gl, width, height, queries[pending]);
+         pending++;
+      }
+
+      if (progress_step > 0 && (height % progress_step) == 0) {
+         fprintf(stderr, "full-grid-floor baseline progress: height=%d/%d\n",
+                 height, max_size);
+      }
+   }
+
+   CHECK(glGetError() == GL_NO_ERROR);
+   drain_floor_queries(queries, widths, heights, pending, &result);
+   glDeleteQueries(FLOOR_QUERY_BATCH, queries);
+
+   printf("FULL-GRID-FLOOR-SUMMARY max=%d path=baseline cases=%" PRIu64
+          " pixels=%" PRIu64
+          " failing_cases=%" PRIu64
+          " first_failure=%dx%d"
+          " last_failure=%dx%d"
+          " most_square_failure=%dx%d"
+          " most_square_failure_aspect=%.6f\n",
+          max_size, result.cases, result.pixels, result.failing_cases,
+          result.first_w, result.first_h, result.last_w, result.last_h,
+          result.most_square_w, result.most_square_h,
+          result.most_square_aspect);
+
+   for (unsigned i = 0; i < result.example_count; i++) {
+      struct compare_result r =
+         full_compare(gl, result.example_w[i], result.example_h[i]);
+      print_result("FULL-GRID-FLOOR-FAIL", &r);
+   }
 }
 
 static unsigned
@@ -902,6 +1060,7 @@ usage(const char *argv0)
            "  --sample-grid     scissored top-right sample for every WxH pair\n"
            "  --sample-major-pow2 scissored sample where max(W,H) is pow2\n"
            "  --main-results    curated full-surface same-as-offset reproducer\n"
+           "  --full-grid-floor full-pixel baseline integer-bin scan, max<=500\n"
            "  --case W H        full scan of one size\n"
            "  --progress N      sampled-render progress interval (default 256)\n"
            "  --help\n",
@@ -959,6 +1118,20 @@ init_gl(struct gl_state *gl, int max_size)
    gl->extent_loc = glGetUniformLocation(gl->prog, "extent");
    CHECK(gl->extent_loc >= 0);
 
+   gl->floor_prog = glCreateProgram();
+   glAttachShader(gl->floor_prog, compile(GL_VERTEX_SHADER, vs_src));
+   glAttachShader(gl->floor_prog, compile(GL_FRAGMENT_SHADER, fs_floor_src));
+   glLinkProgram(gl->floor_prog);
+
+   ok = 0;
+   glGetProgramiv(gl->floor_prog, GL_LINK_STATUS, &ok);
+   CHECK(ok);
+   glUseProgram(gl->floor_prog);
+   gl->floor_extent_loc = glGetUniformLocation(gl->floor_prog, "extent");
+   CHECK(gl->floor_extent_loc >= 0);
+
+   glUseProgram(gl->prog);
+
    glGenTextures(1, &gl->tex);
    glBindTexture(GL_TEXTURE_2D, gl->tex);
    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RG32UI, max_size, max_size);
@@ -984,6 +1157,7 @@ main(int argc, char **argv)
    int run_samples = 0;
    int run_major_pow2_samples = 0;
    int run_main_result_cases = 0;
+   int run_full_grid_floor_cases = 0;
    int run_case = 0;
    int case_width = 0;
    int case_height = 0;
@@ -1003,6 +1177,8 @@ main(int argc, char **argv)
          run_major_pow2_samples = 1;
       } else if (!strcmp(argv[i], "--main-results")) {
          run_main_result_cases = 1;
+      } else if (!strcmp(argv[i], "--full-grid-floor")) {
+         run_full_grid_floor_cases = 1;
       } else if (!strcmp(argv[i], "--max") && i + 1 < argc) {
          max_size = atoi(argv[++i]);
       } else if (!strcmp(argv[i], "--progress") && i + 1 < argc) {
@@ -1024,13 +1200,18 @@ main(int argc, char **argv)
       return 1;
    }
 
+   if (run_full_grid_floor_cases && max_size > 500) {
+      fprintf(stderr, "--full-grid-floor is capped at --max 500\n");
+      return 1;
+   }
+
    if (run_case && (!case_width || !case_height)) {
       usage(argv[0]);
       return 1;
    }
 
    if (!run_lines && !run_pow2 && !run_samples && !run_major_pow2_samples &&
-       !run_main_result_cases && !run_case)
+       !run_main_result_cases && !run_full_grid_floor_cases && !run_case)
       run_lines = run_pow2 = 1;
 
    struct gl_state gl;
@@ -1044,6 +1225,9 @@ main(int argc, char **argv)
 
    if (run_main_result_cases)
       main_result_failures = run_main_results(&gl);
+
+   if (run_full_grid_floor_cases)
+      run_full_grid_floor(&gl, max_size, progress_step);
 
    if (run_lines) {
       run_line_scan(&gl, "Wx1", max_size, 1, 1);
