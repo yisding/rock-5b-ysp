@@ -8,9 +8,10 @@
 ## Result
 
 The zero-valued polygon-offset workaround changes the varying-interpolation path.
-In the measured scans, baseline and workaround output are bit-identical only
-when both destination dimensions are powers of two, treating `1` as `2^0`.
-This is a bit-exact statement, not the same as integer correctness.
+In the canonical 2D exactness scans through `4096x4096`, baseline and workaround
+output are bit-identical only when both destination dimensions are powers of
+two, treating `1` as `2^0`. This is a bit-exact statement, not the same as
+integer correctness.
 
 The integer/TXF-style condition is weaker: `floor(v.xy)` must still select the
 current destination pixel. For the canonical Panfrost fullscreen-style blit
@@ -30,17 +31,24 @@ The two `1500` failures are both `1xN` edge cases. Extending the canonical scan
 through `2080x2080` found 85 integer-bin failures total; the follow-up line
 scan accounts for all of them as `2080x1`, sparse `1xH` failures starting at
 `1x1480`, and `2x2080`. No canonical integer-bin failures were found through
-`2080x2080` where both dimensions are at least `3`. This
-does not prove that arbitrary triangle topologies are safe below `1480x1480`;
-the full 256-case topology matrix was only run at selected sizes. The scan is
-evidence for the fullscreen-style triangle used by the Panfrost internal blit
-path, not for every possible application triangle.
+`2080x2080` where both dimensions are at least `3`. That also means the
+directional rectangle `W <= 2079, H <= 1479` is clean for this canonical
+orientation. The transpose is not clean, because `1x1480` already fails.
+
+This does not prove that arbitrary triangle topologies are safe below
+`1480x1480`; the full 256-case topology matrix was only run at selected sizes.
+The scan is evidence for the fullscreen-style triangle used by the Panfrost
+internal blit path, not for every possible application triangle.
 
 These integer-grid scans also do not validate ordinary non-integer `texture()`
 coordinates. The separate TEX probe shows the same hardware issue can affect
 normalized nearest-filtered TEX at larger sizes (`12288x1` and `16307x1`), so
 the integer proof should not be reused as a general floating-point TEX safety
-proof.
+proof. A bitwise coordinate difference only becomes a visible TEX error when it
+crosses a texel-selection boundary, so non-power-of-two sizes are not
+automatically wrong; however, we do not have a reliable non-power-of-two safe
+predicate for TEX. The only clean bit-exact exemption observed so far is both
+dimensions powers of two.
 
 ## Boundary checks
 
@@ -87,7 +95,15 @@ down in the 100s for oversized/fullscreen-style triangles, and nearby passes.
 The `16383x127` result is topology-sensitive. The canonical BL/CCW
 fullscreen-style probe passes as wide (`16383x127`, `baseline_floor_bad=0`) but
 fails when transposed (`127x16383`, `baseline_floor_bad=44704`). The full matrix
-finds the failing oversized orientations in both axes.
+finds the failing oversized orientations in both axes. This is the lowest
+measured full-matrix failing aspect ratio so far.
+
+For Mesa MR !43161, the relevant special path is the Panfrost blitter rectangle
+override: on the affected path it maps the destination rectangle through
+viewport/scissor and calls the driver's fullscreen draw hook. That is why the
+fullscreen-style triangle scans are directly relevant to the workaround. Paths
+that fall back to ordinary `u_blitter` rectangle drawing have different geometry
+and are not proven by the canonical sweep.
 
 The safest conclusion is that we do not know an exact aspect-ratio boundary.
 The measured field is jagged enough that `1000`, `500`, or a lower threshold is
@@ -127,6 +143,9 @@ Expected on ROCK 5B / Mali-G610 MC4 / Panfrost:
 - `exact_offset_scan2d --full-grid-floor --max 1500` reports the canonical
   integer-grid failure boundary: `failing_cases=2`, first `1x1480`, last
   `1x1490`.
+- `exact_offset_scan2d --full-grid-floor --max 2080` reports
+  `failing_cases=85`, all accounted for by `2080x1`, sparse `1xH` failures,
+  and `2x2080`.
 - `exact_offset_scan2d --case 2080 1` and `--case 1 1480` show the first
   `Nx1`/`1xN` baseline integer-bin failures; the preceding `2079x1` and
   `1x1479` cases pass.

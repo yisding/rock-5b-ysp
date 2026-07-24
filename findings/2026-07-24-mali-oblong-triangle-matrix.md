@@ -23,6 +23,20 @@ raw-varying readback, normalized ordinary `texture()` readback, and baseline vs
 zero-valued polygon offset. It also has `--all-sizes` for the known
 MR/local-boundary sizes and `--coord-long` for scaled-coordinate stress.
 
+There are three distinct correctness levels in the results:
+
+| Level | Meaning | What the data says |
+|---|---|---|
+| Bit-exact baseline-vs-workaround equality | The raw interpolated bits are identical with and without zero-valued polygon offset. | In the canonical 2D exactness scans through `4096x4096`, this was observed only when both destination dimensions are powers of two, treating `1` as `2^0`. One dimension being a power of two is not enough: `4096x3`, `3x4096`, and `4096x4095` differ. |
+| Integer/TXF-style correctness | `floor(v.xy)` still lands in the intended source texel/bin, even if the bits differ. | This is weaker than bit-exactness. The canonical fullscreen-style scan found no integer-bin failures in `1x1..1024x1024`; through `2080x2080`, every failure had a `1`- or `2`-pixel side. |
+| Ordinary non-integer `texture()` correctness | The interpolated coordinate must remain on the same side of the sampler's texel-selection/filtering boundary. | Integer-bin proofs do not apply. A small coordinate drift can be harmless or visible depending on boundary proximity. The matrix includes real TEX failures (`9350x11`, `12848x14`, `16383x96`, `16383x127`), so there is no reliable non-power-of-two TEX-safe predicate from the current data. |
+
+The important consequence is that "both dimensions are powers of two" is the
+only clean bit-exact exemption observed so far. It is not the same thing as a
+complete TEX safety predicate: many non-power sizes are correct in the tested
+set, but we do not know a dimension/aspect rule that separates all correct TEX
+cases from failing TEX cases.
+
 On this G610, there are two observed affected classes:
 
 | Class | Triangles affected | Sample paths affected | Workaround |
@@ -56,6 +70,9 @@ sharper:
 | `exact_offset_scan2d --lines --pow2` | Full 2D line scans preserve the same exactness set (`1`, `2`, powers of two) for `Wx1`, `1xH`, `Wx2`, and `2xH`; all 169 power-of-two `WxH` combinations through `4096x4096` are fully bit-exact baseline-vs-offset and exact-vs-expected. |
 | `exact_offset_scan2d --main-results` | One command reproduces the baseline-vs-zero-offset bit-equality result with full surfaces: both-dimension power-of-two controls match bit-for-bit, while `4096x3`, `3x4096`, `4096x4095`, `4095x4095`, `4095x383`, and `4095x341` differ. The `diff` field is the baseline-vs-zero-offset bit comparison. |
 | `exact_offset_scan2d --full-grid-floor --max 500` | Full-pixel baseline integer-bin scan for every size from `1x1` through `500x500`: 250,000 sizes / 15,687,562,500 baseline pixels tested, 0 integer-bin failures. |
+| `exact_offset_scan2d --full-grid-floor --max 1024` | Full-pixel baseline integer-bin scan for every size from `1x1` through `1024x1024`: 1,048,576 sizes / 275,415,040,000 baseline pixels tested, 0 integer-bin failures. |
+| `exact_offset_scan2d --full-grid-floor --max 1500` | Full-pixel baseline integer-bin scan through `1500x1500`: 2,250,000 sizes / 1,267,313,062,500 baseline pixels tested, 2 failing cases (`1x1480`, `1x1490`), both fixed by zero-offset. |
+| `exact_offset_scan2d --full-grid-floor --max 2080` | Full-pixel baseline integer-bin scan through `2080x2080`: 4,326,400 sizes / 4,683,934,777,600 baseline pixels tested, 85 failing cases. The line scan accounts for all failures as `2080x1`, sparse `1xH` failures starting at `1x1480`, and `2x2080`; no canonical failures were found where both dimensions are at least `3`. |
 | `exact_offset_scan2d --sample-grid` | Top-right sample for every `WxH` pair through `4096x4096`: 1,690/16,777,216 baseline samples cross an integer bin; zero-offset has 0 integer-bin failures. The closest-to-square top-right integer-bin failure is still very oblong, `2x2929` (`aspect=1464.5`), and there are 0 top-right integer-bin failures where both dimensions are non-powers of two. |
 | `exact_offset_scan2d --sample-major-pow2` | Top-right sample for every pair where `max(W,H)` is a power of two through `4096`: the larger-dimension power-of-two predicate is not an exactness guarantee. 16,012/16,369 samples are non-exact; only the weaker integer-bin condition passes for every baseline and offset sample. |
 | `exact_offset_scan2d --case 4096 3`, `--case 3 4096`, `--case 4096 4095`, `--case 4096 4096` | Full-surface controls confirm the sampled result: `4096x3`, `3x4096`, and `4096x4095` are broadly non-exact with no integer-bin failures, while `4096x4096` is fully exact. |
@@ -125,16 +142,23 @@ This is scoped by where MR !43161 installs it:
 `panfrost_blitter_draw_rectangle()` only overrides `u_blitter`'s draw-rectangle
 hook for `arch >= 9`, and the special path only reaches
 `scr->vtbl.draw_fullscreen()` for `depth == 0.0f` and `num_instances == 1`.
+That path maps the destination rectangle with viewport/scissor and then draws a
+fullscreen-style primitive; if the conditions are not met, it falls back to
+ordinary `util_blitter_draw_rectangle()` geometry. Therefore the canonical
+fullscreen scan is evidence for the Panfrost internal fullscreen blit path, not
+for every possible app triangle or every fallback rectangle topology.
+
 Within that Panfrost internal fullscreen blitter path, zero-valued polygon
 offset is the correctness-safe state. The measured failure field is jagged:
-`9350x15`, `10000x15`, `12288x16`, `12848x15`, `16307x63`, and `16383x96`
-fail, but `8191x16`, `10000x16`, `12288x17`, `12848x16`, `16383x100`, and the
-power-of-two controls pass. Thresholds such as `1000` and `500` therefore encode
-the current sample set, not the hardware condition. A larger-dimension
-power-of-two exception is also not a valid exactness predicate: `4096x3`,
-`3x4096`, and `4096x4095` are non-exact even though the larger dimension is
-power-of-two. The stronger observed exactness rule through `4096x4096` remains
-both dimensions powers of two.
+`9350x15`, `10000x15`, `12288x16`, `12848x15`, `16307x63`, `16383x96`, and
+`16383x127` fail, but `8191x16`, `10000x16`, `12288x17`, `12848x16`,
+`16383x100`, and the power-of-two controls pass. Thresholds such as `1000` and
+`500` therefore encode the current sample set, not the hardware condition. A
+larger-dimension power-of-two exception is also not a valid exactness predicate:
+`4096x3`, `3x4096`, and `4096x4095` are non-exact even though the larger
+dimension is power-of-two. The stronger observed bit-exact rule through
+`4096x4096` remains both dimensions powers of two, but that rule should not be
+mistaken for a non-integer TEX safe predicate for all non-power cases.
 
 If maintainers require a size gate to reduce state churn, the measured
 conservative fallback is:
@@ -276,6 +300,21 @@ MAIN-RESULT-SUMMARY cases=9 passed=9 failed=0 same=3 different=6
 
 $ ./exact_offset_scan2d --max 500 --full-grid-floor --progress 50
 FULL-GRID-FLOOR-SUMMARY max=500 path=baseline cases=250000 pixels=15687562500 failing_cases=0 first_failure=0x0 last_failure=0x0 most_square_failure=0x0 most_square_failure_aspect=0.000000
+
+$ ./exact_offset_scan2d --max 1024 --full-grid-floor --progress 128
+FULL-GRID-FLOOR-SUMMARY max=1024 path=baseline cases=1048576 pixels=275415040000 failing_cases=0 first_failure=0x0 last_failure=0x0 most_square_failure=0x0 most_square_failure_aspect=0.000000
+
+$ ./exact_offset_scan2d --max 1500 --full-grid-floor --progress 150
+FULL-GRID-FLOOR-SUMMARY max=1500 path=baseline cases=2250000 pixels=1267313062500 failing_cases=2 first_failure=1x1480 last_failure=1x1490 most_square_failure=1x1480 most_square_failure_aspect=1480.000000
+
+$ ./exact_offset_scan2d --max 2080 --full-grid-floor --progress 104
+FULL-GRID-FLOOR-SUMMARY max=2080 path=baseline cases=4326400 pixels=4683934777600 failing_cases=85 first_failure=2080x1 last_failure=2x2080 most_square_failure=2x2080 most_square_failure_aspect=1040.000000
+
+$ ./exact_offset_scan2d --max 2080 --lines
+LINE-SUMMARY Wx1 max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2079 offset_floor_pass=2080 floor_failing_cases=1
+LINE-SUMMARY 1xH max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=1997 offset_floor_pass=2080 floor_failing_cases=83
+LINE-SUMMARY Wx2 max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2080 offset_floor_pass=2080 floor_failing_cases=0
+LINE-SUMMARY 2xH max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2079 offset_floor_pass=2080 floor_failing_cases=1
 
 $ ./exact_offset_scan2d --max 4096 --lines --pow2
 LINE-SUMMARY Wx1 max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3429 offset_floor_pass=4096 floor_failing_cases=667
