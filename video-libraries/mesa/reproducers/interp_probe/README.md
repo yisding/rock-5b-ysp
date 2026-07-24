@@ -13,6 +13,7 @@ varying.
 |---|---|
 | [`probe_interp.c`](probe_interp.c) | Original GBM/EGL/GLES probe. Draws a two-triangle quad with an explicit vertex attribute varying from `0` to `W`, then compares the interpolated value with `i + 0.5`. Includes `smooth`, attempted `noperspective`, and `gl_FragCoord.x` modes. |
 | [`tiny_interp_probe.c`](tiny_interp_probe.c) | Minimal surfaceless EGL/GLES proof. Uses one `gl_VertexID` triangle, no texture, no TXF, no u_blitter, no GBM, and no format-changing readback. This is the canonical GL reproducer. |
+| [`exact_offset_scan.c`](exact_offset_scan.c) | Bitwise baseline-vs-zero-polygon-offset scanner for the one-fullscreen-triangle GL probe. Finds which widths produce identical raw varying bits and which only remain integer-bin correct. |
 | [`tex_interp_probe.c`](tex_interp_probe.c) | Ordinary-TEX counterpart. Carries a normalized non-integer `0→1` varying into `texture()` with `GL_NEAREST` and samples an `R32F` ramp, proving the workaround is not specific to raw varying readback or integer-coordinate TXF. |
 | [`triangle_matrix_probe.c`](triangle_matrix_probe.c) | MR !43161 option matrix. Sweeps wide/tall targets, exact half-rectangle and oversized triangles, all right-angle corners, both windings, both long-axis directions, raw-varying vs normalized `texture()` sampling, and baseline vs zero-valued polygon offset. |
 | [`vk_interp_probe.c`](vk_interp_probe.c) | Vulkan/panvk port of the tiny probe. Removes Gallium, u_blitter, and the GL state tracker from the stack. Uses dynamic rendering, copies raw `R32_UINT` bits back with Vulkan, and provides a zero-valued `depthBiasEnable` A/B mode. |
@@ -89,6 +90,8 @@ the GBM one crashes this kernel (see
 ```bash
 cc -O2 -o probe_interp probe_interp.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
+cc -O2 -Wall -Wextra -o exact_offset_scan \
+  exact_offset_scan.c -lEGL -lGLESv2 -lm
 cc -O2 -o tex_interp_probe tex_interp_probe.c -lEGL -lGLESv2
 cc -O2 -Wall -Wextra -o triangle_matrix_probe \
   triangle_matrix_probe.c -lEGL -lGLESv2 -lm
@@ -140,6 +143,8 @@ current working directory.
 ./tiny_interp_probe 8192
 ./tiny_interp_probe 16307 varying
 ./tiny_interp_probe 12288 varying polygon-offset
+./exact_offset_scan
+./exact_offset_scan --details 2081
 
 ./tex_interp_probe 12288 baseline
 ./tex_interp_probe 12288 polygon-offset
@@ -231,6 +236,14 @@ identified this in [Mesa MR !42679](https://gitlab.freedesktop.org/mesa/mesa/-/m
 as a workaround for the confirmed hardware erratum. The default `baseline`
 mode leaves the state untouched for an A/B comparison.
 
+`exact_offset_scan.c` uses the same one-fullscreen-triangle GL draw as
+`tiny_interp_probe.c`, but renders each width twice: once with baseline
+rasterizer state and once with zero-valued polygon offset. It compares the raw
+`R32UI` float bits for every pixel, separately checks each path against exact
+`float(x + 0.5)`, and also records the weaker integer-bin condition
+`floor(v) == x`. This distinguishes bit-exact interpolation from values that
+are merely close enough for integer/TXF-style blit coordinates.
+
 `tex_interp_probe.c` tests the non-integer coordinate case with an actual
 ordinary texture operation. Its smooth varying runs from normalized `0` to `1`;
 the fragment shader passes that coordinate to GLSL `texture()` with
@@ -300,6 +313,29 @@ last pixel x=16306: v=16293.2832 expected=16306.5 relative_error=8.105e-04 (0.83
 $ ./tiny_interp_probe 16307 varying polygon-offset
 mode=varying workaround=polygon-offset width=16307: floor(v) != x at 0 of 16307 pixels (first at x=-1)
 last pixel x=16306: v=16306.5000 expected=16306.5 relative_error=0.000e+00 (0.000 * 2^-10)
+```
+
+The exact baseline-vs-offset scanner shows that bitwise exactness is much
+stricter than integer-bin correctness for the one-fullscreen-triangle GL path
+(measured 2026-07-24):
+
+```text
+$ ./exact_offset_scan 4096
+SUMMARY max_width=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3429 offset_floor_pass=4096
+same-as-offset widths: 1-2,4,8,16,32,64,128,256,512,1024,2048,4096
+baseline-exact widths: 1-2,4,8,16,32,64,128,256,512,1024,2048,4096
+offset-exact widths: 1-2,4,8,16,32,64,128,256,512,1024,2048,4096
+offset-floor-pass widths: 1-4096
+```
+
+Non-power-of-two widths are already not bit-exact at width `3`, but remain
+integer-bin correct until the first one-fullscreen-triangle floor failure at
+`2080`:
+
+```text
+$ ./exact_offset_scan --details 2081
+2080,2079,2080,1350,32,0,1,0,0
+SUMMARY max_width=2081 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2080 offset_floor_pass=2081
 ```
 
 The ordinary-TEX probe shows the same result for normalized, non-integer

@@ -5,7 +5,9 @@
 > [!43161](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/43161).
 > Source: MR !43161 discussion read 2026-07-24; local
 > [`triangle_matrix_probe.c`](../video-libraries/mesa/reproducers/interp_probe/triangle_matrix_probe.c)
-> runs on ROCK 5B / Mali-G610 MC4 / Panfrost system Mesa 26.0.3-1ubuntu1.
+> and
+> [`exact_offset_scan.c`](../video-libraries/mesa/reproducers/interp_probe/exact_offset_scan.c)
+> runs were on ROCK 5B / Mali-G610 MC4 / Panfrost system Mesa 26.0.3-1ubuntu1.
 > Date: 2026-07-24
 > Trust: MEASURED / CONFIRMED (MR discussion) / INFERRED (Mesa cutoff
 > implications)
@@ -48,6 +50,7 @@ sharper:
 |---|---|
 | `2080x1` | 96/256 fail; every failure is baseline-only and offset fixes all. |
 | `2047x1`, `2047x1 --coord-long 6141`, `2048x1 --coord-long 6144`, `4096x1 --coord-long 12288` | Pass; source-coordinate range alone did not trigger failures when the destination extent stayed in a passing family. |
+| `exact_offset_scan 1..4096` | Bitwise baseline-vs-offset equality, baseline exactness, and offset exactness all occur only for `1`, `2`, and powers of two through `4096`; non-powers differ from width `3`. The weaker integer-bin condition still passes for baseline at 3429/4096 widths and for offset at all 4096 widths. |
 | `10000x15` | Broad 128/256 baseline-only failure. |
 | `10000x16` | Pass despite `aspect=625.000`. |
 | `8191x1` | 112/256 baseline-only failures. |
@@ -227,6 +230,21 @@ SUMMARY long=16384 short=1 aspect=16384.000 tests=256 failed=0
 
 $ ./triangle_matrix_probe --summary-only --long 16384 --short 16
 SUMMARY long=16384 short=16 aspect=1024.000 tests=256 failed=0
+```
+
+- Exact baseline-vs-offset scan:
+
+```text
+$ ./exact_offset_scan 4096
+SUMMARY max_width=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3429 offset_floor_pass=4096
+same-as-offset widths: 1-2,4,8,16,32,64,128,256,512,1024,2048,4096
+baseline-exact widths: 1-2,4,8,16,32,64,128,256,512,1024,2048,4096
+offset-exact widths: 1-2,4,8,16,32,64,128,256,512,1024,2048,4096
+offset-floor-pass widths: 1-4096
+
+$ ./exact_offset_scan --details 2081
+2080,2079,2080,1350,32,0,1,0,0
+SUMMARY max_width=2081 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2080 offset_floor_pass=2081
 ```
 
 - Expanded predicate probes:
