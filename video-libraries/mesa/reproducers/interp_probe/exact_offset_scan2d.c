@@ -30,9 +30,9 @@
 //      one-dimension-power-of-two and low-aspect cases.
 //
 //   --full-grid-floor
-//      Full-pixel baseline integer-bin scan for every WxH pair in 1..max,
-//      capped at max=1024.  Uses an occlusion-query shader to avoid reading the
-//      full surfaces back to the CPU.
+//      Full-pixel baseline integer-bin scan for every WxH pair in 1..max. Uses
+//      an occlusion-query shader to avoid reading the full surfaces back to the
+//      CPU.
 //
 // Build:
 //   cc -O2 -Wall -Wextra -Werror -o exact_offset_scan2d exact_offset_scan2d.c -lEGL -lGLESv2 -lm
@@ -44,6 +44,7 @@
 //   ./exact_offset_scan2d --main-results
 //   ./exact_offset_scan2d --full-grid-floor --max 500 --progress 50
 //   ./exact_offset_scan2d --full-grid-floor --max 1024 --progress 128
+//   ./exact_offset_scan2d --full-grid-floor --max 1500 --progress 150
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -1061,7 +1062,7 @@ usage(const char *argv0)
            "  --sample-grid     scissored top-right sample for every WxH pair\n"
            "  --sample-major-pow2 scissored sample where max(W,H) is pow2\n"
            "  --main-results    curated full-surface same-as-offset reproducer\n"
-           "  --full-grid-floor full-pixel baseline integer-bin scan, max<=1024\n"
+           "  --full-grid-floor full-pixel baseline integer-bin scan\n"
            "  --case W H        full scan of one size\n"
            "  --progress N      sampled-render progress interval (default 256)\n"
            "  --help\n",
@@ -1194,15 +1195,9 @@ main(int argc, char **argv)
       }
    }
 
-   if (max_size < 1 || max_size > 4096 || progress_step < 0 ||
-       case_width < 0 || case_height < 0 ||
+   if (max_size < 1 || progress_step < 0 || case_width < 0 || case_height < 0 ||
        case_width > max_size || case_height > max_size) {
       usage(argv[0]);
-      return 1;
-   }
-
-   if (run_full_grid_floor_cases && max_size > 1024) {
-      fprintf(stderr, "--full-grid-floor is capped at --max 1024\n");
       return 1;
    }
 

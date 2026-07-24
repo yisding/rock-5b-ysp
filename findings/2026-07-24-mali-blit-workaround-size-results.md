@@ -13,21 +13,30 @@ when both destination dimensions are powers of two, treating `1` as `2^0`.
 This is a bit-exact statement, not the same as integer correctness.
 
 The integer/TXF-style condition is weaker: `floor(v.xy)` must still select the
-current destination pixel. A full baseline scan of every integer size from
-`1x1` through `500x500` passed that integer-bin test, and a follow-up run
-expanded the same canonical fullscreen-triangle scan through `1024x1024` with
-the same result:
+current destination pixel. For the canonical Panfrost fullscreen-style blit
+triangle, a full baseline scan of every integer size from `1x1` through
+`500x500` passed that integer-bin test. Follow-up runs expanded the same
+canonical scan through `1024x1024` with the same result and then through
+`1500x1500`, which finds the first known `1xN` failure boundary:
 
 ```text
 FULL-GRID-FLOOR-SUMMARY max=500 path=baseline cases=250000 pixels=15687562500 failing_cases=0
 FULL-GRID-FLOOR-SUMMARY max=1024 path=baseline cases=1048576 pixels=275415040000 failing_cases=0
+FULL-GRID-FLOOR-SUMMARY max=1500 path=baseline cases=2250000 pixels=1267313062500 failing_cases=2 first_failure=1x1480 last_failure=1x1490
 ```
 
-That validates the canonical integer-coordinate fullscreen-triangle blit through
-`1024x1024`. It does not validate ordinary non-integer `texture()` coordinates.
-The separate TEX probe shows the same hardware issue can affect normalized
-nearest-filtered TEX at larger sizes (`12288x1` and `16307x1`), so the integer
-proof should not be reused as a general floating-point TEX safety proof.
+The two `1500` failures are both `1xN` edge cases; no other canonical
+fullscreen-triangle integer-bin failures were found in `1x1..1500x1500`. This
+does not prove that arbitrary triangle topologies are safe below `1480x1480`;
+the full 256-case topology matrix was only run at selected sizes. The scan is
+evidence for the fullscreen-style triangle used by the Panfrost internal blit
+path, not for every possible application triangle.
+
+These integer-grid scans also do not validate ordinary non-integer `texture()`
+coordinates. The separate TEX probe shows the same hardware issue can affect
+normalized nearest-filtered TEX at larger sizes (`12288x1` and `16307x1`), so
+the integer proof should not be reused as a general floating-point TEX safety
+proof.
 
 ## Boundary checks
 
@@ -87,23 +96,27 @@ cd video-libraries/mesa/reproducers/interp_probe
 MESA_LOADER_DRIVER_OVERRIDE=panfrost EGL_PLATFORM=surfaceless ./mr43161_size_repro.sh
 ```
 
-By default the wrapper runs the exhaustive `1x1..1024x1024` integer-bin scan.
+By default the wrapper runs the exhaustive `1x1..1500x1500` integer-bin scan.
 Use `./mr43161_size_repro.sh --quick` to skip it, or
-`./mr43161_size_repro.sh --sweep 500` to reproduce only the original
+`./mr43161_size_repro.sh --sweep N` to choose any positive sweep size accepted
+by the GL implementation and available memory/time. For example,
+`./mr43161_size_repro.sh --sweep 500` reproduces only the original
 `1x1..500x500` run.
 
 Measured wall-clock on this board:
 
 - direct `1x1..500x500` integer-bin scan: `real 2.72s`
 - direct `1x1..1024x1024` integer-bin scan: `real 28.99s`
-- full default wrapper, including exactness/aspect/TEX cases: about `56s`
+- direct `1x1..1500x1500` integer-bin scan: `real 113.17s`
+- full default wrapper, including exactness/aspect/TEX cases: about 2–3 minutes
 
 Expected on ROCK 5B / Mali-G610 MC4 / Panfrost:
 
 - `exact_offset_scan2d --main-results` reports bit-identical output only for
   both-dimension power-of-two cases.
-- `exact_offset_scan2d --full-grid-floor --max 1024` reports
-  `failing_cases=0`.
+- `exact_offset_scan2d --full-grid-floor --max 1500` reports the canonical
+  integer-grid failure boundary: `failing_cases=2`, first `1x1480`, last
+  `1x1490`.
 - `exact_offset_scan2d --case 2080 1` and `--case 1 1480` show the first
   `Nx1`/`1xN` baseline integer-bin failures; the preceding `2079x1` and
   `1x1479` cases pass.

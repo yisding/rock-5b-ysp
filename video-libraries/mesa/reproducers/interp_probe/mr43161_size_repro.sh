@@ -4,17 +4,17 @@
 # It builds the existing EGL/GLES probes in this directory and runs only the
 # cases needed to demonstrate:
 #   * bit-exact baseline-vs-workaround equality only for both dimensions pow2;
-#   * full integer-bin safety for 1x1..1024x1024;
-#   * first 1xN/Nx1 integer-bin failures after that range;
+#   * full integer-bin safety/failure boundary for 1x1..1500x1500;
+#   * first 1xN/Nx1 integer-bin failures;
 #   * aspect-ratio failures down into the 100s;
 #   * ordinary TEX is separate from the integer/TXF-style floor proof.
 #
 # On affected Panfrost systems, run for example:
 #   MESA_LOADER_DRIVER_OVERRIDE=panfrost EGL_PLATFORM=surfaceless ./mr43161_size_repro.sh
 #
-# By default this runs the exhaustive 1x1..1024x1024 integer-bin scan.
+# By default this runs the exhaustive 1x1..1500x1500 integer-bin scan.
 # Use --quick to skip the exhaustive scan.
-# Use --sweep N to choose a different exhaustive 1x1..NxN scan, up to 1024.
+# Use --sweep N to choose a different exhaustive 1x1..NxN scan.
 
 set -euo pipefail
 
@@ -22,7 +22,7 @@ usage() {
    printf 'usage: %s [--quick|--sweep N]\n' "$0" >&2
 }
 
-full_grid_max=1024
+full_grid_max=1500
 
 case "${1:-}" in
 "" )
@@ -44,9 +44,8 @@ case "${1:-}" in
       exit 1
    fi
    full_grid_max=$2
-   if ! [[ $full_grid_max =~ ^[0-9]+$ ]] ||
-      ((full_grid_max < 1 || full_grid_max > 1024)); then
-      printf 'sweep size must be an integer in 1..1024, got %s\n' \
+   if ! [[ $full_grid_max =~ ^[0-9]+$ ]] || ((full_grid_max < 1)); then
+      printf 'sweep size must be a positive integer, got %s\n' \
          "$full_grid_max" >&2
       exit 1
    fi
@@ -122,13 +121,15 @@ if ((full_grid_max)); then
    printf '\n# 3. Exhaustive 1x1..%dx%d integer-bin scan\n' \
       "$full_grid_max" "$full_grid_max"
    progress_step=50
-   if ((full_grid_max > 500)); then
+   if ((full_grid_max > 1024)); then
+      progress_step=150
+   elif ((full_grid_max > 500)); then
       progress_step=128
    fi
    run_probe ./exact_offset_scan2d --full-grid-floor --max "$full_grid_max" \
       --progress "$progress_step"
 else
-   printf '\n# 3. Exhaustive 1x1..1024x1024 integer-bin scan skipped by --quick\n'
+   printf '\n# 3. Exhaustive 1x1..1500x1500 integer-bin scan skipped by --quick\n'
 fi
 
 printf '\n# 4. Aspect-ratio failures and power-of-two control\n'
