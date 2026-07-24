@@ -55,6 +55,8 @@ sharper:
 | `exact_offset_scan 1..4096` | Bitwise baseline-vs-offset equality, baseline exactness, and offset exactness all occur only for `1`, `2`, and powers of two through `4096`; non-powers differ from width `3`. The weaker integer-bin condition still passes for baseline at 3429/4096 widths and for offset at all 4096 widths. |
 | `exact_offset_scan2d --lines --pow2` | Full 2D line scans preserve the same exactness set (`1`, `2`, powers of two) for `Wx1`, `1xH`, `Wx2`, and `2xH`; all 169 power-of-two `WxH` combinations through `4096x4096` are fully bit-exact baseline-vs-offset and exact-vs-expected. |
 | `exact_offset_scan2d --sample-grid` | Top-right sample for every `WxH` pair through `4096x4096`: 1,690/16,777,216 baseline samples cross an integer bin; zero-offset has 0 integer-bin failures. |
+| `exact_offset_scan2d --sample-major-pow2` | Top-right sample for every pair where `max(W,H)` is a power of two through `4096`: the larger-dimension power-of-two predicate is not an exactness guarantee. 16,012/16,369 samples are non-exact; only the weaker integer-bin condition passes for every baseline and offset sample. |
+| `exact_offset_scan2d --case 4096 3`, `--case 3 4096`, `--case 4096 4095`, `--case 4096 4096` | Full-surface controls confirm the sampled result: `4096x3`, `3x4096`, and `4096x4095` are broadly non-exact with no integer-bin failures, while `4096x4096` is fully exact. |
 | `10000x15` | Broad 128/256 baseline-only failure. |
 | `10000x16` | Pass despite `aspect=625.000`. |
 | `8191x1` | 112/256 baseline-only failures. |
@@ -122,7 +124,11 @@ offset is the correctness-safe state. The measured failure field is jagged:
 `9350x15`, `10000x15`, `12288x16`, `12848x15`, `16307x63`, and `16383x96`
 fail, but `8191x16`, `10000x16`, `12288x17`, `12848x16`, `16383x100`, and the
 power-of-two controls pass. Thresholds such as `1000` and `500` therefore encode
-the current sample set, not the hardware condition.
+the current sample set, not the hardware condition. A larger-dimension
+power-of-two exception is also not a valid exactness predicate: `4096x3`,
+`3x4096`, and `4096x4095` are non-exact even though the larger dimension is
+power-of-two. The stronger observed exactness rule through `4096x4096` remains
+both dimensions powers of two.
 
 If maintainers require a size gate to reduce state churn, the measured
 conservative fallback is:
@@ -263,6 +269,21 @@ POW2-SUMMARY max=4096 cases=169 same_as_offset=169 baseline_exact=169 offset_exa
 
 $ ./exact_offset_scan2d --max 4096 --sample-grid --progress 1024
 SAMPLE-GRID-SUMMARY max=4096 sample=top-right pairs=16777216 same_as_offset=108346 baseline_exact=7976 offset_exact=5119056 baseline_floor_pass=16775526 offset_floor_pass=16777216 same_pred_mismatch=108177 baseline_exact_pred_mismatch=7807 offset_exact_pred_mismatch=5118887 baseline_floor_failures=1690 offset_floor_failures=0 baseline_floor_fail_width_range=1..4095 baseline_floor_fail_height_range=1..4095 baseline_floor_fail_first=2080x1 baseline_floor_fail_last=1x4095 baseline_floor_fail_h1=666 baseline_floor_fail_w1=697
+
+$ ./exact_offset_scan2d --max 4096 --sample-major-pow2 --progress 0
+SAMPLE-MAJOR-POW2-SUMMARY max=4096 sample=top-right pairs=16369 both_pow2_pairs=169 same_as_offset=507 baseline_exact=401 offset_exact=9181 baseline_floor_pass=16369 offset_floor_pass=16369 nonexact_cases=16012 same_pred_mismatch=338 baseline_exact_pred_mismatch=232 offset_exact_pred_mismatch=9012 baseline_floor_failures=0 offset_floor_failures=0
+
+$ ./exact_offset_scan2d --max 4096 --case 4096 3 --progress 0
+CASE size=4096x3 pixels=12288 diff=12288 baseline_exact_bad=12288 offset_exact_bad=6144 baseline_floor_bad=0 offset_floor_bad=0 first_diff=(0,0) baseline_first_exact_bad=(0,0) offset_first_exact_bad=(0,0)
+
+$ ./exact_offset_scan2d --max 4096 --case 3 4096 --progress 0
+CASE size=3x4096 pixels=12288 diff=12288 baseline_exact_bad=12288 offset_exact_bad=6144 baseline_floor_bad=0 offset_floor_bad=0 first_diff=(0,0) baseline_first_exact_bad=(0,0) offset_first_exact_bad=(0,0)
+
+$ ./exact_offset_scan2d --max 4096 --case 4096 4095 --progress 0
+CASE size=4096x4095 pixels=16773120 diff=15985407 baseline_exact_bad=13627392 offset_exact_bad=15459841 baseline_floor_bad=0 offset_floor_bad=0 first_diff=(0,0) baseline_first_exact_bad=(0,0) offset_first_exact_bad=(0,0)
+
+$ ./exact_offset_scan2d --max 4096 --case 4096 4096 --progress 0
+CASE size=4096x4096 pixels=16777216 diff=0 baseline_exact_bad=0 offset_exact_bad=0 baseline_floor_bad=0 offset_floor_bad=0
 ```
 
 - Expanded predicate probes:

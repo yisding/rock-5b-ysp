@@ -19,12 +19,17 @@
 //      W-1,H-1 in one max-sized texture, so the scan uses one bulk readback for
 //      the baseline pass and one bulk readback for the offset pass.
 //
+//   --sample-major-pow2
+//      Same top-right sampled scan, but only for pairs where the larger
+//      dimension is a power of two.
+//
 // Build:
 //   cc -O2 -Wall -Wextra -Werror -o exact_offset_scan2d exact_offset_scan2d.c -lEGL -lGLESv2 -lm
 //
 // Run:
 //   ./exact_offset_scan2d --lines --pow2
 //   ./exact_offset_scan2d --sample-grid --max 4096
+//   ./exact_offset_scan2d --sample-major-pow2 --max 4096
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -587,6 +592,152 @@ run_sample_grid(struct gl_state *gl, int max_size, int progress_step)
 }
 
 static void
+render_sample_major_pow2_pass(struct gl_state *gl, int max_size, int use_offset,
+                              const char *label, int progress_step,
+                              uint32_t *bits)
+{
+   if (use_offset) {
+      glEnable(GL_POLYGON_OFFSET_FILL);
+      glPolygonOffset(0.0f, 0.0f);
+   } else {
+      glDisable(GL_POLYGON_OFFSET_FILL);
+   }
+
+   glEnable(GL_SCISSOR_TEST);
+
+   for (int major = 1; major <= max_size; major <<= 1) {
+      for (int minor = 1; minor <= major; minor++) {
+         for (int orient = 0; orient < 2; orient++) {
+            if (orient && minor == major)
+               continue;
+
+            const int width = orient ? minor : major;
+            const int height = orient ? major : minor;
+            const int sx = width - 1;
+            const int sy = height - 1;
+
+            glUniform2f(gl->extent_loc, (float)width, (float)height);
+            glViewport(0, 0, width, height);
+            glScissor(sx, sy, 1, 1);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
+         }
+      }
+
+      if (progress_step > 0 && (major % progress_step) == 0) {
+         fprintf(stderr,
+                 "sample-major-pow2 %s render progress: major=%d/%d\n",
+                 label, major, max_size);
+      }
+   }
+
+   CHECK(glGetError() == GL_NO_ERROR);
+   glDisable(GL_SCISSOR_TEST);
+
+   glReadPixels(0, 0, max_size, max_size, GL_RG_INTEGER, GL_UNSIGNED_INT,
+                bits);
+   CHECK(glGetError() == GL_NO_ERROR);
+}
+
+static void
+run_sample_major_pow2(struct gl_state *gl, int max_size, int progress_step)
+{
+   uint64_t pairs = 0;
+   uint64_t both_pow2_pairs = 0;
+   uint64_t same_count = 0;
+   uint64_t baseline_exact_count = 0;
+   uint64_t offset_exact_count = 0;
+   uint64_t baseline_floor_count = 0;
+   uint64_t offset_floor_count = 0;
+   uint64_t nonexact_cases = 0;
+   uint64_t same_pred_mismatch = 0;
+   uint64_t baseline_exact_pred_mismatch = 0;
+   uint64_t offset_exact_pred_mismatch = 0;
+   uint64_t baseline_floor_failures = 0;
+   uint64_t offset_floor_failures = 0;
+   unsigned printed_nonexact = 0;
+   unsigned printed_floor_failures = 0;
+
+   render_sample_major_pow2_pass(gl, max_size, 0, "baseline", progress_step,
+                                 gl->baseline);
+   render_sample_major_pow2_pass(gl, max_size, 1, "offset", progress_step,
+                                 gl->offset);
+
+   for (int major = 1; major <= max_size; major <<= 1) {
+      for (int minor = 1; minor <= major; minor++) {
+         for (int orient = 0; orient < 2; orient++) {
+            if (orient && minor == major)
+               continue;
+
+            const int width = orient ? minor : major;
+            const int height = orient ? major : minor;
+            const int x = width - 1;
+            const int y = height - 1;
+            const size_t i =
+               ((size_t)y * (size_t)max_size + (size_t)x) * COMPONENTS;
+            struct compare_result r;
+
+            compare_pixels(&gl->baseline[i], &gl->offset[i], width, height,
+                           1, 1, x, y, &r);
+
+            const int expected_exact =
+               is_pow2_or_one((unsigned)width) &&
+               is_pow2_or_one((unsigned)height);
+            const int same = r.diff_pixels == 0;
+            const int b_exact = r.baseline_exact_bad == 0;
+            const int o_exact = r.offset_exact_bad == 0;
+            const int b_floor = r.baseline_floor_bad == 0;
+            const int o_floor = r.offset_floor_bad == 0;
+
+            pairs++;
+            both_pow2_pairs += expected_exact;
+            same_count += same;
+            baseline_exact_count += b_exact;
+            offset_exact_count += o_exact;
+            baseline_floor_count += b_floor;
+            offset_floor_count += o_floor;
+            same_pred_mismatch += same != expected_exact;
+            baseline_exact_pred_mismatch += b_exact != expected_exact;
+            offset_exact_pred_mismatch += o_exact != expected_exact;
+            baseline_floor_failures += !b_floor;
+            offset_floor_failures += !o_floor;
+
+            if (!same || !b_exact || !o_exact) {
+               if (printed_nonexact < MAX_FAIL_EXAMPLES)
+                  print_result("SAMPLE-MAJOR-POW2-NONEXACT", &r);
+               printed_nonexact++;
+               nonexact_cases++;
+            }
+
+            if ((!b_floor || !o_floor) &&
+                printed_floor_failures < MAX_FAIL_EXAMPLES) {
+               print_result("SAMPLE-MAJOR-POW2-FLOOR-FAIL", &r);
+               printed_floor_failures++;
+            }
+         }
+      }
+   }
+
+   printf("SAMPLE-MAJOR-POW2-SUMMARY max=%d sample=top-right pairs=%" PRIu64
+          " both_pow2_pairs=%" PRIu64
+          " same_as_offset=%" PRIu64
+          " baseline_exact=%" PRIu64
+          " offset_exact=%" PRIu64
+          " baseline_floor_pass=%" PRIu64
+          " offset_floor_pass=%" PRIu64
+          " nonexact_cases=%" PRIu64
+          " same_pred_mismatch=%" PRIu64
+          " baseline_exact_pred_mismatch=%" PRIu64
+          " offset_exact_pred_mismatch=%" PRIu64
+          " baseline_floor_failures=%" PRIu64
+          " offset_floor_failures=%" PRIu64 "\n",
+          max_size, pairs, both_pow2_pairs, same_count, baseline_exact_count,
+          offset_exact_count, baseline_floor_count, offset_floor_count,
+          nonexact_cases, same_pred_mismatch, baseline_exact_pred_mismatch,
+          offset_exact_pred_mismatch, baseline_floor_failures,
+          offset_floor_failures);
+}
+
+static void
 usage(const char *argv0)
 {
    fprintf(stderr,
@@ -595,8 +746,9 @@ usage(const char *argv0)
            "  --lines           full scans of Wx1, 1xH, Wx2, 2xH\n"
            "  --pow2            full scans of all power-of-two W,H combos\n"
            "  --sample-grid     scissored top-right sample for every WxH pair\n"
+           "  --sample-major-pow2 scissored sample where max(W,H) is pow2\n"
            "  --case W H        full scan of one size\n"
-           "  --progress N      sample-grid progress interval (default 256)\n"
+           "  --progress N      sampled-render progress interval (default 256)\n"
            "  --help\n",
            argv0);
 }
@@ -675,6 +827,7 @@ main(int argc, char **argv)
    int run_lines = 0;
    int run_pow2 = 0;
    int run_samples = 0;
+   int run_major_pow2_samples = 0;
    int run_case = 0;
    int case_width = 0;
    int case_height = 0;
@@ -690,6 +843,8 @@ main(int argc, char **argv)
          run_pow2 = 1;
       } else if (!strcmp(argv[i], "--sample-grid")) {
          run_samples = 1;
+      } else if (!strcmp(argv[i], "--sample-major-pow2")) {
+         run_major_pow2_samples = 1;
       } else if (!strcmp(argv[i], "--max") && i + 1 < argc) {
          max_size = atoi(argv[++i]);
       } else if (!strcmp(argv[i], "--progress") && i + 1 < argc) {
@@ -716,7 +871,8 @@ main(int argc, char **argv)
       return 1;
    }
 
-   if (!run_lines && !run_pow2 && !run_samples && !run_case)
+   if (!run_lines && !run_pow2 && !run_samples && !run_major_pow2_samples &&
+       !run_case)
       run_lines = run_pow2 = 1;
 
    struct gl_state gl;
@@ -739,6 +895,9 @@ main(int argc, char **argv)
 
    if (run_samples)
       run_sample_grid(&gl, max_size, progress_step);
+
+   if (run_major_pow2_samples)
+      run_sample_major_pow2(&gl, max_size, progress_step);
 
    free(gl.offset);
    free(gl.baseline);
