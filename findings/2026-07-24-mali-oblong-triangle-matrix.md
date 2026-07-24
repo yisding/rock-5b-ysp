@@ -37,6 +37,14 @@ complete TEX safety predicate: many non-power sizes are correct in the tested
 set, but we do not know a dimension/aspect rule that separates all correct TEX
 cases from failing TEX cases.
 
+"Non-integer TEX" here means normalized floating-point coordinates consumed by
+`texture()`, not necessarily linear filtering. GL color framebuffer blits can
+request `GL_NEAREST` or `GL_LINEAR`; integer/depth/stencil blits require
+nearest-style behavior. The local standalone `tex_interp_probe` uses
+`GL_NEAREST` deliberately, so a wrong result means the coordinate drift crossed
+the nearest texel-selection boundary. With linear filtering, the same drift
+changes blend weights and can also change the contributing texels.
+
 On this G610, there are two observed affected classes:
 
 | Class | Triangles affected | Sample paths affected | Workaround |
@@ -73,6 +81,7 @@ sharper:
 | `exact_offset_scan2d --full-grid-floor --max 1024` | Full-pixel baseline integer-bin scan for every size from `1x1` through `1024x1024`: 1,048,576 sizes / 275,415,040,000 baseline pixels tested, 0 integer-bin failures. |
 | `exact_offset_scan2d --full-grid-floor --max 1500` | Full-pixel baseline integer-bin scan through `1500x1500`: 2,250,000 sizes / 1,267,313,062,500 baseline pixels tested, 2 failing cases (`1x1480`, `1x1490`), both fixed by zero-offset. |
 | `exact_offset_scan2d --full-grid-floor --max 2080` | Full-pixel baseline integer-bin scan through `2080x2080`: 4,326,400 sizes / 4,683,934,777,600 baseline pixels tested, 85 failing cases. The line scan accounts for all failures as `2080x1`, sparse `1xH` failures starting at `1x1480`, and `2x2080`; no canonical failures were found where both dimensions are at least `3`. |
+| `exact_offset_scan2d --full-grid-floor --max 16384 --aspect-band 25 50` | Canonical full-pixel baseline integer-bin scan for every size through `16384x16384` with aspect ratio `25..50`: 5,370,014 sizes / 21,622,855,556,080 baseline pixels tested, 0 integer-bin failures. This only covers the canonical fullscreen-style triangle, not the full 256-case topology matrix. |
 | `exact_offset_scan2d --full-grid-floor --max 16384 --aspect-band 50 100` | Canonical full-pixel baseline integer-bin scan for every size through `16384x16384` with aspect ratio `50..100`: 2,685,006 sizes / 5,405,732,710,480 baseline pixels tested, 0 integer-bin failures. This only covers the canonical fullscreen-style triangle, not the full 256-case topology matrix. |
 | `exact_offset_scan2d --sample-grid` | Top-right sample for every `WxH` pair through `4096x4096`: 1,690/16,777,216 baseline samples cross an integer bin; zero-offset has 0 integer-bin failures. The closest-to-square top-right integer-bin failure is still very oblong, `2x2929` (`aspect=1464.5`), and there are 0 top-right integer-bin failures where both dimensions are non-powers of two. |
 | `exact_offset_scan2d --sample-major-pow2` | Top-right sample for every pair where `max(W,H)` is a power of two through `4096`: the larger-dimension power-of-two predicate is not an exactness guarantee. 16,012/16,369 samples are non-exact; only the weaker integer-bin condition passes for every baseline and offset sample. |
@@ -155,10 +164,10 @@ offset is the correctness-safe state. The measured failure field is jagged:
 `16383x127` fail, but `8191x16`, `10000x16`, `12288x17`, `12848x16`,
 `16383x100`, and the power-of-two controls pass. Thresholds such as `1000` and
 `500` therefore encode the current sample set, not the hardware condition. A
-canonical scan of aspect ratios `50..100` through `16384x16384` found no
-integer-bin failures, but that is not a full-topology proof and does not make
-`100` a hardware boundary. A larger-dimension power-of-two exception is also
-not a valid exactness predicate:
+canonical scans of aspect ratios `25..50` and `50..100` through `16384x16384`
+found no integer-bin failures, but those are not full-topology proofs and do not
+make `25`, `50`, or `100` hardware boundaries. A larger-dimension power-of-two
+exception is also not a valid exactness predicate:
 `4096x3`, `3x4096`, and `4096x4095` are non-exact even though the larger
 dimension is power-of-two. The stronger observed bit-exact rule through
 `4096x4096` remains both dimensions powers of two, but that rule should not be
@@ -319,6 +328,10 @@ LINE-SUMMARY Wx1 max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 ba
 LINE-SUMMARY 1xH max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=1997 offset_floor_pass=2080 floor_failing_cases=83
 LINE-SUMMARY Wx2 max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2080 offset_floor_pass=2080 floor_failing_cases=0
 LINE-SUMMARY 2xH max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2079 offset_floor_pass=2080 floor_failing_cases=1
+
+$ ./exact_offset_scan2d --max 16384 --full-grid-floor --aspect-band 25 50 --progress 1024
+FULL-GRID-FLOOR-SUMMARY max=16384 path=baseline aspect_min=25.000000 aspect_max=50.000000 cases=5370014 pixels=21622855556080 failing_cases=0 first_failure=0x0 last_failure=0x0 most_square_failure=0x0 most_square_failure_aspect=0.000000
+real 1723.64
 
 $ ./exact_offset_scan2d --max 16384 --full-grid-floor --aspect-band 50 100 --progress 1024
 FULL-GRID-FLOOR-SUMMARY max=16384 path=baseline aspect_min=50.000000 aspect_max=100.000000 cases=2685006 pixels=5405732710480 failing_cases=0 first_failure=0x0 last_failure=0x0 most_square_failure=0x0 most_square_failure_aspect=0.000000

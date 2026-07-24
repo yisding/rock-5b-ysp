@@ -44,11 +44,15 @@ These integer-grid scans also do not validate ordinary non-integer `texture()`
 coordinates. The separate TEX probe shows the same hardware issue can affect
 normalized nearest-filtered TEX at larger sizes (`12288x1` and `16307x1`), so
 the integer proof should not be reused as a general floating-point TEX safety
-proof. A bitwise coordinate difference only becomes a visible TEX error when it
-crosses a texel-selection boundary, so non-power-of-two sizes are not
-automatically wrong; however, we do not have a reliable non-power-of-two safe
-predicate for TEX. The only clean bit-exact exemption observed so far is both
-dimensions powers of two.
+proof. In GL, color framebuffer blits can request `GL_NEAREST` or `GL_LINEAR`;
+integer/depth/stencil cases require nearest-style behavior. The local TEX probe
+uses normalized floating-point coordinates with `texture()` and `GL_NEAREST` so
+the oracle stays exact. A bitwise coordinate difference only becomes a visible
+nearest-TEX error when it crosses a texel-selection boundary; with linear
+filtering, the same drift changes blend weights and possibly the contributing
+texels. Non-power-of-two sizes are therefore not automatically wrong, but we do
+not have a reliable non-power-of-two safe predicate for TEX. The only clean
+bit-exact exemption observed so far is both dimensions powers of two.
 
 ## Boundary checks
 
@@ -90,6 +94,7 @@ down in the 100s for oversized/fullscreen-style triangles, and nearby passes.
 | `16383x96` | 170.656 | full 256-case matrix: 8 oversized baseline-only failures; workaround passes |
 | `16383x127` | 129.000 | full 256-case matrix: 8 oversized baseline-only failures; workaround passes |
 | `16384x96` | 170.667 | power-of-two control passes |
+| canonical `25..50` aspect band through `16384x16384` | 25.000 to 50.000 | 5,370,014 size pairs / 21,622,855,556,080 fragments: 0 integer-bin failures |
 | canonical `50..100` aspect band through `16384x16384` | 50.000 to 100.000 | 2,685,006 size pairs / 5,405,732,710,480 fragments: 0 integer-bin failures |
 | `16383x100`, `16383x104`, `16383x112`, `16383x128` | 163.830 down to 127.992 | sampled/full checks passed |
 
@@ -107,12 +112,12 @@ that fall back to ordinary `u_blitter` rectangle drawing have different geometry
 and are not proven by the canonical sweep.
 
 The safest conclusion is that we do not know an exact aspect-ratio boundary.
-The canonical `50..100` aspect-band scan through `16Kx16K` did not find
-integer-bin failures, but the measured field is jagged enough that `1000`,
-`500`, `100`, or a lower threshold is still a policy compromise, not the
-hardware predicate. The robust predicate remains: apply the workaround on the
-affected Panfrost fullscreen/blit path for affected Valhall generations, rather
-than trying to derive safety from dimensions or aspect ratio.
+The canonical `25..50` and `50..100` aspect-band scans through `16Kx16K` did
+not find integer-bin failures, but the measured field is jagged enough that
+`1000`, `500`, `100`, or a lower threshold is still a policy compromise, not
+the hardware predicate. The robust predicate remains: apply the workaround on
+the affected Panfrost fullscreen/blit path for affected Valhall generations,
+rather than trying to derive safety from dimensions or aspect ratio.
 
 ## Reproducer
 
@@ -136,6 +141,8 @@ Measured wall-clock on this board:
 - direct `1x1..1024x1024` integer-bin scan: `real 28.99s`
 - direct `1x1..1500x1500` integer-bin scan: `real 113.17s`
 - direct `1x1..2080x2080` integer-bin scan: `real 387.57s`
+- direct `25..50` aspect-band canonical scan through `16384x16384`:
+  `real 1723.64s`
 - direct `50..100` aspect-band canonical scan through `16384x16384`:
   `real 439.33s`
 - full default wrapper, including exactness/aspect/TEX cases: about 2–3 minutes
