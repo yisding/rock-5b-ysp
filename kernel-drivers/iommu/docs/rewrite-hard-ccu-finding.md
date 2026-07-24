@@ -93,6 +93,8 @@ differential evidence below.
 
 ---
 
+<a id="vendor-bsp-history--was-hard-ever-on-primary-evidence"></a>
+
 ## Vendor BSP history — was HARD ever on? (primary evidence)
 
 Traced 2026-07-24 against `rockchip-kernel` branch `develop-6.1` (Rockchip's

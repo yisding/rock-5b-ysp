@@ -272,19 +272,19 @@ class DebugRamoopsTests(unittest.TestCase):
 
 
 class ForwardPortPatchSeriesTests(unittest.TestCase):
-    series = REPO_ROOT / "kernel-drivers/patches/forward-port-rk3588-av1"
+    series = REPO_ROOT / "kernel-drivers/patches/forward-port-rk3588"
 
     def test_series_contains_the_current_contiguous_patch_tail(self) -> None:
-        patches = sorted(self.series.glob("rk3588-av1-fwport-*.patch"))
-        numbers = [int(path.name.split("-")[3]) for path in patches]
+        patches = sorted(self.series.glob("rk3588-fwport-*.patch"))
+        numbers = [int(path.name.split("-")[2]) for path in patches]
 
-        self.assertEqual(numbers, [number for number in range(1, 73) if number != 12])
+        self.assertEqual(numbers, list(range(1, 74)))
         readme = (self.series / "README.md").read_text(encoding="utf-8")
-        self.assertIn("4401383a6d9b5", readme)
-        self.assertIn("71-file series", readme)
+        self.assertIn("contiguous `0001`–`0073`", readme)
+        self.assertIn("79fc616390e5", readme)
 
     def test_series_mailboxes_are_well_formed(self) -> None:
-        for patch in sorted(self.series.glob("rk3588-av1-fwport-*.patch")):
+        for patch in sorted(self.series.glob("rk3588-fwport-*.patch")):
             with self.subTest(patch=patch.name):
                 result = subprocess.run(
                     ["git", "apply", "--numstat", str(patch)],
