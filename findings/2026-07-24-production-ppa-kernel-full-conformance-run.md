@@ -74,10 +74,11 @@ pass, 4 required fail**, all four with userspace-side signatures:
 - Diagnostic VP8/JPEG cases fail as **expected**: this kernel exposes no
   VP8/JPEG encoder cores.
 
-**Verification gate:** rerun the two NV12_10 RGA cases after either (a) fixing
-the plugin's 10-bit buffer-size/stride computation, or (b) adding legacy-blit
-NV12_10 size validation to the kernel; pass = both cases green and zero RGA
-IOMMU fault lines in the case window.
+**Root-caused later the same day — it is a kernel regression from our `0048`
+RGA3 stride fix, not a plugin bug**: see
+[`2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md`](./2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md)
+(forced-core reproducer: identical legacy request succeeds on RGA2,
+faults on RGA3; fix direction and verification gate recorded there).
 
 ## Pre-existing, reconfirmed (not regressions)
 
@@ -95,6 +96,15 @@ IOMMU fault lines in the case window.
   benign.
 
 ## Harness gaps found this run
+
+> **All four fixed in-tree later on 2026-07-24**: `mpp-suite.sh` now defaults
+> its media inputs from the tracked assets and selects the standard 12-case
+> matrix when they resolve; `rewrite-conformance-run.sh` gained
+> `RUN_CONTINUE_ON_FAIL=1`; `test-decode.sh` regenerates its software clips
+> via the first available libx264/libx265 ffmpeg when `CLIP_DIR` is absent;
+> and the VP9 gate writes under the caller's `OUT` (root-gates co-locates it)
+> instead of the stale dated path. The mpp-suite and test-decode fixes were
+> re-run green on this boot (12/12 and PASS respectively).
 
 - `mpp-suite.sh` defaults to `mpp_info_test` only; without the
   `MPP_*_INPUT`/`MPP_REQUIRED_CASES` env the KASAN wrapper supplies, the

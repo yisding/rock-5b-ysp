@@ -161,7 +161,7 @@ run_gate mpp-debug-capture \
 prev_poo=$(cat /proc/sys/kernel/panic_on_oops 2>/dev/null)
 sysctl -w kernel.panic_on_oops=0 >/dev/null
 run_gate vp9-show-existing \
-	-- bash "$TEST_DIR/mpp-vp9-show-existing-repro.sh"
+	-- env OUT="$OUT/vp9-show-existing" bash "$TEST_DIR/mpp-vp9-show-existing-repro.sh"
 [ -n "${prev_poo:-}" ] && sysctl -w kernel.panic_on_oops="$prev_poo" >/dev/null
 
 # --- verdict -----------------------------------------------------------------

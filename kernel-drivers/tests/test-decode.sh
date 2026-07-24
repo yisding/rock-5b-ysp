@@ -34,6 +34,32 @@ H265_IN=$CLIP_DIR/tiny-320x240.h265
 OUT=/tmp/rkvdec-test
 mkdir -p "$OUT"
 
+# The default CLIP_DIR is the original dev box; on any other host regenerate
+# the software-encoded clips on the fly per the README recipe when an ffmpeg
+# with libx264/libx265 is available (2026-07-24 harness-gap fix).  The clips
+# MUST stay software-encoded — that isolation is the point of this test.
+if [ ! -e "$H264_IN" ] || [ ! -e "$H265_IN" ]; then
+  GEN_FFMPEG=${GEN_FFMPEG:-ffmpeg}
+  # Capture the encoder list once: `ffmpeg | grep -q` is unreliable under
+  # pipefail (grep -q exits early and SIGPIPEs ffmpeg).
+  GEN_ENCODERS=$("$GEN_FFMPEG" -hide_banner -encoders 2>/dev/null || true)
+  if [ -n "$GEN_ENCODERS" ] &&
+     printf '%s' "$GEN_ENCODERS" | grep -q libx264 &&
+     printf '%s' "$GEN_ENCODERS" | grep -q libx265; then
+    CLIP_DIR="$OUT/clips"
+    H264_IN=$CLIP_DIR/tiny-320x240.h264
+    H265_IN=$CLIP_DIR/tiny-320x240.h265
+    mkdir -p "$CLIP_DIR"
+    echo "regenerating software-encoded clips into $CLIP_DIR"
+    [ -e "$H264_IN" ] || "$GEN_FFMPEG" -v error -y -f lavfi \
+      -i testsrc2=size=320x240:rate=30:duration=1 \
+      -c:v libx264 -pix_fmt yuv420p "$H264_IN" || true
+    [ -e "$H265_IN" ] || "$GEN_FFMPEG" -v error -y -f lavfi \
+      -i testsrc2=size=320x240:rate=30:duration=1 \
+      -c:v libx265 -x265-params log-level=error -pix_fmt yuv420p "$H265_IN" || true
+  fi
+fi
+
 W=320; H=240; NF=30
 # MppCodingType values for mpi_dec_test -t (documented once in README.md):
 T_H264=7          # MPP_VIDEO_CodingAVC

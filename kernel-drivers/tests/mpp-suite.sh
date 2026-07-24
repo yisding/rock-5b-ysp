@@ -13,6 +13,25 @@ MPP_BIN_DIR=${MPP_BIN_DIR:-"$CONFORMANCE_ROOT/out/mpp/bin"}
 MPP_LIBDIR=${MPP_LIBDIR:-"$CONFORMANCE_ROOT/out/mpp/lib"}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-mpp-suite"}
 MPP_GENERATED_INPUT_CACHE=${MPP_GENERATED_INPUT_CACHE:-"$CONFORMANCE_ROOT/assets/mpp-generated"}
+
+# Default the media inputs to the tracked conformance assets when present,
+# so the canonical runner invocation exercises the real matrix instead of
+# silently recording missing-env (2026-07-24 harness-gap fix).  Explicit
+# env always wins; a missing asset leaves the var unset and the case
+# records missing-env as before.
+[ -z "${MPP_H264_INPUT:-}" ] && [ -f "$CONFORMANCE_ROOT/assets/test_h264.h264" ] &&
+	MPP_H264_INPUT="$CONFORMANCE_ROOT/assets/test_h264.h264"
+[ -z "${MPP_H265_INPUT:-}" ] && [ -f "$CONFORMANCE_ROOT/assets/test_h265.h265" ] &&
+	MPP_H265_INPUT="$CONFORMANCE_ROOT/assets/test_h265.h265"
+[ -z "${MPP_VP9_INPUT:-}" ] && [ -f "$CONFORMANCE_ROOT/assets/test_vp9.ivf" ] &&
+	MPP_VP9_INPUT="$CONFORMANCE_ROOT/assets/test_vp9.ivf"
+MPP_ENC_INPUT_EXPLICIT=${MPP_ENC_INPUT+x}${MPP_NV12_INPUT+x}
+if [ -z "${MPP_ENC_INPUT:-}" ] && [ -z "${MPP_NV12_INPUT:-}" ] &&
+	[ -f "$CONFORMANCE_ROOT/assets/raw_nv12_1280x720.yuv" ]; then
+	MPP_ENC_INPUT="$CONFORMANCE_ROOT/assets/raw_nv12_1280x720.yuv"
+	MPP_ENC_WIDTH=${MPP_ENC_WIDTH:-1280}
+	MPP_ENC_HEIGHT=${MPP_ENC_HEIGHT:-720}
+fi
 MPP_TIMEOUT=${MPP_TIMEOUT:-180}
 MPP_DEC_FRAMES=${MPP_DEC_FRAMES:-120}
 MPP_ENC_FRAMES=${MPP_ENC_FRAMES:-120}
@@ -38,10 +57,31 @@ MPP_CODING_AVS2=16777223
 
 required_cases_default="mpp_info_test"
 if [ -z "${MPP_REQUIRED_CASES+x}" ]; then
+	# With the asset-backed input defaults above, the no-env invocation
+	# runs the standard official-MPP matrix instead of only the info
+	# probe (2026-07-24 harness-gap fix).  MPP_REQUIRED_CASES still
+	# overrides everything.
+	if [ -n "${MPP_H264_INPUT:-}" ]; then
+		required_cases_default="$required_cases_default mpi_dec_h264 mpi_dec_mt_h264"
+	fi
+	if [ -n "${MPP_H265_INPUT:-}" ]; then
+		required_cases_default="$required_cases_default mpi_dec_h265 mpi_dec_multi_h265"
+	fi
+	if [ -n "${MPP_VP9_INPUT:-}" ] || [ "$MPP_GENERATE_VP9_INPUT" = "1" ]; then
+		required_cases_default="$required_cases_default mpi_dec_vp9"
+	fi
+	if [ -n "${MPP_ENC_INPUT:-${MPP_NV12_INPUT:-}}" ]; then
+		required_cases_default="$required_cases_default mpi_enc_h264 mpi_enc_h265 mpi_enc_h264_slice mpi_enc_h265_slice mpi_enc_mt_h265"
+		if [ -n "${MPP_H264_INPUT:-}" ]; then
+			required_cases_default="$required_cases_default mpi_rc2_h264"
+		fi
+	fi
 	if [ -n "${MPP_DEC_INPUT:-}" ]; then
 		required_cases_default="$required_cases_default mpi_dec_custom"
 	fi
-	if [ -n "${MPP_ENC_INPUT:-${MPP_NV12_INPUT:-}}" ]; then
+	# Custom encode only when the user explicitly supplied the input,
+	# not when it was defaulted from the tracked assets above.
+	if [ -n "$MPP_ENC_INPUT_EXPLICIT" ] && [ -n "${MPP_ENC_INPUT:-${MPP_NV12_INPUT:-}}" ]; then
 		required_cases_default="$required_cases_default mpi_enc_custom"
 	fi
 fi

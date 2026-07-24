@@ -103,6 +103,26 @@ esac
 
 export SUITE_DMESG_SCAN SUITE_REQUIRE_DMESG
 
+# RUN_CONTINUE_ON_FAIL=1 records a suite failure and moves on to the
+# remaining suites instead of aborting the whole run at the first failure
+# (2026-07-24 harness-gap fix: a red librga demo matrix or GStreamer suite
+# used to block the FFmpeg suite entirely).  The runner still exits
+# non-zero at the end when any suite failed.
+RUN_CONTINUE_ON_FAIL=${RUN_CONTINUE_ON_FAIL:-0}
+FAILED_STEPS=""
+
+step_failed()
+{
+	local name=$1 rc=$2
+
+	printf "%s FAILED with exit code %s\n" "$name" "$rc" >&2
+	if [ "$RUN_CONTINUE_ON_FAIL" = "1" ]; then
+		FAILED_STEPS="$FAILED_STEPS $name"
+		return 0
+	fi
+	exit "$rc"
+}
+
 run_step()
 {
 	local name=$1
@@ -117,8 +137,7 @@ run_step()
 	printf "\n"
 
 	if [ "$rc" -ne 0 ]; then
-		printf "%s FAILED with exit code %s\n" "$name" "$rc" >&2
-		exit "$rc"
+		step_failed "$name" "$rc"
 	fi
 }
 
@@ -144,8 +163,7 @@ run_optional_step()
 		return 0
 		;;
 	*)
-		printf "%s FAILED with exit code %s\n" "$name" "$rc" >&2
-		exit "$rc"
+		step_failed "$name" "$rc"
 		;;
 	esac
 }
@@ -551,6 +569,12 @@ run_profile_suites
 
 if [ "$RUN_COMPARE" = "1" ]; then
 	run_comparators
+fi
+
+if [ -n "$FAILED_STEPS" ]; then
+	printf "Conformance profile '%s' completed with FAILED suites:%s\n" \
+		"$PROFILE" "$FAILED_STEPS" >&2
+	exit 1
 fi
 
 printf "Conformance profile '%s' completed\n" "$PROFILE"

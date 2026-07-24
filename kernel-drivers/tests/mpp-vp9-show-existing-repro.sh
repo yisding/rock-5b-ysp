@@ -26,7 +26,7 @@ source "$TEST_DIR/kasan-scan.sh"
 # The show_existing_frame conformance vector is tracked under the conformance
 # assets; override with IVF=... to point at another copy.
 IVF="${IVF:-$CONFORMANCE_ROOT/assets/vp9-show-existing.ivf}"
-OUT="${OUT:-$TEST_DIR/logs/2026-07-21-p70a5-gates/mpp-vp9-crash}"
+OUT="${OUT:-$CONFORMANCE_ROOT/logs/forward-port/$(date +%Y%m%d-%H%M%S)-vp9-show-existing}"
 LOOPS="${LOOPS:-30}"
 CONCURRENCY="${CONCURRENCY:-4}"
 VP9_TYPE=10

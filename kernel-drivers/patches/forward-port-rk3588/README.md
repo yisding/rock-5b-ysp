@@ -173,6 +173,23 @@ Our own port's issues found by the root-gate ladder: the mm_session debugfs UAF 
 | `0070` | video: rockchip: rga: don't drop mm->lock during session-release teardown | `20d3b9c86c78` | `0071` |
 | `0071` | video: rockchip: rga3: reject 16-misaligned IOMMU window base | `39750d2e3b60` | `0072` |
 
+### 0072–0073 — 10-bit stride convention / RGA2 page-table hardening (2026-07-24)
+
+The GStreamer-suite NV12_10 root cause and its secondary discovery: `0072`
+restores the legacy byte-stride ABI for 10-bit rasters on RGA3 (a regression
+our own `0048` introduced; pairs with the ysp librga fork's im2d pixel→byte
+conversion `c80eea7`, and both P010/NV15 gates plus the tracked
+`rga-10bit-legacy-stride-test.c` probe must be re-run on the pair), and
+`0073` makes the RGA2 MMU page-table builder fail closed with `-EOPNOTSUPP`
+on above-4G entries instead of silently truncating to a hardware bus error.
+Compile-verified + checkpatch-clean; booted gates pending the next build
+([stride finding](../../../findings/2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md)).
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0072` | video: rockchip: rga3: honor the legacy byte-stride ABI for 10-bit rasters | `138f0de2c972` | — |
+| `0073` | video: rockchip: rga: reject above-4G RGA2 MMU page-table entries | `79fc616390e5` | — |
+
 ## Renumber map (2026-07-23)
 
 Uniform: **old N → new N** for N ≤ 11; **old N → new N−1** for N ≥ 13; **old 0012
