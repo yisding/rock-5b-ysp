@@ -31,7 +31,7 @@
 //
 //   --full-grid-floor
 //      Full-pixel baseline integer-bin scan for every WxH pair in 1..max,
-//      capped at max=500.  Uses an occlusion-query shader to avoid reading the
+//      capped at max=1024.  Uses an occlusion-query shader to avoid reading the
 //      full surfaces back to the CPU.
 //
 // Build:
@@ -43,6 +43,7 @@
 //   ./exact_offset_scan2d --sample-major-pow2 --max 4096
 //   ./exact_offset_scan2d --main-results
 //   ./exact_offset_scan2d --full-grid-floor --max 500 --progress 50
+//   ./exact_offset_scan2d --full-grid-floor --max 1024 --progress 128
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -1060,7 +1061,7 @@ usage(const char *argv0)
            "  --sample-grid     scissored top-right sample for every WxH pair\n"
            "  --sample-major-pow2 scissored sample where max(W,H) is pow2\n"
            "  --main-results    curated full-surface same-as-offset reproducer\n"
-           "  --full-grid-floor full-pixel baseline integer-bin scan, max<=500\n"
+           "  --full-grid-floor full-pixel baseline integer-bin scan, max<=1024\n"
            "  --case W H        full scan of one size\n"
            "  --progress N      sampled-render progress interval (default 256)\n"
            "  --help\n",
@@ -1200,8 +1201,8 @@ main(int argc, char **argv)
       return 1;
    }
 
-   if (run_full_grid_floor_cases && max_size > 500) {
-      fprintf(stderr, "--full-grid-floor is capped at --max 500\n");
+   if (run_full_grid_floor_cases && max_size > 1024) {
+      fprintf(stderr, "--full-grid-floor is capped at --max 1024\n");
       return 1;
    }
 
