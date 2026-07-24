@@ -25,7 +25,7 @@ kernel driver — a different toolkit, model format (`.rkllm`), and runtime
 | Depends on | A BSP kernel with `CONFIG_ROCKCHIP_RKNPU`, enabled RK3588 NPU/IOMMU DT nodes, matching RKNN Runtime/Toolkit2, and suitable render-node or `/dev/rknpu` access. |
 | Code lives in | Kernel: sibling `rockchip-kernel/drivers/rknpu/`. Userspace distribution: official [`airockchip/rknn-toolkit2`](https://github.com/airockchip/rknn-toolkit2) repository (`rknn-toolkit2/`, `rknn-toolkit-lite2/`, `rknpu2/runtime/`). |
 | Inspected tuple | `rockchip-kernel@b4ef083dc0c3`, RKNPU driver 0.9.8 (`20240828`), and `airockchip/rknn-toolkit2@59a913d172e7`, containing RKNN Runtime 2.3.2. |
-| Current state | Architecture/source-inspected only. The repo does not yet contain an on-board RKNN inference result for the Resolute image, so support coverage C16 remains `UNASSESSED`; no dedicated dashboard track exists until runtime evidence establishes a sustained workstream. See [`../../status.md`](../../status.md) and [`../../docs/support-coverage.md`](../../docs/support-coverage.md) row C16. |
+| Current state | Architecture/source-inspected only. The repo does not yet contain an on-board RKNN inference result for the Resolute image, so support coverage C16 remains `UNASSESSED`; no dedicated dashboard track exists until runtime evidence establishes a sustained workstream. See [`../../status.md`](../../status.md) and [`../../docs/support-coverage.md`](../../docs/support-coverage.md) row C16. A forward-port of the kernel driver onto the ysp 6.18 kernel is scoped (not started) in [`../../findings/2026-07-24-rknpu-forward-port-scoping.md`](../../findings/2026-07-24-rknpu-forward-port-scoping.md). |
 
 ## Stack at a glance
 
@@ -58,6 +58,7 @@ completion.
 | What does each RKNN/RKNPU term mean? | [`keywords.md`](keywords.md) |
 | What does the broader BSP add for GPU/NPU? | [`../../kernel-versions/bsp/07-gpu-npu-accelerators.md`](../../kernel-versions/bsp/07-gpu-npu-accelerators.md) |
 | How does RKNPU quality compare with mature drivers? | [`../../findings/2026-07-16-rockchip-bsp-driver-quality.md`](../../findings/2026-07-16-rockchip-bsp-driver-quality.md#rknpu-deep-dive-capable-fixed-stack-unsafe-multi-client-abi) |
+| What would forward-porting the kernel driver take? | [`../../findings/2026-07-24-rknpu-forward-port-scoping.md`](../../findings/2026-07-24-rknpu-forward-port-scoping.md) |
 | Is NPU inference validated on this distro image? | [`../../docs/support-coverage.md`](../../docs/support-coverage.md) row C16 |
 
 Project vocabulary: [`keywords.md`](keywords.md). Cross-cutting vocabulary:
