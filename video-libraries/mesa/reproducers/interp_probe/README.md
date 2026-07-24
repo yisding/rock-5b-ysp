@@ -14,6 +14,7 @@ varying.
 | [`probe_interp.c`](probe_interp.c) | Original GBM/EGL/GLES probe. Draws a two-triangle quad with an explicit vertex attribute varying from `0` to `W`, then compares the interpolated value with `i + 0.5`. Includes `smooth`, attempted `noperspective`, and `gl_FragCoord.x` modes. |
 | [`tiny_interp_probe.c`](tiny_interp_probe.c) | Minimal surfaceless EGL/GLES proof. Uses one `gl_VertexID` triangle, no texture, no TXF, no u_blitter, no GBM, and no format-changing readback. This is the canonical GL reproducer. |
 | [`exact_offset_scan.c`](exact_offset_scan.c) | Bitwise baseline-vs-zero-polygon-offset scanner for the one-fullscreen-triangle GL probe. Finds which widths produce identical raw varying bits and which only remain integer-bin correct. |
+| [`exact_offset_scan2d.c`](exact_offset_scan2d.c) | 2D bitwise scanner. Carries both `x + 0.5` and `y + 0.5`, supports full line scans (`Wx1`, `1xH`, `Wx2`, `2xH`), full power-of-two cross-products, and a scissored top-right sample for every `WxH` pair. |
 | [`tex_interp_probe.c`](tex_interp_probe.c) | Ordinary-TEX counterpart. Carries a normalized non-integer `0→1` varying into `texture()` with `GL_NEAREST` and samples an `R32F` ramp, proving the workaround is not specific to raw varying readback or integer-coordinate TXF. |
 | [`triangle_matrix_probe.c`](triangle_matrix_probe.c) | MR !43161 option matrix. Sweeps wide/tall targets, exact half-rectangle and oversized triangles, all right-angle corners, both windings, both long-axis directions, raw-varying vs normalized `texture()` sampling, and baseline vs zero-valued polygon offset. |
 | [`vk_interp_probe.c`](vk_interp_probe.c) | Vulkan/panvk port of the tiny probe. Removes Gallium, u_blitter, and the GL state tracker from the stack. Uses dynamic rendering, copies raw `R32_UINT` bits back with Vulkan, and provides a zero-valued `depthBiasEnable` A/B mode. |
@@ -92,6 +93,8 @@ cc -O2 -o probe_interp probe_interp.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o tiny_interp_probe tiny_interp_probe.c -lEGL -lGLESv2 -lm
 cc -O2 -Wall -Wextra -o exact_offset_scan \
   exact_offset_scan.c -lEGL -lGLESv2 -lm
+cc -O2 -Wall -Wextra -o exact_offset_scan2d \
+  exact_offset_scan2d.c -lEGL -lGLESv2 -lm
 cc -O2 -o tex_interp_probe tex_interp_probe.c -lEGL -lGLESv2
 cc -O2 -Wall -Wextra -o triangle_matrix_probe \
   triangle_matrix_probe.c -lEGL -lGLESv2 -lm
@@ -145,6 +148,8 @@ current working directory.
 ./tiny_interp_probe 12288 varying polygon-offset
 ./exact_offset_scan
 ./exact_offset_scan --details 2081
+./exact_offset_scan2d --max 4096 --lines --pow2
+./exact_offset_scan2d --max 4096 --sample-grid --progress 1024
 
 ./tex_interp_probe 12288 baseline
 ./tex_interp_probe 12288 polygon-offset
@@ -244,6 +249,14 @@ rasterizer state and once with zero-valued polygon offset. It compares the raw
 `floor(v) == x`. This distinguishes bit-exact interpolation from values that
 are merely close enough for integer/TXF-style blit coordinates.
 
+`exact_offset_scan2d.c` extends that exactness test to a `vec2` varying. It
+renders `RG32UI` raw float bits for `x + 0.5` and `y + 0.5`. Full modes compare
+every pixel for selected size families. `--sample-grid` avoids the infeasible
+70T-fragment exhaustive grid by enabling scissor and rendering only the
+top-right pixel (`W-1,H-1`) for each `WxH` pair; each pair maps to the same
+pixel in a max-sized result texture, so the scanner does one bulk readback for
+baseline and one for offset.
+
 `tex_interp_probe.c` tests the non-integer coordinate case with an actual
 ordinary texture operation. Its smooth varying runs from normalized `0` to `1`;
 the fragment shader passes that coordinate to GLSL `texture()` with
@@ -336,6 +349,38 @@ integer-bin correct until the first one-fullscreen-triangle floor failure at
 $ ./exact_offset_scan --details 2081
 2080,2079,2080,1350,32,0,1,0,0
 SUMMARY max_width=2081 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2080 offset_floor_pass=2081
+```
+
+The 2D scanner confirms the power-of-two exactness rule for full power-of-two
+surfaces and shows directional asymmetry for thin non-power-of-two surfaces
+(measured 2026-07-24):
+
+```text
+$ ./exact_offset_scan2d --max 4096 --lines --pow2
+LINE-SUMMARY Wx1 max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3429 offset_floor_pass=4096 floor_failing_cases=667
+LINE-SUMMARY 1xH max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=2762 offset_floor_pass=4096 floor_failing_cases=1334
+LINE-SUMMARY Wx2 max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3938 offset_floor_pass=4096 floor_failing_cases=158
+LINE-SUMMARY 2xH max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3459 offset_floor_pass=4096 floor_failing_cases=637
+POW2-SUMMARY max=4096 cases=169 same_as_offset=169 baseline_exact=169 offset_exact=169 baseline_floor_pass=169 offset_floor_pass=169 nonexact_cases=0
+```
+
+First baseline integer-bin failures in those full line scans:
+
+| Family | First sampled/full failure | Offset floor failures |
+|---|---:|---:|
+| `Wx1` | `2080x1` | 0 |
+| `1xH` | `1x1480` | 0 |
+| `Wx2` | `2947x2` | 0 |
+| `2xH` | `2x2080` | 0 |
+
+The all-pairs sampled grid checks the top-right pixel for every size from
+`1x1` through `4096x4096`. It is not a full-surface exactness proof for
+non-power-of-two sizes, but it is a cheap check for whether that representative
+pixel crosses the integer boundary:
+
+```text
+$ ./exact_offset_scan2d --max 4096 --sample-grid --progress 1024
+SAMPLE-GRID-SUMMARY max=4096 sample=top-right pairs=16777216 same_as_offset=108346 baseline_exact=7976 offset_exact=5119056 baseline_floor_pass=16775526 offset_floor_pass=16777216 same_pred_mismatch=108177 baseline_exact_pred_mismatch=7807 offset_exact_pred_mismatch=5118887 baseline_floor_failures=1690 offset_floor_failures=0 baseline_floor_fail_width_range=1..4095 baseline_floor_fail_height_range=1..4095 baseline_floor_fail_first=2080x1 baseline_floor_fail_last=1x4095 baseline_floor_fail_h1=666 baseline_floor_fail_w1=697
 ```
 
 The ordinary-TEX probe shows the same result for normalized, non-integer

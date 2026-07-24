@@ -3,11 +3,13 @@
 > Scope: Mesa Panfrost/Mali-G610 varying-interpolation erratum, especially the
 > "very oblong" blit workaround discussed in Mesa MR
 > [!43161](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/43161).
-> Source: MR !43161 discussion read 2026-07-24; local
+> Source: MR !43161 discussion read 2026-07-24; local runs of
 > [`triangle_matrix_probe.c`](../video-libraries/mesa/reproducers/interp_probe/triangle_matrix_probe.c)
 > and
 > [`exact_offset_scan.c`](../video-libraries/mesa/reproducers/interp_probe/exact_offset_scan.c)
-> runs were on ROCK 5B / Mali-G610 MC4 / Panfrost system Mesa 26.0.3-1ubuntu1.
+> /
+> [`exact_offset_scan2d.c`](../video-libraries/mesa/reproducers/interp_probe/exact_offset_scan2d.c)
+> were on ROCK 5B / Mali-G610 MC4 / Panfrost system Mesa 26.0.3-1ubuntu1.
 > Date: 2026-07-24
 > Trust: MEASURED / CONFIRMED (MR discussion) / INFERRED (Mesa cutoff
 > implications)
@@ -51,6 +53,8 @@ sharper:
 | `2080x1` | 96/256 fail; every failure is baseline-only and offset fixes all. |
 | `2047x1`, `2047x1 --coord-long 6141`, `2048x1 --coord-long 6144`, `4096x1 --coord-long 12288` | Pass; source-coordinate range alone did not trigger failures when the destination extent stayed in a passing family. |
 | `exact_offset_scan 1..4096` | Bitwise baseline-vs-offset equality, baseline exactness, and offset exactness all occur only for `1`, `2`, and powers of two through `4096`; non-powers differ from width `3`. The weaker integer-bin condition still passes for baseline at 3429/4096 widths and for offset at all 4096 widths. |
+| `exact_offset_scan2d --lines --pow2` | Full 2D line scans preserve the same exactness set (`1`, `2`, powers of two) for `Wx1`, `1xH`, `Wx2`, and `2xH`; all 169 power-of-two `WxH` combinations through `4096x4096` are fully bit-exact baseline-vs-offset and exact-vs-expected. |
+| `exact_offset_scan2d --sample-grid` | Top-right sample for every `WxH` pair through `4096x4096`: 1,690/16,777,216 baseline samples cross an integer bin; zero-offset has 0 integer-bin failures. |
 | `10000x15` | Broad 128/256 baseline-only failure. |
 | `10000x16` | Pass despite `aspect=625.000`. |
 | `8191x1` | 112/256 baseline-only failures. |
@@ -245,6 +249,20 @@ offset-floor-pass widths: 1-4096
 $ ./exact_offset_scan --details 2081
 2080,2079,2080,1350,32,0,1,0,0
 SUMMARY max_width=2081 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2080 offset_floor_pass=2081
+```
+
+- 2D exact/sampled scans:
+
+```text
+$ ./exact_offset_scan2d --max 4096 --lines --pow2
+LINE-SUMMARY Wx1 max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3429 offset_floor_pass=4096 floor_failing_cases=667
+LINE-SUMMARY 1xH max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=2762 offset_floor_pass=4096 floor_failing_cases=1334
+LINE-SUMMARY Wx2 max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3938 offset_floor_pass=4096 floor_failing_cases=158
+LINE-SUMMARY 2xH max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3459 offset_floor_pass=4096 floor_failing_cases=637
+POW2-SUMMARY max=4096 cases=169 same_as_offset=169 baseline_exact=169 offset_exact=169 baseline_floor_pass=169 offset_floor_pass=169 nonexact_cases=0
+
+$ ./exact_offset_scan2d --max 4096 --sample-grid --progress 1024
+SAMPLE-GRID-SUMMARY max=4096 sample=top-right pairs=16777216 same_as_offset=108346 baseline_exact=7976 offset_exact=5119056 baseline_floor_pass=16775526 offset_floor_pass=16777216 same_pred_mismatch=108177 baseline_exact_pred_mismatch=7807 offset_exact_pred_mismatch=5118887 baseline_floor_failures=1690 offset_floor_failures=0 baseline_floor_fail_width_range=1..4095 baseline_floor_fail_height_range=1..4095 baseline_floor_fail_first=2080x1 baseline_floor_fail_last=1x4095 baseline_floor_fail_h1=666 baseline_floor_fail_w1=697
 ```
 
 - Expanded predicate probes:
