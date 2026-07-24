@@ -6,8 +6,8 @@ tracks are validated with one shared harness:
 
 - **Forward-port** (`av1-fwport`, tree `linux-6.18-rkvenc-av1-fwport`) — the BSP
   driver forward-ported to 6.18. **The currently hardware-validated stack.**
-- **Rewrite** (`rk3588-rewrite-6.18` @ `8469183da227`,
-  `rk3588-rewrite-mainline` @ `9ff18809b5e0`) — the clean-room reimplementation.
+- **Rewrite** (`rk3588-rewrite-6.18` @ `1fe46df86f1ca`,
+  `rk3588-rewrite-mainline` @ `ec9a4a06ecf12`) — the clean-room reimplementation.
   **No booted-hardware evidence yet.** It does not replace the forward-port until
   the rewrite definition-of-done (below) is met.
 
@@ -23,9 +23,12 @@ tracks are validated with one shared harness:
 | Generic 9-step kernel validation ladder | [`kernel-validation-runbook.md`](./kernel-validation-runbook.md) |
 | Whole-project status + watchlist | [`../../status.md`](../../status.md) |
 
-If two docs disagree, the table above wins. Known stale numbers are being
-reconciled to **RGA KUnit = 122, total = 208** and rewrite tips
-`8469183da227` / `9ff18809b5e0`.
+If two docs disagree, the table above wins. Current reconciled numbers are
+**MPP KUnit = 85, RGA KUnit = 147, total = 232** at rewrite tips
+`1fe46df86f1ca` / `ec9a4a06ecf12` (the 2026-07-23 `harden rewrite driver
+recovery` commit; the gate scripts require exactly `85`/`147`). Older docs may
+still cite the superseded `86`/`122`/`208` at tips `8469183da227` /
+`9ff18809b5e0`.
 
 ## Coverage matrix — what is proven, per track
 
@@ -40,8 +43,8 @@ reconciled to **RGA KUnit = 122, total = 208** and rewrite tips
 | KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ❌ (KUnit-under-KASAN not booted) |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | `*-repro.c`, `rga-session-uaf.sh` | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
-| Booted KUnit (86 MPP + 122 RGA = 208) | `rewrite-kunit-log-check.sh` | — | ❌ machinery ready, never booted-green |
-| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ passed 2026-07-17 at OLD tip; not re-run at `8469183` |
+| Booted KUnit (85 MPP + 147 RGA = 232) | `rewrite-kunit-log-check.sh` | — | ❌ machinery ready, never booted-green |
+| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ✅ all 6 profiles green 2026-07-23 at current tip (`1fe46df`/`ec9a4a06`); not hardware |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ❌ root gates pending (see below) | ❌ never booted |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`, `syzkaller/` | ⚠️ ran without KCOV | ❌ |
@@ -57,8 +60,9 @@ fuzzing-under-coverage, soak, and perf are gaps for **both** tracks.
 **Rewrite — the big one: no booted evidence exists.** Everything in the
 definition-of-done requires a booted rewrite kernel, and none has ever run.
 Gap-audit [§ six board runs](./rewrite-conformance-gap-audit.md) enumerates the
-minimum set. Also: the clean-source build gate has **not been re-run at the
-current `8469183`/`9ff18809` tip** (only compile-verified).
+minimum set. The clean-source build gate **was re-run green (all six
+normal/memory/race profiles) on 2026-07-23 at the current `1fe46df`/`ec9a4a06`
+tip** — but that is compile evidence, not hardware.
 
 **Rewrite — instrumentation debt:** an *active* (outstanding-reference) fence
 counter is needed before RGA fence cleanup can be asserted — `release_fence_count`
@@ -89,9 +93,9 @@ The definition-of-done lives in [`rewrite-validation-plan.md` §7](./rewrite-val
    AVS2 elementary-stream asset (cannot be generated); build a rewrite debug
    package (Kernel A = KASAN/UBSAN/lockdep/fault-injection + KUnit; Kernel B =
    KCSAN) at the current tip.
-1. **Re-run `rewrite-build-gate.sh`** (normal/memory/race) at `8469183`/`9ff18809`
-   — cheap, closes the stale-tip gap.
-2. **Boot Kernel A + Kernel B**; persist a **208-case green KUnit report**
+1. **Re-run `rewrite-build-gate.sh`** (normal/memory/race) at the current
+   `1fe46df`/`ec9a4a06` tip — ✅ **done 2026-07-23, all six profiles green.**
+2. **Boot Kernel A + Kernel B**; persist a **232-case green KUnit report**
    (`rewrite-kunit-log-check.sh`) tied to each boot fingerprint.
 3. **P1 smoke** (`rewrite-smoke.sh`) then **P2 conformance**: all four suites
    under `PROFILE=rewrite RUN_COUNTER_CHECKS=1`, clean dmesg both kernels.

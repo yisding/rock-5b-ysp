@@ -7,10 +7,10 @@ the plan that closes the gap [`rewrite-drivers.md`](./rewrite-drivers.md) §6 an
 hardware-validation record yet."**
 
 > **Framing.** The rewrites are code-complete for their targeted userspace
-> surface and heavily unit-tested — MPP **86 KUnit cases** and RGA **122 KUnit
-> cases** compile in the maintained worktrees based on the current §6 pins
-> (`0d71ded1690c` on 6.18, `32696e87c9c7` on mainline). The `normal`, `memory`,
-> and `race` clean-source profiles passed at both heads on 2026-07-17. But every
+> surface and heavily unit-tested — MPP **85 KUnit cases** and RGA **147 KUnit
+> cases** (232 total) compile in the maintained worktrees at the current tips
+> (`1fe46df86f1ca` on 6.18, `ec9a4a06ecf12` on mainline). The `normal`, `memory`,
+> and `race` clean-source profiles passed green at both heads on 2026-07-23. But every
 > one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
@@ -49,7 +49,7 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 208 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 232 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
@@ -638,7 +638,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 208 KUnit cases green **under KASAN** (86 MPP + 122 RGA), persisted from the
+1. 232 KUnit cases green **under KASAN** (85 MPP + 147 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

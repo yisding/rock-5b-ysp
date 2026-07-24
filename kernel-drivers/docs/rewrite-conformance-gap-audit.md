@@ -23,7 +23,7 @@ one requires more driver instrumentation.
 
 | Gap | Why the old evidence could pass incorrectly | Resolution |
 |-----|---------------------------------------------|------------|
-| Compiled or stale KUnit was treated as current green KUnit | The build profiles enabled both suites, but nothing read the booted results; an unrelated older report could also be combined with newer suite logs. | [`rewrite-kunit-log-check.sh`](../tests/rewrite-kunit-log-check.sh) requires exactly 86 MPP and 122 RGA cases, with no failure or skip, and the profile runner persists a structured report. The evidence audit requires the report whose run ID matches every selected rewrite-candidate suite. |
+| Compiled or stale KUnit was treated as current green KUnit | The build profiles enabled both suites, but nothing read the booted results; an unrelated older report could also be combined with newer suite logs. | [`rewrite-kunit-log-check.sh`](../tests/rewrite-kunit-log-check.sh) requires exactly 85 MPP and 147 RGA cases (updated from 86/122 at the 2026-07-23 tip; see addendum), with no failure or skip, and the profile runner persists a structured report. The evidence audit requires the report whose run ID matches every selected rewrite-candidate suite. |
 | Userspace success could hide a kernel warning | Main suites saved only a dmesg tail; they did not compare or gate new messages. | All five suite wrappers now capture before/after dmesg, isolate new lines across ordinary growth or ring wrap, and reject KASAN/KCSAN/UBSAN/KFENCE, Oops/BUG/WARNING, lockdep/RCU/hung-task, DMA-API, and MPP/RGA/IOMMU fault signatures. The evidence audit requires a clean `dmesg-scan.tsv` on both profiles. |
 | Error and idle counters were under-specified | Timeout/fault checks omitted recovery failure, spurious IRQ, RGA2 config error, and boundary-shadow setup failure; a missing safety counter looked like a zero delta; zero-after checks covered only imports. | Default forbidden deltas now include those safety counters and rewrite audits require every listed counter for each component captured by a suite to be present. Rewrite suites also require `mpp:queued_job_count`, RGA import and boundary-shadow active gauges, and the direct librga userptr-IOMMU active gauge to return to zero. The latter uses `*:active` so both `userptr_iommu` and legacy `route_b` debugfs names work. |
 | The direct MPP evidence could be `mpp_info_test` only | Plugin/FFmpeg coverage exercises codecs, but does not prove the official MPP multi-thread, multi-instance, and rate-control paths selected for parity. | Normal evidence audits selecting MPP now require a representative named core matrix on both profiles and a nonempty checksum artifact for every media case. Decode evidence therefore needs `MPP_DUMP_OUTPUTS=1`. `REQUIRE_MPP_CORE_CASES=0` is an explicit relaxation for old/exploratory logs. |
@@ -52,12 +52,39 @@ defects remained and were ported to both rewrite tips as
 | Acquire-callback vs abort UAF (session-close race) | `rk_rga_job_cancel_acquire_callbacks()` reports the zero-crossing; abort queues the acquire work only when its own decrement crossed zero | `0052` class |
 
 The two new RGA KUnit cases (`rk_rga_layout_yuv10_kunit`,
-`rk_rga_acquire_abort_queues_last_kunit`) raise the RGA suite to 122 and the
-booted-report requirement to 208. These commits are compile-verified on both
-branches; the `normal`/`memory`/`race` clean-source gates and the booted KUnit
-run have **not** been re-executed at the new tip. Both armbian packaging
-branches predate these tips and pick the fixes up on their next rebuild from
-tip, per gate 1 below.
+`rk_rga_acquire_abort_queues_last_kunit`) raised the RGA suite to 122 and the
+booted-report requirement to 208 at these tips. **Both tips are now superseded**
+— see the 2026-07-23 addendum below for the current `1fe46df`/`ec9a4a06`
+recovery-hardening tips, updated case counts, and the clean-source gate run.
+Both armbian packaging branches predate these tips and pick the fixes up on
+their next rebuild from tip, per gate 1 below.
+
+## Addendum — 2026-07-23: recovery hardening + clean-source gates re-run
+
+The rewrite drivers were hardened one commit further, to
+`linux-6.18-rkvenc@1fe46df86f1ca` (branch `rk3588-rewrite-6.18`) and
+`linux@ec9a4a06ecf12` (branch `rk3588-rewrite-mainline`); the two rewrite
+sources remain byte-identical across the branches. The single
+`media: rockchip: harden rewrite driver recovery` commit is a large churn
+(~9,000 insertions / ~4,900 deletions across both `.c` files, restructuring the
+import/extent bookkeeping and recovery paths). Its KUnit surface changed: MPP
+went 86 → **85** and RGA went 122 → **147** (booted-report requirement
+85 + 147 = **232**). The repo gates were updated to match in the same-day repo
+commit `77ebbca` (`rewrite-kunit-log-check.sh`, `rewrite-evidence-audit.sh` now
+require `rk_mpp_rewrite:85 rockchip-rga-rewrite:147`); the prose counts of 208/122
+elsewhere are historical.
+
+The `normal`/`memory`/`race` clean-source build gates
+([`rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh)) **were re-executed at
+these tips on 2026-07-23 and all six pass clean** (no compiler warnings under
+`FAIL_ON_WARNING=1`): 6.18 `1fe46df86f1ca` normal/memory/race and mainline
+`ec9a4a06ecf12` normal/memory/race, each building the Rockchip IOMMU provider,
+both rewrite objects with KUnit, and the Rock 5B DTB from a clean `git archive`.
+This closes the "clean-source gates not re-executed" caveat above. The **booted
+KUnit run and every hardware gate in the next section remain open** — no rewrite
+kernel of this tip has been built into a bootable image or run on the ROCK 5B,
+and this large recovery-hardening churn is *only* compile- and unit-scaffold
+proven, never exercised on hardware.
 
 ## Remaining gaps and hardware gates
 
@@ -76,8 +103,9 @@ stress; do not mislabel the cumulative counter as a leak gauge.
 
 The following cannot be closed by repository selftests:
 
-1. Boot KASAN and KCSAN rewrite kernels, persist the 208-case green KUnit report,
-   and run the full paired suite matrix with clean dmesg evidence.
+1. Boot KASAN and KCSAN rewrite kernels, persist the 232-case green KUnit report
+   (85 MPP + 147 RGA at the current tip), and run the full paired suite matrix
+   with clean dmesg evidence.
 2. Supply an AVS2 elementary stream and record forward-port/rewrite
    `mpi_dec_avs2` output parity.
 3. Run both low-delay slice encode cases and deliberately inject a terminal

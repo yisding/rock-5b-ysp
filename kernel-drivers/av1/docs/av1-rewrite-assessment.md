@@ -44,7 +44,7 @@ The existing `mpp-rewrite` already owns the difficult codec-independent work:
   register-address provenance, and mapping lifetime;
 - per-core scheduling, platform removal, timeout/reset serialization, runtime
   PM, clocks, reset arrays, and generic IOMMU TLB flushing;
-- differential-test plumbing, debugfs lifecycle counters, and 86 MPP KUnit
+- differential-test plumbing, debugfs lifecycle counters, and 85 MPP KUnit
   cases.
 
 AV1 does not need the most complicated codec-specific parts of the current

@@ -117,8 +117,8 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 | Kernel APIs | BSP-isms shimmed via `compat/` (vendor-forward-port.md §A) | public APIs only, no shims |
 | Kernel target | pinned to 6.18 API surface (resyncing.md hazards) | built on 6.18; being brought up on current mainline master too (§5) |
 | Userspace ABI | full BSP surface | the documented subset current `mpp-rockchip`/`librga`/`ffmpeg-rockchip` actually use |
-| Audit posture | 89 verified findings latent ([BSP audit](./bsp-audit.md)) | ownership-explicit and refcount-disciplined, with 86 MPP + 122 RGA KUnit cases |
-| Size snapshot | MPP ~15,822 lines; RGA3 19,173 code/build lines at the current forward oracle (`15,796` C + `3,305` headers + `72` Kconfig/Makefile) | MPP rewrite 13,150 C lines; RGA rewrite 20,219 code/build lines because 8,885 lines are embedded KUnit, or 11,334 code/build lines with KUnit excluded; 20,844 incl. `ABI.rst` |
+| Audit posture | 89 verified findings latent ([BSP audit](./bsp-audit.md)) | ownership-explicit and refcount-disciplined, with 85 MPP + 147 RGA KUnit cases |
+| Size snapshot | MPP ~15,822 lines; RGA3 19,173 code/build lines at the current forward oracle (`15,796` C + `3,305` headers + `72` Kconfig/Makefile) | at the 2026-07-23 recovery-hardening tip: `mpp_rewrite.c` 13,927 C lines, `rga_rewrite.c` 23,479 C lines (the sub-tables below are as of the superseded `8469183` pin and predate this ~9k-line churn) |
 
 Kconfig makes the two tracks **mutually exclusive per device node**:
 `ROCKCHIP_MPP_REWRITE` depends on `!ROCKCHIP_MPP_SERVICE` and registers
@@ -241,10 +241,16 @@ KUnit is counted, or 1,671 lines larger when its `ABI.rst` is counted too. With
 lines — 7,839 lines (40.9%) fewer than the forward port. This is a
 source accounting, not an object-size measurement.
 
+> **Note (2026-07-23):** the line ranges and byte counts in this subsection are
+> measured at the superseded `8469183da227` pin (`rga_rewrite.c` = 20,194 lines,
+> 122 KUnit cases). The current `1fe46df86f1ca` recovery-hardening tip is 23,479
+> lines with 147 RGA cases; these sub-ranges have not been recomputed at the new
+> tip.
+
 The KUnit body occupies `rga_rewrite.c:6386-15266` (8,881 lines). Its
 conditional include at `:34-37` brings the total test-only source to 8,885
-lines, 44.0% of the C file. The current file is physically laid out at a high
-level as follows:
+lines, 44.0% of the C file. At the `8469183` pin the file is physically laid out
+at a high level as follows:
 
 | `rga_rewrite.c` range | Lines | Main responsibility |
 |-----------------------|------:|---------------------|
@@ -260,7 +266,8 @@ The growth history makes the source crossover equally explicit:
 | `d1d15a3d052a` (pre-hardening parent) | 18,321 | 8,111 | 10,210 | Feature-parity and lifetime coverage before the final hardening pass |
 | `563f329dd8c4` | 19,485 | 8,653 | 10,832 | Topology, DMA/IOMMU, fence, queue/removal, and recovery hardening |
 | `0d71ded1690c` | 20,048 | 8,797 | 11,251 | RK3588 RGA quirks, config-error IRQs, cache-line shadows, CSC compatibility, and tests |
-| `8469183da227` (current pin) | 20,194 | 8,885 | 11,309 | Ported forward-port RGA bugfixes (10-bit plane offsets, max-seg-size, import double-put, acquire-abort race, job_put NULL guard) and two KUnit cases |
+| `8469183da227` | 20,194 | 8,885 | 11,309 | Ported forward-port RGA bugfixes (10-bit plane offsets, max-seg-size, import double-put, acquire-abort race, job_put NULL guard) and two KUnit cases |
+| `1fe46df86f1ca` (current pin) | 23,479 | — | — | 2026-07-23 `harden rewrite driver recovery`: ~9k insert/~4.9k delete restructuring import/extent bookkeeping and recovery; RGA KUnit 122 → 147. (test/non-test split not recomputed at this tip) |
 
 Of the 13,127 C lines added since the initial rewrite, 8,535 (65%) are tests
 and 4,592 (35%) are runtime implementation. The rewrite crossed the forward
@@ -1130,13 +1137,13 @@ confirm against the TRM before treating either as canonical.
 
 ## 6. Status & citable location
 
-| Item | State (2026-07-17) |
+| Item | State (2026-07-23) |
 |------|--------------------|
-| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 13,150 lines; 13,824 total incl. `ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 20,194 lines; 20,844 total incl. `ABI.rst`, `Kconfig`, `Makefile`). The trees contain 86 MPP and 122 RGA KUnit cases. |
-| 6.18 state | committed branch `rk3588-rewrite-6.18` at **`8469183da227`** ("media: rockchip: rga-rewrite: port forward-port RGA bugfixes") in `/home/yi/Code/kernel/linux-6.18-rkvenc`, atop parent `0d71ded1690c` ("adapt latest RK3588 fixes"). Over the July 15 MPP/RGA hardening it layers the July 17 RGA low-voltage quirks, config-error IRQ handling, cache-line-safe per-mapping userptr shadows, and narrow CSC compatibility rule, then the ported forward-port RGA bugfixes (10-bit plane offsets, max-seg-size, import double-put, acquire-abort race, job_put NULL guard) plus two new RGA KUnit cases (→ 122 RGA / 208 total). **Compile-verified only at this tip; the clean-source build gate and booted KUnit run have not been re-executed here.** |
-| Mainline state | committed branch `rk3588-rewrite-mainline` at **`9ff18809b5e0`** ("media: rockchip: rga-rewrite: port forward-port RGA bugfixes") in `/home/yi/Code/kernel/linux`, atop parent `32696e87c9c7`, based on the tree rebased to official kernel.org `v7.2-rc2`. It carries matching behavior plus the mainline DT/wiring and provider integration; the pre-rebase tip remains preserved as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`. Same compile-verified-only caveat as the 6.18 tip. |
-| Package composites | `rk3588-rewrite-armbian-6.18.38` at **`8daf5e9513b8`** layers the rewrite after the exact Armbian current/forward-port Linux 6.18.38 source snapshot. `rk3588-rewrite-armbian-7.2-rc3` at **`24f7424fb958`** layers it after official `v7.2-rc3` plus Armbian `rockchip64-bleedingedge`. The latter's Armbian snapshot is `2657f01c9b9a`, produced from build checkout `5cbc1c59c`. |
-| Validation | On 2026-07-17, the `normal`, `memory`, and `race` clean-source profiles completed warning-free at both current source heads, building the Rockchip IOMMU provider, both KUnit-enabled rewrite objects, and `rockchip/rk3588-rock-5b.dtb`. Device-free conformance validation passed in baseline, rewrite-counter, and forced-RGA-userptr-IOMMU modes, including the new cache-line boundary-fuzzer build. The existing package composites predate the July 17 RGA commit. **UNVERIFIED in this repo:** no current rewrite kernel has a booted workload/conformance record, and the recovery/fault paths still lack sanitizer-backed hardware evidence. |
+| Code | `drivers/video/rockchip/mpp-rewrite/` (`mpp_rewrite.c` 13,927 lines; +`ABI.rst`, `Kconfig`, `Makefile`) + `drivers/video/rockchip/rga-rewrite/` (`rga_rewrite.c` 23,479 lines; +`ABI.rst`, `Kconfig`, `Makefile`). The trees contain 85 MPP and 147 RGA KUnit cases (232 total). |
+| 6.18 state | committed branch `rk3588-rewrite-6.18` at **`1fe46df86f1ca`** ("media: rockchip: harden rewrite driver recovery") in `/home/yi/Code/kernel/linux-6.18-rkvenc`, atop parent `8469183da227` ("port forward-port RGA bugfixes"). Over the July 15 MPP/RGA hardening it layers the July 17 RGA low-voltage quirks/config-error IRQ/cache-line shadows/CSC rule, the ported forward-port RGA bugfixes (10-bit plane offsets, max-seg-size, import double-put, acquire-abort race, job_put NULL guard), and the 2026-07-23 recovery-hardening churn (~9k insert/~4.9k delete; RGA KUnit 122 → 147, MPP 86 → 85). **The `normal`/`memory`/`race` clean-source build gates were re-run green at this tip on 2026-07-23; the booted KUnit run has not been executed here.** |
+| Mainline state | committed branch `rk3588-rewrite-mainline` at **`ec9a4a06ecf12`** ("media: rockchip: harden rewrite driver recovery") in `/home/yi/Code/kernel/linux`, atop parent `9ff18809b5e0`, based on the tree rebased to official kernel.org `v7.2-rc2`. Rewrite sources are byte-identical to the 6.18 tip; it carries the mainline DT/wiring and provider integration; the pre-rebase tip remains preserved as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`. Its three clean-source gates were also re-run green 2026-07-23. |
+| Package composites | `rk3588-rewrite-armbian-6.18.38` at **`8daf5e9513b8`** layers the rewrite after the exact Armbian current/forward-port Linux 6.18.38 source snapshot. `rk3588-rewrite-armbian-7.2-rc3` at **`24f7424fb958`** layers it after official `v7.2-rc3` plus Armbian `rockchip64-bleedingedge`. The latter's Armbian snapshot is `2657f01c9b9a`, produced from build checkout `5cbc1c59c`. These composites predate the 2026-07-23 tips and pick up the churn only on their next rebuild from tip. |
+| Validation | On 2026-07-23, the `normal`, `memory`, and `race` clean-source profiles completed warning-free at both current source heads (`1fe46df`/`ec9a4a06`), building the Rockchip IOMMU provider, both KUnit-enabled rewrite objects, and `rockchip/rk3588-rock-5b.dtb` from a clean `git archive`. (The earlier 2026-07-17 run covered the pre-bugfix parents.) Device-free conformance validation passed in baseline, rewrite-counter, and forced-RGA-userptr-IOMMU modes. **UNVERIFIED in this repo:** no rewrite kernel of this tip has been built into a bootable image or run on the ROCK 5B, and the recovery/fault paths — including the large 2026-07-23 recovery churn — still lack sanitizer-backed hardware evidence. |
 
 GStreamer, FFmpeg, and MPP differential testing are now stronger than the table
 row's historical summary: generated H.264/H.265 inputs, generated VP9 IVF
