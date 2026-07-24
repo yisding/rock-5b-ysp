@@ -146,10 +146,14 @@ current working directory.
 ./tex_interp_probe 16307 baseline
 ./tex_interp_probe 16307 polygon-offset
 
+./triangle_matrix_probe --all-sizes
 ./triangle_matrix_probe --summary-only --long 12288 --short 1
 ./triangle_matrix_probe --summary-only --long 12848 --short 14
 ./triangle_matrix_probe --summary-only --long 9350 --short 11
 ./triangle_matrix_probe --fail-only --long 16307 --short 16
+./triangle_matrix_probe --summary-only --long 2080 --short 1
+./triangle_matrix_probe --summary-only --long 16383 --short 96
+./triangle_matrix_probe --summary-only --long 2048 --short 1 --coord-long 6144
 ./triangle_matrix_probe --summary-only --long 12288 --scan-short 40
 
 # ARM Mali blob: use the X11 variant (needs a running X server; see
@@ -246,6 +250,13 @@ varying bits and checks `floor(v)`. `sample=tex` is the non-integer case: it
 passes a normalized coordinate to ordinary nearest-filtered `texture()` and
 checks the sampled `R32F` ramp. `--summary-only` prints aggregate failure counts;
 `--fail-only` prints only the failing per-case rows plus those aggregates.
+`--all-sizes` runs the known MR !43161 and local boundary sizes as full
+256-case matrices. `--coord-long N` lets the destination extent and
+source-coordinate range differ, which is useful for scaled-coordinate stress;
+avoid interpreting ordinary `texture()` mismatches from even-integer scale
+factors as erratum evidence because they can place samples exactly on nearest
+tie boundaries. Raw-varying checks and odd-integer scale factors are cleaner
+for scaled experiments.
 
 `vk_interp_probe.c` ports the same test to Vulkan. It creates a `W x 1`
 `VK_FORMAT_R32_UINT` color target, renders with dynamic rendering, then copies
@@ -342,6 +353,31 @@ The canonical oversized-triangle scans found these short-axis boundaries:
 | 9350 | `1..15` (`aspect` down to `623.333`) | `16` (`584.375`) |
 | 12288 | `1..16` (`aspect` down to `768.000`) | `17` (`722.824`) |
 | 12848 | `1..15` (`aspect` down to `856.533`) | `16` (`803.000`) |
+
+Additional predicate probes show why a simple aspect threshold is not the
+right hardware model:
+
+| Case | Result |
+|---|---|
+| `2080x1` | Fails 96/256; offset fixes all. This matches the older smallest-known-width boundary in the local notes. |
+| `2047x1`, `2047x1 --coord-long 6141`, `2048x1 --coord-long 6144`, `4096x1 --coord-long 12288` | Pass. Source-coordinate range alone did not trigger failures when the destination extent stayed in a passing family. |
+| `10000x15` | Broad 128/256 baseline-only failure. |
+| `10000x16` | Pass despite `aspect=625.000`. |
+| `8191x1` | Fails 112/256; offset fixes all. |
+| `8191x16` and `8191x32` | Pass despite `aspect=511.938` at `short=16`. |
+| `16383x96` | Oversized-only 8/256 baseline-only failure at `aspect=170.656`. |
+| `16383x100`, `16383x104`, `16383x112`, `16383x128` | Pass. |
+| `16384x96` | Pass; power-of-two control still holds in this band. |
+
+The practical Mesa predicate proposed from this is: for the Panfrost internal
+fullscreen blitter path on affected Valhall generations (`arch >= 9 &&
+arch < 11`), enable the zero-valued polygon-offset workaround without a size
+threshold. The failure field is jagged enough that `1000`, `500`, and even a
+new lower aspect threshold are policy guesses, not hardware predicates. If a
+size gate is still required for performance reasons, the measured conservative
+fallback is `major >= 2048 && !util_is_power_of_two_or_zero(major) &&
+major >= 128 * minor`, but that intentionally applies to known-passing cases
+and should be treated as a compromise rather than the right predicate.
 
 Vulkan/panvk reproduces the GL numbers bit-for-bit at the same widths and the
 equivalent zero-valued depth-bias state removes the failure:

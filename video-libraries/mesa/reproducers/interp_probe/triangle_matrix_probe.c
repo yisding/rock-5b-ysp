@@ -25,6 +25,9 @@
 // Run the full option matrix at 12288x1 and 1x12288:
 //   ./triangle_matrix_probe
 //
+// Run all known MR !43161 and local boundary sizes:
+//   ./triangle_matrix_probe --all-sizes
+//
 // Run one subset:
 //   ./triangle_matrix_probe --long 12848 --short 14 --axis tall
 //      --shape oversized --corner bl --winding ccw --ramp forward
@@ -35,6 +38,10 @@
 //
 // Print only failing cases plus the aggregate counts:
 //   ./triangle_matrix_probe --fail-only --long 16307 --short 16
+//
+// Test a scaled-coordinate case where the target extent and source-coordinate
+// range differ:
+//   ./triangle_matrix_probe --long 1024 --short 1 --coord-long 16307
 //
 // Scan short-axis sizes 1..N with a canonical oversized triangle.  The scan
 // still checks both long-axis directions, both sample modes, and both offset
@@ -150,6 +157,7 @@ struct gl_state {
    GLuint vao;
    GLuint vbo;
    GLuint source_tex;
+   int source_size;
    GLuint target_tex;
    GLuint fbo;
 };
@@ -231,6 +239,8 @@ usage(const char *program)
            "usage: %s [options]\n"
            "  --long N                    long extent (default 12288)\n"
            "  --short N                   short extent (default 1)\n"
+           "  --coord-long N              source-coordinate extent (default:\n"
+           "                              same as --long)\n"
            "  --axis wide|tall|both\n"
            "  --shape exact|oversized|both\n"
            "  --corner bl|br|tl|tr|all\n"
@@ -238,6 +248,7 @@ usage(const char *program)
            "  --ramp forward|reverse|both\n"
            "  --sample varying|tex|both\n"
            "  --offset baseline|polygon-offset|both\n"
+           "  --all-sizes                 run known MR/local boundary sizes\n"
            "  --fail-only                 print only failing per-case rows\n"
            "  --summary-only              suppress per-case output\n"
            "  --scan-short N              scan short extents 1..N using the\n"
@@ -311,12 +322,14 @@ print_totals(const struct fail_totals *totals)
 
 static void
 pixel_vertex(struct vertex *vertex, float px, float py, int width, int height,
-             enum axis axis, enum ramp ramp, enum sample sample, int long_size)
+             enum axis axis, enum ramp ramp, enum sample sample,
+             int target_long, int coord_long)
 {
    const float major = axis == AXIS_WIDE ? px : py;
-   float coord = ramp == RAMP_FORWARD ? major : long_size - major;
+   const float scaled = major * coord_long / target_long;
+   float coord = ramp == RAMP_FORWARD ? scaled : coord_long - scaled;
    if (sample == SAMPLE_TEX)
-      coord /= long_size;
+      coord /= coord_long;
 
    vertex->x = 2.0f * px / width - 1.0f;
    vertex->y = 2.0f * py / height - 1.0f;
@@ -326,7 +339,8 @@ pixel_vertex(struct vertex *vertex, float px, float py, int width, int height,
 static void
 make_triangle(struct vertex vertices[3], int width, int height, enum axis axis,
               enum shape shape, enum corner corner, enum winding winding,
-              enum ramp ramp, enum sample sample, int long_size)
+              enum ramp ramp, enum sample sample, int target_long,
+              int coord_long)
 {
    const int right = corner == CORNER_BR || corner == CORNER_TR;
    const int top = corner == CORNER_TL || corner == CORNER_TR;
@@ -360,7 +374,34 @@ make_triangle(struct vertex vertices[3], int width, int height, enum axis axis,
 
    for (unsigned i = 0; i < 3; i++)
       pixel_vertex(&vertices[i], points[i][0], points[i][1], width, height,
-                   axis, ramp, sample, long_size);
+                   axis, ramp, sample, target_long, coord_long);
+}
+
+static void
+ensure_source_texture(struct gl_state *gl, int coord_long)
+{
+   if (gl->source_size == coord_long)
+      return;
+
+   if (gl->source_tex)
+      glDeleteTextures(1, &gl->source_tex);
+
+   float *source = malloc((size_t)coord_long * sizeof(*source));
+   CHECK(source);
+   for (int i = 0; i < coord_long; i++)
+      source[i] = (float)i;
+
+   glGenTextures(1, &gl->source_tex);
+   glBindTexture(GL_TEXTURE_2D, gl->source_tex);
+   glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32F, coord_long, 1);
+   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, coord_long, 1, GL_RED, GL_FLOAT,
+                   source);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+   gl->source_size = coord_long;
+   free(source);
 }
 
 static void
@@ -381,6 +422,7 @@ create_target(struct gl_state *gl, int width, int height)
 
 static int
 run_case(struct gl_state *gl, uint32_t *bits, int long_size, int short_size,
+         int coord_long,
          enum axis axis, enum shape shape, enum corner corner,
          enum winding winding, enum ramp ramp, enum sample sample,
          enum offset offset, int fail_only, int summary_only)
@@ -389,7 +431,7 @@ run_case(struct gl_state *gl, uint32_t *bits, int long_size, int short_size,
    const int height = axis == AXIS_WIDE ? short_size : long_size;
    struct vertex vertices[3];
    make_triangle(vertices, width, height, axis, shape, corner, winding, ramp,
-                 sample, long_size);
+                 sample, long_size, coord_long);
 
    const GLuint program =
       sample == SAMPLE_VARYING ? gl->varying_program : gl->tex_program;
@@ -430,8 +472,11 @@ run_case(struct gl_state *gl, uint32_t *bits, int long_size, int short_size,
 
          covered++;
          const int major = axis == AXIS_WIDE ? x : y;
-         const int expected =
-            ramp == RAMP_FORWARD ? major : long_size - 1 - major;
+         const double center =
+            ((double)major + 0.5) * coord_long / long_size;
+         const double expected_coord =
+            ramp == RAMP_FORWARD ? center : (double)coord_long - center;
+         const int expected = (int)floor(expected_coord);
          float value;
          memcpy(&value, &bits[index], sizeof(value));
 
@@ -460,6 +505,9 @@ run_case(struct gl_state *gl, uint32_t *bits, int long_size, int short_size,
              winding_names[winding], ramp_names[ramp], sample_names[sample],
              offset_names[offset], width, height,
              (double)long_size / short_size, covered, total, bad);
+      if (coord_long != long_size)
+         printf(" coord-long=%d scale=%.6g", coord_long,
+                (double)coord_long / long_size);
       if (missing)
          printf(" missing=%ld", missing);
       if (first_bad >= 0) {
@@ -473,10 +521,12 @@ run_case(struct gl_state *gl, uint32_t *bits, int long_size, int short_size,
 }
 
 static int
-run_matrix(struct gl_state *gl, int long_size, int short_size,
+run_matrix(struct gl_state *gl, int long_size, int short_size, int coord_long,
            const struct selections *selections, int fail_only,
            int summary_only)
 {
+   ensure_source_texture(gl, coord_long);
+
    const size_t pixels = (size_t)long_size * short_size;
    uint32_t *bits = malloc(pixels * sizeof(*bits));
    CHECK(bits);
@@ -512,9 +562,9 @@ run_matrix(struct gl_state *gl, int long_size, int short_size,
                         if (!(selections->offset & (1u << offset)))
                            continue;
                         const int case_failed = run_case(
-                           gl, bits, long_size, short_size, axis, shape, corner,
-                           winding, ramp, sample, offset, fail_only,
-                           summary_only);
+                           gl, bits, long_size, short_size, coord_long, axis,
+                           shape, corner, winding, ramp, sample, offset,
+                           fail_only, summary_only);
                         totals.tests++;
                         if (case_failed) {
                            totals.failed++;
@@ -534,12 +584,75 @@ run_matrix(struct gl_state *gl, int long_size, int short_size,
       }
    }
 
-   printf("SUMMARY long=%d short=%d aspect=%.3f tests=%u failed=%u\n",
-          long_size, short_size, (double)long_size / short_size, totals.tests,
-          totals.failed);
+   printf("SUMMARY long=%d short=%d", long_size, short_size);
+   if (coord_long != long_size)
+      printf(" coord-long=%d scale=%.6g", coord_long,
+             (double)coord_long / long_size);
+   printf(" aspect=%.3f tests=%u failed=%u\n",
+          (double)long_size / short_size, totals.tests, totals.failed);
    print_totals(&totals);
    free(bits);
    return totals.failed;
+}
+
+struct suite_case {
+   int long_size;
+   int short_size;
+   int coord_long;
+   const char *label;
+};
+
+static int
+run_all_sizes(struct gl_state *gl, int max_size, int fail_only)
+{
+   static const struct selections full = {
+      .axis = ALL_AXIS,
+      .shape = ALL_SHAPE,
+      .corner = ALL_CORNER,
+      .winding = ALL_WINDING,
+      .ramp = ALL_RAMP,
+      .sample = ALL_SAMPLE,
+      .offset = ALL_OFFSET,
+   };
+
+   static const struct suite_case cases[] = {
+      {8192, 1, 8192, "power-of-two control"},
+      {9350, 11, 9350, "MR !43161 G310 failure"},
+      {9350, 15, 9350, "9350 last canonical fail"},
+      {9350, 16, 9350, "9350 first canonical pass"},
+      {12288, 1, 12288, "local broad failure"},
+      {12288, 16, 12288, "12288 last canonical fail"},
+      {12288, 17, 12288, "12288 first canonical pass"},
+      {12848, 14, 12848, "MR !43161 G310 failure"},
+      {12848, 15, 12848, "12848 last canonical fail"},
+      {12848, 16, 12848, "12848 first canonical pass"},
+      {16307, 1, 16307, "local broad failure"},
+      {16307, 15, 16307, "16307 broad failure boundary"},
+      {16307, 16, 16307, "16307 oversized-only boundary"},
+      {16307, 33, 16307, "16307 below aspect 500"},
+      {16307, 63, 16307, "16307 last tested oversized-only fail"},
+      {16307, 64, 16307, "16307 pass boundary"},
+      {16384, 1, 16384, "power-of-two control"},
+      {16384, 16, 16384, "power-of-two control"},
+   };
+
+   int failed = 0;
+   for (unsigned i = 0; i < ARRAY_SIZE(cases); i++) {
+      const struct suite_case *c = &cases[i];
+      if (c->long_size > max_size || c->short_size > max_size ||
+          c->coord_long > max_size) {
+         fprintf(stderr,
+                 "suite case exceeds GL_MAX_TEXTURE_SIZE %d: %dx%d coord=%d\n",
+                 max_size, c->long_size, c->short_size, c->coord_long);
+         return failed + 1;
+      }
+
+      printf("CASE %u/%zu %s\n", i + 1, ARRAY_SIZE(cases), c->label);
+      failed += run_matrix(gl, c->long_size, c->short_size, c->coord_long,
+                           &full, fail_only, !fail_only);
+   }
+
+   return failed;
 }
 
 static void
@@ -577,7 +690,7 @@ init_egl(void)
 }
 
 static void
-init_gl(struct gl_state *gl, int long_size)
+init_gl(struct gl_state *gl)
 {
    memset(gl, 0, sizeof(*gl));
    gl->varying_program = link_program(varying_fs_src);
@@ -596,22 +709,6 @@ init_gl(struct gl_state *gl, int long_size)
    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(struct vertex),
                          (void *)(2 * sizeof(float)));
 
-   float *source = malloc((size_t)long_size * sizeof(*source));
-   CHECK(source);
-   for (int i = 0; i < long_size; i++)
-      source[i] = (float)i;
-
-   glGenTextures(1, &gl->source_tex);
-   glBindTexture(GL_TEXTURE_2D, gl->source_tex);
-   glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32F, long_size, 1);
-   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, long_size, 1, GL_RED, GL_FLOAT,
-                   source);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-   free(source);
-
    glGenFramebuffers(1, &gl->fbo);
    glDisable(GL_CULL_FACE);
    glDisable(GL_BLEND);
@@ -624,7 +721,9 @@ main(int argc, char **argv)
 {
    int long_size = 12288;
    int short_size = 1;
+   int coord_long = 0;
    int scan_short = 0;
+   int all_sizes = 0;
    int fail_only = 0;
    int summary_only = 0;
    struct selections selections = {
@@ -650,6 +749,10 @@ main(int argc, char **argv)
          fail_only = 1;
          continue;
       }
+      if (!strcmp(argv[i], "--all-sizes")) {
+         all_sizes = 1;
+         continue;
+      }
       if (i + 1 >= argc) {
          usage(argv[0]);
          return 1;
@@ -662,6 +765,8 @@ main(int argc, char **argv)
          ok = parse_positive(value, &long_size);
       else if (!strcmp(option, "--short"))
          ok = parse_positive(value, &short_size);
+      else if (!strcmp(option, "--coord-long"))
+         ok = parse_positive(value, &coord_long);
       else if (!strcmp(option, "--scan-short"))
          ok = parse_positive(value, &scan_short);
       else if (!strcmp(option, "--axis"))
@@ -693,9 +798,15 @@ main(int argc, char **argv)
          return 1;
       }
    }
+   if (!coord_long)
+      coord_long = long_size;
 
    if (scan_short && scan_short > long_size) {
       fprintf(stderr, "--scan-short must not exceed --long\n");
+      return 1;
+   }
+   if (all_sizes && scan_short) {
+      fprintf(stderr, "--all-sizes and --scan-short are mutually exclusive\n");
       return 1;
    }
 
@@ -707,17 +818,20 @@ main(int argc, char **argv)
    GLint max_size = 0;
    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_size);
    const int max_short = scan_short ? scan_short : short_size;
-   if (long_size > max_size || max_short > max_size) {
+   if (!all_sizes &&
+       (long_size > max_size || max_short > max_size || coord_long > max_size)) {
       fprintf(stderr, "requested extent exceeds GL_MAX_TEXTURE_SIZE %d\n",
               max_size);
       return 1;
    }
 
    struct gl_state gl;
-   init_gl(&gl, long_size);
+   init_gl(&gl);
 
    int failed = 0;
-   if (scan_short) {
+   if (all_sizes) {
+      failed = run_all_sizes(&gl, max_size, fail_only);
+   } else if (scan_short) {
       const struct selections scan = {
          .axis = ALL_AXIS,
          .shape = 1u << SHAPE_OVERSIZED,
@@ -728,10 +842,10 @@ main(int argc, char **argv)
          .offset = ALL_OFFSET,
       };
       for (int current = 1; current <= scan_short; current++)
-         failed += run_matrix(&gl, long_size, current, &scan, fail_only,
-                              summary_only);
+         failed += run_matrix(&gl, long_size, current, coord_long, &scan,
+                              fail_only, summary_only);
    } else {
-      failed = run_matrix(&gl, long_size, short_size, &selections,
+      failed = run_matrix(&gl, long_size, short_size, coord_long, &selections,
                           fail_only, summary_only);
    }
 

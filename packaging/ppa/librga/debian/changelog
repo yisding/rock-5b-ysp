@@ -1,3 +1,13 @@
+librga (2.2.0+git20260724.b8def3e-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Update to librga-fork b8def3e.
+  * im2d: submit RASTER 10-bit vir_w as a byte stride to match the kernel
+    RGA_BLIT ABI (compact x10/8, incompact x2); pairs with the kernel
+    RGA3 byte-stride fix. TILE/FBC keep the pixel convention.
+  * Also fixes the 10-bit UV plane offset on the virtual-address path.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Thu, 24 Jul 2026 06:30:00 -0700
+
 librga (2.2.0+git20260703.a632217-0ubuntu3~rk1) resolute; urgency=medium
 
   * No-change rebuild after Launchpad arm64 build failed without publishing a

@@ -1,3 +1,20 @@
+linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260724-0ubuntu1~rk1) resolute; urgency=high
+
+  * RGA3 10-bit stride ABI fix (regression): the legacy RGA_BLIT ABI carries
+    10-bit vir_w as a byte stride (the BSP contract the RGA2 writer honors),
+    but the RGA3 raster writer had been scaling it by pixel depth (x10/8 or
+    x2), over-reading every legacy 10-bit raster and faulting the RGA3 IOMMU.
+    Program all three RGA3 raster windows byte-literally and teach the
+    stride-align check that a 10-bit stride unit is a byte. Surfaced by the
+    JeffyCN GStreamer H.265 Main10 -> RGA-scale path; pairs with the librga
+    im2d pixel->byte conversion. Fixes the interim byte-literal-stride change
+    shipped in 20260723.
+  * RGA2 MMU page tables fail closed on above-4G entries: reject a userptr
+    whose page address would truncate past 32 bits (-EOPNOTSUPP) instead of
+    programming a wrong page and hitting an RGA2 hardware bus error.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Thu, 24 Jul 2026 07:00:00 -0700
+
 linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1) resolute; urgency=high
 
   * RGA legacy-ABI compatibility: accept the legacy RGA2_GET_RESULT no-op and

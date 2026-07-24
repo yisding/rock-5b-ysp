@@ -3,21 +3,32 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
-**Uploaded 2026-07-23 (latest):** `6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1`
-— a **production (non-debug)** source package of the **complete current tip**
-(the single `rk3588-video-6.18` branch, contiguous series `0001`–`0071`, i.e.
-everything through the old `0072` RGA3 unaligned-userptr reject). Built locally as
-production kernel `P5618-Cb831` (`CONFIG_KASAN` off, `CONFIG_ROCKCHIP_MPP_AV1DEC=y`),
-source-packaged from that worktree, `dpkg-source -x`-verified (current tip + prod
-config present), `debsign`-signed with `0FDDE6BC…AA2228E6`, and `dput`-uploaded to
-`ppa:yi-ding/ubuntu-rock-5b` (all client-side checks passed). **Launchpad
-accepted it** — source publication
-[`18639187`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18639187),
-status **Pending** at time of writing; confirm it reaches Published and that the
-arm64 build succeeds (see status.md [W05](../../../status.md)). Board install,
-boot, conformance, and rollback on this production image remain to be run.
+**Uploaded 2026-07-24 (latest):** `6.18.38+rk3588av1fwport20260724-0ubuntu1~rk1`
+— a **production (non-debug)** source package of `rk3588-video-6.18` tail
+`0001`–`0073`, adding `0072` (RGA3 raster 10-bit byte-stride ABI fix — corrects
+the interim byte-literal-stride change in `…20260723` that still treated
+`vir_w` as pixels) and `0073` (RGA2 MMU page-table fails closed on above-4G
+entries) over the Published `…20260723`. Built locally as production kernel
+`P272c-Cb831` (`CONFIG_KASAN` off, `CONFIG_ROCKCHIP_MPP_AV1DEC=y`; config hash
+`Cb831` identical to `…20260723`), source-packaged from that worktree,
+`dpkg-source -x`-verified (0072 present with the old `vir_w * 10/8`/`* 2`
+pixel-scaling gone, 0073 `-EOPNOTSUPP` reject present, non-KASAN config),
+`debsign`-signed with `0FDDE6BC…AA2228E6`, and `dput`-uploaded to
+`ppa:yi-ding/ubuntu-rock-5b` (all client-side checks passed; kernel-source
+lintian skipped — it times out on the 284 MB orig and is not a gate).
+**Launchpad processing pending** — confirm it reaches Published and the arm64
+build succeeds (status.md [W05](../../../status.md)). Pairs with the librga
+upload `2.2.0+git20260724.b8def3e-0ubuntu1~rk1` (the im2d pixel→byte stride
+conversion; the two must be installed together). Board install, boot,
+conformance, and rollback on this image remain to be run.
 
-The previous published candidate:
+The previously uploaded candidate: `6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1`
+— production build `P5618-Cb831`, contiguous series `0001`–`0071`; **Published**
+with source publication
+[`18639187`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18639187),
+board-installed/booted, passed full conformance + root gates 2026-07-24.
+
+The published candidate before that:
 
 | Field | Current evidence |
 |-------|------------------|

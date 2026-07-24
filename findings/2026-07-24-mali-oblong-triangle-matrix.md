@@ -16,7 +16,8 @@
 wide vs tall target, exact half-rectangle vs oversized full-target triangle, all
 four right-angle corners, both windings, both long-axis coordinate directions,
 raw-varying readback, normalized ordinary `texture()` readback, and baseline vs
-zero-valued polygon offset.
+zero-valued polygon offset. It also has `--all-sizes` for the known
+MR/local-boundary sizes and `--coord-long` for scaled-coordinate stress.
 
 On this G610, there are two observed affected classes:
 
@@ -36,9 +37,29 @@ printed the same failing oversized corner/winding pairs:
 For each row above, both `ramp=forward|reverse` and
 `sample=varying|tex` fail. Every `offset=polygon-offset` case passes.
 
-The power-of-two controls pass: both `16384x1` and `16384x16` pass all 256
-matrix cases despite aspects `16384` and `1024`. Aspect ratio is therefore not
-the exact hardware predicate.
+The power-of-two controls pass: `8192x1`, `16384x1`, `16384x16`, and
+`16384x96` pass all 256 matrix cases. Aspect ratio is therefore not the exact
+hardware predicate.
+
+Additional testing after the first matrix pass made the predicate problem
+sharper:
+
+| Case | Result |
+|---|---|
+| `2080x1` | 96/256 fail; every failure is baseline-only and offset fixes all. |
+| `2047x1`, `2047x1 --coord-long 6141`, `2048x1 --coord-long 6144`, `4096x1 --coord-long 12288` | Pass; source-coordinate range alone did not trigger failures when the destination extent stayed in a passing family. |
+| `10000x15` | Broad 128/256 baseline-only failure. |
+| `10000x16` | Pass despite `aspect=625.000`. |
+| `8191x1` | 112/256 baseline-only failures. |
+| `8191x16`, `8191x32`, `8191x96` | Pass, including `aspect=511.938` at `8191x16`. |
+| `16383x1` | 112/256 baseline-only failures. |
+| `16383x96` | Oversized-only 8/256 baseline-only failure at `aspect=170.656`. |
+| `16383x100`, `16383x104`, `16383x112`, `16383x128` | Pass. |
+
+The scaled-coordinate TEX cases need care: even-integer scales can put ordinary
+nearest samples exactly on tie boundaries and produce non-erratum differences
+even on llvmpipe. For scaled-coordinate stress, raw-varying checks and
+odd-integer scales are the clean signals.
 
 ## MR !43161 context
 
@@ -68,13 +89,55 @@ The local aspect scans also show `1000` misses measured G610 failures:
 | 12288 | `1..16` (`aspect` down to `768.000`) | `17` (`722.824`) |
 | 12848 | `1..15` (`aspect` down to `856.533`) | `16` (`803.000`) |
 
-If the Mesa draw uses oversized triangles for the `16307` transition band, then
-even `500` is not sufficient for all measured local failures: `16307x63`
-(`aspect=258.841`) still fails in the oversized-only class, while `16307x64`
-passes all 256 matrix cases. If Mesa emits exact half-rectangle triangles for
-that path, the transition-band failures may not be reachable by the current MR's
-specific blit geometry. That is a Mesa-topology question, not a hardware
-triangle question.
+If the Mesa draw uses an oversized/fullscreen-style path for the transition
+bands, then even `500` is not sufficient for all measured local failures:
+`16307x63` (`aspect=258.841`) and `16383x96` (`aspect=170.656`) still fail in
+oversized-only classes, while adjacent larger short sides pass. If Mesa emits
+exact half-rectangle triangles for those paths, those transition-band failures
+may not be reachable by that specific blit geometry. That is a Mesa-topology
+question, not a hardware triangle question.
+
+## Predicate recommendation
+
+The right Mesa predicate for MR !43161 is the path/hardware predicate, not a
+numeric aspect threshold:
+
+```c
+needs_workaround = scr->dev.arch >= 9 && scr->dev.arch < 11;
+```
+
+This is scoped by where MR !43161 installs it:
+`panfrost_blitter_draw_rectangle()` only overrides `u_blitter`'s draw-rectangle
+hook for `arch >= 9`, and the special path only reaches
+`scr->vtbl.draw_fullscreen()` for `depth == 0.0f` and `num_instances == 1`.
+Within that Panfrost internal fullscreen blitter path, zero-valued polygon
+offset is the correctness-safe state. The measured failure field is jagged:
+`9350x15`, `10000x15`, `12288x16`, `12848x15`, `16307x63`, and `16383x96`
+fail, but `8191x16`, `10000x16`, `12288x17`, `12848x16`, `16383x100`, and the
+power-of-two controls pass. Thresholds such as `1000` and `500` therefore encode
+the current sample set, not the hardware condition.
+
+If maintainers require a size gate to reduce state churn, the measured
+conservative fallback is:
+
+```c
+unsigned width = x2 - x1;
+unsigned height = abs(y2 - y1);
+unsigned major = MAX2(width, height);
+unsigned minor = MIN2(width, height);
+
+needs_workaround =
+   scr->dev.arch >= 9 && scr->dev.arch < 11 &&
+   major >= 2048 &&
+   !util_is_power_of_two_or_zero(major) &&
+   major >= 128 * minor;
+```
+
+That fallback catches every measured failure above, catches Eric Guo's
+MR-reported G310 cases, skips the measured power-of-two controls, and
+intentionally applies the workaround to some measured-passing non-power-of-two
+cases (`8191x16`, `10000x16`). Treat it as a compromise if the arch/path-only
+predicate is rejected, not as the exact hardware predicate.
 
 ## Evidence and reproduction
 
@@ -86,6 +149,25 @@ triangle question.
 cd video-libraries/mesa/reproducers/interp_probe
 env PATH=/usr/sbin:/usr/bin:/sbin:/bin cc -O2 -Wall -Wextra -Werror \
   -o triangle_matrix_probe triangle_matrix_probe.c -lEGL -lGLESv2 -lm
+```
+
+- Automatic known-size suite:
+
+```text
+$ ./triangle_matrix_probe --all-sizes
+CASE 1/18 power-of-two control
+SUMMARY long=8192 short=1 aspect=8192.000 tests=256 failed=0
+CASE 2/18 MR !43161 G310 failure
+SUMMARY long=9350 short=11 aspect=850.000 tests=256 failed=128
+...
+CASE 15/18 16307 last tested oversized-only fail
+SUMMARY long=16307 short=63 aspect=258.841 tests=256 failed=32
+CASE 16/18 16307 pass boundary
+SUMMARY long=16307 short=64 aspect=254.797 tests=256 failed=0
+CASE 17/18 power-of-two control
+SUMMARY long=16384 short=1 aspect=16384.000 tests=256 failed=0
+CASE 18/18 power-of-two control
+SUMMARY long=16384 short=16 aspect=1024.000 tests=256 failed=0
 ```
 
 - Full broad-class matrix:
@@ -147,6 +229,32 @@ $ ./triangle_matrix_probe --summary-only --long 16384 --short 16
 SUMMARY long=16384 short=16 aspect=1024.000 tests=256 failed=0
 ```
 
+- Expanded predicate probes:
+
+```text
+$ ./triangle_matrix_probe --summary-only --long 2080 --short 1
+SUMMARY long=2080 short=1 aspect=2080.000 tests=256 failed=96
+FAIL offset baseline=96 polygon-offset=0
+
+$ ./triangle_matrix_probe --summary-only --long 10000 --short 15
+SUMMARY long=10000 short=15 aspect=666.667 tests=256 failed=128
+FAIL offset baseline=128 polygon-offset=0
+
+$ ./triangle_matrix_probe --summary-only --long 10000 --short 16
+SUMMARY long=10000 short=16 aspect=625.000 tests=256 failed=0
+
+$ ./triangle_matrix_probe --summary-only --long 16383 --short 96
+SUMMARY long=16383 short=96 aspect=170.656 tests=256 failed=8
+FAIL shape exact=0 oversized=8
+FAIL offset baseline=8 polygon-offset=0
+
+$ ./triangle_matrix_probe --summary-only --long 16383 --short 100
+SUMMARY long=16383 short=100 aspect=163.830 tests=256 failed=0
+
+$ ./triangle_matrix_probe --summary-only --long 16384 --short 96
+SUMMARY long=16384 short=96 aspect=170.667 tests=256 failed=0
+```
+
 The sandbox llvmpipe control also passed the full `12288x1` matrix:
 
 ```text
@@ -156,11 +264,12 @@ SUMMARY long=12288 short=1 aspect=12288.000 tests=256 failed=0
 
 ## Boundary
 
-This is a G610/Panfrost measurement, not an affected-product list for all
-Valhall revisions. It establishes which GL triangle shapes in the local matrix
-are affected, but it does not prove which shape Mesa's current `pan_blitter`
-emits for every blit/scale path. The `16307` transition band shows why that
-distinction matters.
+This is a G610/Panfrost measurement, plus MR discussion evidence for two G310
+OpenCL CTS failures. It is not an affected-product list for all Valhall
+revisions. It establishes which GL triangle shapes in the local matrix are
+affected, but it does not prove which shape Mesa's current `pan_blitter` emits
+for every blit/scale path. The `16307` and `16383` transition bands show why
+that distinction matters.
 
 The scan mode is intentionally canonical (`oversized`, `bl`, `ccw`, both axes,
 both ramps, both sample modes, both offset states). Full 256-case matrices were
@@ -170,8 +279,9 @@ scan range.
 ## Why it matters / follow-up
 
 For MR !43161, a cutoff of `1000` misses confirmed discussion cases and measured
-G610 cases. A lower cutoff may be enough for the exact Mesa blit triangles, but
-the hardware matrix shows that oversized triangles can fail well below
-`aspect=500` at `long=16307`. The next useful discriminator is to confirm the
-actual primitive topology used by `pan_blitter` for the OpenCL CTS failing blits
-and for scaled blits, then choose the Mesa predicate from that reachable set.
+G610 cases. `500` also misses measured oversized/fullscreen-style failures. The
+recommended upstream change is to remove the size threshold inside the
+arch-9/10 Panfrost fullscreen blitter path and rely on the already-scoped
+internal path as the predicate. If that is considered too broad, use the
+conservative fallback predicate above and state clearly that it is an
+engineering compromise, not the discovered hardware boundary.
