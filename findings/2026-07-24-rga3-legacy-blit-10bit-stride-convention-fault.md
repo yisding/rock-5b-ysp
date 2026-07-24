@@ -81,7 +81,9 @@ formats, on every core**:
    YUV10B_COMPACT bit), and `rga_check_align()` treats a 10-bit stride
    unit as 8 bits — otherwise legitimate byte strides (e.g. 464) were
    rejected. `Fixes: 4b2beb91521f`.
-2. **ysp librga fork `c80eea7`** "im2d: submit 10-bit vir_w as a byte
+2. **ysp librga fork `c80eea7`** (+ raster-only gating `b8def3e`;
+   published as `yisding/librga-mirror@ysp` — the remote's stale `main`
+   was left untouched) "im2d: submit 10-bit vir_w as a byte
    stride to match the kernel ABI": `generate_blit_req()` /
    `generate_fill_req()` convert the im2d pixel `wstride` → byte `vir_w`
    (compact ×10/8, incompact ×2; `is_10b_compact` carries the kernel
