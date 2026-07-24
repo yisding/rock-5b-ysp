@@ -83,6 +83,52 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 		"DEBUG_NOTIFIERS"
 	)
 
+	# UBSAN — complements KASAN for the stride/offset arithmetic class that is
+	# in-bounds of the allocation (so KASAN is silent) but wrong: array-index
+	# OOB, out-of-range shifts (the RGA/MPP stride math is full of >> 2 /
+	# << PAGE_SHIFT), and divide-by-zero. Kept in REPORT mode (UBSAN_TRAP off,
+	# below) so a violation logs a full trace instead of panicking. Signed/
+	# integer-wrap and alignment sub-checks are left off: the kernel wraps
+	# intentionally in many places and those add noise without catching this
+	# driver's bug class.
+	opts_y+=(
+		"UBSAN"
+		"UBSAN_BOUNDS"
+		"UBSAN_SHIFT"
+		"UBSAN_DIV_ZERO"
+	)
+
+	# DEBUG_OBJECTS — validates object lifecycle (init/activate/free) for the
+	# exact structures this driver's memory-safety fixes were about: the async
+	# MPP worker task and workqueue items, timers, and RCU callbacks. Catches
+	# free-while-active and double-init that KASAN only sees once the freed
+	# memory is reused.
+	opts_y+=(
+		"DEBUG_OBJECTS"
+		"DEBUG_OBJECTS_FREE"
+		"DEBUG_OBJECTS_TIMERS"
+		"DEBUG_OBJECTS_WORK"
+		"DEBUG_OBJECTS_RCU_HEAD"
+	)
+
+	# DEBUG_SHIRQ spuriously invokes the IRQ handler at request_irq/free_irq to
+	# catch handlers that touch torn-down state — the RGA/MPP IRQ-completion-
+	# vs-session-close UAF class. DEBUG_KMEMLEAK catches leaked requests/buffers/
+	# imports that KASAN (UAF/OOB only) never reports; scan on demand after a
+	# conformance run via /sys/kernel/debug/kmemleak. IOMMU_DEBUGFS exposes the
+	# rockchip-iommu domains/page tables for inspecting exactly what an RGA
+	# IOMMU fault mapped. SCHED_STACK_END_CHECK is a near-free stack-overrun
+	# canary; DEBUG_VM(_PGFLAGS) checks mm invariants on the userptr/
+	# scatterlist/shadow_page path.
+	opts_y+=(
+		"DEBUG_SHIRQ"
+		"DEBUG_KMEMLEAK"
+		"IOMMU_DEBUGFS"
+		"SCHED_STACK_END_CHECK"
+		"DEBUG_VM"
+		"DEBUG_VM_PGFLAGS"
+	)
+
 	# Locking/sleeping diagnostics. Useful if the GPU path is corrupting state
 	# or wedging in a scheduler/lock path before the hard reset.
 	opts_y+=(
@@ -103,6 +149,10 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 	opts_n+=(
 		"KFENCE"
 		"KCSAN"
+		# UBSAN must REPORT, not trap: a trap turns every violation into a
+		# BUG()/panic (and on RK3588 the ramoops region is lost on reset), so
+		# keep it off to get a logged trace with the board still up.
+		"UBSAN_TRAP"
 		"DEBUG_INFO_NONE"
 		"DEBUG_INFO_REDUCED"
 		# Boot with panic_on_oops=0 (default when unset): capture the live oops

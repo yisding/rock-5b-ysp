@@ -1,7 +1,9 @@
 # debug-kernel
 
 A heavy-debug Armbian `current` Rock 5B kernel for crash reproduction and driver
-debugging — KASAN + lockdep/prove-locking + DMA-API checks + fault injection +
+debugging — KASAN + UBSAN (bounds/shift/div-zero, report mode) + lockdep/
+prove-locking + DMA-API checks + DEBUG_OBJECTS (work/timer/RCU/free) +
+DEBUG_SHIRQ + kmemleak + DEBUG_VM + IOMMU_DEBUGFS + fault injection +
 lockup/hung-task detectors + built-in ramoops dmesg/console/pmsg + DRM
 memory/modeset debug. Built through Armbian's Docker path by default against the
 external Armbian build tree (`WORKSPACE`, default
@@ -27,6 +29,28 @@ tree is scratch, not the source of truth.
 
 > Perf numbers on these kernels are meaningless (KASAN instruments every access) —
 > use the production forward-port build for benchmarking.
+
+### Instrumentation notes
+
+- **UBSAN runs in report mode** (`UBSAN_TRAP` off): a bounds/shift/div-zero
+  violation logs a full trace and the board stays up, rather than trapping into
+  a BUG()/panic whose ramoops region RK3588 discards on reset. It complements
+  KASAN for the in-allocation stride/offset arithmetic class KASAN can't see.
+- **Bump `dma_debug_entries` for long runs.** `DMA_API_DEBUG` preallocates a
+  fixed pool (~65k entries) and *silently disables itself* under heavy RGA/MPP
+  DMA traffic (`DMA-API: debugging out of memory - disabling`). Boot conformance
+  runs with `dma_debug_entries=2097152` on the kernel cmdline so it stays active
+  through the whole matrix.
+- **kmemleak scans on demand.** KASAN reports UAF/OOB, not leaks; scan for leaked
+  requests/buffers/imports after a run with
+  `echo scan | sudo tee /sys/kernel/debug/kmemleak` then
+  `sudo cat /sys/kernel/debug/kmemleak` (treat one-shot hits as candidates — the
+  scanner is conservative and can false-positive).
+- **IOMMU page tables/domains** are exposed under `/sys/kernel/debug/iommu` for
+  inspecting exactly what an RGA IOMMU fault mapped.
+- Still separate follow-ups, not in this kernel: a KCSAN race-detector flavor
+  (can't coexist with KASAN) and netconsole for the deferred-fault hard-locks
+  ramoops can't capture.
 
 The **rewrite flavor** builds the MPP/RGA rewrite drivers + their KUnit suites
 in while disabling the vendor forward-port drivers, mirroring the
