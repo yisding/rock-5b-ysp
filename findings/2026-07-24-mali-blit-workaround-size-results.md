@@ -90,6 +90,7 @@ down in the 100s for oversized/fullscreen-style triangles, and nearby passes.
 | `16383x96` | 170.656 | full 256-case matrix: 8 oversized baseline-only failures; workaround passes |
 | `16383x127` | 129.000 | full 256-case matrix: 8 oversized baseline-only failures; workaround passes |
 | `16384x96` | 170.667 | power-of-two control passes |
+| canonical `50..100` aspect band through `16384x16384` | 50.000 to 100.000 | 2,685,006 size pairs / 5,405,732,710,480 fragments: 0 integer-bin failures |
 | `16383x100`, `16383x104`, `16383x112`, `16383x128` | 163.830 down to 127.992 | sampled/full checks passed |
 
 The `16383x127` result is topology-sensitive. The canonical BL/CCW
@@ -106,11 +107,12 @@ that fall back to ordinary `u_blitter` rectangle drawing have different geometry
 and are not proven by the canonical sweep.
 
 The safest conclusion is that we do not know an exact aspect-ratio boundary.
-The measured field is jagged enough that `1000`, `500`, or a lower threshold is
-a policy compromise, not the hardware predicate. The robust predicate remains:
-apply the workaround on the affected Panfrost fullscreen/blit path for affected
-Valhall generations, rather than trying to derive safety from dimensions or
-aspect ratio.
+The canonical `50..100` aspect-band scan through `16Kx16K` did not find
+integer-bin failures, but the measured field is jagged enough that `1000`,
+`500`, `100`, or a lower threshold is still a policy compromise, not the
+hardware predicate. The robust predicate remains: apply the workaround on the
+affected Panfrost fullscreen/blit path for affected Valhall generations, rather
+than trying to derive safety from dimensions or aspect ratio.
 
 ## Reproducer
 
@@ -134,6 +136,8 @@ Measured wall-clock on this board:
 - direct `1x1..1024x1024` integer-bin scan: `real 28.99s`
 - direct `1x1..1500x1500` integer-bin scan: `real 113.17s`
 - direct `1x1..2080x2080` integer-bin scan: `real 387.57s`
+- direct `50..100` aspect-band canonical scan through `16384x16384`:
+  `real 439.33s`
 - full default wrapper, including exactness/aspect/TEX cases: about 2–3 minutes
 
 Expected on ROCK 5B / Mali-G610 MC4 / Panfrost:

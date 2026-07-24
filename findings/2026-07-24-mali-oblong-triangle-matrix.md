@@ -73,6 +73,7 @@ sharper:
 | `exact_offset_scan2d --full-grid-floor --max 1024` | Full-pixel baseline integer-bin scan for every size from `1x1` through `1024x1024`: 1,048,576 sizes / 275,415,040,000 baseline pixels tested, 0 integer-bin failures. |
 | `exact_offset_scan2d --full-grid-floor --max 1500` | Full-pixel baseline integer-bin scan through `1500x1500`: 2,250,000 sizes / 1,267,313,062,500 baseline pixels tested, 2 failing cases (`1x1480`, `1x1490`), both fixed by zero-offset. |
 | `exact_offset_scan2d --full-grid-floor --max 2080` | Full-pixel baseline integer-bin scan through `2080x2080`: 4,326,400 sizes / 4,683,934,777,600 baseline pixels tested, 85 failing cases. The line scan accounts for all failures as `2080x1`, sparse `1xH` failures starting at `1x1480`, and `2x2080`; no canonical failures were found where both dimensions are at least `3`. |
+| `exact_offset_scan2d --full-grid-floor --max 16384 --aspect-band 50 100` | Canonical full-pixel baseline integer-bin scan for every size through `16384x16384` with aspect ratio `50..100`: 2,685,006 sizes / 5,405,732,710,480 baseline pixels tested, 0 integer-bin failures. This only covers the canonical fullscreen-style triangle, not the full 256-case topology matrix. |
 | `exact_offset_scan2d --sample-grid` | Top-right sample for every `WxH` pair through `4096x4096`: 1,690/16,777,216 baseline samples cross an integer bin; zero-offset has 0 integer-bin failures. The closest-to-square top-right integer-bin failure is still very oblong, `2x2929` (`aspect=1464.5`), and there are 0 top-right integer-bin failures where both dimensions are non-powers of two. |
 | `exact_offset_scan2d --sample-major-pow2` | Top-right sample for every pair where `max(W,H)` is a power of two through `4096`: the larger-dimension power-of-two predicate is not an exactness guarantee. 16,012/16,369 samples are non-exact; only the weaker integer-bin condition passes for every baseline and offset sample. |
 | `exact_offset_scan2d --case 4096 3`, `--case 3 4096`, `--case 4096 4095`, `--case 4096 4096` | Full-surface controls confirm the sampled result: `4096x3`, `3x4096`, and `4096x4095` are broadly non-exact with no integer-bin failures, while `4096x4096` is fully exact. |
@@ -154,7 +155,10 @@ offset is the correctness-safe state. The measured failure field is jagged:
 `16383x127` fail, but `8191x16`, `10000x16`, `12288x17`, `12848x16`,
 `16383x100`, and the power-of-two controls pass. Thresholds such as `1000` and
 `500` therefore encode the current sample set, not the hardware condition. A
-larger-dimension power-of-two exception is also not a valid exactness predicate:
+canonical scan of aspect ratios `50..100` through `16384x16384` found no
+integer-bin failures, but that is not a full-topology proof and does not make
+`100` a hardware boundary. A larger-dimension power-of-two exception is also
+not a valid exactness predicate:
 `4096x3`, `3x4096`, and `4096x4095` are non-exact even though the larger
 dimension is power-of-two. The stronger observed bit-exact rule through
 `4096x4096` remains both dimensions powers of two, but that rule should not be
@@ -315,6 +319,10 @@ LINE-SUMMARY Wx1 max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 ba
 LINE-SUMMARY 1xH max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=1997 offset_floor_pass=2080 floor_failing_cases=83
 LINE-SUMMARY Wx2 max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2080 offset_floor_pass=2080 floor_failing_cases=0
 LINE-SUMMARY 2xH max=2080 same_as_offset=12 baseline_exact=12 offset_exact=12 baseline_floor_pass=2079 offset_floor_pass=2080 floor_failing_cases=1
+
+$ ./exact_offset_scan2d --max 16384 --full-grid-floor --aspect-band 50 100 --progress 1024
+FULL-GRID-FLOOR-SUMMARY max=16384 path=baseline aspect_min=50.000000 aspect_max=100.000000 cases=2685006 pixels=5405732710480 failing_cases=0 first_failure=0x0 last_failure=0x0 most_square_failure=0x0 most_square_failure_aspect=0.000000
+real 439.33
 
 $ ./exact_offset_scan2d --max 4096 --lines --pow2
 LINE-SUMMARY Wx1 max=4096 same_as_offset=13 baseline_exact=13 offset_exact=13 baseline_floor_pass=3429 offset_floor_pass=4096 floor_failing_cases=667

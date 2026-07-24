@@ -33,6 +33,8 @@
 //      Full-pixel baseline integer-bin scan for every WxH pair in 1..max. Uses
 //      an occlusion-query shader to avoid reading the full surfaces back to the
 //      CPU.
+//      Add --aspect-band MIN MAX to restrict the scan to pairs whose aspect
+//      ratio max(W,H)/min(W,H) is in that inclusive range.
 //
 // Build:
 //   cc -O2 -Wall -Wextra -Werror -o exact_offset_scan2d exact_offset_scan2d.c -lEGL -lGLESv2 -lm
@@ -45,6 +47,7 @@
 //   ./exact_offset_scan2d --full-grid-floor --max 500 --progress 50
 //   ./exact_offset_scan2d --full-grid-floor --max 1024 --progress 128
 //   ./exact_offset_scan2d --full-grid-floor --max 1500 --progress 150
+//   ./exact_offset_scan2d --full-grid-floor --max 16384 --aspect-band 50 100
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -423,6 +426,21 @@ aspect_ratio(int width, int height)
       (double)height / (double)width;
 }
 
+static int
+aspect_in_band(int width, int height, double aspect_min, double aspect_max)
+{
+   if (aspect_min <= 0.0 && aspect_max <= 0.0)
+      return 1;
+
+   const double aspect = aspect_ratio(width, height);
+   if (aspect_min > 0.0 && aspect < aspect_min)
+      return 0;
+   if (aspect_max > 0.0 && aspect > aspect_max)
+      return 0;
+
+   return 1;
+}
+
 static void
 record_full_grid_floor_failure(struct full_grid_floor_result *r,
                                int width, int height)
@@ -475,7 +493,8 @@ drain_floor_queries(GLuint *queries, int *widths, int *heights, unsigned count,
 }
 
 static void
-run_full_grid_floor(struct gl_state *gl, int max_size, int progress_step)
+run_full_grid_floor(struct gl_state *gl, int max_size, int progress_step,
+                    double aspect_min, double aspect_max)
 {
    struct full_grid_floor_result result;
    GLuint queries[FLOOR_QUERY_BATCH];
@@ -492,6 +511,9 @@ run_full_grid_floor(struct gl_state *gl, int max_size, int progress_step)
 
    for (int height = 1; height <= max_size; height++) {
       for (int width = 1; width <= max_size; width++) {
+         if (!aspect_in_band(width, height, aspect_min, aspect_max))
+            continue;
+
          if (pending == FLOOR_QUERY_BATCH) {
             CHECK(glGetError() == GL_NO_ERROR);
             drain_floor_queries(queries, widths, heights, pending, &result);
@@ -517,15 +539,18 @@ run_full_grid_floor(struct gl_state *gl, int max_size, int progress_step)
    drain_floor_queries(queries, widths, heights, pending, &result);
    glDeleteQueries(FLOOR_QUERY_BATCH, queries);
 
-   printf("FULL-GRID-FLOOR-SUMMARY max=%d path=baseline cases=%" PRIu64
+   printf("FULL-GRID-FLOOR-SUMMARY max=%d path=baseline", max_size);
+   if (aspect_min > 0.0 || aspect_max > 0.0)
+      printf(" aspect_min=%.6f aspect_max=%.6f", aspect_min, aspect_max);
+   printf(" cases=%" PRIu64
           " pixels=%" PRIu64
           " failing_cases=%" PRIu64
           " first_failure=%dx%d"
           " last_failure=%dx%d"
           " most_square_failure=%dx%d"
           " most_square_failure_aspect=%.6f\n",
-          max_size, result.cases, result.pixels, result.failing_cases,
-          result.first_w, result.first_h, result.last_w, result.last_h,
+          result.cases, result.pixels, result.failing_cases, result.first_w,
+          result.first_h, result.last_w, result.last_h,
           result.most_square_w, result.most_square_h,
           result.most_square_aspect);
 
@@ -1063,6 +1088,7 @@ usage(const char *argv0)
            "  --sample-major-pow2 scissored sample where max(W,H) is pow2\n"
            "  --main-results    curated full-surface same-as-offset reproducer\n"
            "  --full-grid-floor full-pixel baseline integer-bin scan\n"
+           "  --aspect-band MIN MAX restrict --full-grid-floor by aspect ratio\n"
            "  --case W H        full scan of one size\n"
            "  --progress N      sampled-render progress interval (default 256)\n"
            "  --help\n",
@@ -1164,6 +1190,8 @@ main(int argc, char **argv)
    int case_width = 0;
    int case_height = 0;
    int progress_step = 256;
+   double aspect_min = 0.0;
+   double aspect_max = 0.0;
 
    for (int i = 1; i < argc; i++) {
       if (!strcmp(argv[i], "--help")) {
@@ -1181,6 +1209,9 @@ main(int argc, char **argv)
          run_main_result_cases = 1;
       } else if (!strcmp(argv[i], "--full-grid-floor")) {
          run_full_grid_floor_cases = 1;
+      } else if (!strcmp(argv[i], "--aspect-band") && i + 2 < argc) {
+         aspect_min = atof(argv[++i]);
+         aspect_max = atof(argv[++i]);
       } else if (!strcmp(argv[i], "--max") && i + 1 < argc) {
          max_size = atoi(argv[++i]);
       } else if (!strcmp(argv[i], "--progress") && i + 1 < argc) {
@@ -1197,6 +1228,12 @@ main(int argc, char **argv)
 
    if (max_size < 1 || progress_step < 0 || case_width < 0 || case_height < 0 ||
        case_width > max_size || case_height > max_size) {
+      usage(argv[0]);
+      return 1;
+   }
+
+   if ((aspect_min || aspect_max) &&
+       (aspect_min < 1.0 || aspect_max < aspect_min)) {
       usage(argv[0]);
       return 1;
    }
@@ -1223,7 +1260,8 @@ main(int argc, char **argv)
       main_result_failures = run_main_results(&gl);
 
    if (run_full_grid_floor_cases)
-      run_full_grid_floor(&gl, max_size, progress_step);
+      run_full_grid_floor(&gl, max_size, progress_step, aspect_min,
+                          aspect_max);
 
    if (run_lines) {
       run_line_scan(&gl, "Wx1", max_size, 1, 1);
