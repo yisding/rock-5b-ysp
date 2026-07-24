@@ -76,7 +76,7 @@ down in the 100s for oversized/fullscreen-style triangles, and nearby passes.
 | `9350x11` / `11x9350` | 850.000 | full 256-case matrix: 128 baseline-only failures; workaround passes |
 | `12848x14` / `14x12848` | 917.714 | full 256-case matrix: 128 baseline-only failures; workaround passes |
 | `16383x96` | 170.656 | full 256-case matrix: 8 oversized baseline-only failures; workaround passes |
-| `16383x127` | 129.000 | selected oversized raw-varying integer-bin failure; workaround passes |
+| `16383x127` | 129.000 | full 256-case matrix: 8 oversized baseline-only failures; workaround passes |
 | `16384x96` | 170.667 | power-of-two control passes |
 | `16383x100`, `16383x104`, `16383x112`, `16383x128` | 163.830 down to 127.992 | sampled/full checks passed |
 
@@ -121,7 +121,7 @@ Expected on ROCK 5B / Mali-G610 MC4 / Panfrost:
   `Nx1`/`1xN` baseline integer-bin failures; the preceding `2079x1` and
   `1x1479` cases pass.
 - `triangle_matrix_probe` reports baseline-only failures for `9350x11`,
-  `12848x14`, `16383x96`, and the selected `16383x127` oversized case.
+  `12848x14`, `16383x96`, and `16383x127`.
 - `tex_interp_probe 12288 baseline` fails while
   `tex_interp_probe 12288 polygon-offset` passes, showing why the integer
   full-grid result is not a floating-point TEX proof.

@@ -64,7 +64,7 @@ sharper:
 | `8191x1` | 112/256 baseline-only failures. |
 | `8191x16`, `8191x32`, `8191x96` | Pass, including `aspect=511.938` at `8191x16`. |
 | `16383x1` | 112/256 baseline-only failures. |
-| `16383x127` | Both dimensions non-power; oversized raw-varying baseline-only integer-bin failure at `aspect=129.000`, zero-offset fixes all selected failures. This is the lowest measured integer-bin failure aspect so far. |
+| `16383x127` | Both dimensions non-power; full 256-case matrix finds 8 oversized baseline-only failures at `aspect=129.000`, and zero-offset fixes all failures. This is the lowest measured integer/TEX failure aspect so far. |
 | `16383x96` | Oversized-only 8/256 baseline-only failure at `aspect=170.656`. |
 | `16383x100`, `16383x104`, `16383x112`, `16383x128` | Pass. |
 | `10923x683`, `10923x341`, `10923x171`, `10923x85`, `10923x43`, `10923x21` | Odd long dimension about one third from `8192` to `16384`; low/mid-aspect oversized raw-varying matrices pass from `aspect=15.993` through `520.143`. |
@@ -321,11 +321,15 @@ SUMMARY long=16383 short=96 aspect=170.656 tests=256 failed=8
 FAIL shape exact=0 oversized=8
 FAIL offset baseline=8 polygon-offset=0
 
-$ ./triangle_matrix_probe --fail-only --long 16383 --short 127 \
-    --axis wide --shape oversized --corner bl --winding cw \
-    --ramp both --sample varying --offset both
-SUMMARY long=16383 short=127 aspect=129.000 tests=4 failed=2
-FAIL offset baseline=2 polygon-offset=0
+$ ./triangle_matrix_probe --summary-only --long 16383 --short 127
+SUMMARY long=16383 short=127 aspect=129.000 tests=256 failed=8
+FAIL axis wide=4 tall=4
+FAIL shape exact=0 oversized=8
+FAIL corner bl=8 br=0 tl=0 tr=0
+FAIL winding ccw=4 cw=4
+FAIL ramp forward=4 reverse=4
+FAIL sample varying=4 tex=4
+FAIL offset baseline=8 polygon-offset=0
 
 $ ./triangle_matrix_probe --summary-only --long 16383 --short 100
 SUMMARY long=16383 short=100 aspect=163.830 tests=256 failed=0
