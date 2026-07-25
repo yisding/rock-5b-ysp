@@ -16,7 +16,7 @@ in either case:
 | Path | What you get | What it needs | Validation status ([`status.md`](status.md)) | Where |
 |------|--------------|---------------|-----------------------------------------------|-------|
 | **(a) Combined Armbian forward-port kernel** | MPP encode/decode (including AV1) and RGA **built in (`=y`)** — no modules, no overlay | The forward-port kernel tree + an Armbian build tree (§2) + a kernel install/reboot | Hardware-validated; current state and any live regression in [`status.md`](status.md) track 1, build history in [kernel status](kernel-drivers/docs/forward-port-status.md) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/forward-port-rk3588/`](kernel-drivers/patches/forward-port-rk3588/README.md) |
-| **(a2) Published PPA forward-port kernel** | The same combined kernel as (a), prebuilt — MPP/AV1/RGA `=y`, no local build | The `ppa:yi-ding/ubuntu-rock-5b` archive + `apt install` + reboot | Hardware-validated: `…20260723~rk1` (tail `0001`–`0071`) was installed from the PPA, booted, and passed the full conformance set **plus root gates** on 2026-07-24. Does not yet carry the `0072`–`0074` 10-bit RGA stride tail | [`packaging/ppa/kernel-forward-port/`](packaging/ppa/kernel-forward-port/README.md) |
+| **(a2) Published PPA forward-port kernel** | The same combined kernel as (a), prebuilt — MPP/AV1/RGA `=y`, no local build | The `ppa:yi-ding/ubuntu-rock-5b` archive + `apt install` + reboot | Hardware-validated: `…20260723~rk1` (tail `0001`–`0071`) was installed from the PPA, booted, and passed the full conformance set **plus root gates** on 2026-07-24. Does not yet carry the `0072`–`0075` tail (10-bit RGA stride/UV offset + the RKVENC2 slice-FIFO fix) | [`packaging/ppa/kernel-forward-port/`](packaging/ppa/kernel-forward-port/README.md) |
 | **(b) DKMS on a stock kernel** | `rk_vcodec.ko` + `rga3.ko`, auto-rebuilt on every kernel update, + a boot-time DT overlay | A *stock* Armbian 6.18+ kernel, `dkms` + `dtc` installed | ⚠️ Compile-tested on **6.18 only**; overlay dtc-validated, **not boot-validated** | [`packaging/dkms/`](packaging/dkms/README.md) |
 | **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§8) | Source-built `ffmpeg-rockchip` is hardware-validated; the system PPA publishes codec access, MPP, librga, FFmpeg 8.0.3, GRD, and co-installable FFmpeg 6.1, while dedicated PPAs publish both FFmpeg 8.1 tracks | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
 
@@ -31,8 +31,8 @@ in either case:
 
 Not sure? Take **(a2)** — the Published PPA kernel is validated end-to-end on
 hardware and costs you an `apt install` instead of an 80-90 minute build. Take
-**(a)** when you need a tail newer than the last upload (today: the `0072`-`0074`
-10-bit RGA stride fixes) or a debug/KASAN flavor. Take **(b)** only if you cannot
+**(a)** when you need a tail newer than the last upload (today: the `0072`-`0075`
+10-bit RGA stride and slice-FIFO fixes) or a debug/KASAN flavor. Take **(b)** only if you cannot
 replace the kernel at all, and accept the not-boot-validated overlay gate.
 Whichever you pick, §9 tells you how to confirm what the archive currently
 carries — an upload can be newer or older than this page.

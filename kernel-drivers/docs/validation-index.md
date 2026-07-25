@@ -83,8 +83,11 @@ AV1 stays diagnostic-only in the suites so the omission is explicit.
 
 **Forward-port — open defects a full run must still gate.** Four, and only four:
 
-- RKVENC2 256-entry slice-FIFO overflow — kernel + MPP unhardened
-  (harness-mitigated only).
+- RKVENC2 256-entry slice-FIFO overflow — **fixed both sides 2026-07-25,
+  compile-verified only.** Kernel `0075` reserves the last FIFO slot for the
+  terminal record and carries a dropped length forward; MPP `0002`/`0003` harden
+  the vepu5xx poll loops. The `split_arg=4` hardware gate needs the paired
+  userspace and is owed.
 - VP9 `show_existing_frame` **leg-2 only** — the MPP-*userspace* buffer-slot /
   refcount anomaly. The kernel side is closed: the `0053`/`0054`/`0058` fixes
   held on the 2026-07-23 root gates and again on the production kernel

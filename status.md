@@ -107,7 +107,7 @@ last-checked date.
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-25 | **`rga_convert_addr()` is wrong again, in the opposite direction.** On `P63dd-C4ad2` the `0047` stride fix made P010 luma bit-exact while chroma landed wrong because `rga_convert_addr()` derived UV offsets at 1 byte/px; `0049` fixed that by scaling `vir_w` by pixel depth. But `0072` then made `vir_w` a **byte** stride, so that same scaling now double-applies the depth: measured on the booted `…20260724~rk1` + librga `b8def3e` pair, the UV plane is read from the `×10/8` (compact) / `×2` (incompact) offset — tight buffers IOMMU-fault, over-sized buffers **silently get wrong chroma**. Fixed by `0074` (`710e6ad12af6`, `y_bytes = vir_w * vir_h`) — compile-verified, **booted gate still owed**; the 10-bit gates now also check chroma content, so a recurrence cannot pass as a green. See the [UV-offset finding](./findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md). |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
 | W15 | [RGA session-close fix vs. the frozen import](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0039`; frozen base patch still has the old path. |
-| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-24 | The exported tail is contiguous `0001`–`0074` and the production gate it watches is real: Published `…20260723~rk1` (tail `0001`–`0071`) booted from the PPA and passed the full conformance set plus root gates 2026-07-24. `0072`–`0074` (10-bit RGA stride/UV offset) are compile-clean with their board gate **owed** — the `0072` gate ran and failed, which `0074` fixes. Alignment holds for `0001`–`0071`, open for the three-patch tail. |
+| W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-25 | The exported tail is contiguous `0001`–`0075` and the production gate it watches is real: Published `…20260723~rk1` (tail `0001`–`0071`) booted from the PPA and passed the full conformance set plus root gates 2026-07-24. `0072`–`0075` (10-bit RGA stride/UV offset, then the RKVENC2 slice-FIFO terminal record) are compile-clean with their board gates **owed** — the `0072` gate ran and failed, which `0074` fixes, and `0075` needs a `split_arg=4` run with the paired MPP userspace. Alignment holds for `0001`–`0071`, open for the four-patch tail. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → use-after-free](#watch-w19) | 2026-07-24 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0069`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0058`-`0068`. **Gate CLOSED 2026-07-24:** the reproducer returns `errno=16` (`EBUSY`) on the booted `#8` KASAN build carrying the fix, and that tail passed full conformance on the Published production kernel. Remaining work is upstream submission. |
@@ -420,8 +420,12 @@ last-checked date.
   and booted debug build can silently carry different kernel-fix tails. Keep the
   exported patch tail and the claimed production gate aligned with the exact
   KASAN evidence.
-- **Last checked:** 2026-07-24
-- **State 2026-07-24:** The exported tail is now contiguous `0001`–`0074`, and
+- **Last checked:** 2026-07-25
+- **State 2026-07-25:** `0075` closes the RKVENC2 slice-FIFO terminal drop on both
+  sides (kernel `12a7da02bea8` + MPP `0002`/`0003`), compile-verified only; its
+  `split_arg=4` hardware gate needs the paired userspace and is **owed**. The
+  exported tail is contiguous `0001`–`0075`.
+- **State 2026-07-24:** The exported tail was then contiguous `0001`–`0074`, and
   the claimed production gate is real: Published `…20260723~rk1` (tail
   `0001`–`0071`) was installed from the PPA, booted, and passed the full
   conformance set plus root gates. `0072`–`0074` (10-bit RGA stride/UV offset)
