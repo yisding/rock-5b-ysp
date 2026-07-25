@@ -36,11 +36,33 @@ finding mixes evidence types:
 - **UNVERIFIED** — copied from a comment, commit, or other source but not yet
   checked.
 
+Outcome tags record what happened to the thing the finding is about, and combine
+with the evidence tags above:
+
+- **ROOT-CAUSED** — the mechanism is pinned, not just the symptom.
+- **SOURCE-CONFIRMED** — settled against the vendor/BSP source of record.
+- **BOOT-VERIFIED** — exercised on a booted board, with the build named.
+- **KASAN-CLEAN** / **KASAN-UAF** — the sanitizer verdict on that boot.
+- **BOARD-REPRODUCED** — a deterministic reproducer exists and was run.
+- **FIX-COMPILE-VERIFIED** / **FIX-RUNTIME-VERIFIED** — scope of the fix's proof.
+- **PACKAGE-VERIFIED** — the built package was inspected, not just compiled.
+- **PREDICTION-HARDWARE-CONFIRMED** — a source-only prediction later held on
+  silicon.
+- **FALSIFIED** (or **FALSIFIED-AS-SOLE-CAUSE**) — the stated premise did not
+  survive; keep the finding as the record of what was ruled out.
+- **RESOLVED** / **SUPERSEDED** — closed here, with the successor linked.
+- **PARTIAL** — some gates green, others explicitly still open.
+
+Do not invent a tag when one of these fits; add a new one here first if none do.
+
 ## Lifecycle
 
 A finding is raw by default. When it matures into durable reference, **graduate**
 it: move the content into the owning project's `docs/`, and replace the file here
-with a one-line tombstone (`promoted → <path> (YYYY-MM-DD)`) so the trail survives.
+with a tombstone so the trail survives. All 17 tombstones share one shape — the
+original H1 title, a blank line, `promoted → <path> (YYYY-MM-DD)`, a blank line,
+and two to four lines naming what the target preserves, so a reader landing on
+the stub knows whether following the link is worth it. Keep the index row.
 Findings that turn out wrong get deleted with a one-line note in the index.
 
 **Boundary vs [`status.md`](../status.md) watchlist:** the watchlist tracks
