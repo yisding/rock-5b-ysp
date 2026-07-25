@@ -171,21 +171,24 @@ and the
   [request-completion UAF finding](../../findings/2026-07-21-rga-request-completion-vs-session-close-uaf-kasan.md)
   and the
   [job-vs-session UAF finding](../../findings/2026-07-21-rga-job-vs-session-close-uaf-kasan.md).
-- **BSP-audit HIGH fixes are source-ported, but not boot-validated.** The
-  audit's 16 HIGH reviewer rows collapse to 13 distinct bugs. Later
-  forward-port work independently fixed the RKVENC2 probe unwind and the
-  duplicated RGA request-submit reference leak, leaving **13 rows / 11 bugs in
-  the booted `Pd222-C4ad2` kernel**. Those 11 are now ported around the current
-  RGA2 bounce/lifetime code as forward-port patches `0057`-`0067`; every commit
-  is checkpatch-clean and the native `drivers/video/rockchip/` build passes.
-  KASAN/lockdep debug package `Pabd5-C4ad2` builds all four arm64 Debian
-  artifacts from that source, and its embedded config, ramoops DTB, and seven
-  HIGH-touched source files pass package inspection. The resulting source has
-  no remaining HIGH from this audit, but the package has not been installed,
-  booted, KASAN/hostile-ioctl tested, or codec/RGA regression-tested. Until
-  that gate passes, treat `/dev/mpp_service` and
-  `/dev/rga` as **trusted-input-only** (the udev rule grants them to the
-  `video` group — that group is a security boundary). MEDIUM/LOW findings such
+- **BSP-audit HIGH fixes are ported and boot-validated (RESOLVED — VERIFIED
+  FIXED 2026-07-22, production 2026-07-24).** The audit's 16 HIGH reviewer rows
+  collapse to 13 distinct bugs. Later forward-port work independently fixed the
+  RKVENC2 probe unwind and the duplicated RGA request-submit reference leak,
+  leaving **13 rows / 11 bugs in the booted `Pd222-C4ad2` kernel**. Those 11 are
+  ported around the current RGA2 bounce/lifetime code as forward-port patches
+  `0058`-`0068` (post-renumber numbering); every commit is checkpatch-clean and
+  the native `drivers/video/rockchip/` build passes. KASAN/lockdep debug package
+  `Pabd5-C4ad2` was **installed and booted 2026-07-22** and ran the full
+  destructive ladder — foreign-fd, physical-import, RESET_SESSION, clientless
+  RELEASE_FD, and the cross-session UAF (64,000 async submits, 0 KASAN flags) —
+  plus a bit-exact four-codec differential, FFmpeg 24/24 and GStreamer 129/4,
+  all clean. The same tail shipped in the Published production kernel that
+  passed the full conformance set and root gates 2026-07-24. The
+  trusted-input-only caveat this bullet used to carry is therefore retired: the
+  hostile-ioctl surface *was* exercised. Note that `/dev/mpp_service` and
+  `/dev/rga` are still granted to the `video` group by udev, and that group
+  remains a security boundary. MEDIUM/LOW findings such
   as the `mpp_check_req()` overflow-clamp bug remain outside this HIGH-only
   port; their historical full fix set is the 65-patch
   [`cleanup-split`](../patches/cleanup-split) series, whose strengthened form
@@ -289,12 +292,14 @@ and the
   `split_arg=120`; the kernel and MPP still need explicit overflow/error
   hardening. See the
   [slice-FIFO finding](../../findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md).
-- **RGA2 syncs page-table memory through an address that was never DMA-mapped.**
+- **RGA2 syncs page-table memory through an address that was never DMA-mapped
+  — RESOLVED — VERIFIED FIXED (closed by `0050`, booted on `P7589-C4ad2`).**
   The direct dma-buf smoke on the DMA-debug KASAN kernel produced a complete
   `debug_dma_sync_single_for_device` warning through
   `rga_dma_sync_flush_range()` and `rga_set_mmu_base()`. RGA2 page-table
   allocation must retain a valid DMA address/lifetime; disabling the warning is
-  not a fix. See the
+  not a fix. The splat is gone on the booted fix (see this file's
+  earlier RGA2 page-table section and the finding's own resolution block). See the
   [RGA2 DMA-sync finding](../../findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md).
 - **The two persistent RGA ABI replay gaps are fixed and pass booted replay.**
   Patch `0043@bb15076cd6fa` accepts legacy `RGA2_GET_RESULT` as a no-op.

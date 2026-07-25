@@ -306,8 +306,9 @@ qualification. Against the BSP runtime files:
 > **Stale pin.** The two rows above were measured on `rkvenc-fwport-6.18@18fae9957686`,
 > a branch retired in the 2026-07-23 cleanup, over a hand-selected file subset.
 > The canonical branch is now `rk3588-video-6.18` (tip `710e6ad12af6`, tail
-> `0001`–`0074`), and the whole-directory re-audit against 6.1 gives **MPP 1,826
-> / RGA 2,433 differing lines**. Treat the rows above as historical and
+> `0001`–`0074`), and the whole-directory re-audit against 6.1 gives **MPP 2,183
+> (1,886 core + 297 `mpp/compat/`) / RGA 2,441 differing lines**, 4,626 with the
+> Kconfig/Makefile wiring. Treat the rows above as historical and
 > [vendor delta](./vendor-delta.md#the-answer-90-rockchip-10-ours) as current. The 6.6 column has not been re-measured at the new tip.
 
 Those larger counts come from targeted functionality and hardening rather than

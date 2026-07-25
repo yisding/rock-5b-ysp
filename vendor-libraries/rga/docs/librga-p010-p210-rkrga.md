@@ -8,9 +8,11 @@ The short version: P010/P210 through the legacy RGA API is only safe when librga
 copies the 10-bit layout flags into the kernel request. The older source tree
 did not. Jellyfin's packaged Rockchip path relies on a patched librga branch that
 does copy those fields for the blit path; we extended the local fix to the other
-legacy request builders too. The fixed source tree is now published at
-`https://github.com/yisding/librga`, branch `main`, tip
-`a6322179c944aced42e326519cd89483bf9da26b`.
+legacy request builders too. The fixed source tree is published at
+`https://github.com/yisding/librga`, branch `main`, currently at tip `26a50ef`.
+The P010/P210 work described below landed as `a6322179c944aced42e326519cd89483bf9da26b`;
+**do not stage that commit against a current kernel** — see the shipping-pair
+warning under "Safe options".
 
 ## Source trees checked
 
@@ -432,7 +434,7 @@ Safe options:
 
 | Option | Risk profile |
 |--------|--------------|
-| Build and stage `github.com/yisding/librga` `main` at `a632217` or newer | Best match for Jellyfin-style legacy RKRGA P010 use; covers blit, color fill, and palette legacy builders. |
+| Build and stage `github.com/yisding/librga` `main` at the tip (`26a50ef`), **paired with a matching kernel** | Best match for Jellyfin-style legacy RKRGA P010 use; covers blit, color fill, and palette legacy builders. **Not `a632217`:** since that commit the 10-bit stride convention changed twice — `c80eea7` submits `vir_w` as a byte stride, `b8def3e` limits that to raster, `4c26ddf` extends it to tile — to match kernel `0072`/`0074`. Staging `a632217` against a `0072`-or-later kernel produces **silent wrong chroma**, not an error. Kernel and librga must ship together for 10-bit. |
 | Migrate RKRGA to im2d P010/P210 and validate on hardware | Now source-supported locally for multicore/RGA3, but still needs proof against the deployed kernel/librga pair. |
 | Disable padded P010/P210 in RKRGA | Conservative if the deployed librga is unknown or unpatched. |
 | Keep compact NV15/NV20 handling | Lower risk because compact is the default/implicit 10-bit interpretation, though RGA2/RGA3 restrictions still apply. |

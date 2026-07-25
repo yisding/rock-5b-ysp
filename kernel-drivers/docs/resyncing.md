@@ -113,8 +113,11 @@ done
 ```
 
 A `+` line counts a **modified** line, not only a net addition, so the totals
-read higher than `git diff --stat`. At the `0001`–`0074` tip this sums to
-**1,826** (MPP core) + **2,433** (RGA), **4,626** overall. A *rising* count after
+read higher than `git diff --stat`. Measured at the `0001`–`0074` tip
+(`710e6ad12af6` vs `rockchip-kernel@b4ef083dc0c3`): **1,886** MPP core +
+**297** `mpp/compat/` + **2,441** RGA + **2** Kconfig/Makefile = **4,626**
+overall. Quote all four parts or none — an MPP-plus-RGA pair alone omits the
+compat shims and the build wiring, and will not add up. A *rising* count after
 a BSP bump means the donor changed lines we'd edited — re-inspect those hunks
 first; they are the most likely to need re-application.
 

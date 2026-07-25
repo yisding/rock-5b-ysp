@@ -6,10 +6,11 @@ tracks are validated with one shared harness:
 
 - **Forward-port** (`av1-fwport`, tree `linux-6.18-rkvenc-av1-fwport`) — the BSP
   driver forward-ported to 6.18. **The currently hardware-validated stack.**
-- **Rewrite** (`rk3588-rewrite-6.18` @ `1fe46df86f1ca`,
-  `rk3588-rewrite-mainline` @ `ec9a4a06ecf12`) — the clean-room reimplementation.
-  **No booted-hardware evidence yet.** It does not replace the forward-port until
-  the rewrite definition-of-done (below) is met.
+- **Rewrite** (`rk3588-rewrite-6.18` / `rk3588-rewrite-mainline`) — the
+  clean-room reimplementation. **No booted-hardware evidence yet.** It does not
+  replace the forward-port until the rewrite definition-of-done (below) is met.
+  The tips move faster than this page: they are maintained in
+  [`rewrite-drivers.md`](./rewrite-drivers.md), which is where to read them.
 
 ## Source-of-truth map (don't re-derive these elsewhere)
 
@@ -23,12 +24,13 @@ tracks are validated with one shared harness:
 | Generic 9-step kernel validation ladder | [`kernel-validation-runbook.md`](./kernel-validation-runbook.md) |
 | Whole-project status + watchlist | [`../../status.md`](../../status.md) |
 
-If two docs disagree, the table above wins. Current reconciled numbers are
-**MPP KUnit = 85, RGA KUnit = 147, total = 232** at rewrite tips
-`1fe46df86f1ca` / `ec9a4a06ecf12` (the 2026-07-23 `harden rewrite driver
-recovery` commit; the gate scripts require exactly `85`/`147`). Older docs may
-still cite the superseded `86`/`122`/`208` at tips `8469183da227` /
-`9ff18809b5e0`.
+If two docs disagree, the table above wins — for the *concerns* it routes. It
+does not win on a moving commit hash or a gate result whose owning doc is
+fresher; check the date on both before treating a row here as current.
+
+Current reconciled numbers are **MPP KUnit = 85, RGA KUnit = 147, total = 232**
+(the gate scripts require exactly `85`/`147`). Older docs may still cite the
+superseded `86`/`122`/`208` at tips `8469183da227` / `9ff18809b5e0`.
 
 ## Coverage matrix — what is proven, per track
 
@@ -44,16 +46,17 @@ still cite the superseded `86`/`122`/`208` at tips `8469183da227` /
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | `*-repro.c`, `rga-session-uaf.sh` | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
 | Booted KUnit (85 MPP + 147 RGA = 232) | `rewrite-kunit-log-check.sh` | — | ❌ machinery ready, never booted-green |
-| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ✅ all 6 profiles green 2026-07-23 at current tip (`1fe46df`/`ec9a4a06`); not hardware |
-| Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ❌ root gates pending (see below) | ❌ never booted |
+| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ all 6 profiles green 2026-07-23 at the *then*-current `1fe46df`/`ec9a4a06`; the tips have moved twice since, and the packaged gate from the committed tip is owed; not hardware |
+| Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ never booted |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`, `syzkaller/` | ⚠️ ran without KCOV | ❌ |
 | 72 h multi-instance soak | (none yet) | ❌ | ❌ |
-| Perf ratio on production (non-KASAN) kernel | (none yet) | ❌ no production image | ❌ no Kernel C |
+| Perf ratio on production (non-KASAN) kernel | root gates / conformance run | ✅ Published `…20260723~rk1` booted 2026-07-24: H.265 720p encode ~353 fps, transcode 20.8×/88× realtime | ❌ no Kernel C |
 
-Reading: the forward-port is broadly hardware-proven for correctness and
-memory-safety; the rewrite has **only device-free evidence**; and fault-injection,
-fuzzing-under-coverage, soak, and perf are gaps for **both** tracks.
+Reading: the forward-port is broadly hardware-proven for correctness,
+memory-safety, and now production perf; the rewrite has **only device-free
+evidence**; and the systematic fault-injection matrix, fuzzing-under-coverage,
+and the soak are gaps for **both** tracks.
 
 ## Consolidated gap list
 
@@ -61,8 +64,11 @@ fuzzing-under-coverage, soak, and perf are gaps for **both** tracks.
 definition-of-done requires a booted rewrite kernel, and none has ever run.
 Gap-audit [§ six board runs](./rewrite-conformance-gap-audit.md) enumerates the
 minimum set. The clean-source build gate **was re-run green (all six
-normal/memory/race profiles) on 2026-07-23 at the current `1fe46df`/`ec9a4a06`
-tip** — but that is compile evidence, not hardware.
+normal/memory/race profiles) on 2026-07-23 at the then-current
+`1fe46df`/`ec9a4a06` tip** — but that is compile evidence, not hardware, and
+the tips have advanced twice since, so it is also no longer evidence about the
+committed code. See [`rewrite-drivers.md`](./rewrite-drivers.md) for the tips
+and what is proven at each.
 
 **Rewrite — instrumentation debt:** an *active* (outstanding-reference) fence
 counter is needed before RGA fence cleanup can be asserted — `release_fence_count`
@@ -78,10 +84,21 @@ AV1 stays diagnostic-only in the suites so the omission is explicit.
 **Forward-port — open defects a full run must still gate:**
 - RKVENC2 256-entry slice-FIFO overflow — kernel + MPP unhardened (harness-mitigated only).
 - VP9 `show_existing_frame` leg-2 (MPP userspace buffer-slot/refcount) still open; kernel `0052`/`0053` fix not yet booted-gated.
-- MPP `process_request()` `list_add` double-add WARN — BSP-shared, untouched by `0057`-`0067`.
-- No production (non-KASAN) image validated; Published PPA stops at `0040`.
-- **Root-only gates** (encode/transcode/iommu-fuzz/vp9-crash) — pending; now unblocked by the `Pc1f8-C9fc5` debug build (carries the `0070` RGA fix).
-- RGA `mm_session` debugfs UAF fix (`0070`) is COMPILE-VERIFIED only — runtime gate pending on `Pc1f8`.
+- RKVENC2 slice-FIFO overflow (above) and the VP9 leg-2 MPP-userspace
+  buffer-slot/refcount anomaly are the two that remain genuinely open.
+- The 10-bit RGA stride tail `0072`–`0074` is compile-clean with its gate
+  **owed**: the `0072` gate ran on-board 2026-07-24 and failed, which is what
+  `0074` fixes ([UV-offset finding](../../findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md)).
+
+Closed since this list was first written, kept here because other docs still
+cite them as open: the MPP `process_request()` `list_add` double-add is
+root-caused to a double `INIT_CLIENT_TYPE`, fixed as `0069`, and returns
+`-EBUSY` on a booted kernel; a production (non-KASAN) image **is** validated —
+Published `…20260723~rk1`, tail `0001`–`0071`, full conformance set plus root
+gates green 2026-07-24; the root-only gates ran green on `Pc1f8-C9fc5`
+2026-07-23 and again on that production kernel; and the RGA `mm_session`
+debugfs UAF fix is FIX-RUNTIME-VERIFIED on `Pc1f8-C9fc5`. `status.md` tracks 1
+and 2 are the live record for all four.
 
 ## The consistent plan to fully test the rewrite
 
@@ -93,8 +110,10 @@ The definition-of-done lives in [`rewrite-validation-plan.md` §7](./rewrite-val
    AVS2 elementary-stream asset (cannot be generated); build a rewrite debug
    package (Kernel A = KASAN/UBSAN/lockdep/fault-injection + KUnit; Kernel B =
    KCSAN) at the current tip.
-1. **Re-run `rewrite-build-gate.sh`** (normal/memory/race) at the current
-   `1fe46df`/`ec9a4a06` tip — ✅ **done 2026-07-23, all six profiles green.**
+1. **Re-run `rewrite-build-gate.sh`** (normal/memory/race) at the current tip —
+   green 2026-07-23 at `1fe46df`/`ec9a4a06`, but **owed again**: the tips have
+   advanced twice and the last run used a worktree copy rather than a
+   `git archive` of the committed HEAD.
 2. **Boot Kernel A + Kernel B**; persist a **232-case green KUnit report**
    (`rewrite-kunit-log-check.sh`) tied to each boot fingerprint.
 3. **P1 smoke** (`rewrite-smoke.sh`) then **P2 conformance**: all four suites
