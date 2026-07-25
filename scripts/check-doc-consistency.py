@@ -2,11 +2,11 @@
 """Check substantive drift and completeness: version pins, portable defaults, index linkage.
 
 Deliberately excludes documentation-formatting pedantry (finding headers, entry
-ordering, dashboard/ledger date-matching, watchlist name/date exactness,
-support-coverage schema, project-brief fields, terminology). It reports only
-things that break navigation or ship wrong bits: unlinked/dangling findings,
-unpaired watchlist halves, drifted packaging version pins, out-of-sync kernel
-package helpers, and personal-home executable defaults.
+ordering, dashboard/ledger date-matching, support-coverage schema,
+project-brief fields, terminology). It reports only things that break navigation
+or ship wrong bits: unlinked/dangling findings, watchlist halves that are
+missing or disagree on name/last-checked date, drifted packaging version pins,
+out-of-sync kernel package helpers, and personal-home executable defaults.
 """
 
 from __future__ import annotations
@@ -20,7 +20,10 @@ from repo_files import repository_operational_files
 
 FINDING_NAME_RE = re.compile(r"20\d{2}-\d{2}-\d{2}-[a-z0-9][a-z0-9.-]*\.md")
 WATCH_ID_RE = re.compile(r"^W\d{2}$")
-WATCH_HEADING_RE = re.compile(r"^### (W\d{2}) — ")
+WATCH_HEADING_RE = re.compile(r"^### (W\d{2}) — (.+?)\s*$")
+WATCH_INDEX_NAME_RE = re.compile(r"^\[(.+)\]\(#watch-w\d{2}\)$")
+WATCH_LAST_CHECKED_RE = re.compile(r"^-\s+\*\*Last checked:\*\*\s*(\d{4}-\d{2}-\d{2})")
+ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 PERSONAL_HOME_DEFAULT_RE = re.compile(
     r"(?:^[A-Z][A-Z0-9_]*=[\"']?/(?:home|Users)/|"
     r"\$\{[A-Za-z_][A-Za-z0-9_]*:-[\"']?/(?:home|Users)/)"
@@ -82,10 +85,11 @@ def check_findings_index(root: Path, errors: list[str]) -> None:
 
 
 def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
-    """Light completeness: every watchlist index row has a detail block, and back.
+    """Every watchlist W## entry has both halves, agreeing on name and date.
 
-    Does not check dates, names, ordering, or field presence — only that the
-    two halves of each W## entry both exist.
+    The two halves are maintained by hand in one file and drifted seven ways in
+    under two weeks, so name and last-checked exactness is enforced rather than
+    left to convention. Ordering and prose are still not policed.
     """
     path = root / "status.md"
     if not path.is_file():
@@ -97,23 +101,54 @@ def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
         return
     section = lines[lines.index(heading) + 1 :]
 
-    index_ids: set[str] = set()
-    detail_ids: set[str] = set()
+    index: dict[str, tuple[str, str]] = {}
+    details: dict[str, tuple[str, str | None]] = {}
+    current: str | None = None
     for line in section:
         if line.startswith("## "):
             break
         if line.startswith("|"):
             cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-            if cells and WATCH_ID_RE.fullmatch(cells[0]):
-                index_ids.add(cells[0])
+            if len(cells) >= 3 and WATCH_ID_RE.fullmatch(cells[0]):
+                name = WATCH_INDEX_NAME_RE.match(cells[1])
+                index[cells[0]] = (name.group(1) if name else cells[1], cells[2])
         detail = WATCH_HEADING_RE.match(line)
         if detail:
-            detail_ids.add(detail.group(1))
+            current = str(detail.group(1))
+            details[current] = (str(detail.group(2)), None)
+        elif current is not None and details[current][1] is None:
+            checked = WATCH_LAST_CHECKED_RE.match(line)
+            if checked:
+                details[current] = (details[current][0], checked.group(1))
 
-    for watch_id in sorted(index_ids - detail_ids):
+    for watch_id in sorted(set(index) - set(details)):
         errors.append(f"status.md watchlist {watch_id}: index row has no detail block")
-    for watch_id in sorted(detail_ids - index_ids):
+    for watch_id in sorted(set(details) - set(index)):
         errors.append(f"status.md watchlist {watch_id}: detail block has no index row")
+
+    for watch_id in sorted(set(index) & set(details)):
+        index_name, index_date = index[watch_id]
+        detail_name, detail_date = details[watch_id]
+        if index_name != detail_name:
+            errors.append(
+                f"status.md watchlist {watch_id}: name differs between halves "
+                f"(index {index_name!r}, detail {detail_name!r})"
+            )
+        if not ISO_DATE_RE.fullmatch(index_date):
+            errors.append(
+                f"status.md watchlist {watch_id}: index date {index_date!r} "
+                "is not YYYY-MM-DD"
+            )
+        if detail_date is None:
+            errors.append(
+                f"status.md watchlist {watch_id}: detail block has no "
+                "'**Last checked:**' date"
+            )
+        elif detail_date != index_date:
+            errors.append(
+                f"status.md watchlist {watch_id}: last-checked date differs "
+                f"between halves (index {index_date}, detail {detail_date})"
+            )
 
 
 def check_kernel_package_helpers(

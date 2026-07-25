@@ -606,9 +606,11 @@ class SubstantiveDriftTests(unittest.TestCase):
                 "| W01 | [Paired](#watch-w01) | 2026-07-11 | Fine. |\n"
                 "| W02 | [No detail](#watch-w02) | 2026-07-11 | Missing detail. |\n\n"
                 "### W01 — Paired\n\n"
-                "- **State then:** ok\n\n"
+                "- **Last checked:** 2026-07-11\n"
+                "- **State 2026-07-11:** ok\n\n"
                 "### W03 — Orphan detail\n\n"
-                "- **State then:** ok\n",
+                "- **Last checked:** 2026-07-11\n"
+                "- **State 2026-07-11:** ok\n",
                 encoding="utf-8",
             )
             errors: list[str] = []
@@ -617,8 +619,40 @@ class SubstantiveDriftTests(unittest.TestCase):
 
             self.assertTrue(any("W02: index row has no detail" in e for e in errors))
             self.assertTrue(any("W03: detail block has no index" in e for e in errors))
-            # The correctly paired W01 (and any date/name skew) is not flagged.
+            # The fully consistent W01 is silent.
             self.assertFalse(any("W01" in e for e in errors))
+
+    def test_watchlist_halves_must_agree_on_name_and_date(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "status.md").write_text(
+                "## Watchlist — facts that go stale silently\n\n"
+                "| ID | Watch item | Last checked | Summary |\n"
+                "|----|------------|--------------|---------|\n"
+                "| W01 | [Renamed here](#watch-w01) | 2026-07-11 | Name skew. |\n"
+                "| W02 | [Stable name](#watch-w02) | 2026-07-24 | Date skew. |\n"
+                "| W03 | [Stable name](#watch-w03) | 2026-07-11 | No date. |\n\n"
+                "### W01 — Renamed there\n\n"
+                "- **Last checked:** 2026-07-11\n\n"
+                "### W02 — Stable name\n\n"
+                "- **Last checked:** 2026-07-23\n\n"
+                "### W03 — Stable name\n\n"
+                "- **State 2026-07-11:** no last-checked line\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_watchlist_pairing(root, errors)
+
+            self.assertTrue(any("W01: name differs between halves" in e for e in errors))
+            self.assertTrue(
+                any("W02: last-checked date differs between halves" in e for e in errors)
+            )
+            self.assertTrue(
+                any("W03: detail block has no '**Last checked:**' date" in e for e in errors)
+            )
+            # Name skew alone must not also be reported as a date problem.
+            self.assertFalse(any("W01: last-checked" in e for e in errors))
 
 
 # Kernel-log lines the fatal-signature scans MUST flag.  Every one was captured

@@ -78,9 +78,12 @@ support area or a sustained workstream. Put volatile package, upstream-review,
 and distro facts in the watchlist rather than burying them in project prose.
 
 Watchlist entries use stable `W##` IDs. Add or update both the compact index row
-and its detail block, keeping the item name and last-checked date identical.
-Every detail records **Why recheck**, **Last checked**, and **State then**; do not
-renumber the remaining items when one is retired.
+and its detail block, keeping the item name and last-checked date identical —
+this pairing is mechanically enforced. Every detail records **Why recheck**,
+**Last checked**, and a dated **State** block; date each state rather than
+writing a bare "State then", so an entry that gains a newer state keeps the
+older one correctly attributed. Do not renumber the remaining items when one is
+retired.
 
 Dashboard, next-gate, ledger, and coverage prose (dates, names, ordering,
 required fields) is maintained by hand — it is convention, not mechanically
@@ -88,8 +91,8 @@ enforced. `scripts/check-doc-consistency.py` checks only substantive drift and
 completeness: packaging version pins (FFmpeg/GRD), personal-home defaults in
 operational scripts, that every finding is linked from the findings index (and
 every index link resolves to a file), and that each `W##` watchlist entry has
-both its index row and its detail block. It does not police their dates, names,
-or order.
+both halves and that they agree on item name and last-checked date. It does not
+police dashboard or ledger dates, names, or order.
 
 ## Updating whole-board coverage
 

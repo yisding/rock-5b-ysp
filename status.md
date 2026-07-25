@@ -106,13 +106,13 @@ last-checked date.
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-24 | **`rga_convert_addr()` is wrong again, in the opposite direction.** On `P63dd-C4ad2` the `0047` stride fix made P010 luma bit-exact while chroma landed wrong because `rga_convert_addr()` derived UV offsets at 1 byte/px; `0049` fixed that by scaling `vir_w` by pixel depth. But `0072` then made `vir_w` a **byte** stride, so that same scaling now double-applies the depth: measured on the booted `…20260724~rk1` + librga `b8def3e` pair, the UV plane is read from the `×10/8` (compact) / `×2` (incompact) offset — tight buffers IOMMU-fault, over-sized buffers **silently get wrong chroma**. Fixed by `0074` (`710e6ad12af6`, `y_bytes = vir_w * vir_h`) — compile-verified, **booted gate still owed**; the 10-bit gates now also check chroma content, so a recurrence cannot pass as a green. See the [UV-offset finding](./findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md). |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
-| W15 | [RGA session-close fix vs. base patch](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0039`; frozen base patch still has the old path. |
+| W15 | [RGA session-close fix vs. the frozen import](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0039`; frozen base patch still has the old path. |
 | W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | RGA fixes `0045`–`0047` pass their booted gates on `P63dd-C4ad2` (legacy blits, `EOPNOTSUPP` probe, P010 luma bit-exact; smoke/MPP/FFmpeg/ABI replay all green, smoke fully green for the first time). The `0047` gate exposed the `0048` UV plane-offset fix; `0048`–`0050` (UV offsets, RGA2 page-table DMA ownership + device DMA parameters, over-4G service via swiotlb-bounced DMA mappings) are committed and checkpatch-clean with booted gates pending the next debug build. Slice-FIFO hardening, GStreamer, publication, exact-image validation, and rollback remain. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
-| W19 | [MPP `INIT_CLIENT_TYPE` double-call → UAF](#watch-w19) | 2026-07-22 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0069`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0057`-`0067`. Fix build **`P29f4-C9fc5`** (config byte-identical to `Pabd5`) is built but not installed; booted `Pabd5` list is poisoned for this boot; gate = install/boot `P29f4` and confirm the reproducer returns `-EBUSY`. |
+| W19 | [MPP `INIT_CLIENT_TYPE` double-call → use-after-free](#watch-w19) | 2026-07-23 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0069`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0057`-`0067`. Fix build **`P29f4-C9fc5`** (config byte-identical to `Pabd5`) is built but not installed; booted `Pabd5` list is poisoned for this boot; gate = install/boot `P29f4` and confirm the reproducer returns `-EBUSY`. |
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | **CSI-loop attribution falsified as sole cause:** the stall recurred on 2026-07-23 with the patched `~rk1` package binary-verified in the booted initramfs (identical fingerprint, no `SIGRTMIN+20`). Boot-transaction mechanism reconfirmed; internal daemon wedge unknown again. Mitigation `plymouth.enable=0` still unapplied; next hang needs a live `plymouthd` stack via `debug-shell.service` instead of a reset. |
-| W21 | [ffmpeg-rockchip transcode deadlock without `da5befc806`](#watch-w21) | 2026-07-23 | The harness's default `FFDIR` binary (FFmpeg-**master**, `libavcodec 63`; its dir's `RELEASE` file misleadingly says 6.1) deadlocks on `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines (all threads on `futex`). The **shipping `/usr/bin/ffmpeg 8.0.3~rk1` (`libavcodec 62`, carries `da5befc806`) runs both cleanly**, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Already-catalogued encoder-backpressure/decoder-hang class (submission-plan §B), fixed on our 8.0 line — not a new finding; not yet forward-ported to main or upstreamed. |
+| W21 | [ffmpeg-rockchip `rkmpp` transcode deadlock without the `da5befc806` backpressure fix](#watch-w21) | 2026-07-23 | The harness's default `FFDIR` binary (FFmpeg-**master**, `libavcodec 63`; its dir's `RELEASE` file misleadingly says 6.1) deadlocks on `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines (all threads on `futex`). The **shipping `/usr/bin/ffmpeg 8.0.3~rk1` (`libavcodec 62`, carries `da5befc806`) runs both cleanly**, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Already-catalogued encoder-backpressure/decoder-hang class (submission-plan §B), fixed on our 8.0 line — not a new finding; not yet forward-ported to main or upstreamed. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -161,7 +161,18 @@ last-checked date.
 
 - **Why recheck:** Acceptance, build state, and binary publication can change
   after upload without a local repository edit.
-- **Last checked:** 2026-07-23
+- **Last checked:** 2026-07-24
+- **State 2026-07-24:** Two `dput` uploads carrying the 10-bit byte-stride fix,
+  Launchpad processing pending — verify both reach Published with a successful
+  arm64 build: production forward-port kernel
+  `linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260724-0ubuntu1~rk1` (tail
+  `0001`–`0073`, local production build `P272c-Cb831`, adding `0072` RGA3
+  byte-stride fix and `0073` RGA2 >4G reject over the Published `…20260723`),
+  and `librga_2.2.0+git20260724.b8def3e-0ubuntu1~rk1` (im2d raster pixel→byte
+  conversion). Both are client-side verified (`dpkg-source -x`, content checks)
+  and `debsign`ed. The `…20260723` kernel below has since reached Published,
+  built on arm64, and passed full conformance plus root gates on-board
+  ([run](./findings/2026-07-24-production-ppa-kernel-full-conformance-run.md)).
 - **State 2026-07-23 (forward-port kernel):** The production (non-debug) source
   package `linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1`
   — the complete current tip (single `rk3588-video-6.18` branch, contiguous
@@ -259,8 +270,13 @@ last-checked date.
 - **Why recheck:** The corrected series must survive the exact macOS
   focus-away/focus-return sequence before promotion, and the submission claim
   needs a public review artifact.
-- **Last checked:** 2026-07-20
-- **State then:** Diagnostic `~exp2` and recovery `~exp3` narrowed the original
+- **Last checked:** 2026-07-21
+- **State 2026-07-21:** The reconstructed-ACK recovery is live-validated and the
+  idle-time false-starvation actuator is source-fixed; installed `exp9` audibly
+  validates PCM RDP output after the PipeWire migration. Repeated focus/resume
+  video validation, compressed-audio interoperability, publication/promotion,
+  and upstream review all remain owed.
+- **State 2026-07-20:** Diagnostic `~exp2` and recovery `~exp3` narrowed the original
   graphics-thread stall; the latter is Published as source `18626586` and build
   `33412698`. Subsequent local `exp5@b3f0e20` hardware testing proved exported
   patch `0016` removes the uncached imported-buffer readback hang. The fluid
@@ -318,8 +334,19 @@ last-checked date.
 
 - **Why recheck:** The fix must remain reconstructible and its 10-bit shipping
   gate must not be mistaken for completed hardware validation.
-- **Last checked:** 2026-07-21
-- **State then:** The series from `2cffdf6` through `main@a632217` was exported
+- **Last checked:** 2026-07-24
+- **State 2026-07-24:** `rga_convert_addr()` is wrong again, in the opposite
+  direction. `0049` scaled `vir_w` by pixel depth to fix the 1 byte/px UV
+  derivation below, but `0072` then made `vir_w` a **byte** stride, so that
+  scaling now double-applies the depth: measured on the booted `…20260724~rk1`
+  plus librga `b8def3e` pair, the UV plane is read from the `×10/8` (compact) or
+  `×2` (incompact) offset — tight buffers IOMMU-fault and over-sized buffers
+  silently get wrong chroma. Fixed by `0074` (`710e6ad12af6`,
+  `y_bytes = vir_w * vir_h`), compile-verified with the booted gate still owed;
+  the 10-bit gates now also check chroma content so a recurrence cannot pass as
+  a green. See the
+  [UV-offset finding](./findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md).
+- **State 2026-07-21:** The series from `2cffdf6` through `main@a632217` was exported
   under [`vendor-libraries/rga/patches/`](./vendor-libraries/rga/patches/README.md).
   On `P63dd-C4ad2` (kernel `0047` stride fix) the direct im2d P010 probes
   show luma bit-exact; the remaining chroma corruption is the kernel's
