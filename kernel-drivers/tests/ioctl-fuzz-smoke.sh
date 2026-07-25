@@ -4,6 +4,12 @@ set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$TEST_DIR/../.." && pwd)"
+# Only for SUITE_DMESG_FATAL_RE: keep the fatal-signature set in one place. The
+# private copy this replaced had drifted to a pre-2026-07 generation that missed
+# every RK3588 IOMMU/RGA fault line and false-positived on the harness's own
+# `rga-mmu-debug:` markers and on `pstore.backend=ramoops`.
+# shellcheck source=suite-common.sh disable=SC1091
+source "$TEST_DIR/suite-common.sh"
 
 CC="${CC:-cc}"
 IOCTL_FUZZ_VALIDATE_BUILD="${IOCTL_FUZZ_VALIDATE_BUILD:-0}"
@@ -11,7 +17,7 @@ IOCTL_FUZZ_FAIL_NTH_MAX="${IOCTL_FUZZ_FAIL_NTH_MAX:-0}"
 IOCTL_FUZZ_OUT="${IOCTL_FUZZ_OUT:-}"
 IOCTL_FUZZ_DMESG_SCAN="${IOCTL_FUZZ_DMESG_SCAN:-0}"
 IOCTL_FUZZ_REQUIRE_DMESG="${IOCTL_FUZZ_REQUIRE_DMESG:-0}"
-IOCTL_FUZZ_DMESG_FATAL_RE="${IOCTL_FUZZ_DMESG_FATAL_RE:-KASAN|BUG:|kernel BUG|Oops|Unable to handle kernel|use-after-free|slab-out-of-bounds|general protection fault|hung task|blocked for more than|RCU stall|lockdep|DMA-API.*(error|WARNING)}"
+IOCTL_FUZZ_DMESG_FATAL_RE="${IOCTL_FUZZ_DMESG_FATAL_RE:-$SUITE_DMESG_FATAL_RE}"
 tmp_build_dir=
 
 if [ -z "${BUILD_DIR+x}" ]; then

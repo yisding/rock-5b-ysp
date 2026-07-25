@@ -779,6 +779,45 @@ class FatalSignatureScanTests(unittest.TestCase):
     def test_root_gates_scan_flags_faults_and_ignores_benign_lines(self) -> None:
         self.assert_scan_behaviour("run-root-gates.sh", self.root_gates_regex())
 
+    def resolved_regex(self, script: str, variable: str) -> str:
+        """Resolve a scan's effective regex the way the script itself would.
+
+        Both scripts below source `suite-common.sh`, so the default expands to
+        `SUITE_DMESG_FATAL_RE`; resolving it through bash rather than textually
+        keeps this honest if either one goes back to a private copy.
+        """
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                f'source ./suite-common.sh >/dev/null 2>&1; '
+                f'source ./{script} >/dev/null 2>&1; printf "%s" "${variable}"',
+            ],
+            cwd=self.tests_dir,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout
+
+    def test_ioctl_fuzz_scan_flags_faults_and_ignores_benign_lines(self) -> None:
+        # This scan carried its own pre-2026-07 copy of the signature set: it
+        # missed all six RK3588 IOMMU/RGA fault lines and fired on the harness's
+        # own `rga-mmu-debug:` markers and on `pstore.backend=ramoops`.
+        self.assert_scan_behaviour(
+            "ioctl-fuzz-smoke.sh",
+            self.resolved_regex("ioctl-fuzz-smoke.sh", "IOCTL_FUZZ_DMESG_FATAL_RE"),
+        )
+
+    def test_recovery_stress_scan_flags_faults_and_ignores_benign_lines(self) -> None:
+        # Same drifted copy, in a script that already sourced suite-common.sh
+        # and simply left SUITE_DMESG_FATAL_RE unused.
+        source = (self.tests_dir / "rewrite-recovery-stress.sh").read_text(encoding="utf-8")
+        self.assertIn("RECOVERY_DMESG_FATAL_RE:-$SUITE_DMESG_FATAL_RE", source)
+        self.assert_scan_behaviour(
+            "rewrite-recovery-stress.sh",
+            self.resolved_regex("suite-common.sh", "SUITE_DMESG_FATAL_RE"),
+        )
+
     def test_kasan_scan_matches_suite_common_case_insensitivity(self) -> None:
         # kasan-scan.sh reuses SUITE_DMESG_FATAL_RE, whose set contains
         # case-varying signatures ("IOMMU"/"iommu"); a case-SENSITIVE grep here

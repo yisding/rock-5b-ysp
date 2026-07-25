@@ -33,7 +33,11 @@ RECOVERY_RECHECK_CMD=${RECOVERY_RECHECK_CMD:-'bash "$TEST_DIR/abi-probe.sh"'}
 RECOVERY_RESET_CMD=${RECOVERY_RESET_CMD:-'IOCTL_FUZZ_ITERS=16 IOCTL_FUZZ_TIMEOUT=30 bash "$TEST_DIR/ioctl-fuzz-smoke.sh"'}
 RECOVERY_UNBIND_TARGETS=${RECOVERY_UNBIND_TARGETS:-}
 RECOVERY_LIST_BINDINGS=${RECOVERY_LIST_BINDINGS:-0}
-RECOVERY_DMESG_FATAL_RE=${RECOVERY_DMESG_FATAL_RE:-'KASAN|BUG:|kernel BUG|Oops|Unable to handle kernel|use-after-free|slab-out-of-bounds|general protection fault|hung task|blocked for more than|RCU stall|lockdep|DMA-API.*(error|WARNING)'}
+# Reuse suite-common.sh's signature set (sourced above) rather than keeping a
+# second copy: the private copy this replaced had drifted to a pre-2026-07
+# generation that missed every RK3588 IOMMU/RGA fault line and false-positived
+# on the harness's own `rga-mmu-debug:` markers and on `pstore.backend=ramoops`.
+RECOVERY_DMESG_FATAL_RE=${RECOVERY_DMESG_FATAL_RE:-$SUITE_DMESG_FATAL_RE}
 
 export TEST_DIR REPO_ROOT CONFORMANCE_ROOT PROFILE
 

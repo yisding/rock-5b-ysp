@@ -31,6 +31,7 @@ PERSONAL_HOME_DEFAULT_RE = re.compile(
     r"(?:^[A-Z][A-Z0-9_]*=[\"']?/(?:home|Users)/|"
     r"\$\{[A-Za-z_][A-Za-z0-9_]*:-[\"']?/(?:home|Users)/)"
 )
+# The three packages that build the kernel in-tree share both helpers verbatim.
 KERNEL_PACKAGE_DIRS = (
     "packaging/ppa/kernel-forward-port",
     "packaging/ppa/kernel-rewrite-alpha-6.18",
@@ -40,6 +41,13 @@ KERNEL_PACKAGE_HELPERS = (
     "debian/scripts/install-kernel-packages.sh",
     "debian/scripts/write-maintainer-scripts.sh",
 )
+# kernel-maxline builds out-of-tree from a separate kernel source, so its
+# debian/rules.in passes install-kernel-packages.sh three extra arguments
+# (localversion, build root, kernel source) and that helper is a deliberate
+# variant, not drift. Everything it does share is still gated here — without
+# this the package was outside the sync check entirely.
+KERNEL_PACKAGE_DIRS_ALL = KERNEL_PACKAGE_DIRS + ("packaging/ppa/kernel-maxline",)
+KERNEL_PACKAGE_HELPERS_ALL = ("debian/scripts/write-maintainer-scripts.sh",)
 PPA_GRD_PIN_DOCS = (
     "packaging/ppa/README.md",
     "packaging/ppa/gnome-remote-desktop/source-deltas/README.md",
@@ -355,6 +363,9 @@ def main() -> int:
     check_findings_index(root, errors)
     check_watchlist_pairing(root, errors)
     check_kernel_package_helpers(root, errors)
+    check_kernel_package_helpers(
+        root, errors, KERNEL_PACKAGE_DIRS_ALL, KERNEL_PACKAGE_HELPERS_ALL
+    )
     check_ppa_ffmpeg_install_pin(root, errors)
     check_ppa_grd_source_pin(root, errors)
 

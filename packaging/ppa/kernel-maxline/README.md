@@ -159,6 +159,16 @@ tracked helpers:
   hooks, maintain Armbian's last-installed `/boot` targets, and prepare headers
   after installation.
 
+`write-maintainer-scripts.sh` is byte-identical across all four kernel source
+packages and `scripts/check-doc-consistency.py` enforces that.
+`install-kernel-packages.sh` is **deliberately** not identical here: this
+package builds out-of-tree from a separate kernel source, so `debian/rules.in`
+passes it three extra arguments (localversion, build root, kernel source) and
+the helper resolves `Image`/`System.map`/`.config`/generated headers from the
+object tree rather than the source root. The other three packages build in-tree
+and share one copy between them. Do not "resync" this file across all four
+without also changing their `debian/rules`.
+
 ## Verified build
 
 Both profiles passed a native arm64 `Image modules dtbs` build and Debian
