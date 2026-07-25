@@ -8,8 +8,13 @@ WORK="$OUT/work"
 ARTIFACTS="$OUT/artifacts"
 
 MPP_REPO="${MPP_REPO:-$WORKSPACE_ROOT/rockchip-userspace/mpp-rockchip}"
-MPP_COMMIT="${MPP_COMMIT:-1375813c}"
-MPP_UPSTREAM_VERSION="${MPP_UPSTREAM_VERSION:-1.5.0+git20260529.1375813c+ds}"
+# Fork-branch model: MPP_COMMIT is the tip of branch ysp/main on yisding/mpp,
+# NOT a pristine upstream commit. debian/patches/ is gone; the delta is the
+# commits between upstream tag 1.0.12 (1375813c) and this tip. The working tree
+# above is the HermanChen/mpp vendor mirror with a `yisding` remote added --
+# push ysp work to `yisding`, never to `origin`.
+MPP_COMMIT="${MPP_COMMIT:-7c4fcda2}"
+MPP_UPSTREAM_VERSION="${MPP_UPSTREAM_VERSION:-1.5.0+git20260725.7c4fcda2+ds}"
 
 LIBRGA_REPO="${LIBRGA_REPO:-$WORKSPACE_ROOT/rockchip-userspace/librga-fork}"
 # Must track the tip that matches the shipped kernel's 10-bit stride convention.

@@ -1,3 +1,0 @@
-0001-fix-pthread-runtime-test-entry-point.patch
-0002-harden-encoder-slice-poll-loops.patch
-0003-fix-h264e-poll-cfg-allocation-size.patch

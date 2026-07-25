@@ -1,3 +1,15 @@
+mpp (1.5.0+git20260725.7c4fcda2+ds-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Build from branch ysp/main of https://github.com/yisding/mpp instead of
+    pristine 1.0.12 plus a quilt series. The upstream delta now lives as
+    reviewable commits on the fork branch and debian/patches/ is removed; the
+    packaging base is unchanged at upstream tag 1.0.12 (1375813c).
+  * Carry the RKVENC2 slice-FIFO userspace fixes: harden the eight vepu5xx
+    split-output slice poll loops against poll failure, and correct the h264e
+    poll cfg allocation size plus the vepu511a single-cfg reg_idx indexing.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sat, 25 Jul 2026 09:40:00 -0700
+
 mpp (1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1) resolute; urgency=medium
 
   * Restrict Rockchip MPP binary packages to arm64 for the ROCK 5B PPA.

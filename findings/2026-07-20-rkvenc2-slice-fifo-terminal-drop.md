@@ -131,9 +131,14 @@ consumer, and is deliberately **not** an error return.
 
 `W=1` builds with zero warnings; `checkpatch --strict` reports zero.
 
-### MPP userspace — `0002` and `0003`
+### MPP userspace — two commits on `ysp/main`
 
-`packaging/ppa/mpp/debian/patches/`, against the `1375813c` packaging baseline:
+Originally landed as quilt patches `0002`/`0003` under
+`packaging/ppa/mpp/debian/patches/`. MPP was converted to the fork-branch model
+on 2026-07-25, so they are now the second and third commits on branch
+`ysp/main` of `yisding/mpp` (tip `7c4fcda2`), still based on the `1375813c`
+= `1.0.12` packaging baseline. The `0002`/`0003` names below refer to the
+original patches; see [`packaging/userspace-patches.md`](../packaging/userspace-patches.md).
 
 - **`0002`** hardens all eight vepu5xx split-output poll loops. They assigned
   the `MPP_DEV_CMD_POLL` return value but never tested it and terminated only on

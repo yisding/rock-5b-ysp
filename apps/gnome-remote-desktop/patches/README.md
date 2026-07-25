@@ -1,5 +1,19 @@
 # gnome-remote-desktop release patches
 
+> **OUTDATED — this directory is not what the package builds, and it is a
+> release behind.** These patches target **50.1**; the shipped package is
+> **50.2**, built directly from branch `release/50.2-rkmpp` at
+> `cf60b4d9d2c5adb6ea9f4b7f3397449895f069f2` with **no source delta applied**.
+> Parts of the replay are now actively wrong against the current base: upstream
+> 50.2 already contains the reconnect revert that patch `0009` exists to apply.
+>
+> Editing anything here changes nothing about the package. Keep it for porting
+> the work to another base and for reading what the delta *was*. To change what
+> ships, commit on `release/50.2-rkmpp` and update `GRD_COMMIT` /
+> `GRD_UPSTREAM_VERSION` in
+> [`packaging/ppa/build-source-packages.sh`](../../../packaging/ppa/build-source-packages.sh);
+> see [`packaging/userspace-patches.md`](../../../packaging/userspace-patches.md).
+
 This directory contains the portable **16-patch 50.1 replay** for the RK3588
 FFmpeg/rkmpp backend, RDP handover/reconnect fixes, and the two bounded runtime
 recoveries retained after hardware validation.

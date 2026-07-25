@@ -1,13 +1,28 @@
 mpp for Ubuntu Rock 5B
 ----------------------
 
-This source package uses `3.0 (quilt)`.
+This source package uses `3.0 (quilt)` but carries **no source patches**. The
+upstream delta lives on a fork branch instead, so `debian/patches/` is
+deliberately absent.
 
-The `+ds` orig tarball is exported from mpp-rockchip commit 1375813c with the
-upstream `debian/` directory and unused Windows binaries removed:
+Source: branch `ysp/main` of https://github.com/yisding/mpp, based on upstream
+release tag `1.0.12` (commit 1375813c, 2026-05-29). The branch carries the ysp
+delta as reviewable commits:
+
+* osal/test: pthread start routine signature for newer GCC/glibc
+* hal/rkenc: harden the vepu5xx encoder slice poll loops against poll failure
+* hal/h264e: poll cfg allocation size, and drop the single-cfg reg_idx indexing
+
+The `+ds` orig tarball is exported from that branch tip with the upstream
+`debian/` directory and unused Windows binaries removed:
 
 * tools/AStyle.exe
 * tools/TextEncoding.exe
 
-Ubuntu packaging changes live under `debian/`. Source patches are listed in
-`debian/patches/series`.
+Ubuntu packaging changes live under `debian/`.
+
+To add a change, commit it on `ysp/main`, push, then update MPP_COMMIT and
+MPP_UPSTREAM_VERSION in packaging/ppa/build-source-packages.sh and rebuild with
+FORCE_ORIG=1. Do not reintroduce `debian/patches/` — see
+packaging/userspace-patches.md for why this component uses the fork-branch
+model.
