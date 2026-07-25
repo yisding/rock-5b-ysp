@@ -3,7 +3,26 @@
 
 SUITE_DMESG_SCAN=${SUITE_DMESG_SCAN:-1}
 SUITE_REQUIRE_DMESG=${SUITE_REQUIRE_DMESG:-0}
-SUITE_DMESG_FATAL_RE=${SUITE_DMESG_FATAL_RE:-'KASAN|KCSAN|UBSAN|KFENCE|BUG:|kernel BUG|Oops|Unable to handle kernel|use-after-free|slab-out-of-bounds|out-of-bounds|general protection fault|hung task|blocked for more than|RCU stall|lockdep|WARNING:|DMA-API.*(error|WARNING)|refcount_t:|list_[a-z_]* corruption|scheduling while atomic|sleeping function called|iommu[^[:alnum:]]*(fault|panic|oops)|rga[^[:alnum:]]*(fault|panic|iommu)|mpp[^[:alnum:]]*(fault|panic|iommu)'}
+# NOTE (2026-07-24): the `iommu[^[:alnum:]]*(fault|...)` alternative alone could
+# not match the two signatures that matter most on this board --
+# "rk_iommu fdb60f00.iommu: Page fault at ..." (alphanumerics sit between
+# "iommu" and "fault") and "RGA IOMMU: read fault!" (a word between them).  A
+# whole boot carrying 37 such lines scanned completely clean, so every suite's
+# "clean kernel scan" was blind to RGA/IOMMU page faults.  The optional
+# intr/read/write group plus the explicit "Page fault at" and "bus error" terms
+# close that; `iommu-machinery-fuzz.sh` already scanned for these locally via
+# its own FAULT_RE.  Deliberately NOT included: `rga_job_err`, "request commit
+# failed", "submit failed" -- those are the expected output of fail-closed
+# rejects (e.g. the 0073 above-4G page-table reject), not faults.
+# The scan runs case-INSENSITIVELY (grep -aiE), which makes unanchored words
+# dangerous.  Word boundaries are load-bearing here, not decoration:
+#   \bBUG:  -- bare "BUG:" matches the harness's own "rga-mmu-debug:" markers
+#   \bOops  -- bare "Oops" matches "pstore.backend=ramoops" in the cmdline
+# and the rga/mpp alternatives must not spell "iommu", or the benign probe line
+# "rga: IOMMU binding successfully" flags every scan; genuine RGA IOMMU faults
+# are caught by the dedicated iommu alternative below, which requires the word
+# "fault"/"panic"/"oops".  run-root-gates.sh learned the \bBUG: lesson first.
+SUITE_DMESG_FATAL_RE=${SUITE_DMESG_FATAL_RE:-'KASAN|KCSAN|UBSAN|KFENCE|\bBUG:|kernel BUG|\bOops|Unable to handle kernel|use-after-free|slab-out-of-bounds|out-of-bounds|general protection fault|hung task|blocked for more than|RCU stall|lockdep|WARNING:|DMA-API.*(error|WARNING)|refcount_t:|list_[a-z_]* corruption|scheduling while atomic|sleeping function called|Page fault at|iommu[^[:alnum:]]*(intr|read|write)?[^[:alnum:]]*(fault|panic|oops)|bus error|rga[^[:alnum:]]*(fault|panic)|mpp[^[:alnum:]]*(fault|panic)'}
 
 suite_now_ns()
 {

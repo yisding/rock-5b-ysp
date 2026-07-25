@@ -278,10 +278,10 @@ class ForwardPortPatchSeriesTests(unittest.TestCase):
         patches = sorted(self.series.glob("rk3588-fwport-*.patch"))
         numbers = [int(path.name.split("-")[2]) for path in patches]
 
-        self.assertEqual(numbers, list(range(1, 74)))
+        self.assertEqual(numbers, list(range(1, 75)))
         readme = (self.series / "README.md").read_text(encoding="utf-8")
-        self.assertIn("contiguous `0001`–`0073`", readme)
-        self.assertIn("79fc616390e5", readme)
+        self.assertIn("contiguous `0001`–`0074`", readme)
+        self.assertIn("710e6ad12af6", readme)
 
     def test_series_mailboxes_are_well_formed(self) -> None:
         for patch in sorted(self.series.glob("rk3588-fwport-*.patch")):
@@ -592,6 +592,111 @@ class SubstantiveDriftTests(unittest.TestCase):
             self.assertTrue(any("W03: detail block has no index" in e for e in errors))
             # The correctly paired W01 (and any date/name skew) is not flagged.
             self.assertFalse(any("W01" in e for e in errors))
+
+
+# Kernel-log lines the fatal-signature scans MUST flag.  Every one was captured
+# from this board; the IOMMU set is the class that a 2026-07-24 root-gates run
+# reported kernel_flags=0 through, because the scans' `iommu` alternative could
+# not match either real spelling.
+FATAL_SCAN_MUST_MATCH = (
+    "rk_iommu fdb60f00.iommu: Page fault at 0x00000000dffe8080 of type read",
+    "rk_iommu fdb70f00.iommu: Page fault at 0x00000000dfd1e000 of type write",
+    "rga: 1994   1994  : RGA IOMMU: read fault! Please check the memory size.",
+    "rga: 1994   1994  : RGA IOMMU: write fault! Please check the memory size.",
+    "rga: 1994   1994  : IOMMU intr fault, IOVA[0xdffe8080], STATUS[0x0]",
+    "rga: 0      0     : RGA current status: bus error",
+    "BUG: KASAN: slab-use-after-free in rga_mm_session_show+0x1c/0x2f0",
+    "Unable to handle kernel paging request at virtual address dfff800000000363",
+)
+
+# Lines the scans MUST NOT flag.  These are why the word boundaries and the
+# rga/mpp alternatives are spelled the way they are -- each one produced a false
+# positive at some point, and a fail-closed reject is a PASS, not a fault.
+FATAL_SCAN_MUST_NOT_MATCH = (
+    # bare `BUG:` matches the harness's own marker: rga-mmu-de(bug:)
+    "rock-5b-ysp rga-mmu-debug: BEGIN rga_copy_demo",
+    "rock-5b-ysp rga-mmu-debug: END rga_copy_demo status=1 elapsed_s=0.040",
+    # bare `Oops` matches pstore.backend=ram(oops) on the kernel cmdline
+    "Kernel command line: root=UUID=x splash=verbose pstore.backend=ramoops panic=10",
+    # an `rga...iommu` alternative matches the benign probe line
+    "rga: IOMMU binding successfully, default mapping core[0x1]",
+    "iommu: Default domain type: Translated",
+    # fail-closed rejects and ordinary job errors are expected gate output
+    "rga: 12561  12561 : rga2 page table reject: -95",
+    "rga: 10170  10170 : ID[1]: submit failed!",
+    "rga: 1994   1994  : RGA3_core0[0x1] soft reset complete.",
+)
+
+
+class FatalSignatureScanTests(unittest.TestCase):
+    """The kernel-log fatal scans are duplicated; pin their BEHAVIOUR.
+
+    `suite-common.sh` (sourced by the conformance suites and `kasan-scan.sh`)
+    and `run-root-gates.sh` (deliberately standalone, so it can run as root
+    without sourcing the suite helpers) carry separate copies of the signature
+    set.  They are not byte-identical by design and never can be, so this tests
+    what they must *do* rather than how they are spelled: a reword that keeps
+    the behaviour passes, while a reintroduced blind spot or false positive
+    fails.
+    """
+
+    tests_dir = REPO_ROOT / "kernel-drivers/tests"
+
+    def suite_common_regex(self) -> str:
+        result = subprocess.run(
+            ["bash", "-c", 'source ./suite-common.sh >/dev/null 2>&1; printf "%s" "$SUITE_DMESG_FATAL_RE"'],
+            cwd=self.tests_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout
+
+    def root_gates_regex(self) -> str:
+        # Sourcing run-root-gates.sh would execute it (it exits unless root),
+        # so lift the assignment out textually.
+        for line in (self.tests_dir / "run-root-gates.sh").read_text(
+            encoding="utf-8"
+        ).splitlines():
+            if line.startswith("FATAL_RE='") and line.endswith("'"):
+                return line[len("FATAL_RE='") : -1]
+        self.fail("no FATAL_RE assignment found in run-root-gates.sh")
+
+    def assert_scan_behaviour(self, name: str, regex: str) -> None:
+        self.assertTrue(regex, f"{name}: empty fatal regex")
+        for line in FATAL_SCAN_MUST_MATCH:
+            with self.subTest(scan=name, line=line, expect="match"):
+                matched = subprocess.run(
+                    ["grep", "-aiqE", "--", regex],
+                    input=line + "\n",
+                    text=True,
+                ).returncode
+                self.assertEqual(
+                    matched, 0, f"{name} fails to flag a real fault line: {line!r}"
+                )
+        for line in FATAL_SCAN_MUST_NOT_MATCH:
+            with self.subTest(scan=name, line=line, expect="no match"):
+                matched = subprocess.run(
+                    ["grep", "-aiqE", "--", regex],
+                    input=line + "\n",
+                    text=True,
+                ).returncode
+                self.assertEqual(
+                    matched, 1, f"{name} false-positives on a benign line: {line!r}"
+                )
+
+    def test_suite_common_scan_flags_faults_and_ignores_benign_lines(self) -> None:
+        self.assert_scan_behaviour("suite-common.sh", self.suite_common_regex())
+
+    def test_root_gates_scan_flags_faults_and_ignores_benign_lines(self) -> None:
+        self.assert_scan_behaviour("run-root-gates.sh", self.root_gates_regex())
+
+    def test_kasan_scan_matches_suite_common_case_insensitivity(self) -> None:
+        # kasan-scan.sh reuses SUITE_DMESG_FATAL_RE, whose set contains
+        # case-varying signatures ("IOMMU"/"iommu"); a case-SENSITIVE grep here
+        # silently dropped them.
+        source = (self.tests_dir / "kasan-scan.sh").read_text(encoding="utf-8")
+        self.assertIn('grep -aiE "$SUITE_DMESG_FATAL_RE"', source)
 
 
 if __name__ == "__main__":

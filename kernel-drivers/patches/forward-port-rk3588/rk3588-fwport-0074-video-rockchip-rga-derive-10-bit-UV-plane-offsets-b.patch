@@ -1,0 +1,83 @@
+From 710e6ad12af6d5fba4c4775916e1039f58d02b4c Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Fri, 24 Jul 2026 19:06:57 -0700
+Subject: [PATCH 74/74] video: rockchip: rga: derive 10-bit UV plane offsets
+ byte-literally
+
+Commit 138f0de2c972 ("video: rockchip: rga3: honor the legacy byte-stride
+ABI for 10-bit rasters") restored the BSP contract that rga_req.img.vir_w
+carries a BYTE stride for 10-bit formats, and converted the RGA3 register
+writer accordingly.  It missed the sibling site: rga_convert_addr() still
+scaled vir_w by the pixel depth (x10/8 compact, x2 incompact) when deriving
+the UV plane offset, so the depth is now double-applied one site over --
+exactly the error that commit fixed in the stride writer.
+
+The Y plane of a 10-bit semi-planar surface is vir_w * vir_h bytes, for
+compact NV15/NV20 and incompact P010/P210 alike.  Scaling it places the UV
+plane past the true one, which fails two ways:
+
+  - a tightly sized surface faults, because the UV read runs off the end of
+    the mapping (rk_iommu read fault, job abort, EACCES to userspace -- the
+    same signature that commit was meant to remove); and
+
+  - an over-sized surface does NOT fault and silently returns chroma read
+    from the wrong offset, which is worse: no error reaches userspace.
+
+Measured on a booted RK3588 with a forced-core legacy RGA_BLIT_SYNC of a
+compact NV12_10 320x240 surface, vir_w = 448 (byte stride), below-4G CMA
+dma-bufs.  Bisecting the source allocation that stops the fault gives
+188160 B = 560*240 + 448*120 -- a pixel-scaled Y plane offset over
+byte-literal UV rows -- against the 161280 B the surface actually needs.
+The incompact branch gives 268800 B = 896*240 + 448*120, predicted from the
+x2 scaling before it was measured.  With the source over-allocated so that
+neither offset can fault, the blit succeeds and the destination chroma is
+read entirely from the scaled offset, confirming the wrong-output path.
+
+Drop the scaling and the now-redundant compact_mode branch.  10-bit formats
+stay semi-planar, so v_addr remains zero.
+
+Fixes: 6c7eb3efa3f0 ("video: rockchip: rga3: derive 10-bit plane offsets byte-literally")
+---
+ drivers/video/rockchip/rga3/rga_common.c | 25 +++++++++++-------------
+ 1 file changed, 11 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_common.c b/drivers/video/rockchip/rga3/rga_common.c
+index 865c9edd8a974..f100894dff638 100644
+--- a/drivers/video/rockchip/rga3/rga_common.c
++++ b/drivers/video/rockchip/rga3/rga_common.c
+@@ -722,21 +722,18 @@ void rga_convert_addr(struct rga_img_info_t *img, bool before_vir_get_channel)
+ 	if (img->rd_mode != RGA_FBC_MODE || before_vir_get_channel) {
+ 		if (rga_is_yuv10bit_format(img->format)) {
+ 			/*
+-			 * 10-bit semi-planar rows are byte-literal: incompact
+-			 * P010/P210 rows carry 16-bit containers (2 bytes per
+-			 * pixel), compact NV15/NV20 rows pack 10 bits per
+-			 * pixel. The 1 byte/pixel offset below would place the
+-			 * UV plane inside the Y plane.
++			 * 10-bit vir_w already IS the row size in bytes (the
++			 * legacy BSP ABI contract honoured by the RGA2 writer
++			 * and restored on RGA3 by commit 138f0de2c972), so the
++			 * Y plane is vir_w * vir_h bytes for compact NV15/NV20
++			 * and incompact P010/P210 alike.  Scaling by the pixel
++			 * depth here (x10/8 or x2) double-applies it and pushes
++			 * the UV plane past the true one -- reading chroma from
++			 * the wrong offset, and running off the end of a
++			 * tightly sized surface.
+ 			 */
+-			uint64_t y_bytes;
+-
+-			if (img->compact_mode == RGA_10BIT_INCOMPACT)
+-				y_bytes = (uint64_t)img->vir_w * img->vir_h * 2;
+-			else
+-				y_bytes =
+-					(uint64_t)img->vir_w * img->vir_h * 10 / 8;
+-
+-			img->uv_addr = img->yrgb_addr + y_bytes;
++			img->uv_addr = img->yrgb_addr +
++				       (u64)img->vir_w * img->vir_h;
+ 			/* All 10-bit formats are semi-planar: no third plane. */
+ 			img->v_addr = 0;
+ 			return;
+-- 
+2.55.0
+

@@ -828,6 +828,24 @@ diagnostics also include `gst_inspect_kmssrc`, `kms_capture_dmabuf_fakesink`,
 `GST_ENABLE_FBC_CASES`, `GST_REQUIRE_FBC_CASES`,
 `GST_ENABLE_KMS_CASES`, `GST_REQUIRE_KMS_CASES`,
 `GST_KMS_CAPTURE_BUFFERS`, `GST_KMS_SRC_ARGS`, and `GST_TIMEOUT`.
+
+**10-bit chroma content check.** The four 10-bit cases that emit a CPU-readable
+output — `generated_dec_h265_10_rga_scale`,
+`generated_dec_h265_10_env_disable_nv12_10`, and their `422_10` siblings — are
+not scored on "did the pipeline run" alone. Each decodes the same generated
+input in software, scales it to the same geometry, and requires the captured
+output's **U and V planes** to match within `GST_CHROMA_MIN_PSNR` (default
+`20` dB); `GST_CHROMA_CHECK=0` disables it. Luma is reported but deliberately
+not gated: a UV plane read from the wrong offset leaves luma clean, which is
+exactly how that defect class hides. Measured on the `0072` kernel this check
+reports `y=40.9 u=7.5 v=7.0` and `y=52.4 u=7.5 v=7.0` — a ~7 dB chroma floor
+against clean luma — for the two cases that previously reported **pass**
+([UV-offset finding](../../findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md)).
+The plain `fakesink` 10-bit cases stay liveness-only: they emit the decoder's
+native compact NV12_10/NV16_10, which is not a raw format `ffmpeg` reads back.
+The check needs `GST_CAPTURE_ARTIFACTS=1` (the default) and fails closed if the
+output or `ffmpeg` is missing rather than silently passing.
+
 By default `GST_CAPTURE_ARTIFACTS=1` makes generated,
 optional external-media decode/transcode, encoded RC-mode, and AFBC transcode
 cases write decoded raw buffers or encoded elementary streams under each run's

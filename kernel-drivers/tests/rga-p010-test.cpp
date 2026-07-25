@@ -67,8 +67,8 @@ int main(int argc, char **argv)
 	int w = argc > 1 ? atoi(argv[1]) : 128;
 	int h = w;
 	size_t p010_size = (size_t)w * h * 3;      /* 2 B/px Y + 1 B/px UV */
-	size_t nv12_size = (size_t)w * h * 3 / 2;
 	struct buf src = {}, dst12 = {}, dst10 = {};
+	int failures = 0;
 
 	if (mkbuf(&src, p010_size) || mkbuf(&dst12, p010_size) ||
 	    mkbuf(&dst10, p010_size))
@@ -99,6 +99,7 @@ int main(int argc, char **argv)
 	int ret = imcvtcolor(s, d12, FMT_P010, RK_FORMAT_YCbCr_420_SP);
 	if (ret != IM_STATUS_SUCCESS) {
 		printf("P010->NV12 submit FAILED: %s\n", imStrError((IM_STATUS)ret));
+		failures++;
 	} else {
 		int bad = 0;
 		buf_sync(&dst12, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ);
@@ -124,6 +125,14 @@ int main(int argc, char **argv)
 			       "%02x %02x %02x %02x %02x %02x %02x %02x\n",
 			       uvbad8, w * h / 2, uv8[0], uv8[1], uv8[2], uv8[3],
 			       uv8[4], uv8[5], uv8[6], uv8[7]);
+			/*
+			 * Chroma is part of the pass criterion, not just a
+			 * diagnostic: a UV plane read from the wrong offset
+			 * (the 0049/0072 plane-offset class) still produces a
+			 * clean-looking luma, so scoring luma alone would let
+			 * silently wrong chroma read as a pass.
+			 */
+			failures += (bad || uvbad8) ? 1 : 0;
 		}
 	}
 
@@ -131,10 +140,12 @@ int main(int argc, char **argv)
 	ret = imcopy(s, d10);
 	if (ret != IM_STATUS_SUCCESS) {
 		printf("P010->P010 submit FAILED: %s\n", imStrError((IM_STATUS)ret));
+		failures++;
 	} else {
 		buf_sync(&dst10, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ);
 		int cmpres = memcmp(src.mem, dst10.mem, p010_size);
 		printf("P010->P010 copy %s\n", cmpres ? "CORRUPT" : "BIT-EXACT");
+		failures += cmpres ? 1 : 0;
 		if (cmpres) {
 			uint16_t *sy = (uint16_t *)src.mem;
 			uint16_t *dy = (uint16_t *)dst10.mem;
@@ -174,5 +185,8 @@ int main(int argc, char **argv)
 				printf("  no 0x8000 anywhere in dst\n");
 		}
 	}
-	return 0;
+
+	printf("p010-test: %s (%d failing case%s)\n",
+	       failures ? "FAIL" : "PASS", failures, failures == 1 ? "" : "s");
+	return failures ? 1 : 0;
 }

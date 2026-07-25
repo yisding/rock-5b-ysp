@@ -43,7 +43,10 @@ kasan_scan_end()
 		journalctl -k -n 4000 > "$out/kernel-log-during.txt" 2>&1
 	fi
 
-	grep -E "$SUITE_DMESG_FATAL_RE" "$out/kernel-log-during.txt" \
+	# -ai to match suite-common.sh's scan: the fatal set contains
+	# case-varying signatures (e.g. "IOMMU"/"iommu"), and a
+	# case-sensitive scan here silently missed them.
+	grep -aiE "$SUITE_DMESG_FATAL_RE" "$out/kernel-log-during.txt" \
 		> "$out/kernel-log-flags.txt" 2>/dev/null || true
 	flags=$(wc -l < "$out/kernel-log-flags.txt" 2>/dev/null || echo 0)
 	printf '%s' "$flags"

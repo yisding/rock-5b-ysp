@@ -38,6 +38,17 @@ GST_ENC_MAX_PENDING=${GST_ENC_MAX_PENDING:-2}
 GST_SCALE_WIDTH=${GST_SCALE_WIDTH:-256}
 GST_SCALE_HEIGHT=${GST_SCALE_HEIGHT:-144}
 GST_FRAMERATE=${GST_FRAMERATE:-30/1}
+# 10-bit chroma content check (2026-07-24).  The 10-bit RGA cases used to be
+# scored on "did the pipeline run", which let a UV plane read from the wrong
+# offset pass as green -- see
+# findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md, where the
+# 0072 kernel produced silently wrong chroma yet both NV12_10 cases reported
+# pass.  These compare the captured output against a software reference and
+# require a per-plane chroma PSNR floor.  Wrong-offset chroma lands around
+# 4-5 dB; a legitimate RGA-vs-swscale scaler difference stays far above the
+# floor, so the two are trivially separable.
+GST_CHROMA_CHECK=${GST_CHROMA_CHECK:-1}
+GST_CHROMA_MIN_PSNR=${GST_CHROMA_MIN_PSNR:-20}
 GST_ENABLE_DISPLAY_CASES=${GST_ENABLE_DISPLAY_CASES:-0}
 GST_REQUIRE_DISPLAY_CASES=${GST_REQUIRE_DISPLAY_CASES:-0}
 GST_ENABLE_KMS_CASES=${GST_ENABLE_KMS_CASES:-0}
@@ -600,6 +611,143 @@ append_artifact_or_fake_sink()
 append_fake_sink()
 {
 	CMD+=("!" fakesink sync=false)
+}
+
+artifact_path_for_kind()
+{
+	local want=$1
+	local i
+
+	for i in "${!CASE_ARTIFACT_KINDS[@]}"; do
+		if [ "${CASE_ARTIFACT_KINDS[$i]}" = "$want" ]; then
+			printf "%s" "${CASE_ARTIFACT_PATHS[$i]}"
+			return 0
+		fi
+	done
+	return 1
+}
+
+psnr_plane_from_log()
+{
+	local log=$1
+	local plane=$2
+
+	grep -Eo "${plane}:([0-9.]+|inf)" "$log" | tail -n 1 | cut -d: -f2
+}
+
+# verify_10bit_chroma <raw_pix_fmt> <planar_pix_fmt> <width> <height>
+#
+# Decodes the same generated H.265 input in software, scales it to the same
+# geometry, and requires the captured hardware output's U and V planes to match
+# within GST_CHROMA_MIN_PSNR.  Luma is reported but not gated here: a
+# wrong-offset UV read leaves luma clean, which is exactly how this defect class
+# hides from a luma-only or run-only check.
+verify_10bit_chroma()
+{
+	local raw_fmt=$1
+	local planar_fmt=$2
+	local w=$3
+	local h=$4
+	local hw ref stats frames frame_bytes hw_bytes u v ok=0
+
+	[ "$GST_CHROMA_CHECK" = "1" ] || return 0
+
+	if ! command -v ffmpeg >/dev/null 2>&1; then
+		printf "chroma check: FAIL (ffmpeg absent; install it or set GST_CHROMA_CHECK=0)\n" >&2
+		return 1
+	fi
+
+	if ! hw=$(artifact_path_for_kind decoded) || [ ! -s "$hw" ]; then
+		printf "chroma check: FAIL (no captured output to verify; enable GST_CAPTURE_ARTIFACTS=1 or set GST_CHROMA_CHECK=0)\n" >&2
+		return 1
+	fi
+
+	case "$raw_fmt" in
+	nv12) frame_bytes=$((w * h * 3 / 2)) ;;
+	nv16) frame_bytes=$((w * h * 2)) ;;
+	*)
+		printf "chroma check: FAIL (unhandled raw format %s)\n" "$raw_fmt" >&2
+		return 1
+		;;
+	esac
+
+	hw_bytes=$(wc -c < "$hw")
+	frames=$((hw_bytes / frame_bytes))
+	if [ "$frames" -lt 1 ]; then
+		printf "chroma check: FAIL (captured %s B < one %sx%s %s frame of %s B)\n" \
+			"$hw_bytes" "$w" "$h" "$raw_fmt" "$frame_bytes" >&2
+		return 1
+	fi
+
+	ref="$artifact_dir/$(safe_token "$CURRENT_CASE").chroma-ref.$raw_fmt"
+	stats="$artifact_dir/$(safe_token "$CURRENT_CASE").chroma-psnr.log"
+
+	if ! ffmpeg -hide_banner -loglevel error -y \
+		-i "$GENERATED_INPUT_PATH" \
+		-frames:v "$frames" \
+		-vf "scale=${w}:${h}" -pix_fmt "$raw_fmt" \
+		-f rawvideo "$ref" 2>>"$stats"; then
+		printf "chroma check: FAIL (software reference decode failed; see %s)\n" \
+			"$stats" >&2
+		return 1
+	fi
+
+	if ! ffmpeg -hide_banner -y \
+		-f rawvideo -pix_fmt "$raw_fmt" -s "${w}x${h}" -i "$ref" \
+		-f rawvideo -pix_fmt "$raw_fmt" -s "${w}x${h}" -i "$hw" \
+		-filter_complex "[0:v]format=${planar_fmt}[ref];[1:v]format=${planar_fmt}[test];[ref][test]psnr" \
+		-f null - >>"$stats" 2>&1; then
+		printf "chroma check: FAIL (PSNR comparison failed; see %s)\n" "$stats" >&2
+		return 1
+	fi
+
+	u=$(psnr_plane_from_log "$stats" u)
+	v=$(psnr_plane_from_log "$stats" v)
+	if [ -z "$u" ] || [ -z "$v" ]; then
+		printf "chroma check: FAIL (no per-plane PSNR in %s)\n" "$stats" >&2
+		return 1
+	fi
+
+	printf "chroma check: %s frames, y=%s u=%s v=%s (floor %s dB)\n" \
+		"$frames" "$(psnr_plane_from_log "$stats" y)" "$u" "$v" \
+		"$GST_CHROMA_MIN_PSNR"
+
+	ok=$(awk -v u="$u" -v v="$v" -v f="$GST_CHROMA_MIN_PSNR" \
+		'BEGIN {
+			if (u == "inf") u = 1e9
+			if (v == "inf") v = 1e9
+			print (u + 0 >= f + 0 && v + 0 >= f + 0) ? 1 : 0
+		}')
+	if [ "$ok" != "1" ]; then
+		printf "chroma check: FAIL (u=%s v=%s below the %s dB floor -- chroma read from the wrong plane offset?)\n" \
+			"$u" "$v" "$GST_CHROMA_MIN_PSNR" >&2
+		return 1
+	fi
+	return 0
+}
+
+# Which 10-bit cases carry a CPU-readable output worth content-checking.  The
+# plain fakesink cases emit the decoder's native compact NV12_10/NV16_10, which
+# is not a raw format ffmpeg can read back, so they stay liveness-only.
+verify_10bit_chroma_for_case()
+{
+	case "$CURRENT_CASE" in
+	generated_dec_h265_10_rga_scale)
+		verify_10bit_chroma nv12 yuv420p "$GST_SCALE_WIDTH" "$GST_SCALE_HEIGHT"
+		;;
+	generated_dec_h265_10_env_disable_nv12_10)
+		verify_10bit_chroma nv12 yuv420p "$GST_WIDTH" "$GST_HEIGHT"
+		;;
+	generated_dec_h265_422_10_rga_scale)
+		verify_10bit_chroma nv16 yuv422p "$GST_SCALE_WIDTH" "$GST_SCALE_HEIGHT"
+		;;
+	generated_dec_h265_422_10_env_disable_nv16_10)
+		verify_10bit_chroma nv16 yuv422p "$GST_WIDTH" "$GST_HEIGHT"
+		;;
+	*)
+		return 0
+		;;
+	esac
 }
 
 get_var()
@@ -1470,7 +1618,8 @@ run_generated_h265_10_decode()
 	append_artifact_or_fake_sink decoded raw
 	printf "decoding generated %s H.265 input: " "$variant"
 	print_current_command
-	run_current_command
+	run_current_command || return $?
+	verify_10bit_chroma_for_case
 }
 
 run_generated_h265_10_decode_env()
@@ -1495,7 +1644,8 @@ run_generated_h265_10_decode_env()
 	printf "decoding generated %s H.265 input with %s=%s: " \
 		"$variant" "$env_name" "$env_value"
 	print_current_command
-	run_current_command
+	run_current_command || return $?
+	verify_10bit_chroma_for_case
 }
 
 run_generated_decode_env_rfbc()

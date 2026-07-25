@@ -41,7 +41,7 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../kernel/linux-6.18-rkvenc-av1-fwport` (branch `rk3588-video-6.18`,
-tip `79fc616390e5`). The checked-in series is now contiguous `0001`–`0073`
+tip `710e6ad12af6`). The checked-in series is now contiguous `0001`–`0074`
 after the 2026-07-24 stride/RGA2 follow-ups. Backup of the pre-cleanup tip: tag
 `backup/pre-reorg-20260723` (`4401383a6d9b5`). Generated fallback/official `.deb`
 files in the external build workspace are intentionally not tracked here — only
@@ -190,6 +190,25 @@ Compile-verified + checkpatch-clean; booted gates pending the next build
 |---|-------|--------|-----|
 | `0072` | video: rockchip: rga3: honor the legacy byte-stride ABI for 10-bit rasters | `138f0de2c972` | — |
 | `0073` | video: rockchip: rga: reject above-4G RGA2 MMU page-table entries | `79fc616390e5` | — |
+
+### 0074 — 10-bit UV plane offset, the site `0072` missed (2026-07-24)
+
+Running `0072`'s own verification gate on the booted production
+`…20260724~rk1` kernel showed **`0072` was incomplete**: it converted the
+RGA3 *stride* writer to byte-literal `vir_w` but left the sibling site
+`rga_convert_addr()` (`rga_common.c`, from `0049`/`6c7eb3efa3f0`) still
+scaling `vir_w` by the pixel depth to derive the **UV plane offset** — so
+the depth is double-applied one site over. Tightly sized surfaces still
+IOMMU-fault; over-sized ones **succeed and return chroma read from the wrong
+offset**, a silent wrong-output bug that made the GStreamer NV12_10 cases
+report false greens. `0074` drops the scaling (`y_bytes = vir_w * vir_h`)
+and the now-redundant `compact_mode` branch. Compile-verified +
+checkpatch-clean; **booted gates pending a rebuild**
+([UV-offset finding](../../../findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md)).
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0074` | video: rockchip: rga: derive 10-bit UV plane offsets byte-literally | `710e6ad12af6` | — |
 
 ## Renumber map (2026-07-23)
 
