@@ -278,7 +278,21 @@ independently confirms the fix and narrows what it proves:
   tightly-sized run per mode. On this boot (no `0074`) it reports **5 failing
   checks**: raster compact, raster incompact and **tile8x8 compact** all show
   chroma tracking the pixel-scaled offset, and both tightly-sized runs fault
-  (`RGA IOMMU: read fault`, IOVA `0xdd368400`). That is the first TILE 10-bit
+  (`RGA IOMMU: read fault`, IOVA `0xdd368400`).
+
+  > **Provenance correction 2026-07-25.** The three chroma results stand, but the
+  > two tightly-sized lines cannot have come from the committed
+  > `rga-10bit-uv-offset-test.c`. As committed, `run_once()` discarded its `alloc`
+  > bound (`(void)alloc;`) and `check_tight()` marked the scaled window 26,880
+  > bytes past a 161,280-byte mapping, so the process took SIGSEGV **before** its
+  > own ioctl — reproduced standalone. It died at the first tight check, so the
+  > tile8x8 checks after it never ran either, and the exit status was 139 rather
+  > than a scored verdict. Whatever produced those two lines was a local variant
+  > that never landed. The clamp is fixed as of this date; **the five-check run
+  > needs repeating on a pre-`0074` kernel** before the tight half of this result
+  > can be cited, and the `0074` verification gate needs the fixed binary.
+
+  That is the first TILE 10-bit
   measurement in this project, and it **empirically confirms the source-only
   prediction** of the TILE finding, which had no hardware run: the defect is not
   raster-specific. What is still *not* proven is that `0074` fixes TILE — that

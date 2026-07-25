@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * PoC — MPP_CMD_SET_SESSION_FD foreign-fd type confusion (forward-port 0060 /
+ * PoC — MPP_CMD_SET_SESSION_FD foreign-fd type confusion (forward-port 0059 /
  * Rockchip BSP develop-6.1 rk_vcodec).
  *
  * Before the fix, the MPP_CMD_SET_SESSION_FD handler validated the passed fd by
@@ -14,7 +14,7 @@
  * "video" group, which on a Rockchip/Armbian desktop includes the logged-in
  * user and sandboxed GUI/media processes (HW decode is granted through it).
  *
- * Fixed behaviour (forward-port 0060 / this driver): the handler requires
+ * Fixed behaviour (forward-port 0059 / this driver): the handler requires
  * fd_file(f)->f_op == &rockchip_mpp_fops before trusting private_data, so a
  * foreign fd yields the batch result -EBADF and no dereference happens.
  *
@@ -59,6 +59,7 @@ int main(void)
 	int efd = eventfd(0, EFD_CLOEXEC);
 	int devnull = open("/dev/null", O_RDWR | O_CLOEXEC);
 	int fails = 0;
+	int tested = 0;
 
 	if (efd >= 0) {
 		int r = set_session_fd(fd, efd);
@@ -66,6 +67,7 @@ int main(void)
 		       r == -EBADF ? "(rejected: fix present)"
 				   : "(NOT -EBADF: vulnerable or crashed)");
 		if (r != -EBADF) fails++;
+		tested++;
 		close(efd);
 	}
 	if (devnull >= 0) {
@@ -74,10 +76,19 @@ int main(void)
 		       r == -EBADF ? "(rejected: fix present)"
 				   : "(NOT -EBADF: vulnerable or crashed)");
 		if (r != -EBADF) fails++;
+		tested++;
 		close(devnull);
 	}
 
 	close(fd);
+	/*
+	 * If both eventfd() and open("/dev/null") failed, `fails` stayed 0 and this
+	 * printed PASS having tested nothing.
+	 */
+	if (tested == 0) {
+		printf("RESULT: FAIL (could not obtain any foreign fd - nothing was tested)\n");
+		return 2;
+	}
 	printf(fails ? "RESULT: FAIL (kernel did not reject the foreign fd)\n"
 		     : "RESULT: PASS (foreign fds rejected with -EBADF)\n");
 	return fails ? 1 : 0;

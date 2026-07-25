@@ -421,9 +421,29 @@ next:
 
 	printf("cross: iters=%lu rounds=%lu dedup_shared=%lu async_submits=%lu submit_fail=%lu burst=%lu\n",
 	       iters, rounds, dedup_ok, submits, submit_fail, burst);
-	if (submits == 0)
-		printf("cross: no async job was submitted - the cross-session job window never opened; "
-		       "tune the blit params on-target (this harness only reached the close path with refcount-1 imports)\n");
+	/*
+	 * findings/2026-07-17-rga-session-close-uaf.md states the criterion outright:
+	 * "confirm `cross` reports async_submits > 0 -- a quiet run with 0 submits
+	 * proves nothing". rga-session-uaf.sh execs this binary, so the exit code IS
+	 * the verdict, and returning 0 here reported a pass for a run that never
+	 * opened the window. run_leak() already fails closed the same way.
+	 */
+	if (submits == 0) {
+		printf("cross: FAIL - no async job was submitted, so the cross-session job "
+		       "window never opened; tune the blit params on-target (this harness only "
+		       "reached the close path with refcount-1 imports)\n");
+		return 1;
+	}
+	if (rounds == 0) {
+		printf("cross: FAIL - no iteration completed a round; both /dev/rga opens or "
+		       "the imports failed every time\n");
+		return 1;
+	}
+	if (dedup_ok == 0) {
+		printf("cross: FAIL - the cross-session de-dup precondition never held, so the "
+		       "two sessions never shared a buffer\n");
+		return 1;
+	}
 	return 0;
 }
 

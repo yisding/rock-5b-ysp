@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * PoC — RKVDEC2 RCB register-index out-of-bounds write (forward-port 0061 /
+ * PoC — RKVDEC2 RCB register-index out-of-bounds write (forward-port 0060 /
  * Rockchip BSP develop-6.1 rk_vcodec, mpp_set_rcbbuf() in mpp_rkvdec2.c).
  *
  * MPP_CMD_SET_RCB_INFO copies a userspace array of {u32 index; u32 size} into
@@ -18,7 +18,7 @@
  * width gate passes; we set DEC_INFO_WIDTH anyway. /dev/mpp_service is group
  * "video".
  *
- * Fixed behaviour (0061): "invalid rcb reg index 65535" is logged and the
+ * Fixed behaviour (0060): "invalid rcb reg index 65535" is logged and the
  * entry is skipped (array_index_nospec before the write). This PoC drives the
  * path; check dmesg for that guard line (fix present) vs a KASAN
  * slab-out-of-bounds write (vulnerable).

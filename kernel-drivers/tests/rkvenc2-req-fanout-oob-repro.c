@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * PoC — RKVENC2 register-request fan-out out-of-bounds write (forward-port
- * 0063 / Rockchip BSP develop-6.1 rk_vcodec, rkvenc2 task-init in
+ * 0062 / Rockchip BSP develop-6.1 rk_vcodec, rkvenc2 task-init in
  * mpp_rkvenc2.c).
  *
  * rkvenc2's task holds fixed arrays:
@@ -19,7 +19,7 @@
  * classes; a handful of such messages exceeds 16 class-matches. /dev/mpp_service
  * is group "video".
  *
- * Fixed behaviour (0063): "w_req_cnt 16 overflow" is logged and the job is
+ * Fixed behaviour (0062): "w_req_cnt 16 overflow" is logged and the job is
  * rejected with -EINVAL before the 17th copy. This PoC drives the path; check
  * dmesg for that guard line (fix present) vs a KASAN slab-out-of-bounds write
  * (vulnerable).

@@ -63,10 +63,19 @@ int main(int argc, char **argv)
 	ret = ioctl(fd, RGA_BLIT_SYNC, &req);
 	printf("RGA_BLIT_SYNC dim=%d ret=%d errno=%d (%s)\n",
 	       dim, ret, errno, strerror(errno));
-	if (ret == 0)
-		printf("copy content %s\n",
-		       memcmp(src, dst, size) == 0 ? "match" : "MISMATCH");
+	int content_ok = 1;
+	if (ret == 0) {
+		content_ok = memcmp(src, dst, size) == 0;
+		printf("copy content %s\n", content_ok ? "match" : "MISMATCH");
+	}
 
 	close(fd);
-	return ret == 0 ? 0 : 1;
+	/*
+	 * README.md states "pass = successful blit WITH content match", but the
+	 * memcmp result was only printed. A blit that completed and wrote garbage --
+	 * the silent-corruption class this whole 10-bit campaign chases -- exited 0.
+	 */
+	if (ret != 0)
+		return 1;
+	return content_ok ? 0 : 1;
 }

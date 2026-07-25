@@ -15,6 +15,7 @@
 // See findings/2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md
 #include <fcntl.h>
 #include <stdint.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -55,9 +56,35 @@ int main(void)
 	};
 
 	fprintf(stderr, "sending clientless RELEASE_FD (session->dma is NULL) ...\n");
+	errno = 0;
 	int ret = ioctl(fd, MPP_IOC_CFG_V1, &msg);
-	fprintf(stderr, "ioctl returned %d (survived: kernel is NOT vulnerable, or already fixed)\n", ret);
+	int err = ret ? errno : 0;
+	fprintf(stderr, "ioctl returned %d (errno=%d)\n", ret, err);
 
 	close(fd);
+
+	/*
+	 * Surviving the ioctl is necessary but not sufficient, and the old message
+	 * claimed "kernel is NOT vulnerable" for ANY return -- including 0. Patch
+	 * 0057 makes this path return -EINVAL:
+	 *     if (!session->dma) ... return -EINVAL;
+	 * A kernel that silently accepted a clientless RELEASE_FD, or one that
+	 * rejected the message earlier for an unrelated reason without ever reaching
+	 * the guard, was indistinguishable from the fix.
+	 */
+	if (ret == 0) {
+		fprintf(stderr, "FAIL: clientless RELEASE_FD was ACCEPTED - the 0057 guard is "
+			"absent and this kernel dereferenced a NULL session->dma or skipped the "
+			"check entirely\n");
+		return 1;
+	}
+	if (err != EINVAL) {
+		fprintf(stderr, "FAIL: rejected with errno=%d, expected EINVAL (%d) from the "
+			"0057 guard; the message may have been refused before reaching it\n",
+			err, EINVAL);
+		return 1;
+	}
+	fprintf(stderr, "PASS: clientless RELEASE_FD rejected with -EINVAL; the 0057 guard "
+		"holds and the board is up\n");
 	return 0;
 }

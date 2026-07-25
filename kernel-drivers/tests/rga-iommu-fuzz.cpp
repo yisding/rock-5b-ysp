@@ -54,6 +54,11 @@ static const size_t CACHE_ALIGN = 64;
 // RGA3 fetches a window base on 16-byte granularity; the driver (forward-port
 // 0072) rejects a scattered/IOMMU-mapped base that is not 16-byte aligned.
 static const size_t RGA_IOMMU_ADDR_ALIGN = 16;
+
+// Trials that reached the bit-exactness comparison. Reported and gated below: the
+// offset generators had drifted so that every trial took the expect_reject branch,
+// leaving the content oracle unreachable while the tool still printed PASS.
+static int g_oracle_trials = 0;
 static const uint8_t GUARD_BYTE = 0xD3;
 // RGA3 on RK3588 advertises a 68-pixel minimum width. Keep generated
 // dimensions on 16-pixel boundaries, so 80 is the first valid width.
@@ -251,6 +256,7 @@ static bool trial(Op op, int w, int h, int sfmt, int dfmt, int dw, int dh,
                     op, w, h, dw, dh, src_off, dst_off, scat.c_str());
         }
     } else {
+        g_oracle_trials++;
         // Both ops ran: output must be bit-exact. (A success on an unaligned base
         // means the buffer took a non-IOMMU path where alignment is irrelevant --
         // still valid as long as the content matches.)
@@ -326,10 +332,15 @@ int main(int argc, char **argv) {
         int h = c.fixed_h ? c.fixed_h : 64;
 
         for (size_t off = 0; off < CACHE_ALIGN; off++) {
+            // dst_off used to be CACHE_ALIGN-1-off, which is 16-aligned only when
+            // off is 15 mod 16 -- i.e. never at the same time as off itself. That
+            // made expect_reject unconditionally true and the bit-exactness oracle
+            // in trial() unreachable. Mirroring instead of reflecting gives
+            // aligned pairs at off 0/16/32/48 while keeping 60 unaligned combos.
             bool ok = trial(OP_COPY, w, h, RK_FORMAT_RGBA_8888,
                             RK_FORMAT_RGBA_8888, w, h, "both",
                             c.seed + (unsigned)off, off,
-                            CACHE_ALIGN - 1 - off, c.verbose);
+                            (CACHE_ALIGN - off) % CACHE_ALIGN, c.verbose);
             ok ? pass++ : fail++;
         }
     }
@@ -344,11 +355,30 @@ int main(int argc, char **argv) {
             unsigned trial_seed = c.seed + it * 131 + op;
             size_t src_off = trial_seed % CACHE_ALIGN;
             size_t dst_off = (trial_seed * 17U + 11U) % CACHE_ALIGN;
+            // These formulas give dst_off = src_off + 11 (mod 16), so the two are
+            // never both 16-aligned -- brute-forced over 4096 seeds x 64 iters x 4
+            // ops: 0 aligned pairs out of 1048576. Every trial therefore took the
+            // expect_reject branch and the content comparison never ran, so on a
+            // 0072-or-later kernel this tool asserted only "the contiguous
+            // reference ran". Force an aligned pair on every fourth iteration.
+            if (it % 4 == 0) {
+                size_t slots = CACHE_ALIGN / RGA_IOMMU_ADDR_ALIGN;
+                src_off = (trial_seed % slots) * RGA_IOMMU_ADDR_ALIGN;
+                dst_off = ((trial_seed / 7U) % slots) * RGA_IOMMU_ADDR_ALIGN;
+            }
             bool ok = trial(op, w, h, sfmt, dfmt, dw, dh, c.scat,
                             trial_seed, src_off, dst_off, c.verbose);
             ok ? pass++ : fail++;
         }
     }
-    printf("rga-iommu-fuzz: PASS=%d FAIL=%d\n", pass, fail);
+    printf("rga-iommu-fuzz: PASS=%d FAIL=%d content-oracle-trials=%d\n",
+           pass, fail, g_oracle_trials);
+    if (g_oracle_trials == 0) {
+        fprintf(stderr,
+                "rga-iommu-fuzz: FAIL -- no trial reached the bit-exactness check, so\n"
+                "  correctness was never verified. Every trial was rejected as an\n"
+                "  unaligned IOMMU base; the offset generators need 16-aligned pairs.\n");
+        return 1;
+    }
     return fail ? 1 : 0;
 }
