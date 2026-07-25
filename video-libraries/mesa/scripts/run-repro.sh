@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Compile (if needed) and run the Panfrost blit reproducers, summarizing
 # pass/fail. Point MESA_BUILD at a surfaceless build (see build-mesa-surfaceless.sh).
 #
@@ -8,7 +8,9 @@
 #
 # A "PASS" means the reproducer reported 0 mismatches. Cross-check the printed
 # GL_VERSION is your build, not the installed system Mesa.
-set -u
+# Aggregating harness: a failing reproducer is the result being reported, not a
+# reason to abort the run, so -e stays off (see CONTRIBUTING.md).
+set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 : "${MESA_BUILD:=$HOME/Code/fdo/mesa/build-codex-main}"
 : "${REPRO_SRC:=$HERE/../reproducers}"

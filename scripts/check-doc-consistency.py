@@ -8,7 +8,8 @@ files no README names, unlinked/dangling findings, a findings index that is not
 newest-first, watchlist halves that are missing or disagree on
 name/last-checked date, dashboard tracks missing from the ledger or named
 differently there, drifted packaging version pins, out-of-sync kernel package
-helpers, and personal-home executable defaults.
+helpers, personal-home executable defaults, and shell files whose shebang and
+executable bit disagree about whether they are run or sourced.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from pathlib import Path
 from repo_files import (
     repository_documented_files,
     repository_operational_files,
+    tracked_file_modes,
 )
 
 
@@ -416,11 +418,53 @@ def check_readme_ownership(root: Path, errors: list[str]) -> None:
             )
 
 
+def check_shell_file_contract(root: Path, errors: list[str]) -> None:
+    """A shell file is either executable-with-shebang or sourced-and-not.
+
+    CONTRIBUTING.md § Shell conventions states both halves; before this check
+    they were stated and unenforced, and five scripts had drifted to
+    `#!/bin/bash` or `#!/bin/sh` while three source-only helpers kept a shebang
+    and the executable bit they can do nothing with. The mode is read from the
+    index, not the filesystem, because the index is what a clone gets.
+    """
+    entries = tracked_file_modes(root, "*.sh")
+    if entries is None:
+        return
+
+    for mode, relative in entries:
+        if "debian" in Path(relative).parts:
+            continue
+
+        first_line = (root / relative).read_text(
+            encoding="utf-8", errors="replace"
+        ).split("\n", 1)[0]
+
+        if first_line == "#!/usr/bin/env bash":
+            if mode != "100755":
+                errors.append(
+                    f"{relative}: has a shebang but is mode {mode}; an "
+                    "executable script stays 0755"
+                )
+        elif first_line.startswith("# shellcheck shell=bash"):
+            if mode != "100644":
+                errors.append(
+                    f"{relative}: is source-only but is mode {mode}; drop the "
+                    "executable bit so it cannot be run by accident"
+                )
+        else:
+            errors.append(
+                f"{relative}:1: starts with {first_line!r}; must be either "
+                "'#!/usr/bin/env bash' (mode 0755) or '# shellcheck shell=bash' "
+                "(mode 0644, source-only)"
+            )
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     errors: list[str] = []
 
     check_portable_operational_defaults(root, errors)
+    check_shell_file_contract(root, errors)
     check_readme_ownership(root, errors)
     check_findings_index(root, errors)
     check_watchlist_pairing(root, errors)

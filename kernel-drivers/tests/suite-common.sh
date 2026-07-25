@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # Shared helpers for conformance suite wrappers.
 
 SUITE_DMESG_SCAN=${SUITE_DMESG_SCAN:-1}

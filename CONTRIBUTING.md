@@ -99,7 +99,10 @@ checks substantive drift and completeness only:
   name, and no ledger row lacks a dashboard track;
 - the kernel source packages' copied helpers stay identical;
 - packaging version pins (FFmpeg/GRD) have not drifted;
-- no operational script defaults to a personal home path.
+- no operational script defaults to a personal home path;
+- every tracked `.sh` outside `debian/` matches the shell conventions below —
+  `#!/usr/bin/env bash` at mode `0755`, or `# shellcheck shell=bash` at mode
+  `0644` for a source-only helper, and nothing in between.
 
 It does not police dashboard, ledger, or coverage **dates**, nor any prose,
 required-field, or `C##` schema convention.
@@ -141,7 +144,9 @@ from oversights.
 
 - Start executables with `#!/usr/bin/env bash`. A file meant only to be
   `source`d carries no shebang, uses `# shellcheck shell=bash` instead, and
-  stays mode `0644` so it cannot be run by accident.
+  stays mode `0644` so it cannot be run by accident. This pair is mechanically
+  enforced by `check-doc-consistency.py`; the mode comes from the Git index,
+  since that is what a fresh clone materializes.
 - Use `set -euo pipefail`. Two families deliberately drop `-e` and use
   `set -uo pipefail`: aggregating harnesses, where a failing case is the
   result being reported rather than a reason to abort the run, and board

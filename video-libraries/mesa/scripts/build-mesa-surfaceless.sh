@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Configure + build a surfaceless Panfrost Mesa for on-board reproducer/dEQP
 # testing on the Rock 5B (Mali-G610), with NO X11 dependency.
 #

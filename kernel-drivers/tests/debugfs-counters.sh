@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # Shared helpers for collecting simple numeric debugfs counters.
 
 debugfs_counter_snapshot()

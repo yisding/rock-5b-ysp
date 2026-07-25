@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # Shared helper: run a workload on the KASAN/ramoops debug kernel and scan the
 # kernel log emitted during it for sanitizer/crash signatures. Sourced by the
 # kasan-*.sh runners. Uses journalctl (no sudo/dmesg-cap needed) with a cursor

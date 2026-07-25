@@ -43,6 +43,37 @@ def _git_files(root: Path, patterns: tuple[str, ...]) -> list[Path] | None:
     return sorted(path for path in files if path.is_file())
 
 
+def tracked_file_modes(root: Path, pattern: str) -> list[tuple[str, str]] | None:
+    """Return (index mode, repo-relative path) for tracked files, or None.
+
+    Reads the mode from the index rather than the filesystem, because the index
+    is what a fresh clone materializes. Untracked files are absent by
+    construction: they have no index mode to check yet.
+    """
+    if not (root / ".git").exists():
+        return None
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-s", "-z", "--", pattern],
+            check=False,
+            capture_output=True,
+        )
+    except OSError:
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    entries = []
+    for raw_entry in result.stdout.split(b"\0"):
+        if not raw_entry:
+            continue
+        meta, _, relative = os.fsdecode(raw_entry).partition("\t")
+        entries.append((meta.split()[0], relative))
+    return sorted(entries, key=lambda entry: entry[1])
+
+
 def _skip_directory(relative_parts: tuple[str, ...]) -> bool:
     return (
         any(

@@ -623,6 +623,51 @@ class SubstantiveDriftTests(unittest.TestCase):
             self.assertIn("tools/orphan.sh", errors[0])
             self.assertIn("tools/README.md", errors[0])
 
+    def test_shell_contract_reports_bad_shebang_and_stray_exec_bit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            (root / "debian").mkdir()
+
+            files = {
+                "good-exec.sh": "#!/usr/bin/env bash\nset -euo pipefail\n",
+                "good-sourced.sh": "# shellcheck shell=bash\nhelper() { :; }\n",
+                "bad-shebang.sh": "#!/bin/bash\nset -euo pipefail\n",
+                # A source-only helper that kept the executable bit it cannot use.
+                "stray-exec.sh": "# shellcheck shell=bash\nhelper() { :; }\n",
+                # An executable script whose mode was lost, so a clone cannot run it.
+                "lost-exec.sh": "#!/usr/bin/env bash\nset -euo pipefail\n",
+                # dpkg dictates this layout, so it is exempt.
+                "debian/rules.sh": "#!/bin/sh\n",
+            }
+            for relative, text in files.items():
+                (root / relative).write_text(text, encoding="utf-8")
+            subprocess.run(
+                ["git", "-C", str(root), "add", *files],
+                check=True,
+            )
+            for relative, flag in (
+                ("good-exec.sh", "+x"),
+                ("bad-shebang.sh", "+x"),
+                ("stray-exec.sh", "+x"),
+                ("good-sourced.sh", "-x"),
+                ("lost-exec.sh", "-x"),
+            ):
+                subprocess.run(
+                    ["git", "-C", str(root), "update-index", f"--chmod={flag}", relative],
+                    check=True,
+                )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_shell_file_contract(root, errors)
+
+            self.assertEqual(len(errors), 3, errors)
+            reported = "\n".join(errors)
+            self.assertIn("bad-shebang.sh:1", reported)
+            self.assertIn("stray-exec.sh: is source-only", reported)
+            self.assertIn("lost-exec.sh: has a shebang", reported)
+            self.assertNotIn("debian/rules.sh", reported)
+
     def test_watchlist_pairing_reports_unpaired_halves_only(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

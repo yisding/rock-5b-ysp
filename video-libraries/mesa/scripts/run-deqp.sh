@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Run a dEQP-GLES3 caselist against a surfaceless Panfrost build.
 #
 #   MESA_BUILD=/home/yi/Code/fdo/mesa/build-codex-main \

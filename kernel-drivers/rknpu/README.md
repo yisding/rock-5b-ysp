@@ -15,7 +15,7 @@ kernel driver — a different toolkit, model format (`.rkllm`), and runtime
 (`librkllmrt.so`), documented in
 [`docs/rkllm-large-language-models.md`](docs/rkllm-large-language-models.md).
 
-## Project brief
+## Brief
 
 | Field | Contents |
 |---|---|
