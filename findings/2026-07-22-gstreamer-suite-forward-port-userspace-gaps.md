@@ -1,8 +1,13 @@
 # GStreamer conformance on the forward-port kernel — green modulo 4 userspace gaps
 
-**Date:** 2026-07-22
-**Kernel:** `Pd222-C4ad2` (forward-port `0001`–`0058` less `0012`, KASAN debug, `panic_on_oops=0`)
-**Suite:** `kernel-drivers/tests/gstreamer-suite.sh` (JeffyCN `gstreamer-rockchip` MPP/RGA plugin)
+> Scope: the JeffyCN `gstreamer-rockchip` MPP/RGA plugin on the forward-port
+> kernel, booted build `Pd222-C4ad2` (`0001`–`0058` less `0012`, KASAN debug,
+> `panic_on_oops=0`).
+> Source: booted board; suite
+> [`kernel-drivers/tests/gstreamer-suite.sh`](../kernel-drivers/tests/gstreamer-suite.sh).
+> Date: 2026-07-22
+> Trust: MEASURED (full suite run plus bracketed kernel journal)
+
 **Result:** 98/102 required pass, kernel journal completely clean (zero KASAN/BUG/Oops/iommu-fault).
 
 ## What it took to run the suite

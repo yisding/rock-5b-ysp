@@ -3,6 +3,9 @@
 > Scope: Mesa Panfrost/Mali-G610 varying-interpolation erratum, especially the
 > "very oblong" blit workaround discussed in Mesa MR
 > [!43161](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/43161).
+> This is the full technical record; the concise shareable summary of the same
+> work is
+> [`2026-07-24-mali-blit-workaround-size-results.md`](2026-07-24-mali-blit-workaround-size-results.md).
 > Source: MR !43161 discussion read 2026-07-24; local runs of
 > [`triangle_matrix_probe.c`](../video-libraries/mesa/reproducers/interp_probe/triangle_matrix_probe.c)
 > and

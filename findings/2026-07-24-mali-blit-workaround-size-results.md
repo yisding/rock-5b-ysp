@@ -1,9 +1,13 @@
 # Mali blit workaround size results for Mesa MR !43161
 
 > Scope: shareable summary for the Panfrost/Mali-G610 varying-interpolation
-> erratum discussed in Mesa MR !43161. Data is from ROCK 5B / Mali-G610 MC4 /
-> Panfrost system Mesa 26.0.3-1ubuntu1 on 2026-07-24. Focused reproducer:
+> erratum discussed in Mesa MR !43161; the full technical record is
+> [`2026-07-24-mali-oblong-triangle-matrix.md`](2026-07-24-mali-oblong-triangle-matrix.md).
+> Source: ROCK 5B / Mali-G610 MC4 / Panfrost system Mesa 26.0.3-1ubuntu1;
+> reproducer
 > [`mr43161_size_repro.sh`](../video-libraries/mesa/reproducers/interp_probe/mr43161_size_repro.sh).
+> Date: 2026-07-24
+> Trust: MEASURED (bit-exactness and integer-bin scans on the board)
 
 ## Result
 

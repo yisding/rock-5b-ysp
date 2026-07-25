@@ -39,7 +39,7 @@ pattern cited by
 [2026-07-21-rga2-dma-api-ownership](./2026-07-21-rga2-dma-api-ownership-and-over-4g-scope.md)).
 A greenfield C design with an explicit ownership/mapping/scheduling/IRQ model
 — which the rewrite is, per
-[`../kernel-drivers/rga/rewrite-5.10-reconciliation.md`](../kernel-drivers/rga/docs/rewrite-5.10-reconciliation.md)
+[`../kernel-drivers/rga/docs/rewrite-5.10-reconciliation.md`](../kernel-drivers/rga/docs/rewrite-5.10-reconciliation.md)
 (vendor fixes could not even be cherry-picked across the model difference) —
 already averted the bug class. Rust's marginal value over that is
 machine-checking the discipline instead of trusting convention: real (the

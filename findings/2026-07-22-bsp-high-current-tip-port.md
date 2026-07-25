@@ -3,6 +3,10 @@
 > Scope: the 16 HIGH reviewer rows in `kernel-drivers/docs/bsp-audit.md`,
 > reconciled from audited base `5614909e5803` to the maintained RK3588
 > MPP/RGA/AV1 forward-port through `0058@570519704bd46`
+> Source: [`kernel-drivers/docs/bsp-audit.md`](../kernel-drivers/docs/bsp-audit.md)
+> and the forward-port series
+> [`kernel-drivers/patches/forward-port-rk3588/`](../kernel-drivers/patches/forward-port-rk3588/README.md);
+> booted build `Pabd5-C4ad2`.
 > Date: 2026-07-22
 > Trust: CODE-INSPECTED / COMPILE-VERIFIED / PACKAGE-VERIFIED; runtime validation pending
 
