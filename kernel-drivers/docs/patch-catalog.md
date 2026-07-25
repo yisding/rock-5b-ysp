@@ -45,13 +45,16 @@ provenance/backport layer on top and does not repeat full fix mechanics.
 - `0059`–`0069`: per-commit checkpatch-clean, packaged in KASAN/lockdep build
   `Pabd5-C4ad2`, **installed and booted 2026-07-22** (fingerprint-verified)
   with clean boot health, a bit-exact four-codec decode differential, and a
-  clean KASAN MPP suite. The targeted hostile-ioctl gates
-  (foreign-fd, RCB/request bounds, acquire-fence, missing-plane /
-  partial-handle) and the librga/ABI/FFmpeg/GStreamer sweep on that boot are
-  still open — see the
+  clean KASAN MPP suite. The librga/ABI/FFmpeg/GStreamer sweep and the
+  destructive rungs ran later on that same boot (19:20–19:34) — FFmpeg 24/24,
+  ABI `rc=0`, GStreamer 129/4, foreign-fd `-EBADF`, RCB/request bounds PoCs
+  reaching their guards. Still never individually gated on any boot:
+  acquire-fence stress, shutdown-outside-`irq_lock`, missing-plane, and
+  partial-handle unwind — see the
   [port record](../../findings/2026-07-22-bsp-high-current-tip-port.md).
-- The Published PPA package stops at `0041`; production `Pf558-Cb831` carries
-  through `0043`.
+- The Published PPA package now carries the full `0001`–`0071` tail
+  (`…20260723~rk1`), booted and conformance-green 2026-07-24. The
+  `0041`-era statement this bullet used to make was three weeks stale.
 
 A backport verdict below is a statement about **where the fix belongs**, not
 that it is ready to ship: anything not yet through its runtime gate keeps that

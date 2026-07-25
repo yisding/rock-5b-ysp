@@ -76,9 +76,13 @@ If your goal is "make hardware codecs work on my board", do not start by reading
 patch internals.
 
 1. Choose a kernel delivery path in [`../install.md`](../install.md).
-2. Build/install the combined kernel with [`scripts/`](scripts/README.md), or use
-   the DKMS package in [`../packaging/dkms/`](../packaging/dkms/README.md) if you
-   accept its current validation limits.
+2. Install the Published PPA kernel from
+   [`../packaging/ppa/kernel-forward-port/`](../packaging/ppa/kernel-forward-port/README.md)
+   (prebuilt, boot- and conformance-validated 2026-07-24), build the combined
+   kernel yourself with [`scripts/`](scripts/README.md) when you need a newer
+   tail or a debug flavor, or use the DKMS package in
+   [`../packaging/dkms/`](../packaging/dkms/README.md) if you accept its current
+   validation limits.
 3. Install the device-node rule from
    [`scripts/99-rockchip-codec.rules`](scripts/99-rockchip-codec.rules) or
    [`../packaging/codec-udev/`](../packaging/codec-udev/README.md).

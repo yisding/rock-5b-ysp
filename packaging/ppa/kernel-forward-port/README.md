@@ -281,8 +281,10 @@ Not done yet:
 
 - Rollback and `kernel-revert.sh` recovery validation. Install and reboot of
   the 20260717 image passed; conformance did not.
-- Upload and Launchpad arm64 build of the locally validated 20260720 source.
-  The current Published package still stops at `0041`.
+- ~~Upload and Launchpad arm64 build~~ — **done.** The Published package is
+  `…20260723~rk1`, carrying the full `0001`–`0071` tail; it was installed from
+  the PPA, booted, and passed the full conformance set plus root gates
+  2026-07-24.
 - Exact-production-image repetition of the corrected MPP and FFmpeg passes.
   The isolated KASAN functional failures are resolved, but those results do not
   validate the unbooted `Pf558-Cb831` package.

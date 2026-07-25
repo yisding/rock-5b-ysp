@@ -22,7 +22,7 @@ shipping, or operating** the artifacts.
 | 1 | **Combined Armbian kernel** (`=y`) | [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) + [`../kernel-drivers/patches/`](../kernel-drivers/patches/README.md) | Kernel debs with the vendor MPP + RGA drivers built in | Hardware-validated (see [`../status.md`](../status.md)) |
 | 2 | **DKMS on a stock kernel** | [`dkms/`](dkms/README.md) | `rk_vcodec.ko` + `rga3.ko` rebuilt on every kernel update, + a boot-time DT overlay | Compile-tested on 6.18; overlay dtc-validated, **not boot-validated** |
 | 3 | **Local `.debs`** | [`codec-udev/`](codec-udev/README.md), [`gdm-hwenc/`](gdm-hwenc/README.md), `dkms/build-deb.sh` | The udev/ACL rules and the DKMS deb, built on demand | Built + installed on the dev board |
-| 4 | **Launchpad PPA** | [`ppa/`](ppa/README.md) | MPP + librga + FFmpeg RKMPP/RKRGA + published GRD and staged GDM packages; co-installable forward-port and alpha kernels | All intended main/dedicated sources and binaries are public; optional GDM and board gates remain pending. |
+| 4 | **Launchpad PPA** | [`ppa/`](ppa/README.md) | MPP + librga + FFmpeg RKMPP/RKRGA + published GRD and staged GDM packages; co-installable forward-port and alpha kernels | All intended main/dedicated sources and binaries are public. The forward-port kernel `…20260723~rk1` was installed from this PPA, booted, and passed the full conformance set plus root gates 2026-07-24; optional GDM and the alpha-kernel board gates remain pending. |
 
 > **⚑ Hard rule: channels 1 and 2 are mutually exclusive.** Never run DKMS on a
 > combined (`=y`) kernel — the build fails `modpost` with `'…' exported twice`.

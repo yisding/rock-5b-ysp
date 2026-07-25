@@ -171,22 +171,39 @@ and the
   [request-completion UAF finding](../../findings/2026-07-21-rga-request-completion-vs-session-close-uaf-kasan.md)
   and the
   [job-vs-session UAF finding](../../findings/2026-07-21-rga-job-vs-session-close-uaf-kasan.md).
-- **BSP-audit HIGH fixes are ported and boot-validated (RESOLVED — VERIFIED
-  FIXED 2026-07-22, production 2026-07-24).** The audit's 16 HIGH reviewer rows
-  collapse to 13 distinct bugs. Later forward-port work independently fixed the
-  RKVENC2 probe unwind and the duplicated RGA request-submit reference leak,
-  leaving **13 rows / 11 bugs in the booted `Pd222-C4ad2` kernel**. Those 11 are
-  ported around the current RGA2 bounce/lifetime code as forward-port patches
-  `0058`-`0068` (post-renumber numbering); every commit is checkpatch-clean and
-  the native `drivers/video/rockchip/` build passes. KASAN/lockdep debug package
-  `Pabd5-C4ad2` was **installed and booted 2026-07-22** and ran the full
-  destructive ladder — foreign-fd, physical-import, RESET_SESSION, clientless
-  RELEASE_FD, and the cross-session UAF (64,000 async submits, 0 KASAN flags) —
-  plus a bit-exact four-codec differential, FFmpeg 24/24 and GStreamer 129/4,
-  all clean. The same tail shipped in the Published production kernel that
-  passed the full conformance set and root gates 2026-07-24. The
-  trusted-input-only caveat this bullet used to carry is therefore retired: the
-  hostile-ioctl surface *was* exercised. Note that `/dev/mpp_service` and
+- **BSP-audit HIGH fixes are ported and boot-validated as a series; 3 of 11 are
+  individually hostile-gated (PARTIAL, 2026-07-22 + production 2026-07-24).**
+  The audit's 16 HIGH reviewer rows collapse to 13 distinct bugs. Later
+  forward-port work independently fixed the RKVENC2 probe unwind and the
+  duplicated RGA request-submit reference leak, leaving **13 rows / 11 bugs in
+  the booted `Pd222-C4ad2` kernel**. Those 11 are ported around the current RGA2
+  bounce/lifetime code as forward-port patches `0058`-`0068` (post-renumber
+  numbering); every commit is checkpatch-clean and the native
+  `drivers/video/rockchip/` build passes. KASAN/lockdep debug package
+  `Pabd5-C4ad2` was **installed and booted 2026-07-22**, and the same tail
+  shipped in the Published production kernel that passed the full conformance set
+  and root gates 2026-07-24. On that boot the series carried a bit-exact
+  four-codec differential, FFmpeg 24/24, GStreamer 129/4, ABI replay `rc=0`, and
+  a clean KASAN MPP suite.
+
+  Be precise about which HIGH bugs have *targeted* hostile evidence, because it
+  is 3 of 11: `0059` (foreign-fd `SET_SESSION_FD` — batch returns `-EBADF`),
+  `0060` (RKVDEC2 RCB register index — PoC reaches the guard), and `0062`
+  (RKVENC2 class request arrays — PoC reaches the overflow reject). The other
+  destructive rungs that ran on that boot exercise fixes **outside** the HIGH set
+  — `0039` physical import, `0042` RESET_SESSION, `0057` clientless RELEASE_FD,
+  `0052`/`0056` cross-session UAF (64,000 async submits, 0 KASAN flags). Four
+  HIGH gates named in the port record have **never run**: async acquire-fence
+  stress (`0063`), queued-job shutdown outside `irq_lock` (`0064`), missing
+  required multi-plane handle (`0065`), and partial-handle unwind (`0067`).
+  Evidence-quality caveat for that boot: the `0055` PoC tripped the double-init
+  UAF mid-ladder, so `session_attach` was corrupted for the rest of it — later
+  rungs ran against a knowingly-poisoned list.
+
+  The trusted-input-only caveat this bullet used to carry is nonetheless retired,
+  because every clause of it was false: the package *was* installed, booted,
+  KASAN-tested, hostile-ioctl tested, and codec/RGA regression-tested. What
+  replaces it is the narrower statement above. Note that `/dev/mpp_service` and
   `/dev/rga` are still granted to the `video` group by udev, and that group
   remains a security boundary. MEDIUM/LOW findings such
   as the `mpp_check_req()` overflow-clamp bug remain outside this HIGH-only

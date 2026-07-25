@@ -81,14 +81,22 @@ AV1 stays diagnostic-only in the suites so the omission is explicit.
 **Both tracks:** fault-injection/recovery matrix, fuzzing under KCOV/KASAN, the
 72 h soak, and the perf ratio have no runs on either track.
 
-**Forward-port — open defects a full run must still gate:**
-- RKVENC2 256-entry slice-FIFO overflow — kernel + MPP unhardened (harness-mitigated only).
-- VP9 `show_existing_frame` leg-2 (MPP userspace buffer-slot/refcount) still open; kernel `0052`/`0053` fix not yet booted-gated.
-- RKVENC2 slice-FIFO overflow (above) and the VP9 leg-2 MPP-userspace
-  buffer-slot/refcount anomaly are the two that remain genuinely open.
+**Forward-port — open defects a full run must still gate.** Four, and only four:
+
+- RKVENC2 256-entry slice-FIFO overflow — kernel + MPP unhardened
+  (harness-mitigated only).
+- VP9 `show_existing_frame` **leg-2 only** — the MPP-*userspace* buffer-slot /
+  refcount anomaly. The kernel side is closed: the `0053`/`0054`/`0058` fixes
+  held on the 2026-07-23 root gates and again on the production kernel
+  2026-07-24, with the board surviving and `flagged_kernel_lines=0`.
 - The 10-bit RGA stride tail `0072`–`0074` is compile-clean with its gate
   **owed**: the `0072` gate ran on-board 2026-07-24 and failed, which is what
   `0074` fixes ([UV-offset finding](../../findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md)).
+- Four of the eleven BSP-audit HIGH fixes have no targeted hostile gate on any
+  boot — acquire-fence stress (`0063`), shutdown-outside-`irq_lock` (`0064`),
+  missing-plane (`0065`), partial-handle unwind (`0067`). The series is
+  boot-validated; those four individually are not
+  ([per-bullet detail](./forward-port-status.md)).
 
 Closed since this list was first written, kept here because other docs still
 cite them as open: the MPP `process_request()` `list_add` double-add is
@@ -140,9 +148,13 @@ Non-blocking but worth doing so the harness stays maintainable:
 - **Collapse the 5 near-identical `*-suite-compare.sh`** (~219 lines each,
   differing only in glob + `REQUIRE_ARTIFACTS` default) into one parameterized
   comparator; normalize the `REQUIRE_ARTIFACTS` default (mpp=0 vs others=1).
-- **Single dmesg fatal-signature regex:** `run-root-gates.sh` and
-  `iommu-machinery-fuzz.sh` re-roll their own instead of sourcing
-  `suite-common.sh:SUITE_DMESG_FATAL_RE`; they can silently drift.
+- ~~**Single dmesg fatal-signature regex**~~ — **done.** Every scan now derives
+  from `suite-common.sh:SUITE_DMESG_FATAL_RE`, including
+  `iommu-machinery-fuzz.sh`. `run-root-gates.sh` keeps a standalone copy on
+  purpose (it must run as root without the helpers) and can no longer drift
+  silently: `scripts/tests/test_repo_checks.py` asserts the two are
+  byte-identical, and all seven scans are pinned against a fixed corpus of real
+  fault lines and benign look-alikes.
 - **Corral the orphan PoC `.c` reproducers** (`mpp-*-repro.c`, `*-oob-repro.c`,
   `rga-*-test.cpp`, …) — findings-driven one-offs with no suite wrapper; give
   them a manifest/runner so coverage is visible.

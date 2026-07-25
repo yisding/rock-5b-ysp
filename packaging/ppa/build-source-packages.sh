@@ -12,8 +12,13 @@ MPP_COMMIT="${MPP_COMMIT:-1375813c}"
 MPP_UPSTREAM_VERSION="${MPP_UPSTREAM_VERSION:-1.5.0+git20260529.1375813c+ds}"
 
 LIBRGA_REPO="${LIBRGA_REPO:-$WORKSPACE_ROOT/rockchip-userspace/librga-fork}"
-LIBRGA_COMMIT="${LIBRGA_COMMIT:-a632217}"
-LIBRGA_UPSTREAM_VERSION="${LIBRGA_UPSTREAM_VERSION:-2.2.0+git20260703.a632217}"
+# Must track the tip that matches the shipped kernel's 10-bit stride convention.
+# This defaulted to a632217 long after c80eea7/b8def3e/4c26ddf moved 10-bit vir_w
+# to a byte stride to match kernel 0072/0074, so the documented build command
+# produced the exact mismatched pair this tree warns about -- silent wrong chroma
+# on the 10-bit path, not an error. Kernel and librga ship together for 10-bit.
+LIBRGA_COMMIT="${LIBRGA_COMMIT:-26a50ef}"
+LIBRGA_UPSTREAM_VERSION="${LIBRGA_UPSTREAM_VERSION:-2.2.0+git20260725.26a50ef}"
 
 FFMPEG_REPO="${FFMPEG_REPO:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81}"
 FFMPEG_COMMIT="${FFMPEG_COMMIT:-da5befc806c5a6179da3df825c9423918c9a10d3}"

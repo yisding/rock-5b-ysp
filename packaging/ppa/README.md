@@ -160,7 +160,7 @@ variables.
 | MPP repo | `MPP_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/mpp-rockchip` |
 | MPP commit | `MPP_COMMIT` | `1375813c` |
 | librga repo | `LIBRGA_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/librga-fork` |
-| librga commit | `LIBRGA_COMMIT` | `a632217` |
+| librga commit | `LIBRGA_COMMIT` | `26a50ef` (must match the shipped kernel's 10-bit stride convention) |
 | FFmpeg repo | `FFMPEG_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81` |
 | FFmpeg commit | `FFMPEG_COMMIT` | `da5befc806c5a6179da3df825c9423918c9a10d3` |
 | nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
@@ -379,8 +379,10 @@ the upstream static archive in `debian/not-installed` rather than shipping it.
 
 ### librga
 
-The librga package is based on the local `librga-fork` commit `a632217`, carrying
-the P010/P210 request-generation support recorded under
+The librga package is based on the local `librga-fork` commit `26a50ef`, carrying
+the P010/P210 request-generation support (added back at `a632217`) plus the
+10-bit `vir_w` byte-stride conversion that must pair with kernel `0072`/`0074`,
+recorded under
 [`../../vendor-libraries/rga/`](../../vendor-libraries/rga/README.md). It builds:
 
 - `librga2`
