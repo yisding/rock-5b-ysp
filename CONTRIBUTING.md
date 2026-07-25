@@ -123,6 +123,28 @@ is user-visible or becomes a sustained workstream.
   boot configuration as destructive operations. Provide a dry run, target
   verification, backup, and recovery path where applicable.
 
+## Shell conventions
+
+These are conventions the tree already follows; they are written down here
+because the exceptions are deliberate and were previously indistinguishable
+from oversights.
+
+- Start executables with `#!/usr/bin/env bash`. A file meant only to be
+  `source`d carries no shebang, uses `# shellcheck shell=bash` instead, and
+  stays mode `0644` so it cannot be run by accident.
+- Use `set -euo pipefail`. Two families deliberately drop `-e` and use
+  `set -uo pipefail`: aggregating harnesses, where a failing case is the
+  result being reported rather than a reason to abort the run, and board
+  mutators, which must reach their cleanup or rollback path. Both are
+  reporting or restoring state that an early exit would lose.
+- Scan kernel logs through `SUITE_DMESG_FATAL_RE` from
+  `kernel-drivers/tests/suite-common.sh`, with `grep -aiE`. Do not copy the
+  signature set into a new script: private copies have twice drifted into
+  missing every RK3588 IOMMU/RGA fault line while firing on the harness's own
+  log markers. `kernel-drivers/tests/run-root-gates.sh` keeps a standalone copy
+  on purpose so it can run as root without the helpers, and its behavior is
+  pinned by `scripts/tests/test_repo_checks.py`.
+
 ## Documentation style
 
 - Lead with the result, then explain the mechanism and evidence.

@@ -10,10 +10,22 @@ ab6111a66ba3f8631170313b95d4bf95eaa8586a830fec6eb77ceb2b244552cf  linux-u-boot-r
 3a2f025554447e00b903bc32eeea7582fa01e65ec56327b48251a32b54bb74da  linux-u-boot-rock-5b-vendor_26.5.1_arm64.deb
 ```
 
-The `extract-current-26.5.1/` and `extract-vendor-26.5.1/` directories are
-direct package extractions. `extract-sd-26.2.1-raw/` holds the two raw boot
-artifacts extracted from the verified official 26.2.1 image described in the
-finding and in the reconstructed source tree's `ARMBIAN-SOURCE.md`.
+**Only this inventory is retained.** `downloads/` is gitignored working space,
+and the `extract-current-26.5.1/`, `extract-vendor-26.5.1/`, and
+`extract-sd-26.2.1-raw/` directories this file once described have been
+cleaned up. Everything needed to recreate them is pinned below: the two package
+digests above, and the per-file digests in the next table. Recreate with
+
+```bash
+cd downloads/armbian-rock5b-uboot-compare
+# Verify each .deb against the digests above, then:
+dpkg-deb -x linux-u-boot-rock-5b-current_26.5.1_arm64.deb extract-current-26.5.1
+dpkg-deb -x linux-u-boot-rock-5b-vendor_26.5.1_arm64.deb  extract-vendor-26.5.1
+```
+
+`extract-sd-26.2.1-raw/` held the two raw boot artifacts taken from the verified
+official 26.2.1 image described in the finding and in the reconstructed source
+tree's `ARMBIAN-SOURCE.md`; recover them from that image the same way.
 
 ## Firmware hashes
 
@@ -35,7 +47,7 @@ vendor ITBs. The 26.5.1 current ITB contains a 12,752-byte `fdt` component with
 SHA-256 `6ed9a9d75157ca30d7fcff27670b782a335cfa949dc446d6b9dfebc1fec39078`.
 The three ATF/BL31 component hashes match across all images.
 
-Recheck without extracting anything:
+Recheck after recreating the extractions above:
 
 ```bash
 dumpimage -l extract-current-26.5.1/usr/lib/linux-u-boot-current-rock-5b/u-boot.itb
