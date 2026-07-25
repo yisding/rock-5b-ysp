@@ -4,6 +4,11 @@ set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+# The --selftest cases re-invoke this script. They used $0, which is only a usable
+# path when the caller passed one: `cd kernel-drivers/tests &&
+# bash rewrite-evidence-audit.sh --selftest` died with "command not found" (rc 127)
+# because a bare name is searched on PATH. Resolve it from BASH_SOURCE instead.
+SELF="$TEST_DIR/$(basename "${BASH_SOURCE[0]}")"
 
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
 LIBRGA_FORCE_RGA_USERPTR_IOMMU=${LIBRGA_FORCE_RGA_USERPTR_IOMMU:-${LIBRGA_FORCE_ROUTE_B:-0}}
@@ -718,7 +723,7 @@ EOF
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
 		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
 		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected stale KUnit evidence to fail run correlation\n" >&2
 		return 1
 	fi
@@ -728,13 +733,13 @@ EOF
 	CONFORMANCE_ROOT="$tmp_root" SUITES="mpp librga gstreamer ffmpeg rkmppenc" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
 		REQUIRE_DMESG_EVIDENCE=1 \
-		RUN_COMPARATORS=1 PERF_MAX_RATIO=1.25 "$0" >/dev/null
+		RUN_COMPARATORS=1 PERF_MAX_RATIO=1.25 "$SELF" >/dev/null
 
 	sed -i 's/status\tclean/status\tfatal/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/dmesg-scan.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		REQUIRE_DMESG_EVIDENCE=1 RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		REQUIRE_DMESG_EVIDENCE=1 RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected fatal dmesg evidence to fail\n" >&2
 		return 1
 	fi
@@ -746,7 +751,7 @@ EOF
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
 		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
 		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected failing KUnit evidence to fail\n" >&2
 		return 1
 	fi
@@ -758,7 +763,7 @@ EOF
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
 		REQUIRE_MPP_CORE_CASES=1 REQUIRE_ARTIFACTS=1 \
 		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected missing AVS2 artifact to fail\n" >&2
 		return 1
 	fi
@@ -771,7 +776,7 @@ EOF
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
 		REQUIRE_MPP_CORE_CASES=1 REQUIRE_ARTIFACTS=1 \
 		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected missing core MPP case to fail\n" >&2
 		return 1
 	fi
@@ -781,12 +786,12 @@ EOF
 
 	CONFORMANCE_ROOT="$tmp_root" SUITES="librga" LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null
+		RUN_COMPARATORS=0 "$SELF" >/dev/null
 	sed -i 's/rga_userptr_iommu\tactive\t0\t0\t0/rga_userptr_iommu\tactive\t0\t1\t1/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-librga-suite/debugfs-counters-delta.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="librga" LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected RGA userptr-IOMMU active-gauge audit to fail\n" >&2
 		return 1
 	fi
@@ -797,7 +802,7 @@ EOF
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-librga-suite/debugfs-counters-delta.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="librga" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected retained RGA import audit to fail\n" >&2
 		return 1
 	fi
@@ -808,7 +813,7 @@ EOF
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/debugfs-counters-delta.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected retained MPP import audit to fail\n" >&2
 		return 1
 	fi
@@ -819,13 +824,13 @@ EOF
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/debugfs-counters-delta.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected missing candidate hardware counter audit to fail\n" >&2
 		return 1
 	fi
 	CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=0 AUDIT_COUNTER_CHECKS=0 "$0" >/dev/null
+		RUN_COMPARATORS=0 AUDIT_COUNTER_CHECKS=0 "$SELF" >/dev/null
 	sed -i 's/rga\tstarted_job_count\t0\t0\t0/rga\tstarted_job_count\t0\t1\t1/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/debugfs-counters-delta.tsv"
 
@@ -833,19 +838,19 @@ EOF
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/summary.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=1 PERF_MAX_RATIO=1.25 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=1 PERF_MAX_RATIO=1.25 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected default performance audit to fail\n" >&2
 		return 1
 	fi
 	CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=1 PERF_MAX_RATIO=0 "$0" >/dev/null
+		RUN_COMPARATORS=1 PERF_MAX_RATIO=0 "$SELF" >/dev/null
 	sed -i 's/gstreamer_required\t0\t2.000\tpass/gstreamer_required\t0\t1.000\tpass/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/summary.tsv"
 
 	rm -f "$tmp_root/logs/$CANDIDATE/20260706-000000-ffmpeg-suite/artifacts.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="ffmpeg" REQUIRE_ARTIFACTS=1 \
-		REQUIRE_COUNTER_DELTAS=1 RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		REQUIRE_COUNTER_DELTAS=1 RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected missing artifact audit to fail\n" >&2
 		return 1
 	fi
@@ -853,7 +858,7 @@ EOF
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
 		AUDIT_REQUIRED_CASES="gstreamer:not_recorded" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected missing named case audit to fail\n" >&2
 		return 1
 	fi
@@ -861,7 +866,7 @@ EOF
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
 		AUDIT_REQUIRED_CASES="rkmppenc:rkmppenc_avhw_h264_to_hevc_rga_resize" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected unselected named-case suite audit to fail\n" >&2
 		return 1
 	fi
@@ -870,14 +875,14 @@ EOF
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-gstreamer-suite/summary.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
 		REQUIRE_DIAGNOSTIC_PASS=1 REQUIRE_ARTIFACTS=1 \
-		REQUIRE_COUNTER_DELTAS=1 RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		REQUIRE_COUNTER_DELTAS=1 RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected diagnostic failure audit to fail\n" >&2
 		return 1
 	fi
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="gstreamer" \
 		AUDIT_REQUIRED_CASES="gstreamer:gstreamer_diagnostic" \
 		REQUIRE_ARTIFACTS=1 REQUIRE_COUNTER_DELTAS=1 \
-		RUN_COMPARATORS=0 "$0" >/dev/null 2>&1; then
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
 		printf "selftest expected named diagnostic failure audit to fail\n" >&2
 		return 1
 	fi

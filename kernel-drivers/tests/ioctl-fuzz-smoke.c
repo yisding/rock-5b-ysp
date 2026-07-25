@@ -707,6 +707,26 @@ int main(void)
 		puts("SKIP: neither /dev/mpp_service nor /dev/rga is present");
 		return 77;
 	}
+	/*
+	 * Only *both* devices missing used to yield SKIP. With one present the run
+	 * fuzzed half the surface and still printed PASS, so a kernel where /dev/rga
+	 * failed to probe -- exactly the kind of regression worth catching -- looked
+	 * like a clean fuzz. Say which half ran; SKIP if either is absent unless the
+	 * caller opts into partial coverage.
+	 */
+	if (mpp_fd < 0 || rga_fd < 0) {
+		printf("PARTIAL: %s is absent, so only the %s ioctl surface can be fuzzed\n",
+		       mpp_fd < 0 ? "/dev/mpp_service" : "/dev/rga",
+		       mpp_fd < 0 ? "RGA" : "MPP");
+		if (!getenv("IOCTL_FUZZ_ALLOW_PARTIAL")) {
+			puts("SKIP: set IOCTL_FUZZ_ALLOW_PARTIAL=1 to accept half coverage");
+			if (mpp_fd >= 0)
+				close(mpp_fd);
+			if (rga_fd >= 0)
+				close(rga_fd);
+			return 77;
+		}
+	}
 
 	if (mpp_fd >= 0) {
 		fuzz_mpp(mpp_fd, &rng, iters, verbose);

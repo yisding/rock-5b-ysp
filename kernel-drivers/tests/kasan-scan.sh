@@ -41,7 +41,17 @@ kasan_scan_end()
 		journalctl -k --after-cursor "$cursor" \
 			> "$out/kernel-log-during.txt" 2>&1
 	else
-		journalctl -k -n 4000 > "$out/kernel-log-during.txt" 2>&1
+		# No cursor: this used to fall back to the last 4000 kernel lines, i.e.
+		# most of the boot, with no indication in the output. That turns any
+		# pre-existing boot-time WARNING or iommu-fault line into a flag for a
+		# workload that was actually clean -- it over-fails rather than
+		# under-fails, but either way the scan no longer describes the workload.
+		echo "kasan-scan: WARNING no journal cursor was recorded; scanning the last" \
+			"4000 kernel lines instead of the workload window. Flags below may" \
+			"predate the workload." >&2
+		printf '=== kasan-scan: NO CURSOR, window is the last 4000 kernel lines ===\n' \
+			> "$out/kernel-log-during.txt"
+		journalctl -k -n 4000 >> "$out/kernel-log-during.txt" 2>&1
 	fi
 
 	# -ai to match suite-common.sh's scan: the fatal set contains
