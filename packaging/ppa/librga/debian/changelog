@@ -1,3 +1,33 @@
+librga (2.2.0+git20260725.26a50ef-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Update to librga-fork 26a50ef.
+  * im2d: extend the 10-bit byte-stride conversion to TILE. The previous
+    release limited it to RASTER on the premise that the kernel's tile stride
+    math scales vir_w itself. It does not: the BSP derives the tile stride
+    from vir_w * pixel_width * 8 (develop-5.10 and develop-6.1 alike) with
+    pixel_width 1 for every 10-bit format, where the * 8 is the
+    lines-per-tile-block factor, not a pixel-depth scale. Tile rows are
+    byte-literal exactly like raster, and rga_convert_addr() offsets the UV
+    plane by a flat vir_w * vir_h with no rd_mode distinction.
+  * FBC keeps the pixel convention and remains excluded: its payload stride
+    applies the format's own bytes-per-pixel to vir_w, and its register
+    stride is the format-independent header stride.
+  * Must be installed alongside a kernel carrying the matching TILE plane
+    offset fix; a mismatched pair is wrong by 20% on the 10-bit TILE path,
+    the same coupling as the 0072 / c80eea7 raster pair.
+  * build: define LINUX once for every cmake target. Configuring without
+    CMAKE_BUILD_TARGET matched no branch, leaving RgaUtils.cpp's #ifdef
+    LINUX path locals undeclared; the meson build used by debian/rules
+    always defined it, so this never affected the PPA build.
+  * build: check fread() results in the file-dump helpers instead of
+    returning success after a short or failed read.
+  * The upstream date advances to 20260725 because the snapshot commit is
+    2026-07-25 UTC. This is also required for ordering: a same-date bump to
+    a hash beginning with a digit sorts below the 20260724.b8def3e
+    predecessor under dpkg version comparison.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sat, 25 Jul 2026 06:35:00 +0000
+
 librga (2.2.0+git20260724.b8def3e-0ubuntu1~rk1) resolute; urgency=medium
 
   * Update to librga-fork b8def3e.
