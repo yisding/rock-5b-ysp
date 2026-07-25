@@ -90,7 +90,7 @@ flowchart TB
 | **packaging** | Delivery channels: DKMS, udev/ACL debs, PPA source packages, binary policy. | [`packaging/`](packaging/README.md) |
 | **findings** | Raw capture inbox — drop a freshly-learned fact first, graduate it into a project doc later. | [`findings/`](findings/README.md) |
 | **captured evidence** | Small tracked inventories for forensic inputs; generated or bulky downloads stay outside Git. | [`downloads/armbian-rock5b-uboot-compare/`](downloads/armbian-rock5b-uboot-compare/README.md) |
-| **docs** + glossary | Cross-cutting: support coverage, package map, source-tree pins, whole-repo trap index, shared vocabulary. | [`docs/`](docs/README.md), [`glossary.md`](glossary.md) |
+| **docs** + glossary | Cross-cutting: support coverage, project map, source-tree pins, whole-repo trap index, shared vocabulary. | [`docs/`](docs/README.md), [`glossary.md`](glossary.md) |
 
 The detailed package reading map is [`docs/work-packages.md`](docs/work-packages.md),
 while [`docs/support-coverage.md`](docs/support-coverage.md) makes the repo's

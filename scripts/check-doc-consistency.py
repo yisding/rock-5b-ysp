@@ -74,10 +74,11 @@ def check_portable_operational_defaults(root: Path, errors: list[str]) -> None:
 
 
 def check_findings_index(root: Path, errors: list[str]) -> None:
-    """Light completeness: every finding is linked, every link has a file.
+    """Every finding is linked, every link has a file, and rows run newest-first.
 
-    Intentionally does not enforce ordering, deduplication, or entry prose —
-    only that no finding is invisible and no index entry dangles.
+    Intentionally does not enforce deduplication or entry prose — only that no
+    finding is invisible, no index entry dangles, and the ordering the index
+    heading promises actually holds.
     """
     findings = root / "findings"
     readme = findings / "README.md"
@@ -93,6 +94,22 @@ def check_findings_index(root: Path, errors: list[str]) -> None:
     for name in sorted(referenced - present):
         if not (findings / name).is_file():
             errors.append(f"findings/README.md: index links {name} but no such file exists")
+
+    previous_date = None
+    previous_name = ""
+    for line in text.splitlines():
+        if not line.startswith("- `` `20"):
+            continue
+        match = FINDING_NAME_RE.search(line)
+        if not match:
+            continue
+        date = match.group(0)[:10]
+        if previous_date is not None and date > previous_date:
+            errors.append(
+                f"findings/README.md: index is not newest-first — {match.group(0)} "
+                f"({date}) follows {previous_name} ({previous_date})"
+            )
+        previous_date, previous_name = date, match.group(0)
 
 
 def check_watchlist_pairing(root: Path, errors: list[str]) -> None:

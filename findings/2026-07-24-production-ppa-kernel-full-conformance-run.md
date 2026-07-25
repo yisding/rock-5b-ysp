@@ -47,9 +47,13 @@ transcode 20.8× (h264→RGA→hevc) and 88× (hevc→RGA→h264) realtime.
 
 ## New finding — GStreamer NV12_10 legacy-blit RGA IOMMU read faults
 
-First-ever full run of the GStreamer suite on this board (previously
-dependency-blocked): `20260724-043045-gstreamer-suite`, **129 required cases
-pass, 4 required fail**, all four with userspace-side signatures:
+First full GStreamer suite run on a **production (non-KASAN) Published PPA
+kernel**: `20260724-043045-gstreamer-suite`, **129 required cases pass, 4
+required fail**, all four with userspace-side signatures. The suite itself first
+ran on 2026-07-22 against the KASAN forward-port build — 98/102 required in the
+[userspace-gaps finding](2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md),
+then 129/4 in the [current-tip port](2026-07-22-bsp-high-current-tip-port.md);
+the required-case count grew from 102 to 133 between those runs:
 
 - `generated_dec_h265_10_rga_scale` and
   `generated_dec_h265_10_env_disable_nv12_10`: pushing **NV12_10** (H.265
