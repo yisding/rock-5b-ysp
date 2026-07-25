@@ -47,8 +47,20 @@ its `&vdec0`/`&vdec1` overrides reference labels vanilla 6.18 doesn't define
 ([Armbian packaging guide](../packaging/docs/armbian-packaging.md), [vanilla-kernel guide](../kernel-versions/docs/vanilla-kernel.md)). For
 *anchoring* line cites that doesn't matter.
 
+> **Forward-port branch lineage.** The forward port is maintained on
+> **`rk3588-video-6.18`**, checked out at
+> `/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport`. It continues the older
+> `rkvenc-fwport-6.18` line: of that branch's 32 commits, 31 are present on
+> `rk3588-video-6.18` with identical patch-ids (rebased, so the SHAs differ),
+> the one exception being the unrelated `e059aad8d68b` libbpf tooling fix.
+> `rkvenc-fwport-6.18` still exists on the `linux-rock5b` remote at
+> `655d178191807`, so older pins below resolve, but it is no longer where work
+> lands. Sibling branches that share the prefix — `-iommu-debug-20260706`,
+> `-rga-userptr-iommu`, `-route-b` — are separate branches, not old names.
+
 Provenance: the patches were generated from the dev worktree
-`/home/yi/Code/kernel/linux-6.18-rkvenc` (branch `rkvenc-fwport-6.18`), commits
+`/home/yi/Code/kernel/linux-6.18-rkvenc` (then on branch `rkvenc-fwport-6.18`;
+see the lineage note above), commits
 
 ```
 924f4232546d  video: rockchip: RK3588 vendor MPP (rkvenc2/rkvdec2) + RGA3/RGA2 drivers  → patch 01

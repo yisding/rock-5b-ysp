@@ -119,7 +119,8 @@ than `710642eb`** — verified by direct comparison:
   `rockchip-iommu.c`, `mpp_iommu.c`) have a **0-line delta** between `710642eb`
   and the rewrite tip `bb32bc4`.
 
-**Guidance:** the canonical forward-port source is `rkvenc-fwport-6.18`.
+**Guidance:** the canonical forward-port source is `rk3588-video-6.18`
+(the continuation of `rkvenc-fwport-6.18`, which this review examined).
 `710642eb`/`rk3588-rewrite-6.18` is only interesting for its `mpp-rewrite/` +
 `rga-rewrite/` drivers; cherry-picking or checking out its vendor-driver copy
 onto this branch would **regress** recovery, `POLL_NON_BLOCK`, the iommu-required

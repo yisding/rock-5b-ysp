@@ -9,7 +9,7 @@ without weakening the dma-buf contract. It supersedes six dated findings written
 as the work progressed; those are now tombstones pointing here.
 
 > Scope: forward-port kernel `../kernel/linux-6.18-rkvenc-av1-fwport` branch
-> `rkvenc-fwport-6.18`, RGA3 driver `drivers/video/rockchip/rga3/`, the rewrite
+> `rk3588-video-6.18`, RGA3 driver `drivers/video/rockchip/rga3/`, the rewrite
 > trees `../kernel/linux-6.18-rkvenc` and `../kernel/linux`, the Rockchip IOMMU
 > provider `drivers/iommu/rockchip-iommu.c`, and the generic
 > `drivers/iommu/dma-iommu.c`.
@@ -210,7 +210,7 @@ coalescer was skipped. One more DIAG field (the `dir` argument plus which
 `iommu_dma_map_sg()` branch ran) would settle it in one reflash.
 
 Once the DIAG served its purpose, `eb0f3e209007` + `30102c8f769e` + `171de4153e97`
-were to be dropped from `rkvenc-fwport-6.18`; the fail-closed reject in
+were to be dropped from the forward-port branch; the fail-closed reject in
 `590c9ef297ce` is unaffected.
 
 ## 4. The userptr-IOMMU fallback design
