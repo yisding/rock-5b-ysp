@@ -9,6 +9,13 @@
 > Trust: MEASURED (driver task-trace at the exact failure second) / CONFIRMED
 > (isolation test) / INFERRED (exact userspace mechanism, not yet pinned)
 
+> **Continued 2026-07-19 by
+> [`2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md`](./2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md).**
+> That finding carried out the "(b) finish" step below and pinned the userspace
+> mechanism this one could only infer: MPP input-task backpressure plus a
+> `get_packet` timeout, fixed in the wrapper by `da5befc806`. Read it for the
+> mechanism; this file remains the evidence that the driver was not at fault.
+
 ## Result
 
 Under sustained load GRD's hardware H.264 encode intermittently enters a failure

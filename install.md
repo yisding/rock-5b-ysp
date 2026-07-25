@@ -15,7 +15,7 @@ in either case:
 
 | Path | What you get | What it needs | Validation status ([`status.md`](status.md)) | Where |
 |------|--------------|---------------|-----------------------------------------------|-------|
-| **(a) Combined Armbian forward-port kernel** | MPP encode/decode (including AV1) and RGA **built in (`=y`)** — no modules, no overlay | The forward-port kernel tree + an Armbian build tree (§2) + a kernel install/reboot | ✅ **Hardware-validated** (AV1 build `P1c9d`, [kernel status](kernel-drivers/docs/forward-port-status.md)) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/forward-port-rk3588/`](kernel-drivers/patches/forward-port-rk3588/README.md) |
+| **(a) Combined Armbian forward-port kernel** | MPP encode/decode (including AV1) and RGA **built in (`=y`)** — no modules, no overlay | The forward-port kernel tree + an Armbian build tree (§2) + a kernel install/reboot | Hardware-validated; current state and any live regression in [`status.md`](status.md) track 1, build history in [kernel status](kernel-drivers/docs/forward-port-status.md) | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/forward-port-rk3588/`](kernel-drivers/patches/forward-port-rk3588/README.md) |
 | **(b) DKMS on a stock kernel** | `rk_vcodec.ko` + `rga3.ko`, auto-rebuilt on every kernel update, + a boot-time DT overlay | A *stock* Armbian 6.18+ kernel, `dkms` + `dtc` installed | ⚠️ Compile-tested on **6.18 only**; overlay dtc-validated, **not boot-validated** | [`packaging/dkms/`](packaging/dkms/README.md) |
 | **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§8) | Source-built `ffmpeg-rockchip` is hardware-validated; the system PPA publishes codec access, MPP, librga, FFmpeg 8.0.3, GRD, and co-installable FFmpeg 6.1, while dedicated PPAs publish both FFmpeg 8.1 tracks | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
 
@@ -244,12 +244,13 @@ binary**. Get userspace one of two ways:
   recreated system PPA now publishes the complete normal stack, including GRD;
   four dedicated PPAs publish the incompatible FFmpeg 8.1 and rewrite-kernel
   tracks. The optional GDM upload, exact clean-migration transaction, and PPA
-  kernel gates remain pending ([`status.md`](status.md)). The Published
-  forward-port kernel installed and booted but Oopsed during conformance and
-  predates KASAN-verified patches `0042`/`0043`; do not substitute it for path
-  (a)'s July 4 validated baseline yet. Treat the PPA as a published test route
-  until the production rebuild, functional conformance, and rollback gates
-  pass. The established local-deb flow remains documented in
+  kernel gates remain pending ([`status.md`](status.md)). For whether the
+  Published forward-port kernel is currently substitutable for path (a), read
+  [`status.md`](status.md) track 1 and its
+  [W05 watchlist entry](status.md#watch-w05) rather than this page — that state
+  changes without an edit here, and a copy of it goes stale silently. The
+  rollback gate is the one that has not yet been demonstrated. The established
+  local-deb flow remains documented in
   [`packaging/README.md`](packaging/README.md) § Operations (including the
   `apt-mark hold` pinning guidance).
 

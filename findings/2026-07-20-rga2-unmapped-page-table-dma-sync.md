@@ -14,7 +14,16 @@
 > `20260720-213827-rga-dma-api-warning/`; PID 864994 at 2026-07-20 21:38:27.
 >
 > Trust: **MEASURED** (complete DMA-API warning and call trace) /
-> **CODE-INSPECTED** (invalid mapping lifecycle) / **OPEN** (not fixed).
+> **CODE-INSPECTED** (invalid mapping lifecycle) / **RESOLVED** by `0050`.
+
+> **Resolved 2026-07-21 by `0050@473903525009a`.** The fix gives RGA2 real
+> ownership of its page-table memory (coherent allocation, `virt_to_phys()`
+> dropped) instead of syncing through an unmapped DMA address. Verified on
+> booted `P9636-C4ad2`: the full librga smoke passes 28/0 and the
+> `rga_dma_sync_flush_range` splat recorded below is gone. The verification
+> gate at the end of this file is therefore met. Design, deviations, and the
+> over-4G `0051` companion are in
+> [`2026-07-21-rga2-dma-api-ownership-and-over-4g-scope.md`](2026-07-21-rga2-dma-api-ownership-and-over-4g-scope.md).
 
 ## Result
 

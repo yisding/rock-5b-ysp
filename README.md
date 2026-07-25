@@ -12,8 +12,8 @@ The actual code lives in sibling source trees (kernel forks, `ffmpeg-rockchip`,
 `gnome-remote-desktop`, Mesa, `librga`, `mpp-rockchip`); this repo holds the
 architecture notes, forward-port design, patch deliverables, captured findings,
 and dated status of every track. Cross-cutting vocabulary (MPP, RGA, CCU, DCHS,
-…) lives in [`glossary.md`](glossary.md); each project also keeps a
-`keywords.md`.
+…) lives in [`glossary.md`](glossary.md); most leaf projects also keep a
+`keywords.md` for their own local jargon.
 
 The deepest body of evidence follows a Rockchip vendor **MPP** codec stack plus
 **RGA** from the Rockchip 6.1 BSP into Linux 6.18, plus an end-to-end source
@@ -37,6 +37,7 @@ not repeat dated status or operational commands because those copies drift.
 | Understand U-Boot and the ROCK 5B boot chain | [`boot-firmware/`](boot-firmware/README.md) |
 | See which board subsystems have not been assessed | [`docs/support-coverage.md`](docs/support-coverage.md) |
 | Capture the exact board/kernel/userspace baseline | [`docs/system-baseline.md`](docs/system-baseline.md) |
+| Hit an unexplained failure or a known trap | [`docs/gotchas.md`](docs/gotchas.md) |
 | Record a newly discovered gap or result | [`findings/`](findings/README.md) |
 | Update or contribute to the record | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Review repository-specific agent instructions | [`AGENTS.md`](AGENTS.md) |
@@ -95,9 +96,9 @@ flowchart TB
 The detailed package reading map is [`docs/work-packages.md`](docs/work-packages.md),
 while [`docs/support-coverage.md`](docs/support-coverage.md) makes the repo's
 media-heavy evidence boundary and the remaining whole-board gaps explicit.
-New to the memory/address-translation path? Start with the
-[IOMMU explainer series](kernel-drivers/iommu/docs/01-iommu-primer.md) —
-concept → RK3588 hardware → RGA/MPP driver code.
+The memory/address-translation path is documented concept → RK3588 hardware →
+RGA/MPP driver code in the
+[IOMMU explainer series](kernel-drivers/iommu/docs/01-iommu-primer.md).
 
 ## Canonical owners
 
