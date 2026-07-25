@@ -285,12 +285,21 @@ and the
   [double-free finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md),
   [RKVENC2 finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),
   and [superseded preflight finding](../../findings/2026-07-17-forward-port-conformance-preflight-oops.md).
-- **High-count low-delay H.264 can overflow RKVENC2's 256-entry slice FIFO and
-  lose the terminal marker.** Both `kfifo_in()` calls ignore failure, while the
-  MPP VEPU580 H.264 HAL ignores poll errors and loops on an uninitialized
-  `slice_last`. The conformance suite now uses the multi-thread test and a safe
-  `split_arg=120`; the kernel and MPP still need explicit overflow/error
-  hardening. See the
+- **High-count low-delay H.264 could overflow RKVENC2's 256-entry slice FIFO and
+  lose the terminal marker — fixed 2026-07-25, hardware gate owed.** Both
+  `kfifo_in()` calls ignored failure, while the MPP VEPU580 H.264 HAL ignored
+  poll errors and looped on an uninitialized `slice_last`. Kernel `0075`
+  (`12a7da02bea8`) reserves the last FIFO slot for the terminal record and
+  carries a dropped record's length into the next stored one, so the stream
+  always terminates and the byte offsets stay exact; an overflowing frame is
+  still complete and decodable, so the condition is counted and warned about
+  rather than returned as an error. MPP `0002`/`0003` harden all eight vepu5xx
+  poll loops, bound empty polls, gate the terminal `ENC_OUTPUT_FINISH` callback
+  on a per-frame flag instead of the frame-persistent `ctx->output_cb->cmd`, and
+  close a latent single-cfg out-of-bounds index in `hal_h264e_vepu511a.c`. Both
+  sides are compile-verified only (`W=1` clean, checkpatch clean); the
+  `split_arg=4` reproducer has **not** been run. The conformance suite still
+  defaults to the safe `split_arg=120`. See the
   [slice-FIFO finding](../../findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md).
 - **RGA2 syncs page-table memory through an address that was never DMA-mapped
   — RESOLVED — VERIFIED FIXED (closed by `0050`, booted on `P7589-C4ad2`).**

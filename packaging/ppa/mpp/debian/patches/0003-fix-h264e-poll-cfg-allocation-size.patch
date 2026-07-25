@@ -1,0 +1,100 @@
+Description: fix the h264e poll cfg allocation size and its single cfg indexing
+ The four h264e vepu5xx HALs size their MppDevPollCfg allocation with
+ sizeof(p->poll_cfgs), which is the size of the pointer (8) rather than the
+ size of the struct it points at (16). The result is 40 bytes per config while
+ mpp_service_cmd_poll() declares sizeof(*cfg) + count_max * 4 == 48 bytes to
+ the kernel, so the kernel is licensed to write eight slice records into a
+ buffer that has room for six.
+ .
+ The vepu580 and vepu510 HALs allocate one config per task and index them by
+ poll_cfg_size, so the stride is 40 while each config spans 48: task N's
+ slice_info[6] and slice_info[7] alias task N+1's poll_type and poll_ret. That
+ is harmless only while both fields are unused. The trailing overrun past the
+ end of the allocation is masked today by the allocator's 32-byte rounding.
+ .
+ Use sizeof(MppDevPollCfg). The four h265e HALs multiply their size by two and
+ are already large enough, so they are left alone.
+ .
+ vepu511a additionally indexed a single config allocation. It allocates one
+ MppDevPollCfg and one HalVepu511aRegSet, and uses regs_set unindexed
+ everywhere else, but its wait path derived the poll cfg pointer as
+ poll_cfgs + task->flags.reg_idx * poll_cfg_size, copied from the multi task
+ vepu580 HAL. reg_idx is always zero for a single task HAL so this never fires
+ in practice, but it is an out of bounds read and write for any non-zero
+ reg_idx, and correcting poll_cfg_size above would have widened that window
+ from 40 to 48 bytes rather than closing it. Use the single config directly,
+ as hal_h264e_vepu511.c already does. MAX_TASK_CNT is dead in that file.
+Author: Yi Ding <yi.s.ding@gmail.com>
+Forwarded: no
+Last-Update: 2026-07-25
+
+diff --git a/mpp/hal/rkenc/h264e/hal_h264e_vepu510.c b/mpp/hal/rkenc/h264e/hal_h264e_vepu510.c
+index 9ba1418e..edb2db77 100644
+--- a/mpp/hal/rkenc/h264e/hal_h264e_vepu510.c
++++ b/mpp/hal/rkenc/h264e/hal_h264e_vepu510.c
+@@ -347,7 +347,7 @@ static MPP_RET hal_h264e_vepu510_init(void *hal, MppEncHalCfg *cfg)
+     }
+ 
+     p->poll_slice_max = 8;
+-    p->poll_cfg_size = (sizeof(p->poll_cfgs) + sizeof(RK_S32) * p->poll_slice_max);
++    p->poll_cfg_size = (sizeof(MppDevPollCfg) + sizeof(RK_S32) * p->poll_slice_max);
+     p->poll_cfgs = mpp_malloc_size(MppDevPollCfg, p->poll_cfg_size * p->task_cnt);
+     if (NULL == p->poll_cfgs) {
+         ret = MPP_ERR_MALLOC;
+diff --git a/mpp/hal/rkenc/h264e/hal_h264e_vepu511.c b/mpp/hal/rkenc/h264e/hal_h264e_vepu511.c
+index 752e8ffe..e56fde3f 100644
+--- a/mpp/hal/rkenc/h264e/hal_h264e_vepu511.c
++++ b/mpp/hal/rkenc/h264e/hal_h264e_vepu511.c
+@@ -356,7 +356,7 @@ static MPP_RET hal_h264e_vepu511_init(void *hal, MppEncHalCfg *cfg)
+     }
+ 
+     p->poll_slice_max = 8;
+-    p->poll_cfg_size = (sizeof(p->poll_cfgs) + sizeof(RK_S32) * p->poll_slice_max);
++    p->poll_cfg_size = (sizeof(MppDevPollCfg) + sizeof(RK_S32) * p->poll_slice_max);
+     p->poll_cfgs = mpp_malloc_size(MppDevPollCfg, p->poll_cfg_size);
+     if (NULL == p->poll_cfgs) {
+         ret = MPP_ERR_MALLOC;
+diff --git a/mpp/hal/rkenc/h264e/hal_h264e_vepu511a.c b/mpp/hal/rkenc/h264e/hal_h264e_vepu511a.c
+index b76b5652..8915c953 100644
+--- a/mpp/hal/rkenc/h264e/hal_h264e_vepu511a.c
++++ b/mpp/hal/rkenc/h264e/hal_h264e_vepu511a.c
+@@ -298,7 +298,7 @@ static MPP_RET hal_h264e_vepu511a_init(void *hal, MppEncHalCfg *cfg)
+     }
+ 
+     p->poll_slice_max = 8;
+-    p->poll_cfg_size = (sizeof(p->poll_cfgs) + sizeof(RK_S32) * p->poll_slice_max);
++    p->poll_cfg_size = (sizeof(MppDevPollCfg) + sizeof(RK_S32) * p->poll_slice_max);
+     p->poll_cfgs = mpp_malloc_size(MppDevPollCfg, p->poll_cfg_size);
+     if (NULL == p->poll_cfgs) {
+         ret = MPP_ERR_MALLOC;
+@@ -2514,8 +2514,15 @@ static MPP_RET hal_h264e_vepu511a_wait(void *hal, HalEncTask *task)
+         RK_U32 slice_len;
+         RK_U32 slice_last = 0;
+         RK_U32 empty_cnt = 0;
+-        MppDevPollCfg *poll_cfg = (MppDevPollCfg *)((char *)ctx->poll_cfgs +
+-                                                    task->flags.reg_idx * ctx->poll_cfg_size);
++        /*
++         * This HAL is single task: regs_set is allocated as one element and
++         * used unindexed everywhere else, and only one poll cfg is allocated.
++         * Indexing by reg_idx here was copied from the multi task vepu580 HAL
++         * and would run off the end of the allocation if reg_idx were ever
++         * non-zero.  Use the single cfg, as hal_h264e_vepu511.c does.
++         */
++        MppDevPollCfg *poll_cfg = ctx->poll_cfgs;
++
+         param.task = task;
+         param.base = mpp_packet_get_data(task->packet);
+ 
+diff --git a/mpp/hal/rkenc/h264e/hal_h264e_vepu580.c b/mpp/hal/rkenc/h264e/hal_h264e_vepu580.c
+index 184b690f..ec650adf 100644
+--- a/mpp/hal/rkenc/h264e/hal_h264e_vepu580.c
++++ b/mpp/hal/rkenc/h264e/hal_h264e_vepu580.c
+@@ -361,7 +361,7 @@ static MPP_RET hal_h264e_vepu580_init(void *hal, MppEncHalCfg *cfg)
+     }
+ 
+     p->poll_slice_max = 8;
+-    p->poll_cfg_size = (sizeof(p->poll_cfgs) + sizeof(RK_S32) * p->poll_slice_max);
++    p->poll_cfg_size = (sizeof(MppDevPollCfg) + sizeof(RK_S32) * p->poll_slice_max);
+     p->poll_cfgs = mpp_malloc_size(MppDevPollCfg, p->poll_cfg_size * p->task_cnt);
+     if (NULL == p->poll_cfgs) {
+         ret = MPP_ERR_MALLOC;

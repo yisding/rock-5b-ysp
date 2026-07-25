@@ -73,11 +73,22 @@ plane-offset fix boots. See the
 The GStreamer runtime matrix remains blocked on missing development packages. See the
 [`0042` finding](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md)
 and [`0043` finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),
-plus the new
+plus the
 [`slice-FIFO`](../../findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md)
 and
 [`RGA2 DMA-sync`](../../findings/2026-07-20-rga2-unmapped-page-table-dma-sync.md)
 findings.
+
+The slice-FIFO fix landed 2026-07-25 (kernel `0075` + MPP `0002`/`0003`) but its
+[verification gate](../../findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md#verification-gate)
+is **unmet** — the bounded `split_arg=4` reproducer has never been run against
+the fix. Scoring it requires the userspace half as well as the kernel: the
+conformance MPP checkout is pinned to a different base than the packaging
+baseline, so its copy is carried as a repo-owned bootstrap patch at
+[`conformance/patches/rockchip-mpp/`](conformance/patches/rockchip-mpp/) and
+applied by `bootstrap-sources.sh`. Run against unpatched userspace, the official
+MPP binaries hang rather than terminate, which would misreport the kernel fix as
+a failure.
 
 ## What each smoke test proves
 

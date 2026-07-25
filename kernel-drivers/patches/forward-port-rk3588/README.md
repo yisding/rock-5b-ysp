@@ -41,8 +41,8 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../kernel/linux-6.18-rkvenc-av1-fwport` (branch `rk3588-video-6.18`,
-tip `710e6ad12af6`). The checked-in series is now contiguous `0001`–`0074`
-after the 2026-07-24 stride/RGA2 follow-ups. Backup of the pre-cleanup tip: tag
+tip `12a7da02bea8`). The checked-in series is now contiguous `0001`–`0075`
+after the 2026-07-25 RKVENC2 slice-FIFO fix. Backup of the pre-cleanup tip: tag
 `backup/pre-reorg-20260723` (`4401383a6d9b5`). Generated fallback/official `.deb`
 files in the external build workspace are intentionally not tracked here — only
 the `git format-patch` text is source material.
@@ -209,6 +209,27 @@ checkpatch-clean; **booted gates pending a rebuild**
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
 | `0074` | video: rockchip: rga: derive 10-bit UV plane offsets byte-literally | `710e6ad12af6` | — |
+
+### 0075 — RKVENC2 slice-FIFO terminal record (2026-07-25)
+
+`rkvenc2_read_slice_len()` ignored `kfifo_in()` at both insertion sites, so a
+full 256-entry per-task FIFO silently discarded records — including the
+**terminal** one carrying `slice_info.last`. Userspace then drained every
+stored record without ever seeing the last flag, the task completed and was
+popped, and every later poll returned `-EIO`. `0075` routes both sites through
+`rkvenc2_push_slice_len()`, which **reserves the last free slot for the
+terminal record** (ordinary records are dropped first) and carries a dropped
+record's length into the next stored one, so the stream always terminates and
+the byte offsets stay exact. An overflowing frame is therefore still complete
+and decodable — only the reported slice boundaries are coarser — so the
+condition is counted and logged as a ratelimited warning and deliberately
+**not** turned into an error return. Compile-verified (`W=1`) +
+checkpatch-clean; **the split_arg=4 hardware gate is still owed**
+([slice-FIFO finding](../../../findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md)).
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0075` | video: rockchip: rkvenc2: reserve a slice fifo slot for the terminal record | `12a7da02bea8` | — |
 
 ## Renumber map (2026-07-23)
 

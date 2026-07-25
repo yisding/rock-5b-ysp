@@ -1,0 +1,681 @@
+Harden the vepu5xx encoder slice poll loops against poll failure.
+
+Conformance-tree copy of the MPP userspace half of the RKVENC2 slice-FIFO fix,
+rebased onto the MANIFEST commit c2c1ee502b3a. The packaging copy, split into
+two reviewable patches against the 1375813c packaging baseline, is authoritative:
+
+  packaging/ppa/mpp/debian/patches/0002-harden-encoder-slice-poll-loops.patch
+  packaging/ppa/mpp/debian/patches/0003-fix-h264e-poll-cfg-allocation-size.patch
+
+Squashed here because bootstrap-sources.sh commits an applied patch set as a
+single commit anyway, and because the two bases differ so the packaging patches
+do not apply to this tree unchanged.
+
+What it does:
+
+  - the eight split-output slice poll loops assign the MPP_DEV_CMD_POLL return
+    value but never test it, and terminate only on a last flag read out of the
+    returned records; the four h264e HALs also leave that flag uninitialised, so
+    an error with count_ret == 0 spins forever;
+  - each loop now consumes the returned records first, then fails, and bounds
+    consecutive empty-but-successful polls;
+  - the terminal ENC_OUTPUT_FINISH callback is emitted when a loop is abandoned
+    mid-frame, gated on a per-frame flag rather than on ctx->output_cb->cmd,
+    which persists across frames;
+  - the h264e poll cfg allocation is sized from the struct rather than the
+    pointer, and hal_h264e_vepu511a.c stops indexing its single-cfg allocation.
+
+Without this, the conformance MPP binaries hang instead of terminating when the
+kernel reports a poll error, so the split_arg=4 reproducer cannot be scored.
+
+See findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md.
+
+diff --git a/mpp/hal/rkenc/h264e/hal_h264e_vepu510.c b/mpp/hal/rkenc/h264e/hal_h264e_vepu510.c
+index 51c03ff..ad12ff7 100644
+--- a/mpp/hal/rkenc/h264e/hal_h264e_vepu510.c
++++ b/mpp/hal/rkenc/h264e/hal_h264e_vepu510.c
+@@ -25,6 +25,8 @@
+ #include "vepu5xx_common.h"
+ #include "vepu510_common.h"
+ 
++#define HAL_ENC_SLICE_POLL_EMPTY_MAX    16
++
+ #define DUMP_REG                0
+ #define MAX_TASK_CNT            2
+ #define VEPU540C_MAX_ROI_NUM    8
+@@ -345,7 +347,7 @@ static MPP_RET hal_h264e_vepu510_init(void *hal, MppEncHalCfg *cfg)
+     }
+ 
+     p->poll_slice_max = 8;
+-    p->poll_cfg_size = (sizeof(p->poll_cfgs) + sizeof(RK_S32) * p->poll_slice_max);
++    p->poll_cfg_size = (sizeof(MppDevPollCfg) + sizeof(RK_S32) * p->poll_slice_max);
+     p->poll_cfgs = mpp_malloc_size(MppDevPollCfg, p->poll_cfg_size * p->task_cnt);
+     if (NULL == p->poll_cfgs) {
+         ret = MPP_ERR_MALLOC;
+@@ -2429,7 +2431,8 @@ static MPP_RET hal_h264e_vepu510_wait(void *hal, HalEncTask *task)
+     if (split_out) {
+         EncOutParam param;
+         RK_U32 slice_len;
+-        RK_U32 slice_last;
++        RK_U32 slice_last = 0;
++        RK_U32 empty_cnt = 0;
+         MppDevPollCfg *poll_cfg = (MppDevPollCfg *)((char *)ctx->poll_cfgs +
+                                                     task->flags.reg_idx * ctx->poll_cfg_size);
+         param.task = task;
+@@ -2461,11 +2464,48 @@ static MPP_RET hal_h264e_vepu510_wait(void *hal, HalEncTask *task)
+                     mpp_callback(ctx->output_cb, &param);
+                 }
+             }
++
++            /*
++             * The kernel can report an error together with valid records, so
++             * consume the records first and only then fail the frame.
++             */
++            if (ret) {
++                mpp_err_f("slice poll failed %d after %d slice(s)\n",
++                          ret, poll_cfg->count_ret);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
++
++            /*
++             * A successful poll that returns nothing makes no progress.  Bound
++             * it so a driver that never delivers the last flag cannot hang.
++             */
++            if (poll_cfg->count_ret > 0) {
++                empty_cnt = 0;
++            } else if (++empty_cnt >= HAL_ENC_SLICE_POLL_EMPTY_MAX) {
++                mpp_err_f("slice poll returned no slice %d times\n", empty_cnt);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
+         } while (!slice_last);
+ 
+-        ret = hal_h264e_vepu510_status_check(regs);
+-        if (!ret)
+-            task->hw_length += regs->reg_st.bs_lgth_l32;
++        if (ret) {
++            /*
++             * The poll failed, so the status registers were never updated.  Do
++             * not overwrite the error with a stale register check.  In low
++             * delay mode the output thread is waiting on a terminal segment
++             * that will now never arrive, so end the packet here.
++             */
++            if ((split_out & MPP_ENC_SPLIT_OUT_LOWDELAY) && !slice_last) {
++                param.length = 0;
++                ctx->output_cb->cmd = ENC_OUTPUT_FINISH;
++                mpp_callback(ctx->output_cb, &param);
++            }
++        } else {
++            ret = hal_h264e_vepu510_status_check(regs);
++            if (!ret)
++                task->hw_length += regs->reg_st.bs_lgth_l32;
++        }
+     } else {
+         ret = mpp_dev_ioctl(ctx->dev, MPP_DEV_CMD_POLL, NULL);
+         if (ret) {
+diff --git a/mpp/hal/rkenc/h264e/hal_h264e_vepu511.c b/mpp/hal/rkenc/h264e/hal_h264e_vepu511.c
+index 0d0b6b7..13ba3c8 100644
+--- a/mpp/hal/rkenc/h264e/hal_h264e_vepu511.c
++++ b/mpp/hal/rkenc/h264e/hal_h264e_vepu511.c
+@@ -25,6 +25,8 @@
+ #include "vepu5xx_common.h"
+ #include "vepu511_common.h"
+ 
++#define HAL_ENC_SLICE_POLL_EMPTY_MAX    16
++
+ #define DUMP_REG                0
+ #define VEPU540C_MAX_ROI_NUM    8
+ 
+@@ -354,7 +356,7 @@ static MPP_RET hal_h264e_vepu511_init(void *hal, MppEncHalCfg *cfg)
+     }
+ 
+     p->poll_slice_max = 8;
+-    p->poll_cfg_size = (sizeof(p->poll_cfgs) + sizeof(RK_S32) * p->poll_slice_max);
++    p->poll_cfg_size = (sizeof(MppDevPollCfg) + sizeof(RK_S32) * p->poll_slice_max);
+     p->poll_cfgs = mpp_malloc_size(MppDevPollCfg, p->poll_cfg_size);
+     if (NULL == p->poll_cfgs) {
+         ret = MPP_ERR_MALLOC;
+@@ -2378,7 +2380,8 @@ static MPP_RET hal_h264e_vepu511_wait(void *hal, HalEncTask *task)
+     if (split_out) {
+         EncOutParam param;
+         RK_U32 slice_len;
+-        RK_U32 slice_last;
++        RK_U32 slice_last = 0;
++        RK_U32 empty_cnt = 0;
+         MppDevPollCfg *poll_cfg = ctx->poll_cfgs;
+         param.task = task;
+         param.base = mpp_packet_get_data(task->packet);
+@@ -2409,11 +2412,48 @@ static MPP_RET hal_h264e_vepu511_wait(void *hal, HalEncTask *task)
+                     mpp_callback(ctx->output_cb, &param);
+                 }
+             }
++
++            /*
++             * The kernel can report an error together with valid records, so
++             * consume the records first and only then fail the frame.
++             */
++            if (ret) {
++                mpp_err_f("slice poll failed %d after %d slice(s)\n",
++                          ret, poll_cfg->count_ret);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
++
++            /*
++             * A successful poll that returns nothing makes no progress.  Bound
++             * it so a driver that never delivers the last flag cannot hang.
++             */
++            if (poll_cfg->count_ret > 0) {
++                empty_cnt = 0;
++            } else if (++empty_cnt >= HAL_ENC_SLICE_POLL_EMPTY_MAX) {
++                mpp_err_f("slice poll returned no slice %d times\n", empty_cnt);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
+         } while (!slice_last);
+ 
+-        ret = hal_h264e_vepu511_status_check(regs);
+-        if (!ret)
+-            task->hw_length += regs->reg_st.bs_lgth_l32;
++        if (ret) {
++            /*
++             * The poll failed, so the status registers were never updated.  Do
++             * not overwrite the error with a stale register check.  In low
++             * delay mode the output thread is waiting on a terminal segment
++             * that will now never arrive, so end the packet here.
++             */
++            if ((split_out & MPP_ENC_SPLIT_OUT_LOWDELAY) && !slice_last) {
++                param.length = 0;
++                ctx->output_cb->cmd = ENC_OUTPUT_FINISH;
++                mpp_callback(ctx->output_cb, &param);
++            }
++        } else {
++            ret = hal_h264e_vepu511_status_check(regs);
++            if (!ret)
++                task->hw_length += regs->reg_st.bs_lgth_l32;
++        }
+     } else {
+         ret = mpp_dev_ioctl(ctx->dev, MPP_DEV_CMD_POLL, NULL);
+         if (ret) {
+diff --git a/mpp/hal/rkenc/h264e/hal_h264e_vepu511a.c b/mpp/hal/rkenc/h264e/hal_h264e_vepu511a.c
+index ed5f7a6..2bb94dd 100644
+--- a/mpp/hal/rkenc/h264e/hal_h264e_vepu511a.c
++++ b/mpp/hal/rkenc/h264e/hal_h264e_vepu511a.c
+@@ -26,6 +26,8 @@
+ #include "hal_h264e_stream_amend.h"
+ #include "hal_h264e_vepu511a_reg.h"
+ 
++#define HAL_ENC_SLICE_POLL_EMPTY_MAX    16
++
+ #define DUMP_REG                0
+ #define MAX_TASK_CNT            2
+ #define VEPU540C_MAX_ROI_NUM    8
+@@ -294,7 +296,7 @@ static MPP_RET hal_h264e_vepu511a_init(void *hal, MppEncHalCfg *cfg)
+     }
+ 
+     p->poll_slice_max = 8;
+-    p->poll_cfg_size = (sizeof(p->poll_cfgs) + sizeof(RK_S32) * p->poll_slice_max);
++    p->poll_cfg_size = (sizeof(MppDevPollCfg) + sizeof(RK_S32) * p->poll_slice_max);
+     p->poll_cfgs = mpp_malloc_size(MppDevPollCfg, p->poll_cfg_size);
+     if (NULL == p->poll_cfgs) {
+         ret = MPP_ERR_MALLOC;
+@@ -2505,9 +2507,17 @@ static MPP_RET hal_h264e_vepu511a_wait(void *hal, HalEncTask *task)
+     if (split_out) {
+         EncOutParam param;
+         RK_U32 slice_len;
+-        RK_U32 slice_last;
+-        MppDevPollCfg *poll_cfg = (MppDevPollCfg *)((char *)ctx->poll_cfgs +
+-                                                    task->flags.reg_idx * ctx->poll_cfg_size);
++        RK_U32 slice_last = 0;
++        RK_U32 empty_cnt = 0;
++        /*
++         * This HAL is single task: regs_set is allocated as one element and
++         * used unindexed everywhere else, and only one poll cfg is allocated.
++         * Indexing by reg_idx here was copied from the multi task vepu580 HAL
++         * and would run off the end of the allocation if reg_idx were ever
++         * non-zero.  Use the single cfg, as hal_h264e_vepu511.c does.
++         */
++        MppDevPollCfg *poll_cfg = ctx->poll_cfgs;
++
+         param.task = task;
+         param.base = mpp_packet_get_data(task->packet);
+ 
+@@ -2537,11 +2547,48 @@ static MPP_RET hal_h264e_vepu511a_wait(void *hal, HalEncTask *task)
+                     mpp_callback(ctx->output_cb, &param);
+                 }
+             }
++
++            /*
++             * The kernel can report an error together with valid records, so
++             * consume the records first and only then fail the frame.
++             */
++            if (ret) {
++                mpp_loge_f("slice poll failed %d after %d slice(s)\n",
++                           ret, poll_cfg->count_ret);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
++
++            /*
++             * A successful poll that returns nothing makes no progress.  Bound
++             * it so a driver that never delivers the last flag cannot hang.
++             */
++            if (poll_cfg->count_ret > 0) {
++                empty_cnt = 0;
++            } else if (++empty_cnt >= HAL_ENC_SLICE_POLL_EMPTY_MAX) {
++                mpp_loge_f("slice poll returned no slice %d times\n", empty_cnt);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
+         } while (!slice_last);
+ 
+-        ret = hal_h264e_vepu511a_status_check(regs);
+-        if (!ret)
+-            task->hw_length += regs->reg_st.bs_lgth_l32;
++        if (ret) {
++            /*
++             * The poll failed, so the status registers were never updated.  Do
++             * not overwrite the error with a stale register check.  In low
++             * delay mode the output thread is waiting on a terminal segment
++             * that will now never arrive, so end the packet here.
++             */
++            if ((split_out & MPP_ENC_SPLIT_OUT_LOWDELAY) && !slice_last) {
++                param.length = 0;
++                ctx->output_cb->cmd = ENC_OUTPUT_FINISH;
++                mpp_callback(ctx->output_cb, &param);
++            }
++        } else {
++            ret = hal_h264e_vepu511a_status_check(regs);
++            if (!ret)
++                task->hw_length += regs->reg_st.bs_lgth_l32;
++        }
+     } else {
+         ret = mpp_dev_ioctl(ctx->dev, MPP_DEV_CMD_POLL, NULL);
+         if (ret) {
+diff --git a/mpp/hal/rkenc/h264e/hal_h264e_vepu580.c b/mpp/hal/rkenc/h264e/hal_h264e_vepu580.c
+index 9984069..9124d95 100644
+--- a/mpp/hal/rkenc/h264e/hal_h264e_vepu580.c
++++ b/mpp/hal/rkenc/h264e/hal_h264e_vepu580.c
+@@ -40,6 +40,8 @@
+ #include "mpp_enc_cb_param.h"
+ #include "hal_h264e_stream_amend.h"
+ 
++#define HAL_ENC_SLICE_POLL_EMPTY_MAX    16
++
+ #define DUMP_REG 0
+ #define MAX_TASK_CNT        2
+ 
+@@ -359,7 +361,7 @@ static MPP_RET hal_h264e_vepu580_init(void *hal, MppEncHalCfg *cfg)
+     }
+ 
+     p->poll_slice_max = 8;
+-    p->poll_cfg_size = (sizeof(p->poll_cfgs) + sizeof(RK_S32) * p->poll_slice_max);
++    p->poll_cfg_size = (sizeof(MppDevPollCfg) + sizeof(RK_S32) * p->poll_slice_max);
+     p->poll_cfgs = mpp_malloc_size(MppDevPollCfg, p->poll_cfg_size * p->task_cnt);
+     if (NULL == p->poll_cfgs) {
+         ret = MPP_ERR_MALLOC;
+@@ -2400,7 +2402,8 @@ static MPP_RET hal_h264e_vepu580_wait(void *hal, HalEncTask *task)
+     if (split_out) {
+         EncOutParam param;
+         RK_U32 slice_len;
+-        RK_U32 slice_last;
++        RK_U32 slice_last = 0;
++        RK_U32 empty_cnt = 0;
+         MppDevPollCfg *poll_cfg = (MppDevPollCfg *)((char *)ctx->poll_cfgs +
+                                                     task->flags.reg_idx * ctx->poll_cfg_size);
+         param.task = task;
+@@ -2432,11 +2435,48 @@ static MPP_RET hal_h264e_vepu580_wait(void *hal, HalEncTask *task)
+                     mpp_callback(ctx->output_cb, &param);
+                 }
+             }
++
++            /*
++             * The kernel can report an error together with valid records, so
++             * consume the records first and only then fail the frame.
++             */
++            if (ret) {
++                mpp_err_f("slice poll failed %d after %d slice(s)\n",
++                          ret, poll_cfg->count_ret);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
++
++            /*
++             * A successful poll that returns nothing makes no progress.  Bound
++             * it so a driver that never delivers the last flag cannot hang.
++             */
++            if (poll_cfg->count_ret > 0) {
++                empty_cnt = 0;
++            } else if (++empty_cnt >= HAL_ENC_SLICE_POLL_EMPTY_MAX) {
++                mpp_err_f("slice poll returned no slice %d times\n", empty_cnt);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
+         } while (!slice_last);
+ 
+-        ret = hal_h264e_vepu580_status_check(regs);
+-        if (!ret)
+-            task->hw_length += regs->reg_st.bs_lgth_l32;
++        if (ret) {
++            /*
++             * The poll failed, so the status registers were never updated.  Do
++             * not overwrite the error with a stale register check.  In low
++             * delay mode the output thread is waiting on a terminal segment
++             * that will now never arrive, so end the packet here.
++             */
++            if ((split_out & MPP_ENC_SPLIT_OUT_LOWDELAY) && !slice_last) {
++                param.length = 0;
++                ctx->output_cb->cmd = ENC_OUTPUT_FINISH;
++                mpp_callback(ctx->output_cb, &param);
++            }
++        } else {
++            ret = hal_h264e_vepu580_status_check(regs);
++            if (!ret)
++                task->hw_length += regs->reg_st.bs_lgth_l32;
++        }
+     } else {
+         ret = mpp_dev_ioctl(ctx->dev, MPP_DEV_CMD_POLL, NULL);
+         if (ret) {
+diff --git a/mpp/hal/rkenc/h265e/hal_h265e_vepu510.c b/mpp/hal/rkenc/h265e/hal_h265e_vepu510.c
+index 49f4392..10ca5a0 100644
+--- a/mpp/hal/rkenc/h265e/hal_h265e_vepu510.c
++++ b/mpp/hal/rkenc/h265e/hal_h265e_vepu510.c
+@@ -28,6 +28,8 @@
+ #include "vepu5xx_common.h"
+ #include "vepu510_common.h"
+ 
++#define HAL_ENC_SLICE_POLL_EMPTY_MAX    16
++
+ #define MAX_FRAME_TASK_NUM      2
+ #define H265E_LAMBDA_TAB_SIZE  (52 * sizeof(RK_U32))
+ 
+@@ -2381,6 +2383,7 @@ MPP_RET hal_h265e_v510_wait(void *hal, HalEncTask *task)
+         EncOutParam param;
+         RK_U32 slice_len = 0;
+         RK_U32 slice_last = 0;
++        RK_U32 empty_cnt = 0;
+         MppDevPollCfg *poll_cfg = (MppDevPollCfg *)((char *)ctx->poll_cfgs);
+         param.task = task;
+         param.base = mpp_packet_get_data(task->packet);
+@@ -2411,11 +2414,48 @@ MPP_RET hal_h265e_v510_wait(void *hal, HalEncTask *task)
+                     mpp_callback(ctx->output_cb, &param);
+                 }
+             }
++
++            /*
++             * The kernel can report an error together with valid records, so
++             * consume the records first and only then fail the frame.
++             */
++            if (ret) {
++                mpp_err_f("slice poll failed %d after %d slice(s)\n",
++                          ret, poll_cfg->count_ret);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
++
++            /*
++             * A successful poll that returns nothing makes no progress.  Bound
++             * it so a driver that never delivers the last flag cannot hang.
++             */
++            if (poll_cfg->count_ret > 0) {
++                empty_cnt = 0;
++            } else if (++empty_cnt >= HAL_ENC_SLICE_POLL_EMPTY_MAX) {
++                mpp_err_f("slice poll returned no slice %d times\n", empty_cnt);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
+         } while (!slice_last);
+ 
+-        ret = hal_h265e_vepu510_status_check(regs);
+-        if (!ret)
+-            task->hw_length += elem->st.bs_lgth_l32;
++        if (ret) {
++            /*
++             * The poll failed, so the status registers were never updated.  Do
++             * not overwrite the error with a stale register check.  In low
++             * delay mode the output thread is waiting on a terminal segment
++             * that will now never arrive, so end the packet here.
++             */
++            if ((split_out & MPP_ENC_SPLIT_OUT_LOWDELAY) && !slice_last) {
++                param.length = 0;
++                ctx->output_cb->cmd = ENC_OUTPUT_FINISH;
++                mpp_callback(ctx->output_cb, &param);
++            }
++        } else {
++            ret = hal_h265e_vepu510_status_check(regs);
++            if (!ret)
++                task->hw_length += elem->st.bs_lgth_l32;
++        }
+ 
+     } else {
+         ret = mpp_dev_ioctl(ctx->dev, MPP_DEV_CMD_POLL, NULL);
+diff --git a/mpp/hal/rkenc/h265e/hal_h265e_vepu511.c b/mpp/hal/rkenc/h265e/hal_h265e_vepu511.c
+index 89b717d..e57b4b8 100644
+--- a/mpp/hal/rkenc/h265e/hal_h265e_vepu511.c
++++ b/mpp/hal/rkenc/h265e/hal_h265e_vepu511.c
+@@ -28,6 +28,8 @@
+ #include "vepu5xx_common.h"
+ #include "vepu511_common.h"
+ 
++#define HAL_ENC_SLICE_POLL_EMPTY_MAX    16
++
+ #define H265E_LAMBDA_TAB_SIZE  (52 * sizeof(RK_U32))
+ #define H265E_SMEAR_STR_NUM    (8)
+ 
+@@ -2792,6 +2794,7 @@ MPP_RET hal_h265e_vepu511_wait(void *hal, HalEncTask *task)
+         EncOutParam param;
+         RK_U32 slice_len = 0;
+         RK_U32 slice_last = 0;
++        RK_U32 empty_cnt = 0;
+         MppDevPollCfg *poll_cfg = (MppDevPollCfg *)((char *)ctx->poll_cfgs);
+         param.task = task;
+         param.base = mpp_packet_get_data(task->packet);
+@@ -2822,11 +2825,48 @@ MPP_RET hal_h265e_vepu511_wait(void *hal, HalEncTask *task)
+                     mpp_callback(ctx->output_cb, &param);
+                 }
+             }
++
++            /*
++             * The kernel can report an error together with valid records, so
++             * consume the records first and only then fail the frame.
++             */
++            if (ret) {
++                mpp_err_f("slice poll failed %d after %d slice(s)\n",
++                          ret, poll_cfg->count_ret);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
++
++            /*
++             * A successful poll that returns nothing makes no progress.  Bound
++             * it so a driver that never delivers the last flag cannot hang.
++             */
++            if (poll_cfg->count_ret > 0) {
++                empty_cnt = 0;
++            } else if (++empty_cnt >= HAL_ENC_SLICE_POLL_EMPTY_MAX) {
++                mpp_err_f("slice poll returned no slice %d times\n", empty_cnt);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
+         } while (!slice_last);
+ 
+-        ret = hal_h265e_vepu511_status_check(regs);
+-        if (!ret)
+-            task->hw_length += elem->st.bs_lgth_l32;
++        if (ret) {
++            /*
++             * The poll failed, so the status registers were never updated.  Do
++             * not overwrite the error with a stale register check.  In low
++             * delay mode the output thread is waiting on a terminal segment
++             * that will now never arrive, so end the packet here.
++             */
++            if ((split_out & MPP_ENC_SPLIT_OUT_LOWDELAY) && !slice_last) {
++                param.length = 0;
++                ctx->output_cb->cmd = ENC_OUTPUT_FINISH;
++                mpp_callback(ctx->output_cb, &param);
++            }
++        } else {
++            ret = hal_h265e_vepu511_status_check(regs);
++            if (!ret)
++                task->hw_length += elem->st.bs_lgth_l32;
++        }
+ 
+     } else {
+         ret = mpp_dev_ioctl(ctx->dev, MPP_DEV_CMD_POLL, NULL);
+diff --git a/mpp/hal/rkenc/h265e/hal_h265e_vepu511a.c b/mpp/hal/rkenc/h265e/hal_h265e_vepu511a.c
+index 5b8f1fc..2117913 100644
+--- a/mpp/hal/rkenc/h265e/hal_h265e_vepu511a.c
++++ b/mpp/hal/rkenc/h265e/hal_h265e_vepu511a.c
+@@ -30,6 +30,8 @@
+ #include "vepu5xx_common.h"
+ #include "vepu511a_common.h"
+ 
++#define HAL_ENC_SLICE_POLL_EMPTY_MAX    16
++
+ #define H265E_LAMBDA_TAB_SIZE  (52 * sizeof(RK_U32))
+ #define H265E_SMEAR_STR_NUM    (8)
+ 
+@@ -2769,6 +2771,7 @@ MPP_RET hal_h265e_vepu511a_wait(void *hal, HalEncTask *task)
+         EncOutParam param;
+         RK_U32 slice_len = 0;
+         RK_U32 slice_last = 0;
++        RK_U32 empty_cnt = 0;
+         MppDevPollCfg *poll_cfg = (MppDevPollCfg *)((char *)ctx->poll_cfgs);
+         param.task = task;
+         param.base = mpp_packet_get_data(task->packet);
+@@ -2799,11 +2802,48 @@ MPP_RET hal_h265e_vepu511a_wait(void *hal, HalEncTask *task)
+                     mpp_callback(ctx->output_cb, &param);
+                 }
+             }
++
++            /*
++             * The kernel can report an error together with valid records, so
++             * consume the records first and only then fail the frame.
++             */
++            if (ret) {
++                mpp_loge_f("slice poll failed %d after %d slice(s)\n",
++                           ret, poll_cfg->count_ret);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
++
++            /*
++             * A successful poll that returns nothing makes no progress.  Bound
++             * it so a driver that never delivers the last flag cannot hang.
++             */
++            if (poll_cfg->count_ret > 0) {
++                empty_cnt = 0;
++            } else if (++empty_cnt >= HAL_ENC_SLICE_POLL_EMPTY_MAX) {
++                mpp_loge_f("slice poll returned no slice %d times\n", empty_cnt);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
+         } while (!slice_last);
+ 
+-        ret = hal_h265e_vepu511a_status_check(regs);
+-        if (!ret)
+-            task->hw_length += elem->st.bs_lgth_l32;
++        if (ret) {
++            /*
++             * The poll failed, so the status registers were never updated.  Do
++             * not overwrite the error with a stale register check.  In low
++             * delay mode the output thread is waiting on a terminal segment
++             * that will now never arrive, so end the packet here.
++             */
++            if ((split_out & MPP_ENC_SPLIT_OUT_LOWDELAY) && !slice_last) {
++                param.length = 0;
++                ctx->output_cb->cmd = ENC_OUTPUT_FINISH;
++                mpp_callback(ctx->output_cb, &param);
++            }
++        } else {
++            ret = hal_h265e_vepu511a_status_check(regs);
++            if (!ret)
++                task->hw_length += elem->st.bs_lgth_l32;
++        }
+ 
+     } else {
+         ret = mpp_dev_ioctl(ctx->dev, MPP_DEV_CMD_POLL, NULL);
+diff --git a/mpp/hal/rkenc/h265e/hal_h265e_vepu580.c b/mpp/hal/rkenc/h265e/hal_h265e_vepu580.c
+index aa11e68..273c274 100644
+--- a/mpp/hal/rkenc/h265e/hal_h265e_vepu580.c
++++ b/mpp/hal/rkenc/h265e/hal_h265e_vepu580.c
+@@ -42,6 +42,8 @@
+ 
+ #include "mpp_service.h"
+ 
++#define HAL_ENC_SLICE_POLL_EMPTY_MAX    16
++
+ #define MAX_FRAME_TASK_NUM      2
+ #define MAX_TILE_NUM            4
+ #define MAX_REGS_SET            ((MAX_FRAME_TASK_NUM) * (MAX_TILE_NUM))
+@@ -3217,7 +3219,9 @@ MPP_RET hal_h265e_v580_wait(void *hal, HalEncTask *task)
+         EncOutParam param;
+         RK_U32 slice_len = 0;
+         RK_U32 slice_last = 0;
++        RK_U32 empty_cnt = 0;
+         RK_U32 finish_cnt = 0;
++        RK_U32 finish_sent = 0;
+         RK_U32 tile1_offset = 0;
+         MppPacket pkt = enc_task->packet;
+         RK_U32 offset = mpp_packet_get_length(pkt);
+@@ -3265,6 +3269,7 @@ MPP_RET hal_h265e_v580_wait(void *hal, HalEncTask *task)
+                     if (ctx->tile_parall_en) {
+                         if (finish_cnt + 1 > ctx->tile_num) {
+                             ctx->output_cb->cmd = ENC_OUTPUT_FINISH;
++                            finish_sent = 1;
+                         }
+                     }
+                 }
+@@ -3277,6 +3282,29 @@ MPP_RET hal_h265e_v580_wait(void *hal, HalEncTask *task)
+                 seg_offset += slice_len;
+             }
+ 
++            /*
++             * The kernel can report an error together with valid records, so
++             * consume the records first and only then fail the frame.
++             */
++            if (ret) {
++                mpp_err_f("slice poll failed %d after %d slice(s)\n",
++                          ret, poll_cfg->count_ret);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
++
++            /*
++             * A successful poll that returns nothing makes no progress.  Bound
++             * it so a driver that never delivers the last flag cannot hang.
++             */
++            if (poll_cfg->count_ret > 0) {
++                empty_cnt = 0;
++            } else if (++empty_cnt >= HAL_ENC_SLICE_POLL_EMPTY_MAX) {
++                mpp_err_f("slice poll returned no slice %d times\n", empty_cnt);
++                ret = MPP_ERR_VPUHW;
++                break;
++            }
++
+             if (ctx->tile_parall_en) {
+                 if (finish_cnt + 1 > ctx->tile_num) {
+                     break;
+@@ -3285,6 +3313,21 @@ MPP_RET hal_h265e_v580_wait(void *hal, HalEncTask *task)
+                 break;
+             }
+         } while (1);
++
++        /*
++         * The poll failed mid-frame.  In low delay mode the output thread is
++         * waiting on a terminal segment that will now never arrive, so end the
++         * packet here.  Track that in a per-frame flag rather than reading back
++         * ctx->output_cb->cmd: output_cb is the encoder wide MppCbCtx and its
++         * cmd field persists across frames, so a stale ENC_OUTPUT_FINISH left
++         * by an earlier frame would suppress this callback and hang the
++         * consumer.
++         */
++        if (ret && (split_out & MPP_ENC_SPLIT_OUT_LOWDELAY) && !finish_sent) {
++            param.length = 0;
++            ctx->output_cb->cmd = ENC_OUTPUT_FINISH;
++            mpp_callback(ctx->output_cb, &param);
++        }
+     } else {
+         H265eV580StatusElem *elem = frm->regs_ret[0];
+         H265eV580RegSet *regs = frm->regs_set[0];
