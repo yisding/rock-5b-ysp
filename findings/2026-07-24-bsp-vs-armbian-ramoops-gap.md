@@ -796,12 +796,138 @@ BSP kernel and the ECC-silence result).
 
 ---
 
+## 2026-07-24 follow-up: narrowing the zero-writer to TPL, and the boundary-map test
+
+Session follow-up after the workflow, prompted by "what exactly does BL31 do" and
+"why would TPL/SPL zero memory". Adds four verified facts, one ruled-out mechanism,
+and one new experiment. Nothing here changes the verdict; it narrows §3.3.
+
+### F1. SPL's entire static footprint, and why it cannot reach the window
+
+`include/configs/rk3588_common.h` in the exact source of our installed U-Boot
+(`~/Code/u-boot/rock-5b-armbian-26.5.1-u-boot`, radxa/u-boot `39cd993`) —
+**SOURCE-VERIFIED**:
+
+```
+CONFIG_SPL_TEXT_BASE          0x00000000   CONFIG_SPL_MAX_SIZE       0x00040000
+CONFIG_SPL_BSS_START_ADDR     0x03fe0000   CONFIG_SPL_BSS_MAX_SIZE   0x00010000
+CONFIG_SPL_STACK              0x03fe0000   CONFIG_SYS_INIT_SP_ADDR   0x00600000
+CONFIG_SPL_LOAD_FIT_ADDRESS   0x2000000 / 0x10000000
+```
+
+Consolidated low-DRAM map (BL31 rows from §3.2/L2, ATAGS and U-Boot from the
+2026-07-21 u-boot audit):
+
+| Region | Address | Source |
+|---|---|---|
+| SPL text | `0x0 – 0x40000` | `CONFIG_SPL_TEXT_BASE` + `MAX_SIZE` |
+| BL31 v1.48 image | `0x40000 – 0xbe000`, `0xf0000 – 0xf6000` | `readelf -SW` |
+| BL31 share-mem pool (SCMI shmem at top) | `0x100000 – 0x10ffff` | `rk3588_def.h:155-158` |
+| **firmware log ring** | **`0x110000 – 0x117fff`** | ddrbin param block, F3 |
+| **our ramoops window — zeroed** | **`0x118000 – 0x1e7fff`** | measured, §3.1 |
+| ATAGS | `0x1fe000 – 0x1fffff` | `rk_atags.c` |
+| U-Boot proper | `0x200000` | `rk3588_common.h` |
+| SPL BSS + stack | `0x03fe0000` | `CONFIG_SPL_BSS_START_ADDR` |
+| FIT load buffer | `0x2000000` / `0x10000000` | `CONFIG_SPL_LOAD_FIT_ADDRESS` |
+
+The window sits in a gap no static allocation claims, at either end.
+
+### F2. The two U-Boot features that *would* touch it are compiled out
+
+**MEASURED** in the installed build's `.config`:
+
+```
+$ grep -n "CONFIG_PSTORE\|CONFIG_ROCKCHIP_MINIDUMP" .config
+224:# CONFIG_PSTORE is not set
+226:# CONFIG_ROCKCHIP_MINIDUMP is not set
+```
+
+`arch/arm/mach-rockchip/Makefile:100` gates `pstore.o` on `CONFIG_PSTORE`, so
+`pstore.c` — which would rewrite ring headers in this exact region — is not built.
+`rk_mini_dump.c:329` carries the only large low-DRAM `memset` in the tree
+(`memset(ram_image, 0x0, 0x18000)`, 96 KiB) and is likewise not built. Every
+remaining `memset` in `arch/arm/mach-rockchip/*.c` is a vendor-storage buffer, a
+serial-number string, or ATAGS. **SPL is clean by source audit, as BL31 was.**
+
+### F3. The ddrbin log ring explains both DT layouts exactly
+
+From L3's parameter dump — `pstore_base_addr = 0x11` ⇒ `0x11 << 16` = `0x110000`,
+`pstore_buf_size = 0x8` ⇒ 32 KiB, with `tpl_log_en`, `spl_log_en`, `atf_log_en`,
+`optee_log_en`, `uboot_log_en` all `1`, **byte-identical in our v1.20, Radxa's v1.15
+and Android's v1.13**. So the ring is `0x110000 – 0x117fff`.
+
+Two things fall out, and both check out:
+
+- The BSP node is `ramoops@110000` with **`boot-log-size = <0x8000>`** — 32 KiB, the
+  ring exactly. `arch/arm/mach-rockchip/pstore.c:11-17` (in our own U-Boot, unbuilt)
+  carries that DT layout verbatim in its header comment. The BSP's boot-log zone
+  *is* the firmware log ring, surfaced to Linux. It is a same-boot handoff and needs
+  no persistence at all.
+- Our debug patch's `0x118000` is the first byte **above** the ring. The two
+  addresses are not competing choices; ours is Rockchip's with the firmware ring
+  carved off the front.
+
+### F4. Inline ECC initialisation is ruled out as the zeroing mechanism
+
+Whole-array ECC initialisation is the textbook producer of uniform zeros, but it
+costs roughly an eighth of capacity. **MEASURED**: `MemTotal: 16183596 kB` = 15.43
+GiB of 16 GiB — normal reservation overhead, not a ~14 GiB inline-ECC penalty. Inline
+ECC is off, so it is not what zeroes the window.
+
+### Consequence: TPL is now the sole remaining candidate
+
+BL31 (disassembled), U-Boot proper (audited 2026-07-21) and SPL (F1+F2) are all
+clear. That leaves the **closed rkbin DDR blob**, which is also the one component
+that touches DRAM as a *device* rather than as storage. Plausible mechanisms, ranked
+by fit with the measured data — all **INFERRED**, none verified, the blob has never
+been disassembled:
+
+1. **Geometry / capacity detection.** Density, rank count and address mapping are
+   determined by writing markers at power-of-2 offsets and reading back for
+   aliasing, then clearing them. This is the only mechanism that predicts the island
+   results: 1 GB read back ZEROED, and 2 GB / 6 GB flagged GARBAGE by a classifier
+   that demands an exact all-NUL page. Power-of-2 offsets are exactly where a
+   capacity detector writes.
+2. **Log-ring init overshoot.** The blob must leave a valid ring header at
+   `0x110000` every boot. A clear derived from a size field rather than the
+   advertised 32 KiB would start at the ring and run a fixed distance — landing on
+   our window.
+3. **Training scratch cleanup.** Write levelling, read-gate training, ZQ and DQ
+   deskew write patterns and may zero the scratch afterward. Explains localised
+   zeros, not 832 KiB, unless the scratch is generously sized.
+4. ~~Inline ECC init~~ — ruled out, F4.
+
+### EXP-1c — Map the zero boundary (30 minutes, ZERO risk, read-only) ★ NEW
+
+Run after EXP-1b, which reads the ring at `0x110000`. Both are read-only `mmap` of
+`/dev/mem`; neither reboots or writes anything.
+
+- If the **ring is intact** at `0x110000–0x117fff` but zeros begin exactly at
+  `0x118000`, the actor is mechanism 2 and ramoops may simply need to move clear of
+  it — the cheapest possible fix.
+- If the **ring is also zeros**, the `*_log_en` bits are not producing writes and
+  the whole ddrbin-pstore thread is moot.
+
+Then walk the region at fine granularity and find where the zeros start and stop.
+**A terminating boundary on 64 KiB / 1 MiB / 2 MiB characterises the loop that wrote
+them, and any window surviving above that boundary is somewhere ramoops could
+live.** This constrains the answer whichever way it comes out, at no risk, without
+the blob swap of EXP-5/EXP-6.
+
+If the boundary map points at the blob, disassembling it is tractable: it is small,
+and the search is for bulk-zero idioms (`stp xzr, xzr` loops, `dc zva`).
+
+---
+
 ## Boundary — what this document does not establish
 
 - **That BSP ramoops works.** No lane, no artifact, no document shows a recovered
   pstore record on any RK3588. EXP-2/EXP-3 are the tests.
-- **Who writes the zeros.** TPL DDR blob and SPL were never disassembled. BL31 v1.48
-  was, and is clear. U-Boot proper was audited, and is clear.
+- **Who writes the zeros.** The TPL DDR blob was never disassembled and is now the
+  sole candidate. BL31 v1.48 was disassembled and is clear; U-Boot proper was
+  audited and is clear; SPL is clear by source audit (follow-up F1/F2) — but "no
+  static footprint and no compiled-in memset" is not the same as "never writes
+  there", since SPL runs arbitrary loader code.
 - **What the 2 GB / 6 GB content is.** Never hexdumped. "DRAM-wide destruction" is
   not established.
 - **Whether a cold power-cycle differs from a warm reset here.** Never measured.
