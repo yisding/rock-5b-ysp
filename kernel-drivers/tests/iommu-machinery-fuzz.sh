@@ -30,6 +30,7 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 # shellcheck source=suite-common.sh disable=SC1091
 source "$TEST_DIR/suite-common.sh"
+: "${SUITE_DMESG_FATAL_RE:?suite-common.sh did not load; the kernel-log fatal scan would be silently blind}"
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
 

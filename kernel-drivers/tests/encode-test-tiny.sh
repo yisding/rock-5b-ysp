@@ -12,6 +12,7 @@ REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 # KASAN and to both RGA IOMMU fault spellings, and this gate aborts the run.
 # shellcheck source=suite-common.sh disable=SC1091
 source "$TEST_DIR/suite-common.sh"
+: "${SUITE_DMESG_FATAL_RE:?suite-common.sh did not load; the kernel-log fatal scan would be silently blind}"
 
 # MPP_BUILD = an MPP build/install tree with librockchip_mpp + mpi_enc_test
 # (env-overridable). Default = the rockchip-conformance install prefix (lib/+bin/);
@@ -59,9 +60,20 @@ run_one() {
   if [ ! -s "$of" ]; then
     echo ">>> OUTPUT EMPTY/MISSING (exit $rc) — encode produced no bitstream. Aborting."; return 3
   fi
+  # A nonzero encoder status is a failure even when bytes were written: `timeout
+  # 60` killing the 720p pass (rc=124) or an abort after frame 0 both leave a
+  # short-but-nonempty file. This was printed and not checked, so every such run
+  # reported PASS.
+  if [ "$rc" -ne 0 ]; then
+    echo ">>> ENCODER EXITED $rc — output is $(stat -c%s "$of") bytes but the run failed. Aborting."; return 4
+  fi
   local sz; sz=$(stat -c%s "$of")
   local nal; nal=$(od -An -tx1 -N4 "$of" | tr -s ' ' | sed 's/^ //;s/ $//')
-  echo "--- output ${of}: ${sz} bytes  (first4:${nal}) $( [ "$nal" = "00 00 00 01" ] && echo 'NAL-start OK' || echo '(check stream)') ---"
+  if [ "$nal" != "00 00 00 01" ]; then
+    echo "--- output ${of}: ${sz} bytes (first4:${nal}) ---"
+    echo ">>> NO NAL START CODE — not a usable ${ext} elementary stream. Aborting."; return 5
+  fi
+  echo "--- output ${of}: ${sz} bytes  (first4:${nal}) NAL-start OK ---"
   local w; w=$(soft_warns "$mark" | head -n 4)
   [ -n "$w" ] && { echo "--- non-fatal kernel warnings (noted, not blocking): ---"; echo "$w"; }
   echo ">>> ${label} PASS (${sz} bytes, exit ${rc})"

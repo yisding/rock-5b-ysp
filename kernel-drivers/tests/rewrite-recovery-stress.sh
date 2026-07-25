@@ -11,6 +11,7 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 # shellcheck source=suite-common.sh disable=SC1091
 source "$TEST_DIR/suite-common.sh"
+: "${SUITE_DMESG_FATAL_RE:?suite-common.sh did not load; the kernel-log fatal scan would be silently blind}"
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
 
@@ -179,16 +180,23 @@ start_workload()
 	printf "%s\n" "$pid" > "$pid_file"
 }
 
+# Sets TERMINATE_WAS_ALIVE=1 when the workload was still running at kill time.
+# The caller needs this to tell "we interrupted real work" from "the workload had
+# already exited", which is the difference between exercising a recovery boundary
+# and exercising nothing.
+TERMINATE_WAS_ALIVE=0
 terminate_workload()
 {
 	local pid=$1
 	local rc
 
+	TERMINATE_WAS_ALIVE=0
 	if ! kill -0 "$pid" 2>/dev/null; then
 		wait "$pid"
 		rc=$?
 		return "$rc"
 	fi
+	TERMINATE_WAS_ALIVE=1
 
 	kill -TERM "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
 	sleep "$RECOVERY_TERM_GRACE_S"
@@ -221,18 +229,27 @@ run_kill_case()
 	rc=$?
 	printf "%s\n" "$rc" > "$case_dir/workload.status"
 
-	case "$rc" in
-	0)
-		log "  workload exited before kill; increase RECOVERY_GRACE_S or use a longer workload"
+	# The discriminator is whether the workload was still running when the kill
+	# arrived -- NOT its exit code. Only rc=0 used to be treated as "exited
+	# early", so every other early exit fell through to the catch-all and
+	# returned 0. The default workload (rewrite-conformance-run.sh) exits 2 on a
+	# missing MPP build dir and 77 when a suite skips: both mean the hardware was
+	# never busy, so no reset/recovery boundary was exercised, and both reported
+	# the case as passed.
+	if [ "$TERMINATE_WAS_ALIVE" -ne 1 ]; then
+		log "  workload had already exited (rc=$rc) before the kill landed; nothing was interrupted"
+		log "  increase RECOVERY_GRACE_S, use a longer workload, or fix the workload's own failure"
 		return 1
-		;;
+	fi
+
+	case "$rc" in
 	143|137|130|124)
 		return 0
 		;;
 	*)
-		# Shells encode signal exits as 128+signo, but a workload may report a
-		# private shutdown code after SIGTERM. Keep the log and let recheck/dmesg
-		# decide whether recovery succeeded.
+		# Shells encode signal exits as 128+signo, but a workload killed mid-run
+		# may report a private shutdown code. It WAS interrupted, so keep the log
+		# and let recheck/dmesg decide whether recovery succeeded.
 		log "  workload terminated with rc=$rc"
 		return 0
 		;;

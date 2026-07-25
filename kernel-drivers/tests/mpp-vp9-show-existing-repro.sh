@@ -23,6 +23,7 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # `ramoops` via a bare `Oops`.
 # shellcheck source=suite-common.sh disable=SC1091
 source "$TEST_DIR/suite-common.sh"
+: "${SUITE_DMESG_FATAL_RE:?suite-common.sh did not load; the kernel-log fatal scan would be silently blind}"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$REPO_ROOT/../rockchip-conformance}"
 # shellcheck source=kasan-scan.sh disable=SC1091
@@ -81,3 +82,12 @@ flags=$(kasan_scan_end "$OUT") && clean=1 || clean=0
 echo "RESULT flagged_kernel_lines=$flags clean=$clean out=$OUT"
 echo "===== captured fault trace (if any) ====="
 awk '/Unable to handle kernel|KASAN|BUG:|Oops|rk_vcodec/{p=1} p' "$OUT/kernel-log-during.txt" 2>/dev/null | head -120
+
+# The awk pipeline above used to be the last command, so IT decided the exit
+# status: a captured oops printed a trace and exited 0, while a clean run with no
+# log file exited 2. `clean` was computed and only printed. Gate on it explicitly.
+if [ "$clean" != "1" ]; then
+	echo ">>> FAIL: $flags flagged kernel line(s) during the run — see $OUT"
+	exit 1
+fi
+echo ">>> PASS: no flagged kernel lines during the run"

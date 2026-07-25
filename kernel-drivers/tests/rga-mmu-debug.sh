@@ -19,7 +19,12 @@ RGA_DEBUG_FLAGS=${RGA_DEBUG_FLAGS:-"reg msg int mm time"}
 # fixtures the copy/resize/rotate cases consume.
 RGA_SAMPLE_DATA_DIR=${RGA_SAMPLE_DATA_DIR:-"$CONFORMANCE_ROOT/assets/rga-fixtures"}
 RGA_RESTORE_DEBUG=${RGA_RESTORE_DEBUG:-1}
-RGA_FAIL_ON_CASE_FAILURE=${RGA_FAIL_ON_CASE_FAILURE:-0}
+# Fail closed. This defaulted to 0 while README.md told gate users to set it to
+# 1 and run-root-gates.sh never did, so a case reporting fail-output (e.g.
+# "importbuffer failed", which leaves no kernel line at all) or fail-hw was
+# recorded as PASS by the orchestrator. Set 0 explicitly for a diagnostic run
+# where you only want to read the per-case output.
+RGA_FAIL_ON_CASE_FAILURE=${RGA_FAIL_ON_CASE_FAILURE:-1}
 
 if [ "${EUID:-$(id -u)}" -eq 0 ]; then
 	SUDO_CMD=()

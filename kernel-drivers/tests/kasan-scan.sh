@@ -14,6 +14,7 @@
 
 # shellcheck source=suite-common.sh disable=SC1091
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/suite-common.sh"
+: "${SUITE_DMESG_FATAL_RE:?suite-common.sh did not load; the kernel-log fatal scan would be silently blind}"
 
 kasan_scan_begin()
 {
