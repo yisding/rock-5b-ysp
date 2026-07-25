@@ -84,11 +84,22 @@ rebuilds its Docker image (`--> CACHE MISS IN DOCKERFILE`), which does a fresh
 **misses the entire cache**: another full cold build (`hit=63 miss=14628 (0%)`,
 97 min) on unchanged source, cache still *growing* (it stores every miss).
 Symptom: a build that should be warm reports ~0% hit. Fix: key on compiler
-**content**, not mtime — drop `compiler_check = content` into
-`$WORKSPACE/armbian-build/cache/ccache/ccache.conf` (the in-container ccache reads
-it via `CCACHE_DIR`; `bootstrap-workspaces.sh` writes it). `CCACHE_BASEDIR` is
+**content**, not mtime — `compiler_check = content` lives in the shared store's
+`~/Code/.ccache/ccache.conf`, which the in-container ccache reads via
+`CCACHE_DIR` and `scripts/centralize-ccache.sh` writes. `CCACHE_BASEDIR` is
 already set by Armbian to the in-container worktree path, so renaming the host
 workspace dir does **not** invalidate the cache — only the compiler mtime does.
+
+**The Armbian container compiles as root, so the cache fills with root-owned
+files.** There is no `--user` flag on the launcher (it needs root for
+debootstrap/chroot/loop devices), so every entry it writes lands on the host as
+uid 0. Left alone this makes the store unmanageable from your own account — the
+pre-consolidation cache became 12 GB of `root:root 0755` that could not even be
+deleted without `sudo`. Fix: the shared store sets `umask = 002` **and** carries
+the setgid bit, so root-created directories inherit the owning group and stay
+group-writable (`root:yi 2775`). Ownership still reads root; nothing is locked.
+Eliminating root ownership outright would need Docker `userns-remap`, which is
+daemon-wide and not worth it.
 
 **Config-hash component changes legitimately.** Moving config into Kconfig
 defaults and reverting the built-in config changes the `C####` component of the

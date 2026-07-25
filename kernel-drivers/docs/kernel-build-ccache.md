@@ -72,41 +72,75 @@ recompile a narrow object set and be a warm build.
 
 ## One-time cache setup
 
-Bootstrap the external build workspace through the tracked helper:
+Every build under `~/Code` shares one ccache store at `~/Code/.ccache`. Create
+and wire it with the tracked helper:
 
 ```bash
-bash kernel-drivers/scripts/bootstrap-workspaces.sh
+bash scripts/centralize-ccache.sh            # create the store and wire every build
+bash scripts/centralize-ccache.sh --status   # inspect; no root, no writes
 ```
 
-For the persistent Armbian cache, the important configuration is:
+`bootstrap-workspaces.sh` calls the same helper, so a fresh machine is wired
+automatically.
+
+Splitting the cache per project buys nothing. ccache keys are content-addressed
+over compiler identity, the full command line, and the preprocessed source, so
+an aarch64 kernel cross-compile and a native Mesa build cannot collide in one
+store. The only real cost of sharing is LRU competition, which is a sizing
+question: the store is capped at 30 GB against a working set of roughly 13 GB.
+
+The store's settings live in exactly one file, `~/Code/.ccache/ccache.conf`:
 
 ```ini
+max_size = 30.0G
 compiler_check = content
-max_size = 15G
+umask = 002
 ```
 
-The size is a local policy and may be raised; this workspace uses 25 GiB. The
-important correctness/performance setting is `compiler_check = content`.
-
+`compiler_check = content` is the correctness/performance setting that matters.
 Armbian Docker images can be rebuilt with a freshly installed but byte-identical
 GCC. ccache's default `compiler_check = mtime` treats the new compiler timestamp
 as a different compiler and misses the entire old cache. `content` hashes the
 compiler itself, so reinstalling identical bytes remains warm while a real
 compiler change still misses correctly.
 
-Verify the exact cache used by Armbian rather than the calling user's default:
+`umask = 002` is what keeps the store manageable. The Armbian container compiles
+as **root**, so without it the cache fills with root-owned `0755` shard
+directories that your own account can neither write to nor clean up. Combined
+with the setgid bit the helper sets on the store, root-created entries stay
+group-writable.
+
+### Which config file ccache actually reads
+
+ccache reads exactly one config file, and which one depends on whether
+`CCACHE_DIR` is set:
+
+| Invocation | Cache directory | Config file read |
+|---|---|---|
+| `CCACHE_DIR` set (Armbian container, Mesa script) | `$CCACHE_DIR` | `$CCACHE_DIR/ccache.conf` |
+| `CCACHE_DIR` unset (a bare `ccache gcc` on the host) | `~/.cache/ccache` | `~/.config/ccache/ccache.conf` |
+
+`~/.cache/ccache/ccache.conf` is **never** read. Pointing only the cache
+directory at the shared store would leave host builds silently on the 5 GiB /
+`mtime` defaults, so the helper links both:
+
+```text
+~/.cache/ccache               -> ~/Code/.ccache
+~/.config/ccache/ccache.conf  -> ~/Code/.ccache/ccache.conf
+```
+
+The per-project paths are directory symlinks to the same store. Armbian
+bind-mounts its path into the container, and Docker resolves a symlinked bind
+source on the host, so the container sees the real store at
+`/armbian/cache/ccache`.
+
+Verify the store the way a build sees it:
 
 ```bash
-export ARMBIAN_BUILD=/home/yi/Code/kernel/rock5b-kernel-build/armbian-build
-export CCACHE_DIR="$ARMBIAN_BUILD/cache/ccache"
-
 ccache --show-config | grep -E \
   'cache_dir|compiler_check|max_size|base_dir|hash_dir|direct_mode'
 ccache --show-stats
 ```
-
-The host default such as `$HOME/.cache/ccache` is not the build cache. Armbian
-passes its workspace cache into the container as `CCACHE_DIR`.
 
 ## Canonical build commands
 
@@ -223,11 +257,11 @@ accepts extra compile arguments:
 bash kernel-drivers/scripts/build-kernel.sh forward-port SHOW_CCACHE=yes
 ```
 
-Or inspect the persistent cache separately:
+Or inspect the shared store separately. The host default and the Armbian cache
+are now the same store, so no `CCACHE_DIR` override is needed:
 
 ```bash
-CCACHE_DIR=/home/yi/Code/kernel/rock5b-kernel-build/armbian-build/cache/ccache \
-  ccache --show-stats --verbose
+ccache --show-stats --verbose
 ```
 
 The debug wrapper currently accepts only its documented wrapper options, but it
@@ -245,7 +279,9 @@ Work down this list before clearing anything.
 5. Compare the old and new final `.config`; do not compare only the tracked seed.
 6. Check whether the kernel base commit, compiler version, `ARCH`, config class,
    sanitizer set, `LOCALVERSION`, or extra flags changed.
-7. Confirm the build did not switch between host ccache and the Armbian cache.
+7. Confirm the build still resolves to the shared store, with
+   `bash scripts/centralize-ccache.sh --status`. A per-project cache directory
+   reappearing in place of its symlink means something recreated it locally.
 8. Read verbose ccache statistics for preprocessor errors, unsupported compiler
    options, or uncacheable calls.
 9. If correctness is in doubt, clean **Kbuild state first**, while preserving
@@ -291,7 +327,7 @@ slower without fixing the cause.
 - Production versus debug config class is intentional.
 - `PATH=/usr/sbin:/usr/bin:/sbin:/bin` is set for native package builds.
 - `USE_CCACHE=yes` reaches `compile.sh` as an argument.
-- `CCACHE_DIR` is the persistent Armbian workspace cache.
+- `CCACHE_DIR` resolves to the shared store at `~/Code/.ccache`.
 - `compiler_check=content` is present.
 - Cache size and filesystem free space are sufficient.
 - `CLEAN_LEVEL=make-kernel` is used only when Kbuild state must be discarded.

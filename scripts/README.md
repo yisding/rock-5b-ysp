@@ -6,7 +6,7 @@ not belong to a single package or driver area.
 | Script | Purpose |
 |--------|---------|
 | [`check-repo.sh`](check-repo.sh) | Runs the common repository handoff gate, in order: Markdown links and anchors, the `tests/` regression suite, ShellCheck at warning-or-higher across every maintained shell file, the documentation consistency check, and staged/unstaged/untracked whitespace. Every stage runs even if an earlier one fails, so one run reports every problem; the exit summary names the failed stages. |
-| [`centralize-ccache.sh`](centralize-ccache.sh) | Reversibly merges the host, Mesa, and Armbian compiler caches into one size-limited shared store under `~/Code`. |
+| [`centralize-ccache.sh`](centralize-ccache.sh) | Points every build under `~/Code` at one shared 30 GB compiler cache, wiring both the per-project cache paths and the host ccache config to it. |
 | [`check-markdown-links.py`](check-markdown-links.py) | Checks local Markdown links for missing files and missing same-repo section anchors. |
 | [`check-doc-consistency.py`](check-doc-consistency.py) | Checks substantive drift and completeness only: that every documented file is named by its nearest README, that every finding is linked from the findings index and every index link resolves, that each `W##` watchlist entry has both halves and they agree on name and last-checked date, that the kernel source packages' copied helpers stay identical, that the FFmpeg and GRD version pins have not drifted, that no operational script defaults to a personal home path, and that every tracked `.sh` is either `#!/usr/bin/env bash` at mode `0755` or `# shellcheck shell=bash` at mode `0644`. It deliberately does not police prose, ordering, or project-brief fields. |
 | [`repo_files.py`](repo_files.py) | Shared Git-aware maintained Markdown/operational-file inventory for the Python checks, with a pruned source-archive fallback, plus index-mode lookup for tracked files. |
@@ -33,12 +33,16 @@ the same command on pushes and pull requests.
 
 ## Centralize ccache
 
-`centralize-ccache.sh` merges the default host cache, the Mesa cache, and both
-known Armbian caches into `~/Code/.ccache`. It configures one 15 GB limit,
-compiler-content identity, and a group-writable umask. The original directories
-are retained as timestamped backups and their expected paths become symlinks,
-so the existing Mesa scripts and Armbian Docker mount configuration do not need
-path changes.
+`centralize-ccache.sh` points every known build at one shared store,
+`~/Code/.ccache`, capped at 30 GB with `compiler_check = content` and a
+group-writable umask. Setup is idempotent, and `bootstrap-workspaces.sh` calls
+it so a fresh machine is wired automatically.
+
+Separate per-project caches buy nothing. ccache keys are content-addressed over
+compiler identity, the full command line, and the preprocessed source, so an
+aarch64 kernel cross-compile and a native Mesa build cannot collide in one
+store. The only real cost of sharing is LRU competition, which is a sizing
+question, not an argument for splitting.
 
 Inspect the current layout without root access or writes:
 
@@ -46,23 +50,28 @@ Inspect the current layout without root access or writes:
 bash scripts/centralize-ccache.sh --status
 ```
 
-Run the staged migration when no compiler build is active:
+Create the store and wire every build:
 
 ```bash
-sudo bash scripts/centralize-ccache.sh
+bash scripts/centralize-ccache.sh
 ```
 
-Test one Mesa compile and one Docker-based Armbian build before removing the
-original caches. Preview the exact timestamped backups first, then explicitly
-delete them:
+It refuses to delete a real cache directory still sitting at a wired path;
+`--replace` opts into that. Root is needed only when such a path is not writable
+by the invoking user — the Armbian container compiles as root, so its cache tree
+usually is not.
 
-```bash
-sudo bash scripts/centralize-ccache.sh --cleanup-backups
-sudo bash scripts/centralize-ccache.sh --cleanup-backups --yes
+The wiring is two symlinks, because ccache reads exactly one config file and
+which one depends on whether `CCACHE_DIR` is set:
+
+```text
+~/.cache/ccache               -> ~/Code/.ccache
+~/.config/ccache/ccache.conf  -> ~/Code/.ccache/ccache.conf
 ```
 
-The cleanup mode refuses to act unless all four live cache paths still resolve
-to the shared store.
+`~/.cache/ccache/ccache.conf` is never read, so linking only the cache directory
+would leave host builds on ccache's 5 GiB / `mtime` defaults. Full reasoning in
+[`../kernel-drivers/docs/kernel-build-ccache.md`](../kernel-drivers/docs/kernel-build-ccache.md).
 
 ## ROCK 5B passive cooling
 

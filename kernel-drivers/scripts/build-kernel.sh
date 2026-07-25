@@ -504,7 +504,9 @@ fi
 
 # =============================================================================
 say "STEP 5: build $FLAVOR (ccache=$ARMBIAN_USE_CCACHE; tmpfs=$ARMBIAN_USE_TMPFS; clean=${ARMBIAN_CLEAN_LEVEL:-incremental})"
-say "  ccache dir before: $(du -sh "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)"
+# -L: the cache path is a symlink into the shared store, and du reports 0 for a
+# symlink unless told to follow it, which would silently flatten this diagnostic.
+say "  ccache dir before: $(du -shL "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)"
 cd "$ARMBIAN_BUILD"
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	check_debug_build_deps
@@ -539,7 +541,7 @@ fi
 
 # =============================================================================
 say "STEP 6: results"
-say "  ccache dir after:  $(du -sh "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)  (grew = ccache engaged)"
+say "  ccache dir after:  $(du -shL "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)  (grew = ccache engaged)"
 SLOT="${FLAVOR_BRANCH}-rockchip64"
 say "  newest $SLOT debs:"
 ls -t "$DEBS"/linux-image-"$SLOT"_*.deb "$DEBS"/linux-dtb-"$SLOT"_*.deb \

@@ -26,7 +26,12 @@ set -euo pipefail
 
 MESA=${MESA:-$HOME/Code/fdo/mesa}
 BUILD=${BUILD:-$MESA/build-codex-main}
-CCACHE_DIR_DEFAULT=$MESA/.codex-ccache
+# One shared compiler cache for every build under ~/Code; see
+# rock-5b-ysp/scripts/centralize-ccache.sh. The old per-project
+# $MESA/.codex-ccache path is now a symlink to this same store, so an inherited
+# CCACHE_DIR still lands in the right place.
+CODE_ROOT=${CODE_ROOT:-$(cd "$MESA/../.." && pwd)}
+CCACHE_DIR_DEFAULT=$CODE_ROOT/.ccache
 export CCACHE_DIR=${CCACHE_DIR:-$CCACHE_DIR_DEFAULT}
 export PATH=/usr/bin:$PATH          # gotcha #1: system python before mise
 

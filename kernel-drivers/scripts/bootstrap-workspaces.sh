@@ -63,22 +63,22 @@ echo
 say "1) Armbian build tree (the kernel build engine)"
 mkdir -p "$WORKSPACE"
 clone_at "$ARMBIAN_REMOTE" "$ARMBIAN_BRANCH" "" "$WORKSPACE/armbian-build"
-# ccache hardening: key the cache on compiler CONTENT, not mtime. Armbian rebuilds
-# its Docker image periodically (fresh `apt install gcc` => new gcc mtime); with the
-# default compiler_check=mtime that invalidates the ENTIRE cache => a full ~90 min
-# cold build on unchanged source. `content` hashes the compiler bytes so a
-# reinstalled-but-identical gcc still hits. The in-container ccache reads this via
-# CCACHE_DIR=/armbian/cache/ccache.
+# ccache: every build under ~/Code shares ONE store, wired by the tracked helper
+# below. The load-bearing setting it applies is compiler_check=content. Armbian
+# rebuilds its Docker image periodically (fresh `apt install gcc` => new gcc
+# mtime); with the default compiler_check=mtime that invalidates the ENTIRE cache
+# => a full ~90 min cold build on unchanged source. `content` hashes the compiler
+# bytes so a reinstalled-but-identical gcc still hits. The in-container ccache
+# reads the store via CCACHE_DIR=/armbian/cache/ccache, which Docker bind-mounts
+# from the symlink the helper creates (Docker resolves a symlinked bind source on
+# the host, so the container sees the real store).
 if [ "$CHECK" = 0 ]; then
-	CC_DIR="$WORKSPACE/armbian-build/cache/ccache"; mkdir -p "$CC_DIR"
-	if ! grep -qs '^compiler_check *= *content' "$CC_DIR/ccache.conf" 2>/dev/null; then
-		printf 'compiler_check = content\n' >> "$CC_DIR/ccache.conf"
-		say "  hardened ccache compiler identity (compiler_check=content)"
-	else say "  ccache compiler identity already hardened"; fi
-	if ! grep -qs '^max_size *=' "$CC_DIR/ccache.conf" 2>/dev/null; then
-		printf 'max_size = 15.0G\n' >> "$CC_DIR/ccache.conf"
-		say "  set default ccache maximum size to 15G"
-	else say "  preserving existing ccache maximum size"; fi
+	if bash "$YSP/scripts/centralize-ccache.sh" >/dev/null 2>&1; then
+		say "  ccache wired to the shared store at $CODE/.ccache"
+	else
+		say "  WARNING: ccache not wired; inspect with"
+		say "    bash $YSP/scripts/centralize-ccache.sh --status"
+	fi
 fi
 
 echo; say "2) Conformance userspace source checkouts (pinned in MANIFEST.tsv)"

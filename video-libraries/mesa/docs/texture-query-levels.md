@@ -118,8 +118,11 @@ patch — see the provenance table in [`README.md`](../README.md).
 Local Mesa builds on the ROCK 5B (`build-codex`, `build-codex-main`,
 `build-codex-gallium`, `build-codex-piglit` in `/home/yi/Code/fdo/mesa`) use:
 
-- a project-local ccache dir: `CCACHE_DIR=/home/yi/Code/fdo/mesa/.codex-ccache`
-  (see the Build Checks section of [`validation.md`](validation.md));
+- the shared ccache store at `~/Code/.ccache`, which
+  `build-mesa-surfaceless.sh` selects by default. The historical project-local
+  `$MESA/.codex-ccache` path is now a symlink to that store, so older commands
+  quoting it still land in the right place (see the Build Checks section of
+  [`validation.md`](validation.md));
 - a meson **native file** (`.codex-tmp/mesa-codex-llvm22.ini`) that pins
   `llvm-config` to a two-line shell shim
   (`.codex-tmp/llvm-config-22-mesa-codex`, which just

@@ -73,8 +73,13 @@ systemctl --user unmask gnome-remote-desktop.service # ALWAYS restore afterwards
 ```
 
 Build gotchas for the manual binary:
-- **ccache**: the default `~/.cache/ccache` may be root-owned → *permission
-  denied*. `export CCACHE_DIR=<writable dir>`.
+- **ccache**: `~/.cache/ccache` is a symlink to the shared store at
+  `~/Code/.ccache` (see
+  [`../../../scripts/README.md`](../../../scripts/README.md)), which is
+  group-writable by design, so the old root-owned *permission denied* failure
+  should not recur. If it does, check
+  `bash scripts/centralize-ccache.sh --status` rather than pointing
+  `CCACHE_DIR` at a throwaway directory.
 - **Vulkan shaders**: the daemon aborts at startup if it can't find its `.spv`
   shaders under `GRD_DATA_DIR`. Configure a writable prefix and populate it:
   `meson configure build --prefix=<writable>/install`, rebuild, then copy
