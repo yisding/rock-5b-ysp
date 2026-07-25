@@ -919,6 +919,90 @@ and the search is for bulk-zero idioms (`stp xzr, xzr` loops, `dc zva`).
 
 ---
 
+## 2026-07-24 follow-up 2: the upstream-U-Boot angle, and a wider provisioning tally
+
+Second session follow-up, prompted by "has anyone got ramoops working, maybe with
+upstream U-Boot?". Two claims from the web were cross-checked against local sources
+rather than taken at face value. Conclusion: **upstream U-Boot is not the lever**, and
+the provisioned-but-never-demonstrated tally now stands at six independent stacks.
+
+### F5. Upstream U-Boot keeps the exact component we suspect — SOURCE-VERIFIED
+
+Mainline U-Boot's RK3588 support still requires Rockchip's closed DDR blob. In the
+current mainline tree (`~/Code/u-boot/u-boot` @ `6741b0dfb41`, 2026-07-10):
+
+```
+arch/arm/mach-rockchip/Kconfig:652:  Enable this option and build with
+                                     ROCKCHIP_TPL=/path/to/ddr.bin to …
+```
+
+and the u-boot-list series *"rockchip: Support getting DRAM banks from TPL for rk3568
+and rk3588"* is precisely about SPL **reading the ATAGS the TPL blob produced**
+("Allow RK3568 and RK3588 based boards to get the RAM bank configuration from the
+ROCKCHIP_TPL stage instead of the current logic"), tested on Rock 5B 8 GB and 16 GB
+— <https://www.mail-archive.com/u-boot@lists.denx.de/msg507999.html>.
+
+Also **MEASURED**: `grep -rln ramoops arch/arm/mach-rockchip/` in mainline returns
+nothing. The `pstore.c` that knows the `0x110000` layout (follow-up F3) exists only in
+the Rockchip fork.
+
+Consequence: switching to upstream U-Boot replaces SPL and U-Boot proper, and permits
+upstream TF-A in place of the rkbin BL31 — **all three of which this document has
+already cleared** (§3.2, follow-up F1/F2) — while keeping the TPL DDR blob byte for
+byte. It cannot test the one remaining hypothesis. Do not spend a bring-up on it
+expecting a ramoops answer.
+
+### F6. Provisioned-but-never-demonstrated is now six stacks
+
+Adding two third-party observations to the four product images in §1.1:
+
+| Stack | ramoops node | Recovery demonstrated? |
+|---|---|---|
+| Rockchip BSP source `rk3588-linux.dtsi:92` | `@110000`, 0xe0000 | no artifact |
+| Radxa Debian r6 shipped DTB | same | no artifact |
+| Armbian vendor DTB on this disk | same | no artifact |
+| Radxa Android rkr14 / rkr10 | same / 0xf0000 | no artifact |
+| **nixos-rk3588 (third party, Armbian U-Boot 2017.09)** | `ramoops: using 0xf0000@0x110000, ecc: 0` | **no** — init log only |
+| **linux-hardware.org RK3588 dmesg probes** | ramoops registers cleanly | **no** — init log only |
+
+Sources: <https://github.com/ryan4yin/nixos-rk3588/blob/main/Debug.md>,
+<https://linux-hardware.org/?log=dmesg&probe=59ae3d3d52>. Note the nixos case runs the
+BSP node **with `ecc: 0`** — the configuration §1.2 predicts would fail silently.
+
+### F7. The one claimed fix has no artifact — but is already testable here
+
+The [OpenWrt RK3588 ramoops thread](https://forum.openwrt.org/t/is-there-a-way-to-enable-ramoops-on-rk3588-s/244208)
+(NanoPi R6C) is marked *Resolved* by `jjm2473` via a kernel backport plus
+`rockchip,reset-mode = <1>` on `&rk806_single`. Re-read in full: **no recovered pstore
+content is posted anywhere in the thread**, and no end-to-end confirmation follows the
+claim. It is the same resolved-without-evidence pattern §1.2 describes.
+
+Three things verified locally that the thread does not say — all **MEASURED**:
+
+- The cited commit is real and upstream: `db8db85cff331`, *"mfd: rk8xx-core: Allow to
+  customize RK806 reset mode"*, Quentin Schulz, 2025-06-27.
+- **It is already in our kernel** — `drivers/mfd/rk8xx-core.c:732-737` reads
+  `rockchip,reset-mode` and writes `RK806_SYS_CFG3`/`RK806_RST_FUN_MSK`. No backport
+  is needed on this board.
+- Our RK806 is present and bound: `/sys/firmware/devicetree/base/spi@feb20000/pmic@0`,
+  `/sys/bus/spi/devices/spi2.0`, `input: rk805 pwrkey … spi2/spi2.0`. Our live DT sets
+  neither `rockchip,reset-mode` nor `pmic-reset-func` (exhaustive `find` over the DT).
+
+So the OpenWrt fix reduces to a one-property DTBO here.
+
+### EXP-1d — Set `rockchip,reset-mode = <1>` and retest (15 minutes, LOW risk)
+
+Low expected value, listed because it is nearly free and closes the last loose end from
+the public record. H3 was refuted on mechanism (§3.2: none of the five documented
+RST_FUN triggers is reachable from a software reboot, and our BL31 cannot address SPI2
+at all), so the prediction is **no change**. Add the property to `spi@feb20000/pmic@0`
+via an overlay, reboot, and check `/sys/fs/pstore`. A positive result would overturn
+§3.2 and should be treated as a major finding, not a footnote.
+
+Prefer running this *after* EXP-1c, which costs nothing and does not require a reboot.
+
+---
+
 ## Boundary — what this document does not establish
 
 - **That BSP ramoops works.** No lane, no artifact, no document shows a recovered
