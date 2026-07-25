@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Check substantive drift and completeness: version pins, portable defaults, index linkage.
 
-Deliberately excludes documentation-formatting pedantry (finding headers, entry
-ordering, dashboard/ledger date-matching, support-coverage schema,
-project-brief fields, terminology). It reports only things that break navigation
-or ship wrong bits: unlinked/dangling findings, watchlist halves that are
-missing or disagree on name/last-checked date, drifted packaging version pins,
-out-of-sync kernel package helpers, and personal-home executable defaults.
+Deliberately excludes documentation-formatting pedantry (finding headers,
+dashboard/ledger date-matching, support-coverage schema, project-brief fields,
+terminology). It reports only things that break navigation or ship wrong bits:
+files no README names, unlinked/dangling findings, a findings index that is not
+newest-first, watchlist halves that are missing or disagree on
+name/last-checked date, dashboard tracks missing from the ledger or named
+differently there, drifted packaging version pins, out-of-sync kernel package
+helpers, and personal-home executable defaults.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ WATCH_HEADING_RE = re.compile(r"^### (W\d{2}) — (.+?)\s*$")
 WATCH_INDEX_NAME_RE = re.compile(r"^\[(.+)\]\(#watch-w\d{2}\)$")
 WATCH_LAST_CHECKED_RE = re.compile(r"^-\s+\*\*Last checked:\*\*\s*(\d{4}-\d{2}-\d{2})")
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+TRACK_ROW_RE = re.compile(r"^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|")
 PERSONAL_HOME_DEFAULT_RE = re.compile(
     r"(?:^[A-Z][A-Z0-9_]*=[\"']?/(?:home|Users)/|"
     r"\$\{[A-Za-z_][A-Za-z0-9_]*:-[\"']?/(?:home|Users)/)"
@@ -176,6 +179,48 @@ def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
             errors.append(
                 f"status.md watchlist {watch_id}: last-checked date differs "
                 f"between halves (index {index_date}, detail {detail_date})"
+            )
+
+
+def _numbered_tracks(path: Path) -> dict[str, str]:
+    """Map track number -> track name from a leading `| N | Name | ...` table."""
+    tracks: dict[str, str] = {}
+    if not path.is_file():
+        return tracks
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        match = TRACK_ROW_RE.match(line)
+        if match:
+            tracks[match.group(1)] = match.group(2).strip()
+    return tracks
+
+
+def check_status_ledger_tracks(root: Path, errors: list[str]) -> None:
+    """The dashboard and its ledger carry the same track numbers and names.
+
+    CONTRIBUTING.md requires a new track to be added to both files with one
+    stable number; track 14 reached only the dashboard, and two more disagreed
+    on capitalisation. Dated prose is still each file's own.
+    """
+    dashboard = _numbered_tracks(root / "status.md")
+    ledger = _numbered_tracks(root / "docs/status-ledger.md")
+    if not dashboard or not ledger:
+        return
+
+    for number in sorted(set(dashboard) - set(ledger), key=int):
+        errors.append(
+            f"docs/status-ledger.md: no row for status.md track {number} "
+            f"({dashboard[number]!r})"
+        )
+    for number in sorted(set(ledger) - set(dashboard), key=int):
+        errors.append(
+            f"status.md: no dashboard row for ledger track {number} "
+            f"({ledger[number]!r})"
+        )
+    for number in sorted(set(dashboard) & set(ledger), key=int):
+        if dashboard[number] != ledger[number]:
+            errors.append(
+                f"status.md track {number}: name differs from its ledger row "
+                f"(dashboard {dashboard[number]!r}, ledger {ledger[number]!r})"
             )
 
 
@@ -379,6 +424,7 @@ def main() -> int:
     check_readme_ownership(root, errors)
     check_findings_index(root, errors)
     check_watchlist_pairing(root, errors)
+    check_status_ledger_tracks(root, errors)
     check_kernel_package_helpers(root, errors)
     check_kernel_package_helpers(
         root, errors, KERNEL_PACKAGE_DIRS_ALL, KERNEL_PACKAGE_HELPERS_ALL

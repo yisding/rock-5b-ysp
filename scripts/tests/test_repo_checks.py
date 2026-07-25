@@ -649,6 +649,36 @@ class SubstantiveDriftTests(unittest.TestCase):
             # The fully consistent W01 is silent.
             self.assertFalse(any("W01" in e for e in errors))
 
+    def test_status_ledger_tracks_must_match_the_dashboard(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "docs").mkdir()
+            (root / "status.md").write_text(
+                "| # | Track | State |\n|---|-------|-------|\n"
+                "| 1 | Kernel forward-port | ok |\n"
+                "| 2 | Renamed here | ok |\n"
+                "| 3 | Dashboard only | ok |\n",
+                encoding="utf-8",
+            )
+            (root / "docs" / "status-ledger.md").write_text(
+                "| # | Track | Note |\n|---|-------|------|\n"
+                "| 1 | Kernel forward-port | ok |\n"
+                "| 2 | Renamed there | ok |\n"
+                "| 4 | Ledger only | ok |\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_status_ledger_tracks(root, errors)
+
+            self.assertTrue(any("no row for status.md track 3" in e for e in errors))
+            self.assertTrue(any("no dashboard row for ledger track 4" in e for e in errors))
+            self.assertTrue(
+                any("track 2: name differs from its ledger row" in e for e in errors)
+            )
+            # The matching track 1 is silent.
+            self.assertFalse(any("track 1" in e for e in errors))
+
     def test_watchlist_halves_must_agree_on_name_and_date(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

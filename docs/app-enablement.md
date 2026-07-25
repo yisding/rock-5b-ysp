@@ -24,7 +24,7 @@ plumbing layers. Which layer an app speaks decides its cost almost entirely:
 |-------|---------------------|
 | **libavcodec named codecs** (`h264_rkmpp`, `hevc_rkmpp`, …) | ✅ Shipped: [`ffmpeg-rockchip`](../video-libraries/ffmpeg/README.md) fork, built and Published in the [normal PPA](../packaging/ppa/README.md) as the system FFmpeg replacement. |
 | **GStreamer elements** (`mppvideodec`, `mpph26xenc`) | ⚠️ Rockchip's external `gstreamer-rockchip` plugin exists upstream but is not packaged here; ubuntu-rockchip shipped a working (if crudely packaged) build of it — one clean repackage away. The kernel track's GStreamer test suite is still dependency-blocked. |
-| **VA-API** (the de-facto Linux desktop hwaccel API) | ⚠️ A PoC driver now exists: woodyst/rockchip-vaapi (LGPL, reviewed in the [driver review finding](../findings/2026-07-21-rockchip-vaapi-driver-review.md)) — the right architecture, effectively Firefox H.264+VP9 today, upstream inactive; verdict is fork-and-renovate (~4–8 weeks to desktop grade). |
+| **VA-API** (the de-facto Linux desktop hwaccel API) | 🚧 Being renovated. woodyst/rockchip-vaapi (LGPL, reviewed in the [driver review finding](../findings/2026-07-21-rockchip-vaapi-driver-review.md)) had the right architecture but an inactive upstream, so the fork-and-renovate verdict was acted on: [`yisding/rockchip-vaapi@ysp/cleanup`](https://github.com/yisding/rockchip-vaapi/tree/ysp/cleanup) carries phase one — built against the ysp stack, three bit-exactness bugs fixed, packaged as a `.deb`. Dated state in [`status.md`](../status.md) track 14 and [W18](../status.md#watch-w18). |
 | **V4L2** (stateful M2M or stateless request API) | ⚠️ The BSP kernel exposes the codecs only via the vendor `/dev/mpp_service` ioctl interface, not V4L2 — but a **userspace** V4L2-stateful-over-MPP bridge exists: JeffyCN's `libv4l-rkmpp` (a libv4l2 plugin emulating a stateful M2M decoder/encoder in-process, no kernel device), proven in Joshua Riek's archived ubuntu-rockchip images as the engine behind Chromium 4K playback. It is kernel-agnostic and only reachable through a patched libv4l2, which in practice makes it a Chromium-only bridge. See the [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md). A real kernel V4L2 stateless path still needs a mainline kernel ([`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md), mainline rkvdec2 work). |
 
 ```mermaid
@@ -65,8 +65,10 @@ flowchart TB
 ```
 
 Apps on the left column are nearly free because the fork already ships. The
-right column is blocked on a bridge that does not exist (VA-API→MPP) or on a
-kernel path this repo's BSP forward-port deliberately does not take (V4L2).
+right column depends either on the VA-API→MPP bridge — which now exists and is
+being renovated in `yisding/rockchip-vaapi@ysp/cleanup`, not blocked for want
+of one — or on a kernel path this repo's BSP forward-port deliberately does not
+take (V4L2).
 
 ## Per-app assessment
 
@@ -264,11 +266,11 @@ De-risk in this order:
    rockchip-vaapi" (VA-API; whole desktop; now the likely winner), "modernize
    libv4l-rkmpp + re-target Chromium" (Chromium-only, custom builds forever),
    "maxline kernel + stock Chromium V4L2". Cheap first probes, in order:
-   build rockchip-vaapi v1.0.11 unmodified on the 6.18 board and smoke-test
-   Firefox H.264/VP9 (~1 day, also the regression baseline for any fork);
-   mpv `--hwdec=vaapi` against it; the deb-Chromium `/dev/dri/` alias
+   mpv `--hwdec=vaapi` against the fork; the deb-Chromium `/dev/dri/` alias
    experiment; and optionally the libv4l-rkmpp 1.8.0 build as the comparison
-   point — all before committing to fork work.
+   point. (The "build v1.0.11 unmodified and smoke-test Firefox" probe that
+   opened this list is done — it was the baseline for the fork work now in
+   `ysp/cleanup`.)
 
 ## Related pages
 
