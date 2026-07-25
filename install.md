@@ -56,7 +56,7 @@ native build. Choose one supported host mode:
 | Build-host mode | Requirement | Invocation through this repo |
 |-----------------|-------------|------------------------------|
 | Containerized (default) | A current Docker-capable Linux host; install/start Docker and give your user daemon access. | `bash kernel-drivers/scripts/build-kernel.sh forward-port` |
-| Native | Armbian or Ubuntu 24.04 Noble, plus working `sudo`. The measured aarch64 VM path is documented in the [builder finding](findings/2026-07-08-armbian-builder-setup.md). | `bash kernel-drivers/scripts/build-armbian-deb.sh PREFER_DOCKER=no` |
+| Native | Armbian or Ubuntu 24.04 Noble, plus working `sudo`. The measured aarch64 VM path is documented in the [builder finding](findings/2026-07-08-armbian-builder-setup.md). | `bash kernel-drivers/scripts/build-kernel.sh forward-port PREFER_DOCKER=no` |
 
 On a ROCK 5B already running the target Ubuntu 26.04 userspace, use the Docker
 mode unless Armbian adds Resolute to its native-host support list. See Armbian's

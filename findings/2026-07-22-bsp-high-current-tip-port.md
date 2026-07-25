@@ -8,7 +8,9 @@
 > [`kernel-drivers/patches/forward-port-rk3588/`](../kernel-drivers/patches/forward-port-rk3588/README.md);
 > booted build `Pabd5-C4ad2`.
 > Date: 2026-07-22
-> Trust: CODE-INSPECTED / COMPILE-VERIFIED / PACKAGE-VERIFIED; runtime validation pending
+> Trust: CODE-INSPECTED / COMPILE-VERIFIED / PACKAGE-VERIFIED / BOOT-VERIFIED /
+> KASAN-CLEAN (correctness + destructive gates, see the 2026-07-22 evening
+> update) / PARTIAL (root-only; production and perf gates still open)
 
 ## Result
 

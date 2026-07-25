@@ -30,9 +30,9 @@ build products and external checkouts out of this repository.
 
 The nearest `README.md` is the front door for every user-facing Markdown file.
 Adding or moving a document therefore also means adding or updating its entry in
-that README. Tracked shell and Python tools follow the same rule: name each one
-in its nearest README, including internal packaging helpers, so operational code
-never becomes an invisible entry point. The repository consistency check
+that README. Tracked tools follow the same rule — shell, Python, and C/C++
+alike, including internal packaging helpers and standalone reproducers — so
+operational code never becomes an invisible entry point. The repository consistency check
 enforces both ownership rules.
 
 ## Evidence lifecycle
@@ -85,14 +85,24 @@ writing a bare "State then", so an entry that gains a newer state keeps the
 older one correctly attributed. Do not renumber the remaining items when one is
 retired.
 
-Dashboard, next-gate, ledger, and coverage prose (dates, names, ordering,
-required fields) is maintained by hand — it is convention, not mechanically
-enforced. `scripts/check-doc-consistency.py` checks only substantive drift and
-completeness: packaging version pins (FFmpeg/GRD), personal-home defaults in
-operational scripts, that every finding is linked from the findings index (and
-every index link resolves to a file), and that each `W##` watchlist entry has
-both halves and that they agree on item name and last-checked date. It does not
-police dashboard or ledger dates, names, or order.
+Dashboard, next-gate, ledger, and coverage **prose** is maintained by hand — it
+is convention, not mechanically enforced. `scripts/check-doc-consistency.py`
+checks substantive drift and completeness only:
+
+- every tracked `.md`/`.sh`/`.py`/`.c`/`.cpp`/`.h` is named by its nearest
+  ancestor README (`debian/` is exempt — dpkg dictates that layout);
+- every finding is linked from the findings index, every index link resolves to
+  a file, and the index runs newest-first;
+- each `W##` watchlist entry has both halves, and they agree on item name and
+  last-checked date;
+- every `status.md` dashboard track has a ledger row under the same number and
+  name, and no ledger row lacks a dashboard track;
+- the kernel source packages' copied helpers stay identical;
+- packaging version pins (FFmpeg/GRD) have not drifted;
+- no operational script defaults to a personal home path.
+
+It does not police dashboard, ledger, or coverage **dates**, nor any prose,
+required-field, or `C##` schema convention.
 
 ## Updating whole-board coverage
 
@@ -172,10 +182,8 @@ This checks local Markdown paths and anchors — including relative links that
 climb out of the repository, which are unreachable from any other checkout and
 are always a bug — runs the repository-check
 regression tests, runs ShellCheck at warning-or-higher severity across every
-maintained shell file, checks substantive drift and completeness (packaging
-version pins, personal-home defaults in operational scripts, findings-index
-linkage, and watchlist index/detail pairing), and finds whitespace errors in
-staged, unstaged, and untracked files. Run `bash -n` on changed shell scripts as
+maintained shell file, runs the documentation consistency check described above,
+and finds whitespace errors in staged, unstaged, and untracked files. Run `bash -n` on changed shell scripts as
 an additional syntax gate. Run project-specific build or hardware
 tests in proportion to the behavior changed, and report exactly what was and
 was not exercised.

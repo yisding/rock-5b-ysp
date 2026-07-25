@@ -5,11 +5,11 @@
 > Source: live daemon diagnostics and captured core correlated with
 > `gnome-remote-desktop@34145d92eb5177007322329b62c073486fdf32f9`
 > and packaged patch `0018`
-> Trust: MEASURED / CODE-INSPECTED / SOURCE-INSPECTED / CONFIRMED
-> Result: MEASURED / CORE-INSPECTED / SOURCE-INSPECTED /
-> RUNTIME-RECOVERY-VALIDATED. Cleaned fix `0018@34145d9` builds; its
-> functionally equivalent installed `exp6@7e958e6` predecessor fired once and
-> restored hardware frame progress in the exact live focus workload.
+> Trust: MEASURED / CODE-INSPECTED / SOURCE-INSPECTED / CONFIRMED /
+> RUNTIME-RECOVERY-VALIDATED
+> Result: cleaned fix `0018@34145d9` builds; its functionally equivalent
+> installed `exp6@7e958e6` predecessor fired once and restored hardware frame
+> progress in the exact live focus workload.
 
 ## Outcome
 

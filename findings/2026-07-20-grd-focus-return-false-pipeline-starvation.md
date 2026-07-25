@@ -5,10 +5,10 @@
 > Source: live GDB trigger and `[RDP.PIPELINE]` daemon diagnostics correlated
 > with `gnome-remote-desktop@3e4480e066d30ba44015ae1b8cb3bbb92fe6414e`
 > and packaged patches `0016`/`0019`
-> Trust: MEASURED / CODE-INSPECTED / SOURCE-INSPECTED / COMPILE-VERIFIED
-> Result: GDB-INSPECTED / LOG-CORRELATED / SOURCE-FIXED; candidate fix
-> `0019@3e4480e` and its `exp7` source/arm64 packages build, with live focus
-> validation pending.
+> Trust: MEASURED / GDB-INSPECTED / CODE-INSPECTED / SOURCE-INSPECTED /
+> LOG-CORRELATED / SOURCE-FIXED / COMPILE-VERIFIED
+> Result: candidate fix `0019@3e4480e` and its `exp7` source/arm64 packages
+> build, with live focus validation pending.
 
 ## Outcome
 

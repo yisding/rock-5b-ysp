@@ -13,7 +13,8 @@
 >
 > Trust: **MEASURED** / **CODE-INSPECTED** (root causes 1–3, including the
 > 10-bit stride misprogramming, measured via a direct im2d P010 probe);
-> **COMPILE-PENDING** (fixes `0046`–`0048` committed, booted gates open).
+> **BOOT-VERIFIED** (`0046`–`0048` on `P63dd-C4ad2`, `0049` on `P9636-C4ad2` —
+> see the booted-verification sections below).
 
 ## 1. librga smoke `no core match` — scheduler geometry, not a driver fault
 

@@ -7,7 +7,8 @@
 > `rga_common.c` `rga_convert_addr()`. Fixes: rewrite `40cf22629cf63`
 > (6.18) / `7481ab327d7ea` (mainline); librga fork `4c26ddf`.
 > Date: 2026-07-24
-> Trust: SOURCE-CONFIRMED / COMPILE-VERIFIED — no hardware run
+> Trust: SOURCE-CONFIRMED / COMPILE-VERIFIED / PREDICTION-HARDWARE-CONFIRMED
+> (the fix itself is still unrun on hardware)
 
 ## Result
 
@@ -125,13 +126,15 @@ packaged arm64 build.
 
 ## Boundary
 
-- **No hardware ran.** Everything here is source reconciliation plus a compile
-  gate. The corrected offsets have not been observed on silicon.
-- **TILE 10-bit has no test coverage anywhere in this project** — not in the
-  rewrite's KUnit suite (which covered only the layout, and pinned it wrong), not
-  in `librga-smoke` (its tile round-trip is 8-bit NV12), and `0074`'s measurement
-  was a raster blit. The discriminating run is a TILE8x8 NV15 round-trip with a
-  tightly sized buffer, chroma-checked against a software reference.
+- **The corrected offsets have not been observed on silicon.** The reconciliation
+  and the fix are source plus compile gate; the fixed path is still unrun.
+- **The prediction was confirmed, on the pre-`0074` kernel.** TILE 10-bit had
+  zero test coverage anywhere in this project — not in the rewrite's KUnit suite
+  (which covered only the layout, and pinned it wrong), not in `librga-smoke`
+  (its tile round-trip is 8-bit NV12), and `0074`'s measurement was a raster
+  blit. `rga-10bit-uv-offset-test` gained TILE8x8 coverage the same day and ran
+  the discriminating case: tile-mode chroma tracks the pixel-scaled offset and a
+  tightly sized tile blit IOMMU-faults, exactly as this reconciliation said.
 - **The deeper hardware question is still open**: whether `pixel_width = 1` is
   itself right for 10-bit TILE. Every driver here programs it that way, so they
   must at least agree with each other and the plane offset must follow the

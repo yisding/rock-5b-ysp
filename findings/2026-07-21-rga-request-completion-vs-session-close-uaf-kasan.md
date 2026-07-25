@@ -12,7 +12,11 @@
 > alloc/free stacks captured) / **CODE-INSPECTED** (the racing paths) /
 > **INFERRED** (the exact double-put root cause and the fix direction).
 
-> **2026-07-21 fixed (patch `0052@c46bfd6622ba6`, awaiting booted gate).**
+> **2026-07-21 fixed (patch `0052@c46bfd6622ba6`); booted gate closed 2026-07-22.**
+> The `cross` reproducer ran clean on `Pabd5-C4ad2` — iters=2000,
+> async_submits=64000, submit_fail=0, 0 KASAN flags, with the below-4G CMA race
+> window genuinely open. See
+> [`2026-07-22-bsp-high-current-tip-port.md`](2026-07-22-bsp-high-current-tip-port.md).
 > Root cause confirmed by full reference-model tracing: a request holds a
 > single initial reference from `rga_request_alloc()` (`kref_init`), and
 > **four** paths retire it by calling `rga_request_put()` on that reference —
