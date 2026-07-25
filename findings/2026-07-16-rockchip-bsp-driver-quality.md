@@ -94,7 +94,7 @@ bogus arm64 direct-map alias and crashed the kernel. Forward-port commit
 `1c9a110129fe` now validates every page with
 `virt_addr_valid(phys_to_virt(addr))`, but valid System-RAM physical imports
 remain available without `CAP_SYS_RAWIO`; see
-[`RGA raw physical-address import crash`](../kernel-drivers/rga/raw-physical-import-crash.md).
+[`RGA raw physical-address import crash`](../kernel-drivers/rga/docs/raw-physical-import-crash.md).
 
 ### Framework and attack-surface comparison
 

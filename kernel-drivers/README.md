@@ -57,7 +57,7 @@ flowchart TB
 | Sub-project | Covers | Scoped docs |
 |-------------|--------|-------------|
 | [`mpp/`](mpp/README.md) | The MPP service + rkvenc2/rkvdec2 codec cores; multi-core scheduling. | [`multicore-scheduling.md`](mpp/docs/multicore-scheduling.md) |
-| [`rga/`](rga/README.md) | The RGA3/RGA2 2D blit/scale/convert driver. | shared driver docs + `tests/librga-*` |
+| [`rga/`](rga/README.md) | The RGA3/RGA2 2D blit/scale/convert driver. | [`userptr-iommu.md`](rga/docs/userptr-iommu.md), [`raw-physical-import-crash.md`](rga/docs/raw-physical-import-crash.md), [`rewrite-5.10-reconciliation.md`](rga/docs/rewrite-5.10-reconciliation.md), [`userspace-consumers.md`](rga/docs/userspace-consumers.md) |
 | [`av1/`](av1/README.md) | The RK3588 AV1 decode path and the BSP bugs the AV1 port exposed. | [`av1-rk3588.md`](av1/docs/av1-rk3588.md), [`av1-bsp-audit.md`](av1/docs/av1-bsp-audit.md) |
 | [`iommu/`](iommu/README.md) | CCU/IOMMU memory path: the net-new MMU plan and the SOFT/HARD CCU rewrite finding. | [`mpp-ccu-iommu-plan.md`](iommu/docs/mpp-ccu-iommu-plan.md), [`rewrite-hard-ccu-finding.md`](iommu/docs/rewrite-hard-ccu-finding.md) |
 | [`rknpu/`](rknpu/README.md) | End-to-end RKNN conversion/runtime and RKNPU memory, submission, multicore, IOMMU, SRAM, PM, and recovery. | [`how-rknpu-works.md`](rknpu/docs/how-rknpu-works.md) |
@@ -107,7 +107,7 @@ Read in this order when changing or reviewing kernel behavior:
 | What does each forward-port patch do, and which fixes belong back in the BSP? | [`docs/patch-catalog.md`](docs/patch-catalog.md) |
 | How much code is vendor vs local? | [`docs/vendor-delta.md`](docs/vendor-delta.md) |
 | How does the forward port compare with Rockchip's 6.1 and 6.6 BSP media drivers? | [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
-| How were the applicable later Rockchip 5.10 RGA fixes adapted to the rewrite? | [`rga/rewrite-5.10-reconciliation.md`](rga/rewrite-5.10-reconciliation.md) |
+| How were the applicable later Rockchip 5.10 RGA fixes adapted to the rewrite? | [`rga/docs/rewrite-5.10-reconciliation.md`](rga/docs/rewrite-5.10-reconciliation.md) |
 | How are RK3588 nodes, IRQs, IOMMUs, aliases, and SRAM wired? | [`docs/device-tree.md`](docs/device-tree.md) |
 | How does Armbian packaging apply the DT safely? | [`../packaging/docs/armbian-packaging.md`](../packaging/docs/armbian-packaging.md) |
 | How do Kbuild, ccache, Docker, config changes, and clean rebuilds interact? | [`docs/kernel-build-ccache.md`](docs/kernel-build-ccache.md) |
@@ -137,7 +137,7 @@ each sub-project's `README.md`).
 | [`docs/device-tree.md`](docs/device-tree.md) | RK3588 node/IRQ/IOMMU/alias/SRAM wiring and DT glossary. |
 | [`docs/vendor-delta.md`](docs/vendor-delta.md) | How much of the tree is vendor code vs local glue. |
 | [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) | Direct pinned comparison of the baseline/current forward ports with Rockchip's 6.1 and 6.6 MPP/RGA trees. |
-| [`rga/raw-physical-import-crash.md`](rga/raw-physical-import-crash.md) | Root cause, BSP branch history, kernel hardening, test containment, and reboot gate for the raw-physical RGA import crash found on 2026-07-16. |
+| [`rga/docs/raw-physical-import-crash.md`](rga/docs/raw-physical-import-crash.md) | Root cause, BSP branch history, kernel hardening, test containment, and reboot gate for the raw-physical RGA import crash found on 2026-07-16. |
 | [`docs/bsp-audit.md`](docs/bsp-audit.md) | Multi-agent audit findings and the draft cleanup series. |
 | [`docs/resyncing.md`](docs/resyncing.md) | Playbook for resyncing to a newer kernel or BSP. |
 | [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md) | Chaptered source-level MPP/RGA rewrite architecture and kernel-driver learning guide. [`docs/rewrite-driver-architecture.md`](docs/rewrite-driver-architecture.md) is a forwarding stub keeping the pre-split path alive for old links. |

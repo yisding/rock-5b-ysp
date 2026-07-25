@@ -33,7 +33,7 @@ argument*, which changed what the fix had to cover:
   `dma_kmalloc_size_aligned()` failing for the *tail* segment — a glibc-typical
   16-byte tail on a page-multiple malloc — which flips the whole list to
   `iommu_dma_map_sg_swiotlb()`. That also resolves the "UNRESOLVED" note in
-  [`kernel-drivers/rga/userptr-iommu.md`](../kernel-drivers/rga/userptr-iommu.md):
+  [`kernel-drivers/rga/docs/userptr-iommu.md`](../kernel-drivers/rga/docs/userptr-iommu.md):
   the hardware DIAG showing `first=0xdffff010 … end=0xdfc7900f` is exactly a
   16-byte tail segment, so route B in production is being reached *through* the
   bounce path.

@@ -15,18 +15,18 @@ as the work progressed; those are now tombstones pointing here.
 > `drivers/iommu/dma-iommu.c`.
 > Source anchors: on-board debugfs runs of prebuilt `airockchip/librga` IM2D
 > samples; BSP-vs-forward source comparison against `../kernel/rockchip-kernel`;
-> patch artifacts under [`../patches/rga-userptr-iommu/`](../patches/rga-userptr-iommu/architecture.md).
+> patch artifacts under [`../patches/rga-userptr-iommu/`](../../patches/rga-userptr-iommu/architecture.md).
 > Trust: MEASURED for the fault addresses, IOVA fingerprints, and smoke behavior;
 > CODE-INSPECTED / ROOT-CAUSED for the source deltas; BUILD-VERIFIED and
 > BEHAVIORAL-SMOKE-PASSED for the fallback; the per-segment bounce *trigger* and
 > direct fallback attribution remain UNRESOLVED / pending (see Status).
 
-See also the patch-series docs — [`architecture.md`](../patches/rga-userptr-iommu/architecture.md)
-(invariants and per-tree flow) and [`runtime-validation.md`](../patches/rga-userptr-iommu/runtime-validation.md)
-(the hardware gate) — the RGA front door [`README.md`](README.md), the external
+See also the patch-series docs — [`architecture.md`](../../patches/rga-userptr-iommu/architecture.md)
+(invariants and per-tree flow) and [`runtime-validation.md`](../../patches/rga-userptr-iommu/runtime-validation.md)
+(the hardware gate) — the RGA front door [`README.md`](../README.md), the external
 consumer scan [`userspace-consumers.md`](userspace-consumers.md), the layer model
-in [`../docs/how-the-drivers-work.md`](../docs/how-the-drivers-work.md), and the
-whole-project [`../../status.md`](../../status.md).
+in [`../docs/how-the-drivers-work.md`](../../docs/how-the-drivers-work.md), and the
+whole-project [`../../status.md`](../../../status.md).
 
 ## 1. The RGA3 MMU interrupt root cause
 
@@ -268,7 +268,7 @@ byte-contiguous view, it **fails closed if the IOVA granule is larger than
 `PAGE_SIZE`** — not expected on RK3588's 4 KiB Rockchip IOMMU, but explicit for
 future ports.
 
-Patch artifacts under [`../patches/rga-userptr-iommu/`](../patches/rga-userptr-iommu/architecture.md):
+Patch artifacts under [`../patches/rga-userptr-iommu/`](../../patches/rga-userptr-iommu/architecture.md):
 0001 (forward-port), 0002 (rewrite mapping), 0003 (rewrite debugfs counters).
 The rewrite slice is committed and pushed on both rewrite branches:
 `rk3588-rewrite-6.18` @ `d1cfb432da7f` and `rk3588-rewrite-mainline` @
@@ -341,7 +341,7 @@ entered the fallback. On the rewrite, patch 0003's `rk_rga_rewrite/userptr_iommu
 counters exist for exactly this, but need a booted rewrite run
 (`LIBRGA_FORCE_RGA_USERPTR_IOMMU=1` requires `attempt`/`ok` to move and `active`
 to return to 0). The full hardware gate is in
-[`../patches/rga-userptr-iommu/runtime-validation.md`](../patches/rga-userptr-iommu/runtime-validation.md).
+[`../patches/rga-userptr-iommu/runtime-validation.md`](../../patches/rga-userptr-iommu/runtime-validation.md).
 
 ## Status and open items
 

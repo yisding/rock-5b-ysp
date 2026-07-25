@@ -538,7 +538,7 @@ initialization, and then enqueues the prepared job.
 
 The rewrite deliberately rejects physical-address imports. dma-bufs use public
 attach/map APIs; userptr imports pin pages and build owned sg-tables, with the
-contiguous-IOMMU fallback documented in [RGA userptr/IOMMU](../rga/userptr-iommu.md).
+contiguous-IOMMU fallback documented in [RGA userptr/IOMMU](../rga/docs/userptr-iommu.md).
 The session owns the import, while each submitted job owns the mapping for the
 core that will execute it. At backend start the rewrite rebases images to that
 core's DMA device, synchronizes userptr memory, powers the core, allocates a
@@ -591,7 +591,7 @@ The architectural trade is therefore:
 
 The later Rockchip `develop-5.10` RGA work is a separate reconciliation input,
 not code ancestry for the rewrite. The detailed assessment in
-[`../rga/rewrite-5.10-reconciliation.md`](../rga/rewrite-5.10-reconciliation.md)
+[`../rga/rewrite-5.10-reconciliation.md`](../rga/docs/rewrite-5.10-reconciliation.md)
 records the five adaptations implemented on 2026-07-17: RK3588 RGA3
 logic-clock and RGA2 auto-reset quirks, RGA2 config/parse-error IRQ handling,
 per-mapping cache-line boundary shadows for userptr DMA, and the narrow RGA3

@@ -29,7 +29,7 @@ The comparison began on 2026-07-16 and the implementation was validated on
 
 The broader branch comparison, including why the numerically older 5.10 tree
 contains newer RGA work than 6.1/6.6, is in
-[`../docs/bsp-6.1-6.6-comparison.md`](../docs/bsp-6.1-6.6-comparison.md).
+[`../docs/bsp-6.1-6.6-comparison.md`](../../docs/bsp-6.1-6.6-comparison.md).
 This note narrows that comparison to changes that affect the clean-room rewrite.
 
 ## Decision matrix

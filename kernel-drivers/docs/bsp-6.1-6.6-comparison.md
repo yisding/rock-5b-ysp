@@ -259,7 +259,7 @@ groups at `rk3588-rewrite-6.18@0d71ded1690c` and
 IRQ/status handling, per-mapping cache-line boundary shadows, and the narrow
 RGA3 BT.709-limited CSC compatibility shape. Both rewrite tips pass the
 normal/memory/race clean-source profiles; they still require the booted RK3588
-gate in [`rewrite-5.10-reconciliation.md`](../rga/rewrite-5.10-reconciliation.md).
+gate in [`rewrite-5.10-reconciliation.md`](../rga/docs/rewrite-5.10-reconciliation.md).
 
 ## Baseline forward port vs each BSP
 
