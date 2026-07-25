@@ -87,6 +87,19 @@ run_gate() {
 	local klog="$OUT/${label}.kernel.txt"
 	local cur
 	cur="$(journalctl -k -n1 --show-cursor 2>/dev/null | tail -1 | sed 's/-- cursor: //')"
+	# Write our own marker immediately after taking the cursor, so the post-gate
+	# read can tell a genuinely quiet window (marker present, nothing else) from a
+	# broken one (marker absent). Without it, both look like "-- No entries --".
+	local marker
+	marker="ROOTGATE-${label}-$$-$(date -u +%H%M%S%N)"
+	if ! echo "=== ${marker} ===" > /dev/kmsg 2>/dev/null; then
+		echo "  FATAL: cannot write /dev/kmsg, so the per-gate window cannot be"
+		echo "  validated. This script requires root; check it is actually running as"
+		echo "  root and that /dev/kmsg is writable."
+		printf '%s\t%s\t%s\t%s\n' "$label" "-" "-" "FAIL" | tee -a "$SUMMARY"
+		echo
+		return 1
+	fi
 	# An empty or unusable cursor makes the post-gate window empty, so the
 	# "kernel-log window is clean" half of the documented PASS rule is satisfied
 	# vacuously. That happens when journalctl prints "-- No entries --", when it
@@ -96,6 +109,12 @@ run_gate() {
 		echo "  FATAL: cannot obtain a usable kernel-journal cursor -- the per-gate"
 		echo "  fatal scan would read an empty window and report every gate clean."
 		echo "  Check journalctl -k works as this user (persistent journal, group access)."
+		# Record the row. Returning without one made the gate absent from
+		# summary.tsv, and the verdict counts rows -- so a single gate failing
+		# this probe still printed "ALL ROOT GATES PASS" with everything else
+		# green, which is the outcome this whole check exists to prevent.
+		printf '%s\t%s\t%s\t%s\n' "$label" "-" "-" "FAIL" | tee -a "$SUMMARY"
+		echo
 		return 1
 	fi
 
@@ -113,7 +132,25 @@ run_gate() {
 	local ec=$?
 	[ "$ec" -eq 137 ] && echo "  (gate hit GATE_TIMEOUT=${GATE_TIMEOUT:-900}s and was killed; a D-state kernel hang may persist until reboot)"
 
-	journalctl -k --after-cursor "$cur" --no-pager 2>/dev/null >"$klog"
+	# Settle before reading: a fault printed as the gate exits can otherwise miss
+	# the window (kasan-scan.sh syncs, encode-test-tiny sleeps 1).
+	sync
+	journalctl -k --after-cursor "$cur" --no-pager >"$klog" 2>/dev/null
+	# The window must contain our marker. A well-formed but unresolvable cursor
+	# makes journalctl exit 0 and print "-- No entries --"; a cursor whose entry
+	# rotates out *during* the gate does the same (gate 3 floods the log with RGA
+	# timing lines). Either way the fatal scan reads nothing and the gate would
+	# pass its kernel-log half blind -- which the pre-gate probe cannot detect.
+	# Checking for the marker rather than for emptiness keeps a legitimately quiet
+	# window (marker present, nothing else) a PASS.
+	if ! grep -qF -- "$marker" "$klog"; then
+		echo "  FATAL: the post-gate kernel-log window does not contain this gate's own"
+		echo "  marker, so the fatal scan proves nothing. The cursor was unresolvable or"
+		echo "  its entry rotated out of the journal during the gate."
+		printf '%s\t%s\t%s\t%s\n' "$label" "$ec" "-" "FAIL" | tee -a "$SUMMARY"
+		echo
+		return 1
+	fi
 	local flags
 	flags=$(grep -icE "$FATAL_RE" "$klog")
 

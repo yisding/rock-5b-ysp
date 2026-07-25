@@ -128,12 +128,34 @@ static int run_once(int fd, int sfd, int dfd, uint8_t *s, uint8_t *d,
 	struct rga_req req;
 	size_t true_lo = Y_TRUE, true_hi = Y_TRUE + UV_BYTES;
 	size_t buggy_lo = y_buggy, buggy_hi = y_buggy + UV_BYTES;
-	size_t ov_lo = true_lo > buggy_lo ? true_lo : buggy_lo;
-	size_t ov_hi = true_hi < buggy_hi ? true_hi : buggy_hi;
+	size_t ov_lo, ov_hi;
 	int ret;
 
+	/*
+	 * Clamp every marker window to the mapping before writing into it.
+	 * check_tight deliberately sizes the surface so the scaled window runs
+	 * off the end -- the kernel reading past it is exactly what the gate
+	 * tests -- but the harness must not walk off it first. `alloc` was
+	 * accepted here and then thrown away with `(void)alloc`, so check_tight
+	 * memset 26880 bytes past a 161280-byte mapping and died of SIGSEGV
+	 * before reaching its own ioctl. That killed the process at the first
+	 * tight check, so the two later checks never ran, the verdict line never
+	 * printed, and the exit status was 139: the gate could not pass on any
+	 * kernel, correct or broken.
+	 */
+	if (true_lo > alloc)
+		true_lo = alloc;
+	if (true_hi > alloc)
+		true_hi = alloc;
+	if (buggy_lo > alloc)
+		buggy_lo = alloc;
+	if (buggy_hi > alloc)
+		buggy_hi = alloc;
+	ov_lo = true_lo > buggy_lo ? true_lo : buggy_lo;
+	ov_hi = true_hi < buggy_hi ? true_hi : buggy_hi;
+
 	/* Y plane, then the three marker regions. */
-	fill_range(s, 0, Y_TRUE, 0x00);
+	fill_range(s, 0, Y_TRUE < alloc ? Y_TRUE : alloc, 0x00);
 	fill_range(s, true_lo, true_hi, p);		/* true UV window   */
 	fill_range(s, buggy_lo, buggy_hi, q);		/* scaled UV window */
 	if (ov_hi > ov_lo)				/* shared part      */
@@ -165,7 +187,6 @@ static int run_once(int fd, int sfd, int dfd, uint8_t *s, uint8_t *d,
 	req.mmu_info.mmu_flag |= (1u << 31) | (1 << 10) | (1 << 8);
 	req.core = core;
 
-	(void)alloc;
 	ret = ioctl(fd, RGA_BLIT_SYNC, &req);
 	if (ret) {
 		if (!quiet)

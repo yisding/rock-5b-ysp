@@ -3774,11 +3774,23 @@ int main(void)
 	ret = improcess(src, dst, {}, {}, {}, {}, -1, NULL, &opt,
 			IM_SYNC | IM_PRE_INTR);
 	if (ret == IM_STATUS_NOT_SUPPORTED) {
-		/* pre_intr is absent from the RK3588 RGA feature list. */
+		/*
+		 * pre_intr is absent from the RK3588 RGA feature list, so this
+		 * fires on every real run. This used to `goto out` -- main()'s
+		 * epilogue -- which silently dropped the three cases below (the
+		 * async fence chain, imresize and imfill) and still exited 0.
+		 * Confirmed against logs/forward-port/20260724-184309: the smoke
+		 * log ends at this line and artifacts.tsv has no
+		 * async_fence_chain / imresize_rgba / imfill_rgba rows, while
+		 * rewrite-conformance.md, rewrite-validation-plan.md and
+		 * tests/README.md all claim that coverage. Skip past this case
+		 * only. (The gauss skip a few hundred lines up looks identical
+		 * but is inside a function, so its `goto out` is local cleanup.)
+		 */
 		printf("%-24s skip unsupported on this platform\n",
 		       "improcess pre-intr");
 		ret = 0;
-		goto out;
+		goto pre_intr_done;
 	}
 	if (ret != IM_STATUS_SUCCESS) {
 		ret = fail_status("improcess pre-intr", ret);
@@ -3794,6 +3806,7 @@ int main(void)
 		goto out;
 	}
 	printf("%-24s ok\n", "RGA2 pre-intr copy");
+pre_intr_done:
 
 	memset(tmp_mem, 0x40, src_size);
 	memset(dst_mem, 0x80, src_size);

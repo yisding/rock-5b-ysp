@@ -47,6 +47,9 @@ if [ "$poo" != "0" ]; then
 fi
 
 mkdir -p "$OUT"
+decoder_ok=0
+decoder_fail=0
+decoder_pids=()
 kasan_scan_begin "$OUT"
 echo "capture start -> $OUT  (loops=$LOOPS concurrency=$CONCURRENCY)"
 
@@ -56,8 +59,21 @@ for i in $(seq 1 "$LOOPS"); do
 	for c in $(seq 1 "$CONCURRENCY"); do
 		timeout 20 mpi_dec_test -t "$VP9_TYPE" -i "$IVF" -n 16 \
 			> "$OUT/dec-$i-$c.log" 2>&1 &
+		decoder_pids+=("$!")
 	done
-	wait
+	# Count decoders that actually ran. Without this the gate asserts only "no
+	# flagged kernel lines", so a run where every decode failed (missing
+	# mpi_dec_test, no PATH under the orchestrator, unreadable asset) printed
+	# "PASS: no flagged kernel lines" -- a stronger claim than an empty run
+	# supports. Its two siblings already gate on suite status AND cleanliness.
+	for pid in "${decoder_pids[@]}"; do
+		if wait "$pid"; then
+			decoder_ok=$((decoder_ok + 1))
+		else
+			decoder_fail=$((decoder_fail + 1))
+		fi
+	done
+	decoder_pids=()
 	# Abort early if the oops already fired (KASAN/BUG in the window so far).
 	if journalctl -k --after-cursor "$(cat "$OUT/journal-cursor.txt")" 2>/dev/null \
 		| grep -aiqE "$SUITE_DMESG_FATAL_RE"; then
@@ -86,8 +102,14 @@ awk '/Unable to handle kernel|KASAN|BUG:|Oops|rk_vcodec/{p=1} p' "$OUT/kernel-lo
 # The awk pipeline above used to be the last command, so IT decided the exit
 # status: a captured oops printed a trace and exited 0, while a clean run with no
 # log file exited 2. `clean` was computed and only printed. Gate on it explicitly.
+echo "decoders: $decoder_ok ok, $decoder_fail failed"
 if [ "$clean" != "1" ]; then
 	echo ">>> FAIL: $flags flagged kernel line(s) during the run — see $OUT"
 	exit 1
 fi
-echo ">>> PASS: no flagged kernel lines during the run"
+if [ "$decoder_ok" -eq 0 ]; then
+	echo ">>> FAIL: no decoder run succeeded, so the show_existing_frame path was"
+	echo "    never driven — a clean kernel log proves nothing here. See $OUT/dec-*.log"
+	exit 1
+fi
+echo ">>> PASS: $decoder_ok decode runs drove the path, no flagged kernel lines"

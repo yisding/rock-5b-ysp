@@ -1,6 +1,14 @@
 # shellcheck shell=bash
 # Shared helpers for collecting simple numeric debugfs counters.
 
+# Load sentinel. The two callers that deliberately run without `set -e` used to
+# lose a failed `source` silently: both snapshot calls became "command not
+# found", the delta file never appeared, and the leak/counter check reported
+# "no debugfs counters in this kernel" -- the same shape as the
+# SUITE_DMESG_FATAL_RE hole one file over.
+# shellcheck disable=SC2034  # read by the sourcing scripts' load guard
+DEBUGFS_COUNTERS_LOADED=1
+
 debugfs_counter_snapshot()
 {
 	local output=$1

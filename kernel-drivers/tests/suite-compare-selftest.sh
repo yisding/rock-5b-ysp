@@ -9,6 +9,9 @@ BASE="$TMP_ROOT/base.tsv"
 GOOD="$TMP_ROOT/good.tsv"
 SLOW="$TMP_ROOT/slow.tsv"
 REGRESSION="$TMP_ROOT/regression.tsv"
+EMPTY="$TMP_ROOT/empty.tsv"
+FAILING="$TMP_ROOT/failing-base.tsv"
+FAILING2="$TMP_ROOT/failing-cand.tsv"
 
 write_summary()
 {
@@ -116,6 +119,27 @@ expect_fail()
 	fi
 }
 
+expect_fail_baseline()
+{
+	local script=$1
+	local baseline=$2
+	local candidate=$3
+	local output=$4
+	shift 4
+	local status
+
+	set +e
+	BASELINE_SUMMARY="$baseline" CANDIDATE_SUMMARY="$candidate" env "$@" \
+		bash "$TEST_DIR/$script" > "$output"
+	status=$?
+	set -e
+
+	if [ "$status" -eq 0 ]; then
+		echo "$script unexpectedly passed with baseline $baseline" >&2
+		exit 1
+	fi
+}
+
 check_compare_script()
 {
 	local script=$1
@@ -135,6 +159,18 @@ check_compare_script()
 
 	expect_fail "$script" "$REGRESSION" "$out_prefix.regression" PERF_MAX_RATIO=1.25 "$@"
 	grep -q "regression" "$out_prefix.regression"
+
+	# An empty comparison used to exit 0: the summary awk iterates `seen`, so with
+	# no shared required case the loop never ran and `failed` stayed 0. Both
+	# directions matter -- the header-only side can be either file.
+	expect_fail "$script" "$EMPTY" "$out_prefix.empty" "$@"
+	expect_fail_baseline "$script" "$EMPTY" "$GOOD" "$out_prefix.empty-base" "$@"
+
+	# A required case failing on BOTH sides is not a regression but is not
+	# evidence either; it used to be exempted, which let one bad baseline
+	# permanently immunise those cases.
+	expect_fail_baseline "$script" "$FAILING" "$FAILING2" "$out_prefix.fail-both" "$@"
+	grep -q "required-fail-both" "$out_prefix.fail-both"
 }
 
 check_artifact_compare()
@@ -382,6 +418,11 @@ write_summary "$BASE" forward-port pass 10 4
 write_summary "$GOOD" rewrite pass 12 8
 write_summary "$SLOW" rewrite pass 14 8
 write_summary "$REGRESSION" rewrite fail 12 8
+# Header only: no case rows at all.
+printf 'profile\tclass\tcase\tstatus\telapsed_s\tresult\n' > "$EMPTY"
+# The required case fails on both sides.
+write_summary "$FAILING" forward-port missing-env 10 4
+write_summary "$FAILING2" rewrite fail 12 8
 
 check_compare_script mpp-suite-compare.sh
 check_compare_script librga-suite-compare.sh REQUIRE_ARTIFACTS=0

@@ -106,7 +106,14 @@ END {
 		if (bs != cs || br != cr)
 			verdict = "different";
 		if (class[case_name] == "required") {
-			compared++;
+			# Count only cases present on BOTH sides. Counting the union let a
+			# single candidate-only row satisfy the guard, so an empty *baseline*
+			# -- the exact "find_latest_summary picked by mtime from a run that
+			# produced no cases" scenario -- still exited 0 via
+			# candidate-only-pass, and the error text below described an
+			# intersection test the code did not implement.
+			if (case_name in base_result && case_name in cand_result)
+				compared++;
 			if (br == "pass" && cr != "pass") {
 				verdict = "regression";
 				failed = 1;

@@ -14,6 +14,7 @@ source "$TEST_DIR/suite-common.sh"
 : "${SUITE_DMESG_FATAL_RE:?suite-common.sh did not load; the kernel-log fatal scan would be silently blind}"
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
+: "${DEBUGFS_COUNTERS_LOADED:?debugfs-counters.sh did not load; the counter/leak check would be silently absent}"
 
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
 PROFILE=${PROFILE:-rewrite}
@@ -180,10 +181,12 @@ start_workload()
 	printf "%s\n" "$pid" > "$pid_file"
 }
 
-# Sets TERMINATE_WAS_ALIVE=1 when the workload was still running at kill time.
-# The caller needs this to tell "we interrupted real work" from "the workload had
-# already exited", which is the difference between exercising a recovery boundary
-# and exercising nothing.
+# Sets TERMINATE_WAS_ALIVE=1 when the workload process was still running at kill
+# time. Every case needs this to tell "the workload was still up while we
+# perturbed the driver" from "it had already exited", which is the difference
+# between exercising a recovery boundary and exercising nothing. Note the weaker
+# claim: this proves the workload's top-level process existed, not that hardware
+# was busy -- a workload that starts and idles still sets it.
 TERMINATE_WAS_ALIVE=0
 terminate_workload()
 {
@@ -206,6 +209,22 @@ terminate_workload()
 	wait "$pid"
 	rc=$?
 	return "$rc"
+}
+
+# Shared by all three cases. The kill case checked this directly; the reset and
+# unbind cases called terminate_workload and ignored the flag entirely, so they
+# still passed when the workload had died in the first RECOVERY_GRACE_S seconds --
+# and reset-opener stress is defined as running *while the workload is active*.
+# The default workload exits 2 on a missing MPP build dir and 77 when a suite
+# skips, so this is the common case on a misconfigured box, not a corner.
+workload_was_up()
+{
+	local rc=$1 what=$2
+
+	[ "$TERMINATE_WAS_ALIVE" -eq 1 ] && return 0
+	log "  workload had already exited (rc=$rc) before $what; nothing was perturbed"
+	log "  raise RECOVERY_GRACE_S, use a longer workload, or fix the workload's own failure"
+	return 1
 }
 
 run_recheck()
@@ -236,9 +255,7 @@ run_kill_case()
 	# missing MPP build dir and 77 when a suite skips: both mean the hardware was
 	# never busy, so no reset/recovery boundary was exercised, and both reported
 	# the case as passed.
-	if [ "$TERMINATE_WAS_ALIVE" -ne 1 ]; then
-		log "  workload had already exited (rc=$rc) before the kill landed; nothing was interrupted"
-		log "  increase RECOVERY_GRACE_S, use a longer workload, or fix the workload's own failure"
+	if ! workload_was_up "$rc" "the kill"; then
 		return 1
 	fi
 
@@ -269,7 +286,9 @@ run_reset_case()
 		"$case_dir/reset.log"
 	reset_rc=$?
 	terminate_workload "$pid"
+	local term_rc=$?
 	printf "%s\n" "$reset_rc" > "$case_dir/reset.status"
+	workload_was_up "$term_rc" "the reset-opener stress finished" || return 1
 	return "$reset_rc"
 }
 
@@ -324,6 +343,8 @@ run_unbind_case()
 		fi
 	done
 	terminate_workload "$pid"
+	local term_rc=$?
+	workload_was_up "$term_rc" "the unbind/rebind cycle finished" || return 1
 	return "$ret"
 }
 

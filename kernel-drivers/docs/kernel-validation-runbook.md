@@ -112,8 +112,13 @@ display → suspend → rollback) **before** any accelerator work.
 
 ## Step 3 — accelerator smoke (any kernel flavor)
 
-From [`../tests/`](../tests/README.md), in order; all exit `77` (skip, not
-pass) when the device nodes are absent:
+From [`../tests/`](../tests/README.md), in order. **Note the exit convention is
+not uniform:** the conformance suites (`mpp-suite.sh`, `librga-suite.sh`,
+`gstreamer-suite.sh`, `ffmpeg-suite.sh`, `abi-replay.sh`) exit `77` for "skipped,
+not passed" when the device nodes are absent, but the smoke and stress gates
+below — `test-decode.sh`, `decode-differential.sh`, `encode-test-tiny.sh`,
+`transcode-test.sh`, `iommu-machinery-fuzz.sh` — exit `1`. Do not read a `1` from
+those as a hardware failure without checking the log for a missing prerequisite:
 
 | Gate | Command | Pass |
 |------|---------|------|
