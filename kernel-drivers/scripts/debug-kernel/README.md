@@ -85,9 +85,69 @@ before continuing.
 and package manifest for diagnosis, but that directory is **not** a bootable
 rollback and cannot replace the known-good image/DTB debs.
 
+## Boot load-address ceiling
+
+Stock RK3588 U-Boot leaves **127.0 MiB** between `kernel_addr_r`
+(`0x00400000`) and `fdt_addr_r` (`0x08300000`). An arm64 `Image` reserves its
+header's `image_size` — text **plus BSS** — at the load address, so a debug
+kernel past that gap clears its BSS over the loaded device tree and dies before
+console init: no HDMI, no serial, no ramoops, no journal boot entry, nothing to
+debug with. Measured 2026-07-24 (`P4052-C40aa-H7883`, `image_size` 132.4 MiB,
+did not boot; `P3695`, 113.4 MiB, booted).
+
+`set-boot-load-addresses.sh` raises the map once — fdt `0x0c000000`, scratch
+`0x0c800000`, initrd `0x0d000000`, leaving the kernel 188 MiB — by inserting a
+marked `setenv` block into `/boot/boot.cmd` and regenerating `boot.scr`. It only
+touches those two files: **no kernel, initrd or DTB is regenerated**, because
+`uInitrd` carries load/entry `0`, the `Image` header sets the 2 MiB-anywhere
+placement flag, and DTBs hold no load address. `boot.scr` resolves the
+`/boot/{Image,uInitrd,dtb}` symlinks, so one run covers every kernel installed
+afterwards.
+
+```bash
+./set-boot-load-addresses.sh --check         # map, image_size, headroom; no root
+sudo ./set-boot-load-addresses.sh            # apply, then reboot to take effect
+sudo ./set-boot-load-addresses.sh --revert   # back to stock addresses
+```
+
+### Reverting from an SD-card rescue boot
+
+The whole point of the revert is that you can reach it when the board no longer
+boots, so it takes the same target flags as
+[`kernel-revert.sh`](../kernel-revert.sh) and works on a bare rescue image:
+
+```bash
+sudo bash set-boot-load-addresses.sh --auto --revert            # find + mount the internal root
+sudo bash set-boot-load-addresses.sh --device /dev/nvme0n1p1 --revert
+sudo mount /dev/nvme0n1p1 /mnt/nvme                             # or mount it yourself
+sudo bash /mnt/nvme/boot/set-boot-load-addresses.sh --root /mnt/nvme --revert
+```
+
+Three things make that work when the rescue system is minimal:
+
+- **`--apply` installs a copy of itself into the target `/boot`**, so a rescue
+  boot finds it next to the `boot.cmd` it edits — no need to remember the repo
+  path (the `--root /mnt/nvme` example above runs that copy).
+- **`--apply` also saves `boot.{cmd,scr}.stock-loadaddr`**, a
+  once-written snapshot of the known-stock files. If `mkimage` is missing,
+  `--revert` restores that snapshot byte for byte instead of regenerating —
+  verified against the uImage magic first. Only `--apply` may take the
+  snapshot; letting `--revert` take one would let it invent a "stock" state out
+  of the files it is meant to undo.
+- **Everything else is coreutils + awk.** No `python3`, no `grep` (this box
+  exports a `grep` shell wrapper, and `type -P` is used instead of
+  `command -v` so a wrapper is never mistaken for the tool). If any required
+  helper is missing the script refuses outright rather than degrading — a
+  missing `tail` would otherwise make `current_addr` silently report a patched
+  `boot.cmd` as stock, which is the exact misread that strands you.
+
+`--check` needs no root and reports whether the snapshot exists, i.e. whether a
+mkimage-less rescue revert is currently possible.
+
 ## Install + enable crash capture
 
 ```bash
+./set-boot-load-addresses.sh --check          # confirm the kernel will fit
 RECOVERY_READY=1 PHASH='P####-C####' \
   ./install-debug-kernel.sh                  # exact debs, diagnostic capture,
                                              # dpkg -i, then apt-mark hold

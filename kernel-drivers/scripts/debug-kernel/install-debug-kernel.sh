@@ -14,6 +14,10 @@ Environment:
   HASH=...            Optional additional kernel-version filename filter.
   RECOVERY_READY=1    Required acknowledgement that rescue media and known-good
                       image/DTB debs are ready (see install.md section 3).
+  ALLOW_OVERSIZE_IMAGE=1
+                      Install even when the Image would overrun the device tree
+                      at fdt_addr_r. Only meaningful if you know U-Boot will
+                      relocate the FDT; otherwise the board will not boot.
   WORKSPACE=...       External build workspace.
   DEB_DIR=...         Override the Armbian output/debs directory.
   BACKUP_ROOT=...     Override the diagnostic boot-metadata backup directory.
@@ -66,6 +70,62 @@ if [[ -z "${image_deb}" || -z "${dtb_deb}" ]]; then
 		"$PHASH" "${HASH:-<any>}" "$DEB_DIR" >&2
 	printf 'Run build-kernel.sh forward-port-debug (or rewrite-debug) first.\n' >&2
 	exit 1
+fi
+
+# Load-address preflight. An arm64 Image reserves image_size bytes -- text
+# *plus* BSS -- at kernel_addr_r, so a debug kernel bigger than the gap to
+# fdt_addr_r zeroes the loaded device tree while clearing BSS and dies before
+# console init: no HDMI, no serial, no ramoops, no journal. That is exactly how
+# the 2026-07-24 P4052-C40aa-H7883 build failed. Raise the addresses with
+# set-boot-load-addresses.sh rather than discovering this after the reboot.
+BOOT_CMD="${BOOT_CMD:-/boot/boot.cmd}"
+
+uboot_addr() { # name stock-default -- last setenv in boot.cmd wins, as in U-Boot
+	local value=""
+	if [[ -r "$BOOT_CMD" ]]; then
+		value="$(sed -n "s/^[[:space:]]*setenv[[:space:]]\+$1[[:space:]]\+\"\?\([0-9a-fA-Fx]\+\)\"\?[[:space:]]*$/\1/p" "$BOOT_CMD" | tail -1)"
+	fi
+	printf '%s\n' "${value:-$2}"
+}
+
+image_size_from_deb() {
+	( set +o pipefail
+	  dpkg-deb --fsys-tarfile "$1" 2>/dev/null \
+	    | tar -xO --wildcards './boot/vmlinuz-*' 2>/dev/null \
+	    | head -c 64 \
+	    | python3 -c 'import struct, sys
+head = sys.stdin.buffer.read(64)
+if len(head) == 64 and head[56:60] == b"ARM\x64":
+    print(struct.unpack_from("<Q", head, 16)[0])' 2>/dev/null ) || true
+}
+
+kernel_addr="$(uboot_addr kernel_addr_r 0x00400000)"
+fdt_addr="$(uboot_addr fdt_addr_r 0x08300000)"
+gap=$(( fdt_addr - kernel_addr ))
+
+printf 'Checking Image size against the U-Boot load map (this unpacks the deb)...\n'
+image_size="$(image_size_from_deb "$image_deb")"
+if [[ -z "$image_size" ]]; then
+	printf 'WARN: no arm64 Image header found in %s; skipping the load-address preflight.\n' \
+		"$(basename "$image_deb")" >&2
+elif (( image_size > gap )); then
+	cat >&2 <<EOF
+ABORT: this kernel does not fit the current U-Boot load map.
+  kernel_addr_r  $kernel_addr
+  fdt_addr_r     $fdt_addr
+  headroom       $(( gap / 1048576 )) MiB
+  Image          $(( image_size / 1048576 )) MiB (text+BSS, overruns by $(( (image_size - gap + 1048575) / 1048576 )) MiB)
+  The kernel would clear its BSS over the device tree and die before console
+  init -- no HDMI, no serial, no ramoops, no journal to debug it with.
+  Fix with:  sudo bash "$ROOT_DIR/set-boot-load-addresses.sh"
+  Then rerun this install. Override with ALLOW_OVERSIZE_IMAGE=1 only if you
+  have confirmed U-Boot relocates the FDT clear of the kernel.
+EOF
+	[[ "${ALLOW_OVERSIZE_IMAGE:-0}" == 1 ]] || exit 1
+	printf 'ALLOW_OVERSIZE_IMAGE=1 set; continuing over the size check.\n' >&2
+else
+	printf 'Load-address preflight: Image %s MiB fits the %s MiB headroom (%s MiB spare).\n' \
+		"$(( image_size / 1048576 ))" "$(( gap / 1048576 ))" "$(( (gap - image_size) / 1048576 ))"
 fi
 
 if [[ "$RECOVERY_READY" != 1 ]]; then

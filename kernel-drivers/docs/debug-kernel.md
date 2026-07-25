@@ -134,6 +134,28 @@ a crash.
 
 ## 5. Install, hold, roll back
 
+> ⚠️ **A debug kernel can outgrow the U-Boot load map and die with no output
+> at all.** Stock RK3588 U-Boot leaves 127.0 MiB between `kernel_addr_r`
+> (`0x00400000`) and `fdt_addr_r` (`0x08300000`). An arm64 `Image` reserves
+> `image_size` bytes there — text **plus BSS**, which is much larger than the
+> file — so a kernel past that gap zeroes the loaded device tree while clearing
+> BSS and dies before console init: no HDMI, no serial, no ramoops, no journal
+> boot entry. Measured 2026-07-24: the `P4052-C40aa-H7883` rewrite debug build
+> (`image_size` 132.4 MiB) failed exactly this way, while the 2026-07-23
+> `P3695` build (113.4 MiB) booted. Raise the addresses once with
+> [`set-boot-load-addresses.sh`](../scripts/debug-kernel/set-boot-load-addresses.sh)
+> (fdt → 192 MiB, scratch → 200 MiB, initrd → 208 MiB, giving the kernel
+> 188 MiB); it only rewrites `/boot/boot.cmd` + `boot.scr`, and **no kernel,
+> initrd, or DTB needs regenerating** — `uInitrd` carries load/entry `0`, the
+> `Image` header sets the 2 MiB-anywhere placement flag, and DTBs hold no load
+> address. `install-debug-kernel.sh` now refuses an oversize image up front
+> rather than letting you find out at the next reboot. The revert takes
+> `kernel-revert.sh`'s target flags (`--auto` / `--device` / `--root`) and runs
+> on a bare rescue image: `--apply` leaves both a copy of the script and a
+> `boot.{cmd,scr}.stock-loadaddr` snapshot in the target `/boot`, so
+> `sudo bash set-boot-load-addresses.sh --auto --revert` restores stock
+> addresses from an SD-card rescue boot even with no `mkimage` installed.
+
 **Install** (`install-debug-kernel.sh` logic): back up the current
 `/boot` kernel artifacts (`Image`, `vmlinuz-*`, `initrd.img-*`, `uInitrd-*`,
 `System.map-*`, `config-*`, `dtb-*`) into a timestamped `boot-backups/<stamp>/`
