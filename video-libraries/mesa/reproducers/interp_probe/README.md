@@ -26,6 +26,7 @@ varying.
 | [`vk_interp_probe.vert`](vk_interp_probe.vert) | Vulkan vertex shader. Emits the varying `v` that should interpolate to `x + 0.5`. |
 | [`vk_interp_probe.varying.frag`](vk_interp_probe.varying.frag) | Vulkan test fragment shader. Stores `floatBitsToUint(v)`. |
 | [`vk_interp_probe.fragcoord.frag`](vk_interp_probe.fragcoord.frag) | Vulkan control fragment shader. Stores `floatBitsToUint(gl_FragCoord.x)`. |
+| [`mr43161_size_repro.sh`](mr43161_size_repro.sh) | One-command driver for the MR !43161 size/aspect findings. Builds the probes in this directory and runs only the cases that demonstrate bit-exact baseline-vs-workaround equality for both-pow2 sizes, the `1x1`..`1500x1500` integer-bin boundary, and the first `1xN`/`Nx1` failures. |
 
 The `*_explained.*` files are runnable teaching copies of the same reproducers.
 They keep the compact reproducers untouched and add intentionally excessive

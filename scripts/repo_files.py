@@ -85,3 +85,20 @@ def repository_operational_files(root: Path) -> list[Path]:
     root = root.resolve()
     git_files = _git_files(root, ("*.sh", "*.py"))
     return git_files if git_files is not None else _walk_files(root, (".sh", ".py"))
+
+
+DOCUMENTED_SUFFIXES = (".md", ".sh", ".py", ".c", ".cpp", ".h")
+DOCUMENTED_PATTERNS = tuple(f"*{suffix}" for suffix in DOCUMENTED_SUFFIXES)
+
+
+def repository_documented_files(root: Path) -> list[Path]:
+    """Return files that must be named by their nearest README.
+
+    Prose, tools, and on-hardware reproducers alike: anything a reader could
+    need to find. `debian/` subtrees are excluded because their layout is
+    dictated by dpkg rather than by this repository's navigation contract.
+    """
+    root = root.resolve()
+    git_files = _git_files(root, DOCUMENTED_PATTERNS)
+    files = git_files if git_files is not None else _walk_files(root, DOCUMENTED_SUFFIXES)
+    return [path for path in files if "debian" not in path.relative_to(root).parts]

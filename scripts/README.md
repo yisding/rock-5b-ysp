@@ -5,12 +5,12 @@ not belong to a single package or driver area.
 
 | Script | Purpose |
 |--------|---------|
-| [`check-repo.sh`](check-repo.sh) | Runs the common repository handoff gate: Markdown links, documentation contracts, and staged/unstaged/untracked whitespace. |
+| [`check-repo.sh`](check-repo.sh) | Runs the common repository handoff gate, in order: Markdown links and anchors, the `tests/` regression suite, ShellCheck at warning-or-higher across every maintained shell file, the documentation consistency check, and staged/unstaged/untracked whitespace. |
 | [`centralize-ccache.sh`](centralize-ccache.sh) | Reversibly merges the host, Mesa, and Armbian compiler caches into one size-limited shared store under `~/Code`. |
 | [`check-markdown-links.py`](check-markdown-links.py) | Checks local Markdown links for missing files and missing same-repo section anchors. |
-| [`check-doc-consistency.py`](check-doc-consistency.py) | Checks Markdown, nested-project, and operational-file README ownership; project briefs; finding metadata/index order; dashboard/next-gate/action-path/ledger alignment; watchlist contracts; stable support-coverage rows; synchronized kernel-package helpers; and selected terminology invariants. |
+| [`check-doc-consistency.py`](check-doc-consistency.py) | Checks substantive drift and completeness only: that every documented file is named by its nearest README, that every finding is linked from the findings index and every index link resolves, that each `W##` watchlist entry has both halves and they agree on name and last-checked date, that the kernel source packages' copied helpers stay identical, that the FFmpeg and GRD version pins have not drifted, and that no operational script defaults to a personal home path. It deliberately does not police prose, ordering, or project-brief fields. |
 | [`repo_files.py`](repo_files.py) | Shared Git-aware maintained Markdown/operational-file inventory for the Python checks, with a pruned source-archive fallback. |
-| [`tests/test_repo_checks.py`](tests/test_repo_checks.py) | Standard-library regression tests for file inventory/ownership, link classification, dashboard/watchlist contracts, support coverage, and synchronized package helpers. |
+| [`tests/test_repo_checks.py`](tests/test_repo_checks.py) | Standard-library regression tests for the checks above: file inventory, link classification and repo-escaping links, findings-index and watchlist contracts, synchronized package helpers, portable defaults, operational `--help` safety, and the kernel-log fatal signature scans. |
 | [`prepare-armbian-headless.sh`](prepare-armbian-headless.sh) | Prepares a mounted Armbian ROCK 5B root filesystem for Wi-Fi and root SSH key access, temporarily handling a read-only mount when needed. |
 | [`rock5b-passive-cooling-apply.sh`](rock5b-passive-cooling-apply.sh) | Applies and persists a reversible passive CPU/NVMe cooling profile for the fanless ROCK 5B. |
 | [`rock5b-passive-cooling-revert.sh`](rock5b-passive-cooling-revert.sh) | Removes the passive-cooling service and restores its captured stock CPU/NVMe settings. |

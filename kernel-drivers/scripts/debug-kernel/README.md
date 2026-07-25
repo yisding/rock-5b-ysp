@@ -12,14 +12,33 @@ running `/boot/config-$(uname -r)`.
 
 Both debug kernels are built through the unified entry point
 [`../build-kernel.sh`](../build-kernel.sh) (see the
-[kernel-builds map](../../docs/kernel-builds.md)); this directory tracks their
-Armbian userpatch configs and the install/ramoops/rollback tooling. The two
-flavor configs — [`config-rock5b-debug-kernel.conf.sh`](config-rock5b-debug-kernel.conf.sh)
-(forward-port) and
-[`config-rock5b-rewrite-debug-kernel.conf.sh`](config-rock5b-rewrite-debug-kernel.conf.sh)
-(rewrite) — source the shared
+[kernel-builds map](../../docs/kernel-builds.md)); this directory tracks the
+Armbian userpatch configs and the install/ramoops/rollback tooling.
+
+It holds the config for **all four** local flavors, not just the debug pair —
+`build-kernel.sh` resolves `config-$FLAVOR_CONFIG_NAME.conf.sh` from here for
+whichever flavor it is asked to build, so each one needs its own file:
+
+| Flavor | Armbian slot | Config |
+|--------|--------------|--------|
+| `forward-port` | `video-port-rockchip64` | [`config-rock5b-video-port.conf.sh`](config-rock5b-video-port.conf.sh) |
+| `forward-port-debug` | `video-port-kasan-rockchip64` | [`config-rock5b-debug-kernel.conf.sh`](config-rock5b-debug-kernel.conf.sh) |
+| `rewrite` | `video-rewrite-rockchip64` | [`config-rock5b-video-rewrite.conf.sh`](config-rock5b-video-rewrite.conf.sh) |
+| `rewrite-debug` | `video-rewrite-kasan-rockchip64` | [`config-rock5b-rewrite-debug-kernel.conf.sh`](config-rock5b-rewrite-debug-kernel.conf.sh) |
+
+Each config's `declare -g` block is load-bearing: Armbian's
+`rockchip64_common.inc` derives `KERNEL_MAJOR_MINOR`/`LINUXFAMILY`/`LINUXCONFIG`
+from a `case $BRANCH in current|edge|bleedingedge`, so a custom slot name falls
+through and aborts the build with "BAD config, missing KERNEL_MAJOR_MINOR"
+unless the config declares them itself.
+
+The two debug configs additionally source the shared
 [`ysp-debug-instrumentation.conf.sh`](ysp-debug-instrumentation.conf.sh)
 fragment, so both carry byte-identical KASAN/lockdep/DMA-debug instrumentation.
+The Armbian extension [`ysp-build-stamp.sh`](ysp-build-stamp.sh) is installed
+for every flavor; it puts the real wall-clock build time into `uname -v`, which
+Armbian otherwise pins to the kernel revision date — leaving every rebuild of
+one base indistinguishable from the last.
 For either flavor, `build-kernel.sh` regenerates and stages the flavor's
 complete patch series, then installs the config, the shared fragment, and the
 debug-only ROCK 5B ramoops DT patch into

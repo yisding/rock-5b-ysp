@@ -15,7 +15,10 @@ import re
 import sys
 from pathlib import Path
 
-from repo_files import repository_operational_files
+from repo_files import (
+    repository_documented_files,
+    repository_operational_files,
+)
 
 
 FINDING_NAME_RE = re.compile(r"20\d{2}-\d{2}-\d{2}-[a-z0-9][a-z0-9.-]*\.md")
@@ -307,11 +310,48 @@ def check_ppa_grd_source_pin(root: Path, errors: list[str]) -> None:
             )
 
 
+def check_readme_ownership(root: Path, errors: list[str]) -> None:
+    """Every documented file is named by its nearest ancestor README.
+
+    CONTRIBUTING.md makes the nearest README the front door for prose and for
+    tracked tools alike, so that operational code never becomes an invisible
+    entry point. A file reachable only by constructing its name at runtime is
+    exactly the case this catches.
+    """
+    for path in repository_documented_files(root):
+        if path.name == "README.md":
+            continue
+
+        directory = path.parent
+        readme = None
+        while True:
+            candidate = directory / "README.md"
+            if candidate.is_file():
+                readme = candidate
+                break
+            if directory == root:
+                break
+            directory = directory.parent
+
+        relative = path.relative_to(root)
+        if readme is None:
+            errors.append(f"{relative}: no ancestor README.md to own it")
+            continue
+
+        text = readme.read_text(encoding="utf-8", errors="replace")
+        if path.name not in text:
+            errors.append(
+                f"{relative}: not named in its nearest README "
+                f"({readme.relative_to(root)})"
+            )
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     errors: list[str] = []
 
     check_portable_operational_defaults(root, errors)
+    check_readme_ownership(root, errors)
     check_findings_index(root, errors)
     check_watchlist_pairing(root, errors)
     check_kernel_package_helpers(root, errors)

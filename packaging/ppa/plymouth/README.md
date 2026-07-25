@@ -12,9 +12,10 @@ The backport version is
 
 ## Build
 
-The helper downloads the exact Ubuntu source files from Launchpad, verifies
-their pinned SHA-256 digests, adds the single DEP-3 patch and changelog entry,
-and creates an unsigned source package:
+The helper [`build-source-package.sh`](build-source-package.sh) downloads the
+exact Ubuntu source files from Launchpad, verifies their pinned SHA-256 digests,
+adds the single DEP-3 patch and changelog entry, and creates an unsigned source
+package. Drive it through the packaging front door rather than directly:
 
 ```bash
 bash packaging/ppa/build-source-packages.sh plymouth

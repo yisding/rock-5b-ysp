@@ -596,6 +596,33 @@ class SubstantiveDriftTests(unittest.TestCase):
             # Ordering is intentionally not enforced: the linked pair is silent.
             self.assertFalse(any("newest first" in e for e in errors))
 
+    def test_readme_ownership_reports_files_no_readme_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "tools").mkdir()
+            (root / "tools" / "debian").mkdir()
+            (root / "deep" / "nested").mkdir(parents=True)
+            (root / "README.md").write_text(
+                "# Root\n\nHolds [`deep/nested/inherited.md`](deep/nested/inherited.md).\n",
+                encoding="utf-8",
+            )
+            (root / "tools" / "README.md").write_text(
+                "# Tools\n\n- [`named.sh`](named.sh)\n", encoding="utf-8"
+            )
+            (root / "tools" / "named.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            (root / "tools" / "orphan.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            # dpkg dictates this layout, so it is exempt from the naming rule.
+            (root / "tools" / "debian" / "rules.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            # No README in deep/nested/, so ownership falls back to the root one.
+            (root / "deep" / "nested" / "inherited.md").write_text("x\n", encoding="utf-8")
+            errors: list[str] = []
+
+            DOC_CHECKER.check_readme_ownership(root, errors)
+
+            self.assertEqual(len(errors), 1, errors)
+            self.assertIn("tools/orphan.sh", errors[0])
+            self.assertIn("tools/README.md", errors[0])
+
     def test_watchlist_pairing_reports_unpaired_halves_only(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -97,6 +97,7 @@ Read in this order when changing or reviewing kernel behavior:
 | What does each driver layer do? | [`docs/how-the-drivers-work.md`](docs/how-the-drivers-work.md) |
 | How are the rewrite drivers structured, synchronized, and made safe to tear down? | [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md) |
 | How are these drivers tested — what's proven per track, and what's left? | [`docs/validation-index.md`](docs/validation-index.md) (entry point / coverage matrix) |
+| How do I build any of the four local kernel flavors? | [`docs/kernel-builds.md`](docs/kernel-builds.md) |
 | How is a newly built or booted kernel validated, end to end? | [`docs/kernel-validation-runbook.md`](docs/kernel-validation-runbook.md) |
 | How does an RKNN model become a three-core RKNPU job? | [`rknpu/docs/how-rknpu-works.md`](rknpu/docs/how-rknpu-works.md) |
 | What ioctl ABI does userspace depend on? | [`docs/dev-uapis.md`](docs/dev-uapis.md) |
@@ -139,7 +140,8 @@ each sub-project's `README.md`).
 | [`rga/raw-physical-import-crash.md`](rga/raw-physical-import-crash.md) | Root cause, BSP branch history, kernel hardening, test containment, and reboot gate for the raw-physical RGA import crash found on 2026-07-16. |
 | [`docs/bsp-audit.md`](docs/bsp-audit.md) | Multi-agent audit findings and the draft cleanup series. |
 | [`docs/resyncing.md`](docs/resyncing.md) | Playbook for resyncing to a newer kernel or BSP. |
-| [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md) | Chaptered source-level MPP/RGA rewrite architecture and kernel-driver learning guide. |
+| [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md) | Chaptered source-level MPP/RGA rewrite architecture and kernel-driver learning guide. [`docs/rewrite-driver-architecture.md`](docs/rewrite-driver-architecture.md) is a forwarding stub keeping the pre-split path alive for old links. |
+| [`docs/kernel-builds.md`](docs/kernel-builds.md) | The unified map of the four local kernel flavors and the single `build-kernel.sh` entry point. |
 | [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) | Public-API-only clean-room reimplementation track. |
 | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
 | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | 2026-07-17 audit of claimed ABI/codec coverage, booted evidence, counter/lifetime assertions, and remaining hardware gates. |

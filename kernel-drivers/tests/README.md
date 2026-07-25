@@ -109,6 +109,29 @@ findings.
 | `kasan-narrowed-repro.sh` | **narrowed reset-session double-free reproduction** (KASAN kernel only) | Runs `abi-replay.sh` (MPP/RGA session churn incl. `MPP_CMD_RESET_SESSION`) then a one-shot recursive `/proc/mpp_service` snapshot, and scans the kernel log emitted during it. Isolates the [reset-session double-free](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md): a first-pass KASAN hit on the unpatched fwport kernel, quiet with patch `0042`. A non-zero ABI-contract result is not itself a memory finding; the gate is `flagged_kernel_lines=0`. |
 | `kasan-mpp-suite.sh` | **full MPP codec matrix under KASAN** (memory-safety gate) | Drives `mpp-suite.sh` with the real decode/mt/multi/encode/slice/rc2 matrix against the tracked assets (AVS2 omitted — no asset), then scans the kernel log around it. This is the continuation past the preflight Oops that crashed forward-port run `20260717-230531`; it exercises the [reset-session `0042`](../../findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md) and [`rkvenc2_wait_result` `0043`](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md) paths. Pass = every required case passes **and** `kernel-log-flags.txt` is empty. Override `MPP_REQUIRED_CASES` / `MPP_*_INPUT` to change the matrix. |
 
+## Standalone security reproducers
+
+⚠️ These are single-file proof-of-concept programs, not gates. They have no
+`.sh` driver and are not run by `rewrite-conformance-run.sh`: compile one by
+hand and run it on a **disposable KASAN debug board** with
+`kernel.panic_on_oops=0`. Each deliberately provokes a kernel memory-safety
+bug, and each is quiet once its named forward-port patch is applied. The
+submission tiering for all of them is in
+[`2026-07-22-bsp-bug-upstream-submission-priority.md`](../../findings/2026-07-22-bsp-bug-upstream-submission-priority.md).
+
+| Reproducer | Patch | Proves |
+|------------|-------|--------|
+| [`mpp-double-init-repro.c`](./mpp-double-init-repro.c) | `0070` | A second `MPP_CMD_INIT_CLIENT_TYPE` on one session double-adds `session->session_link`, persistently corrupting `queue->session_attach` and leaking the first `session->dma`; a *later* unprivileged INIT then reads a freed `struct mpp_session`. Unprivileged, escalates from a `DEBUG_LIST` WARN to a KASAN slab-use-after-free. Fixed case returns `-EBUSY`. |
+| [`mpp-reg-offset-oob-repro.c`](./mpp-reg-offset-oob-repro.c) | `0055` | `mpp_extract_reg_offset_info()` bounded the request by a *floored* element count but copied the *raw* `req->size` bytes, so a size that is not a whole number of elements (e.g. 647) writes past the 80-element array into adjacent `struct mpp_task` fields — including `delayed_work`, a classic LPE write primitive. |
+| [`rkvdec2-rcb-index-oob-repro.c`](./rkvdec2-rcb-index-oob-repro.c) | `0061` | `mpp_set_rcbbuf()` used an attacker-controlled `elem[i].index` unbounded against `RKVDEC_REG_NUM`, writing an iova past `task->reg[]`. |
+| [`rkvenc2-req-fanout-oob-repro.c`](./rkvenc2-req-fanout-oob-repro.c) | `0063` | Class-spanning `SET_REG_WRITE`/`SET_REG_READ` messages push `w_req_cnt`/`r_req_cnt` past `MPP_MAX_MSG_NUM`, copying `struct mpp_request` data past the fixed array. |
+| [`mpp-foreign-session-fd-repro.c`](./mpp-foreign-session-fd-repro.c) | `0060` | `MPP_CMD_SET_SESSION_FD` validated an fd by comparing its `private_data` against itself — a tautology every fd passes — then used an attacker-chosen kernel object as a `struct mpp_session`: controlled type confusion, reachable by anyone in the `video` group. |
+| [`mpp-clientless-release-fd-uaf.c`](./mpp-clientless-release-fd-uaf.c) | — | A session that never issues `INIT_CLIENT_TYPE` has `session->dma == NULL`, and the `MPP_CMD_RELEASE_FD` arm dereferences it with no NULL guard. See the [clientless-session crash finding](../../findings/2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md). |
+
+[`ioctl-fuzz-smoke.c`](./ioctl-fuzz-smoke.c) is the mutator behind
+`ioctl-fuzz-smoke.sh` above; build and run it through that wrapper rather than
+directly, so the dmesg scanning and fail-nth options apply.
+
 ## Privileges
 
 The smoke tests differ in what device access they need:
