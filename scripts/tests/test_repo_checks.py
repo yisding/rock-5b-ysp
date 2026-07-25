@@ -624,6 +624,51 @@ class SubstantiveDriftTests(unittest.TestCase):
             self.assertIn("tools/orphan.sh", errors[0])
             self.assertIn("tools/README.md", errors[0])
 
+    def test_checks_report_instead_of_silently_covering_nothing(self) -> None:
+        """A missing input must fail the stage, not disable the check.
+
+        Each of these guards used to `return` quietly, so a reworded heading or a
+        moved file left the stage reporting success with the drift intact.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "docs").mkdir()
+
+            # Watchlist heading reworded by one character.
+            (root / "status.md").write_text(
+                "# Status\n\n| 1 | Track one |\n\n"
+                "## Watchlist: facts that go stale silently\n\n"
+                "| W01 | [Thing](#watch-w01) | 2026-07-25 |\n",
+                encoding="utf-8",
+            )
+            (root / "docs" / "status-ledger.md").write_text(
+                "# Ledger\n\nprose only, no numbered rows\n", encoding="utf-8"
+            )
+
+            errors: list[str] = []
+            DOC_CHECKER.check_watchlist_pairing(root, errors)
+            self.assertEqual(len(errors), 1, errors)
+            self.assertIn("silently covered nothing", errors[0])
+
+            errors = []
+            DOC_CHECKER.check_status_ledger_tracks(root, errors)
+            self.assertTrue(
+                any("no numbered track rows parsed" in error for error in errors),
+                errors,
+            )
+
+            for check in (
+                DOC_CHECKER.check_ppa_ffmpeg_install_pin,
+                DOC_CHECKER.check_ppa_grd_source_pin,
+            ):
+                errors = []
+                check(root, errors)
+                with self.subTest(check=check.__name__):
+                    self.assertTrue(errors, "missing pin inputs reported nothing")
+                    self.assertTrue(
+                        all("cannot run" in error for error in errors), errors
+                    )
+
     def test_shell_contract_reports_bad_shebang_and_stray_exec_bit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

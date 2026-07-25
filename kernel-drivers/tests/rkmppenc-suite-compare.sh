@@ -106,9 +106,21 @@ END {
 
 		if (bs != cs || br != cr)
 			verdict = "different";
-		if (class[case_name] == "required" && br == "pass" && cr != "pass") {
-			verdict = "regression";
-			failed = 1;
+		if (class[case_name] == "required") {
+			compared++;
+			if (br == "pass" && cr != "pass") {
+				verdict = "regression";
+				failed = 1;
+			}
+			# A required case failing on BOTH sides is not a regression, but it
+			# is not a pass either. Without this, a baseline picked by mtime from
+			# an unsuccessful run (mpp-suite.sh emits missing-env/missing/timeout
+			# rows for cases it could not run) permanently exempted those cases
+			# in every later candidate.
+			if (br != "pass" && cr != "pass") {
+				verdict = "required-fail-both";
+				failed = 1;
+			}
 		}
 		if (class[case_name] == "required" && br != "pass" && cr == "pass")
 			verdict = "candidate-only-pass";
@@ -121,6 +133,16 @@ END {
 
 		printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 		       class[case_name], case_name, bs, cs, br, cr, be, ce, ratio, verdict);
+	}
+
+	# Comparing nothing used to exit 0: the loop simply did not run, so `failed`
+	# stayed 0 and the caller recorded "no regression". Header-only or empty
+	# summaries reach here whenever find_latest_summary picks by mtime from a run
+	# that produced no cases. The artifact half of this script already had the
+	# equivalent guard.
+	if (compared == 0) {
+		printf("ERROR: no required cases compared -- baseline %s and candidate %s share no required rows, so this comparison proves nothing\n", base_file, cand_file) > "/dev/stderr";
+		failed = 1;
 	}
 
 	exit failed;

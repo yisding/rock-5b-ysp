@@ -126,11 +126,20 @@ def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
     """
     path = root / "status.md"
     if not path.is_file():
+        errors.append("status.md: missing, so the watchlist pairing check cannot run")
         return
 
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     heading = "## Watchlist — facts that go stale silently"
     if heading not in lines:
+        # Returning quietly here disabled the whole check on any reword of the
+        # heading -- even a trailing space -- while the stage still reported
+        # success. If the heading is renamed deliberately, update it here too.
+        errors.append(
+            f"status.md: no {heading!r} heading, so the watchlist pairing check "
+            "silently covered nothing; update the heading in "
+            "check-doc-consistency.py if the rename was deliberate"
+        )
         return
     section = lines[lines.index(heading) + 1 :]
 
@@ -205,6 +214,14 @@ def check_status_ledger_tracks(root: Path, errors: list[str]) -> None:
     """
     dashboard = _numbered_tracks(root / "status.md")
     ledger = _numbered_tracks(root / "docs/status-ledger.md")
+    # An empty parse used to disable the comparison silently, so a table that
+    # stopped matching TRACK_ROW_RE looked identical to a table with no drift.
+    for label, tracks in (("status.md", dashboard), ("docs/status-ledger.md", ledger)):
+        if not tracks:
+            errors.append(
+                f"{label}: no numbered track rows parsed, so the dashboard/ledger "
+                "track comparison covered nothing"
+            )
     if not dashboard or not ledger:
         return
 
@@ -257,6 +274,12 @@ def check_ppa_ffmpeg_install_pin(root: Path, errors: list[str]) -> None:
     """Keep PPA export, documentation, and migration on one FFmpeg version."""
     changelog_path = root / "packaging/ppa/ffmpeg/debian/changelog"
     installer_path = root / "packaging/ppa/clean-install-system-stack.sh"
+    for path in (changelog_path, installer_path):
+        if not path.is_file():
+            errors.append(
+                f"{path.relative_to(root)}: missing, so the FFmpeg version-pin "
+                "check cannot run; update the path here if the file moved"
+            )
     if not changelog_path.is_file() or not installer_path.is_file():
         return
 
@@ -318,6 +341,12 @@ def check_ppa_grd_source_pin(root: Path, errors: list[str]) -> None:
     """Keep the GRD exporter, changelog, and reconstruction docs aligned."""
     exporter_path = root / "packaging/ppa/build-source-packages.sh"
     changelog_path = root / "packaging/ppa/gnome-remote-desktop/debian/changelog"
+    for path in (exporter_path, changelog_path):
+        if not path.is_file():
+            errors.append(
+                f"{path.relative_to(root)}: missing, so the GRD source-pin check "
+                "cannot run; update the path here if the file moved"
+            )
     if not exporter_path.is_file() or not changelog_path.is_file():
         return
 
