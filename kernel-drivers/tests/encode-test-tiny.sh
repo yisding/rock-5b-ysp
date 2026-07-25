@@ -8,6 +8,10 @@
 set -uo pipefail
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+# Only for SUITE_DMESG_FATAL_RE. The private pattern this replaced was blind to
+# KASAN and to both RGA IOMMU fault spellings, and this gate aborts the run.
+# shellcheck source=suite-common.sh disable=SC1091
+source "$TEST_DIR/suite-common.sh"
 
 # MPP_BUILD = an MPP build/install tree with librockchip_mpp + mpi_enc_test
 # (env-overridable). Default = the rockchip-conformance install prefix (lib/+bin/);
@@ -27,7 +31,7 @@ dmesg_since() { dmesg | sed -n "/$1/,\$p"; }
 # REAL faults/crashes only. Excludes the benign iommu_set_fault_handler warning.
 real_faults() {
   dmesg_since "$1" \
-    | grep -iE 'Page fault at|iova=0x|rk_iommu|translation fault|Unable to handle kernel|Internal error|kernel BUG at|Oops|segfault|soft lockup|hard LOCKUP|rcu.*self-detected|watchdog: BUG|blocked for more than|reset.*(timeout|failed)' \
+    | grep -aiE "$SUITE_DMESG_FATAL_RE|iova=0x|translation fault|Internal error|segfault|soft lockup|hard LOCKUP|rcu.*self-detected|watchdog: BUG|reset.*(timeout|failed)" \
     | grep -viE 'iommu_set_fault_handler|mpp_iommu_dev_activate'
 }
 # Non-fatal warnings to surface but not abort on (incl. the iommu_set_fault_handler

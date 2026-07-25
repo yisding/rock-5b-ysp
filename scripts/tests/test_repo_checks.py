@@ -829,6 +829,29 @@ class FatalSignatureScanTests(unittest.TestCase):
         )
         return result.stdout
 
+    def expanded_assignment(self, script: str, variable: str) -> str:
+        """Expand one assignment from a script that cannot simply be sourced.
+
+        Runnable gates exit early on their own argument/root checks, so lift the
+        assignment out textually and expand it with `suite-common.sh` in scope —
+        these patterns interpolate `$SUITE_DMESG_FATAL_RE`.
+        """
+        for line in (self.tests_dir / script).read_text(encoding="utf-8").splitlines():
+            if line.startswith(f"{variable}="):
+                result = subprocess.run(
+                    [
+                        "bash",
+                        "-c",
+                        f'source ./suite-common.sh >/dev/null 2>&1; {line}; '
+                        f'printf "%s" "${variable}"',
+                    ],
+                    cwd=self.tests_dir,
+                    capture_output=True,
+                    text=True,
+                )
+                return result.stdout
+        self.fail(f"no {variable} assignment found in {script}")
+
     def test_ioctl_fuzz_scan_flags_faults_and_ignores_benign_lines(self) -> None:
         # This scan carried its own pre-2026-07 copy of the signature set: it
         # missed all six RK3588 IOMMU/RGA fault lines and fired on the harness's
@@ -846,6 +869,40 @@ class FatalSignatureScanTests(unittest.TestCase):
         self.assert_scan_behaviour(
             "rewrite-recovery-stress.sh",
             self.resolved_regex("suite-common.sh", "SUITE_DMESG_FATAL_RE"),
+        )
+
+    def test_root_gates_regex_is_byte_identical_to_suite_common(self) -> None:
+        # run-root-gates.sh keeps a standalone copy so it can run as root
+        # without the suite helpers. The copies drifted apart once, so the
+        # duplication is allowed but the divergence is not.
+        self.assertEqual(
+            self.root_gates_regex(),
+            self.suite_common_regex(),
+            "run-root-gates.sh FATAL_RE has drifted from SUITE_DMESG_FATAL_RE",
+        )
+
+    def test_vp9_repro_scan_flags_faults_and_ignores_benign_lines(self) -> None:
+        self.assert_scan_behaviour(
+            "mpp-vp9-show-existing-repro.sh",
+            self.resolved_regex("suite-common.sh", "SUITE_DMESG_FATAL_RE"),
+        )
+        source = (self.tests_dir / "mpp-vp9-show-existing-repro.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('grep -aiqE "$SUITE_DMESG_FATAL_RE"', source)
+
+    def test_iommu_fuzz_and_encode_scans_extend_the_canonical_set(self) -> None:
+        # Both harnesses add their own alternatives, so they are supersets of the
+        # canonical set rather than copies of it; assert the canonical set is
+        # actually in scope and that the union still behaves.
+        for script in ("iommu-machinery-fuzz.sh", "encode-test-tiny.sh"):
+            source = (self.tests_dir / script).read_text(encoding="utf-8")
+            with self.subTest(script=script):
+                self.assertIn("suite-common.sh", source)
+                self.assertIn("$SUITE_DMESG_FATAL_RE", source)
+        self.assert_scan_behaviour(
+            "iommu-machinery-fuzz.sh",
+            self.expanded_assignment("iommu-machinery-fuzz.sh", "FAULT_RE"),
         )
 
     def test_kasan_scan_matches_suite_common_case_insensitivity(self) -> None:

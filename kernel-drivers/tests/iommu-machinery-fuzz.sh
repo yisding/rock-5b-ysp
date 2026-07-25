@@ -93,7 +93,11 @@ COUNTER_DIRS=(
   vsi_iommu_debug      /sys/kernel/debug/vsi-iommu
 )
 # dmesg lines that indicate a real IOMMU/DMA/decode fault (vs benign probe noise).
-FAULT_RE='rk_iommu|vsi.?iommu|Page fault|iommu.*fault|DMA-API|swiotlb.*(full|buffer is full)|rga_job_err|RGA_INT|hardware error|mpp.*(error|timeout)|rkvdec.*error|av1.*error'
+# Canonical fatal set (sourced above) plus the harness-specific alternatives this
+# fuzzer needs. The generic terms this replaced ("iommu.*fault", bare "DMA-API")
+# were simultaneously blind to KASAN and to "RGA current status: bus error", and
+# matched benign binding lines such as "iommu: Default domain type: Translated".
+FAULT_RE="$SUITE_DMESG_FATAL_RE|vsi.?iommu|swiotlb.*(full|buffer is full)|rga_job_err|RGA_INT|hardware error|mpp.*(error|timeout)|rkvdec.*error|av1.*error"
 BENIGN_RE='deferred probe|driver is not ready|not registered'
 
 log() { echo "$@"; }

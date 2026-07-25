@@ -195,6 +195,15 @@ Build MPP first, generate the librga pkg-config shim, then build GStreamer:
 ./scripts/build-gstreamer-rockchip.sh
 ```
 
+> `scripts/build-gstreamer-rockchip.sh` here is the reduced, self-contained
+> variant this bundle needs when copied to the target board; it builds into
+> `build/jeffycn-gstreamer-rockchip` with every plugin feature left on `auto`.
+> The maintained one is
+> [`../build-gstreamer-rockchip.sh`](../build-gstreamer-rockchip.sh), which
+> builds into `…-mpp`, pins the feature set, adds the pkg-config preflight and
+> librga `.pc` shim, and also builds `gstreamer-event-harness`. They share a
+> basename but not a build tree — check which one a command means.
+
 Smoke:
 
 ```bash

@@ -18,6 +18,11 @@
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Only for SUITE_DMESG_FATAL_RE. The private pattern this replaced missed every
+# RK3588 IOMMU/RGA fault line and matched `debug:` via a bare `BUG:` and
+# `ramoops` via a bare `Oops`.
+# shellcheck source=suite-common.sh disable=SC1091
+source "$TEST_DIR/suite-common.sh"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$REPO_ROOT/../rockchip-conformance}"
 # shellcheck source=kasan-scan.sh disable=SC1091
@@ -54,7 +59,7 @@ for i in $(seq 1 "$LOOPS"); do
 	wait
 	# Abort early if the oops already fired (KASAN/BUG in the window so far).
 	if journalctl -k --after-cursor "$(cat "$OUT/journal-cursor.txt")" 2>/dev/null \
-		| grep -qE 'Unable to handle kernel|KASAN|BUG:|Oops'; then
+		| grep -aiqE "$SUITE_DMESG_FATAL_RE"; then
 		echo "fault signature appeared at loop $i — stopping to preserve the trace"
 		break
 	fi
@@ -65,7 +70,7 @@ done
 echo "waiting 60s for deferred async fault..."
 for s in $(seq 1 60); do
 	if journalctl -k --after-cursor "$(cat "$OUT/journal-cursor.txt")" 2>/dev/null \
-		| grep -qE 'Unable to handle kernel|KASAN|BUG:|Oops'; then
+		| grep -aiqE "$SUITE_DMESG_FATAL_RE"; then
 		echo "deferred fault appeared after ${s}s"
 		break
 	fi

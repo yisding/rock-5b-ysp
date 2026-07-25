@@ -66,10 +66,13 @@ echo "kernel: $(uname -r)  build: $(cat /proc/mpp_service/version 2>/dev/null)"
 # "iommu" and "fault") and "RGA IOMMU: read fault!" (a word between them) — so a
 # gate could report kernel_flags=0 through a burst of RGA IOMMU faults.  Added
 # the optional intr/read/write group plus explicit "Page fault at"/"bus error".
-# Kept in sync with SUITE_DMESG_FATAL_RE in suite-common.sh (this script stays
+# Byte-identical to SUITE_DMESG_FATAL_RE in suite-common.sh (this script stays
 # standalone deliberately: it must run as root without sourcing the suite
-# helpers, so the set is duplicated — change both together).
-FATAL_RE='KASAN|KFENCE|UBSAN|kernel BUG|\bBUG:|\bOops|use-after-free|out-of-bounds|slab-out|slab-use|general protection|WARNING:|list_[a-z_]* corruption|refcount_t:|hung task|blocked for more than|RCU stall|Unable to handle|Page fault at|iommu[^[:alnum:]]*(intr|read|write)?[^[:alnum:]]*(fault|panic|oops)|bus error'
+# helpers, so the set is duplicated).  That identity is enforced by
+# scripts/tests/test_repo_checks.py — the copies had already drifted apart once,
+# losing KCSAN, lockdep, DMA-API, the atomic-sleep pair, and the rga/mpp fault
+# alternatives, so "change both together" is no longer left to discipline.
+FATAL_RE='KASAN|KCSAN|UBSAN|KFENCE|\bBUG:|kernel BUG|\bOops|Unable to handle kernel|use-after-free|slab-out-of-bounds|out-of-bounds|general protection fault|hung task|blocked for more than|RCU stall|lockdep|WARNING:|DMA-API.*(error|WARNING)|refcount_t:|list_[a-z_]* corruption|scheduling while atomic|sleeping function called|Page fault at|iommu[^[:alnum:]]*(intr|read|write)?[^[:alnum:]]*(fault|panic|oops)|bus error|rga[^[:alnum:]]*(fault|panic)|mpp[^[:alnum:]]*(fault|panic)'
 
 SUMMARY="$OUT/summary.tsv"
 printf 'gate\texit\tkernel_flags\tresult\n' > "$SUMMARY"

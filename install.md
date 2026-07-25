@@ -250,8 +250,9 @@ binary**. Get userspace one of two ways:
   package, and the co-installable forward-port kernel is in this repo. The
   recreated system PPA now publishes the complete normal stack, including GRD;
   four dedicated PPAs publish the incompatible FFmpeg 8.1 and rewrite-kernel
-  tracks. The optional GDM upload, exact clean-migration transaction, and PPA
-  kernel gates remain pending ([`status.md`](status.md)). For whether the
+  tracks. A GRD 50.2 candidate and the optional GDM
+  package are uploaded but not yet Published; the exact clean-migration
+  transaction is still owed ([`status.md`](status.md) track 9). For whether the
   Published forward-port kernel is currently substitutable for path (a), read
   [`status.md`](status.md) track 1 and its
   [W05 watchlist entry](status.md#watch-w05) rather than this page — that state
