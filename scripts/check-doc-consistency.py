@@ -51,6 +51,17 @@ KERNEL_PACKAGE_HELPERS = (
 # (localversion, build root, kernel source) and that helper is a deliberate
 # variant, not drift. Everything it does share is still gated here — without
 # this the package was outside the sync check entirely.
+#
+# The divergence is larger than the argument count, and this byte check cannot
+# see it. maxline's copy also installs Module.symvers into the headers tree and
+# restores the source include/ and arch/*/include/ trees after
+# `make M=scripts clean`, while the three in-tree copies instead preserve
+# include/config + autoconf.h as an `.armbian-build.tar.gz` sidecar and restore
+# only scripts/module.lds. Those are two different strategies for the same
+# hazard, not one copy missing a fix — but whether the sidecar approach leaves a
+# complete headers tree has never been tested against an out-of-tree or DKMS
+# build. Do not "resync" them without settling that first; the three now reject
+# a nine-argument call rather than silently ignoring args 7-9.
 KERNEL_PACKAGE_DIRS_ALL = KERNEL_PACKAGE_DIRS + ("packaging/ppa/kernel-maxline",)
 KERNEL_PACKAGE_HELPERS_ALL = ("debian/scripts/write-maintainer-scripts.sh",)
 PPA_GRD_PIN_DOCS = (

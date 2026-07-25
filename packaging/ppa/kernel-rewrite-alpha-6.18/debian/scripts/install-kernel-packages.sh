@@ -8,6 +8,20 @@ dtb_pkg="${4:?dtb package}"
 headers_pkg="${5:?headers package}"
 arch="${6:?arch}"
 
+# The three in-tree packages hardcode LOCALVERSION="-ysp-rockchip64" and take
+# exactly six arguments. kernel-maxline's variant of this script takes nine (it
+# builds out-of-tree, so it needs localversion, build root and kernel source) --
+# and this copy would silently IGNORE args 7-9 rather than complain. A resync in
+# the wrong direction would then name /boot/vmlinuz after the caller's release
+# while installing modules under /lib/modules/<hardcoded localversion>: a kernel
+# that boots with zero modules. Fail here instead.
+if [ "$#" -ne 6 ]; then
+	printf 'usage: %s ROOT RELEASE IMAGE_PKG DTB_PKG HEADERS_PKG ARCH\n' "$0" >&2
+	printf '  got %d argument(s). This is the in-tree six-argument variant;\n' "$#" >&2
+	printf '  kernel-maxline uses a nine-argument out-of-tree variant.\n' >&2
+	exit 2
+fi
+
 image_dir="$root/debian/$image_pkg"
 dtb_dir="$root/debian/$dtb_pkg"
 headers_dir="$root/debian/$headers_pkg"

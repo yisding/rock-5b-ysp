@@ -46,15 +46,33 @@ write_image_script() {
 	local script="$1"
 	local path="debian/${image_pkg}.${script}"
 	write_common_header "$image_pkg" "$script" > "$path"
+	# run-parts must not be able to abort the script before the boot-critical
+	# /boot/Image update below. set -e is on, so a failing initramfs hook (full
+	# boot partition) or dkms autoinstall used to kill postinst with Image still
+	# pointing at the previous kernel -- and on vfat, where preinst already
+	# removed Image, with no bootable kernel at all. Capture the status, finish
+	# the boot wiring, then report it.
 	cat >> "$path" <<EOF
 export DEB_MAINT_PARAMS="\$*"
 export INITRD=Yes
-test -d /etc/kernel/${script}.d && run-parts --arg="${release}" --arg="/boot/vmlinuz-${release}" /etc/kernel/${script}.d
+run_parts_rc=0
+if [ -d "/etc/kernel/${script}.d" ]; then
+	run-parts --arg="${release}" --arg="/boot/vmlinuz-${release}" "/etc/kernel/${script}.d" ||
+		run_parts_rc=\$?
+fi
 EOF
 	if [[ "$script" == "preinst" ]]; then
-		cat >> "$path" <<'EOF'
+		# Scoped to THIS release. The glob was
+		# `rm -f /boot/System.map* /boot/config* /boot/vmlinuz* /boot/Image ...`,
+		# which deletes every kernel in /boot -- so on a vfat boot partition
+		# installing slot B destroyed slot A's kernel (and postinst *moves*
+		# vmlinuz to Image, leaving the sole copy at a path dpkg does not own, so
+		# it could not be recovered). Co-installability did not exist on that
+		# path. /boot/Image is still removed because postinst rewrites it.
+		cat >> "$path" <<EOF
 if is_boot_dev_vfat; then
-	rm -f /boot/System.map* /boot/config* /boot/vmlinuz* /boot/Image /boot/uImage
+	rm -f "/boot/System.map-${release}" "/boot/config-${release}" \\
+		"/boot/vmlinuz-${release}" /boot/Image /boot/uImage
 fi
 EOF
 	fi
@@ -109,6 +127,14 @@ if ! is_boot_dev_vfat; then
 fi
 EOF
 	fi
+	cat >> "$path" <<EOF
+if [ "\$run_parts_rc" -ne 0 ]; then
+	echo "YSP: WARNING /etc/kernel/${script}.d reported failure (rc=\$run_parts_rc)." >&2
+	echo "YSP: The /boot wiring above was still completed. Check initramfs/DKMS" >&2
+	echo "YSP: output before rebooting." >&2
+	exit "\$run_parts_rc"
+fi
+EOF
 	finish_script "$image_pkg" "$script" >> "$path"
 	chmod 0755 "$path"
 }
