@@ -77,8 +77,9 @@ int main(void)
 	 * exit code is the only available signal.
 	 */
 	if (r1 != 0) {
-		fprintf(stderr, "FAIL: INIT_CLIENT_TYPE #1 failed (errno=%d); the double-init "
-			"path was never reached\n", r1 ? errno : 0);
+		/* errno is long stale by here -- r1's value was already printed above. */
+		fprintf(stderr, "FAIL: INIT_CLIENT_TYPE #1 returned %d; the double-init path "
+			"was never reached\n", r1);
 		return 2;
 	}
 	if (r2 == 0) {

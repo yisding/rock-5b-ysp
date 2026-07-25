@@ -86,12 +86,33 @@ int main(void)
 	printf("submitting %d class-spanning SET_REG_WRITE msgs "
 	       "(w_reqs[] has %d slots) -> OOB write on a vulnerable kernel\n",
 	       NR_WRITES, MPP_MAX_MSG_NUM);
+	errno = 0;
 	int r = ioctl(fd, MPP_IOC_CFG_V1, batch);
-	printf("ioctl ret=%d errno=%d\n", r, r ? errno : 0);
+	int err = r ? errno : 0;
+	printf("ioctl ret=%d errno=%d\n", r, err);
 	printf("check dmesg: fixed kernel logs \"w_req_cnt %d overflow\" and "
 	       "no KASAN out-of-bounds write.\n", MPP_MAX_MSG_NUM);
 
 	free(buf);
 	close(fd);
+
+	/*
+	 * The ioctl result was printed and discarded, so this reported success on a
+	 * vulnerable kernel too -- the class 0f34a22 closed in its siblings. The
+	 * fixed kernel rejects with -EINVAL (mpp_rkvenc2.c), so assert it: without this the
+	 * program cannot distinguish "the guard held" from "I never reached it".
+	 */
+	if (r == 0) {
+		fprintf(stderr, "FAIL: the out-of-bounds request was ACCEPTED - the 0062 "
+			"guard is absent on this kernel\n");
+		return 1;
+	}
+	if (err != EINVAL) {
+		fprintf(stderr, "FAIL: rejected with errno=%d, expected EINVAL (%d) from the "
+			"0062 guard; the message may have been refused earlier\n",
+			err, EINVAL);
+		return 1;
+	}
+	printf("PASS: rejected with -EINVAL; the 0062 guard holds\n");
 	return 0;
 }

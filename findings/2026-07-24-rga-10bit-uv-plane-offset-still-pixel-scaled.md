@@ -289,8 +289,12 @@ independently confirms the fix and narrows what it proves:
   > tile8x8 checks after it never ran either, and the exit status was 139 rather
   > than a scored verdict. Whatever produced those two lines was a local variant
   > that never landed. The clamp is fixed as of this date; **the five-check run
-  > needs repeating on a pre-`0074` kernel** before the tight half of this result
-  > can be cited, and the `0074` verification gate needs the fixed binary.
+  > was then repeated with the fixed binary on this same pre-`0074` kernel**: all
+  > five checks print verdicts, the discriminator reports "tracks true: NO /
+  > tracks scaled: YES", both tight runs fault with `RGA IOMMU: read fault!`
+  > followed by clean RGA3 soft-reset recovery, and it exits 1 rather than 139.
+  > The result above is therefore confirmed — only the IOVA differs per run. The
+  > `0074` verification gate must use the fixed binary.
 
   That is the first TILE 10-bit
   measurement in this project, and it **empirically confirms the source-only

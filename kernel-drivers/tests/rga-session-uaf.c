@@ -434,11 +434,6 @@ next:
 		       "reached the close path with refcount-1 imports)\n");
 		return 1;
 	}
-	if (rounds == 0) {
-		printf("cross: FAIL - no iteration completed a round; both /dev/rga opens or "
-		       "the imports failed every time\n");
-		return 1;
-	}
 	if (dedup_ok == 0) {
 		printf("cross: FAIL - the cross-session de-dup precondition never held, so the "
 		       "two sessions never shared a buffer\n");

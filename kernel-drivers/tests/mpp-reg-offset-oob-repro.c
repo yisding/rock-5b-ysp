@@ -106,12 +106,33 @@ int main(void)
 
 	printf("submitting SET_REG_ADDR_OFFSET size=%d (floors to %d elems, "
 	       "7 bytes OOB on a vulnerable kernel)\n", OOB_SIZE, MAX_ELEMS);
+	errno = 0;
 	int r = ioctl(fd, MPP_IOC_CFG_V1, &off);
-	printf("ioctl ret=%d errno=%d\n", r, r ? errno : 0);
+	int err = r ? errno : 0;
+	printf("ioctl ret=%d errno=%d\n", r, err);
 	printf("check dmesg: fixed kernel logs \"invalid reg offset size %d\" "
 	       "and produces NO KASAN out-of-bounds report.\n", OOB_SIZE);
 
 	free(payload);
 	close(fd);
+
+	/*
+	 * The ioctl result was printed and discarded, so this reported success on a
+	 * vulnerable kernel too -- the class 0f34a22 closed in its siblings. The
+	 * fixed kernel rejects with -EINVAL (mpp_common.c), so assert it: without this the
+	 * program cannot distinguish "the guard held" from "I never reached it".
+	 */
+	if (r == 0) {
+		fprintf(stderr, "FAIL: the out-of-bounds request was ACCEPTED - the 0055 "
+			"guard is absent on this kernel\n");
+		return 1;
+	}
+	if (err != EINVAL) {
+		fprintf(stderr, "FAIL: rejected with errno=%d, expected EINVAL (%d) from the "
+			"0055 guard; the message may have been refused earlier\n",
+			err, EINVAL);
+		return 1;
+	}
+	printf("PASS: rejected with -EINVAL; the 0055 guard holds\n");
 	return 0;
 }

@@ -49,9 +49,14 @@ kasan_scan_end()
 		echo "kasan-scan: WARNING no journal cursor was recorded; scanning the last" \
 			"4000 kernel lines instead of the workload window. Flags below may" \
 			"predate the workload." >&2
-		printf '=== kasan-scan: NO CURSOR, window is the last 4000 kernel lines ===\n' \
-			> "$out/kernel-log-during.txt"
-		journalctl -k -n 4000 >> "$out/kernel-log-during.txt" 2>&1
+		# The note goes in a SIDECAR, never into the scanned file. A banner
+		# containing the word "kasan-scan" matches KASAN in the fatal set, which
+		# is grepped case-insensitively -- so announcing the degraded window
+		# inside the window turned every clean no-cursor run into a hard FAIL.
+		# Same trap run-root-gates.sh documents for `de(bug:)` in gate markers.
+		printf 'no journal cursor was recorded; window is the last 4000 kernel lines\n' \
+			> "$out/kernel-log-window-degraded.txt"
+		journalctl -k -n 4000 > "$out/kernel-log-during.txt" 2>&1
 	fi
 
 	# -ai to match suite-common.sh's scan: the fatal set contains

@@ -9,6 +9,7 @@ set -uo pipefail
 TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
+: "${DEBUGFS_COUNTERS_LOADED:?debugfs-counters.sh did not load; the counter/leak check would be silently absent}"
 
 DEBUGFS_ROOT=${MPP_DEBUGFS_ROOT:-/sys/kernel/debug/rk_mpp_rewrite}
 PROC_ROOT=${MPP_DEBUG_PROC_ROOT:-/proc/mpp_service}

@@ -718,7 +718,10 @@ int main(void)
 		printf("PARTIAL: %s is absent, so only the %s ioctl surface can be fuzzed\n",
 		       mpp_fd < 0 ? "/dev/mpp_service" : "/dev/rga",
 		       mpp_fd < 0 ? "RGA" : "MPP");
-		if (!getenv("IOCTL_FUZZ_ALLOW_PARTIAL")) {
+		/* env_enabled(), not raw getenv(): the other IOCTL_FUZZ_* knobs treat
+		 * 0/false/no as off, and a raw getenv made ALLOW_PARTIAL=0 *enable*
+		 * partial coverage -- failing open, the opposite of the intent. */
+		if (!env_enabled("IOCTL_FUZZ_ALLOW_PARTIAL")) {
 			puts("SKIP: set IOCTL_FUZZ_ALLOW_PARTIAL=1 to accept half coverage");
 			if (mpp_fd >= 0)
 				close(mpp_fd);

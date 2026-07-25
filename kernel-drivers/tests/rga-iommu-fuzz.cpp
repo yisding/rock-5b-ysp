@@ -23,7 +23,7 @@
 //   A scatter-induced bug (wrong base+offset, off-by-page, or non-coherent cache
 //   staleness on this non-coherent device) shows up as a byte mismatch.
 //
-// ALIGNMENT REJECT (forward-port 0072)
+// ALIGNMENT REJECT (forward-port 0071)
 //   RGA3 fetches a window base on 16-byte granularity (the low 4 bits of *_BASE
 //   are dropped), so the driver rejects a scattered/IOMMU-mapped base whose
 //   sub-page offset is not 16-byte aligned with -EINVAL instead of silently
@@ -52,7 +52,7 @@
 static const size_t PAGE = 4096;
 static const size_t CACHE_ALIGN = 64;
 // RGA3 fetches a window base on 16-byte granularity; the driver (forward-port
-// 0072) rejects a scattered/IOMMU-mapped base that is not 16-byte aligned.
+// 0071) rejects a scattered/IOMMU-mapped base that is not 16-byte aligned.
 static const size_t RGA_IOMMU_ADDR_ALIGN = 16;
 
 // Trials that reached the bit-exactness comparison. Reported and gated below: the
@@ -225,7 +225,7 @@ static bool trial(Op op, int w, int h, int sfmt, int dfmt, int dw, int dh,
     memset(dst_a.data, 0, dst_a.size); memset(dst_b.data, 0, dst_b.size);
 
     // A userptr window whose IOMMU base is not 16-byte aligned is rejected by the
-    // driver (0072): an unaligned base cannot be expressed on RGA3's 16-byte base
+    // driver (0071): an unaligned base cannot be expressed on RGA3's 16-byte base
     // granularity, so the job fails -EINVAL rather than returning all-zero pixels.
     // This applies to the base of *either* userptr buffer and to both the
     // scattered and the contiguous userptr paths (an imported virtaddr carries its
@@ -359,7 +359,7 @@ int main(int argc, char **argv) {
             // never both 16-aligned -- brute-forced over 4096 seeds x 64 iters x 4
             // ops: 0 aligned pairs out of 1048576. Every trial therefore took the
             // expect_reject branch and the content comparison never ran, so on a
-            // 0072-or-later kernel this tool asserted only "the contiguous
+            // 0071-or-later kernel this tool asserted only "the contiguous
             // reference ran". Force an aligned pair on every fourth iteration.
             if (it % 4 == 0) {
                 size_t slots = CACHE_ALIGN / RGA_IOMMU_ADDR_ALIGN;

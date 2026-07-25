@@ -288,6 +288,15 @@ run_reset_case()
 	terminate_workload "$pid"
 	local term_rc=$?
 	printf "%s\n" "$reset_rc" > "$case_dir/reset.status"
+	# 77 is "skipped" throughout this harness. RECOVERY_RESET_CMD defaults to
+	# ioctl-fuzz-smoke.sh, which now skips when only one of /dev/mpp_service and
+	# /dev/rga is present -- and have_device_nodes() deliberately accepts one, so
+	# that configuration would otherwise fail the whole reset case on a skip.
+	if [ "$reset_rc" -eq 77 ]; then
+		log "  reset-opener command skipped (rc=77); no reset stress was applied"
+		workload_was_up "$term_rc" "the reset-opener stress was skipped" || return 1
+		return 77
+	fi
 	workload_was_up "$term_rc" "the reset-opener stress finished" || return 1
 	return "$reset_rc"
 }
