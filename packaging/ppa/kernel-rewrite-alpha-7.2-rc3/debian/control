@@ -23,6 +23,7 @@ Package: linux-image-ysp-alpha-7.2-rc3-rockchip64
 Architecture: arm64
 Depends:
  initramfs-tools | linux-initramfs-tool,
+ linux-dtb-ysp-alpha-7.2-rc3-rockchip64 (= ${binary:Version}),
  ${misc:Depends},
 Provides:
  linux-image,

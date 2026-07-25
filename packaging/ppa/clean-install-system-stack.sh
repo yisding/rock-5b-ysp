@@ -8,9 +8,66 @@ EXPECTED_CODENAME="resolute"
 FFMPEG_VERSION="7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1"
 GRD_VERSION="50.2+rkmpp+git20260721.13.cf60b4d-0ubuntu1~rk1"
 MPP_VERSION="1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1"
-LIBRGA_VERSION="2.2.0+git20260703.a632217-0ubuntu3~rk1"
-KERNEL_VERSION="6.18.38+rk3588av1fwport20260709-0ubuntu1~rk2"
 CODEC_UDEV_VERSION="1.1"
+
+# ---------------------------------------------------------------------------
+# KERNEL + LIBRGA MUST BE BUMPED TOGETHER.
+#
+# Since forward-port patch 0072 the 10-bit RGA `vir_w` is a BYTE stride, and
+# librga was changed to match (c80eea7 -> b8def3e -> 4c26ddf). Mixing the two
+# conventions does not fail loudly -- it produces silent wrong chroma on the
+# 10-bit path. See vendor-libraries/rga/docs/librga-p010-p210-rkrga.md and
+# findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md.
+#
+# There is currently NO safe pairing above the pre-0072 pair below, because the
+# completing kernel fix `0074` is compile-verified but has never been published:
+#   * kernel 20260723 (tail 0001-0071) + librga a632217  -- pre-convention-change
+#     on both sides. This is the pair that passed the full conformance set plus
+#     root gates on 2026-07-24, so it is what this script installs.
+#   * kernel 20260724 (tail 0001-0073) carries 0072/0073 but NOT 0074, so it
+#     pairs safely with NOTHING: with a pre-byte-stride librga the strides
+#     disagree, and with b8def3e/26a50ef the UV plane offset is still
+#     pixel-scaled -- the silent-wrong-chroma case, measured on-board.
+# Do not advance KERNEL_VERSION past 20260723 until a kernel carrying 0074 is
+# published; then move LIBRGA_VERSION to 26a50ef or later in the same commit.
+# The assertion below exists so a half-done bump fails here instead of on a board.
+# ---------------------------------------------------------------------------
+LIBRGA_VERSION="2.2.0+git20260703.a632217-0ubuntu3~rk1"
+KERNEL_VERSION="6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1"
+
+# Fail closed on any kernel/librga pair that has not been validated together.
+# An allowlist, not version arithmetic: "both sides post-0072" is NOT sufficient,
+# because no published kernel carries 0074 and without it the UV plane offset stays
+# pixel-scaled even when the stride is byte-literal -- measured on-board as silent
+# wrong chroma. Add a row here only with the run that validated it.
+SAFE_10BIT_PAIRS=(
+    # KERNEL_VERSION|LIBRGA_VERSION|evidence
+    "6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1|2.2.0+git20260703.a632217-0ubuntu3~rk1|full conformance set + root gates, on-board 2026-07-24"
+)
+
+assert_10bit_pair_is_safe() {
+    local entry pair_kernel pair_librga
+    for entry in "${SAFE_10BIT_PAIRS[@]}"; do
+        IFS='|' read -r pair_kernel pair_librga _ <<< "$entry"
+        if [ "$KERNEL_VERSION" = "$pair_kernel" ] &&
+           [ "$LIBRGA_VERSION" = "$pair_librga" ]; then
+            return 0
+        fi
+    done
+    echo "REFUSING to install: this kernel/librga pair is not on the validated list." >&2
+    echo "  KERNEL_VERSION=$KERNEL_VERSION" >&2
+    echo "  LIBRGA_VERSION=$LIBRGA_VERSION" >&2
+    echo "Since patch 0072 the 10-bit RGA vir_w is a byte stride and librga was" >&2
+    echo "changed to match. A straddling pair does not fail loudly -- it produces" >&2
+    echo "silent wrong chroma. A kernel with 0072/0073 but without 0074 pairs safely" >&2
+    echo "with nothing at all. Validated pairs:" >&2
+    for entry in "${SAFE_10BIT_PAIRS[@]}"; do
+        IFS='|' read -r pair_kernel pair_librga pair_note <<< "$entry"
+        printf '  %s + %s (%s)\n' "$pair_kernel" "$pair_librga" "$pair_note" >&2
+    done
+    exit 2
+}
+assert_10bit_pair_is_safe
 
 INCOMPATIBLE_PPAS=(
     ubuntu-rock-5b-experimental

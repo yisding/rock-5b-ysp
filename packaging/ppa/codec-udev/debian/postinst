@@ -11,6 +11,17 @@ verify_codec_node() {
 	permissions=$(stat -c '%G:%a' "$node")
 	if [ "$permissions" != "video:660" ]; then
 		echo "rk3588-codec-udev: $node has $permissions; expected video:660" >&2
+		# The packaged rule lives in /usr/lib/udev/rules.d. A same-named file in
+		# /etc/udev/rules.d fully MASKS it, and kernel-drivers/scripts/'s own
+		# header tells users to copy it there by hand -- so an older manual copy
+		# (one without the dma_heap line) silently wins and this check fails with
+		# no hint as to why.
+		if [ -e /etc/udev/rules.d/99-rockchip-codec.rules ]; then
+			echo "rk3588-codec-udev: NOTE /etc/udev/rules.d/99-rockchip-codec.rules" >&2
+			echo "rk3588-codec-udev: exists and MASKS the packaged rule in" >&2
+			echo "rk3588-codec-udev: /usr/lib/udev/rules.d. Remove the /etc copy so the" >&2
+			echo "rk3588-codec-udev: package's rule takes effect, then reconfigure." >&2
+		fi
 		return 1
 	fi
 }

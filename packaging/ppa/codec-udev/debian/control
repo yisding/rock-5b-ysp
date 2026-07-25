@@ -8,9 +8,16 @@ Rules-Requires-Root: no
 
 Package: rk3588-codec-udev
 Architecture: all
-Depends: ${misc:Depends}, acl
+Depends: ${misc:Depends}
 Enhances: ffmpeg, gnome-remote-desktop
 Description: unprivileged RK3588 video codec and RGA device access
- Installs a udev rule granting the video group and the active local seat
- read/write access to the Rockchip MPP codec device, RGA accelerator, and DMA
- heaps. DMA-heap access is required for RKMPP frame and stream allocation.
+ Installs a udev rule granting the video group read/write access to the Rockchip
+ MPP codec device, RGA accelerator, and DMA heaps. DMA-heap access is required
+ for RKMPP frame and stream allocation.
+ .
+ Group access only: the shipped rule sets GROUP="video", MODE="0660" and nothing
+ else. It does NOT tag the nodes for the active local seat, so a logged-in user
+ who is not in "video" gets no access -- add them with usermod -aG video. The
+ previous description claimed a seat grant, and the package depended on acl, but
+ no setfacl or TAG+="uaccess" was ever present here; the seat/ACL mechanism lives
+ in the separate gnome-remote-desktop-gdm-hwenc rule.

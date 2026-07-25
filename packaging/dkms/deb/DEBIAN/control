@@ -4,7 +4,11 @@ Section: kernel
 Priority: optional
 Architecture: arm64
 Depends: dkms (>= 2.2)
-Recommends: device-tree-compiler
+Conflicts: linux-image-ysp-rockchip64,
+ linux-image-ysp-alpha-6.18-rockchip64,
+ linux-image-ysp-alpha-7.2-rc3-rockchip64,
+ linux-image-ysp-maxline-public-rockchip64,
+ linux-image-ysp-maxline-wip-rockchip64
 Maintainer: Yi Ding <yi.s.ding@gmail.com>
 Description: RK3588 vendor MPP video codec + RGA 2D accelerator (DKMS)
  Out-of-tree DKMS build of the Rockchip RK3588 hardware video codec stack:
@@ -13,6 +17,15 @@ Description: RK3588 vendor MPP video codec + RGA 2D accelerator (DKMS)
  (rga3.ko, /dev/rga). DKMS rebuilds both modules automatically on kernel updates.
  .
  For stock kernels (tested on 6.18; intended to track 6.18 -> 7.2) that do NOT
- already have these drivers built in. A boot-time device-tree overlay that wires
- up the codec/RGA nodes is installed to /boot/overlay-user/ -- enable it by adding
- "rk3588-rock5b-vcodec" to user_overlays= in /boot/armbianEnv.txt, then reboot.
+ already have these drivers built in. This package therefore Conflicts with every
+ YSP combined kernel, which carries the same drivers =y: building the DKMS module
+ against one fails modpost with "exported twice". That exclusion was documented as
+ a hard rule but was not encoded here, so the combination installed cleanly and
+ then broke every subsequent kernel install through the dkms postinst hook.
+ .
+ A boot-time device-tree overlay that wires up the codec/RGA nodes is installed
+ to /boot/overlay-user/ -- enable it by adding "rk3588-rock5b-vcodec" to
+ user_overlays= in /boot/armbianEnv.txt, then reboot.
+ .
+ device-tree-compiler is a BUILD dependency (build-deb.sh compiles the .dtbo with
+ cpp | dtc at package-build time), not a runtime one, so it is not listed here.

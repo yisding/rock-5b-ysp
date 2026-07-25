@@ -58,6 +58,41 @@ if is_boot_dev_vfat; then
 fi
 EOF
 	fi
+	if [[ "$script" == "postrm" ]]; then
+		# /boot/boot.cmd loads ${prefix}Image unconditionally -- no fallback,
+		# no boot menu -- so leaving it pointed at a removed kernel is an
+		# unbootable board even with other kernels still installed. Nothing
+		# used to repoint or drop it, and there was no matching
+		# `linux-update-symlinks remove` for the install in postinst. Only on
+		# real removal: on upgrade the incoming postinst repoints it.
+		cat >> "$path" <<EOF
+case "\$1" in
+remove|purge|disappear)
+	if [ -L /boot/Image ] && [ "\$(readlink /boot/Image)" = "vmlinuz-${release}" ]; then
+		fallback=""
+		for candidate in \$(ls -1v /boot/vmlinuz-* 2>/dev/null | tac); do
+			[ "\$candidate" = "/boot/vmlinuz-${release}" ] && continue
+			[ -e "\$candidate" ] || continue
+			fallback="\$(basename "\$candidate")"
+			break
+		done
+		if [ -n "\$fallback" ]; then
+			echo "YSP: repointing /boot/Image at \$fallback (removing ${release})"
+			ln -sfv "\$fallback" /boot/Image
+		else
+			echo "YSP: no other kernel in /boot -- removing the dangling /boot/Image"
+			echo "YSP: WARNING this board has no YSP kernel to boot; verify your"
+			echo "YSP: bootloader points at another installed kernel before rebooting."
+			rm -f /boot/Image
+		fi
+	fi
+	if ! is_boot_dev_vfat; then
+		linux-update-symlinks remove "${release}" "boot/vmlinuz-${release}" || true
+	fi
+	;;
+esac
+EOF
+	fi
 	if [[ "$script" == "postinst" ]]; then
 		cat >> "$path" <<EOF
 touch /boot/.next
@@ -97,6 +132,35 @@ else
 	echo "YSP: DTB: FAT32: moving /boot/dtb-${release} to /boot/dtb ..."
 	mv -v "dtb-${release}" dtb
 fi
+EOF
+	fi
+	if [[ "$script" == "postrm" ]]; then
+		# boot.cmd loads ${prefix}dtb/${fdtfile} unconditionally. The dtb
+		# package had neither postrm nor prerm, so removing it left /boot/dtb
+		# dangling and the board unbootable.
+		cat >> "$path" <<EOF
+case "\$1" in
+remove|purge|disappear)
+	if [ -L /boot/dtb ] && [ "\$(readlink /boot/dtb)" = "dtb-${release}" ]; then
+		fallback=""
+		for candidate in \$(ls -1vd /boot/dtb-* 2>/dev/null | tac); do
+			[ "\$candidate" = "/boot/dtb-${release}" ] && continue
+			[ -d "\$candidate" ] || continue
+			fallback="\$(basename "\$candidate")"
+			break
+		done
+		if [ -n "\$fallback" ]; then
+			echo "YSP: repointing /boot/dtb at \$fallback (removing ${release})"
+			ln -sfTv "\$fallback" /boot/dtb
+		else
+			echo "YSP: no other DTB tree in /boot -- removing the dangling /boot/dtb"
+			echo "YSP: WARNING the bootloader will not find a device tree; verify your"
+			echo "YSP: boot configuration before rebooting."
+			rm -f /boot/dtb
+		fi
+	fi
+	;;
+esac
 EOF
 	fi
 	finish_script "$dtb_pkg" "$script" >> "$path"
@@ -144,7 +208,7 @@ EOF
 for script in postinst postrm preinst prerm; do
 	write_image_script "$script"
 done
-for script in preinst postinst; do
+for script in preinst postinst postrm; do
 	write_dtb_script "$script"
 done
 for script in preinst postinst prerm; do
