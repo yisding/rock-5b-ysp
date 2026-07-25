@@ -91,10 +91,17 @@ instead of this quickstart.
 
 Do this **before either kernel install path**. Armbian's ROCK 5B U-Boot flow has
 no kernel-selection menu: keeping another file under `/boot` does not make it
-selectable after a failed boot. Installing another
-`linux-image-current-rockchip64` package can also replace or overwrite the
-known-good package files, especially when both builds use the same kernel
-version string.
+selectable after a failed boot.
+
+Each local flavor now installs into its own package slot — `video-port`,
+`video-port-kasan`, `video-rewrite`, `video-rewrite-kasan`, all `-rockchip64`
+([package slots](kernel-drivers/docs/kernel-builds.md#package-slots)) — so a
+debug install can no longer clobber a production one, and
+`install-kernel.sh` refuses Armbian's stock `current-rockchip64` and the PPA's
+`ysp-rockchip64` outright. The hazard that remains is **within** a slot:
+successive builds of one flavor share a package name and kernel version string,
+so installing a newer build replaces the known-good one. Pin every install by
+the `PHASH` the build printed.
 
 1. Capture the working board/kernel/userspace identity:
 
