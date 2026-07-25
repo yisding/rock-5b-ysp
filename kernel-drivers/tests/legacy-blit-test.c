@@ -1,6 +1,23 @@
 /* Minimal legacy RGA_BLIT_SYNC probe: virtual-address BITBLT copy.
  * Mirrors librga's legacy virtual convention: yrgb_addr = 0,
  * uv_addr = user virtual base, mmu_info enabled.
+ *
+ * Pass criterion: the blit succeeds AND the destination matches the source.
+ *
+ * Build (its two siblings say "build like legacy-blit-test.c", so the recipe
+ * belongs here). Shim two empty kernel headers, then compile against the
+ * forward-port tree's rga3/include/rga.h:
+ *
+ *   mkdir -p shim/linux && : > shim/linux/mutex.h && : > shim/linux/scatterlist.h
+ *   cc -O2 -Wall -Wextra -I shim \
+ *      -I <kernel>/drivers/video/rockchip/rga3/include \
+ *      -Du8=uint8_t -Du16=uint16_t -Du32=uint32_t -Du64=uint64_t \
+ *      legacy-blit-test.c -o legacy-blit-test
+ *
+ * Add -include stdbool.h on any compiler defaulting to pre-C23: rga.h uses
+ * `bool`, which neither shim nor <linux/types.h> provides. gcc 15 (C23 default)
+ * needs nothing; gcc 13 as shipped on the Noble builder defaults to gnu17 and
+ * fails without it.
  */
 #include <stdio.h>
 #include <stdlib.h>

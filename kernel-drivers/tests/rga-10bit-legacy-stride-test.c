@@ -19,6 +19,9 @@
  * Build like legacy-blit-test.c: shim empty linux/mutex.h +
  * linux/scatterlist.h and -Du8=uint8_t -Du16=uint16_t -Du32=uint32_t
  * -Du64=uint64_t against the forward-port tree's rga3/include/rga.h.
+ * Add -include stdbool.h on any compiler defaulting to pre-C23: rga.h uses
+ * `bool`, which the shims do not provide. gcc 15 (C23 default) needs nothing;
+ * gcc 13 as shipped on the Noble builder defaults to gnu17 and fails without it.
  */
 #include <stdio.h>
 #include <stdlib.h>
