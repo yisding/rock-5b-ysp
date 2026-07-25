@@ -143,7 +143,9 @@ From the repository root, run:
 bash scripts/check-repo.sh
 ```
 
-This checks local Markdown paths and anchors, runs the repository-check
+This checks local Markdown paths and anchors — including relative links that
+climb out of the repository, which are unreachable from any other checkout and
+are always a bug — runs the repository-check
 regression tests, runs ShellCheck at warning-or-higher severity across every
 maintained shell file, checks substantive drift and completeness (packaging
 version pins, personal-home defaults in operational scripts, findings-index

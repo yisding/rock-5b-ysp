@@ -581,7 +581,7 @@ last-checked date.
   for both, clean RGA `soft reset`, no `hung_task`/D-state/KASAN, so the **kernel
   is not implicated**; only the build without `da5befc806` hangs. This is the
   encoder input-backpressure / decoder receive-loop hang class already catalogued
-  in the [ffmpeg submission plan](../video-libraries/ffmpeg/docs/submission-plan.md)
+  in the [ffmpeg submission plan](video-libraries/ffmpeg/docs/submission-plan.md)
   §B and fixed on our 8.0 line — **not a new finding**. Our fix is not yet
   forward-ported to the main/master branch or submitted upstream (status row 6).
   Harness: `ffmpeg-suite.sh` now uses `timeout -k` (reaps a deadlock) and prints

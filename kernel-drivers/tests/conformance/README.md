@@ -93,10 +93,10 @@ destination. `./scripts/collect-system-info.sh --selftest` verifies the
 root/resume identifier redaction without reading board state or creating a log
 directory.
 
-The cross-project [`system baseline guide`](../../../../docs/system-baseline.md)
+The cross-project [`system baseline guide`](../../../docs/system-baseline.md)
 defines the captured fields, profile naming, privacy boundary, and which dated
 document owns each changing state claim. Its discovery sections also seed the
-whole-board [`support coverage inventory`](../../../../docs/support-coverage.md):
+whole-board [`support coverage inventory`](../../../docs/support-coverage.md):
 CPU/thermal, memory, storage, PCI/USB, address-free network state, DRM
 connectors, audio, and camera graphs are recorded when available. The boot
 identity section also records any U-Boot version exposed in the live DT, a hash

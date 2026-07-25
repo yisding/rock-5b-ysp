@@ -139,6 +139,33 @@ class MarkdownLinkCheckerTests(unittest.TestCase):
                 result.stdout,
             )
 
+    def test_link_climbing_out_of_the_repository_is_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "repo"
+            (root / "nested").mkdir(parents=True)
+            # The escaping target is made to exist outside the repository so the
+            # check cannot pass merely because the path is missing on this box.
+            (Path(temporary) / "outside.md").write_text("# Outside\n", encoding="utf-8")
+            (root / "nested" / "page.md").write_text(
+                "# Page\n\n[climbs out](../../outside.md)\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "check-markdown-links.py"),
+                    str(root),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("link escapes repository", result.stderr)
+            self.assertIn("checked 1 markdown files, 0 local links", result.stdout)
+
 
 class OperationalHelpTests(unittest.TestCase):
     def test_board_mutating_entry_points_have_safe_help(self) -> None:

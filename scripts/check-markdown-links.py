@@ -69,6 +69,7 @@ def anchors_for(path: Path) -> set[str]:
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     missing_files: list[tuple[Path, str, Path]] = []
+    escaping_links: list[tuple[Path, str, Path]] = []
     missing_anchors: list[tuple[Path, str, Path, str]] = []
     anchor_cache: dict[Path, set[str]] = {}
     file_links = 0
@@ -97,6 +98,11 @@ def main() -> int:
             try:
                 candidate.relative_to(root)
             except ValueError:
+                # A relative link that climbs out of the repository is always a
+                # bug: CONTRIBUTING.md mandates relative repository links, and
+                # the target is unreachable for anyone whose checkout lives at a
+                # different path. Report it instead of silently skipping.
+                escaping_links.append((path.relative_to(root), raw, candidate))
                 continue
 
             file_links += 1
@@ -120,6 +126,8 @@ def main() -> int:
 
     for source, raw, candidate in missing_files:
         print(f"{source}: missing link {raw} -> {candidate}", file=sys.stderr)
+    for source, raw, candidate in escaping_links:
+        print(f"{source}: link escapes repository {raw} -> {candidate}", file=sys.stderr)
     for source, raw, candidate, fragment in missing_anchors:
         print(
             f"{source}: missing anchor {raw} -> {candidate}#{fragment}",
@@ -130,7 +138,7 @@ def main() -> int:
         f"checked {len(files)} markdown files, "
         f"{file_links} local links, {anchor_links} local markdown anchors"
     )
-    return 1 if missing_files or missing_anchors else 0
+    return 1 if missing_files or escaping_links or missing_anchors else 0
 
 
 if __name__ == "__main__":
