@@ -372,7 +372,14 @@ Install image, DTB, and headers in the same `apt install` transaction so the
 versioned files and `/boot` symlinks cannot drift apart.
 
 Do not replace or rename the currently installed YSP packages. Co-installation
-is the rollback mechanism. Before the first reboot, verify:
+is the rollback mechanism. Note this only became true on 2026-07-25: until then
+the DTB package had no `postrm` and the image `postrm` never repointed
+`/boot/Image`, so *removing* a slot left both unversioned symlinks dangling and
+the board unbootable even with other kernels installed. Both packages now
+repoint at the newest remaining kernel/DTB on removal, or drop the dangling link
+with a warning when none is left. The `apt install` transaction note above is
+also now encoded: each image `Depends` on its own DTB package at the same
+version. Before the first reboot, verify:
 
 ```bash
 dpkg-deb -c linux-image-ysp-maxline-rockchip64_*.deb

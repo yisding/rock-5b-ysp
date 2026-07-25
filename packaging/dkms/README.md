@@ -11,6 +11,11 @@ kernel with `kernel-drivers/scripts/build-kernel.sh` (chooser in
 > `modpost` with `'…' exported twice` — the module exports clash with vmlinux.
 > That failure is expected; run DKMS **only on a stock kernel**. (Restated in
 > the deploy hub, [`../README.md`](../README.md).)
+>
+> As of 2026-07-25 this is **enforced, not just documented**: the package
+> `Conflicts` with all five `linux-image-ysp-*` packages, so apt refuses the
+> combination instead of installing it and then failing every later kernel
+> install through the dkms hook.
 
 **Validation reality** (tracked in [`../../status.md`](../../status.md)):
 compiles + links on **6.18 only**; the DT overlay is **dtc-validated but not
