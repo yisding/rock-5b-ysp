@@ -49,7 +49,8 @@ this finding, and drop the others rather than leaving empty headings.
 A correction or supersession goes in a `>` block directly under the header, not
 buried in the body:
 
-> **Corrected YYYY-MM-DD by [`<file>`](<file>).** <what changed and why.>
+> **Corrected YYYY-MM-DD by** <a relative link to the superseding finding>.
+> <what changed and why.>
 
 When this finding graduates into a project doc, replace the whole file with the
 tombstone shape described in findings/README.md § Lifecycle.
