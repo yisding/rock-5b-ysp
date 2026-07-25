@@ -181,9 +181,11 @@ deb from `output/debs`. Workflow:
 1. `build-kernel.sh` prints the new hash at the end of every build.
 2. After completing §3, pass it to the installer (`sudo RECOVERY_READY=1
    PHASH='…' bash kernel-drivers/scripts/install-combined-kernel.sh`).
-3. **Add a row to the log below** so the hash stays decodable later.
+3. Record the hash wherever the build's state is being tracked — the
+   `status.md` track or watchlist entry that owns it — so it stays
+   decodable later.
 
-### Hash ↔ patch-revision log
+### Hash ↔ patch-revision log (6.18.37 era)
 
 | PHASH | Kernel | Patch set | Validated | Notes |
 |-------|--------|-----------|-----------|-------|
@@ -191,9 +193,18 @@ deb from `output/debs`. Workflow:
 | `Pb6ab-Cb831` | 6.18.37-current-rockchip64 | `kernel-drivers/patches/rk3588-rkvenc2-01` + `02` (current revision) | ✅ hardware ([kernel status](kernel-drivers/docs/forward-port-status.md); tests re-run 2026-07-01) | Known validated pair; `install-combined-kernel.sh` still requires it explicitly. |
 | `P8c75` (config hash not recorded) | 6.18.37 | functionally-identical predecessor revision | ✅ ([kernel status](./kernel-drivers/docs/forward-port-status.md)) | Superseded by `Pb6ab-Cb831`. |
 
-(Every new build you install gets a row; a PHASH change with unchanged
-forward-port commits means the Armbian patch stack moved — run the
-[resyncing guide §4](./kernel-drivers/docs/resyncing.md) bump checklist.)
+This table is a closed historical record of the three 6.18.37 builds, kept
+because `install-combined-kernel.sh` still names `Pb6ab-Cb831` explicitly. It is
+**not** a running log: the 6.18.38 builds that superseded it (`Pabd5-C4ad2`,
+`P9636-C4ad2`, `P272c-Cb831`, and the rest) are identified where their evidence
+lives — [`status.md`](status.md) track 1 and its watchlist entries, and
+[kernel status](kernel-drivers/docs/forward-port-status.md). Record a new build
+there rather than appending here, so one build's identity and its validation
+state do not drift apart.
+
+A PHASH change with unchanged forward-port commits means the Armbian patch stack
+moved — run the [resyncing guide §4](./kernel-drivers/docs/resyncing.md) bump
+checklist.
 
 ## 6. Path b — DKMS on a stock kernel
 
