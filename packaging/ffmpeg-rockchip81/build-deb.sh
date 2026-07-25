@@ -82,10 +82,20 @@ echo "   source: $FFSRC"
 echo "   commit: $COMMIT"
 git clone --shared "$FFSRC" "$BUILD_SRC" >/dev/null
 
+# ccache: $BUILD_SRC above is a fresh `git clone --shared` on every run, so there
+# is never any incremental object reuse and ccache is the only thing that makes a
+# repeat build cheap. FFmpeg takes the compiler through --cc rather than CC.
+# Results land in the shared store; see rock-5b-ysp/scripts/centralize-ccache.sh.
+configure_cc=()
+if command -v ccache >/dev/null 2>&1; then
+	configure_cc=(--cc="ccache ${CC:-gcc}")
+fi
+
 echo "== configure =="
 (
 	cd "$BUILD_SRC"
 	./configure \
+		"${configure_cc[@]}" \
 		--enable-rkmpp \
 		--enable-rkrga \
 		--enable-version3 \

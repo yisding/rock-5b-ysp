@@ -32,6 +32,14 @@ MAKE_KERNEL += O="$(BUILD_DIR)"
 CONFIG_TARGET := $(BUILD_DIR)/.config
 endif
 
+# ccache keeps a local `dpkg-buildpackage -b` rebuild warm. The kernel Makefile
+# assigns CC itself, so it has to be overridden as a make VARIABLE rather than
+# exported into the environment. Gated on ccache being installed, so a builder
+# without it is unaffected. See rock-5b-ysp/scripts/centralize-ccache.sh.
+ifneq ($(shell command -v ccache 2>/dev/null),)
+MAKE_KERNEL += CC="ccache $(CROSS_COMPILE)gcc"
+endif
+
 %:
 	dh $@
 

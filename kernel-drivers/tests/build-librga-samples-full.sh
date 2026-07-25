@@ -43,6 +43,16 @@ common_cmake_args=(
 	"-DRGA_SOURCE_CODE_TYPE=$RGA_SOURCE_CODE_TYPE"
 )
 
+# CMake has no ccache auto-detection the way Meson does, so without an explicit
+# launcher every sample set recompiles from scratch. Results go to the shared
+# store; see rock-5b-ysp/scripts/centralize-ccache.sh.
+if command -v ccache >/dev/null 2>&1; then
+	common_cmake_args+=(
+		"-DCMAKE_C_COMPILER_LAUNCHER=ccache"
+		"-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+	)
+fi
+
 build_one()
 {
 	local src=$1

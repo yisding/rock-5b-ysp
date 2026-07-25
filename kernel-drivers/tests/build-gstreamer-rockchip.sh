@@ -54,8 +54,12 @@ if [ ! -d "$SRC_ROOT" ]; then
 fi
 
 export PKG_CONFIG_PATH="$MPP_PREFIX/lib/pkgconfig:$PKG_SHIM:${PKG_CONFIG_PATH:-}"
-# Avoid ccache permission failures in sandboxed or root-invoked setup probes.
-export CCACHE_DISABLE=${CCACHE_DISABLE:-1}
+# ccache is deliberately NOT disabled here. This used to default CCACHE_DISABLE=1
+# to dodge permission failures from a root-owned ~/.cache/ccache; the shared store
+# (rock-5b-ysp/scripts/centralize-ccache.sh) is group-writable, so that failure
+# mode is gone. Meson auto-detects ccache and prepends it to the compiler, so the
+# build wires itself in with no further plumbing. Export CCACHE_DISABLE=1 to opt
+# out for a deliberately uncached comparison.
 
 if [ ! -f "$PKG_SHIM/librga.pc" ] &&
 	[ -x "$CONFORMANCE_ROOT/scripts/make-librga-pkgconfig.sh" ]; then

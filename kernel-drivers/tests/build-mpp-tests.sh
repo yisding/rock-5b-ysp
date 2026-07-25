@@ -23,6 +23,17 @@ cmake_args=(
 	"-DCMAKE_INSTALL_PREFIX=$PREFIX"
 )
 
+# CMake has no ccache auto-detection the way Meson does, so without an explicit
+# launcher every rebuild of this large C++ tree compiles from scratch. Results go
+# to the shared store via the host ccache config; see
+# rock-5b-ysp/scripts/centralize-ccache.sh.
+if command -v ccache >/dev/null 2>&1; then
+	cmake_args+=(
+		"-DCMAKE_C_COMPILER_LAUNCHER=ccache"
+		"-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+	)
+fi
+
 if [ -n "${CMAKE_TOOLCHAIN_FILE:-}" ]; then
 	cmake_args+=("-DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE")
 fi

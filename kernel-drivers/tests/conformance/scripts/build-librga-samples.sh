@@ -14,10 +14,23 @@ LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$ROOT/sources/airockchip-librga/libs/Linux/gcc-a
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR" "$PREFIX"
 
+# The build dir is wiped above, so Kbuild-style incremental reuse is impossible
+# here by design and ccache is the only thing that keeps a rebuild cheap. CMake
+# has no ccache auto-detection the way Meson does, hence the explicit launcher;
+# see rock-5b-ysp/scripts/centralize-ccache.sh.
+ccache_args=()
+if command -v ccache >/dev/null 2>&1; then
+    ccache_args=(
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+    )
+fi
+
 cmake -S "$SRC" -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}" \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
     -DLIBRGA_FILE_LIB="$LIBRGA_LIBDIR" \
+    "${ccache_args[@]}" \
     -DBUILD_TOOLCHAINS_PATH="${BUILD_TOOLCHAINS_PATH:-/nonexistent}"
 
 cmake --build "$BUILD_DIR" -j"${JOBS:-$(nproc)}"
