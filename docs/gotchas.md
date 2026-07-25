@@ -22,7 +22,7 @@ stays the master list.
 | Permissions | HW codec nodes (`/dev/mpp_service`, `/dev/rga`, **and the `/dev/dma_heap/*` heaps**) default to root-only; granting `mpp_service` alone leaves the encoder **dead** at MPP init (`MppBufferService get_group failed … type 1`) because rkmpp allocates every buffer from a DMA-heap — the udev rule must also grant `SUBSYSTEM=="dma_heap"` to the `video` group | [`packaging/codec-udev/README.md` § Why the dma-heap grant is required](../packaging/codec-udev/README.md) |
 | Userspace libraries | Rockchip `*-dma32` dma-heaps are about low DMA-addressable memory for 32-bit-limited hardware, **not** 32-bit ARM applications. Missing DMA32 heap names on the 6.18 forward-port are a BSP ABI/sample-compatibility gap, not a known correctness requirement for maintained MPP/RGA paths | [`vendor-libraries/docs/how-the-userspace-libs-work.md` § A5.1](../vendor-libraries/docs/how-the-userspace-libs-work.md), [`kernel-drivers/rga/docs/userptr-iommu.md`](../kernel-drivers/rga/docs/userptr-iommu.md) |
 | RGA | `RGA3_core0 INTR[0x2]` is the **RGA MMU interrupt**, not the DMA32 heap problem. The direct librga virtual-buffer samples exposed a forward Rockchip IOMMU gap: losing BSP's `dma_set_max_seg_size(..., DMA_BIT_MASK(32))` let `dma_map_sg()` return fragmented IOVA ranges even though RGA programs only the first segment as a single span | [`kernel-drivers/rga/docs/userptr-iommu.md`](../kernel-drivers/rga/docs/userptr-iommu.md), [`kernel-drivers/docs/forward-port-status.md`](../kernel-drivers/docs/forward-port-status.md) |
-| Userspace libraries | RKRGA `P010`/`P210` through legacy `c_RkRgaBlit()` depends on librga copying the 10-bit layout fields; older sources can silently submit compact 10-bit instead of padded 10-bit, while the fixed source is `github.com/yisding/librga` `main` at `a632217` | [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md) |
+| Userspace libraries | RKRGA `P010`/`P210` through legacy `c_RkRgaBlit()` depends on librga copying the 10-bit layout fields; older sources can silently submit compact 10-bit instead of padded 10-bit, while the fixed source is `github.com/yisding/librga` `main` (tip pinned in [`source-trees.md`](./source-trees.md) — the 10-bit stride convention has moved twice since `a632217`) | [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md) |
 | Debug kernels | Everything about capturing a crash (ramoops/pstore, KASAN, lockdep) without breaking vermagic | [debug-kernel guide](../kernel-drivers/docs/debug-kernel.md); the KASAN/vermagic collision entry below stays canonical here |
 
 ## Build / patching
@@ -285,10 +285,12 @@ headers + samples (no library source) — easy to mistake for closed. The real
 implementation is open (Apache-2.0) in the JeffyCN mirror lineage:
 `JeffyCN/mirrors:linux-rga-multi`, maintained as `tsukumijima/librga-rockchip`
 (full `core/` + `im2d_api/`, CMake/Meson, Debian packages) and
-`madisongh/rockchip-librga`. The current fixed source tree is
-`github.com/yisding/librga` `main` at `a632217`: it preserves the old open history
-through `2cffdf6`, adds a latest-source layer matching `yisding/librga-mirror`,
-and then layers nyanmisaka's fixes plus the local P010/P210 hardening. We linked
+`madisongh/rockchip-librga`. The current fixed source tree is `github.com/yisding/librga` `main` — pinned in
+[`source-trees.md`](./source-trees.md), which is where to read the exact tip,
+since the 10-bit stride convention has moved more than once. It preserves the
+old open history through `2cffdf6`, adds a latest-source layer matching
+`yisding/librga-mirror`, and then layers nyanmisaka's fixes plus the local
+P010/P210 hardening. We linked
 airockchip's prebuilt aarch64 `.so` purely for convenience — it works because it
 shares the BSP lineage with the kernel `/dev/rga` driver (the transcode test
 confirms the ABI matches), but do not assume that binary has the legacy P010/P210

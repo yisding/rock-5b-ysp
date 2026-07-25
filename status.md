@@ -96,7 +96,7 @@ last-checked date.
 | W02 | [Armbian patcher precedence](#watch-w02) | 2026-07-11 | Core-wins behavior unchanged; rename workaround still required. |
 | W03 | [Armbian codec-udev upstreaming](#watch-w03) | 2026-07-11 | PR merged; future images should carry the rule. |
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-07-11 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
-| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-24 | **Two `dput` uploads 2026-07-24 (10-bit byte-stride fix), Launchpad processing pending — verify both reach Published + arm64 build:** production forward-port kernel `linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260724-0ubuntu1~rk1` (tail `0001`–`0073`, local prod build `P272c-Cb831`, adds `0072` RGA3 byte-stride fix + `0073` RGA2 >4G reject over the Published `…20260723`), and `librga_2.2.0+git20260724.b8def3e-0ubuntu1~rk1` (im2d raster pixel→byte conversion). Both client-side verified (`dpkg-source -x`, content checks) and `debsign`ed. **Prior:** production forward-port `…20260723` Published + arm64-built, board-installed/booted, passed full conformance + root gates ([run](./findings/2026-07-24-production-ppa-kernel-full-conformance-run.md)); latest normal FFmpeg, GRD `~exp3`, both rewrite-kernel replacements Published with successful arm64 builds. |
+| W05 | [Launchpad PPA publication](#watch-w05) | 2026-07-25 | **`librga …20260725.26a50ef` uploaded 2026-07-25, Launchpad processing pending** — supersedes the `b8def3e` upload, extending the 10-bit byte-stride conversion from RASTER to TILE. **Prior:** two `dput` uploads 2026-07-24 (10-bit byte-stride fix), Launchpad processing pending — verify both reach Published + arm64 build:** production forward-port kernel `linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260724-0ubuntu1~rk1` (tail `0001`–`0073`, local prod build `P272c-Cb831`, adds `0072` RGA3 byte-stride fix + `0073` RGA2 >4G reject over the Published `…20260723`), and `librga_2.2.0+git20260724.b8def3e-0ubuntu1~rk1` (im2d raster pixel→byte conversion). Both client-side verified (`dpkg-source -x`, content checks) and `debsign`ed. **Prior:** production forward-port `…20260723` Published + arm64-built, board-installed/booted, passed full conformance + root gates ([run](./findings/2026-07-24-production-ppa-kernel-full-conformance-run.md)); latest normal FFmpeg, GRD `~exp3`, both rewrite-kernel replacements Published with successful arm64 builds. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-07-11 | Four MRs open; !42679 needs a rebase. |
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-19 | Canonical public tips unchanged; separate normal-PPA timeout branch remains at `da5befc806`. |
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-16 | Fix carried forward; board re-test pending. |
@@ -104,7 +104,7 @@ last-checked date.
 | W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-07-21 | The reconstructed-ACK recovery is live-validated, the idle-time false starvation actuator is source-fixed, and installed `exp9` audibly validates PCM RDP output after the PipeWire migration; repeated focus/resume video validation, compressed-audio interoperability, publication/promotion, and upstream review remain. |
 | W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
-| W13 | [librga P010/P210 series](#watch-w13) | 2026-07-24 | **`rga_convert_addr()` is wrong again, in the opposite direction.** On `P63dd-C4ad2` the `0047` stride fix made P010 luma bit-exact while chroma landed wrong because `rga_convert_addr()` derived UV offsets at 1 byte/px; `0049` fixed that by scaling `vir_w` by pixel depth. But `0072` then made `vir_w` a **byte** stride, so that same scaling now double-applies the depth: measured on the booted `…20260724~rk1` + librga `b8def3e` pair, the UV plane is read from the `×10/8` (compact) / `×2` (incompact) offset — tight buffers IOMMU-fault, over-sized buffers **silently get wrong chroma**. Fixed by `0074` (`710e6ad12af6`, `y_bytes = vir_w * vir_h`) — compile-verified, **booted gate still owed**; the 10-bit gates now also check chroma content, so a recurrence cannot pass as a green. See the [UV-offset finding](./findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md). |
+| W13 | [librga P010/P210 series](#watch-w13) | 2026-07-25 | **`rga_convert_addr()` is wrong again, in the opposite direction.** On `P63dd-C4ad2` the `0047` stride fix made P010 luma bit-exact while chroma landed wrong because `rga_convert_addr()` derived UV offsets at 1 byte/px; `0049` fixed that by scaling `vir_w` by pixel depth. But `0072` then made `vir_w` a **byte** stride, so that same scaling now double-applies the depth: measured on the booted `…20260724~rk1` + librga `b8def3e` pair, the UV plane is read from the `×10/8` (compact) / `×2` (incompact) offset — tight buffers IOMMU-fault, over-sized buffers **silently get wrong chroma**. Fixed by `0074` (`710e6ad12af6`, `y_bytes = vir_w * vir_h`) — compile-verified, **booted gate still owed**; the 10-bit gates now also check chroma content, so a recurrence cannot pass as a green. See the [UV-offset finding](./findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md). |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
 | W15 | [RGA session-close fix vs. the frozen import](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0039`; frozen base patch still has the old path. |
 | W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-21 | RGA fixes `0045`–`0047` pass their booted gates on `P63dd-C4ad2` (legacy blits, `EOPNOTSUPP` probe, P010 luma bit-exact; smoke/MPP/FFmpeg/ABI replay all green, smoke fully green for the first time). The `0047` gate exposed the `0048` UV plane-offset fix; `0048`–`0050` (UV offsets, RGA2 page-table DMA ownership + device DMA parameters, over-4G service via swiotlb-bounced DMA mappings) are committed and checkpatch-clean with booted gates pending the next debug build. Slice-FIFO hardening, GStreamer, publication, exact-image validation, and rollback remain. |
@@ -161,7 +161,14 @@ last-checked date.
 
 - **Why recheck:** Acceptance, build state, and binary publication can change
   after upload without a local repository edit.
-- **Last checked:** 2026-07-24
+- **Last checked:** 2026-07-25
+- **State 2026-07-25:** `librga_2.2.0+git20260725.26a50ef-0ubuntu1~rk1` uploaded
+  from fork tip `26a50ef`, superseding the `…20260724.b8def3e` upload below —
+  that one limited the 10-bit byte-stride conversion to RASTER, and `4c26ddf`
+  extends it to TILE. Client-side verified (lintian clean bar a
+  `newer-standards-version` warning, full local arm64 binary build, SONAME still
+  `librga.so.2`), `debsign`ed, `dput` succeeded, **Launchpad processing
+  pending** — verify it reaches Published with a successful arm64 build.
 - **State 2026-07-24:** Two `dput` uploads carrying the 10-bit byte-stride fix,
   Launchpad processing pending — verify both reach Published with a successful
   arm64 build: production forward-port kernel
@@ -334,7 +341,17 @@ last-checked date.
 
 - **Why recheck:** The fix must remain reconstructible and its 10-bit shipping
   gate must not be mistaken for completed hardware validation.
-- **Last checked:** 2026-07-24
+- **Last checked:** 2026-07-25
+- **State 2026-07-25 (TILE):** The byte-stride convention holds for **TILE too**,
+  not just RASTER — settled against BSP `develop-5.10`/`develop-6.1`, where the
+  `* 8` in the tile stride is the eight-lines-per-tile-block factor, not a
+  pixel-depth scale, and `rga_convert_addr()` has no `rd_mode` distinction at
+  all. librga `b8def3e` had gated the pixel→byte conversion on raster, and the
+  rewrite's TILE branch pinned the wrong convention with a KUnit guard. Fixed in
+  librga `4c26ddf` (shipped as the `…20260725.26a50ef` upload, W05) and rewrite
+  `40cf22629cf63`/`7481ab327d7ea`. **Kernel and librga must now ship together
+  for TILE 10-bit**, the same coupling as the `0072`/`c80eea7` raster pair. See
+  the [TILE byte-stride finding](./findings/2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md).
 - **State 2026-07-24:** `rga_convert_addr()` is wrong again, in the opposite
   direction. `0049` scaled `vir_w` by pixel depth to fix the 1 byte/px UV
   derivation below, but `0072` then made `vir_w` a **byte** stride, so that
