@@ -111,7 +111,7 @@ or low enough severity to defer to a v2.
 | 2 | `mpp_iommu.c` `mpp_dma_import_fd` (`static_use=1` path) | Re-importing the **same** `static`/`TRANS_FD_TO_IOVA` fd returns `+1`, but the *create* path of a static buffer takes no outside ref — so duplicate static imports over-ref the buffer (it stops being LRU-evictable; the extra refs aren't dropped until session teardown). | **Pre-existing and unchanged** — pre-patch's found path did the same `kref_get_unless_zero`. Low severity, session-bounded. Surfaced by the `mpp_iommu` re-verification. Fixable by dropping `find`'s temp ref on the static found path (matches the create path) — but it's another refcount edit, so it wants the same adversarial re-verification before shipping. |
 
 Beyond these two: the audit was a **sample, not a proof** (3 lenses over the 15
-shipped files). The ~98% byte-identical BSP code we carried over very likely has
+shipped files). The ~87% byte-identical BSP code we carried over very likely has
 further latent bugs no lens surfaced. "Two known items left" ≠ "bug-free."
 
 ## How to apply the safe set

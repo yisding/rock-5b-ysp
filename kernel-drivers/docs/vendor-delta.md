@@ -3,80 +3,221 @@
 A line-level accounting of the forward-port: how much of the validated driver
 code is Rockchip's, and precisely what our changes were and why.
 
-> **Scope boundary.** The 1.7% measurement here is the original validated
-> non-AV1 forward-port base, reconstructed from the top-level `01` driver patch.
-> The current AV1/IOMMU-hardened `rkvenc-fwport-6.18` branch intentionally has a
-> larger delta. The pinned baseline/current and Rockchip 6.1/6.6 comparisons are
-> separated in [forward port vs BSP 6.1/6.6](./bsp-6.1-6.6-comparison.md).
+## The answer: 90% Rockchip, 10% ours
 
-> This doc is the **quantitative** side — counts, percentages, and the complete
-> per-change table. For the narrative rationale (why each hunk exists, the
-> `compat/` and `hack/` story), see [forward-port guide](../../kernel-versions/docs/vendor-forward-port.md).
+Of the 39,535 lines of MPP + RGA driver code in the shipping tree
+(`0001`–`0074`), **≈ 90% is Rockchip-authored and ≈ 10% is ours**:
+
+| Provenance | Lines | Share |
+|---|---:|---:|
+| Rockchip 6.1 BSP, carried over verbatim | 34,382 | 87.0% |
+| Rockchip `develop-5.10`, cherry-picked | 1,175 | 3.0% |
+| **Rockchip, total** | **35,557** | **89.9%** |
+| **Ours** | **3,978** | **10.1%** |
+
+Measured 2026-07-24 against donor `rockchip-kernel@b4ef083dc0c3` (`develop-6.1`),
+tree `linux-6.18-rkvenc-av1-fwport@710e6ad12af6`.
+
+The 10% is not spread evenly: it concentrates in IOMMU/DMA integration and RGA
+memory management, and the big register and hardware-table files are barely
+touched. The rest of this page is where each class comes from, then the complete
+per-change table.
+
+> One number sits outside both columns: the **Verisilicon IOMMU driver**
+> (1,039 lines) is third-party Collabora code living in `drivers/iommu/`, not
+> in the driver directories measured above. It is
+> [broken out below](#the-collabora-iommu-work-broken-out).
+
+This page is the **quantitative** side. The narrative rationale for each hunk —
+and the `compat/` and `hack/` story — is in the
+[forward-port guide](../../kernel-versions/docs/vendor-forward-port.md); which blocks
+are in or out of the port at all is [forward-port scope](./forward-port-scope.md);
+how the Rockchip branches differ from each other is
+[forward port vs BSP 6.1/6.6](./bsp-6.1-6.6-comparison.md).
+
+> We ported the **minimal subset** of the MPP framework needed for the codecs:
+> **7 of the BSP's 17 `mpp_*.c` files** (`mpp_common`, `mpp_iommu`,
+> `mpp_service`, `mpp_rkvenc2`, `mpp_rkvdec2`, `mpp_rkvdec2_link`, `mpp_av1dec`)
+> — **not** the legacy VPU1/2, VEPU1/2, RKVDEC-v1, RKVENC-v1, JPEG, IEP2, or
+> VDPP blocks. The per-block rationale is in
+> [forward-port scope](./forward-port-scope.md). (`mpp_av1dec` joined the set
+> when AV1 was folded into the single line; older revisions of this doc list six
+> files and count AV1 as unported.)
+
+## Where each class comes from
+
+### Rockchip 6.1 BSP, verbatim — 87.0%
+
+The bulk. Patches `0001`–`0002` import the vendor MPP and RGA drivers and the
+RK3588 device tree; the vendor `.c` files were never rewritten, so most of every
+file is still byte-identical to `develop-6.1`. `mpp/hack/` (1,445 lines of
+other-SoC workarounds RK3588 never executes) is carried unmodified on purpose, so
+re-syncing against a newer BSP stays a clean diff.
+
+### Rockchip `develop-5.10`, cherry-picked — 3.0%
+
+Patches `0017`–`0036` bring 20 Rockchip-authored RGA commits forward from
+`develop-5.10`, a branch the vendor kept developing after 6.1 (batching,
+`shadow_page` for cache-line-unaligned VAs, CSC/scale and rotate fixes). This
+code is Rockchip's; it simply is not in the 6.1 donor, so a naive donor
+comparison books it as local work. It is **entirely RGA**, which is what you
+would expect from where that branch's activity was:
+
+| File | 5.10 lines |
+|---|---:|
+| `rga3/rga_mm.c` | 419 |
+| `rga3/rga2_reg_info.c` | 320 |
+| `rga3/rga3_reg_info.c` | 127 |
+| `rga3/rga_job.c` | 97 |
+| `rga3/rga_drv.c` | 47 |
+| `rga3/rga_policy.c` | 43 |
+| `rga3/include/rga2_reg_info.h` | 37 |
+| `rga3/rga_debugger.c` | 21 |
+
+### Ours — 10.1%
+
+Everything else: the 6.18 API adaptations and IOMMU/DMA integration, the
+`compat/` shim layer, RK3588 bring-up fixes, and the locally-found and
+audit-ported defect fixes. Enumerated in full in
+[Every change, and what it was for](#every-change-and-what-it-was-for).
+
+Where it lands, for the largest files:
+
+| File | Total | Rockchip 6.1 | Rockchip 5.10 | Ours | % ours |
+|---|---:|---:|---:|---:|---:|
+| `mpp/mpp_rkvenc2.c` | 3,596 | 3,156 | 0 | 440 | 12% |
+| `rga3/rga2_reg_info.c` | 3,548 | 3,219 | 320 | 9 | 0% |
+| `rga3/rga_mm.c` | 3,310 | 2,353 | 419 | 538 | 16% |
+| `mpp/mpp_rkvdec2_link.c` | 3,045 | 2,652 | 0 | 393 | 13% |
+| `mpp/mpp_common.c` | 2,938 | 2,635 | 0 | 303 | 10% |
+| `rga3/rga3_reg_info.c` | 2,395 | 2,232 | 127 | 36 | 2% |
+| `mpp/mpp_rkvdec2.c` | 2,324 | 2,149 | 0 | 175 | 8% |
+| `rga3/rga_drv.c` | 1,785 | 1,709 | 47 | 29 | 2% |
+| `rga3/rga_job.c` | 1,731 | 1,478 | 97 | 156 | 9% |
+| `mpp/mpp_av1dec.c` | 1,171 | 1,005 | 0 | 166 | 14% |
+| `mpp/mpp_iommu.c` | 1,135 | 697 | 0 | 438 | 39% |
+| `rga3/rga_debugger.c` | 1,020 | 990 | 21 | 9 | 1% |
+
+Two things stand out. **`mpp_iommu.c` is the one heavily-local file** (39%) —
+mainline's IOMMU core is where the port could not simply carry vendor code.
+And the **register and hardware-table files are essentially untouched by us**:
+`rga2_reg_info.c` is 0% ours despite 320 lines of change, because all of it is
+Rockchip's `develop-5.10` work.
+
+### How the classes were separated
+
+Two signals, because either alone lands in the wrong place:
+
+- **`git blame` at HEAD** identifies lines introduced by the vendor cherry-pick
+  range `0017`–`0036`. Alone it over-credits us, because it attributes a
+  whole-file *vendor* import to whoever imported it — `mpp_av1dec.c` (1,171
+  lines of Rockchip's AV1 decoder, patch `0007`) would count entirely as ours.
+- **A donor comparison** identifies lines byte-identical to 6.1. Alone it also
+  over-credits us, because it cannot see that 1,175 lines came from Rockchip's
+  later branch.
+
+Each line is classified: *5.10* if its commit falls in the cherry-pick range,
+else *6.1 verbatim* if it matches the donor, else *ours*.
+
+> **Deleted lines are invisible.** A line we removed from a vendor file leaves
+> nothing behind to classify, so these figures describe *what the tree
+> contains*, not the total size of the edit.
+
+## The footprint outside `drivers/video/rockchip`
+
+The table above is deliberately scoped to the driver directories so it stays
+comparable across revisions of this doc. The port also touches **20 files
+elsewhere, +2,566 lines** against mainline v6.18 — and this is where a third
+provenance class appears that a vendor/ours split cannot express:
+
+| Area | Lines | Provenance |
+|---|---|---|
+| `drivers/iommu/vsi-iommu.c` + `include/soc/rockchip/vsi_iommu.h` | 1,071 | **Third-party upstream** — the Verisilicon IOMMU driver, © 2025 Collabora (Yandong Lin, Simon Xue, Benjamin Gaignard). **Not in the 6.1 BSP at all**; neither vendor-carried nor ours. |
+| `Documentation/devicetree/bindings/…` (6 files) | 518 | Ours — written for upstream submission. |
+| `arch/arm64/boot/dts/rockchip/` (2 files) | 451 | Ours as written; node *content* is BSP-derived. |
+| `drivers/iommu/rockchip-iommu.c` | +333 | Ours — additions to a **mainline** file (the [IOMMU decision](./forward-port-scope.md#the-iommu-decision)). |
+| `include/soc/rockchip/rockchip_iommu.h` | 68 | 20 differ vs the BSP's 89-line original; mostly BSP-derived, trimmed. |
+| `include/uapi/linux/rk-mpp.h` | 85 | **4** differ vs the BSP's 82-line original — essentially the vendor uAPI carried over. |
+| iommu/video Kconfig+Makefile, `dma-iommu.c`, `iommu.h`, verisilicon Kconfig | 40 | Ours — wiring. |
+
+Two of these rows are the reason a naive `git diff v6.18..HEAD` overstates local
+authorship: `rk-mpp.h` and `rockchip_iommu.h` look 100% new against mainline but
+are ~95% and ~70% vendor code respectively when compared against the donor that
+actually supplied them.
+
+### The Collabora IOMMU work, broken out
+
+The two IOMMU files deserve the same treatment as the driver code, because their
+provenance is different again — and in opposite directions. Both are measured by
+`git blame` at HEAD against our own commit ranges:
+
+| File | Total | Imported / upstream | Ours | % ours |
+|---|---:|---:|---:|---:|
+| `drivers/iommu/vsi-iommu.c` | 1,039 | 1,016 (patch `0005` import) | 23 (patch `0014`) | **2.2%** |
+| `drivers/iommu/rockchip-iommu.c` | 1,683 | 1,349 (mainline v6.18) | 334 (`0005` +221, `0014` +103, rest +10) | **19.8%** |
+
+**`vsi-iommu.c` — we are essentially a consumer, not an author.** The Verisilicon
+IOMMU driver carries `Copyright (C) 2025 Collabora` and names Yandong Lin and
+Simon Xue (Rock-Chips) with Benjamin Gaignard (Collabora). Patch `0005` imports it
+wholesale; our only subsequent edit is 23 lines of fault-handling hardening in
+`0014`. So **97.8% of that file is third-party code we carry**, which is why the
+headline driver-code table deliberately excludes it — folding 1,016 lines of
+someone else's driver into either the "Rockchip" or the "ours" column would
+misrepresent both.
+
+**`rockchip-iommu.c` — the inverse.** Here the baseline is *mainline*, not the
+BSP: 80.2% is upstream v6.18 code, and our 334 lines are the provider hooks that
+implement the [IOMMU decision](./forward-port-scope.md#the-iommu-decision) —
+enable/disable/reset, IRQ mask/unmask, and the Rockchip fault callback that MPP
+needs. This is the one place in the port where we materially extend a mainline
+driver rather than carry a vendor one.
+
+> **Boundary.** `vsi-iommu.c` is **not** in mainline v6.18, so there is no local
+> upstream baseline to diff against: the 1,016-line figure is "as imported by
+> patch `0005`", and the delta between that import and the original Collabora
+> posting is **unmeasured**. Authorship is taken from the file's copyright
+> banner, not from a tree comparison.
 
 ## Method
 
-We diff every forward-ported file against its **original in the Rockchip 6.1 BSP
-donor** (`rockchip-kernel/drivers/video/rockchip/`). A line in our tree is
-counted as **ours** if it isn't byte-identical to the BSP (i.e. a `+` line in
-`diff -u bsp ours`); everything else is **Rockchip, carried over unchanged**.
-New files with no BSP counterpart (the `compat/` shims) are 100% ours. Generated
-build artifacts (`*.mod.c`) are excluded.
+Every line of `drivers/video/rockchip/` at the shipping tip is assigned exactly
+one of the three classes. Two signals are combined, because either alone lands in
+the wrong place (see
+[How the classes were separated](#how-the-classes-were-separated)):
 
-Note a `diff -u` `+` line counts a **modified** line, not only a net addition —
-a one-line edit shows as one `-` (old) plus one `+` (new), and we count the `+`.
-So "ours" is *lines that differ*, which is why it reads higher than
-`git diff --stat`'s net-added figure.
+- **the donor comparison** — is this line byte-identical to `develop-6.1`?
+- **`git blame` at HEAD** — was it introduced by the vendor cherry-pick range,
+  patches `0017`–`0036`?
 
-### Reproduce the count
+Generated build artifacts (`*.mod.c`) are excluded. Both source trees are pinned,
+with reconstruction recipes, in [source-tree pins](../../docs/source-trees.md).
 
-The percentages are auditable against any future BSP with this loop.
-`BSP` = the Rockchip 6.1 BSP donor checkout, `OURS` = the forward-ported
-tree — both are pinned, with reconstruction recipes, in
-[source-tree pins](../../docs/source-trees.md) (`$OURS` is reproducible from
-`patches/rk3588-rkvenc2-01…` on v6.18; you don't need the original dev box):
+### Reproduce it
+
+Walk the **whole** tree rather than a hand-listed file subset — the fixed list
+this doc used to carry silently omitted `mpp_av1dec.c`, `rga_job.c`, and
+`rga2_reg_info.c` once the port grew past its original two-patch base.
 
 ```sh
-for f in mpp/mpp_common.c mpp/mpp_iommu.c mpp/mpp_iommu.h mpp/mpp_service.c \
-         mpp/mpp_common.h mpp/mpp_rkvenc2.c mpp/mpp_rkvdec2.c \
-         mpp/mpp_rkvdec2_link.c rga3/rga_drv.c rga3/rga_iommu.c rga3/rga_mm.c; do
-  printf '%-26s %s\n' "$f" "$(diff -u "$BSP/$f" "$OURS/$f" | grep -c '^+[^+]')"
-done
+BSP=…/rockchip-kernel/drivers/video/rockchip           # develop-6.1 donor
+OURS=…/linux-6.18-rkvenc-av1-fwport                    # the forward-port tree
+
+# 1. patch number for every commit, so the 0017-0036 range can be recognised
+git -C "$OURS" rev-list --reverse v6.18..HEAD | nl
+
+# 2. per line: owning commit ...
+git -C "$OURS" blame -l --line-porcelain HEAD -- <file>
+
+# 3. ... and whether that line is unchanged from the donor
+diff -u "$BSP/<file>" "$OURS/drivers/video/rockchip/<file>"
 ```
 
-(`grep '^+[^+]'` skips the `+++` file-header line.) As measured today: MPP core
-sums to **139**, RGA3 to **38**, of which `rga_mm.c` is **21**.
+Classify each line: **5.10** if its commit is patch `0017`–`0036`; else
+**6.1 verbatim** if it is unchanged from the donor; else **ours**.
 
-> We ported the **minimal subset** of the MPP framework needed for the two
-> codecs: 6 of the BSP's 17 `mpp_*.c` files (`mpp_common`, `mpp_iommu`,
-> `mpp_service`, `mpp_rkvenc2`, `mpp_rkvdec2`, `mpp_rkvdec2_link`) — **not** the
-> legacy VPU1/2, VEPU1/2, RKVDEC-v1, JPEG, AV1, IEP, or VDPP blocks.
-
-## The headline
-
-| Category | Total lines | Ours | Rockchip | % ours |
-|----------|-------------|------|----------|--------|
-| MPP core (`mpp/*.c,*.h`) | 13,965 | 139 | 13,826 | 1.0% |
-| MPP `compat/` (our shim layer, **new files**) | 338 | 338 | 0 | 100% |
-| MPP `hack/` (restored verbatim from BSP) | 1,445 | 0 | 1,445 | 0% |
-| RGA3 (`rga3/**`) | 19,099 | 38 | 19,061 | 0.2% |
-| Kconfig / Makefile wiring | 152 | 63 | 89 | 41% |
-| **Total** | **34,999** | **578** | **34,421** | **≈ 1.7%** |
-
-**≈ 98% of the code is Rockchip's BSP, carried over unchanged. Our forward-port
-is ≈ 1.7% — about 580 lines**, and of those, 338 are a small new compatibility
-shim layer, ~140 are surgical in-place edits, and ~60 are build wiring. The big
-files are essentially untouched: `mpp_common.c` (2,691 lines) changed by **3**,
-`mpp_rkvdec2_link.c` (2,763) by **22**, `rga_mm.c` (2,556) by **21**.
-
-> Integers are the **measured** diff counts (see *Reproduce the count* above) and
-> will drift slightly against a future BSP; the **≈ 580 / 1.7% / 98% headline
-> holds** regardless.
-
-This is the point of the structure: keep the vendor code as close to the BSP as
-possible (easy to re-sync), and confine our deltas to a shim directory plus a
-handful of well-commented hunks.
-
----
+Re-measure after bumping the donor. A *rising* "ours" count means the donor
+changed lines we had edited — inspect those hunks first, they are the ones most
+likely to need re-application.
 
 ## Every change, and what it was for
 
@@ -162,11 +303,19 @@ them. See [resyncing guide](./resyncing.md) for the maintenance view.
 
 ## What this says
 
-The forward-port did **not** rewrite or "clean up" the vendor code — it kept
-~98% byte-identical and adapted the ~2% that the 6.1→6.18 kernel API churn
-demanded, plus the minimum to bind on RK3588 and to package cleanly for Armbian.
-Any latent bugs or non-idiomatic patterns in the BSP code are *still there* —
-the companion audit-and-clean effort now lives **in this repo**:
+The forward-port did **not** rewrite or "clean up" the vendor code — it keeps
+**87% byte-identical to the 6.1 donor** — 90% Rockchip-authored once the
+`develop-5.10` cherry-picks are counted on the vendor side (98% at the original
+two-patch import) — and changed only
+what the 6.1→6.18 API churn demanded, plus the minimum to bind on RK3588, the
+vendor fixes 6.1 never received, and the defects found on hardware.
+
+The structural claim that matters for the audit tracks is unchanged by the
+re-audit: **we did not refactor the vendor logic**, so latent bugs and
+non-idiomatic patterns in the untouched 87% are *still there* — and the
+per-file table above shows the density is lowest exactly in the big register and
+hardware-table files. That is why BSP-latent defects keep surfacing under
+sanitizers. The companion audit-and-clean effort lives **in this repo**:
 [BSP audit](./bsp-audit.md) is the audit (89 reviewer findings, 16 HIGH), the
 fixes are the reviewable 65-patch series in
 [`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split) (with the per-file

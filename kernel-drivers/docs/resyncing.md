@@ -2,7 +2,7 @@
 
 The maintenance view. When you bump the donor (a newer Rockchip BSP), the host
 kernel (a newer mainline/Armbian), or Armbian's own patch stack, this is what to
-re-check and in what order. The forward-port deliberately keeps ~98% of the
+re-check and in what order. The forward-port deliberately keeps ~87% of the
 vendor code byte-identical ([vendor delta](./vendor-delta.md)) and confines the
 deltas to a shim layer ([forward-port guide](../../kernel-versions/docs/vendor-forward-port.md)), so re-syncing is
 mostly *re-applying a small, well-located set of changes* — but a few of them are
@@ -96,24 +96,31 @@ checklist for API drift.
 
 ## 3. Reproduce the delta
 
-After bumping the donor, re-measure so the ~580-line / 1.7% headline stays
-honest (full method + caveats in [vendor delta](./vendor-delta.md) § Method):
+After bumping the donor, re-measure so the ~4,600-line / 12% headline stays
+honest (full method + caveats in [vendor delta](./vendor-delta.md) § Method;
+prefer the whole-tree loop there over a hand-listed file subset, so a newly
+added file cannot escape the count):
 
 ```sh
 BSP=…/rockchip-kernel/drivers/video/rockchip
-OURS=…/linux-6.18-rkvenc/drivers/video/rockchip
-for f in mpp/mpp_common.c mpp/mpp_iommu.c mpp/mpp_iommu.h mpp/mpp_service.c \
-         mpp/mpp_common.h mpp/mpp_rkvenc2.c mpp/mpp_rkvdec2.c \
-         mpp/mpp_rkvdec2_link.c rga3/rga_drv.c rga3/rga_iommu.c rga3/rga_mm.c; do
-  printf '%-26s %s\n' "$f" "$(diff -u "$BSP/$f" "$OURS/$f" | grep -c '^+[^+]')"
+OURS=…/linux-6.18-rkvenc-av1-fwport/drivers/video/rockchip
+find "$OURS" -type f \( -name '*.c' -o -name '*.h' -o -name Kconfig \
+     -o -name Makefile \) ! -name '*.mod.c' | sort | while IFS= read -r f; do
+  rel=${f#"$OURS"/}
+  [ -f "$BSP/$rel" ] || { printf '%-40s %6s (new)\n' "$rel" "$(wc -l < "$f")"; continue; }
+  printf '%-40s %6s\n' "$rel" "$(diff -u "$BSP/$rel" "$f" | grep -c '^+[^+]')"
 done
 ```
 
 A `+` line counts a **modified** line, not only a net addition, so the totals
-read higher than `git diff --stat`. Today this sums to **139** (MPP core) + **38**
-(RGA3). A *rising* count after a BSP bump means the donor changed lines we'd
-edited — re-inspect those hunks first; they are the most likely to need
-re-application.
+read higher than `git diff --stat`. At the `0001`–`0074` tip this sums to
+**1,826** (MPP core) + **2,433** (RGA), **4,626** overall. A *rising* count after
+a BSP bump means the donor changed lines we'd edited — re-inspect those hunks
+first; they are the most likely to need re-application.
+
+> Walk the whole tree, not a fixed file list. The list this section used to carry
+> silently omitted `mpp_av1dec.c`, `rga_job.c`, and `rga2_reg_info.c` once the
+> port grew past its two-patch base.
 
 ---
 

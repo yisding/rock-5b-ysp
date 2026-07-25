@@ -117,7 +117,7 @@ These patches are **machine-generated, adversarially-LLM-verified, and compile-t
 
 > **Line-number pin.** All `line:` numbers in this document are against the **forward-port HEAD *before* any cleanup patch is applied** (the parent of commit `56e403e`). To reconstruct that exact tree from this repo alone — `git checkout v6.18` + `git am` the two `patches/rk3588-rkvenc2-*.patch` — see [source-tree pins](../../docs/source-trees.md) § the audited-tree pin. Line numbers drift as soon as a patch lands in the same file — e.g. after `mpp_common.patch`'s first hunk, every later line in `mpp_common.c` shifts down by the lines it inserted. Re-derive against your working tree, or use the function name + nearby code as the stable anchor.
 
-These are **latent in the upstream Rockchip BSP** too — the forward-port kept the code ~98% as-is.
+These are **latent in the upstream Rockchip BSP** too — the forward-port kept the code ~87% as-is (98% at the original two-patch import; see [vendor delta](./vendor-delta.md)).
 
 ---
 ## Findings by file

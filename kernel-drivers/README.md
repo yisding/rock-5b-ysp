@@ -66,7 +66,7 @@ The kernel work runs on three tracks across those sub-projects:
 
 | Track | What it is | Read next |
 |-------|------------|-----------|
-| Forward-port | Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18. The frozen two-patch base owns the validated anchor; the 68-file AV1/PPA series owns current hardening work through patch `0069`. | [`patches/`](patches/README.md), [`docs/patch-catalog.md`](docs/patch-catalog.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
+| Forward-port | Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18. The frozen two-patch base owns the validated anchor; the 68-file AV1/PPA series owns current hardening work through patch `0069`. Scope boundary — ported/unported blocks, deliberate non-support decisions, and where we are ahead of the BSP — in [`docs/forward-port-scope.md`](docs/forward-port-scope.md). | [`patches/`](patches/README.md), [`docs/forward-port-scope.md`](docs/forward-port-scope.md), [`docs/patch-catalog.md`](docs/patch-catalog.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
 | Audit fixes | A reviewable 65-patch correctness/security cleanup series on top of the forward-port. | [`docs/bsp-audit.md`](docs/bsp-audit.md), [`patches/cleanup-split/`](patches/cleanup-split/README.md) |
 | Rewrite drivers | Public-API-only reimplementations of `/dev/mpp_service` and `/dev/rga`, as a learning + upstreamable-design track. | [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md), [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) |
 
@@ -102,6 +102,7 @@ Read in this order when changing or reviewing kernel behavior:
 | What ioctl ABI does userspace depend on? | [`docs/dev-uapis.md`](docs/dev-uapis.md) |
 | Which parts of that ABI are dead/dormant — safe to not special-case? | [`docs/abi-dormancy.md`](docs/abi-dormancy.md) |
 | What was changed during the forward-port? | [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md) |
+| What did we port, what did we leave behind, and what do we add over the BSP? | [`docs/forward-port-scope.md`](docs/forward-port-scope.md) |
 | What does each forward-port patch do, and which fixes belong back in the BSP? | [`docs/patch-catalog.md`](docs/patch-catalog.md) |
 | How much code is vendor vs local? | [`docs/vendor-delta.md`](docs/vendor-delta.md) |
 | How does the forward port compare with Rockchip's 6.1 and 6.6 BSP media drivers? | [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |

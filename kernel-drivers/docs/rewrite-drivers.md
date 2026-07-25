@@ -4,7 +4,7 @@ A second, independent implementation track: **public-API-only reimplementations
 of the `/dev/mpp_service` and `/dev/rga` userspace ABIs**, written from the ABI
 knowledge documented in [uAPI guide](./dev-uapis.md) rather than by carrying the
 BSP code. This is the *opposite* strategy to the conservative forward-port
-([forward-port guide](../../kernel-versions/docs/vendor-forward-port.md), which keeps ~98% of the vendor code
+([forward-port guide](../../kernel-versions/docs/vendor-forward-port.md), which keeps ~87% of the vendor code
 byte-identical, [vendor delta](./vendor-delta.md)): here the BSP `.c` files are
 not used at all, and every kernel interface is a public one — devm-managed
 MMIO/IRQ/clock/reset discovery, public `dma_buf_attach`/`map` for fd imports,
@@ -113,7 +113,7 @@ fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
 
 | | Forward-port (`mpp/`, `rga3/`) | Rewrite (`mpp-rewrite/`, `rga-rewrite/`) |
 |---|---|---|
-| Code origin | Rockchip 6.1 BSP, ~98% unchanged | written from scratch against the documented ABI |
+| Code origin | Rockchip 6.1 BSP, ~87% unchanged (~90% Rockchip-authored) | written from scratch against the documented ABI |
 | Kernel APIs | BSP-isms shimmed via `compat/` (vendor-forward-port.md §A) | public APIs only, no shims |
 | Kernel target | pinned to 6.18 API surface (resyncing.md hazards) | built on 6.18; being brought up on current mainline master too (§5) |
 | Userspace ABI | full BSP surface | the documented subset current `mpp-rockchip`/`librga`/`ffmpeg-rockchip` actually use |

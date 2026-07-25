@@ -271,8 +271,13 @@ runtime-file counts are:
 | Against 6.6 BSP | 151 | 380 |
 
 The larger RGA distance from 6.6 is almost entirely the vendor 6.1-versus-6.6
-branch delta above. Against 6.1, the complete baseline accounting remains about
-578 local lines out of 34,999 code/build lines: approximately 98% vendor code.
+branch delta above. Against 6.1, the complete **baseline** accounting remains
+about 578 local lines out of 34,999 code/build lines: approximately 98% vendor
+code. That figure describes the two-patch import only; the shipping tree was
+re-audited 2026-07-24 at **4,626 differing lines out of 39,535 — ≈ 88%
+byte-identical, and ≈ 90% Rockchip-authored once the `develop-5.10`
+cherry-picks are counted on the vendor side** ([vendor delta](./vendor-delta.md#the-answer-90-rockchip-10-ours),
+which is authoritative for current numbers).
 
 The meaningful baseline changes are integration changes:
 
@@ -289,13 +294,20 @@ command generators.
 
 ## Current AV1/IOMMU forward-port superset
 
-The current `rkvenc-fwport-6.18@18fae9957686` branch should not be described by
-the original 1.7% figure without qualification. Against the BSP runtime files:
+The current branch should not be described by the original 1.7% figure without
+qualification. Against the BSP runtime files:
 
 | Current comparison | Forward-side MPP lines differing | Forward-side RGA lines differing |
 |--------------------|---------------------------------:|---------------------------------:|
 | Against 6.1 BSP | 1,837 across the selected MPP+AV1 files | 584 |
 | Against 6.6 BSP | 1,847 across the selected MPP+AV1 files | 917 |
+
+> **Stale pin.** The two rows above were measured on `rkvenc-fwport-6.18@18fae9957686`,
+> a branch retired in the 2026-07-23 cleanup, over a hand-selected file subset.
+> The canonical branch is now `rk3588-video-6.18` (tip `710e6ad12af6`, tail
+> `0001`–`0074`), and the whole-directory re-audit against 6.1 gives **MPP 1,826
+> / RGA 2,433 differing lines**. Treat the rows above as historical and
+> [vendor delta](./vendor-delta.md#the-answer-90-rockchip-10-ours) as current. The 6.6 column has not been re-measured at the new tip.
 
 Those larger counts come from targeted functionality and hardening rather than
 a new media-driver architecture:

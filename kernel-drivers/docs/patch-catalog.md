@@ -156,7 +156,7 @@ hostile-ioctl replay) than the BSP ever ran under.
 
 These eleven patches port, onto the evolved `0058` tip, **every HIGH finding of
 the [BSP audit](./bsp-audit.md) still present there**. The audit reviewed the
-forward-ported MPP+RGA files, which kept BSP code ~98% as-is; the audit itself
+forward-ported MPP+RGA files, which kept BSP code ~87% as-is; the audit itself
 states the defects "are latent in the upstream Rockchip BSP too." Every one is
 a backport candidate **by construction**. (Of the audit's 13 distinct HIGH
 bugs, two were already gone from the tip: the RKVENC2 core-probe unwind, fixed

@@ -104,10 +104,13 @@ code.
 | `$BSP` | `rockchip-linux/kernel` branch `develop-6.1`, `drivers/video/rockchip/` | clean checkout, observed @ `b4ef083dc0c3` (2026-07-01) |
 | `$BSP66` | `rockchip-linux/kernel` branch `develop-6.6`, `drivers/video/rockchip/` | clean tree @ `1ba51b059f25`; official remote tip verified 2026-07-16 for the [6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) |
 
-The BSP donor floats (it is a live vendor branch); vendor-delta.md already notes the
-measured integers drift against a future BSP while the ≈580-line / ≈1.7%
-headline holds. If you need the *exact* counts to reproduce, use the
-`b4ef083dc0c3` state of `develop-6.1`. (`radxa/kernel` `linux-7.0.11` also
+The BSP donor floats (it is a live vendor branch), so the measured integers drift
+against a future BSP. The current headline is **≈4,600 differing lines / ≈12%
+ours** for the shipping tree (the older ≈580-line / ≈1.7% figure describes the
+original two-patch import — both are kept, separated, in
+[vendor delta](../kernel-drivers/docs/vendor-delta.md)). If you need the *exact*
+counts to reproduce, use the `b4ef083dc0c3` state of `develop-6.1` against
+`linux-6.18-rkvenc-av1-fwport@710e6ad12af6`. (`radxa/kernel` `linux-7.0.11` also
 exists as a dev-box reference checkout @ `45943c54ded4` but is **not** the
 donor and is not cited by any doc.)
 
