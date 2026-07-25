@@ -77,7 +77,27 @@ CODE="$(cd "$ROOT/.." && pwd)"                          # ~/Code (ysp is <CODE>/
 WORKSPACE="${WORKSPACE:-$CODE/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 BASE_TAG="${BASE_TAG:-v6.18}"                 # local-flavor patches are BASE_TAG..HEAD
-KBRANCH="${KBRANCH:-rockchip64-6.18}"         # Armbian kernel patch archive branch
+# Armbian kernel patch archive branch. This names BOTH the directory this script
+# stages patches into and the one Armbian reads them from -- see
+# ARMBIAN_KERNELPATCHDIR below, which is what keeps the two in step.
+KBRANCH="${KBRANCH:-rockchip64-6.18}"
+
+# THE SILENT-NO-OP GOTCHA: Armbian derives KERNELPATCHDIR as
+# "archive/${LINUXFAMILY}-${KERNEL_MAJOR_MINOR}" (config/sources/common.conf) and
+# these flavors use a custom BRANCH that falls through the family config's case,
+# so the value follows whatever family the Armbian tree currently assigns the
+# board. When Armbian renamed rock-5b's BOARDFAMILY rockchip64 ->
+# rockchip-rk3588, Armbian started reading archive/rockchip-rk3588-6.18 while
+# this script kept staging into archive/rockchip64-6.18. That directory does not
+# exist, so BOTH the core patches and all 75 generated userpatches were skipped
+# -- with no error. The build succeeded and produced installable debs containing
+# a stock kernel with none of the vendor video port in it.
+#
+# Passing KERNELPATCHDIR explicitly makes this script authoritative: Armbian only
+# defaults it when unset, so an explicit value always wins and cannot drift with
+# the board's family again. Pass it as an ARGUMENT for the same reason
+# USE_CCACHE is one -- arguments survive the Docker relaunch.
+ARMBIAN_KERNELPATCHDIR="${ARMBIAN_KERNELPATCHDIR:-archive/$KBRANCH}"
 # Empty by default, so each flavor's Armbian config owns its kernel base rather
 # than this script overriding all four. The forward-port configs carry no pin and
 # therefore follow Armbian's rolling linux-${KERNEL_MAJOR_MINOR}.y stable branch;
@@ -538,6 +558,20 @@ else
 	# Only override the base when explicitly asked; otherwise the flavor's own
 	# Armbian config decides (see ARMBIAN_KERNELBRANCH above).
 	[ -n "$ARMBIAN_KERNELBRANCH" ] && EXTRA_ARGS+=("KERNELBRANCH=$ARMBIAN_KERNELBRANCH")
+
+	# Pre-flight: the directory we are about to tell Armbian to read must be the
+	# one we actually staged into, and it must have patches in it. Without this,
+	# a family rename downstream silently produces a patch-free kernel.
+	[ -d "$UP_DIR" ] || die "userpatch dir missing after staging: $UP_DIR"
+	# find, not ls: under `set -o pipefail` a no-match ls aborts the script before
+	# the explanatory die below can run.
+	staged_count=$(find "$UP_DIR" -maxdepth 1 -name '*.patch' | wc -l)
+	[ "$staged_count" -gt 0 ] || die "no patches staged in $UP_DIR; refusing to build a patch-free kernel"
+	[ "$ARMBIAN_KERNELPATCHDIR" = "archive/$KBRANCH" ] \
+		|| say "  NOTE: KERNELPATCHDIR overridden to $ARMBIAN_KERNELPATCHDIR (staged in archive/$KBRANCH)"
+	say "  patch dir: $ARMBIAN_KERNELPATCHDIR ($staged_count userpatches staged)"
+	EXTRA_ARGS+=("KERNELPATCHDIR=$ARMBIAN_KERNELPATCHDIR")
+
 	./compile.sh "$FLAVOR_CONFIG_NAME" kernel \
 		KERNEL_CONFIGURE=no \
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
@@ -549,13 +583,28 @@ fi
 # =============================================================================
 say "STEP 6: results"
 say "  ccache dir after:  $(du -shL "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)  (grew = ccache engaged)"
-SLOT="${FLAVOR_BRANCH}-rockchip64"
-say "  newest $SLOT debs:"
-ls -t "$DEBS"/linux-image-"$SLOT"_*.deb "$DEBS"/linux-dtb-"$SLOT"_*.deb \
-	"$DEBS"/linux-headers-"$SLOT"_*.deb 2>/dev/null | head -3 | sed 's/^/      /'
-NEW=$(ls -t "$DEBS"/linux-image-"$SLOT"_*.deb 2>/dev/null | head -1)
+# Match on the flavor's BRANCH only, not BRANCH-family: Armbian appends
+# LINUXFAMILY, which it renamed rockchip64 -> rockchip-rk3588 under us, and a
+# hardcoded suffix here silently listed nothing at all.
+say "  newest ${FLAVOR_BRANCH} debs:"
+ls -t "$DEBS"/linux-image-"$FLAVOR_BRANCH"-*_*.deb "$DEBS"/linux-dtb-"$FLAVOR_BRANCH"-*_*.deb \
+	"$DEBS"/linux-headers-"$FLAVOR_BRANCH"-*_*.deb 2>/dev/null | head -3 | sed 's/^/      /'
+NEW=$(ls -t "$DEBS"/linux-image-"$FLAVOR_BRANCH"-*_*.deb 2>/dev/null | head -1)
 PH=$(basename "$NEW" 2>/dev/null | grep -oE 'P[0-9a-f]{4,}-C[0-9a-f]{4,}' || true)
 [ -n "$PH" ] && say "This build's hash: $PH"
+
+# Post-flight: P0000 is Armbian reporting that the patch set hashed to nothing,
+# i.e. no patches were applied. That is exactly what a patch-dir mismatch looks
+# like, and the resulting deb is a stock kernel wearing this flavor's name, so
+# fail loudly rather than hand back something installable and wrong.
+if [ -n "$NEW" ] && basename "$NEW" | grep -q -- '-P0000-'; then
+	die "no patches were applied (deb reports P0000): $(basename "$NEW")
+    The kernel built WITHOUT this flavor's patch series and must not be installed.
+    Check that Armbian's 'Using kernel patch dir' matches archive/$KBRANCH."
+fi
+if [ -z "$NEW" ]; then
+	say "  WARNING: no linux-image deb found for $FLAVOR_BRANCH; the build may not have packaged"
+fi
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	say "DONE. After install.md recovery prep, install with:"
 	say "  sudo RECOVERY_READY=1 PHASH='$PH' bash $HERE/install-kernel.sh"
