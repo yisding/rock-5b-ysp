@@ -88,8 +88,10 @@ land.** On the dev box, `kernel.hung_task_timeout_secs=60` and
 a stuck probe *does* print `BUG: workqueue lockup` (~30 s) and a hung-task
 backtrace (~60 s) into the ring buffer. You just never see them because no console
 is attached, journald cannot flush a frozen boot, and ramoops came up empty
-(RK3588 does not preserve ramoops across a **warm** reset — see
-[`findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md`](../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md)).
+(on **this firmware stack** the reserved window is zeroed across a warm reset —
+see [`findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md`](../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md)
+and the BSP comparison in
+[`findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md`](../../findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md)).
 `soft/hardlockup` and the NMI watchdog do **not** fire on a sleeping hang.
 
 So the triage priority is: give those dumps a durable channel, then force a fast
@@ -99,9 +101,16 @@ reboot instead of a manual wait.
    another host (`modprobe netconsole netconsole=@/,@<host>/`, or a `netconsole=`
    cmdline arg for early boot). Receives the already-armed hung-task and
    workqueue-watchdog dumps live.
-2. **Make ramoops capture** — recover the dump with a **cold power-off** (not a
-   warm reboot), and pair with step 3 so the hang panics and its dump lands in
-   ramoops to read on the next boot.
+2. **Do not count on ramoops here** — the reserved window comes back **zeroed**
+   after a warm reset on this firmware stack (confirmed three independent ways),
+   so there is nothing to recover on the next boot. Earlier revisions of this
+   list advised recovering the dump with a *cold power-off*; that is **backwards
+   and was never tested** — a cold power-off removes DRAM power outright and
+   forces a full DDR re-init, while a warm reset is the only path with any
+   chance at all. Use step 1 (netconsole) or a ttyS2 serial console instead, and
+   pair with step 3 so the hang panics promptly. Outstanding experiments that
+   could still make ramoops work are in
+   [`findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md`](../../findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md).
 3. **Force reboot + dump** — set `kernel.hung_task_panic=1` (default here is `0` =
    warn-only); with `panic=10` already on the cmdline the blocked task panics at
    60 s and self-recovers in seconds instead of a ~6-minute dead wait.

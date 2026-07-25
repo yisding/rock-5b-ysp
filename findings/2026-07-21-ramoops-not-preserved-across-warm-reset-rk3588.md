@@ -12,6 +12,19 @@
 > mechanism and the BSP-firmware-cooperation gap) / **UNVERIFIED** (whether
 > *any* address could survive — full-DRAM-loss vs targeted-clobber).
 
+> **Corrected 2026-07-24** by
+> [`2026-07-24-bsp-vs-armbian-ramoops-gap.md`](2026-07-24-bsp-vs-armbian-ramoops-gap.md),
+> which compared this stack against official Radxa BSP artifacts. The operative
+> conclusion below — *ramoops does not survive a warm reset at
+> `0x118000–0x1e7fff` on this firmware stack, so use off-board capture* —
+> **stands, and is now confirmed three independent ways**. Four supporting
+> claims were wrong and are corrected in place, marked
+> **[corrected 2026-07-24]**: the DRAM-wide universality claim, the
+> DDR-scrambling explanation, the reading of "100 %-of-bytes garbage", and
+> "no supported firmware configuration changes this". The premise that the
+> BSP *does* get 0x110000 to persist is also downgraded — nobody has ever
+> shown it.
+
 ## Result — ramoops cannot capture crashes on this board
 
 The debug kernels are configured for ramoops correctly, but **nothing ever
@@ -51,12 +64,44 @@ physical address. Two observations show the region itself is not surviving:
    appears. A zone written every second of every boot cannot vanish unless the
    memory itself is not carried over — which rules out "the panic dumper didn't
    run."
+
+   **[qualified 2026-07-24 — true here, but attach the evidence.]** "Written
+   every boot" is not automatic: pstore's console has no loglevel bypass
+   (`fs/pstore/platform.c:409-424` + `kernel/printk/printk.c:2989`,
+   `:1282-1285`), so at `loglevel=1` nothing below KERN_EMERG reaches the PRZ
+   until userspace raises `console_loglevel`; and `printk.always_kmsg_dump=1`
+   is inert for ramoops (`printk.c:4731` honours it only when
+   `max_reason == KMSG_DUMP_UNDEF`, but ramoops sets `KMSG_DUMP_OOPS` at
+   `fs/pstore/ram.c:958`), so a clean reboot writes **no** dmesg record at all.
+   The argument holds because boot `-5` measurably emitted **77 867** messages
+   at priority ≤ err with `console_loglevel = 4`, filling the 512 KiB console
+   PRZ many times over, ended in a clean `systemd-shutdown`, and boot `-4` came
+   up **one second later** to an empty `/sys/fs/pstore`. Guaranteed writer,
+   guaranteed reader, whole-zone coverage, no sampling.
 2. **No bad-ECC complaints.** At the *previous*, high-DRAM address the patch
    used, every boot logged "bad ECC headers" — ramoops found the region full of
    garbage (retraining patterns) and rejected it. At the current low
    `0x118000` we get silent-empty with no ECC errors — ramoops finds no header
    at all, consistent with the region being **zeroed**. Different failure at
    different addresses, but both are "the contents did not make it across."
+
+   **[strengthened 2026-07-24 — this argument is load-bearing and it is
+   sound.]** With `ecc-size=16`, `persistent_ram_init_ecc()`
+   (`fs/pstore/ram_core.c:512`) runs **before** the signature comparison at
+   `:520`, so the 12-byte header + 16 parity bytes of *every* zone are
+   Reed-Solomon decoded on *every* boot, unconditionally. Its failure messages
+   are `pr_info("error in header, %d")` (`:246`),
+   `pr_info_ratelimited("uncorrectable error in header")` (`:249`),
+   `pr_info("found existing invalid buffer…")` (`:528`) and
+   `pr_warn("ECC failed %s")` (`:514`) — all KERN_INFO or above, **none**
+   `pr_debug`, and `KERN_INFO` from that same file demonstrably reaches the
+   journal on these boots (`ramoops: using 0xd0000@0x118000, ecc: 16` *is*
+   `pr_info`, `fs/pstore/ram.c:869`; `loglevel=1` gates the console, not the
+   kmsg ring journald reads). Four boots × three zones = 12 header decodes,
+   **zero complaints**. An all-zero block is the trivial RS codeword and
+   decodes clean; random content, all-`0xFF` and a re-keyed scrambler all fail
+   RS decode with overwhelming probability. So the region really does come back
+   as **zeros written by something**, not as lost DRAM.
 
 ## Mechanism (inferred): RK3588 rebuilds DRAM on every reset
 
@@ -148,13 +193,22 @@ What this rules out and rules in:
   zeros over the window on the way up**.
 - u-boot's own code has no bulk clearer for the region (audited above; the
   only DRAM memsets are ATAGS at 2 MB−8 KB and small structs). TPL/SPL/BL31
-  are the remaining candidates, and the prime suspect is **BL31's
+  are the remaining candidates, and the prime suspect is ~~**BL31's
   share-memory pool init**: the 1–2 MB region is BL31's `SIP_SHARE_MEM`
   allocation pool (`sip_smc_request_share_mem()` hands out pages from it),
   and BL31's SCMI shmem at `0x10f000` — directly below the window, declared
   in the mainline DT and used by the kernel's clock driver every boot —
   proves BL31 actively manages this area on this stack. BL31 is a closed
-  rkbin blob (`bl31-v1.48`), so this can't be confirmed in source.
+  rkbin blob (`bl31-v1.48`), so this can't be confirmed in source.~~
+
+  **[corrected 2026-07-24 — BL31 is exonerated.]** The share-memory pool is
+  **64 KiB at `0x100000–0x10ffff`** (`plat/rockchip/rk3588/rk3588_def.h:155-158`
+  in upstream TF-A), ending *exactly* where the window begins at `0x110000` —
+  it cannot reach it. No `memset`/`zeromem` of DRAM appears in any of the 50
+  `plat/rockchip` source files. The "1–2 MB" figure above was U-Boot's
+  unrelated `MEM_SHM` keep-out, conflated with BL31's pool. The remaining
+  candidates are the **TPL DDR blob** and **SPL** — both closed, neither
+  disassembled.
 
 Consequence: **no address inside 1–2 MB can work under this firmware**, and
 the BSP's choice of 0x110000 presumably works on BSP stacks only because
@@ -172,7 +226,11 @@ warm-reboot, `read` with the same offsets.
 - All ZEROED/GARBAGE → DRAM-wide destruction (DDR blob scrub or retraining);
   off-board capture (netconsole / ttyS2 serial) is the only path.
 
-## 2026-07-22 island probe result: DRAM-wide destruction — ramoops is dead on this stack
+## 2026-07-22 island probe result: nothing recovered at 1 GB / 2 GB / 6 GB either
+
+*(Section title corrected 2026-07-24 — it read "DRAM-wide destruction — ramoops
+is dead on this stack". The probe does not establish DRAM-wide loss; see the
+correction below.)*
 
 **MEASURED**, and it closes the question. With the islands installed and a
 verified-clean warm reboot (systemd shutdown → back up 2 s later, no
@@ -182,21 +240,54 @@ power-cycle):
 - `0x80000000` (2 GB): **GARBAGE** (4096/4096 bytes differ)
 - `0x180000000` (6 GB): **GARBAGE** (4096/4096 bytes differ)
 
-100%-of-bytes garbage at two widely separated addresses means DRAM content
+~~100%-of-bytes garbage at two widely separated addresses means DRAM content
 is not readable after a warm reset *anywhere* — consistent with the DDR
 controller's data scrambling being re-keyed (or retraining trashing the
 array) on every re-init. The zeroing observed at 1 GB and in the 1–2 MB
 window are just local actors (some boot-stage workspace; BL31's share-mem
 pool) on top of that global loss. The rkbin `ddrbin_tool` exposes no
 scramble/persistence knob (only skew, frequency, and log parameters), so
-there is no supported firmware configuration that changes this.
+there is no supported firmware configuration that changes this.~~
 
-**Final verdict: no ramoops address can survive a warm reset on this
-board + firmware stack. Crash capture must be off-board** — netconsole
+**[corrected 2026-07-24 — three errors in the paragraph above.]**
+
+- **"100 %-of-bytes garbage" is uninterpretable as stated.** The reference
+  block is 4096 bytes of repeating printable ASCII with only 32 distinct
+  values, so uniform-random content would coincidentally match ~16 of 4096
+  bytes (P(zero matches) = 1.09e-7). The reading therefore excludes *random*
+  content — but **not** a power-loss ground state: at realistic bit-flip
+  rates (≤1 %), long `0x00`/`0xFF` runs give zero ASCII matches for 88–100 %
+  of pages. And the `ZEROED` classifier demands an *exact* all-NUL page, so a
+  single stray byte reclassifies near-zero content as "GARBAGE 4096/4096".
+  **1 GB, 2 GB and 6 GB may all be the same zeroed outcome**; the two
+  "GARBAGE" pages were never hexdumped, so their content is genuinely unknown.
+- **Data scrambling is not the mechanism.** RK3588 TRM V1.0 Part 2 §2.3.3
+  states the Scramble module "is defaultly bypassed"; rkbin has no scramble
+  knob, doc or string for RK3588, and the BSP kernel has no scrambling code.
+  The absence of a knob was read as "fixed-on"; it is equally consistent with
+  "the feature is not in use".
+- **"No supported firmware configuration changes this" is unsupported.** That
+  rested on one grep over two rkbin text files. Swapping the DDR blob and BL31
+  to the versions Radxa ships, or to the BSP-era loader, is untested and
+  coherent — and our `ddr-v1.20 + bl31-v1.48` is *newer* than every BSP image
+  (Radxa ships `ddr-v1.15`/`v1.16 + bl31-v1.45`) and is a pairing Rockchip's
+  own release note calls unsupported (v1.20 requires bl31 ≥ v1.53).
+
+**Verdict, as corrected: no address inside `0x110000–0x1f0000` survives a warm
+reset on this board + firmware stack, and three sampled pages elsewhere did not
+either — but DRAM-wide loss is *not* established** (3 islands × one 4 KiB page
+each, all at the island's lowest offset, one reset, never repeated: 6.25 %
+coverage per island). **Crash capture must be off-board today** — netconsole
 (wired) or ttyS2 serial (1500000 baud), per the Consequences section below.
-How the Rockchip BSP Android stack makes 0x110000 persist remains unknown
-(possibly a different DDR-init path or BL31-mediated log copy); it is not
-reproducible from the pieces this stack uses.
+~~How the Rockchip BSP Android stack makes 0x110000 persist remains unknown.~~
+**[corrected 2026-07-24]** The right statement is: *nobody has shown that it
+does.* Rockchip provisions and documents the window as cross-reset storage in
+shipped products, but no artifact of a recovered `dmesg-ramoops-0` or
+`console-ramoops-0` on any RK35xx was found in English or Chinese sources — and
+because every BSP node omits `ecc-size`, a broken BSP ramoops would fail
+completely silently. The zero-writer on our stack is still unidentified and
+lives in a closed blob (TPL or SPL; U-Boot proper and BL31 are ruled out by
+source audit).
 
 Cleanup after the experiment: remove `initcall_blacklist=ramoops_init`
 from `extraargs` and `ramoops-probe-nomap` from `user_overlays` in
@@ -205,14 +296,27 @@ and optionally `rm -r /var/tmp/ramoops-probe`.
 
 ## Boundary / what is not yet known
 
-- **Full-DRAM-loss vs targeted-clobber: RESOLVED 2026-07-22 — it is both.**
+- ~~**Full-DRAM-loss vs targeted-clobber: RESOLVED 2026-07-22 — it is both.**
   The island probe (above) measured garbage at 2 GB and 6 GB after a clean
   warm reset: the whole array is unreadable after re-init, with additional
   targeted zeroing of the 1–2 MB window and the 1 GB area. No address
-  survives; only off-board capture works.
+  survives; only off-board capture works.~~
+  **[corrected 2026-07-24 — still open.]** The window at
+  `0x110000–0x1f0000` is settled (zeroed, three ways). Whether the rest of DRAM
+  survives is **not**: the island probe sampled one 4 KiB page per island, at
+  the lowest offset, once, and never hexdumped the two non-zero results. Re-run
+  it instrumented (hexdump the first 256 bytes, several offsets per island,
+  repeat) before treating DRAM-wide loss as fact.
 - The DDR/TF-A/U-Boot versions are specific to this Armbian firmware; a
   different bootloader (e.g. genuine Rockchip BSP U-Boot, or a mainline TF-A
-  build that reserves the window) could change the result.
+  build that reserves the window) could change the result. **As of 2026-07-24
+  this is the leading remaining explanation**: our `ddr-v1.20 + bl31-v1.48` is
+  newer than every shipped BSP image and is an unsupported pairing.
+- **Untested and cheap**: a complete BSP kernel + BSP DT (`ramoops@110000`, no
+  `no-map`, no `ecc-size`, plus `pmic-reset-func = <1>`) is already installed on
+  this board as `linux-image-vendor-rk35xx 6.1.115`. Booting it holds our
+  firmware constant and isolates the kernel/DT side — see the experiment runbook
+  in [`2026-07-24-bsp-vs-armbian-ramoops-gap.md`](2026-07-24-bsp-vs-armbian-ramoops-gap.md).
 
 ## Consequences / how to actually capture a crash here
 
@@ -233,5 +337,8 @@ and optionally `rm -r /var/tmp/ramoops-probe`.
 
 Corrects the optimistic premise in
 `kernel-drivers/patches/debug-kernel/0001-arm64-dts-rockchip-add-persistent-ramoops-to-rock-5b.patch`
-("the low persistent range … survives reset"): it survives only under BSP
-firmware, not this Armbian stack.
+("the low persistent range … survives reset"): it does not survive on this
+Armbian stack. ~~It survives only under BSP firmware.~~ **[corrected
+2026-07-24]** That it survives under BSP firmware is an assumption inherited
+from the Rockchip DT comment, not something anyone has demonstrated — see
+[`2026-07-24-bsp-vs-armbian-ramoops-gap.md`](2026-07-24-bsp-vs-armbian-ramoops-gap.md).
