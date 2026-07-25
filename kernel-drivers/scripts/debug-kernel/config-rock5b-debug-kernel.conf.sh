@@ -23,9 +23,13 @@ BUILD_MINIMAL="no"
 INSTALL_HEADERS="yes"
 SHARE_LOGS="no"
 
-# Pin the exact Armbian stable-branch commit used by the installed forward-port
-# 6.18.38 package. build-kernel.sh stages the forward-port patches on top.
-KERNELBRANCH="commit:e46dc0adfe39724bcf52cea47b8f9c9aed86a394"
+# No KERNELBRANCH pin: inherit Armbian's default for a mainline family, which
+# config/sources/mainline-kernel.conf.sh resolves to
+# "branch:linux-${KERNEL_MAJOR_MINOR}.y" -- the rolling 6.18 stable branch. This
+# matches config-rock5b-video-port.conf.sh so the KASAN kernel and the production
+# kernel share a base. The built kernel therefore tracks stable and will change
+# version between rebuilds; pass ARMBIAN_KERNELBRANCH=commit:<sha> (or pin
+# "tag:v6.18.NN" here) when a build has to be reproducible.
 
 # Keep full DWARF/BTF debug data. Armbian may otherwise disable this when RAM
 # looks tight, but this box has enough memory and debug symbols are useful.

@@ -78,11 +78,16 @@ WORKSPACE="${WORKSPACE:-$CODE/kernel/rock5b-kernel-build}"  # build scratch (arm
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 BASE_TAG="${BASE_TAG:-v6.18}"                 # local-flavor patches are BASE_TAG..HEAD
 KBRANCH="${KBRANCH:-rockchip64-6.18}"         # Armbian kernel patch archive branch
-# Keep production rebuilds on the exact 6.18.38 source used for the KASAN
-# verification.  Armbian otherwise follows the rolling linux-6.18.y branch,
-# which can silently turn a two-patch rebuild into an unrelated stable rebase.
-# Override only when intentionally validating a newer stable base.
-ARMBIAN_KERNELBRANCH="${ARMBIAN_KERNELBRANCH:-commit:e46dc0adfe39724bcf52cea47b8f9c9aed86a394}"
+# Empty by default, so each flavor's Armbian config owns its kernel base rather
+# than this script overriding all four. The forward-port configs carry no pin and
+# therefore follow Armbian's rolling linux-${KERNEL_MAJOR_MINOR}.y stable branch;
+# the rewrite configs keep their own explicit commit pins.
+#
+# The tradeoff is deliberate: a rebuild can now pick up a newer stable base and
+# turn a two-patch change into an unrelated stable rebase. Pin explicitly when a
+# build has to be reproducible or comparable to an earlier one:
+#   ARMBIAN_KERNELBRANCH=commit:<sha> bash build-kernel.sh forward-port-debug
+ARMBIAN_KERNELBRANCH="${ARMBIAN_KERNELBRANCH:-}"
 ARMBIAN_USE_CCACHE="${ARMBIAN_USE_CCACHE:-yes}"
 ARMBIAN_CLEAN_LEVEL="${ARMBIAN_CLEAN_LEVEL:-}"
 # Armbian's prepare_tmpfs_for() mounts BOTH WORKDIR and LOGDIR as tmpfs at
@@ -530,8 +535,10 @@ else
 	[ "$IOMMU_DEBUG" = "yes" ] && EXTS="$EXTS,$DEBUG_EXT_NAME"
 	EXTRA_ARGS=("ENABLE_EXTENSIONS=$EXTS")
 	[ -n "$ARMBIAN_CLEAN_LEVEL" ] && EXTRA_ARGS+=("CLEAN_LEVEL=$ARMBIAN_CLEAN_LEVEL")
+	# Only override the base when explicitly asked; otherwise the flavor's own
+	# Armbian config decides (see ARMBIAN_KERNELBRANCH above).
+	[ -n "$ARMBIAN_KERNELBRANCH" ] && EXTRA_ARGS+=("KERNELBRANCH=$ARMBIAN_KERNELBRANCH")
 	./compile.sh "$FLAVOR_CONFIG_NAME" kernel \
-		KERNELBRANCH="$ARMBIAN_KERNELBRANCH" \
 		KERNEL_CONFIGURE=no \
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
 		USE_TMPFS="$ARMBIAN_USE_TMPFS" \

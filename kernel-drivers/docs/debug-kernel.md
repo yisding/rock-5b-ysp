@@ -33,14 +33,31 @@ comes back on its own.
 - Locking bugs: `PROVE_LOCKING` / `DEBUG_ATOMIC_SLEEP` catch e.g. the audit's
   sleep-in-atomic class statically at first execution.
 
-## 2. Pin Armbian "current" to an exact upstream tag
+## 2. Choosing the Armbian kernel base
 
-Armbian's `current` branch floats. For a debug kernel you want **the exact
-source of the installed kernel**, so line numbers and the driver patch stack
-match. The 2026-07-17 forward-port package uses Armbian's 6.18.38 stable-branch
-commit `e46dc0adfe39724bcf52cea47b8f9c9aed86a394`, so the tracked config pins that
-commit and the wrapper regenerates the forward-port commits as userpatches.
-Re-derive and update both inputs whenever the production kernel base moves.
+Armbian's `current` branch floats. For a debug kernel you generally want **the
+same source as the installed kernel**, so line numbers and the driver patch
+stack match.
+
+The forward-port flavors now carry **no** `KERNELBRANCH` pin: they inherit
+Armbian's mainline-family default, which resolves to
+`branch:linux-${KERNEL_MAJOR_MINOR}.y` — the rolling 6.18 stable branch. The
+production (`config-rock5b-video-port.conf.sh`) and KASAN
+(`config-rock5b-debug-kernel.conf.sh`) configs are deliberately kept in step, so
+both track stable together and a KASAN trace still lines up with the production
+kernel it is explaining. The rewrite flavors keep their own explicit pins.
+
+The consequence is that the base moves between rebuilds. When a build has to be
+reproducible, or directly comparable to an earlier one, pin it explicitly at the
+wrapper:
+
+```bash
+ARMBIAN_KERNELBRANCH=commit:<sha> \
+  bash kernel-drivers/scripts/build-kernel.sh forward-port-debug
+```
+
+`build-kernel.sh` passes `KERNELBRANCH` to `compile.sh` only when
+`ARMBIAN_KERNELBRANCH` is non-empty; otherwise the flavor's config decides.
 
 The mechanism is a plain Armbian userpatches config
 (`userpatches/config-rock5b-debug-kernel.conf.sh`, or the
@@ -49,7 +66,7 @@ The mechanism is a plain Armbian userpatches config
 ```bash
 BOARD="rock-5b"  BRANCH="current"  RELEASE="resolute"
 INSTALL_HEADERS="yes"
-KERNELBRANCH="commit:e46dc0adfe39724bcf52cea47b8f9c9aed86a394"
+# no KERNELBRANCH: inherit branch:linux-${KERNEL_MAJOR_MINOR}.y (see §2)
 KERNEL_BTF="yes"                # keep DWARF/BTF even if RAM looks tight
 source ".../ysp-debug-instrumentation.conf.sh"  # defines the shared hook:
 # custom_kernel_config__rock5b_hard_reboot_debug() { opts_y+=( ... ) }  # §3 below
