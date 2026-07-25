@@ -15,7 +15,14 @@
 # which is copied from /boot/config-$(uname -r) by build-kernel.sh.
 
 BOARD="rock-5b"
-BRANCH="current"
+BRANCH="video-rewrite-kasan"
+
+# Load-bearing: rockchip64_common.inc only sets these for the branches it knows
+# (current/edge/bleedingedge). A custom slot name falls through its case and the
+# build aborts with "BAD config, missing KERNEL_MAJOR_MINOR", so declare them here.
+declare -g KERNEL_MAJOR_MINOR="6.18"
+declare -g LINUXFAMILY="rockchip64"
+declare -g LINUXCONFIG="linux-rockchip64-video-rewrite-kasan"
 RELEASE="resolute"
 BUILD_DESKTOP="no"
 BUILD_MINIMAL="no"
