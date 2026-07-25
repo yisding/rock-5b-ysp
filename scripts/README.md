@@ -5,7 +5,7 @@ not belong to a single package or driver area.
 
 | Script | Purpose |
 |--------|---------|
-| [`check-repo.sh`](check-repo.sh) | Runs the common repository handoff gate, in order: Markdown links and anchors, the `tests/` regression suite, ShellCheck at warning-or-higher across every maintained shell file, the documentation consistency check, and staged/unstaged/untracked whitespace. |
+| [`check-repo.sh`](check-repo.sh) | Runs the common repository handoff gate, in order: Markdown links and anchors, the `tests/` regression suite, ShellCheck at warning-or-higher across every maintained shell file, the documentation consistency check, and staged/unstaged/untracked whitespace. Every stage runs even if an earlier one fails, so one run reports every problem; the exit summary names the failed stages. |
 | [`centralize-ccache.sh`](centralize-ccache.sh) | Reversibly merges the host, Mesa, and Armbian compiler caches into one size-limited shared store under `~/Code`. |
 | [`check-markdown-links.py`](check-markdown-links.py) | Checks local Markdown links for missing files and missing same-repo section anchors. |
 | [`check-doc-consistency.py`](check-doc-consistency.py) | Checks substantive drift and completeness only: that every documented file is named by its nearest README, that every finding is linked from the findings index and every index link resolves, that each `W##` watchlist entry has both halves and they agree on name and last-checked date, that the kernel source packages' copied helpers stay identical, that the FFmpeg and GRD version pins have not drifted, and that no operational script defaults to a personal home path. It deliberately does not police prose, ordering, or project-brief fields. |

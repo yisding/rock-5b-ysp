@@ -3,7 +3,7 @@
 > Scope: standing up the YSP dev VM as the `armbian/build` builder for the ROCK 5B, and the branch/release/cache facts that decide what it actually compiles
 > Source: `armbian/build` @ `VERSION` `26.08.0-trunk` (cloned `~/armbian-build`) — `config/boards/rock-5b.conf`, `config/sources/families/rockchip-rk3588.conf`, `config/sources/families/include/rockchip64_common.inc`, `config/distributions/resolute/support`; build host `ubuntu244` (`uname`, `lscpu`, `lsblk`, two `./compile.sh kernel` runs and their `output/logs`)
 > Date: 2026-07-08
-> Trust: MEASURED (host, disk grow, native compile reached, remote-cache hit) / CONFIG-INSPECTED (branch + release map) / HYPOTHESIS (BTF-on-8GB survival, unproven)
+> Trust: MEASURED (host, disk grow, native compile reached, remote-cache hit) / CONFIG-INSPECTED (branch + release map) / RESOLVED (BTF-on-8GB survival — was a hypothesis here, cleared 2026-07-20 by build `Pf558-Cb831`)
 
 ## The fact
 
@@ -50,12 +50,14 @@ BOARD=rock-5b  BRANCH=current  RELEASE=resolute   (+ userpatches)
 
 First run — `./compile.sh kernel BOARD=rock-5b BRANCH=vendor` — finished in **0:19 min** without compiling: it pulled prebuilt `.deb`s from `ghcr.io/armbian/os/kernel-rk35xx-vendor:6.1.115-S…-C43e3…` ("Artifact is available in remote cache" → "obtained from remote cache"). The artifact tag hashes drivers + patches + `.config` + config-hook + framework, so **any userpatch changes the hash → cache miss → local compile**. `ARTIFACT_IGNORE_CACHE=yes` forces a local build regardless (used to prove native compilation). Consequence: **once the MPP+RGA userpatches are wired in, every build compiles for real** — the cache stops shadowing the work.
 
-### RAM is right at the BTF cliff (unproven)
+### RAM is right at the BTF cliff — but the cliff was cleared
 
-Armbian gates `CONFIG_DEBUG_INFO_BTF` on available RAM (~`6451 MiB` threshold). On this box it cleared by only **19–45 MiB** (`Considering available RAM for BTF build [ 6470/6451 MiB ]`, and `6627/6451` on a later run) and enabled BTF. Early native compile peaked at only **1.9 GB used / 0 swap**, but both runs were aborted **before** the BTF/`pahole` link over `vmlinux` — which is the actual memory peak. So **BTF survival on 8 GB is not yet proven**. If it OOMs: grow swap, lower kernel `-j`, or disable `DEBUG_INFO_BTF`; cleanest is bumping the VM to 12–16 GB in VMware Fusion.
+Armbian gates `CONFIG_DEBUG_INFO_BTF` on available RAM (~`6451 MiB` threshold). On this box it cleared by only **19–45 MiB** (`Considering available RAM for BTF build [ 6470/6451 MiB ]`, and `6627/6451` on a later run) and enabled BTF. Early native compile peaked at only **1.9 GB used / 0 swap**, but both runs on 2026-07-08 were aborted **before** the BTF/`pahole` link over `vmlinux` — which is the actual memory peak — so BTF survival was unproven as written.
+
+> **Resolved 2026-07-20.** Production build `Pf558-Cb831` ran a full exact-6.18.38 `current` compile to completion on this same 7.7 GiB VM — kernel, **BTF**, modules, DTBs, headers, and Debian packaging, 109 minutes, no RAM bump ([`status.md` W14](../status.md#watch-w14), [PPA record](../packaging/ppa/kernel-forward-port/README.md)). The margin is still thin enough to respect: if a future config pushes it over, grow swap, lower kernel `-j`, or disable `DEBUG_INFO_BTF`; bumping the VM to 12–16 GB in VMware Fusion is the cleanest fix.
 
 ## Why it matters / follow-up
 
 - **Target build (once patches are wired):** `./compile.sh build BOARD=rock-5b BRANCH=current RELEASE=resolute KERNEL_CONFIGURE=no …` with the MPP+RGA series under the `current` kernel userpatch dir. Confirm the exact dir from the build log line `User patches directory for kernel [ … ]`: vendor emitted `userpatches/kernel/rk35xx-vendor-6.1`; `current` is family `rockchip64` on 6.18, so it mirrors Armbian's `patch/kernel/archive/rockchip64-6.18/` (the same `rockchip64-6.18` branch this repo's `media-0001` watchlist row already tracks) under `userpatches/kernel/…`. The `userpatches/` scaffold already exists in the clone (`kernel/`, `u-boot/`, `customize-image.sh`).
-- **Open:** prove the BTF link survives 8 GB on a full `current` (6.18) compile, or bump VM RAM. Also on the watchlist as dev-box state.
+- **Closed 2026-07-20:** the BTF link survives 8 GB on a full `current` (6.18) compile — build `Pf558-Cb831`, no VM RAM bump. The builder itself stays on the watchlist as dev-box state ([W14](../status.md#watch-w14)).
 - **Open:** wire `kernel-drivers/patches/` (MPP + RGA forward-port) into the `current` userpatch dir so the cache misses and the box compiles the patched 6.18 kernel — this is work-package "Wire MPP+RGA patches into userpatches".

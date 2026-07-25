@@ -35,21 +35,42 @@ check_shell_scripts() {
 	((${#files[@]} == 0)) || shellcheck --external-sources --severity=warning "${files[@]}"
 }
 
-printf 'Checking Markdown links and anchors...\n'
-python3 scripts/check-markdown-links.py "$ROOT"
+check_whitespace() {
+	git diff --check &&
+		git diff --cached --check &&
+		check_untracked_whitespace
+}
 
-printf 'Running repository-check regression tests...\n'
-python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+# Every stage runs even when an earlier one fails. `set -e` would abort at the
+# first failure and silently skip the rest, which reports one problem per run
+# and hides the others -- the opposite of what a handoff gate is for.
+failed_stages=()
+run_stage() {
+	local name="$1"
+	shift
+	printf '%s\n' "$name"
+	if ! "$@"; then
+		failed_stages+=("$name")
+	fi
+}
 
-printf 'Checking maintained shell scripts...\n'
-check_shell_scripts
+run_stage 'Checking Markdown links and anchors...' \
+	python3 scripts/check-markdown-links.py "$ROOT"
 
-printf 'Checking version pins, portable defaults, and index completeness...\n'
-python3 scripts/check-doc-consistency.py "$ROOT"
+run_stage 'Running repository-check regression tests...' \
+	python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 
-printf 'Checking unstaged, staged, and untracked whitespace...\n'
-git diff --check
-git diff --cached --check
-check_untracked_whitespace
+run_stage 'Checking maintained shell scripts...' check_shell_scripts
+
+run_stage 'Checking version pins, portable defaults, and index completeness...' \
+	python3 scripts/check-doc-consistency.py "$ROOT"
+
+run_stage 'Checking unstaged, staged, and untracked whitespace...' check_whitespace
+
+if ((${#failed_stages[@]} > 0)); then
+	printf '\n%s of 5 repository check stages FAILED:\n' "${#failed_stages[@]}" >&2
+	printf '  - %s\n' "${failed_stages[@]%%...}" >&2
+	exit 1
+fi
 
 printf 'Repository checks passed.\n'

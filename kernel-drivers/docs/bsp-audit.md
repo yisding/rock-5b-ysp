@@ -27,7 +27,8 @@ A multi-agent ("ultracode") audit of the forward-ported Rockchip MPP + RGA drive
 > **📦 How to consume the fixes.** For the maintained current forward-port,
 > consume the HIGH subset via
 > [`kernel-drivers/patches/forward-port-rk3588`](../patches/forward-port-rk3588)
-> patches `0059`-`0069`. For the original audited tree and the remaining
+> patches `0058`-`0068` — the post-2026-07-23-renumber numbers for what the
+> dated blocks on this page still call `0059`-`0069`. For the original audited tree and the remaining
 > MEDIUM/LOW/cleanup findings, review and apply via
 > [`kernel-drivers/patches/cleanup-split`](../patches/cleanup-split) — **the** reviewable
 > series: 65 ordered per-issue mailbox patches (each commit message carries

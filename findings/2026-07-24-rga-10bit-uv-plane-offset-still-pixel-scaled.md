@@ -242,8 +242,8 @@ Everything **except** the 10-bit legs is green:
    excluded, since it genuinely diverges for out-of-tree builds). Verified live
    by injecting a one-line drift, which it caught immediately.
 
-`scripts/check-repo.sh` passes, 29 tests (its patch-series regression test was
-updated to expect the `0001`–`0074` tail and the new tip).
+`scripts/check-repo.sh` passes (its patch-series regression test was updated to
+expect the `0001`–`0074` tail and the new tip).
 
 ## Root-only gates — RUN 2026-07-24 22:05, all green
 

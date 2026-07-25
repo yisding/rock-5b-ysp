@@ -9,13 +9,14 @@ history and the home of the verification record
 [BSP audit](../../docs/bsp-audit.md).
 
 > **Current forward-port users:** do not replay the old HIGH patches from this
-> series onto the evolved `0058` source. Two of the audit's 13 distinct HIGH
-> bugs were already fixed by later forward-port/RGA reconciliation work, and
-> the remaining 11 were semantically ported around the current RGA2 bounce and
-> lifetime code as forward-port patches `0059`-`0069`. That subset is
-> checkpatch- and compile-clean but still needs its boot/runtime gate. This
-> directory remains the reviewable fix source for the original audited tree
-> and for MEDIUM/LOW/cleanup work not yet ported.
+> series onto the evolved forward-port source. Two of the audit's 13 distinct
+> HIGH bugs were already fixed by later forward-port/RGA reconciliation work,
+> and the remaining 11 were semantically ported around the current RGA2 bounce
+> and lifetime code as forward-port patches `0058`-`0068` (post-renumber
+> numbering — they were `0059`-`0069` when ported). That subset is boot-gated
+> green on `Pabd5-C4ad2` and rides in the conformance-validated production
+> tail. This directory remains the reviewable fix source for the original
+> audited tree and for MEDIUM/LOW/cleanup work not yet ported.
 
 Every patch commit message contains:
 
