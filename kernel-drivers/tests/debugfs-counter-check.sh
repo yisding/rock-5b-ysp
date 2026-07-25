@@ -34,6 +34,28 @@ if [ ! -f "$COUNTERS_FILE" ]; then
 	exit 0
 fi
 
+# REQUIRE_COUNTER_FILE=1 tested only for the file's existence, so a header-only
+# delta satisfied it. debugfs-counters.sh writes exactly that when the debugfs
+# directory is absent (a forward-port kernel, or any non-root run -- debugfs is
+# 0700), and with zero rows every forbidden spec resolves to
+# "component-not-captured", which does not set `failed`. So the strictest mode
+# passed a file that recorded nothing. rewrite-evidence-audit.sh already rejects
+# this; align with it.
+counter_rows=$(awk 'NR > 1 && NF > 0' "$COUNTERS_FILE" | wc -l)
+if [ "$counter_rows" -eq 0 ]; then
+	echo "counter_check	skipped"
+	echo "counter_file	$COUNTERS_FILE"
+	echo "reason	counter delta file has no data rows"
+	if [ "$REQUIRE_COUNTER_FILE" = "1" ] ||
+		[ -n "$REQUIRED_POSITIVE_COUNTERS" ] ||
+		[ -n "$REQUIRED_POSITIVE_COUNTER_PREFIXES" ] ||
+		[ -n "$REQUIRED_ZERO_AFTER_COUNTERS" ] ||
+		[ "$REQUIRE_FORBIDDEN_COUNTERS" = "1" ]; then
+		exit 1
+	fi
+	exit 0
+fi
+
 awk -v required_specs="$REQUIRED_POSITIVE_COUNTERS" \
     -v required_prefix_specs="$REQUIRED_POSITIVE_COUNTER_PREFIXES" \
     -v required_zero_after_specs="$REQUIRED_ZERO_AFTER_COUNTERS" \

@@ -8,8 +8,13 @@
 set -uo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "Run as root:  sudo bash $0"; exit 1; }
 
+# install.md and the validation runbook both call this "the boot-health gate", so
+# a ✗ has to reach the exit status. It previously exited 0 unconditionally (every
+# check is `[ … ] && ok || no`, and the last command is an echo), which made the
+# marks advisory and the script unchainable.
+FAILED=0
 ok(){ printf '  \033[32m✓\033[0m %s\n' "$*"; }
-no(){ printf '  \033[31m✗\033[0m %s\n' "$*"; }
+no(){ printf '  \033[31m✗\033[0m %s\n' "$*"; FAILED=1; }
 
 echo "================= kernel ================="
 echo "  uname -r: $(uname -r)   (advisory: this port was validated on 6.18.37;"
@@ -62,3 +67,13 @@ echo "If all present, run the end-to-end userspace tests (see $TESTS/README.md):
 echo "  decode:    bash $TESTS/test-decode.sh          (device access is enough)"
 echo "  encode:    sudo bash $TESTS/encode-test-tiny.sh"
 echo "  transcode: sudo bash $TESTS/transcode-test.sh  (needs ffmpeg-rockchip -- ../../ffmpeg/)"
+
+if [ "$FAILED" -ne 0 ]; then
+	echo
+	echo "BOOT HEALTH: one or more ✗ above -- the combined kernel did not come up"
+	echo "clean. Do not treat the userspace tests below as meaningful until this is"
+	echo "green; a missing device node or unprobed core will make them fail or lie."
+	exit 1
+fi
+echo
+echo "BOOT HEALTH: all checks green."

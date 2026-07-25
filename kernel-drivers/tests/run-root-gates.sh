@@ -87,6 +87,17 @@ run_gate() {
 	local klog="$OUT/${label}.kernel.txt"
 	local cur
 	cur="$(journalctl -k -n1 --show-cursor 2>/dev/null | tail -1 | sed 's/-- cursor: //')"
+	# An empty or unusable cursor makes the post-gate window empty, so the
+	# "kernel-log window is clean" half of the documented PASS rule is satisfied
+	# vacuously. That happens when journalctl prints "-- No entries --", when it
+	# is missing, or when the kernel journal is unreadable. Fail loudly instead:
+	# these gates exist to catch kernel faults.
+	if [ -z "$cur" ] || ! journalctl -k --after-cursor "$cur" -n0 --no-pager >/dev/null 2>&1; then
+		echo "  FATAL: cannot obtain a usable kernel-journal cursor -- the per-gate"
+		echo "  fatal scan would read an empty window and report every gate clean."
+		echo "  Check journalctl -k works as this user (persistent journal, group access)."
+		return 1
+	fi
 
 	echo "==================== $label ===================="
 	# A gate can wedge on a kernel-side D-state hang (e.g. the rkrga/mm_session
@@ -181,10 +192,19 @@ run_gate vp9-show-existing \
 echo "==================== SUMMARY ===================="
 column -t "$SUMMARY"
 fails=$(awk -F'\t' 'NR>1 && $4=="FAIL"' "$SUMMARY" | wc -l)
+skips=$(awk -F'\t' 'NR>1 && $4=="SKIP"' "$SUMMARY" | wc -l)
+ran=$(awk -F'\t' 'NR>1 && $4=="PASS"' "$SUMMARY" | wc -l)
 echo
 if [ "$fails" -eq 0 ]; then
-	echo "ALL ROOT GATES PASS ($OUT)"
+	# Say how many actually ran. "ALL ROOT GATES PASS" over a run that skipped
+	# most of them reads as full coverage, which is how a skipped gate becomes
+	# indistinguishable from a green one in the record.
+	if [ "$ran" -eq 0 ]; then
+		echo "NO ROOT GATE RAN -- $skips skipped, 0 passed ($OUT)"
+		exit 1
+	fi
+	echo "ALL ROOT GATES PASS -- $ran passed, $skips skipped ($OUT)"
 	exit 0
 fi
-echo "$fails gate(s) FAILED -- see $OUT"
+echo "$fails gate(s) FAILED ($ran passed, $skips skipped) -- see $OUT"
 exit 1

@@ -83,11 +83,26 @@ run_one() { # LABEL TYPE BASENAME ENC ARGS
   local hw="$OUT/${L}_hw.yuv" sw="$OUT/${L}_sw.yuv"
   echo "================= $L ================="
   gen_input "$3" "$4" "$5" || { echo "  gen-input FAIL (missing $4 encoder?) -> SKIP"; return 2; }
+  # Clear both outputs first. OUT defaults to a persistent directory, and without
+  # this a decode that failed *without* printing one of the words grepped below
+  # (killed, or silently producing nothing) left the PREVIOUS run's _hw.yuv in
+  # place to be PSNR'd against a fresh reference -- average:inf, i.e. PASS.
+  # test-decode.sh already does this.
+  rm -f "$hw" "$sw"
   # hardware decode
   LD_LIBRARY_PATH="$LIB" "$DEC" -i "$IN" -t "$T" -o "$hw" >"$OUT/${L}.log" 2>&1
+  local rc=$?
   local frames; frames=$(grep -oiE 'decode ([0-9]+) frames' "$OUT/${L}.log" | tail -1)
   local realerr; realerr=$(grep -iE 'error|fail|not registered' "$OUT/${L}.log" | grep -viE 'not ready' | head -1)
   [ -z "$realerr" ] || { echo "  HW decode error: $realerr"; echo "  RESULT: $L FAIL"; return 1; }
+  # The decoder's status was discarded entirely; liveness rested on the stderr
+  # grep above, which a killed or silent failure does not trip.
+  if [ "$rc" -ne 0 ]; then
+    echo "  HW decoder exited $rc with no error text in the log"; echo "  RESULT: $L FAIL"; return 1
+  fi
+  if [ ! -s "$hw" ]; then
+    echo "  HW decode produced no output"; echo "  RESULT: $L FAIL"; return 1
+  fi
   # software reference decode -> NV12 (match mpi_dec_test's 8-bit output layout)
   "$FFSW" -hide_banner -y -i "$IN" -f rawvideo -pix_fmt nv12 "$sw" >/dev/null 2>&1
   # PSNR

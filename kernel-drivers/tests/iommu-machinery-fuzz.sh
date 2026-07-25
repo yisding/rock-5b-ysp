@@ -59,6 +59,15 @@ while [ "$#" -gt 0 ]; do case "$1" in
   -n) RGA_ITERS="$2"; shift 2;; -L) DECODE_LOOPS="$2"; shift 2;;
   -p) PHASES="$2"; shift 2;; *) echo "unknown arg: $1"; exit 2;; esac; done
 
+# `-p Z` selected no phase, ran nothing, and printed "ALL PHASES CLEAN" with exit
+# 0. Phases are matched by glob below, so an unrecognised letter is silently inert.
+if [ -z "${PHASES//[ABC]/}" ] && [ -n "$PHASES" ]; then
+  :
+else
+  echo "PHASES must be a non-empty subset of A, B, C -- got '$PHASES'" >&2
+  exit 2
+fi
+
 if [ "${EUID:-$(id -u)}" -eq 0 ]; then
   SUDO_CMD=()
 elif [[ -v SUDO ]]; then
@@ -102,7 +111,22 @@ FAULT_RE="$SUITE_DMESG_FATAL_RE|vsi.?iommu|swiotlb.*(full|buffer is full)|rga_jo
 BENIGN_RE='deferred probe|driver is not ready|not registered'
 
 log() { echo "$@"; }
+# Swallowing dmesg failure made both snapshots empty, so `comm -13` found nothing
+# and every phase reported "no IOMMU/DMA faults in dmesg delta" -- while this
+# script's header promises the run FAILS on any IOMMU page fault and calls the
+# dmesg scan "the backstop". Readability is asserted once, up front, instead.
 snap_dmesg() { "${SUDO_CMD[@]}" dmesg 2>/dev/null > "$1" || : ; }
+require_readable_dmesg() {
+  local probe
+  probe=$(mktemp)
+  if ! "${SUDO_CMD[@]}" dmesg > "$probe" 2>/dev/null || [ ! -s "$probe" ]; then
+    rm -f "$probe"
+    log "  FATAL: cannot read dmesg (kernel.dmesg_restrict?), so the fault backstop"
+    log "  would scan an empty delta and report every phase clean. Run under sudo."
+    exit 1
+  fi
+  rm -f "$probe"
+}
 dmesg_faults() { # before after -> prints offending lines (0 = clean)
   local b="$1" a="$2"
   comm -13 <(sort "$b") <(sort "$a") 2>/dev/null \
@@ -253,6 +277,7 @@ fi
 export LD_LIBRARY_PATH="$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
 
 # ---------------------------------------------------------------- baseline ----
+require_readable_dmesg
 debugfs_counter_snapshot "$OUT/counters-before.tsv" "${COUNTER_DIRS[@]}"
 grep -E 'MemFree|MemAvailable|Slab' /proc/meminfo > "$OUT/meminfo-before.txt"
 "${SUDO_CMD[@]}" sh -c 'ls -d /sys/kernel/iommu_groups/*/devices/* 2>/dev/null' \
