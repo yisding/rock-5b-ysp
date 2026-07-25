@@ -1,11 +1,11 @@
 # kernel-drivers/av1/ — RK3588 AV1 decode
 
 The RK3588 AV1 decode path and why it sits apart from the RKVDEC2 H.264/H.265/VP9
-driver, plus the BSP bugs an experimental RKMPP AV1 port exposed. RK3588 AV1 is
-**not** in the *shipped base* forward-port (`Pb6ab`) — but the **av1-fwport
-variant** (`linux-6.18-rkvenc-av1-fwport`, board build `P1c9d`) adds
-`mpp_av1dec.c` + VSI-IOMMU and is **hardware-validated bit-exact as of
-2026-07-04** (see [`docs/av1-rk3588.md`](docs/av1-rk3588.md) § 2026-07-04 update).
+driver, plus the BSP bugs porting the RKMPP AV1 backend exposed. AV1 is part of
+the forward-port kernel: `mpp_av1dec.c` plus the VSI-IOMMU provider, **hardware-
+validated bit-exact as of 2026-07-04** on board build `P1c9d` (see
+[`docs/av1-rk3588.md`](docs/av1-rk3588.md) § 2026-07-04 update). The clean-room
+MPP rewrite still does not bind this block.
 
 ## Brief
 
@@ -14,9 +14,9 @@ variant** (`linux-6.18-rkvenc-av1-fwport`, board build `P1c9d`) adds
 | Purpose | Explain the separate AV1 decoder block/driver, the audit findings from porting it, and the clean-room RKMPP rewrite boundary. |
 | Developer focus | Keep the AV1 block, VSI-IOMMU provider, vendor-MPP userspace expectations, rewrite design, and mainline Hantro/V4L2 alternative clearly separated. |
 | Owns | [`docs/av1-rk3588.md`](docs/av1-rk3588.md), [`docs/av1-bsp-audit.md`](docs/av1-bsp-audit.md), [`docs/av1-bsp-forward-port-review-2026-07-20.md`](docs/av1-bsp-forward-port-review-2026-07-20.md), [`docs/av1-rewrite-assessment.md`](docs/av1-rewrite-assessment.md), and [`keywords.md`](keywords.md). |
-| Depends on | The AV1-capable kernel/DT variant, VSI-IOMMU wiring, and compatible MPP/FFmpeg userspace; the base forward-port does not supply this driver. |
-| Code lives in | The AV1 decoder path in the sibling kernel trees; the AV1 fork-port work is tracked in `linux-6.18-rkvenc-av1-fwport`. |
-| Current state | **Hardware-validated (2026-07-04) on the av1-fwport board build** (`P1c9d`, kernel `6.18.37 #8`): AV1DEC probes, is exposed through `/dev/mpp_service`, and decodes bit-exact — but the av1-fwport variant is separate from the *shipped base* forward-port (`Pb6ab`, which has no `mpp_av1dec.c`). See [`docs/av1-rk3588.md`](docs/av1-rk3588.md) § 2026-07-04 update, [`../../status.md`](../../status.md), and [`../docs/forward-port-status.md`](../docs/forward-port-status.md) § AV1. |
+| Depends on | The forward-port kernel and its DT, VSI-IOMMU wiring, and compatible MPP/FFmpeg userspace. AV1 decode is part of the single forward-port line (`0007` plus the Verisilicon IOMMU provider in `0005`). |
+| Code lives in | The AV1 decoder path in the forward-port kernel tree, checked out at `linux-6.18-rkvenc-av1-fwport` (branch `rk3588-video-6.18`). |
+| Current state | **Hardware-validated (2026-07-04)** (`P1c9d`, kernel `6.18.37 #8`): AV1DEC probes, is exposed through `/dev/mpp_service`, and decodes bit-exact. AV1 is now baked into the single forward-port line rather than living in a separate variant. See [`docs/av1-rk3588.md`](docs/av1-rk3588.md) § 2026-07-04 update, [`../../status.md`](../../status.md), and [`../docs/forward-port-status.md`](../docs/forward-port-status.md) § AV1. |
 
 ## Scoped docs
 

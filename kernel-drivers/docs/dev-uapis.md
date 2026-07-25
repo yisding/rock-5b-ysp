@@ -113,7 +113,7 @@ The kernel dispatches on each message's inner `cmd`, grouped by base value
 | | `SET_SESSION_FD` | **switch to another session** mid-batch (*not* a task-start — see below) |
 | **POLL** `0x300` | `POLL_HW_FINISH`, `POLL_HW_IRQ` | block until the task completes |
 | **CONTROL** `0x400` | `RESET_SESSION`, `TRANS_FD_TO_IOVA`, `RELEASE_FD`, `SEND_CODEC_INFO` | reset, fd↔iova, buffer release, codec hints |
-| | `SET_ERR_REF_HACK` (`CONTROL_BASE + 4`) | absent from the original non-AV1 forward port; accepted by the current AV1/IOMMU forward port and rewrite — see below |
+| | `SET_ERR_REF_HACK` (`CONTROL_BASE + 4`) | absent from the superseded two-patch import; accepted by the current forward port and rewrite — see below |
 
 **`MPP_CMD_SET_ERR_REF_HACK` — behavior depends on forward-port generation.**
 libmpp defines a fifth CONTROL command,
@@ -124,9 +124,9 @@ CONTROL-group ceiling (from `QUERY_CMD_SUPPORT`, see below) exceeds the command
 number — `cap->ctrl_cmd > MPP_CMD_SET_ERR_REF_HACK`
 (`mpp/hal/rkdec/h264d/hal_h264d_vdpu382.c:553`) — and only then issues it.
 
-On the original non-AV1 patch, `MPP_CMD_CONTROL_BUTT` equals
+On the superseded two-patch import, `MPP_CMD_CONTROL_BUTT` equals
 `CONTROL_BASE + 4`, so the probe says "unsupported" and libmpp skips the
-command. The current AV1/IOMMU forward port extends the header/ceiling,
+command. The current forward port extends the header/ceiling,
 advertises it, and accepts it through the codec backend's unknown-command no-op
 path (with a diagnostic log). The clean-room rewrite instead validates and
 copies/discards its payload explicitly. Both newer paths satisfy current

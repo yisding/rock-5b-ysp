@@ -347,12 +347,13 @@ last-checked date.
   setup remains documented in the [builder finding](findings/2026-07-08-armbian-builder-setup.md).
 
 <a id="watch-w15"></a>
-### W15 — RGA session-close fix vs. base patch
+### W15 — RGA session-close fix vs. the frozen import
 
-- **Why recheck:** The RGA `/dev/rga`-close force-free hazard is fixed as a
-  fwport-tree commit, but the repo's shipped base patch is a frozen vendor
-  snapshot that still carries the old `rga_mm_force_releaser_buffer()` path, so
-  the two can silently diverge until the next regeneration.
+- **Why recheck:** The RGA `/dev/rga`-close force-free hazard is fixed in the
+  forward-port tree, but the superseded two-patch import — still the DKMS
+  source — is a frozen vendor snapshot that carries the old
+  `rga_mm_force_releaser_buffer()` path, so the two can silently diverge until
+  the next regeneration.
 - **Last checked:** 2026-07-17
 - **State then:** Driver fix `linux-6.18-rkvenc-av1-fwport@bc086cbe03d7`
   ("release session buffers by reference on close") makes

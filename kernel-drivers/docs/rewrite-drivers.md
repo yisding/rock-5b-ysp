@@ -130,12 +130,12 @@ nodes* as the forward-port: `rockchip,rkv-encoder-v2-core`,
 the RGA2/RGA3 compatibles incl. the mainline `rockchip,rk3588-rga`
 (`rga_rewrite.c:16336-16344`).
 
-Important codec boundary: the MPP rewrite and the shipped base forward-port do
-not expose RK3588 AV1 through `/dev/mpp_service`. AV1 lives on a separate
+Important codec boundary: the MPP rewrite does not expose RK3588 AV1 through
+`/dev/mpp_service`, while the forward port does. AV1 lives on a separate
 Verisilicon/VPU981 hardware block, with a separate BSP `mpp_av1dec.c` backend and
-a dedicated AV1 IOMMU. The AV1-capable `rkvenc-fwport-6.18` variant now carries
-that RKMPP backend on top of a clean `vsi-iommu` provider and has decoded AV1
-bit-exact on hardware; the rewrite still does not bind this block. The separate
+a dedicated AV1 IOMMU. The forward port carries that RKMPP backend on top of a
+clean `vsi-iommu` provider and has decoded AV1 bit-exact on hardware; the
+rewrite still does not bind this block. The separate
 Hantro/V4L2 stateless AV1 path is not the same userspace ABI as RKMPP. See
 [RK3588 AV1 decode, IOMMU, and userspace paths](../av1/docs/av1-rk3588.md).
 The scoped

@@ -31,14 +31,15 @@ The three Rockchip branch tips were verified against the official remote with
 | Rockchip 5.10 BSP | `rockchip-linux/kernel develop-5.10@bfa51d2ab08140d1309afc9a9fe0fc2878cee35a` | Numerically older kernel branch, but the newest RGA donor examined here |
 | Rockchip 6.1 BSP | `rockchip-linux/kernel develop-6.1@b4ef083dc0c3608e744deabb43dc6b781aadbe6e` | Original MPP/RGA donor and byte-level oracle |
 | Rockchip 6.6 BSP | `rockchip-linux/kernel develop-6.6@1ba51b059f25533c5529b7f68186190b47d6a7b3` | Vendor 6.6 comparison snapshot |
-| Baseline forward-port import | `linux-rock5b@924f4232546d` | The non-AV1 driver import represented by `patches/rk3588-rkvenc2-01-...patch` |
-| Current forward-port superset | `linux-rock5b rkvenc-fwport-6.18@18fae9957686` | AV1, shared-domain IOMMU, recovery, RGA userptr, and RCB hardening series |
+| Original forward-port import | `linux-rock5b@924f4232546d` | The superseded two-patch import represented by `patches/rk3588-rkvenc2-01-...patch` |
+| Forward-port kernel | `linux-rock5b rk3588-video-6.18` | The single maintained line: AV1, shared-domain IOMMU, recovery, RGA userptr, and RCB hardening |
 
-The distinction between the last two rows matters. The quantitative
-[`vendor-delta.md`](./vendor-delta.md) result belongs to the baseline non-AV1
-port. The newer split series is summarized in
-[`patches/forward-port-rk3588/`](../patches/forward-port-rk3588/README.md)
-and intentionally has a larger delta.
+The last two rows are the same line at two points in time, not two kernels to
+choose between. The current headline in
+[`vendor-delta.md`](./vendor-delta.md) is measured against the maintained
+tree; the older, smaller figure it also records belongs to the original
+two-patch import. The series itself is summarized in
+[`patches/forward-port-rk3588/`](../patches/forward-port-rk3588/README.md).
 
 ## Measurement method
 

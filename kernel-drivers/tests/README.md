@@ -327,7 +327,7 @@ base `MPP_VIDEO_CodingVC1 = 0x01000000`.)
 ## VP9 decode
 
 VP9 support is built in the decoder and, as of **2026-07-04, hardware-validated
-bit-exact** on the forward-port (av1-fwport board build) via
+bit-exact** on the forward-port (board build `P1c9d`) via
 [`decode-differential.sh`](./decode-differential.sh) — the fastest way to re-run
 it. For a fully manual run, `mpi_dec_test` selects its IVF reader by the `.ivf`
 filename extension (`utils/mpi_dec_utils.c`), so:
@@ -357,7 +357,7 @@ plus the legacy flush/result no-op ioctl return contract used by librga's
 post-blit compatibility path.
 
 **Forward-port: VERIFIED 2026-07-04** — `decode-differential.sh` decoded VP9
-bit-exact (PSNR=inf) on the av1-fwport board build (recorded in status.md row 1).
+bit-exact (PSNR=inf) on board build `P1c9d` (recorded in status.md row 1).
 The generated GStreamer VP9 cases, the direct MPP VP9 suite case, and any
 **rewrite** VP9 hardware log are still unrecorded; if you run them, record the
 result in status.md.
@@ -367,7 +367,7 @@ result in status.md.
 - decode: 30 frames each H.264/H.265, ~1200–1600 fps @ 320×240 (original run;
   a re-run 2026-07-01 on 6.18.37 #7 passed at 1470/3765 fps — the number varies
   with clip content, the PASS gate is exit code + output size).
-- **decode correctness (2026-07-04, av1-fwport build `P1c9d` #8, `decode-differential.sh`):**
+- **decode correctness (2026-07-04, board build `P1c9d` #8, `decode-differential.sh`):**
   H.264 / H.265 / VP9 / **AV1** all decoded 30/30 frames **bit-exact
   (PSNR=inf)** vs a software reference @ 640×480 (mpi_dec_test fps at that size:
   ~551 / 591 / 741 / 629). `av1_rkmpp` through the board's prebuilt `/usr/lib`
