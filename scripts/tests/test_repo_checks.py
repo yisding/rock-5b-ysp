@@ -177,6 +177,7 @@ class OperationalHelpTests(unittest.TestCase):
             "kernel-drivers/scripts/debug-kernel/enable-ramoops-capture.sh",
             "kernel-drivers/scripts/debug-kernel/disable-ramoops-capture.sh",
             "kernel-drivers/scripts/debug-kernel/enable-persistent-journal.sh",
+            "scripts/rock5b-oom-protection-apply.sh",
             "scripts/rock5b-passive-cooling-apply.sh",
             "scripts/rock5b-passive-cooling-revert.sh",
             "scripts/rock5b-spi-erase.sh",

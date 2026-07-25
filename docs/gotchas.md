@@ -30,6 +30,20 @@ stays the master list.
 > The two ccache traps below are expanded into a complete operational guide:
 > [kernel build ccache guide](../kernel-drivers/docs/kernel-build-ccache.md).
 
+**Armbian mounts build directories as tmpfs at 99% of RAM, on every build.**
+`prepare_tmpfs_for()` (`lib/functions/host/tmpfs-utils.sh`) mounts **both**
+WORKDIR and LOGDIR with `-o size=99%` — the in-tree comment says *"size=50% is
+the Linux default, but we need more."* It is opt-out only (`USE_TMPFS=no`) and
+has **no size knob**. Confirmed live on this 16 GB board as two tmpfs mounts of
+`size=16021764k` each against a `MemTotal` of `16183596 kB`. tmpfs is real
+memory, it can only be pushed to swap rather than dropped like page cache, and
+its pages **outlive the process that wrote them** — so an OOM daemon cannot
+recover from a tmpfs fill; it just kills victims while the memory stays gone.
+`build-kernel.sh` now passes `USE_TMPFS=no` at both `compile.sh` call sites
+(as an *argument*, for the same reason as `USE_CCACHE`); override with
+`ARMBIAN_USE_TMPFS=yes` only on a host with RAM to spare.
+[Finding](../findings/2026-07-25-rock5b-zram-thrash-livelock-wedge.md)
+
 **`hack/` files look deletable — they aren't.** `mpp_rkvdec2.c` `#include`s
 `hack/mpp_rkvdec2_hack_rk3568.c`; removing the `hack/` dir fails the build
 (`No such file or directory`). The other-SoC bodies are `#ifdef`'d out on RK3588
@@ -249,6 +263,22 @@ flagged in [BSP audit](../kernel-drivers/docs/bsp-audit.md) as the `mpp_rkvdec2.
 dispatch-asymmetry finding.
 
 ## Runtime
+
+**The board wedges by thrash livelock, and the OOM killer will never save you.**
+There are **zero OOM kills in the journal across every recorded boot** — not
+because memory never ran out, but because reclaim kept *succeeding*. With zram
+swap 100% full the only reclaimable memory left is page cache, so the kernel
+evicts all of it and keeps scanning; measured at 1,800,665 pages/s with
+479,176 blocks/s read against 2.42 written — pure refault, zero forward
+progress, load 114.93, recoverable only by power cycle. Corollary trap when
+reading monitoring: **swap sitting at 90-97% is normal on this board and is not
+a distress signal** — it stays pinned for hours at load 0.13 after a page-cache
+flood evicts cold anon into zram, and zram itself is efficient (4.6:1, 5.55 GB
+held in 1.32 GB). The distress signal is *available memory* falling **while**
+swap is full. `scripts/rock5b-oom-protection-apply.sh` installs earlyoom with
+that AND condition; a swap-only trigger (including systemd-oomd's default
+`ManagedOOMSwap`) fires during healthy idle here.
+[Finding](../findings/2026-07-25-rock5b-zram-thrash-livelock-wedge.md)
 
 **Never `rmdir` a live configfs DT overlay.** Removing/re-applying a configfs
 overlay at runtime deadlocks configfs (`D`-state, cascades to an `rtnl_lock`

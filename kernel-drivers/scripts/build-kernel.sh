@@ -48,13 +48,16 @@
 #      base .config from the running /boot/config-$(uname -r).
 #   4. Disable the two Armbian core media patches that collide with this
 #      tree's self-contained DT (media-0001 rkvdec, media-0007 vsi AV1 iommu).
-#   5. Run ./compile.sh with USE_CCACHE passed as an ARGUMENT (see below).
+#   5. Run ./compile.sh with USE_CCACHE and USE_TMPFS passed as ARGUMENTS
+#      (see below).
 #   6. Print the new P####-C#### hash and the deb paths.
 #
 # THE ccache GOTCHA: USE_CCACHE must be a compile.sh command-line ARGUMENT,
 # never a shell env var. Armbian can relaunch through Docker or sudo;
 # arguments survive both, while the Docker path was observed silently dropping
-# a bare env var and leaving ccache OFF.
+# a bare env var and leaving ccache OFF. USE_TMPFS is passed the same way for
+# the same reason -- and it matters more, because a dropped USE_TMPFS silently
+# restores the 99%-of-RAM tmpfs this board cannot survive (see below).
 #
 # PREREQS: either Docker-capable Linux (default mode) or a supported native
 # Armbian/Ubuntu Noble host (`PREFER_DOCKER=no`); ~8 GB RAM, ~50 GB free; the
@@ -82,6 +85,16 @@ KBRANCH="${KBRANCH:-rockchip64-6.18}"         # Armbian kernel patch archive bra
 ARMBIAN_KERNELBRANCH="${ARMBIAN_KERNELBRANCH:-commit:e46dc0adfe39724bcf52cea47b8f9c9aed86a394}"
 ARMBIAN_USE_CCACHE="${ARMBIAN_USE_CCACHE:-yes}"
 ARMBIAN_CLEAN_LEVEL="${ARMBIAN_CLEAN_LEVEL:-}"
+# Armbian's prepare_tmpfs_for() mounts BOTH WORKDIR and LOGDIR as tmpfs at
+# size=99% -- observed live as two mounts of 16021764k each on a board with
+# 16183596k of RAM. It is opt-out only (USE_TMPFS=no); there is no size knob.
+# tmpfs is unreclaimable in the way that matters here: pages can only be pushed
+# to swap, never dropped like page cache, and they outlive the process that
+# wrote them, so an OOM daemon cannot recover from a tmpfs fill -- it just kills
+# victims while the memory stays gone. On this 16 GB board with zram-backed
+# swap that is a wedge risk, and WORKDIR artifacts land on NVMe anyway.
+# Override with ARMBIAN_USE_TMPFS=yes only on a host with RAM to spare.
+ARMBIAN_USE_TMPFS="${ARMBIAN_USE_TMPFS:-no}"
 # Commit(s) present in the ported trees only because the local branches track
 # fixes that the validated Armbian source base already carries. Keep them out
 # of generated userpatches or Armbian will reject them as reversed.
@@ -490,7 +503,7 @@ if [ "$MODE" = "stage-only" ]; then
 fi
 
 # =============================================================================
-say "STEP 5: build $FLAVOR (ccache=$ARMBIAN_USE_CCACHE; clean=${ARMBIAN_CLEAN_LEVEL:-incremental})"
+say "STEP 5: build $FLAVOR (ccache=$ARMBIAN_USE_CCACHE; tmpfs=$ARMBIAN_USE_TMPFS; clean=${ARMBIAN_CLEAN_LEVEL:-incremental})"
 say "  ccache dir before: $(du -sh "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)"
 cd "$ARMBIAN_BUILD"
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
@@ -501,6 +514,7 @@ if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	# the *-debug flavors, so ccache keeps flavor switches from being cold.
 	PREFER_DOCKER="${PREFER_DOCKER:-yes}" ./compile.sh "$FLAVOR_CONFIG_NAME" kernel \
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
+		USE_TMPFS="$ARMBIAN_USE_TMPFS" \
 		ENABLE_EXTENSIONS="$STAMP_EXT_NAME" \
 		${ARMBIAN_CLEAN_LEVEL:+CLEAN_LEVEL="$ARMBIAN_CLEAN_LEVEL"} \
 		${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}
@@ -518,6 +532,7 @@ else
 		KERNELBRANCH="$ARMBIAN_KERNELBRANCH" \
 		KERNEL_CONFIGURE=no \
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
+		USE_TMPFS="$ARMBIAN_USE_TMPFS" \
 		${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} \
 		${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}
 fi
