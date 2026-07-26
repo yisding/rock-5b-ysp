@@ -15,7 +15,16 @@
 #   video-rewrite-kasan clean-room rewrite KASAN/lockdep
 #
 # Each slot is a distinct package name AND kernel release string, so installing
-# one never disturbs another (see docs/kernel-builds.md "Package slots").
+# one never disturbs another's FILES (see docs/kernel-builds.md "Package slots").
+# Verified: the three debs' 32,692 paths share nothing with the 70,841 paths of
+# the installed kernel packages beyond plain directories.
+#
+# It DOES take over the next boot, and that distinction is the whole reason for
+# the recovery gate below. /boot/Image, /boot/dtb, /boot/uInitrd, /boot/vmlinuz
+# and /boot/initrd.img belong to no package -- maintainer scripts and initramfs
+# hooks repoint them at whatever was installed last. So the previous kernel
+# survives on disk and can be selected again with kernel-revert.sh, but you do
+# not get there without booting something first.
 # `current-rockchip64` belongs to Armbian's own kernel and `ysp-rockchip64` to
 # the PPA lineage -- this script writes neither.
 #
@@ -29,10 +38,16 @@
 #
 # Knobs: SLOT= (only to disambiguate), DEBS= (deb directory),
 #        HASH= (extra kernel-version filter),
-#        BOOT_CMD=, BACKUP_ROOT=, ENV=, ALLOW_OVERSIZE_IMAGE=1.
+#        BOOT_CMD=, BOOT_SCR=, BACKUP_ROOT=, ENV=, ALLOW_OVERSIZE_IMAGE=1.
 # =============================================================================
 set -uo pipefail
-[ "${1:-}" != "-h" ] && [ "${1:-}" != "--help" ] || { sed -n '2,29p' "$0"; exit 0; }
+# Print to the header's closing rule rather than a hardcoded line number: a fixed
+# range silently truncates the moment anyone adds a paragraph, and it did --
+# dropping the Usage line out of --help entirely.
+[ "${1:-}" != "-h" ] && [ "${1:-}" != "--help" ] || {
+	sed -n '2,/^# =\{20,\}$/p' "$0"
+	exit 0
+}
 [ "$(id -u)" -eq 0 ] || {
 	echo "Run as root:  sudo RECOVERY_READY=1 PHASH='P####-C####' bash $0"
 	exit 1
@@ -45,6 +60,7 @@ DEBS="${DEBS:-${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}/output/debs}"
 BACKUP_ROOT="${BACKUP_ROOT:-$WORKSPACE/boot-backups}"
 ENV_FILE="${ENV:-/boot/armbianEnv.txt}"
 BOOT_CMD="${BOOT_CMD:-/boot/boot.cmd}"
+BOOT_SCR="${BOOT_SCR:-/boot/boot.scr}" # what U-Boot actually executes
 SLOT="${SLOT:-}"          # usually unnecessary: inferred from PHASH below
 PHASH="${PHASH:-}"        # required; pins the exact build (printed by build-kernel.sh)
 HASH="${HASH:-}"          # optional kernel-version filter, e.g. 6.18.38
@@ -58,9 +74,12 @@ validate_slot() {
 		[ "$s" = "$known" ] && return 0
 	done
 	case "$s" in
-	current | current-rockchip64 | ysp | ysp-rockchip64)
-		echo "REFUSING: '$s' is not ours. current-rockchip64 is Armbian's stock" >&2
-		echo "  kernel and ysp-rockchip64 is the PPA lineage (install that with apt)." >&2
+	# Family-agnostic: Armbian renamed rock-5b's family rockchip64 ->
+	# rockchip-rk3588, so matching the old suffixes alone would stop recognising
+	# Armbian's own slots.
+	current | current-* | ysp | ysp-*)
+		echo "REFUSING: '$s' is not ours. current-* is Armbian's stock kernel and" >&2
+		echo "  ysp-* is the PPA lineage (install that one with apt)." >&2
 		;;
 	*)
 		echo "Unknown SLOT '$s'. Valid: ${OUR_SLOTS[*]}." >&2
@@ -97,64 +116,134 @@ find_deb() {
 		matches+=("$f")
 	done < <(find "$DEBS" -maxdepth 1 -type f -name "${package}_*.deb" -print0)
 	[ "${#matches[@]}" -gt 0 ] || return 1
-	printf '%s\n' "${matches[@]}" | sort -V | tail -1
+	# Refuse rather than guess. PHASH is an unanchored substring, so a partial
+	# value like "Cc271" matches several builds; the old `sort -V | tail -1`
+	# then picked one by version-sorting a HASH, which is meaningless ordering --
+	# with P9999 (new) against P0001 (old) it silently chose the old build.
+	if [ "${#matches[@]}" -gt 1 ]; then
+		echo "AMBIGUOUS: PHASH=$PHASH matches ${#matches[@]} ${package} debs:" >&2
+		printf '    %s\n' "${matches[@]##*/}" >&2
+		echo "  Give the full P####-C#### pair printed by build-kernel.sh." >&2
+		return 2
+	fi
+	printf '%s\n' "${matches[0]}"
 }
 
 if [ -z "$PHASH" ]; then
 	echo "Set PHASH to the build hash printed by build-kernel.sh, e.g.:"
 	echo "  sudo RECOVERY_READY=1 PHASH='Pd745-Cb831' bash $0"
 	echo "  recent image debs across all slots:"
-	find "$DEBS" -maxdepth 1 -type f -name 'linux-image-video-*-rockchip64_*.deb' \
+	find "$DEBS" -maxdepth 1 -type f -name 'linux-image-video-*_*.deb' \
 		-printf '      %f\n' 2>/dev/null | sort -V | tail -8
 	exit 1
 fi
 
-# The deb filename carries both the slot (package name) and the PHASH, so the
-# slot is derivable -- asking for it again is just a chance to get it wrong.
-# SLOT stays available to disambiguate, and is required only if one PHASH
-# somehow matches builds in more than one slot.
-infer_slot() {
-	local s found=()
-	for s in "${OUR_SLOTS[@]}"; do
-		if compgen -G "$DEBS/linux-image-${s}-rockchip64_*${PHASH}*.deb" >/dev/null; then
-			found+=("$s")
-		fi
-	done
-	case "${#found[@]}" in
-	1) printf '%s\n' "${found[0]}" ;;
+# The deb filename carries the slot, the LINUXFAMILY and the PHASH, so all of it
+# is derivable -- asking again is just a chance to get it wrong. SLOT stays
+# available to disambiguate, and is required only if one PHASH somehow matches
+# builds in more than one slot.
+#
+# THE FAMILY IS DISCOVERED, NOT ASSUMED. This used to hardcode "-rockchip64" and
+# broke completely when Armbian renamed rock-5b's BOARDFAMILY to rockchip-rk3588:
+# the built deb is linux-image-video-port-kasan-rockchip-rk3588_..., every glob
+# missed it, and a perfectly good kernel could not be installed by its own
+# installer. The artifacts are the authority here -- they are the thing about to
+# be installed, and they carry whatever name Armbian actually used.
+#
+# LONGEST SLOT WINS. OUR_SLOTS holds both video-port and video-port-kasan, and
+# "video-port" is a prefix of the kasan deb's name. Matching shortest-first would
+# install a KASAN kernel while reporting it as the production one -- a silent
+# wrong-kernel install, which is worse than failing.
+#
+# Emits "<slot> <family>" on stdout.
+infer_slot_and_family() {
+	local f base rest s slot family pairs=() uniq=()
+	while IFS= read -r -d '' f; do
+		base="$(basename "$f")"
+		rest="${base#linux-image-}"
+		rest="${rest%%_*}" # -> e.g. video-port-kasan-rockchip-rk3588
+		slot=""
+		family=""
+		for s in "${OUR_SLOTS[@]}"; do
+			case "$rest" in
+			"$s"-*)
+				if [ "${#s}" -gt "${#slot}" ]; then
+					slot="$s"
+					family="${rest#"$s"-}"
+				fi
+				;;
+			esac
+		done
+		[ -n "$slot" ] && [ -n "$family" ] || continue
+		pairs+=("$slot $family")
+	done < <(find "$DEBS" -maxdepth 1 -type f -name "linux-image-*_*${PHASH}*.deb" -print0)
+
+	# Guard the empty case BEFORE printf: `printf '%s\n'` with no arguments still
+	# emits one blank line, so mapfile would produce a single empty element and
+	# the case below would report success with an empty slot and family --
+	# yielding PKG_SUFFIX="-" and a nonsense install. Caught by testing the
+	# no-match path rather than only the happy one.
+	[ "${#pairs[@]}" -gt 0 ] || return 1
+	# Honour an explicit SLOT=. Without this filter the ambiguity path returns 2
+	# regardless of SLOT, so the very instruction this function prints
+	# ("Re-run with SLOT=<one of the above>") could never work.
+	if [ -n "${SLOT_REQUESTED:-}" ]; then
+		local kept=()
+		for s in "${pairs[@]}"; do
+			[ "${s%% *}" = "$SLOT_REQUESTED" ] && kept+=("$s")
+		done
+		pairs=(${kept[@]+"${kept[@]}"})
+		[ "${#pairs[@]}" -gt 0 ] || return 1
+	fi
+	mapfile -t uniq < <(printf '%s\n' "${pairs[@]}" | sort -u)
+	case "${#uniq[@]}" in
+	1) printf '%s\n' "${uniq[0]}" ;;
 	0) return 1 ;;
 	*)
-		echo "AMBIGUOUS: PHASH=$PHASH matches builds in ${#found[@]} slots:" >&2
-		printf '    %s\n' "${found[@]}" >&2
-		echo "  Re-run with SLOT=<one of the above>." >&2
+		echo "AMBIGUOUS: PHASH=$PHASH matches ${#uniq[@]} slot/family combinations:" >&2
+		printf '    %s\n' "${uniq[@]}" >&2
+		echo "  Re-run with SLOT=<one of the slots above>." >&2
 		return 2
 		;;
 	esac
 }
 
 echo "================= STEP 1: locate the built debs ================="
-if [ -z "$SLOT" ]; then
-	SLOT="$(infer_slot)" || {
-		rc=$?
-		[ "$rc" = 2 ] && exit 2
-		echo "  no image deb in any of our slots matches PHASH=$PHASH" >&2
-		# Builds predating the slot split landed in Armbian's own
-		# current-rockchip64. Say so rather than claiming the deb is missing.
-		if compgen -G "$DEBS/linux-image-current-rockchip64_*${PHASH}*.deb" >/dev/null; then
-			echo "  BUT a matching deb exists in current-rockchip64 -- that is a" >&2
-			echo "  pre-slot-split build sitting in Armbian's slot. Rebuild it with" >&2
-			echo "  build-kernel.sh so it lands in its own slot; this script will not" >&2
-			echo "  install into current-rockchip64." >&2
-			exit 1
-		fi
-		echo "  recent image debs across our slots:" >&2
-		find "$DEBS" -maxdepth 1 -type f -name 'linux-image-video-*-rockchip64_*.deb' \
-			-printf '      %f\n' 2>/dev/null | sort -V | tail -8 >&2
+SLOT_FAMILY=""
+SLOT_REQUESTED="$SLOT"
+# Capture the function's OWN status. `if ! cmd; then rc=$?` always yields 0 --
+# the `!` inverts the status before $? is read -- so the AMBIGUOUS return of 2
+# was dead code and that path printed two contradictory diagnoses in one run.
+INFER_OUT="$(infer_slot_and_family)" || rc=$?
+rc="${rc:-0}"
+if [ "$rc" -ne 0 ]; then
+	[ "$rc" = 2 ] && exit 2
+	echo "  no image deb in any of our slots matches PHASH=$PHASH" >&2
+	# Builds predating the slot split landed in Armbian's own current-* slot. Say
+	# so rather than claiming the deb is missing.
+	if compgen -G "$DEBS/linux-image-current-*_*${PHASH}*.deb" >/dev/null; then
+		echo "  BUT a matching deb exists in an Armbian current-* slot -- that is a" >&2
+		echo "  pre-slot-split build sitting in Armbian's slot. Rebuild it with" >&2
+		echo "  build-kernel.sh so it lands in its own slot; this script will not" >&2
+		echo "  install into Armbian's slot." >&2
 		exit 1
-	}
-	echo "  slot inferred from PHASH: $SLOT"
+	fi
+	echo "  recent image debs across our slots:" >&2
+	find "$DEBS" -maxdepth 1 -type f -name 'linux-image-video-*_*.deb' \
+		-printf '      %f\n' 2>/dev/null | sort -V | tail -8 >&2
+	exit 1
 fi
-PKG_SUFFIX="${SLOT}-rockchip64"
+read -r INFERRED_SLOT SLOT_FAMILY <<<"$INFER_OUT"
+if [ -n "$SLOT_REQUESTED" ] && [ "$SLOT_REQUESTED" != "$INFERRED_SLOT" ]; then
+	echo "SLOT=$SLOT_REQUESTED was given, but PHASH=$PHASH belongs to $INFERRED_SLOT." >&2
+	echo "  Refusing rather than installing a kernel into a slot it was not built for." >&2
+	exit 2
+fi
+SLOT="$INFERRED_SLOT"
+validate_slot "$SLOT" || exit 2
+echo "  slot inferred from PHASH:   $SLOT"
+echo "  family read from deb name:  $SLOT_FAMILY"
+PKG_SUFFIX="${SLOT}-${SLOT_FAMILY}"
 echo "  filter: $(describe_filter)"
 IMG=$(find_deb "linux-image-${PKG_SUFFIX}" || true)
 DTB=$(find_deb "linux-dtb-${PKG_SUFFIX}" || true)
@@ -168,6 +257,29 @@ for f in "$IMG" "$DTB"; do
 	echo "  $(basename "$f")"
 done
 [ -f "$HDR" ] && echo "  $(basename "$HDR")"
+
+# The three debs are located by three INDEPENDENT searches, so nothing so far
+# guarantees they came from the same build. An image paired with a DTB from a
+# different build is the exact combination that boots to a dead device tree.
+# Armbian stamps the full source/config/patch identity into each package.
+orig_hash() { dpkg -f "$1" Armbian-Original-Hash 2>/dev/null; }
+IMG_HASH="$(orig_hash "$IMG")"
+[ -n "$IMG_HASH" ] || {
+	echo "  ABORT: $(basename "$IMG") has no Armbian-Original-Hash to verify against" >&2
+	exit 1
+}
+for f in "$DTB" ${HDR:+"$HDR"}; do
+	[ -f "$f" ] || continue
+	h="$(orig_hash "$f")"
+	[ "$h" = "$IMG_HASH" ] || {
+		echo "  ABORT: $(basename "$f") is from a different build than the image." >&2
+		echo "    image: $IMG_HASH" >&2
+		echo "    this : ${h:-<none>}" >&2
+		echo "  Installing a mismatched image/DTB pair boots to a dead device tree." >&2
+		exit 1
+	}
+done
+echo "  all packages agree: $IMG_HASH"
 echo
 
 # -----------------------------------------------------------------------------
@@ -183,12 +295,44 @@ echo
 # -- KASAN builds just hit the ceiling first. It runs for every slot.
 # -----------------------------------------------------------------------------
 echo "================= STEP 2: U-Boot load-address preflight ================="
-uboot_addr() { # name stock-default -- last setenv in boot.cmd wins, as in U-Boot
-	local value=""
-	if [[ -r "$BOOT_CMD" ]]; then
-		value="$(sed -n "s/^[[:space:]]*setenv[[:space:]]\+$1[[:space:]]\+\"\?\([0-9a-fA-Fx]\+\)\"\?[[:space:]]*$/\1/p" "$BOOT_CMD" | tail -1)"
+# U-Boot executes boot.scr, NOT boot.cmd. boot.cmd is source text; boot.scr is
+# the mkimage-wrapped copy, and nothing enforces that they agree. Reading only
+# boot.cmd made this preflight fail OPEN in the one case that matters:
+# set-boot-load-addresses.sh writes boot.cmd first and regenerates boot.scr
+# second, so an mkimage failure between those steps leaves boot.cmd raised and
+# boot.scr stock. The preflight would then read the raised value, report "fits
+# with 60 MiB spare", install -- and U-Boot would boot with the stock map,
+# clearing BSS over the FDT. No console, no serial, no ramoops.
+#
+# So read BOTH and refuse to guess when they disagree.
+addr_from_file() { # name file [strings]
+	local name="$1" file="$2" mode="${3:-text}" reader
+	[[ -r "$file" ]] || return 1
+	if [ "$mode" = strings ]; then reader=(strings -a "$file"); else reader=(cat "$file"); fi
+	"${reader[@]}" 2>/dev/null |
+		sed -n "s/^[[:space:]]*setenv[[:space:]]\+${name}[[:space:]]\+\"\?\([0-9a-fA-Fx]\+\)\"\?[[:space:]]*\$/\1/p" |
+		tail -1
+}
+
+uboot_addr() { # name stock-default -- last setenv wins, as in U-Boot
+	local name="$1" fallback="$2" v_cmd v_scr
+	v_cmd="$(addr_from_file "$name" "$BOOT_CMD" text || true)"
+	v_scr="$(addr_from_file "$name" "$BOOT_SCR" strings || true)"
+	v_cmd="${v_cmd:-$fallback}"
+	v_scr="${v_scr:-$fallback}"
+	if [ "$v_cmd" != "$v_scr" ]; then
+		cat >&2 <<EOF
+ABORT: $(basename "$BOOT_CMD") and $(basename "$BOOT_SCR") disagree on $name.
+  $BOOT_CMD  $v_cmd
+  $BOOT_SCR  $v_scr
+  U-Boot executes $(basename "$BOOT_SCR"); the other file is only its source.
+  A half-applied load-address change looks exactly like this, and installing on
+  top of it produces a kernel that cannot boot or print why.
+  Regenerate with:  sudo bash "$HERE/debug-kernel/set-boot-load-addresses.sh"
+EOF
+		exit 1
 	fi
-	printf '%s\n' "${value:-$2}"
+	printf '%s\n' "$v_scr"
 }
 
 image_size_from_deb() {
@@ -207,7 +351,21 @@ fdt_addr="$(uboot_addr fdt_addr_r 0x08300000)"
 gap=$(( fdt_addr - kernel_addr ))
 image_size="$(image_size_from_deb "$IMG")"
 if [ -z "$image_size" ]; then
-	echo "  WARN: no arm64 Image header found in $(basename "$IMG"); skipping preflight." >&2
+	# Deliberately FATAL. This used to warn and continue, which meant the single
+	# gate protecting the board from an unbootable kernel silently disabled itself
+	# whenever anything in the extraction pipeline changed -- a missing python3, a
+	# tar path-prefix change, or an EFI-zboot/compressed Image with no raw arm64
+	# magic at offset 56. A check that cannot run is not a passing check.
+	cat >&2 <<EOF
+ABORT: could not read the arm64 Image header from $(basename "$IMG").
+  The load-address preflight cannot run, and it is the only thing standing
+  between an oversized kernel and a board that boots to nothing.
+  Check that python3, dpkg-deb and tar are present and that the deb contains
+  ./boot/vmlinuz-*. Override with ALLOW_OVERSIZE_IMAGE=1 only if you have
+  confirmed by other means that the kernel fits.
+EOF
+	[ "${ALLOW_OVERSIZE_IMAGE:-0}" = 1 ] || exit 1
+	echo "  ALLOW_OVERSIZE_IMAGE=1 set; continuing without a size check." >&2
 elif [ "$image_size" -gt "$gap" ]; then
 	cat >&2 <<EOF
 ABORT: this kernel does not fit the current U-Boot load map.
@@ -260,8 +418,12 @@ running_release="$(uname -r)"
 		'linux-image*rockchip*' 'linux-dtb*rockchip*' 'linux-headers*rockchip*' \
 		2>/dev/null || true
 } >"$backup_dir/manifest.txt"
+# boot.cmd and boot.scr are in this list because they decide whether the kernel
+# below can boot at all -- see the preflight's boot.scr cross-check. Backing up
+# the kernel without them leaves the half that chooses load addresses unrecovered.
 for path in \
 	/boot/armbianEnv.txt /boot/Image /boot/vmlinuz /boot/uInitrd /boot/dtb \
+	/boot/initrd.img "$BOOT_CMD" "$BOOT_SCR" \
 	"/boot/vmlinuz-${running_release}" "/boot/initrd.img-${running_release}" \
 	"/boot/uInitrd-${running_release}" "/boot/System.map-${running_release}" \
 	"/boot/config-${running_release}" "/boot/dtb-${running_release}"; do
@@ -286,23 +448,72 @@ rm -fv /boot/overlay-user/rkvdec2.dtbo 2>/dev/null || true
 echo
 
 echo "================= STEP 5: install image + dtb + headers ================="
+# The DTB package's preinst does `rm -rf /boot/dtb` at UNPACK time and only
+# recreates the symlink in postinst at CONFIGURE time. Anything that kills dpkg
+# in between -- interrupt, ENOSPC, a failing /etc/kernel/postinst.d hook --
+# leaves /boot/dtb absent, and boot.cmd loads the FDT with no error check, so the
+# board will not boot. Passing all three debs to one dpkg -i maximised that
+# window: ~27,600 header files unpacked while the symlink was already gone.
+# Install the DTB last and by itself to make the window as small as possible.
 if [ -f "$HDR" ]; then
-	dpkg -i "$IMG" "$DTB" "$HDR" || { echo "  dpkg failed -- inspect above"; exit 1; }
+	dpkg -i "$IMG" "$HDR" || { echo "  dpkg failed -- inspect above"; exit 1; }
 else
-	dpkg -i "$IMG" "$DTB" || { echo "  dpkg failed -- inspect above"; exit 1; }
+	dpkg -i "$IMG" || { echo "  dpkg failed -- inspect above"; exit 1; }
 fi
+dpkg -i "$DTB" || { echo "  dpkg failed on the DTB package -- inspect above"; exit 1; }
+[ -e /boot/dtb ] || {
+	echo "  ABORT: /boot/dtb is missing after installing the DTB package." >&2
+	echo "  The board will NOT boot in this state. Restore from $backup_dir" >&2
+	echo "  before rebooting: cp -a $backup_dir/dtb* /boot/" >&2
+	exit 1
+}
 echo
 echo "  holding $PKG_SUFFIX so apt cannot overwrite this build"
+# Report failure: a silently-failed hold lets a later `apt upgrade` re-point the
+# boot symlinks away from this build.
 apt-mark hold "linux-image-${PKG_SUFFIX}" "linux-dtb-${PKG_SUFFIX}" \
-	"linux-headers-${PKG_SUFFIX}" >/dev/null 2>&1 || true
+	${HDR:+"linux-headers-${PKG_SUFFIX}"} >/dev/null ||
+	echo "  WARNING: apt-mark hold failed; apt may overwrite this build later" >&2
 echo
 
 echo "================= STEP 6: verify ================="
-echo "  /boot/Image -> $(readlink -f /boot/Image 2>/dev/null || echo /boot/Image)"
-NEWDTB=$(find /boot -path '*rockchip/rk3588-rock-5b.dtb' -newermt '-3 minutes' 2>/dev/null | head -1)
-if [ -n "$NEWDTB" ]; then
-	echo "  installed dtb: $NEWDTB"
-	echo "  vendor nodes in it: $(dtc -I dtb -O dts "$NEWDTB" 2>/dev/null | grep -cE 'rkv-encoder-v2-core|rkv-decoder-v2"|rga3_core0')"
+# ASSERT, do not narrate. This step used to print /boot/Image and an arbitrary
+# recently-modified DTB without ever checking that either pointed at the build
+# just installed -- so a boot pointer left on the OLD kernel looked identical to
+# success. The release string comes from the package itself.
+INSTALLED_RELEASE="$(dpkg -f "$IMG" Armbian-Kernel-Version-Family 2>/dev/null)"
+[ -n "$INSTALLED_RELEASE" ] || INSTALLED_RELEASE="${IMG##*linux-image-}"
+verify_link() { # label path expected-substring
+	local label="$1" path="$2" want="$3" got
+	got="$(readlink -f "$path" 2>/dev/null || true)"
+	if [ -z "$got" ]; then
+		echo "  FAIL $label -> (missing)" >&2
+		return 1
+	fi
+	case "$got" in
+	*"$want"*) echo "  ok   $label -> $got" ;;
+	*)
+		echo "  FAIL $label -> $got" >&2
+		echo "       expected it to point at $want" >&2
+		return 1
+		;;
+	esac
+}
+verify_rc=0
+verify_link "/boot/Image" /boot/Image "$INSTALLED_RELEASE" || verify_rc=1
+verify_link "/boot/dtb" /boot/dtb "$INSTALLED_RELEASE" || verify_rc=1
+[ -e "/boot/uInitrd-$INSTALLED_RELEASE" ] &&
+	echo "  ok   initrd built for $INSTALLED_RELEASE" ||
+	echo "  WARN no /boot/uInitrd-$INSTALLED_RELEASE (initramfs hook may not have run)" >&2
+if [ "$verify_rc" -ne 0 ]; then
+	echo >&2
+	echo "  The boot pointers do NOT reference the kernel just installed." >&2
+	echo "  DO NOT REBOOT. Restore from $backup_dir first." >&2
+	exit 1
+fi
+NEWDTB="/boot/dtb-$INSTALLED_RELEASE/rockchip/rk3588-rock-5b.dtb"
+if [ -f "$NEWDTB" ]; then
+	echo "  vendor nodes in its dtb: $(dtc -I dtb -O dts "$NEWDTB" 2>/dev/null | grep -cE 'rkv-encoder-v2-core|rkv-decoder-v2"|rga3_core0')"
 fi
 echo
 echo "DONE. Reboot when ready:  sudo reboot"
