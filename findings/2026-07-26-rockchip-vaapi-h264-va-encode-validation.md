@@ -76,8 +76,9 @@ All three independent MPP workloads completed cleanly.
 
 This is deliberately an experimental frame-level path. It supports progressive
 NV12, H.264 Main/High, CQP/CBR/VBR, MPP-generated headers, and one full-frame
-slice. HEVC Main encode is validated separately at `b579bad`; multi-slice
-operation, additional input formats, a WebRTC sender, browser encoder
-integration, and long-duration encode soak remain open. The one-slice limit
-also avoids claiming coverage beyond the kernel RKVENC2 slice-FIFO hardening
-already validated elsewhere in this repo.
+slice. HEVC Main encode is validated separately at `b579bad`; checked
+I420/YV12 uploads are validated at `b98a606`. Imported RGB/DMABUF input,
+multi-slice operation, a WebRTC sender, browser encoder integration, and
+long-duration encode soak remain open. The one-slice limit also avoids claiming
+coverage beyond the kernel RKVENC2 slice-FIFO hardening already validated
+elsewhere in this repo.

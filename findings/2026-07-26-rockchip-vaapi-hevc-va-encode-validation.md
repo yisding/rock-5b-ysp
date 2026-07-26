@@ -80,7 +80,8 @@ librga pair are byte-exact.
 
 The encoder remains experimental and hidden by default. It accepts progressive
 NV12, HEVC Main 8-bit 4:2:0, CQP/CBR/VBR, MPP-generated headers, and one
-full-frame slice. It rejects tiles, scaling lists, weighted prediction,
-B-frames, PCM, and multi-slice input. P010 encode, RGA input conversion,
+full-frame slice. Checked I420/YV12 uploads are validated separately at
+`b98a606`. It rejects tiles, scaling lists, weighted prediction, B-frames, PCM,
+and multi-slice input. P010 encode, imported RGB/DMABUF RGA conversion,
 application-packed headers, WebRTC/browser integration, and long-duration
 encode soak remain open.
