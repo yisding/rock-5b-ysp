@@ -113,6 +113,7 @@ last-checked date.
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → use-after-free](#watch-w19) | 2026-07-24 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0069`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0058`-`0068`. **Gate CLOSED 2026-07-24:** the reproducer returns `errno=16` (`EBUSY`) on the booted `#8` KASAN build carrying the fix, and that tail passed full conformance on the Published production kernel. Remaining work is upstream submission. |
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | **CSI-loop attribution falsified as sole cause:** the stall recurred on 2026-07-23 with the patched `~rk1` package binary-verified in the booted initramfs (identical fingerprint, no `SIGRTMIN+20`). Boot-transaction mechanism reconfirmed; internal daemon wedge unknown again. Mitigation `plymouth.enable=0` still unapplied; next hang needs a live `plymouthd` stack via `debug-shell.service` instead of a reset. |
 | W21 | [ffmpeg-rockchip `rkmpp` transcode deadlock without the `da5befc806` backpressure fix](#watch-w21) | 2026-07-23 | The harness's default `FFDIR` binary (FFmpeg-**master**, `libavcodec 63`; its dir's `RELEASE` file misleadingly says 6.1) deadlocks on `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines (all threads on `futex`). The **shipping `/usr/bin/ffmpeg 8.0.3~rk1` (`libavcodec 62`, carries `da5befc806`) runs both cleanly**, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Already-catalogued encoder-backpressure/decoder-hang class (submission-plan §B), fixed on our 8.0 line — not a new finding; not yet forward-ported to main or upstreamed. |
+| W22 | [RK3588 per-die voltage binning absent from mainline](#watch-w22) | 2026-07-25 | Mainline and maxline ship the BSP's unbinned worst-die voltage column **exactly** — 19/19 shared CPU OPPs match — while the BSP's per-die `opp-microvolt-L1..L6` reach 50–87 mV lower. No `rockchip_opp_select`/`rockchip_pvtm`/`rockchip-cpufreq` upstream; the RK3588 OTP leakage cells mainline already declares have **no consumer**. This board measures bin 0, so its OPP *set* is right and only the voltage is conservative. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -652,3 +653,39 @@ last-checked date.
   Harness: `ffmpeg-suite.sh` now uses `timeout -k` (reaps a deadlock) and prints
   the runtime `libavcodec` version for attribution. Detail:
   [`findings/2026-07-23-forward-port-current-tip-full-validation-run.md`](./findings/2026-07-23-forward-port-current-tip-full-validation-run.md).
+
+<a id="watch-w22"></a>
+### W22 — RK3588 per-die voltage binning absent from mainline
+
+- **Why recheck:** Whether upstream gains RK3588 eFuse-driven OPP selection is an
+  external fact that changes without a repository edit, and it is the difference
+  between our mainline-based kernels running vendor **worst-die** voltages and
+  running per-part ones. It also gates any honest BSP-vs-forward-port power or
+  thermal comparison: without this, such a comparison measures the missing
+  driver, not the port. Watch `drivers/soc/rockchip/`, `drivers/cpufreq/` for a
+  rockchip entry, and `rk3588-opp.dtsi` for `opp-supported-hw`.
+- **Last checked:** 2026-07-25
+- **State 2026-07-25:** Absent from both mainline trees. `drivers/soc/rockchip/`
+  is exactly `Kconfig Makefile dtpm.c grf.c io-domain.c` in the 6.18 forward port
+  (`v6.18-253`) and the 7.2-rc2 maxline tree (`v7.2-rc2-242`) — no
+  `rockchip_opp_select.c`, `rockchip_pvtm.c`, `rockchip-cpuinfo.c`, or
+  `rockchip_system_monitor.c`; no `drivers/cpufreq/rockchip-cpufreq.c`; rk3588
+  is not in `cpufreq-dt-platdev.c`. `rk3588-opp.dtsi` carries 27 flat OPPs with
+  zero `opp-supported-hw`/`nvmem`/`leakage`/`pvtm` (across all mainline rockchip
+  DTs, only `rk3562.dtsi` uses `opp-supported-hw`). Every one of the **19 shared
+  CPU OPPs matches the BSP's baseline `opp-microvolt` exactly**, while the BSP
+  additionally carries `opp-microvolt-L1..L6` columns reaching **50–87 mV
+  lower**. Armbian's `rockchip64-6.18` archive adds nothing (`rk3588-0025-add-missing-op-nodes.patch`
+  appends plain nodes only); Armbian's `vendor` branch **is** the BSP and does
+  have it. Two consequences worth holding separately: the M/J bins are
+  **derated** (little 1704 vs 1800, big 2016 vs 2400, and +25…+75 mV), so
+  mainline's bin-0-only table would run an RK3588J past its caps — but **this
+  board measures bin 0** (`specification_serial_number` `0x01`,
+  `customer_demand` `0x00`, read live from `rockchip-otp0`), so here only the
+  voltage is conservative, not the OPP set. Half the port is already upstream and
+  dead: `drivers/nvmem/rockchip-otp.c` plus the leakage cells at
+  `rk3588-base.dtsi:3323` have **no consumer anywhere**, and
+  `dev_pm_opp_set_config()` is exported — the gap is an
+  `imx-cpufreq-dt.c`-shaped driver plus two DT cells. PVTM is the part that does
+  not port cheaply (runtime closed-loop PVTPLL calibration). Detail:
+  [`findings/2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md`](./findings/2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md).

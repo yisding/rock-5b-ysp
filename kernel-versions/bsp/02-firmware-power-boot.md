@@ -103,6 +103,16 @@ behavior changes. For example, an accelerator may run at a fixed assigned clock
 if OPP/PVTM/devfreq policy is absent, while the full BSP can change rates based
 on load, voltage, leakage, or thermal policy.
 
+The CPU clusters show the same effect in its mildest form, and it is worth
+knowing the exact shape: mainline still scales frequency *and* voltage there
+(`cpufreq-dt` with `cpu-supply` wired), but it ships a single voltage column
+that turns out to be the BSP's **unbinned worst-die** one, value for value. The
+BSP adds two further mechanisms on top — an eFuse SKU bin selecting *which* OPPs
+exist, and a leakage/PVTM index selecting *which voltage column* each OPP uses —
+and neither exists upstream. Measured comparison, the OTP cell map, and what a
+port would actually require:
+[`2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md`](../../findings/2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md).
+
 Keep three categories separate:
 
 - **Required control path:** clocks, resets, power domains, firmware calls, or
