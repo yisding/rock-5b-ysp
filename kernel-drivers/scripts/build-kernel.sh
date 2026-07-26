@@ -790,9 +790,12 @@ VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIG:-$FLAVOR_VERIFY_CONFIGS}"
 [ -n "$VERIFY_CONFIGS" ] || VERIFY_CONFIGS="CONFIG_ROCKCHIP_MPP_RKVDEC2"
 say "  verifying packaged kernel config contains: $VERIFY_CONFIGS"
 for VERIFY_SYM in $VERIFY_CONFIGS; do
+	# Do not use grep -q here. A successful early exit closes the pipe while
+	# tar is still writing the 270 KiB config; with pipefail, tar's SIGPIPE
+	# then turns a present symbol into a false "MISSING" verdict.
 	if ! dpkg-deb --fsys-tarfile "$NEW" 2>/dev/null |
 		tar -xO --wildcards './boot/config-*' 2>/dev/null |
-		grep -q "^$VERIFY_SYM="; then
+		grep "^$VERIFY_SYM=" >/dev/null; then
 		die "$VERIFY_SYM is MISSING from $(basename "$NEW")
     The kernel built WITHOUT this flavor's driver series and must not be installed.
     This is what a patch-dir mismatch looks like: the build succeeds and produces

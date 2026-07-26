@@ -55,12 +55,12 @@ historical Rockchip hardware block or legacy ioctl must be supported.
 
 ## Current status
 
-This guide describes the sources committed on 2026-07-23:
+This guide describes the sources committed on 2026-07-26:
 
 | Kernel branch | Commit |
 |---------------|--------|
-| `rk3588-rewrite-6.18` | `1fe46df86f1ca` |
-| `rk3588-rewrite-mainline` | `ec9a4a06ecf12` |
+| `rk3588-rewrite-6.18` | `c5faabf9d00b` |
+| `rk3588-rewrite-mainline` | `39475996a7a8` |
 
 The commits contain byte-identical rewrite sources:
 
@@ -77,10 +77,10 @@ evidence is:
 | Driver code | MPP and RGA implementations on both kernel branches | The same driver design is maintained on the 6.18 and current-mainline tracks. |
 | ABI coverage | MPP covers the observed RK3588 RKVENC2/RKVDEC2 contract; RGA covers a broad current `librga`/FFmpeg/GStreamer subset and explicitly rejects recognized unsafe or unimplemented paths | Expected current requests can be parsed and represented; an explicit rejection is preferable to silently misprogramming hardware. |
 | In-source tests | 85 MPP and 147 RGA KUnit cases, 232 total | Pure logic such as parsing, bounds, routing, register emission, and race-state transitions has executable coverage without requiring the board. |
-| Build evidence | On 2026-07-23 all six normal, memory-safety, and race-oriented clean-source profiles passed without compiler warnings at the cited tips | Both branches build the IOMMU provider, KUnit-enabled rewrite objects, and ROCK 5B DTB under the intended configurations. A build is not hardware proof. |
+| Build evidence | On 2026-07-26 all six normal, memory-safety, and race-oriented clean-source profiles passed without compiler warnings at the cited tips | Both branches build the IOMMU provider, KUnit-enabled rewrite objects, and ROCK 5B DTB under the intended configurations. A build is not hardware proof. |
 | Latest recovery work | Generation-aware timeout/fault ownership, stricter CCU recovery, close/remove handoffs, and fail-closed MPP containment when a reset cannot prove that DMA stopped | The code has a defined terminal branch for dangerous recovery failures instead of assuming reset always works. |
-| Bootable debug image | Armbian KASAN image `P3695-C9fc5` was built from the 6.18 tip with both rewrites and 232 KUnit cases built in; `System.map` confirms the latest recovery code | The current tip packages into a bootable-image format. The image has not been installed or booted. |
-| Hardware evidence | No current rewrite tip has a recorded, complete booted RK3588 conformance run | The rewrite is **not yet** the validated replacement for the forward port. |
+| Bootable debug image | Armbian KASAN/lockdep image `P3b08-Cad24` was built from the 6.18 tip with both rewrites and all 232 KUnit cases built in; package-config inspection confirms all four rewrite/KUnit symbols | The current tip packages into a bootable-image format. The repaired image has not yet been installed or booted. |
+| Hardware evidence | The first full KUnit boot at parent `5a55fa4743b2` exposed 29 failures plus sanitizer/warning output; the fixes are compile-verified but their booted rerun is pending | KUnit is now real board evidence rather than unexecuted scaffold, but the rewrite is **not yet** the validated replacement for the forward port. |
 | Published alpha packages | Existing published rewrite package composites predate the current source tips | Those packages must not be treated as evidence for the code described here. |
 
 The practical hardware scope is deliberately narrower than every name a

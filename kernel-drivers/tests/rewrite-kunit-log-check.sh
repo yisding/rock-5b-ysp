@@ -43,8 +43,10 @@ check_suite()
 		;;
 	esac
 
-	if [ ! -s "$results" ]; then
-		echo "missing KUnit results for $suite: $results" >&2
+	# debugfs files can report st_size == 0 while returning data when read.
+	# Test access, then let the KTAP parser reject empty or malformed content.
+	if [ ! -r "$results" ]; then
+		echo "missing or unreadable KUnit results for $suite: $results" >&2
 		write_result "$suite\t$expected\tmissing\tmissing\tmissing\tmissing\tmissing\tfail\t$(uname -r)"
 		return 1
 	fi
@@ -132,6 +134,28 @@ selftest()
 	sed -i '/    ok 85 - case_85/d' "$tmp_root/rk_mpp_rewrite/results"
 	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
 		echo "incomplete KUnit result set unexpectedly passed" >&2
+		return 1
+	fi
+
+	# procfs, like debugfs, exposes readable generated files whose stat size is
+	# zero. Ensure such a file reaches the parser instead of being called
+	# missing. Its non-KTAP content must still fail the result check.
+	mv "$tmp_root/rk_mpp_rewrite/results" \
+		"$tmp_root/rk_mpp_rewrite/results.fixture"
+	ln -s /proc/version "$tmp_root/rk_mpp_rewrite/results"
+	if [ ! -r "$tmp_root/rk_mpp_rewrite/results" ] ||
+		[ -s "$tmp_root/rk_mpp_rewrite/results" ]; then
+		echo "zero-size readable pseudo-file fixture is unavailable" >&2
+		return 1
+	fi
+	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" \
+		> "$tmp_root/zero-size-readable.out" 2>&1; then
+		echo "malformed zero-size KUnit result unexpectedly passed" >&2
+		return 1
+	fi
+	if grep -q "missing or unreadable KUnit results for rk_mpp_rewrite" \
+		"$tmp_root/zero-size-readable.out"; then
+		echo "readable zero-size KUnit result was incorrectly called missing" >&2
 		return 1
 	fi
 

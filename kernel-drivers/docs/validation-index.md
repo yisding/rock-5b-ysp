@@ -45,8 +45,8 @@ superseded `86`/`122`/`208` at tips `8469183da227` / `9ff18809b5e0`.
 | KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ❌ (KUnit-under-KASAN not booted) |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | `*-repro.c`, `rga-session-uaf.sh` | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
-| Booted KUnit (85 MPP + 147 RGA = 232) | `rewrite-kunit-log-check.sh` | — | ❌ machinery ready, never booted-green |
-| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ all 6 profiles green 2026-07-23 at the *then*-current `1fe46df`/`ec9a4a06`; the tips have moved twice since, and the packaged gate from the committed tip is owed; not hardware |
+| Booted KUnit (85 MPP + 147 RGA = 232) | `rewrite-kunit-log-check.sh` | — | ⚠️ first full boot at parent `5a55fa` ran every case but passed only 77 MPP + 126 RGA and emitted KUnit-triggered sanitizer/warning reports; fixes at `c5faab` are packaged but the clean rerun is pending |
+| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ all 6 profiles green 2026-07-26 at current `c5faab`/`394759`; package `P3b08-Cad24` contains both rewrite drivers and KUnit suites; not hardware |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ never booted |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`, `syzkaller/` | ⚠️ ran without KCOV | ❌ |
