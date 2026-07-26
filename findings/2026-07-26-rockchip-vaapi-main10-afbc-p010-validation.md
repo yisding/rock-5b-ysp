@@ -159,3 +159,11 @@ presentation in Firefox/mpv and the display stack. Both profiles therefore
 remain experimental. It does settle the kernel-facing question for the
 measured paths: do not add another kernel stride workaround for linear NV15
 output. Request AFBC and honor MPP's AFBC header stride and crop metadata.
+
+Do not extend this decode verdict to encode. At `rockchip-vaapi@03e6cb6`,
+`rk_BeginPicture()` and `rk_mpp_enc_encode()` explicitly reject 10-bit encoder
+surfaces, encoder preparation and `MppFrame` submission hard-code
+`MPP_FMT_YUV420SP`, and the HEVC sequence validator accepts only Main profile
+with 8-bit luma/chroma. HEVC Main10 capability advertisement, P010 input,
+10-bit MPP stride/format setup, and a standard-decoder round-trip gate remain
+unimplemented Phase 4 work.

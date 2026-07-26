@@ -43,7 +43,7 @@ separate table below so both remain scannable.
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
 | 13 | Maximum-mainline kernel | 🚧 The pinned upstream 7.2-rc3 `public` and `wip` integrations are reproducible, and both passed native arm64 kernel, package, payload, and external-module-headers checks. Neither has been installed, booted, or hardware-tested. | 2026-07-17 | [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
-| 14 | Desktop-app HW video (browsers) | 🚧 Survey of the enablement landscape (three roads: VA-API driver, `libv4l-rkmpp` Chromium shim, maxline kernel V4L2) is mapped. Phase one of the leading road executed: the `rockchip-vaapi` VA-API-over-MPP driver was forked to `yisding/rockchip-vaapi@ysp/cleanup`, built against the ysp stack, and three bit-exactness bugs found and fixed — H.264 (ref×bframes matrix + 4K) and VP9 (×10) now bit-exact vs software via ffmpeg-vaapi, packaged as a `.deb`. Since the driver only shims bitstream/surfaces (MPP + `mpp_rkvdec2` do the decode), those bit-exact results also independently re-validate the forward-port's H.264/VP9 rkvdec2 decode on the current tip (build `#5` `P9636-C4ad2`, RGA `0043`–`0050`) — smoke-scope, 8-bit, Profile 0. The substantive renovation (zero-copy buffer model, drain-thread sync, HEVC writer, 10-bit NV15→P010) and any real Firefox/Chromium end-to-end run remain. | 2026-07-21 | [enablement map](./docs/app-enablement.md), [driver review](./findings/2026-07-21-rockchip-vaapi-driver-review.md) |
+| 14 | Desktop-app HW video (browsers) | 🚧 `yisding/rockchip-vaapi@main` at `03e6cb6` has the Phase 0/1 renovation complete. Shipping H.264/VP9 and experimental HEVC Main/Main10 plus VP9 Profile 2 have conformance and sanitizer coverage; measured Main10/Profile 2 output is P010 byte-exact through MPP AFBC V2 plus RGA on the paired 6.18.40 kernel/current-librga stack. Stock GStreamer readback is exact, and opt-in H.264/HEVC Main encode passes FFmpeg/GStreamer, planar upload, linear DRM PRIME RGB/NV12, RTP, concurrency, sanitizer, and 60-second soak gates. Experimental paths remain hidden. Firefox 152.0.6 has a pinned RDD broker/seccomp patch; its exact Ubuntu source package is configured, format-clean, and partially compiled, but no binary package or live sandbox gate exists. P010/Main10 encoder input is still explicitly rejected. | 2026-07-26 | [enablement map](./docs/app-enablement.md), [Main10/P010 finding](./findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md), [Firefox build checkpoint](./findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
 
 ## Next gates
 
@@ -68,7 +68,7 @@ dashboard date and ledger row when public state changes.
 | 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. | [Kodi tty1 runbook](./apps/kodi/docs/build-hwaccel.md#5-test-on-tty1-gbm-needs-drm-master) |
 | 12 | ROCK 5B SD/SPI boot chain | Substitute the 26.5.1 `current` FIT, loader, and then both on a captured 26.2.1 SD baseline; record where each boot stops or succeeds. | [Raw-SD hypothesis test](./scripts/README.md#rock-5b-raw-sd-u-boot-hypothesis-test) |
 | 13 | Maximum-mainline kernel | Install the `public` profile first with the known-good 6.18 packages and physical/serial recovery retained; prove explicit boot, storage, network, display, suspend, and rollback before trying `wip`. | [Recovery-first install and test order](./packaging/ppa/kernel-maxline/README.md#install-and-test-order) |
-| 14 | Desktop-app HW video (browsers) | Close Phase 0 of the production roadmap: swap synthetic clips for real conformance vectors, add an ASan gate + CI skeleton, and run the `.deb` end-to-end in Firefox — then start Phase 1 (object heap, external-buffer-group zero-copy, per-context worker sync). | [Production roadmap](https://github.com/yisding/rockchip-vaapi/blob/ysp/cleanup/docs/ROADMAP.md), [phase-one results](./findings/2026-07-21-rockchip-vaapi-driver-review.md#9-phase-one-results-measured-board-validated-2026-07-21) |
+| 14 | Desktop-app HW video (browsers) | Resume the preserved Firefox 152.0.6 `+ysp1` build, produce and inspect the arm64 packages, then install and prove live hardware decode with `MOZ_DISABLE_RDD_SANDBOX` unset and RDD still sandboxed. Keep P010/Main10 encode separate: the current encoder explicitly rejects 10-bit input. | [Firefox package-build checkpoint](./findings/2026-07-26-firefox-rdd-package-build-checkpoint.md), [Firefox RDD policy](./findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), [Main10/P010 boundary](./findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md#boundary) |
 
 > **Runtime gate pending.** The BSP-audit cleanup series still needs the runtime
 > codec regression test before it can ship. Compile status alone is not
@@ -109,7 +109,7 @@ last-checked date.
 | W15 | [RGA session-close fix vs. the frozen import](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0039`; frozen base patch still has the old path. |
 | W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-25 | The exported tail is contiguous `0001`-`0075`; `0074` and `0075` have booted KASAN hardware evidence on `6.18.40-video-port-kasan-rockchip-rk3588` (RGA 10-bit gates, forced `split_arg=4` slice gate, KASAN MPP, ioctl fuzz, and root gates). Production package/install/rollback remains open. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
-| W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-21 | Fork `yisding/rockchip-vaapi@ysp/cleanup` holds the phase-one work; upstream woodyst has been quiet since 2026-05-28. |
+| W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-26 | Public development moved to `main@03e6cb6`; decode, opt-in encode, app gates, and the pinned Firefox RDD patch are recorded, while Firefox packaging/runtime and P010 encode remain open. |
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → use-after-free](#watch-w19) | 2026-07-24 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0069`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0058`-`0068`. **Gate CLOSED 2026-07-24:** the reproducer returns `errno=16` (`EBUSY`) on the booted `#8` KASAN build carrying the fix, and that tail passed full conformance on the Published production kernel. Remaining work is upstream submission. |
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | **CSI-loop attribution falsified as sole cause:** the stall recurred on 2026-07-23 with the patched `~rk1` package binary-verified in the booted initramfs (identical fingerprint, no `SIGRTMIN+20`). Boot-transaction mechanism reconfirmed; internal daemon wedge unknown again. Mitigation `plymouth.enable=0` still unapplied; next hang needs a live `plymouthd` stack via `debug-shell.service` instead of a reset. |
 | W21 | [ffmpeg-rockchip `rkmpp` transcode deadlock without the `da5befc806` backpressure fix](#watch-w21) | 2026-07-23 | The harness's default `FFDIR` binary (FFmpeg-**master**, `libavcodec 63`; its dir's `RELEASE` file misleadingly says 6.1) deadlocks on `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines (all threads on `futex`). The **shipping `/usr/bin/ffmpeg 8.0.3~rk1` (`libavcodec 62`, carries `da5befc806`) runs both cleanly**, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Already-catalogued encoder-backpressure/decoder-hang class (submission-plan §B), fixed on our 8.0 line — not a new finding; not yet forward-ported to main or upstreamed. |
@@ -500,15 +500,22 @@ last-checked date.
 - **Why recheck:** The VA-API-driver track lives in an external fork, not this
   repo; the fork branch and the upstream it descends from move independently
   of any change here.
-- **Last checked:** 2026-07-21
-- **State then:** The phase-one correctness/packaging work is committed to
-  `git@github.com:yisding/rockchip-vaapi.git` branch `ysp/cleanup` (built
-  `rockchip-vaapi_1.0.11+ysp1_arm64.deb`, board-validated). `origin` is
-  upstream `woodyst/rockchip-vaapi@e8c64dd` (v1.0.11), quiet since
-  2026-05-28. The ysp source of truth for the *decision and evidence* is
-  [`findings/2026-07-21-rockchip-vaapi-driver-review.md`](./findings/2026-07-21-rockchip-vaapi-driver-review.md);
-  the *code* is only in the fork. If the renovation proceeds, re-check whether
-  upstream has revived (offer changes back) before diverging further.
+- **Last checked:** 2026-07-26
+- **State 2026-07-26:** Public development is on
+  `git@github.com:yisding/rockchip-vaapi.git` branch `main` at `03e6cb6`.
+  Phase 0/1 renovation, experimental Main10/Profile 2 decode, opt-in H.264/HEVC
+  encode, GStreamer/FFmpeg/VLC/RTP/soak gates, linear DRM PRIME encode import,
+  and the source-pinned Firefox RDD policy are committed there. The exact
+  Firefox source package is patched and partially compiled, but no browser
+  package or live sandbox gate exists yet. P010/Main10 encoder input also
+  remains unimplemented. The ysp source of truth for evidence is the dated
+  [`findings index`](./findings/README.md); the code remains only in the fork.
+  Re-check whether upstream has revived before release or offering the series
+  back.
+- **State 2026-07-21:** The phase-one correctness/packaging work was committed
+  to branch `ysp/cleanup` and built as
+  `rockchip-vaapi_1.0.11+ysp1_arm64.deb`. Upstream was
+  `woodyst/rockchip-vaapi@e8c64dd` (v1.0.11), quiet since 2026-05-28.
 
 <a id="watch-w19"></a>
 ### W19 — MPP `INIT_CLIENT_TYPE` double-call → use-after-free

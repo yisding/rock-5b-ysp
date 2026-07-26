@@ -26,9 +26,13 @@ Canonical detail still belongs in the owning project docs linked from each row.
 
 Track 14 update: `rockchip-vaapi@03e6cb6` now carries an exact-source-hash-pinned
 Firefox 152.0.6 RDD patch for the measured MPP/RGA requests and broker paths,
-without disabling the sandbox. Source application is verified; the Firefox
-package build and live display-session gate remain open. See the
-[`Firefox RDD policy finding`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md).
+without disabling the sandbox. The exact Ubuntu Resolute source package is now
+patched, configured, format-clean, and partially compiled with a rootless
+private toolchain. The compile was stopped on request after 31 minutes during
+Rust compilation, not by a compiler failure; no binary package was produced.
+Completion, install, and the live display-session sandbox gate remain open. See
+the [`Firefox RDD policy finding`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md)
+and [`package-build checkpoint`](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md).
 
 ## Promotion rule
 

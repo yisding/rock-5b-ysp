@@ -86,7 +86,11 @@ hardware gates remain green while measuring the request set.
 ## Boundary
 
 This is source-policy and hardware-ABI validation, not a completed Firefox app
-gate. A patched Firefox package has not yet been built or installed, and this
-login has no Wayland or X11 display socket for browser playback. The remaining
-proof is a package build followed by live RDD hardware decode with
-`MOZ_DISABLE_RDD_SANDBOX` unset and the RDD process still sandboxed.
+gate. The matching Ubuntu source package has since been patched, configured,
+formatted, and partially compiled, but the compile was stopped on request
+before producing a binary package. It has not been installed, and this login
+has no Wayland or X11 display socket for browser playback. See the
+[package-build checkpoint](2026-07-26-firefox-rdd-package-build-checkpoint.md).
+The remaining proof is a completed package build followed by live RDD hardware
+decode with `MOZ_DISABLE_RDD_SANDBOX` unset and the RDD process still
+sandboxed.

@@ -126,7 +126,7 @@ counts to reproduce, use the `b4ef083dc0c3` state of `develop-6.1` against
 exists as a dev-box reference checkout @ `45943c54ded4` but is **not** the
 donor and is not cited by any doc.)
 
-## 4. Userspace pins — libmpp, librga, FFmpeg
+## 4. Userspace pins — libmpp, librga, FFmpeg, Firefox
 
 | Component | Repo | Pin | Cited by |
 |-----------|------|-----|----------|
@@ -144,6 +144,7 @@ donor and is not cited by any doc.)
 | Jellyfin FFmpeg Rockchip reference | `jellyfin/jellyfin-ffmpeg` | `jellyfin@455bfe539220` (`v8.1.2-1-13-g455bfe53`); effective comparison applied all 96 Debian patches in scratch worktree `/home/yi/Code/ffmpeg/jellyfin-ffmpeg-applied` | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md`](../video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md) |
 | FFmpeg upstream release tags | `FFmpeg/FFmpeg` | `n8.1.2@38b88335f99e` and `n8.0.3@151b17dd2400`; historical comparison/package bases | `video-libraries/ffmpeg/docs/implementation-comparison.md`; the PPA/GRD ABI base |
 | FFmpeg upstream publication bases | `FFmpeg/FFmpeg` | `master@ceabc9b306f5`, `release/8.0@435ae0581deb`, and `release/8.1@94138f6973dd`, fetched 2026-07-16 | `video-libraries/ffmpeg/docs/rebase-notes.md` §8 |
+| Firefox Ubuntu source package | Ubuntu Resolute source `firefox` | `152.0.6+build1-0ubuntu0.26.04.1~mt1`; `.dsc` SHA-256 `2ba6f650f3f862bdcc61e7953fce8131b3673c290ad3c6b50922bf3486307708`; local `+ysp1` patch/build workspace retained at `~/Code/firefox-rdd-build` | [`Firefox RDD policy`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), [`package-build checkpoint`](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
 
 **How the upstream FFmpeg pins and published branches relate:** `main` follows
 FFmpeg master, while `ffmpeg-80` and `ffmpeg-81` follow the upstream 8.0 and

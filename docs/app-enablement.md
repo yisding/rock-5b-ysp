@@ -24,7 +24,7 @@ plumbing layers. Which layer an app speaks decides its cost almost entirely:
 |-------|---------------------|
 | **libavcodec named codecs** (`h264_rkmpp`, `hevc_rkmpp`, …) | ✅ Shipped: [`ffmpeg-rockchip`](../video-libraries/ffmpeg/README.md) fork, built and Published in the [normal PPA](../packaging/ppa/README.md) as the system FFmpeg replacement. |
 | **GStreamer elements** (`mppvideodec`, `mpph26xenc`) | ⚠️ Rockchip's external `gstreamer-rockchip` plugin exists upstream but is not packaged here; ubuntu-rockchip shipped a working (if crudely packaged) build of it — one clean repackage away. The kernel track's GStreamer suite is no longer blocked — it first ran 2026-07-22 at 98/102 required ([userspace-gaps finding](../findings/2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md)) and reached 129/133 on the production PPA kernel. |
-| **VA-API** (the de-facto Linux desktop hwaccel API) | 🚧 Being renovated. [`yisding/rockchip-vaapi@main`](https://github.com/yisding/rockchip-vaapi) has Phase 0/1 complete, measured experimental HEVC/10-bit decode, exact stock-GStreamer readback, lintian-clean split packages, and opt-in H.264 Main/High plus HEVC Main encode passing FFmpeg, GStreamer, parser, sanitizer, and concurrent-decode gates. Checked I420/YV12 uploads feed MPP's native NV12; linear imported NV12 is submitted directly, and one-object RGBA/RGBX/BGRA/BGRX DMA-BUFs pass a public-libva RGA conversion gate. H.264 passes a WebRTC-compatible RTP gate, paced dual-codec soak smoke has flat resources, and Firefox 152.0.6 now has a source-hash-pinned RDD broker/seccomp patch for the measured Rockchip ABI without disabling the sandbox. Experimental paths stay hidden; the rebuilt Firefox package/live display gate, other browser/display work, multi-object or tiled imports, full WebRTC peer negotiation, two-hour encode qualification, and release remain. Dated evidence is in the [Main10/P010](../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md), [H.264 encode](../findings/2026-07-26-rockchip-vaapi-h264-va-encode-validation.md), [HEVC encode](../findings/2026-07-26-rockchip-vaapi-hevc-va-encode-validation.md), [planar upload](../findings/2026-07-26-rockchip-vaapi-planar-encode-upload-validation.md), [DRM PRIME RGB import](../findings/2026-07-26-rockchip-vaapi-drm-prime-rgb-encode-validation.md), [WebRTC RTP](../findings/2026-07-26-rockchip-vaapi-webrtc-rtp-validation.md), [encode soak](../findings/2026-07-26-rockchip-vaapi-dual-encode-soak-smoke.md), and [Firefox RDD policy](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) findings. |
+| **VA-API** (the de-facto Linux desktop hwaccel API) | 🚧 Being renovated. [`yisding/rockchip-vaapi@main`](https://github.com/yisding/rockchip-vaapi) has Phase 0/1 complete, measured experimental HEVC/10-bit decode, exact stock-GStreamer readback, lintian-clean split packages, and opt-in H.264 Main/High plus HEVC Main encode passing FFmpeg, GStreamer, parser, sanitizer, and concurrent-decode gates. Checked I420/YV12 uploads feed MPP's native NV12; linear imported NV12 is submitted directly, and one-object RGBA/RGBX/BGRA/BGRX DMA-BUFs pass a public-libva RGA conversion gate. H.264 passes a WebRTC-compatible RTP gate, paced dual-codec soak smoke has flat resources, and Firefox 152.0.6 now has a source-hash-pinned RDD broker/seccomp patch for the measured Rockchip ABI without disabling the sandbox. The exact Firefox source package is configured and partially compiled. Experimental paths stay hidden; completing/installing that package, the live display gate, P010 encode, other browser/display work, multi-object or tiled imports, full WebRTC peer negotiation, two-hour encode qualification, and release remain. Dated evidence is in the [Main10/P010](../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md), [H.264 encode](../findings/2026-07-26-rockchip-vaapi-h264-va-encode-validation.md), [HEVC encode](../findings/2026-07-26-rockchip-vaapi-hevc-va-encode-validation.md), [planar upload](../findings/2026-07-26-rockchip-vaapi-planar-encode-upload-validation.md), [DRM PRIME RGB import](../findings/2026-07-26-rockchip-vaapi-drm-prime-rgb-encode-validation.md), [WebRTC RTP](../findings/2026-07-26-rockchip-vaapi-webrtc-rtp-validation.md), [encode soak](../findings/2026-07-26-rockchip-vaapi-dual-encode-soak-smoke.md), [Firefox RDD policy](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), and [Firefox package build](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) findings. |
 | **V4L2** (stateful M2M or stateless request API) | ⚠️ The BSP kernel exposes the codecs only via the vendor `/dev/mpp_service` ioctl interface, not V4L2 — but a **userspace** V4L2-stateful-over-MPP bridge exists: JeffyCN's `libv4l-rkmpp` (a libv4l2 plugin emulating a stateful M2M decoder/encoder in-process, no kernel device), proven in Joshua Riek's archived ubuntu-rockchip images as the engine behind Chromium 4K playback. It is kernel-agnostic and only reachable through a patched libv4l2, which in practice makes it a Chromium-only bridge. See the [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md). A real kernel V4L2 stateless path still needs a mainline kernel ([`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md), mainline rkvdec2 work). |
 
 ```mermaid
@@ -42,7 +42,7 @@ flowchart TB
   end
   lavc["libavcodec named codecs<br/>h264_rkmpp · hevc_rkmpp"]
   gst["gstreamer-rockchip<br/>mppvideodec · mpph26xenc"]
-  vaapi["VA-API<br/>rockchip-vaapi PoC (fork candidate)"]
+  vaapi["VA-API<br/>rockchip-vaapi maintained fork"]
   v4l2["V4L2 stateless<br/>(mainline kernel only)"]
   shim["libv4l-rkmpp<br/>userspace V4L2-stateful shim<br/>(needs patched libv4l2)"]
   mpplib["librockchip_mpp"]
@@ -66,7 +66,7 @@ flowchart TB
 
 Apps on the left column are nearly free because the fork already ships. The
 right column depends either on the VA-API→MPP bridge — which now exists and is
-being renovated in `yisding/rockchip-vaapi@ysp/cleanup`, not blocked for want
+being renovated in `yisding/rockchip-vaapi@main`, not blocked for want
 of one — or on a kernel path this repo's BSP forward-port deliberately does not
 take (V4L2).
 
@@ -80,7 +80,7 @@ take (V4L2).
 | OBS | libavcodec encoders | Hours–a day; cheapest encode win after the CLI |
 | HandBrake | bundled FFmpeg + own encoder registry | Days; encode is the realistic value |
 | VLC | libavcodec VAAPI hwaccel | Modules are installed and selected, but dummy headless vout provides no decoder device and falls back before loading rockchip-vaapi. Gate in a real Wayland/X11/DRM session; patching is not yet shown necessary. |
-| Firefox | **VA-API only** on Rockchip | H.264+VP9 works **today** via rockchip-vaapi (sandbox off); solid via the fork-and-renovate plan. It cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the ffmpeg rkmpp wrapper decoders (not a hwaccel) — see the [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
+| Firefox | **VA-API only** on Rockchip | H.264+VP9 is hardware-validated through rockchip-vaapi, and a pinned RDD policy patch is partially compiled into the exact Ubuntu source; package completion plus live sandbox/display validation remains. Firefox cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the ffmpeg rkmpp wrapper decoders (not a hwaccel) — see the [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
 | Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | Renovated rockchip-vaapi + a 1–3 week hardening pass (stock builds, runtime flags); or ~3–6 weeks re-targeting the libv4l-rkmpp shim (custom builds forever); or maxline |
 
 ### mpv — essentially free, and the right first proof
@@ -163,8 +163,11 @@ neither. Options, in ascending ambition:
    burden.
 2. The VA-API road (below) — H.264+VP9 decode is hardware-exact in the driver,
    and `rockchip-vaapi@03e6cb6` now carries an exact Firefox 152.0.6 RDD
-   broker/seccomp source patch for the measured Rockchip ABI. Building and
-   live-validating the Firefox package remain open. A one-off
+   broker/seccomp source patch for the measured Rockchip ABI. The matching
+   Ubuntu source package is patched, configured, format-clean, and partially
+   compiled; the build was paused on request after 31 minutes, before any
+   binary package was produced. Completing, installing, and live-validating
+   that package remain open. A one-off
    `MOZ_DISABLE_RDD_SANDBOX=1` run is diagnostic only and must not be deployed
    globally. Firefox's seccomp filters ioctls by request family, so
    device-node aliasing cannot
@@ -234,8 +237,10 @@ sidestepped by aliasing device nodes under `/dev/dri/` (plus an MPP
 path-override patch), which plausibly suffices for deb Chromium, but
 Firefox's RDD has both pathname-broker and seccomp gates. The pinned source
 patch now grants existing Rockchip device paths and only the four measured
-MPP/RGA requests; the rebuilt-package and live-display proof remain — see the
-[RDD policy finding](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md).
+MPP/RGA requests. The exact Ubuntu source is configured and partially compiled,
+but the rebuilt-package and live-display proof remain — see the
+[RDD policy finding](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md)
+and [package-build checkpoint](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md).
 
 The trade against the now-known V4L2-stateful shim is exactly inverted
 effort placement: `libv4l-rkmpp` is thin (~4k lines, near-1:1 semantics with
@@ -274,7 +279,7 @@ De-risk in this order:
    experiment; and optionally the libv4l-rkmpp 1.8.0 build as the comparison
    point. (The "build v1.0.11 unmodified and smoke-test Firefox" probe that
    opened this list is done — it was the baseline for the fork work now in
-   `ysp/cleanup`.)
+   `main`.)
 
 ## Related pages
 
