@@ -304,6 +304,7 @@ FLAVOR_CONFIG_NAME=""     # Armbian named config; every local flavor has one
 FLAVOR_IS_DEBUG=0         # 1 for the KASAN/lockdep flavors only
 FLAVOR_BRANCH=""          # Armbian BRANCH == our slot name
 FLAVOR_BRANCH_GUARD=""    # required checked-out branch of KERNEL_TREE, if any
+FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-}"  # required symbols in the packaged config
 case "$FLAVOR" in
 	forward-port)
 		KERNEL_TREE="${KERNEL_TREE:-$CODE/kernel/linux-6.18-rkvenc-av1-fwport}"
@@ -311,6 +312,7 @@ case "$FLAVOR" in
 		STAGING="${STAGING:-$WORKSPACE/forward-port/patches}"
 		FLAVOR_CONFIG_NAME="rock5b-video-port"
 		FLAVOR_BRANCH="video-port"
+		FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-CONFIG_ROCKCHIP_MPP_RKVDEC2}"
 		;;
 	forward-port-debug)
 		KERNEL_TREE="${KERNEL_TREE:-$CODE/kernel/linux-6.18-rkvenc-av1-fwport}"
@@ -319,6 +321,7 @@ case "$FLAVOR" in
 		FLAVOR_CONFIG_NAME="rock5b-debug-kernel"
 		FLAVOR_IS_DEBUG=1
 		FLAVOR_BRANCH="video-port-kasan"
+		FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-CONFIG_ROCKCHIP_MPP_RKVDEC2}"
 		;;
 	rewrite)
 		KERNEL_TREE="${KERNEL_TREE:-$CODE/kernel/linux-6.18-rkvenc}"
@@ -327,6 +330,7 @@ case "$FLAVOR" in
 		FLAVOR_CONFIG_NAME="rock5b-video-rewrite"
 		FLAVOR_BRANCH="video-rewrite"
 		FLAVOR_BRANCH_GUARD="rk3588-rewrite-6.18"
+		FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-CONFIG_ROCKCHIP_MPP_REWRITE CONFIG_ROCKCHIP_RGA_REWRITE}"
 		;;
 	rewrite-debug)
 		KERNEL_TREE="${KERNEL_TREE:-$CODE/kernel/linux-6.18-rkvenc}"
@@ -336,6 +340,7 @@ case "$FLAVOR" in
 		FLAVOR_IS_DEBUG=1
 		FLAVOR_BRANCH="video-rewrite-kasan"
 		FLAVOR_BRANCH_GUARD="rk3588-rewrite-6.18"
+		FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-CONFIG_ROCKCHIP_MPP_REWRITE CONFIG_ROCKCHIP_RGA_REWRITE}"
 		;;
 	"")
 		[ "$MODE" = "restore" ] || { usage >&2; exit 2; }
@@ -777,21 +782,24 @@ fi
 # -- core patches applied, zero vendor patches -- still hashes non-zero and looks
 # healthy. The only honest check is the built artifact's own config.
 #
-# ROCKCHIP_MPP_RKVDEC2 is added by BOTH the forward-port and rewrite series and
-# exists in neither mainline nor Armbian's core patches, so one symbol covers all
-# four local flavors. Override per flavor with FLAVOR_VERIFY_CONFIG if that
-# stops being true.
-VERIFY_SYM="${FLAVOR_VERIFY_CONFIG:-CONFIG_ROCKCHIP_MPP_RKVDEC2}"
-say "  verifying $VERIFY_SYM is present in the packaged kernel config"
-if ! dpkg-deb --fsys-tarfile "$NEW" 2>/dev/null |
-	tar -xO --wildcards './boot/config-*' 2>/dev/null |
-	grep -q "^$VERIFY_SYM="; then
-	die "$VERIFY_SYM is MISSING from $(basename "$NEW")
+# Each flavor proves itself with symbols that exist only when its driver series
+# actually reached Kconfig. Forward-port uses the vendor MPP service; rewrite
+# intentionally disables that service and registers its clean-room replacements.
+# FLAVOR_VERIFY_CONFIG remains as a single-symbol compatibility override.
+VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIG:-$FLAVOR_VERIFY_CONFIGS}"
+[ -n "$VERIFY_CONFIGS" ] || VERIFY_CONFIGS="CONFIG_ROCKCHIP_MPP_RKVDEC2"
+say "  verifying packaged kernel config contains: $VERIFY_CONFIGS"
+for VERIFY_SYM in $VERIFY_CONFIGS; do
+	if ! dpkg-deb --fsys-tarfile "$NEW" 2>/dev/null |
+		tar -xO --wildcards './boot/config-*' 2>/dev/null |
+		grep -q "^$VERIFY_SYM="; then
+		die "$VERIFY_SYM is MISSING from $(basename "$NEW")
     The kernel built WITHOUT this flavor's driver series and must not be installed.
     This is what a patch-dir mismatch looks like: the build succeeds and produces
     correctly-named, installable debs containing a stock kernel.
     Check that Armbian's 'Using kernel patch dir' matches archive/$KBRANCH."
-fi
+	fi
+done
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	say "DONE. After install.md recovery prep, install with:"
 	say "  sudo RECOVERY_READY=1 PHASH='$PH' bash $HERE/install-kernel.sh"
