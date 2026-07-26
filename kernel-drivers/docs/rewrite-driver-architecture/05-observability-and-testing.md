@@ -43,6 +43,10 @@ At the documented source revisions:
 - MPP registers 85 KUnit cases.
 - RGA registers 147 KUnit cases.
 
+The [rewrite KUnit guide](../rewrite-kunit.md) documents their source
+organization, fixture contract, debug-kernel autorun, exact-count KTAP parser,
+kernel-log gate, and evidence-capture workflow.
+
 The tests concentrate on boundaries that are difficult to reproduce reliably
 on hardware:
 
