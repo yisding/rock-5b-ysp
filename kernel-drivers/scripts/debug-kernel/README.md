@@ -43,10 +43,9 @@ For either flavor, `build-kernel.sh` regenerates and stages the flavor's
 complete patch series, then installs the config, the shared fragment, and the
 debug-only ROCK 5B ramoops DT patch into
 `$WORKSPACE/armbian-build/userpatches/` before invoking `compile.sh`. The
-forward-port flavors follow Armbian's rolling `linux-6.18.y` stable branch (no
-`KERNELBRANCH` pin); the rewrite flavors keep their explicit commit pins. Pass
-`ARMBIAN_KERNELBRANCH=commit:<sha>` for a reproducible base. The external build
-tree is scratch, not the source of truth.
+all four local flavors follow Armbian's rolling `linux-6.18.y` stable branch
+(no `KERNELBRANCH` pin). Pass `ARMBIAN_KERNELBRANCH=commit:<sha>` for a
+reproducible base. The external build tree is scratch, not the source of truth.
 
 > Perf numbers on these kernels are meaningless (KASAN instruments every access) —
 > use the production forward-port build for benchmarking.

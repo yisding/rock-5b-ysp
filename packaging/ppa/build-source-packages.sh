@@ -40,8 +40,8 @@ GRD_DELTA="${GRD_DELTA:-}"
 
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
 KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
-KERNEL_PPA_CONFIG="${KERNEL_PPA_CONFIG:-$KERNEL_PPA_REPO/.config}"
-KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.38+rk3588av1fwport20260720}"
+KERNEL_PPA_CONFIG="${KERNEL_PPA_CONFIG:-$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config}"
+KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.40+rk3588av1fwport20260725}"
 
 KERNEL_ALPHA_618_SOURCE="${KERNEL_ALPHA_618_SOURCE:-linux-rockchip64-ysp-alpha-6.18}"
 KERNEL_ALPHA_618_REPO="${KERNEL_ALPHA_618_REPO:-$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc}"
@@ -85,8 +85,10 @@ order.
 
 The forward-port kernel target exports the already-patched Armbian kernel
 worktree named by KERNEL_PPA_REPO, excluding build products and .git, then
-overlays packaging/ppa/kernel-forward-port/debian. It is intentionally not part
-of the no-argument default set because the orig tarball is large.
+overlays packaging/ppa/kernel-forward-port/debian. By default it uses the
+tracked production config in that packaging directory, not the transient
+worktree .config, which may belong to the last debug build. It is intentionally
+not part of the no-argument default set because the orig tarball is large.
 
 The alpha rewrite kernel targets archive the pinned Armbian-plus-rewrite kernel
 commits from KERNEL_ALPHA_618_REPO and KERNEL_ALPHA_72RC3_REPO, then

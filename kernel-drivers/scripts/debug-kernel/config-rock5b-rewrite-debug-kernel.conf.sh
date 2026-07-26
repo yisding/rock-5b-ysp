@@ -29,10 +29,12 @@ BUILD_MINIMAL="no"
 INSTALL_HEADERS="yes"
 SHARE_LOGS="no"
 
-# Pin the exact Armbian stable-branch commit used by the installed forward-port
-# 6.18.38 package. build-kernel.sh stages the rewrite series
-# (rk3588-rewrite-6.18 tip of linux-6.18-rkvenc) on top.
-KERNELBRANCH="commit:e46dc0adfe39724bcf52cea47b8f9c9aed86a394"
+# No KERNELBRANCH pin: inherit Armbian's default for a mainline family, which
+# config/sources/mainline-kernel.conf.sh resolves to
+# "branch:linux-${KERNEL_MAJOR_MINOR}.y" -- the rolling 6.18 stable branch.
+# The built kernel therefore tracks stable and will change version between
+# rebuilds; pass ARMBIAN_KERNELBRANCH=commit:<sha> to build-kernel.sh when a
+# build has to be reproducible.
 
 # Keep full DWARF/BTF debug data. Armbian may otherwise disable this when RAM
 # looks tight, but this box has enough memory and debug symbols are useful.

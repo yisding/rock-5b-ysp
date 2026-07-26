@@ -31,10 +31,10 @@ string (`LOCALVERSION=-${BRANCH}-${LINUXFAMILY}`, hence `/boot/vmlinuz-*`,
 
 | Flavor | Slot / package suffix | Release string |
 |--------|----------------------|----------------|
-| `forward-port` | `video-port-rockchip64` | `6.18.38-video-port-rockchip64` |
-| `forward-port-debug` | `video-port-kasan-rockchip64` | `6.18.38-video-port-kasan-rockchip64` |
-| `rewrite` | `video-rewrite-rockchip64` | `6.18.38-video-rewrite-rockchip64` |
-| `rewrite-debug` | `video-rewrite-kasan-rockchip64` | `6.18.38-video-rewrite-kasan-rockchip64` |
+| `forward-port` | `video-port-rockchip64` | `6.18.y-video-port-rockchip64` |
+| `forward-port-debug` | `video-port-kasan-rockchip64` | `6.18.y-video-port-kasan-rockchip64` |
+| `rewrite` | `video-rewrite-rockchip64` | `6.18.y-video-rewrite-rockchip64` |
+| `rewrite-debug` | `video-rewrite-kasan-rockchip64` | `6.18.y-video-rewrite-kasan-rockchip64` |
 
 Installing does not require naming a slot: `install-kernel.sh` takes the
 `PHASH` that identifies one build and infers the slot from the deb filename,
@@ -91,12 +91,13 @@ ARMBIAN_USE_CCACHE=no build-kernel.sh <flavor>        # clean retry
 ARMBIAN_CLEAN_LEVEL=make-kernel build-kernel.sh <flavor>  # drop all Kbuild metadata
 ```
 
-Mechanics preserved from the validated engine: exact 6.18.38 source pin
-(`ARMBIAN_KERNELBRANCH`), core media patch exclusions for the self-contained
-DT, `USE_CCACHE` **as a compile.sh argument** (the Docker relaunch drops env
-vars — [ccache guide](./kernel-build-ccache.md)), stale debug-config sweep
-with `CLEAN_LEVEL=make-kernel` escalation on config-class transitions, and the
-final `P####-C####` hash print consumed by the installers.
+Mechanics preserved from the validated engine: rolling `linux-6.18.y` by
+default with `ARMBIAN_KERNELBRANCH=commit:<sha>` for reproducible rebuilds,
+core media patch exclusions for the self-contained DT, `USE_CCACHE` **as a
+compile.sh argument** (the Docker relaunch drops env vars — [ccache
+guide](./kernel-build-ccache.md)), stale debug-config sweep with
+`CLEAN_LEVEL=make-kernel` escalation on config-class transitions, and the final
+`P####-C####` hash print consumed by the installers.
 
 ## Debug-flavor specifics
 

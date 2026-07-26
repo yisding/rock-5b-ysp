@@ -949,7 +949,7 @@ class FatalSignatureScanTests(unittest.TestCase):
         # own `rga-mmu-debug:` markers and on `pstore.backend=ramoops`.
         self.assert_scan_behaviour(
             "ioctl-fuzz-smoke.sh",
-            self.resolved_regex("ioctl-fuzz-smoke.sh", "IOCTL_FUZZ_DMESG_FATAL_RE"),
+            self.expanded_assignment("ioctl-fuzz-smoke.sh", "IOCTL_FUZZ_DMESG_FATAL_RE"),
         )
 
     def test_recovery_stress_scan_flags_faults_and_ignores_benign_lines(self) -> None:

@@ -1,3 +1,16 @@
+linux-rockchip64-ysp (6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1) resolute; urgency=high
+
+  * Rebase the production forward-port source package to Linux 6.18.40
+    (stable commit 221fc2f4d0ed).
+  * Ship the validated forward-port tail through 0075: RGA 10-bit UV plane
+    offsets are byte-literal for P010/P210/NV15, and RKVENC2 reserves a slice
+    FIFO slot for the terminal record so forced multi-slice H.264/H.265 no
+    longer drops the final slice length.
+  * Keep the production config non-debug: MPP service/RKVENC2/RKVDEC2/AV1DEC
+    enabled, RGA built as a module, KASAN and lockdep disabled.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sat, 25 Jul 2026 21:04:44 -0700
+
 linux-rockchip64-ysp (6.18.38+rk3588av1fwport20260724-0ubuntu1~rk1) resolute; urgency=high
 
   * RGA3 10-bit stride ABI fix (regression): the legacy RGA_BLIT ABI carries

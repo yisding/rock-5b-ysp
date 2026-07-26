@@ -39,13 +39,12 @@ Armbian's `current` branch floats. For a debug kernel you generally want **the
 same source as the installed kernel**, so line numbers and the driver patch
 stack match.
 
-The forward-port flavors now carry **no** `KERNELBRANCH` pin: they inherit
+The local flavors now carry **no** `KERNELBRANCH` pin: they inherit
 Armbian's mainline-family default, which resolves to
 `branch:linux-${KERNEL_MAJOR_MINOR}.y` — the rolling 6.18 stable branch. The
-production (`config-rock5b-video-port.conf.sh`) and KASAN
-(`config-rock5b-debug-kernel.conf.sh`) configs are deliberately kept in step, so
-both track stable together and a KASAN trace still lines up with the production
-kernel it is explaining. The rewrite flavors keep their own explicit pins.
+production/KASAN and forward-port/rewrite configs are deliberately kept in
+step, so all local kernels track stable together and a KASAN trace still lines
+up with the production kernel it is explaining.
 
 The consequence is that the base moves between rebuilds. When a build has to be
 reproducible, or directly comparable to an earlier one, pin it explicitly at the
@@ -53,7 +52,7 @@ wrapper:
 
 ```bash
 ARMBIAN_KERNELBRANCH=commit:<sha> \
-  bash kernel-drivers/scripts/build-kernel.sh forward-port-debug
+  bash kernel-drivers/scripts/build-kernel.sh rewrite-debug
 ```
 
 `build-kernel.sh` passes `KERNELBRANCH` to `compile.sh` only when

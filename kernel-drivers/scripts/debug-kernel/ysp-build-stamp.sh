@@ -77,6 +77,14 @@ function custom_kernel_make_params__ysp_real_build_stamp() {
 function kernel_make_config__ysp_ccache_nohashdir() {
 	display_alert "ysp-build-stamp" "CCACHE_NOHASHDIR=1 (worktree-path-independent cache)" "info"
 	common_make_envs+=("CCACHE_NOHASHDIR=1")
+	if [[ "${YSP_CCACHE_RECACHE:-no}" == "yes" ]]; then
+		display_alert "ysp-build-stamp" "CCACHE_RECACHE=1 (refreshing shared cache entries)" "info"
+		common_make_envs+=("CCACHE_RECACHE=1")
+	fi
+	if [[ "${YSP_CCACHE_NODIRECT:-no}" == "yes" ]]; then
+		display_alert "ysp-build-stamp" "CCACHE_NODIRECT=1 (preprocessor-mode cache lookup)" "info"
+		common_make_envs+=("CCACHE_NODIRECT=1")
+	fi
 }
 
 # Force LINUXFAMILY, which is the ONLY seam where that is possible.

@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | upstream 50.2 = `60423c896a54`; clean release tip = `cf60b4d9d2c5`; historical 50.1 replay and experiment tips remain recorded in §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | rewrite series sources `rk3588-rewrite-6.18@0d71ded1690c` and `rk3588-rewrite-mainline@32696e87c9c7`; earlier package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | rewrite series sources `rk3588-rewrite-6.18@5a55fa4743b2` and `rk3588-rewrite-mainline@7481ab327d7e`; earlier package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -304,19 +304,21 @@ and validation behavior remain documented in
 
 The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md))
 is reconstructible from the committed local branch tips targeting
-`github.com/yisding/linux-rock5b` as of 2026-07-17:
+`github.com/yisding/linux-rock5b`:
 
-- branch `rk3588-rewrite-6.18`, commit `0d71ded1690c` ("media: rockchip:
-  rga-rewrite: adapt latest RK3588 fixes"), committed in the dev worktree
-  `/home/yi/Code/kernel/linux-6.18-rkvenc`. The sibling 6.18 forward-port
-  oracle referenced by this rewrite track was
-  `/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport` at
-  `rkvenc-fwport-6.18` tip `e059aad8d68b` when these pins were recorded.
-- branch `rk3588-rewrite-mainline`, commit `32696e87c9c7` ("media: rockchip:
-  rga-rewrite: adapt latest RK3588 fixes"), based on the tree rebased to
-  official kernel.org `v7.2-rc2`
-  in the sibling worktree `/home/yi/Code/kernel/linux`. The pre-rebase tip is
-  preserved as `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`.
+- branch `rk3588-rewrite-6.18`, commit `5a55fa4743b2` ("media: rockchip:
+  rga-rewrite: carry the 10-bit byte-stride ABI into TILE"), committed in the
+  dev worktree `/home/yi/Code/kernel/linux-6.18-rkvenc`. As of 2026-07-26 this
+  is the linear rebase of the rewrite stack onto the latest 6.18 forward-port
+  oracle, branch `rk3588-video-6.18` at `12a7da02bea83` ("video: rockchip:
+  rkvenc2: reserve a slice fifo slot for the terminal record"). The pre-rebase
+  6.18 rewrite tip is preserved locally as
+  `ysp-backup/rk3588-rewrite-6.18-before-fwport-20260726@40cf22629cf63`.
+- branch `rk3588-rewrite-mainline`, commit `7481ab327d7e` ("media: rockchip:
+  rga-rewrite: carry the 10-bit byte-stride ABI into TILE"), based on the tree
+  rebased to official kernel.org `v7.2-rc2` in the sibling worktree
+  `/home/yi/Code/kernel/linux`. The pre-rebase tip is preserved as
+  `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`.
 
 The Debian packages use composite branches so the rewrite is not tested on a
 vanilla-only base:

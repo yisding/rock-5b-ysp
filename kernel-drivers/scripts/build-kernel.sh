@@ -161,9 +161,9 @@ KBRANCH="${KBRANCH:-rockchip64-6.18}"
 # USE_CCACHE is one -- arguments survive the Docker relaunch.
 ARMBIAN_KERNELPATCHDIR="${ARMBIAN_KERNELPATCHDIR:-archive/$KBRANCH}"
 # Empty by default, so each flavor's Armbian config owns its kernel base rather
-# than this script overriding all four. The forward-port configs carry no pin and
-# therefore follow Armbian's rolling linux-${KERNEL_MAJOR_MINOR}.y stable branch;
-# the rewrite configs keep their own explicit commit pins.
+# than this script overriding all four. Local flavor configs carry no pin by
+# default and therefore follow Armbian's rolling
+# linux-${KERNEL_MAJOR_MINOR}.y stable branch.
 #
 # The tradeoff is deliberate: a rebuild can now pick up a newer stable base and
 # turn a two-patch change into an unrelated stable rebase. Pin explicitly when a
@@ -186,6 +186,9 @@ ARMBIAN_USE_TMPFS="${ARMBIAN_USE_TMPFS:-no}"
 # fixes that the validated Armbian source base already carries. Keep them out
 # of generated userpatches or Armbian will reject them as reversed.
 SKIP_COMMITS="${SKIP_COMMITS:-e059aad8d68b}"
+# Subject fallback for the same class of skip. Rebasing the rewrite stack can
+# rewrite a commit SHA while preserving the duplicate already-carried patch.
+SKIP_SUBJECTS="${SKIP_SUBJECTS:-tools: libbpf: make kallsyms helpers const-correct}"
 
 # Armbian core patches that collide with the trees' self-contained DT.
 DISABLE_PATCHES=(
@@ -477,6 +480,15 @@ stage_flavor_debug_files() {
 	fi
 }
 
+verify_flavor_debug_files() {
+	[ -s "$USERPATCHES_DIR/config-$FLAVOR_CONFIG_NAME.conf.sh" ] ||
+		die "debug Armbian config missing after staging: $USERPATCHES_DIR/config-$FLAVOR_CONFIG_NAME.conf.sh"
+	[ -s "$USERPATCHES_DIR/$DEBUG_FRAGMENT_NAME" ] ||
+		die "debug instrumentation fragment missing after staging: $USERPATCHES_DIR/$DEBUG_FRAGMENT_NAME"
+	[ -s "$USER_KERNEL_CONFIG" ] ||
+		die "debug seed kernel config missing after staging: $USER_KERNEL_CONFIG"
+}
+
 check_debug_build_deps() {
 	local missing=() pkg
 	for pkg in \
@@ -549,6 +561,11 @@ for commit in $SKIP_COMMITS; do
 		say "  WARNING: SKIP_COMMITS entry not found in kernel tree: $commit"
 		continue
 	fi
+	if ! git -C "$KERNEL_TREE" merge-base --is-ancestor "$sha" HEAD ||
+	   git -C "$KERNEL_TREE" merge-base --is-ancestor "$sha" "$BASE_TAG"; then
+		say "  skip entry not in generated range: $commit"
+		continue
+	fi
 	matched=0
 	while IFS= read -r f; do
 		matched=1
@@ -557,6 +574,13 @@ for commit in $SKIP_COMMITS; do
 	done < <(grep -l "^From $sha " "$STAGING"/*.patch 2>/dev/null || true)
 	((matched)) || say "  WARNING: SKIP_COMMITS $commit ($sha) generated no patch to skip"
 done
+while IFS= read -r subject; do
+	[ -n "$subject" ] || continue
+	while IFS= read -r f; do
+		say "  skipping Armbian-base subject: $(basename "$f")"
+		rm -f "$f"
+	done < <(grep -l -F "$subject" "$STAGING"/*.patch 2>/dev/null || true)
+done <<< "$SKIP_SUBJECTS"
 # Prefix so they sort after Armbian's media-* patches (proven-good order) and
 # are clearly distinct across flavors and from the old rk3588-rkvenc2-* set.
 for f in "$STAGING"/0*.patch; do
@@ -604,6 +628,7 @@ stage_build_stamp_extension
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	say "STEP 3d: stage $FLAVOR debug config + ramoops DT patch"
 	stage_flavor_debug_files
+	verify_flavor_debug_files
 elif [ -n "$FLAVOR_CONFIG_NAME" ]; then
 	say "STEP 3d: stage $FLAVOR Armbian config (slot $FLAVOR_BRANCH)"
 	install -D -m 0644 "$DEBUG_KERNEL_DIR/config-$FLAVOR_CONFIG_NAME.conf.sh" \

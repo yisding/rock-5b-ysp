@@ -3,26 +3,32 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
-**Uploaded 2026-07-24 (latest):** `6.18.38+rk3588av1fwport20260724-0ubuntu1~rk1`
+**Uploaded 2026-07-25 (latest):** `6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1`
 — a **production (non-debug)** source package of `rk3588-video-6.18` tail
-`0001`–`0073`, adding `0072` (RGA3 raster 10-bit byte-stride ABI fix — corrects
-the interim byte-literal-stride change in `…20260723` that still treated
-`vir_w` as pixels) and `0073` (RGA2 MMU page-table fails closed on above-4G
-entries) over the Published `…20260723`. Built locally as production kernel
-`P272c-Cb831` (`CONFIG_KASAN` off, `CONFIG_ROCKCHIP_MPP_AV1DEC=y`; config hash
-`Cb831` identical to `…20260723`), source-packaged from that worktree,
-`dpkg-source -x`-verified (0072 present with the old `vir_w * 10/8`/`* 2`
-pixel-scaling gone, 0073 `-EOPNOTSUPP` reject present, non-KASAN config),
-`debsign`-signed with `0FDDE6BC…AA2228E6`, and `dput`-uploaded to
-`ppa:yi-ding/ubuntu-rock-5b` (all client-side checks passed; kernel-source
-lintian skipped — it times out on the 284 MB orig and is not a gate).
-**Launchpad processing pending** — confirm it reaches Published and the arm64
-build succeeds (status.md [W05](../../../status.md)). Pairs with the librga
-upload `2.2.0+git20260724.b8def3e-0ubuntu1~rk1` (the im2d pixel→byte stride
-conversion; the two must be installed together). Board install, boot,
-conformance, and rollback on this image remain to be run.
+`0001`–`0075`, rebased to Linux 6.18.40 stable commit `221fc2f4d0ed`.
+It carries the hardware-verified 2026-07-25 fixes for RGA 10-bit UV plane
+offsets (`0074`) and the RKVENC2 slice-FIFO terminal record (`0075`). Source
+packaging used the tracked production config rather than the transient Armbian
+worktree `.config`; `dpkg-source -x` plus `make olddefconfig` verified the
+extracted source reports `6.18.40`, keeps `CONFIG_ROCKCHIP_MPP_SERVICE=y`,
+`CONFIG_ROCKCHIP_MPP_AV1DEC=y`, and `CONFIG_VIDEO_ROCKCHIP_RGA=m`, and leaves
+`CONFIG_KASAN`/`CONFIG_PROVE_LOCKING` disabled. The extracted source also
+contains the `rkvenc2_push_slice_len()` terminal-slot logic and byte-literal
+RGA UV-offset calculations. `debsign` signed the `.dsc`, `.buildinfo`, and
+source `.changes` with `0FDDE6BC…AA2228E6`; `gpg --verify` passed; `dput` to
+`ppa:yi-ding/ubuntu-rock-5b` completed client-side and wrote
+`linux-rockchip64-ysp_6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1_source.ppa.upload`.
+**Launchpad processing pending** — confirm source publication, arm64 build,
+install, boot, conformance, and rollback.
 
-The previously uploaded candidate: `6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1`
+The previously uploaded candidate: `6.18.38+rk3588av1fwport20260724-0ubuntu1~rk1`
+— production source of tail `0001`–`0073`, adding the RGA3 raster 10-bit
+byte-stride ABI fix and the RGA2 above-4G page-table reject over the Published
+`…20260723`. It was source-packaged, signed, and `dput`-uploaded client-side;
+Launchpad processing was still pending when superseded locally by the 6.18.40
+`…20260725` upload.
+
+The previously published candidate: `6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1`
 — production build `P5618-Cb831`, contiguous series `0001`–`0071`; **Published**
 with source publication
 [`18639187`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18639187),
@@ -74,14 +80,14 @@ The local build wrapper currently owns these inputs:
 | Input | Default |
 |-------|---------|
 | Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
-| Resolved kernel config | `KERNEL_PPA_CONFIG=$KERNEL_PPA_REPO/.config` |
+| Production kernel config | `KERNEL_PPA_CONFIG=$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
-| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.38+rk3588av1fwport20260720` |
+| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.40+rk3588av1fwport20260725` |
 
 The exporter copies the patched worktree contents, including Armbian patch
 changes and untracked patch-added files, while excluding `.git`, `.config`,
 build products, `.orig` backups, and `debian/`. It then overlays this directory's
-`debian/` packaging and copies the resolved config into
+`debian/` packaging and copies the tracked production config into
 `debian/config/arm64-rockchip64.config`.
 
 ## Debian helper scripts

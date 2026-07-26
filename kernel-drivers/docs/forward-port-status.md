@@ -92,6 +92,20 @@ See the
 and the
 [DMA scope finding](../../findings/2026-07-21-rga2-dma-api-ownership-and-over-4g-scope.md).
 
+A later KASAN build, `6.18.40-video-port-kasan-rockchip-rk3588 #2`, verifies
+the post-production `0074`/`0075` tail on 2026-07-25. Broad conformance run
+`20260725-194940` keeps ABI, MPP 12/12, and FFmpeg 24/24 green with AV1
+required; GStreamer still has two required userspace/harness failures, and the
+official librga sample matrix still has fixture/environment failures. The
+targeted gates close the kernel questions: raw RGA 10-bit stride/UV-offset gate
+`20260725-195821-rga-10bit-gates` passes on cores 1, 2, 4, and default; fresh
+librga P010/NV15 gate `20260725-200145-rga-im2d-10bit-current-gates` passes;
+and the RKVENC2 forced `split_arg=4` gate `20260725-195350-mpp-suite` passes
+H.264/H.265 with the expected merge warnings. KASAN narrowed and MPP runs report
+zero flagged kernel lines, non-submit ioctl fuzz passes, and root gates pass
+5/5 with `mpp-debug-capture` skipped as expected. See the
+[6.18.40 KASAN validation finding](../../findings/2026-07-25-forward-port-6-18-40-kasan-full-validation.md).
+
 Patches `0051`–`0057` close the remaining lifetime/robustness gaps found by
 the KASAN sweep after `0050`, and the full conformance sweep now passes on one
 booted debug build. `0051` fixes the RGA request-completion-vs-session-close
@@ -303,7 +317,7 @@ and the
   [RKVENC2 finding](../../findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),
   and [superseded preflight finding](../../findings/2026-07-17-forward-port-conformance-preflight-oops.md).
 - **High-count low-delay H.264 could overflow RKVENC2's 256-entry slice FIFO and
-  lose the terminal marker — fixed 2026-07-25, hardware gate owed.** Both
+  lose the terminal marker — fixed and hardware-verified 2026-07-25.** Both
   `kfifo_in()` calls ignored failure, while the MPP VEPU580 H.264 HAL ignored
   poll errors and looped on an uninitialized `slice_last`. Kernel `0075`
   (`12a7da02bea8`) reserves the last FIFO slot for the terminal record and
@@ -314,9 +328,14 @@ and the
   poll loops, bound empty polls, gate the terminal `ENC_OUTPUT_FINISH` callback
   on a per-frame flag instead of the frame-persistent `ctx->output_cb->cmd`, and
   close a latent single-cfg out-of-bounds index in `hal_h264e_vepu511a.c`. Both
-  sides are compile-verified only (`W=1` clean, checkpatch clean); the
-  `split_arg=4` reproducer has **not** been run. The conformance suite still
-  defaults to the safe `split_arg=120`. See the
+  sides were first compile-verified (`W=1` clean, checkpatch clean), then the
+  booted `6.18.40-video-port-kasan-rockchip-rk3588` validation run
+  `20260725-195350-mpp-suite` passed the forced `split_arg=4` H.264/H.265 slice
+  cases with the expected `slice fifo full (256), merged N record(s)` and
+  `session ... merged N slice record(s)` warnings. The follow-on ordinary KASAN
+  MPP suite `20260725-195451-kasan-mpp-suite` passed all 12 required cases with
+  `flagged_kernel_lines=0`. The conformance suite still defaults to the safe
+  `split_arg=120`. See the
   [slice-FIFO finding](../../findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md).
 - **RGA2 syncs page-table memory through an address that was never DMA-mapped
   — RESOLVED — VERIFIED FIXED (closed by `0050`, booted on `P7589-C4ad2`).**

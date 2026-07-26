@@ -36,8 +36,11 @@ declare -g LINUXFAMILY="rockchip64"
 # swaps in the running PPA kernel's configuration and moved C#### b831 -> 435e.
 declare -g LINUXCONFIG="linux-rockchip64-current"
 
-# Pin the exact Armbian stable-branch commit
-# the rewrite series is built against; build-kernel.sh stages the patches on top.
-KERNELBRANCH="commit:e46dc0adfe39724bcf52cea47b8f9c9aed86a394"
+# No KERNELBRANCH pin: inherit Armbian's default for a mainline family, which
+# config/sources/mainline-kernel.conf.sh resolves to
+# "branch:linux-${KERNEL_MAJOR_MINOR}.y" -- the rolling 6.18 stable branch.
+# The built kernel therefore tracks stable and will change version between
+# rebuilds; pass ARMBIAN_KERNELBRANCH=commit:<sha> to build-kernel.sh when a
+# build has to be reproducible.
 
 KERNEL_BTF="yes"

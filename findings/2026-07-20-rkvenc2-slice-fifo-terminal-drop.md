@@ -16,8 +16,9 @@
 >
 > Trust: **MEASURED** (bounded hardware reproduction) /
 > **CODE-INSPECTED** (unchecked FIFO insertion and MPP retry loop) /
-> **IMPLEMENTED 2026-07-25** (kernel `0075`, MPP `0002`/`0003`; compile-verified
-> only — the [verification gate](#verification-gate) below is still owed).
+> **FIX-RUNTIME-VERIFIED 2026-07-25** (kernel `0075`, MPP `0002`/`0003`;
+> `20260725-195350-mpp-suite` on `6.18.40-video-port-kasan-rockchip-rk3588`
+> passes the [verification gate](#verification-gate)).
 
 ## Result
 
@@ -98,9 +99,9 @@ bounded failure above was captured with H.264.
 
 ## What was implemented (2026-07-25)
 
-Both sides are written and compile-verified. **Nothing has been booted or run on
-hardware**, so every runtime claim below is reasoned from source, and the
-verification gate that follows is entirely unmet.
+Both sides were written and compile-verified first. The 2026-07-25 KASAN boot
+then runtime-verified the gate on hardware; the source notes below preserve the
+reasoning that shaped the fix.
 
 ### Kernel — `0075` (`12a7da02bea8`, branch `rk3588-video-6.18`)
 
@@ -242,10 +243,36 @@ scoring the gate below: **without the userspace half, the official MPP binaries
 hang instead of terminating**, so a gate run against unpatched userspace would
 misreport the kernel fix as a failure.
 
+## Hardware verification (2026-07-25)
+
+Run `20260725-195350-mpp-suite` on booted kernel
+`6.18.40-video-port-kasan-rockchip-rk3588 #2` carried the paired MPP userspace
+and forced the overflow path:
+
+```bash
+PROFILE=forward-port MPP_ENC_SPLIT_MODE=2 MPP_ENC_SPLIT_ARG=4 \
+MPP_ENC_SPLIT_OUT=1 MPP_ENC_FRAMES=6 MPP_ENC_SLICE_INSTANCES=1 \
+MPP_TIMEOUT=120 MPP_REQUIRED_CASES="mpi_enc_h264_slice mpi_enc_h265_slice" \
+  kernel-drivers/tests/mpp-suite.sh
+```
+
+Both `mpi_enc_h264_slice` and `mpi_enc_h265_slice` passed. The H.264 artifact
+was 162674 bytes with sha256
+`62752d2f27c069de97ce1c3d9bb59aa0e2d50347320bff447652f178d31ba243`; the H.265
+artifact was 110759 bytes with sha256
+`403d76c96dee036fee0f25ab55f8a507b3c52f31f21e4e2c259fab86e8165a47`.
+
+The kernel journal contained the expected producer and consumer merge warnings:
+`slice fifo full (256), merged N record(s)` and
+`session ... merged N slice record(s)`. The run therefore exercised the FIFO
+reservation path directly. The follow-on ordinary KASAN MPP suite
+`20260725-195451-kasan-mpp-suite` passed all 12 required cases with
+`flagged_kernel_lines=0`.
+
 ## Verification gate
 
-**Unmet as of 2026-07-25.** Requires a rebuilt kernel carrying `0075` and MPP
-binaries carrying the userspace half (see the conformance-fixture note above).
+**Met on 2026-07-25** by `20260725-195350-mpp-suite` and
+`20260725-195451-kasan-mpp-suite`. The original gate requirements were:
 
 - Re-run the bounded `split_arg=4` reproducer:
 

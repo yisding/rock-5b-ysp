@@ -9,7 +9,8 @@
 > `rga_convert_addr()` (~:725–742, the `0049` block `6c7eb3efa3f0d`);
 > harness under `kernel-drivers/tests/`, probes in session scratchpad.
 > Date: 2026-07-24
-> Trust: MEASURED / SOURCE-CONFIRMED
+> Trust: MEASURED / SOURCE-CONFIRMED / FIX-RUNTIME-VERIFIED 2026-07-25 /
+> KASAN-CLEAN
 
 ## Result
 
@@ -308,28 +309,65 @@ independently confirms the fix and narrows what it proves:
   predates that**, so a TILE 10-bit gate on the current package would fail in
   userspace before reaching the kernel.
 
+## Hardware verification (2026-07-25)
+
+The `0074` fix was booted on
+`6.18.40-video-port-kasan-rockchip-rk3588 #2` and the owed gate set was run.
+The raw RGA gate `20260725-195821-rga-10bit-gates` passed every case with
+`kernel_flags=0`:
+
+| case | result |
+|------|--------|
+| `stride-core1` | PASS |
+| `stride-core2` | PASS |
+| `stride-core4` | PASS |
+| `stride-core0` | PASS |
+| `uv-core1` | PASS |
+| `uv-core2` | PASS |
+| `uv-core0` | PASS |
+
+The UV-offset discriminator passed raster compact, raster incompact, tile8x8
+compact, and both tightly-sized allocation checks on RGA3 cores 1/2 and the
+default scheduler path. Its output showed chroma tracking the true byte offset,
+not the old pixel-scaled offset:
+
+```text
+uv-offset-test: PASS (0 failing checks)
+```
+
+The installed librga was too old for the P010/NV15 confirmation probes, so a
+fresh local build from the current `../rockchip-userspace/librga-fork` tip was
+linked into the probe binaries. With that userspace, run
+`20260725-200145-rga-im2d-10bit-current-gates` passed `p010-default`,
+`nv15-256`, `nv15-320`, and `nv15-1920`, all with `kernel_flags=0`. The fresh
+library reported `rga_api version 1.10.6_[3]`; P010 -> NV12 had neutral chroma,
+P010 -> P010 was bit-exact, and every NV15 width passed the semantic NV15 ->
+NV12, P010 -> NV15, and NV15 -> NV15 bit-exact checks.
+
+Broad conformance on the same boot also validates the harness side of this fix:
+`generated_dec_h265_10_rga_scale` and
+`generated_dec_h265_10_env_disable_nv12_10` both pass their chroma PSNR floor,
+and FFmpeg's diagnostic H.265 Main10 P010 RGA case is back to pass. The
+`librga-smoke` 10-bit subcases `im2d P010->NV12` and `im2d P210->NV16` pass
+with the fresh library, although the whole smoke still exits 1 because of an
+unrelated `imfill` failure.
+
+The consolidated validation record is
+[`2026-07-25-forward-port-6-18-40-kasan-full-validation.md`](./2026-07-25-forward-port-6-18-40-kasan-full-validation.md).
+
 ## Boundary
 
 - `run-root-gates.sh` forces `/usr/bin/ffmpeg`, so the transcode gate exercises
   the shipping binary; the `FFDIR` build's W21 deadlock class is not covered by
   it.
-- **Production build ⇒ memory-safety step open.** No KASAN/lockdep evidence on
-  this tail; and per the harness gap above, the whole-boot sweep's zero is
-  weaker evidence than it looks.
+- The 2026-07-24 evidence above is still a production-build failure record. The
+  2026-07-25 KASAN boot verifies the `0074` fix, but it does not replace a
+  later production package, rollback, performance, or soak gate.
 - **No performance or soak numbers were collected**, though this build would
   support them.
-- **`0074` is compile-verified, not booted.** No hardware evidence exists that
-  it makes the gates green — only that the code it removes is provably the
-  source of the measured wrong offset. The gate set in "Why it matters" below is
-  the proof still owed.
-- **The new chroma checks are verified to FAIL on a broken kernel, not yet
-  verified to PASS on a fixed one.** That asymmetry matters: a floor that a
-  correct kernel cannot clear would be a false alarm. 20 dB is argued from the
-  40–52 dB luma agreement measured on this boot (the same colour-range and
-  matrix conventions apply to both planes, so correct chroma should land in a
-  similar band, far above the ~7 dB broken value), but that is an inference
-  until a `0074` kernel boots. `GST_CHROMA_MIN_PSNR` is tunable if it proves
-  mis-set.
+- **`0074` is boot-verified on the 2026-07-25 KASAN kernel.** The new chroma
+  checks now have both sides of the proof: they fail on the broken production
+  kernel and pass on the fixed KASAN kernel.
 - Whether `0073` (RGA2 >4G page-table fail-closed) behaves correctly at runtime
   is **unverified** — the probe written for it used the wrong legacy ABI
   convention (`yrgb_addr` as fd rather than the virtual-address convention) and
@@ -337,22 +375,12 @@ independently confirms the fix and narrows what it proves:
 
 ## Why it matters / follow-up
 
-- The shipped stack still has **no correct 10-bit RGA path**, and the failure
-  mode is now partly silent. Anything using im2d P010/NV15 (the ysp librga fork,
-  ffmpeg-rockchip's RKRGA filters) either faults or gets wrong chroma; the
-  Main10→P010 FFmpeg path has **regressed** from passing.
-- **Verification gate for `0074` (owed, needs a rebuild + boot).** On a `0074`
-  kernel, all of: `rga-10bit-legacy-stride-test` exit 0 on cores 1, 2, 4 and 0
-  at the exact 161 280 B allocation; **`rga-10bit-uv-offset-test` exit 0 on all
-  five checks — raster compact, raster incompact, tile8x8 compact, and both
-  tightly-sized runs** (it drives the raw ioctl, so it is independent of which
-  librga is installed and can run before the fixed package lands);
-  `rga-p010-test` / `rga-nv15-test` green;
-  `librga-smoke` `im2d P010->NV12` green; the two GStreamer NV12_10 cases green
-  **with chroma PSNR above the floor** (not merely running); and
-  `system_ffmpeg_hevc_main10_p010_rga` back to pass with a full-length
-  6 220 800 B frame. Re-run the whole-boot sweep with the widened regex too —
-  it should now be genuinely 0, not blind-0.
+- The shipped 2026-07-24 production stack still has no correct 10-bit RGA path.
+  The 2026-07-25 KASAN tail proves the kernel fix, but production packaging must
+  ship kernel `0074` and the matching librga changes together.
+- **Verification gate for `0074`: closed 2026-07-25.** The raw stride and
+  UV-offset gates, P010/NV15 probes with fresh librga, GStreamer chroma checks,
+  FFmpeg Main10 P010 RGA case, and targeted kernel-log windows are all green.
 - **Still unverified: `0073`'s runtime behaviour.** Write a userptr probe using
   the correct legacy virtual-address convention (`yrgb_addr = 0`,
   `uv_addr` = user virtual base) and confirm an above-4G RGA2 legacy blit
