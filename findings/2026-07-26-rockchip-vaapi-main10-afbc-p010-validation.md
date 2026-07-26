@@ -3,8 +3,10 @@
 > Scope: RK3588 HEVC Main10 and VP9 Profile 2 decode through `rockchip-vaapi`,
 > MPP, librga, and the 6.18.40 ysp forward-port kernel.
 >
-> Source: `../rockchip-vaapi` commits `f03905a`, `820d88c`, and `039dc85`; gates
-> `make check-hevc-main10-experimental` and
+> Source: `../rockchip-vaapi` commits `f03905a`, `820d88c`, `039dc85`,
+> `e6c6aca`, `7e7980b`, `876a64f`, and `c383234`; gates
+> `make check-hevc-main10-experimental`,
+> `make check-hevc-main10-hdr-experimental`, and
 > `make check-vp9-profile2-experimental`; direct MPP/RGA and
 > reconstructed-Annex-B probes retained locally in that checkout.
 >
@@ -72,6 +74,38 @@ requires one logged AFBC conversion per frame. It passed together with the
 normal build, object lifecycle hardware test, sanitizer, Valgrind, lint, and safe
 decode gates before `820d88c` was pushed.
 
+`e6c6aca` expanded that result with checksum-pinned FATE
+`WP_A_MAIN10_Toshiba_3.bit`: 256/256 displayed frames at 416x240 are P010
+byte-identical through the same AFBC/RGA path. Three other official candidates
+were rejected rather than counted as driver passes: direct MPP duplicated or
+missed frames for `DBLK_A_MAIN10_VIXS_2.bit`, emitted an extra frame for
+`WPP_A_ericsson_MAIN10_2.bit`, and the unequal luma/chroma bit depths in
+`TSUNEQBD_A_MAIN10_Technicolor_2.bit` cannot be represented by P010.
+
+## HDR metadata and pre-decode P010 export
+
+`7e7980b` adds a 24-frame HDR10 gate. Hardware-decoded P010 remains
+byte-identical to software and every frame retains limited-range BT.2020
+non-constant-luminance color, BT.2020 primaries, SMPTE ST 2084 (PQ), mastering
+display chromaticities plus 0.0001-1000 nit luminance, and MaxCLL 1000/MaxFALL
+400 metadata.
+
+The ownership boundary matters: libavcodec parses the original VUI and SEI
+before VA submission and carries that metadata on its output `AVFrame`. VA's
+HEVC picture parameters do not expose the original VUI/SEI syntax, so the SPS
+reconstructed privately for MPP deliberately has
+`vui_parameters_present_flag=0`; MPP does not need to reproduce the
+application-facing metadata.
+
+`876a64f` fixes the other P010 consumer boundary. `vaCreateSurfaces2` had
+ignored both the 10-bit RT format and `VASurfaceAttribPixelFormat`, causing a
+surface exported before first decode to claim NV12. Surface creation now
+records NV12/P010, validates inconsistent requests, sizes the placeholder for
+the declared linear format, and exports pre-decode P010 as either composed
+P010 or Firefox-style split R16/GR1616. Normal and ASan/UBSan lifecycle tests
+cover both descriptors; HDR and shipping-profile hardware regressions remain
+green.
+
 ## VP9 Profile 2 confirmation
 
 `rockchip-vaapi@039dc85` applies the same contract to VP9 Profile 2. Direct
@@ -80,16 +114,24 @@ while direct RKMPP AFBC plus RGA P010 was byte-identical to software. The
 forced VA-API gate then generated and decoded 48 lossless 320x240 Profile 2
 frames with exact P010 output and 48 audited AFBC conversions.
 
+`c383234` adds official conformance coverage from the WebM/libvpx test-data
+set. Checksum-pinned `vp92-2-20-10bit-yuv420.webm` produces 10/10 displayed
+P010 frames byte-identical to software and 11 audited AFBC conversions; the
+extra decoder output is a hidden/reference frame and is retained as an exact
+gate expectation. The default conformance run still requires software fallback
+unless the Profile 2 opt-in is present.
+
 The VP9 header parser now preserves hidden references with profile-matched
 `show_existing_frame` packets and rejects Profile 2's 12-bit/RGB syntax because
 the driver exposes only 10-bit 4:2:0 P010. Profile 2 remains experimental
-pending pinned conformance and HDR playback.
+pending application validation.
 
 ## Boundary
 
-This validates one generated sequence per 10-bit codec, not broad Main10 or VP9
-Profile 2 conformance, HDR metadata propagation, every resolution/stride
-combination, or browser integration. Both profiles therefore remain
-experimental. It does settle the kernel-facing question for the measured
-paths: do not add another kernel stride workaround for linear NV15 output.
-Request AFBC and honor MPP's AFBC header stride and crop metadata.
+This now validates generated sequences for both codecs, one official vector per
+codec, and static HDR metadata propagation. It does not validate every
+resolution/stride combination, the broader Main10 corpus, or actual HDR
+presentation in Firefox/mpv and the display stack. Both profiles therefore
+remain experimental. It does settle the kernel-facing question for the
+measured paths: do not add another kernel stride workaround for linear NV15
+output. Request AFBC and honor MPP's AFBC header stride and crop metadata.
