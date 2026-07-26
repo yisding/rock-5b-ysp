@@ -73,16 +73,59 @@ subsystems then follow that one variable.
 
 ## Fix
 
-`build-kernel.sh` now pins `LINUXFAMILY=rockchip64` as a `compile.sh` argument
-at both call sites, with `KBRANCH` derived from it so the two cannot disagree,
-plus `KERNELPATCHDIR=archive/$KBRANCH` as a redundant second line of defence.
+> **Corrected 2026-07-25, same day.** This section first claimed the fix was to
+> pin `LINUXFAMILY=rockchip64` as a `compile.sh` argument. **That does not work
+> and has been removed.** `config-prepare.sh:141` performs an unconditional
+> `LINUXFAMILY="${BOARDFAMILY}"` *after* the config is sourced, clobbering any
+> config value and any command-line value — Armbian's own comment on that line
+> concedes it ("this... shouldn't happen, extensions might change it too"). The
+> measurement: a build run with the argument applied logged
+> `Applying cmdline param [ 'LINUXFAMILY': … --> 'rockchip64' early ]`, then
+> `Skip … already set … after config`, and still produced the artifact
+> `kernel-rockchip-rk3588-video-port-kasan` from
+> `artifact_name="kernel-${LINUXFAMILY}-${BRANCH}"`. `LINUXSOURCEDIR` at `:284`
+> is likewise an unconditional `declare -g`, so the worktree path cannot be
+> pinned either.
 
-This is **not** staying behind on a superseded family. `rockchip-rk3588.conf`
-sources `rockchip64_common.inc` and defines only `legacy` (5.10) and `vendor`
-(6.1) branches, both of which set `LINUXFAMILY=rk35xx` and use the `rk35xx-*`
-patch dirs. **No mainline `rockchip-rk3588` patch set exists.** For a 6.18
-mainline build the pin restores exactly the value Armbian itself would use, and
-`archive/rockchip64-6.18` (177 core patches) is the intended set.
+Each of the three consequences needs its own answer, because the common cause is
+not reachable:
+
+| Consequence | Fix |
+|---|---|
+| Patch dir | **`KERNELPATCHDIR` passed explicitly** as a `compile.sh` argument. Armbian only defaults it when unset, so an explicit value wins. This is the one that actually mattered — it is what stopped the silent patch-free kernel. |
+| Worktree path / ccache | **`CCACHE_NOHASHDIR=1`**, set from the `ysp-build-stamp` extension's `kernel_make_config` hook. Not preventable upstream; only survivable. |
+| Package / slot name | **Not fixed — it follows Armbian.** The slot is `…-rockchip-rk3588`. `build-kernel.sh` now *discovers* `BOARDFAMILY` from `config/boards/rock-5b.conf` rather than assuming, so its result glob matches what is actually built. |
+
+`CCACHE_NOHASHDIR` was measured in isolation rather than assumed — same source,
+two directories, `-g -gdwarf-5`, `CCACHE_BASEDIR` set in both, which is exactly
+how Armbian invokes the kernel make:
+
+```text
+default              hits=0 misses=2    b/t.o DW_AT_comp_dir = .../b  (correct)
+CCACHE_NOHASHDIR=1   hits=1 misses=1    b/t.o DW_AT_comp_dir = .../a  (stale)
+```
+
+So `CCACHE_BASEDIR` genuinely does **not** cover the working directory under
+`-g`, and the cost of the mitigation is a reused object carrying the comp_dir of
+whichever build first cached it.
+
+Note `archive/rockchip64-6.18` (177 core patches) remains the right patch set
+regardless: `rockchip-rk3588.conf` sources `rockchip64_common.inc` and defines
+only `legacy` (5.10) and `vendor` (6.1) branches, both setting
+`LINUXFAMILY=rk35xx` on the `rk35xx-*` dirs. **No mainline `rockchip-rk3588`
+patch set exists.**
+
+Two guards were added because this class of failure is silent:
+
+- **Pre-flight** — refuse to build when the staged userpatch directory is
+  missing or empty; `die` when `KERNELPATCHDIR` disagrees with it.
+- **Post-flight** — extract the packaged kernel config from the produced deb and
+  require `CONFIG_ROCKCHIP_MPP_RKVDEC2`, a symbol both the forward-port and
+  rewrite series add and neither mainline nor Armbian's core patches provide.
+  An earlier version of this guard tested the deb's `P####` hash for `0000` and
+  was **useless**: Armbian hashes the union of the core and userpatch dirs and
+  returns zeros only when the combined list is empty (`hash-files.sh:66-69`), so
+  with 356 core patches present it could never fire.
 
 Two guards were added because this class of failure is silent:
 
@@ -94,18 +137,24 @@ Two guards were added because this class of failure is silent:
 
 ## Boundary
 
-- The family pin is staged and syntax/lint-clean but has **not yet completed a
-  build**; the run in flight when this was written still uses
-  `rockchip-rk3588`. Its `P47b9` hash and `Using kernel patch dir:
-  archive/rockchip64-6.18` confirm the `KERNELPATCHDIR` half only.
-- The `hash_dir` mechanism is **inferred, not measured**. That `hash_dir=true`
-  and `-gdwarf-5`-without-prefix-map hold here is verified; that they are the
-  dominant cause of the low hit rate is not. The clean test is a rebuild after
-  the family pin, comparing the direct/preprocessed hit split against this
-  run's `103/4381` with only 1 preprocessed hit.
-- Restoring the `-rockchip64` package name makes the next build a **different
-  package** from the `-rockchip-rk3588` debs now in `output/debs`. Interaction
-  with an already-installed slot of either name is untested.
+- `KERNELPATCHDIR` is **confirmed working end to end**: a full build produced
+  `P47b9` (vs `P0000`) and a packaged config carrying `ROCKCHIP_MPP_SERVICE`,
+  `RKVENC2`, `RKVDEC2`, `AV1DEC` and `RGA_ASYNC`, alongside `KASAN`/`LOCKDEP`.
+  Runtime 138:04.
+- `CCACHE_NOHASHDIR` is measured **in isolation** (the table above) but has not
+  yet run inside a real kernel build. Its practical benefit is prospective: it
+  makes the cache survive a future worktree-path change, and cannot be observed
+  until one happens.
+- **The cross-worktree cache-reuse experiment was not run and cannot be, as
+  designed.** It depended on moving the build to the `rockchip64` worktree via
+  the family pin; since the pin does not work, the worktree cannot be relocated
+  deliberately. The `~11.5k` objects cached under `6.18__rockchip-rk3588__arm64`
+  therefore remain the live cache, and the `1.16%` hit rate of that run is still
+  unexplained beyond "the config genuinely changed when the patches started
+  applying".
+- Whether `hash_dir` is the *dominant* cause of a cold rebuild in this workload
+  remains **INFERRED**. The isolated test proves the mechanism exists; it does
+  not establish its share of the observed misses.
 - No claim about whether Armbian intends mainline RK3588 to migrate to a new
   family later. If it gains a real mainline patch set, this pin should be
   revisited rather than left to rot.

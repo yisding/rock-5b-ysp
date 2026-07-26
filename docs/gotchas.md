@@ -50,11 +50,19 @@ the vendor video port. Only a config grep for `CONFIG_ROCKCHIP_MPP` caught it.
 Tells: **`-P0000-`** in the deb version (Armbian's hash of an empty patch set), and
 a `Using kernel patch dir:` line naming anything other than `archive/$KBRANCH`.
 The same rename also renamed the worktree, which invalidates every kernel ccache
-entry — see the ccache guide's note on `hash_dir`. Fix: `build-kernel.sh` pins
-`LINUXFAMILY` **as a compile.sh argument** (declaring it in the userpatches config
-does nothing — `config-prepare.sh:141` runs after that config is sourced), derives
-`KBRANCH` from it, passes `KERNELPATCHDIR` as redundant defence, refuses to build
-with nothing staged, and dies on a `P0000` deb. Full derivation in
+entry — see the ccache guide's note on `hash_dir`. **`LINUXFAMILY` cannot be
+pinned**, in a config *or* as a compile.sh argument: `config-prepare.sh:141` does
+an unconditional `LINUXFAMILY="${BOARDFAMILY}"` after configs are sourced, and it
+was measured clobbering a command-line value (the artifact still came out
+`kernel-rockchip-rk3588-…`). So each consequence needs its own fix:
+`KERNELPATCHDIR` is passed explicitly (this is what stops the silent patch-free
+kernel), `CCACHE_NOHASHDIR=1` makes the cache survive the worktree moving, and the
+package slot simply follows Armbian — `build-kernel.sh` discovers `BOARDFAMILY`
+rather than assuming it. The build also refuses to start with nothing staged and,
+afterwards, extracts the packaged kernel config and requires
+`CONFIG_ROCKCHIP_MPP_RKVDEC2`; testing the deb's `P####` hash for `0000` was tried
+and is useless, since Armbian hashes the union of the core and userpatch dirs and
+356 core patches are always present. Full derivation in
 [`../findings/2026-07-25-armbian-linuxfamily-rename-silent-patch-free-kernel.md`](../findings/2026-07-25-armbian-linuxfamily-rename-silent-patch-free-kernel.md).
 
 **Armbian mounts build directories as tmpfs at 99% of RAM, on every build.**

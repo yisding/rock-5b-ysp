@@ -77,34 +77,48 @@ CODE="$(cd "$ROOT/.." && pwd)"                          # ~/Code (ysp is <CODE>/
 WORKSPACE="${WORKSPACE:-$CODE/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 BASE_TAG="${BASE_TAG:-v6.18}"                 # local-flavor patches are BASE_TAG..HEAD
-# THE ROOT VARIABLE. Armbian assigns LINUXFAMILY="${BOARDFAMILY}"
-# (lib/functions/main/config-prepare.sh:141) and derives THREE things from it,
-# all of which matter to us:
+# LINUXFAMILY CANNOT BE PINNED. This was tried as a compile.sh argument and
+# MEASURED not to work: config-prepare.sh:141 does an unconditional
 #
-#   worktree path  cache/sources/linux-kernel-worktree/${KERNEL_MAJOR_MINOR}__${LINUXFAMILY}__${ARCH}
+#   LINUXFAMILY="${BOARDFAMILY}"
+#
+# AFTER the config is sourced, so it clobbers any config value and any
+# command-line value. Armbian's own comment on that line concedes the problem
+# ("this... shouldn't happen, extensions might change it too"). The build log
+# shows the argument applied early, reported "already set" after config, and the
+# artifact still named kernel-rockchip-rk3588-video-port-kasan.
+#
+# LINUXFAMILY drives three things, and each needs its own answer:
+#
 #   patch dir      archive/${LINUXFAMILY}-${KERNEL_MAJOR_MINOR}
+#                  -> fixed by passing KERNELPATCHDIR explicitly, below. This is
+#                     the one that actually mattered: when Armbian renamed
+#                     rock-5b's BOARDFAMILY rockchip64 -> rockchip-rk3588, the
+#                     derived dir stopped existing and every patch was silently
+#                     skipped.
+#   worktree path  cache/sources/linux-kernel-worktree/${KERNEL_MAJOR_MINOR}__${LINUXFAMILY}__${ARCH}
+#                  -> NOT fixable here (LINUXSOURCEDIR at :284 is likewise an
+#                     unconditional declare -g). Mitigated instead by
+#                     CCACHE_NOHASHDIR=1, set from the ysp-build-stamp extension:
+#                     measured, two dirs with identical source and -gdwarf-5 get
+#                     0 hits with CCACHE_BASEDIR alone and 1 hit with NOHASHDIR.
 #   package name   linux-image-${BRANCH}-${LINUXFAMILY}
-#
-# rockchip64_common.inc sets LINUXFAMILY=rockchip64 for the branches it knows
-# (current/edge/bleedingedge), but these flavors use a custom BRANCH that falls
-# through its case -- so LINUXFAMILY silently stayed at BOARDFAMILY, and when
-# Armbian renamed rock-5b's BOARDFAMILY rockchip64 -> rockchip-rk3588, all three
-# moved at once: patches stopped applying, the worktree moved (invalidating every
-# ccache entry, since hash_dir hashes the CWD), and the package slot renamed.
-# Declaring LINUXFAMILY in the userpatches config does NOT work -- config-prepare
-# assigns it after that config is sourced. It has to be a compile.sh argument.
-#
-# This restores the value Armbian itself uses for a mainline branch; it is not
-# "staying behind" on an old family. rockchip-rk3588.conf defines only legacy
-# (5.10) and vendor (6.1) branches, both setting LINUXFAMILY=rk35xx with the
-# rk35xx-* patch dirs. No mainline rockchip-rk3588 patch set exists -- there is
-# no such directory in the tree -- so for 6.18 that name has nothing behind it.
-ARMBIAN_LINUXFAMILY="${ARMBIAN_LINUXFAMILY:-rockchip64}"
+#                  -> follows Armbian. Discovered below rather than assumed, so
+#                     the STEP 6 result glob matches what is actually built.
+ARMBIAN_BOARD_CONF="$ARMBIAN_BUILD/config/boards/rock-5b.conf"
+ARMBIAN_LINUXFAMILY="${ARMBIAN_LINUXFAMILY:-$(sed -n 's/^BOARDFAMILY="\([^"]*\)".*/\1/p' "$ARMBIAN_BOARD_CONF" 2>/dev/null | head -1)}"
+# Not die(): that is defined further down, and this runs first.
+[ -n "$ARMBIAN_LINUXFAMILY" ] || {
+	printf 'ERROR: could not read BOARDFAMILY from %s\n' "$ARMBIAN_BOARD_CONF" >&2
+	exit 1
+}
 
-# Armbian kernel patch archive branch, derived from the family above so the two
-# cannot disagree. Names BOTH the directory this script stages patches into and
-# the one Armbian reads them from -- see ARMBIAN_KERNELPATCHDIR below.
-KBRANCH="${KBRANCH:-$ARMBIAN_LINUXFAMILY-6.18}"
+# Armbian kernel patch archive branch. Deliberately NOT derived from the family
+# above: the family is whatever Armbian currently says, while this names the
+# directory that actually exists and holds the 177 core patches this tree has
+# always built against. Names BOTH the directory this script stages into and the
+# one Armbian reads from -- see ARMBIAN_KERNELPATCHDIR below.
+KBRANCH="${KBRANCH:-rockchip64-6.18}"
 
 # THE SILENT-NO-OP GOTCHA: Armbian derives KERNELPATCHDIR as
 # "archive/${LINUXFAMILY}-${KERNEL_MAJOR_MINOR}" (config/sources/common.conf) and
@@ -643,7 +657,6 @@ if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
 		USE_TMPFS="$ARMBIAN_USE_TMPFS" \
 		ENABLE_EXTENSIONS="$STAMP_EXT_NAME" \
-		LINUXFAMILY="$ARMBIAN_LINUXFAMILY" \
 		KERNELPATCHDIR="$ARMBIAN_KERNELPATCHDIR" \
 		${ARMBIAN_KERNELBRANCH:+KERNELBRANCH="$ARMBIAN_KERNELBRANCH"} \
 		${ARMBIAN_CLEAN_LEVEL:+CLEAN_LEVEL="$ARMBIAN_CLEAN_LEVEL"} \
@@ -663,7 +676,6 @@ else
 	[ -n "$ARMBIAN_KERNELBRANCH" ] && EXTRA_ARGS+=("KERNELBRANCH=$ARMBIAN_KERNELBRANCH")
 	# Must match the debug branch above; see the pre-flight note about the two
 	# call sites drifting apart.
-	EXTRA_ARGS+=("LINUXFAMILY=$ARMBIAN_LINUXFAMILY")
 	EXTRA_ARGS+=("KERNELPATCHDIR=$ARMBIAN_KERNELPATCHDIR")
 	./compile.sh "$FLAVOR_CONFIG_NAME" kernel \
 		KERNEL_CONFIGURE=no \

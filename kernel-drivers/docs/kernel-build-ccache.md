@@ -228,16 +228,24 @@ container continues to see `/armbian`.
 > exactly what happened when Armbian renamed rock-5b's `BOARDFAMILY` to
 > `rockchip-rk3588`; both `6.18__rockchip64__arm64` and
 > `6.18__rockchip-rk3588__arm64` still exist side by side under
-> `cache/sources/linux-kernel-worktree/`. `build-kernel.sh` now pins
-> `LINUXFAMILY` as a `compile.sh` argument to stop the path from moving. Full
-> derivation:
+> `cache/sources/linux-kernel-worktree/`. **The path cannot be pinned** —
+> `LINUXFAMILY` and `LINUXSOURCEDIR` are both unconditional `declare -g`
+> assignments in `config-prepare.sh` (`:141`, `:284`) that overwrite any config
+> or command-line value. The mitigation is therefore to make the cache survive
+> the move: `CCACHE_NOHASHDIR=1`, set from the `ysp-build-stamp` extension's
+> `kernel_make_config` hook. Measured, same source in two directories with
+> `-g -gdwarf-5` and `CCACHE_BASEDIR` set in both — `hits=0` by default,
+> `hits=1` with `NOHASHDIR` — so `CCACHE_BASEDIR` does **not** cover the CWD.
+> The cost, also measured: a reused object keeps the `DW_AT_comp_dir` of the
+> build that first cached it. Full derivation:
 > [`../../findings/2026-07-25-armbian-linuxfamily-rename-silent-patch-free-kernel.md`](../../findings/2026-07-25-armbian-linuxfamily-rename-silent-patch-free-kernel.md).
 
-If the path ever must change, the durable fixes are `base_dir` plus
-`-fdebug-prefix-map`, or `hash_dir = false`. Neither is currently applied:
-`hash_dir = false` yields a wrong `DW_AT_comp_dir` in debug info, which is a poor
-trade for a KASAN kernel whose purpose is legible traces, and `-fdebug-prefix-map`
-means injecting `KCFLAGS` — which this guide otherwise tells you not to do.
+`-fdebug-prefix-map` is the alternative and would additionally fix
+reproducibility, but it means injecting `KCFLAGS` — which this guide otherwise
+tells you not to do — so `CCACHE_NOHASHDIR` was chosen as the smaller change.
+The `DW_AT_comp_dir` cost is real for a KASAN kernel whose purpose is legible
+traces; it was accepted deliberately, because discarding several GB of KASAN
+objects every time Armbian renames something is the worse trade.
 
 ### Why a Kconfig change is not the whole story
 

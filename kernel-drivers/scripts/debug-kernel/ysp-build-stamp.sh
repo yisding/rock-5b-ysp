@@ -46,12 +46,24 @@ function custom_kernel_make_params__ysp_real_build_stamp() {
 # built in two directories gets 0 hits with CCACHE_BASEDIR set, and 1 hit with
 # CCACHE_NOHASHDIR=1.
 #
-# Trade-off, stated plainly: a reused object keeps the DW_AT_comp_dir of whichever
-# build first cached it, so if the worktree path ever does change, debug info may
-# name the old directory until those objects are rebuilt. build-kernel.sh pins
-# LINUXFAMILY precisely so the path stays put, which makes that mostly theoretical
-# -- and the alternative (throwing away several GB of KASAN objects on every path
-# change) is the worse trade for a cache this expensive to refill.
+# This is the ONLY available mitigation, not a belt-and-braces one. Pinning
+# LINUXFAMILY was tried and measured not to work -- config-prepare.sh:141 resets
+# it unconditionally from BOARDFAMILY after any config or command-line value, and
+# LINUXSOURCEDIR at :284 is likewise an unconditional declare -g. So the worktree
+# path genuinely can move out from under the cache, and nothing upstream of ccache
+# can stop it.
+#
+# Trade-off, measured rather than asserted: with NOHASHDIR a reused object keeps
+# the DW_AT_comp_dir of whichever build first cached it. Same source built in two
+# directories, -g -gdwarf-5, CCACHE_BASEDIR set in both:
+#
+#   default              hits=0 misses=2   b/t.o comp_dir = .../b   (correct)
+#   CCACHE_NOHASHDIR=1   hits=1 misses=1   b/t.o comp_dir = .../a   (stale)
+#
+# So debug info can name the directory of the build that first cached the object,
+# until it is rebuilt. Accepted deliberately: throwing away several GB of KASAN
+# objects on every path change is the worse trade for a cache this expensive to
+# refill, and the path only moves when Armbian renames something.
 #
 # kernel_make_config is the documented hook for this: kernel-make.sh:79-83 lists
 # common_make_envs[@] as available to it, and it runs before the make command is
