@@ -1,11 +1,12 @@
-# rockchip-vaapi Main10 needs MPP AFBC plus crop metadata
+# rockchip-vaapi 10-bit decode needs MPP AFBC plus crop metadata
 
-> Scope: RK3588 HEVC Main10 decode through `rockchip-vaapi`, MPP, librga, and
-> the 6.18.40 ysp forward-port kernel.
+> Scope: RK3588 HEVC Main10 and VP9 Profile 2 decode through `rockchip-vaapi`,
+> MPP, librga, and the 6.18.40 ysp forward-port kernel.
 >
-> Source: `../rockchip-vaapi` commits `f03905a` and `820d88c`; hardware gate
-> `make check-hevc-main10-experimental`; direct MPP/RGA and reconstructed-Annex-B
-> probes retained locally in that checkout.
+> Source: `../rockchip-vaapi` commits `f03905a`, `820d88c`, and `039dc85`; gates
+> `make check-hevc-main10-experimental` and
+> `make check-vp9-profile2-experimental`; direct MPP/RGA and
+> reconstructed-Annex-B probes retained locally in that checkout.
 >
 > Date: 2026-07-26.
 >
@@ -71,11 +72,24 @@ requires one logged AFBC conversion per frame. It passed together with the
 normal build, object lifecycle hardware test, sanitizer, Valgrind, lint, and safe
 decode gates before `820d88c` was pushed.
 
+## VP9 Profile 2 confirmation
+
+`rockchip-vaapi@039dc85` applies the same contract to VP9 Profile 2. Direct
+RKMPP linear output mislabeled as P010 measured only 8.478340 dB average PSNR,
+while direct RKMPP AFBC plus RGA P010 was byte-identical to software. The
+forced VA-API gate then generated and decoded 48 lossless 320x240 Profile 2
+frames with exact P010 output and 48 audited AFBC conversions.
+
+The VP9 header parser now preserves hidden references with profile-matched
+`show_existing_frame` packets and rejects Profile 2's 12-bit/RGB syntax because
+the driver exposes only 10-bit 4:2:0 P010. Profile 2 remains experimental
+pending pinned conformance and HDR playback.
+
 ## Boundary
 
-This validates one generated Main10 sequence, not broad Main10 conformance, HDR
-metadata propagation, every resolution/stride combination, or browser
-integration. Main10 therefore remains experimental. It does settle the
-kernel-facing question for the measured path: do not add another kernel stride
-workaround for MPP's 448-byte linear NV15 output. Request AFBC and honor MPP's
-AFBC header stride and crop metadata.
+This validates one generated sequence per 10-bit codec, not broad Main10 or VP9
+Profile 2 conformance, HDR metadata propagation, every resolution/stride
+combination, or browser integration. Both profiles therefore remain
+experimental. It does settle the kernel-facing question for the measured
+paths: do not add another kernel stride workaround for linear NV15 output.
+Request AFBC and honor MPP's AFBC header stride and crop metadata.
