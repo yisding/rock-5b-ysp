@@ -33,3 +33,30 @@ function custom_kernel_make_params__ysp_real_build_stamp() {
 	display_alert "ysp-build-stamp" "real build timestamp: ${stamp}" "info"
 	common_make_params_quoted+=("KBUILD_BUILD_TIMESTAMP=${stamp}")
 }
+
+# Make the compiler cache independent of the kernel worktree PATH.
+#
+# Armbian names the worktree
+# cache/sources/linux-kernel-worktree/${KERNEL_MAJOR_MINOR}__${LINUXFAMILY}__${ARCH},
+# the kernel compiles -g -gdwarf-5 with no -fdebug-prefix-map, and ccache's
+# hash_dir defaults to true -- so the working directory is part of every object's
+# cache key. Anything that moves that path (a LINUXFAMILY rename, a kernel series
+# bump) silently invalidates the ENTIRE kernel half of the shared store.
+# CCACHE_BASEDIR does NOT cover this: measured with -gdwarf-5, the same source
+# built in two directories gets 0 hits with CCACHE_BASEDIR set, and 1 hit with
+# CCACHE_NOHASHDIR=1.
+#
+# Trade-off, stated plainly: a reused object keeps the DW_AT_comp_dir of whichever
+# build first cached it, so if the worktree path ever does change, debug info may
+# name the old directory until those objects are rebuilt. build-kernel.sh pins
+# LINUXFAMILY precisely so the path stays put, which makes that mostly theoretical
+# -- and the alternative (throwing away several GB of KASAN objects on every path
+# change) is the worse trade for a cache this expensive to refill.
+#
+# kernel_make_config is the documented hook for this: kernel-make.sh:79-83 lists
+# common_make_envs[@] as available to it, and it runs before the make command is
+# assembled at :99. Envs matter because the build runs under `env -i`.
+function kernel_make_config__ysp_ccache_nohashdir() {
+	display_alert "ysp-build-stamp" "CCACHE_NOHASHDIR=1 (worktree-path-independent cache)" "info"
+	common_make_envs+=("CCACHE_NOHASHDIR=1")
+}

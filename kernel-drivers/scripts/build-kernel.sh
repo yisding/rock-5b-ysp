@@ -412,12 +412,30 @@ stage_flavor_debug_files() {
 	install -D -m 0644 "$DEBUG_KERNEL_DIR/$DEBUG_FRAGMENT_NAME" \
 		"$USERPATCHES_DIR/$DEBUG_FRAGMENT_NAME"
 
+	# STICKY SEED. This used to re-copy /boot/config-$(uname -r) on every build,
+	# which is both a cache and a correctness hazard:
+	#
+	#   - Every kernel TU force-includes include/linux/kconfig.h, which includes
+	#     generated/autoconf.h, so ONE changed CONFIG symbol changes the hash of
+	#     EVERY object. A drifting seed costs 100% of the kernel ccache, not "a
+	#     few misses".
+	#   - It is a feedback loop: boot the KASAN kernel this builds, and the next
+	#     debug build seeds from a KASAN kernel's own config (KASAN, lockdep and
+	#     ramoops already enabled) instead of a production one. The C#### hash
+	#     moving b831 -> 435e in config-rock5b-video-port.conf.sh is this effect.
+	#
+	# So capture it once and then leave it alone. Refresh deliberately with
+	# RESEED_CONFIG=1 when the intent really is to track the running kernel.
 	local running_config
 	running_config="/boot/config-$(uname -r)"
-	if [ -r "$running_config" ]; then
+	if [ -s "$USER_KERNEL_CONFIG" ] && [ "${RESEED_CONFIG:-0}" != 1 ]; then
+		say "  reusing captured seed config $USER_KERNEL_CONFIG"
+		say "    (sha256 $(sha256sum "$USER_KERNEL_CONFIG" | cut -c1-16)…; RESEED_CONFIG=1 to refresh from $running_config)"
+	elif [ -r "$running_config" ]; then
 		cp -v "$running_config" "$USER_KERNEL_CONFIG" | sed 's/^/      /'
+		say "    captured seed sha256 $(sha256sum "$USER_KERNEL_CONFIG" | cut -c1-16)…"
 	else
-		say "  WARNING: cannot read $running_config; keeping existing $USER_KERNEL_CONFIG"
+		die "no seed config: $USER_KERNEL_CONFIG is absent and $running_config is unreadable"
 	fi
 }
 
@@ -480,17 +498,26 @@ say "  $NCOMMITS commits on top of $BASE_TAG:"
 git -C "$KERNEL_TREE" log --oneline "$BASE_TAG"..HEAD | sed 's/^/      /'
 rm -rf "$STAGING"; mkdir -p "$STAGING"
 git -C "$KERNEL_TREE" format-patch --no-signature -o "$STAGING" "$BASE_TAG"..HEAD >/dev/null
+# Match on the full sha in the patch BODY, not on a filename built from %f.
+# git truncates generated FILENAMES at format.filenameMaxLength (default 64) but
+# does NOT truncate %f, so any commit whose subject exceeds ~52 characters could
+# never match -- and `[ -e "$f" ] || continue` made that miss completely silent.
+# Several commits in this tree are already over that limit. A skip that silently
+# does nothing leaves an already-carried patch in the series, and Armbian then
+# aborts with "Patching error" from patch -N, naming nothing useful.
 for commit in $SKIP_COMMITS; do
-	subject=$(git -C "$KERNEL_TREE" show -s --format=%f "$commit" 2>/dev/null || true)
-	if [ -z "$subject" ]; then
+	sha=$(git -C "$KERNEL_TREE" rev-parse --verify "$commit^{commit}" 2>/dev/null || true)
+	if [ -z "$sha" ]; then
 		say "  WARNING: SKIP_COMMITS entry not found in kernel tree: $commit"
 		continue
 	fi
-	for f in "$STAGING"/[0-9][0-9][0-9][0-9]-"$subject".patch; do
-		[ -e "$f" ] || continue
+	matched=0
+	while IFS= read -r f; do
+		matched=1
 		say "  skipping Armbian-base commit: $(basename "$f")"
 		rm -f "$f"
-	done
+	done < <(grep -l "^From $sha " "$STAGING"/*.patch 2>/dev/null || true)
+	((matched)) || say "  WARNING: SKIP_COMMITS $commit ($sha) generated no patch to skip"
 done
 # Prefix so they sort after Armbian's media-* patches (proven-good order) and
 # are clearly distinct across flavors and from the old rk3588-rkvenc2-* set.
@@ -588,13 +615,22 @@ cd "$ARMBIAN_BUILD"
 # explanatory die below can run.
 staged_count=$(find "$UP_DIR" -maxdepth 1 -name '*.patch' | wc -l)
 [ "$staged_count" -gt 0 ] || die "no patches staged in $UP_DIR; refusing to build a patch-free kernel"
-[ "$ARMBIAN_KERNELPATCHDIR" = "archive/$KBRANCH" ] \
-	|| say "  NOTE: KERNELPATCHDIR overridden to $ARMBIAN_KERNELPATCHDIR (staged in archive/$KBRANCH)"
+# die, not a note: staging into one directory and telling Armbian to read another
+# is precisely the failure this whole pre-flight exists to prevent, and counting
+# patches in the dir we staged into proves nothing about the dir Armbian reads.
+# ARMBIAN_KERNELPATCHDIR_FORCE=1 opts out for a deliberate experiment.
+if [ "$ARMBIAN_KERNELPATCHDIR" != "archive/$KBRANCH" ] && [ "${ARMBIAN_KERNELPATCHDIR_FORCE:-0}" != 1 ]; then
+	die "KERNELPATCHDIR ($ARMBIAN_KERNELPATCHDIR) is not the directory this script staged into (archive/$KBRANCH).
+    Armbian would read patches from somewhere this script never wrote.
+    Set ARMBIAN_KERNELPATCHDIR_FORCE=1 if that is genuinely intended."
+fi
 say "  family: $ARMBIAN_LINUXFAMILY   patch dir: $ARMBIAN_KERNELPATCHDIR ($staged_count userpatches staged)"
 
 # Marker so STEP 6 judges THIS build's output. Without it the result check reads
 # whatever deb is newest, including a stale one from a previous failed run.
-BUILD_MARKER="$(mktemp -t ysp-build-marker.XXXXXX)"
+# Deliberately NOT mktemp -t: /tmp is tmpfs on this board, and this repo's
+# convention is to keep scratch off it. The workspace is on disk.
+BUILD_MARKER="$(mktemp "$WORKSPACE/.ysp-build-marker.XXXXXX")"
 trap 'rm -f "$BUILD_MARKER"' EXIT
 
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
@@ -639,35 +675,59 @@ fi
 
 # =============================================================================
 say "STEP 6: results"
-say "  ccache dir after:  $(du -shL "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)  (grew = ccache engaged)"
-# Match on the flavor's BRANCH only, not BRANCH-family: Armbian appends
-# LINUXFAMILY, which it renamed rockchip64 -> rockchip-rk3588 under us, and a
-# hardcoded suffix here silently listed nothing at all.
-say "  newest ${FLAVOR_BRANCH} debs:"
-ls -t "$DEBS"/linux-image-"$FLAVOR_BRANCH"-*_*.deb "$DEBS"/linux-dtb-"$FLAVOR_BRANCH"-*_*.deb \
-	"$DEBS"/linux-headers-"$FLAVOR_BRANCH"-*_*.deb 2>/dev/null | head -3 | sed 's/^/      /'
+# This is the size of the SHARED store (Mesa/MPP/librga/FFmpeg all write to it),
+# so growth is suggestive, not proof, and it stops growing entirely once the
+# store reaches max_size while still working perfectly. The authoritative signal
+# is Armbian's own "Ccache result [ hit=... miss=... ]" line.
+say "  shared ccache store: $(du -shL "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)"
+# find, not ls: with `set -o pipefail` a no-match glob makes ls exit 2 and kills
+# the script HERE, skipping every post-flight check below -- after printing a
+# partial list that looks like success. The family is pinned, so the full
+# BRANCH-FAMILY name is knowable and avoids matching the sibling debug slot
+# (linux-image-video-port-* would otherwise also match video-port-kasan-*).
+SLOT="${FLAVOR_BRANCH}-${ARMBIAN_LINUXFAMILY}"
+say "  newest ${SLOT} debs:"
+find "$DEBS" -maxdepth 1 \( -name "linux-image-$SLOT""_*.deb" -o -name "linux-dtb-$SLOT""_*.deb" \
+	-o -name "linux-headers-$SLOT""_*.deb" \) -printf '%T@ %p\n' 2>/dev/null |
+	sort -rn | head -3 | cut -d' ' -f2- | sed 's/^/      /'
 # -newer "$BUILD_MARKER": only consider debs this run produced. A stale deb from
 # a previous failed run would otherwise be reported as "this build's hash".
 # Sort by mtime and take the newest: find emits in directory order, so a bare
 # `head -1` would pick an arbitrary deb when more than one matches, and could
 # report another build's hash as this one's.
-NEW=$(find "$DEBS" -maxdepth 1 -name "linux-image-$FLAVOR_BRANCH-*_*.deb" \
+NEW=$(find "$DEBS" -maxdepth 1 -name "linux-image-$SLOT""_*.deb" \
 	-newer "$BUILD_MARKER" -printf '%T@ %p\n' 2>/dev/null |
 	sort -rn | head -1 | cut -d' ' -f2-)
 PH=$(basename "$NEW" 2>/dev/null | grep -oE 'P[0-9a-f]{4,}-C[0-9a-f]{4,}' || true)
 [ -n "$PH" ] && say "This build's hash: $PH"
 
-# Post-flight: P0000 is Armbian reporting that the patch set hashed to nothing,
-# i.e. no patches were applied. That is exactly what a patch-dir mismatch looks
-# like, and the resulting deb is a stock kernel wearing this flavor's name, so
-# fail loudly rather than hand back something installable and wrong.
-if [ -n "$NEW" ] && basename "$NEW" | grep -q -- '-P0000-'; then
-	die "no patches were applied (deb reports P0000): $(basename "$NEW")
-    The kernel built WITHOUT this flavor's patch series and must not be installed.
-    Check that Armbian's 'Using kernel patch dir' matches archive/$KBRANCH."
-fi
 if [ -z "$NEW" ]; then
-	die "no linux-image deb was produced for $FLAVOR_BRANCH by this run."
+	die "no linux-image deb was produced for $SLOT by this run."
+fi
+
+# Post-flight: prove the flavor's drivers are actually IN the kernel we just
+# packaged. Do NOT test the deb's P#### hash for 0000 -- that was tried and is
+# useless: Armbian hashes the UNION of patch/kernel/$KERNELPATCHDIR (356 core
+# patches) and userpatches/kernel/$KERNELPATCHDIR, and returns 16 zeros only when
+# the COMBINED list is empty (hash-files.sh:66-69). With KERNELPATCHDIR pinned the
+# core dir is never empty, so P0000 became unreachable while the dangerous case
+# -- core patches applied, zero vendor patches -- still hashes non-zero and looks
+# healthy. The only honest check is the built artifact's own config.
+#
+# ROCKCHIP_MPP_RKVDEC2 is added by BOTH the forward-port and rewrite series and
+# exists in neither mainline nor Armbian's core patches, so one symbol covers all
+# four local flavors. Override per flavor with FLAVOR_VERIFY_CONFIG if that
+# stops being true.
+VERIFY_SYM="${FLAVOR_VERIFY_CONFIG:-CONFIG_ROCKCHIP_MPP_RKVDEC2}"
+say "  verifying $VERIFY_SYM is present in the packaged kernel config"
+if ! dpkg-deb --fsys-tarfile "$NEW" 2>/dev/null |
+	tar -xO --wildcards './boot/config-*' 2>/dev/null |
+	grep -q "^$VERIFY_SYM="; then
+	die "$VERIFY_SYM is MISSING from $(basename "$NEW")
+    The kernel built WITHOUT this flavor's driver series and must not be installed.
+    This is what a patch-dir mismatch looks like: the build succeeds and produces
+    correctly-named, installable debs containing a stock kernel.
+    Check that Armbian's 'Using kernel patch dir' matches archive/$KBRANCH."
 fi
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	say "DONE. After install.md recovery prep, install with:"
