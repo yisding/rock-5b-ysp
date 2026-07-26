@@ -16,13 +16,17 @@
 
 > **Implementation update, 2026-07-26.** The 6.18 implementation is committed
 > on the dedicated worktree branch
-> `rk3588-rewrite-av1-6.18@402fc9c0bd785`, based on the complete current
+> `rk3588-rewrite-av1-6.18@e58c57e50d0a0`, based on the complete current
 > `rk3588-rewrite-6.18@c5faabf9d00b0` line. The three AV1 commits are
 > `3327030e09029` (backend and shared architecture),
 > `a5624fa024766` (warning-clean KUnit fixtures), and `402fc9c0bd785`
-> (ABI documentation and final hardening). Focused arm64 `W=1` builds and the
-> clean-archive normal build gate pass without warnings. The four new KUnit
-> cases compile, bringing MPP to 89 cases, but neither they nor the driver have
+> (ABI documentation and initial hardening), followed by adversarial-repair
+> commit `e58c57e50d0a0`. Three independent hostile reviews covered
+> concurrency/fault recovery, ABI/DMA safety, and backend-oracle/test
+> completeness. Focused arm64 GCC `W=1`, Clang `W=1`, and all three
+> clean-archive profiles pass; Clang retains one pre-existing oversized KUnit
+> stack-frame warning. Five AV1 KUnit cases now compile, bringing MPP to 90
+> cases and the combined suite to 237, but neither they nor the driver have
 > been booted on the ROCK 5B. The matching mainline carry and all board gates
 > below remain open; this is source/build verification, not hardware parity.
 
@@ -47,15 +51,15 @@ is not a delivery commitment; hardware iteration dominates the uncertainty.
 
 ### Implemented 6.18 result
 
-| Assessed requirement | Result at `402fc9c0bd785` |
+| Assessed requirement | Result at `e58c57e50d0a0` |
 |----------------------|--------------------------|
 | Register classes | Sparse, lazily allocated VCD/cache/AFBC regions with checked span mapping; holes, crossings, wrap, and alignment errors fail closed. |
-| Translation capacity and provenance | Dynamic import/binding storage; all 103 built-in AV1 translation entries; retained dma-buf provenance and same-buffer range checks. |
+| Translation capacity and provenance | Dynamic import/binding storage; all 103 built-in AV1 translation entries; retained dma-buf provenance, same-buffer range checks, and final validation after userspace address offsets. |
 | AV1 backend | `rockchip,av1-decoder`, client type 4, hardware ID `0x80019000`, three validated MMIO regions, deferred start, class-aware readback, and shared timeout/reset/abort scheduling. |
-| IRQ lifecycle | Generic auxiliary-IRQ descriptors, primary VCD threaded completion, AFBC acknowledgement, and synchronization before power-down/removal. |
-| VSI-IOMMU | Provider-aware Rockchip/VSI fault registration and matching teardown, VSI refresh in recovery, and Kconfig integration. |
-| AFBC | Checked 8/10-bit layout arithmetic, field bounds, binding-derived header/payload IOVAs, deterministic cleanup, and raster fallback. |
-| Diagnostics and tests | Codec-neutral per-client/core counters plus four new KUnit cases covering the AV1 layout, lazy allocation, 103-entry metadata, and AFBC/provenance arithmetic. |
+| IRQ lifecycle | Generic auxiliary-IRQ descriptors, primary VCD threaded completion, AFBC mask/ack before synchronization and power-down, and fault-owned completions that cannot be consumed as ordinary IRQ success. |
+| VSI-IOMMU | Provider-aware Rockchip/VSI fault registration and matching teardown, unconditional refresh after DMA quiescence during fault recovery, quarantine on refresh failure, and Kconfig integration. |
+| AFBC | Checked 8/10-bit layout arithmetic, field bounds, full worst-case buffer-capacity validation, binding-derived header/payload IOVAs, kernel ownership of derived registers, deterministic cleanup, and raster fallback. |
+| Diagnostics and tests | Codec-neutral per-client/core counters plus five AV1 KUnit cases covering layout, lazy allocation, 103-entry metadata, post-offset provenance, exact AFBC capacities/alignment, hardware ID, and fault-owned completion. |
 
 The implementation deliberately reuses the existing rewrite's job ownership,
 DMA mapping, scheduler, timeout, reset, and debug infrastructure. It does not

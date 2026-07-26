@@ -29,8 +29,8 @@ If two docs disagree, the table above wins — for the *concerns* it routes. It
 does not win on a moving commit hash or a gate result whose owning doc is
 fresher; check the date on both before treating a row here as current.
 
-Current AV1-branch numbers are **MPP KUnit = 89, RGA KUnit = 147, total = 236**
-(the gate scripts require exactly `89`/`147`). The shared non-AV1 line has 85
+Current AV1-branch numbers are **MPP KUnit = 90, RGA KUnit = 147, total = 237**
+(the gate scripts require exactly `90`/`147`). The shared non-AV1 line has 85
 MPP cases; older docs may also cite the superseded `86`/`122`/`208` at tips
 `8469183da227` / `9ff18809b5e0`.
 
@@ -47,8 +47,8 @@ MPP cases; older docs may also cite the superseded `86`/`122`/`208` at tips
 | KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ❌ (KUnit-under-KASAN not booted) |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | `*-repro.c`, `rga-session-uaf.sh` | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
-| Booted KUnit (89 MPP + 147 RGA = 236) | `rewrite-kunit-log-check.sh` | — | ❌ machinery ready, never booted-green |
-| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ✅ dedicated AV1 6.18 tip `402fc9c0bd785` passed all three clean-archive profiles warning-free on 2026-07-26, including Rockchip and VSI IOMMU providers; not hardware |
+| Booted KUnit (90 MPP + 147 RGA = 237) | `rewrite-kunit-log-check.sh` | — | ❌ machinery ready, never booted-green |
+| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ✅ dedicated AV1 6.18 tip `e58c57e50d0a0` passed all three clean-archive profiles warning-free on 2026-07-26, including Rockchip and VSI IOMMU providers; not hardware |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ never booted |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`, `syzkaller/` | ⚠️ ran without KCOV | ❌ |
@@ -66,7 +66,7 @@ and the soak are gaps for **both** tracks.
 definition-of-done requires a booted rewrite kernel, and none has ever run.
 Gap-audit [§ six board runs](./rewrite-conformance-gap-audit.md) enumerates the
 minimum set. The clean-source build gate **was re-run green for all three 6.18
-AV1 profiles at `402fc9c0bd785` on 2026-07-26**. That is current compile
+AV1 profiles at `e58c57e50d0a0` on 2026-07-26**. That is current compile
 evidence, not hardware. See [`rewrite-drivers.md`](./rewrite-drivers.md) for
 the distinct shared, AV1, and mainline pins and what is proven at each.
 
@@ -124,8 +124,8 @@ The definition-of-done lives in [`rewrite-validation-plan.md` §7](./rewrite-val
    package (Kernel A = KASAN/UBSAN/lockdep/fault-injection + KUnit; Kernel B =
    KCSAN) at the current tip.
 1. **Keep `rewrite-build-gate.sh` green** (normal/memory/race) at each candidate
-   tip. The dedicated AV1 6.18 branch is green at `402fc9c0bd785`.
-2. **Boot Kernel A + Kernel B**; persist a **236-case green KUnit report**
+   tip. The dedicated AV1 6.18 branch is green at `e58c57e50d0a0`.
+2. **Boot Kernel A + Kernel B**; persist a **237-case green KUnit report**
    (`rewrite-kunit-log-check.sh`) tied to each boot fingerprint.
 3. **P1 smoke** (`rewrite-smoke.sh`) then **P2 conformance**: all four suites
    under `PROFILE=rewrite RUN_COUNTER_CHECKS=1`, clean dmesg both kernels.
