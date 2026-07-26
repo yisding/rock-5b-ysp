@@ -1,5 +1,12 @@
 # rockchip-vaapi HEVC RPS boundary, with P010 fixed below it
 
+> **Superseded 2026-07-26:** this records an intermediate investigation, not the
+> final HEVC result. `rockchip-vaapi` commit `f03905a` subsequently made seven of
+> eight pinned HEVC Main vectors bit-exact by reconstructing SPS reference sets
+> and picture scaling lists; the remaining TILES vector also fails in direct MPP.
+> Commit `820d88c` then validated Main10 bit-exact through MPP AFBC and RGA P010.
+> See `2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md`.
+>
 > Scope: `rockchip-vaapi` Phase 2 HEVC/10-bit work on RK3588, plus the
 > kernel/librga dependency it rides on.
 >
