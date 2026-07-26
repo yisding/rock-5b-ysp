@@ -24,7 +24,7 @@ plumbing layers. Which layer an app speaks decides its cost almost entirely:
 |-------|---------------------|
 | **libavcodec named codecs** (`h264_rkmpp`, `hevc_rkmpp`, …) | ✅ Shipped: [`ffmpeg-rockchip`](../video-libraries/ffmpeg/README.md) fork, built and Published in the [normal PPA](../packaging/ppa/README.md) as the system FFmpeg replacement. |
 | **GStreamer elements** (`mppvideodec`, `mpph26xenc`) | ⚠️ Rockchip's external `gstreamer-rockchip` plugin exists upstream but is not packaged here; ubuntu-rockchip shipped a working (if crudely packaged) build of it — one clean repackage away. The kernel track's GStreamer suite is no longer blocked — it first ran 2026-07-22 at 98/102 required ([userspace-gaps finding](../findings/2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md)) and reached 129/133 on the production PPA kernel. |
-| **VA-API** (the de-facto Linux desktop hwaccel API) | 🚧 Being renovated. woodyst/rockchip-vaapi (LGPL, reviewed in the [driver review finding](../findings/2026-07-21-rockchip-vaapi-driver-review.md)) had the right architecture but an inactive upstream, so the fork-and-renovate verdict was acted on: [`yisding/rockchip-vaapi@ysp/cleanup`](https://github.com/yisding/rockchip-vaapi/tree/ysp/cleanup) carries phase one — built against the ysp stack, three bit-exactness bugs fixed, packaged as a `.deb`. Dated state in [`status.md`](../status.md) track 14 and [W18](../status.md#watch-w18). |
+| **VA-API** (the de-facto Linux desktop hwaccel API) | 🚧 Being renovated. [`yisding/rockchip-vaapi@main`](https://github.com/yisding/rockchip-vaapi) has Phase 0/1 complete, measured experimental HEVC/10-bit paths, an exact stock-GStreamer system-memory gate, and lintian-clean split driver/config packages. Experimental profiles stay hidden; browser/display and encode/release work remains. Dated evidence is in [track 14](../status.md) and the [Main10/P010 finding](../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md). |
 | **V4L2** (stateful M2M or stateless request API) | ⚠️ The BSP kernel exposes the codecs only via the vendor `/dev/mpp_service` ioctl interface, not V4L2 — but a **userspace** V4L2-stateful-over-MPP bridge exists: JeffyCN's `libv4l-rkmpp` (a libv4l2 plugin emulating a stateful M2M decoder/encoder in-process, no kernel device), proven in Joshua Riek's archived ubuntu-rockchip images as the engine behind Chromium 4K playback. It is kernel-agnostic and only reachable through a patched libv4l2, which in practice makes it a Chromium-only bridge. See the [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md). A real kernel V4L2 stateless path still needs a mainline kernel ([`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md), mainline rkvdec2 work). |
 
 ```mermaid
@@ -161,10 +161,11 @@ neither. Options, in ascending ambition:
    decoders and import DRM PRIME frames into WebRender — done in one-off
    community forks for other SoCs, but weeks of work plus a permanent rebase
    burden.
-2. The VA-API road (below) — **works today** for H.264+VP9 via
-   rockchip-vaapi with `MOZ_DISABLE_RDD_SANDBOX=1`; shipping-grade needs the
-   fork-and-renovate plan plus a small RDD sandbox-policy patch (Firefox's
-   seccomp filters ioctls by request family, so device-node aliasing cannot
+2. The VA-API road (below) — H.264+VP9 decode is hardware-exact in the driver,
+   but stock Firefox still needs a proper RDD sandbox-policy patch. A one-off
+   `MOZ_DISABLE_RDD_SANDBOX=1` run is diagnostic only and must not be deployed
+   globally. Firefox's seccomp filters ioctls by request family, so
+   device-node aliasing cannot
    sidestep it — see the [driver review](../findings/2026-07-21-rockchip-vaapi-driver-review.md) §7).
 3. Wait for / bet on the mainline V4L2 path (which Firefox's stateless story
    still would not cover; its V4L2 support is stateful-only today).

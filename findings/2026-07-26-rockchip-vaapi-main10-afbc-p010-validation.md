@@ -126,11 +126,35 @@ The VP9 header parser now preserves hidden references with profile-matched
 the driver exposes only 10-bit 4:2:0 P010. Profile 2 remains experimental
 pending application validation.
 
+## GStreamer and Debian packaging
+
+`a0ee342` adds the first stock desktop-app gate. GStreamer 1.28's `va` plugin
+rejects an unfamiliar Rockchip vendor string by default; its supported
+`GST_VA_ALL_DRIVERS=1` override registers `vah264dec`, `vah265dec`, and
+`vavp9dec`. System-memory readback is byte-identical to software for pinned
+H.264 High (10 frames), VP9 Profile 0 (1 frame), official VP9 Profile 2
+(10 displayed/11 decoded frames), and HEVC Main10 (256 frames). This proves the
+GStreamer VA/libva/driver readback path, not DMABUF display or HDR presentation.
+A forced DMABUF-to-fakesink probe negotiated caps but correctly failed because
+fakesink does not advertise the mandatory `GstVideoMeta`; a real display sink
+must be tested in a graphical session.
+
+`93320e6` builds lintian-clean `rockchip-vaapi` and
+`rockchip-vaapi-config` packages at version `1.0.11+ysp3`. The driver package's
+generated dependency set includes the installed MPP and `librga2` ABI versions,
+and its ELF has full immediate-binding hardening. The optional config package
+owns only driver selection plus GStreamer's vendor override. It does not set
+`MOZ_DISABLE_RDD_SANDBOX`, `MOZ_ENABLE_WAYLAND`, or `MOZ_X11_EGL`; upgrading
+the driver removes the old unowned ysp2 environment files that globally
+disabled Firefox's RDD sandbox. A proper distribution Firefox policy remains
+an open app-integration deliverable.
+
 ## Boundary
 
 This now validates generated sequences for both codecs, one official vector per
-codec, and static HDR metadata propagation. It does not validate every
-resolution/stride combination, the broader Main10 corpus, or actual HDR
+codec, static HDR metadata propagation, and stock GStreamer system-memory
+readback. It does not validate every resolution/stride combination, the broader
+Main10 corpus, DMABUF display sinks, browser sandbox integration, or actual HDR
 presentation in Firefox/mpv and the display stack. Both profiles therefore
 remain experimental. It does settle the kernel-facing question for the
 measured paths: do not add another kernel stride workaround for linear NV15
