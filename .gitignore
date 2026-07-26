@@ -1,6 +1,7 @@
 # Agent scratch directories (present on dev boxes, never content-bearing)
 .agents/
 .codex/
+.codex-scratch/
 .grd-debug/
 
 # Local linked or nested worktrees are independent Git checkouts, not content

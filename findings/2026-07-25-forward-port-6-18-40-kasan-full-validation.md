@@ -73,6 +73,53 @@ The non-root broad-suite `dmesg-scan.tsv` files are `unavailable`, not clean
 kernel proof, because `dmesg` access was denied. That is why the gates below
 carry their own journal or root windows.
 
+## GStreamer Userspace Attribution
+
+A follow-up attribution pass on the two remaining required GStreamer failures
+separates them from both the kernel drivers and libmpp.
+
+`generated_transcode_h264_dmabuf_to_h265` is a JeffyCN `gstreamer-rockchip`
+caps-advertising bug. Unsandboxed controls showed:
+
+- `filesrc ! h264parse ! mppvideodec ! mpph265enc zero-copy-pkt=true !
+  h265parse ! fakesink` passes.
+- `filesrc ! h264parse ! mppvideodec dma-feature=true ! fakesink` passes.
+- `filesrc ! h264parse ! mppvideodec dma-feature=true ! mpph265enc
+  zero-copy-pkt=true ! h265parse ! fakesink` fails before preroll.
+
+The failing run's `GST_CAPS` trace shows `mppvideodec` setting
+`video/x-raw(memory:DMABuf), format=NV12, width=320, height=240` and then
+`mpph265enc:sink` rejecting those caps (`query returned EMPTY`,
+`not accepted`). Source inspection matches the trace:
+`gst_mpp_dec_update_video_info()` deliberately stamps the DMABuf memory feature
+when `dma-feature=true`, but `gst_mpp_h265_enc_sink_template` advertises only
+plain `video/x-raw`. The encoder's later path can import a single dmabuf memory
+through `gst_mpp_enc_convert()` / `gst_mpp_allocator_import_gst_memory()`, so
+the observed failure happens in GStreamer negotiation before any libmpp encode
+frame is submitted. A future pad-template/allocation fix could still uncover a
+second-stage import bug, but the current red case is not libmpp.
+
+`event_flush_dec_h264` is a malformed event-harness flush sequence, not an MPP
+library reset failure. The suite helper's `do_flush()` sends `FLUSH_START` and
+`FLUSH_STOP(TRUE)` directly to the decoder sink pad after one decoded buffer,
+then requires a post-event output buffer while upstream continues from the same
+file stream. Controls showed:
+
+- Direct H.264 `flush` reproduces the failure: `Got data flow before segment
+  event`, then `No valid frames decoded before end of stream`.
+- The same H.264 stream passes with `flush-seek`, which causes a fresh segment
+  to arrive before post-reset buffers.
+- Direct H.265 `flush` passes but still logs the same no-new-segment warning,
+  so the passing sibling is recovering from the malformed sequence rather than
+  validating the sequence as well-formed.
+
+The plugin does call the decoder reset path (`gst_mpp_dec_flush()` ->
+`gst_mpp_dec_reset()` -> `mpi->reset()`), and the H.264 `flush-seek` control
+proves the stack can recover when GStreamer restarts the stream with a valid
+post-flush segment and reference point. The failing direct-flush case is
+therefore owned by the GStreamer harness/protocol semantics, with the codec
+difference only deciding whether that malformed stream happens to limp through.
+
 ## 0075 Slice-FIFO Gate
 
 The bounded overflow gate ran as `20260725-195350-mpp-suite`:
