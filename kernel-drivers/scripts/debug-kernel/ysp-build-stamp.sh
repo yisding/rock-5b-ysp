@@ -53,9 +53,15 @@ function custom_kernel_make_params__ysp_real_build_stamp() {
 # path genuinely can move out from under the cache, and nothing upstream of ccache
 # can stop it.
 #
-# Trade-off, measured rather than asserted: with NOHASHDIR a reused object keeps
-# the DW_AT_comp_dir of whichever build first cached it. Same source built in two
-# directories, -g -gdwarf-5, CCACHE_BASEDIR set in both:
+# ENABLING THIS COSTS ONE FULL COLD BUILD. hash_dir is part of the key
+# COMPUTATION, so every object already cached with hash_dir=true becomes
+# unreachable the moment it is turned off -- measured: the same file, in the same
+# directory, misses when re-compiled with NOHASHDIR against a cache populated
+# without it. The benefit is entirely prospective: it starts with the build AFTER
+# this one, and only pays off when a path actually moves.
+#
+# Trade-off, also measured. Same source built in two directories, -g -gdwarf-5,
+# CCACHE_BASEDIR set in both:
 #
 #   default              hits=0 misses=2   b/t.o comp_dir = .../b   (correct)
 #   CCACHE_NOHASHDIR=1   hits=1 misses=1   b/t.o comp_dir = .../a   (stale)
@@ -71,4 +77,63 @@ function custom_kernel_make_params__ysp_real_build_stamp() {
 function kernel_make_config__ysp_ccache_nohashdir() {
 	display_alert "ysp-build-stamp" "CCACHE_NOHASHDIR=1 (worktree-path-independent cache)" "info"
 	common_make_envs+=("CCACHE_NOHASHDIR=1")
+}
+
+# Force LINUXFAMILY, which is the ONLY seam where that is possible.
+#
+# config-prepare.sh:141 does an unconditional LINUXFAMILY="${BOARDFAMILY}" after
+# every config is sourced, so neither a userpatches config nor a compile.sh
+# argument survives -- both were tried and measured failing. But this hook fires
+# at :226, after that reset and BEFORE LINUXSOURCEDIR is derived at :284, and
+# LINUXFAMILY is never made readonly. So a value set here reaches all three
+# consumers: the worktree path, the default patch dir, and the package name.
+#
+# Why rockchip64: it is what rockchip64_common.inc:28-42 sets for the branches
+# Armbian knows (current/edge/bleedingedge). The ysp flavors use a custom BRANCH
+# as their per-slot install mechanism, fall through that case, and inherit
+# BOARDFAMILY instead -- which Armbian renamed to rockchip-rk3588, silently
+# moving the patch dir, the worktree and the package name at once. There is no
+# mainline rockchip-rk3588 patch set, so this restores intent rather than pinning
+# to something stale.
+#
+# PAIRED WITH CCACHE_NOHASHDIR above: changing LINUXFAMILY moves the kernel
+# worktree, and the CWD is in every ccache object key unless NOHASHDIR is set.
+# Enabling this hook without that one throws the whole kernel cache away.
+#
+# THE 010_ PREFIX IS LOAD-BEARING. Armbian sorts hook implementors by function
+# name (extensions.sh:232,239), and common.conf's own
+# late_family_config__common_defaults_for_mainline_kernel binds at 500_. Without
+# a lower prefix ours sorts last as 500_ysp_*, and common.conf computes
+# KERNEL_PATCH_ARCHIVE_BASE (and the KERNELPATCHDIR/LINUXCONFIG defaults) from the
+# OLD family -- observed in a real build log as
+# "after late_family_config hooks [ KERNEL_PATCH_ARCHIVE_BASE='rockchip-rk3588' ]"
+# while LINUXFAMILY had already become rockchip64. Running first keeps the whole
+# derived set internally consistent.
+#
+# build-kernel.sh passes YSP_LINUXFAMILY; unset means "leave Armbian alone".
+function late_family_config__010_ysp_force_linuxfamily() {
+	[[ -n "${YSP_LINUXFAMILY:-}" ]] || return 0
+	[[ "${LINUXFAMILY}" == "${YSP_LINUXFAMILY}" ]] && return 0
+	display_alert "ysp-build-stamp" "LINUXFAMILY ${LINUXFAMILY} -> ${YSP_LINUXFAMILY} (late_family_config)" "info"
+	declare -g LINUXFAMILY="${YSP_LINUXFAMILY}"
+
+	# Forcing rockchip64 also switches ON two out-of-tree WiFi driver harnesses:
+	# drivers_network.sh:438 (rtl8852bs) and :548 (uwe5622) are gated on
+	# LINUXFAMILY being spacemit/rk35xx/rockchip64, which rockchip-rk3588 does not
+	# match. The seed config already carries CONFIG_RTL8852BS=m and
+	# CONFIG_SPARD_WLAN_SUPPORT=y; today olddefconfig drops them because the
+	# Kconfig entries do not exist, but after the rename they would exist and
+	# compile -- fetching a github tree and rewriting the realtek Makefile/Kconfig
+	# in the process.
+	#
+	# These are video-codec debug kernels. Silently gaining two out-of-tree WiFi
+	# drivers is not the change being made here, and they have never been built
+	# under KASAN + lockdep at 6.18.40. Skipping keeps the kernel's CONTENT
+	# identical to the rockchip-rk3588 build and confines this change to the slot
+	# name, which is its entire purpose. KERNEL_DRIVERS_SKIP is hashed into the
+	# D#### component (drivers-harness.sh:42-43), so the decision is visible in the
+	# package version. Drop these two entries to opt back in deliberately.
+	declare -g -a KERNEL_DRIVERS_SKIP
+	KERNEL_DRIVERS_SKIP+=(driver_rtl8852bs driver_uwe5622)
+	display_alert "ysp-build-stamp" "skipping out-of-tree WiFi drivers pulled in by rockchip64" "info"
 }

@@ -77,39 +77,63 @@ CODE="$(cd "$ROOT/.." && pwd)"                          # ~/Code (ysp is <CODE>/
 WORKSPACE="${WORKSPACE:-$CODE/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 BASE_TAG="${BASE_TAG:-v6.18}"                 # local-flavor patches are BASE_TAG..HEAD
-# LINUXFAMILY CANNOT BE PINNED. This was tried as a compile.sh argument and
-# MEASURED not to work: config-prepare.sh:141 does an unconditional
+# LINUXFAMILY: settable, but ONLY from a late_family_config extension hook.
 #
-#   LINUXFAMILY="${BOARDFAMILY}"
+# A compile.sh argument does NOT work and was measured failing:
+# config-prepare.sh:141 does an unconditional LINUXFAMILY="${BOARDFAMILY}" after
+# configs are sourced, so it clobbers config values and command-line values
+# alike. Armbian's own comment on that line concedes it ("this... shouldn't
+# happen, extensions might change it too"). A build run with the argument logged
+# it applied early, then "already set" after config, and still produced the
+# artifact kernel-rockchip-rk3588-video-port-kasan.
 #
-# AFTER the config is sourced, so it clobbers any config value and any
-# command-line value. Armbian's own comment on that line concedes the problem
-# ("this... shouldn't happen, extensions might change it too"). The build log
-# shows the argument applied early, reported "already set" after config, and the
-# artifact still named kernel-rockchip-rk3588-video-port-kasan.
+# The reachable seam is call_extension_method "late_family_config" at :226 --
+# after the :141 reset, and before LINUXSOURCEDIR is computed at :284.
+# LINUXFAMILY is never made readonly. So the hook lands in time to move all three
+# derived values together:
 #
-# LINUXFAMILY drives three things, and each needs its own answer:
-#
-#   patch dir      archive/${LINUXFAMILY}-${KERNEL_MAJOR_MINOR}
-#                  -> fixed by passing KERNELPATCHDIR explicitly, below. This is
-#                     the one that actually mattered: when Armbian renamed
-#                     rock-5b's BOARDFAMILY rockchip64 -> rockchip-rk3588, the
-#                     derived dir stopped existing and every patch was silently
-#                     skipped.
 #   worktree path  cache/sources/linux-kernel-worktree/${KERNEL_MAJOR_MINOR}__${LINUXFAMILY}__${ARCH}
-#                  -> NOT fixable here (LINUXSOURCEDIR at :284 is likewise an
-#                     unconditional declare -g). Mitigated instead by
-#                     CCACHE_NOHASHDIR=1, set from the ysp-build-stamp extension:
-#                     measured, two dirs with identical source and -gdwarf-5 get
-#                     0 hits with CCACHE_BASEDIR alone and 1 hit with NOHASHDIR.
+#   patch dir      archive/${LINUXFAMILY}-${KERNEL_MAJOR_MINOR}
 #   package name   linux-image-${BRANCH}-${LINUXFAMILY}
-#                  -> follows Armbian. Discovered below rather than assumed, so
-#                     the STEP 6 result glob matches what is actually built.
+#
+# rockchip64 is the value Armbian itself uses for a mainline branch
+# (rockchip64_common.inc:28-42, for current/edge/bleedingedge); these flavors use
+# a custom BRANCH as their install-slot mechanism, fall through that case, and so
+# inherit BOARDFAMILY instead. Forcing it back also realigns the install slot with
+# what install-kernel.sh and the docs describe.
+#
+# Moving the worktree normally costs the entire kernel ccache, because hash_dir
+# puts the CWD in every object key -- that is why the extension also sets
+# CCACHE_NOHASHDIR=1. The two changes are a pair; do not adopt one without the
+# other.
+#
+# EXPECT THE FIRST BUILD AFTER THIS TO BE FULLY COLD. NOHASHDIR is not a rescue
+# for the cache that already exists: hash_dir participates in the key
+# computation, so flipping it strands every object stored under the old scheme.
+# Measured -- the same file in the same directory misses when rebuilt with
+# NOHASHDIR against a cache populated without it. The benefit begins with the
+# build after that, and only when a path actually moves.
+#
+# Forcing the family also enables two out-of-tree WiFi driver harnesses that only
+# rockchip64 pulls in; the extension adds them to KERNEL_DRIVERS_SKIP so kernel
+# CONTENT stays identical and this change stays confined to the slot name. See
+# the hook for the reasoning.
+#
+# Set ARMBIAN_LINUXFAMILY= (empty) to leave Armbian's value alone.
+ARMBIAN_LINUXFAMILY="${ARMBIAN_LINUXFAMILY-rockchip64}"
+
+# The family the produced debs will actually carry, used only for the STEP 6
+# result glob: what we force, or -- when the override is disabled -- whatever
+# Armbian would default to from the board config.
 ARMBIAN_BOARD_CONF="$ARMBIAN_BUILD/config/boards/rock-5b.conf"
-ARMBIAN_LINUXFAMILY="${ARMBIAN_LINUXFAMILY:-$(sed -n 's/^BOARDFAMILY="\([^"]*\)".*/\1/p' "$ARMBIAN_BOARD_CONF" 2>/dev/null | head -1)}"
+if [ -n "$ARMBIAN_LINUXFAMILY" ]; then
+	SLOT_FAMILY="$ARMBIAN_LINUXFAMILY"
+else
+	SLOT_FAMILY="$(sed -n 's/^BOARDFAMILY="\([^"]*\)".*/\1/p' "$ARMBIAN_BOARD_CONF" 2>/dev/null | head -1)"
+fi
 # Not die(): that is defined further down, and this runs first.
-[ -n "$ARMBIAN_LINUXFAMILY" ] || {
-	printf 'ERROR: could not read BOARDFAMILY from %s\n' "$ARMBIAN_BOARD_CONF" >&2
+[ -n "$SLOT_FAMILY" ] || {
+	printf 'ERROR: could not determine LINUXFAMILY (BOARDFAMILY unreadable in %s)\n' "$ARMBIAN_BOARD_CONF" >&2
 	exit 1
 }
 
@@ -638,7 +662,7 @@ if [ "$ARMBIAN_KERNELPATCHDIR" != "archive/$KBRANCH" ] && [ "${ARMBIAN_KERNELPAT
     Armbian would read patches from somewhere this script never wrote.
     Set ARMBIAN_KERNELPATCHDIR_FORCE=1 if that is genuinely intended."
 fi
-say "  family: $ARMBIAN_LINUXFAMILY   patch dir: $ARMBIAN_KERNELPATCHDIR ($staged_count userpatches staged)"
+say "  family: $SLOT_FAMILY${ARMBIAN_LINUXFAMILY:+ (forced via late_family_config)}   patch dir: $ARMBIAN_KERNELPATCHDIR ($staged_count userpatches staged)"
 
 # Marker so STEP 6 judges THIS build's output. Without it the result check reads
 # whatever deb is newest, including a stale one from a previous failed run.
@@ -658,6 +682,7 @@ if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 		USE_TMPFS="$ARMBIAN_USE_TMPFS" \
 		ENABLE_EXTENSIONS="$STAMP_EXT_NAME" \
 		KERNELPATCHDIR="$ARMBIAN_KERNELPATCHDIR" \
+		${ARMBIAN_LINUXFAMILY:+YSP_LINUXFAMILY="$ARMBIAN_LINUXFAMILY"} \
 		${ARMBIAN_KERNELBRANCH:+KERNELBRANCH="$ARMBIAN_KERNELBRANCH"} \
 		${ARMBIAN_CLEAN_LEVEL:+CLEAN_LEVEL="$ARMBIAN_CLEAN_LEVEL"} \
 		${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}
@@ -677,6 +702,7 @@ else
 	# Must match the debug branch above; see the pre-flight note about the two
 	# call sites drifting apart.
 	EXTRA_ARGS+=("KERNELPATCHDIR=$ARMBIAN_KERNELPATCHDIR")
+	[ -n "$ARMBIAN_LINUXFAMILY" ] && EXTRA_ARGS+=("YSP_LINUXFAMILY=$ARMBIAN_LINUXFAMILY")
 	./compile.sh "$FLAVOR_CONFIG_NAME" kernel \
 		KERNEL_CONFIGURE=no \
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
@@ -697,7 +723,7 @@ say "  shared ccache store: $(du -shL "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null 
 # partial list that looks like success. The family is pinned, so the full
 # BRANCH-FAMILY name is knowable and avoids matching the sibling debug slot
 # (linux-image-video-port-* would otherwise also match video-port-kasan-*).
-SLOT="${FLAVOR_BRANCH}-${ARMBIAN_LINUXFAMILY}"
+SLOT="${FLAVOR_BRANCH}-${SLOT_FAMILY}"
 say "  newest ${SLOT} debs:"
 find "$DEBS" -maxdepth 1 \( -name "linux-image-$SLOT""_*.deb" -o -name "linux-dtb-$SLOT""_*.deb" \
 	-o -name "linux-headers-$SLOT""_*.deb" \) -printf '%T@ %p\n' 2>/dev/null |

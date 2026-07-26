@@ -9,9 +9,14 @@
 # with "BAD config, missing KERNEL_MAJOR_MINOR". Declaring them here is what
 # makes a custom slot name work without patching the Armbian tree.
 #
-# KERNELPATCHDIR needs no override: common.conf derives it as
-# archive/${KERNEL_PATCH_ARCHIVE_BASE}-${KERNEL_MAJOR_MINOR}, which resolves to
-# the same rockchip64-6.18 archive the stock `current` branch uses.
+# KERNELPATCHDIR DOES need an override, and build-kernel.sh passes one. This
+# comment used to claim otherwise -- that common.conf derives
+# archive/${KERNEL_PATCH_ARCHIVE_BASE}-${KERNEL_MAJOR_MINOR} and lands on
+# rockchip64-6.18 anyway. It does not: KERNEL_PATCH_ARCHIVE_BASE defaults to
+# LINUXFAMILY, which for a custom BRANCH falls through rockchip64_common.inc's
+# case and inherits BOARDFAMILY (now rockchip-rk3588). Believing this comment is
+# exactly how a build once applied ZERO patches and still shipped installable
+# debs. See findings/2026-07-25-armbian-linuxfamily-rename-silent-patch-free-kernel.md.
 
 BOARD="rock-5b"
 BRANCH="video-port"
