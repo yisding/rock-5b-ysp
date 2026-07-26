@@ -77,10 +77,34 @@ CODE="$(cd "$ROOT/.." && pwd)"                          # ~/Code (ysp is <CODE>/
 WORKSPACE="${WORKSPACE:-$CODE/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 BASE_TAG="${BASE_TAG:-v6.18}"                 # local-flavor patches are BASE_TAG..HEAD
-# Armbian kernel patch archive branch. This names BOTH the directory this script
-# stages patches into and the one Armbian reads them from -- see
-# ARMBIAN_KERNELPATCHDIR below, which is what keeps the two in step.
-KBRANCH="${KBRANCH:-rockchip64-6.18}"
+# THE ROOT VARIABLE. Armbian assigns LINUXFAMILY="${BOARDFAMILY}"
+# (lib/functions/main/config-prepare.sh:141) and derives THREE things from it,
+# all of which matter to us:
+#
+#   worktree path  cache/sources/linux-kernel-worktree/${KERNEL_MAJOR_MINOR}__${LINUXFAMILY}__${ARCH}
+#   patch dir      archive/${LINUXFAMILY}-${KERNEL_MAJOR_MINOR}
+#   package name   linux-image-${BRANCH}-${LINUXFAMILY}
+#
+# rockchip64_common.inc sets LINUXFAMILY=rockchip64 for the branches it knows
+# (current/edge/bleedingedge), but these flavors use a custom BRANCH that falls
+# through its case -- so LINUXFAMILY silently stayed at BOARDFAMILY, and when
+# Armbian renamed rock-5b's BOARDFAMILY rockchip64 -> rockchip-rk3588, all three
+# moved at once: patches stopped applying, the worktree moved (invalidating every
+# ccache entry, since hash_dir hashes the CWD), and the package slot renamed.
+# Declaring LINUXFAMILY in the userpatches config does NOT work -- config-prepare
+# assigns it after that config is sourced. It has to be a compile.sh argument.
+#
+# This restores the value Armbian itself uses for a mainline branch; it is not
+# "staying behind" on an old family. rockchip-rk3588.conf defines only legacy
+# (5.10) and vendor (6.1) branches, both setting LINUXFAMILY=rk35xx with the
+# rk35xx-* patch dirs. No mainline rockchip-rk3588 patch set exists -- there is
+# no such directory in the tree -- so for 6.18 that name has nothing behind it.
+ARMBIAN_LINUXFAMILY="${ARMBIAN_LINUXFAMILY:-rockchip64}"
+
+# Armbian kernel patch archive branch, derived from the family above so the two
+# cannot disagree. Names BOTH the directory this script stages patches into and
+# the one Armbian reads them from -- see ARMBIAN_KERNELPATCHDIR below.
+KBRANCH="${KBRANCH:-$ARMBIAN_LINUXFAMILY-6.18}"
 
 # THE SILENT-NO-OP GOTCHA: Armbian derives KERNELPATCHDIR as
 # "archive/${LINUXFAMILY}-${KERNEL_MAJOR_MINOR}" (config/sources/common.conf) and
@@ -379,6 +403,9 @@ reset_debug_kernel_config() {
 # config plus the shared instrumentation fragment it sources, and seed the
 # base .config from the running kernel.
 stage_flavor_debug_files() {
+	# Reinstalled unconditionally on purpose: STEP 2+3's rsync --delete drops this
+	# patch (it is not part of the generated series), and that deletion is what
+	# keeps it OFF production builds, which have no counterpart that removes it.
 	install -D -m 0644 "$RAMOOPS_PATCH_SOURCE" "$RAMOOPS_PATCH_DEST"
 	install -D -m 0644 "$DEBUG_KERNEL_DIR/config-$FLAVOR_CONFIG_NAME.conf.sh" \
 		"$USERPATCHES_DIR/config-$FLAVOR_CONFIG_NAME.conf.sh"
@@ -474,14 +501,30 @@ done
 say "  generated $(ls "$STAGING"/"$PATCH_PREFIX"-*.patch | wc -l) patches into $STAGING"
 
 # =============================================================================
-say "STEP 2: reset Armbian userpatches in $UP_DIR"
-# This archive directory is generated state for these kernel builds. Reset all
-# top-level patches so switching flavors cannot leave stale patches behind.
-reset_userpatches
-
-# =============================================================================
-say "STEP 3: stage generated userpatches"
-cp -v "$STAGING"/"$PATCH_PREFIX"-*.patch "$UP_DIR"/ | sed 's/^/      /'
+say "STEP 2+3: sync generated userpatches into $UP_DIR"
+# This archive directory is generated state for these kernel builds, and the end
+# state is exactly the flavor's generated series: --delete still drops patches a
+# different flavor left behind, which is what the old reset-then-copy achieved.
+#
+# The difference is -c (compare by CHECKSUM, not size+mtime): a rebuild whose
+# series is unchanged rewrites nothing, so the patch files keep their mtimes
+# instead of every file looking brand new to everything downstream. The previous
+# unconditional `reset_userpatches` + `cp` guaranteed churn on all 75 patches on
+# every single build, even a no-op rebuild.
+#
+# format-patch output is deterministic for a fixed commit range (--no-signature,
+# and the From: date is git's fixed sentinel), so byte-comparison is meaningful.
+# -d, not -r: rsync REFUSES --delete without one of them ("--delete does not work
+# without --recursive (-r) or --dirs (-d)"), which is a hard usage error, not a
+# warning. -d is the right one here -- $STAGING is flat, and -d cannot descend
+# into an unexpected subdirectory. --exclude='*' then protects everything in
+# $UP_DIR that is not a *.patch, including Armbian's branch_*/board_*/target_*
+# subdirectories and the *.patch.disabled files STEP 4 creates.
+command -v rsync >/dev/null || die "rsync is required to stage userpatches"
+mkdir -p "$UP_DIR"
+rsync -cd --delete --itemize-changes \
+	--include='*.patch' --exclude='*' \
+	"$STAGING"/ "$UP_DIR"/ | sed 's/^/      /'
 say "  userpatches now:"; ls "$UP_DIR" | sed 's/^/      /'
 
 # =============================================================================
@@ -533,6 +576,27 @@ say "STEP 5: build $FLAVOR (ccache=$ARMBIAN_USE_CCACHE; tmpfs=$ARMBIAN_USE_TMPFS
 # symlink unless told to follow it, which would silently flatten this diagnostic.
 say "  ccache dir before: $(du -shL "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)"
 cd "$ARMBIAN_BUILD"
+
+# Pre-flight, for BOTH branches below. The directory we tell Armbian to read must
+# be the one we staged into, and it must actually contain patches -- otherwise a
+# family rename downstream silently yields a patch-free kernel that still
+# packages. Deliberately hoisted above the if/else: the two compile.sh call sites
+# having separate argument lists is exactly how KERNELPATCHDIR got applied to
+# only one flavor the first time this was fixed.
+[ -d "$UP_DIR" ] || die "userpatch dir missing after staging: $UP_DIR"
+# find, not ls: under `set -o pipefail` a no-match ls aborts the script before the
+# explanatory die below can run.
+staged_count=$(find "$UP_DIR" -maxdepth 1 -name '*.patch' | wc -l)
+[ "$staged_count" -gt 0 ] || die "no patches staged in $UP_DIR; refusing to build a patch-free kernel"
+[ "$ARMBIAN_KERNELPATCHDIR" = "archive/$KBRANCH" ] \
+	|| say "  NOTE: KERNELPATCHDIR overridden to $ARMBIAN_KERNELPATCHDIR (staged in archive/$KBRANCH)"
+say "  family: $ARMBIAN_LINUXFAMILY   patch dir: $ARMBIAN_KERNELPATCHDIR ($staged_count userpatches staged)"
+
+# Marker so STEP 6 judges THIS build's output. Without it the result check reads
+# whatever deb is newest, including a stale one from a previous failed run.
+BUILD_MARKER="$(mktemp -t ysp-build-marker.XXXXXX)"
+trap 'rm -f "$BUILD_MARKER"' EXIT
+
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	check_debug_build_deps
 	say "  kernel tip: $(git -C "$KERNEL_TREE" log -1 --format='%h %s' HEAD)"
@@ -543,6 +607,9 @@ if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
 		USE_TMPFS="$ARMBIAN_USE_TMPFS" \
 		ENABLE_EXTENSIONS="$STAMP_EXT_NAME" \
+		LINUXFAMILY="$ARMBIAN_LINUXFAMILY" \
+		KERNELPATCHDIR="$ARMBIAN_KERNELPATCHDIR" \
+		${ARMBIAN_KERNELBRANCH:+KERNELBRANCH="$ARMBIAN_KERNELBRANCH"} \
 		${ARMBIAN_CLEAN_LEVEL:+CLEAN_LEVEL="$ARMBIAN_CLEAN_LEVEL"} \
 		${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}
 else
@@ -558,20 +625,10 @@ else
 	# Only override the base when explicitly asked; otherwise the flavor's own
 	# Armbian config decides (see ARMBIAN_KERNELBRANCH above).
 	[ -n "$ARMBIAN_KERNELBRANCH" ] && EXTRA_ARGS+=("KERNELBRANCH=$ARMBIAN_KERNELBRANCH")
-
-	# Pre-flight: the directory we are about to tell Armbian to read must be the
-	# one we actually staged into, and it must have patches in it. Without this,
-	# a family rename downstream silently produces a patch-free kernel.
-	[ -d "$UP_DIR" ] || die "userpatch dir missing after staging: $UP_DIR"
-	# find, not ls: under `set -o pipefail` a no-match ls aborts the script before
-	# the explanatory die below can run.
-	staged_count=$(find "$UP_DIR" -maxdepth 1 -name '*.patch' | wc -l)
-	[ "$staged_count" -gt 0 ] || die "no patches staged in $UP_DIR; refusing to build a patch-free kernel"
-	[ "$ARMBIAN_KERNELPATCHDIR" = "archive/$KBRANCH" ] \
-		|| say "  NOTE: KERNELPATCHDIR overridden to $ARMBIAN_KERNELPATCHDIR (staged in archive/$KBRANCH)"
-	say "  patch dir: $ARMBIAN_KERNELPATCHDIR ($staged_count userpatches staged)"
+	# Must match the debug branch above; see the pre-flight note about the two
+	# call sites drifting apart.
+	EXTRA_ARGS+=("LINUXFAMILY=$ARMBIAN_LINUXFAMILY")
 	EXTRA_ARGS+=("KERNELPATCHDIR=$ARMBIAN_KERNELPATCHDIR")
-
 	./compile.sh "$FLAVOR_CONFIG_NAME" kernel \
 		KERNEL_CONFIGURE=no \
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
@@ -589,7 +646,14 @@ say "  ccache dir after:  $(du -shL "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | 
 say "  newest ${FLAVOR_BRANCH} debs:"
 ls -t "$DEBS"/linux-image-"$FLAVOR_BRANCH"-*_*.deb "$DEBS"/linux-dtb-"$FLAVOR_BRANCH"-*_*.deb \
 	"$DEBS"/linux-headers-"$FLAVOR_BRANCH"-*_*.deb 2>/dev/null | head -3 | sed 's/^/      /'
-NEW=$(ls -t "$DEBS"/linux-image-"$FLAVOR_BRANCH"-*_*.deb 2>/dev/null | head -1)
+# -newer "$BUILD_MARKER": only consider debs this run produced. A stale deb from
+# a previous failed run would otherwise be reported as "this build's hash".
+# Sort by mtime and take the newest: find emits in directory order, so a bare
+# `head -1` would pick an arbitrary deb when more than one matches, and could
+# report another build's hash as this one's.
+NEW=$(find "$DEBS" -maxdepth 1 -name "linux-image-$FLAVOR_BRANCH-*_*.deb" \
+	-newer "$BUILD_MARKER" -printf '%T@ %p\n' 2>/dev/null |
+	sort -rn | head -1 | cut -d' ' -f2-)
 PH=$(basename "$NEW" 2>/dev/null | grep -oE 'P[0-9a-f]{4,}-C[0-9a-f]{4,}' || true)
 [ -n "$PH" ] && say "This build's hash: $PH"
 
@@ -603,7 +667,7 @@ if [ -n "$NEW" ] && basename "$NEW" | grep -q -- '-P0000-'; then
     Check that Armbian's 'Using kernel patch dir' matches archive/$KBRANCH."
 fi
 if [ -z "$NEW" ]; then
-	say "  WARNING: no linux-image deb found for $FLAVOR_BRANCH; the build may not have packaged"
+	die "no linux-image deb was produced for $FLAVOR_BRANCH by this run."
 fi
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	say "DONE. After install.md recovery prep, install with:"

@@ -30,27 +30,32 @@ stays the master list.
 > The two ccache traps below are expanded into a complete operational guide:
 > [kernel build ccache guide](../kernel-drivers/docs/kernel-build-ccache.md).
 
-**A renamed Armbian BOARDFAMILY silently produces a patch-free kernel that still
-packages and installs.** Armbian derives `KERNELPATCHDIR` as
-`archive/${LINUXFAMILY}-${KERNEL_MAJOR_MINOR}`
-(`config/sources/common.conf`), and the ysp flavors use a custom `BRANCH` that
-falls through the family config's `case`, so the value tracks whatever family the
-Armbian tree currently assigns the board. On 2026-07-25 Armbian's
-`config/boards/rock-5b.conf` carried `BOARDFAMILY="rockchip-rk3588"`, so Armbian
-read `archive/rockchip-rk3588-6.18` — **a directory that does not exist** — while
-`build-kernel.sh` staged into `archive/rockchip64-6.18`. Both the Armbian core
-patches and all 75 generated userpatches were skipped. There is **no error**: the
-build ran 2h10m, produced four installable debs named
-`linux-image-video-port-kasan-…`, and the shipped kernel contained a stock 6.18.40
-with KASAN and *none* of the vendor video port. Only a config grep for
-`CONFIG_ROCKCHIP_MPP` caught it. Tells: the deb version carries **`-P0000-`** (the
-patch-set hash of an empty patch set), and the log line `Using kernel patch dir:`
-names a directory that is not `archive/$KBRANCH`. Fix: `build-kernel.sh` now
-passes `KERNELPATCHDIR` explicitly (Armbian only defaults it when unset, so an
-explicit value wins), refuses to build when nothing is staged, and dies on a
-`P0000` deb rather than handing back a plausible, installable, wrong kernel. Note
-the produced package name still follows Armbian's current family, so the install
-slot is `…-rockchip-rk3588`, not the `…-rockchip64` older docs describe.
+**`LINUXFAMILY` is one variable behind three unrelated things, and an upstream
+rename of it silently produced a patch-free kernel that still packages and
+installs — while discarding the whole kernel ccache.** Armbian assigns
+`LINUXFAMILY="${BOARDFAMILY}"` (`lib/functions/main/config-prepare.sh:141`) and
+derives from it the **worktree path**
+(`linux-kernel-worktree/${KERNEL_MAJOR_MINOR}__${LINUXFAMILY}__${ARCH}`, `:284`),
+the **patch dir** (`archive/${LINUXFAMILY}-${KERNEL_MAJOR_MINOR}`,
+`config/sources/common.conf`), and the **package name**
+(`linux-image-${BRANCH}-${LINUXFAMILY}`). `rockchip64_common.inc:28-42` sets
+`LINUXFAMILY=rockchip64` only for `current`/`edge`/`bleedingedge`; the ysp flavors
+use custom `BRANCH` names as their install-slot mechanism, fall through that
+`case`, and inherit `BOARDFAMILY` — which Armbian moved to `rockchip-rk3588`. All
+three moved at once. `archive/rockchip-rk3588-6.18` **does not exist**, so both the
+Armbian core patches and all 75 generated userpatches were skipped with **no
+error**: a 2h10m build produced four installable debs named
+`linux-image-video-port-kasan-…` containing a stock 6.18.40 + KASAN with *none* of
+the vendor video port. Only a config grep for `CONFIG_ROCKCHIP_MPP` caught it.
+Tells: **`-P0000-`** in the deb version (Armbian's hash of an empty patch set), and
+a `Using kernel patch dir:` line naming anything other than `archive/$KBRANCH`.
+The same rename also renamed the worktree, which invalidates every kernel ccache
+entry — see the ccache guide's note on `hash_dir`. Fix: `build-kernel.sh` pins
+`LINUXFAMILY` **as a compile.sh argument** (declaring it in the userpatches config
+does nothing — `config-prepare.sh:141` runs after that config is sourced), derives
+`KBRANCH` from it, passes `KERNELPATCHDIR` as redundant defence, refuses to build
+with nothing staged, and dies on a `P0000` deb. Full derivation in
+[`../findings/2026-07-25-armbian-linuxfamily-rename-silent-patch-free-kernel.md`](../findings/2026-07-25-armbian-linuxfamily-rename-silent-patch-free-kernel.md).
 
 **Armbian mounts build directories as tmpfs at 99% of RAM, on every build.**
 `prepare_tmpfs_for()` (`lib/functions/host/tmpfs-utils.sh`) mounts **both**

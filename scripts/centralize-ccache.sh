@@ -191,6 +191,19 @@ ensure_central() {
 # rebuilds its Docker image with a fresh 'apt install gcc', and the default
 # mtime check would treat byte-identical gcc as a new compiler and miss the
 # entire cache.
+#
+# sloppiness is deliberately EMPTY. include_file_mtime/include_file_ctime were
+# tried and reverted: ccache's timestamp check fires only when a source or
+# include file is as new as the CURRENT ccache invocation, and Armbian writes the
+# generated headers minutes before any compile starts, so the check cannot fire
+# in this workload. Relaxing it therefore buys nothing while widening the window
+# in which a file modified mid-compile is stored under its pre-modification key
+# -- and a poisoned entry in a store shared by the kernel, Mesa, MPP and FFmpeg
+# persists until someone runs 'ccache -C'.
+#
+# time_macros stays unset for a different reason: ccache already caches __DATE__
+# files correctly by hashing the current date. Setting it is what would bake in a
+# stale date.
 max_size = $MAX_SIZE
 compiler_check = content
 umask = 002

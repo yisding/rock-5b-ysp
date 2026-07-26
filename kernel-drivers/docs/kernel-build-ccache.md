@@ -216,6 +216,40 @@ absolute source paths in cache keys. In the established Docker workflow,
 renaming the host workspace has not invalidated the compiler cache because the
 container continues to see `/armbian`.
 
+> **That protection does not cover the worktree directory itself.** Armbian names
+> the kernel worktree
+> `linux-kernel-worktree/${KERNEL_MAJOR_MINOR}__${LINUXFAMILY}__${ARCH}`
+> (`lib/functions/main/config-prepare.sh:284`). The kernel compiles with
+> `-g -gdwarf-5` and **no** `-fdebug-prefix-map`, and ccache's `hash_dir` defaults
+> to true, so the working directory is part of every object's cache key. Anything
+> that changes `LINUXFAMILY` therefore relocates the worktree and invalidates the
+> **entire kernel half** of the shared store — silently, and with no obvious
+> symptom beyond a build that should have been warm coming back cold. This is
+> exactly what happened when Armbian renamed rock-5b's `BOARDFAMILY` to
+> `rockchip-rk3588`; both `6.18__rockchip64__arm64` and
+> `6.18__rockchip-rk3588__arm64` still exist side by side under
+> `cache/sources/linux-kernel-worktree/`. `build-kernel.sh` now pins
+> `LINUXFAMILY` as a `compile.sh` argument to stop the path from moving. Full
+> derivation:
+> [`../../findings/2026-07-25-armbian-linuxfamily-rename-silent-patch-free-kernel.md`](../../findings/2026-07-25-armbian-linuxfamily-rename-silent-patch-free-kernel.md).
+
+If the path ever must change, the durable fixes are `base_dir` plus
+`-fdebug-prefix-map`, or `hash_dir = false`. Neither is currently applied:
+`hash_dir = false` yields a wrong `DW_AT_comp_dir` in debug info, which is a poor
+trade for a KASAN kernel whose purpose is legible traces, and `-fdebug-prefix-map`
+means injecting `KCFLAGS` — which this guide otherwise tells you not to do.
+
+### Why a Kconfig change is not the whole story
+
+`sloppiness` is deliberately empty in the shared store, and the reasoning is
+recorded in `scripts/centralize-ccache.sh`. The short version: ccache's timestamp
+check fires only when a source or include file is as new as the **current ccache
+invocation**, and Armbian writes the generated headers minutes before any compile
+starts — so relaxing it buys nothing here while widening the window for a
+poisoned entry in a store shared with Mesa, MPP and FFmpeg. When a rebuild that
+should be warm comes back cold, check the worktree path before reaching for
+sloppiness.
+
 Two timestamp effects remain distinct:
 
 1. Regenerating and applying the patch stack changes source mtimes, so Kbuild
