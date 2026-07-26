@@ -66,16 +66,18 @@ The normal and sanitizer object-lifecycle gates cover capability hiding,
 config/surface attributes, coded-segment mapping, byte-exact NV12 upload and
 readback, surface status, dimension mismatch, and oversized-context rejection.
 
-The board-level overlap gate also passed: a longer 96-frame FFmpeg/GStreamer
-encode run completed while the shipping synthetic decode matrix exercised six
-H.264 reference/B-frame combinations, 4K H.264, five VP9 runs, and unadvertised
-VP8 software fallback. Both independent MPP workloads completed cleanly.
+The board-level overlap gate also passed. It was subsequently strengthened at
+`b579bad`: concurrent 96-frame H.264 and HEVC encoder runs completed while the
+shipping synthetic decode matrix exercised six H.264 reference/B-frame
+combinations, 4K H.264, five VP9 runs, and unadvertised VP8 software fallback.
+All three independent MPP workloads completed cleanly.
 
 ## Boundary
 
 This is deliberately an experimental frame-level path. It supports progressive
 NV12, H.264 Main/High, CQP/CBR/VBR, MPP-generated headers, and one full-frame
-slice. It does not yet prove multi-slice operation, additional input formats,
-HEVC encode, a WebRTC sender, browser encoder integration, or long-duration
-encode soak. The one-slice limit also avoids claiming coverage beyond the
-kernel RKVENC2 slice-FIFO hardening already validated elsewhere in this repo.
+slice. HEVC Main encode is validated separately at `b579bad`; multi-slice
+operation, additional input formats, a WebRTC sender, browser encoder
+integration, and long-duration encode soak remain open. The one-slice limit
+also avoids claiming coverage beyond the kernel RKVENC2 slice-FIFO hardening
+already validated elsewhere in this repo.
