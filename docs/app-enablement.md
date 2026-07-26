@@ -79,7 +79,7 @@ take (V4L2).
 | Kodi | libavcodec + DRM PRIME | Already tracked: [`apps/kodi`](../apps/kodi/README.md); build/tty1 gate remains |
 | OBS | libavcodec encoders | Hours–a day; cheapest encode win after the CLI |
 | HandBrake | bundled FFmpeg + own encoder registry | Days; encode is the realistic value |
-| VLC | libavcodec *hwaccels*, not named wrappers | Days–weeks of patching; recommend skipping |
+| VLC | libavcodec VAAPI hwaccel | Modules are installed and selected, but dummy headless vout provides no decoder device and falls back before loading rockchip-vaapi. Gate in a real Wayland/X11/DRM session; patching is not yet shown necessary. |
 | Firefox | **VA-API only** on Rockchip | H.264+VP9 works **today** via rockchip-vaapi (sandbox off); solid via the fork-and-renovate plan. It cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the ffmpeg rkmpp wrapper decoders (not a hwaccel) — see the [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
 | Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | Renovated rockchip-vaapi + a 1–3 week hardening pass (stock builds, runtime flags); or ~3–6 weeks re-targeting the libv4l-rkmpp shim (custom builds forever); or maxline |
 
