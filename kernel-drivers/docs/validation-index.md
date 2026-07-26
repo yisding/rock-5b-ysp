@@ -6,7 +6,8 @@ tracks are validated with one shared harness:
 
 - **Forward-port** (`av1-fwport`, tree `linux-6.18-rkvenc-av1-fwport`) — the BSP
   driver forward-ported to 6.18. **The currently hardware-validated stack.**
-- **Rewrite** (`rk3588-rewrite-6.18` / `rk3588-rewrite-mainline`) — the
+- **Rewrite** (`rk3588-rewrite-6.18` / `rk3588-rewrite-mainline`, plus the
+  dedicated `rk3588-rewrite-av1-6.18`) — the
   clean-room reimplementation. **No booted-hardware evidence yet.** It does not
   replace the forward-port until the rewrite definition-of-done (below) is met.
   The tips move faster than this page: they are maintained in
@@ -28,9 +29,10 @@ If two docs disagree, the table above wins — for the *concerns* it routes. It
 does not win on a moving commit hash or a gate result whose owning doc is
 fresher; check the date on both before treating a row here as current.
 
-Current reconciled numbers are **MPP KUnit = 85, RGA KUnit = 147, total = 232**
-(the gate scripts require exactly `85`/`147`). Older docs may still cite the
-superseded `86`/`122`/`208` at tips `8469183da227` / `9ff18809b5e0`.
+Current AV1-branch numbers are **MPP KUnit = 89, RGA KUnit = 147, total = 236**
+(the gate scripts require exactly `89`/`147`). The shared non-AV1 line has 85
+MPP cases; older docs may also cite the superseded `86`/`122`/`208` at tips
+`8469183da227` / `9ff18809b5e0`.
 
 ## Coverage matrix — what is proven, per track
 
@@ -45,8 +47,8 @@ superseded `86`/`122`/`208` at tips `8469183da227` / `9ff18809b5e0`.
 | KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ❌ (KUnit-under-KASAN not booted) |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | `*-repro.c`, `rga-session-uaf.sh` | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
-| Booted KUnit (85 MPP + 147 RGA = 232) | `rewrite-kunit-log-check.sh` | — | ❌ machinery ready, never booted-green |
-| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ all 6 profiles green 2026-07-23 at the *then*-current `1fe46df`/`ec9a4a06`; the tips have moved twice since, and the packaged gate from the committed tip is owed; not hardware |
+| Booted KUnit (89 MPP + 147 RGA = 236) | `rewrite-kunit-log-check.sh` | — | ❌ machinery ready, never booted-green |
+| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ✅ dedicated AV1 6.18 tip `402fc9c0bd785` passed all three clean-archive profiles warning-free on 2026-07-26, including Rockchip and VSI IOMMU providers; not hardware |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ never booted |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`, `syzkaller/` | ⚠️ ran without KCOV | ❌ |
@@ -63,20 +65,20 @@ and the soak are gaps for **both** tracks.
 **Rewrite — the big one: no booted evidence exists.** Everything in the
 definition-of-done requires a booted rewrite kernel, and none has ever run.
 Gap-audit [§ six board runs](./rewrite-conformance-gap-audit.md) enumerates the
-minimum set. The clean-source build gate **was re-run green (all six
-normal/memory/race profiles) on 2026-07-23 at the then-current
-`1fe46df`/`ec9a4a06` tip** — but that is compile evidence, not hardware, and
-the tips have advanced twice since, so it is also no longer evidence about the
-committed code. See [`rewrite-drivers.md`](./rewrite-drivers.md) for the tips
-and what is proven at each.
+minimum set. The clean-source build gate **was re-run green for all three 6.18
+AV1 profiles at `402fc9c0bd785` on 2026-07-26**. That is current compile
+evidence, not hardware. See [`rewrite-drivers.md`](./rewrite-drivers.md) for
+the distinct shared, AV1, and mainline pins and what is proven at each.
 
 **Rewrite — instrumentation debt:** an *active* (outstanding-reference) fence
 counter is needed before RGA fence cleanup can be asserted — `release_fence_count`
 is cumulative. This must land in the driver before a gate can check it.
 
-**Rewrite — AV1:** the rewrite does not bind the VPU981/AV1 block at all. Separate
-scoped implementation, tracked in [`../av1/docs/av1-rewrite-assessment.md`](../av1/docs/av1-rewrite-assessment.md);
-AV1 stays diagnostic-only in the suites so the omission is explicit.
+**Rewrite — AV1:** the dedicated 6.18 branch now binds the VPU981/AV1 block and
+is warning-free under all three clean-archive profiles. It still has no booted
+KUnit, direct decode, AFBC, recovery, or differential hardware evidence. The
+implementation boundary is tracked in
+[`../av1/docs/av1-rewrite-assessment.md`](../av1/docs/av1-rewrite-assessment.md).
 
 **Both tracks:** fault-injection/recovery matrix, fuzzing under KCOV/KASAN, the
 72 h soak, and the perf ratio have no runs on either track.
@@ -121,11 +123,9 @@ The definition-of-done lives in [`rewrite-validation-plan.md` §7](./rewrite-val
    AVS2 elementary-stream asset (cannot be generated); build a rewrite debug
    package (Kernel A = KASAN/UBSAN/lockdep/fault-injection + KUnit; Kernel B =
    KCSAN) at the current tip.
-1. **Re-run `rewrite-build-gate.sh`** (normal/memory/race) at the current tip —
-   green 2026-07-23 at `1fe46df`/`ec9a4a06`, but **owed again**: the tips have
-   advanced twice and the last run used a worktree copy rather than a
-   `git archive` of the committed HEAD.
-2. **Boot Kernel A + Kernel B**; persist a **232-case green KUnit report**
+1. **Keep `rewrite-build-gate.sh` green** (normal/memory/race) at each candidate
+   tip. The dedicated AV1 6.18 branch is green at `402fc9c0bd785`.
+2. **Boot Kernel A + Kernel B**; persist a **236-case green KUnit report**
    (`rewrite-kunit-log-check.sh`) tied to each boot fingerprint.
 3. **P1 smoke** (`rewrite-smoke.sh`) then **P2 conformance**: all four suites
    under `PROFILE=rewrite RUN_COUNTER_CHECKS=1`, clean dmesg both kernels.

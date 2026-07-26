@@ -6,11 +6,12 @@ the plan that closes the gap [`rewrite-drivers.md`](./rewrite-drivers.md) §6 an
 [`../../status.md`](../../status.md) track 4 both record as **"No
 hardware-validation record yet."**
 
-> **Framing.** The rewrites are code-complete for their targeted userspace
-> surface and heavily unit-tested — MPP **85 KUnit cases** and RGA **147 KUnit
-> cases** (232 total) compile in the maintained worktrees at the current tips
-> (`1fe46df86f1ca` on 6.18, `ec9a4a06ecf12` on mainline). The `normal`, `memory`,
-> and `race` clean-source profiles passed green at both heads on 2026-07-23. But every
+> **Framing.** The dedicated 6.18 AV1 rewrite is code-complete for its targeted
+> userspace surface and heavily unit-tested — MPP **89 KUnit cases** and RGA
+> **147 KUnit cases** (236 total) compile at
+> `rk3588-rewrite-av1-6.18@402fc9c0bd785`, which includes the complete shared
+> rewrite through `c5faabf9d00b0`. Its `normal`, `memory`, and `race`
+> clean-archive profiles passed warning-free on 2026-07-26. But every
 > one of those tests is **logic-level**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
@@ -49,7 +50,7 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 232 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 236 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
@@ -638,7 +639,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 232 KUnit cases green **under KASAN** (85 MPP + 147 RGA), persisted from the
+1. 236 KUnit cases green **under KASAN** (89 MPP + 147 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

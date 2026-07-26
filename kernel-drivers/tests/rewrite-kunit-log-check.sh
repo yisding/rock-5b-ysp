@@ -6,7 +6,7 @@ TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 
 KUNIT_DEBUGFS_ROOT=${KUNIT_DEBUGFS_ROOT:-/sys/kernel/debug/kunit}
-KUNIT_REQUIRED_SUITES=${KUNIT_REQUIRED_SUITES:-"rk_mpp_rewrite:85 rockchip-rga-rewrite:147"}
+KUNIT_REQUIRED_SUITES=${KUNIT_REQUIRED_SUITES:-"rk_mpp_rewrite:89 rockchip-rga-rewrite:147"}
 KUNIT_REPORT=${KUNIT_REPORT:-}
 
 write_result()
@@ -129,7 +129,7 @@ selftest()
 	sed -i '0,/    not ok 1 - case_1/s//    ok 1 - case_1/' \
 		"$tmp_root/rk_mpp_rewrite/results"
 
-	sed -i '/    ok 85 - case_85/d' "$tmp_root/rk_mpp_rewrite/results"
+	sed -i '/    ok 89 - case_89/d' "$tmp_root/rk_mpp_rewrite/results"
 	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
 		echo "incomplete KUnit result set unexpectedly passed" >&2
 		return 1

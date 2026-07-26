@@ -55,14 +55,16 @@ historical Rockchip hardware block or legacy ioctl must be supported.
 
 ## Current status
 
-This guide describes the sources committed on 2026-07-23:
+This guide describes the shared rewrite plus the dedicated AV1 extension:
 
 | Kernel branch | Commit |
 |---------------|--------|
-| `rk3588-rewrite-6.18` | `1fe46df86f1ca` |
-| `rk3588-rewrite-mainline` | `ec9a4a06ecf12` |
+| `rk3588-rewrite-6.18` | `c5faabf9d00b0` |
+| `rk3588-rewrite-mainline` | `7481ab327d7e` |
+| `rk3588-rewrite-av1-6.18` | `402fc9c0bd785` |
 
-The commits contain byte-identical rewrite sources:
+The two shared branches contain matching rewrite sources. The AV1 branch
+contains the full 6.18 shared line and then extends the MPP source:
 
 ```text
 drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
@@ -74,10 +76,10 @@ evidence is:
 
 | Area | What exists now | What that proves |
 |------|-----------------|------------------|
-| Driver code | MPP and RGA implementations on both kernel branches | The same driver design is maintained on the 6.18 and current-mainline tracks. |
-| ABI coverage | MPP covers the observed RK3588 RKVENC2/RKVDEC2 contract; RGA covers a broad current `librga`/FFmpeg/GStreamer subset and explicitly rejects recognized unsafe or unimplemented paths | Expected current requests can be parsed and represented; an explicit rejection is preferable to silently misprogramming hardware. |
-| In-source tests | 85 MPP and 147 RGA KUnit cases, 232 total | Pure logic such as parsing, bounds, routing, register emission, and race-state transitions has executable coverage without requiring the board. |
-| Build evidence | On 2026-07-23 all six normal, memory-safety, and race-oriented clean-source profiles passed without compiler warnings at the cited tips | Both branches build the IOMMU provider, KUnit-enabled rewrite objects, and ROCK 5B DTB under the intended configurations. A build is not hardware proof. |
+| Driver code | Shared MPP/RGA implementations on both kernel branches plus a dedicated 6.18 RKMPP AV1 extension | The AV1 work reuses the complete shared rewrite architecture rather than forking from an older baseline. |
+| ABI coverage | Shared MPP covers RK3588 RKVENC2/RKVDEC2; the AV1 branch adds VCD/cache/AFBC classes and all 103 built-in translations; RGA covers the current practical subset and rejects unsafe or unimplemented paths | Expected current requests can be parsed and represented; an explicit rejection is preferable to silently misprogramming hardware. |
+| In-source tests | Shared: 85 MPP + 147 RGA. AV1 branch: 89 MPP + 147 RGA, 236 total | Pure logic such as parsing, bounds, routing, register emission, and race-state transitions has executable coverage without requiring the board. |
+| Build evidence | On 2026-07-26 the dedicated AV1 tip passed warning-free clean-archive `normal`, KASAN/fault-injection `memory`, and KCSAN/lockdep `race` profiles | The 6.18 AV1 branch builds both IOMMU providers, KUnit-enabled rewrite objects, and the ROCK 5B DTB under the intended configurations. A build is not hardware proof. |
 | Latest recovery work | Generation-aware timeout/fault ownership, stricter CCU recovery, close/remove handoffs, and fail-closed MPP containment when a reset cannot prove that DMA stopped | The code has a defined terminal branch for dangerous recovery failures instead of assuming reset always works. |
 | Bootable debug image | Armbian KASAN image `P3695-C9fc5` was built from the 6.18 tip with both rewrites and 232 KUnit cases built in; `System.map` confirms the latest recovery code | The current tip packages into a bootable-image format. The image has not been installed or booted. |
 | Hardware evidence | No current rewrite tip has a recorded, complete booted RK3588 conformance run | The rewrite is **not yet** the validated replacement for the forward port. |
@@ -90,7 +92,7 @@ userspace library can advertise:
 |------|---------------|
 | H.264/H.265 encode and decode | Required RKVENC2/RKVDEC2 paths |
 | VP9 decode | Required decoder-parity path, still awaiting current-tip hardware evidence |
-| AV1 through RKMPP | Not in this rewrite; RK3588 AV1 uses a separate hardware block, IOMMU, and backend |
+| AV1 through RKMPP | Implemented on `rk3588-rewrite-av1-6.18`; source/build-verified, not booted |
 | Older VDPU/VPU and JPEG blocks | Outside the current ROCK 5B rewrite profile |
 | RGA | Current Linux `librga`, FFmpeg, GStreamer, RKNN/RKNPU preprocessing, and common display-shaped operations covered by the ABI ledger |
 | Raw physical imports and unsupported legacy/RGA2-Pro modes | Rejected rather than accepted without safe ownership and command-emission support |
@@ -122,7 +124,7 @@ organized and why.
 | [2. MPP rewrite driver](02-mpp-driver.md) | Message collection, register jobs, DMA-BUF translation, scheduling, encoder/decoder backends, completion, recovery, isolation, and locks |
 | [3. RGA rewrite driver](03-rga-driver.md) | Semantic image requests, imports and mappings, USERPTR, layout validation, fences, core selection, command emission, completion, close, and removal |
 | [4. Design and error-path lessons](04-design-lessons.md) | Cross-driver comparison, ownership tables, asynchronous edges, completion claims, recovery state machines, topology, errors, and unwind patterns |
-| [5. Observability and testing](05-observability-and-testing.md) | Debug counters, the 232-case KUnit split, the evidence ladder, build gates, and remaining hardware validation |
+| [5. Observability and testing](05-observability-and-testing.md) | Debug counters, the AV1 branch's 236-case KUnit split, the evidence ladder, build gates, and remaining hardware validation |
 | [6. Source reading and review](06-source-reading-and-review.md) | Suggested source-reading order, review checklist, expanded glossary, and the final invariant |
 
 Developers without kernel experience should read chapters 0 and 1, then the MPP

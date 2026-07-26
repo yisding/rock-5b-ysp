@@ -129,7 +129,7 @@ but two builds of identical source no longer produce a byte-identical vmlinux.
 - Debug kernels: [`debug-kernel.md`](./debug-kernel.md) §4–§7 (crash capture, install, rollback).
 - Rewrite kernels: [`rewrite-conformance.md`](../tests/rewrite-conformance.md) and the
   [conformance-gap audit](./rewrite-conformance-gap-audit.md) hardware gates
-  (232-case booted KUnit report, paired suites).
+  (236-case AV1-branch booted KUnit report, paired suites).
 - PPA packages: per-package READMEs above; publication state in
   [`packaging/ppa/`](../../packaging/ppa/README.md) and watchlist W05.
 - Maxline: [recovery-first install order](../../packaging/ppa/kernel-maxline/README.md#install-and-test-order).
