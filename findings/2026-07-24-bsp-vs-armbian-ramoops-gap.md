@@ -1,5 +1,14 @@
 # Why BSP ramoops "works" at 0x110000 and ours does not — consolidated answer, and a correction to our own record
 
+> **Corrected 2026-07-26 by**
+> [`2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md`](2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md).
+> The exact running v1.20 TPL and four comparison generations have now been
+> decompiled. No recovered CPU-side write overlaps `0x118000–0x1e7fff`; the
+> firmware ring is bounded to `0x110000–0x117fff`. DDR reinitialization remains
+> a credible indirect destroyer, but TPL is no longer the sole candidate for the
+> measured exact zero overwrite; the exact SPL and MMIO-driven controller
+> operations remain open.
+
 > Scope: ROCK 5B (this board), Armbian firmware `ddr-v1.20-b8ce94f14b / bl31-v1.48 /
 > uboot-rmbian-201-06/05/2026`, kernels `6.18.38-current-rockchip64` (ramoops debug
 > build), `6.18.38-ysp-rockchip64` (running), `6.1.115-vendor-rk35xx` (BSP, installed
@@ -42,13 +51,14 @@ Three things, in decreasing order of confidence.
    **The premise of the question is not established.**
 
 3. **INFERRED: if there is a real BSP-vs-us delta, the surviving candidate is the
-   rkbin blob generation, not the kernel, the DT, the PMIC, or the reset path.**
+   boot-firmware generation, not the kernel, the DT, the PMIC, or the reset path.**
    Every kernel-side, DT-side, reset-path and PMIC-side hypothesis was killed with
    direct evidence (§3). Our firmware is *newer* than every BSP image examined
    (ddr v1.20 + bl31 v1.48 vs the v1.08–v1.16 / bl31 v1.45 generation BSP images
    ship), and Rockchip documents our exact pairing as unsupported (v1.20's release
-   note requires bl31 ≥ v1.53). The zero-writer lives in one of TPL/SPL/BL31 —
-   all closed blobs, none audited.
+   note requires bl31 ≥ v1.53). A later static audit found no TPL CPU write into
+   the Linux window, but did not exclude destructive controller reinitialization;
+   the exact compiled SPL remains unaudited.
 
 The cheapest decisive experiment was missed by every lane and needs **no SD card,
 no download and no flashing**: a complete Rockchip BSP kernel + BSP DT (with
@@ -149,7 +159,7 @@ warm reset?
 
 | Component | Ours (this board) | Radxa Debian r6 | Radxa loader v1.15.113 | Radxa SPI img 2024 | Android rkr14 (2024) | Android rkr10 (2022) | Explains persistence? |
 |---|---|---|---|---|---|---|---|
-| DDR blob | **v1.20 `b8ce94f14b`** (2025-09-26) | v1.22 `d4bf75a5a6` (2026-07-23) | v1.15 `d5483af87d` | v1.16 `9fffbe1e78` | V1.13 `25cee80c4f` | V1.08 (2022-06) | **MAYBE — the one live candidate.** Closed blob; the only unaudited actor that runs before every boot and can write anywhere in DRAM. Ours is newer than every BSP image except r6's. |
+| DDR blob | **v1.20 `b8ce94f14b`** (2025-09-26) | v1.22 `d4bf75a5a6` (2026-07-23) | v1.15 `d5483af87d` | v1.16 `9fffbe1e78` | V1.13 `25cee80c4f` | V1.08 (2022-06) | **MAYBE, indirectly.** The exact v1.20 TPL was later decompiled: its recovered direct low-DRAM writes do not overlap `0x118000–0x1e7fff`, but it still resets/trains the controller with no recovered retention path. See the 2026-07-26 static audit. |
 | BL31 | **v1.48** (ATF v2.3-868) | v1.54 (v2.3-964) | — | v1.45 | v2.3-639 | v2.3-405 | **PROBABLY NOT.** v1.48 disassembled: image occupies 0x40000–0xBE000 + 0xF0000–0xF6000 + 0xFF100000; SIP share pool is 64 KiB at 0x100000–0x10FFFF (`rk3588_def.h:155-158`), ending exactly where ramoops begins. `rockchip_soc_soft_reset` @0x602a0 = PLL slow-mode stores + `str 0xfdb9 → 0xfd7c0c08` + `wfi`. No memset of DRAM in any of 50 `plat/rockchip` files. |
 | Blob pairing | **v1.20 + v1.48 — Rockchip documents this as unsupported** (`rkbin/doc/release/RK3588_EN.md:72`: "bl31 must be updated to version 1.53 or later"); Armbian pins it at `rockchip64_common.inc:165-166` | v1.22 + v1.54 (supported) | — | — | — | — | **MAYBE.** Note the release-note text scopes the requirement to "2 channel DDR", which a 4-channel ROCK 5B does not use. Cheap to A/B (EXP-5). |
 | ddrbin pstore params | `pstore_base_addr=0x11` (→0x110000), `pstore_buf_size=0x8` (→0x8000), all five `*_log_en=1` | same addr/size, **all five `log_en=0`** ("pstore is disabled by default", v1.22 note) | identical to ours | — | `reserved_0=0x0011801f` — **byte-identical to ours** | `reserved_0=0x00000000` | **NO.** Re-measured on all three blobs. There is no BSP-only preservation flag to port. Affects only the 32 KiB ring at 0x110000–0x118000, which our node deliberately sits above. |
@@ -283,11 +293,14 @@ Guaranteed writer, guaranteed reader, whole-zone coverage, no sampling.
 
 ### 3.3 What remains standing
 
-**The zero-writer is unidentified, and it lives in a closed blob.** Ruled out by
-source audit: U-Boot proper (only DRAM memsets are ATAGS at 2 MB−8 KB and small
-structs), BL31 (static footprint + no memset). Remaining: the **TPL DDR blob** and
-**SPL** — neither disassembled. The 1 GB island reading ZEROED is a hint that the
-agent is not confined to the low window; the 2 GB / 6 GB islands were never
+**The direct zero-writer remains unidentified.** Ruled out by source audit:
+U-Boot proper (only DRAM memsets are ATAGS at 2 MB−8 KB and small structs) and
+BL31 (static footprint + no memset). The later TPL decompilation found no
+recovered CPU-side write overlapping `0x118000–0x1e7fff`; the TPL ring stops at
+`0x117fff`. Remaining: the **exact compiled SPL** as an ordinary-store
+candidate, and **MMIO-driven DDR controller/training effects** that static
+AArch64 store analysis cannot see. The 1 GB island reading ZEROED is a hint that
+the agent is not confined to the low window; the 2 GB / 6 GB islands were never
 hexdumped so their content is genuinely unknown.
 
 **The single coherent BSP-vs-us delta that survives is the rkbin blob generation.**
@@ -874,28 +887,32 @@ costs roughly an eighth of capacity. **MEASURED**: `MemTotal: 16183596 kB` = 15.
 GiB of 16 GiB — normal reservation overhead, not a ~14 GiB inline-ECC penalty. Inline
 ECC is off, so it is not what zeroes the window.
 
-### Consequence: TPL is now the sole remaining candidate
+### Consequence (corrected 2026-07-26): TPL is not a direct zero-writer
 
-BL31 (disassembled), U-Boot proper (audited 2026-07-21) and SPL (F1+F2) are all
-clear. That leaves the **closed rkbin DDR blob**, which is also the one component
-that touches DRAM as a *device* rather than as storage. Plausible mechanisms, ranked
-by fit with the measured data — all **INFERRED**, none verified, the blob has never
-been disassembled:
+BL31 (disassembled) and U-Boot proper (audited 2026-07-21) are clear. SPL was
+audited at source level, but its exact compiled binary has not had its computed
+writes decompiled. The later DDR-blob audit found no direct TPL write into the
+Linux window. Plausible remaining mechanisms, ranked by fit with the measured
+data — all **INFERRED**, none runtime-verified:
 
-1. **Geometry / capacity detection.** Density, rank count and address mapping are
+1. **DDR controller/PHY reinitialization.** The TPL always resets, configures,
+   trains, and tests DRAM; no retained-memory path was recovered. Hardware-issued
+   writes and cell-state loss are not visible as ordinary CPU stores.
+2. **SPL direct clear or allocation.** No source-level static footprint was found,
+   but the exact compiled SPL has not had the same call-graph/write-map audit.
+3. **Geometry / capacity detection.** Density, rank count and address mapping are
    determined by writing markers at power-of-2 offsets and reading back for
    aliasing, then clearing them. This is the only mechanism that predicts the island
    results: 1 GB read back ZEROED, and 2 GB / 6 GB flagged GARBAGE by a classifier
    that demands an exact all-NUL page. Power-of-2 offsets are exactly where a
    capacity detector writes.
-2. **Log-ring init overshoot.** The blob must leave a valid ring header at
-   `0x110000` every boot. A clear derived from a size field rather than the
-   advertised 32 KiB would start at the ring and run a fixed distance — landing on
-   our window.
-3. **Training scratch cleanup.** Write levelling, read-gate training, ZQ and DQ
+4. ~~**Log-ring init overshoot.**~~ Falsified by decompilation. The routine derives
+   a 32 KiB total from `0x0011801f`, subtracts its 12-byte header, and wraps every
+   payload write inside `0x110000–0x117fff`.
+5. **Training scratch cleanup.** Write levelling, read-gate training, ZQ and DQ
    deskew write patterns and may zero the scratch afterward. Explains localised
    zeros, not 832 KiB, unless the scratch is generously sized.
-4. ~~Inline ECC init~~ — ruled out, F4.
+6. ~~Inline ECC init~~ — ruled out, F4.
 
 ### EXP-1c — Map the zero boundary (30 minutes, ZERO risk, read-only) ★ NEW
 
@@ -1007,11 +1024,13 @@ Prefer running this *after* EXP-1c, which costs nothing and does not require a r
 
 - **That BSP ramoops works.** No lane, no artifact, no document shows a recovered
   pstore record on any RK3588. EXP-2/EXP-3 are the tests.
-- **Who writes the zeros.** The TPL DDR blob was never disassembled and is now the
-  sole candidate. BL31 v1.48 was disassembled and is clear; U-Boot proper was
-  audited and is clear; SPL is clear by source audit (follow-up F1/F2) — but "no
-  static footprint and no compiled-in memset" is not the same as "never writes
-  there", since SPL runs arbitrary loader code.
+- **Who writes the zeros.** The TPL DDR blob is now disassembled and has no
+  recovered CPU-side write into the Linux window. BL31 v1.48 was disassembled and
+  is clear; U-Boot proper was audited and is clear; SPL is clear only by source
+  audit (follow-up F1/F2) — but "no static footprint and no compiled-in memset" is
+  not the same as "never writes there", since the exact SPL binary and its
+  computed writes have not been mapped. Controller-issued writes also remain
+  outside the proof boundary.
 - **What the 2 GB / 6 GB content is.** Never hexdumped. "DRAM-wide destruction" is
   not established.
 - **Whether a cold power-cycle differs from a warm reset here.** Never measured.
