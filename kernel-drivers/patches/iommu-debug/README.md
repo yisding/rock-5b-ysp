@@ -6,7 +6,8 @@ keeps this out of the clean .deb path; apply it only when building a diagnostic
 kernel.
 
 Nothing here changes driver behavior except the opt-in force knob (default off).
-`forward-port-rga-userptr-iommu/` archives the debug-only commits removed from
+[`forward-port-rga-userptr-iommu/`](forward-port-rga-userptr-iommu/README.md)
+archives the debug-only commits removed from
 `../kernel/linux-6.18-rkvenc-av1-fwport` on 2026-07-06. The same commits remain
 reachable in that kernel repo on branch `rkvenc-fwport-6.18-iommu-debug-20260706`.
 The clean forward-port branch now stops before these diagnostics.

@@ -19,9 +19,11 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 from repo_files import (
     repository_documented_files,
+    repository_markdown_files,
     repository_operational_files,
     tracked_file_modes,
 )
@@ -34,6 +36,8 @@ WATCH_INDEX_NAME_RE = re.compile(r"^\[(.+)\]\(#watch-w\d{2}\)$")
 WATCH_LAST_CHECKED_RE = re.compile(r"^-\s+\*\*Last checked:\*\*\s*(\d{4}-\d{2}-\d{2})")
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TRACK_ROW_RE = re.compile(r"^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|")
+MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]\n]*(?:\][^\[\]\n]*)*\]\(([^\)\n]+)\)")
+SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
 PERSONAL_HOME_DEFAULT_RE = re.compile(
     r"(?:^[A-Z][A-Z0-9_]*=[\"']?/(?:home|Users)/|"
     r"\$\{[A-Za-z_][A-Za-z0-9_]*:-[\"']?/(?:home|Users)/)"
@@ -536,6 +540,65 @@ def check_readme_ownership(root: Path, errors: list[str]) -> None:
             )
 
 
+def _readme_link_targets(readme: Path, root: Path) -> set[Path]:
+    """Resolve local Markdown file/directory links from one README."""
+    targets: set[Path] = set()
+    text = readme.read_text(encoding="utf-8", errors="replace")
+    for match in MARKDOWN_LINK_RE.finditer(text):
+        target = match.group(1).strip()
+        if target.startswith("<") and target.endswith(">"):
+            target = target[1:-1]
+        elif " " in target:
+            target = target.split()[0]
+        if not target or target.startswith("#") or SCHEME_RE.match(target):
+            continue
+
+        file_part = target.partition("#")[0]
+        if not file_part:
+            continue
+        candidate = (readme.parent / unquote(file_part)).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            continue
+        if candidate.is_dir():
+            candidate /= "README.md"
+        targets.add(candidate)
+    return targets
+
+
+def check_readme_navigation(root: Path, errors: list[str]) -> None:
+    """Every nested README is linked from its nearest ancestor README."""
+    for readme in repository_markdown_files(root):
+        relative = readme.relative_to(root)
+        if (
+            readme.name != "README.md"
+            or readme == root / "README.md"
+            or "debian" in relative.parts
+        ):
+            continue
+
+        directory = readme.parent.parent
+        owner = None
+        while True:
+            candidate = directory / "README.md"
+            if candidate.is_file():
+                owner = candidate
+                break
+            if directory == root:
+                break
+            directory = directory.parent
+
+        if owner is None:
+            errors.append(f"{relative}: no ancestor README.md links this front door")
+            continue
+        if readme.resolve() not in _readme_link_targets(owner, root):
+            errors.append(
+                f"{relative}: not linked from its nearest ancestor README "
+                f"({owner.relative_to(root)})"
+            )
+
+
 def check_shell_file_contract(root: Path, errors: list[str]) -> None:
     """A shell file is either executable-with-shebang or sourced-and-not.
 
@@ -585,6 +648,7 @@ def main() -> int:
     check_shell_file_contract(root, errors)
     check_root_patch_placement(root, errors)
     check_readme_ownership(root, errors)
+    check_readme_navigation(root, errors)
     check_findings_index(root, errors)
     check_watchlist_pairing(root, errors)
     check_status_ledger_tracks(root, errors)

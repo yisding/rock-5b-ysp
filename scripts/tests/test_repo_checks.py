@@ -641,6 +641,34 @@ class SubstantiveDriftTests(unittest.TestCase):
             self.assertTrue(any(".review.diff" in error for error in errors))
             self.assertFalse(any("owned.patch" in error for error in errors))
 
+    def test_nested_readme_must_be_linked_from_nearest_ancestor(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tools = root / "tools"
+            nested = tools / "nested"
+            nested.mkdir(parents=True)
+            (root / "README.md").write_text(
+                "# Root\n\n- [`tools/`](tools/)\n", encoding="utf-8"
+            )
+            owner = tools / "README.md"
+            owner.write_text("# Tools\n", encoding="utf-8")
+            (nested / "README.md").write_text("# Nested\n", encoding="utf-8")
+            errors: list[str] = []
+
+            DOC_CHECKER.check_readme_navigation(root, errors)
+
+            self.assertEqual(len(errors), 1, errors)
+            self.assertIn("tools/nested/README.md", errors[0])
+            self.assertIn("tools/README.md", errors[0])
+
+            owner.write_text(
+                "# Tools\n\n- [`nested/`](nested/README.md)\n",
+                encoding="utf-8",
+            )
+            errors = []
+            DOC_CHECKER.check_readme_navigation(root, errors)
+            self.assertEqual(errors, [])
+
     def test_checks_report_instead_of_silently_covering_nothing(self) -> None:
         """A missing input must fail the stage, not disable the check.
 

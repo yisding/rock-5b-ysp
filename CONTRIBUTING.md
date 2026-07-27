@@ -98,6 +98,8 @@ checks substantive drift and completeness only:
 
 - every tracked `.md`/`.sh`/`.py`/`.c`/`.cpp`/`.h` is named by its nearest
   ancestor README (`debian/` is exempt — dpkg dictates that layout);
+- every nested `README.md` is linked from its nearest ancestor README, so each
+  directory front door is reachable through the project hierarchy;
 - no `.patch` or `.diff` sits at the repository root without a project owner;
 - every finding is linked from the findings index, every index link resolves to
   a file, and the index runs newest-first;
