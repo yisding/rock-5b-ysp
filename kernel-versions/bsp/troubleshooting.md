@@ -144,12 +144,15 @@ reboot instead of a manual wait.
   was still running.
 - The Rockchip PCIe PMU-notifier lockdep splat (`WARNING: possible recursive
   locking … dwc_pcie_pmu_notifier → dwc_pcie_register_dev → device_add →
-  blocking_notifier_call_chain`) is a **real** report — a re-entrant `down_read`
-  of the same-class notifier rwsem, which deadlocks only if a writer queues
-  between the two reads (timing-dependent, fits an intermittent hang). But it
-  fires on **every** boot including healthy ones, so on its own it does not hang
-  the machine; treat it as a secondary suspect, not proof, unless a capture shows
-  the probe wedged there.
+  blocking_notifier_call_chain`) is real **cross-bus nesting**, but the
+  recursive-lock classification is false: the printed addresses are the
+  distinct PCI and platform bus notifier rwsems. `bus_register()` initializes
+  every bus notifier at one call site, so both instances share one lockdep class
+  and look recursive when the DWC callback synchronously creates its platform
+  device. The observed path completes on healthy boots and is not evidence that
+  the probe hung. It still matters for debug qualification because the report
+  disables lockdep for the rest of that boot; see the
+  [source-backed triage](../../findings/2026-07-26-dwc-pcie-pmu-bus-notifier-lockdep-false-positive.md).
 
 This probe-capture playbook is generic. The 2026-07-22 incident that initially
 motivated it was subsequently proven to be a Plymouth userspace stall, not a

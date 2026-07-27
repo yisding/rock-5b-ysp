@@ -5,6 +5,13 @@
 > Date: 2026-07-26
 > Trust: MEASURED / CODE-INSPECTED / ROOT-CAUSED / BOOT-VERIFIED / KASAN-UAF / FIX-COMPILE-VERIFIED / PACKAGE-INSPECTED / PARTIAL
 
+> **Follow-up 2026-07-26:** the [next rewrite boot's standalone KUnit
+> gate](./2026-07-26-rewrite-kunit-gate-passes.md) reports 85/85 MPP and
+> 147/147 RGA cases passing with zero skips. The failure chain below remains
+> the record of the earlier `P3b08-Cad24` boot; package fingerprint, warning
+> scan, core binding, and userspace gates remain to be captured for the
+> follow-up boot.
+
 ## Result
 
 The `20260726-165709` rewrite run did not hang in an MPP media test. It never

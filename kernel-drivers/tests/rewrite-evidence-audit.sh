@@ -19,7 +19,7 @@ REQUIRE_ARTIFACTS=${REQUIRE_ARTIFACTS:-1}
 REQUIRE_COUNTER_DELTAS=${REQUIRE_COUNTER_DELTAS:-1}
 REQUIRE_DMESG_EVIDENCE=${REQUIRE_DMESG_EVIDENCE:-1}
 REQUIRE_KUNIT_EVIDENCE=${REQUIRE_KUNIT_EVIDENCE:-}
-KUNIT_EVIDENCE_SUITES=${KUNIT_EVIDENCE_SUITES:-"rk_mpp_rewrite:85 rockchip-rga-rewrite:147"}
+KUNIT_EVIDENCE_SUITES=${KUNIT_EVIDENCE_SUITES:-"rk_mpp_rewrite:85 rockchip-rga-rewrite:148"}
 REQUIRE_DIAGNOSTIC_PASS=${REQUIRE_DIAGNOSTIC_PASS:-0}
 AUDIT_REQUIRED_CASES=${AUDIT_REQUIRED_CASES:-}
 REQUIRE_MPP_CORE_CASES=${REQUIRE_MPP_CORE_CASES:-}
@@ -716,7 +716,7 @@ selftest()
 	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" <<EOF
 suite	expected_cases	plan_cases	result_cases	failed_cases	skipped_cases	summary	verdict	kernel_release
 rk_mpp_rewrite	85	85	85	0	0	ok	pass	6.18.0-rewrite
-rockchip-rga-rewrite	147	147	147	0	0	ok	pass	6.18.0-rewrite
+rockchip-rga-rewrite	148	148	148	0	0	ok	pass	6.18.0-rewrite
 EOF
 	mv "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" \
 		"$tmp_root/logs/$CANDIDATE/20260705-000000-kunit.tsv"

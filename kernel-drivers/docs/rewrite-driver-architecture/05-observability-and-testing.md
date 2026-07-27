@@ -41,7 +41,7 @@ The embedded KUnit suites test logic that does not require live RK3588 silicon.
 At the documented source revisions:
 
 - MPP registers 85 KUnit cases.
-- RGA registers 147 KUnit cases.
+- RGA registers 148 KUnit cases.
 
 The [rewrite KUnit guide](../rewrite-kunit.md) documents their source
 organization, fixture contract, debug-kernel autorun, exact-count KTAP parser,
@@ -102,7 +102,7 @@ silicon. On-board conformance must additionally exercise:
 
 The immediate status-changing milestone is therefore not “add another unit
 test.” It is: install and boot the current-tip KASAN image `P3695-C9fc5` on the
-ROCK 5B, record all 232 KUnit cases, prove that each expected hardware family
+ROCK 5B, record all 233 KUnit cases, prove that each expected hardware family
 starts, then run paired rewrite-versus-forward-port conformance with clean
 kernel logs. Timeout, IOMMU-fault, reset-failure, close, and removal stress
 follow before a production-readiness claim.

@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when all **85 MPP + 147 RGA cases** pass without skips **and** the
+green only when all **85 MPP + 148 RGA cases** pass without skips **and** the
 same kernel-log interval is free of sanitizer reports, warnings, lockdep
 findings, refcount failures, and media/IOMMU faults.
 
@@ -34,7 +34,7 @@ Each suite is compiled in the same translation unit as its driver:
 | Suite | Source | Kconfig symbol | Registered cases |
 |-------|--------|----------------|-----------------:|
 | `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 85 |
-| `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 147 |
+| `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 148 |
 
 The test blocks are guarded with `IS_ENABLED()` and registered with
 `kunit_test_suite()`. Keeping the cases beside the implementation lets them
@@ -84,7 +84,7 @@ hardware throughput:
 | RGA | 45–61 | Imports, fences, layouts, planes, offsets, and strides |
 | RGA | 62–80 | Import identity, DMA ownership, and job lifetime |
 | RGA | 81–102 | Abort/recovery, scheduling, IOMMU routes, faults, and timeouts |
-| RGA | 103–147 | FFmpeg, GStreamer, RKNN, librga, and display-shaped format/emission profiles |
+| RGA | 104–148 | FFmpeg, GStreamer, RKNN, librga, and display-shaped format/emission profiles |
 
 These are white-box cases. They call production functions with controlled fake
 objects and assert outputs, state transitions, ownership, and error behavior.
@@ -177,7 +177,7 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 85 MPP or 147 RGA |
+| Inner KTAP plan | exactly 85 MPP or 148 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
