@@ -29,8 +29,8 @@ CLIP_DIR="${CLIP_DIR:-$REPO_ROOT/../kernel/rock5b-kernel-build/ffmpeg-stack/test
 LIB=$MPP_BUILD/lib;             [ -d "$LIB" ] || LIB=$MPP_BUILD/mpp
 DEC=$MPP_BUILD/bin/mpi_dec_test; [ -x "$DEC" ] || DEC=$MPP_BUILD/test/mpi_dec_test
 
-H264_IN=$CLIP_DIR/tiny-320x240.h264
-H265_IN=$CLIP_DIR/tiny-320x240.h265
+H264_IN="${H264_IN:-$CLIP_DIR/tiny-320x240.h264}"
+H265_IN="${H265_IN:-$CLIP_DIR/tiny-320x240.h265}"
 OUT=/tmp/rkvdec-test
 mkdir -p "$OUT"
 

@@ -8,7 +8,7 @@
 > Repaired Armbian build UUID `f1e64434-55a1-4fe9-bd1d-369b430624d3`
 > Date: 2026-07-27
 > Trust: SOURCE-INSPECTED / BINARY-INSPECTED / ROOT-CAUSED /
-> FIX-COMPILE-VERIFIED / PACKAGE-VERIFIED / PARTIAL
+> FIX-COMPILE-VERIFIED / PACKAGE-VERIFIED / FIX-RUNTIME-VERIFIED
 
 ## Result
 
@@ -112,15 +112,17 @@ candidate for this package.
 
 ## Boundary
 
-Compile, package, and static lifecycle proof do not prove that unregistering,
-running all 233 cases, and reprobe complete on this RK3588 board. The repaired
-package still requires a recovery-prepared boot, exact 85/85 MPP plus 148/148
-RGA KTAP, a fatal-signature-free KUnit interval, live lockdep, all three RGA
-cores bound, and isolated ABI/media exercise. Until that run exists, the repair
-is not tagged `BOOT-VERIFIED` or `FIX-RUNTIME-VERIFIED`.
+The later `P3138-Cad24` boot completed exact 85/85 MPP plus 148/148 RGA KTAP,
+restored both services, and bound every expected MPP/RGA core. That verifies
+the unregister → fixtures → restore lifecycle repair itself. The same boot was
+not a compound KUnit pass: one MPP fixture disabled lockdep through an
+uninitialized mutex and another left a 2,048-byte nested allocation to
+kmemleak. Those independent defects and their successor commits are recorded
+in the
+[final fixture finding](./2026-07-27-rewrite-kunit-lockdep-kmemleak-fixtures.md).
 
 ## Next gate
 
-Boot the package built from `db8251eec71a9`, persist its KUnit interval and
-running image fingerprint, then require the complete 233-case and kernel-log
-contract before any media workload is accepted as evidence.
+Boot a new package from successor `6b55e022ce491`, persist its KUnit interval
+and running image fingerprint, and require exact KTAP, a fatal-signature-free
+interval, live lockdep, and a clean aged kmemleak scan before media evidence.

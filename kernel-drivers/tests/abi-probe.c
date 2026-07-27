@@ -999,6 +999,8 @@ static void probe_rga_request_config(int fd)
 	memset(&task, 0, sizeof(task));
 	task.render_mode = bitblt_mode;
 	task.handle_flag = 1;
+	/* Zero is stdin, not the RGA ABI's sentinel for "no input fence". */
+	task.in_fence_fd = -1;
 	task.cosa = 65536;
 	task.clip.xmin = 0;
 	task.clip.ymin = 0;
@@ -1012,6 +1014,8 @@ static void probe_rga_request_config(int fd)
 	request.task_num = 1;
 	request.id = request_id;
 	request.sync_mode = RGA_BLIT_SYNC;
+	/* This field is unsigned in the public request wrapper. */
+	request.acquire_fence_fd = UINT32_MAX;
 
 	errno = 0;
 	require_ok("RGA_IOC_REQUEST_CONFIG copy",

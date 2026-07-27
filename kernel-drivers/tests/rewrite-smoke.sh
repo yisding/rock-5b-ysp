@@ -13,6 +13,7 @@ set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$REPO_ROOT/../rockchip-conformance}"
 
 RUN_DECODE="${RUN_DECODE:-1}"
 RUN_ENCODE="${RUN_ENCODE:-1}"
@@ -20,6 +21,13 @@ RUN_TRANSCODE="${RUN_TRANSCODE:-1}"
 RUN_ABI="${RUN_ABI:-1}"
 RUN_LIBRGA="${RUN_LIBRGA:-0}"
 RUN_GSTREAMER="${RUN_GSTREAMER:-0}"
+MPP_BUILD="${MPP_BUILD:-$CONFORMANCE_ROOT/out/mpp}"
+FFDIR="${FFDIR:-$REPO_ROOT/../ffmpeg/ffmpeg-rockchip}"
+STAGE="${STAGE:-/usr}"
+IN="${IN:-$CONFORMANCE_ROOT/assets/ffmpeg-generated/ffmpeg-h264-1920x1080-30fps-2s.h264}"
+H264_IN="${H264_IN:-$CONFORMANCE_ROOT/assets/gstreamer-generated/generated-input-h264-320x240-30_1-30.h264}"
+H265_IN="${H265_IN:-$CONFORMANCE_ROOT/assets/gstreamer-generated/generated-input-h265-320x240-30_1-30.h265}"
+export MPP_BUILD FFDIR STAGE IN H264_IN H265_IN
 
 ok() { printf '  OK   %s\n' "$*"; }
 no() { printf '  MISS %s\n' "$*"; }
@@ -92,22 +100,28 @@ preflight_devices() {
 
 preflight_artifacts() {
   local fail=0
-  local mpp_build="${MPP_BUILD:-$REPO_ROOT/../rockchip-conformance/out/mpp}"
-  local ffdir="${FFDIR:-$REPO_ROOT/../ffmpeg/ffmpeg-rockchip}"
-  local stage="${STAGE:-$REPO_ROOT/../kernel/rock5b-kernel-build/ffmpeg-stack}"
-  local input="${IN:-$stage/testdata/input-1080p.h264}"
+  local mpp_lib="$MPP_BUILD/lib"
+  local mpp_dec="$MPP_BUILD/bin/mpi_dec_test"
+  local mpp_enc="$MPP_BUILD/bin/mpi_enc_test"
 
   echo "================= artifact preflight ================="
   if [ "$RUN_DECODE" = 1 ] || [ "$RUN_ENCODE" = 1 ]; then
-    if [ -x "$mpp_build/test/mpi_dec_test" ]; then ok "$mpp_build/test/mpi_dec_test"; else no "$mpp_build/test/mpi_dec_test"; fail=1; fi
-    if [ -x "$mpp_build/test/mpi_enc_test" ]; then ok "$mpp_build/test/mpi_enc_test"; else no "$mpp_build/test/mpi_enc_test"; fail=1; fi
-    if [ -d "$mpp_build/mpp" ]; then ok "$mpp_build/mpp"; else no "$mpp_build/mpp"; fail=1; fi
+    [ -d "$mpp_lib" ] || mpp_lib="$MPP_BUILD/mpp"
+    [ -x "$mpp_dec" ] || mpp_dec="$MPP_BUILD/test/mpi_dec_test"
+    [ -x "$mpp_enc" ] || mpp_enc="$MPP_BUILD/test/mpi_enc_test"
+    if [ -x "$mpp_dec" ]; then ok "$mpp_dec"; else no "$mpp_dec"; fail=1; fi
+    if [ -x "$mpp_enc" ]; then ok "$mpp_enc"; else no "$mpp_enc"; fail=1; fi
+    if [ -d "$mpp_lib" ]; then ok "$mpp_lib"; else no "$mpp_lib"; fail=1; fi
+    if [ "$RUN_DECODE" = 1 ]; then
+      if [ -f "$H264_IN" ]; then ok "$H264_IN"; else no "$H264_IN"; fail=1; fi
+      if [ -f "$H265_IN" ]; then ok "$H265_IN"; else no "$H265_IN"; fail=1; fi
+    fi
   fi
 
   if [ "$RUN_TRANSCODE" = 1 ]; then
-    if [ -x "$ffdir/ffmpeg" ]; then ok "$ffdir/ffmpeg"; else no "$ffdir/ffmpeg"; fail=1; fi
-    if [ -x "$ffdir/ffprobe" ]; then ok "$ffdir/ffprobe"; else no "$ffdir/ffprobe"; fail=1; fi
-    if [ -f "$input" ]; then ok "$input"; else no "$input"; fail=1; fi
+    if [ -x "$FFDIR/ffmpeg" ]; then ok "$FFDIR/ffmpeg"; else no "$FFDIR/ffmpeg"; fail=1; fi
+    if [ -x "$FFDIR/ffprobe" ]; then ok "$FFDIR/ffprobe"; else no "$FFDIR/ffprobe"; fail=1; fi
+    if [ -f "$IN" ]; then ok "$IN"; else no "$IN"; fail=1; fi
   fi
   echo
 

@@ -98,9 +98,9 @@ a failure.
 | `decode-differential.sh` | **decoder correctness** (`rkvdec2` + `av1dec`) | Adds the strong oracle on top of the liveness gate: HW-decode vs SW-decode **PSNR must be `inf` (bit-exact)** for H.264, H.265, **VP9, and AV1**. Covers the codecs `test-decode.sh` doesn't; AV1 needs the av1-fwport variant. Generates its own software-encoded inputs. |
 | `encode-test-tiny.sh` | **encoder** (VEPU580) | `mpi_enc_test` H.264 + H.265 at 256² and 1280×720 → valid NAL-start bitstreams, exit 0, no IOMMU fault (dmesg-marker scheme with a real-fault regex that excludes benign warnings). Reports PSNR + fps. |
 | `transcode-test.sh` | **full pipeline** (both decoders, both encoders, RGA ×2) | ffmpeg-rockchip: `h264_rkmpp` → `scale_rkrga` 1080p→720p → `hevc_rkmpp`, then the reverse. `rkmpp`/`rkrga` have no SW fallback, so a pass *is* proof the hardware ran. Verifies each output with `ffprobe`. |
-| `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates above in one pass, and snapshots rewrite debugfs counters, including aggregate/per-core timing counters, when present. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
+| `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates above in one pass, and snapshots rewrite debugfs counters, including aggregate/per-core timing counters, when present. It defaults `CONFORMANCE_ROOT` to `../rockchip-conformance`, accepts installed MPP `out/mpp/bin` + `lib` or raw `test` + `mpp` layouts, uses `../ffmpeg/ffmpeg-rockchip`, and selects the existing generated 320×240 H.264/H.265 decode clips plus 1080p H.264 transcode asset. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
 | `mpp-debug-capture.sh` | **focused rewrite decode/encode failure capture** | Clears the bounded MPP event journal, optionally enables structured live tracing, runs one arbitrary reproduction, then records before/after `state`, `events`, numeric counters, `/proc/mpp_service`, dmesg, a counter delta, and an event summary. It always captures the after-state and preserves the wrapped workload's exit code. With no command it captures current state only; `MPP_DEBUG_VALIDATE_ONLY=1` runs a device-free workflow selftest. Exit `77` means the rewrite `state`/`events` files are absent on this boot. |
-| `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Records compile-time ABI values and safe query/control/import/release behavior. Virtual and dma-buf imports run normally; raw physical import is disabled unless `ABI_PROBE_ENABLE_RGA_PHYSICAL=1` or the rewrite rejection expectation is set. `ABI_PROBE_ABI_ONLY=1` emits constants without device access. See [the crash note](../rga/docs/raw-physical-import-crash.md). |
+| `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Records compile-time ABI values and safe query/control/import/release behavior. The request-config probe explicitly initializes both acquire-fence fields to the ABI's `-1` “no fence” sentinel; zero is a real fd and would make the probe test stdin as a sync file. Virtual and dma-buf imports run normally; raw physical import is disabled unless `ABI_PROBE_ENABLE_RGA_PHYSICAL=1` or the rewrite rejection expectation is set. `ABI_PROBE_ABI_ONLY=1` emits constants without device access. See [the crash note](../rga/docs/raw-physical-import-crash.md). |
 | `ioctl-fuzz-smoke.sh` | **bounded non-submit ioctl fuzzing** | Deterministically mutates MPP/RGA parser, import/release, and request-lifetime paths without submitting hardware jobs. Raw physical RGA generation is disabled unless `IOCTL_FUZZ_ENABLE_RGA_PHYSICAL=1`; build-only, fail-nth, logging, and dmesg options are listed below. Needs **both** `/dev/mpp_service` and `/dev/rga`: with only one it exits `77` (skip) unless `IOCTL_FUZZ_ALLOW_PARTIAL=1`. |
 | [`syzkaller/`](syzkaller/README.md) | **fuzzer setup and syzlang draft** | Directory README: how the Rockchip syzlang description is built, what is deliberately disabled until a sacrificial RK3588 target exists, and how to run the two checks below. |
 | `syzkaller/check-rockchip-syzlang.sh` | **device-free fuzzer ABI constant check** | Compares the syzlang draft with `ABI_PROBE_ABI_ONLY=1` output. Submit-capable calls and the separate raw-physical import descriptor are disabled/no-generate until a sacrificial RK3588 target is used. |
@@ -278,14 +278,17 @@ sudo FFMPEG_REQUIRE_AV1=1 FFMPEG_RUNTIME_MODES="system staged" bash ffmpeg-suite
 bash rkmppenc-suite-compare.sh       # compare latest opt-in forward-port/rewrite rkmppenc summaries
 ```
 
-For rewrite acceptance in one command:
+For a diagnostic smoke pass in one command (the defaults match the sibling
+`rockchip-conformance` and `ffmpeg/ffmpeg-rockchip` trees):
 
 ```bash
-sudo MPP_BUILD=<mpp-build> FFDIR=<ffmpeg-rockchip> STAGE=<stage> bash rewrite-smoke.sh
+sudo bash rewrite-smoke.sh
 ```
 
 The same command is valid on the BSP-derived forward-port kernel, which makes it
-the quick parity check between the two implementations.
+the quick parity check between the two implementations. Override
+`CONFORMANCE_ROOT`, `MPP_BUILD`, `FFDIR`, `STAGE`, `H264_IN`, `H265_IN`, or
+`IN` only for a non-default checkout or staged runtime.
 
 For the full artifact/timing conformance pass, boot the forward-port kernel and
 run:

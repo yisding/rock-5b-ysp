@@ -60,8 +60,8 @@ Its operational conclusion is:
 | KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ⚠️ booted KUnit exposed fixture Oops/UAF; no real MPP/RGA workload completed |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | `*-repro.c`, `rga-session-uaf.sh` | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
-| Booted KUnit (85 MPP + 148 RGA = 233) | `rewrite-kunit-log-check.sh` | — | ⚠️ follow-up boot passed the previous 85+147 result plan but emitted five RGA fixture debug-object warnings; the committed shared-IRQ policy test adds the 148th RGA case, so an exact clean rerun remains pending |
-| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ lifecycle-repaired 6.18 `db8251e` and mainline `fac7077` pass all six clean-archive normal/memory/race builds; repaired 6.18 package `P3138-Cad24` has the expected config, device-initcall symbols, image, and DTB; boot proof remains open |
+| Booted KUnit (85 MPP + 148 RGA = 233) | `rewrite-kunit-log-check.sh` | — | ⚠️ `P3138-Cad24` completed exact 85+148 KTAP and restored both runtimes, but a fixture mutex warning disabled lockdep and the aged kmemleak scan found one 2,048-byte fixture allocation; current tips fix both and still need a clean compound rerun |
+| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ final fixture repairs are at 6.18 `6b55e02` and byte-identical mainline `9aa6ef7`; 6.18 normal/memory/race plus mainline normal/memory pass, the redundant mainline race profile was intentionally stopped, and pinned 6.18.40 KASAN package `Pe8c5-Cad24` is payload-verified |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ not run |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`, `syzkaller/` | ⚠️ ran without KCOV | ❌ |
@@ -133,16 +133,17 @@ and 2 are the live record for all four.
 
 The definition-of-done lives in [`rewrite-validation-plan.md` §7](./rewrite-validation-plan.md)
 (7 gates) over the P1–P7 risk-ordered phases. Bring-up has reached boot/KUnit
-and probe diagnosis. Package `P259b-Cad24` is no longer a boot candidate:
-source and binary inspection found that its KUnit suites clear already-probed
-live service singletons. The lifecycle-repaired package must clear that phase
+and probe diagnosis. Package `P259b-Cad24` is no longer a boot candidate.
+Lifecycle-fixed `P3138-Cad24` reached userspace with every case and runtime
+restored, but disabled lockdep in one MPP fixture and leaked another fixture's
+nested allocation. The current source fixes must clear the compound phase
 before media qualification can start. Sequenced:
 
 0. **Prereqs:** land the active-fence counter in the rewrite driver; obtain an
-   AVS2 elementary-stream asset (cannot be generated); Kernel A is now built as
-   `P3138-Cad24`, the repaired KASAN/UBSAN/lockdep/fault-injection + KUnit
-   package from `db8251e`, while Kernel B = KCSAN remains to be packaged at the
-   current tip.
+   AVS2 elementary-stream asset (cannot be generated); Kernel A is now
+   `Pe8c5-Cad24`, built from `6b55e02` with
+   KASAN/UBSAN/lockdep/fault-injection + KUnit, while
+   Kernel B = KCSAN remains to be packaged at the current tip.
 1. **Re-run `rewrite-build-gate.sh`** (normal/memory/race) at the current tip —
    complete: both current tips pass all three clean-archive profiles.
 2. **Boot Kernel A + Kernel B**; persist a **233-case green KUnit report**

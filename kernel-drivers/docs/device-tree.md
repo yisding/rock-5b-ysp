@@ -58,7 +58,7 @@ rewrite failed both RGA3 probes with `-EBUSY`.
 | Upstream `v7.2-rc3@a13c140cc289` | `0x200` | same IOMMU windows | mainline RGA `devm_platform_ioremap_resource()` | disjoint |
 | Maxline public `f12fb0acf7bb` and WIP `74b24e96da62` | `0x200` | same IOMMU windows | inherits mainline RGA | disjoint; neither profile changes these cells |
 | 6.18 rewrite failed boot at `c5faabf9d00b` | inherited `0x1000` | same IOMMU windows | rewrite RGA `devm_ioremap_resource()` | IOMMU reserves first; both RGA3 probes fail `-EBUSY` |
-| 6.18 rewrite `0cc483d3ee20` | `0x200` | same IOMMU windows | rewrite RGA `devm_ioremap_resource()` | packaged DTB has disjoint resources; boot proof pending |
+| 6.18 rewrite `0cc483d3ee20` and later | `0x200` | same IOMMU windows | rewrite RGA `devm_ioremap_resource()` | lifecycle-fixed `P3138-Cad24` boot bound both RGA3 cores; disjoint resource repair verified |
 
 The byte ranges make the collision explicit:
 

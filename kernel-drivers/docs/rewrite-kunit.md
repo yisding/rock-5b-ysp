@@ -298,9 +298,14 @@ Those claims require the hardware, differential, fault-injection, race, and
 soak gates indexed by the [validation guide](validation-index.md) and
 [rewrite conformance procedure](../tests/rewrite-conformance.md).
 
-As of 2026-07-27, lifecycle-repaired tips 6.18 `db8251eec71a` and mainline
-`fac707773158` pass clean-archive `normal`, `memory`, and `race` profiles. The
-6.18 repair is package-verified as `P3138-Cad24` with both suites and ordinary
-device-initcall registration, but a clean booted 85 + 148 result remains
-pending. Do not promote compile or package results into a runtime pass until
-the compound evidence above is captured.
+The lifecycle-repaired `P3138-Cad24` boot did complete all 85 MPP + 148 RGA
+cases and restore both runtimes, but it did not pass the compound gate: MPP
+case 9 disabled lockdep by locking an uninitialized fixture mutex, and case 28
+left a nested 2,048-byte production allocation for kmemleak. Current tips 6.18
+`6b55e022ce49` and mainline `9aa6ef7e97b2` initialize that mutex and register
+assertion-safe deferred cleanup for the allocation. See the
+[attribution and repair record](../../findings/2026-07-27-rewrite-kunit-lockdep-kmemleak-fixtures.md).
+The pinned 6.18.40 KASAN/UBSAN/lockdep/kmemleak package is payload-verified as
+`Pe8c5-Cad24`.
+Do not promote KTAP, compile, or package results into a runtime pass until the
+entire compound evidence above is clean on the repaired kernel.
