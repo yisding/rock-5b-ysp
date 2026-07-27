@@ -5,6 +5,12 @@
 > Date: 2026-07-26
 > Trust: MEASURED / CODE-INSPECTED / ROOT-CAUSED / FIX-COMPILE-VERIFIED / PARTIAL
 
+> **Corrected 2026-07-26 by** [the repaired-boot finding](2026-07-26-rewrite-kunit-poisons-runtime-and-rga3-probe-fails.md).
+> The `c5faabf9d00b` repair was incomplete: its boot passed 84/85 MPP and
+> 139/147 RGA cases, and the remaining MPP fixture Oops poisoned the live
+> service before ABI replay. The driver-contract fixes recorded below remain
+> valid; the claimed closing commit and pending clean-rerun boundary do not.
+
 ## Result
 
 The first complete boot of the 232-case rewrite KUnit set disproved the earlier

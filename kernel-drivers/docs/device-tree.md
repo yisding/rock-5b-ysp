@@ -39,10 +39,70 @@ coordinators, so the DT validator does not (and must not) expect `reg` on them.
 | `rkvdec_ccu` | `fdc30000` | yes | VDPU381 CCU MMIO (`0x100`, `reg-names = "ccu"`) |
 | `rkvdec0` (VDPU381 core 0) | `fdc38000` | yes | regs `@fdc38100`, link `@fdc38000`; `…_mmu@fdc38700` |
 | `rkvdec1` (VDPU381 core 1) | `fdc40000` | yes | regs `@fdc40100`, link `@fdc40000`; `…_mmu@fdc40700` |
-| `rga3_core0` | `fdb60000` | yes | RGA3; `rga3_0_mmu@fdb60f00` |
-| `rga3_core1` | `fdb70000` | yes | RGA3; `rga3_1_mmu@fdb70f00` |
+| `rga3_core0` | `fdb60000` | yes | RGA3 core window `0x200`; `rga3_0_mmu@fdb60f00` is a separate `0x100` window |
+| `rga3_core1` | `fdb70000` | yes | RGA3 core window `0x200`; `rga3_1_mmu@fdb70f00` is a separate `0x100` window |
 | `rga2` | `fdb80000` | yes | RGA2 |
 | `mpp_srv` | (virtual) | **no** | shared MPP service coordinator (`/dev/mpp_service`, no `reg`) |
+
+### RGA3 core/IOMMU resource ownership
+
+The resource-correct RGA3 core size is `0x200`, not the BSP's page-sized
+`0x1000`. This matters only when the driver asks Linux to reserve the range,
+which is why the vendor stack could carry the overlap unnoticed while the
+rewrite failed both RGA3 probes with `-EBUSY`.
+
+| Source | Core `reg` size | IOMMU `reg` | Driver mapping API | Result |
+|--------|-----------------|-------------|--------------------|--------|
+| Rockchip BSP `develop-6.1@b4ef083dc0c3`, `rk3588s.dtsi` | `0x1000` at `fdb60000` / `fdb70000` | `0x100` at `fdb60f00` / `fdb70f00` | vendor RGA `devm_ioremap()` | final `0x100` overlaps, but RGA does not reserve it |
+| Forward port `rk3588-video-6.18@12a7da02bea83`, `rk3588-base.dtsi` | `0x1000` | same as BSP | ported vendor RGA `devm_ioremap()` | same tolerated overlap |
+| Upstream `v7.2-rc3@a13c140cc289` | `0x200` | same IOMMU windows | mainline RGA `devm_platform_ioremap_resource()` | disjoint |
+| Maxline public `f12fb0acf7bb` and WIP `74b24e96da62` | `0x200` | same IOMMU windows | inherits mainline RGA | disjoint; neither profile changes these cells |
+| 6.18 rewrite failed boot at `c5faabf9d00b` | inherited `0x1000` | same IOMMU windows | rewrite RGA `devm_ioremap_resource()` | IOMMU reserves first; both RGA3 probes fail `-EBUSY` |
+| 6.18 rewrite `0cc483d3ee20` | `0x200` | same IOMMU windows | rewrite RGA `devm_ioremap_resource()` | packaged DTB has disjoint resources; boot proof pending |
+
+The byte ranges make the collision explicit:
+
+```text
+fdb60000          fdb601ff                 fdb60f00       fdb60fff
+[ RGA3 registers ]        unused gap       [ IOMMU registers ]
+
+BSP/forward core resource:
+[------------------------- 0x1000 -------------------------]
+
+Upstream/maxline/rewrite correction:
+[--- 0x200 ---]                            [ IOMMU 0x100 ]
+```
+
+`devm_ioremap()` creates a managed virtual mapping but does not claim the
+physical interval in Linux's global I/O-memory resource tree.
+`devm_ioremap_resource()` (and the platform wrapper) first validates the
+`IORESOURCE_MEM`, calls `devm_request_mem_region()`, and then maps it. A
+byte-range collision therefore rejects the second claimant with `-EBUSY`.
+Reservation is software ownership bookkeeping, not a hardware access
+requirement and not a runtime arbiter.
+
+The BSP can function because the vendor RGA driver maps the broad aperture but
+uses the low RGA register block, while `rockchip-iommu` separately accesses the
+final `+0xf00..+0xfff` subrange. The two virtual mappings may alias the same
+physical MMIO page, but their actual register accesses are disjoint and use the
+same device-memory attributes. If the drivers did touch the same register,
+omitting the reservation would not serialize them: the accesses would race and
+the hardware would see both.
+
+That convention is fragile. It hides duplicate ownership from probe-time
+validation and `/proc/iomem`, permits a future broad register dump or new access
+to trespass into the IOMMU block, and makes an otherwise-correct reserving
+driver fail. The `0x200` window is preferable because it:
+
+- is the upstream/maxline RK3588 description;
+- covers the complete upstream RGA3 core aperture;
+- comfortably covers the rewrite's highest fixed core access,
+  `RK_RGA3_CMD_STATE` at `0x040` (minimum size `0x044`); and
+- ends at `+0x1ff`, well before the IOMMU at `+0xf00`.
+
+The committed, package-inspected correction and its exact boot gate are recorded
+in the
+[2026-07-26 rewrite failure finding](../../findings/2026-07-26-rewrite-kunit-poisons-runtime-and-rga3-probe-fails.md#independent-rga3-probe-failure).
 
 Each **decoder** core's `reg` is two windows: function/regs at core `+0x100`
 (size `0x400`, named `"regs"`, looked up as index 0 → the driver's `io_base`) and

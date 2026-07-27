@@ -42,11 +42,11 @@ superseded `86`/`122`/`208` at tips `8469183da227` / `9ff18809b5e0`.
 | Encode rkvenc2 H264/H265 + slice + RC | `kasan-mpp-suite.sh`, `encode-test-tiny.sh` | ✅ clean | ❌ |
 | RGA blit/scale/CSC/10-bit/AFBC | `librga-*`, `rga-mmu-debug.sh` | ✅ | ❌ |
 | Conformance suites (mpp/librga/gst/ffmpeg) | `*-suite.sh` | ✅ FFmpeg 14–24 req, GStreamer 98–129, MPP 12/12 | ⚠️ device-free wiring only |
-| KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ❌ (KUnit-under-KASAN not booted) |
+| KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ⚠️ booted KUnit exposed fixture Oops/UAF; no real MPP/RGA workload completed |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | `*-repro.c`, `rga-session-uaf.sh` | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
-| Booted KUnit (85 MPP + 147 RGA = 232) | `rewrite-kunit-log-check.sh` | — | ⚠️ first full boot at parent `5a55fa` ran every case but passed only 77 MPP + 126 RGA and emitted KUnit-triggered sanitizer/warning reports; fixes at `c5faab` are packaged but the clean rerun is pending |
-| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ all 6 profiles green 2026-07-26 at current `c5faab`/`394759`; package `P3b08-Cad24` contains both rewrite drivers and KUnit suites; not hardware |
+| Booted KUnit (85 MPP + 147 RGA = 232) | `rewrite-kunit-log-check.sh` | — | ⚠️ second boot at `c5faab` improved to 84 MPP + 139 RGA but the remaining MPP fixture Oops poisoned the service; exact clean rerun remains pending |
+| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ all three 6.18 profiles green 2026-07-26 at fixture tip `224125`; focused DTB verification is green at published `0cc483`; package `Pf1f5-Cad24` contains both repairs; post-`v7.2-rc5` mainline build was explicitly skipped |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ never booted |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`, `syzkaller/` | ⚠️ ran without KCOV | ❌ |

@@ -281,8 +281,10 @@ Those claims require the hardware, differential, fault-injection, race, and
 soak gates indexed by the [validation guide](validation-index.md) and
 [rewrite conformance procedure](../tests/rewrite-conformance.md).
 
-As of 2026-07-26, the repaired 6.18 and mainline sources pass all six
-clean-source compile profiles. The repaired KASAN/lockdep package contains both
-suites, but its clean booted 85 + 147 result remains pending. Do not promote
-the compile result into a runtime pass until the compound evidence above is
-captured.
+As of 2026-07-26, the residual fixture repair passes the 6.18 `normal`,
+`memory`, and `race` clean-source profiles. Its mainline replay was subsequently
+rebased onto `v7.2-rc5`; a post-rebase mainline build was explicitly skipped,
+so the older mainline compile result does not verify that tip. The repaired
+KASAN/lockdep package contains both suites, but its clean booted 85 + 147 result
+remains pending. Do not promote compile or package results into a runtime pass
+until the compound evidence above is captured.
