@@ -35,6 +35,11 @@ ffbuild/
 # On-board ABI replay output is generated per boot/profile.
 kernel-drivers/tests/logs/
 
+# Local test binaries are reproducible build output. The root pattern retains
+# compatibility with an older manually selected ABI-probe build directory.
+kernel-drivers/tests/.build/
+.abi-probe-build/
+
 # Python validation helpers.
 __pycache__/
 *.pyc

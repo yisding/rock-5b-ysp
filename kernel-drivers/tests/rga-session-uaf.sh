@@ -12,7 +12,7 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$TEST_DIR/../.." && pwd)"
 
 CC="${CC:-cc}"
-BUILD_DIR="${BUILD_DIR:-/tmp/rkcompat-rga-session-uaf}"
+BUILD_DIR="${BUILD_DIR:-$TEST_DIR/.build/rga-session-uaf}"
 KERNEL_UAPI="${KERNEL_UAPI:-$ROOT_DIR/../kernel/linux-6.18-rkvenc/include/uapi}"
 KERNEL_ARCH_UAPI="${KERNEL_ARCH_UAPI:-$ROOT_DIR/../kernel/linux-6.18-rkvenc/arch/arm64/include/uapi}"
 LIBRGA_ROOT="${LIBRGA_ROOT:-$ROOT_DIR/../rockchip-userspace/librga-fork}"

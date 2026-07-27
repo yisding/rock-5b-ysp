@@ -15,7 +15,7 @@ if [ "$LIBRGA_SMOKE_VALIDATE_BUILD" = "1" ] &&
   BUILD_DIR="$tmp_build_dir"
   trap 'rm -rf "$tmp_build_dir"' EXIT
 else
-  BUILD_DIR="${BUILD_DIR:-/tmp/rkcompat-librga-smoke}"
+  BUILD_DIR="${BUILD_DIR:-$TEST_DIR/.build/librga-smoke}"
 fi
 
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
