@@ -39,7 +39,7 @@ plan), [`../../packaging/ppa/kernel-maxline/README.md`](../../packaging/ppa/kern
    reproducers, only on a build you can afford to lose.
 5. **Crash traces need off-board capture.** Ramoops/pstore does **not**
    survive an RK3588 warm reset on this firmware
-   ([finding](../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md)).
+   ([maintained evidence boundary](../../boot-firmware/docs/ramoops-retention.md)).
    Before any gate that may crash the kernel, attach serial (`ttyS2`,
    1500000 baud) or netconsole; `journalctl -b -1` (persistent journal)
    catches the pre-crash tail but usually not the trace.

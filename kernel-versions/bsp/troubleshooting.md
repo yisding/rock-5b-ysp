@@ -89,9 +89,8 @@ a stuck probe *does* print `BUG: workqueue lockup` (~30 s) and a hung-task
 backtrace (~60 s) into the ring buffer. You just never see them because no console
 is attached, journald cannot flush a frozen boot, and ramoops came up empty
 (on **this firmware stack** the reserved window is zeroed across a warm reset —
-see [`findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md`](../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md)
-and the BSP comparison in
-[`findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md`](../../findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md)).
+see the
+[maintained boot-firmware evidence boundary](../../boot-firmware/docs/ramoops-retention.md)).
 `soft/hardlockup` and the NMI watchdog do **not** fire on a sleeping hang.
 
 So the triage priority is: give those dumps a durable channel, then force a fast
@@ -110,7 +109,7 @@ reboot instead of a manual wait.
    chance at all. Use step 1 (netconsole) or a ttyS2 serial console instead, and
    pair with step 3 so the hang panics promptly. Outstanding experiments that
    could still make ramoops work are in
-   [`findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md`](../../findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md).
+   [the retention guide's next-proof section](../../boot-firmware/docs/ramoops-retention.md#next-causal-experiment).
 3. **Force reboot + dump** — set `kernel.hung_task_panic=1` (default here is `0` =
    warn-only); with `panic=10` already on the cmdline the blocked task panics at
    60 s and self-recovers in seconds instead of a ~6-minute dead wait.

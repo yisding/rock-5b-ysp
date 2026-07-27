@@ -1,5 +1,9 @@
 # Ramoops next experiments: find the first boot stage that changes the bytes
 
+> Maintained current synthesis:
+> [`boot-firmware/docs/ramoops-retention.md`](../boot-firmware/docs/ramoops-retention.md).
+> This finding remains the detailed experimental design.
+
 > Scope: ROCK 5B ramoops retention at `0x118000–0x1e7fff`
 > Source: measured warm-reset loss, exact TPL/SPL/BL31/U-Boot write audits, and
 > the corrected evidence boundary in

@@ -1,4 +1,4 @@
-# Crash-capture debug kernel — ramoops + KASAN workflow
+# Crash-debug kernel — KASAN, lockdep, and ramoops diagnostics
 
 How to build, install, and roll back a **heavily-instrumented Armbian kernel**
 for the ROCK 5B that survives a hard crash with evidence: ramoops/pstore keeps
@@ -105,10 +105,16 @@ Those profiles only prove the rewrite objects compile with the instrumentation;
 booted runtime evidence still comes from this debug kernel plus the separate
 KCSAN race kernel in [`rewrite-validation-plan.md`](./rewrite-validation-plan.md).
 
-## 4. Enable ramoops capture (+ persistent journal)
+## 4. Configure ramoops diagnostics (+ persistent journal)
 
-Ramoops needs a reserved-memory region the boot chain preserves. The debug DTB
-package carries `/reserved-memory/ramoops@118000`: `reg = <0x0 0x118000 0x0
+Ramoops needs a reserved-memory region the boot chain preserves. This firmware
+stack does **not** preserve the configured interval across a warm reset, so the
+setup below is a diagnostic/experiment fixture, not a proven crash-capture
+channel. Use serial or netconsole for any gate that may reset the board; the
+maintained evidence boundary is the
+[boot-firmware retention guide](../../boot-firmware/docs/ramoops-retention.md).
+
+The debug DTB package carries `/reserved-memory/ramoops@118000`: `reg = <0x0 0x118000 0x0
 0xd0000>`, `no-map`, `record-size = 0x40000`, `console-size = 0x80000`,
 `pmsg-size = 0x10000`, and `ecc-size = <16>`. Rockchip's pinned 6.1 BSP
 (`develop-6.1@b4ef083dc0c3`, `rk3588-linux.dtsi`) reserves
@@ -135,11 +141,12 @@ configures the remaining boot/sysctl policy:
 Verify after reboot: `test -d /sys/module/ramoops`, `sysctl kernel.panic_on_oops`,
 `dmesg | grep -i 'ramoops\|pstore'`, `ls /sys/fs/pstore`.
 
-> **Validation state (2026-07-19):** the high-DRAM ECC failure is measured and
-> the replacement range is source-inspected against the pinned BSP. The tracked
-> patch is structurally validated, but the rebuilt DTB and a crash-across-reset
-> pstore record still need an on-board re-test before this is treated as a
-> proven capture path.
+> **Validation state (2026-07-27):** the replacement DTB and ramoops Linux
+> configuration register correctly, but the interval returns all-zero after a
+> software warm reset. Exact TPL/SPL/BL31/U-Boot audits found no direct writer;
+> the destructive actor remains unresolved. Do not treat this as a working
+> persistent store or attribute the loss to DDR training without the planned
+> early-stage witness.
 
 **Persistent journal** (so the *previous boot's* userspace logs survive too):
 point `/var/log/journal` at `/var/log.hdd/journal` (Armbian's zram log
@@ -212,7 +219,8 @@ collision"). Consequences here:
 
 ## 7. Reading a crash after reboot
 
-Pstore mounts at `/sys/fs/pstore` (ramoops backend). After a captured crash:
+Pstore mounts at `/sys/fs/pstore` (ramoops backend). On firmware where
+retention is independently proven, a captured crash appears as:
 
 ```bash
 sudo ls -l /sys/fs/pstore
@@ -224,7 +232,9 @@ sudo cat /sys/fs/pstore/dmesg-ramoops-0 | less
 
 Copy the files out, **then delete them** (`sudo rm /sys/fs/pstore/*`) to free
 the ramoops slots for the next crash. Pair with `journalctl -b -1` (§4
-persistent journal) for the userspace side of the timeline. With
+persistent journal) for the userspace side of the timeline. On the current
+ROCK 5B stack these files are expected to be absent after reset; an empty
+directory does not prove that no oops occurred. With
 `GDB_SCRIPTS` (§3) and BTF (§2) kept, addresses in the dump symbolize against
 the debug build's `vmlinux` in the Armbian build tree.
 

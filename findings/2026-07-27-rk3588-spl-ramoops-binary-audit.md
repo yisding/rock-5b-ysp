@@ -1,5 +1,9 @@
 # Exact SPL audit closes the ordinary CPU zero-writer, not the DDR mechanism
 
+> Maintained current synthesis:
+> [`boot-firmware/docs/ramoops-retention.md`](../boot-firmware/docs/ramoops-retention.md).
+> This finding remains the exact SPL binary-audit evidence.
+
 > Scope: ROCK 5B running SPI firmware
 > `ddr-v1.20-b8ce94f14b / bl31-v1.48 / uboot-rmbian-201-06/05/2026`
 > Source: exact SPL extracted from `spi-rock5b-20260706.bin`

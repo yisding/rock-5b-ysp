@@ -1,5 +1,9 @@
 # RK3588 DDR blobs do not directly clear the Linux ramoops window
 
+> Maintained current synthesis:
+> [`boot-firmware/docs/ramoops-retention.md`](../boot-firmware/docs/ramoops-retention.md).
+> This finding remains the exact TPL binary-audit evidence.
+
 > **Followed up 2026-07-27 by**
 > [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md).
 > The exact SPL's bulk operations, inline zero stores, fixed allocations, and

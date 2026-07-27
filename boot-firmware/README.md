@@ -6,7 +6,7 @@
 |-------|----------|
 | Purpose | Explain what happens between power-on and Linux, make the installed boot firmware identifiable, and keep SD/SPI/eMMC/NVMe recovery work understandable without requiring prior U-Boot knowledge. |
 | Developer focus | The RK3588 BootROM → DDR init → SPL → TF-A → U-Boot proper chain, U-Boot's own device tree and environment, OS discovery, Rockchip image packaging, and the differences between the Armbian, Radxa, and upstream trees. |
-| Owns | The durable U-Boot primer, version comparison, debugging method, and boot-firmware vocabulary. Dated observations and raw captures still enter through [`../findings/`](../findings/README.md); destructive board operations remain in [`../scripts/`](../scripts/README.md). |
+| Owns | The durable U-Boot primer, version comparison, debugging method, warm-reset ramoops-retention boundary, and boot-firmware vocabulary. Dated observations and raw captures still enter through [`../findings/`](../findings/README.md); destructive board operations remain in [`../scripts/`](../scripts/README.md). |
 | Depends on | Rockchip's immutable BootROM, an RK3588 DDR-training binary or TPL, TF-A BL31, the selected U-Boot source/configuration, and recoverable storage. |
 | Current state | As of 2026-07-11, SPI → NVMe is the working baseline. The inspected Armbian 26.2.1 and 26.5.1 vendor FITs contain an empty required U-Boot control DTB, while the untested 26.5.1 current FIT contains a valid 12,752-byte DTB. A missing Radxa Makefile dependency makes a parallel-build race the leading code-supported explanation; it is not yet confirmed by the pending raw-SD hardware test. See [`../status.md` track 12](../status.md#dashboard). |
 
@@ -17,6 +17,7 @@
 | What is U-Boot, and what runs before it? | [`docs/u-boot-primer.md`](docs/u-boot-primer.md) |
 | How do Armbian 26.2, 26.5, Radxa, and upstream differ? | [`docs/version-comparison.md`](docs/version-comparison.md) |
 | Where did a boot stop, and what should I inspect next? | [`docs/debugging.md`](docs/debugging.md) |
+| Why does ramoops return empty after a warm reset, and what is actually proven? | [`docs/ramoops-retention.md`](docs/ramoops-retention.md) |
 | How do I check a published Rockchip image for the zero-DTB FIT race without downloading it in full? | [`scripts/audit-armbian-rockchip-fit.sh`](scripts/audit-armbian-rockchip-fit.sh); use [`scripts/audit-armbian-radxa-catalog.sh`](scripts/audit-armbian-radxa-catalog.sh) for every image linked from one or more board pages. |
 | What do SPL, BL31, FIT, Bootstd, and `idbloader.img` mean? | [`keywords.md`](keywords.md) |
 | What is the dated public state and next hardware proof? | [`../status.md`](../status.md) track 12 |

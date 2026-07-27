@@ -184,26 +184,24 @@ goes to `$WORKSPACE/boot-backups/<timestamp>/`.
 ## Reading a crash
 
 > ⚠️ **ramoops/pstore does not survive a reset on this board — do not rely on
-> it.** Measured 2026-07-21: even a clean `panic=10` self-reboot leaves
-> `/sys/fs/pstore` empty (the continuously-written console zone vanishes too),
-> because RK3588 re-initializes/re-trains DRAM on every `SYSTEM_RESET` and this
-> Armbian firmware stack (`ddr-v1.20 / bl31-v1.48 / uboot-rmbian`) does not
-> preserve the `0x118000` window the way the Rockchip BSP firmware does. See
-> [`ramoops-not-preserved-across-warm-reset-rk3588`](../../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md).
+> it.** The `0x118000–0x1e7fff` interval returns all-zero after a warm reset on
+> the inspected `ddr-v1.20 / bl31-v1.48 / uboot-rmbian` stack. Exact
+> TPL/SPL/BL31/U-Boot audits found no direct write into the interval; DDR
+> initialization is the leading unresolved phase, not a proven destructive
+> mechanism. BSP provisioning is not proof that a BSP stack retains records
+> either. The maintained conclusion, corrections, and next witness are in the
+> [boot-firmware retention guide](../../../boot-firmware/docs/ramoops-retention.md).
 > For an actual call trace use **off-board capture** — serial console on
 > `ttyS2` (1500000 baud, USB-TTL adapter) or netconsole to a listener — which
 > records the oops before the board resets. `journalctl -b -1` still gives the
 > pre-crash tail and usually the oops *header*, but not the trace.
->
-> Settled 2026-07-22 with `./ramoops-persistence-probe.sh` (ramoops driver
-> blacklisted, patterns stamped via /dev/mem, verified warm resets): the
-> 1–2 MB BSP window comes back **uniformly ZEROED** (active zeroer, most
-> likely BL31's share-memory pool init) and no-map islands at 2 GB and 6 GB
-> (`ramoops-probe-nomap.dts` overlay) come back **100 % GARBAGE** — DRAM is
-> unreadable after re-init everywhere, consistent with scrambler re-key /
-> retraining, and ddrbin_tool has no knob for it. **No ramoops address can
-> work on this board + firmware; off-board capture is the only path.** Full
-> audit + probe trail in the finding above.
+
+[`ramoops-persistence-probe.sh`](ramoops-persistence-probe.sh) is the tracked
+legacy marker probe that produced the bounded warm-reset observation. Its
+default writes stay inside the debug DTB's no-map ramoops reservation; custom
+offsets require live-DT verification first. The script classifies bytes only —
+it does not identify the boot stage or mechanism, so interpret its output
+through the retention guide rather than its historical finding.
 
 After a panic/oops, `journalctl -b -1` holds the pre-crash tail; the pstore
 dumps that *would* pair with it are lost to the reset (above). Full workflow +

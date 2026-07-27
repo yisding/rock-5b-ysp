@@ -26,17 +26,18 @@ Test procedure (two reboots total):
   5. Remove the extraargs entry again.
 
 Interpretation:
-  INTACT     Firmware preserves the window. ramoops failure is kernel-side
-             (most likely ecc-size validation zapping decayed content, or
-             zone layout). Fix in the DT patch and retest.
-  CORRUPTED  DRAM mostly survives but with bit decay across the reset.
-             Drop ecc-size=16 (ECC rejects whole blocks); plain ramoops
-             tolerates scattered bit errors in console text.
-  ZEROED     Something in TPL/SPL/BL31/U-Boot actively clears the window on
-             the way up; needs firmware-side hunting (try a different rkbin
-             DDR blob, or ddrbin_tool pstore_base_addr configuration).
-  GARBAGE    DRAM content is lost or scrambled across the reset; no ramoops
-             address can work. Use netconsole or serial console instead.
+  INTACT     The sampled pages retained this marker. This makes a Linux-side
+             ramoops/layout test worthwhile; it does not prove pstore works.
+  CORRUPTED  The sampled pages changed but retained substantial marker data.
+             Preserve the full dump before proposing decay or ECC changes.
+  ZEROED     The sampled pages became deterministic zeros. Exact TPL/SPL/
+             BL31/U-Boot audits found no direct writer into this interval, so
+             this class does not identify the actor or operation.
+  GARBAGE    The sampled pages changed substantially. This does not by itself
+             prove scrambling, DRAM-wide loss, or that no other range works.
+
+Current evidence and the next temporal witness:
+  boot-firmware/docs/ramoops-retention.md
 
 By default probes touch only the no-map reserved region the debug-kernel DT
 patch declares (0x118000 + 0xd0000). Extra offsets given after the mode
@@ -46,9 +47,10 @@ no-map islands elsewhere in DRAM, e.g.:
 
   sudo bash ramoops-persistence-probe.sh write 0x40000000 0x80000000 0x180000000
 
-This is inherently safe: the kernel rejects mmap of System RAM through
-/dev/mem (STRICT_DEVMEM), so an offset that is not inside a no-map
-reservation fails with EPERM instead of corrupting live memory.
+The default offsets are inside the dedicated no-map reservation. Extra offsets
+are advanced use: confirm that every page is reserved/no-map in the live DT
+before writing it. STRICT_DEVMEM is an additional guard on this kernel, not a
+portable safety guarantee.
 EOF
 }
 
@@ -89,8 +91,9 @@ fi
 # read_mem/write_mem go through valid_phys_addr_range(), which rejects any
 # MEMBLOCK_NOMAP range (arch/arm64/mm/mmap.c) -- exactly what our no-map
 # ramoops reservation is, so dd fails with EFAULT ("Bad address"). The mmap
-# path only checks devmem_is_allowed(), which permits non-System-RAM pages,
-# and arm64 maps no-map pfns noncached automatically.
+# path checks devmem_is_allowed(), and arm64 maps no-map pfns noncached. Keep
+# writes inside a live, verified reservation; do not infer universal safety
+# from this kernel's STRICT_DEVMEM behavior.
 PYMEM='
 import mmap, os, sys
 mode, off = sys.argv[1], int(sys.argv[2], 0)

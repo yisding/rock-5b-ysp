@@ -1,4 +1,8 @@
-# Why BSP ramoops "works" at 0x110000 and ours does not — consolidated answer, and a correction to our own record
+# BSP vs. Armbian ramoops: provisioning is not proof of retention
+
+> Maintained current synthesis:
+> [`boot-firmware/docs/ramoops-retention.md`](../boot-firmware/docs/ramoops-retention.md).
+> This finding remains the detailed BSP comparison and experiment provenance.
 
 > **Evidence-boundary update 2026-07-27:**
 > [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md)

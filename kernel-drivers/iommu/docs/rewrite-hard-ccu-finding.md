@@ -325,7 +325,7 @@ instability (that needs Layers 2–4). Pairs with the existing
   target, and the effort shrinks to Phase 0 + fallback. Cheap to answer early.
 - **Board-safety gate (before Phase 2).** HARD *will* hang during bring-up, and
   this board's ramoops does not persist across warm reset (see
-  [`findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md`](../../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md)).
+  [the boot-firmware retention guide](../../../boot-firmware/docs/ramoops-retention.md)).
   Serial/netconsole capture is mandatory, or every crash you are trying to
   root-cause is lost.
 

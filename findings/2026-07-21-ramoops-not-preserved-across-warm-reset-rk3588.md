@@ -1,4 +1,9 @@
-# ramoops/pstore does not survive a warm reset on this ROCK 5B: RK3588 re-inits DRAM on every reboot
+# Ramoops/pstore does not survive a warm reset on this ROCK 5B
+
+> Maintained current synthesis:
+> [`boot-firmware/docs/ramoops-retention.md`](../boot-firmware/docs/ramoops-retention.md).
+> This finding preserves the initial observation and its explicitly corrected
+> mechanism claims.
 
 > Scope: ROCK 5B debug kernels (all of them — they carry the ramoops DT patch),
 > firmware stack `ddr-v1.20-b8ce94f14b / bl31-v1.48 / uboot-rmbian-201`
