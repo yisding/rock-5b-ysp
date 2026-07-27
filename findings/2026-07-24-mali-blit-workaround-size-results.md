@@ -7,7 +7,9 @@
 > reproducer
 > [`mr43161_size_repro.sh`](../video-libraries/mesa/reproducers/interp_probe/mr43161_size_repro.sh);
 > performance follow-up
-> [`offset_perf_probe.c`](../video-libraries/mesa/reproducers/interp_probe/offset_perf_probe.c).
+> [`offset_perf_probe.c`](../video-libraries/mesa/reproducers/interp_probe/offset_perf_probe.c);
+> independent shader verifier
+> [`offset_perf_verify.c`](../video-libraries/mesa/reproducers/interp_probe/offset_perf_verify.c).
 > Date: 2026-07-24
 > Trust: MEASURED (correctness scans and fixed-clock GPU timing on the board)
 
@@ -151,6 +153,19 @@ measures a cache-warm fullscreen `texelFetch` blit with three paths:
 1. interpolated-varying baseline;
 2. the same shader and geometry with zero-valued polygon offset enabled; and
 3. a direct `gl_FragCoord.xy` source-coordinate control.
+
+The independent
+[`offset_perf_verify.c`](../video-libraries/mesa/reproducers/interp_probe/offset_perf_verify.c)
+companion fills the `R32UI` source with unique pixel IDs, renders each path once,
+and compares every destination pixel. Its default `12288x1` G610 run confirms
+that the timed shader choices have the expected correctness split:
+
+```text
+baseline mismatches=11744 first=(529,0)
+workaround mismatches=0
+fragcoord mismatches=0
+verdict=PASS
+```
 
 Each comparison uses alternating ABBA/BAAB blocks. Every GPU timer batch ends
 with `glFinish()` before the next path starts; this is necessary on the

@@ -17,6 +17,7 @@ tex_interp_probe
 exact_offset_scan
 exact_offset_scan2d
 offset_perf_probe
+offset_perf_verify
 triangle_matrix_probe
 vk_interp_probe
 vk_interp_probe_explained

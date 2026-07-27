@@ -16,6 +16,7 @@ varying.
 | [`exact_offset_scan.c`](exact_offset_scan.c) | Bitwise baseline-vs-zero-polygon-offset scanner for the one-fullscreen-triangle GL probe. Finds which widths produce identical raw varying bits and which only remain integer-bin correct. |
 | [`exact_offset_scan2d.c`](exact_offset_scan2d.c) | 2D bitwise scanner. Carries both `x + 0.5` and `y + 0.5`, supports full line scans (`Wx1`, `1xH`, `Wx2`, `2xH`), full power-of-two cross-products, and a scissored top-right sample for every `WxH` pair. |
 | [`offset_perf_probe.c`](offset_perf_probe.c) | GPU-timer A/B for baseline varying, zero-valued polygon offset, and a direct `gl_FragCoord` source coordinate. Runs a fullscreen `texelFetch` blit in alternating ABBA/BAAB blocks and completes each timed batch separately so Mali's deferred tile work stays inside the owning query. |
+| [`offset_perf_verify.c`](offset_perf_verify.c) | Independent correctness companion for the performance shaders. Fills an `R32UI` source with unique pixel IDs and requires the default G610 case to fail on baseline but match exactly with zero polygon offset and direct fragcoord. |
 | [`tex_interp_probe.c`](tex_interp_probe.c) | Ordinary-TEX counterpart. Carries a normalized non-integer `0→1` varying into `texture()` with `GL_NEAREST` and samples an `R32F` ramp, proving the workaround is not specific to raw varying readback or integer-coordinate TXF. |
 | [`triangle_matrix_probe.c`](triangle_matrix_probe.c) | MR !43161 option matrix. Sweeps wide/tall targets, exact half-rectangle and oversized triangles, all right-angle corners, both windings, both long-axis directions, raw-varying vs normalized `texture()` sampling, and baseline vs zero-valued polygon offset. |
 | [`vk_interp_probe.c`](vk_interp_probe.c) | Vulkan/panvk port of the tiny probe. Removes Gallium, u_blitter, and the GL state tracker from the stack. Uses dynamic rendering, copies raw `R32_UINT` bits back with Vulkan, and provides a zero-valued `depthBiasEnable` A/B mode. |
@@ -114,6 +115,8 @@ cc -O2 -Wall -Wextra -o exact_offset_scan2d \
   exact_offset_scan2d.c -lEGL -lGLESv2 -lm
 cc -O2 -Wall -Wextra -Werror -o offset_perf_probe \
   offset_perf_probe.c -lEGL -lGLESv2
+cc -O2 -Wall -Wextra -Werror -o offset_perf_verify \
+  offset_perf_verify.c -lEGL -lGLESv2
 cc -O2 -o tex_interp_probe tex_interp_probe.c -lEGL -lGLESv2
 cc -O2 -Wall -Wextra -o triangle_matrix_probe \
   triangle_matrix_probe.c -lEGL -lGLESv2 -lm
@@ -169,6 +172,7 @@ current working directory.
 ./exact_offset_scan --details 2081
 ./exact_offset_scan2d --max 4096 --lines --pow2
 ./exact_offset_scan2d --max 4096 --sample-grid --progress 1024
+./offset_perf_verify
 ./offset_perf_probe
 ./offset_perf_probe 3840 2160 256 30 4
 
