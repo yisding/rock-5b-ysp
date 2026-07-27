@@ -164,7 +164,7 @@ a crash.
 > 188 MiB); it only rewrites `/boot/boot.cmd` + `boot.scr`, and **no kernel,
 > initrd, or DTB needs regenerating** — `uInitrd` carries load/entry `0`, the
 > `Image` header sets the 2 MiB-anywhere placement flag, and DTBs hold no load
-> address. `install-debug-kernel.sh` now refuses an oversize image up front
+> address. `install-kernel.sh` now refuses an oversize image up front
 > rather than letting you find out at the next reboot. The revert takes
 > `kernel-revert.sh`'s target flags (`--auto` / `--device` / `--root`) and runs
 > on a bare rescue image: `--apply` leaves both a copy of the script and a
@@ -172,7 +172,7 @@ a crash.
 > `sudo bash set-boot-load-addresses.sh --auto --revert` restores stock
 > addresses from an SD-card rescue boot even with no `mkimage` installed.
 
-**Install** (`install-debug-kernel.sh` logic): back up the current
+**Install** (`install-kernel.sh` logic): back up the current
 `/boot` kernel artifacts (`Image`, `vmlinuz-*`, `initrd.img-*`, `uInitrd-*`,
 `System.map-*`, `config-*`, `dtb-*`) into a timestamped `boot-backups/<stamp>/`
 dir, `dpkg -i` the newest image+dtb+headers debs from

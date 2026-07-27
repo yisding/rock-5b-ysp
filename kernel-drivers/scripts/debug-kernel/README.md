@@ -101,7 +101,7 @@ kernel-selection menu. Complete the baseline, rescue-media, known-good-deb, and
 `kernel-revert.sh` preparation in [`../../../install.md` §3](../../../install.md)
 before continuing.
 
-`install-debug-kernel.sh` captures the running kernel's selected `/boot` files
+`../install-kernel.sh` captures the running kernel's selected `/boot` files
 and package manifest for diagnosis, but that directory is **not** a bootable
 rollback and cannot replace the known-good image/DTB debs.
 
@@ -168,15 +168,15 @@ mkimage-less rescue revert is currently possible.
 
 ```bash
 ./set-boot-load-addresses.sh --check          # confirm the kernel will fit
-RECOVERY_READY=1 PHASH='P####-C####' \
-  ./install-debug-kernel.sh                  # exact debs, diagnostic capture,
+sudo env RECOVERY_READY=1 PHASH='P####-C####' \
+  bash ../install-kernel.sh                  # exact debs, diagnostic capture,
                                              # dpkg -i, then apt-mark hold
 sudo ./enable-ramoops-capture.sh             # verify packaged DT + panic_on_oops
 sudo ./enable-persistent-journal.sh          # optional: journald survives reboots
 sudo reboot
 ```
 
-`install-debug-kernel.sh` runs `apt-mark hold` on the kernel packages so a routine
+`install-kernel.sh` runs `apt-mark hold` on the kernel packages so a routine
 `apt upgrade` can't silently replace the debug build. The diagnostic capture of
 the running release, package versions, boot selectors, and selected artifacts
 goes to `$WORKSPACE/boot-backups/<timestamp>/`.

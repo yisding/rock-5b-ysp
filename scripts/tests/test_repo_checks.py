@@ -170,10 +170,10 @@ class MarkdownLinkCheckerTests(unittest.TestCase):
 class OperationalHelpTests(unittest.TestCase):
     def test_board_mutating_entry_points_have_safe_help(self) -> None:
         scripts = (
+            "kernel-drivers/scripts/install-kernel.sh",
             "kernel-drivers/scripts/install-combined-kernel.sh",
             "kernel-drivers/scripts/kernel-revert.sh",
             "kernel-drivers/scripts/make-fallback-kernel-deb.sh",
-            "kernel-drivers/scripts/debug-kernel/install-debug-kernel.sh",
             "kernel-drivers/scripts/debug-kernel/enable-ramoops-capture.sh",
             "kernel-drivers/scripts/debug-kernel/disable-ramoops-capture.sh",
             "kernel-drivers/scripts/debug-kernel/enable-persistent-journal.sh",

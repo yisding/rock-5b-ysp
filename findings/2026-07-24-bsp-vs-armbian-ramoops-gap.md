@@ -673,7 +673,7 @@ if delivered via maskrom; MEDIUM-HIGH if flashed.
 
 1. **Stop treating ramoops as the primary crash channel on this board, and say so in
    the tooling.** `kernel-drivers/scripts/debug-kernel/README.md` and
-   `install-debug-kernel.sh` should default to **netconsole** (wired) or **ttyS2
+   `install-kernel.sh` should default to **netconsole** (wired) or **ttyS2
    @1500000** and mention ramoops only as a bonus. Every crash finding from
    2026-07-17 onward that says "pstore was empty" cost a re-derivation.
 
