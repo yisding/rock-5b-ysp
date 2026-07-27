@@ -33,7 +33,7 @@
 > Date: 2026-07-24
 > Trust: **MEASURED** (all live-board journal/DT/dpkg reads, every blob/DTB/config
 > extraction, the ECC-silence result) / **SOURCE-INSPECTED** (kernel, TF-A, U-Boot,
-> TRM, datasheet) / **INFERRED** (the identity of the zero-writer) / **UNVERIFIED**
+> TRM, datasheet) / **INFERRED** (remaining candidates; mechanism unresolved) / **UNVERIFIED**
 > (that BSP ramoops has ever actually retained a record on any RK3588).
 
 ---
@@ -369,6 +369,15 @@ should be fixed.
 
 ## 5. EXPERIMENT RUNBOOK (ordered: cheapest and safest first)
 
+> **Current causal plan:** the ordering and interpretations below predate the
+> exact-SPL audit and its corrected evidence boundary. Use
+> [`2026-07-27-rk3588-ramoops-next-experiment-plan.md`](2026-07-27-rk3588-ramoops-next-experiment-plan.md)
+> for mechanism work: page-unique transition fingerprints first, then an
+> SPL-entry witness, a one-variable RAM-only DDR-blob matrix, and TPL phase
+> checkpoints. The BSP-kernel/image experiments below remain useful for testing
+> whether the BSP persistence premise is true, but they do not identify the
+> current uniform-zero mechanism.
+
 Board safety context: `/home/yi/Code/rock-5b-ysp/spi-backups/` holds two verified
 16 MiB SPI dumps (`rock5b-spi-before-erase-20260707T024822Z.bin` and
 `…T025242Z.bin`, each with a `.sha256`), so SPI is recoverable — but **no experiment
@@ -486,8 +495,9 @@ sudo reboot
   the follow-up would be a bisect of BSP-DT-node vs `pmic-reset-func` (add each
   separately to our 6.18 DT via DTBO).
 - Empty ⇒ **the BSP kernel + BSP DT + `pmic-reset-func=<1>` cannot save it on our
-  firmware**, which pins the cause firmly to firmware (EXP-5/6) or kills the premise
-  (EXP-3). Either way it is the highest-information single result available.
+  firmware**. That weakens a kernel/DT-only explanation but neither identifies
+  the destructive mechanism nor proves that the firmware is its actor. EXP-3
+  still tests whether the BSP premise is true at all.
 
 **Time:** ~30 min including two reboots. **Risk: MEDIUM.** The 6.1.115 BSP kernel
 may fail to boot (older kernel, NVMe/eMMC root, different rootfs feature set). It is
@@ -567,11 +577,12 @@ sudo bash .../ramoops-persistence-probe.sh dump
 sudo bash .../ramoops-persistence-probe.sh read
 ```
 
-**Proves:** whether warm and cold differ at all on RK3588. If cold looks *identical*
-to warm (both zeroed), that is strong evidence the boot chain re-creates the array
-regardless and rules out any "keep the rails up" family of fixes. If cold is
-0x00/0xFF-mottled and warm is uniformly zero, the warm zeroing is a software writer
-and worth hunting. **Also: fix `troubleshooting.md:102` either way.**
+**Proves:** whether warm and cold have different transition fingerprints on
+RK3588. Identical final zeros show that the two paths converge, not which stage
+or mechanism causes that convergence. If cold is 0x00/0xFF-mottled and warm is
+uniformly zero, the warm path has a deterministic effect worth localizing; it
+does not by itself prove a software writer. **Also: fix
+`troubleshooting.md:102` either way.**
 
 **Time:** 20 min. **Risk: LOW** (a clean `poweroff` and a power cycle; nothing
 written to persistent storage). Requires physical access to the power lead.
@@ -597,13 +608,14 @@ phase, no control island, and 1 × 4 KiB per island. Before any conclusion about
 4. Boot with `initcall_blacklist=ramoops_init` (verify `initcall ramoops_init
    blacklisted` in the log) and `sudo armbian-add-overlay ramoops-probe-nomap.dts`.
 
-**Proves:** what the 2 GB / 6 GB content actually *is*. A histogram concentrated on
-0x00 ⇒ a software zero-writer reaching 6 GB (extraordinary; hunt it). A 0x00/0xFF
-bimodal histogram ⇒ power-loss ground state ⇒ the rails really do drop, and §3.2's
-refutation of H3 needs re-opening on a mechanism nobody has found. A flat
-high-entropy histogram ⇒ revive the scrambler story. **Risk: LOW** — `STRICT_DEVMEM`
-makes stamping ordinary RAM structurally impossible (an unreserved offset returns
-EPERM and `set -euo pipefail` aborts).
+**Proves:** what the 2 GB / 6 GB content actually *is*. A histogram concentrated
+on 0x00 identifies a deterministic zero/read effect reaching 6 GB, not
+necessarily a software writer. A 0x00/0xFF bimodal histogram makes physical
+retention or rail behavior worth reopening. A flat high-entropy histogram
+revives scrambling/remapping candidates. Use the page-unique patterns and
+transition analysis in the current causal plan before assigning any mechanism.
+**Risk: LOW** — `STRICT_DEVMEM` makes stamping ordinary RAM structurally
+impossible (an unreserved offset returns EPERM and `set -euo pipefail` aborts).
 
 Cleanup afterwards: remove `initcall_blacklist=ramoops_init` from `extraargs` and
 `ramoops-probe-nomap` from `user_overlays` in `/boot/armbianEnv.txt`, delete
@@ -641,10 +653,13 @@ writes SPI, and it should be a deliberate decision, not a casual one); or (b) us
 maskrom + `rkdeveloptool db` to run a loader from RAM without persisting it, which
 is materially safer and is the recommended form.
 
-**Proves:** whether the ddr v1.20 / bl31 v1.48 pairing (documented-unsupported) is
-the zero-writer. Re-run EXP-4b under the new firmware. Unchanged ⇒ blob version is
-not the cause and the last firmware hypothesis dies. **Time:** ~2 h. **Risk:
-MEDIUM-HIGH — the only SPI-writing step in this document.**
+**Tests:** whether the bundled ddr v1.20 / bl31 v1.48 versus v1.22 / v1.54 pairs
+change the final fingerprint. It changes two variables and therefore cannot
+identify either component or prove a zero-writer. Prefer the current plan's
+same-SPL, SPL-entry, one-variable DDR matrix delivered through RAM. An unchanged
+pair result weakens a version dependency but does not eliminate every firmware
+mechanism. **Time:** ~2 h. **Risk: MEDIUM-HIGH — the only SPI-writing step in
+this document.**
 
 ---
 
@@ -658,9 +673,11 @@ init under our kernel):
 sudo rkdeveloptool db /home/yi/Code/radxa-images/loaders/rk3588_spl_loader_v1.15.113.bin
 ```
 
-That loader contains `ddr-v1.15-d5483af87d` + SPL v1.13 — the BSP generation. If a
-BSP-era DDR init preserves the window where v1.20 does not, EXP-5's flash becomes
-justified. **Risk: MEDIUM** (maskrom entry needs the recovery button/pin; nothing is
+That loader contains `ddr-v1.15-d5483af87d` + SPL v1.13 — the BSP generation.
+A different result establishes a loader-generation dependency, not a DDR-only
+cause, because both DDR and SPL change. Use it as a safe reconnaissance result
+before repackaging the same diagnostic SPL with one DDR blob at a time.
+**Risk: MEDIUM** (maskrom entry needs the recovery button/pin; nothing is
 written).
 
 ---
@@ -672,8 +689,10 @@ Nobody proposed this. Build our U-Boot with `CONFIG_PSTORE=y` (Rockchip's own
 `arch/arm/mach-rockchip/pstore.c:112-127` rewrites the 12-byte header **only when
 the signature mismatches**, so U-Boot itself reports, on the next boot, whether the
 `0x43474244` signature survived — before Linux ever runs, and with no `/dev/mem`
-access needed. Combine with EXP-6 (maskrom `db`) to avoid flashing. **Risk: LOW**
-if delivered via maskrom; MEDIUM-HIGH if flashed.
+access needed. This still observes after TPL, SPL, and BL31, so the current
+plan's SPL-entry witness has a much tighter causal boundary. Combine with EXP-6
+(maskrom `db`) to avoid flashing. **Risk: LOW** if delivered via maskrom;
+MEDIUM-HIGH if flashed.
 
 ---
 
@@ -915,10 +934,10 @@ Linux window. The resulting mechanism disposition is:
    audit.
 3. **Geometry / capacity detection.** Density, rank count and address mapping are
    determined by writing markers at power-of-2 offsets and reading back for
-   aliasing, then clearing them. This is the only mechanism that predicts the island
-   results: 1 GB read back ZEROED, and 2 GB / 6 GB flagged GARBAGE by a classifier
-   that demands an exact all-NUL page. Power-of-2 offsets are exactly where a
-   capacity detector writes.
+   aliasing, then clearing them. This is compatible with the power-of-2 island
+   placements, but the original 2 GB / 6 GB classifier did not preserve enough
+   data to attribute their result. Use page-unique patterns before promoting
+   this candidate.
 4. ~~**Log-ring init overshoot.**~~ Falsified by decompilation. The routine derives
    a 32 KiB total from `0x0011801f`, subtracts its 12-byte header, and wraps every
    payload write inside `0x110000–0x117fff`.
@@ -932,20 +951,20 @@ Linux window. The resulting mechanism disposition is:
 Run after EXP-1b, which reads the ring at `0x110000`. Both are read-only `mmap` of
 `/dev/mem`; neither reboots or writes anything.
 
-- If the **ring is intact** at `0x110000–0x117fff` but zeros begin exactly at
-  `0x118000`, the actor is mechanism 2 and ramoops may simply need to move clear of
-  it — the cheapest possible fix.
+- If a **known prior-boot marker inside the ring survives** at
+  `0x110000–0x117fff` but page-unique markers disappear beginning exactly at
+  `0x118000`, there is a real spatial boundary. A freshly created `DBGC` header
+  from the current boot is not evidence that prior bytes survived, and the
+  boundary alone does not identify an actor.
 - If the **ring is also zeros**, the `*_log_en` bits are not producing writes and
   the whole ddrbin-pstore thread is moot.
 
 Then walk the region at fine granularity and find where the zeros start and stop.
-**A terminating boundary on 64 KiB / 1 MiB / 2 MiB characterises the loop that wrote
-them, and any window surviving above that boundary is somewhere ramoops could
-live.** This constrains the answer whichever way it comes out, at no risk, without
-the blob swap of EXP-5/EXP-6.
-
-If the boundary map points at the blob, disassembling it is tractable: it is small,
-and the search is for bulk-zero idioms (`stp xzr, xzr` loops, `dc zva`).
+**A terminating boundary on 64 KiB / 1 MiB / 2 MiB characterises the effect's
+granularity, not necessarily a software loop.** A surviving interval is a
+candidate placement only after repeated page-unique warm-reset trials. This
+constrains the answer at no risk, but temporal localization still requires the
+SPL-entry witness in the current causal plan.
 
 ---
 
