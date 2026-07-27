@@ -113,7 +113,7 @@ cc -O2 -Wall -Wextra -o exact_offset_scan \
 cc -O2 -Wall -Wextra -o exact_offset_scan2d \
   exact_offset_scan2d.c -lEGL -lGLESv2 -lm
 cc -O2 -Wall -Wextra -Werror -o offset_perf_probe \
-  offset_perf_probe.c -lEGL -lGLESv2 -lm
+  offset_perf_probe.c -lEGL -lGLESv2
 cc -O2 -o tex_interp_probe tex_interp_probe.c -lEGL -lGLESv2
 cc -O2 -Wall -Wextra -o triangle_matrix_probe \
   triangle_matrix_probe.c -lEGL -lGLESv2 -lm
@@ -169,11 +169,8 @@ current working directory.
 ./exact_offset_scan --details 2081
 ./exact_offset_scan2d --max 4096 --lines --pow2
 ./exact_offset_scan2d --max 4096 --sample-grid --progress 1024
-./offset_perf_probe 512 512 4096 30 4
-./offset_perf_probe 1024 1024 2048 30 4
-./offset_perf_probe 1920 1080 1024 30 4
+./offset_perf_probe
 ./offset_perf_probe 3840 2160 256 30 4
-./offset_perf_probe 12288 1 4096 30 4
 
 ./tex_interp_probe 12288 baseline
 ./tex_interp_probe 12288 polygon-offset

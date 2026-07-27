@@ -1,283 +1,326 @@
-// Paired Mali interpolation-path performance probe.
+// Minimal Mali blit-path benchmark: baseline vs zero polygon offset vs
+// gl_FragCoord. Build and run:
 //
-// The draw is a fullscreen texelFetch blit. Each sample performs a batch of
-// identical draws using baseline varyings, varyings with zero polygon offset,
-// or gl_FragCoord. Alternating ABBA/BAAB blocks reduce frequency and thermal
-// bias, and every timer batch is completed separately for correct tile-work
-// ownership on Mali.
+//   cc -O2 -Wall -Wextra -Werror -o offset_perf_probe offset_perf_probe.c -lEGL -lGLESv2
+//   ./offset_perf_probe [width height draws blocks warmup-blocks]
+//
+// The shaders explicitly use highp float/int coordinates and R32UI texels.
+// Lock the GPU frequency first; see README.md. Each timed batch ends with
+// glFinish() so deferred tile work stays inside the owning timer query.
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
-#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
-#ifndef GL_TIME_ELAPSED_EXT
 #define GL_TIME_ELAPSED_EXT 0x88BF
-#endif
-#ifndef GL_QUERY_RESULT_EXT
 #define GL_QUERY_RESULT_EXT 0x8866
-#endif
-#ifndef GL_GPU_DISJOINT_EXT
 #define GL_GPU_DISJOINT_EXT 0x8FBB
-#endif
 
 #define CHECK(x)                                                               \
    do {                                                                        \
       if (!(x)) {                                                              \
-         fprintf(stderr, "check failed at line %d, egl=0x%x gl=0x%x\n",        \
+         fprintf(stderr, "failure at line %d (EGL 0x%x, GL 0x%x)\n",           \
                  __LINE__, eglGetError(), glGetError());                       \
          exit(1);                                                              \
       }                                                                        \
    } while (0)
 
-typedef void (*PFNGLGENQUERIESEXTPROC)(GLsizei, GLuint *);
-typedef void (*PFNGLDELETEQUERIESEXTPROC)(GLsizei, const GLuint *);
-typedef void (*PFNGLBEGINQUERYEXTPROC)(GLenum, GLuint);
-typedef void (*PFNGLENDQUERYEXTPROC)(GLenum);
-typedef void (*PFNGLGETQUERYOBJECTUI64VEXTPROC)(GLuint, GLenum, GLuint64 *);
+typedef void (*gen_queries_fn)(GLsizei, GLuint *);
+typedef void (*begin_query_fn)(GLenum, GLuint);
+typedef void (*end_query_fn)(GLenum);
+typedef void (*get_query_fn)(GLuint, GLenum, GLuint64 *);
 
-static const char *vs_src =
+enum path {
+   BASELINE,
+   WORKAROUND,
+   FRAGCOORD,
+};
+
+struct result {
+   double baseline_ms;
+   double test_ms;
+   double ratio;
+};
+
+static const char *vertex_source =
    "#version 300 es\n"
-   "uniform vec2 extent;\n"
+   "precision highp float;\n"
+   "precision highp int;\n"
+   "uniform highp vec2 extent;\n"
    "out highp vec2 src_coord;\n"
    "void main() {\n"
-   "   vec2 p = vec2(gl_VertexID == 1 ? 3.0 : -1.0,\n"
-   "                 gl_VertexID == 2 ? 3.0 : -1.0);\n"
-   "   src_coord = (p + 1.0) * 0.5 * extent;\n"
-   "   gl_Position = vec4(p, 0.0, 1.0);\n"
+   "  highp vec2 p = vec2(gl_VertexID == 1 ? 3.0 : -1.0,\n"
+   "                      gl_VertexID == 2 ? 3.0 : -1.0);\n"
+   "  src_coord = (p + 1.0) * 0.5 * extent;\n"
+   "  gl_Position = vec4(p, 0.0, 1.0);\n"
    "}\n";
 
-static const char *fs_varying =
+static const char *varying_source =
    "#version 300 es\n"
+   "precision highp float;\n"
+   "precision highp int;\n"
    "uniform highp usampler2D source_tex;\n"
    "in highp vec2 src_coord;\n"
    "layout(location = 0) out highp uint value;\n"
    "void main() {\n"
-   "   value = texelFetch(source_tex, ivec2(src_coord), 0).r;\n"
+   "  value = texelFetch(source_tex, ivec2(src_coord), 0).r;\n"
    "}\n";
 
-static const char *fs_fragcoord =
+static const char *fragcoord_source =
    "#version 300 es\n"
+   "precision highp float;\n"
+   "precision highp int;\n"
    "uniform highp usampler2D source_tex;\n"
    "layout(location = 0) out highp uint value;\n"
    "void main() {\n"
-   "   value = texelFetch(source_tex, ivec2(gl_FragCoord.xy), 0).r;\n"
+   "  value = texelFetch(source_tex, ivec2(gl_FragCoord.xy), 0).r;\n"
    "}\n";
 
-enum path {
-   PATH_BASELINE,
-   PATH_WORKAROUND,
-   PATH_FRAGCOORD,
-   PATH_COUNT,
-};
-
-struct sample {
-   double wall_ms;
-   double gpu_ms;
-};
-
-static double
-now_ms(void)
-{
-   struct timespec ts;
-   CHECK(clock_gettime(CLOCK_MONOTONIC_RAW, &ts) == 0);
-   return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1000000.0;
-}
-
-static int
-cmp_double(const void *a, const void *b)
-{
-   const double da = *(const double *)a;
-   const double db = *(const double *)b;
-   return (da > db) - (da < db);
-}
-
-static double
-median(const double *values, int count)
-{
-   double *copy = malloc((size_t)count * sizeof(*copy));
-   CHECK(copy);
-   memcpy(copy, values, (size_t)count * sizeof(*copy));
-   qsort(copy, (size_t)count, sizeof(*copy), cmp_double);
-   const double result =
-      count & 1 ? copy[count / 2]
-                : (copy[count / 2 - 1] + copy[count / 2]) * 0.5;
-   free(copy);
-   return result;
-}
-
-static double
-percentile(const double *values, int count, double fraction)
-{
-   double *copy = malloc((size_t)count * sizeof(*copy));
-   CHECK(copy);
-   memcpy(copy, values, (size_t)count * sizeof(*copy));
-   qsort(copy, (size_t)count, sizeof(*copy), cmp_double);
-   const double position = fraction * (double)(count - 1);
-   const int lower = (int)position;
-   const int upper = lower + 1 < count ? lower + 1 : lower;
-   const double weight = position - (double)lower;
-   const double result = copy[lower] * (1.0 - weight) + copy[upper] * weight;
-   free(copy);
-   return result;
-}
+static GLuint programs[2];
+static GLuint query;
+static int draw_count;
+static begin_query_fn begin_query;
+static end_query_fn end_query;
+static get_query_fn get_query;
 
 static GLuint
-compile(GLenum stage, const char *src)
+compile(GLenum type, const char *source)
 {
-   GLuint shader = glCreateShader(stage);
-   glShaderSource(shader, 1, &src, NULL);
+   GLuint shader = glCreateShader(type);
+   glShaderSource(shader, 1, &source, NULL);
    glCompileShader(shader);
 
-   GLint ok = 0;
+   GLint ok;
    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
    if (!ok) {
       char log[2048];
       glGetShaderInfoLog(shader, sizeof(log), NULL, log);
-      fprintf(stderr, "shader compile failed:\n%s\n", log);
+      fprintf(stderr, "%s\n", log);
       exit(1);
    }
    return shader;
 }
 
+static GLuint
+link_program(GLuint vertex, const char *fragment_source)
+{
+   GLuint program = glCreateProgram();
+   glAttachShader(program, vertex);
+   glAttachShader(program, compile(GL_FRAGMENT_SHADER, fragment_source));
+   glLinkProgram(program);
+
+   GLint ok;
+   glGetProgramiv(program, GL_LINK_STATUS, &ok);
+   CHECK(ok);
+   return program;
+}
+
 static int
 has_extension(const char *name)
 {
-   GLint count = 0;
+   GLint count;
    glGetIntegerv(GL_NUM_EXTENSIONS, &count);
    for (GLint i = 0; i < count; i++) {
-      const char *ext = (const char *)glGetStringi(GL_EXTENSIONS, (GLuint)i);
-      if (ext && strcmp(ext, name) == 0)
+      const char *extension =
+         (const char *)glGetStringi(GL_EXTENSIONS, (GLuint)i);
+      if (extension && strcmp(extension, name) == 0)
          return 1;
    }
    return 0;
 }
 
-static void
-select_path(enum path path, const GLuint programs[2])
+static double
+run_batch(enum path path)
 {
-   glUseProgram(path == PATH_FRAGCOORD ? programs[1] : programs[0]);
-   if (path == PATH_WORKAROUND) {
+   glUseProgram(path == FRAGCOORD ? programs[1] : programs[0]);
+   if (path == WORKAROUND) {
       glEnable(GL_POLYGON_OFFSET_FILL);
       glPolygonOffset(0.0f, 0.0f);
    } else {
       glDisable(GL_POLYGON_OFFSET_FILL);
    }
+
+   glFinish();
+   begin_query(GL_TIME_ELAPSED_EXT, query);
+   for (int i = 0; i < draw_count; i++)
+      glDrawArrays(GL_TRIANGLES, 0, 3);
+   end_query(GL_TIME_ELAPSED_EXT);
+   glFinish();
+
+   GLuint64 nanoseconds;
+   get_query(query, GL_QUERY_RESULT_EXT, &nanoseconds);
+   CHECK(glGetError() == GL_NO_ERROR);
+   return (double)nanoseconds / 1000000.0;
 }
 
-static struct sample
-run_sample(enum path path, const GLuint programs[2], int draws, int have_timer,
-           PFNGLBEGINQUERYEXTPROC begin_query,
-           PFNGLENDQUERYEXTPROC end_query,
-           PFNGLGETQUERYOBJECTUI64VEXTPROC get_query_result, GLuint query)
+static struct result
+compare(enum path test, int test_first)
 {
-   select_path(path, programs);
+   const enum path first = test_first ? test : BASELINE;
+   const enum path second = test_first ? BASELINE : test;
+   const enum path order[4] = {first, second, second, first};
+   double baseline = 0.0;
+   double tested = 0.0;
 
-   glFinish();
-   const double start = now_ms();
-   if (have_timer)
-      begin_query(GL_TIME_ELAPSED_EXT, query);
-   for (int i = 0; i < draws; i++)
-      glDrawArrays(GL_TRIANGLES, 0, 3);
-   if (have_timer)
-      end_query(GL_TIME_ELAPSED_EXT);
-   glFinish();
-   const double end = now_ms();
+   for (int i = 0; i < 4; i++) {
+      const double milliseconds = run_batch(order[i]);
+      if (order[i] == BASELINE)
+         baseline += milliseconds;
+      else
+         tested += milliseconds;
+   }
 
-   GLuint64 gpu_ns = 0;
-   if (have_timer)
-      get_query_result(query, GL_QUERY_RESULT_EXT, &gpu_ns);
-
-   CHECK(glGetError() == GL_NO_ERROR);
-   return (struct sample){
-      .wall_ms = end - start,
-      .gpu_ms = have_timer ? (double)gpu_ns / 1000000.0 : 0.0,
+   baseline *= 0.5;
+   tested *= 0.5;
+   return (struct result){
+      .baseline_ms = baseline,
+      .test_ms = tested,
+      .ratio = tested / baseline,
    };
+}
+
+static int
+compare_double(const void *a, const void *b)
+{
+   const double x = *(const double *)a;
+   const double y = *(const double *)b;
+   return (x > y) - (x < y);
+}
+
+static double
+percentile(const double *sorted, int count, double fraction)
+{
+   const double position = fraction * (count - 1);
+   const int low = (int)position;
+   const int high = low + 1 < count ? low + 1 : low;
+   const double weight = position - low;
+   return sorted[low] * (1.0 - weight) + sorted[high] * weight;
+}
+
+static void
+report(const char *name, const struct result *results, int count)
+{
+   double *baseline = malloc((size_t)count * sizeof(*baseline));
+   double *tested = malloc((size_t)count * sizeof(*tested));
+   double *ratios = malloc((size_t)count * sizeof(*ratios));
+   CHECK(baseline && tested && ratios);
+
+   for (int i = 0; i < count; i++) {
+      baseline[i] = results[i].baseline_ms;
+      tested[i] = results[i].test_ms;
+      ratios[i] = results[i].ratio;
+   }
+   qsort(baseline, (size_t)count, sizeof(*baseline), compare_double);
+   qsort(tested, (size_t)count, sizeof(*tested), compare_double);
+   qsort(ratios, (size_t)count, sizeof(*ratios), compare_double);
+
+   const double ratio = percentile(ratios, count, 0.5);
+   printf("%s baseline_ms=%.6f test_ms=%.6f slowdown_pct=%.3f "
+          "p10_pct=%.3f p90_pct=%.3f\n",
+          name, percentile(baseline, count, 0.5),
+          percentile(tested, count, 0.5), (ratio - 1.0) * 100.0,
+          (percentile(ratios, count, 0.1) - 1.0) * 100.0,
+          (percentile(ratios, count, 0.9) - 1.0) * 100.0);
+
+   free(baseline);
+   free(tested);
+   free(ratios);
+}
+
+static int
+positive_arg(const char *text, const char *program)
+{
+   char *end;
+   long value = strtol(text, &end, 10);
+   if (!text[0] || *end || value < 1 || value > (1 << 24)) {
+      fprintf(stderr,
+              "usage: %s [width height draws blocks warmup-blocks]\n",
+              program);
+      exit(1);
+   }
+   return (int)value;
 }
 
 int
 main(int argc, char **argv)
 {
-   int width = 12288;
-   int height = 1;
-   int draws = 4096;
-   int pairs = 30;
-   int warmup_pairs = 4;
+   int width = 1024;
+   int height = 1024;
+   draw_count = 2048;
+   int blocks = 30;
+   int warmups = 4;
+   int *arguments[] = {&width, &height, &draw_count, &blocks, &warmups};
 
    if (argc > 6) {
       fprintf(stderr,
-              "usage: %s [width height draws blocks warmup_blocks]\n", argv[0]);
+              "usage: %s [width height draws blocks warmup-blocks]\n",
+              argv[0]);
       return 1;
    }
-   int *args[] = {&width, &height, &draws, &pairs, &warmup_pairs};
-   for (int i = 1; i < argc; i++) {
-      char *end = NULL;
-      long value = strtol(argv[i], &end, 10);
-      if (!argv[i][0] || *end || value <= 0 || value > (1 << 24)) {
-         fprintf(stderr,
-                 "usage: %s [width height draws blocks warmup_blocks]\n",
-                 argv[0]);
-         return 1;
-      }
-      *args[i - 1] = (int)value;
-   }
+   for (int i = 1; i < argc; i++)
+      *arguments[i - 1] = positive_arg(argv[i], argv[0]);
 
    PFNEGLGETPLATFORMDISPLAYEXTPROC get_platform_display =
       (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress(
          "eglGetPlatformDisplayEXT");
    CHECK(get_platform_display);
-   EGLDisplay dpy = get_platform_display(EGL_PLATFORM_SURFACELESS_MESA,
-                                         EGL_DEFAULT_DISPLAY, NULL);
-   CHECK(dpy != EGL_NO_DISPLAY);
-   CHECK(eglInitialize(dpy, NULL, NULL));
+   EGLDisplay display = get_platform_display(EGL_PLATFORM_SURFACELESS_MESA,
+                                             EGL_DEFAULT_DISPLAY, NULL);
+   CHECK(display != EGL_NO_DISPLAY);
+   CHECK(eglInitialize(display, NULL, NULL));
    CHECK(eglBindAPI(EGL_OPENGL_ES_API));
 
-   EGLint cfg_attrs[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
-                         EGL_SURFACE_TYPE, 0, EGL_NONE};
-   EGLConfig cfg;
-   EGLint cfg_count = 0;
-   CHECK(eglChooseConfig(dpy, cfg_attrs, &cfg, 1, &cfg_count) && cfg_count);
-   EGLint ctx_attrs[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
-   EGLContext ctx = eglCreateContext(dpy, cfg, EGL_NO_CONTEXT, ctx_attrs);
-   CHECK(ctx != EGL_NO_CONTEXT);
-   CHECK(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx));
+   const EGLint config_attributes[] = {
+      EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+      EGL_SURFACE_TYPE, 0,
+      EGL_NONE,
+   };
+   EGLConfig config;
+   EGLint config_count;
+   CHECK(eglChooseConfig(display, config_attributes, &config, 1,
+                         &config_count) &&
+         config_count);
+   const EGLint context_attributes[] = {
+      EGL_CONTEXT_CLIENT_VERSION, 3,
+      EGL_NONE,
+   };
+   EGLContext context =
+      eglCreateContext(display, config, EGL_NO_CONTEXT, context_attributes);
+   CHECK(context != EGL_NO_CONTEXT);
+   CHECK(eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, context));
 
    fprintf(stderr, "GL_RENDERER=%s\nGL_VERSION=%s\n",
            (const char *)glGetString(GL_RENDERER),
            (const char *)glGetString(GL_VERSION));
+   CHECK(has_extension("GL_EXT_disjoint_timer_query"));
 
-   GLint max_size = 0;
+   gen_queries_fn gen_queries =
+      (gen_queries_fn)eglGetProcAddress("glGenQueriesEXT");
+   begin_query = (begin_query_fn)eglGetProcAddress("glBeginQueryEXT");
+   end_query = (end_query_fn)eglGetProcAddress("glEndQueryEXT");
+   get_query = (get_query_fn)eglGetProcAddress("glGetQueryObjectui64vEXT");
+   CHECK(gen_queries && begin_query && end_query && get_query);
+   gen_queries(1, &query);
+
+   GLint max_size;
    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_size);
-   if (width > max_size || height > max_size) {
-      fprintf(stderr, "size %dx%d exceeds GL_MAX_TEXTURE_SIZE %d\n", width,
-              height, max_size);
-      return 1;
-   }
+   CHECK(width <= max_size && height <= max_size);
 
-   GLuint programs[2];
-   const char *fragment_sources[2] = {fs_varying, fs_fragcoord};
-   const GLuint vertex_shader = compile(GL_VERTEX_SHADER, vs_src);
+   const GLuint vertex = compile(GL_VERTEX_SHADER, vertex_source);
+   programs[0] = link_program(vertex, varying_source);
+   programs[1] = link_program(vertex, fragcoord_source);
    for (int i = 0; i < 2; i++) {
-      programs[i] = glCreateProgram();
-      glAttachShader(programs[i], vertex_shader);
-      glAttachShader(programs[i],
-                     compile(GL_FRAGMENT_SHADER, fragment_sources[i]));
-      glLinkProgram(programs[i]);
-      GLint linked = 0;
-      glGetProgramiv(programs[i], GL_LINK_STATUS, &linked);
-      CHECK(linked);
       glUseProgram(programs[i]);
-      glUniform2f(glGetUniformLocation(programs[i], "extent"), (float)width,
-                  (float)height);
+      glUniform2f(glGetUniformLocation(programs[i], "extent"),
+                  (float)width, (float)height);
       glUniform1i(glGetUniformLocation(programs[i], "source_tex"), 0);
    }
 
-   GLuint textures[2], fbo;
+   GLuint textures[2];
    glGenTextures(2, textures);
    for (int i = 0; i < 2; i++) {
       glBindTexture(GL_TEXTURE_2D, textures[i]);
@@ -287,197 +330,44 @@ main(int argc, char **argv)
    }
    glActiveTexture(GL_TEXTURE0);
    glBindTexture(GL_TEXTURE_2D, textures[0]);
-   glGenFramebuffers(1, &fbo);
-   glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+   GLuint framebuffer;
+   glGenFramebuffers(1, &framebuffer);
+   glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
                           textures[1], 0);
    CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
    glViewport(0, 0, width, height);
-   CHECK(glGetError() == GL_NO_ERROR);
 
-   const int have_timer = has_extension("GL_EXT_disjoint_timer_query");
-   PFNGLGENQUERIESEXTPROC gen_queries =
-      (PFNGLGENQUERIESEXTPROC)eglGetProcAddress("glGenQueriesEXT");
-   PFNGLDELETEQUERIESEXTPROC delete_queries =
-      (PFNGLDELETEQUERIESEXTPROC)eglGetProcAddress("glDeleteQueriesEXT");
-   PFNGLBEGINQUERYEXTPROC begin_query =
-      (PFNGLBEGINQUERYEXTPROC)eglGetProcAddress("glBeginQueryEXT");
-   PFNGLENDQUERYEXTPROC end_query =
-      (PFNGLENDQUERYEXTPROC)eglGetProcAddress("glEndQueryEXT");
-   PFNGLGETQUERYOBJECTUI64VEXTPROC get_query_result =
-      (PFNGLGETQUERYOBJECTUI64VEXTPROC)eglGetProcAddress(
-         "glGetQueryObjectui64vEXT");
-   const int usable_timer = have_timer && gen_queries && delete_queries &&
-                            begin_query && end_query && get_query_result;
-   enum comparison {
-      COMPARE_WORKAROUND,
-      COMPARE_FRAGCOORD,
-      COMPARE_COUNT,
-   };
-   const enum path compared_path[COMPARE_COUNT] = {
-      PATH_WORKAROUND,
-      PATH_FRAGCOORD,
-   };
+   struct result *workaround =
+      malloc((size_t)blocks * sizeof(*workaround));
+   struct result *fragcoord =
+      malloc((size_t)blocks * sizeof(*fragcoord));
+   CHECK(workaround && fragcoord);
 
-   GLuint queries[8] = {0};
-   if (usable_timer)
-      gen_queries(8, queries);
-
-   double *baseline_wall[COMPARE_COUNT], *compared_wall[COMPARE_COUNT];
-   double *baseline_gpu[COMPARE_COUNT], *compared_gpu[COMPARE_COUNT];
-   double *wall_ratios[COMPARE_COUNT], *gpu_ratios[COMPARE_COUNT];
-   for (int comparison = 0; comparison < COMPARE_COUNT; comparison++) {
-      baseline_wall[comparison] =
-         malloc((size_t)pairs * sizeof(**baseline_wall));
-      compared_wall[comparison] =
-         malloc((size_t)pairs * sizeof(**compared_wall));
-      baseline_gpu[comparison] =
-         malloc((size_t)pairs * sizeof(**baseline_gpu));
-      compared_gpu[comparison] =
-         malloc((size_t)pairs * sizeof(**compared_gpu));
-      wall_ratios[comparison] =
-         malloc((size_t)pairs * sizeof(**wall_ratios));
-      gpu_ratios[comparison] =
-         malloc((size_t)pairs * sizeof(**gpu_ratios));
-      CHECK(baseline_wall[comparison] && compared_wall[comparison] &&
-            baseline_gpu[comparison] && compared_gpu[comparison] &&
-            wall_ratios[comparison] && gpu_ratios[comparison]);
-   }
-
-   for (int block = -warmup_pairs; block < pairs; block++) {
-      const int first_comparison = block & 1;
-      const int comparison_order[2] = {
-         first_comparison,
-         !first_comparison,
-      };
-      int query_comparison[8], query_is_compared[8];
-      int query_count = 0;
-      for (int c = 0; c < COMPARE_COUNT; c++) {
-         const int comparison = comparison_order[c];
-         const int compared_first = (block + comparison) & 1;
-         const enum path first =
-            compared_first ? compared_path[comparison] : PATH_BASELINE;
-         const enum path second =
-            compared_first ? PATH_BASELINE : compared_path[comparison];
-         const enum path order[4] = {first, second, second, first};
-         for (int i = 0; i < 4; i++) {
-            query_comparison[query_count] = comparison;
-            query_is_compared[query_count] = order[i] != PATH_BASELINE;
-            query_count++;
-         }
+   for (int run = 0; run < warmups + blocks; run++) {
+      struct result workaround_result;
+      struct result fragcoord_result;
+      if (run & 1) {
+         fragcoord_result = compare(FRAGCOORD, run & 2);
+         workaround_result = compare(WORKAROUND, !(run & 2));
+      } else {
+         workaround_result = compare(WORKAROUND, run & 2);
+         fragcoord_result = compare(FRAGCOORD, !(run & 2));
       }
-
-      struct sample baseline_sums[COMPARE_COUNT] = {{0}};
-      struct sample compared_sums[COMPARE_COUNT] = {{0}};
-      // Mali is a tile-based deferred renderer. Complete each query's
-      // framebuffer work before starting the next one so timer ownership
-      // cannot cross path boundaries; the palindromic order handles devfreq.
-      for (int i = 0; i < query_count; i++) {
-         const int comparison = query_comparison[i];
-         const enum path path = query_is_compared[i]
-                                   ? compared_path[comparison]
-                                   : PATH_BASELINE;
-         const struct sample result =
-            run_sample(path, programs, draws, usable_timer, begin_query,
-                       end_query, get_query_result, queries[i]);
-         struct sample *sum = query_is_compared[i]
-                                 ? &compared_sums[comparison]
-                                 : &baseline_sums[comparison];
-         sum->wall_ms += result.wall_ms;
-         sum->gpu_ms += result.gpu_ms;
-      }
-
-      if (block >= 0) {
-         for (int comparison = 0; comparison < COMPARE_COUNT; comparison++) {
-            baseline_wall[comparison][block] =
-               baseline_sums[comparison].wall_ms * 0.5;
-            compared_wall[comparison][block] =
-               compared_sums[comparison].wall_ms * 0.5;
-            baseline_gpu[comparison][block] =
-               baseline_sums[comparison].gpu_ms * 0.5;
-            compared_gpu[comparison][block] =
-               compared_sums[comparison].gpu_ms * 0.5;
-            wall_ratios[comparison][block] =
-               compared_sums[comparison].wall_ms /
-               baseline_sums[comparison].wall_ms;
-            gpu_ratios[comparison][block] =
-               usable_timer
-                  ? compared_sums[comparison].gpu_ms /
-                       baseline_sums[comparison].gpu_ms
-                  : 0.0;
-         }
-         if (getenv("PERF_VERBOSE")) {
-            printf("block=%d workaround_ratio=%.6f fragcoord_ratio=%.6f\n",
-                   block, gpu_ratios[COMPARE_WORKAROUND][block],
-                   gpu_ratios[COMPARE_FRAGCOORD][block]);
-         }
+      if (run >= warmups) {
+         workaround[run - warmups] = workaround_result;
+         fragcoord[run - warmups] = fragcoord_result;
       }
    }
 
-   GLint disjoint = 0;
-   if (usable_timer)
-      glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
+   GLint disjoint;
+   glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
+   CHECK(!disjoint);
 
-   printf("size=%dx%d draws=%d blocks=%d warmup_blocks=%d fragments=%" PRIu64
-          "\n",
-          width, height, draws, pairs, warmup_pairs,
-          (uint64_t)width * (uint64_t)height * (uint64_t)draws);
-   printf("timer_query=%s disjoint=%d\n", usable_timer ? "yes" : "no",
-          disjoint);
-
-   const char *comparison_names[COMPARE_COUNT] = {
-      "workaround",
-      "fragcoord",
-   };
-   for (int comparison = 0; comparison < COMPARE_COUNT; comparison++) {
-      const double baseline_median =
-         median(usable_timer ? baseline_gpu[comparison]
-                             : baseline_wall[comparison],
-                pairs);
-      const double compared_median =
-         median(usable_timer ? compared_gpu[comparison]
-                             : compared_wall[comparison],
-                pairs);
-      const double ratio =
-         median(usable_timer ? gpu_ratios[comparison]
-                             : wall_ratios[comparison],
-                pairs);
-      const double *ratios =
-         usable_timer ? gpu_ratios[comparison] : wall_ratios[comparison];
-      printf("%s_vs_baseline %s_baseline_median_ms=%.6f "
-             "%s_median_ms=%.6f median_block_ratio=%.6f "
-             "slowdown_pct=%.3f ratio_p10=%.6f ratio_p90=%.6f\n",
-             comparison_names[comparison],
-             usable_timer ? "gpu" : "wall", baseline_median,
-             comparison_names[comparison], compared_median, ratio,
-             (ratio - 1.0) * 100.0, percentile(ratios, pairs, 0.1),
-             percentile(ratios, pairs, 0.9));
-      if (usable_timer) {
-         const double wall_baseline_median =
-            median(baseline_wall[comparison], pairs);
-         const double wall_compared_median =
-            median(compared_wall[comparison], pairs);
-         const double wall_ratio = median(wall_ratios[comparison], pairs);
-         printf("%s_vs_baseline wall_baseline_median_ms=%.6f "
-                "%s_median_ms=%.6f median_block_ratio=%.6f "
-                "slowdown_pct=%.3f ratio_p10=%.6f ratio_p90=%.6f\n",
-                comparison_names[comparison], wall_baseline_median,
-                comparison_names[comparison], wall_compared_median,
-                wall_ratio, (wall_ratio - 1.0) * 100.0,
-                percentile(wall_ratios[comparison], pairs, 0.1),
-                percentile(wall_ratios[comparison], pairs, 0.9));
-      }
-   }
-
-   if (usable_timer)
-      delete_queries(8, queries);
-   for (int comparison = 0; comparison < COMPARE_COUNT; comparison++) {
-      free(baseline_wall[comparison]);
-      free(compared_wall[comparison]);
-      free(baseline_gpu[comparison]);
-      free(compared_gpu[comparison]);
-      free(wall_ratios[comparison]);
-      free(gpu_ratios[comparison]);
-   }
+   printf("size=%dx%d draws=%d blocks=%d warmups=%d\n",
+          width, height, draw_count, blocks, warmups);
+   report("workaround", workaround, blocks);
+   report("fragcoord", fragcoord, blocks);
    return 0;
 }
