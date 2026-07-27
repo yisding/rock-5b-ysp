@@ -5,9 +5,11 @@
 > [`2026-07-24-mali-oblong-triangle-matrix.md`](2026-07-24-mali-oblong-triangle-matrix.md).
 > Source: ROCK 5B / Mali-G610 MC4 / Panfrost system Mesa 26.0.3-1ubuntu1;
 > reproducer
-> [`mr43161_size_repro.sh`](../video-libraries/mesa/reproducers/interp_probe/mr43161_size_repro.sh).
+> [`mr43161_size_repro.sh`](../video-libraries/mesa/reproducers/interp_probe/mr43161_size_repro.sh);
+> performance follow-up
+> [`offset_perf_probe.c`](../video-libraries/mesa/reproducers/interp_probe/offset_perf_probe.c).
 > Date: 2026-07-24
-> Trust: MEASURED (bit-exactness and integer-bin scans on the board)
+> Trust: MEASURED (correctness scans and fixed-clock GPU timing on the board)
 
 ## Result
 
@@ -122,6 +124,69 @@ not find integer-bin failures, but the measured field is jagged enough that
 the hardware predicate. The robust predicate remains: apply the workaround on
 the affected Panfrost fullscreen/blit path for affected Valhall generations,
 rather than trying to derive safety from dimensions or aspect ratio.
+
+## Performance
+
+The performance follow-up was measured on 2026-07-27 with the GPU fixed at
+`500 MHz` (`min_freq=max_freq=cur_freq=500000000`). For the policy question
+"what happens if we enable the workaround on every affected Panfrost fullscreen
+blit?", the answer is: **workaround-enabled blits were about 0.5% slower**. The
+seven size classes, from `1x1` through 4K plus the affected `12288x1` case, had
+central paired GPU-time costs from `+0.20%` to `+0.68%`; the median of those
+seven estimates is `+0.49%`.
+
+That half-percent result is small but more precise than the initial
+`simple_ondemand` runs. With the governor free to move between 300 MHz and
+1 GHz, the tiny cases changed sign and some paired spreads were unusably wide.
+Those unlocked-clock numbers were rejected and are not included below. Fixing
+the clock made every central estimate positive and tightened the medium/large
+and oblong results substantially. The longest `1x1` run used 32,768 draws per
+timed batch so timer and submission noise did not dominate its central value;
+its per-block spread is still the widest, so do not treat `+0.46%` as an exact
+tiny-blit constant.
+
+[`offset_perf_probe.c`](../video-libraries/mesa/reproducers/interp_probe/offset_perf_probe.c)
+measures a cache-warm fullscreen `texelFetch` blit with three paths:
+
+1. interpolated-varying baseline;
+2. the same shader and geometry with zero-valued polygon offset enabled; and
+3. a direct `gl_FragCoord.xy` source-coordinate control.
+
+Each comparison uses alternating ABBA/BAAB blocks. Every GPU timer batch ends
+with `glFinish()` before the next path starts; this is necessary on the
+tile-based Mali renderer so deferred fragment work cannot be charged to a
+neighboring query. All tabled runs used system Mesa `26.0.3-1ubuntu1`,
+reported `GL_RENDERER=Mali-G610 MC4 (Panfrost)`,
+`GL_EXT_disjoint_timer_query=yes`, and `disjoint=0`.
+
+| Size | Draws per timed batch | Blocks | Workaround vs baseline | Direct fragcoord vs baseline | Interpretation |
+|---|---:|---:|---:|---:|---|
+| `1x1` | 32768 | 24 | `+0.46%` (`p10..p90 -7.49%..+17.80%`) | `-3.68%` (`-13.71%..+12.99%`) | setup-dominated; widest residual spread |
+| `256x256` | 8192 | 30 | `+0.68%` (`-3.36%..+10.37%`) | `-7.30%` (`-13.35%..+2.34%`) | small-blit central estimate |
+| `512x512` | 4096 | 30 | `+0.59%` (`-1.38%..+2.84%`) | `-10.00%` (`-10.67%..-6.21%`) | workaround near parity; fragcoord faster |
+| `1024x1024` | 2048 | 30 | `+0.20%` (`-1.61%..+2.88%`) | `-10.75%` (`-11.90%..-8.95%`) | lowest workaround central cost |
+| `1920x1080` | 1024 | 30 | `+0.36%` (`-0.97%..+2.42%`) | `-2.25%` (`-3.03%..-1.18%`) | both alternatives close to baseline |
+| `3840x2160` | 256 | 30 | `+0.61%` (`+0.27%..+1.53%`) | `-1.06%` (`-1.62%..-0.24%`) | clearest positive workaround cost |
+| `12288x1` | 4096 | 30 | `+0.49%` (`-0.19%..+1.90%`) | `-11.46%` (`-11.89%..-10.70%`) | affected oblong control |
+
+The percentage is the median of the within-block path/baseline GPU-time ratios;
+`p10..p90` is descriptive spread, not a confidence interval. The direct
+fragcoord control is intentionally simpler than Mesa's full generalized
+fragcoord fix: it models the unscaled 2D TXF coordinate source but not Mesa's
+scale, sign, layer, and offset reconstruction. Its `~10-11.5%` wins at
+`512x512`, `1024x1024`, and `12288x1` show that avoiding the varying can help
+a draw/setup-heavy microbenchmark; they should not be quoted as the expected
+end-to-end gain of MR !42679. The direct control was only `2.25%` faster at
+1080p and `1.06%` faster at 4K.
+
+This probe isolates GPU path cost with cache-warm repeated draws. It does not
+cover cold-memory transfers, linear/scaled blits, MSAA resolves, every
+format/target, or CPU cost from Mesa selecting and binding rasterizer state.
+An instrumented MR !43161 build should still run an end-to-end workload before
+merge. Within the path that MR changes, however, a roughly half-percent GPU
+cost is not a performance reason to retain an unreliable size/aspect gate
+instead of applying the correctness workaround to all affected fullscreen
+blits.
 
 ## Reproducer
 

@@ -15,6 +15,7 @@ varying.
 | [`tiny_interp_probe.c`](tiny_interp_probe.c) | Minimal surfaceless EGL/GLES proof. Uses one `gl_VertexID` triangle, no texture, no TXF, no u_blitter, no GBM, and no format-changing readback. This is the canonical GL reproducer. |
 | [`exact_offset_scan.c`](exact_offset_scan.c) | Bitwise baseline-vs-zero-polygon-offset scanner for the one-fullscreen-triangle GL probe. Finds which widths produce identical raw varying bits and which only remain integer-bin correct. |
 | [`exact_offset_scan2d.c`](exact_offset_scan2d.c) | 2D bitwise scanner. Carries both `x + 0.5` and `y + 0.5`, supports full line scans (`Wx1`, `1xH`, `Wx2`, `2xH`), full power-of-two cross-products, and a scissored top-right sample for every `WxH` pair. |
+| [`offset_perf_probe.c`](offset_perf_probe.c) | GPU-timer A/B for baseline varying, zero-valued polygon offset, and a direct `gl_FragCoord` source coordinate. Runs a fullscreen `texelFetch` blit in alternating ABBA/BAAB blocks and completes each timed batch separately so Mali's deferred tile work stays inside the owning query. |
 | [`tex_interp_probe.c`](tex_interp_probe.c) | Ordinary-TEX counterpart. Carries a normalized non-integer `0→1` varying into `texture()` with `GL_NEAREST` and samples an `R32F` ramp, proving the workaround is not specific to raw varying readback or integer-coordinate TXF. |
 | [`triangle_matrix_probe.c`](triangle_matrix_probe.c) | MR !43161 option matrix. Sweeps wide/tall targets, exact half-rectangle and oversized triangles, all right-angle corners, both windings, both long-axis directions, raw-varying vs normalized `texture()` sampling, and baseline vs zero-valued polygon offset. |
 | [`vk_interp_probe.c`](vk_interp_probe.c) | Vulkan/panvk port of the tiny probe. Removes Gallium, u_blitter, and the GL state tracker from the stack. Uses dynamic rendering, copies raw `R32_UINT` bits back with Vulkan, and provides a zero-valued `depthBiasEnable` A/B mode. |
@@ -73,6 +74,21 @@ DRM node itself; `tiny_interp_probe_arm_blob.c` (GBM) defaults to
 `vk_interp_probe*.c` selects a Vulkan physical device by name substring
 (`Mali` by default, or pass `llvmpipe` for the software control).
 
+For reproducible `offset_perf_probe` runs on this ROCK 5B, lock the Mali
+devfreq range at 500 MHz, verify `cur_freq`, and restore the original
+300 MHz..1 GHz range afterward. Restore `max_freq` before lowering `min_freq`:
+
+```bash
+GPU_DEVFREQ=/sys/devices/platform/fb000000.gpu/devfreq/fb000000.gpu
+echo 500000000 | sudo tee "$GPU_DEVFREQ/min_freq"
+echo 500000000 | sudo tee "$GPU_DEVFREQ/max_freq"
+cat "$GPU_DEVFREQ"/{min_freq,max_freq,cur_freq}
+
+# After benchmarking:
+echo 1000000000 | sudo tee "$GPU_DEVFREQ/max_freq"
+echo 300000000 | sudo tee "$GPU_DEVFREQ/min_freq"
+```
+
 For the proprietary ARM Mali stack on the same Rock 5B/RK3588 hardware, start
 with [`arm-mali-reproducer.md`](arm-mali-reproducer.md) (focused overview) and
 see [`README-arm-blob.md`](README-arm-blob.md) for the full runbook. The runnable
@@ -96,6 +112,8 @@ cc -O2 -Wall -Wextra -o exact_offset_scan \
   exact_offset_scan.c -lEGL -lGLESv2 -lm
 cc -O2 -Wall -Wextra -o exact_offset_scan2d \
   exact_offset_scan2d.c -lEGL -lGLESv2 -lm
+cc -O2 -Wall -Wextra -Werror -o offset_perf_probe \
+  offset_perf_probe.c -lEGL -lGLESv2 -lm
 cc -O2 -o tex_interp_probe tex_interp_probe.c -lEGL -lGLESv2
 cc -O2 -Wall -Wextra -o triangle_matrix_probe \
   triangle_matrix_probe.c -lEGL -lGLESv2 -lm
@@ -151,6 +169,11 @@ current working directory.
 ./exact_offset_scan --details 2081
 ./exact_offset_scan2d --max 4096 --lines --pow2
 ./exact_offset_scan2d --max 4096 --sample-grid --progress 1024
+./offset_perf_probe 512 512 4096 30 4
+./offset_perf_probe 1024 1024 2048 30 4
+./offset_perf_probe 1920 1080 1024 30 4
+./offset_perf_probe 3840 2160 256 30 4
+./offset_perf_probe 12288 1 4096 30 4
 
 ./tex_interp_probe 12288 baseline
 ./tex_interp_probe 12288 polygon-offset
