@@ -13,7 +13,7 @@ patches unless explicitly marked otherwise.
 | 1 | Forward-port kernel tree | [kernel driver guide](../kernel-drivers/docs/how-the-drivers-work.md), [uAPI guide](../kernel-drivers/docs/dev-uapis.md), [forward-port guide](../kernel-versions/docs/vendor-forward-port.md), [vendor delta](../kernel-drivers/docs/vendor-delta.md), [device-tree guide](../kernel-drivers/docs/device-tree.md); DKMS `KSRC` | `v6.18` + `kernel-drivers/patches/rk3588-rkvenc2-01…` (+ `02` for DT) |
 | 2 | Audited tree (BSP audit) | [BSP audit](../kernel-drivers/docs/bsp-audit.md), `kernel-drivers/patches/cleanup-draft/` line numbers | parent of `56e403ede081` = `5614909e5803` |
 | 3 | `$OURS` / `$BSP` measurement pair + BSP 6.6 comparison | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count", [BSP 6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) | tree 1 vs `rockchip-linux/kernel` `develop-6.1@b4ef083dc0c3`; comparison `develop-6.6@1ba51b059f25` |
-| 4 | Userspace libraries + FFmpeg | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), `ffmpeg/*` | table in §4 |
+| 4 | Userspace media trees | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), FFmpeg docs, [`rockchip-vaapi`](../video-libraries/vaapi/README.md), Firefox RDD policy | table in §4 |
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | upstream 50.2 = `60423c896a54`; clean release tip = `cf60b4d9d2c5`; historical 50.1 replay and experiment tips remain recorded in §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
@@ -126,7 +126,7 @@ counts to reproduce, use the `b4ef083dc0c3` state of `develop-6.1` against
 exists as a dev-box reference checkout @ `45943c54ded4` but is **not** the
 donor and is not cited by any doc.)
 
-## 4. Userspace pins — libmpp, librga, FFmpeg, Firefox
+## 4. Userspace pins — libmpp, librga, FFmpeg, rockchip-vaapi, Firefox
 
 | Component | Repo | Pin | Cited by |
 |-----------|------|-----|----------|
@@ -144,6 +144,7 @@ donor and is not cited by any doc.)
 | Jellyfin FFmpeg Rockchip reference | `jellyfin/jellyfin-ffmpeg` | `jellyfin@455bfe539220` (`v8.1.2-1-13-g455bfe53`); effective comparison applied all 96 Debian patches in scratch worktree `/home/yi/Code/ffmpeg/jellyfin-ffmpeg-applied` | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md`](../video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md) |
 | FFmpeg upstream release tags | `FFmpeg/FFmpeg` | `n8.1.2@38b88335f99e` and `n8.0.3@151b17dd2400`; historical comparison/package bases | `video-libraries/ffmpeg/docs/implementation-comparison.md`; the PPA/GRD ABI base |
 | FFmpeg upstream publication bases | `FFmpeg/FFmpeg` | `master@ceabc9b306f5`, `release/8.0@435ae0581deb`, and `release/8.1@94138f6973dd`, fetched 2026-07-16 | `video-libraries/ffmpeg/docs/rebase-notes.md` §8 |
+| rockchip-vaapi maintained fork | `github.com/yisding/rockchip-vaapi`, branch `main` | `03e6cb6359e0534b497e20654c2f8895ad9da760` (2026-07-26), the public driver/RDD-policy checkpoint summarized by the project owner; upstream is `woodyst/rockchip-vaapi` | [`video-libraries/vaapi/README.md`](../video-libraries/vaapi/README.md), [`Firefox RDD policy`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) |
 | Firefox Ubuntu source package | Ubuntu Resolute source `firefox` | `152.0.6+build1-0ubuntu0.26.04.1~mt1`; `.dsc` SHA-256 `2ba6f650f3f862bdcc61e7953fce8131b3673c290ad3c6b50922bf3486307708`; local `+ysp1` patch/build workspace retained at `~/Code/firefox-rdd-build` | [`Firefox RDD policy`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), [`package-build checkpoint`](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
 
 **How the upstream FFmpeg pins and published branches relate:** `main` follows
