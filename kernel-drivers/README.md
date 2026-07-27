@@ -68,7 +68,7 @@ The kernel work runs on three tracks across those sub-projects:
 |-------|------------|-----------|
 | Forward-port | Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18, AV1 decode included. One maintained series carries the port: 75 files, contiguous `0001`–`0075`. The frozen two-patch pair is the superseded July 4 import kept for DKMS and provenance. Scope boundary — ported/unported blocks, deliberate non-support decisions, and where we are ahead of the BSP — in [`docs/forward-port-scope.md`](docs/forward-port-scope.md). | [`patches/`](patches/README.md), [`docs/forward-port-scope.md`](docs/forward-port-scope.md), [`docs/patch-catalog.md`](docs/patch-catalog.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
 | Audit fixes | A reviewable 65-patch correctness/security cleanup series on top of the forward-port. | [`docs/bsp-audit.md`](docs/bsp-audit.md), [`patches/cleanup-split/`](patches/cleanup-split/README.md) |
-| Rewrite drivers | Public-API-only reimplementations of `/dev/mpp_service` and `/dev/rga`, as a learning + upstreamable-design track. | [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md), [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) |
+| Rewrite drivers | Public-API-only reimplementations of `/dev/mpp_service` and `/dev/rga`, as a learning + upstreamable-design track. | [`docs/driver-architecture-comparison.md`](docs/driver-architecture-comparison.md), [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md), [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) |
 
 ## User path
 
@@ -99,6 +99,7 @@ Read in this order when changing or reviewing kernel behavior:
 | Question | Canonical doc |
 |----------|---------------|
 | What does each driver layer do? | [`docs/how-the-drivers-work.md`](docs/how-the-drivers-work.md) |
+| How do the BSP-derived and rewrite MPP/RGA architectures differ, and what are their pros and cons? | [`docs/driver-architecture-comparison.md`](docs/driver-architecture-comparison.md) |
 | How are the rewrite drivers structured, synchronized, and made safe to tear down? | [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md) |
 | How do the rewrite drivers use KUnit, and how is a booted result judged? | [`docs/rewrite-kunit.md`](docs/rewrite-kunit.md) |
 | How are these drivers tested — what's proven per track, and what's left? | [`docs/validation-index.md`](docs/validation-index.md) (entry point / coverage matrix) |
@@ -137,6 +138,7 @@ each sub-project's `README.md`).
 |------|-----------|
 | [`docs/forward-port-status.md`](docs/forward-port-status.md) | Project-local scorecard for the kernel forward-port (distinct from the whole-project [`../status.md`](../status.md)). |
 | [`docs/how-the-drivers-work.md`](docs/how-the-drivers-work.md) | What each MPP/RGA driver layer does end to end. |
+| [`docs/driver-architecture-comparison.md`](docs/driver-architecture-comparison.md) | Chart-based comparison of BSP-derived and rewrite MPP/RGA ownership, scheduling, DMA/IOMMU, recovery, teardown, and architectural pros/cons. |
 | [`docs/dev-uapis.md`](docs/dev-uapis.md) | The `/dev/mpp_service` + `/dev/rga` ioctl ABI userspace depends on. |
 | [`docs/abi-dormancy.md`](docs/abi-dormancy.md) | Which of that ABI is actually exercised vs defined-but-dead (batch server, RGA2 `0x60xx`, dead flags/config) — zero-caller evidence, so the rewrite doesn't support phantom ABI. |
 | [`docs/device-tree.md`](docs/device-tree.md) | RK3588 node/IRQ/IOMMU/alias/SRAM wiring and DT glossary. |

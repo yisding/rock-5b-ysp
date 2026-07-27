@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | upstream 50.2 = `60423c896a54`; clean release tip = `cf60b4d9d2c5`; historical 50.1 replay and experiment tips remain recorded in §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | rewrite series sources `rk3588-rewrite-6.18@0cc483d3ee20` and `rk3588-rewrite-mainline@edba1c58a726`; failed boot package source `c5faabf9d00b`; earlier package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | local comparison tips `rk3588-rewrite-6.18@4273266a990e` and `rk3588-rewrite-mainline@ef79d16bd902`; published parents `0cc483d3ee20` and `edba1c58a726`; failed boot package source `c5faabf9d00b`; earlier package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -307,22 +307,26 @@ The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/re
 is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b`:
 
-- branch `rk3588-rewrite-6.18`, commit `0cc483d3ee20` ("arm64: dts:
-  rockchip: separate RK3588 RGA3 core resources"), committed in the dev
-  worktree `/home/yi/Code/kernel/linux-6.18-rkvenc`. It follows residual
-  fixture repair `2241255f4cb2` and also separates both RGA3 core register
-  windows from their IOMMU resources. The fixture repair follows incomplete
-  repair `c5faabf9d00b`, whose boot passed only 84/85 MPP plus 139/147 RGA
-  cases. The
+- branch `rk3588-rewrite-6.18`, local commit `4273266a990e` ("media:
+  rockchip: rga-rewrite: keep work fixtures off stack"), in the dev worktree
+  `/home/yi/Code/kernel/linux-6.18-rkvenc`. It is three commits ahead of
+  published `0cc483d3ee20`, adds explicit RGA3 shared-IRQ match data and the
+  148th RGA KUnit case, and moves ordinary work/timer fixture owners to
+  KUnit-managed heap storage. The published parent follows residual fixture
+  repair `2241255f4cb2` and separates both RGA3 core register windows from
+  their IOMMU resources. The fixture repair follows incomplete repair
+  `c5faabf9d00b`, whose boot passed only 84/85 MPP plus 139/147 RGA cases. The
   underlying rewrite stack is the 2026-07-26 linear rebase onto the 6.18
   forward-port oracle, branch `rk3588-video-6.18` at `12a7da02bea83`
   ("video: rockchip: rkvenc2: reserve a slice fifo slot for the terminal
   record"). The pre-rebase 6.18 rewrite tip is preserved locally as
   `ysp-backup/rk3588-rewrite-6.18-before-fwport-20260726@40cf22629cf63`.
-- branch `rk3588-rewrite-mainline`, commit `edba1c58a726` ("media: rockchip:
-  finish rewrite KUnit fixture repairs"), the byte-identical replay of the
-  residual fixture repair after `39475996a7a8`, now rebased as a 244-commit
-  rewrite series onto official kernel.org `v7.2-rc5` in the sibling worktree
+- branch `rk3588-rewrite-mainline`, local commit `ef79d16bd902` ("media:
+  rockchip: rga-rewrite: keep work fixtures off stack"), three commits ahead
+  of published `edba1c58a726`. It carries byte-identical rewrite driver files,
+  the same explicit shared-IRQ policy, and the same fixture-lifetime fix as the
+  6.18 tip, on the 244-commit rewrite series rebased onto official kernel.org
+  `v7.2-rc5` in the sibling worktree
   `/home/yi/Code/kernel/linux`. The immediately preceding repaired tip is
   preserved as
   `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc5-20260726@5bae68d8381c`;

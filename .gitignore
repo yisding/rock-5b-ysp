@@ -3,6 +3,7 @@
 .codex/
 .codex-scratch/
 .grd-debug/
+.rewrite-build-scratch/
 
 # Local linked or nested worktrees are independent Git checkouts, not content
 # owned by this repository.
