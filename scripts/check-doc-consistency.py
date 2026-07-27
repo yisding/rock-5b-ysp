@@ -7,9 +7,10 @@ terminology). It reports only things that break navigation or ship wrong bits:
 files no README names, unlinked/dangling findings, a findings index that is not
 newest-first, watchlist halves that are missing or disagree on
 name/last-checked date, dashboard tracks missing from the ledger or named
-differently there, drifted packaging version pins, out-of-sync kernel package
-helpers, personal-home executable defaults, and shell files whose shebang and
-executable bit disagree about whether they are run or sourced.
+differently there, status tables split by blank lines or prose, drifted
+packaging version pins, out-of-sync kernel package helpers, personal-home
+executable defaults, and shell files whose shebang and executable bit disagree
+about whether they are run or sourced.
 """
 
 from __future__ import annotations
@@ -252,6 +253,70 @@ def check_status_ledger_tracks(root: Path, errors: list[str]) -> None:
                 f"status.md track {number}: name differs from its ledger row "
                 f"(dashboard {dashboard[number]!r}, ledger {ledger[number]!r})"
             )
+
+
+def _check_contiguous_track_rows(
+    label: str,
+    numbered_lines: list[tuple[int, str]],
+    errors: list[str],
+) -> None:
+    """A blank or prose line between rows ends the rendered Markdown table."""
+    for (previous_line, previous_track), (line_number, track) in zip(
+        numbered_lines, numbered_lines[1:]
+    ):
+        if line_number != previous_line + 1:
+            errors.append(
+                f"{label}:{line_number}: track {track} is separated from track "
+                f"{previous_track}; numbered status rows must be contiguous "
+                "because a blank or prose line ends the Markdown table"
+            )
+
+
+def check_status_table_layout(root: Path, errors: list[str]) -> None:
+    """Keep the dashboard, next-gate queue, and ledger as rendered tables."""
+    status_path = root / "status.md"
+    if status_path.is_file():
+        status_lines = status_path.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
+        for heading in ("## Dashboard", "## Next gates"):
+            if heading not in status_lines:
+                errors.append(
+                    f"status.md: missing {heading!r}, so its table-layout check "
+                    "cannot run"
+                )
+                continue
+            start = status_lines.index(heading) + 1
+            end = next(
+                (
+                    index
+                    for index in range(start, len(status_lines))
+                    if status_lines[index].startswith("## ")
+                ),
+                len(status_lines),
+            )
+            rows = [
+                (index + 1, match.group(1))
+                for index in range(start, end)
+                if (match := TRACK_ROW_RE.match(status_lines[index]))
+            ]
+            if not rows:
+                errors.append(f"status.md: {heading!r} has no numbered rows")
+                continue
+            _check_contiguous_track_rows(f"status.md {heading}", rows, errors)
+
+    ledger_path = root / "docs/status-ledger.md"
+    if ledger_path.is_file():
+        ledger_lines = ledger_path.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
+        rows = [
+            (index + 1, match.group(1))
+            for index, line in enumerate(ledger_lines)
+            if (match := TRACK_ROW_RE.match(line))
+        ]
+        if rows:
+            _check_contiguous_track_rows("docs/status-ledger.md", rows, errors)
 
 
 def check_kernel_package_helpers(
@@ -509,6 +574,7 @@ def main() -> int:
     check_findings_index(root, errors)
     check_watchlist_pairing(root, errors)
     check_status_ledger_tracks(root, errors)
+    check_status_table_layout(root, errors)
     check_kernel_package_helpers(root, errors)
     check_kernel_package_helpers(
         root, errors, KERNEL_PACKAGE_DIRS_ALL, KERNEL_PACKAGE_HELPERS_ALL

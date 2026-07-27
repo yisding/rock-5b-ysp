@@ -72,6 +72,13 @@ When an existing track changes:
 4. Update the matching ledger row with the same number, track name, and date.
 5. Link the project document or finding that owns the evidence.
 
+Keep each dashboard state to the latest proven capability plus its material
+boundary. Incident chronology, build fingerprints, per-case results, and
+superseded explanations belong in the ledger, owning project document, or
+dated finding. Likewise, a next-gate row names the next proof rather than
+retelling the proofs already closed. Keep every numbered row contiguous with
+the table above it; a blank line ends a Markdown table.
+
 When adding a track, add it to both files with a new stable number. Do not create
 a dashboard row for every finding: use a row when the subject is a user-visible
 support area or a sustained workstream. Put volatile package, upstream-review,
@@ -96,7 +103,8 @@ checks substantive drift and completeness only:
 - each `W##` watchlist entry has both halves, and they agree on item name and
   last-checked date;
 - every `status.md` dashboard track has a ledger row under the same number and
-  name, and no ledger row lacks a dashboard track;
+  name, no ledger row lacks a dashboard track, and numbered dashboard,
+  next-gate, and ledger rows stay in one rendered table;
 - the kernel source packages' copied helpers stay identical;
 - packaging version pins (FFmpeg/GRD) have not drifted;
 - no operational script defaults to a personal home path;

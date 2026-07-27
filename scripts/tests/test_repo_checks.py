@@ -770,6 +770,42 @@ class SubstantiveDriftTests(unittest.TestCase):
             # The matching track 1 is silent.
             self.assertFalse(any("track 1" in e for e in errors))
 
+    def test_status_table_rows_must_stay_contiguous(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "docs").mkdir()
+            (root / "status.md").write_text(
+                "## Dashboard\n\n"
+                "| # | Track | State |\n|---|-------|-------|\n"
+                "| 1 | First | ok |\n\n"
+                "| 2 | Split dashboard | ok |\n\n"
+                "## Next gates\n\n"
+                "| # | Track | Gate |\n|---|-------|------|\n"
+                "| 1 | First | next |\n"
+                "| 2 | Second | next |\n",
+                encoding="utf-8",
+            )
+            (root / "docs" / "status-ledger.md").write_text(
+                "# Ledger\n\n"
+                "| # | Track | Note |\n|---|-------|------|\n"
+                "| 1 | First | ok |\n"
+                "intervening prose\n"
+                "| 2 | Split ledger | ok |\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_status_table_layout(root, errors)
+
+            self.assertEqual(len(errors), 2, errors)
+            self.assertTrue(
+                any("status.md ## Dashboard" in error for error in errors), errors
+            )
+            self.assertTrue(
+                any("docs/status-ledger.md" in error for error in errors), errors
+            )
+            self.assertFalse(any("Next gates" in error for error in errors), errors)
+
     def test_watchlist_halves_must_agree_on_name_and_date(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
