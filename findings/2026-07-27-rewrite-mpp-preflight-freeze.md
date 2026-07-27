@@ -7,7 +7,13 @@
 > Repaired source: 6.18 `f6ebe28a3f668`, mainline `394d80552960f`
 > Date: 2026-07-27
 > Trust: USER-OBSERVED / LOG-INSPECTED / SOURCE-INSPECTED /
-> FIX-COMPILE-VERIFIED / PACKAGE-VERIFIED / NOT-BOOT-VERIFIED
+> FIX-COMPILE-VERIFIED / PACKAGE-VERIFIED / BOOT-VERIFIED / PARTIAL
+
+> **Corrected 2026-07-27 by**
+> [the successor boot finding](./2026-07-27-rewrite-reset-import-fixture-lockdep.md).
+> `P91d6-Cad24` was subsequently installed and booted. It completed exact
+> 85+148 KTAP but exposed the same missing DCHS spinlock initialization in the
+> reset/import fixture, so `f6ebe28a3f668` was not the final fixture repair.
 
 ## Result
 
@@ -142,7 +148,10 @@ The image header reserves 138,215,424 bytes (131.8 MiB), which exceeds the
 stock 127 MiB load gap. The existing managed U-Boot map was read-only checked:
 its `fdt_addr_r=0x0c000000` provides a 188 MiB gap and about 56.2 MiB headroom.
 
-The package is not installed or boot-verified. It must pass all 85 MPP and 148
-RGA cases, the complete fatal-signature scan, live lockdep, an aged clean
-kmemleak scan, restored production devices/cores, ABI replay, and only then the
-official MPP and remaining media suites.
+The package was later installed and booted. It passed all 85 MPP and 148 RGA
+assertion plans but failed the fatal/live-lockdep half of the gate in MPP case
+83. Successor 6.18 `9af4a8816f259` and mainline `fb5040f08d833` initialize that
+second fixture too; they still require a fresh package and boot with a complete
+fatal-signature scan, live lockdep, an aged clean kmemleak scan, restored
+production devices/cores, ABI replay, and only then the official MPP and
+remaining media suites.

@@ -21,8 +21,11 @@ SUITE_REQUIRE_DMESG=${SUITE_REQUIRE_DMESG:-0}
 # and the rga/mpp alternatives must not spell "iommu", or the benign probe line
 # "rga: IOMMU binding successfully" flags every scan; genuine RGA IOMMU faults
 # are caught by the dedicated iommu alternative below, which requires the word
-# "fault"/"panic"/"oops".  run-root-gates.sh learned the \bBUG: lesson first.
-SUITE_DMESG_FATAL_RE=${SUITE_DMESG_FATAL_RE:-'KASAN|KCSAN|UBSAN|KFENCE|\bBUG:|kernel BUG|\bOops|Unable to handle kernel|use-after-free|slab-out-of-bounds|out-of-bounds|general protection fault|hung task|blocked for more than|RCU stall|lockdep|WARNING:|DMA-API.*(error|WARNING)|refcount_t:|list_[a-z_]* corruption|scheduling while atomic|sleeping function called|Page fault at|iommu[^[:alnum:]]*(intr|read|write)?[^[:alnum:]]*(fault|panic|oops)|bus error|rga[^[:alnum:]]*(fault|panic)|mpp[^[:alnum:]]*(fault|panic)'}
+# "fault"/"panic"/"oops".  Lock debugging can disable itself without printing
+# either "WARNING:" or "lockdep", so its non-static-key, validator-off, and
+# DEBUG_LOCKS signatures are explicit too.  run-root-gates.sh learned the
+# \bBUG: lesson first.
+SUITE_DMESG_FATAL_RE=${SUITE_DMESG_FATAL_RE:-'KASAN|KCSAN|UBSAN|KFENCE|\bBUG:|kernel BUG|\bOops|Unable to handle kernel|use-after-free|slab-out-of-bounds|out-of-bounds|general protection fault|hung task|blocked for more than|RCU stall|lockdep|DEBUG_LOCKS|trying to register non-static key|turning off the locking correctness validator|WARNING:|DMA-API.*(error|WARNING)|refcount_t:|list_[a-z_]* corruption|scheduling while atomic|sleeping function called|Page fault at|iommu[^[:alnum:]]*(intr|read|write)?[^[:alnum:]]*(fault|panic|oops)|bus error|rga[^[:alnum:]]*(fault|panic)|mpp[^[:alnum:]]*(fault|panic)'}
 
 suite_now_ns()
 {

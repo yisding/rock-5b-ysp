@@ -298,10 +298,14 @@ cases and restore both runtimes, but it did not pass the compound gate: MPP
 case 9 disabled lockdep by locking an uninitialized fixture mutex, and case 28
 left a nested 2,048-byte production allocation for kmemleak. Parent repairs
 6.18 `6b55e022ce49` and mainline `9aa6ef7e97b2` address those defects.
-Current tips `f6ebe28a3f66` / `394d80552960` additionally initialize the
-abort fixture's DCHS spinlock and make debug-state capture fail fast. See the
-[attribution and repair record](../../findings/2026-07-27-rewrite-kunit-lockdep-kmemleak-fixtures.md).
-Current 6.18.40 KASAN/UBSAN/lockdep/kmemleak package `P91d6-Cad24` contains
-that final repair and is payload-verified; it has not been installed or booted.
+Tips `f6ebe28a3f66` / `394d80552960` additionally initialized the abort
+fixture's DCHS spinlock and made debug-state capture fail fast. Booted
+6.18.40 KASAN/UBSAN/lockdep/kmemleak package `P91d6-Cad24` contained that
+repair and completed exact 85+148 KTAP, but case 83 exposed the same omission
+in `rk_mpp_reset_session_hw_active_import_kunit()` and disabled lockdep before
+RGA. Current tips `9af4a8816f259` / `fb5040f08d833` initialize the second
+fixture too; the later-case/RGA fixture audit found no other reachable
+uninitialized lock. See the
+[successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 Do not promote KTAP, compile, or package results into a runtime pass until the
-entire compound evidence above is clean on the repaired kernel.
+entire compound evidence above is clean on a successor kernel.

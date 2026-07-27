@@ -943,6 +943,9 @@ FATAL_SCAN_MUST_MATCH = (
     "rga: 0      0     : RGA current status: bus error",
     "BUG: KASAN: slab-use-after-free in rga_mm_session_show+0x1c/0x2f0",
     "Unable to handle kernel paging request at virtual address dfff800000000363",
+    "INFO: trying to register non-static key.",
+    "turning off the locking correctness validator.",
+    "DEBUG_LOCKS_WARN_ON(lock->magic != lock)",
 )
 
 # Lines the scans MUST NOT flag.  These are why the word boundaries and the

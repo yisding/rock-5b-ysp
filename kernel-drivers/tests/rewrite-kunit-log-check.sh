@@ -259,6 +259,15 @@ selftest()
 	fi
 	sed -i '/WARNING: fixture poisoned the boot/d' "$KUNIT_DMESG_SOURCE"
 
+	sed -i '/ok 1 rk_mpp_rewrite/i INFO: trying to register non-static key.' \
+		"$KUNIT_DMESG_SOURCE"
+	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "non-static lock key unexpectedly passed" >&2
+		return 1
+	fi
+	sed -i '/INFO: trying to register non-static key./d' \
+		"$KUNIT_DMESG_SOURCE"
+
 	sed -i '/ok 2 rockchip-rga-rewrite/d' "$KUNIT_DMESG_SOURCE"
 	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
 		echo "incomplete KUnit interval unexpectedly passed" >&2

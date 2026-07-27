@@ -60,8 +60,8 @@ Its operational conclusion is:
 | KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ⚠️ booted KUnit exposed fixture Oops/UAF; no real MPP/RGA workload completed |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | `*-repro.c`, `rga-session-uaf.sh` | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
-| Booted KUnit (85 MPP + 148 RGA = 233) | `rewrite-kunit-log-check.sh` | — | ⚠️ `P3138-Cad24` completed exact 85+148 KTAP and restored both runtimes, but warning/fixture defects disabled lockdep and kmemleak found one 2,048-byte fixture allocation. Current tips add the final observed DCHS fixture-lock repair; the checker now automatically gates the entire fatal-signature interval and live lockdep before ABI/media work. A clean compound rerun remains required. |
-| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ current 6.18 `f6ebe28` passes normal, KASAN/fault-injection memory, and KCSAN/lockdep race profiles; strict checkpatch and identity with mainline `394d805` pass. The user stopped the current mainline matrix. Current-tip 6.18.40 KASAN package `P91d6-Cad24` is payload-verified but not booted. |
+| Booted KUnit (85 MPP + 148 RGA = 233) | `rewrite-kunit-log-check.sh` | — | ⚠️ `P91d6-Cad24` completed exact 85+148 KTAP, but MPP case 83 reached DCHS release through a second zeroed local service and disabled lockdep before RGA. Current tips initialize that reset/import fixture too; the checker automatically gates the entire fatal-signature interval and live lockdep before ABI/media work. A clean compound rerun remains required. |
+| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ current 6.18 `9af4a88` passes normal, KASAN/fault-injection memory, and KCSAN/lockdep race profiles; strict checkpatch and byte identity with mainline `fb5040f` pass. Mainline's focused normal profile also passes. The fix remains unbooted. |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ not run |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`, `syzkaller/` | ⚠️ ran without KCOV | ❌ |
@@ -140,11 +140,11 @@ nested allocation. The current source fixes must clear the compound phase
 before media qualification can start. Sequenced:
 
 0. **Prereqs:** land the active-fence counter in the rewrite driver; obtain an
-   AVS2 elementary-stream asset (cannot be generated). Current instrumented
-   Kernel A is payload-verified `P91d6-Cad24`.
-1. **Current 6.18 clean build gate:** complete for normal/memory/race at
-   `f6ebe28`. The current mainline matrix was stopped at the user's direction.
-2. **Boot `P91d6-Cad24`**; persist a **233-case green
+   AVS2 elementary-stream asset (cannot be generated). `P91d6-Cad24` is
+   disqualified by the case-83 lockdep report.
+1. **Current clean build gate:** 6.18 normal/memory/race complete at
+   `9af4a88`; mainline normal complete at `fb5040f`.
+2. **Build and boot a successor package from `9af4a88`**; persist a **233-case green
    KUnit report plus complete clean interval and live-lockdep report**
    (`rewrite-kunit-log-check.sh`) tied to the boot fingerprint.
 3. **P1 smoke** (`rewrite-smoke.sh`) then **P2 conformance**: all four suites

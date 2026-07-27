@@ -98,6 +98,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md) — Exact SPL audit closes the ordinary CPU zero-writer, not the DDR mechanism
 - [`2026-07-27-rk3588-ramoops-next-experiment-plan.md`](2026-07-27-rk3588-ramoops-next-experiment-plan.md) — Ramoops next experiments: find the first boot stage that changes the bytes
 - [`2026-07-27-rk3588-pvtm-volt-sel-measured.md`](2026-07-27-rk3588-pvtm-volt-sel-measured.md) — This ROCK 5B's BSP voltage-select index measured: L5 little / L7 both big clusters
+- [`2026-07-27-rewrite-reset-import-fixture-lockdep.md`](2026-07-27-rewrite-reset-import-fixture-lockdep.md) — Reset/import KUnit fixture missed the DCHS spinlock initialized in its sibling
 - [`2026-07-27-rewrite-mpp-preflight-freeze.md`](2026-07-27-rewrite-mpp-preflight-freeze.md) — MPP conformance froze in pre-workload state capture after KUnit poisoned the service
 - [`2026-07-27-rewrite-kunit-lockdep-kmemleak-fixtures.md`](2026-07-27-rewrite-kunit-lockdep-kmemleak-fixtures.md) — Final rewrite KUnit boot blockers were one uninitialized mutex and one nested allocation
 - [`2026-07-27-rewrite-kunit-final-stack-fixture.md`](2026-07-27-rewrite-kunit-final-stack-fixture.md) — Final capped RGA KUnit stack fixture warning is fixed in both rewrite trees
