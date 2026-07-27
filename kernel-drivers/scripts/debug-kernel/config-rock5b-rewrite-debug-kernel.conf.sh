@@ -53,8 +53,11 @@ function custom_kernel_config__rock5b_rewrite_drivers() {
 	# Mutually exclusive vendor forward-port drivers (Kconfig makes the tracks
 	# exclusive per device node) plus the V4L2 RGA driver, all off in the
 	# validated rewrite package config. Disabling ROCKCHIP_MPP_SERVICE also
-	# drops its rkvdec2/rkvenc2/AV1 sub-options.
+	# drops its rkvdec2/rkvenc2/AV1 sub-options. The optional DWC PCIe PMU is
+	# also disabled for qualification builds because its probe warning is
+	# unrelated to the rewrite drivers and obscures warning-clean KUnit boots.
 	opts_n+=(
+		"DWC_PCIE_PMU"
 		"ROCKCHIP_MPP_SERVICE"
 		"ROCKCHIP_MULTI_RGA"
 		"VIDEO_ROCKCHIP_RGA"

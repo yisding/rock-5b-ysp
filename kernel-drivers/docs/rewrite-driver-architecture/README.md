@@ -59,8 +59,8 @@ This guide describes the sources committed on 2026-07-27:
 
 | Kernel branch | Commit |
 |---------------|--------|
-| `rk3588-rewrite-6.18` | `dbc36621b301` |
-| `rk3588-rewrite-mainline` | `948db1b44c63` |
+| `rk3588-rewrite-6.18` | `835b19f81d2b` |
+| `rk3588-rewrite-mainline` | `79a804a26e00` |
 
 The commits contain byte-identical rewrite driver and ABI sources:
 
