@@ -204,11 +204,14 @@ For each suite it requires:
 | Suite summary | `ok` |
 | Boot identity | recorded from `uname -r` |
 
-The checker deliberately does not interpret the kernel log. A complete verdict
-also needs the KUnit interval scanned through `SUITE_DMESG_FATAL_RE` from
-[`suite-common.sh`](../tests/suite-common.sh). Never copy that expression into
-another script; it is shared so new sanitizer and Rockchip IOMMU fault
-signatures cannot drift between suites.
+The checker also extracts the complete boot-time interval from the first MPP
+subtest through the final RGA suite result, scans it through
+`SUITE_DMESG_FATAL_RE` from
+[`suite-common.sh`](../tests/suite-common.sh), and requires
+`/proc/sys/kernel/debug_locks` to remain `1`. Missing/incomplete log access, a
+fatal match, or disabled lockdep fails the compound gate even when every KTAP
+assertion reports `ok`. The expression remains shared so new sanitizer and
+Rockchip IOMMU fault signatures cannot drift between suites.
 
 ## Capture a reproducible result
 
@@ -231,31 +234,19 @@ sudo env KUNIT_REPORT="$PWD/$evidence/result.tsv" \
   bash kernel-drivers/tests/rewrite-kunit-log-check.sh
 ```
 
-Capture the boot-time KUnit interval before manually rerunning either suite:
-
-```bash
-sudo journalctl -k -b --no-pager -o short-monotonic |
-  awk '
-    /# Subtest: rk_mpp_rewrite/ { capture = 1 }
-    capture { print }
-    capture && /(ok|not ok) 2 rockchip-rga-rewrite$/ { exit }
-  ' > "$evidence/kunit-journal.txt"
-
-source kernel-drivers/tests/suite-common.sh
-grep -aiE "$SUITE_DMESG_FATAL_RE" "$evidence/kunit-journal.txt" \
-  > "$evidence/kunit-fatal.txt" || true
-test -s "$evidence/kunit-journal.txt"
-test ! -s "$evidence/kunit-fatal.txt"
-```
-
-The final two commands are gates: an empty/missing interval fails, as does any
-fatal match. Retain the raw interval, empty-or-populated fatal file, exact KTAP,
-report, configuration, and boot identity together.
+The checker derives `result-journal.txt`, `result-fatal.txt`, and
+`result-dmesg-scan.tsv` beside `result.tsv`. Retain those files with the exact
+KTAP, configuration, and boot identity. `KUNIT_DMESG_SOURCE` can point at a
+previously captured complete kernel journal for offline parsing; normal
+qualification reads the live boot ring. `KUNIT_REQUIRE_LOCKDEP=0` exists only
+for diagnostic kernels built without lockdep and is not a production
+qualification setting.
 
 [`rewrite-conformance-run.sh`](../tests/rewrite-conformance-run.sh) enables the
 KUnit checker by default for rewrite profiles and writes a
-`<RUN_ID>-kunit.tsv` report before moving on to ABI, MPP, librga, GStreamer,
-FFmpeg, comparator, counter, and per-suite dmesg gates.
+`<RUN_ID>-kunit.tsv` report plus the correlated journal/fatal/scan artifacts
+before moving on to ABI, MPP, librga, GStreamer, FFmpeg, comparator, counter,
+and per-suite dmesg gates.
 
 ## Post-boot reruns are intentionally unavailable
 
@@ -301,11 +292,12 @@ soak gates indexed by the [validation guide](validation-index.md) and
 The lifecycle-repaired `P3138-Cad24` boot did complete all 85 MPP + 148 RGA
 cases and restore both runtimes, but it did not pass the compound gate: MPP
 case 9 disabled lockdep by locking an uninitialized fixture mutex, and case 28
-left a nested 2,048-byte production allocation for kmemleak. Current tips 6.18
-`6b55e022ce49` and mainline `9aa6ef7e97b2` initialize that mutex and register
-assertion-safe deferred cleanup for the allocation. See the
+left a nested 2,048-byte production allocation for kmemleak. Parent repairs
+6.18 `6b55e022ce49` and mainline `9aa6ef7e97b2` address those defects.
+Current tips `f6ebe28a3f66` / `394d80552960` additionally initialize the
+abort fixture's DCHS spinlock and make debug-state capture fail fast. See the
 [attribution and repair record](../../findings/2026-07-27-rewrite-kunit-lockdep-kmemleak-fixtures.md).
-The pinned 6.18.40 KASAN/UBSAN/lockdep/kmemleak package is payload-verified as
-`Pe8c5-Cad24`.
+Current 6.18.40 KASAN/UBSAN/lockdep/kmemleak package `P91d6-Cad24` contains
+that final repair and is payload-verified; it has not been installed or booted.
 Do not promote KTAP, compile, or package results into a runtime pass until the
 entire compound evidence above is clean on the repaired kernel.

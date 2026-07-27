@@ -123,6 +123,9 @@ in the
 
 ## Next gate
 
-Boot a new package from successor `6b55e022ce491`, persist its KUnit interval
-and running image fingerprint, and require exact KTAP, a fatal-signature-free
-interval, live lockdep, and a clean aged kmemleak scan before media evidence.
+Boot a new package from current successor `f6ebe28a3f668`, persist its KUnit
+interval and running image fingerprint, and require exact KTAP, a
+fatal-signature-free interval, live lockdep, and a clean aged kmemleak scan
+before media evidence. The additional fixture/preflight repair is documented
+in the
+[freeze attribution finding](./2026-07-27-rewrite-mpp-preflight-freeze.md).

@@ -1,5 +1,12 @@
 # Final rewrite KUnit boot blockers were one uninitialized mutex and one nested allocation
 
+> **Superseded as the final-blocker claim:** a later boot/inspection found an
+> additional uninitialized DCHS fixture spinlock and the fail-open preflight
+> chain. See the
+> [successor finding](./2026-07-27-rewrite-mpp-preflight-freeze.md). The
+> measurements and two repairs below remain valid historical evidence, but
+> `Pe8c5-Cad24` is not a qualifying current-tip package.
+
 > Scope: ROCK 5B clean-room rewrite qualification kernel
 > `6.18.40-video-rewrite-kasan-rockchip64` build `#9`
 > Source: booted 6.18 `db8251eec71a9d3d0ae3f578bca78cd0bb656414`;
@@ -200,8 +207,10 @@ expected three RGA plus four MPP cores.
 
 ## Boundary and next gate
 
-The fixes are source- and compile-verified, not boot-verified. The next kernel
-must repeat the full boot contract:
+These two fixes are source- and compile-verified, not boot-verified. They were
+subsequently extended by 6.18 `f6ebe28a3f66` and mainline `394d80552960`;
+the next package must contain that successor repair and repeat the full boot
+contract:
 
 1. exact 85/85 MPP plus 148/148 RGA KTAP, with no skips;
 2. no fatal signature in the entire KUnit interval;

@@ -18,6 +18,16 @@ MPP exposes `rk_mpp_rewrite` debugfs state including:
 - bound hardware/support masks;
 - a recent-event ring with lifecycle and error events.
 
+The MPP `state` file is observational, not part of the workload ABI. Its
+hardware-list and scheduler snapshots use `mutex_trylock()` and return
+`-EBUSY` when either protected structure is changing. This keeps a diagnostic
+reader from waiting forever if a preceding fatal path abandoned a service
+mutex. Interactive tooling may retry; qualification preflight treats `EBUSY`
+as a dirty-boot failure. Submit, scheduling, completion, and recovery retain
+their normal blocking synchronization. An unbounded debugfs wait must not be
+restored; a future guaranteed-under-load snapshot would need bounded retry or
+copy-under-lock formatting.
+
 RGA exposes `rk_rga_rewrite` state including:
 
 - prepared, scheduled, dispatched, started, and completed counts;

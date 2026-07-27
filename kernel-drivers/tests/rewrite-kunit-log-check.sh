@@ -4,10 +4,25 @@ set -euo pipefail
 
 TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
+# shellcheck source=suite-common.sh disable=SC1091
+source "$TEST_DIR/suite-common.sh"
 
 KUNIT_DEBUGFS_ROOT=${KUNIT_DEBUGFS_ROOT:-/sys/kernel/debug/kunit}
 KUNIT_REQUIRED_SUITES=${KUNIT_REQUIRED_SUITES:-"rk_mpp_rewrite:85 rockchip-rga-rewrite:148"}
 KUNIT_REPORT=${KUNIT_REPORT:-}
+KUNIT_DMESG_SOURCE=${KUNIT_DMESG_SOURCE:-}
+KUNIT_DEBUG_LOCKS_FILE=${KUNIT_DEBUG_LOCKS_FILE:-/proc/sys/kernel/debug_locks}
+KUNIT_REQUIRE_LOCKDEP=${KUNIT_REQUIRE_LOCKDEP:-1}
+KUNIT_DMESG_REPORT=${KUNIT_DMESG_REPORT:-}
+KUNIT_INTERVAL_REPORT=${KUNIT_INTERVAL_REPORT:-}
+KUNIT_FATAL_REPORT=${KUNIT_FATAL_REPORT:-}
+
+if [ -n "$KUNIT_REPORT" ]; then
+	report_base=${KUNIT_REPORT%.tsv}
+	KUNIT_DMESG_REPORT=${KUNIT_DMESG_REPORT:-"$report_base-dmesg-scan.tsv"}
+	KUNIT_INTERVAL_REPORT=${KUNIT_INTERVAL_REPORT:-"$report_base-journal.txt"}
+	KUNIT_FATAL_REPORT=${KUNIT_FATAL_REPORT:-"$report_base-fatal.txt"}
+fi
 
 write_result()
 {
@@ -94,6 +109,97 @@ check_suite()
 	return "$status"
 }
 
+check_boot_log()
+{
+	local tmp_root
+	local boot_log
+	local interval
+	local fatal
+	local report
+	local status=clean
+	local interval_lines=0
+	local fatal_lines=0
+	local lockdep_state=unavailable
+	local interval_status=0
+
+	tmp_root=$(mktemp -d "${TMPDIR:-$REPO_ROOT}/.rewrite-kunit-dmesg.XXXXXX")
+	boot_log="$tmp_root/boot-kernel.txt"
+	interval=${KUNIT_INTERVAL_REPORT:-"$tmp_root/kunit-journal.txt"}
+	fatal=${KUNIT_FATAL_REPORT:-"$tmp_root/kunit-fatal.txt"}
+	report=${KUNIT_DMESG_REPORT:-"$tmp_root/kunit-dmesg-scan.tsv"}
+	mkdir -p "$(dirname "$interval")" "$(dirname "$fatal")" "$(dirname "$report")"
+
+	if [ -n "$KUNIT_DMESG_SOURCE" ]; then
+		if [ ! -r "$KUNIT_DMESG_SOURCE" ]; then
+			status=unavailable
+			: > "$boot_log"
+		else
+			awk '{ print }' "$KUNIT_DMESG_SOURCE" > "$boot_log"
+		fi
+	elif ! dmesg > "$boot_log" 2> "$tmp_root/dmesg-error.txt"; then
+		status=unavailable
+		: > "$boot_log"
+	fi
+
+	if awk '
+		/# Subtest: rk_mpp_rewrite([[:space:]]|$)/ {
+			capture = 1;
+		}
+		capture {
+			print;
+		}
+		capture &&
+		/(ok|not ok)[[:space:]]+2[[:space:]]+rockchip-rga-rewrite([[:space:]]|$)/ {
+			complete = 1;
+			exit;
+		}
+		END {
+			exit capture && complete ? 0 : 2;
+		}
+	' "$boot_log" > "$interval"; then
+		:
+	else
+		interval_status=$?
+		status=unavailable
+	fi
+
+	grep -aiE "$SUITE_DMESG_FATAL_RE" "$interval" > "$fatal" || :
+	if [ -s "$fatal" ]; then
+		status=fatal
+	fi
+
+	if [ -r "$KUNIT_DEBUG_LOCKS_FILE" ]; then
+		lockdep_state=$(tr -d '[:space:]' < "$KUNIT_DEBUG_LOCKS_FILE")
+		[ -n "$lockdep_state" ] || lockdep_state=unavailable
+	fi
+	if [ "$KUNIT_REQUIRE_LOCKDEP" = "1" ] &&
+		[ "$lockdep_state" != "1" ]; then
+		status=lockdep-disabled
+	fi
+
+	interval_lines=$(wc -l < "$interval" | tr -d '[:space:]')
+	fatal_lines=$(wc -l < "$fatal" | tr -d '[:space:]')
+	{
+		printf "field\tvalue\n"
+		printf "status\t%s\n" "$status"
+		printf "interval_status\t%s\n" "$interval_status"
+		printf "interval_lines\t%s\n" "$interval_lines"
+		printf "fatal_lines\t%s\n" "$fatal_lines"
+		printf "lockdep_state\t%s\n" "$lockdep_state"
+		printf "fatal_regex\t%s\n" "$SUITE_DMESG_FATAL_RE"
+	} > "$report"
+
+	rm -rf "$tmp_root"
+	if [ "$status" != clean ]; then
+		printf "rewrite KUnit boot-log check failed: status=%s interval=%s fatal=%s lockdep=%s report=%s\n" \
+			"$status" "$interval_lines" "$fatal_lines" "$lockdep_state" \
+			"$KUNIT_DMESG_REPORT" >&2
+		return 1
+	fi
+	printf "rewrite KUnit boot-log check passed: interval=%s lockdep=%s\n" \
+		"$interval_lines" "$lockdep_state"
+}
+
 selftest()
 {
 	local tmp_root
@@ -103,6 +209,10 @@ selftest()
 
 	tmp_root=$(mktemp -d "${TMPDIR:-$REPO_ROOT}/.rewrite-kunit-check.XXXXXX")
 	trap 'rm -rf "$tmp_root"' RETURN
+	KUNIT_DMESG_SOURCE="$tmp_root/boot-kernel.txt"
+	KUNIT_DEBUG_LOCKS_FILE="$tmp_root/debug_locks"
+	export KUNIT_DMESG_SOURCE KUNIT_DEBUG_LOCKS_FILE
+	printf "1\n" > "$KUNIT_DEBUG_LOCKS_FILE"
 
 	for spec in $KUNIT_REQUIRED_SUITES; do
 		suite=${spec%%:*}
@@ -119,8 +229,49 @@ selftest()
 			printf "ok 1 %s\n" "$suite"
 		} > "$tmp_root/$suite/results"
 	done
+	{
+		printf "KTAP version 1\n1..2\n"
+		printf "    # Subtest: rk_mpp_rewrite\n"
+		printf "ok 1 rk_mpp_rewrite\n"
+		printf "    # Subtest: rockchip-rga-rewrite\n"
+		printf "ok 2 rockchip-rga-rewrite\n"
+	} > "$KUNIT_DMESG_SOURCE"
 
-	KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null
+	KUNIT_DEBUGFS_ROOT="$tmp_root" KUNIT_REPORT="$tmp_root/result.tsv" \
+		"$0" >/dev/null
+	for artifact in result.tsv result-journal.txt result-fatal.txt \
+		result-dmesg-scan.tsv; do
+		if [ ! -e "$tmp_root/$artifact" ]; then
+			printf "missing persisted KUnit artifact: %s\n" "$artifact" >&2
+			return 1
+		fi
+	done
+	if ! grep -q $'^status\tclean$' "$tmp_root/result-dmesg-scan.tsv"; then
+		echo "persisted KUnit boot-log report was not clean" >&2
+		return 1
+	fi
+
+	sed -i '/ok 1 rk_mpp_rewrite/i WARNING: fixture poisoned the boot' \
+		"$KUNIT_DMESG_SOURCE"
+	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "fatal KUnit interval unexpectedly passed" >&2
+		return 1
+	fi
+	sed -i '/WARNING: fixture poisoned the boot/d' "$KUNIT_DMESG_SOURCE"
+
+	sed -i '/ok 2 rockchip-rga-rewrite/d' "$KUNIT_DMESG_SOURCE"
+	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "incomplete KUnit interval unexpectedly passed" >&2
+		return 1
+	fi
+	printf "ok 2 rockchip-rga-rewrite\n" >> "$KUNIT_DMESG_SOURCE"
+
+	printf "0\n" > "$KUNIT_DEBUG_LOCKS_FILE"
+	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "disabled lockdep unexpectedly passed" >&2
+		return 1
+	fi
+	printf "1\n" > "$KUNIT_DEBUG_LOCKS_FILE"
 
 	sed -i '0,/    ok 1 - case_1/s//    not ok 1 - case_1/' \
 		"$tmp_root/rk_mpp_rewrite/results"
@@ -189,10 +340,11 @@ fi
 for spec in $KUNIT_REQUIRED_SUITES; do
 	check_suite "$spec" || failed=1
 done
+check_boot_log || failed=1
 
 if [ "$failed" -ne 0 ]; then
-	echo "rewrite KUnit result check failed" >&2
+	echo "rewrite KUnit compound result check failed" >&2
 	exit 1
 fi
 
-echo "rewrite KUnit result check passed"
+echo "rewrite KUnit compound result check passed"

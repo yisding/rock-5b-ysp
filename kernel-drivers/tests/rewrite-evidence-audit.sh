@@ -417,6 +417,7 @@ check_kunit_evidence()
 	local candidate_run
 	local run_id
 	local report
+	local dmesg_report
 	local spec
 	local kunit_suite
 	local expected
@@ -444,6 +445,28 @@ check_kunit_evidence()
 			"$CANDIDATE" "$audit_suite" "$run_id" "$report" >&2
 		return 1
 	fi
+	dmesg_report="$(dirname "$candidate_dir")/$run_id-kunit-dmesg-scan.tsv"
+	if [ ! -s "$dmesg_report" ]; then
+		printf "missing run-correlated KUnit boot-log evidence: candidate=%s suite=%s run=%s report=%s\n" \
+			"$CANDIDATE" "$audit_suite" "$run_id" "$dmesg_report" >&2
+		return 1
+	fi
+	if ! awk -F '\t' '
+		$1 == "status" { status = $2 }
+		$1 == "interval_status" { interval_status = $2 }
+		$1 == "interval_lines" { interval_lines = $2 }
+		$1 == "fatal_lines" { fatal_lines = $2 }
+		$1 == "lockdep_state" { lockdep_state = $2 }
+		END {
+			exit status == "clean" && interval_status == 0 &&
+			     interval_lines > 0 && fatal_lines == 0 &&
+			     lockdep_state == 1 ? 0 : 1;
+		}
+	' "$dmesg_report"; then
+		printf "KUnit boot-log evidence is incomplete, fatal, or has disabled lockdep: report=%s\n" \
+			"$dmesg_report" >&2
+		return 1
+	fi
 
 	for spec in $KUNIT_EVIDENCE_SUITES; do
 		kunit_suite=${spec%%:*}
@@ -468,8 +491,8 @@ check_kunit_evidence()
 	if [ "$failed" -ne 0 ]; then
 		return 1
 	fi
-	printf "KUnit evidence ok: candidate=%s suite=%s run=%s report=%s\n" \
-		"$CANDIDATE" "$audit_suite" "$run_id" "$report"
+	printf "KUnit evidence ok: candidate=%s suite=%s run=%s report=%s boot_log=%s\n" \
+		"$CANDIDATE" "$audit_suite" "$run_id" "$report" "$dmesg_report"
 }
 
 set_counter_specs_for_suite()
@@ -718,6 +741,14 @@ suite	expected_cases	plan_cases	result_cases	failed_cases	skipped_cases	summary	
 rk_mpp_rewrite	85	85	85	0	0	ok	pass	6.18.0-rewrite
 rockchip-rga-rewrite	148	148	148	0	0	ok	pass	6.18.0-rewrite
 EOF
+	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv" <<EOF
+field	value
+status	clean
+interval_status	0
+interval_lines	233
+fatal_lines	0
+lockdep_state	1
+EOF
 	mv "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" \
 		"$tmp_root/logs/$CANDIDATE/20260705-000000-kunit.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
@@ -757,6 +788,30 @@ EOF
 	fi
 	sed -i 's/rk_mpp_rewrite\t85\t85\t85\t1\t0\tnot-ok\tfail/rk_mpp_rewrite\t85\t85\t85\t0\t0\tok\tpass/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
+
+	sed -i 's/status\tclean/status\tfatal/; s/fatal_lines\t0/fatal_lines\t1/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
+		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
+		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
+		printf "selftest expected fatal KUnit boot-log evidence to fail\n" >&2
+		return 1
+	fi
+	sed -i 's/status\tfatal/status\tclean/; s/fatal_lines\t1/fatal_lines\t0/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"
+
+	sed -i 's/lockdep_state\t1/lockdep_state\t0/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
+		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
+		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
+		printf "selftest expected disabled-lockdep KUnit evidence to fail\n" >&2
+		return 1
+	fi
+	sed -i 's/lockdep_state\t0/lockdep_state\t1/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"
 
 	sed -i '/\tmpi_dec_avs2\tdecoded\t/d' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/artifacts.tsv"

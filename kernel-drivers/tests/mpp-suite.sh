@@ -654,34 +654,46 @@ snapshot_mpp_state()
 	local label=$1
 	local target="$OUT/mpp-state-$label.txt"
 	local path
+	local artifact
 
 	: > "$target"
-	for path in /proc/mpp_service /sys/kernel/debug/rk_mpp_rewrite /sys/kernel/debug/mpp_service; do
-		if [ -f "$path" ]; then
-			{
-				printf "== %s ==\n" "$path"
-				cat "$path" 2>/dev/null || true
-			} >> "$target" 2>/dev/null || true
-		elif [ -d "$path" ]; then
-			{
-				printf "== %s ==\n" "$path"
-				find "$path" -maxdepth 2 -type f -print | sort |
-					while IFS= read -r file; do
-						printf -- "-- %s --\n" "$file"
-						cat "$file" 2>/dev/null || true
-					done
-			} >> "$target" 2>/dev/null || true
+	# Keep preflight reads explicit. Recursively walking every generated MPP
+	# procfs/debugfs file previously entered a poisoned service mutex before
+	# the first official workload and left an unkillable D-state reader.
+	for path in \
+		/proc/mpp_service/version \
+		/proc/mpp_service/supports-device \
+		/proc/mpp_service/supports-cmd \
+		/proc/mpp_service/support_cmd \
+		/sys/kernel/debug/rk_mpp_rewrite/state \
+		/sys/kernel/debug/rk_mpp_rewrite/events; do
+		if [ ! -e "$path" ]; then
+			continue
 		fi
+		if [ ! -r "$path" ]; then
+			printf "unreadable MPP snapshot endpoint: %s\n" "$path" >&2
+			return 1
+		fi
+		case "$path" in
+		*/state)
+			artifact="$OUT/mpp-debug-state-$label.txt"
+			;;
+		*/events)
+			artifact="$OUT/mpp-debug-events-$label.txt"
+			;;
+		*)
+			artifact="$OUT/mpp-snapshot-$label-$(basename "$path").txt"
+			;;
+		esac
+		if ! cat "$path" > "$artifact"; then
+			printf "MPP snapshot read failed closed: %s\n" "$path" >&2
+			return 1
+		fi
+		{
+			printf "== %s ==\n" "$path"
+			cat "$artifact"
+		} >> "$target"
 	done
-
-	if [ -r /sys/kernel/debug/rk_mpp_rewrite/state ]; then
-		cat /sys/kernel/debug/rk_mpp_rewrite/state \
-			> "$OUT/mpp-debug-state-$label.txt" 2>/dev/null || true
-	fi
-	if [ -r /sys/kernel/debug/rk_mpp_rewrite/events ]; then
-		cat /sys/kernel/debug/rk_mpp_rewrite/events \
-			> "$OUT/mpp-debug-events-$label.txt" 2>/dev/null || true
-	fi
 }
 
 clear_mpp_debug_events()
