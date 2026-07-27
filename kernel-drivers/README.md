@@ -102,6 +102,7 @@ Read in this order when changing or reviewing kernel behavior:
 | How do the BSP-derived and rewrite MPP/RGA architectures differ, and what are their pros and cons? | [`docs/driver-architecture-comparison.md`](docs/driver-architecture-comparison.md) |
 | How are the rewrite drivers structured, synchronized, and made safe to tear down? | [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md) |
 | How do the rewrite drivers use KUnit, and how is a booted result judged? | [`docs/rewrite-kunit.md`](docs/rewrite-kunit.md) |
+| How should the rewrite KUnit suites be reduced and made fixture-safe? | [`docs/rewrite-kunit-rationalization-plan.md`](docs/rewrite-kunit-rationalization-plan.md) |
 | How are these drivers tested — what's proven per track, and what's left? | [`docs/validation-index.md`](docs/validation-index.md) (entry point / coverage matrix) |
 | How do I build any of the four local kernel flavors? | [`docs/kernel-builds.md`](docs/kernel-builds.md) |
 | How is a newly built or booted kernel validated, end to end? | [`docs/kernel-validation-runbook.md`](docs/kernel-validation-runbook.md) |
@@ -151,6 +152,7 @@ each sub-project's `README.md`).
 | [`docs/kernel-builds.md`](docs/kernel-builds.md) | The unified map of the four local kernel flavors and the single `build-kernel.sh` entry point. |
 | [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) | Public-API-only clean-room reimplementation track. |
 | [`docs/rewrite-kunit.md`](docs/rewrite-kunit.md) | How the embedded MPP/RGA KUnit suites are built, booted, parsed, log-gated, rerun, and preserved as YSP evidence. |
+| [`docs/rewrite-kunit-rationalization-plan.md`](docs/rewrite-kunit-rationalization-plan.md) | Staged plan to retain high-value KUnit contracts while removing production-singleton fixtures, hardening cleanup, relocating redundant checks, and consolidating repeated vectors. |
 | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
 | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | 2026-07-17 audit of claimed ABI/codec coverage, booted evidence, counter/lifetime assertions, and remaining hardware gates. |
 | [`docs/debug-kernel.md`](docs/debug-kernel.md) | Capture a crash / run the KASAN debug kernel. |

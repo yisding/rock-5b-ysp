@@ -25,7 +25,11 @@ flowchart LR
 For the broader testing ladder and the boundary between unit and hardware
 evidence, see the
 [observability and testing architecture](rewrite-driver-architecture/05-observability-and-testing.md)
-and the [rewrite validation plan](rewrite-validation-plan.md).
+and the [rewrite validation plan](rewrite-validation-plan.md). The proposed
+[KUnit rationalization and fixture-hardening plan](rewrite-kunit-rationalization-plan.md)
+defines how to retain the high-value contracts while removing production
+singleton reuse, making resource cleanup failure-safe, relocating redundant
+checks, and consolidating repeated vectors.
 
 ## Source organization
 
@@ -94,8 +98,8 @@ hardware throughput:
 | RGA | 21–44 | Request parsing, ioctls, job state, and file lifetime |
 | RGA | 45–61 | Imports, fences, layouts, planes, offsets, and strides |
 | RGA | 62–80 | Import identity, DMA ownership, and job lifetime |
-| RGA | 81–102 | Abort/recovery, scheduling, IOMMU routes, faults, and timeouts |
-| RGA | 104–148 | FFmpeg, GStreamer, RKNN, librga, and display-shaped format/emission profiles |
+| RGA | 81–101 | Abort/recovery, scheduling, IOMMU routes, faults, and timeouts |
+| RGA | 102–148 | FFmpeg, GStreamer, RKNN, librga, and display-shaped format/emission profiles |
 
 These are white-box cases. They call production functions with controlled fake
 objects and assert outputs, state transitions, ownership, and error behavior.
