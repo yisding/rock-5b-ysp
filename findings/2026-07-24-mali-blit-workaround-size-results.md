@@ -129,23 +129,22 @@ rather than trying to derive safety from dimensions or aspect ratio.
 
 ## Performance
 
-The performance follow-up was measured on 2026-07-27 with the GPU fixed at
-`500 MHz` (`min_freq=max_freq=cur_freq=500000000`). For the policy question
-"what happens if we enable the workaround on every affected Panfrost fullscreen
-blit?", the answer is: **workaround-enabled blits were about 0.5% slower**. The
-seven size classes, from `1x1` through 4K plus the affected `12288x1` case, had
-central paired GPU-time costs from `+0.20%` to `+0.68%`; the median of those
-seven estimates is `+0.49%`.
+The performance follow-up was measured and independently rerun on 2026-07-27
+with the GPU fixed at `500 MHz`
+(`min_freq=max_freq=cur_freq=500000000`). For the policy question "what happens
+if we enable the workaround on every affected Panfrost fullscreen blit?", the
+answer remains: **workaround-enabled blits were about 0.5% slower**. Across the
+original seven sizes, the first run's median central estimate was `+0.49%` and
+the clean-source rerun's was `+0.48%`. Excluding the setup-dominated `1x1`
+case, the rerun ranged from `+0.40%` to `+0.73%` with a `+0.50%` median.
 
 That half-percent result is small but more precise than the initial
 `simple_ondemand` runs. With the governor free to move between 300 MHz and
 1 GHz, the tiny cases changed sign and some paired spreads were unusably wide.
-Those unlocked-clock numbers were rejected and are not included below. Fixing
-the clock made every central estimate positive and tightened the medium/large
-and oblong results substantially. The longest `1x1` run used 32,768 draws per
-timed batch so timer and submission noise did not dominate its central value;
-its per-block spread is still the widest, so do not treat `+0.46%` as an exact
-tiny-blit constant.
+Those unlocked-clock numbers were rejected. Even at a fixed clock, `1x1`,
+`16x16`, and `64x64` have wide per-block spreads and changed sign on rerun.
+They measure submission/setup noise more than useful fragment work and should
+not be treated as size-specific constants.
 
 [`offset_perf_probe.c`](../video-libraries/mesa/reproducers/interp_probe/offset_perf_probe.c)
 measures a cache-warm fullscreen `texelFetch` blit with three paths:
@@ -167,6 +166,27 @@ fragcoord mismatches=0
 verdict=PASS
 ```
 
+An expanded 20-size run checked tiny, non-power-of-two, square, display-sized,
+wide, tall, and topology-sensitive targets. Workaround and fragcoord had zero
+mismatches in all 20 cases. Baseline was exact for the 13 expected controls:
+`1x1`, `17x19`, `64x64`, `255x257`, `256x256`, `1000x1000`, `1920x1080`,
+`2560x1440`, `3840x2160`, `2079x1`, `4096x1`, `8192x1`, and `16383x127`.
+The other seven reproduced baseline-only corruption:
+
+| Size | Baseline mismatches | Workaround mismatches | Fragcoord mismatches |
+|---|---:|---:|---:|
+| `2080x1` | 32 | 0 | 0 |
+| `1x1480` | 96 | 0 | 0 |
+| `12288x1` | 11,744 | 0 | 0 |
+| `16307x1` | 15,672 | 0 | 0 |
+| `9350x11` | 8,239 | 0 | 0 |
+| `11x9350` | 102,850 | 0 | 0 |
+| `127x16383` | 44,704 | 0 | 0 |
+
+The verifier's process `verdict` is intentionally `FAIL` for an exact baseline
+control because its default pass predicate requires a baseline failure. The
+per-path mismatch counts are the relevant result when running control sizes.
+
 Each comparison uses alternating ABBA/BAAB blocks. Every GPU timer batch ends
 with `glFinish()` before the next path starts; this is necessary on the
 tile-based Mali renderer so deferred fragment work cannot be charged to a
@@ -174,25 +194,52 @@ neighboring query. All tabled runs used system Mesa `26.0.3-1ubuntu1`,
 reported `GL_RENDERER=Mali-G610 MC4 (Panfrost)`,
 `GL_EXT_disjoint_timer_query=yes`, and `disjoint=0`.
 
-| Size | Draws per timed batch | Blocks | Workaround vs baseline | Direct fragcoord vs baseline | Interpretation |
-|---|---:|---:|---:|---:|---|
-| `1x1` | 32768 | 24 | `+0.46%` (`p10..p90 -7.49%..+17.80%`) | `-3.68%` (`-13.71%..+12.99%`) | setup-dominated; widest residual spread |
-| `256x256` | 8192 | 30 | `+0.68%` (`-3.36%..+10.37%`) | `-7.30%` (`-13.35%..+2.34%`) | small-blit central estimate |
-| `512x512` | 4096 | 30 | `+0.59%` (`-1.38%..+2.84%`) | `-10.00%` (`-10.67%..-6.21%`) | workaround near parity; fragcoord faster |
-| `1024x1024` | 2048 | 30 | `+0.20%` (`-1.61%..+2.88%`) | `-10.75%` (`-11.90%..-8.95%`) | lowest workaround central cost |
-| `1920x1080` | 1024 | 30 | `+0.36%` (`-0.97%..+2.42%`) | `-2.25%` (`-3.03%..-1.18%`) | both alternatives close to baseline |
-| `3840x2160` | 256 | 30 | `+0.61%` (`+0.27%..+1.53%`) | `-1.06%` (`-1.62%..-0.24%`) | clearest positive workaround cost |
-| `12288x1` | 4096 | 30 | `+0.49%` (`-0.19%..+1.90%`) | `-11.46%` (`-11.89%..-10.70%`) | affected oblong control |
+The original seven-size comparison reproduced as follows. Values are median
+within-block GPU-time changes; negative means faster:
+
+| Size | Workaround first run | Workaround rerun | Fragcoord first run | Fragcoord rerun |
+|---|---:|---:|---:|---:|
+| `1x1` | `+0.46%` | `-1.07%` | `-3.68%` | `-1.75%` |
+| `256x256` | `+0.68%` | `+0.41%` | `-7.30%` | `-6.37%` |
+| `512x512` | `+0.59%` | `+0.51%` | `-10.00%` | `-10.11%` |
+| `1024x1024` | `+0.20%` | `+0.40%` | `-10.75%` | `-9.26%` |
+| `1920x1080` | `+0.36%` | `+0.73%` | `-2.25%` | `-2.02%` |
+| `3840x2160` | `+0.61%` | `+0.48%` | `-1.06%` | `-1.33%` |
+| `12288x1` | `+0.49%` | `+0.53%` | `-11.46%` | `-11.23%` |
+| **Median** | **`+0.49%`** | **`+0.48%`** | — | — |
+
+The expanded rerun added 13 unique sizes. The parenthesized range is
+`p10..p90` across paired blocks:
+
+| Size | Draws | Workaround vs baseline | Direct fragcoord vs baseline |
+|---|---:|---:|---:|
+| `16x16` | 32768 | `-2.86%` (`-10.02%..+7.92%`) | `-1.20%` (`-9.78%..+7.94%`) |
+| `64x64` | 16384 | `-5.67%` (`-18.37%..+13.46%`) | `-2.97%` (`-13.90%..+13.37%`) |
+| `800x600` | 4096 | `+0.46%` (`-0.43%..+1.27%`) | `-7.66%` (`-8.30%..-6.76%`) |
+| `1280x720` | 2048 | `+0.67%` (`-0.48%..+1.94%`) | `-9.71%` (`-11.11%..-7.97%`) |
+| `2560x1440` | 512 | `+0.45%` (`+0.03%..+0.63%`) | `-1.04%` (`-1.65%..-0.38%`) |
+| `2080x1` | 8192 | `+0.37%` (`-0.41%..+1.43%`) | `-9.86%` (`-11.61%..-9.22%`) |
+| `1x1480` | 8192 | `+0.06%` (`-1.02%..+1.30%`) | `-9.84%` (`-10.85%..-7.67%`) |
+| `8192x1` | 4096 | `+0.37%` (`-0.70%..+0.70%`) | `-11.12%` (`-11.82%..-10.65%`) |
+| `16307x1` | 4096 | `+0.39%` (`+0.17%..+0.78%`) | `-10.79%` (`-11.08%..-10.55%`) |
+| `9350x11` | 2048 | `+0.25%` (`-0.72%..+1.79%`) | `+7.20%` (`+5.48%..+10.11%`) |
+| `11x9350` | 2048 | `+0.06%` (`-0.95%..+1.56%`) | `+7.10%` (`+6.28%..+7.81%`) |
+| `16383x127` | 512 | `+0.33%` (`-1.10%..+1.45%`) | `-1.63%` (`-4.03%..-0.37%`) |
+| `127x16383` | 512 | `+0.38%` (`-0.55%..+0.77%`) | `-2.14%` (`-4.58%..-1.32%`) |
+
+The `9350x11` case was run twice. The first run measured workaround `+0.44%`
+and fragcoord `+7.49%`, confirming that the direct-fragcoord slowdown in the
+table is reproducible rather than a single noisy block set.
 
 The percentage is the median of the within-block path/baseline GPU-time ratios;
 `p10..p90` is descriptive spread, not a confidence interval. The direct
 fragcoord control is intentionally simpler than Mesa's full generalized
 fragcoord fix: it models the unscaled 2D TXF coordinate source but not Mesa's
-scale, sign, layer, and offset reconstruction. Its `~10-11.5%` wins at
-`512x512`, `1024x1024`, and `12288x1` show that avoiding the varying can help
-a draw/setup-heavy microbenchmark; they should not be quoted as the expected
-end-to-end gain of MR !42679. The direct control was only `2.25%` faster at
-1080p and `1.06%` faster at 4K.
+scale, sign, layer, and offset reconstruction. Avoiding the varying helped by
+about `9-11%` in several square and one-row cases, but the repeated `9350x11`
+and transposed `11x9350` results were about `7%` slower. The direct path is
+therefore shape-dependent, not universally faster, and none of these values
+should be quoted as the expected end-to-end result of MR !42679.
 
 This probe isolates GPU path cost with cache-warm repeated draws. It does not
 cover cold-memory transfers, linear/scaled blits, MSAA resolves, every
