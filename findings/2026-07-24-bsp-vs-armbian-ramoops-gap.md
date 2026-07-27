@@ -1,20 +1,21 @@
 # Why BSP ramoops "works" at 0x110000 and ours does not — consolidated answer, and a correction to our own record
 
-> **Root-cause update 2026-07-27:**
+> **Evidence-boundary update 2026-07-27:**
 > [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md)
 > maps the exact SPI-resident SPL's bulk operations, inline zero stores, fixed
 > regions, and FIT destinations. None overlaps `0x118000–0x1e7fff`. With TPL,
-> SPL, BL31, and U-Boot proper all clear of the interval, the retention loss is
-> assigned to the DDR TPL's unconditional cold controller/PHY reinitialization;
-> the individual destructive DDRC/PHY command remains outside the static proof.
+> SPL, BL31, and U-Boot proper all clear of the interval, recovered ordinary CPU
+> clearing is falsified. DDR initialization is the leading remaining phase, but
+> PHY calibration is not inherently destructive and no destructive controller
+> operation has been observed. The mechanism remains unresolved.
 
 > **Corrected 2026-07-26 by**
 > [`2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md`](2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md).
 > The exact running v1.20 TPL and four comparison generations have now been
 > decompiled. No recovered CPU-side write overlaps `0x118000–0x1e7fff`; the
 > firmware ring is bounded to `0x110000–0x117fff`. DDR reinitialization remains
-> a credible indirect destroyer. The 2026-07-27 successor subsequently closed
-> the exact SPL branch and assigned the loss to that reinitialization.
+> a credible indirect hypothesis. The 2026-07-27 successor subsequently closed
+> the exact SPL branch without proving that reinitialization causes the loss.
 
 > Scope: ROCK 5B (this board), Armbian firmware `ddr-v1.20-b8ce94f14b / bl31-v1.48 /
 > uboot-rmbian-201-06/05/2026`, kernels `6.18.38-current-rockchip64` (ramoops debug
@@ -64,9 +65,9 @@ Three things, in decreasing order of confidence.
    (ddr v1.20 + bl31 v1.48 vs the v1.08–v1.16 / bl31 v1.45 generation BSP images
    ship), and Rockchip documents our exact pairing as unsupported (v1.20's release
    note requires bl31 ≥ v1.53). Static audits now find no TPL or exact-SPL CPU
-   write into the Linux window. On our stack, the root cause of retention loss is
-   the TPL's unconditional cold DDR controller/PHY reinitialization; whether a
-   BSP-era blob preserves DRAM differently remains untested.
+   write into the Linux window. DDR initialization remains the leading unresolved
+   phase, not a proven root cause; whether a BSP-era blob preserves DRAM
+   differently remains untested.
 
 The cheapest decisive experiment was missed by every lane and needs **no SD card,
 no download and no flashing**: a complete Rockchip BSP kernel + BSP DT (with
@@ -301,14 +302,16 @@ Guaranteed writer, guaranteed reader, whole-zone coverage, no sampling.
 
 ### 3.3 What remains standing
 
-**No direct CPU zero-writer remains.** U-Boot proper, BL31, the exact TPL, and
-the exact SPL all have write maps disjoint from `0x118000–0x1e7fff`; the TPL
-ring stops at `0x117fff`. The common destructive event is the TPL's
-unconditional cold DDR controller/PHY reinitialization, whose internal effects
-are not visible as AArch64 stores. The individual destructive controller
-operation is not identified. The 1 GB island reading ZEROED is a hint that the
-effect is not confined to the low window; the 2 GB / 6 GB islands were never
-hexdumped so their content is genuinely unknown.
+**No recovered direct CPU zero-writer remains.** U-Boot proper, BL31, the exact
+TPL, and the exact SPL all have write maps disjoint from
+`0x118000–0x1e7fff`; the TPL ring stops at `0x117fff`. That makes the DDR
+initialization phase the leading remaining hypothesis, but does not prove it is
+destructive: PHY timing calibration alone need not modify cells, no
+controller-internal write was observed, and simple refresh loss poorly explains
+an exact 832 KiB all-zero result. The mechanism and actor remain unidentified.
+The 1 GB island reading ZEROED is a hint that the effect is not confined to the
+low window; the 2 GB / 6 GB islands were never hexdumped so their content is
+genuinely unknown.
 
 **The single coherent BSP-vs-us delta that survives is the rkbin blob generation.**
 Our ddr v1.20 is newer than the v1.08/v1.13/v1.15/v1.16 blobs in every BSP product
@@ -334,9 +337,9 @@ are wrong and must be corrected in place.**
 - "The window comes back **zeroed**, not decayed." **Confirmed independently** by
   the ECC-silence result.
 - "Something in the boot chain deliberately writes zeros over the window."
-  **Refined.** The exact binaries contain no direct 832 KiB zero writer. The
-  contents are destroyed as an effect of the DDR TPL's unconditional cold
-  controller/PHY reinitialization.
+  **Not established.** The exact binaries contain no recovered direct 832 KiB
+  zero writer. The all-zero result is measured, but neither a deliberate write
+  nor DDR controller/PHY reinitialization has been demonstrated as its cause.
 - "Off-board capture (netconsole / ttyS2 @1500000) is the reliable path." **Stands.**
 - "u-boot's own code has no bulk clearer for the region." **Stands** (re-audited).
 - The 2026-07-21 follow-up's correction of its own earlier "Armbian firmware lacks
@@ -896,16 +899,17 @@ costs roughly an eighth of capacity. **MEASURED**: `MemTotal: 16183596 kB` = 15.
 GiB of 16 GiB — normal reservation overhead, not a ~14 GiB inline-ECC penalty. Inline
 ECC is off, so it is not what zeroes the window.
 
-### Consequence (corrected 2026-07-27): no boot stage is a direct zero-writer
+### Consequence (corrected 2026-07-27): no recovered boot-stage direct zero-writer
 
 BL31 (disassembled), U-Boot proper (audited 2026-07-21), the exact DDR/TPL blob
 (audited 2026-07-26), and the exact SPL (audited 2026-07-27) are clear of the
 Linux window. The resulting mechanism disposition is:
 
-1. **DDR controller/PHY cold reinitialization — root-cause layer.** The TPL
-   always resets, configures, trains, and tests DRAM; no retained-memory path was
-   recovered. Hardware-issued writes and cell-state loss are not visible as
-   ordinary CPU stores.
+1. **DDR initialization or an unrecovered hardware-side effect — leading
+   hypothesis, not root cause.** The TPL always resets, configures, trains, and
+   tests DRAM; no retained-memory path was recovered. However, PHY calibration
+   alone need not modify cells, simple refresh loss poorly fits uniform zeros,
+   and no hardware-issued write into this interval was observed.
 2. ~~**SPL direct clear or allocation.**~~ Falsified by the exact binary's
    call-graph, bulk-memory, inline-zero-store, fixed-region, and FIT-destination
    audit.
@@ -1033,11 +1037,11 @@ Prefer running this *after* EXP-1c, which costs nothing and does not require a r
 
 - **That BSP ramoops works.** No lane, no artifact, no document shows a recovered
   pstore record on any RK3588. EXP-2/EXP-3 are the tests.
-- **Which DDRC/PHY command destroys the contents.** The responsible stage and
-  mechanism class are pinned to the TPL's unconditional cold DDR
-  reinitialization after exact TPL, SPL, BL31, and U-Boot write audits. Static
-  AArch64 analysis cannot distinguish the individual controller reset,
-  refresh/training, or other internally issued operation.
+- **Who or what destroys the contents.** Exact TPL, SPL, BL31, and U-Boot write
+  audits falsify their recovered direct stores as the cause. They do not prove
+  that DDR initialization is destructive, exclude an unrecovered dynamic or
+  hardware-side writer, or distinguish controller reset, refresh loss,
+  training, and other internal operations.
 - **What the 2 GB / 6 GB content is.** Never hexdumped. "DRAM-wide destruction" is
   not established.
 - **Whether a cold power-cycle differs from a warm reset here.** Never measured.

@@ -4,8 +4,9 @@
 > [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md).
 > The exact SPL's bulk operations, inline zero stores, fixed allocations, and
 > FIT destinations are also disjoint from ramoops. With the last ordinary
-> CPU-write candidate closed, the retained data is lost during the TPL's
-> unconditional cold DDR controller/PHY reinitialization.
+> CPU-write candidate closed, DDR initialization remains the leading unresolved
+> phase. The successor does not prove that PHY/controller initialization itself
+> destroys the contents.
 
 > Scope: ROCK 5B running SPI firmware `ddr-v1.20-b8ce94f14b`; static comparison
 > against RK3588 DDR blobs v1.13, v1.15, v1.18, v1.20, and v1.22
@@ -48,10 +49,10 @@ without appearing as an AArch64 store to the ramoops addresses.
 
 The important narrower conclusion is:
 
-> The DDR blob prevents ramoops by rebuilding DRAM from scratch, but its
-> decompiled CPU-side logic does not contain an 832 KiB direct clear. The
-> successor exact-SPL audit also found no such writer, assigning the destructive
-> effect to controller/PHY reinitialization rather than ordinary CPU stores.
+> The DDR blob rebuilds DRAM from scratch, but its decompiled CPU-side logic does
+> not contain an 832 KiB direct clear. The successor exact-SPL audit also found
+> no such writer. That leaves DDR initialization as the leading unproven phase;
+> it does not assign the destructive effect to PHY/controller initialization.
 
 ## Exact running image
 
@@ -193,9 +194,10 @@ ordinary-CPU-write candidate and kept DDR controller/PHY reinitialization as the
 indirect candidate. The 2026-07-27 successor audited the exact SPL and falsified
 that direct-write branch. The resulting disposition is:
 
-1. **DDR controller/PHY cold reinitialization** — responsible root-cause layer;
-   the blob has no retained-memory path and all later direct writers are
-   disjoint.
+1. **DDR initialization or an unrecovered hardware-side effect** — leading
+   unresolved hypothesis because the blob has no recovered retained-memory path
+   and all later direct writers are disjoint. PHY calibration alone is not
+   inherently destructive, and no internal controller write was observed.
 2. **SPL direct clear or allocation** — falsified by the exact-binary audit.
 3. **TPL direct clear of `0x118000–0x1e7fff`** — falsified by this audit.
 4. **TPL pstore-ring overshoot** — falsified; its upper bound is `0x117fff`.

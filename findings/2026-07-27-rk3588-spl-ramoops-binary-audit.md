@@ -1,4 +1,4 @@
-# Exact SPL audit closes the ramoops zero-writer: cold DDR reinitialization destroys retention
+# Exact SPL audit closes the ordinary CPU zero-writer, not the DDR mechanism
 
 > Scope: ROCK 5B running SPI firmware
 > `ddr-v1.20-b8ce94f14b / bl31-v1.48 / uboot-rmbian-201-06/05/2026`
@@ -9,7 +9,7 @@
 > `sha256:d778912ca41725fb3f2cf8c92ef162f254b6c4ac61eb4a33d3cb940e7c3378cd`
 > Date: 2026-07-27
 > Trust: **BINARY-INSPECTED** / **SOURCE-INSPECTED** /
-> **CONFIG-INSPECTED** / **INFERRED** / **ROOT-CAUSED**
+> **CONFIG-INSPECTED** / **FALSIFIED** (SPL direct writer) / **PARTIAL**
 
 ## Result
 
@@ -19,21 +19,23 @@ memory operations, inline zero stores, and materialized low-DRAM addresses are
 all disjoint from that interval.
 
 Together with the prior exact-binary audits of the DDR/TPL blob, BL31, and
-U-Boot proper, this closes the last ordinary CPU-write candidate. The root cause
-is the firmware reset design:
+U-Boot proper, this closes the last recovered ordinary CPU-write candidate. It
+does **not** prove that PHY initialization, controller initialization, or any
+particular DDR operation destroys the contents.
 
-> A software warm reboot re-enters a DDR TPL that has only a cold-start path.
-> It resets and reconfigures the DDR controller/PHY and retrains DRAM on every
-> invocation. That reinitialization destroys the previous cell contents, so a
-> DRAM-backed ramoops buffer cannot retain data even though no boot-stage
-> `memset` targets it.
+> The measured data loss occurs before Linux and has no recovered direct
+> TPL/SPL/BL31/U-Boot store behind it. DDR initialization is therefore the
+> leading remaining phase, but the destructive mechanism and actor remain
+> unproven.
 
-This pins the responsible stage and mechanism class, not the individual DDRC or
-PHY register operation that turns the prior contents into zeros. A trace or an
-A/B blob with a retained-memory path would be needed to distinguish controller
-reset, refresh interruption, training, and another internally issued operation.
-That narrower boundary does not reopen SPL, BL31, U-Boot, or a DT layout error
-as causes.
+The distinction matters. PHY calibration normally establishes signaling timing;
+it does not inherently erase DRAM cells. Controller-assisted training can issue
+reads or writes, a full reinitialization can interrupt refresh or reset DRAM,
+and an internal scrub/test engine can be destructive, but none of those effects
+was observed in the ramoops range. The exact all-zero 832 KiB result is also a
+poor fit for simple refresh loss or ordinary sparse training traffic. A trace,
+an instrumented early stage, or an A/B blob with a retained-memory path is
+needed before attributing the loss to DDR initialization.
 
 ## Exact running SPL
 
@@ -148,30 +150,44 @@ The actual materialized low-DRAM pointer constants are `0x1fe000` for ATAGS and
 come from the known BSS/stack/heap arenas, device MMIO bases, storage buffers,
 or the exact FIT load addresses.
 
-## Why this is enough to assign the root-cause layer
+## What the audit establishes — and what it does not
 
 The evidence chain is now:
 
 1. A prior-boot persistent-RAM signature and a heavily written console zone
    return all-zero after a software warm reset.
 2. BootROM reaches the DDR TPL before any later stage can use DRAM.
-3. The exact TPL has no retained-memory fast path. It resets/configures the
-   controller and PHY, trains every detected channel/rank, and performs
-   destructive tests each time.
+3. The exact TPL has no recovered retained-memory fast path. It
+   resets/configures the controller and PHY, trains every detected channel/rank,
+   and performs destructive tests each time.
 4. The exact TPL's recovered CPU writes stop below `0x118000` or start above
    `0x1e7fff`.
 5. This audit removes the exact SPL as the last unaudited ordinary-store
    candidate.
 6. BL31 and U-Boot proper were already removed by binary/source write maps.
 
-The common event capable of destroying the buffer before all of those safe
-destinations are used is therefore DDR controller/PHY cold reinitialization.
-The all-zero result is an effect of that hardware-driven reinitialization, not
-evidence of an undiscovered 832 KiB software clear.
+Those facts falsify the proposed ordinary boot-stage clear. They do not establish
+that the remaining common event—DDR initialization—actually destroys the
+buffer. In particular:
 
-Practically, changing ramoops properties or moving it within DRAM cannot fix
-retention. The boot firmware would need a warm/retained-DRAM path, or crash
-capture must leave DRAM before reset.
+- PHY PLL/delay calibration alone need not modify the cell array.
+- Refresh interruption could lose data, but the exact uniform-zero result makes
+  simple charge decay an incomplete explanation.
+- The recovered destructive TPL memory test covers 16 KiB at physical zero,
+  not `0x118000–0x1e7fff`.
+- Inline ECC initialization, a common whole-array zeroing mechanism, is disabled.
+- Training or controller-internal traffic could be destructive, but its address
+  range was not observed.
+
+The strongest defensible conclusion is:
+
+> Direct software clearing by the recovered TPL/SPL/BL31/U-Boot paths is
+> falsified. DDR initialization is the leading unresolved phase, not a proven
+> root cause.
+
+This still means a DT-only change cannot recover the measured missing signature
+at the tested address. It does not establish that every possible DRAM placement
+fails or that a retained-memory firmware path is the only possible repair.
 
 ## Reproduction
 
@@ -207,9 +223,9 @@ output, and mapped bulk/inline store callsites under
 
 This was a static exact-binary audit, not a DDR bus or register trace. It proves
 that the last plausible CPU-side boot stage does not target ramoops and closes
-that causal branch. It does not identify which internal controller/PHY action
-destroys the cells or whether another DDR blob generation implements retention
-differently.
+that causal branch. It does not prove that an internal controller/PHY action
+destroys the cells, exclude an unrecovered dynamic or hardware-side writer, or
+show whether another DDR blob generation behaves differently.
 
 The documented read-only `/dev/mem` boundary experiment could not be run in this
 session: `/dev/mem` was not exposed and `sudo` required an interactive password.
