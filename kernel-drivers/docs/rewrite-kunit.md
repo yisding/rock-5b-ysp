@@ -43,6 +43,17 @@ lifetime helpers without exporting internals or adding test-only production
 hooks. A production configuration without the test symbols compiles those
 blocks out.
 
+Built-in KUnit does not execute a suite from KUnit's own late initcall. Linux
+finishes all initcalls in `do_basic_setup()`, then
+`kernel_init_freeable()` calls `kunit_run_all_tests()`, and only afterward
+waits for initramfs. Each rewrite driver therefore registers normally at
+device-initcall time. Its suite initializer cleanly unregisters that production
+runtime before using the singleton as fixture storage, and suite teardown
+restores it before initramfs. A restore error fails the suite. This lifecycle
+contract is required: simply delaying driver registration to a later initcall
+still registers it before boot KUnit and lets the fixture initializer destroy
+live state.
+
 Both test symbols depend on their rewrite driver and `KUNIT`; their Kconfig
 default follows `KUNIT_ALL_TESTS`. Do not rely on that default for a validation
 build. A boot used as YSP evidence must have all of these resolved to `y`:
@@ -156,7 +167,9 @@ ARMBIAN_USE_CCACHE=yes \
 The flavor configuration in
 [`config-rock5b-rewrite-debug-kernel.conf.sh`](../scripts/debug-kernel/config-rock5b-rewrite-debug-kernel.conf.sh)
 forces both drivers and suites built-in. KUnit autorun executes them during
-boot, before userspace conformance. Install and recover through the
+boot. The rewrite suite callbacks temporarily unbind and reprobe their own
+drivers during this pre-initramfs window; userspace conformance begins only
+after the restored runtime is present. Install and recover through the
 [debug-kernel runbook](debug-kernel.md), then verify the booted release and
 configuration through the
 [kernel validation runbook](kernel-validation-runbook.md).
@@ -244,23 +257,20 @@ KUnit checker by default for rewrite profiles and writes a
 `<RUN_ID>-kunit.tsv` report before moving on to ABI, MPP, librga, GStreamer,
 FFmpeg, comparator, counter, and per-suite dmesg gates.
 
-## Manual reruns
+## Post-boot reruns are intentionally unavailable
 
-Each suite also has a `run` control. Writing any string runs that suite again:
+These suites use each production service singleton as fixture storage. They may
+do that only during boot's pre-initramfs KUnit window, after their driver has
+been cleanly unregistered and before it is restored. A post-boot debugfs run
+could otherwise tear down open sessions, active DMA, and userspace-visible
+devices.
 
-```bash
-printf '1\n' |
-  sudo tee /sys/kernel/debug/kunit/rk_mpp_rewrite/run >/dev/null
-printf '1\n' |
-  sudo tee /sys/kernel/debug/kunit/rockchip-rga-rewrite/run >/dev/null
-
-sudo bash kernel-drivers/tests/rewrite-kunit-log-check.sh
-```
-
-A rerun replaces the suite's last `results` content. Preserve the boot autorun
-KTAP and log interval first. Surround a rerun with before/after kernel-log
-captures and apply the same canonical fatal-signature gate; a clean rerun
-cannot erase a fault from the original boot.
+The suite initializer therefore returns `-EBUSY` unless
+`system_state == SYSTEM_SCHEDULING`. Built-in autorun suites normally have no
+`run` control at all; if a filtered or otherwise debugfs-runnable registration
+does expose one, writing it fails before touching the live service. Reboot the
+same package to obtain another result. Do not treat post-boot rerun support as a
+validation requirement.
 
 ## Evidence boundary
 
@@ -288,10 +298,9 @@ Those claims require the hardware, differential, fault-injection, race, and
 soak gates indexed by the [validation guide](validation-index.md) and
 [rewrite conformance procedure](../tests/rewrite-conformance.md).
 
-As of 2026-07-26, the residual fixture repair passes the 6.18 `normal`,
-`memory`, and `race` clean-source profiles. Its mainline replay was subsequently
-rebased onto `v7.2-rc5`; a post-rebase mainline build was explicitly skipped,
-so the older mainline compile result does not verify that tip. The repaired
-KASAN/lockdep package contains both suites, but its clean booted 85 + 147 result
-remains pending. Do not promote compile or package results into a runtime pass
-until the compound evidence above is captured.
+As of 2026-07-27, lifecycle-repaired tips 6.18 `db8251eec71a` and mainline
+`fac707773158` pass clean-archive `normal`, `memory`, and `race` profiles. The
+6.18 repair is package-verified as `P3138-Cad24` with both suites and ordinary
+device-initcall registration, but a clean booted 85 + 148 result remains
+pending. Do not promote compile or package results into a runtime pass until
+the compound evidence above is captured.

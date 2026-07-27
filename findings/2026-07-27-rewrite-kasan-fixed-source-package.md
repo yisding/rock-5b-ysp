@@ -7,6 +7,12 @@
 > Date: 2026-07-27
 > Trust: SOURCE-INSPECTED / COMPILE-VERIFIED / PACKAGE-VERIFIED / PARTIAL
 
+> **Corrected 2026-07-27 by**
+> [the KUnit boot-lifecycle root cause](2026-07-27-rewrite-kunit-boot-lifecycle-wedge.md).
+> The package inspection remains valid, but `P259b-Cad24` is not a fixed boot
+> candidate: both suites clear already-probed live service singletons because
+> built-in KUnit runs after all initcalls.
+
 ## Result
 
 The fixed 6.18 source built successfully as KASAN/lockdep package
