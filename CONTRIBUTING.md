@@ -52,7 +52,9 @@ Use [`findings/TEMPLATE.md`](findings/TEMPLATE.md) for the low-ceremony capture
 step. State what was measured, inspected, inferred, designed, hypothesized, or
 left unverified. Prefer a pinned commit plus function/section anchor over a bare
 line number. Include the command and pass/fail signal when a result came from a
-build or test.
+build or test. Then run `python3 scripts/update-findings-index.py`; the compact
+index is generated from the filename and exact H1, so evidence detail and trust
+tags stay in the finding.
 
 Promote a mature finding into the owning project documentation. Replace the
 original finding with a short `promoted → ...` tombstone so links and history
@@ -102,7 +104,7 @@ checks substantive drift and completeness only:
   directory front door is reachable through the project hierarchy;
 - no `.patch` or `.diff` sits at the repository root without a project owner;
 - every finding is linked from the findings index, every index link resolves to
-  a file, and the index runs newest-first;
+  a file, and the generated filename/H1 index is exact and newest-first;
 - each `W##` watchlist entry has both halves, and they agree on item name and
   last-checked date;
 - every `status.md` dashboard track has a ledger row under the same number and

@@ -1,0 +1,16 @@
+# findings/evidence/ — reproducible evidence bundles
+
+Small, reviewable inputs that support dated findings but are not themselves
+current-state documentation. Each bundle has a README that records capture
+scope and reconstructibility; downloaded images, source trees, binaries, and
+build output remain outside Git.
+
+| Bundle | Supports | Contents |
+|--------|----------|----------|
+| [`2026-07-13-u-boot-fit-dtb-race/`](2026-07-13-u-boot-fit-dtb-race/README.md) | [ROCK 5B zero-DTB race](../2026-07-13-rock5b-u-boot-fit-dtb-race.md) | Controlled pre/post logs, minimal fixes, and the Jammy/Noble copy-path appendix |
+| [`2026-07-20-armbian-non-radxa-radxa-uboot-audit/`](2026-07-20-armbian-non-radxa-radxa-uboot-audit/README.md) | [Non-Radxa Radxa-U-Boot catalog](../2026-07-20-armbian-non-radxa-radxa-uboot-audit.md) | Board scope, config resolution, and the 203-row audit catalog |
+| [`2026-07-20-armbian-radxa-image-fit-audit/`](2026-07-20-armbian-radxa-image-fit-audit/README.md) | [Armbian Radxa image audit](../2026-07-20-armbian-radxa-image-fit-audit.md) | The 244-row image catalog and source-excluded-board inventory |
+
+Evidence belongs here only when committing the small text artifact materially
+improves reproducibility. The owning dated finding interprets it; a project doc
+owns any conclusion that later becomes durable.

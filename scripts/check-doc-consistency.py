@@ -29,7 +29,13 @@ from repo_files import (
 )
 
 
-FINDING_NAME_RE = re.compile(r"20\d{2}-\d{2}-\d{2}-[a-z0-9][a-z0-9.-]*\.md")
+FINDING_NAME_PATTERN = r"20\d{2}-\d{2}-\d{2}-[a-z0-9][a-z0-9.-]*\.md"
+FINDING_NAME_RE = re.compile(FINDING_NAME_PATTERN)
+FINDING_INDEX_ROW_RE = re.compile(
+    rf"^- \[`(?P<name>{FINDING_NAME_PATTERN})`\]\((?P=name)\) — (?P<title>.+)$"
+)
+FINDINGS_INDEX_START = "<!-- findings-index:start -->"
+FINDINGS_INDEX_END = "<!-- findings-index:end -->"
 WATCH_ID_RE = re.compile(r"^W\d{2}$")
 WATCH_HEADING_RE = re.compile(r"^### (W\d{2}) — (.+?)\s*$")
 WATCH_INDEX_NAME_RE = re.compile(r"^\[(.+)\]\(#watch-w\d{2}\)$")
@@ -108,42 +114,67 @@ def check_portable_operational_defaults(root: Path, errors: list[str]) -> None:
 
 
 def check_findings_index(root: Path, errors: list[str]) -> None:
-    """Every finding is linked, every link has a file, and rows run newest-first.
-
-    Intentionally does not enforce deduplication or entry prose — only that no
-    finding is invisible, no index entry dangles, and the ordering the index
-    heading promises actually holds.
-    """
+    """The generated filename/H1 index is complete, exact, and deterministic."""
     findings = root / "findings"
     readme = findings / "README.md"
     if not readme.is_file():
         return
 
-    text = readme.read_text(encoding="utf-8", errors="replace")
-    referenced = set(FINDING_NAME_RE.findall(text))
+    lines = readme.read_text(encoding="utf-8", errors="replace").splitlines()
     present = {path.name for path in findings.glob("20??-??-??-*.md")}
+    if lines.count(FINDINGS_INDEX_START) != 1 or lines.count(FINDINGS_INDEX_END) != 1:
+        errors.append(
+            "findings/README.md: generated index markers must each occur exactly once; "
+            "run scripts/update-findings-index.py"
+        )
+        return
+    start = lines.index(FINDINGS_INDEX_START)
+    end = lines.index(FINDINGS_INDEX_END)
+    if end <= start:
+        errors.append("findings/README.md: generated index end marker precedes start")
+        return
 
-    for name in sorted(present - referenced):
-        errors.append(f"findings/README.md: {name} is not linked from the index")
-    for name in sorted(referenced - present):
-        if not (findings / name).is_file():
-            errors.append(f"findings/README.md: index links {name} but no such file exists")
-
-    previous_date = None
-    previous_name = ""
-    for line in text.splitlines():
-        if not line.startswith("- `` `20"):
-            continue
-        match = FINDING_NAME_RE.search(line)
+    rows: list[tuple[str, str]] = []
+    for line in lines[start + 1 : end]:
+        match = FINDING_INDEX_ROW_RE.fullmatch(line)
         if not match:
-            continue
-        date = match.group(0)[:10]
-        if previous_date is not None and date > previous_date:
             errors.append(
-                f"findings/README.md: index is not newest-first — {match.group(0)} "
-                f"({date}) follows {previous_name} ({previous_date})"
+                "findings/README.md: generated index contains a non-canonical row; "
+                "run scripts/update-findings-index.py"
             )
-        previous_date, previous_name = date, match.group(0)
+            continue
+        rows.append((match.group("name"), match.group("title")))
+
+    names = [name for name, _ in rows]
+    indexed = set(names)
+    for name in sorted(present - indexed):
+        errors.append(f"findings/README.md: {name} is not linked from the index")
+    for name in sorted(indexed - present):
+        errors.append(f"findings/README.md: index links {name} but no such file exists")
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    for name in duplicates:
+        errors.append(f"findings/README.md: index links {name} more than once")
+
+    expected_order = sorted(present, reverse=True)
+    if names != expected_order:
+        errors.append(
+            "findings/README.md: index order/content differs from reverse filename "
+            "order; run scripts/update-findings-index.py"
+        )
+
+    for name, indexed_title in rows:
+        path = findings / name
+        if not path.is_file():
+            continue
+        first_line = path.read_text(encoding="utf-8", errors="replace").splitlines()[0]
+        actual_title = first_line[2:].strip() if first_line.startswith("# ") else ""
+        if not actual_title:
+            errors.append(f"{path.relative_to(root)}: first line must be a non-empty H1")
+        elif indexed_title != actual_title:
+            errors.append(
+                f"findings/README.md: title for {name} differs from its H1; "
+                "run scripts/update-findings-index.py"
+            )
 
 
 def check_watchlist_pairing(root: Path, errors: list[str]) -> None:

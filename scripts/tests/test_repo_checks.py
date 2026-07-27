@@ -28,6 +28,21 @@ def load_doc_checker():
 
 
 DOC_CHECKER = load_doc_checker()
+
+
+def load_findings_indexer():
+    spec = importlib.util.spec_from_file_location(
+        "update_findings_index",
+        SCRIPTS / "update-findings-index.py",
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load update-findings-index.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+FINDINGS_INDEXER = load_findings_indexer()
 REPO_ROOT = SCRIPTS.parent
 
 
@@ -571,7 +586,7 @@ class SubstantiveDriftTests(unittest.TestCase):
 
             self.assertTrue(any("differs from synchronized helper" in e for e in errors))
 
-    def test_findings_index_reports_orphan_and_dangling_only(self) -> None:
+    def test_findings_index_reports_orphan_and_dangling(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             findings = root / "findings"
@@ -580,8 +595,10 @@ class SubstantiveDriftTests(unittest.TestCase):
             (findings / "2026-01-02-orphan.md").write_text("# Orphan\n", encoding="utf-8")
             (findings / "README.md").write_text(
                 "## Index\n\n"
-                "- `` `2026-01-02-orphan-typo.md` `` — dangling link.\n"
-                "- `` `2026-01-01-linked.md` `` — present.\n",
+                "<!-- findings-index:start -->\n"
+                "- [`2026-01-03-dangling.md`](2026-01-03-dangling.md) — Dangling\n"
+                "- [`2026-01-01-linked.md`](2026-01-01-linked.md) — Linked\n"
+                "<!-- findings-index:end -->\n",
                 encoding="utf-8",
             )
             errors: list[str] = []
@@ -592,10 +609,39 @@ class SubstantiveDriftTests(unittest.TestCase):
                 any("2026-01-02-orphan.md is not linked" in e for e in errors)
             )
             self.assertTrue(
-                any("2026-01-02-orphan-typo.md but no such file" in e for e in errors)
+                any("2026-01-03-dangling.md but no such file" in e for e in errors)
             )
-            # Ordering is intentionally not enforced: the linked pair is silent.
-            self.assertFalse(any("newest first" in e for e in errors))
+
+    def test_findings_index_title_and_generator_are_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            findings = root / "findings"
+            findings.mkdir()
+            older = findings / "2026-01-01-older.md"
+            newer = findings / "2026-01-02-newer.md"
+            older.write_text("# Older title\n", encoding="utf-8")
+            newer.write_text("# Newer title\n", encoding="utf-8")
+            readme = findings / "README.md"
+            readme.write_text(
+                "## Index (newest first)\n\n"
+                "<!-- findings-index:start -->\n"
+                "- [`2026-01-02-newer.md`](2026-01-02-newer.md) — Wrong title\n"
+                "- [`2026-01-01-older.md`](2026-01-01-older.md) — Older title\n"
+                "<!-- findings-index:end -->\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_findings_index(root, errors)
+
+            self.assertTrue(any("differs from its H1" in error for error in errors))
+
+            rows = FINDINGS_INDEXER.generated_rows(findings)
+            updated = FINDINGS_INDEXER.replace_index(readme, rows)
+            readme.write_text(updated, encoding="utf-8")
+            errors = []
+            DOC_CHECKER.check_findings_index(root, errors)
+            self.assertEqual(errors, [])
 
     def test_readme_ownership_reports_files_no_readme_names(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
