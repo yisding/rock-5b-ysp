@@ -45,6 +45,7 @@ Hardware and software used for the local investigation:
 | [`scripts/`](scripts/README.md) | Rebuild + test entry point: surfaceless Mesa build, runtime env, and the reproducer / dEQP / piglit runners; see [`scripts/README.md`](scripts/README.md) |
 | [`reproducers/`](reproducers/README.md) | Texture-transfer reproducers, transfer benchmark, archived BLIT-advertising patch, and the focused [`reproducers/interp_probe/`](reproducers/interp_probe/README.md) raw-varying plus ordinary-TEX proof set |
 | [`video-libraries/mesa/patches/0001-panfrost-advertise-transfer-blit-and-compute.patch`](patches/0001-panfrost-advertise-transfer-blit-and-compute.patch) | Archived `format-patch` of the BLIT-advertising commit — the only way to rebuild the failing BLIT configuration once upstream ships a non-BLIT default; reproduction-only, not for merging |
+| [`video-libraries/mesa/patches/mr43161-benchmark-override.patch`](patches/mr43161-benchmark-override.patch) | Removes MR !43161's temporary size/aspect gate for the proposed all-V9–V10 policy and adds a test-only process-start `PAN_BLIT_DEPTH_BIAS=auto\|off\|on` override for byte-identical-binary A/B timing on commit `647256dc2ae`; the runner requires its acknowledgement so labels cannot silently compare an uninstrumented driver |
 
 <a id="mr-status"></a>
 

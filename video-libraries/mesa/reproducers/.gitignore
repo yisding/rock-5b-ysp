@@ -1,0 +1,14 @@
+# Standalone reproducer build products stay local.
+bench_transfer
+blit_workaround_bench
+probe_const
+probe_wcorr
+repro_afbc
+repro_blit
+repro_blit_array
+repro_blit_flip
+repro_blit_float
+repro_blit_off
+repro_blit_scissor
+
+__pycache__/

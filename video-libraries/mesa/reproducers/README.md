@@ -22,6 +22,8 @@ Panfrost. The standalone interpolation probes now live in
 | [`probe_wcorr.c`](probe_wcorr.c) | Shader-side recovery probe: disproves `gl_FragCoord.w` and `dFdx`-based correction |
 | [`repro_afbc.c`](repro_afbc.c) | Scoped negative result: the AFBC CPU-map staging path is clean on unfixed drivers (direct wide blits are NOT — see `repro_blit_flip.c`) |
 | [`bench_transfer.c`](bench_transfer.c) | BLIT-vs-COMPUTE timing microbenchmark for the same readback shape |
+| [`blit_workaround_bench.c`](blit_workaround_bench.c) | Real-API `glBlitFramebuffer` benchmark for the MR !43161 depth-bias workaround: resource-ring correctness, batched-throughput and isolated-latency schedules, separate CPU/GPU/completion timing, count sweeps, percentiles, and `T(N) = A + N*B` fits |
+| [`run_blit_workaround_bench.py`](run_blit_workaround_bench.py) | Runs an instrumented Mesa binary in alternating `off/on/on/off` and `on/off/off/on` process blocks, checks the G610 clock around every child, and reports paired fixed-cost and per-blit-slope deltas |
 | [`mr42563-comment-failures.txt`](mr42563-comment-failures.txt) | The exact 25 dEQP-GLES3 case names from the MR !42563 review comment, rerun locally after the COMPUTE switch |
 
 The older top-level GL probes load all GL entrypoints via `eglGetProcAddress`
@@ -43,6 +45,8 @@ cc -O2 -o probe_const probe_const.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o probe_wcorr probe_wcorr.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o repro_afbc repro_afbc.c -lEGL -lGLESv2 -lgbm -lm
 cc -O2 -o bench_transfer bench_transfer.c -lEGL -lGLESv2 -lgbm -lm
+cc -O2 -Wall -Wextra -Werror -o blit_workaround_bench \
+  blit_workaround_bench.c -lEGL -lGLESv2 -lm
 ```
 
 Build the interpolation probes from their own directory:
@@ -372,6 +376,100 @@ Useful dimensions from the local timing pass:
 ```
 
 Recorded medians are in [`../docs/validation.md`](../docs/validation.md).
+
+## `blit_workaround_bench.c`
+
+This is the implementation companion to the
+[per-blit benchmark plan](../../../findings/2026-07-27-mali-blit-workaround-performance-benchmark-plan.md).
+Unlike `offset_perf_probe.c`, every counted operation enters
+`glBlitFramebuffer`, rotates through independently initialized `R32UI`
+source/destination FBOs, and therefore asks Mesa to save, bind, draw, and
+restore its internal blitter state. Initialization, lazy internal-shader
+creation, and final full-surface verification are outside the timed regions.
+
+One process measures one driver mode. The test-only Mesa build must consume a
+process-start override (the runner defaults to `PAN_BLIT_DEPTH_BIAS=off|on`)
+that forces only the internal Panfrost fullscreen-blit workaround decision.
+The exact override used by this repository is archived as
+[`mr43161-benchmark-override.patch`](../patches/mr43161-benchmark-override.patch)
+and applies on top of MR !43161 commit `647256dc2ae`.
+The label in this program's output does **not** prove that Mesa honored the
+override; the runner therefore requires the patched driver's
+`PAN_BLIT_DEPTH_BIAS=<mode>` startup acknowledgement. Before treating timings
+as MR !43161 evidence, also use the plan's validation counters and descriptor
+trace to prove one internal draw and one workaround decision per API operation,
+with only the enable bit changing and factor, units, and clamp remaining zero.
+
+The local instrumented build is branch `benchmark/mr43161-all-blits`, commit
+`0c1cf4a71b4`, in `/home/yi/Code/fdo/mesa-mr43161-bench`. It was configured
+from MR !43161 commit `647256dc2ae` as a surfaceless, Panfrost-only
+debug-optimized build. Rebuild it with the system toolchain and the shared
+ccache directory:
+
+```bash
+cd /home/yi/Code/fdo/mesa-mr43161-bench
+CCACHE_DIR=/home/yi/Code/.ccache \
+PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+  ninja -C build-bench
+```
+
+`ccache --show-stats` reported 2,103 hits and 249 misses after the initial
+build (89.41% of cacheable calls were hits). Use `meson devenv -C build-bench
+env ...` to run against the uninstalled result; that environment supplies the
+matching EGL vendor file, Gallium DRI module, GBM backend, and libraries.
+
+For a quick functional smoke on any driver with
+`GL_EXT_disjoint_timer_query`:
+
+```bash
+EGL_PLATFORM=surfaceless ./blit_workaround_bench \
+  --width 64 --height 64 --counts 1,2,4,8 --samples 3 \
+  --warmups 1 --ring 2 --schedule both --label smoke
+```
+
+For the phase-one G610 matrix, first lock GPU devfreq at 500 MHz as described
+in the [plan's machine controls](../../../findings/2026-07-27-mali-blit-workaround-performance-benchmark-plan.md#machine-controls),
+pin a CPU, point the loader at the instrumented Mesa build, and run each size
+separately. Keep a shared count list for both A/B modes and shorten the list
+when a large-size batch would exceed roughly 100 ms:
+
+```bash
+./run_blit_workaround_bench.py --blocks 2 --cpu 6 \
+  --expect-gpu-hz 500000000 -- \
+  --width 1024 --height 1024 --counts 1,2,4,8,16,64 \
+  --samples 11 --warmups 2 --ring 4 --schedule both
+```
+
+Override names and values are configurable if the Mesa instrumentation uses a
+different process option:
+
+```bash
+./run_blit_workaround_bench.py \
+  --off-env PAN_TEST_BLIT_WA=never --on-env PAN_TEST_BLIT_WA=always -- \
+  --width 12288 --height 1 --counts 1,2,4,8,16,64,256,1024
+```
+
+Output is CSV-like and intentionally keeps raw evidence:
+
+- `SAMPLE`: one timing attempt and its disjoint flag;
+- `POINT`: `p10`, median, and `p90` for CPU submission, GPU query, and
+  completion wall time at one operation count;
+- `FIT`: fixed intercept, per-blit slope, `R²`, RMS residual, and maximum
+  absolute residual, all times in microseconds;
+- `CORRECTNESS`: checked pixels and mismatches after the timed work;
+- `BLOCK-DELTA`: paired `on - off` fixed/slope results for one ABBA/BAAB
+  process block; and
+- `DELTA`: median fixed delta, median slope delta, slope percentage, and the
+  `p10..p90` slope-delta spread across blocks.
+
+The primary decision signal is the `batched,gpu` slope. `batched,cpu` reports
+submission/state cost, `batched,wall` reports end-to-end throughput, and the
+three `isolated` rows are synchronization-heavy latency upper bounds. Inspect
+the fit residuals; a poor linear fit means the point curve should be reported
+instead of the slope. The initial implementation is deliberately phase-one
+`R32UI`, 1:1 nearest blits. The plan's other formats, format-changing PBO
+readback, scaled/flipped/scissored/layered/MSAA cases, and application frame
+pacing remain follow-ups after the driver override and counter gates pass.
 
 ## `mr42563-comment-failures.txt`
 

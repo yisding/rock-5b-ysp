@@ -1,0 +1,101 @@
+From: YSP benchmark instrumentation
+Subject: [TEST ONLY] panfrost: add blit depth-bias benchmark override
+
+Apply this on top of Mesa MR !43161 commit 647256dc2ae. It adds a
+process-start PAN_BLIT_DEPTH_BIAS=auto|off|on option:
+
+- auto uses the proposed all-V9-V10 path policy, with the MR's temporary
+  size/aspect gate removed;
+- off suppresses the workaround; and
+- on applies it to every V9-V10 internal fullscreen-blitter draw.
+
+The default remains auto. The option is parsed once while the Panfrost context
+creates its blitter, so the timed draw path only pays one signed-byte branch.
+The gate removal is the policy under test; the override and acknowledgement
+are test instrumentation and are not proposed upstream code.
+
+diff --git a/src/gallium/drivers/panfrost/pan_blitter.c b/src/gallium/drivers/panfrost/pan_blitter.c
+index 92476aabdf9..154bfe90bce 100644
+--- a/src/gallium/drivers/panfrost/pan_blitter.c
++++ b/src/gallium/drivers/panfrost/pan_blitter.c
+@@ -5,6 +5,7 @@
+  */
+ 
+ #include "util/format/u_format.h"
++#include "util/u_debug.h"
+ #include "pan_blitter.h"
+ #include "pan_context.h"
+ #include "pan_resource.h"
+@@ -104,21 +105,13 @@ panfrost_blitter_draw_rectangle(struct blitter_context *blitter,
+     * precision below what we need here. So we need to whack the rasterizer
+     * state to make sure polygon offset is enabled.
+     */
+-   bool needs_workaround = false;
+-   if (scr->dev.arch < 11) {
+-      assert(x2 >= x1);
+-      float width = x2 - x1;
+-      assert(y2 >= y1);
+-      float height = y2 - y1;
+-
+-      float min = MIN2(width, height);
+-      float max = MAX2(width, height);
+-      if (min <= 32.0f) {
+-         float threshold = 2048.0f * exp2f(ceilf(log2f(min)) * 0.5f);
+-         needs_workaround = max >= threshold;
+-      }
+-   }
++   /* This callback is installed only on V9+, so this selects every internal
++    * fullscreen-blitter draw on the affected V9-V10 hardware path. */
++   bool needs_workaround = scr->dev.arch < 11;
++
++   if (pctx->blit_depth_bias_override < 0)
++      needs_workaround = false;
+ 
+    struct pipe_rasterizer_state *old_rast = NULL, *new_rast;
+    if (needs_workaround) {
+       /* panfrost_rasterizer always has pipe_rasterizer_state as the first
+@@ -156,8 +149,29 @@ panfrost_blitter_draw_rectangle(struct blitter_context *blitter,
+ struct blitter_context *
+ panfrost_blitter_create(struct pipe_context *pipe)
+ {
++   struct panfrost_context *ctx = pan_context(pipe);
+    struct blitter_context *blitter;
+ 
++   const char *override =
++      debug_get_option("PAN_BLIT_DEPTH_BIAS", "auto");
++   if (strcmp(override, "auto") == 0) {
++      ctx->blit_depth_bias_override = 0;
++   } else if (strcmp(override, "off") == 0) {
++      ctx->blit_depth_bias_override = -1;
++   } else if (strcmp(override, "on") == 0) {
++      ctx->blit_depth_bias_override = 1;
++   } else {
++      mesa_loge("PAN_BLIT_DEPTH_BIAS must be auto, off, or on; got '%s'",
++                override);
++      ctx->blit_depth_bias_override = 0;
++      override = "auto";
++   }
++
++   /* The benchmark runner requires this acknowledgement before comparing
++    * labels, so an uninstrumented driver cannot silently produce an A/B.
++    */
++   mesa_logi("PAN_BLIT_DEPTH_BIAS=%s", override);
++
+    blitter = util_blitter_create(pipe);
+ 
+    if (pan_screen(pipe->screen)->dev.arch >= 9)
+diff --git a/src/gallium/drivers/panfrost/pan_context.h b/src/gallium/drivers/panfrost/pan_context.h
+index 75e72ab6c77..08f2ed945be 100644
+--- a/src/gallium/drivers/panfrost/pan_context.h
++++ b/src/gallium/drivers/panfrost/pan_context.h
+@@ -205,6 +205,10 @@ struct panfrost_context {
+ 
+    struct blitter_context *blitter;
+    bool has_blit_loop;
++   /* Test-only MR !43161 benchmark override: -1 = off, 0 = auto, 1 = on.
++    * Parsed once at context creation; never exposed by production builds.
++    */
++   int8_t blit_depth_bias_override;
+ 
+    struct pan_mod_convert_shaders mod_convert_shaders;
+ 
