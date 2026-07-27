@@ -1,5 +1,12 @@
 # RK3588 DDR blobs do not directly clear the Linux ramoops window
 
+> **Followed up 2026-07-27 by**
+> [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md).
+> The exact SPL's bulk operations, inline zero stores, fixed allocations, and
+> FIT destinations are also disjoint from ramoops. With the last ordinary
+> CPU-write candidate closed, the retained data is lost during the TPL's
+> unconditional cold DDR controller/PHY reinitialization.
+
 > Scope: ROCK 5B running SPI firmware `ddr-v1.20-b8ce94f14b`; static comparison
 > against RK3588 DDR blobs v1.13, v1.15, v1.18, v1.20, and v1.22
 > Source: exact TPL extracted from `spi-rock5b-20260706.bin`
@@ -41,11 +48,10 @@ without appearing as an AArch64 store to the ramoops addresses.
 
 The important narrower conclusion is:
 
-> The DDR blob can still prevent ramoops by rebuilding DRAM from scratch, but
-> its decompiled CPU-side logic does not explain the measured, exact
-> 832 KiB all-zero overwrite. That direct zero-writer, if there is one, is more
-> likely in the following SPL stage or in a controller operation whose writes
-> are issued through MMIO rather than ordinary load/store instructions.
+> The DDR blob prevents ramoops by rebuilding DRAM from scratch, but its
+> decompiled CPU-side logic does not contain an 832 KiB direct clear. The
+> successor exact-SPL audit also found no such writer, assigning the destructive
+> effect to controller/PHY reinitialization rather than ordinary CPU stores.
 
 ## Exact running image
 
@@ -182,15 +188,16 @@ The previous investigation was right to keep DDR initialization in scope, but
 wrong to call the closed TPL the sole likely *direct* zero-writer before
 disassembling it.
 
-This audit changes the candidate ranking:
+At the time, this audit promoted SPL direct clear/allocation to the leading
+ordinary-CPU-write candidate and kept DDR controller/PHY reinitialization as the
+indirect candidate. The 2026-07-27 successor audited the exact SPL and falsified
+that direct-write branch. The resulting disposition is:
 
-1. **SPL direct clear or allocation** — now the leading ordinary-CPU-write
-   candidate for the exact low-window zeros. A source audit found no obvious
-   static buffer there, but the exact compiled SPL still needs the same
-   load/store and call-graph treatment.
-2. **DDR controller/PHY reinitialization or MMIO-driven training** — still a
-   credible indirect destroyer because the blob has no recovered retention path.
-3. **TPL direct clear of `0x118000–0x1e7fff`** — falsified by this static audit.
+1. **DDR controller/PHY cold reinitialization** — responsible root-cause layer;
+   the blob has no retained-memory path and all later direct writers are
+   disjoint.
+2. **SPL direct clear or allocation** — falsified by the exact-binary audit.
+3. **TPL direct clear of `0x118000–0x1e7fff`** — falsified by this audit.
 4. **TPL pstore-ring overshoot** — falsified; its upper bound is `0x117fff`.
 
 The most discriminating safe runtime read remains the firmware ring at
@@ -244,6 +251,6 @@ but a closed DDR controller can issue writes internally after MMIO programming.
 The absence of a recovered CPU store into ramoops is not proof that the bytes
 survive controller reset/training.
 
-The exact SPL binary has not yet been decompiled. No firmware was rebuilt,
-flashed, or boot-tested as part of this finding. BSP ramoops persistence on
-RK3588 also remains unproven.
+The exact SPL boundary was closed by the linked 2026-07-27 successor. No
+firmware was rebuilt, flashed, or boot-tested as part of this finding. BSP
+ramoops persistence on RK3588 also remains unproven.
