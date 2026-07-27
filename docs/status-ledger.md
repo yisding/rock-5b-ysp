@@ -32,7 +32,8 @@ patched, configured, format-clean, and partially compiled with a rootless
 private toolchain. The compile was stopped on request after 31 minutes during
 Rust compilation, not by a compiler failure; no binary package was produced.
 Completion, install, and the live display-session sandbox gate remain open. See
-the [`Firefox RDD policy finding`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md)
+the maintained [`rockchip-vaapi` project summary](../video-libraries/vaapi/README.md),
+[`Firefox RDD policy finding`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md),
 and [`package-build checkpoint`](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md).
 
 ## Promotion rule
