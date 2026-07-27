@@ -75,7 +75,7 @@ Every existing assertion is assigned by the following rules:
 | Pure deterministic helper with a meaningful invalid/boundary matrix | Keep in device-free KUnit |
 | Register or descriptor emission whose value is not visible through a public ABI | Keep a golden vector in device-free KUnit |
 | Ownership, race, timeout-generation, fault-generation, abort, or recovery transition | Keep, but require an isolated fixture |
-| Compile-time ABI size or offset | Replace runtime KUnit with `static_assert()` |
+| Compile-time ABI size or offset | Enforce with `static_assert()` and remove any duplicate runtime KUnit case |
 | Behavior fully observable through an existing public ABI probe | Move to that probe after strengthening its assertions |
 | Multiple consumer-named cases that reach the same validator/emitter recipe | Consolidate into parameterized vectors |
 | Assertion of a private one-line wrapper already covered through its callers | Remove the direct case |
@@ -91,7 +91,7 @@ detects a material contract violation at the lowest safe test layer.
 
 | Current case | New owner | Required replacement before removal |
 |--------------|-----------|-------------------------------------|
-| `rk_mpp_abi_layout_kunit` | Compile-time assertions beside the ABI structures | Convert every size, offset, ioctl type/number, and ioctl-size expectation to `static_assert()` |
+| `rk_mpp_abi_layout_kunit` | Existing compile-time assertions beside the ABI structures | The current `static_assert()` set already covers every runtime expectation plus ioctl direction; remove the duplicate case and update the expected MPP plan from 85 to 84 |
 | `rk_mpp_support_cmds_kunit` | `kernel-drivers/tests/abi-probe.c` procfs catalog check | Require every supported command token and reject missing/duplicate catalog entries |
 | `rk_rga_version_queries_kunit` | `kernel-drivers/tests/abi-probe.c` | Assert the returned strings and version tuples, not only ioctl return values |
 | `rk_rga_legacy_noop_ioctls_kunit` | `kernel-drivers/tests/abi-probe.c` and ioctl fuzz smoke | Keep the exact legacy return-value contract and verify the device remains usable |
@@ -99,6 +99,86 @@ detects a material contract violation at the lowest safe test layer.
 
 Removal is ordered after the replacement lands and passes. No patch should
 delete a case and add its replacement in a later commit.
+
+### Take three low-risk steps first
+
+Three changes can start the rationalization without changing a production
+driver execution path.
+
+#### Make the current lifecycle suites explicitly opt-in
+
+Change both current Kconfig symbols from:
+
+```text
+default KUNIT_ALL_TESTS
+```
+
+to:
+
+```text
+default n
+```
+
+Keep the existing `if !KUNIT_ALL_TESTS` prompt condition for this first patch.
+The result is deliberate:
+
+- an ordinary `KUNIT_ALL_TESTS=y` configuration cannot silently enable suites
+  that unregister/reprobe the rewrite drivers and reuse their service
+  singletons;
+- a developer configuration with `KUNIT_ALL_TESTS` disabled can still select
+  either suite explicitly; and
+- the YSP rewrite debug flavor and both rewrite package configurations already
+  force the two symbols to `y`, so qualification coverage does not depend on
+  the old default.
+
+The patch changes configuration selection only. With the rewrite KUnit symbols
+disabled, it cannot change the compiled production driver. Its exit gate is a
+resolved-config comparison proving ordinary production configurations keep
+both symbols `n`, while every intended qualification configuration keeps them
+`y`.
+
+#### Remove the already-duplicated MPP ABI runtime case
+
+`mpp_rewrite.c` already has compile-time assertions for:
+
+- `sizeof(struct rk_mpp_msg_v1)`;
+- the `data_ptr` offset;
+- `sizeof(struct mpp_bat_msg)`;
+- the `ret` offset; and
+- the MPP ioctl type, number, direction, and encoded size.
+
+`rk_mpp_abi_layout_kunit()` repeats all of those except direction at runtime.
+Delete that function and its `KUNIT_CASE()` registration without adding new
+production code. Update the KUnit checker, package expectations, evidence
+tables, and current-case documentation atomically from 85 MPP to 84 MPP.
+Historical 85-case results retain their recorded counts.
+
+This is safer than first converting another case because there is no
+replacement implementation to get wrong: the stronger compile-time owner is
+already present. The exit gate is a test-enabled and test-disabled build plus a
+deliberate ABI-constant mutation that must fail compilation.
+
+#### Add a checked source audit before changing complex fixtures
+
+Add a device-free repository check that inventories or rejects new occurrences
+of these patterns in the two KUnit regions:
+
+- direct writes to `rk_mpp_srv` or `rk_rga`;
+- installed/reserved FDs without an immediately registered KUnit action;
+- raw nested allocations without an attributable release owner;
+- ordinary work/timer initialization on stack owners;
+- manual insertion into service/session/hardware/job lists without a deferred
+  cleanup action; and
+- a fatal assertion between resource acquisition and cleanup registration.
+
+Start the check in report-only mode with an explicit baseline for known debt,
+then make new debt fatal. This changes no kernel object and gives later fixture
+work a mechanical regression guard.
+
+These first steps intentionally defer source splitting, parameterization, shared
+fixture constructors, and fence/FD ownership refactoring. Those remain useful,
+but they change test control flow or ownership and therefore need the baseline,
+cleanup audit, and isolated validation described below.
 
 ### Consolidate repeated setup, not distinct behavior
 
@@ -289,16 +369,31 @@ remain built-in qualification tests, but their object graph must be local.
 Each phase is independently reviewable and must leave both maintained kernel
 trees byte-identical in the rewrite driver/ABI files.
 
+### Pre-phase — land the low-risk containment changes
+
+1. Change both existing rewrite KUnit Kconfig defaults to `n`.
+2. Prove qualification configurations still resolve both symbols to `y`.
+3. Remove `rk_mpp_abi_layout_kunit()` and its registration because the complete
+   compile-time owner already exists.
+4. Update the exact-count checker and current documentation to 84 MPP plus 148
+   RGA without rewriting historical results.
+5. Add the report-only source audit and baseline its known fixture debt.
+
+Exit gate: normal production behavior is unchanged, intended qualification
+configs still build both suites, the ABI mutation check fails at compile time,
+and the isolated repository handoff gate passes.
+
 ### Phase 0 — freeze the baseline and inventory coverage
 
 1. Record the exact two source pins and generate an inventory containing:
    case name, helper under test, contract category, fixture resources,
    production singleton access, asynchronous objects, and replacement owner.
-2. Capture the current 85/148 KTAP plus full fatal-signature and lockdep scan.
+2. Retain the last 85/148 evidence as the historical baseline and capture the
+   first rationalized 84/148 KTAP plus full fatal-signature and lockdep scan.
 3. Record which assertions correspond to previously fixed production defects.
-4. Add a checked source audit that reports raw allocation, FD installation,
-   work/timer initialization, singleton access, and manual list insertion in
-   KUnit regions.
+4. Expand the pre-phase source-audit baseline into the per-case inventory,
+   including raw allocation, FD installation, work/timer initialization,
+   singleton access, and manual list insertion.
 
 Exit gate: every registered case has an owner and intended disposition; the
 baseline result is attributable to exact source and configuration.
@@ -323,12 +418,14 @@ lockdep, or effect on the next case.
 
 ### Phase 2 — move checks to their stronger owners
 
-1. Land compile-time MPP ABI assertions.
+1. Verify the pre-phase MPP compile-time ABI assertions remain
+   source-identical and the duplicate runtime case remains absent across both
+   kernel tracks.
 2. Strengthen `abi-probe.c` catalog, version-string/tuple, and legacy-no-op
    assertions.
 3. Verify the public probe against both rewrite and forward-port kernels.
-4. Remove the five superseded KUnit cases in the same commits as their
-   replacements.
+4. Remove the remaining four superseded KUnit cases in the same commits as
+   their replacements.
 
 Exit gate: the replacement fails when its old KUnit expectation is
 deliberately violated, and passes on both reference tracks.
@@ -420,15 +517,19 @@ regression.
 Keep the kernel series bisectable:
 
 1. current one-line fixture initialization;
-2. KUnit action/cleanup hardening by resource family;
-3. public-owner replacements plus corresponding case retirement;
-4. source split with no semantic changes;
-5. shared builders by object type;
-6. MPP singleton removal;
-7. RGA singleton removal;
-8. vector consolidation by independent family;
-9. manifest-based checker and documentation updates; and
-10. final source-identity and qualification evidence.
+2. opt-in Kconfig defaults with resolved-config proof;
+3. redundant MPP ABI runtime-case removal plus the 84/148 checker and
+   documentation update;
+4. report-only source audit with a checked known-debt baseline;
+5. KUnit action/cleanup hardening by resource family;
+6. public-owner replacements plus corresponding case retirement;
+7. source split with no semantic changes;
+8. shared builders by object type;
+9. MPP singleton removal;
+10. RGA singleton removal;
+11. vector consolidation by independent family;
+12. manifest-based checker and documentation updates; and
+13. final source-identity and qualification evidence.
 
 Do not combine driver behavior changes with fixture refactors unless the test
 first demonstrates the production defect. When a refactor exposes a driver
@@ -444,12 +545,15 @@ validate.
 
 This plan is complete when:
 
+- the current lifecycle suites are explicitly selected rather than inherited
+  from `KUNIT_ALL_TESTS`;
 - no KUnit callback unregisters or reprobes either production driver;
 - no test writes the production service singleton;
 - every resource-bearing fixture is safe across fatal assertions;
 - pure tests can run without RK3588 hardware or a probed rewrite device;
 - lifecycle tests use shared complete constructors and local service state;
-- compile-time and public-ABI checks no longer consume boot KUnit cases;
+- compile-time and public-ABI checks, beginning with the already-duplicated MPP
+  ABI layout case, no longer consume boot KUnit cases;
 - repeated vectors share builders without losing named semantic coverage;
 - qualification compares KTAP with a source-derived manifest rather than only
   historical totals;
