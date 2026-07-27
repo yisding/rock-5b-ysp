@@ -13,8 +13,8 @@ This document compares architecture, not just feature lists. It is based on the
 | Track | Pin |
 |-------|-----|
 | BSP-derived forward port | `rk3588-video-6.18@12a7da02bea83` |
-| 6.18 rewrite | `rk3588-rewrite-6.18@4273266a990e` |
-| Mainline rewrite cross-check | `rk3588-rewrite-mainline@ef79d16bd902` on `v7.2-rc5`; the two rewrite driver files are byte-identical to the 6.18 versions |
+| 6.18 rewrite | `rk3588-rewrite-6.18@6edc44f79a4d` |
+| Mainline rewrite cross-check | `rk3588-rewrite-mainline@c53bbc84dce4` on `v7.2-rc5`; both rewrite driver and ABI files are byte-identical to the 6.18 versions |
 
 The [current implementation comparison](./rewrite-drivers.md#current-comparison-2026-07-26)
 owns moving status, scope, exact source counts, and the production decision.

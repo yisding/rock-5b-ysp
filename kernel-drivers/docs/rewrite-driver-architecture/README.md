@@ -59,14 +59,16 @@ This guide describes the sources committed on 2026-07-26:
 
 | Kernel branch | Commit |
 |---------------|--------|
-| `rk3588-rewrite-6.18` | `c5faabf9d00b` |
-| `rk3588-rewrite-mainline` | `39475996a7a8` |
+| `rk3588-rewrite-6.18` | `6edc44f79a4d` |
+| `rk3588-rewrite-mainline` | `c53bbc84dce4` |
 
-The commits contain byte-identical rewrite sources:
+The commits contain byte-identical rewrite driver and ABI sources:
 
 ```text
 drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
+drivers/video/rockchip/mpp-rewrite/ABI.rst
 drivers/video/rockchip/rga-rewrite/rga_rewrite.c
+drivers/video/rockchip/rga-rewrite/ABI.rst
 ```
 
 The surrounding kernel and device-tree integration differ. The current
