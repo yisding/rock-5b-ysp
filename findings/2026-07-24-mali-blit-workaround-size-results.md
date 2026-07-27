@@ -131,12 +131,14 @@ rather than trying to derive safety from dimensions or aspect ratio.
 
 The performance follow-up was measured and independently rerun on 2026-07-27
 with the GPU fixed at `500 MHz`
-(`min_freq=max_freq=cur_freq=500000000`). For the policy question "what happens
-if we enable the workaround on every affected Panfrost fullscreen blit?", the
-answer remains: **workaround-enabled blits were about 0.5% slower**. Across the
+(`min_freq=max_freq=cur_freq=500000000`). For the steady-state GPU-path
+question, **workaround-enabled draws were about 0.5% slower**. Across the
 original seven sizes, the first run's median central estimate was `+0.49%` and
 the clean-source rerun's was `+0.48%`. Excluding the setup-dominated `1x1`
-case, the rerun ranged from `+0.40%` to `+0.73%` with a `+0.50%` median.
+case, the rerun ranged from `+0.40%` to `+0.73%` with a `+0.50%` median. This
+is not yet an end-to-end per-blit result: state is selected once per timed
+batch, its CPU cost is outside the GPU timer, and then hundreds or thousands
+of draws reuse it.
 
 That half-percent result is small but more precise than the initial
 `simple_ondemand` runs. With the governor free to move between 300 MHz and
@@ -249,6 +251,11 @@ merge. Within the path that MR changes, however, a roughly half-percent GPU
 cost is not a performance reason to retain an unreliable size/aspect gate
 instead of applying the correctness workaround to all affected fullscreen
 blits.
+
+The remaining fixed-state and per-blit cost question is specified in
+[`2026-07-27-mali-blit-workaround-performance-benchmark-plan.md`](2026-07-27-mali-blit-workaround-performance-benchmark-plan.md).
+That follow-up uses the real Mesa blit entry point and fits timing across
+multiple operation counts to separate fixed batch cost from recurring cost.
 
 ## Reproducer
 
