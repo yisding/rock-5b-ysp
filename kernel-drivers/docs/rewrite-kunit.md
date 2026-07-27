@@ -123,6 +123,13 @@ warnings, and IRQ/preemption imbalance. The
 [root-cause record](../../findings/2026-07-26-rewrite-kunit-failure-root-causes.md)
 documents each cause and repair.
 
+The 2026-07-27 follow-up also showed why a source sweep must accompany the
+warning scan: `debug_object_is_on_stack()` prints only five stack-annotation
+mismatches per boot. The first five reports hid three later objects, including
+both halves of a delayed work in the timeout-replacement fixture. After the
+first fixtures moved off-stack, the next boot exposed that final pair. See the
+[capped-fixture record](../../findings/2026-07-27-rewrite-kunit-final-stack-fixture.md).
+
 ## Build and boot path
 
 The device-free gate builds committed source exported with `git archive`, so

@@ -5,6 +5,13 @@
 > Date: 2026-07-26
 > Trust: MEASURED / SOURCE-INSPECTED / ROOT-CAUSED / PARTIAL
 
+> **Corrected 2026-07-27 by**
+> [the final capped-fixture finding](./2026-07-27-rewrite-kunit-final-stack-fixture.md).
+> The source contained eight affected debug objects across four fixtures, not
+> six across three; the five-report Debug Objects cap also hid the later
+> timeout fixture's work and timer objects. The next boot exposed that pair,
+> passed the expanded 85+148 plan, and bound both RGA3 cores.
+
 ## Result
 
 The follow-up rewrite boot passes the complete booted KUnit result gate:
