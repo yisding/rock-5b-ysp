@@ -50,7 +50,7 @@ failed because `mkimage` was absent; retry `18614559`/`33387391` added
 image/DTB/header set; and the 2026-07-16 replacements added the Rockchip 5.10
 RGA reconciliation, RKVENC2 multi-slice fix, and raw physical-import hardening.
 Their exact IDs and dated transitions remain in [Validation Status](#validation-status)
-and the [upload log](../2026-07-06-ubuntu-rock-5b-upload-log.md), instead of
+and the [historical upload log](../history/2026-07-06-ubuntu-rock-5b-upload-log.md), instead of
 being mixed into the current-state summary.
 
 The current kernel delivery path is still the Armbian wrapper in

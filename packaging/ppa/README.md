@@ -89,8 +89,8 @@ bash packaging/ppa/clean-install-system-stack.sh
 ## Current State
 
 Last recorded through Launchpad's devel API and exact-version binary queries at
-`2026-07-19T20:13:55-07:00` and in
-[`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md):
+`2026-07-19T20:13:55-07:00`. The step-by-step provenance is retained in the
+[`history/` upload transcript](history/2026-07-06-ubuntu-rock-5b-upload-log.md):
 
 | Package | Version in this repo | Public PPA state | Notes |
 |---------|----------------------|------------------|-------|
@@ -140,7 +140,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Launchpad source-package track for the 6.18 alpha clean-room rewrite kernel. |
 | [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Launchpad source-package track for the Armbian-based 7.2-rc3 alpha clean-room rewrite kernel. |
 | [`kernel-maxline/`](kernel-maxline/README.md) | Local reproducible build/package track for the pinned maximum-mainline 7.2-rc3 `public` and `wip` integrations; both build and package, but neither has passed a board boot gate. |
-| [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md) | The detailed build, lintian, signing, upload, Launchpad, and retry log for the current run. |
+| [`history/`](history/README.md) | Dated build, lintian, signing, upload, Launchpad, and retry transcripts retained as provenance rather than current-state guidance. |
 
 Generated `.dsc`, `.changes`, `.buildinfo`, orig tarballs, `.deb`, `.ddeb`, and
 build directories are intentionally not committed. The script writes them under
@@ -545,9 +545,8 @@ group. It should be uploaded only after the GRD package path is otherwise ready.
   [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md).
   Both Launchpad builds succeeded; current local Armbian binary `.deb`s remain
   validation artifacts, not valid PPA upload inputs.
-- The original dev-box `UPLOAD.md` runbook. The current run is captured in
-  [`2026-07-06-ubuntu-rock-5b-upload-log.md`](2026-07-06-ubuntu-rock-5b-upload-log.md)
-  instead.
+- The original dev-box `UPLOAD.md` runbook. The 2026-07 upload chronology is
+  retained under [`history/`](history/README.md) instead.
 - Signed upload artifacts, orig tarballs, `.changes`, `.dsc`, binary packages,
   and Launchpad credentials.
 

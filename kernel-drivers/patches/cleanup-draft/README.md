@@ -21,7 +21,10 @@ produced by the multi-agent audit. They apply on top of the forward-port
 > and `mpp_rkvenc2.patch` are an **atomic pair** (apply both or neither — see
 > verification.md). Runtime regression is still the final gate.
 
-> **⚠️ Runtime gate PENDING** — the runtime codec regression test (encode/decode/transcode plus the targeted triggers listed in `kernel-drivers/patches/cleanup-draft/verification.md`) has **never been run** on a kernel carrying these fixes. Compile status alone is not verification. Do not ship the series without the runtime gate; track it in `status.md` and record the result in `kernel-drivers/patches/cleanup-draft/verification.md` when run.
+> **Runtime status:** the canonical result slot is
+> [`verification.md` § Runtime gate result](verification.md#runtime-gate-result-record-here-when-run).
+> It remains pending; this historical bundle README does not duplicate the
+> gate procedure or result.
 
 ## ⚠️ These are a draft, not merge-ready
 

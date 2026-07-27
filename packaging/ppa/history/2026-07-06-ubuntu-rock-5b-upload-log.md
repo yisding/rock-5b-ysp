@@ -37,7 +37,7 @@ This is a chronological working log, not a finished-state doc. Current state:
 The normal stack is available as a published **test path**. Do not present it
 as the validated primary path until the board gates above pass; the combined
 Armbian kernel remains the proven path described in
-[`../../install.md`](../../install.md).
+[`../../../install.md`](../../../install.md).
 
 ## Contents
 
