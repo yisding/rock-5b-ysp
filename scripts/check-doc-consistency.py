@@ -8,9 +8,10 @@ files no README names, unlinked/dangling findings, a findings index that is not
 newest-first, watchlist halves that are missing or disagree on
 name/last-checked date, dashboard tracks missing from the ledger or named
 differently there, status tables split by blank lines or prose, drifted
-packaging version pins, out-of-sync kernel package helpers, personal-home
-executable defaults, and shell files whose shebang and executable bit disagree
-about whether they are run or sourced.
+packaging version pins, out-of-sync kernel package helpers, misplaced
+root-level patch files, personal-home executable defaults, and shell files
+whose shebang and executable bit disagree about whether they are run or
+sourced.
 """
 
 from __future__ import annotations
@@ -71,6 +72,18 @@ PPA_GRD_PIN_DOCS = (
     "docs/source-trees.md",
     "packaging/external-workspaces.md",
 )
+ROOT_PATCH_SUFFIXES = {".diff", ".patch"}
+
+
+def check_root_patch_placement(root: Path, errors: list[str]) -> None:
+    """Keep source patches with their owning project or evidence bundle."""
+    for path in sorted(root.iterdir()):
+        if path.is_file() and path.suffix in ROOT_PATCH_SUFFIXES:
+            errors.append(
+                f"{path.name}: root-level patch has no project owner; move it "
+                "under the affected project's patches/ directory or a dated "
+                "findings/evidence/ bundle"
+            )
 
 
 def check_portable_operational_defaults(root: Path, errors: list[str]) -> None:
@@ -570,6 +583,7 @@ def main() -> int:
 
     check_portable_operational_defaults(root, errors)
     check_shell_file_contract(root, errors)
+    check_root_patch_placement(root, errors)
     check_readme_ownership(root, errors)
     check_findings_index(root, errors)
     check_watchlist_pairing(root, errors)

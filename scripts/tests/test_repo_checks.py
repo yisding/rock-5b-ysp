@@ -624,6 +624,23 @@ class SubstantiveDriftTests(unittest.TestCase):
             self.assertIn("tools/orphan.sh", errors[0])
             self.assertIn("tools/README.md", errors[0])
 
+    def test_root_patch_placement_rejects_only_root_patches(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "scratch.patch").write_text("patch\n", encoding="utf-8")
+            (root / ".review.diff").write_text("diff\n", encoding="utf-8")
+            owned = root / "kernel-drivers/patches/owned.patch"
+            owned.parent.mkdir(parents=True)
+            owned.write_text("patch\n", encoding="utf-8")
+            errors: list[str] = []
+
+            DOC_CHECKER.check_root_patch_placement(root, errors)
+
+            self.assertEqual(len(errors), 2, errors)
+            self.assertTrue(any("scratch.patch" in error for error in errors))
+            self.assertTrue(any(".review.diff" in error for error in errors))
+            self.assertFalse(any("owned.patch" in error for error in errors))
+
     def test_checks_report_instead_of_silently_covering_nothing(self) -> None:
         """A missing input must fail the stage, not disable the check.
 

@@ -98,6 +98,7 @@ checks substantive drift and completeness only:
 
 - every tracked `.md`/`.sh`/`.py`/`.c`/`.cpp`/`.h` is named by its nearest
   ancestor README (`debian/` is exempt — dpkg dictates that layout);
+- no `.patch` or `.diff` sits at the repository root without a project owner;
 - every finding is linked from the findings index, every index link resolves to
   a file, and the index runs newest-first;
 - each `W##` watchlist entry has both halves, and they agree on item name and
