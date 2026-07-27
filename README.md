@@ -68,7 +68,7 @@ flowchart TB
   kver["kernel-versions<br/>BSP overlay · forward-port"]
   kernel["kernel-drivers<br/>mpp · rga · av1 · iommu · rknpu"]
   libs["vendor-libraries<br/>librockchip_mpp · librga"]
-  video["video-libraries<br/>ffmpeg · mesa"]
+  video["video-libraries<br/>ffmpeg · vaapi · mesa"]
   apps["apps<br/>gnome-remote-desktop · kodi"]
   packaging["packaging<br/>delivery & validation"]
 
@@ -86,7 +86,7 @@ flowchart TB
 | **kernel-versions** | The kernel bases and moving between them: what the BSP adds vs stock, the forward-port narrative, the mainline-V4L2 alternative. | [`kernel-versions/`](kernel-versions/README.md) |
 | **kernel-drivers** | In-kernel accelerator drivers, split `mpp` · `rga` · `av1` · `iommu` · `rknpu`; shared architecture docs, patches, scripts, on-hardware tests at the top. | [`kernel-drivers/`](kernel-drivers/README.md) |
 | **vendor-libraries** | Userspace vendor libs: `mpp` (librockchip_mpp), `rga` (librga). | [`vendor-libraries/`](vendor-libraries/README.md) |
-| **video-libraries** | `ffmpeg` (rkmpp codecs + rkrga filters) and `mesa` (Mali-G610 transfer work). | [`video-libraries/`](video-libraries/README.md) |
+| **video-libraries** | `ffmpeg` (rkmpp codecs + rkrga filters), `vaapi` (desktop VA-API over MPP/RGA), and `mesa` (Mali-G610 transfer work). | [`video-libraries/`](video-libraries/README.md) |
 | **apps** | Real applications on the stack: `gnome-remote-desktop` H.264 RDP encode and Kodi DRM PRIME hardware decode. | [`apps/`](apps/README.md) |
 | **packaging** | Delivery channels: DKMS, udev/ACL debs, PPA source packages, binary policy. | [`packaging/`](packaging/README.md) |
 | **scripts** | Repo-wide maintenance checks (links, documentation contracts, whitespace) and destructive board operations: SPI backup/erase/restore, passive cooling, headless image prep. | [`scripts/`](scripts/README.md) |

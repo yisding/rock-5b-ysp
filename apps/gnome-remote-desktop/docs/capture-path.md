@@ -117,7 +117,7 @@ create_encode_session(buffer_type)                         # :634
 │            ├─ try_create_vaapi_session                   # :422 / called :569
 │            │     needs vk_device  (grd_rdp_renderer_get_vk_device, :426)
 │            │     → avc view creator (:476) + VA-API encode session (:456)
-│            │     ── on RK3588: no VA-API driver → returns NULL
+│            │     ── on the 2026-06 RK3588 baseline: no driver → NULL
 │            └─ else create_egl_based_rfx_progressive…      # :510 / fallback :574
 │                     → gen-gl view creator (:532) + ca-sw software RFX (:525)
 │                     ══ THIS is the software path that pays the readback
@@ -129,10 +129,17 @@ create_encode_session(buffer_type)                         # :634
 └─ NONE    → error
 ```
 
-So on a stock RK3588 the frame arrives as **DMA-BUF**, GRD tries the VA-API
-session, that fails (no driver), and it falls back to **gen-gl + software RFX** —
-the `glReadPixels` path. That fallback is what [`baseline.md`](baseline.md)
-measures.
+So on the measured 2026-06 stock RK3588 baseline the frame arrives as
+**DMA-BUF**, GRD tries the VA-API session, that fails (no driver), and it falls
+back to **gen-gl + software RFX** — the `glReadPixels` path. That fallback is
+what [`baseline.md`](baseline.md) measures.
+
+The baseline is historical, not a current universal claim. The maintained
+[`rockchip-vaapi` fork](../../../video-libraries/vaapi/README.md) now has
+opt-in H.264/HEVC encode evidence, but no GRD integration run. A future
+comparison must install that driver and prove that this exact VA session stays
+zero-copy and stable; it does not supersede the validated FFmpeg backend by
+existence alone.
 
 ### Where the rkmpp backend plugs in
 

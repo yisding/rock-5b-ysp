@@ -52,6 +52,7 @@ flowchart TB
 
   subgraph video["video-libraries"]
     ffmpeg["ffmpeg<br/>h264_rkmpp · scale_rkrga"]
+    vaapi["vaapi<br/>libva over MPP/RGA"]
     mesa["mesa<br/>Mali-G610 transfer"]
   end
 
@@ -59,6 +60,7 @@ flowchart TB
     grd["gnome-remote-desktop<br/>RDP H.264 backend"]
     kodi["kodi<br/>DRM PRIME hardware decode"]
   end
+  desktop["desktop consumers<br/>Firefox · Chromium · VLC · GStreamer"]
 
   packaging["packaging<br/>delivery + verification"]
 
@@ -68,6 +70,9 @@ flowchart TB
   mpp --> libmpp --> ffmpeg --> grd
   ffmpeg --> kodi
   rga --> librga --> ffmpeg
+  libmpp --> vaapi
+  librga --> vaapi
+  vaapi -.-> desktop
   av1 --> libmpp
   bsp --> rknpu
   iommu -.-> mpp
@@ -87,7 +92,7 @@ flowchart TB
 | kernel-versions | — | Kernel bases and moving between them: BSP overlay vs stock, forward-port narrative, mainline-V4L2 alternative. | [`../kernel-versions/`](../kernel-versions/README.md) |
 | kernel-drivers | mpp / rga / av1 / iommu / rknpu | In-kernel accelerator drivers. Shared driver model, DT, patches, scripts, tests at the top; RKNPU also documents its tightly coupled RKNN userspace. | [`../kernel-drivers/`](../kernel-drivers/README.md) |
 | vendor-libraries | mpp / rga | `librockchip_mpp` and `librga` userspace: library/kernel split, ioctls, dma-buf imports, ABI facts. | [`../vendor-libraries/`](../vendor-libraries/README.md) |
-| video-libraries | ffmpeg / mesa | rkmpp codecs + rkrga filters, and the Mali-G610 transfer investigation behind GRD fallback. | [`../video-libraries/`](../video-libraries/README.md) |
+| video-libraries | ffmpeg / vaapi / mesa | RKMPP codecs/RGA filters, the standard VA-API bridge for desktop consumers, and the Mali-G610 transfer investigation behind GRD fallback. | [`../video-libraries/`](../video-libraries/README.md) |
 | apps | gnome-remote-desktop / kodi | Real application integration: zero-copy RDP encode and DRM PRIME media playback. | [`../apps/`](../apps/README.md) |
 | packaging | — | Installable delivery: DKMS, udev ACLs, PPA source packages, rollback, binary policy. | [`../packaging/`](../packaging/README.md) |
 | scripts | — | Repo-wide maintenance checks (links, documentation contracts, whitespace) and board operations. | [`../scripts/`](../scripts/README.md) |
@@ -104,6 +109,7 @@ flowchart TB
 | Get codecs working on a board | [`../install.md`](../install.md) -> [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) -> [`../kernel-drivers/tests/`](../kernel-drivers/tests/README.md) |
 | Understand or begin validating RKNN inference | [`../kernel-drivers/rknpu/`](../kernel-drivers/rknpu/README.md) -> [`how-rknpu-works.md`](../kernel-drivers/rknpu/docs/how-rknpu-works.md) -> [`support-coverage.md`](support-coverage.md) row C16 |
 | Build a command-line media stack | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`../video-libraries/ffmpeg/`](../video-libraries/ffmpeg/README.md) -> [`../kernel-drivers/tests/transcode-test.sh`](../kernel-drivers/tests/transcode-test.sh) |
+| Understand or validate browser/desktop VA-API | [`../video-libraries/vaapi/`](../video-libraries/vaapi/README.md) -> [`app-enablement.md`](app-enablement.md) -> [`../status.md`](../status.md) track 14 |
 | Run accelerated RDP | [`../install.md`](../install.md) -> [`../packaging/`](../packaging/README.md) -> [`../apps/gnome-remote-desktop/`](../apps/gnome-remote-desktop/README.md) |
 | Build and test Kodi hardware decode | [`../apps/kodi/`](../apps/kodi/README.md) -> [`../apps/kodi/docs/build-hwaccel.md`](../apps/kodi/docs/build-hwaccel.md) |
 | Recover from a failure | [`../status.md`](../status.md) -> [`status-ledger.md`](status-ledger.md) -> [`gotchas.md`](gotchas.md) -> [`debug-kernel.md`](../kernel-drivers/docs/debug-kernel.md) |
@@ -118,7 +124,7 @@ flowchart TB
 | Review userspace ABI compatibility | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`how-the-userspace-libs-work.md`](../vendor-libraries/docs/how-the-userspace-libs-work.md) -> [`dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) -> [`rewrite-drivers.md`](../kernel-drivers/docs/rewrite-drivers.md) |
 | Review the RKNN/RKNPU boundary | [`../kernel-drivers/rknpu/docs/how-rknpu-works.md`](../kernel-drivers/rknpu/docs/how-rknpu-works.md) -> [`driver-quality finding`](../findings/2026-07-16-rockchip-bsp-driver-quality.md#rknpu-deep-dive-capable-fixed-stack-unsafe-multi-client-abi) -> pinned sibling trees |
 | Maintain the package set | [`../packaging/`](../packaging/README.md) -> [`armbian-packaging.md`](../packaging/docs/armbian-packaging.md) -> [`resyncing.md`](../kernel-drivers/docs/resyncing.md) |
-| Upstream or rebase application work | [`../video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md), [`../video-libraries/ffmpeg/docs/fix-candidates.md`](../video-libraries/ffmpeg/docs/fix-candidates.md), [`../apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/README.md), [`../video-libraries/mesa/docs/validation.md`](../video-libraries/mesa/docs/validation.md) |
+| Upstream or rebase application work | [`../video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md), [`../video-libraries/ffmpeg/docs/fix-candidates.md`](../video-libraries/ffmpeg/docs/fix-candidates.md), [`../video-libraries/vaapi/`](../video-libraries/vaapi/README.md), [`../apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/README.md), [`../video-libraries/mesa/docs/validation.md`](../video-libraries/mesa/docs/validation.md) |
 
 ## Maintenance rule
 
