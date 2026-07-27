@@ -38,19 +38,23 @@ three nominally passing RGA KUnit cases:
 |------------|----------|-------|
 | `rk_rga_release_fence_fd_state_kunit` | one work-object warning | stack `rk_rga_job` reaches production `INIT_WORK()` |
 | `rk_rga_hw_abort_queued_jobs_kunit` | one work plus one timer warning | stack `rk_rga_hw` reaches `INIT_DELAYED_WORK()` |
-| `rk_rga_iommu_fault_generation_kunit` | one work plus one timer warning | stack `rk_rga_hw` uses ordinary work/delayed-work initializers |
+| `rk_rga_iommu_fault_generation_kunit` | one work plus one timer warning printed | stack `rk_rga_hw` contains an ordinary delayed work and a separate ordinary work item |
 
 Each warning says the object is on the stack but is not annotated, and each
 case still reports `ok`. Therefore the 232/232 result means the KTAP
 expectations pass; it is not a clean KUnit execution.
 
-The warning count follows directly from the embedded objects. `INIT_WORK()`
-registers one ordinary `work_struct`; `INIT_DELAYED_WORK()` registers both its
-embedded `work_struct` and `timer_list`. Debug Objects sees that their owners
-reside in a KUnit thread's stack range, but the ordinary initializers did not
-mark them as on-stack, so the three fixtures produce `1 + 2 + 2 = 5` reports.
-This is a fixture allocation/lifetime defect rather than evidence that a
-production work item was queued incorrectly.
+The affected fixtures actually contain six misannotated debug objects:
+`INIT_WORK()` contributes one ordinary `work_struct`;
+`INIT_DELAYED_WORK()` contributes its embedded `work_struct` and `timer_list`;
+and the IOMMU-fault fixture also has a separate `iommu_fault_work`. That gives
+`1 + 2 + (2 + 1) = 6`. Only five reports appear because
+`debug_object_is_on_stack()` stops printing after its static mismatch counter
+passes four; the separate IOMMU fault work is the suppressed sixth violation.
+Debug Objects sees that all six owners reside in KUnit thread stack ranges, but
+the ordinary initializers did not mark them as on-stack. This is a fixture
+allocation/lifetime defect rather than evidence that a production work item
+was queued incorrectly.
 
 The source fix moves the three affected `rk_rga_job`/`rk_rga_hw` fixture owners
 to `kunit_kzalloc()` storage while retaining the ordinary production
