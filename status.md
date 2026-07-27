@@ -45,6 +45,8 @@ separate table below so both remain scannable.
 | 13 | Maximum-mainline kernel | 🚧 The pinned upstream 7.2-rc3 `public` and `wip` integrations are reproducible, and both passed native arm64 kernel, package, payload, and external-module-headers checks. Neither has been installed, booted, or hardware-tested. | 2026-07-17 | [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
 | 14 | Desktop-app HW video (browsers) | 🚧 `yisding/rockchip-vaapi@main` at `03e6cb6` has the Phase 0/1 renovation complete. Shipping H.264/VP9 and experimental HEVC Main/Main10 plus VP9 Profile 2 have conformance and sanitizer coverage; measured Main10/Profile 2 output is P010 byte-exact through MPP AFBC V2 plus RGA on the paired 6.18.40 kernel/current-librga stack. Stock GStreamer readback is exact, and opt-in H.264/HEVC Main encode passes FFmpeg/GStreamer, planar upload, linear DRM PRIME RGB/NV12, RTP, concurrency, sanitizer, and 60-second soak gates. Experimental paths remain hidden. Firefox 152.0.6 has a pinned RDD broker/seccomp patch; its exact Ubuntu source package is configured, format-clean, and partially compiled, but no binary package or live sandbox gate exists. P010/Main10 encoder input is still explicitly rejected. | 2026-07-26 | [enablement map](./docs/app-enablement.md), [Main10/P010 finding](./findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md), [Firefox build checkpoint](./findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
 
+| 15 | CPU voltage binning (PVTM/eFuse) | ❌ Planned only — no patch, branch, or build exists. Every ysp mainline-based kernel runs the vendor's **worst-die** CPU voltage column, and as of 2026-07-27 this board's own BSP index is measured rather than estimated: `pvtm-volt-sel=5` (cluster0), `=7` (cluster1/2), `bin=0`, confirmed at the regulator (`policy0` @ 1800 MHz reads 887500 µV = `opp-microvolt-L5`, 62.5 mV under the forward port's 950000) and by the exposed turbo step (`BIT(7)` matches only 2400). Entitlement is **−37.5 to −87.5 mV on nine of ten non-trivial CPU OPPs** (big 1800/2016 −87.5 mV ≈ −20% dynamic power) and **0 mV at 2400 MHz**, so a `performance`-pinned big cluster gains nothing. A two-track plan is written: Track A carries the ~7,600-line vendor stack (trimmed — `rockchip_pvtm.c` is not used by RK3588 CPUs and `rk3588_change_length()` is dead at 5/7/7, but four mainline-incompatibility walls remain: private `opp/opp.h` and `clk/rockchip/clk.h` reach-through, rockchip SIP, and the system monitor); Track B is a mainline series split into an uncontroversial SKU-bin half (an `imx-cpufreq-dt`-shaped **bug fix** — mainline runs RK3588J/M past their frequency cap and under their voltage floor) and a PVTPLL RFC half modelled on in-tree `mtk-svs`. Unresolved and gating any ship: cold boot below 15 °C (the BSP raises the floor to 0.8 V, mainline has no equivalent), SRAM read margin at newly-paired voltage/frequency points, and the DSU sharing cluster0's rail. | 2026-07-27 | [port plan](./kernel-versions/docs/pvtm-opp-binning-plan.md), [measured index](./findings/2026-07-27-rk3588-pvtm-volt-sel-measured.md), [the gap](./findings/2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) |
+
 ## Next gates
 
 A next gate is the smallest result that would materially advance its track, not
@@ -69,6 +71,8 @@ dashboard date and ledger row when public state changes.
 | 12 | ROCK 5B SD/SPI boot chain | Substitute the 26.5.1 `current` FIT, loader, and then both on a captured 26.2.1 SD baseline; record where each boot stops or succeeds. | [Raw-SD hypothesis test](./scripts/README.md#rock-5b-raw-sd-u-boot-hypothesis-test) |
 | 13 | Maximum-mainline kernel | Install the `public` profile first with the known-good 6.18 packages and physical/serial recovery retained; prove explicit boot, storage, network, display, suspend, and rollback before trying `wip`. | [Recovery-first install and test order](./packaging/ppa/kernel-maxline/README.md#install-and-test-order) |
 | 14 | Desktop-app HW video (browsers) | Resume the preserved Firefox 152.0.6 `+ysp1` build, produce and inspect the arm64 packages, then install and prove live hardware decode with `MOZ_DISABLE_RDD_SANDBOX` unset and RDD still sandboxed. Keep P010/Main10 encode separate: the current encoder explicitly rejects 10-bit input. | [Firefox package-build checkpoint](./findings/2026-07-26-firefox-rdd-package-build-checkpoint.md), [Firefox RDD policy](./findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), [Main10/P010 boundary](./findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md#boundary) |
+
+| 15 | CPU voltage binning (PVTM/eFuse) | Boot a forward-port kernel carrying this die's L5/L7 columns as a static board override and prove it at the rail — read `/sys/class/regulator/*/microvolts` paired with `scaling_cur_freq` per policy and confirm the intended column at more than cluster0's single confirmed 1800 MHz point. Pass criterion is compute-verified load (`stress-ng --cpu N --verify` plus hash-compared kernel rebuilds), not uptime: an undervolted core corrupts silently rather than panicking. Keep it off the PPA — a static pin is one die's numbers on every board that boots the image. | [plan §5 validation](./kernel-versions/docs/pvtm-opp-binning-plan.md#5-validation-plan-both-tracks), [plan §A.3 phase A0](./kernel-versions/docs/pvtm-opp-binning-plan.md#a3-phases), [measured baseline](./findings/2026-07-27-rk3588-pvtm-volt-sel-measured.md) |
 
 > **Runtime gate pending.** The BSP-audit cleanup series still needs the runtime
 > codec regression test before it can ship. Compile status alone is not
@@ -113,7 +117,7 @@ last-checked date.
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → use-after-free](#watch-w19) | 2026-07-24 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0069`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0058`-`0068`. **Gate CLOSED 2026-07-24:** the reproducer returns `errno=16` (`EBUSY`) on the booted `#8` KASAN build carrying the fix, and that tail passed full conformance on the Published production kernel. Remaining work is upstream submission. |
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | **CSI-loop attribution falsified as sole cause:** the stall recurred on 2026-07-23 with the patched `~rk1` package binary-verified in the booted initramfs (identical fingerprint, no `SIGRTMIN+20`). Boot-transaction mechanism reconfirmed; internal daemon wedge unknown again. Mitigation `plymouth.enable=0` still unapplied; next hang needs a live `plymouthd` stack via `debug-shell.service` instead of a reset. |
 | W21 | [ffmpeg-rockchip `rkmpp` transcode deadlock without the `da5befc806` backpressure fix](#watch-w21) | 2026-07-23 | The harness's default `FFDIR` binary (FFmpeg-**master**, `libavcodec 63`; its dir's `RELEASE` file misleadingly says 6.1) deadlocks on `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines (all threads on `futex`). The **shipping `/usr/bin/ffmpeg 8.0.3~rk1` (`libavcodec 62`, carries `da5befc806`) runs both cleanly**, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Already-catalogued encoder-backpressure/decoder-hang class (submission-plan §B), fixed on our 8.0 line — not a new finding; not yet forward-ported to main or upstreamed. |
-| W22 | [RK3588 per-die voltage binning absent from mainline](#watch-w22) | 2026-07-25 | Mainline and maxline ship the BSP's unbinned worst-die voltage column **exactly** — 19/19 shared CPU OPPs match — while the BSP's per-die `opp-microvolt-L1..L6` reach 50–87 mV lower. No `rockchip_opp_select`/`rockchip_pvtm`/`rockchip-cpufreq` upstream; the RK3588 OTP leakage cells mainline already declares have **no consumer**. This board measures bin 0, so its OPP *set* is right and only the voltage is conservative. |
+| W22 | [RK3588 per-die voltage binning absent from mainline](#watch-w22) | 2026-07-27 | Rechecked three release candidates later at maxline `v7.2-rc5-252`: still absent, and `rk3588-opp.dtsi` is byte-identical between the 6.18 forward port and maxline, so one DT patch serves both. Mainline ships the BSP's unbinned worst-die column **exactly** (19/19 shared CPU OPPs) while the BSP's per-die columns reach 50–87 mV lower. This board is bin 0 and its BSP index is now **measured** — L5 little, L7 both big — so the entitlement is priced, not estimated. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -669,7 +673,32 @@ last-checked date.
   thermal comparison: without this, such a comparison measures the missing
   driver, not the port. Watch `drivers/soc/rockchip/`, `drivers/cpufreq/` for a
   rockchip entry, and `rk3588-opp.dtsi` for `opp-supported-hw`.
-- **Last checked:** 2026-07-25
+- **Last checked:** 2026-07-27
+- **State 2026-07-27:** Still absent, rechecked at maxline `v7.2-rc5-252`
+  (`fac7077731585`), three release candidates past the 2026-07-25 check.
+  `drivers/soc/rockchip/` is unchanged, there is no `drivers/cpufreq/rockchip-*`,
+  rk3588 is still missing from `cpufreq-dt-platdev.c`, no rk3588 DT declares
+  `litcore_grf`/`bigcore*_grf`/`dsu_grf`/`pvtpll`/`pvtm`, and `rk3588-opp.dtsi`
+  is **byte-identical to the 6.18 forward port's** (190 lines, clean `diff`) — so
+  a single DT patch will serve both trees. Upstream has been active nearby
+  without moving this: `rockchip-otp` gained RK3528/RK3562/RK3568 plus a
+  word-size fix (the provider grows while the RK3588 cells stay unread), and
+  `75fb63ae0312` "soc: rockchip: grf: Support multiple grf" is an RK3576 JTAG fix
+  — `grf.c` still knows only `rockchip,rk3588-sys-grf`, not the per-core GRFs
+  this needs. A `--grep=pvtm --grep=opp-supported-hw` sweep since 2025-01-01
+  returns one commit, and it is Qualcomm's. **What did change is on our side:**
+  booting the BSP on this board makes the selection observable, so the previously
+  undecidable index is measured — `pvtm-volt-sel=5` (cluster0), `=7` (cluster1/2),
+  confirmed independently at the regulator (`policy0` @ 1800 MHz reads 887500 µV,
+  exactly `opp-microvolt-L5`) and by the exposed turbo step (`BIT(7)` matches only
+  2400). This die's entitlement is therefore **−37.5 to −87.5 mV on nine of ten
+  non-trivial CPU OPPs, and 0 mV at 2400 MHz**. Also corrected: live per-die
+  measurement *does* have upstream precedent (`drivers/soc/mediatek/mtk-svs.c`
+  reads efuse + a thermal zone and calls `dev_pm_opp_adjust_voltage()`), which
+  changes the recommended upstream shape from a cpufreq special case to a
+  `drivers/soc/rockchip/` process-monitor driver. Detail:
+  [`findings/2026-07-27-rk3588-pvtm-volt-sel-measured.md`](./findings/2026-07-27-rk3588-pvtm-volt-sel-measured.md);
+  plan: [`kernel-versions/docs/pvtm-opp-binning-plan.md`](./kernel-versions/docs/pvtm-opp-binning-plan.md).
 - **State 2026-07-25:** Absent from both mainline trees. `drivers/soc/rockchip/`
   is exactly `Kconfig Makefile dtpm.c grf.c io-domain.c` in the 6.18 forward port
   (`v6.18-253`) and the 7.2-rc2 maxline tree (`v7.2-rc2-242`) — no

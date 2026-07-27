@@ -1,5 +1,16 @@
 # RK3588 per-die voltage binning: the BSP selects voltage from eFuse, mainline ships only the worst-die column
 
+> **Boundary closed 2026-07-27 by**
+> [`2026-07-27-rk3588-pvtm-volt-sel-measured.md`](./2026-07-27-rk3588-pvtm-volt-sel-measured.md).
+> The *Boundary* claim below that "this die's BSP voltage-sel index is not
+> derivable offline" stands as written — it is not derivable *offline* — but it
+> is directly observable by booting the BSP kernel on this board, which has since
+> been done: `pvtm-volt-sel=5` (cluster0) and `=7` (cluster1/2), confirmed at the
+> regulator. The "−37…−87 mV is the table's span, not this board's entitlement"
+> caveat is therefore superseded: for this die the span **is** the entitlement.
+> The port plan those two findings feed is
+> [`kernel-versions/docs/pvtm-opp-binning-plan.md`](../kernel-versions/docs/pvtm-opp-binning-plan.md).
+
 > Scope: kernel bases (`kernel-versions/`) — CPU/GPU DVFS voltage selection on
 > the ROCK 5B, across the 6.1 BSP, the 6.18 forward port, and the pinned maxline
 > tree. The `W15` **shim tag** in
