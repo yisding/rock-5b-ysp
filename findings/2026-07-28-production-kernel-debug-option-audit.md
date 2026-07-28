@@ -20,17 +20,37 @@
 
 ## Result
 
-The config is in good shape. Exactly **four** debug-ish options are set that
-genuine Armbian stock does not set, and **zero** stock debug options are missing
-from ours — so the production config is a strict superset of stock's debug
-surface, not a subset:
+The config is in good shape. The complete delta against genuine Armbian stock is
+only **22** set options, of which **six** are diagnostic, and **zero** stock
+diagnostic options are missing from ours.
+
+Those six split into two groups that deserve different treatment. Only the first
+group is a real deviation — debug options enabled on code stock also ships:
 
 | option | keep? |
 |---|---|
 | `CONFIG_DMA_API_DEBUG=y` | **the one worth a decision** — see below |
 | `CONFIG_IOMMU_DEBUGFS=y` | fine; debugfs nodes only, used to inspect RGA IOMMU faults |
+| `CONFIG_KALLSYMS_ALL=y` | fine; adds data symbols to kallsyms — order of a megabyte or two of kernel memory (not measured), in exchange for better oops decoding, which this project reads constantly |
+
+The second group are debug sub-options of drivers **stock does not ship at
+all** — it has no `ROCKCHIP_MPP_*` and no `MULTI_RGA`, only the mainline
+`VIDEO_ROCKCHIP_RGA=m`. "Stock doesn't set them" is therefore trivially true and
+carries no signal; the real question is whether to enable debug facets of our
+own drivers:
+
+| option | note |
+|---|---|
 | `CONFIG_ROCKCHIP_RGA_DEBUGGER=y` | keep; compiles in `rga_debugger.o`, verbosity ints default 0 |
 | `CONFIG_ROCKCHIP_RGA_DEBUG_FS=y` | keep; debugfs nodes for RGA |
+| `CONFIG_ROCKCHIP_MPP_PROC_FS=y` | vendor Kconfig `default y` — **inherited, not chosen**. Exposes per-device state under `/proc/mpp_service`. Note this interface has itself produced a crash: [session-teardown oops](2026-07-17-mpp-procfs-session-teardown-oops.md). |
+
+The remaining 16 delta options are not diagnostic: six are the forward-port
+drivers themselves (`MPP_SERVICE`, `RKVENC2`, `RKVDEC2`, `AV1DEC`, `MULTI_RGA`,
+`RGA_ASYNC` — the point of the project), nine are toolchain-derived and not
+choices (`CC_HAS_*`, shadow-call-stack detection, `INIT_STACK_ALL_ZERO`, all
+following from gcc 15.2 versus stock's older compiler), and one is the
+version-derived `ARM64_ERRATUM_4118414`.
 
 Everything expensive is already off, verified directly rather than by
 comparison: `KASAN`, `PROVE_LOCKING`, `LOCKDEP`, `DEBUG_PAGEALLOC`,
@@ -150,6 +170,12 @@ environment.
   config diff.
 - Only `arm64-rockchip64.config` was audited. The rewrite/alpha and sgguard
   packaging configs were not.
+- **A keyword filter is not an audit.** The first pass matched
+  `DEBUG|KASAN|LOCKDEP|PROVE_|UBSAN|…` against the delta and reported *four*
+  options, missing `KALLSYMS_ALL` (no matching substring) and
+  `ROCKCHIP_MPP_PROC_FS` (likewise) — both diagnostic. The delta is only 22
+  options; enumerate and classify all of them rather than grepping. This is the
+  second methodology error in this audit, after the wrong baseline.
 - The RGA debugger's runtime cost is inferred from its verbosity ints defaulting
   to 0 and its hooks being probe/init-time; no profiling was done.
 
