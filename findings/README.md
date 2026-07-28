@@ -105,6 +105,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-27-rewrite-kunit-boot-lifecycle-wedge.md`](2026-07-27-rewrite-kunit-boot-lifecycle-wedge.md) — Rewrite KUnit boot wedge was live-singleton destruction after initcalls
 - [`2026-07-27-rewrite-kasan-fixed-source-package.md`](2026-07-27-rewrite-kasan-fixed-source-package.md) — Fixed-source rewrite KASAN package is built and package-verified
 - [`2026-07-27-mali-blit-workaround-performance-benchmark-plan.md`](2026-07-27-mali-blit-workaround-performance-benchmark-plan.md) — Plan for measuring per-blit cost of the Mali workaround
+- [`2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md`](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) — GRD's first RKMPP frame oopses on a corrupted system-heap scatterlist entry
 - [`2026-07-26-vlc-headless-vaapi-device-boundary.md`](2026-07-26-vlc-headless-vaapi-device-boundary.md) — VLC headless playback cannot prove rockchip-vaapi hardware decode
 - [`2026-07-26-rockchip-vaapi-webrtc-rtp-validation.md`](2026-07-26-rockchip-vaapi-webrtc-rtp-validation.md) — rockchip-vaapi H.264 reaches the WebRTC-compatible RTP boundary
 - [`2026-07-26-rockchip-vaapi-planar-encode-upload-validation.md`](2026-07-26-rockchip-vaapi-planar-encode-upload-validation.md) — rockchip-vaapi planar VA uploads are normalized safely to MPP NV12
