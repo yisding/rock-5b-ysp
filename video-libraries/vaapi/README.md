@@ -40,11 +40,23 @@ the layer itself can honestly claim.
 Experimental means hidden unless its documented environment opt-in is set. It
 does not mean the measured gates are hypothetical.
 
+> **Kernel precondition, recorded 2026-07-28.** Every gate below was measured on
+> `6.18.40-video-port-kasan-rockchip-rk3588`, which sets `CONFIG_DMABUF_DEBUG=n`.
+> This driver calls `DMA_BUF_IOCTL_SYNC` directly (`src/surface.c:26`,
+> `src/buffer.c:27`) — the ioctl that reaches
+> `system_heap_dma_buf_end_cpu_access()`, where a `DMABUF_DEBUG=y` kernel
+> [oopses deterministically](../../findings/2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md).
+> So these results carry an unstated precondition: **a kernel without that
+> option.** The production kernel satisfies it only from
+> `6.18.40+rk3588av1fwport20260725-0ubuntu1~rk2` onward. Running this driver on
+> `~rk1` would be expected to fault the same way GRD did — not verified for the
+> VA-API path specifically, but it is the same ioctl on the same heap.
+
 | Path | Exposure | Evidence as of 2026-07-27 | Boundary |
 |------|----------|---------------------------|----------|
 | H.264 decode | Default | Renovated lifetime/synchronization path, conformance and sanitizer coverage | Live Firefox/Chromium display and sandbox gates remain |
 | VP9 Profile 0 decode | Default | Renovated decode path with conformance and sanitizer coverage | Browser/display integration remains |
-| HEVC Main decode | Experimental | 8/8 pinned official vectors byte-exact with staged `mpp@d8c6b88a`; the fix also clears the two-picture direct-MPP reduction and full 100-frame TILES vector | The [hardware-confirmed MPP parser fix](../../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md#fix) is not yet installed from a published package |
+| HEVC Main decode | Experimental | 8/8 pinned official vectors byte-exact with staged `mpp@d8c6b88a`; the fix also clears the two-picture direct-MPP reduction and full 100-frame TILES vector | The [hardware-confirmed MPP parser fix](../../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md#fix) reached **Published** as `mpp 1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1` on 2026-07-28; the board still runs `…20260529.1375813c`, so this is now an install step rather than a build |
 | HEVC Main10 decode | Experimental | P010 output is byte-exact against software through MPP AFBC V2, crop metadata, and RGA | Requires the paired 6.18.40 kernel/current-librga 10-bit contract |
 | VP9 Profile 2 decode | Experimental | P010 output is byte-exact through the same AFBC/RGA path | Same kernel/librga pairing and app gate |
 | H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, linear DMA-BUF import, concurrency, sanitizer, RTP, and paced soak smoke pass | One full-frame slice; P010 input, multi-object/tiled import, full WebRTC peer negotiation, and long qualification remain |

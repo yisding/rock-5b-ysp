@@ -43,7 +43,7 @@ separate table below so both remain scannable.
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
 | 13 | Maximum-mainline kernel | 🚧 The pinned upstream 7.2-rc3 `public` and `wip` integrations are reproducible and pass native kernel/package/payload/header checks. Neither has been installed, booted, or hardware-tested. | 2026-07-17 | [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
-| 14 | Desktop-app HW video (browsers) | 🚧 The renovated rockchip-vaapi fork has measured H.264/VP9 and experimental HEVC Main/Main10, VP9 Profile 2, P010, GStreamer readback, and opt-in H.264/HEVC encode coverage; experimental paths remain hidden. HEVC Main is now 8/8 byte-exact with the hardware-confirmed same-ID PPS refresh fix in staged `mpp@d8c6b88a`. Firefox has a pinned RDD policy patch but no completed package or live sandbox gate, and 10-bit encode input remains unsupported. | 2026-07-27 | [`rockchip-vaapi` project](./video-libraries/vaapi/README.md), [MPP TILES fix](./findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md), [Firefox checkpoint](./findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
+| 14 | Desktop-app HW video (browsers) | 🚧 The renovated rockchip-vaapi fork has measured H.264/VP9 and experimental HEVC Main/Main10, VP9 Profile 2, P010, GStreamer readback, and opt-in H.264/HEVC encode coverage; experimental paths remain hidden. HEVC Main is now 8/8 byte-exact with the hardware-confirmed same-ID PPS refresh fix in `mpp@d8c6b88a`, which reached **Published** in the PPA on 2026-07-28 — that boundary is now an install, not a build. Fork advanced to `main@db5e0f0` (7 commits past the recorded `03e6cb6`: HEVC TILES reducer, P010 import boundary, AV1 decode plan and capability probe, WebRTC peer gate, structured logging, Debian package gate). Decode codec work is effectively complete for everything except AV1; what remains is deployment, a confirmation run on the shipping stack, promotion out of experimental, and browser integration. **Nothing has ever been measured on the shipping combination** — every July gate ran on the KASAN kernel (`DMABUF_DEBUG=n`) with the pre-fix MPP, and the board still runs a 2026-07-21 driver build. Firefox has a pinned RDD policy patch but no completed package or live sandbox gate, and 10-bit encode input remains unsupported. | 2026-07-28 | [`rockchip-vaapi` project](./video-libraries/vaapi/README.md), [MPP TILES fix](./findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md), [Firefox checkpoint](./findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
 | 15 | CPU voltage binning (PVTM/eFuse) | ❌ No patch, branch, or build exists. The board's BSP-selected L5/L7/L7 voltage columns are measured and materially lower than mainline's worst-die table below 2.4 GHz; the two-track port plan is gated by cold-boot, SRAM-margin, and shared-DSU-rail validation. | 2026-07-27 | [port plan](./kernel-versions/docs/pvtm-opp-binning-plan.md), [measured index](./findings/2026-07-27-rk3588-pvtm-volt-sel-measured.md) |
 
 ## Next gates
@@ -106,7 +106,7 @@ last-checked date.
 | W15 | [RGA session-close fix vs. the frozen import](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0039`; frozen base patch still has the old path. |
 | W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-07-25 | The exported tail is contiguous `0001`-`0075`; `0074` and `0075` have booted KASAN hardware evidence on `6.18.40-video-port-kasan-rockchip-rk3588` (RGA 10-bit gates, forced `split_arg=4` slice gate, KASAN MPP, ioctl fuzz, and root gates). Production package/install/rollback remains open. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
-| W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-26 | Public development moved to `main@03e6cb6`; decode, opt-in encode, app gates, and the pinned Firefox RDD patch are recorded, while Firefox packaging/runtime and P010 encode remain open. |
+| W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-07-28 | Fork at `main@db5e0f0`, fully pushed, 7 commits past the previously recorded tip; upstream still `e8c64dd` and unrevived. The MPP TILES fix is Published, but the board runs a 2026-07-21 driver and pre-fix MPP, so nothing is measured on the shipping stack. All July gates carry a newly recorded `DMABUF_DEBUG=n` kernel precondition. Firefox packaging/runtime and P010 encode remain open. |
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → use-after-free](#watch-w19) | 2026-07-24 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0069`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. In the submit-now/CVE tier. BSP-identical, untouched by `0058`-`0068`. **Gate CLOSED 2026-07-24:** the reproducer returns `errno=16` (`EBUSY`) on the booted `#8` KASAN build carrying the fix, and that tail passed full conformance on the Published production kernel. Remaining work is upstream submission. |
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | **CSI-loop attribution falsified as sole cause:** the stall recurred on 2026-07-23 with the patched `~rk1` package binary-verified in the booted initramfs (identical fingerprint, no `SIGRTMIN+20`). Boot-transaction mechanism reconfirmed; internal daemon wedge unknown again. Mitigation `plymouth.enable=0` still unapplied; next hang needs a live `plymouthd` stack via `debug-shell.service` instead of a reset. |
 | W21 | [ffmpeg-rockchip `rkmpp` transcode deadlock without the `da5befc806` backpressure fix](#watch-w21) | 2026-07-23 | The harness's default `FFDIR` binary (FFmpeg-**master**, `libavcodec 63`; its dir's `RELEASE` file misleadingly says 6.1) deadlocks on `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines (all threads on `futex`). The **shipping `/usr/bin/ffmpeg 8.0.3~rk1` (`libavcodec 62`, carries `da5befc806`) runs both cleanly**, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Already-catalogued encoder-backpressure/decoder-hang class (submission-plan §B), fixed on our 8.0 line — not a new finding; not yet forward-ported to main or upstreamed. |
@@ -498,7 +498,33 @@ last-checked date.
 - **Why recheck:** The VA-API-driver track lives in an external fork, not this
   repo; the fork branch and the upstream it descends from move independently
   of any change here.
-- **Last checked:** 2026-07-26
+- **Last checked:** 2026-07-28
+- **State 2026-07-28:** Fork advanced to `main@db5e0f0`, fully pushed (the
+  `fork` remote matches local HEAD exactly; note `origin` in that checkout is
+  *upstream* `woodyst`, so an "unpushed" count measured against `origin` is
+  meaningless). Seven commits past `03e6cb6`: `395c8f7` HEVC direct TILES
+  backend reducer, `afe8873` P010 import backend boundary, `f30490b` AV1 decode
+  plan, `4872b59` native WebRTC peer gate, `4d98eca` bounded AV1 platform
+  capability probe, `464753b` structured leveled logging, `db5e0f0` isolated
+  Debian package gate. Uncommitted in the working tree: a modified `Makefile`
+  and three untracked fuzz harnesses (`tests/{h264,hevc,vp9}_fuzz.c`).
+  **Upstream has not revived** — `origin/main` is still `e8c64dd`, unmoved since
+  2026-05-28, which answers this entry's standing recheck question.
+  **What is deployed lags badly:** the board carries `rockchip-vaapi 1.0.11+ysp1`
+  with `rockchip_drv_video.so` dated 2026-07-21, predating the entire Phase 0/1
+  renovation, both encode paths, and every commit above; and
+  `librockchip-mpp1 1.5.0+git20260529.1375813c`, predating the HEVC TILES fix.
+  `librga` is current at `2.2.0+git20260725.26a50ef`. The MPP fix
+  `1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1` reached **Published** on
+  2026-07-28, so that boundary is now an install rather than a build.
+  **Caveat now recorded on all July gates:** they ran on
+  `6.18.40-video-port-kasan-rockchip-rk3588`, which sets `DMABUF_DEBUG=n`. The
+  driver calls `DMA_BUF_IOCTL_SYNC` directly (`src/surface.c:26`,
+  `src/buffer.c:27`) — the ioctl that reaches the oopsing
+  `system_heap_dma_buf_end_cpu_access()` path — so those results carry an
+  implicit "on a `DMABUF_DEBUG=n` kernel" precondition that production only
+  satisfies from `~rk2` onward. See
+  [`the root cause`](./findings/2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md).
 - **State 2026-07-26:** Public development is on
   `git@github.com:yisding/rockchip-vaapi.git` branch `main` at `03e6cb6`.
   Phase 0/1 renovation, experimental Main10/Profile 2 decode, opt-in H.264/HEVC
