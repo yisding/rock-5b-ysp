@@ -515,6 +515,17 @@ format-changing PBO readback, scaled/flipped/scissored/layered/MSAA cases, and
 application frame pacing remain follow-ups after the driver override and
 counter gates pass.
 
+`batched,gpu` is the elapsed GPU timestamp interval, not a hardware-busy-cycle
+counter. The start marker must be flushed before creating measured FBO batches,
+so the interval can contain CPU submission gaps. Panfrost also keeps only 32
+live framebuffer batches; beyond that it submits least-recently-used batches
+while later API calls are still being issued, introducing CPU/GPU overlap.
+Consequently, subtracting the CPU slope from the GPU slope does not recover a
+stable pure-GPU cost, and increasing the unique-FBO fit from 256 to 1,024 did
+not tighten the fixed-clock interval. Use the paired GPU row as total timeline
+evidence and the same-FBO `interp_probe/offset_perf_probe` as the separate
+steady-state descriptor-path control.
+
 ## `mr42563-comment-failures.txt`
 
 The exact 25 dEQP cases from the MR !42563 review comment that were rerun
