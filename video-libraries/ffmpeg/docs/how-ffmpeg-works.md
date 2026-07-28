@@ -9,6 +9,52 @@ plumbing layer that reads media files or streams, chooses decoders and encoders,
 moves frames through a filter graph, and hands hardware frames to libmpp/librga
 when an rkmpp codec or rkrga filter is selected.
 
+## Fast re-entry
+
+This page owns the mechanism, not the current branch or package verdict. Recover
+current pins and validation from the
+[FFmpeg package brief](../README.md#package-brief) and
+[`status.md` track 5](../../../status.md); use this map to recover how the layer
+works:
+
+| Question to recover | Read | Load-bearing fact |
+|---------------------|------|-------------------|
+| What shape does every pipeline reduce to? | [§0](#0-the-mental-model) and [§1](#1-the-two-key-objects-packets-and-frames) | Containers yield compressed `AVPacket`s; codecs and filters exchange raw `AVFrame`s; the muxer consumes compressed packets again. |
+| Where does FFmpeg stop and Rockchip code begin? | [§2](#2-where-rockchip-code-plugs-in) | FFmpeg translates media/API objects; libmpp and librga build the hardware work; the kernel validates and executes it. |
+| What crosses each boundary in a hardware transcode? | [§3](#3-a-full-ffmpeg-rockchip-transcode) | Compressed packet → DRM PRIME frame → transformed DRM PRIME frame → compressed packet, with dma-bufs retaining the image storage between stages. |
+| Why are upstream FFmpeg and `ffmpeg-rockchip` not interchangeable? | [§4](#4-what-upstream-ffmpeg-812-can-and-cannot-do) and the [implementation comparison](implementation-comparison.md) | Both expose rkmpp codecs, but only the fork supplies the RKMPP hwcontext, RGA filters, and broader control/input surface. |
+| Why can GRD use the thinner upstream wrapper? | [§5](#5-how-grd-uses-ffmpeg-differently) | GRD supplies its own Vulkan-produced linear NV12 dma-buf and calls libavcodec only for encode; it does not need FFmpeg's RGA filter graph. |
+| What contract does an rkmpp wrapper actually implement? | [§6](#6-what-a-wrapper-does-inside-libavcodec) | It translates settings and buffer ownership while preserving FFmpeg timestamps, flushing, flags, errors, and cleanup semantics. |
+| How do I identify the behavior of an installed binary? | [§7](#7-how-to-tell-which-behavior-your-binary-has) | Codec names overlap, so identify the lineage from capabilities and behavior rather than from `h264_rkmpp` alone. |
+
+### One hardware transcode, seven ownership changes
+
+```text
+container bytes
+  -> demuxer-owned AVPacket
+  -> rkmpp decoder / libmpp input
+  -> decoder-owned AVFrame describing a dma-buf
+  -> rkrga filter and librga import of that dma-buf
+  -> encoder-owned AVFrame / libmpp input
+  -> rkmpp encoder-owned AVPacket
+  -> muxer-owned container bytes
+```
+
+The dma-buf can preserve the same image storage across adjacent hardware
+stages, but the surrounding FFmpeg objects, library references, and per-device
+IOMMU mappings are separate lifetimes.
+
+### Similar names and handles that belong to different layers
+
+| Do not conflate | Distinction |
+|-----------------|-------------|
+| `AVPacket` vs `AVFrame` | A packet holds compressed stream bytes; a frame describes one raw picture. Encode and decode reverse which one is input and output. |
+| DRM PRIME descriptor vs dma-buf | `AVDRMFrameDescriptor` is FFmpeg metadata containing fds, formats, planes, pitches, offsets, and modifiers; dma-buf is the kernel-managed shared storage referenced by those fds. |
+| dma-buf fd vs device address | The fd is a process handle. MPP and RGA import it independently and can receive different IOVAs for the same backing pages. |
+| rkmpp codec name vs implementation lineage | Upstream FFmpeg and `ffmpeg-rockchip` use overlapping codec names but differ in hwcontext, filters, controls, accepted inputs, fixes, ABI line, and packaging. |
+| FFmpeg hardware frame vs GPU-rendered frame | `AV_PIX_FMT_DRM_PRIME` says the picture has a standard dma-buf descriptor; it does not say which engine produced or rendered it. |
+| FFmpeg CLI pipeline vs GRD encode path | The CLI can demux, decode, filter, encode, and mux; GRD links the libraries and enters at an already-captured NV12 frame, using only the encode portion. |
+
 ## 0. The mental model
 
 Most FFmpeg pipelines are the same five-stage shape:
