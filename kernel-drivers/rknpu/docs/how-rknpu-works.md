@@ -13,6 +13,57 @@ The central distinction is:
 > submissions, and `drivers/rknpu` schedules those already-compiled tasks. The
 > kernel does not compile or interpret the neural network.
 
+## Fast re-entry
+
+This page owns the pinned mechanism and its source-supported limits. The live
+board verdict belongs to
+[support coverage C16](../../../docs/support-coverage.md): it remains
+`UNASSESSED` until a known-output RKNN or RKLLM job runs on this distro. Use the
+map below to recover a layer without rereading the whole stack.
+
+| Question to recover | Read | Load-bearing fact |
+|---------------------|------|-------------------|
+| Which component transforms what, and where does it run? | [§1](#1-the-complete-stack) | Toolkit2 compiles; the `.rknn` carries target work; `librknnrt` owns the board-side context/buffers/submission; the kernel schedules it. |
+| What survives from the framework model into the artifact? | [§2](#2-building-an-rknn-model) | The artifact is target-specific lowered graph, packed weights, tensor metadata, and hardware-oriented configuration—not an interchange graph the kernel interprets. |
+| When is `rknn_server` involved? | [§3](#3-ways-to-deploy-and-debug) | Connected Toolkit2 debugging uses the server as a proxy; an ordinary native C/RKNNLite application links the runtime directly and does not require it. |
+| What is known despite the closed runtime? | [Evidence and limits](#evidence-and-limits) and [§4](#4-what-is-open-and-what-is-closed) | Public API/docs, ELF metadata, diagnostics, examples, and the kernel ABI bound the behavior; unlabeled runtime internals remain unknown. |
+| Who owns contexts, tensors, conversion, and memory? | [§5](#5-runtime-api-and-context-lifecycle), [§6](#6-general-io-versus-zero-copy-io), and [§7](#7-model-and-execution-memory) | The runtime owns context and tensor policy; general IO may convert/copy, while zero-copy exposes native layout/stride and explicit shared-memory lifetime. |
+| What crosses into the kernel? | [§8](#8-how-the-runtime-reaches-the-kernel) through [§10](#10-submission-and-hardware-execution) | The runtime submits already-prepared task/register and device-address data; the driver resolves memory, queues cores, powers hardware, starts work, and completes it. |
+| How do cores and address spaces interact? | [§11](#11-three-core-behavior), [§12](#12-iommu-domains-ddr-sram-and-nbuf), and [§13](#13-fences-blocking-and-cache-ownership) | Core masks, runtime model partitioning, selected IOMMU domains, fences, and cache ownership are separate decisions that must agree. |
+| Where do performance and recovery claims come from? | [§14](#14-power-frequency-and-utilization), [§15](#15-failure-and-recovery-paths), and [§16](#16-observability) | A return code alone is insufficient; preserve versions, native attrs, memory, core mask, correctness, latency, and kernel/runtime logs. |
+| What would turn this source model into board evidence? | [§17](#17-compatibility-and-deployment-checklist) | Validate the compiler/model/runtime/driver/DT/silicon tuple with known output, repeated lifecycles, intended core masks, memory/fence behavior, and controlled recovery. |
+| What is the trust boundary and where is the source? | [§18](#18-quality-and-security-appendix) and [§19](#19-source-map) | The inspected BSP driver assumes a matched trusted runtime; source inspection identifies hardening risks but is not a runtime support result. |
+
+### One inference, eight ownership transitions
+
+```text
+framework model + preprocessing assumptions
+  -> Toolkit2 compiler configuration and calibration
+  -> RK3588-targeted .rknn artifact
+  -> application-owned RKNN context and input/output contract
+  -> librknnrt-owned native tensors, device memory, and task preparation
+  -> RKNPU ioctl objects and selected-domain device mappings
+  -> kernel queue / selected NPU core(s) / IRQ completion
+  -> fence and cache handoff back to runtime-visible output
+```
+
+The source graph crosses the compiler boundary only through the compiled
+artifact. The kernel never acquires graph semantics, and the application never
+owns the device address merely because it owns a tensor pointer or dma-buf fd.
+
+### Similar names and handles that belong to different layers
+
+| Do not conflate | Distinction |
+|-----------------|-------------|
+| RKNN-Toolkit2 vs RKNNLite vs `librknnrt` | Toolkit2 imports and compiles models; RKNNLite is a Python deployment surface; both board APIs ultimately rely on the native runtime. |
+| framework model vs `.rknn` | ONNX/PyTorch/etc. describe portable graphs; `.rknn` is a compiler-produced, target/version-sensitive deployment artifact. |
+| `rknn_server` vs the kernel driver | The server proxies connected-debug requests in userspace; `drivers/rknpu` owns device memory, queues, PM, IRQs, and reset. |
+| DRM render node vs GPU execution | RKNPU can expose a DRM render-node front end for GEM/PRIME and ioctls; opening that node does not route inference through the Mali GPU. |
+| tensor pointer or dma-buf fd vs NPU device address | The pointer/fd is a process-visible handle. Runtime and driver establish the mapping the NPU actually dereferences. |
+| general IO vs zero-copy IO | General IO permits runtime conversion/copy; zero-copy requires native type/layout/stride and explicit synchronization/lifetime discipline. |
+| runtime context vs NPU core | A context owns model/runtime state; its core mask selects eligible execution resources. Neither name implies how the compiler partitioned the model. |
+| source-inspected vs board-validated | The pinned sources support an architectural claim. Only a captured known-output run on the named image can advance C16 beyond `UNASSESSED`. |
+
 ## Evidence and limits
 
 This description is pinned to the following source tuple:
