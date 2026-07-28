@@ -5,6 +5,37 @@ the Radxa ROCK 5B's RK3588. The exact filenames and offsets are not universal:
 they are consequences of the SoC boot protocol, board configuration, packager,
 and chosen U-Boot lineage.
 
+## Fast re-entry
+
+| Question to recover | Read | Load-bearing fact |
+|---------------------|------|-------------------|
+| Which program owns a visible failure? | [Cold-boot sequence](#2-the-rk3588-cold-boot-sequence) | BootROM, DDR init, SPL, BL31, U-Boot proper, and Linux are different programs with different inputs and failure signals. |
+| Which bytes contain each stage? | [Vendor artifacts](#3-how-the-examined-vendor-artifacts-fit-together) | `idbloader.img`, `u-boot.itb`, raw-media placement, and a filesystem image are separate identities; mounting a partition does not reveal every boot component. |
+| Did firmware and Linux come from the same medium? | [Boot source vs OS target](#4-boot-source-is-not-os-target) | BootROM chooses a firmware source first; U-Boot later chooses an OS target. Record both sides of the arrow. |
+| Why can U-Boot proper run yet fail before Linux? | [Driver model and control DTB](#driver-model-and-the-control-dtb) | U-Boot proper needs its own control DTB and drivers before it can discover or load the OS. |
+| Which configuration actually controls boot policy? | [Environment](#environment) and [commands/scripts](#commands-scripts-and-boot-policy) | Compiled defaults, an optional persistent environment, distro scripts, and OS descriptions are distinct state sources. |
+| Which device tree am I inspecting? | [Two-device-tree rule](#6-the-two-device-tree-rule) | U-Boot's control DTB describes firmware; the kernel DTB later describes hardware to Linux. One cannot substitute for the other. |
+| What do FIT and binman prove? | [FIT/binman](#7-fit-hashes-signatures-and-binman) | A container inventory or hash proves composition/integrity, not successful execution or an enforced secure-boot policy. |
+| How do I name one reproducible build? | [Configuration identities](#8-configuration-identities) and [practical build identity](#9-a-practical-definition-of-one-bootloader-build) | Source commit alone is insufficient; record configs, external blobs, control DTB, toolchain, packaging, and final artifact hashes. |
+
+### One boot, eight ownership transitions
+
+```text
+BootROM source choice
+  → DDR firmware makes DRAM usable
+  → SPL loads the later firmware package
+  → BL31 establishes EL3/PSCI
+  → U-Boot proper binds through its control DTB
+  → boot policy chooses an OS description and target
+  → U-Boot passes kernel + initrd + kernel DTB
+  → Linux mounts the root filesystem
+```
+
+When a run stops, preserve the last transition that is **proven**, not merely
+the last component expected to run. Then use the
+[boot debugging guide](debugging.md#1-locate-the-last-proven-stage) to choose
+the next discriminator.
+
 ## 1. What U-Boot is
 
 U-Boot is an open-source firmware project commonly used to initialize embedded

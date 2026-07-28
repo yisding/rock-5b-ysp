@@ -20,6 +20,36 @@ The concrete driver work — MPP/RGA architecture, patches, scripts, tests — i
 | Depends on | Nothing in-repo; upstream Armbian, Rockchip BSP, and mainline kernel trees. |
 | Current state | This directory owns stable comparisons, not the moving install recommendation. [`../status.md`](../status.md) tracks the dated forward-port and maximum-mainline state; the kernel scorecard [`../kernel-drivers/docs/forward-port-status.md`](../kernel-drivers/docs/forward-port-status.md) preserves the deeper validation boundary. A successful maximum-mainline build is not evidence that it booted on the board. |
 
+## Kernel and media models in this repository
+
+The version number is only one axis. A useful kernel identity also names the
+media API, driver lineage, device-tree shape, delivery path, and validation
+scope:
+
+| Name used here | Kernel/base role | Media-driver model | DT/package consequence | Read next |
+|----------------|------------------|--------------------|------------------------|-----------|
+| Rockchip 6.1 BSP | Downstream donor and architectural reference | Vendor MPP/RGA plus Rockchip's broader downstream subsystem set | Source of the ported implementation and many compatibility assumptions; not the target image by itself | [`bsp/`](bsp/README.md) |
+| Armbian 6.18 forward port | Main operating/investigation base | BSP-derived `/dev/mpp_service` and `/dev/rga` carried onto 6.18 | Combined builds convert Armbian's decoder nodes in place; DKMS uses a boot-time overlay; local and PPA combined packages remain distinct delivery/evidence paths | [`docs/vendor-forward-port.md`](docs/vendor-forward-port.md), [`../install.md`](../install.md) |
+| Vanilla 6.18 + forward port | Pristine upstream base at the port's original patch target | Same vendor MPP/RGA implementation | Driver patch carries over, but decoder/CCU/IOMMU nodes must be defined inline rather than inherited from Armbian | [`docs/vanilla-kernel.md`](docs/vanilla-kernel.md) |
+| Mainline V4L2 | Upstream codec API trajectory | Stateless V4L2 request decode, not Rockchip MPP | Different device ABI, userspace responsibility, and scheduler constraints; cannot be reasoned about as a drop-in MPP implementation | [`docs/mainline-rkvdec-v4l2.md`](docs/mainline-rkvdec-v4l2.md) |
+| Clean-room rewrite | Alternative implementation of the existing MPP/RGA public ABI | Repo-designed kernel internals behind compatible device contracts | Exists on 6.18 and a mainline-oriented branch; implementation choice is separate from the kernel-base choice | [`../kernel-drivers/docs/driver-architecture-comparison.md`](../kernel-drivers/docs/driver-architecture-comparison.md) |
+| Maximum-mainline profiles | Pinned integration of upstream plus selected public/WIP RK3588 proposals | Whatever the pinned mainline proposal set provides; not automatically the vendor media stack | Reproducible comparison packages; build success and board/runtime proof remain separate gates | [`../packaging/ppa/kernel-maxline/`](../packaging/ppa/kernel-maxline/README.md) |
+
+### Five labels to attach to every kernel result
+
+| Axis | Example question |
+|------|------------------|
+| Base and exact source | Which upstream/BSP/Armbian commit and patch series produced it? |
+| Media API and implementation | Vendor MPP/RGA, clean-room-compatible rewrite, or mainline V4L2? |
+| Device tree | Convert-in-place, complete inline nodes, or overrides of nodes already supplied by newer mainline? |
+| Delivery identity | Local Armbian flavor/PHASH, PPA package version, DKMS+overlay, or direct vanilla build? |
+| Evidence boundary | Built, packaged, installed, booted, functionally exercised, log-clean, and rollback-tested—which of these actually happened? |
+
+Two kernels with the same `uname -r` prefix can differ on every other axis.
+Conversely, the same driver design can be tested on more than one kernel base.
+Use [`../docs/system-baseline.md`](../docs/system-baseline.md) for the capture
+shape and [`../status.md`](../status.md) for the latest dated result.
+
 ## Files
 
 | Path | One-liner |
