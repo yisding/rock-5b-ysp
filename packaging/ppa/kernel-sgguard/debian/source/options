@@ -1,0 +1,1 @@
+extend-diff-ignore = "(^|/)(\.config(\.old)?|.*\.cmd|.*\.o|.*\.ko|.*\.mod|.*\.mod\.c|\.tmp_.*|Module\.symvers|System\.map|modules\.(builtin|builtin\.modinfo|order)|built-in\.a)$"

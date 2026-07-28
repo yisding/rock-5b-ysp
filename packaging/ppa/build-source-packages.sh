@@ -43,6 +43,14 @@ KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/kernel/rock5b-kernel-build/a
 KERNEL_PPA_CONFIG="${KERNEL_PPA_CONFIG:-$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config}"
 KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.40+rk3588av1fwport20260725}"
 
+KERNEL_SGGUARD_SOURCE="${KERNEL_SGGUARD_SOURCE:-linux-rockchip64-ysp-sgguard}"
+# Diagnostic variant of the forward-port kernel: same worktree, same production
+# config, plus the temporary system-heap page_link guard commit. Built through
+# the PPA so Launchpad's gcc 15.2 compiles it, matching the production kernel's
+# toolchain -- local Armbian builds use gcc 13.3. Drop once the writer is found.
+KERNEL_SGGUARD_CONFIG="${KERNEL_SGGUARD_CONFIG:-$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config}"
+KERNEL_SGGUARD_UPSTREAM_VERSION="${KERNEL_SGGUARD_UPSTREAM_VERSION:-6.18.40+rk3588av1fwport20260725sgguard1}"
+
 KERNEL_ALPHA_618_SOURCE="${KERNEL_ALPHA_618_SOURCE:-linux-rockchip64-ysp-alpha-6.18}"
 KERNEL_ALPHA_618_REPO="${KERNEL_ALPHA_618_REPO:-$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc}"
 KERNEL_ALPHA_618_COMMIT="${KERNEL_ALPHA_618_COMMIT:-8daf5e9513b8aa9de018dad7754b6efacfd0fd49}"
@@ -63,7 +71,7 @@ CODEC_UDEV_RULE="${CODEC_UDEV_RULE:-$ROOT/kernel-drivers/scripts/99-rockchip-cod
 
 usage() {
     cat <<'USAGE'
-Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [plymouth] [codec-udev] [gdm-hwenc] [kernel] [kernel-alpha-6.18] [kernel-alpha-7.2-rc3]
+Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [plymouth] [codec-udev] [gdm-hwenc] [kernel] [kernel-sgguard] [kernel-alpha-6.18] [kernel-alpha-7.2-rc3]
 
 Build unsigned source packages for the Rock 5B PPAs.
 Artifacts are written under packaging/ppa/out/artifacts by default.
@@ -263,6 +271,9 @@ prepare_worktree_source() {
     fi
 
     cp -a "$ROOT/$packaging_dir/debian" "$source_dir/debian"
+    # A packaging dir may deliberately ship no config of its own, so that it
+    # cannot drift from the tracked config it borrows (see kernel-sgguard).
+    mkdir -p "$source_dir/debian/config"
     cp -f "$config_file" "$source_dir/debian/config/arm64-rockchip64.config"
 
     (
@@ -381,6 +392,15 @@ build_kernel_forward_port() {
         "$KERNEL_PPA_CONFIG"
 }
 
+build_kernel_sgguard() {
+    prepare_worktree_source \
+        "$KERNEL_SGGUARD_SOURCE" \
+        "$KERNEL_PPA_REPO" \
+        "$KERNEL_SGGUARD_UPSTREAM_VERSION" \
+        "packaging/ppa/kernel-sgguard" \
+        "$KERNEL_SGGUARD_CONFIG"
+}
+
 build_kernel_alpha_618() {
     prepare_source \
         "$KERNEL_ALPHA_618_SOURCE" \
@@ -443,6 +463,7 @@ for package in "$@"; do
         codec-udev|rk3588-codec-udev) build_codec_udev ;;
         gdm-hwenc|gnome-remote-desktop-gdm-hwenc) build_gdm_hwenc ;;
         kernel|forward-port-kernel|linux-rockchip64-ysp) build_kernel_forward_port ;;
+        kernel-sgguard|sgguard|linux-rockchip64-ysp-sgguard) build_kernel_sgguard ;;
         kernel-alpha-6.18|rewrite-alpha-6.18|linux-rockchip64-ysp-alpha-6.18) build_kernel_alpha_618 ;;
         kernel-alpha-7.2-rc|kernel-alpha-7.2-rc3|rewrite-alpha-7.2-rc|rewrite-alpha-7.2-rc3|linux-rockchip64-ysp-alpha-7.2-rc3) build_kernel_alpha_72rc3 ;;
         *) echo "unknown package: $package" >&2; usage >&2; exit 2 ;;

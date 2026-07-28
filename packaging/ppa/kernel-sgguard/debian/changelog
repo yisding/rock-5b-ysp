@@ -1,0 +1,27 @@
+linux-rockchip64-ysp-sgguard (6.18.40+rk3588av1fwport20260725sgguard1-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Diagnostic-only kernel. Do not install this as a system kernel; it exists
+    to attribute the GRD/RKMPP system-heap scatterlist corruption that oopses
+    the production kernel 3/3 on the first RDP login.
+  * Identical to the production forward-port source
+    6.18.40+rk3588av1fwport20260725 — same Armbian 6.18.40 worktree, same
+    contiguous 0001-0075 vendor series, same production config (MPP
+    service/RKVENC2/RKVDEC2/AV1DEC enabled, RGA as a module, KASAN and lockdep
+    disabled) — plus one temporary commit: the system-heap scatterlist
+    page_link guard from kernel-drivers/patches/system-heap-sg-guard/.
+  * The guard snapshots every dma-buf attachment's page_link array and
+    re-compares it at attach, post-map, begin/end CPU access, pre-unmap, detach
+    and release. It reports the owning device and the before/after value, and
+    skips a corrupted sync instead of faulting, so the machine survives and
+    keeps logging. Runtime knobs: system_heap.sg_guard (default on) and
+    system_heap.sg_guard_panic.
+  * Built through the PPA so Launchpad's gcc 15.2/binutils 2.46 compiles it,
+    matching the production kernel's toolchain. Local Armbian builds use gcc
+    13.3, which left the earlier KASAN comparison unable to separate "KASAN
+    masks it" from "the gcc-13 build lacks it".
+  * Co-installable with the production kernel: separate source and binary
+    package names, so installing it neither replaces nor upgrades
+    linux-image-ysp-rockchip64. Select it with kernel-revert.sh.
+  * Drop this package once the writer is identified.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Mon, 27 Jul 2026 21:30:00 -0700

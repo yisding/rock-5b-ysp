@@ -48,9 +48,10 @@ PERSONAL_HOME_DEFAULT_RE = re.compile(
     r"(?:^[A-Z][A-Z0-9_]*=[\"']?/(?:home|Users)/|"
     r"\$\{[A-Za-z_][A-Za-z0-9_]*:-[\"']?/(?:home|Users)/)"
 )
-# The three packages that build the kernel in-tree share both helpers verbatim.
+# The in-tree kernel packages share both helpers verbatim.
 KERNEL_PACKAGE_DIRS = (
     "packaging/ppa/kernel-forward-port",
+    "packaging/ppa/kernel-sgguard",
     "packaging/ppa/kernel-rewrite-alpha-6.18",
     "packaging/ppa/kernel-rewrite-alpha-7.2-rc3",
 )
