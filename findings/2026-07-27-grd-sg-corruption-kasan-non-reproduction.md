@@ -15,6 +15,15 @@
 >
 > Trust: **MEASURED** / **SOURCE-INSPECTED** / **INFERRED**
 
+> **Updated 2026-07-27 by**
+> [`2026-07-27-grd-sg-corruption-reproduced-and-ioctl-capture-plan.md`](2026-07-27-grd-sg-corruption-reproduced-and-ioctl-capture-plan.md).
+> The *production evidence is n=1* section below is superseded: a second
+> production boot reproduced the oops on its first login, 2/2, with an identical
+> failing entry index, entry length, `orig_nents`, direction, CPU and UID. The
+> open question this finding framed — deterministic-and-masked versus rare — is
+> settled in favour of deterministic on production and masked under KASAN. The
+> KASAN measurements and the blindness argument here are unaffected.
+
 ## Result
 
 The prior finding's verification gate — boot the existing KASAN/`DEBUG_SG` image
