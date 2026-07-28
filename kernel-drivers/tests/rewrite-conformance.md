@@ -15,6 +15,54 @@ All suites assume the combined kernel booted, `/dev/mpp_service` + `/dev/rga`
 present, and (for rewrite parity work) the ability to dual-boot the forward-port
 and rewrite kernels.
 
+## Fast re-entry: the evidence ladder
+
+This page owns **how to produce and interpret rewrite evidence**. It does not
+own the live qualification verdict: recover that from
+[`status.md` track 4](../../status.md), then use its action path to select the
+next rung below. Passing a lower rung never licenses a claim from a higher one.
+
+| Rung | Entry point | What a clean result proves | What it still does not prove |
+|------|-------------|----------------------------|------------------------------|
+| 1. Clean-source build | [Rewrite clean build gate](#rewrite-clean-build-gate) | Both rewrite objects, the IOMMU provider, and the ROCK 5B DTB compile from committed source under the selected warning/sanitizer profile. | That the kernel boots, probes the devices, or survives real DMA/IRQ traffic. |
+| 2. Boot lifecycle and KUnit | [Post-reboot preflight](#post-reboot-identity-and-ownership-preflight) | The exact expected 85 MPP + 148 RGA cases ran; their complete boot interval is fatal-free, lockdep is still live, and production services/cores were restored after test isolation. | Media correctness, userspace compatibility, or hardware scheduling beyond the paths the fixtures model. |
+| 3. ABI boundary | [Raw ABI replay](#raw-abi-replay-comparisons) | Safe query/import/release/parser behavior and explicit negative contracts match the selected profile after normalization. | Correct registers, pixels, bitstreams, interrupts, or recovery under active work. |
+| 4. Real consumer workloads | [What each suite proves](#what-each-suite-proves) | Official MPP, librga, GStreamer, and FFmpeg paths reach the devices with clean dmesg windows, expected counter deltas, and persisted output artifacts where required. | Parity with the forward port, untested feature combinations, or production-duration stability. |
+| 5. Paired differential | [Suites and comparators](#running-the-suites-and-comparators) | Identical assets and commands under forward-port and rewrite profiles meet required-case, artifact, and configured performance-ratio checks. | Correctness outside the compared cases or meaningful performance conclusions from sanitizer builds. |
+| 6. Hostile lifetime/recovery | [Recovery stress](#what-each-suite-proves) and [ioctl fuzz](#what-each-suite-proves) | Selected close/reset/unbind and allocation/unwind paths remain live, fatal-free, and counter-clean under the named instrumented kernel. | Exhaustive race freedom or recovery from fault classes that were not injected. |
+| 7. Evidence audit | [Rewrite acceptance](#rewrite-acceptance-one-command) | The required paired logs, KUnit reports, artifacts, counters, dmesg windows, and comparator results exist and satisfy the maintained acceptance policy. | More than the collected experiments establish; the audit checks evidence completeness, not unmeasured behavior. |
+
+### One result, from experiment to conclusion
+
+Keep this chain intact for every booted qualification run:
+
+```text
+exact boot/package/source identity
+  -> correlated 233-case KUnit report + full fatal/lockdep interval
+  -> post-KUnit service and core inventory
+  -> per-suite command + environment + summary
+  -> output artifact sizes/checksums
+  -> before/after counters + bounded dmesg report
+  -> same-input forward-port comparison
+  -> rewrite-evidence-audit verdict
+  -> status update scoped to the gates that actually passed
+```
+
+The run-correlated directory is the evidence unit. A terminal transcript,
+isolated `exit 0`, or later uncorrelated `dmesg` excerpt cannot replace it.
+
+### Similar green results that support different claims
+
+| Do not conflate | Distinction |
+|-----------------|-------------|
+| `VALIDATE_ONLY=1` vs a runtime pass | Validate-only proves harness builders, parsers, comparators, and rejection logic without touching the devices. |
+| Exact green KUnit vs hardware conformance | KUnit proves the modeled logic and boot isolation interval; consumer suites prove real userspace/MMIO/DMA/IRQ paths. |
+| Process exit 0 vs correct media | Required artifacts, byte counts/checksums, PSNR or semantic comparators, counters, and dmesg must agree with the claimed path. |
+| Required vs diagnostic case | A diagnostic result records information and may be promotable later; it cannot silently satisfy a required gate. |
+| Positive hardware counter vs correct output | The counter proves traversal of an instrumented path. The artifact/comparator proves the observed output for that case. |
+| Candidate pass vs paired parity | A rewrite pass alone does not show that identical forward-port inputs and outputs agree or that the configured slowdown ceiling holds. |
+| Sanitizer timing vs production timing | KASAN/KCSAN runs support safety claims; only the unsanitized production profile supports performance and soak conclusions. |
+
 ## Contents
 
 - **Gate & bundle:** [Rewrite clean build gate](#rewrite-clean-build-gate) · [Expanded conformance bundle](#expanded-conformance-bundle)

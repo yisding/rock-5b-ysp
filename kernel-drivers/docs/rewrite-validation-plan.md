@@ -2,22 +2,24 @@
 
 What it would take to move `mpp-rewrite` / `rga-rewrite` from *"compiles, KUnit
 passes, and it boots"* to a shippable replacement for the forward-port. This is
-the plan that closes the gap [`rewrite-drivers.md`](./rewrite-drivers.md) §6 and
-[`../../status.md`](../../status.md) track 4 both record as **"No
-hardware-validation record yet."**
+the strategic companion to the operational
+[rewrite-conformance runbook](../tests/rewrite-conformance.md). The current
+qualification verdict and next proof belong to
+[`status.md` track 4](../../status.md); this page owns the ordered risk model
+and definition of done.
 
-> **Framing.** The rewrites are code-complete for their targeted userspace
-> surface and heavily unit-tested — MPP **85 KUnit cases** and RGA **148 KUnit
-> cases** (232 total) compile in the maintained worktrees at the current tips
-> (`1fe46df86f1ca` on 6.18, `ec9a4a06ecf12` on mainline). The `normal`, `memory`,
-> and `race` clean-source profiles passed green at both heads on 2026-07-23. But every
-> one of those tests is **logic-level**:
+> **Framing.** The targeted userspace surface is code-complete and has MPP
+> **85 KUnit cases** plus RGA **148 KUnit cases** (**233 total**). Exact green
+> booted KTAP is the first qualification rung, not the finish line. These tests
+> are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
 > the real CCU register block, or real decoder interrupts."* The remaining risk
 > is concentrated exactly where a from-scratch driver is weakest and where unit
 > tests can't reach: real hardware register/IRQ/DMA behaviour, the
-> hand-rolled concurrency model, and the large body of **recovery code that has
-> never executed**. This plan is ordered by risk, not by convenience.
+> hand-rolled concurrency model, and hostile recovery. This plan is ordered by
+> risk, not convenience. Do not copy current commits, package IDs, or pass
+> counts into this plan; follow the status row into the dated finding and
+> correlated run artifacts.
 
 ## What already exists vs. what this plan adds
 
@@ -49,7 +51,7 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 232 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 233 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
