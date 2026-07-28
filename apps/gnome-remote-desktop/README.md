@@ -38,6 +38,56 @@ measurements. It is not a substitute for the current package/kernel result in
 > validate script and `tests/` pass, the hard part is already done — GRD is just
 > another `/dev/mpp_service` + `/dev/dma_heap` client.
 
+## Fast re-entry
+
+This page owns the application integration and established capability model.
+The installed package/kernel verdict and next proof belong to
+[`status.md` track 7](../../status.md#dashboard); dated findings own individual
+attributions.
+
+| Question to recover | Re-enter through | Load-bearing fact |
+|---------------------|------------------|-------------------|
+| Where is the current installed path blocked? | [Current oops trace](../../findings/2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) → [`status.md` next gate](../../status.md#next-gates) | Authentication, GDM handover, device access, and AVC420 negotiation completed; the first smoke frame then oopsed while ending CPU access to a corrupted system-heap output scatterlist, before encoder hardware submission. |
+| Who creates and owns each frame before encode? | [Capture path](docs/capture-path.md) | Mutter/PipeWire supplies capture storage; the selected view creator and panvk produce NV12; `GrdEncodeSessionFfmpeg` owns the FFmpeg-facing frame/packet lifecycle. |
+| Why is hardware encode the architectural fix? | [Software baseline](docs/baseline.md) and [backend design](docs/design.md) | GPU-side transfer can reduce readback cost, but only hardware encode removes the GPU→CPU readback/software-RFX path from the hot loop. |
+| Which `h264_rkmpp` behavior does GRD depend on? | [FFmpeg implementation comparison](../../video-libraries/ffmpeg/docs/implementation-comparison.md) and [the four issue chain](#the-four-issues-we-hit-and-fixed) | The upstream-style bridge and `ffmpeg-rockchip` share a codec name but differ in IDR, rate control, formats, and control surface; package lineage changes the diagnosis. |
+| Is a stall capture starvation, codec backpressure, or client pacing? | [Profiling](docs/profiling.md), [MPP backpressure root cause](../../findings/2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md), and [RDPGFX ACK wedge](../../findings/2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md) | Frame production, encoder queue progress, and RDPGFX slot/ACK progress are different clocks and need separate evidence. |
+| What is the audio path and current proof? | [Audio redirection](docs/audio-redirection.md) and [live validation](../../findings/2026-07-21-grd-rdp-audio-live-validation-and-codec-control.md) | PipeWire capture and RDPSND negotiation are separate from the video pipeline; audible PCM/SVC is measured, while compressed-audio interoperability remains separate. |
+| How do I test without corrupting the session? | [Testing playbook](docs/testing.md) | Never launch a second GRD against the same Mutter session; identify the live daemon/package and bracket the exact gate being exercised. |
+| Which code is release material versus diagnostic history? | [Release patches](patches/README.md) | The 50.2 release branch carries the bounded backend/recovery changes; instrumentation and rejected experiments remain archived rather than silently shipping. |
+
+### One visible frame, nine handoffs
+
+```text
+Mutter capture buffer
+  -> PipeWire delivery to GRD
+  -> GRD view creator imports the RGB dma-buf
+  -> panvk compute writes an NV12 dma-buf
+  -> GrdEncodeSessionFfmpeg wraps a DRM PRIME AVFrame
+  -> h264_rkmpp / libmpp imports input and owns output-bitstream storage
+  -> VEPU580 completes an H.264 packet
+  -> GRD sends that packet in an RDPGFX frame
+  -> client frame ACK releases server pacing capacity
+```
+
+The current login-screen failure stops in the sixth handoff: a later CPU-sync
+of libmpp's system-heap output buffer sees a corrupted scatterlist and oopses
+before VEPU580 starts. That localizes the present blocker without reclassifying
+the earlier userspace flow-control findings as kernel bugs.
+
+### Similar signals that belong to different boundaries
+
+| Do not conflate | Distinction |
+|-----------------|-------------|
+| capture dma-buf vs NV12 encoder input vs H.264 output buffer | They are different storage roles with different producers, formats, synchronization, and lifetimes. |
+| Mali GPU work vs VEPU580 work | panvk converts RGB→NV12 on the GPU; `/dev/mpp_service` encodes NV12→H.264 on the video encoder. |
+| PipeWire delivery vs encoder progress vs RDPGFX progress | A frame can stop before GRD, inside FFmpeg/libmpp, or after encode while waiting for client frame acknowledgements. |
+| TCP ACK vs `RDPGFX_FRAME_ACKNOWLEDGE` | TCP delivery confirms bytes reached the peer transport; the RDPGFX PDU confirms the client consumed a numbered graphics frame and replenishes frame slots. |
+| smoke encode vs first visible frame | The smoke frame proves import/codec setup and is discarded; consuming its natural IDR caused the historical first-visible-frame failure. |
+| AVC420 negotiation vs hardware submission | Negotiating the codec says what the RDP session selected. Device markers/counters and a completed packet prove the hardware path actually ran. |
+| GRD symptom vs faulting owner | A missing login image is an application symptom; the current evidence places the immediate fault in kernel-managed system-heap scatterlist state before encoder start. |
+| video progress vs audio progress | RDPGFX video and RDPSND audio have separate PipeWire objects, negotiation, codecs, pacing, and validation gates. |
+
 ## Files
 
 | Path | One-liner |
