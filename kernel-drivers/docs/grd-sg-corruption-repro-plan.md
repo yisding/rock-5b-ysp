@@ -354,6 +354,27 @@ renumbered `0001`–`0071` + `0074`/`0075` tail are not known to be identical, a
 without it a non-reproduction cannot be attributed between the guard, the build,
 and the patch delta.
 
+**Step 1 does not control for the compiler.** Production is a Launchpad buildd
+binary built with **gcc 15.2.0 / binutils 2.46**; every local Armbian build,
+including this guarded one, uses the Docker container's **gcc 13.3.0 /
+binutils 2.42** — two major GCC releases apart, and the configs show the gap
+changing code semantics (`CC_HAS_COUNTED_BY` and `CC_HAS_MIN_FUNCTION_ALIGNMENT`
+are production-only). See
+[`findings/2026-07-27-kasan-vs-production-build-provenance-confound.md`](../../findings/2026-07-27-kasan-vs-production-build-provenance-confound.md),
+which also records what was checked and found *not* confounded (memory-layout
+config, vendor driver source, Armbian derivation).
+
+So read step 1 asymmetrically:
+
+- **It oopses** → decisive. Toolchain is not the discriminator, KASAN masking is
+  confirmed, and the guard is immediately useful.
+- **It comes back clean** → ambiguous three ways (KASAN layout, toolchain,
+  Armbian-archive vintage). Do not record it as "the guard build does not
+  reproduce". The cheapest way out is to build the same guarded source through
+  the `ppa-forward-port` flavor so **Launchpad** compiles it with gcc 15.2,
+  leaving config as the only variable. `gcc-15.2.0` is also installed natively on
+  this board if a local same-compiler build is preferred.
+
 ### 2b. What the guard must capture, and what is already excluded
 
 Source inspection on 2026-07-27 swept `drivers/video/rockchip/{mpp,rga3}/`, the

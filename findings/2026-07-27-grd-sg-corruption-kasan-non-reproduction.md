@@ -15,6 +15,16 @@
 >
 > Trust: **MEASURED** / **SOURCE-INSPECTED** / **INFERRED**
 
+> **Confounded 2026-07-27 by**
+> [`2026-07-27-kasan-vs-production-build-provenance-confound.md`](2026-07-27-kasan-vs-production-build-provenance-confound.md).
+> The two kernels compared here differ by **two major GCC releases**, not only by
+> KASAN: production is a Launchpad buildd binary (gcc 15.2.0, binutils 2.46) and
+> this debug kernel is a local Armbian Docker build (gcc 13.3.0, binutils 2.42).
+> Memory-layout config, vendor driver source, and Armbian-derivation were all
+> checked and are *not* confounded — the toolchain is. "KASAN masks it" and "the
+> gcc-13 build does not have it" are both still sufficient explanations of the
+> table below, and nothing measured so far separates them.
+
 > **Updated 2026-07-27 by**
 > [`2026-07-27-grd-sg-corruption-reproduced-and-ioctl-capture-plan.md`](2026-07-27-grd-sg-corruption-reproduced-and-ioctl-capture-plan.md).
 > The *production evidence is n=1* section below is superseded: a second
