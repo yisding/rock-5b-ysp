@@ -1,0 +1,391 @@
+From feecf460e14e14b553e90253800f7ad0831b1093 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Mon, 27 Jul 2026 17:42:35 -0700
+Subject: [PATCH] DIAG: guard system-heap scatterlist page_link (temporary)
+
+Temporary diagnostic for the GRD/RKMPP oops recorded in
+findings/2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md: the production
+kernel died in dcache_clean_poc() <- iommu_dma_sync_sg_for_device() <-
+system_heap_dma_buf_end_cpu_access() on entry 1 of a 24-entry system-heap
+scatterlist whose page_link resolved to PFN 0x1e0c1fc, far past this board's
+last RAM PFN. The victim access is understood; the writer is not.
+
+The existing plan assumes the KASAN/DEBUG_SG image will name that writer. It may
+be structurally unable to. page_to_pfn() is (page - vmemmap) / sizeof(struct
+page), so a PFN that small places the stored value in the first ~0.1% of the
+2 TiB vmemmap window. Slab poison, a SLUB freelist pointer, ASCII or zero would
+all decode to an astronomically larger PFN and a correspondingly wild fault
+address, not the clean __va(0x1e0c1fc000) that was logged. The corrupt page_link
+is therefore a well-formed struct page pointer: the writer computed a page
+pointer from a bad input and stored it. If it did so in-bounds on a live sg
+array, KASAN cannot report it -- KASAN detects out-of-bounds and use-after-free,
+not correct-shape stores of wrong values -- and DEBUG_SG cannot either, since
+this kernel's struct scatterlist carries no magic field.
+
+So check the invariant directly. dup_sg_table() gives every attachment its own
+copy of the table, so snapshot that copy's page_link array at attach time and
+re-compare it at attach, post-map, begin/end_cpu_access, pre-unmap, detach and
+release. dma_map_sgtable() never writes page_link (__finalise_sg() touches only
+dma_address/dma_len/offset/length), so the snapshot stays valid across map and
+the comparison cannot false-positive.
+
+Each report names the owning device, which is the actual open question:
+end_cpu_access() walks every mapped attachment of the buffer, so the damaged
+table is not necessarily the encoder's even though the buffer was identified as
+RKMPP's output packet buffer. Reports also carry the sgl base and its offset in
+its slab object (kmalloc_array(24, 32) = 768 B, so kmalloc-1024), the
+before/after page_link and PFN, and a hex dump bounded to exactly
+orig_nents * sizeof(struct scatterlist) -- never the tail slack, which would
+trip the KASAN redzone from inside the diagnostic.
+
+A corrupted sync is skipped rather than executed, so the machine survives and
+keeps logging instead of dying in dcache_clean_poc(). The release path refuses
+to hand a wild page to __free_pages() and leaks the buffer instead. Knobs:
+system_heap.sg_guard=0 disables, system_heap.sg_guard_panic=1 panics on the
+first hit.
+
+Drop this commit once the writer is identified.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ drivers/dma-buf/heaps/system_heap.c | 250 ++++++++++++++++++++++++++++
+ 1 file changed, 250 insertions(+)
+
+diff --git a/drivers/dma-buf/heaps/system_heap.c b/drivers/dma-buf/heaps/system_heap.c
+index bbe7881..50e09b1 100644
+--- a/drivers/dma-buf/heaps/system_heap.c
++++ b/drivers/dma-buf/heaps/system_heap.c
+@@ -17,10 +17,54 @@
+ #include <linux/highmem.h>
+ #include <linux/mm.h>
+ #include <linux/module.h>
++#include <linux/moduleparam.h>
++#include <linux/printk.h>
+ #include <linux/scatterlist.h>
+ #include <linux/slab.h>
+ #include <linux/vmalloc.h>
+ 
++/*
++ * SGGUARD (temporary diagnostic; see
++ * findings/2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md).
++ *
++ * A production-kernel oops cleaned the cache for scatterlist entry 1 of a
++ * 24-entry system-heap output buffer whose page_link resolved to PFN 0x1e0c1fc,
++ * far past this board's last RAM PFN. The victim access is understood; the
++ * kernel writer is not.
++ *
++ * page_to_pfn() is (page - vmemmap) / sizeof(struct page), so a PFN that small
++ * means the stored value lands in the first ~0.1% of the 2 TiB vmemmap window:
++ * the corrupt page_link is a well-formed struct page pointer, not slab poison,
++ * not a freelist pointer, not ASCII and not zero. The writer therefore
++ * *computed* a page pointer from a bad input and stored it. If it did so
++ * in-bounds on a live sg array then KASAN cannot see it -- KASAN reports
++ * out-of-bounds and use-after-free, not correct-shape stores of wrong values.
++ * DEBUG_SG does not help either: this kernel's struct scatterlist carries no
++ * magic field, so nothing validates page_link.
++ *
++ * Hence this guard. It snapshots every page_link when an attachment's private
++ * table is duplicated, then re-checks that table everywhere the heap touches
++ * it. Any drift from the snapshot, or any entry whose PFN fails pfn_valid(), is
++ * reported once per attachment together with the owning device -- which is the
++ * actual open question, because end_cpu_access() walks *every* mapped
++ * attachment of the buffer, not just the encoder's.
++ *
++ * A corrupted sync is skipped rather than executed, so the machine survives and
++ * keeps logging instead of dying in dcache_clean_poc(). Set sg_guard_panic=1 to
++ * take it down at the first hit instead.
++ *
++ * Drop this commit once the writer is identified.
++ */
++static bool sg_guard = true;
++module_param(sg_guard, bool, 0644);
++MODULE_PARM_DESC(sg_guard,
++		 "DIAG: validate system-heap scatterlist page_link on every touch");
++
++static bool sg_guard_panic;
++module_param(sg_guard_panic, bool, 0644);
++MODULE_PARM_DESC(sg_guard_panic,
++		 "DIAG: panic on the first detected page_link corruption");
++
+ struct system_heap_buffer {
+ 	struct dma_heap *heap;
+ 	struct list_head attachments;
+@@ -36,6 +80,10 @@ struct dma_heap_attachment {
+ 	struct sg_table table;
+ 	struct list_head list;
+ 	bool mapped;
++	/* SGGUARD: page_link snapshot taken at dup time, and a once-only latch */
++	unsigned long *snap;
++	unsigned int snap_nents;
++	bool reported;
+ };
+ 
+ #define LOW_ORDER_GFP (GFP_HIGHUSER | __GFP_ZERO)
+@@ -70,6 +118,153 @@ static int dup_sg_table(struct sg_table *from, struct sg_table *to)
+ 	return 0;
+ }
+ 
++/*
++ * SGGUARD helpers.
++ *
++ * Never dereference the page: the whole point is that the pointer may be wild.
++ * page_to_pfn() is pure vmemmap arithmetic and pfn_valid() is defined for any
++ * value, so both are safe on a corrupt link. sg_page() is deliberately avoided
++ * because it carries a BUG_ON(sg_is_chain()) under CONFIG_DEBUG_SG.
++ */
++static struct page *sg_guard_page(unsigned long link)
++{
++	return (struct page *)(link & ~SG_PAGE_LINK_MASK);
++}
++
++static void sg_guard_snapshot(struct dma_heap_attachment *a)
++{
++	struct scatterlist *sg;
++	unsigned int i;
++
++	a->snap = NULL;
++	a->snap_nents = 0;
++	a->reported = false;
++
++	if (!sg_guard || !a->table.orig_nents)
++		return;
++
++	a->snap = kmalloc_array(a->table.orig_nents, sizeof(*a->snap),
++				GFP_KERNEL);
++	if (!a->snap)
++		return;
++
++	for_each_sgtable_sg(&a->table, sg, i)
++		a->snap[i] = sg->page_link;
++
++	a->snap_nents = a->table.orig_nents;
++}
++
++static void sg_guard_release(struct dma_heap_attachment *a)
++{
++	kfree(a->snap);
++	a->snap = NULL;
++	a->snap_nents = 0;
++}
++
++/*
++ * Returns true when the table still looks intact. Reports at most once per
++ * attachment so a repeating path cannot flood the log and lose the first hit,
++ * which is the only one whose surrounding state is still meaningful.
++ */
++static bool sg_guard_check(struct dma_buf *dmabuf,
++			   struct dma_heap_attachment *a,
++			   const char *where)
++{
++	struct system_heap_buffer *buffer = dmabuf->priv;
++	struct scatterlist *sg;
++	unsigned int i;
++	bool ok = true;
++
++	if (!sg_guard)
++		return true;
++
++	for_each_sgtable_sg(&a->table, sg, i) {
++		unsigned long link = sg->page_link;
++		unsigned long pfn = page_to_pfn(sg_guard_page(link));
++		bool have_snap = a->snap && i < a->snap_nents;
++		bool drifted = have_snap && link != a->snap[i];
++		bool wild = !pfn_valid(pfn);
++
++		if (!drifted && !wild)
++			continue;
++
++		ok = false;
++		if (a->reported)
++			break;
++		a->reported = true;
++
++		pr_err("SGGUARD: %s: system-heap scatterlist corruption\n", where);
++		pr_err("SGGUARD:   dmabuf=%p len=%lu exp_name=%s\n",
++		       dmabuf, buffer->len, dmabuf->exp_name ?: "(none)");
++		pr_err("SGGUARD:   attach dev=%s mapped=%d orig_nents=%u nents=%u\n",
++		       a->dev ? dev_name(a->dev) : "(null)", a->mapped,
++		       a->table.orig_nents, a->table.nents);
++		/*
++		 * The page offset shows the slab bucket at a glance: a 24-entry
++		 * table is kmalloc_array(24, 32) = 768 B, so it lives in
++		 * kmalloc-1024 and its base must be 1024-aligned. Anything else
++		 * means the table is not where we think it is.
++		 */
++		pr_err("SGGUARD:   sgl base=%px (page offset 0x%lx, %s) entry %u at %px\n",
++		       a->table.sgl,
++		       (unsigned long)a->table.sgl & (PAGE_SIZE - 1),
++		       IS_ALIGNED((unsigned long)a->table.sgl, 1024) ?
++				"1024-aligned" : "NOT 1024-aligned",
++		       i, sg);
++		pr_err("SGGUARD:   page_link now = 0x%016lx -> pfn 0x%lx valid=%d%s\n",
++		       link, pfn, pfn_valid(pfn), wild ? "  <-- WILD" : "");
++		if (have_snap)
++			pr_err("SGGUARD:   page_link was = 0x%016lx -> pfn 0x%lx%s\n",
++			       a->snap[i],
++			       page_to_pfn(sg_guard_page(a->snap[i])),
++			       drifted ? "  <-- DRIFTED" : "");
++		else
++			pr_err("SGGUARD:   page_link was = (no snapshot)\n");
++		pr_err("SGGUARD:   offset=%u length=%u dma_addr=%pad dma_len=%u\n",
++		       sg->offset, sg->length, &sg->dma_address, sg_dma_len(sg));
++
++		/*
++		 * Dump exactly the table and not one byte more: the array is a
++		 * kmalloc(orig_nents * 32) inside a larger bucket, and reading
++		 * the tail slack would trip the KASAN redzone from here.
++		 */
++		print_hex_dump(KERN_ERR, "SGGUARD: sgl ", DUMP_PREFIX_OFFSET,
++			       32, 8, a->table.sgl,
++			       a->table.orig_nents * sizeof(*sg), false);
++		dump_stack();
++
++		if (sg_guard_panic)
++			panic("SGGUARD: system-heap page_link corruption at %s",
++			      where);
++		break;
++	}
++
++	return ok;
++}
++
++/* Lighter check for the buffer's own table, which has no snapshot. */
++static void sg_guard_check_origin(struct system_heap_buffer *buffer,
++				  const char *where)
++{
++	struct scatterlist *sg;
++	unsigned int i;
++
++	if (!sg_guard)
++		return;
++
++	for_each_sgtable_sg(&buffer->sg_table, sg, i) {
++		unsigned long pfn = page_to_pfn(sg_guard_page(sg->page_link));
++
++		if (pfn_valid(pfn))
++			continue;
++
++		pr_err("SGGUARD: %s: ORIGIN table corrupt, buffer=%p len=%lu entry %u page_link=0x%016lx pfn=0x%lx\n",
++		       where, buffer, buffer->len, i, sg->page_link, pfn);
++		dump_stack();
++		break;
++	}
++}
++
+ static int system_heap_attach(struct dma_buf *dmabuf,
+ 			      struct dma_buf_attachment *attachment)
+ {
+@@ -81,12 +276,23 @@ static int system_heap_attach(struct dma_buf *dmabuf,
+ 	if (!a)
+ 		return -ENOMEM;
+ 
++	/*
++	 * SGGUARD: check the origin before duplicating it. If the origin is
++	 * already bad, the writer ran before any attachment existed and the
++	 * per-attachment snapshots below would faithfully record the damage as
++	 * if it were pristine.
++	 */
++	sg_guard_check_origin(buffer, "attach");
++
+ 	ret = dup_sg_table(&buffer->sg_table, &a->table);
+ 	if (ret) {
+ 		kfree(a);
+ 		return ret;
+ 	}
+ 
++	/* SGGUARD: baseline for every later comparison on this attachment. */
++	sg_guard_snapshot(a);
++
+ 	a->dev = attachment->dev;
+ 	INIT_LIST_HEAD(&a->list);
+ 	a->mapped = false;
+@@ -110,6 +316,10 @@ static void system_heap_detach(struct dma_buf *dmabuf,
+ 	list_del(&a->list);
+ 	mutex_unlock(&buffer->lock);
+ 
++	/* SGGUARD: last look at this table while it is still ours. */
++	sg_guard_check(dmabuf, a, "detach");
++	sg_guard_release(a);
++
+ 	sg_free_table(&a->table);
+ 	kfree(a);
+ }
+@@ -126,6 +336,17 @@ static struct sg_table *system_heap_map_dma_buf(struct dma_buf_attachment *attac
+ 		return ERR_PTR(ret);
+ 
+ 	a->mapped = true;
++
++	/*
++	 * SGGUARD: the finding *inferred* that the table was still valid at map
++	 * time, from the fact that the noncoherent sync inside iommu_dma_map_sg()
++	 * did not fault. Check it directly instead, so the corruption window has
++	 * a proven left edge. dma_map_sgtable() itself never writes page_link --
++	 * __finalise_sg() only touches dma_address/dma_len/offset/length -- so a
++	 * hit here means the writer ran before or during the map.
++	 */
++	sg_guard_check(attachment->dmabuf, a, "post-map");
++
+ 	return table;
+ }
+ 
+@@ -136,6 +357,10 @@ static void system_heap_unmap_dma_buf(struct dma_buf_attachment *attachment,
+ 	struct dma_heap_attachment *a = attachment->priv;
+ 
+ 	a->mapped = false;
++
++	/* SGGUARD: unmap walks the same entries; catch it before the DMA layer does. */
++	sg_guard_check(attachment->dmabuf, a, "pre-unmap");
++
+ 	dma_unmap_sgtable(attachment->dev, table, direction, 0);
+ }
+ 
+@@ -153,6 +378,9 @@ static int system_heap_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
+ 	list_for_each_entry(a, &buffer->attachments, list) {
+ 		if (!a->mapped)
+ 			continue;
++		/* SGGUARD: skipping a corrupt table keeps the box alive to log more. */
++		if (!sg_guard_check(dmabuf, a, "begin_cpu_access"))
++			continue;
+ 		dma_sync_sgtable_for_cpu(a->dev, &a->table, direction);
+ 	}
+ 	mutex_unlock(&buffer->lock);
+@@ -174,6 +402,14 @@ static int system_heap_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
+ 	list_for_each_entry(a, &buffer->attachments, list) {
+ 		if (!a->mapped)
+ 			continue;
++		/*
++		 * SGGUARD: this is the exact loop that oopsed. The production
++		 * kernel died one frame later inside
++		 * dcache_clean_poc() <- iommu_dma_sync_sg_for_device() on entry
++		 * 1 of a 24-entry table. Report and skip instead of faulting.
++		 */
++		if (!sg_guard_check(dmabuf, a, "end_cpu_access"))
++			continue;
+ 		dma_sync_sgtable_for_device(a->dev, &a->table, direction);
+ 	}
+ 	mutex_unlock(&buffer->lock);
+@@ -277,10 +513,24 @@ static void system_heap_dma_buf_release(struct dma_buf *dmabuf)
+ 	struct scatterlist *sg;
+ 	int i;
+ 
++	/*
++	 * SGGUARD: the loop below dereferences every page to read its compound
++	 * order and then frees it. On a corrupt origin that hands a wild page to
++	 * the allocator, which is far worse than the cache-clean oops. Check
++	 * first and leak the buffer rather than free garbage.
++	 */
++	sg_guard_check_origin(buffer, "release");
++
+ 	table = &buffer->sg_table;
+ 	for_each_sgtable_sg(table, sg, i) {
+ 		struct page *page = sg_page(sg);
+ 
++		if (sg_guard && !pfn_valid(page_to_pfn(page))) {
++			pr_err("SGGUARD: release: leaking buffer=%p rather than freeing wild entry %u\n",
++			       buffer, i);
++			return;
++		}
++
+ 		__free_pages(page, compound_order(page));
+ 	}
+ 	sg_free_table(table);

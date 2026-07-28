@@ -15,6 +15,23 @@
 > Trust: **MEASURED** / **BINARY-INSPECTED** / **SOURCE-INSPECTED** /
 > **INFERRED** / **PARTIAL**.
 
+> **Corrected 2026-07-27 by**
+> [`2026-07-27-grd-sg-corruption-kasan-non-reproduction.md`](2026-07-27-grd-sg-corruption-kasan-non-reproduction.md).
+> Two decode corrections: `x19` is the scatterlist array **base**, not the
+> failing entry (the value is 1024-aligned, which is the only alignment a
+> `kmalloc-1024` object holding `kmalloc_array(24, 32)` can have; failing entry 1
+> is at `…9420`); and `end_cpu_access()` syncs the per-attachment *duplicate*
+> table while walking **every** mapped attachment, so the damaged table's owning
+> device is not established and need not be the encoder's.
+>
+> The *Existing KASAN discriminator* and *Next verification gate* sections below
+> are superseded. That gate was run and came back clean — 9/9 logins plus 1600
+> direct encoder sessions — and KASAN is probably structurally unable to report
+> this write, because the corrupt `page_link` is a well-formed `struct page`
+> pointer rather than poison or garbage. See the superseding finding, and
+> [`grd-sg-corruption-repro-plan.md`](../kernel-drivers/docs/grd-sg-corruption-repro-plan.md)
+> for the replacement gate.
+
 ## Result
 
 The missing RDP login screen is downstream of a kernel oops, not an RDP
@@ -83,7 +100,8 @@ Register decoding against the installed kernel disassembly gives:
 | `x23 = 1` | failing iteration is scatterlist entry 1, the second entry |
 | `x0 = ffff001e0c1fc000` | invalid linear-map address derived from its page |
 | `x1 = ffff001e0c2fc000` | end address, making this entry 1 MiB long |
-| `x19 = ffff0001c3e59400` | address of the failing scatterlist entry |
+| `x19 = ffff0001c3e59400` | ~~address of the failing scatterlist entry~~ — **corrected**: this is the array *base*; the failing entry 1 is at `…9420` (see the correction block above) |
+| `x20 = fffffdffc0000000` | `vmemmap` base — makes the corrupt `page_link` recoverable as `x20 + PFN * 64` ≈ `0xfffffe0038307f00` |
 
 The invalid virtual address corresponds to PFN `0x1e0c1fc`. The board's Normal
 zone starts at PFN `0x100000` and spans `0x400000` pages, so the first PFN past

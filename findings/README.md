@@ -125,6 +125,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md`](2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md) — Rockchip MPP HEVC TILES failure: same-ID PPS changes never reach the HAL
 - [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md) — Exact SPL audit closes the ordinary CPU zero-writer, not the DDR mechanism
 - [`2026-07-27-rk3588-ramoops-next-experiment-plan.md`](2026-07-27-rk3588-ramoops-next-experiment-plan.md) — Ramoops next experiments: find the first boot stage that changes the bytes
 - [`2026-07-27-rk3588-pvtm-volt-sel-measured.md`](2026-07-27-rk3588-pvtm-volt-sel-measured.md) — This ROCK 5B's BSP voltage-select index measured: L5 little / L7 both big clusters
@@ -136,6 +137,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-07-27-rewrite-kasan-fixed-source-package.md`](2026-07-27-rewrite-kasan-fixed-source-package.md) — Fixed-source rewrite KASAN package is built and package-verified
 - [`2026-07-27-mesa-all-blit-workaround-benchmark-results.md`](2026-07-27-mesa-all-blit-workaround-benchmark-results.md) — Mesa all-blit workaround benchmark validates correctness but not per-blit cost
 - [`2026-07-27-mali-blit-workaround-performance-benchmark-plan.md`](2026-07-27-mali-blit-workaround-performance-benchmark-plan.md) — Plan for measuring per-blit cost of the Mali workaround
+- [`2026-07-27-grd-sg-corruption-kasan-non-reproduction.md`](2026-07-27-grd-sg-corruption-kasan-non-reproduction.md) — The KASAN kernel does not reproduce the GRD system-heap oops, and is likely unable to
 - [`2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md`](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) — GRD's first RKMPP frame oopses on a corrupted system-heap scatterlist entry
 - [`2026-07-26-vlc-headless-vaapi-device-boundary.md`](2026-07-26-vlc-headless-vaapi-device-boundary.md) — VLC headless playback cannot prove rockchip-vaapi hardware decode
 - [`2026-07-26-rockchip-vaapi-webrtc-rtp-validation.md`](2026-07-26-rockchip-vaapi-webrtc-rtp-validation.md) — rockchip-vaapi H.264 reaches the WebRTC-compatible RTP boundary
