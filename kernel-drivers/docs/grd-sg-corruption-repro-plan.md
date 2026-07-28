@@ -6,6 +6,25 @@ Target: stock `6.18.40-ysp-rockchip64`, **no guard patch**. The point of this ru
 is to learn whether the bug is live and at what rate, before spending a build on
 instrumentation.
 
+> **Resolved 2026-07-28 — this plan is closed; do not run the escalation
+> path.** The writer is
+> [`mangle_sg_table()`](../../findings/2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md)
+> in `drivers/dma-buf/dma-buf.c` (~:831), compiled in only when
+> `CONFIG_DMABUF_DEBUG=y`. It XORs every `page_link` with `~0xffUL` for the
+> interval an attachment is mapped, and the system heap's `end_cpu_access()`
+> syncs exactly those mangled tables. Production sets the option; the three
+> other 6.18.40 kernels on this board do not, which is the whole of the
+> reproduce/don't-reproduce split.
+>
+> Both open questions this plan was built around are answered. The bug is
+> **deterministic**, not rare — production oopsed seven times in boot -1 alone.
+> KASAN does not mask it; the KASAN kernels simply lack the option. Sections
+> [*Put the guard on the kernel that reproduces*](#2-put-the-guard-on-the-kernel-that-reproduces),
+> [*What the guard must capture*](#2b-what-the-guard-must-capture-and-what-is-already-excluded),
+> and [*Hardware watchpoint*](#3-hardware-watchpoint-the-instrument-that-names-the-writer)
+> are superseded — no instrument is needed. What remains is the one-line config
+> fix and its boot verification.
+
 ## Why this run exists
 
 The evidence is thinner than the write-up implies. Measured from the retained

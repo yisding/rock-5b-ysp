@@ -1,5 +1,21 @@
 # kernel-sgguard/ — diagnostic forward-port kernel with the scatterlist guard
 
+> **Obsolete as of 2026-07-28 — do not upload this package.** The writer it was
+> built to find has been identified without it:
+> `mangle_sg_table()` in `drivers/dma-buf/dma-buf.c`, compiled in by
+> `CONFIG_DMABUF_DEBUG`. See
+> [`2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md`](../../../findings/2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md).
+>
+> The source package was built and validated but never signed or published, so
+> nothing needs retracting from the archive. Two premises below are also wrong.
+> The toolchain rationale in *Why it goes through the PPA* is void — the
+> production-vs-KASAN split is explained by `CONFIG_DMABUF_DEBUG`, not by gcc
+> 15.2 versus 13.3. And this package **would** have reproduced the oops, because
+> it borrows the production config that sets the option; what differed in the
+> local 2026-07-28 control run was the video-port slot config, which does not set
+> it. Keep this directory until the config fix is boot-verified, then delete it
+> along with the guard patch.
+
 **Do not install this as a system kernel.** It is a temporary instrument for
 attributing the GRD/RKMPP system-heap scatterlist corruption that oopses the
 production kernel on the first RDP login of every boot (3/3). Delete the

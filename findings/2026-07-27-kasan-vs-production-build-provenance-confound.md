@@ -15,7 +15,28 @@
 > Date: 2026-07-27
 >
 > Trust: **MEASURED** (all identity/config/source comparisons) / **INFERRED**
-> (the significance of the toolchain gap).
+> (the significance of the toolchain gap) / **FALSIFIED-AS-SOLE-CAUSE**.
+
+> **Corrected 2026-07-28 by**
+> [`2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md`](2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md).
+> **The toolchain is not the discriminator.** The KASAN non-reproduction is
+> explained by `CONFIG_DMABUF_DEBUG`: production sets it, both KASAN kernels do
+> not, and it is the option that gates the `mangle_sg_table()` writer. Compiler
+> version is irrelevant to this failure.
+>
+> The specific error is in *What is not confounded* item 1 below. That sweep
+> enumerated the memory-layout-relevant config deltas and concluded "the only
+> differences on that axis are the five intended debug options: `KASAN`,
+> `DEBUG_SG`, `DEBUG_PAGEALLOC`, `PAGE_POISONING`, `PROVE_LOCKING`". It checked
+> `DMA_API_DEBUG` — which does match — but **missed `CONFIG_DMABUF_DEBUG`**, a
+> distinct symbol that differs and is the actual cause. The sixth debug option
+> was the one that mattered.
+>
+> The escalation this finding recommended is void. Building the guarded source
+> through the PPA to control for gcc was answering a question that was never
+> open; the `linux-rockchip64-ysp-sgguard` package should not be uploaded. The
+> identity, provenance, and source-comparison facts recorded below were measured
+> and remain accurate — keep them as the record of what was ruled out.
 
 ## Result
 

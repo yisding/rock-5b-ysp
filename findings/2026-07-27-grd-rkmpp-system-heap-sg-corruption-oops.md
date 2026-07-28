@@ -32,6 +32,26 @@
 > [`grd-sg-corruption-repro-plan.md`](../kernel-drivers/docs/grd-sg-corruption-repro-plan.md)
 > for the replacement gate.
 
+> **Corrected 2026-07-28 by**
+> [`2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md`](2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md).
+> **The writer is identified, and there was no corruption.** `page_link` is
+> scrambled deliberately by `mangle_sg_table()` in `drivers/dma-buf/dma-buf.c`
+> (~:831), compiled in only when `CONFIG_DMABUF_DEBUG=y` — which the production
+> config sets and no other kernel on this board does. The core mangles the
+> exporter's own per-attachment table at `dma_buf_map_attachment()` (~:1142) and
+> unmangles it only around the unmap callback, so `end_cpu_access()` walks
+> scrambled entries every time.
+>
+> Two statements below are therefore wrong. "PFN `0x1e0c1fc` cannot describe RAM
+> on this machine" is true but misleading — that value is real PFN `0x1f3e00`
+> (7.811 GiB, in RAM) XORed with `~0xffUL`; all eight recorded fault addresses
+> invert to valid in-RAM frames. And "the entry was valid at map time and was
+> corrupted before the later CPU-access-end sync" is right about the window but
+> wrong about the cause: the map-time sync runs *inside* `dma_map_sgtable()`,
+> before the core mangles, which is why it passed. The section *Ruled out and
+> still open* correctly reports finding no vendor-driver writer — because the
+> writer is in `drivers/dma-buf/`, which was not swept.
+
 ## Result
 
 The missing RDP login screen is downstream of a kernel oops, not an RDP

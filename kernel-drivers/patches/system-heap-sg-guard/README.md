@@ -44,6 +44,25 @@ it everywhere the heap touches the table. `dma_map_sgtable()` never writes
 `offset`/`length` — so the snapshot stays valid across map and unmap and the
 comparison cannot false-positive.
 
+> **Corrected 2026-07-28.** That last clause is false when
+> `CONFIG_DMABUF_DEBUG=y`, which is exactly the configuration the production
+> kernel ships. `dma_map_sgtable()` is indeed innocent, but the dma-buf *core*
+> XORs every `page_link` with `~0xffUL` in `mangle_sg_table()`
+> (`drivers/dma-buf/dma-buf.c` ~:831) immediately after the exporter's map
+> callback returns, and unmangles only around the unmap callback. See
+> [`2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md`](../../../findings/2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md).
+>
+> The consequence is checkpoint-specific, and the guard is better off than the
+> broken rationale suggests. Checkpoints reached *through* an exporter callback —
+> `attach`, `post-map`, `pre-unmap`, `detach`, `release` — sit inside the
+> bracket and still see pristine tables. Only `begin_cpu_access` and
+> `end_cpu_access`, which `dma_buf_ioctl()` invokes directly while attachments
+> are mapped, see mangled ones. So on a `DMABUF_DEBUG=y` kernel the guard fires
+> at `begin_cpu_access` for **every** buffer and reports
+> `was = V`, `now = V ^ ~0xffUL` — which would have named the writer on the first
+> run. It was never a false positive; the guard was measuring a real write whose
+> author this README had misidentified as impossible.
+
 Checkpoints, in the order a buffer meets them:
 
 | Checkpoint | Answers |

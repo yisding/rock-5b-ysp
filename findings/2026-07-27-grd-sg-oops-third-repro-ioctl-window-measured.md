@@ -28,6 +28,19 @@
 > single-64-bit-pointer reading is the correct one, and the sharpened form is
 > `V = pfn_to_page(A − 4)` with `A ≡ 0 (mod 256)`.
 
+> **Explained 2026-07-28 by**
+> [`2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md`](2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md).
+> **The measured window is correct, and it contains exactly one instruction.**
+> The map-time sync that proves the left edge runs inside `dma_map_sgtable()` at
+> `system_heap.c:334`; the core then mangles the same table at
+> `dma_buf_map_attachment()` (`dma-buf.c:1142`), immediately after
+> `system_heap_map_dma_buf()` returns. That is the writer.
+>
+> This is also why the window contained **zero kernel-side MPP activity** — the
+> measurement that read as anomalous at the time. It was not anomalous: nothing
+> in the MPP driver was ever in the window. The fingerprint holding 3/3 is
+> likewise expected, since `page_link ^= ~0xffUL` is deterministic.
+
 ## Result
 
 ### It reproduces under tracing, 3/3, and tracing changes nothing

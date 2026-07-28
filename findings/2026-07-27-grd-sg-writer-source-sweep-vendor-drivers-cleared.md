@@ -17,6 +17,23 @@
 >
 > Trust: **SOURCE-INSPECTED** / **INFERRED**. No new runtime measurement.
 
+> **Completed 2026-07-28 by**
+> [`2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md`](2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md).
+> **This sweep's negative result was right.** The vendor MPP driver is not the
+> writer, and no vendor driver is. The writer is `mangle_sg_table()` in
+> `drivers/dma-buf/dma-buf.c` (~:831), gated on `CONFIG_DMABUF_DEBUG` — inside
+> the dma-buf core, which this sweep's scope (`drivers/video/rockchip/`,
+> `system_heap.c`, the `drivers/iommu/` delta) did not cover. `dma-buf.c` itself
+> was never read.
+>
+> One correction. The value analysis below treats the corrupt `page_link` as a
+> page pointer computed from a bad input; it is instead a **correct** page
+> pointer with its high 56 bits inverted (`^ ~0xffUL`). All eight recorded fault
+> addresses invert to valid in-RAM frames. The sharpened fingerprint
+> `V = pfn_to_page(A − 4)`, `A ≡ 0 (mod 256)` is an artifact of that XOR, not a
+> property of a writer's arithmetic. The five latent defects (D01–D05) stand on
+> their own merits and are unaffected.
+
 ## Result
 
 The writer is **not attributed**. What this pass buys is a strong, code-anchored
