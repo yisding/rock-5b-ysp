@@ -19,6 +19,61 @@ lifecycle live in [`README.md` § Status](../README.md).
 > workaround. See the
 > [dated finding](../../../findings/2026-07-22-mali-varying-depth-bias-erratum-workaround.md).
 
+> **Measurement boundary, 2026-07-27:** Forcing zero-valued depth bias on all
+> V9–V10 internal fullscreen blits fixed both affected R32UI geometries in the
+> phase-one matrix and left four ordinary controls exact. That is bounded
+> functional evidence for MR !43161's broad policy, not a performance result or
+> proof of every blit path. GPU devfreq was uncontrolled, the run used KASAN,
+> and the batched timer query did not grow with operation count, so no
+> per-blit-cost number is valid. See the
+> [benchmark result](../../../findings/2026-07-27-mesa-all-blit-workaround-benchmark-results.md).
+
+## Fast re-entry
+
+This page owns the causal mechanism and durable option analysis. Live MR state
+belongs to [`README.md` § Status](../README.md#mr-status);
+dated experiments retain their exact trust and scope in
+[`findings/`](../../../findings/README.md#reconstruct-an-investigation).
+
+| Question to recover | Read | Load-bearing fact |
+|---------------------|------|-------------------|
+| How did a shader-precision test become a blit investigation? | [Starting point](#starting-point) and [reproducer symptom](#reproducer-symptom) | The test's readback expanded RG32UI through a sampled format-changing blit; the CPU fallback was correct and the GPU blit drifted with position. |
+| Was the generated fetch shader obviously wrong? | [Generated shader](#the-generated-shader-was-sensible) and [capture method](#how-the-disassembly-was-captured) | `TEX_FETCH` received an already-imprecise coordinate from `LD_VAR_IMM`; instruction selection was not the first failing boundary. |
+| What isolated the failing mechanism? | [Interpolation probe](#interpolation-probe), [going lower](#going-lower), and [no-u_blitter proof](#the-probe-frame-contains-no-ublitter-work) | Raw varying interpolation drifts without texture fetch, filtering, format conversion, or `u_blitter`; exact fragment position does not. |
+| What did the numeric signature prove—and not prove? | [`2^-10` signature](#what-the-2-10-signature-means) and [`noperspective`](#why-noperspective-did-not-fix-it) | The values fingerprint the measured failure, but the maintainer-confirmed erratum disproves an inherent ten-fractional-bit varying format. |
+| Which alternative explanations were eliminated? | [Hypotheses ruled out](#hypotheses-ruled-out) and [Asahi/AGX boundary](#why-asahiagx-was-not-evidence-that-blit-is-safe) | Compiler precision toggles, filtering, synchronization, triangle choice, and another GPU architecture could not license the Mali-G610 path. |
+| Why not use COMPUTE or a narrow format fallback? | [Options considered](#options-considered) and [AFBC constraint](#the-afbc-constraint-why-compute-only-was-rejected) | COMPUTE avoids the varying path but cannot write AFBC; integer-only fallback misses the identical float corruption. |
+| How does the fragcoord avoidance work? | [Options considered](#options-considered) and [on-device verification](#on-device-verification-2026-07-01) | Exact pixel position plus constant affine scale/offset reconstructs source coordinates without sending a changing texel address through the interpolator. |
+| What changed after the root cause was confirmed? | [Erratum/workaround finding](../../../findings/2026-07-22-mali-varying-depth-bias-erratum-workaround.md) and [triangle matrix](../../../findings/2026-07-24-mali-oblong-triangle-matrix.md) | Zero-valued depth bias selects an unaffected measured path; no tested size/aspect cutoff cleanly describes all failures. |
+| What is the current correctness/performance boundary? | [Benchmark plan](../../../findings/2026-07-27-mali-blit-workaround-performance-benchmark-plan.md) → [benchmark result](../../../findings/2026-07-27-mesa-all-blit-workaround-benchmark-results.md) | The forced broad policy passed its measured R32UI functional subset, but per-blit cost and broader formats/operations remain open. |
+
+### The causal chain
+
+```text
+dEQP precision failure
+  -> format-changing sampled readback blit
+  -> texel chosen from an interpolated coordinate
+  -> raw GL varying probe reproduces the same position-dependent drift
+  -> tiny GL and PanVK probes remove u_blitter/TXF/state-tracker explanations
+  -> maintainer identifies Mali erratum; zero depth bias repairs raw varying/TEX
+  -> geometry matrix rejects simple aspect/size predicates
+  -> forced all-blit A/B closes a bounded correctness subset
+  -> corrected timing boundary + fixed clocks still needed for cost
+```
+
+### Similar results that support different claims
+
+| Do not conflate | Distinction |
+|-----------------|-------------|
+| dEQP shader-precision failure vs faulty GLSL builtin | The builtin test exposed a wide readback conversion; its rendered shader result was not the corrupt stage. |
+| varying erratum vs TXF or `u_blitter` bug | TXF made wrong integer texel selection visible, but pure GL/Vulkan varyings reproduce the failure without it. |
+| `~2^-10` failure signature vs hardware precision format | The magnitude describes selected measurements. It does not define the interpolator's architectural format or the erratum's mechanism. |
+| `gl_FragCoord` reconstruction vs repairing interpolation | Fragcoord routes specific blit coordinates around the affected varying path; unrelated application varyings remain unchanged. |
+| zero-valued depth-bias enable vs moving depth | The descriptor enable bit changes while factor, units, and clamp remain zero; the measured workaround does not numerically bias depth. |
+| passing workaround cases vs exact hardware predicate | The matrix proves affected and unaffected geometries, not a complete product/revision/size/aspect rule. |
+| functional A/B vs workaround cost | Exact pixels prove correctness for the tested operation. Cost requires a timer that owns deferred tile work, fixed clocks, counters/traces, and a production kernel. |
+| fast COMPUTE copy vs blanket transfer solution | COMPUTE timing/correctness cannot erase its AFBC-write limitation. |
+
 ## The idea in plain English
 
 **The problem.** To copy or resize an image, the GPU must know, for each
@@ -721,18 +776,26 @@ search), so the MR description must carry the full justification itself.
 
 ## Bottom Line
 
-For Mali-G610, sampled BLIT texture transfers are unsafe for **any** wide
-format-changing path that derives texel addresses from interpolated varyings
-— integer formats were merely where dEQP could detect it bit-exactly
+For Mali-G610, sampled BLIT texture transfers without an avoidance/workaround
+can be unsafe on wide paths that derive texel addresses from interpolated
+varyings — integer formats were merely where dEQP could detect it bit-exactly
 (`repro_blit_float.c` shows the identical failure on floats). There is no
 local Panfrost compiler toggle that makes `LD_VAR_IMM` exact.
 
-The exact-coordinate escapes are COMPUTE (measured safe and fast, but cannot
-write AFBC, so it cannot be the blanket answer — maintainer-rejected) and
-`gl_FragCoord` (exact everywhere, verified including large offsets and
-constants). **The selected upstream direction (2026-07-01) is the
-`gl_FragCoord` blit rewrite (A1), branch `panfrost-transfer-fragcoord-blit`
-(`2f6e8a6afcc`)**; the state-tracker fallback (B1) was disqualified by the
-float counter-example above, and any compute route (B2) would additionally
-need to prove layout-awareness. See [`README.md` § Status](../README.md) for
-the MR shape and remaining test plan.
+Three escapes now have different scopes. COMPUTE is measured safe and fast but
+cannot write AFBC, so maintainers rejected it as the blanket transfer answer.
+The `gl_FragCoord` rewrite is exact across the tested blit shapes and is carried
+by the open four-MR transfer stack; it avoids the erratum for those generated
+coordinates rather than repairing arbitrary varyings. Zero-valued depth bias
+repairs the measured raw-varying and ordinary-TEX cases and is the basis of MR
+!43161's internal-blitter workaround.
+
+The 2026-07-27 forced-policy A/B closes only its named R32UI functional subset.
+It does **not** quantify recurring cost or validate every format, scaling,
+flipping, scissor, layer, or MSAA path. The next decision-grade performance
+result needs the corrected work-owning timer/counters, descriptor trace, fixed
+GPU/CPU clocks, and an unsanitized kernel. See
+[`README.md` § Status](../README.md#mr-status)
+for the upstream shape and the
+[benchmark result](../../../findings/2026-07-27-mesa-all-blit-workaround-benchmark-results.md)
+for the exact open boundary.
