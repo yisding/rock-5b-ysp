@@ -78,6 +78,36 @@ the dated finding still owns interpretation and trust classification.
 action belongs here; a stale-risk to re-check on every maintenance pass belongs
 in the watchlist.
 
+## Reconstruct an investigation
+
+The generated index below answers **what was learned when**. These curated
+trails answer a different question: **how did the explanation change?** They
+are deliberately selective re-entry paths, not alternate summaries or a
+tutorial sequence.
+
+For a returning thread:
+
+1. Rebuild the vocabulary and mechanism from the maintained model.
+2. Read the dated turning points in order, including any **FALSIFIED**,
+   **SUPERSEDED**, or **PARTIAL** disposition.
+3. Finish at the live boundary before treating an older result as current.
+
+| Thread | Maintained model | Dated turning points | Live boundary |
+|--------|------------------|----------------------|---------------|
+| Forward-port safety and ownership | [Driver task/lifetime model](../kernel-drivers/docs/how-the-drivers-work.md) and [forward-port status](../kernel-drivers/docs/forward-port-status.md) | [ownership audit](2026-07-21-forward-port-lifetime-resource-ownership-audit.md) → [HIGH fixes](2026-07-22-bsp-high-current-tip-port.md) → [6.18.40 KASAN validation](2026-07-25-forward-port-6-18-40-kasan-full-validation.md) → [current scatterlist-corruption trace](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) | [`status.md` track 1](../status.md) and [long-form ledger](../docs/status-ledger.md) |
+| Clean-room rewrite qualification | [Rewrite architecture](../kernel-drivers/docs/rewrite-driver-architecture/README.md) | [defect audit](2026-07-24-rewrite-driver-multi-agent-defect-audit.md) → [first complete KUnit failures](2026-07-26-rewrite-kunit-failure-root-causes.md) → [boot-lifecycle wedge](2026-07-27-rewrite-kunit-boot-lifecycle-wedge.md) → [current fixture/lockdep boundary](2026-07-27-rewrite-reset-import-fixture-lockdep.md) | [`status.md` track 4](../status.md) and [rewrite conformance contract](../kernel-drivers/tests/rewrite-conformance.md) |
+| RGA memory and 10-bit ABI | [userptr/IOMMU model](../kernel-drivers/rga/docs/userptr-iommu.md) and [librga 10-bit contract](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md) | [conformance root causes](2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md) → [legacy byte-stride regression](2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md) → [UV-offset sibling defect](2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md) → [TILE correction](2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md) → [hardware validation](2026-07-25-forward-port-6-18-40-kasan-full-validation.md) | [`status.md` W13/W16](../status.md) |
+| GNOME Remote Desktop end to end | [Capture path](../apps/gnome-remote-desktop/docs/capture-path.md) and [test gates](../apps/gnome-remote-desktop/docs/testing.md) | [MPP input backpressure](2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md) → [RDPGFX ACK wedge](2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md) → [audio validation](2026-07-21-grd-rdp-audio-live-validation-and-codec-control.md) → [first-frame kernel oops](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) | [`status.md` track 7](../status.md) |
+| SD/SPI/U-Boot diagnosis | [Boot-chain model](../boot-firmware/docs/u-boot-primer.md) and [artifact comparison](../boot-firmware/docs/version-comparison.md) | [SD boot investigation](2026-07-09-rock5b-armbian-sd-boot-investigation.md) → [FIT/DTB race](2026-07-13-rock5b-u-boot-fit-dtb-race.md) → [firmware-generation gap](2026-07-24-rock5b-spi-vs-radxa-bsp-firmware-generation-gap.md) | [`status.md` track 12](../status.md) |
+| Ramoops retention | [Maintained retention explanation](../boot-firmware/docs/ramoops-retention.md) | [measured loss](2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md) → [BSP-premise correction](2026-07-24-bsp-vs-armbian-ramoops-gap.md) → [DDR/TPL audit](2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md) → [SPL audit](2026-07-27-rk3588-spl-ramoops-binary-audit.md) → [next temporal experiment](2026-07-27-rk3588-ramoops-next-experiment-plan.md) | [Current evidence contract and next causal experiment](../boot-firmware/docs/ramoops-retention.md#current-evidence-contract) |
+| Desktop VA-API and browser path | [VA-API capability/boundary model](../video-libraries/vaapi/README.md) and [app map](../docs/app-enablement.md) | [fork review](2026-07-21-rockchip-vaapi-driver-review.md) → [bitstream-reconstruction spectrum](2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) → [Main10/AFBC/P010 validation](2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md) → [Firefox RDD policy](2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) | [`status.md` track 14](../status.md) |
+| Mesa/Panfrost blit precision | [Mesa project brief](../video-libraries/mesa/README.md) and [precision model](../video-libraries/mesa/docs/blit-precision.md) | [uncached readback cliff](2026-07-18-mesa-panfrost-uncached-readpixels-convert-cliff.md) → [varying erratum workaround](2026-07-22-mali-varying-depth-bias-erratum-workaround.md) → [oblong-triangle matrix](2026-07-24-mali-oblong-triangle-matrix.md) → [performance experiment](2026-07-27-mali-blit-workaround-performance-benchmark-plan.md) | [`status.md` track 8](../status.md) |
+| CPU voltage binning | [Two-track PVTM/eFuse port model](../kernel-versions/docs/pvtm-opp-binning-plan.md) | [BSP/mainline comparison](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) → [this board's measured L5/L7/L7 selection](2026-07-27-rk3588-pvtm-volt-sel-measured.md) | [`status.md` track 15](../status.md) |
+
+Maintain this table only when a thread gains a better re-entry point or its
+canonical owner changes. Ordinary new findings belong in the generated index;
+they do not all need a trail entry.
+
 ## Index (newest first)
 
 Each generated row is a link plus the finding's exact H1 title. Detailed

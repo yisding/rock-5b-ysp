@@ -35,6 +35,7 @@ not repeat dated status or operational commands because those copies drift.
 |------|------------------|
 | Resume active work and find the next proof | [`status.md`](status.md), especially its dashboard and **Next gates** |
 | Reconstruct why a public state changed | [`docs/status-ledger.md`](docs/status-ledger.md), then its linked dated finding |
+| Reconstruct how a technical explanation evolved | [`findings/` investigation trails](findings/README.md#reconstruct-an-investigation), then the maintained project model |
 | Choose, install, validate, or recover a kernel/media path | [`install.md`](install.md) |
 | Capture the exact board, boot, kernel, and userspace identity | [`docs/system-baseline.md`](docs/system-baseline.md) |
 | Diagnose an unexplained failure or known trap | [`docs/gotchas.md`](docs/gotchas.md) |

@@ -102,6 +102,7 @@ flowchart TB
 | Goal | Path |
 |------|------|
 | Check the repo before handoff | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) -> `bash scripts/check-repo.sh` |
+| Reconstruct a multi-finding investigation | [`../findings/` investigation trails](../findings/README.md#reconstruct-an-investigation) -> maintained project model -> [`../status.md`](../status.md) |
 | Find an unassessed board subsystem or choose the next intake test | [`support-coverage.md`](support-coverage.md) -> [`system-baseline.md`](system-baseline.md) -> [`../findings/`](../findings/README.md) |
 | Understand or diagnose SD/SPI/U-Boot behavior | [`../boot-firmware/`](../boot-firmware/README.md) -> [debugging guide](../boot-firmware/docs/debugging.md) -> [`../status.md`](../status.md) track 12 -> [`../scripts/`](../scripts/README.md) |
 | Compare the validated 6.18 vendor path with maximum-mainline RK3588 support | [`../kernel-versions/`](../kernel-versions/README.md) -> [`../packaging/ppa/kernel-maxline/board-support.md`](../packaging/ppa/kernel-maxline/board-support.md) -> [`../status.md`](../status.md) track 13 |
