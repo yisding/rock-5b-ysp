@@ -15,6 +15,19 @@
 >
 > Trust: **MEASURED** / **SOURCE-INSPECTED** / **INFERRED**
 
+> **Corrected 2026-07-27 by**
+> [`2026-07-27-grd-sg-writer-source-sweep-vendor-drivers-cleared.md`](2026-07-27-grd-sg-writer-source-sweep-vendor-drivers-cleared.md).
+> Two corrections. (1) The window claim below carries an unstated precondition:
+> `system_heap_dma_buf_end_cpu_access()` syncs **every** mapped attachment, and
+> all attachments share the buffer's geometry, so `orig_nents = 24` plus a 1 MiB
+> entry 1 does not establish that the *encoder's* table faulted. The window is
+> pinned only if it did. (2) The two-32-bit-word reading in the fingerprint
+> section — low word plus `0xfffffe00` read as `-ERESTARTSYS` — is an
+> **artifact**: every `struct page *` for pfn in `[0x1000000, 0x5000000)` has
+> high word exactly `0xfffffe00`, so it carries no information. The
+> single-64-bit-pointer reading is the correct one, and the sharpened form is
+> `V = pfn_to_page(A − 4)` with `A ≡ 0 (mod 256)`.
+
 ## Result
 
 ### It reproduces under tracing, 3/3, and tracing changes nothing
