@@ -381,10 +381,11 @@ Recorded medians are in [`../docs/validation.md`](../docs/validation.md).
 
 This is the implementation companion to the
 [per-blit benchmark plan](../../../findings/2026-07-27-mali-blit-workaround-performance-benchmark-plan.md).
-The first six-size A/B run is recorded in the
+The six-size A/B runs are recorded in the
 [benchmark-results finding](../../../findings/2026-07-27-mesa-all-blit-workaround-benchmark-results.md):
-the workaround fixed both affected geometries, but the unlocked clocks and a
-GPU query that did not scale with operation count left per-blit cost unresolved.
+the workaround fixed both affected geometries, and a rerun held every clock
+check at 500 MHz, but the GPU query still did not scale with operation count,
+leaving per-blit cost unresolved.
 Unlike `offset_perf_probe.c`, every counted operation enters
 `glBlitFramebuffer`, rotates through independently initialized `R32UI`
 source/destination FBOs, and therefore asks Mesa to save, bind, draw, and
