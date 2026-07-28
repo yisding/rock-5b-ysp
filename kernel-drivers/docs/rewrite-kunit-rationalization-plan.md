@@ -1,6 +1,6 @@
 # Rewrite KUnit rationalization and fixture-hardening plan
 
-> Status: proposed implementation plan
+> Status: implementation in progress; pre-phase applied
 > Scope: clean-room MPP/RGA rewrite drivers, their KUnit suites, and the YSP
 > validation harness
 > Source reviewed: `rk3588-rewrite-6.18@f6ebe28a3f66` and
@@ -8,6 +8,8 @@
 > First applied checkpoint: reset-import fixture lock initialization at
 > `rk3588-rewrite-6.18@9af4a8816f259` and
 > `rk3588-rewrite-mainline@fb5040f08d833`
+> Pre-phase source tips: `rk3588-rewrite-6.18@669697f23d3d` and
+> `rk3588-rewrite-mainline@a49eb7575f436`
 > Date: 2026-07-27
 
 ## Result
@@ -371,6 +373,10 @@ trees byte-identical in the rewrite driver/ABI files.
 
 ### Pre-phase — land the low-risk containment changes
 
+Applied on 2026-07-28. The two Kconfig defaults landed first, followed by the
+duplicate MPP ABI-case removal; the YSP count consumers and checked
+fixture-debt baseline moved atomically with the new 84/148 source tips.
+
 1. Change both existing rewrite KUnit Kconfig defaults to `n`.
 2. Prove qualification configurations still resolve both symbols to `y`.
 3. Remove `rk_mpp_abi_layout_kunit()` and its registration because the complete
@@ -473,9 +479,9 @@ register recipe still causes a named failure when altered.
 
 ### Phase 6 — replace brittle count-only qualification
 
-The current 85/148 requirement detects omitted cases, but it also turns a
-historical count into an interface. Replace it only after a stronger manifest
-exists.
+The current 84/148 requirement (85/148 before the pre-phase) detects omitted
+cases, but it also turns a historical count into an interface. Replace it only
+after a stronger manifest exists.
 
 1. Generate an expected manifest from the registered source arrays at the
    packaged source pin.

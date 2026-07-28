@@ -9,7 +9,7 @@ qualification verdict and next proof belong to
 and definition of done.
 
 > **Framing.** The targeted userspace surface is code-complete and has MPP
-> **85 KUnit cases** plus RGA **148 KUnit cases** (**233 total**). Exact green
+> **84 KUnit cases** plus RGA **148 KUnit cases** (**232 total**). Exact green
 > booted KTAP is the first qualification rung, not the finish line. These tests
 > are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -28,7 +28,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 
 | Capability | Status in repo | This plan |
 |---|---|---|
-| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh), including `normal`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) focused object-build profiles | reuse as the pre-merge gate; sanitizer profiles are compile coverage only |
+| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh), including `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) focused object-build profiles, opt-in-default config proof, fixture-debt audit, and ABI mutation check | reuse as the pre-merge gate; sanitizer profiles are compile coverage only |
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release, RGA dma-buf import/release, and raw RGA physical-address import observation with an opt-in rewrite reject assertion | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md), including opt-in GStreamer display/KMS-capture, AV1, and legacy advertised-decode diagnostic cases; `VALIDATE_ONLY=1` now also validates MPP/GStreamer case builders, validates FFmpeg case-list wiring, compile-checks the direct `librga-smoke.cpp` source used for maintained RGA artifacts, runs comparator and evidence-audit selftests, and attempts an optional `gstreamer-event-harness.c` build when GStreamer development headers are installed | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing plus AFBC16x16 and tile8x8 round-trips, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
@@ -51,7 +51,7 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 233 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 232 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
@@ -640,7 +640,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 233 KUnit cases green **under KASAN** (85 MPP + 148 RGA), persisted from the
+1. 232 KUnit cases green **under KASAN** (84 MPP + 148 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

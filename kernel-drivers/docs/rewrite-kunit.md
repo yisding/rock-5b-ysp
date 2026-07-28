@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when all **85 MPP + 148 RGA cases** pass without skips **and** the
+green only when all **84 MPP + 148 RGA cases** pass without skips **and** the
 same kernel-log interval is free of sanitizer reports, warnings, lockdep
 findings, refcount failures, and media/IOMMU faults.
 
@@ -37,7 +37,7 @@ Each suite is compiled in the same translation unit as its driver:
 
 | Suite | Source | Kconfig symbol | Registered cases |
 |-------|--------|----------------|-----------------:|
-| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 85 |
+| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 84 |
 | `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 148 |
 
 The test blocks are guarded with `IS_ENABLED()` and registered with
@@ -58,9 +58,11 @@ contract is required: simply delaying driver registration to a later initcall
 still registers it before boot KUnit and lets the fixture initializer destroy
 live state.
 
-Both test symbols depend on their rewrite driver and `KUNIT`; their Kconfig
-default follows `KUNIT_ALL_TESTS`. Do not rely on that default for a validation
-build. A boot used as YSP evidence must have all of these resolved to `y`:
+Both test symbols depend on their rewrite driver and `KUNIT`; they default to
+`n` even when `KUNIT_ALL_TESTS=y` because their current lifecycle callbacks
+unbind/reprobe live rewrite drivers and use production singletons as fixture
+storage. A qualification build must select both explicitly. A boot used as YSP
+evidence must have all of these resolved to `y`:
 
 ```text
 CONFIG_KUNIT=y
@@ -89,11 +91,11 @@ hardware throughput:
 
 | Driver | Case region | Main subjects |
 |--------|-------------|---------------|
-| MPP | 1–21 | ABI layout, message parsing, topology, register and DMA bounds |
-| MPP | 22–43 | RKVDEC2 CCU modes, link descriptors/tables, ownership, RCB/cache setup |
-| MPP | 44–57 | IRQ ownership, scheduling, IOMMU faults, timeout generations, recovery |
-| MPP | 58–65 | Encoder slices, bitstream overflow, DCHS, watchdogs, RCB validation |
-| MPP | 66–85 | Sessions, batch operation, imports, polling, abort/close teardown, event ring |
+| MPP | 1–20 | Message parsing, topology, register and DMA bounds |
+| MPP | 21–42 | RKVDEC2 CCU modes, link descriptors/tables, ownership, RCB/cache setup |
+| MPP | 43–56 | IRQ ownership, scheduling, IOMMU faults, timeout generations, recovery |
+| MPP | 57–64 | Encoder slices, bitstream overflow, DCHS, watchdogs, RCB validation |
+| MPP | 65–84 | Sessions, batch operation, imports, polling, abort/close teardown, event ring |
 | RGA | 1–20 | Feature validation and RGA2/RGA3 register emission |
 | RGA | 21–44 | Request parsing, ioctls, job state, and file lifetime |
 | RGA | 45–61 | Imports, fences, layouts, planes, offsets, and strides |
@@ -127,6 +129,16 @@ established before calling the function under test. In particular:
   documented ABI changes—do not weaken a production validator merely to keep
   an old fixture green.
 
+The focused build gate runs
+[`rewrite-kunit-source-audit.py`](../tests/rewrite-kunit-source-audit.py)
+against both KUnit regions before compiling. Its checked
+[`rewrite-kunit-source-audit-baseline.tsv`](../tests/rewrite-kunit-source-audit-baseline.tsv)
+records the current lexical fixture-debt signals. Removing a signal passes;
+adding singleton access, FD/raw allocation, a stack async owner, a manual list
+link, or a fatal assertion after acquisition but before cleanup registration
+fails. This is a regression guard and inventory aid, not proof that baselined
+fixtures are safe.
+
 Warnings are fixture failures too. Unbalanced preemption/IRQ state, an active
 stack work item, a refcount warning, or a debug-object complaint invalidates the
 run even if every assertion produced `ok`.
@@ -152,14 +164,19 @@ generated files or stale objects in a developer worktree cannot conceal a
 failure:
 
 ```bash
-REWRITE_BUILD_PROFILES='normal memory race' JOBS=8 \
+REWRITE_BUILD_PROFILES='normal test-disabled memory race' JOBS=8 \
+  bash kernel-drivers/tests/rewrite-build-gate.sh all
+
+REWRITE_BUILD_PROFILES=test-disabled VERIFY_ABI_STATIC_ASSERT=1 JOBS=8 \
   bash kernel-drivers/tests/rewrite-build-gate.sh all
 ```
 
-The profiles build both rewrite objects with KUnit enabled, the Rockchip IOMMU
-provider, and the Rock 5B DTB. `memory` adds KASAN and fault-injection options;
-`race` adds KCSAN and lockdep. These are **compile profiles**—success proves
-that the selected code builds warning-free, not that KUnit ran.
+The profiles build both rewrite objects, the Rockchip IOMMU provider, and the
+Rock 5B DTB. `test-disabled` proves no KUnit-only dependency leaked into the
+production object; `memory` adds KASAN and fault-injection options; `race` adds
+KCSAN and lockdep. The optional mutation check proves the ABI constants remain
+compile-time-owned. These are **compile profiles**—success proves that the
+selected code builds warning-free, not that KUnit ran.
 
 Build the bootable KASAN/lockdep flavor with:
 
@@ -201,7 +218,7 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 85 MPP or 148 RGA |
+| Inner KTAP plan | exactly 84 MPP or 148 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
@@ -303,9 +320,10 @@ fixture's DCHS spinlock and made debug-state capture fail fast. Booted
 6.18.40 KASAN/UBSAN/lockdep/kmemleak package `P91d6-Cad24` contained that
 repair and completed exact 85+148 KTAP, but case 83 exposed the same omission
 in `rk_mpp_reset_session_hw_active_import_kunit()` and disabled lockdep before
-RGA. Current tips `9af4a8816f259` / `fb5040f08d833` initialize the second
-fixture too; the later-case/RGA fixture audit found no other reachable
-uninitialized lock. See the
+RGA. Current tips `669697f23d3df` / `a49eb7575f436` retain the second fixture
+repair, make both suites opt-in, and remove the compile-time-owned ABI runtime
+case; the later-case/RGA fixture audit found no other reachable uninitialized
+lock. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 Do not promote KTAP, compile, or package results into a runtime pass until the
 entire compound evidence above is clean on a successor kernel.

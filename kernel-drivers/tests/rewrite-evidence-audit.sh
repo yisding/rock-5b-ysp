@@ -19,7 +19,7 @@ REQUIRE_ARTIFACTS=${REQUIRE_ARTIFACTS:-1}
 REQUIRE_COUNTER_DELTAS=${REQUIRE_COUNTER_DELTAS:-1}
 REQUIRE_DMESG_EVIDENCE=${REQUIRE_DMESG_EVIDENCE:-1}
 REQUIRE_KUNIT_EVIDENCE=${REQUIRE_KUNIT_EVIDENCE:-}
-KUNIT_EVIDENCE_SUITES=${KUNIT_EVIDENCE_SUITES:-"rk_mpp_rewrite:85 rockchip-rga-rewrite:148"}
+KUNIT_EVIDENCE_SUITES=${KUNIT_EVIDENCE_SUITES:-"rk_mpp_rewrite:84 rockchip-rga-rewrite:148"}
 REQUIRE_DIAGNOSTIC_PASS=${REQUIRE_DIAGNOSTIC_PASS:-0}
 AUDIT_REQUIRED_CASES=${AUDIT_REQUIRED_CASES:-}
 REQUIRE_MPP_CORE_CASES=${REQUIRE_MPP_CORE_CASES:-}
@@ -738,14 +738,14 @@ selftest()
 	mkdir -p "$tmp_root/logs/$CANDIDATE"
 	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" <<EOF
 suite	expected_cases	plan_cases	result_cases	failed_cases	skipped_cases	summary	verdict	kernel_release
-rk_mpp_rewrite	85	85	85	0	0	ok	pass	6.18.0-rewrite
+rk_mpp_rewrite	84	84	84	0	0	ok	pass	6.18.0-rewrite
 rockchip-rga-rewrite	148	148	148	0	0	ok	pass	6.18.0-rewrite
 EOF
 	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv" <<EOF
 field	value
 status	clean
 interval_status	0
-interval_lines	233
+interval_lines	232
 fatal_lines	0
 lockdep_state	1
 EOF
@@ -777,7 +777,7 @@ EOF
 	sed -i 's/status\tfatal/status\tclean/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/dmesg-scan.tsv"
 
-	sed -i 's/rk_mpp_rewrite\t85\t85\t85\t0\t0\tok\tpass/rk_mpp_rewrite\t85\t85\t85\t1\t0\tnot-ok\tfail/' \
+	sed -i 's/rk_mpp_rewrite\t84\t84\t84\t0\t0\tok\tpass/rk_mpp_rewrite\t84\t84\t84\t1\t0\tnot-ok\tfail/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
 		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
@@ -786,7 +786,7 @@ EOF
 		printf "selftest expected failing KUnit evidence to fail\n" >&2
 		return 1
 	fi
-	sed -i 's/rk_mpp_rewrite\t85\t85\t85\t1\t0\tnot-ok\tfail/rk_mpp_rewrite\t85\t85\t85\t0\t0\tok\tpass/' \
+	sed -i 's/rk_mpp_rewrite\t84\t84\t84\t1\t0\tnot-ok\tfail/rk_mpp_rewrite\t84\t84\t84\t0\t0\tok\tpass/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
 
 	sed -i 's/status\tclean/status\tfatal/; s/fatal_lines\t0/fatal_lines\t1/' \

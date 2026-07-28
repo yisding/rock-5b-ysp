@@ -22,6 +22,7 @@ ALLOW_DIRTY="${ALLOW_DIRTY:-0}"
 FAIL_ON_WARNING="${FAIL_ON_WARNING:-1}"
 REWRITE_BUILD_PROFILES="${REWRITE_BUILD_PROFILES:-normal}"
 REWRITE_BUILD_TMP_ROOT="${REWRITE_BUILD_TMP_ROOT:-$(dirname "$ROOT_DIR")}"
+VERIFY_ABI_STATIC_ASSERT="${VERIFY_ABI_STATIC_ASSERT:-0}"
 
 TARGETS=(
   drivers/iommu/rockchip-iommu.o
@@ -46,12 +47,16 @@ Environment:
   ALLOW_DIRTY=1     allow dirty kernel worktrees, but still build HEAD archive
   FAIL_ON_WARNING=0 do not fail on "warning:" lines in the build log
   REWRITE_BUILD_PROFILES
-                    space-separated profiles: normal, memory, race
+                    space-separated profiles: normal, test-disabled, memory, race
                     normal: KUnit-enabled provider/rewrite/DTB build (default)
+                    test-disabled: same targets with both rewrite KUnit suites off
                     memory: KASAN/fault-injection provider/rewrite/DTB build
                     race: KCSAN/lockdep provider/rewrite/DTB build
   REWRITE_BUILD_TMP_ROOT
                     scratch-directory parent (default: parent of this repo)
+  VERIFY_ABI_STATIC_ASSERT=1
+                    mutate the MPP ABI size in a test-disabled profile and
+                    require the existing static assertion to fail compilation
 EOF
 }
 
@@ -81,6 +86,12 @@ check_clean_tree() {
   fi
 }
 
+audit_kunit_source() {
+  local tree="$1"
+
+  python3 "$TEST_DIR/rewrite-kunit-source-audit.py" "$tree"
+}
+
 set_rewrite_config() {
   local src="$1"
   local out="$2"
@@ -108,6 +119,11 @@ set_profile_config() {
 
   case "$profile" in
   normal)
+    ;;
+  test-disabled)
+    "$src/scripts/config" --file "$out/.config" \
+      -d ROCKCHIP_MPP_REWRITE_KUNIT_TEST \
+      -d ROCKCHIP_RGA_REWRITE_KUNIT_TEST
     ;;
   memory)
     "$src/scripts/config" --file "$out/.config" \
@@ -155,6 +171,47 @@ require_config() {
   fi
 }
 
+require_config_disabled() {
+  local config="$1"
+  local symbol="$2"
+
+  if grep -Eq "^CONFIG_${symbol}=[ym]$" "$config"; then
+    echo "required config resolved enabled: CONFIG_${symbol}" >&2
+    grep -E "CONFIG_(ROCKCHIP_(MPP|RGA)_REWRITE_KUNIT_TEST|KUNIT_ALL_TESTS)" \
+      "$config" >&2 || true
+    exit 1
+  fi
+}
+
+check_opt_in_defaults() {
+  local src="$1"
+  local out="$2"
+  local config="$out/.config.kunit-all"
+
+  cp "$out/.config" "$config"
+  "$src/scripts/config" --file "$config" \
+    -e ARCH_ROCKCHIP \
+    -d ROCKCHIP_MPP_SERVICE \
+    -d ROCKCHIP_MULTI_RGA \
+    -d VIDEO_ROCKCHIP_RGA \
+    -e KUNIT \
+    -e KUNIT_ALL_TESTS \
+    -e ROCKCHIP_MPP_REWRITE \
+    -u ROCKCHIP_MPP_REWRITE_KUNIT_TEST \
+    -e ROCKCHIP_RGA_REWRITE \
+    -u ROCKCHIP_RGA_REWRITE_KUNIT_TEST
+  make -C "$src" O="$out" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
+    KCONFIG_CONFIG="$config" olddefconfig >/dev/null
+  for symbol in KUNIT_ALL_TESTS ROCKCHIP_MPP_REWRITE ROCKCHIP_RGA_REWRITE; do
+    if ! grep -qx "CONFIG_${symbol}=y" "$config"; then
+      echo "opt-in default proof lost required parent: CONFIG_${symbol}" >&2
+      exit 1
+    fi
+  done
+  require_config_disabled "$config" ROCKCHIP_MPP_REWRITE_KUNIT_TEST
+  require_config_disabled "$config" ROCKCHIP_RGA_REWRITE_KUNIT_TEST
+}
+
 configure_tree() {
   local label="$1"
   local tree="$2"
@@ -171,6 +228,7 @@ configure_tree() {
     make -C "$src" O="$out" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" defconfig
   fi
 
+  check_opt_in_defaults "$src" "$out"
   set_rewrite_config "$src" "$out"
   set_profile_config "$src" "$out" "$profile"
   make -C "$src" O="$out" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" olddefconfig
@@ -179,14 +237,20 @@ configure_tree() {
   require_config "$out" ARCH_ROCKCHIP
   require_config "$out" ROCKCHIP_IOMMU
   require_config "$out" ROCKCHIP_MPP_REWRITE
-  require_config "$out" ROCKCHIP_MPP_REWRITE_KUNIT_TEST
   require_config "$out" ROCKCHIP_RGA_REWRITE
-  require_config "$out" ROCKCHIP_RGA_REWRITE_KUNIT_TEST
 
   case "$profile" in
   normal)
+    require_config "$out" ROCKCHIP_MPP_REWRITE_KUNIT_TEST
+    require_config "$out" ROCKCHIP_RGA_REWRITE_KUNIT_TEST
+    ;;
+  test-disabled)
+    require_config_disabled "$out/.config" ROCKCHIP_MPP_REWRITE_KUNIT_TEST
+    require_config_disabled "$out/.config" ROCKCHIP_RGA_REWRITE_KUNIT_TEST
     ;;
   memory)
+    require_config "$out" ROCKCHIP_MPP_REWRITE_KUNIT_TEST
+    require_config "$out" ROCKCHIP_RGA_REWRITE_KUNIT_TEST
     require_config "$out" KASAN
     require_config "$out" FAULT_INJECTION
     require_config "$out" FAILSLAB
@@ -194,10 +258,38 @@ configure_tree() {
     require_config "$out" FAULT_INJECTION_USERCOPY
     ;;
   race)
+    require_config "$out" ROCKCHIP_MPP_REWRITE_KUNIT_TEST
+    require_config "$out" ROCKCHIP_RGA_REWRITE_KUNIT_TEST
     require_config "$out" KCSAN
     require_config "$out" PROVE_LOCKING
     ;;
   esac
+}
+
+verify_abi_static_assert() {
+  local src="$1"
+  local out="$2"
+  local log="$3"
+  local source="$src/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+
+  sed -i \
+    's/^#define RK_MPP_MSG_V1_ABI_SIZE[[:space:]]*24$/#define RK_MPP_MSG_V1_ABI_SIZE			25/' \
+    "$source"
+  if ! grep -qx '#define RK_MPP_MSG_V1_ABI_SIZE[[:space:]]*25' "$source"; then
+    echo "failed to apply deliberate MPP ABI mutation" >&2
+    exit 1
+  fi
+  if make -C "$src" O="$out" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
+    -j "$JOBS" drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o \
+    >"$log" 2>&1; then
+    echo "deliberate MPP ABI mutation unexpectedly compiled" >&2
+    exit 1
+  fi
+  if ! grep -Eiq 'static assertion failed|static_assert' "$log"; then
+    echo "MPP ABI mutation failed for an unexpected reason; see $log" >&2
+    exit 1
+  fi
+  echo "PASS: deliberate MPP ABI mutation failed at compile time"
 }
 
 build_one_profile() {
@@ -211,6 +303,7 @@ build_one_profile() {
   local log
 
   check_clean_tree "$tree"
+  audit_kunit_source "$tree"
   commit="$(git -C "$tree" rev-parse --short=12 HEAD)"
   mkdir -p "$REWRITE_BUILD_TMP_ROOT"
   profile_tmp="$(mktemp -d "$REWRITE_BUILD_TMP_ROOT/rkcompat-rewrite-build.$label.$profile.XXXXXX")"
@@ -232,6 +325,14 @@ build_one_profile() {
   if [ "$FAIL_ON_WARNING" = 1 ] && grep -i "warning:" "$log"; then
     echo "[$label/$profile] build completed but emitted warnings; see $log" >&2
     exit 1
+  fi
+
+  if [ "$VERIFY_ABI_STATIC_ASSERT" = 1 ]; then
+    if [ "$profile" != test-disabled ]; then
+      echo "VERIFY_ABI_STATIC_ASSERT=1 requires the test-disabled profile" >&2
+      exit 2
+    fi
+    verify_abi_static_assert "$src" "$out" "$profile_tmp/abi-mutation.log"
   fi
 
   echo "[$label/$profile] PASS: clean rewrite object build at $commit"

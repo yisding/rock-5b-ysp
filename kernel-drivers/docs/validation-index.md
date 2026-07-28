@@ -29,8 +29,8 @@ If two docs disagree, the table above wins — for the *concerns* it routes. It
 does not win on a moving commit hash or a gate result whose owning doc is
 fresher; check the date on both before treating a row here as current.
 
-Current reconciled numbers are **MPP KUnit = 85, RGA KUnit = 148, total = 233**
-(the gate scripts require exactly `85`/`148`). Older docs may still cite the
+Current reconciled numbers are **MPP KUnit = 84, RGA KUnit = 148, total = 232**
+(the gate scripts require exactly `84`/`148`). Older docs may still cite the
 superseded `86`/`122`/`208` at tips `8469183da227` / `9ff18809b5e0`.
 
 ## Comparative disposition
@@ -60,8 +60,8 @@ Its operational conclusion is:
 | KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ⚠️ booted KUnit exposed fixture Oops/UAF; no real MPP/RGA workload completed |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | `*-repro.c`, `rga-session-uaf.sh` | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
-| Booted KUnit (85 MPP + 148 RGA = 233) | `rewrite-kunit-log-check.sh` | — | ⚠️ `P91d6-Cad24` completed exact 85+148 KTAP, but MPP case 83 reached DCHS release through a second zeroed local service and disabled lockdep before RGA. Current tips initialize that reset/import fixture too; the checker automatically gates the entire fatal-signature interval and live lockdep before ABI/media work. A clean compound rerun remains required. |
-| Clean-source build gate (normal/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ current 6.18 `9af4a88` passes normal, KASAN/fault-injection memory, and KCSAN/lockdep race profiles; strict checkpatch and byte identity with mainline `fb5040f` pass. Mainline's focused normal profile also passes. The fix remains unbooted. |
+| Booted KUnit (84 MPP + 148 RGA = 232 current gate) | `rewrite-kunit-log-check.sh` | — | ⚠️ Historical package `P91d6-Cad24` completed its then-current exact 85+148 KTAP, but MPP case 83 reached DCHS release through a second zeroed local service and disabled lockdep before RGA. Current tips initialize that reset/import fixture, make both lifecycle suites opt-in, and remove the compile-time-owned ABI-layout runtime case; the checker gates the new 84+148 plan, the entire fatal-signature interval, and live lockdep before ABI/media work. A clean compound rerun remains required. |
+| Clean-source build gate (normal/test-disabled/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ Current 6.18 `669697f` and mainline `a49eb75` pass KUnit-enabled normal plus test-disabled clean-archive builds, including ordinary `KUNIT_ALL_TESTS=y` opt-in-default proof and a deliberate ABI-size mutation that fails compilation through the existing static assertion. The preceding 6.18 `9af4a88` also passed KASAN/fault-injection memory and KCSAN/lockdep race profiles. The current source remains unbooted. |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ not run |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`, `syzkaller/` | ⚠️ ran without KCOV | ❌ |
@@ -142,9 +142,10 @@ before media qualification can start. Sequenced:
 0. **Prereqs:** land the active-fence counter in the rewrite driver; obtain an
    AVS2 elementary-stream asset (cannot be generated). `P91d6-Cad24` is
    disqualified by the case-83 lockdep report.
-1. **Current clean build gate:** 6.18 normal/memory/race complete at
-   `9af4a88`; mainline normal complete at `fb5040f`.
-2. **Build and boot a successor package from `9af4a88`**; persist a **233-case green
+1. **Current clean build gate:** normal and test-disabled profiles pass on
+   6.18 `669697f` and mainline `a49eb75`; memory/race remain inherited
+   compile evidence from the unchanged production paths at parent `9af4a88`.
+2. **Build and boot a successor package from `669697f`**; persist a **232-case green
    KUnit report plus complete clean interval and live-lockdep report**
    (`rewrite-kunit-log-check.sh`) tied to the boot fingerprint.
 3. **P1 smoke** (`rewrite-smoke.sh`) then **P2 conformance**: all four suites

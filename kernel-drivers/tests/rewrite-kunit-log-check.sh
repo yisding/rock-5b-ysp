@@ -8,7 +8,7 @@ REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 source "$TEST_DIR/suite-common.sh"
 
 KUNIT_DEBUGFS_ROOT=${KUNIT_DEBUGFS_ROOT:-/sys/kernel/debug/kunit}
-KUNIT_REQUIRED_SUITES=${KUNIT_REQUIRED_SUITES:-"rk_mpp_rewrite:85 rockchip-rga-rewrite:148"}
+KUNIT_REQUIRED_SUITES=${KUNIT_REQUIRED_SUITES:-"rk_mpp_rewrite:84 rockchip-rga-rewrite:148"}
 KUNIT_REPORT=${KUNIT_REPORT:-}
 KUNIT_DMESG_SOURCE=${KUNIT_DMESG_SOURCE:-}
 KUNIT_DEBUG_LOCKS_FILE=${KUNIT_DEBUG_LOCKS_FILE:-/proc/sys/kernel/debug_locks}
@@ -206,6 +206,7 @@ selftest()
 	local suite
 	local count
 	local i
+	local mpp_count
 
 	tmp_root=$(mktemp -d "${TMPDIR:-$REPO_ROOT}/.rewrite-kunit-check.XXXXXX")
 	trap 'rm -rf "$tmp_root"' RETURN
@@ -217,6 +218,9 @@ selftest()
 	for spec in $KUNIT_REQUIRED_SUITES; do
 		suite=${spec%%:*}
 		count=${spec#*:}
+		if [ "$suite" = rk_mpp_rewrite ]; then
+			mpp_count=$count
+		fi
 		mkdir -p "$tmp_root/$suite"
 		{
 			printf "KTAP version 1\n1..1\n"
@@ -291,7 +295,8 @@ selftest()
 	sed -i '0,/    not ok 1 - case_1/s//    ok 1 - case_1/' \
 		"$tmp_root/rk_mpp_rewrite/results"
 
-	sed -i '/    ok 85 - case_85/d' "$tmp_root/rk_mpp_rewrite/results"
+	sed -i "/    ok $mpp_count - case_$mpp_count/d" \
+		"$tmp_root/rk_mpp_rewrite/results"
 	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
 		echo "incomplete KUnit result set unexpectedly passed" >&2
 		return 1

@@ -1134,5 +1134,106 @@ class FatalSignatureScanTests(unittest.TestCase):
         self.assertIn('grep -aiE "$SUITE_DMESG_FATAL_RE"', source)
 
 
+class RewriteKunitSourceAuditTests(unittest.TestCase):
+    audit = (
+        REPO_ROOT
+        / "kernel-drivers"
+        / "tests"
+        / "rewrite-kunit-source-audit.py"
+    )
+
+    def write_source(
+        self, root: Path, relative: str, config: str, body: str
+    ) -> None:
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"#if IS_ENABLED({config})\n"
+            "static void fixture_kunit(struct kunit *test)\n"
+            "{\n"
+            f"{body}"
+            "}\n"
+            "static struct kunit_suite fixture_suite = {};\n"
+            "kunit_test_suite(fixture_suite);\n"
+            "#endif\n",
+            encoding="utf-8",
+        )
+
+    def make_tree(self, root: Path, body: str) -> None:
+        self.write_source(
+            root,
+            "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c",
+            "CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST",
+            body,
+        )
+        self.write_source(
+            root,
+            "drivers/video/rockchip/rga-rewrite/rga_rewrite.c",
+            "CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST",
+            body,
+        )
+
+    def run_audit(
+        self, tree: Path, baseline: Path, *options: str
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(self.audit),
+                "--baseline",
+                str(baseline),
+                *options,
+                str(tree),
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_known_fixture_debt_passes_but_new_signal_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            original = (
+                "\tvoid *item;\n"
+                "\titem = kzalloc(16, GFP_KERNEL);\n"
+                "\tKUNIT_ASSERT_NOT_NULL(test, item);\n"
+            )
+            self.make_tree(tree, original)
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+
+            known = self.run_audit(tree, baseline)
+            self.assertEqual(known.returncode, 0, known.stderr)
+
+            self.make_tree(
+                tree,
+                original + "\tlist_add_tail(&item->link, &rk_mpp_srv.hw_list);\n",
+            )
+            changed = self.run_audit(tree, baseline)
+            self.assertEqual(changed.returncode, 1)
+            self.assertIn("NEW\tmanual-list-link", changed.stderr)
+            self.assertIn("NEW\tproduction-singleton-access", changed.stderr)
+
+    def test_resolved_fixture_debt_does_not_require_rebaselining(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(
+                tree,
+                "\tvoid *item;\n"
+                "\titem = kzalloc(16, GFP_KERNEL);\n"
+                "\tKUNIT_ASSERT_NOT_NULL(test, item);\n",
+            )
+            updated = self.run_audit(tree, baseline, "--update-baseline")
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+
+            self.make_tree(tree, "\tKUNIT_EXPECT_EQ(test, 1, 1);\n")
+            resolved = self.run_audit(tree, baseline)
+            self.assertEqual(resolved.returncode, 0, resolved.stderr)
+            self.assertIn("baseline entries absent", resolved.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

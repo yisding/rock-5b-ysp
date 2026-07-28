@@ -548,7 +548,7 @@ BSP-derived RGA                   rewrite RGA
 | MPP code/build lines | 18,442, including AV1, compatibility headers, and legacy-SoC helpers | 14,118 including 4,653 KUnit lines; 9,465 without KUnit |
 | RGA code/build lines | 21,160 | 23,990 including 10,692 KUnit lines; 13,298 without KUnit |
 | ABI ledger | External project documentation and vendor headers | 648-line MPP and 633-line RGA in-tree `ABI.rst` files |
-| In-driver KUnit | None comparable | 85 MPP + 148 RGA cases |
+| In-driver KUnit | None comparable | 84 MPP + 148 RGA cases |
 | Primary verification style | Board conformance, sanitizer builds, hostile reproducers, production runs | KUnit/build profiles first, then the same board suites and differential artifacts |
 
 The modular BSP layout is easier to browse file by file. The rewrite keeps an
@@ -578,7 +578,7 @@ interleaves test and runtime code in unusually large translation units.
 | Session/job/hardware/import ownership makes asynchronous lifetime and close/remove order locally auditable. | Refcount, lock, generation, work-cancel, and quarantine state machines add substantial implementation complexity. |
 | Fail-closed ABI, address-provenance, topology, hardware-ID, and reset checks reduce silent unsafe behavior. | Strict rejection can expose compatibility gaps only when real userspace reaches them. |
 | Exact active-slot claims and generation-aware recovery directly address bug classes seen in the BSP architecture. | Clearer architecture has not prevented rewrite-specific recovery, fixture, DT-resource, and shared-IRQ defects. |
-| 233 KUnit cases and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
+| 232 KUnit cases and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
 | Lower non-test source footprint: roughly half-size MPP and 37% smaller RGA runtime slices. | No successful current-tip media-hardware, production-performance, fuzz, or soak record yet. |
 | Better long-term candidate if hardware parity is demonstrated. | Higher immediate qualification risk. |
 
