@@ -13,6 +13,30 @@ covers the userspace libraries.
 > it, reconstruct the tree per [source-tree pins](../../docs/source-trees.md) (apply the patch
 > to mainline v6.18).
 
+## Fast re-entry
+
+After time away, read the [eight-step mental model](#10-putting-it-together-a-mental-model)
+first. Then use this map to restore only the mechanism you need:
+
+| Question to recover | Read | Load-bearing fact |
+|---------------------|------|-------------------|
+| What does the kernel own? | [§2](#2-the-software-stack-who-talks-to-whom) | Userspace parses codecs, manages frame pools, and builds register recipes; the kernel validates, maps, schedules, runs, and completes them. |
+| What happens to one frame-sized job? | [§3](#3-how-one-task-is-processed-the-lifecycle-protocol) and [§3a](#3a-completion-timeout-reset-for-driver-devs) | A per-open session submits a batched request; IRQ and timeout race through one completion owner before result readback or reset. |
+| Why can stages share frames without copying? | [§5](#5-key-concept-dma-buf-sharing-memory-without-copying) and [§5a](#5a-rgas-fences-ordering-async-work-dma-fence-syncfile) | A dma-buf fd names shared storage; import references keep mappings alive, while fences order asynchronous access. |
+| What address does the accelerator use? | [§6](#6-key-concept-the-iommu-and-why-the-hardware-sees-fake-addresses) | The device consumes an IOVA created for its IOMMU domain—not the userspace pointer, fd number, or physical address. |
+| How are two codec cores coordinated? | [§7](#7-key-concept-multi-core-coordination-the-ccu-and-the-dchs) | Decoder coordination uses a real CCU block; encoder coordination uses software scheduling plus per-core DCHS hardware. |
+| What are SRAM, RCB, and link mode doing? | [§8](#8-key-concept-on-chip-sram-the-decoders-scratchpad-hardware-link-mode) | RCB is scratch-memory placement; link mode is descriptor-driven task chaining. They improve different parts of decode. |
+| Where is the security boundary? | [§9](#9-how-registers-actually-drive-the-hardware) | Userspace supplies offsets, sizes, register values, and buffer references; the kernel must bound and translate them before touching hardware. |
+
+For a complete vertical trace of one decode, follow the same operation across
+the documentation layers:
+
+1. [libmpp parses and builds the recipe](../../vendor-libraries/docs/how-the-userspace-libs-work.md#a4-how-a-decode-flows-and-where-it-meets-the-kernel).
+2. [The MPP uAPI carries the recipe](dev-uapis.md#a-devmppservice-the-mpp-uapi).
+3. [The kernel creates and completes the task](#3-how-one-task-is-processed-the-lifecycle-protocol).
+4. [The IOMMU turns scattered pages into the device address space](../iommu/docs/01-iommu-primer.md#mental-model-to-carry-into-the-next-docs).
+5. [The device tree supplies cores, IRQs, IOMMUs, clocks, and coordination](device-tree.md#what-each-driver-reads-from-the-dt).
+
 ---
 
 ## 1. What problem do these solve?

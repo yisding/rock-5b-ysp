@@ -16,6 +16,31 @@ and exactly where they meet the kernel. Same format: **In plain terms**, then
 > stage** these libraries (staging prefix, pkg-config layout, pinned versions),
 > follow [`video-libraries/ffmpeg/README.md`](../../video-libraries/ffmpeg/README.md).
 
+## Fast re-entry
+
+Start with the [six-step mental model](#part-d-mental-model), then jump by the
+question you are trying to recover:
+
+| Question to recover | Read | Load-bearing fact |
+|---------------------|------|-------------------|
+| Where does userspace stop and the kernel begin? | [§0](#0-where-these-libraries-sit) | The libraries decide what work means and build the hardware recipe; the kernel validates and runs it. |
+| What API does a codec client actually call? | [§A2](#a2-the-api-you-call-mpi) | MPI offers simple push/pull calls and an advanced port/task cycle over the same codec engine. |
+| How does compressed input become a hardware task? | [§A3](#a3-the-layers-inside-libmpp) and [§A4](#a4-how-a-decode-flows-and-where-it-meets-the-kernel) | Parser/control state becomes a HAL register recipe, then the OSAL batches it into the MPP uAPI. |
+| Who allocates and retains frame memory? | [§A5](#a5-buffers-where-the-dma-bufs-come-from) | `MppBufferGroup` and `MppBufSlots` own userspace reuse/reference lifetime; dma-buf imports keep the kernel mapping alive. |
+| Which librga API and layer should I inspect? | [§B2](#b2-two-apis-pick-your-altitude) and [§B3](#b3-the-layers-inside-librga) | IM2D is the higher-level contract; both APIs normalize into the same request path. |
+| How does RGA completion and batching work? | [§B4](#b4-how-a-2d-op-flows-sync-vs-async) and [§B5](#b5-describing-memory-and-batching-jobs) | Sync waits in the call; async returns a fence. Multi-task request semantics are separate from cross-request concurrency. |
+| How do libmpp and librga form a pipeline? | [Part C](#part-c-how-they-fit-together-the-transcode) | The same dma-buf storage crosses decode → RGA → encode; each device gets its own mapping of that storage. |
+
+### Similar names that belong to different layers
+
+| Do not conflate | Distinction |
+|-----------------|-------------|
+| **libmpp** vs the kernel **MPP framework** | libmpp parses codecs, manages frames, and builds recipes in userspace; `/dev/mpp_service` routes and executes those recipes in the kernel. |
+| userspace **`MppTask`** vs kernel **`mpp_task`** | The MPI port object carries application metadata and buffers; the kernel task is the validated register submission queued to a hardware block. They describe the same unit of useful work at different boundaries, not one shared struct. |
+| dma-buf **fd** vs **IOVA** vs physical address | The fd is a process-visible handle to shared storage; each importing device obtains an IOVA; the IOMMU resolves that IOVA to backing pages. |
+| `ffmpeg-rockchip` rkmpp vs upstream-style FFmpeg rkmpp | Both use libmpp and expose similar codec names, but they have different hwcontext, control, RGA, and packaging behavior. Check the implementation comparison before explaining a result. |
+| RGA **async fence** vs multi-task **sequential** flag | A fence reports completion of a submitted async request; the sequential flag orders tasks inside one request. Neither term by itself says whether separate requests run on different cores. |
+
 ---
 
 ## 0. Where these libraries sit
