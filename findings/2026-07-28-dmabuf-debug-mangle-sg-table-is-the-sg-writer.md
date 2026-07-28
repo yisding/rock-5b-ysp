@@ -23,6 +23,23 @@
 > **CONFIRMED** (arithmetic inversion, 8/8) — the *fix* is
 > **DESIGN** only, not yet built or booted.
 
+> **Extended and partly corrected 2026-07-28 by**
+> [`2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md`](2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md).
+> Three changes. (1) **Provenance is now proven, not assumed:** `dma-buf.c` and
+> `system_heap.c` are byte-identical to the vanilla `Linux 6.18.40` tag, and
+> neither our series nor Armbian's touches `drivers/dma-buf` — so no part of
+> this is ours, Rockchip's, or Armbian's. (2) The Boundary below says the fix
+> options are "not implemented or discussed with upstream"; the second clause is
+> **wrong**. Yunfei Wang reported this on **2022-08-31** with the mirror-image
+> call chain (`begin_cpu_access` / `for_cpu`), and Christian König replied that
+> the dma-heap is at fault rather than the debug option. It has been known and
+> unfixed for nearly four years. (3) The four fix options in *The upstream bug
+> worth reporting* are optimistic. Option 1 is blocked harder than stated —
+> `struct dma_buf_attachment` has no `sgt` field at all, so the core keeps no
+> reference to the tables it mangles — and option 2 silently skips the swiotlb
+> bounce sync. See the successor for the verified blockers and the design
+> argument that keeps this unfixed.
+
 ## Result
 
 There was never any memory corruption. The "corrupt" `page_link` is written
@@ -227,8 +244,10 @@ rough order of how well they respect the feature's intent:
   five vendor-driver latent defects in
   [`vendor-driver-latent-defects.md`](../kernel-drivers/docs/vendor-driver-latent-defects.md)
   remain real and remain unfixed; none of them is this oops.
-- The upstream fix options are sketched, not implemented or discussed with
-  upstream. No patch has been written or submitted.
+- The upstream fix options are sketched, not implemented. No patch has been
+  written or submitted. **Corrected:** they *have* been discussed upstream —
+  reported 2022-08-31, still unfixed, blocked on a design argument. See
+  [`2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md`](2026-07-28-dmabuf-debug-upstream-provenance-and-fix-options.md).
 - Whether other dma-heap consumers on this board (CMA heap, DRM importers) hit
   the same path was not surveyed.
 
