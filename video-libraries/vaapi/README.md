@@ -44,7 +44,7 @@ does not mean the measured gates are hypothetical.
 |------|----------|---------------------------|----------|
 | H.264 decode | Default | Renovated lifetime/synchronization path, conformance and sanitizer coverage | Live Firefox/Chromium display and sandbox gates remain |
 | VP9 Profile 0 decode | Default | Renovated decode path with conformance and sanitizer coverage | Browser/display integration remains |
-| HEVC Main decode | Experimental | 7/8 pinned official vectors exact; the remaining TILES vector fails the same way in direct MPP | MPP limitation is not a VA-driver pass |
+| HEVC Main decode | Experimental | 7/8 pinned official vectors exact; a two-frame direct-MPP reduction root-causes the remaining TILES failure to a same-ID PPS update that never reaches the HAL | The [suggested MPP parser fix](../../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md#suggested-fix) is not yet compile- or runtime-verified |
 | HEVC Main10 decode | Experimental | P010 output is byte-exact against software through MPP AFBC V2, crop metadata, and RGA | Requires the paired 6.18.40 kernel/current-librga 10-bit contract |
 | VP9 Profile 2 decode | Experimental | P010 output is byte-exact through the same AFBC/RGA path | Same kernel/librga pairing and app gate |
 | H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, linear DMA-BUF import, concurrency, sanitizer, RTP, and paced soak smoke pass | One full-frame slice; P010 input, multi-object/tiled import, full WebRTC peer negotiation, and long qualification remain |
@@ -156,6 +156,7 @@ maintained capability/boundary summary.
 | Browser API alternatives | [`2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md`](../../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
 | AV1 reconstruction boundary | [`2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md`](../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) |
 | HEVC/Main10/VP9 Profile 2 | [`2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md`](../../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md) |
+| HEVC TILES same-ID PPS regression | [`2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md`](../../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md) |
 | Intermediate HEVC boundary (superseded) | [`2026-07-26-rockchip-vaapi-hevc-rps-and-p010-boundary.md`](../../findings/2026-07-26-rockchip-vaapi-hevc-rps-and-p010-boundary.md) |
 | H.264 and HEVC encode | [H.264](../../findings/2026-07-26-rockchip-vaapi-h264-va-encode-validation.md), [HEVC](../../findings/2026-07-26-rockchip-vaapi-hevc-va-encode-validation.md) |
 | Surface uploads/imports | [planar](../../findings/2026-07-26-rockchip-vaapi-planar-encode-upload-validation.md), [PRIME RGB](../../findings/2026-07-26-rockchip-vaapi-drm-prime-rgb-encode-validation.md) |
