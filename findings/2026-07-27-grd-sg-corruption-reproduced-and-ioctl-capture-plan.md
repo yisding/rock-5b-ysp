@@ -15,6 +15,16 @@
 >
 > Trust: **MEASURED** / **SOURCE-INSPECTED** / **INFERRED** / **PARTIAL**
 
+> **Updated 2026-07-27 by**
+> [`2026-07-27-grd-sg-oops-third-repro-ioctl-window-measured.md`](2026-07-27-grd-sg-oops-third-repro-ioctl-window-measured.md).
+> The pre-registered test below was run and returned the **first** outcome: the
+> sequence ends at `0x401` with `fd 161 => iova ffc00000` and the oops as the
+> adjacent kernel line — no sub-commands in the window at all. The third oops
+> also passed this finding's fingerprint trial (`page_link & 0x3fff == 0x3f00`,
+> 3/3, now near-certain), reproduced *with tracing armed* (retiring the
+> timing-perturbation caveat below), and ran on CPU 3, dropping CPU 7 from the
+> invariant list. Determinism is now 3/3.
+
 ## Result
 
 ### It reproduces deterministically
