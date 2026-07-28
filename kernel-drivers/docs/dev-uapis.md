@@ -21,6 +21,34 @@ Two device files matter:
 > command as required, check [`abi-dormancy.md`](abi-dormancy.md), which classifies
 > each element live vs dormant with zero-caller evidence.
 
+## Fast re-entry
+
+This page describes the **wire contract**, not the friendly library API and not
+the driver's internal scheduler. Re-enter by the boundary you are inspecting:
+
+| Question to recover | Read | Load-bearing fact |
+|---------------------|------|-------------------|
+| Which files and permissions are involved? | [§0](#0-meet-the-device-files-user-friendly) | Codec/RGA submission and dma-heap allocation are separate device nodes but share the non-root access story. |
+| What does one MPP syscall contain? | [§A](#a-devmppservice-the-mpp-uapi) | `MPP_IOC_CFG_V1` carries an array of inner `MppReqV1` messages; `SET_REG_WRITE` is a command inside that array, not another ioctl number. |
+| How does an RGA request differ? | [§B](#b-devrga-the-rga-uapi) | RGA has a legacy one-struct blit ABI and a modern create/config/submit request ABI with imported handles and fences. |
+| Which library call produced the wire traffic? | [§C](#c-how-the-libraries-map-onto-these) | libmpp and librga hide different protocols; the mapping table is the shortest path from a trace back to source. |
+| How do I inspect a live run? | [§D](#d-debugging-the-uapis-live) | `strace` shows outer ioctl requests; procfs/debugfs, driver logs, and result data establish what the kernel and hardware actually did. |
+| Is a header element really required? | [`abi-dormancy.md`](abi-dormancy.md) | ABI presence is not use evidence; check callers before carrying compatibility code or explaining a failure. |
+
+### Similar numbers and objects that belong to different layers
+
+| Do not conflate | Distinction |
+|-----------------|-------------|
+| `MPP_IOC_CFG_V1` vs `MPP_CMD_SET_REG_WRITE` | The first is the outer Linux ioctl request (`0x40047601`); the second is an inner command value in an `MppReqV1` payload. A normal `strace` names only the outer request. |
+| an MPP message batch vs an RGA task batch | MPP batches protocol messages that together describe/start one codec task; modern RGA can place several image-operation tasks in one request. |
+| dma-buf fd vs RGA import handle | The fd names shared memory in a process; `RGA_IOC_IMPORT_BUFFER` registers it with RGA and returns a driver-local reusable handle. |
+| command ceiling vs implemented behavior | `QUERY_CMD_SUPPORT` proves the kernel advertises a numeric group ceiling. It does not by itself prove that every accepted command has meaningful hardware behavior. |
+| ioctl return value vs boolean success | Most failures are negative errno values, but inherited ABI quirks exist—for example successful `RGA2_GET_VERSION` returns positive `1`. Judge the documented contract, not a generic zero-only assumption. |
+
+For the layers on either side, use the
+[userspace-library re-entry map](../../vendor-libraries/docs/how-the-userspace-libs-work.md#fast-re-entry)
+and the [kernel-driver task lifecycle](how-the-drivers-work.md#3-how-one-task-is-processed-the-lifecycle-protocol).
+
 ---
 
 ## 0. Meet the device files (user-friendly)

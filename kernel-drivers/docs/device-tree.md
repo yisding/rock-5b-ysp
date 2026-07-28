@@ -10,6 +10,48 @@ mainline-master**, where mainline itself defines `&vdec0`/`&vdec1` and the
 override targets *those* nodes (same `fdc38100`/`fdc38000` regs/link split) —
 see [rewrite-driver track § 5](./rewrite-drivers.md) for that bring-up DT.
 
+This page describes the **Linux kernel device tree** passed to Linux, not
+U-Boot's separate control DTB. The
+[U-Boot primer](../../boot-firmware/docs/u-boot-primer.md) owns that
+distinction.
+
+## Fast re-entry
+
+| Question to recover | Read | Load-bearing fact |
+|---------------------|------|-------------------|
+| Which blocks and address windows exist? | [Address map](#address-map-from-the-rk3588-trm) | Virtual coordination nodes legitimately lack `reg`; core and IOMMU windows must have non-overlapping software ownership. |
+| Why can encoder and decoder nodes not be copied from each other? | [Encoder vs decoder](#encoder-vs-decoder-differences) | Their MMIO layout, clocks, resets, CCU implementation, IRQ shape, and SRAM backing are genuinely asymmetric. |
+| What omissions prevent probe? | [Two breakages](#two-things-that-will-break-the-codecs-if-you-forget-them) | Aliases establish core IDs, and every `*-core` node must attach to an enabled CCU/service/taskqueue path. |
+| Which property does code consume? | [Driver-read table](#what-each-driver-reads-from-the-dt) | Property spelling and resource index are part of the driver contract; a plausible-looking node can still feed the wrong resource. |
+| What does a complete decoder core look like? | [Annotated node](#annotated-decoder-core-node-inline-form) | The function window begins at core `+0x100`; using the link-window base shifts the driver's hard-coded MMU mapping to the wrong address. |
+| How do core masks, taskqueues, SRAM, and RCB fit? | [CCU/taskqueue/core-mask](#ccu-taskqueue-core-mask) and [SRAM/RCB](#sram-row-cache-buffer-rcb) | Scheduling identity is independent of MMIO address, while RCB is explicit decoder scratch-memory placement. |
+
+### Four identities on one node
+
+| Identity | Example | What it controls |
+|----------|---------|------------------|
+| DTS label / phandle target | `rkvdec0:` / `&rkvdec0` | How other source nodes refer to this node; labels do not survive as the runtime driver identity. |
+| Node name and unit address | `rkvdec-core@fdc38000` | Human/schema identity in the tree. The unit address normally corresponds to a `reg` address, but does not itself map registers. |
+| `compatible` | `"rockchip,rkv-decoder-v2"` | Which kernel driver can bind and which binding contract applies. |
+| alias-derived core ID | `rkvdec0 = &rkvdec0` | The logical `core_id` returned by `of_alias_get_id()`; required by this vendor MPP scheduler and independent of the unit address. |
+
+The actual resources come from `reg`, `interrupts`, `clocks`, `resets`,
+`power-domains`, and `iommus`. Keeping those identities separate explains why a
+node can have the right address yet bind the wrong driver, bind correctly yet
+receive the wrong core ID, or look correct in source while mapping the wrong
+subwindow.
+
+### Choose the source shape before comparing text
+
+| Context | Decoder definition |
+|---------|--------------------|
+| Armbian 6.18 forward port | Convert Armbian's existing `&vdec0`/`&vdec1` nodes in place; inherit selected resources from the core media patch. |
+| Vanilla 6.18 | Define complete inline decoder/CCU/IOMMU nodes because those Armbian labels and inherited properties do not exist. |
+| Post-6.18 mainline/rewrite | Override mainline's own decoder nodes and preserve its resource-correct RGA3 windows. |
+
+Compare effective properties, not just patch text: the same working hardware
+description is assembled from different owners in each context.
+
 ## Glossary (terms used below)
 
 | Term | Meaning |
