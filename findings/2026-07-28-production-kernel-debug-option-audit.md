@@ -181,15 +181,27 @@ environment.
 
 ## Recommended actions
 
-1. **Change nothing in the config right now.** The `~rk2` package derives its
-   evidential value from differing from `~rk1` by exactly one line. Disturbing
-   that before the verification login weakens the gate.
-2. **After `~rk2` is boot-verified**, drop `dma_debug_entries=2097152` from
-   `extraargs` to recover ~248 MiB. Needs no rebuild — an edit and a reboot.
-   `/boot/armbianEnv.txt` is root-owned.
-3. **Then decide `DMA_API_DEBUG` deliberately.** Keeping it is defensible;
-   inheriting it is not. If it stays, the pool bump belongs with it only during
-   conformance runs.
+> **Decided and actioned 2026-07-28.** All three genuine deviations were
+> switched off in the tracked config and folded into the (still unpublished)
+> `~rk2` release, which now carries a four-line config diff against `~rk1`:
+> `DMABUF_DEBUG`, `DMA_API_DEBUG`, `IOMMU_DEBUGFS`, `KALLSYMS_ALL`. The RGA and
+> MPP debug facets were deliberately kept. Items 1–3 below are superseded and
+> retained as the reasoning of record.
+
+1. ~~**Change nothing in the config right now.**~~ Superseded — the one-line
+   diff was traded for the full debug cleanup in a single release. Acceptable
+   because the attribution rests on the 8/8 arithmetic inversion and the 4/4
+   config correlation, not on the package being single-variable, and because
+   none of the three added symbols can re-arm the mangle.
+2. ~~**Drop `dma_debug_entries=2097152` from `extraargs`.**~~ No longer needed
+   as a separate step: with `DMA_API_DEBUG` off the boot argument is inert
+   (`Unknown kernel command line parameter`), so the 256 MiB is reclaimed
+   without touching the root-owned shared boot environment. Removing the
+   argument is still worth doing eventually for tidiness, and remains necessary
+   whenever a debug kernel is booted.
+3. ~~**Decide `DMA_API_DEBUG` deliberately.**~~ Decided: off in production. It
+   belongs in the debug lineage with the rest of the instrumentation, where the
+   pool bump lives too.
 4. Consider whether the debug kernel should stop borrowing the stock
    `linux-*-current-rockchip64` package names, given it put a debug config at a
    stock-looking path and nearly produced a wrong audit result here.

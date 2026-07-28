@@ -1,8 +1,9 @@
 linux-rockchip64-ysp (6.18.40+rk3588av1fwport20260725-0ubuntu1~rk2) resolute; urgency=high
 
-  * Disable CONFIG_DMABUF_DEBUG. This is the whole change: the upstream source
-    is byte-identical to ~rk1, and the source package is built from that
-    release's own orig tarball.
+  * Config-only release: the upstream source is byte-identical to ~rk1, and the
+    source package is built from that release's own orig tarball. Four config
+    symbols change, all of them debug options being switched off.
+  * Disable CONFIG_DMABUF_DEBUG. This is the functional fix.
   * Fixes the deterministic oops on GNOME Remote Desktop's first RKMPP H.264
     frame, which left the board with no login video at all — 3/3 boots, and
     seven times within a single boot.
@@ -25,8 +26,28 @@ linux-rockchip64-ysp (6.18.40+rk3588av1fwport20260725-0ubuntu1~rk2) resolute; ur
   * Not a Rockchip or vendor-driver defect. The underlying incompatibility is
     upstream and general: any dma-heap implementing begin/end_cpu_access this
     way is an unconditional oops under the option on a non-coherent device.
+  * Disable the three remaining debug options this config enabled on code that
+    Armbian's own kernel also ships, bringing the production config back in line
+    with the stock 26.5.1 baseline:
+    - CONFIG_DMA_API_DEBUG. Besides being the "default y if" parent that armed
+      DMABUF_DEBUG, it preallocated a debug pool sized by the shared
+      dma_debug_entries=2097152 boot argument -- 2097152 entries at 128 B each,
+      256 MiB of permanently resident kernel memory, against an 8 MiB default --
+      and cost a hash lookup plus spinlock on every DMA map, unmap and sync, on
+      a board whose video pipeline performs thousands per second. Turning it off
+      also makes that boot argument inert, so the memory is reclaimed without
+      editing the shared boot environment.
+    - CONFIG_IOMMU_DEBUGFS. Inspection nodes only; the AMD/Intel consumers are
+      x86-only, so nothing on arm64 depends on it.
+    - CONFIG_KALLSYMS_ALL. Data symbols in the kallsyms table, roughly a
+      megabyte or two. LIVEPATCH is disabled and no enabled symbol selects it,
+      so nothing else changes; function symbols remain, so oops backtraces
+      decode as before.
+    The RGA and MPP debug facets stay enabled: they are sub-options of drivers
+    Armbian does not ship at all, so there is no stock baseline to match, and
+    their verbosity controls default to zero.
 
- -- Yi Ding <yi.s.ding@gmail.com>  Tue, 28 Jul 2026 14:31:25 -0700
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 28 Jul 2026 15:24:00 -0700
 
 linux-rockchip64-ysp (6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1) resolute; urgency=high
 
