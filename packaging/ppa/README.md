@@ -96,7 +96,7 @@ Last recorded through Launchpad's devel API and exact-version binary queries at
 |---------|----------------------|------------------|-------|
 | `plymouth` | `24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1` under [`plymouth/`](plymouth/README.md) | Source publication [`18636085`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18636085) is accepted; arm64 build [`33428910`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33428910) succeeded and all nine binary publications are accepted/Pending. | Exact Ubuntu Resolute `-0ubuntu8` source plus upstream `45655f12`, fixing the incomplete-CSI non-advancing loop that can hang `plymouthd` on serial-console input. `debdiff` contains only the changelog, one DEP-3 patch, and its series entry; source/binary lintian has no warning or error introduced by the backport. |
 | `rk3588-codec-udev` | `1.1` under [`codec-udev/`](codec-udev/README.md) | Source publication [`18620729`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18620729) and arm64-hosted `Architecture: all` build [`33399688`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33399688) are Published/successful. Version 1.0 is superseded. | Installs the canonical non-root MPP/RGA/DMA-heap access rule; `1.1` retriggers real sysfs devices and verifies the resulting permissions. Local source/binary builds, lintian, package installation, and live-device permission checks pass. |
-| `mpp` | `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` | Fresh-main source publication [`18619785`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619785) and all five arm64 binaries are Published. | Repacked to remove unused Windows binaries; includes a GCC 15 pthread test fix. |
+| `mpp` | `1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1` | Local source and native arm64 binary package builds pass; not uploaded. Prior `1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1` source publication [`18619785`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619785) and all five arm64 binaries are Published. | Fork tip `d8c6b88a` retains the encoder/GCC fixes and repairs same-ID H.265 PPS refresh; the staged library passes the direct reduced/full TILES gates and all eight VAAPI HEVC Main vectors. |
 | `librga` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | Uploaded 2026-07-25 from librga fork `26a50ef`; client-side verified (lintian clean bar a `newer-standards-version` warning, full local arm64 binary build, SONAME still `librga.so.2`) + `debsign`ed + `dput` succeeded, **Launchpad processing pending**. Supersedes `…20260724.b8def3e-0ubuntu1~rk1`, which limited the 10-bit byte-stride conversion to RASTER. Prior `2.2.0+git20260703.a632217-0ubuntu3~rk1` source [`18619786`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619786) + both arm64 binaries Published. | Extends the 10-bit `vir_w` byte-stride conversion to **TILE** (FBC stays on the pixel convention); also fixes the cmake `-DLINUX` hole and unchecked `fread()`s. **Must land with a kernel carrying the matching TILE plane-offset fix** — a mismatched pair is wrong by 20% on the 10-bit TILE path. Note the upstream date is `20260725` (commit is 2026-07-25 UTC): a same-date bump to a digit-leading hash sorts *below* `b8def3e` under dpkg comparison. |
 | `ffmpeg` | `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` | Source publication [`18628833`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18628833) is Published and arm64 build [`33417109`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33417109) succeeded; the exact binaries are Published. | Retains the 500 ms synchronous bound, retries a transient refused MPP input within that shared deadline, and maps an elapsed packet wait to `EAGAIN`. Source/object compilation and the Launchpad build pass; sustained GRD runtime validation is pending. |
 | `ffmpeg` 8.1.2 baseline | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Dedicated-PPA source publication [`18619544`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-upstream/+sourcepub/18619544) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-upstream`. |
@@ -128,7 +128,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`plymouth/`](plymouth/README.md) | Exact Ubuntu Resolute source download/verification plus the one-patch upstream incomplete-CSI boot-hang backport. |
 | [`install-system-stack.sh`](install-system-stack.sh) | Installs the published normal stack on a clean arm64 Resolute system while retaining the existing distro kernel for recovery. |
 | [`clean-install-system-stack.sh`](clean-install-system-stack.sh) | Replaces earlier incompatible test packages with exact versions from the system PPA while retaining the distro kernel as a recovery path. |
-| [`mpp/debian/`](mpp/debian/changelog) | Debian packaging for Rockchip MPP from `mpp-rockchip` commit `1375813c`. |
+| [`mpp/debian/`](mpp/debian/changelog) | Debian packaging for Rockchip MPP from `ysp/main@d8c6b88a`. |
 | [`librga/debian/`](librga/debian/changelog) | Debian packaging for the local `librga-fork` commit `26a50ef`, including the P010/P210 work and the 10-bit RASTER+TILE byte-stride conversion. |
 | [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg 8.0.3 packaging for the RKMPP/RKRGA forward port at backpressure-fix commit `da5befc806`. |
 | [`ffmpeg-rockchip/debian/`](ffmpeg-rockchip/debian/changelog) | Co-installable `/opt/ffmpeg-rockchip` packaging for nyanmisaka's FFmpeg 6.1 Rockchip fork at `40c412daccf0`. |
@@ -158,7 +158,7 @@ variables.
 |--------|------------------|---------------|
 | Workspace containing sibling source families | `WORKSPACE_ROOT` | Parent of the `rock-5b-ysp` checkout |
 | MPP repo | `MPP_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/mpp-rockchip` |
-| MPP commit | `MPP_COMMIT` | `1375813c` |
+| MPP commit | `MPP_COMMIT` | `d8c6b88a` |
 | librga repo | `LIBRGA_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/librga-fork` |
 | librga commit | `LIBRGA_COMMIT` | `26a50ef` (must match the shipped kernel's 10-bit stride convention) |
 | FFmpeg repo | `FFMPEG_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81` |
@@ -362,9 +362,10 @@ when DMA-heap access is denied.
 
 ### MPP
 
-The MPP package is based on `mpp-rockchip` tag `1.0.12` / commit `1375813c`.
-The source is repacked as `+ds` because unused upstream Windows binaries are
-removed before orig tarball creation. The runtime packages are:
+The MPP package is based on `ysp/main@d8c6b88a`, four commits past
+`mpp-rockchip` tag `1.0.12` / commit `1375813c`. The source is repacked as
+`+ds` because unused upstream Windows binaries are removed before orig tarball
+creation. The runtime packages are:
 
 - `librockchip-mpp1`
 - `librockchip-vpu1`
@@ -372,9 +373,10 @@ removed before orig tarball creation. The runtime packages are:
 - `rockchip-mpp-demos`
 - `librockchip-mpp-dev`
 
-The packaging keeps unversioned linker symlinks in `-dev`, adds a small quilt
-patch for GCC 15 pthread start-routine type checking in a test helper, and lists
-the upstream static archive in `debian/not-installed` rather than shipping it.
+The source delta lives as reviewable commits on the fork branch; there is no
+packaging-local quilt series. The packaging keeps unversioned linker symlinks
+in `-dev` and lists the upstream static archive in `debian/not-installed`
+rather than shipping it.
 
 ### librga
 

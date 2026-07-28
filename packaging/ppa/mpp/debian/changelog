@@ -1,3 +1,11 @@
+mpp (1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Refresh H.265 hardware parameter sets when a selected PPS ID is reparsed
+    with changed content. This fixes streams that replace a same-ID tile layout
+    between pictures, including TILES_A_Cisco_2.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Mon, 27 Jul 2026 19:16:09 -0700
+
 mpp (1.5.0+git20260725.7c4fcda2+ds-0ubuntu1~rk1) resolute; urgency=medium
 
   * Build from branch ysp/main of https://github.com/yisding/mpp instead of

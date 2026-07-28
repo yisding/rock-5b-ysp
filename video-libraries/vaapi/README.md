@@ -14,7 +14,7 @@ that cannot select the Rockchip-specific libavcodec wrappers directly.
 | Developer focus | VA object lifetimes, reconstructed decode bitstreams, MPP external-buffer ownership, AFBC/NV15-to-P010 conversion, VA encode parameter translation, imported-surface validation, browser sandbox policy, and application interoperability. |
 | Owns | The durable capability/boundary summary and evidence map for `yisding/rockchip-vaapi`; dated measurements remain under [`../../findings/`](../../findings/README.md), app-specific integration stays in [`../../docs/app-enablement.md`](../../docs/app-enablement.md), and package publication stays under [`../../packaging/`](../../packaging/README.md). |
 | Depends on | The RK3588 MPP/RGA kernel path, current `librockchip_mpp`, the kernel-paired `librga` 10-bit contract, libva, and an application/display sandbox that can open the required device nodes and ioctls. |
-| Current state | As of 2026-07-26, public development is `yisding/rockchip-vaapi` `main@03e6cb6`. H.264/VP9 decode is the default capability set; HEVC Main/Main10, VP9 Profile 2, and H.264/HEVC encode remain opt-in experiments. Driver/unit/sanitizer and several hardware interoperability gates pass, but no completed Firefox package or live sandbox/display proof exists. |
+| Current state | As of 2026-07-27, public development is `yisding/rockchip-vaapi` `main@03e6cb6`. H.264/VP9 decode is the default capability set; HEVC Main/Main10, VP9 Profile 2, and H.264/HEVC encode remain opt-in experiments. Driver/unit/sanitizer and several hardware interoperability gates pass, but no completed Firefox package or live sandbox/display proof exists. |
 
 ## Where it sits
 
@@ -40,11 +40,11 @@ the layer itself can honestly claim.
 Experimental means hidden unless its documented environment opt-in is set. It
 does not mean the measured gates are hypothetical.
 
-| Path | Exposure | Evidence as of 2026-07-26 | Boundary |
+| Path | Exposure | Evidence as of 2026-07-27 | Boundary |
 |------|----------|---------------------------|----------|
 | H.264 decode | Default | Renovated lifetime/synchronization path, conformance and sanitizer coverage | Live Firefox/Chromium display and sandbox gates remain |
 | VP9 Profile 0 decode | Default | Renovated decode path with conformance and sanitizer coverage | Browser/display integration remains |
-| HEVC Main decode | Experimental | 7/8 pinned official vectors exact; a two-frame direct-MPP reduction root-causes the remaining TILES failure to a same-ID PPS update that never reaches the HAL | The [suggested MPP parser fix](../../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md#suggested-fix) is not yet compile- or runtime-verified |
+| HEVC Main decode | Experimental | 8/8 pinned official vectors byte-exact with staged `mpp@d8c6b88a`; the fix also clears the two-picture direct-MPP reduction and full 100-frame TILES vector | The [hardware-confirmed MPP parser fix](../../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md#fix) is not yet installed from a published package |
 | HEVC Main10 decode | Experimental | P010 output is byte-exact against software through MPP AFBC V2, crop metadata, and RGA | Requires the paired 6.18.40 kernel/current-librga 10-bit contract |
 | VP9 Profile 2 decode | Experimental | P010 output is byte-exact through the same AFBC/RGA path | Same kernel/librga pairing and app gate |
 | H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, linear DMA-BUF import, concurrency, sanitizer, RTP, and paced soak smoke pass | One full-frame slice; P010 input, multi-object/tiled import, full WebRTC peer negotiation, and long qualification remain |

@@ -9,10 +9,14 @@
 > (`h265d_flow.c` `h265d_slice_head()` and `h265d_nal_unit()`,
 > `h265d_syntax.c` `fill_picture_parameters()`, and `hal_h265d_com.c`
 > `hal_h265d_vdpu38x_output_pps_packet()`); regression boundary
-> `fcfd59d2d2bd2333fce29fedcb2c8d4b511761c1`.
+> `fcfd59d2d2bd2333fce29fedcb2c8d4b511761c1`; fix
+> `yisding/mpp@ysp/main@d8c6b88a2211d08a4427abd3c5e8275905a934f5`;
+> package `1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1`.
 > Date: 2026-07-27
-> Trust: **MEASURED** / **CODE-INSPECTED** / **INFERRED** /
-> **ROOT-CAUSED** / **BOARD-REPRODUCED** / **DESIGN**
+> Trust: **MEASURED** / **CODE-INSPECTED** / **CONFIRMED** /
+> **ROOT-CAUSED** / **BOARD-REPRODUCED** / **FIX-COMPILE-VERIFIED** /
+> **FIX-RUNTIME-VERIFIED** / **PACKAGE-VERIFIED** /
+> **PREDICTION-HARDWARE-CONFIRMED**
 
 ## Result
 
@@ -21,6 +25,11 @@
 reconstruction. A software-valid six-NAL reduction reproduces the error through
 `librockchip_mpp` directly, bypassing libva and `rockchip-vaapi`. The first
 picture decodes cleanly; the second picture returns MPP `errinfo=1`.
+
+MPP fix `d8c6b88a` consumes the existing PPS-update bit when a slice selects
+that PPS. The exact staged library decodes both reduced pictures and all 100
+frames of `TILES_A_Cisco_2.bit` cleanly. The complete eight-vector
+`rockchip-vaapi` HEVC Main matrix is now byte-exact with that library.
 
 The reduced stream contains:
 
@@ -116,12 +125,14 @@ FRAME index=2 errinfo=0x1 discard=0x0 eos=1 width=1920 height=1080
 RESULT status=stream-error frames=2 expected=2 bad_frames=1 info_changes=1 eos=1 api_status=0
 ```
 
-## Suggested fix
+## Fix
 
-Consume the existing `pps_update_mask` in `h265d_slice_head()` after validating
-the slice's PPS ID and before filling the picture parameters:
+Commit `d8c6b88a` consumes the existing `pps_update_mask` in
+`h265d_slice_head()` after validating the slice's PPS ID and before filling the
+picture parameters:
 
 ```c
+/* Bit set means the selected PPS was parsed with new content. */
 if (MPP_GET_BIT64(p->pps_update_mask, pps_id)) {
     p->ps_need_upate = 1;
     MPP_CLR_BIT64(p->pps_update_mask, pps_id);
@@ -135,33 +146,41 @@ in the codec parser rather than the RK3588 HAL or `rockchip-vaapi`, because the
 parser already owns PPS change detection and every HAL consumes its exported
 picture-parameter update state.
 
-The implementation should also add a parser regression test with two pictures
-that redefine the same PPS ID, plus the existing direct hardware reproducer.
-The test must assert that the second picture carries `ps_update_flag=1`; a
-hardware gate must assert both frames have `errinfo=0`.
+## Fix verification
+
+- **Source/build:** the full native MPP build, install staging, and all build
+  targets complete at `d8c6b88a`. The staged `librockchip_mpp.so.1` has
+  SHA-256
+  `3185e2fe222362c8abd2a75ca55eac51c61062679ed580f974f27f385e5df923`
+  and embeds the `d8c6b88a` source identity.
+- **Direct control:** `PPS_A_qualcomm_7.bit` remains clean at 81/81 frames,
+  zero bad frames, one info change, and EOS.
+- **Reduced reproducer:** both 1920x1080 pictures are clean (`errinfo=0`,
+  `discard=0`); the runner reports two expected frames and EOS.
+- **Full failing vector:** `TILES_A_Cisco_2.bit` is clean at 100/100 frames,
+  zero bad frames, one info change, and EOS.
+- **VAAPI matrix:** `make check-hevc-experimental` reports all eight pinned
+  HEVC Main vectors byte-exact, including TILES.
+- **Package:** the fork tip exports as
+  `1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1`; source construction and a
+  native arm64 binary package build completed, producing the five expected
+  runtime/development/demo binary packages. The runtime package metadata is
+  `Package: librockchip-mpp1`, the exact version above, and
+  `Architecture: arm64`.
 
 ## Boundary
 
-The suggested patch has not been applied, compiled, packaged, or run on
-hardware. The source inspection plus direct differential isolates a single
-missing state transition, but only a patched MPP build decoding the reduced
-stream cleanly can earn `FIX-RUNTIME-VERIFIED`.
-
 This finding does not promote experimental HEVC Main to a default
-`rockchip-vaapi` capability. After the reduced stream passes, rerun the complete
-`TILES_A_Cisco_2.bit` vector, all eight pinned HEVC Main vectors, the wider MPP
-decode suite, and the `rockchip-vaapi` normal/sanitizer gates to catch PPS-update
-regressions outside tiled streams.
+`rockchip-vaapi` capability. The new package has not been installed from a
+published archive, no new parser-level unit test was added, and MPP exposes no
+CTest tests in this configuration. The wider official MPP decoder suite and
+the `rockchip-vaapi` sanitizer matrix remain useful regression coverage beyond
+the direct control/reproducer and complete HEVC Main matrix run here.
 
 ## Verification gate
 
-1. Patch the pinned MPP source and add a same-ID PPS parser assertion.
-2. Build/package against the native Debian metadata path.
-3. Require the 75,496-byte reduced stream to return status 0 with two clean
-   frames and EOS through direct MPP.
-4. Require the full `TILES_A_Cisco_2.bit` vector to return status 0 with every
-   frame clean.
-5. Rerun the checksum-pinned control, the full MPP decoder suite, and all eight
-   `rockchip-vaapi` HEVC Main vectors.
-6. Preserve the MPP package/source identity and direct/VAAPI logs before
-   changing the 7/8 capability claim.
+The fix gate is complete: pinned source and package identity, native source and
+binary package builds, the direct control, the two-picture reproducer, the full
+TILES vector, and all eight VAAPI HEVC Main vectors are recorded above. Archive
+publication and broad decoder/sanitizer regression runs remain release gates,
+not blockers to the narrowly scoped fix result.
