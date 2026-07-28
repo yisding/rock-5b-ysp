@@ -111,10 +111,11 @@ usage(const char *program)
            "  --width N          target width (default 1024)\n"
            "  --height N         target height (default 1024)\n"
            "  --counts LIST      comma-separated operation counts\n"
-           "                     (default 1,2,4,8,16,64,256,1024)\n"
+           "                     (default 1,2,4,8)\n"
            "  --samples N        valid samples per count (default 11)\n"
            "  --warmups N        untimed runs per mode/count (default 2)\n"
-           "  --ring N           source/destination resource pairs (default 4)\n"
+           "  --ring N           source/destination resource pairs (default 8)\n"
+           "                     must cover the largest batched count\n"
            "  --schedule MODE    batched, isolated, or both (default both)\n"
            "  --order ORDER      batched-first or isolated-first\n"
            "  --label TEXT       A/B label printed in every record\n",
@@ -173,12 +174,12 @@ parse_options(int argc, char **argv, struct options *options)
       .height = 1024,
       .samples = 11,
       .warmups = 2,
-      .ring_size = 4,
+      .ring_size = 8,
       .run_batched = 1,
       .run_isolated = 1,
       .label = "unlabeled",
    };
-   parse_counts(options, "1,2,4,8,16,64,256,1024");
+   parse_counts(options, "1,2,4,8");
 
    static const struct option long_options[] = {
       {"width", required_argument, NULL, 'w'},
@@ -254,6 +255,15 @@ parse_options(int argc, char **argv, struct options *options)
 
    if (optind != argc) {
       usage(argv[0]);
+      exit(1);
+   }
+
+   if (options->run_batched &&
+       options->counts[options->count_count - 1] > options->ring_size) {
+      fprintf(stderr,
+              "ring size must be at least the largest batched operation "
+              "count; reusing a destination lets the tile renderer combine "
+              "fullscreen overwrites into one framebuffer batch\n");
       exit(1);
    }
 }
@@ -373,14 +383,24 @@ run_batched(const struct options *options, struct resources *resources,
    GLint old_disjoint = 0;
    glFinish();
    glGetIntegerv(GL_GPU_DISJOINT_EXT, &old_disjoint);
+
+   /*
+    * Panfrost stores time-query markers in the batch for the currently bound
+    * FBO. Submit the start marker before creating any measured FBO batches.
+    * Likewise, submit every measured batch before appending the end marker.
+    * Without both flushes the end marker can execute while other framebuffer
+    * batches from this query are still pending in the driver.
+    */
    begin_query(GL_TIME_ELAPSED_EXT, query);
+   glFlush();
    const double wall_start = now_us();
    const double cpu_start = wall_start;
    for (int op = 0; op < operation_count; op++)
       issue_blit(options, resources, op);
-   end_query(GL_TIME_ELAPSED_EXT);
    glFlush();
    const double cpu_end = now_us();
+   end_query(GL_TIME_ELAPSED_EXT);
+   glFlush();
    glFinish();
    const double wall_end = now_us();
 
@@ -410,11 +430,13 @@ run_isolated(const struct options *options, struct resources *resources,
 
    for (int op = 0; op < operation_count; op++) {
       begin_query(GL_TIME_ELAPSED_EXT, query);
+      glFlush();
       const double cpu_start = now_us();
       issue_blit(options, resources, op);
-      end_query(GL_TIME_ELAPSED_EXT);
       glFlush();
       const double cpu_end = now_us();
+      end_query(GL_TIME_ELAPSED_EXT);
+      glFlush();
       glFinish();
 
       GLuint64 gpu_ns = 0;

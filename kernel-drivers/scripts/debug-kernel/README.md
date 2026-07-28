@@ -61,6 +61,15 @@ reproducible base. The external build tree is scratch, not the source of truth.
   DMA traffic (`DMA-API: debugging out of memory - disabling`). Boot conformance
   runs with `dma_debug_entries=2097152` on the kernel cmdline so it stays active
   through the whole matrix.
+
+  **Remove it again afterwards.** `/boot/armbianEnv.txt` holds a single
+  `extraargs` line shared by *every* installed kernel, so this bump follows you
+  onto the production kernel, where it costs **~256 MiB** of permanently
+  preallocated memory instead of the 8 MiB default — 2,097,152 entries at
+  128 B each (`struct dma_debug_entry`, `____cacheline_aligned_in_smp`, arm64
+  `L1_CACHE_SHIFT=6`), confirmed on production boots by
+  `DMA-API: preallocated 2097152 debug entries`. Details in the
+  [debug audit](../../../findings/2026-07-28-production-kernel-debug-option-audit.md).
 - **kmemleak scans on demand.** KASAN reports UAF/OOB, not leaks; scan for leaked
   requests/buffers/imports after a run with
   `echo scan | sudo tee /sys/kernel/debug/kmemleak` then
@@ -100,6 +109,21 @@ daily kernel and can replace its files. ROCK 5B's Armbian boot flow has no
 kernel-selection menu. Complete the baseline, rescue-media, known-good-deb, and
 `kernel-revert.sh` preparation in [`../../../install.md` §3](../../../install.md)
 before continuing.
+
+> **A consequence for config audits.** Because of that name sharing, an
+> installed debug build leaves its config at `/boot/config-*-current-rockchip64`
+> — a stock-looking path holding `KASAN=y`, `PROVE_LOCKING=y`, `UBSAN=y`,
+> `DEBUG_PAGEALLOC=y`. Reading it as "Armbian stock" inverts the result of any
+> debug-drift comparison, which is exactly what happened during the
+> [2026-07-28 debug audit](../../../findings/2026-07-28-production-kernel-debug-option-audit.md).
+> Fetch the real baseline instead — `apt-cache policy` shows a locally built
+> package sitting at priority 100 from `/var/lib/dpkg/status` with no archive
+> behind it:
+>
+> ```bash
+> apt-get download linux-image-current-rockchip64=26.5.1
+> dpkg-deb -x linux-image-current-rockchip64_26.5.1_arm64.deb x/
+> ```
 
 `../install-kernel.sh` captures the running kernel's selected `/boot` files
 and package manifest for diagnosis, but that directory is **not** a bootable
