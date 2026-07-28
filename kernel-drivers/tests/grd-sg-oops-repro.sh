@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Reproduce the GRD/RKMPP system-heap scatterlist corruption oops without RDP.
 #
 # Rationale: the finding's trigger is a *fresh* RKMPP H.264 encoder at
