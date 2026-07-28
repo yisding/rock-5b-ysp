@@ -32,6 +32,7 @@ not repeat dated status or operational commands because those copies drift.
 
 | Need | Start here |
 |------|------------|
+| Bring up a ROCK 5B for the first time | [`docs/getting-started.md`](docs/getting-started.md) |
 | Install the validated ROCK 5B kernel path | [`install.md`](install.md) |
 | Check what is usable, experimental, or stale | [`status.md`](status.md) |
 | Understand U-Boot and the ROCK 5B boot chain | [`boot-firmware/`](boot-firmware/README.md) |
