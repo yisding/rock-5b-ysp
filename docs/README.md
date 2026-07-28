@@ -8,9 +8,8 @@ of repo-wide references that are not owned by one project.
 
 | File | Purpose |
 |------|---------|
-| [`getting-started.md`](getting-started.md) | First-hour path for a new ROCK 5B owner: choose an image, establish a recoverable boot, capture exact identity, understand the evidence boundary, and choose the next guide. |
 | [`status-ledger.md`](status-ledger.md) | Audit companion to `../status.md`: longer dated cross-track notes without crowding the status dashboard. |
-| [`work-packages.md`](work-packages.md) | The project map, stack diagram, and user/developer reading paths. Start here when you are not sure which project owns a topic. |
+| [`work-packages.md`](work-packages.md) | The project map, stack diagram, and operating/re-entry and developer reading paths. Start here when you are not sure which project owns a topic. |
 | [`support-coverage.md`](support-coverage.md) | Whole-board scope inventory: which ROCK 5B areas are tracked, narrowly evidenced, or entirely unassessed, plus the first useful evidence for each gap. |
 | [`app-enablement.md`](app-enablement.md) | Planning map for untracked applications (browsers, VLC, HandBrake, mpv, OBS): which plumbing layer each binds to and the estimated enablement cost on this stack. |
 | [`system-baseline.md`](system-baseline.md) | Canonical capture contract separating target board, boot path, runtime kernel/userspace, and build host; points to the existing collector and dated truth owners. |
@@ -36,9 +35,9 @@ Repository-wide license status is not a cross-project doc; it lives at
 
 ## Reading paths
 
-The user and developer reading paths are owned by
-[`work-packages.md`](work-packages.md) § User reading paths / § Developer reading
-paths — see there rather than duplicating the table here.
+The operating/re-entry and developer reading paths are owned by
+[`work-packages.md`](work-packages.md) § Operating and re-entry paths /
+§ Developer reading paths — see there rather than duplicating the table here.
 
 ## Conventions
 

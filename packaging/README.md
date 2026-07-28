@@ -13,16 +13,16 @@ shipping, or operating** the artifacts.
 | Developer focus | Keep deploy artifacts reproducible and auditable: DKMS source staging, udev policy, PPA source packages, rollback, binary publishing, and package boundaries. |
 | Owns | Packaging docs for `codec-udev/`, `gdm-hwenc/`, `dkms/`, `ppa/`, and the operations runbook for the rkmpp FFmpeg stack. |
 | Depends on | Kernel-driver artifacts, userspace libraries, FFmpeg/GRD package sources, and the status gates recorded in [`../status.md`](../status.md). |
-| Current state | Combined-kernel delivery is hardware-validated; DKMS is compile-tested only. The recreated system PPA publishes MPP, librga, codec access, FFmpeg 8.0.3, GRD, co-installable FFmpeg 6.1, and the forward-port kernel; four dedicated PPAs publish both FFmpeg 8.1 tracks and both rewrite kernels. The local maximum-mainline profiles build and package but remain unbooted. Optional GDM upload and board migration/kernel gates remain pending. See [../status.md](../status.md). |
+| Current state | This directory contains several delivery channels, not one turn-key validated stack. [`../status.md`](../status.md) tracks the dated kernel, DKMS, PPA, binary-publication, and maximum-mainline boundaries; [W05](../status.md#watch-w05) owns publication facts that can change without a repository edit. Read the channel table below as a map of artifacts, then use the status next gate before installing one. |
 
 ## The four delivery channels
 
-| # | Channel | Lives in | What it delivers | Status |
-|---|---------|----------|------------------|--------|
-| 1 | **Combined Armbian kernel** (`=y`) | [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) + [`../kernel-drivers/patches/`](../kernel-drivers/patches/README.md) | Kernel debs with the vendor MPP + RGA drivers built in | Hardware-validated (see [`../status.md`](../status.md)) |
+| # | Channel | Lives in | What it delivers | Evidence boundary |
+|---|---------|----------|------------------|-------------------|
+| 1 | **Combined Armbian kernel** (`=y`) | [`../kernel-drivers/scripts/`](../kernel-drivers/scripts/README.md) + [`../kernel-drivers/patches/`](../kernel-drivers/patches/README.md) | Kernel debs with the vendor MPP + RGA drivers built in | [`status.md` track 1](../status.md#dashboard) owns the latest board result; the [kernel scorecard](../kernel-drivers/docs/forward-port-status.md) owns build history. |
 | 2 | **DKMS on a stock kernel** | [`dkms/`](dkms/README.md) | `rk_vcodec.ko` + `rga3.ko` rebuilt on every kernel update, + a boot-time DT overlay | Compile-tested on 6.18; overlay dtc-validated, **not boot-validated** |
-| 3 | **Local `.debs`** | [`codec-udev/`](codec-udev/README.md), [`gdm-hwenc/`](gdm-hwenc/README.md), `dkms/build-deb.sh` | The udev/ACL rules and the DKMS deb, built on demand | Built + installed on the dev board |
-| 4 | **Launchpad PPA** | [`ppa/`](ppa/README.md) | MPP + librga + FFmpeg RKMPP/RKRGA + published GRD and staged GDM packages; co-installable forward-port and alpha kernels | All intended main/dedicated sources and binaries are public. The forward-port kernel `…20260723~rk1` was installed from this PPA, booted, and passed the full conformance set plus root gates 2026-07-24; optional GDM and the alpha-kernel board gates remain pending. |
+| 3 | **Local `.debs`** | [`codec-udev/`](codec-udev/README.md), [`gdm-hwenc/`](gdm-hwenc/README.md), `dkms/build-deb.sh` | The udev/ACL rules and the DKMS deb, built on demand | Each package README owns its build/install evidence; installing one package does not validate the complete media stack. |
+| 4 | **Launchpad PPA** | [`ppa/`](ppa/README.md) | MPP + librga + FFmpeg RKMPP/RKRGA + GRD/GDM packages; co-installable forward-port and comparison kernels | [`status.md` track 9](../status.md#dashboard) owns the migration/rollback gate and [W05](../status.md#watch-w05) owns live publication. The older `…20260723~rk1` full-conformance run remains [scoped historical evidence](../findings/2026-07-24-production-ppa-kernel-full-conformance-run.md). |
 
 > **⚑ Hard rule: channels 1 and 2 are mutually exclusive.** Never run DKMS on a
 > combined (`=y`) kernel — the build fails `modpost` with `'…' exported twice`.

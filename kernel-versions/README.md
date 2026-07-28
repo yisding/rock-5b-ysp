@@ -18,7 +18,7 @@ The concrete driver work — MPP/RGA architecture, patches, scripts, tests — i
 | Developer focus | The 6.1-BSP → 6.18 forward-port deltas, adversarial review of the glue, the mainline V4L2 `rkvdec` trajectory, and the pinned maximum-mainline comparison build. |
 | Owns | The `bsp/` subtree and the base-level docs below; the concrete maximum-mainline build artifacts live under packaging and are linked from this front door. |
 | Depends on | Nothing in-repo; upstream Armbian, Rockchip BSP, and mainline kernel trees. |
-| Current state | Target base is Armbian `rockchip64-current` 6.18. The July 4 build remains the validated baseline; the maintained 6.18.38 forward-port has newer KASAN-verified fixes but incomplete production conformance. See [`../status.md`](../status.md) and the kernel scorecard [`../kernel-drivers/docs/forward-port-status.md`](../kernel-drivers/docs/forward-port-status.md). |
+| Current state | This directory owns stable comparisons, not the moving install recommendation. [`../status.md`](../status.md) tracks the dated forward-port and maximum-mainline state; the kernel scorecard [`../kernel-drivers/docs/forward-port-status.md`](../kernel-drivers/docs/forward-port-status.md) preserves the deeper validation boundary. A successful maximum-mainline build is not evidence that it booted on the board. |
 
 ## Files
 

@@ -24,7 +24,7 @@ versions, the mainline-V4L2 alternative) live in
 | Developer focus | Accelerator service/submit models, dma-buf/IOMMU lifetime, device-tree wiring, runtime ABIs, forward-port deltas, audits, and rewrite alternatives where applicable. |
 | Owns | Shared kernel docs in [`docs/`](docs/how-the-drivers-work.md); the five sub-projects; patch deliverables in [`patches/`](patches/README.md); board scripts in [`scripts/`](scripts/README.md); hardware smoke tests in [`tests/`](tests/README.md). |
 | Depends on | Armbian or vanilla 6.18 kernel build inputs, RK3588 device tree, and [`../vendor-libraries/`](../vendor-libraries/README.md). |
-| Current state | The Published production kernel (`…20260723~rk1`, tail `0001`–`0071`) is the hardware-validated baseline: installed from the PPA, booted, and green on the full conformance set plus root gates on 2026-07-24 — ABI replay, MPP 12/12, FFmpeg 24/24 with AV1, bit-exact four-codec decode, GStreamer 129/133, and perf numbers. The maintained series includes KASAN-verified lifetime fixes `0041`/`0042` and RGA ABI fixes `0043`/`0044` (post-renumber numbering), and RGA2 page-table DMA ownership is closed by `0049`/`0050`. Still owed: the `0072`–`0074` 10-bit RGA stride gate (the `0072` gate ran on-board and failed, which is what `0074` fixes), the `0075` RKVENC2 slice-FIFO `split_arg=4` gate, and rollback validation. DKMS compiles on 6.18 but its overlay is not boot-validated; the audit-fix and rewrite tracks are not shippable replacements. See [`../status.md`](../status.md). |
+| Current state | The forward-port, BSP-audit, DKMS, and rewrite tracks have different evidence boundaries and are not interchangeable kernels. [`../status.md`](../status.md) tracks their latest board result and next gate; [`docs/forward-port-status.md`](docs/forward-port-status.md) is the detailed kernel scorecard. Read those before treating an older green conformance run as an install recommendation. |
 
 ## How the kernel package fits
 
@@ -75,20 +75,21 @@ The kernel work runs on three tracks across those sub-projects:
 If your goal is "make hardware codecs work on my board", do not start by reading
 patch internals.
 
-1. Choose a kernel delivery path in [`../install.md`](../install.md).
-2. Install the Published PPA kernel from
-   [`../packaging/ppa/kernel-forward-port/`](../packaging/ppa/kernel-forward-port/README.md)
-   (prebuilt, boot- and conformance-validated 2026-07-24), build the combined
-   kernel yourself with [`scripts/`](scripts/README.md) when you need a newer
-   tail or a debug flavor, or use the DKMS package in
-   [`../packaging/dkms/`](../packaging/dkms/README.md) if you accept its current
-   validation limits.
-3. Install the device-node rule from
+1. Read [`../status.md`](../status.md) tracks 1, 3, 4, and 9. A dated pass proves
+   that exact run; it does not supersede a later incident or an open rollback
+   gate.
+2. Choose a delivery path in [`../install.md`](../install.md), and complete its
+   recovery preparation before modifying `/boot`.
+3. Use [`../packaging/ppa/kernel-forward-port/`](../packaging/ppa/kernel-forward-port/README.md)
+   for the prebuilt path, [`scripts/`](scripts/README.md) for a newer/debug
+   combined build, or [`../packaging/dkms/`](../packaging/dkms/README.md) only
+   within the validation limits shown in the status dashboard.
+4. Install the device-node rule from
    [`scripts/99-rockchip-codec.rules`](scripts/99-rockchip-codec.rules) or
    [`../packaging/codec-udev/`](../packaging/codec-udev/README.md).
-4. Run [`scripts/validate-combined.sh`](scripts/validate-combined.sh) and then the
+5. Run [`scripts/validate-combined.sh`](scripts/validate-combined.sh) and then the
    on-hardware tests in [`tests/`](tests/README.md).
-5. Move up to FFmpeg or GRD through
+6. Move up to FFmpeg or GRD through
    [`../video-libraries/ffmpeg/`](../video-libraries/ffmpeg/README.md) or
    [`../apps/gnome-remote-desktop/`](../apps/gnome-remote-desktop/README.md).
 

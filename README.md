@@ -5,8 +5,7 @@ support on Armbian's Ubuntu 26.04 (Resolute) images. The largest body of work is
 making the RK3588 hardware-video stack usable end to end, but the record also
 captures board bring-up, boot-chain, packaging, and application gaps encountered
 along the way. The goal is to make each gap, experiment, result, and remaining
-gate understandable and reproducible by someone other than the person who first
-investigated it.
+gate quick to reconstruct when returning to the project later.
 
 The actual code lives in sibling source trees (kernel forks, `ffmpeg-rockchip`,
 `gnome-remote-desktop`, Mesa, `librga`, `mpp-rockchip`); this repo holds the
@@ -27,28 +26,42 @@ through its last-verified dates.
 
 ## Start here
 
-Choose the owner for the question you are trying to answer. This front door does
+Use the shortest path for the context you need to recover. This front door does
 not repeat dated status or operational commands because those copies drift.
 
-| Need | Start here |
-|------|------------|
-| Bring up a ROCK 5B for the first time | [`docs/getting-started.md`](docs/getting-started.md) |
-| Install the validated ROCK 5B kernel path | [`install.md`](install.md) |
-| Check what is usable, experimental, or stale | [`status.md`](status.md) |
+### Resume or operate the board
+
+| Need | Re-enter through |
+|------|------------------|
+| Resume active work and find the next proof | [`status.md`](status.md), especially its dashboard and **Next gates** |
+| Reconstruct why a public state changed | [`docs/status-ledger.md`](docs/status-ledger.md), then its linked dated finding |
+| Choose, install, validate, or recover a kernel/media path | [`install.md`](install.md) |
+| Capture the exact board, boot, kernel, and userspace identity | [`docs/system-baseline.md`](docs/system-baseline.md) |
+| Diagnose an unexplained failure or known trap | [`docs/gotchas.md`](docs/gotchas.md) |
+| See what this repo has not established about the board | [`docs/support-coverage.md`](docs/support-coverage.md) |
+
+### Recover the technical model
+
+| Need | Re-enter through |
+|------|------------------|
+| See the whole stack and choose a reading path | [`docs/work-packages.md`](docs/work-packages.md) |
 | Understand U-Boot and the ROCK 5B boot chain | [`boot-firmware/`](boot-firmware/README.md) |
-| See which board subsystems have not been assessed | [`docs/support-coverage.md`](docs/support-coverage.md) |
-| Capture the exact board/kernel/userspace baseline | [`docs/system-baseline.md`](docs/system-baseline.md) |
-| Hit an unexplained failure or a known trap | [`docs/gotchas.md`](docs/gotchas.md) |
-| Record a newly discovered gap or result | [`findings/`](findings/README.md) |
-| Update or contribute to the record | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-| Review repository-specific agent instructions | [`AGENTS.md`](AGENTS.md) |
-| Review the kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
-| See what each forward-port patch does and which fixes belong back in the BSP | [`kernel-drivers/docs/patch-catalog.md`](kernel-drivers/docs/patch-catalog.md) |
 | Compare the validated vendor path with maximum-mainline RK3588 builds | [`kernel-versions/`](kernel-versions/README.md) |
+| Rebuild the MPP/RGA kernel-driver model | [`kernel-drivers/docs/how-the-drivers-work.md`](kernel-drivers/docs/how-the-drivers-work.md) |
+| Follow the kernel-to-userspace ABI boundary | [`vendor-libraries/docs/how-the-userspace-libs-work.md`](vendor-libraries/docs/how-the-userspace-libs-work.md) |
 | Understand RKNN conversion, userspace, and the RKNPU driver | [`kernel-drivers/rknpu/`](kernel-drivers/rknpu/README.md) |
-| Understand the repo taxonomy | [`docs/work-packages.md`](docs/work-packages.md) |
+| Decode shared terms like MPP, RGA, CCU, and DCHS | [`glossary.md`](glossary.md) |
+
+### Maintain or extend the record
+
+| Need | Re-enter through |
+|------|------------------|
+| Record a newly discovered gap or result | [`findings/`](findings/README.md) |
+| Update evidence, status, or project documentation | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Review the maintained kernel patch deliverables | [`kernel-drivers/patches/`](kernel-drivers/patches/README.md) |
+| Map each forward-port patch to behavior and BSP applicability | [`kernel-drivers/docs/patch-catalog.md`](kernel-drivers/docs/patch-catalog.md) |
 | Reconstruct an external source tree or resolve a code citation | [`docs/source-trees.md`](docs/source-trees.md) |
-| Decode shared terms like MPP, RGA, CCU, DCHS | [`glossary.md`](glossary.md) |
+| Review repository-specific agent instructions | [`AGENTS.md`](AGENTS.md) |
 
 This is an integration record and patch-delivery repo, not a self-contained
 source monorepo. A subsystem missing from the dashboard is not implicitly

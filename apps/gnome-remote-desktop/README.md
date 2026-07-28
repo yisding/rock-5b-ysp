@@ -18,10 +18,14 @@ a few percent CPU instead of a laggy, CPU-bound one.
 | Developer focus | Understand GRD's capture path, FFmpeg encode-session integration, RDP frame-ack behavior, zero-copy buffers, panvk RGB-to-NV12 conversion, and GDM greeter permissions. |
 | Owns | Runtime story here, design notes, baseline/profiling docs, capture-path map, testing playbook, benchmark code, and the portable 16-patch 50.1 replay behind the current 50.2 release branch. Investigation patches are archived separately. |
 | Depends on | Kernel drivers, userspace libraries, an rkmpp-enabled FFmpeg build, Mesa/Panfrost Vulkan support, and optional GDM codec ACL packaging. |
-| Current state | Public release branch `release/50.2-rkmpp@cf60b4d` is a clean 15-commit series on upstream 50.2 `60423c8`, and the measured backend sustains 60 fps. It keeps the cached-readback root fix, bounded hardware-encode recovery, and live-validated progress-gated ACK recovery while removing the pipeline watchdog and all audio probes/traces. Audio uses the normal AAC/Opus/PCM offer. Exact source/native arm64 package builds and RDP integration pass; normal-PPA source `18632058` is accepted and build `33422570` is running. The final install and sustained video/focus gate remain. Historical PCM/A-law/ADPCM findings and the deferred A-law plan remain documented. See [`status.md`](../../status.md). |
+| Current state | The release branch and earlier measurements establish that the RKMPP backend can sustain hardware-encoded RDP, but the latest installed-stack result is a separate gate: [`status.md` track 7](../../status.md#dashboard) owns the current runtime blocker and next proof. Read the historical capability evidence below as dated results, not as the state of the newest package/kernel pairing. |
 
-| Piece | What | Status |
-|-------|------|--------|
+The capability table records established results from the linked historical
+measurements. It is not a substitute for the current package/kernel result in
+[`status.md` track 7](../../status.md#dashboard).
+
+| Piece | What | Established evidence |
+|-------|------|----------------------|
 | **Encode backend** | `GrdEncodeSessionFfmpeg` → FFmpeg `h264_rkmpp` → VEPU580, zero-copy | ✅ live over real RDP (macOS client), post-login desktop |
 | **RGB→NV12** | Vulkan (**panvk**) compute on the Mali GPU, explicit-sync dma-buf | ✅ cross-driver panfrost→panvk sync works |
 | **Login screen** | GDM greeter, same path | ✅ with the opt-in [`gdm-hwenc`](../../packaging/gdm-hwenc) package |
@@ -83,13 +87,12 @@ dma-buf to the encoder zero-copy.
 > **Which FFmpeg?** The hardware measurements and the bugs below came from the
 > upstream-style `h264_rkmpp` bridge deployed at **FFmpeg 8.1.2**, not the
 > [`ffmpeg-rockchip` fork](../../video-libraries/ffmpeg). The current normal-PPA
-> candidate links the same bridge lineage at FFmpeg 8.0.3, on package branch
+> pairing links the same bridge lineage at FFmpeg 8.0.3, on package branch
 > `fix/rkmpp-output-timeout@da5befc806`. Its Launchpad build is Published and is
-> installed beneath the historical local `exp6` GRD package. The clean 50.2
-> `~rk1` source is accepted in the normal PPA and still needs publication,
-> install, and repeated
-> video/focus-resume validation. Keep the measured 8.1.2 proof separate from the
-> current 8.0.3 package state.
+> paired with the clean 50.2 `~rk1` GRD source. Keep the measured 8.1.2 proof
+> separate from that 8.0.3 package state; [`status.md` track 7](../../status.md#dashboard)
+> owns the latest installed result and [W05](../../status.md#watch-w05) owns
+> publication state.
 
 ## Upstream-style FFmpeg 8.1.2 `h264_rkmpp` vs ffmpeg-rockchip
 
@@ -303,19 +306,19 @@ at all, and the panvk enablement story) is in [`design.md`](./docs/design.md).
 
 ## Packaging & install
 
-Three pieces make up the acceptance stack:
+Three pieces make up the acceptance stack. This table fixes their identities
+and roles; it deliberately delegates live publication and runtime state.
 
-| Component | Current state | Needed? |
-|-----------|---------------|:---:|
-| `gnome-remote-desktop` | Clean 50.2 candidate `50.2+rkmpp+git20260721.13.cf60b4d-0ubuntu1~rk1` has passing exact source/native arm64 builds and RDP integration; TPM and hardware-EGL skip as expected. Normal-PPA source `18632058` is accepted and arm64 build `33422570` is running; old 50.1 `~rk2` and experimental `~exp3` remain the currently Published baselines. | required |
-| Rockchip FFmpeg 8.0.3 | Normal-PPA `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` is Published; it absorbs the transient MPP input-pool backpressure exposed by exp5. | required |
-| `gnome-remote-desktop-gdm-hwenc` `1.0` | Local opt-in package granting the stable `gdm` group access to codec nodes; not uploaded. | optional (login-screen HW) |
+| Component | Durable boundary | Needed? |
+|-----------|------------------|:---:|
+| `gnome-remote-desktop` | Clean 50.2 candidate `50.2+rkmpp+git20260721.13.cf60b4d-0ubuntu1~rk1`; current installed result and next gate: [`status.md` track 7](../../status.md#dashboard). | required |
+| Rockchip FFmpeg 8.0.3 | Package branch `fix/rkmpp-output-timeout@da5befc806`; absorbs the transient MPP input-pool backpressure exposed by exp5. Publication: [W05](../../status.md#watch-w05). | required |
+| `gnome-remote-desktop-gdm-hwenc` `1.0` | Opt-in package granting the stable `gdm` group access to codec nodes. | optional (login-screen HW) |
 
-The Launchpad path is a **test path**, not yet the validated install path. Do
+The Launchpad path is a **test path**, not a blanket validated install path. Do
 not treat `~exp3` as the final candidate: it predates the retained cached-readback
-and frame-acknowledgement fixes. Once published, the runtime gate is to install
-the clean 50.2 `~rk1`, paired with FFmpeg `da5befc806`, and run the
-sustained-video checks in
+and frame-acknowledgement fixes. Follow the next proof in
+[`status.md` track 7](../../status.md#dashboard), then use the sustained-video checks in
 [`profiling.md` §10](./docs/profiling.md#10-exp5-closes-the-readback-hang-and-exposes-a-separate-encoder-fallback)
 and the focus/resume ACK gate in
 [`testing.md` §10](./docs/testing.md#10-exp6exp7-macos-focusresume-gate).

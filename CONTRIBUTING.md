@@ -2,7 +2,7 @@
 
 This repository is an evidence-backed record of work to improve Radxa ROCK 5B
 support on Armbian's Ubuntu 26.04 (Resolute) images. A useful contribution makes
-one of these things easier for the next person:
+one of these things easier on the next investigation pass:
 
 - reproduce an observation;
 - understand which layer owns a problem;
