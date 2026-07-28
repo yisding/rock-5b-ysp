@@ -22,8 +22,8 @@ Panfrost. The standalone interpolation probes now live in
 | [`probe_wcorr.c`](probe_wcorr.c) | Shader-side recovery probe: disproves `gl_FragCoord.w` and `dFdx`-based correction |
 | [`repro_afbc.c`](repro_afbc.c) | Scoped negative result: the AFBC CPU-map staging path is clean on unfixed drivers (direct wide blits are NOT — see `repro_blit_flip.c`) |
 | [`bench_transfer.c`](bench_transfer.c) | BLIT-vs-COMPUTE timing microbenchmark for the same readback shape |
-| [`blit_workaround_bench.c`](blit_workaround_bench.c) | Real-API `glBlitFramebuffer` benchmark for the MR !43161 depth-bias workaround: resource-ring correctness, batched-throughput and isolated-latency schedules, separate CPU/GPU/completion timing, count sweeps, percentiles, and `T(N) = A + N*B` fits |
-| [`run_blit_workaround_bench.py`](run_blit_workaround_bench.py) | Runs an instrumented Mesa binary in alternating `off/on/on/off` and `on/off/off/on` process blocks, checks the G610 clock around every child, and reports paired fixed-cost and per-blit-slope deltas |
+| [`blit_workaround_bench.c`](blit_workaround_bench.c) | Real-API `glBlitFramebuffer` benchmark for the MR !43161 depth-bias workaround: unique-destination correctness, explicit Panfrost query-marker submission, batched-throughput and isolated-latency schedules, separate CPU/GPU/completion timing, and `T(N) = A + N*B` fits |
+| [`run_blit_workaround_bench.py`](run_blit_workaround_bench.py) | Runs an instrumented Mesa binary in alternating `off/on/on/off` and `on/off/off/on` process blocks, checks the G610 clock around every child, rejects poor fits, and reports adjacent-pair slope ratios with a bootstrap interval |
 | [`mr42563-comment-failures.txt`](mr42563-comment-failures.txt) | The exact 25 dEQP-GLES3 case names from the MR !42563 review comment, rerun locally after the COMPUTE switch |
 
 The older top-level GL probes load all GL entrypoints via `eglGetProcAddress`
@@ -385,12 +385,33 @@ The six-size A/B runs are recorded in the
 [benchmark-results finding](../../../findings/2026-07-27-mesa-all-blit-workaround-benchmark-results.md):
 the workaround fixed both affected geometries, and a rerun held every clock
 check at 500 MHz, but the GPU query still did not scale with operation count,
-leaving per-blit cost unresolved.
+leaving per-blit cost unresolved. The
+[benchmark-boundary correction](../../../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md)
+pinned two harness causes and repaired them:
+
+1. Panfrost puts a time-query marker in the batch for the currently bound FBO.
+   The old harness ended the query before `glFlush()`, so the end marker could
+   run while measured batches for other FBOs were still pending.
+2. Counts above `--ring` reused destination FBOs. Fullscreen overwrites could
+   then share one tile batch and one final store, so API-operation count no
+   longer represented independent GPU blit work.
+
+The benchmark now flushes the start marker before the work, all measured FBO
+batches before the end marker, and the end marker before waiting. It also
+refuses batched runs whose largest count exceeds the resource ring. An
+unlocked-clock `64x64` smoke changed the GPU result from an operation-count
+invariant `~1.5 us` to `108.5 us` at one operation and `583.9 us` at eight
+(`R²=0.988`). An affected `12288x1` scaling smoke also reached `R²=0.987`.
+Those are boundary-validation signals, not workaround-cost measurements.
 Unlike `offset_perf_probe.c`, every counted operation enters
 `glBlitFramebuffer`, rotates through independently initialized `R32UI`
 source/destination FBOs, and therefore asks Mesa to save, bind, draw, and
 restore its internal blitter state. Initialization, lazy internal-shader
 creation, and final full-surface verification are outside the timed regions.
+For batched throughput, every operation count also uses a distinct destination
+FBO; set `--ring` to at least the largest count. This consumes more memory but
+prevents a tile renderer from folding repeated fullscreen overwrites into one
+framebuffer batch.
 
 One process measures one driver mode. The test-only Mesa build must consume a
 process-start override (the runner defaults to `PAN_BLIT_DEPTH_BIAS=off|on`)
@@ -429,7 +450,7 @@ For a quick functional smoke on any driver with
 ```bash
 EGL_PLATFORM=surfaceless ./blit_workaround_bench \
   --width 64 --height 64 --counts 1,2,4,8 --samples 3 \
-  --warmups 1 --ring 2 --schedule both --label smoke
+  --warmups 1 --ring 8 --schedule both --label smoke
 ```
 
 For the phase-one G610 matrix, first lock GPU devfreq at 500 MHz as described
@@ -439,11 +460,16 @@ separately. Keep a shared count list for both A/B modes and shorten the list
 when a large-size batch would exceed roughly 100 ms:
 
 ```bash
-./run_blit_workaround_bench.py --blocks 2 --cpu 6 \
+./run_blit_workaround_bench.py --blocks 6 --cpu 6 \
   --expect-gpu-hz 500000000 -- \
   --width 1024 --height 1024 --counts 1,2,4,8,16,64 \
-  --samples 11 --warmups 2 --ring 4 --schedule both
+  --samples 11 --warmups 2 --ring 64 --schedule batched
 ```
+
+Six blocks produce 12 adjacent A/B pairs. The runner's default decision gate
+requires at least eight accepted pairs after rejecting any pair whose off or on
+fit has `R² < 0.98`. Run isolated latency separately after the primary batched
+result; it intentionally pays one flush/wait boundary per operation.
 
 Override names and values are configurable if the Mesa instrumentation uses a
 different process option:
@@ -451,7 +477,8 @@ different process option:
 ```bash
 ./run_blit_workaround_bench.py \
   --off-env PAN_TEST_BLIT_WA=never --on-env PAN_TEST_BLIT_WA=always -- \
-  --width 12288 --height 1 --counts 1,2,4,8,16,64,256,1024
+  --width 12288 --height 1 --counts 1,2,4,8,16,64,256 \
+  --ring 256 --schedule batched
 ```
 
 Output is CSV-like and intentionally keeps raw evidence:
@@ -462,19 +489,31 @@ Output is CSV-like and intentionally keeps raw evidence:
 - `FIT`: fixed intercept, per-blit slope, `R²`, RMS residual, and maximum
   absolute residual, all times in microseconds;
 - `CORRECTNESS`: checked pixels and mismatches after the timed work;
-- `BLOCK-DELTA`: paired `on - off` fixed/slope results for one ABBA/BAAB
-  process block; and
+- `BLOCK-DELTA`: descriptive `on - off` fixed/slope results after averaging
+  each label within one ABBA/BAAB process block;
 - `DELTA`: median fixed delta, median slope delta, slope percentage, and the
-  `p10..p90` slope-delta spread across blocks.
+  `p10..p90` slope-delta spread across blocks;
+- `PAIR-DELTA` / `PAIR-REJECT`: each adjacent A/B comparison or the
+  non-positive-slope / poor-`R²` reason it was excluded;
+- `PAIRED-SUMMARY`: median fixed delta, off slope, on slope, absolute slope
+  delta, paired percentage, descriptive `p10..p90`, bootstrap 95% interval,
+  and accepted/total pair counts; and
+- `PAIR-QUALITY-GATE` / `EFFECT-GATE`: whether enough high-quality pairs
+  survived, then whether the interval supports `SLOWER`, `FASTER`, or remains
+  `UNRESOLVED`.
 
-The primary decision signal is the `batched,gpu` slope. `batched,cpu` reports
-submission/state cost, `batched,wall` reports end-to-end throughput, and the
-three `isolated` rows are synchronization-heavy latency upper bounds. Inspect
-the fit residuals; a poor linear fit means the point curve should be reported
-instead of the slope. The initial implementation is deliberately phase-one
-`R32UI`, 1:1 nearest blits. The plan's other formats, format-changing PBO
-readback, scaled/flipped/scissored/layered/MSAA cases, and application frame
-pacing remain follow-ups after the driver override and counter gates pass.
+The primary decision signal is `PAIRED-SUMMARY,batched,gpu`, but there is no
+workload-independent percentage: report its absolute slope delta and percentage
+for each tested size/format class. A resolved headline requires both
+`PAIR-QUALITY-GATE,...,PASS` and `EFFECT-GATE,...,SLOWER`; if the 95% interval
+crosses zero, report the interval as a bound rather than choosing the central
+estimate as "the slowdown." `batched,cpu` reports submission/state cost and
+`batched,wall` reports end-to-end throughput. The three `isolated` rows are
+synchronization-heavy latency upper bounds. The initial implementation is
+deliberately phase-one `R32UI`, 1:1 nearest blits. The plan's other formats,
+format-changing PBO readback, scaled/flipped/scissored/layered/MSAA cases, and
+application frame pacing remain follow-ups after the driver override and
+counter gates pass.
 
 ## `mr42563-comment-failures.txt`
 
