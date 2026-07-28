@@ -240,6 +240,38 @@ That is the load-bearing observation: the stored value is a **well-formed
 pointer, not ASCII, not zero — any of those would decode to an astronomically
 larger PFN and a wild fault address rather than a clean `__va(0x1e0c1fc000)`.
 
+### The fingerprint, after three samples (2026-07-27)
+
+Three oopses have now been decoded. Entry 1 is an order-8 (1 MiB) system-heap
+chunk, so its true PFN is `≡ 0 (mod 256)` and its true `page_link` is
+`≡ 0 (mod 0x4000)`. All three corrupt values instead end in `0x3f00`:
+
+```text
+16:36  PFN 0x1e0c1fc -> 0xfffffe0038307f00     19:38  PFN 0x1dbe8fc -> 0xfffffe0036fa3f00
+20:11  PFN 0x1de02fc -> 0xfffffe003780bf00     all: page_link & 0x3fff == 0x3f00
+
+    V = pfn_to_page(A - 4),   A = 0 (mod 256),   A ~ 0x1de0300 (~119.5 GiB phys)
+```
+
+The stored value is the vmemmap slot of a 1 MiB-aligned page **minus exactly
+four `struct page`s (256 bytes)**, with the aligned base itself far outside RAM.
+Both 32-bit halves differ from the correct value and the high half differs by
+exactly `+1`, so the event was a single 8-byte store, a 64-bit add, or two
+adjacent 32-bit stores — **not** a 4-byte device write, which would have left
+`0xfffffdff` at `+0x24`. This is a CPU pointer-arithmetic shape.
+
+**Do not read the high word as `-ERESTARTSYS`.** `0xfffffe00` is forced: every
+`struct page *` for a PFN in `[0x1000000, 0x5000000)` has exactly that high
+word, so the `{u32 address, s32 -512}` decomposition carries no information. An
+earlier pass chased a `{addr, errno}` writeback record on the strength of it and
+found nothing, which is the expected outcome.
+
+**Do not assume the damaged table is the encoder's.**
+`system_heap_dma_buf_end_cpu_access()` syncs **every** mapped attachment, and
+all attachments of a buffer are `dup_sg_table()` copies with identical geometry
+— so `orig_nents == 24` and a 1 MiB entry 1 do not identify which attachment
+faulted. Establishing the owning device is one of the guard's jobs.
+
 So on a second oops, record and compare: the entry index (`x23`), that entry's
 length (`x1 - x0`), the array base alignment (`x19`), and the recovered PFN. A
 **repeat of index 1 at 1 MiB** points to a structural bug tied to the buffer
@@ -321,6 +353,31 @@ Step 1 is not optional ceremony. The local forward-port series and the PPA's
 renumbered `0001`–`0071` + `0074`/`0075` tail are not known to be identical, and
 without it a non-reproduction cannot be attributed between the guard, the build,
 and the patch delta.
+
+### 2b. What the guard must capture, and what is already excluded
+
+Source inspection on 2026-07-27 swept `drivers/video/rockchip/{mpp,rga3}/`, the
+series' `drivers/iommu/` delta, and `system_heap.c`
+([finding](../../findings/2026-07-27-grd-sg-writer-source-sweep-vendor-drivers-cleared.md)).
+It **cleared the vendor MPP driver**: only
+four scatterlist references exist there and all are reads, and no object MPP
+allocates or frees on this path lands in the victim's kmalloc-1024 bucket. It
+also found that neither vendor driver contains any device-writable slab memory,
+so a device-DMA writer would have to live outside them. Do not re-sweep `mpp/`.
+
+Three data therefore matter more than any further reading, and the guard already
+records all three:
+
+| Datum | Why it is the priority |
+|---|---|
+| the **prior** `page_link` value | gives `D = V - T`, which discriminates a 64-bit add from an 8-byte store in one shot — the single most informative missing number |
+| the **owning device** + attachment count | settles whether the encoder's own table faulted, which the register block cannot show |
+| the first **checkpoint** that drifts | brackets the window by measurement instead of inference |
+
+Latent defects found during that sweep — including two unprivileged-reachable
+memory-corruption bugs — are catalogued with proposed fixes in
+[`vendor-driver-latent-defects.md`](vendor-driver-latent-defects.md). None is
+confirmed to be this writer.
 
 ### 3. Hardware watchpoint — the instrument that names the writer
 
