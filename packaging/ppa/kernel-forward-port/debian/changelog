@@ -1,3 +1,33 @@
+linux-rockchip64-ysp (6.18.40+rk3588av1fwport20260725-0ubuntu1~rk2) resolute; urgency=high
+
+  * Disable CONFIG_DMABUF_DEBUG. This is the whole change: the upstream source
+    is byte-identical to ~rk1, and the source package is built from that
+    release's own orig tarball.
+  * Fixes the deterministic oops on GNOME Remote Desktop's first RKMPP H.264
+    frame, which left the board with no login video at all — 3/3 boots, and
+    seven times within a single boot.
+  * CONFIG_DMABUF_DEBUG compiles in mangle_sg_table() (drivers/dma-buf/dma-buf.c
+    ~:831), which XORs every scatterlist page_link with ~0xffUL for the interval
+    an attachment is mapped, to catch importers that peek at the underlying
+    struct page. The core applies it to the exporter's own per-attachment table
+    in dma_buf_map_attachment() and undoes it only around the unmap callback.
+    system_heap_dma_buf_end_cpu_access() is reached straight from
+    DMA_BUF_IOCTL_SYNC, outside that bracket, so it syncs the scrambled table
+    and iommu_dma_sync_sg_for_device() faults dereferencing sg_phys() on a
+    non-coherent device. All 8/8 recorded fault addresses invert through that
+    XOR to valid in-RAM page frames, and the option correlates 4/4 with
+    reproduction across every 6.18.40 kernel on the board.
+  * The option was never chosen: Kconfig marks it "default y if DMA_API_DEBUG",
+    so it arrived automatically when DMA_API_DEBUG was enabled. DMA_API_DEBUG
+    itself stays on — it does not gate the mangle, and the explicit
+    "is not set" line overrides the default. It has exactly one reverse
+    dependency tree-wide, dma-buf.c:833, so nothing else changes.
+  * Not a Rockchip or vendor-driver defect. The underlying incompatibility is
+    upstream and general: any dma-heap implementing begin/end_cpu_access this
+    way is an unconditional oops under the option on a non-coherent device.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 28 Jul 2026 14:31:25 -0700
+
 linux-rockchip64-ysp (6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1) resolute; urgency=high
 
   * Rebase the production forward-port source package to Linux 6.18.40
