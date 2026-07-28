@@ -175,6 +175,11 @@ from oversights.
 
 ## Documentation style
 
+- Write the primary path for the repository owner returning with Linux and
+  ROCK 5B context, not for a complete newcomer. Generic Linux, Git, C, or media
+  primers may remain as opt-in references when they preserve useful learning,
+  but they should not delay the subsystem model, evidence boundary, or next
+  decision in a front door.
 - Lead with the result, then explain the mechanism and evidence.
 - Separate current facts from historical facts and proposed work.
 - Use exact dates (`YYYY-MM-DD`) for validation claims; do not use “currently”
@@ -183,6 +188,67 @@ from oversights.
   definitions into many pages.
 - Keep one canonical explanation and link to it from summaries.
 - Use relative repository links and stable heading/function anchors.
+
+A project front door should make four questions cheap to answer:
+
+1. **What does this layer own, and where does it sit?**
+2. **What is the current proven boundary, and which file owns that moving
+   verdict?**
+3. **Where is the maintained mechanism or runbook?**
+4. **What is the next proof or unresolved discriminator?**
+
+Do not make the README retell a long status row or finding to answer them. Link
+the canonical owner and state only the load-bearing distinction needed to choose
+the next document.
+
+When a stable technical model spans enough layers or sections that returning to
+it otherwise requires a scan, front-load a compact re-entry aid. Use only the
+pieces the subject needs:
+
+- a question → section → load-bearing-fact map;
+- one vertical ownership/data-flow trace;
+- a short “do not conflate” table for similar names, handles, states, or green
+  signals; and
+- a direct handoff to the live status/coverage owner.
+
+These are navigation and reasoning aids, not duplicate summaries. Small
+documents and single-purpose runbooks do not need them.
+
+Preserve causal learning as:
+
+```text
+symptom
+  -> discriminating observation
+  -> hypotheses ruled out or superseded
+  -> bounded root cause
+  -> fix/workaround
+  -> verification result
+  -> still-open boundary and next discriminator
+```
+
+The dated finding owns the exact experiment and trust tags. The stable project
+doc owns the maintained mechanism. Curate an
+[investigation trail](findings/README.md#reconstruct-an-investigation) only for
+a recurring thread whose turning points are otherwise hard to recover; ordinary
+findings stay in the generated chronology.
+
+For every experiment-to-conclusion write-up, preserve enough of this chain to
+audit the claim:
+
+```text
+exact source/package/boot identity
+  -> controlled variable and command
+  -> observed pass/fail signal and artifacts
+  -> counterexample or comparison where relevant
+  -> narrowest conclusion licensed by the result
+  -> untested boundary
+  -> next discriminating test
+```
+
+An exit code, device node, compiled object, negotiated codec, positive hardware
+counter, correct output, sanitizer-clean interval, paired differential, and
+production soak are different evidence classes. Name the one actually observed;
+do not let one silently stand in for another.
 
 Repository-owned material does not yet have a repository-wide redistribution
 license. Read [`LICENSE.md`](LICENSE.md) before copying material out of the repo
