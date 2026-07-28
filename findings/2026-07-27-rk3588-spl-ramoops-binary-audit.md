@@ -4,6 +4,14 @@
 > [`boot-firmware/docs/ramoops-retention.md`](../boot-firmware/docs/ramoops-retention.md).
 > This finding remains the exact SPL binary-audit evidence.
 
+> **Evidence-boundary update 2026-07-28:**
+> [`2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md).
+> Cross-reset ramoops recoveries are now measured on the 6.18.40-era kernels
+> under this same firmware; the failure this audit was explaining is scoped
+> to the 6.18.38-era kernels. The binary facts recorded here stand — and the
+> null result (no SPL writer into the window) is, under the new reading, the
+> expected outcome rather than a pointer deeper into the firmware.
+
 > Scope: ROCK 5B running SPI firmware
 > `ddr-v1.20-b8ce94f14b / bl31-v1.48 / uboot-rmbian-201-06/05/2026`
 > Source: exact SPL extracted from `spi-rock5b-20260706.bin`

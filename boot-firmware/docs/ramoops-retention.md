@@ -1,32 +1,35 @@
 # RK3588 ramoops retention across reset
 
-On this ROCK 5B and its inspected Armbian firmware stack, the Linux ramoops
-window at `0x118000–0x1e7fff` does not retain a record across a software warm
-reset. The next kernel sees the interval as all-zero. Treat serial or
-netconsole as mandatory for a crash that may reset or hard-lock the board.
+On this ROCK 5B, the Linux ramoops window at `0x118000–0x1e7fff` **retains
+records across a software warm reset on every 6.18.40-era kernel measured
+(2026-07-26 onward)** — repeated cross-reset recoveries are on record,
+including a full oops dump. The all-zero retention failure documented here
+between 2026-07-21 and 2026-07-24 was real, but it is now **scoped to the
+6.18.38-era kernels**: the failure disappeared with the 2026-07-25 rebuild
+wave (repo `49b115e`) while the firmware stack, the DTB node, the cmdline, and
+userspace were held constant. The zeroing actor was therefore almost certainly
+in that kernel generation, not in the boot firmware — which the exhaustive
+TPL/SPL/BL31/U-Boot audits corroborate by having found no firmware writer.
 
-The actor that changes the bytes is not yet identified. Exact TPL, SPL, BL31,
-and U-Boot audits found no ordinary CPU write into the interval. DDR
-initialization is therefore the leading unresolved *phase*, but controller or
-PHY initialization has not been observed destroying the data and must not be
-reported as the proven cause.
+The exact fixing change is not yet identified, and "6.18.38 still fails
+today" has not been re-confirmed; both are covered by the pending kernel A/B
+(below). Details and full evidence:
+[2026-07-28 finding](../../findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md).
 
 ## Current evidence contract
 
 | Classification | What the evidence supports |
 |----------------|----------------------------|
-| **Measured** | The configured ramoops interval returns all-zero after a warm `panic=10` reboot on the inspected firmware stack. |
-| **Measured** | A continuously written 512 KiB console zone and explicit `/dev/mem` markers both disappear. Ramoops's Reed-Solomon header checks report no corrupt record, which is consistent with an all-zero codeword rather than random residue. |
-| **Binary/source inspected** | Recovered direct writes from the exact DDR/TPL blob, exact SPL, BL31, and U-Boot proper do not overlap `0x118000–0x1e7fff`. |
-| **Leading inference** | The transition probably occurs no later than the DDR/early-loader phase because later recovered writers are disjoint. |
-| **Unverified** | Which operation changes the bytes, whether any official BSP stack retains ramoops on RK3588, and whether a different firmware pair or reset path can preserve the interval. |
-
-This distinction is the stable result. “DDR initialization is the remaining
-phase to instrument” is not the same claim as “DDR training zeroes ramoops.”
+| **Measured** | ≥9 cross-reset recoveries on 6.18.40-era kernels, 2026-07-26..27, same firmware (`ddr-v1.20-b8ce94f14b / bl31-v1.48 / uboot-rmbian-201`); the 2026-07-27 19:38 GRD-SG oops dump crossed a clean warm reboot and is archived in `/var/lib/systemd/pstore/`. |
+| **Measured (historical)** | On the 6.18.38-era kernels, 2026-07-21..24, the window came back all-zero after warm resets: marker probe ZEROED, Reed-Solomon silence, wrapped-console loss, with `systemd-pstore … skipped (ConditionDirectoryNotEmpty)` proving pstore genuinely empty on those boots. |
+| **Config-inspected** | The ramoops DT node is byte-identical between the failing-era and working-era DTBs; systemd-pstore enabled-stock in both eras; cmdline identical; firmware stamp unchanged. |
+| **Leading inference** | The zeroer was kernel-generation-scoped (6.18.38-era, gone in 6.18.40-era). The firmware-phase hypothesis is retired. |
+| **Unverified** | Which change (upstream 6.18.39/40 stable, Armbian family patch refresh, or repo patchset revision — they moved together) fixed it; whether 6.18.38 still fails on today's board state. |
 
 ## The tested layout
 
-The debug DTB reserves:
+The DTB (all repo kernel flavors, and the still-installed
+`6.18.38-current-rockchip64` debug DTB — byte-identical nodes) reserves:
 
 ```text
 ramoops: 0x118000–0x1e7fff (832 KiB)
@@ -36,140 +39,110 @@ ramoops: 0x118000–0x1e7fff (832 KiB)
   ECC:     16 bytes per persistent-RAM zone
 ```
 
-The address deliberately excludes the adjacent vendor areas:
-
 | Physical range | Inspected use |
 |----------------|---------------|
 | `0x100000–0x10ffff` | BL31 shared-memory pool |
-| `0x110000–0x117fff` | DDR firmware `DBGC` ring |
-| `0x118000–0x1e7fff` | Linux ramoops window under test |
+| `0x110000–0x117fff` | DDR firmware `DBGC` ring (static TPL bound) |
+| `0x118000–0x1e7fff` | Linux ramoops window |
 | `0x1f0000–0x1fffff` | BSP minidump/reserved tail; ATAGS writes begin at `0x1fe000` |
 | `0x200000+` | Ordinary Linux RAM |
 
-The running stack audited in the dated evidence is:
+Two overlap cautions when interpreting DRAM dumps or retention runs:
 
-```text
-ddr-v1.20-b8ce94f14b
-bl31-v1.48
-uboot-rmbian-201-06/05/2026
-```
-
-The exact component hashes, source pins, extraction offsets, and reproduction
-commands remain in the linked findings below.
-
-## Why this is a retention failure
-
-The Linux side registered normally: the live DT node, zone sizes, ECC setting,
-ramoops backend, pstore mount, panic timeout, and console backend were all
-verified. Three observations then separate retention failure from a panic
-dumper that simply did not run:
-
-1. A clean warm reboot followed a boot that had written enough eligible
-   console messages to wrap the 512 KiB console persistent-RAM zone. The next
-   boot recovered no console record.
-2. With `ecc-size = <16>`, every zone header is Reed-Solomon checked before its
-   signature is accepted. Across repeated boots there were no bad-header,
-   invalid-buffer, or ECC-failure messages. Random residue would almost
-   certainly fail; all-zero content is a valid empty codeword.
-3. With the ramoops driver kept away from the interval, explicit marker writes
-   verified before reboot returned as zeros after the warm reset.
-
-Together these show that useful bytes do not reach the next Linux instance at
-this address. A device-tree property change cannot recover a signature that is
-already gone before the next ramoops reader examines it.
+- **The BSP kernel (`6.1.115-vendor-rk35xx`) uses `0xe0000@0x110000`, which
+  contains this whole window** and corrupts its zones on every BSP boot. Any
+  retention comparison interleaved with a BSP boot is confounded.
+- pstore's zone signature `PERSISTENT_RAM_SIG` is the ASCII bytes `DBGC` —
+  the same tag as the TPL debug ring — so `DBGC` at `0x110000+` in a dump
+  taken after a BSP boot may be pstore's own headers, not the firmware ring.
 
 ## What the firmware audit ruled out
 
+These binary/source results stand, and under the kernel-scoped reading their
+null results are the expected outcome rather than an anomaly:
+
 | Stage | Result |
 |-------|--------|
-| DDR/TPL blob | The exact v1.20 image and comparison v1.13/v1.15/v1.18/v1.22 images contain recovered low-DRAM writes, but their resolved ranges stop below `0x118000` or start above `0x1e7fff`. The `DBGC` writer is bounded to `0x110000–0x117fff`. |
-| SPL | The exact SPI-resident SPL was reconstructed closely enough to map all bulk operations, fixed destinations, materialized low-DRAM addresses, and hundreds of inline zero stores. None overlaps the interval. |
-| BL31 | The inspected shared-memory pool ends at `0x10ffff`; no recovered BL31 writer reaches ramoops. |
-| U-Boot proper | The relevant pstore/minidump features are not enabled and the inspected allocations/load destinations are disjoint. |
+| DDR/TPL blob | Exact v1.20 and four comparison generations: recovered low-DRAM writes stop below `0x118000` or start above `0x1e7fff`; the `DBGC` writer is bounded to `0x110000–0x117fff`. |
+| SPL | Exact SPI-resident SPL: all bulk operations, fixed destinations, materialized low-DRAM addresses, and inline zero stores are disjoint from the interval. |
+| BL31 | Shared-memory pool ends at `0x10ffff`; no recovered writer reaches the window. |
+| U-Boot proper | pstore/minidump features disabled; allocations/load destinations disjoint. |
 
-This closes the recovered ordinary CPU-zeroer theory. It does not rule out:
-
-- controller-assisted training or a memory-test engine;
-- refresh interruption or a reset-state transition;
-- a write whose address is computed in a way the static recovery missed;
-- a BootROM-side effect; or
-- early behavior observable only before normal SPL execution.
-
-The all-zero 832 KiB result is also a poor fit for casual sparse training
-traffic or simple random retention decay. Only a before/after checkpoint can
-settle the mechanism.
+The PMIC RST_FUN, `GLB_SRST_SND`, DDR-scrambling, minidump, and userspace
+hypotheses remain refuted exactly as recorded in the
+[2026-07-24 finding §3.2](../../findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md).
 
 ## Corrections to earlier explanations
 
-Do not repeat these superseded claims:
+Do not repeat these superseded claims (each was reasonable on the evidence of
+its day; the dated findings retain the full history):
 
-- **“All DRAM is lost across reset.”** Only selected regions and trials were
-  measured; the current proof is about the tested interval.
-- **“DDR scrambling re-keyed the contents.”** The RK3588 TRM says scrambling
-  is bypassed by default, and an all-zero result is not evidence of re-keying.
-- **“BL31's shared-memory pool is the zeroer.”** Its inspected range ends
-  exactly below the vendor firmware ring and well below this ramoops window.
-- **“The BSP preserves this address.”** BSP device trees provision ramoops,
-  but no inspected public result demonstrates recovery of a prior RK3588
-  `dmesg-ramoops` or `console-ramoops` record.
-- **“A cold power-off is safer for recovery.”** Cold power removal guarantees
-  DRAM loss. Warm reset is the only tested path with any chance of retention.
-- **“No address or firmware can work.”** The tested address/stack fails; the
-  broader universal claim was not measured.
+- **"The window is always all-zero after a warm reset on this firmware
+  stack."** True only on the 6.18.38-era kernels. Current kernels retain.
+- **"DDR initialization is the leading unresolved phase."** Retired. The
+  leading hypothesis is a 6.18.38-era kernel-side actor.
+- **"No address inside `0x110000–0x1f0000` can survive under this
+  firmware."** `0x118000` demonstrably carries records today.
+- **"Serial or netconsole is mandatory because ramoops cannot work here."**
+  Softened — see the operational rules below.
+- **"An empty `/sys/fs/pstore` means nothing was captured."**
+  `systemd-pstore.service` archives to `/var/lib/systemd/pstore/` and erases
+  the DRAM zones within seconds of boot; `/sys/fs/pstore` is empty by the
+  time anyone looks. This blind spot is how the working channel went
+  unnoticed for two days.
+- The pre-2026-07-24 corrections (DRAM-wide loss, scrambling re-key, BL31
+  pool, "the BSP preserves this address", "cold power-off is safer") remain
+  corrected as before.
 
-## Operational rule
+## Operational rules
 
-For any validation gate that can panic, reset, or hard-lock the kernel:
+For any validation gate that can oops, panic, reset, or hard-lock the kernel:
 
-1. Attach `ttyS2` serial at 1,500,000 baud or configure netconsole before the
-   test.
-2. Keep persistent journald for the pre-crash userspace/kernel tail, but expect
-   a hard fault to stop logging before the PC/LR/call trace is flushed.
-3. Keep `panic_on_oops=0` when a process-context oops can be allowed to print
-   without rebooting; use the destructive panic path only with off-board
-   capture and recovery staged.
-4. Do not cite an empty `/sys/fs/pstore` as evidence that no oops occurred.
-
-The ramoops DT/config remains useful for reproducing the known failure and for
-future firmware experiments. It is not a proven crash-capture channel on this
-stack.
+1. **After every reboot, check `journalctl -b -u systemd-pstore` and
+   `/var/lib/systemd/pstore/` (root) for recovered records.** Never treat an
+   empty `/sys/fs/pstore` as meaning anything.
+2. Ramoops on the current kernels is a working capture channel for
+   oops/panic records across clean warm reboots. Keep serial (`ttyS2`,
+   1,500,000 baud) or netconsole staged for the cases DRAM cannot cover:
+   hard locks that force a power cycle, and anything before ramoops
+   registers.
+3. Cold power removal still forfeits DRAM contents; prefer warm resets when a
+   record matters.
+4. Do not boot the BSP kernel between a crash and the recovery attempt — its
+   overlapping window destroys the zones.
+5. `panic_on_oops=0` remains the debug-build policy (journald captures the
+   live trace and the session survives); the panic-path capture is expected
+   to work but is part of the pending A/B qualification.
 
 ## Next causal experiment
 
-The highest-value observation is an earliest-safe SPL-entry witness: inspect
-page-unique markers immediately after the DDR TPL/BootROM path and before
-normal SPL allocation or payload loading.
+The priority experiment is the kernel A/B — it replaces the SPL-entry
+witness, because the target is no longer firmware instrumentation. The failing
+kernel is still installed; four reboots settle the scoping:
 
-The maintained experiment order is:
+1. `6.18.40-ysp`: `ramoops-persistence-probe.sh write` → warm reboot → `read`
+   (expected INTACT).
+2. Repoint `/boot/Image`/`uInitrd`/`dtb` at `6.18.38-current-rockchip64`,
+   boot, `write` → warm reboot → `read`.
 
-1. characterize multiple pages with address-bearing PRBS/checksum patterns,
-   guard pages, warm/cold controls, and full binary dumps;
-2. emit an SPL-entry checksum/histogram over UART or SRAM;
-3. if the bytes have already changed, vary only the DDR blob in a RAM-loaded
-   diagnostic image;
-4. checkpoint controller reset, DRAM initialization, refresh, PHY training,
-   geometry detection, and memory-test phases with JTAG or small trampolines.
-
-Success means observing the same page-specific marker immediately before and
-after the first operation that changes it. A blob A/B that merely changes the
-final result proves dependency, not mechanism. The complete controls and
-safety boundaries are in the
-[dated experiment plan](../../findings/2026-07-27-rk3588-ramoops-next-experiment-plan.md).
-
-Testing whether an installed BSP kernel or official Radxa image recovers
-ramoops is a separate premise test. A success would justify a controlled stack
-differential; a failure would weaken the BSP premise but would not identify the
-current stack's zero mechanism.
+ZEROED-on-38 + INTACT-on-40 confirms the kernel-side actor; then split
+upstream-stable vs patchset (6.18.38 base + new patches, or 6.18.40 base +
+old patches) before considering a commit bisect of the 2113-commit stable
+range. INTACT-on-38 means the 07-21..24 environment carried a hidden
+confound; reopen from the archived evidence. The SPL-entry temporal witness
+([2026-07-27 plan](../../findings/2026-07-27-rk3588-ramoops-next-experiment-plan.md))
+is only worth running if the A/B contradicts the kernel-scoped reading.
 
 ## Evidence ledger
 
 | Date | Evidence | Role in the current conclusion |
 |------|----------|--------------------------------|
-| 2026-07-21 | [Warm-reset retention failure](../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md) | Initial measured failure; several mechanism claims were later corrected. |
-| 2026-07-24 | [BSP/Armbian comparison and consolidated audit](../../findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md) | Strengthened the all-zero proof, corrected the BSP premise, and eliminated several proposed causes. |
-| 2026-07-26 | [Exact DDR/TPL binary audit](../../findings/2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md) | Bounded recovered TPL writes and ruled out a direct DDR-blob clear of the interval. |
-| 2026-07-27 | [Exact SPL binary audit](../../findings/2026-07-27-rk3588-spl-ramoops-binary-audit.md) | Closed the last recovered ordinary CPU-write candidate without claiming a DDR mechanism. |
-| 2026-07-27 | [Next experiment plan](../../findings/2026-07-27-rk3588-ramoops-next-experiment-plan.md) | Defines the direct temporal witness needed to move beyond phase inference. |
+| 2026-07-21 | [Warm-reset retention failure](../../findings/2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md) | Initial measured failure (6.18.38 era); several mechanism claims corrected 07-24. |
+| 2026-07-24 | [BSP/Armbian comparison and consolidated audit](../../findings/2026-07-24-bsp-vs-armbian-ramoops-gap.md) | Strengthened the (era-scoped) all-zero proof; killed the PMIC/reset/DT hypotheses; its refutations stand. |
+| 2026-07-26 | [Exact DDR/TPL binary audit](../../findings/2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md) | No TPL writer into the interval — now corroborates the kernel-scoped reading. |
+| 2026-07-27 | [Exact SPL binary audit](../../findings/2026-07-27-rk3588-spl-ramoops-binary-audit.md) | Closed the last recovered firmware CPU-write candidate — same corroboration. |
+| 2026-07-27 | [Next experiment plan](../../findings/2026-07-27-rk3588-ramoops-next-experiment-plan.md) | SPL-entry witness design; demoted to contingency by the 07-28 reversal. |
+| 2026-07-28 | [Retention works on 6.18.40-era kernels](../../findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md) | The reversal: measured recoveries, flip timeline, blind-spot analysis, kernel A/B gate. |
 
 These findings remain the dated forensic record. This page is the maintained
 current explanation and operational boundary.

@@ -4,6 +4,18 @@
 > [`boot-firmware/docs/ramoops-retention.md`](../boot-firmware/docs/ramoops-retention.md).
 > This finding remains the detailed BSP comparison and experiment provenance.
 
+> **Evidence-boundary update 2026-07-28:**
+> [`2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md).
+> The all-zero result stopped reproducing after the 2026-07-25 rebuild wave
+> moved every installed kernel to a 6.18.40 base: cross-reset recoveries are
+> now measured repeatedly on the identical firmware stack. The §3.1
+> measurements (real on their 6.18.38-era boots, proven by the
+> `systemd-pstore … skipped` condition lines) and every §3.2 refutation
+> stand. The BSP-vs-Armbian framing dissolves further: the delta tracked the
+> kernel base, not the firmware generation, and the incidental 2026-07-27
+> BSP boots do not constitute EXP-2 (the BSP window overlaps and corrupts
+> ours, and non-BSP boots were interleaved).
+
 > **Evidence-boundary update 2026-07-27:**
 > [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md)
 > maps the exact SPI-resident SPL's bulk operations, inline zero stores, fixed

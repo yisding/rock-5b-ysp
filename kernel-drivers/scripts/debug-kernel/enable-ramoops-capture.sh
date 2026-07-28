@@ -184,9 +184,12 @@ write_sysctl() {
 
   cat >"$SYSCTL_FILE" <<EOF
 # ${MARKER}
-# Debug builds boot with panic_on_oops=0: RK3588 firmware re-inits DRAM on
-# reset, so ramoops does not survive a panic reboot (measured). Keeping the
-# board up on a process-context oops lets journald capture the full trace live.
+# Debug builds boot with panic_on_oops=0: keeping the board up on a
+# process-context oops lets journald capture the full trace live and keeps
+# the repro session alive. Ramoops records ARE recovered across warm reboots
+# on the 6.18.40-era kernels (findings/2026-07-28-ramoops-retention-works-
+# on-6-18-40-kernels.md) — the earlier "does not survive" result was scoped
+# to the 6.18.38-era kernels — but the panic path is still being requalified.
 # The distributable kernel keeps the fail-fast default (panic_on_oops=1).
 kernel.panic_on_oops = 0
 EOF
@@ -223,4 +226,10 @@ echo "After reboot, verify with:"
 echo "  test -d /sys/module/ramoops && echo 'ramoops loaded'"
 echo "  sysctl kernel.panic_on_oops"
 echo "  sudo dmesg | grep -i 'ramoops\\|pstore'"
-echo "  sudo ls -l /sys/fs/pstore"
+echo
+echo "To look for recovered records from the previous boot:"
+echo "  journalctl -b -u systemd-pstore   # 'PStore ... moved' = a recovery"
+echo "  sudo ls -l /var/lib/systemd/pstore"
+echo
+echo "Do NOT read /sys/fs/pstore as evidence: systemd-pstore archives and"
+echo "erases it within seconds of boot, so it is always empty by login."

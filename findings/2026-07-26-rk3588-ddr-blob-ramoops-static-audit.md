@@ -4,6 +4,14 @@
 > [`boot-firmware/docs/ramoops-retention.md`](../boot-firmware/docs/ramoops-retention.md).
 > This finding remains the exact TPL binary-audit evidence.
 
+> **Evidence-boundary update 2026-07-28:**
+> [`2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md).
+> Cross-reset ramoops recoveries are now measured on the 6.18.40-era kernels
+> under this same firmware; the failure this audit was explaining is scoped
+> to the 6.18.38-era kernels. The binary facts recorded here stand — and the
+> null result (no TPL writer into the window) is, under the new reading, the
+> expected outcome rather than a pointer to controller-assisted DDR phases.
+
 > **Followed up 2026-07-27 by**
 > [`2026-07-27-rk3588-spl-ramoops-binary-audit.md`](2026-07-27-rk3588-spl-ramoops-binary-audit.md).
 > The exact SPL's bulk operations, inline zero stores, fixed allocations, and

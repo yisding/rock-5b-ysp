@@ -107,8 +107,11 @@ reboot instead of a manual wait.
    and was never tested** — a cold power-off removes DRAM power outright and
    forces a full DDR re-init, while a warm reset is the only path with any
    chance at all. Use step 1 (netconsole) or a ttyS2 serial console instead, and
-   pair with step 3 so the hang panics promptly. Outstanding experiments that
-   could still make ramoops work are in
+   pair with step 3 so the hang panics promptly. Since 2026-07-28 ramoops
+   *does* recover records across warm reboots on the 6.18.40-era kernels —
+   check `journalctl -b -u systemd-pstore` and `/var/lib/systemd/pstore/`,
+   never `/sys/fs/pstore` (archived-and-erased seconds after boot). The
+   remaining qualification A/B is in
    [the retention guide's next-proof section](../../boot-firmware/docs/ramoops-retention.md#next-causal-experiment).
 3. **Force reboot + dump** — set `kernel.hung_task_panic=1` (default here is `0` =
    warn-only); with `panic=10` already on the cmdline the blocked task panics at

@@ -4,6 +4,15 @@
 > [`boot-firmware/docs/ramoops-retention.md`](../boot-firmware/docs/ramoops-retention.md).
 > This finding remains the detailed experimental design.
 
+> **Evidence-boundary update 2026-07-28:**
+> [`2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md).
+> Cross-reset ramoops recoveries are now measured on the 6.18.40-era kernels
+> under the same firmware, so the premise this design instruments — an
+> ongoing boot-phase zeroer — no longer holds as stated. The SPL-entry
+> witness is demoted to a contingency; the priority experiment is the
+> four-reboot kernel A/B on the still-installed `6.18.38-current-rockchip64`
+> image, defined in the 07-28 finding's verification gate.
+
 > Scope: ROCK 5B ramoops retention at `0x118000–0x1e7fff`
 > Source: measured warm-reset loss, exact TPL/SPL/BL31/U-Boot write audits, and
 > the corrected evidence boundary in

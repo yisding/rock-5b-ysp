@@ -5,6 +5,16 @@
 > This finding preserves the initial observation and its explicitly corrected
 > mechanism claims.
 
+> **Evidence-boundary update 2026-07-28:**
+> [`2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md).
+> The all-zero result stopped reproducing after the 2026-07-25 rebuild wave
+> moved every installed kernel to a 6.18.40 base: cross-reset ramoops
+> recoveries are now measured repeatedly on the identical firmware stack. The
+> failures recorded here were real but are scoped to the 6.18.38-era kernels,
+> and the firmware-phase inference is retired as the working hypothesis. The
+> operative conclusion — off-board capture only — is softened accordingly;
+> serial remains required for hard locks and power loss.
+
 > Scope: ROCK 5B debug kernels (all of them — they carry the ramoops DT patch),
 > firmware stack `ddr-v1.20-b8ce94f14b / bl31-v1.48 / uboot-rmbian-201`
 > (Armbian, from the kernel cmdline `androidboot.fwver`).

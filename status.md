@@ -111,6 +111,7 @@ last-checked date.
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | **CSI-loop attribution falsified as sole cause:** the stall recurred on 2026-07-23 with the patched `~rk1` package binary-verified in the booted initramfs (identical fingerprint, no `SIGRTMIN+20`). Boot-transaction mechanism reconfirmed; internal daemon wedge unknown again. Mitigation `plymouth.enable=0` still unapplied; next hang needs a live `plymouthd` stack via `debug-shell.service` instead of a reset. |
 | W21 | [ffmpeg-rockchip `rkmpp` transcode deadlock without the `da5befc806` backpressure fix](#watch-w21) | 2026-07-23 | The harness's default `FFDIR` binary (FFmpeg-**master**, `libavcodec 63`; its dir's `RELEASE` file misleadingly says 6.1) deadlocks on `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines (all threads on `futex`). The **shipping `/usr/bin/ffmpeg 8.0.3~rk1` (`libavcodec 62`, carries `da5befc806`) runs both cleanly**, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Already-catalogued encoder-backpressure/decoder-hang class (submission-plan §B), fixed on our 8.0 line — not a new finding; not yet forward-ported to main or upstreamed. |
 | W22 | [RK3588 per-die voltage binning absent from mainline](#watch-w22) | 2026-07-27 | Rechecked three release candidates later at maxline `v7.2-rc5-252`: still absent, and `rk3588-opp.dtsi` is byte-identical between the 6.18 forward port and maxline, so one DT patch serves both. Mainline ships the BSP's unbinned worst-die column **exactly** (19/19 shared CPU OPPs) while the BSP's per-die columns reach 50–87 mV lower. This board is bin 0 and its BSP index is now **measured** — L5 little, L7 both big — so the entitlement is priced, not estimated. |
+| W23 | [Ramoops retention reversal & the 6.18.38 kernel A/B](#watch-w23) | 2026-07-28 | **Ramoops recovers records across warm reboots on every 6.18.40-era kernel** — ≥9 recoveries in the retained journal since 2026-07-26, same firmware stack — so the documented all-zero failure is scoped to the 6.18.38-era kernels and the firmware-phase hypothesis is retired. The four-reboot kernel A/B on the still-installed `6.18.38-current` is pending; the 2026-07-27 19:38 GRD-SG oops dump is archived in `/var/lib/systemd/pstore/`. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -716,3 +717,35 @@ last-checked date.
   `imx-cpufreq-dt.c`-shaped driver plus two DT cells. PVTM is the part that does
   not port cheaply (runtime closed-loop PVTPLL calibration). Detail:
   [`findings/2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md`](./findings/2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md).
+
+<a id="watch-w23"></a>
+### W23 — Ramoops retention reversal & the 6.18.38 kernel A/B
+
+- **Why recheck:** Two facts here drift silently. The kernel A/B (four
+  reboots, nothing to flash) is the open gate that turns "kernel-generation-
+  scoped" from the best available inference into a proof, and nobody schedules
+  reboots automatically. And `/var/lib/systemd/pstore/` only stays meaningful
+  if it is checked after crashes — `systemd-pstore` archives and erases
+  `/sys/fs/pstore` within seconds of every boot, which is exactly the blind
+  spot that hid the working channel for two days.
+- **Last checked:** 2026-07-28
+- **State 2026-07-28:** Retention **works** on the current kernels: ≥9
+  cross-reset recoveries in the retained journal (2026-07-26 12:14 onward)
+  across `6.18.40-ysp`, `6.18.40-video-port-kasan`, and
+  `6.18.40-video-rewrite-kasan`, on the unchanged
+  `ddr-v1.20-b8ce94f14b / bl31-v1.48 / uboot-rmbian-201` firmware — including
+  the 2026-07-27 19:38:08 GRD-SG oops dump recovered after a clean warm
+  reboot (root-readable at `/var/lib/systemd/pstore/dmesg-ramoops-0`). The
+  2026-07-21..24 all-zero failures were real (systemd-pstore condition-skip
+  lines prove pstore was genuinely empty on those boots) but every one ran on
+  a 6.18.38-era kernel; the flip coincides with repo `49b115e` (2026-07-25,
+  6.18.38 → 6.18.40 rebuild wave) with DTB node, cmdline, and userspace held
+  constant. The fixing change is unidentified (upstream 6.18.39/40, Armbian
+  patch refresh, and repo patchset revision moved together). Open gate: probe
+  `write` → warm reboot → `read` on `6.18.40-ysp`, then the same on the
+  still-installed `6.18.38-current-rockchip64`. Do not boot the BSP kernel
+  between a crash and a recovery attempt (its `0xe0000@0x110000` window
+  contains and corrupts ours). Detail:
+  [`findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](./findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md);
+  maintained boundary:
+  [`boot-firmware/docs/ramoops-retention.md`](./boot-firmware/docs/ramoops-retention.md).
