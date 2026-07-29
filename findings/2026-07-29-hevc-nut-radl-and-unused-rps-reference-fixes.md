@@ -155,12 +155,64 @@ FFmpeg's backport preserves upstream authorship and the exact two-file change:
 - `tests/fate/hevc.mak` stops forcing `output_corrupt` for the complete HEVC
   conformance group.
 
+## Packaging checkpoint
+
+The YSP package pins now export MPP as
+`1.5.0+git20260729.3381fd2c+ds-0ubuntu1~rk1` and FFmpeg as
+`7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1`. Both source packages
+build and pass `dscverify`. MPP additionally completes its native arm64 binary
+package build, produces all five expected packages, and passes Lintian's error
+gate; the runtime deb SHA-256 is
+`5dbced58b1ed76ec5103bdd766e4b3d838539364321a685a687c4e372312a7f2`.
+Launchpad's FFmpeg arm64 build also completes successfully.
+
+Both signed source packages were uploaded to
+`ppa:yi-ding/ubuntu-rock-5b` and accepted by Launchpad. MPP source publication
+[`18647958`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647958)
+dispatched arm64 build
+[`33450621`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450621);
+FFmpeg source publication
+[`18647960`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647960)
+dispatched arm64 build
+[`33450629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450629).
+Both sources are Published. MPP build `33450621` succeeded in 12m53s and all
+five arm64 binary publications
+[`247606929`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606929)–[`247606933`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606933)
+are Published. FFmpeg build `33450629` succeeded in 28m19s and all 29 binary
+publications
+[`247606934`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606934)–[`247606962`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606962)
+are Published. Launchpad recorded the binary publication set at
+2026-07-29 10:06:22 UTC.
+
+The exact live-PPA runtime packages were then downloaded from the archive,
+checked against the SHA-256 values in its `Packages.xz`, and extracted into an
+isolated root. Loader inspection proved that the staged FFmpeg executable,
+FFmpeg libraries, direct-MPP reproducer, and source-built
+`rockchip_drv_video.so` all resolved the extracted `librockchip_mpp.so.1`
+rather than the installed older library. On that exact package pair the
+complete 163-candidate HEVC Main sweep reports:
+
+```text
+candidates=163 skipped=17 backend-failed=0 unsupported=2 driver-failed=0 bit-exact=144
+ALL PINNED CLASSES MATCH
+```
+
+Both NUT aliases are among the 144 byte-exact results. The report SHA-256 is
+`39c68fdf82773fb9bde47dbcde74abc3ea49271905b203aad1a1c81f1452cf89`;
+the manifest-row SHA-256 is
+`c2130ec492d8cdd05074454e2dd294107953012dbe152ae4e4f353668fea5671`.
+The normal and complete ASan/UBSan-driver shipping-profile matrices also pass
+on the exact package root, including the audited VP9 show-existing vector,
+H.264 reference/B-frame matrix, 4K, five-run VP9 determinism, and VP8
+fallback.
+
 ## Boundary
 
-The source fixes are built and runtime-verified but are not yet installed from
-published YSP packages. The existing installed-package and `rockchip-vaapi`
-capability summaries therefore remain historical until MPP and FFmpeg packages
-are exported, installed, and the complete 163-vector VA sweep is repeated.
+The fixes are published and their exact archive binaries pass the complete VA
+sweep, but they are not yet installed through the host package manager.
+System installation and an installed-payload identity/runtime confirmation
+remain lifecycle gates; they are no longer correctness prerequisites for this
+finding's fixed-package sweep result.
 
 MPP still logs unavailable POCs for this stream. Those entries are in unused
 RPS sets and are represented by reference-only placeholders; they do not set

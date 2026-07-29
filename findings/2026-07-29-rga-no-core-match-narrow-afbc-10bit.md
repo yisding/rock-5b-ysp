@@ -141,7 +141,9 @@ This is the sole remaining failure in the HEVC Main10 conformance sweep (10 of
 from the BSP. The local driver source now fixes the VA-API integration defect:
 it refuses the unsupported context early enough for application software
 fallback and retains a pre-submit safety check. The installed driver package
-still predates that fix.
+was subsequently advanced to `1.0.11+ysp5`, payload-matched, and passed the
+focused fallback plus pinned installed-driver gates. The later roadmap changes
+remain source-tree evidence until their final package is installed.
 
 ## Remaining follow-up
 

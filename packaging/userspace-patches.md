@@ -24,7 +24,7 @@ for how the external source trees are reconstructed see
 | **FFmpeg 8.1** (baseline) | none — recovered `debian/` only | none (pristine upstream) | `8.1.2` | `7:8.1.2-1+rk2` | `rock5b-ffmpeg81-upstream` |
 | **codec-udev** | native, in-repo | n/a | — | `1.1` | `ubuntu-rock-5b` |
 | **gdm-hwenc** | native, in-repo | n/a | — | `1.0` | `ubuntu-rock-5b` |
-| **rockchip-vaapi** | `rockchip-vaapi` @ `fork/ysp/cleanup` | fork branch | `40bf98f` | **not packaged** | none |
+| **rockchip-vaapi** | `yisding/rockchip-vaapi` @ `main` | fork branch | `5d558fa` | `1.0.11+ysp6-0ubuntu1~rk1` (signed locally) | `ubuntu-rock-5b` upload pending |
 
 Two gaps worth knowing rather than rediscovering:
 
@@ -33,9 +33,10 @@ Two gaps worth knowing rather than rediscovering:
   `packaging/ppa/*` tree reproduces it. Rebuilding that source package today
   would mean recovering the `debian/` tree from Launchpad, the way
   `ffmpeg-baseline` was recovered on 2026-07-07.
-- **rockchip-vaapi is forked and worked on but not packaged.** It is the lead
-  road for desktop-app HW video; there is no source package and no PPA for it
-  yet.
+- **rockchip-vaapi now has an exact-commit source package but is not yet
+  published.** `1.0.11+ysp6-0ubuntu1~rk1` is signed, source/binary
+  Lintian-error-clean, and isolated-lifecycle validated; upload and Launchpad
+  build/publication remain.
 
 ## Two ways patches are carried
 

@@ -90,6 +90,14 @@ reason, the wedge is permanent:
 
 - Trigger of the original loss (what consumed the watch armed at the ~01:40 DIM
   without dispatching the callback) not yet caught in the act.
+- 06:45 same-day recurrence of the symptom was **not** this bug: watches were
+  alive (injected EIS fired them); the client died in the greeter→session
+  handover instead. See
+  [the handover-race finding](2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md),
+  which also documents that inhibitor releases reset idletime without firing
+  user-active watches — so this finding's "keystrokes did reset idletime"
+  evidence line is inconclusive on its own (the injection and re-blank proofs
+  are unaffected).
 - Tripwire left running: gsd-power with `G_MESSAGES_DEBUG=all` (via user-manager
   env; PID 379659) + `dbus-monitor` on `org.gnome.Mutter.IdleMonitor` →
   `~/Code/tmp/rdp-wake-bug/dbus5.log`. Next natural recurrence will be fully

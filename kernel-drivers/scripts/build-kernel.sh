@@ -24,6 +24,7 @@
 #     ppa-forward-port     unsigned source package (packaging/ppa/build-source-packages.sh kernel)
 #     ppa-rewrite-6.18     unsigned source package (… kernel-alpha-6.18)
 #     ppa-rewrite-7.2-rc3  unsigned source package (… kernel-alpha-7.2-rc3)
+#     ppa-rewrite-7.2-rc5  unsigned source package (… kernel-alpha-7.2-rc5)
 #     maxline-public       pinned 7.2-rc3 maxline package (packaging/ppa/kernel-maxline/build-kernel.sh public)
 #     maxline-wip          pinned 7.2-rc3 maxline package (… wip)
 #
@@ -261,12 +262,13 @@ done
 
 # --- delegated flavors ------------------------------------------------------
 case "$FLAVOR" in
-	ppa-forward-port|ppa-rewrite-6.18|ppa-rewrite-7.2-rc3)
+	ppa-forward-port|ppa-rewrite-6.18|ppa-rewrite-7.2-rc3|ppa-rewrite-7.2-rc5)
 		[ "$MODE" = "build" ] || die "$FLAVOR does not support --$MODE"
 		case "$FLAVOR" in
 			ppa-forward-port)    target="kernel" ;;
 			ppa-rewrite-6.18)    target="kernel-alpha-6.18" ;;
 			ppa-rewrite-7.2-rc3) target="kernel-alpha-7.2-rc3" ;;
+			ppa-rewrite-7.2-rc5) target="kernel-alpha-7.2-rc5" ;;
 		esac
 		say "delegating to packaging/ppa/build-source-packages.sh $target"
 		exec bash "$ROOT/packaging/ppa/build-source-packages.sh" "$target" \

@@ -23,6 +23,14 @@
 > kernel `no core match` messages. See the
 > [narrow-AFBC finding](2026-07-29-rga-no-core-match-narrow-afbc-10bit.md).
 
+> **Later follow-up, 2026-07-29:** `1.0.11+ysp5` was packaged, installed, and
+> payload-matched, closing this finding's stale-installed-driver boundary.
+> Subsequent working-tree measurements add VLC Main10, 1080p 10-bit
+> throughput, multi-object/multi-slice encode, same-process concurrency, and
+> the two-hour encode soak, while isolating Firefox Main10 to Panfrost's
+> GR1616 EGL import. See the
+> [roadmap qualification finding](2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md).
+
 ## Result
 
 The measurement gap that dominated track 14 is closed. Every gate below ran on

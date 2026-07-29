@@ -31,13 +31,15 @@ maintains it. Upstream `woodyst/rockchip-vaapi@e8c64dd` is unmoved since
 2026-05-28 and was rechecked 2026-07-28, with bus factor 1, no CI, and no
 distro or libva-ecosystem presence; the fork is 651 files / 20,559
 insertions / 1,496 deletions ahead, i.e. a rewrite rather than a patch set.
-Every decode gate was re-run 2026-07-28 on the production-shaped
-`6.18.40-ysp-rockchip64` kernel with 142/163 FATE HEVC Main vectors
-byte-exact and zero driver failures, and stock VLC 3.0.23 and Firefox 153.0
-hardware-decoding; the announcement must state the caveat that the shipping
-deb (`1.0.11+ysp5` as of 2026-07-29, packaging the pinned `491533e` source)
-and the exact provenance of the 2026-07-28 gates against that installed
-driver should be re-checked before repeating any staler caveat text.
+The 2026-07-28 production-shaped `6.18.40-ysp-rockchip64` run produced
+142/163 byte-exact FATE HEVC Main vectors with zero driver failures; the exact
+Published MPP `3381fd2c` and FFmpeg `33a651a55b` package root advances that to
+144/163, 17 classified skips, two size refusals, and zero backend/driver
+failures. Stock VLC 3.0.23 and Firefox 153.0 hardware-decode the 8-bit paths.
+The announcement must distinguish the isolated exact-package result from host
+installation and state that the shipping driver deb (`1.0.11+ysp5` as of
+2026-07-29, packaging the pinned `491533e` source) predates the final reviewed
+working-tree roadmap changes.
 
 - Evidence: [status.md](../../status.md), [README.md](README.md), [findings/2026-07-21-rockchip-vaapi-driver-review.md](../../findings/2026-07-21-rockchip-vaapi-driver-review.md), [findings/2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md](../../findings/2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md), [docs/source-trees.md](../../docs/source-trees.md), [packaging/userspace-patches.md](../../packaging/userspace-patches.md)
 - Coupled with: VA-2, VA-3, VA-5

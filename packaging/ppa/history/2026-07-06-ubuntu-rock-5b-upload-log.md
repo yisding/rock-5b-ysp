@@ -2238,3 +2238,64 @@ See ../../configure --help for available options.
   [`33450532`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450532)
   to `bos03-arm64-101`; the source is Pending and the build is running at this
   check.
+
+## MPP RADL and FFmpeg unused-RPS uploads — 2026-07-29
+
+- Advanced MPP to `ysp/main@3381fd2c` and package
+  `1.5.0+git20260729.3381fd2c+ds-0ubuntu1~rk1`. The source package and native
+  arm64 binary build pass; all five expected packages were produced. Source
+  and binary Lintian returned success with only inherited standards-version,
+  missing demo man-page, and long-filename warnings.
+- Advanced the normal-PPA FFmpeg line to
+  `fix/rkmpp-output-timeout@33a651a55b` and package
+  `7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1`. Source construction,
+  `dscverify`, and Lintian's error gate pass. The native binary build is
+  delegated to Launchpad.
+- Signed both `.dsc`, source `.buildinfo`, and source `.changes` files with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. MPP upload SHA-256 set:
+  - orig tarball: `757d1e40078413d12c3f06b4658bb0c3a617ee79b598fe225cefee571f05fbc8`;
+  - Debian tarball: `2671ae8ef15cc90fe2867980ec8abf4c884ce53879b2437d939aea4e24722540`;
+  - signed `.dsc`: `5d46b471d24318a7756ae110bddc6a9358b8477c007af5881c8713e7fc7cd06f`;
+  - signed source `.buildinfo`: `96d70cd8dd135662a85124a67722a030ec0f2e16fd8333e4c5ca529c1e7e7bb9`;
+  - signed source `.changes`: `71edbb039a0d9ff8c5fc6819bfb1661bd175e6907dd9858ca21e2075f3922541`.
+- FFmpeg upload SHA-256 set:
+  - orig tarball: `4a183db31bad455cb169e37a2e4baf778ae9367667f718d09467c961bcc50c26`;
+  - Debian tarball: `92a66f508b6228982cb6a52a73b3518b0d068f2b1b484e30ce8c533949103175`;
+  - signed `.dsc`: `d9f481696abe76961735aa9809287c575eb139d66ab1f5ac8e0bd77e335c72b1`;
+  - signed source `.buildinfo`: `eacd0e8fdc57c126a99f06069603105236bee7aa0c837aadfa39e11e7d376c27`;
+  - signed source `.changes`: `13fd97c494a7a3c3fc484ba03cee25f947b8b886f6934ef37516351932b7840a`.
+- `dput` passed its distribution, field, checksum, suite, source-only, and GPG
+  checks and transferred both five-file source sets to
+  `ppa:yi-ding/ubuntu-rock-5b`; both local `.ppa.upload` markers exist.
+- Launchpad accepted MPP source publication
+  [`18647958`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647958)
+  and queued arm64 build
+  [`33450621`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450621).
+  It accepted FFmpeg source publication
+  [`18647960`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647960)
+  and queued arm64 build
+  [`33450629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450629).
+  Both sources became Published. MPP build `33450621` succeeded in 12m53s and
+  produced five Published arm64 binaries, publications
+  [`247606929`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606929)–[`247606933`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606933).
+  FFmpeg build `33450629` succeeded in 28m19s and produced all 29 Published
+  binary records, publications
+  [`247606934`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606934)–[`247606962`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606962).
+  Launchpad recorded the complete binary publication set at
+  `2026-07-29T10:06:22.212012+00:00`.
+
+## librga TILE-stride publication closure — 2026-07-29
+
+- The previously pending librga
+  `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` source publication
+  [`18641905`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18641905)
+  is Published.
+- Its arm64 build
+  [`33440960`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33440960)
+  succeeded in 6m02s. Both expected binaries are Published:
+  `librga-dev` publication
+  [`247477790`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247477790)
+  and `librga2` publication
+  [`247477791`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247477791).
+- `apt-cache policy` resolves both exact packages from the normal PPA, and
+  `dpkg-query` confirms they are installed on the qualification host.

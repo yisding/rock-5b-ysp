@@ -5,9 +5,9 @@ export LC_ALL=C
 PPA="ppa:yi-ding/ubuntu-rock-5b"
 EXPECTED_CODENAME="resolute"
 
-FFMPEG_VERSION="7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1"
+FFMPEG_VERSION="7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1"
 GRD_VERSION="50.2+rkmpp+git20260729.14.24f4392-0ubuntu1~rk1"
-MPP_VERSION="1.5.0+git20260529.1375813c+ds-0ubuntu2~rk1"
+MPP_VERSION="1.5.0+git20260729.3381fd2c+ds-0ubuntu1~rk1"
 CODEC_UDEV_VERSION="1.1"
 
 # ---------------------------------------------------------------------------

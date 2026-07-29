@@ -1,0 +1,56 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/default.mk
+
+export ARCH := arm64
+export KBUILD_BUILD_USER := build
+export KBUILD_BUILD_HOST := launchpad
+export KBUILD_BUILD_TIMESTAMP := Wed, 15 Jul 2026 21:09:05 -0700
+
+KERNEL_BRANCH := ysp-alpha-7.2-rc5
+KERNEL_FAMILY := rockchip64
+LOCALVERSION := -$(KERNEL_BRANCH)-$(KERNEL_FAMILY)
+KERNEL_VERSION := $(shell awk '/^VERSION =/{v=$$3} /^PATCHLEVEL =/{p=$$3} /^SUBLEVEL =/{s=$$3} /^EXTRAVERSION =/{e=$$3} END{print v "." p "." s e}' Makefile)
+KERNEL_RELEASE := $(KERNEL_VERSION)$(LOCALVERSION)
+
+IMAGE_PKG := linux-image-ysp-alpha-7.2-rc5-rockchip64
+DTB_PKG := linux-dtb-ysp-alpha-7.2-rc5-rockchip64
+HEADERS_PKG := linux-headers-ysp-alpha-7.2-rc5-rockchip64
+
+JOBS := $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+ifeq ($(JOBS),)
+JOBS := $(shell nproc 2>/dev/null || echo 1)
+endif
+
+MAKE_KERNEL = $(MAKE) ARCH=$(ARCH) LOCALVERSION=$(LOCALVERSION)
+
+%:
+	dh $@
+
+override_dh_auto_clean:
+	[ ! -f Makefile ] || $(MAKE_KERNEL) clean
+	rm -rf debian/$(IMAGE_PKG) debian/$(DTB_PKG) debian/$(HEADERS_PKG)
+	rm -f debian/*.substvars debian/$(IMAGE_PKG).* debian/$(DTB_PKG).* debian/$(HEADERS_PKG).*
+
+override_dh_auto_configure:
+	cp debian/config/arm64-rockchip64.config .config
+	$(MAKE_KERNEL) olddefconfig
+
+override_dh_auto_build:
+	$(MAKE_KERNEL) -j$(JOBS) Image modules dtbs
+
+override_dh_auto_install:
+	debian/scripts/install-kernel-packages.sh "$(CURDIR)" "$(KERNEL_RELEASE)" "$(IMAGE_PKG)" "$(DTB_PKG)" "$(HEADERS_PKG)" "$(ARCH)"
+
+override_dh_auto_test:
+
+override_dh_installdeb:
+	debian/scripts/write-maintainer-scripts.sh "$(KERNEL_RELEASE)" "$(IMAGE_PKG)" "$(DTB_PKG)" "$(HEADERS_PKG)" "$(ARCH)"
+	dh_installdeb
+
+override_dh_gencontrol:
+	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/substvars
+	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/$(IMAGE_PKG).substvars
+	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/$(DTB_PKG).substvars
+	printf 'kernel:Release=%s\n' "$(KERNEL_RELEASE)" > debian/$(HEADERS_PKG).substvars
+	dh_gencontrol

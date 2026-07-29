@@ -1,0 +1,40 @@
+linux-rockchip64-ysp-alpha-7.2-rc5 (7.2.0~rc5+rk3588rewritealpha20260729-0ubuntu1) resolute; urgency=medium
+
+  * Re-layer the rewrite composite onto official v7.2-rc5. The Armbian
+    rockchip64-bleedingedge snapshot (identity
+    7.2-rc3-Sa13c-D398d-P86f0-Cd50f-H8200-HK01ba-Vc222-B5272-R448a, from
+    build checkout 5cbc1c59c) cherry-picked onto v7.2-rc5 without conflicts;
+    the rewrite series rebased onto it conflict-free and is byte-identical
+    to rk3588-rewrite-mainline at 2cf0126529c1c.
+  * Carries the full rewrite review tail through review round 2, plus the
+    2026-07-29 fault-handler fix: rockchip_iommu_set_fault_handler() is
+    atomic-safe again and the teardown wait moved to the new sleepable
+    rockchip_iommu_sync_fault_handler(), called from the rewrite drivers'
+    process-context unbind paths.
+  * New source and binary package names in the ysp-alpha-7.2-rc5-rockchip64
+    slot, co-installable beside the 7.2-rc3 alpha and all other kernel slots.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Wed, 29 Jul 2026 09:45:00 -0700
+
+linux-rockchip64-ysp-alpha-7.2-rc3 (7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1) resolute; urgency=medium
+
+  * Base the rewrite package on official v7.2-rc3 with Armbian's
+    rockchip64-bleedingedge patch set applied first.
+  * Apply the hardened clean-room rewrite driver series after Armbian.
+
+ -- Yi Ding <yi@example.com>  Wed, 15 Jul 2026 21:09:05 -0700
+
+linux-rockchip64-ysp-alpha-7.2-rc2 (7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk2) resolute; urgency=medium
+
+  * Add u-boot-tools to Build-Depends so Launchpad provides mkimage
+    when generating Rockchip overlay fixup scripts.
+
+ -- Yi Ding <yi@example.com>  Fri, 10 Jul 2026 23:45:00 -0700
+
+linux-rockchip64-ysp-alpha-7.2-rc2 (7.2.0~rc2+rk3588rewritealpha20260710-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Initial ROCK 5B YSP alpha clean-room rewrite kernel source package.
+  * Build co-installable image, DTB, and headers packages from local branch
+    rk3588-rewrite-mainline at 083bdb98e715.
+
+ -- Yi Ding <yi@example.com>  Fri, 10 Jul 2026 12:00:00 -0700

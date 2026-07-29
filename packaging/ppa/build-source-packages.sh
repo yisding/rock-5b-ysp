@@ -61,6 +61,11 @@ KERNEL_ALPHA_72RC3_REPO="${KERNEL_ALPHA_72RC3_REPO:-$WORKSPACE_ROOT/kernel/linux
 KERNEL_ALPHA_72RC3_COMMIT="${KERNEL_ALPHA_72RC3_COMMIT:-24f7424fb9589ea2118127084a5f2748aa762b63}"
 KERNEL_ALPHA_72RC3_UPSTREAM_VERSION="${KERNEL_ALPHA_72RC3_UPSTREAM_VERSION:-7.2.0~rc3+rk3588rewritealpha20260715}"
 
+KERNEL_ALPHA_72RC5_SOURCE="${KERNEL_ALPHA_72RC5_SOURCE:-linux-rockchip64-ysp-alpha-7.2-rc5}"
+KERNEL_ALPHA_72RC5_REPO="${KERNEL_ALPHA_72RC5_REPO:-$WORKSPACE_ROOT/kernel/linux}"
+KERNEL_ALPHA_72RC5_COMMIT="${KERNEL_ALPHA_72RC5_COMMIT:-1284eee126fe4e902a8f9f49e8ac89603cef2633}"
+KERNEL_ALPHA_72RC5_UPSTREAM_VERSION="${KERNEL_ALPHA_72RC5_UPSTREAM_VERSION:-7.2.0~rc5+rk3588rewritealpha20260729}"
+
 GDM_HWENC_SOURCE="${GDM_HWENC_SOURCE:-gnome-remote-desktop-gdm-hwenc}"
 GDM_HWENC_VERSION="${GDM_HWENC_VERSION:-1.0}"
 GDM_HWENC_RULE="${GDM_HWENC_RULE:-$ROOT/packaging/gdm-hwenc/root/usr/lib/udev/rules.d/70-gnome-remote-desktop-gdm-hwenc.rules}"
@@ -71,7 +76,7 @@ CODEC_UDEV_RULE="${CODEC_UDEV_RULE:-$ROOT/kernel-drivers/scripts/99-rockchip-cod
 
 usage() {
     cat <<'USAGE'
-Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [plymouth] [codec-udev] [gdm-hwenc] [kernel] [kernel-sgguard] [kernel-alpha-6.18] [kernel-alpha-7.2-rc3]
+Usage: build-source-packages.sh [mpp] [librga] [ffmpeg] [ffmpeg-rockchip] [gnome-remote-desktop|grd] [plymouth] [codec-udev] [gdm-hwenc] [kernel] [kernel-sgguard] [kernel-alpha-6.18] [kernel-alpha-7.2-rc3] [kernel-alpha-7.2-rc5]
 
 Build unsigned source packages for the Rock 5B PPAs.
 Artifacts are written under packaging/ppa/out/artifacts by default.
@@ -425,6 +430,15 @@ build_kernel_alpha_72rc3() {
         "packaging/ppa/kernel-rewrite-alpha-7.2-rc3"
 }
 
+build_kernel_alpha_72rc5() {
+    prepare_source \
+        "$KERNEL_ALPHA_72RC5_SOURCE" \
+        "$KERNEL_ALPHA_72RC5_REPO" \
+        "$KERNEL_ALPHA_72RC5_COMMIT" \
+        "$KERNEL_ALPHA_72RC5_UPSTREAM_VERSION" \
+        "packaging/ppa/kernel-rewrite-alpha-7.2-rc5"
+}
+
 build_gdm_hwenc() {
     prepare_native_source \
         "$GDM_HWENC_SOURCE" \
@@ -471,7 +485,8 @@ for package in "$@"; do
         kernel|forward-port-kernel|linux-rockchip64-ysp) build_kernel_forward_port ;;
         kernel-sgguard|sgguard|linux-rockchip64-ysp-sgguard) build_kernel_sgguard ;;
         kernel-alpha-6.18|rewrite-alpha-6.18|linux-rockchip64-ysp-alpha-6.18) build_kernel_alpha_618 ;;
-        kernel-alpha-7.2-rc|kernel-alpha-7.2-rc3|rewrite-alpha-7.2-rc|rewrite-alpha-7.2-rc3|linux-rockchip64-ysp-alpha-7.2-rc3) build_kernel_alpha_72rc3 ;;
+        kernel-alpha-7.2-rc3|rewrite-alpha-7.2-rc3|linux-rockchip64-ysp-alpha-7.2-rc3) build_kernel_alpha_72rc3 ;;
+        kernel-alpha-7.2-rc|kernel-alpha-7.2-rc5|rewrite-alpha-7.2-rc|rewrite-alpha-7.2-rc5|linux-rockchip64-ysp-alpha-7.2-rc5) build_kernel_alpha_72rc5 ;;
         *) echo "unknown package: $package" >&2; usage >&2; exit 2 ;;
     esac
 done

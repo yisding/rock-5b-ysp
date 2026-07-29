@@ -24,7 +24,7 @@ plumbing layers. Which layer an app speaks decides its cost almost entirely:
 |-------|---------------------|
 | **libavcodec named codecs** (`h264_rkmpp`, `hevc_rkmpp`, …) | ✅ Shipped: [`ffmpeg-rockchip`](../video-libraries/ffmpeg/README.md) fork, built and Published in the [normal PPA](../packaging/ppa/README.md) as the system FFmpeg replacement. |
 | **GStreamer elements** (`mppvideodec`, `mpph26xenc`) | ⚠️ Rockchip's external `gstreamer-rockchip` plugin exists upstream but is not packaged here; ubuntu-rockchip shipped a working (if crudely packaged) build of it — one clean repackage away. The kernel track's GStreamer suite is no longer blocked — it first ran 2026-07-22 at 98/102 required ([userspace-gaps finding](../findings/2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md)) and reached 129/133 on the production PPA kernel. |
-| **VA-API** (the de-facto Linux desktop hwaccel API) | 🚧 Implemented and hardware-measured in [`video-libraries/vaapi/`](../video-libraries/vaapi/README.md): default H.264/VP9 decode plus hidden HEVC/10-bit and H.264/HEVC encode paths have bounded conformance/sanitizer evidence. The immediate application gate is a completed Firefox package with live sandboxed display proof; do not duplicate the driver capability ledger here. |
+| **VA-API** (the de-facto Linux desktop hwaccel API) | 🚧 Implemented and hardware-measured in [`video-libraries/vaapi/`](../video-libraries/vaapi/README.md): H.264, VP9 Profile 0, and HEVC Main decode ship by default; hidden 10-bit decode and H.264/HEVC encode have conformance, throughput, app, sanitizer, concurrency, and soak evidence. The immediate application gate is a completed Firefox package with live sandboxed display proof; do not duplicate the driver capability ledger here. |
 | **V4L2** (stateful M2M or stateless request API) | ⚠️ The BSP kernel exposes the codecs only via the vendor `/dev/mpp_service` ioctl interface, not V4L2 — but a **userspace** V4L2-stateful-over-MPP bridge exists: JeffyCN's `libv4l-rkmpp` (a libv4l2 plugin emulating a stateful M2M decoder/encoder in-process, no kernel device), proven in Joshua Riek's archived ubuntu-rockchip images as the engine behind Chromium 4K playback. It is kernel-agnostic and only reachable through a patched libv4l2, which in practice makes it a Chromium-only bridge. See the [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md). A real kernel V4L2 stateless path still needs a mainline kernel ([`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md), mainline rkvdec2 work). |
 
 ```mermaid
@@ -74,12 +74,12 @@ BSP forward-port deliberately does not take (V4L2).
 | App | Binds via | Estimated work on this stack |
 |-----|-----------|------------------------------|
 | ffmpeg CLI | libavcodec | ✅ shipped (PPA `+rkmpp` packages) |
-| mpv | libavcodec + DRM PRIME hwdec | Hours — cheapest end-to-end display-path proof |
+| mpv | libavcodec + DRM PRIME hwdec | ✅ H.264 VA-API/gpu-next/Panfrost EGL presentation passes after the selective 352→384-byte NV12 export repack. The expanded Main10/HDR gate is currently blocked by the GNOME session exposing no Wayland output; Mutter's `GetCurrentState` independently returns empty physical- and logical-monitor arrays. Physical HDR passthrough remains unproven. |
 | Kodi | libavcodec + DRM PRIME | Already tracked: [`apps/kodi`](../apps/kodi/README.md); build/tty1 gate remains |
 | OBS | libavcodec encoders | Hours–a day; cheapest encode win after the CLI |
 | HandBrake | bundled FFmpeg + own encoder registry | Days; encode is the realistic value |
-| VLC | libavcodec VAAPI hwaccel | ✅ Hardware-decodes H.264 and HEVC Main unpatched in a real GNOME session, once the driver gained `vaDeriveImage`/`vaAcquireBufferHandle`. Gated by `tests/check-vlc-display.sh`. |
-| Firefox | **VA-API only** on Rockchip | ✅ Stock Firefox 153.0 hardware-decodes H.264 and HEVC Main with DMA-BUF export, gated by `tests/check-firefox-decode.sh` — but with `MOZ_DISABLE_RDD_SANDBOX=1`, so the sandbox row is still open. The RDD policy patch is rebased and hash-pinned to `FIREFOX_153_0_RELEASE`; no patched build exists yet. Firefox cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the ffmpeg rkmpp wrapper decoders (not a hwaccel) — see the [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
+| VLC | libavcodec VAAPI hwaccel | ✅ Hardware-decodes H.264, HEVC Main, and HEVC Main10 unpatched in a real GNOME session once the driver gained safe NV12/P010 `vaDeriveImage`/`vaAcquireBufferHandle`. Gated by `tests/check-vlc-display.sh`. |
+| Firefox | **VA-API only** on Rockchip | ✅ Stock Firefox 153.0 hardware-decodes H.264 and HEVC Main with DMA-BUF export, gated by `tests/check-firefox-decode.sh` — but with `MOZ_DISABLE_RDD_SANDBOX=1`, so the sandbox row is still open. Main10 reaches three hardware frames before Panfrost rejects Firefox's GR1616 chroma EGL image and Firefox falls back. Exact-source 152.0.6/153.0 RDD+P010 retry patches pass; the exact signed 153.0 package is quilt-patched as `~mt1+ysp1` and its native arm64 build is in progress. Firefox cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the ffmpeg rkmpp wrapper decoders (not a hwaccel) — see the [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
 | Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | ⚠️ Blocked below the codec layer: Chromium 150 cannot initialize a GL context on Mali-G610/Panfrost under either X11 or Wayland (ANGLE "Could not create a backing OpenGL context"), so its GPU process never starts and no VA-API path is reachable. VLC and Firefox use accelerated GL in the same session. Fix the GL stack before any codec hardening. Alternatives are a multi-week libv4l-rkmpp re-target with permanent custom builds, or maxline stateless V4L2. |
 
 ### mpv — essentially free, and the right first proof
@@ -138,7 +138,7 @@ today — HandBrake is a convenience project, not an enabler.
 
 ### VLC — hardware-decoding, unpatched
 
-Stock VLC 3.0.23 hardware-decodes H.264 High and HEVC Main through
+Stock VLC 3.0.23 hardware-decodes H.264 High, HEVC Main, and HEVC Main10 through
 `rockchip-vaapi` in a real GNOME session, logging `using hw decoder module
 "vaapi"` and `Using Rockchip MPP VA-API Driver 0.1 for hardware decoding`. No
 VLC source change was needed.
@@ -148,7 +148,10 @@ real session showed VLC still falling back — after creating 38 surfaces throug
 this driver — because its OpenGL VA-API converter derives an image from the
 decoded surface and imports the buffer handle as an EGLImage, and both
 `vaDeriveImage` and `vaAcquireBufferHandle` were unimplemented. Implementing
-them over the surface's own DMA-BUF closed the row; the session was a
+them over the surface's own DMA-BUF closed the row. Completed linear P010 and
+the aligned provisional P010 layout used by VLC's converter probe are
+supported without weakening imported/stale/compressed-layout refusals. The
+session was a
 precondition, the driver gap was the cause. `tests/check-vlc-display.sh` in the
 fork gates it and refuses to run headless. See the
 [shipping-stack gates finding](../findings/2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md)
@@ -161,14 +164,18 @@ renovated driver has hardware evidence for the default H.264/VP9 paths, so the
 remaining Firefox problem is no longer “build a codec bridge.”
 
 Firefox 152.0.6's RDD process separately enforces broker paths and seccomp
-ioctl requests. A source-hash-pinned patch grants the measured MPP/RGA/DMA-heap
-surface without disabling the RDD sandbox. The exact Ubuntu source package is
-patched, configured, format-clean, and partially compiled; it was stopped
-deliberately before producing a binary.
+ioctl requests. Source-hash-pinned 152.0.6 and 153.0 patches grant the measured
+MPP/RGA/DMA-heap surface without disabling the RDD sandbox. Companion patches
+handle the measured Main10 consumer failure: preserve the standards-correct
+GR1616 first attempt, then retry Firefox's existing RG/GR alternative once
+after Panfrost returns `EGL_BAD_MATCH`. Both exact-source contracts pass, the
+affected 152.0.6 release object compiles, and the exact signed 153.0 package is
+quilt-patched as local `~mt1+ysp1` with its native arm64 build in progress; no
+installed binary result exists yet.
 
 Finish that package, inspect/install it, and require live hardware decode with
-`MOZ_DISABLE_RDD_SANDBOX` unset, the RDD sandbox active, a real display path,
-and rockchip-vaapi/MPP frame markers. The libv4l-rkmpp shim does not help
+`MOZ_DISABLE_RDD_SANDBOX` unset, the RDD process observed in seccomp mode 2, a
+real display path, and rockchip-vaapi/MPP frame markers. The libv4l-rkmpp shim does not help
 Firefox, and its V4L2 support is stateful-M2M rather than the mainline stateless
 request API. Canonical driver state and the exact browser gate live in
 [`video-libraries/vaapi/`](../video-libraries/vaapi/README.md).
@@ -247,14 +254,13 @@ De-risk in this order:
 
 1. **Finish the pinned Firefox package and live RDD gate** — this is the
    existing status-track proof, not a new driver-design task.
-2. **mpv through VA-API** — the cheapest independent display/import proof for
-   the standard API path.
-3. **VLC in a real display session** — establish whether any source change is
-   needed before proposing one.
-4. **Chromium deb build** — try the existing VA backend first; compare the
+2. **mpv Main10/HDR with a real Wayland output** — H.264 is already green; do
+   not treat the current no-`wl_output` session as a codec result.
+3. **Chromium deb/GL repair** — its GPU process currently dies before VA-API;
+   compare the
    maintained-fork result with modernized `libv4l-rkmpp` or maxline V4L2 only
    if a measured blocker justifies those permanent costs.
-5. **Finish the existing Kodi gate and app-specific OBS/HandBrake work** when
+4. **Finish the existing Kodi gate and app-specific OBS/HandBrake work** when
    those applications, rather than the shared media layers, become the goal.
 
 ## Related pages

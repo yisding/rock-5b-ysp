@@ -1,3 +1,14 @@
+ffmpeg (7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Backport upstream HEVC reference-picture fix 265d39e551: always generate
+    unavailable ST_FOLL and LT_FOLL entries, while retaining the existing
+    corruption policy for references used by the current picture. This fixes
+    NUT_A_ericsson_5 and RPS_D_ericsson_6 without requiring output_corrupt.
+  * Stop applying the global output_corrupt flag to the HEVC conformance FATE
+    group now that unused following references follow section 8.3.3.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Wed, 29 Jul 2026 02:15:07 -0700
+
 ffmpeg (7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1) resolute; urgency=medium
 
   * rkmppenc: absorb transient MPP input-task-pool backpressure on synchronous

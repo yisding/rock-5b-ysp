@@ -1,3 +1,11 @@
+mpp (1.5.0+git20260729.3381fd2c+ds-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Keep decodable RADL pictures whose POC precedes a BLA or CRA random-access
+    picture. Continue suppressing only RASL pictures at or below the
+    random-access POC, fixing NUT_A_ericsson_4 and NUT_A_ericsson_5.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Wed, 29 Jul 2026 02:15:07 -0700
+
 mpp (1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1) resolute; urgency=medium
 
   * Refresh H.265 hardware parameter sets when a selected PPS ID is reparsed
