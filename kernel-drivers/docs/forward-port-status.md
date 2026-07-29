@@ -134,6 +134,19 @@ are cleared — see the
 and the
 [MPP client-less RELEASE_FD finding](../../findings/2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md).
 
+**`0076`–`0079` (2026-07-29) carry no hardware evidence at all.** The
+[WARN/oops audit sweep](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md)
+added 18 fixes — 12 unprivileged-reachable, five of them kernel-heap
+corruption — and every one is **compile-verified only**: `make W=1` clean, the
+patches replay to a byte-identical tree, and nothing has been booted or
+exercised by a reproducer, pre-fix or post-fix. Three change observable
+behaviour (`mpp_check_req()` now rejects requests the old sloppy clamp let
+through; the RGA IOMMU fault handler holds `irq_lock` across a ~1 ms
+`soft_reset()` busy-wait; the RGA request debugfs dump holds `request->lock`
+across up to 256 `seq_printf()` groups), so the boot that gates them must run
+full conformance, not just a smoke test. Nothing in the "Done" table below
+covers this range.
+
 ## ✅ Done — validated on real hardware
 
 | Item | Evidence |

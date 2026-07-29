@@ -211,6 +211,37 @@ against a silent-corruption case rather than fixing a specific commit's mistake.
 |---|--------------|-------|--------------|----------|
 | 0072 | RGA3: reject a non-16-byte-aligned IOMMU window base in `rga_mm_get_buffer_info()` with `-EINVAL` instead of silently returning all-zero pixels. RGA3 fetches the base on a 16-byte granularity; the scattered-userptr `shadow_page` path carries the raw sub-page byte offset in the base with a zeroed head, so a non-16-aligned source read the zero head. | `FWPORT-ROBUSTNESS` | Concerns forward-port-only scattered-userptr / `shadow_page` code (not in the BSP); fail-loud, no functional change to aligned userptr or dma-buf. | **No** — forward-port-specific path; see [finding](../../findings/2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md) |
 
+## Current `0072`–`0079` — outside the 2026-07-22 compilation
+
+> **These rows use CURRENT numbering**, unlike everything above, which uses the
+> pre-cleanup scheme (this page's `0072` is current `0071`). The eight patches
+> below all landed after this page was compiled on 2026-07-22.
+
+`0072`–`0075` are the 10-bit RGA stride/UV-offset trio and the RKVENC2
+slice-FIFO fix. **They are not yet classified here**: their commit messages do
+not state BSP provenance either way, and guessing a backport verdict is worse
+than recording the gap. Classify them against `develop-6.1` before the next
+submission pass — the stride work in particular pairs with librga fork changes
+([W13](../../status.md#watch-w13)), so the venue may be both.
+
+`0076`–`0079` are the [2026-07-29 WARN/oops audit
+sweep](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md) —
+18 defects, of which 12 are unprivileged-reachable and five are kernel-heap
+corruption. All four are **compile-verified only**, so per this page's rule they
+keep that boundary regardless of backport verdict.
+
+| # | What it does | Class | BSP evidence | Backport |
+|---|--------------|-------|--------------|----------|
+| 0076 | MPP core: fix `mpp_check_req()` clamping to the overflow amount and using a signed offset (two independent bypasses); bound the register-offset translation index, the `trans_info[]` format index, and user-supplied `trans_table[]` register indexes; publish the `RESET_SESSION` DMA teardown under `srv->session_lock`. | `BSP-BUG` | All five sites are vendor code carried unchanged from the BSP import; the bounds and the clamp expression are byte-identical in `develop-6.1`. The `session_lock` half is partly forward-port shaped — `mpp_session_deinit()`'s unlink is ours — so confirm the BSP's procfs exposure before sending that hunk. | **Yes** — the four bounds fixes clear the report-now bar (unprivileged heap corruption) |
+| 0077 | MPP IOMMU: route the reserve/unreserve IOVA paths through `iommu_dma_get_iova_domain()` and delete the private cookie shadow struct; clear `sgt`/`attach`/`dmabuf` before `dma_buf_detach()` frees them, plus defensive checks in `mpp_dma_buf_sync()`. | Mixed: `PORT-FIX` + `BSP-BUG` | The cookie type-confusion exists **only** because 6.18 made `iova_cookie` a discriminated union arm — the BSP's older headers have no such union, so that half is ours. The release-ordering half is BSP code and BSP-latent. | **Partial** — send the release-ordering fix; the cookie fix is 6.18-only |
+| 0078 | rkvenc2/rkvdec2-link: reject wrapped and inverted register windows in `req_over_class()`/`rkvenc_update_req()` and check both previously-discarded call sites; bound the per-class register buffers; hoist the VEPU510 clock cycle out of `mpp_task_run_begin()`'s `preempt_disable()` window; downgrade a reachable `WARN_ON` on an empty link-table list. | `BSP-BUG` | All four are vendor code. The window-wrap arithmetic, the preempt/clk ordering, and the `WARN_ON` are unchanged from the import. Note two are not reachable on RK3588 (VEPU510 is RK3576; the WARN needs HARD-CCU), but both are live for other Rockchip parts built from the same source — which is exactly the BSP's audience. | **Yes** — the window wrap is unprivileged ~4 GiB `copy_from_user` |
+| 0079 | RGA: take `irq_lock` in the IOMMU fault handler; reject a negative computed buffer size in `rga_alloc_virt_addr()`; surrender buffer session ownership on release; consume `current_mm` under `request->lock`; dump the request task list under its lock; reject zero-length debugfs writes; validate userptr PFNs before `pfn_to_page()`. | `BSP-BUG`, except the PFN guard | Six of seven are vendor code with the same defect in `develop-6.1`. The PFN guard is on the 6.12+ `follow_pfnmap_start()` adaptation, which is a forward-port rewrite of the BSP's page-table walk — the *missing validation* is common to both, but the code shape is ours, so the BSP needs the equivalent fix rather than this hunk. | **Yes**, with the PFN hunk adapted |
+
+The `0079` session-ownership fix deliberately does **not** revert
+`0071`/catalog-`0072`'s force-free-under-the-held-lock decision: that decision is
+still correct, and the ownership test around it is what was wrong. Anyone
+backporting to a BSP that lacks `0071` should carry both or neither.
+
 ## The BSP backport set
 
 What should go back to Rockchip's `develop-6.1`, in priority order:
