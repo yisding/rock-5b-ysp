@@ -1,5 +1,11 @@
 # GRD AVC full-range BT.709 is package-verified; the live A/B stopped at handover
 
+> **Closed 2026-07-29 by**
+> [`Full-range BT.709 signaling fixes the muted GRD AVC colors after a clean reboot`](2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md).
+> The clean activation reached the client and the visual verdict was positive;
+> this file retains the source, package, metadata, and failed-handover evidence
+> from the preceding attempt.
+
 > Scope: `apps/gnome-remote-desktop`, the packaged FFmpeg/RKMPP encode path, and
 > the GDM-to-user RDP handover
 > Source: GNOME Remote Desktop `release/50.2-rkmpp@cf60b4d9d2c5`,

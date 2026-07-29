@@ -2191,3 +2191,50 @@ See ../../configure --help for available options.
   [`33422570`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33422570)
   on `bos03-arm64-015`. The source is Pending and the build is running at this
   check.
+
+## GNOME Remote Desktop full-range BT.709 promotion — 2026-07-29
+
+- The clean post-reboot package experiment closed the visual gate: changing
+  the FFmpeg encoder context from limited/unspecified color signaling to
+  full-range BT.709 fixed the muted colors on the tested Microsoft macOS RDP
+  client. The result is visual rather than colorimetric and does not establish
+  behavior on other clients.
+- Promoted the exact tested source delta to public branch
+  `release/50.2-rkmpp@24f4392bb0daa40b9c411de1b1bcb9d0078e506a`, the
+  sixteenth release commit on upstream 50.2 `60423c896a54`. Package
+  `50.2+rkmpp+git20260729.14.24f4392-0ubuntu1~rk1` archives that commit
+  directly with no `GRD_DELTA`.
+- Generated the source package, extracted it fresh, and completed an exact
+  native arm64 binary build with `/usr/bin/pkg-config`. The RDP integration
+  test passed; TPM and hardware-EGL skipped on unavailable hardware. The
+  sandboxed first test attempt could not bind D-Bus sockets and exercised no
+  test body; the unrestricted host rerun produced the recorded pass/skip
+  result.
+- Source and binary Lintian runs returned success with only the expected
+  long-filename warnings. The packaged daemon is an aarch64 PIE, all `ldd`
+  dependencies resolve, and the package depends on the bounded-wait
+  `libavcodec62` revision. Local binary SHA-256 set:
+  - `.deb`: `7b1790b6424afa9a5654b5eaacb82441fe23cbecd6b37dd532a4425f5eeb84bf`;
+  - `.ddeb`: `1a3496e854ec0d2f7bb7144e99369c9ebeed6f7582eb7524be350753b27392c7`;
+  - arm64 `.buildinfo`: `b0ccad3b3b8ef8c0e85c99dbdd2edc6b8dfa6ed0a6e1a37ac46b3850fdbf8aa8`;
+  - arm64 `.changes`: `53c848a36178be02ed838d67f55671e63e604415a569987c22806d760fb53401`.
+- Signed the `.dsc`, source `.buildinfo`, and source `.changes` with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`; direct verification reported
+  good signatures from `Yi Ding <yi.s.ding@gmail.com>`. Final SHA-256 upload
+  set:
+  - orig tarball: `f257ec332493bbdef4dfb5c78c3b1363b0b7dbb375a69d23b49e7483b4103158`;
+  - Debian tarball: `017edbe5f8c0f8d6541c2dd9fcdd5d4d5ec7040c1bd0415c7bae2b727c52b165`;
+  - signed `.dsc`: `599c891ff900437f4fd0fa56b1b3ef914de73e363b0644fa4faba797d4895e3e`;
+  - signed source `.buildinfo`: `1d7f103ac7a60af39fe4e7e9846f1bbb59d0f92be87bb0044484b88cdd1297bc`;
+  - signed source `.changes`: `db82e7eec7b3cf537fd9a36438ca90a87a1e94ee0f993fbab32f313300dff3a7`.
+- `dput` passed distribution, required-field, checksum, suite, source-only,
+  and GPG checks and transferred all five source artifacts to
+  `ppa:yi-ding/ubuntu-rock-5b`. The local
+  `gnome-remote-desktop_50.2+rkmpp+git20260729.14.24f4392-0ubuntu1~rk1_source.ppa.upload`
+  marker exists.
+- Launchpad accepted source publication
+  [`18647901`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647901)
+  and dispatched arm64 build
+  [`33450532`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450532)
+  to `bos03-arm64-101`; the source is Pending and the build is running at this
+  check.

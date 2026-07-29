@@ -126,6 +126,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 
 <!-- findings-index:start -->
 - [`2026-07-29-rga-no-core-match-narrow-afbc-10bit.md`](2026-07-29-rga-no-core-match-narrow-afbc-10bit.md) — A narrow AFBC 10-bit frame has no RGA core: RGA3 needs width ≥ 68 and RGA2 cannot read AFBC
+- [`2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md`](2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md) — Full-range BT.709 signaling fixes the muted GRD AVC colors after a clean reboot
 - [`2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md`](2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md) — rockchip-vaapi now measures green on the shipping stack, HEVC Main ships by default, and VLC and Firefox hardware-decode in a real session
 - [`2026-07-28-vaapi-decode-readiness-and-remaining-work.md`](2026-07-28-vaapi-decode-readiness-and-remaining-work.md) — rockchip-vaapi decode is codec-complete except AV1; the remaining work is deployment, one confirmation run, promotion, and browser integration
 - [`2026-07-28-rkvdec2-err23-picsize-oversize-width.md`](2026-07-28-rkvdec2-err23-picsize-oversize-width.md) — rkvdec2 `err 0x23`: an 8192-sample width inflection, BSP watchdog constants whose names are wrong, and VA-API caps that are wrong in both directions

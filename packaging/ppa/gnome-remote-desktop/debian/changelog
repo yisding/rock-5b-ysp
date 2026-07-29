@@ -1,3 +1,11 @@
+gnome-remote-desktop (50.2+rkmpp+git20260729.14.24f4392-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Signal the RDP AVC surfaces as full-range BT.709, matching the
+    MS-RDPEGFX conversion already implemented by the Vulkan shader and fixing
+    the muted client-visible colors.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Wed, 29 Jul 2026 00:37:28 -0700
+
 gnome-remote-desktop (50.2+rkmpp+git20260721.13.cf60b4d-0ubuntu1~rk1) resolute; urgency=medium
 
   * Rebase the clean RKMPP release onto upstream GNOME Remote Desktop 50.2.
