@@ -1,0 +1,51 @@
+Capture date: 2026-07-28 America/Los_Angeles
+Board: Radxa ROCK 5B (RK3588)
+YSP repository state before this finding: 701d2e7e4dddb53b2b696bcc612519bec8abef65
+Kernel:
+  Linux rock-5b 6.18.40-ysp-rockchip64 #1 SMP PREEMPT Thu, 09 Jul 2026 12:00:00 -0700 aarch64 GNU/Linux
+
+Source:
+  GRD release/50.2-rkmpp@cf60b4d9d2c5adb6ea9f4b7f3397449895f069f2
+  upstream GNOME 50.2 base@60423c896a54e3eacb65bd93167e91c1ce5e648c
+  package base 50.2+rkmpp+git20260721.13.cf60b4d-0ubuntu1~rk1
+  text delta: fullrange-bt709.patch in this bundle
+
+Installed stack after the experiment:
+  gnome-remote-desktop  50.2+rkmpp+git20260721.13.cf60b4d+fullrange709-0ubuntu1~exp1
+  libavcodec62          7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1
+  libavutil60           7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1
+  librockchip-mpp1      1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1
+  librga2               2.2.0+git20260725.26a50ef-0ubuntu1~rk1
+
+Build command, from the experimental source root:
+  PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+  DEB_BUILD_OPTIONS='nocheck parallel=8' \
+  dpkg-buildpackage -b -us -uc
+
+Build result:
+  exit 0
+  Ninja compile/link steps 221/221 completed
+  package tests skipped by DEB_BUILD_OPTIONS=nocheck
+
+Inspection:
+  apt-get -s install selected one upgrade: gnome-remote-desktop
+  file: ELF 64-bit LSB PIE, ARM aarch64
+  ldd: all dependencies resolved, including libavcodec.so.62
+  lintian: exit 0; one package-has-long-file-name warning
+  installed daemon SHA-256:
+    6caf0c07142ba5574a476ecd760ee42820d270b30a29dd67bc81608945c2f817
+  staged daemon SHA-256:
+    6caf0c07142ba5574a476ecd760ee42820d270b30a29dd67bc81608945c2f817
+
+Ignored local artifacts:
+  packaging/ppa/out/grd-fullrange709-exp1/
+
+SHA-256:
+  a7b58ce94c32748a988be0d444a7ab1a120fcc6e36cde91eb873dbf3de10922d  gnome-remote-desktop_50.2+rkmpp+git20260721.13.cf60b4d+fullrange709-0ubuntu1~exp1_arm64.deb
+  7b8cd8889c175305e605d7a2a485a4e0afc882bbfa50a52d18673bafc35f579a  gnome-remote-desktop-dbgsym_50.2+rkmpp+git20260721.13.cf60b4d+fullrange709-0ubuntu1~exp1_arm64.ddeb
+  a832a5e9145496a66d4460fc3b190cf6f0b4848eef181fe041bae23be4ce7744  gnome-remote-desktop_50.2+rkmpp+git20260721.13.cf60b4d+fullrange709-0ubuntu1~exp1_arm64.buildinfo
+  524adae051897354173ac5437bfb58b15b527807682e9af7d8c746bd44131fcb  gnome-remote-desktop_50.2+rkmpp+git20260721.13.cf60b4d+fullrange709-0ubuntu1~exp1_arm64.changes
+
+Known-good release package retained separately:
+  packaging/ppa/out/gnome-remote-desktop_50.2+rkmpp+git20260721.13.cf60b4d-0ubuntu1~rk1_arm64.deb
+  bd77d67da8dee5b05a1aa9466e1c24822d43ab467f895217cc34542a31be41ce

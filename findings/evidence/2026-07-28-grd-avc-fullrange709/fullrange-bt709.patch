@@ -1,0 +1,33 @@
+diff --git a/debian/changelog b/debian/changelog
+--- a/debian/changelog
++++ b/debian/changelog
+@@ -1,3 +1,10 @@
++gnome-remote-desktop (50.2+rkmpp+git20260721.13.cf60b4d+fullrange709-0ubuntu1~exp1) resolute; urgency=medium
++
++  * Experimentally signal the existing RDP AVC surfaces as full-range BT.709,
++    matching the MS-RDPEGFX color conversion used by the Vulkan shader.
++
++ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 28 Jul 2026 19:47:00 -0700
++
+ gnome-remote-desktop (50.2+rkmpp+git20260721.13.cf60b4d-0ubuntu1~rk1) resolute; urgency=medium
+ 
+   * Rebase the clean RKMPP release onto upstream GNOME Remote Desktop 50.2.
+diff --git a/src/grd-encode-session-ffmpeg.c b/src/grd-encode-session-ffmpeg.c
+--- a/src/grd-encode-session-ffmpeg.c
++++ b/src/grd-encode-session-ffmpeg.c
+@@ -559,7 +559,13 @@ create_encoder (GrdEncodeSessionFfmpeg  *self,
+   self->avctx->max_b_frames = 0;
+   self->avctx->refs = 1;
+   self->avctx->profile = AV_PROFILE_H264_HIGH;
+-  self->avctx->color_range = AVCOL_RANGE_MPEG;
++  /*
++   * MS-RDPEGFX 3.3.8.3.1 defines AVC graphics conversion as full-range
++   * BT.709. The Vulkan shader already emits that representation, so preserve
++   * it in the H.264 VUI instead of advertising studio/limited range.
++   */
++  self->avctx->color_range = AVCOL_RANGE_JPEG;
++  self->avctx->colorspace = AVCOL_SPC_BT709;
+   self->avctx->thread_count = 1;
+   /*
+    * Load-bearing for ffmpeg-rockchip: without AV_CODEC_FLAG_LOW_DELAY its
+

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>RDP color range test</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px;
+    color: #f6f5f4;
+    background: #242424;
+    font: 16px/1.35 system-ui, sans-serif;
+  }
+  h1 { margin: 0 0 8px; font-size: 26px; }
+  p { margin: 0 0 20px; color: #deddda; }
+  h2 { margin: 22px 0 8px; font-size: 17px; }
+  .row { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
+  .swatch {
+    height: 80px;
+    border: 1px solid #77767b;
+    display: flex;
+    align-items: end;
+    justify-content: center;
+    padding: 5px;
+    color: white;
+    font: 12px ui-monospace, monospace;
+    text-shadow: 0 1px 2px black, 0 0 3px black;
+  }
+  .light { color: black; text-shadow: 0 1px 2px white; }
+  .pattern-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pattern { height: 100px; border: 1px solid #77767b; }
+  .red-cyan {
+    background: repeating-linear-gradient(90deg, #f00 0 1px, #0ff 1px 2px);
+  }
+  .blue-yellow {
+    background: repeating-linear-gradient(90deg, #00f 0 2px, #ff0 2px 4px);
+  }
+  .magenta-green {
+    background:
+      linear-gradient(45deg, #f0f 25%, transparent 25%) 0 0/4px 4px,
+      linear-gradient(45deg, transparent 75%, #f0f 75%) 0 0/4px 4px,
+      linear-gradient(45deg, transparent 75%, #0f0 75%) 2px -2px/4px 4px,
+      linear-gradient(45deg, #0f0 25%, transparent 25%) 2px -2px/4px 4px;
+  }
+  .labels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .labels div { text-align: center; color: #deddda; font-size: 13px; }
+</style>
+<body>
+  <h1>RDP full-range / BT.709 A/B</h1>
+  <p>Keep browser zoom at 100%. Screenshot this page before and after changing GRD.</p>
+
+  <h2>Dark ramp (range mismatch shows as crushed or lifted near-black cells)</h2>
+  <div class="row">
+    <div class="swatch" style="background:#000">0</div>
+    <div class="swatch" style="background:#080808">8</div>
+    <div class="swatch" style="background:#101010">16</div>
+    <div class="swatch" style="background:#181818">24</div>
+    <div class="swatch" style="background:#202020">32</div>
+    <div class="swatch" style="background:#303030">48</div>
+    <div class="swatch" style="background:#404040">64</div>
+    <div class="swatch" style="background:#505050">80</div>
+  </div>
+
+  <h2>Light ramp (range mismatch shows as clipped near-white cells)</h2>
+  <div class="row">
+    <div class="swatch light" style="background:#afafaf">175</div>
+    <div class="swatch light" style="background:#bfbfbf">191</div>
+    <div class="swatch light" style="background:#cfcfcf">207</div>
+    <div class="swatch light" style="background:#dfdfdf">223</div>
+    <div class="swatch light" style="background:#ebebeb">235</div>
+    <div class="swatch light" style="background:#efefef">239</div>
+    <div class="swatch light" style="background:#f7f7f7">247</div>
+    <div class="swatch light" style="background:#fff">255</div>
+  </div>
+
+  <h2>Color patches (matrix/range errors change hue and saturation)</h2>
+  <div class="row">
+    <div class="swatch" style="background:#ff0000">#f00</div>
+    <div class="swatch" style="background:#00ff00">#0f0</div>
+    <div class="swatch" style="background:#0000ff">#00f</div>
+    <div class="swatch" style="background:#00ffff">#0ff</div>
+    <div class="swatch" style="background:#ff00ff">#f0f</div>
+    <div class="swatch light" style="background:#ffff00">#ff0</div>
+    <div class="swatch" style="background:#3584e4">GNOME blue</div>
+    <div class="swatch" style="background:#e66100">GNOME orange</div>
+  </div>
+
+  <h2>Chroma-resolution patterns (expected 4:2:0 softness, independent of range)</h2>
+  <div class="pattern-row">
+    <div class="pattern red-cyan"></div>
+    <div class="pattern blue-yellow"></div>
+    <div class="pattern magenta-green"></div>
+  </div>
+  <div class="labels">
+    <div>1 px red / cyan</div>
+    <div>2 px blue / yellow</div>
+    <div>2 px magenta / green checker</div>
+  </div>
+</body>

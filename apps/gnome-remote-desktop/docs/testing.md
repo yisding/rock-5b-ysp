@@ -46,6 +46,29 @@ the active session. Rules that follow from it:
 - The micro-benchmark in [`apps/gnome-remote-desktop/bench`](../bench) is exempt — it's a surfaceless GL
   context that never touches mutter.
 
+### Package activation also needs a clean handover boundary
+
+Do not activate a replacement package by running
+`systemctl --user restart gnome-remote-desktop-handover.service` from an
+already logged-in remote session. A package upgrade restarts the system GRD
+daemon, while the user handover daemon and its logind session association are
+separate. In the
+[2026-07-28 full-range experiment](../../../findings/2026-07-28-grd-avc-fullrange-bt709-handover-boundary.md),
+restarting the user unit inside the existing session disconnected the client;
+later manual starts returned no session from `sd_pid_get_session()`, so the
+daemon could not match the system `/Handovers/session8` object. Authentication
+then returned to GDM without ever creating a user encoder.
+
+For package-level tests:
+
+- keep a local-console or SSH recovery channel independent of RDP;
+- install the package, then use a full logout/login boundary or reboot before
+  judging reconnect behavior;
+- do not treat a GDM handover failure as an encoder result unless the user
+  journal reached encode-backend and encode-session creation; and
+- after any failed handover, preserve both system and user GRD journals before
+  restarting another service.
+
 ## 2. Environment for a shell that isn't the graphical session
 
 From tmux/SSH the shell lacks the session bus and display env. Graphical clients

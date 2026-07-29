@@ -1,0 +1,63 @@
+Rockchip MPP H.264 metadata A/B, 2026-07-28
+
+Both cases used /usr/bin/ffmpeg and the packaged h264_rkmpp encoder on the
+ROCK 5B. Each encoded one 128x128 solid GNOME-blue frame.
+
+Release-equivalent range/matrix request:
+
+  /usr/bin/ffmpeg -hide_banner -loglevel warning \
+    -f lavfi -i 'color=c=#3584e4:s=128x128:r=1' \
+    -frames:v 1 -pix_fmt nv12 -c:v h264_rkmpp \
+    -color_range tv -y limited-unspecified.h264
+
+Probe:
+
+  /usr/bin/ffprobe -v error -select_streams v:0 \
+    -show_entries stream=codec_name,profile,pix_fmt,color_range,color_space,color_transfer,color_primaries \
+    -of default=noprint_wrappers=1 limited-unspecified.h264
+
+Output:
+
+  codec_name=h264
+  profile=High
+  pix_fmt=yuv420p
+  color_range=unknown
+  color_space=unknown
+  color_transfer=unknown
+  color_primaries=unknown
+
+The stream carried no full-range flag or color description. ffprobe reports the
+unspecified/default H.264 state as "unknown"; decoders treat the absent
+full-range flag as the limited-range default.
+
+Experimental range/matrix request:
+
+  /usr/bin/ffmpeg -hide_banner -loglevel info \
+    -f lavfi -i 'color=c=#3584e4:s=128x128:r=1' \
+    -frames:v 1 -pix_fmt nv12 -c:v h264_rkmpp \
+    -color_range pc -colorspace bt709 \
+    -color_primaries bt709 -color_trc bt709 \
+    -y fullrange-bt709.h264
+
+Probe:
+
+  /usr/bin/ffprobe -v error -select_streams v:0 \
+    -show_entries stream=codec_name,profile,pix_fmt,color_range,color_space,color_transfer,color_primaries \
+    -of default=noprint_wrappers=1 fullrange-bt709.h264
+
+Output:
+
+  codec_name=h264
+  profile=High
+  pix_fmt=yuvj420p
+  color_range=pc
+  color_space=bt709
+  color_transfer=unknown
+  color_primaries=unknown
+
+MPP preserved the full-range and matrix fields relevant to the GRD experiment.
+It did not preserve the requested transfer/primaries fields; GRD did not set
+those fields in this experiment.
+
+This is a standalone codec-control measurement. It is not a capture of a GRD
+bitstream and does not establish what the client displayed.

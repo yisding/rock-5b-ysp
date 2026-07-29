@@ -1,0 +1,74 @@
+GRD package activation and handover timeline
+Date: 2026-07-28 America/Los_Angeles
+
+Precondition:
+  system gnome-remote-desktop.service       PID 613, active
+  user gnome-remote-desktop-handover.service PID 5704, active
+  live macOS RDP client                     connected
+
+19:51:57 package installation
+  system[613] Received SIGTERM signal. Exiting...
+  system[613] Unregistering handover at .../session8
+  user[5704]  [DaemonHandover] org.gnome.RemoteDesktop name vanished
+  system[118056] Owned org.gnome.RemoteDesktop name
+  system[118056] Registered .../session8
+  system[118056] RDP server started
+
+The package post-install restarted only the system daemon. The established
+client and user PID 5704 remained alive.
+
+19:54:05 explicit user-service restart
+  user[5704]  ERRINFO_RPC_INITIATED_DISCONNECT
+  user[5704]  RDP server stopped
+  user[120813] RDP server started
+
+19:54:21 first reconnect
+  system[118056] accepted client 100.73.227.50
+  system[118056] created remote client 2715776130, greeter session c5
+  system[118056] StartHandover c5; redirected client
+  system[118056] routed reconnect; TakeClient c5
+
+19:55:40 attempted greeter-to-user handover
+  system[118056] GDM updated client 2715776130
+  system[118056] StartHandover session8
+  no matching routed reconnect or user-daemon encode initialization
+
+19:56:10 timeout
+  system[118056] Aborting handover, removing remote client 2715776130
+  system[118056] Unregistering .../session8
+
+19:57:40 attempted recovery
+  systemctl --user daemon-reload
+  systemctl --user stop gnome-remote-desktop-handover.service
+  user unit became inactive
+
+19:58:32 fresh reconnect
+  system[118056] created remote client 1893580641, greeter session c6
+  system[118056] StartHandover c6; redirected client
+  system[118056] routed reconnect; TakeClient c6
+  password authentication returned to GDM; user unit remained inactive
+
+19:59:37 manual user-unit start while client handover was pending
+  user[135206] process started
+  no "RDP server started" or HWAccel.FFmpeg session-creation line followed
+
+20:01:26 another fresh reconnect
+  system[118056] created remote client 1912655995, greeter session c7
+  system[118056] StartHandover c7; redirected client
+  system[118056] routed reconnect; TakeClient c7
+
+20:01:28 decisive user-daemon failure
+  user[135206] [DaemonHandover] Could not get session id
+
+Source boundary:
+  grd-daemon-handover.c on_handover_object_added()
+    -> grd_get_session_id_from_pid(getpid())
+    -> sd_pid_get_session()
+    -> return before matching .../Handovers/session8 when no ID is available
+
+No failed attempt logged:
+  [HWAccel.FFmpeg] Initialized FFmpeg/rkmpp encode backend
+  [HWAccel.FFmpeg] Created h264_rkmpp encode session
+
+The reconnect failure therefore stopped before the experimental encoder
+color-range and colorspace assignments could run.
