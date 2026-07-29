@@ -41,8 +41,8 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../kernel/linux-6.18-rkvenc-av1-fwport` (branch `rk3588-video-6.18`,
-tip `12a7da02bea8`). The checked-in series is now contiguous `0001`–`0075`
-after the 2026-07-25 RKVENC2 slice-FIFO fix. Backup of the pre-cleanup tip: tag
+tip `c10074f4474e`). The checked-in series is now contiguous `0001`–`0079`
+after the 2026-07-29 WARN/oops audit sweep. Backup of the pre-cleanup tip: tag
 `backup/pre-reorg-20260723` (`4401383a6d9b5`). Generated fallback/official `.deb`
 files in the external build workspace are intentionally not tracked here — only
 the `git format-patch` text is source material.
@@ -230,6 +230,41 @@ checkpatch-clean; **the split_arg=4 hardware gate is still owed**
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
 | `0075` | video: rockchip: rkvenc2: reserve a slice fifo slot for the terminal record | `12a7da02bea8` | — |
+
+### 0076–0079 — WARN/oops audit sweep (2026-07-29)
+
+A systematic audit for code that can produce a kernel **WARNING or oops** found
+**18 distinct defects**, fixed here in four file-grouped patches. Twelve are
+reachable by any process that can open `/dev/mpp_service` or `/dev/rga`, and
+five of those are unprivileged kernel-heap corruption rather than a splat:
+`mpp_check_req()` clamped to the overflow amount instead of the remaining space
+(and used a signed offset, so an offset ≥ `0x80000000` bypassed every bound);
+the register-translation paths indexed `trans_info[]` with a 10-bit
+user-supplied format against a 4-entry array, and used raw user `u16`s as
+register indexes; and `rkvenc_update_req()` underflowed a `copy_from_user()`
+length to ~4 GiB. The sweep also closes all five previously catalogued but
+unfixed defects in
+[`vendor-driver-latent-defects.md`](../../docs/vendor-driver-latent-defects.md)
+(D01–D05).
+
+Two changes are structural rather than a bounds check: `struct mpp_dev_var`
+gained `trans_count` (set from `ARRAY_SIZE()` in all 14 `.trans_info =`
+initialisers, plus a checked `mpp_get_trans_info()` accessor) because nothing
+previously carried the array length; and both translation helpers now take a
+register count, since callers pass buffers differing by two orders of magnitude
+(360 decoder registers vs the encoder's 23-register `CLASS_BASE` class).
+
+**Compile-verified (`W=1`, zero warnings) only — no fix has been booted and no
+reproducer has been run.** Full defect inventory, the known-open list, the
+negative results, and the verification gate are in the
+[audit finding](../../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md).
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0076` | video: rockchip: mpp: bound user register requests and translations | `febed97bc459` | — |
+| `0077` | video: rockchip: mpp: fix IOMMU cookie typing and buffer-release ordering | `4dba1f42ab2b` | — |
+| `0078` | video: rockchip: rkvenc2/rkvdec2-link: fix window wrap, atomic clocks, WARN | `b7883d72b746` | — |
+| `0079` | video: rockchip: rga: fix job/buffer lifetime, locking and import validation | `c10074f4474e` | — |
 
 ## Renumber map (2026-07-23)
 

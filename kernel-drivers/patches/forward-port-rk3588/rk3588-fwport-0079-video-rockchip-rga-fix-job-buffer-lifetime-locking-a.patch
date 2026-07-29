@@ -1,0 +1,285 @@
+From c10074f4474e088341ba7adbac9b93705c124439 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Wed, 29 Jul 2026 09:58:53 -0700
+Subject: [PATCH 79/79] video: rockchip: rga: fix job/buffer lifetime, locking
+ and import validation
+
+Six defects in the RGA driver, all found by source audit of the 6.18
+forward port.
+
+- rga_iommu_intr_fault_handler() read scheduler->running_job and then
+  wrote job->state and job->ret with no lock and no reference, from the
+  IOMMU's hard-IRQ handler. Every other reader of running_job holds
+  irq_lock, and the isr thread frees the job immediately after
+  rga_job_done() clears it -- and the fault handler's own soft_reset()
+  busy-waits up to a millisecond, which is ample for that to happen.
+  Take irq_lock across the body; ops->irq and soft_reset are already
+  called under it from the ordinary IRQ and timeout paths.
+
+- rga_alloc_virt_addr() never checked the calculated buffer size.
+  rga_image_size_cal() returns a negative errno for an unsupported
+  format, and memory_parm->size is an unvalidated u32, so img_size can
+  be negative; it is then stored in the unsigned long virt_addr->size
+  and used as a memcpy() and cache-sync length. The existing !count
+  guard does not catch it because img_size + offset promotes to size_t
+  and wraps back to a plausible page count for any page offset above 14.
+  Both sibling import paths (dma-buf and phys-addr) already have the
+  <= 0 check; add it here.
+
+- rga_mm_release_buffer() dropped a session's import reference but left
+  buffer->session pointing at that session. Handles are global and
+  neither the getter nor the releaser checks ownership, so a session
+  could import a buffer, let another session's job take a reference,
+  release its own, and then on close hit the "refcount == 1 means the
+  last reference is mine" branch and free the buffer under the still
+  running job. Clear the ownership when the import reference is
+  surrendered, so the close path no longer matches. Deliberately not
+  changing the force-free itself: it frees in place under mm->lock
+  because the kref release callback drops that lock mid-iteration, which
+  previously wedged session teardown.
+
+- rga_request_submit()'s err_put_current_mm path read and cleared
+  request->current_mm with no lock, while the completion path does the
+  same under request->lock -- and three other sites already take it for
+  exactly this field. Both could therefore drop the same reference,
+  tearing down the address space of a live process. Take the lock.
+
+- rga_request_manager_show() snapshotted task_list under request->lock,
+  released it, and then looped to the *live* request->task_count over
+  the *stale* pointer. rga_request_config() swaps that list and frees
+  the old one, so the dump could walk freed memory with a bound
+  describing a different array. Keep the lock for the dump and use the
+  snapshot as the bound.
+
+- Four debugfs write handlers did buf[len - 1] = '\0' after only
+  rejecting len > sizeof(buf) - 1. write(fd, "", 0) reaches ->write with
+  count 0, so they stored a NUL at buf[-1]. Reject a zero length.
+
+- rga_mm.c's userptr path called pfn_to_page() on a PFN obtained from
+  follow_pfnmap_start(), which is reached precisely for VM_PFNMAP/VM_IO
+  ranges where there is frequently no struct page, yielding a pointer
+  into a vmemmap hole that is then handed to sg_alloc_table_from_pages()
+  and DMA-mapped. Apply the same guard the hardened physical-import
+  sibling uses, and release the pfnmap walk on that error path.
+
+Compile-tested only; no runtime gate has been run against these.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/rga3/rga_debugger.c | 21 ++++++----
+ drivers/video/rockchip/rga3/rga_iommu.c    | 20 +++++++++-
+ drivers/video/rockchip/rga3/rga_job.c      | 12 +++++-
+ drivers/video/rockchip/rga3/rga_mm.c       | 46 ++++++++++++++++++++++
+ 4 files changed, 89 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_debugger.c b/drivers/video/rockchip/rga3/rga_debugger.c
+index 3a9b1b69da5ba..d1e834f14b595 100644
+--- a/drivers/video/rockchip/rga3/rga_debugger.c
++++ b/drivers/video/rockchip/rga3/rga_debugger.c
+@@ -79,7 +79,7 @@ static ssize_t rga_debug_write(struct file *file, const char __user *ubuf,
+ {
+ 	char buf[14];
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+@@ -368,9 +368,8 @@ static int rga_request_manager_show(struct seq_file *m, void *data)
+ 		failed_task_count = request->failed_task_count;
+ 		task_list = request->task_list;
+ 
+-		spin_unlock_irqrestore(&request->lock, flags);
+-
+ 		if (task_list == NULL) {
++			spin_unlock_irqrestore(&request->lock, flags);
+ 			seq_puts(m, "\t can not find task list from id\n");
+ 			continue;
+ 		}
+@@ -381,8 +380,16 @@ static int rga_request_manager_show(struct seq_file *m, void *data)
+ 
+ 		seq_puts(m, "\t cmd dump:\n\n");
+ 
+-		for (i = 0; i < request->task_count; i++)
++		/*
++		 * Stay under request->lock for the dump: rga_request_config()
++		 * swaps task_list and frees the old one, so dropping the lock
++		 * here would walk freed memory. The bound must be the snapshot
++		 * too -- the live count describes the replacement list.
++		 */
++		for (i = 0; i < task_count; i++)
+ 			rga_request_task_debug_info(m, &(task_list[i]));
++
++		spin_unlock_irqrestore(&request->lock, flags);
+ 	}
+ 
+ 	mutex_unlock(&request_manager->lock);
+@@ -403,7 +410,7 @@ static ssize_t rga_dump_path_write(struct file *file, const char __user *ubuf,
+ {
+ 	char buf[100];
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+@@ -429,7 +436,7 @@ static ssize_t rga_dump_image_write(struct file *file, const char __user *ubuf,
+ 	int dump_count = 0;
+ 	char buf[14];
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+@@ -517,7 +524,7 @@ static ssize_t rga_reset_write(struct file *file, const char __user *ubuf,
+ 	int reset_done = false;
+ 	struct rga_scheduler_t *scheduler = NULL;
+ 
+-	if (len > sizeof(buf) - 1)
++	if (len == 0 || len > sizeof(buf) - 1)
+ 		return -EINVAL;
+ 	if (copy_from_user(buf, ubuf, len))
+ 		return -EFAULT;
+diff --git a/drivers/video/rockchip/rga3/rga_iommu.c b/drivers/video/rockchip/rga3/rga_iommu.c
+index 064f432f441a2..4f0756f1da94e 100644
+--- a/drivers/video/rockchip/rga3/rga_iommu.c
++++ b/drivers/video/rockchip/rga3/rga_iommu.c
+@@ -256,10 +256,24 @@ static int rga_iommu_intr_fault_handler(struct iommu_domain *iommu, struct devic
+ 					unsigned long iova, int status, void *arg)
+ {
+ 	struct rga_scheduler_t *scheduler = (struct rga_scheduler_t *)arg;
+-	struct rga_job *job = scheduler->running_job;
++	struct rga_job *job;
++	unsigned long flags;
+ 
+-	if (job == NULL)
++	/*
++	 * This runs in the IOMMU's hard-IRQ handler. Every other reader of
++	 * running_job holds irq_lock, and the job is freed by the isr thread
++	 * right after rga_job_done() clears it -- so without the lock the
++	 * writes below can land in a kfree()d job. Holding irq_lock across the
++	 * body keeps the job alive for the duration; ops->irq and soft_reset
++	 * are already called under it from the ordinary IRQ and timeout paths.
++	 */
++	spin_lock_irqsave(&scheduler->irq_lock, flags);
++
++	job = scheduler->running_job;
++	if (job == NULL) {
++		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+ 		return 0;
++	}
+ 
+ 	rga_err("IOMMU intr fault, IOVA[0x%lx], STATUS[0x%x]\n", iova, status);
+ 	if (scheduler->ops->irq)
+@@ -282,6 +296,8 @@ static int rga_iommu_intr_fault_handler(struct iommu_domain *iommu, struct devic
+ 		job->ret = -EACCES;
+ 	}
+ 
++	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
++
+ 	return 0;
+ }
+ 
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index ecc2b26bd6b6d..376a33c883d63 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -1359,6 +1359,7 @@ int rga_request_submit(struct rga_request *request)
+ 	int ret = 0;
+ 	unsigned long flags;
+ 	struct dma_fence *release_fence;
++	struct mm_struct *current_mm;
+ 
+ 	spin_lock_irqsave(&request->lock, flags);
+ 
+@@ -1445,8 +1446,17 @@ int rga_request_submit(struct rga_request *request)
+ 	return 0;
+ 
+ err_put_current_mm:
+-	rga_request_put_current_mm(request->current_mm);
++	/*
++	 * The completion path consumes current_mm under request->lock. Taking
++	 * it here too keeps the two from each dropping the same reference,
++	 * which would tear down the address space of a live process.
++	 */
++	spin_lock_irqsave(&request->lock, flags);
++	current_mm = request->current_mm;
+ 	request->current_mm = NULL;
++	spin_unlock_irqrestore(&request->lock, flags);
++
++	rga_request_put_current_mm(current_mm);
+ 
+ err_abort_request:
+ 	rga_request_release_abort(request, ret);
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 6a6c66ee244a0..5e3a22bcaca11 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -255,6 +255,25 @@ static int rga_get_user_pages_from_vma(struct page **pages, unsigned long Memory
+ 			break;
+ 		}
+ 
++		/*
++		 * follow_pfnmap_start() is reached precisely for VM_PFNMAP /
++		 * VM_IO ranges -- device MMIO, reserved and no-map memory --
++		 * where a PFN frequently has no struct page behind it and
++		 * pfn_to_page() yields a pointer into a vmemmap hole. That
++		 * pointer would go on to rga_alloc_sgt() and be DMA-mapped and
++		 * cache-synced. pfn_valid() alone is not enough (it is true for
++		 * sparse-memory holes and no-map ranges), so use the same
++		 * stricter test the physical-import path already applies.
++		 */
++		if (!pfn_valid(args.pfn) ||
++		    !virt_addr_valid(phys_to_virt(PFN_PHYS(args.pfn)))) {
++			rga_err("page[%d] pfn %#lx is not mappable memory\n",
++				i, (unsigned long)args.pfn);
++			follow_pfnmap_end(&args);
++			ret = RGA_OUT_OF_RESOURCES;
++			break;
++		}
++
+ 		pages[i] = pfn_to_page(args.pfn);
+ 		follow_pfnmap_end(&args);
+ #else
+@@ -473,6 +492,22 @@ static int rga_alloc_virt_addr(struct rga_virt_addr **virt_addr_p,
+ 					      memory_parm->height,
+ 					      memory_parm->format,
+ 					      NULL, NULL, NULL);
++	/*
++	 * rga_image_size_cal() returns a negative errno for an unsupported
++	 * format, and memory_parm->size is an unvalidated u32 that can land
++	 * negative in this int. Either way the value ends up in the unsigned
++	 * long virt_addr->size and is later used as a memcpy()/cache-sync
++	 * length. The !count guard below does not catch it: img_size + offset
++	 * promotes to size_t and wraps back to a plausible page count for any
++	 * page offset above 14. Reject it here, as the dma-buf and phys-addr
++	 * import paths already do.
++	 */
++	if (img_size <= 0) {
++		rga_err("failed to calculating buffer size! img_size = %d\n",
++			img_size);
++		rga_dump_memory_parm(memory_parm);
++		return img_size == 0 ? -EINVAL : img_size;
++	}
+ 
+ 	offset = viraddr & (~PAGE_MASK);
+ 	count = RGA_GET_PAGE_COUNT(img_size + offset);
+@@ -3195,6 +3230,17 @@ int rga_mm_release_buffer(uint32_t handle)
+ 		rga_mm_dump_buffer(internal_buffer);
+ 	}
+ 
++	/*
++	 * The import reference is being surrendered here, so the buffer is no
++	 * longer owned by any session. Clearing this matters because
++	 * rga_mm_session_release_buffer() treats a refcount of 1 on a buffer
++	 * it still owns as "the last reference is mine" and frees it in place.
++	 * Handles are global, so without this a session could import, hand the
++	 * handle to a job in another session, release it, and then free the
++	 * buffer out from under that still-running job on close.
++	 */
++	internal_buffer->session = NULL;
++
+ 	kref_put(&internal_buffer->refcount, rga_mm_kref_release_buffer);
+ 
+ 	if (DEBUGGER_EN(TIME))

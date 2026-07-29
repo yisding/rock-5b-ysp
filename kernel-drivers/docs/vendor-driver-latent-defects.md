@@ -1,11 +1,20 @@
 # Latent defects in the forward-ported vendor MPP/RGA drivers
 
+> **All five are FIXED as of 2026-07-29** by forward-port patches `0076`–`0079`
+> ([audit finding](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md)),
+> which also fixed 13 further WARN/oops defects found in the same sweep. The
+> fixes are **compile-verified only** — no runtime gate has been run. Per-defect
+> status is in the table below; the analysis in each section is preserved as the
+> record of how the defect was established, and the
+> [checked-and-found-correct](#checked-and-found-correct) table remains valid.
+
 Five defects found by source inspection on 2026-07-27 while hunting the writer
 behind the GRD/RKMPP system-heap scatterlist corruption. **None of them is
-confirmed to be that writer** — the hunt is still open — but each is a real
-correctness or security problem in its own right, and they are recorded here so
-they get fixed on their own schedule rather than living only inside an
-investigation narrative.
+confirmed to be that writer** — that hunt was separately closed by the
+[`CONFIG_DMABUF_DEBUG` root cause](../../findings/2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md)
+— but each is a real correctness or security problem in its own right, and they
+are recorded here so they get fixed on their own schedule rather than living
+only inside an investigation narrative.
 
 > Source of every anchor below: the exact production kernel source at
 > `packaging/ppa/out/work/linux-rockchip64-ysp-6.18.40+rk3588av1fwport20260725`,
@@ -16,20 +25,26 @@ investigation narrative.
 > [`findings/2026-07-27-grd-sg-writer-source-sweep-vendor-drivers-cleared.md`](../../findings/2026-07-27-grd-sg-writer-source-sweep-vendor-drivers-cleared.md).
 > Trust: **SOURCE-INSPECTED**. No defect here has a runtime reproducer yet.
 
-| # | Defect | Severity | Reachable by |
-|---|---|---|---|
-| [D01](#d01-unbounded-user-controlled-kernel-heap-read-modify-write) | Unbounded user-controlled kernel heap read-modify-write | **High (security)** | any process opening `/dev/mpp_service` |
-| [D02](#d02-u32-wrap-size-underflow-unbounded-copyfromuser) | `u32` wrap → size underflow → unbounded `copy_from_user` | **High (security)** | same, via `MPP_CMD_SET_REG_WRITE` |
-| [D03](#d03-iovacookie-union-type-confusion) | `iova_cookie` union type-confusion | Medium (latent) | not currently reachable |
-| [D04](#d04-stale-buffer-sgt-read-after-free-window) | Stale `buffer->sgt` read-after-free window | Medium | encoder teardown race |
-| [D05](#d05-pfntopage-on-a-pfnmap-vma-without-validation) | `pfn_to_page()` on a PFNMAP VMA without validation | Medium | RGA userptr import |
+| # | Defect | Severity | Reachable by | Status |
+|---|---|---|---|---|
+| [D01](#d01-unbounded-user-controlled-kernel-heap-read-modify-write) | Unbounded user-controlled kernel heap read-modify-write | **High (security)** | any process opening `/dev/mpp_service` | **FIXED** in `0076` |
+| [D02](#d02-u32-wrap-size-underflow-unbounded-copyfromuser) | `u32` wrap → size underflow → unbounded `copy_from_user` | **High (security)** | same, via `MPP_CMD_SET_REG_WRITE` | **FIXED** in `0078` |
+| [D03](#d03-iovacookie-union-type-confusion) | `iova_cookie` union type-confusion | Medium (latent) | not currently reachable | **FIXED** in `0077` |
+| [D04](#d04-stale-buffer-sgt-read-after-free-window) | Stale `buffer->sgt` read-after-free window | Medium | encoder teardown race | **FIXED** in `0077` |
+| [D05](#d05-pfntopage-on-a-pfnmap-vma-without-validation) | `pfn_to_page()` on a PFNMAP VMA without validation | Medium | RGA userptr import | **FIXED** in `0079` |
 
-Fixes belong on the audit/cleanup series
-([`patches/cleanup-split/`](../patches/cleanup-split/README.md)), not on the
-forward-port series proper, which is meant to stay a faithful carry of the BSP
-plus the fixes already catalogued in
-[`patch-catalog.md`](patch-catalog.md). D01 and D02 are the two that justify
-being pulled forward independently of the scatterlist investigation.
+**Where the fixes landed.** This page originally routed them to the
+audit/cleanup series ([`patches/cleanup-split/`](../patches/cleanup-split/README.md)).
+They went on the **forward-port series** instead, matching the established
+practice for memory-safety fixes that must ship: `0054` (register-translation
+bounds) and `0058`–`0069` (the BSP-audit HIGH port) are the same class and are
+already carried there. The cleanup series remains unshippable, so putting
+unprivileged heap-corruption fixes on it would have meant not shipping them.
+
+D01 and D02 were the two flagged as justifying being pulled forward
+independently of the scatterlist investigation; in the event all five were
+fixed together, alongside 13 further defects from the
+[2026-07-29 WARN/oops audit](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md).
 
 ---
 
@@ -497,24 +512,26 @@ Recorded so the next pass does not re-derive them.
 | rkvenc2 slice-FIFO records (`mpp_rkvenc2.c:220-227`, `:1717`) | **CPU-filled from MMIO, not DMA.** 4-byte records read from register `0x4038` in IRQ context; no DMA address for the FIFO is ever programmed. |
 | All MPP device-visible memory | **Never in a slab.** Every hardware-writable region is `dma_alloc_coherent` or `alloc_pages` at a DT-fixed reserved IOVA, all probe-to-remove scoped. Both `dma_map_single()` sites in the tree are `DMA_TO_DEVICE`. |
 
-## Suggested sequencing
+## How they were fixed (2026-07-29)
 
-1. **D01 and D02 first**, together, as a two-patch security pair on
-   [`patches/cleanup-split/`](../patches/cleanup-split/README.md). They are
-   small, independently testable, and both are unprivileged-reachable memory
-   corruption. Neither depends on the scatterlist investigation concluding.
-2. **D05** next — one hunk plus an error-path fix, and it removes the tree's
-   only manufacturer of wild page pointers, which also simplifies reasoning
-   about the open investigation.
-3. **D03** as a cleanup that *deletes* code (shadow struct and both casts) by
-   adopting the accessor RGA already uses.
-4. **D04** last of the five: the correct fix is an ordering change plus a
-   reference-lifetime argument, so it deserves its own review rather than being
-   bundled.
+All five landed on the forward-port series. The sequencing this section
+originally proposed was overtaken by the wider WARN/oops sweep, which found
+13 more defects and made grouping by *file* cheaper to review than grouping by
+defect:
 
-Each should carry a `Fixes:`-style note naming the forward-port patch that
-introduced or carried the code, per
-[`patch-catalog.md`](patch-catalog.md) conventions, and the two security fixes
+| Defect | Patch | Fix as applied |
+|---|---|---|
+| D01 | `0076` | `mpp_translate_reg_offset_info()` takes a register count and rejects an out-of-range index; the sole caller now checks the return it had discarded. |
+| D02 | `0078` | `req_over_class()` and `rkvenc_update_req()` reject a sub-register size and a wrapping or inverted window; both call sites check the return; the copy length is asserted against the class allocation. |
+| D03 | `0077` | Shadow struct and both casts **deleted**; MPP routed through `iommu_dma_get_iova_domain()`, the discriminator-checking accessor RGA already used. |
+| D04 | `0077` | Pointers cleared before `dma_buf_detach()` frees what they point at, plus the defensive checks in `mpp_dma_buf_sync()`. |
+| D05 | `0079` | `pfn_valid()` + `virt_addr_valid(phys_to_virt(PFN_PHYS(pfn)))`, matching the hardened physical-import sibling, and `follow_pfnmap_end()` on the error arm. |
+
+Each is **compile-verified only**; the verification gate is in the
+[audit finding](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md#verification-gate).
+
+D01, D02, D04 and D05 are BSP-inherited, not forward-port regressions, so they
 are candidates for the upstream/BSP submission list tracked in
-[`findings/2026-07-22-bsp-bug-upstream-submission-priority.md`](../../findings/2026-07-22-bsp-bug-upstream-submission-priority.md)
-— D01 and D02 are BSP-inherited, not forward-port regressions.
+[`findings/2026-07-22-bsp-bug-upstream-submission-priority.md`](../../findings/2026-07-22-bsp-bug-upstream-submission-priority.md).
+D03 is `PORT`-class: it exists only because 6.18 turned `iova_cookie` into a
+discriminated union arm, which the BSP's older headers did not have.

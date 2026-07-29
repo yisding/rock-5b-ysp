@@ -1,0 +1,425 @@
+From febed97bc459775e08bb3151ae6ea38bbdac5b17 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Wed, 29 Jul 2026 09:57:26 -0700
+Subject: [PATCH 76/79] video: rockchip: mpp: bound user register requests and
+ translations
+
+Four unprivileged-reachable memory-safety defects in the MPP core, all
+found by source audit of the 6.18 forward port. Any process that can open
+/dev/mpp_service reaches them; on this board that includes the gdm
+greeter.
+
+- mpp_check_req() clamped an over-long request to the *overflow amount*
+  (req_off + size - max_size) instead of the space that is left
+  (max_size - req_off). At req_off == max_size the clamp is an identity,
+  so a SET_REG_WRITE at offset sizeof(task->reg) with any size copied
+  that size straight past the end of the kzalloc'd task. req_off was
+  also a signed int, so an offset at or above 0x80000000 went negative
+  and passed every bound below it. Make req_off unsigned, reject a
+  wrapping offset+size, and clamp to the remaining space.
+
+- mpp_translate_reg_offset_info() applied reg[elem[i].index] += offset
+  with index a raw u32 from userspace, giving an arbitrary-add primitive
+  anywhere in a 16 GiB window above task->reg[]. The existing hardening
+  bounds the element count but never the index. Take the destination
+  length and reject an out-of-range index; the sole caller now checks
+  the return value it previously discarded.
+
+- mpp_translate_reg_address() indexed mpp->var->trans_info[] with a
+  format taken straight out of a user-written register word.
+  RKVDEC_GET_FORMAT() masks to 10 bits while rkvdec_v2_trans[] has four
+  entries, so fmt = 1023 read ~16 KiB past the array and returned a
+  garbage table pointer that was then dereferenced. Carry the array
+  length in struct mpp_dev_var and add mpp_get_trans_info(), which
+  checks it.
+
+- The same function used session->trans_table[] entries as register
+  indexes. MPP_CMD_INIT_TRANS_TABLE validates only the byte count, so
+  each u16 is arbitrary and reg[tbl[i]] read and wrote up to 256 KiB
+  past task->reg[]. Bound every index against the register buffer the
+  caller passes in.
+
+- MPP_CMD_RESET_SESSION destroyed session->dma and published the NULL
+  outside srv->session_lock. The world-readable procfs sessions-summary
+  walks the service session list under exactly that lock and then takes
+  session->dma->list_mutex, so a concurrent reader could take a mutex in
+  freed memory. mpp_session_deinit() already unlinks under session_lock
+  for this reason; do the same here.
+
+Compile-tested only; no runtime gate has been run against these.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/mpp/mpp_av1dec.c  |  23 ++++-
+ drivers/video/rockchip/mpp/mpp_common.c  | 115 +++++++++++++++++++----
+ drivers/video/rockchip/mpp/mpp_common.h  |   8 +-
+ drivers/video/rockchip/mpp/mpp_rkvdec2.c |  19 +++-
+ 4 files changed, 140 insertions(+), 25 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_av1dec.c b/drivers/video/rockchip/mpp/mpp_av1dec.c
+index 7c6189b363259..39c63f49a0f3a 100644
+--- a/drivers/video/rockchip/mpp/mpp_av1dec.c
++++ b/drivers/video/rockchip/mpp/mpp_av1dec.c
+@@ -474,6 +474,8 @@ static void *av1dec_alloc_task(struct mpp_session *session,
+ 			u32 fmt = hw->trans_class[i].trans_fmt;
+ 			u32 *reg = task->reg_class[class].data;
+ 			u32 base_idx = MPP_BASE_TO_IDX(task->reg_class[class].base);
++			u32 reg_cnt = task->reg_class[class].len / sizeof(u32);
++			struct mpp_trans_info *trans_info;
+ 
+ 			if (!task->reg_class[class].valid)
+ 				continue;
+@@ -482,13 +484,27 @@ static void *av1dec_alloc_task(struct mpp_session *session,
+ 			if (!reg)
+ 				continue;
+ 
+-			ret = mpp_translate_reg_address(session, mpp_task, fmt, reg, NULL);
++			trans_info = mpp_get_trans_info(mpp, fmt);
++			if (!trans_info) {
++				mpp_err("invalid translate format %u\n", fmt);
++				ret = -EINVAL;
++				goto fail;
++			}
++
++			ret = mpp_translate_reg_address(session, mpp_task, fmt, reg,
++							reg_cnt, NULL);
+ 			if (ret)
+ 				goto fail;
+ 
+-			cnt = mpp->var->trans_info[fmt].count;
+-			tbl = mpp->var->trans_info[fmt].table;
++			cnt = trans_info->count;
++			tbl = trans_info->table;
+ 			for (k = 0; k < cnt; k++) {
++				if (tbl[k] >= reg_cnt) {
++					mpp_err("reg index %u out of range %u\n",
++						tbl[k], reg_cnt);
++					ret = -EINVAL;
++					goto fail;
++				}
+ 				offset = mpp_query_reg_offset_info(&task->off_inf,
+ 								   tbl[k] + base_idx);
+ 				mpp_debug(DEBUG_IOMMU,
+@@ -1031,6 +1047,7 @@ static const struct mpp_dev_var av1dec_data = {
+ 	.device_type = MPP_DEVICE_AV1DEC,
+ 	.hw_info = &av1dec_hw_info.hw,
+ 	.trans_info = trans_av1dec,
++	.trans_count = ARRAY_SIZE(trans_av1dec),
+ 	.hw_ops = &av1dec_hw_ops,
+ 	.dev_ops = &av1dec_dev_ops,
+ };
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 804e19e2eb969..b34e439c6e144 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -1518,6 +1518,7 @@ static int mpp_process_request(struct mpp_session *session,
+ 	case MPP_CMD_RESET_SESSION: {
+ 		int ret;
+ 		int val;
++		struct mpp_dma_session *dma;
+ 
+ 		ret = readx_poll_timeout(atomic_read,
+ 					 &session->task_count,
+@@ -1530,9 +1531,25 @@ static int mpp_process_request(struct mpp_session *session,
+ 				return -EINVAL;
+ 
+ 			mpp_session_clear_pending(session);
++			/*
++			 * Publish the NULL under session_lock before freeing,
++			 * for the same reason mpp_session_deinit() does: the
++			 * world-readable procfs dump walks the service list
++			 * under that lock and takes session->dma->list_mutex.
++			 * Taking it here also waits out an in-progress reader.
++			 */
++			if (session->srv) {
++				mutex_lock(&session->srv->session_lock);
++				dma = session->dma;
++				session->dma = NULL;
++				mutex_unlock(&session->srv->session_lock);
++			} else {
++				dma = session->dma;
++				session->dma = NULL;
++			}
++
+ 			mpp_iommu_down_write(mpp->iommu_info);
+-			ret = mpp_dma_session_destroy(session->dma);
+-			session->dma = NULL;
++			ret = mpp_dma_session_destroy(dma);
+ 			mpp_iommu_up_write(mpp->iommu_info);
+ 		}
+ 		return ret;
+@@ -2067,9 +2084,29 @@ mpp_task_attach_fd(struct mpp_task *task, int fd)
+ 	return mem_region;
+ }
+ 
++/*
++ * Look up a format's translation entry. fmt reaches callers straight out of a
++ * user-written register word, so it must be bounded against the device's table
++ * before it is used as an index.
++ */
++struct mpp_trans_info *mpp_get_trans_info(struct mpp_dev *mpp, int fmt)
++{
++	if (!mpp || !mpp->var || !mpp->var->trans_info)
++		return NULL;
++
++	if (fmt < 0 || (u32)fmt >= mpp->var->trans_count)
++		return NULL;
++
++	if (!mpp->var->trans_info[fmt].table)
++		return NULL;
++
++	return &mpp->var->trans_info[fmt];
++}
++
+ int mpp_translate_reg_address(struct mpp_session *session,
+ 			      struct mpp_task *task, int fmt,
+-			      u32 *reg, struct reg_offset_info *off_inf)
++			      u32 *reg, u32 reg_cnt,
++			      struct reg_offset_info *off_inf)
+ {
+ 	int i;
+ 	int cnt;
+@@ -2082,10 +2119,15 @@ int mpp_translate_reg_address(struct mpp_session *session,
+ 		tbl = session->trans_table;
+ 	} else {
+ 		struct mpp_dev *mpp = mpp_get_task_used_device(task, session);
+-		struct mpp_trans_info *trans_info = mpp->var->trans_info;
++		struct mpp_trans_info *trans_info = mpp_get_trans_info(mpp, fmt);
++
++		if (!trans_info) {
++			mpp_err("invalid translate format %d\n", fmt);
++			return -EINVAL;
++		}
+ 
+-		cnt = trans_info[fmt].count;
+-		tbl = trans_info[fmt].table;
++		cnt = trans_info->count;
++		tbl = trans_info->table;
+ 	}
+ 
+ 	for (i = 0; i < cnt; i++) {
+@@ -2093,6 +2135,18 @@ int mpp_translate_reg_address(struct mpp_session *session,
+ 		u32 offset;
+ 		struct mpp_mem_region *mem_region = NULL;
+ 
++		/*
++		 * With a session translation table these indexes are raw
++		 * user input (MPP_CMD_INIT_TRANS_TABLE validates only the byte
++		 * count), so they must be bounded against the register buffer
++		 * before being used to read and write through it.
++		 */
++		if (tbl[i] >= reg_cnt) {
++			mpp_err("reg index %u out of range %u\n",
++				tbl[i], reg_cnt);
++			return -EINVAL;
++		}
++
+ 		if (session->msg_flags & MPP_FLAGS_REG_NO_OFFSET) {
+ 			usr_fd = reg[tbl[i]];
+ 			offset = 0;
+@@ -2126,33 +2180,53 @@ int mpp_translate_reg_address(struct mpp_session *session,
+ int mpp_check_req(struct mpp_request *req, int base,
+ 		  int max_size, u32 off_s, u32 off_e)
+ {
+-	int req_off;
++	/*
++	 * req_off must be unsigned: it used to be int, so an offset at or above
++	 * 0x80000000 became negative and passed every bound below, after which
++	 * the caller copied through it.
++	 */
++	u32 req_off;
+ 
+-	if (req->offset < base) {
++	if (base < 0 || max_size < 0) {
++		mpp_err("error: base %x, max_size %x\n", base, max_size);
++		return -EINVAL;
++	}
++	if (req->offset < (u32)base) {
+ 		mpp_err("error: base %x, offset %x\n",
+ 			base, req->offset);
+ 		return -EINVAL;
+ 	}
+-	req_off = req->offset - base;
++	req_off = req->offset - (u32)base;
++	if (req->size > U32_MAX - req_off) {
++		mpp_err("error: req_off %x, req_size %x wraps\n",
++			req_off, req->size);
++		return -EINVAL;
++	}
+ 	if ((req_off + req->size) < off_s) {
+ 		mpp_err("error: req_off %x, req_size %x, off_s %x\n",
+ 			req_off, req->size, off_s);
+ 		return -EINVAL;
+ 	}
+-	if (max_size < off_e) {
++	if ((u32)max_size < off_e) {
+ 		mpp_err("error: off_e %x, max_size %x\n",
+ 			off_e, max_size);
+ 		return -EINVAL;
+ 	}
+-	if (req_off > max_size) {
++	if (req_off > (u32)max_size) {
+ 		mpp_err("error: req_off %x, max_size %x\n",
+ 			req_off, max_size);
+ 		return -EINVAL;
+ 	}
+-	if ((req_off + req->size) > max_size) {
++	/*
++	 * Clamp to the space that is actually left. The previous expression
++	 * computed the overflow amount instead, which left req->size untouched
++	 * whenever req_off == max_size and shrank it to the wrong value
++	 * otherwise.
++	 */
++	if (req->size > (u32)max_size - req_off) {
+ 		mpp_err("error: req_off %x, req_size %x, max_size %x\n",
+ 			req_off, req->size, max_size);
+-		req->size = req_off + req->size - max_size;
++		req->size = (u32)max_size - req_off;
+ 	}
+ 
+ 	return 0;
+@@ -2209,7 +2283,7 @@ int mpp_query_reg_offset_info(struct reg_offset_info *off_inf,
+ 
+ int mpp_translate_reg_offset_info(struct mpp_task *task,
+ 				  struct reg_offset_info *off_inf,
+-				  u32 *reg)
++				  u32 *reg, u32 reg_cnt)
+ {
+ 	mpp_debug_enter();
+ 
+@@ -2217,10 +2291,17 @@ int mpp_translate_reg_offset_info(struct mpp_task *task,
+ 		int i;
+ 
+ 		for (i = 0; i < off_inf->cnt; i++) {
++			u32 index = off_inf->elem[i].index;
++
++			if (index >= reg_cnt) {
++				mpp_err("reg offset index %u out of range %u\n",
++					index, reg_cnt);
++				return -EINVAL;
++			}
++
+ 			mpp_debug(DEBUG_IOMMU, "reg[%d] + offset %d\n",
+-				  off_inf->elem[i].index,
+-				  off_inf->elem[i].offset);
+-			reg[off_inf->elem[i].index] += off_inf->elem[i].offset;
++				  index, off_inf->elem[i].offset);
++			reg[index] += off_inf->elem[i].offset;
+ 		}
+ 	}
+ 	mpp_debug_leave();
+diff --git a/drivers/video/rockchip/mpp/mpp_common.h b/drivers/video/rockchip/mpp/mpp_common.h
+index 75dca08cd781c..a141cdc7cf65b 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.h
++++ b/drivers/video/rockchip/mpp/mpp_common.h
+@@ -251,6 +251,8 @@ struct mpp_dev_var {
+ 	/* info for each hardware */
+ 	struct mpp_hw_info *hw_info;
+ 	struct mpp_trans_info *trans_info;
++	/* number of entries in trans_info[]; formats at or above it are invalid */
++	u32 trans_count;
+ 	struct mpp_hw_ops *hw_ops;
+ 	struct mpp_dev_ops *dev_ops;
+ };
+@@ -634,7 +636,9 @@ struct mpp_mem_region *
+ mpp_task_attach_fd(struct mpp_task *task, int fd);
+ int mpp_translate_reg_address(struct mpp_session *session,
+ 			      struct mpp_task *task, int fmt,
+-			      u32 *reg, struct reg_offset_info *off_inf);
++			      u32 *reg, u32 reg_cnt,
++			      struct reg_offset_info *off_inf);
++struct mpp_trans_info *mpp_get_trans_info(struct mpp_dev *mpp, int fmt);
+ 
+ int mpp_check_req(struct mpp_request *req, int base,
+ 		  int max_size, u32 off_s, u32 off_e);
+@@ -644,7 +648,7 @@ int mpp_query_reg_offset_info(struct reg_offset_info *off_inf,
+ 			      u32 index);
+ int mpp_translate_reg_offset_info(struct mpp_task *task,
+ 				  struct reg_offset_info *off_inf,
+-				  u32 *reg);
++				  u32 *reg, u32 reg_cnt);
+ int mpp_task_init(struct mpp_session *session,
+ 		  struct mpp_task *task);
+ int mpp_task_finish(struct mpp_session *session,
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2.c b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+index 236ee0ada3d95..564e0c8776d10 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2.c
+@@ -392,12 +392,18 @@ int rkvdec2_task_init(struct mpp_dev *mpp, struct mpp_session *session,
+ 		int reg_fmt = mpp_task->hw_info->reg_fmt;
+ 		u32 fmt = RKVDEC_GET_FORMAT(task->reg[reg_fmt]);
+ 
+-		ret = mpp_translate_reg_address(session, mpp_task,
+-						fmt, task->reg, &task->off_inf);
++		ret = mpp_translate_reg_address(session, mpp_task, fmt,
++						task->reg,
++						ARRAY_SIZE(task->reg),
++						&task->off_inf);
+ 		if (ret)
+ 			goto fail;
+ 
+-		mpp_translate_reg_offset_info(mpp_task, &task->off_inf, task->reg);
++		ret = mpp_translate_reg_offset_info(mpp_task, &task->off_inf,
++						    task->reg,
++						    ARRAY_SIZE(task->reg));
++		if (ret)
++			goto fail;
+ 	}
+ 
+ 	task->strm_addr = task->reg[RKVDEC_REG_RLC_BASE_INDEX];
+@@ -1655,6 +1661,7 @@ static const struct mpp_dev_var rkvdec_v2_data = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_v2_hw_info,
+ 	.trans_info = rkvdec_v2_trans,
++	.trans_count = ARRAY_SIZE(rkvdec_v2_trans),
+ 	.hw_ops = &rkvdec_v2_hw_ops,
+ 	.dev_ops = &rkvdec_v2_dev_ops,
+ };
+@@ -1663,6 +1670,7 @@ static const struct mpp_dev_var rkvdec_rk3568_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_rk356x_hw_info,
+ 	.trans_info = rkvdec_v2_trans,
++	.trans_count = ARRAY_SIZE(rkvdec_v2_trans),
+ 	.hw_ops = &rkvdec_rk3568_hw_ops,
+ 	.dev_ops = &rkvdec_rk3568_dev_ops,
+ };
+@@ -1671,6 +1679,7 @@ static const struct mpp_dev_var rkvdec_rk3528_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_vdpu382_hw_info,
+ 	.trans_info = rkvdec_v2_trans,
++	.trans_count = ARRAY_SIZE(rkvdec_v2_trans),
+ 	.hw_ops = &rkvdec_vdpu382_hw_ops,
+ 	.dev_ops = &rkvdec_v2_dev_ops,
+ };
+@@ -1679,6 +1688,7 @@ static const struct mpp_dev_var rkvdec_rk3562_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_vdpu382_hw_info,
+ 	.trans_info = rkvdec_v2_trans,
++	.trans_count = ARRAY_SIZE(rkvdec_v2_trans),
+ 	.hw_ops = &rkvdec_rk3562_hw_ops,
+ 	.dev_ops = &rkvdec_v2_dev_ops,
+ };
+@@ -1687,6 +1697,7 @@ static const struct mpp_dev_var rkvdec_rk3588_data = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_v2_hw_info,
+ 	.trans_info = rkvdec_v2_trans,
++	.trans_count = ARRAY_SIZE(rkvdec_v2_trans),
+ 	.hw_ops = &rkvdec_rk3588_hw_ops,
+ 	.dev_ops = &rkvdec_v2_dev_ops,
+ };
+@@ -1695,6 +1706,7 @@ static const struct mpp_dev_var rkvdec_rk3576_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_vdpu383_hw_info,
+ 	.trans_info = rkvdec_vdpu383_trans,
++	.trans_count = ARRAY_SIZE(rkvdec_vdpu383_trans),
+ 	.hw_ops = &rkvdec_rk3576_hw_ops,
+ 	.dev_ops = &rkvdec_vdpu383_dev_ops,
+ };
+@@ -1703,6 +1715,7 @@ static const struct mpp_dev_var rkvdec_rv1126b_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVDEC,
+ 	.hw_info = &rkvdec_vdpu384a_hw_info,
+ 	.trans_info = rkvdec_vdpu384a_trans,
++	.trans_count = ARRAY_SIZE(rkvdec_vdpu384a_trans),
+ 	.hw_ops = &rkvdec_rv1126b_hw_ops,
+ 	.dev_ops = &rkvdec_vdpu383_dev_ops,
+ };

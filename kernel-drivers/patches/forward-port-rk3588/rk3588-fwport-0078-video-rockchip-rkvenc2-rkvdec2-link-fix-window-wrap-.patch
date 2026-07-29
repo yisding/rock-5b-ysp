@@ -1,0 +1,323 @@
+From b7883d72b7467c6ee31814e9f8d1dbc2247d1a23 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Wed, 29 Jul 2026 09:58:28 -0700
+Subject: [PATCH 78/79] video: rockchip: rkvenc2/rkvdec2-link: fix window wrap,
+ atomic clocks, WARN
+
+Three defects in the codec drivers.
+
+- req_over_class() and rkvenc_update_req() computed the end of a
+  register window as offset + size - 4 in u32, with both terms
+  user-controlled. A wrapped end still satisfies req_over_class(), and
+  in rkvenc_update_req() it makes e < s, so e - s + 4 underflows to
+  nearly 4 GiB. That value became the copy_from_user() length into a
+  kzalloc'd per-class buffer of base_e - base_s + 4 bytes. Reject a
+  sub-register size and a wrapping or inverted window in both, check the
+  return value at both call sites (SET_REG_WRITE and SET_REG_READ, which
+  both discarded it), and assert the copy length against the class
+  allocation as a backstop.
+
+- The per-class register buffers are also indexed by trans_info[fmt]
+  entries and by the fmt derived from task->fmt; bound both against the
+  class allocation, which is as small as 0x5c bytes.
+
+- rkvenc_run() called mpp_clk_safe_disable()/mpp_clk_safe_enable()
+  inside the window opened by mpp_task_run_begin(), which calls
+  preempt_disable(). Those wrappers reach clk_prepare_enable(), which
+  takes the clk framework's prepare_lock mutex and can sleep, giving
+  "BUG: sleeping function called from invalid context" under
+  DEBUG_ATOMIC_SLEEP and a real "scheduling while atomic" when the lock
+  is contended. This is the same shape as the 2026-07-29 idle-task
+  panic. Hoist the VEPU510 block above mpp_task_run_begin() -- it is
+  pure register setup and depends on nothing that helper does -- and
+  give it an unwind that does not call mpp_task_run_end() or cancel a
+  timeout that was never armed. Reachable only on a VEPU510 part
+  (RK3576), not on RK3588, but it is a real defect in shared source.
+
+- rkvdec2_hard_ccu_resend_tasks() had WARN_ON(!tbl) on an empty
+  unused_list. That list is empty exactly when every link table is
+  checked out, which is the ordinary state of a saturated pipeline, so a
+  reset arriving then splatted (and rebooted a panic_on_warn box) for a
+  condition the very next line already handles. Downgrade to a
+  rate-limited warning. HARD-CCU only, so not reachable on this board's
+  soft-CCU DT.
+
+Compile-tested only; no runtime gate has been run against these.
+
+Signed-off-by: rkvenc forward-port <forward-port@local>
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c |  10 +-
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c      | 111 +++++++++++++++---
+ 2 files changed, 105 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index a2b03665f504a..c6740df3555b1 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -2918,10 +2918,18 @@ static void rkvdec2_hard_ccu_resend_tasks(struct mpp_dev *mpp, struct mpp_taskqu
+ 
+ 		tbl = list_first_entry_or_null(&dec->ccu->unused_list,
+ 				struct mpp_dma_buffer, link);
+-		WARN_ON(!tbl);
++		/*
++		 * An empty unused_list is the ordinary state of a saturated
++		 * pipeline, so a reset arriving then is not a kernel bug. The
++		 * caller already copes with a missing table; splatting (and
++		 * rebooting a panic_on_warn box) helps nobody.
++		 */
+ 		if (tbl) {
+ 			tb_reg = (u32 *)task_pre->table->vaddr;
+ 			tb_reg[dec->link_dec->info->tb_reg_next] = tbl->iova;
++		} else {
++			dev_warn_ratelimited(mpp->dev,
++					     "no free link table for resend\n");
+ 		}
+ 	}
+ 
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index f52b7448cf33c..d6b2e22a2d299 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -808,7 +808,17 @@ static bool req_over_class(struct mpp_request *req,
+ 
+ 	base_s = hw->reg_msg[class].base_s;
+ 	base_e = hw->reg_msg[class].base_e;
+-	req_e = req->offset + req->size - sizeof(u32);
++
++	/*
++	 * offset and size are both user-controlled u32. A window shorter than
++	 * one register, or one whose end wraps, describes no class at all --
++	 * accepting it would hand a wrapped end on to rkvenc_update_req().
++	 */
++	if (req->size < sizeof(u32))
++		return false;
++	req_e = req->offset + (req->size - sizeof(u32));
++	if (req_e < req->offset)
++		return false;
+ 
+ 	ret = (req->offset <= base_e && req_e >= base_s) ? true : false;
+ 
+@@ -858,9 +868,21 @@ static int rkvenc_update_req(struct rkvenc_task *task, int class,
+ 
+ 	base_s = hw->reg_msg[class].base_s;
+ 	base_e = hw->reg_msg[class].base_e;
+-	req_e = req_in->offset + req_in->size - sizeof(u32);
++
++	if (req_in->size < sizeof(u32))
++		return -EINVAL;
++	req_e = req_in->offset + (req_in->size - sizeof(u32));
++	if (req_e < req_in->offset)
++		return -EINVAL;
++
+ 	s = max(req_in->offset, base_s);
+ 	e = min(req_e, base_e);
++	/*
++	 * An inverted window would underflow the size below to nearly 4G and
++	 * run copy_from_user() off the end of the class allocation.
++	 */
++	if (e < s)
++		return -EINVAL;
+ 
+ 	req_out->offset = s;
+ 	req_out->size = e - s + sizeof(u32);
+@@ -970,13 +992,25 @@ static int rkvenc_extract_task_msg(struct mpp_session *session,
+ 					goto fail;
+ 				}
+ 				wreq = &task->w_reqs[task->w_req_cnt];
+-				rkvenc_update_req(task, j, req, wreq);
++				ret = rkvenc_update_req(task, j, req, wreq);
++				if (ret) {
++					mpp_err("invalid write req, offset %08x size %u\n",
++						req->offset, req->size);
++					goto fail;
++				}
+ 				data = rkvenc_get_class_reg(task, wreq->offset);
+ 				if (!data) {
+ 					mpp_err("get class reg fail, offset %08x\n", wreq->offset);
+ 					ret = -EINVAL;
+ 					goto fail;
+ 				}
++				if (wreq->size > task->reg[j].size -
++				    (wreq->offset - hw->reg_msg[j].base_s)) {
++					mpp_err("write size %u overruns class %d\n",
++						wreq->size, j);
++					ret = -EINVAL;
++					goto fail;
++				}
+ 				if (copy_from_user(data, wreq->data, wreq->size)) {
+ 					mpp_err("copy_from_user fail, offset %08x\n", wreq->offset);
+ 					ret = -EIO;
+@@ -1004,7 +1038,12 @@ static int rkvenc_extract_task_msg(struct mpp_session *session,
+ 					goto fail;
+ 				}
+ 				rreq = &task->r_reqs[task->r_req_cnt];
+-				rkvenc_update_req(task, j, req, rreq);
++				ret = rkvenc_update_req(task, j, req, rreq);
++				if (ret) {
++					mpp_err("invalid read req, offset %08x size %u\n",
++						req->offset, req->size);
++					goto fail;
++				}
+ 				task->reg[j].valid = 1;
+ 				task->r_req_cnt++;
+ 			}
+@@ -1207,26 +1246,53 @@ static void *rkvenc_alloc_task(struct mpp_session *session,
+ 			u32 fmt = hw->fd_reg[i].base_fmt + task->fmt;
+ 			u32 *reg = task->reg[class].data;
+ 			u32 ss = hw->reg_msg[class].base_s / sizeof(u32);
++			u32 reg_cnt = task->reg[class].size / sizeof(u32);
++			struct mpp_trans_info *trans_info;
+ 
+ 			if (!reg)
+ 				continue;
+ 
++			trans_info = mpp_get_trans_info(mpp, fmt);
++			if (!trans_info) {
++				mpp_err("invalid translate format %u\n", fmt);
++				ret = -EINVAL;
++				goto fail;
++			}
++
+ 			if (fmt == RKVENC_FMT_JPEGE && class == RKVENC_CLASS_PIC && fd_bs == -1) {
+ 				int bs_index;
+ 
+-				bs_index = mpp->var->trans_info[fmt].table[2];
++				if (trans_info->count < 3) {
++					mpp_err("format %u lacks a bitstream entry\n", fmt);
++					ret = -EINVAL;
++					goto fail;
++				}
++				bs_index = trans_info->table[2];
++				if (bs_index >= reg_cnt) {
++					mpp_err("bs index %d out of range %u\n",
++						bs_index, reg_cnt);
++					ret = -EINVAL;
++					goto fail;
++				}
+ 				fd_bs = reg[bs_index];
+ 				task->offset_bs = mpp_query_reg_offset_info(&task->off_inf,
+ 									    bs_index + ss);
+ 			}
+ 
+-			ret = mpp_translate_reg_address(session, mpp_task, fmt, reg, NULL);
++			ret = mpp_translate_reg_address(session, mpp_task, fmt, reg,
++							reg_cnt, NULL);
+ 			if (ret)
+ 				goto fail;
+ 
+-			cnt = mpp->var->trans_info[fmt].count;
+-			tbl = mpp->var->trans_info[fmt].table;
++			cnt = trans_info->count;
++			tbl = trans_info->table;
+ 			for (j = 0; j < cnt; j++) {
++				if (tbl[j] >= reg_cnt) {
++					mpp_err("reg index %u out of range %u\n",
++						tbl[j], reg_cnt);
++					ret = -EINVAL;
++					goto fail;
++				}
+ 				off = mpp_query_reg_offset_info(&task->off_inf, tbl[j] + ss);
+ 				mpp_debug(DEBUG_IOMMU, "reg[%d] + offset %d\n", tbl[j] + ss, off);
+ 				reg[tbl[j]] += off;
+@@ -1572,8 +1638,12 @@ static int rkvenc_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
+ 
+ 	rkvenc2_calc_timeout_thd(mpp);
+ 
+-	mpp_task_run_begin(mpp_task, timing_en, MPP_WORK_TIMEOUT_DELAY);
+-
++	/*
++	 * This block must stay outside the mpp_task_run_begin() window:
++	 * that helper calls preempt_disable(), and mpp_clk_safe_disable()/
++	 * mpp_clk_safe_enable() below take the clk framework's prepare_lock
++	 * mutex, which sleeps.
++	 */
+ 	if (hw->vepu_type == RKVENC_VEPU_510) {
+ 		u32 rec_fbc_dis = task->rec_fbc_dis;
+ 		u32 enc_pic = mpp_read(mpp, 0x300);
+@@ -1601,7 +1671,7 @@ static int rkvenc_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
+ 			if (ret) {
+ 				dev_err(mpp->dev, "core clk re-enable failed: %d\n",
+ 					ret);
+-				goto err_run_begin;
++				goto err_core_clk;
+ 			}
+ 			enc->core_clk_enabled = true;
+ 		} else {
+@@ -1609,6 +1679,8 @@ static int rkvenc_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
+ 		}
+ 	}
+ 
++	mpp_task_run_begin(mpp_task, timing_en, MPP_WORK_TIMEOUT_DELAY);
++
+ 	/* Flush the register before the start the device */
+ 	wmb();
+ 	mpp_write(mpp, enc->hw_info->enc_start_base, start_val);
+@@ -1619,13 +1691,16 @@ static int rkvenc_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
+ 
+ 	return 0;
+ 
+-err_run_begin:
++err_core_clk:
++	/*
++	 * Reached only from the VEPU510 clock block, which now runs before
++	 * mpp_task_run_begin(): preemption is not disabled, TASK_STATE_START
++	 * is not set and the timeout work is not armed, so this unwind must
++	 * not call mpp_task_run_end() or cancel the timeout.
++	 */
+ 	if (dchs_patched)
+ 		rkvenc2_update_dchs(enc, task);
+ 	mpp->cur_task = NULL;
+-	clear_bit(TASK_STATE_START, &mpp_task->state);
+-	mpp_task_run_end(mpp_task, timing_en);
+-	cancel_delayed_work_sync(&mpp_task->timeout_work);
+ 	mpp_debug_leave();
+ 
+ 	return ret;
+@@ -3000,6 +3075,7 @@ static const struct mpp_dev_var rkvenc_v2_data = {
+ 	.device_type = MPP_DEVICE_RKVENC,
+ 	.hw_info = &rkvenc_v2_hw_info.hw,
+ 	.trans_info = trans_rkvenc_v2,
++	.trans_count = ARRAY_SIZE(trans_rkvenc_v2),
+ 	.hw_ops = &rkvenc_hw_ops,
+ 	.dev_ops = &rkvenc_dev_ops_v2,
+ };
+@@ -3008,6 +3084,7 @@ static const struct mpp_dev_var rkvenc_540c_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVENC,
+ 	.hw_info = &rkvenc_540c_hw_info.hw,
+ 	.trans_info = trans_rkvenc_540c,
++	.trans_count = ARRAY_SIZE(trans_rkvenc_540c),
+ 	.hw_ops = &rkvenc_hw_ops,
+ 	.dev_ops = &vepu540c_dev_ops_v2,
+ };
+@@ -3016,6 +3093,7 @@ static const struct mpp_dev_var rkvenc_510_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVENC,
+ 	.hw_info = &rkvenc_510_hw_info.hw,
+ 	.trans_info = trans_rkvenc_540c,
++	.trans_count = ARRAY_SIZE(trans_rkvenc_540c),
+ 	.hw_ops = &rkvenc_hw_ops,
+ 	.dev_ops = &rkvenc_dev_ops_v2,
+ };
+@@ -3024,6 +3102,7 @@ static const struct mpp_dev_var rkvenc_511_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVENC,
+ 	.hw_info = &rkvenc_511_hw_info.hw,
+ 	.trans_info = trans_rkvenc_511,
++	.trans_count = ARRAY_SIZE(trans_rkvenc_511),
+ 	.hw_ops = &rkvenc_hw_ops,
+ 	.dev_ops = &vepu540c_dev_ops_v2,
+ };
+@@ -3032,6 +3111,7 @@ static const struct mpp_dev_var rkvenc_ccu_data = {
+ 	.device_type = MPP_DEVICE_RKVENC,
+ 	.hw_info = &rkvenc_v2_hw_info.hw,
+ 	.trans_info = trans_rkvenc_v2,
++	.trans_count = ARRAY_SIZE(trans_rkvenc_v2),
+ 	.hw_ops = &rkvenc_hw_ops,
+ 	.dev_ops = &rkvenc_ccu_dev_ops,
+ };
+@@ -3040,6 +3120,7 @@ static const struct mpp_dev_var rkvenc_rk3576_ccu_data __maybe_unused = {
+ 	.device_type = MPP_DEVICE_RKVENC,
+ 	.hw_info = &rkvenc_510_hw_info.hw,
+ 	.trans_info = trans_rkvenc_540c,
++	.trans_count = ARRAY_SIZE(trans_rkvenc_540c),
+ 	.hw_ops = &rkvenc_hw_ops,
+ 	.dev_ops = &rkvenc_ccu_dev_ops,
+ };
