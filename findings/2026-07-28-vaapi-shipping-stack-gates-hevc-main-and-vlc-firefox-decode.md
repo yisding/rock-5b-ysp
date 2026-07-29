@@ -97,11 +97,12 @@ head/tail medians both 54.
   is evidence about the installed driver.
 - **Phase-1 soak duration is not met.** 1,800 s is a smoke run; the exit
   criterion is 7,200 s.
-- **HEVC Main10 stays hidden.** 10 of 11 FATE Main10 vectors are byte-exact,
-  but RGA3 refuses sources below its minimum active width, so
-  `WPP_D_ericsson_MAIN10_2.bit` at 64×240 fails *mid-decode* rather than being
-  refused up front; 10-bit throughput is unmeasured; HDR display presentation is
-  unvalidated.
+- **HEVC Main10 stays hidden.** 10 of 11 FATE Main10 vectors are byte-exact.
+  `WPP_D_ericsson_MAIN10_2.bit` at 64×240 fails because no RGA core can take an
+  AFBC 10-bit job that narrow — root-caused in
+  [the no-core-match finding](2026-07-29-rga-no-core-match-narrow-afbc-10bit.md);
+  it fails *mid-decode* rather than being refused up front. 10-bit throughput is
+  unmeasured and HDR display presentation is unvalidated.
 - **Two FATE Main streams remain undecodable** — `NUT_A_ericsson_4/5`, which
   direct MPP also cannot decode. Two more (`PICSIZE_A/B_Bossen_1`, 1056×8440 and
   8440×1056) are correctly refused against the advertised 7680×4320 constraint.
