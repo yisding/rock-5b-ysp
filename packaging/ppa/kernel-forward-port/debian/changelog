@@ -1,3 +1,28 @@
+linux-rockchip64-ysp (6.18.40+rk3588av1fwport20260729-0ubuntu1~rk1) resolute; urgency=high
+
+  * Provenance repair: re-cut the upstream source from the forward-port
+    worktree. The 20260725 orig was accidentally a rewrite-composite snapshot
+    of the shared Armbian worktree, not the validated forward-port series: its
+    drivers/iommu/rockchip-iommu.c carried the rewrite branch's hardened
+    rockchip_iommu_set_fault_handler(), whose clear path calls
+    platform_get_irq() (sleeping irq_domain mutex) and synchronize_irq().
+  * That tail is fatal with the vendor MPP driver, which clears the fault
+    handler from its job ISR under a spinlock: on 2026-07-29 08:01 PDT the
+    ~rk2 kernel panicked from the idle task mid RDP session ("BUG: scheduling
+    while atomic: swapper/0", branch to non-executable memory, "Attempted to
+    kill the idle task!"; full ramoops record). Any codec job could reproduce
+    it under irq_domain mutex contention.
+  * The forward-port series never contained the hardened setter, so this
+    upload restores the intended atomic-safe pointer-swap implementation by
+    provenance alone; no forward-port code change is introduced.
+  * The source exporter now drops drivers/video/rockchip/{mpp,rga}-rewrite/
+    paths from worktree exports so composite build leftovers can no longer
+    reach this package.
+  * Config is unchanged from ~rk2 (CONFIG_DMABUF_DEBUG and the three baseline
+    debug options remain off).
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Wed, 29 Jul 2026 09:10:00 -0700
+
 linux-rockchip64-ysp (6.18.40+rk3588av1fwport20260725-0ubuntu1~rk2) resolute; urgency=high
 
   * Config-only release: the upstream source is byte-identical to ~rk1, and the
