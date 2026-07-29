@@ -3,7 +3,7 @@
 > Scope: kernel-drivers (clean-room rewrite track); branches `rk3588-rewrite-av1-6.18` and `rk3588-rewrite-6.18` in the shared `linux-rock5b` repo
 > Source: `~/Code/kernel/linux-6.18-rk-av1-rewrite` @ `e58c57e50d0a0` vs `~/Code/kernel/linux-6.18-rkvenc` @ `e5867fa31ed2b`; merge-base `c5faabf9d00b0`
 > Date: 2026-07-29
-> Trust: SOURCE-INSPECTED; backport section PARTIAL until the staging branch builds and is fast-forwarded
+> Trust: SOURCE-INSPECTED; reverse port FIX-COMPILE-VERIFIED and RESOLVED (both targets fast-forwarded, spur retired); runtime KUnit/decode still unexercised
 
 ## Result
 
@@ -99,22 +99,81 @@ assumed here.
 - Commits 8–19 (the KUnit-isolation series onward) were never attempted in
   this direction.
 
-### Reverse port (AV1 spur → hardened branches, 2026-07-29, in progress)
+### Reverse port (AV1 spur → hardened branches, completed 2026-07-29)
 
-- Port bases pinned mid-session because a concurrent session is advancing both
-  targets (it amended `e5867fa31ed2b` → `29904d8e2fa46` while this ran):
-  `rk3588-rewrite-6.18-av1-port` @ base `29904d8e2fa46` in
-  `~/Code/tmp/av1-port-20260729/wt-618`, and
-  `rk3588-rewrite-mainline-av1-port` @ base `981392bc9efab` (7.2-rc5) in
-  `~/Code/tmp/av1-port-20260729/wt-ml`.
-- Known adaptation work: AV1 KUnit cases must enter the targets' isolation
-  framework; teardown must follow the split-sync fault-handler contract
-  (`35eb735d21dd8` / `2cf0126529c1c`); the mainline port must also bring the
-  VSI IOMMU provider-hook layer and `include/soc/rockchip/vsi_iommu.h` to the
-  upstream 7.2-rc5 `vsi-iommu.c`, plus the board-DT AV1 node retype absent
-  from that branch.
-- Outcomes and the retirement record for the spur: appended when the ports
-  complete.
+Port bases were pinned mid-session because a concurrent session was advancing
+both targets (it amended `e5867fa31e` → `29904d8e2fa46` while this ran).
+
+**`rk3588-rewrite-6.18`: fast-forwarded `29904d8e2fa46` → `c315666159816`**
+(4 commits, changes confined to `mpp-rewrite/{mpp_rewrite.c,ABI.rst,Kconfig}`):
+
+- `1115e0c89c8ff` add AV1 rewrite backend — the source commit's sleeping
+  `synchronize_irq()` inside `vsi_iommu_set_fault_handler(NULL)` was DROPPED:
+  target commit `35eb735d21dd8` had already made the setter atomic-safe and
+  already provided `vsi_iommu_sync_fault_handler()`; carrying the hunk would
+  have reintroduced the ISR-panic class. Teardown now clears the handler and
+  calls the provider-matching sleepable drain. AV1 IRQ paths converted from
+  the pre-`cd71f98` `rk_mpp_srv` global to `hw->srv`. One target-only fixture
+  (`rk_mpp_reset_session_hw_active_import_kunit`) needed a heap `imports`
+  array once the AV1 commits make it dynamically grown.
+- `70d9fb750473e` keep RKVDEC KUnit images off stack — NOT superseded by the
+  target's fixture series: the link-table tests still had ~2.7 KB on-stack
+  `rk_mpp_reg_image` frames that warn (`-Wframe-larger-than`) once the AV1
+  regions union lands.
+- `91c31744fda0f` document and harden AV1 rewrite ABI — VP9 test cleanup
+  folded into the target's kunit cleanup action (LIFO-checked); ABI.rst AV1
+  sections merged into the reconciled ledger; opt-in KUnit Kconfig preserved.
+- `c315666159816` harden AV1 DMA recovery — `rk_mpp_hw_take_irq_job()`
+  fault-pending early-returns merged into all three backend threads with the
+  target's `hw->srv` spurious-IRQ idiom; no guard duplicated
+  (`rk_mpp_hw_mark_iommu_fault` reused, not redefined).
+- AV1 board DT retype: already on target from pre-fork `92e08bc80f544`;
+  verified, not duplicated. Compile gate: `mpp_rewrite.o`, `vsi-iommu.o`,
+  `rk3588-rock-5b.dtb`, zero warnings.
+
+**`rk3588-rewrite-mainline` (7.2-rc5): fast-forwarded `981392bc9efab` →
+`2e3916ef8011a`** (6 commits):
+
+- `1ce853889cb4e` iommu: vsi: add provider fault hooks — ports the 6.18
+  provider layer onto the pristine upstream `vsi-iommu.c` (+220 lines):
+  fault_lock/handler plumbing, mask-on-fault IRQ rework with
+  `pm_runtime_get_if_in_use` guard, `vsi_iommu_refresh()`, atomic-safe setter
+  plus separate `vsi_iommu_sync_fault_handler()` (the `2cf0126529c1c`
+  contract), new `include/soc/rockchip/vsi_iommu.h` with
+  `IS_REACHABLE`-guarded stubs, and `dma_set_max_seg_size(DMA_BIT_MASK(32))`
+  mirroring rockchip-iommu for the single-IOVA-span import contract. The
+  6.18 map/unmap pte-batching was deliberately not carried (upstream attach
+  flow diverged; hooks don't depend on it) — potential perf follow-up.
+- `c85de319012c7`/`395c61ba379cc`/`64f5ee9e7054e`/`8529788f530cd` — the four
+  AV1 commits with the same adaptation classes as the 6.18 port (hw->srv
+  conversion, isolation-framework KUnit integration, VP9 cleanup-action fold,
+  fault-pending merges). Version string bumped to `rk3588-mpp-rewrite-0.2`.
+- `2e3916ef8011a` DT: board-level `&av1d` retype to `rockchip,av1-decoder`
+  (vcd/cache/afbc windows 0x800/0x400/0x400, IRQs 108/107/106, aux AFBC at
+  driver index 2), `&av1d_mmu` enabled; decompiled dtb verified. Compile
+  gate: `mpp_rewrite.o` and `vsi-iommu.o` W=1-clean, dtb clean.
+
+**Review notes (both ports):** teardown drains only the *registered* provider
+(vendor `mpp_iommu_remove()` drains both unconditionally); AV1 KUnit cases
+keep the source's manual `kfree` tails (leak only on mid-test assert);
+runtime KUnit was NOT executed — first boot with
+`ROCKCHIP_MPP_REWRITE_KUNIT_TEST=y` on either branch is the next gate. The
+mainline version-string bump 0.1→0.2 may matter to the 7.2-rc5 rewrite alpha
+packaging line if it keys on the version string.
+
+### Spur retirement (2026-07-29)
+
+- Branch renamed: `rk3588-rewrite-av1-6.18` →
+  `retired/rk3588-rewrite-av1-6.18-20260729` (@ `e58c57e50d0a0`); the
+  redundant same-SHA `ysp-backup/...-before-hardening-20260729` ref was
+  deleted. Local only; any remote copy of the spur was left untouched.
+- Worktree `~/Code/kernel/linux-6.18-rk-av1-rewrite` removed; all port/staging
+  worktrees and branches removed (`rk3588-rewrite-av1-6.18-hardening`,
+  `rk3588-rewrite-6.18-av1-port`, `rk3588-rewrite-mainline-av1-port` — the
+  latter two after verifying containment in their targets).
+- Still present: `~/Code/kernel/build-rk-av1-rewrite` (the spur's build dir).
+  Its source pointer now dangles, so accidental builds fail loudly; delete it
+  when convenient.
 
 ## Why it matters / follow-up
 

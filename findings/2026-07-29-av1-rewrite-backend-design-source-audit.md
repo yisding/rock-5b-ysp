@@ -5,6 +5,16 @@
 > Date: 2026-07-29
 > Trust: SOURCE-INSPECTED
 
+> **Updated 2026-07-29 later the same day:** the 4-commit spur described here
+> was ported onto `rk3588-rewrite-6.18` (tip `c315666159816`) and
+> `rk3588-rewrite-mainline` (7.2-rc5, tip `2e3916ef8011a`), and the source
+> branch was retired locally as `retired/rk3588-rewrite-av1-6.18-20260729`
+> (its worktree `~/Code/kernel/linux-6.18-rk-av1-rewrite` is gone). The design
+> below is unchanged by the port except that teardown now follows the
+> split-sync fault-handler contract and the KUnit cases run inside the
+> isolation framework; see
+> [the port record](2026-07-29-av1-rewrite-branch-hardening-gap-and-backport.md).
+
 ## Result
 
 Branch `rk3588-rewrite-av1-6.18` carries an AV1 decoder backend for the
