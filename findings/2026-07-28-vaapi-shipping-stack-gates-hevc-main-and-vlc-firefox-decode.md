@@ -16,6 +16,13 @@
 > **SOURCE-INSPECTED** (the Firefox 153.0 patch rebase) / **UNVERIFIED** (HDR
 > display presentation, mpv, Chromium, a patched Firefox build).
 
+> **Follow-up, 2026-07-29:** local `rockchip-vaapi@491533e` now refuses the
+> unsupported 64-pixel Main10 geometry at VA context creation and keeps a
+> matching pre-submit guard. The focused FFmpeg gate software-decoded all 48
+> frames after one refusal, with zero RGA conversion submissions and zero new
+> kernel `no core match` messages. See the
+> [narrow-AFBC finding](2026-07-29-rga-no-core-match-narrow-afbc-10bit.md).
+
 ## Result
 
 The measurement gap that dominated track 14 is closed. Every gate below ran on
@@ -101,7 +108,8 @@ head/tail medians both 54.
   `WPP_D_ericsson_MAIN10_2.bit` at 64×240 fails because no RGA core can take an
   AFBC 10-bit job that narrow — root-caused in
   [the no-core-match finding](2026-07-29-rga-no-core-match-narrow-afbc-10bit.md);
-  it fails *mid-decode* rather than being refused up front. 10-bit throughput is
+  the 2026-07-29 source fix now refuses it at context creation and verifies
+  complete software fallback without an RGA submission. 10-bit throughput is
   unmeasured and HDR display presentation is unvalidated.
 - **Two FATE Main streams remain undecodable** — `NUT_A_ericsson_4/5`, which
   direct MPP also cannot decode. Two more (`PICSIZE_A/B_Bossen_1`, 1056×8440 and
@@ -121,7 +129,8 @@ head/tail medians both 54.
 
 ## Verification gate
 
-Install `rockchip-vaapi 1.0.11+ysp4` from the built debs, then re-run
+Package the post-`1.0.11+ysp4` source including `rockchip-vaapi@491533e`,
+install it, then re-run
 `make check-safe`, `make check-hevc`, `tests/check-vlc-display.sh` and
 `tests/check-firefox-decode.sh` against the *installed*
 `/usr/lib/aarch64-linux-gnu/dri/rockchip_drv_video.so` with no

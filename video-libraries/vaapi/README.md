@@ -14,7 +14,12 @@ that cannot select the Rockchip-specific libavcodec wrappers directly.
 | Developer focus | VA object lifetimes, reconstructed decode bitstreams, MPP external-buffer ownership, AFBC/NV15-to-P010 conversion, VA encode parameter translation, imported-surface validation, browser sandbox policy, and application interoperability. |
 | Owns | The durable capability/boundary summary and evidence map for `yisding/rockchip-vaapi`; dated measurements remain under [`../../findings/`](../../findings/README.md), app-specific integration stays in [`../../docs/app-enablement.md`](../../docs/app-enablement.md), and package publication stays under [`../../packaging/`](../../packaging/README.md). |
 | Depends on | The RK3588 MPP/RGA kernel path, current `librockchip_mpp`, the kernel-paired `librga` 10-bit contract, libva, and an application/display sandbox that can open the required device nodes and ioctls. |
-| Current state | As of 2026-07-28, development is `yisding/rockchip-vaapi` `main@5a7b305`. **H.264, VP9 Profile 0 and HEVC Main decode are the default capability set**; HEVC Main10, VP9 Profile 2, and H.264/HEVC encode remain opt-in experiments. Every gate is now measured on the production-shaped `6.18.40-ysp-rockchip64` kernel with the post-fix MPP. Stock VLC and Firefox hardware-decode in a real display session; what remains is installing the built package, the Firefox sandbox proof, and 10-bit promotion. |
+| Current state | As of 2026-07-29, local development is `rockchip-vaapi` `main@491533e`. **H.264, VP9 Profile 0 and HEVC Main decode are the default capability set**; HEVC Main10, VP9 Profile 2, and H.264/HEVC encode remain opt-in experiments. Every gate is now measured on the production-shaped `6.18.40-ysp-rockchip64` kernel with the post-fix MPP. Stock VLC and Firefox hardware-decode in a real display session. The narrow Main10 geometry now fails at VA context creation and software-falls back without an RGA submission; what remains is packaging/installing the newer source, the Firefox sandbox proof, and 10-bit promotion. |
+
+For the end-to-end technical model, module map, decode/encode sequences,
+DMA-BUF ownership rules, bridge renovation record, and remaining design
+boundaries, read the
+[architecture and bridge guide](docs/architecture.md).
 
 ## Where it sits
 
@@ -55,12 +60,12 @@ does not mean the measured gates are hypothetical.
 > satisfied by the production kernel rather than assumed. Running this driver on
 > `~rk1` would still be expected to fault.
 
-| Path | Exposure | Evidence as of 2026-07-28 | Boundary |
+| Path | Exposure | Evidence as of 2026-07-29 | Boundary |
 |------|----------|---------------------------|----------|
 | H.264 decode | Default | Conformance and sanitizer coverage; hardware-decoded on-device by stock FFmpeg, GStreamer `va`, VLC 3.0.23 and Firefox 153.0 | Chromium display gate remains; Firefox ran with its RDD sandbox disabled |
 | VP9 Profile 0 decode | Default | Conformance and sanitizer coverage; byte-exact through the GStreamer `va` readback gate | Not exercised through the VLC/Firefox display gates |
 | HEVC Main decode | **Default** | 8/8 pinned vectors byte-exact normally and under ASan/UBSan with the installed `mpp@d8c6b88a`, plus **142 of 163** FATE HEVC Main candidates byte-exact with zero driver failures; hardware-decoded by VLC and Firefox | `NUT_A_ericsson_4/5` are undecodable by MPP itself and `PICSIZE_A/B_Bossen_1` exceed the advertised 7680x4320 constraint; all four fail closed |
-| HEVC Main10 decode | Experimental | 10 of 11 FATE Main10 vectors byte-exact as P010 through MPP AFBC V2, crop metadata, and RGA | An AFBC 10-bit frame narrower than 68 luma pixels has [no RGA core that can take it](../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md), and the driver discovers that mid-decode rather than refusing up front; 10-bit throughput unmeasured and HDR presentation unvalidated |
+| HEVC Main10 decode | Experimental | 10 of 11 FATE Main10 vectors byte-exact as P010 through MPP AFBC V2, crop metadata, and RGA; `491533e` refuses 64×240 at context creation and the focused gate software-decodes all 48 frames with zero RGA submissions or kernel `no core match` messages | AFBC 10-bit widths below 68 have [no eligible RGA core](../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md); 10-bit throughput is unmeasured and HDR presentation is unvalidated |
 | VP9 Profile 2 decode | Experimental | P010 output is byte-exact through the same AFBC/RGA path | Same kernel/librga pairing and app gate |
 | H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, linear DMA-BUF import, concurrency, sanitizer, RTP, and paced soak smoke pass | One full-frame slice; P010 input, multi-object/tiled import, full WebRTC peer negotiation, and long qualification remain |
 | HEVC Main encode | Experimental | FFmpeg/GStreamer output is parser-clean and software-decodable with the RK3588 CTU64 contract; concurrency, sanitizer, and soak smoke pass | Main profile/NV12 only; same imported-surface and qualification gaps |
@@ -171,6 +176,7 @@ maintained capability/boundary summary.
 | Browser API alternatives | [`2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md`](../../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
 | AV1 reconstruction boundary | [`2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md`](../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) |
 | HEVC/Main10/VP9 Profile 2 | [`2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md`](../../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md) |
+| Narrow AFBC 10-bit refusal and fallback | [`2026-07-29-rga-no-core-match-narrow-afbc-10bit.md`](../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md) |
 | HEVC TILES same-ID PPS regression | [`2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md`](../../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md) |
 | Intermediate HEVC boundary (superseded) | [`2026-07-26-rockchip-vaapi-hevc-rps-and-p010-boundary.md`](../../findings/2026-07-26-rockchip-vaapi-hevc-rps-and-p010-boundary.md) |
 | H.264 and HEVC encode | [H.264](../../findings/2026-07-26-rockchip-vaapi-h264-va-encode-validation.md), [HEVC](../../findings/2026-07-26-rockchip-vaapi-hevc-va-encode-validation.md) |
