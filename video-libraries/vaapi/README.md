@@ -14,7 +14,7 @@ that cannot select the Rockchip-specific libavcodec wrappers directly.
 | Developer focus | VA object lifetimes, reconstructed decode bitstreams, MPP external-buffer ownership, AFBC/NV15-to-P010 conversion, VA encode parameter translation, imported-surface validation, browser sandbox policy, and application interoperability. |
 | Owns | The durable capability/boundary summary and evidence map for `yisding/rockchip-vaapi`; dated measurements remain under [`../../findings/`](../../findings/README.md), app-specific integration stays in [`../../docs/app-enablement.md`](../../docs/app-enablement.md), and package publication stays under [`../../packaging/`](../../packaging/README.md). |
 | Depends on | The RK3588 MPP/RGA kernel path, current `librockchip_mpp`, the kernel-paired `librga` 10-bit contract, libva, and an application/display sandbox that can open the required device nodes and ioctls. |
-| Current state | As of 2026-07-27, public development is `yisding/rockchip-vaapi` `main@03e6cb6`. H.264/VP9 decode is the default capability set; HEVC Main/Main10, VP9 Profile 2, and H.264/HEVC encode remain opt-in experiments. Driver/unit/sanitizer and several hardware interoperability gates pass, but no completed Firefox package or live sandbox/display proof exists. |
+| Current state | As of 2026-07-28, development is `yisding/rockchip-vaapi` `main@5a7b305`. **H.264, VP9 Profile 0 and HEVC Main decode are the default capability set**; HEVC Main10, VP9 Profile 2, and H.264/HEVC encode remain opt-in experiments. Every gate is now measured on the production-shaped `6.18.40-ysp-rockchip64` kernel with the post-fix MPP. Stock VLC and Firefox hardware-decode in a real display session; what remains is installing the built package, the Firefox sandbox proof, and 10-bit promotion. |
 
 ## Where it sits
 
@@ -40,24 +40,27 @@ the layer itself can honestly claim.
 Experimental means hidden unless its documented environment opt-in is set. It
 does not mean the measured gates are hypothetical.
 
-> **Kernel precondition, recorded 2026-07-28.** Every gate below was measured on
-> `6.18.40-video-port-kasan-rockchip-rk3588`, which sets `CONFIG_DMABUF_DEBUG=n`.
-> This driver calls `DMA_BUF_IOCTL_SYNC` directly (`src/surface.c:26`,
-> `src/buffer.c:27`) — the ioctl that reaches
-> `system_heap_dma_buf_end_cpu_access()`, where a `DMABUF_DEBUG=y` kernel
+> **Kernel precondition, resolved 2026-07-28.** This driver calls
+> `DMA_BUF_IOCTL_SYNC` directly (`src/surface.c`, `src/buffer.c`) — the ioctl
+> that reaches `system_heap_dma_buf_end_cpu_access()`, where a
+> `DMABUF_DEBUG=y` kernel
 > [oopses deterministically](../../findings/2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md).
-> So these results carry an unstated precondition: **a kernel without that
-> option.** The production kernel satisfies it only from
-> `6.18.40+rk3588av1fwport20260725-0ubuntu1~rk2` onward. Running this driver on
-> `~rk1` would be expected to fault the same way GRD did — not verified for the
-> VA-API path specifically, but it is the same ioctl on the same heap.
+> Gates through 2026-07-27 carried that as an *unstated* precondition, having
+> all run on `6.18.40-video-port-kasan-rockchip-rk3588`. The
+> [2026-07-28 re-run](../../findings/2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md)
+> moved every gate onto `6.18.40-ysp-rockchip64`
+> (`6.18.40+rk3588av1fwport20260725-0ubuntu1~rk2`), which sets neither
+> `CONFIG_KASAN` nor `CONFIG_DMABUF_DEBUG`, with the **installed** post-fix
+> `mpp 1.5.0+git20260727.d8c6b88a` and `librga 2.2.0`. The precondition is now
+> satisfied by the production kernel rather than assumed. Running this driver on
+> `~rk1` would still be expected to fault.
 
-| Path | Exposure | Evidence as of 2026-07-27 | Boundary |
+| Path | Exposure | Evidence as of 2026-07-28 | Boundary |
 |------|----------|---------------------------|----------|
-| H.264 decode | Default | Renovated lifetime/synchronization path, conformance and sanitizer coverage | Live Firefox/Chromium display and sandbox gates remain |
-| VP9 Profile 0 decode | Default | Renovated decode path with conformance and sanitizer coverage | Browser/display integration remains |
-| HEVC Main decode | Experimental | 8/8 pinned official vectors byte-exact with staged `mpp@d8c6b88a`; the fix also clears the two-picture direct-MPP reduction and full 100-frame TILES vector | The [hardware-confirmed MPP parser fix](../../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md#fix) reached **Published** as `mpp 1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1` on 2026-07-28; the board still runs `…20260529.1375813c`, so this is now an install step rather than a build |
-| HEVC Main10 decode | Experimental | P010 output is byte-exact against software through MPP AFBC V2, crop metadata, and RGA | Requires the paired 6.18.40 kernel/current-librga 10-bit contract |
+| H.264 decode | Default | Conformance and sanitizer coverage; hardware-decoded on-device by stock FFmpeg, GStreamer `va`, VLC 3.0.23 and Firefox 153.0 | Chromium display gate remains; Firefox ran with its RDD sandbox disabled |
+| VP9 Profile 0 decode | Default | Conformance and sanitizer coverage; byte-exact through the GStreamer `va` readback gate | Not exercised through the VLC/Firefox display gates |
+| HEVC Main decode | **Default** | 8/8 pinned vectors byte-exact normally and under ASan/UBSan with the installed `mpp@d8c6b88a`, plus **142 of 163** FATE HEVC Main candidates byte-exact with zero driver failures; hardware-decoded by VLC and Firefox | `NUT_A_ericsson_4/5` are undecodable by MPP itself and `PICSIZE_A/B_Bossen_1` exceed the advertised 7680x4320 constraint; all four fail closed |
+| HEVC Main10 decode | Experimental | 10 of 11 FATE Main10 vectors byte-exact as P010 through MPP AFBC V2, crop metadata, and RGA | RGA3 refuses sources below its minimum active width, so `WPP_D_ericsson_MAIN10_2.bit` (64x240) fails mid-decode rather than up front; 10-bit throughput unmeasured and HDR presentation unvalidated |
 | VP9 Profile 2 decode | Experimental | P010 output is byte-exact through the same AFBC/RGA path | Same kernel/librga pairing and app gate |
 | H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, linear DMA-BUF import, concurrency, sanitizer, RTP, and paced soak smoke pass | One full-frame slice; P010 input, multi-object/tiled import, full WebRTC peer negotiation, and long qualification remain |
 | HEVC Main encode | Experimental | FFmpeg/GStreamer output is parser-clean and software-decodable with the RK3588 CTU64 contract; concurrency, sanitizer, and soak smoke pass | Main profile/NV12 only; same imported-surface and qualification gaps |

@@ -4,6 +4,15 @@
 >
 > Trust: **MEASURED** / **ENVIRONMENT-BOUNDARY**.
 
+> **Partly superseded 2026-07-28 by**
+> [the shipping-stack gates finding](2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md).
+> The measurement here stands: headless VLC does not load the driver, and this
+> run proves nothing about hardware decode. The inference that a display session
+> was the *only* missing piece does not. Repeating it in a real GNOME session
+> showed VLC still falling back, because `vaDeriveImage` and
+> `vaAcquireBufferHandle` were unimplemented in `rockchip-vaapi`. With those
+> implemented, unpatched VLC hardware-decodes H.264 and HEVC Main.
+
 VLC is built with libva and ships both `libvaapi_plugin.so` and
 `libvaapi_drm_plugin.so`. With `--avcodec-hw=vaapi`, libavcodec enumerates and
 tries the VAAPI H.264 output format. Under `--vout dummy`, VLC then reports

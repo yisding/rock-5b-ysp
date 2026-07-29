@@ -78,9 +78,9 @@ BSP forward-port deliberately does not take (V4L2).
 | Kodi | libavcodec + DRM PRIME | Already tracked: [`apps/kodi`](../apps/kodi/README.md); build/tty1 gate remains |
 | OBS | libavcodec encoders | Hours–a day; cheapest encode win after the CLI |
 | HandBrake | bundled FFmpeg + own encoder registry | Days; encode is the realistic value |
-| VLC | libavcodec VAAPI hwaccel | Modules are installed and selected, but dummy headless vout provides no decoder device and falls back before loading rockchip-vaapi. Gate in a real Wayland/X11/DRM session; patching is not yet shown necessary. |
-| Firefox | **VA-API only** on Rockchip | H.264+VP9 is hardware-validated through rockchip-vaapi, and a pinned RDD policy patch is partially compiled into the exact Ubuntu source; package completion plus live sandbox/display validation remains. Firefox cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the ffmpeg rkmpp wrapper decoders (not a hwaccel) — see the [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
-| Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | Test the renovated rockchip-vaapi fork with a stock deb build/runtime flags first; measured blockers decide any hardening. Alternatives are a multi-week libv4l-rkmpp re-target with permanent custom builds, or maxline stateless V4L2. |
+| VLC | libavcodec VAAPI hwaccel | ✅ Hardware-decodes H.264 and HEVC Main unpatched in a real GNOME session, once the driver gained `vaDeriveImage`/`vaAcquireBufferHandle`. Gated by `tests/check-vlc-display.sh`. |
+| Firefox | **VA-API only** on Rockchip | ✅ Stock Firefox 153.0 hardware-decodes H.264 and HEVC Main with DMA-BUF export, gated by `tests/check-firefox-decode.sh` — but with `MOZ_DISABLE_RDD_SANDBOX=1`, so the sandbox row is still open. The RDD policy patch is rebased and hash-pinned to `FIREFOX_153_0_RELEASE`; no patched build exists yet. Firefox cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the ffmpeg rkmpp wrapper decoders (not a hwaccel) — see the [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
+| Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | ⚠️ Blocked below the codec layer: Chromium 150 cannot initialize a GL context on Mali-G610/Panfrost under either X11 or Wayland (ANGLE "Could not create a backing OpenGL context"), so its GPU process never starts and no VA-API path is reachable. VLC and Firefox use accelerated GL in the same session. Fix the GL stack before any codec hardening. Alternatives are a multi-week libv4l-rkmpp re-target with permanent custom builds, or maxline stateless V4L2. |
 
 ### mpv — essentially free, and the right first proof
 
@@ -136,18 +136,22 @@ for a working CLI build, more for GUI polish. Pragmatic alternative: skip
 HandBrake and script the ffmpeg CLI, which already does hardware transcode
 today — HandBrake is a convenience project, not an enabler.
 
-### VLC — prove a real display session before proposing patches
+### VLC — hardware-decoding, unpatched
 
-VLC ships libva integration and both VAAPI video-output modules. The measured
-headless run used a dummy video output, which supplied no VA decoder device;
-VLC therefore fell back before loading `rockchip-vaapi`. That result disproves
-neither the driver nor VLC integration.
+Stock VLC 3.0.23 hardware-decodes H.264 High and HEVC Main through
+`rockchip-vaapi` in a real GNOME session, logging `using hw decoder module
+"vaapi"` and `Using Rockchip MPP VA-API Driver 0.1 for hardware decoding`. No
+VLC source change was needed.
 
-The next valid gate is stock VLC in a real Wayland/X11 or DRM-capable session,
-with driver frame/audit markers required. Source changes are not yet shown
-necessary. mpv and Kodi remain cheaper display-path proofs if VLC-specific
-features are not the goal. See the
-[VLC environment finding](../findings/2026-07-26-vlc-headless-vaapi-device-boundary.md)
+The 2026-07-26 headless run was only half the explanation. Repeating it in a
+real session showed VLC still falling back — after creating 38 surfaces through
+this driver — because its OpenGL VA-API converter derives an image from the
+decoded surface and imports the buffer handle as an EGLImage, and both
+`vaDeriveImage` and `vaAcquireBufferHandle` were unimplemented. Implementing
+them over the surface's own DMA-BUF closed the row; the session was a
+precondition, the driver gap was the cause. `tests/check-vlc-display.sh` in the
+fork gates it and refuses to run headless. See the
+[shipping-stack gates finding](../findings/2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md)
 and the [VA-API project boundary](../video-libraries/vaapi/README.md).
 
 ### Firefox — driver works; package and sandbox proof remain
