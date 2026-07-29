@@ -32,14 +32,16 @@ DETECTORS = (
         "fd-acquisition",
         re.compile(
             r"\b(?:get_unused_fd_flags|fd_install|dma_buf_fd|"
-            r"sync_file_create|anon_inode_getfd)\s*\("
+            r"sync_file_create|anon_inode_getfd|"
+            r"rk_rga_fence_create_fd)\s*\("
         ),
     ),
     (
         "raw-allocation",
         re.compile(
             r"(?<!kunit_)\b(?:kmalloc|kzalloc|kcalloc|kmalloc_array|"
-            r"kvcalloc|kvmalloc|kvzalloc|vmalloc|vzalloc|kmemdup)\s*\("
+            r"kvcalloc|kvmalloc|kvzalloc|vmalloc|vzalloc|kmemdup|"
+            r"kzalloc_obj)\s*\("
         ),
     ),
     (
@@ -61,9 +63,9 @@ DETECTORS = (
 
 ACQUISITION_RE = re.compile(
     r"\b(?:get_unused_fd_flags|fd_install|dma_buf_fd|sync_file_create|"
-    r"anon_inode_getfd)\s*\(|"
+    r"anon_inode_getfd|rk_rga_fence_create_fd)\s*\(|"
     r"(?<!kunit_)\b(?:kmalloc|kzalloc|kcalloc|kmalloc_array|kvcalloc|"
-    r"kvmalloc|kvzalloc|vmalloc|vzalloc|kmemdup)\s*\("
+    r"kvmalloc|kvzalloc|vmalloc|vzalloc|kmemdup|kzalloc_obj)\s*\("
 )
 FATAL_RE = re.compile(r"\b(?:KUNIT_ASSERT\w*|KUNIT_FAIL)\s*\(")
 ACTION_RE = re.compile(r"\bkunit_add_action_or_reset\s*\(")
@@ -97,37 +99,41 @@ def normalize_line(line: str) -> str:
     return " ".join(line.strip().split())
 
 
-def kunit_region(
+def kunit_regions(
     source: pathlib.Path, config_symbol: str
-) -> tuple[list[str], int]:
+) -> list[tuple[list[str], int]]:
     lines = source.read_text(encoding="utf-8").splitlines()
     marker = f"#if IS_ENABLED({config_symbol})"
     starts = [index for index, line in enumerate(lines) if line.strip() == marker]
     if not starts:
         raise ValueError(f"{source}: missing KUnit region marker {marker}")
-    start = starts[-1]
 
-    suite = next(
-        (
-            index
-            for index in range(start, len(lines))
-            if "kunit_test_suite(" in lines[index]
-        ),
-        None,
-    )
-    if suite is None:
-        raise ValueError(f"{source}: missing kunit_test_suite() after {marker}")
-    end = next(
-        (
-            index
-            for index in range(suite + 1, len(lines))
-            if lines[index].strip().startswith("#endif")
-        ),
-        None,
-    )
-    if end is None:
-        raise ValueError(f"{source}: unterminated KUnit region after {marker}")
-    return lines[start : end + 1], start + 1
+    regions: list[tuple[list[str], int]] = []
+    for start in starts:
+        depth = 0
+        end: int | None = None
+        for index in range(start, len(lines)):
+            directive = lines[index].lstrip()
+            if re.match(r"#\s*(?:if|ifdef|ifndef)\b", directive):
+                depth += 1
+            elif re.match(r"#\s*endif\b", directive):
+                depth -= 1
+                if depth == 0:
+                    end = index
+                    break
+        if end is None:
+            raise ValueError(
+                f"{source}: unterminated KUnit region at line {start + 1}"
+            )
+        regions.append((lines[start : end + 1], start + 1))
+
+    if not any(
+        "kunit_test_suite(" in line
+        for region, _first_line in regions
+        for line in region
+    ):
+        raise ValueError(f"{source}: missing kunit_test_suite() in KUnit regions")
+    return regions
 
 
 def function_names(lines: list[str]) -> list[str]:
@@ -164,35 +170,37 @@ def audit_source(
     source = kernel_tree / relative
     if not source.is_file():
         raise ValueError(f"missing rewrite source: {source}")
-    lines, first_line = kunit_region(source, config_symbol)
-    functions = function_names(lines)
     found: list[tuple[str, str, str, int]] = []
-    pending_acquisition: dict[str, tuple[int, str] | None] = {}
+    for lines, first_line in kunit_regions(source, config_symbol):
+        functions = function_names(lines)
+        pending_acquisition: dict[str, tuple[int, str] | None] = {}
 
-    for offset, (line, function) in enumerate(zip(lines, functions, strict=True)):
-        text = normalize_line(line)
-        line_number = first_line + offset
-        if not text:
-            continue
+        for offset, (line, function) in enumerate(
+            zip(lines, functions, strict=True)
+        ):
+            text = normalize_line(line)
+            line_number = first_line + offset
+            if not text:
+                continue
 
-        for category, pattern in DETECTORS:
-            if pattern.search(line):
-                found.append((category, function, text, line_number))
+            for category, pattern in DETECTORS:
+                if pattern.search(line):
+                    found.append((category, function, text, line_number))
 
-        if ACQUISITION_RE.search(line):
-            pending_acquisition[function] = (line_number, text)
-        if ACTION_RE.search(line):
-            pending_acquisition[function] = None
-        if FATAL_RE.search(line) and pending_acquisition.get(function):
-            _acquired_line, acquired_text = pending_acquisition[function]  # type: ignore[misc]
-            found.append(
-                (
-                    "fatal-before-cleanup-action",
-                    function,
-                    f"acquire:{acquired_text} -> fatal:{text}",
-                    line_number,
+            if ACQUISITION_RE.search(line):
+                pending_acquisition[function] = (line_number, text)
+            if ACTION_RE.search(line):
+                pending_acquisition[function] = None
+            if FATAL_RE.search(line) and pending_acquisition.get(function):
+                _acquired_line, acquired_text = pending_acquisition[function]  # type: ignore[misc]
+                found.append(
+                    (
+                        "fatal-before-cleanup-action",
+                        function,
+                        f"acquire:{acquired_text} -> fatal:{text}",
+                        line_number,
+                    )
                 )
-            )
 
     occurrences: collections.Counter[tuple[str, str, str]] = collections.Counter()
     signals: list[Signal] = []

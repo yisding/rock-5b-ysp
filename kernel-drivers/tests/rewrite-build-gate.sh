@@ -31,11 +31,21 @@ TARGETS=(
   rockchip/rk3588-rock-5b.dtb
 )
 
+REWRITE_IDENTITY_FILES=(
+  drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c
+  drivers/video/rockchip/mpp-rewrite/Kconfig
+  drivers/video/rockchip/mpp-rewrite/ABI.rst
+  drivers/video/rockchip/rga-rewrite/rga_rewrite.c
+  drivers/video/rockchip/rga-rewrite/Kconfig
+  drivers/video/rockchip/rga-rewrite/ABI.rst
+  include/uapi/linux/rk-mpp.h
+)
+
 tmp_root=
 
 usage() {
   cat <<EOF
-Usage: ${0##*/} [6.18|mainline|all]
+Usage: ${0##*/} [6.18|mainline|all|audit]
 
 Environment:
   KERNEL_6_18       6.18 rewrite kernel checkout (default: ../kernel/linux-6.18-rkvenc)
@@ -87,9 +97,58 @@ check_clean_tree() {
 }
 
 audit_kunit_source() {
-  local tree="$1"
+  python3 "$TEST_DIR/rewrite-kunit-source-audit.py" "$@"
+}
 
-  python3 "$TEST_DIR/rewrite-kunit-source-audit.py" "$tree"
+check_cross_tree_identity() {
+  local relative
+
+  for relative in "${REWRITE_IDENTITY_FILES[@]}"; do
+    if ! cmp -s "$KERNEL_6_18/$relative" "$KERNEL_MAINLINE/$relative"; then
+      echo "rewrite cross-tree content differs: $relative" >&2
+      exit 1
+    fi
+  done
+  echo "PASS: rewrite driver, Kconfig, ABI, and UAPI files are byte-identical"
+}
+
+check_kunit_manifest() {
+  local tree="$1"
+  local suite
+  local expected_count
+  local expected_hash
+  local source
+  local actual_count
+  local actual_hash
+
+  while IFS=$'\t' read -r suite expected_count expected_hash; do
+    case "$suite" in
+    ""|\#*) continue ;;
+    rk_mpp_rewrite)
+      source="$tree/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+      ;;
+    rockchip-rga-rewrite)
+      source="$tree/drivers/video/rockchip/rga-rewrite/rga_rewrite.c"
+      ;;
+    *)
+      echo "unknown suite in KUnit manifest: $suite" >&2
+      exit 1
+      ;;
+    esac
+    actual_count=$(sed -n \
+      's/.*KUNIT_CASE(\([A-Za-z0-9_]*\)).*/\1/p' "$source" | wc -l)
+    actual_hash=$(sed -n \
+      's/.*KUNIT_CASE(\([A-Za-z0-9_]*\)).*/\1/p' "$source" |
+      sha256sum | awk '{ print $1 }')
+    if [ "$actual_count" != "$expected_count" ] ||
+       [ "$actual_hash" != "$expected_hash" ]; then
+      echo "KUnit manifest differs from registered source: $suite" >&2
+      echo "  expected count/hash: $expected_count $expected_hash" >&2
+      echo "  observed count/hash: $actual_count $actual_hash" >&2
+      exit 1
+    fi
+  done < "$TEST_DIR/rewrite-kunit-manifest.tsv"
+  echo "PASS: KUnit manifest matches registered source in $tree"
 }
 
 set_rewrite_config() {
@@ -303,7 +362,6 @@ build_one_profile() {
   local log
 
   check_clean_tree "$tree"
-  audit_kunit_source "$tree"
   commit="$(git -C "$tree" rev-parse --short=12 HEAD)"
   mkdir -p "$REWRITE_BUILD_TMP_ROOT"
   profile_tmp="$(mktemp -d "$REWRITE_BUILD_TMP_ROOT/rkcompat-rewrite-build.$label.$profile.XXXXXX")"
@@ -368,15 +426,30 @@ main() {
   need_tool tar
   need_tool make
   need_tool grep
+  need_tool cmp
 
   case "$which" in
+  audit)
+    audit_kunit_source "$KERNEL_6_18" "$KERNEL_MAINLINE"
+    check_cross_tree_identity
+    check_kunit_manifest "$KERNEL_6_18"
+    check_kunit_manifest "$KERNEL_MAINLINE"
+    ;;
   6.18)
+    audit_kunit_source "$KERNEL_6_18"
+    check_kunit_manifest "$KERNEL_6_18"
     build_one "6.18" "$KERNEL_6_18"
     ;;
   mainline)
+    audit_kunit_source "$KERNEL_MAINLINE"
+    check_kunit_manifest "$KERNEL_MAINLINE"
     build_one "mainline" "$KERNEL_MAINLINE"
     ;;
   all)
+    audit_kunit_source "$KERNEL_6_18" "$KERNEL_MAINLINE"
+    check_cross_tree_identity
+    check_kunit_manifest "$KERNEL_6_18"
+    check_kunit_manifest "$KERNEL_MAINLINE"
     build_one "6.18" "$KERNEL_6_18"
     build_one "mainline" "$KERNEL_MAINLINE"
     ;;

@@ -20,6 +20,10 @@ REQUIRE_COUNTER_DELTAS=${REQUIRE_COUNTER_DELTAS:-1}
 REQUIRE_DMESG_EVIDENCE=${REQUIRE_DMESG_EVIDENCE:-1}
 REQUIRE_KUNIT_EVIDENCE=${REQUIRE_KUNIT_EVIDENCE:-}
 KUNIT_EVIDENCE_SUITES=${KUNIT_EVIDENCE_SUITES:-"rk_mpp_rewrite:84 rockchip-rga-rewrite:148"}
+KUNIT_MANIFEST=${KUNIT_MANIFEST:-"$TEST_DIR/rewrite-kunit-manifest.tsv"}
+KUNIT_EXPECTED_SOURCE_COMMIT=${KUNIT_EXPECTED_SOURCE_COMMIT:-}
+KUNIT_EXPECTED_CONFIG_SHA256=${KUNIT_EXPECTED_CONFIG_SHA256:-}
+KUNIT_EXPECTED_PACKAGE_ID=${KUNIT_EXPECTED_PACKAGE_ID:-}
 REQUIRE_DIAGNOSTIC_PASS=${REQUIRE_DIAGNOSTIC_PASS:-0}
 AUDIT_REQUIRED_CASES=${AUDIT_REQUIRED_CASES:-}
 REQUIRE_MPP_CORE_CASES=${REQUIRE_MPP_CORE_CASES:-}
@@ -70,6 +74,12 @@ Environment:
   REQUIRE_KUNIT_EVIDENCE=0
                           allow a rewrite candidate without a persisted green
                           booted-KUnit report from rewrite-conformance-run.sh
+  KUNIT_EXPECTED_SOURCE_COMMIT
+                          require the KUnit source commit to match this prefix
+  KUNIT_EXPECTED_CONFIG_SHA256
+                          require the KUnit config to match this SHA-256
+  KUNIT_EXPECTED_PACKAGE_ID
+                          require this exact image package=name/version identity
   REQUIRE_DIAGNOSTIC_PASS=1
                           require diagnostic cases recorded in the selected
                           summaries to pass too
@@ -421,6 +431,11 @@ check_kunit_evidence()
 	local spec
 	local kunit_suite
 	local expected
+	local manifest_hash
+	local report_release
+	local report_source
+	local report_config
+	local report_package
 	local failed=0
 
 	if [ "$REQUIRE_KUNIT_EVIDENCE" != "1" ]; then
@@ -451,16 +466,29 @@ check_kunit_evidence()
 			"$CANDIDATE" "$audit_suite" "$run_id" "$dmesg_report" >&2
 		return 1
 	fi
-	if ! awk -F '\t' '
+	read -r report_release report_source report_config report_package < <(
+		awk -F '\t' 'NR == 2 { print $9, $10, $11, $12 }' "$report"
+	)
+	if ! awk -F '\t' -v release="$report_release" \
+		-v source="$report_source" -v config="$report_config" \
+		-v package="$report_package" '
 		$1 == "status" { status = $2 }
 		$1 == "interval_status" { interval_status = $2 }
 		$1 == "interval_lines" { interval_lines = $2 }
 		$1 == "fatal_lines" { fatal_lines = $2 }
 		$1 == "lockdep_state" { lockdep_state = $2 }
+		$1 == "kernel_release" { kernel_release = $2 }
+		$1 == "source_commit" { source_commit = $2 }
+		$1 == "config_sha256" { config_sha256 = $2 }
+		$1 == "package_id" { package_id = $2 }
 		END {
 			exit status == "clean" && interval_status == 0 &&
 			     interval_lines > 0 && fatal_lines == 0 &&
-			     lockdep_state == 1 ? 0 : 1;
+			     lockdep_state == 1 &&
+			     kernel_release == release &&
+			     source_commit == source &&
+			     config_sha256 == config &&
+			     package_id == package ? 0 : 1;
 		}
 	' "$dmesg_report"; then
 		printf "KUnit boot-log evidence is incomplete, fatal, or has disabled lockdep: report=%s\n" \
@@ -471,13 +499,38 @@ check_kunit_evidence()
 	for spec in $KUNIT_EVIDENCE_SUITES; do
 		kunit_suite=${spec%%:*}
 		expected=${spec#*:}
-		if ! awk -F '\t' -v suite="$kunit_suite" -v expected="$expected" '
+		manifest_hash=$(awk -F '\t' -v suite="$kunit_suite" \
+			'$1 == suite { print $3 }' "$KUNIT_MANIFEST")
+		if [ -z "$manifest_hash" ]; then
+			printf "missing KUnit manifest identity: suite=%s manifest=%s\n" \
+				"$kunit_suite" "$KUNIT_MANIFEST" >&2
+			failed=1
+			continue
+		fi
+		if ! awk -F '\t' -v suite="$kunit_suite" -v expected="$expected" \
+			-v manifest_hash="$manifest_hash" \
+			-v expected_source="$KUNIT_EXPECTED_SOURCE_COMMIT" \
+			-v expected_config="$KUNIT_EXPECTED_CONFIG_SHA256" \
+			-v expected_package="$KUNIT_EXPECTED_PACKAGE_ID" \
+			-v report_release="$report_release" \
+			-v report_source="$report_source" \
+			-v report_config="$report_config" \
+			-v report_package="$report_package" '
 			NR == 1 { next }
 			$1 == suite {
 				seen++;
 				if ($2 != expected || $3 != expected || $4 != expected ||
 				    $5 != 0 || $6 != 0 || $7 != "ok" || $8 != "pass" ||
-				    $9 == "")
+				    $9 == "" || $10 !~ /^[0-9a-f]{12,40}$/ ||
+				    index($9, "-g" substr($10, 1, 12)) == 0 ||
+				    $11 !~ /^[0-9a-f]{64}$/ || $12 == "" ||
+				    $13 != manifest_hash ||
+				    $9 != report_release || $10 != report_source ||
+				    $11 != report_config || $12 != report_package ||
+				    (expected_source != "" &&
+				     index($10, expected_source) != 1) ||
+				    (expected_config != "" && $11 != expected_config) ||
+				    (expected_package != "" && $12 != expected_package))
 					bad = 1;
 			}
 			END { exit seen == 1 && !bad ? 0 : 1 }
@@ -737,9 +790,9 @@ selftest()
 	done
 	mkdir -p "$tmp_root/logs/$CANDIDATE"
 	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" <<EOF
-suite	expected_cases	plan_cases	result_cases	failed_cases	skipped_cases	summary	verdict	kernel_release
-rk_mpp_rewrite	84	84	84	0	0	ok	pass	6.18.0-rewrite
-rockchip-rga-rewrite	148	148	148	0	0	ok	pass	6.18.0-rewrite
+suite	expected_cases	plan_cases	result_cases	failed_cases	skipped_cases	summary	verdict	kernel_release	source_commit	config_sha256	package_id	ordered_case_names_sha256
+rk_mpp_rewrite	84	84	84	0	0	ok	pass	6.18.0-rewrite-g0123456789ab	0123456789abcdef0123456789abcdef01234567	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	linux-image-test=1	19262f865967585574d51bef7e6c120765a3d0645592510f25715ae04f9ca1fe
+rockchip-rga-rewrite	148	148	148	0	0	ok	pass	6.18.0-rewrite-g0123456789ab	0123456789abcdef0123456789abcdef01234567	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	linux-image-test=1	251a81835636d0f7df3ef0a0155a8b8f93ecd4ed0c2795077d514de703d1fe69
 EOF
 	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv" <<EOF
 field	value
@@ -748,6 +801,10 @@ interval_status	0
 interval_lines	232
 fatal_lines	0
 lockdep_state	1
+kernel_release	6.18.0-rewrite-g0123456789ab
+source_commit	0123456789abcdef0123456789abcdef01234567
+config_sha256	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+package_id	linux-image-test=1
 EOF
 	mv "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" \
 		"$tmp_root/logs/$CANDIDATE/20260705-000000-kunit.tsv"

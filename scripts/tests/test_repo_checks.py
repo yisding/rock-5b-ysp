@@ -1234,6 +1234,44 @@ class RewriteKunitSourceAuditTests(unittest.TestCase):
             self.assertEqual(resolved.returncode, 0, resolved.stderr)
             self.assertIn("baseline entries absent", resolved.stdout)
 
+    def test_all_kunit_regions_and_project_wrappers_are_audited(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tree = root / "linux"
+            baseline = root / "baseline.tsv"
+            self.make_tree(tree, "\tKUNIT_EXPECT_EQ(test, 1, 1);\n")
+            baseline.write_text(
+                "# category\tsource\tfunction\tordinal\tnormalized source signal\n",
+                encoding="utf-8",
+            )
+
+            source = (
+                tree
+                / "drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
+            )
+            existing = source.read_text(encoding="utf-8")
+            source.write_text(
+                "#if IS_ENABLED(CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST)\n"
+                "static void early_fixture_kunit(struct kunit *test)\n"
+                "{\n"
+                "\tvoid *item = kzalloc_obj(*item);\n"
+                "\tint fd = rk_rga_fence_create_fd(test);\n"
+                "\tKUNIT_ASSERT_NOT_NULL(test, item);\n"
+                "\tKUNIT_ASSERT_GE(test, fd, 0);\n"
+                "\tKUNIT_EXPECT_PTR_EQ(test, &rk_mpp_srv, &rk_mpp_srv);\n"
+                "}\n"
+                "#endif\n"
+                f"{existing}",
+                encoding="utf-8",
+            )
+
+            audited = self.run_audit(tree, baseline)
+            self.assertEqual(audited.returncode, 1)
+            self.assertIn("NEW\traw-allocation", audited.stderr)
+            self.assertIn("NEW\tfd-acquisition", audited.stderr)
+            self.assertIn("NEW\tfatal-before-cleanup-action", audited.stderr)
+            self.assertIn("NEW\tproduction-singleton-access", audited.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

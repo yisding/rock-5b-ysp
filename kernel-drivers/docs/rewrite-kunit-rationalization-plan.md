@@ -1,6 +1,7 @@
 # Rewrite KUnit rationalization and fixture-hardening plan
 
-> Status: implementation in progress; pre-phase applied
+> Status: implementation in progress; fixture-isolation and manifest
+> checkpoints applied
 > Scope: clean-room MPP/RGA rewrite drivers, their KUnit suites, and the YSP
 > validation harness
 > Source reviewed: `rk3588-rewrite-6.18@f6ebe28a3f66` and
@@ -10,6 +11,8 @@
 > `rk3588-rewrite-mainline@fb5040f08d833`
 > Pre-phase source tips: `rk3588-rewrite-6.18@669697f23d3d` and
 > `rk3588-rewrite-mainline@a49eb7575f436`
+> Fixture-isolation source tips: `rk3588-rewrite-6.18@51ea9d1ca537` and
+> `rk3588-rewrite-mainline@03da898b03f1f`
 > Date: 2026-07-27
 
 ## Result
@@ -406,6 +409,13 @@ baseline result is attributable to exact source and configuration.
 
 ### Phase 1 — close current fixture escape paths
 
+Checkpoint applied on 2026-07-28: the reviewed fence/FD, file, device,
+DMA-BUF, nested VP9 allocation, work, delayed-work, and list-owning fixture
+paths now have KUnit-managed storage or immediate cleanup actions. The source
+audit now scans every KUnit-symbol block and recognizes the local allocation
+and fence-FD wrappers; its 325-signal baseline remains an inventory of older
+raw fixture construction, not a claim that every later phase is complete.
+
 1. Preserve the applied `rkvenc_dchs_lock` initialization in
    `rk_mpp_reset_session_hw_active_import_kunit()` as the first checkpoint.
 2. Make the RGA fence-FD helper take `struct kunit *` and register cleanup.
@@ -452,6 +462,11 @@ expected linked test object/registration.
 
 ### Phase 4 — remove production singleton and runtime lifecycle coupling
 
+Checkpoint applied on 2026-07-28: both suites use local service instances, the
+test-reachable paths take explicit service owners, and the KUnit
+unbind/reprobe/singleton-reinitialization callbacks are gone. Production probe
+and teardown still use their normal global service instances.
+
 1. Inventory every direct `rk_mpp_srv` and `rk_rga` reference reachable from a
    test.
 2. Pass explicit owners through production helpers where needed.
@@ -478,6 +493,11 @@ Exit gate: mutation checks show that each distinct validation branch and
 register recipe still causes a named failure when altered.
 
 ### Phase 6 — replace brittle count-only qualification
+
+Checkpoint applied on 2026-07-28: the checker now requires the exact ordered
+84/148 case-name manifest, sequential unique KTAP rows, the outer boot-KUnit
+log interval, and source/configuration/package identity. The evidence audit
+requires those identities to agree across both suite rows and the dmesg scan.
 
 The current 84/148 requirement (85/148 before the pre-phase) detects omitted
 cases, but it also turns a historical count into an interface. Replace it only

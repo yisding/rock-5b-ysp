@@ -2,9 +2,11 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when all **84 MPP + 148 RGA cases** pass without skips **and** the
-same kernel-log interval is free of sanitizer reports, warnings, lockdep
-findings, refcount failures, and media/IOMMU faults.
+green only when the ordered **84 MPP + 148 RGA case manifest** matches without
+duplicates, omissions, failures, or skips **and** the same kernel-log interval
+is free of sanitizer reports, warnings, lockdep findings, refcount failures,
+and media/IOMMU faults. The report also binds the run to the kernel release,
+source commit, configuration hash, and installed package.
 
 This is a compound contract. Green KTAP alone is insufficient: a case can
 return `ok` after provoking a KASAN report or kernel warning.
@@ -16,7 +18,7 @@ flowchart LR
   package --> boot["Boot autorun under<br/>KASAN + lockdep"]
   boot --> ktap["debugfs<br/>KTAP results"]
   boot --> log["KUnit kernel-log<br/>interval"]
-  ktap --> result_gate["Exact-count<br/>result parser"]
+  ktap --> result_gate["Exact-manifest<br/>result parser"]
   log --> log_gate["Canonical fatal<br/>signature scan"]
   result_gate --> evidence["Persisted YSP<br/>evidence"]
   log_gate --> evidence
@@ -51,18 +53,16 @@ Built-in KUnit does not execute a suite from KUnit's own late initcall. Linux
 finishes all initcalls in `do_basic_setup()`, then
 `kernel_init_freeable()` calls `kunit_run_all_tests()`, and only afterward
 waits for initramfs. Each rewrite driver therefore registers normally at
-device-initcall time. Its suite initializer cleanly unregisters that production
-runtime before using the singleton as fixture storage, and suite teardown
-restores it before initramfs. A restore error fails the suite. This lifecycle
-contract is required: simply delaying driver registration to a later initcall
-still registers it before boot KUnit and lets the fixture initializer destroy
-live state.
+device-initcall time. The suites must coexist with those already-probed
+production services: every stateful fixture now creates its own service
+instance, and no suite callback unregisters, reprobes, or reinitializes the
+runtime.
 
 Both test symbols depend on their rewrite driver and `KUNIT`; they default to
-`n` even when `KUNIT_ALL_TESTS=y` because their current lifecycle callbacks
-unbind/reprobe live rewrite drivers and use production singletons as fixture
-storage. A qualification build must select both explicitly. A boot used as YSP
-evidence must have all of these resolved to `y`:
+`n` even when `KUNIT_ALL_TESTS=y` because they remain large, embedded lifecycle
+qualification suites rather than ordinary unit-test defaults. A qualification
+build must select both explicitly. A boot used as YSP evidence must have all of
+these resolved to `y`:
 
 ```text
 CONFIG_KUNIT=y
@@ -131,13 +131,15 @@ established before calling the function under test. In particular:
 
 The focused build gate runs
 [`rewrite-kunit-source-audit.py`](../tests/rewrite-kunit-source-audit.py)
-against both KUnit regions before compiling. Its checked
+against every block guarded by either rewrite KUnit symbol before compiling.
+Its checked
 [`rewrite-kunit-source-audit-baseline.tsv`](../tests/rewrite-kunit-source-audit-baseline.tsv)
 records the current lexical fixture-debt signals. Removing a signal passes;
 adding singleton access, FD/raw allocation, a stack async owner, a manual list
 link, or a fatal assertion after acquisition but before cleanup registration
-fails. This is a regression guard and inventory aid, not proof that baselined
-fixtures are safe.
+fails. Project wrappers such as `kzalloc_obj()` and
+`rk_rga_fence_create_fd()` are included. This is a regression guard and
+inventory aid, not proof that baselined fixtures are safe.
 
 Warnings are fixture failures too. Unbalanced preemption/IRQ state, an active
 stack work item, a refcount warning, or a debug-object complaint invalidates the
@@ -172,11 +174,14 @@ REWRITE_BUILD_PROFILES=test-disabled VERIFY_ABI_STATIC_ASSERT=1 JOBS=8 \
 ```
 
 The profiles build both rewrite objects, the Rockchip IOMMU provider, and the
-Rock 5B DTB. `test-disabled` proves no KUnit-only dependency leaked into the
-production object; `memory` adds KASAN and fault-injection options; `race` adds
-KCSAN and lockdep. The optional mutation check proves the ABI constants remain
-compile-time-owned. These are **compile profiles**—success proves that the
-selected code builds warning-free, not that KUnit ran.
+Rock 5B DTB. Before compiling, the `all` gate compares both maintained trees'
+rewrite sources, Kconfig, ABI ledgers, and MPP UAPI byte-for-byte and audits
+their KUnit signals in one invocation. `test-disabled` proves no KUnit-only
+dependency leaked into the production object; `memory` adds KASAN and
+fault-injection options; `race` adds KCSAN and lockdep. The optional mutation
+check proves the ABI constants remain compile-time-owned. These are **compile
+profiles**—success proves that the selected code builds warning-free, not that
+KUnit ran.
 
 Build the bootable KASAN/lockdep flavor with:
 
@@ -188,9 +193,8 @@ ARMBIAN_USE_CCACHE=yes \
 The flavor configuration in
 [`config-rock5b-rewrite-debug-kernel.conf.sh`](../scripts/debug-kernel/config-rock5b-rewrite-debug-kernel.conf.sh)
 forces both drivers and suites built-in. KUnit autorun executes them during
-boot. The rewrite suite callbacks temporarily unbind and reprobe their own
-drivers during this pre-initramfs window; userspace conformance begins only
-after the restored runtime is present. Install and recover through the
+boot. The suites use local service instances and do not unregister, reprobe, or
+reinitialize the production MPP/RGA services. Install and recover through the
 [debug-kernel runbook](debug-kernel.md), then verify the booted release and
 configuration through the
 [kernel validation runbook](kernel-validation-runbook.md).
@@ -223,10 +227,14 @@ For each suite it requires:
 | Failed cases | 0 |
 | Skipped cases | 0 |
 | Suite summary | `ok` |
-| Boot identity | recorded from `uname -r` |
+| Ordered names | exact SHA-256 from `rewrite-kunit-manifest.tsv` |
+| Source identity | 12–40 digit commit, also embedded as `-g<commit>` in `uname -r` |
+| Configuration | SHA-256 of the booted kernel config |
+| Package | installed image package name and version |
 
-The checker also extracts the complete boot-time interval from the first MPP
-subtest through the final RGA suite result, scans it through
+The checker extracts the complete boot KUnit interval beginning at the outer
+KTAP header and plan, before either suite initializer can log, through the
+final RGA suite result. It scans that interval through
 `SUITE_DMESG_FATAL_RE` from
 [`suite-common.sh`](../tests/suite-common.sh), and requires
 `/proc/sys/kernel/debug_locks` to remain `1`. Missing/incomplete log access, a
@@ -245,13 +253,21 @@ evidence="../rockchip-conformance/logs/rewrite/$run_id-kunit"
 mkdir -p "$evidence"
 
 uname -a > "$evidence/uname.txt"
-sudo cat /proc/config.gz > "$evidence/config.gz"
+sudo cp "/boot/config-$(uname -r)" "$evidence/config"
 sudo cat /sys/kernel/debug/kunit/rk_mpp_rewrite/results \
   > "$evidence/rk_mpp_rewrite.ktap"
 sudo cat /sys/kernel/debug/kunit/rockchip-rga-rewrite/results \
   > "$evidence/rockchip-rga-rewrite.ktap"
 
-sudo env KUNIT_REPORT="$PWD/$evidence/result.tsv" \
+package_name=$(dpkg-query -S "/boot/vmlinuz-$(uname -r)" |
+  awk -F ': ' 'NR == 1 { print $1 }')
+package_id=$(dpkg-query -W -f='${Package}=${Version}' "$package_name")
+sudo env \
+  KUNIT_SOURCE_COMMIT=51ea9d1ca537 \
+  KUNIT_EXPECTED_SOURCE_COMMIT=51ea9d1ca537 \
+  KUNIT_CONFIG_FILE="$PWD/$evidence/config" \
+  KUNIT_PACKAGE_ID="$package_id" \
+  KUNIT_REPORT="$PWD/$evidence/result.tsv" \
   bash kernel-drivers/tests/rewrite-kunit-log-check.sh
 ```
 
@@ -269,20 +285,15 @@ KUnit checker by default for rewrite profiles and writes a
 before moving on to ABI, MPP, librga, GStreamer, FFmpeg, comparator, counter,
 and per-suite dmesg gates.
 
-## Post-boot reruns are intentionally unavailable
+## Post-boot reruns are not qualification evidence
 
-These suites use each production service singleton as fixture storage. They may
-do that only during boot's pre-initramfs KUnit window, after their driver has
-been cleanly unregistered and before it is restored. A post-boot debugfs run
-could otherwise tear down open sessions, active DMA, and userspace-visible
-devices.
-
-The suite initializer therefore returns `-EBUSY` unless
-`system_state == SYSTEM_SCHEDULING`. Built-in autorun suites normally have no
-`run` control at all; if a filtered or otherwise debugfs-runnable registration
-does expose one, writing it fails before touching the live service. Reboot the
-same package to obtain another result. Do not treat post-boot rerun support as a
-validation requirement.
+The isolated suites no longer use production service singletons as fixture
+storage, and they have no runtime unbind/reprobe callbacks. Built-in autorun
+suites normally expose results rather than a `run` control; availability also
+depends on the KUnit configuration. Qualification still uses a fresh boot so
+the manifest, complete outer-KTAP log interval, lockdep state, configuration,
+package, and source identity all describe one attributable run. Do not replace
+that compound boot record with a post-boot rerun.
 
 ## Evidence boundary
 
@@ -320,10 +331,12 @@ fixture's DCHS spinlock and made debug-state capture fail fast. Booted
 6.18.40 KASAN/UBSAN/lockdep/kmemleak package `P91d6-Cad24` contained that
 repair and completed exact 85+148 KTAP, but case 83 exposed the same omission
 in `rk_mpp_reset_session_hw_active_import_kunit()` and disabled lockdep before
-RGA. Current tips `669697f23d3df` / `a49eb7575f436` retain the second fixture
-repair, make both suites opt-in, and remove the compile-time-owned ABI runtime
-case; the later-case/RGA fixture audit found no other reachable uninitialized
-lock. See the
+RGA. Current tips 6.18 `51ea9d1ca537` / mainline `03da898b03f1f`
+additionally give every fixture a local service, remove runtime
+unregister/reprobe callbacks, make fence/FD/work/device cleanup
+assertion-safe, and replace polling with completion-driven synchronization
+plus a real two-thread fence/abort race. The exact ordered 84/148 manifest and
+source/config/package-bound evidence gate now own result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 Do not promote KTAP, compile, or package results into a runtime pass until the
 entire compound evidence above is clean on a successor kernel.

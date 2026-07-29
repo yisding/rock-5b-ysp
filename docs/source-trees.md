@@ -17,7 +17,7 @@ patches unless explicitly marked otherwise.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | upstream 50.2 = `60423c896a54`; clean release tip = `cf60b4d9d2c5`; historical 50.1 replay and experiment tips remain recorded in §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | current comparison tips `rk3588-rewrite-6.18@669697f23d3d` and `rk3588-rewrite-mainline@a49eb7575f436`; opt-in KUnit defaults `0a2d7b9414f58` / `aa18488c8642b` and compile-time-owned ABI-case retirement at the tips; reset/import fixture spinlock repair `9af4a8816f25` / `fb5040f08d83` over abort-fixture/nonblocking-state fixes `f6ebe28a3f66` / `394d80552960`, mutex/nested-allocation fixes `6b55e022ce49` / `9aa6ef7e97b2`, and lifecycle fixes `db8251eec71a` / `fac707773158`; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | current comparison tips `rk3588-rewrite-6.18@51ea9d1ca537` and `rk3588-rewrite-mainline@03da898b03f1f`; KUnit fixtures now use local services with assertion-safe resource cleanup and no runtime unbind/reprobe callbacks; opt-in KUnit defaults `0a2d7b9414f58` / `aa18488c8642b` and compile-time-owned ABI-case retirement `669697f23d3d` / `a49eb7575f436`; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -309,9 +309,12 @@ The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/re
 is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b`:
 
-- branch `rk3588-rewrite-6.18`, commit `669697f23d3d` ("media: rockchip:
-  drop duplicate MPP ABI KUnit case"), in the dev worktree
-  `/home/yi/Code/kernel/linux-6.18-rkvenc`. It removes the runtime ABI-layout
+- branch `rk3588-rewrite-6.18`, commit `51ea9d1ca537` ("media: rockchip:
+  isolate rewrite KUnit fixtures"), in the dev worktree
+  `/home/yi/Code/kernel/linux-6.18-rkvenc`. It gives the KUnit fixtures local
+  services, removes runtime unbind/reprobe callbacks, makes resource cleanup
+  assertion-safe, and replaces polling with deterministic completion/race
+  synchronization. Parent `669697f23d3d` removes the runtime ABI-layout
   case already covered by stronger compile-time assertions, reducing the live
   gate to 84 MPP plus 148 RGA cases. Parent `0a2d7b9414f58` makes both
   lifecycle suites explicitly opt-in instead of following `KUNIT_ALL_TESTS`.
@@ -344,8 +347,10 @@ is reconstructible from the committed local branch tips targeting
   ("video: rockchip: rkvenc2: reserve a slice fifo slot for the terminal
   record"). The pre-rebase 6.18 rewrite tip is preserved locally as
   `ysp-backup/rk3588-rewrite-6.18-before-fwport-20260726@40cf22629cf63`.
-- branch `rk3588-rewrite-mainline`, commit `a49eb7575f436` ("media: rockchip:
-  drop duplicate MPP ABI KUnit case"). Parent `aa18488c8642b` contains the
+- branch `rk3588-rewrite-mainline`, commit `03da898b03f1f` ("media: rockchip:
+  isolate rewrite KUnit fixtures"). It carries the same byte-identical
+  fixture isolation as 6.18. Parent `a49eb7575f436` drops the duplicate MPP
+  ABI case, and `aa18488c8642b` contains the
   byte-identical opt-in Kconfig change. Earlier `fb5040f08d83` carries the
   byte-identical reset/import fixture repair over sibling DCHS-fixture and nonblocking
   debug-state fix `394d80552960`, mutex/nested-allocation fix `9aa6ef7e97b2`,

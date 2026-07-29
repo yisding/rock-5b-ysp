@@ -9,6 +9,7 @@ source "$TEST_DIR/suite-common.sh"
 
 KUNIT_DEBUGFS_ROOT=${KUNIT_DEBUGFS_ROOT:-/sys/kernel/debug/kunit}
 KUNIT_REQUIRED_SUITES=${KUNIT_REQUIRED_SUITES:-"rk_mpp_rewrite:84 rockchip-rga-rewrite:148"}
+KUNIT_MANIFEST=${KUNIT_MANIFEST:-"$TEST_DIR/rewrite-kunit-manifest.tsv"}
 KUNIT_REPORT=${KUNIT_REPORT:-}
 KUNIT_DMESG_SOURCE=${KUNIT_DMESG_SOURCE:-}
 KUNIT_DEBUG_LOCKS_FILE=${KUNIT_DEBUG_LOCKS_FILE:-/proc/sys/kernel/debug_locks}
@@ -16,6 +17,12 @@ KUNIT_REQUIRE_LOCKDEP=${KUNIT_REQUIRE_LOCKDEP:-1}
 KUNIT_DMESG_REPORT=${KUNIT_DMESG_REPORT:-}
 KUNIT_INTERVAL_REPORT=${KUNIT_INTERVAL_REPORT:-}
 KUNIT_FATAL_REPORT=${KUNIT_FATAL_REPORT:-}
+KUNIT_KERNEL_RELEASE=${KUNIT_KERNEL_RELEASE:-$(uname -r)}
+KUNIT_SOURCE_COMMIT=${KUNIT_SOURCE_COMMIT:-}
+KUNIT_EXPECTED_SOURCE_COMMIT=${KUNIT_EXPECTED_SOURCE_COMMIT:-}
+KUNIT_CONFIG_FILE=${KUNIT_CONFIG_FILE:-"/boot/config-$KUNIT_KERNEL_RELEASE"}
+KUNIT_PACKAGE_ID=${KUNIT_PACKAGE_ID:-}
+KUNIT_CONFIG_SHA256=
 
 if [ -n "$KUNIT_REPORT" ]; then
 	report_base=${KUNIT_REPORT%.tsv}
@@ -42,6 +49,10 @@ check_suite()
 	local results="$KUNIT_DEBUGFS_ROOT/$suite/results"
 	local row
 	local status=0
+	local manifest_count
+	local manifest_hash
+	local names
+	local actual_hash
 
 	case "$spec" in
 	*:*)
@@ -57,16 +68,31 @@ check_suite()
 		return 2
 		;;
 	esac
+	if ! read -r manifest_count manifest_hash < <(
+		awk -F '\t' -v suite="$suite" '
+			$1 == suite { print $2, $3; found++ }
+			END { exit found == 1 ? 0 : 1 }
+		' "$KUNIT_MANIFEST"
+	); then
+		echo "missing or duplicate KUnit manifest entry: $suite" >&2
+		return 2
+	fi
+	if [ "$manifest_count" != "$expected" ]; then
+		echo "KUnit suite count disagrees with manifest: $spec manifest=$manifest_count" >&2
+		return 2
+	fi
 
 	# debugfs files can report st_size == 0 while returning data when read.
 	# Test access, then let the KTAP parser reject empty or malformed content.
 	if [ ! -r "$results" ]; then
 		echo "missing or unreadable KUnit results for $suite: $results" >&2
-		write_result "$suite\t$expected\tmissing\tmissing\tmissing\tmissing\tmissing\tfail\t$(uname -r)"
+		write_result "$suite\t$expected\tmissing\tmissing\tmissing\tmissing\tmissing\tfail\t$KUNIT_KERNEL_RELEASE\t$KUNIT_SOURCE_COMMIT\t$KUNIT_CONFIG_SHA256\t$KUNIT_PACKAGE_ID\t$manifest_hash"
 		return 1
 	fi
 
-	if row=$(awk -v suite="$suite" -v expected="$expected" '
+	names=$(mktemp "${TMPDIR:-$REPO_ROOT}/.rewrite-kunit-names.XXXXXX")
+	if row=$(awk -v suite="$suite" -v expected="$expected" \
+		-v names="$names" '
 	BEGIN {
 		plan = -1;
 		cases = 0;
@@ -74,15 +100,26 @@ check_suite()
 		skipped = 0;
 		summary = "missing";
 	}
-	/^[[:space:]]+1\.\.[0-9]+[[:space:]]*$/ {
+	/^    1\.\.[0-9]+[[:space:]]*$/ {
 		value = $0;
-		sub(/^[[:space:]]+1\.\./, "", value);
+		sub(/^    1\.\./, "", value);
 		sub(/[[:space:]]+$/, "", value);
 		plan = value + 0;
 	}
-	/^[[:space:]]+(ok|not ok) [0-9]+ / {
+	/^    (ok|not ok) [0-9]+ - / {
 		cases++;
-		if ($0 ~ /^[[:space:]]+not ok /)
+		number = $0;
+		sub(/^    (ok|not ok) /, "", number);
+		sub(/ .*/, "", number);
+		if (number + 0 != cases)
+			sequence_bad = 1;
+		name = $0;
+		sub(/^    (ok|not ok) [0-9]+ - /, "", name);
+		sub(/[[:space:]]+# (SKIP|TODO).*$/, "", name);
+		if (name == "" || seen_name[name]++)
+			sequence_bad = 1;
+		print name > names;
+		if ($0 ~ /^    not ok /)
 			failed++;
 		if ($0 ~ /# SKIP([[:space:]]|$)/)
 			skipped++;
@@ -94,8 +131,10 @@ check_suite()
 		summary = "not-ok";
 	}
 	END {
+		close(names);
 		verdict = (plan == expected && cases == expected && failed == 0 &&
-		           skipped == 0 && summary == "ok") ? "pass" : "fail";
+		           skipped == 0 && summary == "ok" &&
+			   !sequence_bad) ? "pass" : "fail";
 		printf "%s\t%d\t%d\t%d\t%d\t%d\t%s\t%s", suite, expected,
 		       plan, cases, failed, skipped, summary, verdict;
 		exit verdict == "pass" ? 0 : 1;
@@ -105,8 +144,70 @@ check_suite()
 	else
 		status=$?
 	fi
-	write_result "$row\t$(uname -r)"
+	actual_hash=$(sha256sum "$names" | awk '{ print $1 }')
+	rm -f "$names"
+	if [ "$actual_hash" != "$manifest_hash" ]; then
+		status=1
+		row="${row%$'\t'*}"$'\tfail'
+	fi
+	write_result "$row\t$KUNIT_KERNEL_RELEASE\t$KUNIT_SOURCE_COMMIT\t$KUNIT_CONFIG_SHA256\t$KUNIT_PACKAGE_ID\t$actual_hash"
 	return "$status"
+}
+
+check_identity()
+{
+	local package_name
+	local release_commit
+
+	if [ -z "$KUNIT_SOURCE_COMMIT" ]; then
+		release_commit=$(printf "%s\n" "$KUNIT_KERNEL_RELEASE" |
+			sed -n 's/.*-g\([0-9a-fA-F]\{12,40\}\)\([.-].*\)\?$/\1/p')
+		KUNIT_SOURCE_COMMIT=$(printf "%s" "$release_commit" |
+			tr 'A-F' 'a-f')
+	fi
+	if ! printf "%s\n" "$KUNIT_SOURCE_COMMIT" |
+		grep -Eq '^[0-9a-f]{12,40}$'; then
+		echo "missing or invalid KUnit source commit identity" >&2
+		return 1
+	fi
+	if [ -n "$KUNIT_EXPECTED_SOURCE_COMMIT" ] &&
+		case "$KUNIT_SOURCE_COMMIT" in
+		"$KUNIT_EXPECTED_SOURCE_COMMIT"|"$KUNIT_EXPECTED_SOURCE_COMMIT"*) false ;;
+		*) true ;;
+		esac; then
+		echo "booted KUnit source commit does not match expected commit" >&2
+		return 1
+	fi
+	case "$KUNIT_KERNEL_RELEASE" in
+	*"-g${KUNIT_SOURCE_COMMIT}"*|*"-g${KUNIT_SOURCE_COMMIT:0:12}"*)
+		;;
+	*)
+		echo "kernel release is not bound to KUnit source commit: $KUNIT_KERNEL_RELEASE" >&2
+		return 1
+		;;
+	esac
+	if [ ! -r "$KUNIT_CONFIG_FILE" ]; then
+		echo "missing booted kernel config for KUnit evidence: $KUNIT_CONFIG_FILE" >&2
+		return 1
+	fi
+	KUNIT_CONFIG_SHA256=$(sha256sum "$KUNIT_CONFIG_FILE" | awk '{ print $1 }')
+	if [ -z "$KUNIT_PACKAGE_ID" ] &&
+		command -v dpkg-query >/dev/null 2>&1; then
+		package_name=$(dpkg-query -S "/boot/vmlinuz-$KUNIT_KERNEL_RELEASE" \
+			2>/dev/null | awk -F ': ' 'NR == 1 { print $1 }')
+		if [ -n "$package_name" ]; then
+			KUNIT_PACKAGE_ID=$(dpkg-query -W -f='${Package}=${Version}' \
+				"$package_name" 2>/dev/null || :)
+		fi
+		if [ -z "$KUNIT_PACKAGE_ID" ]; then
+			KUNIT_PACKAGE_ID=$(dpkg-query -W -f='${Package}=${Version}' \
+				"linux-image-$KUNIT_KERNEL_RELEASE" 2>/dev/null || :)
+		fi
+	fi
+	if [ -z "$KUNIT_PACKAGE_ID" ]; then
+		echo "missing installed-kernel package identity for KUnit evidence" >&2
+		return 1
+	fi
 }
 
 check_boot_log()
@@ -142,8 +243,17 @@ check_boot_log()
 	fi
 
 	if awk '
-		/# Subtest: rk_mpp_rewrite([[:space:]]|$)/ {
+		/KTAP version 1[[:space:]]*$/ {
+			ktap = $0;
+			saw_ktap = 1;
+			next;
+		}
+		saw_ktap && /1\.\.[0-9]+[[:space:]]*$/ {
+			print ktap;
+			print;
 			capture = 1;
+			saw_ktap = 0;
+			next;
 		}
 		capture {
 			print;
@@ -186,6 +296,10 @@ check_boot_log()
 		printf "interval_lines\t%s\n" "$interval_lines"
 		printf "fatal_lines\t%s\n" "$fatal_lines"
 		printf "lockdep_state\t%s\n" "$lockdep_state"
+		printf "kernel_release\t%s\n" "$KUNIT_KERNEL_RELEASE"
+		printf "source_commit\t%s\n" "$KUNIT_SOURCE_COMMIT"
+		printf "config_sha256\t%s\n" "$KUNIT_CONFIG_SHA256"
+		printf "package_id\t%s\n" "$KUNIT_PACKAGE_ID"
 		printf "fatal_regex\t%s\n" "$SUITE_DMESG_FATAL_RE"
 	} > "$report"
 
@@ -212,8 +326,19 @@ selftest()
 	trap 'rm -rf "$tmp_root"' RETURN
 	KUNIT_DMESG_SOURCE="$tmp_root/boot-kernel.txt"
 	KUNIT_DEBUG_LOCKS_FILE="$tmp_root/debug_locks"
-	export KUNIT_DMESG_SOURCE KUNIT_DEBUG_LOCKS_FILE
+	KUNIT_KERNEL_RELEASE=6.18.0-rewrite-g0123456789ab
+	KUNIT_SOURCE_COMMIT=0123456789abcdef0123456789abcdef01234567
+	KUNIT_EXPECTED_SOURCE_COMMIT=0123456789ab
+	KUNIT_CONFIG_FILE="$tmp_root/config"
+	KUNIT_PACKAGE_ID=linux-image-test=1
+	KUNIT_MANIFEST="$tmp_root/manifest.tsv"
+	export KUNIT_DMESG_SOURCE KUNIT_DEBUG_LOCKS_FILE KUNIT_KERNEL_RELEASE
+	export KUNIT_SOURCE_COMMIT KUNIT_EXPECTED_SOURCE_COMMIT KUNIT_CONFIG_FILE
+	export KUNIT_PACKAGE_ID KUNIT_MANIFEST
 	printf "1\n" > "$KUNIT_DEBUG_LOCKS_FILE"
+	printf "CONFIG_KUNIT=y\n" > "$KUNIT_CONFIG_FILE"
+	printf "# suite\texpected_cases\tordered_case_names_sha256\n" \
+		> "$KUNIT_MANIFEST"
 
 	for spec in $KUNIT_REQUIRED_SUITES; do
 		suite=${spec%%:*}
@@ -222,6 +347,7 @@ selftest()
 			mpp_count=$count
 		fi
 		mkdir -p "$tmp_root/$suite"
+		names="$tmp_root/$suite/names"
 		{
 			printf "KTAP version 1\n1..1\n"
 			printf "    KTAP version 1\n"
@@ -229,18 +355,30 @@ selftest()
 			printf "    1..%s\n" "$count"
 			for i in $(seq 1 "$count"); do
 				printf "    ok %s - case_%s\n" "$i" "$i"
+				printf "case_%s\n" "$i" >> "$names"
 			done
 			printf "ok 1 %s\n" "$suite"
 		} > "$tmp_root/$suite/results"
+		printf "%s\t%s\t%s\n" "$suite" "$count" \
+			"$(sha256sum "$names" | awk '{ print $1 }')" \
+			>> "$KUNIT_MANIFEST"
 	done
 	{
-		printf "KTAP version 1\n1..2\n"
-		printf "    # Subtest: rk_mpp_rewrite\n"
-		printf "ok 1 rk_mpp_rewrite\n"
-		printf "    # Subtest: rockchip-rga-rewrite\n"
-		printf "ok 2 rockchip-rga-rewrite\n"
+		printf "[    1.000000] KTAP version 1\n"
+		printf "[    1.000001] 1..2\n"
+		printf "[    1.000002] WARNING: suite init poisoned the boot\n"
+		printf "[    1.000003]     # Subtest: rk_mpp_rewrite\n"
+		printf "[    1.000004] ok 1 rk_mpp_rewrite\n"
+		printf "[    1.000005]     # Subtest: rockchip-rga-rewrite\n"
+		printf "[    1.000006] ok 2 rockchip-rga-rewrite\n"
 	} > "$KUNIT_DMESG_SOURCE"
 
+	if KUNIT_DEBUGFS_ROOT="$tmp_root" KUNIT_REPORT="$tmp_root/result.tsv" \
+		"$0" >/dev/null 2>&1; then
+		echo "pre-subtest fatal KUnit interval unexpectedly passed" >&2
+		return 1
+	fi
+	sed -i '/WARNING: suite init poisoned the boot/d' "$KUNIT_DMESG_SOURCE"
 	KUNIT_DEBUGFS_ROOT="$tmp_root" KUNIT_REPORT="$tmp_root/result.tsv" \
 		"$0" >/dev/null
 	for artifact in result.tsv result-journal.txt result-fatal.txt \
@@ -295,6 +433,30 @@ selftest()
 	sed -i '0,/    not ok 1 - case_1/s//    ok 1 - case_1/' \
 		"$tmp_root/rk_mpp_rewrite/results"
 
+	sed -i '0,/    ok 1 - case_1/s//    ok 1 - unexpected_case/' \
+		"$tmp_root/rk_mpp_rewrite/results"
+	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "wrong KUnit case manifest unexpectedly passed" >&2
+		return 1
+	fi
+	sed -i '0,/    ok 1 - unexpected_case/s//    ok 1 - case_1/' \
+		"$tmp_root/rk_mpp_rewrite/results"
+
+	sed -i '/    ok 1 - case_1/a\\        ok 1 - parameter_row' \
+		"$tmp_root/rk_mpp_rewrite/results"
+	KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null
+	sed -i '/        ok 1 - parameter_row/d' \
+		"$tmp_root/rk_mpp_rewrite/results"
+
+	sed -i '0,/    ok 2 - case_2/s//    ok 1 - case_2/' \
+		"$tmp_root/rk_mpp_rewrite/results"
+	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "duplicate KUnit ordinal unexpectedly passed" >&2
+		return 1
+	fi
+	sed -i '0,/    ok 1 - case_2/s//    ok 2 - case_2/' \
+		"$tmp_root/rk_mpp_rewrite/results"
+
 	sed -i "/    ok $mpp_count - case_$mpp_count/d" \
 		"$tmp_root/rk_mpp_rewrite/results"
 	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
@@ -344,8 +506,13 @@ case "${1:-}" in
 	;;
 esac
 
+if ! check_identity; then
+	echo "rewrite KUnit identity check failed" >&2
+	exit 1
+fi
+
 failed=0
-header="suite\texpected_cases\tplan_cases\tresult_cases\tfailed_cases\tskipped_cases\tsummary\tverdict\tkernel_release"
+header="suite\texpected_cases\tplan_cases\tresult_cases\tfailed_cases\tskipped_cases\tsummary\tverdict\tkernel_release\tsource_commit\tconfig_sha256\tpackage_id\tordered_case_names_sha256"
 printf "%b\n" "$header"
 if [ -n "$KUNIT_REPORT" ]; then
 	mkdir -p "$(dirname "$KUNIT_REPORT")"
