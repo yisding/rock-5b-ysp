@@ -8,6 +8,7 @@ fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, import);
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, queued);
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_vp9_translate_validate_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, import);
+fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_abort_hw_active_kunit	1	acquire:active = kzalloc(sizeof(*active), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, active);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_acquire_abort_during_arming_kunit	1	acquire:job = kzalloc_obj(*job, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, job);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_acquire_abort_during_arming_kunit	1	acquire:job->acquire_fences = kcalloc(2, sizeof(*job->acquire_fences), -> fatal:KUNIT_ASSERT_NOT_NULL(test, job->acquire_fences);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_acquire_abort_during_arming_kunit	1	acquire:job->acquire_waiters = kcalloc(2, sizeof(*job->acquire_waiters), -> fatal:KUNIT_ASSERT_EQ(test, ret, 0);
@@ -274,6 +275,7 @@ raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_ses
 raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_hw_active_import_kunit	1	import = kzalloc(sizeof(*import), GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_public_cleanup_kunit	1	import = kzalloc(sizeof(*import), GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_vp9_translate_validate_kunit	1	import = kzalloc(sizeof(*import), GFP_KERNEL);
+raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_session_abort_hw_active_kunit	1	active = kzalloc(sizeof(*active), GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_acquire_abort_during_arming_kunit	1	job = kzalloc_obj(*job, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_acquire_abort_during_arming_kunit	1	job->acquire_fences = kcalloc(2, sizeof(*job->acquire_fences),
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_acquire_abort_during_arming_kunit	1	job->acquire_waiters = kcalloc(2, sizeof(*job->acquire_waiters),
