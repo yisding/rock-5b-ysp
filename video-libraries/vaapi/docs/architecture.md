@@ -147,13 +147,18 @@ The amount of reconstruction is codec-specific:
 | VP9 | The coded frame header and payload arrive together | Mostly pass-through, plus hidden-reference parsing and output routing |
 | H.264 | Slice NAL payloads survive; SPS/PPS arrive only as parsed structures | Rebuild SPS/PPS, add Annex B start codes, preserve scaling and reference defaults |
 | HEVC | Slice NAL payloads survive; VPS/SPS/PPS and DPB state arrive as structures | Rebuild VPS/SPS/PPS, reproduce reference-picture syntax, and rewrite the slice portion that depends on reconstructed parameter sets |
-| AV1 | VA supplies tile data after consuming the sequence/frame headers | Rebuild large, conditional sequence and frame-header OBUs on every picture; not implemented |
+| AV1 | VA supplies effective parsed picture state and headerless tile data | The public packet path would need unsound OBU reconstruction; the credible vendor alternative is a separate parsed-picture VDPU compiler and direct `/dev/mpp_service` transport |
 
 This is why AV1 hardware capability does not imply AV1 VA-API support. The
 same RK3588 and MPP stack can decode AV1 when `av1_rkmpp` supplies original
-OBUs, yet the VA bridge cannot feed MPP until it reconstructs the headers VA
-removed. The detailed rationale is in the
-[AV1 reconstruction finding](../../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md).
+OBUs, yet the normal VA bridge cannot feed MPP's packet parser with the state
+that survives the VA boundary. Complete OBU reconstruction remains unsuitable
+for stock clients. A separate direct vendor backend can instead translate the
+effective VA state into hardware jobs and key persistent CDF/segmentation/MV
+state to explicit VA surfaces. The packet mismatch is detailed in the
+[AV1 reconstruction finding](../../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md);
+the bounded alternative is the
+[direct AV1 backend design](av1-direct-mpp-service-backend.md).
 
 ## 3. Driver structure and object model
 
@@ -429,11 +434,30 @@ syntax and rejects Profile 2 combinations that cannot be represented as 10-bit
 ### AV1
 
 There is no VA-API AV1 path. VA hands the driver tile data without the original
-frame-header OBU. Reconstructing AV1 would require a large conditional header
-on every frame, correct reference-slot and probability-model state, OBU
-framing, and new adversarial/conformance coverage. Discovery probes may prove
-that MPP and the kernel expose AV1; they deliberately do not advertise a VA
-profile or submit incomplete data.
+frame-header OBU, and stock libva also omits `refresh_frame_flags`. Complete OBU
+reconstruction would require a large conditional header on every frame and
+still could not reproduce all original parser state soundly.
+
+The source-inspected vendor alternative is a distinct backend:
+
+```text
+VA AV1 picture + tiles + explicit surfaces
+  -> validated RKAV1Picture
+  -> VDPU383 hardware-job compiler
+  -> /dev/mpp_service register transport
+  -> pixels plus surface-keyed CDF/segmentation/MV state
+```
+
+Attaching hardware state to actual surface generations removes the need for
+the VA driver to update abstract AV1 DPB slots using the missing refresh mask.
+This bypasses userspace libmpp, not the kernel MPP framework, and transfers the
+AV1 HAL, DMA-BUF allocation, stream packing, validation, and recovery burden
+into the driver. The architecture, threat boundary, open discriminators, and
+golden-job replay sequence are in the
+[direct backend design](av1-direct-mpp-service-backend.md).
+
+No direct job has been submitted, so discovery probes deliberately do not
+advertise an AV1 VA profile or send incomplete data.
 
 ## 6. Surface memory and zero-copy ownership
 
@@ -911,7 +935,7 @@ because package and upstream state can change without an architecture edit.
 | Main10 encode | Linear P010 memory handling is checked | RK3588 MPP `vepu5xx` rejects the required 10-bit input format | Obtain backend/HAL support first, then add Main10 bitstream, quality, sanitizer, concurrency, and soak gates |
 | PRIME imports | One-object linear NV12 and packed RGB are validated | Multi-object, planar external, AFBC/tiled, and other modifiers are rejected | Add one descriptor shape at a time with fd-lifetime, capacity, conversion, and standard-decoder evidence |
 | Chromium | The driver path is reachable in principle and other desktop apps work in the same session | Chromium 150's GPU process cannot create a Mali/Panfrost GL context, so VA-API is never reached | Fix or bypass the Chromium GL startup failure, then measure the stock VA-API path before considering a custom bridge |
-| AV1 | Hardware and direct RKMPP decode exist through other APIs | VA-to-MPP OBU reconstruction is absent and deliberately unadvertised | Treat as a separate project with frame-header reconstruction, hostile-input fuzzing, conformance, and fallback gates |
+| AV1 | Hardware and ordinary RKMPP packet decode exist; a source-inspected direct `/dev/mpp_service` backend has a bounded architecture | No normalized golden-job replay, direct compiler, surface-state conformance, output-layout proof, recovery, film-grain, or app gate exists; AV1 remains unadvertised | Capture and replay one known-good libmpp job through a standalone direct transport before integrating any VA capability |
 | Long-term maintenance | The fork has structured gates and source-pinned browser policy | MPP, librga, kernel, libva, Firefox, and Chromium can drift independently | Re-run the relevant conformance/app/sandbox gates on every component bump and update the source pins |
 
 ### Recommended priority
@@ -922,8 +946,9 @@ because package and upstream state can change without an architecture edit.
    VP9 Profile 2.
 3. Complete long encode and native WebRTC qualification before widening or
    default-enabling encode.
-4. Treat Chromium GL, AV1 reconstruction, and new PRIME descriptor shapes as
-   independent work packages, not extensions implied by existing green gates.
+4. Treat Chromium GL, the AV1 direct-backend proof, and new PRIME descriptor
+   shapes as independent work packages, not extensions implied by existing
+   green gates.
 
 ## 13. Debugging by boundary
 
@@ -956,6 +981,7 @@ not a correctness result.
 - [Application enablement map](../../../docs/app-enablement.md)
 - [Original driver review and renovation decision](../../../findings/2026-07-21-rockchip-vaapi-driver-review.md)
 - [Bitstream reconstruction and AV1 boundary](../../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md)
+- [Direct AV1 `/dev/mpp_service` backend design](av1-direct-mpp-service-backend.md)
 - [Main10 AFBC/P010 validation](../../../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md)
 - [Shipping-stack, HEVC, VLC, and Firefox gates](../../../findings/2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md)
 - [Narrow AFBC 10-bit refusal](../../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md)

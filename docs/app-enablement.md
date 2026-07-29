@@ -197,8 +197,12 @@ Three roads now exist, ordered by proof level:
    stateless (request API), which Chromium's native decoder speaks but Firefox
    cannot (Firefox's V4L2 support is stateful-M2M-only, no request-API). AV1 on
    mainline has its own decoder (since 6.5) and — being stateless→stateless — a
-   VA-over-V4L2 AV1 shim would be far easier than the MPP bridge's OBU
-   reconstruction, but none exists yet. See the
+   VA-over-V4L2 AV1 shim remains the clean mainline route. On the present vendor
+   image, a separately bounded option is a direct `rockchip-vaapi` VDPU job
+   compiler over `/dev/mpp_service`; it bypasses libmpp's packet parser but has
+   not submitted a job yet. See the
+   [direct backend design](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md)
+   and the
    [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md).
 3. **The VA-API road** — the renovated driver now exists and stock Chromium
    supports VA-API behind runtime flags. The remaining work is a real
@@ -264,4 +268,5 @@ De-risk in this order:
 - [`../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md`](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md) — source-level survey of the archived ubuntu-rockchip stack this page's first revision is based on
 - [`../findings/2026-07-21-rockchip-vaapi-driver-review.md`](../findings/2026-07-21-rockchip-vaapi-driver-review.md) — full review of the PoC VA-API-over-MPP driver: fork-and-renovate verdict, Chromium/app reach, sandbox gate analysis
 - [`../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md`](../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) — the bitstream-reconstruction spectrum and why AV1 is scoped out of the driver's v1 (VP9 fallback)
+- [`../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md`](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md) — the direct vendor-kernel AV1 design, surface-keyed state model, transferred HAL responsibilities, and first replay proof
 - [`../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md`](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) — mainline is V4L2-stateless not VA-API; why Firefox can use neither the mainline V4L2 route nor the ffmpeg rkmpp wrapper decoders, making VA-API its only path

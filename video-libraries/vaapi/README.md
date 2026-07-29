@@ -69,7 +69,8 @@ does not mean the measured gates are hypothetical.
 | VP9 Profile 2 decode | Experimental | P010 output is byte-exact through the same AFBC/RGA path | Same kernel/librga pairing and app gate |
 | H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, linear DMA-BUF import, concurrency, sanitizer, RTP, and paced soak smoke pass | One full-frame slice; P010 input, multi-object/tiled import, full WebRTC peer negotiation, and long qualification remain |
 | HEVC Main encode | Experimental | FFmpeg/GStreamer output is parser-clean and software-decodable with the RK3588 CTU64 contract; concurrency, sanitizer, and soak smoke pass | Main profile/NV12 only; same imported-surface and qualification gaps |
-| AV1 decode/encode | Out of scope | None | RK3588 AV1 uses a separate backend and the required VA-to-MPP reconstruction is not implemented |
+| AV1 decode | Unadvertised design | The vendor AV1 endpoint is independently hardware-validated; source inspection now bounds a direct `/dev/mpp_service` backend that would translate parsed VA state into VDPU jobs and attach CDF/segmentation/MV state to explicit surfaces | No direct VA job or golden replay exists; hardware stream packing, state transitions, output layout, recovery, film grain, conformance, and app/sandbox gates remain |
+| AV1 encode | Out of scope | None | No implementation plan or validation |
 
 ## Decode architecture and boundaries
 
@@ -88,13 +89,19 @@ converts the native compact layout to application-visible P010. Kernel and
 librga must be treated as a pair: an older stride/UV-offset contract can make a
 correct VA request produce bad chroma below the driver.
 
-The exact design review, AV1 exclusion, and mainline alternative are preserved
-in:
+The exact design review, AV1 packet-reconstruction boundary, direct vendor
+backend, and mainline alternative are preserved in:
 
 - [driver renovation review](../../findings/2026-07-21-rockchip-vaapi-driver-review.md);
 - [bitstream reconstruction and AV1 boundary](../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md);
+- [direct AV1 `/dev/mpp_service` backend design](docs/av1-direct-mpp-service-backend.md);
 - [mainline V4L2 versus VA-API browser landscape](../../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md); and
 - [Main10/VP9 Profile 2 runtime validation](../../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md).
+
+The direct design bypasses userspace libmpp, not the kernel MPP service. It
+would replace the AV1 parser/HAL/allocator slice with a checked, version-pinned
+VDPU job compiler and a small ioctl transport. This is a proposed implementation
+boundary, not evidence that AV1 VA-API works.
 
 ## Encode surface contract
 
@@ -175,6 +182,7 @@ maintained capability/boundary summary.
 | Original code review and renovation decision | [`2026-07-21-rockchip-vaapi-driver-review.md`](../../findings/2026-07-21-rockchip-vaapi-driver-review.md) |
 | Browser API alternatives | [`2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md`](../../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
 | AV1 reconstruction boundary | [`2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md`](../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) |
+| AV1 direct vendor-backend design | [`docs/av1-direct-mpp-service-backend.md`](docs/av1-direct-mpp-service-backend.md), with [dated design tombstone](../../findings/2026-07-29-rockchip-vaapi-direct-av1-mpp-service-design.md) |
 | HEVC/Main10/VP9 Profile 2 | [`2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md`](../../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md) |
 | Narrow AFBC 10-bit refusal and fallback | [`2026-07-29-rga-no-core-match-narrow-afbc-10bit.md`](../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md) |
 | HEVC TILES same-ID PPS regression | [`2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md`](../../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md) |
