@@ -13,8 +13,8 @@ MPP_REPO="${MPP_REPO:-$WORKSPACE_ROOT/rockchip-userspace/mpp-rockchip}"
 # commits between upstream tag 1.0.12 (1375813c) and this tip. The working tree
 # above is the HermanChen/mpp vendor mirror with a `yisding` remote added --
 # push ysp work to `yisding`, never to `origin`.
-MPP_COMMIT="${MPP_COMMIT:-d8c6b88a}"
-MPP_UPSTREAM_VERSION="${MPP_UPSTREAM_VERSION:-1.5.0+git20260727.d8c6b88a+ds}"
+MPP_COMMIT="${MPP_COMMIT:-3381fd2c}"
+MPP_UPSTREAM_VERSION="${MPP_UPSTREAM_VERSION:-1.5.0+git20260729.3381fd2c+ds}"
 
 LIBRGA_REPO="${LIBRGA_REPO:-$WORKSPACE_ROOT/rockchip-userspace/librga-fork}"
 # Must track the tip that matches the shipped kernel's 10-bit stride convention.
@@ -26,8 +26,8 @@ LIBRGA_COMMIT="${LIBRGA_COMMIT:-26a50ef}"
 LIBRGA_UPSTREAM_VERSION="${LIBRGA_UPSTREAM_VERSION:-2.2.0+git20260725.26a50ef}"
 
 FFMPEG_REPO="${FFMPEG_REPO:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81}"
-FFMPEG_COMMIT="${FFMPEG_COMMIT:-da5befc806c5a6179da3df825c9423918c9a10d3}"
-FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.0.3+rockchip+git20260719.da5befc806}"
+FFMPEG_COMMIT="${FFMPEG_COMMIT:-33a651a55ba62d29d9474d236ceb9240043da518}"
+FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.0.3+rockchip+git20260729.33a651a55b}"
 
 FFMPEG_ROCKCHIP_REPO="${FFMPEG_ROCKCHIP_REPO:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip}"
 FFMPEG_ROCKCHIP_COMMIT="${FFMPEG_ROCKCHIP_COMMIT:-40c412daccf08164493da0de990eb99a8948116b}"
@@ -41,7 +41,7 @@ GRD_DELTA="${GRD_DELTA:-}"
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
 KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
 KERNEL_PPA_CONFIG="${KERNEL_PPA_CONFIG:-$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config}"
-KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.40+rk3588av1fwport20260725}"
+KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.40+rk3588av1fwport20260729}"
 
 KERNEL_SGGUARD_SOURCE="${KERNEL_SGGUARD_SOURCE:-linux-rockchip64-ysp-sgguard}"
 # Diagnostic variant of the forward-port kernel: same worktree, same production
@@ -247,8 +247,14 @@ prepare_worktree_source() {
     rm -rf "$source_dir" "$upstream_tmp" "$export_list"
     mkdir -p "$source_dir" "$upstream_tmp"
 
+    # The shared Armbian worktree is also used for rewrite-composite builds,
+    # which leave untracked drivers/video/rockchip/*-rewrite/ directories and
+    # rewrite-modified tracked state behind. The 20260725 production orig
+    # shipped that state (findings/2026-07-29-production-6-18-40-orig-is-
+    # rewrite-composite-snapshot.md), so the export must never include
+    # rewrite driver paths.
     git -c safe.directory="$repo" -C "$repo" ls-files --cached --others --exclude-standard |
-        grep -Ev '(^|/)debian(/|$)|(^|/).*\.orig$|(^|/).*\.rej$|(^|/)\.config(\.old)?$|(^|/).*\.cmd$|(^|/).*\.o$|(^|/).*\.ko$|(^|/).*\.dtb(o)?$|(^|/)\.tmp_.*|(^|/)Module\.symvers$|(^|/)System\.map$|(^|/)modules\.(builtin|builtin\.modinfo|order)$|(^|/)built-in\.a$' \
+        grep -Ev '(^|/)debian(/|$)|(^|/).*\.orig$|(^|/).*\.rej$|(^|/)\.config(\.old)?$|(^|/).*\.cmd$|(^|/).*\.o$|(^|/).*\.ko$|(^|/).*\.dtb(o)?$|(^|/)\.tmp_.*|(^|/)Module\.symvers$|(^|/)System\.map$|(^|/)modules\.(builtin|builtin\.modinfo|order)$|(^|/)built-in\.a$|^drivers/video/rockchip/(mpp|rga)-rewrite/' \
         > "$export_list"
 
     tar -C "$repo" -cf - -T "$export_list" | tar -C "$source_dir" -xf -

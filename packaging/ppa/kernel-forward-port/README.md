@@ -3,7 +3,26 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
-**Uploaded 2026-07-25 (latest):** `6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1`
+**Uploaded 2026-07-29 (latest):** `6.18.40+rk3588av1fwport20260729-0ubuntu1~rk1`
+— **provenance repair** of the production package. The `…20260725` orig was
+accidentally a rewrite-composite snapshot of the shared Armbian worktree: its
+`drivers/iommu/rockchip-iommu.c` carried the rewrite branch's hardened
+`rockchip_iommu_set_fault_handler()`, whose sleeping clear path panicked the
+installed `~rk2` kernel from the vendor MPP job ISR on 2026-07-29 08:01
+([ISR-panic finding](../../../findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md),
+[orig-provenance finding](../../../findings/2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md)).
+The re-cut export matches the forward-port tree byte-for-byte on the
+driver/IOMMU payload and drops the leftover
+`drivers/video/rockchip/*-rewrite/` directories — the exporter now excludes
+those paths permanently — while changing no config relative to `~rk2`
+(`CONFIG_DMABUF_DEBUG` stays off). `debsign` signed the `.dsc`, `.buildinfo`,
+and source `.changes` with `0FDDE6BC…AA2228E6` (`gpg --verify` good); `dput`
+to `ppa:yi-ding/ubuntu-rock-5b` completed client-side and wrote
+`linux-rockchip64-ysp_6.18.40+rk3588av1fwport20260729-0ubuntu1~rk1_source.ppa.upload`.
+**Launchpad processing pending** — confirm source acceptance, the arm64
+build, then install/boot and re-run the interrupted RDP login gate.
+
+**Superseded 2026-07-25 upload:** `6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1`
 — a **production (non-debug)** source package of `rk3588-video-6.18` tail
 `0001`–`0075`, rebased to Linux 6.18.40 stable commit `221fc2f4d0ed`.
 It carries the hardware-verified 2026-07-25 fixes for RGA 10-bit UV plane
@@ -82,7 +101,7 @@ The local build wrapper currently owns these inputs:
 | Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Production kernel config | `KERNEL_PPA_CONFIG=$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
-| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.40+rk3588av1fwport20260725` |
+| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.40+rk3588av1fwport20260729` |
 
 The exporter copies the patched worktree contents, including Armbian patch
 changes and untracked patch-added files, while excluding `.git`, `.config`,
