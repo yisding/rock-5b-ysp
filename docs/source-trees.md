@@ -21,6 +21,7 @@ patches unless explicitly marked otherwise.
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
+| 12 | Mesa MR !43161 benchmark tree | [fixed-clock benchmark finding](../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md), [Mesa reproducer runbook](../video-libraries/mesa/reproducers/README.md) | Mesa MR commit `647256dc2ae` + tracked benchmark override patch; local branch tip `6000414f9ea`, see §12 |
 
 ---
 
@@ -625,3 +626,25 @@ Those commits are the likely source to reuse for any RKMPP AV1 forward-port
 experiment. The YSP repo does **not** vendor those files today; this section is
 a provenance record for the analysis in
 [`kernel-drivers/av1/docs/av1-rk3588.md`](../kernel-drivers/av1/docs/av1-rk3588.md).
+
+## 12. Mesa MR !43161 benchmark tree
+
+The decision-grade workaround benchmark used the external worktree
+`/home/yi/Code/fdo/mesa-mr43161-bench`, branch
+`benchmark/mr43161-all-blits`, at local commit `6000414f9ea`. Reconstruct its
+driver behavior from public Mesa MR !43161 commit `647256dc2ae`:
+
+```bash
+git clone https://gitlab.freedesktop.org/mesa/mesa.git mesa-mr43161-bench
+cd mesa-mr43161-bench
+git checkout 647256dc2ae
+git apply /path/to/rock-5b-ysp/video-libraries/mesa/patches/mr43161-benchmark-override.patch
+```
+
+The tracked patch removes the MR's temporary size/aspect gate for the tested
+all-V9–V10 policy and adds the static plus dynamic test-only controls. The
+local `6000414f9ea` commit contains the same resulting driver source. The
+benchmark executable and runner are tracked under
+[`video-libraries/mesa/reproducers/`](../video-libraries/mesa/reproducers/README.md);
+build directories and raw logs remain external artifacts as required by this
+repository's source/artifact policy.

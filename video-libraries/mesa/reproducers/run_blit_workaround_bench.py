@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Mesa blit-workaround benchmark in paired ABBA/BAAB processes."""
+"""Run the Mesa blit-workaround benchmark in controlled ABBA/BAAB blocks."""
 
 from __future__ import annotations
 
@@ -94,6 +94,15 @@ def parse_fit(line: str) -> tuple[tuple[str, str], Fit] | None:
     )
 
 
+def reject_reason(fits: Iterable[Fit], minimum_r2: float) -> str | None:
+    fit_list = list(fits)
+    if any(fit.slope <= 0.0 for fit in fit_list):
+        return "non-positive-slope"
+    if any(fit.r2 < minimum_r2 for fit in fit_list):
+        return "fit-r2"
+    return None
+
+
 def run_process(
     binary: Path,
     common_args: list[str],
@@ -153,6 +162,134 @@ def run_process(
     return fits
 
 
+def run_in_process(
+    binary: Path,
+    common_args: list[str],
+    blocks: int,
+    off_assignment: tuple[str, str],
+    on_assignment: tuple[str, str],
+    cpu: int | None,
+    expected_gpu_hz: int,
+    single_context: bool,
+    dynamic_option: str,
+) -> list[dict[str, list[dict[tuple[str, str], Fit]]]]:
+    if off_assignment[0] != on_assignment[0]:
+        raise RuntimeError(
+            "in-process A/B requires off and on to use the same option name"
+        )
+
+    command = [
+        str(binary),
+        "--in-process-blocks",
+        str(blocks),
+        "--context-option",
+        off_assignment[0],
+        "--context-a",
+        off_assignment[1],
+        "--context-b",
+        on_assignment[1],
+        *common_args,
+    ]
+    if single_context:
+        command[1:1] = [
+            "--single-context",
+            "--dynamic-option",
+            dynamic_option,
+        ]
+    if expected_gpu_hz:
+        command[1:1] = ["--expect-gpu-hz", str(expected_gpu_hz)]
+    if cpu is not None:
+        command = ["taskset", "-c", str(cpu), *command]
+
+    completed = subprocess.run(
+        command,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    for line in completed.stderr.splitlines():
+        print(f"CHILD-STDERR,in-process,{line}", file=sys.stderr)
+    print(completed.stdout, end="")
+
+    if single_context:
+        acknowledgements = [f"{off_assignment[0]}=dynamic"]
+        acknowledgements.extend(
+            f"{dynamic_option}={value}"
+            for value in {off_assignment[1], on_assignment[1]}
+        )
+    else:
+        acknowledgements = [
+            f"{off_assignment[0]}={off_assignment[1]}",
+            f"{on_assignment[0]}={on_assignment[1]}",
+        ]
+    for acknowledgement in set(acknowledgements):
+        required = acknowledgements.count(acknowledgement)
+        if completed.stderr.count(acknowledgement) < required:
+            raise RuntimeError(
+                "driver did not acknowledge both in-process contexts; "
+                f"missing {required} occurrence(s) of {acknowledgement}"
+            )
+    if completed.returncode not in {0, 2}:
+        raise RuntimeError(
+            f"in-process benchmark exited {completed.returncode}"
+        )
+
+    block_results: list[
+        dict[str, list[dict[tuple[str, str], Fit]]]
+    ] = [{"off": [], "on": []} for _ in range(blocks)]
+    current_block: int | None = None
+    current_label: str | None = None
+    current_fits: dict[tuple[str, str], Fit] = {}
+    verdicts: dict[str, str] = {}
+
+    def finish_run() -> None:
+        nonlocal current_block, current_label, current_fits
+        if current_block is None or current_label is None:
+            return
+        if not current_fits:
+            raise RuntimeError(
+                f"in-process block {current_block} {current_label} "
+                "produced no FIT records"
+            )
+        semantic_label = "off" if current_label == "a" else "on"
+        block_results[current_block][semantic_label].append(current_fits)
+        current_block = None
+        current_label = None
+        current_fits = {}
+
+    for line in completed.stdout.splitlines():
+        fields = line.split(",")
+        if len(fields) == 4 and fields[0] == "INPROCESS-RUN":
+            finish_run()
+            current_block = int(fields[1])
+            current_label = fields[3]
+            if (
+                not 0 <= current_block < blocks
+                or current_label not in {"a", "b"}
+            ):
+                raise RuntimeError(f"invalid in-process run marker: {line}")
+            continue
+        parsed = parse_fit(line)
+        if parsed and current_block is not None:
+            current_fits[parsed[0]] = parsed[1]
+        if len(fields) == 3 and fields[0] == "VERDICT":
+            verdicts[fields[1]] = fields[2]
+    finish_run()
+
+    for block_index, block in enumerate(block_results):
+        if len(block["off"]) != 2 or len(block["on"]) != 2:
+            raise RuntimeError(
+                f"in-process block {block_index} did not contain two "
+                "runs per context"
+            )
+    if verdicts.get("b") != "PASS" and off_assignment != on_assignment:
+        raise RuntimeError(
+            "in-process context B failed correctness in a differential A/B"
+        )
+    return block_results
+
+
 def verify_clock(expected: int, phase: str) -> None:
     minimum, maximum, current = gpu_clocks()
     print(f"CLOCK,{phase},{minimum},{maximum},{current}")
@@ -165,8 +302,8 @@ def verify_clock(expected: int, phase: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Run blit_workaround_bench in alternating off/on process blocks "
-            "and summarize fitted fixed and per-blit deltas."
+            "Run blit_workaround_bench in alternating off/on blocks and "
+            "summarize fitted fixed and per-blit deltas."
         )
     )
     parser.add_argument(
@@ -175,6 +312,25 @@ def main() -> int:
         default=Path(__file__).with_name("blit_workaround_bench"),
     )
     parser.add_argument("--blocks", type=int, default=6)
+    parser.add_argument(
+        "--in-process",
+        action="store_true",
+        help="alternate off/on in one child (two contexts unless overridden)",
+    )
+    parser.add_argument(
+        "--single-context",
+        action="store_true",
+        help=(
+            "toggle the test-only dynamic selector in one EGL context and "
+            "balance ascending/descending count order"
+        ),
+    )
+    parser.add_argument(
+        "--dynamic-option",
+        default="PAN_BLIT_DEPTH_BIAS_DYNAMIC",
+        metavar="NAME",
+        help="test-only per-draw selector used by --single-context",
+    )
     parser.add_argument(
         "--off-env",
         type=parse_assignment,
@@ -202,6 +358,12 @@ def main() -> int:
         help="minimum accepted adjacent A/B pairs for a decision-grade summary",
     )
     parser.add_argument(
+        "--min-blocks",
+        type=int,
+        default=6,
+        help="minimum accepted ABBA/BAAB block contrasts",
+    )
+    parser.add_argument(
         "--bootstrap-samples",
         type=int,
         default=20000,
@@ -216,6 +378,10 @@ def main() -> int:
 
     if args.blocks < 1:
         parser.error("--blocks must be positive")
+    if args.single_context and not args.in_process:
+        parser.error("--single-context requires --in-process")
+    if not args.dynamic_option or "=" in args.dynamic_option:
+        parser.error("--dynamic-option must be a non-empty option name")
     if args.cpu is not None and args.cpu < 0:
         parser.error("--cpu must be non-negative")
     if args.expect_gpu_hz < 0:
@@ -224,6 +390,8 @@ def main() -> int:
         parser.error("--min-fit-r2 must be between zero and one")
     if args.min_pairs < 1:
         parser.error("--min-pairs must be positive")
+    if args.min_blocks < 1:
+        parser.error("--min-blocks must be positive")
     if args.bootstrap_samples < 1:
         parser.error("--bootstrap-samples must be positive")
     if not args.binary.is_file() or not os.access(args.binary, os.X_OK):
@@ -231,10 +399,25 @@ def main() -> int:
     common_args = args.benchmark_args
     if common_args[:1] == ["--"]:
         common_args = common_args[1:]
-    if "--label" in common_args:
-        parser.error("the runner owns --label")
-    if "--order" in common_args:
-        parser.error("the runner owns --order")
+    owned_benchmark_options = {
+        "--label",
+        "--order",
+        "--in-process-blocks",
+        "--context-option",
+        "--context-a",
+        "--context-b",
+        "--single-context",
+        "--dynamic-option",
+        "--expect-gpu-hz",
+    }
+    overlap = owned_benchmark_options.intersection(
+        argument.partition("=")[0] for argument in common_args
+    )
+    if overlap:
+        parser.error(
+            "the runner owns benchmark option(s): "
+            + ", ".join(sorted(overlap))
+        )
 
     uname = os.uname()
     print(
@@ -243,40 +426,60 @@ def main() -> int:
     )
     verify_clock(args.expect_gpu_hz, "start")
 
-    block_results: list[
-        dict[str, list[dict[tuple[str, str], Fit]]]
-    ] = []
-    for block in range(args.blocks):
-        order = ("off", "on", "on", "off") if block % 2 == 0 else (
-            "on",
-            "off",
-            "off",
-            "on",
+    if args.in_process:
+        print(
+            f"COMPARISON,"
+            f"{'single-context' if args.single_context else 'in-process'},"
+            f"{args.off_env[0]},"
+            f"{args.off_env[1]},{args.on_env[1]}"
         )
-        schedule_order = (
-            "batched-first" if block % 2 == 0 else "isolated-first"
+        block_results = run_in_process(
+            args.binary,
+            common_args,
+            args.blocks,
+            args.off_env,
+            args.on_env,
+            args.cpu,
+            args.expect_gpu_hz,
+            args.single_context,
+            args.dynamic_option,
         )
-        print(f"BLOCK,{block},{'-'.join(order)},{schedule_order}")
-        result: dict[
-            str, list[dict[tuple[str, str], Fit]]
-        ] = {"off": [], "on": []}
-        for sequence, label in enumerate(order):
-            verify_clock(args.expect_gpu_hz, f"block-{block}-run-{sequence}-pre")
-            assignment = args.off_env if label == "off" else args.on_env
-            result[label].append(
-                run_process(
-                    args.binary,
-                    common_args,
-                    label,
-                    assignment,
-                    args.cpu,
-                    schedule_order,
+    else:
+        block_results = []
+        for block in range(args.blocks):
+            order = (
+                ("off", "on", "on", "off")
+                if block % 2 == 0
+                else ("on", "off", "off", "on")
+            )
+            schedule_order = (
+                "batched-first" if block % 2 == 0 else "isolated-first"
+            )
+            print(f"BLOCK,{block},{'-'.join(order)},{schedule_order}")
+            result: dict[
+                str, list[dict[tuple[str, str], Fit]]
+            ] = {"off": [], "on": []}
+            for sequence, label in enumerate(order):
+                verify_clock(
+                    args.expect_gpu_hz,
+                    f"block-{block}-run-{sequence}-pre",
                 )
-            )
-            verify_clock(
-                args.expect_gpu_hz, f"block-{block}-run-{sequence}-post"
-            )
-        block_results.append(result)
+                assignment = args.off_env if label == "off" else args.on_env
+                result[label].append(
+                    run_process(
+                        args.binary,
+                        common_args,
+                        label,
+                        assignment,
+                        args.cpu,
+                        schedule_order,
+                    )
+                )
+                verify_clock(
+                    args.expect_gpu_hz,
+                    f"block-{block}-run-{sequence}-post",
+                )
+            block_results.append(result)
 
     keys = set(block_results[0]["off"][0])
     for block in block_results:
@@ -287,29 +490,49 @@ def main() -> int:
 
     for schedule, metric in sorted(keys):
         fixed_deltas = []
+        block_off_slopes = []
+        block_on_slopes = []
         slope_deltas = []
         slope_percentages = []
         for block_index, block in enumerate(block_results):
+            off_fits = [
+                run[(schedule, metric)] for run in block["off"]
+            ]
+            on_fits = [
+                run[(schedule, metric)] for run in block["on"]
+            ]
+            reason = reject_reason(
+                [*off_fits, *on_fits], args.min_fit_r2
+            )
+            if reason:
+                print(
+                    f"BLOCK-REJECT,{block_index},{schedule},{metric},"
+                    f"{reason}"
+                )
+                continue
             off_fixed = statistics.fmean(
-                run[(schedule, metric)].intercept for run in block["off"]
+                fit.intercept for fit in off_fits
             )
             on_fixed = statistics.fmean(
-                run[(schedule, metric)].intercept for run in block["on"]
+                fit.intercept for fit in on_fits
             )
             off_slope = statistics.fmean(
-                run[(schedule, metric)].slope for run in block["off"]
+                fit.slope for fit in off_fits
             )
             on_slope = statistics.fmean(
-                run[(schedule, metric)].slope for run in block["on"]
+                fit.slope for fit in on_fits
             )
             fixed_delta = on_fixed - off_fixed
             slope_delta = on_slope - off_slope
-            slope_percentage = (
-                (on_slope / off_slope - 1.0) * 100.0
-                if off_slope
-                else math.nan
+            log_ratio = statistics.fmean(
+                math.log(fit.slope) for fit in on_fits
+            ) - statistics.fmean(
+                math.log(fit.slope) for fit in off_fits
             )
+            slope_percentage = math.expm1(log_ratio) * 100.0
             fixed_deltas.append(fixed_delta)
+            block_off_slopes.append(off_slope)
+            block_on_slopes.append(on_slope)
             slope_deltas.append(slope_delta)
             slope_percentages.append(slope_percentage)
             print(
@@ -318,14 +541,66 @@ def main() -> int:
                 f"{slope_percentage:.6f}"
             )
 
+        block_interval_low = math.nan
+        block_interval_high = math.nan
+        if slope_percentages:
+            block_interval_low, block_interval_high = (
+                bootstrap_median_interval(
+                    slope_percentages, args.bootstrap_samples
+                )
+            )
+            print(
+                f"DELTA,{schedule},{metric},"
+                f"{statistics.median(fixed_deltas):.6f},"
+                f"{statistics.median(slope_deltas):.6f},"
+                f"{statistics.median(slope_percentages):.6f},"
+                f"{percentile(slope_deltas, 0.1):.6f},"
+                f"{percentile(slope_deltas, 0.9):.6f},"
+                f"{len(slope_percentages)}"
+            )
+            print(
+                f"BLOCK-SUMMARY,{schedule},{metric},"
+                f"{statistics.median(fixed_deltas):.6f},"
+                f"{statistics.median(block_off_slopes):.6f},"
+                f"{statistics.median(block_on_slopes):.6f},"
+                f"{statistics.median(slope_deltas):.6f},"
+                f"{statistics.median(slope_percentages):.6f},"
+                f"{percentile(slope_percentages, 0.1):.6f},"
+                f"{percentile(slope_percentages, 0.9):.6f},"
+                f"{block_interval_low:.6f},"
+                f"{block_interval_high:.6f},"
+                f"{len(slope_percentages)},{len(block_results)}"
+            )
+        else:
+            print(
+                f"DELTA,{schedule},{metric},"
+                "nan,nan,nan,nan,nan,0"
+            )
+            print(
+                f"BLOCK-SUMMARY,{schedule},{metric},"
+                "nan,nan,nan,nan,nan,nan,nan,nan,nan,"
+                f"0,{len(block_results)}"
+            )
+
+        block_quality_gate = (
+            "PASS" if len(slope_percentages) >= args.min_blocks else "FAIL"
+        )
         print(
-            f"DELTA,{schedule},{metric},"
-            f"{statistics.median(fixed_deltas):.6f},"
-            f"{statistics.median(slope_deltas):.6f},"
-            f"{statistics.median(slope_percentages):.6f},"
-            f"{percentile(slope_deltas, 0.1):.6f},"
-            f"{percentile(slope_deltas, 0.9):.6f},"
-            f"{len(block_results)}"
+            f"BLOCK-QUALITY-GATE,{schedule},{metric},"
+            f"{block_quality_gate},{len(slope_percentages)},"
+            f"{args.min_blocks},{args.min_fit_r2:.6f}"
+        )
+        if block_quality_gate == "FAIL":
+            block_effect = "INSUFFICIENT"
+        elif block_interval_low > 0.0:
+            block_effect = "SLOWER"
+        elif block_interval_high < 0.0:
+            block_effect = "FASTER"
+        else:
+            block_effect = "UNRESOLVED"
+        print(
+            f"BLOCK-EFFECT-GATE,{schedule},{metric},{block_effect},"
+            f"{block_interval_low:.6f},{block_interval_high:.6f}"
         )
 
         pair_fixed_deltas = []
@@ -341,14 +616,9 @@ def main() -> int:
                 total_pairs += 1
                 off_fit = off_run[(schedule, metric)]
                 on_fit = on_run[(schedule, metric)]
-                reason = None
-                if off_fit.slope <= 0.0 or on_fit.slope <= 0.0:
-                    reason = "non-positive-slope"
-                elif (
-                    off_fit.r2 < args.min_fit_r2
-                    or on_fit.r2 < args.min_fit_r2
-                ):
-                    reason = "fit-r2"
+                reason = reject_reason(
+                    [off_fit, on_fit], args.min_fit_r2
+                )
 
                 if reason:
                     print(
