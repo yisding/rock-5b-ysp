@@ -22,6 +22,7 @@ Source lives in the sibling `librga` / `librga-src` trees.
 | [`docs/librga-guide.md`](docs/librga-guide.md) | librga guide for users and media developers — what RGA acceleration is and how to use the library well. |
 | [`docs/librga-p010-p210-rkrga.md`](docs/librga-p010-p210-rkrga.md) | The P010/P210 10-bit RKRGA investigation and the userspace fix series (`is_10b_compact`/`is_10b_endian`), plus shipping guidance. |
 | [`docs/librga-rust-rewrite-assessment.md`](docs/librga-rust-rewrite-assessment.md) | Cost/scope of a Rust `librga` rewrite vs the `rga-rewrite` kernel-driver track. |
+| [`docs/imcheck-per-core-implementation.md`](docs/imcheck-per-core-implementation.md) | librga per-core imcheck honesty — detailed implementation plan. |
 | [`patches/`](patches/) | Source patch series from `2cffdf6` to the fixed `a632217` tree. |
 | [`UPSTREAMING.md`](UPSTREAMING.md) | Per-item upstream submission decisions for the librga fork's local delta. |
 
