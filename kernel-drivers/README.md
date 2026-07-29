@@ -159,6 +159,7 @@ each sub-project's `README.md`).
 | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
 | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | 2026-07-17 audit of claimed ABI/codec coverage, booted evidence, counter/lifetime assertions, and remaining hardware gates. |
 | [`docs/debug-kernel.md`](docs/debug-kernel.md) | Capture a crash / run the KASAN debug kernel. |
+| [`UPSTREAMING.md`](UPSTREAMING.md) | Per-item upstream submission disposition for the forward-port and rewrite tracks — decision, priority, and gates. |
 | [`patches/`](patches/README.md) | The maintained forward-port series, the superseded frozen base patches, debug-only DT patch, and the reviewable audit-fix series. |
 | [`scripts/`](scripts/README.md) | Combined-kernel build/install/validate wrappers and the codec udev rule. |
 | [`tests/`](tests/README.md) | On-hardware decode/encode/transcode smoke tests, plus the rewrite build gate and conformance suites. |

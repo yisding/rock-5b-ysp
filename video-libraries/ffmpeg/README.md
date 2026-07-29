@@ -32,6 +32,7 @@ Project vocabulary (including the canonical `main`, `ffmpeg-80`, and
 | [`docs/submission-plan.md`](docs/submission-plan.md) | 2026-07-02 full-branch targeting: which of the ~35 logical patches go to nyanmisaka's fork, which to FFmpeg upstream, and which stay here. |
 | [`patches/`](patches/README.md) | The exported 28-patch `git format-patch` series behind fix-candidates + submission-plan (`.patch` files + apply instructions). |
 | [`upstream-patches/`](upstream-patches/README.md) | Standalone patches prepared against vanilla FFmpeg, currently including upstream RKMPP constant-QP support. |
+| [`UPSTREAMING.md`](UPSTREAMING.md) | Per-item upstream submission decisions (send now, gated, hold, never) for the patches and findings above, with rationale and evidence links. |
 
 See also [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md)
 (owned by vendor-libraries/rga) for the RKRGA P010/P210 investigation: Jellyfin

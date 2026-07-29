@@ -46,6 +46,7 @@ Hardware and software used for the local investigation:
 | [`reproducers/`](reproducers/README.md) | Texture-transfer reproducers, transfer benchmark, archived BLIT-advertising patch, and the focused [`reproducers/interp_probe/`](reproducers/interp_probe/README.md) raw-varying plus ordinary-TEX proof set |
 | [`video-libraries/mesa/patches/0001-panfrost-advertise-transfer-blit-and-compute.patch`](patches/0001-panfrost-advertise-transfer-blit-and-compute.patch) | Archived `format-patch` of the BLIT-advertising commit — the only way to rebuild the failing BLIT configuration once upstream ships a non-BLIT default; reproduction-only, not for merging |
 | [`video-libraries/mesa/patches/mr43161-benchmark-override.patch`](patches/mr43161-benchmark-override.patch) | Removes MR !43161's temporary size/aspect gate for the proposed all-V9–V10 policy and adds test-only `PAN_BLIT_DEPTH_BIAS=auto\|off\|on\|dynamic` control on commit `647256dc2ae`; dynamic mode enables balanced off/on timing in one EGL context, and the runner requires startup/transition acknowledgements |
+| [`UPSTREAMING.md`](./UPSTREAMING.md) | Per-item upstream submission disposition for the 17 tracked MRs, patches, and findings above — decisions, priorities, and gates, with cross-package ordering in the central upstreaming ledger |
 
 <a id="mr-status"></a>
 

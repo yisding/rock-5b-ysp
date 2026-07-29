@@ -24,6 +24,7 @@ source lives in the sibling `mpp-rockchip` tree.
 | [`docs/mpp-fast-mode.md`](docs/mpp-fast-mode.md) | Decoder fast mode (fast parse) — the default-on, per-instance parse/decode pipeline: 3-deep task queue, HAL register ring, the parser back-pressure gate, capability negotiation, and per-codec support matrix. |
 | [`docs/mpp-kmpp-reverse-engineering.md`](docs/mpp-kmpp-reverse-engineering.md) | Reverse-engineering notes on Rockchip's newer KMPP path and the kernel-shared-object boundary. |
 | [`docs/mpp-rust-rewrite-assessment.md`](docs/mpp-rust-rewrite-assessment.md) | Cost/scope of a Rust rewrite of classic `librockchip_mpp` keeping the same public API. |
+| [`UPSTREAMING.md`](UPSTREAMING.md) | Per-item upstream submission decisions for the MPP fork (SUBMIT-NOW/HOLD/NEVER), with rationale and evidence. |
 
 Shared cross-library explanation: [`../docs/how-the-userspace-libs-work.md`](../docs/how-the-userspace-libs-work.md).
 Kernel ABI: [`../../kernel-drivers/docs/dev-uapis.md`](../../kernel-drivers/docs/dev-uapis.md).
