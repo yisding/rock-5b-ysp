@@ -126,6 +126,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 
 <!-- findings-index:start -->
 - [`2026-07-28-vaapi-decode-readiness-and-remaining-work.md`](2026-07-28-vaapi-decode-readiness-and-remaining-work.md) — rockchip-vaapi decode is codec-complete except AV1; the remaining work is deployment, one confirmation run, promotion, and browser integration
+- [`2026-07-28-rkvdec2-err23-picsize-oversize-width.md`](2026-07-28-rkvdec2-err23-picsize-oversize-width.md) — rkvdec2 `err 0x23`: an 8192-sample width inflection, BSP watchdog constants whose names are wrong, and VA-API caps that are wrong in both directions
 - [`2026-07-28-rewrite-kunit-pre-phase-applied.md`](2026-07-28-rewrite-kunit-pre-phase-applied.md) — Rewrite KUnit pre-phase is applied with an 84/148 gate
 - [`2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md) — Ramoops retention works on the 6.18.40-era kernels — the all-zero failure was kernel-generation-scoped, not firmware-scoped
 - [`2026-07-28-production-kernel-debug-option-audit.md`](2026-07-28-production-kernel-debug-option-audit.md) — Production kernel debug audit: four options above Armbian stock, and a 256 MiB debug allocation arriving from the shared boot environment
