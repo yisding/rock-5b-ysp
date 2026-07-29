@@ -102,6 +102,12 @@ in internal files the fork already patches.
 
 ### A.3 Changes
 
+> Superseded in detail by the
+> [per-core imcheck implementation plan](../../../vendor-libraries/rga/docs/imcheck-per-core-implementation.md),
+> which pins the kernel-oracle semantics, the sidecar-table design (no vendor
+> row edits), the quiet-predicate matcher, and the kernel-equivalence test
+> harness. The outline below is the summary view.
+
 1. **Table model** (`im2d_hardware.h`, internal): extend
    `rga_info_table_entry` with `input_min_resolution` / `output_min_resolution`
    (two `rga_info_resolution_t` = 16 bytes; can exactly replace
