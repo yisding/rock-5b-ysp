@@ -547,6 +547,12 @@ if [ -n "$FLAVOR_BRANCH_GUARD" ]; then
 		die "$KERNEL_TREE has uncommitted changes; commit or stash before building"
 fi
 
+# Bind the built release string to the source the series is generated from:
+# the ysp-build-stamp extension appends -g<sha> to LOCALVERSION, so `uname -r`
+# self-identifies the commit and rewrite-kunit-log-check.sh's identity gate
+# can verify a booted kernel against its tree without md5-vs-deb archaeology.
+YSP_SOURCE_GSHA="$(git -C "$KERNEL_TREE" rev-parse --short=12 HEAD)"
+
 # =============================================================================
 reset_core_patches
 
@@ -715,6 +721,7 @@ if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
 		USE_TMPFS="$ARMBIAN_USE_TMPFS" \
 		ENABLE_EXTENSIONS="$STAMP_EXT_NAME" \
+		YSP_SOURCE_GSHA="$YSP_SOURCE_GSHA" \
 		KERNELPATCHDIR="$ARMBIAN_KERNELPATCHDIR" \
 		${ARMBIAN_LINUXFAMILY:+YSP_LINUXFAMILY="$ARMBIAN_LINUXFAMILY"} \
 		${ARMBIAN_KERNELBRANCH:+KERNELBRANCH="$ARMBIAN_KERNELBRANCH"} \
@@ -729,6 +736,7 @@ else
 	EXTS="$STAMP_EXT_NAME"
 	[ "$IOMMU_DEBUG" = "yes" ] && EXTS="$EXTS,$DEBUG_EXT_NAME"
 	EXTRA_ARGS=("ENABLE_EXTENSIONS=$EXTS")
+	EXTRA_ARGS+=("YSP_SOURCE_GSHA=$YSP_SOURCE_GSHA")
 	[ -n "$ARMBIAN_CLEAN_LEVEL" ] && EXTRA_ARGS+=("CLEAN_LEVEL=$ARMBIAN_CLEAN_LEVEL")
 	# Only override the base when explicitly asked; otherwise the flavor's own
 	# Armbian config decides (see ARMBIAN_KERNELBRANCH above).

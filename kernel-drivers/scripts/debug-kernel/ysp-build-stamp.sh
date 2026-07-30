@@ -34,6 +34,18 @@ function custom_kernel_make_params__ysp_real_build_stamp() {
 	common_make_params_quoted+=("KBUILD_BUILD_TIMESTAMP=${stamp}")
 }
 
+# Append the source commit to the release string. build-kernel.sh passes
+# YSP_SOURCE_GSHA=<sha12> (the KERNEL_TREE HEAD its patch series was generated
+# from); appending a later LOCALVERSION assignment overrides Armbian's
+# kernel-make.sh one by the same last-assignment-wins rule as the timestamp
+# above. The result (…-${BRANCH}-${LINUXFAMILY}-g<sha>) is what the ysp
+# rewrite-kunit-log-check.sh identity gate parses out of `uname -r`.
+function custom_kernel_make_params__ysp_source_gsha() {
+	[[ -n "${YSP_SOURCE_GSHA:-}" ]] || return 0
+	display_alert "ysp-build-stamp" "source identity: -g${YSP_SOURCE_GSHA}" "info"
+	common_make_params_quoted+=("LOCALVERSION=-${BRANCH}-${LINUXFAMILY}-g${YSP_SOURCE_GSHA}")
+}
+
 # Make the compiler cache independent of the kernel worktree PATH.
 #
 # Armbian names the worktree

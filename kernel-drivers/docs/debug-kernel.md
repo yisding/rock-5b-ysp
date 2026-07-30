@@ -203,6 +203,14 @@ silently replace the debug kernel mid-investigation.
 
 ## 6. The KASAN/vermagic uname-collision gotcha
 
+> **2026-07-29 update:** largely historical. The per-slot BRANCHes already
+> give every flavor its own `uname -r`, and `build-kernel.sh` now appends
+> `-g<sha12>` of the `KERNEL_TREE` HEAD to `LOCALVERSION` (via the always-on
+> `ysp-build-stamp` extension), so successive builds *within* a slot are
+> distinct too — and `rewrite-kunit-log-check.sh`'s identity gate parses that
+> suffix to bind a booted kernel to its source commit. The collision below
+> only applies to the legacy shared-slot era.
+
 The debug kernel and the stock kernel share the same `uname -r`
 (`6.18.35-current-rockchip64`), so they **collide** in `/lib/modules` and
 `/usr/src`: whichever headers package was installed last is what DKMS and
