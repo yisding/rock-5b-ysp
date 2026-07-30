@@ -7,7 +7,8 @@ REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 source "$TEST_DIR/suite-common.sh"
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 MPP_BIN_DIR=${MPP_BIN_DIR:-"$CONFORMANCE_ROOT/out/mpp/bin"}
 MPP_LIBDIR=${MPP_LIBDIR:-"$CONFORMANCE_ROOT/out/mpp/lib"}
@@ -99,6 +100,15 @@ CURRENT_CASE=
 CASE_ARTIFACT_KINDS=()
 CASE_ARTIFACT_PATHS=()
 CASE_ENV=()
+
+# Wedge-localization markers (2026-07-29): the board can hard-lock with no
+# panic, ramoops, or disk survivors, so the terminal scrollback is the only
+# record of how far the suite got.  Every hardware-touching step announces
+# itself on stdout first.
+suite_progress()
+{
+	printf 'PROGRESS %s %s\n' "$(date +%T)" "$*"
+}
 
 get_var()
 {
@@ -685,6 +695,7 @@ snapshot_mpp_state()
 			artifact="$OUT/mpp-snapshot-$label-$(basename "$path").txt"
 			;;
 		esac
+		suite_progress "snapshot $label: reading $path"
 		if ! cat "$path" > "$artifact"; then
 			printf "MPP snapshot read failed closed: %s\n" "$path" >&2
 			return 1
@@ -709,6 +720,7 @@ clear_mpp_debug_events()
 		return 0
 	fi
 
+	suite_progress "clearing debug events at $events"
 	if { printf '1\n' > "$events"; } 2> "$log"; then
 		printf 'cleared %s before MPP cases\n' "$events" > "$log"
 	fi
@@ -790,6 +802,8 @@ run_case()
 		return
 	fi
 
+	suite_progress "case $class/$case_name: start"
+
 	set +e
 	build_case_command "$case_name"
 	build_status=$?
@@ -822,6 +836,9 @@ run_case()
 	fi
 
 	write_command_file "$command_file"
+	# Persist the imminent command before the hardware touch: after a
+	# hard wedge, a .cmd file with no .status names the killer case.
+	sync
 	start=$(suite_now_ns)
 	set +e
 	if [ "$MPP_TIMEOUT" = "0" ]; then
@@ -864,6 +881,8 @@ run_case()
 	fi
 
 	record_summary "$class" "$case_name" "$status" "$elapsed" "$result"
+	suite_progress "case $class/$case_name: done result=$result elapsed=${elapsed}s"
+	sync
 }
 
 validate_case_build()
@@ -937,7 +956,7 @@ if [ ! -e /dev/mpp_service ]; then
 fi
 
 if [ ! -d "$MPP_BIN_DIR" ]; then
-	echo "Missing $MPP_BIN_DIR. Run ../rockchip-conformance/scripts/build-mpp.sh first." >&2
+	echo "Missing $MPP_BIN_DIR. Run ../rock-5b/rockchip-conformance/scripts/build-mpp.sh first." >&2
 	exit 2
 fi
 
@@ -945,6 +964,7 @@ mkdir -p "$OUT"
 printf "profile\tclass\tcase\tstatus\telapsed_s\tresult\n" > "$summary"
 printf "profile\tclass\tcase\tkind\tbytes\tsha256\tpath\n" > "$artifact_summary"
 
+suite_progress "preflight: dmesg baseline"
 if ! suite_dmesg_start "$OUT"; then
 	echo "FAIL: dmesg is required but unreadable" >&2
 	exit 1
@@ -953,9 +973,11 @@ fi
 export LD_LIBRARY_PATH="$MPP_LIBDIR:${LD_LIBRARY_PATH:-}"
 
 snapshot_mpp_state before
+suite_progress "preflight: debugfs counter snapshot"
 debugfs_counter_snapshot "$OUT/debugfs-counters-before.tsv" \
 	mpp /sys/kernel/debug/rk_mpp_rewrite
 clear_mpp_debug_events
+sync
 
 for case_name in $required_cases; do
 	run_case required "$case_name"
@@ -966,11 +988,13 @@ for case_name in $diagnostic_cases; do
 done
 
 snapshot_mpp_state after
+suite_progress "postflight: debugfs counter snapshot"
 debugfs_counter_snapshot "$OUT/debugfs-counters-after.tsv" \
 	mpp /sys/kernel/debug/rk_mpp_rewrite
 debugfs_counter_delta "$OUT/debugfs-counters-before.tsv" \
 	"$OUT/debugfs-counters-after.tsv" \
 	"$OUT/debugfs-counters-delta.tsv"
+suite_progress "postflight: dmesg scan"
 if ! suite_dmesg_finish "$OUT"; then
 	echo "FAIL: new fatal kernel-log signature or unavailable required dmesg; see $OUT/dmesg-scan.tsv" >&2
 	failed=1

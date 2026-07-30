@@ -52,7 +52,7 @@ shipping, or operating** the artifacts.
 ## Operations runbook — running the rkmpp FFmpeg stack
 
 Recorded from operating the older drop-in FFmpeg `8.1.2+rkmpp1` local debs on
-the dev board (source: the `~/Code/gnome/grd/grd-debs` deployment,
+the dev board (source: the `~/Code/rock-5b/gnome/grd/grd-debs` deployment,
 2026-06-30). The same package-management mechanics apply to a PPA install, but
 the published dedicated-PPA `ffmpeg-rockchip-81` package has newer library package names
 (`libavcodec63`, `libavutil61`, `libavformat63`, `libavfilter12`,
@@ -147,7 +147,7 @@ so nobody re-walks them:
    redistributable as-is), and a private copy accelerates **only GRD** where
    the drop-in gives every FFmpeg consumer rkmpp.
 3. **Two self-contained vendored-FFmpeg GRD flavours** (2026-06-30, in
-   `~/Code/gnome/grd/grd-debs`): `50.1+rkmpp.rk1` vendoring **ffmpeg-rockchip 6.1**
+   `~/Code/rock-5b/gnome/grd/grd-debs`): `50.1+rkmpp.rk1` vendoring **ffmpeg-rockchip 6.1**
    (libavcodec 60, fixed-QP `qp_init`, rkrga filters) and `50.1+rkmpp.main1`
    vendoring **mainline 8.1.2** (libavcodec 62, VBR) — each loading its FFmpeg
    from a private dir via `LD_LIBRARY_PATH` in the systemd unit, fully

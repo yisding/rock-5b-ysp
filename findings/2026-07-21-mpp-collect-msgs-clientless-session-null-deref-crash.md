@@ -32,7 +32,7 @@ below. Title/filename kept for link stability.)*
 > `mpp_dev_ioctl_common()`, and the **async task worker
 > `mpp_task_worker_default()`** (`mpp_common.c:982`, unguarded
 > `task->session->mpp` deref at `:1003`); reproduced from
-> `~/Code/rockchip-vaapi` by a parallel agent on the VP9 vectors below.
+> `~/Code/rock-5b/rockchip-vaapi` by a parallel agent on the VP9 vectors below.
 > Date: 2026-07-21
 > Trust: **MEASURED** (the oops line + driver error trail + a repeatable
 > trigger sequence + the ~47 s delayed-fault timing + userspace buffer-refcount
@@ -223,7 +223,7 @@ teardown fixes (`0041` procfs unlink, `0042` `session->dma` clear).
 
 ## What ran / how it was reached (reproducer)
 
-Traced by a parallel agent in `~/Code/rockchip-vaapi`. The trigger is the VP9
+Traced by a parallel agent in `~/Code/rock-5b/rockchip-vaapi`. The trigger is the VP9
 `show_existing_frame` conformance vector, which stresses reference-buffer
 management — and it corrupted MPP/`rk_vcodec` buffer state through **two
 independent userspace paths**:

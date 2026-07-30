@@ -53,18 +53,18 @@ PATH=/usr/sbin:/usr/bin:/sbin:/bin JOBS=4 \
   bash kernel-drivers/tests/rewrite-build-gate.sh all
 
 python3 kernel-drivers/tests/rewrite-kunit-source-audit.py \
-  /home/yi/Code/kernel/linux-6.18-rkvenc \
-  /home/yi/Code/kernel/linux
+  /home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc \
+  /home/yi/Code/rock-5b/kernel/linux
 
 bash kernel-drivers/tests/rewrite-kunit-log-check.sh --selftest
 bash kernel-drivers/tests/rewrite-evidence-audit.sh --selftest
 
-git -C /home/yi/Code/kernel/linux-6.18-rkvenc format-patch \
+git -C /home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc format-patch \
   --stdout HEAD~2..HEAD |
-  /home/yi/Code/kernel/linux-6.18-rkvenc/scripts/checkpatch.pl \
+  /home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc/scripts/checkpatch.pl \
   --strict --no-signoff --ignore COMMIT_MESSAGE -
 
-# Repeated with /home/yi/Code/kernel/linux and its checkpatch.pl.
+# Repeated with /home/yi/Code/rock-5b/kernel/linux and its checkpatch.pl.
 
 bash scripts/check-repo.sh
 ```

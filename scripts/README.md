@@ -37,7 +37,9 @@ the same command on pushes and pull requests.
 `centralize-ccache.sh` points every known build at one shared store,
 `~/Code/.ccache`, capped at 30 GB with `compiler_check = content` and a
 group-writable umask. Setup is idempotent, and `bootstrap-workspaces.sh` calls
-it so a fresh machine is wired automatically.
+it so a fresh machine is wired automatically. `ROCK5B_WORKSPACE` changes the
+board-project paths that are wired, but never relocates the central
+`~/Code/.ccache` store.
 
 Separate per-project caches buy nothing. ccache keys are content-addressed over
 compiler identity, the full command line, and the preprocessed source, so an

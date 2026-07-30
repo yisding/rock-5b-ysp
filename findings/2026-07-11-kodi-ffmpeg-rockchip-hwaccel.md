@@ -1,7 +1,7 @@
 # Kodi 22 hardware video on RK3588 via ffmpeg-rockchip-81: MPP runtime, three fork-packaging bugs, and zero-patch decoder selection
 
-> Scope: Kodi (`~/Code/media/xbmc` @ `22.0b1-Piers-96-g5bc2478806`) + the
-> `ffmpeg-rockchip-81` fork (`~/Code/ffmpeg/ffmpeg-rockchip-81` branch
+> Scope: Kodi (`~/Code/rock-5b/media/xbmc` @ `22.0b1-Piers-96-g5bc2478806`) + the
+> `ffmpeg-rockchip-81` fork (`~/Code/rock-5b/ffmpeg/ffmpeg-rockchip-81` branch
 > `refactor/section-c` @ `75638e7f0b`) + `ppa:yi-ding/ubuntu-rock-5b`.
 > Source: measured on the ROCK 5B builder (Armbian 26.04 resolute, arm64,
 > vendor 6.1 kernel, 8 cores / 15 GiB).

@@ -3,7 +3,7 @@
 > Scope: ROCK 5B on the KASAN+ramoops forward-port kernel `Pe8d3-C4ad2`
 > (`6.18.38-current-rockchip64`, forward-port series 0001–0042)
 > Source: boot `91445572` kernel log
-> (`/home/yi/Code/rockchip-conformance/logs/forward-port/kasan-boot-91445572/`);
+> (`/home/yi/Code/rock-5b/rockchip-conformance/logs/forward-port/kasan-boot-91445572/`);
 > triggered by the gnome-remote-desktop hardware H.264 encoder
 > Date: 2026-07-18
 > Trust: MEASURED (full symbolized KASAN report) / CODE-INSPECTED (root cause and

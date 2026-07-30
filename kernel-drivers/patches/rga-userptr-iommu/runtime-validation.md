@@ -41,7 +41,7 @@ rkvenc-fwport-6.18-rga-userptr-iommu-debug-tip RGA userptr-IOMMU fallback plus t
 For a normal clean RGA-userptr-IOMMU-only build, use the RGA-userptr-IOMMU branch directly:
 
 ```bash
-FW=/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport
+FW=/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc-av1-fwport
 TEST=/tmp/rga-userptr-iommu-fw-runtime
 
 git -C "$FW" worktree add "$TEST" rkvenc-fwport-6.18-rga-userptr-iommu
@@ -167,12 +167,12 @@ RGA-userptr-IOMMU-only image, not the debug-tip image.
 Repeated `rga-mmu-debug.sh` runs all passed:
 
 ```text
-../rockchip-conformance/logs/rga-mmu-debug/20260705-182754
-../rockchip-conformance/logs/rga-mmu-debug/20260705-182758
-../rockchip-conformance/logs/rga-mmu-debug/20260705-182801
-../rockchip-conformance/logs/rga-mmu-debug/20260705-182803
-../rockchip-conformance/logs/rga-mmu-debug/20260705-182806
-../rockchip-conformance/logs/rga-mmu-debug/20260705-182808
+../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182754
+../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182758
+../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182801
+../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182803
+../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182806
+../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182808
 ```
 
 Each run selected:
@@ -204,7 +204,7 @@ external RK_IOMMU. The same logs showed external IOVA handles such as
 
 This is strong indirect evidence that RGA userptr-IOMMU fallback handled the selected scattered
 `virt_addr` cases, because the earlier debug run at
-`../rockchip-conformance/logs/rga-mmu-debug/20260705-151723` showed the same demo
+`../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-151723` showed the same demo
 family failing closed with non-contiguous `orig_nents == nents` mappings:
 
 ```text

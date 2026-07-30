@@ -65,7 +65,7 @@ gate condition:
 Contract evidence:
 `kernel-drivers/tests/logs/abi-replay/kasan-narrowed-20260721-034716.contract.log`
 and run directory
-`../rockchip-conformance/logs/forward-port/20260721-034716-kasan-narrowed/`.
+`../rock-5b/rockchip-conformance/logs/forward-port/20260721-034716-kasan-narrowed/`.
 The production package still predates these patches; rebuild, upload,
 exact-image conformance, and rollback remain tracked in
 [`status.md`](../status.md).

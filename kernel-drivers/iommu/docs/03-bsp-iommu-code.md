@@ -4,7 +4,7 @@
 > the RK3588 IOMMU to put a buffer in front of hardware. Concepts:
 > [`01-iommu-primer.md`](01-iommu-primer.md); hardware:
 > [`02-rk3588-iommu-hardware.md`](02-rk3588-iommu-hardware.md).
-> Code: `../kernel/linux-6.18-rkvenc-av1-fwport/drivers/video/rockchip/{rga3,mpp}/`
+> Code: `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport/drivers/video/rockchip/{rga3,mpp}/`
 > and the provider `drivers/iommu/rockchip-iommu.c`. Function names are stable
 > anchors; line numbers drift.
 

@@ -4,7 +4,7 @@ The expert half of [`kernel-drivers/tests/README.md`](./README.md). The user-fac
 encode, transcode smoke tests) leads in [`README.md`](./README.md); this page
 owns the rewrite clean-build gate, the tracked
 [`conformance/`](conformance/README.md) seed for the external
-`../rockchip-conformance` runtime bundle, and the full per-suite reference (MPP /
+`../rock-5b/rockchip-conformance` runtime bundle, and the full per-suite reference (MPP /
 librga / GStreamer / ffmpeg-rockchip) with its env-var matrices, privileges, and
 comparators. The strategic "what it
 would take to ship the rewrite" plan is
@@ -79,8 +79,8 @@ from this support repo:
 kernel-drivers/tests/rewrite-build-gate.sh all
 ```
 
-The script builds from `git archive` copies of `../kernel/linux-6.18-rkvenc` and
-`../kernel/linux`, forces the mutually exclusive rewrite drivers plus their KUnit
+The script builds from `git archive` copies of `../rock-5b/kernel/linux-6.18-rkvenc` and
+`../rock-5b/kernel/linux`, forces the mutually exclusive rewrite drivers plus their KUnit
 coverage, and builds the provider/topology integration with them:
 
 ```text
@@ -141,7 +141,8 @@ deliberate ABI-size mutation through the production `static_assert()`. The
 preceding 6.18 `9af4a8816f259` passed `memory` and `race`, whose production
 paths are unchanged by the current test-only reduction. Every profile runs the
 checked KUnit source-debt audit first and removes its scratch tree after
-success. Scratch defaults to the parent of this repository, not `/tmp`. The
+success. Scratch defaults to the shared `../tmp` directory beside this
+repository, not the system `/tmp` and not the grouped board workspace. The
 same maintenance path also runs
 `VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh` and
 `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`,
@@ -161,8 +162,8 @@ package before package testing can stand in for current-source validation.
 ## Expanded conformance bundle
 
 The narrow in-repo tests are still the fast gate. For rewrite parity work, also
-use the external runtime bundle at `../rockchip-conformance`
-(`/home/yi/Code/rockchip-conformance` on the dev box). It is intentionally
+use the external runtime bundle at `../rock-5b/rockchip-conformance`
+(`/home/yi/Code/rock-5b/rockchip-conformance` on the dev box). It is intentionally
 outside this repo because it contains shallow third-party source checkouts and
 generated build/log directories.
 
@@ -209,7 +210,7 @@ them from there when the fuzzer ABI grammar changes.
 For per-suite debugging, the equivalent manual sequence is:
 
 ```bash
-cd ../rockchip-conformance
+cd ../rock-5b/rockchip-conformance
 PROFILE=rewrite ./scripts/collect-system-info.sh
 # build on the RK3588 target userspace, then run smoke/real media cases
 ../rock-5b-ysp/kernel-drivers/tests/build-librga-samples-full.sh
@@ -218,14 +219,14 @@ PROFILE=rewrite ./scripts/collect-system-info.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/librga-suite.sh
 PROFILE=rewrite ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
-PROFILE=rewrite FFDIR=../ffmpeg/ffmpeg-rockchip-81 ../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite.sh
+PROFILE=rewrite FFDIR=../rock-5b/ffmpeg/ffmpeg-rockchip-81 ../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite.sh
 
 # reboot into the BSP forward-port kernel and repeat:
 PROFILE=forward-port ./scripts/collect-system-info.sh
 PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/mpp-suite.sh
 PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/librga-suite.sh
 PROFILE=forward-port ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
-PROFILE=forward-port FFDIR=../ffmpeg/ffmpeg-rockchip-81 ../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite.sh
+PROFILE=forward-port FFDIR=../rock-5b/ffmpeg/ffmpeg-rockchip-81 ../rock-5b-ysp/kernel-drivers/tests/ffmpeg-suite.sh
 
 # compare the latest two MPP suite summaries:
 ../rock-5b-ysp/kernel-drivers/tests/mpp-suite-compare.sh
@@ -346,7 +347,7 @@ Suggested expanded matrix:
   RKMPP decoders, H.264/H.265 RKMPP encoders, RKRGA filters, and treats an
   absent AV1 RKMPP encoder as expected. It generates shared software H.264,
   H.265, VP9, AV1, H.265 Main10, resolution-change, and optional 4K/8K inputs
-  under `../rockchip-conformance/assets/ffmpeg-generated`. Required cases cover
+  under `../rock-5b/rockchip-conformance/assets/ffmpeg-generated`. Required cases cover
   H.264/H.265/VP9 decode to null, bit-exact HW-vs-SW decode PSNR, H.264/H.265
   encode sanity with a PSNR floor, H.264<->RGA<->H.265 transcodes, and
   `scale_rkrga`, `vpp_rkrga`, and `overlay_rkrga`. AV1 decode, AV1 PSNR,
@@ -380,7 +381,7 @@ trends by core.
 sample binaries. It writes `summary.tsv`, per-sample logs/status files, dmesg
 tail, before/after RGA debugfs snapshots, and structured
 `debugfs-counters-{before,after,delta}.tsv` counter tables under
-`../rockchip-conformance/logs/$PROFILE/`. Its default **required** set includes
+`../rock-5b/rockchip-conformance/logs/$PROFILE/`. Its default **required** set includes
 the in-repo `ysp_librga_smoke` direct-userspace artifact case plus the official
 sample source surface the rewrite is expected to cover or fail as a real
 regression: copy/FBC/tile/splice, crop, resize/UV-downsample, CSC/gray, fill and
@@ -428,9 +429,9 @@ comparing legacy pass/fail-only logs.
 ## mpp-suite reference
 
 `mpp-suite.sh` is the matching versioned wrapper for Rockchip MPP's official
-`test/` binaries from `../rockchip-conformance/out/mpp/bin`. It writes
+`test/` binaries from `../rock-5b/rockchip-conformance/out/mpp/bin`. It writes
 `summary.tsv`, per-case logs/status/command files, dmesg tail, and before/after
-MPP procfs/debugfs snapshots under `../rockchip-conformance/logs/$PROFILE/`,
+MPP procfs/debugfs snapshots under `../rock-5b/rockchip-conformance/logs/$PROFILE/`,
 plus structured `debugfs-counters-{before,after,delta}.tsv` counter tables.
 Those tables include the rewrite's aggregate and per-core `hw_total_ns*` /
 `hw_max_ns*` timing counters when the rewrite driver owns `/dev/mpp_service`.
@@ -468,7 +469,7 @@ the default Linux/RK3588 pass gate.
 When `mpi_dec_vp9`, `mpi_dec_mt_vp9`, or `mpi_dec_multi_vp9` is selected and
 `MPP_VP9_INPUT` is unset, the wrapper generates a shared VP9 IVF input under
 `MPP_GENERATED_INPUT_CACHE` (default
-`../rockchip-conformance/assets/mpp-generated`) with `ffmpeg`/`libvpx-vp9`.
+`../rock-5b/rockchip-conformance/assets/mpp-generated`) with `ffmpeg`/`libvpx-vp9`.
 Set `MPP_GENERATE_VP9_INPUT=0` to require an explicit `MPP_VP9_INPUT`, or tune
 `MPP_VP9_GENERATED_WIDTH`, `MPP_VP9_GENERATED_HEIGHT`, and
 `MPP_VP9_GENERATED_FPS`.
@@ -487,7 +488,7 @@ make the comparator fail.
 ## gstreamer-suite reference
 
 `gstreamer-suite.sh` is the versioned wrapper for JeffyCN's
-`gstreamer-rockchip` plugin from `../rockchip-conformance/out/gstreamer-rockchip`.
+`gstreamer-rockchip` plugin from `../rock-5b/rockchip-conformance/out/gstreamer-rockchip`.
 It writes `summary.tsv`, per-case logs/status/commands, dmesg tail,
 before/after driver-state snapshots, and combined MPP/RGA debugfs counter
 deltas. Use `build-gstreamer-rockchip.sh` to stage the plugin. It builds only
@@ -561,7 +562,7 @@ with the Rockchip encoders, a short VP9 IVF stream with `vp9enc ! ivfmux`,
 optional AV1 IVF input with `GST_GENERATOR` (default `ffmpeg`) plus
 `libaom-av1`, and software-generated H.265 Main10 elementary streams with
 `GST_GENERATOR` plus `libx265` under `GST_GENERATED_INPUT_CACHE` (default
-`../rockchip-conformance/assets/gstreamer-generated`). They then feed those
+`../rock-5b/rockchip-conformance/assets/gstreamer-generated`). They then feed those
 shared files through `filesrc ! *parse ! mppvideodec` decode and decode->encode
 transcode pipelines. Keeping the cache outside each profile's log directory
 makes forward-port and rewrite runs consume the same input streams. That keeps
@@ -921,7 +922,7 @@ logs.
 
 | Test | Needs |
 |------|-------|
-| `build-mpp-tests.sh` | no device access; writes staged MPP library/tests under `../rockchip-conformance/out/mpp` |
+| `build-mpp-tests.sh` | no device access; writes staged MPP library/tests under `../rock-5b/rockchip-conformance/out/mpp` |
 | `build-gstreamer-rockchip.sh` | no device access; needs GStreamer development `.pc` files plus staged MPP/librga pkg-config paths; also builds `gstreamer-event-harness` into the GStreamer prefix. `GST_EVENT_HARNESS_VALIDATE_BUILD=1` compiles only the event harness and returns `77` when the GStreamer development `.pc` files are absent. |
 | `rewrite-conformance-run.sh` | same device and dependency access as the selected suites; sequences booted KUnit verification, system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, optional `rkmppenc`, optional debugfs counter checks, and optional comparator steps. Rewrite profiles default `RUN_KUNIT_CHECK=1`, persist exact 84-MPP/148-RGA KTAP plus correlated full-interval/fatal-scan/lockdep evidence, and require readable before/after dmesg for every suite. `VALIDATE_ONLY=1` additionally checks the KUnit parser, shared dmesg gate, all 31 MPP case builders, and the existing build/parser/comparator/audit helpers. With `RUN_COUNTER_CHECKS=1`, it requires expected hardware/fence-path deltas, zero idle gauges, and present safety counters with no positive delta; per-suite prefix variables still support multicore-spread requirements. |
 | `rewrite-kunit-log-check.sh` | runtime mode reads `/sys/kernel/debug/kunit/{rk_mpp_rewrite,rockchip-rga-rewrite}/results`, requires exactly 84 + 148 cases with no fail/skip, extracts and scans the complete boot KUnit interval with the shared fatal regex, requires live lockdep, and optionally writes the correlated `KUNIT_REPORT` artifact set; `--selftest` is device-free. |
@@ -931,15 +932,15 @@ logs.
 | `ioctl-fuzz-smoke.sh` | device access for `/dev/mpp_service` and/or `/dev/rga`; no hardware-submit workload by design. Raw physical RGA imports are disabled unless `IOCTL_FUZZ_ENABLE_RGA_PHYSICAL=1`. `IOCTL_FUZZ_VALIDATE_BUILD=1` is device-free. `IOCTL_FUZZ_FAIL_NTH_MAX=N` additionally needs `/proc/self/fail-nth`; logging and dmesg bracketing use `IOCTL_FUZZ_OUT`, `IOCTL_FUZZ_DMESG_SCAN`, and `IOCTL_FUZZ_REQUIRE_DMESG`. |
 | `mpp-suite.sh` | device access for `/dev/mpp_service`, `/dev/dma_heap/*`, readable MPP procfs/debugfs, and readable dmesg for full logs; root is the simplest mode. Pre/post state capture reads an explicit compatibility/state/event allowlist once, never recursively walks all generated MPP files, and fails closed on a read error such as rewrite `state` returning `EBUSY`. `MPP_VALIDATE_CASES=1` is the device-free maintenance mode and only validates selected case-builder wiring. |
 | `mpp-debug-capture.sh` | root strongly preferred for runtime mode; needs readable rewrite `state`/`events`, and normally writable `events`/`trace_mask` plus readable dmesg for the focused bundle. It preserves the wrapped workload's exit code and uses exit `77` when the rewrite journal is absent. `MPP_DEBUG_VALIDATE_ONLY=1` is a device-free failure-path/trace-restore selftest. |
-| `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
+| `mpp-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rock-5b/rockchip-conformance/logs/` |
 | `librga-suite.sh` | device access for `/dev/rga`, `/dev/dma_heap/*`, optional DRM render nodes, readable debugfs/dmesg for full logs, and a staged librga source/lib or `librga.pc` for the in-repo `ysp_librga_smoke` artifact case; root is the simplest mode |
-| `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
-| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rockchip-conformance/out/gstreamer-rockchip`, software `ffmpeg`/`libx265` via `GST_GENERATOR` for generated H.265 Main10 inputs, optional `libaom-av1` support in `GST_GENERATOR` for opt-in AV1 diagnostics, ffmpeg H.263/MPEG encoder support for opt-in legacy decode diagnostics, and readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in `GST_ENABLE_VIDEOFLIP_RGA_CASES=1` cases additionally need a GStreamer `videoflip` element carrying the Rockchip `GST_VIDEO_FLIP_USE_RGA=1` path if the run is meant to prove hardware use rather than generic CPU `videoflip` compatibility. Opt-in `GST_ENABLE_RGACONVERT_CASES=1` cases need the standalone `gstreamer-rga` converter element named by `GST_RGACONVERT_ELEMENT` (`rgavideoconvert` by default). Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
-| `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rockchip-conformance/logs/` |
+| `librga-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rock-5b/rockchip-conformance/logs/` |
+| `gstreamer-suite.sh` | device access for `/dev/mpp_service` and `/dev/rga`, staged JeffyCN plugin under `../rock-5b/rockchip-conformance/out/gstreamer-rockchip`, software `ffmpeg`/`libx265` via `GST_GENERATOR` for generated H.265 Main10 inputs, optional `libaom-av1` support in `GST_GENERATOR` for opt-in AV1 diagnostics, ffmpeg H.263/MPEG encoder support for opt-in legacy decode diagnostics, and readable debugfs/dmesg for full logs; root is the simplest mode. Opt-in `GST_ENABLE_VIDEOFLIP_RGA_CASES=1` cases additionally need a GStreamer `videoflip` element carrying the Rockchip `GST_VIDEO_FLIP_USE_RGA=1` path if the run is meant to prove hardware use rather than generic CPU `videoflip` compatibility. Opt-in `GST_ENABLE_RGACONVERT_CASES=1` cases need the standalone `gstreamer-rga` converter element named by `GST_RGACONVERT_ELEMENT` (`rgavideoconvert` by default). Opt-in display/KMS cases also need staged `rkximage`/`kmssrc` plugins, an active DRM/KMS framebuffer, and access to the DRM device. `GST_VALIDATE_CASES=1` is the device-free maintenance mode and only validates case-builder/runner wiring. |
+| `gstreamer-suite-compare.sh` | no device access; reads two `summary.tsv` files under `../rock-5b/rockchip-conformance/logs/` |
 | `ffmpeg-suite.sh` | device access for `/dev/mpp_service`, `/dev/rga`, `/dev/dma_heap/*`, and a DRM render node; a staged `ffmpeg-rockchip` build via `FFDIR`; system and/or staged MPP runtime libraries via `FFMPEG_RUNTIME_MODES`, `STAGE`, or `FFMPEG_STAGED_LD_LIBRARY_PATH`; software ffmpeg encoders `libx264`, `libx265`, `libvpx-vp9`, and optionally `libsvtav1`/`libaom-av1` for generated inputs; and readable debugfs/dmesg for full logs. Root is the simplest mode. `FFMPEG_VALIDATE_CASES=1` is the device-free maintenance mode and validates case-list/runtime dispatch wiring. |
-| `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
+| `ffmpeg-suite-compare.sh` | no device access; reads two `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rock-5b/rockchip-conformance/logs/` |
 | `rkmppenc-suite.sh` | opt-in app-level `rkmppenc` coverage for `/dev/mpp_service` plus `/dev/rga`; needs `rkmppenc`, software `ffmpeg` via `RKMPPENC_GENERATOR` for generated Y4M/raw/H.264 inputs, optional staged runtime libraries via `RKMPPENC_LD_LIBRARY_PATH`, and readable debugfs/dmesg for full logs. Runtime cases check `--check-mppinfo`, `--check-rgainfo`, generated Y4M H.264/H.265 encode with RGA resize, generated raw NV12 H.264 encode with RGA resize, and a diagnostic hardware-decode/RGA-resize/encode transcode. `RKMPPENC_VALIDATE_CASES=1` is device-free and validates the optional case list without needing `rkmppenc` installed. |
-| `rkmppenc-suite-compare.sh` | no device access; reads two opt-in `rkmppenc` `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rockchip-conformance/logs/` |
+| `rkmppenc-suite-compare.sh` | no device access; reads two opt-in `rkmppenc` `summary.tsv` files and, by default, paired `artifacts.tsv` manifests under `../rock-5b/rockchip-conformance/logs/` |
 | `debugfs-counter-check.sh` | no device access after a suite has run; requires selected positive hardware/fence-path counters and zero-after gauges. Rewrite defaults cover MPP imports/queued jobs, RGA imports/boundary-shadow views, and direct-librga userptr-IOMMU activity across new or legacy debugfs naming. It rejects positive timeout, recovery-failure, IOMMU-fault, spurious-IRQ, RGA IRQ/config-error, and boundary-shadow setup-failure deltas. `release_fence_count` is cumulative positive path evidence, not a zero-after leak gauge. |
 | `rewrite-recovery-stress.sh` | root strongly preferred for runtime mode; needs `/dev/mpp_service` and/or `/dev/rga`, the selected `RECOVERY_WORKLOAD_CMD` inputs/artifacts, readable dmesg, and readable rewrite debugfs counters. The `unbind` case also needs writable platform driver bind/unbind files and explicit `RECOVERY_UNBIND_TARGETS`. `RECOVERY_VALIDATE_ONLY=1` is device-free and only validates case/config wiring. |
 
@@ -951,12 +952,12 @@ logs.
 | `rewrite-evidence-audit.sh` | **paired forward-port/rewrite evidence gate** | Requires paired required-case passes, artifacts, counter deltas, clean dmesg evidence, the rewrite candidate's exact green KUnit report, a representative official-MPP core set including AVS2 and low-delay slice polling, and comparator-clean timing/artifact results. Named diagnostic promotion remains available. Normal mode is the final “enough evidence to claim parity?” check and is expected to fail before board logs exist; `--selftest` only proves rejection logic. |
 | `ioctl-fuzz-smoke.sh` | **non-submit ioctl parser/import fault smoke** | Mutates safe MPP/RGA parser, query, import/release, and request-lifetime ioctls without submitting register jobs or RGA blits. Raw physical generation is opt-in. Fail-nth mode targets syscall-local allocation/usercopy unwind paths; persisted runs can bracket dmesg and fail on fatal signatures. |
 | `abi-replay.sh` | **non-submit kernel ABI replay** | Saves raw/normalized/comparable/contract logs for safe MPP/RGA ABI behavior. Raw physical import is disabled on ordinary/forward profiles; `PROFILE=*rewrite*` explicitly enables it and requires `EOPNOTSUPP`. Comparable and contract logs prune both the result and disabled marker. See [the 2026-07-16 crash note](../rga/docs/raw-physical-import-crash.md). |
-| `mpp-suite.sh` | **official MPP test conformance** using `../rockchip-conformance/out/mpp/bin` | Runs selected info, H.264/H.265/VP9/AVS2 decode, multi-thread/multi-instance, H.264/H.265 encode, low-delay slice-poll, RC, and legacy API cases. VP9 can be generated; AVS2 needs an explicit asset. Slice cases record the `split_*` environment in their command and exercise `MPP_CMD_POLL_HW_IRQ`. The asset-free direct default remains `mpp_info_test`, but the normal evidence audit refuses that alone. Every runtime records artifacts, counters, and a clean before/after dmesg report. |
+| `mpp-suite.sh` | **official MPP test conformance** using `../rock-5b/rockchip-conformance/out/mpp/bin` | Runs selected info, H.264/H.265/VP9/AVS2 decode, multi-thread/multi-instance, H.264/H.265 encode, low-delay slice-poll, RC, and legacy API cases. VP9 can be generated; AVS2 needs an explicit asset. Slice cases record the `split_*` environment in their command and exercise `MPP_CMD_POLL_HW_IRQ`. The asset-free direct default remains `mpp_info_test`, but the normal evidence audit refuses that alone. Every runtime records artifacts, counters, and a clean before/after dmesg report. |
 | `mpp-debug-capture.sh` | **one-reproduction MPP debug bundle** | Captures before/after live state, the bounded event journal, counters and deltas, procfs discovery, full/new dmesg, workload output/status, and a failure-focused event summary. It clears unrelated old events by default, can temporarily set `trace_mask`, restores that mask even when the workload fails, and exits with the wrapped command's status after preserving the after-state. |
 | `mpp-suite-compare.sh` | **rewrite-vs-forward-port MPP comparator** | Compares the latest or explicitly provided `summary.tsv` files and, when `artifacts.tsv` manifests are present, compares official-test output byte counts and SHA-256s. A required baseline pass that is not a candidate pass, a required case failing on **both** sides (`required-fail-both` — not a regression, but not evidence either), a comparison sharing **no** required case at all, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=1` for full media gates that must reject missing/empty artifact manifests. |
-| `librga-suite.sh` | **official librga sample conformance plus direct artifact smoke** using `../rockchip-conformance/out/librga-samples/bin` and `librga-smoke.cpp` | Runs the broad sample set plus deterministic maintained-path artifacts and debugfs counter deltas. The raw physical probe is disabled on forward profiles and explicitly enabled as a hard rejection assertion on rewrite profiles; the FBC-tail negative assertion remains rewrite-profile automatic. |
+| `librga-suite.sh` | **official librga sample conformance plus direct artifact smoke** using `../rock-5b/rockchip-conformance/out/librga-samples/bin` and `librga-smoke.cpp` | Runs the broad sample set plus deterministic maintained-path artifacts and debugfs counter deltas. The raw physical probe is disabled on forward profiles and explicitly enabled as a hard rejection assertion on rewrite profiles; the FBC-tail negative assertion remains rewrite-profile automatic. |
 | `librga-suite-compare.sh` | **rewrite-vs-forward-port suite comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, paired `artifacts.tsv` manifests. A required baseline pass that is not a candidate pass, a required case failing on **both** sides (`required-fail-both` — not a regression, but not evidence either), a comparison sharing **no** required case at all, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` exits nonzero; diagnostic differences and slowdowns remain informational. Set `PERF_MAX_RATIO` to fail required pass/pass slowdowns above that ratio, and set `REQUIRE_ARTIFACTS=0` only for legacy pass/fail-only logs. |
-| `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, generated 8-bit/10-bit decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, AFBC decode-to-encode transcodes, optional external-media pipelines, opt-in `GST_VIDEO_FLIP_USE_RGA=1` `videoflip` NV12/BGRx rotate/flip pipelines, opt-in standalone `GST_RGACONVERT_ELEMENT` BGRx/NV12 convert/scale pipelines for the external GStreamer RGA path, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, encoded RC-mode/AFBC artifacts, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
+| `gstreamer-suite.sh` | **JeffyCN GStreamer MPP/RGA plugin conformance** using `../rock-5b/rockchip-conformance/out/gstreamer-rockchip` | Runs plugin inspection plus real encode, generated 8-bit/10-bit decode/transcode, RGA-conversion, caps-renegotiation, explicit flush-event, restart-loop, AFBC decode-to-encode transcodes, optional external-media pipelines, opt-in `GST_VIDEO_FLIP_USE_RGA=1` `videoflip` NV12/BGRx rotate/flip pipelines, opt-in standalone `GST_RGACONVERT_ELEMENT` BGRx/NV12 convert/scale pipelines for the external GStreamer RGA path, and opt-in display/KMS capture pipelines under the selected `PROFILE`. It records per-case logs/status/commands, generated and optional external-media decode/transcode artifact checksums, encoded RC-mode/AFBC artifacts, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `gstreamer-suite-compare.sh` | **rewrite-vs-forward-port GStreamer comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for generated and optional external-media decode/transcode byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a required case failing on **both** sides (`required-fail-both`), a comparison sharing **no** required case at all, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` exits nonzero; diagnostic differences and slowdowns remain informational. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
 | `ffmpeg-suite.sh` | **ffmpeg-rockchip CLI conformance** using `FFDIR/ffmpeg` and `FFDIR/ffprobe` | Runs system-runtime and staged-MPP-runtime passes when available, component/option inspection, device/support preflight, required H.264/H.265/VP9 RKMPP decode and bit-exact PSNR, generated H.264/H.265 encoder-option encodes with PSNR sanity, generated-input H.264<->`scale_rkrga`<->H.265 hardware transcodes, required `scale_rkrga`, `vpp_rkrga`, and `overlay_rkrga` coverage, plus diagnostic/promotable AV1 decode/RGA/transcode/AFBC coverage. Diagnostics also cover H.265 Main10/P010 RGA and H.264 resolution changes; opt-in stress adds repeated short loops and an AV1->RGA->H.264 soak. It records per-case logs/status, encoded bitstream byte counts and SHA-256s, plus MPP/RGA debugfs snapshots and counter deltas. Exit `77` means `/dev/mpp_service` or `/dev/rga` is absent. |
 | `ffmpeg-suite-compare.sh` | **rewrite-vs-forward-port ffmpeg-rockchip comparator** | Compares the latest or explicitly provided `summary.tsv` files and, by default, requires `artifacts.tsv` on both sides for encoded bitstream byte-count and SHA-256 comparison. A required baseline pass that is not a candidate pass, a required case failing on **both** sides (`required-fail-both`), a comparison sharing **no** required case at all, a missing required artifact manifest, a required artifact mismatch, or a required pass/pass slowdown above `PERF_MAX_RATIO` exits nonzero. Set `REQUIRE_ARTIFACTS=0` for legacy pass/fail-only logs. |
@@ -974,7 +975,7 @@ sudo bash mpp-debug-capture.sh -o /tmp/mpp-decode -- mpi_dec_test -i input.h264 
 VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # also validate rewrite counter-default wiring
 VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 LIBRGA_FORCE_RGA_USERPTR_IOMMU=1 bash rewrite-conformance-run.sh  # also validate RGA userptr-IOMMU fallback counter-default wiring
 IOCTL_FUZZ_VALIDATE_BUILD=1 bash ioctl-fuzz-smoke.sh  # device-free mutator build check
-sudo IOCTL_FUZZ_OUT=../rockchip-conformance/logs/rewrite/ioctl-failnth IOCTL_FUZZ_DMESG_SCAN=1 IOCTL_FUZZ_FAIL_NTH_MAX=4 IOCTL_FUZZ_ITERS=32 bash ioctl-fuzz-smoke.sh  # debug-kernel fail-nth allocation/usercopy sweep
+sudo IOCTL_FUZZ_OUT=../rock-5b/rockchip-conformance/logs/rewrite/ioctl-failnth IOCTL_FUZZ_DMESG_SCAN=1 IOCTL_FUZZ_FAIL_NTH_MAX=4 IOCTL_FUZZ_ITERS=32 bash ioctl-fuzz-smoke.sh  # debug-kernel fail-nth allocation/usercopy sweep
 PROFILE=rewrite bash rewrite-conformance-run.sh  # run all suites for the booted rewrite profile
 PROFILE=rewrite RUN_COMPARE=1 bash rewrite-conformance-run.sh  # run and compare latest summaries
 PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # add default rewrite hardware counter gates
@@ -1093,22 +1094,22 @@ positive deltas. Override or add explicit positive counters when a run
 intentionally uses a different suite mix:
 
 ```bash
-SUMMARY=../rockchip-conformance/logs/rewrite/<run>-mpp-suite/summary.tsv \
+SUMMARY=../rock-5b/rockchip-conformance/logs/rewrite/<run>-mpp-suite/summary.tsv \
 REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count mpp:hw_total_ns" \
 REQUIRED_POSITIVE_COUNTER_PREFIXES="mpp:started_rkvdec_core:2" \
 bash debugfs-counter-check.sh
 
-SUMMARY=../rockchip-conformance/logs/rewrite/<run>-librga-suite/summary.tsv \
+SUMMARY=../rock-5b/rockchip-conformance/logs/rewrite/<run>-librga-suite/summary.tsv \
 REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns" \
 REQUIRED_POSITIVE_COUNTER_PREFIXES="rga:started_rga3_core:2" \
 bash debugfs-counter-check.sh
 
-SUMMARY=../rockchip-conformance/logs/rewrite/<run>-librga-suite/summary.tsv \
+SUMMARY=../rock-5b/rockchip-conformance/logs/rewrite/<run>-librga-suite/summary.tsv \
 REQUIRED_POSITIVE_COUNTERS="rga:started_job_count rga:hw_total_ns *:attempt *:ok" \
 REQUIRED_ZERO_AFTER_COUNTERS="*:active" \
 bash debugfs-counter-check.sh
 
-SUMMARY=../rockchip-conformance/logs/rewrite/<run>-gstreamer-suite/summary.tsv \
+SUMMARY=../rock-5b/rockchip-conformance/logs/rewrite/<run>-gstreamer-suite/summary.tsv \
 REQUIRED_POSITIVE_COUNTERS="mpp:started_job_count rga:started_job_count mpp:hw_total_ns rga:hw_total_ns" \
 bash debugfs-counter-check.sh
 ```
@@ -1264,9 +1265,9 @@ sibling-worktree layout directly:
 
 ```bash
 sudo \
-  MPP_BUILD=../rockchip-conformance/build/rockchip-mpp-suite \
-  FFDIR=../ffmpeg/ffmpeg-rockchip \
-  STAGE=../kernel/rock5b-kernel-build/ffmpeg-stack \
+  MPP_BUILD=../rock-5b/rockchip-conformance/build/rockchip-mpp-suite \
+  FFDIR=../rock-5b/ffmpeg/ffmpeg-rockchip \
+  STAGE=../rock-5b/kernel/rock5b-kernel-build/ffmpeg-stack \
   bash kernel-drivers/tests/rewrite-smoke.sh
 ```
 
@@ -1355,7 +1356,7 @@ MPP_REQUIRED_CASES="mpp_info_test mpi_dec_vp9" \
 ```
 
 If `MPP_VP9_INPUT` is unset, `mpp-suite.sh` generates the IVF file under
-`../rockchip-conformance/assets/mpp-generated`. The manual `mpi_dec_test` VP9
+`../rock-5b/rockchip-conformance/assets/mpp-generated`. The manual `mpi_dec_test` VP9
 recipe (no suite) lives in [`README.md`](./README.md) § VP9 decode.
 At the kernel level, the current rewrite pins also include KUnit coverage for
 VP9 RKVDEC fd-to-IOVA register translation/validation, including rejection of

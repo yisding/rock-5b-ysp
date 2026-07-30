@@ -4,7 +4,8 @@ set -euo pipefail
 
 TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 SRC_ROOT=${RGA_SAMPLE_SRC:-"$CONFORMANCE_ROOT/sources/airockchip-librga/samples"}
 PREFIX=${PREFIX:-"$CONFORMANCE_ROOT/out/librga-samples"}
 LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}

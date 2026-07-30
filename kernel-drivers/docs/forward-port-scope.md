@@ -265,8 +265,8 @@ not part of the forward-port; the alternative-stack analysis lives in
 ## Reproducing the scope tables
 
 ```sh
-OURS=../kernel/linux-6.18-rkvenc-av1-fwport/drivers/video/rockchip
-BSP=../kernel/rockchip-kernel/drivers/video/rockchip
+OURS=../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport/drivers/video/rockchip
+BSP=../rock-5b/kernel/rockchip-kernel/drivers/video/rockchip
 
 # ported vs unported mpp blocks
 ls "$OURS"/mpp/*.c "$BSP"/mpp/*.c | xargs -n1 basename | sort -u

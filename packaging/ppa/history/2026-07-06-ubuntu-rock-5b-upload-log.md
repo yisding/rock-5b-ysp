@@ -4,9 +4,9 @@
 > Initial wave: `mpp`, `librga`, and `ffmpeg`.
 > Source inputs:
 >
-> - `/home/yi/Code/rockchip-userspace/mpp-rockchip`
-> - `/home/yi/Code/rockchip-userspace/librga-fork`
-> - `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81`
+> - `/home/yi/Code/rock-5b/rockchip-userspace/mpp-rockchip`
+> - `/home/yi/Code/rock-5b/rockchip-userspace/librga-fork`
+> - `/home/yi/Code/rock-5b/ffmpeg/ffmpeg-rockchip-81`
 >
 > Target series: `resolute` (Ubuntu 26.04 / Armbian 26.5.1 userspace).
 > Target architecture: source upload to Launchpad; expected binary build is
@@ -120,10 +120,10 @@ versions for them in the initial package check.
 - FFmpeg ABI check:
   - Installed PPA-style package on the board is `ffmpeg 7:8.1.2-1+rk1` with
     `libavcodec62`, `libavutil60`, and `libavformat62`.
-  - Requested source `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81` reports
+  - Requested source `/home/yi/Code/rock-5b/ffmpeg/ffmpeg-rockchip-81` reports
     `RELEASE=8.0.git` but library majors `libavcodec63`, `libavutil61`,
     `libavformat63`, `libavfilter12`, `libswscale10`, and `libswresample7`.
-  - The older local Ubuntu packaging in `/home/yi/Code/ffmpeg/ffmpeg-ppa`
+  - The older local Ubuntu packaging in `/home/yi/Code/rock-5b/ffmpeg/ffmpeg-ppa`
     cannot be reused unchanged because its binary package names and symbols
     metadata target the older `libav*62/60/...` ABI.
 - Packaging/upload environment check:
@@ -323,7 +323,7 @@ W: mpp source: newer-standards-version 4.7.4.1 (current is 4.7.3)
 ## librga source package pass
 
 - Source basis:
-  - repository: `/home/yi/Code/rockchip-userspace/librga-fork`
+  - repository: `/home/yi/Code/rock-5b/rockchip-userspace/librga-fork`
   - git commit: `a632217`
   - source version: `2.2.0+git20260703.a632217-0ubuntu1~rk1`
 - Packaging basis:
@@ -448,7 +448,7 @@ Error: no such hook 'supported-distribution'
 ## ffmpeg source package pass
 
 - Source basis:
-  - repository: `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81`
+  - repository: `/home/yi/Code/rock-5b/ffmpeg/ffmpeg-rockchip-81`
   - branch: `refactor/section-c`
   - git commit: `75638e7f0b1775193381af0c3187838f6c51dbd1`
   - commit subject: `table-drive rga format/size/scale capability checks`
@@ -789,7 +789,7 @@ W: librga source: newer-standards-version 4.7.4.1 (current is 4.7.3)
   FFmpeg stack, not with two active providers of the same stock Ubuntu package
   names in one PPA.
 - Found an existing local upstream FFmpeg 8.1.2 source package:
-  `/home/yi/Code/gnome/grd/grd-ppa/ffmpeg_8.1.2-1+rk1_source.changes`.
+  `/home/yi/Code/rock-5b/gnome/grd/grd-ppa/ffmpeg_8.1.2-1+rk1_source.changes`.
   It targets `resolute`, source version `7:8.1.2-1+rk1`, source package
   `ffmpeg`, and the binary package set uses the upstream 8.1.2 ABI
   (`libavcodec62`, `libavformat62`, `libavfilter11`, `libavutil60`,
@@ -1024,7 +1024,7 @@ W: ffmpeg source: superfluous-file-pattern tests/checkasm/x86/* [debian/copyrigh
 ## gnome-remote-desktop and grd-ffmpeg packaging prep
 
 - Confirmed the requested GRD source tree is
-  `/home/yi/Code/gnome/grd/grd-ffmpeg`, branch
+  `/home/yi/Code/rock-5b/gnome/grd/grd-ffmpeg`, branch
   `ffmpeg-rkmpp-encode-backend`, HEAD
   `a59c904c99088235eb4de31ca340747d334494f3`.
 - The source tree is intentionally dirty and was treated as a working-tree
@@ -1081,7 +1081,7 @@ gnome-remote-desktop_50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1_s
   source-vs-orig content check, and `dpkg-buildpackage -S` completed again.
 
 - Reused the known working rkmpp GRD packaging from
-  `/home/yi/Code/gnome/grd/grd-pkg/gnome-remote-desktop-50.1+rkmpp/debian`,
+  `/home/yi/Code/rock-5b/gnome/grd/grd-pkg/gnome-remote-desktop-50.1+rkmpp/debian`,
   but copied it into YSP at `packaging/ppa/gnome-remote-desktop/debian`
   without generated debhelper output and without the older quilt patch stack.
 - Rationale for dropping the quilt patches in this YSP packaging copy:
@@ -1299,7 +1299,7 @@ W: gnome-remote-desktop buildinfo: package-has-long-file-name gnome-remote-deskt
   this entry was written):
   - apply the same `frei0r-plugins <!nocheck>` Build-Depends change to the
     upstream-baseline `8.1.2-1+rk1` tree used for
-    `/home/yi/Code/gnome/grd/grd-ppa/ffmpeg_8.1.2-1+rk1_source.changes`,
+    `/home/yi/Code/rock-5b/gnome/grd/grd-ppa/ffmpeg_8.1.2-1+rk1_source.changes`,
     bump it to `7:8.1.2-1+rk2` (still sorts below the forward-port
     version), rebuild the source package, re-sign, and `dput`;
   - rebuild and re-sign the forward-port source package from the updated
@@ -1308,7 +1308,7 @@ W: gnome-remote-desktop buildinfo: package-has-long-file-name gnome-remote-deskt
 ## Baseline packaging recovered from Launchpad and checked in
 
 - The upstream-baseline `7:8.1.2-1+rk1` `debian/` tree was never in git; it
-  existed only at `/home/yi/Code/gnome/grd/grd-ppa/` on the board. A GitHub
+  existed only at `/home/yi/Code/rock-5b/gnome/grd/grd-ppa/` on the board. A GitHub
   search confirmed no other repo carries it.
 - Recovered it from the Launchpad source publication (`+sourcepub/18602029`,
   status `Published`): downloaded `ffmpeg_8.1.2-1+rk1.debian.tar.xz` and the
@@ -1343,7 +1343,7 @@ W: gnome-remote-desktop buildinfo: package-has-long-file-name gnome-remote-deskt
     `33366878` is `Failed to build`.
 - Rebuilt the fixed upstream-baseline source package from the checked-in
   `packaging/ppa/ffmpeg-baseline/debian/` tree and the existing orig tarball
-  `/home/yi/Code/gnome/grd/grd-ppa/ffmpeg_8.1.2.orig.tar.xz`.
+  `/home/yi/Code/rock-5b/gnome/grd/grd-ppa/ffmpeg_8.1.2.orig.tar.xz`.
 - Verified the orig tarball is the byte-identical known input:
 
 ```text
@@ -1407,7 +1407,7 @@ dput ppa:yi-ding/ubuntu-rock-5b /tmp/ubuntu-rock-5b-ppa/artifacts/ffmpeg_8.1.2-1
   remains held.
 - Regenerated the higher-version Rockchip-81 source package from the pinned
   source checkout:
-  - repo: `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81`
+  - repo: `/home/yi/Code/rock-5b/ffmpeg/ffmpeg-rockchip-81`
   - commit: `75638e7f0b1775193381af0c3187838f6c51dbd1`
   - packaging: `packaging/ppa/ffmpeg/debian/`
   - command: `bash packaging/ppa/build-source-packages.sh ffmpeg`
@@ -1493,7 +1493,7 @@ dput ppa:yi-ding/ubuntu-rock-5b packaging/ppa/out/artifacts/ffmpeg_8.1.2+rockchi
 - Confirmed Ubuntu resolute's primary archive publishes system FFmpeg
   `7:8.0.1-3ubuntu2`, while the board currently has local/PPA
   `7:8.1.2-1+rk1` installed.
-- Confirmed `/home/yi/Code/ffmpeg/ffmpeg-rockchip` is nyanmisaka's
+- Confirmed `/home/yi/Code/rock-5b/ffmpeg/ffmpeg-rockchip` is nyanmisaka's
   `ffmpeg-rockchip` fork:
   - repo: `https://github.com/nyanmisaka/ffmpeg-rockchip.git`
   - commit: `40c412daccf08164493da0de990eb99a8948116b`
@@ -1527,7 +1527,7 @@ bash packaging/ppa/build-source-packages.sh ffmpeg-rockchip
   mainline rewrite branch:
   - tag ref: `4c45e14df2f4e77982ad70d6d8e3fe750edd4c37 refs/tags/v7.2-rc2`;
   - peeled commit observed locally after fetch: `8cdeaa50eae8` ("Linux 7.2-rc2").
-- Rebased `/home/yi/Code/kernel/linux` branch `rk3588-rewrite-mainline` from
+- Rebased `/home/yi/Code/rock-5b/kernel/linux` branch `rk3588-rewrite-mainline` from
   `v7.2-rc1` to `v7.2-rc2` with backup branch
   `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc2`. The rebased tip is
   `083bdb98e715` and `git describe` reports `v7.2-rc2-224-g083bdb98e715`.

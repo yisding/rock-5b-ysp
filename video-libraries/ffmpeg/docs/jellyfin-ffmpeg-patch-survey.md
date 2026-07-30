@@ -21,9 +21,9 @@ Date: 2026-07-11
 
 | Tree | Pin | Notes |
 |------|-----|-------|
-| Jellyfin FFmpeg | `172f1454c4bc4dd9a3754e9db024708ef7a83f0c` (`v8.1.2-1`, `origin/jellyfin`) | Local clone: `/home/yi/Code/ffmpeg/jellyfin-ffmpeg`; clean and current with `origin/jellyfin` after fetch. |
+| Jellyfin FFmpeg | `172f1454c4bc4dd9a3754e9db024708ef7a83f0c` (`v8.1.2-1`, `origin/jellyfin`) | Local clone: `/home/yi/Code/rock-5b/ffmpeg/jellyfin-ffmpeg`; clean and current with `origin/jellyfin` after fetch. |
 | Jellyfin upstream import base | `621dde56` ("New upstream version 8.1.2") | Used as the baseline for Jellyfin's FFmpeg 8.1.2 delta. |
-| Our forward port | `75638e7f0b1775193381af0c3187838f6c51dbd1` before this pass | Local clone: `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81`, branch `refactor/section-c`. |
+| Our forward port | `75638e7f0b1775193381af0c3187838f6c51dbd1` before this pass | Local clone: `/home/yi/Code/rock-5b/ffmpeg/ffmpeg-rockchip-81`, branch `refactor/section-c`. |
 | FFmpeg upstream master check | `6bae3bd` (2026-07-11, `avformat/wavdec: move ID3v2 auto-parsing flag from w64 to wav`) | Temporary clone under `/tmp/ffmpeg-upstream-master`; used only for dry-run compatibility checks. |
 
 Jellyfin's `621dde56..172f1454` delta is mostly package/builder maintenance and
@@ -106,7 +106,7 @@ Librempeg imports still need separate policy decisions.
 
 ## Application Result
 
-Applied to `/home/yi/Code/ffmpeg/ffmpeg-rockchip-81` on branch
+Applied to `/home/yi/Code/rock-5b/ffmpeg/ffmpeg-rockchip-81` on branch
 `refactor/section-c` on top of `75638e7f0b1775193381af0c3187838f6c51dbd1`:
 
 - `0001-add-fixes-for-segment-muxer.patch`
@@ -127,7 +127,7 @@ Validation after applying:
 
 - `git diff --check` passed.
 - Rebuilt `ffmpeg` and `ffprobe` with the existing configured tree:
-  `make -C /home/yi/Code/ffmpeg/ffmpeg-rockchip-81 -j$(nproc) ffmpeg ffprobe`
+  `make -C /home/yi/Code/rock-5b/ffmpeg/ffmpeg-rockchip-81 -j$(nproc) ffmpeg ffprobe`
   passed.
 - Rebuilt binaries start, report the expected RKMPP codecs and RKRGA filters,
   and a small `lavfi` test source to null muxer pipeline succeeds.

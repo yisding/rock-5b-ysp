@@ -102,7 +102,7 @@ They are also writable at runtime under `/sys/module/system_heap/parameters/`.
 ## Applying
 
 ```bash
-cd ~/Code/kernel/<tree>
+cd ~/Code/rock-5b/kernel/<tree>
 git am /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/system-heap-sg-guard/0001-*.patch
 ```
 

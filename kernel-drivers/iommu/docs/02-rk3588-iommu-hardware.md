@@ -5,7 +5,7 @@
 > in [`01-iommu-primer.md`](01-iommu-primer.md); driver/BSP flow is in
 > [`03-bsp-iommu-code.md`](03-bsp-iommu-code.md).
 > Line numbers below are into the forward-port tree
-> `../kernel/linux-6.18-rkvenc-av1-fwport` and drift with edits — treat as anchors.
+> `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` and drift with edits — treat as anchors.
 
 ## Big picture: one IOMMU per hardware block
 

@@ -42,9 +42,9 @@
 > Source: 8 parallel investigation lanes + 4 adversarial verification passes,
 > `analysis/L1..L8`, `analysis/verify-H1/H2/H3`, `analysis/completeness-critic.md`;
 > Rockchip BSP kernel `rockchip-kernel@b4ef083dc0c3` (6.1.141), mainline
-> `~/Code/kernel/linux`, `~/Code/kernel/linux-6.18-rkvenc`, u-boot
-> `~/Code/u-boot/rock-5b-armbian-26.5.1-u-boot` (radxa/u-boot `39cd993`),
-> `~/Code/u-boot/rkbin@02931bbd` (radxa `develop-v2026.01`), RK3588 TRM V1.0 Part1/2,
+> `~/Code/rock-5b/kernel/linux`, `~/Code/rock-5b/kernel/linux-6.18-rkvenc`, u-boot
+> `~/Code/rock-5b/u-boot/rock-5b-armbian-26.5.1-u-boot` (radxa/u-boot `39cd993`),
+> `~/Code/rock-5b/u-boot/rkbin@02931bbd` (radxa `develop-v2026.01`), RK3588 TRM V1.0 Part1/2,
 > RK806 Datasheet Rev 1.3, ROCK 5B v1.4.5 schematic.
 > Date: 2026-07-24
 > Trust: **MEASURED** (all live-board journal/DT/dpkg reads, every blob/DTB/config
@@ -151,7 +151,7 @@ already run** reads a control struct the *previous* Linux wrote at `0x1f0000` an
   this; the OpenWrt thread is marked "Resolved" but posts no recovered file.
 - There is **no Rockchip pstore/ramoops developer guide** anywhere in the public
   RKDocs mirrors (full `docs_list.txt` enumerated).
-- Radxa's own mainline-track kernel (7.0.11, `~/Code/kernel/radxa-kernel`) **dropped
+- Radxa's own mainline-track kernel (7.0.11, `~/Code/rock-5b/kernel/radxa-kernel`) **dropped
   the ramoops node** for rk3588 entirely.
 - Radxa Debian r6 cannot even auto-reboot on panic (`# CONFIG_PANIC_ON_OOPS is not
   set`, `CONFIG_PANIC_TIMEOUT=0`, no `panic=` on its cmdline), so on that image the
@@ -267,7 +267,7 @@ ramoops: using 0xd0000@0x118000, ecc: 16
    (…identical on -4, -3, -2; systemd-pstore.service skipped, /sys/fs/pstore empty, every boot)
 ```
 
-Chain of custody, all checked in `~/Code/kernel/linux-6.18-rkvenc`:
+Chain of custody, all checked in `~/Code/rock-5b/kernel/linux-6.18-rkvenc`:
 
 - `persistent_ram_init_ecc()` is called at `fs/pstore/ram_core.c:512`, **before** the
   signature comparison at `:520`, so with `ecc-size=16` the 12-byte header + 16
@@ -529,10 +529,10 @@ Only if EXP-2 comes back empty, or if you want the premise settled independently
 
 ```bash
 # image is already downloaded and already decompressed:
-#   /home/yi/Code/radxa-images/debian-r6/rock-5b_bookworm_kde_r6.output_512.img.xz
-#   /home/yi/Code/radxa-images/extracted/debian-r6/rock-5b_bookworm_kde_r6.img  (7.2 GiB, raw)
+#   /home/yi/Code/rock-5b/radxa-images/debian-r6/rock-5b_bookworm_kde_r6.output_512.img.xz
+#   /home/yi/Code/rock-5b/radxa-images/extracted/debian-r6/rock-5b_bookworm_kde_r6.img  (7.2 GiB, raw)
 lsblk                       # IDENTIFY THE SD CARD. Triple-check.
-sudo dd if=/home/yi/Code/radxa-images/extracted/debian-r6/rock-5b_bookworm_kde_r6.img \
+sudo dd if=/home/yi/Code/rock-5b/radxa-images/extracted/debian-r6/rock-5b_bookworm_kde_r6.img \
         of=/dev/sdX bs=4M status=progress conv=fsync   # SD ONLY
 ```
 
@@ -642,11 +642,11 @@ Cleanup afterwards: remove `initcall_blacklist=ramoops_init` from `extraargs` an
 ### EXP-5 — Swap DDR blob + BL31 to Radxa's current pair (2 hours, MEDIUM-HIGH risk)
 
 Coherent, and it is the top remaining firmware hypothesis. Both blobs are already
-on disk in `~/Code/u-boot/rkbin/bin/rk35/`, and Armbian's variables are `${VAR:-default}`
+on disk in `~/Code/rock-5b/u-boot/rkbin/bin/rk35/`, and Armbian's variables are `${VAR:-default}`
 overrides (`config/sources/families/include/rockchip64_common.inc:165-166`).
 
 ```bash
-cd /home/yi/Code/armbian/armbian-build
+cd /home/yi/Code/rock-5b/armbian/armbian-build
 DDR_BLOB=rk35/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.22.bin \
 BL31_BLOB=rk35/rk3588_bl31_v1.54.elf \
   ./compile.sh BOARD=rock-5b BRANCH=current uboot
@@ -686,7 +686,7 @@ init under our kernel):
 
 ```bash
 # board into maskrom, then load Radxa's own loader into RAM without flashing:
-sudo rkdeveloptool db /home/yi/Code/radxa-images/loaders/rk3588_spl_loader_v1.15.113.bin
+sudo rkdeveloptool db /home/yi/Code/rock-5b/radxa-images/loaders/rk3588_spl_loader_v1.15.113.bin
 ```
 
 That loader contains `ddr-v1.15-d5483af87d` + SPL v1.13 — the BSP generation.
@@ -787,7 +787,7 @@ MEDIUM-HIGH if flashed.
 
 ## 7. Where the downloaded Radxa artifacts live (reuse, do not re-download)
 
-All under `/home/yi/Code/radxa-images/`. `fetch.log` ends `ALL-DONE`, no FAILs.
+All under `/home/yi/Code/rock-5b/radxa-images/`. `fetch.log` ends `ALL-DONE`, no FAILs.
 Total on disk is roughly **45 GiB** including decompressed images — the big raw
 `.img` files are the ones worth keeping or deleting deliberately.
 
@@ -808,7 +808,7 @@ Total on disk is roughly **45 GiB** including decompressed images — the big ra
 | `extracted/debian-r6/rock-5b_bookworm_kde_r6.img` | 7.2 G | Raw r6 GPT image, ready for `dd` to SD (EXP-3). |
 | `extracted/debian-r6/p1.img` / `p2_boot.img` / `p3_root.img` | 16 M / 300 M / 6.9 G | r6 partitions: "config" FAT16 / **empty ESP** / ext4 rootfs (read with `debugfs`, no sudo needed). |
 | `extracted/debian-r6/boot32m/` | — | First 32 MiB of r6 (loader area) + extracted `uboot-control.dts`, `our-uboot-control.dts`. |
-| `extracted/debian-r6/bl31/` | — | BL31 ELFs incl. `rk3588_bl31_v1.48.elf` recovered via `git -C ~/Code/u-boot/rkbin show 0f8ac860:bin/rk35/…`. |
+| `extracted/debian-r6/bl31/` | — | BL31 ELFs incl. `rk3588_bl31_v1.48.elf` recovered via `git -C ~/Code/rock-5b/u-boot/rkbin show 0f8ac860:bin/rk35/…`. |
 | `extracted/debian-r6/rootfs/` | — | `rk3588-rock-5b.dtb` + `.dts`, `config-6.1.84-8-rk2410`, `vmlinuz-6.1.84-8-rk2410` pulled out with `debugfs`. |
 | `extracted/L1-bsp-kernel/` | 5.5 G | Duplicate r6 full image + `radxa-config-6.1.84-8-rk2410`, `radxa-rk3588-rock-5b.dtb/.dts`, `radxa-vmlinuz-6.1.84`. **Safe to delete the 7.2 G duplicate.** |
 | `extracted/android/Rock5B_Android12_rkr14_…-gpt.img` | 6.6 G | Unzipped rkr14 GPT image. |
@@ -823,7 +823,7 @@ Total on disk is roughly **45 GiB** including decompressed images — the big ra
 |---|---|
 | `extracted/android/rkfw_unpack.py` | Unpacks Rockchip RKAF/RKFW update containers. |
 | `extracted/android/rsce_unpack.py` | Extracts the `RSCE` resource blob from `boot.img` (gets `rk-kernel.dtb`). |
-| `extracted/android/ddrbin_readparam.py` | Reads the ddrbin parameter block (incl. `reserved_0` = the pstore word) from any loader/DDR blob. Complements `~/Code/u-boot/rkbin/tools/ddrbin_tool.py`. |
+| `extracted/android/ddrbin_readparam.py` | Reads the ddrbin parameter block (incl. `reserved_0` = the pstore word) from any loader/DDR blob. Complements `~/Code/rock-5b/u-boot/rkbin/tools/ddrbin_tool.py`. |
 | `extracted/debian-r6/fatread.py` | Hand-written FAT12/16 reader — opens the r6 "config"/ESP partitions with no sudo and no loop mount. |
 
 ### Documentation and fetched sources
@@ -865,7 +865,7 @@ and one new experiment. Nothing here changes the verdict; it narrows §3.3.
 ### F1. SPL's entire static footprint, and why it cannot reach the window
 
 `include/configs/rk3588_common.h` in the exact source of our installed U-Boot
-(`~/Code/u-boot/rock-5b-armbian-26.5.1-u-boot`, radxa/u-boot `39cd993`) —
+(`~/Code/rock-5b/u-boot/rock-5b-armbian-26.5.1-u-boot`, radxa/u-boot `39cd993`) —
 **SOURCE-VERIFIED**:
 
 ```
@@ -994,7 +994,7 @@ the provisioned-but-never-demonstrated tally now stands at six independent stack
 ### F5. Upstream U-Boot keeps the exact component we suspect — SOURCE-VERIFIED
 
 Mainline U-Boot's RK3588 support still requires Rockchip's closed DDR blob. In the
-current mainline tree (`~/Code/u-boot/u-boot` @ `6741b0dfb41`, 2026-07-10):
+current mainline tree (`~/Code/rock-5b/u-boot/u-boot` @ `6741b0dfb41`, 2026-07-10):
 
 ```
 arch/arm/mach-rockchip/Kconfig:652:  Enable this option and build with

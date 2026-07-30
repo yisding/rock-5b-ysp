@@ -7,12 +7,42 @@ captures board bring-up, boot-chain, packaging, and application gaps encountered
 along the way. The goal is to make each gap, experiment, result, and remaining
 gate quick to reconstruct when returning to the project later.
 
-The actual code lives in sibling source trees (kernel forks, `ffmpeg-rockchip`,
-`gnome-remote-desktop`, Mesa, `librga`, `mpp-rockchip`); this repo holds the
-architecture notes, forward-port design, patch deliverables, captured findings,
-and dated status of every track. Cross-cutting vocabulary (MPP, RGA, CCU, DCHS,
-…) lives in [`glossary.md`](glossary.md); most leaf projects also keep a
-`keywords.md` for their own local jargon.
+The actual code lives under the sibling `rock-5b/` workspace (kernel forks,
+`ffmpeg-rockchip`, `gnome-remote-desktop`, Mesa, `librga`, `mpp-rockchip`);
+this repo holds the architecture notes, forward-port design, patch deliverables,
+captured findings, and dated status of every track. Cross-cutting vocabulary
+(MPP, RGA, CCU, DCHS, …) lives in [`glossary.md`](glossary.md); most leaf
+projects also keep a `keywords.md` for their own local jargon.
+
+## Local workspace layout
+
+Board-related external trees, builds, packages, and captured artifacts are
+grouped under `rock-5b/`. The public support record and private security record
+remain separate peer repositories; shared scratch and compiler-cache storage
+also remain at the `~/Code` level.
+
+```text
+~/Code/
+├── rock-5b-ysp/       # this public integration and evidence record
+├── rock-5b-security/  # private disclosure and memory-safety material
+├── rock-5b/           # external board source trees, builds, and artifacts
+│   ├── kernel/
+│   ├── ffmpeg/
+│   ├── fdo/
+│   ├── gnome/
+│   ├── rockchip-conformance/
+│   └── …
+├── tmp/               # shared scratch, intentionally not relocated
+└── .ccache/           # shared compiler cache, intentionally not relocated
+```
+
+Unless a command says otherwise, relative external paths such as
+`../rock-5b/kernel/…` are resolved from the `rock-5b-ysp` repository root.
+Set `ROCK5B_WORKSPACE=/path/to/rock-5b` to relocate the grouped board
+workspace; component-specific variables such as `CONFORMANCE_ROOT`,
+`WORKSPACE`, `WORKSPACE_ROOT`, `MESA_BUILD`, and `FFDIR` still take precedence.
+The shared `~/Code/tmp` and `~/Code/.ccache` peers are intentionally independent
+of `ROCK5B_WORKSPACE`.
 
 The deepest body of evidence follows a Rockchip vendor **MPP** codec stack plus
 **RGA** from the Rockchip 6.1 BSP into Linux 6.18, plus an end-to-end source

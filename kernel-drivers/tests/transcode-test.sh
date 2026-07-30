@@ -16,14 +16,15 @@
 set -uo pipefail
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$REPO_ROOT/../rock-5b}"
 [ "$(id -u)" -eq 0 ] || { echo "Run as root:  sudo bash $0"; exit 1; }
 
-# Paths (env-overridable; defaults = the original dev box, see README.md):
-#   FFDIR = ffmpeg-rockchip build dir (./ffmpeg + ./ffprobe -- ../ffmpeg/README.md)
-#   STAGE = the MPP/RGA staging prefix from ../ffmpeg/README.md (e.g. ~/ffmpeg-stack)
+# Paths (env-overridable; defaults follow ROCK5B_WORKSPACE, see README.md):
+#   FFDIR = ffmpeg-rockchip build dir (./ffmpeg + ./ffprobe)
+#   STAGE = the MPP/RGA staging prefix under the grouped kernel build workspace
 #   IN    = 1080p H.264 Annex-B input (regeneration recipe in README.md)
-FFDIR="${FFDIR:-$REPO_ROOT/../ffmpeg/ffmpeg-rockchip}"
-STAGE="${STAGE:-$REPO_ROOT/../kernel/rock5b-kernel-build/ffmpeg-stack}"
+FFDIR="${FFDIR:-$ROCK5B_WORKSPACE/ffmpeg/ffmpeg-rockchip}"
+STAGE="${STAGE:-$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build/ffmpeg-stack}"
 FF="$FFDIR/ffmpeg"
 PROBE="$FFDIR/ffprobe"
 export LD_LIBRARY_PATH="$STAGE/lib"        # belt + suspenders (binary also has rpath)

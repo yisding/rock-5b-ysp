@@ -102,7 +102,7 @@ has been converted from a loud failure into a quiet one.
     readback is truncated — `packet size 6029312 < expected frame_size 6220800`
     for 1920×1080 P010 — so the Main10→P010 RGA path is now producing short
     frames.
-- **Artifacts:** `../rockchip-conformance/logs/forward-port/20260724-184309-*`
+- **Artifacts:** `../rock-5b/rockchip-conformance/logs/forward-port/20260724-184309-*`
   (`system`, `mpp-suite`, `librga-suite`, `gstreamer-suite`, `ffmpeg-suite`).
   Probes and their sources in the session scratchpad; not committed.
 
@@ -336,7 +336,7 @@ uv-offset-test: PASS (0 failing checks)
 ```
 
 The installed librga was too old for the P010/NV15 confirmation probes, so a
-fresh local build from the current `../rockchip-userspace/librga-fork` tip was
+fresh local build from the current `../rock-5b/rockchip-userspace/librga-fork` tip was
 linked into the probe binaries. With that userspace, run
 `20260725-200145-rga-im2d-10bit-current-gates` passed `p010-default`,
 `nv15-256`, `nv15-320`, and `nv15-1920`, all with `kernel_flags=0`. The fresh

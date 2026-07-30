@@ -144,7 +144,8 @@ Targets: `mpp`, `librga`, `ffmpeg`, `ffmpeg-rockchip`,
 `kernel`, `kernel-alpha-6.18`, `kernel-alpha-7.2-rc3`.
 
 Artifacts land in `packaging/ppa/out/artifacts` (override with `OUT=`). Source
-trees resolve below `WORKSPACE_ROOT`, which defaults to this repo's parent; each
+trees resolve below `WORKSPACE_ROOT`, which defaults to `ROCK5B_WORKSPACE`;
+that grouped root defaults to the sibling `rock-5b` workspace. Each
 component also honours `<PROJ>_REPO`, `<PROJ>_COMMIT`, and
 `<PROJ>_UPSTREAM_VERSION`.
 

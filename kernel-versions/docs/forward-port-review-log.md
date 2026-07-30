@@ -9,8 +9,8 @@ stay in [av1-bsp-audit.md](../../kernel-drivers/av1/docs/av1-bsp-audit.md).
 
 Scope reviewed:
 
-- `../kernel/linux-6.18-rkvenc`: RKVENC2, RKVDEC2, RGA, Rockchip IOMMU provider hook path.
-- `../kernel/linux-6.18-rkvenc-av1-fwport`: all of the above plus RKMPP AV1 and VSI IOMMU.
+- `../rock-5b/kernel/linux-6.18-rkvenc`: RKVENC2, RKVDEC2, RGA, Rockchip IOMMU provider hook path.
+- `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`: all of the above plus RKMPP AV1 and VSI IOMMU.
 
 ### Fixed in the worktrees
 
@@ -29,8 +29,8 @@ Scope reviewed:
 
 ### Verification run
 
-- `../kernel/linux-6.18-rkvenc`: focused arm64 build passed for `drivers/video/rockchip/mpp/` and `drivers/video/rockchip/rga3/`.
-- `../kernel/linux-6.18-rkvenc-av1-fwport`: focused arm64 build passed for `drivers/iommu/rockchip-iommu.o`, `drivers/iommu/vsi-iommu.o`, `drivers/video/rockchip/mpp/`, and `drivers/video/rockchip/rga3/`.
+- `../rock-5b/kernel/linux-6.18-rkvenc`: focused arm64 build passed for `drivers/video/rockchip/mpp/` and `drivers/video/rockchip/rga3/`.
+- `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`: focused arm64 build passed for `drivers/iommu/rockchip-iommu.o`, `drivers/iommu/vsi-iommu.o`, `drivers/video/rockchip/mpp/`, and `drivers/video/rockchip/rga3/`.
 - Both worktrees passed `git diff --check`.
 
 The AV1 `O=/tmp/...` build needed `HOSTCFLAGS=-Wno-error=discarded-qualifiers`
@@ -53,7 +53,7 @@ is a host-tool build issue, not a media-driver failure.
 
 ## 2026-07-03 commit + branch provenance
 
-The AV1 forward-port worktree (`../kernel/linux-6.18-rkvenc-av1-fwport`, branch
+The AV1 forward-port worktree (`../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`, branch
 `rkvenc-fwport-6.18`) was **entirely uncommitted on top of the two base commits**
 until now. It is committed as a 9-commit series (`5614909..5983ccd`), dependency
 ordered:
@@ -98,7 +98,7 @@ clean boot log alone will not exercise them.
 
 ### The rewrite lineage carries a *stale* copy of the forward-port — do not sync back from it
 
-`rk3588-rewrite-6.18` (worktree `../kernel/linux-6.18-rkvenc`) forks from the same base
+`rk3588-rewrite-6.18` (worktree `../rock-5b/kernel/linux-6.18-rkvenc`) forks from the same base
 `5614909` and carries the clean-room rewrite drivers **plus an older copy of the
 vendor forward-port**, squashed as `710642eb` *"harden rk3588 forward-port
 recovery"*. Despite the name, **`rkvenc-fwport-6.18` is strictly more hardened
@@ -125,5 +125,5 @@ than `710642eb`** — verified by direct comparison:
 `rga-rewrite/` drivers; cherry-picking or checking out its vendor-driver copy
 onto this branch would **regress** recovery, `POLL_NON_BLOCK`, the iommu-required
 probe, and the shared-domain rework. (Note: `rewrite-drivers.md` §6 cites
-`710642eb58e3` only as the rewrite **build-gate** tip for `../kernel/linux-6.18-rkvenc`,
+`710642eb58e3` only as the rewrite **build-gate** tip for `../rock-5b/kernel/linux-6.18-rkvenc`,
 not as a forward-port source.)

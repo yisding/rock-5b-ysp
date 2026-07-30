@@ -11,7 +11,7 @@ comes back on its own.
 > through the unified [`scripts/build-kernel.sh`](../scripts/build-kernel.sh)
 > (`forward-port-debug` / `rewrite-debug` flavors, see the
 > [kernel-builds map](./kernel-builds.md)). Only the Armbian build tree and
-> outputs live in the external `/home/yi/Code/kernel/rock5b-kernel-build/`
+> outputs live in the external `/home/yi/Code/rock-5b/kernel/rock5b-kernel-build/`
 > scratch workspace. The entry point regenerates the complete flavor patch
 > series and matching Armbian core-patch exclusions before every debug build
 > instead of trusting leftover userpatch state.

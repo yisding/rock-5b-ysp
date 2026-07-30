@@ -1,7 +1,7 @@
 # The installed SPI is not U-Boot-incompatible with Radxa BSP images; the real gap is the firmware blob generation
 
 > Scope: ROCK 5B boot firmware (SPI NOR), Radxa BSP Debian/Android images, [`boot-firmware/`](../boot-firmware/README.md) track 12
-> Source: live ROCK 5B `/dev/mtdblock0`; `/usr/lib/linux-u-boot-current-rock-5b/rkspi_loader.img`; `~/Code/radxa-images/` (fetched 2026-07-24) — `loaders/rock-5b-spi-image-gd1cf491-20240523.img`, `loaders/rk3588_spl_loader_v1.15.113.bin`, `debian-r6/rock-5b_bookworm_kde_r6.output_512.img.xz`, `android/Rock5B_Android12_rkr14_20240419-gpt.zip`
+> Source: live ROCK 5B `/dev/mtdblock0`; `/usr/lib/linux-u-boot-current-rock-5b/rkspi_loader.img`; `~/Code/rock-5b/radxa-images/` (fetched 2026-07-24) — `loaders/rock-5b-spi-image-gd1cf491-20240523.img`, `loaders/rk3588_spl_loader_v1.15.113.bin`, `debian-r6/rock-5b_bookworm_kde_r6.output_512.img.xz`, `android/Rock5B_Android12_rkr14_20240419-gpt.zip`
 > Date: 2026-07-24
 > Trust: MEASURED (hashes, GPT layouts, blob identity strings, filesystem contents) / CODE-INSPECTED (U-Boot default environment, control DTB, Radxa `setup.sh`) / INFERRED (blob-generation consequence) / HYPOTHESIS (the `ttyFIQ0` silent-serial symptom)
 
@@ -126,7 +126,7 @@ built against — while its own matching blobs sit unused on the boot medium.
     exactly this blob set.
 - **Artifacts:** none committed. Working copies were built in a session
   scratchpad (including the 7.7 GB decompressed r6 image) and are reproducible
-  from `~/Code/radxa-images/` with the commands above.
+  from `~/Code/rock-5b/radxa-images/` with the commands above.
 
 ## Boundary
 

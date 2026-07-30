@@ -5,7 +5,7 @@
 > `main@db5e0f0`. Answers "how much work is left to get the decode side
 > working".
 >
-> Source: fork `/home/yi/Code/rockchip-vaapi` at `main@db5e0f0` (remote `fork` =
+> Source: fork `/home/yi/Code/rock-5b/rockchip-vaapi` at `main@db5e0f0` (remote `fork` =
 > `yisding/rockchip-vaapi`, matching); native build and unit gates run on the
 > board; `dpkg -l` for installed userspace; Launchpad API for PPA states;
 > [`video-libraries/vaapi/README.md`](../video-libraries/vaapi/README.md)

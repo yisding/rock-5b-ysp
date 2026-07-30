@@ -1,5 +1,5 @@
 upstream: https://github.com/nyanmisaka/ffmpeg-rockchip
-source-tree: /home/yi/Code/ffmpeg/ffmpeg-rockchip
+source-tree: /home/yi/Code/rock-5b/ffmpeg/ffmpeg-rockchip
 commit: 40c412daccf08164493da0de990eb99a8948116b
 commit-date: 2026-04-23
 release: 6.1

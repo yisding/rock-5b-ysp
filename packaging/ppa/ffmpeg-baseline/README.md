@@ -12,7 +12,7 @@ Provenance: recovered on 2026-07-07 from the Launchpad source publication of
 `ffmpeg 7:8.1.2-1+rk1` (`ffmpeg_8.1.2-1+rk1.debian.tar.xz`, sha256
 `88d622f3090478439cebb30d1ded7b966012a21362982d8101b99a7463742b07`, verified
 against the `.dsc`). The original tree lived only at
-`/home/yi/Code/gnome/grd/grd-ppa/` on the board and was never in git.
+`/home/yi/Code/rock-5b/gnome/grd/grd-ppa/` on the board and was never in git.
 
 Local delta on top of the recovered tree (version `7:8.1.2-1+rk2`):
 

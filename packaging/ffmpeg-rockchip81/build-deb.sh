@@ -6,7 +6,8 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$DIR/../.." && pwd)"
-WORKSPACE_ROOT="$(cd "${WORKSPACE_ROOT:-$REPO_ROOT/..}" && pwd)"
+ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$REPO_ROOT/../rock-5b}"
+WORKSPACE_ROOT="$(cd "${WORKSPACE_ROOT:-$ROCK5B_WORKSPACE}" && pwd)"
 NAME=ffmpeg-rockchip81
 FFSRC="${FFSRC:-$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81}"
 PREFIX=/opt/ffmpeg-rockchip-81
@@ -23,7 +24,7 @@ Build the co-installable ffmpeg-rockchip81 runtime package, or remove its
 disposable build directory.
 
 Environment:
-  WORKSPACE_ROOT  Parent workspace for the default FFmpeg checkout
+  WORKSPACE_ROOT  Board workspace containing the default FFmpeg checkout
   FFSRC           FFmpeg source directory (default: $FFSRC)
   JOBS            Parallel build jobs (default: $JOBS)
   VERSION         Override the generated Debian version

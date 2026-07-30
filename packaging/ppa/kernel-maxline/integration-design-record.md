@@ -10,7 +10,7 @@
 
 > Scope: ROCK 5B; Ubuntu 26.04 / Armbian 26.5.1; upstream Linux and all
 > publicly available RK3588 proposal series known on 2026-07-17
-> Source: `~/Code/kernel/mainline-status.md`; upstream Linux `v7.2-rc3`
+> Source: `~/Code/rock-5b/kernel/mainline-status.md`; upstream Linux `v7.2-rc3`
 > (`a13c140cc289c0b7b3770bce5b3ad42ab35074aa`); running system and this
 > repository's kernel packaging
 > Date: 2026-07-17
@@ -480,7 +480,7 @@ the upstream stack.
   this [`kernel-maxline/`](README.md) project.
   The complete measured implementation/build record is
   [`verification.md`](verification.md).
-  The supplied source snapshot remains at `~/Code/kernel/mainline-status.md`
+  The supplied source snapshot remains at `~/Code/rock-5b/kernel/mainline-status.md`
   and is intentionally not duplicated here.
 
 ## Boundary

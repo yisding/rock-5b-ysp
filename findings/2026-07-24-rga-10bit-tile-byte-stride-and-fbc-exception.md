@@ -2,7 +2,7 @@
 
 > Scope: kernel-drivers RGA — the rewrite (`rga-rewrite`), the forward port
 > (`rga3/`), and the `librga` fork, reconciled against the BSP.
-> Source: BSP `~/Code/kernel/rockchip-kernel` `origin/develop-6.1` (`b4ef083dc0c3`)
+> Source: BSP `~/Code/rock-5b/kernel/rockchip-kernel` `origin/develop-6.1` (`b4ef083dc0c3`)
 > and `origin/develop-5.10` — `rga3_reg_info.c` win0/win1 `rd_mode` switch,
 > `rga_common.c` `rga_convert_addr()`. Fixes: rewrite `40cf22629cf63`
 > (6.18) / `7481ab327d7ea` (mainline); librga fork `4c26ddf`.
@@ -105,8 +105,8 @@ form is always a multiple of 80.
 
 - **Identity:** code-only, four trees. BSP `rockchip-kernel` `origin/develop-6.1`
   + `origin/develop-5.10`; forward port at `710e6ad12af6` on `rk3588-video-6.18`
-  in `~/Code/kernel/linux`; rewrite on `rk3588-rewrite-6.18` /
-  `rk3588-rewrite-mainline`; `~/Code/rockchip-userspace/librga-fork` `main`.
+  in `~/Code/rock-5b/kernel/linux`; rewrite on `rk3588-rewrite-6.18` /
+  `rk3588-rewrite-mainline`; `~/Code/rock-5b/rockchip-userspace/librga-fork` `main`.
 - **Exercise:** `git show origin/develop-{5.10,6.1}:drivers/video/rockchip/rga3/{rga3_reg_info.c,rga_common.c}`
   and a diff of the two branches over `rga3_reg_info.c` filtered to
   `stride|pixel_width|10B|yuv10`.

@@ -105,7 +105,7 @@ Two more gotchas the script encodes:
   Gotchas: run from a writable cwd (module dir is root-owned); `--deqp-caselist`
   wildcards are rejected; full `txt-caselist` enumeration OOM-killed — use
   explicit lists.
-- **piglit: now built** at `/home/yi/Code/fdo/piglit` (2026-07-03). The earlier
+- **piglit: now built** at `/home/yi/Code/rock-5b/fdo/piglit` (2026-07-03). The earlier
   `build-codex-piglit` was a Mesa drm-shim build, not the suite. The suite needs
   a glvnd-enabled Mesa *install* (not an `LD_LIBRARY_PATH` override) — see the
   piglit section below for the full recipe and the SIGSEGV gotcha.
@@ -144,7 +144,7 @@ resolve/copy shaders must keep consuming the plain coordinate attribute).
 
 ## piglit (transfer/blit/texture subset)
 
-piglit is now cloned at `/home/yi/Code/fdo/piglit` (cmake+ninja, deps:
+piglit is now cloned at `/home/yi/Code/rock-5b/fdo/piglit` (cmake+ninja, deps:
 `cmake python3-numpy python3-mako python3-pil libwaffle-dev`; configure with
 `-DPIGLIT_BUILD_CL_TESTS=OFF -DPIGLIT_BUILD_VK_TESTS=OFF
 -DPIGLIT_BUILD_DMA_BUF_TESTS=OFF` — the last avoids an `xcb-dri2` hard error).
@@ -172,11 +172,11 @@ skew. Two dead ends that each looked like "the driver crashes 286 tests."
 Fix: a second Mesa build/install with glvnd on, selected as the glvnd EGL vendor:
 ```
 meson setup build-codex-main --reconfigure --native-file /tmp/mesa-codex-llvm22-extracted.ini \
-  -Dglvnd=enabled -Dprefix=/home/yi/Code/fdo/mesa/install-glvnd
+  -Dglvnd=enabled -Dprefix=/home/yi/Code/rock-5b/fdo/mesa/install-glvnd
 ninja -C build-codex-main && meson install -C build-codex-main
 # then, keeping SYSTEM glvnd libGL/libEGL:
-export __EGL_VENDOR_LIBRARY_FILENAMES=/home/yi/Code/fdo/mesa/install-glvnd/share/glvnd/egl_vendor.d/50_mesa.json
-export LD_LIBRARY_PATH=/home/yi/Code/fdo/mesa/install-glvnd/lib/aarch64-linux-gnu   # libEGL_mesa.so.0, NOT libEGL.so.1
+export __EGL_VENDOR_LIBRARY_FILENAMES=/home/yi/Code/rock-5b/fdo/mesa/install-glvnd/share/glvnd/egl_vendor.d/50_mesa.json
+export LD_LIBRARY_PATH=/home/yi/Code/rock-5b/fdo/mesa/install-glvnd/lib/aarch64-linux-gnu   # libEGL_mesa.so.0, NOT libEGL.so.1
 export LIBGL_DRIVERS_PATH=.../dri GBM_BACKENDS_PATH=.../gbm MESA_LOADER_DRIVER_OVERRIDE=panfrost
 ```
 Verified: `getteximage-formats -auto -fbo` → `pass`, renderer
@@ -185,7 +185,7 @@ still use the simpler non-glvnd surfaceless env; only glvnd-linked piglit needs
 the vendor path.) `run-piglit.sh` encodes all of this.
 
 Also: piglit looks for binaries at `<piglit>/bin`; for the out-of-tree cmake
-build, `ln -sfn build/bin /home/yi/Code/fdo/piglit/bin` (else every test reports
+build, `ln -sfn build/bin /home/yi/Code/rock-5b/fdo/piglit/bin` (else every test reports
 "Test executable not found" as a skip).
 
 ## Still outstanding

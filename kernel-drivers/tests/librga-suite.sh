@@ -7,7 +7,8 @@ REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 source "$TEST_DIR/suite-common.sh"
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 BIN_DIR=${RGA_BIN_DIR:-"$CONFORMANCE_ROOT/out/librga-samples/bin"}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-librga-suite"}
@@ -156,7 +157,7 @@ if [ ! -e /dev/rga ]; then
 fi
 
 if [ ! -d "$BIN_DIR" ]; then
-	echo "Missing $BIN_DIR. Run ../rockchip-conformance/scripts/build-librga-samples.sh first." >&2
+	echo "Missing $BIN_DIR. Run ../rock-5b/rockchip-conformance/scripts/build-librga-samples.sh first." >&2
 	exit 2
 fi
 

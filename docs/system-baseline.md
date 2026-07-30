@@ -67,7 +67,7 @@ PROFILE=forward-port \
 
 It writes a timestamped directory under
 `kernel-drivers/tests/conformance/logs/<profile>/` and prints that path. The
-directory is ignored by Git. The external `../rockchip-conformance` bundle gets
+directory is ignored by Git. The external `../rock-5b/rockchip-conformance` bundle gets
 the same script from `bootstrap-workspaces.sh`, so paired conformance runs can
 use:
 

@@ -128,12 +128,12 @@ The raw machine-local evidence is:
 
 | Artifact | SHA-256 | Purpose |
 |---|---|---|
-| `/home/yi/Code/mesa-mr43161-benchmark-20260728/coalesced-single-balanced-ab-off-on-30.log` | `2743f33b0c94c81f3a00180bd522bb5b47fd723e0727899b368d0de9d44bb964` | Primary 30-block A/B |
-| `/home/yi/Code/mesa-mr43161-benchmark-20260728/coalesced-single-balanced-aa-off-off.log` | `71b03cd2c80894c87ab35a540041d14d35a5bab1699a813bb8c9b3dd83b68bf6` | Balanced 12-block A/A |
-| `/home/yi/Code/mesa-mr43161-benchmark-20260728/coalesced-single-aa-off-off.log` | `029f1cb01adbf4c7265946e35d1750406edc3a87b24ebe8559e3ed1b27683653` | Ascending-only A/A that exposed count-order bias |
-| `/home/yi/Code/mesa-mr43161-benchmark-20260728/coalesced-aa-off-off.log` | `2aa6acdcd532b3e98dbf5e47120296029e02a21e1ba9e0edf67efe94b33d462d` | Two-context A/A that exposed context-position bias |
-| `/home/yi/Code/mesa-mr43161-benchmark-20260728/12288x1.log` | `c008b4b197eaf19c9e72c8acacd7e86b6a02df7a1be9c06e19716cd5139ba111` | Prior process-level run |
-| `/home/yi/Code/mesa-mr43161-benchmark-20260728/12288x1-offset-control.log` | `a518ae24bbe2163f798dea14b6911ac0ac870806bc99ce5a64661e7ef9ccd3a1` | Direct-draw control |
+| `/home/yi/Code/rock-5b/mesa-mr43161-benchmark-20260728/coalesced-single-balanced-ab-off-on-30.log` | `2743f33b0c94c81f3a00180bd522bb5b47fd723e0727899b368d0de9d44bb964` | Primary 30-block A/B |
+| `/home/yi/Code/rock-5b/mesa-mr43161-benchmark-20260728/coalesced-single-balanced-aa-off-off.log` | `71b03cd2c80894c87ab35a540041d14d35a5bab1699a813bb8c9b3dd83b68bf6` | Balanced 12-block A/A |
+| `/home/yi/Code/rock-5b/mesa-mr43161-benchmark-20260728/coalesced-single-aa-off-off.log` | `029f1cb01adbf4c7265946e35d1750406edc3a87b24ebe8559e3ed1b27683653` | Ascending-only A/A that exposed count-order bias |
+| `/home/yi/Code/rock-5b/mesa-mr43161-benchmark-20260728/coalesced-aa-off-off.log` | `2aa6acdcd532b3e98dbf5e47120296029e02a21e1ba9e0edf67efe94b33d462d` | Two-context A/A that exposed context-position bias |
+| `/home/yi/Code/rock-5b/mesa-mr43161-benchmark-20260728/12288x1.log` | `c008b4b197eaf19c9e72c8acacd7e86b6a02df7a1be9c06e19716cd5139ba111` | Prior process-level run |
+| `/home/yi/Code/rock-5b/mesa-mr43161-benchmark-20260728/12288x1-offset-control.log` | `a518ae24bbe2163f798dea14b6911ac0ac870806bc99ce5a64661e7ef9ccd3a1` | Direct-draw control |
 
 ## Why increasing `N` did not tighten the interval
 

@@ -18,8 +18,9 @@ else
   BUILD_DIR="${BUILD_DIR:-$TEST_DIR/.build/librga-smoke}"
 fi
 
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
-STAGE="${STAGE:-$REPO_ROOT/../kernel/rock5b-kernel-build/ffmpeg-stack}"
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
+STAGE="${STAGE:-$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build/ffmpeg-stack}"
 PKG_CONFIG="${PKG_CONFIG:-pkg-config}"
 PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-$STAGE/lib/pkgconfig}"
 LIBRGA_SRC=${LIBRGA_SRC:-"$CONFORMANCE_ROOT/sources/airockchip-librga"}

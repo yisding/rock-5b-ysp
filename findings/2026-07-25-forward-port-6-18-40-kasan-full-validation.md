@@ -5,7 +5,7 @@
 > `6.18-rkvenc-fwport`.
 >
 > Source: on-board validation runs from `/home/yi/Code/rock-5b-ysp`, with
-> artifacts under `../rockchip-conformance/logs/forward-port/`.
+> artifacts under `../rock-5b/rockchip-conformance/logs/forward-port/`.
 >
 > Date: 2026-07-25 PDT.
 >
@@ -158,14 +158,14 @@ The narrowed KASAN reproducer passed:
 
 ```text
 RESULT abi_status=0 flagged_kernel_lines=0 clean=1
-out=../rockchip-conformance/logs/forward-port/20260725-195438-kasan-narrowed
+out=../rock-5b/rockchip-conformance/logs/forward-port/20260725-195438-kasan-narrowed
 ```
 
 The full KASAN MPP suite passed all 12 required cases:
 
 ```text
 RESULT suite_status=0 flagged_kernel_lines=0 clean=1
-out=../rockchip-conformance/logs/forward-port/20260725-195451-kasan-mpp-suite
+out=../rock-5b/rockchip-conformance/logs/forward-port/20260725-195451-kasan-mpp-suite
 ```
 
 Decoder smoke also passed:
@@ -200,7 +200,7 @@ uv-offset-test: PASS (0 failing checks)
 ```
 
 The installed librga was stale for the new P010/NV15 probes, so a fresh local
-build was made from `../rockchip-userspace/librga-fork` at the current fork tip
+build was made from `../rock-5b/rockchip-userspace/librga-fork` at the current fork tip
 and linked into the test binaries. The stale-library failures from
 `20260725-195914-rga-im2d-10bit-gates` are discarded as a userspace-version
 artifact, not a kernel verdict.

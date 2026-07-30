@@ -23,7 +23,7 @@ non-BLIT default, this configuration cannot be rebuilt from upstream alone.
 
 Provenance:
 - Exported verbatim via `git format-patch -1 e8cf2ae6daa` from the local
-  Mesa working tree (/home/yi/Code/mesa, remote github.com/yisding/mesa),
+  Mesa working tree (/home/yi/Code/rock-5b/mesa, remote github.com/yisding/mesa),
   branch panfrost-transfer-blit, on 2026-07-01.
 - It advertises PIPE_TEXTURE_TRANSFER_BLIT only (no local commit ever
   advertised BLIT|COMPUTE). The COMPUTE side of every BLIT-vs-COMPUTE
@@ -63,4 +63,3 @@ index 274053f6550..789b8de7e6c 100644
  
 -- 
 2.53.0
-

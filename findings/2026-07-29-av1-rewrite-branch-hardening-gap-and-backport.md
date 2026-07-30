@@ -1,7 +1,7 @@
 # rk3588-rewrite-av1-6.18 forked before 19 hardening commits; KUnit isolation and the ISR fault-handler panic fix are absent
 
 > Scope: kernel-drivers (clean-room rewrite track); branches `rk3588-rewrite-av1-6.18` and `rk3588-rewrite-6.18` in the shared `linux-rock5b` repo
-> Source: `~/Code/kernel/linux-6.18-rk-av1-rewrite` @ `e58c57e50d0a0` vs `~/Code/kernel/linux-6.18-rkvenc` @ `e5867fa31ed2b`; merge-base `c5faabf9d00b0`
+> Source: `~/Code/rock-5b/kernel/linux-6.18-rk-av1-rewrite` @ `e58c57e50d0a0` vs `~/Code/rock-5b/kernel/linux-6.18-rkvenc` @ `e5867fa31ed2b`; merge-base `c5faabf9d00b0`
 > Date: 2026-07-29
 > Trust: SOURCE-INSPECTED; reverse port FIX-COMPILE-VERIFIED and RESOLVED (both targets fast-forwarded, spur retired); runtime KUnit/decode still unexercised
 
@@ -93,7 +93,7 @@ assumed here.
 - Compile gate for 1–7: PASS — `mpp_rewrite.o`, `rga_rewrite.o` (no warnings)
   and all enabled arm64 DTBs, build dir
   `~/Code/tmp/av1-hardening-20260729/build` seeded from
-  `~/Code/kernel/build-rk-av1-rewrite/.config` with the four rewrite configs
+  `~/Code/rock-5b/kernel/build-rk-av1-rewrite/.config` with the four rewrite configs
   enabled (donor config needed `ROCKCHIP_MULTI_RGA`/`VIDEO_ROCKCHIP_RGA`
   disabled first or `olddefconfig` drops `ROCKCHIP_RGA_REWRITE`).
 - Commits 8–19 (the KUnit-isolation series onward) were never attempted in
@@ -175,11 +175,11 @@ packaging line if it keys on the version string.
   `retired/rk3588-rewrite-av1-6.18-20260729` (@ `e58c57e50d0a0`); the
   redundant same-SHA `ysp-backup/...-before-hardening-20260729` ref was
   deleted. Local only; any remote copy of the spur was left untouched.
-- Worktree `~/Code/kernel/linux-6.18-rk-av1-rewrite` removed; all port/staging
+- Worktree `~/Code/rock-5b/kernel/linux-6.18-rk-av1-rewrite` removed; all port/staging
   worktrees and branches removed (`rk3588-rewrite-av1-6.18-hardening`,
   `rk3588-rewrite-6.18-av1-port`, `rk3588-rewrite-mainline-av1-port` — the
   latter two after verifying containment in their targets).
-- Still present: `~/Code/kernel/build-rk-av1-rewrite` (the spur's build dir).
+- Still present: `~/Code/rock-5b/kernel/build-rk-av1-rewrite` (the spur's build dir).
   Its source pointer now dangles, so accidental builds fail loudly; delete it
   when convenient.
 

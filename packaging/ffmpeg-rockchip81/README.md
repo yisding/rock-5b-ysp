@@ -21,7 +21,8 @@ bash packaging/ffmpeg-rockchip81/build-deb.sh
 
 The default source is
 `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81`, where `WORKSPACE_ROOT` defaults to
-the parent of this repository.
+`$ROCK5B_WORKSPACE` and that grouped root defaults to the sibling `rock-5b`
+workspace.
 
 Useful overrides:
 
@@ -47,7 +48,7 @@ with `parser h264 is not registered`, direct software-frame input to
 `scale_rkrga` is the wrong command shape, and local MPP demo binaries do not
 match the installed MPP library.
 
-Follow-up root-cause testing built `~/Code/rockchip-userspace/mpp-rockchip`
+Follow-up root-cause testing built `~/Code/rock-5b/rockchip-userspace/mpp-rockchip`
 tag `1.0.12` from source. That build's `rockchip_mpp.pc` advertises
 `Version: 1.3.10`, includes the missing H.264 parser registration symbols, and
 makes the packaged FFmpeg binary pass the H.264 RKMPP decode smoke when selected

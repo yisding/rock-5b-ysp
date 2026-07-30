@@ -18,14 +18,15 @@
 set -uo pipefail
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$REPO_ROOT/../rock-5b}"
 
 # Paths (env-overridable; defaults = the dev box, see README.md):
 #   MPP_BUILD = an MPP build/install tree containing librockchip_mpp + mpi_dec_test.
 #               Default is the rockchip-conformance install prefix (lib/ + bin/);
 #               a raw cmake build dir (mpp/ + test/) is auto-detected too.
 #   CLIP_DIR  = where the tiny test clips live (regeneration recipes: README.md)
-MPP_BUILD="${MPP_BUILD:-$REPO_ROOT/../rockchip-conformance/out/mpp}"
-CLIP_DIR="${CLIP_DIR:-$REPO_ROOT/../kernel/rock5b-kernel-build/ffmpeg-stack/testdata}"
+MPP_BUILD="${MPP_BUILD:-$ROCK5B_WORKSPACE/rockchip-conformance/out/mpp}"
+CLIP_DIR="${CLIP_DIR:-$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build/ffmpeg-stack/testdata}"
 LIB=$MPP_BUILD/lib;             [ -d "$LIB" ] || LIB=$MPP_BUILD/mpp
 DEC=$MPP_BUILD/bin/mpi_dec_test; [ -x "$DEC" ] || DEC=$MPP_BUILD/test/mpi_dec_test
 

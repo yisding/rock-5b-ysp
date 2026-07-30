@@ -35,6 +35,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CODE_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
+ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$CODE_ROOT/rock-5b}"
 CENTRAL_DIR="$CODE_ROOT/.ccache"
 MAX_SIZE="${CCACHE_MAX_SIZE:-30.0G}"
 
@@ -102,9 +103,9 @@ USER_CONF="$OWNER_HOME/.config/ccache/ccache.conf"
 # Docker resolves a symlinked bind source on the host, so the container sees the
 # real store at /armbian/cache/ccache.
 declare -a CACHE_DIRS=(
-	"$CODE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/ccache"
-	"$CODE_ROOT/armbian/armbian-build/cache/ccache"
-	"$CODE_ROOT/fdo/mesa/.codex-ccache"
+	"$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build/armbian-build/cache/ccache"
+	"$ROCK5B_WORKSPACE/armbian/armbian-build/cache/ccache"
+	"$ROCK5B_WORKSPACE/fdo/mesa/.codex-ccache"
 	"$OWNER_HOME/.cache/ccache"
 )
 

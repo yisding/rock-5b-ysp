@@ -6,7 +6,8 @@ REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 # shellcheck source=suite-common.sh disable=SC1091
 source "$TEST_DIR/suite-common.sh"
 
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 BIN_DIR=${RGA_BIN_DIR:-"$CONFORMANCE_ROOT/out/librga-samples/bin"}
 LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/rga-mmu-debug/$(date +%Y%m%d-%H%M%S)"}
@@ -319,7 +320,7 @@ if ! sudo_run test -f "$RGA_DEBUGFS/debug"; then
 fi
 
 if [ ! -d "$BIN_DIR" ]; then
-	echo "Missing $BIN_DIR. Run ../rockchip-conformance/scripts/build-librga-samples.sh first." >&2
+	echo "Missing $BIN_DIR. Run ../rock-5b/rockchip-conformance/scripts/build-librga-samples.sh first." >&2
 	exit 2
 fi
 

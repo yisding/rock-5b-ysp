@@ -1,11 +1,11 @@
 # Rewrite-driver review round 2: 12 confirmed defects fixed, 4 items ledgered
 
 > Scope: kernel-drivers — `mpp-rewrite` + `rga-rewrite` clean-room drivers
-> Source: `~/Code/kernel/linux-6.18-rkvenc` @ `51ea9d1ca537` (branch
+> Source: `~/Code/rock-5b/kernel/linux-6.18-rkvenc` @ `51ea9d1ca537` (branch
 > `rk3588-rewrite-6.18`); fixes land as `cd71f985a784c`, mirrored byte-identically
-> to `~/Code/kernel/linux` @ `7dcb4c3b5a981` (`rk3588-rewrite-mainline`).
-> Oracles: BSP `~/Code/kernel/rockchip-kernel` `drivers/video/rockchip/rga3/`,
-> `~/Code/rockchip-userspace/librga-fork` (`core/NormalRga.cpp`), the in-tree
+> to `~/Code/rock-5b/kernel/linux` @ `7dcb4c3b5a981` (`rk3588-rewrite-mainline`).
+> Oracles: BSP `~/Code/rock-5b/kernel/rockchip-kernel` `drivers/video/rockchip/rga3/`,
+> `~/Code/rock-5b/rockchip-userspace/librga-fork` (`core/NormalRga.cpp`), the in-tree
 > `ABI.rst` ledgers, and the drivers' own KUnit expectations.
 > Date: 2026-07-29
 > Trust: CODE-INSPECTED, COMPILE-VERIFIED — no booted kernel, no hardware run

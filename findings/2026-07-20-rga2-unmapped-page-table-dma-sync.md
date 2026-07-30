@@ -6,11 +6,11 @@
 > `drivers/video/rockchip/rga3/rga_dma_buf.c` / `rga_iommu.c`.
 >
 > Source: bracketed system journal plus the exact booted-kernel source worktree
-> under `/home/yi/Code/kernel/rock5b-kernel-build/`.
+> under `/home/yi/Code/rock-5b/kernel/rock5b-kernel-build/`.
 >
 > Date: 2026-07-20
 >
-> Evidence: `/home/yi/Code/rockchip-conformance/logs/forward-port/`
+> Evidence: `/home/yi/Code/rock-5b/rockchip-conformance/logs/forward-port/`
 > `20260720-213827-rga-dma-api-warning/`; PID 864994 at 2026-07-20 21:38:27.
 >
 > Trust: **MEASURED** (complete DMA-API warning and call trace) /

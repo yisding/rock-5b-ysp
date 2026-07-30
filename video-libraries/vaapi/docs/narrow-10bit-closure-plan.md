@@ -7,9 +7,9 @@
 > rockchip-vaapi's up-front narrow-context refusal with a linear-NV15 decode
 > path and CPU repack (closes the last Main10 sweep failure, 10/11 → 11/11).
 >
-> Source pins: librga fork `~/Code/rockchip-userspace/librga-fork`
+> Source pins: librga fork `~/Code/rock-5b/rockchip-userspace/librga-fork`
 > (`yisding/librga@main`, tip `26a50ef`); rockchip-vaapi
-> `~/Code/rockchip-vaapi` (`yisding/rockchip-vaapi@main`, tip `3f1aaa0`,
+> `~/Code/rock-5b/rockchip-vaapi` (`yisding/rockchip-vaapi@main`, tip `3f1aaa0`,
 > packaged `1.0.11+ysp6`); kernel policy oracle
 > `drivers/video/rockchip/rga3/rga_hw_config.c` + `rga_policy.c` on the
 > forward-port tree ([source-trees §1](../../../docs/source-trees.md)).

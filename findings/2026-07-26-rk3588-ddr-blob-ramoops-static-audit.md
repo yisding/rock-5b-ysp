@@ -235,7 +235,7 @@ sha256sum downloads/rk3588-ddr-ramoops-analysis/running-tpl-v1.20.bin
 Dump its parameter block:
 
 ```bash
-~/Code/u-boot/rkbin/tools/ddrbin_tool.py rk3588 \
+~/Code/rock-5b/u-boot/rkbin/tools/ddrbin_tool.py rk3588 \
   -g downloads/rk3588-ddr-ramoops-analysis/running-v1.20-config.txt \
   downloads/rk3588-ddr-ramoops-analysis/running-tpl-v1.20.bin
 ```

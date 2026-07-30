@@ -11,9 +11,9 @@ build-verified until a rewrite kernel is booted.
 
 | Patch | Target | Purpose |
 |-------|--------|---------|
-| `0001-media-rockchip-rga3-map-scattered-userptr-through-IOMMU.patch` | `../kernel/linux-6.18-rkvenc-av1-fwport` | Adds RGA userptr-IOMMU fallback to the vendor-style RGA3 forward-port. |
-| `0002-media-rockchip-rga-rewrite-add-userptr-IOMMU-mapping.patch` | `../kernel/linux-6.18-rkvenc` and `../kernel/linux` | Adds the same userptr fallback to the compatibility rewrite. |
-| `0003-media-rockchip-rga-rewrite-add-userptr-IOMMU-debugfs-counters.patch` | `../kernel/linux-6.18-rkvenc` and `../kernel/linux` | Adds `rk_rga_rewrite/userptr_iommu/{attempt,ok,active,force_remap}` for rewrite runtime attribution. |
+| `0001-media-rockchip-rga3-map-scattered-userptr-through-IOMMU.patch` | `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` | Adds RGA userptr-IOMMU fallback to the vendor-style RGA3 forward-port. |
+| `0002-media-rockchip-rga-rewrite-add-userptr-IOMMU-mapping.patch` | `../rock-5b/kernel/linux-6.18-rkvenc` and `../rock-5b/kernel/linux` | Adds the same userptr fallback to the compatibility rewrite. |
+| `0003-media-rockchip-rga-rewrite-add-userptr-IOMMU-debugfs-counters.patch` | `../rock-5b/kernel/linux-6.18-rkvenc` and `../rock-5b/kernel/linux` | Adds `rk_rga_rewrite/userptr_iommu/{attempt,ok,active,force_remap}` for rewrite runtime attribution. |
 
 Detailed architecture notes live in [`architecture.md`](architecture.md).
 Runtime validation instructions live in [`runtime-validation.md`](runtime-validation.md).
@@ -124,20 +124,20 @@ a scratch tree that is already at the post-0002/pre-0003 rewrite state, or
 after applying patch 0002 in a temporary checkout:
 
 ```bash
-git -C ../kernel/linux-6.18-rkvenc-av1-fwport apply --check \
+git -C ../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport apply --check \
   /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/rga-userptr-iommu/0001-media-rockchip-rga3-map-scattered-userptr-through-IOMMU.patch
 
-git -C ../kernel/linux-6.18-rkvenc apply --check \
+git -C ../rock-5b/kernel/linux-6.18-rkvenc apply --check \
   /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/rga-userptr-iommu/0002-media-rockchip-rga-rewrite-add-userptr-IOMMU-mapping.patch
-git -C ../kernel/linux-6.18-rkvenc apply --check \
+git -C ../rock-5b/kernel/linux-6.18-rkvenc apply --check \
   /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/rga-userptr-iommu/0003-media-rockchip-rga-rewrite-add-userptr-IOMMU-debugfs-counters.patch
 
-git -C ../kernel/linux apply --check \
+git -C ../rock-5b/kernel/linux apply --check \
   /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/rga-userptr-iommu/0002-media-rockchip-rga-rewrite-add-userptr-IOMMU-mapping.patch
-git -C ../kernel/linux apply --check \
+git -C ../rock-5b/kernel/linux apply --check \
   /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/rga-userptr-iommu/0003-media-rockchip-rga-rewrite-add-userptr-IOMMU-debugfs-counters.patch
 
-../kernel/linux-6.18-rkvenc-av1-fwport/scripts/checkpatch.pl --strict \
+../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport/scripts/checkpatch.pl --strict \
   kernel-drivers/patches/rga-userptr-iommu/0001-media-rockchip-rga3-map-scattered-userptr-through-IOMMU.patch \
   kernel-drivers/patches/rga-userptr-iommu/0002-media-rockchip-rga-rewrite-add-userptr-IOMMU-mapping.patch \
   kernel-drivers/patches/rga-userptr-iommu/0003-media-rockchip-rga-rewrite-add-userptr-IOMMU-debugfs-counters.patch

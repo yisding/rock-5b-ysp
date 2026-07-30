@@ -65,7 +65,7 @@ coexists with the distro `libavcodec62` (different SONAME package), so
 ```bash
 export PATH=/usr/bin:/usr/sbin:/bin:/sbin:$PATH
 export TMPDIR=/home/yi/rock5b-build/tmp; mkdir -p "$TMPDIR"
-cmake -S ~/Code/media/xbmc -B /home/yi/rock5b-build/kodi-build -GNinja \
+cmake -S ~/Code/rock-5b/media/xbmc -B /home/yi/rock5b-build/kodi-build -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr/local \
   -DCORE_PLATFORM_NAME=gbm \

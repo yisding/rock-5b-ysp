@@ -120,7 +120,7 @@ faults on RGA3; fix direction and verification gate recorded there).
   failures each blocked the FFmpeg suite; suites had to be resumed/run
   individually.
 - `test-decode.sh`'s default `CLIP_DIR`
-  (`../kernel/rock5b-kernel-build/ffmpeg-stack/testdata`) is a dev-box path
+  (`../rock-5b/kernel/rock5b-kernel-build/ffmpeg-stack/testdata`) is a dev-box path
   absent on the board; clips were regenerated per the README recipe and passed.
 - `mpp-vp9-show-existing-repro.sh` writes its output under a stale
   `logs/2026-07-21-p70a5-gates/mpp-vp9-crash` directory name.
@@ -134,7 +134,7 @@ faults on RGA3; fix direction and verification gate recorded there).
   `6.18-rkvenc-fwport`; nodes `video-codec0/1`, `rkvenc-core0/1`, `/dev/rga`,
   `/dev/mpp_service` all present.
 - Run artifacts (raw, not committed) under
-  `../rockchip-conformance/logs/forward-port/`: `20260724-042733-{system,mpp-suite,librga-suite}`,
+  `../rock-5b/rockchip-conformance/logs/forward-port/`: `20260724-042733-{system,mpp-suite,librga-suite}`,
   `20260724-043045-{mpp-suite,gstreamer-suite}`, `20260724-043221-ffmpeg-suite`,
   `20260724-043509-root-gates` (summary.tsv: 5 PASS / 1 SKIP, all
   `kernel_flags=0`); ABI replay logs under

@@ -116,7 +116,7 @@ patch — see the provenance table in [`README.md`](../README.md).
 ## 6. Build Notes (Board-Local)
 
 Local Mesa builds on the ROCK 5B (`build-codex`, `build-codex-main`,
-`build-codex-gallium`, `build-codex-piglit` in `/home/yi/Code/fdo/mesa`) use:
+`build-codex-gallium`, `build-codex-piglit` in `/home/yi/Code/rock-5b/fdo/mesa`) use:
 
 - the shared ccache store at `~/Code/.ccache`, which
   `build-mesa-surfaceless.sh` selects by default. The historical project-local
@@ -131,7 +131,7 @@ Local Mesa builds on the ROCK 5B (`build-codex`, `build-codex-main`,
 
   ```ini
   [binaries]
-  llvm-config = ['sh', '/home/yi/Code/fdo/mesa/.codex-tmp/llvm-config-22-mesa-codex']
+  llvm-config = ['sh', '/home/yi/Code/rock-5b/fdo/mesa/.codex-tmp/llvm-config-22-mesa-codex']
   ```
 
 Both are dev-box-local conveniences, recorded so the next Mesa build on this

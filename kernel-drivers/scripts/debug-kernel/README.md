@@ -7,7 +7,7 @@ DEBUG_SHIRQ + kmemleak + DEBUG_VM + IOMMU_DEBUGFS + fault injection +
 lockup/hung-task detectors + built-in ramoops dmesg/console/pmsg + DRM
 memory/modeset debug. Built through Armbian's Docker path by default against the
 external Armbian build tree (`WORKSPACE`, default
-`../../../../kernel/rock5b-kernel-build`), with the config seeded from the
+`../../../../rock-5b/kernel/rock5b-kernel-build`), with the config seeded from the
 running `/boot/config-$(uname -r)`.
 
 Both debug kernels are built through the unified entry point

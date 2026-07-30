@@ -9,7 +9,8 @@ source "$TEST_DIR/suite-common.sh"
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
 
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-rkmppenc-suite"}
 RKMPPENC=${RKMPPENC:-rkmppenc}

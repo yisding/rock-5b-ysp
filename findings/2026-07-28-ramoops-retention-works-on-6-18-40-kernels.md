@@ -16,7 +16,7 @@
 > Source: live-board journal (retention begins 2026-07-25 01:00, boot
 > `4ec59366`), `/var/lib/systemd/pstore/`, `/var/log/dpkg.log`,
 > `/var/log/apt/history.log`, `dtc` extraction of the installed DTBs, repo git
-> (`49b115e`), `~/Code/kernel/linux` `v6.18.38..v6.18.40`.
+> (`49b115e`), `~/Code/rock-5b/kernel/linux` `v6.18.38..v6.18.40`.
 > Date: 2026-07-28
 > Trust: **MEASURED** (every recovery event, the flip timeline, the constants) /
 > **CONFIG-INSPECTED** (DTB byte-compare, systemd-pstore state both eras) /

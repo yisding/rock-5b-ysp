@@ -10,7 +10,7 @@ the older `rkvdec-core0/1` naming too.
 
 The heavier rewrite build gate, the tracked conformance seed under
 [`conformance/`](conformance/README.md), the external runtime
-`../rockchip-conformance` bundle it reconstructs, and the full
+`$ROCK5B_WORKSPACE/rockchip-conformance` bundle it reconstructs, and the full
 MPP/librga/GStreamer/FFmpeg conformance-suite reference live in the sibling
 [`rewrite-conformance.md`](./rewrite-conformance.md) so this page stays a clean
 newcomer on-ramp.
@@ -98,7 +98,7 @@ a failure.
 | `decode-differential.sh` | **decoder correctness** (`rkvdec2` + `av1dec`) | Adds the strong oracle on top of the liveness gate: HW-decode vs SW-decode **PSNR must be `inf` (bit-exact)** for H.264, H.265, **VP9, and AV1**. Covers the codecs `test-decode.sh` doesn't; AV1 needs the av1-fwport variant. Generates its own software-encoded inputs. |
 | `encode-test-tiny.sh` | **encoder** (VEPU580) | `mpi_enc_test` H.264 + H.265 at 256² and 1280×720 → valid NAL-start bitstreams, exit 0, no IOMMU fault (dmesg-marker scheme with a real-fault regex that excludes benign warnings). Reports PSNR + fps. |
 | `transcode-test.sh` | **full pipeline** (both decoders, both encoders, RGA ×2) | ffmpeg-rockchip: `h264_rkmpp` → `scale_rkrga` 1080p→720p → `hevc_rkmpp`, then the reverse. `rkmpp`/`rkrga` have no SW fallback, so a pass *is* proof the hardware ran. Verifies each output with `ffprobe`. |
-| `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates above in one pass, and snapshots rewrite debugfs counters, including aggregate/per-core timing counters, when present. It defaults `CONFORMANCE_ROOT` to `../rockchip-conformance`, accepts installed MPP `out/mpp/bin` + `lib` or raw `test` + `mpp` layouts, uses `../ffmpeg/ffmpeg-rockchip`, and selects the existing generated 320×240 H.264/H.265 decode clips plus 1080p H.264 transcode asset. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
+| `rewrite-smoke.sh` | **current `/dev/mpp_service` + `/dev/rga` owner**: forward-port or rewrite | Runs the ABI probe plus decode, encode, and transcode gates above in one pass, and snapshots rewrite debugfs counters, including aggregate/per-core timing counters, when present. It defaults `CONFORMANCE_ROOT` to `$ROCK5B_WORKSPACE/rockchip-conformance`, accepts installed MPP `out/mpp/bin` + `lib` or raw `test` + `mpp` layouts, uses `$ROCK5B_WORKSPACE/ffmpeg/ffmpeg-rockchip`, and selects the existing generated 320×240 H.264/H.265 decode clips plus 1080p H.264 transcode asset. Exit `77` means the device nodes are absent on this boot, not that the workload failed. |
 | `mpp-debug-capture.sh` | **focused rewrite decode/encode failure capture** | Clears the bounded MPP event journal, optionally enables structured live tracing, runs one arbitrary reproduction, then records before/after `state`, `events`, numeric counters, `/proc/mpp_service`, dmesg, a counter delta, and an event summary. It always captures the after-state and preserves the wrapped workload's exit code. With no command it captures current state only; `MPP_DEBUG_VALIDATE_ONLY=1` runs a device-free workflow selftest. Exit `77` means the rewrite `state`/`events` files are absent on this boot. |
 | `abi-probe.sh` | **non-submit ABI** on current `/dev/mpp_service` + `/dev/rga` owner | Records compile-time ABI values and safe query/control/import/release behavior. The request-config probe explicitly initializes both acquire-fence fields to the ABI's `-1` “no fence” sentinel; zero is a real fd and would make the probe test stdin as a sync file. Virtual and dma-buf imports run normally; raw physical import is disabled unless `ABI_PROBE_ENABLE_RGA_PHYSICAL=1` or the rewrite rejection expectation is set. `ABI_PROBE_ABI_ONLY=1` emits constants without device access. See [the crash note](../rga/docs/raw-physical-import-crash.md). |
 | `ioctl-fuzz-smoke.sh` | **bounded non-submit ioctl fuzzing** | Deterministically mutates MPP/RGA parser, import/release, and request-lifetime paths without submitting hardware jobs. Raw physical RGA generation is disabled unless `IOCTL_FUZZ_ENABLE_RGA_PHYSICAL=1`; build-only, fail-nth, logging, and dmesg options are listed below. Needs **both** `/dev/mpp_service` and `/dev/rga`: with only one it exits `77` (skip) unless `IOCTL_FUZZ_ALLOW_PARTIAL=1`. |
@@ -150,13 +150,13 @@ The smoke tests differ in what device access they need:
 >
 > | Var | Used by | Meaning |
 > |-----|---------|---------|
-> | `MPP_BUILD` | decode, encode | an MPP build/install tree with `librockchip_mpp` + `mpi_dec_test`/`mpi_enc_test`. Default `../rockchip-conformance/out/mpp` (install layout `lib/`+`bin/`); a raw cmake build dir (`mpp/`+`test/`) is auto-detected too. `decode-differential.sh` uses the same default. |
+> | `MPP_BUILD` | decode, encode | an MPP build/install tree with `librockchip_mpp` + `mpi_dec_test`/`mpi_enc_test`. Default `../rock-5b/rockchip-conformance/out/mpp` (install layout `lib/`+`bin/`); a raw cmake build dir (`mpp/`+`test/`) is auto-detected too. `decode-differential.sh` uses the same default. |
 > | `CLIP_DIR` | decode | directory holding `tiny-320x240.h264/.h265` (regeneration below) |
 > | `FFDIR` | transcode | ffmpeg-rockchip build dir (`./ffmpeg`, `./ffprobe`) |
 > | `STAGE` | transcode | the MPP/RGA staging prefix from the ffmpeg README (e.g. `~/ffmpeg-stack`) |
 > | `FFMPEG_RUNTIME_MODES` | `ffmpeg-suite.sh` | runtime passes to run: `auto` (default, system plus staged when `$STAGE/lib` exists), or an explicit space-separated list such as `system staged`. |
 > | `FFMPEG_REQUIRE_AV1` | `ffmpeg-suite.sh` | promote AV1 RKMPP decode, AV1->RGA->H.264/H.265 transcodes, AV1 PSNR, and AV1 AFBC probes from diagnostics to required cases (`0` by default because AV1 is outside the rewrite base gate). |
-> | `FFMPEG_AV1_INPUT`, `FFMPEG_VP9_INPUT`, `FFMPEG_HEVC_MAIN10_INPUT` | `ffmpeg-suite.sh` | optional explicit inputs; otherwise the suite generates software AV1/VP9/Main10 inputs under `../rockchip-conformance/assets/ffmpeg-generated` when the needed software encoders are installed. |
+> | `FFMPEG_AV1_INPUT`, `FFMPEG_VP9_INPUT`, `FFMPEG_HEVC_MAIN10_INPUT` | `ffmpeg-suite.sh` | optional explicit inputs; otherwise the suite generates software AV1/VP9/Main10 inputs under `../rock-5b/rockchip-conformance/assets/ffmpeg-generated` when the needed software encoders are installed. |
 > | `MPP_AVS2_INPUT`, `MPP_AVS2_WIDTH`, `MPP_AVS2_HEIGHT` | `mpp-suite.sh` | AVS2 elementary stream and optional dimensions for the RK3588 VDPU381 AVS2 cases; unlike VP9, the wrapper cannot generate this asset with the ordinary FFmpeg toolchain |
 > | `MPP_ENC_SPLIT_MODE`, `MPP_ENC_SPLIT_ARG`, `MPP_ENC_SPLIT_OUT` | `mpp-suite.sh` | low-delay slice-case settings; defaults `2`, `120`, and `1` select CTU splitting plus segmented low-delay output so `MPP_CMD_POLL_HW_IRQ` is exercised without exceeding the kernel's 256-entry per-task slice FIFO |
 > | `MPP_ENC_SLICE_INSTANCES` | `mpp-suite.sh` | number of concurrent `mpi_enc_mt_test` channels for low-delay slice cases; defaults to `1` because the separate output thread, not multi-channel load, is what the polling test requires |
@@ -218,7 +218,7 @@ bash abi-replay.sh                    # record normalized ABI log for this boot
 bash abi-replay.sh --selftest         # device-free ABI replay normalization/filter check
 IOCTL_FUZZ_VALIDATE_BUILD=1 bash ioctl-fuzz-smoke.sh  # device-free non-submit ioctl mutator compile check
 IOCTL_FUZZ_ENABLE_RGA_PHYSICAL=1 bash ioctl-fuzz-smoke.sh  # raw physical generation; hardened/sacrificial kernel only
-sudo IOCTL_FUZZ_OUT=../rockchip-conformance/logs/rewrite/ioctl-failnth IOCTL_FUZZ_DMESG_SCAN=1 IOCTL_FUZZ_FAIL_NTH_MAX=4 IOCTL_FUZZ_ITERS=32 bash ioctl-fuzz-smoke.sh  # debug-kernel allocation/usercopy fault-injection sweep with logs
+sudo IOCTL_FUZZ_OUT=../rock-5b/rockchip-conformance/logs/rewrite/ioctl-failnth IOCTL_FUZZ_DMESG_SCAN=1 IOCTL_FUZZ_FAIL_NTH_MAX=4 IOCTL_FUZZ_ITERS=32 bash ioctl-fuzz-smoke.sh  # debug-kernel allocation/usercopy fault-injection sweep with logs
 bash librga-smoke.sh                  # direct librga/im2d smoke
 LIBRGA_SMOKE_VALIDATE_BUILD=1 bash librga-smoke.sh  # device-free direct librga smoke compile check
 LIBRGA_SMOKE_10BIT=1 bash librga-smoke.sh  # add P010/P210 IM2D cases
@@ -258,8 +258,9 @@ sudo FFMPEG_REQUIRE_AV1=1 FFMPEG_RUNTIME_MODES="system staged" bash ffmpeg-suite
 bash rkmppenc-suite-compare.sh       # compare latest opt-in forward-port/rewrite rkmppenc summaries
 ```
 
-For a diagnostic smoke pass in one command (the defaults match the sibling
-`rockchip-conformance` and `ffmpeg/ffmpeg-rockchip` trees):
+For a diagnostic smoke pass in one command (the defaults match the
+`rockchip-conformance` and `ffmpeg/ffmpeg-rockchip` trees under the grouped
+`rock-5b` workspace):
 
 ```bash
 sudo bash rewrite-smoke.sh
@@ -267,8 +268,9 @@ sudo bash rewrite-smoke.sh
 
 The same command is valid on the BSP-derived forward-port kernel, which makes it
 the quick parity check between the two implementations. Override
+`ROCK5B_WORKSPACE` once for a relocated grouped workspace, or override
 `CONFORMANCE_ROOT`, `MPP_BUILD`, `FFDIR`, `STAGE`, `H264_IN`, `H265_IN`, or
-`IN` only for a non-default checkout or staged runtime.
+`IN` for a component-specific checkout or staged runtime.
 
 For the full artifact/timing conformance pass, boot the forward-port kernel and
 run:
@@ -301,7 +303,7 @@ longer passes the branch-level parity audit.
 The official-test conformance suites (`mpp-suite.sh`, `librga-suite.sh`,
 `gstreamer-suite.sh`), their comparators, the rewrite build gate, the tracked
 [`conformance/`](conformance/README.md) seed, and the external
-`../rockchip-conformance` runtime bundle are all documented in
+`$ROCK5B_WORKSPACE/rockchip-conformance` runtime bundle are all documented in
 [`rewrite-conformance.md`](./rewrite-conformance.md).
 
 ## Regenerating the test inputs
@@ -390,7 +392,7 @@ result in status.md.
   H.264 / H.265 / VP9 / **AV1** all decoded 30/30 frames **bit-exact
   (PSNR=inf)** vs a software reference @ 640×480 (mpi_dec_test fps at that size:
   ~551 / 591 / 741 / 629). `av1_rkmpp` through the board's prebuilt `/usr/lib`
-  MPP fails (`parser not registered`) — this run used `../rockchip-conformance`'s
+  MPP fails (`parser not registered`) — this run used `../rock-5b/rockchip-conformance`'s
   from-source `out/mpp`.
 - encode: H.264 720p PSNR 53–55 dB @ ~359 fps; H.265 720p PSNR 60–62 dB @ ~297 fps.
   (2026-07-04 re-check via `mpi_enc_test`, 1280×720: H.264 / H.265 encoded 30

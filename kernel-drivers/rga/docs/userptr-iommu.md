@@ -8,13 +8,13 @@ the driver-owned userptr-IOMMU fallback that finally makes scattered userptr wor
 without weakening the dma-buf contract. It supersedes six dated findings written
 as the work progressed; those are now tombstones pointing here.
 
-> Scope: forward-port kernel `../kernel/linux-6.18-rkvenc-av1-fwport` branch
+> Scope: forward-port kernel `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` branch
 > `rk3588-video-6.18`, RGA3 driver `drivers/video/rockchip/rga3/`, the rewrite
-> trees `../kernel/linux-6.18-rkvenc` and `../kernel/linux`, the Rockchip IOMMU
+> trees `../rock-5b/kernel/linux-6.18-rkvenc` and `../rock-5b/kernel/linux`, the Rockchip IOMMU
 > provider `drivers/iommu/rockchip-iommu.c`, and the generic
 > `drivers/iommu/dma-iommu.c`.
 > Source anchors: on-board debugfs runs of prebuilt `airockchip/librga` IM2D
-> samples; BSP-vs-forward source comparison against `../kernel/rockchip-kernel`;
+> samples; BSP-vs-forward source comparison against `../rock-5b/kernel/rockchip-kernel`;
 > patch artifacts under [`../patches/rga-userptr-iommu/`](../../patches/rga-userptr-iommu/architecture.md).
 > Trust: MEASURED for the fault addresses, IOVA fingerprints, and smoke behavior;
 > CODE-INSPECTED / ROOT-CAUSED for the source deltas; BUILD-VERIFIED and
@@ -42,7 +42,7 @@ generated from that one base. This depends on the DMA layer returning one
 contiguous IOVA segment for the whole buffer.
 
 MEASURED fault evidence, all on `RGA3_core0` (IOMMU `fdb60f00.iommu`), from
-`../rockchip-conformance/logs/rga-mmu-debug/20260704-102533`
+`../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260704-102533`
 (`6.18.37-current-rockchip64 #8`). Debugfs `hardware` reported the RK3588 split:
 `rga3 core 1/2: mmu: RK_IOMMU`, `rga2 core 4: mmu: RGA_MMU` — so these failures
 are specifically on the RGA3 + Rockchip IOMMU path, not legacy RGA2. Sample
@@ -64,7 +64,7 @@ base and faults inside the buffer range because the IOMMU page table has no
 contiguous mapping for the whole range."
 
 Three BSP-derived forward-kernel fixes followed (all in
-`../kernel/linux-6.18-rkvenc-av1-fwport`):
+`../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`):
 
 ```text
 13afe70c8271 iommu: rockchip: restore large DMA segment support
@@ -278,7 +278,7 @@ for direct fallback attribution.
 ## 5. dma-buf scatter contract vs BSP
 
 CODE-INSPECTED / DESIGN-CONSTRAINT (from the local 6.1 BSP,
-`/home/yi/Code/kernel/rockchip-kernel`). A dma-buf can be physically
+`/home/yi/Code/rock-5b/kernel/rockchip-kernel`). A dma-buf can be physically
 non-contiguous, but that alone is not a problem for RGA3: the safety boundary is
 whether the dma-buf attachment maps to one byte-contiguous device-visible span.
 The BSP does **not** implement a separate dma-buf IOMMU remap fallback. For RGA3

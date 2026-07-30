@@ -268,6 +268,94 @@ class OperationalHelpTests(unittest.TestCase):
                     self.assertNotIn("/home/yi/", output)
 
 
+class WorkspaceDefaultTests(unittest.TestCase):
+    def shell_text(self, relative: str) -> str:
+        return (REPO_ROOT / relative).read_text(encoding="utf-8")
+
+    def test_operational_defaults_do_not_use_pre_grouping_paths(self) -> None:
+        stale_fragments = (
+            "$REPO_ROOT/../" + "rockchip-conformance",
+            "$CODE/" + "kernel/",
+            "$CODE_ROOT/" + "kernel/",
+            "$CODE_ROOT/" + "armbian/",
+            "$CODE_ROOT/" + "fdo/",
+            "$HOME/Code/" + "fdo/",
+            "$ROOT_DIR/../" + "kernel/",
+            "$ROOT_DIR/../" + "rockchip-userspace/",
+            "/home/yi/Code/" + "fdo/",
+        )
+
+        for path in repository_operational_files(REPO_ROOT):
+            if path.suffix != ".sh":
+                continue
+            text = path.read_text(encoding="utf-8")
+            relative = path.relative_to(REPO_ROOT)
+            for fragment in stale_fragments:
+                with self.subTest(script=str(relative), fragment=fragment):
+                    self.assertNotIn(fragment, text)
+
+    def test_external_defaults_share_one_grouped_workspace_root(self) -> None:
+        expected_defaults = {
+            "kernel-drivers/tests/mpp-suite.sh": (
+                'CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-'
+                '"$ROCK5B_WORKSPACE/rockchip-conformance"}'
+            ),
+            "kernel-drivers/scripts/build-kernel.sh": (
+                'WORKSPACE="${WORKSPACE:-'
+                '$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build}"'
+            ),
+            "packaging/ppa/build-source-packages.sh": (
+                'WORKSPACE_ROOT="$(cd "${WORKSPACE_ROOT:-'
+                '$ROCK5B_WORKSPACE}" && pwd)"'
+            ),
+            "video-libraries/mesa/scripts/mesa-panfrost-env.sh": (
+                ': "${MESA_BUILD:='
+                '$ROCK5B_WORKSPACE/fdo/mesa/build-codex-main}"'
+            ),
+            "apps/gnome-remote-desktop/bench/"
+            "rkmpp_lifecycle_experiment.sh": (
+                'OUT_ROOT=${RKMPP_LIFECYCLE_OUT_ROOT:-'
+                '"$ROCK5B_WORKSPACE/rkmpp-lifecycle-runs"}'
+            ),
+        }
+
+        for relative, expected in expected_defaults.items():
+            with self.subTest(script=relative):
+                text = self.shell_text(relative)
+                self.assertIn("ROCK5B_WORKSPACE", text)
+                self.assertIn(expected, text)
+
+        mesa_env = self.shell_text(
+            "video-libraries/mesa/scripts/mesa-panfrost-env.sh"
+        )
+        self.assertIn(
+            ': "${ROCK5B_WORKSPACE:=$__MESA_YSP_ROOT/../rock-5b}"',
+            mesa_env,
+        )
+
+    def test_shared_tmp_and_ccache_stay_outside_grouped_workspace(self) -> None:
+        build_gate = self.shell_text(
+            "kernel-drivers/tests/rewrite-build-gate.sh"
+        )
+        ccache = self.shell_text("scripts/centralize-ccache.sh")
+
+        self.assertIn(
+            'REWRITE_BUILD_TMP_ROOT="${REWRITE_BUILD_TMP_ROOT:-'
+            '$ROOT_DIR/../tmp}"',
+            build_gate,
+        )
+        self.assertIn('CENTRAL_DIR="$CODE_ROOT/.ccache"', ccache)
+        self.assertNotIn(
+            'REWRITE_BUILD_TMP_ROOT="${REWRITE_BUILD_TMP_ROOT:-'
+            '$ROCK5B_WORKSPACE}"',
+            build_gate,
+        )
+        self.assertNotIn(
+            'CENTRAL_DIR="$ROCK5B_WORKSPACE/.ccache"',
+            ccache,
+        )
+
+
 class DebugRamoopsTests(unittest.TestCase):
     patch = (
         REPO_ROOT

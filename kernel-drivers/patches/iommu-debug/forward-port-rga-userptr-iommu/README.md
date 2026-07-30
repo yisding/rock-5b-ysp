@@ -6,7 +6,7 @@ These patches archive the debug-only commits removed from the clean
 Apply base:
 
 ```sh
-cd /home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport
+cd /home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc-av1-fwport
 git switch -c rkvenc-fwport-6.18-debug-work rkvenc-fwport-6.18
 git am /home/yi/Code/rock-5b-ysp/kernel-drivers/patches/iommu-debug/forward-port-rga-userptr-iommu/*.patch
 ```

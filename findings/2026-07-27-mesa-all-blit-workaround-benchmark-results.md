@@ -59,9 +59,9 @@ and the boot was the KASAN kernel
   `647256dc2ae`; fixed-clock rerun from YSP `ec44ae8`.
 - **Build:** `PATH=/usr/sbin:/usr/bin:/sbin:/bin
   CCACHE_DIR=/home/yi/Code/.ccache ninja -C build-bench` completed successfully
-  in `/home/yi/Code/fdo/mesa-mr43161-bench`.
+  in `/home/yi/Code/rock-5b/fdo/mesa-mr43161-bench`.
 - **Exercise:** each matrix row used
-  `meson devenv -C /home/yi/Code/fdo/mesa-mr43161-bench/build-bench env
+  `meson devenv -C /home/yi/Code/rock-5b/fdo/mesa-mr43161-bench/build-bench env
   EGL_PLATFORM=surfaceless
   video-libraries/mesa/reproducers/run_blit_workaround_bench.py --blocks 2
   --cpu 6 --expect-gpu-hz 500000000 -- ... --samples 11 --warmups 2 --ring 4
@@ -73,8 +73,8 @@ and the boot was the KASAN kernel
   failures.
 - **Artifacts:** raw logs, before/after metadata, and `SHA256SUMS` are in two
   machine-local, untracked 544 KiB bundles:
-  `/home/yi/Code/mesa-blit-workaround-bench-20260727` for the initial pass and
-  `/home/yi/Code/mesa-blit-workaround-bench-20260727-500mhz` for the fixed-clock
+  `/home/yi/Code/rock-5b/mesa-blit-workaround-bench-20260727` for the initial pass and
+  `/home/yi/Code/rock-5b/mesa-blit-workaround-bench-20260727-500mhz` for the fixed-clock
   rerun.
 
 ## Verification gate

@@ -24,13 +24,16 @@
 #      (`exec /usr/bin/llvm-config-22 "$@"`); recreated here if missing.
 set -euo pipefail
 
-MESA=${MESA:-$HOME/Code/fdo/mesa}
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+YSP_ROOT=$(cd "$SCRIPT_DIR/../../.." && pwd)
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$YSP_ROOT/../rock-5b"}
+MESA=${MESA:-$ROCK5B_WORKSPACE/fdo/mesa}
 BUILD=${BUILD:-$MESA/build-codex-main}
 # One shared compiler cache for every build under ~/Code; see
 # rock-5b-ysp/scripts/centralize-ccache.sh. The old per-project
 # $MESA/.codex-ccache path is now a symlink to this same store, so an inherited
 # CCACHE_DIR still lands in the right place.
-CODE_ROOT=${CODE_ROOT:-$(cd "$MESA/../.." && pwd)}
+CODE_ROOT=${CODE_ROOT:-$(cd "$ROCK5B_WORKSPACE/.." && pwd)}
 CCACHE_DIR_DEFAULT=$CODE_ROOT/.ccache
 export CCACHE_DIR=${CCACHE_DIR:-$CCACHE_DIR_DEFAULT}
 export PATH=/usr/bin:$PATH          # gotcha #1: system python before mise

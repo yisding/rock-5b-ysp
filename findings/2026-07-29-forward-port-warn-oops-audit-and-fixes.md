@@ -2,7 +2,7 @@
 
 > Scope: the forward-port kernel drivers (`drivers/video/rockchip/mpp/`,
 > `drivers/video/rockchip/rga3/`) plus the Rockchip/VSI IOMMU providers.
-> Source: `../kernel/linux-6.18-rkvenc-av1-fwport`, branch `rk3588-video-6.18`,
+> Source: `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`, branch `rk3588-video-6.18`,
 > audited at `12a7da02bea83` (mainline `v6.18` + patches `0001`–`0075`);
 > fixes at `febed97bc4597`, `4dba1f42ab2b7`, `b7883d72b7467`, `c10074f4474e0`,
 > exported as [`0076`–`0079`](../kernel-drivers/patches/forward-port-rk3588/README.md).

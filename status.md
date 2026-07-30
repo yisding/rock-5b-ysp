@@ -697,7 +697,7 @@ last-checked date.
   build lacks the input-backpressure fix, so it can be mistaken for a kernel
   regression.
 - **Last checked:** 2026-07-23
-- **Identity caveat:** the deadlocking binary is `FFDIR=../ffmpeg/ffmpeg-rockchip/ffmpeg`,
+- **Identity caveat:** the deadlocking binary is `FFDIR=../rock-5b/ffmpeg/ffmpeg-rockchip/ffmpeg`,
   which reports `libavcodec 63` (FFmpeg **master**, version `N-125363-g53e76abdc7`).
   Note the *source tree* at that path is mismatched — its `RELEASE` reads `6.1`
   and headers say `LIBAVCODEC_VERSION_MAJOR 60`, so the binary is a stale

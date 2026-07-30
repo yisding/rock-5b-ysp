@@ -10,7 +10,7 @@ mainline, and understanding it is what makes the multi-core design work in
 
 > **Anchors — different tree from the rest of this repo.** The `file:line`
 > references here resolve against the **mainline kernel tree** on the
-> `rk3588-rewrite-mainline` branch (local checkout `/home/yi/Code/kernel/linux`,
+> `rk3588-rewrite-mainline` branch (local checkout `/home/yi/Code/rock-5b/kernel/linux`,
 > `v6.18`-based), i.e. `drivers/media/platform/rockchip/rkvdec/` and
 > `drivers/media/v4l2-core/`. This is **not** the forward-port MPP tree that
 > [how-the-drivers-work.md](../../kernel-drivers/docs/how-the-drivers-work.md) and

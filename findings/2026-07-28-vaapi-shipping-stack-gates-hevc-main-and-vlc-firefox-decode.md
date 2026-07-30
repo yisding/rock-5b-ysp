@@ -6,7 +6,7 @@
 > Supersedes the "nothing has ever been measured on the shipping combination"
 > boundary in the [decode-readiness finding](2026-07-28-vaapi-decode-readiness-and-remaining-work.md).
 >
-> Source: fork `/home/yi/Code/rockchip-vaapi` advanced `main@db5e0f0` →
+> Source: fork `/home/yi/Code/rock-5b/rockchip-vaapi` advanced `main@db5e0f0` →
 > `main@5a7b305` (17 commits) on the board; gates run natively; stack identity
 > from `uname -r`, `sha256sum /sys/kernel/notes`, and `dpkg -l`.
 >

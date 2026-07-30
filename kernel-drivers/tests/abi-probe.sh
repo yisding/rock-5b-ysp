@@ -4,12 +4,13 @@ set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$TEST_DIR/../.." && pwd)"
+ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$ROOT_DIR/../rock-5b}"
 
 CC="${CC:-cc}"
 BUILD_DIR="${BUILD_DIR:-$TEST_DIR/.build/abi-probe}"
-KERNEL_UAPI="${KERNEL_UAPI:-$ROOT_DIR/../kernel/linux-6.18-rkvenc/include/uapi}"
-KERNEL_ARCH_UAPI="${KERNEL_ARCH_UAPI:-$ROOT_DIR/../kernel/linux-6.18-rkvenc/arch/arm64/include/uapi}"
-LIBRGA_ROOT="${LIBRGA_ROOT:-$ROOT_DIR/../rockchip-userspace/librga-fork}"
+KERNEL_UAPI="${KERNEL_UAPI:-$ROCK5B_WORKSPACE/kernel/linux-6.18-rkvenc/include/uapi}"
+KERNEL_ARCH_UAPI="${KERNEL_ARCH_UAPI:-$ROCK5B_WORKSPACE/kernel/linux-6.18-rkvenc/arch/arm64/include/uapi}"
+LIBRGA_ROOT="${LIBRGA_ROOT:-$ROCK5B_WORKSPACE/rockchip-userspace/librga-fork}"
 LIBRGA_HW_INCLUDE="${LIBRGA_HW_INCLUDE:-$LIBRGA_ROOT/core/hardware}"
 LIBRGA_INCLUDE="${LIBRGA_INCLUDE:-$LIBRGA_ROOT/include}"
 

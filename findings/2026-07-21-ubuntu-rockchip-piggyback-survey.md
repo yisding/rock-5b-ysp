@@ -8,7 +8,7 @@
 > `+git20240717`, mpv `+noble4`, kodi `+gles1`, vlc, obs-studio,
 > gstreamer1.0-rockchip, gst-plugins-base, rockchip-multimedia-config)
 > Source: `github.com/Joshua-Riek/ubuntu-rockchip@38dfb49` (clone at
-> `~/Code/ubuntu-rockchip`), `~/Code/ubuntu-rockchip-settings`, PPA source
+> `~/Code/rock-5b/ubuntu-rockchip`), `~/Code/rock-5b/ubuntu-rockchip-settings`, PPA source
 > packages extracted under `downloads/ubuntu-rockchip-ppa/x/` (git-ignored),
 > Launchpad + GitHub API queries of 2026-07-21
 > Date: 2026-07-21
@@ -200,8 +200,8 @@ Recorded in [`docs/app-enablement.md`](../docs/app-enablement.md) (revised
 
 ## Local artifacts
 
-- Builder clone: `~/Code/ubuntu-rockchip@38dfb49` (archived upstream).
-- Settings clone: `~/Code/ubuntu-rockchip-settings`.
+- Builder clone: `~/Code/rock-5b/ubuntu-rockchip@38dfb49` (archived upstream).
+- Settings clone: `~/Code/rock-5b/ubuntu-rockchip-settings`.
 - All PPA packaging + extracted trees:
   `downloads/ubuntu-rockchip-ppa/` (`x/` holds extractions; git-ignored).
   Reconstruction: Launchpad API `getPublishedSources` on the two PPAs named

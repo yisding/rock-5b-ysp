@@ -104,4 +104,4 @@ reason, the wedge is permanent:
   narrated (arm ids, fires, wire traffic).
 - Investigation scratch + extracted sources in `~/Code/tmp/rdp-wake-bug/`
   (gsd 50.0, gnome-desktop 44.5, gnome-shell 50.1, mutter 50.1 at
-  `~/Code/gnome/mutter-src/`).
+  `~/Code/rock-5b/gnome/mutter-src/`).

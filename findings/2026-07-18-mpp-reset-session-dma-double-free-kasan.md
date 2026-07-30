@@ -4,7 +4,7 @@
 > inline KASAN + lockdep + built-in ramoops (`P712f-C40aa`,
 > `6.18.38-current-rockchip64`)
 > Source: run `20260718-054814-kasan-narrowed` under
-> `/home/yi/Code/rockchip-conformance/logs/forward-port/`; narrowed
+> `/home/yi/Code/rock-5b/rockchip-conformance/logs/forward-port/`; narrowed
 > ABI-replay → one-shot `/proc/mpp_service` snapshot reproduction
 > Date: 2026-07-18
 > Trust: MEASURED (full symbolized KASAN report) / CODE-INSPECTED (root cause and

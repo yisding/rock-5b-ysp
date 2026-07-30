@@ -93,8 +93,9 @@ The package remains conservative and recovery-friendly:
 
 ## Source Inputs
 
-The local build wrapper currently owns these inputs:
-`WORKSPACE_ROOT` defaults to the parent of this repository.
+The local build wrapper currently owns these inputs: `ROCK5B_WORKSPACE`
+defaults to the sibling `rock-5b` workspace, and `WORKSPACE_ROOT` defaults to
+that grouped root.
 
 | Input | Default |
 |-------|---------|

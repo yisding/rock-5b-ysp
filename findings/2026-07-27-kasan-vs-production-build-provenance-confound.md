@@ -10,7 +10,7 @@
 > `/boot/config-6.18.40-video-port-kasan-rockchip-rk3588`; source trees
 > `packaging/ppa/out/work/linux-rockchip64-ysp-6.18.40+rk3588av1fwport20260725`
 > and `~/Code/tmp/fwport-sgguard`; the Armbian build tree's patch archive at
-> `~/Code/kernel/rock5b-kernel-build/armbian-build`.
+> `~/Code/rock-5b/kernel/rock5b-kernel-build/armbian-build`.
 >
 > Date: 2026-07-27
 >

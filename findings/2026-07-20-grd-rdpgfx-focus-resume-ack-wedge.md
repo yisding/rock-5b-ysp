@@ -32,7 +32,7 @@ later return left the image completely wedged.
 The preserved core is:
 
 ```text
-/home/yi/Code/grd-wedge-runs/20260720-0635-focus-ack-wedge/core.8343
+/home/yi/Code/rock-5b/grd-wedge-runs/20260720-0635-focus-ack-wedge/core.8343
 ```
 
 At capture time:
@@ -111,7 +111,7 @@ slow-client throttling is unchanged.
 - The live `exp6` focus run fired the real watchdog once at `08:43:39` with
   `total-decoded=7756` and two pending acknowledgements. A pre-recovery core is
   preserved at
-  `/home/yi/Code/grd-wedge-runs/20260720-exp6-ack-recovery.core`.
+  `/home/yi/Code/rock-5b/grd-wedge-runs/20260720-exp6-ack-recovery.core`.
 - Before recovery, buffers advanced from 8,082 to 8,142 while queued work and
   hardware submissions remained fixed at 7,915 and 7,758. The two-second
   warning then cleared the stale ACK state, forced a full refresh, recreated

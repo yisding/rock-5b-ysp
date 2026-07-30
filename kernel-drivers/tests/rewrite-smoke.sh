@@ -13,7 +13,8 @@ set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
-CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$REPO_ROOT/../rockchip-conformance}"
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
+CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$ROCK5B_WORKSPACE/rockchip-conformance}"
 
 RUN_DECODE="${RUN_DECODE:-1}"
 RUN_ENCODE="${RUN_ENCODE:-1}"
@@ -22,7 +23,7 @@ RUN_ABI="${RUN_ABI:-1}"
 RUN_LIBRGA="${RUN_LIBRGA:-0}"
 RUN_GSTREAMER="${RUN_GSTREAMER:-0}"
 MPP_BUILD="${MPP_BUILD:-$CONFORMANCE_ROOT/out/mpp}"
-FFDIR="${FFDIR:-$REPO_ROOT/../ffmpeg/ffmpeg-rockchip}"
+FFDIR="${FFDIR:-$ROCK5B_WORKSPACE/ffmpeg/ffmpeg-rockchip}"
 STAGE="${STAGE:-/usr}"
 IN="${IN:-$CONFORMANCE_ROOT/assets/ffmpeg-generated/ffmpeg-h264-1920x1080-30fps-2s.h264}"
 H264_IN="${H264_IN:-$CONFORMANCE_ROOT/assets/gstreamer-generated/generated-input-h264-320x240-30_1-30.h264}"

@@ -11,7 +11,7 @@
 #
 # Covers H.264, H.265, VP9, and AV1. AV1 + VP9 are the paths test-decode.sh does
 # not, and AV1 is only present on the av1-fwport variant
-# (../kernel/linux-6.18-rkvenc-av1-fwport, /proc/mpp_service DEVICE AV1DEC).
+# (../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport, /proc/mpp_service DEVICE AV1DEC).
 #
 # Inputs are SOFTWARE-encoded here (libx264/libx265/libvpx-vp9/libsvtav1), so a
 # finite PSNR implicates the DECODER, never our encoder. Generated on the fly if
@@ -27,21 +27,22 @@
 set -uo pipefail
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
+ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$REPO_ROOT/../rock-5b}"
 
 # --- Paths (env-overridable) -------------------------------------------------
 #   MPP_BUILD : an MPP build tree with test/mpi_dec_test AND a librockchip_mpp
 #               that has the codec PARSERS registered. The prebuilt distro
 #               /usr/lib librockchip_mpp on this board reports
 #               "parser <codec> is not registered" and fails decoder init, so a
-#               from-source MPP build is required (the ../rockchip-conformance
+#               from-source MPP build is required (the ../rock-5b/rockchip-conformance
 #               out/mpp tree is the default). See findings/ if that recurs.
 #   ASSET_DIR : where the software-encoded inputs live / are generated.
 #   FFSW      : stock ffmpeg with software encoders (input generation).
 #   FFHW      : ffmpeg-rockchip (only used for the software reference decode; any
 #               ffmpeg that can decode these codecs in software works, so this
 #               defaults to FFSW).
-MPP_BUILD="${MPP_BUILD:-$REPO_ROOT/../rockchip-conformance/out/mpp}"
-ASSET_DIR="${ASSET_DIR:-$REPO_ROOT/../rockchip-conformance/assets}"
+MPP_BUILD="${MPP_BUILD:-$ROCK5B_WORKSPACE/rockchip-conformance/out/mpp}"
+ASSET_DIR="${ASSET_DIR:-$ROCK5B_WORKSPACE/rockchip-conformance/assets}"
 OUT="${OUT:-/tmp/rkvdec-differential}"
 FFSW="${FFSW:-ffmpeg}"
 LIB="$MPP_BUILD/lib"; [ -d "$LIB" ] || LIB="$MPP_BUILD/mpp"

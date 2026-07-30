@@ -5,7 +5,7 @@
 > remediates the accept-then-`no core match` defect from the
 > [no-core-match finding](../../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md).
 >
-> Source pins: librga fork `~/Code/rockchip-userspace/librga-fork`
+> Source pins: librga fork `~/Code/rock-5b/rockchip-userspace/librga-fork`
 > (`yisding/librga@main`, tip `26a50ef`) — all `im2d_*` cites below verified
 > against it. Kernel oracle: `drivers/video/rockchip/rga3/rga_policy.c` and
 > `rga_hw_config.c` on the forward-port tree `rk3588-video-6.18`

@@ -249,7 +249,7 @@ kernel. Evidence belongs in the external conformance workspace, not in Git:
 
 ```bash
 run_id=$(date -u +%Y%m%dT%H%M%SZ)
-evidence="../rockchip-conformance/logs/rewrite/$run_id-kunit"
+evidence="../rock-5b/rockchip-conformance/logs/rewrite/$run_id-kunit"
 mkdir -p "$evidence"
 
 uname -a > "$evidence/uname.txt"

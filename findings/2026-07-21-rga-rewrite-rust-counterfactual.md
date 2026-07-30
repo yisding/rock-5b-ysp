@@ -89,7 +89,7 @@ take longest to gain Rust coverage.
 ## Evidence and reproduction
 
 - **Identity:** code-only. `linux-6.18-rkvenc@0d71ded1690c` and
-  `linux@32696e87c9c7` (both trees local under `../kernel/`), plus this
+  `linux@32696e87c9c7` (both trees local under `../rock-5b/kernel/`), plus this
   directory's 2026-07 findings.
 - **Exercise:** `wc -l rga_rewrite.c`; `grep -c` per subsystem prefix on
   `rga_rewrite.c`; `ls rust/kernel/` on both pins;

@@ -13,9 +13,10 @@ combined kernel, DKMS, and the PPA.
 > **Where the scripts run vs. build.** These scripts are the tracked source of
 > truth here; they drive an **external, gitignored build workspace**
 > (`rock5b-kernel-build`, holding the 31 GB `armbian-build` + all outputs).
-> `bootstrap-workspaces.sh` clones that workspace. Every script defaults
-> `WORKSPACE` to `../../../kernel/rock5b-kernel-build` and takes `ARMBIAN_BUILD=`
-> / `WORKSPACE=` overrides.
+> `bootstrap-workspaces.sh` clones that workspace. Every script derives the
+> grouped root from `ROCK5B_WORKSPACE` (default `../../../rock-5b`), defaults
+> `WORKSPACE` to `$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build`, and takes
+> `ARMBIAN_BUILD=` / `WORKSPACE=` overrides.
 
 ## Build-host modes
 
@@ -56,8 +57,9 @@ The full prerequisite and mode chooser is canonical in
 ## Prerequisite: the external build workspace
 
 The build scripts expect an Armbian build tree at
-**`$WORKSPACE/armbian-build`** (default `WORKSPACE=../../../kernel/rock5b-kernel-build`,
-gitignored, outside this repo). Get it with the bootstrap:
+**`$WORKSPACE/armbian-build`** (default
+`WORKSPACE=$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build`, gitignored, outside
+this repo). Get it with the bootstrap:
 
 ```bash
 bash bootstrap-workspaces.sh          # Armbian branch + pinned conformance sources
@@ -68,6 +70,8 @@ Stage the port patches per [`packaging/docs/armbian-packaging.md`](../../packagi
 `$WORKSPACE/armbian-build/output/debs`, which is exactly where
 `install-combined-kernel.sh` looks by default — the build → install handoff
 needs no path edits. Override `ARMBIAN_BUILD=`/`WORKSPACE=` for another layout.
+Override `ROCK5B_WORKSPACE=` once when the entire grouped board workspace lives
+somewhere else.
 
 ## The scripts
 

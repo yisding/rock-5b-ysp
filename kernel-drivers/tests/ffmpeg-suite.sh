@@ -8,10 +8,11 @@ source "$TEST_DIR/suite-common.sh"
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
 
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-ffmpeg-suite"}
-STAGE=${STAGE:-"$REPO_ROOT/../kernel/rock5b-kernel-build/ffmpeg-stack"}
+STAGE=${STAGE:-"$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build/ffmpeg-stack"}
 FFMPEG_GENERATOR=${FFMPEG_GENERATOR:-ffmpeg}
 FFMPEG_GENERATED_INPUT_CACHE=${FFMPEG_GENERATED_INPUT_CACHE:-"$CONFORMANCE_ROOT/assets/ffmpeg-generated"}
 FFMPEG_GENERATE_INPUTS=${FFMPEG_GENERATE_INPUTS:-1}
@@ -34,10 +35,10 @@ FFMPEG_EXPECT_ENCODER_DEVICE_REGEX=${FFMPEG_EXPECT_ENCODER_DEVICE_REGEX:-RKVENC|
 FFMPEG_STAGED_LD_LIBRARY_PATH=${FFMPEG_STAGED_LD_LIBRARY_PATH:-${FFMPEG_MPP_STAGED_LIB_PATH:-}}
 
 if [ -z "${FFDIR:-}" ]; then
-	if [ -x "$REPO_ROOT/../ffmpeg/ffmpeg-rockchip-81/ffmpeg" ]; then
-		FFDIR="$REPO_ROOT/../ffmpeg/ffmpeg-rockchip-81"
+	if [ -x "$ROCK5B_WORKSPACE/ffmpeg/ffmpeg-rockchip-81/ffmpeg" ]; then
+		FFDIR="$ROCK5B_WORKSPACE/ffmpeg/ffmpeg-rockchip-81"
 	else
-		FFDIR="$REPO_ROOT/../ffmpeg/ffmpeg-rockchip"
+		FFDIR="$ROCK5B_WORKSPACE/ffmpeg/ffmpeg-rockchip"
 	fi
 fi
 

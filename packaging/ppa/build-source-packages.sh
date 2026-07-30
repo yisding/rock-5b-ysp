@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-WORKSPACE_ROOT="$(cd "${WORKSPACE_ROOT:-$ROOT/..}" && pwd)"
+ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$ROOT/../rock-5b}"
+WORKSPACE_ROOT="$(cd "${WORKSPACE_ROOT:-$ROCK5B_WORKSPACE}" && pwd)"
 OUT="${OUT:-$ROOT/packaging/ppa/out}"
 WORK="$OUT/work"
 ARTIFACTS="$OUT/artifacts"
@@ -86,10 +87,11 @@ Existing orig tarballs in the artifacts directory are reused by default, which
 is required when uploading a new Debian revision for an upstream version that
 Launchpad has already accepted. Set FORCE_ORIG=1 to regenerate an orig tarball.
 
-Source tree defaults are resolved below WORKSPACE_ROOT (the repository's parent
-directory by default). Override that shared root or use MPP_REPO, LIBRGA_REPO,
-FFMPEG_REPO, FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching *_COMMIT /
-*_UPSTREAM_VERSION variables. The default GRD snapshot is the cleaned release
+Source tree defaults are resolved below WORKSPACE_ROOT, which defaults to
+ROCK5B_WORKSPACE; ROCK5B_WORKSPACE defaults to the sibling rock-5b directory.
+Override the grouped root, the packaging-only root, or use MPP_REPO,
+LIBRGA_REPO, FFMPEG_REPO, FFMPEG_ROCKCHIP_REPO, GRD_REPO, and the matching
+*_COMMIT / *_UPSTREAM_VERSION variables. The default GRD snapshot is the cleaned release
 branch: RKMPP backend, reconnect fixes, cached readback, bounded encode recovery,
 and progress-gated frame-ack recovery. It contains no investigation diagnostics
 and applies no source delta. GRD_DELTA remains available for reconstructing a

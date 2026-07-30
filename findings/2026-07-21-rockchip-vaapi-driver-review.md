@@ -5,7 +5,7 @@
 > extension analysis for Chromium/desktop apps and the browser-sandbox
 > gate structure for `/dev/mpp_service`-backed drivers
 > Source: `github.com/woodyst/rockchip-vaapi@e8c64dd` (clone at
-> `~/Code/rockchip-vaapi`); ioctl numbers cross-checked against
+> `~/Code/rock-5b/rockchip-vaapi`); ioctl numbers cross-checked against
 > [`../kernel-drivers/docs/dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md)
 > Date: 2026-07-21 (§9 phase-one results appended same day)
 > Trust: SOURCE-INSPECTED for everything stated about the driver code;
@@ -308,7 +308,7 @@ correctness surgery cleanly.
 
 ## Local artifacts
 
-- Working checkout: `~/Code/rockchip-vaapi`, forked to
+- Working checkout: `~/Code/rock-5b/rockchip-vaapi`, forked to
   `yisding/rockchip-vaapi` (`fork` remote), branch `ysp/cleanup`; `origin`
   is upstream woodyst `@e8c64dd` (v1.0.11, quiet since 2026-05-28). Built
   package `rockchip-vaapi_1.0.11+ysp1_arm64.deb`.

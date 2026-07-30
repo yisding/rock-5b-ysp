@@ -103,7 +103,7 @@ packaging/ppa/kernel-maxline/build-kernel.sh wip
 ```
 
 Defaults assume the upstream repository is at the sibling path
-`~/Code/kernel/linux`, use all CPUs, and write ignored build/output trees to
+`~/Code/rock-5b/kernel/linux`, use all CPUs, and write ignored build/output trees to
 `packaging/ppa/out/maxline/package-{public,wip}`. Overrides are explicit:
 
 ```bash

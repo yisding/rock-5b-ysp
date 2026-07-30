@@ -76,7 +76,7 @@ client's expectations, and that dmabuf ownership/sync survives caps renegotiatio
 Until that benchmark exists, FFmpeg remains the narrower production route.
 
 JeffyCN's Rockchip GStreamer branch is staged in the external conformance bundle
-(`../rockchip-conformance/sources/jeffycn-gstreamer-rockchip`) for exactly this:
+(`../rock-5b/rockchip-conformance/sources/jeffycn-gstreamer-rockchip`) for exactly this:
 test the kernel and userspace stack hard, then only consider a GRD GStreamer
 backend if it beats the FFmpeg route on reliability, latency, or upstreamability.
 

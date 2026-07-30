@@ -41,7 +41,7 @@ hard failure rather than an indirect-attribution warning.
 ## 1. What is instrumented (kernel side)
 
 The original broad instrumentation is in the forward port
-(`../kernel/linux-6.18-rkvenc-av1-fwport`). The rewrite intentionally keeps a
+(`../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`). The rewrite intentionally keeps a
 narrower debug surface: aggregate MPP/RGA counters under
 `/sys/kernel/debug/rk_mpp_rewrite` and `/sys/kernel/debug/rk_rga_rewrite`, plus
 RGA userptr-IOMMU fallback counters under the compatibility path
@@ -79,7 +79,7 @@ has not been replicated in the rewrite.
 Merge the config fragment, then build as usual:
 
 ```sh
-cd ../kernel/linux-6.18-rkvenc-av1-fwport
+cd ../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport
 ./scripts/kconfig/merge_config.sh -m .config \
     ../../rock-5b-ysp/kernel-drivers/patches/iommu-debug/kconfig-debug.fragment
 make olddefconfig
@@ -107,7 +107,7 @@ Everything under `/sys/kernel/debug` is root-only — run the harness under `sud
 ### 3a. `iommu-machinery-fuzz.sh` — the orchestrator
 Composes everything and brackets each phase with a dmesg fault scan + debugfs
 counter delta + leak assertion. Structured logs land under
-`../rockchip-conformance/logs/iommu-machinery/<ts>/`.
+`../rock-5b/rockchip-conformance/logs/iommu-machinery/<ts>/`.
 
 ```sh
 IOMMU_FUZZ_VALIDATE_BUILD=1 bash kernel-drivers/tests/iommu-machinery-fuzz.sh  # device-free C++ build gate
@@ -148,7 +148,7 @@ runs). Then checks correctness: **absolute** for copy (output == known pattern),
 output). Sub-page offsets and src/dst scatter are exercised.
 
 ```sh
-LD_LIBRARY_PATH=../rockchip-conformance/sources/airockchip-librga/libs/Linux/gcc-aarch64 \
+LD_LIBRARY_PATH=../rock-5b/rockchip-conformance/sources/airockchip-librga/libs/Linux/gcc-aarch64 \
   ./rga-iommu-fuzz -n 128 -o all -t both -v      # 128 iters, all ops, scatter src+dst
 ./rga-iommu-fuzz -o copy -t dst -W 1920 -H 1080  # copy, scatter only the write buffer, fixed size
 # -o copy|resize|rotate|cvt|all   -t src|dst|both   -s <seed>   -W/-H fixed dims
@@ -325,7 +325,7 @@ the `userptr_iommu/attempt` counter or a kprobe on `rga_dma_map_sgt_iommu`.
   plus aggregate MPP/RGA fault counters.
 - **MPP needs the from-source build.** The distro `librockchip_mpp` reports
   "parser not registered" and fails decode; the harness uses
-  `../rockchip-conformance/out/mpp` which has parsers registered. AV1 = `-t 16777224`.
+  `../rock-5b/rockchip-conformance/out/mpp` which has parsers registered. AV1 = `-t 16777224`.
 - **`force_remap` only affects driver-owned maps** (userptr / physical). dma-buf
   imports keep the fail-closed single-span contract regardless.
 - **dma-buf scatter is a separate negative gate.** A dma-buf can be physically

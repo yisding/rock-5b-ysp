@@ -152,14 +152,15 @@ different output root.
 
 ## Source Inputs
 
-The helper resolves source checkouts below `WORKSPACE_ROOT`, which defaults to
-the parent of this repository. Keep the documented sibling layout, override the
-shared root, or override individual paths/pins with the matching environment
-variables.
+The helper derives `ROCK5B_WORKSPACE` from the sibling `rock-5b` directory and
+defaults its packaging-specific `WORKSPACE_ROOT` to that grouped root. Override
+`ROCK5B_WORKSPACE` for the whole layout, `WORKSPACE_ROOT` for packaging alone,
+or individual paths/pins with the matching environment variables.
 
 | Source | Default variable | Default value |
 |--------|------------------|---------------|
-| Workspace containing sibling source families | `WORKSPACE_ROOT` | Parent of the `rock-5b-ysp` checkout |
+| Grouped board workspace | `ROCK5B_WORKSPACE` | Sibling `rock-5b` directory |
+| Packaging source workspace | `WORKSPACE_ROOT` | `$ROCK5B_WORKSPACE` |
 | MPP repo | `MPP_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/mpp-rockchip` |
 | MPP commit | `MPP_COMMIT` | `3381fd2c` |
 | librga repo | `LIBRGA_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/librga-fork` |

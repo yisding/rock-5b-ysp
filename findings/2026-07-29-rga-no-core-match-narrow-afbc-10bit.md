@@ -4,7 +4,7 @@
 > NV15→P010 repack that every 10-bit surface depends on. Explains the single
 > remaining failure in the [Main10 conformance sweep](2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md).
 >
-> Source: forward port `~/Code/kernel/linux-6.18-rkvenc-av1-fwport`
+> Source: forward port `~/Code/rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`
 > `drivers/video/rockchip/rga3/` — `rga_hw_config.c` `rga3_data`/`rga2e_data`
 > `.input_range`/`.output_range` and `rga3_win_data`/`rga2e_win_data`
 > `.rd_mode`;

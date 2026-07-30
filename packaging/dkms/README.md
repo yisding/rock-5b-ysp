@@ -60,7 +60,8 @@ Then build and install:
 KSRC=/path/to/linux-6.18-rkvenc/drivers/video/rockchip \
   bash build-deb.sh                    # -> build/rk3588-vcodec-dkms_1.0_arm64.deb
 # By default KSRC is $WORKSPACE_ROOT/kernel/linux-6.18-rkvenc/… where
-# WORKSPACE_ROOT is the parent of this repository. KROOT is derived from KSRC.
+# WORKSPACE_ROOT defaults to $ROCK5B_WORKSPACE (the sibling rock-5b workspace).
+# KROOT is derived from KSRC.
 bash build-deb.sh clean                # remove build/ (staging tree + .deb)
 bash build-deb.sh --help               # inspect portable defaults; no build
 

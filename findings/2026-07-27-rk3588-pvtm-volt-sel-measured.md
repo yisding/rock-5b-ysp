@@ -7,9 +7,9 @@
 > [`W22`](../status.md#watch-w22). Port plan:
 > [`kernel-versions/docs/pvtm-opp-binning-plan.md`](../kernel-versions/docs/pvtm-opp-binning-plan.md).
 > Source: booted `6.1.115-vendor-rk35xx` (BSP) on the ROCK 5B ·
-> `../kernel/rockchip-kernel` @ `b4ef083dc0c3` (6.1.141) ·
-> `../kernel/linux-6.18-rkvenc-av1-fwport` @ `12a7da02bea83` ·
-> `../kernel/linux` @ `fac7077731585` (`v7.2-rc5-252`)
+> `../rock-5b/kernel/rockchip-kernel` @ `b4ef083dc0c3` (6.1.141) ·
+> `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` @ `12a7da02bea83` ·
+> `../rock-5b/kernel/linux` @ `fac7077731585` (`v7.2-rc5-252`)
 > Date: 2026-07-27
 > Trust: MEASURED (booted BSP dmesg + live regulators + live cpufreq) /
 > SOURCE-INSPECTED (three pinned trees) / CONFIRMED (rail voltage and available-

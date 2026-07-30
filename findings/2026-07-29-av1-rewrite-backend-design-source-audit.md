@@ -1,7 +1,7 @@
 # AV1 rewrite backend: three-region sparse ABI on the mpp-rewrite core with a kernel-owned AFBC block
 
 > Scope: kernel-drivers/av1 + kernel-drivers/mpp (clean-room rewrite track, C## row 8/11 context)
-> Source: `~/Code/kernel/linux-6.18-rk-av1-rewrite` branch `rk3588-rewrite-av1-6.18` @ `e58c57e50d0a0`, `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c`; DT in `arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi`
+> Source: `~/Code/rock-5b/kernel/linux-6.18-rk-av1-rewrite` branch `rk3588-rewrite-av1-6.18` @ `e58c57e50d0a0`, `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c`; DT in `arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtsi`
 > Date: 2026-07-29
 > Trust: SOURCE-INSPECTED
 
@@ -9,7 +9,7 @@
 > was ported onto `rk3588-rewrite-6.18` (tip `c315666159816`) and
 > `rk3588-rewrite-mainline` (7.2-rc5, tip `2e3916ef8011a`), and the source
 > branch was retired locally as `retired/rk3588-rewrite-av1-6.18-20260729`
-> (its worktree `~/Code/kernel/linux-6.18-rk-av1-rewrite` is gone). The design
+> (its worktree `~/Code/rock-5b/kernel/linux-6.18-rk-av1-rewrite` is gone). The design
 > below is unchanged by the port except that teardown now follows the
 > split-sync fault-handler contract and the KUnit cases run inside the
 > isolation framework; see

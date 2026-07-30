@@ -2,7 +2,7 @@
 
 > Scope: `kernel-drivers/scripts/build-kernel.sh` local flavors (forward-port,
 > forward-port-debug, rewrite, rewrite-debug) against the external Armbian build
-> tree at `~/Code/kernel/rock5b-kernel-build/armbian-build`
+> tree at `~/Code/rock-5b/kernel/rock5b-kernel-build/armbian-build`
 > Source: armbian/build @ `82b64307-dirty`; `lib/functions/main/config-prepare.sh:141,284`,
 > `config/sources/common.conf:115-128`, `config/sources/families/rockchip-rk3588.conf`,
 > `config/sources/families/include/rockchip64_common.inc:28-42`, `config/boards/rock-5b.conf`

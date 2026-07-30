@@ -66,7 +66,7 @@ TESTS="$(cd "$(dirname "$0")/../tests" 2>/dev/null && pwd || echo '../tests')"
 echo "If all present, run the end-to-end userspace tests (see $TESTS/README.md):"
 echo "  decode:    bash $TESTS/test-decode.sh          (device access is enough)"
 echo "  encode:    sudo bash $TESTS/encode-test-tiny.sh"
-echo "  transcode: sudo bash $TESTS/transcode-test.sh  (needs ffmpeg-rockchip -- ../../ffmpeg/)"
+echo "  transcode: sudo bash $TESTS/transcode-test.sh  (needs ffmpeg-rockchip -- ../../rock-5b/ffmpeg/)"
 
 if [ "$FAILED" -ne 0 ]; then
 	echo

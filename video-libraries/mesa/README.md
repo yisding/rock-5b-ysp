@@ -24,7 +24,7 @@ Hardware and software used for the local investigation:
 
 - Radxa ROCK 5B / RK3588
 - Mali-G610 MC4
-- Mesa 26.2-devel local builds (`/home/yi/Code/fdo/mesa`, remote
+- Mesa 26.2-devel local builds (`/home/yi/Code/rock-5b/fdo/mesa`, remote
   `github.com/yisding/mesa`; upstream-baseline worktree pinned at
   `0983c72a7ed`, 2026-06-29)
 - Panfrost/Panthor on the OpenGL ES path

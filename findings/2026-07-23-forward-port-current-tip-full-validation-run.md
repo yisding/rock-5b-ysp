@@ -39,7 +39,7 @@ memory-safety** only — no performance/soak claims (runbook principle 2).
   config (same class as `C9fc5`); vmlinuz md5 `6bb59e4aed8c71b3ed4747ac5dc226d1`
   (built 2026-07-23 07:39); kernel-notes sha256
   `94b76691cf89b86814ab1368bba01928fe34841989c05a8b28d15868866a66a3`; taint 0.
-  Source tree `../kernel/linux-6.18-rkvenc-av1-fwport` @ `4401383a6d9b5`, patch
+  Source tree `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` @ `4401383a6d9b5`, patch
   tail `0001`–`0072` (less `0012`). **No `P####-C####` hash is recorded in-repo
   for this build** — the docs stop at `Pc1f8-C9fc5` (`#7`, the `0071` tip); this
   `#8` build is the next rebuild that adds `0072`.
@@ -90,9 +90,9 @@ memory-safety** only — no performance/soak claims (runbook principle 2).
     24 cases. Decode/PSNR **bit-exact (inf)** for H.264/H.265/VP9/AV1; encode
     option cases pass; `hevc→h264`, `av1→h264`, `av1→hevc` transcodes produce
     valid non-empty output. **Two userspace failures (see below).**
-- **Artifacts:** `../rockchip-conformance/logs/forward-port/20260723-104152-kasan-mpp-suite/`,
+- **Artifacts:** `../rock-5b/rockchip-conformance/logs/forward-port/20260723-104152-kasan-mpp-suite/`,
   `.../20260723-104210-kasan-narrowed/`,
-  `../rockchip-conformance/logs/rewrite/20260723-104740-ffmpeg-suite/`.
+  `../rock-5b/rockchip-conformance/logs/rewrite/20260723-104740-ffmpeg-suite/`.
   Raw captures, not committed.
 
 ## Root-only gates — RUN 2026-07-23, all green
@@ -125,7 +125,7 @@ fixes hold). Every fatal-signature kernel scan was clean.
 
 ## The two FFmpeg failures (userspace ffmpeg-rockchip missing `da5befc806`; kernel + shipping 8.0.3 clean)
 
-The deadlocks are in the `FFDIR` binary (`../ffmpeg/ffmpeg-rockchip/ffmpeg`),
+The deadlocks are in the `FFDIR` binary (`../rock-5b/ffmpeg/ffmpeg-rockchip/ffmpeg`),
 which reports **`libavcodec 63` (FFmpeg master**, `N-125363-g53e76abdc7`). Its
 directory's `RELEASE` file says 6.1 and the checked-out source headers say
 `LIBAVCODEC_VERSION_MAJOR 60`, so the *binary is a stale master build mismatched

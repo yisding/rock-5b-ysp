@@ -2,7 +2,7 @@
 # Compile (if needed) and run the Panfrost blit reproducers, summarizing
 # pass/fail. Point MESA_BUILD at a surfaceless build (see build-mesa-surfaceless.sh).
 #
-#   MESA_BUILD=/home/yi/Code/fdo/mesa/build-codex-main \
+#   MESA_BUILD=/home/yi/Code/rock-5b/fdo/mesa/build-codex-main \
 #   REPRO_SRC=/home/yi/Code/rock-5b-ysp/mesa-panfrost-g610/reproducers \
 #   ./run-repro.sh
 #
@@ -12,7 +12,9 @@
 # reason to abort the run, so -e stays off (see CONTRIBUTING.md).
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-: "${MESA_BUILD:=$HOME/Code/fdo/mesa/build-codex-main}"
+YSP_ROOT=$(cd "$HERE/../../.." && pwd)
+: "${ROCK5B_WORKSPACE:=$YSP_ROOT/../rock-5b}"
+: "${MESA_BUILD:=$ROCK5B_WORKSPACE/fdo/mesa/build-codex-main}"
 : "${REPRO_SRC:=$HERE/../reproducers}"
 BIN=${BIN:-$(mktemp -d)/repro-bin}; mkdir -p "$BIN"
 

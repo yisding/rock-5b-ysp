@@ -1,11 +1,11 @@
 # Multi-agent defect audit of the rewrite drivers: 17 confirmed, 4 refuted, all fixed
 
 > Scope: kernel-drivers — `mpp-rewrite` + `rga-rewrite` clean-room drivers
-> Source: `~/Code/kernel/linux-6.18-rkvenc` @ `185d4dcec1100` (branch
+> Source: `~/Code/rock-5b/kernel/linux-6.18-rkvenc` @ `185d4dcec1100` (branch
 > `rk3588-rewrite-6.18`); fixes land as `c540d63a8a9be..d3a4d4812e9ed`, cherry-picked
-> to `~/Code/kernel/linux` @ `7afd5ec514f0b..fc329e693da0c` (`rk3588-rewrite-mainline`).
+> to `~/Code/rock-5b/kernel/linux` @ `7afd5ec514f0b..fc329e693da0c` (`rk3588-rewrite-mainline`).
 > Oracles: `drivers/video/rockchip/{rga3,mpp}/` in the same tree, the in-tree
-> `ABI.rst` ledgers, and `~/Code/rockchip-userspace/librga-fork`.
+> `ABI.rst` ledgers, and `~/Code/rock-5b/rockchip-userspace/librga-fork`.
 > Date: 2026-07-24
 > Trust: CODE-INSPECTED, COMPILE-VERIFIED — no booted kernel, no hardware run
 
@@ -137,8 +137,8 @@ been executed in this tree** — worth settling before treating a green run as e
 
 ## Evidence and reproduction
 
-- **Identity:** code-only. `~/Code/kernel/linux-6.18-rkvenc` @ `185d4dcec1100`
-  (clean) and `~/Code/kernel/linux` @ `d5165caeddb70`. Rewrite sources were
+- **Identity:** code-only. `~/Code/rock-5b/kernel/linux-6.18-rkvenc` @ `185d4dcec1100`
+  (clean) and `~/Code/rock-5b/kernel/linux` @ `d5165caeddb70`. Rewrite sources were
   byte-identical between the two before and after; verified with `cmp` both times.
 - **Detection:** production regions only — `rga_rewrite.c` 1–7913 and 18473–23583,
   `mpp_rewrite.c` 1–3302 and 7877–13927. The embedded KUnit blocks were excluded

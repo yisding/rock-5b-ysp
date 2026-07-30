@@ -6,7 +6,12 @@ each of those trees and gives the reconstruction recipe, so the anchors stay
 auditable without access to the original dev box. Dev-box paths
 (`/home/yi/Code/…`) appear below **only** as provenance records of where the
 work was done; every tree is reconstructible from public sources + this repo's
-patches unless explicitly marked otherwise.
+patches unless explicitly marked otherwise. The 2026-07-29 directory-only
+reorganization placed board-related external work under
+`/home/yi/Code/rock-5b/`; it did not change the recorded tree contents or pins.
+The paths below name that current location, while `rock-5b-ysp`,
+`rock-5b-security`, `tmp`, and `.ccache` remain direct children of
+`/home/yi/Code`.
 
 | # | Tree | Anchors for | Pin |
 |---|------|-------------|-----|
@@ -19,8 +24,8 @@ patches unless explicitly marked otherwise.
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | current comparison tips `rk3588-rewrite-6.18@35eb735d21dd8` and `rk3588-rewrite-mainline@2cf0126529c1c` (2026-07-29 atomic-safe fault-handler setter split, [ISR-panic finding](../findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md); prior tips `cd71f985a784c`/`7dcb4c3b5a981`), the 2026-07-29 [review-round-2 fixes](../findings/2026-07-29-rewrite-driver-review-round-2.md) (legacy rot90/270 wire-geometry acceptance, coordinator-only hard-CCU chain writer, abort scheduler kick, per-fence dma_fence contexts with module pinning, shared-IRQ regs-live gating, and the KUnit double-free repair); parents `51ea9d1ca537` / `03da898b03f1f` isolate KUnit fixtures behind local services with assertion-safe resource cleanup and no runtime unbind/reprobe callbacks; opt-in KUnit defaults `0a2d7b9414f58` / `aa18488c8642b` and compile-time-owned ABI-case retirement `669697f23d3d` / `a49eb7575f436`; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
-| 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rockchip-conformance`, see §10 |
-| 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
+| 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rock-5b/rockchip-conformance`, see §10 |
+| 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../rock-5b/kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
 | 12 | Mesa MR !43161 benchmark tree | [fixed-clock benchmark finding](../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md), [Mesa reproducer runbook](../video-libraries/mesa/reproducers/README.md) | Mesa MR commit `647256dc2ae` + tracked benchmark override patch; local branch tip `6000414f9ea`, see §12 |
 
 ---
@@ -50,7 +55,7 @@ its `&vdec0`/`&vdec1` overrides reference labels vanilla 6.18 doesn't define
 
 > **Forward-port branch lineage.** The forward port is maintained on
 > **`rk3588-video-6.18`**, checked out at
-> `/home/yi/Code/kernel/linux-6.18-rkvenc-av1-fwport`. It continues the older
+> `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`. It continues the older
 > `rkvenc-fwport-6.18` line: of that branch's 32 commits, 31 are present on
 > `rk3588-video-6.18` with identical patch-ids (rebased, so the SHAs differ),
 > the one exception being the unrelated `e059aad8d68b` libbpf tooling fix.
@@ -60,7 +65,7 @@ its `&vdec0`/`&vdec1` overrides reference labels vanilla 6.18 doesn't define
 > `-rga-userptr-iommu`, `-route-b` — are separate branches, not old names.
 
 Provenance: the patches were generated from the dev worktree
-`/home/yi/Code/kernel/linux-6.18-rkvenc` (then on branch `rkvenc-fwport-6.18`;
+`/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc` (then on branch `rkvenc-fwport-6.18`;
 see the lineage note above), commits
 
 ```
@@ -113,7 +118,7 @@ code.
 
 | Var | Tree | Pin |
 |-----|------|-----|
-| `$OURS` | `<forward-port tree §1>/drivers/video/rockchip` | dev-box provenance: `/home/yi/Code/kernel/linux-6.18-rkvenc/drivers/video/rockchip` |
+| `$OURS` | `<forward-port tree §1>/drivers/video/rockchip` | dev-box provenance: `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc/drivers/video/rockchip` |
 | `$BSP` | `rockchip-linux/kernel` branch `develop-6.1`, `drivers/video/rockchip/` | clean checkout, observed @ `b4ef083dc0c3` (2026-07-01) |
 | `$BSP66` | `rockchip-linux/kernel` branch `develop-6.6`, `drivers/video/rockchip/` | clean tree @ `1ba51b059f25`; official remote tip verified 2026-07-16 for the [6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) |
 
@@ -143,12 +148,12 @@ donor and is not cited by any doc.)
 | ffmpeg-rockchip-81 FFmpeg 8.0 line | `github.com/yisding/ffmpeg-rockchip-81`, branch `ffmpeg-80` | `ab675f19cf17` (`n8.0.3-101-gab675f19cf`), 74 patch commits over current `release/8.0@435ae0581deb`; includes upstream HEVC unused-following-reference fix `265d39e551` | [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md) §7, [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md), [NUT fix](../findings/2026-07-29-hevc-nut-radl-and-unused-rps-reference-fixes.md) |
 | ffmpeg-rockchip-81 normal-PPA encoder line | `github.com/yisding/ffmpeg-rockchip-81`, branch `fix/rkmpp-output-timeout` | `33a651a55ba62d29d9474d236ceb9240043da518`, based on the FFmpeg 8.0 Rockchip line; retains transient synchronous RKMPP backpressure handling, adds the unused-following-reference fix, and is exported as `7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1`; exact Published runtime package checksum-verified and exercised with the matching MPP package in the isolated complete HEVC sweep and normal matrix | [`packaging/ppa/README.md`](../packaging/ppa/README.md), [`findings/2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md`](../findings/2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md), [NUT fix](../findings/2026-07-29-hevc-nut-radl-and-unused-rps-reference-fixes.md) |
 | ffmpeg-rockchip-81 FFmpeg 8.1 line | `github.com/yisding/ffmpeg-rockchip-81`, branch `ffmpeg-81` | `629f4968d226` (`n8.1.2-94-g629f4968d2`), 72 patch commits over current `release/8.1@94138f6973dd`; includes upstream HEVC unused-following-reference fix `265d39e551` and replaces the local `rockchip-8.1.2@53b3551b9176` comparison branch as the published release line | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/rebase-notes.md`](../video-libraries/ffmpeg/docs/rebase-notes.md) §7, [NUT fix](../findings/2026-07-29-hevc-nut-radl-and-unused-rps-reference-fixes.md) |
-| Jellyfin FFmpeg Rockchip reference | `jellyfin/jellyfin-ffmpeg` | `jellyfin@455bfe539220` (`v8.1.2-1-13-g455bfe53`); effective comparison applied all 96 Debian patches in scratch worktree `/home/yi/Code/ffmpeg/jellyfin-ffmpeg-applied` | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md`](../video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md) |
+| Jellyfin FFmpeg Rockchip reference | `jellyfin/jellyfin-ffmpeg` | `jellyfin@455bfe539220` (`v8.1.2-1-13-g455bfe53`); effective comparison applied all 96 Debian patches in scratch worktree `/home/yi/Code/rock-5b/ffmpeg/jellyfin-ffmpeg-applied` | [`video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md`](../video-libraries/ffmpeg/docs/rockchip-812-jellyfin-comparison.md), [`video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md`](../video-libraries/ffmpeg/docs/jellyfin-ffmpeg-patch-survey.md) |
 | FFmpeg upstream release tags | `FFmpeg/FFmpeg` | `n8.1.2@38b88335f99e` and `n8.0.3@151b17dd2400`; historical comparison/package bases | `video-libraries/ffmpeg/docs/implementation-comparison.md`; the PPA/GRD ABI base |
 | FFmpeg upstream publication bases | `FFmpeg/FFmpeg` | `master@ceabc9b306f5`, `release/8.0@435ae0581deb`, and `release/8.1@94138f6973dd`, fetched 2026-07-16 | `video-libraries/ffmpeg/docs/rebase-notes.md` §7 |
 | rockchip-vaapi maintained fork | `github.com/yisding/rockchip-vaapi`, branch `main` | `5d558fa` (2026-07-29), pushed to `fork/main`; roadmap implementation `3c6f43c` plus the Debian revision/source-Lintian fixes. Exported exactly as signed source `1.0.11+ysp6-0ubuntu1~rk1`; upstream remains `woodyst/rockchip-vaapi@e8c64dd` | [`video-libraries/vaapi/README.md`](../video-libraries/vaapi/README.md), [`roadmap qualification`](../findings/2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md), [`Firefox RDD policy`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) |
 | rockchip-vaapi AV1 design source | `github.com/yisding/rockchip-vaapi`, branch `main` | `docs/AV1_SUPPORT_PLAN.md` at its 2026-07-27 change `4d98eca2c76a007bc46523a26d39f3043d80ec52`; parsed-picture inventory and surface-keyed state source inspected for the direct-backend design | [`direct AV1 backend design`](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md) |
-| Firefox Ubuntu source package | Mozilla Team PPA Resolute source `firefox` | Current package workspace is exact signed `153.0+build1-0ubuntu0.26.04.1~mt1` (`.dsc` SHA-256 `5fb63a47f969bc97479bf19abecc4d8d790ad2bcb1d3e7b2adde26248d50c8ed`) at `~/Code/firefox-rdd-build/firefox-153.0+build1`. Both repo patches are byte-matched and quilt-applied as local `~mt1+ysp1`; the native arm64 package build is in progress. The preserved 152.0.6 package tree remains earlier affected-object compile evidence, not the current install target. | [`Firefox RDD policy`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), [`roadmap qualification`](../findings/2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md), [`package-build checkpoint`](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
+| Firefox Ubuntu source package | Mozilla Team PPA Resolute source `firefox` | Current package workspace is exact signed `153.0+build1-0ubuntu0.26.04.1~mt1` (`.dsc` SHA-256 `5fb63a47f969bc97479bf19abecc4d8d790ad2bcb1d3e7b2adde26248d50c8ed`) at `~/Code/rock-5b/firefox-rdd-build/firefox-153.0+build1`. Both repo patches are byte-matched and quilt-applied as local `~mt1+ysp1`; the native arm64 package build is in progress. The preserved 152.0.6 package tree remains earlier affected-object compile evidence, not the current install target. | [`Firefox RDD policy`](../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md), [`roadmap qualification`](../findings/2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md), [`package-build checkpoint`](../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md) |
 
 **How the upstream FFmpeg pins and published branches relate:** `main` follows
 FFmpeg master, while `ffmpeg-80` and `ffmpeg-81` follow the upstream 8.0 and
@@ -314,7 +319,7 @@ is reconstructible from the committed local branch tips targeting
 
 - branch `rk3588-rewrite-6.18`, commit `cd71f985a784c` ("media: rockchip: fix
   rewrite review findings"), in the dev worktree
-  `/home/yi/Code/kernel/linux-6.18-rkvenc`. It lands the 2026-07-29
+  `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc`. It lands the 2026-07-29
   [review-round-2 fixes](../findings/2026-07-29-rewrite-driver-review-round-2.md):
   legacy librga pre-swapped 90/270-degree destination windows now validate in
   canvas orientation on both RGA backends (previously every genuine portrait
@@ -379,7 +384,7 @@ is reconstructible from the committed local branch tips targeting
   shared-IRQ policy, and the same KUnit/live-service isolation as the 6.18
   tip, on the 250-commit rewrite series rebased onto official kernel.org
   `v7.2-rc5` in the sibling worktree
-  `/home/yi/Code/kernel/linux`. The immediately preceding repaired tip is
+  `/home/yi/Code/rock-5b/kernel/linux`. The immediately preceding repaired tip is
   preserved as
   `ysp-backup/rk3588-rewrite-mainline-before-7.2-rc5-20260726@5bae68d8381c`;
   the older pre-rc2 rebase backup remains preserved too.
@@ -526,12 +531,12 @@ support repo's
 KUnit-enabled provider/rewrite/DTB build. On 2026-07-15 its default `normal`
 profile completed warning-free for the then-current pins. On 2026-07-17 all
 three `normal`, `memory`, and `race` profiles completed warning-free for
-`../kernel/linux-6.18-rkvenc@0d71ded1690c` and
-`../kernel/linux@32696e87c9c7`, building `drivers/iommu/rockchip-iommu.o`, both
+`../rock-5b/kernel/linux-6.18-rkvenc@0d71ded1690c` and
+`../rock-5b/kernel/linux@32696e87c9c7`, building `drivers/iommu/rockchip-iommu.o`, both
 rewrite objects, and `rockchip/rk3588-rock-5b.dtb`. The Published alpha packages
 remain reconstructible from the pre-hardening parents
-`../kernel/linux-6.18-rkvenc@d1d15a3d052a` and
-`../kernel/linux@083bdb98e715`; their source extraction/config coverage does not
+`../rock-5b/kernel/linux-6.18-rkvenc@d1d15a3d052a` and
+`../rock-5b/kernel/linux@083bdb98e715`; their source extraction/config coverage does not
 cover the July 15 heads or the July 17 reconciliation. The build gate removes each per-profile archive
 checkout after a passing profile unless `KEEP_TMP=1`; after that change, the combined
 `REWRITE_BUILD_PROFILES="normal memory race" kernel-drivers/tests/rewrite-build-gate.sh all`
@@ -567,7 +572,7 @@ multicore-disable logic in `rga.c`. It measured 3,168 lines across `*.c`, `*.h`,
 The reproducible seed for the conformance bundle now lives in this repo under
 [`kernel-drivers/tests/conformance/`](../kernel-drivers/tests/conformance/README.md).
 The generated runtime bundle still defaults to an external path,
-`../rockchip-conformance` (`/home/yi/Code/rockchip-conformance` on the dev box),
+`../rock-5b/rockchip-conformance` (`/home/yi/Code/rock-5b/rockchip-conformance` on the dev box),
 because third-party source checkouts, build directories, logs, and test assets
 do not belong in git. The tracked seed's `MANIFEST.tsv` records the exact
 shallow checkouts staged on 2026-07-02 and
@@ -632,9 +637,9 @@ The AV1 note was written from three local trees on 2026-07-02:
 
 | Tree | Local path | Pin used for the observation | Relevant files |
 |------|------------|------------------------------|----------------|
-| Forward-port / rewrite 6.18 tree | `/home/yi/Code/kernel/linux-6.18-rkvenc` | branch `rk3588-rewrite-6.18`, commit `a81feb1e2971`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-6.18` | `drivers/video/rockchip/mpp/`, `drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
-| Upstream-style comparison tree | `/home/yi/Code/kernel/linux` | branch `rk3588-rewrite-mainline`, commit `839de47fcda2`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-mainline` | `drivers/iommu/vsi-iommu.c`, `Documentation/devicetree/bindings/iommu/verisilicon,iommu.yaml`, `drivers/media/platform/verisilicon/`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
-| Rockchip BSP donor | `/home/yi/Code/kernel/rockchip-kernel` | `develop-6.1` commit `b4ef083dc0c3` | `drivers/video/rockchip/mpp/mpp_av1dec.c`, `drivers/iommu/rockchip-iommu-av1d.c`, `drivers/iommu/rockchip-iommu.c`, `arch/arm64/boot/dts/rockchip/rk3588s.dtsi` |
+| Forward-port / rewrite 6.18 tree | `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc` | branch `rk3588-rewrite-6.18`, commit `a81feb1e2971`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-6.18` | `drivers/video/rockchip/mpp/`, `drivers/video/rockchip/mpp/compat/soc/rockchip/rockchip_iommu.h`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
+| Upstream-style comparison tree | `/home/yi/Code/rock-5b/kernel/linux` | branch `rk3588-rewrite-mainline`, commit `839de47fcda2`, 125 commits ahead of `linux-rock5b/rk3588-rewrite-mainline` | `drivers/iommu/vsi-iommu.c`, `Documentation/devicetree/bindings/iommu/verisilicon,iommu.yaml`, `drivers/media/platform/verisilicon/`, `arch/arm64/boot/dts/rockchip/rk3588-base.dtsi` |
+| Rockchip BSP donor | `/home/yi/Code/rock-5b/kernel/rockchip-kernel` | `develop-6.1` commit `b4ef083dc0c3` | `drivers/video/rockchip/mpp/mpp_av1dec.c`, `drivers/iommu/rockchip-iommu-av1d.c`, `drivers/iommu/rockchip-iommu.c`, `arch/arm64/boot/dts/rockchip/rk3588s.dtsi` |
 
 The upstream-style tree contains the AV1 IOMMU work as ordinary upstream commits:
 
@@ -654,7 +659,7 @@ a provenance record for the analysis in
 ## 12. Mesa MR !43161 benchmark tree
 
 The decision-grade workaround benchmark used the external worktree
-`/home/yi/Code/fdo/mesa-mr43161-bench`, branch
+`/home/yi/Code/rock-5b/fdo/mesa-mr43161-bench`, branch
 `benchmark/mr43161-all-blits`, at local commit `6000414f9ea`. Reconstruct its
 driver behavior from public Mesa MR !43161 commit `647256dc2ae`:
 

@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Build and run the GRD-compatible RKMPP lifecycle A/B experiment while
 # sampling interrupts, wait channels, and kernel logs. Artifacts default under
-# ~/Code/rkmpp-lifecycle-runs, never /tmp.
+# ~/Code/rock-5b/rkmpp-lifecycle-runs, never /tmp.
 set -euo pipefail
 
 BENCH_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$BENCH_DIR/../../.." && pwd)
 CODE_ROOT=$(cd "$REPO_ROOT/.." && pwd)
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$CODE_ROOT/rock-5b"}
 SOURCE="$BENCH_DIR/rkmpp_lifecycle_bench.c"
-BUILD_DIR=${RKMPP_LIFECYCLE_BUILD_DIR:-"$CODE_ROOT/rkmpp-lifecycle-build"}
-OUT_ROOT=${RKMPP_LIFECYCLE_OUT_ROOT:-"$CODE_ROOT/rkmpp-lifecycle-runs"}
+BUILD_DIR=${RKMPP_LIFECYCLE_BUILD_DIR:-"$ROCK5B_WORKSPACE/rkmpp-lifecycle-build"}
+OUT_ROOT=${RKMPP_LIFECYCLE_OUT_ROOT:-"$ROCK5B_WORKSPACE/rkmpp-lifecycle-runs"}
 CC=${CC:-/usr/bin/cc}
 PKG_CONFIG=${PKG_CONFIG:-/usr/bin/pkg-config}
 SAMPLE_MS=${RKMPP_LIFECYCLE_SAMPLE_MS:-50}

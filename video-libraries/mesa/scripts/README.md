@@ -15,7 +15,7 @@ results — is [`../docs/rebuild-and-test.md`](../docs/rebuild-and-test.md).
 | User outcome | Rebuild a local Panfrost Mesa and re-run the whole correctness battery (reproducers + dEQP + piglit) with one command each, without an X11 sysroot. |
 | Developer focus | Preserve the hard-won environment fixes baked into each script: surfaceless reconfigure over the wiped `/tmp` build state, `/usr/bin/python3` ahead of a `mise` shadow, the glvnd-vendor path piglit needs, and the writable-cwd/caselist rules for dEQP. |
 | Owns | `build-mesa-surfaceless.sh`, `mesa-panfrost-env.sh`, `run-repro.sh`, `run-deqp.sh`, `run-piglit.sh`, and the `deqp-gles3-transfer-cases.txt` caselist. |
-| Depends on | A Mesa worktree (default `/home/yi/Code/fdo/mesa`), the reproducer sources in [`../reproducers/`](../reproducers/README.md), and external dEQP/piglit checkouts (paths overridable via env). |
+| Depends on | A Mesa worktree (default `$ROCK5B_WORKSPACE/fdo/mesa`), the reproducer sources in [`../reproducers/`](../reproducers/README.md), and external dEQP/piglit checkouts (paths overridable via env). |
 | Current state | These scripts produced the 0-regression on-device results recorded in [`../docs/rebuild-and-test.md`](../docs/rebuild-and-test.md). |
 
 ## Files
@@ -31,20 +31,24 @@ results — is [`../docs/rebuild-and-test.md`](../docs/rebuild-and-test.md).
 
 ## Typical flow
 
+`ROCK5B_WORKSPACE` defaults to `~/Code/rock-5b`; `MESA`, `MESA_BUILD`, and
+`MESA_PREFIX` remain higher-precedence component overrides. The shared compiler
+cache stays at `~/Code/.ccache` and does not move with the board workspace.
+
 ```bash
-# 1. build (on the board; ~/Code/fdo/mesa by default)
+# 1. build (on the board; ~/Code/rock-5b/fdo/mesa by default)
 bash build-mesa-surfaceless.sh
 
 # 2. reproducers
-MESA_BUILD=/home/yi/Code/fdo/mesa/build-codex-main bash run-repro.sh
+MESA_BUILD=/home/yi/Code/rock-5b/fdo/mesa/build-codex-main bash run-repro.sh
 
 # 3. dEQP transfer cluster
-MESA_BUILD=/home/yi/Code/fdo/mesa/build-codex-main \
+MESA_BUILD=/home/yi/Code/rock-5b/fdo/mesa/build-codex-main \
   DEQP=/tmp/deqp-gles-ci/modules/gles3/deqp-gles3 \
   bash run-deqp.sh deqp-gles3-transfer-cases.txt
 
 # 4. piglit subset (needs a glvnd-enabled install prefix)
-MESA_PREFIX=/home/yi/Code/fdo/mesa/install-glvnd \
+MESA_PREFIX=/home/yi/Code/rock-5b/fdo/mesa/install-glvnd \
   bash run-piglit.sh /tmp/piglit-results -t getteximage -t '@pbo' -t readpixels -t fbo-blit
 ```
 

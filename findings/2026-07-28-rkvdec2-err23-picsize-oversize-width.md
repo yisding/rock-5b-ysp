@@ -4,7 +4,7 @@
 > `rockchip-vaapi` HEVC Main conformance sweep that provoked it; PICSIZE
 > conformance rows, decode picture-size limits, and the CCU watchdog thresholds.
 > Source: running kernel `6.18.40-ysp-rockchip64` built from
-> `~/Code/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64@221fc2f4d0ed`
+> `~/Code/rock-5b/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64@221fc2f4d0ed`
 > — `drivers/video/rockchip/mpp/mpp_rkvdec2.h` (status bits ~:59-69),
 > `mpp_rkvdec2_link.c` `rkvdec2_soft_ccu_reset()` (~:1983),
 > `rkvdec2_soft_ccu_irq()` (~:2179), `rkvdec2_ccu_get_timeout_threshold()`
@@ -256,7 +256,7 @@ Candidate mechanisms, none confirmed:
       -x265-params crf=28 -f hevc g.h265
   tests/hevc_mpp_repro g.h265 30
   ```
-  run from `~/Code/rockchip-vaapi`, with
+  run from `~/Code/rock-5b/rockchip-vaapi`, with
   `journalctl -k -o short-monotonic | grep -c "resetting for err"` sampled
   before and after.
 - **Attribution method:** all 20 non-`exact` vectors from the sweep were replayed

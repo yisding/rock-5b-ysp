@@ -40,7 +40,7 @@ were written — resolve any older number through the **renumber map** at the en
 ## Source
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
-worktree at `../kernel/linux-6.18-rkvenc-av1-fwport` (branch `rk3588-video-6.18`,
+worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch `rk3588-video-6.18`,
 tip `c10074f4474e`). The checked-in series is now contiguous `0001`–`0079`
 after the 2026-07-29 WARN/oops audit sweep. Backup of the pre-cleanup tip: tag
 `backup/pre-reorg-20260723` (`4401383a6d9b5`). Generated fallback/official `.deb`

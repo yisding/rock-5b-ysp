@@ -10,7 +10,8 @@ REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 # because a bare name is searched on PATH. Resolve it from BASH_SOURCE instead.
 SELF="$TEST_DIR/$(basename "${BASH_SOURCE[0]}")"
 
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$REPO_ROOT/../rockchip-conformance"}
+ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 LIBRGA_FORCE_RGA_USERPTR_IOMMU=${LIBRGA_FORCE_RGA_USERPTR_IOMMU:-${LIBRGA_FORCE_ROUTE_B:-0}}
 BASELINE=${BASELINE:-forward-port}
 CANDIDATE=${CANDIDATE:-rewrite}
@@ -62,7 +63,9 @@ usage()
 Usage: ${0##*/} [--selftest]
 
 Environment:
-  CONFORMANCE_ROOT       conformance bundle root (default: ../rockchip-conformance)
+  ROCK5B_WORKSPACE       grouped board workspace (default: ../rock-5b)
+  CONFORMANCE_ROOT       conformance bundle root
+                         (default: ROCK5B_WORKSPACE/rockchip-conformance)
   BASELINE               baseline profile (default: forward-port)
   CANDIDATE              candidate profile (default: rewrite)
   SUITES                 suites to audit (default: mpp librga gstreamer ffmpeg)

@@ -70,12 +70,14 @@ set -euo pipefail
 
 # --- Locations -------------------------------------------------------------
 # This script lives in the ysp (kernel-drivers/scripts/) but drives EXTERNAL
-# workspaces. Defaults assume the dev-box layout ~/Code/{rock-5b-ysp,kernel/*};
-# override KERNEL_TREE / ARMBIAN_BUILD / STAGING for any other layout.
+# workspaces. Defaults assume the grouped dev-box layout
+# ~/Code/{rock-5b-ysp,rock-5b/kernel/*}; override ROCK5B_WORKSPACE,
+# KERNEL_TREE, ARMBIAN_BUILD, or STAGING for another layout.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # kernel-drivers/scripts
 ROOT="$(cd "$HERE/../.." && pwd)"                       # the ysp repository
 CODE="$(cd "$ROOT/.." && pwd)"                          # ~/Code (ysp is <CODE>/rock-5b-ysp)
-WORKSPACE="${WORKSPACE:-$CODE/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
+ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$CODE/rock-5b}"
+WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 BASE_TAG="${BASE_TAG:-v6.18}"                 # local-flavor patches are BASE_TAG..HEAD
 # LINUXFAMILY: settable, but ONLY from a late_family_config extension hook.
@@ -309,7 +311,7 @@ FLAVOR_BRANCH_GUARD=""    # required checked-out branch of KERNEL_TREE, if any
 FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-}"  # required symbols in the packaged config
 case "$FLAVOR" in
 	forward-port)
-		KERNEL_TREE="${KERNEL_TREE:-$CODE/kernel/linux-6.18-rkvenc-av1-fwport}"
+		KERNEL_TREE="${KERNEL_TREE:-$ROCK5B_WORKSPACE/kernel/linux-6.18-rkvenc-av1-fwport}"
 		PATCH_PREFIX="${PATCH_PREFIX:-rk3588-av1-fwport}"
 		STAGING="${STAGING:-$WORKSPACE/forward-port/patches}"
 		FLAVOR_CONFIG_NAME="rock5b-video-port"
@@ -317,7 +319,7 @@ case "$FLAVOR" in
 		FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-CONFIG_ROCKCHIP_MPP_RKVDEC2}"
 		;;
 	forward-port-debug)
-		KERNEL_TREE="${KERNEL_TREE:-$CODE/kernel/linux-6.18-rkvenc-av1-fwport}"
+		KERNEL_TREE="${KERNEL_TREE:-$ROCK5B_WORKSPACE/kernel/linux-6.18-rkvenc-av1-fwport}"
 		PATCH_PREFIX="${PATCH_PREFIX:-rk3588-av1-fwport}"
 		STAGING="${STAGING:-$WORKSPACE/forward-port/patches}"
 		FLAVOR_CONFIG_NAME="rock5b-debug-kernel"
@@ -326,7 +328,7 @@ case "$FLAVOR" in
 		FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-CONFIG_ROCKCHIP_MPP_RKVDEC2}"
 		;;
 	rewrite)
-		KERNEL_TREE="${KERNEL_TREE:-$CODE/kernel/linux-6.18-rkvenc}"
+		KERNEL_TREE="${KERNEL_TREE:-$ROCK5B_WORKSPACE/kernel/linux-6.18-rkvenc}"
 		PATCH_PREFIX="${PATCH_PREFIX:-rk3588-rewrite}"
 		STAGING="${STAGING:-$WORKSPACE/rewrite/patches}"
 		FLAVOR_CONFIG_NAME="rock5b-video-rewrite"
@@ -335,7 +337,7 @@ case "$FLAVOR" in
 		FLAVOR_VERIFY_CONFIGS="${FLAVOR_VERIFY_CONFIGS:-CONFIG_ROCKCHIP_MPP_REWRITE CONFIG_ROCKCHIP_RGA_REWRITE}"
 		;;
 	rewrite-debug)
-		KERNEL_TREE="${KERNEL_TREE:-$CODE/kernel/linux-6.18-rkvenc}"
+		KERNEL_TREE="${KERNEL_TREE:-$ROCK5B_WORKSPACE/kernel/linux-6.18-rkvenc}"
 		PATCH_PREFIX="${PATCH_PREFIX:-rk3588-rewrite}"
 		STAGING="${STAGING:-$WORKSPACE/rewrite/patches}"
 		FLAVOR_CONFIG_NAME="rock5b-rewrite-debug-kernel"

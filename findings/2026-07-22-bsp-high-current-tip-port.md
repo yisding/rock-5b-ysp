@@ -105,7 +105,7 @@ kernel timestamp makes `uname -a` still read `#5 … Jul 4` — only the md5
 fingerprint distinguishes this build.
 
 Evidence so far, in
-`~/Code/rockchip-conformance/logs/forward-port/20260722-172558-pabd5-full-validation/`:
+`~/Code/rock-5b/rockchip-conformance/logs/forward-port/20260722-172558-pabd5-full-validation/`:
 
 - Boot health clean: `tainted=0`, both encoder cores, all three decoder cores,
   RGA3×2 + RGA2 probed, AV1DEC/RKVDEC/RKVENC advertised.

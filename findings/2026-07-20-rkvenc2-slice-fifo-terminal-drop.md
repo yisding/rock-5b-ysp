@@ -9,7 +9,7 @@
 >
 > Date: 2026-07-20
 >
-> Evidence: `/home/yi/Code/rockchip-conformance/logs/forward-port/`
+> Evidence: `/home/yi/Code/rock-5b/rockchip-conformance/logs/forward-port/`
 > `20260720-h264-slice-mt-6.log` and `.h264`; corrected controls
 > `20260720-h264-slice-mt-6-ctu120.*` and
 > `20260720-h265-slice-mt-6-ctu120.*`.

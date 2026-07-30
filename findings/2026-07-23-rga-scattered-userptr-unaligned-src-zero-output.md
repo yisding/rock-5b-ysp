@@ -37,7 +37,7 @@ zero head (and zero output) on the scattered path.
 - **Narrowing:** ran `rga-iommu-fuzz -n 64 -o copy -t both -v` → passes exactly at `src_off` ∈ {0,16,32,48}, fails at all others; `-t src` and `-t dst` both fail identically at `src_off≥1`; `--no-boundary-sweep` still fails at non-16-aligned offsets.
 - **Oracle:** copy is deterministic; ABSOLUTE `got=00 want=a5` and DIFFERENTIAL scattered(`a=00`) vs contiguous(`b=a5`).
 - **Pass/fail signal:** exit non-zero + first-diff report; kernel-log delta clean (`no IOMMU/DMA faults`, 0 KASAN). Board stayed up throughout.
-- **Artifacts:** `../rockchip-conformance/logs/iommu-machinery/20260723-061645/` (A-rga.log etc.); scratchpad `postboot-val/`. Not committed (raw captures).
+- **Artifacts:** `../rock-5b/rockchip-conformance/logs/iommu-machinery/20260723-061645/` (A-rga.log etc.); scratchpad `postboot-val/`. Not committed (raw captures).
 
 ## Root cause (source-confirmed)
 

@@ -20,10 +20,10 @@ The investigation used these local sibling trees:
 
 | Tree | What it contributed |
 |------|---------------------|
-| `../ffmpeg/ffmpeg-rockchip-81` | Current RKRGA filter implementation under review. |
-| `../rockchip-userspace/librga-fork` | Reconstructed local checkout of `github.com/yisding/librga`, branch `main`, now containing the latest released source plus the fix series. |
+| `../rock-5b/ffmpeg/ffmpeg-rockchip-81` | Current RKRGA filter implementation under review. |
+| `../rock-5b/rockchip-userspace/librga-fork` | Reconstructed local checkout of `github.com/yisding/librga`, branch `main`, now containing the latest released source plus the fix series. |
 | `../librga` | airockchip-style prebuilt/header distro, version `1.10.6_[3]`. |
-| `../kernel/rockchip-kernel` | BSP RGA3/RGA2 kernel UAPI and driver behavior. |
+| `../rock-5b/kernel/rockchip-kernel` | BSP RGA3/RGA2 kernel UAPI and driver behavior. |
 | `/tmp/jellyfin-server` | Jellyfin server FFmpeg command generation. |
 | `/tmp/jellyfin-ffmpeg` | Jellyfin FFmpeg patch set for Rockchip. |
 | `/tmp/jellyfin-rk-mirrors` | `nyanmisaka/rk-mirrors`, including branch `jellyfin-rga`. |
@@ -111,7 +111,7 @@ The BSP RGA3 driver expects the old-style request shape:
 2. A layout selector in `compact_mode`.
 3. An endian/alignment selector in `is_10b_endian`.
 
-In `../kernel/rockchip-kernel`, the RGA3 path converts the user request roughly as:
+In `../rock-5b/kernel/rockchip-kernel`, the RGA3 path converts the user request roughly as:
 
 | User request | Internal window meaning |
 |--------------|-------------------------|
@@ -124,7 +124,7 @@ compact/incompact selector.
 
 ### RGA2 compatibility request path
 
-In `../rockchip-userspace/librga-fork`, the fallback is selected only when
+In `../rock-5b/rockchip-userspace/librga-fork`, the fallback is selected only when
 `RGA_IOC_GET_DRVIER_VERSION` fails and the older `RGA2_GET_VERSION` or
 `RGA_GET_VERSION` ioctl succeeds. librga then sets
 `ctx->driver = RGA_DRIVER_IOC_RGA2`.
@@ -158,7 +158,7 @@ even though the ABI cannot say "this is incompact/padded 16-bit P010/P210", so
 the likely failure mode is corrupted image data rather than a clean unsupported
 format error.
 
-The local `../rockchip-userspace/librga-fork` follow-up now rejects this instead of attempting the
+The local `../rock-5b/rockchip-userspace/librga-fork` follow-up now rejects this instead of attempting the
 lossy conversion. When `ctx->driver == RGA_DRIVER_IOC_RGA2`, the legacy wrappers
 return `-EINVAL` before ioctl submission if an active image slot uses:
 
@@ -213,7 +213,7 @@ path in the utility/check functions we inspected. That pushed the local fix
 toward the BSP kernel contract rather than treating P010/P210 as native kernel
 formats.
 
-The local `../rockchip-userspace/librga-fork` im2d follow-up now implements that contract explicitly:
+The local `../rock-5b/rockchip-userspace/librga-fork` im2d follow-up now implements that contract explicitly:
 
 1. `rga_check_format()` accepts `RK_FORMAT_P010` as 4:2:0 semiplanar 10-bit and
    `RK_FORMAT_P210` as 4:2:2 semiplanar 10-bit.
@@ -236,7 +236,7 @@ P010/P210 correctly. It is a source-level implementation that matches the BSP
 kernel fields we traced.
 
 The first Jellyfin patch fixed the main `RgaBlit()` path only. A follow-up audit
-of `../rockchip-userspace/librga-fork/core/NormalRga.cpp` found two more legacy request builders that
+of `../rock-5b/rockchip-userspace/librga-fork/core/NormalRga.cpp` found two more legacy request builders that
 assigned `rd_mode` but did not copy the 10-bit layout fields:
 
 | Legacy operation | Public wrapper | Missing state |
@@ -382,7 +382,7 @@ Validation after rebuilding the history-preserving `main` branch:
 
 ```bash
 git diff --check HEAD~6..HEAD
-meson setup --wipe /tmp/librga-history-main-build /home/yi/Code/rockchip-userspace/librga-fork -Dlibrga_demo=false
+meson setup --wipe /tmp/librga-history-main-build /home/yi/Code/rock-5b/rockchip-userspace/librga-fork -Dlibrga_demo=false
 CCACHE_DISABLE=1 ninja -C /tmp/librga-history-main-build
 ```
 
@@ -445,7 +445,7 @@ ship a known patched source-built librga.
 
 **Export status.** This fix series is now exported in
 [`../patches/`](../patches/) as a source patch series from `2cffdf6` to
-`a632217`. Before that export it existed only in the dev-box `../rockchip-userspace/librga-fork`
+`a632217`. Before that export it existed only in the dev-box `../rock-5b/rockchip-userspace/librga-fork`
 tree; the delta is now recoverable from this repo.
 
 ## Test cases to keep

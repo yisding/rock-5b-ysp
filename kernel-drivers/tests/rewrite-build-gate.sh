@@ -11,9 +11,10 @@ set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$TEST_DIR/../.." && pwd)"
+ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$ROOT_DIR/../rock-5b}"
 
-KERNEL_6_18="${KERNEL_6_18:-$ROOT_DIR/../kernel/linux-6.18-rkvenc}"
-KERNEL_MAINLINE="${KERNEL_MAINLINE:-$ROOT_DIR/../kernel/linux}"
+KERNEL_6_18="${KERNEL_6_18:-$ROCK5B_WORKSPACE/kernel/linux-6.18-rkvenc}"
+KERNEL_MAINLINE="${KERNEL_MAINLINE:-$ROCK5B_WORKSPACE/kernel/linux}"
 ARCH="${ARCH:-arm64}"
 CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
 JOBS="${JOBS:-$(nproc)}"
@@ -21,7 +22,7 @@ KEEP_TMP="${KEEP_TMP:-0}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-0}"
 FAIL_ON_WARNING="${FAIL_ON_WARNING:-1}"
 REWRITE_BUILD_PROFILES="${REWRITE_BUILD_PROFILES:-normal}"
-REWRITE_BUILD_TMP_ROOT="${REWRITE_BUILD_TMP_ROOT:-$(dirname "$ROOT_DIR")}"
+REWRITE_BUILD_TMP_ROOT="${REWRITE_BUILD_TMP_ROOT:-$ROOT_DIR/../tmp}"
 VERIFY_ABI_STATIC_ASSERT="${VERIFY_ABI_STATIC_ASSERT:-0}"
 
 TARGETS=(
@@ -48,8 +49,9 @@ usage() {
 Usage: ${0##*/} [6.18|mainline|all|audit]
 
 Environment:
-  KERNEL_6_18       6.18 rewrite kernel checkout (default: ../kernel/linux-6.18-rkvenc)
-  KERNEL_MAINLINE   mainline rewrite kernel checkout (default: ../kernel/linux)
+  KERNEL_6_18       6.18 rewrite kernel checkout (default: ../rock-5b/kernel/linux-6.18-rkvenc)
+  KERNEL_MAINLINE   mainline rewrite kernel checkout (default: ../rock-5b/kernel/linux)
+  ROCK5B_WORKSPACE  grouped board workspace (default: ../rock-5b)
   ARCH              kernel ARCH (default: arm64)
   CROSS_COMPILE     cross compiler prefix (default: aarch64-linux-gnu-)
   JOBS              make parallelism (default: nproc)
@@ -63,7 +65,7 @@ Environment:
                     memory: KASAN/fault-injection provider/rewrite/DTB build
                     race: KCSAN/lockdep provider/rewrite/DTB build
   REWRITE_BUILD_TMP_ROOT
-                    scratch-directory parent (default: parent of this repo)
+                    scratch-directory parent (default: ../tmp beside this repo)
   VERIFY_ABI_STATIC_ASSERT=1
                     mutate the MPP ABI size in a test-disabled profile and
                     require the existing static assertion to fail compilation

@@ -5,11 +5,11 @@ This note explains the memory model behind the `rockchip,rcb-*` properties and
 (see [RK3588-specific state](#rk3588-specific-state) below).
 
 > Anchors resolve against the local source trees used on 2026-07-05:
-> `../kernel/rockchip-kernel` `b4ef083dc0c3`,
-> `../kernel/linux` `c092e016fd29`,
-> `../kernel/linux-6.18-rkvenc-av1-fwport` `a4b67868c0dd` plus the uncommitted
+> `../rock-5b/kernel/rockchip-kernel` `b4ef083dc0c3`,
+> `../rock-5b/kernel/linux` `c092e016fd29`,
+> `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` `a4b67868c0dd` plus the uncommitted
 > best-effort RCB probe fix, and
-> `../rockchip-conformance/sources/rockchip-mpp` `c2c1ee502b3a`.
+> `../rock-5b/rockchip-conformance/sources/rockchip-mpp` `c2c1ee502b3a`.
 > Trust: CODE-INSPECTED for source-tree facts, MEASURED for the live Rock 5B
 > procfs/sysfs state below, ONLINE-SURVEY-NEGATIVE for public documentation
 > (no public TRM excerpt, binding, or vendor note assigns RK3588 encoder SRAM

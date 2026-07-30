@@ -4,14 +4,14 @@
 > display consumers, Phase 4 encode/import/concurrency qualification, and the
 > Firefox/Panfrost P010 boundary.
 >
-> Source: `/home/yi/Code/rockchip-vaapi` `main@5d558fa` (the roadmap change is
+> Source: `/home/yi/Code/rock-5b/rockchip-vaapi` `main@5d558fa` (the roadmap change is
 > `3c6f43c`, followed by two Debian source-package fixes); the measured gates
 > named below;
 > Firefox 153.0 runtime logs; exact official
 > `FIREFOX_152_0_6_RELEASE`/`FIREFOX_153_0_RELEASE`
 > `widget/gtk/DMABufSurface.cpp` preimages; the preserved Ubuntu Firefox
 > 152.0.6 package tree; and the exact signed 153.0 Mozilla Team package tree
-> under `/home/yi/Code/firefox-rdd-build`.
+> under `/home/yi/Code/rock-5b/firefox-rdd-build`.
 >
 > Runtime: ROCK 5B on `6.18.40-ysp-rockchip64`, installed
 > `librockchip-mpp1 1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1`,

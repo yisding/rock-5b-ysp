@@ -438,13 +438,13 @@ one internal draw and one workaround decision per API operation, with only the
 enable bit changing and factor, units, and clamp remaining zero.
 
 The local instrumented build is branch `benchmark/mr43161-all-blits`, commit
-`6000414f9ea`, in `/home/yi/Code/fdo/mesa-mr43161-bench`. It was configured
+`6000414f9ea`, in `/home/yi/Code/rock-5b/fdo/mesa-mr43161-bench`. It was configured
 from MR !43161 commit `647256dc2ae` as a surfaceless, Panfrost-only
 debug-optimized build. Rebuild it with the system toolchain and the shared
 ccache directory:
 
 ```bash
-cd /home/yi/Code/fdo/mesa-mr43161-bench
+cd /home/yi/Code/rock-5b/fdo/mesa-mr43161-bench
 CCACHE_DIR=/home/yi/Code/.ccache \
 PATH=/usr/sbin:/usr/bin:/sbin:/bin \
   ninja -C build-bench

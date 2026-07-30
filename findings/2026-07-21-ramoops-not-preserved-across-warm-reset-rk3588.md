@@ -142,7 +142,7 @@ firmware behaviour that makes the address special — that is the gap.
 ## 2026-07-21 follow-up: audit of the installed u-boot (BSP protection is passive, and our build has it too)
 
 Audited the exact source of the installed `linux-u-boot-rock-5b-current 26.5.1`
-(extracted at `~/Code/u-boot/rock-5b-armbian-26.5.1-u-boot`; Armbian builds
+(extracted at `~/Code/rock-5b/u-boot/rock-5b-armbian-26.5.1-u-boot`; Armbian builds
 `radxa/u-boot` branch `next-dev-v2024.10`, which **is** the Rockchip BSP u-boot
 lineage — the `androidboot.fwver=` on our cmdline is that tree's own stamp).
 

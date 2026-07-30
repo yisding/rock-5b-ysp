@@ -13,9 +13,9 @@ the external "has upstream grown this yet" fact is watchlist
 > **Nothing here has been started.** This document is DESIGN only. No patch,
 > branch, or build exists for either track as of 2026-07-27.
 
-> Source pins used throughout: BSP `../kernel/rockchip-kernel` @ `b4ef083dc0c3`
-> (6.1.141) · forward port `../kernel/linux-6.18-rkvenc-av1-fwport` @
-> `12a7da02bea83` (6.18) · maxline `../kernel/linux` @ `fac7077731585`
+> Source pins used throughout: BSP `../rock-5b/kernel/rockchip-kernel` @ `b4ef083dc0c3`
+> (6.1.141) · forward port `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` @
+> `12a7da02bea83` (6.18) · maxline `../rock-5b/kernel/linux` @ `fac7077731585`
 > (`v7.2-rc5-252`).
 
 ## Two tracks, one shared artifact

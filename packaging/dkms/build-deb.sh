@@ -3,7 +3,7 @@
 # forward-port kernel tree, drop in the DKMS config + out-of-tree Kbuilds,
 # compile the device-tree overlay, and assemble a DKMS .deb.
 #
-# The default expects the forward-port tree below the repository's parent
+# The default expects the forward-port tree below the sibling rock-5b
 # workspace. Set WORKSPACE_ROOT or KSRC for another layout; equivalently, apply
 # patches/01 to pristine v6.18 and point KSRC at drivers/video/rockchip.
 #
@@ -14,7 +14,8 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$DIR/../.." && pwd)"
-WORKSPACE_ROOT="$(cd "${WORKSPACE_ROOT:-$REPO_ROOT/..}" && pwd)"
+ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$REPO_ROOT/../rock-5b}"
+WORKSPACE_ROOT="$(cd "${WORKSPACE_ROOT:-$ROCK5B_WORKSPACE}" && pwd)"
 NAME=rk3588-vcodec
 VERSION=1.0
 KSRC="${KSRC:-$WORKSPACE_ROOT/kernel/linux-6.18-rkvenc/drivers/video/rockchip}"
@@ -29,7 +30,7 @@ Usage: build-deb.sh [clean]
 Build the rk3588-vcodec DKMS package, or remove its disposable build directory.
 
 Environment:
-  WORKSPACE_ROOT  Parent workspace for the default kernel checkout
+  WORKSPACE_ROOT  Board workspace containing the default kernel checkout
   KSRC            Driver source directory (default: $KSRC)
   KROOT           Kernel root for DT binding headers (derived from KSRC)
 EOF
