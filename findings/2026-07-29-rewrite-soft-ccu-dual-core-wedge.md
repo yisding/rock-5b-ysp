@@ -116,12 +116,16 @@ equivalent hazard.
 
 ## Follow-ups
 
-- Build/verify: `build-kernel.sh` now stamps `-g<sha12>` of the
-  `KERNEL_TREE` HEAD into `LOCALVERSION` via the always-on
-  `ysp-build-stamp` extension, so `uname -r` self-identifies the source
-  and `rewrite-kunit-log-check.sh`'s identity gate (which insta-failed on
-  every un-stamped boot, forcing the `RUN_KUNIT_CHECK=0` overrides during
-  this hunt) passes without `KUNIT_SOURCE_COMMIT`.
+- Build/verify: `build-kernel.sh` now stamps ` g<sha12>` of the
+  `KERNEL_TREE` HEAD into the build timestamp (`uname -v`) via the
+  always-on `ysp-build-stamp` extension, and the
+  `rewrite-kunit-log-check.sh` identity gate (which insta-failed on every
+  un-stamped boot, forcing the `RUN_KUNIT_CHECK=0` overrides during this
+  hunt) now parses it from there. The release string cannot carry it:
+  Armbian's deb packaging derives `${kernel_version_family}` independently
+  (`kernel-debs.sh:52`) and hard-fails on `LOCALVERSION` divergence —
+  measured on the first two build attempts (the first also caught a
+  missing forward declaration the KUnit-off local object check masked).
 - Next boot: KUnit gate green expected (89+148 cases, lockdep alive with
   the recursion gone — any *new* lockdep report is a real finding);
   re-run `MPP_REQUIRED_CASES="mpi_dec_mt_h264"` with both cores bound,

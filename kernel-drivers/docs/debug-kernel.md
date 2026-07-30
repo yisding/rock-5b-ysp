@@ -205,10 +205,13 @@ silently replace the debug kernel mid-investigation.
 
 > **2026-07-29 update:** largely historical. The per-slot BRANCHes already
 > give every flavor its own `uname -r`, and `build-kernel.sh` now appends
-> `-g<sha12>` of the `KERNEL_TREE` HEAD to `LOCALVERSION` (via the always-on
-> `ysp-build-stamp` extension), so successive builds *within* a slot are
-> distinct too — and `rewrite-kunit-log-check.sh`'s identity gate parses that
-> suffix to bind a booted kernel to its source commit. The collision below
+> ` g<sha12>` of the `KERNEL_TREE` HEAD to the build timestamp — `uname -v`,
+> via the always-on `ysp-build-stamp` extension — so successive builds
+> *within* a slot are source-identified too; `rewrite-kunit-log-check.sh`'s
+> identity gate parses it from there. (The release string cannot carry the
+> sha: Armbian's deb packaging derives `${kernel_version_family}`
+> independently as `${version}-${BRANCH}-${LINUXFAMILY}` and hard-fails on
+> any `LOCALVERSION` divergence — measured 2026-07-30.) The collision below
 > only applies to the legacy shared-slot era.
 
 The debug kernel and the stock kernel share the same `uname -r`

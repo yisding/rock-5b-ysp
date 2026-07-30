@@ -18,6 +18,7 @@ KUNIT_DMESG_REPORT=${KUNIT_DMESG_REPORT:-}
 KUNIT_INTERVAL_REPORT=${KUNIT_INTERVAL_REPORT:-}
 KUNIT_FATAL_REPORT=${KUNIT_FATAL_REPORT:-}
 KUNIT_KERNEL_RELEASE=${KUNIT_KERNEL_RELEASE:-$(uname -r)}
+KUNIT_KERNEL_VERSION=${KUNIT_KERNEL_VERSION:-$(uname -v)}
 KUNIT_SOURCE_COMMIT=${KUNIT_SOURCE_COMMIT:-}
 KUNIT_EXPECTED_SOURCE_COMMIT=${KUNIT_EXPECTED_SOURCE_COMMIT:-}
 KUNIT_CONFIG_FILE=${KUNIT_CONFIG_FILE:-"/boot/config-$KUNIT_KERNEL_RELEASE"}
@@ -162,6 +163,14 @@ check_identity()
 	if [ -z "$KUNIT_SOURCE_COMMIT" ]; then
 		release_commit=$(printf "%s\n" "$KUNIT_KERNEL_RELEASE" |
 			sed -n 's/.*-g\([0-9a-fA-F]\{12,40\}\)\([.-].*\)\?$/\1/p')
+		if [ -z "$release_commit" ]; then
+			# The ysp-build-stamp extension appends " g<sha>" to the
+			# build timestamp (`uname -v`) instead of the release
+			# string, which Armbian's deb packaging derives
+			# independently and rejects when diverged.
+			release_commit=$(printf "%s\n" "$KUNIT_KERNEL_VERSION" |
+				sed -n 's/.* g\([0-9a-fA-F]\{12,40\}\)$/\1/p')
+		fi
 		KUNIT_SOURCE_COMMIT=$(printf "%s" "$release_commit" |
 			tr 'A-F' 'a-f')
 	fi
@@ -178,11 +187,11 @@ check_identity()
 		echo "booted KUnit source commit does not match expected commit" >&2
 		return 1
 	fi
-	case "$KUNIT_KERNEL_RELEASE" in
-	*"-g${KUNIT_SOURCE_COMMIT}"*|*"-g${KUNIT_SOURCE_COMMIT:0:12}"*)
+	case "$KUNIT_KERNEL_RELEASE $KUNIT_KERNEL_VERSION" in
+	*"g${KUNIT_SOURCE_COMMIT}"*|*"g${KUNIT_SOURCE_COMMIT:0:12}"*)
 		;;
 	*)
-		echo "kernel release is not bound to KUnit source commit: $KUNIT_KERNEL_RELEASE" >&2
+		echo "kernel identity is not bound to KUnit source commit: $KUNIT_KERNEL_RELEASE / $KUNIT_KERNEL_VERSION" >&2
 		return 1
 		;;
 	esac
@@ -327,12 +336,14 @@ selftest()
 	KUNIT_DMESG_SOURCE="$tmp_root/boot-kernel.txt"
 	KUNIT_DEBUG_LOCKS_FILE="$tmp_root/debug_locks"
 	KUNIT_KERNEL_RELEASE=6.18.0-rewrite-g0123456789ab
+	KUNIT_KERNEL_VERSION="#1 SMP selftest"
 	KUNIT_SOURCE_COMMIT=0123456789abcdef0123456789abcdef01234567
 	KUNIT_EXPECTED_SOURCE_COMMIT=0123456789ab
 	KUNIT_CONFIG_FILE="$tmp_root/config"
 	KUNIT_PACKAGE_ID=linux-image-test=1
 	KUNIT_MANIFEST="$tmp_root/manifest.tsv"
 	export KUNIT_DMESG_SOURCE KUNIT_DEBUG_LOCKS_FILE KUNIT_KERNEL_RELEASE
+	export KUNIT_KERNEL_VERSION
 	export KUNIT_SOURCE_COMMIT KUNIT_EXPECTED_SOURCE_COMMIT KUNIT_CONFIG_FILE
 	export KUNIT_PACKAGE_ID KUNIT_MANIFEST
 	printf "1\n" > "$KUNIT_DEBUG_LOCKS_FILE"

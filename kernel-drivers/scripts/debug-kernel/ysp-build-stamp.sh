@@ -27,23 +27,24 @@
 # command line, so this overrides Armbian's earlier KBUILD_BUILD_TIMESTAMP
 # without patching the Armbian tree.
 
+# The timestamp also carries the source identity when build-kernel.sh passes
+# YSP_SOURCE_GSHA=<sha12> (the KERNEL_TREE HEAD its patch series was generated
+# from): " g<sha>" is appended so `uname -v` ends with the commit, and the
+# rewrite-kunit-log-check.sh identity gate parses it from there. The release
+# string (`uname -r`) deliberately stays untouched: Armbian's deb packaging
+# derives ${kernel_version_family} independently as
+# ${version}-${BRANCH}-${LINUXFAMILY} (kernel-debs.sh:52) and hard-fails on
+# any LOCALVERSION divergence — measured, not theorized, 2026-07-30. UTS
+# version is capped at 64 bytes; date -R (~31) + " g" + 12 hex fits.
 function custom_kernel_make_params__ysp_real_build_stamp() {
 	declare stamp
 	stamp="$(LC_ALL=C date -R)"
+	if [[ -n "${YSP_SOURCE_GSHA:-}" ]]; then
+		stamp="${stamp} g${YSP_SOURCE_GSHA}"
+		display_alert "ysp-build-stamp" "source identity in uname -v: g${YSP_SOURCE_GSHA}" "info"
+	fi
 	display_alert "ysp-build-stamp" "real build timestamp: ${stamp}" "info"
 	common_make_params_quoted+=("KBUILD_BUILD_TIMESTAMP=${stamp}")
-}
-
-# Append the source commit to the release string. build-kernel.sh passes
-# YSP_SOURCE_GSHA=<sha12> (the KERNEL_TREE HEAD its patch series was generated
-# from); appending a later LOCALVERSION assignment overrides Armbian's
-# kernel-make.sh one by the same last-assignment-wins rule as the timestamp
-# above. The result (…-${BRANCH}-${LINUXFAMILY}-g<sha>) is what the ysp
-# rewrite-kunit-log-check.sh identity gate parses out of `uname -r`.
-function custom_kernel_make_params__ysp_source_gsha() {
-	[[ -n "${YSP_SOURCE_GSHA:-}" ]] || return 0
-	display_alert "ysp-build-stamp" "source identity: -g${YSP_SOURCE_GSHA}" "info"
-	common_make_params_quoted+=("LOCALVERSION=-${BRANCH}-${LINUXFAMILY}-g${YSP_SOURCE_GSHA}")
 }
 
 # Make the compiler cache independent of the kernel worktree PATH.
