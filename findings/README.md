@@ -125,6 +125,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-07-30-mainline-maxline-rockchip-codec-source-audit.md`](2026-07-30-mainline-maxline-rockchip-codec-source-audit.md) — Current mainline and maxline Rockchip codec audit found transferable ownership, DMA, and recovery defects
 - [`2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md`](2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md) — rockchip-vaapi closes 10-bit throughput and the remaining Phase 4 qualification slices, while Firefox Main10 stops at Panfrost EGL import
 - [`2026-07-29-rockchip-vaapi-direct-av1-mpp-service-design.md`](2026-07-29-rockchip-vaapi-direct-av1-mpp-service-design.md) — A direct `/dev/mpp_service` AV1 backend can bypass libmpp by owning a surface-keyed VDPU job compiler
 - [`2026-07-29-rga-no-core-match-narrow-afbc-10bit.md`](2026-07-29-rga-no-core-match-narrow-afbc-10bit.md) — A narrow AFBC 10-bit frame has no RGA core: RGA3 needs width ≥ 68 and RGA2 cannot read AFBC

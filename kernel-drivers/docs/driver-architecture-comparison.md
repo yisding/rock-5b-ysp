@@ -930,3 +930,332 @@ and soak. Until then the fair description is:
 > the original BSP, and promising as the long-term downstream implementation,
 > but it has not yet reached mature upstream-driver quality as a delivered
 > driver.
+
+## 12. Current mainline and maxline Rockchip codec audit (2026-07-30)
+
+The rewrite review also exposed useful questions to ask of the standard V4L2
+Rockchip codec paths. A fresh source audit found six bounded defects in current
+mainline or Hantro code, a deeper timeout-recovery concern that needs hardware
+evidence before changing, and several lifetime blockers in the not-yet-merged
+maxline multicore series.
+
+This section is the public engineering record: what the inspected code does,
+why it is suspect, and what would prove a correction. Upstream submission
+sequencing is deliberately not recorded here; repository policy assigns that
+material to the private `rock-5b-security` repository.
+
+### 12.1 Exact scope and the encoder naming trap
+
+| Input | Pin inspected |
+|-------|---------------|
+| Torvalds mainline | `origin/master@3708dd9488440e35a165aee2bb2a1a7b1d0d5777` (2026-07-30) |
+| Media integration | `media/next@a52e6f7923c17a672135b485ffd96fbd72f46267` (2026-07-17) |
+| Maxline public integration | `rk3588-maxline-public@f12fb0acf7bb923c5958e9430edd0dae93400951` |
+| Maxline WIP integration | `rk3588-maxline-wip@74b24e96da6245ef951ec34de481b7b8a2b91d34` |
+| Maxline VDPU381 VP9 donor commit | `6f0159ae61a89d4e4eee2e4f0170c351bf7543fa` |
+
+The source was separated into the clean external worktree
+`/home/yi/Code/rock-5b/kernel/linux-maxline`, with the public integration
+checked out and the WIP state retained as a separate branch. The reconstruction
+recipe and all pins live in
+[`docs/source-trees.md`](../../docs/source-trees.md#13-current-mainline-media-and-maxline-codec-audit-trees).
+
+“Mainline Rockchip encoder” does **not** mean the RK3588 VEPU580/RKVENC2
+H.264/H.265 block studied by the BSP and rewrite tracks. Neither the official
+tree nor maxline contains such a driver. The relevant mainline RK3588 media
+paths are:
+
+| Hardware/path | Mainline driver and scope |
+|---------------|---------------------------|
+| VEPU121 | Verisilicon Hantro, using `rk3568_vepu_variant`; JPEG encode only |
+| VDPU381/VDPU383 | `drivers/media/platform/rockchip/rkvdec`; stateless H.264 and H.265 |
+| VPU981 | Verisilicon Hantro; stateless AV1 decode |
+| Legacy Hantro blocks | JPEG encode and SoC-dependent MPEG-2/VP8/H.264 decode |
+
+Therefore the rewrite's VEPU580 DCHS, slice FIFO, dual-core producer retirement,
+and private MPP-register ABI findings do not map to an existing mainline
+encoder. They remain design requirements for a future VEPU580 driver rather
+than fixes to the Hantro JPEG encoder.
+
+The inspected `media/next` already carries other independent RKVDEC/Hantro
+corrections:
+
+| Commit | Correction |
+|--------|------------|
+| `f0b9d7e5be061` | tighten extended HEVC SPS RPS control dimensions |
+| `052c5ed5a1d96` | guard an HEVC inter-RPS prediction index underflow |
+| `c37aca64206fa` | propagate `platform_get_irq()` errors |
+| `28ceb7eb73c90` | use `DIV_ROUND_UP()` for CTB counts |
+| `7504c2463632a` | add missing Hantro media-entity cleanup |
+
+Literal source comparison against that integration pin found none of the
+issues below corrected there.
+
+### 12.2 Mainline RKVDEC capture-size arithmetic can wrap
+
+VDPU381 and VDPU383 advertise H.264 dimensions up to `65520 × 65520` and H.265
+dimensions up to `65472 × 65472`. `rkvdec_fill_decoded_pixfmt()` then:
+
+1. asks `v4l2_fill_pixfmt_mp()` to fill a `struct
+   v4l2_plane_pix_format`, whose `sizeimage` member is `u32`;
+2. saves that value as the colmv offset; and
+3. adds the variant's colmv allocation to the same `u32`.
+
+The V4L2 helper's stride, plane-size multiplication, and composite-plane sum
+also use `unsigned int`. The driver checks each queued capture plane only
+against this already-truncated `sizeimage`. Axis bounds alone therefore do not
+prove that the byte span represented by the format is representable.
+
+For a concrete valid-step example, an NV12 `46400 × 46400` VDPU381 H.264
+capture needs:
+
+```text
+NV12 frame = 1.5 × width × height = 3,229,440,000 bytes
+colmv      = 0.5 × width × height = 1,076,480,000 bytes
+true total                          = 4,305,920,000 bytes
+u32 result after addition          =    10,952,704 bytes
+```
+
+The negotiated allocation can thus be about 10.4 MiB while the programmed
+geometry describes slightly over 4 GiB of frame plus colmv storage. Depending
+on the IOMMU and adjacent mappings, the result can be an IOMMU fault or DMA
+beyond the accepted capture buffer.
+
+The robust boundary is the **derived byte span**, not an arbitrary 8K width
+cap. Long, thin pictures such as `8440 × 1056` demonstrate why a product/format
+check is more accurate than rejecting every axis above a familiar display
+resolution. A correction needs a `u64` or checked-arithmetic calculation for
+all component planes plus colmv, followed by rejection when the exact
+`sizeimage` cannot be represented. The colmv helper itself must not overflow
+before its result is widened.
+
+Useful proof consists of a small pure-helper boundary table:
+
+- the largest representable square-ish NV12 case;
+- the next aligned dimension, rejected;
+- a legal long/thin case, retained;
+- the 10-bit and 4:2:2 formats, whose byte limits differ; and
+- `TRY_FMT`/`S_FMT` plus `v4l2-compliance` confirmation that userspace sees the
+  same accepted boundary.
+
+This is a proportional use for a small KUnit or ordinary helper test. It does
+not justify importing the rewrite's whole private-ABI suite.
+
+### 12.3 Mainline RKVDEC holds an enable reference on every clock
+
+Commit `6a846f7d72c7b` changed probe to
+`devm_clk_bulk_get_all_enabled()`. That helper obtains **and enables** all
+clocks until devres teardown. Runtime resume separately calls
+`clk_bulk_prepare_enable()`, and runtime suspend calls
+`clk_bulk_disable_unprepare()`.
+
+Consequently runtime suspend removes only the runtime reference. The probe
+reference remains, so autosuspend cannot actually gate the clocks. The bounded
+ownership correction is to obtain the clocks without enabling them and leave
+runtime PM as the sole enable owner.
+
+The functional smoke test is insufficient because decoding still works with
+the leak. The discriminating check is the relevant clock counts in
+`/sys/kernel/debug/clk/clk_summary` before decode, while active, and after the
+autosuspend interval.
+
+### 12.4 RKVDEC and Hantro set only the coherent DMA mask
+
+Both probe paths call:
+
+```c
+dma_set_coherent_mask(dev, DMA_BIT_MASK(32));
+```
+
+Their hardware address registers are 32-bit, but vb2 capture/output queues
+accept imported DMABUFs. vb2 dma-contig maps those attachments with streaming
+DMA APIs, which use `dev->dma_mask`, not `dev->coherent_dma_mask`. A coherent
+mask alone therefore does not establish the comment's claimed invariant that
+the most-significant address bits are zero.
+
+Each driver needs the streaming and coherent masks set consistently, normally
+through `dma_set_mask_and_coherent()`. This is two driver-local corrections,
+not one cross-driver patch. A 32-bit Rockchip IOMMU aperture can hide the
+mistake on common boards, so the useful validation is an imported-DMABUF test
+with the IOMMU disabled or with memory placement that would expose an
+unconstrained streaming mask.
+
+### 12.5 Hantro `device_run()` leaks acquired execution resources on errors
+
+Hantro's `device_run()` obtains runtime PM and then enables prepared clocks.
+Both a clock-enable failure and a codec backend's `run()` failure jump directly
+to `hantro_job_finish_no_pm()`, which completes buffers but intentionally does
+not balance either resource.
+
+The failure states require separate unwind ownership:
+
+| Last successful acquisition | Required unwind before buffer completion |
+|-----------------------------|-------------------------------------------|
+| none; runtime resume failed | none |
+| runtime PM only | runtime-PM put |
+| runtime PM plus enabled clocks | disable clocks and runtime-PM put |
+
+This affects the shared Hantro core and therefore includes the RK3588 VEPU121
+JPEG encoder and VPU981 AV1 decoder. Fault injection at clock enable and an
+invalid/error-returning codec-run path should prove that the PM usage counter
+and clock enable counts return to baseline.
+
+### 12.6 RKVDEC destroys a provider-owned SRAM pool on probe failure
+
+RKVDEC obtains optional RCB SRAM with `of_gen_pool_get()`. That is a borrowed
+pool owned by the SRAM provider; it is not transferred to the codec consumer.
+If subsequent V4L2 initialization fails, RKVDEC nevertheless calls
+`gen_pool_destroy()` on it.
+
+Destroying the shared provider object can invalidate the provider's own
+reference and any other consumer. The consumer error path should simply stop
+using the borrowed pool. The useful error-path test forces failure after SRAM
+lookup and verifies that the provider and a second pool lookup remain valid.
+The ownership mistake entered with the RCB/SRAM support represented by commit
+`e5640dbb991c4`.
+
+### 12.7 Timeout recovery is variant-wrong and lacks a generation proof
+
+The common RKVDEC watchdog writes legacy `RKVDEC_IRQ_DIS` to offset `0x004`.
+That matches the old RKVDEC register layout, but the newer variants place
+interrupt control elsewhere:
+
+| Variant | Relevant interrupt-control location |
+|---------|-------------------------------------|
+| Legacy RKVDEC | `RKVDEC_REG_INTERRUPT = 0x004` |
+| VDPU381 | `VDPU381_REG_IMPORTANT_EN = 0x02c` |
+| VDPU383 | link-window `VDPU383_LINK_INT_EN = 0x048` |
+
+The watchdog then completes the current mem2mem job without a
+variant-specific quiesce/reset operation or synchronization against a late
+interrupt. The shared IRQ entry obtains the current context and dispatches to a
+variant handler without first proving it is non-NULL and still belongs to the
+timed-out activation. A late completion can therefore encounter no current
+context or a replacement job.
+
+This maps directly to the rewrite's most valuable recovery lesson:
+
+```text
+allocation lifetime is not completion ownership
+current slot is not proof of activation identity
+timeout completion is unsafe until DMA and IRQ sources are quiesced
+```
+
+A cosmetic NULL check would avoid only one symptom. A real correction needs
+variant-specific interrupt disable/reset semantics, IRQ synchronization, and
+an exact activation/generation ownership rule. Because those operations are
+hardware-specific, the audit classifies this as a source-confirmed design gap
+whose exact correction remains unverified. Timeout fault injection and a
+forced late IRQ are required before changing the recovery sequence.
+
+### 12.8 The maxline multicore series has shared-lifetime blockers
+
+Maxline is not another name for mainline. Its public branch integrates
+not-yet-merged RK3588 patchsets, including RKVDEC multicore work, while its WIP
+branch adds the VDPU381 VP9 donor commit. Defects in those commits should be
+folded into the series while it is still under development; they are not
+defects in Torvalds' single-core driver.
+
+#### Cross-core runtime PM can power down an active sibling
+
+Each core is a separate platform device and jobs take a runtime-PM reference on
+the selected core's device. However, every platform device stores the same
+shared `struct rkvdec_dev` as drvdata, and each runtime callback loops over
+**all** registered cores' clocks.
+
+If core A becomes idle, suspending device A can disable core B's clocks while
+device B still has its own active PM reference and hardware job. This is the
+same ownership error as the rewrite soft-CCU wedge: a local lifetime transition
+mutates a shared sibling without owning the sibling's state.
+
+Each per-device callback must operate only on that device's core. Any genuinely
+shared clock or power resource needs a coordinator-level reference whose
+critical section covers the whole dependent operation.
+
+#### Streamoff frees codec state before hardware is proven idle
+
+The maxline `rkvdec_stop_streaming()` calls the codec-specific `stop()` hook and
+only then calls `vb2_wait_for_all_buffers()`. Codec stop hooks free coherent
+H.264/H.265/VP9 tables and `ctx->priv`.
+
+The multicore dispatch path can report the mem2mem scheduling job finished
+while the selected core still owns the hardware work. Ordinary mem2mem
+cancellation therefore no longer proves that the hardware and IRQ path have
+released the codec state. Streamoff needs to cancel/quiesce and wait for every
+in-flight core activation before any codec-private DMA storage is freed.
+
+#### Probe and unbind do not have a stable cluster owner
+
+The series treats the first matching DT node as the owner of a shared,
+devm-allocated cluster:
+
+- `core_count` is incremented before clocks, MMIO, IOMMU, IRQ, and runtime-PM
+  acquisition succeeds, so probe defer/failure consumes a slot;
+- the fixed `cores[2]` storage is indexed without a count bound;
+- a secondary core can probe before the selected first core has published the
+  shared object, without an explicit `-EPROBE_DEFER` contract; and
+- removing any child performs shared V4L2 cleanup, while removing the first
+  child's devm allocation can leave another child pointing into freed state.
+
+The cluster needs a real lifetime owner—component/auxiliary coordination or an
+equivalent explicit parent—with per-core registration committed only after
+successful acquisition and rolled back on every failure.
+
+#### Failed empty-domain allocation leaves an `ERR_PTR`
+
+The multicore code checks `iommu_paging_domain_alloc()` with `IS_ERR()` but
+does not clear the stored pointer. Remove later treats every non-NULL value as
+a domain and frees it. Official mainline already clears the pointer on this
+failure; the maxline series regressed that behavior and should retain the
+mainline error-state invariant.
+
+The common watchdog/late-IRQ concern from §12.7 becomes more dangerous with
+per-core raw `curr_ctx` pointers. Multicore IOMMU recovery also detaches and
+reattaches a core around a shared global domain; peer execution must be part of
+the exclusion proof rather than assumed harmless.
+
+### 12.9 The VDPU381 VP9 WIP commit is not internally consistent
+
+WIP commit `6f0159ae61a89` adds 1,303 lines in one change and says the hardware
+supports VP9 through `7680 × 4320`, but its format table advertises
+`65472 × 65472`. That unnecessarily inherits and amplifies the capture-size
+overflow in §12.2.
+
+The register programming also contains a direct scale-axis error:
+
+```c
+regs->vp9_param.reg92.vp9_aref_hor_scale = hscale;
+regs->vp9_param.reg93.vp9_aref_ver_scale = hscale; /* should use vscale */
+```
+
+Only the alternate-reference vertical path is wrong; last and golden
+references use `vscale`. A VP9 frame whose altref dimensions differ vertically
+is the discriminating hardware vector.
+
+The same file derives `aligned_pitch`, `y_len`, `uv_len`, `yuv_len`, pixel
+counts, and motion-vector base addresses through `unsigned int` arithmetic.
+Those expressions must be checked or bounded consistently with the advertised
+format limits before the code can safely program buffer offsets. The commit
+also carries Android `Change-Id` metadata and inconsistent formatting, but
+those are review-shape issues, not functional evidence.
+
+### 12.10 What the rewrite taught that transfers—and what does not
+
+| Rewrite lesson | Mainline/maxline application |
+|----------------|------------------------------|
+| Validate derived byte spans, not just independent fields | Directly exposes RKVDEC `sizeimage` and VP9 WIP arithmetic overflow |
+| One owner balances every acquired PM/clock/DMA resource | Exposes RKVDEC's probe/runtime clock double ownership and Hantro's failure unwind |
+| A consumer must not free provider-owned infrastructure | Exposes the borrowed SRAM `gen_pool` destruction |
+| A per-core lifetime transition must not mutate an unowned sibling | Exposes maxline's all-core runtime callbacks |
+| Finishing a software scheduling slot does not prove DMA has stopped | Exposes maxline streamoff ordering and mainline timeout recovery |
+| A retained pointer is not activation identity | Motivates generation-aware late-IRQ handling |
+| Unit-test deterministic policy; prove silicon behavior on hardware | Supports a tiny arithmetic/error-unwind suite, not a 237-case transplant |
+| Private register-job ABI validation | Does not transfer to V4L2 request drivers, which reuse typed controls, vb2, requests, and mem2mem ownership |
+| VEPU580 DCHS/slice-FIFO invariants | No current mainline VEPU580 encoder exists to patch |
+
+The result is not that the rewrite is “better than mainline.” The common media
+framework removes large amounts of private machinery that the rewrite must
+test itself. The useful conclusion is narrower: the rewrite review produced
+several general DMA, power, ownership, and recovery invariants, and applying
+those invariants to current upstream-style code found concrete defects that
+framework reuse does not automatically prevent.
