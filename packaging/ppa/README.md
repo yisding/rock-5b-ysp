@@ -47,7 +47,7 @@ deleted.
 
 | PPA | Role | Live state at the check below |
 |-----|------|-------------------------------|
-| `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: Plymouth boot-hang fix, codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | Plymouth source `18636085` is accepted, arm64 build `33428910` succeeded, and all nine binaries are accepted/Pending publication. GRD 50.2 source `18647901` is Published and arm64 build `33450532` succeeded; signed successor `…15.c4ef3c9` awaits upload authorization. Backpressure-fixed FFmpeg source `18628833` / build `33417109` and session-lifetime kernel source `18626523` / build `33412608` succeeded; their exact binaries are Published. This is the only normal system-stack install target. |
+| `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: Plymouth boot-hang fix, codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | Plymouth source `18636085` is accepted, arm64 build `33428910` succeeded, and all nine binaries are accepted/Pending publication. GRD successor `…15.c4ef3c9` is accepted as Pending source `18649293`; arm64 build `33452991` is queued. Prior GRD source `18647901` is Published and build `33450532` succeeded. Backpressure-fixed FFmpeg source `18628833` / build `33417109` and session-lifetime kernel source `18626523` / build `33412608` succeeded; their exact binaries are Published. This is the only normal system-stack install target. |
 | `ppa:yi-ding/rock5b-ffmpeg81-upstream` | Upstream FFmpeg 8.1.2 comparison baseline. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-ffmpeg81-rockchip` | ABI-changing FFmpeg 8.1.2 RKMPP/RKRGA forward port. Add the system PPA as well for MPP and librga. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-kernel618-rewrite` | Experimental Linux 6.18.38 Armbian-based clean-room rewrite kernel. | Replacement source `18623665`, successful arm64 build `33406491`, and exact binaries are Published. |
@@ -104,7 +104,7 @@ stated in the affected rows. The step-by-step provenance is retained in the
 | `ffmpeg` 8.1.2 baseline | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Dedicated-PPA source publication [`18619544`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-upstream/+sourcepub/18619544) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-upstream`. |
 | `ffmpeg` 8.1.2 Rockchip | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Dedicated-PPA source publication [`18619545`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-rockchip/+sourcepub/18619545) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-rockchip`; it builds against the fresh main PPA for MPP/librga. |
 | `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Fresh-main source publication [`18619787`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619787) and its arm64 tool binary are Published. | Co-installable `/opt/ffmpeg-rockchip` tools; does not replace system FFmpeg. |
-| `gnome-remote-desktop` (normal stack) | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1` | Source and native arm64 builds pass locally; RDP integration passes, TPM/hardware-EGL skip as expected, and source/binary Lintian error gates pass with only long-filename warnings. The source is signed and signature-verified but not uploaded pending explicit publication authorization. Prior source publication [`18647901`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647901) is Published and arm64 build [`33450532`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450532) succeeded. | Seventeen clean commits on latest GNOME 50 stable: RKMPP backend, corrected reconnect ownership/coalescing, cached GPU-copy readback, bounded encode recovery, progress-gated ACK-resume recovery, full-range BT.709 signaling, and narrowly retained persistent-user-display state after a reconnect timeout. The unsafe June global `client_taken` and broad preserve paths remain excluded. |
+| `gnome-remote-desktop` (normal stack) | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1` | Launchpad accepted source publication [`18649293`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18649293), which is Pending; arm64 build [`33452991`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33452991) is queued as Needs building. Source and native arm64 builds pass locally; RDP integration passes, TPM/hardware-EGL skip as expected, and source/binary Lintian error gates pass with only long-filename warnings. Prior source [`18647901`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647901) is Published and build [`33450532`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450532) succeeded. | Seventeen clean commits on latest GNOME 50 stable: RKMPP backend, corrected reconnect ownership/coalescing, cached GPU-copy readback, bounded encode recovery, progress-gated ACK-resume recovery, full-range BT.709 signaling, and narrowly retained persistent-user-display state after a reconnect timeout. The unsafe June global `client_taken` and broad preserve paths remain excluded. |
 | `gnome-remote-desktop` (archived recovery build) | `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3` | Experimental source publication [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586), successful arm64 build [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698), and arm64 binary are Published. | Historical diagnostic build; superseded by the clean release candidate. |
 | `gnome-remote-desktop` (archived audio probe) | `50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10` | Source/native arm64 builds and live format probes passed; installed, not published. | Proved the macOS client accepts A-law plus PCM and rejects the tested ADPCM tuples. Its diagnostics and temporary Opus suppression are archived, not released. |
 | forward-port kernel | `6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source package built, signed, signature-verified, and `dput`-uploaded client-side on 2026-07-25; local upload marker `linux-rockchip64-ysp_6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1_source.ppa.upload` exists. Launchpad source publication and arm64 build are pending confirmation. The previously Published `…20260723~rk1` source [`18639187`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18639187) and its arm64 build passed board conformance/root gates on 2026-07-24. | Carries validated 6.18.40 tail `0001`–`0075`, including the 2026-07-25 hardware-verified RGA UV-offset (`0074`) and RKVENC2 slice-FIFO terminal-record (`0075`) fixes. Extracted source `olddefconfig` proves the non-debug AV1/RGA config; install/boot/conformance/rollback from the PPA build remain. |
@@ -535,16 +535,20 @@ the binary to `Architecture: arm64`, and uses the matching bounded-wait FFmpeg
 package. The old dirty snapshot and diagnostic packages remain documented only
 for historical reproduction.
 
-The normal PPA published the preceding 50.2 source `18632058`. Launchpad
-accepted the full-range-BT.709 successor on 2026-07-29 as source publication
+The normal PPA publishes the preceding full-range-BT.709 source
 [`18647901`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647901);
 arm64 build
 [`33450532`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450532)
-is running. Its exact source/native arm64 builds pass locally: RDP integration
-is green, TPM and hardware-EGL skip as expected, and Lintian reports only
-long-filename warnings. Experimental `~exp3` remains available as historical
-evidence. The final sustained focus/resume and audio gates remain after
-publication and installation of the promoted build.
+succeeded. Launchpad accepted the latest-GNOME-50 reconnect successor as
+Pending source
+[`18649293`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18649293);
+arm64 build
+[`33452991`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33452991)
+is queued as Needs building. Its exact source/native arm64 builds pass locally:
+RDP integration is green, TPM and hardware-EGL skip as expected, and Lintian
+reports only long-filename warnings. Experimental `~exp3` remains available
+as historical evidence. The final reconnect, sustained focus/resume, and audio
+gates remain after publication and installation of the promoted build.
 
 ### GDM Greeter Hardware Encode ACL
 

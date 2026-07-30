@@ -33,16 +33,18 @@ preservation; only a display explicitly reassigned into the persistent user
 handover may now survive timeout, preserving its `RemoteId` listener for the
 next attempt. Canonical source and native arm64 packages build, RDP integration
 passes, TPM/hardware-EGL skip, and source/binary Lintian error gates pass with
-only expected long-filename warnings. Signed package
-`50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1` awaits explicit PPA-upload
-authorization and the measured board reconnect replay. Prior `…14.24f4392`
-source `18647901` is Published and build `33450532` succeeded.
+only expected long-filename warnings. Launchpad accepted signed package
+`50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1` as Pending source `18649293`;
+arm64 build `33452991` is queued as Needs building. Publication and the measured
+board reconnect replay remain. Prior `…14.24f4392` source `18647901` is
+Published and build `33450532` succeeded.
 
 Track 9 update (supersedes that row's closing 2026-07-29 checkpoint):
 normal-PPA GRD source `18647901` is Published and arm64 build `33450532`
 succeeded in 18m56s. Its `…15.c4ef3c9` successor is source/native/RDP/Lintian
-validated and signed but awaits explicit upload authorization. Publication,
-installation, and the combined reconnect/kernel board gate remain open.
+validated and signed; source `18649293` is accepted/Pending and arm64 build
+`33452991` is queued. Publication, installation, and the combined
+reconnect/kernel board gate remain open.
 
 Track 14 update (supersedes that row's closing 2026-07-29 checkpoint):
 roadmap development is committed and pushed as `rockchip-vaapi main@5d558fa`.

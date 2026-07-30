@@ -2276,8 +2276,14 @@ See ../../configure --help for available options.
   - `.dsc`: `1d424aba8bca14c68513712211977d43ccf639e4c4833c5f3149b2cb5b164c42`;
   - source `.buildinfo`: `f6695947dacd7c576b87b86fe7ec8d8c3841178bee1225c51826f81ed753f248`;
   - source `.changes`: `32a362fd33a39b30c4e0b9c5c193d144c335d0e337c795d7d1d8911cb9ba1160`.
-- The signed source is upload-ready, but PPA publication awaits explicit user
-  authorization. Prior source `18647901` is now Published and build `33450532`
+- With explicit user authorization, `dput` passed all local checks and uploaded
+  the five signed source artifacts to `ppa:yi-ding/ubuntu-rock-5b`. The local
+  `…15.c4ef3c9_source.ppa.upload` marker exists. Launchpad accepted Pending
+  source publication
+  [`18649293`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18649293)
+  and queued arm64 build
+  [`33452991`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33452991)
+  as Needs building. Prior source `18647901` is Published and build `33450532`
   succeeded in 18m56s.
 
 ## MPP RADL and FFmpeg unused-RPS uploads — 2026-07-29

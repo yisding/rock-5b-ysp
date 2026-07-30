@@ -199,10 +199,11 @@ path, redirected sockets are still coalesced only while pending, and no
 package build, and RDP integration test pass with `/usr/bin/pkg-config`; TPM
 and hardware-EGL skip on the build host. Source and binary Lintian error gates
 pass with only the expected long-filename warnings. The source package is
-signed and all three signatures verify; upload awaits explicit publication
-authorization. The measured idle reconnect sequence still needs a board
-reproduction to prove the runtime branch and to determine whether the first
-redirect race itself needs a cross-GRD/GDM acknowledgement change.
+signed and all three signatures verify. Launchpad accepted it as Pending source
+publication `18649293`, with arm64 build `33452991` queued as Needs building.
+The measured idle reconnect sequence still needs a board reproduction to prove
+the runtime branch and to determine whether the first redirect race itself
+needs a cross-GRD/GDM acknowledgement change.
 
 ## Status
 
@@ -216,6 +217,7 @@ redirect race itself needs a cross-GRD/GDM acknowledgement change.
   With the un-fixed build, the first aborted handover then converts into the
   Act-2 deaf state until the system daemon is restarted.
 - Source fix complete and public at `release/50.2-rkmpp@c4ef3c9`; source/native
-  package and signature gates pass. PPA publication, installation, and the
-  measured idle reconnect reproduction remain the handoff gates. Do not
-  restore `a3a1a32` wholesale.
+  package and signature gates pass, and PPA source `18649293` is accepted with
+  build `33452991` queued. Successful build/publication, installation, and the
+  measured idle reconnect reproduction remain the handoff gates. Do not restore
+  `a3a1a32` wholesale.
