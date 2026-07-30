@@ -1,8 +1,8 @@
 # Rewrite soft-CCU dual-core decode wedges the interconnect; arm/start split root-caused and fixed
 
 > Scope: MPP rewrite driver (rkvdec2 soft-CCU path); rock-5b conformance mpp suite
-> Source: rock-5b/kernel/linux @ rk3588-rewrite-mainline `aaeafc8b21abc`
-> (fix), parent `2e3916ef8011a`; cherry-pick `cda9b31231f50` on
+> Source: rock-5b/kernel/linux @ rk3588-rewrite-mainline `7d92b06a4c5ba`
+> (fix), parent `2e3916ef8011a`; cherry-pick `eb78ceed2fd67` on
 > rk3588-rewrite-6.18; BSP contract from rockchip-kernel
 > `mpp_rkvdec2_link.c` `rkvdec2_soft_ccu_enqueue()` (~:1976)
 > Date: 2026-07-29
@@ -64,7 +64,7 @@ Two adjacent driver bugs surfaced by the passing single-core run
 
 ## Fix
 
-One commit, `aaeafc8b21abc` (mainline branch) = `cda9b31231f50`
+One commit, `7d92b06a4c5ba` (mainline branch) = `eb78ceed2fd67`
 (rk3588-rewrite-6.18, the build lineage):
 
 1. BSP-order restore: arm (mode/`WORK_EN`/`WORK_MODE`/`CORE_WORK`, no
