@@ -153,6 +153,14 @@ both targets (it amended `e5867fa31e` → `29904d8e2fa46` while this ran).
   driver index 2), `&av1d_mmu` enabled; decompiled dtb verified. Compile
   gate: `mpp_rewrite.o` and `vsi-iommu.o` W=1-clean, dtb clean.
 
+**First package build (2026-07-29):** `rewrite-debug` flavor
+(`video-rewrite-kasan-rockchip64` slot) built from `rk3588-rewrite-6.18` @
+`c315666159816`, hash `Pd794-Cad24`, 341-commit series with the four AV1 port
+commits at the head. Packaged-artifact spot-checks: config carries
+`ROCKCHIP_MPP_REWRITE[_KUNIT_TEST]=y`, `ROCKCHIP_RGA_REWRITE[_KUNIT_TEST]=y`,
+`VSI_IOMMU=y`; packaged `rk3588-rock-5b.dtb` contains `rockchip,av1-decoder`.
+Not yet installed or booted.
+
 **Review notes (both ports):** teardown drains only the *registered* provider
 (vendor `mpp_iommu_remove()` drains both unconditionally); AV1 KUnit cases
 keep the source's manual `kfree` tails (leak only on mid-test assert);
