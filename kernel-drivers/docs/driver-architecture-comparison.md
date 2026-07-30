@@ -548,7 +548,7 @@ BSP-derived RGA                   rewrite RGA
 | MPP code/build lines | 18,442, including AV1, compatibility headers, and legacy-SoC helpers | 14,118 including 4,653 KUnit lines; 9,465 without KUnit |
 | RGA code/build lines | 21,160 | 23,990 including 10,692 KUnit lines; 13,298 without KUnit |
 | ABI ledger | External project documentation and vendor headers | 648-line MPP and 633-line RGA in-tree `ABI.rst` files |
-| In-driver KUnit | None comparable | 84 MPP + 148 RGA cases |
+| In-driver KUnit | None comparable | 89 MPP + 148 RGA cases |
 | Primary verification style | Board conformance, sanitizer builds, hostile reproducers, production runs | KUnit/build profiles first, then the same board suites and differential artifacts |
 
 The modular BSP layout is easier to browse file by file. The rewrite keeps an
@@ -574,11 +574,11 @@ interleaves test and runtime code in unusually large translation units.
 
 | Pros | Cons |
 |------|------|
-| Public kernel APIs and byte-identical driver sources across 6.18 and current mainline reduce forward-maintenance coupling. | Current scope omits RKMPP AV1, JPEG/legacy VPU blocks, physical imports, and some historical RGA profiles. |
+| Public kernel APIs and near-identical driver sources across 6.18 and current mainline reduce forward-maintenance coupling. | Current scope includes a source-only RKMPP AV1 backend, but still omits JPEG/legacy VPU blocks, physical imports, and some historical RGA profiles; AV1 has no hardware evidence yet. |
 | Session/job/hardware/import ownership makes asynchronous lifetime and close/remove order locally auditable. | Refcount, lock, generation, work-cancel, and quarantine state machines add substantial implementation complexity. |
 | Fail-closed ABI, address-provenance, topology, hardware-ID, and reset checks reduce silent unsafe behavior. | Strict rejection can expose compatibility gaps only when real userspace reaches them. |
 | Exact active-slot claims and generation-aware recovery directly address bug classes seen in the BSP architecture. | Clearer architecture has not prevented rewrite-specific recovery, fixture, DT-resource, and shared-IRQ defects. |
-| 232 KUnit cases and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
+| 237 KUnit cases and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
 | Lower non-test source footprint: roughly half-size MPP and 37% smaller RGA runtime slices. | No successful current-tip media-hardware, production-performance, fuzz, or soak record yet. |
 | Better long-term candidate if hardware parity is demonstrated. | Higher immediate qualification risk. |
 
@@ -624,3 +624,309 @@ Use the forward port because its behavior is proven. Develop the rewrite because
 its ownership and kernel-integration model is better suited to long-term
 maintenance. Promote it only when those architectural advantages and equivalent
 hardware evidence exist at the same time.
+
+## 11. Quality comparison with upstream media and vendor drivers (2026-07-30)
+
+The rewrite is a better **source design** than the original BSP MPP/RGA stack,
+but it is not yet a better **delivered driver** than the BSP-derived forward
+port. Against mature upstream video drivers, it is unusually strong in explicit
+ownership, fail-closed validation, documentation, and KUnit coverage, but below
+the upstream bar in UAPI design, framework integration, source organization,
+independent review, and hardware maturity.
+
+This quality judgment extends the architecture comparison above with later
+evidence:
+
+| Input | Pin or evidence boundary |
+|-------|--------------------------|
+| Rewrite 6.18 | `rk3588-rewrite-6.18@600d6e2fb6a49`; 16,095-line MPP and 24,574-line RGA translation units |
+| Rewrite mainline replay | `rk3588-rewrite-mainline@451634b8c5a22`; MPP differs from the 6.18 copy by three lines at this boundary, RGA is byte-identical |
+| Rockchip BSP donor | `develop-6.1@b4ef083dc0c3` |
+| Upstream-style comparators | Linux `v7.2-rc5`-era `rockchip/rkvdec`, Verisilicon Hantro, Chips&Media Wave5, Qualcomm Venus, MediaTek vcodec, Allegro DVT, and Amphion sources in the mainline replay tree |
+| Runtime boundary | The rewrite has a clean exact 89 MPP + 148 RGA KUnit gate, but its first real multicore decoder qualification still wedges the board in the `mpi_dec_mt_h264` → `mpi_dec_h265` sequence; the `600d6e2fb6a49` group-power fix is not boot-verified |
+
+The upstream comparators are reference designs for kernel-boundary and
+maintenance quality, not feature- or performance-equivalent implementations.
+Likewise, no claim is made that every silicon-vendor BSP has Rockchip's exact
+strengths or weaknesses. The comparison separates what the source proves from
+what has run on RK3588 hardware.
+
+### 11.1 Comparative scorecard
+
+| Dimension | Rewrite | BSP-derived forward port | Mature upstream media drivers |
+|-----------|---------|--------------------------|-------------------------------|
+| Source architecture | Good to very good | Fair | Very good |
+| UAPI and client boundary | Good implementation of a risky private ABI | Weak | Excellent |
+| Lifetime and recovery model | Very good conceptually | Fair; ownership crosses global managers | Generally good, aided by common frameworks |
+| Hardware and feature coverage | Broad but incomplete and unevenly proven | Best for RK3588 | Narrower and hardware-dependent |
+| Driver-local unit testability | Excellent by media-driver standards | Weak | Usually modest |
+| Real-hardware maturity | Poor at this gate | Strong | Generally mature on each driver's supported platforms |
+| Source organization | Weak to fair: two unusually large translation units | Modular, but cross-file ownership is difficult to follow | Usually split by core, queue, codec, firmware, and platform responsibility |
+| Kernel-version maintenance | Good: mostly shared sources across 6.18/mainline | Weak: compatibility and resync work remain structural | Best |
+| Public review traceability | Limited; extensive local audit, no subsystem review lineage | Weak in the public BSP history | Strongest |
+| Upstream readiness | Low without architectural changes | Very low | Already follows subsystem conventions |
+
+The scorecard is deliberately split. Calling the rewrite simply “higher
+quality” would erase the forward port's much stronger functional evidence;
+calling it “not ready, therefore poor” would erase substantial improvements at
+the userspace/kernel boundary.
+
+### 11.2 Where the rewrite is genuinely stronger
+
+The rewrite's principal strength is local ownership. Sessions own configured
+state and imports; accepted jobs own immutable request snapshots and retain the
+hardware and mappings that asynchronous paths may still use. IRQ, timeout,
+fault, reset, close, and removal contend for the same exact active slot instead
+of independently retiring a globally managed task. Activation generations keep
+delayed recovery from attacking a replacement job, and failed reset proof
+quarantines a core or decoder group rather than returning uncertain hardware to
+the scheduler.
+
+The userspace boundary is also materially safer than the original BSP:
+
+- unknown flags, malformed message sizes, unsupported secure operation, and
+  unimplemented RGA profiles fail closed;
+- register indices, offsets, image extents, IOVA spans, 32-bit apertures, MMIO
+  windows, hardware IDs, core masks, and CCU/IOMMU topology are checked before
+  hardware admission;
+- literal codec IOVAs require provenance from retained session mappings;
+- raw physical RGA submissions are rejected;
+- dma-buf mappings are tied to the selected DMA device and retained until no
+  job or asynchronous path can use them; and
+- probe or recovery failures generally remove capability instead of continuing
+  with guessed hardware state.
+
+These properties directly improve on confirmed BSP defect classes:
+session-fd type confusion, unchecked userspace-derived indexes and sizes,
+raw-physical-import crashes, global request/fence retirement races, error-pointer
+probe bugs, and mappings outliving or underliving their hardware users. The RGA
+rewrite also deliberately fixes the BSP's shared release-fence timeline:
+independently completing cores receive independent fence contexts, so a merged
+sync file cannot signal merely because a later-submitted sibling completed
+first. The dated
+[BSP quality assessment](../../findings/2026-07-16-rockchip-bsp-driver-quality.md)
+records the inspected defects and the boundary of that comparison.
+
+The verification support is exceptional for this driver class. Two explicit
+ABI ledgers, 237 embedded KUnit cases, clean-source memory/race build profiles,
+debug counters, an event journal, differential artifact comparators, and
+fail-closed fixture audits make assumptions executable. None of the inspected
+`rkvdec`, Hantro, Wave5, Venus, MediaTek, Allegro, or Amphion directories had a
+comparable embedded KUnit suite. This does not make those upstream drivers less
+reliable overall—their framework reuse, review history, and hardware use are
+different evidence—but it makes the rewrite unusually inspectable.
+
+#### Why upstream media drivers rarely carry suites this large
+
+The missing driver-local KUnit blocks are not normally replaced by equally
+large private suites kept elsewhere. Some vendors and CI systems have
+non-public tests that cannot be assessed here, but the visible upstream media
+test strategy is weighted differently:
+
+- V4L2, vb2, media-request, control, and mem2mem behavior is implemented in
+  shared frameworks. A driver reuses those lifetimes and state machines instead
+  of unit-testing another private implementation of them.
+- The media maintainer checklist requires the external `v4l2-compliance` tool
+  from `v4l-utils`; codec drivers are additionally exercised through real
+  streams, codec-conformance tools, FFmpeg/GStreamer userspace, CI, and board
+  testing.
+- Much of a media driver's highest-risk behavior depends on real firmware,
+  DMA/IOMMU topology, interrupt timing, reset semantics, and register effects.
+  A small fake often gives less confidence than a hardware integration test.
+- KUnit is best suited to small, self-contained white-box units. Many mature
+  media drivers predate KUnit, and retrofitting unit seams into hardware-bound
+  code has competed with functional and conformance work.
+
+At the inspected `v7.2-rc5`-era pin, no registered KUnit suite was found
+anywhere under `drivers/media`, not merely in the selected codec comparators.
+That is a statement about subsystem practice, not a recommendation that media
+drivers should remain un-unit-tested.
+
+The rewrite also owns substantially more unit-testable policy than a normal
+V4L2 codec driver. Its private ABIs require custom message and task parsing,
+register-image classification, fd/import identity, literal-IOVA provenance,
+core routing, fences, polling, timeout/fault generations, and RGA command
+emission. Tests for those contracts are justified; deleting them merely to
+resemble the upstream case count would reduce confidence without reducing the
+production attack surface.
+
+The current suite is nevertheless overbuilt in **shape**, though not simply in
+raw case count. The RGA KUnit region is about 10,700 lines and the MPP region
+about 4,600 lines—roughly 15,300 test lines embedded in approximately 40,700
+driver lines. Several costs are now demonstrated:
+
+- consumer-named FFmpeg, GStreamer, RKNN, display, and librga cases sometimes
+  reach the same normalized validator/emitter recipe instead of sharing one
+  parameterized golden table;
+- compile-time ABI properties and behavior fully visible through public ioctls
+  have consumed boot KUnit cases despite stronger `static_assert` or
+  userspace-test owners;
+- large lifecycle cases manually constructed partial sessions, devices, jobs,
+  imports, work items, files, and fences, producing fixture bugs that poisoned
+  later cases or the live service; and
+- tests embedded in the production `.c` files have unrestricted access to
+  static internals, encourage fixture duplication, and make both production
+  review and test-only diffs harder to navigate.
+
+The right correction is rationalization, not deletion. Keep device-free KUnit
+for deterministic parsing, bounds, layout, routing, address provenance, and
+independent register goldens. Keep isolated lifecycle KUnit for ownership,
+fence, abort, timeout, and recovery transitions that are difficult to trigger
+reliably. Move ABI-visible behavior to `abi-probe`/fuzz tests, compile-time
+layout to assertions, and hardware truth—pixels, bitstreams, IRQ wiring, DMA,
+IOMMU, clocks, and reset—to conformance. Consolidate equivalent vectors into
+named parameter tables, build lifecycle fixtures through complete shared
+constructors, and move tests into separate translation units.
+
+The target should therefore not be “237 cases” or an arbitrary smaller number.
+It should be the minimum set of independently-oracled cases that uniquely owns
+each material contract at the lowest safe layer. A parameterized case with 30
+named boundary vectors can be stronger and much cheaper than 30 copied
+consumer-profile fixtures.
+
+### 11.3 Why mature upstream drivers still set a higher bar
+
+The preserved BSP ABI is the rewrite's structural ceiling. `/dev/mpp_service`
+accepts low-level message streams and register images; `/dev/rga` accepts a
+large private image-operation structure. Even a carefully validated
+implementation must own a bespoke parser, fd/import cache, scheduler, polling
+contract, fence model, and recovery state machine.
+
+Mainline stateless decoders such as `rkvdec` and Hantro instead express work
+through typed codec controls, media requests, vb2 buffers, and V4L2 mem2mem
+ownership. Stateful encoder/decoder drivers such as Wave5, Venus, MediaTek
+vcodec, and Amphion use the same queue/control framework around
+firmware- or hardware-specific backends. Those abstractions do not make the
+drivers bug-free, and firmware protocols can hide complexity outside the
+kernel, but they remove whole classes of private request, buffer, and
+per-client lifetime machinery.
+
+The rewrite cannot receive that framework advantage while remaining a drop-in
+`libmpp`/`librga` compatibility driver. It can become a high-quality downstream
+compatibility implementation, but the private register-job ABI is unlikely to
+be the preferred upstream media architecture. A V4L2-facing path would be a
+separate design, not a cleanup patch.
+
+Other upstream-readiness costs remain:
+
+- the MPP and RGA implementations are concentrated in approximately 16k- and
+  24.5k-line files; embedded tests explain much of the size, but production
+  responsibilities are still harder to review, merge, and assign than in
+  normally split upstream drivers;
+- precise recovery uses new Rockchip/VSI IOMMU provider hooks. They avoid
+  carrying private BSP internals, but remain bespoke cross-subsystem interfaces
+  that need independent IOMMU review;
+- board-level DT retyping and private procfs compatibility markers are
+  downstream integration devices, not clean standard interfaces; and
+- local adversarial audits have been productive, but they are not a substitute
+  for sustained independent review by media, DMA, IOMMU, locking, and hardware
+  maintainers.
+
+The mainline-style Rockchip RGA driver illustrates the feature tradeoff. Its
+roughly 3k-line V4L2 path is much smaller and cleaner because it exposes a
+narrow one-source scale/convert/blit contract. It lacks most `/dev/rga`
+composition, compression, tiling, rotation, synchronization, and multicore
+behavior, so its size is not evidence that a feature-compatible rewrite should
+also be 3k lines.
+
+### 11.4 The present implementation-maturity penalty
+
+The rewrite's architecture has not yet stabilized at the hardware boundary.
+The
+[2026-07-24 full-file audit](../../findings/2026-07-24-rewrite-driver-multi-agent-defect-audit.md)
+confirmed and fixed 17 distinct lifetime, DMA, command-emission, UAPI,
+scheduling, IRQ, and recovery defects. The
+[2026-07-29 review](../../findings/2026-07-29-rewrite-driver-review-round-2.md)
+confirmed another 12 defects, including a hard-CCU chain dual writer, an abort
+path that failed to restart scheduling, incorrect RGA fence timelines,
+shared-IRQ unpowered MMIO, and a legacy rotation convention that made every
+genuine portrait 90°/270° submission fail.
+
+Finding and fixing those defects is evidence of a healthy review process. Their
+number and severity are also evidence that the implementation had not
+stabilized. Several were regressions introduced during recent hardening rather
+than inherited unknowns.
+
+The board result is more important than the audit count. The first multicore
+media qualification found a repeatable full-system interconnect wedge. The
+[first dual-core finding](../../findings/2026-07-29-rewrite-soft-ccu-dual-core-wedge.md)
+records the original discriminator and source model; the later 2026-07-30
+sequence narrowed the surviving trigger:
+
+1. the exact KUnit gate completes;
+2. H.264 and multithreaded H.264 pass after the first soft-CCU correction;
+3. H.265 at the next session's first submission wedges the board;
+4. H.265 alone passes, and the reduced `mpi_dec_mt_h264` → `mpi_dec_h265`
+   pair reproduces the wedge; and
+5. the current group-power fix is source-reasonable but unbooted.
+
+That failure is precisely the boundary KUnit cannot model: coordinator
+registration, clock gating, sibling power, interrupts, and register ordering on
+real silicon. The current source-level recovery model remains a strength, but
+it is not yet runtime proof.
+
+The tests themselves have also revealed oracle debt. Early fixtures poisoned
+the live service or freed production-owned objects twice; the gate initially
+misparsed real KTAP and misreported live lockdep; incorrect RGA rotation
+fixtures hid a real ABI-wide failure; and several emitter tests compute
+expectations through helpers shared with the production emitter. The suite is
+valuable infrastructure, but the case count must not be treated as independent
+functional certification.
+
+### 11.5 Feature, performance, and vendor-driver comparison
+
+The BSP still wins on breadth and observed behavior. It carries mature
+multicore RKVENC2/RKVDEC2 coordination, the AV1 path, broad RGA composition and
+format support, legacy hardware helpers, and product-specific power and memory
+knowledge. The forward port has bit-exact decode, multicore encode, RGA,
+transcode, KASAN, root-gate, and production-performance evidence. The rewrite
+now contains an AV1 backend in source, but AV1 has no rewrite hardware result;
+JPEG, legacy VPU codecs, secure mode, and parts of the RGA operation matrix
+remain outside scope. Rewrite RGA also advances tasks within one submitted
+multi-task request serially, while the BSP can fan them across cores; the
+performance effect is unmeasured.
+
+Compared with vendor-only accelerator drivers, the rewrite is well above the
+inspected Rockchip MPP/RGA/RKNPU boundary quality: it does not trust exported
+kernel pointers, accept unchecked physical channels, silently ignore unknown
+flags, or depend on the same broad global ownership model. That does not mean
+all vendor code is poor. Rockchip's framework-led DRM display sample is much
+closer to ordinary mainline quality, and vendor stacks often know hardware
+quirks, clock sequencing, firmware behavior, and product workloads that a
+rewrite learns only through failures. The current CCU wedge is a concrete
+example of the BSP's operational knowledge outperforming a cleaner abstraction.
+
+Upstreamed vendor-origin drivers occupy the middle ground. Wave5, Venus,
+MediaTek, and Amphion are still complex vendor hardware integrations with
+custom firmware protocols and substantial platform data, but their external
+contract, buffer ownership, and scheduling entry points use common media
+frameworks and have subsystem review history. The rewrite is more transparent
+than a firmware-heavy driver and better unit-instrumented than many of them; it
+is weaker at the public interface and qualification layers.
+
+### 11.6 Graded assessment and deployment decision
+
+These grades are judgments; the source and runtime boundaries above are the
+durable evidence.
+
+| Dimension | Grade |
+|-----------|-------|
+| Source design | B+ |
+| Kernel-boundary validation | B+ |
+| Testability and documentation | A- |
+| Code organization | C+ |
+| Current runtime correctness and qualification | C- / D+ |
+| Upstream readiness as code | C- |
+| Suitability of the preserved private UAPI for upstream | D |
+| Long-term downstream replacement potential | B+ / A-, conditional on qualification |
+
+The forward port should remain the shipping implementation and differential
+oracle. The rewrite becomes the better overall driver only after the current
+dual-core sequence passes, followed by full MPP/RGA/AV1 conformance, byte-exact
+comparison, hostile recovery, coverage-guided fuzzing, production performance,
+and soak. Until then the fair description is:
+
+> The rewrite is substantially better engineered at the kernel boundary than
+> the original BSP, and promising as the long-term downstream implementation,
+> but it has not yet reached mature upstream-driver quality as a delivered
+> driver.
