@@ -934,10 +934,10 @@ and soak. Until then the fair description is:
 ## 12. Current mainline and maxline Rockchip codec audit (2026-07-30)
 
 The rewrite review also exposed useful questions to ask of the standard V4L2
-Rockchip codec paths. A fresh source audit found six bounded defects in current
-mainline or Hantro code, a deeper timeout-recovery concern that needs hardware
-evidence before changing, and several lifetime blockers in the not-yet-merged
-maxline multicore series.
+Rockchip codec paths. A fresh source audit produced seven bounded correction
+groups for current mainline or Hantro code, a deeper timeout-recovery concern
+that needs hardware evidence before changing, and several lifetime blockers in
+the not-yet-merged maxline multicore series.
 
 This section is the public engineering record: what the inspected code does,
 why it is suspect, and what would prove a correction. Upstream submission
@@ -991,7 +991,15 @@ corrections:
 Literal source comparison against that integration pin found none of the
 issues below corrected there.
 
-### 12.2 Mainline RKVDEC capture-size arithmetic can wrap
+### 12.2 Mainline RKVDEC capture-format state and size arithmetic are unsafe
+
+`rkvdec_try_capture_fmt()` calls `rkvdec_fill_decoded_pixfmt()`, which stores
+the proposed image size in `ctx->colmv_offset`. That makes
+`VIDIOC_TRY_FMT` stateful: a speculative format query with different dimensions
+can change the colmv address used by a later decode even though userspace never
+committed that capture format. The derived offset must instead be returned
+separately and stored only by capture `S_FMT` or an internal committed-format
+reset.
 
 VDPU381 and VDPU383 advertise H.264 dimensions up to `65520 × 65520` and H.265
 dimensions up to `65472 × 65472`. `rkvdec_fill_decoded_pixfmt()` then:
@@ -1036,7 +1044,8 @@ Useful proof consists of a small pure-helper boundary table:
 - a legal long/thin case, retained;
 - the 10-bit and 4:2:2 formats, whose byte limits differ; and
 - `TRY_FMT`/`S_FMT` plus `v4l2-compliance` confirmation that userspace sees the
-  same accepted boundary.
+  same accepted boundary and that `TRY_FMT` cannot alter a committed colmv
+  offset.
 
 This is a proportional use for a small KUnit or ordinary helper test. It does
 not justify importing the rewrite's whole private-ABI suite.
@@ -1087,6 +1096,18 @@ Both a clock-enable failure and a codec backend's `run()` failure jump directly
 to `hantro_job_finish_no_pm()`, which completes buffers but intentionally does
 not balance either resource.
 
+The backend error boundary also crosses request-control and watchdog ownership.
+An error can follow `hantro_start_prepare_run()`, while request controls remain
+installed, or `hantro_end_prepare_run()`, after request controls were completed
+and the watchdog was scheduled. The current generic error path neither
+completes the first state nor cancels the second.
+
+The VPU981 AV1 backend has an additional double-completion path: its
+`prepare_error` label calls `hantro_end_prepare_run()` and
+`hantro_irq_done(..., VB2_BUF_STATE_ERROR)`, then returns an error to
+`device_run()`, whose generic path completes the same mem2mem job again. A
+synchronous backend error needs one completion owner.
+
 The failure states require separate unwind ownership:
 
 | Last successful acquisition | Required unwind before buffer completion |
@@ -1096,9 +1117,13 @@ The failure states require separate unwind ownership:
 | runtime PM plus enabled clocks | disable clocks and runtime-PM put |
 
 This affects the shared Hantro core and therefore includes the RK3588 VEPU121
-JPEG encoder and VPU981 AV1 decoder. Fault injection at clock enable and an
-invalid/error-returning codec-run path should prove that the PM usage counter
-and clock enable counts return to baseline.
+JPEG encoder and VPU981 AV1 decoder. The bounded correction tracks whether
+request controls are installed, cancels any staged watchdog, balances clocks
+and runtime PM according to the last successful acquisition, and leaves all
+synchronous run-error completion to `device_run()`. Fault injection before and
+after both prepare helpers should prove exactly one buffer/job completion, one
+request-control completion, no remaining watchdog, and PM/clock counts returned
+to baseline.
 
 ### 12.6 RKVDEC destroys a provider-owned SRAM pool on probe failure
 
@@ -1244,7 +1269,7 @@ those are review-shape issues, not functional evidence.
 | Rewrite lesson | Mainline/maxline application |
 |----------------|------------------------------|
 | Validate derived byte spans, not just independent fields | Directly exposes RKVDEC `sizeimage` and VP9 WIP arithmetic overflow |
-| One owner balances every acquired PM/clock/DMA resource | Exposes RKVDEC's probe/runtime clock double ownership and Hantro's failure unwind |
+| One owner balances every acquired PM/clock/DMA/control/watchdog resource | Exposes RKVDEC's probe/runtime clock double ownership and Hantro's incomplete and duplicate failure completion |
 | A consumer must not free provider-owned infrastructure | Exposes the borrowed SRAM `gen_pool` destruction |
 | A per-core lifetime transition must not mutate an unowned sibling | Exposes maxline's all-core runtime callbacks |
 | Finishing a software scheduling slot does not prove DMA has stopped | Exposes maxline streamoff ordering and mainline timeout recovery |
@@ -1259,3 +1284,27 @@ test itself. The useful conclusion is narrower: the rewrite review produced
 several general DMA, power, ownership, and recovery invariants, and applying
 those invariants to current upstream-style code found concrete defects that
 framework reuse does not automatically prevent.
+
+### 12.11 Prepared mainline correction evidence
+
+The seven mainline-only corrections are preserved as mail-formatted patches in
+[`patches/mainline-codec-fixes/`](../patches/mainline-codec-fixes/README.md).
+They were prepared from
+`3708dd9488440e35a165aee2bb2a1a7b1d0d5777` on branch
+`mainline-rkvdec-hantro-fixes-ready`, whose audited tip is
+`c28b6586f74f7fb37c071174b66a445cf4ce0884`. No maxline or other
+not-yet-merged-driver change is present.
+
+The evidence closes source-shape and compile gates only:
+
+- strict `checkpatch.pl` reported zero errors, warnings, and checks for every
+  commit and exported patch;
+- the dependent two-patch format correction and each independent remaining
+  patch apply cleanly to the recorded base; and
+- an arm64 `defconfig` plus `COMPILE_TEST=y`, the RKVDEC and Hantro modules,
+  Rockchip Hantro support, and `W=1` built both aggregate driver objects.
+
+This does **not** close runtime correctness. Format-boundary negotiation,
+autosuspend clock counts, imported-DMABUF addressing, each failed-run stage, and
+provider-owned SRAM survival retain the discriminating hardware tests described
+above.

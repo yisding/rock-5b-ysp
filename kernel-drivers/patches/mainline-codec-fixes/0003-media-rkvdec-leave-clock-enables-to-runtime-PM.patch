@@ -1,0 +1,35 @@
+From 8e5a840478ab8f7ab4d059f4bd3b17d73f17231e Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 30 Jul 2026 13:58:33 -0700
+Subject: [PATCH 3/7] media: rkvdec: leave clock enables to runtime PM
+
+devm_clk_bulk_get_all_enabled() leaves one enable reference on every
+decoder clock until unbind. Runtime resume enables the same clocks
+again and runtime suspend drops only that second reference, so
+autosuspend never actually gates them.
+
+Acquire the clocks without enabling them and keep runtime PM as the
+sole owner of their prepare/enable state.
+
+Fixes: 6a846f7d72c7 ("media: rkvdec: Enable all clocks without naming them")
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ drivers/media/platform/rockchip/rkvdec/rkvdec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.c b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+index 28451ce68c9c8..054eb8a366df1 100644
+--- a/drivers/media/platform/rockchip/rkvdec/rkvdec.c
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+@@ -1879,7 +1879,7 @@ static int rkvdec_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = devm_clk_bulk_get_all_enabled(&pdev->dev, &rkvdec->clocks);
++	ret = devm_clk_bulk_get_all(&pdev->dev, &rkvdec->clocks);
+ 	if (ret < 0)
+ 		return ret;
+ 
+-- 
+2.55.0
+

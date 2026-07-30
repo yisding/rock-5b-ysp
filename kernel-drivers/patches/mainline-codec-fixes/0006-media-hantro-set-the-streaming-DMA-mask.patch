@@ -1,0 +1,39 @@
+From af18e2257b10b0f2d19b366ecbd7544e310364bb Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 30 Jul 2026 13:58:44 -0700
+Subject: [PATCH 6/7] media: hantro: set the streaming DMA mask
+
+Hantro variants write buffer addresses to 32-bit hardware registers,
+but probe sets only the coherent DMA mask. Imported vb2 DMABUFs are
+mapped through the streaming DMA API and use dev->dma_mask, so the
+coherent mask does not guarantee that their upper address bits are
+zero.
+
+Set the streaming and coherent masks together to enforce the
+documented 32-bit address constraint for all mappings.
+
+Fixes: 775fec69008d ("media: add Rockchip VPU JPEG encoder driver")
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ drivers/media/platform/verisilicon/hantro_drv.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/platform/verisilicon/hantro_drv.c b/drivers/media/platform/verisilicon/hantro_drv.c
+index 55f3f8785e8a1..44385f477265e 100644
+--- a/drivers/media/platform/verisilicon/hantro_drv.c
++++ b/drivers/media/platform/verisilicon/hantro_drv.c
+@@ -1177,9 +1177,9 @@ static int hantro_probe(struct platform_device *pdev)
+ 	 * Until then we assume the MSB portion of buffers' base addresses is
+ 	 * always 0 due to this masking operation.
+ 	 */
+-	ret = dma_set_coherent_mask(vpu->dev, DMA_BIT_MASK(32));
++	ret = dma_set_mask_and_coherent(vpu->dev, DMA_BIT_MASK(32));
+ 	if (ret) {
+-		dev_err(vpu->dev, "Could not set DMA coherent mask.\n");
++		dev_err(vpu->dev, "Could not set DMA mask.\n");
+ 		return ret;
+ 	}
+ 	vb2_dma_contig_set_max_seg_size(&pdev->dev, DMA_BIT_MASK(32));
+-- 
+2.55.0
+

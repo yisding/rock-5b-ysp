@@ -1,0 +1,38 @@
+From f422f8d5f2bccc3e3a42a0abff370375d6ed32a2 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 30 Jul 2026 13:58:40 -0700
+Subject: [PATCH 5/7] media: rkvdec: set the streaming DMA mask
+
+RKVDEC writes buffer addresses to 32-bit hardware registers, but probe
+sets only the coherent DMA mask. Imported vb2 DMABUFs are mapped
+through the streaming DMA API and use dev->dma_mask, so the coherent
+mask does not constrain those addresses.
+
+Set the streaming and coherent masks together to keep every
+hardware-visible mapping within the 32-bit aperture.
+
+Fixes: cd33c830448b ("media: rkvdec: Add the rkvdec driver")
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ drivers/media/platform/rockchip/rkvdec/rkvdec.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.c b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+index 054eb8a366df1..3f90228b66561 100644
+--- a/drivers/media/platform/rockchip/rkvdec/rkvdec.c
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+@@ -1900,9 +1900,9 @@ static int rkvdec_probe(struct platform_device *pdev)
+ 			return PTR_ERR(rkvdec->link);
+ 	}
+ 
+-	ret = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(32));
++	ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+ 	if (ret) {
+-		dev_err(&pdev->dev, "Could not set DMA coherent mask.\n");
++		dev_err(&pdev->dev, "Could not set DMA mask.\n");
+ 		return ret;
+ 	}
+ 
+-- 
+2.55.0
+

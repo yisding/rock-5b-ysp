@@ -27,7 +27,7 @@ The paths below name that current location, while `rock-5b-ysp`,
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rock-5b/rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../rock-5b/kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
 | 12 | Mesa MR !43161 benchmark tree | [fixed-clock benchmark finding](../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md), [Mesa reproducer runbook](../video-libraries/mesa/reproducers/README.md) | Mesa MR commit `647256dc2ae` + tracked benchmark override patch; local branch tip `6000414f9ea`, see §12 |
-| 13 | Current mainline/media-next/maxline codec audit | [driver quality comparison](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30) | Torvalds `3708dd948844`, media `next@a52e6f7923c1`, maxline public `f12fb0acf7bb`, maxline WIP `74b24e96da62`, and VDPU381 VP9 donor `6f0159ae61a89`; see §13 |
+| 13 | Current mainline/media-next/maxline codec audit | [driver quality comparison](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30) | Torvalds `3708dd948844`, prepared mainline fixes `c28b6586f74f`, media `next@a52e6f7923c1`, maxline public `f12fb0acf7bb`, maxline WIP `74b24e96da62`, and VDPU381 VP9 donor `6f0159ae61a89`; see §13 |
 
 ---
 
@@ -684,19 +684,20 @@ repository's source/artifact policy.
 
 ## 13. Current mainline media and maxline codec audit trees
 
-The 2026-07-30 codec audit in
+The 2026-07-30 codec audit and mainline correction work in
 [`kernel-drivers/docs/driver-architecture-comparison.md`](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30)
-used one shared Linux object store and a separate clean worktree:
+used one shared Linux object store and separate clean worktrees:
 
 | Ref | Pin | Role |
 |-----|-----|------|
 | `origin/master` | `3708dd9488440e35a165aee2bb2a1a7b1d0d5777` | Torvalds mainline on 2026-07-30 |
+| `mainline-rkvdec-hantro-fixes-ready` | `c28b6586f74f7fb37c071174b66a445cf4ce0884` | seven prepared mainline-only RKVDEC/Hantro corrections |
 | `media/next` | `a52e6f7923c17a672135b485ffd96fbd72f46267` | Linux media integration cross-check on 2026-07-17 |
 | `rk3588-maxline-public` | `f12fb0acf7bb923c5958e9430edd0dae93400951` | public not-yet-merged RK3588 integration, including RKVDEC multicore |
 | `rk3588-maxline-wip` | `74b24e96da6245ef951ec34de481b7b8a2b91d34` | WIP integration, including VDPU381 VP9 |
 | VP9 donor | `6f0159ae61a89d4e4eee2e4f0170c351bf7543fa` | the 1,303-line VDPU381 VP9 change inspected separately |
 
-The clean audit checkout is
+The clean maxline audit checkout is
 `/home/yi/Code/rock-5b/kernel/linux-maxline`, branch
 `rk3588-maxline-public`. Source contents are public and reconstructible without
 that path:
@@ -711,6 +712,17 @@ git fetch https://git.linuxtv.org/media.git \
   next:refs/remotes/media/next
 git worktree add ../linux-maxline \
   f12fb0acf7bb923c5958e9430edd0dae93400951
+```
+
+The prepared mainline correction checkout is
+`/home/yi/Code/rock-5b/kernel/linux-mainline-codec-fixes`. Its source contents
+are reconstructed from the recorded base and the repository's patch archive:
+
+```bash
+git worktree add ../linux-mainline-codec-fixes \
+  3708dd9488440e35a165aee2bb2a1a7b1d0d5777
+git -C ../linux-mainline-codec-fixes am \
+  /path/to/rock-5b-ysp/kernel-drivers/patches/mainline-codec-fixes/0*.patch
 ```
 
 Use the exact pins rather than moving branch names when reproducing the audit.

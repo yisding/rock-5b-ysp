@@ -1,0 +1,37 @@
+From c28b6586f74f7fb37c071174b66a445cf4ce0884 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 30 Jul 2026 13:58:48 -0700
+Subject: [PATCH 7/7] media: rkvdec: do not destroy the SRAM provider pool
+
+of_gen_pool_get() returns a pool owned by the SRAM provider; it does
+not transfer ownership to the consumer. If V4L2 initialization fails
+after RKVDEC obtains that pool, the probe error path destroys the
+provider-owned object and can leave the provider or another consumer
+with stale state.
+
+Drop only the consumer's use of the borrowed pointer and leave pool
+destruction to its owner.
+
+Fixes: e5640dbb991c ("media: rkvdec: Add RCB and SRAM support")
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ drivers/media/platform/rockchip/rkvdec/rkvdec.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.c b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+index 3f90228b66561..cc1dbbcb00b41 100644
+--- a/drivers/media/platform/rockchip/rkvdec/rkvdec.c
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+@@ -1948,9 +1948,6 @@ static int rkvdec_probe(struct platform_device *pdev)
+ 	pm_runtime_dont_use_autosuspend(&pdev->dev);
+ 	pm_runtime_disable(&pdev->dev);
+ 
+-	if (rkvdec->sram_pool)
+-		gen_pool_destroy(rkvdec->sram_pool);
+-
+ 	return ret;
+ }
+ 
+-- 
+2.55.0
+

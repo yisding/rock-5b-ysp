@@ -1,0 +1,263 @@
+From 8d8c5c45f4689bd599de936dfac1e9a0d0e1ef5a Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 30 Jul 2026 13:58:30 -0700
+Subject: [PATCH 2/7] media: rkvdec: reject unrepresentable capture buffer
+ sizes
+
+VDPU381 and VDPU383 advertise dimensions close to 64K on each axis.
+The decoded image and colocated motion-vector sizes are stored in the
+u32 V4L2 sizeimage field, but both the V4L2 helper arithmetic and the
+final colmv addition currently use 32-bit values.
+
+For example, a 46400 x 46400 NV12 H.264 capture needs 4,305,920,000
+bytes including colmv storage. The final addition wraps that to
+10,952,704 bytes, allowing an undersized capture buffer to pass
+validation while the hardware is programmed for the full geometry.
+
+Derive each supported decoded format size in u64, widen the variant
+colmv callbacks, and reject combinations whose complete backing cannot
+be represented by sizeimage. Propagate the failure through format and
+control updates without leaving a partially changed context.
+
+Fixes: e5aa698ea659 ("media: rkvdec: Add H264 support for the VDPU381 variant")
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ .../media/platform/rockchip/rkvdec/rkvdec.c   | 129 ++++++++++++++----
+ .../media/platform/rockchip/rkvdec/rkvdec.h   |   2 +-
+ 2 files changed, 103 insertions(+), 28 deletions(-)
+
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.c b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+index 9f2fb143d80cd..28451ce68c9c8 100644
+--- a/drivers/media/platform/rockchip/rkvdec/rkvdec.c
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+@@ -17,6 +17,7 @@
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/of_device.h>
++#include <linux/overflow.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm.h>
+ #include <linux/pm_runtime.h>
+@@ -88,30 +89,82 @@ static bool rkvdec_is_valid_fmt(struct rkvdec_ctx *ctx, u32 fourcc,
+ 	return false;
+ }
+ 
+-static u32 rkvdec_colmv_size(u16 width, u16 height)
++static u64 rkvdec_colmv_size(u16 width, u16 height)
+ {
+-	return 128 * DIV_ROUND_UP(width, 16) * DIV_ROUND_UP(height, 16);
++	return 128ULL * DIV_ROUND_UP(width, 16) * DIV_ROUND_UP(height, 16);
+ }
+ 
+-static u32 vdpu383_colmv_size(u16 width, u16 height)
++static u64 vdpu383_colmv_size(u16 width, u16 height)
+ {
+-	return ALIGN(width, 64) * ALIGN(height, 16);
++	return (u64)ALIGN(width, 64) * ALIGN(height, 16);
+ }
+ 
+-static void rkvdec_fill_decoded_pixfmt(struct rkvdec_ctx *ctx,
+-				       struct v4l2_pix_format_mplane *pix_mp,
+-				       u32 *colmv_offset)
++static int rkvdec_decoded_image_size(struct v4l2_pix_format_mplane *pix_mp,
++				     u64 *image_size)
++{
++	u64 pixels, size;
++	u32 numerator;
++	u32 denominator;
++
++	switch (pix_mp->pixelformat) {
++	case V4L2_PIX_FMT_NV12:
++		numerator = 3;
++		denominator = 2;
++		break;
++	case V4L2_PIX_FMT_NV15:
++		numerator = 15;
++		denominator = 8;
++		break;
++	case V4L2_PIX_FMT_NV16:
++		numerator = 2;
++		denominator = 1;
++		break;
++	case V4L2_PIX_FMT_NV20:
++		numerator = 5;
++		denominator = 2;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	if (check_mul_overflow((u64)pix_mp->width, pix_mp->height, &pixels) ||
++	    check_mul_overflow(pixels, numerator, &size))
++		return -EINVAL;
++
++	*image_size = DIV_ROUND_UP_ULL(size, denominator);
++
++	return 0;
++}
++
++static int rkvdec_fill_decoded_pixfmt(struct rkvdec_ctx *ctx,
++				      struct v4l2_pix_format_mplane *pix_mp,
++				      u32 *colmv_offset)
+ {
+ 	const struct rkvdec_variant *variant = ctx->dev->variant;
++	u64 image_size, total_size;
++	int ret;
++
++	ret = rkvdec_decoded_image_size(pix_mp, &image_size);
++	if (ret)
++		return ret;
+ 
+-	v4l2_fill_pixfmt_mp(pix_mp, pix_mp->pixelformat,
+-			    pix_mp->width, pix_mp->height);
++	if (check_add_overflow(image_size,
++			       variant->ops->colmv_size(pix_mp->width,
++							pix_mp->height),
++			       &total_size) ||
++	    total_size > U32_MAX)
++		return -EINVAL;
++
++	ret = v4l2_fill_pixfmt_mp(pix_mp, pix_mp->pixelformat,
++				  pix_mp->width, pix_mp->height);
++	if (ret)
++		return ret;
+ 
++	pix_mp->plane_fmt[0].sizeimage = (u32)total_size;
+ 	if (colmv_offset)
+-		*colmv_offset = pix_mp->plane_fmt[0].sizeimage;
++		*colmv_offset = (u32)image_size;
+ 
+-	pix_mp->plane_fmt[0].sizeimage +=
+-		variant->ops->colmv_size(pix_mp->width, pix_mp->height);
++	return 0;
+ }
+ 
+ static void rkvdec_reset_fmt(struct rkvdec_ctx *ctx, struct v4l2_format *f,
+@@ -126,18 +179,28 @@ static void rkvdec_reset_fmt(struct rkvdec_ctx *ctx, struct v4l2_format *f,
+ 	f->fmt.pix_mp.xfer_func = V4L2_XFER_FUNC_DEFAULT;
+ }
+ 
+-static void rkvdec_reset_decoded_fmt(struct rkvdec_ctx *ctx)
++static int rkvdec_reset_decoded_fmt(struct rkvdec_ctx *ctx,
++				    enum rkvdec_image_fmt image_fmt)
+ {
+-	struct v4l2_format *f = &ctx->decoded_fmt;
++	struct v4l2_format f = {};
++	u32 colmv_offset;
+ 	u32 fourcc;
++	int ret;
+ 
+-	fourcc = rkvdec_enum_decoded_fmt(ctx, 0, ctx->image_fmt);
+-	rkvdec_reset_fmt(ctx, f, fourcc);
+-	f->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+-	f->fmt.pix_mp.width = ctx->coded_fmt.fmt.pix_mp.width;
+-	f->fmt.pix_mp.height = ctx->coded_fmt.fmt.pix_mp.height;
+-	rkvdec_fill_decoded_pixfmt(ctx, &f->fmt.pix_mp,
+-				   &ctx->colmv_offset);
++	fourcc = rkvdec_enum_decoded_fmt(ctx, 0, image_fmt);
++	rkvdec_reset_fmt(ctx, &f, fourcc);
++	f.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
++	f.fmt.pix_mp.width = ctx->coded_fmt.fmt.pix_mp.width;
++	f.fmt.pix_mp.height = ctx->coded_fmt.fmt.pix_mp.height;
++	ret = rkvdec_fill_decoded_pixfmt(ctx, &f.fmt.pix_mp, &colmv_offset);
++	if (ret)
++		return ret;
++
++	ctx->decoded_fmt = f;
++	ctx->colmv_offset = colmv_offset;
++	ctx->image_fmt = image_fmt;
++
++	return 0;
+ }
+ 
+ static int rkvdec_try_ctrl(struct v4l2_ctrl *ctrl)
+@@ -179,8 +242,7 @@ static int rkvdec_s_ctrl(struct v4l2_ctrl *ctrl)
+ 		if (vb2_is_busy(vq))
+ 			return -EBUSY;
+ 
+-		ctx->image_fmt = image_fmt;
+-		rkvdec_reset_decoded_fmt(ctx);
++		return rkvdec_reset_decoded_fmt(ctx, image_fmt);
+ 	}
+ 
+ 	return 0;
+@@ -674,6 +736,7 @@ static int rkvdec_adjust_capture_fmt(struct rkvdec_ctx *ctx,
+ {
+ 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
+ 	const struct rkvdec_coded_fmt_desc *coded_desc;
++	int ret;
+ 
+ 	/*
+ 	 * The codec context should point to a coded format desc, if the format
+@@ -695,7 +758,9 @@ static int rkvdec_adjust_capture_fmt(struct rkvdec_ctx *ctx,
+ 				       &pix_mp->height,
+ 				       &coded_desc->frmsize);
+ 
+-	rkvdec_fill_decoded_pixfmt(ctx, pix_mp, colmv_offset);
++	ret = rkvdec_fill_decoded_pixfmt(ctx, pix_mp, colmv_offset);
++	if (ret)
++		return ret;
+ 
+ 	pix_mp->field = V4L2_FIELD_NONE;
+ 
+@@ -770,7 +835,9 @@ static int rkvdec_s_output_fmt(struct file *file, void *priv,
+ {
+ 	struct rkvdec_ctx *ctx = file_to_rkvdec_ctx(file);
+ 	struct v4l2_m2m_ctx *m2m_ctx = ctx->fh.m2m_ctx;
++	const struct rkvdec_coded_fmt_desc *old_coded_desc;
+ 	const struct rkvdec_coded_fmt_desc *desc;
++	struct v4l2_format old_coded_fmt;
+ 	struct v4l2_format *cap_fmt;
+ 	struct vb2_queue *peer_vq, *vq;
+ 	int ret;
+@@ -802,6 +869,8 @@ static int rkvdec_s_output_fmt(struct file *file, void *priv,
+ 	desc = rkvdec_find_coded_fmt_desc(ctx, f->fmt.pix_mp.pixelformat);
+ 	if (!desc)
+ 		return -EINVAL;
++	old_coded_desc = ctx->coded_fmt_desc;
++	old_coded_fmt = ctx->coded_fmt;
+ 	ctx->coded_fmt_desc = desc;
+ 	ctx->coded_fmt = *f;
+ 
+@@ -814,8 +883,12 @@ static int rkvdec_s_output_fmt(struct file *file, void *priv,
+ 	 *
+ 	 * Note that this will propagates any size changes to the decoded format.
+ 	 */
+-	ctx->image_fmt = RKVDEC_IMG_FMT_ANY;
+-	rkvdec_reset_decoded_fmt(ctx);
++	ret = rkvdec_reset_decoded_fmt(ctx, RKVDEC_IMG_FMT_ANY);
++	if (ret) {
++		ctx->coded_fmt_desc = old_coded_desc;
++		ctx->coded_fmt = old_coded_fmt;
++		return ret;
++	}
+ 
+ 	/* Propagate colorspace information to capture. */
+ 	cap_fmt = &ctx->decoded_fmt;
+@@ -1304,7 +1377,9 @@ static int rkvdec_open(struct file *filp)
+ 
+ 	ctx->dev = rkvdec;
+ 	rkvdec_reset_coded_fmt(ctx);
+-	rkvdec_reset_decoded_fmt(ctx);
++	ret = rkvdec_reset_decoded_fmt(ctx, RKVDEC_IMG_FMT_ANY);
++	if (ret)
++		goto err_free_ctx;
+ 	v4l2_fh_init(&ctx->fh, video_devdata(filp));
+ 
+ 	ctx->fh.m2m_ctx = v4l2_m2m_ctx_init(rkvdec->m2m_dev, ctx,
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.h b/drivers/media/platform/rockchip/rkvdec/rkvdec.h
+index a24be6638b6b7..db8be46f0ad69 100644
+--- a/drivers/media/platform/rockchip/rkvdec/rkvdec.h
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.h
+@@ -73,7 +73,7 @@ vb2_to_rkvdec_decoded_buf(struct vb2_buffer *buf)
+ 
+ struct rkvdec_variant_ops {
+ 	irqreturn_t (*irq_handler)(struct rkvdec_ctx *ctx);
+-	u32 (*colmv_size)(u16 width, u16 height);
++	u64 (*colmv_size)(u16 width, u16 height);
+ 	void (*flatten_matrices)(u8 *output, const u8 *input, int matrices, int row_length);
+ };
+ 
+-- 
+2.55.0
+

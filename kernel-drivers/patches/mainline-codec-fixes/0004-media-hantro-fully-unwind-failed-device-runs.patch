@@ -1,0 +1,135 @@
+From 188787fc9a098a03ce2c37faa979e96992f28c32 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 30 Jul 2026 13:58:37 -0700
+Subject: [PATCH 4/7] media: hantro: fully unwind failed device runs
+
+device_run() acquires a runtime PM reference and enables the prepared
+clocks before calling the codec backend. Clock-enable and backend-run
+failures currently complete the buffers through
+hantro_job_finish_no_pm(), leaving any acquired PM and clock resources
+unbalanced.
+
+Backend errors can also happen after hantro_start_prepare_run()
+installed request controls, or after hantro_end_prepare_run()
+scheduled the watchdog. Track the request-control state, complete it
+when aborting an unfinished preparation, and cancel the staged
+watchdog before releasing execution resources.
+
+The Rockchip VPU981 AV1 backend additionally completes its own failed
+preparation through hantro_irq_done() and then returns an error to
+device_run(), causing the generic path to complete the same job again.
+Leave all synchronous run-error completion to device_run().
+
+Fixes: 42cb2a8f27d2 ("media: hantro: change hantro_codec_ops run prototype to return errors")
+Fixes: 727a400686a2 ("media: verisilicon: Add Rockchip AV1 decoder")
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ drivers/media/platform/verisilicon/hantro.h   |  2 ++
+ .../media/platform/verisilicon/hantro_drv.c   | 28 +++++++++++++++++--
+ .../verisilicon/rockchip_vpu981_hw_av1_dec.c  |  1 -
+ 3 files changed, 28 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/media/platform/verisilicon/hantro.h b/drivers/media/platform/verisilicon/hantro.h
+index 0353de154a1ec..e9a8f4c6a6bf8 100644
+--- a/drivers/media/platform/verisilicon/hantro.h
++++ b/drivers/media/platform/verisilicon/hantro.h
+@@ -232,6 +232,7 @@ struct hantro_dev {
+  * @ref_fmt:		V4L2 pixel format of the reference frames format.
+  *
+  * @ctrl_handler:	Control handler used to register controls.
++ * @ctrls_setup:	Request controls are installed for the current run.
+  * @jpeg_quality:	User-specified JPEG compression quality.
+  * @bit_depth:		Bit depth of current frame
+  * @need_postproc:	Set to true if the bitstream features require to
+@@ -261,6 +262,7 @@ struct hantro_ctx {
+ 	struct v4l2_pix_format_mplane ref_fmt;
+ 
+ 	struct v4l2_ctrl_handler ctrl_handler;
++	bool ctrls_setup;
+ 	int jpeg_quality;
+ 	int bit_depth;
+ 
+diff --git a/drivers/media/platform/verisilicon/hantro_drv.c b/drivers/media/platform/verisilicon/hantro_drv.c
+index 2e81877f640fb..55f3f8785e8a1 100644
+--- a/drivers/media/platform/verisilicon/hantro_drv.c
++++ b/drivers/media/platform/verisilicon/hantro_drv.c
+@@ -135,9 +135,12 @@ void hantro_start_prepare_run(struct hantro_ctx *ctx)
+ {
+ 	struct vb2_v4l2_buffer *src_buf;
+ 
++	WARN_ON(ctx->ctrls_setup);
++
+ 	src_buf = hantro_get_src_buf(ctx);
+ 	v4l2_ctrl_request_setup(src_buf->vb2_buf.req_obj.req,
+ 				&ctx->ctrl_handler);
++	ctx->ctrls_setup = true;
+ 
+ 	if (!ctx->is_encoder && !ctx->dev->variant->late_postproc) {
+ 		if (hantro_needs_postproc(ctx, ctx->vpu_dst_fmt))
+@@ -161,12 +164,28 @@ void hantro_end_prepare_run(struct hantro_ctx *ctx)
+ 	src_buf = hantro_get_src_buf(ctx);
+ 	v4l2_ctrl_request_complete(src_buf->vb2_buf.req_obj.req,
+ 				   &ctx->ctrl_handler);
++	ctx->ctrls_setup = false;
+ 
+ 	/* Kick the watchdog. */
+ 	schedule_delayed_work(&ctx->dev->watchdog_work,
+ 			      msecs_to_jiffies(2000));
+ }
+ 
++static void hantro_abort_prepare_run(struct hantro_ctx *ctx)
++{
++	struct vb2_v4l2_buffer *src_buf;
++
++	cancel_delayed_work_sync(&ctx->dev->watchdog_work);
++
++	if (!ctx->ctrls_setup)
++		return;
++
++	src_buf = hantro_get_src_buf(ctx);
++	v4l2_ctrl_request_complete(src_buf->vb2_buf.req_obj.req,
++				   &ctx->ctrl_handler);
++	ctx->ctrls_setup = false;
++}
++
+ static void device_run(void *priv)
+ {
+ 	struct hantro_ctx *ctx = priv;
+@@ -182,15 +201,20 @@ static void device_run(void *priv)
+ 
+ 	ret = clk_bulk_enable(ctx->dev->variant->num_clocks, ctx->dev->clocks);
+ 	if (ret)
+-		goto err_cancel_job;
++		goto err_pm_put;
+ 
+ 	v4l2_m2m_buf_copy_metadata(src, dst);
+ 
+ 	if (ctx->codec_ops->run(ctx))
+-		goto err_cancel_job;
++		goto err_abort_run;
+ 
+ 	return;
+ 
++err_abort_run:
++	hantro_abort_prepare_run(ctx);
++	clk_bulk_disable(ctx->dev->variant->num_clocks, ctx->dev->clocks);
++err_pm_put:
++	pm_runtime_put_autosuspend(ctx->dev->dev);
+ err_cancel_job:
+ 	hantro_job_finish_no_pm(ctx->dev, ctx, VB2_BUF_STATE_ERROR);
+ }
+diff --git a/drivers/media/platform/verisilicon/rockchip_vpu981_hw_av1_dec.c b/drivers/media/platform/verisilicon/rockchip_vpu981_hw_av1_dec.c
+index e4e21ad373233..e473d2a0a70bf 100644
+--- a/drivers/media/platform/verisilicon/rockchip_vpu981_hw_av1_dec.c
++++ b/drivers/media/platform/verisilicon/rockchip_vpu981_hw_av1_dec.c
+@@ -2193,7 +2193,6 @@ int rockchip_vpu981_av1_dec_run(struct hantro_ctx *ctx)
+ 
+ prepare_error:
+ 	hantro_end_prepare_run(ctx);
+-	hantro_irq_done(vpu, VB2_BUF_STATE_ERROR);
+ 	return ret;
+ }
+ 
+-- 
+2.55.0
+

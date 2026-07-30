@@ -1,0 +1,126 @@
+From 09c44e6018d6405df22df030970135cc99b2e4ab Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 30 Jul 2026 13:58:26 -0700
+Subject: [PATCH 1/7] media: rkvdec: keep TRY_FMT from changing colmv offset
+
+rkvdec_fill_decoded_pixfmt() stores the capture image size in the
+context as the offset of the colocated motion-vector buffer. The same
+helper is called by VIDIOC_TRY_FMT, even though TRY_FMT must not change
+driver state.
+
+A TRY_FMT call with different dimensions can therefore make a later
+decode program the colmv address at an offset that does not match the
+configured capture buffers.
+
+Return the derived offset separately and store it only when the driver
+commits or resets the capture format.
+
+Fixes: e5aa698ea659 ("media: rkvdec: Add H264 support for the VDPU381 variant")
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ .../media/platform/rockchip/rkvdec/rkvdec.c   | 36 +++++++++++++------
+ 1 file changed, 26 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.c b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+index 1d1e9bfef8e96..9f2fb143d80cd 100644
+--- a/drivers/media/platform/rockchip/rkvdec/rkvdec.c
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+@@ -99,15 +99,19 @@ static u32 vdpu383_colmv_size(u16 width, u16 height)
+ }
+ 
+ static void rkvdec_fill_decoded_pixfmt(struct rkvdec_ctx *ctx,
+-				       struct v4l2_pix_format_mplane *pix_mp)
++				       struct v4l2_pix_format_mplane *pix_mp,
++				       u32 *colmv_offset)
+ {
+ 	const struct rkvdec_variant *variant = ctx->dev->variant;
+ 
+-	v4l2_fill_pixfmt_mp(pix_mp, pix_mp->pixelformat, pix_mp->width, pix_mp->height);
++	v4l2_fill_pixfmt_mp(pix_mp, pix_mp->pixelformat,
++			    pix_mp->width, pix_mp->height);
+ 
+-	ctx->colmv_offset = pix_mp->plane_fmt[0].sizeimage;
++	if (colmv_offset)
++		*colmv_offset = pix_mp->plane_fmt[0].sizeimage;
+ 
+-	pix_mp->plane_fmt[0].sizeimage += variant->ops->colmv_size(pix_mp->width, pix_mp->height);
++	pix_mp->plane_fmt[0].sizeimage +=
++		variant->ops->colmv_size(pix_mp->width, pix_mp->height);
+ }
+ 
+ static void rkvdec_reset_fmt(struct rkvdec_ctx *ctx, struct v4l2_format *f,
+@@ -132,7 +136,8 @@ static void rkvdec_reset_decoded_fmt(struct rkvdec_ctx *ctx)
+ 	f->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+ 	f->fmt.pix_mp.width = ctx->coded_fmt.fmt.pix_mp.width;
+ 	f->fmt.pix_mp.height = ctx->coded_fmt.fmt.pix_mp.height;
+-	rkvdec_fill_decoded_pixfmt(ctx, &f->fmt.pix_mp);
++	rkvdec_fill_decoded_pixfmt(ctx, &f->fmt.pix_mp,
++				   &ctx->colmv_offset);
+ }
+ 
+ static int rkvdec_try_ctrl(struct v4l2_ctrl *ctrl)
+@@ -663,11 +668,11 @@ static int rkvdec_querycap(struct file *file, void *priv,
+ 	return 0;
+ }
+ 
+-static int rkvdec_try_capture_fmt(struct file *file, void *priv,
+-				  struct v4l2_format *f)
++static int rkvdec_adjust_capture_fmt(struct rkvdec_ctx *ctx,
++				     struct v4l2_format *f,
++				     u32 *colmv_offset)
+ {
+ 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
+-	struct rkvdec_ctx *ctx = file_to_rkvdec_ctx(file);
+ 	const struct rkvdec_coded_fmt_desc *coded_desc;
+ 
+ 	/*
+@@ -690,12 +695,21 @@ static int rkvdec_try_capture_fmt(struct file *file, void *priv,
+ 				       &pix_mp->height,
+ 				       &coded_desc->frmsize);
+ 
+-	rkvdec_fill_decoded_pixfmt(ctx, pix_mp);
++	rkvdec_fill_decoded_pixfmt(ctx, pix_mp, colmv_offset);
++
+ 	pix_mp->field = V4L2_FIELD_NONE;
+ 
+ 	return 0;
+ }
+ 
++static int rkvdec_try_capture_fmt(struct file *file, void *priv,
++				  struct v4l2_format *f)
++{
++	struct rkvdec_ctx *ctx = file_to_rkvdec_ctx(file);
++
++	return rkvdec_adjust_capture_fmt(ctx, f, NULL);
++}
++
+ static int rkvdec_try_output_fmt(struct file *file, void *priv,
+ 				 struct v4l2_format *f)
+ {
+@@ -733,6 +747,7 @@ static int rkvdec_s_capture_fmt(struct file *file, void *priv,
+ {
+ 	struct rkvdec_ctx *ctx = file_to_rkvdec_ctx(file);
+ 	struct vb2_queue *vq;
++	u32 colmv_offset;
+ 	int ret;
+ 
+ 	/* Change not allowed if queue is busy */
+@@ -741,11 +756,12 @@ static int rkvdec_s_capture_fmt(struct file *file, void *priv,
+ 	if (vb2_is_busy(vq))
+ 		return -EBUSY;
+ 
+-	ret = rkvdec_try_capture_fmt(file, priv, f);
++	ret = rkvdec_adjust_capture_fmt(ctx, f, &colmv_offset);
+ 	if (ret)
+ 		return ret;
+ 
+ 	ctx->decoded_fmt = *f;
++	ctx->colmv_offset = colmv_offset;
+ 	return 0;
+ }
+ 
+
+base-commit: 3708dd9488440e35a165aee2bb2a1a7b1d0d5777
+-- 
+2.55.0
+
