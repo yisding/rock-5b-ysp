@@ -23,16 +23,18 @@ Project vocabulary (including the canonical `main`, `ffmpeg-80`, and
 |------|-----------|
 | [`docs/how-ffmpeg-works.md`](docs/how-ffmpeg-works.md) | FFmpeg's demux -> decode -> filter -> encode -> mux model and where MPP/RGA plug in. |
 | [`docs/implementation-comparison.md`](docs/implementation-comparison.md) | Upstream FFmpeg 8.1.2 (ABI-friendly codec bridge used by the GRD package) vs ffmpeg-rockchip (full Rockchip CLI pipeline: RKMPP hwcontext + RGA filters + richer encoder controls); hwframe model, option surface, AV1 paths. |
-| [`docs/fix-candidates.md`](docs/fix-candidates.md) | The 14 rebase-cleanup fix groups worth backporting to NyanMisaka's fork, and the small V4L2 pieces that may go to FFmpeg upstream. |
+| [`docs/fix-candidates.md`](docs/fix-candidates.md) | The 14 rebase-cleanup fix groups found by auditing `ffmpeg-rockchip-81` against NyanMisaka's fork and FFmpeg upstream: what each defect is, its mechanism, and the commit that fixes it. |
 | [`docs/review-learnings.md`](docs/review-learnings.md) | Reusable review traps from hardening the `ffmpeg-rockchip-81` rebase: V4L2 fallback, RKMPP AFBC/DRM, and RKRGA capability. |
 | [`docs/rebase-notes.md`](docs/rebase-notes.md) | Tree pins reconciled, how the fork was replayed, and the canonical three-branch publication ledger. |
 | [`docs/rockchip81-package-validation.md`](docs/rockchip81-package-validation.md) | Local package build and on-board RKMPP/RKRGA smoke validation, including the incomplete-MPP-runtime decode failure. |
 | [`docs/jellyfin-ffmpeg-patch-survey.md`](docs/jellyfin-ffmpeg-patch-survey.md) | 2026-07-11 Jellyfin packaging/patch-queue survey: Rockchip sync status, correctness patches to apply directly, and sidecar-only patches. |
 | [`docs/rockchip-812-jellyfin-comparison.md`](docs/rockchip-812-jellyfin-comparison.md) | 2026-07-16 same-base source and compile comparison: the 8.1 Rockchip replay vs Jellyfin's fully applied 8.1.2 patch queue, followed through publication as canonical branch `ffmpeg-81`. |
-| [`docs/submission-plan.md`](docs/submission-plan.md) | 2026-07-02 full-branch targeting: which of the ~35 logical patches go to nyanmisaka's fork, which to FFmpeg upstream, and which stay here. |
-| [`patches/`](patches/README.md) | The exported 28-patch `git format-patch` series behind fix-candidates + submission-plan (`.patch` files + apply instructions). |
+| [`patches/`](patches/README.md) | The exported 28-patch `git format-patch` series behind fix-candidates (`.patch` files + apply instructions). |
 | [`upstream-patches/`](upstream-patches/README.md) | Standalone patches prepared against vanilla FFmpeg, currently including upstream RKMPP constant-QP support. |
-| [`UPSTREAMING.md`](UPSTREAMING.md) | Per-item upstream submission decisions (send now, gated, hold, never) for the patches and findings above, with rationale and evidence links. |
+
+Upstream submission planning for this patchset is not kept in this repository;
+it lives in the private `rock-5b-security` repository. What stays here is the
+engineering record — see [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
 
 See also [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md)
 (owned by vendor-libraries/rga) for the RKRGA P010/P210 investigation: Jellyfin

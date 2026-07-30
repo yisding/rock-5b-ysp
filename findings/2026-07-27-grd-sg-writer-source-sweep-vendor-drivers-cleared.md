@@ -32,7 +32,9 @@
 > addresses invert to valid in-RAM frames. The sharpened fingerprint
 > `V = pfn_to_page(A − 4)`, `A ≡ 0 (mod 256)` is an artifact of that XOR, not a
 > property of a writer's arithmetic. The five latent defects (D01–D05) stand on
-> their own merits and are unaffected.
+> their own merits and are unaffected. The `D01`–`D05` identifiers are defined in
+> the vendor-driver latent-defect catalogue, which is kept in the private
+> `rock-5b-security` repository rather than in this tree.
 
 ## Result
 

@@ -194,14 +194,17 @@ PROFILE=rewrite RUN_COMPARE=1 ../rock-5b-ysp/kernel-drivers/tests/rewrite-confor
 replay, MPP, librga, GStreamer, and ffmpeg-rockchip suites for one booted
 profile. Set `RUN_*_SUITE=0` to narrow a run, `RUN_COMPARE=1` to compare latest
 saved summaries against `COMPARE_BASELINE=forward-port`, and
-`VALIDATE_ONLY=1` for the device-free runner, syzlang ABI-marker, optional
-syzkaller `make descriptions` compile check, ioctl-fuzzer build, direct
+`VALIDATE_ONLY=1` for the device-free runner, ioctl-fuzzer build, direct
 `librga` smoke build, optional GStreamer event-harness build, RGA IOMMU
 scatter-fuzzer build, recovery stress harness config validation,
 MPP/GStreamer case-builder validation, FFmpeg case-list validation, comparator
 maintenance check, ABI replay filter selftest, and paired-evidence audit
 selftest, including the
-diagnostic-failure and named optional-case audit paths.
+diagnostic-failure and named optional-case audit paths. The two syzlang checks
+this runner used to perform — the ABI-marker consistency check and the optional
+syzkaller `make descriptions` compile check — moved to the private
+`rock-5b-security` repository together with the description they validate; run
+them from there when the fuzzer ABI grammar changes.
 
 For per-suite debugging, the equivalent manual sequence is:
 
@@ -965,7 +968,7 @@ logs.
 ## Running the suites and comparators
 
 ```bash
-VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/debug-capture/syzlang/syzkaller/ioctl-fuzz/librga-smoke/gstreamer-harness/iommu-fuzz/recovery/case/comparator/abi-replay/evidence wiring check
+VALIDATE_ONLY=1 bash rewrite-conformance-run.sh  # device-free runner/debug-capture/ioctl-fuzz/librga-smoke/gstreamer-harness/iommu-fuzz/recovery/case/comparator/abi-replay/evidence wiring check
 MPP_DEBUG_VALIDATE_ONLY=1 bash mpp-debug-capture.sh  # device-free focused capture failure/restore selftest
 sudo bash mpp-debug-capture.sh -o /tmp/mpp-decode -- mpi_dec_test -i input.h264 -t 7  # one reproduction with state/events/counters/dmesg
 VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 bash rewrite-conformance-run.sh  # also validate rewrite counter-default wiring
@@ -1112,9 +1115,7 @@ bash debugfs-counter-check.sh
 
 Maintenance gate: `shellcheck *.sh` in this directory and
 `VALIDATE_ONLY=1 bash rewrite-conformance-run.sh` are expected to pass; they
-now include the syzkaller ABI-marker consistency check,
-optional syzkaller description compilation when `SYZKALLER_DIR` and Go are
-available,
+now include the
 `IOCTL_FUZZ_VALIDATE_BUILD=1` ioctl-mutator compile check,
 `LIBRGA_SMOKE_VALIDATE_BUILD=1` direct `librga` smoke compile check, and
 `IOMMU_FUZZ_VALIDATE_BUILD=1` RGA IOMMU scatter-fuzzer compile check, and
@@ -1126,10 +1127,13 @@ it also attempts a
 GStreamer development `.pc` files are installed. They were last verified on
 2026-07-17 after the cache-line boundary sweep and shadow-counter checks were
 added to the RGA IOMMU fuzzer. Earlier maintenance additions include the
-syzkaller ABI-marker, ioctl-fuzz build, direct `librga`
+ioctl-fuzz build, direct `librga`
 smoke build, optional GStreamer event-harness build, IOMMU-fuzzer build,
 recovery stress config check, and MPP case-builder validation
-steps were wired into `rewrite-conformance-run.sh`, after the evidence-audit
+steps were wired into `rewrite-conformance-run.sh` — the syzlang ABI-marker and
+`SYZKALLER_DIR`/Go description-compile steps were wired in at the same time and
+have since moved to the private `rock-5b-security` repository — after the
+evidence-audit
 selftest was added to the same maintenance gate, after that checker was made
 safe for concurrent validation runs by giving `abi-probe.sh` a private build
 directory, after direct `librga-smoke` coverage gained the `rkmppenc`-shaped fd-backed

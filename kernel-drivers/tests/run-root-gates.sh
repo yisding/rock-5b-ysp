@@ -5,7 +5,7 @@
 # These are the gates the unprivileged campaign skips because they write
 # /dev/kmsg markers, read dmesg (dmesg_restrict=1), touch debugfs, or self-check
 # `id -u`. Run the unprivileged battery first (decode-differential, kasan-mpp-
-# suite, the PoC ladder, librga-smoke, rga-session-uaf, ffmpeg-suite); this
+# suite, librga-smoke, ffmpeg-suite); this
 # script covers what's left.
 #
 #   sudo bash kernel-drivers/tests/run-root-gates.sh

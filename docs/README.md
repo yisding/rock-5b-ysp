@@ -14,7 +14,6 @@ of repo-wide references that are not owned by one project.
 | [`app-enablement.md`](app-enablement.md) | Planning map for untracked applications (browsers, VLC, HandBrake, mpv, OBS): which plumbing layer each binds to and the estimated enablement cost on this stack. |
 | [`system-baseline.md`](system-baseline.md) | Canonical capture contract separating target board, boot path, runtime kernel/userspace, and build host; points to the existing collector and dated truth owners. |
 | [`source-trees.md`](source-trees.md) | Source pins and reconstruction recipes for the trees that `file:line` citations resolve against. Pins are corrected in place as provenance is re-measured; new trees are published to GitHub rather than added here. |
-| [`upstreaming-ledger.md`](upstreaming-ledger.md) | Cross-package submission decisions: which patches go to which upstreams, in what order, and which are deliberately never sent. Per-package detail lives in each project's `UPSTREAMING.md`. |
 | [`gotchas.md`](gotchas.md) | Whole-repo trap index: kernel and FFmpeg traps live here; GRD, Mesa, packaging, and debug-kernel traps point to their project-owned write-ups. |
 
 Repository-wide license status is not a cross-project doc; it lives at

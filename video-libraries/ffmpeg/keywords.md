@@ -25,5 +25,3 @@ FFmpeg-on-RK3588 terms. Cross-cutting vocabulary is in
   dma-buf via DRM PRIME descriptors.
 - **AFBC modifiers** — Arm FrameBuffer Compression format modifiers on hardware
   frames; several fix patches concern AFBC capability/validation.
-- **submission plan** — the mapping of every logical change to upstream-FFmpeg vs
-  nyanmisaka-fork candidates: [`docs/submission-plan.md`](docs/submission-plan.md).

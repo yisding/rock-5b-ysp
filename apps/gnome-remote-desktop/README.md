@@ -101,7 +101,6 @@ the earlier userspace flow-control findings as kernel bugs.
 | [`docs/mesa-panfrost-transfer.md`](docs/mesa-panfrost-transfer.md) | GRD-facing summary of the Mesa/Panfrost texture-transfer investigation behind the compute-path finding. |
 | [`bench/`](bench) | The benchmark this package owns — [`bench/README.md`](bench/README.md) plus [`readback_bench.c`](bench/readback_bench.c), the surfaceless `glReadPixels` readback timer behind `baseline.md`. |
 | [`patches/`](patches) | The portable 16-patch 50.1 replay, plus clearly separated investigation and async-PBO/MemFd archives; [`patches/README.md`](patches/README.md) relates it to the current public 50.2 release branch. |
-| [`UPSTREAMING.md`](UPSTREAMING.md) | Per-item upstream submission disposition (SUBMIT-NOW / SUBMIT-AFTER-GATE / HOLD / NEVER / MERGED) for every fix and RFC this package holds, with rationale and evidence links. |
 
 Packaging the whole stack for a Launchpad PPA is covered in
 [`packaging/ppa`](../../packaging/ppa).

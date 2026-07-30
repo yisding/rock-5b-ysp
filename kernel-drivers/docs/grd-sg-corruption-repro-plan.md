@@ -415,9 +415,8 @@ records all three:
 | the first **checkpoint** that drifts | brackets the window by measurement instead of inference |
 
 Latent defects found during that sweep — including two unprivileged-reachable
-memory-corruption bugs — are catalogued with proposed fixes in
-[`vendor-driver-latent-defects.md`](vendor-driver-latent-defects.md). None is
-confirmed to be this writer.
+memory-corruption bugs — are catalogued with proposed fixes in the private
+`rock-5b-security` repository. None is confirmed to be this writer.
 
 ### 3. Hardware watchpoint — the instrument that names the writer
 

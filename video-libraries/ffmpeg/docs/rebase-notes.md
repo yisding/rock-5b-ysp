@@ -2,11 +2,11 @@
 
 How the 2026 rebase of nyanmisaka's ffmpeg-rockchip stack onto FFmpeg master
 was staged and then published as canonical master, 8.0, and 8.1 branches, and
-how to redo it for the next FFmpeg bump. Section 8 is the current topology;
+how to redo it for the next FFmpeg bump. Section 7 is the current topology;
 earlier sections preserve the replay chronology and historical pins. Companion
 to [`fix-candidates.md`](fix-candidates.md) (what the
 rebase review found) and [`video-libraries/ffmpeg/patches/README.md`](../patches/README.md) (the exported diffs).
-Sections 1–6 were verified 2026-07-01 against the working clones; sections 7–8
+Sections 1–5 were verified 2026-07-01 against the working clones; sections 6–7
 record the 2026-07-16 release replay, comparison, and publication pass.
 
 ## 1. Trees and pins, reconciled
@@ -19,7 +19,7 @@ They relate like this:
 | nyanmisaka fork tip (pre-rebase) | `40c412dacc` | 2026-04-23 | `github.com/nyanmisaka/ffmpeg-rockchip` as studied; preserved locally as branch `backup-pre-upgrade-master` | [`README.md`](../README.md) build recipe, [`implementation-comparison.md`](implementation-comparison.md) fork column |
 | upstream release tag `n8.1.2` | `38b88335f99e` | 2026-06-17 | FFmpeg 8.1.2 release (branch `release/8.1`) | [`implementation-comparison.md`](implementation-comparison.md) upstream column; the PPA/GRD package base ([`packaging/ppa/README.md`](../../../packaging/ppa/README.md)) |
 | upstream master | `87bd15dc3c` | 2026-06-26 | FFmpeg master commit used as the rebase base; branch `upstream` of the rebased repo | [`fix-candidates.md`](fix-candidates.md) source-points table |
-| rebased tree | `6cf02ab253` | 2026-07-02 | **`github.com/yisding/ffmpeg-rockchip-81`**, branch `main` (branch `upstream` = `87bd15dc3c`); earlier states: `1c73bd8e65` = what the FIX-CANDIDATES write-up audited, `b59509b609` = the 2026-07-01 export point | [`fix-candidates.md`](fix-candidates.md), [`submission-plan.md`](submission-plan.md), [`video-libraries/ffmpeg/patches/README.md`](../patches/README.md) |
+| rebased tree | `6cf02ab253` | 2026-07-02 | **`github.com/yisding/ffmpeg-rockchip-81`**, branch `main` (branch `upstream` = `87bd15dc3c`); earlier states: `1c73bd8e65` = what the FIX-CANDIDATES write-up audited, `b59509b609` = the 2026-07-01 export point | [`fix-candidates.md`](fix-candidates.md), [`video-libraries/ffmpeg/patches/README.md`](../patches/README.md) |
 
 **How `n8.1.2` relates to `87bd15dc3c`:** they are siblings, not
 ancestor/descendant. `release/8.1` forked from master at `67c886222f` ("Bump
@@ -94,7 +94,7 @@ Two consequences worth stating plainly:
 
 - **The exported review series (`6cf02ab253`) and the package-validation tree
   (`75638e7f0b17`) are different snapshots.** Treat `6cf02ab253` as the
-  submission-plan/patch-series baseline and `75638e7f0b17` as the latest local
+  patch-series baseline and `75638e7f0b17` as the latest local
   package-validation baseline recorded in this repo.
 - **`--disable-vulkan` is a `40c412dacc`-era requirement only.** The old fork's
   `vulkan_av1.c` used provisional MESA Vulkan-AV1 types; the rebased tree
@@ -134,32 +134,10 @@ Mirrors the method in §2; run [`implementation-comparison.md`](implementation-c
 [`video-libraries/ffmpeg/patches/README.md`](../patches/README.md) holds the 28 review-fix commits
 (`def08a047f..6cf02ab253`, re-exported 2026-07-02) as `git format-patch`
 files with `base-commit` trailers, plus the patch↔fix-group map onto
-[`fix-candidates.md`](fix-candidates.md)'s 14 groups and fork-only vs
-upstream-candidate labeling. That directory is the survival copy; this file,
-FIX-CANDIDATES, and [`submission-plan.md`](submission-plan.md) (the 2026-07-02
-full-branch targeting analysis) are the narrative.
+[`fix-candidates.md`](fix-candidates.md)'s 14 groups. That directory is the
+survival copy; this file and FIX-CANDIDATES are the narrative.
 
-## 6. Submission ledger
-
-Status of every outbound piece, as of **2026-07-02: nothing has been sent
-anywhere.** The item list below follows the 2026-07-02 full-branch targeting
-analysis in [`submission-plan.md`](submission-plan.md) (which supersedes the
-earlier five-item list). Update this table (with dates) when anything is sent;
-`status.md` carries the one-line rollup.
-
-| Item | Target | Sent | Landed | Notes |
-|------|--------|------|--------|-------|
-| v4l2_buffers copy-bounds rewrite ([`submission-plan.md`](submission-plan.md) A1) | FFmpeg upstream | no | — | Strongest candidate: fixes a reachable NULL deref + source overreads in vanilla upstream m2m code. |
-| v4l2_context negotiation fixes + mplane-aware fourcc selection (A2, A3) | FFmpeg upstream | no | — | Real upstream bugs (TRY_FMT unverified, `*p` unset → YUV420P clobber). |
-| libavdevice/v4l2.c generics (A4: device_caps, bounds guards, two-pass fallback, NV21) | FFmpeg upstream | no | — | Separable small patches. |
-| pixdesc BE `x`-offset fix + `fate-pixdesc` hookup (A5, A6) | FFmpeg upstream | no | — | Slivers; optional. |
-| Crash/hang class (~10 patches: export-frame double-free, buffer-group double-free, EOS/drain trio, encoder queue drop, get_packet pos, overlay uninit blend, …) | nyanmisaka/ffmpeg-rockchip | no | — | First wave; all verified present in his tree. Backport-by-behavior. |
-| Wrong-output class (~14 patches: SAR/transpose, AFBC strides, core masks, colorspace defaults, …) | nyanmisaka/ffmpeg-rockchip | no | — | Second wave; transpose rotate-mode fix needs RGA runtime verification first. |
-| NV20 alias restoration + fate-imgutils ref fix | nyanmisaka/ffmpeg-rockchip | no | — | Fixes API break / broken FATE ref that exist only in his tree. |
-| DRM descriptor validation frameworks + `afbc_offset_y` descriptor field | nyanmisaka/ffmpeg-rockchip | no | — | Design proposal, not a patch dump; needs his buy-in (public-struct change, behavior changes). |
-| `NV15`/`NV20_PACKED` pixel formats | FFmpeg upstream | no | — | Only viable as a full feature series (formats + swscale + tests), not as fixes. |
-
-## 7. The real FFmpeg 8.1.2 replay
+## 6. The real FFmpeg 8.1.2 replay
 
 The repository name `ffmpeg-rockchip-81` became misleading as `main` advanced.
 At the start of this comparison, then-current `main@be367abfe670` described
@@ -195,7 +173,7 @@ hardware test. The complete same-base comparison and the Jellyfin features to
 port are in
 [`rockchip-812-jellyfin-comparison.md`](rockchip-812-jellyfin-comparison.md).
 
-## 8. Canonical three-branch publication
+## 7. Canonical three-branch publication
 
 On 2026-07-16 the old master tip, the local 8.1.2 comparison replay, and all
 unique `refactor/section-c` work were consolidated into one logical patchset

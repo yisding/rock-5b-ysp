@@ -43,7 +43,9 @@ shared buffer's owner exits.
 Both are **root-reachable** (debugfs is root-only). The UAF is exposed by session
 churn — any RGA client that imports buffers and exits — and the 320K-submit
 `rga-session-uaf.sh cross` run plus the librga demos in `rga-mmu-debug.sh`
-immediately before supplied it.
+immediately before supplied it. `rga-session-uaf.sh` has since moved to the
+private `rock-5b-security` repository and is no longer in this tree; the
+references to it below name it there.
 
 ## Evidence and reproduction
 
@@ -89,8 +91,8 @@ artifact.
 
 New forward-port RGA defect distinct from the `rga_request` close-race UAFs
 (`0052`/`0057`): this is **session-teardown lock discipline** vs. the debugfs
-session dump. Belongs in the submit-now/CVE consideration set alongside the other
-RGA UAFs (root-reachable UAF + unkillable-hang DoS). Landed: `e7eaa8f8c69b4`
+session dump, in the same class as the other RGA UAFs (root-reachable UAF plus
+an unkillable-hang DoS). Landed: `e7eaa8f8c69b4`
 folded into the tracked series as `0071`, packaged in debug build `Pc1f8-C9fc5`,
 booted, and runtime-verified 2026-07-23 (see Boundary).
 

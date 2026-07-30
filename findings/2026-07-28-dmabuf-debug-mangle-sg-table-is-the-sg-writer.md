@@ -242,7 +242,8 @@ rough order of how well they respect the feature's intent:
   attribution; the boot outcomes corroborate rather than establish it.
 - No claim is made that `CONFIG_DMABUF_DEBUG` is the *only* thing wrong. The
   five vendor-driver latent defects in
-  [`vendor-driver-latent-defects.md`](../kernel-drivers/docs/vendor-driver-latent-defects.md)
+  the vendor-driver latent-defect catalogue (private `rock-5b-security`
+  repository)
   remain real and remain unfixed; none of them is this oops.
 - The upstream fix options are sketched, not implemented. No patch has been
   written or submitted. **Corrected:** they *have* been discussed upstream —

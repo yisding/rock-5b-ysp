@@ -243,9 +243,8 @@ the register-translation paths indexed `trans_info[]` with a 10-bit
 user-supplied format against a 4-entry array, and used raw user `u16`s as
 register indexes; and `rkvenc_update_req()` underflowed a `copy_from_user()`
 length to ~4 GiB. The sweep also closes all five previously catalogued but
-unfixed defects in
-[`vendor-driver-latent-defects.md`](../../docs/vendor-driver-latent-defects.md)
-(D01–D05).
+unfixed vendor-driver defects (D01–D05), whose catalogue is kept in the private
+`rock-5b-security` repository.
 
 Two changes are structural rather than a bounds check: `struct mpp_dev_var`
 gained `trans_count` (set from `ARRAY_SIZE()` in all 14 `.trans_info =`

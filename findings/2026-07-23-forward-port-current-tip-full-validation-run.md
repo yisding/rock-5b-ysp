@@ -64,6 +64,9 @@ memory-safety** only — no performance/soak claims (runbook principle 2).
     `flagged_kernel_lines=0 clean=1`.
   - `kasan-narrowed-repro.sh` (`20260723-104210`) → `abi_status=0 flagged=0`
     (RESET_SESSION double-free `0042`).
+  - The next three reproducers have since moved to the private
+    `rock-5b-security` repository and are no longer in this tree; the results
+    recorded here stand as measured on this boot.
   - `mpp-double-init-repro` (`0070`) → 2nd `INIT_CLIENT_TYPE` returns `errno=16`
     (`EBUSY`); re-init guard holds, no WARN, no UAF.
   - `mpp-clientless-release-fd-uaf` (`0058`) → ioctl returns `-1`, board survives.
@@ -148,10 +151,10 @@ authoritative fingerprint, not the RELEASE file. The **installed
   `hung_task`, no paging fault, no KASAN; the reverse + AV1 transcodes (even on
   the master build) drove the same kernel RGA/MPP fine — same kernel, two
   userspace builds, only the one without `da5befc806` hangs. This is the encoder
-  input-backpressure / decoder receive-loop hang class already listed in the
-  [ffmpeg submission plan](../video-libraries/ffmpeg/docs/submission-plan.md) §B
-  and fixed on our 8.0 line — **not a new finding** (status watchlist W21). The
-  fix is not yet forward-ported to main/master or submitted upstream.
+  input-backpressure / decoder receive-loop hang class already catalogued in
+  [`fix-candidates.md`](../video-libraries/ffmpeg/docs/fix-candidates.md) and
+  fixed on our 8.0 line — **not a new finding** (status watchlist W21). The fix
+  is not yet forward-ported to main/master.
 
 ## Boundary
 

@@ -1,5 +1,30 @@
 # RGA raw physical-address import crash
 
+> **Corrected 2026-07-29** (source record kept in the private
+> `rock-5b-security` repository).
+> **The kernel that actually ships on a Rock 5B does not have this bug.** The
+> three-branch analysis below covers `rockchip-linux/kernel`
+> `develop-5.10`/`develop-6.1`/`develop-6.6` and never checked `radxa/kernel`
+> `linux-6.1-stan-rkr5.1`, which is the branch Radxa's images are built from.
+> That branch is **NOT AFFECTED** — see the fourth table row.
+
+> **Evidence class (recorded 2026-07-29).** Two honesty notes that belong in
+> any write-up of this document:
+>
+> - The oops trace quoted below is **hand-transcribed**: a bare list of frame
+>   names with no timestamps, no `uname`, no PC/LR, and no source log committed
+>   anywhere. Trust: **MEASURED** that a crash occurred, **UNVERIFIED** as a
+>   verbatim trace.
+> - The crash was observed on **this project's own 6.18 forward port**, never
+>   on a vendor kernel. No vendor-kernel reproduction exists. The claim that
+>   `develop-5.10`/`develop-6.1` carry the same defect is **CODE-INSPECTED**
+>   against the pinned tips in the table, not measured.
+> - The raw physical-import probe is **disabled in every recorded ABI run** on
+>   this box: `physical_import_probe          disabled` appears in all 26
+>   `norm`/`raw` logs across the 13 distinct `tests/logs/abi-replay/` runs, and
+>   the probe never appears enabled in any of them. Those logs are gitignored,
+>   so this is not independently checkable from a clone.
+
 ## Scope and conclusion
 
 The 2026-07-16 forward-port crash is inherited from Rockchip's vendor RGA3
@@ -12,6 +37,12 @@ exact import-time crash path because it retained the older
 `dma_map_resource()` implementation, but that implementation is not a proper
 fix: it still accepts an unvalidated userspace-supplied physical address and
 uses the wrong DMA API for normal RAM.
+
+`radxa/kernel` `linux-6.1-stan-rkr5.1` — the shipping Rock 5B branch — is
+**not affected at all**: it predates the `dma_map_sg()` conversion and still
+uses `rga_mm_map_phys_addr()` → `rga_iommu_map()` with
+`rga_mm_check_range_phys_addr()`. "The BSP has this bug" is therefore true of
+`rockchip-linux` and false of what Radxa ships; name the tree.
 
 Here, **Rockchip BSP** means Rockchip's out-of-tree vendor `rga3` driver. It does
 not mean the smaller RGA driver in mainline Linux.
@@ -59,6 +90,11 @@ rga_ioctl
 The crash is reachable from an import ioctl; no RGA job submission is needed.
 Secondary allocator/process oopses followed before the machine rebooted.
 
+That frame list is **hand-transcribed** — no timestamps, no `uname`, no
+register state, and no committed source log — and it was taken on this
+project's own 6.18 forward port, not on a vendor kernel. See the evidence-class
+note at the top of this page before quoting it in a report.
+
 ## Root cause
 
 The Rockchip helper validates only the first PFN:
@@ -93,14 +129,17 @@ warning or stack dump.
 
 ## Rockchip branch history
 
-The branches and commits below were inspected in the official Rockchip kernel
-repository on 2026-07-16.
+The first three rows were inspected in the official Rockchip kernel repository
+on 2026-07-16. The fourth row — `radxa/kernel`, the tree that actually ships on
+a Rock 5B — was added 2026-07-29 after the original analysis was found to have
+never covered it.
 
 | Branch | Checked tip | Physical import implementation | Result |
 |---|---|---|---|
 | `develop-5.10` | `bfa51d2ab081` (2026-06-08) | Commit [`8d8595c96b10`](https://github.com/rockchip-linux/kernel/commit/8d8595c96b10f30a0a95ca500a6e64c206269bd0) replaces `dma_map_resource()` with a page array, sg-table, and `dma_map_sg()`, guarded only by the first-page `pfn_valid()` check. | Same import-time crash remains possible. Later 5.10 RGA work through April/June 2026 did not harden this helper. |
 | `develop-6.1` | `b4ef083dc0c3` (2025-12-26) | Equivalent commit [`6e89da27bef6`](https://github.com/rockchip-linux/kernel/commit/6e89da27bef6c787175330d809d6f8ec9438a17d) adds the same helper and mapping path. | Same bug; this is the implementation inherited by the forward port. |
 | `develop-6.6` | `1ba51b059f25` (2025-09-01) | Still calls `dma_map_resource(map_dev, phys_addr, size, ...)`; it never received the August 2025 `dma_map_sg()` conversion. | It avoids this specific import-time cache-sync oops, but it does not validate that the address names usable RAM and may accept a bogus address. It is an older unsafe path, not a fix. |
+| `radxa/kernel` `linux-6.1-stan-rkr5.1` **(the shipping Rock 5B branch)** | `567401fe1718` (2026-04-21) | Predates the conversion entirely: `rga_mm_map_phys_addr()` (`rga_mm.c:678`) range-checks via `rga_mm_check_range_phys_addr()` (`:341`, called at `:711`) and maps with `rga_iommu_map()` (`:727`). No page array, no sg-table, no `dma_map_sg()` on this path. | **NOT AFFECTED.** Grepping every file under `drivers/video/rockchip/rga3/` on this branch for `pfn_valid\|phys_to_page` returns **zero hits** (verified 2026-07-29). Patch `0039` has nothing to fix here; a `radxa/kernel` PR would target a branch without the bug. |
 
 A history search across the available Rockchip refs found the two commits above
 adding `WARN_ON_ONCE(!pfn_valid(...))`, and no later commit removing or
@@ -159,21 +198,23 @@ minimal crash fix.
 
 ## Test containment
 
-Raw physical-address generation is now opt-in:
+Raw physical-address generation is now opt-in — and it has never actually been
+opted into. Every recorded ABI-replay run on this box prints
+`physical_import_probe          disabled` (26 `norm`/`raw` logs across 13
+distinct runs under the gitignored `kernel-drivers/tests/logs/abi-replay/`);
+the probe appears enabled in none of them. The containment below is therefore
+effective, but it also means no post-fix runtime evidence for this path exists.
 
 | Harness | Explicit opt-in |
 |---------|-----------------|
 | `abi-probe.sh` | `ABI_PROBE_ENABLE_RGA_PHYSICAL=1` |
 | `librga-smoke.sh` | `LIBRGA_SMOKE_ENABLE_PHYSICAL_PROBE=1` |
 | `ioctl-fuzz-smoke.sh` | `IOCTL_FUZZ_ENABLE_RGA_PHYSICAL=1` |
-| syzkaller draft | separate `ioctl$rga_import_physical`, marked `disabled, no_generate` |
 
 The `PROFILE=*rewrite*` ABI replay and librga suite explicitly enable their
 physical probe and require `-EOPNOTSUPP`, preserving the rewrite negative gate.
 Setting either `*_EXPECT_*_PHYSICAL_REJECT=1` also enables the matching probe
-for backward compatibility. The syzlang ABI-marker check uses
-`ABI_PROBE_ABI_ONLY=1`, so its device-free mode emits compile-time constants
-without opening either device node.
+for backward compatibility.
 
 Do not enable raw physical probes on the published 20260716 forward kernel.
 After the `.1` package containing `1c9a110129fe` is published, installed, and

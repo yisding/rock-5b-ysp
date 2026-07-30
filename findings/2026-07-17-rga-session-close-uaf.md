@@ -125,7 +125,8 @@ prevents, and what the `cross` mode of the reproducer below targets.
   `"handle[%d] still referenced at exit (refcount=%u)"` line does **not** appear
   in normal operation.
 - **Convert inference to proof with the reproducer.**
-  [`kernel-drivers/tests/rga-session-uaf.c`](../kernel-drivers/tests/rga-session-uaf.md)
+  the `rga-session-uaf` reproducer (held in the private `rock-5b-security`
+  repository)
   drives two scenarios under KASAN: `leak` (deterministic; reproduces the
   reported refcount-1 close — expected quiet on any kernel) and `cross`
   (the reachable cross-session in-flight-job UAF — expected to KASAN-splat on the

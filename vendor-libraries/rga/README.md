@@ -24,7 +24,6 @@ Source lives in the sibling `librga` / `librga-src` trees.
 | [`docs/librga-rust-rewrite-assessment.md`](docs/librga-rust-rewrite-assessment.md) | Cost/scope of a Rust `librga` rewrite vs the `rga-rewrite` kernel-driver track. |
 | [`docs/imcheck-per-core-implementation.md`](docs/imcheck-per-core-implementation.md) | librga per-core imcheck honesty — detailed implementation plan. |
 | [`patches/`](patches/) | Source patch series from `2cffdf6` to the fixed `a632217` tree. |
-| [`UPSTREAMING.md`](UPSTREAMING.md) | Per-item upstream submission decisions for the librga fork's local delta. |
 
 Shared cross-library explanation: [`../docs/how-the-userspace-libs-work.md`](../docs/how-the-userspace-libs-work.md).
 Kernel side: [`../../kernel-drivers/rga/`](../../kernel-drivers/rga/README.md).

@@ -13,7 +13,7 @@ Source points from the audit:
 
 | Tree | Commit | Meaning |
 |------|--------|---------|
-| `ffmpeg-rockchip-81/main` | `1c73bd8e65` | Rebased Rockchip stack with post-review cleanups — the state this write-up audited. Tip has since moved to `6cf02ab253` (2026-07-02; the full series is exported as [`video-libraries/ffmpeg/patches/README.md`](../patches/README.md)). Commits after `1c73bd8e65` are **not** folded into the groups below — their targeting is covered by [`submission-plan.md`](submission-plan.md), the 2026-07-02 full-branch analysis that supersedes this file's summary table for submission decisions. |
+| `ffmpeg-rockchip-81/main` | `1c73bd8e65` | Rebased Rockchip stack with post-review cleanups — the state this write-up audited. Tip has since moved to `6cf02ab253` (2026-07-02; the full series is exported as [`video-libraries/ffmpeg/patches/README.md`](../patches/README.md)). Commits after `1c73bd8e65` are **not** folded into the groups below. |
 | `origin/nyanmisaka` | `40c412dacc` | Older ffmpeg-rockchip fork point used by this repo's build notes. |
 | `upstream` | `87bd15dc3c` | FFmpeg **master** commit (2026-06-26) used as the rebase base. |
 
@@ -27,23 +27,9 @@ fork point. Details and all four pins in one table:
 
 The useful range for the new cleanup work is mostly `def08a047f..1c73bd8e65`.
 The older commits in `upstream..main` are the replayed Rockchip feature stack,
-not all fresh fixes. The recommendations below are grouped by where they are
-worth sending.
-
-## Summary
-
-Submission status is not tracked per-group here; the single dated ledger lives in
-[`rebase-notes.md`](rebase-notes.md) §6. **As of 2026-07-02 nothing has been sent
-to either destination.**
-
-| Fix group | Send to NyanMisaka? | Send to FFmpeg upstream? | Why |
-|-----------|---------------------|--------------------------|-----|
-| V4L2 multi-planar packet accounting | Yes | Maybe, as a smaller port | It fixes real packet-size and data-offset handling. Upstream's V4L2 mplane path is narrower, so it needs a targeted version. |
-| V4L2 framerate fallback and `NV16`/`NV24` guards | Yes | Partly | The framerate fallback is generic. The guards are already present upstream, but useful for older fork code. |
-| Packed `NV15`/`NV20` swscale and descriptor fixes | Yes | Not as a fix-only patch | Upstream does not have `AV_PIX_FMT_NV15` or `AV_PIX_FMT_NV20_PACKED`; this would need a pixel-format feature series first. |
-| RKMPP decoder ownership, errinfo, MJPEG, EOS, and format fixes | Yes | No, unless replacing/extending upstream RKMPP | These fix the fork's RKMPP hwcontext based decoder. Upstream's RKMPP decoder is a different, smaller implementation. |
-| RKMPP encoder async, packet, DRM, submit-unwind, and RC fixes | Yes | Mostly no | Some ideas overlap with upstream, but the code paths and option surface differ substantially. |
-| RKMPP hwcontext, RKRGA lifetime, and build cleanup | Yes | No | Upstream has no `AV_HWDEVICE_TYPE_RKMPP` hwcontext and no RKRGA filters. |
+not all fresh fixes. The groups below are ordered by subsystem: V4L2 capture
+(1–2), swscale/pixdesc (3), the RKMPP decoder (4–7), the RKMPP encoder (8–11),
+`hwcontext_rkmpp` (12), the RKRGA filters (13), and build hygiene (14).
 
 ## 1. V4L2 multi-planar packet accounting
 
@@ -88,14 +74,6 @@ is still useful for HDMI/USB capture devices and for comparing vendor userspace
 against mainline media paths. Bad mplane accounting produces corrupt packets,
 truncated frames, or out-of-bounds reads depending on the driver.
 
-Submission guidance:
-
-- Send to NyanMisaka as a direct bug fix for the fork's multi-plane support.
-- For FFmpeg upstream, port only the data-offset correctness piece. Upstream's
-  current V4L2 code already has a `multiplanar` path, but it accepts only one
-  plane during mmap setup, so the multi-plane copy loop from the fork is not a
-  direct drop-in.
-
 ## 2. V4L2 framerate fallback and pixel-format guards
 
 Relevant local commits: `021c7102d8`, plus the older V4L2 feature commits
@@ -134,12 +112,6 @@ Why it matters here:
 This avoids false "time per frame unknown" behavior on devices that expose DV
 timings but reject `G_PARM`, and it keeps the fork buildable on more distro and
 vendor kernel headers.
-
-Submission guidance:
-
-- Send the framerate fallback and header guards to NyanMisaka.
-- Upstream already has the `NV16`/`NV24` guards. The `G_DV_TIMINGS` fallback can
-  be considered upstream after style and edge-case review.
 
 ## 3. Packed `NV15`/`NV20` swscale and descriptor fixes
 
@@ -202,15 +174,6 @@ hardware frames back to software for debugging.
 The descriptor rename prevents command-line users, filters, and tests from
 confusing the fork-only packed format with FFmpeg's normal `NV20` spelling.
 
-Submission guidance:
-
-- Send to NyanMisaka. The old branch has the same helper shape and benefits from
-  the same tail-sample fixes, although the file names and swscale internals differ.
-- Do not send this to upstream as a standalone bug fix. Upstream has endian
-  `NV20LE/BE` but not the fork's compact `NV15`/`NV20_PACKED` formats. Upstream
-  would first need a pixel-format addition with tests and documentation, and the
-  compact format should keep the unambiguous `nv20_packed` name.
-
 ## 4. RKMPP decoder: MJPEG output buffer sizing
 
 Relevant local commit: `93891823df`.
@@ -242,13 +205,6 @@ Why it matters here:
 MJPEG is not the primary ROCK 5B validation target, but ffmpeg-rockchip exposes
 `mjpeg_rkmpp`. This fix makes first-frame behavior deterministic and avoids
 buffer-size mistakes that are hard to diagnose from MPP errors alone.
-
-Submission guidance:
-
-- Send to NyanMisaka with a focused explanation that this only affects the fork's
-  MJPEG decoder path.
-- Not useful for upstream as-is. Upstream does not have the same MJPEG RKMPP
-  decoder flow.
 
 ## 5. RKMPP decoder: frame ownership, info-change, and errinfo cleanup
 
@@ -306,13 +262,6 @@ The `AV_EF_EXPLODE` handling also restores FFmpeg API expectations: users who
 ask the decoder to fail on damaged frames should not silently receive EAGAIN and
 continue through a hardware-reported decode error.
 
-Submission guidance:
-
-- Send to NyanMisaka. This is high-value cleanup for the fork's RKMPP hardware
-  frame model.
-- Not a standalone upstream patch because upstream's decoder uses generic DRM
-  frames and a different lifetime model.
-
 ## 6. RKMPP decoder: EOS and backpressure handling
 
 Relevant local commits: `021c7102d8`, `5c0c56e8c8`.
@@ -344,12 +293,6 @@ This aligns the RKMPP decoder with FFmpeg's nonblocking receive API. It prevents
 hangs during flush/end-of-stream on streams that leave MPP's input queue full
 while decoded frames are still pending.
 
-Submission guidance:
-
-- Send to NyanMisaka.
-- Upstream has different RKMPP receive logic; only the general principle is
-  transferable.
-
 ## 7. RKMPP decoder: output format and HDR metadata details
 
 Relevant local commits: `021c7102d8`, `93891823df`.
@@ -376,11 +319,6 @@ Why it matters here:
 
 It makes negotiated software output match the formats the decoder already knows
 how to describe, and it preserves HDR metadata for AV1 decode tests or users.
-
-Submission guidance:
-
-- Send to NyanMisaka.
-- Not useful upstream without the fork's broader output-format model.
 
 ## 8. RKMPP encoder: DRM descriptor validation
 
@@ -410,12 +348,6 @@ Why it matters here:
 It turns malformed or unsupported DRM PRIME input into a clear FFmpeg error. This
 is especially useful when frames come from non-RKMPP producers, compositors, or
 test tools that may split planes across dma-bufs.
-
-Submission guidance:
-
-- Send to NyanMisaka.
-- Upstream has a simpler encoder with its own DRM handling; a similar validation
-  idea could be reviewed separately, but this function is fork-specific.
 
 ## 9. RKMPP encoder: async queue, submit-failure, and EOS cleanup
 
@@ -462,12 +394,6 @@ The full transcode path depends on stable decoder -> RGA -> encoder buffering.
 Incorrect async ownership causes hangs or dropped frames under load, especially
 with H.26x/MJPEG nonblocking output.
 
-Submission guidance:
-
-- Send to NyanMisaka. This is one of the highest-value encoder fixes.
-- Not directly upstreamable because upstream's encoder receive loop is much
-  simpler and does not use this frame-list model.
-
 ## 10. RKMPP encoder: packet pointer, error cleanup, empty packet, and extradata size
 
 Relevant local commits: `c44cc876db`, `275f06843a`, `1c73bd8e65`.
@@ -511,12 +437,6 @@ The buffer-reclaim path is important under sustained async transcode load: a
 single failed packet post-processing step should not permanently reduce the
 available RKMPP input-buffer pool.
 
-Submission guidance:
-
-- Send to NyanMisaka.
-- Upstream already uses `mpp_packet_get_pos()` in its current encoder, so this is
-  not a new upstream fix in the audited branch.
-
 ## 11. RKMPP encoder: rate-control and MJPEG configuration guards
 
 Relevant local commits: `c44cc876db`, `021c7102d8`.
@@ -545,12 +465,6 @@ Why it matters here:
 
 These are small hardening changes. They make bad user rate-control inputs fail
 cleanly and reduce surprises when testing MJPEG encode paths.
-
-Submission guidance:
-
-- Send to NyanMisaka.
-- Only the general divide-by-zero guard is conceptually upstream-relevant; the
-  exact code does not match upstream.
 
 ## 12. RKMPP hwcontext: cache sync, pool sizing, and map cleanup
 
@@ -596,11 +510,6 @@ cacheable buffers.
 
 The size calculation hardening keeps bad or extreme frame dimensions from
 turning into undefined signed-overflow behavior during pool allocation.
-
-Submission guidance:
-
-- Send to NyanMisaka.
-- Not upstreamable directly because upstream has no RKMPP hardware context.
 
 ## 13. RKRGA filter output lifetime, metadata, and active-rectangle cleanup
 
@@ -650,11 +559,6 @@ The lifetime fix is also important for async RGA stability: delivery failures
 should propagate as filter errors, not corrupt the frame queue or free a frame
 that is no longer owned by the RKRGA filter.
 
-Submission guidance:
-
-- Send to NyanMisaka.
-- Not upstreamable directly because upstream has no RKRGA filters.
-
 ## 14. RKMPP build hygiene: private headers and `checkheaders`
 
 Relevant local commit: `1c73bd8e65`.
@@ -680,49 +584,3 @@ This keeps FFmpeg's header self-containment checks useful on generic build hosts
 while still allowing RKMPP-enabled builds to compile when the MPP SDK is
 available. It is a small fix, but it reduces noise for anyone reviewing or
 testing the fork.
-
-Submission guidance:
-
-- Send to NyanMisaka as build hygiene.
-- Not useful upstream unless upstream has equivalent private RKMPP headers that
-  include external SDK headers.
-
-## Suggested patch split for NyanMisaka
-
-This split is a *re-slicing* of the as-committed review sweeps archived in
-[`video-libraries/ffmpeg/patches/README.md`](../patches/README.md) (see the patch↔group map there). A good
-backport series would keep review surfaces small:
-
-1. `avdevice/v4l2: fix mplane payload accounting and framerate fallback`
-2. `swscale: fix compact NV15/NV20 unpacking tails and descriptor name`
-3. `avcodec/rkmppdec: fix MJPEG output sizing, decoder ownership, errinfo, and info-change`
-4. `avcodec/rkmppdec: handle EOS backpressure without spinning`
-5. `avcodec/rkmppenc: validate DRM descriptors before MPP import`
-6. `avcodec/rkmppenc: fix async frame accounting, submit failure unwind, packet buffer release, and EOS drain`
-7. `avcodec/rkmppenc: copy packets from MPP position and fix extradata size`
-8. `avutil/hwcontext_rkmpp: fix cache-sync flag propagation, pool-size overflow, and map cleanup`
-9. `avfilter/rkrga: fix consumed-frame ownership, clear stale crop metadata, and use clipped active rects`
-10. `avcodec: skip private RKMPP headers in checkheaders`
-
-The older `origin/nyanmisaka` branch predates current FFmpeg internals, so these
-should be backported by behavior rather than blindly cherry-picked.
-
-## Suggested upstream candidates
-
-Only two pieces are plausible upstream submissions without first proposing the
-whole fork stack:
-
-1. V4L2 mplane `data_offset` correctness. The upstream patch should be scoped to
-   the current upstream V4L2 model and not assume the fork's multi-plane buffer
-   arrays unless that support is submitted first.
-2. V4L2 `VIDIOC_G_DV_TIMINGS` framerate fallback. This is generic, but it needs
-   normal FFmpeg review around overflow, zero timing fields, logging, and whether
-   the fallback belongs in `v4l2_set_parameters()` exactly as in the fork.
-
-The packed `NV15`/`NV20_PACKED` work could become upstream material only as a
-feature series that adds the pixel formats, imgutils/pixdesc coverage, swscale
-support, and tests. If that series is ever proposed, the compact 10-bit 4:2:2
-format should use an explicit name such as `nv20_packed` so `nv20` remains
-available for FFmpeg's ordinary endian `NV20` formats. The RKMPP/RKRGA fixes
-should stay fork-side unless upstream accepts a larger RKMPP hardware-context
-and RGA-filter design.

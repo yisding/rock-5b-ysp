@@ -119,7 +119,9 @@ of NULL-dereferencing `mpp_dma_release_fd` — an unprivileged local DoS that
 (`#4`, patches `0001`–`0057`; vmlinuz md5 matched the deb;
 `panic_on_oops=0`) the complete sweep is GREEN with a zero-flagged journal:
 the `0057` deterministic reproducer returns `EINVAL` with the guard log and no
-`mpp_dma_release_fd` fault; the `0056` `rga-session-uaf.sh cross` reproducer
+`mpp_dma_release_fd` fault; the `0056` RGA cross-session UAF reproducer (that
+harness is now kept in the private `rock-5b-security` repository, but the result
+below stands as recorded)
 runs `async_submits=256000 dedup_shared=4000 submit_fail=0` with zero KASAN/UAF
 lines; and the regression + conformance gates all pass — MPP suite
 (`20260722-073705`, 12/12 `clean=1`), librga smoke (green), KASAN ABI replay

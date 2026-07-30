@@ -58,13 +58,13 @@ Its operational conclusion is:
 | RGA blit/scale/CSC/10-bit/AFBC | `librga-*`, `rga-mmu-debug.sh` | ✅ | ❌ |
 | Conformance suites (mpp/librga/gst/ffmpeg) | `*-suite.sh` | ✅ FFmpeg 14–24 req, GStreamer 98–129, MPP 12/12 | ⚠️ device-free wiring only |
 | KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ⚠️ booted KUnit exposed fixture Oops/UAF; no real MPP/RGA workload completed |
-| Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | `*-repro.c`, `rga-session-uaf.sh` | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
+| Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | PoC ladder, now kept in the private `rock-5b-security` repository | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
 | Booted KUnit (84 MPP + 148 RGA = 232 current gate) | `rewrite-kunit-log-check.sh` | — | ⚠️ Historical package `P91d6-Cad24` completed its then-current exact 85+148 KTAP, but MPP case 83 reached DCHS release through a second zeroed local service and disabled lockdep before RGA. Current tips initialize that reset/import fixture, make both lifecycle suites opt-in, and remove the compile-time-owned ABI-layout runtime case; the checker gates the new 84+148 plan, the entire fatal-signature interval, and live lockdep before ABI/media work. A clean compound rerun remains required. |
 | Clean-source build gate (normal/test-disabled/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ Current 6.18 `669697f` and mainline `a49eb75` pass KUnit-enabled normal plus test-disabled clean-archive builds, including ordinary `KUNIT_ALL_TESTS=y` opt-in-default proof and a deliberate ABI-size mutation that fails compilation through the existing static assertion. The preceding 6.18 `9af4a88` also passed KASAN/fault-injection memory and KCSAN/lockdep race profiles. The current source remains unbooted. |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ not run |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
-| Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`, `syzkaller/` | ⚠️ ran without KCOV | ❌ |
+| Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`; the syzkaller description is kept in the private `rock-5b-security` repository | ⚠️ ran without KCOV | ❌ |
 | 72 h multi-instance soak | (none yet) | ❌ | ❌ |
 | Perf ratio on production (non-KASAN) kernel | root gates / conformance run | ✅ Published `…20260723~rk1` booted 2026-07-24: H.265 720p encode ~353 fps, transcode 20.8×/88× realtime | ❌ no Kernel C |
 
@@ -155,7 +155,8 @@ before media qualification can start. Sequenced:
    VENC-vs-VENC bitstream, 0 diffs. Needs the AVS2 asset.
 5. **P4/P5** concurrency (KCSAN storms) + the **fault-injection/recovery matrix**
    (8 triggers, in a loop) + boot **HARD-CCU** mode separately.
-6. **P6 fuzzing**: syzkaller multi-day + `ioctl-fuzz-smoke`/`iommu-machinery-fuzz`
+6. **P6 fuzzing**: syzkaller multi-day (its Rockchip description lives in the
+   private `rock-5b-security` repository, not here) + `ioctl-fuzz-smoke`/`iommu-machinery-fuzz`
    under KCOV/KASAN — 0 crashes, coverage plateau reaching recovery lines.
 7. **72 h soak** on production Kernel C + **perf within `PERF_MAX_RATIO`** (1.25).
 8. **`rewrite-evidence-audit.sh` passes in normal mode** → flip the

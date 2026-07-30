@@ -37,7 +37,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 | KASAN + lockdep + ramoops debug kernel | ✅ [`debug-kernel.md`](./debug-kernel.md) | reuse for every phase |
 | **KCSAN race kernel** | ⚠️ compile-only `race` profile exists in [`rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh); KCSAN is deliberately **off** in `debug-kernel.md` | **add** — a separate booted build (§3) |
 | **Fault injection & recovery** | ⚠️ [`../tests/rewrite-recovery-stress.sh`](../tests/rewrite-recovery-stress.sh) now orchestrates kill/close, reset-opener, and opt-in unbind/rebind loops around real workloads, and `VALIDATE_ONLY=1` checks its config; [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh) now has an opt-in `/proc/self/fail-nth` mode for syscall-local allocation/usercopy failures in non-submit ioctls; synthetic hardware timeout/IOMMU fault injection has not run | finish the recovery matrix (§4) |
-| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps, plus draft syzlang + ABI-constant check under [`../tests/syzkaller/`](../tests/syzkaller/) for parser/import/version paths; an optional syzkaller `make descriptions` compile check now exists for hosts with `SYZKALLER_DIR` + Go; the RGA3 userptr-IOMMU fuzzer now sweeps all 64 cache-line offsets, protects inactive bytes with guards, and checks shadow-copy/leak/failure counters when the rewrite exports them; `VALIDATE_ONLY=1` checks its build, but neither fuzzer has been run under KCOV/KASAN | finish §5 |
+| **Fuzzing (syzkaller / structure-aware)** | ⚠️ bounded non-submit ioctl mutator added as [`../tests/ioctl-fuzz-smoke.sh`](../tests/ioctl-fuzz-smoke.sh), including debug-kernel `IOCTL_FUZZ_FAIL_NTH_MAX` sweeps; a draft syzlang description plus its ABI-constant and `make descriptions` compile checks exist for parser/import/version paths but are kept in the private `rock-5b-security` repository; the RGA3 userptr-IOMMU fuzzer now sweeps all 64 cache-line offsets, protects inactive bytes with guards, and checks shadow-copy/leak/failure counters when the rewrite exports them; `VALIDATE_ONLY=1` checks its build, but neither fuzzer has been run under KCOV/KASAN | finish §5 |
 | **Rewrite-specific security/ABI audit** | ⚠️ focused MPP/RGA hardening through 2026-07-17 fixed the RK3588 VDPU381/VDPU383 CCU mismatch plus broad topology, DMA/IOMMU, reset, fd/fence, watchdog, fault-attribution, and removal races; the follow-up also adapted the five applicable RGA 5.10 reliability/cache-safety lessons and audited the forward-port MPP/RGA lifetime findings for structural equivalents | run the remaining booted hardware/KASAN matrix (§4/§6) |
 | Production-readiness gate / definition of done | ❌ | **add** (§7) |
 
@@ -245,18 +245,10 @@ verified across a loop, not once.
 surfaces (`copy_from_user`: ~11 sites in MPP incl. the ≤128 KB `SET_REG_WRITE`
 register image; many in RGA).
 
-- **Descriptions.** The first draft lives in
-  [`../tests/syzkaller/rockchip_mpp_rga.txt`](../tests/syzkaller/rockchip_mpp_rga.txt)
-  and is guarded by
-  [`../tests/syzkaller/check-rockchip-syzlang.sh`](../tests/syzkaller/check-rockchip-syzlang.sh),
-  which keeps its ioctl constants and struct-size markers in sync with
-  `abi-probe.sh` and is now run by
-  `VALIDATE_ONLY=1 ../tests/rewrite-conformance-run.sh`. The optional
-  [`../tests/syzkaller/check-rockchip-syzlang-compile.sh`](../tests/syzkaller/check-rockchip-syzlang-compile.sh)
-  imports the draft into a temporary copy of an upstream syzkaller checkout and
-  runs `make descriptions` when `SYZKALLER_DIR` and Go are available; set
-  `SYZKALLER_REQUIRE_COMPILE=1` on a fuzzing-prep host to make a missing compile
-  environment a hard failure.
+- **Descriptions.** A first syzlang draft exists, together with the checks that
+  keep its ioctl constants and struct-size markers in sync with `abi-probe.sh`
+  and compile it against an upstream syzkaller checkout. As fuzzer ABI grammar
+  it is kept in the private `rock-5b-security` repository, not here.
   Expand it for each node:
   - `/dev/mpp_service`: the `MPP_IOC_CFG_V1` message + `mpp_bat_msg` batch
     grammar, all `MPP_CMD_*` subcommands, and the structured register-image blob.

@@ -230,9 +230,6 @@ the `video`-group device nodes:
 - **10-bit correctness:** byte-literal raster strides and plane offsets for
   P010/P210/NV15 — the stock BSP misprograms these.
 
-Severity triage and upstream-submission venue are in
-[the submission-priority finding](../../findings/2026-07-22-bsp-bug-upstream-submission-priority.md).
-
 ### 4d. Hardening beyond the BSP (`HARDEN`)
 
 Validation and fail-closed behaviour the BSP does not have, where the weakness
@@ -251,8 +248,8 @@ hardware.
 
 Not kernel code, but part of what this port has and a BSP drop does not: a
 conformance harness (MPP official matrix, FFmpeg, GStreamer, librga suites),
-targeted gate probes per fix, KASAN reproducers for every previously-fixed
-memory-safety bug, an IOMMU fuzzer, and the
+targeted gate probes per fix, KASAN reproduction harnesses for previously-fixed
+memory-safety bugs, an IOMMU fuzzer, and the
 [validation runbook](./kernel-validation-runbook.md)'s evidence ladder.
 
 ## Coexistence with mainline drivers

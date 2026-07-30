@@ -143,14 +143,19 @@ fatal-signature scan (`SUITE_DMESG_FATAL_RE` in `suite-common.sh` /
 - KASAN ABI replay (`abi-replay.sh` via the debug flow) — `abi_status=0`
   with a clean scan.
 - Targeted reproducers for every previously fixed memory-safety bug that a
-  patch-tail or flavor regression could reopen — currently
-  `kasan-narrowed-repro.sh` (RESET_SESSION double-free, `0041`),
-  `rga-session-uaf.sh cross` (⚠️ can crash unpatched kernels; `0051`/`0056`),
-  and the clientless `RELEASE_FD` reproducer
-  (`mpp-clientless-release-fd-uaf.c`, `0057` — the proven root cause of the
-  VP9 `show_existing_frame` board hard-lock; see the
+  patch-tail or flavor regression could reopen. The one that lives here is
+  `kasan-narrowed-repro.sh` (RESET_SESSION double-free, `0041`). Two more are
+  still part of the gate but are memory-corruption proof-of-concept programs
+  and are kept in the private `rock-5b-security` repository rather than in this
+  tree. Clone it as a sibling of this checkout and run them from there: it
+  mirrors this layout, so each harness keeps the same relative path under
+  `kernel-drivers/tests/`. The two are the RGA cross-session UAF reproducer
+  (⚠️ can crash unpatched kernels;
+  `0051`/`0056`) and the clientless `RELEASE_FD` reproducer (`0057`, the proven
+  root cause of the VP9 `show_existing_frame` board hard-lock; see the
   [crash finding](../../findings/2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md)).
-  Expected result on a fixed kernel: clean errno (`-EINVAL` where
+  Run those two from that repository against the same debug kernel. Expected
+  result on a fixed kernel, for all three: clean errno (`-EINVAL` where
   applicable), board stays up, zero flagged lines.
 - Optional depth: `ioctl-fuzz-smoke.sh` with `fail-nth` fault injection,
   `iommu-machinery-fuzz.sh` (both debug-kernel-only modes).
@@ -192,7 +197,8 @@ definition of done.
   (step 7) run two hardware decoders in one process with bit-exact readback
   under normal, ASan/UBSan, and TSan drivers.
 - Rewrite track: the §4 fault-injection/recovery matrix and multi-day
-  syzkaller runs per its plan.
+  syzkaller runs per its plan. The Rockchip syzlang description those runs
+  need is kept in the private `rock-5b-security` repository, not here.
 
 ## Step 7 — the VA-API application gate and the risky-vector protocol
 

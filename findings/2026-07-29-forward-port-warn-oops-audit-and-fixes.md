@@ -59,7 +59,7 @@ turned up once more in `rkvenc_run()`, and the hunt surfaced the rest.
 | 18 | The userptr path called `pfn_to_page()` on a PFN from `follow_pfnmap_start()`, which is reached precisely for `VM_PFNMAP`/`VM_IO` ranges where there is frequently no `struct page`. The result goes to `sg_alloc_table_from_pages()` and is DMA-mapped. One error arm also skipped `follow_pfnmap_end()`. | `rga_mm.c` | wild `struct page *` from a vmemmap hole into a DMA-mapped scatterlist |
 
 Defects 2, 5, 16, 10 and 18 are the previously catalogued D01–D05 in
-[`vendor-driver-latent-defects.md`](../kernel-drivers/docs/vendor-driver-latent-defects.md),
+the vendor-driver latent-defect catalogue (private `rock-5b-security` repository),
 analyzed 2026-07-27 with proposed fixes and never applied. They are now fixed.
 
 ## The fixes
@@ -199,15 +199,13 @@ Targeted probes worth writing, each requiring a disposable boot:
 ## Why it matters
 
 Five of these are unprivileged kernel-heap corruption reachable through the
-same device node the desktop session already holds open, which puts them in the
-submit-now tier alongside
+same device node the desktop session already holds open, the same class as
 [W19](../status.md#watch-w19). Defects 1–6 and 9–13 are **BSP-inherited** — the
-broken code is Rockchip's, not the forward port's — so they belong on the
-upstream/BSP submission list tracked in
-[`2026-07-22-bsp-bug-upstream-submission-priority.md`](2026-07-22-bsp-bug-upstream-submission-priority.md).
+broken code is Rockchip's, not the forward port's.
 Defect 16 is `PORT`-class (a 6.18 union that the BSP's older headers did not
 have), and defect 14 is BSP code that only a non-RK3588 part reaches.
 
-The audit also gives the [`vendor-driver-latent-defects.md`](../kernel-drivers/docs/vendor-driver-latent-defects.md)
+The audit also gives the vendor-driver latent-defect catalogue (private
+`rock-5b-security` repository)
 catalog its resolution: all five entries are fixed, and the "checked and found
 correct" table there remains valid.

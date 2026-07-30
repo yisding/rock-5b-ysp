@@ -6,7 +6,8 @@
 > (the RGA2 IRQ-thread completion path) vs
 > `rga_request_session_destroy_abort()` (the `/dev/rga` close path).
 > Source: measured on debug build `P7589-C4ad2` (`#7`, `CONFIG_KASAN=y`),
-> driven by `kernel-drivers/tests/rga-session-uaf.sh cross`.
+> driven by the `rga-session-uaf.sh cross` reproducer, which has since moved to
+> the private `rock-5b-security` repository and is no longer in this tree.
 > Date: 2026-07-21
 > Trust: **MEASURED** (KASAN slab-use-after-free + refcount underflow, full
 > alloc/free stacks captured) / **CODE-INSPECTED** (the racing paths) /
@@ -116,8 +117,8 @@ free), `0043` (RKVENC2 wait-result task UAF). None touch the
 
 - Kernel: `linux-6.18-rkvenc-av1-fwport@162edad7bb9c7`, debug build
   `P7589-C4ad2` (`#7`, KASAN, ramoops/pstore armed).
-- Command: `RGA_UAF_ITERS=5000 RGA_UAF_BURST=64
-  kernel-drivers/tests/rga-session-uaf.sh cross`.
+- Command: `RGA_UAF_ITERS=5000 RGA_UAF_BURST=64 rga-session-uaf.sh cross`
+  (the reproducer is kept in the private `rock-5b-security` repository).
 - The run reported `async_submits=5952 submit_fail=4907` — i.e. ~1045 real
   async jobs entered the cross-session window, which is what makes a quiet
   run meaningful and a splat conclusive. KASAN fired once, deterministically,

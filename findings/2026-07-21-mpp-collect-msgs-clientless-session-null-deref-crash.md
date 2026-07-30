@@ -9,7 +9,9 @@ below. Title/filename kept for link stability.)*
 > ## 2026-07-23 GATE VERIFIED on `Pc1f8-C9fc5` (carries `0058`)
 >
 > The proven fix (`0058`) holds on hardware. The `mpp-clientless-release-fd-uaf.c`
-> reproducer — the whole trigger: open `/dev/mpp_service`, no `INIT_CLIENT_TYPE`,
+> reproducer — now kept in the private `rock-5b-security` repository rather than
+> in this tree, and named there in every reference below — the whole trigger:
+> open `/dev/mpp_service`, no `INIT_CLIENT_TYPE`,
 > one `MPP_CMD_RELEASE_FD` — returns `-1`/`-EINVAL` and the board stays up with a
 > clean KASAN journal (was: hard, unkillable oops on a pre-`0058` kernel). Meets
 > the gate at the end of the PROVEN block below.
@@ -106,7 +108,7 @@ below. Title/filename kept for link stability.)*
 > Comm: mpp-clientless-  PID: 38208
 > ```
 >
-> **Reproducer** (`kernel-drivers/tests/mpp-clientless-release-fd-uaf.c`): open
+> **Reproducer** (`mpp-clientless-release-fd-uaf.c`): open
 > `/dev/mpp_service`, do **not** send `MPP_CMD_INIT_CLIENT_TYPE`, then send one
 > `MPP_CMD_RELEASE_FD` message. That is the whole trigger.
 >
@@ -383,7 +385,7 @@ the forward-port kernel ships broadly. Tracked alongside the
 
 Booted the KASAN debug build `Pd222-C4ad2` (`0058` compiled in; vmlinuz md5
 matched the deb) with `panic_on_oops=0`. Ran the deterministic reproducer
-`tests/mpp-clientless-release-fd-uaf.c` (open `/dev/mpp_service`, skip
+`mpp-clientless-release-fd-uaf.c` (open `/dev/mpp_service`, skip
 `INIT_CLIENT_TYPE`, one `MPP_CMD_RELEASE_FD`):
 
 - ioctl returned `-1`/`EINVAL` (was: hard NULL deref at `mpp_dma_release_fd+0x38`,

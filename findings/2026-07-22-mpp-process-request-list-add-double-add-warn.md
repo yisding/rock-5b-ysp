@@ -59,7 +59,8 @@ the ioctl fuzz was the first workload to send it twice.
   booted 2026-07-22 17:21 PDT.
 - **First surfaced by:** `PROFILE=forward-port bash kernel-drivers/tests/ioctl-fuzz-smoke.sh`
   (32 flagged WARN lines, `Comm: ioctl-fuzz-smok`, `mpp_process_request+0x11a8`).
-- **Deterministic reproducer:** [`kernel-drivers/tests/mpp-double-init-repro.c`](../kernel-drivers/tests/mpp-double-init-repro.c)
+- **Deterministic reproducer:** `mpp-double-init-repro.c`, held in the private
+  `rock-5b-security` repository
   — opens `/dev/mpp_service`, picks a supported client_type from
   `QUERY_HW_SUPPORT`, sends `INIT_CLIENT_TYPE` twice. Both ioctls return `0`
   (the driver does **not** reject the second); the second prints and produces:
@@ -117,9 +118,8 @@ writing through) freed slab memory. That is a genuine UAF write/read primitive,
 not merely a DEBUG_LIST diagnostic. On a production kernel without DEBUG_LIST the
 corruption is silent until the freed-node access faults.
 
-This moves the bug into the same **memory-corruption submit-now tier** as
-`0055`/`0060`/`0052`/`0057` in the
-[upstream-submission-priority finding](2026-07-22-bsp-bug-upstream-submission-priority.md).
+This puts the bug in the same memory-corruption class as `0055`, `0060`,
+`0052` and `0057`.
 
 > The currently booted `Pabd5-C4ad2` lacks the `0070` fix, so its
 > `session_attach` list is corrupted for the rest of this boot; reboot onto the

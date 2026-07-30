@@ -22,7 +22,6 @@
 | What do SPL, BL31, FIT, Bootstd, and `idbloader.img` mean? | [`keywords.md`](keywords.md) |
 | What is the dated public state and next hardware proof? | [`../status.md`](../status.md) track 12 |
 | How do I back up, erase, or restore SPI safely? | [`../scripts/`](../scripts/README.md) |
-| What upstream submission decisions were made for the U-Boot FIT-DTB fix and its report, and what's still gated? | [`UPSTREAMING.md`](UPSTREAMING.md) |
 
 ## The 30-second model
 

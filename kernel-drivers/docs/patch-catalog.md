@@ -14,6 +14,23 @@ our port.
 > titles, and the full old→new map are the authoritative index in the
 > [series README](../patches/forward-port-rk3588/README.md). Read the numbers
 > below as the pre-cleanup scheme and cite patches by **title**.
+>
+> **The two schemes collide silently — read this before quoting any number.**
+> The exact relation is **catalog N = series patch N−1 for N ≥ 13**; below that
+> the two agree (catalog `0001`–`0011` = series `0001`–`0011`) and catalog
+> `0012` does not exist. So catalog `0042` is series file
+> `rk3588-fwport-0041-…-clear-session-dma-after-reset-destroy`, and catalog
+> `0070` is series file `rk3588-fwport-0069-…-reject-re-init-of-an-already-bound`
+> — while *series* `0042` and `0070` are completely different patches (catalog
+> `0043` and `0071`, both port-introduced bugs carrying the opposite,
+> never-backport verdict). The same four digits name a **Tier-1 backport
+> candidate** in one scheme and a **do-not-backport** port fix in the other.
+>
+> **Every document must name its scheme on every list of patch numbers** —
+> write "catalog 0042" or "series 0041", never a bare `0042`.
+> An unlabelled list mixed across two rows of the same table is how the wrong
+> patch gets filed. Citing by **title** is unambiguous in both schemes and is
+> the safe default.
 
 Compiled 2026-07-22 from the patch commit messages, the
 [BSP audit](./bsp-audit.md), the
@@ -59,6 +76,32 @@ provenance/backport layer on top and does not repeat full fix mechanics.
 A backport verdict below is a statement about **where the fix belongs**, not
 that it is ready to ship: anything not yet through its runtime gate keeps that
 gate as a prerequisite in either tree.
+
+## BSP presence — verified against two vendor trees (2026-07-29)
+
+Until 2026-07-29 this page asserted BSP presence mostly by inference from the
+"~87% as-is" figure quoted in the `0059`–`0069` section, and that block carried
+no BSP-evidence column at all. An independent diff on 2026-07-29 checked every
+defect site against **both** vendor trees at pinned commits:
+
+- `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`
+- `radxa/kernel` `linux-6.1-stan-rkr5.1` @ `567401fe1718` — the tree that
+  actually ships on a Rock 5B, and which this project had never diffed before
+
+**22 of the 23 checked defect signatures are present verbatim in the shipping
+Radxa kernel.** The single exception is `0039` (raw physical-import
+validation): `linux-6.1-stan-rkr5.1` predates the `dma_map_sg()` conversion,
+still uses `rga_mm_map_phys_addr()` → `rga_iommu_map()`, and is **not
+affected** — see
+[`rga/docs/raw-physical-import-crash.md`](../rga/docs/raw-physical-import-crash.md).
+
+`radxa` `rkr5.1` is **not** the same code as `develop-6.1`, so any
+"BSP-identical" claim must name **which tree**. Measured divergence at those
+two pins: `rga_mm.c` 341 changed lines, `mpp_rkvenc2.c` 305, `rga_drv.c` 171.
+
+Trust: CODE-INSPECTED (both pinned trees) / MEASURED (the divergence counts).
+Vendor branches move — re-pin before quoting any of this. The full two-tree
+diff record is kept in the private `rock-5b-security` repository.
 
 ## 0001–0002 — the import base
 
@@ -151,7 +194,7 @@ hostile-ioctl replay) than the BSP ever ran under.
 | 0053 | MPP: async worker fails safe on a device-less (orphaned) task instead of a NULL-deref hard lockup. | `BSP-BUG` | Lifetime audit: BSP worker has the same unchecked device dereference. | **Yes (defensive)** — carry the F4 orphan-leak caveat |
 | 0054 | MPP: same guard on the synchronous wait/poll path. | `BSP-BUG` | Lifetime audit: BSP generic waiter has the same unchecked dereference. | **Yes (defensive)** — same caveat |
 | 0055 | MPP: bounds-check register-translation imports (two unprivileged OOB writes, AV1-R1/AV1-R8). | `BSP-BUG` | Commit: "The BSP donor has the same '>' guard and unchecked copy length." | **Yes** |
-| 0056 | MPP: unmap the RCB IOVA before freeing its backing pages (audit F8). | `BSP-BUG` | Commit: "the ordering is unchanged BSP code." | **Yes** |
+| 0056 | MPP: unmap the RCB IOVA before freeing its backing pages (audit F8). **Root-only** (corrected 2026-07-29): the only callers of `rkvdec2_free_rcbbuf()`/`rkvenc2_free_rcbbuf()` are the probe-failure unwinds and `rkvdec2_remove()` / `rkvenc_remove()` (via `rkvenc_detach_ccu()`) — driver unbind, not an unprivileged path. The patch message already said so ("Reachable on probe-failure unwind and platform remove/unbind"); the triage framing did not. | `BSP-BUG` | Commit: "the ordering is unchanged BSP code." Present at `radxa` `rkr5.1` `mpp_rkvdec2.c:2009`–`2017` (`__free_pages()` before `iommu_unmap()`). | **Yes** |
 | 0057 | RGA: a job holds its own session reference for its lifetime (IRQ-thread UAF on `session->tgid`). | `BSP-BUG` | `rga_job.c` is byte-identical to BSP 6.1; the missing reference is donor code. | **Yes** |
 | 0058 | MPP: reject `RELEASE_FD` on a session with no DMA session (10-line unprivileged local DoS). | `BSP-BUG` | The unguarded `RELEASE_FD` arm is in byte-identical donor `mpp_common.c`. | **Yes** |
 
@@ -165,6 +208,13 @@ a backport candidate **by construction**. (Of the audit's 13 distinct HIGH
 bugs, two were already gone from the tip: the RKVENC2 core-probe unwind, fixed
 by `23ff47eab6f682`, and the duplicated RGA request-submit reference leak,
 fixed by `b6ea72cb5f56e` — both of those fixes are themselves BSP-relevant.)
+
+**BSP evidence for this block is no longer inference from "~87% as-is."** The
+2026-07-29 two-tree diff above checked these defect sites directly against
+`develop-6.1` @ `b4ef083dc0c3` and `radxa` `linux-6.1-stan-rkr5.1` @
+`567401fe1718` and found them present verbatim in both — e.g. the `0060`
+self-comparing `SET_SESSION_FD` guard sits at `rkr5.1` `mpp_common.c:1582`, the
+same line the audit cites.
 
 | # | What it does | Audit finding | Backport |
 |---|--------------|---------------|----------|
@@ -220,9 +270,9 @@ against a silent-corruption case rather than fixing a specific commit's mistake.
 `0072`–`0075` are the 10-bit RGA stride/UV-offset trio and the RKVENC2
 slice-FIFO fix. **They are not yet classified here**: their commit messages do
 not state BSP provenance either way, and guessing a backport verdict is worse
-than recording the gap. Classify them against `develop-6.1` before the next
-submission pass — the stride work in particular pairs with librga fork changes
-([W13](../../status.md#watch-w13)), so the venue may be both.
+than recording the gap. Classify them against `develop-6.1` when that
+provenance is checked — the stride work in particular pairs with librga fork
+changes ([W13](../../status.md#watch-w13)).
 
 `0076`–`0079` are the [2026-07-29 WARN/oops audit
 sweep](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md) —
@@ -232,7 +282,7 @@ keep that boundary regardless of backport verdict.
 
 | # | What it does | Class | BSP evidence | Backport |
 |---|--------------|-------|--------------|----------|
-| 0076 | MPP core: fix `mpp_check_req()` clamping to the overflow amount and using a signed offset (two independent bypasses); bound the register-offset translation index, the `trans_info[]` format index, and user-supplied `trans_table[]` register indexes; publish the `RESET_SESSION` DMA teardown under `srv->session_lock`. | `BSP-BUG` | All five sites are vendor code carried unchanged from the BSP import; the bounds and the clamp expression are byte-identical in `develop-6.1`. The `session_lock` half is partly forward-port shaped — `mpp_session_deinit()`'s unlink is ours — so confirm the BSP's procfs exposure before sending that hunk. | **Yes** — the four bounds fixes clear the report-now bar (unprivileged heap corruption) |
+| 0076 | MPP core: fix `mpp_check_req()` clamping to the overflow amount and using a signed offset (two independent bypasses); bound the register-offset translation index, the `trans_info[]` format index, and user-supplied `trans_table[]` register indexes; publish the `RESET_SESSION` DMA teardown under `srv->session_lock`. | `BSP-BUG` | All five sites are vendor code carried unchanged from the BSP import; the bounds and the clamp expression are byte-identical in `develop-6.1`. The `session_lock` half is partly forward-port shaped — `mpp_session_deinit()`'s unlink is ours — so confirm the BSP's procfs exposure before sending that hunk. | **Yes** — the four bounds fixes close unprivileged heap corruption in vendor code |
 | 0077 | MPP IOMMU: route the reserve/unreserve IOVA paths through `iommu_dma_get_iova_domain()` and delete the private cookie shadow struct; clear `sgt`/`attach`/`dmabuf` before `dma_buf_detach()` frees them, plus defensive checks in `mpp_dma_buf_sync()`. | Mixed: `PORT-FIX` + `BSP-BUG` | The cookie type-confusion exists **only** because 6.18 made `iova_cookie` a discriminated union arm — the BSP's older headers have no such union, so that half is ours. The release-ordering half is BSP code and BSP-latent. | **Partial** — send the release-ordering fix; the cookie fix is 6.18-only |
 | 0078 | rkvenc2/rkvdec2-link: reject wrapped and inverted register windows in `req_over_class()`/`rkvenc_update_req()` and check both previously-discarded call sites; bound the per-class register buffers; hoist the VEPU510 clock cycle out of `mpp_task_run_begin()`'s `preempt_disable()` window; downgrade a reachable `WARN_ON` on an empty link-table list. | `BSP-BUG` | All four are vendor code. The window-wrap arithmetic, the preempt/clk ordering, and the `WARN_ON` are unchanged from the import. Note two are not reachable on RK3588 (VEPU510 is RK3576; the WARN needs HARD-CCU), but both are live for other Rockchip parts built from the same source — which is exactly the BSP's audience. | **Yes** — the window wrap is unprivileged ~4 GiB `copy_from_user` |
 | 0079 | RGA: take `irq_lock` in the IOMMU fault handler; reject a negative computed buffer size in `rga_alloc_virt_addr()`; surrender buffer session ownership on release; consume `current_mm` under `request->lock`; dump the request task list under its lock; reject zero-length debugfs writes; validate userptr PFNs before `pfn_to_page()`. | `BSP-BUG`, except the PFN guard | Six of seven are vendor code with the same defect in `develop-6.1`. The PFN guard is on the 6.12+ `follow_pfnmap_start()` adaptation, which is a forward-port rewrite of the BSP's page-table walk — the *missing validation* is common to both, but the code shape is ours, so the BSP needs the equivalent fix rather than this hunk. | **Yes**, with the PFN hunk adapted |
@@ -251,10 +301,27 @@ in BSP code.** 20 patches: `0040`, `0041`, `0042`, `0052`, `0053`+`0054`,
 `0055`, `0056`, `0057`, `0058`, and all of `0059`–`0069`. These close
 unprivileged-reachable OOB writes (`0055`, `0061`, `0063`), an fd type
 confusion (`0060`), a trivial local DoS (`0058`), KASAN-proven
-use-after-frees/double-frees (`0040`, `0042`, `0052`, `0057`), a stale IOMMU
-mapping over freed pages (`0056`), a sleep-in-atomic (`0065`), and
-NULL-deref hard lockups (`0053`/`0054`). Several have deterministic
-reproducers in [`kernel-drivers/tests/`](../tests).
+use-after-frees/double-frees (`0042`, `0052`, `0057`), a stale IOMMU
+mapping over freed pages (`0056` — **root-only**, driver unbind; see its row),
+a sleep-in-atomic (`0065`), and NULL-deref hard lockups (`0053`/`0054`).
+
+> **Corrected 2026-07-29** (source record kept in the private
+> `rock-5b-security` repository).
+> `0040` was previously named inside the KASAN-proven
+> use-after-free/double-free group above. It does not belong there, and it is
+> still a Tier-1 backport candidate on a **different** evidence class.
+> Its own finding
+> ([`2026-07-17-rga-session-close-uaf.md`](../../findings/2026-07-17-rga-session-close-uaf.md))
+> records "**Artifacts:** none committed" (:82), says "the **exact faulting
+> function is not proven** … attribution of *this* Oops to the force-free path
+> is INFERRED" (:88–:92), and concludes "the reported Oops is now better
+> treated as either coincidental to the close or a distinct latent bug" (:93–
+> :100). The fix itself is **compile-verified only** and "has **not** been
+> re-exercised on hardware" (:106). So `0040`'s real class is
+> **SOURCE-INSPECTED** (cross-session import de-dup + in-flight job kref vs an
+> unconditional force-free) plus one **INFERRED**, artifact-less Oops the
+> finding disowns, with a **COMPILE-VERIFIED** fix. No KASAN report, no
+> reproducer run against it, no committed artifact.
 
 **Tier 2 — user-visible correctness.** `0048`+`0049` as a pair: the 10-bit
 P010 stride/offset corruption is stock BSP behavior (the corruption Jellyfin
@@ -279,38 +346,28 @@ fixes), `0018`–`0037` (already Rockchip's), `0043` (port-introduced bug),
   mappings, DMA-owned page tables); the same fixes exist in
   [`patches/cleanup-split/`](../patches/cleanup-split/README.md) written
   against near-pristine BSP-derived source, in upstream mailbox style with
-  `Plain-language impact:`/`Kernel details:` trailers — deliberately shaped
-  for submission. Mind its two known defects (8-file divergence from the
+  `Plain-language impact:`/`Kernel details:` trailers. Mind its two known defects (8-file divergence from the
   verified aggregate; the patch-0024 compile defect and its one-line remedy).
   The `0040`–`0058` fixes were authored on the evolved tree and need context
   rebasing onto BSP source.
 - **`0053`/`0054` carry a known trade-off**: the fail-safe orphan drop
   introduces the audit's F4 destructorless-leak shape; fold the F4 remediation
   when backporting.
-- **Runtime gates travel with the fixes.** `0059`–`0069` have not booted
-  anywhere yet (`Pabd5-C4ad2` is packaged, not installed); the targeted
-  triggers and codec/RGA regression gate in
+- **Runtime gates travel with the fixes.** `0059`–`0069` are booted on *this*
+  tree — `Pabd5-C4ad2` was installed and booted 2026-07-22, per the
+  Verification section above — but nothing has been gated on a BSP
+  application of them, and four of the eleven still lack a targeted
+  hostile-path trigger on any boot (acquire-fence stress,
+  shutdown-outside-`irq_lock`, missing-plane, partial-handle unwind). The
+  targeted triggers and codec/RGA regression gate in
   [`cleanup-draft/verification.md`](../patches/cleanup-draft/verification.md)
   apply to a BSP application of the same fixes just as much.
+  *(Corrected 2026-07-29: this bullet used to read "`0059`–`0069` have not
+  booted anywhere yet (`Pabd5-C4ad2` is packaged, not installed)", which was
+  already stale by the end of 2026-07-22 and contradicted this page's own
+  Verification section as well as
+  [`forward-port-status.md`](./forward-port-status.md) and the
+  [port record](../../findings/2026-07-22-bsp-high-current-tip-port.md).)*
 - **Second wave**: the audit's 30 MEDIUM + 30 LOW + 13 cleanup findings are
   equally latent in the BSP and live only in `cleanup-split/`; none are ported
   to the current tip.
-
-### Submission status and priority
-
-Nothing has been submitted to Rockchip, Armbian, or mainline as of
-2026-07-22. The [audit's upstreaming note](./bsp-audit.md) records the
-submission-target decision (Rockchip BSP vs Armbian vs mainline alongside the
-[rewrite drivers](./rewrite-drivers.md)) as awaiting an owner decision; this
-catalog is the per-patch inventory that decision needs.
-
-**Which to report immediately** (severity triage, venue, and CVE candidates)
-is worked out in
-[`findings/2026-07-22-bsp-bug-upstream-submission-priority.md`](../../findings/2026-07-22-bsp-bug-upstream-submission-priority.md):
-the unprivileged memory-corruption subset — `0055` (OOB write over a
-`work_struct`), `0060` (type confusion), `0070` (double-init UAF of a freed
-`mpp_session`), `0052`/`0057`/`0042` (UAF/double-free), and `0058` (DoS) —
-clears the report-now bar; `0055`/`0060`/`0070` have standalone unprivileged
-PoCs under [`kernel-drivers/tests/`](../tests). Venue is the Rockchip BSP +
-Armbian (this code is not in mainline), with CVEs for the OOB/type-confusion/UAF
-rows.

@@ -6,8 +6,11 @@
 > path (`rga_request_release_signal()` → the job's `job->session` dereferences)
 > vs `rga_release()` (the `/dev/rga` close path that frees the session).
 > Source: **MEASURED** on debug build `P70a5-C4ad2` (`CONFIG_KASAN=y`,
-> booted, md5-verified), driven by `kernel-drivers/tests/rga-session-uaf.sh
-> cross` with the below-4G CMA heap fix so async blits actually submit.
+> booted, md5-verified), driven by `rga-session-uaf.sh
+> cross` with the below-4G CMA heap fix so async blits actually submit. That
+> reproducer has since moved to the private `rock-5b-security` repository and is
+> no longer in this tree; every `rga-session-uaf.sh` reference below names it
+> there.
 > Date: 2026-07-21
 > Trust: **MEASURED** (KASAN slab-use-after-free, full alloc/free stacks
 > captured) / **CODE-INSPECTED** (the racing paths and the missing reference)

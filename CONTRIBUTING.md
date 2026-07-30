@@ -27,6 +27,59 @@ build products and external checkouts out of this repository.
 | An external fact that can change without a repository edit | The [`status.md` watchlist](status.md#watchlist--facts-that-go-stale-silently). |
 | A shared term | [`glossary.md`](glossary.md); project-only terms stay in the project's `keywords.md`. |
 | A source checkout, build directory, log bundle, binary, or board backup | An external workspace or ignored local path; document its reconstruction or disposition instead. |
+| An upstream submission plan, a CVE or vulnerability-disclosure question, or a reproducer that provokes memory corruption | Not this repository — the private `rock-5b-security` repository. See below. |
+
+## What does not belong here
+
+This repository is public. Three classes of material live in the separate
+private `rock-5b-security` repository instead, and must not be reintroduced
+here:
+
+- **Upstream submission planning** — the cross-package upstreaming ledger and
+  the per-package `UPSTREAMING.md` disposition lists (which patch goes to which
+  upstream, in what order, and what is deliberately never sent).
+- **Vulnerability disclosure and CVE material** — severity triage, disclosure
+  sequencing, vendor security contacts, and anything discussing CVE assignment.
+- **Reproducers that provoke memory corruption** — the unprivileged MPP/RGA
+  proof-of-concept programs, the fuzzer ABI grammar, and the pre-fix capture
+  harness.
+
+What stays here is the engineering record: how the hardware and drivers behave,
+what was measured, which patch fixes what, and how to rebuild and validate it.
+A finding may state that a defect exists and was fixed. It should not carry a
+working trigger for it, a severity ranking aimed at a disclosure, or a plan for
+reporting it.
+
+Referring to moved material is fine — name the `rock-5b-security` repository in
+plain text. Do not add a link: it is a different repository and a private one,
+so a link would dangle for every reader and fail the link check.
+
+### Running the validation gates that need both repositories
+
+Two gates cannot be closed from this repository alone, because the reproducers
+they drive moved: the memory-safety step of
+[`kernel-drivers/docs/kernel-validation-runbook.md`](kernel-drivers/docs/kernel-validation-runbook.md)
+and the destructive-PoC row of
+[`kernel-drivers/docs/validation-index.md`](kernel-drivers/docs/validation-index.md).
+The syzkaller fuzzing definition-of-done in
+[`kernel-drivers/docs/rewrite-validation-plan.md`](kernel-drivers/docs/rewrite-validation-plan.md)
+is in the same position.
+
+Clone the two repositories as siblings:
+
+```sh
+cd ~/Code
+git clone git@github.com:yisding/rock-5b-ysp.git
+git clone git@github.com:yisding/rock-5b-security.git   # private
+```
+
+The security repository mirrors this one's directory layout, so a harness keeps
+the same relative path under it — `kernel-drivers/tests/…` there matches
+`kernel-drivers/tests/…` here. Run those harnesses from the security checkout
+and record the result in the owning document here, naming the harness without
+linking it. Full memory-safety validation therefore needs both checkouts
+present; plan for that before starting a patch-tail validation rather than
+discovering it at the gate.
 
 The nearest `README.md` is the front door for every user-facing Markdown file.
 Adding or moving a document therefore also means adding or updating its entry in
