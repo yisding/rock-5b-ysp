@@ -1,3 +1,16 @@
+gnome-remote-desktop (50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Rebase the release branch onto the latest GNOME 50 stable tip,
+    18cc5f7, which adds the post-50.2 Norwegian Bokmål translation update.
+  * Preserve a reassigned persistent GDM user display after a reconnect
+    handover times out, retaining its RemoteId subscription so the next
+    authenticated reconnect can transfer the session without daemon restarts.
+  * Keep the routing token reusable and continue to remove initial greeter
+    failures; do not restore the June patch's unsafe global client_taken state
+    or its broad preserve-any-registered-display behavior.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Wed, 29 Jul 2026 23:00:57 -0700
+
 gnome-remote-desktop (50.2+rkmpp+git20260729.14.24f4392-0ubuntu1~rk1) resolute; urgency=medium
 
   * Signal the RDP AVC surfaces as full-range BT.709, matching the

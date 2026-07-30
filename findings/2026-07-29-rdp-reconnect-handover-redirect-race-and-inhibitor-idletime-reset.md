@@ -125,19 +125,29 @@ Root cause: the 06:47 abort ran the old cleanup —
 `GrdRemoteClient` and with it the subscription to GDM's session-8
 remote-display object. From then on, property updates on that object have no
 listener: every unlock succeeds, no handover ever starts. This exact hole is
-already fixed by **our own commit `a3a1a32` "rdp: make handover reconnect
-cleanup robust" (2026-06-27)**, which preserves the remote client (and its
-remote-display subscription) when a registered remote display still exists.
-The installed deb (`50.2+rkmpp+git20260721.13.cf60b4d+fullrange709`, the
-BT.709 color-fix build line) **predates/omits that commit** — the binary has
-only the old abort string, no "Preserving remote client" path. Packaging
-regression: the June handover fix never made it into the July build line.
+covered by one part of **our old commit `a3a1a32` "rdp: make handover
+reconnect cleanup robust" (2026-06-27)**, which preserved the remote client
+(and its remote-display subscription) when a registered remote display still
+existed. The installed deb
+(`50.2+rkmpp+git20260721.13.cf60b4d+fullrange709`, the BT.709 color-fix build
+line) deliberately omits that old broad preservation path — the binary has
+only the old abort string, no preservation message.
 
-Recovery without the fixed build: disconnect the client, restart the system
+The first live diagnosis overreached by calling that a packaging regression
+and recommending `a3a1a32` wholesale. A 2026-07-29 source re-audit confirmed
+the current package already contains the safe replacements developed after the
+June experiment: GNOME 50's `SetRemoteId` flow, corrected variant/socket/timer
+ownership, and pending-only redirected-socket coalescing. The old commit's
+global `client_taken` state makes the routing token single-use and rejects the
+legitimate second GDM→session leg; its broad registered-display predicate can
+also retain greeter state. Only the user-display subscription-survival
+behavior was missing.
+
+Recovery without a subscription-retaining build: disconnect the client, restart the system
 daemon (`sudo systemctl restart gnome-remote-desktop`) to rebuild its
 remote-display subscriptions from GDM state, then reconnect — the fresh
 full-chain flow (as at 00:30) works. Durable fix: rebuild the grd package with
-`a3a1a32` included.
+the narrowed `c4ef3c9` successor described below, not with `a3a1a32`.
 
 ## Act 3 (07:53): the user handover daemon doesn't survive a system-daemon restart
 
@@ -163,6 +173,37 @@ Full recovery recipe after any GRD state desync, in order:
    follow any system-daemon restart), then
 3. reconnect the client and authenticate at GDM.
 
+## Act 4: latest GNOME 50 rebase and narrowed June-fix salvage
+
+The release branch was rebased from upstream 50.2 `60423c8` to the latest
+GNOME 50 stable tip `18cc5f7` (the only upstream delta is a Norwegian Bokmål
+translation update). The 16 existing downstream commits are patch-identical
+under `git range-diff`. GNOME 51 is still the next development series; it was
+not substituted for the Resolute/GNOME 50 package line.
+
+New release commit `c4ef3c9` adds an explicit
+`owns_reassigned_remote_display` marker only in
+`on_remote_display_remote_id_changed()`, the point where GDM transfers an
+existing user display to a new transport client. On timeout,
+`abort_handover()` preserves the client only when:
+
+- the display was reassigned through that path;
+- the GDM display still has a session;
+- that session still matches the destination handover; and
+- the original transport session is already gone.
+
+It clears any pending socket, credentials flag, and handover-waiting state
+before returning. Initial greeter failures still follow the normal removal
+path, redirected sockets are still coalesced only while pending, and no
+`client_taken` state exists. The canonical source export, native arm64 Debian
+package build, and RDP integration test pass with `/usr/bin/pkg-config`; TPM
+and hardware-EGL skip on the build host. Source and binary Lintian error gates
+pass with only the expected long-filename warnings. The source package is
+signed and all three signatures verify; upload awaits explicit publication
+authorization. The measured idle reconnect sequence still needs a board
+reproduction to prove the runtime branch and to determine whether the first
+redirect race itself needs a cross-GRD/GDM acknowledgement change.
+
 ## Status
 
 - Wake-watch tripwire still running (gsd-power `G_MESSAGES_DEBUG=all`, PID
@@ -174,6 +215,7 @@ Full recovery recipe after any GRD state desync, in order:
   authenticate; race window is greeter teardown (~1 s) vs client redirect.
   With the un-fixed build, the first aborted handover then converts into the
   Act-2 deaf state until the system daemon is restarted.
-- TODO: fold `a3a1a32` into the packaged grd build (grd-pkg/grd-ppa line) so
-  the installed daemon carries the reconnect-cleanup fix alongside the rkmpp
-  and BT.709 patches.
+- Source fix complete and public at `release/50.2-rkmpp@c4ef3c9`; source/native
+  package and signature gates pass. PPA publication, installation, and the
+  measured idle reconnect reproduction remain the handoff gates. Do not
+  restore `a3a1a32` wholesale.

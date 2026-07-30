@@ -47,7 +47,7 @@ deleted.
 
 | PPA | Role | Live state at the check below |
 |-----|------|-------------------------------|
-| `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: Plymouth boot-hang fix, codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | Plymouth source `18636085` is accepted, arm64 build `33428910` succeeded, and all nine binaries are accepted/Pending publication. GRD 50.2 source `18632058` is accepted/Pending and arm64 build `33422570` is running. Backpressure-fixed FFmpeg source `18628833` / build `33417109` and session-lifetime kernel source `18626523` / build `33412608` succeeded; their exact binaries are Published. This is the only normal system-stack install target. |
+| `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: Plymouth boot-hang fix, codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | Plymouth source `18636085` is accepted, arm64 build `33428910` succeeded, and all nine binaries are accepted/Pending publication. GRD 50.2 source `18647901` is Published and arm64 build `33450532` succeeded; signed successor `…15.c4ef3c9` awaits upload authorization. Backpressure-fixed FFmpeg source `18628833` / build `33417109` and session-lifetime kernel source `18626523` / build `33412608` succeeded; their exact binaries are Published. This is the only normal system-stack install target. |
 | `ppa:yi-ding/rock5b-ffmpeg81-upstream` | Upstream FFmpeg 8.1.2 comparison baseline. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-ffmpeg81-rockchip` | ABI-changing FFmpeg 8.1.2 RKMPP/RKRGA forward port. Add the system PPA as well for MPP and librga. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-kernel618-rewrite` | Experimental Linux 6.18.38 Armbian-based clean-room rewrite kernel. | Replacement source `18623665`, successful arm64 build `33406491`, and exact binaries are Published. |
@@ -104,7 +104,7 @@ stated in the affected rows. The step-by-step provenance is retained in the
 | `ffmpeg` 8.1.2 baseline | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Dedicated-PPA source publication [`18619544`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-upstream/+sourcepub/18619544) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-upstream`. |
 | `ffmpeg` 8.1.2 Rockchip | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Dedicated-PPA source publication [`18619545`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-rockchip/+sourcepub/18619545) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-rockchip`; it builds against the fresh main PPA for MPP/librga. |
 | `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Fresh-main source publication [`18619787`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619787) and its arm64 tool binary are Published. | Co-installable `/opt/ffmpeg-rockchip` tools; does not replace system FFmpeg. |
-| `gnome-remote-desktop` (normal stack) | `50.2+rkmpp+git20260729.14.24f4392-0ubuntu1~rk1` | Source publication [`18647901`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647901) is accepted/Pending and arm64 build [`33450532`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450532) is running. Exact source/native arm64 builds pass locally; the RDP integration test passes and TPM/EGL skip as expected. Prior source `18632058` remains Published until the successor publishes. | Sixteen clean commits on upstream 50.2: RKMPP backend, reconnect fixes, cached GPU-copy readback, bounded encode recovery, progress-gated ACK-resume recovery, and full-range BT.709 AVC signaling. The promoted color fix corrected the muted macOS client output; no pipeline watchdog, audio probe, verbose trace, or Opus suppression ships. |
+| `gnome-remote-desktop` (normal stack) | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1` | Source and native arm64 builds pass locally; RDP integration passes, TPM/hardware-EGL skip as expected, and source/binary Lintian error gates pass with only long-filename warnings. The source is signed and signature-verified but not uploaded pending explicit publication authorization. Prior source publication [`18647901`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647901) is Published and arm64 build [`33450532`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450532) succeeded. | Seventeen clean commits on latest GNOME 50 stable: RKMPP backend, corrected reconnect ownership/coalescing, cached GPU-copy readback, bounded encode recovery, progress-gated ACK-resume recovery, full-range BT.709 signaling, and narrowly retained persistent-user-display state after a reconnect timeout. The unsafe June global `client_taken` and broad preserve paths remain excluded. |
 | `gnome-remote-desktop` (archived recovery build) | `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3` | Experimental source publication [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586), successful arm64 build [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698), and arm64 binary are Published. | Historical diagnostic build; superseded by the clean release candidate. |
 | `gnome-remote-desktop` (archived audio probe) | `50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10` | Source/native arm64 builds and live format probes passed; installed, not published. | Proved the macOS client accepts A-law plus PCM and rejects the tested ADPCM tuples. Its diagnostics and temporary Opus suppression are archived, not released. |
 | forward-port kernel | `6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source package built, signed, signature-verified, and `dput`-uploaded client-side on 2026-07-25; local upload marker `linux-rockchip64-ysp_6.18.40+rk3588av1fwport20260725-0ubuntu1~rk1_source.ppa.upload` exists. Launchpad source publication and arm64 build are pending confirmation. The previously Published `…20260723~rk1` source [`18639187`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18639187) and its arm64 build passed board conformance/root gates on 2026-07-24. | Carries validated 6.18.40 tail `0001`–`0075`, including the 2026-07-25 hardware-verified RGA UV-offset (`0074`) and RKVENC2 slice-FIFO terminal-record (`0075`) fixes. Extracted source `olddefconfig` proves the non-debug AV1/RGA config; install/boot/conformance/rollback from the PPA build remain. |
@@ -170,7 +170,7 @@ or individual paths/pins with the matching environment variables.
 | nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
 | nyanmisaka FFmpeg Rockchip commit | `FFMPEG_ROCKCHIP_COMMIT` | `40c412daccf08164493da0de990eb99a8948116b` |
 | GRD repo | `GRD_REPO` | `$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop` |
-| GRD snapshot commit | `GRD_COMMIT` | `24f4392bb0daa40b9c411de1b1bcb9d0078e506a` (`release/50.2-rkmpp`; 16 release commits on upstream 50.2 commit `60423c8`) |
+| GRD snapshot commit | `GRD_COMMIT` | `c4ef3c96194038e737be0857519ff77227279292` (`release/50.2-rkmpp`; 17 release commits on latest GNOME 50 stable commit `18cc5f7`) |
 | GRD source delta | `GRD_DELTA` | Empty for release. Override only to reconstruct a historical snapshot such as [`dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch). |
 | Forward-port kernel worktree | `KERNEL_PPA_REPO` | `$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Forward-port kernel config | `KERNEL_PPA_CONFIG` | [`kernel-forward-port/debian/config/arm64-rockchip64.config`](kernel-forward-port/debian/config/arm64-rockchip64.config) |
@@ -500,13 +500,25 @@ source publication `18619787` and the copied tool binary are Published.
 ### GNOME Remote Desktop
 
 The release candidate is the clean `release/50.2-rkmpp` branch at
-`24f4392bb0da`. It contains 16 reviewable commits on upstream 50.2 `60423c8`:
-the RKMPP backend and hardware enablement, reconnect/handover fixes, the hardware-verified
-cached GPU-copy readback fix, bounded encode failure/cooldown recovery, and the
-progress-gated RDPGFX acknowledgement-resume recovery. The final commit signals
-the shader's existing full-range BT.709 conversion in the H.264 VUI; the exact
-experimental package corrected the muted macOS client colors after clean
-activation.
+`c4ef3c961940`. It contains 17 reviewable commits on latest GNOME 50 stable
+`18cc5f7`: the RKMPP backend and hardware enablement, reconnect/handover fixes,
+the hardware-verified cached GPU-copy readback fix, bounded encode
+failure/cooldown recovery, and the progress-gated RDPGFX acknowledgement-resume
+recovery. The penultimate commit signals the shader's existing full-range
+BT.709 conversion in the H.264 VUI; the exact experimental package corrected
+the muted macOS client colors after clean activation. The tip preserves a
+persistent GDM user display after a reassigned reconnect handover times out, so
+its `RemoteId` listener can service the next attempt.
+
+The 2026-07-29 audit did not restore June commit `a3a1a32` wholesale. Its
+global `client_taken` state makes the routing token single-use and rejects the
+legitimate second GDM-to-user connection, while its broad registered-display
+test can retain greeter state. The release keeps the July ownership, socket,
+timeout, and pending-only coalescing replacements, then marks only displays
+explicitly reassigned during the two-leg flow as timeout-preservable. A
+source-export contract in `build-source-packages.sh` rejects a default GRD pin
+that loses `SetRemoteId`, any corrected ownership/coalescing invariant, or this
+narrow subscription-retention path.
 
 The investigation scaffolding is intentionally absent. There is no periodic
 pipeline monitor, starvation actuator, diagnostics thread, routine ACK

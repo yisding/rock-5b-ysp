@@ -19,7 +19,7 @@ The paths below name that current location, while `rock-5b-ysp`,
 | 2 | Audited tree (BSP audit) | [BSP audit](../kernel-drivers/docs/bsp-audit.md), `kernel-drivers/patches/cleanup-draft/` line numbers | parent of `56e403ede081` = `5614909e5803` |
 | 3 | `$OURS` / `$BSP` measurement pair + BSP 6.6 comparison | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count", [BSP 6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md) | tree 1 vs `rockchip-linux/kernel` `develop-6.1@b4ef083dc0c3`; comparison `develop-6.6@1ba51b059f25` |
 | 4 | Userspace media trees | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), FFmpeg docs, [`rockchip-vaapi`](../video-libraries/vaapi/README.md), Firefox RDD policy | table in §4 |
-| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | upstream 50.2 = `60423c896a54`; clean release tip = `24f4392bb0da`; historical 50.1 replay and experiment tips remain recorded in §5 |
+| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | latest GNOME 50 stable = `18cc5f7bf6ea`; clean release tip = `c4ef3c961940`; historical 50.1 replay and experiment tips remain recorded in §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | current comparison tips `rk3588-rewrite-6.18@35eb735d21dd8` and `rk3588-rewrite-mainline@2cf0126529c1c` (2026-07-29 atomic-safe fault-handler setter split, [ISR-panic finding](../findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md); prior tips `cd71f985a784c`/`7dcb4c3b5a981`), the 2026-07-29 [review-round-2 fixes](../findings/2026-07-29-rewrite-driver-review-round-2.md) (legacy rot90/270 wire-geometry acceptance, coordinator-only hard-CCU chain writer, abort scheduler kick, per-fence dma_fence contexts with module pinning, shared-IRQ regs-live gating, and the KUnit double-free repair); parents `51ea9d1ca537` / `03da898b03f1f` isolate KUnit fixtures behind local services with assertion-safe resource cleanup and no runtime unbind/reprobe callbacks; opt-in KUnit defaults `0a2d7b9414f58` / `aa18488c8642b` and compile-time-owned ABI-case retirement `669697f23d3d` / `a49eb7575f436`; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
@@ -205,18 +205,21 @@ handover ownership/coalescing series. See
 [`apps/gnome-remote-desktop/docs/profiling.md`](../apps/gnome-remote-desktop/docs/profiling.md).
 
 The current release source is public branch `release/50.2-rkmpp` at
-`24f4392bb0daa40b9c411de1b1bcb9d0078e506a`. It applies 16 release commits to
-upstream 50.2 commit `60423c896a54e3eacb65bd93167e91c1ce5e648c`;
-the reconnect revert that was a separate commit in the older 50.1 replay is
-part of that upstream base. Its last four commits retain the cached GPU-copy
-readback root fix, bounded hardware-encode recovery, and progress-gated
-ACK-resume recovery, then align AVC range/matrix signaling with the Vulkan
-shader's full-range BT.709 output. The 16 root-level patches in
+`c4ef3c96194038e737be0857519ff77227279292`. It applies 17 release commits to
+latest GNOME 50 stable commit
+`18cc5f7bf6ead8fe1c8341897f8a46b853ede746` (upstream 50.2 plus one
+translation update); the reconnect revert that was a separate commit in the
+older 50.1 replay is part of that upstream base. Its last five commits retain
+the cached GPU-copy readback root fix, bounded hardware-encode recovery, and
+progress-gated ACK-resume recovery, align AVC range/matrix signaling with the
+Vulkan shader's full-range BT.709 output, and narrowly preserve a reassigned
+user display's `RemoteId` subscription after a failed reconnect handover. The
+16 root-level patches in
 [`apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/README.md)
 remain the historical reconstruction on `c14e09e`.
 The pipeline watchdog/diagnostic thread, idle-baseline workaround, routine ACK
 transition logging, and all audio probe/trace patches are excluded. Package
-export version `50.2+rkmpp+git20260729.14.24f4392` archives this commit directly
+export version `50.2+rkmpp+git20260729.15.c4ef3c9` archives this commit directly
 with an empty `GRD_DELTA`.
 
 The historical diagnostic candidate is the public

@@ -35,8 +35,8 @@ FFMPEG_ROCKCHIP_COMMIT="${FFMPEG_ROCKCHIP_COMMIT:-40c412daccf08164493da0de990eb9
 FFMPEG_ROCKCHIP_UPSTREAM_VERSION="${FFMPEG_ROCKCHIP_UPSTREAM_VERSION:-6.1+git20260423.40c412dacc}"
 
 GRD_REPO="${GRD_REPO:-$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop}"
-GRD_COMMIT="${GRD_COMMIT:-24f4392bb0daa40b9c411de1b1bcb9d0078e506a}"
-GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.2+rkmpp+git20260729.14.24f4392}"
+GRD_COMMIT="${GRD_COMMIT:-c4ef3c96194038e737be0857519ff77227279292}"
+GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.2+rkmpp+git20260729.15.c4ef3c9}"
 GRD_DELTA="${GRD_DELTA:-}"
 
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
@@ -371,6 +371,73 @@ build_ffmpeg_rockchip() {
         "packaging/ppa/ffmpeg-rockchip"
 }
 
+require_grd_source_text() {
+    local source_text="$1"
+    local expected="$2"
+    local contract="$3"
+
+    if ! grep -Fq -- "$expected" <<< "$source_text"; then
+        echo "GRD release contract missing: $contract" >&2
+        return 1
+    fi
+}
+
+verify_grd_release() {
+    local daemon_system
+    local daemon_handover
+    local gdm_interface
+    local reconnect_revert="ad386844bad2e5316046505e2788fdf4090dca34"
+
+    git -C "$GRD_REPO" cat-file -e "$GRD_COMMIT^{commit}"
+    if ! git -C "$GRD_REPO" merge-base --is-ancestor \
+        "$reconnect_revert" "$GRD_COMMIT"; then
+        echo "GRD release contract missing: GNOME 50 SetRemoteId revert" >&2
+        return 1
+    fi
+
+    daemon_system="$(git -C "$GRD_REPO" show "$GRD_COMMIT:src/grd-daemon-system.c")"
+    daemon_handover="$(git -C "$GRD_REPO" show "$GRD_COMMIT:src/grd-daemon-handover.c")"
+    gdm_interface="$(git -C "$GRD_REPO" show "$GRD_COMMIT:src/org.gnome.DisplayManager.xml")"
+
+    require_grd_source_text \
+        "$gdm_interface" \
+        '<method name="SetRemoteId">' \
+        "GDM SetRemoteId interface"
+    require_grd_source_text \
+        "$daemon_system" \
+        "grd_dbus_gdm_remote_display_call_set_remote_id_sync" \
+        "SetRemoteId reconnect call"
+    require_grd_source_text \
+        "$daemon_system" \
+        'g_variant_ref_sink (g_variant_new ("(sss)"' \
+        "RedirectClient variant ownership"
+    require_grd_source_text \
+        "$daemon_handover" \
+        "g_autoptr (GSocketConnection) socket_connection = NULL;" \
+        "taken socket lifetime"
+    require_grd_source_text \
+        "$daemon_system" \
+        "No redirected client " \
+        "missing redirected socket guard"
+    require_grd_source_text \
+        "$daemon_system" \
+        "Replacing pending redirected client " \
+        "pending-only redirected socket coalescing"
+    require_grd_source_text \
+        "$daemon_system" \
+        "owns_reassigned_remote_display" \
+        "reassigned display ownership marker"
+    require_grd_source_text \
+        "$daemon_system" \
+        "Preserving reassigned remote display" \
+        "reconnect-timeout display subscription retention"
+
+    if grep -Fq -- "client_taken" <<< "$daemon_system"; then
+        echo "GRD release contract violated: routing token made globally single-use" >&2
+        return 1
+    fi
+}
+
 build_grd() {
     local -a delta_args=()
     local -a delta_patches=()
@@ -380,6 +447,10 @@ build_grd() {
         for delta_patch in "${delta_patches[@]}"; do
             delta_args+=(--patch "$delta_patch")
         done
+    fi
+
+    if [[ -z "$GRD_DELTA" ]]; then
+        verify_grd_release
     fi
 
     prepare_source \

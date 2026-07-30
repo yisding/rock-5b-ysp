@@ -19,7 +19,7 @@ for how the external source trees are reconstructed see
 | **librga** | `rockchip-userspace/librga-fork` | **fork branch**, 11 commits | `26a50ef`, 11 past vendor base `2cffdf6` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **FFmpeg 8.0** (system) | `ffmpeg/ffmpeg-rockchip-81` @ `rockchip-8.0` | **fork branch** | `da5befc806` | `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **FFmpeg 6.1** (co-installable) | `ffmpeg/ffmpeg-rockchip` (nyanmisaka) | upstream snapshot, no delta | `40c412dacc` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` | `ubuntu-rock-5b` |
-| **GNOME Remote Desktop** | `gnome/grd/gnome-remote-desktop` @ `release/50.2-rkmpp` | **fork branch**, 16 commits | `24f4392` | `50.2+rkmpp+git20260729.14.24f4392-0ubuntu1~rk1` | `ubuntu-rock-5b` |
+| **GNOME Remote Desktop** | `gnome/grd/gnome-remote-desktop` @ `release/50.2-rkmpp` | **fork branch**, 17 commits | `c4ef3c9` | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **Plymouth** | (packaging-local) | **quilt**, 1 patch | — | see `ppa/plymouth/` | `ubuntu-rock-5b` |
 | **FFmpeg 8.1** (baseline) | none — recovered `debian/` only | none (pristine upstream) | `8.1.2` | `7:8.1.2-1+rk2` | `rock5b-ffmpeg81-upstream` |
 | **codec-udev** | native, in-repo | n/a | — | `1.1` | `ubuntu-rock-5b` |
@@ -114,10 +114,18 @@ checkouts, not packaging inputs.
 
 ### GNOME Remote Desktop — fork branch
 
-The package archives branch `release/50.2-rkmpp` at `24f4392` directly — 16
-authored commits on upstream 50.2 (`60423c89`) — and **applies no source
-delta**. The tip signals the shader's existing full-range BT.709 conversion in
-the H.264 VUI; the package experiment corrected the client-visible colors.
+The package archives branch `release/50.2-rkmpp` at `c4ef3c9` directly — 17
+authored commits on latest GNOME 50 stable (`18cc5f7`) — and **applies no source
+delta**. The final two commits signal the shader's existing full-range BT.709
+conversion in the H.264 VUI and retain the persistent GDM user-display
+subscription after a reassigned reconnect handover times out.
+
+The June `a3a1a32` cleanup is not restored wholesale. Its global
+`client_taken` flag made a routing token single-use and broke the legitimate
+second handover leg; its broad preservation predicate could retain greeter
+state. The current branch retains the corrected July ownership, socket,
+timeout, and pending-only coalescing commits, then preserves only a display
+explicitly reassigned into the destination user handover.
 
 > **The 16-patch directory at
 > [`apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/)

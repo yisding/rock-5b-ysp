@@ -2239,6 +2239,47 @@ See ../../configure --help for available options.
   to `bos03-arm64-101`; the source is Pending and the build is running at this
   check.
 
+## GNOME Remote Desktop latest GNOME 50 reconnect successor — 2026-07-29
+
+- Rebasing `release/50.2-rkmpp` from upstream 50.2 `60423c8` to latest GNOME
+  50 stable `18cc5f7` retained all 16 downstream patches exactly under
+  `git range-diff`; the upstream tree delta is one Norwegian Bokmål translation
+  update. GNOME 51 remains the next development line and is not the Resolute
+  package base.
+- Re-review of June `a3a1a32` rejected its global `client_taken` state, which
+  makes the routing token single-use across a legitimate two-leg handover, and
+  its broad preserve-any-registered-display predicate. Release tip
+  `c4ef3c96194038e737be0857519ff77227279292` instead preserves only a persistent
+  user display explicitly reassigned into the destination handover, retaining
+  its `RemoteId` listener after timeout while initial greeter failures still
+  clean up normally.
+- Package
+  `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1` exports that public tip with
+  no source delta. The exporter now verifies the required reconnect invariants
+  and rejects a release containing `client_taken`.
+- Source and native arm64 builds pass with `/usr/bin/pkg-config`; RDP
+  integration passes, TPM and non-hardware EGL skip, and source/binary Lintian
+  error gates return success with only expected long-filename warnings.
+  Extracting the finished `.deb` confirms `SetRemoteId` and the narrowed
+  preservation message are present and `client_taken` is absent.
+- Binary SHA-256:
+  - `.deb`: `9c69ef847c98e2d6118bb266b3cc949e0666b0068df273e38f289826a4fa7197`;
+  - `.ddeb`: `07764dc5f001d9f5bc5d9b07316ffd13db7d68751e523024c0578d6ccd0fda00`;
+  - arm64 `.buildinfo`: `00b795376f92ece1a9b5028dcc4fbf1b1d5758157529d3a191fef7e1a22fbbe6`;
+  - arm64 `.changes`: `40a41b3fefce938095635ce5bf1b45bbf17f38fb3541023b90f498e6fdf3446e`.
+- The `.dsc`, source `.buildinfo`, and source `.changes` were signed with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`; direct verification reports a
+  good signature from `Yi Ding <yi.s.ding@gmail.com>` for all three. Signed
+  source SHA-256:
+  - orig tarball: `99b48a2fcc01dc40d7783780d6de2053236d9d8a18e0bb4b6e2f6c15d3accacc`;
+  - Debian tarball: `bb052e3b9a85682fd91721730e37f76675dde7692b432ebd5660132657b71419`;
+  - `.dsc`: `1d424aba8bca14c68513712211977d43ccf639e4c4833c5f3149b2cb5b164c42`;
+  - source `.buildinfo`: `f6695947dacd7c576b87b86fe7ec8d8c3841178bee1225c51826f81ed753f248`;
+  - source `.changes`: `32a362fd33a39b30c4e0b9c5c193d144c335d0e337c795d7d1d8911cb9ba1160`.
+- The signed source is upload-ready, but PPA publication awaits explicit user
+  authorization. Prior source `18647901` is now Published and build `33450532`
+  succeeded in 18m56s.
+
 ## MPP RADL and FFmpeg unused-RPS uploads — 2026-07-29
 
 - Advanced MPP to `ysp/main@3381fd2c` and package

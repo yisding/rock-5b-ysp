@@ -340,10 +340,12 @@ investigation: cached GPU-copy readback (`0014`), bounded hardware-encode
 recovery (`0015`), and progress-gated frame-acknowledgement recovery (`0016`).
 
 The current package instead archives public branch `release/50.2-rkmpp` at
-`24f4392`: 16 authored release commits on upstream 50.2, whose base already
-includes the reconnect revert represented by replay patch `0009`. The tip
-signals the shader's full-range BT.709 output in the AVC VUI, fixing the
-client-visible muted colors.
+`c4ef3c9`: 17 authored release commits on latest GNOME 50 stable, whose base
+already includes the reconnect revert represented by replay patch `0009`. The
+final two commits signal the shader's full-range BT.709 output in the AVC VUI
+and retain a reassigned persistent user display after a reconnect timeout
+without restoring the June experiment's single-use-token or broad
+greeter-preservation behavior.
 The periodic pipeline diagnostics/watchdog, separate diagnostics thread,
 focus-idle workaround, routine ACK transition messages, audio traces, Opus
 suppression, and legacy codec probe are excluded from the release. They remain
@@ -363,7 +365,7 @@ and roles; it deliberately delegates live publication and runtime state.
 
 | Component | Durable boundary | Needed? |
 |-----------|------------------|:---:|
-| `gnome-remote-desktop` | Clean 50.2 candidate `50.2+rkmpp+git20260729.14.24f4392-0ubuntu1~rk1`; current installed result and next gate: [`status.md` track 7](../../status.md#dashboard). | required |
+| `gnome-remote-desktop` | Clean 50.2 candidate `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1`; current installed result and next gate: [`status.md` track 7](../../status.md#dashboard). | required |
 | Rockchip FFmpeg 8.0.3 | Package branch `fix/rkmpp-output-timeout@da5befc806`; absorbs the transient MPP input-pool backpressure exposed by exp5. Publication: [W05](../../status.md#watch-w05). | required |
 | `gnome-remote-desktop-gdm-hwenc` `1.0` | Opt-in package granting the stable `gdm` group access to codec nodes. | optional (login-screen HW) |
 
