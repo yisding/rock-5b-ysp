@@ -1,3 +1,15 @@
+ffmpeg (7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1) resolute; urgency=medium
+
+  * rkmppenc: fix ownership of asynchronous input frames across encoder reset
+    and close. MPP owns a successfully submitted MppFrame until packet return
+    or context teardown; do not dereference or deinitialize that stored pointer
+    after MPP has destroyed its queues.
+  * Keep FFmpeg's imported MppBuffer reference separately so teardown can
+    release it without touching a stale MppFrame. Drain reset-return packets
+    during encoder flush before discarding the tracking list.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Thu, 30 Jul 2026 21:36:14 -0700
+
 ffmpeg (7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1) resolute; urgency=medium
 
   * Backport upstream HEVC reference-picture fix 265d39e551: always generate

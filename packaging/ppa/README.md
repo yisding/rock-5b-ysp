@@ -99,7 +99,7 @@ stated in the affected rows. The step-by-step provenance is retained in the
 | `rk3588-codec-udev` | `1.1` under [`codec-udev/`](codec-udev/README.md) | Source publication [`18620729`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18620729) and arm64-hosted `Architecture: all` build [`33399688`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33399688) are Published/successful. Version 1.0 is superseded. | Installs the canonical non-root MPP/RGA/DMA-heap access rule; `1.1` retriggers real sysfs devices and verifies the resulting permissions. Local source/binary builds, lintian, package installation, and live-device permission checks pass. |
 | `mpp` | `1.5.0+git20260730.ad325345+ds-0ubuntu1~rk1` | Source publication [`18650756`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18650756) is accepted and Pending; arm64 build [`33455877`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33455877) is queued as Needs building. Local source build, orig-tarball content verification, and Lintian's error gate pass. Prior source [`18647958`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647958) is Published with build [`33450621`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450621) and all five binaries. | Fork tip `ad325345` adds the missing vepu580 HEVC bitstream-top `size - 1` call site to the `3381fd2c` set (encoder/GCC, same-ID PPS, RADL). Without it every non-tiled HEVC encode programs base + size and fails each frame on a driver that range-checks register offsets; the rewrite driver rejected all six encoder conformance cases this way. Locally built and hardware-verified: 720p/5120-wide HEVC encode, no H.264 regression, output decodes. The `3381fd2c` VA sweep and decode-soak results still describe the prior, still-Published version; this successor needs its own build, install, and encoder conformance re-run. |
 | `librga` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | Source publication [`18641905`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18641905) is Published; arm64 build [`33440960`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33440960) succeeded in 6m02s, and binary publications [`247477790`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247477790) and [`247477791`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247477791) are Published. The exact packages are installed from the normal PPA. Client-side verification also passed the full local arm64 build and Lintian error gate, with SONAME unchanged at `librga.so.2`. | Extends the 10-bit `vir_w` byte-stride conversion to **TILE** (FBC stays on the pixel convention); also fixes the cmake `-DLINUX` hole and unchecked `fread()`s. **Must land with a kernel carrying the matching TILE plane-offset fix** — a mismatched pair is wrong by 20% on the 10-bit TILE path. Note the upstream date is `20260725` (commit is 2026-07-25 UTC): a same-date bump to a digit-leading hash sorts *below* `b8def3e` under dpkg comparison. |
-| `ffmpeg` | `7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1` | Source publication [`18647960`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647960) is Published; arm64 build [`33450629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450629) succeeded in 28m19s, and all 29 binary publications [`247606934`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606934)–[`247606962`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606962) are Published. Local source construction, source verification, and Lintian's error gate also pass. | Retains the bounded RKMPP backpressure handling and backports upstream `265d39e551`, generating missing unused HEVC following references instead of requiring the global `output_corrupt` workaround. The exact live-PPA FFmpeg/MPP runtime set passes the isolated full HEVC sweep, normal plus ASan/UBSan shipping matrices, and a 7,200-second/216,005-frame 4K decode soak with no RSS or fd growth; host APT installation remains. |
+| `ffmpeg` | `7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1` | The successor source package builds and validates locally; publication and arm64 binary build are pending. Predecessor source [`18647960`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647960), build [`33450629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450629), and all 29 binaries [`247606934`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606934)–[`247606962`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606962) remain Published. | Retains bounded RKMPP backpressure and the HEVC unused-following-reference fix, then fixes asynchronous input-frame ownership across encoder reset/close. Focused hardware gates pass 10/10 immediate-close and 10/10 flush/reuse iterations without the old libmpp refcount/pool diagnostics. The predecessor remains installed; package installation and repeated GRD fallback/recreation are pending. |
 | `rockchip-vaapi` | `1.0.11+ysp6-0ubuntu1~rk1` | Exact `yisding/rockchip-vaapi main@5d558fa` source and arm64/all binaries build locally. The signed source validates against the personal public-key ring; every tracked file in the extracted source matches the release commit. Source Lintian has no errors and one historical-version warning, binary Lintian is clean, and the isolated clean install/upgrade/purge lifecycle passes. Upload pending. | Closes the final roadmap implementation: two-object linear imports, equal-row multi-slice, same-process 2-decode/2-encode stress, 10-bit throughput, Firefox sandbox/P010 patches, and final app/soak gates. Host installation, Launchpad build, and publication remain. |
 | `ffmpeg` 8.1.2 baseline | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Dedicated-PPA source publication [`18619544`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-upstream/+sourcepub/18619544) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-upstream`. |
 | `ffmpeg` 8.1.2 Rockchip | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Dedicated-PPA source publication [`18619545`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-rockchip/+sourcepub/18619545) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-rockchip`; it builds against the fresh main PPA for MPP/librga. |
@@ -132,7 +132,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`clean-install-system-stack.sh`](clean-install-system-stack.sh) | Replaces earlier incompatible test packages with exact versions from the system PPA while retaining the distro kernel as a recovery path. |
 | [`mpp/debian/`](mpp/debian/changelog) | Debian packaging for Rockchip MPP from `ysp/main@ad325345`. |
 | [`librga/debian/`](librga/debian/changelog) | Debian packaging for the local `librga-fork` commit `26a50ef`, including the P010/P210 work and the 10-bit RASTER+TILE byte-stride conversion. |
-| [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg 8.0.3 packaging for the RKMPP/RKRGA forward port plus the unused-following-reference fix at `33a651a55b`. |
+| [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg 8.0.3 packaging for the RKMPP/RKRGA forward port, unused-following-reference fix, and asynchronous encoder-frame lifetime fix at `c9428bedaa`. |
 | [`ffmpeg-rockchip/debian/`](ffmpeg-rockchip/debian/changelog) | Co-installable `/opt/ffmpeg-rockchip` packaging for nyanmisaka's FFmpeg 6.1 Rockchip fork at `40c412daccf0`. |
 | [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging pinned to the clean release commit with `-Dffmpeg=enabled`. The normal export has no `GRD_DELTA`; that option is retained only for historical reconstruction. |
 | [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md) | Historical tracked-file GRD deltas retained to reconstruct older dirty source-package snapshots. |
@@ -166,7 +166,7 @@ or individual paths/pins with the matching environment variables.
 | librga repo | `LIBRGA_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/librga-fork` |
 | librga commit | `LIBRGA_COMMIT` | `26a50ef` (must match the shipped kernel's 10-bit stride convention) |
 | FFmpeg repo | `FFMPEG_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81` |
-| FFmpeg commit | `FFMPEG_COMMIT` | `33a651a55ba62d29d9474d236ceb9240043da518` |
+| FFmpeg commit | `FFMPEG_COMMIT` | `c9428bedaa45448d79c629f6be83a41257ac6167` |
 | nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
 | nyanmisaka FFmpeg Rockchip commit | `FFMPEG_ROCKCHIP_COMMIT` | `40c412daccf08164493da0de990eb99a8948116b` |
 | GRD repo | `GRD_REPO` | `$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop` |
@@ -403,7 +403,7 @@ The FFmpeg package uses the full Ubuntu/Debian packaging surface, not the smalle
 local `/opt` package under [`../ffmpeg-rockchip81/`](../ffmpeg-rockchip81/README.md).
 The system package is based on the official FFmpeg `n8.0.3` tag plus the
 RKMPP/RKRGA forward-port and hardening series. The current packaging pin is
-`fix/rkmpp-output-timeout@33a651a55b`, based on the `rockchip-8.0` line. It
+`fix/rkmpp-output-timeout@c9428bedaa`, based on the `rockchip-8.0` line. It
 enables:
 
 - `--enable-rkmpp`
@@ -457,6 +457,19 @@ packet wait as `EAGAIN`. The changed object compiles, source lintian has warning
 only, Launchpad build `33417109` succeeded, and the exact binaries are Published.
 The preceding general codec hardware coverage still applies, but the sustained
 GRD workload that triggered this backpressure needs a direct board re-test.
+
+Version `7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1` fixes a
+separate lifetime defect in that asynchronous path. MPP owns a successfully
+submitted `MppFrame` through packet return or context teardown, so FFmpeg now
+keeps its imported `MppBuffer` reference separately, avoids deinitializing
+submitted frames after MPP teardown, and drains reset-return packets on flush.
+The affected object, `fate-source`, source construction, and source checksum
+verification pass. Focused RK3588 hardware tests pass 10/10 immediate-close
+and 10/10 flush/reuse iterations with no refcount, frame-pool, or kernel-fault
+diagnostic. See the
+[`lifetime finding`](../../findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md).
+The candidate is not yet published or installed, and the real GRD
+fallback/recreation gate remains open.
 
 Private FFmpeg helper packages are a separate case: a package such as
 `gnome-remote-desktop-ffmpeg-rk` that installs FFmpeg 6 libraries under
