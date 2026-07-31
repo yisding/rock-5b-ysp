@@ -1,0 +1,251 @@
+From 14c0456c4108c71d1143081a5ad6b22a68c6762b Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Fri, 31 Jul 2026 08:17:39 -0700
+Subject: [PATCH] media: rockchip: rga: honor mapped SG contracts
+
+---
+ drivers/video/rockchip/rga3/rga_dma_buf.c |  45 +++++--
+ drivers/video/rockchip/rga3/rga_mm.c      | 142 ++++++++++++++--------
+ 2 files changed, 121 insertions(+), 66 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/rga_dma_buf.c b/drivers/video/rockchip/rga3/rga_dma_buf.c
+index 466f818ba1351..a0f6d1e2269db 100644
+--- a/drivers/video/rockchip/rga3/rga_dma_buf.c
++++ b/drivers/video/rockchip/rga3/rga_dma_buf.c
+@@ -40,6 +40,12 @@ static int rga_dma_check_iova_span(dma_addr_t dma_addr, size_t size,
+ static int rga_dma_check_iova_contract(struct sg_table *sgt,
+ 				       const char *source, bool log_errors)
+ {
++	struct scatterlist *sg;
++	dma_addr_t base = 0;
++	u64 expected = 0;
++	size_t size = 0;
++	unsigned int i;
++
+ 	if (!sgt || !sgt->sgl) {
+ 		if (log_errors)
+ 			rga_err("reject %s DMA mapping: empty sg table\n",
+@@ -47,16 +53,31 @@ static int rga_dma_check_iova_contract(struct sg_table *sgt,
+ 		return -EINVAL;
+ 	}
+ 
+-	if (sgt->nents != 1) {
+-		if (log_errors)
+-			rga_err("reject %s DMA mapping: expected one DMA segment, got %u, orig_nents = %u\n",
+-				source, sgt->nents, sgt->orig_nents);
+-		return -EOPNOTSUPP;
++	for_each_sgtable_dma_sg(sgt, sg, i) {
++		dma_addr_t addr = sg_dma_address(sg);
++		size_t len = sg_dma_len(sg);
++
++		if (!len) {
++			if (log_errors)
++				rga_err("reject %s DMA mapping: zero-length segment %u\n",
++					source, i);
++			return -EINVAL;
++		}
++		if (!i)
++			base = addr;
++		else if ((u64)addr != expected) {
++			if (log_errors)
++				rga_err("reject %s DMA mapping: segment %u is not adjacent, expected 0x%llx, got %pad, nents = %u, orig_nents = %u\n",
++					source, i, expected, &addr, sgt->nents,
++					sgt->orig_nents);
++			return -EOPNOTSUPP;
++		}
++		if (check_add_overflow(size, len, &size) ||
++		    check_add_overflow((u64)addr, (u64)len, &expected))
++			return -EOVERFLOW;
+ 	}
+ 
+-	return rga_dma_check_iova_span(sg_dma_address(sgt->sgl),
+-				       sg_dma_len(sgt->sgl), source,
+-				       log_errors);
++	return rga_dma_check_iova_span(base, size, source, log_errors);
+ }
+ 
+ static void rga_dma_reset_sgt_dma_state(struct sg_table *sgt)
+@@ -358,15 +379,15 @@ static int rga_dma_set_buffer_mapping(struct sg_table *sgt,
+ 		ret = rga_dma_check_page_granular_contract(sgt, source);
+ 		if (ret)
+ 			return ret;
+-
+-		for_each_sgtable_dma_sg(sgt, sg, i)
+-			size += sg_dma_len(sg);
+ 	} else {
+ 		ret = rga_dma_check_iova_contract(sgt, source, true);
+ 		if (ret)
+ 			return ret;
++	}
+ 
+-		size = sg_dma_len(sgt->sgl);
++	for_each_sgtable_dma_sg(sgt, sg, i) {
++		if (check_add_overflow(size, (size_t)sg_dma_len(sg), &size))
++			return -EOVERFLOW;
+ 	}
+ 
+ 	buffer->sgt = sgt;
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 5e3a22bcaca11..51cefcc724018 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -1532,68 +1532,102 @@ static int rga_mm_set_mmu_flag(struct rga_job *job,
+ 	return 0;
+ }
+ 
++static int rga_mm_emit_page_table_run(u64 address, u64 length,
++				      uint32_t *page_table,
++				      uint32_t page_count,
++				      uint32_t *mapped_count)
++{
++	u64 base = address & PAGE_MASK;
++	u64 span;
++	u64 pages;
++	u64 i;
++
++	if (!length || check_add_overflow((u64)offset_in_page(address),
++					 length, &span))
++		return -EINVAL;
++	pages = DIV_ROUND_UP_ULL(span, PAGE_SIZE);
++
++	for (i = 0; i < pages && *mapped_count < page_count; i++) {
++		u64 pte;
++
++		if (check_add_overflow(base, i << PAGE_SHIFT, &pte))
++			return -EOVERFLOW;
++		/* RGA2 PTEs contain full 32-bit page addresses. */
++		if (pte > SZ_4G - PAGE_SIZE)
++			return -EOPNOTSUPP;
++		page_table[(*mapped_count)++] = (uint32_t)pte;
++	}
++
++	return 0;
++}
++
+ static int rga_mm_sgt_to_page_table(struct sg_table *sg,
+ 				    uint32_t *page_table,
+ 				    int32_t pageCount,
+ 				    int32_t use_dma_address)
+ {
+-	uint32_t i;
+-	unsigned long Address;
+-	uint32_t mapped_size = 0;
+-	uint32_t len;
+-	struct scatterlist *sgl = sg->sgl;
+-	uint32_t sg_num = 0;
+-	uint32_t break_flag = 0;
+-
+-	do {
+-		/*
+-		 *   The length of each sgl is expected to be obtained here, not
+-		 * the length of the entire dma_buf, so sg_dma_len() is not used.
+-		 */
+-		len = (sgl->length + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
++	struct scatterlist *sgl;
++	u64 run_address = 0;
++	u64 run_length = 0;
++	u32 mapped_count = 0;
++	unsigned int i;
++	int ret;
+ 
+-		if (use_dma_address)
+-			/*
+-			 *   The fd passed by user space gets sg through
+-			 * dma_buf_map_attachment, so dma_address can
+-			 * be use here.
+-			 *   When the mapped device does not have iommu, it will
+-			 * return the first address of the real physical page
+-			 * when it meets the requirements of the current device,
+-			 * and will trigger swiotlb when it does not meet the
+-			 * requirements to obtain a software-mapped physical
+-			 * address that is mapped to meet the device address
+-			 * requirements.
+-			 */
+-			Address = sg_dma_address(sgl);
+-		else
+-			Address = sg_phys(sgl);
++	if (!sg || !sg->sgl || !page_table || pageCount <= 0)
++		return -EINVAL;
+ 
+-		Address &= PAGE_MASK;
++#define RGA_MM_ACCUMULATE_ENTRY(_address, _length) do { \
++		u64 __address = (_address); \
++		u64 __length = (_length); \
++		u64 __run_end; \
++		if (!__length || check_add_overflow(__address, __length, &__run_end)) \
++			return -EINVAL; \
++		if (!run_length) { \
++			run_address = __address; \
++			run_length = __length; \
++		} else { \
++			u64 __previous_end; \
++			if (check_add_overflow(run_address, run_length, &__previous_end)) \
++				return -EOVERFLOW; \
++			if (__address == __previous_end) { \
++				if (check_add_overflow(run_length, __length, &run_length)) \
++					return -EOVERFLOW; \
++			} else { \
++				ret = rga_mm_emit_page_table_run(run_address, run_length, \
++							       page_table, pageCount, \
++							       &mapped_count); \
++				if (ret || mapped_count == pageCount) \
++					return ret; \
++				if (!IS_ALIGNED(__previous_end, PAGE_SIZE) || \
++				    !IS_ALIGNED(__address, PAGE_SIZE)) \
++					return -EOPNOTSUPP; \
++				run_address = __address; \
++				run_length = __length; \
++			} \
++		} \
++	} while (0)
++
++	if (use_dma_address) {
++		for_each_sgtable_dma_sg(sg, sgl, i)
++			RGA_MM_ACCUMULATE_ENTRY(sg_dma_address(sgl),
++						 sg_dma_len(sgl));
++	} else {
++		for_each_sg(sg->sgl, sgl, sg->orig_nents, i)
++			RGA_MM_ACCUMULATE_ENTRY(sg_phys(sgl), sgl->length);
++	}
+ 
+-		for (i = 0; i < len; i++) {
+-			if (mapped_size + i >= pageCount) {
+-				break_flag = 1;
+-				break;
+-			}
+-			/*
+-			 * RGA2 MMU entries are 32-bit page addresses; an
+-			 * entry above 4 GiB would be silently truncated and
+-			 * make the hardware fetch an unrelated page (observed
+-			 * as an RGA2 bus error on >4G userptr pages).  Fail
+-			 * closed instead; below-4G and swiotlb-bounced
+-			 * dma-buf paths are unaffected.
+-			 */
+-			if ((Address + ((unsigned long)i << PAGE_SHIFT)) >
+-			    (SZ_4G - PAGE_SIZE))
+-				return -EOPNOTSUPP;
+-			page_table[mapped_size + i] = (uint32_t)(Address + (i << PAGE_SHIFT));
+-		}
+-		if (break_flag)
+-			break;
+-		mapped_size += len;
+-		sg_num += 1;
+-	} while ((sgl = sg_next(sgl)) && (mapped_size < pageCount) && (sg_num < sg->orig_nents));
++#undef RGA_MM_ACCUMULATE_ENTRY
++
++	if (run_length) {
++		ret = rga_mm_emit_page_table_run(run_address, run_length,
++					       page_table, pageCount,
++					       &mapped_count);
++		if (ret)
++			return ret;
++	}
++
++	if (mapped_count != pageCount)
++		return -EINVAL;
+ 
+ 	return 0;
+ }
+-- 
+2.55.0
+

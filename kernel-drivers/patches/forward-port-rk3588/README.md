@@ -41,8 +41,8 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch `rk3588-video-6.18`,
-tip `c10074f4474e`). The checked-in series is now contiguous `0001`–`0079`
-after the 2026-07-29 WARN/oops audit sweep. Backup of the pre-cleanup tip: tag
+tip `14c0456c4108`). The checked-in series is now contiguous `0001`–`0080`
+after the 2026-07-31 mapped-SG contract repair. Backup of the pre-cleanup tip: tag
 `backup/pre-reorg-20260723` (`4401383a6d9b5`). Generated fallback/official `.deb`
 files in the external build workspace are intentionally not tracked here — only
 the `git format-patch` text is source material.
@@ -264,6 +264,20 @@ negative results, and the verification gate are in the
 | `0077` | video: rockchip: mpp: fix IOMMU cookie typing and buffer-release ordering | `4dba1f42ab2b` | — |
 | `0078` | video: rockchip: rkvenc2/rkvdec2-link: fix window wrap, atomic clocks, WARN | `b7883d72b746` | — |
 | `0079` | video: rockchip: rga: fix job/buffer lifetime, locking and import validation | `c10074f4474e` | — |
+
+### 0080 — RGA mapped-SG contract repair (2026-07-31)
+
+The forward port now treats several byte-adjacent mapped DMA entries as one
+safe direct-address span and builds RGA2 page tables from the mapped entry
+count, DMA lengths, and DMA addresses. Page-aligned real gaps become distinct
+RGA2 PTE runs; sub-page gaps, short coverage, overflow, and above-32-bit PTEs
+remain fail-closed. This preserves DMA-API/SWIOTLB ownership instead of
+reinterpreting exporter pages. The two changed objects compile cleanly; a
+forced-RGA2 fragmented DMA-BUF hardware run is still owed.
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0080` | media: rockchip: rga: honor mapped SG contracts | `14c0456c4108` | — |
 
 ## Renumber map (2026-07-23)
 
