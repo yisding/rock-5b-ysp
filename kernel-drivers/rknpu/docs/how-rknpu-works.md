@@ -28,7 +28,7 @@ map below to recover a layer without rereading the whole stack.
 | When is `rknn_server` involved? | [§3](#3-ways-to-deploy-and-debug) | Connected Toolkit2 debugging uses the server as a proxy; an ordinary native C/RKNNLite application links the runtime directly and does not require it. |
 | What is known despite the closed runtime? | [Evidence and limits](#evidence-and-limits) and [§4](#4-what-is-open-and-what-is-closed) | Public API/docs, ELF metadata, diagnostics, examples, and the kernel ABI bound the behavior; unlabeled runtime internals remain unknown. |
 | Who owns contexts, tensors, conversion, and memory? | [§5](#5-runtime-api-and-context-lifecycle), [§6](#6-general-io-versus-zero-copy-io), and [§7](#7-model-and-execution-memory) | The runtime owns context and tensor policy; general IO may convert/copy, while zero-copy exposes native layout/stride and explicit shared-memory lifetime. |
-| What crosses into the kernel? | [§8](#8-how-the-runtime-reaches-the-kernel) through [§10](#10-submission-and-hardware-execution) | The runtime submits already-prepared task/register and device-address data; the driver resolves memory, queues cores, powers hardware, starts work, and completes it. |
+| What crosses into the kernel? | [§8](#8-how-the-runtime-reaches-the-kernel) through [§10](#10-submission-and-hardware-execution), then the [kernel-driver deep dive](kernel-driver-architecture.md) | The runtime submits already-prepared task/register and device-address data; the driver resolves memory, queues cores, powers hardware, starts work, and completes it. |
 | How do cores and address spaces interact? | [§11](#11-three-core-behavior), [§12](#12-iommu-domains-ddr-sram-and-nbuf), and [§13](#13-fences-blocking-and-cache-ownership) | Core masks, runtime model partitioning, selected IOMMU domains, fences, and cache ownership are separate decisions that must agree. |
 | Where do performance and recovery claims come from? | [§14](#14-power-frequency-and-utilization), [§15](#15-failure-and-recovery-paths), and [§16](#16-observability) | A return code alone is insufficient; preserve versions, native attrs, memory, core mask, correctness, latency, and kernel/runtime logs. |
 | What would turn this source model into board evidence? | [§17](#17-compatibility-and-deployment-checklist) | Validate the compiler/model/runtime/driver/DT/silicon tuple with known output, repeated lifecycles, intended core masks, memory/fence behavior, and controlled recovery. |
@@ -525,7 +525,7 @@ does not document the command encoding needed to construct a valid model job.
 | Context address space | Caller-selected RKNPU IOMMU domain id |
 | Core selection | `core_mask` plus `subcore_task[]` start/count ranges |
 | Blocking/nonblocking run | submit mode, wait queue, and optional dma-fence path |
-| Runtime timeout | submit timeout and driver timeout work |
+| Runtime timeout | blocking wait/abort, or an async stale-job sweep triggered by a later nonblocking submit |
 | Performance duration | returned `hw_elapse_time`, plus runtime layer/model reporting |
 
 This map is partly an inference: the runtime source is unavailable, but its
@@ -533,6 +533,12 @@ public memory/core/fence API, diagnostics, and the sole RKNPU ABI line up with
 these kernel structures.
 
 ## 9. Kernel source architecture and RK3588 wiring
+
+This section is the end-to-end orientation. The dedicated
+[RKNPU kernel-driver architecture](kernel-driver-architecture.md) traces every
+source file, ABI structure, object lifetime, lock, memory path, domain switch,
+queue transition, PC register write, IRQ, timeout, PM sequence, and
+forward-port boundary.
 
 ### 9.1 Driver files
 
@@ -638,10 +644,13 @@ SoC-specific maximum. Non-PC submission is not a practical alternate path in
 this driver revision.
 
 On interrupt, the driver checks grouped status against the expected mask,
-writes status back into the last task descriptor, accounts hardware busy time,
-releases its IOMMU-domain reference, completes/wakes the job, and starts the
-next queued job. The returned `hw_elapse_time` represents the driver's measured
-hardware interval, not necessarily end-to-end application latency.
+accounts software busy time, advances the core to another PC chunk or retires
+it, and starts the next queued job. The final selected core releases the
+IOMMU-domain reference and completes/wakes/signals the job; the blocking wait
+writes status back into a last-task descriptor. The returned `hw_elapse_time`
+is a software interval beginning at the final selected core's reservation
+immediately before launch and includes kernel/IRQ overhead. It is not a
+per-core hardware counter or end-to-end application latency.
 
 ## 11. Three-core behavior
 
@@ -748,7 +757,10 @@ review target rather than assuming the public flags imply robust behavior.
 
 Every ioctl wrapper acquires runtime power and schedules delayed release. The
 default power-off delay is three seconds, intended to avoid power cycling
-between closely spaced inferences. The driver coordinates:
+between closely spaced inferences. Blocking submission keeps that ioctl
+reference while it waits; nonblocking work has no separate per-job power
+reference and relies on the delayed hold and later runtime traffic. The driver
+coordinates:
 
 - regulators and clocks;
 - three NPU-related power domains;
@@ -771,10 +783,18 @@ stateDiagram-v2
   Resetting --> Active: reset and reinitialize
 ```
 
-The action ABI can get/set frequency, voltage, memory bandwidth parameters,
-power, reset, and process nice. In a normal deployment those controls should be
-mediated by the runtime and system policy. They are not proof that arbitrary
-applications should tune hardware globally.
+The generic action enum names frequency, voltage, memory-bandwidth, power,
+reset, and process-nice controls, but the RK3588 0.9.8 dispatch is narrower:
+frequency/voltage are read-only there, explicit power actions have no switch
+case, and RK3588 has no legacy bandwidth/counter register descriptors. Reset,
+process nice, and IOMMU-domain selection are implemented global actions. The
+debugfs frequency control drives the driver's explicit devfreq target.
+
+Despite its name, the custom `rknpu_ondemand` governor is not load-driven:
+`get_dev_status()` returns without supplying utilization and the governor
+retains `ondemand_freq` or the previous rate. The separate 1-second debugfs
+load value measures software core-slot reservation time and can include
+multicore barrier wait.
 
 ## 15. Failure and recovery paths
 
@@ -782,7 +802,8 @@ applications should tune hardware globally.
 |---|---|---|
 | NPU completion IRQ | Validate/clear status, account duration, complete core/job, signal/wake, run next job | `rknn_run`/wait/output becomes ready. |
 | MMU fault | IOMMU interrupt/error logging | Usually indicates a bad/stale/unmapped NPU address; job may time out or fail. |
-| Submit timeout | Timeout worker logs job/core state and performs a global soft reset | Other in-flight work can be affected because reset is device-wide. |
+| Blocking submit timeout | The waiting ioctl logs job/core state, aborts, and performs a global soft reset | Other in-flight work can be affected because reset is device-wide. |
+| Async stale job | A later nonblocking submit sweeps selected cores and may reset/clean stale work; there is no per-job timeout timer | A final hung async job is not reaped by this file until more async work arrives. |
 | Explicit reset action | Soft-reset sequence | Global device state changes; queues/contexts must recover consistently. |
 | Invalid status/mask | Error diagnostics and failed/unfinished job path | Runtime error or timeout. |
 | Device removal with live jobs | Driver warns about unfinished work | Removal is not a graceful per-context cancellation protocol. |
@@ -900,6 +921,7 @@ hardening, but it is not the organizing principle for understanding the stack.
 | IOMMU domains and mappings | [`rknpu_iommu.c`](https://github.com/rockchip-linux/kernel/blob/b4ef083dc0c3608e744deabb43dc6b781aadbe6e/drivers/rknpu/rknpu_iommu.c) |
 | Probe, actions, PM, SoC data | [`rknpu_drv.c`](https://github.com/rockchip-linux/kernel/blob/b4ef083dc0c3608e744deabb43dc6b781aadbe6e/drivers/rknpu/rknpu_drv.c) |
 | RK3588 MMIO/IRQ/power/IOMMU wiring | [`rk3588s.dtsi`](https://github.com/rockchip-linux/kernel/blob/b4ef083dc0c3608e744deabb43dc6b781aadbe6e/arch/arm64/boot/dts/rockchip/rk3588s.dtsi) |
+| Complete kernel control/data-flow map | [`kernel-driver-architecture.md`](kernel-driver-architecture.md) |
 
 Project vocabulary is in [`../keywords.md`](../keywords.md); the project front
 door is [`../README.md`](../README.md).
