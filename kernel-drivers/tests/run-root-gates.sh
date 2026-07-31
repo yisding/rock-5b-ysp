@@ -175,7 +175,7 @@ run_gate() {
 
 # 1. rkvenc2 encoder smoke (writes /dev/kmsg markers, scans for IOMMU faults)
 run_gate encode-test-tiny \
-	MPP_BUILD="$CONFORMANCE_ROOT/out/mpp" \
+	MPP_BUILD=/usr \
 	-- bash "$TEST_DIR/encode-test-tiny.sh"
 
 # 2. end-to-end HW transcode (h264/hevc decode+encode + RGA scale/CSC).
@@ -204,17 +204,14 @@ run_gate rga-mmu-debug \
 #    cores + AV1 vsi-iommu). Uses hw ffmpeg for any HW ref, distro ffmpeg for
 #    the software reference in decode-differential.
 run_gate iommu-machinery-fuzz \
-	MPP_BUILD="$CONFORMANCE_ROOT/out/mpp" \
+	MPP_BUILD=/usr \
 	FFSW="$FFMPEG" FFHW="$FFMPEG" \
 	-- bash "$TEST_DIR/iommu-machinery-fuzz.sh"
 
 # 5. focused MPP debug capture (debugfs counters around a decode workload).
-#    The mpi_dec_test workload needs the built librockchip_mpp (the distro one
-#    lacks codec parsers), so put out/mpp/lib on LD_LIBRARY_PATH.
 run_gate mpp-debug-capture \
-	LD_LIBRARY_PATH="$CONFORMANCE_ROOT/out/mpp/lib" \
 	-- bash "$TEST_DIR/mpp-debug-capture.sh" -o "$OUT/mpp-debug-capture.d" -- \
-	"$CONFORMANCE_ROOT/out/mpp/bin/mpi_dec_test" -t 7 \
+	/usr/bin/mpi_dec_test -t 7 \
 	-i "$CONFORMANCE_ROOT/assets/test_h264.h264" -n 60
 
 # 6. VP9 show_existing_frame regression gate. Once a NULL-deref board hard-lock,

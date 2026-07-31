@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-PC_DIR="$ROOT/out/pkgconfig"
+PC_DIR=${PC_DIR:-"$ROOT/out/pkgconfig"}
 LIBRGA_ROOT="$ROOT/sources/airockchip-librga"
 LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$LIBRGA_ROOT/libs/Linux/gcc-aarch64"}
 LIBRGA_INCLUDEDIR=${LIBRGA_INCLUDEDIR:-"$LIBRGA_ROOT/include"}

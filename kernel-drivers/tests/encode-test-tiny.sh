@@ -16,9 +16,9 @@ source "$TEST_DIR/suite-common.sh"
 : "${SUITE_DMESG_FATAL_RE:?suite-common.sh did not load; the kernel-log fatal scan would be silently blind}"
 
 # MPP_BUILD = an MPP build/install tree with librockchip_mpp + mpi_enc_test
-# (env-overridable). Default = the rockchip-conformance install prefix (lib/+bin/);
-# a raw cmake build dir (mpp/+test/) is auto-detected too.
-MPP_BUILD="${MPP_BUILD:-$ROCK5B_WORKSPACE/rockchip-conformance/out/mpp}"
+# (env-overridable). Default = the installed /usr prefix; a raw cmake build
+# dir (mpp/+test/) is auto-detected too.
+MPP_BUILD="${MPP_BUILD:-/usr}"
 LIB=$MPP_BUILD/lib;             [ -d "$LIB" ] || LIB=$MPP_BUILD/mpp
 ENC=$MPP_BUILD/bin/mpi_enc_test; [ -x "$ENC" ] || ENC=$MPP_BUILD/test/mpi_enc_test
 OUT=/tmp/rkvenc-test

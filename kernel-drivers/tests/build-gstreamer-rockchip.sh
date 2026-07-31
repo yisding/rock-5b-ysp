@@ -9,8 +9,10 @@ CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 SRC_ROOT=${GST_ROCKCHIP_SRC:-"$CONFORMANCE_ROOT/sources/jeffycn-gstreamer-rockchip"}
 BUILD_DIR=${BUILD_DIR:-"$CONFORMANCE_ROOT/build/jeffycn-gstreamer-rockchip-mpp"}
 PREFIX=${PREFIX:-"$CONFORMANCE_ROOT/out/gstreamer-rockchip"}
-MPP_PREFIX=${MPP_PREFIX:-"$CONFORMANCE_ROOT/out/mpp"}
-PKG_SHIM=${PKG_SHIM:-"$CONFORMANCE_ROOT/out/pkgconfig"}
+# Installed development packages are the default. Set MPP_PREFIX and/or
+# PKG_SHIM only to build the plugin against an explicit staged stack.
+MPP_PREFIX=${MPP_PREFIX:-}
+PKG_SHIM=${PKG_SHIM:-}
 EVENT_HARNESS_SRC=${EVENT_HARNESS_SRC:-"$TEST_DIR/gstreamer-event-harness.c"}
 GST_EVENT_HARNESS_VALIDATE_BUILD=${GST_EVENT_HARNESS_VALIDATE_BUILD:-0}
 ROCKCHIPMPP_FEATURE=${ROCKCHIPMPP_FEATURE:-enabled}
@@ -54,7 +56,16 @@ if [ ! -d "$SRC_ROOT" ]; then
 	exit 2
 fi
 
-export PKG_CONFIG_PATH="$MPP_PREFIX/lib/pkgconfig:$PKG_SHIM:${PKG_CONFIG_PATH:-}"
+dependency_pc_path=${PKG_CONFIG_PATH:-}
+if [ -n "$PKG_SHIM" ]; then
+	dependency_pc_path="$PKG_SHIM${dependency_pc_path:+:$dependency_pc_path}"
+fi
+if [ -n "$MPP_PREFIX" ]; then
+	dependency_pc_path="$MPP_PREFIX/lib/pkgconfig${dependency_pc_path:+:$dependency_pc_path}"
+fi
+if [ -n "$dependency_pc_path" ]; then
+	export PKG_CONFIG_PATH="$dependency_pc_path"
+fi
 # ccache is deliberately NOT disabled here. This used to default CCACHE_DISABLE=1
 # to dodge permission failures from a root-owned ~/.cache/ccache; the shared store
 # (rock-5b-ysp/scripts/centralize-ccache.sh) is group-writable, so that failure
@@ -62,9 +73,9 @@ export PKG_CONFIG_PATH="$MPP_PREFIX/lib/pkgconfig:$PKG_SHIM:${PKG_CONFIG_PATH:-}
 # build wires itself in with no further plumbing. Export CCACHE_DISABLE=1 to opt
 # out for a deliberately uncached comparison.
 
-if [ ! -f "$PKG_SHIM/librga.pc" ] &&
+if [ -n "$PKG_SHIM" ] && [ ! -f "$PKG_SHIM/librga.pc" ] &&
 	[ -x "$CONFORMANCE_ROOT/scripts/make-librga-pkgconfig.sh" ]; then
-	PREFIX="$CONFORMANCE_ROOT/out" "$CONFORMANCE_ROOT/scripts/make-librga-pkgconfig.sh"
+	PC_DIR="$PKG_SHIM" "$CONFORMANCE_ROOT/scripts/make-librga-pkgconfig.sh"
 fi
 
 required_pc=(
@@ -97,8 +108,8 @@ if [ "${#missing[@]}" -ne 0 ]; then
 	printf "  %s\n" "${missing[@]}" >&2
 	echo >&2
 	echo "On Debian/Ubuntu targets, install the GStreamer development packages:" >&2
-	echo "  sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libglib2.0-dev" >&2
-	echo "Then rerun build-mpp-tests.sh and this script from the ysp tree." >&2
+	echo "  sudo apt install librockchip-mpp-dev librga-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libglib2.0-dev" >&2
+	echo "Then rerun this script from the ysp tree." >&2
 	exit 2
 fi
 

@@ -8,11 +8,13 @@ REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 source "$TEST_DIR/suite-common.sh"
 
 KUNIT_DEBUGFS_ROOT=${KUNIT_DEBUGFS_ROOT:-/sys/kernel/debug/kunit}
-KUNIT_REQUIRED_SUITES=${KUNIT_REQUIRED_SUITES:-"rk_mpp_rewrite:84 rockchip-rga-rewrite:148"}
+KUNIT_REQUIRED_SUITES=${KUNIT_REQUIRED_SUITES:-"rk_mpp_rewrite:90 rockchip-rga-rewrite:148"}
 KUNIT_MANIFEST=${KUNIT_MANIFEST:-"$TEST_DIR/rewrite-kunit-manifest.tsv"}
 KUNIT_REPORT=${KUNIT_REPORT:-}
 KUNIT_DMESG_SOURCE=${KUNIT_DMESG_SOURCE:-}
-KUNIT_DEBUG_LOCKS_FILE=${KUNIT_DEBUG_LOCKS_FILE:-/proc/sys/kernel/debug_locks}
+# Mainline has no debug_locks sysctl; the live value is the "debug_locks:"
+# row of /proc/lockdep_stats (root-readable, like the KUnit debugfs results).
+KUNIT_DEBUG_LOCKS_FILE=${KUNIT_DEBUG_LOCKS_FILE:-/proc/lockdep_stats}
 KUNIT_REQUIRE_LOCKDEP=${KUNIT_REQUIRE_LOCKDEP:-1}
 KUNIT_DMESG_REPORT=${KUNIT_DMESG_REPORT:-}
 KUNIT_INTERVAL_REPORT=${KUNIT_INTERVAL_REPORT:-}
@@ -107,7 +109,9 @@ check_suite()
 		sub(/[[:space:]]+$/, "", value);
 		plan = value + 0;
 	}
-	/^    (ok|not ok) [0-9]+ - / {
+	# KTAP makes the "- " description separator optional and the kernel
+	# KUnit runner never emits it ("    ok 1 case_name").
+	/^    (ok|not ok) [0-9]+ (- )?[^ ]/ {
 		cases++;
 		number = $0;
 		sub(/^    (ok|not ok) /, "", number);
@@ -115,7 +119,7 @@ check_suite()
 		if (number + 0 != cases)
 			sequence_bad = 1;
 		name = $0;
-		sub(/^    (ok|not ok) [0-9]+ - /, "", name);
+		sub(/^    (ok|not ok) [0-9]+ (- )?/, "", name);
 		sub(/[[:space:]]+# (SKIP|TODO).*$/, "", name);
 		if (name == "" || seen_name[name]++)
 			sequence_bad = 1;
@@ -282,14 +286,23 @@ check_boot_log()
 		status=unavailable
 	fi
 
-	grep -aiE "$SUITE_DMESG_FATAL_RE" "$interval" > "$fatal" || :
+	# The interval is mostly the suites' own KTAP rows, and passing case
+	# names legitimately contain fatal-looking tokens (the iommu-fault
+	# generation/match cases). Scan only non-KTAP lines: a real KASAN/BUG/
+	# WARNING/lockdep report never renders as a version, plan, result, or
+	# "#" diagnostic row. Failed cases are gated by the debugfs KTAP parse.
+	grep -avE '^(\[[^][]*\] ?)?[[:space:]]*(KTAP version [0-9]+|[0-9]+\.\.[0-9]+|(not )?ok [0-9]+([[:space:]]|$)|# )' \
+		"$interval" | grep -aiE "$SUITE_DMESG_FATAL_RE" > "$fatal" || :
 	if [ -s "$fatal" ]; then
 		status=fatal
 	fi
 
 	if [ -r "$KUNIT_DEBUG_LOCKS_FILE" ]; then
-		lockdep_state=$(tr -d '[:space:]' < "$KUNIT_DEBUG_LOCKS_FILE")
-		[ -n "$lockdep_state" ] || lockdep_state=unavailable
+		lockdep_state=$(awk '
+			NR == 1 && /^[01][[:space:]]*$/ { print $1; found = 1; exit }
+			$1 == "debug_locks:" { print $2; found = 1; exit }
+			END { if (!found) print "unavailable" }
+		' "$KUNIT_DEBUG_LOCKS_FILE")
 	fi
 	if [ "$KUNIT_REQUIRE_LOCKDEP" = "1" ] &&
 		[ "$lockdep_state" != "1" ]; then
@@ -306,6 +319,7 @@ check_boot_log()
 		printf "fatal_lines\t%s\n" "$fatal_lines"
 		printf "lockdep_state\t%s\n" "$lockdep_state"
 		printf "kernel_release\t%s\n" "$KUNIT_KERNEL_RELEASE"
+		printf "kernel_version\t%s\n" "$KUNIT_KERNEL_VERSION"
 		printf "source_commit\t%s\n" "$KUNIT_SOURCE_COMMIT"
 		printf "config_sha256\t%s\n" "$KUNIT_CONFIG_SHA256"
 		printf "package_id\t%s\n" "$KUNIT_PACKAGE_ID"
@@ -364,8 +378,9 @@ selftest()
 			printf "    KTAP version 1\n"
 			printf "    # Subtest: %s\n" "$suite"
 			printf "    1..%s\n" "$count"
+			# Real KUnit KTAP result rows carry no "- " separator.
 			for i in $(seq 1 "$count"); do
-				printf "    ok %s - case_%s\n" "$i" "$i"
+				printf "    ok %s case_%s\n" "$i" "$i"
 				printf "case_%s\n" "$i" >> "$names"
 			done
 			printf "ok 1 %s\n" "$suite"
@@ -404,6 +419,15 @@ selftest()
 		return 1
 	fi
 
+	sed -i '0,/    ok 1 case_1/s//    ok 1 - case_1/' \
+		"$tmp_root/rk_mpp_rewrite/results"
+	if ! KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "optional KTAP dash separator unexpectedly failed" >&2
+		return 1
+	fi
+	sed -i '0,/    ok 1 - case_1/s//    ok 1 case_1/' \
+		"$tmp_root/rk_mpp_rewrite/results"
+
 	sed -i '/ok 1 rk_mpp_rewrite/i WARNING: fixture poisoned the boot' \
 		"$KUNIT_DMESG_SOURCE"
 	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
@@ -411,6 +435,20 @@ selftest()
 		return 1
 	fi
 	sed -i '/WARNING: fixture poisoned the boot/d' "$KUNIT_DMESG_SOURCE"
+
+	# Passing KTAP rows and diagnostics whose case names carry fatal-looking
+	# tokens (the iommu-fault generation/match cases) must not trip the
+	# fatal-signature scan.
+	sed -i '/ok 1 rk_mpp_rewrite/i\\    ok 3 rk_mpp_iommu_fault_generation_kunit' \
+		"$KUNIT_DMESG_SOURCE"
+	sed -i '/ok 1 rk_mpp_rewrite/i\\    # Subtest: rk_rga_iommu_fault_matrix' \
+		"$KUNIT_DMESG_SOURCE"
+	if ! KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "iommu-fault case name tripped the fatal scan" >&2
+		return 1
+	fi
+	sed -i '/rk_mpp_iommu_fault_generation_kunit/d;/rk_rga_iommu_fault_matrix/d' \
+		"$KUNIT_DMESG_SOURCE"
 
 	sed -i '/ok 1 rk_mpp_rewrite/i INFO: trying to register non-static key.' \
 		"$KUNIT_DMESG_SOURCE"
@@ -435,40 +473,54 @@ selftest()
 	fi
 	printf "1\n" > "$KUNIT_DEBUG_LOCKS_FILE"
 
-	sed -i '0,/    ok 1 - case_1/s//    not ok 1 - case_1/' \
+	printf " lock-classes:  1000 [max: 8192]\n debug_locks:      1\n" \
+		> "$KUNIT_DEBUG_LOCKS_FILE"
+	if ! KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "lockdep_stats-format debug_locks unexpectedly failed" >&2
+		return 1
+	fi
+	printf " lock-classes:  1000 [max: 8192]\n debug_locks:      0\n" \
+		> "$KUNIT_DEBUG_LOCKS_FILE"
+	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
+		echo "disabled lockdep_stats debug_locks unexpectedly passed" >&2
+		return 1
+	fi
+	printf "1\n" > "$KUNIT_DEBUG_LOCKS_FILE"
+
+	sed -i '0,/    ok 1 case_1/s//    not ok 1 case_1/' \
 		"$tmp_root/rk_mpp_rewrite/results"
 	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
 		echo "failing KUnit case unexpectedly passed" >&2
 		return 1
 	fi
-	sed -i '0,/    not ok 1 - case_1/s//    ok 1 - case_1/' \
+	sed -i '0,/    not ok 1 case_1/s//    ok 1 case_1/' \
 		"$tmp_root/rk_mpp_rewrite/results"
 
-	sed -i '0,/    ok 1 - case_1/s//    ok 1 - unexpected_case/' \
+	sed -i '0,/    ok 1 case_1/s//    ok 1 unexpected_case/' \
 		"$tmp_root/rk_mpp_rewrite/results"
 	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
 		echo "wrong KUnit case manifest unexpectedly passed" >&2
 		return 1
 	fi
-	sed -i '0,/    ok 1 - unexpected_case/s//    ok 1 - case_1/' \
+	sed -i '0,/    ok 1 unexpected_case/s//    ok 1 case_1/' \
 		"$tmp_root/rk_mpp_rewrite/results"
 
-	sed -i '/    ok 1 - case_1/a\\        ok 1 - parameter_row' \
+	sed -i '/    ok 1 case_1/a\\        ok 1 parameter_row' \
 		"$tmp_root/rk_mpp_rewrite/results"
 	KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null
-	sed -i '/        ok 1 - parameter_row/d' \
+	sed -i '/        ok 1 parameter_row/d' \
 		"$tmp_root/rk_mpp_rewrite/results"
 
-	sed -i '0,/    ok 2 - case_2/s//    ok 1 - case_2/' \
+	sed -i '0,/    ok 2 case_2/s//    ok 1 case_2/' \
 		"$tmp_root/rk_mpp_rewrite/results"
 	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
 		echo "duplicate KUnit ordinal unexpectedly passed" >&2
 		return 1
 	fi
-	sed -i '0,/    ok 1 - case_2/s//    ok 2 - case_2/' \
+	sed -i '0,/    ok 1 case_2/s//    ok 2 case_2/' \
 		"$tmp_root/rk_mpp_rewrite/results"
 
-	sed -i "/    ok $mpp_count - case_$mpp_count/d" \
+	sed -i "/    ok $mpp_count case_$mpp_count/d" \
 		"$tmp_root/rk_mpp_rewrite/results"
 	if KUNIT_DEBUGFS_ROOT="$tmp_root" "$0" >/dev/null 2>&1; then
 		echo "incomplete KUnit result set unexpectedly passed" >&2

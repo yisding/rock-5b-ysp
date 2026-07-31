@@ -5,11 +5,22 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PROFILE=${PROFILE:-${1:-rewrite}}
 PREFIX=${PREFIX:-"$ROOT/out/gstreamer-rockchip"}
 OUT="$ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-gstreamer"
+MPP_LIBDIR=${MPP_LIBDIR:-}
+LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-}
 
 mkdir -p "$OUT"
 
 export GST_PLUGIN_PATH="$PREFIX/lib/gstreamer-1.0:${GST_PLUGIN_PATH:-}"
-export LD_LIBRARY_PATH="$ROOT/out/mpp/lib:$ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64:${LD_LIBRARY_PATH:-}"
+runtime_library_path=${LD_LIBRARY_PATH:-}
+if [ -n "$LIBRGA_LIBDIR" ]; then
+    runtime_library_path="$LIBRGA_LIBDIR${runtime_library_path:+:$runtime_library_path}"
+fi
+if [ -n "$MPP_LIBDIR" ]; then
+    runtime_library_path="$MPP_LIBDIR${runtime_library_path:+:$runtime_library_path}"
+fi
+if [ -n "$runtime_library_path" ]; then
+    export LD_LIBRARY_PATH="$runtime_library_path"
+fi
 
 gst-inspect-1.0 rockchipmpp > "$OUT/gst-inspect-rockchipmpp.log" 2>&1
 

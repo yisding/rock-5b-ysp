@@ -5,8 +5,8 @@
 # worktrees, so generated files and local object state cannot hide portability
 # problems. Each profile gets its own scratch tree, which is removed after that
 # profile passes unless KEEP_TMP=1. It builds the two rewrite objects with their
-# optional KUnit coverage, the Rockchip IOMMU provider used by MPP/RGA, and the
-# Rock 5B DTB that wires the media topology.
+# optional KUnit coverage, both IOMMU providers used by MPP/RGA, and the Rock
+# 5B DTB that wires the media topology.
 set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,6 +27,7 @@ VERIFY_ABI_STATIC_ASSERT="${VERIFY_ABI_STATIC_ASSERT:-0}"
 
 TARGETS=(
   drivers/iommu/rockchip-iommu.o
+  drivers/iommu/vsi-iommu.o
   drivers/video/rockchip/mpp-rewrite/mpp_rewrite.o
   drivers/video/rockchip/rga-rewrite/rga_rewrite.o
   rockchip/rk3588-rock-5b.dtb
@@ -167,6 +168,7 @@ set_rewrite_config() {
     -e KUNIT_DEFAULT_ENABLED \
     -e KUNIT_AUTORUN_ENABLED \
     -e ROCKCHIP_IOMMU \
+    -e VSI_IOMMU \
     -e ROCKCHIP_MPP_REWRITE \
     -e ROCKCHIP_MPP_REWRITE_KUNIT_TEST \
     -e ROCKCHIP_RGA_REWRITE \
@@ -227,7 +229,7 @@ require_config() {
   if ! grep -qx "CONFIG_${symbol}=y" "$out/.config"; then
     echo "required config did not resolve to y: CONFIG_${symbol}" >&2
     echo "Relevant config lines:" >&2
-    grep -E "CONFIG_(ARCH_ROCKCHIP|ROCKCHIP_(IOMMU|.*REWRITE)|ROCKCHIP_MPP_SERVICE|ROCKCHIP_MULTI_RGA|VIDEO_ROCKCHIP_RGA|KUNIT|KASAN|KCSAN|FAULT_INJECTION|FAILSLAB|FAIL_PAGE_ALLOC|PROVE_LOCKING|DEBUG_KERNEL|EXPERT)" "$out/.config" >&2 || true
+    grep -E "CONFIG_(ARCH_ROCKCHIP|VSI_IOMMU|ROCKCHIP_(IOMMU|.*REWRITE)|ROCKCHIP_MPP_SERVICE|ROCKCHIP_MULTI_RGA|VIDEO_ROCKCHIP_RGA|KUNIT|KASAN|KCSAN|FAULT_INJECTION|FAILSLAB|FAIL_PAGE_ALLOC|PROVE_LOCKING|DEBUG_KERNEL|EXPERT)" "$out/.config" >&2 || true
     exit 1
   fi
 }
@@ -297,6 +299,7 @@ configure_tree() {
   require_config "$out" KUNIT
   require_config "$out" ARCH_ROCKCHIP
   require_config "$out" ROCKCHIP_IOMMU
+  require_config "$out" VSI_IOMMU
   require_config "$out" ROCKCHIP_MPP_REWRITE
   require_config "$out" ROCKCHIP_RGA_REWRITE
 

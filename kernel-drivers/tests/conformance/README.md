@@ -1,9 +1,10 @@
 # Rockchip rewrite conformance bundle
 
-This directory is the tracked seed for the user-space stacks that should be used
-to compare the rewrite kernel against the BSP forward-port kernel. The source
-checkouts, generated assets, build directories, install prefixes, and logs are
-created beside it but ignored by git.
+This directory is the tracked seed for the assets, sample/plugin sources, and
+logs used to compare the rewrite kernel against the BSP forward-port kernel.
+The conformance suites default to the installed MPP binaries/libraries and
+installed librga. Pinned MPP/librga copies remain reconstructible for explicit
+legacy-compatibility comparisons, but they are not the default runtime.
 
 The test method is:
 
@@ -39,14 +40,14 @@ directories stay untracked by policy.
   passing, encoder/decoder elements, and optional RGA-backed conversions.
 
 `sources/rockchip-mpp`
-: Rockchip MPP. Build this to get the official test binaries: `mpp_info_test`,
-  `mpi_dec_test`, `mpi_dec_mt_test`, `mpi_dec_multi_test`, `mpi_enc_test`,
-  `mpi_enc_mt_test`, `mpi_rc2_test`, and `vpu_api_test`.
+: Pinned Rockchip MPP source for an explicit legacy comparison. Normal
+  conformance uses the matching official test binaries installed under
+  `/usr/bin`.
 
 `sources/airockchip-librga`
-: Official librga repository and IM2D sample suite. The samples cover copy,
-  resize, crop, colorspace conversion, fill, alpha blend, async jobs, allocator
-  modes, FBC/tile cases, mosaic, ROP, and transform paths.
+: Official IM2D sample source plus a pinned prebuilt librga retained for an
+  explicit legacy comparison. Normal sample builds and runs use installed
+  librga.
 
 `sources/mpp-linux-cpp-demo`
 : Linux demo combining MPP decode, RGA conversion, DRM/KMS display, and
@@ -113,11 +114,9 @@ tail with every test result.
 
 ### 2. MPP official tests
 
-Build:
-
-```bash
-./scripts/build-mpp.sh
-```
+Install the YSP MPP runtime, development, and demo packages. The smoke and full
+suite then use `/usr/bin/{mpp_info_test,mpi_dec_test,...}` and the system
+dynamic-loader path by default:
 
 Smoke:
 
@@ -141,27 +140,36 @@ minimum matrix:
 Useful command shapes:
 
 ```bash
-out/mpp/bin/mpi_dec_test -i assets/sample.h264 -t 7 -n 120 -o logs/rewrite/sample.yuv
-out/mpp/bin/mpi_dec_multi_test -i assets/sample.h265 -t 16777220 -n 120 -s 4
-out/mpp/bin/mpi_enc_test -i assets/nv12-1920x1080.yuv -w 1920 -h 1080 -f 0 -t 7 -n 120 -o logs/rewrite/out.h264
-out/mpp/bin/mpi_enc_mt_test -i assets/nv12-1920x1080.yuv -w 1920 -h 1080 -f 0 -t 16777220 -n 120 -s 4 -o logs/rewrite/out.h265
+/usr/bin/mpi_dec_test -i assets/sample.h264 -t 7 -n 120 -o logs/rewrite/sample.yuv
+/usr/bin/mpi_dec_multi_test -i assets/sample.h265 -t 16777220 -n 120 -s 4
+/usr/bin/mpi_enc_test -i assets/nv12-1920x1080.yuv -w 1920 -h 1080 -f 0 -t 7 -n 120 -o logs/rewrite/out.h264
+/usr/bin/mpi_enc_mt_test -i assets/nv12-1920x1080.yuv -w 1920 -h 1080 -f 0 -t 16777220 -n 120 -s 4 -o logs/rewrite/out.h265
 ```
 
 The exact numeric coding and pixel-format values come from MPP. If in doubt,
 run a binary with `--help`; it prints the supported formats.
+
+For a deliberate comparison with the pinned March MPP source, run
+`./scripts/build-mpp.sh`, then set `MPP_BIN_DIR="$PWD/out/mpp/bin"` and
+`MPP_LIBDIR="$PWD/out/mpp/lib"` explicitly.
 
 ### 3. librga sample suite
 
 Build:
 
 ```bash
-./scripts/make-librga-pkgconfig.sh
 ./scripts/build-librga-samples.sh
 ```
 
-Populate `/data` or rebuild the samples with a different `LOCAL_FILE_PATH`.
-The upstream samples expect files like `in0w1280-h720-rgba8888.bin`; see
+The build resolves `librga.pc` from the installed `librga-dev` package. Populate
+the directory named by `RGA_SAMPLE_DATA_DIR`; the patched sample utility no
+longer requires the Android-only `/data` path. The upstream samples expect files
+such as `in0w1280-h720-rgba8888.bin`; see
 `sources/airockchip-librga/samples/README.md`.
+
+For an explicit legacy build, `scripts/make-librga-pkgconfig.sh` can generate
+the old source tree's `librga.pc` shim under `out/pkgconfig`; pass that directory
+as `PKG_SHIM` instead of relying on it implicitly.
 
 Smoke:
 
@@ -187,11 +195,10 @@ where the sample writes deterministic files.
 
 ### 4. JeffyCN GStreamer Rockchip plugins
 
-Build MPP first, generate the librga pkg-config shim, then build GStreamer:
+With installed `librockchip-mpp-dev`, `librga-dev`, and the GStreamer
+development packages, build only the out-of-tree plugin:
 
 ```bash
-./scripts/build-mpp.sh
-./scripts/make-librga-pkgconfig.sh
 ./scripts/build-gstreamer-rockchip.sh
 ```
 
@@ -200,8 +207,8 @@ Build MPP first, generate the librga pkg-config shim, then build GStreamer:
 > `build/jeffycn-gstreamer-rockchip` with every plugin feature left on `auto`.
 > The maintained one is
 > [`../build-gstreamer-rockchip.sh`](../build-gstreamer-rockchip.sh), which
-> builds into `…-mpp`, pins the feature set, adds the pkg-config preflight and
-> librga `.pc` shim, and also builds `gstreamer-event-harness`. They share a
+> builds into `…-mpp`, pins the feature set, adds the installed-package
+> pkg-config preflight, and also builds `gstreamer-event-harness`. They share a
 > basename but not a build tree — check which one a command means.
 
 Smoke:
@@ -251,7 +258,8 @@ For every test run, record:
 
 - Kernel profile: `rewrite` or `forward-port`.
 - Kernel commit or image name.
-- Userspace source revisions from `MANIFEST.tsv`.
+- Installed MPP/librga package versions and checksums, plus the plugin/sample
+  source revisions from `MANIFEST.tsv`.
 - Exact command line.
 - Exit status.
 - Output file checksum if applicable.

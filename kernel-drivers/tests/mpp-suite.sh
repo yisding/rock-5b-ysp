@@ -10,8 +10,10 @@ source "$TEST_DIR/debugfs-counters.sh"
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
-MPP_BIN_DIR=${MPP_BIN_DIR:-"$CONFORMANCE_ROOT/out/mpp/bin"}
-MPP_LIBDIR=${MPP_LIBDIR:-"$CONFORMANCE_ROOT/out/mpp/lib"}
+MPP_BIN_DIR=${MPP_BIN_DIR:-/usr/bin}
+# Empty means use the system dynamic-loader search path. Set MPP_LIBDIR only
+# for an explicit staged or legacy-library comparison.
+MPP_LIBDIR=${MPP_LIBDIR:-}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-mpp-suite"}
 MPP_GENERATED_INPUT_CACHE=${MPP_GENERATED_INPUT_CACHE:-"$CONFORMANCE_ROOT/assets/mpp-generated"}
 
@@ -956,7 +958,7 @@ if [ ! -e /dev/mpp_service ]; then
 fi
 
 if [ ! -d "$MPP_BIN_DIR" ]; then
-	echo "Missing $MPP_BIN_DIR. Run ../rock-5b/rockchip-conformance/scripts/build-mpp.sh first." >&2
+	echo "Missing MPP binary directory $MPP_BIN_DIR. Install rockchip-mpp-demos or set MPP_BIN_DIR." >&2
 	exit 2
 fi
 
@@ -970,7 +972,9 @@ if ! suite_dmesg_start "$OUT"; then
 	exit 1
 fi
 
-export LD_LIBRARY_PATH="$MPP_LIBDIR:${LD_LIBRARY_PATH:-}"
+if [ -n "$MPP_LIBDIR" ]; then
+	export LD_LIBRARY_PATH="$MPP_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
 
 snapshot_mpp_state before
 suite_progress "preflight: debugfs counter snapshot"

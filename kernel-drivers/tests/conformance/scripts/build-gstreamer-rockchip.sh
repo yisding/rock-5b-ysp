@@ -5,10 +5,19 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SRC="$ROOT/sources/jeffycn-gstreamer-rockchip"
 BUILD_DIR=${BUILD_DIR:-"$ROOT/build/jeffycn-gstreamer-rockchip"}
 PREFIX=${PREFIX:-"$ROOT/out/gstreamer-rockchip"}
-MPP_PREFIX=${MPP_PREFIX:-"$ROOT/out/mpp"}
-PKG_SHIM="$ROOT/out/pkgconfig"
+MPP_PREFIX=${MPP_PREFIX:-}
+PKG_SHIM=${PKG_SHIM:-}
 
-export PKG_CONFIG_PATH="$MPP_PREFIX/lib/pkgconfig:$PKG_SHIM:${PKG_CONFIG_PATH:-}"
+dependency_pc_path=${PKG_CONFIG_PATH:-}
+if [ -n "$PKG_SHIM" ]; then
+    dependency_pc_path="$PKG_SHIM${dependency_pc_path:+:$dependency_pc_path}"
+fi
+if [ -n "$MPP_PREFIX" ]; then
+    dependency_pc_path="$MPP_PREFIX/lib/pkgconfig${dependency_pc_path:+:$dependency_pc_path}"
+fi
+if [ -n "$dependency_pc_path" ]; then
+    export PKG_CONFIG_PATH="$dependency_pc_path"
+fi
 
 setup_args=()
 if [ -d "$BUILD_DIR" ]; then

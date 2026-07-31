@@ -8,7 +8,14 @@ ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 SRC_ROOT=${RGA_SAMPLE_SRC:-"$CONFORMANCE_ROOT/sources/airockchip-librga/samples"}
 PREFIX=${PREFIX:-"$CONFORMANCE_ROOT/out/librga-samples"}
-LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
+PKG_CONFIG=${PKG_CONFIG:-pkg-config}
+if [ -z "${LIBRGA_LIBDIR:-}" ]; then
+	if ! LIBRGA_LIBDIR=$("$PKG_CONFIG" --variable=libdir librga 2>/dev/null) ||
+		[ -z "$LIBRGA_LIBDIR" ]; then
+		echo "Missing installed librga development package; install librga-dev or set LIBRGA_LIBDIR." >&2
+		exit 2
+	fi
+fi
 BUILD_TOOLCHAINS_PATH=${BUILD_TOOLCHAINS_PATH:-/nonexistent}
 CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
 RGA_SOURCE_CODE_TYPE=${RGA_SOURCE_CODE_TYPE:-cpp}

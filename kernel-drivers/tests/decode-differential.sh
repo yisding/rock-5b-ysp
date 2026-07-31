@@ -31,17 +31,15 @@ ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$REPO_ROOT/../rock-5b}"
 
 # --- Paths (env-overridable) -------------------------------------------------
 #   MPP_BUILD : an MPP build tree with test/mpi_dec_test AND a librockchip_mpp
-#               that has the codec PARSERS registered. The prebuilt distro
-#               /usr/lib librockchip_mpp on this board reports
-#               "parser <codec> is not registered" and fails decoder init, so a
-#               from-source MPP build is required (the ../rock-5b/rockchip-conformance
-#               out/mpp tree is the default). See findings/ if that recurs.
+#               that has the codec PARSERS registered. The installed YSP MPP
+#               package is the default; set MPP_BUILD for an explicit staged
+#               or legacy comparison.
 #   ASSET_DIR : where the software-encoded inputs live / are generated.
 #   FFSW      : stock ffmpeg with software encoders (input generation).
 #   FFHW      : ffmpeg-rockchip (only used for the software reference decode; any
 #               ffmpeg that can decode these codecs in software works, so this
 #               defaults to FFSW).
-MPP_BUILD="${MPP_BUILD:-$ROCK5B_WORKSPACE/rockchip-conformance/out/mpp}"
+MPP_BUILD="${MPP_BUILD:-/usr}"
 ASSET_DIR="${ASSET_DIR:-$ROCK5B_WORKSPACE/rockchip-conformance/assets}"
 OUT="${OUT:-/tmp/rkvdec-differential}"
 FFSW="${FFSW:-ffmpeg}"

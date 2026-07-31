@@ -148,8 +148,7 @@ runs). Then checks correctness: **absolute** for copy (output == known pattern),
 output). Sub-page offsets and src/dst scatter are exercised.
 
 ```sh
-LD_LIBRARY_PATH=../rock-5b/rockchip-conformance/sources/airockchip-librga/libs/Linux/gcc-aarch64 \
-  ./rga-iommu-fuzz -n 128 -o all -t both -v      # 128 iters, all ops, scatter src+dst
+./rga-iommu-fuzz -n 128 -o all -t both -v      # 128 iters, all ops, scatter src+dst
 ./rga-iommu-fuzz -o copy -t dst -W 1920 -H 1080  # copy, scatter only the write buffer, fixed size
 # -o copy|resize|rotate|cvt|all   -t src|dst|both   -s <seed>   -W/-H fixed dims
 ```
@@ -323,9 +322,10 @@ the `userptr_iommu/attempt` counter or a kprobe on `rga_dma_map_sgt_iommu`.
 - **AV1 ≠ rockchip-iommu.** On forward-port debug builds, AV1 faults show under
   `vsi-iommu/`, not `rockchip-iommu/`; grep both. On rewrite builds, use dmesg
   plus aggregate MPP/RGA fault counters.
-- **MPP needs the from-source build.** The distro `librockchip_mpp` reports
-  "parser not registered" and fails decode; the harness uses
-  `../rock-5b/rockchip-conformance/out/mpp` which has parsers registered. AV1 = `-t 16777224`.
+- **MPP defaults to the installed YSP package.** The older board-stock library
+  once reported "parser not registered"; that historical package is no longer
+  the default. Set `MPP_BUILD` only for an explicit staged comparison. AV1 =
+  `-t 16777224`.
 - **`force_remap` only affects driver-owned maps** (userptr / physical). dma-buf
   imports keep the fail-closed single-span contract regardless.
 - **dma-buf scatter is a separate negative gate.** A dma-buf can be physically

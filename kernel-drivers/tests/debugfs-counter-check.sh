@@ -7,7 +7,7 @@ COUNTERS_FILE=${COUNTERS_FILE:-}
 REQUIRED_POSITIVE_COUNTERS=${REQUIRED_POSITIVE_COUNTERS:-}
 REQUIRED_POSITIVE_COUNTER_PREFIXES=${REQUIRED_POSITIVE_COUNTER_PREFIXES:-}
 REQUIRED_ZERO_AFTER_COUNTERS=${REQUIRED_ZERO_AFTER_COUNTERS:-}
-FORBID_POSITIVE_COUNTERS=${FORBID_POSITIVE_COUNTERS:-"mpp:timeout_count mpp:recovery_failure_count mpp:iommu_fault_count mpp:spurious_irq_count rga:timeout_count rga:irq_error_count rga:irq_spurious_count rga:rga2_config_error_count rga:iommu_fault_count rga:recovery_failure_count rga:shadow_setup_failure_count"}
+FORBID_POSITIVE_COUNTERS=${FORBID_POSITIVE_COUNTERS:-"mpp:timeout_count mpp:recovery_failure_count mpp:iommu_fault_count mpp:iommu_idle_fault_count mpp:spurious_irq_count mpp:av1_afbc_stale_status_timeout_count mpp:av1_reset_idle_unproven_count rga:timeout_count rga:irq_error_count rga:irq_spurious_count rga:rga2_config_error_count rga:iommu_fault_count rga:recovery_failure_count rga:shadow_setup_failure_count"}
 REQUIRE_FORBIDDEN_COUNTERS=${REQUIRE_FORBIDDEN_COUNTERS:-0}
 REQUIRE_COUNTER_FILE=${REQUIRE_COUNTER_FILE:-0}
 

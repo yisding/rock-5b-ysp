@@ -12,7 +12,9 @@ CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 BIN_DIR=${RGA_BIN_DIR:-"$CONFORMANCE_ROOT/out/librga-samples/bin"}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-librga-suite"}
-LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
+# Empty means use the installed librga through the system dynamic loader. Set
+# LIBRGA_LIBDIR only for an explicit staged or legacy-library comparison.
+LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-}
 RGA_CAPTURE_ARTIFACTS=${RGA_CAPTURE_ARTIFACTS:-1}
 RGA_ENABLE_YSP_SMOKE=${RGA_ENABLE_YSP_SMOKE:-1}
 RGA_REQUIRE_YSP_SMOKE=${RGA_REQUIRE_YSP_SMOKE:-1}
@@ -174,7 +176,9 @@ if ! suite_dmesg_start "$OUT"; then
 fi
 mkdir -p "$artifact_dir"
 
-export LD_LIBRARY_PATH="$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
+if [ -n "$LIBRGA_LIBDIR" ]; then
+	export LD_LIBRARY_PATH="$LIBRGA_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
 
 snapshot_debugfs()
 {

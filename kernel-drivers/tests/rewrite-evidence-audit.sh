@@ -20,7 +20,7 @@ REQUIRE_ARTIFACTS=${REQUIRE_ARTIFACTS:-1}
 REQUIRE_COUNTER_DELTAS=${REQUIRE_COUNTER_DELTAS:-1}
 REQUIRE_DMESG_EVIDENCE=${REQUIRE_DMESG_EVIDENCE:-1}
 REQUIRE_KUNIT_EVIDENCE=${REQUIRE_KUNIT_EVIDENCE:-}
-KUNIT_EVIDENCE_SUITES=${KUNIT_EVIDENCE_SUITES:-"rk_mpp_rewrite:84 rockchip-rga-rewrite:148"}
+KUNIT_EVIDENCE_SUITES=${KUNIT_EVIDENCE_SUITES:-"rk_mpp_rewrite:90 rockchip-rga-rewrite:148"}
 KUNIT_MANIFEST=${KUNIT_MANIFEST:-"$TEST_DIR/rewrite-kunit-manifest.tsv"}
 KUNIT_EXPECTED_SOURCE_COMMIT=${KUNIT_EXPECTED_SOURCE_COMMIT:-}
 KUNIT_EXPECTED_CONFIG_SHA256=${KUNIT_EXPECTED_CONFIG_SHA256:-}
@@ -436,6 +436,7 @@ check_kunit_evidence()
 	local expected
 	local manifest_hash
 	local report_release
+	local report_version
 	local report_source
 	local report_config
 	local report_package
@@ -472,6 +473,11 @@ check_kunit_evidence()
 	read -r report_release report_source report_config report_package < <(
 		awk -F '\t' 'NR == 2 { print $9, $10, $11, $12 }' "$report"
 	)
+	# The ysp-build-stamp extension carries the source gsha in `uname -v`
+	# rather than the release string, so the dmesg scan's kernel_version
+	# is part of the source-commit identity binding.
+	report_version=$(awk -F '\t' \
+		'$1 == "kernel_version" { print $2; exit }' "$dmesg_report")
 	if ! awk -F '\t' -v release="$report_release" \
 		-v source="$report_source" -v config="$report_config" \
 		-v package="$report_package" '
@@ -516,6 +522,7 @@ check_kunit_evidence()
 			-v expected_config="$KUNIT_EXPECTED_CONFIG_SHA256" \
 			-v expected_package="$KUNIT_EXPECTED_PACKAGE_ID" \
 			-v report_release="$report_release" \
+			-v report_version="$report_version" \
 			-v report_source="$report_source" \
 			-v report_config="$report_config" \
 			-v report_package="$report_package" '
@@ -525,7 +532,8 @@ check_kunit_evidence()
 				if ($2 != expected || $3 != expected || $4 != expected ||
 				    $5 != 0 || $6 != 0 || $7 != "ok" || $8 != "pass" ||
 				    $9 == "" || $10 !~ /^[0-9a-f]{12,40}$/ ||
-				    index($9, "-g" substr($10, 1, 12)) == 0 ||
+				    index($9 " " report_version,
+					  "g" substr($10, 1, 12)) == 0 ||
 				    $11 !~ /^[0-9a-f]{64}$/ || $12 == "" ||
 				    $13 != manifest_hash ||
 				    $9 != report_release || $10 != report_source ||
@@ -794,17 +802,18 @@ selftest()
 	mkdir -p "$tmp_root/logs/$CANDIDATE"
 	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" <<EOF
 suite	expected_cases	plan_cases	result_cases	failed_cases	skipped_cases	summary	verdict	kernel_release	source_commit	config_sha256	package_id	ordered_case_names_sha256
-rk_mpp_rewrite	84	84	84	0	0	ok	pass	6.18.0-rewrite-g0123456789ab	0123456789abcdef0123456789abcdef01234567	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	linux-image-test=1	19262f865967585574d51bef7e6c120765a3d0645592510f25715ae04f9ca1fe
+rk_mpp_rewrite	90	90	90	0	0	ok	pass	6.18.0-rewrite-g0123456789ab	0123456789abcdef0123456789abcdef01234567	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	linux-image-test=1	a9320a8d3903075e89efe9c9692ddacb0ed5fa40e84cdb5e3d1819aaa6ed3175
 rockchip-rga-rewrite	148	148	148	0	0	ok	pass	6.18.0-rewrite-g0123456789ab	0123456789abcdef0123456789abcdef01234567	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	linux-image-test=1	251a81835636d0f7df3ef0a0155a8b8f93ecd4ed0c2795077d514de703d1fe69
 EOF
 	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv" <<EOF
 field	value
 status	clean
 interval_status	0
-interval_lines	232
+interval_lines	238
 fatal_lines	0
 lockdep_state	1
 kernel_release	6.18.0-rewrite-g0123456789ab
+kernel_version	#1 SMP selftest
 source_commit	0123456789abcdef0123456789abcdef01234567
 config_sha256	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 package_id	linux-image-test=1
@@ -837,7 +846,7 @@ EOF
 	sed -i 's/status\tfatal/status\tclean/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/dmesg-scan.tsv"
 
-	sed -i 's/rk_mpp_rewrite\t84\t84\t84\t0\t0\tok\tpass/rk_mpp_rewrite\t84\t84\t84\t1\t0\tnot-ok\tfail/' \
+	sed -i 's/rk_mpp_rewrite\t90\t90\t90\t0\t0\tok\tpass/rk_mpp_rewrite\t90\t90\t90\t1\t0\tnot-ok\tfail/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
 		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
@@ -846,8 +855,37 @@ EOF
 		printf "selftest expected failing KUnit evidence to fail\n" >&2
 		return 1
 	fi
-	sed -i 's/rk_mpp_rewrite\t84\t84\t84\t1\t0\tnot-ok\tfail/rk_mpp_rewrite\t84\t84\t84\t0\t0\tok\tpass/' \
+	sed -i 's/rk_mpp_rewrite\t90\t90\t90\t1\t0\tnot-ok\tfail/rk_mpp_rewrite\t90\t90\t90\t0\t0\tok\tpass/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
+
+	# The build stamp may carry the source gsha in `uname -v` instead of
+	# the release string; the binding must accept either location and
+	# reject evidence bound by neither.
+	sed -i 's/6\.18\.0-rewrite-g0123456789ab/6.18.0-rewrite/g' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"
+	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
+		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
+		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
+		printf "selftest expected unbound kernel identity to fail\n" >&2
+		return 1
+	fi
+	sed -i 's/kernel_version\t#1 SMP selftest/kernel_version\t#1 SMP selftest g0123456789ab/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"
+	if ! CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
+		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
+		REQUIRE_COUNTER_DELTAS=1 REQUIRE_DMESG_EVIDENCE=1 \
+		RUN_COMPARATORS=0 "$SELF" >/dev/null 2>&1; then
+		printf "selftest expected uname -v gsha binding to pass\n" >&2
+		return 1
+	fi
+	sed -i 's/kernel_version\t#1 SMP selftest g0123456789ab/kernel_version\t#1 SMP selftest/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"
+	sed -i 's/6\.18\.0-rewrite\t/6.18.0-rewrite-g0123456789ab\t/g' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
+	sed -i 's/kernel_release\t6\.18\.0-rewrite$/kernel_release\t6.18.0-rewrite-g0123456789ab/' \
+		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"
 
 	sed -i 's/status\tclean/status\tfatal/; s/fatal_lines\t0/fatal_lines\t1/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv"

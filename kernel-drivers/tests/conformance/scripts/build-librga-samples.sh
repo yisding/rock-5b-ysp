@@ -5,7 +5,14 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SRC="$ROOT/sources/airockchip-librga/samples"
 BUILD_DIR=${BUILD_DIR:-"$ROOT/build/librga-samples"}
 PREFIX=${PREFIX:-"$ROOT/out/librga-samples"}
-LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
+PKG_CONFIG=${PKG_CONFIG:-pkg-config}
+if [ -z "${LIBRGA_LIBDIR:-}" ]; then
+    if ! LIBRGA_LIBDIR=$("$PKG_CONFIG" --variable=libdir librga 2>/dev/null) ||
+       [ -z "$LIBRGA_LIBDIR" ]; then
+        echo "Missing installed librga development package; install librga-dev or set LIBRGA_LIBDIR." >&2
+        exit 2
+    fi
+fi
 
 # The vendored sample CMake caches RGA_SAMPLES_UTILS_COMPILED; on a *reconfigure*
 # of an existing build dir that cached var makes every demo skip creating the

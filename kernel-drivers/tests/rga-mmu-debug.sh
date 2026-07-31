@@ -9,7 +9,8 @@ source "$TEST_DIR/suite-common.sh"
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
 BIN_DIR=${RGA_BIN_DIR:-"$CONFORMANCE_ROOT/out/librga-samples/bin"}
-LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
+# Empty means use the installed librga through the system dynamic loader.
+LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/rga-mmu-debug/$(date +%Y%m%d-%H%M%S)"}
 RGA_DEBUGFS=${RGA_DEBUGFS:-/sys/kernel/debug/rkrga}
 RGA_CASES=${RGA_CASES:-"rga_copy_demo rga_resize_rect_demo rga_transform_rotate_demo"}
@@ -56,7 +57,7 @@ Collect RGA MMU interrupt diagnostics around selected librga sample cases.
 Environment:
   CONFORMANCE_ROOT        default: $CONFORMANCE_ROOT
   RGA_BIN_DIR            default: $BIN_DIR
-  LIBRGA_LIBDIR          default: $LIBRGA_LIBDIR
+  LIBRGA_LIBDIR          optional staged/legacy override (default: system loader)
   OUT                    default: $OUT
   RGA_DEBUGFS            default: $RGA_DEBUGFS
   RGA_CASES              default: $RGA_CASES
@@ -339,7 +340,9 @@ mkdir -p "$OUT/cases"
 printf "case\texit_status\tresult\telapsed_s\tcase_dir\n" > "$OUT/summary.tsv"
 write_metadata "$OUT/metadata.txt"
 
-export LD_LIBRARY_PATH="$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
+if [ -n "$LIBRGA_LIBDIR" ]; then
+	export LD_LIBRARY_PATH="$LIBRGA_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
 export RGA_SAMPLE_DATA_DIR
 stage_rga_fixtures
 

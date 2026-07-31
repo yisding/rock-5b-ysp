@@ -20,11 +20,12 @@ fi
 
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
 CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
-STAGE="${STAGE:-$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build/ffmpeg-stack}"
 PKG_CONFIG="${PKG_CONFIG:-pkg-config}"
-PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-$STAGE/lib/pkgconfig}"
+PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-}"
 LIBRGA_SRC=${LIBRGA_SRC:-"$CONFORMANCE_ROOT/sources/airockchip-librga"}
-LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$LIBRGA_SRC/libs/Linux/gcc-aarch64"}
+# An empty LIBRGA_LIBDIR selects the installed pkg-config/runtime. Set it only
+# for an explicit staged or legacy-library comparison.
+LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-}
 
 if [ "$LIBRGA_SMOKE_VALIDATE_BUILD" != "1" ] && [ ! -e /dev/rga ]; then
   echo "SKIP: /dev/rga is absent on this boot"
@@ -40,9 +41,11 @@ LD_DIR=
 if PKG_CONFIG_PATH="$PKG_CONFIG_PATH" "$PKG_CONFIG" --exists librga; then
   read -r -a LIBRGA_CFLAGS <<< "$(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" "$PKG_CONFIG" --cflags librga)"
   read -r -a LIBRGA_LIBS <<< "$(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" "$PKG_CONFIG" --libs librga)"
-  RPATH_DIR="$STAGE/lib"
-  LD_DIR="$STAGE/lib"
-elif [ -f "$LIBRGA_SRC/include/im2d.h" ] && [ -f "$LIBRGA_LIBDIR/librga.so" ]; then
+  RPATH_DIR=$(PKG_CONFIG_PATH="$PKG_CONFIG_PATH" "$PKG_CONFIG" --variable=libdir librga)
+  LD_DIR="$RPATH_DIR"
+elif [ -n "$LIBRGA_LIBDIR" ] &&
+     [ -f "$LIBRGA_SRC/include/im2d.h" ] &&
+     [ -f "$LIBRGA_LIBDIR/librga.so" ]; then
   LIBRGA_CFLAGS=(-I"$LIBRGA_SRC/include")
   LIBRGA_LIBS=(-L"$LIBRGA_LIBDIR" -lrga)
   RPATH_DIR="$LIBRGA_LIBDIR"
@@ -51,7 +54,7 @@ elif [ "$LIBRGA_SMOKE_VALIDATE_BUILD" = "1" ] &&
      [ -f "$LIBRGA_SRC/include/im2d.h" ]; then
   LIBRGA_CFLAGS=(-I"$LIBRGA_SRC/include")
 else
-  echo "Missing librga.pc or staged librga source/lib. Set STAGE, PKG_CONFIG_PATH, LIBRGA_SRC, or LIBRGA_LIBDIR." >&2
+  echo "Missing installed librga.pc. Install librga-dev or set PKG_CONFIG_PATH, LIBRGA_SRC, and LIBRGA_LIBDIR for an explicit staged comparison." >&2
   exit 2
 fi
 

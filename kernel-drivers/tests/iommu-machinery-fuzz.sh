@@ -38,10 +38,11 @@ source "$TEST_DIR/debugfs-counters.sh"
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
 CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$ROCK5B_WORKSPACE/rockchip-conformance}"
 LRGA="${LRGA:-$CONFORMANCE_ROOT/sources/airockchip-librga}"
-LIBRGA_LIBDIR="${LIBRGA_LIBDIR:-$LRGA/libs/Linux/gcc-aarch64}"
-MPP_BUILD="${MPP_BUILD:-$CONFORMANCE_ROOT/out/mpp}"
+LIBRGA_LIBDIR="${LIBRGA_LIBDIR:-}"
+MPP_BUILD="${MPP_BUILD:-/usr}"
 AV1_IVF="${AV1_IVF:-$CONFORMANCE_ROOT/assets/test_av1.ivf}"
 CXX="${CXX:-g++}"
+PKG_CONFIG="${PKG_CONFIG:-pkg-config}"
 IOMMU_FUZZ_VALIDATE_BUILD="${IOMMU_FUZZ_VALIDATE_BUILD:-0}"
 IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS="${IOMMU_FUZZ_REQUIRE_RGA_USERPTR_IOMMU_COUNTERS:-${IOMMU_FUZZ_REQUIRE_ROUTE_B_COUNTERS:-0}}"
 tmp_out=
@@ -80,9 +81,25 @@ fi
 mkdir -p "$OUT"
 FUZZ="$OUT/rga-iommu-fuzz"
 
+LIBRGA_CFLAGS=()
+LIBRGA_LIBS=()
+if [ -n "$LIBRGA_LIBDIR" ]; then
+  LIBRGA_CFLAGS=(-I"$LRGA/include")
+  LIBRGA_LIBS=(-L"$LIBRGA_LIBDIR" "-Wl,-rpath,$LIBRGA_LIBDIR" -lrga)
+elif "$PKG_CONFIG" --exists librga; then
+  read -r -a LIBRGA_CFLAGS <<< "$("$PKG_CONFIG" --cflags librga)"
+  read -r -a LIBRGA_LIBS <<< "$("$PKG_CONFIG" --libs librga)"
+elif [ "$IOMMU_FUZZ_VALIDATE_BUILD" = "1" ]; then
+  # Device-free repository validation needs only the public headers.
+  LIBRGA_CFLAGS=(-I"$LRGA/include")
+else
+  echo "Missing installed librga development package; install librga-dev or set LIBRGA_LIBDIR." >&2
+  exit 2
+fi
+
 if [ "$IOMMU_FUZZ_VALIDATE_BUILD" = "1" ]; then
   "$CXX" -std=gnu++17 -O2 -Wall -Wextra \
-      -I"$LRGA/include" \
+      "${LIBRGA_CFLAGS[@]}" \
       -c "$TEST_DIR/rga-iommu-fuzz.cpp" \
       -o "$OUT/rga-iommu-fuzz.o" \
       2> "$OUT/rga-iommu-fuzz-build.log" || {
@@ -272,11 +289,14 @@ for f in /dev/rga /dev/mpp_service; do [ -e "$f" ] && log "  $f: ok" || log "  $
 # Build the RGA fuzzer.
 if [ ! -x "$FUZZ" ] || [ "$TEST_DIR/rga-iommu-fuzz.cpp" -nt "$FUZZ" ]; then
   log "  building rga-iommu-fuzz ..."
-  "$CXX" -std=gnu++17 -O2 -Wall -I"$LRGA/include" "$TEST_DIR/rga-iommu-fuzz.cpp" \
-      -L"$LIBRGA_LIBDIR" -Wl,-rpath,"$LIBRGA_LIBDIR" -lrga -lpthread -o "$FUZZ" \
+  "$CXX" -std=gnu++17 -O2 -Wall "${LIBRGA_CFLAGS[@]}" \
+      "$TEST_DIR/rga-iommu-fuzz.cpp" \
+      "${LIBRGA_LIBS[@]}" -lpthread -o "$FUZZ" \
       2> "$OUT/fuzz-build.log" || { log "  BUILD FAILED (see $OUT/fuzz-build.log)"; exit 1; }
 fi
-export LD_LIBRARY_PATH="$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
+if [ -n "$LIBRGA_LIBDIR" ]; then
+  export LD_LIBRARY_PATH="$LIBRGA_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
 
 # ---------------------------------------------------------------- baseline ----
 require_readable_dmesg
@@ -333,7 +353,7 @@ if [[ "$PHASES" == *C* ]]; then
   # load running concurrently with RGA scattered maps (rockchip-iommu).
   DEC="$MPP_BUILD/bin/mpi_dec_test"
   ( "$FUZZ" -n "$((RGA_ITERS * 2))" -o all -t both -s 7 > "$OUT/C-rga.log" 2>&1 ) & p1=$!
-  ( LD_LIBRARY_PATH="$MPP_BUILD/lib" "$DEC" -i "$AV1_IVF" -t 16777224 -w 640 -h 480 \
+  ( "$DEC" -i "$AV1_IVF" -t 16777224 -w 640 -h 480 \
       -n 600 -o /dev/null > "$OUT/C-av1.log" 2>&1 ) & p2=$!
   wait $p1; rc1=$?; wait $p2; rc2=$?
   snap_dmesg "$ca"

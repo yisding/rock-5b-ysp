@@ -19,6 +19,12 @@ RUN_LIBRGA_SUITE=${RUN_LIBRGA_SUITE:-1}
 RUN_GSTREAMER_SUITE=${RUN_GSTREAMER_SUITE:-1}
 RUN_FFMPEG_SUITE=${RUN_FFMPEG_SUITE:-1}
 RUN_RKMPPENC_SUITE=${RUN_RKMPPENC_SUITE:-0}
+# PM_STRESS=1 collapses the rewrite cores' runtime-PM autosuspend window to 0
+# for the duration of the suites, so power-transition races (the 2026-07-30
+# soft-CCU group-power wedge class) surface deterministically. Restored via an
+# EXIT trap even if a suite fails; a hard wedge is recovered by the watchdog,
+# and the knobs reset to their defaults on reboot regardless.
+PM_STRESS=${PM_STRESS:-0}
 RUN_COMPARE=${RUN_COMPARE:-0}
 RUN_COUNTER_CHECKS=${RUN_COUNTER_CHECKS:-0}
 RUN_KUNIT_CHECK=${RUN_KUNIT_CHECK:-}
@@ -516,6 +522,12 @@ run_validation()
 		env RECOVERY_VALIDATE_ONLY=1 \
 		bash "$TEST_DIR/rewrite-recovery-stress.sh"
 
+	run_step "pm: validate autosuspend stress knobs" \
+		bash "$TEST_DIR/pm-stress-knobs.sh" --validate
+
+	run_step "pm: validate case-pair matrix" \
+		env VALIDATE_ONLY=1 bash "$TEST_DIR/rewrite-case-pair-matrix.sh"
+
 	if [ "$RUN_MPP_SUITE" = "1" ]; then
 		run_step "mpp: validate case builders" \
 			env MPP_VALIDATE_CASES=1 PROFILE="$PROFILE" \
@@ -562,6 +574,12 @@ if [ "$VALIDATE_ONLY" = "1" ]; then
 	run_validation
 	printf "Conformance runner validation passed\n"
 	exit 0
+fi
+
+if [ "$PM_STRESS" = "1" ]; then
+	run_step "pm: collapse autosuspend windows for the run" \
+		bash "$TEST_DIR/pm-stress-knobs.sh" apply
+	trap 'bash "$TEST_DIR/pm-stress-knobs.sh" restore || :' EXIT
 fi
 
 run_profile_suites

@@ -3,17 +3,20 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PROFILE=${PROFILE:-${1:-rewrite}}
-MPP_BIN_DIR=${MPP_BIN_DIR:-"$ROOT/out/mpp/bin"}
+MPP_BIN_DIR=${MPP_BIN_DIR:-/usr/bin}
+MPP_LIBDIR=${MPP_LIBDIR:-}
 OUT="$ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-mpp"
 
 mkdir -p "$OUT"
 
 if [ ! -x "$MPP_BIN_DIR/mpp_info_test" ]; then
-    echo "Missing $MPP_BIN_DIR/mpp_info_test. Run ./scripts/build-mpp.sh first." >&2
+    echo "Missing $MPP_BIN_DIR/mpp_info_test. Install rockchip-mpp-demos or set MPP_BIN_DIR." >&2
     exit 1
 fi
 
-export LD_LIBRARY_PATH="$ROOT/out/mpp/lib:${LD_LIBRARY_PATH:-}"
+if [ -n "$MPP_LIBDIR" ]; then
+    export LD_LIBRARY_PATH="$MPP_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
 
 set +e
 "$MPP_BIN_DIR/mpp_info_test" > "$OUT/mpp_info_test.log" 2>&1

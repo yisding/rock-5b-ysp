@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PROFILE=${PROFILE:-${1:-rewrite}}
 BIN_DIR=${RGA_BIN_DIR:-"$ROOT/out/librga-samples/bin"}
+LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-}
 OUT="$ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-librga"
 
 mkdir -p "$OUT"
@@ -13,7 +14,9 @@ if [ ! -d "$BIN_DIR" ]; then
     exit 1
 fi
 
-export LD_LIBRARY_PATH="$ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64:${LD_LIBRARY_PATH:-}"
+if [ -n "$LIBRGA_LIBDIR" ]; then
+    export LD_LIBRARY_PATH="$LIBRGA_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
 
 cases=${RGA_CASES:-"rga_copy_demo rga_resize_demo rga_cvtcolor_demo rga_fill_demo rga_alpha_demo rga_transform_rotate_demo rga_async_demo"}
 

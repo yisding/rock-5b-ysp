@@ -13,8 +13,10 @@ PROFILE=${PROFILE:-${1:-rewrite}}
 GST_PREFIX=${GST_PREFIX:-"$CONFORMANCE_ROOT/out/gstreamer-rockchip"}
 GST_PLUGIN_DIR=${GST_PLUGIN_DIR:-"$GST_PREFIX/lib/gstreamer-1.0"}
 GST_EVENT_HARNESS=${GST_EVENT_HARNESS:-"$GST_PREFIX/bin/gstreamer-event-harness"}
-MPP_LIBDIR=${MPP_LIBDIR:-"$CONFORMANCE_ROOT/out/mpp/lib"}
-LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-"$CONFORMANCE_ROOT/sources/airockchip-librga/libs/Linux/gcc-aarch64"}
+# Empty means use the installed MPP/librga through the system dynamic loader.
+# Set either directory only for an explicit staged or legacy comparison.
+MPP_LIBDIR=${MPP_LIBDIR:-}
+LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-}
 GST_GENERATOR=${GST_GENERATOR:-ffmpeg}
 GST_VALIDATE_CASES=${GST_VALIDATE_CASES:-0}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-gstreamer-suite"}
@@ -533,7 +535,16 @@ else
 
 	export GST_PLUGIN_PATH="$GST_PLUGIN_DIR:${GST_PLUGIN_PATH:-}"
 	export GST_REGISTRY="${GST_REGISTRY:-"$OUT/gstreamer-registry.bin"}"
-	export LD_LIBRARY_PATH="$MPP_LIBDIR:$LIBRGA_LIBDIR:${LD_LIBRARY_PATH:-}"
+	suite_library_path=${LD_LIBRARY_PATH:-}
+	if [ -n "$LIBRGA_LIBDIR" ]; then
+		suite_library_path="$LIBRGA_LIBDIR${suite_library_path:+:$suite_library_path}"
+	fi
+	if [ -n "$MPP_LIBDIR" ]; then
+		suite_library_path="$MPP_LIBDIR${suite_library_path:+:$suite_library_path}"
+	fi
+	if [ -n "$suite_library_path" ]; then
+		export LD_LIBRARY_PATH="$suite_library_path"
+	fi
 fi
 
 CMD=()

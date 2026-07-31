@@ -2,8 +2,6 @@
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_release_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, active);
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_release_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, import);
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_release_public_cleanup_kunit	1	acquire:session = kzalloc(sizeof(*session), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, session);
-fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_hw_active_import_kunit	1	acquire:active = kzalloc(sizeof(*active), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, active);
-fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_hw_active_import_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, import);
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, active);
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, import);
 fatal-before-cleanup-action	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_public_cleanup_kunit	1	acquire:import = kzalloc(sizeof(*import), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, queued);
@@ -272,6 +270,7 @@ raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_rele
 raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_file_release_public_cleanup_kunit	1	session = kzalloc(sizeof(*session), GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_kunit_dmabuf_fd	1	priv = kzalloc(1, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_hw_active_import_kunit	1	active = kzalloc(sizeof(*active), GFP_KERNEL);
+raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_hw_active_import_kunit	1	active->imports = kcalloc(1, sizeof(*active->imports), GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_hw_active_import_kunit	1	import = kzalloc(sizeof(*import), GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_reset_session_public_cleanup_kunit	1	import = kzalloc(sizeof(*import), GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c	rk_mpp_rkvdec2_vp9_translate_validate_kunit	1	import = kzalloc(sizeof(*import), GFP_KERNEL);
