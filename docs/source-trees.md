@@ -590,10 +590,13 @@ shallow checkouts staged on 2026-07-02 and
 | Linux MPP/RGA/DRM demo | `sources/mpp-linux-cpp-demo` | `WainDing/mpp_linux_cpp.git`, branch `master`, commit `3d7cca63c4f5f0febacef0b0d0cdb36394fb5ca0` |
 | Android RKMediaCodecDemo | `sources/rkmediacodec-demo` | `c-xh/RKMediaCodecDemo.git`, branch `master`, commit `38b85b3c160bf58f2237d5f49b601c1636d484a5` |
 
-The tracked seed also carries helper scripts to build MPP, generate a local
-`librga.pc` shim, build librga samples, build JeffyCN's Meson-based GStreamer
-plugin tree, collect system/device state, and write per-profile logs under
-`logs/rewrite/` and `logs/forward-port/`. The YSP-side
+The MPP and librga pins above remain reproducible source/sample inputs for
+explicit legacy comparisons; normal conformance runs use the installed YSP MPP
+and librga packages. The tracked seed also carries optional helpers to build the
+pinned MPP and generate a local `librga.pc` shim, plus helpers that build the
+librga samples and JeffyCN's Meson-based GStreamer plugin against the installed
+development packages, collect system/device state, and write per-profile logs
+under `logs/rewrite/` and `logs/forward-port/`. The YSP-side
 `rewrite-conformance-run.sh` wrapper
 sequences those profile logs across ABI replay, MPP, librga, GStreamer, FFmpeg,
 and optional forward-port-vs-rewrite comparator steps. See

@@ -333,6 +333,49 @@ class WorkspaceDefaultTests(unittest.TestCase):
             mesa_env,
         )
 
+    def test_conformance_defaults_use_installed_mpp_and_librga(self) -> None:
+        expected_defaults = {
+            "kernel-drivers/tests/mpp-suite.sh": (
+                "MPP_BIN_DIR=${MPP_BIN_DIR:-/usr/bin}",
+                "MPP_LIBDIR=${MPP_LIBDIR:-}",
+            ),
+            "kernel-drivers/tests/librga-suite.sh": (
+                "LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-}",
+            ),
+            "kernel-drivers/tests/gstreamer-suite.sh": (
+                "MPP_LIBDIR=${MPP_LIBDIR:-}",
+                "LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-}",
+            ),
+            "kernel-drivers/tests/rewrite-smoke.sh": (
+                'MPP_BUILD="${MPP_BUILD:-/usr}"',
+            ),
+            "kernel-drivers/tests/decode-differential.sh": (
+                'MPP_BUILD="${MPP_BUILD:-/usr}"',
+            ),
+            "kernel-drivers/tests/test-decode.sh": (
+                'MPP_BUILD="${MPP_BUILD:-/usr}"',
+            ),
+            "kernel-drivers/tests/encode-test-tiny.sh": (
+                'MPP_BUILD="${MPP_BUILD:-/usr}"',
+            ),
+            "kernel-drivers/tests/rga-mmu-debug.sh": (
+                "LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-}",
+            ),
+            "kernel-drivers/tests/iommu-machinery-fuzz.sh": (
+                'MPP_BUILD="${MPP_BUILD:-/usr}"',
+                'LIBRGA_LIBDIR="${LIBRGA_LIBDIR:-}"',
+            ),
+            "kernel-drivers/tests/ffmpeg-suite.sh": (
+                "FFMPEG_RUNTIME_MODES=${FFMPEG_RUNTIME_MODES:-system}",
+            ),
+        }
+
+        for relative, expected_fragments in expected_defaults.items():
+            text = self.shell_text(relative)
+            for expected in expected_fragments:
+                with self.subTest(script=relative, expected=expected):
+                    self.assertIn(expected, text)
+
     def test_shared_tmp_and_ccache_stay_outside_grouped_workspace(self) -> None:
         build_gate = self.shell_text(
             "kernel-drivers/tests/rewrite-build-gate.sh"
