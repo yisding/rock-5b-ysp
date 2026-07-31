@@ -1,0 +1,24 @@
+lockdep: make the PROVE_RAW_LOCK_NESTING prompt unconditional
+
+arm64 selects ARCH_SUPPORTS_RT, which hides this option's prompt and
+forces it to its `default y` whenever PROVE_LOCKING is enabled — a plain
+config disable is silently reverted by olddefconfig. The checker models
+PREEMPT_RT wait-type nesting the rewrite drivers deliberately do not
+target yet, and its first report disables lockdep for the rest of the
+boot. Restoring the prompt lets the ysp debug instrumentation fragment
+turn it off. Staged for debug flavors only; production builds never see
+this patch.
+
+diff --git a/lib/Kconfig.debug b/lib/Kconfig.debug
+index 713cc94caa02e..820976683146a 100644
+--- a/lib/Kconfig.debug
++++ b/lib/Kconfig.debug
+@@ -1411,7 +1411,7 @@ config PROVE_LOCKING
+ 	 For more details, see Documentation/locking/lockdep-design.rst.
+ 
+ config PROVE_RAW_LOCK_NESTING
+-	bool "Enable raw_spinlock - spinlock nesting checks" if !ARCH_SUPPORTS_RT
++	bool "Enable raw_spinlock - spinlock nesting checks"
+ 	depends on PROVE_LOCKING
+ 	default y if ARCH_SUPPORTS_RT
+ 	help

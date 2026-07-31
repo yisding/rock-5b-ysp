@@ -144,6 +144,22 @@ function custom_kernel_config__rock5b_hard_reboot_debug() {
 		"DEBUG_IRQFLAGS"
 	)
 
+	# arm64 selects ARCH_SUPPORTS_RT, which forces PROVE_RAW_LOCK_NESTING
+	# on (and hides its prompt) whenever PROVE_LOCKING is set; the paired
+	# zz-rock5b-debug-locknest-prompt.patch restores the prompt so this
+	# disable can take effect. The checker models PREEMPT_RT wait-type
+	# nesting, which the rewrite drivers deliberately do not satisfy yet
+	# (hardirq slice reads and poll wakeups in rkvenc2, the shared-line
+	# RGA hard handler), and its first report disables lockdep for the
+	# rest of the boot — costing the deadlock coverage this build exists
+	# for. Earlier 6.18.40 boots never showed it only because the soft-CCU
+	# submit recursion report always killed lockdep first. Keep it off
+	# until the RT-nesting cleanup is its own qualified change
+	# (2026-07-30 finding).
+	opts_n+=(
+		"PROVE_RAW_LOCK_NESTING"
+	)
+
 	# KASAN is the main memory sanitizer for this build; do not also enable
 	# lighter-weight or race-oriented sanitizers that can conflict or add noise.
 	opts_n+=(

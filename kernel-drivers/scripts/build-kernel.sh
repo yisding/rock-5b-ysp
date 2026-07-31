@@ -235,6 +235,8 @@ USER_KERNEL_CONFIG=""
 STAMP_EXT_NAME="ysp-build-stamp"
 RAMOOPS_PATCH_SOURCE="$HERE/../patches/debug-kernel/0001-arm64-dts-rockchip-add-persistent-ramoops-to-rock-5b.patch"
 RAMOOPS_PATCH_DEST="$UP_DIR/zz-rock5b-debug-ramoops.patch"
+LOCKNEST_PATCH_SOURCE="$HERE/../patches/debug-kernel/0002-lockdep-make-PROVE_RAW_LOCK_NESTING-prompt-uncondit.patch"
+LOCKNEST_PATCH_DEST="$UP_DIR/zz-rock5b-debug-locknest-prompt.patch"
 
 say() { printf '>>> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -457,6 +459,7 @@ stage_flavor_debug_files() {
 	# patch (it is not part of the generated series), and that deletion is what
 	# keeps it OFF production builds, which have no counterpart that removes it.
 	install -D -m 0644 "$RAMOOPS_PATCH_SOURCE" "$RAMOOPS_PATCH_DEST"
+	install -D -m 0644 "$LOCKNEST_PATCH_SOURCE" "$LOCKNEST_PATCH_DEST"
 	install -D -m 0644 "$DEBUG_KERNEL_DIR/config-$FLAVOR_CONFIG_NAME.conf.sh" \
 		"$USERPATCHES_DIR/config-$FLAVOR_CONFIG_NAME.conf.sh"
 	install -D -m 0644 "$DEBUG_KERNEL_DIR/$DEBUG_FRAGMENT_NAME" \
@@ -563,6 +566,17 @@ say "  $NCOMMITS commits on top of $BASE_TAG:"
 git -C "$KERNEL_TREE" log --oneline "$BASE_TAG"..HEAD | sed 's/^/      /'
 rm -rf "$STAGING"; mkdir -p "$STAGING"
 git -C "$KERNEL_TREE" format-patch --no-signature -o "$STAGING" "$BASE_TAG"..HEAD >/dev/null
+# Python's mailbox reader treats every unescaped column-zero "From " line as
+# the start of another message. git format-patch can leave such a line in the
+# commit-message body, which makes Armbian's patch parser reject one valid
+# patch as a malformed multi-message mbox. Apply the standard mbox From_
+# escaping everywhere except the real first-line separator. Armbian discards
+# the mail description before applying the diff, so this changes transport
+# quoting only, never the patched kernel source.
+for f in "$STAGING"/0*.patch; do
+	[ -e "$f" ] || continue
+	sed -i '2,$s/^From />From /' "$f"
+done
 # Match on the full sha in the patch BODY, not on a filename built from %f.
 # git truncates generated FILENAMES at format.filenameMaxLength (default 64) but
 # does NOT truncate %f, so any commit whose subject exceeds ~52 characters could
@@ -815,6 +829,44 @@ for VERIFY_SYM in $VERIFY_CONFIGS; do
     Check that Armbian's 'Using kernel patch dir' matches archive/$KBRANCH."
 	fi
 done
+# Config-delta evidence (retro item 5, 2026-07-30). A base bump or a fragment
+# edit can silently change resolved CONFIG symbols — 6.18.40->6.18.41 quietly
+# flipped PROVE_RAW_LOCK_NESTING behaviour and moved the config hash. Extract
+# this build's packaged config, keep a per-slot history, and print the symbol
+# delta against the previous build so "what changed in this kernel" is a
+# reviewable line, not archaeology.
+CONFIG_HISTORY="${CONFIG_HISTORY:-$ARMBIAN_BUILD/output/config-history/$SLOT}"
+mkdir -p "$CONFIG_HISTORY"
+THIS_CONFIG="$CONFIG_HISTORY/${PH:-unknown}.config"
+if dpkg-deb --fsys-tarfile "$NEW" 2>/dev/null |
+	tar -xO --wildcards './boot/config-*' 2>/dev/null > "$THIS_CONFIG.tmp" &&
+	[ -s "$THIS_CONFIG.tmp" ]; then
+	PREV_CONFIG=$(find "$CONFIG_HISTORY" -maxdepth 1 -name '*.config' \
+		! -name "$(basename "$THIS_CONFIG")" -printf '%T@ %p\n' 2>/dev/null |
+		sort -rn | head -1 | cut -d' ' -f2-)
+	mv "$THIS_CONFIG.tmp" "$THIS_CONFIG"
+	say "  packaged config sha256: $(sha256sum "$THIS_CONFIG" | cut -d' ' -f1)"
+	if [ -n "$PREV_CONFIG" ] && [ -r "$PREV_CONFIG" ]; then
+		# Compare only effective CONFIG_* lines (set or "is not set"), so
+		# comment/version churn does not read as a delta.
+		DELTA=$(diff \
+			<(grep -E '^(CONFIG_[A-Z0-9_]+=| # CONFIG_[A-Z0-9_]+ is not set|# CONFIG_[A-Z0-9_]+ is not set)' "$PREV_CONFIG" | sort) \
+			<(grep -E '^(CONFIG_[A-Z0-9_]+=| # CONFIG_[A-Z0-9_]+ is not set|# CONFIG_[A-Z0-9_]+ is not set)' "$THIS_CONFIG" | sort) \
+			|| :)
+		if [ -n "$DELTA" ]; then
+			say "  config changed vs $(basename "$PREV_CONFIG"):"
+			printf '%s\n' "$DELTA" | grep -E '^[<>]' | sed 's/^/      /'
+		else
+			say "  config identical to $(basename "$PREV_CONFIG")"
+		fi
+	else
+		say "  no previous config for $SLOT (first recorded build)"
+	fi
+else
+	rm -f "$THIS_CONFIG.tmp"
+	say "  WARNING: could not extract packaged config for delta history"
+fi
+
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	say "DONE. After install.md recovery prep, install with:"
 	say "  sudo RECOVERY_READY=1 PHASH='$PH' bash $HERE/install-kernel.sh"
