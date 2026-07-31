@@ -125,6 +125,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-07-31-rga-userptr-dmabuf-multisegment-contracts.md`](2026-07-31-rga-userptr-dmabuf-multisegment-contracts.md) — RGA multi-segment memory contract: the BSP relies on 5.10/6.1 IOMMU coalescing; newer drivers validate or remap
 - [`2026-07-30-rewrite-soft-ccu-split-critical-section-h265-wedge.md`](2026-07-30-rewrite-soft-ccu-split-critical-section-h265-wedge.md) — Soft-CCU wedge survived the arm/start fix: the critical section was still split; whole-sequence lock applied
 - [`2026-07-30-rewrite-rkvenc-dchs-producer-retirement-race.md`](2026-07-30-rewrite-rkvenc-dchs-producer-retirement-race.md) — RKVENC DCHS producer retirement raced a dependent consumer's START; lifecycle serialization applied
 - [`2026-07-30-rewrite-kunit-gate-false-red-harness-defects.md`](2026-07-30-rewrite-kunit-gate-false-red-harness-defects.md) — First fully green rewrite KUnit boot failed the gate: four harness defects, zero kernel defects
