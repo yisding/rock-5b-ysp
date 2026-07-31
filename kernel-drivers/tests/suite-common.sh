@@ -3,6 +3,17 @@
 
 SUITE_DMESG_SCAN=${SUITE_DMESG_SCAN:-1}
 SUITE_REQUIRE_DMESG=${SUITE_REQUIRE_DMESG:-0}
+# Validator-health postflight (2026-07-30 retro item 4): lockdep reports once
+# and then disables itself, so a report firing BETWEEN suite windows or before
+# the first dmesg baseline leaves every later suite running without deadlock
+# coverage and nothing notices — measured on the 6.18.40 boots, where the
+# first decode IRQ's report killed lockdep for days of runs. Every suite
+# postflight therefore also checks that the validator is still alive. Only an
+# explicit "0" fails: kernels without lockdep have no /proc/lockdep_stats
+# (absent), and unprivileged runs cannot read it (unreadable); both pass with
+# the state recorded in dmesg-scan.tsv.
+SUITE_LOCKDEP_CHECK=${SUITE_LOCKDEP_CHECK:-1}
+SUITE_LOCKDEP_FILE=${SUITE_LOCKDEP_FILE:-/proc/lockdep_stats}
 # NOTE (2026-07-24): the `iommu[^[:alnum:]]*(fault|...)` alternative alone could
 # not match the two signatures that matter most on this board --
 # "rk_iommu fdb60f00.iommu: Page fault at ..." (alphanumerics sit between
@@ -116,6 +127,27 @@ suite_dmesg_delta()
 	} > "$target"
 }
 
+suite_lockdep_state()
+{
+	if [ "$SUITE_LOCKDEP_CHECK" != "1" ]; then
+		printf "skipped"
+		return
+	fi
+	if [ ! -e "$SUITE_LOCKDEP_FILE" ]; then
+		printf "absent"
+		return
+	fi
+	if [ ! -r "$SUITE_LOCKDEP_FILE" ]; then
+		printf "unreadable"
+		return
+	fi
+	awk '
+		NR == 1 && /^[01][[:space:]]*$/ { print $1; found = 1; exit }
+		$1 == "debug_locks:" { print $2; found = 1; exit }
+		END { if (!found) print "unavailable" }
+	' "$SUITE_LOCKDEP_FILE"
+}
+
 suite_dmesg_scan_snapshots()
 {
 	local out=$1
@@ -128,6 +160,7 @@ suite_dmesg_scan_snapshots()
 	local status=clean
 	local new_lines=0
 	local fatal_lines=0
+	local lockdep_state
 
 	if [ "$SUITE_DMESG_SCAN" != "1" ]; then
 		: > "$new"
@@ -146,6 +179,11 @@ suite_dmesg_scan_snapshots()
 		fi
 	fi
 
+	lockdep_state=$(suite_lockdep_state)
+	if [ "$lockdep_state" = "0" ] && [ "$status" != "fatal" ]; then
+		status=lockdep-disabled
+	fi
+
 	if [ -f "$new" ]; then
 		new_lines=$(wc -l < "$new" | tr -d '[:space:]')
 	fi
@@ -157,6 +195,7 @@ suite_dmesg_scan_snapshots()
 		printf "status\t%s\n" "$status"
 		printf "new_lines\t%s\n" "$new_lines"
 		printf "fatal_lines\t%s\n" "$fatal_lines"
+		printf "lockdep_state\t%s\n" "$lockdep_state"
 		printf "fatal_regex\t%s\n" "$SUITE_DMESG_FATAL_RE"
 	} > "$report"
 
@@ -171,6 +210,7 @@ suite_dmesg_scan_snapshots()
 		[ "$SUITE_REQUIRE_DMESG" != "1" ]
 		;;
 	*)
+		# fatal and lockdep-disabled both fail the suite.
 		return 1
 		;;
 	esac

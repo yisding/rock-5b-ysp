@@ -72,4 +72,62 @@ if SUITE_DMESG_SCAN=1 SUITE_REQUIRE_DMESG=1 \
 fi
 grep -q $'^status\tunavailable$' "$missing/dmesg-scan.tsv"
 
+# Validator-health postflight (retro item 4). A clean dmesg with lockdep
+# reported dead must still fail, and the scan records the observed state.
+lockdead="$TMP_ROOT/lockdep-dead"
+write_clean_snapshots "$lockdead"
+printf " lock-classes:  1000 [max: 8192]\n debug_locks:      0\n" \
+	> "$lockdead/lockdep_stats"
+if SUITE_DMESG_SCAN=1 SUITE_REQUIRE_DMESG=1 \
+	SUITE_LOCKDEP_FILE="$lockdead/lockdep_stats" \
+	suite_dmesg_scan_snapshots "$lockdead"; then
+	echo "disabled lockdep with a clean dmesg unexpectedly passed" >&2
+	exit 1
+fi
+grep -q $'^status\tlockdep-disabled$' "$lockdead/dmesg-scan.tsv"
+grep -q $'^lockdep_state\t0$' "$lockdead/dmesg-scan.tsv"
+
+# A live validator (both file formats) passes and is recorded.
+lockalive="$TMP_ROOT/lockdep-alive"
+write_clean_snapshots "$lockalive"
+printf " debug_locks:      1\n" > "$lockalive/lockdep_stats"
+SUITE_DMESG_SCAN=1 SUITE_REQUIRE_DMESG=1 \
+	SUITE_LOCKDEP_FILE="$lockalive/lockdep_stats" \
+	suite_dmesg_scan_snapshots "$lockalive"
+grep -q $'^status\tclean$' "$lockalive/dmesg-scan.tsv"
+grep -q $'^lockdep_state\t1$' "$lockalive/dmesg-scan.tsv"
+
+lockbare="$TMP_ROOT/lockdep-bare"
+write_clean_snapshots "$lockbare"
+printf "1\n" > "$lockbare/lockdep_stats"
+SUITE_DMESG_SCAN=1 SUITE_REQUIRE_DMESG=1 \
+	SUITE_LOCKDEP_FILE="$lockbare/lockdep_stats" \
+	suite_dmesg_scan_snapshots "$lockbare"
+grep -q $'^lockdep_state\t1$' "$lockbare/dmesg-scan.tsv"
+
+# A kernel without lockdep (file absent) passes, recorded as "absent" — not
+# every board runs the debug kernel, and a plain scan must not fail there.
+locknone="$TMP_ROOT/lockdep-absent"
+write_clean_snapshots "$locknone"
+SUITE_DMESG_SCAN=1 SUITE_REQUIRE_DMESG=1 \
+	SUITE_LOCKDEP_FILE="$locknone/does-not-exist" \
+	suite_dmesg_scan_snapshots "$locknone"
+grep -q $'^status\tclean$' "$locknone/dmesg-scan.tsv"
+grep -q $'^lockdep_state\tabsent$' "$locknone/dmesg-scan.tsv"
+
+# A fatal dmesg keeps its fatal verdict even when lockdep also died — the
+# more actionable signature wins the status field.
+bothbad="$TMP_ROOT/fatal-and-lockdead"
+write_clean_snapshots "$bothbad"
+printf "[3.000000] BUG: KASAN: use-after-free in rewrite\n" \
+	>> "$bothbad/dmesg-after.txt"
+printf " debug_locks:      0\n" > "$bothbad/lockdep_stats"
+if SUITE_DMESG_SCAN=1 SUITE_REQUIRE_DMESG=1 \
+	SUITE_LOCKDEP_FILE="$bothbad/lockdep_stats" \
+	suite_dmesg_scan_snapshots "$bothbad"; then
+	echo "fatal+lockdead unexpectedly passed" >&2
+	exit 1
+fi
+grep -q $'^status\tfatal$' "$bothbad/dmesg-scan.tsv"
+
 echo "suite common selftest passed"

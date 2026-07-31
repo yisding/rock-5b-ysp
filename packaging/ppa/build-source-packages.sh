@@ -14,8 +14,8 @@ MPP_REPO="${MPP_REPO:-$WORKSPACE_ROOT/rockchip-userspace/mpp-rockchip}"
 # commits between upstream tag 1.0.12 (1375813c) and this tip. The working tree
 # above is the HermanChen/mpp vendor mirror with a `yisding` remote added --
 # push ysp work to `yisding`, never to `origin`.
-MPP_COMMIT="${MPP_COMMIT:-3381fd2c}"
-MPP_UPSTREAM_VERSION="${MPP_UPSTREAM_VERSION:-1.5.0+git20260729.3381fd2c+ds}"
+MPP_COMMIT="${MPP_COMMIT:-ad325345}"
+MPP_UPSTREAM_VERSION="${MPP_UPSTREAM_VERSION:-1.5.0+git20260730.ad325345+ds}"
 
 LIBRGA_REPO="${LIBRGA_REPO:-$WORKSPACE_ROOT/rockchip-userspace/librga-fork}"
 # Must track the tip that matches the shipped kernel's 10-bit stride convention.

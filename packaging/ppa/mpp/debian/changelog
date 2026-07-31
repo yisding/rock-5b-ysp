@@ -1,3 +1,14 @@
+mpp (1.5.0+git20260730.ad325345+ds-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Set the vepu580 H.265 bitstream top address (register 172) to buffer size
+    minus one on the non-tiled encode path. Upstream 264553f9 introduced this
+    convention to stop the hardware faulting when it wraps from bot to top,
+    but missed this call site, leaving every ordinary HEVC encode programming
+    base + size. This makes HEVC encode fail on every frame against a driver
+    that range-checks register offsets against the dma-buf.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Thu, 30 Jul 2026 19:40:00 -0700
+
 mpp (1.5.0+git20260729.3381fd2c+ds-0ubuntu1~rk1) resolute; urgency=medium
 
   * Keep decodable RADL pictures whose POC precedes a BLA or CRA random-access

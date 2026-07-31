@@ -15,7 +15,7 @@ for how the external source trees are reconstructed see
 
 | Component | Source tree (under `~/Code/`) | Patches carried as | Pinned at | Package version | PPA |
 |---|---|---|---|---|---|
-| **MPP** | `rockchip-userspace/mpp-rockchip` @ `ysp/main` | **fork branch**, 4 commits | `d8c6b88a`, 4 past tag **`1.0.12`** (`1375813c`) | `1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1` | `ubuntu-rock-5b` |
+| **MPP** | `rockchip-userspace/mpp-rockchip` @ `ysp/main` | **fork branch**, 6 commits | `ad325345`, 6 past tag **`1.0.12`** (`1375813c`) | `1.5.0+git20260730.ad325345+ds-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **librga** | `rockchip-userspace/librga-fork` | **fork branch**, 11 commits | `26a50ef`, 11 past vendor base `2cffdf6` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **FFmpeg 8.0** (system) | `ffmpeg/ffmpeg-rockchip-81` @ `rockchip-8.0` | **fork branch** | `da5befc806` | `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **FFmpeg 6.1** (co-installable) | `ffmpeg/ffmpeg-rockchip` (nyanmisaka) | upstream snapshot, no delta | `40c412dacc` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` | `ubuntu-rock-5b` |
@@ -54,14 +54,14 @@ lives in the repo as DEP-3 patch files under `ppa/plymouth/debian/patches/`,
 listed in `series`. This suits a single small patch against a distro package
 that has no fork and does not need one.
 
-MPP was converted from quilt to fork branch on 2026-07-25; its four patches are
-now the four commits on `ysp/main`. Do not reintroduce `debian/patches/` for
+MPP was converted from quilt to fork branch on 2026-07-25; its patches are
+now the commits on `ysp/main`. Do not reintroduce `debian/patches/` for
 it. Do not mix the two models for one component — that gives two places to look
 and no single answer to "what is patched".
 
 ## Per component
 
-### MPP — fork branch, 4 commits
+### MPP — fork branch, 6 commits
 
 - Packaging branch: **`ysp/main`** on `yisding/mpp`, based on upstream release
   tag `1.0.12` (`1375813c`). This is the branch the package builds from.
@@ -69,7 +69,7 @@ and no single answer to "what is patched".
   **`HermanChen/mpp` vendor mirror** with a `yisding` remote added, rather than
   a separate fork clone like `librga-fork`. Push ysp work to `yisding`; **never
   to `origin`**. Local `develop` stays at the packaging base.
-- The four commits on `ysp/main`:
+- The six commits on `ysp/main`:
   - `osal/test: fix the pthread start routine signature` — needed for newer
     GCC/glibc. **Upstream fixed this independently after `1.0.12`**, so it
     exists only because the base is `1.0.12` itself.
@@ -79,6 +79,14 @@ and no single answer to "what is patched".
   - `fix[h265d]: refresh same-id PPS updates` — consumes the parser's existing
     PPS-change bitmap so changed tile layouts reach the decoder HAL even when
     the stream reuses the same PPS ID.
+  - `fix[h265d]: keep RADL pictures before random access POC` — stops
+    suppressing decodable RADL pictures whose POC precedes a BLA/CRA.
+  - `fix[hal_h265e]: set the bitstream top address to size - 1 on vepu580` —
+    finishes upstream `264553f9`, which introduced the `size - 1` bitstream-top
+    convention for reg 172 but missed the non-tiled H.265 vepu580 call site.
+    Without it every ordinary HEVC encode programs base + size, which the
+    rewrite driver rejects per frame and the vendor driver turns into the page
+    fault `264553f9` set out to remove.
 - `ysp/main` is the only ysp branch on the fork. `develop` there tracks upstream
   and is 55 commits past the packaging base; it is not a build input.
 - The `1.5.0` in the package version is **not** the upstream tag. It comes from
@@ -211,14 +219,16 @@ only when the upstream version itself changes.
   comment above `LIBRGA_COMMIT` in the script is load-bearing.
 - **MPP has three different bases in play.** Packaging builds `ysp/main`, based
   on tag `1.0.12` (`1375813c`); `yisding/mpp` `develop` is 55 commits past that
-  tag; and the conformance checkout
+  tag; and the optional legacy-conformance checkout
   (`kernel-drivers/tests/conformance/MANIFEST.tsv`) is pinned to `c2c1ee5`, an
-  *untagged* commit from 2026-03-09 that predates `1.0.12` entirely. A change
-  written against one base will not apply to the others. This is why the MPP
-  fixes exist twice: as commits on `ysp/main`, and as a repo-owned bootstrap
-  patch under `kernel-drivers/tests/conformance/patches/rockchip-mpp/`. Porting
-  `ysp/main` onto `develop` is not mechanical — upstream relocated the encoder
-  status check out of `wait()` into `ret_task()`, which is exactly the code the
+  *untagged* commit from 2026-03-09 that predates `1.0.12` entirely. Normal
+  conformance now uses the installed package; the old checkout is selected only
+  through explicit `MPP_BIN_DIR`/`MPP_LIBDIR` overrides. A change written
+  against one base will not apply to the others. This is why the older encoder
+  fixes also have a repo-owned bootstrap patch under
+  `kernel-drivers/tests/conformance/patches/rockchip-mpp/`. Porting `ysp/main`
+  onto `develop` is not mechanical — upstream relocated the encoder status
+  check out of `wait()` into `ret_task()`, which is exactly the code the
   poll-loop hardening interacts with.
 - **A vendor mirror's working tree is not storage.** Uncommitted fixes in
   `rockchip-conformance/sources/*` are one `git checkout` from vanishing, and a
