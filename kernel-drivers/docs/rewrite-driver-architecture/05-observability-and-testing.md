@@ -79,7 +79,7 @@ The evidence levels must not be collapsed:
 |-------|---------|-----------------------|--------------------------|
 | Source inspection | Review ownership and lock order | Intended invariants and obvious missing paths | That every race or hardware behavior matches the design |
 | Compile/build gate | Build both drivers, provider, DTB, and KUnit objects | API compatibility and configuration coverage | That the tests ran or the board boots |
-| KUnit execution | Boot and record all 232 cases | Pure helper/state-machine behavior in the running kernel | Correct pixels, bitstreams, IRQ wiring, or real reset behavior |
+| KUnit execution | Boot and record all 238 cases | Pure helper/state-machine behavior in the running kernel | Correct pixels, bitstreams, IRQ wiring, or real reset behavior |
 | Hardware smoke | Run one encode/decode/blit per backend and inspect counters | Basic probe, power, MMIO, DMA, and IRQ function | Broad ABI compatibility or stress safety |
 | Differential conformance | Compare outputs and behavior with the forward port | Compatibility across real applications and data paths | Exhaustive recovery/security behavior |
 | Fault/race/soak gates | KASAN, KCSAN, failure injection, close/unbind stress, long runs | Evidence for rare lifetime and recovery paths | A mathematical proof that no defect remains |
@@ -112,7 +112,7 @@ silicon. On-board conformance must additionally exercise:
 
 The immediate status-changing milestone is therefore not “add another unit
 test.” It is: install and boot the current-tip KASAN image `P3695-C9fc5` on the
-ROCK 5B, record all 232 KUnit cases, prove that each expected hardware family
+ROCK 5B, record all 238 KUnit cases, prove that each expected hardware family
 starts, then run paired rewrite-versus-forward-port conformance with clean
 kernel logs. Timeout, IOMMU-fault, reset-failure, close, and removal stress
 follow before a production-readiness claim.

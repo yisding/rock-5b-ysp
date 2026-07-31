@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when the ordered **84 MPP + 148 RGA case manifest** matches without
+green only when the ordered **90 MPP + 148 RGA case manifest** matches without
 duplicates, omissions, failures, or skips **and** the same kernel-log interval
 is free of sanitizer reports, warnings, lockdep findings, refcount failures,
 and media/IOMMU faults. The report also binds the run to the kernel release,
@@ -39,7 +39,7 @@ Each suite is compiled in the same translation unit as its driver:
 
 | Suite | Source | Kconfig symbol | Registered cases |
 |-------|--------|----------------|-----------------:|
-| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 84 |
+| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 90 |
 | `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 148 |
 
 The test blocks are guarded with `IS_ENABLED()` and registered with
@@ -91,11 +91,11 @@ hardware throughput:
 
 | Driver | Case region | Main subjects |
 |--------|-------------|---------------|
-| MPP | 1–20 | Message parsing, topology, register and DMA bounds |
-| MPP | 21–42 | RKVDEC2 CCU modes, link descriptors/tables, ownership, RCB/cache setup |
-| MPP | 43–56 | IRQ ownership, scheduling, IOMMU faults, timeout generations, recovery |
-| MPP | 57–64 | Encoder slices, bitstream overflow, DCHS, watchdogs, RCB validation |
-| MPP | 65–84 | Sessions, batch operation, imports, polling, abort/close teardown, event ring |
+| MPP | 1–26 | Message parsing, topology, AV1 layout/metadata/AFBC observation and admission, register and DMA bounds |
+| MPP | 27–48 | RKVDEC2 CCU modes, link descriptors/tables, ownership, RCB/cache setup |
+| MPP | 49–62 | IRQ ownership, scheduling, IOMMU faults, timeout generations, recovery |
+| MPP | 63–70 | Encoder slices, bitstream overflow, DCHS, watchdogs, RCB validation |
+| MPP | 71–90 | Sessions, batch operation, imports, polling, abort/close teardown, event ring |
 | RGA | 1–20 | Feature validation and RGA2/RGA3 register emission |
 | RGA | 21–44 | Request parsing, ioctls, job state, and file lifetime |
 | RGA | 45–61 | Imports, fences, layouts, planes, offsets, and strides |
@@ -222,13 +222,13 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 84 MPP or 148 RGA |
+| Inner KTAP plan | exactly 90 MPP or 148 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
 | Suite summary | `ok` |
 | Ordered names | exact SHA-256 from `rewrite-kunit-manifest.tsv` |
-| Source identity | 12–40 digit commit, also embedded as `-g<commit>` in `uname -r` |
+| Source identity | 12–40 digit commit, also embedded as `-g<commit>` in `uname -r` or ` g<commit>` in `uname -v` |
 | Configuration | SHA-256 of the booted kernel config |
 | Package | installed image package name and version |
 
@@ -335,7 +335,7 @@ RGA. Current tips 6.18 `51ea9d1ca537` / mainline `03da898b03f1f`
 additionally give every fixture a local service, remove runtime
 unregister/reprobe callbacks, make fence/FD/work/device cleanup
 assertion-safe, and replace polling with completion-driven synchronization
-plus a real two-thread fence/abort race. The exact ordered 84/148 manifest and
+plus a real two-thread fence/abort race. The exact ordered 90/148 manifest and
 source/config/package-bound evidence gate now own result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 Do not promote KTAP, compile, or package results into a runtime pass until the

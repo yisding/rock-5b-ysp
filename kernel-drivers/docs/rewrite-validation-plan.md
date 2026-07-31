@@ -9,7 +9,7 @@ qualification verdict and next proof belong to
 and definition of done.
 
 > **Framing.** The targeted userspace surface is code-complete and has MPP
-> **84 KUnit cases** plus RGA **148 KUnit cases** (**232 total**). Exact green
+> **90 KUnit cases** plus RGA **148 KUnit cases** (**238 total**). Exact green
 > booted KTAP is the first qualification rung, not the finish line. These tests
 > are primarily **logic/lifecycle evidence**:
 > the in-tree `ABI.rst` ledgers are explicit that they *"do not drive MMIO, DMA,
@@ -51,7 +51,7 @@ Three builds; the sanitizers do not usefully coexist.
   build *is* this: KASAN(inline) + UBSAN + `DMA_API_DEBUG(_SG)` + `DEBUG_SG` +
   `DEBUG_LIST` + lockdep (`PROVE_LOCKING`) + `DEBUG_ATOMIC_SLEEP` +
   `PAGE_OWNER`/`PAGE_POISONING`, with ramoops so an IOMMU-fault oops survives the
-  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 232 unit
+  reboot. Add `CONFIG_KUNIT=y` + both `*_REWRITE_KUNIT_TEST=y` so the 238 unit
   cases run under KASAN as the very first gate. Add `FAULT_INJECTION` +
   `FAILSLAB` + `FAIL_PAGE_ALLOC` + `FAULT_INJECTION_USERCOPY` +
   `FUNCTION_ERROR_INJECTION` for §4. The device-free preflight is
@@ -232,7 +232,7 @@ matrix below.
 | **close() / RESET_SESSION mid-flight** | close fd / reset while a job is active or an acquire fence is pending | session job list drains before imports/requests drop; no orphaned fence; race it under Kernel B |
 | **Allocation failure** | `failslab`/`fail_page_alloc` scoped to the driver, hit each site | dma_buf attach, `pin_user_pages`, DMA map, coherent cmd-buffer, CCU link-table node → graceful unwind, no leak (KMEMLEAK), no unsignalled fence |
 | **Hard-CCU error/timeout** (opt-in) | enable `rockchip,ccu-mode=2` in DT, wedge a linked task | force-stop→reset→relink→resend→`ZAP_CACHE` path; peer-core power ownership transfers; unrecoverable chain aborts cleanly |
-| **RKVENC2 DCHS** | dual-core encoder jobs, kill one mid-handshake | TX/RX id slot cleared on completion/timeout/reset/close/remove |
+| **RKVENC2 DCHS** | dual-core encoder jobs; kill one mid-handshake; force producer completion after consumer channel matching but before consumer START | producer retirement cannot cross consumer patch-through-START; RXE is retained only when the consumer started first; TX/RX id slot clears on completion/timeout/reset/close/remove |
 | **Fence abuse** | acquire fence that never signals / signals error; `user_close_fence` both ways; double-close the fd | correct status propagation; kernel keeps/relinquishes fd per the flag; no refcount imbalance |
 
 The pass criterion for the whole matrix: **correct errno, all fences signalled,
@@ -632,7 +632,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 232 KUnit cases green **under KASAN** (84 MPP + 148 RGA), persisted from the
+1. 238 KUnit cases green **under KASAN** (90 MPP + 148 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

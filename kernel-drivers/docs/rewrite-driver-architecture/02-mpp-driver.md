@@ -289,7 +289,7 @@ length records into a per-job `kfifo` protected by a spinlock and wake
 `POLL_HW_IRQ` waiters before final frame completion. The terminal interrupt
 wakes the IRQ thread, which reads result registers and completes the job.
 
-### 3.9 Decoder backend and CCU modes
+### 3.9 Decoder backends and CCU modes
 
 RKVDEC2 is more complicated because two cores may be coordinated.
 
@@ -331,6 +331,39 @@ one order prevents an ABBA deadlock.
 
 The threaded interrupt drains completed CCU descriptors rather than assuming
 the interrupting core owns the completed job.
+
+#### AV1/VSI admission and AFBC observation
+
+AV1 uses the VSI IOMMU provider and a separate AFBC register/IRQ block. Its
+START transaction is ordered as follows:
+
+1. `vsi_iommu_prepare_dma()` catches an already-latched provider fault;
+2. decoder and AFBC registers are programmed without ringing START;
+3. `vsi_iommu_reserve_dma()` takes the provider admission mutex, resumes it,
+   disables/drains its IRQ, and performs the final fault snapshot;
+4. MPP publishes the active job and generation;
+5. one raw-spinlocked auxiliary transaction drains stale AFBC status, requires
+   it to deassert, publishes the AFBC generation, writes VCD START, and unmasks
+   the dedicated AFBC IRQ;
+6. `vsi_iommu_release_dma()` snapshots a fault once more before restoring the
+   provider IRQ/PM state and may synchronously dispatch the consumer callback
+   while the MPP job is still owned.
+
+The provider retains fault address/status/domain state until exactly one
+delivery path claims it. Callback in-flight accounting covers IRQ and
+process-context replay, so consumer teardown is `set handler NULL -> sync ->
+remove token/list state`. Paging-domain replacement and device release retire
+pending fault records and drain callbacks before the old domain can be freed.
+
+AFBC acknowledge bit 0 is treated as an **observation**, not as proof that
+downstream writes retired. The BSP also completes jobs from the VCD interrupt
+and only opportunistically acknowledges AFBC, but its source supplies no
+architectural DMA-retirement guarantee. The rewrite therefore records
+before/after-VCD, at-VCD, and final-quiesce observation counters without using
+the AFBC bit to complete a job. A status bit that cannot be drained before
+START is an unknown AFBC state: normal cleanup is forbidden, the AV1 engine is
+reset and terminally isolated, and ownership is retained if isolation itself
+cannot be proved.
 
 ### 3.10 Completion and polling
 
@@ -385,6 +418,10 @@ The recovery path:
 
 The important rule is: **do not free DMA-visible memory merely because software
 decided a job failed**. First prove the engine can no longer fetch from it.
+If a stop attempt cannot supply that proof, recovery restores the active job
+and fault-generation marker, quarantines the engine, fails queued work, and
+keeps the DMA-visible resources pinned for a later fail-stop remove/shutdown
+retry.
 
 ### 3.12 Reset failure and permanent DMA isolation
 
@@ -427,12 +464,14 @@ preserve memory safety.
 | `service.dma_group_lock` | IOMMU group registry and terminal isolation | process/workqueue |
 | `service.sched_lock` | global queued-job list and queue counters | process/workqueue |
 | `service.fault_lock` | fault-handler hardware list | hard/fault callback safe spinlock |
+| `service.rkvenc_dchs_lifecycle_lock` | encoder DCHS consumer patch-through-START versus producer reset/completion/power-off | process/workqueue/IRQ thread mutex; nested inside one core's `run_lock` |
 | `service.rkvenc_dchs_lock` | encoder DCHS ownership table | IRQ-safe spinlock |
 | `session.explicit_map_lock` | explicit mappings and selected DMA device | process context |
 | `session.lock` | session state, imports, active-job list, generations | process/workqueue |
 | `hw.ccu_recovery_lock` | shared coordinator admission/recovery | process/IRQ thread |
 | `hw.run_lock` | one core's start, completion, abort, recovery, removal | process/IRQ thread |
 | `hw.lock` | active/timeout job, generations, IRQ status | hard IRQ and process |
+| `hw.aux_lock` | AV1 AFBC mask/status/generation and START handoff | raw spinlock shared with dedicated hard IRQ |
 | `job.rkvenc_slice_lock` | slice FIFO flags/data | hard IRQ and process |
 
 Keep critical sections small. Never call a sleeping API while holding
