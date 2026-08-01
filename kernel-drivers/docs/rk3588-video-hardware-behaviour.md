@@ -226,7 +226,18 @@ Three consequences, all of which the driver should be read against:
 The same register documents the `sw_dec_bus_sta` AXI-error bit as self-
 resetting — **and it is outside our `0xf0` mask**, so a bus error currently
 completes the job as successful. See
-[the 2026-08-01 gap finding](../../findings/2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md).
+[the 2026-08-01 gap finding](../../findings/2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md)
+for the staged disposition; the short version is that the BSP and mainline
+both use `0xf0` as well, so this gets measured before it gets changed.
+
+**All of these bits are observable without a kernel change.** The rewrite
+driver records every interrupt into its debug event ring with the raw
+`irq_status`, and `/sys/kernel/debug/rk_mpp_rewrite/events` prints that word in
+hex as field 11. Set `trace_mask` to `2` (`TRACE_IRQ`), provoke briefly, read
+the ring, set it back to `0`. The ring is 64 entries, so under a heavy
+provocation it samples rather than counts — enough to answer "does this ever
+happen", which is the question that decides whether dedicated counters are
+worth their frame-size cost.
 
 ## 4. Interrupts and the error path
 
