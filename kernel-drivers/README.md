@@ -100,6 +100,7 @@ Read in this order when changing or reviewing kernel behavior:
 | Question | Canonical doc |
 |----------|---------------|
 | What does each driver layer do? | [`docs/how-the-drivers-work.md`](docs/how-the-drivers-work.md) |
+| What has debugging established about the video *hardware* itself — gating, resets, interrupts, and why some failures leave no trace? | [`docs/rk3588-video-hardware-behaviour.md`](docs/rk3588-video-hardware-behaviour.md) |
 | How do the BSP-derived and rewrite MPP/RGA architectures differ, and what are their pros and cons? | [`docs/driver-architecture-comparison.md`](docs/driver-architecture-comparison.md) |
 | How are the rewrite drivers structured, synchronized, and made safe to tear down? | [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md) |
 | How do the rewrite drivers use KUnit, and how is a booted result judged? | [`docs/rewrite-kunit.md`](docs/rewrite-kunit.md) |
