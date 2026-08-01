@@ -13,9 +13,10 @@
 > Date: 2026-07-31
 > Trust: MEASURED (1,248 hash-compared frames across three geometries) +
 > LAYER-ISOLATED (destination-buffer identity correlation, below) +
-> SOURCE-INSPECTED (suspect commit's touched functions) + **NOT BISECTED**
-> (never tested on `#21` or the production kernel) + HYPOTHESIS (the specific
-> mechanism inside the RGA driver)
+> SOURCE-INSPECTED (rewrite and vendor job paths, rockchip-iommu) +
+> **PARTIAL-ROOT-CAUSE** (a vendor-divergent power/IOMMU ordering found and
+> several competing mechanisms eliminated; the mechanism is not closed) +
+> **NOT BISECTED** (never tested on `#21` or the production kernel)
 
 ## Result
 
@@ -107,13 +108,132 @@ session on the same path and should be triaged together.
   line — and its own finding records it as
   [RUNTIME-UNVERIFIED for fragmented DMA-BUFs](2026-07-31-rga-rewrite-multisg-dmabuf-cma-einval.md).
   That is motive and opportunity, not evidence.
-- Size dependence is measured but unexplained. Both a fragmentation story
-  (small buffers land in multi-segment scatter-gather) and a timing story
-  (small frames submit jobs ~9x more often, opening a race) fit the data.
-  Nothing here distinguishes them.
+- Size dependence is measured but not explained by anything observed. The
+  candidate explanations are discussed under Root-cause investigation; none is
+  confirmed.
 - Only RGA3 AFBC→P010 was exercised. RGB→NV12 encode input and the 8-bit NV12
   export repack use the same `improcess` entry point and were not tested for
   dropped writes.
+
+## Root-cause investigation (2026-07-31, second pass)
+
+Not closed. The layer is certain; the mechanism is narrowed to one named
+divergence from the vendor driver, with several competing explanations
+eliminated by source inspection.
+
+### The write never reaches DRAM — it is not a readback artifact
+
+All 24 wrong frames were *wholly* stale or *wholly* zero. CPU cache staleness
+operates at 64-byte line granularity and would produce frames mixing fresh and
+stale lines; not one such frame occurred. The `vaGetImage` path also brackets
+its read with `DMA_BUF_IOCTL_SYNC(START|READ)`
+(`src/surface.c` `rk_GetImage()`), and the conversion destination is a
+`MPP_BUFFER_TYPE_DRM` buffer whose CPU mapping is write-combine. The data
+genuinely never lands.
+
+### Eliminated by source inspection
+
+Recording these so they are not re-derived:
+
+- **Incomplete TLB invalidation on unmap.** `rk_iommu_unmap()`
+  (`drivers/iommu/rockchip-iommu.c`) zaps the *full* unmapped range
+  (`rk_iommu_zap_iova(rk_domain, iova, unmap_size)`), not just first/last.
+- **Missing `iotlb_sync`.** The rockchip domain ops genuinely omit
+  `.iotlb_sync`, so the IOMMU core's post-unmap sync is a no-op — but this is
+  by design, because the zap happens inside `rk_iommu_unmap()` itself.
+- **Command-buffer publication race.** The CMD buffer is `dma_alloc_coherent`
+  and every register write goes through `writel()`, which carries an implicit
+  barrier on arm64. Ordering before the doorbell is sound.
+- **Treating `CMD_LINE_FINISH` as completion.** The rewrite's
+  `RK_RGA3_INT_DONE_MASK` is `FRM_DONE | CMD_LINE_FINISH`, which looked like
+  early completion — but the vendor does exactly the same
+  (`rga3_reg_info.c` `rga3_irq()`, `m_RGA3_INT_FRM_DONE |
+  m_RGA3_INT_CMD_LINE_FINISH`). Not a divergence.
+- **Per-core IOMMU confusion.** RK3588 has two RGA3 cores with separate
+  IOMMUs, but both mapping-reuse checks in `rk_rga_job_map_import()` are
+  correctly keyed on `hw`.
+- **A faulting write.** `RK_RGA3_INT_RGA_MI_WR_BUS_ERR` is in the enabled error
+  mask and no error interrupt was ever reported, so the write was not
+  rejected — the engine either wrote elsewhere or never wrote.
+
+### The divergence that remains: IOMMU work while the power domain is gated
+
+The vendor driver powers the domain **before** mapping and documents why
+(`rga_job.c` `rga_job_commit()`):
+
+```c
+	/* Memory mapping needs to keep pd enabled. */
+	ret = rga_power_enable(scheduler);
+	...
+	ret = rga_mm_map_job_info(job);
+```
+
+The rewrite inverts this at **both** ends of the job:
+
+```c
+/* rk_rga_backend_start(), rga_rewrite.c:23036-23043 */
+	ret = rk_rga_job_prepare_hw_mappings(hw, job);   /* iommu_map_sg() */
+	...
+	ret = rk_rga_hw_power_on(hw);                    /* power AFTER the map */
+
+/* completion path, rga_rewrite.c:23138-23148 */
+	rk_rga_hw_power_off(hw);                         /* pm_runtime_put_sync() */
+	...
+	rk_rga_job_clear_mappings(job);                  /* iommu_unmap() AFTER */
+```
+
+This matters because the rockchip IOMMU's shootdown is silently conditional on
+the IOMMU being powered — it shares the RGA core's power domain:
+
+```c
+/* rk_iommu_zap_iova(), drivers/iommu/rockchip-iommu.c */
+		/* Only zap TLBs of IOMMUs that are powered on. */
+		ret = pm_runtime_get_if_in_use(iommu->dev);
+		if (WARN_ON_ONCE(ret < 0))
+			continue;
+		if (!ret)
+			continue;
+```
+
+The rewrite also uses `pm_runtime_put_sync()` with **no autosuspend anywhere in
+the driver**, so the domain is gated after every single job. Both the map-time
+first/last zap and the unmap-time full-range zap are therefore skipped on every
+job, and the IOVA allocator (`alloc_iova_fast`/`free_iova_fast`) hands the same
+addresses straight back.
+
+**Why this is a lead and not a conclusion:** `rk_iommu_resume()` →
+`rk_iommu_enable()` issues `rk_iommu_force_reset()` and
+`RK_MMU_CMD_ZAP_CACHE` on every runtime resume, which should clear any stale
+TLB before the job runs. For the skipped zaps to actually bite, that resume
+must not be happening as assumed — e.g. the IOMMU not truly suspending
+between jobs, or the device link not ordering its resume ahead of the RGA's
+DMA. Settling that needs the counters below, which need root.
+
+Size dependence is consistent with a stale-translation story (a 675-page 720p
+mapping floods a small TLB and self-evicts stale entries; a 57-84-page mapping
+does not), but that is a hypothesis, not a measurement.
+
+### Next steps, in order of decisiveness
+
+1. **Read the driver's own counters during a failing run** (needs root, debugfs
+   is `0700`):
+   ```sh
+   sudo grep . /sys/kernel/debug/rk_rga_rewrite/{irq_error_count,irq_spurious_count,timeout_count,power_cycle_count,iommu_refresh_count}
+   ```
+   Sample before and after the 416x240 harness. A nonzero `timeout_count` or
+   `irq_spurious_count` would redirect this to completion detection and away
+   from the IOMMU entirely.
+2. **Test the ordering hypothesis without a kernel rebuild:** pin the RGA
+   devices runtime-active so the domain never gates, then re-run the harness.
+   ```sh
+   for d in /sys/bus/platform/devices/*rga*/power/control; do echo on | sudo tee $d; done
+   ```
+   Failures vanishing implicates the power/IOMMU ordering directly.
+3. **Fix and rebuild:** move `rk_rga_hw_power_on()` above
+   `rk_rga_job_prepare_hw_mappings()` and `rk_rga_job_clear_mappings()` above
+   `rk_rga_hw_power_off()`, matching the vendor. This is worth doing regardless
+   of whether it cures this bug — it restores an invariant the vendor
+   documents.
 
 ## Verification gate
 
