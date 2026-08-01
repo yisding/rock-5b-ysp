@@ -154,8 +154,7 @@ check_signals()
 			> "$OUT/signals.log" 2>&1 &
 		local pid=$!
 		# Stop/continue repeatedly while it encodes.
-		local n
-		for n in 1 2 3 4 5 6; do
+		for _ in 1 2 3 4 5 6; do
 			sleep 0.05
 			kill -STOP "$pid" 2>/dev/null || break
 			sleep 0.02
@@ -242,8 +241,7 @@ check_abort()
 	trap 'stop_abort_survivors' RETURN
 
 	# Baseline: same survivor load, no abort in front of it.
-	local b
-	for b in 1 2 3; do
+	for _ in 1 2 3; do
 		out=$(time_one_decode "$OUT/abort-baseline.log")
 		ms=${out% *}
 		[ "$ms" -gt "$baseline" ] && baseline=$ms
@@ -314,6 +312,9 @@ check_contention()
 		"d9992e3" ;;
 	77) record contention skip \
 		"needs root and a kernel carrying the counter" "d9992e3" ;;
+	78) record contention fail \
+		"inconclusive: the provocation was too weak to measure the race at all (resets/expected-hits in contention.log), so this says nothing about EXPECT=$GATE_CONTENTION_EXPECT" \
+		"d9992e3" ;;
 	*) record contention fail \
 		"EXPECT=$GATE_CONTENTION_EXPECT not satisfied, see $OUT/contention.log" \
 		"d9992e3" ;;
