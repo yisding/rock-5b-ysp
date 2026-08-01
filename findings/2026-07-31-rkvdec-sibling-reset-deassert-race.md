@@ -68,6 +68,39 @@ landed first. Frequency is unknown and plausibly low — it needs a reset on one
 core concurrent with a submit on a sibling in the same CCU group, and resets
 only follow an error or timeout.
 
+Two measurement attempts on 2026-07-31, neither of which changes that:
+
+1. **The first run measured nothing.** `EXPECT=contended` reported a zero delta
+   and the harness read that as "the race may not be reachable in this
+   configuration". It was not: `reset_count` moved by **0** over the whole run.
+   No core was reset, so the contention counter had nothing to contend with.
+   The kill-based provocation was ~3 orders of magnitude too weak — 40 kill
+   cycles produced 1 abort, because a victim spends ~12 ms of its ~300 ms life
+   on hardware and only an in-flight job reaches the abort reset path.
+2. **The second run measured the wrong side.** After the harness was rebuilt to
+   drive resets from the decode error path (below), the same workload produced
+   **3923 resets in 60 s** against 7944 submits — and still a zero contention
+   delta. That is *not* evidence against the mechanism. The run's expected-hit
+   figure of ~5 uses the submit rate as a stand-in for the rate at which a
+   sibling deasserts a given core, and that stand-in is an upper bound:
+   `rk_mpp_rkvdec2_acquire_soft_ccu()` calls `power_on_ccu_cores()` only when
+   the job has no power hold yet, and
+   `rk_mpp_rkvdec2_transfer_powered_ccu_cores()` (~:3479) hands an existing hold
+   to the next queued job on the coordinator. Pipelined jobs therefore power the
+   group up once and inherit it, and the true deassert rate is lower by a factor
+   nobody has measured. With that factor unknown the expected hits are unknown,
+   and a zero is unremarkable.
+
+So the reachability question is still open, and closing it needs a counter on
+the deassert side, not a longer run.
+
+One fact the second run did establish: the practical reset source on this path
+is not the abort or the watchdog but the **decode error interrupt**. The soft-CCU
+IRQ thread resets the core whenever `irq_status & err_mask` (~:14386, mask
+`0xf0` at ~:1540), and a stream with damaged slice payloads reaches it a few
+times per decode — enough for thousands of resets a minute where killing
+decoders produced none.
+
 Says nothing about the encoder (rkvenc2 has its own CCU and was not analysed
 for this), about hard-CCU mode, or about single-core configurations. Does not
 establish that any observed decode corruption to date was caused by this; no
@@ -123,12 +156,24 @@ Implementation shape:
 Ordered, because a passing functional test after a timing fix proves nothing on
 its own:
 
+0. **Instrument the deassert side.** Count the deasserts `power_on()` issues on
+   a core, so the harness can compute expected hits from two measured rates
+   instead of standing the submit rate in for one of them. Without it a zero in
+   step 1 cannot be told apart from a run that never had the power to produce a
+   non-zero — which is exactly what happened on 2026-07-31, twice, for two
+   different reasons. Same shape as the counter d9992e32dc17 already added on
+   the pulse side; it settles a question rather than changing behaviour, so it
+   can land on its own.
 1. **Reachability, before any behaviour change.** `sudo EXPECT=contended bash
    kernel-drivers/tests/rewrite-reset-contention.sh` must show a non-zero
    `mpp:reset_deassert_contended_count` delta on a kernel carrying d9992e32dc17.
-   If it stays zero, the fix is not yet justified and the frequency claim above
-   is wrong — raise `RESET_LOOPS`/`RESET_SURVIVORS` first, then re-examine
-   whether the window is reachable at all in this configuration.
+   The harness drives resets from the decode error path and reports
+   `reset_count`, the submit rate, and the expected hits alongside the
+   contention count; it exits `78` INCONCLUSIVE when no reset happened or the
+   expectation is too low, because a zero is evidence only if the run could have
+   produced a non-zero. If it stays zero against an expectation built on step
+   0's *measured* deassert rate, the fix is not justified and the reachability
+   claim above is wrong.
 2. **Regression, after the lock.** `sudo EXPECT=clean bash
    kernel-drivers/tests/rewrite-reset-contention.sh` on the same workload that
    produced step 1's non-zero delta. Meaningless without step 1.
