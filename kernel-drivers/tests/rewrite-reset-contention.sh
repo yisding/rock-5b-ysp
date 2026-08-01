@@ -18,10 +18,13 @@
 # HOW IT PROVOKES IT, AND WHY IT IS SHAPED THIS WAY
 #
 # The race needs two things happening at once: a reset pulse on one core, and a
-# job submit anywhere in its CCU group. Both rates matter, and the expected
-# number of hits is roughly
+# deassert issued for that same core by a sibling's submit. Both rates matter,
+# and the expected number of hits is roughly
 #
-#     resets * (submits per second) * 10 us
+#     resets * (deasserts on that core per second) * 10 us
+#
+# -- see HOW THE EXPECTED-HIT ESTIMATE IS BUILT below for how each term is
+# obtained.
 #
 # The first version of this harness drove resets only by killing a decoder
 # mid-decode, betting that the abort path would reset the core. That is far too
@@ -46,9 +49,9 @@
 #
 # INTERPRETING THE RESULT
 #
-# The harness reports resets and submits alongside the contention count,
-# because a zero contention count means nothing on its own -- it may mean the
-# provocation never ran. Three outcomes:
+# The harness reports resets, deasserts, and submits alongside the contention
+# count, because a zero contention count means nothing on its own -- it may mean
+# the provocation never ran. Three outcomes:
 #
 #   INCONCLUSIVE  no resets happened, or the run's expected-hit count came out
 #                 under RESET_MIN_EXPECT. The measurement had no power; it says
@@ -67,23 +70,32 @@
 # That is fine for reachability, where the question is whether the two paths
 # overlap at all, but it means the count is an upper bound on real damage.
 #
-# WHAT THE EXPECTED-HIT ESTIMATE IS NOT
+# HOW THE EXPECTED-HIT ESTIMATE IS BUILT
 #
-# The estimate uses the *submit* rate as a stand-in for the rate at which a
-# sibling deasserts a given core, and that is an upper bound, not the real
-# figure. rk_mpp_rkvdec2_acquire_soft_ccu() only calls
+# On a kernel carrying the per-core reset/deassert counters, both terms are
+# measured and the sum is taken per core:
+#
+#     sum over cores of  resets(core) * deasserts(core)/second * 10 us
+#
+# Per core rather than in aggregate, because the overlap is a property of one
+# core: a pulse on core0 can only be ended by a deassert issued for core0, so an
+# aggregate product would be wrong whenever the load is lopsided.
+#
+# On a kernel without them the harness falls back to the *submit* rate as a
+# stand-in for the deassert rate, and says so, because that is an upper bound
+# rather than the real figure: rk_mpp_rkvdec2_acquire_soft_ccu() only calls
 # rk_mpp_rkvdec2_power_on_ccu_cores() when the job has no power hold yet
 # (`!job->rkvdec_ccu_powered_core_count`), and
 # rk_mpp_rkvdec2_transfer_powered_ccu_cores() hands an existing hold to the next
 # queued job on the coordinator. So a run of pipelined jobs powers the group up
-# once and the rest inherit it: the deassert rate can be far below the submit
-# rate, by a factor nobody here has measured.
+# once and the rest inherit it, and the deassert rate can be far below the
+# submit rate.
 #
-# The consequence is asymmetric, and the wording below reflects it. A non-zero
-# contention count is solid -- the overlap either happened or it did not. A zero
-# against a large estimate is *not* proof the race is unreachable, because the
-# estimate may be inflated by exactly that factor. Settling that needs a counter
-# on the deassert side, next to the one d9992e32dc17 added on the pulse side.
+# The consequence of that fallback is asymmetric. A non-zero contention count is
+# solid either way -- the overlap either happened or it did not. A zero against
+# a large *upper-bound* estimate is not proof the race is unreachable, because
+# the estimate may be inflated by exactly that factor. Only the measured basis
+# makes a zero mean something.
 #
 # Needs root: the counter lives in debugfs, which is 0700.
 #
@@ -282,16 +294,60 @@ dispatched=$((after_dispatched - before_dispatched))
 
 submit_rate=$(awk -v n="$dispatched" -v t="$elapsed" \
 	'BEGIN{printf "%.1f", (t>0)?n/t:0}')
-expected=$(awk -v r="$resets" -v s="$submit_rate" -v w="$RESET_WINDOW_S" \
-	'BEGIN{printf "%.3f", r*s*w}')
+deasserts=$(awk -F'\t' 'NR>1 && $2=="reset_deassert_count"{print $5}' \
+	"$OUT/counters-delta.tsv")
+deasserts=${deasserts:-}
+
+# Preferred estimate: both terms measured, resolved per core. The overlap
+# probability is a property of one core -- a pulse on core0 can only be ended by
+# a deassert issued for core0 -- so summing the product per core is right and
+# an aggregate would be wrong whenever the load is lopsided.
+expected=$(awk -F'\t' -v elapsed="$elapsed" -v w="$RESET_WINDOW_S" '
+	NR == 1 { next }
+	$2 ~ /^reset_(av1dec|rkvdec|rkvenc)_core[0-9]+_count$/ {
+		key = $2; sub(/^reset_/, "", key); r[key] = $5; next
+	}
+	$2 ~ /^reset_deassert_(av1dec|rkvdec|rkvenc)_core[0-9]+_count$/ {
+		key = $2; sub(/^reset_deassert_/, "", key); d[key] = $5; next
+	}
+	END {
+		if (elapsed <= 0) { printf ""; exit }
+		seen = 0; total = 0
+		for (k in r) {
+			if (!(k in d))
+				continue
+			seen = 1
+			total += r[k] * (d[k] / elapsed) * w
+		}
+		if (seen) printf "%.3f", total; else printf ""
+	}' "$OUT/counters-delta.tsv")
+
+if [ -n "$expected" ]; then
+	expected_basis=measured
+else
+	# Pre-counter kernel: stand the submit rate in for the deassert rate.
+	# That over-estimates, because a job inheriting a coordinator power hold
+	# issues no deassert at all.
+	expected=$(awk -v r="$resets" -v s="$submit_rate" -v w="$RESET_WINDOW_S" \
+		'BEGIN{printf "%.3f", r*s*w}')
+	expected_basis=upper-bound
+fi
 
 log "elapsed:      ${elapsed}s (kill cycles: $kill_cycles)"
 log "resets:       $resets"
 log "submits:      $dispatched (${submit_rate}/s)"
-log "expected hits: <=$expected  (resets * submit rate * ${RESET_WINDOW_S}s)"
-log "  UPPER BOUND: submits stand in for sibling deasserts, and a job that"
-log "  inherits a power hold issues none. The true figure is lower by an"
-log "  unmeasured factor."
+log "deasserts:    ${deasserts:-unavailable}"
+if [ "$expected_basis" = measured ]; then
+	log "expected hits: ~$expected  (per core: resets * deassert rate *" \
+		"${RESET_WINDOW_S}s)"
+else
+	log "expected hits: <=$expected  (resets * submit rate * ${RESET_WINDOW_S}s)"
+	log "  UPPER BOUND: this kernel has no reset_deassert_count, so submits"
+	log "  stand in for sibling deasserts and a job that inherits a power"
+	log "  hold issues none. The true figure is lower by an unmeasured"
+	log "  factor -- build a kernel carrying the deassert counter to close"
+	log "  this, or a zero below proves nothing."
+fi
 log "reset_deassert_contended_count after:  $after_contended (delta $delta)"
 
 status=0
@@ -308,9 +364,11 @@ fi
 		"$after_resets" "$resets"
 	printf 'mpp:dispatched_job_count\t%s\t%s\t%s\t\n' "$before_dispatched" \
 		"$after_dispatched" "$dispatched"
+	printf 'mpp:reset_deassert_count\t\t\t%s\t\n' "${deasserts:-}"
 	printf 'derived:elapsed_s\t\t\t%s\t\n' "$elapsed"
 	printf 'derived:submit_rate_hz\t\t\t%s\t\n' "$submit_rate"
 	printf 'derived:expected_hits\t\t\t%s\t\n' "$expected"
+	printf 'derived:expected_basis\t\t\t%s\t\n' "$expected_basis"
 } > "$OUT/summary.tsv"
 
 # A zero contention count is only evidence if the run had the power to produce
@@ -348,26 +406,31 @@ contended)
 	if [ "$delta" -gt 0 ]; then
 		log "PASS: race reproduced ($delta overlaps) -- reachable here"
 	else
-		log "FAIL: no overlap in $resets resets against ${submit_rate}"
-		log "  submits/s, where at most ~$expected were expected."
-		log "  This is a FAIL of the reachability gate, NOT evidence that"
-		log "  the race is unreachable: that estimate is an upper bound"
-		log "  built from the submit rate, and the sibling deassert rate"
-		log "  it stands in for is lower by an unmeasured factor, because"
-		log "  a job inheriting a coordinator power hold deasserts"
-		log "  nothing. Before concluding anything from this zero, count"
-		log "  the deasserts -- see the header."
+		log "FAIL: no overlap in $resets resets, where ~$expected were"
+		log "  expected ($expected_basis basis)."
+		if [ "$expected_basis" = measured ]; then
+			log "  Both terms were measured here, so this zero is a real"
+			log "  result: on this kernel and workload the two paths are"
+			log "  not overlapping. Either the fix is already in, or the"
+			log "  race is not reachable in this configuration."
+		else
+			log "  NOT evidence that the race is unreachable: that"
+			log "  estimate is an upper bound built from the submit rate,"
+			log "  and the deassert rate it stands in for is lower by an"
+			log "  unmeasured factor, because a job inheriting a"
+			log "  coordinator power hold deasserts nothing. Re-run on a"
+			log "  kernel carrying reset_deassert_count before concluding"
+			log "  anything from this zero."
+		fi
 		status=1
 	fi
 	;;
 clean)
 	if [ "$delta" -eq 0 ]; then
-		log "PASS: no overlap in $resets resets against ${submit_rate}"
-		log "  submits/s, where at most ~$expected were expected"
+		log "PASS: no overlap in $resets resets, where ~$expected were"
+		log "  expected ($expected_basis basis)"
 		log "  NOTE: only meaningful if this same workload showed a"
-		log "  nonzero delta before the fix. The expectation is an upper"
-		log "  bound, so this pass is weaker than it looks unless that"
-		log "  before-run exists."
+		log "  nonzero delta before the fix."
 	else
 		log "FAIL: $delta overlaps still observed after the fix"
 		status=1
