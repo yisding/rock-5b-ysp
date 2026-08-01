@@ -11,8 +11,10 @@
 > CODE-INSPECTED, CONFIG-INSPECTED for the mechanism. The race executes on this
 > board: `reset_deassert_contended_count` moved by 2 in each of two 60 s runs on
 > the counter kernel (`7e4cbb95f897`, booted as `#26`), against a measured
-> expectation of ~3.0 per run. The fix (`b37f6e9825b1`) is written and building
-> but **not yet booted**, so step 2 of the verification gate is still open.
+> expectation of ~3.0 per run. **The fix (`b37f6e9825b1`) is booted and
+> verified** — 26,438 resets across six post-lock runs against a cumulative
+> expectation of 19.19 produced zero contention, p ≈ 4.6e-9. Both steps of the
+> verification gate are closed.
 
 ## Result
 
@@ -260,11 +262,28 @@ its own:
    produced a non-zero. If it stays zero against an expectation built on step
    0's *measured* deassert rate, the fix is not justified and the reachability
    claim above is wrong.
-2. **Regression, after the lock** (`b37f6e9825b1`). `sudo EXPECT=clean bash
-   kernel-drivers/tests/rewrite-reset-contention.sh` on the same workload that
-   produced step 1's non-zero delta. Meaningless without step 1. The counter is
-   a true signal here rather than a stale one only because the pulse flag moved
-   inside the lock; see deviation 2 above.
+2. **Regression, after the lock** (`b37f6e9825b1`). **Done — 2026-08-01**, on
+   `#27 … gb37f6e9825b1`, driven by
+   `kernel-drivers/tests/rewrite-reset-lock-gate.sh`. Six runs of the same
+   workload that produced step 1's hits:
+
+   | Run | Resets | Expected | Contended |
+   |---|---:|---:|---:|
+   | `155410` (5 s sample) | 426 | 0.316 | 0 |
+   | `155544` (`EXPECT=clean`) | 4907 | 3.987 | 0 |
+   | `155714` | 5060 | 4.020 | 0 |
+   | `155842` | 5251 | 3.830 | 0 |
+   | `160011` | 5402 | 3.525 | 0 |
+   | `160140` | 5392 | 3.512 | 0 |
+   | **total** | **26,438** | **19.19** | **0** |
+
+   P(0 | λ=19.19) ≈ **4.6e-9**. Against 4 hits at λ=5.96 before the lock, the
+   serialization does what it was written to do. The counter is a true signal
+   here rather than a stale one only because the pulse flag moved inside the
+   lock; see deviation 2 above.
+
+   Aggregating across runs is what made this decisive — no single run has the
+   power, and each run is an independent Poisson trial on the same workload.
 3. **No perturbation.** `mpp-suite.sh` plus the encode/decode/transcode tests on
    the KASAN kernel, watching decoder `hw_total_ns`/`hw_max_ns` — a leaf lock on
    the submit path should not move them measurably. If it does, the domain

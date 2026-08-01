@@ -124,7 +124,25 @@ completed, so the wedge rate is roughly one in three rather than anything
 approaching certain. That is why a single clean run proves little, and why the
 13:28 single-stream comparator needs repeating before it can carry weight.
 
-## Prediction (untested)
+## Post-lock result (2026-08-01, `#27` `gb37f6e9825b1`) — suggestive, not settled
+
+Five consecutive runs of the two-stream provocation on the reset-domain-lock
+kernel **all completed**: `155544`, `155714`, `155842`, `160011`, `160140`,
+plus the 5 s sample at `155410`. No wedge, no watchdog reset.
+
+That is encouraging and it is **not proof**. Against the pre-lock rate of two
+wedges in five runs, five consecutive survivals would happen by chance with
+probability 0.6⁵ ≈ **0.08** (or 0.13 if the true rate is 1 in 3). Suggestive at
+best; the honest reading is "consistent with the lock having fixed it, and also
+consistent with a run of luck".
+
+If it holds up it is the more important half of the story, because it would
+mean the wedge *was* the sibling power-on deassert overlapping a reset pulse —
+the first candidate below — and the hard-IRQ MMIO candidate is not needed to
+explain anything. Ten to fifteen more clean runs would take this from
+suggestive to convincing; `WEDGE_RUNS=12` on the gate is the way to get them.
+
+## Prediction (partially borne out)
 
 If the wedge is the reset pulse overlapping a sibling's unserialized
 `power_on()` deassert, then `b37f6e9825b1` — the per-reset-domain lock, written

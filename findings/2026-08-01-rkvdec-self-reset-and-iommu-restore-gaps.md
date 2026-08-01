@@ -9,10 +9,12 @@
 > `RKVDEC_SWREG224_STA_INT` (p. 518), `RKVDEC_CCU_SWREG20` (p. 536).
 > Date: 2026-08-01
 > Trust: **TRM-CONFIRMED** (register semantics quoted from the vendor TRM) +
-> SOURCE-INSPECTED (our driver, the BSP, and mainline) + **NOT MEASURED** —
-> no failure has been attributed to any gap below, and none has been
-> instrumented. Discovered by verifying our findings against public sources,
-> not by observing a defect.
+> SOURCE-INSPECTED (our driver, the BSP, and mainline) + **MEASURED**
+> (2026-08-01, `#27 gb37f6e9825b1`) — the AXI-bus-error bit fires on roughly
+> half of all interrupts under the corrupt-stream provocation, alone, with no
+> IOMMU faults; `softreset_rdy` was never observed. Discovered by verifying
+> our model against public sources, then measured off instrumentation that
+> already existed.
 
 ## Result
 
@@ -39,6 +41,36 @@ That is a **third reset actor** we had not modelled. The
 analysis assumed two writers of a core's reset state — the core's own recovery
 and a sibling's power-on. There are three.
 
+## Measured (2026-08-01)
+
+Sampled off the existing debug event ring during the lock-gate run — no kernel
+change. Fourteen `irq` events, **all** on `fdc38100`/`fdc40100` `rkvdec2`, so
+no register-layout mixing with the encoder. Only **two distinct `INT_STA`
+values appear**, seven of each:
+
+| Value | Bits | Meaning | In `err_mask` `0xf0`? |
+|---|---|---|---|
+| `0x23` | 0, 1, **5** | `sw_dec_timeout_sta` — hardware decode timeout | **yes** → reset taken |
+| `0xb` | 0, 1, **3** | `sw_dec_bus_sta` — **AXI bus error** | **no** → no reset, no recovery |
+
+- **Bit 3 fires on ~50% of interrupts** under the corrupt-stream provocation.
+  It is not a theoretical condition.
+- **`bus_with_rdy = 0`** — bit 3 never co-occurs with `sw_dec_rdy_sta` (bit 2).
+- **`iommu_fault_count = 0`** across the run, so these are not IOMMU faults
+  being reported twice by another route.
+- **`softreset_rdy` (bit 9) was never observed**, on either value.
+- The 50/50 split is corroborated independently by the counters:
+  `reset_count / dispatched_job_count` = 5060/9787 = **51.7%**, matching the
+  7-of-14 sample almost exactly. Half the jobs reset (the `0x23` half); the
+  other half do not (the `0xb` half).
+
+Two honest limits. The ring holds 64 entries so this is the tail of the run,
+not a census. And the TRM says bits 3 and 5 both self-reset the hardware, yet
+bit 9 never appeared alongside them — the self-reset may still occur with its
+completion not visible in the same status read, or the driver may ack the
+status before the bit latches. The negative result is recorded as-is rather
+than explained away.
+
 ## Four specific gaps
 
 1. **`sw_softreset_rdy` (bit 9) is never read.** `grep -i softreset` over
@@ -55,16 +87,23 @@ and a sibling's power-on. There are three.
    > status bit."*
 
    and, because the IOMMU framework has no restore call, it attaches and
-   detaches an empty domain to force a reprogram. Our
-   `rk_mpp_hw_refresh_iommu()` calls `iommu_flush_iotlb_all()` on the rockchip
-   provider — a TLB invalidate, which does not rewrite the DTE base address or
-   the enable bit.
+   detaches an empty domain to force a reprogram.
 
-   **Open question, not a confirmed defect:** rockchip-iommu reprograms on
-   runtime resume, and our IRQ thread calls `rk_mpp_hw_power_off()` after
-   recovery, so a power cycle between jobs may mask this entirely. Pipelined
-   jobs that hold the power reference would not. This needs a targeted test
-   before it is called a bug.
+   **Corrected 2026-08-01:** an earlier draft of this finding said we do a TLB
+   flush after our reset. We do not — not on this path. `iommu_refresh_count`
+   moved by **0** across **5060 resets** in run `155714`. The soft-CCU error
+   path is `rk_mpp_rkvdec2_reset_soft_ccu_job()` → `rk_mpp_hw_stop_active()`,
+   and it never calls `rk_mpp_hw_refresh_iommu()` at all; the call site at
+   ~:12491 belongs to a different (fault/timeout) path. So after a hardware
+   self-reset the driver does nothing to the IOMMU — neither the flush nor the
+   reprogram.
+
+   **Still not a confirmed defect.** `iommu_fault_count` is also 0 across the
+   same run, so nothing is actually mistranslating. The likely reason is that
+   rockchip-iommu reprograms on runtime resume and the IRQ thread calls
+   `rk_mpp_hw_power_off()` after every job, so the power cycle restores it for
+   free. Pipelined jobs holding the power reference across a self-reset are the
+   case that would not be covered, and that case has not been constructed.
 
 3. **`sw_dec_bus_sta` (bit 3) is outside `err_mask`.** An AXI bus error
    self-resets the hardware and we would complete the job as successful. Worth
@@ -181,8 +220,30 @@ pathology we have spent three days chasing.
 | Sample result | Action |
 |---|---|
 | Bit 3 never sets | Leave `err_mask` alone; keep a tripwire so we learn if it ever does |
-| Sets *without* bit 2, and not alongside an IOMMU fault | Strong case to widen to `0xf8` — hardware already self-reset, the frame is bad, and recovery plus IOMMU refresh is the consistent response |
+| **← selected** Sets *without* bit 2, and not alongside an IOMMU fault | Strong case to widen to `0xf8` — hardware already self-reset, the frame is bad, and recovery plus IOMMU refresh is the consistent response |
 | Sets *with* bit 2, or alongside IOMMU faults | Do **not** widen. Handle separately: refresh the IOMMU and count it, without changing the userspace job result |
+
+**The measurement selected the middle row**: bit 3 fires alone, never with
+bit 2, with `iommu_fault_count` at 0. On the stated criteria that is the
+"widen to `0xf8`" case.
+
+Two things temper it, and neither was known when the criteria were written:
+
+- **Userspace is not being silently lied to.** The per-frame error flag reaches
+  applications by a different channel — `mpi_dec_test` logs `decode get frame N
+  err 1` throughout these runs. What is missing is the *driver's* recovery
+  bracket (reset, IOMMU handling, counters), not the userspace signal. That
+  lowers the severity from "silent corruption" to "unaccounted-for hardware
+  error", which is still worth fixing but is not urgent.
+- **Widening roughly doubles reset traffic under this provocation** — every
+  `0xb` job would take the reset path that only the `0x23` half takes today.
+  On clean streams bus errors presumably never occur, so the steady-state cost
+  should be nil, but that assumption should be measured on a normal decode
+  before the change lands, not after.
+
+So: widen, but as its own commit, with a before/after reset-rate comparison on
+an ordinary decode, and with the `err_mask` KUnit expectation updated to
+`0xf8U` and a comment explaining why we diverge from the BSP's `0xf0`.
 
 Any change must also update `KUNIT_EXPECT_EQ(test, info->err_mask, 0xf0U)`
 (~:5616), which is a deliberate gate on this constant rather than an
