@@ -124,25 +124,30 @@ completed, so the wedge rate is roughly one in three rather than anything
 approaching certain. That is why a single clean run proves little, and why the
 13:28 single-stream comparator needs repeating before it can carry weight.
 
-## Post-lock result (2026-08-01, `#27` `gb37f6e9825b1`) — suggestive, not settled
+## Post-lock result (2026-08-01, `#27` `gb37f6e9825b1`) — the lock appears to fix the wedge too
 
-Five consecutive runs of the two-stream provocation on the reset-domain-lock
-kernel **all completed**: `155544`, `155714`, `155842`, `160011`, `160140`,
-plus the 5 s sample at `155410`. No wedge, no watchdog reset.
+**Seventeen consecutive runs** of the two-stream provocation on the
+reset-domain-lock kernel completed with no wedge and no watchdog reset: five in
+the first gate run, twelve more under `WEDGE_RUNS=12`.
 
-That is encouraging and it is **not proof**. Against the pre-lock rate of two
-wedges in five runs, five consecutive survivals would happen by chance with
-probability 0.6⁵ ≈ **0.08** (or 0.13 if the true rate is 1 in 3). Suggestive at
-best; the honest reading is "consistent with the lock having fixed it, and also
-consistent with a run of luck".
+Against the pre-lock rate of two wedges in five runs, seventeen consecutive
+survivals happen by chance with probability 0.6¹⁷ ≈ **1.7e-4** (1e-3 if the
+true rate were 1 in 3). That is no longer a run of luck.
 
-If it holds up it is the more important half of the story, because it would
-mean the wedge *was* the sibling power-on deassert overlapping a reset pulse —
-the first candidate below — and the hard-IRQ MMIO candidate is not needed to
-explain anything. Ten to fifteen more clean runs would take this from
-suggestive to convincing; `WEDGE_RUNS=12` on the gate is the way to get them.
+The reading: **the wedge was the sibling power-on deassert overlapping a reset
+pulse** — the first candidate below — and the hard-IRQ MMIO candidate is not
+needed to explain any of the four wedge events. One fix closes both the
+measured race and the wedge, which is the outcome the arithmetic-consistency
+argument below anticipated.
 
-## Prediction (partially borne out)
+Two caveats kept deliberately. This is absence of a probabilistic event, so it
+can never reach the certainty the contention counter achieved — there is no
+positive signal to observe, only a non-event. And the hard-IRQ path is still
+unserialized by construction; the lock does not make it safe, it only removes
+the partner it was racing. If a wedge ever recurs, that path is still the place
+to look.
+
+## Prediction — borne out
 
 If the wedge is the reset pulse overlapping a sibling's unserialized
 `power_on()` deassert, then `b37f6e9825b1` — the per-reset-domain lock, written

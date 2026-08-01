@@ -53,23 +53,36 @@ values appear**, seven of each:
 | `0x23` | 0, 1, **5** | `sw_dec_timeout_sta` — hardware decode timeout | **yes** → reset taken |
 | `0xb` | 0, 1, **3** | `sw_dec_bus_sta` — **AXI bus error** | **no** → no reset, no recovery |
 
-- **Bit 3 fires on ~50% of interrupts** under the corrupt-stream provocation.
-  It is not a theoretical condition.
+- **Bit 3 fires, but intermittently — corrected by a second sample.** The
+  first sample was 7 of 14; a **second sample of the identical 5 s workload
+  taken at 16:19 was 14 of 14 `0x23` and zero `0xb`**. So bit 3 is real and not
+  theoretical, but "~50% of interrupts" is not a general rate — it varies
+  between otherwise identical runs, and what makes it appear is unknown.
+
+  The reset/submit ratio corroborates *both* samples rather than contradicting
+  either, which is the reason to trust them: a job only resets when its status
+  intersects `err_mask`, so the ratio should track the non-bus fraction.
+  Bus-errors-present run: 4907/10003 = **49%**. Bus-errors-absent run:
+  5636/5701 = **98.9%**. The arithmetic works out on both.
 - **`bus_with_rdy = 0`** — bit 3 never co-occurs with `sw_dec_rdy_sta` (bit 2).
 - **`iommu_fault_count = 0`** across the run, so these are not IOMMU faults
   being reported twice by another route.
 - **`softreset_rdy` (bit 9) was never observed**, on either value.
-- The 50/50 split is corroborated independently by the counters:
-  `reset_count / dispatched_job_count` = 5060/9787 = **51.7%**, matching the
-  7-of-14 sample almost exactly. Half the jobs reset (the `0x23` half); the
-  other half do not (the `0xb` half).
+Three honest limits. The ring holds 64 entries, so each sample is the tail of a
+run rather than a census — which is exactly why two samples disagreed and why a
+third should be taken before any rate is quoted. The intermittency itself is
+unexplained: same binary, same corrupt stream, same duration, different result.
+And the TRM says bits 3 and 5 both self-reset the hardware, yet bit 9 never
+appeared alongside either, in either sample — the self-reset may still occur
+with its completion not visible in the same status read, or the driver may ack
+the status before the bit latches. The negative is recorded as-is rather than
+explained away.
 
-Two honest limits. The ring holds 64 entries so this is the tail of the run,
-not a census. And the TRM says bits 3 and 5 both self-reset the hardware, yet
-bit 9 never appeared alongside them — the self-reset may still occur with its
-completion not visible in the same status read, or the driver may ack the
-status before the bit latches. The negative result is recorded as-is rather
-than explained away.
+**Because bit 3 is intermittent, a dedicated counter now looks worth its cost**
+after all. Sampling a 64-entry ring cannot measure a bursty condition; an
+`atomic_t` incremented per occurrence would, and would answer whether bit 3
+correlates with anything (thermal state, uptime, IOVA layout) that the two
+samples differed in.
 
 ## Four specific gaps
 
@@ -223,9 +236,13 @@ pathology we have spent three days chasing.
 | **← selected** Sets *without* bit 2, and not alongside an IOMMU fault | Strong case to widen to `0xf8` — hardware already self-reset, the frame is bad, and recovery plus IOMMU refresh is the consistent response |
 | Sets *with* bit 2, or alongside IOMMU faults | Do **not** widen. Handle separately: refresh the IOMMU and count it, without changing the userspace job result |
 
-**The measurement selected the middle row**: bit 3 fires alone, never with
-bit 2, with `iommu_fault_count` at 0. On the stated criteria that is the
-"widen to `0xf8`" case.
+**The measurement selected the middle row** — bit 3 fires alone, never with
+bit 2, with `iommu_fault_count` at 0 — but on the strength of **one sample**.
+A second sample of the identical workload showed no bit 3 at all, so the
+selection rests on a single 14-event window of a bursty condition. That is
+enough to justify instrumenting it; it is **not** enough to justify changing
+`err_mask` yet. Add the counter, confirm the rate and the co-occurrence over a
+full run, and only then widen.
 
 Two things temper it, and neither was known when the criteria were written:
 

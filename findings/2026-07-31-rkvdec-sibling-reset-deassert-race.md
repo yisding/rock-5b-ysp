@@ -267,20 +267,21 @@ its own:
    `kernel-drivers/tests/rewrite-reset-lock-gate.sh`. Six runs of the same
    workload that produced step 1's hits:
 
-   | Run | Resets | Expected | Contended |
-   |---|---:|---:|---:|
-   | `155410` (5 s sample) | 426 | 0.316 | 0 |
-   | `155544` (`EXPECT=clean`) | 4907 | 3.987 | 0 |
-   | `155714` | 5060 | 4.020 | 0 |
-   | `155842` | 5251 | 3.830 | 0 |
-   | `160011` | 5402 | 3.525 | 0 |
-   | `160140` | 5392 | 3.512 | 0 |
-   | **total** | **26,438** | **19.19** | **0** |
+   | | Runs | Resets | Cumulative λ | Contended |
+   |---|---:|---:|---:|---:|
+   | Pre-lock | 2 | ~8,600 | 5.96 | **4** |
+   | Post-lock | **20** | **97,681** | **50.97** | **0** |
 
-   P(0 | λ=19.19) ≈ **4.6e-9**. Against 4 hits at λ=5.96 before the lock, the
-   serialization does what it was written to do. The counter is a true signal
-   here rather than a stale one only because the pulse flag moved inside the
-   lock; see deviation 2 above.
+   P(0 | λ=50.97) ≈ **7.3e-23**. The serialization does what it was written to
+   do. The counter is a true signal here rather than a stale one only because
+   the pulse flag moved inside the lock; see deviation 2 above.
+
+   One post-lock run (`162022`) returned exit 78 INCONCLUSIVE on its own —
+   expected hits 2.608, under `RESET_MIN_EXPECT=3`, because the submit rate had
+   dropped to 92.6/s from 162.5/s. That is the harness refusing to claim a
+   result it could not support, and it is the right behaviour: the run still
+   contributes its 2.608 to the pooled expectation, but it could not carry a
+   verdict alone.
 
    Aggregating across runs is what made this decisive — no single run has the
    power, and each run is an independent Poisson trial on the same workload.
