@@ -125,6 +125,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md`](2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md) — The rkvdec2 hardware self-resets on error; the rewrite driver neither detects it nor restores the IOMMU
 - [`2026-08-01-rewrite-soft-ccu-cross-core-reset-wedge.md`](2026-08-01-rewrite-soft-ccu-cross-core-reset-wedge.md) — Soft-CCU bus-stall wedge returns on the error-reset path; needs two cores of one group resetting
 - [`2026-07-31-rkvdec-sibling-reset-deassert-race.md`](2026-07-31-rkvdec-sibling-reset-deassert-race.md) — rkvdec soft-CCU sibling power-on can cancel a peer core's recovery reset
 - [`2026-07-31-rga3-afbc-p010-dropped-destination-write.md`](2026-07-31-rga3-afbc-p010-dropped-destination-write.md) — RGA3 AFBC NV15→P010 returns success without writing the destination at small picture sizes

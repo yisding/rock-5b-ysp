@@ -85,6 +85,48 @@ design a gating event can never interleave with an arm or a start. That
 single-worker serialization is load-bearing, and it is invisible unless you
 look for why it exists.
 
+### What the TRM does settle `TRM-CONFIRMED`
+
+TRM Part 1 §5.6.5 "VDPU381 CCU configuration flow" (p. 676) documents the
+link-table/hard-CCU path, and its register block is the one our soft path also
+writes. Every offset in our driver matches:
+
+| Our constant | Offset | TRM register |
+|---|---|---|
+| `CCU_CORE_WORK_BASE` | `0x0044` | `SWREG17_CCU_CORE_WORK_MODE` |
+| `CCU_CORE_STA_BASE` | `0x0048` | `SWREG18_CCU_CORE_WORK_STA` |
+| `CCU_CORE_IDLE_BASE` | `0x004c` | `SWREG19_CCU_CORE_FORCE_IDLE_E` |
+| — *(unused)* | `0x0050` | `SWREG20_CCU_CORE_REQ_TIMEOUT_E` |
+| `CCU_CORE_ERR_BASE` | `0x0054` | `SWREG21_CCU_CORE_ERR_STA` |
+| `CCU_CORE_RW_MASK` | `GENMASK(17,16)` | the per-core write-enable bits |
+
+Three things it tells us that were previously guesswork:
+
+- **Resetting a CCU-controlled core has a documented precondition.** On
+  `SWREG19`: *"When core should be reset, should config this bit to 1, force
+  ccu core0 controller on idle status."* Our
+  `rk_mpp_rkvdec2_reset_soft_ccu_job()` does exactly this — it writes
+  `hw->core_mask` (`0x00010001`, value bit plus write-enable) to force idle
+  before `stop_active()`, then writes write-enable alone afterwards to clear
+  it. That sequence was arrived at from the BSP and is now confirmed correct
+  against the TRM.
+- **A failing core takes itself out of service.** On the error path: *"If any
+  error found by hardware core, the error hardware core will disable itself,
+  and if all selection hardware core error, ccu stop decoder."* The flow
+  diagram adds that hardware *"will stop decoder and auto disable
+  ccu_work_en"*. So core removal on error is a hardware action, not only a
+  driver one.
+- **There is an unused hardware safety net.** `SWREG20_CCU_CORE_REQ_TIMEOUT_E`
+  — *"When ccu start core to work, but too long to fetch ack, it will unload
+  such core"* — defaults to 0, "can't timeout", and **we never program it**.
+  Whether enabling it would blunt the wedge class in §1 is untested, but it is
+  the only documented mechanism by which the CCU gives up on an unresponsive
+  core.
+
+What the TRM does **not** contain: any warning about accessing a gated or
+in-reset block, or any description of the soft-CCU mode the BSP implements.
+§1 remains undocumented by the vendor.
+
 Two consequences that were each learned the hard way:
 
 - **Splitting the arm/start sequence is fatal**, not merely racy. Writing the
@@ -144,6 +186,47 @@ boot image.
   or a stalled core with nothing in the log tying it back.
 - **Power-off never asserts reset.** So the pulse is the only thing a stray
   deassert can corrupt.
+
+## 3a. The hardware resets *itself* — a third reset actor `TRM-CONFIRMED`
+
+The decoder performs its own soft reset on most error conditions, without the
+driver asking and without the driver being told in advance. This was missed
+entirely until 2026-08-01 and it changes how the whole error path should be
+read.
+
+`RKVDEC_SWREG224_STA_INT` — TRM Part 1 p. 518, at **offset 0x0380**, which is
+byte-for-byte our `RK_MPP_RKVDEC_INT_STA_BASE`:
+
+| Bit | Name | Self-resets the hardware? |
+|---:|---|---|
+| 9 | `sw_softreset_rdy` | — *"When it is 1'b1, it says that softreset has been done."* |
+| 8 | `sw_cabu_end_sta` | no |
+| 7 | `sw_colmv_ref_error_sta` | **yes** (HEVC/VP9; H.264 only when `sw_h264_error_mode` is 0) |
+| 6 | `sw_buf_empty_sta` | no |
+| 5 | `sw_dec_timeout_sta` | **yes** (valid only when `sw_dec_timeout_e` is 1) |
+| 4 | `sw_dec_error_sta` | **yes** (HEVC/VP9; H.264 conditional as above) |
+| 3 | `sw_dec_bus_sta` | **yes** — *"there is error on the axi bus"* |
+| 2 | `sw_dec_rdy_sta` | no (picture decoded) |
+| 1 | `sw_dec_irq_raw` | no |
+| 0 | `sw_dec_irq` | no |
+
+Three consequences, all of which the driver should be read against:
+
+- **By the time the IRQ thread runs, the core has usually already reset
+  itself.** Our `err_mask` of `0xf0` covers bits 4–7, and bits 4, 5 and 7 are
+  all documented self-reset conditions. The driver's own reset pulse is
+  therefore landing on a core that has already been reset by hardware.
+- **Bit 9 is the completion signal for that self-reset**, and we never read it.
+  Mainline does, and uses it to trigger IOMMU recovery.
+- **The self-reset clears the decoder's embedded IOMMU programming.** The
+  IOMMU sits inside the decoder, so resetting one resets the other. Mainline's
+  `rkvdec` recovers by attaching and detaching an empty domain to force a
+  reprogram, because the IOMMU framework has no restore call.
+
+The same register documents the `sw_dec_bus_sta` AXI-error bit as self-
+resetting — **and it is outside our `0xf0` mask**, so a bus error currently
+completes the job as successful. See
+[the 2026-08-01 gap finding](../../findings/2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md).
 
 ## 4. Interrupts and the error path
 
@@ -285,9 +368,20 @@ borrowed for it without TRM evidence. `CONFIG-INSPECTED` +
 
 Honest gaps, so nobody re-derives them as if they were settled:
 
-- **The gating mechanism is inferred, not TRM-proven.** No register
-  documentation supports the model in §1–2; it rests on the BSP contract plus
-  the single-core immunity prediction holding.
+- **The gating mechanism is still inferred.** The TRM documents the CCU
+  register block and the hard-CCU flow (§2), which confirms our register map
+  and the force-idle-before-reset protocol — but it says nothing about what
+  happens when the CPU touches a gated core, and nothing about soft-CCU mode
+  at all. The §1 model still rests on the BSP contract plus the single-core
+  immunity prediction holding.
+- **Whether `SWREG20_CCU_CORE_REQ_TIMEOUT_E` would blunt the wedge.** It is the
+  one documented mechanism for the CCU to unload an unresponsive core, and it
+  is currently left disabled. Untested.
+- **Whether the hardware self-reset (§3a) races the driver's reset pulse.** The
+  driver issues `reset_control` assert/deassert on cores that have usually
+  already self-reset, and never reads the `sw_softreset_rdy` completion bit.
+  This is a newly discovered third reset actor and it has not been modelled or
+  measured.
 - **Which transaction stalls.** Two candidates remain live for the 2026-08-01
   wedges — a reset pulse overlapping a sibling's power-on deassert, and the
   hard-IRQ `INT_STA` access to a core in reset. The pending reset-domain lock
@@ -299,6 +393,27 @@ Honest gaps, so nobody re-derives them as if they were settled:
   permanent.
 
 ## Sources
+
+### Primary
+
+- **RK3588 TRM Part 1, v1.0** — §5.6.5 "VDPU381 CCU configuration flow"
+  (p. 676); `RKVDEC_CCU_SWREG17`–`SWREG21` (pp. 535–536);
+  `RKVDEC_SWREG224_STA_INT` (p. 518); `VDPU_SWREG1` (p. 395). Mirrored at
+  `scs.stanford.edu/~zyedidia/docs/rockchip/rk3588_part1.pdf` (54 MB, 2287
+  pages — too large for most fetch tools; download and `pdftotext -layout`,
+  then grep). Page numbers above are the printed ones.
+
+### Upstream, for comparison
+
+- [`media: rkvdec: Restore iommu addresses on errors`](https://patchew.org/linux/20250508-rkvdec-iommu-reset-v1-1-c46b6efa6e9b@collabora.com/)
+  — the self-reset/`SOFTRESET_RDY`/IOMMU-restore behaviour, from the mainline side.
+- [`media: rkvdec: Disable multicore support`](http://www.mail-archive.com/linuxtv-commits@linuxtv.org/msg48496.html)
+  — mainline deliberately does not expose the second core, so nothing upstream
+  exercises the dual-core paths in §1–2.
+- [Collabora: RK3588/RK3576 decoders merged upstream](https://www.collabora.com/news-and-blog/news-and-events/rk3588-and-rk3576-video-decoders-support-merged-in-the-upstream-linux-kernel.html)
+  — confirms the IOMMU is embedded in the decoder and is reset with it.
+
+### Our findings
 
 Findings are dated and evidence-bearing; each carries its own artifact paths.
 
