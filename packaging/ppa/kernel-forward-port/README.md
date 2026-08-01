@@ -329,6 +329,27 @@ Not done yet:
 
 ## Remaining Checklist
 
+> **Before any re-cut, stage the worktree.** `build-source-packages.sh` snapshots
+> the *shared* Armbian kernel worktree
+> (`…/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64`), which holds
+> whichever flavor's series the last `build-kernel.sh` run staged there. Export
+> immediately after `build-kernel.sh forward-port`, and verify
+> `drivers/iommu/rockchip-iommu.c` matches the fwport tree byte-for-byte with no
+> `*-rewrite` paths present. The rewrite-path exclusion added after the 2026-07-25
+> incident does **not** cover shared files, and `rockchip-iommu.c` is exactly the
+> shared file whose rewrite-branch tail
+> [panicked the board](../../../findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md).
+> Checked 2026-08-01: the worktree held the rewrite series, so a cut would have
+> reproduced the incident.
+
+**State as of 2026-08-01.** The packaged source ships series `0001`–`0075`. The
+tree (`linux-6.18-rkvenc-av1-fwport`, GitHub `rk3588-video-6.18`, fully pushed at
+`14c0456c4108`) carries 80 commits on `v6.18` — five unpackaged: `febed97bc459`,
+`4dba1f42ab2b`, `b7883d72b746`, `c10074f4474e` (all 07-29 09:57–09:58, missing the
+09:04 `dput` by under an hour) and `14c0456c4108` (07-31). None is built, booted,
+or hardware-validated. `…20260729-0ubuntu1~rk1` is installed on the board but has
+not been booted.
+
 1. Fix RGA2 page-table DMA ownership, install the GStreamer development
    stack, and finish the remaining conformance suites. (The KASAN tip rebuild
    with `0044`/`0045` is done — debug build `Pb999-C4ad2` passes booted ABI

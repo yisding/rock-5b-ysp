@@ -391,6 +391,44 @@ covers this range.
   Evidence and rerun instructions:
   [`findings/2026-07-04-rga3-im2d-error-irq.md`](../../findings/2026-07-04-rga3-im2d-error-irq.md).
 
+## Where the series stands, 2026-08-01
+
+Three numbers that disagree, and it matters which is which:
+
+| | |
+|---|---|
+| Tree tip | `linux-6.18-rkvenc-av1-fwport` @ `14c0456c4108`, 80 commits on `v6.18` |
+| Packaged / uploaded | series `0001`–`0075`, in `6.18.40+rk3588av1fwport20260729-0ubuntu1~rk1` |
+| Installed on the board | that same `~rk1` package — **installed, never booted** |
+
+The five-commit gap between tree and package is `febed97bc459` (bound user
+register requests and translations), `4dba1f42ab2b` (IOMMU cookie typing and
+buffer-release ordering), `b7883d72b746` (rkvenc2/rkvdec2-link window wrap,
+atomic clocks, WARN), `c10074f4474e` (RGA job/buffer lifetime, locking, import
+validation) — all four landed 07-29 09:57–09:58, roughly 54 minutes after that
+day's 09:04 `dput`, so they missed the cut by timing rather than by decision —
+and `14c0456c4108` (RGA mapped-SG contracts) on 07-31. None of the five has been
+built, booted, or hardware-validated.
+
+GitHub is current: `yisding/linux-rock5b` `rk3588-video-6.18` is at the tree tip
+with nothing unpushed.
+
+Two independent gates follow from that table, and conflating them is what has
+cost time before:
+
+1. **Boot the installed package.** Needs no build and no upload. The dma-buf and
+   ISR-panic gates are both about bytes already on the board; they close with a
+   clean RDP login at `2064x1296` plus ≥10 min of encode on
+   `6.18.40-ysp-rockchip64`.
+2. **Cut a newer source carrying the five.** Gated on worktree provenance, not on
+   the code. `build-source-packages.sh` snapshots the shared Armbian kernel
+   worktree, so the export is only valid immediately after
+   `build-kernel.sh forward-port`, with `rockchip-iommu.c` verified against the
+   fwport tree and no `*-rewrite` paths present. Checked 2026-08-01: the worktree
+   held the rewrite series, so a cut that day would have reproduced the
+   [2026-07-25 contamination](../../findings/2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md)
+   and its panic.
+
 ## What "done" means here
 
 The July 4 forward-port baseline is **functionally complete for its tested,

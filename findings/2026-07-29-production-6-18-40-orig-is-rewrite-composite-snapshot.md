@@ -66,6 +66,35 @@ version (`FORCE_ORIG=1`, e.g. `…20260729`) and rebuild/sign/upload
 both rewrite tips (`35eb735d21dd8`, `2cf0126529c1c`) for everything that
 intentionally builds rewrite content.
 
+## Recurrence check, 2026-08-01
+
+The hazard is not closed, and the worktree is in the bad state again. A
+`build-kernel.sh rewrite-debug` run today repopulated
+`…/linux-kernel-worktree/6.18__rockchip64__arm64` with the rewrite series:
+`drivers/video/rockchip/mpp-rewrite/` and `rga-rewrite/` are present, and
+`drivers/iommu/rockchip-iommu.c` again carries the hardened setter
+(`platform_get_irq`/`synchronize_irq`). Cutting a forward-port orig from that
+worktree right now would reproduce the 2026-07-25 contamination exactly — same
+file, same mechanism, same panic.
+
+Two things worth stating plainly, because both are easy to get wrong:
+
+- **The exporter's rewrite-path exclusion does not protect against this.** It
+  strips `*-rewrite` paths, which covers the inert driver directories that
+  merely proved lineage. The file that actually panicked the board was
+  `drivers/iommu/rockchip-iommu.c` — a *shared* path the exclusion never
+  touches. The exclusion removes the evidence, not the defect.
+- **The worktree is single-tenant.** `build-kernel.sh` stages whichever flavor's
+  series into it, so its contents mean nothing except "what the last build put
+  there". A forward-port export is only valid immediately after a forward-port
+  build, and a rewrite build in flight makes the worktree unusable for export
+  until then.
+
+So the precondition on any future forward-port cut is mechanical: run
+`build-kernel.sh forward-port`, then verify `rockchip-iommu.c` matches the
+fwport tree byte-for-byte and no `*-rewrite` paths exist, and only then export.
+Verifying the *export* is not enough on its own; verify the worktree first.
+
 ## Boundary
 
 - Only `rockchip-iommu.c` and the rewrite-directory file list were
