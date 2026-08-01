@@ -140,6 +140,14 @@ RESET_ERROR_STREAMS=${RESET_ERROR_STREAMS:-2}
 RESET_SURVIVORS=${RESET_SURVIVORS:-2}
 RESET_KILL=${RESET_KILL:-1}
 RESET_KILL_AFTER_MS=${RESET_KILL_AFTER_MS:-120}
+# Seconds between counter snapshots taken while the provocation runs; 0 off.
+# A run that wedges the board never reaches its counters-after.tsv, so without
+# this it yields nothing at all -- two of the 2026-08-01 wedges were total
+# losses for exactly that reason. With it the last complete snapshot survives
+# in counters-poll-latest.tsv and can be differenced against counters-before
+# the ordinary way, and counters-poll.tsv dates the wedge to within one
+# interval rather than the minute the journal manages.
+RESET_POLL_S=${RESET_POLL_S:-1}
 # Expected hits below which a zero result is treated as no measurement rather
 # than as evidence. Three is enough that a zero is a ~5% outcome by chance.
 RESET_MIN_EXPECT=${RESET_MIN_EXPECT:-3}
@@ -204,7 +212,49 @@ stop_loops()
 	loop_pids=""
 }
 
-trap 'stop_loops' EXIT INT TERM
+poll_pid=""
+start_poller()
+{
+	[ "$RESET_POLL_S" != 0 ] || return 0
+
+	printf 'epoch\telapsed_s\treset_count\tdeassert_count\tdispatched\n' \
+		> "$OUT/counters-poll.tsv"
+	(
+		while :; do
+			# Snapshot to a temp and rename, so a wedge landing mid-write
+			# cannot truncate the good copy. fdatasync before the rename:
+			# surviving a hard reset is the whole point of this file.
+			if debugfs_counter_snapshot "$OUT/counters-poll.tmp" \
+				mpp "$DEBUGFS_DIR" > /dev/null 2>&1; then
+				sync -d "$OUT/counters-poll.tmp" 2>/dev/null || true
+				mv -f "$OUT/counters-poll.tmp" \
+					"$OUT/counters-poll-latest.tsv" \
+					2>/dev/null || true
+			fi
+			now=$(date +%s.%N)
+			printf '%s\t%s\t%s\t%s\t%s\n' "$now" \
+				"$(awk -v a="$started" -v b="$now" \
+					'BEGIN{printf "%.3f", b-a}')" \
+				"$(read_counter reset_count)" \
+				"$(read_counter reset_deassert_count)" \
+				"$(read_counter dispatched_job_count)" \
+				>> "$OUT/counters-poll.tsv"
+			sync -d "$OUT/counters-poll.tsv" 2>/dev/null || true
+			sleep "$RESET_POLL_S"
+		done
+	) &
+	poll_pid=$!
+}
+
+stop_poller()
+{
+	[ -n "$poll_pid" ] || return 0
+	kill "$poll_pid" 2>/dev/null || true
+	wait "$poll_pid" 2>/dev/null || true
+	poll_pid=""
+}
+
+trap 'stop_loops; stop_poller' EXIT INT TERM
 
 if [ "$(id -u)" -ne 0 ]; then
 	log "SKIP: debugfs is root-only and this run is not root"
@@ -267,6 +317,7 @@ suite_dmesg_start "$OUT"
 debugfs_counter_snapshot "$OUT/counters-before.tsv" mpp "$DEBUGFS_DIR"
 
 started=$(date +%s.%N)
+start_poller
 start_loops "$RESET_ERROR_STREAMS" "$CORRUPT_INPUT"
 start_loops "$RESET_SURVIVORS" "$RESET_INPUT"
 log "provoking for ${RESET_DURATION_S}s: $RESET_ERROR_STREAMS error streams," \
@@ -294,6 +345,7 @@ while :; do
 	fi
 done
 stop_loops
+stop_poller
 ended=$(date +%s.%N)
 elapsed=$(awk -v a="$started" -v b="$ended" 'BEGIN{printf "%.3f", b-a}')
 

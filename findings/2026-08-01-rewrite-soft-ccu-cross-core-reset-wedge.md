@@ -38,6 +38,8 @@ Four runs on the same boot image separate the trigger:
 | 11:20:57 | 2 err, 2 surv, kill=1, 300 s | — | **WEDGED** |
 | 11:31:55 | 2 err, 0 surv, kill=0, 60 s | — | **WEDGED** |
 | 13:28:36 | 1 err, 0 surv, kill=0, 60 s | 936 (936/0) | completed |
+| 14:30:58 | 2 err, 2 surv, kill=1, 60 s | 4312 (2139/2173) | completed |
+| 14:33:12 | 2 err, 2 surv, kill=1, 60 s | 4267 (2143/2124) | completed |
 
 Two ingredients are excluded outright. The 11:31 wedge ran with
 `RESET_SURVIVORS=0 RESET_KILL=0`, so neither the clean-stream sibling submits
@@ -117,6 +119,11 @@ of times more frequent than they would otherwise be.
 The forward-port driver is unaffected by construction: this is rewrite-only
 code, and the forward-port profile has never shown this signature.
 
+Across the five two-error-stream runs on record, two wedged and three
+completed, so the wedge rate is roughly one in three rather than anything
+approaching certain. That is why a single clean run proves little, and why the
+13:28 single-stream comparator needs repeating before it can carry weight.
+
 ## Prediction (untested)
 
 If the wedge is the reset pulse overlapping a sibling's unserialized
@@ -125,6 +132,14 @@ but **not yet booted** — cures it, because that lock is exactly what closes th
 `acquire_soft_ccu()` power-on against `reset_active()`. If the wedge is instead
 the hard-IRQ `INT_STA` access to a core in reset, the lock changes nothing,
 because the hard handler takes no domain lock and cannot (it is not sleepable).
+
+The rates are compatible, which is weak support for the first candidate. The
+overlap is now measured at ~2 per 60 s run of exactly this workload, and ~1 run
+in 3 wedges; if roughly one contended overlap in six escalated to a stalled
+transaction, the two figures would match. That is arithmetic consistency and
+not evidence of a causal link — the second candidate has no measured rate at
+all to compare against — but it does mean the first candidate is not too rare
+to account for the wedge, which was the obvious objection to it.
 
 Booting `b37f6e9825b1` and re-running the two-error-stream configuration is
 therefore a single experiment that discriminates the two candidates *and*
@@ -155,6 +170,15 @@ outcome and proves nothing. The `EXPECT=contended` failure text now says so.
   loglevel raised is worth the setup before the next attempt.
 - Run the exposure-matched single-stream control (above).
 - Boot `b37f6e9825b1` and re-run the two-stream configuration (Prediction).
-- The reachability measurement for the deassert race is now blocked behind
-  this: the workload that has the statistical power to close it (λ ≥ ~15) is
-  the same workload that hard-hangs the board.
+- ~~The reachability measurement is blocked behind this.~~ **Closed the same
+  day.** It never needed λ ≥ 15 or the 300 s run: two ordinary 60 s runs of the
+  default config each landed 2 hits against ~3.0 expected, so the race is
+  [observed](2026-07-31-rkvdec-sibling-reset-deassert-race.md) and the lock is
+  justified and building. Expected hits accumulate across runs, so a wedge
+  costs a reboot rather than the measurement.
+- Counter polling has landed in the harness (`RESET_POLL_S`, default 1 s): a
+  snapshot is fdatasynced and renamed into `counters-poll-latest.tsv` every
+  interval, so a wedged run can still be differenced against
+  `counters-before.tsv` instead of yielding nothing, and the wedge is dated to
+  within a second rather than the minute the journal manages. Both 2026-08-01
+  wedges predate it and remain total losses.

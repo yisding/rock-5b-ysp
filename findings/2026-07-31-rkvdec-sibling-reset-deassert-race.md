@@ -7,12 +7,12 @@
 > (~:11556), `rk_mpp_rkvdec2_power_on_ccu_cores()` (~:3096),
 > `rk_mpp_rkvdec2_acquire_soft_ccu()` (~:11214); DT `rk3588-base.dtsi`
 > Date: 2026-07-31
-> Trust: DESIGN, CODE-INSPECTED, CONFIG-INSPECTED — the mechanism and its
-> reachability on this board are established from source and the live device
-> tree. The race has **not** been observed executing. The fix is written
-> (`b37f6e9825b1`) but **not yet booted**, and neither is the deassert counter
-> (`7e4cbb95f897`) that makes the reachability run conclusive; see the
-> verification gate for the order those two must be booted in.
+> Trust: **OBSERVED** (2026-08-01, two independent runs) + DESIGN,
+> CODE-INSPECTED, CONFIG-INSPECTED for the mechanism. The race executes on this
+> board: `reset_deassert_contended_count` moved by 2 in each of two 60 s runs on
+> the counter kernel (`7e4cbb95f897`, booted as `#26`), against a measured
+> expectation of ~3.0 per run. The fix (`b37f6e9825b1`) is written and building
+> but **not yet booted**, so step 2 of the verification gate is still open.
 
 ## Result
 
@@ -62,15 +62,37 @@ Reachable on this board, not merely in the abstract:
 `power_off()` never asserts (~:11406), so the pulse is the only thing this can
 corrupt.
 
+## Observed (2026-08-01)
+
+Two independent 60 s runs on the counter kernel, same default workload:
+
+| Run | Resets | Deasserts | Expected | **Contended** |
+|---|---|---|---|---|
+| `20260801-143058` | 4312 | 34824 | 3.020 | **2** |
+| `20260801-143312` | 4267 | 34337 | 2.939 | **2** |
+
+Four hits against a combined expectation of 5.96 — under Poisson an
+unremarkable outcome (P(X=4 | λ=5.96) ≈ 0.14), so the measurement agrees with
+the model rather than merely clearing zero.
+
+A hit cannot be a same-core artifact. The counter increments only when
+`power_on()` deasserts a core whose `reset_pulse_active` is set, and a core's
+own submit path holds its `run_lock` across both of its power-on calls while
+its reset runs in its IRQ thread under that same lock. Every hit is therefore a
+sibling core ending a peer's recovery pulse early — the sequence sketched
+above. The pulse flag is still outside the domain lock on this kernel, so this
+is a true pre-fix signal and not the stale post-fix one deviation 3 guards
+against.
+
 ## Boundary
 
-Not observed executing. Everything above is read from source and the live DT;
-no run has yet shown the overlap happening, which is exactly why the counter
-landed first. Frequency is unknown and plausibly low — it needs a reset on one
-core concurrent with a submit on a sibling in the same CCU group, and resets
-only follow an error or timeout.
+Frequency is low and workload-specific: ~2 hits per ~4300 resets, and those
+resets exist only because the harness feeds deliberately corrupt streams. No
+field failure has been attributed to this, and no decode corruption observed to
+date has been traced to it.
 
-Two measurement attempts on 2026-07-31, neither of which changes that:
+The two measurement attempts on 2026-07-31, kept because they explain why the
+first runs read as negatives when the race was in fact reachable:
 
 1. **The first run measured nothing.** `EXPECT=contended` reported a zero delta
    and the harness read that as "the race may not be reachable in this
@@ -93,8 +115,12 @@ Two measurement attempts on 2026-07-31, neither of which changes that:
    nobody has measured. With that factor unknown the expected hits are unknown,
    and a zero is unremarkable.
 
-So the reachability question is still open, and closing it needs a counter on
-the deassert side, not a longer run.
+The counter on the deassert side is what closed it — but only after a third
+correction on 2026-08-01, because the estimator was also counting a core's own
+deasserts, which cannot contend, and so overstated the expectation by 3x. With
+the counter booted and the estimator narrowed, the very next run produced a
+non-zero. Both earlier zeros were under-powered measurements reported as
+results, which is the failure this harness exists to prevent.
 
 One fact the second run did establish: the practical reset source on this path
 is not the abort or the watchdog but the **decode error interrupt**. The soft-CCU
@@ -223,8 +249,9 @@ its own:
    before-measurement can be taken; once `b37f6e9825b1` is in, the pre-fix
    deassert and contention rates are gone for good and step 2 can never be more
    than a guess.
-1. **Reachability, before any behaviour change.** `sudo EXPECT=contended bash
-   kernel-drivers/tests/rewrite-reset-contention.sh` must show a non-zero
+1. **Reachability, before any behaviour change. Done — 2026-08-01**, two runs,
+   2 hits each against ~3.0 expected (see Observed above). `sudo EXPECT=contended
+   bash kernel-drivers/tests/rewrite-reset-contention.sh` must show a non-zero
    `mpp:reset_deassert_contended_count` delta on a kernel carrying d9992e32dc17.
    The harness drives resets from the decode error path and reports
    `reset_count`, the submit rate, and the expected hits alongside the
