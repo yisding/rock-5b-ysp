@@ -125,6 +125,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-07-31-rkvdec-sibling-reset-deassert-race.md`](2026-07-31-rkvdec-sibling-reset-deassert-race.md) — rkvdec soft-CCU sibling power-on can cancel a peer core's recovery reset
 - [`2026-07-31-rga3-afbc-p010-dropped-destination-write.md`](2026-07-31-rga3-afbc-p010-dropped-destination-write.md) — RGA3 AFBC NV15→P010 returns success without writing the destination at small picture sizes
 - [`2026-07-31-rga-userptr-dmabuf-multisegment-contracts.md`](2026-07-31-rga-userptr-dmabuf-multisegment-contracts.md) — RGA multi-segment memory contract: the BSP relies on 5.10/6.1 IOMMU coalescing; newer drivers validate or remap
 - [`2026-07-31-rga-rewrite-multisg-dmabuf-cma-einval.md`](2026-07-31-rga-rewrite-multisg-dmabuf-cma-einval.md) — RGA rewrite rejects legal multi-SG DMA-BUFs; the CMA `EINVAL` is a separate untraced failure
