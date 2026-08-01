@@ -213,6 +213,31 @@ Size dependence is consistent with a stale-translation story (a 675-page 720p
 mapping floods a small TLB and self-evicts stale entries; a 57-84-page mapping
 does not), but that is a hypothesis, not a measurement.
 
+### Fix applied (2026-07-31, not yet boot-validated)
+
+The ordering is corrected on both rewrite tips — `0fa40902df66b`
+(`rk3588-rewrite-6.18`) and byte-identical `d530e4ba31ee8`
+(`rk3588-rewrite-mainline`). The forward-port tree carries only the vendor
+`rga3` driver, which already has the correct ordering, so it needs no change.
+
+- `rk_rga_backend_start()` powers the core **before**
+  `rk_rga_job_prepare_hw_mappings()`, and powers back off if mapping fails.
+- The IRQ thread, the timeout path, and both abort paths release the job's
+  mappings **before** `rk_rga_hw_power_off()`, through a new
+  `rk_rga_job_release_mappings_powered()` helper that also completes the
+  userptr sync-for-CPU first. All four sites already ran their recovery reset
+  beforehand, so nothing is unmapped from under live hardware.
+
+`rewrite-build-gate.sh` passes both trees in the `normal` and `test-disabled`
+profiles, with the byte-identity and KUnit-manifest checks green.
+
+**This is the ordering fix, not a proven cure.** It restores an invariant the
+vendor documents and that this driver violated, but the measurement in
+§Root-cause investigation showed `rk_iommu_resume()` issues `ZAP_CACHE`, which
+in theory already covered the skipped zaps. If the 416x240 harness still fails
+on the rebuilt kernel, the ordering was a real bug but not this bug, and step 1
+below becomes the next move.
+
 ### Next steps, in order of decisiveness
 
 1. **Read the driver's own counters during a failing run** (needs root, debugfs
