@@ -215,21 +215,29 @@ does not), but that is a hypothesis, not a measurement.
 
 ### Fix applied (2026-07-31, not yet boot-validated)
 
-The ordering is corrected on both rewrite tips — `0fa40902df66b`
-(`rk3588-rewrite-6.18`) and byte-identical `d530e4ba31ee8`
+The ordering is corrected on both rewrite tips — `ac8c4433c7a16`
+(`rk3588-rewrite-6.18`) and byte-identical `5b219a7456b9a`
 (`rk3588-rewrite-mainline`). The forward-port tree carries only the vendor
 `rga3` driver, which already has the correct ordering, so it needs no change.
 
 - `rk_rga_backend_start()` powers the core **before**
-  `rk_rga_job_prepare_hw_mappings()`, and powers back off if mapping fails.
+  `rk_rga_job_prepare_hw_mappings()`. Its later failure paths unwind onto a
+  common `err_release` label that releases the mappings before gating the
+  core, so the error paths no longer touch the IOMMU unpowered either.
 - The IRQ thread, the timeout path, and both abort paths release the job's
   mappings **before** `rk_rga_hw_power_off()`, through a new
   `rk_rga_job_release_mappings_powered()` helper that also completes the
-  userptr sync-for-CPU first. All four sites already ran their recovery reset
-  beforehand, so nothing is unmapped from under live hardware.
+  userptr sync-for-CPU first. All of these sites already ran their recovery
+  reset beforehand, so nothing is unmapped from under live hardware.
 
 `rewrite-build-gate.sh` passes both trees in the `normal` and `test-disabled`
 profiles, with the byte-identity and KUnit-manifest checks green.
+
+Not yet built into a bootable kernel: the `rewrite-debug` build was started and
+stopped twice — once because amending the commit would have invalidated the
+`YSP_SOURCE_GSHA` stamp the Armbian build records, and once because a
+concurrent session began committing mpp-rewrite work to both trees, which would
+have bundled an unrelated unvalidated change into the image.
 
 **This is the ordering fix, not a proven cure.** It restores an invariant the
 vendor documents and that this driver violated, but the measurement in
