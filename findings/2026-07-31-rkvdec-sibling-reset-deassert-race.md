@@ -9,8 +9,10 @@
 > Date: 2026-07-31
 > Trust: DESIGN, CODE-INSPECTED, CONFIG-INSPECTED — the mechanism and its
 > reachability on this board are established from source and the live device
-> tree. The race has **not** been observed executing; the counter added in
-> d9992e32dc17 exists to settle that before the fix lands.
+> tree. The race has **not** been observed executing. The fix is written
+> (`b37f6e9825b1`) but **not yet booted**, and neither is the deassert counter
+> (`7e4cbb95f897`) that makes the reachability run conclusive; see the
+> verification gate for the order those two must be booted in.
 
 ## Result
 
@@ -115,8 +117,61 @@ is mid-pulse.
 
 ## Fix
 
-Not yet implemented. Proposed: a per-reset-domain mutex — the domain being a
-CCU group — taken as an **innermost leaf** around reset-control operations only:
+Implemented on `rk3588-rewrite-6.18` as three commits, and mirrored to
+`rk3588-rewrite-mainline` because the driver is kept byte-identical across both
+trees:
+
+- **`3b7082bf3547` / `b868f5449748`** — test prep, no driver change. Two KUnit
+  tests held both a `struct rk_mpp_service` and a `struct rk_mpp_hw` on the
+  stack, close enough to the 2048-byte `-Wframe-larger-than=` limit that adding
+  96 bytes of counters to the service tripped it. They now `kunit_kzalloc()` the
+  service like they already do the session and device. This has to come *first*,
+  because the counter commit is booted on its own and must build clean alone.
+- **`7e4cbb95f897` / `b127a72c9be8`** — instrumentation only, the step-0 counter
+  below. `reset_deassert_count` and `reset_deassert_core_count` record the
+  deasserts `power_on()` issues, and `reset_core_count` splits the existing
+  `reset_count` the same way, so both terms of the expected-overlap product can
+  be read per core instead of one being guessed from the submit rate.
+- **`b37f6e9825b1` / `a54ac6cb0c71`** — the per-reset-domain lock described
+  below.
+
+Three deviations from the shape sketched here, all deliberate:
+
+1. The domain lock lives in a small keyed table in `struct rk_mpp_service`, not
+   as a pointer resolved at CCU attach into the coordinator's `struct
+   rk_mpp_hw`. Cores find their coordinator by walking the service list, and
+   `rk_mpp_hw_remove()` can take it away while cores still reference it, so a
+   mutex embedded in the coordinator is a use-after-free waiting for a CCU
+   unbind. Device nodes outlive the domains, so a table that only ever grows is
+   enough. It is resolved in probe, before `rk_mpp_hw_read_id()` first powers
+   the core on and before the core joins the service list.
+2. No `reset_domain_lock_self`. `struct rk_mpp_hw` gains only the pointer, and a
+   core outside a CCU group is left unbound rather than given a private mutex:
+   `rk_mpp_rkvdec2_power_on_ccu_cores()` selects on `ccu_node` and so never
+   reaches such a core, leaving its own submit and recovery paths as the only
+   writers of its reset line — and those already serialize on its `run_lock`. An
+   embedded mutex would also have grown every `struct rk_mpp_hw` a KUnit test
+   builds on the stack by ~200 bytes, which is what pushed two of them over the
+   frame limit before this was changed.
+3. `reset_pulse_active` moved *inside* the lock, and `power_on()` reads it while
+   holding the same lock. Without that, a pulse merely queued behind the lock
+   would still be visible to the reader and counted as interference, so
+   `reset_deassert_contended_count` would keep incrementing after the race was
+   fixed and step 2 below could never pass. With it, the counter is a true
+   regression signal: any non-zero afterwards means the serialization broke.
+
+**Not covered.** `rk_mpp_rkvdec2_force_stop_ccu()` (~:12975) asserts and
+deasserts every core in the group directly rather than through
+`rk_mpp_hw_reset_active()`, so the hard-CCU recovery path keeps its own
+unserialized writer of the same lines. That path is not in use on this board —
+`ccu-mode 1` selects soft CCU — and covering it means holding the domain lock
+across a group-wide pulse whose loop calls `handle_reset_failure()` and
+`terminal_isolate()`, a different critical section that belongs in its own
+change.
+
+The original proposal follows, unchanged, as the rationale: a per-reset-domain
+mutex — the domain being a CCU group — taken as an **innermost leaf** around
+reset-control operations only:
 
 - `rk_mpp_hw_reset_active()`: lock → assert → udelay → deassert → unlock.
 - `rk_mpp_hw_power_on()`: lock → deassert → unlock, around the deassert alone,
@@ -156,14 +211,18 @@ Implementation shape:
 Ordered, because a passing functional test after a timing fix proves nothing on
 its own:
 
-0. **Instrument the deassert side.** Count the deasserts `power_on()` issues on
-   a core, so the harness can compute expected hits from two measured rates
-   instead of standing the submit rate in for one of them. Without it a zero in
-   step 1 cannot be told apart from a run that never had the power to produce a
-   non-zero — which is exactly what happened on 2026-07-31, twice, for two
-   different reasons. Same shape as the counter d9992e32dc17 already added on
-   the pulse side; it settles a question rather than changing behaviour, so it
-   can land on its own.
+0. **Instrument the deassert side.** Done — `7e4cbb95f897`. Counts the
+   deasserts `power_on()` issues on a core, so the harness can compute expected
+   hits from two measured rates instead of standing the submit rate in for one
+   of them. Without it a zero in step 1 cannot be told apart from a run that
+   never had the power to produce a non-zero — which is exactly what happened on
+   2026-07-31, twice, for two different reasons. Instrumentation only, so it
+   lands on its own.
+
+   **Boot this commit alone first.** It is the last point at which the
+   before-measurement can be taken; once `b37f6e9825b1` is in, the pre-fix
+   deassert and contention rates are gone for good and step 2 can never be more
+   than a guess.
 1. **Reachability, before any behaviour change.** `sudo EXPECT=contended bash
    kernel-drivers/tests/rewrite-reset-contention.sh` must show a non-zero
    `mpp:reset_deassert_contended_count` delta on a kernel carrying d9992e32dc17.
@@ -174,9 +233,11 @@ its own:
    produced a non-zero. If it stays zero against an expectation built on step
    0's *measured* deassert rate, the fix is not justified and the reachability
    claim above is wrong.
-2. **Regression, after the lock.** `sudo EXPECT=clean bash
+2. **Regression, after the lock** (`b37f6e9825b1`). `sudo EXPECT=clean bash
    kernel-drivers/tests/rewrite-reset-contention.sh` on the same workload that
-   produced step 1's non-zero delta. Meaningless without step 1.
+   produced step 1's non-zero delta. Meaningless without step 1. The counter is
+   a true signal here rather than a stale one only because the pulse flag moved
+   inside the lock; see deviation 2 above.
 3. **No perturbation.** `mpp-suite.sh` plus the encode/decode/transcode tests on
    the KASAN kernel, watching decoder `hw_total_ns`/`hw_max_ns` — a leaf lock on
    the submit path should not move them measurably. If it does, the domain
