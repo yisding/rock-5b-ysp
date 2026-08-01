@@ -398,8 +398,11 @@ Three numbers that disagree, and it matters which is which:
 | | |
 |---|---|
 | Tree tip | `linux-6.18-rkvenc-av1-fwport` @ `14c0456c4108`, 80 commits on `v6.18` |
-| Packaged / uploaded | series `0001`–`0075`, in `6.18.40+rk3588av1fwport20260729-0ubuntu1~rk1` |
-| Installed on the board | that same `~rk1` package — **installed, never booted** |
+| Packaged / uploaded | series `0001`–`0080`, in `6.18.41+rk3588av1fwport20260801-0ubuntu1~rk1` (uploaded 08-01 11:04) |
+| Installed on the board | the older `6.18.40+…20260729-0ubuntu1~rk1` — **installed, never booted** |
+
+The tree/package gap is closed as of the 08-01 cut; the *installed* package still
+predates it by five commits and a stable level.
 
 The five-commit gap between tree and package is `febed97bc459` (bound user
 register requests and translations), `4dba1f42ab2b` (IOMMU cookie typing and

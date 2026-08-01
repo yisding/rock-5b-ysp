@@ -1,3 +1,31 @@
+linux-rockchip64-ysp (6.18.41+rk3588av1fwport20260801-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Rebase onto the 6.18.41 Armbian stable base (previous cuts were 6.18.40).
+  * Ship the five commits that missed the 20260729 cut. Four of them landed
+    07-29 09:57-09:58, under an hour after that day's 09:04 upload, so they
+    were omitted by timing rather than by decision:
+    - video: rockchip: mpp: bound user register requests and translations
+    - video: rockchip: mpp: fix IOMMU cookie typing and buffer-release ordering
+    - video: rockchip: rkvenc2/rkvdec2-link: fix window wrap, atomic clocks,
+      WARN
+    - video: rockchip: rga: fix job/buffer lifetime, locking and import
+      validation
+    - media: rockchip: rga: honor mapped SG contracts (07-31)
+  * The series is now 0001-0080 on v6.18.
+  * Provenance: the orig was cut from a worktree staged by
+    `build-kernel.sh forward-port --patch-only`, which verifies before
+    exporting that rockchip_iommu_set_fault_handler() matches the forward-port
+    tree, that the rewrite-only rockchip_iommu_sync_fault_handler is absent,
+    and that no *-rewrite driver directories remain. That check is the one the
+    20260725 cut lacked when it shipped a rewrite-composite orig whose sleeping
+    setter panicked the idle task from the vendor MPP job ISR.
+  * NOT hardware-validated: none of the five commits has been booted, and this
+    series has not previously been built against a 6.18.41 base. Config is
+    unchanged (CONFIG_DMABUF_DEBUG and the three baseline debug options remain
+    off).
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sat, 01 Aug 2026 10:30:00 -0700
+
 linux-rockchip64-ysp (6.18.40+rk3588av1fwport20260729-0ubuntu1~rk1) resolute; urgency=high
 
   * Provenance repair: re-cut the upstream source from the forward-port

@@ -42,7 +42,7 @@ GRD_DELTA="${GRD_DELTA:-}"
 KERNEL_PPA_SOURCE="${KERNEL_PPA_SOURCE:-linux-rockchip64-ysp}"
 KERNEL_PPA_REPO="${KERNEL_PPA_REPO:-$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64}"
 KERNEL_PPA_CONFIG="${KERNEL_PPA_CONFIG:-$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config}"
-KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.40+rk3588av1fwport20260729}"
+KERNEL_PPA_UPSTREAM_VERSION="${KERNEL_PPA_UPSTREAM_VERSION:-6.18.41+rk3588av1fwport20260801}"
 
 KERNEL_SGGUARD_SOURCE="${KERNEL_SGGUARD_SOURCE:-linux-rockchip64-ysp-sgguard}"
 # Diagnostic variant of the forward-port kernel: same worktree, same production
