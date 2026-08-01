@@ -73,13 +73,29 @@
 # HOW THE EXPECTED-HIT ESTIMATE IS BUILT
 #
 # On a kernel carrying the per-core reset/deassert counters, both terms are
-# measured and the sum is taken per core:
+# measured and the sum is taken per core, over *cross-core* deasserts only:
 #
-#     sum over cores of  resets(core) * deasserts(core)/second * 10 us
+#     sum over cores of  resets(core) * cross_core_deasserts(core)/second * 10 us
 #
 # Per core rather than in aggregate, because the overlap is a property of one
 # core: a pulse on core0 can only be ended by a deassert issued for core0, so an
 # aggregate product would be wrong whenever the load is lopsided.
+#
+# Cross-core rather than all, because rk_mpp_rkvdec2_submit() holds the
+# *submitting* core's run_lock across both its own rk_mpp_hw_power_on() and the
+# group power-on inside acquire_soft_ccu(), while that core's reset runs in its
+# IRQ thread under the same run_lock. A core's own submits therefore cannot
+# contend with its own reset; only submits dispatched elsewhere in the group can.
+# On a two-core group each core sees three deasserts per submit -- one from every
+# submit's group power-on, plus one more from its own submit's direct power-on --
+# and only the group power-ons from the *other* core qualify, so counting all of
+# them overstates the expectation by 3x.
+#
+# That is not a rounding error. The 2026-08-01 run reported ~12.7 expected and
+# zero observed, which reads as a decisive negative (p ~ 3e-6). The corrected
+# figure was ~4.2, where a zero is a 1.5% outcome -- unusual, but nothing to
+# conclude from. Overstating the power of a measurement is exactly the failure
+# this harness exists to prevent, so it is computed the narrow way now.
 #
 # On a kernel without them the harness falls back to the *submit* rate as a
 # stand-in for the deassert rate, and says so, because that is an upper bound
@@ -298,28 +314,47 @@ deasserts=$(awk -F'\t' 'NR>1 && $2=="reset_deassert_count"{print $5}' \
 	"$OUT/counters-delta.tsv")
 deasserts=${deasserts:-}
 
-# Preferred estimate: both terms measured, resolved per core. The overlap
-# probability is a property of one core -- a pulse on core0 can only be ended by
-# a deassert issued for core0 -- so summing the product per core is right and
-# an aggregate would be wrong whenever the load is lopsided.
+# Preferred estimate: both terms measured, resolved per core, and counting only
+# the deasserts that can actually contend.
+#
+# Not every deassert on a core is a candidate. rk_mpp_rkvdec2_submit() takes the
+# *submitting* core's run_lock and holds it across both its own
+# rk_mpp_hw_power_on() and the group power-on in acquire_soft_ccu(), while that
+# core's reset runs in its IRQ thread under the same run_lock. So a core's own
+# submits are already serialized against its own reset and can never contend --
+# only submits dispatched to a *different* core in the group can. Counting all
+# deasserts on a core therefore overstates the expectation, by 3x on a two-core
+# group, which is enough to turn "under-powered, inconclusive" into a confident
+# and wrong "real negative".
+#
+# Cross-core deasserts for core i = (all submits in the client's group) - (submits
+# on core i), and the expectation is the per-core sum of resets * that rate * the
+# pulse width.
 expected=$(awk -F'\t' -v elapsed="$elapsed" -v w="$RESET_WINDOW_S" '
 	NR == 1 { next }
 	$2 ~ /^reset_(av1dec|rkvdec|rkvenc)_core[0-9]+_count$/ {
-		key = $2; sub(/^reset_/, "", key); r[key] = $5; next
+		key = $2; sub(/^reset_/, "", key); r[key] = $5; seen_r = 1; next
 	}
-	$2 ~ /^reset_deassert_(av1dec|rkvdec|rkvenc)_core[0-9]+_count$/ {
-		key = $2; sub(/^reset_deassert_/, "", key); d[key] = $5; next
+	$2 ~ /^dispatched_(av1dec|rkvdec|rkvenc)_core[0-9]+_count$/ {
+		key = $2; sub(/^dispatched_/, "", key); d[key] = $5
+		client = key; sub(/_core[0-9]+_count$/, "", client)
+		group[client] += $5
+		seen_d = 1
+		next
 	}
 	END {
-		if (elapsed <= 0) { printf ""; exit }
-		seen = 0; total = 0
+		if (elapsed <= 0 || !seen_r || !seen_d) { printf ""; exit }
+		total = 0
 		for (k in r) {
 			if (!(k in d))
 				continue
-			seen = 1
-			total += r[k] * (d[k] / elapsed) * w
+			client = k; sub(/_core[0-9]+_count$/, "", client)
+			cross = group[client] - d[k]
+			if (cross < 0)
+				cross = 0
+			total += r[k] * (cross / elapsed) * w
 		}
-		if (seen) printf "%.3f", total; else printf ""
+		printf "%.3f", total
 	}' "$OUT/counters-delta.tsv")
 
 if [ -n "$expected" ]; then
@@ -409,10 +444,13 @@ contended)
 		log "FAIL: no overlap in $resets resets, where ~$expected were"
 		log "  expected ($expected_basis basis)."
 		if [ "$expected_basis" = measured ]; then
-			log "  Both terms were measured here, so this zero is a real"
-			log "  result: on this kernel and workload the two paths are"
-			log "  not overlapping. Either the fix is already in, or the"
-			log "  race is not reachable in this configuration."
+			log "  Both terms were measured and only cross-core deasserts"
+			log "  were counted, so this is a real negative for this"
+			log "  workload: either the fix is already in this kernel, or"
+			log "  the race is not reachable in this configuration."
+			log "  Before concluding the latter, confirm the expectation"
+			log "  is comfortably above RESET_MIN_EXPECT -- a zero against"
+			log "  ~4 is a 1-in-70 outcome, not a proof."
 		else
 			log "  NOT evidence that the race is unreachable: that"
 			log "  estimate is an upper bound built from the submit rate,"
