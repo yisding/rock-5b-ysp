@@ -84,12 +84,47 @@ Not flavors of this entry point, but part of the same delivery picture:
 
 ```bash
 build-kernel.sh <flavor> --stage-only    # regenerate + stage patches/config, no compile
+build-kernel.sh <flavor> --patch-only    # stage the shared kernel worktree, no compile
 build-kernel.sh --restore                # reset Armbian patch archive + userpatches
 build-kernel.sh <flavor> --install-deps  # debug flavors: apt-install missing host deps
 IOMMU_DEBUG=yes build-kernel.sh forward-port          # DMA/IOMMU observability extension
 ARMBIAN_USE_CCACHE=no build-kernel.sh <flavor>        # clean retry
 ARMBIAN_CLEAN_LEVEL=make-kernel build-kernel.sh <flavor>  # drop all Kbuild metadata
 ```
+
+### `--patch-only`: staging the shared worktree for a source-package cut
+
+`--stage-only` and `--patch-only` sound alike and are not interchangeable.
+`--stage-only` prepares userpatches and core-patch exclusions and exits *before*
+`compile.sh` runs, so it never touches the shared kernel worktree.
+`--patch-only` passes Armbian's `PATCH_ONLY=yes` through, which returns from
+`compile_kernel` immediately after `kernel_main_patching`
+(`lib/functions/compilation/kernel.sh:57`): the worktree ends up holding exactly
+this flavor's series, and nothing is compiled.
+
+That matters because `packaging/ppa/build-source-packages.sh` cuts the
+forward-port orig from that worktree, not from the flavor's git tree. Staging it
+is the only reason a *source-only* PPA upload ever needed a local build; with
+`--patch-only` it takes minutes instead of the better part of an hour.
+
+Two behaviours specific to this mode:
+
+- **Armbian exits non-zero and that is expected.** Once patching stops early its
+  artifact packer has nothing to pack and fails. Patching has already succeeded
+  by then, so the exit code is not the signal — the staged worktree is, and
+  STEP 6 verifies it. Every other mode still fails hard on a failed compile.
+- **STEP 6 verifies the worktree instead of a deb**, which is the check a full
+  build never performed and whose absence
+  [shipped a rewrite-composite orig and panicked the board](../../findings/2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md).
+  It compares `rockchip_iommu_set_fault_handler()` body-to-body against the
+  flavor tree, rejects a forward-port staging that carries the rewrite-only
+  `rockchip_iommu_sync_fault_handler`, and purges leftover `*-rewrite` driver
+  directories from a previous flavor's build.
+
+Do **not** whole-file compare the worktree against a flavor tree. The worktree is
+an Armbian stable base plus Armbian's patches plus the series; the flavor trees
+sit on a plain `v6.18` base. They differ for legitimate reasons, and a byte
+compare fails closed on a correctly staged worktree.
 
 Mechanics preserved from the validated engine: rolling `linux-6.18.y` by
 default with `ARMBIAN_KERNELBRANCH=commit:<sha>` for reproducible rebuilds,

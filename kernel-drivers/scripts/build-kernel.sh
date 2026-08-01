@@ -31,6 +31,7 @@
 # USAGE
 #   bash build-kernel.sh <flavor>                  # build
 #   bash build-kernel.sh <flavor> --stage-only     # local flavors: prepare patches/config only
+#   bash build-kernel.sh <flavor> --patch-only     # local flavors: stage the shared kernel worktree, no compile
 #   bash build-kernel.sh --restore                 # reset Armbian patch archive + generated userpatches
 #   bash build-kernel.sh <flavor> --install-deps   # debug flavors: apt-install missing host deps first
 #   bash build-kernel.sh forward-port KERNEL_CONFIGURE=yes   # extra args pass through to compile.sh
@@ -255,6 +256,7 @@ for arg in "$@"; do
 	case "$arg" in
 		--restore) MODE="restore" ;;
 		--stage-only) MODE="stage-only" ;;
+		--patch-only) MODE="patch-only" ;;
 		--install-deps) install_deps=yes ;;
 		-h|--help) usage; exit 0 ;;
 		-*) die "unknown option: $arg" ;;
@@ -725,6 +727,19 @@ say "  family: $SLOT_FAMILY${ARMBIAN_LINUXFAMILY:+ (forced via late_family_confi
 BUILD_MARKER="$(mktemp "$WORKSPACE/.ysp-build-marker.XXXXXX")"
 trap 'rm -f "$BUILD_MARKER"' EXIT
 
+# --patch-only stops Armbian after kernel_main_patching (kernel.sh:57), so the
+# shared worktree ends up holding exactly this flavor's series and nothing is
+# compiled. That is what packaging/ppa/build-source-packages.sh snapshots for the
+# forward-port orig, and staging it is the whole reason a source-only upload ever
+# needed a local build.
+PATCH_ONLY_ARG=()
+[ "$MODE" = "patch-only" ] && PATCH_ONLY_ARG=("PATCH_ONLY=yes")
+
+# Under --patch-only, Armbian stops inside compile_kernel and its artifact
+# packer then fails with nothing to pack. Patching has already succeeded at
+# that point, so the exit code is not the signal -- the staged worktree is,
+# and STEP 6 verifies it. Keep -e for every other mode.
+set +e
 if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 	check_debug_build_deps
 	say "  kernel tip: $(git -C "$KERNEL_TREE" log -1 --format='%h %s' HEAD)"
@@ -740,6 +755,7 @@ if [ "$FLAVOR_IS_DEBUG" = 1 ]; then
 		${ARMBIAN_LINUXFAMILY:+YSP_LINUXFAMILY="$ARMBIAN_LINUXFAMILY"} \
 		${ARMBIAN_KERNELBRANCH:+KERNELBRANCH="$ARMBIAN_KERNELBRANCH"} \
 		${ARMBIAN_CLEAN_LEVEL:+CLEAN_LEVEL="$ARMBIAN_CLEAN_LEVEL"} \
+		${PATCH_ONLY_ARG[@]+"${PATCH_ONLY_ARG[@]}"} \
 		${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}
 else
 	# Enable our debug extension only for IOMMU_DEBUG=yes builds; the extension
@@ -764,10 +780,109 @@ else
 		USE_CCACHE="$ARMBIAN_USE_CCACHE" \
 		USE_TMPFS="$ARMBIAN_USE_TMPFS" \
 		${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} \
+		${PATCH_ONLY_ARG[@]+"${PATCH_ONLY_ARG[@]}"} \
 		${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}
+fi
+COMPILE_RC=$?
+set -e
+if [ "$MODE" = "patch-only" ]; then
+	[ "$COMPILE_RC" -eq 0 ] || say "  note: compile.sh exited $COMPILE_RC;"\
+		" expected under PATCH_ONLY once patching succeeds. The staged"\
+		" worktree below is the gate."
+else
+	[ "$COMPILE_RC" -eq 0 ] || die "compile.sh failed with $COMPILE_RC"
 fi
 
 # =============================================================================
+if [ "$MODE" = "patch-only" ]; then
+	# The deliverable here is the staged worktree, not a deb, so verify that
+	# instead. This check is the one the full build does NOT do, and its absence
+	# is what shipped a rewrite-composite orig on 2026-07-25 and panicked the
+	# board: see findings/2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md
+	say "STEP 6: staged worktree verification (patch-only; nothing was compiled)"
+	KWT="$ARMBIAN_BUILD/cache/sources/linux-kernel-worktree/${KBRANCH##*-}__${SLOT_FAMILY}__arm64"
+	[ -d "$KWT" ] || die "staged worktree missing: $KWT"
+	say "  worktree: $KWT"
+
+	# Provenance probe. rockchip-iommu.c is shared between the flavors, so the
+	# *-rewrite exclusion in the exporter cannot protect it -- and it is the file
+	# whose rewrite-branch tail panicked the idle task from the vendor MPP ISR.
+	#
+	# Do NOT byte-compare the whole file against $KERNEL_TREE. The worktree is
+	# an Armbian stable base plus Armbian's own patches plus this flavor's
+	# series, while the flavor tree sits on a plain v6.18 base, so the two differ
+	# for entirely legitimate reasons and a whole-file compare fails closed on a
+	# correctly staged worktree. Probe the thing that actually went wrong instead.
+	SHARED_PROBE=drivers/iommu/rockchip-iommu.c
+	INCIDENT_FN=rockchip_iommu_set_fault_handler
+	# The rewrite line carries a second, sleepable teardown helper that the
+	# forward-port line does not. Its presence in a forward-port staging is the
+	# signature of a rewrite-composite worktree.
+	REWRITE_ONLY_SYM=rockchip_iommu_sync_fault_handler
+	if [ -r "$KERNEL_TREE/$SHARED_PROBE" ] && [ -r "$KWT/$SHARED_PROBE" ]; then
+		wt_fn=$(awk "/$INCIDENT_FN\\(struct/,/^}/" "$KWT/$SHARED_PROBE" | md5sum)
+		tree_fn=$(awk "/$INCIDENT_FN\\(struct/,/^}/" "$KERNEL_TREE/$SHARED_PROBE" | md5sum)
+		if [ "$wt_fn" = "$tree_fn" ]; then
+			say "  OK: $INCIDENT_FN() matches $KERNEL_TREE"
+		else
+			die "$INCIDENT_FN() in the worktree does not match $KERNEL_TREE.
+    The worktree is not a faithful staging of this flavor's series, so an orig
+    cut from it would carry another branch's code under this flavor's name."
+		fi
+		case "$FLAVOR" in
+		rewrite|rewrite-debug) ;;
+		*)
+			if grep -q "$REWRITE_ONLY_SYM" "$KWT/$SHARED_PROBE"; then
+				die "$SHARED_PROBE carries $REWRITE_ONLY_SYM, which only the
+    rewrite line defines. This worktree is a rewrite composite; an orig cut from
+    it would repeat the 2026-07-25 contamination."
+			fi
+			say "  OK: no $REWRITE_ONLY_SYM in $SHARED_PROBE"
+			;;
+		esac
+	else
+		say "  WARNING: $SHARED_PROBE unreadable in tree or worktree; not compared"
+	fi
+
+	# Leftover untracked driver directories from a previous flavor's build. The
+	# exporter filters these by path, but that is a regex one rename away from
+	# missing them, so purge rather than rely on it -- this is the repair the
+	# provenance finding prescribes.
+	case "$FLAVOR" in
+	rewrite|rewrite-debug)
+		say "  note: *-rewrite driver dirs belong to $FLAVOR; left in place"
+		;;
+	*)
+		FOREIGN=$(find "$KWT/drivers/video/rockchip" -maxdepth 1 -name '*-rewrite' 2>/dev/null)
+		if [ -n "$FOREIGN" ]; then
+			# Build products under these dirs are created inside Armbian's
+			# Docker container and owned by root, so an unprivileged purge
+			# fails. Do not paper over that: the exporter's path exclusion is a
+			# regex one rename away from missing them, and this repo has already
+			# shipped one rewrite-composite orig.
+			printf '%s\n' "$FOREIGN" | while IFS= read -r d; do
+				[ -n "$d" ] && rm -rf "$d" 2>/dev/null
+			done
+		fi
+		STILL=$(find "$KWT/drivers/video/rockchip" -maxdepth 1 -name '*-rewrite' 2>/dev/null)
+		if [ -n "$STILL" ]; then
+			# shellcheck disable=SC2086  # deliberate split: one sudo line, all paths
+			die "foreign driver dirs remain in the worktree and could not be
+    removed (root-owned build products from a previous rewrite build):
+$(printf '%s\n' "$STILL" | sed 's/^/      /')
+    Remove them as root, then re-run this command:
+      sudo rm -rf $(printf '%s ' $STILL)"
+		fi
+		say "  OK: no *-rewrite paths in the worktree"
+		;;
+	esac
+
+	say "STAGED. The shared kernel worktree now holds the $FLAVOR series."
+	say "  Export from it with, e.g.:"
+	say "    FORCE_ORIG=1 bash packaging/ppa/build-source-packages.sh kernel"
+	exit 0
+fi
+
 say "STEP 6: results"
 # This is the size of the SHARED store (Mesa/MPP/librga/FFmpeg all write to it),
 # so growth is suggestive, not proof, and it stops growing entirely once the
