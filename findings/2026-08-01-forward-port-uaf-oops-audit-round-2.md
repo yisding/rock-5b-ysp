@@ -251,8 +251,8 @@ since six of the fixes add new rejection paths (`-EOPNOTSUPP`, `-EPERM`,
 Six of these are unprivileged memory corruption reachable through device nodes
 the desktop session and the gdm greeter already hold open, and two need no race
 at all. The same class as [W19](../status.md#watch-w19). Because the four worst
-are BSP-inherited, they are vendor-notification material under the
-[disclosure posture](../../rock-5b-security/) — Rockchip PSIRT for the MPP/RGA
-core, with no CVE requested — and the two forward-port regressions (M1, R7) are
+are BSP-inherited, they are vendor-notification material under the private
+`rock-5b-security` repository's disclosure posture — Rockchip PSIRT for the
+MPP/RGA core, with no CVE requested — and the two forward-port regressions (M1, R7) are
 ours to fix outright. R7 in particular is a live unprivileged OOM path in the
 kernel currently published to the PPA.
