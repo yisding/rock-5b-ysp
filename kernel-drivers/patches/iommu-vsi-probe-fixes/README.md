@@ -47,6 +47,51 @@ A fourth candidate defect — the hardirq handler calls
 **excluded** until it is reproduced under `CONFIG_DEBUG_ATOMIC_SLEEP`. Do not
 add it to this series without that evidence.
 
+### If you do want runtime evidence
+
+Two of the three are reachable by editing the device tree, with no kernel source
+change. Both failures happen before the driver touches an IOMMU register, so
+neither needs RK3588 silicon — a QEMU `arm64 virt` machine with a synthetic
+`verisilicon,iommu-1.2` node and a `fixed-clock` is enough, and arm64
+`defconfig` already enables both `ARCH_ROCKCHIP` and virt.
+
+| Fix | Force it by | Pass/fail signal |
+|-----|-------------|------------------|
+| `0001` | removing `reg` from the node | dmesg `probe with driver ... failed with error -22` (`-EINVAL`) after the fix, `-12` (`-ENOMEM`) before |
+| `0002` | removing `interrupts`, keeping `reg` and `clocks` | the clock's `prepare_count` in `/sys/kernel/debug/clk/clk_summary` returns to baseline after the fix, stays elevated before |
+| `0003` | — | not forceable; `dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32))` does not fail on arm64 |
+
+An on-board run needs no DT authoring either, because mainline already
+instantiates this driver as `av1d_mmu: iommu@fdca0000` with no `status`
+property — edit that node. Method, observability rules and the untested
+assumptions are in
+[the test-design finding](../../../findings/2026-08-02-driver-probe-error-path-test-design.md);
+note that none of it has been run, so the signals above are predictions.
+
+Keep any QEMU node restricted to the failure cases. Given a valid `reg` and
+`interrupts` the driver will ioremap arbitrary address space and register an
+IOMMU on a machine that has none.
+
+## Provenance — this is a fix we already carry downstream
+
+The driver is not Rockchip BSP code; the BSP has no VSI IOMMU at all. Mainline's
+copy and this project's forward-port copy both descend from Collabora's
+`rockchip-3588` tree, whose `vsi_iommu_probe()` is character-identical to
+mainline's pre-fix form. All three defects are in that shared ancestor.
+
+`rk3588-fwport-0005` already ships the corrected form — `PTR_ERR()`, the
+`goto err_unprepare_clocks`, and the checked DMA mask — folded in silently
+during the port; its commit message never mentions error handling. So this
+series re-derives a correction the project has been carrying since July, and
+that agreement between two independent derivations is the closest thing to
+review these patches have had.
+
+It is **not** evidence that the fixes work. Our copy's error paths are exactly
+as unexercised as mainline's, which is why the cover letter claims source
+inspection and nothing more. See
+[the convergence finding](../../../findings/2026-08-02-vsi-iommu-mainline-convergence-and-resync-collision.md)
+for the full comparison and for what it means at the next resync.
+
 ## Recipients
 
 From `scripts/get_maintainer.pl` on the series:

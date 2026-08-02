@@ -83,6 +83,38 @@ IOMMU-core internals introduced by the same 6.18 rework. A future release may
 rename or restructure them. Re-check that `iommu_set_fault_handler()` still WARNs
 on a cookie-owning domain and that the guard symbol still exists.
 
+### #2b — the VSI IOMMU is now upstream; stop carrying it at v7.2
+
+This one is not drift, it is convergence, and it fails *loudly* rather than
+silently — but the right response is to delete our copy, not to fix the
+conflict, which is why it needs to be written down before someone resolves it
+the wrong way.
+
+Mainline merged `drivers/iommu/vsi-iommu.c` (`917ace84b770`) and the RK3588
+`av1d_mmu` DT node (`6ddfbec80077e`) for **v7.2-rc1**. Both are absent from
+6.18, which is why the port supplies them. From v7.2 onward
+`rk3588-fwport-0005` collides with mainline on the driver file, the
+`verisilicon,iommu.yaml` binding, the `VSI_IOMMU` Kconfig symbol (ours `bool`,
+mainline `tristate`), the Makefile line and the `verisilicon,iommu-1.2`
+compatible; `rk3588-fwport-0009` collides on the DT node. `git am` fails on the
+two file creations before anything else is even evaluated.
+
+They are the same code — both trees took it from Collabora's `rockchip-3588`
+tree, and the Rockchip BSP never had it at all. On a bump to v7.2 or later:
+
+- **drop** the `vsi-iommu.c`, binding, Kconfig and Makefile hunks of `0005`, and
+  the `av1d_mmu` hunk of `0009`, and consume mainline's;
+- **keep** the rest of `0005` — the `rockchip-iommu.c` provider hooks and the
+  `include/soc/rockchip/{rockchip_iommu,vsi_iommu}.h` headers, which mainline
+  does not have; and
+- **re-apply or re-send the probe error-path corrections**, because our copy has
+  them and mainline's does not. They are prepared as a standalone series in
+  [`patches/iommu-vsi-probe-fixes/`](../patches/iommu-vsi-probe-fixes/README.md);
+  if that series has landed upstream by then, this step is already done.
+
+Full comparison in
+[the convergence finding](../../findings/2026-08-02-vsi-iommu-mainline-convergence-and-resync-collision.md).
+
 ### #3 — dma-buf / devfreq signature drift
 
 Lower-stakes because these usually fail *loudly* at compile time: the

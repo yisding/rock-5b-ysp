@@ -180,6 +180,25 @@ not an AV1 or IOMMU regression.
 > — see [BSP audit](../kernel-drivers/docs/bsp-audit.md), the BSP audit. Two entries below overlap it
 > and link across.
 
+**A probe that fails with `-ENXIO` or `-ENODEV` leaves nothing in dmesg.**
+`really_probe()` (`drivers/base/dd.c:634-648`) logs `-EPROBE_DEFER`, `-ENODEV`
+and `-ENXIO` at `dev_dbg`, and everything else at `dev_err` as `probe with
+driver %s failed with error %d`. So a silent boot is *not* evidence that a
+driver bound — an absent interrupt or a rejected match looks identical to
+success at default log levels. Check `/sys/bus/platform/drivers/*/` for the
+device symlink, or raise the dynamic-debug level, before concluding a driver
+probed. Some helpers compensate for themselves: `platform_get_irq()` routes its
+own failures through `dev_err_probe()` and prints `IRQ index N not found`, so
+that one case is visible despite the `-ENXIO`. Others do not.
+([test-design finding](../findings/2026-08-02-driver-probe-error-path-test-design.md))
+
+**Probe failure paths can be forced from the DT with no code change.** Deleting
+`reg` from a node makes `devm_platform_ioremap_resource()` return `-EINVAL`;
+deleting `interrupts` makes `platform_get_irq()` return `-ENXIO`. Both fire
+before a driver touches hardware, which makes error-path unwind testable — and,
+for a driver with no other hardware dependency in that window, testable under
+QEMU rather than on the board.
+
 **A `*-core@…` node *requires* its CCU.** Both encoder and decoder dispatch by
 `strstr(np->name,"core")` (`rkvenc_probe`, `mpp_rkvenc2.c:3226-3228`;
 `rkvdec2_probe`, `mpp_rkvdec2.c:2083-2090`) to a CCU-attaching probe with no
