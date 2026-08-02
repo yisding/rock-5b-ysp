@@ -53,32 +53,25 @@ are Published/successful. GRD replacement source `18654077`, binary
 `247717203`, and build `33461880` are Published/successful. Exact installation
 and the combined reconnect/kernel board gate remain open.
 
-Track 14 update (supersedes that row's closing 2026-07-29 checkpoint):
-roadmap development is committed and pushed as `rockchip-vaapi main@5d558fa`.
-The installed driver/config packages are payload-matched
-`1.0.11+ysp5`. Measured gates close 1080p HEVC Main10/VP9 Profile 2 throughput
-at 261.38/261.08 fps, VLC Main10 presentation, linear two-object YUV import,
-equal-row H.264/HEVC multi-slice, native WebRTC peers, same-process
-two-decode/two-encode normal/ASan/TSan, and the 7,200-second dual-codec encode
-soak. Stock Firefox Main10 is isolated to Panfrost rejecting Firefox's
-standards-correct GR1616 EGL image; exact-source 152.0.6/153.0 retry patches
-pass and the affected 152.0.6 release object compiles. MPP `3381fd2c` and
-FFmpeg `33a651a55b` are Published but not installed. Their exact live-PPA
-runtime debs were checksum-verified, extracted into an isolated root, and
-passed the complete HEVC sweep at 144 byte-exact, 17 classified skips, two
-size refusals, and zero backend/driver failures; the full normal and
-ASan/UBSan shipping matrices are green, and a 7,200-second 4K decode soak
-completed 216,005 external frames with no RSS or fd growth. Host APT
-installation and installed-payload confirmation remain. Final driver/config
-`1.0.11+ysp6-0ubuntu1~rk1` builds from the exact
-commit, passes source/binary Lintian error gates plus its isolated package
-lifecycle, and has a signed source package, but is not installed or uploaded.
-Completion and
-installation of the Firefox package, sandbox-enabled
-playback, physical HDR/mpv output, Chromium GL, clean-image install, and final
-release remain open. See the maintained
-[`rockchip-vaapi` project summary](../video-libraries/vaapi/README.md) and
-[`roadmap qualification finding`](../findings/2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md).
+Track 14 update (supersedes that row's closing 2026-07-29 checkpoint): installed
+driver/config `1.0.11+ysp8-0ubuntu1~rk1` are `dpkg -V` clean and the installed
+driver hash exactly matches the deb. The guarded safe decode matrix, external
+buffer/concurrent decode, 10-bit P010 decode above 60 fps, H.264/HEVC encode,
+imported surfaces, multi-slice, mixed decode/encode, and GStreamer VA readback
+all pass. In a fresh Mutter/Panfrost virtual monitor, installed VLC 3.0.23, mpv
+0.41.0, and Firefox 153.0.1 each present H.264, HEVC Main, VP9 Profile 0, HEVC
+Main10, and VP9 Profile 2; Firefox imports both 10-bit planes but ran with its
+RDD sandbox disabled. The only kernel warning pair is root-caused to libmpp's
+optional VDPP deinterlace probe selecting generic `/dev/mpp_service` without a
+VDPP subdevice; the triggering interlaced clip remains bit-exact. Earlier
+exact-Published MPP/FFmpeg sweep, sanitizer, and soak evidence remains valid.
+Open boundaries are clean source provenance for ysp8 (the package was built
+from a dirty tracked worktree over `main@aee5926`), the fingerprint-quarantined
+risky VP9 vector, intermittent small-geometry RGA writes, 256 rather than 512
+MiB CMA, sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image
+installation, and release. See the maintained
+[`rockchip-vaapi` project summary](../video-libraries/vaapi/README.md) and the
+[`installed ysp8 finding`](../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md).
 
 ## Promotion rule
 

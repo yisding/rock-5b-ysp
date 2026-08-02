@@ -24,7 +24,7 @@ plumbing layers. Which layer an app speaks decides its cost almost entirely:
 |-------|---------------------|
 | **libavcodec named codecs** (`h264_rkmpp`, `hevc_rkmpp`, …) | ✅ Shipped: [`ffmpeg-rockchip`](../video-libraries/ffmpeg/README.md) fork, built and Published in the [normal PPA](../packaging/ppa/README.md) as the system FFmpeg replacement. |
 | **GStreamer elements** (`mppvideodec`, `mpph26xenc`) | ⚠️ Rockchip's external `gstreamer-rockchip` plugin exists upstream but is not packaged here; ubuntu-rockchip shipped a working (if crudely packaged) build of it — one clean repackage away. The kernel track's GStreamer suite is no longer blocked — it first ran 2026-07-22 at 98/102 required ([userspace-gaps finding](../findings/2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md)) and reached 129/133 on the production PPA kernel. |
-| **VA-API** (the de-facto Linux desktop hwaccel API) | 🚧 Implemented and hardware-measured in [`video-libraries/vaapi/`](../video-libraries/vaapi/README.md): H.264, VP9 Profile 0, and HEVC Main decode ship by default; hidden 10-bit decode and H.264/HEVC encode have conformance, throughput, app, sanitizer, concurrency, and soak evidence. The immediate application gate is a completed Firefox package with live sandboxed display proof; do not duplicate the driver capability ledger here. |
+| **VA-API** (the de-facto Linux desktop hwaccel API) | 🚧 Installed and hardware-measured in [`video-libraries/vaapi/`](../video-libraries/vaapi/README.md): ysp8 is green through the safe decode/encode matrix and virtual-display VLC, mpv, and Firefox, including both 10-bit profiles. The immediate application gate is Firefox with its RDD sandbox enabled plus physical HDR output; do not duplicate the driver capability ledger here. |
 | **V4L2** (stateful M2M or stateless request API) | ⚠️ The BSP kernel exposes the codecs only via the vendor `/dev/mpp_service` ioctl interface, not V4L2 — but a **userspace** V4L2-stateful-over-MPP bridge exists: JeffyCN's `libv4l-rkmpp` (a libv4l2 plugin emulating a stateful M2M decoder/encoder in-process, no kernel device), proven in Joshua Riek's archived ubuntu-rockchip images as the engine behind Chromium 4K playback. It is kernel-agnostic and only reachable through a patched libv4l2, which in practice makes it a Chromium-only bridge. See the [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md). A real kernel V4L2 stateless path still needs a mainline kernel ([`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md), mainline rkvdec2 work). |
 
 ```mermaid
@@ -74,22 +74,22 @@ BSP forward-port deliberately does not take (V4L2).
 | App | Binds via | Estimated work on this stack |
 |-----|-----------|------------------------------|
 | ffmpeg CLI | libavcodec | ✅ shipped (PPA `+rkmpp` packages) |
-| mpv | libavcodec + DRM PRIME hwdec | ✅ H.264 VA-API/gpu-next/Panfrost EGL presentation passes after the selective 352→384-byte NV12 export repack. The expanded Main10/HDR gate is currently blocked by the GNOME session exposing no Wayland output; Mutter's `GetCurrentState` independently returns empty physical- and logical-monitor arrays. Physical HDR passthrough remains unproven. |
+| mpv | libavcodec + DRM PRIME hwdec | ✅ Stock mpv 0.41.0 presents H.264, HEVC Main, VP9 Profile 0, HEVC Main10, and VP9 Profile 2 through installed ysp8 in an isolated Mutter virtual monitor; Main10 performs the expected P010 conversions/exports and accepts BT.2020/PQ input. Physical HDR passthrough remains unproven. |
 | Kodi | libavcodec + DRM PRIME | Already tracked: [`apps/kodi`](../apps/kodi/README.md); build/tty1 gate remains |
 | OBS | libavcodec encoders | Hours–a day; cheapest encode win after the CLI |
 | HandBrake | bundled FFmpeg + own encoder registry | Days; encode is the realistic value |
-| VLC | libavcodec VAAPI hwaccel | ✅ Hardware-decodes H.264, HEVC Main, and HEVC Main10 unpatched in a real GNOME session once the driver gained safe NV12/P010 `vaDeriveImage`/`vaAcquireBufferHandle`. Gated by `tests/check-vlc-display.sh`. |
-| Firefox | **VA-API only** on Rockchip | ✅ Stock Firefox 153.0 hardware-decodes H.264 and HEVC Main with DMA-BUF export, gated by `tests/check-firefox-decode.sh` — but with `MOZ_DISABLE_RDD_SANDBOX=1`, so the sandbox row is still open. Main10 reaches three hardware frames before Panfrost rejects Firefox's GR1616 chroma EGL image and Firefox falls back. Exact-source 152.0.6/153.0 RDD+P010 retry patches pass; the exact signed 153.0 package is quilt-patched as `~mt1+ysp1` and its native arm64 build is in progress. Firefox cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the ffmpeg rkmpp wrapper decoders (not a hwaccel) — see the [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
+| VLC | libavcodec VAAPI hwaccel | ✅ Stock VLC 3.0.23 hardware-decodes H.264, HEVC Main, VP9 Profile 0, HEVC Main10, and VP9 Profile 2 through installed ysp8 in the isolated Mutter display. Gated by `tests/check-vlc-display.sh`. |
+| Firefox | **VA-API only** on Rockchip | ✅ Installed Firefox 153.0.1 hardware-decodes H.264, HEVC Main, VP9 Profile 0, HEVC Main10, and VP9 Profile 2 through installed ysp8, with DMA-BUF export and successful 10-bit plane import in the isolated Mutter display. The run used the documented RDD sandbox disable, so the sandbox row remains open. Firefox cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the FFmpeg RKMPP wrapper decoders (not a hwaccel) — see the [installed ysp8 finding](../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) and [browser landscape](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md). |
 | Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | ⚠️ Blocked below the codec layer: Chromium 150 cannot initialize a GL context on Mali-G610/Panfrost under either X11 or Wayland (ANGLE "Could not create a backing OpenGL context"), so its GPU process never starts and no VA-API path is reachable. VLC and Firefox use accelerated GL in the same session. Fix the GL stack before any codec hardening. Alternatives are a multi-week libv4l-rkmpp re-target with permanent custom builds, or maxline stateless V4L2. |
 
-### mpv — essentially free, and the right first proof
+### mpv — virtual-display proof is complete; physical HDR remains
 
-mpv links the system libavcodec (already replaced by the PPA `+rkmpp`
-packages) and supports DRM PRIME hwdec of the rkmpp wrapper decoders
-(`--hwdec=auto` / `--hwdec=rkmpp` depending on build flags). Beyond being a
-free win, it is the cheapest end-to-end proof of the **display** path — dmabuf
-import of decoder output into the GL/Vulkan output via Panfrost — which every
-other playback app also depends on (see cross-cutting notes below).
+mpv links the system libavcodec and can also consume the standard VA-API path.
+Stock 0.41.0 now presents all five installed-ysp8 decode cases through a fresh
+Mutter/Panfrost virtual monitor: 20 frames each for H.264, HEVC Main, VP9
+Profile 0, HEVC Main10, and VP9 Profile 2. Main10 logged 20 conversions and 21
+exports and accepted BT.2020/PQ input. This proves compositor/GPU DMA-BUF
+presentation, but not a physical connector or HDR link.
 
 Concrete starting material exists: ubuntu-rockchip's mpv needed exactly one
 functional patch (reordering `add_all_hwdec_methods()` so
@@ -138,8 +138,9 @@ today — HandBrake is a convenience project, not an enabler.
 
 ### VLC — hardware-decoding, unpatched
 
-Stock VLC 3.0.23 hardware-decodes H.264 High, HEVC Main, and HEVC Main10 through
-`rockchip-vaapi` in a real GNOME session, logging `using hw decoder module
+Stock VLC 3.0.23 hardware-decodes H.264 High, HEVC Main, VP9 Profile 0, HEVC
+Main10, and VP9 Profile 2 through installed ysp8 in the isolated Mutter
+display, logging `using hw decoder module
 "vaapi"` and `Using Rockchip MPP VA-API Driver 0.1 for hardware decoding`. No
 VLC source change was needed.
 
@@ -157,21 +158,23 @@ fork gates it and refuses to run headless. See the
 [shipping-stack gates finding](../findings/2026-07-28-vaapi-shipping-stack-gates-hevc-main-and-vlc-firefox-decode.md)
 and the [VA-API project boundary](../video-libraries/vaapi/README.md).
 
-### Firefox — driver works; package and sandbox proof remain
+### Firefox — installed driver and 10-bit import work; sandbox proof remains
 
-Firefox uses VA-API for Linux hardware decode on this BSP-style kernel. The
-renovated driver has hardware evidence for the default H.264/VP9 paths, so the
-remaining Firefox problem is no longer “build a codec bridge.”
+Firefox uses VA-API for Linux hardware decode on this BSP-style kernel.
+Firefox 153.0.1 now hardware-decodes all five installed-ysp8 display cases:
+H.264, HEVC Main, VP9 Profile 0, HEVC Main10, and VP9 Profile 2. The two 10-bit
+plane imports succeed, superseding the former invalid-GR1616 failure. This run
+used the documented one-off RDD sandbox disable, so it proves
+decode/export/Panfrost presentation but not the broker/seccomp policy.
 
 Firefox 152.0.6's RDD process separately enforces broker paths and seccomp
 ioctl requests. Source-hash-pinned 152.0.6 and 153.0 patches grant the measured
-MPP/RGA/DMA-heap surface without disabling the RDD sandbox. Companion patches
-handle the measured Main10 consumer failure: preserve the standards-correct
-GR1616 first attempt, then retry Firefox's existing RG/GR alternative once
-after Panfrost returns `EGL_BAD_MATCH`. Both exact-source contracts pass, the
-affected 152.0.6 release object compiles, and the exact signed 153.0 package is
-quilt-patched as local `~mt1+ysp1` with its native arm64 build in progress; no
-installed binary result exists yet.
+MPP/RGA/DMA-heap surface without disabling the RDD sandbox. The former
+companion chroma-retry patches were deleted after the driver was found to emit
+a VA-style `GR16` literal instead of the real `DRM_FORMAT_GR1616`; ysp8 carries
+the corrected export. Both exact-source sandbox-policy contracts pass and the
+affected 152.0.6 release object compiles, but no sandbox-enabled installed
+runtime result exists yet.
 
 Finish that package, inspect/install it, and require live hardware decode with
 `MOZ_DISABLE_RDD_SANDBOX` unset, the RDD process observed in seccomp mode 2, a
@@ -252,10 +255,11 @@ and [librga 10-bit shipping guidance](../vendor-libraries/rga/docs/librga-p010-p
 
 De-risk in this order:
 
-1. **Finish the pinned Firefox package and live RDD gate** — this is the
-   existing status-track proof, not a new driver-design task.
-2. **mpv Main10/HDR with a real Wayland output** — H.264 is already green; do
-   not treat the current no-`wl_output` session as a codec result.
+1. **Finish the pinned Firefox live RDD gate** — the installed driver and all
+   five decode/display cases are green; enable the sandbox and verify its
+   broker/ioctl policy without a source-tree driver override.
+2. **mpv Main10/HDR on a physical output** — virtual Mutter/Panfrost
+   presentation is green; now validate connector metadata and the HDR link.
 3. **Chromium deb/GL repair** — its GPU process currently dies before VA-API;
    compare the
    maintained-fork result with modernized `libv4l-rkmpp` or maxline V4L2 only

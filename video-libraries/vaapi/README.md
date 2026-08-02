@@ -14,7 +14,7 @@ that cannot select the Rockchip-specific libavcodec wrappers directly.
 | Developer focus | VA object lifetimes, reconstructed decode bitstreams, MPP external-buffer ownership, AFBC/NV15-to-P010 conversion, VA encode parameter translation, imported-surface validation, browser sandbox policy, and application interoperability. |
 | Owns | The durable capability/boundary summary and evidence map for `yisding/rockchip-vaapi`; dated measurements remain under [`../../findings/`](../../findings/README.md), app-specific integration stays in [`../../docs/app-enablement.md`](../../docs/app-enablement.md), and package publication stays under [`../../packaging/`](../../packaging/README.md). |
 | Depends on | The RK3588 MPP/RGA kernel path, current `librockchip_mpp`, the kernel-paired `librga` 10-bit contract, libva, and an application/display sandbox that can open the required device nodes and ioctls. |
-| Current state | As of 2026-07-29, roadmap development is committed and pushed as `rockchip-vaapi` `main@5d558fa`. **H.264, VP9 Profile 0 and HEVC Main decode are the default capability set**; HEVC Main10, VP9 Profile 2, and H.264/HEVC encode remain opt-in experiments. HEVC/VP9 10-bit decode sustains more than 260 fps at 1080p through AFBC→P010; VLC presents Main10; linear two-object imports, equal-row multi-slice, same-process 2-decode/2-encode stress, native WebRTC peers, and the two-hour encode soak pass. Exact Published MPP/FFmpeg binaries pass the complete isolated HEVC sweep, normal plus ASan/UBSan shipping matrices, and a 7,200-second/216,005-frame 4K decode soak with no RSS or fd growth, but still await host installation. Final driver/config version `1.0.11+ysp6-0ubuntu1~rk1` passes exact-commit source/binary builds, Lintian error gates, and isolated package lifecycle; its source is signed but not uploaded, and the installed driver remains `1.0.11+ysp5`. Firefox/Panfrost Main10, patched-browser packaging, physical HDR/mpv, Chromium GL, and clean-image/release gates remain. |
+| Current state | As of 2026-08-02, installed and payload-matched driver/config `1.0.11+ysp8-0ubuntu1~rk1` are green across the guarded safe decode matrix, zero-copy and concurrent decode, 10-bit P010 decode above 60 fps, H.264/HEVC encode, imported surfaces, multi-slice and mixed-process stress, GStreamer VA readback, and virtual-display VLC/mpv/Firefox presentation. **H.264, VP9 Profile 0 and HEVC Main decode remain the default capability set**; HEVC Main10, VP9 Profile 2, and encode remain opt-in. Firefox imports both 10-bit planes with the RDD sandbox disabled. The ysp8 payload exactly matches its deb, but its source was a dirty worktree over `main@aee5926`, so clean source/package provenance remains open. The quarantined risky VP9 vector, intermittent small-geometry RGA write defect, sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image install, and 512 MiB CMA gate remain. |
 
 For the end-to-end technical model, module map, decode/encode sequences,
 DMA-BUF ownership rules, bridge renovation record, and remaining design
@@ -60,13 +60,13 @@ does not mean the measured gates are hypothetical.
 > satisfied by the production kernel rather than assumed. Running this driver on
 > `~rk1` would still be expected to fault.
 
-| Path | Exposure | Evidence as of 2026-07-29 | Boundary |
+| Path | Exposure | Evidence as of 2026-08-02 | Boundary |
 |------|----------|---------------------------|----------|
-| H.264 decode | Default | Conformance and sanitizer coverage; hardware-decoded on-device by stock FFmpeg, GStreamer `va`, VLC 3.0.23 and Firefox 153.0 | Chromium display gate remains; Firefox ran with its RDD sandbox disabled |
-| VP9 Profile 0 decode | Default | Conformance and sanitizer coverage; byte-exact through the GStreamer `va` readback gate | Not exercised through the VLC/Firefox display gates |
-| HEVC Main decode | **Default** | 8/8 pinned vectors byte-exact normally and under ASan/UBSan; the exact Published `mpp@3381fd2c`/FFmpeg `33a651a55b` package root produces **144 of 163** FATE HEVC Main candidates byte-exact, 17 classified skips, two size refusals, and zero backend/driver failures; hardware-decoded by VLC and Firefox | `PICSIZE_A/B_Bossen_1` exceed the advertised 7680x4320 constraint and fail closed; host installation of the exact package pair remains |
-| HEVC Main10 decode | Experimental | 10 of 11 FATE Main10 vectors byte-exact as P010 through MPP AFBC V2, crop metadata, and RGA; `491533e` refuses 64×240 at context creation; 240 1080p frames complete at 261.38 fps; VLC presents all 120 generated frames | AFBC 10-bit widths below 68 have [no eligible RGA core](../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md); Firefox/Panfrost rejects the GR1616 chroma EGL image; physical HDR passthrough remains unvalidated |
-| VP9 Profile 2 decode | Experimental | P010 output is byte-exact through the same AFBC/RGA path; 240 visible/254 decoded 1080p outputs complete at 261.08 fps | Same kernel/librga pairing; browser/display qualification remains |
+| H.264 decode | Default | Conformance and sanitizer history; installed ysp8 is bit-exact and hardware-presents through GStreamer `va`, VLC 3.0.23, mpv 0.41.0, and Firefox 153.0.1 | Chromium remains; Firefox ran with its RDD sandbox disabled |
+| VP9 Profile 0 decode | Default | Installed ysp8 is bit-exact through GStreamer and hardware-presents through VLC, mpv, and Firefox | Chromium remains; Firefox sandbox gate remains |
+| HEVC Main decode | **Default** | The exact Published package root previously produced **144 of 163** FATE candidates byte-exact, 17 classified skips, two size refusals, and zero backend/driver failures; installed ysp8 hardware-presents through VLC, mpv, and Firefox | `PICSIZE_A/B_Bossen_1` exceed the advertised 7680x4320 constraint and fail closed; full sweep was not repeated on ysp8 |
+| HEVC Main10 decode | Experimental | Installed ysp8 is P010 bit-exact at 320x240 and 416x240, preserves BT.2020/PQ input metadata, refuses 64-pixel input before RGA, runs 1080p at 110.40 fps, and presents through VLC, mpv, and Firefox/Panfrost | Widths below 68 remain unsupported; one pass does not close the [intermittent small-geometry RGA write defect](../../findings/2026-07-31-rga3-afbc-p010-dropped-destination-write.md); no physical HDR or sandbox-enabled Firefox proof |
+| VP9 Profile 2 decode | Experimental | Installed ysp8 is P010 bit-exact, runs 1080p at 187.30 fps, and presents through VLC, mpv, and Firefox/Panfrost | Same kernel/librga pairing; one risky pinned vector remains fingerprint-quarantined; Firefox sandbox and physical-output qualification remain |
 | H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, one-/two-object linear DMA-BUF import, equal-row multi-slice, same-process concurrency, sanitizer, RTP/WebRTC peers, and a 7,200-second soak pass | P010 input, B-frames, packed application headers, and tiled imports remain unsupported |
 | HEVC Main encode | Experimental | FFmpeg/GStreamer output is parser-clean and software-decodable with the RK3588 CTU64 contract; equal-row multi-slice, same-process concurrency, sanitizer, and the two-hour dual-codec soak pass | Main profile/NV12 only; P010 backend support, B-frames, packed headers, and tiled imports remain |
 | AV1 decode | Unadvertised design | The vendor AV1 endpoint is independently hardware-validated; source inspection now bounds a direct `/dev/mpp_service` backend that would translate parsed VA state into VDPU jobs and attach CDF/segmentation/MV state to explicit surfaces | No direct VA job or golden replay exists; hardware stream packing, state transitions, output layout, recovery, film grain, conformance, and app/sandbox gates remain |
@@ -137,13 +137,15 @@ The measured encode evidence is split by the boundary it closes:
 
 ## Packaging and browser sandbox boundary
 
-Version `1.0.11+ysp5` is installed and its driver payload matched the built
-deb in the dated validation. Final roadmap package
-`1.0.11+ysp6-0ubuntu1~rk1` builds exactly from `main@5d558fa` and passes
-source/binary Lintian error gates plus the isolated clean
-install/upgrade/purge lifecycle. Its source is signed but not yet uploaded,
-and the binaries are not installed; genuinely clean-image hardware decode
-remains unproven. Package state belongs in the
+Driver and config `1.0.11+ysp8-0ubuntu1~rk1` are installed, `dpkg -V` clean,
+and the installed driver's SHA-256 exactly matches the file extracted from its
+deb. The config package supplies the libva/GStreamer environment contract.
+This closes installed-artifact identity and broad in-place runtime validation,
+but not source reproducibility: ysp8 was built from a modified worktree over
+`main@aee5926`, rather than a clean commit. Genuinely clean-image installation
+also remains unproven. Exact hashes, modifications, and gates are in the
+[installed ysp8 finding](../../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md).
+Package publication state belongs in the
 [packaging hub](../../packaging/README.md); the fork branch is the source of
 truth for the driver and its build/gate targets.
 
@@ -160,11 +162,11 @@ patches. The companion chroma-retry pair was deleted on 2026-07-30 (`df14bb6`)
 because the P010 boundary it worked around was ours: split chroma was exported
 as `0x36315247`, the VA-style `GR16` literal, where `DRM_FORMAT_GR1616` is
 `0x32335247`. Mesa's `EGL_BAD_MATCH` was correct and the import never reached
-Panfrost. `1.0.11+ysp7` exports the real fourcc and imports Main10 zero-copy in
-both Firefox processes. Both exact-source patch contracts pass and the 152.0.6
-affected release object compiles. The exact signed 153.0 package is quilt-patched as local
-`~mt1+ysp1` and building natively on arm64; no completed binary or
-sandbox-enabled runtime gate exists.
+Panfrost. ysp8 exports the real fourcc, and installed Firefox 153.0.1 imported
+HEVC Main10 and VP9 Profile 2 through both planes in the isolated virtual
+display. Both exact-source sandbox-patch contracts pass and the 152.0.6
+affected release object compiles, but the ysp8 display run disabled the RDD
+sandbox; no sandbox-enabled runtime result exists.
 See the
 [RDD policy](../../findings/2026-07-26-firefox-rdd-rockchip-vaapi-policy.md)
 and [package checkpoint](../../findings/2026-07-26-firefox-rdd-package-build-checkpoint.md).
@@ -177,23 +179,21 @@ fallback is not hardware evidence.
 
 ## Next gate
 
-The exact Published MPP `3381fd2c` and FFmpeg `33a651a55b` package root already
-passes the complete 163-vector HEVC sweep, normal plus ASan/UBSan shipping
-matrices, and a 7,200-second/216,005-frame 4K decode soak with no RSS or fd
-growth. Install those versions through APT and confirm installed
-payload/runtime identity.
-Then finish the pinned Firefox 153.0 arm64 package, inspect the produced
-binaries, install it on the ROCK 5B, and prove live H.264/HEVC Main/Main10
-hardware decode with:
+Rebuild and publish ysp8 from a clean pushed source identity, then repeat the
+installed safe matrix on the intended 512 MiB CMA configuration. Prove live
+H.264/HEVC Main/Main10/VP9 Profile 2 hardware decode with:
 
 - the RDD sandbox still enabled;
 - driver frame/audit markers showing `rockchip-vaapi` actually loaded;
 - MPP/RGA device access limited to the pinned broker/ioctl policy;
-- a real Wayland/X11/DRM-capable display path; and
+- a physical Wayland/X11/DRM display path, with HDR link metadata tested
+  separately; and
 - software fallback tested separately rather than counted as a pass.
 
-Keep experimental 10-bit and encode qualification separate from this shipping
-decode gate.
+Keep the risky VP9 vector behind its exact kernel fingerprint and require
+repeated evidence before closing the intermittent small-geometry RGA write
+defect. Keep experimental 10-bit and encode qualification separate from this
+shipping decode gate.
 
 ## Evidence map
 
@@ -202,6 +202,7 @@ maintained capability/boundary summary.
 
 | Topic | Evidence |
 |-------|----------|
+| Installed ysp8 package/runtime and application matrix | [`2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md`](../../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) |
 | Original code review and renovation decision | [`2026-07-21-rockchip-vaapi-driver-review.md`](../../findings/2026-07-21-rockchip-vaapi-driver-review.md) |
 | Browser API alternatives | [`2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md`](../../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) |
 | AV1 reconstruction boundary | [`2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md`](../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) |
