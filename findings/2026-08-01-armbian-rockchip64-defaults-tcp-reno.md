@@ -3,10 +3,11 @@
 > Scope: Armbian `rockchip64` kernel configs (all three branches); the running
 > `6.18.41-ysp-rockchip64` build inherits the setting
 > Source: `armbian-build/config/kernel/linux-rockchip64-{current,edge,bleedingedge}.config`
-> at `~/Code/rock-5b/armbian/armbian-build`; `/boot/config-6.18.41-ysp-rockchip64`;
-> live `sysctl net.ipv4.tcp_congestion_control`
+> at `~/Code/rock-5b/armbian/armbian-build` (history at `88f02f40a`);
+> `/boot/config-6.18.41-ysp-rockchip64`; live
+> `sysctl net.ipv4.tcp_congestion_control`; upstream `net/ipv4/Kconfig`
 > Date: 2026-08-01
-> Trust: MEASURED, CONFIG-INSPECTED, CONFIRMED
+> Trust: MEASURED, CONFIG-INSPECTED, SOURCE-INSPECTED, CONFIRMED
 
 ## Result
 
@@ -65,10 +66,60 @@ produces routinely — see
 where the same socket showed `reordering:107` and `dsack_dups:215` with a
 collapsed `cwnd:48 ssthresh:13`.
 
+## It is drift, not a decision
+
+Armbian originally shipped cubic. `git log -S` on the config file (searching for
+`CONFIG_DEFAULT_RENO=y` rather than the bare symbol, which also matches the
+`# ... is not set` form and misleadingly points at file creation) gives the
+chain:
+
+| when | commit | what happened |
+| --- | --- | --- |
+| 2019-11-19 | `150ac0c2a` "Remove K<4, change branches, new features (#1586)" | `linux-rockchip64-current.config` created with `CONFIG_DEFAULT_CUBIC=y`, `# CONFIG_DEFAULT_RENO is not set` |
+| 2020-04-27 | `fea2ecb9f` "WIP: Merge kernel features from upstream (#1856)" | flipped to `CONFIG_DEFAULT_RENO=y` |
+| 2023-01-01 | `48e45d0c9` "Mainline support for Rock 5B (#4606)" | `linux-rockchip-rk3588-*.config` created — **born with reno**, never had `CONFIG_DEFAULT_CUBIC=y` |
+| 2025-01-04 | `fb979d96d` "`rockchip64`/`current`: rewrite-kernel-config, no changes" | dropped the explicit `CONFIG_TCP_CONG_{BIC,CUBIC,WESTWOOD,HTCP}` lines; `CONFIG_DEFAULT_RENO=y` survived |
+
+The flip commit is a 13-file, +12237/−6780 bulk config regeneration whose
+subject mentions no networking change at all. Only **2 of its 13** files
+flipped — `linux-rockchip64-current` and `linux-sunxi64-current` — and
+`CONFIG_TCP_CONG_CUBIC` was not touched anywhere in it. A deliberate policy
+would not land in two files out of thirteen.
+
+The mechanism is Kconfig's fallback. In `net/ipv4/Kconfig` the choice reads:
+
+```text
+config DEFAULT_CUBIC   bool "Cubic" if TCP_CONG_CUBIC=y
+config DEFAULT_RENO    bool "Reno"
+```
+
+`DEFAULT_RENO` is the only unconditional entry, so any regeneration where cubic
+is not `=y` at the moment the choice is resolved collapses to reno — and once
+written, `olddefconfig` preserves that answer forever. The 2025 "no changes"
+rewrite then removed the explicit `CONFIG_TCP_CONG_CUBIC=y` line; cubic still
+comes back as `default y` from Kconfig at build time, which is why the built
+kernel has cubic available while the stale `CONFIG_DEFAULT_RENO=y` still pins
+the choice.
+
+Nothing in Armbian's tracker or forum argues for reno. The only TCP-congestion
+activity is [armbian/build#609](https://github.com/armbian/build/issues/609)
+(2017) asking to *enable BBR*, which is why BBR ships as `=m`; the
+[congestion-control forum thread](https://forum.armbian.com/topic/14113-congestion-control/)
+shows a user whose system defaulted to **cubic** and developers replying only
+about enabling BBR. Nobody discusses the reno default, in either direction.
+
+Today the fleet is incoherent: of 112 kernel configs, **10** set
+`CONFIG_DEFAULT_RENO=y` (all meson64, all rockchip64, all rockchip-rk3588,
+plus `virtual-current`), **9** set `CONFIG_DEFAULT_CUBIC=y`, and the remaining
+93 set neither and inherit upstream's cubic.
+
 ## Boundary
 
-This records where the default comes from and that alternatives are available.
-It does **not** establish why Armbian selected reno, and no A/B measurement of
-reno vs. cubic vs. BBR throughput or latency has been run on this board yet —
-the case for changing it rests on the algorithms' documented behaviour plus the
-socket statistics in the linked finding, not on a controlled comparison here.
+The archaeology above establishes *when* and *how* reno was introduced and that
+no rationale was ever recorded. It does not prove intent — no Armbian developer
+was asked, and PR #1856's discussion was not retrieved, only its commit.
+
+No A/B measurement of reno vs. cubic vs. BBR throughput or latency has been run
+on this board. The case for changing it rests on the algorithms' documented
+behaviour plus the socket statistics in the linked finding, not on a controlled
+comparison here.
