@@ -1,8 +1,9 @@
 # GRD hardware-encode recovery: forced IDR was implemented but unwired, and the detector could never see a hung encode
 
-> Scope: `gnome-remote-desktop` AVC420 render path on RK3588; branch
-> `fix/forced-idr-recovery` off `release/50.2-rkmpp-upstream-20260729` at
-> `c4ef3c9`, worktree `~/Code/rock-5b/gnome/grd/grd-upstream-20260729`
+> Scope: `gnome-remote-desktop` AVC420 render path on RK3588; fix committed as
+> `fix/forced-idr-recovery@100da72`, branched off
+> `release/50.2-rkmpp-upstream-20260729@c4ef3c9` (which is unchanged), worktree
+> `~/Code/rock-5b/gnome/grd/grd-upstream-20260729`
 > Source: `grd-rdp-renderer.c` `start_hw_encode_cooldown()`,
 > `recover_hw_encode_after_cooldown()`, `note_hw_encode_duration()`,
 > `on_bitstream_locked()`, `encode_image_views()`;
@@ -47,8 +48,8 @@ confirmed here at source level.
 
 ## Fix
 
-Branch `fix/forced-idr-recovery`, 3 files, +286/−49, builds clean with no new
-warnings.
+`fix/forced-idr-recovery@100da72` — 3 files, +287/−49, builds clean with no new
+warnings. Not yet packaged, installed, or booted.
 
 - **`request_key_frame_for_all_render_contexts()`** walks
   `render_context_table` under `inhibition_mutex` and requests an IDR from each
