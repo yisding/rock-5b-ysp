@@ -22,7 +22,7 @@ The paths below name that current location, while `rock-5b-ysp`,
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | latest GNOME 50 stable = `18cc5f7bf6ea`; clean release tip = `c4ef3c961940`; historical 50.1 replay and experiment tips remain recorded in §5 |
 | 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | current comparison tips `rk3588-rewrite-6.18@35eb735d21dd8` and `rk3588-rewrite-mainline@2cf0126529c1c` (2026-07-29 atomic-safe fault-handler setter split, [ISR-panic finding](../findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md); prior tips `cd71f985a784c`/`7dcb4c3b5a981`), the 2026-07-29 [review-round-2 fixes](../findings/2026-07-29-rewrite-driver-review-round-2.md) (legacy rot90/270 wire-geometry acceptance, coordinator-only hard-CCU chain writer, abort scheduler kick, per-fence dma_fence contexts with module pinning, shared-IRQ regs-live gating, and the KUnit double-free repair); parents `51ea9d1ca537` / `03da898b03f1f` isolate KUnit fixtures behind local services with assertion-safe resource cleanup and no runtime unbind/reprobe callbacks; opt-in KUnit defaults `0a2d7b9414f58` / `aa18488c8642b` and compile-time-owned ABI-case retirement `669697f23d3d` / `a49eb7575f436`; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | current 6.18 review tip `rk3588-rewrite-6.18@2f05724a20036` and comparison tip `rk3588-rewrite-mainline@2cf0126529c1c`; the 2026-08-02 [adversarial review](../kernel-drivers/docs/rewrite-driver-adversarial-review-2026-08-02.md) repairs DMA ownership, recovery, RCB, polling, and ABI defects on baseline `8042f13c5459`; earlier atomic-safe fault-handler and [review-round-2](../findings/2026-07-29-rewrite-driver-review-round-2.md) history remains in §8; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rock-5b/rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../rock-5b/kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -323,9 +323,12 @@ The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/re
 is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b`:
 
-- branch `rk3588-rewrite-6.18`, commit `cd71f985a784c` ("media: rockchip: fix
-  rewrite review findings"), in the dev worktree
-  `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc`. It lands the 2026-07-29
+- branch `rk3588-rewrite-6.18`, commit `2f05724a20036` ("media: rockchip:
+  harden rewrite driver contracts"), in the dev worktree
+  `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc`. It lands the 2026-08-02
+  [adversarial review](../kernel-drivers/docs/rewrite-driver-adversarial-review-2026-08-02.md)
+  fixes on audited parent `8042f13c5459`. Earlier `cd71f985a784c` lands the
+  2026-07-29
   [review-round-2 fixes](../findings/2026-07-29-rewrite-driver-review-round-2.md):
   legacy librga pre-swapped 90/270-degree destination windows now validate in
   canvas orientation on both RGA backends (previously every genuine portrait

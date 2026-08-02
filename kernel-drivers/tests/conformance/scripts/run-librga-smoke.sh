@@ -18,7 +18,7 @@ if [ -n "$LIBRGA_LIBDIR" ]; then
     export LD_LIBRARY_PATH="$LIBRGA_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 
-cases=${RGA_CASES:-"rga_copy_demo rga_resize_demo rga_cvtcolor_demo rga_fill_demo rga_alpha_demo rga_transform_rotate_demo rga_async_demo"}
+cases=${RGA_CASES:-"rga_copy_demo rga_resize_demo rga_cvtcolor_demo rga_alpha_demo rga_transform_rotate_demo rga_async_demo"}
 
 for case_name in $cases; do
     exe="$BIN_DIR/$case_name"

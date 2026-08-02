@@ -376,6 +376,48 @@ class WorkspaceDefaultTests(unittest.TestCase):
                 with self.subTest(script=relative, expected=expected):
                     self.assertIn(expected, text)
 
+    def test_librga_suite_log_parser(self) -> None:
+        env = os.environ.copy()
+        env["LIBRGA_SUITE_VALIDATE_LOG_PARSER"] = "1"
+        result = subprocess.run(
+            ["bash", str(REPO_ROOT / "kernel-drivers/tests/librga-suite.sh")],
+            cwd=REPO_ROOT,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("PASS: librga sample log parser", result.stdout)
+
+    def test_librga_suite_default_cases_exclude_vendor_heaps(self) -> None:
+        for enabled in ("0", "1"):
+            with self.subTest(vendor_heaps=enabled):
+                env = os.environ.copy()
+                env["LIBRGA_ENABLE_VENDOR_HEAP_CASES"] = enabled
+                env["LIBRGA_SUITE_VALIDATE_CASES"] = "1"
+                result = subprocess.run(
+                    ["bash", str(REPO_ROOT / "kernel-drivers/tests/librga-suite.sh")],
+                    cwd=REPO_ROOT,
+                    env=env,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(
+                    f"PASS: librga default cases (vendor heaps {enabled})",
+                    result.stdout,
+                )
+
+        legacy_smoke = self.shell_text(
+            "kernel-drivers/tests/conformance/scripts/run-librga-smoke.sh"
+        )
+        default_line = next(
+            line for line in legacy_smoke.splitlines() if line.startswith("cases=")
+        )
+        self.assertNotIn("rga_fill_demo", default_line)
+
     def test_shared_tmp_and_ccache_stay_outside_grouped_workspace(self) -> None:
         build_gate = self.shell_text(
             "kernel-drivers/tests/rewrite-build-gate.sh"

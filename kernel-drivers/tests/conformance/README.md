@@ -177,6 +177,11 @@ Smoke:
 PROFILE=rewrite ./scripts/run-librga-smoke.sh
 ```
 
+The smoke default omits `rga_fill_demo` because that official sample hard-codes
+the vendor-only `system-uncached-dma32` heap. Set `RGA_CASES` explicitly to add
+it on a matching BSP kernel; the maintained `../librga-smoke.sh` covers fill
+through the portable allocator path used by the main conformance run.
+
 Prioritize these samples for the rewrite:
 
 - `copy_demo`: basic bitblit plus FBC/tile cases.

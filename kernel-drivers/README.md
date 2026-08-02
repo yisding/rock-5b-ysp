@@ -126,6 +126,7 @@ Read in this order when changing or reviewing kernel behavior:
 | What are the known traps? | [`../docs/gotchas.md`](../docs/gotchas.md) |
 | What did the BSP audit find? | [`docs/bsp-audit.md`](docs/bsp-audit.md) |
 | What did adversarial review find in our forward-port glue? | [`../kernel-versions/docs/forward-port-review-log.md`](../kernel-versions/docs/forward-port-review-log.md) |
+| What did the full adversarial review of the rewrite drivers find and fix? | [`docs/rewrite-driver-adversarial-review-2026-08-02.md`](docs/rewrite-driver-adversarial-review-2026-08-02.md) |
 | What is the net-new CCU MMU/IOMMU plan? | [`iommu/docs/mpp-ccu-iommu-plan.md`](iommu/docs/mpp-ccu-iommu-plan.md) |
 | What is the RK3588 AV1 path, and why is it separate from RKVDEC2? | [`av1/docs/av1-rk3588.md`](av1/docs/av1-rk3588.md) |
 | Why is RK3588 multi-core decode hard, and where would a scheduler live? | [`mpp/docs/multicore-scheduling.md`](mpp/docs/multicore-scheduling.md) |
@@ -162,6 +163,7 @@ each sub-project's `README.md`).
 | [`docs/rewrite-ownership-refactor-plan.md`](docs/rewrite-ownership-refactor-plan.md) | Object-first migration plan for shared MPP hardware, reset/IOMMU recovery, active lifetimes, RGA per-task execution, mapping ownership, and singular retirement paths. |
 | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
 | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | 2026-07-17 audit of claimed ABI/codec coverage, booted evidence, counter/lifetime assertions, and remaining hardware gates. |
+| [`docs/rewrite-driver-adversarial-review-2026-08-02.md`](docs/rewrite-driver-adversarial-review-2026-08-02.md) | Complete MPP/RGA rewrite review: multi-SG comparison, repaired defects, open policy decisions, and hardware validation gaps. |
 | [`docs/debug-kernel.md`](docs/debug-kernel.md) | Capture a crash / run the KASAN debug kernel. |
 | [`patches/`](patches/README.md) | The maintained forward-port series, the superseded frozen base patches, debug-only DT patch, and the reviewable audit-fix series. |
 | [`scripts/`](scripts/README.md) | Combined-kernel build/install/validate wrappers and the codec udev rule. |

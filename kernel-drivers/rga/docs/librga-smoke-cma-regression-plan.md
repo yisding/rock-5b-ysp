@@ -1,160 +1,125 @@
-# Debugging plan: `ysp_librga_smoke` regressed between 2026-07-21 and 2026-08-01
+# librga handle-plane ABI compatibility regression
 
-> Scope: RGA rewrite driver (`drivers/video/rockchip/rga-rewrite/rga_rewrite.c`)
-> on the handle-import submit path.
-> Status: **plan, not a finding** — the failure is reproduced and localized to a
-> window of commits, but no root cause is established.
-> Observed on: `6.18.41-video-rewrite-kasan-rockchip64 #27`,
-> `rk3588-rewrite-6.18 @ b37f6e9825b1`, conformance run
-> `20260801-161134-librga-suite`.
-> Date: 2026-08-01
+> Scope: RGA rewrite driver
+> `drivers/video/rockchip/rga-rewrite/rga_rewrite.c`, specifically
+> `rk_rga_resolve_img_handles_locked()`, and official librga sample result
+> classification.
+>
+> Status: **ROOT-CAUSED** / **SOURCE-CONFIRMED** / **SOURCE-FIXED** /
+> **FIX-COMPILE-VERIFIED** / **FIX-RUNTIME-UNVERIFIED**.
+>
+> Observed on: `6.18.41-video-rewrite-kasan-rockchip64 #29`, boot source
+> `rk3588-rewrite-6.18@8042f13c5459`, installed librga
+> `2.2.0+git20260725.26a50ef-0ubuntu1~rk1`, conformance run
+> `20260802-101933-librga-suite`.
+>
+> Date: 2026-08-02
 
-## What actually failed
+## Result
 
-`ysp_librga_smoke` fails on its **first** operation — a 128×128 RGBA8888
-`imcopy()` between two imported dma-buf handles:
+The 128x128 RGBA8888 handle copy was rejected before any imported handle was
+looked up. This is not a CMA or scatter-gather mapping failure. It is an ABI
+compatibility mismatch over how librga represents a single-buffer image.
 
-```
-librga:  src | raster( 0x1) | 0, 0, 0, 0 | 128, 128, 128, 128 | rgba8888( 0) | 0x1, 0, 0, 0
-librga:  dst | raster( 0x1) | 0, 0, 0, 0 | 128, 128, 128, 128 | rgba8888( 0) | 0x2, 0, 0, 0
-imcopy failed: Fatal error: Failed to call RockChipRga interface
-```
+In handle mode, librga's legacy request builder calls
+`NormalRgaSetSrcVirtualInfo()` with values equivalent to:
 
-Three facts pin the shape of it:
-
-1. **The buffers are CMA-backed.** `dmabuf_alloc_any()` in `librga-smoke.cpp`
-   walks a heap preference list; the first three entries
-   (`system-uncached-dma32`, `system-dma32`, then `default_cma_region`) resolve
-   on this board to **`/dev/dma_heap/default_cma_region`**, because the dma32
-   heaps do not exist on an upstream-style kernel. So this is the *contiguous*
-   import path, not the fragmented one.
-2. **Import succeeds; submit fails.** `importbuffer_fd()` returned handles
-   `0x1` and `0x2`. The same conformance run's ABI probe independently shows
-   `RGA_IOC_IMPORT_BUFFER` and `RGA_IOC_REQUEST_CONFIG` returning 0 with
-   imported handles. Only the submit is untested there, and only the submit
-   fails here.
-3. **The rejection is silent.** `dmesg-new.txt` and `dmesg-fatal.txt` are both
-   **0 bytes** for the whole suite. `rk_rga_check_dma_sgt()` (~:2043) logs two
-   of its reject branches via `pr_err` but returns `-EINVAL` unlogged from two
-   others, so a silent path exists and was taken.
-
-## What is already excluded
-
-- **Not the reset-domain lock.** `git show --name-only b37f6e9825b1` touches
-  exactly one file, `mpp_rewrite.c`. No RGA source is in that commit.
-- **Not the missing dma-heaps.** The other 14 suite failures are
-  `open /dev/dma_heap/system-uncached{,-dma32} fail!` — samples dying before
-  they reach `/dev/rga`. Those same cases failed identically on the 2026-07-21
-  run and are environmental. `ysp_librga_smoke` is the only case that
-  **passed on 2026-07-21 and fails now**.
-- **Probably not the multi-SG defect.** The
-  [multi-SG finding](../../../findings/2026-07-31-rga-rewrite-multisg-dmabuf-cma-einval.md)
-  concerns fragmented *system-heap* imports. This allocation is CMA. That same
-  finding, however, flags a **CMA `EINVAL` branch that it explicitly leaves
-  untraced and marks HYPOTHESIS** — which is exactly the path this lands on, so
-  it is the closest existing lead.
-
-## Plan
-
-Ordered by cost. Each kernel build is ~40 minutes, so builds come last and only
-if the cheap steps have not answered it.
-
-### Phase 0 — reproduce in seconds, without the suite
-
-`rga-core-match-test` takes explicit backing for each side
-(`<src_spec> <dst_spec> <dim> [alloc_mb]`, where a spec is a dma-heap path or
-`malloc`), which is precisely the variable in question:
-
-| Command | Question it answers |
-|---|---|
-| `rga-core-match-test /dev/dma_heap/default_cma_region /dev/dma_heap/default_cma_region 128` | Does the smoke's exact backing fail on its own? |
-| `... /dev/dma_heap/system /dev/dma_heap/system 128` | Is it CMA-specific or all dma-buf imports? |
-| `... malloc malloc 128` | Does the userptr path still work? |
-| `... /dev/dma_heap/default_cma_region /dev/dma_heap/default_cma_region 64` | Below RGA3's 68-px floor — forces RGA2, separating core selection from import |
-
-Mixed specs (`default_cma_region` → `system` and the inverse) isolate whether it
-is the source or destination leg. Build the probes with
-`build-librga-samples-full.sh`; `librga-smoke.sh` builds and runs the smoke on
-its own if you want just that case.
-
-**Also worth one run:** `rga_copy_demo` **passes** in the same suite. Diffing
-its buffer setup against the smoke's is free and may isolate the variable
-immediately.
-
-### Phase 1 — get the errno, still without a rebuild
-
-`strace` gives the failing ioctl and its errno directly, which maps to a
-specific reject branch:
-
-```
-sudo strace -f -e trace=ioctl -o /home/yi/Code/tmp/rga-smoke.strace <smoke binary>
-grep -E 'RGA|0x5017|72(05|06|07)' /home/yi/Code/tmp/rga-smoke.strace | tail -20
+```text
+yrgb_addr = imported handle
+uv_addr   = 0
+v_addr    = virtual_width * virtual_height
 ```
 
-Expect `RGA_IOC_REQUEST_SUBMIT` (`0xc0987206`) returning `-1`. The errno
-discriminates: `EINVAL` points at the unlogged branches of
-`rk_rga_check_dma_sgt()`; `EOPNOTSUPP` at the non-adjacent-segment branch (which
-*does* log, so it would contradict the silent dmesg); `ENODEV`/`EBUSY` at core
-selection in `rk_rga_task_hw_type_mask()`.
+For the failing 128x128 request, both source and destination therefore reached
+the kernel as `(handle, 0, 0x4000)`. The nonzero `v_addr` is the value left by
+`base + width * height` when the userspace base pointer is null. It is not an
+independently imported plane handle.
 
-### Phase 2 — make the driver say why
+Rockchip's driver uses `uv_addr > 0` as the sole separate-plane discriminator
+in `rga_mm_get_channel_handle_info()`. If `uv_addr` is zero, it resolves only
+`yrgb_addr` and derives the image's plane addresses from the single buffer.
+The rewrite instead entered explicit-plane handling when either `uv_addr` or
+`v_addr` was nonzero. It consequently interpreted `0x4000` as a third handle,
+required a missing UV handle, and returned `EINVAL` before handle resolution,
+mapping, scheduling, dispatch, or IRQ handling.
 
-The existing `rga-mmu-debug.sh` enables `/sys/kernel/debug/rkrga`
-`reg msg int mm time`, brackets the run with kmsg markers, and captures
-before/after dmesg plus debugfs snapshots. It was written for the 2026-07-04
-`INTR[0x2]` hunt and fits this exactly. Pair it with an RGA debugfs counter
-delta to see which counter moves (rejected vs import vs job).
+## Evidence
 
-### Phase 3 — source-inspect the named branch
+The attribution combines four independent observations:
 
-Candidate sites, in the order the submit path reaches them:
+1. `strace` showed successful handle imports followed by
+   `RGA_BLIT_SYNC` (`0x5017`) returning `EINVAL`.
+2. A debugger capture of the exact request decoded source and destination as
+   `yrgb_addr=1/2`, `uv_addr=0`, `v_addr=0x4000`, RGBA8888, 128x128 raster.
+3. A function-graph trace entered `rk_rga_img_layout()` inside
+   `rk_rga_resolve_img_handles_locked()` and then unwound without calling the
+   handle resolver. That places the return in the caller's plane-shape checks.
+4. Source inspection agrees on both sides:
+   `rockchip-userspace/librga-fork@26a50ef09c87` constructs the placeholder in
+   `core/NormalRga.cpp`, while Rockchip's forward driver
+   `linux-6.18-rkvenc-av1-fwport@5b87d46eefdc` branches only on `uv_addr` in
+   `drivers/video/rockchip/rga3/rga_mm.c`.
 
-| Symbol | Line | Why it is a candidate |
-|---|---:|---|
-| `rk_rga_job_map_import()` | ~4700 | maps the import for the job; calls the SG checks |
-| `rk_rga_check_dma_sgt()` | ~2043 | has two **unlogged** `-EINVAL` returns |
-| `rk_rga_check_dma_sgt_coverage()` | ~2089 | size/coverage rejection |
-| `rk_rga_job_prepare_hw_mappings()` | ~22671 | per-HW mapping preparation |
-| `rk_rga_task_hw_type_mask()` | ~22855 | core eligibility; returning an empty mask fails the job |
+The earlier CMA theory was caused by where the reproducer allocated its
+buffers, not by where the request failed. The trace proves that no DMA-BUF
+mapping path was reached. The separate multi-SG defect remains valid but does
+not explain this rejection.
 
-### Phase 4 — bisect, only if Phases 0–3 have not answered it
+## Driver fix
 
-Six rga-rewrite commits land in the 2026-07-21 → 2026-08-01 window. Ranked by
-suspicion:
+The rewrite now matches the vendor ABI:
 
-1. **`66ae8c0f03f5`** *"harden userspace-driven import and fence paths"* —
-   hardening is by definition the addition of new rejections, and this is the
-   import path.
-2. **`995a0aa710fb`** *"add RGA2 multi-SG MMU"* — 887 insertions, and it is the
-   fix whose own finding is marked `RUNTIME-UNVERIFIED`; large changes to the
-   mapping path can regress the contiguous case while fixing the fragmented one.
-3. **`ac8c4433c7a1`** *"keep the power domain on across IOMMU work"*.
-4. `29904d8e2fa4`, `cd71f985a784`, `35eb735d21dd` — fixture/review changes,
-   lower prior.
+- `uv_addr` alone selects explicit-plane handle resolution;
+- `v_addr` is treated as a handle only inside that explicit-plane mode;
+- compressed single-buffer requests with `uv_addr == 0` accept librga's
+  placeholder `v_addr`;
+- genuine explicit UV/V requests retain their format-size checks, alias
+  validation, reference acquisition, and compressed-mode rejection.
 
-**Bisect by reverting onto the current tip, not by checking out old trees.** A
-revert keeps every other fix in place, so a pass identifies the culprit without
-also un-fixing the multi-SG and AFBC work — and the resulting kernel is one
-commit from shippable rather than ten days behind.
+The same source change is applied to the 6.18 rewrite tree at
+`8042f13c5459` and its mainline mirror at `94e9ad41a19a`. The existing explicit
+plane KUnit fixture now also covers a semiplanar single-buffer placeholder and
+an FBC RGBA single-buffer placeholder before exercising the genuine explicit
+plane case.
 
-### Phase 5 — cross-check the forward-port driver
+Both affected `rga_rewrite.o` objects compile, and the source diffs pass the
+kernel `checkpatch.pl --strict` gate. Hardware closure still requires building,
+installing, and booting the patched kernel, then rerunning the KUnit manifest
+and librga suite.
 
-The forward-port kernel carries an independent RGA implementation. Booting it
-and running `librga-smoke.sh` costs a reboot and no build. A pass there confirms
-the defect is rewrite-specific; a failure would point at librga or the board
-configuration instead and would invalidate most of the plan above.
+## Suite result classification
 
-## Worth doing regardless of the outcome
+The same investigation exposed an independent userspace evidence defect.
+Several official sample `main()` functions return a failed `IM_STATUS` value
+whose numeric value is zero, so the shell reports success even after the sample
+prints a fatal error. In `20260802-101933-librga-suite`, 33 official cases (32
+required and one diagnostic) were recorded as passes despite fatal log
+messages.
 
-**The silent `-EINVAL` is its own defect.** A submit path that rejects a job
-with no log entry is why this took a full conformance run to notice and will
-cost time on every future occurrence. Adding a rate-limited `dev_err` (or
-routing these through the existing debug event ring, as the MPP rewrite does for
-its IRQ statuses) is a small change that pays for itself the next time — and it
-would likely have answered this question at Phase 0.
+`librga-suite.sh` now classifies a zero-status official sample as `log-fail`
+when its log contains the known fatal signatures. The in-repo smoke is excluded
+from this scan because its negative compatibility probes deliberately print
+rejected-operation diagnostics. A device-free parser selftest is available as:
 
-## Non-goal
+```sh
+LIBRGA_SUITE_VALIDATE_LOG_PARSER=1 \
+  bash kernel-drivers/tests/librga-suite.sh
+```
 
-This should not block the reset-domain-lock work, which is verified and green
-on both the statistical gate and the MPP conformance suite. The RGA regression
-predates the lock by roughly ten days and is independent of it.
+This correction does not make the hard-coded official sample heap names
+portable. The 13 cases that require absent
+`/dev/dma_heap/system-uncached{,-dma32}` nodes are excluded from the default
+suite and remain available through `LIBRGA_ENABLE_VENDOR_HEAP_CASES=1` for a
+matching BSP environment; they must not be attributed to the handle-plane fix.
+
+## Runtime closure
+
+After booting a kernel containing the fix:
+
+1. run the rewrite KUnit manifest and confirm the RGA fixture remains green;
+2. run `kernel-drivers/tests/librga-smoke.sh` and require the initial imported
+   RGBA copy plus the full maintained smoke to pass;
+3. run `kernel-drivers/tests/librga-suite.sh` and inspect `summary.tsv` for real
+   `log-fail` classifications rather than accepting shell-zero sample exits;
+4. preserve the kernel identity, suite directory, debugfs deltas, and clean
+   dmesg scan before marking the fix runtime-verified.

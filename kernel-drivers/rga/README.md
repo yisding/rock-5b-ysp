@@ -33,8 +33,8 @@ sub-project is the RGA-specific front door.
 - RGA2-first plan for legal multi-segment DMA-BUF and USERPTR mappings through
   the internal RGA MMU:
   [`rga2-multisegment-parity-plan.md`](docs/rga2-multisegment-parity-plan.md).
-- Phased plan for the `ysp_librga_smoke` CMA handle-import submit regression
-  (passed 2026-07-21, fails 2026-08-01; cheap steps first, kernel builds last):
+- Root cause, ABI-compatible fix, and runtime closure gate for librga's
+  single-buffer handle-plane placeholder:
   [`librga-smoke-cma-regression-plan.md`](docs/librga-smoke-cma-regression-plan.md).
 - Raw physical-address import crash, affected Rockchip BSP branches, and the
   required validation fix:

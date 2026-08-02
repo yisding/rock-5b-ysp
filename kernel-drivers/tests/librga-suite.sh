@@ -19,6 +19,9 @@ RGA_CAPTURE_ARTIFACTS=${RGA_CAPTURE_ARTIFACTS:-1}
 RGA_ENABLE_YSP_SMOKE=${RGA_ENABLE_YSP_SMOKE:-1}
 RGA_REQUIRE_YSP_SMOKE=${RGA_REQUIRE_YSP_SMOKE:-1}
 LIBRGA_FORCE_RGA_USERPTR_IOMMU=${LIBRGA_FORCE_RGA_USERPTR_IOMMU:-${LIBRGA_FORCE_ROUTE_B:-0}}
+LIBRGA_ENABLE_VENDOR_HEAP_CASES=${LIBRGA_ENABLE_VENDOR_HEAP_CASES:-0}
+LIBRGA_SUITE_VALIDATE_LOG_PARSER=${LIBRGA_SUITE_VALIDATE_LOG_PARSER:-0}
+LIBRGA_SUITE_VALIDATE_CASES=${LIBRGA_SUITE_VALIDATE_CASES:-0}
 rga_userptr_iommu_force_path=
 rga_userptr_iommu_force_prev=
 
@@ -32,6 +35,50 @@ case "$PROFILE" in
 	export LIBRGA_SMOKE_EXPECT_FBC_TAIL_REJECT
 	;;
 esac
+
+librga_sample_log_failed()
+{
+	# Several official samples return the failed IM_STATUS value (zero) from
+	# main(), so their process status alone cannot distinguish success.
+	grep -aiEq -- \
+		'running failed|Fatal error:|check error!|ioctl err|(^|[^[:alpha:]])fail(ed|ure)?([^[:alpha:]]|$)' \
+		"${1:--}"
+}
+
+validate_librga_sample_log_parser()
+{
+	local line
+
+	while IFS= read -r line; do
+		if ! printf '%s\n' "$line" | librga_sample_log_failed; then
+			printf 'FAIL: librga log parser missed fatal line: %s\n' "$line" >&2
+			return 1
+		fi
+	done <<'EOF'
+rga_copy_demo running failed, Fatal error: Failed to call RockChipRga interface
+90, check error! Unsupported function
+update palette table mode ioctl err
+failed to get phy address: Invalid argument
+EOF
+
+	while IFS= read -r line; do
+		if printf '%s\n' "$line" | librga_sample_log_failed; then
+			printf 'FAIL: librga log parser rejected benign line: %s\n' "$line" >&2
+			return 1
+		fi
+	done <<'EOF'
+rga_copy_demo running success!
+Could not open /usr/data/src/1280x720.rgb
+src image read err
+EOF
+
+	echo "PASS: librga sample log parser"
+}
+
+if [ "$LIBRGA_SUITE_VALIDATE_LOG_PARSER" = "1" ]; then
+	validate_librga_sample_log_parser
+	exit
+fi
 
 required_cases_default="
 ysp_librga_smoke
@@ -47,20 +94,12 @@ rga_crop_rect_demo
 rga_resize_demo
 rga_resize_rect_demo
 rga_resize_config_interpolation_demo
-rga_resize_uv_downsampling_demo
 rga_cvtcolor_demo
-rga_cvtcolor_csc_demo
 rga_cvtcolor_gray256_demo
-rga_fill_demo
-rga_fill_rectangle_demo
-rga_fill_rectangle_array_demo
-rga_fill_rectangle_task_demo
-rga_fill_rectangle_task_array_demo
 rga_alpha_demo
 rga_alpha_3channel_demo
 rga_alpha_yuv_demo
 rga_alpha_colorkey_demo
-rga_alpha_osd_demo
 rga_alpha_rgba5551_demo
 rga_alpha_global_alpha_demo
 rga_transform_rotate_demo
@@ -71,14 +110,28 @@ rga_async_demo
 rga_config_single_core_demo
 rga_config_thread_core_demo
 rga_allocator_malloc_demo
-rga_allocator_dma_demo
 rga_allocator_dma_cache_demo
-rga_allocator_dma32_demo
 rga_allocator_drm_demo
 rga_mosaic_demo
 rga_rop_demo
-rga_padding_demo
 rga_palette_demo
+"
+
+# These official samples hard-code vendor-only heap nodes that are absent on
+# the upstream-style RK3588 kernel. Keep them available for a matching BSP
+# environment without making missing allocator types fail the default suite.
+vendor_heap_cases_default="
+rga_resize_uv_downsampling_demo
+rga_cvtcolor_csc_demo
+rga_fill_demo
+rga_fill_rectangle_demo
+rga_fill_rectangle_array_demo
+rga_fill_rectangle_task_demo
+rga_fill_rectangle_task_array_demo
+rga_alpha_osd_demo
+rga_allocator_dma_demo
+rga_allocator_dma32_demo
+rga_padding_demo
 rga_gauss_demo
 rga_gauss_matrix_demo
 "
@@ -91,6 +144,11 @@ rga_cfa_demo
 rga_cfa_a2_demo
 rga_cfa_bcsh_demo
 "
+
+if [ "$LIBRGA_ENABLE_VENDOR_HEAP_CASES" = "1" ]; then
+	required_cases_default="$required_cases_default
+$vendor_heap_cases_default"
+fi
 
 if [ "$RGA_ENABLE_YSP_SMOKE" != "1" ] &&
 	[ "$RGA_REQUIRE_YSP_SMOKE" != "1" ]; then
@@ -106,6 +164,40 @@ fi
 required_cases=${RGA_REQUIRED_CASES:-$required_cases_default}
 diagnostic_cases=${RGA_DIAGNOSTIC_CASES:-$diagnostic_cases_default}
 failed=0
+
+validate_librga_case_lists()
+{
+	local case_name
+	local found
+
+	for case_name in $vendor_heap_cases_default; do
+		found=0
+		if printf '%s\n' "$required_cases_default" |
+			grep -qx -- "$case_name"; then
+			found=1
+		fi
+		if [ "$LIBRGA_ENABLE_VENDOR_HEAP_CASES" = "1" ] &&
+			[ "$found" != "1" ]; then
+			printf 'FAIL: opt-in vendor heap case is absent: %s\n' \
+				"$case_name" >&2
+			return 1
+		fi
+		if [ "$LIBRGA_ENABLE_VENDOR_HEAP_CASES" != "1" ] &&
+			[ "$found" = "1" ]; then
+			printf 'FAIL: vendor heap case leaked into defaults: %s\n' \
+				"$case_name" >&2
+			return 1
+		fi
+	done
+
+	printf 'PASS: librga default cases (vendor heaps %s)\n' \
+		"$LIBRGA_ENABLE_VENDOR_HEAP_CASES"
+}
+
+if [ "$LIBRGA_SUITE_VALIDATE_CASES" = "1" ]; then
+	validate_librga_case_lists
+	exit
+fi
 
 # shellcheck disable=SC2329 # Invoked through the EXIT trap below.
 restore_rga_userptr_iommu_force()
@@ -275,8 +367,13 @@ run_case()
 	end=$(suite_now_ns)
 	elapsed=$(suite_elapsed_s "$start" "$end")
 
+	if [ "$status" = "0" ] &&
+		[ "$case_name" != "ysp_librga_smoke" ] &&
+		librga_sample_log_failed "$log"; then
+		status="log-fail"
+	fi
 	printf "%s\n" "$status" > "$status_file"
-	if [ "$status" -eq 0 ]; then
+	if [ "$status" = "0" ]; then
 		result=pass
 		record_case_artifacts "$class" "$case_name" "$case_artifact_dir"
 	elif [ "$class" = "diagnostic" ]; then
