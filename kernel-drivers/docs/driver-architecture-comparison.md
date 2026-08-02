@@ -548,7 +548,7 @@ BSP-derived RGA                   rewrite RGA
 | MPP code/build lines | 18,442, including AV1, compatibility headers, and legacy-SoC helpers | 14,118 including 4,653 KUnit lines; 9,465 without KUnit |
 | RGA code/build lines | 21,160 | 23,990 including 10,692 KUnit lines; 13,298 without KUnit |
 | ABI ledger | External project documentation and vendor headers | 648-line MPP and 633-line RGA in-tree `ABI.rst` files |
-| In-driver KUnit | None comparable | 90 MPP + 148 RGA cases |
+| In-driver KUnit | None comparable | 90 MPP + 152 RGA cases |
 | Primary verification style | Board conformance, sanitizer builds, hostile reproducers, production runs | KUnit/build profiles first, then the same board suites and differential artifacts |
 
 The modular BSP layout is easier to browse file by file. The rewrite keeps an
@@ -643,7 +643,7 @@ evidence:
 | Rewrite mainline replay | `rk3588-rewrite-mainline@451634b8c5a22`; MPP differs from the 6.18 copy by three lines at this boundary, RGA is byte-identical |
 | Rockchip BSP donor | `develop-6.1@b4ef083dc0c3` |
 | Upstream-style comparators | Linux `v7.2-rc5`-era `rockchip/rkvdec`, Verisilicon Hantro, Chips&Media Wave5, Qualcomm Venus, MediaTek vcodec, Allegro DVT, and Amphion sources in the mainline replay tree |
-| Runtime boundary | The rewrite has a clean exact 90 MPP + 148 RGA KUnit gate, but its latest multicore and AV1/VSI lifecycle fixes are not boot-verified |
+| Runtime boundary | The rewrite has a clean exact 90 MPP + 152 RGA KUnit gate, but its latest multicore and AV1/VSI lifecycle fixes are not boot-verified |
 
 The upstream comparators are reference designs for kernel-boundary and
 maintenance quality, not feature- or performance-equivalent implementations.

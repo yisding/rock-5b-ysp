@@ -20,7 +20,10 @@ REQUIRE_ARTIFACTS=${REQUIRE_ARTIFACTS:-1}
 REQUIRE_COUNTER_DELTAS=${REQUIRE_COUNTER_DELTAS:-1}
 REQUIRE_DMESG_EVIDENCE=${REQUIRE_DMESG_EVIDENCE:-1}
 REQUIRE_KUNIT_EVIDENCE=${REQUIRE_KUNIT_EVIDENCE:-}
-KUNIT_EVIDENCE_SUITES=${KUNIT_EVIDENCE_SUITES:-"rk_mpp_rewrite:90 rockchip-rga-rewrite:148"}
+# Suite names only: the expected case count is derived from the manifest, so it
+# cannot drift away from the case list the boot is checked against. A legacy
+# "suite:count" entry is accepted and its count ignored.
+KUNIT_EVIDENCE_SUITES=${KUNIT_EVIDENCE_SUITES:-"rk_mpp_rewrite rockchip-rga-rewrite"}
 KUNIT_MANIFEST=${KUNIT_MANIFEST:-"$TEST_DIR/rewrite-kunit-manifest.tsv"}
 KUNIT_EXPECTED_SOURCE_COMMIT=${KUNIT_EXPECTED_SOURCE_COMMIT:-}
 KUNIT_EXPECTED_CONFIG_SHA256=${KUNIT_EXPECTED_CONFIG_SHA256:-}
@@ -507,15 +510,23 @@ check_kunit_evidence()
 
 	for spec in $KUNIT_EVIDENCE_SUITES; do
 		kunit_suite=${spec%%:*}
-		expected=${spec#*:}
+		# The manifest names every case in registration order; the
+		# identity the report carries is the sha256 of that name list,
+		# computed over the same byte stream rewrite-kunit-log-check.sh
+		# hashes. An empty list still hashes, so the emptiness test has
+		# to count rows rather than check the digest.
+		manifest_cases=$(awk -F '\t' -v suite="$kunit_suite" \
+			'$1 == suite { n++ } END { print n + 0 }' "$KUNIT_MANIFEST")
 		manifest_hash=$(awk -F '\t' -v suite="$kunit_suite" \
-			'$1 == suite { print $3 }' "$KUNIT_MANIFEST")
-		if [ -z "$manifest_hash" ]; then
+			'$1 == suite { print $3 }' "$KUNIT_MANIFEST" |
+			sha256sum | awk '{ print $1 }')
+		if [ "$manifest_cases" = 0 ]; then
 			printf "missing KUnit manifest identity: suite=%s manifest=%s\n" \
 				"$kunit_suite" "$KUNIT_MANIFEST" >&2
 			failed=1
 			continue
 		fi
+		expected=$manifest_cases
 		if ! awk -F '\t' -v suite="$kunit_suite" -v expected="$expected" \
 			-v manifest_hash="$manifest_hash" \
 			-v expected_source="$KUNIT_EXPECTED_SOURCE_COMMIT" \
@@ -800,11 +811,24 @@ selftest()
 		write_fixture_suite "$tmp_root" "$CANDIDATE" "$suite"
 	done
 	mkdir -p "$tmp_root/logs/$CANDIDATE"
-	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv" <<EOF
-suite	expected_cases	plan_cases	result_cases	failed_cases	skipped_cases	summary	verdict	kernel_release	source_commit	config_sha256	package_id	ordered_case_names_sha256
-rk_mpp_rewrite	90	90	90	0	0	ok	pass	6.18.0-rewrite-g0123456789ab	0123456789abcdef0123456789abcdef01234567	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	linux-image-test=1	a9320a8d3903075e89efe9c9692ddacb0ed5fa40e84cdb5e3d1819aaa6ed3175
-rockchip-rga-rewrite	148	148	148	0	0	ok	pass	6.18.0-rewrite-g0123456789ab	0123456789abcdef0123456789abcdef01234567	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	linux-image-test=1	251a81835636d0f7df3ef0a0155a8b8f93ecd4ed0c2795077d514de703d1fe69
-EOF
+	# Derive the fixture's per-suite counts and name-list digests from the
+	# tracked manifest rather than pinning them here, so adding a KUnit case
+	# does not require editing this selftest.
+	{
+		printf "suite\texpected_cases\tplan_cases\tresult_cases\tfailed_cases\tskipped_cases\tsummary\tverdict\tkernel_release\tsource_commit\tconfig_sha256\tpackage_id\tordered_case_names_sha256\n"
+		for spec in $KUNIT_EVIDENCE_SUITES; do
+			fixture_suite=${spec%%:*}
+			fixture_cases=$(awk -F '\t' -v suite="$fixture_suite" \
+				'$1 == suite { n++ } END { print n + 0 }' \
+				"$KUNIT_MANIFEST")
+			fixture_hash=$(awk -F '\t' -v suite="$fixture_suite" \
+				'$1 == suite { print $3 }' "$KUNIT_MANIFEST" |
+				sha256sum | awk '{ print $1 }')
+			printf "%s\t%s\t%s\t%s\t0\t0\tok\tpass\t6.18.0-rewrite-g0123456789ab\t0123456789abcdef0123456789abcdef01234567\taaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\tlinux-image-test=1\t%s\n" \
+				"$fixture_suite" "$fixture_cases" \
+				"$fixture_cases" "$fixture_cases" "$fixture_hash"
+		done
+	} > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
 	cat > "$tmp_root/logs/$CANDIDATE/20260706-000000-kunit-dmesg-scan.tsv" <<EOF
 field	value
 status	clean
@@ -846,7 +870,7 @@ EOF
 	sed -i 's/status\tfatal/status\tclean/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-mpp-suite/dmesg-scan.tsv"
 
-	sed -i 's/rk_mpp_rewrite\t90\t90\t90\t0\t0\tok\tpass/rk_mpp_rewrite\t90\t90\t90\t1\t0\tnot-ok\tfail/' \
+	sed -i 's/\(rk_mpp_rewrite\t[0-9]*\t[0-9]*\t[0-9]*\)\t0\t0\tok\tpass/\1\t1\t0\tnot-ok\tfail/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
 	if CONFORMANCE_ROOT="$tmp_root" SUITES="mpp" \
 		REQUIRE_KUNIT_EVIDENCE=1 REQUIRE_ARTIFACTS=1 \
@@ -855,7 +879,7 @@ EOF
 		printf "selftest expected failing KUnit evidence to fail\n" >&2
 		return 1
 	fi
-	sed -i 's/rk_mpp_rewrite\t90\t90\t90\t1\t0\tnot-ok\tfail/rk_mpp_rewrite\t90\t90\t90\t0\t0\tok\tpass/' \
+	sed -i 's/\(rk_mpp_rewrite\t[0-9]*\t[0-9]*\t[0-9]*\)\t1\t0\tnot-ok\tfail/\1\t0\t0\tok\tpass/' \
 		"$tmp_root/logs/$CANDIDATE/20260706-000000-kunit.tsv"
 
 	# The build stamp may carry the source gsha in `uname -v` instead of

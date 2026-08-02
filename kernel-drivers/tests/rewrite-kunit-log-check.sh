@@ -8,7 +8,10 @@ REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 source "$TEST_DIR/suite-common.sh"
 
 KUNIT_DEBUGFS_ROOT=${KUNIT_DEBUGFS_ROOT:-/sys/kernel/debug/kunit}
-KUNIT_REQUIRED_SUITES=${KUNIT_REQUIRED_SUITES:-"rk_mpp_rewrite:90 rockchip-rga-rewrite:148"}
+# Suite names only: the expected case list comes from the manifest, so a count
+# cannot drift away from it. A legacy "suite:count" entry is accepted and the
+# count ignored, for callers pinned to an older invocation.
+KUNIT_REQUIRED_SUITES=${KUNIT_REQUIRED_SUITES:-"rk_mpp_rewrite rockchip-rga-rewrite"}
 KUNIT_MANIFEST=${KUNIT_MANIFEST:-"$TEST_DIR/rewrite-kunit-manifest.tsv"}
 KUNIT_REPORT=${KUNIT_REPORT:-}
 KUNIT_DMESG_SOURCE=${KUNIT_DMESG_SOURCE:-}
@@ -48,48 +51,34 @@ check_suite()
 {
 	local spec=$1
 	local suite=${spec%%:*}
-	local expected=${spec#*:}
+	local expected
 	local results="$KUNIT_DEBUGFS_ROOT/$suite/results"
 	local row
 	local status=0
-	local manifest_count
-	local manifest_hash
+	local manifest_names
 	local names
 	local actual_hash
+	local manifest_hash
 
-	case "$spec" in
-	*:*)
-		;;
-	*)
-		echo "invalid KUNIT_REQUIRED_SUITES entry (want suite:count): $spec" >&2
-		return 2
-		;;
-	esac
-	case "$expected" in
-	''|*[!0-9]*|0)
-		echo "invalid KUnit case count in spec: $spec" >&2
-		return 2
-		;;
-	esac
-	if ! read -r manifest_count manifest_hash < <(
-		awk -F '\t' -v suite="$suite" '
-			$1 == suite { print $2, $3; found++ }
-			END { exit found == 1 ? 0 : 1 }
-		' "$KUNIT_MANIFEST"
-	); then
-		echo "missing or duplicate KUnit manifest entry: $suite" >&2
+	# The manifest names every case in registration order; the expected
+	# count is derived from it rather than asserted alongside it.
+	manifest_names=$(mktemp "${TMPDIR:-$REPO_ROOT}/.rewrite-kunit-manifest.XXXXXX")
+	awk -F '\t' -v suite="$suite" '$1 == suite { print $3 }' \
+		"$KUNIT_MANIFEST" > "$manifest_names"
+	expected=$(wc -l < "$manifest_names" | tr -d '[:space:]')
+	if [ "$expected" = 0 ]; then
+		echo "missing KUnit manifest entries for suite: $suite" >&2
+		rm -f "$manifest_names"
 		return 2
 	fi
-	if [ "$manifest_count" != "$expected" ]; then
-		echo "KUnit suite count disagrees with manifest: $spec manifest=$manifest_count" >&2
-		return 2
-	fi
+	manifest_hash=$(sha256sum "$manifest_names" | awk '{ print $1 }')
 
 	# debugfs files can report st_size == 0 while returning data when read.
 	# Test access, then let the KTAP parser reject empty or malformed content.
 	if [ ! -r "$results" ]; then
 		echo "missing or unreadable KUnit results for $suite: $results" >&2
 		write_result "$suite\t$expected\tmissing\tmissing\tmissing\tmissing\tmissing\tfail\t$KUNIT_KERNEL_RELEASE\t$KUNIT_SOURCE_COMMIT\t$KUNIT_CONFIG_SHA256\t$KUNIT_PACKAGE_ID\t$manifest_hash"
+		rm -f "$manifest_names"
 		return 1
 	fi
 
@@ -150,11 +139,23 @@ check_suite()
 		status=$?
 	fi
 	actual_hash=$(sha256sum "$names" | awk '{ print $1 }')
-	rm -f "$names"
-	if [ "$actual_hash" != "$manifest_hash" ]; then
+	# Report which cases the boot ran that the manifest does not list, and
+	# which it lists that never ran. A bare hash mismatch told an operator
+	# only that something moved, which is how a stale manifest survived for
+	# days in the 2026-07-30 false-red.
+	if ! cmp -s "$manifest_names" "$names"; then
 		status=1
 		row="${row%$'\t'*}"$'\tfail'
+		echo "KUnit case list differs from the manifest: $suite" >&2
+		comm -13 <(sort "$manifest_names") <(sort "$names") |
+			sed 's/^/  ran but not in the manifest: + /' >&2
+		comm -23 <(sort "$manifest_names") <(sort "$names") |
+			sed 's/^/  in the manifest but did not run: - /' >&2
+		if cmp -s <(sort "$manifest_names") <(sort "$names"); then
+			echo "  same cases, different execution order" >&2
+		fi
 	fi
+	rm -f "$names" "$manifest_names"
 	write_result "$row\t$KUNIT_KERNEL_RELEASE\t$KUNIT_SOURCE_COMMIT\t$KUNIT_CONFIG_SHA256\t$KUNIT_PACKAGE_ID\t$actual_hash"
 	return "$status"
 }
@@ -362,12 +363,13 @@ selftest()
 	export KUNIT_PACKAGE_ID KUNIT_MANIFEST
 	printf "1\n" > "$KUNIT_DEBUG_LOCKS_FILE"
 	printf "CONFIG_KUNIT=y\n" > "$KUNIT_CONFIG_FILE"
-	printf "# suite\texpected_cases\tordered_case_names_sha256\n" \
-		> "$KUNIT_MANIFEST"
+	printf "# suite\tordinal\tcase_name\n" > "$KUNIT_MANIFEST"
 
 	for spec in $KUNIT_REQUIRED_SUITES; do
 		suite=${spec%%:*}
-		count=${spec#*:}
+		# The selftest picks its own case count; the production manifest
+		# derives it from the tracked case list.
+		count=3
 		if [ "$suite" = rk_mpp_rewrite ]; then
 			mpp_count=$count
 		fi
@@ -382,12 +384,11 @@ selftest()
 			for i in $(seq 1 "$count"); do
 				printf "    ok %s case_%s\n" "$i" "$i"
 				printf "case_%s\n" "$i" >> "$names"
+				printf "%s\t%s\tcase_%s\n" "$suite" "$i" "$i" \
+					>> "$KUNIT_MANIFEST"
 			done
 			printf "ok 1 %s\n" "$suite"
 		} > "$tmp_root/$suite/results"
-		printf "%s\t%s\t%s\n" "$suite" "$count" \
-			"$(sha256sum "$names" | awk '{ print $1 }')" \
-			>> "$KUNIT_MANIFEST"
 	done
 	{
 		printf "[    1.000000] KTAP version 1\n"

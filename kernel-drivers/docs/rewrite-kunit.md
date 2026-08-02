@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when the ordered **90 MPP + 148 RGA case manifest** matches without
+green only when the named **90 MPP + 152 RGA case manifest** matches without
 duplicates, omissions, failures, or skips **and** the same kernel-log interval
 is free of sanitizer reports, warnings, lockdep findings, refcount failures,
 and media/IOMMU faults. The report also binds the run to the kernel release,
@@ -40,7 +40,7 @@ Each suite is compiled in the same translation unit as its driver:
 | Suite | Source | Kconfig symbol | Registered cases |
 |-------|--------|----------------|-----------------:|
 | `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 90 |
-| `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 148 |
+| `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 152 |
 
 The test blocks are guarded with `IS_ENABLED()` and registered with
 `kunit_test_suite()`. Keeping the cases beside the implementation lets them
@@ -102,6 +102,7 @@ hardware throughput:
 | RGA | 62–80 | Import identity, DMA ownership, and job lifetime |
 | RGA | 81–101 | Abort/recovery, scheduling, IOMMU routes, faults, and timeouts |
 | RGA | 102–148 | FFmpeg, GStreamer, RKNN, librga, and display-shaped format/emission profiles |
+| RGA | 149–152 | RGA3 overlap-copy rotate emission and the RGA2 internal-MMU sgt/layout/emit cases |
 
 These are white-box cases. They call production functions with controlled fake
 objects and assert outputs, state transitions, ownership, and error behavior.
@@ -222,12 +223,12 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 90 MPP or 148 RGA |
+| Inner KTAP plan | exactly 90 MPP or 152 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
 | Suite summary | `ok` |
-| Ordered names | exact SHA-256 from `rewrite-kunit-manifest.tsv` |
+| Ordered names | exactly the case list `rewrite-kunit-manifest.tsv` names, in that order; a mismatch is reported as added/missing case names |
 | Source identity | 12–40 digit commit, also embedded as `-g<commit>` in `uname -r` or ` g<commit>` in `uname -v` |
 | Configuration | SHA-256 of the booted kernel config |
 | Package | installed image package name and version |
@@ -335,7 +336,7 @@ RGA. Current tips 6.18 `51ea9d1ca537` / mainline `03da898b03f1f`
 additionally give every fixture a local service, remove runtime
 unregister/reprobe callbacks, make fence/FD/work/device cleanup
 assertion-safe, and replace polling with completion-driven synchronization
-plus a real two-thread fence/abort race. The exact ordered 90/148 manifest and
+plus a real two-thread fence/abort race. The named ordered 90/152 manifest and
 source/config/package-bound evidence gate now own result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 Do not promote KTAP, compile, or package results into a runtime pass until the

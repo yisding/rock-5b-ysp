@@ -115,42 +115,16 @@ check_cross_tree_identity() {
   echo "PASS: rewrite driver, Kconfig, ABI, and UAPI files are byte-identical"
 }
 
+# The extraction and the by-name drift report live in kunit-manifest-check.sh,
+# which the kernel pre-commit hook also drives. Keeping one implementation
+# means the gate and the hook can never disagree about what drift is.
 check_kunit_manifest() {
   local tree="$1"
-  local suite
-  local expected_count
-  local expected_hash
-  local source
-  local actual_count
-  local actual_hash
 
-  while IFS=$'\t' read -r suite expected_count expected_hash; do
-    case "$suite" in
-    ""|\#*) continue ;;
-    rk_mpp_rewrite)
-      source="$tree/drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c"
-      ;;
-    rockchip-rga-rewrite)
-      source="$tree/drivers/video/rockchip/rga-rewrite/rga_rewrite.c"
-      ;;
-    *)
-      echo "unknown suite in KUnit manifest: $suite" >&2
-      exit 1
-      ;;
-    esac
-    actual_count=$(sed -n \
-      's/.*KUNIT_CASE(\([A-Za-z0-9_]*\)).*/\1/p' "$source" | wc -l)
-    actual_hash=$(sed -n \
-      's/.*KUNIT_CASE(\([A-Za-z0-9_]*\)).*/\1/p' "$source" |
-      sha256sum | awk '{ print $1 }')
-    if [ "$actual_count" != "$expected_count" ] ||
-       [ "$actual_hash" != "$expected_hash" ]; then
-      echo "KUnit manifest differs from registered source: $suite" >&2
-      echo "  expected count/hash: $expected_count $expected_hash" >&2
-      echo "  observed count/hash: $actual_count $actual_hash" >&2
-      exit 1
-    fi
-  done < "$TEST_DIR/rewrite-kunit-manifest.tsv"
+  if ! KUNIT_MANIFEST="$TEST_DIR/rewrite-kunit-manifest.tsv" \
+      bash "$TEST_DIR/kunit-manifest-check.sh" "$tree"; then
+    exit 1
+  fi
   echo "PASS: KUnit manifest matches registered source in $tree"
 }
 

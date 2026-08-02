@@ -6,9 +6,16 @@
 # Retro item 5 (2026-07-30): the 07-30 false-red boot ran a stale 84-case
 # manifest for days because kernel commit 1115e0c added five AV1 KUnit cases
 # with no manifest update — the rationalization plan requires that pairing but
-# nothing enforced it at kernel-commit time. This is the same count+hash check
-# rewrite-build-gate.sh runs, factored out so a git pre-commit hook can call it
-# (see install-kernel-hooks.sh). Device-free; safe to run from a hook.
+# nothing enforced it at kernel-commit time. Device-free; safe to run from a
+# git pre-commit hook (see install-kernel-hooks.sh).
+#
+# The manifest names every registered case rather than asserting a count and an
+# opaque ordered hash. Round 3 (2026-08-01) found three RGA2 MMU cases called
+# from inside an unrelated case with the comment "Keep the established 148-case
+# boot manifest while extending coverage" -- the count assertion was the thing
+# creating that pressure, and it also made every drift report unactionable
+# ("hash a != hash b"). A named set reports which cases appeared or vanished,
+# and a count carries no information a name list does not.
 set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,31 +33,62 @@ manifest_source_for()
 	esac
 }
 
-# Same extraction as rewrite-build-gate.sh check_kunit_manifest: the registered
-# KUNIT_CASE(name) tokens in registration order, counted and hashed.
-kunit_case_count()
+manifest_suites()
 {
-	sed -n 's/.*KUNIT_CASE(\([A-Za-z0-9_]*\)).*/\1/p' "$1" | wc -l | tr -d '[:space:]'
+	awk -F'\t' '$1 !~ /^#/ && NF >= 3 { if (!seen[$1]++) print $1 }' \
+		"$MANIFEST"
 }
-kunit_case_hash()
+
+# The registered KUNIT_CASE(name) tokens, in registration order. This is the
+# single extraction shared by the pre-commit hook, rewrite-build-gate.sh, and
+# the manifest regenerator.
+kunit_case_names()
 {
-	sed -n 's/.*KUNIT_CASE(\([A-Za-z0-9_]*\)).*/\1/p' "$1" |
-		sha256sum | awk '{ print $1 }'
+	sed -n 's/.*KUNIT_CASE(\([A-Za-z0-9_]*\)).*/\1/p' "$1"
+}
+
+manifest_case_names()
+{
+	awk -F'\t' -v suite="$1" '$1 == suite { print $3 }' "$MANIFEST"
+}
+
+# Report the difference between the manifest's cases and the tree's by name.
+# Order matters too: the KTAP sequence check in rewrite-kunit-log-check.sh
+# pairs case N of the plan with case N of the manifest.
+report_diff()
+{
+	local suite="$1" expected="$2" actual="$3"
+	local added removed
+
+	added=$(comm -13 <(sort "$expected") <(sort "$actual"))
+	removed=$(comm -23 <(sort "$expected") <(sort "$actual"))
+
+	echo "kunit-manifest-check: $suite drifted from rewrite-kunit-manifest.tsv" >&2
+	[ -n "$added" ] &&
+		printf '  registered but not in the manifest:\n%s\n' \
+			"$(printf '%s\n' "$added" | sed 's/^/    + /')" >&2
+	[ -n "$removed" ] &&
+		printf '  in the manifest but not registered:\n%s\n' \
+			"$(printf '%s\n' "$removed" | sed 's/^/    - /')" >&2
+	if [ -z "$added" ] && [ -z "$removed" ]; then
+		echo "  same cases, different registration order" >&2
+		diff -u "$expected" "$actual" | sed -n '4,$p' | sed 's/^/    /' >&2
+	fi
+	echo "  Fix: regenerate with '${0##*/} --regenerate <tree>' in the same change" >&2
+	echo "  (kernel-drivers/docs/rewrite-kunit-rationalization-plan.md, Phase 6)." >&2
 }
 
 check_tree()
 {
 	local tree="$1"
-	local manifest="${KUNIT_MANIFEST:-$MANIFEST}"
-	local suite expected_count expected_hash source actual_count actual_hash
+	local suite source expected actual
 	local rc=0
 
 	if [ ! -d "$tree" ]; then
 		echo "kunit-manifest-check: not a directory: $tree" >&2
 		return 2
 	fi
-	while IFS=$'\t' read -r suite expected_count expected_hash; do
-		case "$suite" in ""|\#*) continue ;; esac
+	while read -r suite; do
 		if ! source=$(manifest_source_for "$suite"); then
 			echo "kunit-manifest-check: unknown suite in manifest: $suite" >&2
 			return 2
@@ -60,81 +98,124 @@ check_tree()
 			# vendor branch) is out of scope, not a failure.
 			continue
 		fi
-		actual_count=$(kunit_case_count "$tree/$source")
-		actual_hash=$(kunit_case_hash "$tree/$source")
-		if [ "$actual_count" != "$expected_count" ] ||
-			[ "$actual_hash" != "$expected_hash" ]; then
-			cat >&2 <<EOF
-kunit-manifest-check: $suite drifted from rewrite-kunit-manifest.tsv
-  source:   $source
-  expected: count=$expected_count hash=$expected_hash
-  observed: count=$actual_count hash=$actual_hash
-  Fix: regenerate the manifest and the gate counts in the same change
-  (kernel-drivers/docs/rewrite-kunit-rationalization-plan.md, Phase 6).
-EOF
+		expected=$(mktemp "${TMPDIR:-/tmp}/kunit-manifest.XXXXXX")
+		actual=$(mktemp "${TMPDIR:-/tmp}/kunit-tree.XXXXXX")
+		manifest_case_names "$suite" > "$expected"
+		kunit_case_names "$tree/$source" > "$actual"
+		if ! cmp -s "$expected" "$actual"; then
+			report_diff "$suite" "$expected" "$actual"
 			rc=1
 		fi
-	done < "$manifest"
+		rm -f "$expected" "$actual"
+	done < <(manifest_suites)
 	return "$rc"
+}
+
+regenerate()
+{
+	local tree="$1"
+	local suite source name ordinal
+
+	if [ ! -d "$tree" ]; then
+		echo "kunit-manifest-check: not a directory: $tree" >&2
+		return 2
+	fi
+	printf "# suite\tordinal\tcase_name\n"
+	printf "#\n"
+	printf "# Every registered KUnit case, in registration order. Regenerate with\n"
+	printf "#   kunit-manifest-check.sh --regenerate <kernel-tree>\n"
+	printf "# in the same change that adds or removes a case.\n"
+	while read -r suite; do
+		source=$(manifest_source_for "$suite") || return 2
+		if [ ! -r "$tree/$source" ]; then
+			echo "kunit-manifest-check: missing source for $suite: $tree/$source" >&2
+			return 2
+		fi
+		ordinal=0
+		while read -r name; do
+			ordinal=$((ordinal + 1))
+			printf "%s\t%s\t%s\n" "$suite" "$ordinal" "$name"
+		done < <(kunit_case_names "$tree/$source")
+	done < <(manifest_suites)
 }
 
 selftest()
 {
-	local root pass fail
+	local root pass suite src name fake_manifest rc
+
 	root=$(mktemp -d "${TMPDIR:-/tmp}/kunit-manifest-check.XXXXXX")
 	trap 'rm -rf "$root"' RETURN
 
-	# A tree whose sources match the tracked manifest passes; a one-case
-	# edit fails. Build a fake source with exactly the manifest's cases.
-	local suite count src _hash
+	# Build a tree carrying exactly the manifest's cases, in order.
 	pass="$root/pass"
-	while IFS=$'\t' read -r suite count _hash; do
-		case "$suite" in ""|\#*) continue ;; esac
+	while read -r suite; do
 		src=$(manifest_source_for "$suite") || return 1
 		mkdir -p "$pass/$(dirname "$src")"
 		: > "$pass/$src"
-		local i=0
-		while [ "$i" -lt "$count" ]; do
-			printf 'KUNIT_CASE(case_%s),\n' "$i" >> "$pass/$src"
-			i=$((i + 1))
-		done
-	done < "$MANIFEST"
+		while read -r name; do
+			printf 'KUNIT_CASE(%s),\n' "$name" >> "$pass/$src"
+		done < <(manifest_case_names "$suite")
+	done < <(manifest_suites)
 
-	# The fake tree has correct counts but not the real hashes, so build a
-	# per-suite manifest from the fake tree and check against THAT.
-	local fake_manifest="$root/manifest.tsv"
-	printf "# suite\texpected_cases\tordered_case_names_sha256\n" > "$fake_manifest"
-	while IFS=$'\t' read -r suite count _hash; do
-		case "$suite" in ""|\#*) continue ;; esac
-		src=$(manifest_source_for "$suite") || return 1
-		printf "%s\t%s\t%s\n" "$suite" \
-			"$(kunit_case_count "$pass/$src")" \
-			"$(kunit_case_hash "$pass/$src")" >> "$fake_manifest"
-	done < "$MANIFEST"
-
-	if ! KUNIT_MANIFEST="$fake_manifest" check_tree "$pass" >/dev/null 2>&1; then
+	if ! check_tree "$pass" >/dev/null 2>&1; then
 		echo "selftest: matching tree unexpectedly failed" >&2
 		return 1
 	fi
-	# Append one case to the first source -> drift -> must fail.
-	fail="$pass"
-	local first_src
-	first_src=$(manifest_source_for "$(awk -F'\t' '$1 !~ /^#/ && NF {print $1; exit}' "$fake_manifest")")
-	printf 'KUNIT_CASE(sneaky_extra),\n' >> "$fail/$first_src"
-	if KUNIT_MANIFEST="$fake_manifest" check_tree "$fail" >/dev/null 2>&1; then
+
+	# --regenerate on that tree must reproduce the manifest's data rows.
+	fake_manifest="$root/regen.tsv"
+	regenerate "$pass" > "$fake_manifest"
+	if ! diff -q \
+		<(grep -v '^#' "$MANIFEST") \
+		<(grep -v '^#' "$fake_manifest") >/dev/null; then
+		echo "selftest: --regenerate did not reproduce the manifest" >&2
+		return 1
+	fi
+
+	# An added case must fail, and the report must name it.
+	src=$(manifest_source_for "$(manifest_suites | head -1)")
+	printf 'KUNIT_CASE(sneaky_extra),\n' >> "$pass/$src"
+	rc=0
+	check_tree "$pass" > "$root/out" 2>&1 || rc=$?
+	if [ "$rc" = 0 ]; then
 		echo "selftest: drifted tree unexpectedly passed" >&2
 		return 1
 	fi
+	if ! grep -q '+ sneaky_extra' "$root/out"; then
+		echo "selftest: drift report did not name the added case" >&2
+		return 1
+	fi
+
+	# A removed case must fail, and the report must name it.
+	sed -i '1d' "$pass/$src"
+	rc=0
+	check_tree "$pass" > "$root/out" 2>&1 || rc=$?
+	if [ "$rc" = 0 ]; then
+		echo "selftest: tree with a removed case unexpectedly passed" >&2
+		return 1
+	fi
+	if ! grep -q '^    - ' "$root/out"; then
+		echo "selftest: drift report did not name the removed case" >&2
+		return 1
+	fi
+
 	echo "kunit-manifest-check selftest passed"
 }
 
 case "${1:-}" in
 --selftest) selftest ;;
+--regenerate)
+	if [ -z "${2:-}" ]; then
+		echo "usage: ${0##*/} --regenerate <kernel-tree>" >&2
+		exit 2
+	fi
+	regenerate "$2"
+	;;
 --help|-h)
-	echo "usage: ${0##*/} <kernel-tree> | --selftest" >&2
+	echo "usage: ${0##*/} <kernel-tree> | --regenerate <kernel-tree> | --selftest" >&2
 	;;
 "")
-	echo "usage: ${0##*/} <kernel-tree> | --selftest" >&2
+	echo "usage: ${0##*/} <kernel-tree> | --regenerate <kernel-tree> | --selftest" >&2
 	exit 2
 	;;
 *)
