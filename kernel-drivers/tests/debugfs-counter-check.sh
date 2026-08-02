@@ -11,6 +11,17 @@ FORBID_POSITIVE_COUNTERS=${FORBID_POSITIVE_COUNTERS:-"mpp:timeout_count mpp:reco
 REQUIRE_FORBIDDEN_COUNTERS=${REQUIRE_FORBIDDEN_COUNTERS:-0}
 REQUIRE_COUNTER_FILE=${REQUIRE_COUNTER_FILE:-0}
 
+# Publish the forbidden-counter default so fixtures can be built from it
+# instead of restating it. REQUIRE_FORBIDDEN_COUNTERS=1 demands every entry be
+# present in the delta file, so a counter added here silently invalidates any
+# fixture that hardcodes the old list -- which is exactly how the
+# rewrite-evidence-audit selftest came to fail on three counters it had never
+# heard of.
+if [ "${1:-}" = "--print-forbid-defaults" ]; then
+	printf '%s\n' "$FORBID_POSITIVE_COUNTERS"
+	exit 0
+fi
+
 if [ -z "$COUNTERS_FILE" ] && [ -n "$SUMMARY" ]; then
 	COUNTERS_FILE="$(dirname "$SUMMARY")/debugfs-counters-delta.tsv"
 fi

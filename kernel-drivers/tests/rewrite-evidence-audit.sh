@@ -791,6 +791,21 @@ rga_userptr_iommu	attempt	0	1	1
 rga_userptr_iommu	ok	0	1	1
 rga_userptr_iommu	active	0	0	0
 EOF
+	# REQUIRE_FORBIDDEN_COUNTERS=1 demands that every forbidden counter be
+	# present in the delta file, so a clean fixture has to carry a zero row
+	# for each. Take the list from the checker rather than restating it:
+	# this selftest failed for exactly as long as it took three counters to
+	# be added to that list without anyone updating the copy here.
+	local spec component counter
+	for spec in $(bash "$TEST_DIR/debugfs-counter-check.sh" \
+			--print-forbid-defaults); do
+		component=${spec%%:*}
+		counter=${spec#*:}
+		grep -q "^$component	$counter	" \
+			"$dir/debugfs-counters-delta.tsv" && continue
+		printf "%s\t%s\t0\t0\t0\n" "$component" "$counter" \
+			>> "$dir/debugfs-counters-delta.tsv"
+	done
 	cat > "$dir/dmesg-scan.tsv" <<EOF
 field	value
 status	clean
