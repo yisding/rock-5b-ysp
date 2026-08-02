@@ -76,6 +76,7 @@ not repeat dated status or operational commands because those copies drift.
 | Need | Re-enter through |
 |------|------------------|
 | See the whole stack and choose a reading path | [`docs/work-packages.md`](docs/work-packages.md) |
+| Evaluate the ROCK 5B-only Ubuntu 26.04 image successor | [`docs/ubuntu-rock5b-image-plan.md`](docs/ubuntu-rock5b-image-plan.md) |
 | Understand U-Boot and the ROCK 5B boot chain | [`boot-firmware/`](boot-firmware/README.md) |
 | Compare the validated vendor path with maximum-mainline RK3588 builds | [`kernel-versions/`](kernel-versions/README.md) |
 | Rebuild the MPP/RGA kernel-driver model | [`kernel-drivers/docs/how-the-drivers-work.md`](kernel-drivers/docs/how-the-drivers-work.md) |

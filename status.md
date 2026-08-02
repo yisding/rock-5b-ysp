@@ -110,6 +110,7 @@ last-checked date.
 | W21 | [ffmpeg-rockchip `rkmpp` transcode deadlock without the `da5befc806` backpressure fix](#watch-w21) | 2026-07-23 | The harness's default `FFDIR` binary (FFmpeg-**master**, `libavcodec 63`; its dir's `RELEASE` file misleadingly says 6.1) deadlocks on `h264→hevc` and `hevc_main10→p010` `rkmpp`/`rkrga` pipelines (all threads on `futex`). The **shipping `/usr/bin/ffmpeg 8.0.3~rk1` (`libavcodec 62`, carries `da5befc806`) runs both cleanly**, and the **kernel is not implicated** (clean RGA reset, no D-state/KASAN). Already-catalogued encoder-backpressure/decoder-hang class ([`fix-candidates.md`](./video-libraries/ffmpeg/docs/fix-candidates.md)), fixed on our 8.0 line — not a new finding; not yet forward-ported to main. |
 | W22 | [RK3588 per-die voltage binning absent from mainline](#watch-w22) | 2026-07-27 | Rechecked three release candidates later at maxline `v7.2-rc5-252`: still absent, and `rk3588-opp.dtsi` is byte-identical between the 6.18 forward port and maxline, so one DT patch serves both. Mainline ships the BSP's unbinned worst-die column **exactly** (19/19 shared CPU OPPs) while the BSP's per-die columns reach 50–87 mV lower. This board is bin 0 and its BSP index is now **measured** — L5 little, L7 both big — so the entitlement is priced, not estimated. |
 | W23 | [Ramoops retention reversal & the 6.18.38 kernel A/B](#watch-w23) | 2026-07-28 | **Ramoops recovers records across warm reboots on every 6.18.40-era kernel** — ≥9 recoveries in the retained journal since 2026-07-26, same firmware stack — so the documented all-zero failure is scoped to the 6.18.38-era kernels and the firmware-phase hypothesis is retired. The four-reboot kernel A/B on the still-installed `6.18.38-current` is pending; the 2026-07-27 19:38 GRD-SG oops dump is archived in `/var/lib/systemd/pstore/`. |
+| W24 | [ROCK 5B stock-Ubuntu image inputs](#watch-w24) | 2026-08-01 | Ubuntu 26.04 arm64 images, Canonical's draft Image Cookbook/`ubuntu-image` 3.6.0 schema, Linux 6.18 LTS projection, and the inspected upstream U-Boot tip are recorded as design inputs. No successor image, clean kernel package, gadget, or upstream-U-Boot board boot exists yet. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -828,3 +829,26 @@ last-checked date.
   [`findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md`](./findings/2026-07-28-ramoops-retention-works-on-6-18-40-kernels.md);
   maintained boundary:
   [`boot-firmware/docs/ramoops-retention.md`](./boot-firmware/docs/ramoops-retention.md).
+
+<a id="watch-w24"></a>
+### W24 — ROCK 5B stock-Ubuntu image inputs
+
+- **Why recheck:** Ubuntu point images and seeds, the draft Image Cookbook and
+  `ubuntu-image`/`ukpack` schemas, kernel.org's projected LTS dates, upstream
+  U-Boot releases, and external firmware pins can move independently. Each can
+  invalidate the proposed build inputs without changing any YSP source.
+- **Last checked:** 2026-08-01
+- **State 2026-08-01:** Ubuntu 26.04 publishes a generic arm64 preinstalled
+  server image. Canonical's Image Cookbook explicitly covers unsupported
+  hardware with a device PPA and Ubuntu-archive userspace; its image-definition
+  reference is labelled for `ubuntu-image` 3.6.0 and its gadget reference can
+  encode raw firmware plus GPT/ESP/root structures. The cookbook remains draft.
+  kernel.org lists 6.18 as longterm with projected EOL December 2028. The local
+  upstream U-Boot source inspection is a non-release tip
+  `6741b0dfb41` (`v2026.07-730-g6741b0dfb41`) with no board boot result; select
+  and re-pin a released tag before implementation. No image, clean
+  `linux-rock5b` package, gadget, or final boot chain has been built or tested.
+  Evidence and source links:
+  [`findings/2026-08-01-stock-ubuntu-rock5b-successor-architecture.md`](./findings/2026-08-01-stock-ubuntu-rock5b-successor-architecture.md);
+  durable design:
+  [`docs/ubuntu-rock5b-image-plan.md`](./docs/ubuntu-rock5b-image-plan.md).

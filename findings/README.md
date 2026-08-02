@@ -125,6 +125,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-01-stock-ubuntu-rock5b-successor-architecture.md`](2026-08-01-stock-ubuntu-rock5b-successor-architecture.md) — A ROCK 5B-only Ubuntu successor should keep Resolute userspace stock and own the board kernel and firmware
 - [`2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md`](2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md) — The rkvdec2 hardware self-resets on error; the rewrite driver neither detects it nor restores the IOMMU
 - [`2026-08-01-rewrite-soft-ccu-cross-core-reset-wedge.md`](2026-08-01-rewrite-soft-ccu-cross-core-reset-wedge.md) — Soft-CCU bus-stall wedge returns on the error-reset path; needs two cores of one group resetting
 - [`2026-08-01-rewrite-kunit-boot-failures-and-suite-audit.md`](2026-08-01-rewrite-kunit-boot-failures-and-suite-audit.md) — The two RGA KUnit boot failures were fixture lag; a full-suite audit tightened three more cases and pruned three
@@ -132,6 +133,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-01-rewrite-driver-retrospective.md`](2026-08-01-rewrite-driver-retrospective.md) — Rewrite-driver retrospective: keep the ownership model, change the architecture and qualification order
 - [`2026-08-01-grd-rdp-video-stall-transport-congestion.md`](2026-08-01-grd-rdp-video-stall-transport-congestion.md) — GRD's fixed-QP encoder overruns the Tailscale RDP path, stalling video while audio continues
 - [`2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md`](2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md) — GRD hardware-encode recovery: forced IDR was implemented but unwired, and the detector could never see a hung encode
+- [`2026-08-01-forward-port-uaf-oops-audit-round-2.md`](2026-08-01-forward-port-uaf-oops-audit-round-2.md) — Forward-port UAF/oops audit round 2: 18 defects, 7 of them unprivileged memory corruption
 - [`2026-08-01-armbian-rockchip64-defaults-tcp-reno.md`](2026-08-01-armbian-rockchip64-defaults-tcp-reno.md) — Armbian's rockchip64 kernel configs default TCP congestion control to reno
 - [`2026-07-31-rkvdec-sibling-reset-deassert-race.md`](2026-07-31-rkvdec-sibling-reset-deassert-race.md) — rkvdec soft-CCU sibling power-on can cancel a peer core's recovery reset
 - [`2026-07-31-rga3-afbc-p010-dropped-destination-write.md`](2026-07-31-rga3-afbc-p010-dropped-destination-write.md) — RGA3 AFBC NV15→P010 returns success without writing the destination at small picture sizes
