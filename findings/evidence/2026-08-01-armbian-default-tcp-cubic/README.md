@@ -5,7 +5,7 @@ reno](../../2026-08-01-armbian-rockchip64-defaults-tcp-reno.md).
 
 | File | What it is |
 | --- | --- |
-| `0001-fix-kernel-config-default-to-CUBIC-congestion-contro.patch` | `git format-patch` export of `fix/default-tcp-cubic@37fb6b7ea`, prepared against `armbian/build` `origin/main@535528112` |
+| `0001-fix-kernel-config-default-to-CUBIC-congestion-contro.patch` | `git format-patch` export of `fix/default-tcp-cubic@0fbef7eb2`, prepared against `armbian/build` `origin/main@535528112` |
 
 ## Scope
 

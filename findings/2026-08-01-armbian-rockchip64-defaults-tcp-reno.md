@@ -126,7 +126,7 @@ sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
 sudo modprobe tcp_bbr && sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
 ```
 
-Upstream, `fix/default-tcp-cubic@37fb6b7ea` against `armbian/build`
+Upstream, `fix/default-tcp-cubic@0fbef7eb2` against `armbian/build`
 `origin/main@535528112` restores CUBIC across all nine distinct configs
 (+11/−13). The patch and its verification procedure are in
 [`findings/evidence/2026-08-01-armbian-default-tcp-cubic/`](evidence/2026-08-01-armbian-default-tcp-cubic/README.md).

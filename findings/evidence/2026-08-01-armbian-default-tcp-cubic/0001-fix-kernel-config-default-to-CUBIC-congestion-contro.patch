@@ -1,4 +1,4 @@
-From 37fb6b7eabc067f56b2117161e9c8c3af13c673b Mon Sep 17 00:00:00 2001
+From 0fbef7eb2d6467e90fccc47edd9c8fd631565b06 Mon Sep 17 00:00:00 2001
 From: Yi Ding <yi.s.ding@gmail.com>
 Date: Sat, 1 Aug 2026 18:52:44 -0700
 Subject: [PATCH] fix(kernel-config): default to CUBIC congestion control, not
@@ -53,7 +53,7 @@ linux-rockchip-rk3588-current.config is a symlink to the -edge config and is
 covered by that file's change.
 
 Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ---
  config/kernel/linux-meson64-bleedingedge.config    | 2 +-
  config/kernel/linux-meson64-current.config         | 2 +-
