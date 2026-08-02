@@ -14,10 +14,11 @@ SoC-level DTSI, clock/reset namespace, and BSP kernel compatible table all lack
 VDPP. By contrast, RK3528 and RK3576 instantiate IEP and VDPP side by side.
 The two names are not aliases.
 
-The current YSP Linux 6.18 forward port contains neither the IEP2 subdriver nor
-its RK3588 DT/IOMMU nodes. Hardware deinterlacing is consequently unavailable
-on that kernel even though the silicon has the block and the installed libmpp
-contains the matching userspace code.
+The YSP Linux 6.18 forward-port source now contains the IEP2 subdriver and its
+RK3588 DT/IOMMU nodes. The port builds, but the currently booted kernel predates
+it. Hardware deinterlacing therefore remains unavailable on the running system
+until a kernel built from the new source is booted and the functional gate is
+run.
 
 ## 1. Hardware evidence
 
@@ -139,15 +140,38 @@ That last selection test is too broad for a partial forward port: the generic
 MPP node can exist while IEP2 is absent. Capability selection should check the
 MPP supported-device inventory before choosing IEP2.
 
-## 3. What the current YSP kernel does
+## 3. Forward-port and running-kernel state
 
-The maintained forward-port tree at
-`rk3588-video-6.18@5b87d46eefdcbb276f1e15dd199deb6ea6b12893` retains the
-common MPP enum/name/registration scaffolding for IEP2, but it does not contain:
+The maintained `rk3588-video-6.18` tree originally retained the common MPP
+enum/name/registration scaffolding for IEP2 but omitted the implementation.
+The port now adds:
 
-- `mpp_iep2.c`;
-- `rockchip_iep2_regs.h`; or
-- the RK3588 IEP2/IOMMU device-tree nodes.
+- the adapted `mpp_iep2.c` and `rockchip_iep2_regs.h` implementation;
+- a `CONFIG_ROCKCHIP_MPP_IEP2` build option and MPP aggregate wiring;
+- a `rockchip,iep-v2` binding;
+- RK3588 IEP2 and Rockchip-IOMMU nodes at `fdbb0000`/`fdbb0800`; and
+- ROCK 5B enablement for both nodes.
+
+The 6.18 adaptation supplies the current `iommu_map()` allocation argument and
+void platform remove callback. It also hardens the BSP donor boundary: exact
+semantic input/output request sizes and zero offsets are required, parameter
+dimensions/strides/formats and array counts are bounded, 32-bit IOVA/plane
+offsets are checked, hardware OSD result counts are clamped, IRQ/IOMMU paths
+guard a missing current task, and probe/error/remove paths release the ROI,
+auxiliary page, and workqueue consistently. The RK3588 I1O1T one-page
+read-ahead workaround is retained with a zeroed auxiliary page.
+
+The following source gates pass:
+
+- `mpp_iep2.o` compilation against Linux 6.18;
+- inclusion of `mpp_iep2.o` in `drivers/video/rockchip/mpp/built-in.a`; and
+- compilation of `rk3588-rock-5b.dtb` with both nodes enabled.
+
+`checkpatch.pl --strict` reports no error or warning for the driver/register
+files and binding (one function-continuation style check was corrected). The
+binding schema could not be run because this board does not currently have the
+`dtschema` tools installed; that is an unavailable tool gate, not a schema
+pass.
 
 On the running `6.18.41-ysp-rockchip64` system,
 `/proc/mpp_service/supports-device` lists AV1DEC, RKVDEC, and RKVENC only. It
@@ -221,21 +245,23 @@ flowchart TB
 So the apparent size difference is architectural and scope-related, not
 evidence that IEP2 is a thin alias for VDPP or less “real” hardware.
 
-## 5. Forward-port scope and estimate
+## 5. Forward-port result and remaining validation
 
-### Minimum vendor-ABI port
+### Implemented vendor-ABI port
 
-The existing 6.18 MPP service already has the device enum and conditional
-registration hook. A practical port would add/adapt:
+The existing 6.18 MPP service already had the device enum and conditional
+registration hook. The implemented port adds/adapts:
 
 - `mpp_iep2.c` (1,166 raw lines) and `rockchip_iep2_regs.h` (184);
 - Kconfig/Makefile selection;
 - the RK3588 IEP2 and IEP2-IOMMU DT nodes, clocks, resets, power domain, IRQ,
   taskqueue association, and enablement in the ROCK 5B path;
-- current-kernel adaptations for vendor IOMMU/fault handling, DMA APIs,
-  cache/header changes, runtime PM, reset, and timeout recovery; and
-- optionally, a libmpp capability-selection fix so a generic
-  `/dev/mpp_service` does not imply that client 28 exists.
+- current-kernel adaptations and hardening for vendor IOMMU/fault handling,
+  DMA APIs, request validation, resource lifetime, reset, and timeout
+  recovery.
+
+A separate optional libmpp capability-selection fix would ensure that a generic
+`/dev/mpp_service` does not imply that client 28 exists.
 
 Basic libmpp IEP2 userspace support is already built and installed, so this is
 not a new userspace implementation project.
@@ -256,7 +282,31 @@ The 1,350 imported lines are not the main risk. IOMMU mappings and fault
 recovery, semantic-to-register validation, buffer lifetime, reset/timeout
 behavior, and field-order/cadence correctness are the hard parts.
 
-### Completion gate
+### Validation harness and completion gate
+
+[`kernel-drivers/tests/iep2-smoke.sh`](../../tests/iep2-smoke.sh) owns the
+repeatable gate. Its device-free mode checks the source integration and can
+compile the driver, linked MPP archive, and ROCK 5B DTB:
+
+```sh
+IEP2_VALIDATE_ONLY=1 IEP2_VALIDATE_BUILD=1 \
+  kernel-drivers/tests/iep2-smoke.sh
+```
+
+After booting that kernel, run the functional gate as root for the complete
+dmesg check:
+
+```sh
+sudo IEP2_REQUIRE_DMESG=1 IEP2_LOOPS=10 \
+  kernel-drivers/tests/iep2-smoke.sh
+```
+
+The runtime mode requires client 28 plus bound IEP2/IOMMU platform devices,
+generates deterministic top- and bottom-field-first interlaced YUV420 input,
+runs libmpp's official `iep2_test` in I5O2 mode, requires exact-size nonzero
+NV12 output, records checksums, and rejects new IEP2/IOMMU/timeout/kernel-fatal
+log signatures. `IEP2_TEST`, `MPP_BUILD`, `MPP_LIBDIR`, `IEP2_INPUT`, and
+`IEP2_BFF_INPUT` allow staged binaries and external fixtures.
 
 A credible result should prove all of the following on the ROCK 5B:
 
@@ -273,9 +323,10 @@ A credible result should prove all of the following on the ROCK 5B:
 - a soak and application integration run remain free of kernel faults and
   field-order/cadence regressions.
 
-Until that gate is run, the accurate state is: **RK3588 IEP2 hardware and BSP
-support are established; the YSP 6.18 kernel does not expose it; VDPP is not an
-RK3588 block.**
+Until that gate is run on a booted port, the accurate state is: **RK3588 IEP2
+hardware and BSP support are established; the YSP 6.18 source port builds but
+has not produced runtime output; the currently booted kernel does not expose
+it; VDPP is not an RK3588 block.**
 
 ## 6. Reproducing the source inspection
 
