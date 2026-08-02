@@ -308,9 +308,10 @@ that is exclusive and hard-only. See
   identical. Misreading that one expression propagated a wrong stride into two
   independent codebases that then agreed with each other and diverged from the
   hardware.
-- **RGA3 AFBC NV15→P010 intermittently returns success without writing the
-  destination, and the rate depends on picture size.** `MEASURED`, 1248
-  hash-compared frames:
+- **The rewrite RGA3 AFBC NV15→P010 path intermittently returns success without
+  writing the destination; the production forward-port/vendor driver does
+  not reproduce it under substantially wider coverage.** The original rewrite
+  build `#23` result is `MEASURED`, 1,248 hash-compared frames:
 
   | Geometry | Runs affected | Frames wrong |
   |---|---:|---:|
@@ -321,8 +322,14 @@ that is exclusive and hard-only. See
   Silent at every layer — MPP reports no `errinfo`, librga reports no error,
   and the driver's own audit counts the expected number of conversions. A
   recycled destination buffer comes back bit-exact to its previous contents; a
-  fresh one comes back entirely zero. Mechanism **not closed**; see
-  [the finding](../../findings/2026-07-31-rga3-afbc-p010-dropped-destination-write.md).
+  fresh one comes back entirely zero. On 2026-08-02 the production
+  forward-port/vendor driver passed 90/90 runs and 4,320/4,320 exact frames at
+  each affected geometry, plus explicit exercise of both RGA3 cores. That is a
+  hardware counterexample and scopes the known failure to the rewrite track;
+  it does not prove which rewrite defect causes it. See the
+  [original failure](../../findings/2026-07-31-rga3-afbc-p010-dropped-destination-write.md)
+  and the
+  [forward-port discriminator](../../findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md).
 - **Multi-segment memory contracts differ by kernel generation.** The BSP
   relies on 5.10/6.1 IOMMU coalescing behaviour that newer kernels do not
   reproduce; drivers on 6.18 must validate or remap rather than assume. See
@@ -397,9 +404,11 @@ Honest gaps, so nobody re-derives them as if they were settled:
   wedges — a reset pulse overlapping a sibling's power-on deassert, and the
   hard-IRQ `INT_STA` access to a core in reset. The pending reset-domain lock
   discriminates them: it closes the first and cannot touch the second.
-- **Whether the RGA3 AFBC dropped-write defect is silicon or driver.** The
-  size dependence is suggestive of the former; it has never been bisected
-  against an older kernel.
+- **Whether the corrected rewrite power/map ordering cures the RGA3 AFBC
+  dropped write.** The production forward-port/vendor driver is clean under
+  repeated dual-core evidence, so this is no longer an open silicon-versus-
+  driver question. The corrected rewrite has not been boot-tested, and the
+  cross-track comparison is not a strict single-variable bisection.
 - **Whether AV1 has any idle proof at all**, or whether fail-closed recovery is
   permanent.
 

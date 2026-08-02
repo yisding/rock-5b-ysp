@@ -16,7 +16,17 @@
 > SOURCE-INSPECTED (rewrite and vendor job paths, rockchip-iommu) +
 > **PARTIAL-ROOT-CAUSE** (a vendor-divergent power/IOMMU ordering found and
 > several competing mechanisms eliminated; the mechanism is not closed) +
-> **NOT BISECTED** (never tested on `#21` or the production kernel)
+> **NOT BISECTED** (within the rewrite history; the production forward-port
+> counterexample is recorded below)
+
+> **Narrowed 2026-08-02 by** the
+> [forward-port discriminator](2026-08-02-rga3-forward-port-small-geometry-discriminator.md).
+> The same AFBC-NV15-to-P010 shape passed 90/90 process runs and 4,320/4,320
+> byte-compared frames at each affected geometry on the production
+> forward-port/vendor driver, including explicit RGA3 core-1 exercise. The
+> silent dropped write is therefore proven on rewrite build `#23`, not on
+> RK3588 RGA3 generally. The mechanism and corrected rewrite ordering remain
+> unverified on a booted rewrite successor.
 
 ## Result
 
@@ -92,13 +102,12 @@ session on the same path and should be triaged together.
 
 ## Boundary
 
-- **Not bisected.** Every measurement here is on `#23`. It is *not* established
-  that this is a regression, nor that `995a0aa710fb2` introduced it. The
-  failure could predate the rewrite kernel entirely — prior `rockchip-vaapi`
-  10-bit qualification used 320x240 and 416x240 vectors that pass most runs, and
-  a 1-in-20-to-1-in-75 frame failure rate is exactly the density a single-run
-  gate misses. Several previously recorded "bit-exact" Main10 results were
-  single runs and should be treated as unconfirmed at these sizes.
+- **Not bisected within the rewrite history.** Every failing measurement here
+  is on `#23`; it is not established that `995a0aa710fb2` introduced the
+  defect. The later production forward-port/vendor driver passed the repeated
+  discriminator, so the defect does not predate the rewrite track as an
+  unavoidable hardware behavior. That cross-track comparison is not a strict
+  single-variable bisection because the kernels and MPP revisions differ.
 - The mechanism *inside* the RGA driver is unidentified. `995a0aa710fb2` is a
   suspect because it landed in this window, it rewrote the shared DMA-BUF
   import and mapping helpers (`rk_rga_check_dma_sgt()`,
@@ -270,12 +279,12 @@ below becomes the next move.
 
 ## Verification gate
 
-The smallest discriminating run, and the one that would settle the regression
-question: boot `#21 g06ab78b69615` (or the production `6.18.40-ysp` kernel) and
-re-run the 416x240 harness below. Ten runs, byte-compared. Clean there and
-dirty on `#23` bisects it to this three-commit window; dirty on both means the
-defect predates the rewrite kernel and every small-geometry 10-bit result on
-record needs re-qualifying.
+The production forward-port half of the discriminator is now complete and
+clean: 90 runs and 4,320 byte-compared frames at each affected geometry,
+including explicit execution on both RGA3 cores. The remaining decisive gate
+is to boot a rewrite kernel containing the corrected power/map ordering and
+repeat the same matrix. Clean there runtime-verifies the rewrite fix; dirty
+there means the ordering was a real divergence but not this defect's cause.
 
 ## Evidence and reproduction
 
@@ -310,10 +319,11 @@ record needs re-qualifying.
 
 ## Why it matters
 
-This is a silent-wrong-output defect on a shipping-candidate path, which is
+This is a silent-wrong-output defect on the tested rewrite kernel, which is
 strictly worse than the loud one it was found while requalifying. It blocks
-Main10/VP9-Profile-2 promotion on this kernel, and because a stale frame is a
-*plausible-looking* previous frame rather than visible garbage, it would reach
-a browser as an intermittent stutter rather than an obvious fault. It also
-means `rockchip-vaapi`'s 10-bit gates need repeat-run structure at small
-geometries before any of them can be called green again.
+Main10/VP9-Profile-2 promotion on that rewrite build, and because a stale frame
+is a *plausible-looking* previous frame rather than visible garbage, it would
+reach a browser as an intermittent stutter rather than an obvious fault. The
+production forward-port/vendor driver is no longer blocked by this finding;
+its repeated small-geometry gates are owned by the
+[forward-port discriminator](2026-08-02-rga3-forward-port-small-geometry-discriminator.md).

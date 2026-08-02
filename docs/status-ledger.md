@@ -67,13 +67,22 @@ IEP2 subdevice; the triggering interlaced clip remains bit-exact. RK3588 has
 IEP2 hardware, but the YSP 6.18 port omits its driver/DT nodes; RK3588 has no
 VDPP instance. Earlier
 exact-Published MPP/FFmpeg sweep, sanitizer, and soak evidence remains valid.
+The later production forward-port/vendor RGA3 discriminator passed 90/90 runs
+and 4,320/4,320 byte-compared frames at each formerly suspect small geometry,
+including explicit execution on both RGA3 cores. Six complete 1080p VP9
+Profile 2 runs added 1,440 exact displayed frames; the final run succeeded
+after `CmaFree` fell below 5 MiB. The original silent destination-write failure
+is therefore scoped to the rewrite driver and no longer blocks this
+forward-port stack; the rewrite ordering fix remains boot-unverified.
 Open boundaries are clean source provenance for ysp8 (the package was built
 from a dirty tracked worktree over `main@aee5926`), the fingerprint-quarantined
-risky VP9 vector, intermittent small-geometry RGA writes, 256 rather than 512
-MiB CMA, sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image
+risky VP9 vector, 256 rather than 512 MiB CMA, sandbox-enabled Firefox,
+physical HDR, Chromium GL, clean-image
 installation, and release. See the maintained
 [`rockchip-vaapi` project summary](../video-libraries/vaapi/README.md) and the
 [`installed ysp8 finding`](../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md),
+the
+[`forward-port RGA discriminator`](../findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md),
 with the hardware/driver distinction in the
 [`IEP2 source audit`](../findings/2026-08-02-rk3588-iep2-vdpp-source-audit.md).
 

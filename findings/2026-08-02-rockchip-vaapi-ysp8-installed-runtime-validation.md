@@ -23,6 +23,14 @@
 > vector, long/sanitizer sweeps, sandbox-enabled Firefox, physical HDR, clean
 > image, and 512 MiB CMA configuration remain open).
 
+> **Updated 2026-08-02 by** the
+> [forward-port small-geometry discriminator](2026-08-02-rga3-forward-port-small-geometry-discriminator.md).
+> The single-pass RGA boundary recorded by this installed matrix was later
+> closed for the same production forward-port/vendor kernel with 90/90 clean
+> runs and 4,320/4,320 byte-compared frames at each affected geometry,
+> including explicit exercise of both RGA3 cores. The original silent-write
+> finding remains open on the rewrite driver, not on this forward-port stack.
+
 ## Result
 
 The installed ysp8 driver and matching config package pass the broad safe
@@ -172,11 +180,12 @@ decode.
 | HEVC Main10 throughput | 1920x1080, 240 visible/decoded, 110.40 fps |
 | VP9 Profile 2 throughput | 1920x1080, 240 visible/254 decoded, 187.30 fps |
 
-Both throughput paths exceed 60 fps and use the AFBC-to-RGA P010 path. The
-single small-geometry pass does **not** close the separately recorded
-intermittent RGA3 dropped-destination-write defect: a success here can coexist
-with the earlier repeated failures, so that defect remains open until a
-multi-run discriminator or fix closes it.
+Both throughput paths exceed 60 fps and use the AFBC-to-RGA P010 path. This
+installed matrix originally had only one small-geometry pass, so it did not by
+itself close the separately recorded rewrite-driver dropped-write defect. The
+later [dedicated forward-port discriminator](2026-08-02-rga3-forward-port-small-geometry-discriminator.md)
+does: 90/90 clean runs at both 320x240 and 416x240, with explicit coverage of
+both RGA3 cores. The rewrite-driver mechanism remains open separately.
 
 ### GStreamer VA decode
 
@@ -347,8 +356,9 @@ is not that port. See the maintained
 - This was an in-place package installation, not a clean-image install.
 - `vainfo` was unavailable; FFmpeg exercised and logged libva initialization
   instead.
-- One clean small-geometry 10-bit pass does not close the intermittent RGA3
-  success-without-write finding.
+- This matrix's one small-geometry pass did not close the RGA boundary by
+  itself; the later repeated forward-port discriminator did. The rewrite
+  driver's corrected power/map ordering remains boot-unverified.
 - The installed ysp8 payload is exactly matched to the deb, but the package's
   source tree was dirty over `aee5926`; a clean signed source/commit identity
   still needs to be produced.
@@ -359,6 +369,6 @@ First make ysp8 reproducible from a clean, pushed source identity and publish
 the matching driver/config source and binaries. Then repeat the installed
 safe matrix on the intended 512 MiB CMA configuration and run Firefox with the
 RDD sandbox enabled. Keep the quarantined VP9 vector behind its exact kernel
-fingerprint; validate physical HDR separately; and close the intermittent
-small-geometry RGA write defect with repeated evidence rather than treating
-this single pass as dispositive.
+fingerprint and validate physical HDR separately. The production forward-port
+small-geometry RGA boundary is closed by repeated evidence; runtime-verifying
+the rewrite ordering fix is a separate rewrite-track gate.
