@@ -88,6 +88,15 @@ check_tree()
 		echo "kunit-manifest-check: not a directory: $tree" >&2
 		return 2
 	fi
+	# A manifest with no data rows would make every loop below a no-op and
+	# report success. That is exactly how a gate silently stops gating --
+	# and it is one truncating redirection away, since --regenerate reads
+	# the manifest to learn which suites exist.
+	if [ "$(manifest_suites | wc -l)" -eq 0 ]; then
+		echo "kunit-manifest-check: no suites in $MANIFEST" >&2
+		echo "  A truncated or empty manifest cannot verify anything." >&2
+		return 2
+	fi
 	while read -r suite; do
 		if ! source=$(manifest_source_for "$suite"); then
 			echo "kunit-manifest-check: unknown suite in manifest: $suite" >&2
@@ -196,6 +205,16 @@ selftest()
 	fi
 	if ! grep -q '^    - ' "$root/out"; then
 		echo "selftest: drift report did not name the removed case" >&2
+		return 1
+	fi
+
+	# An empty manifest must fail loudly rather than vacuously pass.
+	: > "$root/empty.tsv"
+	rc=0
+	KUNIT_MANIFEST="$root/empty.tsv" MANIFEST="$root/empty.tsv" \
+		check_tree "$pass" >/dev/null 2>&1 || rc=$?
+	if [ "$rc" = 0 ]; then
+		echo "selftest: empty manifest unexpectedly passed" >&2
 		return 1
 	fi
 
