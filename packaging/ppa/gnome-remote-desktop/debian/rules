@@ -26,9 +26,9 @@ override_dh_installsysusers:
 # fail for these architectures too
 override_dh_auto_test:
 ifeq (,$(filter mips64el riscv64,$(DEB_HOST_ARCH)))
-	dh_auto_test
+	dh_auto_test -- --timeout-multiplier 3
 else
-	dh_auto_test || true
+	dh_auto_test -- --timeout-multiplier 3 || true
 endif
 
 # https://launchpad.net/bugs/1973028

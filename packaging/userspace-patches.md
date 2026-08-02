@@ -19,7 +19,7 @@ for how the external source trees are reconstructed see
 | **librga** | `rockchip-userspace/librga-fork` | **fork branch**, 11 commits | `26a50ef`, 11 past vendor base `2cffdf6` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **FFmpeg 8.0** (system) | `ffmpeg/ffmpeg-rockchip-81` @ `rockchip-8.0` | **fork branch** | `da5befc806` | `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **FFmpeg 6.1** (co-installable) | `ffmpeg/ffmpeg-rockchip` (nyanmisaka) | upstream snapshot, no delta | `40c412dacc` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` | `ubuntu-rock-5b` |
-| **GNOME Remote Desktop** | `gnome/grd/gnome-remote-desktop` @ `release/50.2-rkmpp` | **fork branch**, 17 commits | `c4ef3c9` | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1` | `ubuntu-rock-5b` |
+| **GNOME Remote Desktop** | `gnome/grd/gnome-remote-desktop` @ `release/50.2-rkmpp` | **fork branch**, 17 commits | `c4ef3c9` | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` | `ubuntu-rock-5b` |
 | **Plymouth** | (packaging-local) | **quilt**, 1 patch | — | see `ppa/plymouth/` | `ubuntu-rock-5b` |
 | **FFmpeg 8.1** (baseline) | none — recovered `debian/` only | none (pristine upstream) | `8.1.2` | `7:8.1.2-1+rk2` | `rock5b-ffmpeg81-upstream` |
 | **codec-udev** | native, in-repo | n/a | — | `1.1` | `ubuntu-rock-5b` |

@@ -365,7 +365,7 @@ and roles; it deliberately delegates live publication and runtime state.
 
 | Component | Durable boundary | Needed? |
 |-----------|------------------|:---:|
-| `gnome-remote-desktop` | Clean 50.2 candidate `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1`; current installed result and next gate: [`status.md` track 7](../../status.md#dashboard). | required |
+| `gnome-remote-desktop` | Clean 50.2 candidate `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2`; current installed result and next gate: [`status.md` track 7](../../status.md#dashboard). | required |
 | Rockchip FFmpeg 8.0.3 | Package branch `fix/rkmpp-output-timeout@da5befc806`; absorbs the transient MPP input-pool backpressure exposed by exp5. Publication: [W05](../../status.md#watch-w05). | required |
 | `gnome-remote-desktop-gdm-hwenc` `1.0` | Opt-in package granting the stable `gdm` group access to codec nodes. | optional (login-screen HW) |
 

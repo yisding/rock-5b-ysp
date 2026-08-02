@@ -2346,3 +2346,62 @@ See ../../configure --help for available options.
   [`247477791`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247477791).
 - `apt-cache policy` resolves both exact packages from the normal PPA, and
   `dpkg-query` confirms they are installed on the qualification host.
+
+## GNOME Remote Desktop RDP test-timeout rebuild — 2026-08-02
+
+- Launchpad published source
+  [`18649293`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18649293),
+  but arm64 build
+  [`33452991`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33452991)
+  failed after 8m42s. The stable and devel APIs expose no build log, buildinfo,
+  changes file, dependency diagnosis, or upload log, so that exact remote
+  failure cannot be proven directly.
+- A native host rebuild reproduced an intermittent package-test boundary. The
+  RDP integration reached `Test 1 (Virtual monitor size) was successful!`,
+  completed client and session shutdown, then exceeded Meson's built-in 20s
+  timeout at 20.37s. Repeating with local GIO VFS selection still timed out at
+  20.56s. Running the same test with `--timeout-multiplier 3` passed in 21.64s,
+  including the final Mutter/PipeWire and wrapper teardown. An initial
+  sandboxed attempt failed earlier because D-Bus could not bind private Unix
+  sockets; it did not exercise the package failure and is excluded from the
+  diagnosis.
+- Package
+  `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` leaves the `c4ef3c9`
+  production source unchanged and adds only its changelog plus
+  `dh_auto_test -- --timeout-multiplier 3`. The integration test remains
+  enabled and fatal on normal architectures.
+- A clean source build validates under `dscverify`, and `debdiff` from `~rk1`
+  contains only `debian/changelog` and `debian/rules`. A full native arm64
+  binary build with `/usr/bin/pkg-config` passed: RDP completed in 17.38s,
+  Meson reported one pass, zero failures, and the two expected hardware-EGL and
+  TPM skips. Source and binary Lintian error gates returned success with only
+  descriptive-version long-filename warnings. Local binary SHA-256 set:
+  - `.deb`: `f94792f893898c298e8c3e6166414f819e293b1de87dd0538ee33d04a9569b60`;
+  - `.ddeb`: `8353711905dbcbddda03853babae0e32a46af19831efe87aef9a75fa3486a058`;
+  - arm64 `.buildinfo`: `99488d172791fe8aaf5293cfb62bdc76d48dcc94aa53bd3a8dca6a814b30e72e`;
+  - arm64 `.changes`: `12e418d591b9e8090824de0a0a90a54bd75dabaddfc0c47287d2cd12edefca69`.
+- The `.dsc`, source `.buildinfo`, and source `.changes` were signed with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`; direct verification and
+  `dscverify` report good signatures and valid source checksums. Signed source
+  SHA-256 set:
+  - orig tarball: `99b48a2fcc01dc40d7783780d6de2053236d9d8a18e0bb4b6e2f6c15d3accacc`;
+  - Debian tarball: `710a3a3ea68bf21203c0e210943c8842531ace31d9d796e24ef6021ad3380f9f`;
+  - `.dsc`: `30caa255d56c8c1fe91377cfbc4e019e4edfc0bea994dacccaa796ccea81ab25`;
+  - source `.buildinfo`: `33c781089d605ccc1f19e157f03bcf34ff4fc29c00b8d308a8de5e882b195de5`;
+  - source `.changes`: `11a8307279553b2a248214ed8160865e8e9b9648b61da6f35b26e0719fd5e97a`.
+- `dput` passed its distribution, required-field, checksum, suite, source-only,
+  and GPG checks and transferred all five source artifacts to
+  `ppa:yi-ding/ubuntu-rock-5b`. Launchpad upload record
+  [`38916080`](https://api.launchpad.net/devel/ubuntu/resolute/+upload/38916080)
+  completed as `Done`; source publication
+  [`18654077`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18654077)
+  became Published at `2026-08-02T20:19:48.152846+00:00`.
+- Arm64 build
+  [`33461880`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33461880)
+  succeeded on `bos03-arm64-015` in 5m33s. Its retained log confirms the fixed
+  `--timeout-multiplier 3` invocation, RDP pass in 9.76s, one pass, zero
+  failures, and two skips. Binary publication
+  [`247717203`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247717203)
+  became Published at the same timestamp. Because the failed build's log is
+  gone, the timeout remains the locally reproduced likely cause rather than a
+  directly proven reading of build `33452991`.

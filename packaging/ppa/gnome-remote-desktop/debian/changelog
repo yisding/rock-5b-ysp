@@ -1,3 +1,16 @@
+gnome-remote-desktop (50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2) resolute; urgency=medium
+
+  * Rebuild c4ef3c9 after Launchpad arm64 build 33452991 failed without
+    retaining a build log, buildinfo, changes file, dependency diagnosis, or
+    upload log.
+  * Raise Meson's test timeout multiplier to 3. The RDP integration reaches
+    its success assertion, but its full Mutter and PipeWire teardown took
+    21.6 seconds locally and intermittently exceeded the upstream 20-second
+    timeout. Keep the integration test enabled and fatal; production source
+    code is unchanged.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sun, 02 Aug 2026 12:38:37 -0700
+
 gnome-remote-desktop (50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk1) resolute; urgency=medium
 
   * Rebase the release branch onto the latest GNOME 50 stable tip,

@@ -198,9 +198,16 @@ path, redirected sockets are still coalesced only while pending, and no
 `client_taken` state exists. The canonical source export, native arm64 Debian
 package build, and RDP integration test pass with `/usr/bin/pkg-config`; TPM
 and hardware-EGL skip on the build host. Source and binary Lintian error gates
-pass with only the expected long-filename warnings. The source package is
-signed and all three signatures verify. Launchpad accepted it as Pending source
-publication `18649293`, with arm64 build `33452991` queued as Needs building.
+pass with only the expected long-filename warnings. Launchpad source `18649293`
+was Published, but arm64 build `33452991` failed after 8m42s and retained no
+build log, buildinfo, changes file, dependency diagnosis, or upload log. A host
+rebuild reproduced a package-test boundary: the RDP assertion succeeds, but a
+complete Mutter/PipeWire teardown can take 21.64s and exceed Meson's 20s
+default. Package `…~rk2` leaves production source unchanged, keeps that test
+fatal, and applies `--timeout-multiplier 3`. Its local full arm64 build passed
+with RDP green and the two expected skips; Launchpad source `18654077`, binary
+publication `247717203`, and arm64 build `33461880` are
+Published/successful. The build finished in 5m33s with RDP green in 9.76s.
 The measured idle reconnect sequence still needs a board reproduction to prove
 the runtime branch and to determine whether the first redirect race itself
 needs a cross-GRD/GDM acknowledgement change.
@@ -217,7 +224,7 @@ needs a cross-GRD/GDM acknowledgement change.
   With the un-fixed build, the first aborted handover then converts into the
   Act-2 deaf state until the system daemon is restarted.
 - Source fix complete and public at `release/50.2-rkmpp@c4ef3c9`; source/native
-  package and signature gates pass, and PPA source `18649293` is accepted with
-  build `33452991` queued. Successful build/publication, installation, and the
-  measured idle reconnect reproduction remain the handoff gates. Do not restore
-  `a3a1a32` wholesale.
+  package and signature gates pass. Replacement PPA source `18654077` is
+  Published with binary `247717203` after build `33461880` succeeded;
+  installation and the measured idle reconnect reproduction remain the handoff
+  gates. Do not restore `a3a1a32` wholesale.
