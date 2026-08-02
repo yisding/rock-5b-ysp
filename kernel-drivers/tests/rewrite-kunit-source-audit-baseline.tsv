@@ -49,18 +49,6 @@ fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_kunit_import	1	acquire:kcalloc(1, sizeof(*import->userptr_extents), GFP_KERNEL); -> fatal:KUNIT_FAIL(test, "failed to allocate fake import backing");
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_last_hw_remove_pending_acquire_kunit	1	acquire:session = kzalloc_obj(*session, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test,
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_last_hw_remove_pending_acquire_kunit	1	acquire:session = kzalloc_obj(*session, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, session);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:job = kzalloc_obj(*job, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, job);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:job->acquire_fences = kcalloc(1, sizeof(*job->acquire_fences), -> fatal:KUNIT_ASSERT_EQ(test, rk_rga_job_arm_acquire_callbacks(job), 0);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:job->acquire_fences = kcalloc(1, sizeof(*job->acquire_fences), -> fatal:KUNIT_ASSERT_EQ(test, rk_rga_session_track_job(session, job), 0);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:job->acquire_fences = kcalloc(1, sizeof(*job->acquire_fences), -> fatal:KUNIT_ASSERT_NOT_NULL(test, job->acquire_fences);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:job->acquire_fences = kcalloc(1, sizeof(*job->acquire_fences), -> fatal:KUNIT_ASSERT_NOT_NULL(test, release_fence);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:job->acquire_fences = kcalloc(1, sizeof(*job->acquire_fences), -> fatal:KUNIT_ASSERT_TRUE(test, job->waiting_acquire);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:job->imports = kcalloc(1, sizeof(*job->imports), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, acquire_fence);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:job->imports = kcalloc(1, sizeof(*job->imports), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, job->imports);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:job->tasks = kcalloc(1, sizeof(*job->tasks), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, import);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:job->tasks = kcalloc(1, sizeof(*job->tasks), GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, job->tasks);
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:session = kzalloc_obj(*session, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test,
-fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	acquire:session = kzalloc_obj(*session, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, session);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_recovery_failed_hw_kunit	1	acquire:job = kzalloc_obj(*job, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, fence);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_recovery_failed_hw_kunit	1	acquire:job = kzalloc_obj(*job, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, job);
 fatal-before-cleanup-action	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_removing_hw_kunit	1	acquire:job = kzalloc_obj(*job, GFP_KERNEL); -> fatal:KUNIT_ASSERT_NOT_NULL(test, fence);
@@ -258,7 +246,6 @@ manual-list-link	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_last_hw
 manual-list-link	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_legacy_blit_sync_wait_kunit	1	list_add_tail(&hw->node, &session.rga->hw_list);
 manual-list-link	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_mixed_task_core_handoff_kunit	1	list_add_tail(&rga2->node, &hw_list);
 manual-list-link	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_mixed_task_core_handoff_kunit	1	list_add_tail(&rga3->node, &hw_list);
-manual-list-link	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	list_add_tail(&remaining.node, &session->rga->hw_list);
 manual-list-link	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_recovery_failed_dispatch_kunit	1	list_add_tail(&job0->node, &hw.job_queue);
 manual-list-link	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_recovery_failed_dispatch_kunit	1	list_add_tail(&job1->node, &hw.job_queue);
 manual-list-link	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_release_pending_acquire_job_kunit	1	list_add_tail(&hw->node, &session->rga->hw_list);
@@ -299,11 +286,6 @@ raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_kunit_imp
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_kunit_import	1	import->pages = kcalloc(1, sizeof(*import->pages), GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_kunit_import	1	kcalloc(1, sizeof(*import->userptr_extents), GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_last_hw_remove_pending_acquire_kunit	1	session = kzalloc_obj(*session, GFP_KERNEL);
-raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	job = kzalloc_obj(*job, GFP_KERNEL);
-raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	job->acquire_fences = kcalloc(1, sizeof(*job->acquire_fences),
-raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	job->imports = kcalloc(1, sizeof(*job->imports), GFP_KERNEL);
-raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	job->tasks = kcalloc(1, sizeof(*job->tasks), GFP_KERNEL);
-raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_pending_import_invalidation_kunit	1	session = kzalloc_obj(*session, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_recovery_failed_hw_kunit	1	job = kzalloc_obj(*job, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_queue_on_removing_hw_kunit	1	job = kzalloc_obj(*job, GFP_KERNEL);
 raw-allocation	drivers/video/rockchip/rga-rewrite/rga_rewrite.c	rk_rga_recovery_failed_dispatch_kunit	1	job0 = kzalloc_obj(*job0, GFP_KERNEL);
