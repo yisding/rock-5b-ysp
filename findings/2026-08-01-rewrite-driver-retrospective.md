@@ -53,6 +53,10 @@ This is not an argument that the rewrite failed. It is an argument that the
 best part of it is the model, while the main remaining risk comes from
 hand-repeating that model across a large private-ABI implementation.
 
+The implementation-facing follow-up is the
+[`rewrite-ownership-refactor-plan.md`](../kernel-drivers/docs/rewrite-ownership-refactor-plan.md),
+which applies this assessment to the existing driver without starting over.
+
 ## What should be kept
 
 ### Explicit lifetime owners

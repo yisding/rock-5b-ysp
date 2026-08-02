@@ -132,6 +132,7 @@ Read in this order when changing or reviewing kernel behavior:
 | How does the mainline V4L2 `rkvdec` decoder work (the other stack)? | [`../kernel-versions/docs/mainline-rkvdec-v4l2.md`](../kernel-versions/docs/mainline-rkvdec-v4l2.md) |
 | How do we resync to a new kernel or BSP? | [`docs/resyncing.md`](docs/resyncing.md) |
 | How do we validate the rewrite drivers to production readiness? | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) |
+| How do we refactor the existing rewrite around explicit ownership objects? | [`docs/rewrite-ownership-refactor-plan.md`](docs/rewrite-ownership-refactor-plan.md) |
 | Which conformance gaps were found after the forward-port reconciliation? | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) |
 
 ## Shared files
@@ -158,6 +159,7 @@ each sub-project's `README.md`).
 | [`docs/rewrite-kunit.md`](docs/rewrite-kunit.md) | How the embedded MPP/RGA KUnit suites are built, booted, parsed, log-gated, rerun, and preserved as YSP evidence. |
 | [`docs/rewrite-kunit-rationalization-plan.md`](docs/rewrite-kunit-rationalization-plan.md) | Staged plan to retain high-value KUnit contracts while removing production-singleton fixtures, hardening cleanup, relocating redundant checks, and consolidating repeated vectors. |
 | [`docs/rewrite-minimal-hard-irq-plan.md`](docs/rewrite-minimal-hard-irq-plan.md) | Staged plan to reduce every hard IRQ handler to claim/ack/stage, move slice/fence/wake work to threads, and re-enable PROVE_RAW_LOCK_NESTING as the per-boot enforcement. |
+| [`docs/rewrite-ownership-refactor-plan.md`](docs/rewrite-ownership-refactor-plan.md) | Object-first migration plan for shared MPP hardware, reset/IOMMU recovery, active lifetimes, RGA per-task execution, mapping ownership, and singular retirement paths. |
 | [`docs/rewrite-validation-plan.md`](docs/rewrite-validation-plan.md) | What it would take to make the rewrite drivers production-ready. |
 | [`docs/rewrite-conformance-gap-audit.md`](docs/rewrite-conformance-gap-audit.md) | 2026-07-17 audit of claimed ABI/codec coverage, booted evidence, counter/lifetime assertions, and remaining hardware gates. |
 | [`docs/debug-kernel.md`](docs/debug-kernel.md) | Capture a crash / run the KASAN debug kernel. |

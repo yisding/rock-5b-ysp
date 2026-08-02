@@ -1295,9 +1295,18 @@ gate that must pass before the rewrite can replace the forward-port. It builds
 on the existing [`kernel-drivers/tests/README.md`](../tests/README.md) harness rather than duplicating
 it.
 
+For implementation structure, the
+[`rewrite-ownership-refactor-plan.md`](./rewrite-ownership-refactor-plan.md)
+turns the rewrite retrospective into a staged migration of the existing code.
+It prioritizes MPP cluster/reset/DMA ownership, singular active-job retirement,
+RGA per-task execution and mapping ownership before the later validated-plan,
+sealed-image, file-split, and convention cleanup phases.
+
 Cross-references: [uAPI guide](./dev-uapis.md) (uAPI surface),
 [userspace library guide](../../vendor-libraries/docs/how-the-userspace-libs-work.md) (the librga behaviours §3
 encodes), [device-tree guide](./device-tree.md) (6.18 DT), [kernel status](./forward-port-status.md) /
 [`status.md`](../../status.md) (project status rows),
 [source-tree pins](../../docs/source-trees.md) (local rewrite/upstream-RGA pins),
+[ownership refactor plan](./rewrite-ownership-refactor-plan.md) (object-first
+migration of the existing rewrite),
 [validation & fuzzing plan](./rewrite-validation-plan.md) (path to production readiness).
