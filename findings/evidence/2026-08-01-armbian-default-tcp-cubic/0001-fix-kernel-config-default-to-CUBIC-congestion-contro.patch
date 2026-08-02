@@ -1,0 +1,194 @@
+From 37fb6b7eabc067f56b2117161e9c8c3af13c673b Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Sat, 1 Aug 2026 18:52:44 -0700
+Subject: [PATCH] fix(kernel-config): default to CUBIC congestion control, not
+ Reno
+
+Nine kernel configs pin CONFIG_DEFAULT_RENO=y, so the kernels built from
+them default to TCP Reno rather than upstream's CUBIC, which has been the
+kernel default since 2.6.19 and is what every mainstream distribution ships.
+
+This looks like config-regeneration drift rather than a decision.
+linux-rockchip64-current.config was created with CONFIG_DEFAULT_CUBIC=y in
+150ac0c2a (2019-11-19); fea2ecb9f (2020-04-27, "WIP: Merge kernel features
+from upstream") flipped it to Reno in 2 of that commit's 13 config files
+without touching CONFIG_TCP_CONG_CUBIC or mentioning networking in its
+subject. linux-rockchip-rk3588-*.config was branched from that lineage in
+48e45d0c9 (2023-01-01) and has never had CONFIG_DEFAULT_CUBIC=y. Nothing in
+the tracker or forum argues for Reno; issue #609 only asked for BBR, which
+is why CONFIG_TCP_CONG_BBR=m.
+
+The mechanism is Kconfig's fallback. In net/ipv4/Kconfig the choice reads:
+
+    choice
+            prompt "Default TCP congestion control"
+            default DEFAULT_CUBIC
+            config DEFAULT_CUBIC
+                    bool "Cubic" if TCP_CONG_CUBIC=y
+            config DEFAULT_RENO
+                    bool "Reno"
+    endchoice
+
+DEFAULT_RENO is the only unconditional entry, so any regeneration where
+CUBIC is not =y when the choice resolves collapses to Reno, and olddefconfig
+then preserves that answer indefinitely.
+
+Reno is not broken, but it recovers linearly after loss and cannot tell
+congestion from reordering, so it underperforms on high bandwidth-delay
+paths and on wireless links. CUBIC subsumes it: its Reno-friendly region
+(RFC 9438) tracks Reno's window and uses max(W_cubic, W_est), so where Reno
+would be faster CUBIC matches it. The remaining 93 configs in this tree
+already carry no override and get CUBIC from Kconfig.
+
+Note that deleting the CONFIG_DEFAULT_RENO=y line alone is not sufficient:
+two of these configs also carry "# CONFIG_DEFAULT_CUBIC is not set", which
+leaves Reno as the only selectable entry and survives olddefconfig.
+
+Verified by running scripts/kconfig/conf --olddefconfig over each changed
+config against a 6.18 arm64 Kconfig tree: all nine resolve to
+CONFIG_DEFAULT_CUBIC=y, CONFIG_DEFAULT_TCP_CONG="cubic", with no
+CONFIG_DEFAULT_RENO. Not boot-tested.
+
+linux-rockchip-rk3588-current.config is a symlink to the -edge config and is
+covered by that file's change.
+
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ config/kernel/linux-meson64-bleedingedge.config    | 2 +-
+ config/kernel/linux-meson64-current.config         | 2 +-
+ config/kernel/linux-meson64-edge.config            | 2 +-
+ config/kernel/linux-meson64-oldlts.config          | 2 +-
+ config/kernel/linux-rockchip-rk3588-edge.config    | 5 ++---
+ config/kernel/linux-rockchip64-bleedingedge.config | 2 +-
+ config/kernel/linux-rockchip64-current.config      | 2 +-
+ config/kernel/linux-rockchip64-edge.config         | 2 +-
+ config/kernel/linux-virtual-current.config         | 5 ++---
+ 9 files changed, 11 insertions(+), 13 deletions(-)
+
+diff --git a/config/kernel/linux-meson64-bleedingedge.config b/config/kernel/linux-meson64-bleedingedge.config
+index c55e6a704..3f6c1a4c6 100644
+--- a/config/kernel/linux-meson64-bleedingedge.config
++++ b/config/kernel/linux-meson64-bleedingedge.config
+@@ -160,7 +160,7 @@ CONFIG_TCP_CONG_ILLINOIS=m
+ CONFIG_TCP_CONG_DCTCP=m
+ CONFIG_TCP_CONG_CDG=m
+ CONFIG_TCP_CONG_BBR=m
+-CONFIG_DEFAULT_RENO=y
++CONFIG_DEFAULT_CUBIC=y
+ CONFIG_TCP_MD5SIG=y
+ CONFIG_IPV6_ROUTER_PREF=y
+ CONFIG_IPV6_ROUTE_INFO=y
+diff --git a/config/kernel/linux-meson64-current.config b/config/kernel/linux-meson64-current.config
+index afeb8a40c..2e7ce954a 100644
+--- a/config/kernel/linux-meson64-current.config
++++ b/config/kernel/linux-meson64-current.config
+@@ -160,7 +160,7 @@ CONFIG_TCP_CONG_ILLINOIS=m
+ CONFIG_TCP_CONG_DCTCP=m
+ CONFIG_TCP_CONG_CDG=m
+ CONFIG_TCP_CONG_BBR=m
+-CONFIG_DEFAULT_RENO=y
++CONFIG_DEFAULT_CUBIC=y
+ CONFIG_TCP_MD5SIG=y
+ CONFIG_IPV6_ROUTER_PREF=y
+ CONFIG_IPV6_ROUTE_INFO=y
+diff --git a/config/kernel/linux-meson64-edge.config b/config/kernel/linux-meson64-edge.config
+index 780d51ae0..a566ac186 100644
+--- a/config/kernel/linux-meson64-edge.config
++++ b/config/kernel/linux-meson64-edge.config
+@@ -160,7 +160,7 @@ CONFIG_TCP_CONG_ILLINOIS=m
+ CONFIG_TCP_CONG_DCTCP=m
+ CONFIG_TCP_CONG_CDG=m
+ CONFIG_TCP_CONG_BBR=m
+-CONFIG_DEFAULT_RENO=y
++CONFIG_DEFAULT_CUBIC=y
+ CONFIG_TCP_MD5SIG=y
+ CONFIG_IPV6_ROUTER_PREF=y
+ CONFIG_IPV6_ROUTE_INFO=y
+diff --git a/config/kernel/linux-meson64-oldlts.config b/config/kernel/linux-meson64-oldlts.config
+index 041e2b9f8..1b12a1d6d 100644
+--- a/config/kernel/linux-meson64-oldlts.config
++++ b/config/kernel/linux-meson64-oldlts.config
+@@ -166,7 +166,7 @@ CONFIG_TCP_CONG_ILLINOIS=m
+ CONFIG_TCP_CONG_DCTCP=m
+ CONFIG_TCP_CONG_CDG=m
+ CONFIG_TCP_CONG_BBR=m
+-CONFIG_DEFAULT_RENO=y
++CONFIG_DEFAULT_CUBIC=y
+ CONFIG_TCP_MD5SIG=y
+ CONFIG_IPV6_ROUTER_PREF=y
+ CONFIG_IPV6_ROUTE_INFO=y
+diff --git a/config/kernel/linux-rockchip-rk3588-edge.config b/config/kernel/linux-rockchip-rk3588-edge.config
+index a22f53bea..583c62611 100644
+--- a/config/kernel/linux-rockchip-rk3588-edge.config
++++ b/config/kernel/linux-rockchip-rk3588-edge.config
+@@ -1202,9 +1202,8 @@ CONFIG_TCP_CONG_ILLINOIS=m
+ CONFIG_TCP_CONG_DCTCP=m
+ CONFIG_TCP_CONG_CDG=m
+ CONFIG_TCP_CONG_BBR=m
+-# CONFIG_DEFAULT_CUBIC is not set
+-CONFIG_DEFAULT_RENO=y
+-CONFIG_DEFAULT_TCP_CONG="reno"
++CONFIG_DEFAULT_CUBIC=y
++CONFIG_DEFAULT_TCP_CONG="cubic"
+ CONFIG_TCP_SIGPOOL=y
+ # CONFIG_TCP_AO is not set
+ CONFIG_TCP_MD5SIG=y
+diff --git a/config/kernel/linux-rockchip64-bleedingedge.config b/config/kernel/linux-rockchip64-bleedingedge.config
+index d15c6958c..5d8aea6ec 100644
+--- a/config/kernel/linux-rockchip64-bleedingedge.config
++++ b/config/kernel/linux-rockchip64-bleedingedge.config
+@@ -156,7 +156,7 @@ CONFIG_TCP_CONG_ILLINOIS=m
+ CONFIG_TCP_CONG_DCTCP=m
+ CONFIG_TCP_CONG_CDG=m
+ CONFIG_TCP_CONG_BBR=m
+-CONFIG_DEFAULT_RENO=y
++CONFIG_DEFAULT_CUBIC=y
+ CONFIG_TCP_MD5SIG=y
+ CONFIG_IPV6_ROUTER_PREF=y
+ CONFIG_IPV6_ROUTE_INFO=y
+diff --git a/config/kernel/linux-rockchip64-current.config b/config/kernel/linux-rockchip64-current.config
+index 6de3d545e..22cce10ec 100644
+--- a/config/kernel/linux-rockchip64-current.config
++++ b/config/kernel/linux-rockchip64-current.config
+@@ -157,7 +157,7 @@ CONFIG_TCP_CONG_ILLINOIS=m
+ CONFIG_TCP_CONG_DCTCP=m
+ CONFIG_TCP_CONG_CDG=m
+ CONFIG_TCP_CONG_BBR=m
+-CONFIG_DEFAULT_RENO=y
++CONFIG_DEFAULT_CUBIC=y
+ CONFIG_TCP_MD5SIG=y
+ CONFIG_IPV6_ROUTER_PREF=y
+ CONFIG_IPV6_ROUTE_INFO=y
+diff --git a/config/kernel/linux-rockchip64-edge.config b/config/kernel/linux-rockchip64-edge.config
+index 2b5024ed6..847a0a109 100644
+--- a/config/kernel/linux-rockchip64-edge.config
++++ b/config/kernel/linux-rockchip64-edge.config
+@@ -156,7 +156,7 @@ CONFIG_TCP_CONG_ILLINOIS=m
+ CONFIG_TCP_CONG_DCTCP=m
+ CONFIG_TCP_CONG_CDG=m
+ CONFIG_TCP_CONG_BBR=m
+-CONFIG_DEFAULT_RENO=y
++CONFIG_DEFAULT_CUBIC=y
+ CONFIG_TCP_MD5SIG=y
+ CONFIG_IPV6_ROUTER_PREF=y
+ CONFIG_IPV6_ROUTE_INFO=y
+diff --git a/config/kernel/linux-virtual-current.config b/config/kernel/linux-virtual-current.config
+index 7e2d36bff..14bbe2c29 100644
+--- a/config/kernel/linux-virtual-current.config
++++ b/config/kernel/linux-virtual-current.config
+@@ -1045,9 +1045,8 @@ CONFIG_TCP_CONG_ILLINOIS=m
+ CONFIG_TCP_CONG_DCTCP=m
+ CONFIG_TCP_CONG_CDG=m
+ # CONFIG_TCP_CONG_BBR is not set
+-# CONFIG_DEFAULT_CUBIC is not set
+-CONFIG_DEFAULT_RENO=y
+-CONFIG_DEFAULT_TCP_CONG="reno"
++CONFIG_DEFAULT_CUBIC=y
++CONFIG_DEFAULT_TCP_CONG="cubic"
+ CONFIG_TCP_MD5SIG=y
+ CONFIG_IPV6=y
+ CONFIG_IPV6_ROUTER_PREF=y
+-- 
+2.55.0
+

@@ -56,15 +56,92 @@ sudo modprobe tcp_bbr && sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
 
 ## Why it matters
 
-Reno is the weakest of the three on exactly the workloads this board runs.
-It is loss-based with additive-increase/multiplicative-decrease: the window
-grows one MSS per RTT and halves on any loss signal, so recovery is linear and
-slow on a high bandwidth-delay-product path. It also cannot distinguish
-congestion from **reordering**, which a Wi-Fi plus userspace-WireGuard path
-produces routinely — see
+Reno is loss-based AIMD: the window grows one MSS per RTT and halves on any
+loss signal, so recovery is linear and slow on a high bandwidth-delay-product
+path. It also cannot distinguish congestion from **reordering**, which a Wi-Fi
+plus userspace-WireGuard path produces routinely — see
 [the RDP video-stall finding](2026-08-01-grd-rdp-video-stall-transport-congestion.md),
-where the same socket showed `reordering:107` and `dsack_dups:215` with a
-collapsed `cwnd:48 ssthresh:13`.
+where the same socket showed `reordering:107`, `dsack_dups:215` and a collapsed
+`cwnd:48 ssthresh:13` while `bytes_retrans` never moved.
+
+## Reno is not *strictly* worse than CUBIC
+
+An earlier draft of this finding said it was. That overstates the case, and the
+reason is worth recording: **CUBIC contains Reno.** RFC 9438 defines a
+Reno-friendly region in which CUBIC tracks what Reno's window would be
+(`W_est`) and uses `max(W_cubic, W_est)`. It is active on this board:
+
+```text
+/sys/module/tcp_cubic/parameters/tcp_friendliness = 1
+```
+
+So in the low-BDP regime where Reno is competitive, CUBIC *is* Reno by
+construction, and only diverges where Reno underperforms. CUBIC is therefore
+≥ Reno in practice by containment, not by dominance. Reno remains preferable in
+narrow cases: deliberately yielding to competing Reno flows, very shallow
+buffers where CUBIC's convex probing induces more loss (not this board — it
+runs `fq_codel`), and reproducible benchmarking, where Reno's AIMD is trivially
+modelable.
+
+## Regression risk of switching
+
+**Reno → CUBIC is low risk.** Same algorithm class, so no new failure mode; it
+only affects sockets that do not set `TCP_CONGESTION` themselves; and CUBIC is
+what the board's own Ubuntu userspace, and essentially every peer it talks to,
+already assumes. Three real caveats:
+
+1. **It invalidates the measured baseline.** Every number in
+   [the transport finding](2026-08-01-grd-rdp-video-stall-transport-congestion.md)
+   was captured under reno. Changing congestion control and the encoder ceiling
+   together makes neither attributable.
+2. **Prefer a `sysctl.d` drop-in over a kernel-config change** on this board.
+   Setting `CONFIG_DEFAULT_CUBIC` locally forks the config away from Armbian
+   and adds a delta to carry through future regenerations — the exact mechanism
+   that produced this bug. The upstream patch below is the right place for a
+   config change; local use wants sysctl.
+3. **HyStart is CUBIC-only** (`hystart=1`, `hystart_detect=3`). It exits
+   slow-start on RTT/ACK-train signals, and on an RTT-noisy path it can exit
+   early and undershoot on short flows. This is the one behaviour reno does not
+   have.
+
+**Reno → BBR is a different risk profile.** The shipped `tcp_bbr.ko` is
+**BBRv1** — mainline 6.x has never carried v2 or v3, which live in Google's
+out-of-tree branch. BBRv1 is documented to be unfair to loss-based flows
+sharing a bottleneck, to sustain queues at high loss rates, and to dip
+periodically as ProbeRTT drains cwnd. For a point-to-point RDP stream on an
+otherwise idle LAN none of that bites, and its reordering tolerance is exactly
+what the socket statistics call for — but it is not a safe blanket default for
+the whole machine the way CUBIC is. BBR can be scoped to one path with
+`ip route ... congctl bbr` instead, though Tailscale manages its own routes and
+may clobber that.
+
+## The fix
+
+Locally, no rebuild is needed — both alternatives are already present:
+
+```bash
+# cubic: built in
+sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
+# or BBR: module, present but unloaded
+sudo modprobe tcp_bbr && sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+```
+
+Upstream, `fix/default-tcp-cubic@37fb6b7ea` against `armbian/build`
+`origin/main@535528112` restores CUBIC across all nine distinct configs
+(+11/−13). The patch and its verification procedure are in
+[`findings/evidence/2026-08-01-armbian-default-tcp-cubic/`](evidence/2026-08-01-armbian-default-tcp-cubic/README.md).
+**It has not been submitted.**
+
+Two traps that only surfaced by running the kernel's own Kconfig parser over
+the result, and that a reasoned-only patch would have got wrong:
+
+- **Deleting `CONFIG_DEFAULT_RENO=y` is not enough.** Two of the configs also
+  carry `# CONFIG_DEFAULT_CUBIC is not set`, which leaves reno as the only
+  selectable entry; `olddefconfig` puts `CONFIG_DEFAULT_RENO=y` straight back.
+  The line must be *replaced* with `CONFIG_DEFAULT_CUBIC=y`.
+- **`linux-rockchip-rk3588-current.config` is a symlink** to the `-edge`
+  config. `sed -i` over the glob replaces the symlink with a regular file,
+  turning an 11-line diff into an 11,000-line one.
 
 ## It is drift, not a decision
 
@@ -119,7 +196,20 @@ The archaeology above establishes *when* and *how* reno was introduced and that
 no rationale was ever recorded. It does not prove intent — no Armbian developer
 was asked, and PR #1856's discussion was not retrieved, only its commit.
 
-No A/B measurement of reno vs. cubic vs. BBR throughput or latency has been run
-on this board. The case for changing it rests on the algorithms' documented
-behaviour plus the socket statistics in the linked finding, not on a controlled
-comparison here.
+**No A/B measurement of reno vs. cubic vs. BBR has been run on this board.**
+The case for changing rests on the algorithms' documented behaviour plus the
+socket statistics in the linked finding, not on a controlled comparison. The
+claim that CUBIC would improve the observed RDP stalls is therefore INFERRED;
+what is measured is only that the path is window- and queue-limited without
+loss, which is the regime where reno is known to do badly.
+
+The upstream patch is verified at the level of Kconfig resolution only: nine
+configs in, nine `CONFIG_DEFAULT_CUBIC=y` out. No kernel was built from them
+and none was booted, so nothing here establishes that the resulting kernels are
+otherwise unchanged.
+
+`CONFIG_DEFAULT_CUBIC` was checked against a 6.18 arm64 Kconfig tree. Four of
+the nine configs target other families and two (`linux-virtual-current`,
+`linux-meson64-oldlts`) may resolve against a different kernel version upstream;
+the TCP choice is arch- and version-stable across the range in question, but
+that was assumed rather than tested per-family.
