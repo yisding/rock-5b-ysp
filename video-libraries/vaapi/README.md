@@ -155,11 +155,14 @@ Firefox's RDD process has two independent controls:
    the existing DRM/DMA-BUF families.
 
 Source-hash-pinned Firefox 152.0.6 and 153.0 patches implement that narrow
-policy without setting `MOZ_DISABLE_RDD_SANDBOX`. Companion patches handle a
-separate Panfrost P010 boundary: after standards-correct GR1616 EGL import
-fails with `EGL_BAD_MATCH`, they retry Firefox's existing RG/GR alternative
-once. Both exact-source patch contracts pass and the 152.0.6 affected release
-object compiles. The exact signed 153.0 package is quilt-patched as local
+policy without setting `MOZ_DISABLE_RDD_SANDBOX`. They are now the only Firefox
+patches. The companion chroma-retry pair was deleted on 2026-07-30 (`df14bb6`)
+because the P010 boundary it worked around was ours: split chroma was exported
+as `0x36315247`, the VA-style `GR16` literal, where `DRM_FORMAT_GR1616` is
+`0x32335247`. Mesa's `EGL_BAD_MATCH` was correct and the import never reached
+Panfrost. `1.0.11+ysp7` exports the real fourcc and imports Main10 zero-copy in
+both Firefox processes. Both exact-source patch contracts pass and the 152.0.6
+affected release object compiles. The exact signed 153.0 package is quilt-patched as local
 `~mt1+ysp1` and building natively on arm64; no completed binary or
 sandbox-enabled runtime gate exists.
 See the
