@@ -110,7 +110,7 @@ stress; do not mislabel the cumulative counter as a leak gauge.
 The following cannot be closed by repository selftests:
 
 1. Boot KASAN and KCSAN rewrite kernels, persist the 238-case green KUnit report
-   (90 MPP + 148 RGA at the current tip), and run the full paired suite matrix
+   (89 MPP + 150 RGA at the current tip), and run the full paired suite matrix
    with clean dmesg evidence.
 2. Supply an AVS2 elementary stream and record forward-port/rewrite
    `mpi_dec_avs2` output parity.

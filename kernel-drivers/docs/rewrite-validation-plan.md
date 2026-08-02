@@ -632,7 +632,7 @@ booted sanitizer/fault-injection evidence.
 Ship only when **all** hold, each with a dated record in
 [`../../status.md`](../../status.md) / [`status.md`](./forward-port-status.md):
 
-1. 238 KUnit cases green **under KASAN** (90 MPP + 148 RGA), persisted from the
+1. 239 KUnit cases green **under KASAN** (89 MPP + 150 RGA), persisted from the
    booted suites by `tests/rewrite-kunit-log-check.sh`; hardware-in-the-loop
    kselftests added (the KUnit cases themselves never open the device).
 2. **Byte-exact** differential parity vs forward-port across the full P2 matrix —

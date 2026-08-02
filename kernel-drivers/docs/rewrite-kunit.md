@@ -2,7 +2,7 @@
 
 The rewrite drivers use KUnit as a built-in boot gate for logic and state
 transitions that can be exercised without RK3588 hardware. The YSP result is
-green only when the named **90 MPP + 152 RGA case manifest** matches without
+green only when the named **89 MPP + 150 RGA case manifest** matches without
 duplicates, omissions, failures, or skips **and** the same kernel-log interval
 is free of sanitizer reports, warnings, lockdep findings, refcount failures,
 and media/IOMMU faults. The report also binds the run to the kernel release,
@@ -223,7 +223,7 @@ For each suite it requires:
 
 | Field | Required value |
 |-------|----------------|
-| Inner KTAP plan | exactly 90 MPP or 152 RGA |
+| Inner KTAP plan | exactly 89 MPP or 150 RGA |
 | Observed case results | exactly the planned count |
 | Failed cases | 0 |
 | Skipped cases | 0 |
