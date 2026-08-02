@@ -26,9 +26,9 @@ client type 28 through `/dev/mpp_service`. libmpp's default vproc build contains
 the matching IEP2 consumer.
 
 No inspected RK3588 source layer contains a VDPP instance: there is no TRM
-chapter/name, SoC DT node, clock/reset ID, kernel compatible, or libmpp VDPP
-SoC selection for RK3588. RK3528 and RK3576 explicitly instantiate both IEP and
-VDPP, proving they are distinct blocks. The precise conclusion is therefore
+chapter/name, SoC DT node, clock/reset ID, kernel compatible, or explicit
+libmpp VDPP SoC case for RK3588. RK3528 and RK3576 explicitly instantiate both
+IEP and VDPP, proving they are distinct blocks. The precise conclusion is therefore
 “no documented or BSP-addressable VDPP on RK3588,” not merely “VDPP is disabled
 in the ROCK 5B board DTS.”
 

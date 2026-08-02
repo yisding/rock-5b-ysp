@@ -4,9 +4,9 @@
   standalone IEP driver; do not infer that `/dev/iep` is the RK3588 IEP2 ABI.
 - **IEP2** — RK3588's fixed-function image-enhancement/deinterlacing block.
   The BSP MPP driver exposes it through `/dev/mpp_service` as client type 28.
-- **VDPP** — Video Decoder Post-Processor. A separate Rockchip hardware family
-  instantiated on SoCs including RK3528 and RK3576, but not RK3588. Its MPP
-  client type is 29.
+- **VDPP** — Video Display Post Processor in libmpp's build option. A separate
+  Rockchip hardware family instantiated on SoCs including RK3528 and RK3576,
+  but not RK3588. Its MPP client type is 29.
 - **vproc** — libmpp's decoder-side video-processing layer. It notices an
   interlaced decoded frame, obtains an IEP context, and invokes IEP2 when that
   backend is available.

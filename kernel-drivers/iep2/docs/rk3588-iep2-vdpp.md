@@ -107,7 +107,8 @@ flowchart LR
 ### Kernel side
 
 `drivers/video/rockchip/mpp/mpp_iep2.c` is an MPP subdriver, not a separate
-legacy `/dev/iep2` character device. It:
+`/dev/iep2` character device; the legacy IEP path instead uses `/dev/iep`. The
+IEP2 subdriver:
 
 1. binds the `rockchip,iep-v2` device;
 2. registers `MPP_DEVICE_IEP2` with the common MPP service;
@@ -166,6 +167,11 @@ source and installed binary inspection identify it as IEP2 client 28, not VDPP
 client 29. libmpp then disabled deinterlacing and continued; the clip decoded
 bit-exact. Bit-exact decode does not demonstrate deinterlaced output.
 
+The inspected mainline/maxline trees do not provide an RK3588 IEP2 driver.
+Their generic `m2m-deinterlace` module uses DMAengine and a V4L2 `/dev/video*`
+interface; it does not register MPP client 28 and cannot satisfy this libmpp
+request.
+
 ## 4. Why IEP2 looks much smaller than VDPP
 
 First separate kernel from userspace. Raw physical-line counts at the pinned
@@ -175,6 +181,12 @@ BSP/libmpp revisions are:
 |---|---:|---:|---|
 | BSP kernel | 1,350 | 828 | IEP2 `.c` + register header versus VDPP `.c` |
 | libmpp implementation directory | 1,638 | 10,484 | top-level non-test `.c`/`.h` in each implementation directory |
+
+These are deliberately comparable implementation-directory counts, not a full
+dependency closure. The IEP2 decoder bridge also uses the shared
+`mpp_dec_vproc.c` (1,228 lines) and `mpp_vproc_dev.c` (58), plus common API
+headers (289 lines); those are orchestration/ABI shared with other vproc
+backends. VDPP likewise has API/HWPQ headers outside the directory count.
 
 The **kernel IEP2 code is not smaller**: `mpp_iep2.c` is 1,166 lines and
 `rockchip_iep2_regs.h` is 184, versus 828 lines for `mpp_vdpp.c`. These are raw
@@ -199,12 +211,10 @@ The userspace IEP2 implementation really is much smaller, for four reasons:
 ```mermaid
 flowchart TB
   subgraph i["IEP2 boundary"]
-    iu["userspace: semantic deinterlace parameters"] -->
-    ik["kernel: validate, map buffers, build registers"] --> ih["IEP2"]
+    iu["userspace: semantic deinterlace parameters"] --> ik["kernel: validate, map buffers, build registers"] --> ih["IEP2"]
   end
   subgraph v["VDPP boundary"]
-    vu["userspace: choose generation, tune PQ, build register image"] -->
-    vk["kernel: translate buffers and submit registers"] --> vh["VDPP"]
+    vu["userspace: choose generation, tune PQ, build register image"] --> vk["kernel: translate buffers and submit registers"] --> vh["VDPP"]
   end
 ```
 

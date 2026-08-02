@@ -115,15 +115,16 @@ them as 0% ours.
 | `mpp_vdpp.c` | `ROCKCHIP_MPP_VDPP` | Separate VDPP post-processor | Absent on RK3588. The BSP driver binds VDPP instances on RK3528/RK3576, not this SoC. |
 
 **JPEG and IEP2 are real capability gaps.** RK3588 has both JPEG codec hardware
-and the IEP2 de-interlacer, and we chose not to port them. The JPEG consequence is visible and
-recorded: the GStreamer suite's JPEG and VP8 encoder cases fail as
+and the IEP2 de-interlacer, and we chose not to port them. The JPEG consequence
+is visible and recorded: the GStreamer suite's JPEG and VP8 encoder cases fail as
 *expected diagnostics* because this kernel registers no such cores, and libmpp
 logs benign `client N driver is not ready!` lines while probing for them. The
 IEP2 consequence is also visible: interlaced output makes libmpp request client
 28, receive `EINVAL`, disable deinterlacing, and continue decoding. Every other
 unported `mpp_*` block above is hardware this SoC does not have. JPEG and IEP2
-are deliberate scope decisions that can be revisited. (Mainline's own Hantro JPEG driver is a separate, coexisting
-path — see [coexistence](#coexistence-with-mainline-drivers).)
+are deliberate scope decisions that can be revisited. (Mainline's own Hantro
+JPEG driver is a separate, coexisting path — see
+[coexistence](#coexistence-with-mainline-drivers).)
 
 ### BSP subdirectories left behind (8 of 10)
 

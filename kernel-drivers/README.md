@@ -1,8 +1,8 @@
 # kernel-drivers/ — RK3588 media and accelerator kernel work
 
 The kernel-side work for the ROCK 5B: the vendor Rockchip MPP codec, IEP2
-deinterlacer, RGA, and RKNPU accelerator drivers; their RK3588 device tree; the media audit fix series;
-and the media clean-room rewrite track. Driver code lives in sibling kernel
+deinterlacer, RGA, and RKNPU accelerator drivers; their RK3588 device tree; the
+media audit fix series; and the media clean-room rewrite track. Driver code lives in sibling kernel
 trees (`linux-6.18-rkvenc*`, `rockchip-kernel`); this project holds architecture,
 patch deliverables, and on-hardware validation. The RKNPU project also crosses
 into the tightly coupled proprietary RKNN compiler/runtime because its kernel

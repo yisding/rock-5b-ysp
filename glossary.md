@@ -50,10 +50,10 @@ when comparing the encoder and decoder or reconstructing the Armbian port.
   The BSP binds `rockchip,iep-v2` and exposes it as MPP client 28 through
   `/dev/mpp_service`, not `/dev/iep2`. The current 6.18 forward port omitted
   its driver and DT nodes. Full audit: [RK3588 IEP2 versus VDPP](./kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md).
-- **VDPP** — *Video Decoder Post-Processor*, a separate Rockchip hardware
-  family and MPP client 29. RK3528/RK3576 have explicit VDPP instances; RK3588
-  has no documented or BSP-addressable VDPP block. It is not another name for
-  RK3588 IEP2.
+- **VDPP** — *Video Display Post Processor* in libmpp's build option, a
+  separate Rockchip hardware family and MPP client 29. RK3528/RK3576 have
+  explicit VDPP instances; RK3588 has no documented or BSP-addressable VDPP
+  block. It is not another name for RK3588 IEP2.
 - **CCU** — the per-cluster *Central Control Unit* coordination model used to
   pick an idle core and manage shared clocks/IOMMU. **⚑ load-bearing
   disambiguation:** the **decoder's CCU is a real MMIO block** (`@fdc30000`,

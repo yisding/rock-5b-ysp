@@ -235,9 +235,9 @@ format conversion, rotation, and composition. The BSP carries several generation
 - `drivers/media/platform/rockchip/rga/` for an upstream-style media driver
   variant also present in the tree
 
-Across its supported SoCs, the BSP also adds IEP, RVE, VDPP, DVBM, vehicle, and vtunnel components under
-`drivers/video/rockchip/`, plus camera/video-processing blocks under
-`drivers/media/platform/rockchip/`.
+Across its supported SoCs, the BSP also adds IEP, RVE, VDPP, DVBM, vehicle, and
+vtunnel components under `drivers/video/rockchip/`, plus
+camera/video-processing blocks under `drivers/media/platform/rockchip/`.
 
 ```mermaid
 flowchart LR
