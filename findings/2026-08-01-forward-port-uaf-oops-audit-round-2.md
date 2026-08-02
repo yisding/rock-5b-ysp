@@ -240,11 +240,45 @@ lockdep, boot it, and run each single-ioctl probe below, expecting a clean
 | decode loop while a second thread spams `MPP_CMD_INIT_TRANS_TABLE` with `{0xFFFF}` | `-EINVAL`, no KASAN report |
 
 Because every fix is compile-only, the **regression** gate matters as much as
-the defect gate: the existing MPP matrix, FFmpeg codec suite, librga smoke and
-ABI replay from the
-[runbook](../kernel-drivers/docs/kernel-validation-runbook.md) must stay green,
-since six of the fixes add new rejection paths (`-EOPNOTSUPP`, `-EPERM`,
-`-EINVAL`) on ioctls that working userspace exercises.
+the defect gate. Five of the fixes add new rejection paths (`-EOPNOTSUPP`,
+`-EPERM`, `-EINVAL`). A source sweep of the actual consumers on this box found
+none of them reachable from production userspace: `librga.so.2.1.0` is the only
+loaded library that opens `/dev/rga`, and libavfilter, libavcodec and
+`rockchip_drv_video.so` import only `improcess{,Opt}`, `wrapbuffer_fd_t`,
+`imsync` and `querystring` — no `importbuffer_*` symbol at all, and librga's own
+enum stops at `RGA_PHYSICAL_ADDRESS` so `RGA_DMA_BUFFER_PTR` is not even
+expressible. librga opens `/dev/rga` once per process and never forks or passes
+fds, so the `-EPERM` checks are identity checks. librockchip-mpp sends exactly
+one fd per `MPP_CMD_RELEASE_FD` and pairs it structurally with
+`TRANS_FD_TO_IOVA`, and has no `MPP_CMD_INIT_DRIVER_DATA` sender at all.
+
+Two corrections to earlier framing: the register-index `-EINVAL` is **not** new
+in this series — it landed in `febed97bc4597` and `reg_cnt` is a hardware
+constant in all three drivers, not user-derived — and
+`cancel_delayed_work_sync()` does not actually sleep on the hot path, because
+the 500 ms timer is always still armed at 1080p60, so `__flush_work()` returns
+via `already_gone` for a sub-microsecond cost once per completed task.
+
+**Coverage gap worth fixing before the next round:** the RGA ABI probes
+auto-enable only for `PROFILE=*rewrite*` (`abi-replay.sh:12-19`), so they are
+silently skipped on a forward-port run — including the `-EOPNOTSUPP` assertions
+that would have caught R1/R2 regressions. And nothing in `tests/` covers the
+cross-session import path at all, which is exactly where the review found the
+`import_cnt` use-after-free. The missing probe is about twenty lines: open
+`/dev/rga` twice, import the same dma-buf on both, close the first, blit on the
+second. That single test is what distinguishes the broken five-commit series
+from the fixed tip.
+
+Run order, cheapest first: the normal GRD/ffmpeg workload with
+`dmesg | grep -E "was not imported by this session|unsupported import type|does
+not belong to this session|reg index .* out of range"` (every new rejection has
+a distinct string, so silence is real evidence); then
+`ABI_PROBE_ENABLE_MPP_FOREIGN_FD=1 ABI_PROBE_EXPECT_RGA_PHYSICAL_REJECT=1
+abi-probe.sh` and `PROFILE=forward-port abi-replay.sh`; then
+`LIBRGA_SMOKE_EXPECT_PHYSICAL_REJECT=1 librga-smoke.sh`; then
+`encode-test-tiny.sh`, since the encoder fix is the one guarding the GRD path;
+then the new cross-session probe; then `decode-differential.sh` and
+`kasan-mpp-suite.sh` for the soft-CCU path, whose only signal is a KASAN splat.
 
 ## Why it matters
 
