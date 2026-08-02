@@ -944,6 +944,17 @@ why it is suspect, and what would prove a correction. Upstream submission
 sequencing is deliberately not recorded here; repository policy assigns that
 material to the private `rock-5b-security` repository.
 
+> **The diagnoses below survived re-review; three of the patches written from
+> them did not.** A 2026-08-02 adversarial read of
+> [`patches/mainline-codec-fixes/`](../patches/mainline-codec-fixes/README.md)
+> against the same mainline source found that the Hantro unwind patch
+> self-deadlocks, the `sizeimage` patch rejects geometry the driver advertises
+> instead of clamping it, and both DMA-mask patches are no-ops because the
+> platform streaming mask is already 32-bit. Read §12.4 and §12.5 in particular
+> as correct problem statements whose obvious implementation is wrong; the
+> mechanisms are in
+> [the series self-review](../../findings/2026-08-02-mainline-codec-fix-series-self-review.md).
+
 ### 12.1 Exact scope and the encoder naming trap
 
 | Input | Pin inspected |
@@ -1037,6 +1048,18 @@ all component planes plus colmv, followed by rejection when the exact
 `sizeimage` cannot be represented. The colmv helper itself must not overflow
 before its result is widened.
 
+> **Corrected 2026-08-02: "rejection" is the wrong verb at the ioctl boundary.**
+> The overflow analysis holds, but `VIDIOC_TRY_FMT` and `VIDIOC_S_FMT` are
+> required to adjust a format the driver cannot accept, not to fail — and the
+> geometry in question is published by the driver's own
+> `rkvdec_enum_framesizes()`, so returning `-EINVAL` makes the driver
+> inconsistent on its own interface and fails `v4l2-compliance`. The checked
+> arithmetic belongs where it is; what follows it is a **clamp** to the largest
+> representable size for the requested pixel format, which also makes
+> `enum_framesizes` honest. Rejection remains correct only where no adjustment
+> is possible. The patch written from this subsection rejects; see
+> [the series self-review](../../findings/2026-08-02-mainline-codec-fix-series-self-review.md).
+
 Useful proof consists of a small pure-helper boundary table:
 
 - the largest representable square-ish NV12 case;
@@ -1089,6 +1112,19 @@ mistake on common boards, so the useful validation is an imported-DMABUF test
 with the IOMMU disabled or with memory placement that would expose an
 unconstrained streaming mask.
 
+> **Corrected 2026-08-02: there is no live defect here.** The API observation
+> above is accurate — vb2 does map imported DMABUFs through the streaming API
+> and `dev->dma_mask` — but for these two platform devices that mask is already
+> constrained before probe runs.  `setup_pdev_dma_masks()`
+> (`drivers/base/platform.c`) defaults both `dma_mask` and `coherent_dma_mask`
+> to `DMA_BIT_MASK(32)`, and `of_dma_configure_id()` (`drivers/of/device.c`)
+> only ever ANDs them narrower. `dma_set_mask_and_coherent(dev,
+> DMA_BIT_MASK(32))` therefore changes nothing, and the patches written from
+> this subsection are no-ops asserting a regression that never happened. The
+> generalization was applied without tracing the mask's actual provenance on
+> this device class; see
+> [the series self-review](../../findings/2026-08-02-mainline-codec-fix-series-self-review.md).
+
 ### 12.5 Hantro `device_run()` leaks acquired execution resources on errors
 
 Hantro's `device_run()` obtains runtime PM and then enables prepared clocks.
@@ -1124,6 +1160,17 @@ synchronous run-error completion to `device_run()`. Fault injection before and
 after both prepare helpers should prove exactly one buffer/job completion, one
 request-control completion, no remaining watchdog, and PM/clock counts returned
 to baseline.
+
+> **Implementation trap, recorded 2026-08-02.** "Cancels any staged watchdog"
+> must not become `cancel_delayed_work_sync()`. `hantro_watchdog()` re-enters
+> `device_run()` through `v4l2_m2m_schedule_next_job()`, so a synchronous
+> cancel on the run-error path waits for the work item that is currently
+> calling it, and the same path is reachable from the non-threaded IRQ handler.
+> Mainline's non-sync `cancel_delayed_work()` in `hantro_irq_done()` is the
+> interrupt-versus-watchdog completion-ownership protocol, not an oversight —
+> whatever replaces it has to answer who owns the job when the cancel loses the
+> race. The patch written from this subsection got this wrong; see
+> [the series self-review](../../findings/2026-08-02-mainline-codec-fix-series-self-review.md).
 
 ### 12.6 RKVDEC destroys a provider-owned SRAM pool on probe failure
 

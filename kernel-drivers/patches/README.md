@@ -21,7 +21,7 @@ The kernel-side patch deliverables of this repo:
 | [`rga-userptr-iommu/`](rga-userptr-iommu) | **RGA3 scattered-userptr IOMMU fallback** — forward-port and rewrite patches that map scattered pinned userptr through a driver-owned contiguous IOVA span in the translated RGA domain. | [`rga-userptr-iommu/README.md`](rga-userptr-iommu/README.md) |
 | [`forward-port-rk3588/`](forward-port-rk3588) | **The** 87-file RK3588 MPP/RGA/AV1 forward-port series and PPA/build source line. Its README is the mechanical index; the patch catalog owns provenance and BSP-backport classification. Generated `.deb`s and worktrees stay outside git. | [`forward-port-rk3588/README.md`](forward-port-rk3588/README.md), [per-patch provenance/backport catalog](../docs/patch-catalog.md) |
 | [`debug-kernel/`](debug-kernel) | Debug-build-only ROCK 5B DT patch reserving the BSP-derived persistent low-memory window for upstream ramoops. Staged automatically by the debug-kernel builder; not part of production forward-port packages. | [debug-kernel guide](../docs/debug-kernel.md) |
-| [`mainline-codec-fixes/`](mainline-codec-fixes/README.md) | Seven compile-checked corrections for current mainline RKVDEC/Hantro format state, size arithmetic, runtime ownership, DMA masks, failed-run unwind, and borrowed SRAM ownership. Mainline only; no maxline changes. | [mainline/maxline source audit](../docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30) |
+| [`mainline-codec-fixes/`](mainline-codec-fixes/README.md) | Seven compile-checked corrections for current mainline RKVDEC/Hantro format state, size arithmetic, runtime ownership, DMA masks, failed-run unwind, and borrowed SRAM ownership. Mainline only; no maxline changes. **Three of the seven are defective** — `0004` self-deadlocks, `0002` rejects advertised geometry, `0005`/`0006` are no-ops; only `0001`, `0003` and `0007` hold up. | [mainline/maxline source audit](../docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30), [series self-review](../../findings/2026-08-02-mainline-codec-fix-series-self-review.md) |
 | [`system-heap-sg-guard/`](system-heap-sg-guard/README.md) | **Debug-only** `page_link` snapshot-and-compare guard for `drivers/dma-buf/heaps/system_heap.c`, attributing the GRD/RKMPP scatterlist-corruption oops. Reports the owning device and skips a corrupted sync instead of faulting; `system_heap.sg_guard` / `sg_guard_panic` knobs. Builds clean against both the production and KASAN configs; excluded from clean production builds. | [oops trace](../../findings/2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md), [why KASAN is blind](../../findings/2026-07-27-grd-sg-corruption-kasan-non-reproduction.md), [repro plan](../docs/grd-sg-corruption-repro-plan.md) |
 | [`iommu-debug/`](iommu-debug/README.md) | Archived opt-in RK3588 IOMMU/RGA diagnostic instrumentation and config wiring for the IOMMU machinery fuzzer; excluded from clean production builds. | [`iommu-debug/README.md`](iommu-debug/README.md) |
 
@@ -34,6 +34,16 @@ The kernel-side patch deliverables of this repo:
 > the codec/RGA regression sweep on booted `Pabd5-C4ad2` (see
 > [`status.md`](../../status.md)); the historical full cleanup series has still
 > never completed its runtime gate.
+
+> **⚠️ Compile-clean is not review-clean, either.** The same lesson cost the
+> mainline codec series three of its seven patches. `checkpatch --strict`, a
+> clean `git am` and a `W=1` build all passed on a patch that deadlocks against
+> its own watchdog, a patch that violates the V4L2 format contract, and two
+> patches that change nothing while claiming a `Fixes:` regression. Every
+> prepared series in this directory carries only shape checks unless its README
+> says otherwise; read
+> [the self-review](../../findings/2026-08-02-mainline-codec-fix-series-self-review.md)
+> before treating any of them as ready to send.
 
 The generic Armbian apply flow below is for the two frozen base patches named
 `rk3588-rkvenc2-0*.patch`. Do not drop `rga-userptr-iommu/*.patch` into

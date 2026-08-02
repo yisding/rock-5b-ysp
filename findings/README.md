@@ -125,6 +125,8 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-02-mainline-tool-assisted-contribution-policy.md`](2026-08-02-mainline-tool-assisted-contribution-policy.md) — Mainline now has a written tool-assisted contribution policy, and its trailer is not the one this repo uses
+- [`2026-08-02-mainline-codec-fix-series-self-review.md`](2026-08-02-mainline-codec-fix-series-self-review.md) — Three of the seven mainline codec-fix patches are defective
 - [`2026-08-02-librga-handle-plane-placeholder.md`](2026-08-02-librga-handle-plane-placeholder.md) — librga handle requests use uv_addr—not v_addr—as the separate-plane discriminator
 - [`2026-08-01-stock-ubuntu-rock5b-successor-architecture.md`](2026-08-01-stock-ubuntu-rock5b-successor-architecture.md) — A ROCK 5B-only Ubuntu successor should keep Resolute userspace stock and own the board kernel and firmware
 - [`2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md`](2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md) — The rkvdec2 hardware self-resets on error; the rewrite driver neither detects it nor restores the IOMMU
