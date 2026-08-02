@@ -1,15 +1,47 @@
 # Clean-room rewrite drivers — `mpp-rewrite` & `rga-rewrite`
 
 A second, independent implementation track: **public-API-only reimplementations
-of the `/dev/mpp_service` and `/dev/rga` userspace ABIs**, written from the ABI
-knowledge documented in [uAPI guide](./dev-uapis.md) rather than by carrying the
-BSP code. This is the *opposite* strategy to the conservative forward-port
+of the `/dev/mpp_service` and `/dev/rga` userspace ABIs**, written against the
+ABI knowledge documented in [uAPI guide](./dev-uapis.md) rather than by carrying
+the BSP code. This is the *opposite* strategy to the conservative forward-port
 ([forward-port guide](../../kernel-versions/docs/vendor-forward-port.md), which keeps ~87% of the vendor code
-byte-identical, [vendor delta](./vendor-delta.md)): here the BSP `.c` files are
-not used at all, and every kernel interface is a public one — devm-managed
-MMIO/IRQ/clock/reset discovery, public `dma_buf_attach`/`map` for fd imports,
-the public DMA API (`dmam_alloc_coherent`) for RCB scratch instead of the BSP's
-fixed-IOVA SRAM reservation, runtime PM, and plain threaded IRQs.
+byte-identical, [vendor delta](./vendor-delta.md)): no BSP `.c` file is compiled,
+adapted, or copied into these drivers, and every kernel interface is a public
+one — devm-managed MMIO/IRQ/clock/reset discovery, public
+`dma_buf_attach`/`map` for fd imports, the public DMA API
+(`dmam_alloc_coherent`) for RCB scratch instead of the BSP's fixed-IOVA SRAM
+reservation, runtime PM, and plain threaded IRQs.
+
+### What "clean-room" does and does not mean here
+
+**It is not a Chinese wall, and the code does not pretend otherwise.** These
+drivers were written by someone reading the BSP as a behavioural reference, and
+they cite it: around thirty comments name a BSP `.c` file and function as the
+source of a constant or a contract (`rga_rewrite.c` "BSP `rga2_reg_info.c`
+derives `alpha_zero_key` from…", `mpp_rewrite.c` "BSP contract
+(`rkvdec2_soft_ccu_enqueue`)"). Register offsets, bit positions, and the
+fd-translation table contents are functional facts about the silicon that any
+correct driver must reproduce, and several match the vendor headers exactly.
+
+What the track does claim, and what an audit can check:
+
+- **No vendor expression was copied.** Subtracting identifiers the shared UAPI
+  headers force, the identifier intersection with the vendor RGA implementation
+  is one explicitly attributed macro name plus the filename citations. No vendor
+  accessor macros, no copied function names, no copied comment prose.
+- **Derivations are attributed inline** rather than presented as originally
+  derived.
+- **Every kernel-facing interface is public**, which is the property that makes
+  the track maintainable across kernel versions and is the actual point of it.
+
+The accurate one-line description is *"an independent implementation written
+against the BSP source as a behavioural reference, with no vendor expression
+copied and derivations attributed inline."* The phrase "clean-room" survives
+in this repo as the **name of the track**, distinguishing it from the
+BSP-derived forward port; it is not a provenance assertion. Earlier revisions of
+this page said the BSP `.c` files were "not used at all", which the code's own
+comments contradict — see
+[round 3](../../findings/2026-08-01-rewrite-driver-review-round-3.md) §13.
 
 > **Status: advanced bring-up, not yet the validated replacement.** MPP now covers
 > the observed RK3588 userspace ABI with no required command intentionally left
