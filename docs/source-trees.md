@@ -20,7 +20,7 @@ The paths below name that current location, while `rock-5b-ysp`,
 | 3 | `$OURS` / `$BSP` measurement pair + BSP 6.6 comparison | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count", [BSP 6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md), [RKNPU kernel architecture](../kernel-drivers/rknpu/docs/kernel-driver-architecture.md) | tree 1 vs `rockchip-linux/kernel` `develop-6.1@b4ef083dc0c3`; comparison `develop-6.6@1ba51b059f25` |
 | 4 | Userspace media trees | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), FFmpeg docs, [`rockchip-vaapi`](../video-libraries/vaapi/README.md), Firefox RDD policy | table in §4 |
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | latest GNOME 50 stable = `18cc5f7bf6ea`; clean release tip = `c4ef3c961940`; historical 50.1 replay and experiment tips remain recorded in §5 |
-| 6 | Register recipes | kernel/userspace driver docs | MPP HAL sources + RK3588 TRM (§6) |
+| 6 | Register recipes and RK3588 IEP2/VDPP identity | kernel/userspace driver docs, [IEP2 audit](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) | MPP HAL/vproc sources + RK3588 TRM Part 2 Rev 1.0 (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | current 6.18 review tip `rk3588-rewrite-6.18@2f05724a20036` and comparison tip `rk3588-rewrite-mainline@2cf0126529c1c`; the 2026-08-02 [adversarial review](../kernel-drivers/docs/rewrite-driver-adversarial-review-2026-08-02.md) repairs DMA ownership, recovery, RCB, polling, and ABI defects on baseline `8042f13c5459`; earlier atomic-safe fault-handler and [review-round-2](../findings/2026-07-29-rewrite-driver-review-round-2.md) history remains in §8; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
@@ -142,6 +142,7 @@ donor and is not cited by any doc.)
 | libmpp (v1.3.9 how-doc study tree) | `rockchip-linux/mpp` | **v1.3.9** (how-the-userspace-libs-work.md:9). Commit-level pin **unrecorded** — see note below | how-the-userspace-libs-work.md Part A, [`video-libraries/ffmpeg/README.md`](../video-libraries/ffmpeg/README.md) |
 | libmpp (KMPP-aware study tree) | `mpp-rockchip` | `1375813cbbae5ad6861b166475dd8fb672183220` — the KMPP-bearing tree the architecture/KMPP/Rust docs were read against; **distinct** from the v1.3.9 how-doc tree above | [`mpp-library-architecture.md`](../vendor-libraries/mpp/docs/mpp-library-architecture.md), [`mpp-kmpp-reverse-engineering.md`](../vendor-libraries/mpp/docs/mpp-kmpp-reverse-engineering.md), [`mpp-rust-rewrite-assessment.md`](../vendor-libraries/mpp/docs/mpp-rust-rewrite-assessment.md) |
 | libmpp AV1 design source | `github.com/yisding/mpp`, branch `ysp/main` | `3381fd2c9a0099135a94852c9434b47075458de1` (2026-07-29); private parsed-picture syntax, AV1 common/HAL state, VDPU383 job construction, and MPP-service transport inspected for the direct-backend design | [`direct AV1 backend design`](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md) |
+| libmpp IEP2/VDPP audit and installed vproc source | `github.com/yisding/mpp`, branch `ysp/main` | `ad32534571564aae2ee5cca26547c3738e3366ed` (2026-07-30); matches installed package source identity and was inspected for vproc build defaults, IEP2/VDPP allocators, client types, and decoder orchestration | [`IEP2 audit`](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md), [installed ysp8 validation](../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) |
 | libmpp (PPA packaging tree) | `github.com/yisding/mpp`, branch `ysp/main` | `3381fd2c` (2026-07-29), five commits past `1.0.12@1375813c`; exported as `1.5.0+git20260729.3381fd2c+ds-0ubuntu1~rk1` with unused Windows binaries removed from the orig tarball; exact Published runtime package checksum-verified and exercised in the isolated complete HEVC sweep | [`packaging/ppa/README.md`](../packaging/ppa/README.md), [same-ID PPS fix](../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md), [RADL fix](../findings/2026-07-29-hevc-nut-radl-and-unused-rps-reference-fixes.md) |
 | librga source (fixed tree) | `github.com/yisding/librga` | branch `main`, tip `26a50ef` (2026-07-25); preserves the `2cffdf6f332c` JeffyCN history, then `cc39281` as the latest-vendor-source layer matching `yisding/librga-mirror@32c3bf1`, then nyanmisaka/local fixes. Since `a632217` (2026-07-03) the 10-bit stride convention moved across three commits: `c80eea7` submits `vir_w` as a byte stride, `b8def3e` limits that to raster, `4c26ddf` extends it to tile. Kernel and librga must ship together for 10-bit | [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md), [gotchas](./gotchas.md) |
 | librga historical source base (study tree) | `tsukumijima/librga-rockchip` (JeffyCN `linux-rga-multi` lineage) | `2cffdf6f332c` (`v2.2.0`, the 2026-01-21 merge of `JeffyCN/mirrors:linux-rga-multi`); **recorded**, every librga file/function cite in how-the-userspace-libs-work.md re-verified against it 2026-07-01 (how-the-userspace-libs-work.md:11-14). Also the last open vendor-history tip used as the fixed-tree base above | how-the-userspace-libs-work.md Part B, [gotchas](./gotchas.md) |
@@ -293,10 +294,15 @@ recipe"). The recipes live in:
   `mpp/hal/rkdec/` (per-codec register builders `hal_h264e`, `hal_h265e`,
   `hal_h264d`, `hal_h265d`; how-the-userspace-libs-work.md §A3). Register-layout headers sit next to
   each HAL (VEPU580 / VDPU381 register structs).
-- **RK3588 TRM** — the address map in device-tree.md ("Address Mapping" table, the
-  `fdc40000`-vs-`fdc48000` resolution). Reference gap: the docs cite "the
-  RK3588 TRM" without recording the exact TRM part/version number —
-  **UNVERIFIED** which TRM revision was consulted; record it here when known.
+- **RK3588 TRM** — locally archived Parts 1 and 2. The IEP2 audit used **Part 2,
+  Revision 1.0, 2022-03-09** for the IEP2 feature/register chapter and searched
+  both parts for VDPP terminology. Extracted-text SHA-256 identities are Part 1
+  `fe16cd1e43596bf33cd94c7e50828b11102467b59fa7ccda109c789a7b0bb9af` and
+  Part 2
+  `f92ba6cedaa774411f299606c2470f45d758eb185487c405463aed91ddac4261`.
+  The earlier address-map use did not record its revision, so these hashes pin
+  the currently available artifacts without retroactively asserting that an
+  older investigation used the same copy.
 
 ## 7. Canonical uAPI headers (dev-uapis.md's definitions)
 

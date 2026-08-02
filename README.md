@@ -80,6 +80,7 @@ not repeat dated status or operational commands because those copies drift.
 | Understand U-Boot and the ROCK 5B boot chain | [`boot-firmware/`](boot-firmware/README.md) |
 | Compare the validated vendor path with maximum-mainline RK3588 builds | [`kernel-versions/`](kernel-versions/README.md) |
 | Rebuild the MPP/RGA kernel-driver model | [`kernel-drivers/docs/how-the-drivers-work.md`](kernel-drivers/docs/how-the-drivers-work.md) |
+| Understand RK3588 deinterlacing and IEP2 versus VDPP | [`kernel-drivers/iep2/`](kernel-drivers/iep2/README.md) |
 | Follow the kernel-to-userspace ABI boundary | [`vendor-libraries/docs/how-the-userspace-libs-work.md`](vendor-libraries/docs/how-the-userspace-libs-work.md) |
 | Understand RKNN conversion, userspace, and the RKNPU driver | [`kernel-drivers/rknpu/`](kernel-drivers/rknpu/README.md) |
 | Decode shared terms like MPP, RGA, CCU, and DCHS | [`glossary.md`](glossary.md) |
@@ -112,7 +113,7 @@ flowchart TB
   board["Radxa ROCK 5B / RK3588"]
   boot["boot-firmware: BootROM · SPL · TF-A · U-Boot"]
   kver["kernel-versions<br/>BSP overlay · forward-port"]
-  kernel["kernel-drivers<br/>mpp · rga · av1 · iommu · rknpu"]
+  kernel["kernel-drivers<br/>mpp · iep2 · rga · av1 · iommu · rknpu"]
   libs["vendor-libraries<br/>librockchip_mpp · librga"]
   video["video-libraries<br/>ffmpeg · vaapi · mesa"]
   apps["apps<br/>gnome-remote-desktop · kodi"]
@@ -130,7 +131,7 @@ flowchart TB
 |----------|-----------------|-------|
 | **boot-firmware** | Power-on through Linux handoff: U-Boot primer, RK3588 stages/artifacts, lineage comparison, and safe debugging. | [`boot-firmware/`](boot-firmware/README.md) |
 | **kernel-versions** | The kernel bases and moving between them: what the BSP adds vs stock, the forward-port narrative, the mainline-V4L2 alternative. | [`kernel-versions/`](kernel-versions/README.md) |
-| **kernel-drivers** | In-kernel accelerator drivers, split `mpp` · `rga` · `av1` · `iommu` · `rknpu`; shared architecture docs, patches, scripts, on-hardware tests at the top. | [`kernel-drivers/`](kernel-drivers/README.md) |
+| **kernel-drivers** | In-kernel accelerator drivers, split `mpp` · `iep2` · `rga` · `av1` · `iommu` · `rknpu`; shared architecture docs, patches, scripts, on-hardware tests at the top. | [`kernel-drivers/`](kernel-drivers/README.md) |
 | **vendor-libraries** | Userspace vendor libs: `mpp` (librockchip_mpp), `rga` (librga). | [`vendor-libraries/`](vendor-libraries/README.md) |
 | **video-libraries** | `ffmpeg` (rkmpp codecs + rkrga filters), `vaapi` (desktop VA-API over MPP/RGA), and `mesa` (Mali-G610 transfer work). | [`video-libraries/`](video-libraries/README.md) |
 | **apps** | Real applications on the stack: `gnome-remote-desktop` H.264 RDP encode and Kodi DRM PRIME hardware decode. | [`apps/`](apps/README.md) |

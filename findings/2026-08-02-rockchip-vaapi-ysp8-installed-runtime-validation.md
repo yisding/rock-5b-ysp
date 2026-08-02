@@ -1,4 +1,4 @@
-# rockchip-vaapi ysp8 is installed and green across decode, encode, GStreamer, VLC, mpv, and Firefox; one optional VDPP probe is noisy
+# rockchip-vaapi ysp8 is installed and green across decode, encode, GStreamer, VLC, mpv, and Firefox; one optional IEP2 probe is noisy
 
 > Scope: installed `rockchip-vaapi` and `rockchip-vaapi-config`
 > `1.0.11+ysp8-0ubuntu1~rk1` on a ROCK 5B, including package identity, libva
@@ -19,7 +19,7 @@
 > Trust: **MEASURED** (runtime gates and kernel-log audit) /
 > **PACKAGE-VERIFIED** (installed versions, `dpkg -V`, hashes, ELF build ID,
 > and deb extraction match) / **CODE-INSPECTED** and **ROOT-CAUSED** (the
-> optional VDPP initialization failure) / **PARTIAL** (the quarantined risky
+> optional IEP2 initialization failure) / **PARTIAL** (the quarantined risky
 > vector, long/sanitizer sweeps, sandbox-enabled Firefox, physical HDR, clean
 > image, and 512 MiB CMA configuration remain open).
 
@@ -54,8 +54,8 @@ rk_vcodec: mpp_dev_ioctl_common:2027: collect msgs failed -22
 
 This is not a ysp8 decode failure. The printed command is hexadecimal, so
 `cmd 100` means `0x100`, `MPP_CMD_INIT_CLIENT_TYPE`. libmpp tried to create an
-optional VDPP deinterlacing context because `/dev/mpp_service` exists, the
-kernel advertised no VDPP subdevice at client type 29, and the request returned
+optional IEP2 deinterlacing context because `/dev/mpp_service` exists, the
+kernel advertised no IEP2 subdevice at client type 28, and the request returned
 `EINVAL`. MPP then disabled deinterlacing and continued; the triggering clip
 decoded bit-exact. The cleanup belongs in libmpp's vproc capability selection,
 not in `rockchip-vaapi`.
@@ -281,14 +281,14 @@ The source path explains the complete behavior:
    frame; it does not fail the decode.
 3. `mpp/vproc/mpp_vproc_dev.c:get_iep_ctx()` chooses `/dev/mpp_service` based
    on the device node's existence.
-4. `mpp/vproc/vdpp/vdpp.c:vdpp_init()` sends
-   `MPP_CMD_INIT_CLIENT_TYPE` (`0x100`) for `VDPP_CLIENT_TYPE` 29.
+4. `mpp/vproc/iep2/iep2.c:iep2_init()` sends
+   `MPP_CMD_INIT_CLIENT_TYPE` (`0x100`) for `IEP_CLIENT_TYPE` 28.
 5. The kernel request dispatcher returns `-EINVAL` because
-   `srv->sub_devices[29]` is absent.
+   `srv->sub_devices[28]` is absent.
 
 The kernel log formats the command with `%x`, which is why `0x100` appears as
 `100`. The clip then completed bit-exact. The correct noise reduction is for
-libmpp to select vproc only when VDPP is actually advertised, rather than when
+libmpp to select vproc only when IEP2 is actually advertised, rather than when
 the generic MPP service node merely exists.
 
 Repeated `mpp_platform: client 1,3,12,13,18,19 driver is not ready!` messages
@@ -297,7 +297,7 @@ path. `mpp_info: unknown version for missing VCS info` is a separate package
 build-provenance diagnostic. Neither should be promoted into a kernel runtime
 failure without a corresponding failed operation.
 
-### Mainline and maxline do not provide the missing Rockchip block
+### Mainline and maxline do not provide the missing Rockchip driver
 
 Neither inspected mainline nor either pinned maxline profile contains a
 Rockchip IEP, IEP2, or VDPP driver:
@@ -316,15 +316,19 @@ Rockchip IEP, IEP2, or VDPP driver:
 All those trees do contain `drivers/media/platform/m2m-deinterlace.c`, and the
 maxline config enables `CONFIG_VIDEO_MEM2MEM_DEINTERLACE=m`. That is a generic
 V4L2 memory-to-memory driver which performs its work through DMAengine and
-registers a `/dev/video*` device. It is not a Rockchip IEP/VDPP driver, does not
-register MPP client type 29, and therefore cannot make libmpp's
-`MPP_CMD_INIT_CLIENT_TYPE` VDPP request succeed.
+registers a `/dev/video*` device. It is not a Rockchip IEP2 driver, does not
+register MPP client type 28, and therefore cannot make libmpp's
+`MPP_CMD_INIT_CLIENT_TYPE` IEP2 request succeed.
 
 For the present stack, removing the harmless message requires the smaller
-libmpp capability-selection fix described above. Actually enabling hardware
-deinterlacing would instead require an explicit vendor IEP2/VDPP driver and
-device-tree port (or a different userspace processing path); switching to
-mainline/maxline or enabling the generic deinterlace module is not that port.
+libmpp capability-selection fix described above. RK3588 does have IEP2 silicon
+and its BSP enables `rockchip,iep-v2`, but the YSP 6.18 port omitted the IEP2
+driver and DT/IOMMU nodes; RK3588 has no documented or BSP-addressable VDPP
+instance. Actually enabling hardware deinterlacing therefore requires the
+vendor IEP2 driver and device-tree port (or a different userspace processing
+path). Switching to mainline/maxline or enabling the generic deinterlace module
+is not that port. See the maintained
+[RK3588 IEP2 guide](../kernel-drivers/iep2/README.md).
 
 ## Boundary
 

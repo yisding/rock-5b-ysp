@@ -1,14 +1,14 @@
 # kernel-drivers/ — RK3588 media and accelerator kernel work
 
-The kernel-side work for the ROCK 5B: the vendor Rockchip MPP codec, RGA, and
-RKNPU accelerator drivers; their RK3588 device tree; the media audit fix series;
+The kernel-side work for the ROCK 5B: the vendor Rockchip MPP codec, IEP2
+deinterlacer, RGA, and RKNPU accelerator drivers; their RK3588 device tree; the media audit fix series;
 and the media clean-room rewrite track. Driver code lives in sibling kernel
 trees (`linux-6.18-rkvenc*`, `rockchip-kernel`); this project holds architecture,
 patch deliverables, and on-hardware validation. The RKNPU project also crosses
 into the tightly coupled proprietary RKNN compiler/runtime because its kernel
 ABI cannot be understood usefully in isolation.
 
-Split into five sub-projects — `mpp`, `rga`, `av1`, `iommu`, `rknpu` — each with its own
+Split into six sub-projects — `mpp`, `iep2`, `rga`, `av1`, `iommu`, `rknpu` — each with its own
 `README.md` + `keywords.md`. **Shared** driver architecture, uAPI, device tree,
 the combined patch series, board scripts, and on-hardware tests stay at this top
 level, because one combined patch series and one architecture doc cover mpp+rga
@@ -20,9 +20,9 @@ versions, the mainline-V4L2 alternative) live in
 
 | Field | Contents |
 |-------|----------|
-| Purpose | Explain and validate the RK3588 media and NPU accelerator paths: MPP encode/decode, RGA jobs, and RKNN inference through RKNPU. |
+| Purpose | Explain and validate the RK3588 media and NPU accelerator paths: MPP encode/decode and IEP2 deinterlacing, RGA jobs, and RKNN inference through RKNPU. |
 | Developer focus | Accelerator service/submit models, dma-buf/IOMMU lifetime, device-tree wiring, runtime ABIs, forward-port deltas, audits, and rewrite alternatives where applicable. |
-| Owns | Shared kernel docs in [`docs/`](docs/how-the-drivers-work.md); the five sub-projects; patch deliverables in [`patches/`](patches/README.md); board scripts in [`scripts/`](scripts/README.md); hardware smoke tests in [`tests/`](tests/README.md). |
+| Owns | Shared kernel docs in [`docs/`](docs/how-the-drivers-work.md); the six sub-projects; patch deliverables in [`patches/`](patches/README.md); board scripts in [`scripts/`](scripts/README.md); hardware smoke tests in [`tests/`](tests/README.md). |
 | Depends on | Armbian or vanilla 6.18 kernel build inputs, RK3588 device tree, and [`../vendor-libraries/`](../vendor-libraries/README.md). |
 | Current state | The forward-port, BSP-audit, DKMS, and rewrite tracks have different evidence boundaries and are not interchangeable kernels. [`../status.md`](../status.md) tracks their latest board result and next gate; [`docs/forward-port-status.md`](docs/forward-port-status.md) is the detailed kernel scorecard. Read those before treating an older green conformance run as an install recommendation. |
 
@@ -38,6 +38,7 @@ flowchart TB
   npudev["DRM render node<br/>or /dev/rknpu"]
   service["MPP service core<br/>sessions, tasks, IOMMU"]
   codec["rkvenc2 / rkvdec2<br/>VEPU580 + VDPU381"]
+  iep2["IEP2<br/>deinterlacing"]
   rga["RGA3 + RGA2<br/>2D jobs"]
   npu["RKNPU<br/>memory, queues, IOMMU, PM"]
   dt["RK3588 device tree<br/>clocks, IRQs, IOMMUs, SRAM"]
@@ -45,9 +46,11 @@ flowchart TB
 
   app --> libs --> devs
   devs --> service --> codec --> hw
+  service --> iep2 --> hw
   devs --> rga --> hw
   nnapp --> rknn --> npudev --> npu --> hw
   dt -. binds .-> service
+  dt -. binds .-> iep2
   dt -. binds .-> rga
   dt -. binds .-> npu
 ```
@@ -57,6 +60,7 @@ flowchart TB
 | Sub-project | Covers | Scoped docs |
 |-------------|--------|-------------|
 | [`mpp/`](mpp/README.md) | The MPP service + rkvenc2/rkvdec2 codec cores; multi-core scheduling. | [`multicore-scheduling.md`](mpp/docs/multicore-scheduling.md) |
+| [`iep2/`](iep2/README.md) | RK3588 IEP2 deinterlacing, its MPP/libmpp path, distinction from VDPP, and forward-port scope. | [`rk3588-iep2-vdpp.md`](iep2/docs/rk3588-iep2-vdpp.md) |
 | [`rga/`](rga/README.md) | The RGA3/RGA2 2D blit/scale/convert driver. | [`userptr-iommu.md`](rga/docs/userptr-iommu.md), [`raw-physical-import-crash.md`](rga/docs/raw-physical-import-crash.md), [`rewrite-5.10-reconciliation.md`](rga/docs/rewrite-5.10-reconciliation.md), [`userspace-consumers.md`](rga/docs/userspace-consumers.md) |
 | [`av1/`](av1/README.md) | The RK3588 AV1 decode path and the BSP bugs the AV1 port exposed. | [`av1-rk3588.md`](av1/docs/av1-rk3588.md), [`av1-bsp-audit.md`](av1/docs/av1-bsp-audit.md) |
 | [`iommu/`](iommu/README.md) | CCU/IOMMU memory path: the net-new MMU plan and the SOFT/HARD CCU rewrite finding. | [`mpp-ccu-iommu-plan.md`](iommu/docs/mpp-ccu-iommu-plan.md), [`rewrite-hard-ccu-finding.md`](iommu/docs/rewrite-hard-ccu-finding.md) |
@@ -129,6 +133,7 @@ Read in this order when changing or reviewing kernel behavior:
 | What did the full adversarial review of the rewrite drivers find and fix? | [`docs/rewrite-driver-adversarial-review-2026-08-02.md`](docs/rewrite-driver-adversarial-review-2026-08-02.md) |
 | What is the net-new CCU MMU/IOMMU plan? | [`iommu/docs/mpp-ccu-iommu-plan.md`](iommu/docs/mpp-ccu-iommu-plan.md) |
 | What is the RK3588 AV1 path, and why is it separate from RKVDEC2? | [`av1/docs/av1-rk3588.md`](av1/docs/av1-rk3588.md) |
+| Does RK3588 have VDPP, how is IEP2 driven, and what would its forward port require? | [`iep2/docs/rk3588-iep2-vdpp.md`](iep2/docs/rk3588-iep2-vdpp.md) |
 | Why is RK3588 multi-core decode hard, and where would a scheduler live? | [`mpp/docs/multicore-scheduling.md`](mpp/docs/multicore-scheduling.md) |
 | How does the mainline V4L2 `rkvdec` decoder work (the other stack)? | [`../kernel-versions/docs/mainline-rkvdec-v4l2.md`](../kernel-versions/docs/mainline-rkvdec-v4l2.md) |
 | How do we resync to a new kernel or BSP? | [`docs/resyncing.md`](docs/resyncing.md) |
@@ -168,5 +173,5 @@ each sub-project's `README.md`).
 | [`patches/`](patches/README.md) | The maintained forward-port series, the superseded frozen base patches, debug-only DT patch, and the reviewable audit-fix series. |
 | [`scripts/`](scripts/README.md) | Combined-kernel build/install/validate wrappers and the codec udev rule. |
 | [`tests/`](tests/README.md) | On-hardware decode/encode/transcode smoke tests, plus the rewrite build gate and conformance suites. |
-| [`mpp/`](mpp/README.md) · [`rga/`](rga/README.md) · [`av1/`](av1/README.md) · [`iommu/`](iommu/README.md) · [`rknpu/`](rknpu/README.md) | The five kernel-driver sub-projects. |
+| [`mpp/`](mpp/README.md) · [`iep2/`](iep2/README.md) · [`rga/`](rga/README.md) · [`av1/`](av1/README.md) · [`iommu/`](iommu/README.md) · [`rknpu/`](rknpu/README.md) | The six kernel-driver sub-projects. |
 | [`../packaging/dkms/`](../packaging/dkms/README.md) | DKMS delivery channel for the same driver source. |

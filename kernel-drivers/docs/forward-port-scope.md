@@ -111,17 +111,18 @@ them as 0% ours.
 | `mpp_vepu2.c` | `ROCKCHIP_MPP_VEPU2` | VPU2 encoder | Legacy SoC block, absent on RK3588. |
 | `mpp_jpgdec.c` | `ROCKCHIP_MPP_JPGDEC` | JPEG decoder | Not ported. See the JPEG note below. |
 | `mpp_jpgenc.c` | `ROCKCHIP_MPP_JPGENC` | JPEG encoder | Not ported. See the JPEG note below. |
-| `mpp_iep2.c` | `ROCKCHIP_MPP_IEP2` | IEP2 de-interlacer | No consumer in our stack (no interlaced sources). |
-| `mpp_vdpp.c` | `ROCKCHIP_MPP_VDPP` | VDPP post-processor | No consumer in our stack. |
+| `mpp_iep2.c` | `ROCKCHIP_MPP_IEP2` | RK3588 IEP2 de-interlacer | **Real omitted RK3588 capability.** Installed libmpp probes client 28 for interlaced decoder output, but this kernel cannot create it. See the [IEP2 audit](../iep2/README.md). |
+| `mpp_vdpp.c` | `ROCKCHIP_MPP_VDPP` | Separate VDPP post-processor | Absent on RK3588. The BSP driver binds VDPP instances on RK3528/RK3576, not this SoC. |
 
-**The JPEG note is the one real capability gap.** RK3588 *does* have JPEG
-codec hardware, and we chose not to port it. The consequence is visible and
+**JPEG and IEP2 are real capability gaps.** RK3588 has both JPEG codec hardware
+and the IEP2 de-interlacer, and we chose not to port them. The JPEG consequence is visible and
 recorded: the GStreamer suite's JPEG and VP8 encoder cases fail as
 *expected diagnostics* because this kernel registers no such cores, and libmpp
-logs benign `client N driver is not ready!` lines while probing for them. Every
-other unported `mpp_*` block above is hardware this SoC does not have, so it
-costs nothing; JPEG is a deliberate scope decision that could be revisited if a
-consumer appears. (Mainline's own Hantro JPEG driver is a separate, coexisting
+logs benign `client N driver is not ready!` lines while probing for them. The
+IEP2 consequence is also visible: interlaced output makes libmpp request client
+28, receive `EINVAL`, disable deinterlacing, and continue decoding. Every other
+unported `mpp_*` block above is hardware this SoC does not have. JPEG and IEP2
+are deliberate scope decisions that can be revisited. (Mainline's own Hantro JPEG driver is a separate, coexisting
 path — see [coexistence](#coexistence-with-mainline-drivers).)
 
 ### BSP subdirectories left behind (8 of 10)
@@ -130,7 +131,7 @@ path — see [coexistence](#coexistence-with-mainline-drivers).)
 |---|---|---|
 | `rga/` | Legacy standalone RGA (v1) | Superseded by multi-RGA for RK3588. |
 | `rga2/` | Legacy standalone RGA2 | Superseded — RGA2 comes via multi-RGA. |
-| `iep/` | Image Enhancement Processor | No consumer; de-interlacing not needed. |
+| `iep/` | Legacy standalone Image Enhancement Processor | Separate from RK3588's MPP IEP2 path; the missing RK3588 capability is `mpp_iep2.c`, accounted for above. |
 | `rve/` | RVE vector engine | Not present/needed on this board's use cases. |
 | `dvbm/` | Direct Video Buffer Manager | Camera/ISP-to-encoder zero-copy plumbing; no consumer. |
 | `vtunnel/` | Video tunnel device | Android-style buffer tunnelling; not applicable to a desktop Linux stack. |

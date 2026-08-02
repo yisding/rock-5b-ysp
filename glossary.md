@@ -41,14 +41,19 @@ when comparing the encoder and decoder or reconstructing the Armbian port.
   quantization) and the `librkllmrt.so` runtime that streams tokens on the NPU.
   Distinct from RKNN — different format and runtime. Survey:
   [RKLLM stack](./kernel-drivers/rknpu/docs/rkllm-large-language-models.md).
-- **IEP** — *Image Enhancement Processor*, the BSP's video post-processing
-  block (expansion verified in Rockchip's own libmpp source:
-  `mpp/vproc/iep{,2}/CMakeLists.txt` — "Image Enhancement Processor").
-  **This port does not include an IEP driver and `/dev/iep` does not exist on
-  the board** (verified 2026-07-01, kernel `6.18.37-current-rockchip64` #7).
-  The `KERNEL=="iep"` line in the udev rule is a harmless forward-compat no-op
-  for BSP/vendor kernels — see
-  [`packaging/codec-udev/README.md`](packaging/codec-udev/README.md).
+- **IEP** — *Image Enhancement Processor*. Rockchip uses this name for both a
+  legacy standalone driver (`/dev/iep`) and the related IEP2 family. The
+  `KERNEL=="iep"` udev rule is a harmless no-op on the current board kernel
+  because the legacy device is absent; do not use that absence to infer that
+  RK3588 lacks IEP2.
+- **IEP2** — RK3588's fixed-function image-enhancement/deinterlacing block.
+  The BSP binds `rockchip,iep-v2` and exposes it as MPP client 28 through
+  `/dev/mpp_service`, not `/dev/iep2`. The current 6.18 forward port omitted
+  its driver and DT nodes. Full audit: [RK3588 IEP2 versus VDPP](./kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md).
+- **VDPP** — *Video Decoder Post-Processor*, a separate Rockchip hardware
+  family and MPP client 29. RK3528/RK3576 have explicit VDPP instances; RK3588
+  has no documented or BSP-addressable VDPP block. It is not another name for
+  RK3588 IEP2.
 - **CCU** — the per-cluster *Central Control Unit* coordination model used to
   pick an idle core and manage shared clocks/IOMMU. **⚑ load-bearing
   disambiguation:** the **decoder's CCU is a real MMIO block** (`@fdc30000`,

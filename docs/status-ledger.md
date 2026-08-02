@@ -62,8 +62,10 @@ all pass. In a fresh Mutter/Panfrost virtual monitor, installed VLC 3.0.23, mpv
 0.41.0, and Firefox 153.0.1 each present H.264, HEVC Main, VP9 Profile 0, HEVC
 Main10, and VP9 Profile 2; Firefox imports both 10-bit planes but ran with its
 RDD sandbox disabled. The only kernel warning pair is root-caused to libmpp's
-optional VDPP deinterlace probe selecting generic `/dev/mpp_service` without a
-VDPP subdevice; the triggering interlaced clip remains bit-exact. Earlier
+optional IEP2 deinterlace probe selecting generic `/dev/mpp_service` without an
+IEP2 subdevice; the triggering interlaced clip remains bit-exact. RK3588 has
+IEP2 hardware, but the YSP 6.18 port omits its driver/DT nodes; RK3588 has no
+VDPP instance. Earlier
 exact-Published MPP/FFmpeg sweep, sanitizer, and soak evidence remains valid.
 Open boundaries are clean source provenance for ysp8 (the package was built
 from a dirty tracked worktree over `main@aee5926`), the fingerprint-quarantined
@@ -71,7 +73,9 @@ risky VP9 vector, intermittent small-geometry RGA writes, 256 rather than 512
 MiB CMA, sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image
 installation, and release. See the maintained
 [`rockchip-vaapi` project summary](../video-libraries/vaapi/README.md) and the
-[`installed ysp8 finding`](../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md).
+[`installed ysp8 finding`](../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md),
+with the hardware/driver distinction in the
+[`IEP2 source audit`](../findings/2026-08-02-rk3588-iep2-vdpp-source-audit.md).
 
 ## Promotion rule
 

@@ -46,6 +46,11 @@ linked by `drivers/video/rockchip/mpp/Makefile`:
 | `ROCKCHIP_MPP_IEP2` | `mpp_iep2.c` | image enhancement/post-processing |
 | `ROCKCHIP_MPP_VDPP` | `mpp_vdpp.c` | video decode post-processing |
 
+These Kconfig entries describe a multi-SoC BSP, not two RK3588 devices. RK3588
+instantiates IEP2 as `rockchip,iep-v2` and has no VDPP node or clock/reset IDs.
+RK3528 and RK3576 instantiate separate VDPP devices. The full source audit is
+[RK3588 deinterlacing: IEP2, not VDPP](../../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md).
+
 `mpp_service.c` conditionally registers these subdrivers with `MPP_REGISTER_DRIVER()`.
 `mpp_common.h` classifies hardware by `enum MPP_DEVICE_TYPE`, including
 `MPP_DEVICE_AV1DEC`, `MPP_DEVICE_RKVDEC`, `MPP_DEVICE_RKJPEGD`,
@@ -230,7 +235,7 @@ format conversion, rotation, and composition. The BSP carries several generation
 - `drivers/media/platform/rockchip/rga/` for an upstream-style media driver
   variant also present in the tree
 
-The BSP also adds IEP, RVE, VDPP, DVBM, vehicle, and vtunnel components under
+Across its supported SoCs, the BSP also adds IEP, RVE, VDPP, DVBM, vehicle, and vtunnel components under
 `drivers/video/rockchip/`, plus camera/video-processing blocks under
 `drivers/media/platform/rockchip/`.
 
