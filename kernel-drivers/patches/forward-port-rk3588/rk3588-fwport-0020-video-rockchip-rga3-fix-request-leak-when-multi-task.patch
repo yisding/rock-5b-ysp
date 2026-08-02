@@ -1,7 +1,7 @@
 From 796571e72b6a465b07b4c60d6847f22e36656ebc Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Thu, 2 Apr 2026 17:18:28 +0800
-Subject: [PATCH 20/71] video: rockchip: rga3: fix request leak when multi-task
+Subject: [PATCH 20/87] video: rockchip: rga3: fix request leak when multi-task
  submit failed
 
 Change-Id: Ic1d96f5cf05bd705043ffe7c33f4c4f9c0da88fe

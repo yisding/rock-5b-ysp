@@ -1,7 +1,7 @@
 From c05bc08cecfe15941a0f7a510f98145d45a1ef9a Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Tue, 17 Mar 2026 16:10:45 +0800
-Subject: [PATCH 24/71] video: rockchip: rga3: fix cache-line unaligned VA
+Subject: [PATCH 24/87] video: rockchip: rga3: fix cache-line unaligned VA
  access fault
 
 When CONFIG_DMA_BOUNCE_UNALIGNED_KMALLOC is enabled, non-cache-line

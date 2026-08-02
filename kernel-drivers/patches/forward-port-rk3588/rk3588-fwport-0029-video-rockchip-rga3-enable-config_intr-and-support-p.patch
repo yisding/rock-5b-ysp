@@ -1,7 +1,7 @@
 From 7df90e9b89ccb9afd6c1986bf3d07cca22962822 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Fri, 10 Oct 2025 19:14:54 +0800
-Subject: [PATCH 29/71] video: rockchip: rga3: enable config_intr and support
+Subject: [PATCH 29/87] video: rockchip: rga3: enable config_intr and support
  parse error status
 
 Change-Id: I00030dd532f417914183b1654fdc0b1aad8cd271

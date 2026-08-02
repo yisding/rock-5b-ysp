@@ -1,7 +1,7 @@
 From b1de79e7e0f7f859f3d8b1ccda4b6f33ba6b873e Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 17:21:00 -0700
-Subject: [PATCH 52/71] video: rockchip: mpp: don't oops when a task's session
+Subject: [PATCH 52/87] video: rockchip: mpp: don't oops when a task's session
  has no device
 
 The async task worker mpp_task_worker_default() reads

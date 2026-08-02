@@ -1,7 +1,7 @@
 From a0160273e9a32fa881600fd9c28c7dcfd326e60a Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Fri, 13 Mar 2026 15:29:14 +0800
-Subject: [PATCH 23/71] video: rockchip: rga3: add shadow_page for cache-line
+Subject: [PATCH 23/87] video: rockchip: rga3: add shadow_page for cache-line
  unaligned VA
 
 VA from user-space malloc are not always cache-line aligned. Introduce

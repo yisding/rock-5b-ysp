@@ -1,7 +1,7 @@
 From e2a89c17275822a31a2a602fd2631684e47996d8 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 18 Jul 2026 09:42:03 -0700
-Subject: [PATCH 42/71] video: rockchip: rkvenc2: sample abort flag before task
+Subject: [PATCH 42/87] video: rockchip: rkvenc2: sample abort flag before task
  is freed
 
 The forward-port added abort-status propagation to rkvenc2_wait_result():

@@ -1,0 +1,115 @@
+From 874fbff8ba504d50a5d6ad643770822293391d9f Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 1 Aug 2026 21:39:39 -0700
+Subject: [PATCH 82/87] video: rockchip: mpp: make MPP_CMD_RELEASE_FD give back
+ only what it took
+
+mpp_dma_release_fd() ended in an unconditional kref_put() with no check
+that the caller ever acquired a reference. MPP_CMD_RELEASE_FD passes an
+array of up to MPP_MAX_REG_TRANS_NUM (80) fds and nothing rejects the
+same fd appearing twice, so an unprivileged process could drive a buffer
+that an in-flight task still referenced down to zero.
+
+That runs mpp_dma_release_buffer() under live DMA: the attachment is
+unmapped and the IOVA freed while hardware is still writing through it,
+and the slot goes back on unused_list where the next import reuses it --
+leaving the completing task's mem_region->hdl pointing at a buffer that
+now describes different memory, and its own put then corrupting that
+buffer's refcount.
+
+The buffer pool already distinguishes the two producers:
+MPP_CMD_TRANS_FD_TO_IOVA imports with static_use set, while task
+register translation imports with it clear and releases through
+mpp_task_finalize(). Count the references handed out by the static path
+and let MPP_CMD_RELEASE_FD return only those.
+
+Assisted-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ drivers/video/rockchip/mpp/mpp_iommu.c | 31 +++++++++++++++++++++++---
+ drivers/video/rockchip/mpp/mpp_iommu.h |  7 ++++++
+ 2 files changed, 35 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index df936ec86019f..fac9e70de7061 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -150,6 +150,7 @@ static void mpp_dma_release_buffer(struct kref *ref)
+ 	buffer->iova = 0;
+ 	buffer->size = 0;
+ 	buffer->vaddr = NULL;
++	buffer->static_cnt = 0;
+ 	buffer->last_used = 0;
+ }
+ 
+@@ -214,6 +215,21 @@ int mpp_dma_release_fd(struct mpp_dma_session *dma, int fd)
+ 	}
+ 
+ 	mutex_lock(&dma->list_mutex);
++	/*
++	 * Only give back a reference this ioctl handed out. Without the count
++	 * this is an unauthenticated kref_put: MPP_CMD_RELEASE_FD takes an
++	 * array of up to MPP_MAX_REG_TRANS_NUM fds and never checked that the
++	 * caller owned any of them, so repeating one fd drove a buffer that an
++	 * in-flight task still referenced to zero -- unmapping its IOVA under
++	 * live DMA and then recycling the slot under the task's stale pointer.
++	 */
++	if (!buffer->static_cnt) {
++		mutex_unlock(&dma->list_mutex);
++		dev_err(dev, "fd %d was not imported by this session\n", fd);
++
++		return -EINVAL;
++	}
++	buffer->static_cnt--;
+ 	kref_put(&buffer->ref, mpp_dma_release_buffer);
+ 	mutex_unlock(&dma->list_mutex);
+ 
+@@ -281,8 +297,14 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 	/* Check whether in dma session */
+ 	buffer = mpp_dma_find_buffer_fd(dma, fd);
+ 	if (!IS_ERR_OR_NULL(buffer)) {
+-		if (kref_get_unless_zero(&buffer->ref))
++		if (kref_get_unless_zero(&buffer->ref)) {
++			if (static_use) {
++				mutex_lock(&dma->list_mutex);
++				buffer->static_cnt++;
++				mutex_unlock(&dma->list_mutex);
++			}
+ 			return buffer;
++		}
+ 		dev_dbg(dma->dev, "missing the fd %d\n", fd);
+ 	}
+ 
+@@ -340,10 +362,13 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
+ 
+ 	mutex_lock(&dma->list_mutex);
+ 	dma->buffer_count++;
+-	if (static_use)
++	if (static_use) {
++		buffer->static_cnt = 1;
+ 		list_add_tail(&buffer->link, &dma->static_list);
+-	else
++	} else {
++		buffer->static_cnt = 0;
+ 		list_add_tail(&buffer->link, &dma->used_list);
++	}
+ 	mutex_unlock(&dma->list_mutex);
+ 
+ 	return buffer;
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
+index da970c572634e..d31f0314de65d 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.h
++++ b/drivers/video/rockchip/mpp/mpp_iommu.h
+@@ -36,6 +36,13 @@ struct mpp_dma_buffer {
+ 	void *vaddr;
+ 
+ 	struct kref ref;
++	/*
++	 * References handed to userspace by MPP_CMD_TRANS_FD_TO_IOVA, guarded
++	 * by dma->list_mutex. MPP_CMD_RELEASE_FD may only give back what it
++	 * took: without this it is an unauthenticated kref_put, and repeating
++	 * one fd in its array drops references belonging to in-flight tasks.
++	 */
++	u32 static_cnt;
+ 	ktime_t last_used;
+ 	/* alloc by device */
+ 	struct device *dev;

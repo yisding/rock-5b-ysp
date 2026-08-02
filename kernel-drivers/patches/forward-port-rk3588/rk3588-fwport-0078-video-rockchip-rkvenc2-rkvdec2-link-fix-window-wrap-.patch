@@ -1,7 +1,7 @@
 From b7883d72b7467c6ee31814e9f8d1dbc2247d1a23 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 29 Jul 2026 09:58:28 -0700
-Subject: [PATCH 78/79] video: rockchip: rkvenc2/rkvdec2-link: fix window wrap,
+Subject: [PATCH 78/87] video: rockchip: rkvenc2/rkvdec2-link: fix window wrap,
  atomic clocks, WARN
 
 Three defects in the codec drivers.

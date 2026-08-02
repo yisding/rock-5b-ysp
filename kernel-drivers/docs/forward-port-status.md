@@ -391,46 +391,40 @@ covers this range.
   Evidence and rerun instructions:
   [`findings/2026-07-04-rga3-im2d-error-irq.md`](../../findings/2026-07-04-rga3-im2d-error-irq.md).
 
-## Where the series stands, 2026-08-01
+## Where the series stands, 2026-08-02
 
 Three numbers that disagree, and it matters which is which:
 
 | | |
 |---|---|
-| Tree tip | `linux-6.18-rkvenc-av1-fwport` @ `14c0456c4108`, 80 commits on `v6.18` |
-| Packaged / uploaded | series `0001`–`0080`, in `6.18.41+rk3588av1fwport20260801-0ubuntu1~rk1` (uploaded 08-01 11:04) |
+| Tree tip | `linux-6.18-rkvenc-av1-fwport` @ `5b87d46eefdcb`, 87 commits on `v6.18` |
+| Packaged / uploaded | series `0001`–`0087`, in `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1`; source `18654047` is Published and arm64 build `33461848` is currently building |
 | Installed on the board | the older `6.18.40+…20260729-0ubuntu1~rk1` — **installed, never booted** |
 
-The tree/package gap is closed as of the 08-01 cut; the *installed* package still
-predates it by five commits and a stable level.
+The tree/package gap is closed by the 08-02 source. The seven-commit tail after
+the Published `0001`–`0080` package is `a88f4fdfccda`, `874fbff8ba50`,
+`57585821dcef`, `1b4b65b57e7c`, `78a4d1a90370`, `36ec9c956ce1`, and
+`5b87d46eefdcb`: MPP session-switch/release lifetime fixes, RKVENC2/RKVDEC2
+timeout and allocation hardening, RGA ioctl ownership/authentication fixes, and
+the follow-up review repairs. Patch-only staging applies the complete series;
+the extracted source is Linux 6.18.41, contains no rewrite-only paths or sync
+helper, byte-matches all 11 driver files touched by the tail, and retains the
+production MPP/RGA/AV1 config. None of the seven has been booted or
+hardware-validated.
 
-The five-commit gap between tree and package is `febed97bc459` (bound user
-register requests and translations), `4dba1f42ab2b` (IOMMU cookie typing and
-buffer-release ordering), `b7883d72b746` (rkvenc2/rkvdec2-link window wrap,
-atomic clocks, WARN), `c10074f4474e` (RGA job/buffer lifetime, locking, import
-validation) — all four landed 07-29 09:57–09:58, roughly 54 minutes after that
-day's 09:04 `dput`, so they missed the cut by timing rather than by decision —
-and `14c0456c4108` (RGA mapped-SG contracts) on 07-31. None of the five has been
-built, booted, or hardware-validated.
-
-GitHub is current: `yisding/linux-rock5b` `rk3588-video-6.18` is at the tree tip
-with nothing unpushed.
+The `20260801` source is Published as Launchpad source `18652965` and arm64
+build `33460058` succeeded. GitHub branch `rk3588-video-6.18` is current at
+`5b87d46eefdcb` with no unpushed commits.
 
 Two independent gates follow from that table, and conflating them is what has
 cost time before:
 
-1. **Boot the installed package.** Needs no build and no upload. The dma-buf and
-   ISR-panic gates are both about bytes already on the board; they close with a
-   clean RDP login at `2064x1296` plus ≥10 min of encode on
-   `6.18.40-ysp-rockchip64`.
-2. **Cut a newer source carrying the five.** Gated on worktree provenance, not on
-   the code. `build-source-packages.sh` snapshots the shared Armbian kernel
-   worktree, so the export is only valid immediately after
-   `build-kernel.sh forward-port`, with `rockchip-iommu.c` verified against the
-   fwport tree and no `*-rewrite` paths present. Checked 2026-08-01: the worktree
-   held the rewrite series, so a cut that day would have reproduced the
-   [2026-07-25 contamination](../../findings/2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md)
-   and its panic.
+1. **Confirm the new archive build.** Source `18654047` is Published; arm64
+   build `33461848` must succeed and publish binaries.
+2. **Install and boot that exact build.** Re-run the RDP login/encode gate, MPP,
+   FFmpeg, librga/RGA, GStreamer, ABI replay, and fatal-journal scans, then prove
+   the co-installable rollback path. The older installed package does not cover
+   the seven-commit tail.
 
 ## What "done" means here
 

@@ -1,7 +1,7 @@
 From febed97bc459775e08bb3151ae6ea38bbdac5b17 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 29 Jul 2026 09:57:26 -0700
-Subject: [PATCH 76/79] video: rockchip: mpp: bound user register requests and
+Subject: [PATCH 76/87] video: rockchip: mpp: bound user register requests and
  translations
 
 Four unprivileged-reachable memory-safety defects in the MPP core, all

@@ -1,7 +1,7 @@
 From afcd69845942db97421b2d5a8dcff3007da23766 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 08:50:22 -0700
-Subject: [PATCH 50/71] video: rockchip: rga3: serve over-4G memory on RGA2 via
+Subject: [PATCH 50/87] video: rockchip: rga3: serve over-4G memory on RGA2 via
  DMA-API mapping
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

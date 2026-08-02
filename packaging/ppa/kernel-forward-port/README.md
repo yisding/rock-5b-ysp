@@ -3,7 +3,28 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
-**Uploaded 2026-07-29 (latest):** `6.18.40+rk3588av1fwport20260729-0ubuntu1~rk1`
+**Uploaded 2026-08-02 (latest):** `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1`
+— the complete `0001`–`0087` forward-port tip `5b87d46eefdcb`. It adds the
+seven post-08-01 MPP/RKVENC2/RKVDEC2/RGA ioctl, lifetime, ownership, and review
+repair commits to the Published `0001`–`0080` source. The worktree was staged
+with `build-kernel.sh forward-port --patch-only`; the wrapper verified the
+atomic-safe IOMMU setter against the forward-port tree, rejected the rewrite-only
+sync helper, and found zero `*-rewrite` paths. The generated `.dsc` and both
+tarballs validate, a fresh `dpkg-source -x` reports Linux 6.18.41, all 11 driver
+files touched by the new tail byte-match the forward-port tip, and the packaged
+config retains MPP/RGA/AV1 with `DMABUF_DEBUG`, KASAN, and lockdep disabled.
+`debsign` signed the `.dsc`, `.buildinfo`, and source `.changes` with
+`0FDDE6BC…AA2228E6`; direct GPG verification passed. `dput` completed at 11:44
+PDT and wrote
+`linux-rockchip64-ysp_6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1_source.ppa.upload`.
+GitHub branch `rk3588-video-6.18` is published at `5b87d46eefdcb` with no
+unpushed commits. Launchpad source publication
+[`18654047`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18654047)
+is Published and arm64 build
+[`33461848`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33461848)
+is currently building. Every board/runtime gate remains pending.
+
+**Previous 2026-07-29 upload:** `6.18.40+rk3588av1fwport20260729-0ubuntu1~rk1`
 — **provenance repair** of the production package. The `…20260725` orig was
 accidentally a rewrite-composite snapshot of the shared Armbian worktree: its
 `drivers/iommu/rockchip-iommu.c` carried the rewrite branch's hardened
@@ -102,7 +123,7 @@ that grouped root.
 | Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Production kernel config | `KERNEL_PPA_CONFIG=$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
-| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.40+rk3588av1fwport20260729` |
+| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.41+rk3588av1fwport20260802` |
 
 The exporter copies the patched worktree contents, including Armbian patch
 changes and untracked patch-added files, while excluding `.git`, `.config`,
@@ -339,23 +360,23 @@ Not done yet:
 > incident does **not** cover shared files, and `rockchip-iommu.c` is exactly the
 > shared file whose rewrite-branch tail
 > [panicked the board](../../../findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md).
-> Checked 2026-08-01: the worktree held the rewrite series, so a cut would have
-> reproduced the incident.
+> Checked 2026-08-02: the patch-only staging gate completed for the 87-commit
+> forward-port tip before the `20260802` orig was exported.
 
-**State as of 2026-08-01.** The packaged source ships series `0001`–`0075`. The
-tree (`linux-6.18-rkvenc-av1-fwport`, GitHub `rk3588-video-6.18`, fully pushed at
-`14c0456c4108`) carries 80 commits on `v6.18` — five unpackaged: `febed97bc459`,
-`4dba1f42ab2b`, `b7883d72b746`, `c10074f4474e` (all 07-29 09:57–09:58, missing the
-09:04 `dput` by under an hour) and `14c0456c4108` (07-31). None is built, booted,
-or hardware-validated. `…20260729-0ubuntu1~rk1` is installed on the board but has
-not been booted.
+**State as of 2026-08-02.** The latest source ships the complete `0001`–`0087`
+tree at `5b87d46eefdcb`; source `18654047` is Published and arm64 build
+`33461848` is currently building. The previous `0001`–`0080` source is
+Published as `18652965` and arm64 build `33460058` succeeded, but it predates
+the seven audit and review commits. The older `20260729` package is installed
+but unbooted; none of the seven new commits has been booted or
+hardware-validated.
 
 1. Fix RGA2 page-table DMA ownership, install the GStreamer development
    stack, and finish the remaining conformance suites. (The KASAN tip rebuild
    with `0044`/`0045` is done — debug build `Pb999-C4ad2` passes booted ABI
    replay.)
-2. Build/upload a production source containing the complete current patch
-   tail, then install and repeat the green MPP/FFmpeg plus completed
-   RGA/GStreamer gate on that exact image.
+2. Confirm Launchpad build `33461848` succeeds and publishes binaries, then
+   install and repeat the green MPP/FFmpeg plus completed RGA/GStreamer gate on
+   that exact image.
 3. Validate rollback and `kernel-revert.sh` recovery on the board before giving
    install guidance. Install and reboot of the 20260717 image already pass.

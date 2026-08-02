@@ -1,7 +1,7 @@
 From 2d6367ad0b056ac5b9d992a4173613aa93a7a652 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 02:34:48 -0700
-Subject: [PATCH 44/71] video: rockchip: rga3: validate staged request tasks
+Subject: [PATCH 44/87] video: rockchip: rga3: validate staged request tasks
 
 RGA_IOC_REQUEST_CONFIG currently accepts malformed or unsupported task descriptors because it only copies the array. Validate the channel requirements used later by the mapping path before replacing the staged task list, and reject reconfiguration while a request is running.
 

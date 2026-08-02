@@ -1,0 +1,481 @@
+From 5b87d46eefdcbb276f1e15dd199deb6ea6b12893 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 1 Aug 2026 22:03:37 -0700
+Subject: [PATCH 87/87] video: rockchip: fix defects found reviewing the
+ previous five commits
+
+Adversarial review of the audit fixes found that three of them were
+wrong or incomplete. Corrections, in severity order:
+
+RGA import_cnt counted every de-dup import, but session teardown spends
+the count on the owner's behalf. Lookup is global, so a second session
+de-dupping onto a buffer inflated the owner's count and its close then
+handed back references it never held -- freeing the buffer under the
+other session's handle, or under its running job. Count only the owner's
+imports. This was a use-after-free introduced by the previous commit.
+
+put_task_msgs() dropped the msgs fd reference before writing msgs->ext_fd,
+resetting the object and taking session->lock_msgs. A sibling thread
+closing that fd runs __fput() -- and mpp_session_deinit(), which kfree()s
+every msgs and the session -- synchronously, so those three steps could
+land in freed memory. Pre-existing, but the previous commit added two
+call sites on exactly the fd-carrying object, including the first one
+ever to put a freshly switched msgs. Drop the reference last.
+
+Rejecting a bad session fd before the message flush kept the previous
+msgs and appended the rest of the batch to it, merging two sub-batches
+into one task: past MPP_MAX_MSG_NUM that discarded requests already
+collected, and it bled the first sub-batch's msg_flags into the second's
+register translation. Abort the batch instead.
+
+Also: look up, check and put under one hold of list_mutex in
+mpp_dma_release_fd(), since the split let a released slot be recycled
+between the lookup and the check; keep releasing the rest of the
+MPP_CMD_RELEASE_FD array after a failure and report the first error;
+ratelimit its user-triggerable dev_err(); clear msgs->poll_req on reset,
+now that error paths recycle the object; sync-cancel the timeout work in
+the hard-CCU dequeue and resend paths too, which have the same shape as
+the soft-CCU one already fixed; read and publish rkvdec2 cur_task under
+running_lock in the fault handler and the enqueue, so the clear added
+last commit actually excludes the reader; and let an fd import and a PTR
+import of one dma_buf de-dup onto each other again, so MPI does not
+re-attach and re-map per frame.
+
+Assisted-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ drivers/video/rockchip/mpp/mpp_common.c       | 59 ++++++++++++++---
+ drivers/video/rockchip/mpp/mpp_iommu.c        | 66 +++++++++++++++++--
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 25 +++++--
+ drivers/video/rockchip/rga3/include/rga_drv.h |  7 +-
+ drivers/video/rockchip/rga3/rga_drv.c         | 40 ++++++-----
+ drivers/video/rockchip/rga3/rga_mm.c          | 24 ++++++-
+ 6 files changed, 182 insertions(+), 39 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index 462caf0b2028d..a471047a35c87 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -258,6 +258,12 @@ static void task_msgs_reset(struct mpp_task_msgs *msgs)
+ 	msgs->req_cnt = 0;
+ 	msgs->set_cnt = 0;
+ 	msgs->poll_cnt = 0;
++	/*
++	 * Must be cleared too: a recycled msgs whose poll_req still points at
++	 * the previous batch's request keeps that stale pointer, because the
++	 * collector only assigns poll_req when it is NULL.
++	 */
++	msgs->poll_req = NULL;
+ }
+ 
+ static void task_msgs_init(struct mpp_task_msgs *msgs, struct mpp_session *session)
+@@ -311,22 +317,34 @@ static void put_task_msgs(struct mpp_task_msgs *msgs)
+ {
+ 	struct mpp_session *session = msgs->session;
+ 	unsigned long flags;
++	struct fd f;
++	bool put_fd;
+ 
+ 	if (!session) {
+ 		pr_err("invalid msgs without session\n");
+ 		return;
+ 	}
+ 
+-	if (msgs->ext_fd >= 0) {
+-		fdput(msgs->f);
+-		msgs->ext_fd = -1;
+-	}
++	/*
++	 * Drop the fd reference last. It may be the final one on the session's
++	 * file, and a sibling thread closing that fd runs __fput() -- and so
++	 * mpp_session_deinit(), which kfree()s every msgs and then the session
++	 * -- synchronously. Releasing it first left this function writing
++	 * msgs->ext_fd, splicing msgs->list_session and taking
++	 * session->lock_msgs in freed memory.
++	 */
++	put_fd = msgs->ext_fd >= 0;
++	f = msgs->f;
++	msgs->ext_fd = -1;
+ 
+ 	task_msgs_reset(msgs);
+ 
+ 	spin_lock_irqsave(&session->lock_msgs, flags);
+ 	list_move_tail(&msgs->list_session, &session->list_msgs_idle);
+ 	spin_unlock_irqrestore(&session->lock_msgs, flags);
++
++	if (put_fd)
++		fdput(f);
+ }
+ 
+ static void clear_task_msgs(struct mpp_session *session)
+@@ -1628,13 +1646,24 @@ static int mpp_process_request(struct mpp_session *session,
+ 			return -EINVAL;
+ 		}
+ 		count = req->size / sizeof(u32);
++		ret = 0;
+ 		for (i = 0; i < count; i++) {
+-			ret = mpp_dma_release_fd(session->dma, data[i]);
+-			if (ret) {
++			int fd_ret = mpp_dma_release_fd(session->dma, data[i]);
++
++			/*
++			 * Keep going and report the first failure. Aborting
++			 * mid-array would silently leave the remaining fds
++			 * holding their references with no way for the caller
++			 * to learn how far it got.
++			 */
++			if (fd_ret) {
+ 				mpp_err("release fd %d failed.\n", data[i]);
+-				return ret;
++				if (!ret)
++					ret = fd_ret;
+ 			}
+ 		}
++		if (ret)
++			return ret;
+ 	} break;
+ 	default: {
+ 		mpp = session->mpp;
+@@ -1774,13 +1803,23 @@ static int mpp_collect_msgs(struct list_head *head, struct mpp_session *session,
+ 		 * the batch a session another thread may already have freed.
+ 		 */
+ 		if (fd_file(f)->f_op != &rockchip_mpp_fops) {
+-			int ret = -EBADF;
++			int uret = -EBADF;
+ 
+ 			mpp_err("fd %d is not an mpp session\n", bat_msg.fd);
+ 			fdput(f);
+-			if (copy_to_user(&usr_cmd->ret, &ret, sizeof(usr_cmd->ret)))
++			if (copy_to_user(&usr_cmd->ret, &uret, sizeof(usr_cmd->ret)))
+ 				mpp_err("copy_to_user failed.\n");
+-			goto session_switch_done;
++			/*
++			 * Abort rather than continue against the previous
++			 * session. Continuing would append the rest of the
++			 * batch to the retained msgs, merging two sub-batches
++			 * into one task: past MPP_MAX_MSG_NUM that discards the
++			 * requests already collected, and it bleeds the first
++			 * sub-batch's msg_flags into the second's register
++			 * translation.
++			 */
++			ret = -EBADF;
++			goto err_put_msgs;
+ 		}
+ 
+ 		/* NOTE: add previous ready task to queue and drop empty task */
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index fac9e70de7061..5cb9e0828e267 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -33,6 +33,45 @@
+ #include "mpp_iommu.h"
+ #include "mpp_common.h"
+ 
++/*
++ * Caller must hold dma->list_mutex, and must keep holding it for as long as it
++ * uses the returned pointer: no reference is taken, so dropping the lock lets
++ * the slot be released and recycled for a different dma_buf underneath it.
++ */
++static struct mpp_dma_buffer *
++mpp_dma_find_buffer_locked(struct mpp_dma_session *dma, struct dma_buf *dmabuf)
++{
++	struct mpp_dma_buffer *out = NULL;
++	struct mpp_dma_buffer *buffer = NULL, *n;
++	int find = 0;
++
++	list_for_each_entry_safe(buffer, n,
++				 &dma->used_list, link) {
++		/*
++		 * fd may dup several and point the same dambuf.
++		 * thus, here should be distinguish with the dmabuf.
++		 */
++		if (buffer->dmabuf == dmabuf) {
++			out = buffer;
++			find = 1;
++			list_move_tail(&buffer->link, &buffer->dma->used_list);
++			break;
++		}
++	}
++	if (!find) {
++		list_for_each_entry_safe(buffer, n,
++					&dma->static_list, link) {
++			if (buffer->dmabuf == dmabuf) {
++				out = buffer;
++				list_move_tail(&buffer->link, &buffer->dma->static_list);
++				break;
++			}
++		}
++	}
++
++	return out;
++}
++
+ struct mpp_dma_buffer *
+ mpp_dma_find_buffer_fd(struct mpp_dma_session *dma, int fd)
+ {
+@@ -195,6 +234,7 @@ int mpp_dma_release(struct mpp_dma_session *dma,
+ int mpp_dma_release_fd(struct mpp_dma_session *dma, int fd)
+ {
+ 	struct device *dev;
++	struct dma_buf *dmabuf;
+ 	struct mpp_dma_buffer *buffer = NULL;
+ 
+ 	/*
+@@ -207,14 +247,29 @@ int mpp_dma_release_fd(struct mpp_dma_session *dma, int fd)
+ 
+ 	dev = dma->dev;
+ 
+-	buffer = mpp_dma_find_buffer_fd(dma, fd);
+-	if (IS_ERR_OR_NULL(buffer)) {
+-		dev_err(dev, "can not find %d buffer in list\n", fd);
++	dmabuf = dma_buf_get(fd);
++	if (IS_ERR(dmabuf)) {
++		dev_err_ratelimited(dev, "can not get dma_buf for fd %d\n", fd);
+ 
+ 		return -EINVAL;
+ 	}
+ 
++	/*
++	 * Look up, check and put under one hold of list_mutex. Splitting them
++	 * around mpp_dma_find_buffer_fd()'s own lock would leave a window in
++	 * which the slot is released and recycled for a different dma_buf,
++	 * and this would then spend the new owner's count.
++	 */
+ 	mutex_lock(&dma->list_mutex);
++	buffer = mpp_dma_find_buffer_locked(dma, dmabuf);
++	if (!buffer) {
++		mutex_unlock(&dma->list_mutex);
++		dma_buf_put(dmabuf);
++		dev_err_ratelimited(dev, "can not find %d buffer in list\n", fd);
++
++		return -EINVAL;
++	}
++
+ 	/*
+ 	 * Only give back a reference this ioctl handed out. Without the count
+ 	 * this is an unauthenticated kref_put: MPP_CMD_RELEASE_FD takes an
+@@ -225,13 +280,16 @@ int mpp_dma_release_fd(struct mpp_dma_session *dma, int fd)
+ 	 */
+ 	if (!buffer->static_cnt) {
+ 		mutex_unlock(&dma->list_mutex);
+-		dev_err(dev, "fd %d was not imported by this session\n", fd);
++		dma_buf_put(dmabuf);
++		dev_err_ratelimited(dev, "fd %d was not imported by this session\n",
++				    fd);
+ 
+ 		return -EINVAL;
+ 	}
+ 	buffer->static_cnt--;
+ 	kref_put(&buffer->ref, mpp_dma_release_buffer);
+ 	mutex_unlock(&dma->list_mutex);
++	dma_buf_put(dmabuf);
+ 
+ 	return 0;
+ }
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index 439212c5c85a5..b5ad3ec84479c 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -2131,6 +2131,7 @@ int rkvdec2_soft_ccu_iommu_fault_handle(struct iommu_domain *iommu,
+ 	struct mpp_dev *mpp = (struct mpp_dev *)arg;
+ 	struct mpp_taskqueue *queue = mpp->queue;
+ 	struct mpp_task *mpp_task;
++	unsigned long flags;
+ 
+ 	mpp_debug_enter();
+ 
+@@ -2144,9 +2145,17 @@ int rkvdec2_soft_ccu_iommu_fault_handle(struct iommu_domain *iommu,
+ 	 * Until the pagefault task finish by hw timeout.
+ 	 */
+ 	rockchip_iommu_mask_irq(mpp->dev);
++	/*
++	 * Read cur_task and walk its mem_region_list under running_lock, the
++	 * lock the dequeue path clears it beneath. Reading it bare from this
++	 * hard-IRQ handler raced the kref_put() that frees the task, so the
++	 * walk could follow list heads that live inside freed memory.
++	 */
++	spin_lock_irqsave(&mpp->queue->running_lock, flags);
+ 	mpp_task = mpp->cur_task;
+ 	if (mpp_task)
+ 		mpp_task_dump_mem_region(mpp, mpp_task);
++	spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
+ 
+ 	atomic_inc(&mpp->queue->reset_request);
+ 	kthread_queue_work(&mpp->queue->worker, &mpp->work);
+@@ -2237,6 +2246,7 @@ static int rkvdec2_soft_ccu_enqueue(struct mpp_dev *mpp, struct mpp_task *mpp_ta
+ 	struct rkvdec2_task *task = to_rkvdec2_task(mpp_task);
+ 	struct rkvdec_link_dev *link_dec = dec->link_dec;
+ 	u32 timing_en = mpp->srv->timing_en;
++	unsigned long flags;
+ 
+ 	mpp_debug_enter();
+ 
+@@ -2277,8 +2287,14 @@ static int rkvdec2_soft_ccu_enqueue(struct mpp_dev *mpp, struct mpp_task *mpp_ta
+ 		e = s + req->size / sizeof(u32);
+ 		mpp_write_req(mpp, task->reg, s, e, reg_en);
+ 	}
+-	/* init current task */
++	/*
++	 * Publish the current task under the same lock the dequeue clears it
++	 * beneath and the IOMMU fault handler reads it under, so a fault
++	 * arriving mid-dispatch cannot observe a torn or stale pointer.
++	 */
++	spin_lock_irqsave(&mpp->queue->running_lock, flags);
+ 	mpp->cur_task = mpp_task;
++	spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
+ 
+ 	mpp_task_run_begin(mpp_task, timing_en, MPP_WORK_TIMEOUT_DELAY);
+ 
+@@ -2613,7 +2629,8 @@ static int rkvdec2_hard_ccu_dequeue(struct mpp_taskqueue *queue,
+ 			struct rkvdec2_dev *dec = to_rkvdec2_dev(queue->cores[0]);
+ 
+ 			set_bit(TASK_STATE_HANDLE, &mpp_task->state);
+-			cancel_delayed_work(&mpp_task->timeout_work);
++			/* sync: this path frees the task below, see soft CCU */
++			cancel_delayed_work_sync(&mpp_task->timeout_work);
+ 			mpp_task->hw_cycles = tb_reg[hw->tb_reg_cycle];
+ 			mpp_task->hw_time = mpp_task->hw_cycles /
+ 					    (dec->cycle_clk->real_rate_hz / 1000000);
+@@ -2968,7 +2985,7 @@ static void rkvdec2_hard_ccu_resend_tasks(struct mpp_dev *mpp, struct mpp_taskqu
+ 				tb_reg[dec->link_dec->info->tb_reg_next], irq_status);
+ 
+ 		if (!irq_status) {
+-			cancel_delayed_work(&loop->timeout_work);
++			cancel_delayed_work_sync(&loop->timeout_work);
+ 			clear_bit(TASK_STATE_START, &loop->state);
+ 			rkvdec2_hard_ccu_enqueue(dec->ccu, loop, queue, mpp);
+ 		}
+@@ -2998,7 +3015,7 @@ void rkvdec2_hard_ccu_worker(struct kthread_work *work_s)
+ 		struct mpp_task *loop = NULL, *n;
+ 
+ 		list_for_each_entry_safe(loop, n, &queue->running_list, queue_link) {
+-			cancel_delayed_work(&loop->timeout_work);
++			cancel_delayed_work_sync(&loop->timeout_work);
+ 		}
+ 		/* reset process */
+ 		ret = rkvdec2_hard_ccu_reset(queue, dec->ccu);
+diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
+index 60c1b5d3cf4d1..310e168a4537e 100644
+--- a/drivers/video/rockchip/rga3/include/rga_drv.h
++++ b/drivers/video/rockchip/rga3/include/rga_drv.h
+@@ -240,7 +240,12 @@ struct rga_internal_buffer {
+ 	struct kref refcount;
+ 	struct rga_session *session;
+ 	/*
+-	 * Outstanding RGA_IOC_IMPORT_BUFFER references, guarded by mm->lock.
++	 * Outstanding RGA_IOC_IMPORT_BUFFER references held by `session`, the
++	 * owner -- not by any other session that de-dupped onto this buffer,
++	 * since teardown spends this count on the owner's behalf. Guarded by
++	 * mm->lock once the buffer is published in memory_idr; the initial
++	 * store happens before publication, alongside kref_init().
++	 *
+ 	 * Imports are de-duplicated, so one buffer can be imported several
+ 	 * times; ownership must survive until the last of those is released,
+ 	 * otherwise the buffer is orphaned (session == NULL) and the owning
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index b894aa48b5496..2fea79e57d2f8 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -696,25 +696,22 @@ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *sessi
+ 		goto err_free_external_buffer;
+ 	}
+ 
++	/*
++	 * Check every type before importing any of them. The unwind below only
++	 * frees the array, so rejecting mid-pool would strand the handles
++	 * already imported until session close.
++	 *
++	 * Userspace may only name memory it can already reach: a dma-buf fd or
++	 * one of its own virtual addresses. RGA_DMA_BUFFER_PTR takes `memory`
++	 * as a kernel `struct dma_buf *` and dereferences it (get_dma_buf(),
++	 * then an indirect call through dmabuf->ops->attach), and
++	 * RGA_PHYSICAL_ADDRESS takes it as a physical address whose only check
++	 * is that it is linear-mapped RAM -- which every kernel text, data and
++	 * page-table page satisfies. Both types exist for the in-kernel
++	 * rga_mpi_commit() and rga_kernel_commit() callers, which pass trusted
++	 * values; neither is meaningful from an ioctl.
++	 */
+ 	for (i = 0; i < buffer_pool.size; i++) {
+-		if (DEBUGGER_EN(MSG)) {
+-			rga_log("import buffer info:\n");
+-			rga_dump_external_buffer(&external_buffer[i]);
+-		}
+-
+-		/*
+-		 * Userspace may only name memory it can already reach: a
+-		 * dma-buf fd or one of its own virtual addresses.
+-		 *
+-		 * RGA_DMA_BUFFER_PTR takes `memory` as a kernel `struct dma_buf *`
+-		 * and dereferences it (get_dma_buf(), then an indirect call
+-		 * through dmabuf->ops->attach), and RGA_PHYSICAL_ADDRESS takes it
+-		 * as a physical address whose only check is that it is linear-
+-		 * mapped RAM -- which every kernel text, data and page-table page
+-		 * satisfies. Both types exist for the in-kernel rga_mpi_commit()
+-		 * and rga_kernel_commit() callers, which pass trusted values;
+-		 * neither is meaningful from an ioctl.
+-		 */
+ 		if (external_buffer[i].type != RGA_DMA_BUFFER &&
+ 		    external_buffer[i].type != RGA_VIRTUAL_ADDRESS) {
+ 			rga_err("buffer[%d] unsupported import type %s(0x%x)\n",
+@@ -724,6 +721,13 @@ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *sessi
+ 
+ 			goto err_free_external_buffer;
+ 		}
++	}
++
++	for (i = 0; i < buffer_pool.size; i++) {
++		if (DEBUGGER_EN(MSG)) {
++			rga_log("import buffer info:\n");
++			rga_dump_external_buffer(&external_buffer[i]);
++		}
+ 
+ 		ret = rga_mm_import_buffer(&external_buffer[i], session);
+ 		if (ret <= 0) {
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 6b5d3c8daf3e8..11aa0d9d78256 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -1284,7 +1284,17 @@ rga_mm_lookup_external(struct rga_mm *mm_session,
+ 		break;
+ 	case RGA_DMA_BUFFER_PTR:
+ 		idr_for_each_entry(&mm_session->memory_idr, temp_buffer, id) {
+-			if (temp_buffer->type != RGA_DMA_BUFFER_PTR)
++			/*
++			 * Both dma-buf types resolve to the same struct dma_buf
++			 * and are compared pointer-to-pointer below, so an fd
++			 * import and a PTR import of one buffer must still
++			 * de-dup onto each other -- otherwise every MPI frame
++			 * re-attaches and re-maps a buffer userspace already
++			 * holds by fd. Only the address-keyed arms need a
++			 * strict type match.
++			 */
++			if (temp_buffer->type != RGA_DMA_BUFFER_PTR &&
++			    temp_buffer->type != RGA_DMA_BUFFER)
+ 				continue;
+ 
+ 			if (temp_buffer->dma_buffer == NULL)
+@@ -3184,7 +3194,6 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 	internal_buffer = rga_mm_lookup_external(mm, external_buffer, current->mm);
+ 	if (!IS_ERR_OR_NULL(internal_buffer)) {
+ 		kref_get(&internal_buffer->refcount);
+-		internal_buffer->import_cnt++;
+ 		/*
+ 		 * Adopt an orphaned buffer. rga_mm_release_buffer() clears the
+ 		 * owner when the last import reference goes away, so a buffer
+@@ -3194,6 +3203,17 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 		if (!internal_buffer->session)
+ 			internal_buffer->session = session;
+ 
++		/*
++		 * import_cnt is what the *owner* took, and is spent as such at
++		 * session teardown. Lookup is global -- another session, or a
++		 * second fd in this one, can de-dup onto this buffer -- so
++		 * counting a foreign import here would make the owner's close
++		 * hand back references it never held, freeing the buffer under
++		 * the other session's handle or its running job.
++		 */
++		if (internal_buffer->session == session)
++			internal_buffer->import_cnt++;
++
+ 		mutex_unlock(&mm->lock);
+ 
+ 		if (DEBUGGER_EN(MM)) {

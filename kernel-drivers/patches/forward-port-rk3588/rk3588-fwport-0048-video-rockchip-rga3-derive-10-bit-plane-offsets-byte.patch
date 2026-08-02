@@ -1,7 +1,7 @@
 From 6c7eb3efa3f0d8461cd5b790408a67665f1670d0 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 08:09:27 -0700
-Subject: [PATCH 48/71] video: rockchip: rga3: derive 10-bit plane offsets
+Subject: [PATCH 48/87] video: rockchip: rga3: derive 10-bit plane offsets
  byte-literally
 
 rga_convert_addr() places the UV plane at yrgb_addr + vir_w * vir_h,

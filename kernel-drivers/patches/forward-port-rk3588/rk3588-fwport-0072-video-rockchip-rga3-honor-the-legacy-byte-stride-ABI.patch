@@ -1,7 +1,7 @@
 From 138f0de2c9729e5b7d73eb750fc239fb324da997 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 24 Jul 2026 05:08:10 -0700
-Subject: [PATCH 72/73] video: rockchip: rga3: honor the legacy byte-stride ABI
+Subject: [PATCH 72/87] video: rockchip: rga3: honor the legacy byte-stride ABI
  for 10-bit rasters
 
 The legacy RGA_BLIT ABI passes rga_req.img.vir_w as a BYTE stride for
@@ -115,6 +115,3 @@ index ecd940c4bdb11..94eacdd2afd05 100644
  
  	if (bit_stride % (byte_stride_align * 8) == 0)
  		return true;
--- 
-2.55.0
-

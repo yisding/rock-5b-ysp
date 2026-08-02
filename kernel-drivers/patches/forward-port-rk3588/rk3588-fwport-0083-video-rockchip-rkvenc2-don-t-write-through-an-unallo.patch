@@ -1,0 +1,78 @@
+From 57585821dcef56a8c60e8f60b77e06796601ada2 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 1 Aug 2026 21:39:42 -0700
+Subject: [PATCH 83/87] video: rockchip: rkvenc2: don't write through an
+ unallocated class buffer
+
+rkvenc_get_class_reg() returned task->reg[i].data + (addr - base_s)
+without checking that the class buffer had been allocated. Class buffers
+are allocated lazily, only for classes a register write actually
+overlapped, so data is NULL for any class userspace did not touch.
+Returning NULL + offset produced a small non-NULL pointer that passed
+every caller's "if (reg)" guard.
+
+int_sta_base is 0x2c and lies inside CLASS_BASE, so a task that writes
+only CLASS_PIC -- which rkvenc_task_get_format() accepts, since the
+format register lives in CLASS_PIC -- reaches rkvenc_finish() with a
+NULL CLASS_BASE and stores the irq status through address 0x2c. Such a
+task never starts the hardware either, because the start value comes
+from CLASS_BASE, so it always arrives there via the 500 ms timeout.
+
+The oops is taken inside try_process_running_task()'s disable_irq()
+bracket, and both VEPU580 cores share one taskqueue kthread, so it stops
+all hardware encode on the machine rather than just failing the job.
+
+The session dump also printed the 8-byte codec_info val through "%8s".
+That is a field width, not a precision, so vsnprintf() ran strlen() past
+the field and out of the object, into two 0444 procfs files. Copy the
+field and terminate it.
+
+Assisted-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c | 26 +++++++++++++++++++++++-
+ 1 file changed, 25 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index d6b2e22a2d299..9aceaaa77f692 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -929,6 +929,18 @@ static u32 *rkvenc_get_class_reg(struct rkvenc_task *task, u32 addr)
+ 		base_s = hw->reg_msg[i].base_s;
+ 		base_e = hw->reg_msg[i].base_e;
+ 		if (addr >= base_s && addr < base_e) {
++			/*
++			 * Class buffers are allocated lazily, only for classes a
++			 * register write actually overlapped, so data may be NULL
++			 * here. Returning NULL + (addr - base_s) produced a small
++			 * non-NULL pointer that passed every caller's "if (reg)"
++			 * guard -- rkvenc_finish() then stored the irq status
++			 * through address int_sta_base (0x2c) for any task that
++			 * never wrote CLASS_BASE.
++			 */
++			if (!task->reg[i].data)
++				break;
++
+ 			reg = (u8 *)task->reg[i].data + (addr - base_s);
+ 			break;
+ 		}
+@@ -2222,7 +2234,19 @@ static int rkvenc_dump_session(struct mpp_session *session, struct seq_file *seq
+ 
+ 			seq_printf(seq, "%8d|", data);
+ 		} else if (flag == CODEC_INFO_FLAG_STRING) {
+-			const char *name = (const char *)&priv->codec_info[i].val;
++			/*
++			 * val is a u64 holding 8 user-supplied bytes, not a
++			 * string. "%8s" is a minimum field width, not a
++			 * precision, so vsnprintf() ran strlen() off the end of
++			 * the field and printed the rest of the session's
++			 * private data -- and past it -- into a 0444 procfs
++			 * file. Bound the read to the field and terminate it.
++			 */
++			char name[sizeof(priv->codec_info[i].val) + 1];
++
++			memcpy(name, &priv->codec_info[i].val,
++			       sizeof(priv->codec_info[i].val));
++			name[sizeof(name) - 1] = '\0';
+ 
+ 			seq_printf(seq, "%8s|", name);
+ 		} else {

@@ -1,7 +1,7 @@
 From b1906083e53d823951840aa18a931bef78bff014 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 17 Jul 2026 17:00:14 -0700
-Subject: [PATCH 40/71] video: rockchip: mpp: unlink sessions before private
+Subject: [PATCH 40/87] video: rockchip: mpp: unlink sessions before private
  teardown
 
 The mpp_service procfs readers walk srv->session_list while holding

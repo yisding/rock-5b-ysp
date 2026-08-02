@@ -1,7 +1,7 @@
 From 28ab788af387e8f41a007fae757ddd4915410407 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Fri, 20 Mar 2026 16:04:46 +0800
-Subject: [PATCH 21/71] video: rockchip: rga3: fix request submit failed when
+Subject: [PATCH 21/87] video: rockchip: rga3: fix request submit failed when
  acquire_fence is already signaled
 
 There is a narrow race window between dma_fence_get_status() and

@@ -1,7 +1,7 @@
 From be4fe6f1b7a1514b75c5b472e3fc1810ae17c4a6 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Thu, 9 Apr 2026 20:44:30 +0800
-Subject: [PATCH 19/71] video: rockchip: rga3: fix RGA2/RGA3 slave_mode
+Subject: [PATCH 19/87] video: rockchip: rga3: fix RGA2/RGA3 slave_mode
  execution failure after master_mode
 
 Change-Id: I646a548655eb495a7a653c0dab9ce7f69a757530

@@ -1,3 +1,26 @@
+linux-rockchip64-ysp (6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1) resolute; urgency=high
+
+  * Ship the seven post-20260801 forward-port commits, extending the series
+    from 0001-0080 to 0001-0087 at tip 5b87d46eefdcb.
+  * Harden the MPP ioctl boundary: fix session-switch lifetime and message
+    recycling, snapshot register-translation indexes, account static dma-buf
+    references, and reject over-release without freeing in-flight buffers.
+  * Harden RKVENC2/RKVDEC2: reject writes through unallocated register-class
+    buffers, terminate codec-info strings, synchronously cancel timeout work,
+    and publish/clear cur_task under the running-task lock.
+  * Authenticate RGA imports, requests, releases, and buffer ownership; reject
+    userspace kernel-pointer and physical-address import types; and repair
+    import reference ownership across sessions.
+  * Include the follow-up review repairs for RGA import counting, MPP fd/message
+    lifetime and release serialization, hard-CCU timeout work, locked cur_task
+    access, and dma-buf fd/PTR de-duplication.
+  * Compile evidence only: the affected MPP/RGA driver directories passed W=1
+    on the forward-port tree. None of these seven commits has been booted or
+    hardware-validated, and the cross-session RGA regression probe is still
+    being added.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Sun, 02 Aug 2026 10:00:00 -0700
+
 linux-rockchip64-ysp (6.18.41+rk3588av1fwport20260801-0ubuntu1~rk1) resolute; urgency=medium
 
   * Rebase onto the 6.18.41 Armbian stable base (previous cuts were 6.18.40).

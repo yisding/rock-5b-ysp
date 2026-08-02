@@ -1,7 +1,7 @@
 From 522f3e122206efb1d90cdf1c497b4ed83596e5a7 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Thu, 30 Apr 2026 10:30:46 +0800
-Subject: [PATCH 25/71] video: rockchip: rga3: fix VA map size calculation
+Subject: [PATCH 25/87] video: rockchip: rga3: fix VA map size calculation
 
 When shadow_page is active, the map size calculation did not account for
 the case where the offset is 0.

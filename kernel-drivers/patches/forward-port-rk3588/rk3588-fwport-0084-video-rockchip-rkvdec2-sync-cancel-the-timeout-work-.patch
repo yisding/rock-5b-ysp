@@ -1,0 +1,75 @@
+From 1b4b65b57e7c28e68b0dec38d11b94605b7c7628 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 1 Aug 2026 21:40:12 -0700
+Subject: [PATCH 84/87] video: rockchip: rkvdec2: sync-cancel the timeout work
+ and clear cur_task
+
+rkvdec2_soft_ccu_dequeue() frees the task a few lines after cancelling
+its timeout work, but used the non-sync cancel_delayed_work(), which
+returns false for an already-running callback and does not wait for it.
+rkvdec2_ccu_timeout_work() touches task->state and task->session even on
+its early-return arm, and on the arm it does win it goes on to
+atomic_inc() through a struct mpp_dev * re-read from the task -- so a
+freed task there is a write, not merely a stale read. The non-CCU link
+paths in this file already use cancel_delayed_work_sync(); this runs in
+the taskqueue kthread with no lock held, so it may sleep too.
+
+The CCU dispatch path also publishes mpp->cur_task but retires tasks
+through ->finish rather than ->isr, and no CCU path ever cleared it --
+mpp_rkvdec2_link.c contains no cur_task = NULL at all. The IOMMU fault
+handler reads cur_task from hard IRQ and walks task->mem_region_list,
+whose list head lives inside the task, so the pointer was stale by
+construction for the whole idle period of a powered core. Clear it under
+running_lock as the task leaves the running list.
+
+This is soft-CCU, which is what RK3588 selects (rockchip,ccu-mode = <1>).
+
+Assisted-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 26 ++++++++++++++++++-
+ 1 file changed, 25 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index c6740df3555b1..439212c5c85a5 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -1944,7 +1944,19 @@ static int rkvdec2_soft_ccu_dequeue(struct mpp_taskqueue *queue)
+ 			}
+ 
+ 			set_bit(TASK_STATE_HANDLE, &mpp_task->state);
+-			cancel_delayed_work(&mpp_task->timeout_work);
++			/*
++			 * Sync cancel: this path frees the task a few lines
++			 * below, and the plain cancel_delayed_work() does not
++			 * wait for an already-running rkvdec2_ccu_timeout_work().
++			 * That callback touches task->state and task->session
++			 * even on its early-return arm, so without the wait it
++			 * could run on freed memory. The non-CCU link paths in
++			 * this file already use the sync variant.
++			 *
++			 * Safe to sleep here: this runs in the taskqueue kthread
++			 * with no lock held, and the callback only queues work.
++			 */
++			cancel_delayed_work_sync(&mpp_task->timeout_work);
+ 			mpp_task->hw_cycles = mpp_read(mpp, RKVDEC_PERF_WORKING_CNT);
+ 			mpp_task->hw_time = mpp_task->hw_cycles /
+ 					    (dec->cycle_clk->real_rate_hz / 1000000);
+@@ -1967,6 +1979,18 @@ static int rkvdec2_soft_ccu_dequeue(struct mpp_taskqueue *queue)
+ 			/* free task */
+ 			spin_lock_irqsave(&queue->running_lock, flags);
+ 			list_del_init(&mpp_task->queue_link);
++			/*
++			 * The CCU dispatch path publishes mpp->cur_task
++			 * (rkvdec2_ccu_enqueue) but retires tasks through
++			 * ->finish rather than ->isr, so nothing ever cleared
++			 * it. The IOMMU fault handler reads cur_task from hard
++			 * IRQ and walks task->mem_region_list, whose list head
++			 * lives inside the task -- leaving it set here made that
++			 * pointer stale by construction for the whole idle
++			 * period of the core.
++			 */
++			if (mpp->cur_task == mpp_task)
++				mpp->cur_task = NULL;
+ 			spin_unlock_irqrestore(&queue->running_lock, flags);
+ 			mpp_dev_load(mpp, mpp_task);
+ 			kref_put(&mpp_task->ref, mpp_free_task);

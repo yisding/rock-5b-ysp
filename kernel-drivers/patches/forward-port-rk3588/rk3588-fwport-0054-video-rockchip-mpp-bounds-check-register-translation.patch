@@ -1,7 +1,7 @@
 From 897fac51feaf66390c5d279cb66b27af4f19ddd8 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 18:04:33 -0700
-Subject: [PATCH 54/71] video: rockchip: mpp: bounds-check register-translation
+Subject: [PATCH 54/87] video: rockchip: mpp: bounds-check register-translation
  imports
 
 Two out-of-bounds writes into struct mpp_task's fixed 80-entry

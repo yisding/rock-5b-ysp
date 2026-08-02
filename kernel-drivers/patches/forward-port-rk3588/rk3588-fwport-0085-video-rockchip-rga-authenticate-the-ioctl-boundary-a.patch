@@ -1,0 +1,385 @@
+From 78a4d1a903700d67ea1370f8da8820141942f040 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 1 Aug 2026 21:40:15 -0700
+Subject: [PATCH 85/87] video: rockchip: rga: authenticate the ioctl boundary
+ and own imports properly
+
+RGA_IOC_IMPORT_BUFFER validated the buffer count and the array pointer
+but never the type field, and two of the four types are meaningful only
+to in-kernel callers:
+
+  - RGA_DMA_BUFFER_PTR takes `memory` as a kernel struct dma_buf * and
+    dereferences it -- get_dma_buf() touches dmabuf->file, dma_buf_attach()
+    locks dmabuf->resv and makes an indirect call through
+    dmabuf->ops->attach. From an ioctl that is an arbitrary kernel
+    pointer dereference and a controlled indirect call.
+  - RGA_PHYSICAL_ADDRESS takes it as a physical address whose only test
+    is virt_addr_valid(phys_to_virt(addr)), which every kernel text,
+    data and page-table page satisfies. The result is mapped
+    DMA_BIDIRECTIONAL and usable as a blit destination.
+
+Restrict the ioctl to dma-buf fds and virtual addresses; rga_mpi_commit()
+and rga_kernel_commit() keep both types.
+
+rga_mm_lookup_external() also matched candidates without comparing their
+type. Every non-contiguous import leaves phys_addr at 0, so importing
+physical address 0 returned the first unrelated buffer in the global idr
+and took a reference on another process's memory.
+
+Request ids are one global idr allocated cyclically from 1, and
+rga_request_lookup() is a bare idr_find. The config/submit and cancel
+handlers were not even passed a session, so any /dev/rga opener could
+reconfigure or retire another process's in-flight request -- which is
+what makes the borrowed task_list lifetime races a cross-process
+primitive. Check ownership on both.
+
+rga_ioctl_blit()'s error path called rga_request_free(), the raw
+destructor that idr_removes and kfrees without consulting the kref,
+while rga_request_config() holds a reference across a sleeping
+copy_from_user(). Retire through rga_request_release_ref() like every
+other path.
+
+Finally, clearing buffer->session on release (added to stop session
+teardown freeing a buffer under another session's running job) orphaned
+buffers that still had import references outstanding, since imports are
+de-duplicated: teardown skips a buffer it no longer owns, so the pages,
+mapping and mm reference leaked for the life of the driver. Count import
+references and drop ownership only with the last one, adopt an orphan on
+re-import, and give back every reference the session took at teardown.
+
+Assisted-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ drivers/video/rockchip/rga3/include/rga_drv.h |  8 +++
+ drivers/video/rockchip/rga3/include/rga_job.h |  3 +-
+ drivers/video/rockchip/rga3/rga_drv.c         | 61 +++++++++++++---
+ drivers/video/rockchip/rga3/rga_job.c         | 17 ++++-
+ drivers/video/rockchip/rga3/rga_mm.c          | 72 +++++++++++++++----
+ 5 files changed, 137 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
+index 95a14b437ba93..60c1b5d3cf4d1 100644
+--- a/drivers/video/rockchip/rga3/include/rga_drv.h
++++ b/drivers/video/rockchip/rga3/include/rga_drv.h
+@@ -239,6 +239,14 @@ struct rga_internal_buffer {
+ 
+ 	struct kref refcount;
+ 	struct rga_session *session;
++	/*
++	 * Outstanding RGA_IOC_IMPORT_BUFFER references, guarded by mm->lock.
++	 * Imports are de-duplicated, so one buffer can be imported several
++	 * times; ownership must survive until the last of those is released,
++	 * otherwise the buffer is orphaned (session == NULL) and the owning
++	 * session's teardown walk skips it, leaking its pages and mm ref.
++	 */
++	uint32_t import_cnt;
+ 
+ 	/* The scheduler of the mapping */
+ 	struct rga_scheduler_t *scheduler;
+diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
+index f3b4f128c3840..7e26bec62cb00 100644
+--- a/drivers/video/rockchip/rga3/include/rga_job.h
++++ b/drivers/video/rockchip/rga3/include/rga_job.h
+@@ -45,7 +45,8 @@ void rga_request_get(struct rga_request *request);
+ int rga_request_free(struct rga_request *request);
+ int rga_request_alloc(uint32_t flags, struct rga_session *session);
+ 
+-struct rga_request *rga_request_config(struct rga_user_request *user_request);
++struct rga_request *rga_request_config(struct rga_user_request *user_request,
++				       struct rga_session *session);
+ struct rga_request *rga_request_kernel_config(struct rga_user_request *user_request);
+ int rga_request_submit(struct rga_request *request);
+ int rga_request_mpi_submit(struct rga_req *req, struct rga_request *request);
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index a32457709df71..7d8b85bd74ef2 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -702,6 +702,29 @@ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *sessi
+ 			rga_dump_external_buffer(&external_buffer[i]);
+ 		}
+ 
++		/*
++		 * Userspace may only name memory it can already reach: a
++		 * dma-buf fd or one of its own virtual addresses.
++		 *
++		 * RGA_DMA_BUFFER_PTR takes `memory` as a kernel `struct dma_buf *`
++		 * and dereferences it (get_dma_buf(), then an indirect call
++		 * through dmabuf->ops->attach), and RGA_PHYSICAL_ADDRESS takes it
++		 * as a physical address whose only check is that it is linear-
++		 * mapped RAM -- which every kernel text, data and page-table page
++		 * satisfies. Both types exist for the in-kernel rga_mpi_commit()
++		 * and rga_kernel_commit() callers, which pass trusted values;
++		 * neither is meaningful from an ioctl.
++		 */
++		if (external_buffer[i].type != RGA_DMA_BUFFER &&
++		    external_buffer[i].type != RGA_VIRTUAL_ADDRESS) {
++			rga_err("buffer[%d] unsupported import type %s(0x%x)\n",
++				i, rga_get_memory_type_str(external_buffer[i].type),
++				external_buffer[i].type);
++			ret = -EOPNOTSUPP;
++
++			goto err_free_external_buffer;
++		}
++
+ 		ret = rga_mm_import_buffer(&external_buffer[i], session);
+ 		if (ret <= 0) {
+ 			rga_err("buffer[%d] mm import buffer failed! memory = 0x%lx, type = %s(0x%x)\n",
+@@ -808,7 +831,8 @@ static long rga_ioctl_request_create(unsigned long arg, struct rga_session *sess
+ 	return 0;
+ }
+ 
+-static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale)
++static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale,
++				     struct rga_session *session)
+ {
+ 	int ret = 0;
+ 	struct rga_pending_request_manager *request_manager = NULL;
+@@ -833,7 +857,7 @@ static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale)
+ 	if (DEBUGGER_EN(MSG))
+ 		rga_log("config request id = %d", user_request.id);
+ 
+-	request = rga_request_config(&user_request);
++	request = rga_request_config(&user_request, session);
+ 	if (IS_ERR_OR_NULL(request)) {
+ 		rga_err("request[%d] config failed!\n", user_request.id);
+ 		return -EFAULT;
+@@ -860,7 +884,8 @@ static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale)
+ 	return ret;
+ }
+ 
+-static long rga_ioctl_request_cancel(unsigned long arg)
++static long rga_ioctl_request_cancel(unsigned long arg,
++				     struct rga_session *session)
+ {
+ 	uint32_t id;
+ 	struct rga_pending_request_manager *request_manager;
+@@ -889,6 +914,18 @@ static long rga_ioctl_request_cancel(unsigned long arg)
+ 		return -EINVAL;
+ 	}
+ 
++	/*
++	 * Ids are global and guessable, and this handler previously took no
++	 * session at all, so any /dev/rga opener could retire another
++	 * process's in-flight request -- freeing the task_list its running job
++	 * still borrows.
++	 */
++	if (session && request->session != session) {
++		rga_err("id[%d] does not belong to this session\n", id);
++		mutex_unlock(&request_manager->lock);
++		return -EPERM;
++	}
++
+ 	/* Retire the request's initial reference (idempotent). */
+ 	rga_request_release_ref(request);
+ 
+@@ -925,7 +962,7 @@ static long rga_ioctl_blit(unsigned long arg, uint32_t cmd, struct rga_session *
+ 		goto err_free_request_by_id;
+ 	}
+ 
+-	request = rga_request_config(&user_request);
++	request = rga_request_config(&user_request, session);
+ 	if (IS_ERR(request)) {
+ 		rga_err("ID[%d]: config failed!\n", user_request.id);
+ 		ret = -EFAULT;
+@@ -968,7 +1005,15 @@ static long rga_ioctl_blit(unsigned long arg, uint32_t cmd, struct rga_session *
+ 		return -EINVAL;
+ 	}
+ 
+-	rga_request_free(request);
++	/*
++	 * Retire through the refcount, never rga_request_free(). That is the
++	 * raw destructor -- it idr_removes, kfrees task_list and kfrees the
++	 * request without consulting the kref -- while rga_request_config()
++	 * holds a reference across a sleeping copy_from_user(). A concurrent
++	 * config on this id would then walk, write and kfree through freed
++	 * memory. Every other retire path in the driver uses this helper.
++	 */
++	rga_request_release_ref(request);
+ 
+ 	mutex_unlock(&request_manager->lock);
+ 
+@@ -1120,17 +1165,17 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
+ 		break;
+ 
+ 	case RGA_IOC_REQUEST_SUBMIT:
+-		ret = rga_ioctl_request_submit(arg, true);
++		ret = rga_ioctl_request_submit(arg, true, session);
+ 
+ 		break;
+ 
+ 	case RGA_IOC_REQUEST_CONFIG:
+-		ret = rga_ioctl_request_submit(arg, false);
++		ret = rga_ioctl_request_submit(arg, false, session);
+ 
+ 		break;
+ 
+ 	case RGA_IOC_REQUEST_CANCEL:
+-		ret = rga_ioctl_request_cancel(arg);
++		ret = rga_ioctl_request_cancel(arg, session);
+ 
+ 		break;
+ 
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index 376a33c883d63..2777cebf275cc 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -1220,7 +1220,8 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
+ 	return 0;
+ }
+ 
+-struct rga_request *rga_request_config(struct rga_user_request *user_request)
++struct rga_request *rga_request_config(struct rga_user_request *user_request,
++				       struct rga_session *session)
+ {
+ 	int ret;
+ 	unsigned long flags;
+@@ -1244,6 +1245,20 @@ struct rga_request *rga_request_config(struct rga_user_request *user_request)
+ 		return ERR_PTR(-EINVAL);
+ 	}
+ 
++	/*
++	 * Request ids are a single global idr allocated cyclically from 1 and
++	 * rga_request_lookup() is a bare idr_find, so without this check any
++	 * process holding /dev/rga can reconfigure another process's in-flight
++	 * request -- which is what turns the task_list lifetime races into a
++	 * cross-process primitive rather than a self-inflicted one.
++	 */
++	if (session && request->session != session) {
++		rga_err("id[%d] does not belong to this session\n",
++			user_request->id);
++		mutex_unlock(&request_manager->lock);
++		return ERR_PTR(-EPERM);
++	}
++
+ 	rga_request_get(request);
+ 	mutex_unlock(&request_manager->lock);
+ 
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index 51cefcc724018..c072a2e14ee38 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -1265,6 +1265,16 @@ rga_mm_lookup_external(struct rga_mm *mm_session,
+ 		break;
+ 	case RGA_PHYSICAL_ADDRESS:
+ 		idr_for_each_entry(&mm_session->memory_idr, temp_buffer, id) {
++			/*
++			 * Match only against buffers of the same kind. Every
++			 * non-contiguous import leaves phys_addr at 0, so
++			 * without this a lookup for physical address 0 returned
++			 * the first unrelated buffer in the global idr -- and
++			 * the caller took a reference on someone else's memory.
++			 */
++			if (temp_buffer->type != RGA_PHYSICAL_ADDRESS)
++				continue;
++
+ 			if (temp_buffer->phys_addr == external_buffer->memory) {
+ 				output_buffer = temp_buffer;
+ 				break;
+@@ -1274,6 +1284,9 @@ rga_mm_lookup_external(struct rga_mm *mm_session,
+ 		break;
+ 	case RGA_DMA_BUFFER_PTR:
+ 		idr_for_each_entry(&mm_session->memory_idr, temp_buffer, id) {
++			if (temp_buffer->type != RGA_DMA_BUFFER_PTR)
++				continue;
++
+ 			if (temp_buffer->dma_buffer == NULL)
+ 				continue;
+ 
+@@ -3171,6 +3184,15 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 	internal_buffer = rga_mm_lookup_external(mm, external_buffer, current->mm);
+ 	if (!IS_ERR_OR_NULL(internal_buffer)) {
+ 		kref_get(&internal_buffer->refcount);
++		internal_buffer->import_cnt++;
++		/*
++		 * Adopt an orphaned buffer. rga_mm_release_buffer() clears the
++		 * owner when the last import reference goes away, so a buffer
++		 * that a job still referenced could otherwise sit unowned and be
++		 * skipped by every session-teardown walk.
++		 */
++		if (!internal_buffer->session)
++			internal_buffer->session = session;
+ 
+ 		mutex_unlock(&mm->lock);
+ 
+@@ -3197,6 +3219,7 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 
+ 	kref_init(&internal_buffer->refcount);
+ 	internal_buffer->session = session;
++	internal_buffer->import_cnt = 1;
+ 
+ 	mutex_lock(&mm->lock);
+ 	/*
+@@ -3265,15 +3288,26 @@ int rga_mm_release_buffer(uint32_t handle)
+ 	}
+ 
+ 	/*
+-	 * The import reference is being surrendered here, so the buffer is no
+-	 * longer owned by any session. Clearing this matters because
+-	 * rga_mm_session_release_buffer() treats a refcount of 1 on a buffer
+-	 * it still owns as "the last reference is mine" and frees it in place.
+-	 * Handles are global, so without this a session could import, hand the
+-	 * handle to a job in another session, release it, and then free the
+-	 * buffer out from under that still-running job on close.
++	 * Surrender one import reference. Ownership is dropped only when the
++	 * last one goes, which matters in both directions:
++	 *
++	 * Clearing it at all is what stops rga_mm_session_release_buffer()
++	 * treating a refcount of 1 on a buffer it still owns as "the last
++	 * reference is mine" and freeing it in place -- handles are global, so
++	 * a session could import, hand the handle to a job in another session,
++	 * release its own, and free the buffer under that running job on close.
++	 *
++	 * Clearing it only on the *last* import is what stops the opposite
++	 * failure: imports are de-duplicated, so releasing one of several left
++	 * the buffer unowned while an import reference was still outstanding,
++	 * and every session-teardown walk then skipped it -- leaking the
++	 * buffer, its pinned pages, its mapping and its mm reference for the
++	 * lifetime of the driver.
+ 	 */
+-	internal_buffer->session = NULL;
++	if (internal_buffer->import_cnt)
++		internal_buffer->import_cnt--;
++	if (!internal_buffer->import_cnt)
++		internal_buffer->session = NULL;
+ 
+ 	kref_put(&internal_buffer->refcount, rga_mm_kref_release_buffer);
+ 
+@@ -3314,10 +3348,17 @@ int rga_mm_session_release_buffer(struct rga_session *session)
+ 		 * and freeing, so a surviving reference is never left pointing
+ 		 * at freed memory.
+ 		 */
+-		if (kref_read(&buffer->refcount) > 1) {
+-			rga_err("[tgid:%d] handle[%d] still referenced at exit (refcount=%u), dropping session reference only\n",
++		/*
++		 * The session may hold more than one import reference on the
++		 * same buffer, because imports are de-duplicated. Give back
++		 * exactly what it took.
++		 */
++		if (kref_read(&buffer->refcount) > buffer->import_cnt) {
++			uint32_t n = buffer->import_cnt;
++
++			rga_err("[tgid:%d] handle[%d] still referenced at exit (refcount=%u, imports=%u), dropping session references only\n",
+ 			       session->tgid, buffer->handle,
+-			       kref_read(&buffer->refcount));
++			       kref_read(&buffer->refcount), n);
+ 			/*
+ 			 * The session is going away; detach it so the surviving
+ 			 * reference does not dereference the freed session and a
+@@ -3325,12 +3366,15 @@ int rga_mm_session_release_buffer(struct rga_session *session)
+ 			 * for the owner here.
+ 			 */
+ 			buffer->session = NULL;
++			buffer->import_cnt = 0;
+ 			/*
+-			 * refcount > 1, so this only decrements: it never runs
+-			 * rga_mm_kref_release_buffer() and therefore never drops
++			 * refcount > n, so these only decrement: they never run
++			 * rga_mm_kref_release_buffer() and therefore never drop
+ 			 * mm->lock -- safe to call inside idr_for_each_entry().
+ 			 */
+-			kref_put(&buffer->refcount, rga_mm_kref_release_buffer);
++			while (n--)
++				kref_put(&buffer->refcount,
++					 rga_mm_kref_release_buffer);
+ 		} else {
+ 			rga_err("[tgid:%d] Destroy handle[%d] when the user exits\n",
+ 			       session->tgid, buffer->handle);

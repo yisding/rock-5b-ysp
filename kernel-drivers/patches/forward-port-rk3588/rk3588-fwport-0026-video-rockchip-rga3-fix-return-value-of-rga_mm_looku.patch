@@ -1,7 +1,7 @@
 From 6d4ab1572f04be8104f22ddb19504ec1fbe4be33 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Mon, 16 Mar 2026 21:03:19 +0800
-Subject: [PATCH 26/71] video: rockchip: rga3: fix return value of
+Subject: [PATCH 26/87] video: rockchip: rga3: fix return value of
  rga_mm_lookup_iova() on error
 
 Change-Id: I2c5d066fffb2e72e9b5ba3affa44160758b3069e

@@ -1,7 +1,7 @@
 From 54dc16c5141c6a574ed9b4c0542c3602903a8cbb Mon Sep 17 00:00:00 2001
 From: Yandong Lin <yandong.lin@rock-chips.com>
 Date: Fri, 24 Apr 2026 10:11:14 +0800
-Subject: [PATCH 37/71] video: rockchip: mpp: rkvenc2: Fix multi slice err hang
+Subject: [PATCH 37/87] video: rockchip: mpp: rkvenc2: Fix multi slice err hang
  issue
 
 1. Fix multi-slice encoding hang on error interrupt: when error occurs

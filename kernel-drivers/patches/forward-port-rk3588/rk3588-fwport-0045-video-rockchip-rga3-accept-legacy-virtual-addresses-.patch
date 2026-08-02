@@ -1,7 +1,7 @@
 From 7b48a8d5b30df6cbc4f29ee001614b1f79cb3296 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 06:12:44 -0700
-Subject: [PATCH 45/71] video: rockchip: rga3: accept legacy virtual addresses
+Subject: [PATCH 45/87] video: rockchip: rga3: accept legacy virtual addresses
  in task check
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

@@ -1,7 +1,7 @@
 From 862a7bea0d1d3caeb82f6ca8e8abb8ab6e699680 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 17:27:13 -0700
-Subject: [PATCH 53/71] video: rockchip: mpp: guard the wait-result path
+Subject: [PATCH 53/87] video: rockchip: mpp: guard the wait-result path
  against a device-less session
 
 mpp_wait_result_default() fetches the task's device with

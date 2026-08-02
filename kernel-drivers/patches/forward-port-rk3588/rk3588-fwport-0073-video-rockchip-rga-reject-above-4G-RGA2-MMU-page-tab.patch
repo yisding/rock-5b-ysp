@@ -1,7 +1,7 @@
 From 79fc616390e580ae18ae7bc346976fe8350c59eb Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 24 Jul 2026 05:07:50 -0700
-Subject: [PATCH 73/73] video: rockchip: rga: reject above-4G RGA2 MMU
+Subject: [PATCH 73/87] video: rockchip: rga: reject above-4G RGA2 MMU
  page-table entries
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -110,6 +110,3 @@ index 6ce00f363080a..6a6c66ee244a0 100644
  
  		img->yrgb_addr = img_offset;
  		rga_convert_addr(img, false);
--- 
-2.55.0
-

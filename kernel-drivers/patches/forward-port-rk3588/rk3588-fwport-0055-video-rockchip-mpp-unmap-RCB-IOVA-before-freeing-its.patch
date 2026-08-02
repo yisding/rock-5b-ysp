@@ -1,7 +1,7 @@
 From b444c0e4df7f72634a31cb0b10ac4926406af4f9 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 18:04:34 -0700
-Subject: [PATCH 55/71] video: rockchip: mpp: unmap RCB IOVA before freeing its
+Subject: [PATCH 55/87] video: rockchip: mpp: unmap RCB IOVA before freeing its
  pages
 
 rkvdec2_free_rcbbuf() and rkvenc2_free_rcbbuf() called __free_pages() on

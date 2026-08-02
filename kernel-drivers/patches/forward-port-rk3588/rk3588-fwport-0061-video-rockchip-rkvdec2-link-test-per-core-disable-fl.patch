@@ -1,7 +1,7 @@
 From 3595a6f3d6c02cd1653836609b0edf098a0927a1 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:12:29 -0700
-Subject: [PATCH 61/71] video: rockchip: rkvdec2-link: test per-core disable
+Subject: [PATCH 61/87] video: rockchip: rkvdec2-link: test per-core disable
  flag
 
 The CCU work-mode loop tested the outer worker device instead of

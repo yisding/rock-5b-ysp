@@ -1,7 +1,7 @@
 From 8a5423c1eefac24b072fd34f336bf86180d4f579 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Mon, 13 Oct 2025 21:05:08 +0800
-Subject: [PATCH 30/71] video: rockchip: rga3: fix incorrect check in
+Subject: [PATCH 30/87] video: rockchip: rga3: fix incorrect check in
  update_LUT mode
 
 Change-Id: I72d9a8ee5a85e435671d47c206ff8675a8a1f706

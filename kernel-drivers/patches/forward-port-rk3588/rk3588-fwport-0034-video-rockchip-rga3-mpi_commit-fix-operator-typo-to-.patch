@@ -1,7 +1,7 @@
 From 18ad9b2277f9f51e58761ffd256427fc2f00b2bd Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Fri, 17 Apr 2026 18:23:01 +0800
-Subject: [PATCH 34/71] video: rockchip: rga3: mpi_commit: fix operator typo (|
+Subject: [PATCH 34/87] video: rockchip: rga3: mpi_commit: fix operator typo (|
  to ||) in rotate_mode check
 
 Change-Id: I4f74f0848d4acfad3b43ee989ad491ad58ffbe0d

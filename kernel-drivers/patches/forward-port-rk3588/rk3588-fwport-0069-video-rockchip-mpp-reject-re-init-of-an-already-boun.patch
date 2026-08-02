@@ -1,7 +1,7 @@
 From f518b0289588e91e6c620a0f94efe9fb97b67b63 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 20:05:18 -0700
-Subject: [PATCH 69/71] video: rockchip: mpp: reject re-init of an
+Subject: [PATCH 69/87] video: rockchip: mpp: reject re-init of an
  already-bound session
 
 MPP_CMD_INIT_CLIENT_TYPE binds a /dev/mpp_service session to a device: it

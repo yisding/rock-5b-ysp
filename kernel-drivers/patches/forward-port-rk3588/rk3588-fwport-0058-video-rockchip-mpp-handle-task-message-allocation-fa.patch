@@ -1,7 +1,7 @@
 From 1fee90f5b9c5c5f2fed7e40b94e02b8399ffadcb Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:11:21 -0700
-Subject: [PATCH 58/71] video: rockchip: mpp: handle task message allocation
+Subject: [PATCH 58/87] video: rockchip: mpp: handle task message allocation
  failure
 
 get_task_msgs() dereferenced a failed kzalloc before its caller

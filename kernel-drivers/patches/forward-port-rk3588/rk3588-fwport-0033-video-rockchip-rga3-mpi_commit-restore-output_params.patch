@@ -1,7 +1,7 @@
 From fec94d803ff4ff89158b0afd824f0b99465b6154 Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Mon, 9 Mar 2026 19:46:15 +0800
-Subject: [PATCH 33/71] video: rockchip: rga3: mpi_commit: restore
+Subject: [PATCH 33/87] video: rockchip: rga3: mpi_commit: restore
  output_params in rotate 90/270
 
 Change-Id: I0fbdb0721a5e0bd52881b9383997e142a7a85c24

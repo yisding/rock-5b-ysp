@@ -1,7 +1,7 @@
 From d4285d3bd051577aa54032f6075bd7224545a9a9 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:13:33 -0700
-Subject: [PATCH 64/71] video: rockchip: rga: clean shutdown jobs outside irq
+Subject: [PATCH 64/87] video: rockchip: rga: clean shutdown jobs outside irq
  lock
 
 Detach queued jobs while holding scheduler->irq_lock, then perform

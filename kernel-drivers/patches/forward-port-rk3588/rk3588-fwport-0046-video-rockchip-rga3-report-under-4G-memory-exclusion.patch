@@ -1,7 +1,7 @@
 From 0feb65c7ee16b9ff02d23457a33e49b8fc17c722 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 06:12:59 -0700
-Subject: [PATCH 46/71] video: rockchip: rga3: report under-4G memory exclusion
+Subject: [PATCH 46/87] video: rockchip: rga3: report under-4G memory exclusion
  distinctly
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

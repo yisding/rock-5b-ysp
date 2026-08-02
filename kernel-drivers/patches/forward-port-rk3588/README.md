@@ -41,8 +41,9 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch `rk3588-video-6.18`,
-tip `14c0456c4108`). The checked-in series is now contiguous `0001`–`0080`
-after the 2026-07-31 mapped-SG contract repair. Backup of the pre-cleanup tip: tag
+tip `5b87d46eefdcb`). The checked-in series is now contiguous `0001`–`0087`
+after the 2026-08-01 ioctl/lifetime audit fixes and their adversarial review.
+Backup of the pre-cleanup tip: tag
 `backup/pre-reorg-20260723` (`4401383a6d9b5`). Generated fallback/official `.deb`
 files in the external build workspace are intentionally not tracked here — only
 the `git format-patch` text is source material.
@@ -278,6 +279,33 @@ forced-RGA2 fragmented DMA-BUF hardware run is still owed.
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
 | `0080` | media: rockchip: rga: honor mapped SG contracts | `14c0456c4108` | — |
+
+### 0081–0087 — ioctl/lifetime audit round 2 and review repairs (2026-08-01)
+
+A second source audit found deterministic and racy memory-safety defects in the
+MPP/RGA ioctl boundary and the RKVENC2/RKVDEC2 task lifecycle. The first five
+commits repair MPP session/message and static dma-buf reference ownership,
+RKVENC2 class-buffer/procfs bounds, RKVDEC2 timeout/`cur_task` lifetime, and
+RGA import/request ownership. `0086` closes the sibling unauthenticated RGA
+release path. Adversarial review then found three wrong or incomplete fixes and
+additional same-shape races; `0087` repairs the RGA import count, orders MPP fd
+release last, serializes dma-buf release lookup/check/put, completes timeout and
+`cur_task` locking, and restores fd/PTR dma-buf de-duplication.
+
+The driver directories compile at `W=1`, but none of these seven commits has
+been booted or hardware-validated. The forward-port RGA ABI and cross-session
+import probes remain the smallest missing regression gate; see the
+[audit finding](../../../findings/2026-08-01-forward-port-uaf-oops-audit-round-2.md).
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0081` | video: rockchip: mpp: fix session-switch lifetime, index refetch and msgs leak | `a88f4fdfccda` | — |
+| `0082` | video: rockchip: mpp: make MPP_CMD_RELEASE_FD give back only what it took | `874fbff8ba50` | — |
+| `0083` | video: rockchip: rkvenc2: don't write through an unallocated class buffer | `57585821dcef` | — |
+| `0084` | video: rockchip: rkvdec2: sync-cancel the timeout work and clear cur_task | `1b4b65b57e7c` | — |
+| `0085` | video: rockchip: rga: authenticate the ioctl boundary and own imports properly | `78a4d1a90370` | — |
+| `0086` | video: rockchip: rga: authenticate RGA_IOC_RELEASE_BUFFER | `36ec9c956ce1` | — |
+| `0087` | video: rockchip: fix defects found reviewing the previous five commits | `5b87d46eefdc` | — |
 
 ## Renumber map (2026-07-23)
 

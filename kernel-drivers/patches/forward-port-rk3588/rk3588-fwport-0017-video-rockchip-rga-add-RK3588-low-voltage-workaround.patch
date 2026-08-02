@@ -1,7 +1,7 @@
 From 7f6a45e74fd3a66d27f23dd18938fcb86ece22f7 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Thu, 16 Jul 2026 14:49:27 -0700
-Subject: [PATCH 17/71] video: rockchip: rga: add RK3588 low-voltage
+Subject: [PATCH 17/87] video: rockchip: rga: add RK3588 low-voltage
  workarounds
 
 Keep the RGA3 logic clock enabled while issuing commands, and disable the unreliable RGA2 automatic reset path on RK3588 revision 3.2.63318. Both avoid failures seen when the hardware is operating at low voltage.\n\nAdapt Rockchip develop-5.10 commits 561aab30f22b and 718fad971319 to the forward port.

@@ -1,7 +1,7 @@
 From 25e630cbcfca2ae9b1b3a6e9aaea5c469f3d5d4d Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Thu, 16 Jul 2026 20:20:08 -0700
-Subject: [PATCH 38/71] video: rockchip: rga3: validate physical import pages
+Subject: [PATCH 38/87] video: rockchip: rga3: validate physical import pages
 
 RGA physical-address imports currently accept any pfn_valid() base.
 They pass the resulting pages to dma_map_sg(). On arm64, pfn_valid()

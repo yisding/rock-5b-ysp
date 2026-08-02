@@ -1,7 +1,7 @@
 From 039d880127e7a4490ef05c50d8667c02801cdc6a Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 15:56:38 -0700
-Subject: [PATCH 51/71] video: rockchip: rga3: drop the request initial
+Subject: [PATCH 51/87] video: rockchip: rga3: drop the request initial
  reference exactly once
 
 A request carries a single initial reference from rga_request_alloc()

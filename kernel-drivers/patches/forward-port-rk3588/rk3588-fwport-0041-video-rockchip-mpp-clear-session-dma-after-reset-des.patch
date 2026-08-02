@@ -1,7 +1,7 @@
 From a68c39dbb834847d6a97ffb5857deab1b154cc05 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 18 Jul 2026 05:59:58 -0700
-Subject: [PATCH 41/71] video: rockchip: mpp: clear session->dma after reset
+Subject: [PATCH 41/87] video: rockchip: mpp: clear session->dma after reset
  destroy
 
 MPP_CMD_RESET_SESSION destroys session->dma via mpp_dma_session_destroy()

@@ -1,7 +1,7 @@
 From a619d9f8a0ae0e1e1c8e63629270b89e892a7e7c Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:13:16 -0700
-Subject: [PATCH 63/71] video: rockchip: rga: balance acquire-fence references
+Subject: [PATCH 63/87] video: rockchip: rga: balance acquire-fence references
 
 sync_file_get_fence() returns a referenced fence, but every completion
 and error path leaked it. Release the reference on early exits,

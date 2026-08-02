@@ -1,7 +1,7 @@
 From b3d577f9726098fca5d11be6ea0a1aa466cba60c Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 4 Jul 2026 12:19:30 -0700
-Subject: [PATCH 12/71] iommu: rockchip: restore large DMA segment support
+Subject: [PATCH 12/87] iommu: rockchip: restore large DMA segment support
 
 ---
  drivers/iommu/rockchip-iommu.c | 12 ++++++++++++

@@ -1,7 +1,7 @@
 From 12a7da02bea835e5f7024c42073bb84eb682fd99 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Sat, 25 Jul 2026 00:52:40 -0700
-Subject: [PATCH 75/75] video: rockchip: rkvenc2: reserve a slice fifo slot for
+Subject: [PATCH 75/87] video: rockchip: rkvenc2: reserve a slice fifo slot for
  the terminal record
 
 rkvenc2_read_slice_len() feeds the 256-entry per-task kfifo declared in
@@ -206,6 +206,3 @@ index 567712fe05f30..f52b7448cf33c 100644
  
  		return ret;
  
--- 
-2.55.0
-

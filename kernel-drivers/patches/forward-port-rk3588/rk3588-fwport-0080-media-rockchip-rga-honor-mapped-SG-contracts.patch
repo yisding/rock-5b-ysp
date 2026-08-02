@@ -1,7 +1,7 @@
 From 14c0456c4108c71d1143081a5ad6b22a68c6762b Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 31 Jul 2026 08:17:39 -0700
-Subject: [PATCH] media: rockchip: rga: honor mapped SG contracts
+Subject: [PATCH 80/87] media: rockchip: rga: honor mapped SG contracts
 
 ---
  drivers/video/rockchip/rga3/rga_dma_buf.c |  45 +++++--
@@ -246,6 +246,3 @@ index 5e3a22bcaca11..51cefcc724018 100644
  
  	return 0;
  }
--- 
-2.55.0
-

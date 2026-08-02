@@ -261,10 +261,10 @@ against a silent-corruption case rather than fixing a specific commit's mistake.
 |---|--------------|-------|--------------|----------|
 | 0072 | RGA3: reject a non-16-byte-aligned IOMMU window base in `rga_mm_get_buffer_info()` with `-EINVAL` instead of silently returning all-zero pixels. RGA3 fetches the base on a 16-byte granularity; the scattered-userptr `shadow_page` path carries the raw sub-page byte offset in the base with a zeroed head, so a non-16-aligned source read the zero head. | `FWPORT-ROBUSTNESS` | Concerns forward-port-only scattered-userptr / `shadow_page` code (not in the BSP); fail-loud, no functional change to aligned userptr or dma-buf. | **No** — forward-port-specific path; see [finding](../../findings/2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md) |
 
-## Current `0072`–`0080` — outside the 2026-07-22 compilation
+## Current `0072`–`0087` — outside the 2026-07-22 compilation
 
 > **These rows use CURRENT numbering**, unlike everything above, which uses the
-> pre-cleanup scheme (this page's `0072` is current `0071`). The nine patches
+> pre-cleanup scheme (this page's `0072` is current `0071`). The sixteen patches
 > below all landed after this page was compiled on 2026-07-22.
 
 `0072`–`0075` are the 10-bit RGA stride/UV-offset trio and the RKVENC2
@@ -285,6 +285,13 @@ admission check repairs forward-port-only hardening, while its RGA2 page-table
 walker corrects vendor code that mixed original SG lengths/counts with mapped
 DMA addresses. Its two changed objects compile cleanly, but it is not booted.
 
+`0081`–`0087` are the 2026-08-01 ioctl/lifetime audit fixes and their
+adversarial-review repairs. The audit traces most defect sites to the BSP
+import, while the session-fd ordering bug and the original RGA ownership leak
+were forward-port regressions. These rows preserve that mixed provenance;
+every patch remains compile-only and requires the forward-port ABI,
+cross-session RGA, MPP, encode, and decode regression gates.
+
 | # | What it does | Class | BSP evidence | Backport |
 |---|--------------|-------|--------------|----------|
 | 0076 | MPP core: fix `mpp_check_req()` clamping to the overflow amount and using a signed offset (two independent bypasses); bound the register-offset translation index, the `trans_info[]` format index, and user-supplied `trans_table[]` register indexes; publish the `RESET_SESSION` DMA teardown under `srv->session_lock`. | `BSP-BUG` | All five sites are vendor code carried unchanged from the BSP import; the bounds and the clamp expression are byte-identical in `develop-6.1`. The `session_lock` half is partly forward-port shaped — `mpp_session_deinit()`'s unlink is ours — so confirm the BSP's procfs exposure before sending that hunk. | **Yes** — the four bounds fixes close unprivileged heap corruption in vendor code |
@@ -292,6 +299,13 @@ DMA addresses. Its two changed objects compile cleanly, but it is not booted.
 | 0078 | rkvenc2/rkvdec2-link: reject wrapped and inverted register windows in `req_over_class()`/`rkvenc_update_req()` and check both previously-discarded call sites; bound the per-class register buffers; hoist the VEPU510 clock cycle out of `mpp_task_run_begin()`'s `preempt_disable()` window; downgrade a reachable `WARN_ON` on an empty link-table list. | `BSP-BUG` | All four are vendor code. The window-wrap arithmetic, the preempt/clk ordering, and the `WARN_ON` are unchanged from the import. Note two are not reachable on RK3588 (VEPU510 is RK3576; the WARN needs HARD-CCU), but both are live for other Rockchip parts built from the same source — which is exactly the BSP's audience. | **Yes** — the window wrap is unprivileged ~4 GiB `copy_from_user` |
 | 0079 | RGA: take `irq_lock` in the IOMMU fault handler; reject a negative computed buffer size in `rga_alloc_virt_addr()`; surrender buffer session ownership on release; consume `current_mm` under `request->lock`; dump the request task list under its lock; reject zero-length debugfs writes; validate userptr PFNs before `pfn_to_page()`. | `BSP-BUG`, except the PFN guard | Six of seven are vendor code with the same defect in `develop-6.1`. The PFN guard is on the 6.12+ `follow_pfnmap_start()` adaptation, which is a forward-port rewrite of the BSP's page-table walk — the *missing validation* is common to both, but the code shape is ours, so the BSP needs the equivalent fix rather than this hunk. | **Yes**, with the PFN hunk adapted |
 | 0080 | RGA: accept several byte-adjacent mapped entries as one direct span; sum the complete mapped view; and make RGA2 PTE construction walk mapped DMA entries/lengths, preserve page-aligned gaps, and reject unrepresentable boundaries or incomplete coverage. | Mixed: `PORT-FIX` + `BSP-BUG` | The one-span admission helper was introduced by the 6.18 hardening line. The RGA2 walker came from the vendor import and combined `sg_dma_address()` with original `sgl->length`/`orig_nents`, which is not a valid mapped-SG contract. | **Partial** — backport the RGA2 mapped-entry walker; the direct-span helper is forward-port-only |
+| 0081 | MPP: repair AV1 `grf_info` NULL handling, snapshot translation indexes across sleeping imports, validate session fds before dropping the prior reference, and recycle failed message batches. | Mixed: `BSP-BUG` + `PORT-FIX` | The AV1 NULL dereference, translation double-fetch, and message leak are BSP-imported. The dangling session-fd ordering was introduced by current-series `0059`. | **Partial** — backport the three BSP-shaped fixes; do not carry the forward-port regression hunk blindly |
+| 0082 | MPP: count references handed out by `TRANS_FD_TO_IOVA` so `RELEASE_FD` cannot free a buffer still owned by an in-flight task. | `BSP-BUG` | The unconditional release and shared static/task buffer pool are inherited vendor design. | **Yes** — prevents unprivileged live-DMA unmap and refcount corruption |
+| 0083 | RKVENC2: reject writes through unallocated class buffers and terminate the user-controlled eight-byte codec-info field before procfs formatting. | `BSP-BUG` | Both the lazy class allocation and `%8s` over-read sites are unchanged vendor code. | **Yes** — deterministic oops plus kernel-heap disclosure |
+| 0084 | RKVDEC2 soft-CCU: synchronize timeout-work cancellation and clear `cur_task` as a task leaves the running list. | `BSP-BUG` | The non-sync cancellation and never-cleared published task pointer are in the vendor soft-CCU path. | **Yes** — closes timeout-work and hard-IRQ use-after-free paths |
+| 0085 | RGA: restrict ioctl import types, type-check external lookup, authenticate request ownership, retire blit errors through the kref, and count import ownership. | Mixed: `BSP-BUG` + `PORT-FIX` | The pointer/physical import exposure, global request IDs, raw destructor, and cross-type lookup are BSP-imported. Import ownership repairs the forward-port `0079` session-clearing regression. | **Partial** — backport the ioctl/authentication fixes; adapt ownership to the BSP's release model |
+| 0086 | RGA: authenticate `RGA_IOC_RELEASE_BUFFER` against the importing session. | `BSP-BUG` | The global buffer IDR and unchecked release ioctl are vendor code. | **Yes** — sibling unauthenticated-put primitive |
+| 0087 | Repair review findings in `0081`–`0085`: owner-only RGA import counting, fd-reference-last message release, serialized MPP release, complete timeout/`cur_task` locking, and fd/PTR de-duplication. | Mixed corrective follow-up | Some corrections repair bugs introduced by `0081`/`0085`; the message-release ordering, split release race, hard-CCU cancellation, and unlocked `cur_task` publication/read are pre-existing same-shape defects. | **Partial** — pair each correction with its owning backport; never backport `0081`–`0085` without this review tail |
 
 The `0079` session-ownership fix deliberately does **not** revert
 `0071`/catalog-`0072`'s force-free-under-the-held-lock decision: that decision is

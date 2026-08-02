@@ -1,0 +1,118 @@
+From 36ec9c956ce110d5c2654afa0d6337e4348123c4 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sat, 1 Aug 2026 21:53:17 -0700
+Subject: [PATCH 86/87] video: rockchip: rga: authenticate
+ RGA_IOC_RELEASE_BUFFER
+
+rga_mm_release_buffer() took only a handle and dropped an import
+reference unconditionally. Handles are a single global idr, so any
+/dev/rga opener could release a buffer another session imported --
+the same unauthenticated-put shape as MPP_CMD_RELEASE_FD, and the
+counterpart to the request-ownership check added alongside it.
+
+Thread the session through from the ioctl and require ownership.
+The in-kernel rga_mpi_commit() callers pass NULL and keep the
+unchecked behaviour, matching how they already bypass the import
+type restriction.
+
+Assisted-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ drivers/video/rockchip/rga3/include/rga_mm.h |  2 +-
+ drivers/video/rockchip/rga3/rga_drv.c        | 13 +++++++------
+ drivers/video/rockchip/rga3/rga_mm.c         | 16 +++++++++++++++-
+ 3 files changed, 23 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/include/rga_mm.h b/drivers/video/rockchip/rga3/include/rga_mm.h
+index 28c84ae338492..a77248e920f2c 100644
+--- a/drivers/video/rockchip/rga3/include/rga_mm.h
++++ b/drivers/video/rockchip/rga3/include/rga_mm.h
+@@ -59,7 +59,7 @@ void rga_mm_unmap_job_info(struct rga_job *job);
+ 
+ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 			 struct rga_session *session);
+-int rga_mm_release_buffer(uint32_t handle);
++int rga_mm_release_buffer(uint32_t handle, struct rga_session *session);
+ int rga_mm_session_release_buffer(struct rga_session *session);
+ 
+ int rga_mm_init(struct rga_mm **session);
+diff --git a/drivers/video/rockchip/rga3/rga_drv.c b/drivers/video/rockchip/rga3/rga_drv.c
+index 7d8b85bd74ef2..b894aa48b5496 100644
+--- a/drivers/video/rockchip/rga3/rga_drv.c
++++ b/drivers/video/rockchip/rga3/rga_drv.c
+@@ -284,11 +284,11 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
+ 
+ err_put_request:
+ 	if ((mpi_job->dma_buf_src0 != NULL) && (mpi_cmd.src.yrgb_addr > 0))
+-		rga_mm_release_buffer(mpi_cmd.src.yrgb_addr);
++		rga_mm_release_buffer(mpi_cmd.src.yrgb_addr, NULL);
+ 	if ((mpi_job->dma_buf_src1 != NULL) && (mpi_cmd.pat.yrgb_addr > 0))
+-		rga_mm_release_buffer(mpi_cmd.pat.yrgb_addr);
++		rga_mm_release_buffer(mpi_cmd.pat.yrgb_addr, NULL);
+ 	if ((mpi_job->dma_buf_dst != NULL) && (mpi_cmd.dst.yrgb_addr > 0))
+-		rga_mm_release_buffer(mpi_cmd.dst.yrgb_addr);
++		rga_mm_release_buffer(mpi_cmd.dst.yrgb_addr, NULL);
+ 
+ err_release_rwsem:
+ 	up_read(&request->session->release_rwsem);
+@@ -752,7 +752,8 @@ static long rga_ioctl_import_buffer(unsigned long arg, struct rga_session *sessi
+ 	return ret;
+ }
+ 
+-static long rga_ioctl_release_buffer(unsigned long arg)
++static long rga_ioctl_release_buffer(unsigned long arg,
++				     struct rga_session *session)
+ {
+ 	int i;
+ 	int ret = 0;
+@@ -797,7 +798,7 @@ static long rga_ioctl_release_buffer(unsigned long arg)
+ 		if (DEBUGGER_EN(MSG))
+ 			rga_log("release buffer handle[%d]\n", external_buffer[i].handle);
+ 
+-		ret = rga_mm_release_buffer(external_buffer[i].handle);
++		ret = rga_mm_release_buffer(external_buffer[i].handle, session);
+ 		if (ret < 0) {
+ 			rga_err("buffer[%d] mm release buffer failed! handle = %d\n",
+ 			       i, external_buffer[i].handle);
+@@ -1153,7 +1154,7 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
+ 	case RGA_IOC_RELEASE_BUFFER:
+ 		rga_power_enable_all();
+ 
+-		ret = rga_ioctl_release_buffer(arg);
++		ret = rga_ioctl_release_buffer(arg, session);
+ 
+ 		rga_power_disable_all();
+ 
+diff --git a/drivers/video/rockchip/rga3/rga_mm.c b/drivers/video/rockchip/rga3/rga_mm.c
+index c072a2e14ee38..6b5d3c8daf3e8 100644
+--- a/drivers/video/rockchip/rga3/rga_mm.c
++++ b/drivers/video/rockchip/rga3/rga_mm.c
+@@ -3259,7 +3259,7 @@ int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+ 	return ret;
+ }
+ 
+-int rga_mm_release_buffer(uint32_t handle)
++int rga_mm_release_buffer(uint32_t handle, struct rga_session *session)
+ {
+ 	struct rga_mm *mm;
+ 	struct rga_internal_buffer *internal_buffer;
+@@ -3282,6 +3282,20 @@ int rga_mm_release_buffer(uint32_t handle)
+ 		return -ENOENT;
+ 	}
+ 
++	/*
++	 * Handles are a single global idr, so without this any /dev/rga opener
++	 * could release a handle another session imported -- the same
++	 * unauthenticated-put shape as MPP_CMD_RELEASE_FD. In-kernel callers
++	 * pass NULL and keep the old unchecked behaviour.
++	 */
++	if (session && internal_buffer->session != session) {
++		rga_err("handle[%d] does not belong to this session\n",
++			(int)handle);
++
++		mutex_unlock(&mm->lock);
++		return -EPERM;
++	}
++
+ 	if (DEBUGGER_EN(MM)) {
+ 		rga_buf_log(internal_buffer, "release buffer:\n");
+ 		rga_mm_dump_buffer(internal_buffer);

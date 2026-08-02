@@ -1,7 +1,7 @@
 From f65078016123fab206fac64deee214f5bdc0ab0f Mon Sep 17 00:00:00 2001
 From: Yu Qiaowei <cerf.yu@rock-chips.com>
 Date: Tue, 30 Dec 2025 11:37:22 +0800
-Subject: [PATCH 22/71] video: rockchip: rga3: fix page fault caused by IOMMU
+Subject: [PATCH 22/87] video: rockchip: rga3: fix page fault caused by IOMMU
  prefetch
 
 1. IOMMU prefetch requires configuring min/max limits based on the prefetch

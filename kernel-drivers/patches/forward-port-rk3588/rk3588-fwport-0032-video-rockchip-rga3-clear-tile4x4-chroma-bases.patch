@@ -1,7 +1,7 @@
 From 31967d0316b088f088ffaabde023b79b708196a0 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Thu, 16 Jul 2026 15:19:45 -0700
-Subject: [PATCH 32/71] video: rockchip: rga3: clear tile4x4 chroma bases
+Subject: [PATCH 32/87] video: rockchip: rga3: clear tile4x4 chroma bases
 
 RGA2 requires tile4x4 input base1 and base2 to be zero. Adapt Rockchip develop-5.10 commit c2df109b01ad without importing its unrelated AFBC32x8 refactor context.
 ---

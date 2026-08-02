@@ -1,7 +1,7 @@
 From 679c4afd5eb69dcc2564311ef1fb18b51d624b39 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:16:21 -0700
-Subject: [PATCH 66/71] video: rockchip: rga: balance get-buffer error paths
+Subject: [PATCH 66/87] video: rockchip: rga: balance get-buffer error paths
 
 After taking an internal-buffer reference, every error must drop
 it and clear the caller output pointer. Route buffer-info failures

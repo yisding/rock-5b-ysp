@@ -1,7 +1,7 @@
 From 3393359f8b6636f5c9885a28164d1ba26a0072de Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:15:51 -0700
-Subject: [PATCH 65/71] video: rockchip: rga: reject missing multi-plane
+Subject: [PATCH 65/87] video: rockchip: rga: reject missing multi-plane
  handles
 
 Separate-plane requests may omit a plane whose buffer pointer is

@@ -1,7 +1,7 @@
 From 4dba1f42ab2b7a5c05254e063db1ee789820ff33 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 29 Jul 2026 09:58:04 -0700
-Subject: [PATCH 77/79] video: rockchip: mpp: fix IOMMU cookie typing and
+Subject: [PATCH 77/87] video: rockchip: mpp: fix IOMMU cookie typing and
  buffer-release ordering
 
 Two latent defects in the forward-ported MPP IOMMU glue.

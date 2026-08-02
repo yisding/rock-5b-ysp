@@ -1,7 +1,7 @@
 From c4bf430d907fb48687245708617e4c30d833f2e7 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 08:35:08 -0700
-Subject: [PATCH 49/71] video: rockchip: rga3: own RGA2 page tables through the
+Subject: [PATCH 49/87] video: rockchip: rga3: own RGA2 page tables through the
  DMA API
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

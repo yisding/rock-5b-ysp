@@ -1,7 +1,7 @@
 From 710e6ad12af6d5fba4c4775916e1039f58d02b4c Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 24 Jul 2026 19:06:57 -0700
-Subject: [PATCH 74/74] video: rockchip: rga: derive 10-bit UV plane offsets
+Subject: [PATCH 74/87] video: rockchip: rga: derive 10-bit UV plane offsets
  byte-literally
 
 Commit 138f0de2c972 ("video: rockchip: rga3: honor the legacy byte-stride
@@ -78,6 +78,3 @@ index 865c9edd8a974..f100894dff638 100644
  			/* All 10-bit formats are semi-planar: no third plane. */
  			img->v_addr = 0;
  			return;
--- 
-2.55.0
-

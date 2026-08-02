@@ -1,7 +1,7 @@
 From 8eeaee24651d8002011387350b6bb08cf629306f Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Fri, 17 Jul 2026 12:16:44 -0700
-Subject: [PATCH 39/71] video: rockchip: rga3: release session buffers by
+Subject: [PATCH 39/87] video: rockchip: rga3: release session buffers by
  reference on close
 
 When a client closes /dev/rga, rga_mm_session_release_buffer() walked the

@@ -1,7 +1,7 @@
 From c10074f4474e088341ba7adbac9b93705c124439 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 29 Jul 2026 09:58:53 -0700
-Subject: [PATCH 79/79] video: rockchip: rga: fix job/buffer lifetime, locking
+Subject: [PATCH 79/87] video: rockchip: rga: fix job/buffer lifetime, locking
  and import validation
 
 Six defects in the RGA driver, all found by source audit of the 6.18

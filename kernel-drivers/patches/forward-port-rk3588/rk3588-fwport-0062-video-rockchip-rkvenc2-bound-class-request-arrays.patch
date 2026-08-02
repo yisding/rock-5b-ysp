@@ -1,7 +1,7 @@
 From 5e8a97d23adcf4e46b53e57b1d18c7e5a286fbcc Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:12:34 -0700
-Subject: [PATCH 62/71] video: rockchip: rkvenc2: bound class request arrays
+Subject: [PATCH 62/87] video: rockchip: rkvenc2: bound class request arrays
 
 One user request can fan out across several register classes. Bound
 the read and write request counters before indexing their fixed

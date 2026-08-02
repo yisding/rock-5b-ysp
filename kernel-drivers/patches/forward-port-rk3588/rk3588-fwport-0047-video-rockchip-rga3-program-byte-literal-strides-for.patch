@@ -1,7 +1,7 @@
 From 4b2beb91521f10df6fd4432702a5248ff737a4d6 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Tue, 21 Jul 2026 06:13:15 -0700
-Subject: [PATCH 47/71] video: rockchip: rga3: program byte-literal strides for
+Subject: [PATCH 47/87] video: rockchip: rga3: program byte-literal strides for
  10-bit rasters
 
 The WIN0/WIN1/WR raster stride programming leaves pixel_width at 1 for

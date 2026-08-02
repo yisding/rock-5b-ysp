@@ -64,6 +64,8 @@ its `&vdec0`/`&vdec1` overrides reference labels vanilla 6.18 doesn't define
 > `655d178191807`, so older pins below resolve, but it is no longer where work
 > lands. Sibling branches that share the prefix — `-iommu-debug-20260706`,
 > `-rga-userptr-iommu`, `-route-b` — are separate branches, not old names.
+> As of 2026-08-02 the maintained branch and its `linux-rock5b` remote are at
+> `5b87d46eefdcb`, 87 commits on `v6.18`.
 
 Provenance: the patches were generated from the dev worktree
 `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc` (then on branch `rkvenc-fwport-6.18`;

@@ -1,7 +1,7 @@
 From 94d78390e3e70a9cc14a28ccc1fb50811a12de57 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Wed, 22 Jul 2026 08:18:02 -0700
-Subject: [PATCH 67/71] video: rockchip: rga: unwind partial handle acquisition
+Subject: [PATCH 67/87] video: rockchip: rga: unwind partial handle acquisition
 
 Make per-channel release idempotent, including current RGA2 bounce
 and DMA-mapped page-table state. If a later source, destination, or

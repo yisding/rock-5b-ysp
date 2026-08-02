@@ -1,7 +1,7 @@
 From ebeb267cada5fbb78255e96785b6239a57897529 Mon Sep 17 00:00:00 2001
 From: rkvenc forward-port <forward-port@local>
 Date: Thu, 16 Jul 2026 15:18:50 -0700
-Subject: [PATCH 31/71] video: rockchip: rga3: keep hardware tables file-local
+Subject: [PATCH 31/87] video: rockchip: rga3: keep hardware tables file-local
 
 Adapt Rockchip develop-5.10 commit d90086843793 without importing its unrelated RK3572 and newer-format table context.
 ---
