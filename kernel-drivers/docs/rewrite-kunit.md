@@ -102,7 +102,7 @@ hardware throughput:
 | RGA | 62–80 | Import identity, DMA ownership, and job lifetime |
 | RGA | 81–101 | Abort/recovery, scheduling, IOMMU routes, faults, and timeouts |
 | RGA | 102–148 | FFmpeg, GStreamer, RKNN, librga, and display-shaped format/emission profiles |
-| RGA | 149–152 | RGA3 overlap-copy rotate emission and the RGA2 internal-MMU sgt/layout/emit cases |
+| RGA | 149–152 | RGA3 overlap-copy rotate emission, the RGA2 validator-chain exclusions, the RGA2 internal-MMU sgt/layout/emit cases, and the rejection event ring |
 
 These are white-box cases. They call production functions with controlled fake
 objects and assert outputs, state transitions, ownership, and error behavior.
