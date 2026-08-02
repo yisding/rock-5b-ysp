@@ -1,0 +1,62 @@
+From 1240a1c2c6894820c49f8326f458c021653b9f5e Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Sun, 2 Aug 2026 16:00:23 -0700
+Subject: [PATCH 0/3] iommu/vsi: fix vsi_iommu_probe() error paths
+
+Three independent error-path defects in vsi_iommu_probe(), found by
+source inspection while forward-porting the RK3588 vendor media stack
+against this driver. Each is self-contained:
+
+  1. a real ioremap error is replaced by -ENOMEM, which also discards
+     -EPROBE_DEFER;
+  2. a platform_get_irq() failure returns without unwinding the clocks
+     prepared a few lines earlier, while the very next failure path
+     already unwinds them correctly; and
+  3. the dma_set_mask_and_coherent() return value is discarded.
+
+I have not been able to trigger any of these on hardware: they are probe
+failure paths that a working RK3588 board does not take. The series is
+compile-tested only, arm64 defconfig with CONFIG_VSI_IOMMU=y and W=1,
+zero warnings, on top of b4f6d7b19f3a. Reviewing these as code rather
+than as a bug report is the intent; if you would rather see the IRQ
+unwind proven by fault injection before taking it, say so and I will
+send that separately.
+
+There is a fourth candidate I have deliberately left out: the hardirq
+handler calls pm_runtime_resume_and_get() without pm_runtime_irq_safe().
+I have not reproduced it under CONFIG_DEBUG_ATOMIC_SLEEP, so I am not
+sending it as a fix.
+
+Tool disclosure, per Documentation/process/generated-content.rst.
+This series was produced with an AI coding assistant (Claude, model
+claude-fable-5), and its involvement covers detection, the code
+changes, and these changelogs, so I am describing all three rather
+than only the code.
+
+I was auditing this driver while forward-porting the RK3588 vendor
+media stack, and asked the assistant to review vsi_iommu_probe()'s
+error paths for mismatched unwind and discarded return values. It
+identified the three defects below, wrote the one- and three-line
+changes, and drafted the changelogs and this cover letter. I then
+checked each finding against the source myself -- that the
+err_unprepare_clocks label already exists and is used by the adjacent
+failure path, that devm_platform_ioremap_resource() returns a
+meaningful ERR_PTR, and that nothing else consumes the discarded DMA
+mask return -- and I edited the result. Testing was the checkpatch and
+compile run described above, which I ran; no tool wrote or ran tests.
+
+I understand each of the three changes and can defend them in review.
+Per Documentation/process/coding-assistants.rst each patch carries an
+Assisted-by: trailer, and the Signed-off-by is mine alone.
+
+Yi Ding (3):
+  iommu/vsi: propagate the register mapping error from probe
+  iommu/vsi: unwind prepared clocks when the interrupt is unavailable
+  iommu/vsi: check that the DMA mask was applied
+
+ drivers/iommu/vsi-iommu.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+-- 
+2.55.0
+

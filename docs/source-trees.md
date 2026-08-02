@@ -733,6 +733,30 @@ git -C ../linux-mainline-codec-fixes am \
   /path/to/rock-5b-ysp/kernel-drivers/patches/mainline-codec-fixes/0*.patch
 ```
 
+The prepared `vsi-iommu` correction checkout is
+`/home/yi/Code/rock-5b/kernel/linux-iommu-vsi-fixes`, branch
+`iommu-vsi-probe-fixes` @ `1240a1c2c6894`. It is based on the **IOMMU subsystem
+tree**, not on Torvalds mainline, because that is where `drivers/iommu/`
+patches are reviewed:
+
+```bash
+git remote add iommu \
+  git://git.kernel.org/pub/scm/linux/kernel/git/iommu/linux.git
+git fetch iommu next
+git worktree add ../linux-iommu-vsi-fixes b4f6d7b19f3ae
+git -C ../linux-iommu-vsi-fixes am \
+  /path/to/rock-5b-ysp/kernel-drivers/patches/iommu-vsi-probe-fixes/000[123]-*.patch
+```
+
+| Ref | Pin | Role |
+|-----|-----|------|
+| `iommu/next` | `b4f6d7b19f3ae` | IOMMU subsystem integration on 2026-08-02; the `vsi-iommu` series base |
+| `iommu-vsi-probe-fixes` | `1240a1c2c6894` | three prepared `vsi_iommu_probe()` error-path fixes |
+
+`drivers/iommu/vsi-iommu.c` was byte-identical between `3708dd9488440` and
+`b4f6d7b19f3ae` when the series was prepared, so the audit's `vsi-iommu`
+findings hold against both. Re-check that before rebasing onto a newer base.
+
 Use the exact pins rather than moving branch names when reproducing the audit.
 The mainline findings anchor in
 `drivers/media/platform/rockchip/rkvdec/rkvdec.c`,

@@ -1,0 +1,36 @@
+From 1240a1c2c6894820c49f8326f458c021653b9f5e Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Sun, 2 Aug 2026 15:57:40 -0700
+Subject: [PATCH 3/3] iommu/vsi: check that the DMA mask was applied
+
+vsi_iommu_probe() discards the dma_set_mask_and_coherent() return
+value. The IOMMU walks a page table it addresses with 32-bit hardware
+registers, so a platform that cannot apply the mask must fail the probe
+rather than continue with a wider one.
+
+Fixes: 917ace84b770 ("iommu: Add verisilicon IOMMU driver")
+Assisted-by: Claude:claude-fable-5
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ drivers/iommu/vsi-iommu.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
+index 8193fd62161fd..808e52bf9efc3 100644
+--- a/drivers/iommu/vsi-iommu.c
++++ b/drivers/iommu/vsi-iommu.c
+@@ -703,7 +703,10 @@ static int vsi_iommu_probe(struct platform_device *pdev)
+ 	if (err)
+ 		goto err_unprepare_clocks;
+ 
+-	dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
++	err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
++	if (err)
++		goto err_unprepare_clocks;
++
+ 	platform_set_drvdata(pdev, iommu);
+ 
+ 	pm_runtime_set_autosuspend_delay(dev, 100);
+-- 
+2.55.0
+

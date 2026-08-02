@@ -1,0 +1,41 @@
+From b722c62f1e270edbd604a49ceaaf74e907278583 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Sun, 2 Aug 2026 15:57:26 -0700
+Subject: [PATCH 2/3] iommu/vsi: unwind prepared clocks when the interrupt is
+ unavailable
+
+vsi_iommu_probe() prepares every clock before it looks up the
+interrupt. A devm_request_irq() failure unwinds them through
+err_unprepare_clocks, but the platform_get_irq() failure immediately
+before it returns directly, leaving the clocks prepared for as long as
+the device exists.
+
+Route that failure through the same unwind path.
+
+Fixes: 917ace84b770 ("iommu: Add verisilicon IOMMU driver")
+Assisted-by: Claude:claude-fable-5
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ drivers/iommu/vsi-iommu.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
+index edb0c43087a26..8193fd62161fd 100644
+--- a/drivers/iommu/vsi-iommu.c
++++ b/drivers/iommu/vsi-iommu.c
+@@ -693,8 +693,10 @@ static int vsi_iommu_probe(struct platform_device *pdev)
+ 		return err;
+ 
+ 	iommu->irq = platform_get_irq(pdev, 0);
+-	if (iommu->irq < 0)
+-		return iommu->irq;
++	if (iommu->irq < 0) {
++		err = iommu->irq;
++		goto err_unprepare_clocks;
++	}
+ 
+ 	err = devm_request_irq(iommu->dev, iommu->irq, vsi_iommu_irq,
+ 			       IRQF_SHARED, dev_name(dev), iommu);
+-- 
+2.55.0
+

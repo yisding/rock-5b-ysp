@@ -1,0 +1,37 @@
+From 8135cd91bfbc437f9323a969d981cf052fea13a2 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Sun, 2 Aug 2026 15:57:11 -0700
+Subject: [PATCH 1/3] iommu/vsi: propagate the register mapping error from
+ probe
+
+devm_platform_ioremap_resource() returns an ERR_PTR describing why the
+mapping failed, but vsi_iommu_probe() replaces every failure with
+-ENOMEM. A missing or busy register range is then reported as an
+allocation failure, and -EPROBE_DEFER is lost, so a probe that should
+have been retried fails permanently instead.
+
+Return the error the helper produced.
+
+Fixes: 917ace84b770 ("iommu: Add verisilicon IOMMU driver")
+Assisted-by: Claude:claude-fable-5
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ drivers/iommu/vsi-iommu.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
+index 42c424496d073..edb0c43087a26 100644
+--- a/drivers/iommu/vsi-iommu.c
++++ b/drivers/iommu/vsi-iommu.c
+@@ -682,7 +682,7 @@ static int vsi_iommu_probe(struct platform_device *pdev)
+ 
+ 	iommu->regs = devm_platform_ioremap_resource(pdev, 0);
+ 	if (IS_ERR(iommu->regs))
+-		return -ENOMEM;
++		return PTR_ERR(iommu->regs);
+ 
+ 	iommu->num_clocks = devm_clk_bulk_get_all(dev, &iommu->clocks);
+ 	if  (iommu->num_clocks < 0)
+-- 
+2.55.0
+
