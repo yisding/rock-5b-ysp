@@ -10,9 +10,21 @@
 > `~/Code/rock-5b/rockchip-userspace/librga-fork` (`core/NormalRga.cpp`),
 > `Documentation/dev-tools/kunit/style.rst` in the same kernel tree.
 > Date: 2026-08-01
-> Trust: CODE-INSPECTED — no booted kernel, no hardware run, no fix written yet.
-> Every defect below was re-verified in source by the reviewer after the
-> fan-out reported it; the fix plans are DESIGN.
+> Trust: CODE-INSPECTED, FIX-COMPILE-VERIFIED, PARTIAL — every defect below was
+> re-verified in source by the reviewer after the fan-out reported it. All
+> eleven defects and four of the five structural items are now fixed on both
+> tips (see § Fix status); no booted kernel and no hardware run, so the three
+> needs-hardware items remain open.
+
+> **Fixed 2026-08-01.** The series landed as `rk3588-rewrite-6.18`
+> `b885391e2af8a..187b0d647e6ce` (14 commits), mirrored byte-identically to
+> `rk3588-rewrite-mainline@45554b495e66e`. The warning-fatal clean-archive
+> `normal` build gate passes on both tips, the source audit reports 308 signals
+> with 0 new and 0 absent on both, and the case manifest is 90 MPP + 152 RGA.
+> Two things changed from the plans below during implementation, both recorded
+> in § Fix status: §3's encoder register fix rested on a wrong assumption about
+> INT_CLR, and §11's errno change was dropped as an undeclared ABI change.
+> §14 (the test-file split) is **not** done.
 
 ## Result
 
@@ -1024,6 +1036,45 @@ and RGA2 `pre_intr_info` being emitted unvalidated (the BSP does the same and
 every field is `FIELD_PREP`-masked — ABI parity, not a defect).
 
 ---
+
+## Fix status (2026-08-01)
+
+All eleven defects fixed, plus §12, §13, §15 and §16. Series:
+`rk3588-rewrite-6.18` `b885391e2af8a..187b0d647e6ce`, mirrored to
+`rk3588-rewrite-mainline@45554b495e66e`; the driver sources, Kconfigs and ABI
+ledgers are byte-identical between the two tips.
+
+| # | Fixed | Commit (6.18) | Deviation from the plan above |
+|---|---|---|---|
+| §1 | yes | `89c5a1c636046` | none; new KUnit case pins WIN0 geometry for 90 and 270 |
+| §2 | yes | `ffac4bd0175ca` | store-time index validation dropped as redundant — the reorder makes the revalidation authoritative, and a legitimate RCB index is never an address-table word |
+| §3 | yes | `239a4ce5c655e` | needed its own `raw_spinlock_t` held **across** the handler, not `hw->lock` sampled before it, since the backends take `hw->lock`. Step 5 was wrong as planned: `INT_CLR` is write-1-to-clear (BSP writes `0xffffffff` on reset), so writing 0 would be a no-op. Replaced with a latch drain in the threaded handler while the clocks are still on. |
+| §4 | yes | `63a8f897d62a2` | deleted, as recommended; three KUnit cases went with it |
+| §5 | yes | `d62e29d796fee` | deadline keyed to the activation generation, not the job pointer — the drain clears `timeout_job`, so a pointer comparison would treat every restore as a new job |
+| §6 | yes | `c074806f608ab` | shared tail factored into `rk_rga_hw_finish_job_locked()`; a failed recovery reset now refuses the requeue and fails `-EIO`, a case the IRQ path cannot reach |
+| §7 | yes | `6865662d6b6d4` | audit found a **second** instance of the class: `alpha_bitmap + osd` set `profile->osd` without running the OSD validator. Both fixed, plus the structural cause. |
+| §8 | yes | `e20090aa30610` | sweep found two more `kfree` on extent error paths; rest of the class already bounded |
+| §9 | yes | `892d42b1f6d11` | unlock needs its own job pointer, since the shared exit clears `job` |
+| §10 | yes | `42c7ea2ba4bda` | `max()` guard plus `WARN_ONCE`, as planned; still **needs-hardware** |
+| §11 | partial | `42c7ea2ba4bda` | restriction declared in `ABI.rst`. The errno change was **dropped**: `ABI.rst` records the `-EFAULT` normalization as a deliberate BSP-wrapper decision, so changing it is an ABI change that should not ride along in a fix pass. |
+| §12 | yes | `c9939daac9846` | `MODULE_AUTHOR` names a human |
+| §13 | yes | `c9939daac9846` + ysp `6dc381f` | claim reworded in the code headers and the track page; derivation note added at the rkvdec table definitions |
+| §15 | yes | `973c0c08f9a4f` + ysp `87596d3` | manifest is now one row per named case; drift reports name the cases. Writing the checker surfaced a self-inflicted silent-pass — an empty manifest verified nothing — now guarded and covered by the selftest. |
+| §16 | yes | `187b0d647e6ce` | ring scoped to rejection diagnostics with four record sites rather than editing ~340 return sites; the highest-value one records both backends' verdicts for "no core matched" |
+
+**§14 (the KUnit test-file split) is not done.** It is an 11,284-line and
+5,499-line code motion in a worktree with a concurrent writer, where a conflict
+would be unrecoverable for the other party, and it is the one item on this list
+with no correctness content. It should be done in a dedicated worktree with no
+other writers, as a pure code-motion commit verified by the source audit
+reporting an unchanged signal count. Note that §7's fix hit the cost of not
+having done it: the new validator test needed a forward declaration because
+`rk_rga2_validate_bitblt()` is defined *after* the test block.
+
+Still open and unchanged by this series: the three **needs-hardware** items
+(§3's gated-clock stall, §10's AFBC model question, §1's byte-exact FBC header
+extent), and the pre-existing `rewrite-evidence-audit.sh --selftest` failure in
+its counter-check fixtures, which fails identically before and after.
 
 ## Fix sequencing
 
