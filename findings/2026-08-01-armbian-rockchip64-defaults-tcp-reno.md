@@ -126,11 +126,16 @@ sudo sysctl -w net.ipv4.tcp_congestion_control=cubic
 sudo modprobe tcp_bbr && sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
 ```
 
-Upstream, `fix/default-tcp-cubic@0fbef7eb2` against `armbian/build`
-`origin/main@535528112` restores CUBIC across all nine distinct configs
-(+11/−13). The patch and its verification procedure are in
+Upstream, `fix/rockchip-default-tcp-cubic@3edb6541f` against `armbian/build`
+`origin/main@587b6f2c0` restores CUBIC across the four rockchip configs
+(+5/−6), pushed to `yisding/armbian-build`. **No pull request has been
+opened.** The patch and its verification procedure are in
 [`findings/evidence/2026-08-01-armbian-default-tcp-cubic/`](evidence/2026-08-01-armbian-default-tcp-cubic/README.md).
-**It has not been submitted.**
+
+Scope is deliberately rockchip-only. The four meson64 configs and
+`linux-virtual-current` carry the identical line but belong to other
+maintainers' families, and the three mvebu64 configs need the different fix
+described above.
 
 Two traps that only surfaced by running the kernel's own Kconfig parser over
 the result, and that a reasoned-only patch would have got wrong:
@@ -185,10 +190,29 @@ activity is [armbian/build#609](https://github.com/armbian/build/issues/609)
 shows a user whose system defaulted to **cubic** and developers replying only
 about enabling BBR. Nobody discusses the reno default, in either direction.
 
-Today the fleet is incoherent: of 112 kernel configs, **10** set
-`CONFIG_DEFAULT_RENO=y` (all meson64, all rockchip64, all rockchip-rk3588,
-plus `virtual-current`), **9** set `CONFIG_DEFAULT_CUBIC=y`, and the remaining
-93 set neither and inherit upstream's cubic.
+Today the fleet is incoherent. Counting config *lines* understates it, so every
+one of the 112 upstream configs was resolved through the kernel's own Kconfig
+parser instead. Actual resolved defaults:
+
+| resolved default | count |
+| --- | --- |
+| cubic | 97 |
+| reno | 12 |
+| bbr | 2 (`linux-sm8550-{current,edge}` — a deliberate selection) |
+| unresolved | 3 |
+
+Only **10** configs carry a `CONFIG_DEFAULT_RENO=y` line, but **12** land on
+reno. The extra two families — `linux-mvebu64-{current,edge,legacy}`, three
+files with no `DEFAULT_RENO` line at all — get there by a different route:
+they set `CONFIG_TCP_CONG_CUBIC=m`, and since the choice entry is
+`bool "Cubic" if TCP_CONG_CUBIC=y`, building cubic as a *module* makes
+`DEFAULT_CUBIC` unselectable and the choice falls through to reno. Same
+destination, different mechanism, different fix.
+
+Of the three unresolved, `linux-rockchip-rk3588-current` is an artefact of the
+extraction (`git show` on a symlink yields the target path, not config
+content); `linux-ls1046a-ask-current` and `linux-nuvoton-ma35d1-vendor`
+genuinely did not resolve against this Kconfig tree and are untested.
 
 ## Boundary
 
