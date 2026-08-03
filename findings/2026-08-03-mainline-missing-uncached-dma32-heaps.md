@@ -52,8 +52,11 @@ sample allocator treats one as a requirement.
 
 `samples/utils/allocator/dma_alloc.cpp` — added `dma_heap_open()`, which tries
 the requested path and then progressively drops `-dma32` and `-uncached`,
-printing what it fell back to and why. Applied to the working tree of
-`~/Code/rock-5b/rockchip-userspace/librga-fork`, **uncommitted and not pushed**.
+printing what it fell back to and why. Committed as `58064e3` on `main` in
+`~/Code/rock-5b/rockchip-userspace/librga-fork` and pushed to the `librga`
+remote (`yisding/librga`) — not to `origin`, which is the vendor mirror. Not
+carried by any PPA package: `librga2`/`librga-dev` ship only libraries, headers,
+and pkgconfig, never `samples/`.
 
 A/B against the stock allocator built from `HEAD`, same test binary:
 

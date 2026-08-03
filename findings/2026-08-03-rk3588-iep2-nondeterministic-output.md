@@ -107,11 +107,16 @@ userspace cannot derive. IEP2's destination is a fixed-size frame.
 
 ## Fix
 
-`~/Code/tmp/iep2-zerobuf/iep2-cache-sync.patch` — three `mpp_buffer_sync_end()`
-calls before `IEP_CMD_RUN_SYNC` and two `mpp_buffer_sync_begin()` calls after,
-against `mpp/vproc/iep2/test/iep2_test.c`. Proven to make output reproducible
-across 10 iterations per field order. Not upstreamed; not applied to any tracked
-tree.
+Three `mpp_buffer_sync_end()` calls before `IEP_CMD_RUN_SYNC` and two
+`mpp_buffer_sync_begin()` calls after, against
+`mpp/vproc/iep2/test/iep2_test.c`. Proven to make output reproducible across 10
+iterations per field order.
+
+Committed as `8b1e3625` on `ysp/main` in `~/Code/rock-5b/rockchip-userspace/
+mpp-rockchip` and pushed to `yisding/mpp`. Not sent upstream to Rockchip. Not
+carried by any PPA package: `rockchip-mpp-demos` ships `usr/bin/*` but the cmake
+install set does not include `iep2_test`, so the fix reaches only source
+consumers of the fork.
 
 ## Boundary
 
