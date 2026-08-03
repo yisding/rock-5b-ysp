@@ -126,6 +126,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 
 <!-- findings-index:start -->
 - [`2026-08-02-vsi-iommu-mainline-convergence-and-resync-collision.md`](2026-08-02-vsi-iommu-mainline-convergence-and-resync-collision.md) — Mainline absorbed the VSI IOMMU driver and its RK3588 DT node in v7.2-rc1, and our forward port will collide with both
+- [`2026-08-02-rockchip-vaapi-ysp9-rc-validation.md`](2026-08-02-rockchip-vaapi-ysp9-rc-validation.md) — rockchip-vaapi ysp9 RC retires the VP9 quarantine and passes full sanitizer, RGA repeat, and package gates
 - [`2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md`](2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) — rockchip-vaapi ysp8 is installed and green across decode, encode, GStreamer, VLC, mpv, and Firefox; one optional IEP2 probe is noisy
 - [`2026-08-02-rk3588-iep2-vdpp-source-audit.md`](2026-08-02-rk3588-iep2-vdpp-source-audit.md) — RK3588 exposes IEP2 deinterlacing, not VDPP, and the YSP 6.18 port omits IEP2
 - [`2026-08-02-rga3-forward-port-small-geometry-discriminator.md`](2026-08-02-rga3-forward-port-small-geometry-discriminator.md) — Forward-port RGA3 passes the repeated small-geometry AFBC-to-P010 dropped-write discriminator

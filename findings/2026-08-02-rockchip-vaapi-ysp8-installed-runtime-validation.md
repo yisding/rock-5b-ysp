@@ -31,6 +31,14 @@
 > including explicit exercise of both RGA3 cores. The original silent-write
 > finding remains open on the rewrite driver, not on this forward-port stack.
 
+> **Updated 2026-08-02 by** the
+> [ysp9 RC validation](2026-08-02-rockchip-vaapi-ysp9-rc-validation.md).
+> The previously blocked VP9 show-existing-frame vector now runs as an
+> ordinary required case and passes bit-exact normally and under ASan/UBSan.
+> The ysp8 safe-subset result below remains the historical installed-package
+> record; the release/notes interlock and `check-safe` targets are retired in
+> ysp9.
+
 ## Result
 
 The installed ysp8 driver and matching config package pass the broad safe
