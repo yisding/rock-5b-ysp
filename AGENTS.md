@@ -11,6 +11,13 @@ things that differ from ordinary practice on this machine.
 - Push completed changes directly to `main`; do not open pull requests.
 - Run all `gh` CLI commands outside the sandbox by requesting escalated permissions up front.
 
+## Build workspace
+
+- Put new build directories and generated build artifacts under
+  `../rock-5b/build/`, using a separate subdirectory for each project or task.
+  Treat that directory as disposable build state so it can be cleaned up as a
+  unit; keep source checkouts and durable evidence outside it.
+
 ## Native package builds
 
 - Run Debian/native package builds with `PATH=/usr/sbin:/usr/bin:/sbin:/bin` so Meson uses `/usr/bin/pkg-config` and the Ubuntu multiarch package metadata.
