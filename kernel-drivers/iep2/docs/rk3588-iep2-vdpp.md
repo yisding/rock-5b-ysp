@@ -156,10 +156,15 @@ The 6.18 adaptation supplies the current `iommu_map()` allocation argument and
 void platform remove callback. It also hardens the BSP donor boundary: exact
 semantic input/output request sizes and zero offsets are required, parameter
 dimensions/strides/formats and array counts are bounded, 32-bit IOVA/plane
-offsets are checked, hardware OSD result counts are clamped, IRQ/IOMMU paths
-guard a missing current task, and probe/error/remove paths release the ROI,
-auxiliary page, and workqueue consistently. The RK3588 I1O1T one-page
-read-ahead workaround is retained with a zeroed auxiliary page.
+offsets and full hardware-access spans are checked, raw IOVA submission is
+rejected, and task-local flags select address decoding. Hardware OSD result
+counts are clamped. The process-context worker synchronously drains timeout
+callbacks before task retirement; IEP2 current-task access is lifetime-locked;
+provider fault callbacks are synchronized before
+teardown; required clock/reset errors abort probe; and the I1O1T auxiliary page
+is reserved in IOVA accounting and removed at task completion. The detailed
+[safety review](forward-port-safety-review.md) records each defect, fix,
+negative audit result, and remaining runtime proof.
 
 The following source gates pass:
 
@@ -212,9 +217,11 @@ dependency closure. The IEP2 decoder bridge also uses the shared
 headers (289 lines); those are orchestration/ABI shared with other vproc
 backends. VDPP likewise has API/HWPQ headers outside the directory count.
 
-The **kernel IEP2 code is not smaller**: `mpp_iep2.c` is 1,166 lines and
-`rockchip_iep2_regs.h` is 184, versus 828 lines for `mpp_vdpp.c`. These are raw
-line counts, useful for scale but not equivalent to logical/source lines.
+The **kernel IEP2 code is not smaller**: in the hardened 6.18 port,
+`mpp_iep2.c` is 1,435 lines and `rockchip_iep2_regs.h` is 183, versus 828 lines
+for the pinned BSP's `mpp_vdpp.c`. These are raw line counts, useful for scale
+but not equivalent to logical/source lines. The BSP row above deliberately
+counts the unmodified donor implementation instead.
 
 The userspace IEP2 implementation really is much smaller, for four reasons:
 
@@ -252,7 +259,7 @@ evidence that IEP2 is a thin alias for VDPP or less “real” hardware.
 The existing 6.18 MPP service already had the device enum and conditional
 registration hook. The implemented port adds/adapts:
 
-- `mpp_iep2.c` (1,166 raw lines) and `rockchip_iep2_regs.h` (184);
+- `mpp_iep2.c` (1,435 raw lines) and `rockchip_iep2_regs.h` (183);
 - Kconfig/Makefile selection;
 - the RK3588 IEP2 and IEP2-IOMMU DT nodes, clocks, resets, power domain, IRQ,
   taskqueue association, and enablement in the ROCK 5B path;
@@ -335,7 +342,7 @@ The principal source pins are:
 | Tree | Pin |
 |---|---|
 | Rockchip BSP kernel | `rockchip-linux/kernel` `develop-6.1@b4ef083dc0c3608e744deabb43dc6b781aadbe6e` |
-| Maintained 6.18 forward port | `rk3588-video-6.18@6f5bdf5c0a52c0ed3895842a73dafd585ef3324b` |
+| Maintained 6.18 forward port | `rk3588-video-6.18@7615b69a744af7e79068a7bcc9968783aac62a3b` (IEP2 donor commit `6f5bdf5c0a52c0ed3895842a73dafd585ef3324b`) |
 | libmpp | `ysp/main@ad32534571564aae2ee5cca26547c3738e3366ed` |
 
 From the repository root, the local sibling trees used for the audit are

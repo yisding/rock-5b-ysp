@@ -30,18 +30,25 @@ Rockchip's BSP exposes it, how libmpp selects it, and the state of its Linux
 - [RK3588 IEP2 versus VDPP](docs/rk3588-iep2-vdpp.md) — hardware identity,
   BSP/kernel/userspace flow, code-size accounting, runtime evidence, and a
   forward-port estimate.
+- [IEP2 forward-port safety review](docs/forward-port-safety-review.md) — the
+  complete task-lifetime, IOMMU fault/remove, probe, userspace ABI, DMA-span,
+  fix, negative-audit, and remaining KASAN/runtime record.
 - [Keywords](keywords.md) — local terminology and client/device names.
 - [`iep2-smoke.sh`](../tests/iep2-smoke.sh) — device-free source/build gate and
   on-board TFF/BFF I5O2 output test with size, nonzero-content, binding, and
   kernel-log checks.
-- [Source-audit finding](../../findings/2026-08-02-rk3588-iep2-vdpp-source-audit.md)
-  — dated pins, measurements, and the evidence boundary behind the maintained
-  explanation.
+- [Historical source-audit finding](../../findings/2026-08-02-rk3588-iep2-vdpp-source-audit.md)
+  — the promoted tombstone for the installed-kernel observation that started
+  this project.
 
 ## Evidence state
 
 The hardware identity and BSP integration are source-inspected. The forward
-port is compile-, link-, and DTB-validated. The negative state of the currently
-booted kernel and the installed libmpp probe are measured. No IEP2 output has
-yet been produced on the forward-port kernel, so functional deinterlacing
-remains unvalidated until the new source is built, booted, and exercised.
+port is compile-, link-, and DTB-validated. A three-part safety review found
+and repaired task-work lifetime, fault callback/teardown, clock error-pointer,
+raw-address, buffer-span, flag-race, and auxiliary-IOVA defects. KASAN package
+`Pcf86-Cc271` contains the repaired IEP2 driver and ROCK 5B DT nodes, but has
+not run on the board. The negative state of the currently booted kernel and the
+installed libmpp probe are measured. No IEP2 output has yet been produced on
+the forward-port kernel, so functional and runtime memory-safety validation
+remain open until that package is booted and exercised.

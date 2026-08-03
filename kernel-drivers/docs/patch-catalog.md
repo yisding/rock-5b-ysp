@@ -261,10 +261,10 @@ against a silent-corruption case rather than fixing a specific commit's mistake.
 |---|--------------|-------|--------------|----------|
 | 0072 | RGA3: reject a non-16-byte-aligned IOMMU window base in `rga_mm_get_buffer_info()` with `-EINVAL` instead of silently returning all-zero pixels. RGA3 fetches the base on a 16-byte granularity; the scattered-userptr `shadow_page` path carries the raw sub-page byte offset in the base with a zeroed head, so a non-16-aligned source read the zero head. | `FWPORT-ROBUSTNESS` | Concerns forward-port-only scattered-userptr / `shadow_page` code (not in the BSP); fail-loud, no functional change to aligned userptr or dma-buf. | **No** — forward-port-specific path; see [finding](../../findings/2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md) |
 
-## Current `0072`–`0087` — outside the 2026-07-22 compilation
+## Current `0072`–`0089` — outside the 2026-07-22 compilation
 
 > **These rows use CURRENT numbering**, unlike everything above, which uses the
-> pre-cleanup scheme (this page's `0072` is current `0071`). The sixteen patches
+> pre-cleanup scheme (this page's `0072` is current `0071`). The eighteen patches
 > below all landed after this page was compiled on 2026-07-22.
 
 `0072`–`0075` are the 10-bit RGA stride/UV-offset trio and the RKVENC2
@@ -292,6 +292,13 @@ were forward-port regressions. These rows preserve that mixed provenance;
 every patch remains compile-only and requires the forward-port ABI,
 cross-session RGA, MPP, encode, and decode regression gates.
 
+`0088` imports the BSP's RK3588 IEP2 block and board DT enablement into 6.18.
+`0089` is its three-way safety-review tail. It contains both adaptations to the
+6.18 IOMMU/fault ABI and defects inherited from the BSP-shaped MPP/IEP2 code;
+backport only the latter after translating them to the BSP provider ABI. Both
+patches remain compile-only and require the dedicated client-28/KASAN/runtime
+gate in the [IEP2 safety review](../iep2/docs/forward-port-safety-review.md).
+
 | # | What it does | Class | BSP evidence | Backport |
 |---|--------------|-------|--------------|----------|
 | 0076 | MPP core: fix `mpp_check_req()` clamping to the overflow amount and using a signed offset (two independent bypasses); bound the register-offset translation index, the `trans_info[]` format index, and user-supplied `trans_table[]` register indexes; publish the `RESET_SESSION` DMA teardown under `srv->session_lock`. | `BSP-BUG` | All five sites are vendor code carried unchanged from the BSP import; the bounds and the clamp expression are byte-identical in `develop-6.1`. The `session_lock` half is partly forward-port shaped — `mpp_session_deinit()`'s unlink is ours — so confirm the BSP's procfs exposure before sending that hunk. | **Yes** — the four bounds fixes close unprivileged heap corruption in vendor code |
@@ -306,6 +313,8 @@ cross-session RGA, MPP, encode, and decode regression gates.
 | 0085 | RGA: restrict ioctl import types, type-check external lookup, authenticate request ownership, retire blit errors through the kref, and count import ownership. | Mixed: `BSP-BUG` + `PORT-FIX` | The pointer/physical import exposure, global request IDs, raw destructor, and cross-type lookup are BSP-imported. Import ownership repairs the forward-port `0079` session-clearing regression. | **Partial** — backport the ioctl/authentication fixes; adapt ownership to the BSP's release model |
 | 0086 | RGA: authenticate `RGA_IOC_RELEASE_BUFFER` against the importing session. | `BSP-BUG` | The global buffer IDR and unchecked release ioctl are vendor code. | **Yes** — sibling unauthenticated-put primitive |
 | 0087 | Repair review findings in `0081`–`0085`: owner-only RGA import counting, fd-reference-last message release, serialized MPP release, complete timeout/`cur_task` locking, and fd/PTR de-duplication. | Mixed corrective follow-up | Some corrections repair bugs introduced by `0081`/`0085`; the message-release ordering, split release race, hard-CCU cancellation, and unlocked `cur_task` publication/read are pre-existing same-shape defects. | **Partial** — pair each correction with its owning backport; never backport `0081`–`0085` without this review tail |
+| 0088 | Add RK3588 IEP2 vendor-ABI deinterlacing, binding, and ROCK 5B DT enablement. | `PORT` / `VENDOR` | The functional driver and DT description are adapted from `develop-6.1`; the BSP already contains IEP2. | **No** — feature forward port; BSP already has the donor implementation |
+| 0089 | Harden IEP2 task/fault/remove lifetime, clock/reset handling, fault recovery, DMA-span validation, raw-address rejection, auxiliary mapping ownership, and fixed-IOVA exclusivity. | Mixed: `BSP-BUG` + `PORT-FIX` | Timeout/current-task, callback teardown, resource-error, raw-address, span-validation, and mapping-ownership shapes descend from vendor code. Generic fault flags, provider synchronization plumbing, and the exclusive IOVA API are 6.18-shaped adaptations. | **Partial** — carry the donor-shaped safety fixes, adapted to the BSP's raw fault-status/provider ABI; do not apply the 6.18 plumbing verbatim |
 
 The `0079` session-ownership fix deliberately does **not** revert
 `0071`/catalog-`0072`'s force-free-under-the-held-lock decision: that decision is

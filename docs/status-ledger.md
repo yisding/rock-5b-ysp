@@ -64,8 +64,12 @@ Main10, and VP9 Profile 2; Firefox imports both 10-bit planes but ran with its
 RDD sandbox disabled. The only kernel warning pair is root-caused to libmpp's
 optional IEP2 deinterlace probe selecting generic `/dev/mpp_service` without an
 IEP2 subdevice; the triggering interlaced clip remains bit-exact. RK3588 has
-IEP2 hardware, but the YSP 6.18 port omits its driver/DT nodes; RK3588 has no
-VDPP instance. Earlier
+IEP2 hardware and no VDPP instance. The 6.18 source port now contains the
+driver/DT path and compile-tested task-lifetime, fault-callback, teardown,
+clock/reset, DMA-span, raw-address, flag-race, and auxiliary-IOVA hardening.
+KASAN package `Pcf86-Cc271` contains that source and the intended ROCK 5B DT
+nodes, but the installed kernel still omits client 28; the package has not been
+booted, and no IEP2 output or recovery path has run on the board. Earlier
 exact-Published MPP/FFmpeg sweep, sanitizer, and soak evidence remains valid.
 The later production forward-port/vendor RGA3 discriminator passed 90/90 runs
 and 4,320/4,320 byte-compared frames at each formerly suspect small geometry,
@@ -84,7 +88,7 @@ installation, and release. See the maintained
 the
 [`forward-port RGA discriminator`](../findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md),
 with the hardware/driver distinction in the
-[`IEP2 source audit`](../findings/2026-08-02-rk3588-iep2-vdpp-source-audit.md).
+[`IEP2 safety review`](../kernel-drivers/iep2/docs/forward-port-safety-review.md).
 
 ## Promotion rule
 

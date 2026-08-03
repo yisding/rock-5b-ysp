@@ -494,10 +494,10 @@ class ForwardPortPatchSeriesTests(unittest.TestCase):
         patches = sorted(self.series.glob("rk3588-fwport-*.patch"))
         numbers = [int(path.name.split("-")[2]) for path in patches]
 
-        self.assertEqual(numbers, list(range(1, 88)))
+        self.assertEqual(numbers, list(range(1, 90)))
         readme = (self.series / "README.md").read_text(encoding="utf-8")
-        self.assertIn("contiguous `0001`–`0087`", readme)
-        self.assertIn("5b87d46eefdcb", readme)
+        self.assertIn("contiguous `0001`–`0089`", readme)
+        self.assertIn("7615b69a744a", readme)
 
     def test_series_mailboxes_are_well_formed(self) -> None:
         for patch in sorted(self.series.glob("rk3588-fwport-*.patch")):

@@ -1,0 +1,912 @@
+From 7615b69a744af7e79068a7bcc9968783aac62a3b Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Sun, 2 Aug 2026 22:13:37 -0700
+Subject: [PATCH 89/89] video: rockchip: harden IEP2 lifetimes and DMA bounds
+
+Synchronize timeout and provider callback teardown before task or device storage can be freed. Protect IEP2 current-task access, make clock/reset failures fatal, and close raw-address and undersized-buffer submission paths.
+
+Keep the I1O1T auxiliary mapping inside task and IOVA allocator lifetime, using an exclusive reservation primitive so cleanup never removes another DMA allocation's node. Suppress unsupported MPP hot-unbind entry points until the common service has a complete drain/unpublish contract.
+---
+ drivers/iommu/iova.c                     |  37 ++++
+ drivers/iommu/rockchip-iommu.c           |  28 +++
+ drivers/iommu/vsi-iommu.c                |  16 ++
+ drivers/video/rockchip/mpp/mpp_common.c  |  38 +++-
+ drivers/video/rockchip/mpp/mpp_common.h  |  12 +-
+ drivers/video/rockchip/mpp/mpp_iep2.c    | 253 ++++++++++++++++++++---
+ drivers/video/rockchip/mpp/mpp_iommu.c   |  20 +-
+ drivers/video/rockchip/mpp/mpp_iommu.h   |   1 +
+ drivers/video/rockchip/mpp/mpp_service.c |   2 +
+ include/linux/iova.h                     |  10 +
+ include/soc/rockchip/rockchip_iommu.h    |   7 +
+ include/soc/rockchip/vsi_iommu.h         |   6 +
+ 12 files changed, 386 insertions(+), 44 deletions(-)
+
+diff --git a/drivers/iommu/iova.c b/drivers/iommu/iova.c
+index 18f8397218136..7b7f0fc259c1a 100644
+--- a/drivers/iommu/iova.c
++++ b/drivers/iommu/iova.c
+@@ -549,6 +549,43 @@ reserve_iova(struct iova_domain *iovad,
+ }
+ EXPORT_SYMBOL_GPL(reserve_iova);
+ 
++/**
++ * reserve_iova_exclusive - reserve an IOVA range only when wholly unused
++ * @iovad: IOVA domain
++ * @pfn_lo: first page frame
++ * @pfn_hi: last page frame
++ *
++ * Unlike reserve_iova(), this helper never treats an existing overlapping
++ * node as success. Callers that later free the returned reservation therefore
++ * own the allocator node they remove.
++ */
++struct iova *reserve_iova_exclusive(struct iova_domain *iovad,
++				    unsigned long pfn_lo,
++				    unsigned long pfn_hi)
++{
++	struct rb_node *node;
++	struct iova *iova = NULL;
++	unsigned long flags;
++
++	if (WARN_ON((pfn_hi | pfn_lo) >
++		    (ULLONG_MAX >> iova_shift(iovad))))
++		return NULL;
++
++	spin_lock_irqsave(&iovad->iova_rbtree_lock, flags);
++	for (node = rb_first(&iovad->rbroot); node; node = rb_next(node)) {
++		if (__is_range_overlap(node, pfn_lo, pfn_hi))
++			goto out_unlock;
++	}
++
++	iova = __insert_new_range(iovad, pfn_lo, pfn_hi);
++
++out_unlock:
++	spin_unlock_irqrestore(&iovad->iova_rbtree_lock, flags);
++
++	return iova;
++}
++EXPORT_SYMBOL_GPL(reserve_iova_exclusive);
++
+ /*
+  * Magazine caches for IOVA ranges.  For an introduction to magazines,
+  * see the USENIX 2001 paper "Magazines and Vmem: Extending the Slab
+diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
+index 921ad0433e4c3..06dc9f6cb7a5c 100644
+--- a/drivers/iommu/rockchip-iommu.c
++++ b/drivers/iommu/rockchip-iommu.c
+@@ -1489,6 +1489,34 @@ int rockchip_iommu_set_fault_handler(struct device *dev,
+ }
+ EXPORT_SYMBOL_GPL(rockchip_iommu_set_fault_handler);
+ 
++/*
++ * The provider invokes the callback after dropping fault_lock.  Clearing the
++ * pointer therefore prevents new callbacks but does not wait for one that
++ * already copied the old token.
++ */
++int rockchip_iommu_sync_fault_handler(struct device *dev)
++{
++	struct rk_iommu *iommu = rk_iommu_from_dev_checked(dev);
++	struct platform_device *pdev;
++	int i;
++
++	might_sleep();
++
++	if (!iommu)
++		return -ENODEV;
++
++	pdev = to_platform_device(iommu->dev);
++	for (i = 0; i < iommu->num_irq; i++) {
++		int irq = platform_get_irq(pdev, i);
++
++		if (irq >= 0)
++			synchronize_irq(irq);
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(rockchip_iommu_sync_fault_handler);
++
+ static int rk_iommu_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
+index 9ced6b2dcb145..1b2aa5867334f 100644
+--- a/drivers/iommu/vsi-iommu.c
++++ b/drivers/iommu/vsi-iommu.c
+@@ -900,6 +900,22 @@ int vsi_iommu_set_fault_handler(struct device *dev,
+ }
+ EXPORT_SYMBOL_GPL(vsi_iommu_set_fault_handler);
+ 
++/* Clearing the callback does not wait for the IRQ path that copied it. */
++int vsi_iommu_sync_fault_handler(struct device *dev)
++{
++	struct vsi_iommu *iommu = vsi_iommu_from_dev_checked(dev);
++
++	might_sleep();
++
++	if (!iommu)
++		return -ENODEV;
++
++	synchronize_irq(iommu->irq);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(vsi_iommu_sync_fault_handler);
++
+ static const struct of_device_id vsi_iommu_dt_ids[] = {
+ 	{
+ 		.compatible = "verisilicon,iommu-1.2",
+diff --git a/drivers/video/rockchip/mpp/mpp_common.c b/drivers/video/rockchip/mpp/mpp_common.c
+index a471047a35c87..8297c7f193f99 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.c
++++ b/drivers/video/rockchip/mpp/mpp_common.c
+@@ -196,6 +196,10 @@ mpp_taskqueue_pop_running(struct mpp_taskqueue *queue,
+ static void mpp_taskqueue_fail_running(struct mpp_taskqueue *queue,
+ 				       struct mpp_task *task)
+ {
++	/* Claim the task and wait out any callback before dropping its ref. */
++	set_bit(TASK_STATE_HANDLE, &task->state);
++	cancel_delayed_work_sync(&task->timeout_work);
++
+ 	set_bit(TASK_STATE_ABORT, &task->state);
+ 	set_bit(TASK_STATE_FINISH, &task->state);
+ 	set_bit(TASK_STATE_DONE, &task->state);
+@@ -718,6 +722,7 @@ struct reset_control *
+ mpp_reset_control_get(struct mpp_dev *mpp, enum MPP_RESET_TYPE type, const char *name)
+ {
+ 	int index;
++	int ret;
+ 	struct reset_control *rst = NULL;
+ 	char shared_name[32] = "shared_";
+ 	struct mpp_reset_group *group;
+@@ -726,7 +731,11 @@ mpp_reset_control_get(struct mpp_dev *mpp, enum MPP_RESET_TYPE type, const char
+ 	index = of_property_match_string(mpp->dev->of_node, "reset-names", name);
+ 	if (index >= 0) {
+ 		rst = devm_reset_control_get(mpp->dev, name);
+-		mpp_safe_unreset(rst);
++		if (IS_ERR(rst))
++			return rst;
++		ret = mpp_safe_unreset(rst);
++		if (ret)
++			return ERR_PTR(ret);
+ 
+ 		return rst;
+ 	}
+@@ -751,11 +760,18 @@ mpp_reset_control_get(struct mpp_dev *mpp, enum MPP_RESET_TYPE type, const char
+ 	rst = group->resets[type];
+ 	if (!rst) {
+ 		rst = devm_reset_control_get(mpp->dev, shared_name);
+-		mpp_safe_unreset(rst);
++		if (IS_ERR(rst))
++			goto out_unlock;
++		ret = mpp_safe_unreset(rst);
++		if (ret) {
++			rst = ERR_PTR(ret);
++			goto out_unlock;
++		}
+ 		group->resets[type] = rst;
+ 		group->queue = mpp->queue;
+ 	}
+ 	dev_info(mpp->dev, "reset_group->rw_sem_on=%d\n", group->rw_sem_on);
++out_unlock:
+ 	up_write(&group->rw_sem);
+ 
+ 	return rst;
+@@ -996,6 +1012,14 @@ static void try_process_running_task(struct mpp_dev *mpp)
+ 			enable_irq(mpp->irq);
+ 			continue;
+ 		}
++		/*
++		 * The hard IRQ can only cancel asynchronously.  Once IRQ disablement
++		 * makes HANDLE ownership stable, wait out a callback that already
++		 * started before the ISR can drop the running task reference.  A
++		 * callback's nested disable_irq()/enable_irq() pair is depth-balanced
++		 * inside this outer disable.
++		 */
++		cancel_delayed_work_sync(&mpp_task->timeout_work);
+ 
+ 		/* process timeout task */
+ 		if (test_bit(TASK_STATE_TIMEOUT, &mpp_task->state)) {
+@@ -2691,6 +2715,9 @@ int mpp_dev_probe(struct mpp_dev *mpp,
+ 
+ int mpp_dev_remove(struct mpp_dev *mpp)
+ {
++	/* The hardware exit path may free resources used by the fault callback. */
++	mpp_iommu_quiesce_fault_handler(mpp->iommu_info);
++
+ 	if (mpp->hw_ops->exit)
+ 		mpp->hw_ops->exit(mpp);
+ 
+@@ -2937,6 +2964,13 @@ int mpp_get_clk_info(struct mpp_dev *mpp,
+ 		return -EINVAL;
+ 
+ 	clk_info->clk = devm_clk_get(mpp->dev, name);
++	if (IS_ERR(clk_info->clk)) {
++		int ret = PTR_ERR(clk_info->clk);
++
++		clk_info->clk = NULL;
++		return dev_err_probe(mpp->dev, ret,
++				     "failed to get %s clock\n", name);
++	}
+ 	of_property_read_u32_index(mpp->dev->of_node,
+ 				   "rockchip,normal-rates",
+ 				   index,
+diff --git a/drivers/video/rockchip/mpp/mpp_common.h b/drivers/video/rockchip/mpp/mpp_common.h
+index a141cdc7cf65b..e079a50ab661e 100644
+--- a/drivers/video/rockchip/mpp/mpp_common.h
++++ b/drivers/video/rockchip/mpp/mpp_common.h
+@@ -765,23 +765,23 @@ static inline u32 mpp_read_relaxed(struct mpp_dev *mpp, u32 reg)
+ 
+ static inline int mpp_safe_reset(struct reset_control *rst)
+ {
+-	if (rst)
+-		reset_control_assert(rst);
++	if (!IS_ERR_OR_NULL(rst))
++		return reset_control_assert(rst);
+ 
+ 	return 0;
+ }
+ 
+ static inline int mpp_safe_unreset(struct reset_control *rst)
+ {
+-	if (rst)
+-		reset_control_deassert(rst);
++	if (!IS_ERR_OR_NULL(rst))
++		return reset_control_deassert(rst);
+ 
+ 	return 0;
+ }
+ 
+ static inline int mpp_clk_safe_enable(struct clk *clk)
+ {
+-	if (clk)
++	if (!IS_ERR_OR_NULL(clk))
+ 		return clk_prepare_enable(clk);
+ 
+ 	return 0;
+@@ -789,7 +789,7 @@ static inline int mpp_clk_safe_enable(struct clk *clk)
+ 
+ static inline int mpp_clk_safe_disable(struct clk *clk)
+ {
+-	if (clk)
++	if (!IS_ERR_OR_NULL(clk))
+ 		clk_disable_unprepare(clk);
+ 
+ 	return 0;
+diff --git a/drivers/video/rockchip/mpp/mpp_iep2.c b/drivers/video/rockchip/mpp/mpp_iep2.c
+index 2f8b5d28ed9df..97f3d74b12742 100644
+--- a/drivers/video/rockchip/mpp/mpp_iep2.c
++++ b/drivers/video/rockchip/mpp/mpp_iep2.c
+@@ -33,7 +33,6 @@
+ #define MVL			28
+ #define MVR			27
+ 
+-#define IOMMU_GET_BUS_ID(x)	(((x) >> 6) & 0x1f)
+ #define AUX_PAGE_SIZE		SZ_4K
+ 
+ enum rockchip_iep2_fmt {
+@@ -230,6 +229,7 @@ struct iep2_dev {
+ 	struct page *aux_page;
+ 	unsigned long aux_iova;
+ 	unsigned long fault_iova;
++	bool aux_reserved;
+ };
+ 
+ static int iep2_addr_rnum[] = {
+@@ -242,8 +242,7 @@ static int iep2_addr_rnum[] = {
+ 	33, /* md */
+ };
+ 
+-static int iep2_process_reg_fd(struct mpp_session *session,
+-			       struct iep_task *task,
++static int iep2_process_reg_fd(struct iep_task *task,
+ 			       struct mpp_task_msgs *msgs)
+ {
+ 	int i;
+@@ -259,7 +258,7 @@ static int iep2_process_reg_fd(struct mpp_session *session,
+ 		u32 offset;
+ 		struct mpp_mem_region *mem_region = NULL;
+ 
+-		if (session->msg_flags & MPP_FLAGS_REG_NO_OFFSET) {
++		if (msgs->flags & MPP_FLAGS_REG_NO_OFFSET) {
+ 			usr_fd = paddr[i];
+ 			offset = 0;
+ 		} else {
+@@ -267,8 +266,26 @@ static int iep2_process_reg_fd(struct mpp_session *session,
+ 			offset = paddr[i] >> 10;
+ 		}
+ 
+-		if (usr_fd == 0 || iep2_addr_rnum[i] == -1)
++		if (iep2_addr_rnum[i] == -1) {
++			paddr[i] = 0;
+ 			continue;
++		}
++
++		/* Separate V addresses are ignored for semiplanar input. */
++		if ((iep2_addr_rnum[i] == 28 || iep2_addr_rnum[i] == 30 ||
++		     iep2_addr_rnum[i] == 32) &&
++		    task->params.src_yuv_swap < ROCKCHIP_IEP2_YUV_SWAP_P0) {
++			paddr[i] = 0;
++			continue;
++		}
++
++		if (!paddr[i])
++			continue;
++		if (!usr_fd) {
++			mpp_err("reg[%03d]: nonzero packed address has fd 0\n",
++				iep2_addr_rnum[i]);
++			return -EINVAL;
++		}
+ 
+ 		mem_region = mpp_task_attach_fd(&task->mpp_task, usr_fd);
+ 		if (IS_ERR(mem_region)) {
+@@ -279,7 +296,7 @@ static int iep2_process_reg_fd(struct mpp_session *session,
+ 
+ 		mem_region->reg_idx = iep2_addr_rnum[i];
+ 
+-		if (session->msg_flags & MPP_FLAGS_REG_NO_OFFSET)
++		if (msgs->flags & MPP_FLAGS_REG_NO_OFFSET)
+ 			offset = mpp_query_reg_offset_info(&task->off_inf, mem_region->reg_idx);
+ 
+ 		mpp_debug(DEBUG_IOMMU, "reg[%3d]: %3d => %pad + offset %u\n",
+@@ -291,6 +308,67 @@ static int iep2_process_reg_fd(struct mpp_session *session,
+ 				offset, mem_region->len);
+ 			return -ERANGE;
+ 		}
++		{
++			u64 span;
++			u32 width = task->params.tile_cols * TILE_WIDTH;
++			u32 height = task->params.tile_rows * TILE_HEIGHT;
++			u32 rows = height;
++			u32 row_bytes = width;
++			u32 stride = 0;
++
++			switch (iep2_addr_rnum[i]) {
++			case 24:
++			case 25:
++			case 26:
++				stride = task->params.src_y_stride * 4;
++				break;
++			case 27:
++			case 28:
++			case 29:
++			case 30:
++			case 31:
++			case 32:
++				stride = task->params.src_uv_stride * 4;
++				if (task->params.src_yuv_swap >=
++				    ROCKCHIP_IEP2_YUV_SWAP_P0)
++					row_bytes /= 2;
++				if (task->params.src_fmt == ROCKCHIP_IEP2_FMT_YUV420)
++					rows /= 2;
++				break;
++			case 44:
++			case 45:
++				stride = task->params.dst_y_stride * 4;
++				break;
++			case 46:
++			case 47:
++				stride = task->params.dst_y_stride * 4;
++				if (task->params.dst_fmt == ROCKCHIP_IEP2_FMT_YUV420)
++					rows /= 2;
++				break;
++			case 34:
++				span = task->params.tile_cols * task->params.tile_rows;
++				goto check_span;
++			case 33:
++				span = (u64)width * height;
++				goto check_span;
++			default:
++				return -EINVAL;
++			}
++
++			if (stride < row_bytes)
++				return -EINVAL;
++			/* Include the final row's padding and hardware burst window. */
++			span = (u64)rows * stride;
++
++check_span:
++			if (span > mem_region->len - offset) {
++				mpp_err("reg[%03d]: offset %u span %llu exceeds len %lu\n",
++					iep2_addr_rnum[i], offset,
++					(unsigned long long)span,
++					mem_region->len);
++				return -ERANGE;
++			}
++		}
+ 		paddr[i] = (u32)mem_region->iova + offset;
+ 
+ 		/* workaround for invalid access to src image */
+@@ -308,6 +386,8 @@ static int iep2_process_reg_fd(struct mpp_session *session,
+ 
+ static int iep2_validate_params(const struct iep2_params *params)
+ {
++	int i;
++
+ 	if (params->src_fmt < ROCKCHIP_IEP2_FMT_YUV422 ||
+ 	    params->src_fmt > ROCKCHIP_IEP2_FMT_YUV420 ||
+ 	    params->dst_fmt < ROCKCHIP_IEP2_FMT_YUV422 ||
+@@ -327,6 +407,14 @@ static int iep2_validate_params(const struct iep2_params *params)
+ 	    !params->dst_y_stride || params->dst_y_stride > U16_MAX)
+ 		return -EINVAL;
+ 
++	if (params->src_y_stride * 4 < params->tile_cols * TILE_WIDTH ||
++	    params->src_uv_stride * 4 <
++		(params->src_yuv_swap >= ROCKCHIP_IEP2_YUV_SWAP_P0 ?
++		 params->tile_cols * TILE_WIDTH / 2 :
++		 params->tile_cols * TILE_WIDTH) ||
++	    params->dst_y_stride * 4 < params->tile_cols * TILE_WIDTH)
++		return -EINVAL;
++
+ 	if (params->dil_mode > ROCKCHIP_IEP2_DIL_MODE_DECT ||
+ 	    params->dil_out_mode > 1 ||
+ 	    params->dil_field_order > ROCKCHIP_IEP2_DIL_FF_ORDER_BT ||
+@@ -334,6 +422,20 @@ static int iep2_validate_params(const struct iep2_params *params)
+ 	    params->roi_layer_num > ARRAY_SIZE(params->roi_mode))
+ 		return -EINVAL;
+ 
++	for (i = 0; i < ARRAY_SIZE(params->src); i++) {
++		if (!params->src[i].y || !params->src[i].cbcr)
++			return -EINVAL;
++		if (params->src_yuv_swap >= ROCKCHIP_IEP2_YUV_SWAP_P0 &&
++		    !params->src[i].cr)
++			return -EINVAL;
++	}
++	for (i = 0; i < ARRAY_SIZE(params->dst); i++) {
++		if (!params->dst[i].y || !params->dst[i].cbcr)
++			return -EINVAL;
++	}
++	if (!params->mv_addr || !params->md_addr)
++		return -EINVAL;
++
+ 	return 0;
+ }
+ 
+@@ -412,16 +514,18 @@ static void *iep2_alloc_task(struct mpp_session *session,
+ 		return NULL;
+ 
+ 	mpp_task_init(session, &task->mpp_task);
++	if (msgs->flags & MPP_FLAGS_REG_FD_NO_TRANS) {
++		mpp_err("IEP2 does not accept untranslated DMA addresses\n");
++		goto fail;
++	}
+ 	/* extract reqs for current task */
+ 	ret = iep2_extract_task_msg(task, msgs);
+ 	if (ret)
+ 		goto fail;
+ 	/* process fd in register */
+-	if (!(msgs->flags & MPP_FLAGS_REG_FD_NO_TRANS)) {
+-		ret = iep2_process_reg_fd(session, task, msgs);
+-		if (ret)
+-			goto fail;
+-	}
++	ret = iep2_process_reg_fd(task, msgs);
++	if (ret)
++		goto fail;
+ 	task->clk_mode = CLK_MODE_NORMAL;
+ 
+ 	mpp_debug_leave();
+@@ -667,6 +771,7 @@ static int iep2_run(struct mpp_dev *mpp,
+ 		    struct mpp_task *mpp_task)
+ {
+ 	struct iep_task *task = NULL;
++	unsigned long flags;
+ 	u32 timing_en = mpp->srv->timing_en;
+ 
+ 	mpp_debug_enter();
+@@ -674,7 +779,9 @@ static int iep2_run(struct mpp_dev *mpp,
+ 	task = to_iep_task(mpp_task);
+ 
+ 	/* init current task */
++	spin_lock_irqsave(&mpp->queue->running_lock, flags);
+ 	mpp->cur_task = mpp_task;
++	spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
+ 
+ 	iep2_config(mpp, task);
+ 	iep2_osd_cfg(mpp, task);
+@@ -728,18 +835,22 @@ static int iep2_isr(struct mpp_dev *mpp)
+ 	struct mpp_task *mpp_task = NULL;
+ 	struct iep_task *task = NULL;
+ 	struct iep2_dev *iep = to_iep2_dev(mpp);
++	unsigned long flags;
+ 
+ 	mpp_debug_enter();
+ 
++	spin_lock_irqsave(&mpp->queue->running_lock, flags);
+ 	mpp_task = mpp->cur_task;
+ 	if (!mpp_task) {
++		spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
+ 		dev_err(iep->mpp.dev, "no current task\n");
+ 		return IRQ_HANDLED;
+ 	}
+-	task = to_iep_task(mpp_task);
++	mpp->cur_task = NULL;
++	spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
+ 
++	task = to_iep_task(mpp_task);
+ 	mpp_time_diff(mpp_task);
+-	mpp->cur_task = NULL;
+ 	task->irq_status = mpp->irq_status;
+ 	mpp_debug(DEBUG_IRQ_STATUS, "irq_status: %08x\n",
+ 		  task->irq_status);
+@@ -816,6 +927,22 @@ static int iep2_finish(struct mpp_dev *mpp,
+ 		output->mv_hist[i + 1] = IEP2_REG_RO_MV_HIST_ODD(reg);
+ 	}
+ 
++	/* No fault recovery may outlive the task whose IOVA it extends. */
++	cancel_work_sync(&to_iep2_dev(mpp)->iommu_work);
++	mpp_iommu_down_write(mpp->iommu_info);
++	if (to_iep2_dev(mpp)->aux_iova != -1) {
++		struct iep2_dev *iep = to_iep2_dev(mpp);
++
++		iommu_unmap(mpp->iommu_info->domain, iep->aux_iova,
++			    AUX_PAGE_SIZE);
++		if (iep->aux_reserved)
++			mpp_iommu_unreserve_iova(mpp->iommu_info, iep->aux_iova,
++						 AUX_PAGE_SIZE);
++		iep->aux_iova = -1;
++		iep->aux_reserved = false;
++	}
++	mpp_iommu_up_write(mpp->iommu_info);
++
+ 	mpp_debug_leave();
+ 
+ 	return 0;
+@@ -908,21 +1035,37 @@ static void iep2_iommu_handle_work(struct work_struct *work_s)
+ 
+ 	if (iep->aux_iova != -1) {
+ 		iommu_unmap(mpp->iommu_info->domain, iep->aux_iova, AUX_PAGE_SIZE);
++		if (iep->aux_reserved)
++			mpp_iommu_unreserve_iova(mpp->iommu_info, iep->aux_iova,
++						 AUX_PAGE_SIZE);
+ 		iep->aux_iova = -1;
++		iep->aux_reserved = false;
+ 	}
+ 
+ 	page_iova = round_down(iep->fault_iova, AUX_PAGE_SIZE);
++	ret = mpp_iommu_reserve_iova(mpp->iommu_info, page_iova,
++				     AUX_PAGE_SIZE);
++	if (ret) {
++		mpp_err("reserve auxiliary iova %lx error %d\n", page_iova, ret);
++		atomic_inc(&mpp->reset_request);
++		goto out_unlock;
++	}
++	iep->aux_reserved = true;
+ 	ret = iommu_map(mpp->iommu_info->domain, page_iova,
+ 			page_to_phys(iep->aux_page), AUX_PAGE_SIZE,
+ 			IOMMU_READ, GFP_KERNEL);
+ 	if (ret) {
+ 		mpp_err("iommu_map iova %lx error.\n", page_iova);
++		mpp_iommu_unreserve_iova(mpp->iommu_info, page_iova,
++					 AUX_PAGE_SIZE);
++		iep->aux_reserved = false;
+ 		atomic_inc(&mpp->reset_request);
+ 	} else {
+ 		iep->aux_iova = page_iova;
+ 		rockchip_iommu_unmask_irq(mpp->dev);
+ 	}
+ 
++out_unlock:
+ 	mpp_iommu_up_write(mpp->iommu_info);
+ 
+ 	mpp_debug_leave();
+@@ -934,22 +1077,29 @@ static int iep2_iommu_fault_handle(struct iommu_domain *iommu,
+ {
+ 	struct mpp_dev *mpp = (struct mpp_dev *)arg;
+ 	struct iep2_dev *iep = to_iep2_dev(mpp);
+-	struct mpp_task *mpp_task = mpp->cur_task;
++	struct mpp_task *mpp_task;
+ 	struct iep_task *task;
++	unsigned long flags;
++	bool expected_fault;
+ 
+ 	mpp_debug_enter();
+-	mpp_debug(DEBUG_IOMMU, "IOMMU_GET_BUS_ID(status)=%d\n", IOMMU_GET_BUS_ID(status));
+-	rockchip_iommu_mask_irq(mpp->dev);
++	spin_lock_irqsave(&mpp->queue->running_lock, flags);
++	mpp_task = mpp->cur_task;
+ 	if (!mpp_task) {
++		spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
+ 		dev_err(iommu_dev, "IEP2 IOMMU fault without a current task: iova %#lx status %#x\n",
+ 			iova, status);
+-		atomic_inc(&mpp->reset_request);
+-		return 0;
++		mpp_debug_leave();
++		return -ENODEV;
+ 	}
+ 	task = to_iep_task(mpp_task);
+-	if (IOMMU_GET_BUS_ID(status) &&
+-	    task->params.dil_mode == ROCKCHIP_IEP2_DIL_MODE_I1O1T &&
+-	    task->src_iova_end == iova) {
++	expected_fault = !(status & (IOMMU_FAULT_WRITE |
++				      ROCKCHIP_IOMMU_FAULT_BUS_ERROR)) &&
++			 task->params.dil_mode == ROCKCHIP_IEP2_DIL_MODE_I1O1T &&
++			 task->src_iova_end == iova;
++
++	rockchip_iommu_mask_irq(mpp->dev);
++	if (expected_fault) {
+ 		iep->fault_iova = iova;
+ 		queue_work(iep->iommu_wq, &iep->iommu_work);
+ 	} else {
+@@ -958,6 +1108,7 @@ static int iep2_iommu_fault_handle(struct iommu_domain *iommu,
+ 		mpp_task_dump_mem_region(mpp, mpp_task);
+ 		atomic_inc(&mpp->reset_request);
+ 	}
++	spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
+ 
+ 	mpp_debug_leave();
+ 
+@@ -974,25 +1125,37 @@ static int iep2_init(struct mpp_dev *mpp)
+ 	/* Get clock info from dtsi */
+ 	ret = mpp_get_clk_info(mpp, &iep->aclk_info, "aclk");
+ 	if (ret)
+-		mpp_err("failed on clk_get aclk\n");
++		return ret;
+ 	ret = mpp_get_clk_info(mpp, &iep->hclk_info, "hclk");
+ 	if (ret)
+-		mpp_err("failed on clk_get hclk\n");
++		return ret;
+ 	ret = mpp_get_clk_info(mpp, &iep->sclk_info, "sclk");
+ 	if (ret)
+-		mpp_err("failed on clk_get sclk\n");
++		return ret;
+ 	/* Set default rates */
+ 	mpp_set_clk_info_rate_hz(&iep->aclk_info, CLK_MODE_DEFAULT, 300 * MHZ);
+ 
+ 	iep->rst_a = mpp_reset_control_get(mpp, RST_TYPE_A, "rst_a");
++	if (IS_ERR(iep->rst_a))
++		return dev_err_probe(mpp->dev, PTR_ERR(iep->rst_a),
++				     "failed to get aclk reset\n");
+ 	if (!iep->rst_a)
+-		mpp_err("No aclk reset resource define\n");
++		return dev_err_probe(mpp->dev, -ENODEV,
++				     "missing aclk reset\n");
+ 	iep->rst_h = mpp_reset_control_get(mpp, RST_TYPE_H, "rst_h");
++	if (IS_ERR(iep->rst_h))
++		return dev_err_probe(mpp->dev, PTR_ERR(iep->rst_h),
++				     "failed to get hclk reset\n");
+ 	if (!iep->rst_h)
+-		mpp_err("No hclk reset resource define\n");
++		return dev_err_probe(mpp->dev, -ENODEV,
++				     "missing hclk reset\n");
+ 	iep->rst_s = mpp_reset_control_get(mpp, RST_TYPE_CORE, "rst_s");
++	if (IS_ERR(iep->rst_s))
++		return dev_err_probe(mpp->dev, PTR_ERR(iep->rst_s),
++				     "failed to get sclk reset\n");
+ 	if (!iep->rst_s)
+-		mpp_err("No sclk reset resource define\n");
++		return dev_err_probe(mpp->dev, -ENODEV,
++				     "missing sclk reset\n");
+ 
+ 	iep->roi.size = IEP2_TILE_W_MAX * IEP2_TILE_H_MAX;
+ 	iep->roi.vaddr = dma_alloc_coherent(mpp->dev, iep->roi.size,
+@@ -1019,6 +1182,7 @@ static int iep2_init(struct mpp_dev *mpp)
+ 	}
+ 	clear_highpage(iep->aux_page);
+ 	iep->aux_iova = -1;
++	iep->aux_reserved = false;
+ 
+ 	iep->iommu_wq = alloc_ordered_workqueue("iep2-iommu", WQ_MEM_RECLAIM);
+ 	if (!iep->iommu_wq) {
+@@ -1054,8 +1218,14 @@ static int iep2_exit(struct mpp_dev *mpp)
+ 	}
+ 
+ 	if (iep->aux_iova != -1) {
++		mpp_iommu_down_write(mpp->iommu_info);
+ 		iommu_unmap(mpp->iommu_info->domain, iep->aux_iova, AUX_PAGE_SIZE);
++		if (iep->aux_reserved)
++			mpp_iommu_unreserve_iova(mpp->iommu_info, iep->aux_iova,
++						 AUX_PAGE_SIZE);
+ 		iep->aux_iova = -1;
++		iep->aux_reserved = false;
++		mpp_iommu_up_write(mpp->iommu_info);
+ 	}
+ 
+ 	if (iep->aux_page) {
+@@ -1075,21 +1245,34 @@ static int iep2_exit(struct mpp_dev *mpp)
+ static int iep2_clk_on(struct mpp_dev *mpp)
+ {
+ 	struct iep2_dev *iep = to_iep2_dev(mpp);
++	int ret;
+ 
+-	mpp_clk_safe_enable(iep->aclk_info.clk);
+-	mpp_clk_safe_enable(iep->hclk_info.clk);
+-	mpp_clk_safe_enable(iep->sclk_info.clk);
++	ret = mpp_clk_safe_enable(iep->aclk_info.clk);
++	if (ret)
++		return ret;
++	ret = mpp_clk_safe_enable(iep->hclk_info.clk);
++	if (ret)
++		goto err_disable_aclk;
++	ret = mpp_clk_safe_enable(iep->sclk_info.clk);
++	if (ret)
++		goto err_disable_hclk;
+ 
+ 	return 0;
++
++err_disable_hclk:
++	mpp_clk_safe_disable(iep->hclk_info.clk);
++err_disable_aclk:
++	mpp_clk_safe_disable(iep->aclk_info.clk);
++	return ret;
+ }
+ 
+ static int iep2_clk_off(struct mpp_dev *mpp)
+ {
+ 	struct iep2_dev *iep = to_iep2_dev(mpp);
+ 
+-	mpp_clk_safe_disable(iep->aclk_info.clk);
+-	mpp_clk_safe_disable(iep->hclk_info.clk);
+ 	mpp_clk_safe_disable(iep->sclk_info.clk);
++	mpp_clk_safe_disable(iep->hclk_info.clk);
++	mpp_clk_safe_disable(iep->aclk_info.clk);
+ 
+ 	return 0;
+ }
+@@ -1231,8 +1414,10 @@ static void iep2_remove(struct platform_device *pdev)
+ 	struct mpp_dev *mpp = dev_get_drvdata(dev);
+ 
+ 	dev_info(dev, "remove device\n");
+-	mpp_dev_remove(mpp);
+ 	iep2_procfs_remove(mpp);
++	/* No main IRQ callback may reach the device after queue teardown. */
++	devm_free_irq(dev, mpp->irq, mpp);
++	mpp_dev_remove(mpp);
+ }
+ 
+ struct platform_driver rockchip_iep2_driver = {
+@@ -1243,6 +1428,8 @@ struct platform_driver rockchip_iep2_driver = {
+ 		.name = IEP2_DRIVER_NAME,
+ 		.of_match_table = of_match_ptr(mpp_iep2_match),
+ 		.pm = &mpp_common_pm_ops,
++		/* Common MPP lacks a safe per-subdevice hot-unbind contract. */
++		.suppress_bind_attrs = true,
+ 	},
+ };
+ EXPORT_SYMBOL(rockchip_iep2_driver);
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index 5cb9e0828e267..2f90608ab41ae 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -1056,6 +1056,20 @@ static void mpp_iommu_clear_fault_handler(struct mpp_iommu_info *info)
+ 	}
+ }
+ 
++void mpp_iommu_quiesce_fault_handler(struct mpp_iommu_info *info)
++{
++	if (!info)
++		return;
++
++	mpp_iommu_clear_fault_handler(info);
++	/*
++	 * Provider callbacks run outside their registration locks.  Wait before
++	 * a codec exit callback destroys workqueues or frees the handler token.
++	 */
++	rockchip_iommu_sync_fault_handler(info->dev);
++	vsi_iommu_sync_fault_handler(info->dev);
++}
++
+ int mpp_iommu_remove(struct mpp_iommu_info *info)
+ {
+ 	if (!info)
+@@ -1065,7 +1079,7 @@ int mpp_iommu_remove(struct mpp_iommu_info *info)
+ 	if (info->shared)
+ 		mpp_iommu_attach(info);
+ 
+-	mpp_iommu_clear_fault_handler(info);
++	mpp_iommu_quiesce_fault_handler(info);
+ 	iommu_group_put(info->group);
+ 	platform_device_put(info->pdev);
+ 
+@@ -1215,8 +1229,8 @@ int mpp_iommu_reserve_iova(struct mpp_iommu_info *info, dma_addr_t iova, size_t
+ 	/* iova will be freed automatically by put_iova_domain() */
+ 	pfn_lo = iova_pfn(iovad, iova);
+ 	pfn_hi = iova_pfn(iovad, end);
+-	if (!reserve_iova(iovad, pfn_lo, pfn_hi))
+-		return -EINVAL;
++	if (!reserve_iova_exclusive(iovad, pfn_lo, pfn_hi))
++		return -EBUSY;
+ 
+ 	return 0;
+ 
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.h b/drivers/video/rockchip/mpp/mpp_iommu.h
+index d31f0314de65d..206599d800786 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.h
++++ b/drivers/video/rockchip/mpp/mpp_iommu.h
+@@ -181,6 +181,7 @@ void mpp_dma_buf_sync(struct mpp_dma_buffer *buffer, u32 offset, u32 length,
+ 
+ struct mpp_iommu_info *
+ mpp_iommu_probe(struct device *dev);
++void mpp_iommu_quiesce_fault_handler(struct mpp_iommu_info *info);
+ int mpp_iommu_remove(struct mpp_iommu_info *info);
+ 
+ int mpp_iommu_attach(struct mpp_iommu_info *info);
+diff --git a/drivers/video/rockchip/mpp/mpp_service.c b/drivers/video/rockchip/mpp/mpp_service.c
+index 8d397e979e83d..d62cdad4a09e8 100644
+--- a/drivers/video/rockchip/mpp/mpp_service.c
++++ b/drivers/video/rockchip/mpp/mpp_service.c
+@@ -538,6 +538,8 @@ static struct platform_driver mpp_service_driver = {
+ 	.driver = {
+ 		.name = "mpp_service",
+ 		.of_match_table = of_match_ptr(mpp_dt_ids),
++		/* Open sessions have no safe hot-unplug lifetime contract. */
++		.suppress_bind_attrs = true,
+ 	},
+ };
+ 
+diff --git a/include/linux/iova.h b/include/linux/iova.h
+index d2c4fd923efab..5a0de266bbf38 100644
+--- a/include/linux/iova.h
++++ b/include/linux/iova.h
+@@ -97,6 +97,9 @@ unsigned long alloc_iova_fast(struct iova_domain *iovad, unsigned long size,
+ 			      unsigned long limit_pfn, bool flush_rcache);
+ struct iova *reserve_iova(struct iova_domain *iovad, unsigned long pfn_lo,
+ 	unsigned long pfn_hi);
++struct iova *reserve_iova_exclusive(struct iova_domain *iovad,
++				    unsigned long pfn_lo,
++				    unsigned long pfn_hi);
+ void init_iova_domain(struct iova_domain *iovad, unsigned long granule,
+ 	unsigned long start_pfn);
+ int iova_domain_init_rcaches(struct iova_domain *iovad);
+@@ -149,6 +152,13 @@ static inline struct iova *reserve_iova(struct iova_domain *iovad,
+ 	return NULL;
+ }
+ 
++static inline struct iova *reserve_iova_exclusive(struct iova_domain *iovad,
++						  unsigned long pfn_lo,
++						  unsigned long pfn_hi)
++{
++	return NULL;
++}
++
+ static inline void init_iova_domain(struct iova_domain *iovad,
+ 				    unsigned long granule,
+ 				    unsigned long start_pfn)
+diff --git a/include/soc/rockchip/rockchip_iommu.h b/include/soc/rockchip/rockchip_iommu.h
+index b6fca6be66e68..b0e810c10395f 100644
+--- a/include/soc/rockchip/rockchip_iommu.h
++++ b/include/soc/rockchip/rockchip_iommu.h
+@@ -23,6 +23,8 @@ void rockchip_iommu_unmask_irq(struct device *dev);
+ int rockchip_pagefault_done(struct device *dev);
+ int rockchip_iommu_set_fault_handler(struct device *dev,
+ 				     iommu_fault_handler_t handler, void *token);
++/* Waits (sleeps) until no provider IRQ callback is using the old token. */
++int rockchip_iommu_sync_fault_handler(struct device *dev);
+ #else
+ static inline int rockchip_iommu_enable(struct device *dev)
+ {
+@@ -63,6 +65,11 @@ static inline int rockchip_iommu_set_fault_handler(struct device *dev,
+ {
+ 	return -ENODEV;
+ }
++
++static inline int rockchip_iommu_sync_fault_handler(struct device *dev)
++{
++	return -ENODEV;
++}
+ #endif
+ 
+ #endif /* __SOC_ROCKCHIP_IOMMU_H */
+diff --git a/include/soc/rockchip/vsi_iommu.h b/include/soc/rockchip/vsi_iommu.h
+index f32c2b848dc80..7a5ae91724d66 100644
+--- a/include/soc/rockchip/vsi_iommu.h
++++ b/include/soc/rockchip/vsi_iommu.h
+@@ -12,6 +12,7 @@ int vsi_iommu_refresh(struct device *dev);
+ void vsi_iommu_mask_irq(struct device *dev);
+ int vsi_iommu_set_fault_handler(struct device *dev,
+ 					iommu_fault_handler_t handler, void *token);
++int vsi_iommu_sync_fault_handler(struct device *dev);
+ #else
+ static inline int vsi_iommu_refresh(struct device *dev)
+ {
+@@ -27,6 +28,11 @@ static inline int vsi_iommu_set_fault_handler(struct device *dev,
+ {
+ 	return -ENODEV;
+ }
++
++static inline int vsi_iommu_sync_fault_handler(struct device *dev)
++{
++	return -ENODEV;
++}
+ #endif
+ 
+ #endif /* __SOC_ROCKCHIP_VSI_IOMMU_H */

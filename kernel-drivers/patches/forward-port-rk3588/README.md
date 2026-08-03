@@ -40,9 +40,10 @@ were written — resolve any older number through the **renumber map** at the en
 ## Source
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
-worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch `rk3588-video-6.18`,
-tip `5b87d46eefdcb`). The checked-in series is now contiguous `0001`–`0087`
-after the 2026-08-01 ioctl/lifetime audit fixes and their adversarial review.
+worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch
+`rk3588-video-6.18`, local tip `7615b69a744a`). The checked-in series is now
+contiguous `0001`–`0089`. The public/package line remains at `0087` /
+`5b87d46eefdcb` until the compile-only IEP2 tail is published and boot-validated.
 Backup of the pre-cleanup tip: tag
 `backup/pre-reorg-20260723` (`4401383a6d9b5`). Generated fallback/official `.deb`
 files in the external build workspace are intentionally not tracked here — only
@@ -306,6 +307,26 @@ import probes remain the smallest missing regression gate; see the
 | `0085` | video: rockchip: rga: authenticate the ioctl boundary and own imports properly | `78a4d1a90370` | — |
 | `0086` | video: rockchip: rga: authenticate RGA_IOC_RELEASE_BUFFER | `36ec9c956ce1` | — |
 | `0087` | video: rockchip: fix defects found reviewing the previous five commits | `5b87d46eefdc` | — |
+
+### 0088–0089 — RK3588 IEP2 import and safety review (2026-08-02)
+
+`0088` adds the vendor-ABI IEP2 deinterlacing driver, binding, and ROCK 5B DT
+path. `0089` is the result of three independent lifetime, ABI/DMA-boundary, and
+probe/fault/remove reviews. It closes timeout and fault-callback UAFs, rejects
+raw or undersized DMA submissions, balances the I1O1T auxiliary mapping, makes
+clock/reset failures fatal, and adds exclusive fixed-IOVA reservation. It also
+hides unsupported MPP hot-unbind controls; arbitrary DT-overlay removal still
+does not have a complete common drain/unpublish contract.
+
+The affected objects and ROCK 5B DTB compile cleanly, including a `W=1` pass.
+No IEP2 task has run on hardware, so client-28 exposure, output correctness,
+fault recovery, invalid-input stress, and KASAN runtime remain open. See the
+[complete safety review](../../iep2/docs/forward-port-safety-review.md).
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0088` | video: rockchip: add RK3588 IEP2 deinterlacing | `6f5bdf5c0a52` | — |
+| `0089` | video: rockchip: harden IEP2 lifetimes and DMA bounds | `7615b69a744a` | — |
 
 ## Renumber map (2026-07-23)
 

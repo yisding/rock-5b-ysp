@@ -55,6 +55,31 @@ validate_source() {
     "$driver" "exact result request-size validation"
   require_source_match 'min_t\(u32, task->output.dect_osd_cnt' \
     "$driver" "hardware OSD count clamp"
+  require_source_match 'IEP2 does not accept untranslated DMA addresses' \
+    "$driver" "raw-IOVA rejection"
+  require_source_match 'msgs->flags & MPP_FLAGS_REG_NO_OFFSET' \
+    "$driver" "task-local address encoding"
+  require_source_match 'span > mem_region->len - offset' \
+    "$driver" "full DMA span validation"
+  require_source_match 'spin_lock_irqsave\(&mpp->queue->running_lock' \
+    "$driver" "current-task lifetime locking"
+  require_source_match 'mpp_iommu_reserve_iova' \
+    "$driver" "auxiliary IOVA reservation"
+  require_source_match 'reserve_iova_exclusive' \
+    "$KERNEL_TREE/drivers/video/rockchip/mpp/mpp_iommu.c" \
+    "exclusive fixed-IOVA ownership"
+  require_source_match 'mpp_iommu_quiesce_fault_handler' \
+    "$KERNEL_TREE/drivers/video/rockchip/mpp/mpp_common.c" \
+    "fault callback quiescence before device exit"
+  require_source_match 'cancel_delayed_work_sync\(&mpp_task->timeout_work\)' \
+    "$KERNEL_TREE/drivers/video/rockchip/mpp/mpp_common.c" \
+    "timeout callback drain before task completion"
+  require_source_match 'rockchip_iommu_sync_fault_handler' \
+    "$KERNEL_TREE/drivers/iommu/rockchip-iommu.c" \
+    "Rockchip IOMMU fault callback synchronization"
+  require_source_match 'suppress_bind_attrs = true' \
+    "$KERNEL_TREE/drivers/video/rockchip/mpp/mpp_service.c" \
+    "MPP service hot-unbind suppression"
   require_source_match 'rockchip,iep-v2' "$base_dtsi" "RK3588 IEP2 node"
   require_source_match 'fdbb0800' "$base_dtsi" "RK3588 IEP2 IOMMU node"
   require_source_match '^&iep \{' "$board_dtsi" "ROCK 5B IEP2 enablement"
@@ -68,6 +93,9 @@ validate_source() {
       die "CONFIG_ROCKCHIP_MPP_IEP2=y is not enabled"
     "${MAKE:-make}" -C "$KERNEL_TREE" -j "${JOBS:-$(nproc)}" \
       drivers/video/rockchip/mpp/ \
+      drivers/iommu/iova.o \
+      drivers/iommu/rockchip-iommu.o \
+      drivers/iommu/vsi-iommu.o \
       rockchip/rk3588-rock-5b.dtb
     [[ -s "$KERNEL_TREE/drivers/video/rockchip/mpp/mpp_iep2.o" ]] ||
       die "mpp_iep2.o was not built"
