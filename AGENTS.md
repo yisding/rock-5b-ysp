@@ -17,6 +17,9 @@ things that differ from ordinary practice on this machine.
   `../rock-5b/build/`, using a separate subdirectory for each project or task.
   Treat that directory as disposable build state so it can be cleaned up as a
   unit; keep source checkouts and durable evidence outside it.
+- Use `ccache` whenever the compiler and build system support it. Keep the
+  shared compiler cache under `../rock-5b/build/ccache/`; bypass it only when
+  measuring uncached build time or diagnosing cache behavior.
 
 ## Native package builds
 
