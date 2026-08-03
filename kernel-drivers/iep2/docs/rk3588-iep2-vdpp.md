@@ -335,7 +335,7 @@ The principal source pins are:
 | Tree | Pin |
 |---|---|
 | Rockchip BSP kernel | `rockchip-linux/kernel` `develop-6.1@b4ef083dc0c3608e744deabb43dc6b781aadbe6e` |
-| Maintained 6.18 forward port | `rk3588-video-6.18@5b87d46eefdcbb276f1e15dd199deb6ea6b12893` |
+| Maintained 6.18 forward port | `rk3588-video-6.18@6f5bdf5c0a52c0ed3895842a73dafd585ef3324b` |
 | libmpp | `ysp/main@ad32534571564aae2ee5cca26547c3738e3366ed` |
 
 From the repository root, the local sibling trees used for the audit are
