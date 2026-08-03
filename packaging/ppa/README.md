@@ -33,8 +33,9 @@ source wrapper under
 [`gdm-hwenc/`](gdm-hwenc/README.md).
 
 The sibling [`kernel-maxline/`](kernel-maxline/README.md) workstream is
-different: it is a local, reproducible build/package track for pinned public
-and WIP maximum-mainline 7.2-rc3 integrations. It has not been uploaded to a
+different: it is a local, reproducible build/package track for public and WIP
+integrations pinned to Linux `7.2-rc6`, Torvalds `master@075b74841bd0`, with matching
+`next-20260731` validation branches. It has not been uploaded to a
 PPA, installed, booted, or hardware-validated, so it is deliberately absent
 from the live-archive table below.
 
@@ -142,7 +143,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Launchpad source-package track for the 6.18 alpha clean-room rewrite kernel. |
 | [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Launchpad source-package track for the Armbian-based 7.2-rc3 alpha clean-room rewrite kernel. |
 | [`kernel-rewrite-alpha-7.2-rc5/`](kernel-rewrite-alpha-7.2-rc5/README.md) | Launchpad source-package track for the Armbian-based 7.2-rc5 alpha clean-room rewrite kernel; supersedes the rc3 line, which keeps the last Published binaries. |
-| [`kernel-maxline/`](kernel-maxline/README.md) | Local reproducible build/package track for the pinned maximum-mainline 7.2-rc3 `public` and `wip` integrations; both build and package, but neither has passed a board boot gate. |
+| [`kernel-maxline/`](kernel-maxline/README.md) | Local reproducible build/package track for the 2026-08-02 maximum-mainline `public` and FRL-only `wip` integrations; Linus/public passes its refreshed full compile gate, while the linux-next/WIP full build was stopped by request after focused and partial-build checks passed. Refreshed packaging and board boot gates remain open. |
 | [`history/`](history/README.md) | Dated build, lintian, signing, upload, Launchpad, and retry transcripts retained as provenance rather than current-state guidance. |
 
 Generated `.dsc`, `.changes`, `.buildinfo`, orig tarballs, `.deb`, `.ddeb`, and

@@ -1,28 +1,29 @@
 # RK3588 maxline implementation and build record
 
-> Scope: RK3588 maxline `public` and `wip` Linux 7.2-rc3 integration,
-> configuration, native arm64 build, and Debian packaging for the ROCK 5B
+> Scope: 2026-08-02 RK3588 maxline `public`/`wip` refresh on Linus master and
+> linux-next, plus the retained 2026-07-17 package evidence
 > Source: this directory's [`README.md`](README.md), manifest, public/WIP
 > ledgers, exported patches, pinned configuration, and the
 > native build and package inspections recorded below
-> Date: 2026-07-17
+> Date: 2026-08-02
 > Trust: MEASURED (build/package/header results) / SOURCE-INSPECTED (integrated
 > trees and package payloads) / CONFIG-INSPECTED (pinned final configuration)
 > Board/build host: Radxa ROCK 5B, native arm64
 > Host OS: Armbian 26.5.1 / Ubuntu 26.04 (`resolute`)
 > Running recovery kernel: `6.18.38-ysp-rockchip64`
-> Result: source integration, full compile, Debian packaging, payload, and
-> external-module header checks passed; installation and hardware tests remain
-> open
+> Result: refreshed source integration and compile gates are recorded below;
+> Debian package, payload, and external-module header results remain historical
+> evidence from the superseded 2026-07-17 trees; installation and hardware
+> tests remain open
 
 ## Repository handoff
 
 Everything required to reproduce and audit the two kernel trees is in
 this [`kernel-maxline/`](README.md) directory:
 
-- `manifest.yaml` pins the upstream base, integration heads, patch/config
-  hashes, package releases, package versions, verified artifact sizes, and
-  verified artifact SHA-256 hashes.
+- `manifest.yaml` pins the upstream and linux-next bases, four integration
+  heads, patch/config hashes, intended package releases, and current
+  verification boundary.
 - `public-series.tsv` records every public mailbox, patch count, mailbox hash,
   and integration disposition.
 - `wip-donors.tsv` records every selected WIP donor commit, source URL,
@@ -35,22 +36,26 @@ this [`kernel-maxline/`](README.md) directory:
   image, DTB, and headers packages.
 
 Generated object trees and `.deb` files are intentionally ignored rather than
-committed. The manifest is the durable verification record for those binaries;
-the checked-in source deltas, configuration, and packaging reproduce them.
+committed. The checked-in source deltas, configuration, and packaging reproduce
+the refreshed source profiles; no refreshed binary package is claimed here.
 
 ## Exact source identities
 
 | Layer | Identity | Size relative to parent |
 | --- | --- | --- |
-| Base | upstream `v7.2-rc3`, `a13c140cc289c0b7b3770bce5b3ad42ab35074aa` | exact tag commit |
-| Public | `rk3588-maxline-public`, `f12fb0acf7bb923c5958e9430edd0dae93400951` | 241 commits; 169 files, 30,076 insertions, 3,724 deletions |
-| WIP | `rk3588-maxline-wip`, `74b24e96da6245ef951ec34de481b7b8a2b91d34` | 21 commits; 25 files, 2,867 insertions, 66 deletions beyond public |
+| Linus base | `origin/master`, `075b74841bd0065a3bda3440873c747938e69b68` | rechecked 2026-08-02; Makefile version `7.2.0-rc6` |
+| Public | `rk3588-maxline-public`, `e6951bc3f935427a24140421f780113a64b8a54c` | 299 commits; 192 files, 34,192 insertions, 5,790 deletions |
+| WIP | `rk3588-maxline-wip`, `73d29539f7bba7d5865680d35a291ed48bb19cd5` | 19 commits; 18 files, 1,391 insertions, 54 deletions beyond public |
+| linux-next base | `next-20260731`, `415606a7be939835db9b0d6b711887586646346d` | exact tag commit |
+| Public-next | `rk3588-maxline-public-next`, `0cae4ac6682384151b7c94c5db7f614775e0eee6` | 264 commits above linux-next |
+| WIP-next | `rk3588-maxline-wip-next`, `15a5179dc3b2318e6c56d300e2f4c74ef0a3fb7b` | 19 commits above public-next |
 
-The public tree covers 38 current public series dispositions. `applied` means
+The public tree covers 41 current public series dispositions. `applied` means
 the posted implementation was retained, `upstream` means the relevant current
 implementation was already in the base, and `reconciled` means the feature was
 ported or combined with overlapping work. The WIP ledger records 25 Collabora
-donor commits plus the public VDPU381 VP9 proof-of-concept commit. Only selected
+donor commits. Public VDPU381 VP9 v1 moved to the public ledger and the old
+private donor was removed. Only selected
 non-debug feature work is retained; CI, debug, hack, and unrelated board work
 from the Collabora integration branch is excluded.
 
@@ -58,15 +63,15 @@ The exported deltas are pinned as follows:
 
 | File | SHA-256 |
 | --- | --- |
-| `patches/maxline-public.patch` | `735564cc1c2bc38e7b5e44a4a38e9dca716d674fedf6855115ad23d65a5e55bb` |
-| `patches/maxline-wip.patch` | `77db87059b51b42385561921f56918f2adca4b2f372bddbf7758f3f68a495608` |
-| `config/arm64-rockchip64.config` | `2482e7cb8117c01aae3d0abc85c7538a929d4bcfc1a5e68447a1c62dd8efb78a` |
+| `patches/maxline-public.patch` | `c663b04221cfd270fa1ec0a8b1254ec0653638351b737c122256d33d92a120a3` |
+| `patches/maxline-wip.patch` | `89cd7bb62bd194bc0fcffe494f4e2aa4b42c4197f2f9e04885b06673eb242dcf` |
+| `config/arm64-rockchip64.config` | `a571b504f7bdf7aa3db37c7097390a9a2781561852af4587d0476b5ed9cf2450` |
 
 For public mail, an exact lore raw-mail URL can be reconstructed as
 `https://lore.kernel.org/all/<first_message_id>/raw`; the ledger hash verifies
-the downloaded mailbox. Several inputs are newer than the copied Collabora
-status prose, including USBDP v13, PCI port reset v8, V4L2 tracepoints v2, and
-V4L2 fdinfo v3.
+the downloaded mailbox. The 2026-08-02 refresh and its revised/new series are
+listed in the
+[`proposal finding`](../../../findings/2026-08-02-rk3588-maxline-proposal-refresh.md).
 
 ## Material integration work
 
@@ -79,7 +84,7 @@ patches:
   metrics, and fdinfo behavior.
 - The overlapping VOP2 reset, forced-format, HDMI scrambling, 10-bit YUV,
   SCDC, overscan, and HPD changes were reduced to one implementation of each
-  behavior against the 7.2 DRM APIs.
+  behavior against the current DRM APIs.
 - DW DisplayPort runtime PM, audio, OOB HPD, reference-lifetime fixes, and DT
   compatibility were ported to the current layouts.
 - Rockchip PCIe system PM was ported after the generic PCI reset and wake work.
@@ -93,8 +98,15 @@ patches:
 - The WIP FRL port preserves the public HDMI 2.0/YUV/SCDC stack while adding
   FRL training, rate selection, PHY mode/TxFFE control, VOP ACLK scaling, and
   ROCK 5B FRL-enable GPIO handling.
-- The VDPU381 VP9 proof of concept was ported to the public multicore RKVDEC
-  device model and its required shared VP9 layout was restored.
+- Public VDPU381 VP9 v1 replaces the former private WIP donor and is integrated
+  with the public multicore RKVDEC device model.
+- The linux-next replay keeps its `atomic_create_state` bridge API while
+  retaining DW-DP v8 bus-format negotiation and omits exact equivalents already
+  accepted in DRM, USB, and media integration trees. Its forced-color replay
+  removes a duplicate color-format helper already supplied by the next base.
+- HDMI v10's connector-state creation is ported to Linus's `reset` callback;
+  its OOB-HPD walk uses Linus's scoped bridge iterator, while the linux-next
+  endpoint retains its newer state-creation and iterator APIs.
 
 ## Configuration result
 
@@ -107,6 +119,7 @@ CONFIG_DRM_ACCEL_ROCKET=m
 CONFIG_DRM_PANTHOR=m
 CONFIG_DRM_ROCKCHIP=y
 CONFIG_PHY_ROCKCHIP_SAMSUNG_HDPTX=m
+CONFIG_PHY_ROCKCHIP_SAMSUNG_DCPHY=m
 CONFIG_PHY_ROCKCHIP_USBDP=y
 CONFIG_ROCKCHIP_DW_DP=y
 CONFIG_ROCKCHIP_DW_HDMI_QP=y
@@ -126,7 +139,9 @@ CONFIG_VSI_IOMMU=y
 
 ## Build environment and commands
 
-The verified build used 8 native arm64 jobs with:
+The 2026-08-02 refresh ran two concurrent four-job native arm64 builds with the
+system toolchain path required by this repository. These standalone compile
+gates invoked GCC directly and did not use ccache. The same host reports:
 
 ```text
 gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
@@ -137,15 +152,58 @@ pahole 1.31
 git 2.55.0
 ```
 
-The standalone reproduction commands are:
+The refreshed compile commands, after copying the pinned config and running
+`olddefconfig` in each object directory, are:
+
+```bash
+maxline_refresh="$PWD/packaging/ppa/out/maxline/refresh-20260802"
+PATH=/usr/sbin:/usr/bin:/sbin:/bin make \
+  --jobserver-style=pipe \
+  -C "$maxline_refresh/worktrees/mainline" \
+  O="$maxline_refresh/builds/linus-public" \
+  -j4 Image modules dtbs
+PATH=/usr/sbin:/usr/bin:/sbin:/bin make \
+  --jobserver-style=pipe \
+  -C "$maxline_refresh/worktrees/wip-next" \
+  O="$maxline_refresh/builds/next-wip" \
+  -j4 Image modules dtbs
+```
+
+## Current 2026-08-02 compile results
+
+The Linus/public command exited successfully, and an immediate incremental
+rerun also exited successfully. These are raw, unstripped build-tree artifacts,
+not packaged payload sizes:
+
+| Result | Linus/public |
+| --- | ---: |
+| Kernel release | `7.2.0-rc6+` |
+| `Image` bytes | 39,119,360 |
+| `vmlinux` bytes | 462,354,488 |
+| ROCK 5B DTB bytes | 198,298 |
+| Built modules | 3,489 |
+| `rockchip-vdec.ko` bytes | 5,984,984 |
+
+`rockchip-vdec.ko` exports `rkvdec_vdpu381_vp9_fmt_ops`, confirming the new
+public VDPU381 VP9 backend is present in the completed module.
+
+The linux-next/WIP build first ran at four jobs, then resumed incrementally at
+eight jobs after Linus completed. Focused builds had already passed for the
+VDPU381 VP9 object and the next-only RKISP2 buffer-size helper port. The broad
+build subsequently compiled the refreshed Rockchip PHY, PCIe, VOP2/DRM,
+DW-DP, and HDMI paths without error. It was stopped at the user's request
+before final link, so it has no successful full-build exit status or final
+artifact measurements.
+
+The standalone Debian package reproduction commands are:
 
 ```bash
 packaging/ppa/kernel-maxline/build-kernel.sh public
 packaging/ppa/kernel-maxline/build-kernel.sh wip
 ```
 
-The completed compile checkpoint was also exercised through the package
-builder's guarded reuse path:
+The superseded 2026-07-17 compile checkpoint was also exercised through the
+package builder's guarded reuse path:
 
 ```bash
 MAXLINE_BUILD_DIR=packaging/ppa/out/maxline/build-public-check \
@@ -165,9 +223,10 @@ not depend on checkpoint objects: it archives the pinned base, applies the
 checked-in deltas, installs the checked-in config and Debian packaging, and
 performs the full build.
 
-## Compile and payload results
+## Historical 2026-07-17 compile and payload results
 
-Both profiles passed `Image modules dtbs` and a binary Debian package build.
+The superseded `v7.2-rc3` profiles passed `Image modules dtbs` and a binary
+Debian package build. These sizes do not describe the 2026-08-02 refresh.
 
 | Result | Public | WIP |
 | --- | ---: | ---: |
@@ -196,7 +255,7 @@ The WIP `rockchip-vdec.ko` symbol table contains
 `dw_hdmi_qp_rk3588_set_frl_rate`. These checks prove that the ported objects
 were linked, not that the corresponding hardware paths work.
 
-## Debian artifacts
+## Historical 2026-07-17 Debian artifacts
 
 Public package version:
 `7.2.0~rc3+rk3588maxlinepublic20260717-0ubuntu1`.
@@ -234,7 +293,7 @@ The installed layout was verified inside the packages:
 /usr/src/linux-headers-$release
 ```
 
-## Verification performed
+## Historical 2026-07-17 verification performed
 
 The final source/package checks were:
 
@@ -276,18 +335,20 @@ future revision of the RK3588 crypto series.
 
 ## Explicit boundary and next action
 
-Neither package set has been installed or booted. There is no claim yet for
+No refreshed package set exists, and no maxline package has been installed or
+booted. There is no claim yet for
 NVMe/root survival, Ethernet, USB, PCIe, suspend, display, audio, camera,
 codec, NPU, crypto, CAN, HDMI-RX, FRL, or VP9 runtime behavior.
 
-Install `public` first while retaining the 6.18 packages and recovery access.
+Build and inspect refreshed `public` packages, then install them first while
+retaining the 6.18 packages and recovery access.
 Keep the existing `snd_soc_hdmi_codec` blacklist for the survival boot, then
 test the public platform/display/DP/media gates in the order documented in the
-main finding. Install `wip` only after public is recoverable and understood;
-test FRL and VP9 last.
+main finding. Test public VP9 after the platform gates. Install `wip` only after
+public is recoverable and understood; test FRL last.
 
 No-code status TODOs remain outside the possible build: HDMI 8K/ARC/HDCP, DMC
-frequency scaling, Samsung CSI DCPHY, VICAP DVP/scaler, IEP2, unpublished
+frequency scaling, VICAP DVP/scaler, IEP2, unpublished
 codec formats, and missing board/sensor descriptions. FRL compilation alone
 does not satisfy the separate 8K TODO, and the upstream-oriented kernel does
 not provide Rockchip BSP userspace ABIs.

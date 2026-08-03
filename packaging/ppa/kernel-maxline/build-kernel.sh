@@ -9,12 +9,12 @@ usage() {
 profile="${1:-}"
 case "$profile" in
 	public)
-		package_version="7.2.0~rc3+rk3588maxlinepublic20260717-0ubuntu1"
-		integration_commit="f12fb0acf7bb923c5958e9430edd0dae93400951"
+		package_version="7.2.0~rc6+git20260802+rk3588maxlinepublic-0ubuntu1"
+		integration_commit="e6951bc3f935427a24140421f780113a64b8a54c"
 		;;
 	wip)
-		package_version="7.2.0~rc3+rk3588maxlinewip20260717-0ubuntu1"
-		integration_commit="74b24e96da6245ef951ec34de481b7b8a2b91d34"
+		package_version="7.2.0~rc6+git20260802+rk3588maxlinewip-0ubuntu1"
+		integration_commit="73d29539f7bba7d5865680d35a291ed48bb19cd5"
 		;;
 	*)
 		usage
@@ -27,7 +27,7 @@ kernel_git="${MAXLINE_KERNEL_GIT:-$(dirname "$repo_root")/kernel/linux}"
 output_dir="${MAXLINE_OUTPUT_DIR:-$repo_root/packaging/ppa/out/maxline/package-$profile}"
 jobs="${MAXLINE_JOBS:-$(nproc)}"
 source_dir="$output_dir/linux-rockchip64-ysp-maxline-$profile"
-base_commit="a13c140cc289c0b7b3770bce5b3ad42ab35074aa"
+base_commit="075b74841bd0065a3bda3440873c747938e69b68"
 reuse_build_dir="${MAXLINE_BUILD_DIR:-}"
 reuse_source_dir="${MAXLINE_SOURCE_DIR:-}"
 
@@ -36,9 +36,9 @@ if [[ ! -d "$kernel_git/.git" && ! -f "$kernel_git/.git" ]]; then
 	exit 1
 fi
 
-resolved_base="$(git -C "$kernel_git" rev-parse 'v7.2-rc3^{commit}')"
+resolved_base="$(git -C "$kernel_git" rev-parse "$base_commit^{commit}")"
 if [[ "$resolved_base" != "$base_commit" ]]; then
-	echo "v7.2-rc3 resolved to $resolved_base, expected $base_commit" >&2
+	echo "base commit resolved to $resolved_base, expected $base_commit" >&2
 	exit 1
 fi
 

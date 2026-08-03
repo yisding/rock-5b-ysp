@@ -7,6 +7,8 @@
 > [`public-series.tsv`](public-series.tsv), and
 > [`wip-donors.tsv`](wip-donors.tsv) are the exact implemented inputs; the
 > dated drift boundary is tracked in [`status.md` W17](../../../status.md#watch-w17).
+> The 2026-08-02 revisions, acceptances, and rebase decisions are recorded in
+> the [`refresh finding`](../../../findings/2026-08-02-rk3588-maxline-proposal-refresh.md).
 
 > Scope: ROCK 5B; Ubuntu 26.04 / Armbian 26.5.1; upstream Linux and all
 > publicly available RK3588 proposal series known on 2026-07-17

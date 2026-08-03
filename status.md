@@ -41,7 +41,7 @@ separate table below so both remain scannable.
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
-| 13 | Maximum-mainline kernel | 🚧 The pinned upstream 7.2-rc3 `public` and `wip` integrations are reproducible and pass native kernel/package/payload/header checks. Neither has been installed, booted, or hardware-tested. | 2026-07-17 | [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
+| 13 | Maximum-mainline kernel | 🚧 **2026-08-02:** refreshed `public`/`wip` sources pin Linux `7.2-rc6`, Torvalds `master@075b74841bd0`; matching validation branches pin `next-20260731@415606a7be93`. Revised proposals and subsystem-next acceptances are reconciled. Linus/public passes the full native compile gate; linux-next/WIP focused and partial-build checks pass, but its full build was stopped by request. Refreshed packages, boot, and hardware validation remain open. | 2026-08-02 | [refresh audit](./findings/2026-08-02-rk3588-maxline-proposal-refresh.md), [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
 | 14 | Desktop-app HW video (browsers) | 🚧 Installed, payload-matched driver/config `1.0.11+ysp8-0ubuntu1~rk1` are green through the guarded safe decode matrix, zero-copy/concurrent/mixed gates, 10-bit P010 decode above 60 fps, H.264/HEVC encode, imports/multi-slice, GStreamer VA readback, and isolated-Mutter presentation in installed VLC, mpv, and Firefox for H.264, HEVC Main, VP9 Profile 0, HEVC Main10, and VP9 Profile 2. Firefox's 10-bit planes import correctly, superseding the former invalid-`GR16` failure, but the run disabled the RDD sandbox. The one `rk_vcodec cmd 100 ret -22` pair is root-caused to libmpp probing unavailable optional IEP2 deinterlacing; MPP disables it and the interlaced H.264 clip remains bit-exact. RK3588 has IEP2 hardware but the YSP 6.18 port omits its driver/DT nodes; RK3588 has no VDPP instance. The production forward-port/vendor RGA3 path passes 90/90 runs and 4,320/4,320 exact frames at each formerly suspect small geometry, including both RGA3 cores; the silent dropped write remains rewrite-driver-specific. Exact Published MPP/FFmpeg sweep/sanitizer/soak history remains valid. Open: ysp8 was built from a dirty worktree over `main@aee5926`, the risky VP9 vector is fingerprint-quarantined, CMA is 256 rather than 512 MiB, and sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image install, and release remain. | 2026-08-02 | [installed ysp8 validation](./findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md), [forward-port RGA discriminator](./findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md), [IEP2 source audit](./findings/2026-08-02-rk3588-iep2-vdpp-source-audit.md), [`rockchip-vaapi` project](./video-libraries/vaapi/README.md) |
 | 15 | CPU voltage binning (PVTM/eFuse) | ❌ No patch, branch, or build exists. The board's BSP-selected L5/L7/L7 voltage columns are measured and materially lower than mainline's worst-die table below 2.4 GHz; the two-track port plan is gated by cold-boot, SRAM-margin, and shared-DSU-rail validation. | 2026-07-27 | [port plan](./kernel-versions/docs/pvtm-opp-binning-plan.md), [measured index](./findings/2026-07-27-rk3588-pvtm-volt-sel-measured.md) |
 
@@ -66,7 +66,7 @@ dashboard date and ledger row when public state changes.
 | 10 | Binary publishing | Choose and record the repository-wide license required before a public release. | [license decision boundary](./LICENSE.md) |
 | 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. | [Kodi tty1 runbook](./apps/kodi/docs/build-hwaccel.md#5-test-on-tty1-gbm-needs-drm-master) |
 | 12 | ROCK 5B SD/SPI boot chain | Substitute the 26.5.1 `current` FIT, loader, and then both on a captured 26.2.1 SD baseline; record where each boot stops or succeeds. | [raw-SD hypothesis test](./scripts/README.md#rock-5b-raw-sd-u-boot-hypothesis-test) |
-| 13 | Maximum-mainline kernel | Install `public` first with serial recovery and the known-good 6.18 packages retained; prove boot, storage, network, display, suspend, and rollback before `wip`. | [recovery-first test order](./packaging/ppa/kernel-maxline/README.md#install-and-test-order) |
+| 13 | Maximum-mainline kernel | Build and inspect refreshed `public` packages, then install with serial recovery and the known-good 6.18 packages retained; prove boot, storage, network, display, suspend, and rollback before `wip`. | [recovery-first test order](./packaging/ppa/kernel-maxline/README.md#install-and-test-order) |
 | 14 | Desktop-app HW video (browsers) | Rebuild/publish the driver from a clean pushed source identity, configure the intended 512 MiB CMA, and repeat the installed safe matrix; then run Firefox with the RDD sandbox enabled and mpv Main10/HDR on a physical output. Keep the risky VP9 vector fingerprint-gated; runtime-verifying the rewrite RGA ordering fix is a separate rewrite-track gate. | [Installed ysp8 boundary](./findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md#next-gate), [forward-port RGA discriminator](./findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md) |
 | 15 | CPU voltage binning (PVTM/eFuse) | Boot a non-PPA static L5/L7 board override and prove each policy's selected rail voltage under verified compute load, including cold-boot and data-integrity checks. | [validation plan](./kernel-versions/docs/pvtm-opp-binning-plan.md#5-validation-plan-both-tracks), [measured baseline](./findings/2026-07-27-rk3588-pvtm-volt-sel-measured.md) |
 
@@ -103,7 +103,7 @@ last-checked date.
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
 | W15 | [RGA session-close fix vs. the frozen import](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0039`; frozen base patch still has the old path. |
 | W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-08-02 | The exported tail is contiguous `0001`–`0087` at public GitHub tip `5b87d46eefdcb`. Signed `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1` passed patch-only/source-provenance checks; source `18654047`, binaries `247715541`–`247715543`, and build `33461848` are Published/successful, while all seven-tail runtime gates remain pending. |
-| W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-07-17 | The build is reproducible at pinned inputs; any claim about the broadest current public proposal set requires a deliberate manifest refresh. |
+| W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-08-02 | Refreshed against current proposal mail, Torvalds master, linux-next, and subsystem-next refs; future “maximum current” claims still require another deliberate audit. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-08-02 | Fork and local HEAD are `main@aee5926`; upstream remains `e8c64dd`. Installed driver/config are payload-matched ysp8 and broadly green, including five-codec VLC/mpv/Firefox virtual-display coverage. The production forward-port RGA3 small-geometry discriminator is clean across 11,348 exact displayed frames; the prior silent-write failure is rewrite-specific. The package came from a dirty worktree over `aee5926`, so the external fork still lacks a clean source identity for the installed payload. Firefox sandbox, physical HDR, risky-vector fingerprint, 512 MiB CMA, Chromium, clean-image, and release gates remain. |
 | W19 | [MPP `INIT_CLIENT_TYPE` double-call → use-after-free](#watch-w19) | 2026-07-24 | **Root-caused, reproduced, escalated to a UAF, fix committed as `0069`** (`-EBUSY` re-init guard). Two `INIT_CLIENT_TYPE` ioctls persistently corrupt `queue->session_attach`; a *later* single unprivileged INIT then reads a **freed `struct mpp_session`** (KASAN slab-use-after-free), so it is memory-corruption, not a mere WARN. BSP-identical, untouched by `0058`-`0068`. **Gate CLOSED 2026-07-24:** the reproducer returns `errno=16` (`EBUSY`) on the booted `#8` KASAN build carrying the fix, and that tail passed full conformance on the Published production kernel. |
 | W20 | [Intermittent Plymouth initramfs-daemon boot stall](#watch-w20) | 2026-07-23 | **CSI-loop attribution falsified as sole cause:** the stall recurred on 2026-07-23 with the patched `~rk1` package binary-verified in the booted initramfs (identical fingerprint, no `SIGRTMIN+20`). Boot-transaction mechanism reconfirmed; internal daemon wedge unknown again. Mitigation `plymouth.enable=0` still unapplied; next hang needs a live `plymouthd` stack via `debug-shell.service` instead of a reset. |
@@ -550,15 +550,20 @@ last-checked date.
   branches move independently. The checked-in profiles remain reproducible,
   but "maximum current public support" becomes stale without changing this
   repository.
-- **Last checked:** 2026-07-17
-- **State then:** The exact upstream `v7.2-rc3` base, public integration
-  `f12fb0acf7bb`, WIP integration `74b24e96da62`, 38 public series
-  dispositions, and 26 WIP donors were pinned in
+- **Last checked:** 2026-08-02
+- **State 2026-08-02:** Linux `7.2-rc6`, Torvalds `master@075b74841bd0`,
+  `next-20260731@415606a7be93`, public `e6951bc3f935`, WIP
+  `73d29539f7bb`, public-next `0cae4ac66823`, WIP-next `15a5179dc3b2`,
+  41 public dispositions, and 25 WIP donors are pinned in
   [`manifest.yaml`](packaging/ppa/kernel-maxline/manifest.yaml),
   [`public-series.tsv`](packaging/ppa/kernel-maxline/public-series.tsv), and
-  [`wip-donors.tsv`](packaging/ppa/kernel-maxline/wip-donors.tsv). Both profiles
-  compiled and packaged; neither booted. Refresh those ledgers and preserve the
-  old identities before claiming a newer proposal set.
+  [`wip-donors.tsv`](packaging/ppa/kernel-maxline/wip-donors.tsv). The audit
+  found revised HDMI, DW-DP, SCDC, HDPTX, HDMI-RX, and CAN series; new public
+  VP9, DCPHY, and N/CTS work; plus DRM, USB, media, and PHY acceptance changes.
+  Linus/public passes its full compile gate; linux-next/WIP has focused and
+  partial-build evidence, but its full build was stopped by request. Debian
+  packaging and all hardware validation remain open; re-audit before claiming
+  a later proposal maximum.
 
 <a id="watch-w18"></a>
 ### W18 — rockchip-vaapi fork state

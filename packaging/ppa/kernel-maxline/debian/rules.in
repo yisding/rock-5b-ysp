@@ -5,7 +5,7 @@ include /usr/share/dpkg/default.mk
 export ARCH := arm64
 export KBUILD_BUILD_USER := build
 export KBUILD_BUILD_HOST := rock-5b-ysp
-export KBUILD_BUILD_TIMESTAMP := Fri, 17 Jul 2026 12:00:00 -0700
+export KBUILD_BUILD_TIMESTAMP := Sun, 02 Aug 2026 12:00:00 -0700
 
 KERNEL_BRANCH := ysp-maxline-@PROFILE@
 KERNEL_FAMILY := rockchip64

@@ -3,12 +3,14 @@
 The short version is that maxline is a **mainline enablement kernel**, not a
 newer copy of the working Armbian kernel:
 
-- `maxline-public` starts at the exact upstream `v7.2-rc3` source and adds the
-  current public RK3588 proposals that had not landed there.
-- `maxline-wip` adds experimental HDMI 2.1 FRL controller support and VDPU381
-  VP9 decoding on top of `maxline-public`.
-- Neither profile has booted on the ROCK 5B yet. Both compile and package, but
-  every hardware result is still unknown.
+- `maxline-public` starts at Linux `7.2-rc6`, Torvalds `master@075b74841bd0`, rechecked on
+  2026-08-02 and adds the pinned public RK3588 proposals not present there.
+- `maxline-wip` adds experimental HDMI 2.1 FRL controller support on top of
+  `maxline-public`; VDPU381 VP9 is now part of the public profile.
+- Neither profile has booted on the ROCK 5B. Linus/public passes its full
+  compile gate; linux-next/WIP has focused and partial-build evidence but its
+  full build was stopped by request. There is no refreshed Debian package or
+  hardware result.
 - Maxline does not carry the private Rockchip MPP and RGA interfaces used by
   this project's hardware-validated 6.18 media kernel.
 
@@ -24,7 +26,7 @@ The three reference kernels answer different questions:
 | --- | --- | --- |
 | Armbian 6.18 | The working ROCK 5B distribution and board-integration baseline. This project's combined 6.18 build also has hardware-validated private MPP/RGA support. | Upstream RK3588 work from 6.19 through 7.2, followed by the maxline proposal queue. It does **not** retain the private MPP/RGA userspace contract. |
 | Ubuntu 26.04 kernel 7.0 | Ubuntu's default generic kernel generation for 26.04. Ubuntu records that Resolute ships with 7.0 and publishes a generic arm64 build. It is a distribution/version reference here, not a ROCK 5B kernel that this project has boot-tested. | RK3588 changes merged in upstream 7.1 and 7.2, followed by the maxline proposal queue. Ubuntu-specific security, configuration, and packaging changes are not inherited because maxline starts from Torvalds' tree. |
-| Upstream `v7.2-rc3` | The exact source base of both maxline profiles. | Only the checked-in maxline deltas described below. |
+| Linux `7.2-rc6`, Torvalds `master@075b74841bd0` | The exact 2026-08-02 source base of both packaged maxline profiles. | Only the checked-in maxline deltas described below. |
 
 The Ubuntu references are the [Resolute 7.0 transition
 record](https://bugs.launchpad.net/ubuntu/+source/zfs-linux/+bug/2142758) and
@@ -54,21 +56,21 @@ These are inherited from upstream and are **not** maxline-authored additions:
 This upstream layer is why maxline has useful gains over the 6.18 and 7.0
 version baselines even before its own patch is applied.
 
-## What `maxline-public` adds beyond upstream 7.2-rc3
+## What `maxline-public` adds beyond the pinned upstream snapshot
 
-The public ledger contains 38 proposal entries. Seven were already in
-7.2-rc3 and are recorded only for provenance. The actual delta integrates 31
-not-yet-upstream series: 20 applied directly and 11 reconciled where proposals
-overlapped or needed porting. Their combined, reviewable tree is 241 commits
-above `v7.2-rc3`.
+The public ledger contains 41 proposal entries. Eight are already in the
+pinned Linus base and are recorded only for provenance. The actual delta
+integrates 33 not-yet-Linus series: 21 applied directly and 12 reconciled where
+proposals overlap or need porting. Their combined tree is 299 commits above
+`075b74841bd0`.
 
 | Area | Code added by maxline | What that means on the ROCK 5B |
 | --- | --- | --- |
 | Dual HDMI output | HDMI 2.0 SCDC scrambling and high-TMDS operation intended for 4K60, 10-bit YUV422/YUV420, forced color formats, overscan, link-health diagnostics, HDMI PHY clock fixes, and VOP2 multi-output, reset, and YUV-background fixes | The existing two HDMI outputs are described and enabled in the upstream ROCK 5B device tree, so these patches extend a real board path. No mode, cable, monitor, audio, or hot-plug behavior has been hardware-tested with maxline yet. |
 | USB-C and DisplayPort | A large USBDP PHY cleanup, better lane/orientation/reinitialization handling, USB3/DP coexistence work, DW DisplayPort runtime power, audio and out-of-band hot-plug support, plus a Type-C AltMode negotiation race fix | The driver and PHY prerequisites compile, but maxline does not change the ROCK 5B device tree. Its FUSB302 Type-C controller remains marked `status = "fail"`, and the board DisplayPort route is not enabled. This is code availability, not working ROCK 5B DP AltMode. |
-| Video decode and RGA | VDPU381 H.264/H.265 fixes and multicore scheduling, RGA3 parallel/multicore scheduling, shared scheduler integration, tracepoints, and per-file hardware-use statistics | The RK3588 decoder and RGA blocks are described by the upstream SoC tree and the drivers compile. These are mainline V4L2 and mainline RGA interfaces, not Rockchip's private MPP service or `librga` ABI. |
+| Video decode and RGA | VDPU381 H.264/H.265 fixes, public VP9 v1, multicore scheduling, RGA3 parallel/multicore scheduling, shared scheduler integration, tracepoints, and per-file hardware-use statistics | The RK3588 decoder and RGA blocks are described by the upstream SoC tree and the drivers compile. These are mainline V4L2 and mainline RGA interfaces, not Rockchip's private MPP service or `librga` ABI. |
 | NPU | Rocket-driver support for standalone DPU/PPU tasks and pipelined workloads | All three NPU cores are enabled by the upstream ROCK 5B device tree and the enhanced Rocket driver compiles. Workloads have not been run on this build. |
-| Camera and ISP | The RKISP2 ISP driver, statistics and parameter paths, a shared RKCIF/VICAP/ISP media graph, and CSI D-PHY tuning up to 2.5 Gbit/s | The patch adds RK3588 ISP nodes, but leaves them disabled. The ROCK 5B tree has no sensor endpoints or board camera pipeline for them, and the needed libcamera pipeline/IPA is separate userspace work. This does not yet produce a usable camera. |
+| Camera and ISP | The RKISP2 ISP driver, statistics and parameter paths, a shared RKCIF/VICAP/ISP media graph, CSI D-PHY tuning up to 2.5 Gbit/s, and Samsung CSI DCPHY receiver support | The patch adds RK3588 ISP/DCPHY code and SoC descriptions, but the ROCK 5B tree has no sensor endpoints or board camera pipeline for them. The needed libcamera pipeline/IPA is separate userspace work. This does not yet produce a usable camera. |
 | HDMI input | Audio capture support for the existing Synopsys HDMI receiver | The board already enables HDMI input. Maxline adds the proposed audio side, but neither capture nor interaction with HDMI output has been tested. |
 | PCIe and NVMe | System suspend/resume support, WAKE# handling, root-port/slot recovery after a lost link, and Naneng combo-PHY errata fixes | The ROCK 5B PCIe/NVMe ports already exist in its device tree, so this is intended to improve real board paths. Suspend, wake, link recovery, and NVMe integrity remain untested. |
 | I2C | SCL debounce and bus-recovery improvements | A robustness improvement for RK3588 I2C buses; compiled but not exercised on the board. |
@@ -77,25 +79,22 @@ above `v7.2-rc3`.
 
 Neither maxline profile changes `rk3588-rock-5b.dts`,
 `rk3588-rock-5b.dtsi`, or the shared ROCK 5B/5B+/5T device-tree file relative
-to `v7.2-rc3`. Their board effect comes from improving drivers used by
+to the pinned base. Their board effect comes from improving drivers used by
 existing ROCK 5B nodes. New camera, crypto, and CAN nodes are SoC descriptions
 left disabled unless a board device tree explicitly wires and enables them.
 
 ## What `maxline-wip` adds
 
-The WIP profile is 21 commits above `maxline-public` and adds two experimental
-features:
+The WIP profile is 19 commits above `maxline-public` and adds one experimental
+feature:
 
 - The HDMI controller half of Fixed Rate Link: SCDC link training, FRL rate
   selection, VOP bandwidth-clock scaling, PHY mode switching, and transmitter
   feed-forward-equalization control. This joins the FRL PHY support already in
   Linux 7.0 and the ROCK 5B enable GPIOs already in 7.2. It does not complete
   the separate HDMI 8K, ARC, or HDCP work.
-- A public proof of concept for VP9 decoding on VDPU381, ported onto the
-  public profile's multicore decoder model.
-
-Both features are present in the compiled objects. Neither has run on this
-board, so WIP means “available for bring-up,” not “supported hardware.”
+The FRL code is present in the compiled objects. It has not run on this board,
+so WIP means “available for bring-up,” not “supported hardware.”
 
 ## What maxline deliberately does not promise
 
@@ -113,15 +112,16 @@ board, so WIP means “available for bring-up,” not “supported hardware.”
 
 ## Evidence and recommended use
 
-Both profiles passed `Image modules dtbs`, Debian image/DTB/headers packaging,
-and an external-module headers smoke test. That proves source integration and
-package construction only.
+The refreshed Linus/public and linux-next/WIP trees passed the source compile
+gates recorded in [`verification.md`](verification.md). The Debian package and
+external-module headers results are from the superseded 2026-07-17 profiles;
+they prove the packaging mechanism, not refreshed package artifacts.
 
 - Keep the combined Armbian 6.18 kernel for the known-working private
   MPP/RGA media stack and as the rollback kernel.
 - Try `maxline-public` first for mainline RK3588 bring-up and validation.
 - Try `maxline-wip` only after the public profile is understood, and only when
-  testing FRL or VDPU381 VP9.
+  testing FRL. VDPU381 VP9 should first be tested on `public`.
 
 The exact source identities and build results are in
 [`manifest.yaml`](manifest.yaml). Every public input and its disposition is in

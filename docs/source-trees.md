@@ -28,6 +28,7 @@ The paths below name that current location, while `rock-5b-ysp`,
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../rock-5b/kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
 | 12 | Mesa MR !43161 benchmark tree | [fixed-clock benchmark finding](../findings/2026-07-28-mesa-blit-benchmark-timing-boundary.md), [Mesa reproducer runbook](../video-libraries/mesa/reproducers/README.md) | Mesa MR commit `647256dc2ae` + tracked benchmark override patch; local branch tip `6000414f9ea`, see §12 |
 | 13 | Current mainline/media-next/maxline codec audit | [driver quality comparison](../kernel-drivers/docs/driver-architecture-comparison.md#12-current-mainline-and-maxline-rockchip-codec-audit-2026-07-30) | Torvalds `3708dd948844`, prepared mainline fixes `c28b6586f74f`, media `next@a52e6f7923c1`, maxline public `f12fb0acf7bb`, maxline WIP `74b24e96da62`, and VDPU381 VP9 donor `6f0159ae61a89`; see §13 |
+| 14 | 2026-08-02 maxline refresh | [proposal/rebase finding](../findings/2026-08-02-rk3588-maxline-proposal-refresh.md), [maxline package source](../packaging/ppa/kernel-maxline/README.md) | Torvalds `075b74841bd0`, `next-20260731@415606a7be93`, public `e6951bc3f935`, WIP `73d29539f7bb`, public-next `0cae4ac66823`, and WIP-next `15a5179dc3b2`; see §14 |
 
 ---
 
@@ -771,3 +772,33 @@ The mainline findings anchor in
 findings use the public branch's `rkvdec.c`; the VP9 scale and arithmetic
 findings use WIP file
 `drivers/media/platform/rockchip/rkvdec/rkvdec-vdpu381-vp9.c`.
+
+## 14. 2026-08-02 maxline refresh trees
+
+The current package inputs and linux-next validation branches share the Linux
+object store at `/home/yi/Code/rock-5b/kernel/linux`. The absolute path records
+provenance only; the branches are public and the packaged Linus deltas are
+checked into this repository.
+
+| Ref | Pin | Role |
+|-----|-----|------|
+| `origin/master` | `075b74841bd0065a3bda3440873c747938e69b68` | Torvalds base rechecked 2026-08-02; Linux 7.2-rc6 |
+| `linux-next/master` / `next-20260731` | `415606a7be939835db9b0d6b711887586646346d` | linux-next validation base |
+| `rk3588-maxline-public` | `e6951bc3f935427a24140421f780113a64b8a54c` | refreshed packaged public source |
+| `rk3588-maxline-wip` | `73d29539f7bba7d5865680d35a291ed48bb19cd5` | refreshed packaged FRL WIP source |
+| `rk3588-maxline-public-next` | `0cae4ac6682384151b7c94c5db7f614775e0eee6` | public stack replayed on linux-next |
+| `rk3588-maxline-wip-next` | `15a5179dc3b2318e6c56d300e2f4c74ef0a3fb7b` | FRL WIP replayed on public-next |
+
+Subsystem acceptance was checked at DRM misc
+`for-linux-next@bc47d5937f21`, media pending
+`next@31152f5b0f87`, PHY `next@ee6aa0f01d4e`, and USB
+`usb-next@5d5fd841c346`. Exact proposal message IDs and mailbox hashes are in
+[`public-series.tsv`](../packaging/ppa/kernel-maxline/public-series.tsv); the
+stable conflict and acceptance record is the
+[`refresh finding`](../findings/2026-08-02-rk3588-maxline-proposal-refresh.md).
+
+Reconstruct the packaged profiles without the external branches by archiving
+the manifest's exact Linus base and applying
+`patches/maxline-public.patch`, followed by `patches/maxline-wip.patch` for the
+WIP profile. Use the published branches when reproducing linux-next because
+those deltas are validation refs, not package inputs.
