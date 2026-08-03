@@ -136,11 +136,12 @@ No BSP-kernel A/B was run. That Rockchip's BSP actually registers
 kernel — but the mainline half of the comparison is measured, and it is the half
 that matters here.
 
-Only 320x240 I5O2 was exercised. Untested: I1O1T at the 1080p
-auxiliary-mapping boundary, negative/invalid-input rejection, racing two address
-encodings on one session, close-versus-completion and timeout stress,
-buffer-import churn, and any longer soak. The clean KASAN result covers the
-exercised path only.
+This finding covers the 320x240 I5O2 run only. The remaining runtime gates —
+1080p span boundary, decoder vproc path, I1O1T, negative-input rejection,
+address-encoding race, and teardown/churn stress — were run afterwards and are
+recorded in the
+[safety review](../kernel-drivers/iep2/docs/forward-port-safety-review.md).
+The software timeout path is still unexercised.
 
 ## Evidence and reproduction
 

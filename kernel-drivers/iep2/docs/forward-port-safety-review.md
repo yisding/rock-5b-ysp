@@ -319,24 +319,43 @@ reproducible across runs — and a three-arm A/B root-caused it to Rockchip's
 the driver. See the
 [runtime finding](../../../findings/2026-08-03-rk3588-iep2-nondeterministic-output.md).
 
-### Still required on the ROCK 5B
+### Runtime gates, all cleared 2026-08-03
 
-- run the real decoder vproc path (the standalone `iep2_test` path is done);
-- exercise I1O1T at the 1080p boundary and prove the expected auxiliary mapping
-  completes without IEP2 fault/reset/timeout logs;
-- submit safe negative cases for untranslated-address flags, packed zero-fd
-  words, undersized buffers, end-of-buffer offsets, invalid modes/strides, and
-  missing fds, requiring synchronous rejection before MMIO;
-- race two address encodings on one session and require deterministic per-task
-  interpretation;
-- stress close versus frame completion and software timeout, scanning for
-  KASAN, UAF, workqueue, IRQ, and lockdep reports;
-- churn buffer imports across sequential I1O1T tasks to confirm the auxiliary
-  reservation never collides or leaks; and
-- run a longer deinterlace/application soak after the focused recovery tests.
+Every gate below ran on the booted KASAN/lockdep build. Across all of them the
+kernel emitted **no** log line at all except the expected rejection messages
+during negative testing — no KASAN, UAF, out-of-bounds, lockdep, workqueue, IRQ,
+IOMMU-fault, timeout, or reset report.
+
+- **decoder vproc path** — an interlaced H.264 stream (`field_order=tt`) decodes
+  with `device /dev/mpp_service select in vproc`, turning 60 interlaced frames
+  into 116 output frames; byte-identical across 5 runs;
+- **1080p boundary** — 1920x1088 is the exact `md_buf` fit (span 2088960 =
+  buffer size) and passes, 20 runs byte-identical; 1920x1104 is refused by the
+  driver, `offset 0 span 2088960 exceeds len 1040384`;
+- **I1O1T and the auxiliary mapping** — accepted and correct: exactly one
+  destination frame is written, the second stays clear;
+- **negative cases** — 18 checks in
+  [`tests/iep2/iep2_negative.c`](../../tests/iep2/iep2_negative.c), all refused
+  synchronously: over/under-sized param and result requests, untranslated-address
+  flag, packed zero-fd word, missing and never-opened fds, over-span geometry,
+  undersized buffers, sub-row strides, zero and 0xffffffff tile counts, and
+  invalid mode/format enums. The baseline task is accepted both before and after
+  the whole sequence, so no refusal leaks a task slot or wedges the session;
+- **address-encoding race** — 50 rounds in each interleaving of packed versus
+  offset-alone on one session, zero deviations, so the flag is applied per task
+  and never latched per session;
+- **close versus completion, and import churn** — ~20,000 tasks across 8
+  concurrent processes, each with freshly imported buffers, mixing normal
+  completion with sessions closed while work was still in flight; and
+- **soak** — the above plus 20 real 1080p runs and 5 decoder runs.
+
+The software timeout path was **not** triggered; provoking it needs fault
+injection rather than malformed input, so it remains unexercised.
 
 The precise conclusion is now: **the source review found and repaired the known
-IEP2 forward-port Oops and DMA-boundary defects; the repaired driver boots and
-deinterlaces on the board, and the exercised 320x240 I5O2 path is clean under
-KASAN and lockdep. The one runtime defect found belongs to vendor userspace, not
-the port. The negative, boundary, and soak gates above remain unproven.**
+IEP2 forward-port Oops and DMA-boundary defects, and every runtime gate above
+passes on the board under KASAN and lockdep — functional output, the 1080p span
+boundary in both directions, the decoder vproc path, synchronous rejection of
+malformed input, per-task address-encoding interpretation, and teardown/churn
+stress. The one runtime defect found belongs to vendor userspace, not the port.
+The software timeout path remains unexercised.**

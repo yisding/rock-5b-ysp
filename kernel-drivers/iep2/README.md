@@ -65,6 +65,10 @@ A/B in the
 [runtime finding](../../findings/2026-08-03-rk3588-iep2-nondeterministic-output.md).
 It is not a forward-port regression and does not belong in the driver.
 
-The negative, boundary, and soak gates in the safety review — I1O1T at 1080p,
-the real decoder vproc path, invalid-input rejection, close-versus-completion
-stress, and import churn — have not been run.
+Every remaining runtime gate has since passed: the decoder vproc path, the
+1080p span boundary in both directions, I1O1T and its auxiliary mapping, 18
+negative cases refused synchronously, per-task address-encoding interpretation,
+and ~20,000 tasks of teardown and import-churn stress — with no KASAN, UAF,
+lockdep, IOMMU-fault, timeout, or reset report. Only the software timeout path
+is unexercised, since provoking it needs fault injection. See the safety review
+and the [ioctl-level harnesses](../tests/iep2/README.md).
