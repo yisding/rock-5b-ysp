@@ -216,13 +216,29 @@ bff_input="${IEP2_BFF_INPUT:-$BUILD_DIR/bff-${IEP2_WIDTH}x${IEP2_HEIGHT}.yuv}"
 [[ -r "$tff_input" ]] || die "TFF input is unreadable: $tff_input"
 [[ -r "$bff_input" ]] || die "BFF input is unreadable: $bff_input"
 
+kernel_log_backend=""
+if dmesg --color=never >/dev/null 2>&1; then
+  kernel_log_backend=dmesg
+elif journalctl -k -q --no-pager >/dev/null 2>&1; then
+  kernel_log_backend=journalctl
+fi
+
+capture_kernel_log() {
+  case "$kernel_log_backend" in
+  dmesg) dmesg --color=never ;;
+  journalctl) journalctl -k -q --no-pager -o short-monotonic ;;
+  *) return 1 ;;
+  esac
+}
+
 dmesg_available=0
-if dmesg --color=never >"$BUILD_DIR/dmesg-before.log" 2>/dev/null; then
+if capture_kernel_log >"$BUILD_DIR/dmesg-before.log" 2>/dev/null; then
   dmesg_available=1
+  echo "KERNEL LOG: scanning via $kernel_log_backend"
 elif [[ "$IEP2_REQUIRE_DMESG" == 1 ]]; then
-  die "dmesg is unreadable; rerun with sufficient privilege"
+  die "kernel log is unreadable via dmesg or journalctl; rerun with sufficient privilege"
 else
-  echo "DEGRADED: dmesg is unreadable; kernel fault scanning is unavailable" >&2
+  echo "DEGRADED: kernel log is unreadable; fault scanning is unavailable" >&2
 fi
 
 for ((iteration = 1; iteration <= IEP2_LOOPS; iteration++)); do
@@ -231,7 +247,7 @@ for ((iteration = 1; iteration <= IEP2_LOOPS; iteration++)); do
 done
 
 if [[ "$dmesg_available" == 1 ]]; then
-  dmesg --color=never >"$BUILD_DIR/dmesg-after.log"
+  capture_kernel_log >"$BUILD_DIR/dmesg-after.log"
   before_lines="$(wc -l <"$BUILD_DIR/dmesg-before.log")"
   tail -n "+$((before_lines + 1))" "$BUILD_DIR/dmesg-after.log" \
     >"$BUILD_DIR/dmesg-new.log"

@@ -308,11 +308,20 @@ IEP2_VALIDATE_ONLY=1 IEP2_VALIDATE_BUILD=1 \
   kernel-drivers/tests/iep2-smoke.sh
 ```
 
+### Cleared on the ROCK 5B, 2026-08-03
+
+The KASAN/lockdep build was booted and exercised. Client 28 and both platform
+bindings are confirmed, and 20 consecutive TFF/BFF I5O2 runs at 320x240
+produced correctly sized, high-entropy output with no KASAN, UAF, lockdep,
+IOMMU-fault, or timeout report. One new defect surfaced — output is not
+reproducible across runs — and a three-arm A/B root-caused it to Rockchip's
+`iep2_test.c` omitting the dma-buf cache sync around its own CPU access, not to
+the driver. See the
+[runtime finding](../../../findings/2026-08-03-rk3588-iep2-nondeterministic-output.md).
+
 ### Still required on the ROCK 5B
 
-- boot the KASAN/lockdep build containing these fixes and confirm client 28 plus
-  both platform bindings;
-- run repeated official TFF/BFF I5O2 output and the real decoder vproc path;
+- run the real decoder vproc path (the standalone `iep2_test` path is done);
 - exercise I1O1T at the 1080p boundary and prove the expected auxiliary mapping
   completes without IEP2 fault/reset/timeout logs;
 - submit safe negative cases for untranslated-address flags, packed zero-fd
@@ -326,7 +335,8 @@ IEP2_VALIDATE_ONLY=1 IEP2_VALIDATE_BUILD=1 \
   reservation never collides or leaks; and
 - run a longer deinterlace/application soak after the focused recovery tests.
 
-Until those runtime gates pass, the precise conclusion is: **the source review
-found and repaired the known IEP2 forward-port Oops and DMA-boundary defects,
-and the repaired objects build; runtime memory safety and deinterlaced output
-remain unproven on the board.**
+The precise conclusion is now: **the source review found and repaired the known
+IEP2 forward-port Oops and DMA-boundary defects; the repaired driver boots and
+deinterlaces on the board, and the exercised 320x240 I5O2 path is clean under
+KASAN and lockdep. The one runtime defect found belongs to vendor userspace, not
+the port. The negative, boundary, and soak gates above remain unproven.**

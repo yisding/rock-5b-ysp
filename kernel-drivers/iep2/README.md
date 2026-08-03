@@ -15,12 +15,19 @@ Rockchip's BSP exposes it, how libmpp selects it, and the state of its Linux
 - The 6.18 forward-port source now contains the IEP2 driver, register map,
   binding, Kconfig/Makefile wiring, and RK3588/ROCK 5B DT/IOMMU nodes. The
   driver object, linked MPP archive, and ROCK 5B DTB build successfully.
-- The currently booted `6.18.41-ysp-rockchip64` kernel predates that port. It
-  still advertises neither IEP2 nor VDPP, so functional output remains gated
-  on building, booting, and running the new validation.
-- The installed libmpp already contains the IEP2 userspace path. An interlaced
-  decode currently tries MPP client 28, receives `EINVAL`, disables
-  deinterlacing, and continues with the decoded frame.
+- The board now boots `6.18.41-video-port-kasan-rockchip64` (`#32`, source
+  `g7615b69a744a`) carrying the port. It advertises `DEVICE[28]:IEP2`, binds
+  `fdbb0000.iep` to `mpp-iep2` and `fdbb0800.iommu` to `rk_iommu`, and produces
+  real deinterlaced I5O2 output under KASAN and lockdep.
+- The installed libmpp already contains the IEP2 userspace path. Against the
+  pre-port kernel an interlaced decode tried MPP client 28, received `EINVAL`,
+  disabled deinterlacing, and continued with the decoded frame. On the port
+  that fallback is gone: client 28 is ready and services the request.
+- Stock IEP2 output is **not reproducible**, but the cause is Rockchip's test
+  harness omitting the dma-buf cache sync around its CPU access, not the driver.
+  It is latent on the BSP and only bites here because mainline has no
+  `system-uncached` heap, so MPP falls back to a cachable one. Adding the sync
+  makes output byte-identical across runs — see the runtime finding.
 - IEP2 is smaller than VDPP only in the userspace comparison. The BSP's IEP2
   kernel implementation is actually larger than its VDPP kernel file. The
   detailed guide explains the different register-programming boundary.
@@ -47,8 +54,17 @@ The hardware identity and BSP integration are source-inspected. The forward
 port is compile-, link-, and DTB-validated. A three-part safety review found
 and repaired task-work lifetime, fault callback/teardown, clock error-pointer,
 raw-address, buffer-span, flag-race, and auxiliary-IOVA defects. KASAN package
-`Pcf86-Cc271` contains the repaired IEP2 driver and ROCK 5B DT nodes, but has
-not run on the board. The negative state of the currently booted kernel and the
-installed libmpp probe are measured. No IEP2 output has yet been produced on
-the forward-port kernel, so functional and runtime memory-safety validation
-remain open until that package is booted and exercised.
+`Pcf86-Cc271` has now been booted and exercised: 20 consecutive I5O2 runs
+(10 TFF, 10 BFF, 320x240) produced correctly sized, high-entropy output with no
+KASAN, UAF, lockdep, IOMMU-fault, or timeout report in the kernel log. The
+first-order functional and memory-safety gates therefore pass.
+
+The one defect the run surfaced — non-reproducible output — is root-caused to a
+missing dma-buf cache sync in Rockchip's `iep2_test.c`, proven by a three-arm
+A/B in the
+[runtime finding](../../findings/2026-08-03-rk3588-iep2-nondeterministic-output.md).
+It is not a forward-port regression and does not belong in the driver.
+
+The negative, boundary, and soak gates in the safety review — I1O1T at 1080p,
+the real decoder vproc path, invalid-input rejection, close-versus-completion
+stress, and import churn — have not been run.
