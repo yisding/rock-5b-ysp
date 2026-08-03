@@ -333,7 +333,10 @@ IOMMU-fault, timeout, or reset report.
   buffer size) and passes, 20 runs byte-identical; 1920x1104 is refused by the
   driver, `offset 0 span 2088960 exceeds len 1040384`;
 - **I1O1T and the auxiliary mapping** — accepted and correct: exactly one
-  destination frame is written, the second stays clear;
+  destination frame is written, the second stays clear. The mode was previously
+  unreachable from `iep2_test`, which pinned itself to I5O2; it now takes
+  `-m 5` (`yisding/mpp` `483f8a47`), so the gate reproduces with
+  `iep2_test … -f TFF -m 5`;
 - **negative cases** — 18 checks in
   [`tests/iep2/iep2_negative.c`](../../tests/iep2/iep2_negative.c), all refused
   synchronously: over/under-sized param and result requests, untranslated-address
