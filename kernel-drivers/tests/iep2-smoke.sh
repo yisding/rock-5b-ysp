@@ -67,11 +67,12 @@ validate_source() {
     grep -qx 'CONFIG_ROCKCHIP_MPP_IEP2=y' "$KERNEL_TREE/.config" ||
       die "CONFIG_ROCKCHIP_MPP_IEP2=y is not enabled"
     "${MAKE:-make}" -C "$KERNEL_TREE" -j "${JOBS:-$(nproc)}" \
-      drivers/video/rockchip/mpp/mpp_iep2.o \
-      drivers/video/rockchip/mpp/built-in.a \
+      drivers/video/rockchip/mpp/ \
       rockchip/rk3588-rock-5b.dtb
+    [[ -s "$KERNEL_TREE/drivers/video/rockchip/mpp/mpp_iep2.o" ]] ||
+      die "mpp_iep2.o was not built"
     ar t "$KERNEL_TREE/drivers/video/rockchip/mpp/built-in.a" |
-      grep -qx 'drivers/video/rockchip/mpp/mpp_iep2.o' ||
+      grep -Eq '(^|/)drivers/video/rockchip/mpp/mpp_iep2\.o$' ||
       die "mpp_iep2.o is absent from the linked MPP archive"
     echo "PASS: IEP2 object, linked MPP archive, and ROCK 5B DTB build"
   fi
