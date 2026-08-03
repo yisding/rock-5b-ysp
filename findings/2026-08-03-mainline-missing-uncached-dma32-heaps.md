@@ -22,10 +22,23 @@ degrade, and the two libraries degrade very differently.
 copying `src->flags` so the replacement is *relabelled* rather than silently
 misdescribed. That is why the `system-uncached` → `system` fallback correctly
 marks buffers cachable, which in turn makes `check_buf_need_sync()` stop
-short-circuiting and the `DMA_BUF_IOCTL_SYNC` calls real. MPP also never
-requests DMA32 internally: `MPP_BUFFER_FLAGS_DMA32` appears only in the public
-header and `type_to_flag()`, with no in-tree caller, so the absent `-dma32`
-heaps are inert for MPP.
+short-circuiting and the `DMA_BUF_IOCTL_SYNC` calls real.
+
+MPP never requests DMA32 *internally* — `MPP_BUFFER_FLAGS_DMA32` appears only in
+the public header and `type_to_flag()`, with no in-tree caller. That is not the
+same as the flag being unused, and an earlier revision of this finding wrongly
+concluded the absent `-dma32` heaps were inert. Its dominant consumer requests
+DMA32 by default: ffmpeg-rockchip sets `hwctx->flags = MPP_BUFFER_FLAGS_DMA32`
+for every RKMPP hwframe context (`libavutil/hwcontext_rkmpp.c` ~:103, opt-out
+with the `dma32=0` device option) and again for the decoder's misc buffer group
+(`libavcodec/rkmppdec.c` ~:278). So on this kernel the DMA32 fallback runs on
+every rkmpp decode, not never.
+
+It is benign here rather than inert: the fallback yields memory that may sit
+above 4G, and every MPP codec device has an IOMMU, so the address range does not
+reach the hardware untranslated. The one core that genuinely cannot address it,
+RGA2, is guarded by the kernel (below). What is *not* established is whether any
+consumer depends on DMA32 for a reason other than RGA2 eligibility.
 
 MPP's framework does its own cache maintenance — `mpp_dec_normal.c` (~:440)
 syncs the decoder input bitstream, `mpp_enc_hal.c` (~:254) the encoder output,

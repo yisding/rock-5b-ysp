@@ -815,10 +815,18 @@ if [ "$MODE" = "patch-only" ]; then
 	# correctly staged worktree. Probe the thing that actually went wrong instead.
 	SHARED_PROBE=drivers/iommu/rockchip-iommu.c
 	INCIDENT_FN=rockchip_iommu_set_fault_handler
-	# The rewrite line carries a second, sleepable teardown helper that the
-	# forward-port line does not. Its presence in a forward-port staging is the
-	# signature of a rewrite-composite worktree.
-	REWRITE_ONLY_SYM=rockchip_iommu_sync_fault_handler
+	# A second teardown helper that the rewrite line carries. It used to be
+	# rewrite-exclusive, so its mere presence was treated as proof of a
+	# rewrite-composite worktree -- but the forward-port line legitimately
+	# gained the same symbol in 7615b69a744af (the IEP2 fault-callback
+	# teardown fix, which iep2-smoke.sh requires), and a hardcoded
+	# "rewrite-only" list silently became wrong the moment that landed.
+	#
+	# Judge it against this flavor's own tree instead: the symbol is foreign
+	# only when the worktree has it and $KERNEL_TREE does not. That still
+	# catches the 2026-07-25 contamination exactly, and it stops asserting
+	# which line a symbol belongs to.
+	FOREIGN_SYM=rockchip_iommu_sync_fault_handler
 	if [ -r "$KERNEL_TREE/$SHARED_PROBE" ] && [ -r "$KWT/$SHARED_PROBE" ]; then
 		wt_fn=$(awk "/$INCIDENT_FN\\(struct/,/^}/" "$KWT/$SHARED_PROBE" | md5sum)
 		tree_fn=$(awk "/$INCIDENT_FN\\(struct/,/^}/" "$KERNEL_TREE/$SHARED_PROBE" | md5sum)
@@ -832,12 +840,17 @@ if [ "$MODE" = "patch-only" ]; then
 		case "$FLAVOR" in
 		rewrite|rewrite-debug) ;;
 		*)
-			if grep -q "$REWRITE_ONLY_SYM" "$KWT/$SHARED_PROBE"; then
-				die "$SHARED_PROBE carries $REWRITE_ONLY_SYM, which only the
-    rewrite line defines. This worktree is a rewrite composite; an orig cut from
-    it would repeat the 2026-07-25 contamination."
+			if grep -q "$FOREIGN_SYM" "$KWT/$SHARED_PROBE" &&
+				! grep -q "$FOREIGN_SYM" "$KERNEL_TREE/$SHARED_PROBE"; then
+				die "$SHARED_PROBE carries $FOREIGN_SYM, which $KERNEL_TREE
+    does not define. This worktree is a composite of another line; an orig cut
+    from it would repeat the 2026-07-25 contamination."
 			fi
-			say "  OK: no $REWRITE_ONLY_SYM in $SHARED_PROBE"
+			if grep -q "$FOREIGN_SYM" "$KWT/$SHARED_PROBE"; then
+				say "  OK: $FOREIGN_SYM present in both worktree and $KERNEL_TREE"
+			else
+				say "  OK: no $FOREIGN_SYM in $SHARED_PROBE"
+			fi
 			;;
 		esac
 	else
