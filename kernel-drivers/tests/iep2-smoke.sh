@@ -16,7 +16,7 @@ IEP2_WIDTH="${IEP2_WIDTH:-320}"
 IEP2_HEIGHT="${IEP2_HEIGHT:-240}"
 IEP2_FRAMES="${IEP2_FRAMES:-6}"
 IEP2_TIMEOUT="${IEP2_TIMEOUT:-30}"
-MPP_BUILD="${MPP_BUILD:-$ROCK5B_WORKSPACE/rockchip-conformance/build/rockchip-mpp-suite}"
+MPP_BUILD="${MPP_BUILD:-$ROCK5B_WORKSPACE/build/rockchip-conformance/build/rockchip-mpp-suite}"
 MPP_LIBDIR="${MPP_LIBDIR:-}"
 
 die() {

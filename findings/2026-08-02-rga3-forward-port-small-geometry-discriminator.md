@@ -117,11 +117,10 @@ and GPU composition.
 - The test is broad repeated evidence, not a multi-hour RGA soak. Main10 and
   VP9 Profile 2 remain experimental for their separate physical-HDR, browser
   sandbox, packaging, and release gates.
-- Raw P010 outputs were deleted after comparison to recover about 350 MiB.
-  Inputs, driver/FFmpeg logs, per-frame hashes, the core-selection diagnostic,
-  and a result report remain in the ignored external source-worktree path
-  `/home/yi/Code/rock-5b/rockchip-vaapi/.test-work.rga-forward-port.20260802/`;
-  they are not committed here.
+- Raw P010 outputs were deleted after comparison to recover about 350 MiB. The
+  remaining ignored run directory was also discarded in the 2026-08-04 workspace
+  cleanup; the command, checksums, diagnostic, and result summary recorded here
+  remain the reproducible evidence boundary.
 
 ## Next discriminator
 

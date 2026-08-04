@@ -100,7 +100,7 @@ sudo ./rkmpp_lifecycle_experiment.sh churn --no-force-idr --iterations 1000
 ```
 
 Artifacts default to
-`$ROCK5B_WORKSPACE/rkmpp-lifecycle-runs/TIMESTAMP`, with
+`$ROCK5B_WORKSPACE/build/mpp/rkmpp-lifecycle-runs/TIMESTAMP`, with
 `ROCK5B_WORKSPACE=~/Code/rock-5b` by default; neither build nor capture data
 uses `/tmp`. An idle `--system` daemon is allowed, but the wrapper
 refuses to run when it sees a handover daemon, an established RDP connection,

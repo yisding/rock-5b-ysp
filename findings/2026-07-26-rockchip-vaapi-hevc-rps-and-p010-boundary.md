@@ -14,7 +14,7 @@
 > `validate_picture_parameters()` / `collect_rps()` /
 > `rk_hevc_rewrite_slice_nal()`, `src/mpp_dec.c` `build_hevc_job()`), direct
 > VA-API/FFmpeg/MPP experiments from that tree, and booted forward-port
-> validation artifacts under `../rock-5b/rockchip-conformance/logs/forward-port/`.
+> validation artifacts under `../rock-5b/build/rockchip-conformance/logs/forward-port/`.
 >
 > Date: 2026-07-26.
 >

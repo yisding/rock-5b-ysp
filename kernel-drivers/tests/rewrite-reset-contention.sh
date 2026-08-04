@@ -129,7 +129,7 @@ source "$TEST_DIR/debugfs-counters.sh"
 : "${DEBUGFS_COUNTERS_LOADED:?debugfs-counters.sh did not load; the counter readout would be silently absent}"
 
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
 PROFILE=${PROFILE:-rewrite}
 RUN_ID=${RUN_ID:-$(date +%Y%m%d-%H%M%S)}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$RUN_ID-reset-contention"}

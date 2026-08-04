@@ -8,9 +8,9 @@
 # default); conformance sources use the commits in MANIFEST.tsv.
 #
 # It sets up two directories under ~/Code/rock-5b (override via env):
-#   WORKSPACE       (default ~/Code/rock-5b/kernel/rock5b-kernel-build)
+#   WORKSPACE       (default ~/Code/rock-5b/build/kernel/rock5b-kernel-build)
 #                   — Armbian build tree
-#   CONFORMANCE_DIR (default ~/Code/rock-5b/rockchip-conformance)
+#   CONFORMANCE_DIR (default ~/Code/rock-5b/build/rockchip-conformance)
 #                   — userspace test bundle
 #
 # Idempotent: existing checkouts are left alone (it never clobbers local work).
@@ -27,8 +27,8 @@ CODE="$(cd "$YSP/.." && pwd)"                             # ~/Code
 ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$CODE/rock-5b}"
 CONF_SKEL="$HERE/../tests/conformance"                   # tracked conformance skeleton
 
-WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build}"
-CONFORMANCE_DIR="${CONFORMANCE_DIR:-$ROCK5B_WORKSPACE/rockchip-conformance}"
+WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build}"
+CONFORMANCE_DIR="${CONFORMANCE_DIR:-$ROCK5B_WORKSPACE/build/rockchip-conformance}"
 ARMBIAN_REMOTE="${ARMBIAN_REMOTE:-https://github.com/armbian/build.git}"
 ARMBIAN_BRANCH="${ARMBIAN_BRANCH:-main}"
 CHECK=0; [ "${1:-}" = "--check" ] && CHECK=1

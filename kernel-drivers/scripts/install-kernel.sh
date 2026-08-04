@@ -56,7 +56,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CODE="$(cd "$HERE/../../.." && pwd)"                        # ~/Code
 ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$CODE/rock-5b}"
-WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build}"
+WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build}"
 DEBS="${DEBS:-${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}/output/debs}"
 BACKUP_ROOT="${BACKUP_ROOT:-$WORKSPACE/boot-backups}"
 ENV_FILE="${ENV:-/boot/armbianEnv.txt}"

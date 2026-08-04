@@ -59,7 +59,7 @@ were not generic flakes. Local repro found two root causes:
    so ordinary allocation-only `glTexImage*` is a no-op upload while PBO offset
    zero remains valid.
 
-Local smoke on the force-pushed stack: `ninja -C .codex-tmp/build-g610-debug`,
+Local smoke on the force-pushed stack: `ninja -C $ROCK5B_WORKSPACE/build/mesa/mesa-codex-tmp/build-g610-debug`,
 `pbo-getteximage -auto`, and `max-texture-size -auto -fbo` all pass on the Rock
 5B / Mali-G610.
 
@@ -85,8 +85,8 @@ Fix (in [`build-mesa-surfaceless.sh`](../scripts/build-mesa-surfaceless.sh)):
 recreate the native file and **reconfigure to surfaceless** (`-Dplatforms=
 -Dglx=disabled`), which drops the X11 sysroot need entirely. The reproducers are
 GBM/EGL-surfaceless on `renderD128`, so X11 was never required for testing.
-Reusing the existing `build-codex-main` tree kept ~84% ccache hits
-(`.codex-ccache`); the reconfigure+build took a few minutes.
+Reusing the existing `build-codex-main` tree kept ~84% ccache hits from the
+shared `~/Code/.ccache` store; the reconfigure+build took a few minutes.
 
 Two more gotchas the script encodes:
 
@@ -172,11 +172,11 @@ skew. Two dead ends that each looked like "the driver crashes 286 tests."
 Fix: a second Mesa build/install with glvnd on, selected as the glvnd EGL vendor:
 ```
 meson setup build-codex-main --reconfigure --native-file /tmp/mesa-codex-llvm22-extracted.ini \
-  -Dglvnd=enabled -Dprefix=/home/yi/Code/rock-5b/fdo/mesa/install-glvnd
+  -Dglvnd=enabled -Dprefix=/home/yi/Code/rock-5b/build/mesa/install-glvnd
 ninja -C build-codex-main && meson install -C build-codex-main
 # then, keeping SYSTEM glvnd libGL/libEGL:
-export __EGL_VENDOR_LIBRARY_FILENAMES=/home/yi/Code/rock-5b/fdo/mesa/install-glvnd/share/glvnd/egl_vendor.d/50_mesa.json
-export LD_LIBRARY_PATH=/home/yi/Code/rock-5b/fdo/mesa/install-glvnd/lib/aarch64-linux-gnu   # libEGL_mesa.so.0, NOT libEGL.so.1
+export __EGL_VENDOR_LIBRARY_FILENAMES=/home/yi/Code/rock-5b/build/mesa/install-glvnd/share/glvnd/egl_vendor.d/50_mesa.json
+export LD_LIBRARY_PATH=/home/yi/Code/rock-5b/build/mesa/install-glvnd/lib/aarch64-linux-gnu   # libEGL_mesa.so.0, NOT libEGL.so.1
 export LIBGL_DRIVERS_PATH=.../dri GBM_BACKENDS_PATH=.../gbm MESA_LOADER_DRIVER_OVERRIDE=panfrost
 ```
 Verified: `getteximage-formats -auto -fbo` → `pass`, renderer

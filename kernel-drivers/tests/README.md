@@ -10,7 +10,7 @@ the older `rkvdec-core0/1` naming too.
 
 The heavier rewrite build gate, the tracked conformance seed under
 [`conformance/`](conformance/README.md), the external runtime
-`$ROCK5B_WORKSPACE/rockchip-conformance` bundle it reconstructs, and the full
+`$ROCK5B_WORKSPACE/build/rockchip-conformance` bundle it reconstructs, and the full
 MPP/librga/GStreamer/FFmpeg conformance-suite reference live in the sibling
 [`rewrite-conformance.md`](./rewrite-conformance.md) so this page stays a clean
 newcomer on-ramp.
@@ -172,7 +172,7 @@ The smoke tests differ in what device access they need:
 > | `STAGE` | transcode | the MPP/RGA staging prefix from the ffmpeg README (e.g. `~/ffmpeg-stack`) |
 > | `FFMPEG_RUNTIME_MODES` | `ffmpeg-suite.sh` | runtime passes to run. Default `system` uses installed MPP/librga. Set `system staged` for an explicit comparison, or `auto` to add staged libraries whenever `$STAGE/lib` exists. |
 > | `FFMPEG_REQUIRE_AV1` | `ffmpeg-suite.sh` | promote AV1 RKMPP decode, AV1->RGA->H.264/H.265 transcodes, AV1 PSNR, and AV1 AFBC probes from diagnostics to required cases (`0` by default because AV1 is outside the rewrite base gate). |
-> | `FFMPEG_AV1_INPUT`, `FFMPEG_VP9_INPUT`, `FFMPEG_HEVC_MAIN10_INPUT` | `ffmpeg-suite.sh` | optional explicit inputs; otherwise the suite generates software AV1/VP9/Main10 inputs under `../rock-5b/rockchip-conformance/assets/ffmpeg-generated` when the needed software encoders are installed. |
+> | `FFMPEG_AV1_INPUT`, `FFMPEG_VP9_INPUT`, `FFMPEG_HEVC_MAIN10_INPUT` | `ffmpeg-suite.sh` | optional explicit inputs; otherwise the suite generates software AV1/VP9/Main10 inputs under `../rock-5b/build/rockchip-conformance/assets/ffmpeg-generated` when the needed software encoders are installed. |
 > | `MPP_AVS2_INPUT`, `MPP_AVS2_WIDTH`, `MPP_AVS2_HEIGHT` | `mpp-suite.sh` | AVS2 elementary stream and optional dimensions for the RK3588 VDPU381 AVS2 cases; unlike VP9, the wrapper cannot generate this asset with the ordinary FFmpeg toolchain |
 > | `MPP_ENC_SPLIT_MODE`, `MPP_ENC_SPLIT_ARG`, `MPP_ENC_SPLIT_OUT` | `mpp-suite.sh` | low-delay slice-case settings; defaults `2`, `120`, and `1` select CTU splitting plus segmented low-delay output so `MPP_CMD_POLL_HW_IRQ` is exercised without exceeding the kernel's 256-entry per-task slice FIFO |
 > | `MPP_ENC_SLICE_INSTANCES` | `mpp-suite.sh` | number of concurrent `mpi_enc_mt_test` channels for low-delay slice cases; defaults to `1` because the separate output thread, not multi-channel load, is what the polling test requires |
@@ -242,7 +242,7 @@ bash abi-replay.sh                    # record normalized ABI log for this boot
 bash abi-replay.sh --selftest         # device-free ABI replay normalization/filter check
 IOCTL_FUZZ_VALIDATE_BUILD=1 bash ioctl-fuzz-smoke.sh  # device-free non-submit ioctl mutator compile check
 IOCTL_FUZZ_ENABLE_RGA_PHYSICAL=1 bash ioctl-fuzz-smoke.sh  # raw physical generation; hardened/sacrificial kernel only
-sudo IOCTL_FUZZ_OUT=../rock-5b/rockchip-conformance/logs/rewrite/ioctl-failnth IOCTL_FUZZ_DMESG_SCAN=1 IOCTL_FUZZ_FAIL_NTH_MAX=4 IOCTL_FUZZ_ITERS=32 bash ioctl-fuzz-smoke.sh  # debug-kernel allocation/usercopy fault-injection sweep with logs
+sudo IOCTL_FUZZ_OUT=../rock-5b/build/rockchip-conformance/logs/rewrite/ioctl-failnth IOCTL_FUZZ_DMESG_SCAN=1 IOCTL_FUZZ_FAIL_NTH_MAX=4 IOCTL_FUZZ_ITERS=32 bash ioctl-fuzz-smoke.sh  # debug-kernel allocation/usercopy fault-injection sweep with logs
 bash librga-smoke.sh                  # direct librga/im2d smoke
 LIBRGA_SMOKE_VALIDATE_BUILD=1 bash librga-smoke.sh  # device-free direct librga smoke compile check
 LIBRGA_SMOKE_10BIT=1 bash librga-smoke.sh  # add P010/P210 IM2D cases
@@ -333,7 +333,7 @@ longer passes the branch-level parity audit.
 The official-test conformance suites (`mpp-suite.sh`, `librga-suite.sh`,
 `gstreamer-suite.sh`), their comparators, the rewrite build gate, the tracked
 [`conformance/`](conformance/README.md) seed, and the external
-`$ROCK5B_WORKSPACE/rockchip-conformance` runtime bundle are all documented in
+`$ROCK5B_WORKSPACE/build/rockchip-conformance` runtime bundle are all documented in
 [`rewrite-conformance.md`](./rewrite-conformance.md).
 
 ## Regenerating the test inputs

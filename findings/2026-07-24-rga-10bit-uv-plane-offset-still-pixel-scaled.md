@@ -102,7 +102,7 @@ has been converted from a loud failure into a quiet one.
     readback is truncated — `packet size 6029312 < expected frame_size 6220800`
     for 1920×1080 P010 — so the Main10→P010 RGA path is now producing short
     frames.
-- **Artifacts:** `../rock-5b/rockchip-conformance/logs/forward-port/20260724-184309-*`
+- **Artifacts:** `../rock-5b/build/rockchip-conformance/logs/forward-port/20260724-184309-*`
   (`system`, `mpp-suite`, `librga-suite`, `gstreamer-suite`, `ffmpeg-suite`).
   Probes and their sources in the session scratchpad; not committed.
 

@@ -42,7 +42,7 @@ generated from that one base. This depends on the DMA layer returning one
 contiguous IOVA segment for the whole buffer.
 
 MEASURED fault evidence, all on `RGA3_core0` (IOMMU `fdb60f00.iommu`), from
-`../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260704-102533`
+`../rock-5b/build/rockchip-conformance/logs/rga-mmu-debug/20260704-102533`
 (`6.18.37-current-rockchip64 #8`). Debugfs `hardware` reported the RK3588 split:
 `rga3 core 1/2: mmu: RK_IOMMU`, `rga2 core 4: mmu: RGA_MMU` — so these failures
 are specifically on the RGA3 + Rockchip IOMMU path, not legacy RGA2. Sample

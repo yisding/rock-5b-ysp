@@ -174,7 +174,7 @@ The runner command was:
 
 ```bash
 sudo env \
-    TMPDIR=/home/yi/Code/rock-5b/.codex-tmp \
+    TMPDIR=/home/yi/Code/rock-5b/build/scratch \
     PROFILE=rewrite \
     RUN_COUNTER_CHECKS=1 \
     RUN_CONTINUE_ON_FAIL=1 \
@@ -182,7 +182,7 @@ sudo env \
 ```
 
 The raw captures remain outside git under
-`/home/yi/Code/rock-5b/rockchip-conformance/logs/rewrite/`:
+`/home/yi/Code/rock-5b/build/rockchip-conformance/logs/rewrite/`:
 
 | Artifact | SHA-256 |
 |----------|---------|

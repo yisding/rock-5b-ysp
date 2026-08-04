@@ -298,11 +298,11 @@ class WorkspaceDefaultTests(unittest.TestCase):
         expected_defaults = {
             "kernel-drivers/tests/mpp-suite.sh": (
                 'CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-'
-                '"$ROCK5B_WORKSPACE/rockchip-conformance"}'
+                '"$ROCK5B_WORKSPACE/build/rockchip-conformance"}'
             ),
             "kernel-drivers/scripts/build-kernel.sh": (
                 'WORKSPACE="${WORKSPACE:-'
-                '$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build}"'
+                '$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build}"'
             ),
             "packaging/ppa/build-source-packages.sh": (
                 'WORKSPACE_ROOT="$(cd "${WORKSPACE_ROOT:-'
@@ -310,12 +310,12 @@ class WorkspaceDefaultTests(unittest.TestCase):
             ),
             "video-libraries/mesa/scripts/mesa-panfrost-env.sh": (
                 ': "${MESA_BUILD:='
-                '$ROCK5B_WORKSPACE/fdo/mesa/build-codex-main}"'
+                '$ROCK5B_WORKSPACE/build/mesa/build-codex-main}"'
             ),
             "apps/gnome-remote-desktop/bench/"
             "rkmpp_lifecycle_experiment.sh": (
                 'OUT_ROOT=${RKMPP_LIFECYCLE_OUT_ROOT:-'
-                '"$ROCK5B_WORKSPACE/rkmpp-lifecycle-runs"}'
+                '"$ROCK5B_WORKSPACE/build/mpp/rkmpp-lifecycle-runs"}'
             ),
         }
 

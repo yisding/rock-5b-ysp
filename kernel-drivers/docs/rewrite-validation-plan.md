@@ -666,7 +666,7 @@ Cross-references: [rewrite-driver track](./rewrite-drivers.md) (what the drivers
 implement, §2/§3 ABI ledgers, §6 pins), [`debug-kernel.md`](./debug-kernel.md)
 (Kernel A / ramoops), [`kernel-drivers/tests/README.md`](../tests/README.md) (the smoke on-ramp)
 and [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md) (the rewrite
-build gate + `../rock-5b/rockchip-conformance` bundle), [`bsp-audit.md`](./bsp-audit.md)
+build gate + `../rock-5b/build/rockchip-conformance` bundle), [`bsp-audit.md`](./bsp-audit.md)
 (audit method), [`multicore-scheduling.md`](../mpp/docs/multicore-scheduling.md) (the
 scheduling behaviour P4 exercises), [`rewrite-hard-ccu-finding.md`](../iommu/docs/rewrite-hard-ccu-finding.md)
 (the opt-in HARD-CCU path in the §4 matrix), [kernel status](./forward-port-status.md) /

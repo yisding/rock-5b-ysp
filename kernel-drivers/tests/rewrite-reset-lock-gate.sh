@@ -36,7 +36,7 @@ source "$TEST_DIR/suite-common.sh"
 : "${SUITE_DMESG_FATAL_RE:?suite-common.sh did not load; the kernel-log fatal scan would be silently blind}"
 
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
 STATE=${STATE:-"$CONFORMANCE_ROOT/logs/rewrite/lock-gate"}
 
 # The commit under test. The build stamps ` g<sha12>` into uname -v, which is

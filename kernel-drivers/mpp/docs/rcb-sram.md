@@ -9,7 +9,7 @@ This note explains the memory model behind the `rockchip,rcb-*` properties and
 > `../rock-5b/kernel/linux` `c092e016fd29`,
 > `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` `a4b67868c0dd` plus the uncommitted
 > best-effort RCB probe fix, and
-> `../rock-5b/rockchip-conformance/sources/rockchip-mpp` `c2c1ee502b3a`.
+> `../rock-5b/build/rockchip-conformance/sources/rockchip-mpp` `c2c1ee502b3a`.
 > The [encoder reachability section](#how-often-the-encoder-path-is-reached-at-all)
 > was added 2026-08-04 against the same MPP pin and forward-port tip
 > `7615b69a744af`.

@@ -12,7 +12,7 @@
 # reads exactly ONE config file, and which one depends on whether CCACHE_DIR is
 # set.
 #
-#   CCACHE_DIR set (Armbian's container, the Mesa script)
+#   CCACHE_DIR set (for example, Armbian's container)
 #       -> config is $CCACHE_DIR/ccache.conf
 #   CCACHE_DIR unset (a bare `ccache gcc ...` on the host)
 #       -> cache dir is ~/.cache/ccache, but the config is
@@ -103,9 +103,8 @@ USER_CONF="$OWNER_HOME/.config/ccache/ccache.conf"
 # Docker resolves a symlinked bind source on the host, so the container sees the
 # real store at /armbian/cache/ccache.
 declare -a CACHE_DIRS=(
-	"$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build/armbian-build/cache/ccache"
-	"$ROCK5B_WORKSPACE/armbian/armbian-build/cache/ccache"
-	"$ROCK5B_WORKSPACE/fdo/mesa/.codex-ccache"
+	"$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build/armbian-build/cache/ccache"
+	"$ROCK5B_WORKSPACE/build/armbian/armbian-build/cache/ccache"
 	"$OWNER_HOME/.cache/ccache"
 )
 

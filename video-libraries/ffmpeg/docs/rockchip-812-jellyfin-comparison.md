@@ -36,7 +36,7 @@ RKMPP-to-OpenCL/Vulkan derivation, and its packaging work.
 | Historical 8.0 port | branch `rockchip-8.0` at `463f542c325942f3e6b390cb940c32812570957d`, described as `n8.0.3-65-g463f542c32` | The earlier 8.0 source/package line, superseded for source work by published `ffmpeg-80@be753f3bbb2c`. |
 | Comparison release replay | branch `rockchip-8.1.2` at `53b3551b9176b8db0f75eb7b0addd7bc26d20d5e`, described as `n8.1.2-63-g53b3551b91` | Reproducible snapshot for the counts below, superseded for source work by published `ffmpeg-81@8d3ca020b6a2`. It is 63 commits over canonical 8.1.2; `n8.1.2..HEAD` changes 37 files, with 9,507 insertions and 991 deletions. |
 | Jellyfin FFmpeg | branch `jellyfin` at `455bfe53922014076d14c7f3f8c6631b4d3cd4c0`, described as `v8.1.2-1-13-g455bfe53` | Clean source/packaging checkout `/home/yi/Code/rock-5b/ffmpeg/jellyfin-ffmpeg`. |
-| Jellyfin effective source | the same Jellyfin head with all 96 entries from `debian/patches/series` applied | Detached scratch worktree `/home/yi/Code/rock-5b/ffmpeg/jellyfin-ffmpeg-applied`; the original checkout remained clean. |
+| Jellyfin effective source | the same Jellyfin head with all 96 entries from `debian/patches/series` applied | Detached scratch worktree `/home/yi/Code/rock-5b/build/ffmpeg/jellyfin-ffmpeg-applied`; the original checkout remained clean. |
 
 Jellyfin carries its Rockchip implementation primarily in
 `debian/patches/0042-add-full-hwa-pipeline-for-rockchip-rk3588-platform.patch`,

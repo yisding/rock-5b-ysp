@@ -68,7 +68,7 @@ branch was not the same effective stack that had been tested locally.
 
 After rebuilding the stack, local smoke on Rock 5B / Mali-G610 passes:
 
-- `ninja -C .codex-tmp/build-g610-debug`
+- `ninja -C $ROCK5B_WORKSPACE/build/mesa/mesa-codex-tmp/build-g610-debug`
 - `pbo-getteximage -auto`
 - `max-texture-size -auto -fbo`
 
@@ -263,7 +263,7 @@ reproducers/mr42563-comment-failures.txt
 ## dEQP Invocation
 
 Recorded from the `#sessionInfo commandLineParameters` lines of the surviving
-`.qpa` logs (dev box, `/home/yi/Code/rock-5b/fdo/mesa/.codex-tmp/*.qpa`):
+`.qpa` logs (dev box, `/home/yi/Code/rock-5b/build/mesa/mesa-codex-tmp/*.qpa`):
 
 - Binary: `deqp-gles3` from a local VK-GL-CTS "Surfaceless" target build,
   dEQP Core release `1c51d6e4b98`; the build lived at
@@ -288,15 +288,16 @@ Recorded from the `#sessionInfo commandLineParameters` lines of the surviving
 
 After restoring `panfrost_is_compute_copy_faster` and rebasing the MR branch,
 the following local build checks passed in `build-codex-main` (a meson build
-dir of the working tree `/home/yi/Code/rock-5b/fdo/mesa`; the LLVM-22 native-file shim it
+dir under `/home/yi/Code/rock-5b/build/mesa` for the working tree
+`/home/yi/Code/rock-5b/fdo/mesa`; the LLVM-22 native-file shim it
 was configured with is documented in
 [`texture-query-levels.md` § Build Notes](texture-query-levels.md)):
 
 ```bash
-CCACHE_DIR=/home/yi/Code/rock-5b/fdo/mesa/.codex-ccache \
+CCACHE_DIR=/home/yi/Code/.ccache \
   ninja -C build-codex-main src/gallium/drivers/panfrost/libpanfrost.a
 
-CCACHE_DIR=/home/yi/Code/rock-5b/fdo/mesa/.codex-ccache \
+CCACHE_DIR=/home/yi/Code/.ccache \
   ninja -C build-codex-main src/gallium/targets/dril/libdril_dri.so
 ```
 

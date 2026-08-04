@@ -7,7 +7,7 @@ REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 source "$TEST_DIR/suite-common.sh"
 
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
 BIN_DIR=${RGA_BIN_DIR:-"$CONFORMANCE_ROOT/out/librga-samples/bin"}
 # Empty means use the installed librga through the system dynamic loader.
 LIBRGA_LIBDIR=${LIBRGA_LIBDIR:-}
@@ -321,7 +321,7 @@ if ! sudo_run test -f "$RGA_DEBUGFS/debug"; then
 fi
 
 if [ ! -d "$BIN_DIR" ]; then
-	echo "Missing $BIN_DIR. Run ../rock-5b/rockchip-conformance/scripts/build-librga-samples.sh first." >&2
+	echo "Missing $BIN_DIR. Run ../rock-5b/build/rockchip-conformance/scripts/build-librga-samples.sh first." >&2
 	exit 2
 fi
 

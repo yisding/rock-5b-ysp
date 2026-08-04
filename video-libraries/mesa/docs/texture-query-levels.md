@@ -116,22 +116,21 @@ patch — see the provenance table in [`README.md`](../README.md).
 ## 6. Build Notes (Board-Local)
 
 Local Mesa builds on the ROCK 5B (`build-codex`, `build-codex-main`,
-`build-codex-gallium`, `build-codex-piglit` in `/home/yi/Code/rock-5b/fdo/mesa`) use:
+`build-codex-gallium`, `build-codex-piglit` under
+`/home/yi/Code/rock-5b/build/mesa`) use:
 
 - the shared ccache store at `~/Code/.ccache`, which
-  `build-mesa-surfaceless.sh` selects by default. The historical project-local
-  `$MESA/.codex-ccache` path is now a symlink to that store, so older commands
-  quoting it still land in the right place (see the Build Checks section of
-  [`validation.md`](validation.md));
-- a meson **native file** (`.codex-tmp/mesa-codex-llvm22.ini`) that pins
+  `build-mesa-surfaceless.sh` selects by default (see the Build Checks section
+  of [`validation.md`](validation.md));
+- a meson **native file** (`$ROCK5B_WORKSPACE/build/mesa/mesa-codex-tmp/mesa-codex-llvm22.ini`) that pins
   `llvm-config` to a two-line shell shim
-  (`.codex-tmp/llvm-config-22-mesa-codex`, which just
+  (`$ROCK5B_WORKSPACE/build/mesa/mesa-codex-tmp/llvm-config-22-mesa-codex`, which just
   `exec /usr/bin/llvm-config-22 "$@"`) so Mesa configures against LLVM 22 on
   the board:
 
   ```ini
   [binaries]
-  llvm-config = ['sh', '/home/yi/Code/rock-5b/fdo/mesa/.codex-tmp/llvm-config-22-mesa-codex']
+  llvm-config = ['sh', '/home/yi/Code/rock-5b/build/mesa/mesa-codex-tmp/llvm-config-22-mesa-codex']
   ```
 
 Both are dev-box-local conveniences, recorded so the next Mesa build on this

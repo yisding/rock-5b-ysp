@@ -1081,7 +1081,7 @@ gnome-remote-desktop_50.1+rkmpp+git20260630.a59c904+dirty20260706-0ubuntu1~rk1_s
   source-vs-orig content check, and `dpkg-buildpackage -S` completed again.
 
 - Reused the known working rkmpp GRD packaging from
-  `/home/yi/Code/rock-5b/gnome/grd/grd-pkg/gnome-remote-desktop-50.1+rkmpp/debian`,
+  `/home/yi/Code/rock-5b/build/gnome/grd-pkg/gnome-remote-desktop-50.1+rkmpp/debian`,
   but copied it into YSP at `packaging/ppa/gnome-remote-desktop/debian`
   without generated debhelper output and without the older quilt patch stack.
 - Rationale for dropping the quilt patches in this YSP packaging copy:

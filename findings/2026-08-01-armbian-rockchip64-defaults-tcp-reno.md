@@ -3,7 +3,7 @@
 > Scope: Armbian `rockchip64` kernel configs (all three branches); the running
 > `6.18.41-ysp-rockchip64` build inherits the setting
 > Source: `armbian-build/config/kernel/linux-rockchip64-{current,edge,bleedingedge}.config`
-> at `~/Code/rock-5b/armbian/armbian-build` (history at `88f02f40a`);
+> at `~/Code/rock-5b/build/armbian/armbian-build` (history at `88f02f40a`);
 > `/boot/config-6.18.41-ysp-rockchip64`; live
 > `sysctl net.ipv4.tcp_congestion_control`; upstream `net/ipv4/Kconfig`
 > Date: 2026-08-01

@@ -16,7 +16,7 @@ REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 source "$TEST_DIR/kasan-scan.sh"
 
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
 PROFILE=${PROFILE:-"$(uname -r)"}
 TS=$(date +%Y%m%d-%H%M%S)
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/forward-port/$TS-kasan-narrowed"}

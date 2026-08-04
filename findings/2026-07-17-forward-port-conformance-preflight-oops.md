@@ -3,7 +3,7 @@
 > Scope: ROCK 5B running the 6.18.38 RK3588 MPP/RGA/AV1 forward-port PPA
 > kernel, at the start of the paired conformance run
 > Source: boot journal plus run `20260717-230531` under
-> `/home/yi/Code/rock-5b/rockchip-conformance/logs/forward-port/`; kernel package
+> `/home/yi/Code/rock-5b/build/rockchip-conformance/logs/forward-port/`; kernel package
 > `6.18.38+rk3588av1fwport20260717-0ubuntu1~rk1`
 > Date: 2026-07-17
 > Trust: MEASURED (timeline and Oops) / INFERRED (MPP procfs lifetime is the

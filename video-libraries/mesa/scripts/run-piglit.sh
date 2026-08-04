@@ -2,7 +2,7 @@
 # Run a piglit subset against a Panfrost Mesa build, via the glvnd EGL-vendor
 # mechanism (NOT LD_LIBRARY_PATH override — see the big gotcha below).
 #
-#   MESA_PREFIX=/home/yi/Code/rock-5b/fdo/mesa/install-glvnd \
+#   MESA_PREFIX=/home/yi/Code/rock-5b/build/mesa/install-glvnd \
 #   PIGLIT=/home/yi/Code/rock-5b/fdo/piglit \
 #   ./run-piglit.sh RESULTDIR -t getteximage -t '@pbo' -t readpixels -t fbo-blit ...
 #
@@ -23,7 +23,7 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 YSP_ROOT=$(cd "$HERE/../../.." && pwd)
 : "${ROCK5B_WORKSPACE:=$YSP_ROOT/../rock-5b}"
-: "${MESA_PREFIX:=$ROCK5B_WORKSPACE/fdo/mesa/install-glvnd}"
+: "${MESA_PREFIX:=$ROCK5B_WORKSPACE/build/mesa/install-glvnd}"
 : "${PIGLIT:=$ROCK5B_WORKSPACE/fdo/piglit}"
 RES=${1:?usage: run-piglit.sh RESULTDIR [piglit run args...]}; shift || true
 LIBDIR="$MESA_PREFIX/lib/aarch64-linux-gnu"

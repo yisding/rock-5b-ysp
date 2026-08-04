@@ -76,7 +76,7 @@ and [`PREFER_DOCKER` switch](https://docs.armbian.com/Developer-Guide_Build-Swit
 
 `kernel-drivers/scripts/build-kernel.sh` expects an Armbian build tree at
 **`$WORKSPACE/armbian-build`** — an external, gitignored build workspace
-(default `WORKSPACE=../rock-5b/kernel/rock5b-kernel-build`, override with `WORKSPACE=`)
+(default `WORKSPACE=../rock-5b/build/kernel/rock5b-kernel-build`, override with `WORKSPACE=`)
 and a forward-port Git tree at `KERNEL_TREE` (default
 `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport`). The tracked split series under
 [`kernel-drivers/patches/forward-port-rk3588/`](kernel-drivers/patches/forward-port-rk3588/README.md)
@@ -154,7 +154,7 @@ the commands above are the actual preparation.
 
 ```bash
 # 0. Bootstrap the external Armbian workspace if this machine does not have it.
-export WORKSPACE="${WORKSPACE:-../rock-5b/kernel/rock5b-kernel-build}"
+export WORKSPACE="${WORKSPACE:-../rock-5b/build/kernel/rock5b-kernel-build}"
 bash kernel-drivers/scripts/bootstrap-workspaces.sh
 
 # 1. Regenerate and stage the self-contained-DT forward-port patches, then build

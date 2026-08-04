@@ -249,8 +249,8 @@ needs qualification.
 Local sibling trees:
 
 ```text
-../rock-5b/u-boot/rock-5b-armbian-26.2.1-trixie-vendor-u-boot
-../rock-5b/u-boot/rock-5b-armbian-26.5.1-u-boot
+../rock-5b/build/u-boot/rock-5b-armbian-26.2.1-trixie-vendor-u-boot
+../rock-5b/build/u-boot/rock-5b-armbian-26.5.1-u-boot
 ../rock-5b/u-boot/radxa-u-boot
 ../rock-5b/u-boot/u-boot
 ```

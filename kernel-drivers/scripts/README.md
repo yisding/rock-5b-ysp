@@ -15,7 +15,7 @@ combined kernel, DKMS, and the PPA.
 > (`rock5b-kernel-build`, holding the 31 GB `armbian-build` + all outputs).
 > `bootstrap-workspaces.sh` clones that workspace. Every script derives the
 > grouped root from `ROCK5B_WORKSPACE` (default `../../../rock-5b`), defaults
-> `WORKSPACE` to `$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build`, and takes
+> `WORKSPACE` to `$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build`, and takes
 > `ARMBIAN_BUILD=` / `WORKSPACE=` overrides.
 
 ## Build-host modes
@@ -58,7 +58,7 @@ The full prerequisite and mode chooser is canonical in
 
 The build scripts expect an Armbian build tree at
 **`$WORKSPACE/armbian-build`** (default
-`WORKSPACE=$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build`, gitignored, outside
+`WORKSPACE=$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build`, gitignored, outside
 this repo). Get it with the bootstrap:
 
 ```bash

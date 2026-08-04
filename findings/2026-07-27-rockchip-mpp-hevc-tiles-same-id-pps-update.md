@@ -107,7 +107,7 @@ cd ../rockchip-vaapi
 
 ./tests/hevc_mpp_repro tests/vectors/PPS_A_qualcomm_7.bit 81
 ./tests/hevc_mpp_repro \
-  .hevc-probe/tiles-backend-repro-20260727/host-analysis/prefix-002-core.h265 \
+  "$ROCK5B_WORKSPACE/build/vaapi/hevc-probe/tiles-backend-repro-20260727/host-analysis/prefix-002-core.h265" \
   2
 ```
 

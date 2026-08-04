@@ -1029,7 +1029,7 @@ implementation (cross-reference:
   records that wrapper behavior with an unsupported handle-backed request
   config case.
 - **Userspace-visible priorities after the GStreamer legacy sync-blit/no-op ioctl KUnit slices** are
-  driven by `../rock-5b/rockchip-conformance`, especially JeffyCN's
+  driven by `../rock-5b/build/rockchip-conformance`, especially JeffyCN's
   `gstreamer-rockchip` branch at `dcbcd6454ef8`.  There are no paired
   forward-port/rewrite conformance logs yet, so the immediate missing artifact
   is a booted hardware run, not another BSP feature.  The support repo now has

@@ -9,10 +9,10 @@ source "$TEST_DIR/suite-common.sh"
 source "$TEST_DIR/debugfs-counters.sh"
 
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-ffmpeg-suite"}
-STAGE=${STAGE:-"$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build/ffmpeg-stack"}
+STAGE=${STAGE:-"$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build/ffmpeg-stack"}
 FFMPEG_GENERATOR=${FFMPEG_GENERATOR:-ffmpeg}
 FFMPEG_GENERATED_INPUT_CACHE=${FFMPEG_GENERATED_INPUT_CACHE:-"$CONFORMANCE_ROOT/assets/ffmpeg-generated"}
 FFMPEG_GENERATE_INPUTS=${FFMPEG_GENERATE_INPUTS:-1}

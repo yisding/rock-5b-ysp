@@ -40,15 +40,15 @@ cache stays at `~/Code/.ccache` and does not move with the board workspace.
 bash build-mesa-surfaceless.sh
 
 # 2. reproducers
-MESA_BUILD=/home/yi/Code/rock-5b/fdo/mesa/build-codex-main bash run-repro.sh
+MESA_BUILD=/home/yi/Code/rock-5b/build/mesa/build-codex-main bash run-repro.sh
 
 # 3. dEQP transfer cluster
-MESA_BUILD=/home/yi/Code/rock-5b/fdo/mesa/build-codex-main \
+MESA_BUILD=/home/yi/Code/rock-5b/build/mesa/build-codex-main \
   DEQP=/tmp/deqp-gles-ci/modules/gles3/deqp-gles3 \
   bash run-deqp.sh deqp-gles3-transfer-cases.txt
 
 # 4. piglit subset (needs a glvnd-enabled install prefix)
-MESA_PREFIX=/home/yi/Code/rock-5b/fdo/mesa/install-glvnd \
+MESA_PREFIX=/home/yi/Code/rock-5b/build/mesa/install-glvnd \
   bash run-piglit.sh /tmp/piglit-results -t getteximage -t '@pbo' -t readpixels -t fbo-blit
 ```
 

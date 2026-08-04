@@ -167,12 +167,12 @@ RGA-userptr-IOMMU-only image, not the debug-tip image.
 Repeated `rga-mmu-debug.sh` runs all passed:
 
 ```text
-../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182754
-../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182758
-../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182801
-../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182803
-../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182806
-../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-182808
+../rock-5b/build/rockchip-conformance/logs/rga-mmu-debug/20260705-182754
+../rock-5b/build/rockchip-conformance/logs/rga-mmu-debug/20260705-182758
+../rock-5b/build/rockchip-conformance/logs/rga-mmu-debug/20260705-182801
+../rock-5b/build/rockchip-conformance/logs/rga-mmu-debug/20260705-182803
+../rock-5b/build/rockchip-conformance/logs/rga-mmu-debug/20260705-182806
+../rock-5b/build/rockchip-conformance/logs/rga-mmu-debug/20260705-182808
 ```
 
 Each run selected:
@@ -204,7 +204,7 @@ external RK_IOMMU. The same logs showed external IOVA handles such as
 
 This is strong indirect evidence that RGA userptr-IOMMU fallback handled the selected scattered
 `virt_addr` cases, because the earlier debug run at
-`../rock-5b/rockchip-conformance/logs/rga-mmu-debug/20260705-151723` showed the same demo
+`../rock-5b/build/rockchip-conformance/logs/rga-mmu-debug/20260705-151723` showed the same demo
 family failing closed with non-contiguous `orig_nents == nents` mappings:
 
 ```text

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run a dEQP-GLES3 caselist against a surfaceless Panfrost build.
 #
-#   MESA_BUILD=/home/yi/Code/rock-5b/fdo/mesa/build-codex-main \
+#   MESA_BUILD=/home/yi/Code/rock-5b/build/mesa/build-codex-main \
 #   DEQP=/tmp/deqp-gles-ci/modules/gles3/deqp-gles3 \
 #   ./run-deqp.sh cases.txt
 #
@@ -17,7 +17,7 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 YSP_ROOT=$(cd "$HERE/../../.." && pwd)
 : "${ROCK5B_WORKSPACE:=$YSP_ROOT/../rock-5b}"
-: "${MESA_BUILD:=$ROCK5B_WORKSPACE/fdo/mesa/build-codex-main}"
+: "${MESA_BUILD:=$ROCK5B_WORKSPACE/build/mesa/build-codex-main}"
 : "${DEQP:=/tmp/deqp-gles-ci/modules/gles3/deqp-gles3}"
 CASES=${1:?usage: run-deqp.sh <caselist.txt>}
 CASES=$(readlink -f "$CASES")

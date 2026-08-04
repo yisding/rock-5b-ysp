@@ -107,7 +107,7 @@ Everything under `/sys/kernel/debug` is root-only — run the harness under `sud
 ### 3a. `iommu-machinery-fuzz.sh` — the orchestrator
 Composes everything and brackets each phase with a dmesg fault scan + debugfs
 counter delta + leak assertion. Structured logs land under
-`../rock-5b/rockchip-conformance/logs/iommu-machinery/<ts>/`.
+`../rock-5b/build/rockchip-conformance/logs/iommu-machinery/<ts>/`.
 
 ```sh
 IOMMU_FUZZ_VALIDATE_BUILD=1 bash kernel-drivers/tests/iommu-machinery-fuzz.sh  # device-free C++ build gate

@@ -45,7 +45,7 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"       # kernel-drivers/scripts
 CODE="$(cd "$HERE/../../.." && pwd)"                        # ~/Code
 ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$CODE/rock-5b}"
-WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build}"
+WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build}"
 DEBS_DIR="${DEBS_DIR:-$WORKSPACE/armbian-build/output/debs}"
 PKG_SUFFIX="${PKG_SUFFIX:-fallback}"
 OUT="${OUT:-$WORKSPACE/forward-port/fallback}"

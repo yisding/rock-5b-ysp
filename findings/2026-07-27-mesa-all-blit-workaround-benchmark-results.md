@@ -73,8 +73,8 @@ and the boot was the KASAN kernel
   failures.
 - **Artifacts:** raw logs, before/after metadata, and `SHA256SUMS` are in two
   machine-local, untracked 544 KiB bundles:
-  `/home/yi/Code/rock-5b/mesa-blit-workaround-bench-20260727` for the initial pass and
-  `/home/yi/Code/rock-5b/mesa-blit-workaround-bench-20260727-500mhz` for the fixed-clock
+  `/home/yi/Code/rock-5b/build/mesa/mesa-blit-workaround-bench-20260727` for the initial pass and
+  `/home/yi/Code/rock-5b/build/mesa/mesa-blit-workaround-bench-20260727-500mhz` for the fixed-clock
   rerun.
 
 ## Verification gate

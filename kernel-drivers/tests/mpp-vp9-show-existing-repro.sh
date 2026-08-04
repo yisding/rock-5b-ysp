@@ -26,7 +26,7 @@ source "$TEST_DIR/suite-common.sh"
 : "${SUITE_DMESG_FATAL_RE:?suite-common.sh did not load; the kernel-log fatal scan would be silently blind}"
 REPO_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$ROCK5B_WORKSPACE/rockchip-conformance}"
+CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$ROCK5B_WORKSPACE/build/rockchip-conformance}"
 # shellcheck source=kasan-scan.sh disable=SC1091
 source "$TEST_DIR/kasan-scan.sh"
 

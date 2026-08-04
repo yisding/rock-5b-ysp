@@ -8,7 +8,7 @@ source "$TEST_DIR/suite-common.sh"
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 MPP_BIN_DIR=${MPP_BIN_DIR:-/usr/bin}
 # Empty means use the system dynamic-loader search path. Set MPP_LIBDIR only

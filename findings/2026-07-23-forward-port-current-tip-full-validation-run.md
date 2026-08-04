@@ -90,9 +90,9 @@ memory-safety** only — no performance/soak claims (runbook principle 2).
     24 cases. Decode/PSNR **bit-exact (inf)** for H.264/H.265/VP9/AV1; encode
     option cases pass; `hevc→h264`, `av1→h264`, `av1→hevc` transcodes produce
     valid non-empty output. **Two userspace failures (see below).**
-- **Artifacts:** `../rock-5b/rockchip-conformance/logs/forward-port/20260723-104152-kasan-mpp-suite/`,
+- **Artifacts:** `../rock-5b/build/rockchip-conformance/logs/forward-port/20260723-104152-kasan-mpp-suite/`,
   `.../20260723-104210-kasan-narrowed/`,
-  `../rock-5b/rockchip-conformance/logs/rewrite/20260723-104740-ffmpeg-suite/`.
+  `../rock-5b/build/rockchip-conformance/logs/rewrite/20260723-104740-ffmpeg-suite/`.
   Raw captures, not committed.
 
 ## Root-only gates — RUN 2026-07-23, all green

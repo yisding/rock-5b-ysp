@@ -5,7 +5,7 @@
 > `6.18-rkvenc-fwport`.
 >
 > Source: on-board validation runs from `/home/yi/Code/rock-5b-ysp`, with
-> artifacts under `../rock-5b/rockchip-conformance/logs/forward-port/`.
+> artifacts under `../rock-5b/build/rockchip-conformance/logs/forward-port/`.
 >
 > Date: 2026-07-25 PDT.
 >
@@ -158,14 +158,14 @@ The narrowed KASAN reproducer passed:
 
 ```text
 RESULT abi_status=0 flagged_kernel_lines=0 clean=1
-out=../rock-5b/rockchip-conformance/logs/forward-port/20260725-195438-kasan-narrowed
+out=../rock-5b/build/rockchip-conformance/logs/forward-port/20260725-195438-kasan-narrowed
 ```
 
 The full KASAN MPP suite passed all 12 required cases:
 
 ```text
 RESULT suite_status=0 flagged_kernel_lines=0 clean=1
-out=../rock-5b/rockchip-conformance/logs/forward-port/20260725-195451-kasan-mpp-suite
+out=../rock-5b/build/rockchip-conformance/logs/forward-port/20260725-195451-kasan-mpp-suite
 ```
 
 Decoder smoke also passed:

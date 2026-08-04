@@ -11,7 +11,7 @@
 > `FIREFOX_152_0_6_RELEASE`/`FIREFOX_153_0_RELEASE`
 > `widget/gtk/DMABufSurface.cpp` preimages; the preserved Ubuntu Firefox
 > 152.0.6 package tree; and the exact signed 153.0 Mozilla Team package tree
-> under `/home/yi/Code/rock-5b/firefox-rdd-build`.
+> under `/home/yi/Code/rock-5b/build/browser/firefox-rdd-build`.
 >
 > Runtime: ROCK 5B on `6.18.40-ysp-rockchip64`, installed
 > `librockchip-mpp1 1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1`,

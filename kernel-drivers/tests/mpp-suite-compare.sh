@@ -4,7 +4,7 @@ set -euo pipefail
 TEST_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$TEST_DIR/../.." && pwd)
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
 BASELINE=${BASELINE:-forward-port}
 CANDIDATE=${CANDIDATE:-rewrite}
 BASELINE_SUMMARY=${BASELINE_SUMMARY:-}

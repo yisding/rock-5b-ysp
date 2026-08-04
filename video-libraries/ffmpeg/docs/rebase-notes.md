@@ -148,7 +148,7 @@ To obtain a same-base comparison with Jellyfin, canonical `n8.1.2`
 (`38b88335f99e`) was imported and the 65-commit `upstream..main` Rockchip stack
 was replayed onto it. The result is local branch
 `rockchip-8.1.2@53b3551b9176`, worktree
-`/home/yi/Code/rock-5b/ffmpeg/ffmpeg-rockchip-812`, described as
+`/home/yi/Code/rock-5b/build/ffmpeg/ffmpeg-rockchip-812`, described as
 `n8.1.2-63-g53b3551b91`. The existing `rockchip-8.0@463f542c3259` checkout and
 its untracked build outputs were left untouched.
 

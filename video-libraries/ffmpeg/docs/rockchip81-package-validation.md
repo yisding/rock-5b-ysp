@@ -170,9 +170,9 @@ The local conformance MPP demo binaries failed with an ABI mismatch before they
 could serve as an independent decoder/encoder comparison:
 
 ```text
-/home/yi/Code/rock-5b/rockchip-conformance/out/mpp/bin/mpi_dec_test:
+/home/yi/Code/rock-5b/build/rockchip-conformance/out/mpp/bin/mpi_dec_test:
   undefined symbol: mpp_sgln_base_add
-/home/yi/Code/rock-5b/rockchip-conformance/out/mpp/bin/mpi_enc_test:
+/home/yi/Code/rock-5b/build/rockchip-conformance/out/mpp/bin/mpi_enc_test:
   undefined symbol: mpp_sgln_base_add
 ```
 
@@ -182,7 +182,7 @@ Root cause:
   so the loader selected the installed `/usr` library, which lacks
   `mpp_sgln_base_add`.
 - The matching local library at
-  `/home/yi/Code/rock-5b/rockchip-conformance/out/mpp/lib/librockchip_mpp.so.1` exports
+  `/home/yi/Code/rock-5b/build/rockchip-conformance/out/mpp/lib/librockchip_mpp.so.1` exports
   `mpp_sgln_base_add` and the decoder parser registration symbols. Running the
   demos with `LD_LIBRARY_PATH` pointed at it removes the undefined-symbol
   failure and reaches normal argument/runtime checks.

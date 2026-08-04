@@ -20,7 +20,7 @@
 > Source: `../rock-5b/kernel/rockchip-kernel` @ `b4ef083dc0c3` (6.1.141 BSP) ·
 > `../rock-5b/kernel/linux-6.18-rkvenc` @ `40cf22629cf63` (`v6.18-253`) ·
 > `../rock-5b/kernel/linux` @ `7481ab327d7ea` (`v7.2-rc2-242`, maxline) ·
-> `../rock-5b/kernel/rock5b-kernel-build/armbian-build` (`rockchip64-6.18` patch archive) ·
+> `../rock-5b/build/kernel/rock5b-kernel-build/armbian-build` (`rockchip64-6.18` patch archive) ·
 > booted `6.18.38-ysp-rockchip64`
 > Date: 2026-07-25
 > Trust: MEASURED / SOURCE-INSPECTED / CONFIRMED / INFERRED / DESIGN

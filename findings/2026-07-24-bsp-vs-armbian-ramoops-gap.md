@@ -43,7 +43,7 @@
 > `analysis/L1..L8`, `analysis/verify-H1/H2/H3`, `analysis/completeness-critic.md`;
 > Rockchip BSP kernel `rockchip-kernel@b4ef083dc0c3` (6.1.141), mainline
 > `~/Code/rock-5b/kernel/linux`, `~/Code/rock-5b/kernel/linux-6.18-rkvenc`, u-boot
-> `~/Code/rock-5b/u-boot/rock-5b-armbian-26.5.1-u-boot` (radxa/u-boot `39cd993`),
+> `~/Code/rock-5b/build/u-boot/rock-5b-armbian-26.5.1-u-boot` (radxa/u-boot `39cd993`),
 > `~/Code/rock-5b/u-boot/rkbin@02931bbd` (radxa `develop-v2026.01`), RK3588 TRM V1.0 Part1/2,
 > RK806 Datasheet Rev 1.3, ROCK 5B v1.4.5 schematic.
 > Date: 2026-07-24
@@ -646,7 +646,7 @@ on disk in `~/Code/rock-5b/u-boot/rkbin/bin/rk35/`, and Armbian's variables are 
 overrides (`config/sources/families/include/rockchip64_common.inc:165-166`).
 
 ```bash
-cd /home/yi/Code/rock-5b/armbian/armbian-build
+cd /home/yi/Code/rock-5b/build/armbian/armbian-build
 DDR_BLOB=rk35/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.22.bin \
 BL31_BLOB=rk35/rk3588_bl31_v1.54.elf \
   ./compile.sh BOARD=rock-5b BRANCH=current uboot
@@ -865,7 +865,7 @@ and one new experiment. Nothing here changes the verdict; it narrows §3.3.
 ### F1. SPL's entire static footprint, and why it cannot reach the window
 
 `include/configs/rk3588_common.h` in the exact source of our installed U-Boot
-(`~/Code/rock-5b/u-boot/rock-5b-armbian-26.5.1-u-boot`, radxa/u-boot `39cd993`) —
+(`~/Code/rock-5b/build/u-boot/rock-5b-armbian-26.5.1-u-boot`, radxa/u-boot `39cd993`) —
 **SOURCE-VERIFIED**:
 
 ```

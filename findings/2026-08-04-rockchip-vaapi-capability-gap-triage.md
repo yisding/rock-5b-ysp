@@ -16,8 +16,8 @@
 > `mpp/codec/enc/h265/h265e_slice.c` (~:239-246), `mpp/common/h265_syntax.h`
 > (~:195-197); librga fork
 > `~/Code/rock-5b/rockchip-userspace/librga-fork@58064e3`; sweep reports
-> `.test-work.hevc-sweep/report.tsv` and `.test-work.hevc-sweep-ppa/report.tsv`
-> as found on disk.
+> captured from the then-untracked Main10 and PPA run directories before the
+> 2026-08-04 workspace cleanup.
 > Date: 2026-08-04
 > Trust: **SOURCE-INSPECTED** (MPP encoder format table and slice-type
 > assignments) + **CODE-INSPECTED** (driver caps, import validation, size
@@ -150,7 +150,7 @@ than the 7680x4320 decode-flavored guess currently advertised for encode.
 
 `WPP_D_ericsson_MAIN10_2.bit` at 64x240 remains the only failing row of the
 Main10 sweep — class `driver`, "VA-API decode errored", against 10 bit-exact
-and 5 profile skips in `.test-work.hevc-sweep/report.tsv`. The mechanism is
+and 5 profile skips in the captured Main10 report. The mechanism is
 settled ([no-core-match finding](2026-07-29-rga-no-core-match-narrow-afbc-10bit.md))
 and the remediation is fully specced in
 [`narrow-10bit-closure-plan.md`](../video-libraries/vaapi/docs/narrow-10bit-closure-plan.md):
@@ -191,12 +191,14 @@ no current consumer. FFmpeg and GStreamer encode both pass today without it.
 
 `tests/sweep-hevc-conformance.sh` defaults its report directory to
 `$REPO_ROOT/.test-work.hevc-sweep` (~:73) **for both profiles** — `PROFILE`
-selects Main or Main10 (~:47-61) but does not vary the output path. On disk:
+selects Main or Main10 (~:47-61) but does not vary the output path. The
+following values were captured before the disposable work directories were
+removed on 2026-08-04:
 
 | Report | mtime | Rows | Tally |
 |---|---|---:|---|
-| `.test-work.hevc-sweep-ppa/report.tsv` | 2026-07-29 05:32 | 163 | 144 exact / 17 skip / 2 unsup — the Main sweep, written to an explicit second-argument directory |
-| `.test-work.hevc-sweep/report.tsv` | 2026-08-01 17:56 | 16 | 10 exact / 5 skip / 1 driver — the **Main10** sweep, in the shared default |
+| PPA sweep report | 2026-07-29 05:32 | 163 | 144 exact / 17 skip / 2 unsup — the Main sweep, written to an explicit second-argument directory |
+| Main10 sweep report | 2026-08-01 17:56 | 16 | 10 exact / 5 skip / 1 driver — the **Main10** sweep, in the shared default |
 
 Two consequences. First, no Main-profile sweep result newer than 2026-07-29
 exists on disk — that run was against the ysp6-era Published package root, and

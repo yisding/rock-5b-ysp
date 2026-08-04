@@ -10,7 +10,7 @@ source "$TEST_DIR/suite-common.sh"
 source "$TEST_DIR/debugfs-counters.sh"
 
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 OUT=${OUT:-"$CONFORMANCE_ROOT/logs/$PROFILE/$(date +%Y%m%d-%H%M%S)-rkmppenc-suite"}
 RKMPPENC=${RKMPPENC:-rkmppenc}

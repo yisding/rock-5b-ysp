@@ -12,7 +12,7 @@ parallel review agents plus git-level stack checks. Scope and method:
   exactness chain (rasterizer preload → NIR lowering → TGSI declaration) and
   st/mesa case analysis.
 - **!42614** `4c23f1db1f9` — static review **plus live runs on the G610**:
-  built the tip in `.codex-tmp/build-g610-debug`, ran the new u_test (pass),
+  built the tip in `$ROCK5B_WORKSPACE/build/mesa/mesa-codex-tmp/build-g610-debug`, ran the new u_test (pass),
   then flipped `use_txf_fragcoord` off in gdb and re-ran (fail with exactly
   the commit message's 40884 wrong texels). Both directions verified.
 - Stack-wide: patch-id comparison of the duplicated u_blitter commit,
@@ -294,7 +294,7 @@ static inline bool panfrost_has_exact_blit_coords(unsigned arch) { return arch >
 ## !42614 — `panfrost: add a Gallium test for wide blit precision`
 
 **No blockers; the test was verified live in both directions** on the G610
-(build `.codex-tmp/build-g610-debug`): `Test(test_unscaled_blit_precision)
+(build `$ROCK5B_WORKSPACE/build/mesa/mesa-codex-tmp/build-g610-debug`): `Test(test_unscaled_blit_precision)
 = pass` on the fixed path, and with `use_txf_fragcoord` flipped off in gdb,
 all seven passes fail with exactly **40884 wrong texels, first at
 (6049,0)** — matching the commit message digit-for-digit and the prior

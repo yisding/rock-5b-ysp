@@ -8,7 +8,7 @@ source "$TEST_DIR/suite-common.sh"
 # shellcheck source=debugfs-counters.sh disable=SC1091
 source "$TEST_DIR/debugfs-counters.sh"
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/rockchip-conformance"}
+CONFORMANCE_ROOT=${CONFORMANCE_ROOT:-"$ROCK5B_WORKSPACE/build/rockchip-conformance"}
 PROFILE=${PROFILE:-${1:-rewrite}}
 GST_PREFIX=${GST_PREFIX:-"$CONFORMANCE_ROOT/out/gstreamer-rockchip"}
 GST_PLUGIN_DIR=${GST_PLUGIN_DIR:-"$GST_PREFIX/lib/gstreamer-1.0"}
@@ -518,7 +518,7 @@ else
 	fi
 
 	if [ ! -d "$GST_PLUGIN_DIR" ]; then
-		echo "Missing $GST_PLUGIN_DIR. Run ../rock-5b/rockchip-conformance/scripts/build-gstreamer-rockchip.sh first." >&2
+		echo "Missing $GST_PLUGIN_DIR. Run ../rock-5b/build/rockchip-conformance/scripts/build-gstreamer-rockchip.sh first." >&2
 		exit 2
 	fi
 

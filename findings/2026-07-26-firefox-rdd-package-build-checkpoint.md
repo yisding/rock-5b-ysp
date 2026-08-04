@@ -5,7 +5,7 @@
 >
 > Source: Ubuntu source package
 > `152.0.6+build1-0ubuntu0.26.04.1~mt1`, local build workspace
-> `~/Code/rock-5b/firefox-rdd-build`, and retained configure/build logs under its
+> `~/Code/rock-5b/build/browser/firefox-rdd-build`, and retained configure/build logs under its
 > `artifacts/` directory.
 >
 > Date: 2026-07-26.
@@ -42,7 +42,7 @@ the Debian tarball SHA-256 is
 
 Resolute's Firefox packaging expects a versioned toolchain that was not fully
 installed on this login. The build was kept rootless by extracting required
-packages under `~/Code/rock-5b/firefox-rdd-build/deps/root` and pointing the generated
+packages under `~/Code/rock-5b/build/browser/firefox-rdd-build/deps/root` and pointing the generated
 `mozconfig` at those tools. The working contract was:
 
 - Firefox's compatibility CDBS package

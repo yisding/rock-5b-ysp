@@ -40,7 +40,7 @@ ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$REPO_ROOT/../rock-5b}"
 #               ffmpeg that can decode these codecs in software works, so this
 #               defaults to FFSW).
 MPP_BUILD="${MPP_BUILD:-/usr}"
-ASSET_DIR="${ASSET_DIR:-$ROCK5B_WORKSPACE/rockchip-conformance/assets}"
+ASSET_DIR="${ASSET_DIR:-$ROCK5B_WORKSPACE/build/rockchip-conformance/assets}"
 OUT="${OUT:-/tmp/rkvdec-differential}"
 FFSW="${FFSW:-ffmpeg}"
 LIB="$MPP_BUILD/lib"; [ -d "$LIB" ] || LIB="$MPP_BUILD/mpp"

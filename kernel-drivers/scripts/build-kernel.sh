@@ -78,7 +78,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # kernel-drivers/scripts
 ROOT="$(cd "$HERE/../.." && pwd)"                       # the ysp repository
 CODE="$(cd "$ROOT/.." && pwd)"                          # ~/Code (ysp is <CODE>/rock-5b-ysp)
 ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$CODE/rock-5b}"
-WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
+WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
 BASE_TAG="${BASE_TAG:-v6.18}"                 # local-flavor patches are BASE_TAG..HEAD
 # LINUXFAMILY: settable, but ONLY from a late_family_config extension hook.

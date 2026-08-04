@@ -128,9 +128,9 @@ The decisive MPP commands used the rebuilt library through the direct runner:
 ```bash
 cd ../rockchip-vaapi
 
-.hevc-probe/hevc_mpp_repro.d8c6b88a \
+"$ROCK5B_WORKSPACE/build/vaapi/hevc-probe/hevc_mpp_repro.d8c6b88a" \
   tests/vectors/hevc-sweep/NUT_A_ericsson_4.bit 34
-.hevc-probe/hevc_mpp_repro.d8c6b88a \
+"$ROCK5B_WORKSPACE/build/vaapi/hevc-probe/hevc_mpp_repro.d8c6b88a" \
   tests/vectors/hevc-sweep/NUT_A_ericsson_5.bit 34
 ```
 

@@ -36,7 +36,7 @@ source "$TEST_DIR/debugfs-counters.sh"
 : "${DEBUGFS_COUNTERS_LOADED:?debugfs-counters.sh did not load; the counter/leak check would be silently absent}"
 
 ROCK5B_WORKSPACE=${ROCK5B_WORKSPACE:-"$REPO_ROOT/../rock-5b"}
-CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$ROCK5B_WORKSPACE/rockchip-conformance}"
+CONFORMANCE_ROOT="${CONFORMANCE_ROOT:-$ROCK5B_WORKSPACE/build/rockchip-conformance}"
 LRGA="${LRGA:-$CONFORMANCE_ROOT/sources/airockchip-librga}"
 LIBRGA_LIBDIR="${LIBRGA_LIBDIR:-}"
 MPP_BUILD="${MPP_BUILD:-/usr}"

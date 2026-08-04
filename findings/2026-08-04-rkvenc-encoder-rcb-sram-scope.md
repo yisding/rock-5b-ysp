@@ -3,7 +3,7 @@
 > Scope: RK3588 VEPU580 encoder RCB/SRAM path — vendor MPP userspace plus the
 > `rk3588-video-6.18` forward port; owning doc is
 > [`kernel-drivers/mpp/docs/rcb-sram.md`](../kernel-drivers/mpp/docs/rcb-sram.md)
-> Source: `../rock-5b/rockchip-conformance/sources/rockchip-mpp` @ `c2c1ee502b3a`;
+> Source: `../rock-5b/build/rockchip-conformance/sources/rockchip-mpp` @ `c2c1ee502b3a`;
 > `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` branch `rk3588-video-6.18` @
 > `7615b69a744af`; `../rock-5b/kernel/rockchip-kernel` `develop-6.1` @
 > `b4ef083dc0c3`. Anchors: `hal_h264e_vepu580.c` `setup_vepu580_ext_line_buf()`
