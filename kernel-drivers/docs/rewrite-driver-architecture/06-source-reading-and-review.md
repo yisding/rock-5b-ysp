@@ -6,13 +6,17 @@
 ## 10. A practical source-reading order
 
 The sources are large because implementation and KUnit tests share one
-translation unit. Read by concepts rather than top to bottom.
+translation unit. Read by concepts rather than top to bottom. The symbol order
+below describes the as-built 2026-08-04 tips (`33c30ec6989e` on 6.18 and
+`9e503f6b16df` on mainline), not the proposed object names in the ownership
+refactor.
 
 ### 10.1 MPP
 
 1. Read the top-level structures:
    `rk_mpp_service`, `rk_mpp_session`, `rk_mpp_job`, `rk_mpp_hw`,
-   `rk_mpp_import`, and `rk_mpp_backend_ops`.
+   `rk_mpp_import`, `rk_mpp_reset_domain`, `rk_mpp_dma_group`, and
+   `rk_mpp_backend_ops`.
 2. Read `rk_mpp_init()`, `rk_mpp_hw_probe()`, `rk_mpp_open()`.
 3. Follow one ioctl:
    `rk_mpp_ioctl()` -> `rk_mpp_collect_msgs()` ->
@@ -32,7 +36,8 @@ translation unit. Read by concepts rather than top to bottom.
 ### 10.2 RGA
 
 1. Read `rk_rga_service`, `rk_rga_session`, `rk_rga_request`, `rk_rga_job`,
-   `rk_rga_import`, `rk_rga_job_mapping`, and `rk_rga_hw`.
+   `rk_rga_import`, `rk_rga_job_mapping`, and `rk_rga_hw`. Notice that the
+   whole job still carries fields for its current task execution.
 2. Read `rk_rga_init()`, `rk_rga_hw_probe()`, `rk_rga_open()`.
 3. Follow legacy `rk_rga_ioctl_blit()` first because it creates one task.
 4. Then read request create/config/submit to see snapshot ownership.
@@ -43,6 +48,13 @@ translation unit. Read by concepts rather than top to bottom.
 8. Read one RGA2 and one RGA3 validator/emitter.
 9. Follow hard IRQ -> IRQ thread -> mapping clear -> task advance/completion.
 10. Finish with timeout/fault recovery, close, and hardware remove.
+
+After tracing the current types, read the
+[as-built/target comparison](04-design-lessons.md#61-as-built-strengths-and-remaining-ownership-debt)
+and then the [ownership-refactor plan](../rewrite-ownership-refactor-plan.md).
+Searching the implementation for `rk_mpp_cluster`, `rk_mpp_activation`,
+`rk_rga_task_exec`, or `rk_rga_acquire_set` should return no definitions until
+that plan begins to land.
 
 Use `rg` to navigate by symbol:
 

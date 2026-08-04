@@ -15,6 +15,11 @@
 >
 > Date: 2026-08-02
 
+> **Current-source update (2026-08-04):** the repair remains in maintained
+> tips `33c30ec6989e` / `9e503f6b16df`, whose current normal focused build
+> passes. Boot `#29` is still the observed failing baseline and predates the
+> fix; no current-tip librga rerun exists.
+
 ## Result
 
 The 128x128 RGBA8888 handle copy was rejected before any imported handle was

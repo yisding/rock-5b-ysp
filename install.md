@@ -133,6 +133,12 @@ the `PHASH` the build printed.
    current SD/SPI limitations are tracked in [`status.md` track 12](status.md#dashboard);
    do not assume an arbitrary raw SD image bypasses the installed loader.
 
+   **Operator-validated 2026-08-04:** this documented SD-rescue flow and the
+   exact `kernel-revert.sh` commands below have been used successfully for
+   forward-port rollback. A reader can use the same mechanism; the dated
+   evidence boundary is recorded in the
+   [recovery finding](findings/2026-08-04-forward-port-sd-rescue-rollback-used.md).
+
 4. Know which recovery operation applies:
 
    | Situation | Recovery from the rescue boot |
@@ -272,15 +278,18 @@ binary**. Get userspace one of two ways:
   package, and the co-installable forward-port kernel is in this repo. The
   recreated system PPA now publishes the complete normal stack, including GRD;
   four dedicated PPAs publish the incompatible FFmpeg 8.1 and rewrite-kernel
-  tracks. A GRD 50.2 candidate and the optional GDM
+  tracks. The published rewrite kernels are historical July composites, not
+  packages of the maintained rewrite tips; use them only with their pinned
+  package docs and do not infer current AV1 or architecture coverage. A GRD 50.2 candidate and the optional GDM
   package are uploaded but not yet Published; the exact clean-migration
   transaction is still owed ([`status.md`](status.md) track 9). For whether the
   Published forward-port kernel is currently substitutable for path (a), read
   [`status.md`](status.md) track 1 and its
   [W05 watchlist entry](status.md#watch-w05) rather than this page — that state
   changes without an edit here, and a copy of it goes stale silently. The
-  rollback gate is the one that has not yet been demonstrated. The established
-  local-deb flow remains documented in
+  documented SD rescue + `kernel-revert.sh` commands are operator-validated;
+  current-package conformance breadth and clean migration are the open gates.
+  The established local-deb flow remains documented in
   [`packaging/README.md`](packaging/README.md) § Operations (including the
   `apt-mark hold` pinning guidance).
 

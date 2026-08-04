@@ -18,7 +18,7 @@
 | Fatal reset failure | Quarantine plus permanent group isolation | Quarantine failed core and reroute/fail work |
 | Close boundary | abort jobs, release imports, drop session ref | close flag, dispatch drain, cancel fences/jobs, release IDRs |
 
-The common architecture is more important than the differences:
+The common as-built strengths are more important than the differences:
 
 - copy user state into kernel-owned snapshots;
 - validate before publication;
@@ -33,6 +33,54 @@ The common architecture is more important than the differences:
 ---
 
 ## 6. How to design a driver like this
+
+### 6.1 As-built strengths and remaining ownership debt
+
+The current implementation should not be described as either “the target
+architecture is already complete” or “the rewrite got ownership wrong.” Its
+first-order direction is sound: sessions retain accepted work, jobs retain
+buffers and hardware, delayed events carry generations, and failed recovery
+stops admission before memory is released. Those properties are materially
+clearer than the BSP's distributed global managers.
+
+The remaining problem is **ownership altitude**. Several resources are owned by
+an object broader than the lifetime they actually serve:
+
+| Boundary | As built on 2026-08-04 | Target architecture | Why it matters |
+|----------|------------------------|---------------------|----------------|
+| MPP shared decoder hardware | `rk_mpp_hw`, `rk_mpp_job`, a reset-domain mutex, and a separate DMA-group object divide CCU admission, group power, reset, IOMMU refresh, and quarantine | `rk_mpp_cluster` composes the topology; reset domain and DMA group remain distinct authorities behind it | A new terminal path can otherwise repair reset but omit refresh, group-power release, or peer quarantine. |
+| One MPP run | The job and hardware active slot carry generation, watchdog, DCHS/CCU participation, power references, and retirement state | `rk_mpp_activation` owns exactly one admitted hardware lifetime | IRQ, timeout, fault, abort, and remove should all claim and retire the same object through one engine. |
+| One RGA task | `rk_rga_job` owns the whole request and the current task's selected hardware, mappings, command buffer, generation, IRQ state, and copyback obligations | `rk_rga_task_exec` owns one task on one selected core; `rk_rga_job` owns only the aggregate request/fence result | Multi-task advancement and per-task teardown should not be reimplemented independently in IRQ and recovery tails. |
+| RGA acquire callbacks | Callback arrays, pending counts, work ownership, and cancellation state live across the broad job | `rk_rga_acquire_set` contains the callback lifetime | Close/cancel should resolve one callback object rather than manipulate fields spread across a submitted request. |
+| Hardware recipes | Validators and emitters can still inspect mutable register/task representations | A sealed MPP register image and immutable RGA task plan feed start/emission | Later patching should not invalidate an earlier provenance or capability decision. |
+
+The target graph is therefore an incremental refactor of the current one:
+
+```mermaid
+flowchart LR
+  subgraph current["As built"]
+    mj["MPP job<br/>transaction + activation state"]
+    mh["MPP hw<br/>core + CCU/recovery roles"]
+    rj["RGA job<br/>request + current execution"]
+  end
+  subgraph target["Target"]
+    mt["MPP job"] --> ma["activation"] --> mc["cluster authorities"]
+    rt["RGA job"] --> re["task execution"] --> rh["one core"]
+    rt --> ra["acquire set"]
+  end
+  mj -. refactor .-> mt
+  mh -. compose .-> mc
+  rj -. refactor .-> rt
+```
+
+None of `rk_mpp_cluster`, `rk_mpp_activation`, `rk_rga_task_exec`, or
+`rk_rga_acquire_set` exists in the current source. The
+[ownership-refactor plan](../rewrite-ownership-refactor-plan.md) defines the
+migration and its invariants; the
+[retrospective](../../../findings/2026-08-01-rewrite-driver-retrospective.md)
+records why object ownership should precede further feature breadth. Until that
+work lands, reviewers must audit the cross-path conventions described in the
+current-driver chapters rather than assuming the target types enforce them.
 
 Several kernel mechanisms appear together because they solve different
 problems:

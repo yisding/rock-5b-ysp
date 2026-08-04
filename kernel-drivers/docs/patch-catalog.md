@@ -261,10 +261,10 @@ against a silent-corruption case rather than fixing a specific commit's mistake.
 |---|--------------|-------|--------------|----------|
 | 0072 | RGA3: reject a non-16-byte-aligned IOMMU window base in `rga_mm_get_buffer_info()` with `-EINVAL` instead of silently returning all-zero pixels. RGA3 fetches the base on a 16-byte granularity; the scattered-userptr `shadow_page` path carries the raw sub-page byte offset in the base with a zeroed head, so a non-16-aligned source read the zero head. | `FWPORT-ROBUSTNESS` | Concerns forward-port-only scattered-userptr / `shadow_page` code (not in the BSP); fail-loud, no functional change to aligned userptr or dma-buf. | **No** — forward-port-specific path; see [finding](../../findings/2026-07-23-rga-scattered-userptr-unaligned-src-zero-output.md) |
 
-## Current `0072`–`0089` — outside the 2026-07-22 compilation
+## Current `0072`–`0092` — outside the 2026-07-22 compilation
 
 > **These rows use CURRENT numbering**, unlike everything above, which uses the
-> pre-cleanup scheme (this page's `0072` is current `0071`). The eighteen patches
+> pre-cleanup scheme (this page's `0072` is current `0071`). The 21 patches
 > below all landed after this page was compiled on 2026-07-22.
 
 `0072`–`0075` are the 10-bit RGA stride/UV-offset trio and the RKVENC2
@@ -277,27 +277,38 @@ changes ([W13](../../status.md#watch-w13)).
 `0076`–`0079` are the [2026-07-29 WARN/oops audit
 sweep](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md) —
 18 defects, of which 12 are unprivileged-reachable and five are kernel-heap
-corruption. All four are **compile-verified only**, so per this page's rule they
-keep that boundary regardless of backport verdict.
+corruption. They first landed compile-verified only. The current `0089`
+production package has now booted and completed a narrow tier-1 decode run, but
+the four patches still lack their targeted hostile-path gates.
 
 `0080` is the 2026-07-31 mapped-SG contract reconciliation. Its direct-span
 admission check repairs forward-port-only hardening, while its RGA2 page-table
 walker corrects vendor code that mixed original SG lengths/counts with mapped
-DMA addresses. Its two changed objects compile cleanly, but it is not booted.
+DMA addresses. Its two changed objects compile cleanly and it is included in
+the booted current package, but the forced fragmented-DMA-BUF RGA2 gate remains
+open.
 
 `0081`–`0087` are the 2026-08-01 ioctl/lifetime audit fixes and their
 adversarial-review repairs. The audit traces most defect sites to the BSP
 import, while the session-fd ordering bug and the original RGA ownership leak
-were forward-port regressions. These rows preserve that mixed provenance;
-every patch remains compile-only and requires the forward-port ABI,
-cross-session RGA, MPP, encode, and decode regression gates.
+were forward-port regressions. These rows preserve that mixed provenance. The
+booted current package gives them narrow integrated evidence, not the still-owed
+forward-port ABI, cross-session RGA, MPP, encode, and decode regression gates.
 
 `0088` imports the BSP's RK3588 IEP2 block and board DT enablement into 6.18.
 `0089` is its three-way safety-review tail. It contains both adaptations to the
 6.18 IOMMU/fault ABI and defects inherited from the BSP-shaped MPP/IEP2 code;
-backport only the latter after translating them to the BSP provider ABI. Both
-patches remain compile-only and require the dedicated client-28/KASAN/runtime
-gate in the [IEP2 safety review](../iep2/docs/forward-port-safety-review.md).
+backport only the latter after translating them to the BSP provider ABI. The
+dedicated client-28/KASAN/runtime gate is now green except for the untriggered
+software-timeout injection; the Published production package also runs
+standalone IEP2. See the
+[IEP2 safety review](../iep2/docs/forward-port-safety-review.md).
+
+`0090`–`0092` close the known-open RGA job-task, MPP provider-callback/task,
+and decoder recovery lifetime gaps from the 2026-08-01 audit. They pass an
+affected-object arm64 `W=1` build but have no package or board evidence. Their
+mixed backport boundary is recorded in the rows below and in the
+[fix finding](../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
 
 | # | What it does | Class | BSP evidence | Backport |
 |---|--------------|-------|--------------|----------|
@@ -315,6 +326,9 @@ gate in the [IEP2 safety review](../iep2/docs/forward-port-safety-review.md).
 | 0087 | Repair review findings in `0081`–`0085`: owner-only RGA import counting, fd-reference-last message release, serialized MPP release, complete timeout/`cur_task` locking, and fd/PTR de-duplication. | Mixed corrective follow-up | Some corrections repair bugs introduced by `0081`/`0085`; the message-release ordering, split release race, hard-CCU cancellation, and unlocked `cur_task` publication/read are pre-existing same-shape defects. | **Partial** — pair each correction with its owning backport; never backport `0081`–`0085` without this review tail |
 | 0088 | Add RK3588 IEP2 vendor-ABI deinterlacing, binding, and ROCK 5B DT enablement. | `PORT` / `VENDOR` | The functional driver and DT description are adapted from `develop-6.1`; the BSP already contains IEP2. | **No** — feature forward port; BSP already has the donor implementation |
 | 0089 | Harden IEP2 task/fault/remove lifetime, clock/reset handling, fault recovery, DMA-span validation, raw-address rejection, auxiliary mapping ownership, and fixed-IOVA exclusivity. | Mixed: `BSP-BUG` + `PORT-FIX` | Timeout/current-task, callback teardown, resource-error, raw-address, span-validation, and mapping-ownership shapes descend from vendor code. Generic fault flags, provider synchronization plumbing, and the exclusive IOVA API are 6.18-shaped adaptations. | **Partial** — carry the donor-shaped safety fixes, adapted to the BSP's raw fault-status/provider ABI; do not apply the 6.18 plumbing verbatim |
+| 0090 | RGA: give jobs private task-list snapshots and copy OSD results back only while the matching request is kref-pinned and locked. | `VENDOR-BUG` in the later batching line | The inspected `develop-6.1` branch stores one task by value and lacks this exact borrow. The multi-task borrow arrived with Rockchip's later batching import. | **Conditional** — carry into vendor branches that have the multi-task `job->task_list` batching shape; not needed by the inspected older by-value layout |
+| 0091 | Rockchip/VSI IOMMU: hold `fault_lock` through provider callbacks so clear is a quiescence barrier; pin generic MPP and RKVENC2 `cur_task` walks with `running_lock`. | Mixed: `PORT-FIX` + `BSP-BUG` | Provider handler/token hooks are forward-port plumbing. The bare generic and RKVENC2 task reads are present in `develop-6.1`; its provider ABI needs a different teardown adaptation. | **Partial** — backport the task locking and provide an ABI-appropriate callback/token quiescence rule |
+| 0092 | RKVDEC2: retain failed soft-CCU tasks until reset quiesces DMA, claim reset requests before soft/hard reset so concurrent requests survive, and keep the link-mode fault task walk locked. | `BSP-BUG` | `develop-6.1` has the same retire-before-reset, clear-after-reset, and unlock-before-task-dump shapes. | **Yes**, adapted and runtime-tested on each supported CCU mode |
 
 The `0079` session-ownership fix deliberately does **not** revert
 `0071`/catalog-`0072`'s force-free-under-the-held-lock decision: that decision is

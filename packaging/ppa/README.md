@@ -26,8 +26,11 @@ rewrite kernels have separate co-installable source packages under
 Their historical vanilla-based packages are public; the replacement packages
 now layer the rewrite drivers after Armbian and pass local source and full
 native arm64 binary builds. Both replacement sources and their successful
-Launchpad arm64 builds are Published. Kernel board install/revert gates are
-still pending. The optional
+Launchpad arm64 builds are Published. These fixed July package pins predate the
+maintained rewrite tips, source VPU981 AV1 backend, and current 92+152 KUnit
+manifest, so their build results are historical package evidence rather than
+current rewrite-source evidence. Kernel board install/revert gates are still
+pending. The optional
 greeter ACL package has both the existing local deb source and a native PPA
 source wrapper under
 [`gdm-hwenc/`](gdm-hwenc/README.md).
@@ -54,7 +57,7 @@ deleted.
 
 | PPA | Role | Live state at the check below |
 |-----|------|-------------------------------|
-| `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: Plymouth boot-hang fix, codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | The `0001`–`0087` kernel source `18654047`, all three binaries, and arm64 build `33461848` are Published/successful. GRD replacement source `18654077`, binary `247717203`, and build `33461880` are Published/successful. Other package rows below retain their exact recorded states. This is the only normal system-stack install target. |
+| `ppa:yi-ding/ubuntu-rock-5b` | Normal system stack: Plymouth boot-hang fix, codec udev access, MPP, librga, FFmpeg 8.0.3 Rockchip, patched GNOME Remote Desktop, co-installable FFmpeg 6.1 tools, and the Linux 6.18 forward-port kernel. | The `0001`–`0089` / `6.18.42` kernel source and all three arm64 binaries are Published; that exact package is installed and booted. GRD replacement source `18654077`, binary `247717203`, and build `33461880` are Published/successful and installed. Other package rows below retain their exact recorded states. This is the only normal system-stack install target. |
 | `ppa:yi-ding/rock5b-ffmpeg81-upstream` | Upstream FFmpeg 8.1.2 comparison baseline. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-ffmpeg81-rockchip` | ABI-changing FFmpeg 8.1.2 RKMPP/RKRGA forward port. Add the system PPA as well for MPP and librga. | One source and 29 copied binary publications are Published. |
 | `ppa:yi-ding/rock5b-kernel618-rewrite` | Experimental Linux 6.18.38 Armbian-based clean-room rewrite kernel. | Replacement source `18623665`, successful arm64 build `33406491`, and exact binaries are Published. |
@@ -69,8 +72,9 @@ complete `pipewire-audio` desktop stack, and the co-installable YSP kernel image
 DTBs, and headers. The audio package replaces standalone PulseAudio with
 `pipewire-pulse`, which is required because GRD captures native PipeWire sinks;
 see the [`RDP audio diagnosis`](../../apps/gnome-remote-desktop/docs/audio-redirection.md).
-Verify the boot entry and recovery path before rebooting; board
-install/revert validation remains a test gate.
+Verify the boot entry and prepare the SD recovery path before rebooting. The
+documented SD + `kernel-revert.sh` flow is operator-validated; full
+current-package validation remains a test gate.
 
 If the machine already has one of the earlier FFmpeg 8.1, private-FFmpeg, GRD,
 or rewrite-kernel test stacks, use
@@ -114,16 +118,18 @@ stated in the affected rows. The step-by-step provenance is retained in the
 | `gnome-remote-desktop` (normal stack) | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` | Replacement source publication [`18654077`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18654077), arm64 binary [`247717203`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247717203), and build [`33461880`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33461880) are Published/successful; the build finished in 5m33s. Its hosted log records `--timeout-multiplier 3`, RDP pass in 9.76s, zero failures, and the two expected TPM/hardware-EGL skips. The superseded `~rk1` source [`18649293`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18649293) is Published but build [`33452991`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33452991) failed without retained diagnostics. | Seventeen clean commits on latest GNOME 50 stable: RKMPP backend, corrected reconnect ownership/coalescing, cached GPU-copy readback, bounded encode recovery, progress-gated ACK-resume recovery, full-range BT.709 signaling, and narrowly retained persistent-user-display state after a reconnect timeout. Production source is unchanged from `~rk1`; packaging raises only Meson's test-timeout multiplier because a successful local RDP run took 21.64s to finish Mutter/PipeWire teardown after the 20s upstream limit. The test remains enabled and fatal. |
 | `gnome-remote-desktop` (archived recovery build) | `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3` | Experimental source publication [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586), successful arm64 build [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698), and arm64 binary are Published. | Historical diagnostic build; superseded by the clean release candidate. |
 | `gnome-remote-desktop` (archived audio probe) | `50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10` | Source/native arm64 builds and live format probes passed; installed, not published. | Proved the macOS client accepts A-law plus PCM and rejects the tested ADPCM tuples. Its diagnostics and temporary Opus suppression are archived, not released. |
-| forward-port kernel | `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source publication [`18654047`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18654047), binary publications [`247715541`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247715541)–[`247715543`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247715543), and arm64 build [`33461848`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33461848) are Published/successful; the build finished in 40m18s. Previous `0001`–`0080` source [`18652965`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18652965) is Published and arm64 build [`33460058`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33460058) succeeded. | Carries the complete `0001`–`0087` source at `5b87d46eefdcb`. Patch-only staging, signature checks, `.dsc` validation, fresh extraction, provenance checks, 11-file tail comparison, and production-config checks pass. The seven-patch tail and exact PPA build still need install, boot, conformance, and rollback validation. |
+| forward-port kernel | `6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Checked 2026-08-04: source and all three arm64 binary packages are Published at the exact version. The package is installed and booted as `6.18.42-ysp-rockchip64`. | Carries the complete `0001`–`0089` source at `7615b69a744af`. Patch-only staging, signature checks, `.dsc` validation, fresh extraction, provenance/config checks, and IEP2 payload checks pass. Standalone IEP2 and 17/17 pinned VA-API tier-1 vectors pass on the installed package; full and targeted current-package gates remain. The documented SD + `kernel-revert.sh` commands are operator-validated. |
 | sg-guard diagnostic kernel | `6.18.40+rk3588av1fwport20260725sgguard1-0ubuntu1~rk1` under [`kernel-sgguard/`](kernel-sgguard/README.md) | Source package built locally; upload to `ppa:yi-ding/ubuntu-rock-5b-experimental` pending. | **Diagnostic only — never a system kernel.** The production forward-port source plus one temporary `page_link` guard commit, built through Launchpad so its gcc 15.2 matches production and the guard is the only variable. Co-installable (own source/binary names), so it cannot replace or upgrade `linux-image-ysp-rockchip64`. Delete once the writer is identified. |
-| alpha rewrite kernel 6.18 | `6.18.38+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Source publication [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665), successful arm64 build [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491), and the exact binaries are Published. | Armbian current/forward-port 6.18.38 source layer, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
-| alpha rewrite kernel 7.2-rc3 | `7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Source publication [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666), successful arm64 build [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492), and the exact binaries are Published. | Official v7.2-rc3 plus Armbian bleedingedge, then rewrite series; local source and full arm64 binary builds pass; board validation is pending. |
+| alpha rewrite kernel 6.18 | `6.18.38+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Source publication [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665), successful arm64 build [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491), and the exact binaries are Published. | Historical Armbian 6.18.38 composite; predates maintained rewrite source and has no board result. |
+| alpha rewrite kernel 7.2-rc3 | `7.2.0~rc3+rk3588rewritealpha20260715-0ubuntu1` under [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Source publication [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666), successful arm64 build [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492), and the exact binaries are Published. | Historical v7.2-rc3/Armbian composite; predates maintained rewrite source and has no board result. |
 | `gnome-remote-desktop-gdm-hwenc` | `1.0` under [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source wrapper imported; not uploaded. | Optional greeter ACL package. The canonical rule also feeds the local deb source under [`../gdm-hwenc/`](../gdm-hwenc/README.md). |
 
 Install-facing state: the complete normal system stack is now published, apart
-from the optional GDM greeter ACL package. Treat it as a **published test path,
-not the validated primary path**: the exact clean-migration transaction and the
-PPA kernel install/reboot/revert path have not passed their board gates.
+from the optional GDM greeter ACL package. The PPA kernel is installed and
+booted, and its documented SD rescue + `kernel-revert.sh` path is
+operator-validated. Treat it as a **narrowly validated test path, not a fully
+qualified primary path**: the exact clean-migration transaction and full
+current-kernel campaign remain open.
 
 The PPA targets **resolute** (Ubuntu 26.04 / Armbian userspace) on **arm64**.
 The PPA is configured with only the `arm64` processor. Architecture-independent
@@ -148,7 +154,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`kernel-forward-port/`](kernel-forward-port/README.md) | Launchpad source-package track for the forward-port kernel; records source inputs, packaging shape, generated artifacts, and remaining binary/board validation gates. |
 | [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) | Launchpad source-package track for the 6.18 alpha clean-room rewrite kernel. |
 | [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md) | Launchpad source-package track for the Armbian-based 7.2-rc3 alpha clean-room rewrite kernel. |
-| [`kernel-rewrite-alpha-7.2-rc5/`](kernel-rewrite-alpha-7.2-rc5/README.md) | Launchpad source-package track for the Armbian-based 7.2-rc5 alpha clean-room rewrite kernel; supersedes the rc3 line, which keeps the last Published binaries. |
+| [`kernel-rewrite-alpha-7.2-rc5/`](kernel-rewrite-alpha-7.2-rc5/README.md) | Deferred Armbian-based 7.2-rc5 alpha package definition; it needs a maintained-tip rebase and validation before it can supersede the rc3 line, which keeps the last Published binaries. |
 | [`kernel-maxline/`](kernel-maxline/README.md) | Local reproducible build/package track for the 2026-08-02 maximum-mainline `public` and FRL-only `wip` integrations; Linus/public passes its refreshed full compile gate, while the linux-next/WIP full build was stopped by request after focused and partial-build checks passed. Refreshed packaging and board boot gates remain open. |
 | [`history/`](history/README.md) | Dated build, lintian, signing, upload, Launchpad, and retry transcripts retained as provenance rather than current-state guidance. |
 
@@ -318,8 +324,9 @@ Wave B' ffmpeg-rockchip
           system ffmpeg/libav* packages
 Wave C  gnome-remote-desktop
 Wave D  gnome-remote-desktop-gdm-hwenc (optional greeter ACL)
-Wave K  forward-port kernel and alpha rewrite kernels. Their builds are
-        published, but board install/revert validation remains required.
+Wave K  forward-port kernel and alpha rewrite kernels. The current forward-port
+        package is Published/booted with operator-validated SD recovery; the
+        alpha rewrite packages still require board install/revert validation.
 ```
 
 Keep ABI-changing FFmpeg 8.1 sources out of the normal system PPA. Future
@@ -584,13 +591,13 @@ group. It should be uploaded only after the GRD package path is otherwise ready.
 
 ## What Is Still Not In This Repo
 
-- Production rebuild, upload, and Launchpad arm64 build of the current
-  forward-port tip carrying `0042` through `0045` (the tail already passes
-  booted KASAN ABI replay on debug build `Pb999-C4ad2`), followed by
-  RGA-DMA/GStreamer completion, exact-image conformance, and rollback
-  validation. The local 20260720 package stops at `0043`; the Published `0041`
-  package installed and booted but Oopsed during preflight.
-- Board install/revert validation for the Published alpha rewrite kernel source
+- Full MPP/FFmpeg, librga/RGA, GStreamer, ABI, RDP-encode, fatal-journal, and
+  soak qualification of the installed `6.18.42` / `0089` package, plus the
+  targeted hostile/ownership gates for the late audit tail. Publication,
+  install, boot, and the documented SD + `kernel-revert.sh` recovery path are
+  already complete for their stated operator-evidence scope.
+- Maintained-tip rebuild plus board install/revert validation for the Published
+  historical alpha rewrite kernel source
   packages in
   [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) and
   [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md).

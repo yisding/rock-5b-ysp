@@ -1,0 +1,161 @@
+From 4081e39e87125b333b60fa805e622f4303674bce Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 4 Aug 2026 16:16:35 -0700
+Subject: [PATCH 90/92] video: rockchip: rga: snapshot job task lists
+
+---
+ drivers/video/rockchip/rga3/include/rga_drv.h |  1 +
+ drivers/video/rockchip/rga3/include/rga_job.h |  3 +-
+ drivers/video/rockchip/rga3/rga_job.c         | 52 +++++++++++++++----
+ 3 files changed, 44 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/video/rockchip/rga3/include/rga_drv.h b/drivers/video/rockchip/rga3/include/rga_drv.h
+index 310e168a4537e..bf1c0df8da7b0 100644
+--- a/drivers/video/rockchip/rga3/include/rga_drv.h
++++ b/drivers/video/rockchip/rga3/include/rga_drv.h
+@@ -347,6 +347,7 @@ struct rga_job {
+ 	struct rga_dma_buffer *cmd_buf;
+ 	struct rga_req *task_list;
+ 	struct rga_job_task_buffers *task_buffers;
++	size_t task_start;
+ 	size_t task_count;
+ 	size_t finished_count;
+ 
+diff --git a/drivers/video/rockchip/rga3/include/rga_job.h b/drivers/video/rockchip/rga3/include/rga_job.h
+index 7e26bec62cb00..2692cde0b6157 100644
+--- a/drivers/video/rockchip/rga3/include/rga_job.h
++++ b/drivers/video/rockchip/rga3/include/rga_job.h
+@@ -25,7 +25,8 @@ enum job_flags {
+ void rga_job_scheduler_dump_info(struct rga_scheduler_t *scheduler);
+ void rga_job_next(struct rga_scheduler_t *scheduler);
+ struct rga_job *rga_job_done(struct rga_scheduler_t *scheduler);
+-int rga_job_commit(struct rga_req *task_list, size_t task_count, struct rga_request *request);
++int rga_job_commit(struct rga_req *task_list, size_t task_count,
++		   struct rga_request *request, size_t task_start);
+ int rga_job_mpi_commit(struct rga_req *rga_command_base, struct rga_request *request);
+ 
+ int rga_job_assign(struct rga_job *job);
+diff --git a/drivers/video/rockchip/rga3/rga_job.c b/drivers/video/rockchip/rga3/rga_job.c
+index 2777cebf275cc..dcfaa5656b7a3 100644
+--- a/drivers/video/rockchip/rga3/rga_job.c
++++ b/drivers/video/rockchip/rga3/rga_job.c
+@@ -25,6 +25,8 @@ static void rga_job_free(struct rga_job *job)
+ 
+ 	kfree(job->task_buffers);
+ 	job->task_buffers = NULL;
++	kfree(job->task_list);
++	job->task_list = NULL;
+ 
+ 	/*
+ 	 * Balance the rga_session_get() taken in rga_job_commit() when the job
+@@ -135,15 +137,20 @@ static struct rga_job *rga_job_alloc(struct rga_req *task_list, size_t task_coun
+ 	job->timestamp.init = ktime_get();
+ 	job->pid = current->pid;
+ 
+-	job->task_list = task_list;
++	job->task_list = kmemdup_array(task_list, task_count,
++				       sizeof(*task_list), GFP_KERNEL);
++	if (!job->task_list) {
++		kfree(job);
++		return NULL;
++	}
+ 	job->task_count = task_count;
+ 
+ 	for (i = 0; i < task_count; i++) {
+-		if (task_list[i].priority > 0) {
+-			if (task_list[i].priority > RGA_SCHED_PRIORITY_MAX)
++		if (job->task_list[i].priority > 0) {
++			if (job->task_list[i].priority > RGA_SCHED_PRIORITY_MAX)
+ 				job->priority = RGA_SCHED_PRIORITY_MAX;
+-			else if (task_list[i].priority > job->priority)
+-				job->priority = task_list[i].priority;
++			else if (job->task_list[i].priority > job->priority)
++				job->priority = job->task_list[i].priority;
+ 		}
+ 	}
+ 
+@@ -155,9 +162,9 @@ static struct rga_job *rga_job_alloc(struct rga_req *task_list, size_t task_coun
+ 	}
+ 
+ 	for (i = 0; i < task_count; i++) {
+-		if (task_list[i].handle_flag & 1) {
++		if (job->task_list[i].handle_flag & 1) {
+ 			job->flags |= RGA_JOB_USE_HANDLE;
+-			rga_job_judgment_support_core(job, &task_list[i]);
++			rga_job_judgment_support_core(job, &job->task_list[i]);
+ 			break;
+ 		}
+ 	}
+@@ -419,7 +426,8 @@ static struct rga_scheduler_t *rga_job_schedule(struct rga_job *job)
+ 	return scheduler;
+ }
+ 
+-int rga_job_commit(struct rga_req *task_list, size_t task_count, struct rga_request *request)
++int rga_job_commit(struct rga_req *task_list, size_t task_count,
++		   struct rga_request *request, size_t task_start)
+ {
+ 	int ret;
+ 	struct rga_job *job = NULL;
+@@ -432,6 +440,7 @@ int rga_job_commit(struct rga_req *task_list, size_t task_count, struct rga_requ
+ 	}
+ 
+ 	job->request_id = request->id;
++	job->task_start = task_start;
+ 	job->session = request->session;
+ 	/*
+ 	 * The job caches the owning session pointer and dereferences it from
+@@ -1053,7 +1062,8 @@ int rga_request_commit(struct rga_request *request)
+ 			}
+ 		}
+ 
+-		ret = rga_job_commit(request->task_list, request->task_count, request);
++		ret = rga_job_commit(request->task_list, request->task_count,
++				     request, 0);
+ 		if (ret < 0) {
+ 			rga_req_err(request, "task_list job_commit failed.\n");
+ 
+@@ -1068,7 +1078,7 @@ int rga_request_commit(struct rga_request *request)
+ 				rga_dump_req(request, req);
+ 			}
+ 
+-			ret = rga_job_commit(req, 1, request);
++			ret = rga_job_commit(req, 1, request, i);
+ 			if (ret < 0) {
+ 				rga_req_err(request, "task[%d] job_commit failed.\n", i);
+ 
+@@ -1157,6 +1167,26 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
+ 	mutex_unlock(&request_manager->lock);
+ 
+ 	spin_lock_irqsave(&request->lock, flags);
++	/* Publish the hardware OSD result while the request is still pinned. */
++	if (request->task_list &&
++	    job->task_start <= (size_t)request->task_count &&
++	    job->task_count <= (size_t)request->task_count - job->task_start) {
++		size_t i;
++
++		for (i = 0; i < job->task_count; i++) {
++			struct rga_req *job_task = &job->task_list[i];
++			struct rga_req *request_task =
++				&request->task_list[job->task_start + i];
++
++			if (!job_task->osd_info.enable)
++				continue;
++
++			request_task->osd_info.cur_flags0 =
++				job_task->osd_info.cur_flags0;
++			request_task->osd_info.cur_flags1 =
++				job_task->osd_info.cur_flags1;
++		}
++	}
+ 
+ 	request->failed_task_count += job->task_count - job->finished_count;
+ 	request->finished_task_count += job->finished_count;
+@@ -1526,7 +1556,7 @@ int rga_request_mpi_submit(struct rga_req *req, struct rga_request *request)
+ 	rga_request_get(request);
+ 	mutex_unlock(&request_manager->lock);
+ 
+-	ret = rga_job_commit(req, 1, request);
++	ret = rga_job_commit(req, 1, request, 0);
+ 	if (ret < 0) {
+ 		rga_req_err(request, "failed to commit job!\n");
+ 		goto err_abort_request;

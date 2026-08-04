@@ -7,16 +7,17 @@ for Linux 6.18. The **clean-room rewrite** keeps the current userspace contract
 but replaces the global BSP machinery with session/job ownership and public
 kernel APIs.
 
-This document compares architecture, not just feature lists. It is based on the
-2026-07-26 source pair:
+This document compares architecture, not just feature lists. The forward-port
+side remains the 2026-07-26 comparison pin; the rewrite side was rechecked at
+the maintained 2026-08-04 tips:
 
 | Track | Pin |
 |-------|-----|
 | BSP-derived forward port | `rk3588-video-6.18@12a7da02bea83` |
-| 6.18 rewrite | `rk3588-rewrite-6.18@6edc44f79a4d` |
-| Mainline rewrite cross-check | `rk3588-rewrite-mainline@c53bbc84dce4` on `v7.2-rc5`; both rewrite driver and ABI files are byte-identical to the 6.18 versions |
+| 6.18 rewrite | `rk3588-rewrite-6.18@33c30ec6989e` |
+| Mainline rewrite cross-check | `rk3588-rewrite-mainline@9e503f6b16df` on `v7.2-rc5`; the tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical to the 6.18 versions |
 
-The [current implementation comparison](./rewrite-drivers.md#current-comparison-2026-07-26)
+The [current implementation comparison](./rewrite-drivers.md#current-comparison-2026-08-04)
 owns moving status, scope, exact source counts, and the production decision.
 The [forward-port driver guide](./how-the-drivers-work.md) and
 [rewrite architecture guide](./rewrite-driver-architecture/README.md) remain
@@ -34,7 +35,7 @@ flowchart TB
   choose{"kernel build selects<br/>one implementation"}
   bsp["BSP-derived forward port<br/>vendor architecture + compatibility/hardening"]
   rewrite["clean-room rewrite<br/>public APIs + explicit ownership"]
-  codec["RKVENC2 · RKVDEC2"]
+  codec["RKVENC2 · RKVDEC2 · VPU981 AV1"]
   rga["RGA2 · RGA3"]
 
   apps --> libs --> abi --> choose
@@ -64,7 +65,7 @@ reset, fault recovery, or device removal.
 | Design question | BSP-derived answer | Rewrite answer |
 |-----------------|--------------------|----------------|
 | What is preserved? | The broad vendor subsystem and historical ABI behavior. | The observed current ROCK 5B ABI and hardware behavior. |
-| Where does state live? | Global service/request/memory managers plus per-device scheduler state. | Opening session, immutable submitted job, and retained hardware/import objects. |
+| Where does state live? | Global service/request/memory managers plus per-device scheduler state. | Opening session, copied submitted job, and retained hardware/import objects; some shared activation and per-task execution state remains embedded in broader objects. |
 | How is kernel drift handled? | Compatibility headers and narrow adaptations around BSP assumptions. | Public kernel APIs, with the same driver sources replayed on 6.18 and current mainline. |
 | How is unsupported behavior treated? | Usually inherited because the vendor surface is carried wholesale. | Classified in `ABI.rst` and rejected explicitly when no safe implementation exists. |
 | What is the main source of confidence? | Vendor history plus extensive board and production testing. | Executable invariants and source clarity; board qualification remains incomplete. |
@@ -123,8 +124,9 @@ Important properties:
   values are buffer fds that must become IOVAs.
 - Encoder cores coordinate through the VEPU580 DCHS channels. Decoder cores use
   the RKVDEC2 CCU and link-table machinery, normally in software-dispatch mode.
-- The current forward port also includes the separate RKMPP AV1 backend. It is
-  not part of RKVDEC2 and is absent from the rewrite.
+- The current forward port and rewrite both include separate RKMPP AV1
+  backends. AV1 is not part of RKVDEC2. The rewrite's VPU981/VSI path is
+  source- and build-verified only; it has no board result.
 - Close may hand a live session to deferred cleanup while outstanding task
   owners drain. This preserves broad BSP behavior but makes retirement order a
   cross-subsystem concern.
@@ -138,7 +140,7 @@ flowchart TB
   fd["open /dev/mpp_service"]
   session["rk_mpp_session<br/>lock · imports · staged/active jobs · epoch"]
   parse["strict V1 parser<br/>classify flags/commands · copy payloads"]
-  snapshot["rk_mpp_job<br/>immutable request/register snapshot"]
+  snapshot["rk_mpp_job<br/>copied request/register state"]
   validate["address provenance + bounds<br/>topology + hardware-ID checks"]
   queue["service scheduler queue"]
   choose{"eligible least-loaded core"}
@@ -289,7 +291,7 @@ flowchart TB
   session["rk_rga_session<br/>request IDR · import IDR · submitted jobs"]
   config["copy and validate request<br/>own task/fence/import references"]
   request["session-owned configured request"]
-  submit["clone immutable rk_rga_job"]
+  submit["clone rk_rga_job config"]
   materialize["resolve planes + per-core mappings<br/>allocate coherent command buffer"]
   select{"capability/load selection"}
   q0["RGA3 core 0 queue"]
@@ -318,7 +320,7 @@ The rewrite deliberately changes request execution:
 
 - Configured request IDs and imported-buffer IDs belong to the opening session,
   not a global pending-request namespace.
-- Submission clones an immutable job snapshot. The configured request may be
+- Submission clones kernel-owned job configuration. The configured request may be
   reconfigured or destroyed without altering already submitted work.
 - A job retains its acquire callback, release fence, imports, per-core mappings,
   command buffer, hardware reference, and session-list membership.
@@ -545,8 +547,8 @@ BSP-derived RGA                   rewrite RGA
 
 | Source property | BSP-derived forward port | Rewrite |
 |-----------------|--------------------------|---------|
-| MPP code/build lines | 18,442, including AV1, compatibility headers, and legacy-SoC helpers | 14,118 including 4,653 KUnit lines; 9,465 without KUnit |
-| RGA code/build lines | 21,160 | 23,990 including 10,692 KUnit lines; 13,298 without KUnit |
+| MPP code/build lines | 18,442 at the forward-port comparison pin, including AV1, compatibility headers, and legacy-SoC helpers | 18,163 C lines at `33c30ec6989e`, including the embedded KUnit block and VPU981 AV1 backend |
+| RGA code/build lines | 21,160 at the forward-port comparison pin | 26,060 C lines at `33c30ec6989e`, including the embedded KUnit block |
 | ABI ledger | External project documentation and vendor headers | 648-line MPP and 633-line RGA in-tree `ABI.rst` files |
 | In-driver KUnit | None comparable | 92 MPP + 152 RGA cases |
 | Primary verification style | Board conformance, sanitizer builds, hostile reproducers, production runs | KUnit/build profiles first, then the same board suites and differential artifacts |
@@ -556,6 +558,26 @@ ownership transition close to the state it changes, but its single-file
 drivers are harder to review as diffs and more likely to create merge
 conflicts. Embedded KUnit explains much of their apparent size, but it also
 interleaves test and runtime code in unusually large translation units.
+
+### 7.1 As-built ownership versus the proposed refactor
+
+The rewrite is more explicit than the BSP-derived stack, but the current source
+does not yet implement the final ownership decomposition described in the
+[ownership refactor plan](rewrite-ownership-refactor-plan.md):
+
+| Responsibility | As built at the maintained tips | Proposed owner |
+|----------------|----------------------------------|----------------|
+| Shared decoder CCU, reset, IOMMU, and power state | Split across service, hardware, reset-domain mutex, and DMA-group state | `rk_mpp_cluster` |
+| One hardware run and its terminal claimant | Job plus per-core active slot and generation fields | `rk_mpp_activation` |
+| One RGA task's selected core, mappings, command buffer, and generation | Mutable fields on the broader `rk_rga_job` | `rk_rga_task_exec` |
+| Acquire-fence callback retirement | Job/request callbacks and drain bookkeeping | `rk_rga_acquire_set` |
+
+Those proposed types are not present in either maintained tree. The current
+exact-slot, generation, refcount, quarantine, and fail-closed rules are real;
+the target objects are a reviewable next architecture, not evidence about the
+code already running. See the architecture guide's
+[as-built/target boundary](rewrite-driver-architecture/04-design-lessons.md#61-as-built-strengths-and-remaining-ownership-debt)
+for the full object model.
 
 ## 8. Pros and cons
 
@@ -603,7 +625,7 @@ them incrementally. Its main weakness is distributed global ownership, which
 makes races and future kernel integration expensive to reason about.
 
 The rewrite optimizes for **containment and maintainability**. It narrows scope,
-ties resources to sessions and immutable jobs, uses public APIs, and treats
+ties resources to sessions and copied submitted jobs, uses public APIs, and treats
 unsupported or unprovable states as errors. Its main weakness is that the
 cleaner model has grown into two large implementations and has not yet earned
 the forward port's hardware evidence.
@@ -625,7 +647,7 @@ its ownership and kernel-integration model is better suited to long-term
 maintenance. Promote it only when those architectural advantages and equivalent
 hardware evidence exist at the same time.
 
-## 11. Quality comparison with upstream media and vendor drivers (2026-07-30)
+## 11. Quality comparison with upstream media and vendor drivers (updated 2026-08-04)
 
 The rewrite is a better **source design** than the original BSP MPP/RGA stack,
 but it is not yet a better **delivered driver** than the BSP-derived forward
@@ -639,11 +661,11 @@ evidence:
 
 | Input | Pin or evidence boundary |
 |-------|--------------------------|
-| Rewrite 6.18 | `rk3588-rewrite-6.18@600d6e2fb6a49`; 16,095-line MPP and 24,574-line RGA translation units |
-| Rewrite mainline replay | `rk3588-rewrite-mainline@451634b8c5a22`; MPP differs from the 6.18 copy by three lines at this boundary, RGA is byte-identical |
+| Rewrite 6.18 | `rk3588-rewrite-6.18@33c30ec6989e`; 18,163-line MPP and 26,060-line RGA translation units |
+| Rewrite mainline replay | `rk3588-rewrite-mainline@9e503f6b16df`; tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical |
 | Rockchip BSP donor | `develop-6.1@b4ef083dc0c3` |
 | Upstream-style comparators | Linux `v7.2-rc5`-era `rockchip/rkvdec`, Verisilicon Hantro, Chips&Media Wave5, Qualcomm Venus, MediaTek vcodec, Allegro DVT, and Amphion sources in the mainline replay tree |
-| Runtime boundary | The rewrite has a clean exact 92 MPP + 152 RGA KUnit gate, but its latest multicore and AV1/VSI lifecycle fixes are not boot-verified |
+| Runtime boundary | The current tips pass the warning-fatal clean-archive `normal` build and exact 305-signal source audit. Their 92 MPP + 152 RGA manifest, multicore fixes, and AV1/VSI path are not boot-verified. |
 
 The upstream comparators are reference designs for kernel-boundary and
 maintenance quality, not feature- or performance-equivalent implementations.
@@ -674,7 +696,7 @@ the userspace/kernel boundary.
 ### 11.2 Where the rewrite is genuinely stronger
 
 The rewrite's principal strength is local ownership. Sessions own configured
-state and imports; accepted jobs own immutable request snapshots and retain the
+state and imports; accepted jobs own copied request state and retain the
 hardware and mappings that asynchronous paths may still use. IRQ, timeout,
 fault, reset, close, and removal contend for the same exact active slot instead
 of independently retiring a globally managed task. Activation generations keep
@@ -708,7 +730,7 @@ first. The dated
 records the inspected defects and the boundary of that comparison.
 
 The verification support is exceptional for this driver class. Two explicit
-ABI ledgers, 237 embedded KUnit cases, clean-source memory/race build profiles,
+ABI ledgers, 244 embedded KUnit cases, clean-source memory/race build profiles,
 debug counters, an event journal, differential artifact comparators, and
 fail-closed fixture audits make assumptions executable. None of the inspected
 `rkvdec`, Hantro, Wave5, Venus, MediaTek, Allegro, or Amphion directories had a

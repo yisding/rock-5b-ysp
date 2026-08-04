@@ -5,6 +5,12 @@ wrapper used by this repository. Its practical goal is simple: keep ordinary
 source-only rebuilds warm without reusing state that should be discarded after
 a configuration, toolchain, or kernel-base transition.
 
+> **Repository invariant:** `~/Code/.ccache` is the only compiler-cache store
+> for builds under `~/Code`. Build output may live under `../rock-5b/build/`,
+> but ccache must not. Verify both host and container paths with
+> `bash scripts/centralize-ccache.sh --status`; never work around a wiring issue
+> by creating a project- or task-local cache.
+
 The central distinction is:
 
 > **Rebuilding is not the same as missing ccache.** Kbuild decides whether a

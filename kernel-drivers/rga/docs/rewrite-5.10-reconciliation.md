@@ -5,6 +5,11 @@ the vendor `develop-5.10` branch after the 6.1/6.6 RGA lineages diverged. The
 adaptation is implemented and clean-build validated; booted RK3588 validation
 is still required.
 
+> **Current-source update (2026-08-04):** the adapted changes remain ancestors
+> of maintained tips `33c30ec6989e` / `9e503f6b16df`. The current normal
+> focused build passes, but this document's 2026-07-17 build result and source
+> pins remain historical; no current-tip RGA hardware result exists.
+
 > **Conclusion.** Five 5.10 change groups were adapted to the rewrite:
 > the two RK3588 low-voltage workarounds, RGA2 config/parse-error interrupt
 > handling, cache-line-safe userptr boundary pages, and the RGA3 exception for

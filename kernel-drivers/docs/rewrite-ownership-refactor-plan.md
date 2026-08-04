@@ -18,9 +18,22 @@ The priority is **ownership before convention**:
 4. postpone broad file moves, naming cleanup, and test rationalization until
    the ownership graph has stopped changing.
 
-The plan is based on `linux-6.18-rkvenc` branch `rk3588-rewrite-6.18` at
-`8042f13c54591` on 2026-08-01. Function names below are anchors, not line-number
-claims. No kernel was changed, compiled, or booted while writing this plan.
+> **Status — 2026-08-04:** this remains a target architecture, not an
+> implementation description. Maintained tips are
+> `rk3588-rewrite-6.18@33c30ec6989e` and
+> `rk3588-rewrite-mainline@9e503f6b16df`; the normal clean-source object/DTB
+> gate passes on both, and their tracked rewrite/Kconfig/ABI/uAPI files are
+> byte-identical. The August adversarial fixes and the August 4 RGA
+> request/KUnit repair did not add `rk_mpp_cluster`, `rk_mpp_activation`,
+> `rk_rga_task_exec`, or `rk_rga_acquire_set`. None of the migration phases
+> below has started.
+
+The plan was derived from `linux-6.18-rkvenc` branch
+`rk3588-rewrite-6.18@8042f13c54591` on 2026-08-01 and was rechecked for
+structural applicability against `33c30ec6989e` on 2026-08-04. Function names
+below are anchors, not line-number claims. No kernel was changed, compiled, or
+booted while originally writing this plan; the later build result above only
+establishes the unrefactored current tip.
 
 ## Result
 

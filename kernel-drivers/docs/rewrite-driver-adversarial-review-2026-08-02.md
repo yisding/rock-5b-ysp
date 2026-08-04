@@ -15,6 +15,14 @@
 > KUnit claims are therefore called out separately rather than inferred from a
 > successful build.
 
+> **Current-source follow-up (2026-08-04):** maintained tips are 6.18
+> `33c30ec6989e` and mainline `9e503f6b16df`. They retain this review's fixes,
+> remove the unreachable IOMMU IRQ-mask fallback found during the mainline
+> replay, and add the request-cleanup/rotation KUnit repair. The tracked rewrite
+> sources, Kconfig, ABI ledgers, and UAPI are byte-identical; the current
+> `normal` build and 305-signal audit pass. No current-tip boot or media result
+> exists, so this dated review remains source evidence, not qualification.
+
 ## 1. Outcome
 
 The review found fifteen concrete implementation defects and repaired all

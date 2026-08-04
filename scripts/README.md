@@ -6,7 +6,7 @@ not belong to a single package or driver area.
 | Script | Purpose |
 |--------|---------|
 | [`check-repo.sh`](check-repo.sh) | Runs the common repository handoff gate, in order: Markdown links and anchors, the `tests/` regression suite, ShellCheck at warning-or-higher across every maintained shell file, the documentation consistency check, and staged/unstaged/untracked whitespace. Every stage runs even if an earlier one fails, so one run reports every problem; the exit summary names the failed stages. |
-| [`centralize-ccache.sh`](centralize-ccache.sh) | Points every build under `~/Code` at one shared 30 GB compiler cache, wiring both the per-project cache paths and the host ccache config to it. |
+| [`centralize-ccache.sh`](centralize-ccache.sh) | Points every build under `~/Code` at the sole 30 GB compiler-cache store, wiring all known frontend paths and the host ccache config to `~/Code/.ccache`. |
 | [`check-markdown-links.py`](check-markdown-links.py) | Checks local Markdown links for missing files and missing same-repo section anchors. |
 | [`check-doc-consistency.py`](check-doc-consistency.py) | Checks substantive drift and completeness only: nearest-README ownership and nested-README navigation, root patch placement, findings-index coverage and order, paired watchlist metadata, matching dashboard/ledger tracks, contiguous status-table rows, synchronized kernel package helpers, FFmpeg/GRD version pins, portable operational defaults, and the tracked-shell mode/shebang contract. It deliberately does not police status prose, dates, general ordering, or project-brief fields. |
 | [`repo_files.py`](repo_files.py) | Shared Git-aware maintained Markdown/operational-file inventory for the Python checks, with a pruned source-archive fallback, plus index-mode lookup for tracked files. |
@@ -34,14 +34,15 @@ the same command on pushes and pull requests.
 
 ## Centralize ccache
 
-`centralize-ccache.sh` points every known build at one shared store,
+`centralize-ccache.sh` points every known build at the only permitted store,
 `~/Code/.ccache`, capped at 30 GB with `compiler_check = content` and a
 group-writable umask. Setup is idempotent, and `bootstrap-workspaces.sh` calls
 it so a fresh machine is wired automatically. `ROCK5B_WORKSPACE` changes the
 board-project paths that are wired, but never relocates the central
 `~/Code/.ccache` store.
 
-Separate per-project caches buy nothing. ccache keys are content-addressed over
+Do not create a ccache directory in `../rock-5b/build/`, a project checkout, or
+a task build directory. Separate per-project caches buy nothing. ccache keys are content-addressed over
 compiler identity, the full command line, and the preprocessed source, so an
 aarch64 kernel cross-compile and a native Mesa build cannot collide in one
 store. The only real cost of sharing is LRU competition, which is a sizing

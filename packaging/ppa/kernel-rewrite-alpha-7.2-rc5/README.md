@@ -4,8 +4,14 @@ This directory defines the co-installable ROCK 5B 7.2-rc5 rewrite kernel
 package. It applies Armbian's `rockchip64-bleedingedge` patch layer to official
 `v7.2-rc5`, then applies the clean-room rewrite series. It supersedes
 [`kernel-rewrite-alpha-7.2-rc3/`](../kernel-rewrite-alpha-7.2-rc3/README.md)
-as the current rewrite-mainline package line; the rc3 package remains the last
-one with Published binaries.
+as the intended successor package line; the rc3 package remains the last one
+with Published binaries.
+
+> **Deferred package boundary (2026-08-04):** this definition is pinned to an
+> older rewrite snapshot and has not been uploaded. Maintained mainline tip
+> `9e503f6b16df` includes later AV1, ownership/recovery, and KUnit work. Rebase
+> and revalidate this package before treating it as the current package line;
+> its pins remain here only for reproducibility.
 
 ## Package shape
 

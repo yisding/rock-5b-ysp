@@ -1,8 +1,8 @@
-# RK3588 RKMPP AV1 clean-room rewrite assessment
+# RK3588 RKMPP AV1 rewrite: assessment, implementation, and open proof
 
-> Scope: estimate and decompose the work required to add an RK3588 AV1
-> backend to the existing clean-room `/dev/mpp_service` rewrite while keeping
-> the current `mpp-rockchip` / `av1_rkmpp` userspace ABI.
+> Original scope: estimate and decompose the work required to add an RK3588 AV1
+> backend to the clean-room `/dev/mpp_service` rewrite while keeping the
+> `mpp-rockchip` / `av1_rkmpp` userspace ABI.
 >
 > Date: 2026-07-17
 >
@@ -14,12 +14,36 @@
 > MEASURED for the forward-port's bit-exact AV1 result; INFERRED for effort and
 > schedule estimates.
 
+> **Implementation update — 2026-08-04:** the backend is no longer proposed or
+> confined to an experimental spur. It is present in both maintained rewrite
+> branches, `rk3588-rewrite-6.18@33c30ec6989e` and
+> `rk3588-rewrite-mainline@9e503f6b16df`. Their tracked rewrite/Kconfig/ABI/uAPI
+> files are byte-identical, the manifest contains 92 MPP cases including AV1
+> coverage, and the normal clean-source build passes on both bases. There is no
+> rewrite-kernel AV1 boot, decode, AFBC, fault, recovery, or conformance result.
+> Sections describing what the July 17 source “currently” lacked are preserved
+> as the pre-implementation design record, not as current status.
+
 ## Result
 
-Adding AV1 to the clean-room RKMPP rewrite is **medium-hard but bounded**. It
-is materially smaller than the original MPP rewrite and much smaller than the
-RGA rewrite because the expensive shared machinery already exists and the AV1
-block is a single decoder core with no RKVDEC2 CCU/link-table path.
+Adding AV1 to the clean-room RKMPP rewrite proved **medium-hard but bounded**.
+The source implementation landed on 2026-07-29 and was subsequently hardened
+for VSI callback/domain retirement, AFBC observation, power-aware auxiliary
+IRQ handling, final address provenance, and reset containment. It remains an
+unqualified source feature: no real rewrite-kernel AV1 request has completed on
+the board.
+
+| Design item from this assessment | Current source state | Remaining proof |
+|----------------------------------|----------------------|-----------------|
+| Class-aware VCD/cache/AFBC register image | Implemented with lazy regions and per-region bounds | Real raster and AFBC decode/readback |
+| More than 80 translation/binding slots | Dynamic import/binding capacity and 67/24/12 built-in AV1 tables implemented | Boundary/fault-injection plus real libmpp traffic |
+| Single-core VPU981 backend | `rockchip,av1-decoder` match, ID check, MMIO/clock/reset/IRQ integration implemented | Probe and bit-exact decode on a current rewrite boot |
+| VSI fault ownership | Provider-specific prepare/reserve/release, retained fault records, callback drain, and domain retirement implemented | Injected fault, recovery, subsequent decode, unbind/rebind |
+| Checked AFBC programming | Binding-derived extents and header/payload checks implemented; AFBC IRQ is observational rather than a completion oracle | Independent DMA-retirement evidence or conservative qualification of the VCD completion rule |
+| Diagnostics and tests | AV1 core/timing/fault/AFBC counters plus MPP KUnit coverage implemented | Counter-positive hardware evidence with clean logs |
+
+The engineering estimates below are retained as the original forecast, not as
+remaining schedule:
 
 Assuming one engineer working primarily on this task:
 
@@ -44,8 +68,8 @@ The existing `mpp-rewrite` already owns the difficult codec-independent work:
   register-address provenance, and mapping lifetime;
 - per-core scheduling, platform removal, timeout/reset serialization, runtime
   PM, clocks, reset arrays, and generic IOMMU TLB flushing;
-- differential-test plumbing, debugfs lifecycle counters, and 84 MPP KUnit
-  cases.
+- differential-test plumbing, debugfs lifecycle counters, and the then-current
+  84-case MPP KUnit suite (92 cases at the maintained tips).
 
 AV1 does not need the most complicated codec-specific parts of the current
 rewrite: RKVDEC2 SOFT/HARD CCU coordination, linked descriptor tables, peer-core
@@ -71,7 +95,12 @@ ROCK 5B it advertised `MPP_DEVICE_AV1DEC` with hardware ID `0x80019000` and
 decoded 30/30 frames bit-exact against the software reference. The rewrite
 does not have to infer the happy-path register ABI from an unproven donor.
 
-## Required implementation work
+## Historical required implementation work
+
+The seven subsections below describe the gaps at the 2026-07-17 source pins.
+They are useful design rationale for the implementation that landed later, but
+their present-tense “current rewrite” statements do not describe the August 4
+tips.
 
 ### 1. Register classes need a real representation
 
@@ -213,12 +242,14 @@ hardware and for fault/timeout attribution.
 
 ## Validation sequence
 
-The rewrite itself still lacks a booted conformance record. Baseline it before
-adding AV1 so shared-service failures are not confused with backend failures.
+The rewrite still lacks a booted conformance record. Baseline the shared
+RKVENC2/RKVDEC2/RGA service on the same current-tip image before requiring AV1,
+so common-service failures are not confused with the VPU981 backend.
 
-### Gate 0: existing rewrite baseline
+### Gate 0: current-tip non-AV1 baseline
 
-1. Boot the current rewrite without an AV1 backend.
+1. Boot the current rewrite with the AV1 backend present, but begin with
+   H.264/H.265/VP9 and RGA cases that do not select it.
 2. Run the required H.264/H.265/VP9 MPP, FFmpeg, GStreamer, and RGA suites.
 3. Save counters, artifacts, kernel logs, and forward-port comparisons.
 
@@ -258,7 +289,7 @@ adding AV1 so shared-service failures are not confused with backend failures.
   references;
 - KASAN, KCSAN/lockdep, and warning-free focused builds on both rewrite pins.
 
-## Recommended implementation order
+## Historical implementation order
 
 1. Introduce codec-neutral class-aware register images and per-region probe
    validation, retaining single-region behavior for RKVENC2/RKVDEC2.
@@ -272,9 +303,10 @@ adding AV1 so shared-service failures are not confused with backend failures.
 7. Carry the identical backend commit to mainline, build both clean-source
    profiles, then run the full board gates.
 
-This order keeps the first three commits independently useful and reviewable;
-they improve the shared rewrite rather than hiding AV1 exceptions inside the
-backend.
+This is the sequence the implementation followed in substance. It is retained
+to explain why shared register/provider work precedes the backend rather than
+to imply that these source changes remain undone. The open work is the
+validation sequence above.
 
 ## API choice boundary
 

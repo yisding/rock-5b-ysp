@@ -59,10 +59,10 @@ flowchart TB
 
 | Sub-project | Covers | Scoped docs |
 |-------------|--------|-------------|
-| [`mpp/`](mpp/README.md) | The MPP service + rkvenc2/rkvdec2 codec cores; multi-core scheduling. | [`multicore-scheduling.md`](mpp/docs/multicore-scheduling.md) |
+| [`mpp/`](mpp/README.md) | The MPP service, RKVENC2/RKVDEC2 codec cores, and rewrite VPU981 AV1 backend; multi-core scheduling. | [`multicore-scheduling.md`](mpp/docs/multicore-scheduling.md) |
 | [`iep2/`](iep2/README.md) | RK3588 IEP2 deinterlacing, its MPP/libmpp path, distinction from VDPP, and forward-port scope. | [`rk3588-iep2-vdpp.md`](iep2/docs/rk3588-iep2-vdpp.md) |
 | [`rga/`](rga/README.md) | The RGA3/RGA2 2D blit/scale/convert driver. | [`userptr-iommu.md`](rga/docs/userptr-iommu.md), [`raw-physical-import-crash.md`](rga/docs/raw-physical-import-crash.md), [`rewrite-5.10-reconciliation.md`](rga/docs/rewrite-5.10-reconciliation.md), [`userspace-consumers.md`](rga/docs/userspace-consumers.md) |
-| [`av1/`](av1/README.md) | The RK3588 AV1 decode path and the BSP bugs the AV1 port exposed. | [`av1-rk3588.md`](av1/docs/av1-rk3588.md), [`av1-bsp-audit.md`](av1/docs/av1-bsp-audit.md) |
+| [`av1/`](av1/README.md) | The separate RK3588 VPU981 AV1 decode path, the rewrite backend's open hardware proof, and the BSP bugs the AV1 port exposed. | [`av1-rk3588.md`](av1/docs/av1-rk3588.md), [`av1-rewrite-assessment.md`](av1/docs/av1-rewrite-assessment.md), [`av1-bsp-audit.md`](av1/docs/av1-bsp-audit.md) |
 | [`iommu/`](iommu/README.md) | CCU/IOMMU memory path: the net-new MMU plan and the SOFT/HARD CCU rewrite finding. | [`mpp-ccu-iommu-plan.md`](iommu/docs/mpp-ccu-iommu-plan.md), [`rewrite-hard-ccu-finding.md`](iommu/docs/rewrite-hard-ccu-finding.md) |
 | [`rknpu/`](rknpu/README.md) | End-to-end RKNN conversion/runtime and RKNPU memory, submission, multicore, IOMMU, SRAM, PM, and recovery. | [`how-rknpu-works.md`](rknpu/docs/how-rknpu-works.md) |
 
@@ -72,7 +72,7 @@ The kernel work runs on three tracks across those sub-projects:
 |-------|------------|-----------|
 | Forward-port | Rockchip 6.1 BSP MPP + RGA drivers carried to Linux 6.18, AV1 decode included. One maintained series carries the port: 75 files, contiguous `0001`–`0075`. The frozen two-patch pair is the superseded July 4 import kept for DKMS and provenance. Scope boundary — ported/unported blocks, deliberate non-support decisions, and where we are ahead of the BSP — in [`docs/forward-port-scope.md`](docs/forward-port-scope.md). | [`patches/`](patches/README.md), [`docs/forward-port-scope.md`](docs/forward-port-scope.md), [`docs/patch-catalog.md`](docs/patch-catalog.md), [`../kernel-versions/docs/vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md), [`docs/vendor-delta.md`](docs/vendor-delta.md), [`docs/bsp-6.1-6.6-comparison.md`](docs/bsp-6.1-6.6-comparison.md) |
 | Audit fixes | A reviewable 65-patch correctness/security cleanup series on top of the forward-port. | [`docs/bsp-audit.md`](docs/bsp-audit.md), [`patches/cleanup-split/`](patches/cleanup-split/README.md) |
-| Rewrite drivers | Public-API-only reimplementations of `/dev/mpp_service` and `/dev/rga`, as a learning + upstreamable-design track. | [`docs/driver-architecture-comparison.md`](docs/driver-architecture-comparison.md), [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md), [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) |
+| Rewrite drivers | Public-API-only, downstream-ABI-compatible reimplementations of `/dev/mpp_service` and `/dev/rga`. Current source includes VPU981 AV1 and explicit exact-slot/generation recovery, while the proposed cluster/activation/task-execution ownership split remains unimplemented architecture work. | [`docs/rewrite-driver-architecture/`](docs/rewrite-driver-architecture/README.md), [`docs/driver-architecture-comparison.md`](docs/driver-architecture-comparison.md), [`docs/rewrite-ownership-refactor-plan.md`](docs/rewrite-ownership-refactor-plan.md), [`docs/rewrite-drivers.md`](docs/rewrite-drivers.md) |
 
 ## User path
 

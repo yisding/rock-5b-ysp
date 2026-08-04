@@ -10,14 +10,21 @@ only enables HARD link-table scheduling when the DT explicitly selects
 `rockchip,ccu-mode = <2>`. This page records the fixed divergence, the remaining
 hardware-validation gap, and how to earn confidence in HARD.
 
+> **Current-source update (2026-08-04):** maintained tips are 6.18
+> `33c30ec6989e` and mainline `9e503f6b16df`. The SOFT-default/HARD-opt-in
+> model remains in source and the current normal focused build passes, but HARD
+> still has no current-tip hardware result. The older `file:line` anchors below
+> retain historical provenance; use the named symbols when reading the current
+> translation unit.
+
 Read [multicore-scheduling.md § 7](../../mpp/docs/multicore-scheduling.md#7-the-ccu-and-its-hardsoft-modes)
 first — it establishes what SOFT/HARD are ("who owns the scheduling loop": CPU vs
 the CCU) and notes that even Rockchip defaults to SOFT. This page is the
 rewrite-specific consequence of that, plus a validation plan.
 
 > **Anchors & provenance.** `file:line` for the rewrite resolve against
-> `linux-6.18-rkvenc`, branch `rk3588-rewrite-6.18` (tip `bb32bc4f999f`, the
-> canonical 6.18 rewrite pin — see [rewrite-drivers.md § 6](../../docs/rewrite-drivers.md#6-status--citable-location)
+> `linux-6.18-rkvenc`, branch `rk3588-rewrite-6.18` (historical inspection tip
+> `bb32bc4f999f`; maintained pin recorded above — see [rewrite-drivers.md § 6](../../docs/rewrite-drivers.md#6-status--citable-location)
 > and [source-trees § 8](../../../docs/source-trees.md); this is the same tree as
 > track 4 in [status.md](../../../status.md)). Vendor `file:line`
 > resolve against the forward-ported `drivers/video/rockchip/mpp/`. DT lines are in

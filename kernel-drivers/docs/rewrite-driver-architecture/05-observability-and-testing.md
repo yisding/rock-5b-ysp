@@ -48,10 +48,10 @@ time to increase, while also requiring timeout/fault counters to stay flat.
 ## 9. Testing architecture
 
 The embedded KUnit suites test logic that does not require live RK3588 silicon.
-At the documented source revisions:
+At the 2026-08-04 source revisions:
 
-- MPP registers 85 KUnit cases.
-- RGA registers 148 KUnit cases.
+- MPP registers 92 KUnit cases.
+- RGA registers 152 KUnit cases.
 
 The [rewrite KUnit guide](../rewrite-kunit.md) documents their source
 organization, fixture contract, debug-kernel autorun, exact-count KTAP parser,
@@ -92,17 +92,22 @@ REWRITE_BUILD_PROFILES='normal memory race' \
   kernel-drivers/tests/rewrite-build-gate.sh all
 ```
 
-All six profiles completed without compiler warnings at the cited tips on
-2026-07-23. That is current compile evidence, not a boot or hardware result.
-For a release claim, also record the exact kernel configuration, boot identity,
-KUnit log, suite logs, debugfs counter deltas, artifacts, and before/after
-kernel-fatal scan.
+On 2026-08-04 the `normal` profile completed without warnings at 6.18
+`33c30ec6989e` and mainline `9e503f6b16df`, including both IOMMU providers,
+both KUnit-enabled rewrite objects, and the ROCK 5B DTB. The same run passed
+the 305-signal fixture audit, the 92+152 manifest check, and cross-tree source
+identity. Test-disabled, memory, race, and ABI-mutation results belong to older
+tips and must not be silently carried to these commits. All of that is compile
+evidence, not a boot or hardware result. For a release claim, also record the
+exact kernel configuration, boot identity, KUnit log, suite logs, debugfs
+counter deltas, artifacts, and before/after kernel-fatal scan.
 
 KUnit and compile-time tests cannot establish that register programming matches
 silicon. On-board conformance must additionally exercise:
 
 - real encode/decode/transform output;
 - every physical core;
+- AV1 VCD/VSI/AFBC admission, completion, and fault observation;
 - DMA-BUF and USERPTR paths;
 - synchronous and asynchronous fences;
 - timeout/fault injection;
@@ -111,11 +116,13 @@ silicon. On-board conformance must additionally exercise:
 - counters proving hardware execution.
 
 The immediate status-changing milestone is therefore not “add another unit
-test.” It is: install and boot the current-tip KASAN image `P3695-C9fc5` on the
-ROCK 5B, record all 238 KUnit cases, prove that each expected hardware family
-starts, then run paired rewrite-versus-forward-port conformance with clean
-kernel logs. Timeout, IOMMU-fault, reset-failure, close, and removal stress
-follow before a production-readiness claim.
+test.” It is: build a successor KASAN package from 6.18 tip
+`33c30ec6989e`, install and boot it on the ROCK 5B, record the exact 244-case
+manifest with a clean outer interval and live lockdep, prove that each expected
+hardware family starts, and run paired rewrite-versus-forward-port conformance
+with clean kernel logs. AV1 VCD/AFBC/VSI counters, timeout, IOMMU-fault,
+reset-failure, close, and removal stress remain required before a
+production-readiness claim.
 
 ---
 

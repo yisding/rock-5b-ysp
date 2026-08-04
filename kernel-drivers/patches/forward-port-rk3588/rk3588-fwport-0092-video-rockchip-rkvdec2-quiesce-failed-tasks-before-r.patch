@@ -1,0 +1,185 @@
+From 7d53bc7a3adc3ce5e6d93e311857e142007368a9 Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 4 Aug 2026 16:17:13 -0700
+Subject: [PATCH 92/92] video: rockchip: rkvdec2: quiesce failed tasks before
+ retire
+
+Do not remove or free a soft-CCU task merely because its timeout or abort bit is set. The core can still fetch task registers and DMA buffers at that point. Keep the task on the running list and its core busy, allow completed siblings to retire, reset after no healthy task remains, and retire failed tasks only after reset has stopped the hardware.
+
+Claim queue and per-core reset requests before reset instead of clearing them afterward, so a request raised concurrently remains pending. Apply the same request-preservation rule to hard CCU recovery, and keep link-mode fault dumps under running_lock for the complete task walk.
+---
+ drivers/video/rockchip/mpp/mpp_rkvdec2_link.c | 67 +++++++++++++------
+ 1 file changed, 45 insertions(+), 22 deletions(-)
+
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+index b5ad3ec84479c..c0f9cff40fc43 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvdec2_link.c
+@@ -1121,10 +1121,9 @@ static int rkvdec2_link_iommu_fault_handle(struct iommu_domain *iommu,
+ 			break;
+ 		}
+ 	}
+-	spin_unlock_irqrestore(&queue->running_lock, flags);
+-
+ 	if (dump_mem_region)
+ 		mpp_task_dump_mem_region(mpp, mpp_task);
++	spin_unlock_irqrestore(&queue->running_lock, flags);
+ 	mpp_task_dump_hw_reg(mpp);
+ 
+ 	dec->mmu_fault = 1;
+@@ -1914,7 +1913,8 @@ static int rkvdec2_ccu_power_off(struct mpp_taskqueue *queue,
+ 	return 0;
+ }
+ 
+-static int rkvdec2_soft_ccu_dequeue(struct mpp_taskqueue *queue)
++static int rkvdec2_soft_ccu_dequeue(struct mpp_taskqueue *queue,
++				    bool hw_quiesced)
+ {
+ 	struct mpp_task *mpp_task = NULL, *n;
+ 	unsigned long flags;
+@@ -1932,6 +1932,17 @@ static int rkvdec2_soft_ccu_dequeue(struct mpp_taskqueue *queue)
+ 		u32 timing_en = mpp->srv->timing_en;
+ 		u32 reg_ret_status = mpp->var->hw_info->reg_ret_status;
+ 
++		/*
++		 * A timeout or abort does not prove that the core stopped fetching
++		 * the task's registers or DMA buffers.  Keep both the task reference
++		 * and its busy-core assignment until reset has quiesced the hardware.
++		 * Completed siblings can still retire while a failed task waits.
++		 */
++		if (!irq_status && (timeout_flag || abort_flag) && !hw_quiesced) {
++			atomic_set(&queue->reset_request, 1);
++			continue;
++		}
++
+ 		if (irq_status || timeout_flag || abort_flag) {
+ 			struct rkvdec2_task *task = to_rkvdec2_task(mpp_task);
+ 
+@@ -2019,6 +2030,8 @@ static int rkvdec2_soft_ccu_reset(struct mpp_taskqueue *queue,
+ 
+ 		if (mpp->disable)
+ 			continue;
++		/* Claim this core's request before reset so a new one survives. */
++		atomic_xchg(&mpp->reset_request, 0);
+ 
+ 		dev_info(mpp->dev, "resetting for err %#x\n", mpp->irq_status);
+ 		disable_hardirq(mpp->irq);
+@@ -2059,15 +2072,14 @@ static int rkvdec2_soft_ccu_reset(struct mpp_taskqueue *queue,
+ 			if (!first_ret)
+ 				first_ret = ret;
+ 		}
+-		atomic_set(&mpp->reset_request, 0);
++		/* Any completion sampled before reset no longer has valid readback. */
++		mpp->irq_status = 0;
+ 		/* audit: reset/refresh must leave the core on the shared domain */
+ 		mpp_iommu_shared_domain_verify(&ccu->iommu, mpp->iommu_info);
+ 
+ 		enable_irq(mpp->irq);
+ 		dev_info(mpp->dev, "reset done\n");
+ 	}
+-	atomic_set(&queue->reset_request, 0);
+-
+ 	return first_ret;
+ }
+ 
+@@ -2369,21 +2381,22 @@ static void rkvdec2_put_idle_core(struct mpp_taskqueue *queue,
+ 	mpp_task->core_id = -1;
+ }
+ 
+-static bool rkvdec2_core_working(struct mpp_taskqueue *queue)
++static bool rkvdec2_soft_ccu_has_live_task(struct mpp_taskqueue *queue)
+ {
+-	struct mpp_dev *mpp;
++	struct mpp_task *task;
++	unsigned long flags;
+ 	bool flag = false;
+-	u32 i = 0;
+ 
+-	for (i = 0; i < queue->core_count; i++) {
+-		mpp = queue->cores[i];
+-		if (mpp->disable)
++	spin_lock_irqsave(&queue->running_lock, flags);
++	list_for_each_entry(task, &queue->running_list, queue_link) {
++		if (test_bit(TASK_STATE_TIMEOUT, &task->state) ||
++		    test_bit(TASK_STATE_ABORT, &task->state))
+ 			continue;
+-		if (!test_bit(i, &queue->core_idle)) {
+-			flag = true;
+-			break;
+-		}
++
++		flag = true;
++		break;
+ 	}
++	spin_unlock_irqrestore(&queue->running_lock, flags);
+ 
+ 	return flag;
+ }
+@@ -2399,11 +2412,16 @@ void rkvdec2_soft_ccu_worker(struct kthread_work *work_s)
+ 	mpp_debug_enter();
+ 
+ 	/* 1. process all finished task in running list */
+-	rkvdec2_soft_ccu_dequeue(queue);
++	rkvdec2_soft_ccu_dequeue(queue, false);
+ 
+ 	/* 2. process reset request */
+ 	if (atomic_read(&queue->reset_request)) {
+-		if (!rkvdec2_core_working(queue)) {
++		if (!rkvdec2_soft_ccu_has_live_task(queue)) {
++			/*
++			 * Claim the observed request before reset.  Faults or timeouts
++			 * raised during reset increment it again and remain pending.
++			 */
++			atomic_xchg(&queue->reset_request, 0);
+ 			ret = rkvdec2_ccu_power_on(queue, dec->ccu);
+ 			if (ret) {
+ 				dev_err(mpp->dev, "soft ccu power on failed: %d\n", ret);
+@@ -2415,6 +2433,9 @@ void rkvdec2_soft_ccu_worker(struct kthread_work *work_s)
+ 						"soft ccu reset failed: %d\n",
+ 						ret);
+ 					atomic_set(&queue->reset_request, 1);
++				} else {
++					/* Hardware is stopped; failed tasks may now retire. */
++					rkvdec2_soft_ccu_dequeue(queue, true);
+ 				}
+ 			}
+ 		}
+@@ -2702,6 +2723,8 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+ 
+ 		if (mpp->disable)
+ 			continue;
++		/* Claim this core's request before reset so a new one survives. */
++		atomic_xchg(&mpp->reset_request, 0);
+ 		dev_info(mpp->dev, "resetting...\n");
+ 		disable_hardirq(mpp->irq);
+ 		/* force idle */
+@@ -2736,7 +2759,6 @@ static int rkvdec2_hard_ccu_reset(struct mpp_taskqueue *queue, struct rkvdec2_cc
+ 				first_ret = ret;
+ 		}
+ 		enable_irq(mpp->irq);
+-		atomic_set(&mpp->reset_request, 0);
+ 		/* audit: reset/refresh must leave the core on the shared domain */
+ 		mpp_iommu_shared_domain_verify(&ccu->iommu, mpp->iommu_info);
+ 		val = mpp_read_relaxed(mpp, 272*4);
+@@ -3017,6 +3039,8 @@ void rkvdec2_hard_ccu_worker(struct kthread_work *work_s)
+ 		list_for_each_entry_safe(loop, n, &queue->running_list, queue_link) {
+ 			cancel_delayed_work_sync(&loop->timeout_work);
+ 		}
++		/* Preserve reset requests raised while this reset is running. */
++		atomic_xchg(&queue->reset_request, 0);
+ 		/* reset process */
+ 		ret = rkvdec2_hard_ccu_reset(queue, dec->ccu);
+ 		if (ret) {
+@@ -3024,10 +3048,9 @@ void rkvdec2_hard_ccu_worker(struct kthread_work *work_s)
+ 			atomic_set(&queue->reset_request, 1);
+ 			goto skip_resend;
+ 		}
+-		atomic_set(&queue->reset_request, 0);
+-
+ 		/* relink running task iova in list, and resend them to hw */
+-		if (!list_empty(&queue->running_list))
++		if (!atomic_read(&queue->reset_request) &&
++		    !list_empty(&queue->running_list))
+ 			rkvdec2_hard_ccu_resend_tasks(mpp, queue);
+ 	}
+ 

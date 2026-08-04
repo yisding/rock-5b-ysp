@@ -22,7 +22,7 @@ remain direct children of `/home/yi/Code`.
 | 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | latest GNOME 50 stable = `18cc5f7bf6ea`; clean release tip = `c4ef3c961940`; historical 50.1 replay and experiment tips remain recorded in §5 |
 | 6 | Register recipes and RK3588 IEP2/VDPP identity | kernel/userspace driver docs, [IEP2 audit](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) | MPP HAL/vproc sources + RK3588 TRM Part 2 Rev 1.0 (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
-| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | current 6.18 review tip `rk3588-rewrite-6.18@501a2b47f3503` and comparison tip `rk3588-rewrite-mainline@694aac9b7c0ff`, at parity as of 2026-08-03; the 2026-08-02 [adversarial review](../kernel-drivers/docs/rewrite-driver-adversarial-review-2026-08-02.md) repairs DMA ownership, recovery, RCB, polling, and ABI defects on baseline `8042f13c5459`; earlier atomic-safe fault-handler and [review-round-2](../findings/2026-07-29-rewrite-driver-review-round-2.md) history remains in §8; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958`; see §8 |
+| 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | maintained tips `rk3588-rewrite-6.18@33c30ec6989e` and `rk3588-rewrite-mainline@9e503f6b16df`, at tracked-source parity as of 2026-08-04; current normal-profile build and 305-signal audit pass; hardware evidence predates these tips; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` are historical; see §8 |
 | 9 | Upstream-style V4L2 RGA3 comparison | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) §1 | `yisding/linux-rock5b` branch `rk3588-rewrite-mainline` history at `180ee72a9a80`, path `drivers/media/platform/rockchip/rga/`, see §9 |
 | 10 | Expanded Rockchip conformance bundle | [kernel-driver rewrite-conformance](../kernel-drivers/tests/rewrite-conformance.md) § Expanded conformance bundle | tracked seed under `kernel-drivers/tests/conformance/`; runtime bundle defaults to external `../rock-5b/build/rockchip-conformance`, see §10 |
 | 11 | RK3588 AV1 / VSI-IOMMU comparison | [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md), FFmpeg AV1 note | local observations on 2026-07-02: forward-port tree `rk3588-rewrite-6.18` @ `a81feb1e2971`; sibling `../rock-5b/kernel/linux` `rk3588-rewrite-mainline` @ `839de47fcda2`; vendor BSP `rockchip-linux/kernel` `develop-6.1` @ `b4ef083dc0c3`, see §11 |
@@ -65,8 +65,11 @@ its `&vdec0`/`&vdec1` overrides reference labels vanilla 6.18 doesn't define
 > `655d178191807`, so older pins below resolve, but it is no longer where work
 > lands. Sibling branches that share the prefix — `-iommu-debug-20260706`,
 > `-rga-userptr-iommu`, `-route-b` — are separate branches, not old names.
-> As of 2026-08-02 the maintained branch and its `linux-rock5b` remote are at
-> `5b87d46eefdcb`, 87 commits on `v6.18`.
+> As of 2026-08-04 the maintained branch is at `7d53bc7a3adc`, 92 commits on
+> `v6.18`, with checked-in patches `0001`–`0092`. The Published/booted
+> `6.18.42` package remains at parent `7615b69a744af` / `0089`; the three new
+> RGA/IOMMU/RKVDEC2 safety commits are compile-verified only. See the
+> [dated fix finding](../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
 
 Provenance: the patches were generated from the dev worktree
 `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc` (then on branch `rkvenc-fwport-6.18`;
@@ -330,16 +333,20 @@ The clean-room MPP/RGA rewrite ([rewrite-driver track](../kernel-drivers/docs/re
 is reconstructible from the committed local branch tips targeting
 `github.com/yisding/linux-rock5b`:
 
-- branch `rk3588-rewrite-6.18`, commit `2f05724a20036` ("media: rockchip:
-  harden rewrite driver contracts"), in the dev worktree
-  `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc`. It lands the 2026-08-02
+- branch `rk3588-rewrite-6.18`, commit `33c30ec6989e` ("media: rockchip:
+  rga-rewrite: repair KUnit request and rotation coverage"), in the dev
+  worktree `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc`. It repairs
+  non-terminal request-configuration cleanup and separates the supported
+  non-pattern rotation oracle from the rejected RGA3 pattern-blend case.
+  Parent `501a2b47f3503` removes the
+  [unreachable IOMMU-IRQ-mask fallback](../findings/2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md)
+  from `2f05724a20036` ("media: rockchip: harden rewrite driver contracts").
+  That hardening commit lands the 2026-08-02
   [adversarial review](../kernel-drivers/docs/rewrite-driver-adversarial-review-2026-08-02.md)
-  fixes on audited parent `8042f13c5459`, and `501a2b47f3503` then removes
-  that commit's [unreachable IOMMU-IRQ-mask fallback](../findings/2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md),
-  whose BSP-only helper had blocked the mainline build. The mainline mirror is
-  at parity as of 2026-08-03: `rk3588-rewrite-mainline@694aac9b7c0ff`
-  cherry-picks both commits, the rewrite directories are byte-identical, and
-  both objects build on 6.18 and `v7.2-rc5`. Earlier `cd71f985a784c` lands the
+  fixes on audited parent `8042f13c5459`. The mainline mirror is at parity as
+  of 2026-08-04: `rk3588-rewrite-mainline@9e503f6b16df` carries the same
+  repair chain; the tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are
+  byte-identical. Earlier `cd71f985a784c` lands the
   2026-07-29
   [review-round-2 fixes](../findings/2026-07-29-rewrite-driver-review-round-2.md):
   legacy librga pre-swapped 90/270-degree destination windows now validate in
@@ -389,9 +396,11 @@ is reconstructible from the committed local branch tips targeting
   ("video: rockchip: rkvenc2: reserve a slice fifo slot for the terminal
   record"). The pre-rebase 6.18 rewrite tip is preserved locally as
   `ysp-backup/rk3588-rewrite-6.18-before-fwport-20260726@40cf22629cf63`.
-- branch `rk3588-rewrite-mainline`, commit `7dcb4c3b5a981` ("media: rockchip:
-  fix rewrite review findings"). It carries the same byte-identical
-  review-round-2 fixes as 6.18. Parent `03da898b03f1f` contains the
+- branch `rk3588-rewrite-mainline`, commit `9e503f6b16df` ("media: rockchip:
+  rga-rewrite: repair KUnit request and rotation coverage"). It carries the
+  same maintained rewrite implementation as 6.18. Earlier `7dcb4c3b5a981`
+  carries the byte-identical review-round-2 fixes. Parent
+  `03da898b03f1f` contains the
   byte-identical fixture isolation. Parent `a49eb7575f436` drops the duplicate MPP
   ABI case, and `aa18488c8642b` contains the
   byte-identical opt-in Kconfig change. Earlier `fb5040f08d83` carries the
@@ -401,7 +410,8 @@ is reconstructible from the committed local branch tips targeting
   `948db1b44c63` contains the invalid
   initcall-order assumption and `52d4dfa16825` carries the final capped-fixture
   repair. The tip
-  keeps byte-identical rewrite driver and ABI files, the same explicit
+  keeps byte-identical tracked rewrite sources, Kconfig, ABI ledgers, and UAPI,
+  the same explicit
   shared-IRQ policy, and the same KUnit/live-service isolation as the 6.18
   tip, on the 250-commit rewrite series rebased onto official kernel.org
   `v7.2-rc5` in the sibling worktree
@@ -549,7 +559,12 @@ unpinned devm-hardware use. The mainline branch carries the minimal
 `include/soc/rockchip/rockchip_iommu.h` hook to match the 6.18 provider. The
 support repo's
 `kernel-drivers/tests/rewrite-build-gate.sh` reproduces the clean-source
-KUnit-enabled provider/rewrite/DTB build. On 2026-07-15 its default `normal`
+KUnit-enabled provider/rewrite/DTB build. On 2026-08-04 its warning-fatal
+clean-archive `normal` profile passed at 6.18 `33c30ec6989e` and mainline
+`9e503f6b16df`, building Rockchip and VSI IOMMU support, both KUnit-enabled
+rewrite objects, and the ROCK 5B DTB. The source audit reported 305 known
+signals, zero new, and zero absent on both trees. Test-disabled, memory, and
+race results were not rerun at these tips. Historically, on 2026-07-15 its default `normal`
 profile completed warning-free for the then-current pins. On 2026-07-17 all
 three `normal`, `memory`, and `race` profiles completed warning-free for
 `../rock-5b/kernel/linux-6.18-rkvenc@0d71ded1690c` and

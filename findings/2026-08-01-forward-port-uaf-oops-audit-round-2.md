@@ -13,6 +13,12 @@
 > `W=1` but **nothing has been booted, and no reproducer has been run for any
 > defect**, pre-fix or post-fix.
 
+> **Updated 2026-08-04 by**
+> [`2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md`](2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
+> J1, A4, A7, provider callback quiescence, and the remaining unlocked
+> fault-handler task reads are fixed in source patches `0090`–`0092` and pass
+> an affected-object `W=1` build. They remain unbooted and runtime-unverified.
+
 ## Result
 
 A second systematic audit, covering ground the
@@ -194,7 +200,8 @@ Two structural changes are worth calling out because they are more than a check:
   `0079` had to choose between a UAF and a leak. Counting import references
   lets ownership drop with the last one instead of the first.
 
-**Deliberately not fixed here**, each for a stated reason: **J1** (the borrowed
+**Deliberately not fixed in this audit batch**, each for a stated reason:
+**J1** (the borrowed
 `job->task_list`) — the candidate fixes either change ownership semantics or
 sever the OSD write-back channel, and R4's ownership check removes the
 cross-process reach in the meantime; **A4** (retiring a timed-out task without
@@ -202,6 +209,10 @@ quiescing its core) — needs the reset-actor design already open in
 [the 08-01 finding](2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md);
 **the IOMMU quiescence/`cur_task` redesign** above; and the root-only unbind
 items (**A6**, `rga_drv_remove()`, `rga_init()`).
+
+J1, A4, A7, and the IOMMU quiescence/`cur_task` redesign were subsequently
+implemented by [`0090`–`0092`](2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
+The root-only unbind items remain outside that successor.
 
 ## Boundary
 

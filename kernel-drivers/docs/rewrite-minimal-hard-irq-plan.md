@@ -8,6 +8,13 @@
 > Pairs with: [`2026-07-30 soft-CCU finding`](../../findings/2026-07-30-rewrite-soft-ccu-split-critical-section-h265-wedge.md)
 > Date: 2026-07-30
 
+> **Current boundary (2026-08-04):** this remains a target architecture plan,
+> not the as-built interrupt model. Its inventory is pinned to the source above;
+> no phase is claimed complete at maintained tips `33c30ec6989e` /
+> `9e503f6b16df`. Read the
+> [current architecture guide](rewrite-driver-architecture/README.md) before
+> using this plan to interpret present source.
+
 ## Result
 
 One architectural contract, stated in a sentence and enforced by lockdep:

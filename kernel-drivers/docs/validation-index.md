@@ -38,13 +38,13 @@ superseded `86`/`122`/`208` at tips `8469183da227` / `9ff18809b5e0`.
 ## Comparative disposition
 
 The full source/design comparison lives in
-[`rewrite-drivers.md`](./rewrite-drivers.md#current-comparison-2026-07-26).
+[`rewrite-drivers.md`](./rewrite-drivers.md#current-comparison-2026-08-04).
 Its operational conclusion is:
 
 | Question | Answer |
 |----------|--------|
 | Which track should users run now? | Forward port: it has the broad hardware/ABI scope and the conformance, sanitizer, root-gate, and production-performance record. |
-| Why continue the rewrite? | Its public-API-only, session/job-owned, fail-closed design is easier to carry across kernels and makes ABI and recovery invariants executable. |
+| Why continue the rewrite? | Its public-API-only, explicit session/job ownership and fail-closed design are easier to carry across kernels and make ABI and recovery invariants executable. The proposed cluster/activation/task-execution objects remain future refactoring, not current-source evidence. |
 | What is the rewrite's principal cost? | Narrower hardware scope, two very large translation units, and an unclosed hardware-validation gap; KUnit coverage does not replace real register/IRQ/reset evidence. |
 | How do the tracks relate? | The forward port is both the shipping implementation and the differential oracle. The rewrite has absorbed or architecturally dissolved several forward-port fixes, so comparison should continue rather than treating either line as disposable. |
 | When should the default change? | Only after the rewrite produces the same media artifacts, survives the hostile recovery/fuzz/soak gates, and meets the production performance ceiling. |
@@ -55,35 +55,40 @@ Its operational conclusion is:
 
 | Test category | Harness | Forward-port | Rewrite |
 |---|---|---|---|
-| Bit-exact decode H264/H265/VP9/AV1 | `decode-differential.sh` | ✅ PSNR=inf (repeated, incl. this session) | ❌ no media run |
+| Bit-exact decode H264/H265/VP9/AV1 | `decode-differential.sh` | ✅ Broad historical PSNR=inf runs; current `6.18.42` package has a narrower 17/17 tier-1 VA-API bit-exact pass | ❌ no media run |
 | Encode rkvenc2 H264/H265 + slice + RC | `kasan-mpp-suite.sh`, `encode-test-tiny.sh` | ✅ clean | ❌ |
 | RGA blit/scale/CSC/10-bit/AFBC | `librga-*`, `rga-mmu-debug.sh` | ✅ | ❌ |
-| Conformance suites (mpp/librga/gst/ffmpeg) | `*-suite.sh` | ✅ FFmpeg 14–24 req, GStreamer 98–129, MPP 12/12 | ⚠️ device-free wiring only |
-| KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ clean | ⚠️ booted KUnit exposed fixture Oops/UAF; no real MPP/RGA workload completed |
+| Conformance suites (mpp/librga/gst/ffmpeg) | `*-suite.sh` | ✅ Historical FFmpeg 14–24 req, GStreamer 98–129, MPP 12/12; full suite not repeated on current `6.18.42` | ⚠️ device-free wiring only |
+| KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ Broad historical clean run; current IEP2 tail has its own KASAN/lockdep gates, but the current production package is non-KASAN | ⚠️ booted KUnit exposed fixture Oops/UAF; no real MPP/RGA workload completed |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | PoC ladder, now kept in the private `rock-5b-security` repository | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
-| Booted KUnit (92 MPP + 152 RGA = 244 current gate) | `rewrite-kunit-log-check.sh` | — | ⚠️ Historical package `P91d6-Cad24` completed its then-current exact 85+148 KTAP, but MPP case 83 reached DCHS release through a second zeroed local service and disabled lockdep before RGA. Current tips initialize that reset/import fixture, make both lifecycle suites opt-in, remove the compile-time-owned ABI-layout runtime case, and add AV1 AFBC status/admission coverage; the checker gates the manifest-derived 92+152 plan, the entire fatal-signature interval, and live lockdep before ABI/media work. A clean compound rerun remains required. |
-| Clean-source build gate (normal/test-disabled/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ Current 6.18 `669697f` and mainline `a49eb75` pass KUnit-enabled normal plus test-disabled clean-archive builds, including ordinary `KUNIT_ALL_TESTS=y` opt-in-default proof and a deliberate ABI-size mutation that fails compilation through the existing static assertion. The preceding 6.18 `9af4a88` also passed KASAN/fault-injection memory and KCSAN/lockdep race profiles. The current source remains unbooted. |
+| Booted KUnit (92 MPP + 152 RGA = 244 current gate) | `rewrite-kunit-log-check.sh` | — | ⚠️ Boot `#29` (`g8042f13c5459`) is the cleanest run: exact 89/89 MPP plus 150/150 RGA, fatal-free reference boot, live lockdep, kmemleak scanning, and expected services. It predates the adversarial-review and current tails. Installed package `#30` never booted and also predates current. The checker now gates the manifest-derived 92+152 plan, complete fatal-signature interval, live lockdep, and source/config/package attribution; a current-tip compound rerun remains required. |
+| Clean-source build gate (normal/test-disabled/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ On 2026-08-04, maintained 6.18 `33c30ec6989e` and mainline `9e503f6b16df` pass the warning-fatal clean-archive `normal` profile, including Rockchip/VSI IOMMU, both KUnit-enabled rewrite objects, and the ROCK 5B DTB. The source audit reports 305 known signals, zero new, and zero absent on both. Test-disabled, memory, race, and ABI-mutation results belong to older tips and were not silently carried forward. Current source remains unbooted. |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ not run |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`; the syzkaller description is kept in the private `rock-5b-security` repository | ⚠️ ran without KCOV | ❌ |
 | 72 h multi-instance soak | (none yet) | ❌ | ❌ |
 | Perf ratio on production (non-KASAN) kernel | root gates / conformance run | ✅ Published `…20260723~rk1` booted 2026-07-24: H.265 720p encode ~353 fps, transcode 20.8×/88× realtime | ❌ no Kernel C |
 
-Reading: the forward-port is broadly hardware-proven for correctness,
-memory-safety, and now production perf. The rewrite has compile evidence plus a
-partial booted KUnit/probe record, but no successful userspace media workload;
-the systematic fault-injection matrix, fuzzing-under-coverage, and the soak are
-gaps for **both** tracks.
+Reading: the forward-port has broad historical hardware proof for correctness,
+memory-safety, and production performance. Its current `6.18.42` / `0089`
+artifact is Published, installed, booted, and narrow-tier green, but has not
+repeated that broad campaign. Maintained forward-port source has advanced to
+`0092` / `7d53bc7a3adc` with affected-object `W=1` proof only, so none of the
+`0089` runtime evidence transfers to its RGA/IOMMU/RKVDEC2 safety tail. The
+rewrite has compile evidence plus a partial
+booted KUnit/probe record, but no successful userspace media workload; the
+systematic fault-injection matrix, fuzzing-under-coverage, and the soak are gaps
+for **both** tracks.
 
 ## Consolidated gap list
 
-**Rewrite — the big one: no successful media-hardware evidence exists.** The
-first boot exposed KUnit fixture poisoning and an RGA3 DT-resource conflict; a
-follow-up passed the preceding 85+147 KTAP plan but emitted five RGA fixture
-debug-object warnings, and both RGA3 cores then failed probe on incompatible
-shared-IRQ flags. The 148-case/shared-IRQ tip is compile-verified but still
-needs a warning-clean boot, all intended bindings, isolated ABI replay, and the
+**Rewrite — the big one: no successful media-hardware evidence exists.** Boot
+`#29` proves that an older 89+150 source can complete its KUnit plan with the
+expected services registered, but it predates the 2026-08-02 review tail and
+the current request/rotation repair. Maintained tips `33c30ec6989e` and
+`9e503f6b16df` have source/build evidence only. They need a warning-clean boot,
+the exact 92+152 manifest, all intended bindings, isolated ABI replay, and the
 paired media matrix. Gap-audit
 [§ six board runs](./rewrite-conformance-gap-audit.md) enumerates the minimum
 set. See [`rewrite-drivers.md`](./rewrite-drivers.md) for exact tips and proof
@@ -93,43 +98,40 @@ boundaries.
 counter is needed before RGA fence cleanup can be asserted — `release_fence_count`
 is cumulative. This must land in the driver before a gate can check it.
 
-**Rewrite — AV1:** the rewrite does not bind the VPU981/AV1 block at all. Separate
-scoped implementation, tracked in [`../av1/docs/av1-rewrite-assessment.md`](../av1/docs/av1-rewrite-assessment.md);
-AV1 stays diagnostic-only in the suites so the omission is explicit.
+**Rewrite — AV1:** the maintained source contains a VPU981 decoder backend,
+VSI-IOMMU integration, ABI/KUnit coverage, and build wiring. It has no board
+result. AV1 remains diagnostic by default in the suites for staged bring-up,
+but a full current-tip qualification must promote it to required and close the
+AFBC, fault, power-management, output, and differential gates tracked in the
+[`AV1 rewrite assessment`](../av1/docs/av1-rewrite-assessment.md).
 
 **Both tracks:** the systematic fault-injection/recovery matrix, fuzzing under
 KCOV/KASAN, and the 72 h soak remain open. Production performance exists only
 for the forward port; the rewrite still owes the cross-profile ratio.
 
-**Forward-port — open defects a full run must still gate.** Four, and only four:
+**Forward-port — current qualification gaps.** The old fixed-count list had
+gone stale as gates closed and the series grew. The live boundary is:
 
-- RKVENC2 256-entry slice-FIFO overflow — **fixed both sides 2026-07-25,
-  compile-verified only.** Kernel `0075` reserves the last FIFO slot for the
-  terminal record and carries a dropped length forward; MPP `0002`/`0003` harden
-  the vepu5xx poll loops. The `split_arg=4` hardware gate needs the paired
-  userspace and is owed.
-- VP9 `show_existing_frame` **leg-2 only** — the MPP-*userspace* buffer-slot /
-  refcount anomaly. The kernel side is closed: the `0053`/`0054`/`0058` fixes
-  held on the 2026-07-23 root gates and again on the production kernel
-  2026-07-24, with the board surviving and `flagged_kernel_lines=0`.
-- The 10-bit RGA stride tail `0072`–`0074` is compile-clean with its gate
-  **owed**: the `0072` gate ran on-board 2026-07-24 and failed, which is what
-  `0074` fixes ([UV-offset finding](../../findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md)).
-- Four of the eleven BSP-audit HIGH fixes have no targeted hostile gate on any
-  boot — acquire-fence stress (`0063`), shutdown-outside-`irq_lock` (`0064`),
-  missing-plane (`0065`), partial-handle unwind (`0067`). The series is
-  boot-validated; those four individually are not
-  ([per-bullet detail](./forward-port-status.md)).
+- Build/package and boot exact source `0092` / `7d53bc7a3adc` under
+  KASAN/lockdep, then run RGA cancellation/session-close and decoder
+  recovery/reset-contention gates. The current package ends at `0089`.
+- Repeat the full MPP/FFmpeg, librga/RGA, GStreamer, ABI, RDP-encode, and
+  fatal-journal campaign on the successor `0092` artifact. The installed
+  `6.18.42` / `0089` narrow pass and older `…20260723~rk1` full pass remain
+  historical evidence, not transferable `0092` verdicts.
+- Run targeted hostile/ownership gates for the `0076`–`0087` audit tail,
+  including RGA ABI/cross-session import, MPP lifetime, encoder, decoder, and
+  the forced fragmented-DMA-BUF RGA2 mapped-SG path. Ordinary tier-1 decoding
+  does not cover those paths.
+- For IEP2, runtime-verify the libmpp BFF bootstrap fix and retain the
+  untriggered software-timeout path as an explicit fault-injection gap. The
+  other dedicated KASAN/lockdep IEP2 gates are green.
+- Complete the systematic fault-injection matrix, KCOV/KASAN fuzzing, and the
+  production soak. These remain wider-audience qualification debt.
 
-Closed since this list was first written, kept here because other docs still
-cite them as open: the MPP `process_request()` `list_add` double-add is
-root-caused to a double `INIT_CLIENT_TYPE`, fixed as `0069`, and returns
-`-EBUSY` on a booted kernel; a production (non-KASAN) image **is** validated —
-Published `…20260723~rk1`, tail `0001`–`0071`, full conformance set plus root
-gates green 2026-07-24; the root-only gates ran green on `Pc1f8-C9fc5`
-2026-07-23 and again on that production kernel; and the RGA `mm_session`
-debugfs UAF fix is FIX-RUNTIME-VERIFIED on `Pc1f8-C9fc5`. `status.md` tracks 1
-and 2 are the live record for all four.
+The documented SD rescue + `kernel-revert.sh` commands are operator-validated;
+rollback is no longer part of this open list. `status.md` tracks 1 and 2 are the
+live release record.
 
 ## The consistent plan to fully test the rewrite
 
@@ -144,10 +146,11 @@ before media qualification can start. Sequenced:
 0. **Prereqs:** land the active-fence counter in the rewrite driver; obtain an
    AVS2 elementary-stream asset (cannot be generated). `P91d6-Cad24` is
    disqualified by the case-83 lockdep report.
-1. **Current clean build gate:** normal and test-disabled profiles pass on
-   6.18 `669697f` and mainline `a49eb75`; memory/race remain inherited
-   compile evidence from the unchanged production paths at parent `9af4a88`.
-2. **Build and boot a successor package from the current tip (booted: `eb78ceed2fd67`)**; persist a **244-case green
+1. **Current clean build gate:** the `normal` profile passes on 6.18
+   `33c30ec6989e` and mainline `9e503f6b16df`; test-disabled, memory, race,
+   and ABI-mutation profiles retain older-tip evidence and must be rerun before
+   a full handoff claim.
+2. **Build and boot a successor package from 6.18 `33c30ec6989e`**; persist a **244-case green
    KUnit report plus complete clean interval and live-lockdep report**
    (`rewrite-kunit-log-check.sh`) tied to the boot fingerprint.
 3. **P1 smoke** (`rewrite-smoke.sh`) then **P2 conformance**: all four suites

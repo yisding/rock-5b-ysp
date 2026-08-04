@@ -41,9 +41,13 @@ were written — resolve any older number through the **renumber map** at the en
 
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch
-`rk3588-video-6.18`, local tip `7615b69a744a`). The checked-in series is now
-contiguous `0001`–`0089`. The public/package line remains at `0087` /
-`5b87d46eefdcb` until the compile-only IEP2 tail is published and boot-validated.
+`rk3588-video-6.18`, tip `7d53bc7a3adc`). The checked-in source series is
+contiguous `0001`–`0092`. The Published/booted
+`6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1` package remains at `0089` /
+`7615b69a744a`; `0090`–`0092` are affected-object `W=1` compile-verified only
+and have not been packaged or booted. Current-package proof is narrow
+(standalone IEP2 plus the 17-vector VA-API tier-1 set); the full and targeted
+regression gates remain open.
 Backup of the pre-cleanup tip: tag
 `backup/pre-reorg-20260723` (`4401383a6d9b5`). Generated fallback/official `.deb`
 files in the external build workspace are intentionally not tracked here — only
@@ -293,9 +297,12 @@ additional same-shape races; `0087` repairs the RGA import count, orders MPP fd
 release last, serializes dma-buf release lookup/check/put, completes timeout and
 `cur_task` locking, and restores fd/PTR dma-buf de-duplication.
 
-The driver directories compile at `W=1`, but none of these seven commits has
-been booted or hardware-validated. The forward-port RGA ABI and cross-session
-import probes remain the smallest missing regression gate; see the
+These seven commits first landed with a clean `W=1` compile only. They are now
+present in the booted `6.18.42` production package and receive ordinary
+integrated exercise from its tier-1 decode run, but still lack the targeted RGA
+ABI, cross-session import, MPP lifetime, encode, and decode regression gates.
+The forward-port RGA ABI and cross-session import probes remain the smallest
+missing discriminator; see the
 [audit finding](../../../findings/2026-08-01-forward-port-uaf-oops-audit-round-2.md).
 
 | # | Title | Commit | Was |
@@ -319,14 +326,37 @@ hides unsupported MPP hot-unbind controls; arbitrary DT-overlay removal still
 does not have a complete common drain/unpublish contract.
 
 The affected objects and ROCK 5B DTB compile cleanly, including a `W=1` pass.
-No IEP2 task has run on hardware, so client-28 exposure, output correctness,
-fault recovery, invalid-input stress, and KASAN runtime remain open. See the
-[complete safety review](../../iep2/docs/forward-port-safety-review.md).
+KASAN/lockdep package `Pcf86-Cc271` subsequently bound client 28 and passed the
+focused TFF/BFF, decoder-vproc, negative, encoding-race, close/completion, and
+soak gates; the software timeout was the one fault path not triggered. The
+Published production `6.18.42` package also runs standalone IEP2. See the
+[complete safety review](../../iep2/docs/forward-port-safety-review.md) and the
+[production-kernel result](../../../findings/2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md#this-is-not-an-iep2-defect-and-iep2-now-has-production-kernel-evidence).
 
 | # | Title | Commit | Was |
 |---|-------|--------|-----|
 | `0088` | video: rockchip: add RK3588 IEP2 deinterlacing | `6f5bdf5c0a52` | — |
 | `0089` | video: rockchip: harden IEP2 lifetimes and DMA bounds | `7615b69a744a` | — |
+
+### 0090–0092 — RGA lifetime and decoder recovery safety (2026-08-04)
+
+These close the known-open RGA job-task borrow, provider fault-callback/token
+race, unlocked MPP fault-task reads, soft-CCU retire-before-reset ordering, and
+lost concurrent reset requests. RGA jobs now own their task snapshots while
+publishing OSD results only into a pinned request. Provider handler removal is
+a non-sleeping quiescence barrier, and failed soft-CCU tasks remain live until
+reset has stopped hardware access.
+
+All six affected objects pass the clean arm64 `W=1` build. No `0092` package
+has been built or booted, so the cancellation, IOMMU-fault, timeout, concurrent
+reset, KASAN, and lockdep gates remain open. See the
+[fix finding](../../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
+
+| # | Title | Commit | Was |
+|---|-------|--------|-----|
+| `0090` | video: rockchip: rga: snapshot job task lists | `4081e39e8712` | — |
+| `0091` | iommu: rockchip: quiesce MPP fault callbacks on clear | `552a9eea6aab` | — |
+| `0092` | video: rockchip: rkvdec2: quiesce failed tasks before retire | `7d53bc7a3adc` | — |
 
 ## Renumber map (2026-07-23)
 

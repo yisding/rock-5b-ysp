@@ -6,7 +6,34 @@
 > and the whole-project dated dashboard is [`status.md`](../../status.md) at the
 > repo root.
 
-Target: Radxa ROCK 5B (RK3588), Armbian, kernel **6.18.38** (`rockchip64-current`).
+Target: Radxa ROCK 5B (RK3588), Armbian, current package kernel **6.18.42**
+(`6.18.42-ysp-rockchip64`).
+
+## Current release boundary, 2026-08-04
+
+The Published package remains `0001`–`0089` at `7615b69a744af` /
+`6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1`. That package is installed and
+booted. Standalone IEP2 works on the production kernel and installed
+`rockchip-vaapi ysp12` passes all 17 pinned tier-1 vectors bit-exact. The same
+IEP2 source also has a much broader KASAN/lockdep run recorded in its
+[safety review](../iep2/docs/forward-port-safety-review.md).
+
+Maintained source and the checked-in export have advanced to `0001`–`0092` at
+`7d53bc7a3adc`. The three new patches fix the remaining RGA job-task UAF,
+IOMMU callback/current-task lifetime, soft-CCU retire-before-reset ordering,
+and lost concurrent reset requests. All affected objects pass an arm64 `W=1`
+build, but this tail has no package or runtime evidence; see the
+[fix finding](../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
+
+This does **not** transfer the older full-conformance verdict to `6.18.42`.
+Full MPP/FFmpeg, librga/RGA, GStreamer, ABI, RDP-encode, fatal-journal, and soak
+runs on this exact artifact remain open, as do targeted hostile gates for much
+of the `0076`–`0087` audit tail. The documented SD rescue +
+`kernel-revert.sh` commands are operator-validated; see the
+[recovery finding](../../findings/2026-08-04-forward-port-sd-rescue-rollback-used.md).
+
+## Historical validation chronology
+
 Historical validated build hash: `Pb6ab-Cb831` on 6.18.37 (and its functionally-identical predecessor
 `P8c75`). That hash is baked into the Armbian `.deb` package name — `P####` hashes
 the applied kernel patch set, `C####` hashes the kernel config — so the pair names
@@ -136,12 +163,13 @@ are cleared — see the
 and the
 [MPP client-less RELEASE_FD finding](../../findings/2026-07-21-mpp-collect-msgs-clientless-session-null-deref-crash.md).
 
-**`0076`–`0079` (2026-07-29) carry no hardware evidence at all.** The
+**`0076`–`0079` (2026-07-29) first landed with no hardware evidence.** The
 [WARN/oops audit sweep](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md)
 added 18 fixes — 12 unprivileged-reachable, five of them kernel-heap
-corruption — and every one is **compile-verified only**: `make W=1` clean, the
-patches replay to a byte-identical tree, and nothing has been booted or
-exercised by a reproducer, pre-fix or post-fix. Three change observable
+corruption — and the initial evidence was **compile-only**: `make W=1` clean
+and a byte-identical replay. They are now present in the booted `0089`
+production package and receive ordinary integrated exercise from its tier-1
+decode run, but none has its targeted hostile-path reproducer. Three change observable
 behaviour (`mpp_check_req()` now rejects requests the old sloppy clamp let
 through; the RGA IOMMU fault handler holds `irq_lock` across a ~1 ms
 `soft_reset()` busy-wait; the RGA request debugfs dump holds `request->lock`
@@ -384,58 +412,51 @@ covers this range.
   aperture and wrap when the driver added plane offsets in 32-bit registers.
   The forward-kernel fixes are `13afe70c8271` (`iommu: rockchip: restore large
   DMA segment support`) and `6b9dba7abcd0` (`video: rockchip: rga: keep IOVAs
-  below 32-bit wrap guard`); booted runtime validation is pending after the next
-  rebuild/reboot. Separately, this kernel exposes no Rockchip DMA32 heaps; that
+  below 32-bit wrap guard`); targeted RGA runtime validation remains pending on
+  the current package. Separately, this kernel exposes no Rockchip DMA32 heaps; that
   is a BSP ABI/sample-compatibility gap for heap-name-specific userspace, not
   the RGA3 MMU interrupt cause.
   Evidence and rerun instructions:
   [`findings/2026-07-04-rga3-im2d-error-irq.md`](../../findings/2026-07-04-rga3-im2d-error-irq.md).
 
-## Where the series stands, 2026-08-02
+## Where the series stands, 2026-08-04
 
-Three numbers that disagree, and it matters which is which:
+Source has advanced beyond the current package again, and the distinction is
+intentional:
 
 | | |
 |---|---|
-| Tree tip | `linux-6.18-rkvenc-av1-fwport` @ `5b87d46eefdcb`, 87 commits on `v6.18` |
-| Packaged / uploaded | series `0001`–`0087`, in `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1`; source `18654047` is Published and arm64 build `33461848` is currently building |
-| Installed on the board | the older `6.18.40+…20260729-0ubuntu1~rk1` — **installed, never booted** |
+| Tree tip | `rk3588-video-6.18` @ `7d53bc7a3adc`, 92 commits on `v6.18`; affected objects compile clean with `W=1` |
+| Packaged / uploaded | series `0001`–`0089` @ `7615b69a744af`, in `6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1`; source and all three arm64 binaries are Published |
+| Installed on the board | that exact package, booted as `6.18.42-ysp-rockchip64` |
 
-The tree/package gap is closed by the 08-02 source. The seven-commit tail after
-the Published `0001`–`0080` package is `a88f4fdfccda`, `874fbff8ba50`,
-`57585821dcef`, `1b4b65b57e7c`, `78a4d1a90370`, `36ec9c956ce1`, and
-`5b87d46eefdcb`: MPP session-switch/release lifetime fixes, RKVENC2/RKVDEC2
-timeout and allocation hardening, RGA ioctl ownership/authentication fixes, and
-the follow-up review repairs. Patch-only staging applies the complete series;
-the extracted source is Linux 6.18.41, contains no rewrite-only paths or sync
-helper, byte-matches all 11 driver files touched by the tail, and retains the
-production MPP/RGA/AV1 config. None of the seven has been booted or
-hardware-validated.
+The `0089` tree/package/installed gap is closed. Patch-only staging and the
+extracted-source checks cover the complete series, including the IEP2 config,
+driver, binding, and ROCK 5B DT nodes, with no rewrite-only paths. The booted
+package gives the whole tail narrow integrated evidence: standalone IEP2 works
+and the 17-vector VA-API tier-1 set is bit-exact. It does not directly exercise
+the RGA import/release paths, encoder paths, all decoder recovery paths, or the
+targeted hostile cases repaired in `0076`–`0087`. It says nothing about the
+new `0090`–`0092` source tail.
 
-The `20260801` source is Published as Launchpad source `18652965` and arm64
-build `33460058` succeeded. GitHub branch `rk3588-video-6.18` is current at
-`5b87d46eefdcb` with no unpushed commits.
+The next gate restores artifact alignment, then broadens the evidence:
 
-Two independent gates follow from that table, and conflating them is what has
-cost time before:
-
-1. **Confirm the new archive build.** Source `18654047` is Published; arm64
-   build `33461848` must succeed and publish binaries.
-2. **Install and boot that exact build.** Re-run the RDP login/encode gate, MPP,
-   FFmpeg, librga/RGA, GStreamer, ABI replay, and fatal-journal scans, then prove
-   the co-installable rollback path. The older installed package does not cover
-   the seven-commit tail.
+1. Build/package and boot the exact `0092` tip under KASAN/lockdep; run the
+   RGA cancellation/session-close and decoder recovery/reset-contention gates.
+2. Run MPP/FFmpeg, librga/RGA, GStreamer, ABI replay, RDP encode, and a bounded
+   fatal-journal scan on the successor artifact.
+3. Run the targeted RGA mapped-SG/cross-session, MPP lifetime, encoder, decoder,
+   and audit-tail hostile gates that ordinary tier-1 decoding cannot cover.
+4. Run the production soaks. The documented SD rescue + `kernel-revert.sh`
+   recovery path is already operator-validated and is not an open release gate.
 
 ## What "done" means here
 
-The July 4 forward-port baseline is **functionally complete for its tested,
-trusted-input codec scope**: `ffmpeg -hwaccel rkmpp -c:v hevc_rkmpp ...` uses
-the hardware on Armbian 6.18. That does not make the maintained source tip or
-the BSP-derived ABI generally shippable. The locally built production candidate
-absorbs `0041`/`0042` but predates the `0043`/`0044` ABI fixes, which now pass
-booted KASAN ABI replay; publication, board boot/conformance, and rollback
-still need resolution. The MPP functional failures and RGA ABI gaps are closed
-on the KASAN build, but the RGA2 DMA ownership warning, GStreamer dependency
-gate, and broader audit series still have compile/runtime work. DVFS and codec
-breadth are optional polish; memory safety, regression conformance, and recovery
-are release blockers.
+The forward port is usable for the exact production scope already measured:
+the Published package boots, IEP2 runs, and tier-1 VA-API decode is bit-exact.
+It is not yet justified to generalize that result to the full MPP/RGA ABI,
+encode, GStreamer, recovery/fault, or long-run surface. Those current-artifact
+gates—not publication, installation, or SD recovery—are the remaining release
+qualification boundary. The older full conformance and KASAN results remain
+valuable regression evidence, but do not silently transfer across the audit
+tail and stable-base update.

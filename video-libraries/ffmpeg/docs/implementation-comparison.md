@@ -196,10 +196,11 @@ try to be the whole Rockchip frame-management environment. ffmpeg-rockchip does.
 
 The fork's broader codec list is not the same thing as this repo validating
 every listed codec on RK3588. This repo's maintained `/dev/mpp_service` rewrite
-profile is H.264/H.265 decode, VP9 decode, H.264/H.265 encode, and RGA
-scale/CSC. VP8/MPEG/H.263 and JPEG map to legacy VPU/JPEG hardware paths that
-the rewrite does not bind; AV1 maps to separate RK3588 AV1/V4L2-stateless work,
-not the RKVDEC2/RKVENC2 compatibility driver.
+profile is H.264/H.265/VP9 decode, H.264/H.265 encode, RGA scale/CSC, and a
+separate source-implemented VPU981 AV1 backend. VP8/MPEG/H.263 and JPEG map to
+legacy VPU/JPEG hardware paths that the rewrite does not bind. AV1 is not part
+of RKVDEC2, and the rewrite backend still lacks hardware evidence; the
+V4L2-stateless path remains a separate userspace/API alternative.
 
 | Registered userspace name | RK3588 rewrite expectation |
 |---------------------------|----------------------------|
@@ -208,7 +209,7 @@ not the RKVDEC2/RKVENC2 compatibility driver.
 | `h264_rkmpp`, `hevc_rkmpp` encode | Required and part of the forward-port validation baseline. |
 | `vp8_rkmpp`, MPEG/H.263 RKMPP decode names | Recognized as userspace registrations, but outside the RK3588 rewrite profile unless a current workload proves the legacy VDPU path is needed. |
 | `mjpeg_rkmpp` decode/encode | Recognized as ffmpeg-rockchip registrations, but outside the rewrite profile because the JPEG hardware is separate from RKVDEC2/RKVENC2. |
-| `av1_rkmpp` | Not expected through this `/dev/mpp_service` rewrite; use the separate AV1 note and V4L2-stateless path. |
+| `av1_rkmpp` | Implemented through the rewrite's separate VPU981/VSI `/dev/mpp_service` backend, but not hardware-validated; require the AV1 qualification gates before treating it as supported. |
 
 ### AV1 on RK3588: RKMPP vs V4L2 stateless
 

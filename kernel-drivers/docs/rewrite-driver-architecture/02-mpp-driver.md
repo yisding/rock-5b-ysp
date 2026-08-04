@@ -13,7 +13,7 @@ flowchart LR
     L["librockchip_mpp"] --> V["MPP message validation"]
     V --> T["fd/IOVA translation"]
     T --> Q["service queue"]
-    Q --> B["RKVENC2 or RKVDEC2 backend"]
+    Q --> B["RKVENC2, RKVDEC2, or AV1 backend"]
     B --> MMIO["register write + start"]
     MMIO --> IRQ["IRQ/readback"]
     IRQ --> POLL["POLL_HW_FINISH / POLL_HW_IRQ"]
@@ -58,11 +58,12 @@ The principal objects are:
 
 | Object | Created by | Owns or tracks |
 |--------|------------|----------------|
-| `rk_mpp_service` | module init | hardware registry, global queue, DMA groups, counters, work item |
+| `rk_mpp_service` | module init | hardware registry, global queue, reset-domain lock table, DMA groups, counters, work item |
 | `rk_mpp_hw` | platform probe | device, MMIO, IRQ, clocks, resets, active job, timeout/fault work, CCU state |
 | `rk_mpp_session` | `/dev/mpp_service` `open()` | client type, imports, active jobs, translation table, RCB and codec metadata |
 | `rk_mpp_import` | fd translation | DMA-BUF, attachment, mapped scatterlist, device-specific IOVA |
-| `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, selected hardware, result/readback |
+| `rk_mpp_job` | ioctl message collection | copied requests, register image, imports, selected hardware, result/readback, and current CCU/DCHS/power participation |
+| `rk_mpp_reset_domain` | first matching hardware probe | one mutex keyed by CCU node; serializes shared reset-line writers but does not yet own membership, reset state, or reset epochs |
 | `rk_mpp_dma_group` | hardware probe | IOMMU group, original DMA domain, preallocated empty isolation domain |
 
 The important reference direction is:
@@ -76,6 +77,12 @@ job -> decoder CCU/link descriptor when required
 
 Consequently, closing a file or removing a handle cannot free memory still
 needed by an accepted job.
+
+This is the as-built graph. The broad `rk_mpp_job` and `rk_mpp_hw` objects
+still carry state that belongs to one admitted hardware activation or to the
+whole decoder cluster. The proposed `rk_mpp_activation` and `rk_mpp_cluster`
+objects in the [ownership-refactor plan](../rewrite-ownership-refactor-plan.md)
+do not exist in the current source.
 
 ### 3.2 Session lifecycle
 
@@ -231,12 +238,13 @@ struct rk_mpp_backend_ops {
         int (*submit)(struct rk_mpp_job *job);
         irqreturn_t (*irq)(struct rk_mpp_hw *hw);
         irqreturn_t (*thread)(struct rk_mpp_hw *hw);
+        void (*quiesce_aux_irqs)(struct rk_mpp_hw *hw);
 };
 ```
 
 This is a good use of an operations table: scheduling and lifetime rules are
-common, while register layout, start, IRQ status, and readback differ between
-encoder and decoder.
+common, while register layout, start, IRQ status, auxiliary-IRQ shutdown, and
+readback differ between encoder and decoder backends.
 
 ### 3.7 The active slot and generation numbers
 

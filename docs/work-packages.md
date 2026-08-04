@@ -39,7 +39,7 @@ flowchart TB
   subgraph kernel["kernel-drivers"]
     mpp["mpp<br/>/dev/mpp_service<br/>rkvenc2 + rkvdec2"]
     rga["rga<br/>/dev/rga<br/>RGA3 + RGA2"]
-    av1["av1<br/>rkvdec2 AV1 decode"]
+    av1["av1<br/>VPU981 AV1 decode"]
     iommu["iommu<br/>CCU / dma-buf mapping"]
     rknpu["rknpu<br/>RKNN runtime → three-core NPU"]
     kart["patches/ · scripts/ · tests/"]
@@ -121,6 +121,7 @@ flowchart TB
 |------|------|
 | Compare or modify U-Boot | [`../boot-firmware/docs/u-boot-primer.md`](../boot-firmware/docs/u-boot-primer.md) -> [`../boot-firmware/docs/version-comparison.md`](../boot-firmware/docs/version-comparison.md) -> pinned sibling trees |
 | Review the kernel port | [`../kernel-drivers/`](../kernel-drivers/README.md) -> [`how-the-drivers-work.md`](../kernel-drivers/docs/how-the-drivers-work.md) -> [`vendor-forward-port.md`](../kernel-versions/docs/vendor-forward-port.md) -> [`vendor-delta.md`](../kernel-drivers/docs/vendor-delta.md) |
+| Review the rewrite's current and target architecture | [`../kernel-drivers/docs/rewrite-driver-architecture/`](../kernel-drivers/docs/rewrite-driver-architecture/README.md) -> [`driver-architecture-comparison.md`](../kernel-drivers/docs/driver-architecture-comparison.md) -> [`rewrite-ownership-refactor-plan.md`](../kernel-drivers/docs/rewrite-ownership-refactor-plan.md) -> [`rewrite-validation-plan.md`](../kernel-drivers/docs/rewrite-validation-plan.md) |
 | Maintain or refresh the maximum-mainline proposal integration | [`../packaging/ppa/kernel-maxline/`](../packaging/ppa/kernel-maxline/README.md) -> [`manifest.yaml`](../packaging/ppa/kernel-maxline/manifest.yaml) -> [`public-series.tsv`](../packaging/ppa/kernel-maxline/public-series.tsv) / [`wip-donors.tsv`](../packaging/ppa/kernel-maxline/wip-donors.tsv) |
 | Review userspace ABI compatibility | [`../vendor-libraries/`](../vendor-libraries/README.md) -> [`how-the-userspace-libs-work.md`](../vendor-libraries/docs/how-the-userspace-libs-work.md) -> [`dev-uapis.md`](../kernel-drivers/docs/dev-uapis.md) -> [`rewrite-drivers.md`](../kernel-drivers/docs/rewrite-drivers.md) |
 | Review the RKNN/RKNPU boundary | [`how-rknpu-works.md`](../kernel-drivers/rknpu/docs/how-rknpu-works.md) -> [`kernel-driver-architecture.md`](../kernel-drivers/rknpu/docs/kernel-driver-architecture.md) -> [quality/security appendix](../findings/2026-07-16-rockchip-bsp-driver-quality.md#rknpu-deep-dive-capable-fixed-stack-unsafe-multi-client-abi) -> pinned sibling trees |

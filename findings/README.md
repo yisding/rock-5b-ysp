@@ -38,6 +38,8 @@ finding mixes evidence types:
   result.
 - **UNVERIFIED** — copied from a comment, commit, or other source but not yet
   checked.
+- **USER-REPORTED** — reported by the board operator but not independently
+  observed; the finding must state what artifact or replay detail is absent.
 
 Outcome tags record what happened to the thing the finding is about, and combine
 with the evidence tags above:
@@ -95,7 +97,7 @@ For a returning thread:
 | Thread | Maintained model | Dated turning points | Live boundary |
 |--------|------------------|----------------------|---------------|
 | Forward-port safety and ownership | [Driver task/lifetime model](../kernel-drivers/docs/how-the-drivers-work.md) and [forward-port status](../kernel-drivers/docs/forward-port-status.md) | [ownership audit](2026-07-21-forward-port-lifetime-resource-ownership-audit.md) → [HIGH fixes](2026-07-22-bsp-high-current-tip-port.md) → [6.18.40 KASAN validation](2026-07-25-forward-port-6-18-40-kasan-full-validation.md) → [current scatterlist-corruption trace](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) | [`status.md` track 1](../status.md) and [long-form ledger](../docs/status-ledger.md) |
-| Clean-room rewrite qualification | [Rewrite architecture](../kernel-drivers/docs/rewrite-driver-architecture/README.md) | [defect audit](2026-07-24-rewrite-driver-multi-agent-defect-audit.md) → [first complete KUnit failures](2026-07-26-rewrite-kunit-failure-root-causes.md) → [boot-lifecycle wedge](2026-07-27-rewrite-kunit-boot-lifecycle-wedge.md) → [current fixture/lockdep boundary](2026-07-27-rewrite-reset-import-fixture-lockdep.md) → [rewrite counterfactual](2026-08-01-rewrite-driver-retrospective.md) | [`status.md` track 4](../status.md) and [rewrite conformance contract](../kernel-drivers/tests/rewrite-conformance.md) |
+| Clean-room rewrite qualification | [Rewrite architecture](../kernel-drivers/docs/rewrite-driver-architecture/README.md) | [defect audit](2026-07-24-rewrite-driver-multi-agent-defect-audit.md) → [first complete KUnit failures](2026-07-26-rewrite-kunit-failure-root-causes.md) → [boot-lifecycle wedge](2026-07-27-rewrite-kunit-boot-lifecycle-wedge.md) → [fixture/lockdep boundary](2026-07-27-rewrite-reset-import-fixture-lockdep.md) → [rewrite counterfactual](2026-08-01-rewrite-driver-retrospective.md) → [current source/build boundary](2026-08-04-rewrite-kunit-request-rotation-repair.md) | [`status.md` track 4](../status.md) and [rewrite conformance contract](../kernel-drivers/tests/rewrite-conformance.md) |
 | RGA memory and 10-bit ABI | [userptr/IOMMU model](../kernel-drivers/rga/docs/userptr-iommu.md) and [librga 10-bit contract](../vendor-libraries/rga/docs/librga-p010-p210-rkrga.md) | [conformance root causes](2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md) → [legacy byte-stride regression](2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md) → [UV-offset sibling defect](2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md) → [TILE correction](2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md) → [hardware validation](2026-07-25-forward-port-6-18-40-kasan-full-validation.md) | [`status.md` W13/W16](../status.md) |
 | GNOME Remote Desktop end to end | [Capture path](../apps/gnome-remote-desktop/docs/capture-path.md) and [test gates](../apps/gnome-remote-desktop/docs/testing.md) | [MPP input backpressure](2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md) → [RDPGFX ACK wedge](2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md) → [audio validation](2026-07-21-grd-rdp-audio-live-validation-and-codec-control.md) → [first-frame kernel oops](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) | [`status.md` track 7](../status.md) |
 | SD/SPI/U-Boot diagnosis | [Boot-chain model](../boot-firmware/docs/u-boot-primer.md) and [artifact comparison](../boot-firmware/docs/version-comparison.md) | [SD boot investigation](2026-07-09-rock5b-armbian-sd-boot-investigation.md) → [FIT/DTB race](2026-07-13-rock5b-u-boot-fit-dtb-race.md) → [firmware-generation gap](2026-07-24-rock5b-spi-vs-radxa-bsp-firmware-generation-gap.md) | [`status.md` track 12](../status.md) |
@@ -162,10 +164,11 @@ RK3588 platform behaviour outside the media path.
 - [`2026-07-26`](2026-07-26-dwc-pcie-pmu-bus-notifier-lockdep-false-positive.md) — DWC PCIe PMU nests distinct same-class bus notifier locks and disables lockdep
 - [`2026-07-25`](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) — RK3588 per-die voltage binning: the BSP selects voltage from eFuse, mainline ships only the worst-die column
 
-### Kernel forward port: MPP and codec drivers (19)
+### Kernel forward port: MPP and codec drivers (20)
 
 Vendor MPP/rkvenc/rkvdec forward-ported to 6.18 — defects, audits, and whole-tip validation runs.
 
+- [`2026-08-04`](2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md) — Forward-port 0090–0092 close the RGA job-task and decoder recovery lifetime gaps
 - [`2026-08-04`](2026-08-04-rkvenc-encoder-rcb-sram-scope.md) — RK3588 encoder RCB is reachable only by >4096-wide H.264, so the absent encoder SRAM costs almost nothing
 - [`2026-08-01`](2026-08-01-forward-port-uaf-oops-audit-round-2.md) — Forward-port UAF/oops audit round 2: 18 defects, 7 of them unprivileged memory corruption
 - [`2026-07-29`](2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md) — MPP job-ISR IOMMU fault-handler clear takes sleeping locks and panicked the idle task
@@ -207,10 +210,11 @@ The `/dev/rga` driver — session lifetime, userptr/dma-buf imports, and the 10-
 - [`2026-07-20`](2026-07-20-rga2-unmapped-page-table-dma-sync.md) — RGA2 syncs page-table memory through an unmapped DMA address
 - [`2026-07-17`](2026-07-17-rga-session-close-uaf.md) — RGA session-close force-free ignores refcounts; a leaked test handle exposed it as a kernel Oops
 
-### Clean-room rewrite drivers (18)
+### Clean-room rewrite drivers (19)
 
 The from-scratch MPP/RGA replacement: reviews, soft-CCU wedges, and reset/lifecycle races.
 
+- [`2026-08-04`](2026-08-04-rewrite-kunit-request-rotation-repair.md) — Current rewrite tips repair request cleanup and rotation KUnit contracts
 - [`2026-08-03`](2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md) — The RGA rewrite's IOMMU-IRQ-mask fallback was unreachable, and it blocked the mainline mirror
 - [`2026-08-02`](2026-08-02-driver-probe-error-path-test-design.md) — Probe error paths are testable by DT alone, but -ENXIO and -ENODEV probe failures are silent by default
 - [`2026-08-01`](2026-08-01-rkvdec-self-reset-and-iommu-restore-gaps.md) — The rkvdec2 hardware self-resets on error; the rewrite driver neither detects it nor restores the IOMMU
@@ -345,10 +349,11 @@ Mali-G610 transfer and interpolation work behind the GRD readback path.
 - [`2026-07-18`](2026-07-18-mesa-panfrost-uncached-readpixels-convert-cliff.md) — Mesa/panfrost: glReadPixels convert fallback is catastrophic over uncached imported buffers
 - [`2026-07-08`](2026-07-08-blit-precision-nir-migration.md) — Blit-precision fix: the TGSI→NIR migration and doing it with pixel_coord
 
-### Build, packaging, and provenance (7)
+### Build, packaging, and provenance (8)
 
 How an artifact was actually built — and the times that turned out to be the bug.
 
+- [`2026-08-04`](2026-08-04-forward-port-sd-rescue-rollback-used.md) — Forward-port kernel rollback has been performed through an SD rescue boot
 - [`2026-08-01`](2026-08-01-stock-ubuntu-rock5b-successor-architecture.md) — A ROCK 5B-only Ubuntu successor should keep Resolute userspace stock and own the board kernel and firmware
 - [`2026-07-29`](2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md) — The production 6.18.40 `20260725` orig is a rewrite-composite worktree snapshot, not the validated forward-port series
 - [`2026-07-28`](2026-07-28-production-kernel-debug-option-audit.md) — Production kernel debug audit: four options above Armbian stock, and a 256 MiB debug allocation arriving from the shared boot environment
@@ -379,8 +384,11 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md`](2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md) — Enabling IEP2 broke interlaced VA-API decode by un-masking a driver defect: MPP's decoder deinterlacer is 1:N, VA-API decode is 1:1
 - [`2026-08-04-rockchip-vaapi-capability-gap-triage.md`](2026-08-04-rockchip-vaapi-capability-gap-triage.md) — rockchip-vaapi's remaining non-AV1 gaps split three ways: two are MPP walls, the size caps fail open below as well as closed above, and the sweep harness overwrites its own evidence
 - [`2026-08-04-rkvenc-encoder-rcb-sram-scope.md`](2026-08-04-rkvenc-encoder-rcb-sram-scope.md) — RK3588 encoder RCB is reachable only by >4096-wide H.264, so the absent encoder SRAM costs almost nothing
+- [`2026-08-04-rewrite-kunit-request-rotation-repair.md`](2026-08-04-rewrite-kunit-request-rotation-repair.md) — Current rewrite tips repair request cleanup and rotation KUnit contracts
 - [`2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md`](2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md) — IEP2 field parity settled: the mode suffix selects the field and `dil_order` does nothing, so MPP's hardcoded I1O1T is wrong for BFF streams
 - [`2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md`](2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md) — GRD has a native VA-API encoder and does not need FFmpeg — but it demands packed slice headers, which MPP cannot serve
+- [`2026-08-04-forward-port-sd-rescue-rollback-used.md`](2026-08-04-forward-port-sd-rescue-rollback-used.md) — Forward-port kernel rollback has been performed through an SD rescue boot
+- [`2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md`](2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md) — Forward-port 0090–0092 close the RGA job-task and decoder recovery lifetime gaps
 - [`2026-08-03-rk3588-iep2-nondeterministic-output.md`](2026-08-03-rk3588-iep2-nondeterministic-output.md) — RK3588 IEP2 runs clean under KASAN; its output non-determinism is a missing dma-buf cache sync in Rockchip's test harness, not the driver
 - [`2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md`](2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md) — The RGA rewrite's IOMMU-IRQ-mask fallback was unreachable, and it blocked the mainline mirror
 - [`2026-08-03-mainline-missing-uncached-dma32-heaps.md`](2026-08-03-mainline-missing-uncached-dma32-heaps.md) — Mainline lacks the BSP uncached/dma32 dma-heaps; MPP absorbs it, librga samples do not

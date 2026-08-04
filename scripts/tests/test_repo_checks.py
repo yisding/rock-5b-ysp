@@ -423,6 +423,12 @@ class WorkspaceDefaultTests(unittest.TestCase):
             "kernel-drivers/tests/rewrite-build-gate.sh"
         )
         ccache = self.shell_text("scripts/centralize-ccache.sh")
+        agents = self.shell_text("AGENTS.md")
+        ccache_docs = [
+            self.shell_text("README.md"),
+            self.shell_text("scripts/README.md"),
+            self.shell_text("kernel-drivers/docs/kernel-build-ccache.md"),
+        ]
 
         self.assertIn(
             'REWRITE_BUILD_TMP_ROOT="${REWRITE_BUILD_TMP_ROOT:-'
@@ -439,6 +445,11 @@ class WorkspaceDefaultTests(unittest.TestCase):
             'CENTRAL_DIR="$ROCK5B_WORKSPACE/.ccache"',
             ccache,
         )
+        self.assertIn("`~/Code/.ccache`", agents)
+        self.assertNotIn("../rock-5b/build/ccache", agents)
+        for doc in ccache_docs:
+            self.assertIn("~/Code/.ccache", doc)
+            self.assertNotIn("rock-5b/build/ccache", doc)
 
 
 class DebugRamoopsTests(unittest.TestCase):
@@ -494,10 +505,10 @@ class ForwardPortPatchSeriesTests(unittest.TestCase):
         patches = sorted(self.series.glob("rk3588-fwport-*.patch"))
         numbers = [int(path.name.split("-")[2]) for path in patches]
 
-        self.assertEqual(numbers, list(range(1, 90)))
+        self.assertEqual(numbers, list(range(1, 93)))
         readme = (self.series / "README.md").read_text(encoding="utf-8")
-        self.assertIn("contiguous `0001`–`0089`", readme)
-        self.assertIn("7615b69a744a", readme)
+        self.assertIn("contiguous `0001`–`0092`", readme)
+        self.assertIn("7d53bc7a3adc", readme)
 
     def test_series_mailboxes_are_well_formed(self) -> None:
         for patch in sorted(self.series.glob("rk3588-fwport-*.patch")):

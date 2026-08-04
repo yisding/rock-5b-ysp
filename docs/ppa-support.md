@@ -185,7 +185,7 @@ every "supported" above.
 | The codec/RGA stack works end to end from a PPA install | Kernel `…20260723~rk1` (patch tail `0001`–`0071`) was installed from the PPA, booted, and passed the full conformance set plus root gates. | 2026-07-24 | That exact version is **superseded and no longer in the archive**. The pass does not transfer to a newer tail. |
 | The currently Published kernel boots and decodes | `6.18.42-ysp-rockchip64` was installed and booted; **17/17 pinned VA-API conformance vectors are bit-exact** on it with the installed `ysp12` driver, including the interlaced `CABREF3_Sand_D.264` through VA-API. | 2026-08-04 | Only the tier-1 gate set ran. The 163-vector HEVC sweep, encode/10-bit gates, GStreamer suite, ABI replay, display gates, and both soaks did **not**. One 352x288 TFF clip is the whole interlaced guard. |
 | AV1 decode is bit-exact | Hardware decode differential on the AV1 forward-port build. | 2026-07-04 | AV1 from MP4/MKV containers has not been re-tested since the extradata fix. |
-| Rollback works | **Nothing.** | — | The install → reboot → revert gate has never been demonstrated. Treat recovery as your responsibility and prepare it first. |
+| Rollback works | The operator has repeatedly used the documented SD rescue path and the exact `kernel-revert.sh` commands successfully ([dated finding](../findings/2026-08-04-forward-port-sd-rescue-rollback-used.md)). | 2026-08-04 | This is user-reported operational evidence without a retained identity/log bundle or an independent second-reader replay. Automatic boot fallback, clean migration, and stale-package cleanup are separate open gates. |
 | Clean migration from an earlier test stack | The `clean-install-system-stack.sh` transaction is written and simulated. | — | The exact transaction has not passed a board gate. |
 
 Two consequences worth stating plainly:
@@ -194,7 +194,9 @@ Two consequences worth stating plainly:
    superseded July kernel that passed full conformance.** That is the normal
    state of a moving patch series, not an anomaly — but it means "the PPA kernel
    passed conformance" is a claim about a version you can no longer install.
-2. **Rollback is the open gate.** Everything else has at least one dated pass.
+2. **Rollback has an operator-validated SD rescue path.** The remaining package
+   gates are the full current-kernel campaign and clean migration/cleanup, not
+   whether the documented recovery mechanism works.
 
 ## 7. Compared with a Rockchip BSP distribution
 

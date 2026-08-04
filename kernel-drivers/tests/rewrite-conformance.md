@@ -133,16 +133,16 @@ kernel-drivers/tests/rewrite-build-gate.sh all
 source edits. Use it only when checking the last pushed state while another
 worktree has unrelated local changes.
 
-Last recorded compile gates: on 2026-07-28 `normal` and `test-disabled` passed
-warning-free for current 6.18 `669697f23d3df` and mainline
-`a49eb7575f436`. Each built the Rockchip IOMMU provider, both rewrite objects,
-and the Rock 5B DTB from a clean archive; the disabled profiles also rejected a
-deliberate ABI-size mutation through the production `static_assert()`. The
-preceding 6.18 `9af4a8816f259` passed `memory` and `race`, whose production
-paths are unchanged by the current test-only reduction. Every profile runs the
-checked KUnit source-debt audit first and removes its scratch tree after
-success. Scratch defaults to the shared `../tmp` directory beside this
-repository, not the system `/tmp` and not the grouped board workspace. The
+Last recorded compile gates: on 2026-08-04 `normal` passed warning-free for
+maintained 6.18 `33c30ec6989e` and mainline `9e503f6b16df`. Each built
+Rockchip and VSI IOMMU support, both KUnit-enabled rewrite objects, and the
+Rock 5B DTB from a clean archive. The source audit reported 305 known signals,
+zero new, and zero absent. The `test-disabled`, `memory`, `race`, and deliberate
+ABI-size-mutation results remain older-tip evidence and must not be attributed
+to these tips. Every profile runs the checked KUnit source-debt audit first and
+removes its scratch tree after success. Set `REWRITE_BUILD_TMP_ROOT` to a
+task-specific directory under `../rock-5b/build/`; use the sole shared ccache
+at `~/Code/.ccache` and do not create another cache in the build workspace. The
 same maintenance path also runs
 `VALIDATE_ONLY=1 kernel-drivers/tests/rewrite-conformance-run.sh` and
 `VALIDATE_ONLY=1 PROFILE=rewrite RUN_COUNTER_CHECKS=1 kernel-drivers/tests/rewrite-conformance-run.sh`,
@@ -576,11 +576,11 @@ the default run self-contained while covering the media-file path that
 same-pipeline roundtrips do not hit. VP9 cases are enabled and required by
 default; set `GST_ENABLE_VP9_CASES=0` to remove them or
 `GST_REQUIRE_VP9_CASES=0` to keep them diagnostic-only on images missing
-`vp9enc`, `ivfmux`, or `ivfparse`. AV1 remains outside the required RK3588
-rewrite gate because it needs a separate AV1 backend; set
+`vp9enc`, `ivfmux`, or `ivfparse`. The maintained rewrite source has a separate
+VPU981 AV1 backend, but it has no hardware baseline; set
 `GST_ENABLE_AV1_CASES=1` to add generated AV1 fakesink/DMABuf decode plus
 RGA-scale and AV1-to-H.264 transcode diagnostics, or
-`GST_REQUIRE_AV1_CASES=1` when comparing an AV1-capable kernel. Set
+`GST_REQUIRE_AV1_CASES=1` for full current-tip qualification. Set
 `GST_ENABLE_LEGACY_DECODE_CASES=1` to add generated VP8 IVF plus
 ffmpeg-generated H.263, MPEG-2, and MPEG-4 diagnostics for JeffyCN's advertised
 legacy `mppvideodec` caps; `GST_REQUIRE_LEGACY_DECODE_CASES=1` should only be
@@ -1218,7 +1218,8 @@ It was re-run after ABI replay gained optional dma-heap-backed MPP
 `TRANS_FD_TO_IOVA`/`RELEASE_FD`, RGA dma-buf import/release coverage for
 GStreamer allocator handoff parity, and raw RGA physical-address import
 observation; and after opt-in generated GStreamer AV1
-diagnostics were added for the separate RKMPP AV1 backend gap; and after
+diagnostics were added for the rewrite's source-implemented but
+hardware-unverified RKMPP AV1 backend; and after
 opt-in generated VP8/H.263/MPEG diagnostics were added for advertised legacy
 decoder caps outside the RK3588 rewrite gate; and after `debugfs-counter-check.sh`
 was added to gate selected rewrite hardware-start/busy-time counter deltas and
@@ -1476,12 +1477,14 @@ completion with no hang or KASAN report for jobs blocked on acquire fences.
 VP9 suite case has a forward-port/rewrite hardware log yet. If you run either,
 record the result in status.md.
 
-## AV1 diagnostics via the GStreamer suite
+<a id="av1-diagnostics-via-the-gstreamer-suite"></a>
 
-AV1 remains outside the required RK3588 rewrite gate because the validated
-forward-port/rewrite path does not expose the separate RKMPP AV1 backend. The
-GStreamer plugin still advertises `video/x-av1`, so the suite has opt-in
-diagnostics that generate a small AV1 IVF stream with
+## AV1 qualification via the GStreamer suite
+
+The maintained rewrite source exposes a separate VPU981 RKMPP AV1 backend and
+VSI-IOMMU path. Neither has hardware evidence. The GStreamer plugin advertises
+`video/x-av1`, so the suite has opt-in bring-up cases that generate a small AV1
+IVF stream with
 `GST_GENERATOR`/`libaom-av1` and feed it through the same
 `ivfparse ! mppvideodec` path as current userspace:
 
@@ -1491,11 +1494,11 @@ GST_ENABLE_AV1_CASES=1 \
 ../rock-5b-ysp/kernel-drivers/tests/gstreamer-suite.sh
 ```
 
-Set `GST_REQUIRE_AV1_CASES=1` only for an AV1-capable kernel comparison. The
-enabled diagnostic set covers fakesink decode, DMABuf decode, RGA-scale decode,
-and AV1-to-H.264 transcode. A pass on the rewrite would require an RKMPP AV1
-backend; failures on the current rewrite are expected evidence of the separate
-AV1 gap, not a regression in the RKVDEC2 H.264/H.265/VP9/AVS2 slice.
+Set `GST_REQUIRE_AV1_CASES=1` for a full current-tip rewrite qualification; the
+default remains diagnostic so source-only bring-up can proceed in stages. The
+enabled set covers fakesink decode, DMABuf decode, RGA-scale decode, and
+AV1-to-H.264 transcode. Failure is an open VPU981/VSI hardware-qualification
+gap, not evidence about the separate RKVDEC2 H.264/H.265/VP9/AVS2 path.
 
 ## Legacy advertised decode diagnostics via the GStreamer suite
 

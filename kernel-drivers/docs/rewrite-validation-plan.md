@@ -1,7 +1,7 @@
 # Rewrite drivers — path to production readiness (validation & fuzzing plan)
 
-What it would take to move `mpp-rewrite` / `rga-rewrite` from *"compiles, KUnit
-passes, and it boots"* to a shippable replacement for the forward-port. This is
+What it would take to move `mpp-rewrite` / `rga-rewrite` from source/build and
+partial older-tip boot evidence to a shippable replacement for the forward-port. This is
 the strategic companion to the operational
 [rewrite-conformance runbook](../tests/rewrite-conformance.md). The current
 qualification verdict and next proof belong to
@@ -21,6 +21,12 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
+> **Current source boundary (2026-08-04):** maintained tips
+> `33c30ec6989e` / `9e503f6b16df` pass the warning-fatal `normal` build and
+> 305-signal audit. The other focused build profiles retain older-tip evidence.
+> The source contains the separate VPU981 AV1 backend, but no current-tip
+> kernel, including AV1, has passed a hardware qualification rung.
+
 ## What already exists vs. what this plan adds
 
 The support repo already carries most of the *functional-parity* harness. Do not
@@ -28,7 +34,7 @@ rebuild it — extend it. The columns below are honest about the boundary.
 
 | Capability | Status in repo | This plan |
 |---|---|---|
-| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh), including `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) focused object-build profiles, opt-in-default config proof, fixture-debt audit, and ABI mutation check | reuse as the pre-merge gate; sanitizer profiles are compile coverage only |
+| Clean cross-kernel build gate | ✅ [`kernel-drivers/tests/rewrite-build-gate.sh`](../tests/rewrite-build-gate.sh) provides `normal`, `test-disabled`, `memory` (KASAN/fault-injection), and `race` (KCSAN/lockdep) focused object-build profiles, opt-in-default config proof, fixture-debt audit, and ABI mutation check. At the current tips only `normal` and the audit were rerun. | reuse as the pre-merge gate; run the complete profile matrix for handoff, and remember sanitizer profiles are compile coverage only |
 | Non-submit ABI probe + log diff | ✅ [`kernel-drivers/tests/abi-probe.sh`](../tests/abi-probe.sh), [`kernel-drivers/tests/abi-replay.sh`](../tests/abi-replay.sh), including optional dma-heap-backed MPP translate/release, RGA dma-buf import/release, and raw RGA physical-address import observation with an opt-in rewrite reject assertion | reuse; extend to bit-exact output (below) |
 | Consumer conformance (MPP / librga / GStreamer / FFmpeg) | ✅ `*-suite.sh` + external [`kernel-drivers/tests/rewrite-conformance.md`](../tests/rewrite-conformance.md), including opt-in GStreamer display/KMS-capture, AV1, and legacy advertised-decode diagnostic cases; `VALIDATE_ONLY=1` now also validates MPP/GStreamer case builders, validates FFmpeg case-list wiring, compile-checks the direct `librga-smoke.cpp` source used for maintained RGA artifacts, runs comparator and evidence-audit selftests, and attempts an optional `gstreamer-event-harness.c` build when GStreamer development headers are installed | reuse; wire the pass/fail gate |
 | Differential rewrite-vs-forward-port | ⚠️ GStreamer generated decode/transcode, FFmpeg transcode, MPP official-test media outputs, and the maintained direct RGA smoke paths, including RKNN/RKNPU-style preprocessing plus AFBC16x16 and tile8x8 round-trips, now have `artifacts.tsv` byte-count/SHA-256 comparison paths; broad official librga sample binaries still mostly report pass/fail/timing | extend artifact capture only where official sample outputs matter for remaining gaps |
@@ -97,8 +103,9 @@ dma-buf allocator handoff visible to current GStreamer/KMS paths, but the broad 
 sample binaries are still mostly pass/fail/timing because many samples hard-code their own
 `/data`-style input/output conventions. The GStreamer generated
 decode/transcode wrapper now caches shared H.264/H.265 inputs plus generated
-VP9 IVF input, and can opt into generated AV1 IVF diagnostics for the separate
-AV1 backend gap plus generated VP8/H.263/MPEG diagnostics for advertised legacy
+VP9 IVF input, and can opt into generated AV1 IVF diagnostics for the
+source-implemented but hardware-unproven VPU981 backend plus generated
+VP8/H.263/MPEG diagnostics for advertised legacy
 decoder caps, then compares `artifacts.tsv` byte counts plus SHA-256s, with
 the comparator requiring manifests by default. The FFmpeg suite does the same for
 encoded bitstreams, the MPP suite records official-test decode/encode outputs in

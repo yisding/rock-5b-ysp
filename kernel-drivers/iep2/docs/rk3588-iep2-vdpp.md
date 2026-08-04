@@ -330,10 +330,15 @@ A credible result should prove all of the following on the ROCK 5B:
 - a soak and application integration run remain free of kernel faults and
   field-order/cadence regressions.
 
-Until that gate is run on a booted port, the accurate state is: **RK3588 IEP2
-hardware and BSP support are established; the YSP 6.18 source port builds but
-has not produced runtime output; the currently booted kernel does not expose
-it; VDPP is not an RK3588 block.**
+That gate has now run substantially beyond smoke on booted KASAN/lockdep package
+`Pcf86-Cc271`: client 28 binds, focused TFF/BFF and decoder-vproc output passes,
+and the negative, encoding-race, close/completion, and soak gates are green.
+The Published production `6.18.42` package also runs standalone IEP2. Remaining
+boundaries are broader mode/format/geometry quality, the untriggered software
+timeout, and runtime verification of the libmpp I1O1 BFF bootstrap fix. The
+accurate hardware identity remains: **RK3588 has IEP2; VDPP is not an RK3588
+block.** See the [safety review](forward-port-safety-review.md) and the
+[field-parity finding](../../../findings/2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md).
 
 ## 6. Reproducing the source inspection
 

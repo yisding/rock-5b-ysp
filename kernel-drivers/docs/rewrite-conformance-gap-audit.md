@@ -6,6 +6,13 @@ drivers claim? It compares the 6.18 and mainline rewrite pins with the current
 forward-port ABI, pinned Rockchip MPP/librga consumers, debugfs instrumentation,
 and the final evidence gate.
 
+> **Current-source update (2026-08-04):** maintained rewrite tips are 6.18
+> `33c30ec6989e` and mainline `9e503f6b16df`; their tracked rewrite sources,
+> Kconfig, ABI ledgers, and UAPI are byte-identical. The 92+152 manifest and
+> 305-signal audit pass, and the `normal` build passes on both. No current-tip
+> boot or media result exists. The VPU981 AV1 backend is present in source but
+> remains hardware-unproven.
+
 ## Result
 
 No additional missing live ioctl family was found. The MPP rewrite covers the

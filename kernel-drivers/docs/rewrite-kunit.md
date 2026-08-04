@@ -39,7 +39,7 @@ Each suite is compiled in the same translation unit as its driver:
 
 | Suite | Source | Kconfig symbol | Registered cases |
 |-------|--------|----------------|-----------------:|
-| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 90 |
+| `rk_mpp_rewrite` | `drivers/video/rockchip/mpp-rewrite/mpp_rewrite.c` | `CONFIG_ROCKCHIP_MPP_REWRITE_KUNIT_TEST` | 92 |
 | `rockchip-rga-rewrite` | `drivers/video/rockchip/rga-rewrite/rga_rewrite.c` | `CONFIG_ROCKCHIP_RGA_REWRITE_KUNIT_TEST` | 152 |
 
 The test blocks are guarded with `IS_ENABLED()` and registered with
@@ -95,7 +95,7 @@ hardware throughput:
 | MPP | 27–48 | RKVDEC2 CCU modes, link descriptors/tables, ownership, RCB/cache setup |
 | MPP | 49–62 | IRQ ownership, scheduling, IOMMU faults, timeout generations, recovery |
 | MPP | 63–70 | Encoder slices, bitstream overflow, DCHS, watchdogs, RCB validation |
-| MPP | 71–90 | Sessions, batch operation, imports, polling, abort/close teardown, event ring |
+| MPP | 71–92 | Sessions, batch operation, imports, polling, abort/close teardown, event ring, and request-configuration cleanup |
 | RGA | 1–20 | Feature validation and RGA2/RGA3 register emission |
 | RGA | 21–44 | Request parsing, ioctls, job state, and file lifetime |
 | RGA | 45–61 | Imports, fences, layouts, planes, offsets, and strides |
@@ -264,8 +264,8 @@ package_name=$(dpkg-query -S "/boot/vmlinuz-$(uname -r)" |
   awk -F ': ' 'NR == 1 { print $1 }')
 package_id=$(dpkg-query -W -f='${Package}=${Version}' "$package_name")
 sudo env \
-  KUNIT_SOURCE_COMMIT=51ea9d1ca537 \
-  KUNIT_EXPECTED_SOURCE_COMMIT=51ea9d1ca537 \
+  KUNIT_SOURCE_COMMIT=33c30ec6989e \
+  KUNIT_EXPECTED_SOURCE_COMMIT=33c30ec6989e \
   KUNIT_CONFIG_FILE="$PWD/$evidence/config" \
   KUNIT_PACKAGE_ID="$package_id" \
   KUNIT_REPORT="$PWD/$evidence/result.tsv" \
@@ -332,12 +332,19 @@ fixture's DCHS spinlock and made debug-state capture fail fast. Booted
 6.18.40 KASAN/UBSAN/lockdep/kmemleak package `P91d6-Cad24` contained that
 repair and completed exact 85+148 KTAP, but case 83 exposed the same omission
 in `rk_mpp_reset_session_hw_active_import_kunit()` and disabled lockdep before
-RGA. Current tips 6.18 `51ea9d1ca537` / mainline `03da898b03f1f`
-additionally give every fixture a local service, remove runtime
-unregister/reprobe callbacks, make fence/FD/work/device cleanup
-assertion-safe, and replace polling with completion-driven synchronization
-plus a real two-thread fence/abort race. The named ordered 90/152 manifest and
-source/config/package-bound evidence gate now own result attribution. See the
+RGA. That fixture-isolation checkpoint, 6.18 `51ea9d1ca537` / mainline
+`03da898b03f1f`, additionally gave every fixture a local service, removed
+runtime unregister/reprobe callbacks, made fence/FD/work/device cleanup
+assertion-safe, and replaced polling with completion-driven synchronization
+plus a real two-thread fence/abort race. Its named ordered 90/152 manifest and
+source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
-Do not promote KTAP, compile, or package results into a runtime pass until the
-entire compound evidence above is clean on a successor kernel.
+
+The maintained tips are now 6.18 `33c30ec6989e` and mainline
+`9e503f6b16df`, with an exact 92/152 manifest. They repair non-terminal
+request-configuration cleanup and distinguish unsupported RGA3 pattern-blend
+rotation from the supported non-pattern rotation oracle. Both tips pass the
+warning-fatal clean-archive `normal` build and the 305-signal source audit, but
+neither has booted KUnit evidence. Do not promote KTAP, compile, or package
+results into a runtime pass until the entire compound evidence above is clean
+on a current-tip successor kernel.

@@ -1,0 +1,177 @@
+From 552a9eea6aab59df8a4e829521e88cbec84653bf Mon Sep 17 00:00:00 2001
+From: rkvenc forward-port <forward-port@local>
+Date: Tue, 4 Aug 2026 16:16:58 -0700
+Subject: [PATCH 91/92] iommu: rockchip: quiesce MPP fault callbacks on clear
+
+Keep provider fault callbacks under the same spinlock used to replace or clear their handler and token. Clearing a callback is therefore a non-sleeping quiescence barrier instead of leaving an IRQ with a borrowed token that teardown can free.
+
+Pin generic MPP and RKVENC current-task inspection with the running-list lock. Keep the full synchronize_irq helper for device teardown, where the remainder of the provider IRQ path also has to finish.
+---
+ drivers/iommu/rockchip-iommu.c           | 21 ++++++++-------------
+ drivers/iommu/vsi-iommu.c                | 17 ++++++++---------
+ drivers/video/rockchip/mpp/mpp_iommu.c   |  8 ++++++--
+ drivers/video/rockchip/mpp/mpp_rkvenc2.c |  5 +++++
+ 4 files changed, 27 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
+index 06dc9f6cb7a5c..e05d5217fd9bf 100644
+--- a/drivers/iommu/rockchip-iommu.c
++++ b/drivers/iommu/rockchip-iommu.c
+@@ -984,19 +984,18 @@ static struct rk_iommu *rk_iommu_from_dev(struct device *dev)
+ static int rk_iommu_call_fault_handler(struct rk_iommu *iommu,
+ 				       dma_addr_t iova, int flags)
+ {
+-	iommu_fault_handler_t handler;
+ 	unsigned long irq_flags;
+-	void *token;
++	int ret;
+ 
+ 	spin_lock_irqsave(&iommu->fault_lock, irq_flags);
+-	handler = iommu->fault_handler;
+-	token = iommu->fault_handler_token;
++	if (!iommu->fault_handler || iommu->domain == &rk_identity_domain)
++		ret = -EOPNOTSUPP;
++	else
++		ret = iommu->fault_handler(iommu->domain, iommu->dev, iova,
++					   flags, iommu->fault_handler_token);
+ 	spin_unlock_irqrestore(&iommu->fault_lock, irq_flags);
+ 
+-	if (!handler || iommu->domain == &rk_identity_domain)
+-		return -EOPNOTSUPP;
+-
+-	return handler(iommu->domain, iommu->dev, iova, flags, token);
++	return ret;
+ }
+ 
+ /* Must be called with iommu powered on and attached */
+@@ -1489,11 +1488,7 @@ int rockchip_iommu_set_fault_handler(struct device *dev,
+ }
+ EXPORT_SYMBOL_GPL(rockchip_iommu_set_fault_handler);
+ 
+-/*
+- * The provider invokes the callback after dropping fault_lock.  Clearing the
+- * pointer therefore prevents new callbacks but does not wait for one that
+- * already copied the old token.
+- */
++/* Wait for the complete provider IRQ path after clearing the callback. */
+ int rockchip_iommu_sync_fault_handler(struct device *dev)
+ {
+ 	struct rk_iommu *iommu = rk_iommu_from_dev_checked(dev);
+diff --git a/drivers/iommu/vsi-iommu.c b/drivers/iommu/vsi-iommu.c
+index 1b2aa5867334f..359c40e6d6b8d 100644
+--- a/drivers/iommu/vsi-iommu.c
++++ b/drivers/iommu/vsi-iommu.c
+@@ -200,19 +200,18 @@ static int vsi_iommu_call_fault_handler(struct vsi_iommu *iommu,
+ 					struct iommu_domain *domain,
+ 					dma_addr_t iova, int flags)
+ {
+-	iommu_fault_handler_t handler;
+ 	unsigned long irq_flags;
+-	void *token;
++	int ret;
+ 
+ 	spin_lock_irqsave(&iommu->fault_lock, irq_flags);
+-	handler = iommu->fault_handler;
+-	token = iommu->fault_handler_token;
++	if (!iommu->fault_handler || !domain || domain == &vsi_identity_domain)
++		ret = -EOPNOTSUPP;
++	else
++		ret = iommu->fault_handler(domain, iommu->dev, iova, flags,
++					   iommu->fault_handler_token);
+ 	spin_unlock_irqrestore(&iommu->fault_lock, irq_flags);
+ 
+-	if (!handler || !domain || domain == &vsi_identity_domain)
+-		return -EOPNOTSUPP;
+-
+-	return handler(domain, iommu->dev, iova, flags, token);
++	return ret;
+ }
+ 
+ static void vsi_iommu_mask_irq_locked(struct vsi_iommu *iommu)
+@@ -900,7 +899,7 @@ int vsi_iommu_set_fault_handler(struct device *dev,
+ }
+ EXPORT_SYMBOL_GPL(vsi_iommu_set_fault_handler);
+ 
+-/* Clearing the callback does not wait for the IRQ path that copied it. */
++/* Wait for the complete provider IRQ path after clearing the callback. */
+ int vsi_iommu_sync_fault_handler(struct device *dev)
+ {
+ 	struct vsi_iommu *iommu = vsi_iommu_from_dev_checked(dev);
+diff --git a/drivers/video/rockchip/mpp/mpp_iommu.c b/drivers/video/rockchip/mpp/mpp_iommu.c
+index 2f90608ab41ae..d9feeaf63dcd0 100644
+--- a/drivers/video/rockchip/mpp/mpp_iommu.c
++++ b/drivers/video/rockchip/mpp/mpp_iommu.c
+@@ -912,6 +912,7 @@ static int mpp_iommu_handle(struct iommu_domain *iommu,
+ 			    int status, void *arg)
+ {
+ 	struct mpp_dev *mpp = (struct mpp_dev *)arg;
++	unsigned long flags;
+ 
+ 	/*
+ 	 * Mask iommu irq, in order for iommu not repeatedly trigger pagefault.
+@@ -930,8 +931,10 @@ static int mpp_iommu_handle(struct iommu_domain *iommu,
+ 		return 0;
+ 	}
+ 
++	spin_lock_irqsave(&mpp->queue->running_lock, flags);
+ 	if (mpp->cur_task)
+ 		mpp_task_dump_mem_region(mpp, mpp->cur_task);
++	spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
+ 
+ 	if (mpp->dev_ops && mpp->dev_ops->dump_dev)
+ 		mpp->dev_ops->dump_dev(mpp);
+@@ -1063,8 +1066,9 @@ void mpp_iommu_quiesce_fault_handler(struct mpp_iommu_info *info)
+ 
+ 	mpp_iommu_clear_fault_handler(info);
+ 	/*
+-	 * Provider callbacks run outside their registration locks.  Wait before
+-	 * a codec exit callback destroys workqueues or frees the handler token.
++	 * Callback removal waits on the provider registration lock.  Also wait
++	 * for the rest of a provider IRQ before codec teardown releases state
++	 * that the IRQ path itself can still access.
+ 	 */
+ 	rockchip_iommu_sync_fault_handler(info->dev);
+ 	vsi_iommu_sync_fault_handler(info->dev);
+diff --git a/drivers/video/rockchip/mpp/mpp_rkvenc2.c b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+index 9aceaaa77f692..fa125b7cb19a5 100644
+--- a/drivers/video/rockchip/mpp/mpp_rkvenc2.c
++++ b/drivers/video/rockchip/mpp/mpp_rkvenc2.c
+@@ -3494,6 +3494,7 @@ static int rkvenc2_iommu_fault_handle(struct iommu_domain *iommu,
+ 	struct rkvenc_ccu *ccu = enc->ccu;
+ 	struct rkvenc_dev *fault_enc = enc;
+ 	struct mpp_task *mpp_task;
++	unsigned long flags;
+ 
+ 	if (ccu) {
+ 		struct rkvenc_dev *core;
+@@ -3522,6 +3523,7 @@ static int rkvenc2_iommu_fault_handle(struct iommu_domain *iommu,
+ 		 */
+ 		rockchip_iommu_mask_irq(mpp->dev);
+ 
++		spin_lock_irqsave(&mpp->queue->running_lock, flags);
+ 		mpp_task = mpp->cur_task;
+ 		dev_info(mpp->dev, "core %d page fault found dchs %08x\n",
+ 			 mpp->core_id,
+@@ -3529,6 +3531,7 @@ static int rkvenc2_iommu_fault_handle(struct iommu_domain *iommu,
+ 
+ 		if (mpp_task)
+ 			mpp_task_dump_mem_region(mpp, mpp_task);
++		spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
+ 		rcu_read_unlock();
+ 
+ 		return 0;
+@@ -3540,12 +3543,14 @@ static int rkvenc2_iommu_fault_handle(struct iommu_domain *iommu,
+ 	 */
+ 	rockchip_iommu_mask_irq(mpp->dev);
+ 
++	spin_lock_irqsave(&mpp->queue->running_lock, flags);
+ 	mpp_task = mpp->cur_task;
+ 	dev_info(mpp->dev, "core %d page fault found dchs %08x\n",
+ 		 mpp->core_id, mpp_read_relaxed(&fault_enc->mpp, DCHS_REG_OFFSET));
+ 
+ 	if (mpp_task)
+ 		mpp_task_dump_mem_region(mpp, mpp_task);
++	spin_unlock_irqrestore(&mpp->queue->running_lock, flags);
+ 
+ 	return 0;
+ }

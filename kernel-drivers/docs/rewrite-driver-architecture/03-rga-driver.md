@@ -53,7 +53,7 @@ layout, feature, and command-emission code.
 | `rk_rga_service` | module init | hardware/import/session registries, fence context, counters |
 | `rk_rga_hw` | platform probe | one RGA core, queue, active job, MMIO/IRQ/power/recovery |
 | `rk_rga_session` | `/dev/rga` `open()` | import IDR, request IDR, submitted-job list, close/dispatch state |
-| `rk_rga_import` | import ioctl or direct request preparation | DMA-BUF or pinned user pages, provenance, persistent mapping state |
+| `rk_rga_import` | import ioctl or direct request preparation | DMA-BUF or pinned user pages, provenance, and the primary persistent USERPTR mapping when one exists |
 | `rk_rga_request` | request create/config | copied tasks, imports, acquire fences, Gaussian coefficients |
 | `rk_rga_job` | request submit or legacy blit | immutable task snapshot, imports, mappings, command buffer, fences, progress |
 | `rk_rga_job_mapping` | per task/core execution | role-specific DMA attachment or userptr mapping for one hardware core |
@@ -84,6 +84,13 @@ serialization:
 
 Submission clones configured state into a job. Later reconfiguration or cancel
 of the numeric request ID cannot mutate the in-flight job.
+
+A terminal configure-and-submit removes the exact request object from the IDR
+while `session->lock` still protects its identity, then frees that captured
+pointer after unlocking. A non-terminal configuration consumes no object and
+must skip that free. The 2026-08-04 tip repair made this distinction explicit;
+removing or freeing later by integer ID would let concurrent ID reuse redirect
+cleanup to a replacement request.
 
 ### 4.3 Import types and provenance
 
@@ -129,10 +136,16 @@ device-specific view of its contents. The first can outlive many jobs. The
 second ends when the task completes or the selected hardware disappears.
 
 DMA-BUF exporters may move storage after an attachment is unmapped. RGA cores
-may also have different DMA/IOMMU contexts. Therefore execution builds
-job-owned mappings for the selected core and current task.
+may also have different DMA/IOMMU contexts. DMA-BUF attachments are therefore
+created and destroyed per job/task mapping for the selected core. USERPTR has
+one additional as-built compromise: import setup may retain a primary mapping
+and `map_hw` reference so repeated work on that core can reuse the pinned-page
+view; execution on another core builds a job-owned mapping instead. Core
+removal detaches that persistent USERPTR mapping while the import continues to
+own the pinned pages. This selected-device state inside `rk_rga_import` is one
+of the ownership seams the target `rk_rga_exec_map` refactor separates.
 
-For each imported image role:
+For each job-owned imported image role:
 
 1. take `import->map_lock`;
 2. reject an import invalidated by hardware removal;
@@ -142,7 +155,7 @@ For each imported image role:
 6. retain hardware/device/import ownership in `rk_rga_job_mapping`;
 7. replace canonical import identities with this task's IOVAs.
 
-Mappings use role-specific directions:
+DMA-BUF and job-owned USERPTR mappings use role-specific directions:
 
 | Role | DMA direction |
 |------|---------------|
@@ -352,8 +365,11 @@ but independent tasks packed into one request do not execute concurrently.
 The architectural tradeoff and current userspace calling patterns are analyzed
 in [rewrite drivers](../rewrite-drivers.md#multi-task-request-model).
 
-Fresh mappings are created for every task. This makes role/direction and
-copyback ordering correspond exactly to the operation currently executing.
+Fresh DMA-BUF and non-primary USERPTR execution mappings are created for every
+task. A reused primary USERPTR mapping still gets task-scoped synchronization
+and copyback obligations. This keeps role/direction and completion ordering
+corresponding to the operation currently executing even though the as-built
+import object may retain one device mapping.
 
 ### 4.13 IRQ completion
 
@@ -429,9 +445,10 @@ Hardware removal follows a different drain:
 3. abort pending acquire jobs that no longer have a compatible core;
 4. unregister and flush IOMMU-fault work;
 5. abort queued/active jobs;
-6. detach persistent imports mapped against this core and mark DMA-BUF imports
-   invalidated;
-7. rescan pending acquire jobs for invalidated imports;
+6. detach persistent USERPTR mappings whose `map_hw` is this core; DMA-BUF
+   imports have no persistent attachment to invalidate;
+7. let surviving pending work reselect a compatible core and create fresh
+   per-execution mappings;
 8. wait until the hardware refcount returns to the probe owner;
 9. balance/free IRQ state and disable runtime PM.
 

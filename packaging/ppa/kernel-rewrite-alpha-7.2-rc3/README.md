@@ -4,6 +4,11 @@ This directory defines the co-installable ROCK 5B 7.2-rc3 rewrite kernel
 package. It applies Armbian's `rockchip64-bleedingedge` patch layer to official
 `v7.2-rc3`, then applies the clean-room rewrite series.
 
+> **Historical package boundary (2026-08-04):** this fixed package pin predates
+> maintained mainline rewrite tip `9e503f6b16df`, the source VPU981 AV1 backend,
+> and the current 92+152 KUnit manifest. Its publication/build result must not
+> be cited as current-source build, boot, or architecture evidence.
+
 ## Package shape
 
 | Field | Value |

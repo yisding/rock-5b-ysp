@@ -11,6 +11,11 @@ exporter boundary. It also gives RGA2 the same basic representation used by the
 BSP and forward port for scattered memory. RGA3 support for a genuinely gapped
 exporter attachment is a later, separate design problem.
 
+> **Current-source update (2026-08-04):** the implemented first pass remains
+> in maintained tips `33c30ec6989e` / `9e503f6b16df`. Their current `normal`
+> build passes, but the older normal/test-disabled result below stays attached
+> to its named pins and no current-tip fragmented-DMA-BUF hardware proof exists.
+
 ## Implementation status — 2026-07-31
 
 The first source-alignment pass is implemented at these commits:

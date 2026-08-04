@@ -33,7 +33,7 @@ also remain at the `~/Code` level.
 │   ├── rockchip-conformance/
 │   └── …
 ├── tmp/               # shared scratch, intentionally not relocated
-└── .ccache/           # shared compiler cache, intentionally not relocated
+└── .ccache/           # the only compiler-cache store for all ~/Code builds
 ```
 
 Unless a command says otherwise, relative external paths such as
@@ -42,7 +42,9 @@ Set `ROCK5B_WORKSPACE=/path/to/rock-5b` to relocate the grouped board
 workspace; component-specific variables such as `CONFORMANCE_ROOT`,
 `WORKSPACE`, `WORKSPACE_ROOT`, `MESA_BUILD`, and `FFDIR` still take precedence.
 The shared `~/Code/tmp` and `~/Code/.ccache` peers are intentionally independent
-of `ROCK5B_WORKSPACE`.
+of `ROCK5B_WORKSPACE`. `~/Code/.ccache` is the only allowed compiler-cache
+store; build directories belong under the grouped workspace, but ccache does
+not.
 
 The deepest body of evidence follows a Rockchip vendor **MPP** codec stack plus
 **RGA** from the Rockchip 6.1 BSP into Linux 6.18, plus an end-to-end source
@@ -72,6 +74,7 @@ rather than being duplicated here.
 | Reconstruct how a technical explanation evolved | [`findings/` investigation trails](findings/README.md#reconstruct-an-investigation), then the maintained project model |
 | Choose, install, validate, or recover a kernel/media path | [`install.md`](install.md) |
 | Capture the exact board, boot, kernel, and userspace identity | [`docs/system-baseline.md`](docs/system-baseline.md) |
+| Understand the rewrite kernel's as-built and target architecture | [`kernel-drivers/docs/rewrite-driver-architecture/`](kernel-drivers/docs/rewrite-driver-architecture/README.md) |
 | Diagnose an unexplained failure or known trap | [`docs/gotchas.md`](docs/gotchas.md) |
 | See what this repo has not established about the board | [`docs/support-coverage.md`](docs/support-coverage.md) |
 
