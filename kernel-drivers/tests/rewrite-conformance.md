@@ -25,7 +25,7 @@ next rung below. Passing a lower rung never licenses a claim from a higher one.
 | Rung | Entry point | What a clean result proves | What it still does not prove |
 |------|-------------|----------------------------|------------------------------|
 | 1. Clean-source build | [Rewrite clean build gate](#rewrite-clean-build-gate) | Both rewrite objects, the IOMMU provider, and the ROCK 5B DTB compile from committed source under the selected warning/sanitizer profile. | That the kernel boots, probes the devices, or survives real DMA/IRQ traffic. |
-| 2. Boot lifecycle and KUnit | [Post-reboot preflight](#post-reboot-identity-and-ownership-preflight) | The exact expected 89 MPP + 150 RGA cases ran; their complete boot interval is fatal-free, lockdep is still live, and production services/cores were restored after test isolation. | Media correctness, userspace compatibility, or hardware scheduling beyond the paths the fixtures model. |
+| 2. Boot lifecycle and KUnit | [Post-reboot preflight](#post-reboot-identity-and-ownership-preflight) | The exact expected 92 MPP + 152 RGA cases ran; their complete boot interval is fatal-free, lockdep is still live, and production services/cores were restored after test isolation. | Media correctness, userspace compatibility, or hardware scheduling beyond the paths the fixtures model. |
 | 3. ABI boundary | [Raw ABI replay](#raw-abi-replay-comparisons) | Safe query/import/release/parser behavior and explicit negative contracts match the selected profile after normalization. | Correct registers, pixels, bitstreams, interrupts, or recovery under active work. |
 | 4. Real consumer workloads | [What each suite proves](#what-each-suite-proves) | Official MPP, librga, GStreamer, and FFmpeg paths reach the devices with clean dmesg windows, expected counter deltas, and persisted output artifacts where required. | Parity with the forward port, untested feature combinations, or production-duration stability. |
 | 5. Paired differential | [Suites and comparators](#running-the-suites-and-comparators) | Identical assets and commands under forward-port and rewrite profiles meet required-case, artifact, and configured performance-ratio checks. | Correctness outside the compared cases or meaningful performance conclusions from sanitizer builds. |
@@ -38,7 +38,7 @@ Keep this chain intact for every booted qualification run:
 
 ```text
 exact boot/package/source identity
-  -> correlated 238-case KUnit report + full fatal/lockdep interval
+  -> correlated 244-case KUnit report + full fatal/lockdep interval
   -> post-KUnit service and core inventory
   -> per-suite command + environment + summary
   -> output artifact sizes/checksums
@@ -954,7 +954,7 @@ logs.
 
 | Test | Exercises | Pass criterion |
 |------|-----------|----------------|
-| `rewrite-conformance-run.sh` | **full profile conformance orchestration** | On rewrite profiles, first requires and persists 239 green booted KUnit results (89 MPP + 150 RGA), then runs system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and opt-in `rkmppenc`. Every suite brackets its workload with a required-readable dmesg fatal scan. Optional counter gates now prove hardware/fence traversal, idle cleanup, and both presence and non-increment of safety counters. `VALIDATE_ONLY=1` remains device-free and includes bad-fixture selftests for KUnit, dmesg, counters, comparators, ABI replay, and evidence plus comprehensive case-builder/build checks. |
+| `rewrite-conformance-run.sh` | **full profile conformance orchestration** | On rewrite profiles, first requires and persists 244 green booted KUnit results (92 MPP + 152 RGA), then runs system-info, ABI replay, MPP, librga, GStreamer, FFmpeg, and opt-in `rkmppenc`. Every suite brackets its workload with a required-readable dmesg fatal scan. Optional counter gates now prove hardware/fence traversal, idle cleanup, and both presence and non-increment of safety counters. `VALIDATE_ONLY=1` remains device-free and includes bad-fixture selftests for KUnit, dmesg, counters, comparators, ABI replay, and evidence plus comprehensive case-builder/build checks. |
 | `rewrite-evidence-audit.sh` | **paired forward-port/rewrite evidence gate** | Requires paired required-case passes, artifacts, counter deltas, clean dmesg evidence, the rewrite candidate's exact green KUnit report, a representative official-MPP core set including AVS2 and low-delay slice polling, and comparator-clean timing/artifact results. Named diagnostic promotion remains available. Normal mode is the final “enough evidence to claim parity?” check and is expected to fail before board logs exist; `--selftest` only proves rejection logic. |
 | `ioctl-fuzz-smoke.sh` | **non-submit ioctl parser/import fault smoke** | Mutates safe MPP/RGA parser, query, import/release, and request-lifetime ioctls without submitting register jobs or RGA blits. Raw physical generation is opt-in. Fail-nth mode targets syscall-local allocation/usercopy unwind paths; persisted runs can bracket dmesg and fail on fatal signatures. |
 | `abi-replay.sh` | **non-submit kernel ABI replay** | Saves raw/normalized/comparable/contract logs for safe MPP/RGA ABI behavior. Raw physical import is disabled on ordinary/forward profiles; `PROFILE=*rewrite*` explicitly enables it and requires `EOPNOTSUPP`. Comparable and contract logs prune both the result and disabled marker. See [the 2026-07-16 crash note](../rga/docs/raw-physical-import-crash.md). |
@@ -1060,7 +1060,7 @@ therefore never used as a zero-after leak assertion. Use
 
 The same audit requires each paired suite directory to contain a clean
 `dmesg-scan.tsv`, requires each selected rewrite suite's run-matched
-`*-kunit.tsv` to report exactly 89 MPP plus 150 RGA cases with no fail/skip,
+`*-kunit.tsv` to report exactly 92 MPP plus 152 RGA cases with no fail/skip,
 and requires the matching `*-kunit-dmesg-scan.tsv` to record a complete,
 fatal-free interval with live lockdep. It also requires the named official-MPP
 core matrix. `REQUIRE_DMESG_EVIDENCE=0`,

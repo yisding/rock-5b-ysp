@@ -23,7 +23,7 @@ one requires more driver instrumentation.
 
 | Gap | Why the old evidence could pass incorrectly | Resolution |
 |-----|---------------------------------------------|------------|
-| Compiled or stale KUnit was treated as current green KUnit | The build profiles enabled both suites, but nothing read the booted results; an unrelated older report could also be combined with newer suite logs. Exact KTAP later proved insufficient because a fixture warning could disable lockdep while its case still reported `ok`. | [`rewrite-kunit-log-check.sh`](../tests/rewrite-kunit-log-check.sh) requires exactly 90 MPP and 148 RGA cases (the compile-time-owned MPP ABI-layout case was retired from the preceding 85/148 tip), with no failure or skip. It also scans the complete boot KUnit interval with the shared fatal regex and requires live lockdep. The profile runner persists both reports, and the evidence audit requires the run ID matching every selected rewrite-candidate suite. |
+| Compiled or stale KUnit was treated as current green KUnit | The build profiles enabled both suites, but nothing read the booted results; an unrelated older report could also be combined with newer suite logs. Exact KTAP later proved insufficient because a fixture warning could disable lockdep while its case still reported `ok`. | [`rewrite-kunit-log-check.sh`](../tests/rewrite-kunit-log-check.sh) requires exactly the cases named in `rewrite-kunit-manifest.tsv` (92 MPP and 152 RGA at the current tip), with no failure or skip. It also scans the complete boot KUnit interval with the shared fatal regex and requires live lockdep. The profile runner persists both reports, and the evidence audit requires the run ID matching every selected rewrite-candidate suite. |
 | Userspace success could hide a kernel warning | Main suites saved only a dmesg tail; they did not compare or gate new messages. | All five suite wrappers now capture before/after dmesg, isolate new lines across ordinary growth or ring wrap, and reject KASAN/KCSAN/UBSAN/KFENCE, Oops/BUG/WARNING, lockdep/RCU/hung-task, DMA-API, and MPP/RGA/IOMMU fault signatures. The evidence audit requires a clean `dmesg-scan.tsv` on both profiles. |
 | Error and idle counters were under-specified | Timeout/fault checks omitted recovery failure, spurious IRQ, RGA2 config error, and boundary-shadow setup failure; a missing safety counter looked like a zero delta; zero-after checks covered only imports. | Default forbidden deltas now include those safety counters and rewrite audits require every listed counter for each component captured by a suite to be present. Rewrite suites also require `mpp:queued_job_count`, RGA import and boundary-shadow active gauges, and the direct librga userptr-IOMMU active gauge to return to zero. The latter uses `*:active` so both `userptr_iommu` and legacy `route_b` debugfs names work. |
 | The direct MPP evidence could be `mpp_info_test` only | Plugin/FFmpeg coverage exercises codecs, but does not prove the official MPP multi-thread, multi-instance, and rate-control paths selected for parity. | Normal evidence audits selecting MPP now require a representative named core matrix on both profiles and a nonempty checksum artifact for every media case. Decode evidence therefore needs `MPP_DUMP_OUTPUTS=1`. `REQUIRE_MPP_CORE_CASES=0` is an explicit relaxation for old/exploratory logs. |
@@ -109,8 +109,8 @@ stress; do not mislabel the cumulative counter as a leak gauge.
 
 The following cannot be closed by repository selftests:
 
-1. Boot KASAN and KCSAN rewrite kernels, persist the 238-case green KUnit report
-   (89 MPP + 150 RGA at the current tip), and run the full paired suite matrix
+1. Boot KASAN and KCSAN rewrite kernels, persist the 244-case green KUnit report
+   (92 MPP + 152 RGA at the current tip), and run the full paired suite matrix
    with clean dmesg evidence.
 2. Supply an AVS2 elementary stream and record forward-port/rewrite
    `mpi_dec_avs2` output parity.

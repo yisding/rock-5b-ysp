@@ -548,7 +548,7 @@ BSP-derived RGA                   rewrite RGA
 | MPP code/build lines | 18,442, including AV1, compatibility headers, and legacy-SoC helpers | 14,118 including 4,653 KUnit lines; 9,465 without KUnit |
 | RGA code/build lines | 21,160 | 23,990 including 10,692 KUnit lines; 13,298 without KUnit |
 | ABI ledger | External project documentation and vendor headers | 648-line MPP and 633-line RGA in-tree `ABI.rst` files |
-| In-driver KUnit | None comparable | 90 MPP + 152 RGA cases |
+| In-driver KUnit | None comparable | 92 MPP + 152 RGA cases |
 | Primary verification style | Board conformance, sanitizer builds, hostile reproducers, production runs | KUnit/build profiles first, then the same board suites and differential artifacts |
 
 The modular BSP layout is easier to browse file by file. The rewrite keeps an
@@ -578,7 +578,7 @@ interleaves test and runtime code in unusually large translation units.
 | Session/job/hardware/import ownership makes asynchronous lifetime and close/remove order locally auditable. | Refcount, lock, generation, work-cancel, and quarantine state machines add substantial implementation complexity. |
 | Fail-closed ABI, address-provenance, topology, hardware-ID, and reset checks reduce silent unsafe behavior. | Strict rejection can expose compatibility gaps only when real userspace reaches them. |
 | Exact active-slot claims and generation-aware recovery directly address bug classes seen in the BSP architecture. | Clearer architecture has not prevented rewrite-specific recovery, fixture, DT-resource, and shared-IRQ defects. |
-| 238 KUnit cases and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
+| 244 KUnit cases and explicit ABI ledgers make assumptions executable and reviewable. | Large single-file drivers and embedded tests are a review/merge burden; KUnit cannot prove real register recipes, IRQ wiring, or DMA reset behavior. |
 | Lower non-test source footprint: roughly half-size MPP and 37% smaller RGA runtime slices. | No successful current-tip media-hardware, production-performance, fuzz, or soak record yet. |
 | Better long-term candidate if hardware parity is demonstrated. | Higher immediate qualification risk. |
 
@@ -643,7 +643,7 @@ evidence:
 | Rewrite mainline replay | `rk3588-rewrite-mainline@451634b8c5a22`; MPP differs from the 6.18 copy by three lines at this boundary, RGA is byte-identical |
 | Rockchip BSP donor | `develop-6.1@b4ef083dc0c3` |
 | Upstream-style comparators | Linux `v7.2-rc5`-era `rockchip/rkvdec`, Verisilicon Hantro, Chips&Media Wave5, Qualcomm Venus, MediaTek vcodec, Allegro DVT, and Amphion sources in the mainline replay tree |
-| Runtime boundary | The rewrite has a clean exact 90 MPP + 152 RGA KUnit gate, but its latest multicore and AV1/VSI lifecycle fixes are not boot-verified |
+| Runtime boundary | The rewrite has a clean exact 92 MPP + 152 RGA KUnit gate, but its latest multicore and AV1/VSI lifecycle fixes are not boot-verified |
 
 The upstream comparators are reference designs for kernel-boundary and
 maintenance quality, not feature- or performance-equivalent implementations.
@@ -778,7 +778,7 @@ IOMMU, clocks, and reset—to conformance. Consolidate equivalent vectors into
 named parameter tables, build lifecycle fixtures through complete shared
 constructors, and move tests into separate translation units.
 
-The target should therefore not be “238 cases” or an arbitrary smaller number.
+The target should therefore not be “244 cases” or an arbitrary smaller number.
 It should be the minimum set of independently-oracled cases that uniquely owns
 each material contract at the lowest safe layer. A parameterized case with 30
 named boundary vectors can be stronger and much cheaper than 30 copied
@@ -1321,7 +1321,7 @@ those are review-shape issues, not functional evidence.
 | A per-core lifetime transition must not mutate an unowned sibling | Exposes maxline's all-core runtime callbacks |
 | Finishing a software scheduling slot does not prove DMA has stopped | Exposes maxline streamoff ordering and mainline timeout recovery |
 | A retained pointer is not activation identity | Motivates generation-aware late-IRQ handling |
-| Unit-test deterministic policy; prove silicon behavior on hardware | Supports a tiny arithmetic/error-unwind suite, not a 238-case transplant |
+| Unit-test deterministic policy; prove silicon behavior on hardware | Supports a tiny arithmetic/error-unwind suite, not a 244-case transplant |
 | Private register-job ABI validation | Does not transfer to V4L2 request drivers, which reuse typed controls, vb2, requests, and mem2mem ownership |
 | VEPU580 DCHS/slice-FIFO invariants | No current mainline VEPU580 encoder exists to patch |
 

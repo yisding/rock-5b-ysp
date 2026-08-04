@@ -78,11 +78,11 @@ evidence is:
 |------|-----------------|------------------|
 | Driver code | MPP and RGA implementations on both kernel branches | The same driver design is maintained on the 6.18 and current-mainline tracks. |
 | ABI coverage | MPP covers the observed RK3588 RKVENC2/RKVDEC2 contract; RGA covers a broad current `librga`/FFmpeg/GStreamer subset and explicitly rejects recognized unsafe or unimplemented paths | Expected current requests can be parsed and represented; an explicit rejection is preferable to silently misprogramming hardware. |
-| In-source tests | 90 MPP and 148 RGA KUnit cases, 238 total | Pure logic such as parsing, bounds, routing, register emission, IRQ policy, and race-state transitions has executable coverage without requiring the board. |
+| In-source tests | 92 MPP and 152 RGA KUnit cases, 244 total | Pure logic such as parsing, bounds, routing, register emission, IRQ policy, and race-state transitions has executable coverage without requiring the board. |
 | Build evidence | On 2026-07-28 current 6.18 `669697f` and mainline `a49eb75` passed KUnit-enabled normal and test-disabled clean-archive builds, including opt-in-default config proof and a deliberate ABI mutation rejected by the compile-time assertion. The preceding 6.18 `9af4a88` passed KASAN/fault-injection and KCSAN/lockdep profiles. Source identity remains exact. | The current branches build the IOMMU provider, rewrite objects, and ROCK 5B DTB with and without the embedded tests. A build or byte identity is not hardware proof. |
 | Latest recovery work | Generation-aware timeout/fault ownership, stricter CCU recovery, close/remove handoffs, and fail-closed MPP containment when a reset cannot prove that DMA stopped | The code has a defined terminal branch for dangerous recovery failures instead of assuming reset always works. |
 | Bootable debug image | 6.18.40 KASAN/UBSAN/lockdep/kmemleak package `P91d6-Cad24` is payload-verified and booted with both rewrites, both KUnit suites, exact patch 330, and the intended ROCK 5B DTB | Packaging and bootability are proven for parent source `f6ebe28`; the current `669697f` source needs a successor package. |
-| Hardware evidence | `P91d6-Cad24` passed 85/85 MPP plus 148/148 RGA, but case 83 disabled lockdep through an uninitialized reset/import fixture spinlock before RGA; current source repairs it | KUnit is real board evidence rather than unexecuted scaffold, but green KTAP alone is insufficient and a warning-clean current-tip boot plus media conformance are still required. |
+| Hardware evidence | Boot `#29` (`g8042f13c5459`, 2026-08-02) passed exact 89/89 MPP plus 150/150 RGA with live lockdep and no fatal signatures, closing the historical `P91d6-Cad24` lockdep failure; the 2026-08-02 review fixes (244 cases) are installed as `#30` but unbooted | KUnit is real board evidence rather than unexecuted scaffold, but green KTAP alone is insufficient and a warning-clean current-tip boot plus media conformance are still required. |
 | Published alpha packages | Existing published rewrite package composites predate the current source tips | Those packages must not be treated as evidence for the code described here. |
 
 The practical hardware scope is deliberately narrower than every name a
@@ -124,7 +124,7 @@ organized and why.
 | [2. MPP rewrite driver](02-mpp-driver.md) | Message collection, register jobs, DMA-BUF translation, scheduling, encoder/decoder backends, completion, recovery, isolation, and locks |
 | [3. RGA rewrite driver](03-rga-driver.md) | Semantic image requests, imports and mappings, USERPTR, layout validation, fences, core selection, command emission, completion, close, and removal |
 | [4. Design and error-path lessons](04-design-lessons.md) | Cross-driver comparison, ownership tables, asynchronous edges, completion claims, recovery state machines, topology, errors, and unwind patterns |
-| [5. Observability and testing](05-observability-and-testing.md) | Debug counters, the 238-case KUnit split, the evidence ladder, build gates, and remaining hardware validation |
+| [5. Observability and testing](05-observability-and-testing.md) | Debug counters, the 244-case KUnit split, the evidence ladder, build gates, and remaining hardware validation |
 | [6. Source reading and review](06-source-reading-and-review.md) | Suggested source-reading order, review checklist, expanded glossary, and the final invariant |
 
 Developers without kernel experience should read chapters 0 and 1, then the MPP
