@@ -279,10 +279,11 @@ Where upstream already is, what it is missing, and where our port will collide w
 - [`2026-07-24`](2026-07-24-rknpu-forward-port-scoping.md) — RKNPU forward-port scoping: 8.6k lines, three hard spots, smaller than the MPP/RGA port
 - [`2026-07-21`](2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) — Mainline AV1/V4L2 vs VA-API, and why Firefox's only Rockchip hardware-decode route is VA-API
 
-### GNOME Remote Desktop and RDP (11)
+### GNOME Remote Desktop and RDP (12)
 
 Hardware H.264 RDP encode end to end: encoder wedges, focus/resume, reconnect, and color.
 
+- [`2026-08-04`](2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md) — GRD has a native VA-API encoder and does not need FFmpeg — but it demands packed slice headers, which MPP cannot serve
 - [`2026-08-01`](2026-08-01-grd-rdp-video-stall-transport-congestion.md) — GRD's fixed-QP encoder overruns the Tailscale RDP path, stalling video while audio continues
 - [`2026-08-01`](2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md) — GRD hardware-encode recovery: forced IDR was implemented but unwired, and the detector could never see a hung encode
 - [`2026-07-29`](2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md) — RDP reconnect after idle dies in the greeter→session handover, masquerading as the wake-watch wedge
@@ -379,6 +380,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 - [`2026-08-04-rockchip-vaapi-capability-gap-triage.md`](2026-08-04-rockchip-vaapi-capability-gap-triage.md) — rockchip-vaapi's remaining non-AV1 gaps split three ways: two are MPP walls, the size caps fail open below as well as closed above, and the sweep harness overwrites its own evidence
 - [`2026-08-04-rkvenc-encoder-rcb-sram-scope.md`](2026-08-04-rkvenc-encoder-rcb-sram-scope.md) — RK3588 encoder RCB is reachable only by >4096-wide H.264, so the absent encoder SRAM costs almost nothing
 - [`2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md`](2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md) — IEP2 field parity settled: the mode suffix selects the field and `dil_order` does nothing, so MPP's hardcoded I1O1T is wrong for BFF streams
+- [`2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md`](2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md) — GRD has a native VA-API encoder and does not need FFmpeg — but it demands packed slice headers, which MPP cannot serve
 - [`2026-08-03-rk3588-iep2-nondeterministic-output.md`](2026-08-03-rk3588-iep2-nondeterministic-output.md) — RK3588 IEP2 runs clean under KASAN; its output non-determinism is a missing dma-buf cache sync in Rockchip's test harness, not the driver
 - [`2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md`](2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md) — The RGA rewrite's IOMMU-IRQ-mask fallback was unreachable, and it blocked the mainline mirror
 - [`2026-08-03-mainline-missing-uncached-dma32-heaps.md`](2026-08-03-mainline-missing-uncached-dma32-heaps.md) — Mainline lacks the BSP uncached/dma32 dma-heaps; MPP absorbs it, librga samples do not

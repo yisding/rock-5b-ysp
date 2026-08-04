@@ -67,8 +67,8 @@ does not mean the measured gates are hypothetical.
 | HEVC Main decode | **Default** | The exact Published package root previously produced **144 of 163** FATE candidates byte-exact, 17 classified skips, two size refusals, and zero backend/driver failures; installed ysp8 hardware-presents through VLC, mpv, and Firefox | `PICSIZE_A/B_Bossen_1` each carry an 8440 dimension, so both still exceed the advertised 8192x8192 constraint and fail closed; full sweep was not repeated on ysp8 |
 | HEVC Main10 decode | Experimental | Installed ysp8 is P010 bit-exact at 320x240 and 416x240, preserves BT.2020/PQ input metadata, refuses 64-pixel input before RGA, runs 1080p at 110.40 fps, and presents through VLC, mpv, and Firefox/Panfrost; the production forward-port RGA3 path passes 90 repeated runs and 4,320 exact frames at each small geometry, including both cores | Widths below 68 are [permanently unsupported](#declined-narrow-afbc-10-bit-below-68-pixels) as of 2026-08-04; the [dropped write remains rewrite-driver-specific](../../findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md); no physical HDR or sandbox-enabled Firefox proof |
 | VP9 Profile 2 decode | Experimental | Installed ysp8 is P010 bit-exact, runs 1080p at 187.30 fps, and presents through VLC, mpv, and Firefox/Panfrost | Same kernel/librga pairing; one risky pinned vector remains fingerprint-quarantined; Firefox sandbox and physical-output qualification remain |
-| H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, one-/two-object linear DMA-BUF import, equal-row multi-slice, same-process concurrency, sanitizer, RTP/WebRTC peers, and a 7,200-second soak pass | P010 input and B-frames are permanent MPP/silicon walls, not open work; packed application headers and tiled imports are open driver-side gaps with no current consumer |
-| HEVC Main encode | Experimental | FFmpeg/GStreamer output is parser-clean and software-decodable with the RK3588 CTU64 contract; equal-row multi-slice, same-process concurrency, sanitizer, and the two-hour dual-codec soak pass | Main profile/NV12 only; P010 input and B-frames are permanent MPP/silicon walls, not open work; packed headers and tiled imports remain open driver-side gaps |
+| H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, one-/two-object linear DMA-BUF import, equal-row multi-slice, same-process concurrency, sanitizer, RTP/WebRTC peers, and a 7,200-second soak pass | P010 input, B-frames and [packed headers](../../findings/2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md) are permanent MPP/silicon walls, not open work; tiled imports remain an open driver-side gap |
+| HEVC Main encode | Experimental | FFmpeg/GStreamer output is parser-clean and software-decodable with the RK3588 CTU64 contract; equal-row multi-slice, same-process concurrency, sanitizer, and the two-hour dual-codec soak pass | Main profile/NV12 only; P010 input, B-frames and [packed headers](../../findings/2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md) are permanent MPP/silicon walls, not open work; tiled imports remain an open driver-side gap |
 | AV1 decode | Unadvertised design | The vendor AV1 endpoint is independently hardware-validated; source inspection now bounds a direct `/dev/mpp_service` backend that would translate parsed VA state into VDPU jobs and attach CDF/segmentation/MV state to explicit surfaces | No direct VA job or golden replay exists; hardware stream packing, state transitions, output layout, recovery, film grain, conformance, and app/sandbox gates remain |
 | AV1 encode | Out of scope | None | No implementation plan or validation |
 | Deinterlacing | **Not supported** | None — the driver advertises only `VAEntrypointVLD` and `VAEntrypointEncSlice`, so a client cannot request it. MPP's decoder-internal deinterlacer is deliberately disabled: it is 1:N with synthesized timestamps and is incompatible with VA-API decode's 1:1 surface contract | The RK3588 IEP2 block works and is [confirmed standalone on the production kernel](../../findings/2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md); the gap is the missing `VAEntrypointVideoProc`, planned as fork roadmap Phase 6. Interlaced content decodes correctly as coded frames; deinterlacing is the application's job in software |
@@ -175,6 +175,21 @@ both MPP encoders assign `is_idr ? I : P` and nothing ever assigns a B slice
 type, so `VAConfigAttribEncMaxRefFrames = 1` is honest rather than conservative.
 Details and anchors in the
 [capability-gap triage](../../findings/2026-08-04-rockchip-vaapi-capability-gap-triage.md).
+
+**Packed headers are a wall too, and the consumer is real.** An earlier
+assessment on 2026-08-04 called them "implementable, no current consumer"; both
+halves were wrong. GNOME Remote Desktop's native VA-API encoder requires
+`SEQUENCE`, `PICTURE`, `SLICE` and `RAW_DATA` **together** and refuses the
+device outright without them — which is the previously unrecorded reason the
+GRD hardware path goes through FFmpeg. They are nonetheless not implementable
+over MPP: GRD authors its own slice headers, while MPP emits a complete slice
+NAL as one inseparable unit and exposes no command accepting an external
+header. Splicing would need bit-level re-alignment of the entropy-coded payload
+and would yield slice headers that misdescribe the encode. Advertising a subset
+is not an option either — GRD's probe checks all four bits together, so partial
+support would attach and then silently discard slice headers, which the
+no-silent-failure rule forbids. Details in the
+[GRD VA-API finding](../../findings/2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md).
 
 The measured encode evidence is split by the boundary it closes:
 
