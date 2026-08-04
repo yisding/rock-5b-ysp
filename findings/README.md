@@ -293,10 +293,12 @@ Hardware H.264 RDP encode end to end: encoder wedges, focus/resume, reconnect, a
 - [`2026-07-19`](2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md) — GRD encoder wedge, pinned: MPP input-task backpressure + get_packet timeout (userspace flow control)
 - [`2026-07-18`](2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md) — GRD's frame-starvation detector only warns — it never actuates recovery
 
-### Desktop VA-API and browsers (19)
+### Desktop VA-API and browsers (21)
 
 `rockchip-vaapi`: the bridge that makes Firefox, VLC, and mpv decode in hardware.
 
+- [`2026-08-04`](2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md) — Enabling IEP2 broke interlaced VA-API decode by un-masking a driver defect: MPP's decoder deinterlacer is 1:N, VA-API decode is 1:1
+- [`2026-08-04`](2026-08-04-rockchip-vaapi-capability-gap-triage.md) — rockchip-vaapi's remaining non-AV1 gaps split three ways: two are MPP walls, the size caps fail open below as well as closed above, and the sweep harness overwrites its own evidence
 - [`2026-08-02`](2026-08-02-rockchip-vaapi-ysp9-rc-validation.md) — rockchip-vaapi ysp9 RC retires the VP9 quarantine and passes full sanitizer, RGA repeat, and package gates
 - [`2026-08-02`](2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) — rockchip-vaapi ysp8 is installed and green across decode, encode, GStreamer, VLC, mpv, and Firefox; one optional IEP2 probe is noisy
 - [`2026-07-29`](2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md) — rockchip-vaapi closes 10-bit throughput and the remaining Phase 4 qualification slices, while Firefox Main10 stops at Panfrost EGL import
@@ -371,6 +373,8 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md`](2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md) — Enabling IEP2 broke interlaced VA-API decode by un-masking a driver defect: MPP's decoder deinterlacer is 1:N, VA-API decode is 1:1
+- [`2026-08-04-rockchip-vaapi-capability-gap-triage.md`](2026-08-04-rockchip-vaapi-capability-gap-triage.md) — rockchip-vaapi's remaining non-AV1 gaps split three ways: two are MPP walls, the size caps fail open below as well as closed above, and the sweep harness overwrites its own evidence
 - [`2026-08-03-rk3588-iep2-nondeterministic-output.md`](2026-08-03-rk3588-iep2-nondeterministic-output.md) — RK3588 IEP2 runs clean under KASAN; its output non-determinism is a missing dma-buf cache sync in Rockchip's test harness, not the driver
 - [`2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md`](2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md) — The RGA rewrite's IOMMU-IRQ-mask fallback was unreachable, and it blocked the mainline mirror
 - [`2026-08-03-mainline-missing-uncached-dma32-heaps.md`](2026-08-03-mainline-missing-uncached-dma32-heaps.md) — Mainline lacks the BSP uncached/dma32 dma-heaps; MPP absorbs it, librga samples do not

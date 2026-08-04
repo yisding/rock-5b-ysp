@@ -14,7 +14,7 @@ that cannot select the Rockchip-specific libavcodec wrappers directly.
 | Developer focus | VA object lifetimes, reconstructed decode bitstreams, MPP external-buffer ownership, AFBC/NV15-to-P010 conversion, VA encode parameter translation, imported-surface validation, browser sandbox policy, and application interoperability. |
 | Owns | The durable capability/boundary summary and evidence map for `yisding/rockchip-vaapi`; dated measurements remain under [`../../findings/`](../../findings/README.md), app-specific integration stays in [`../../docs/app-enablement.md`](../../docs/app-enablement.md), and package publication stays under [`../../packaging/`](../../packaging/README.md). |
 | Depends on | The RK3588 MPP/RGA kernel path, current `librockchip_mpp`, the kernel-paired `librga` 10-bit contract, libva, and an application/display sandbox that can open the required device nodes and ioctls. |
-| Current state | As of 2026-08-02, installed and payload-matched driver/config `1.0.11+ysp8-0ubuntu1~rk1` are green across the guarded safe decode matrix, zero-copy and concurrent decode, 10-bit P010 decode above 60 fps, H.264/HEVC encode, imported surfaces, multi-slice and mixed-process stress, GStreamer VA readback, and virtual-display VLC/mpv/Firefox presentation. **H.264, VP9 Profile 0 and HEVC Main decode remain the default capability set**; HEVC Main10, VP9 Profile 2, and encode remain opt-in. Firefox imports both 10-bit planes with the RDD sandbox disabled. The production forward-port/vendor RGA3 path additionally passes 90/90 runs and 4,320/4,320 byte-compared frames at each formerly suspect small geometry, including explicit coverage of both RGA3 cores; the silent dropped write remains scoped to the rewrite driver. The ysp8 payload exactly matches its deb, but its source was a dirty worktree over `main@aee5926`, so clean source/package provenance remains open. The quarantined risky VP9 vector, sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image install, and 512 MiB CMA gate remain. |
+| Current state | As of 2026-08-04, installed driver/config are `1.0.11+ysp10-0ubuntu1~rk1`, whose payload reproduces exactly from its own clean commit at three independent build paths — the source/package provenance gate that ysp8 left open is **closed**. **H.264, VP9 Profile 0 and HEVC Main decode remain the default capability set**; HEVC Main10, VP9 Profile 2, and encode remain opt-in. On kernel `6.18.42`, which newly enables IEP2, interlaced H.264 decode regressed to a hard error because MPP's decoder-internal deinterlacer is 1:N while VA-API decode is 1:1; the driver now disables that vproc path and all 17 pinned vectors are bit-exact again ([finding](../../findings/2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md)). Picture-size limits moved from an unmeasured 7680x4320 to the vendor-documented 8192x8192; no conformance class changed. `ysp11` packages both changes but is built, not installed. Only the tier-1 gate set has been run on `6.18.42` — the HEVC sweeps, encode/10-bit experimental gates, display gates, and both soaks have not. Sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image install, 512 MiB CMA, and release all remain. |
 
 For the end-to-end technical model, module map, decode/encode sequences,
 DMA-BUF ownership rules, bridge renovation record, and remaining design
@@ -64,13 +64,14 @@ does not mean the measured gates are hypothetical.
 |------|----------|---------------------------|----------|
 | H.264 decode | Default | Conformance and sanitizer history; installed ysp8 is bit-exact and hardware-presents through GStreamer `va`, VLC 3.0.23, mpv 0.41.0, and Firefox 153.0.1 | Chromium remains; Firefox ran with its RDD sandbox disabled |
 | VP9 Profile 0 decode | Default | Installed ysp8 is bit-exact through GStreamer and hardware-presents through VLC, mpv, and Firefox | Chromium remains; Firefox sandbox gate remains |
-| HEVC Main decode | **Default** | The exact Published package root previously produced **144 of 163** FATE candidates byte-exact, 17 classified skips, two size refusals, and zero backend/driver failures; installed ysp8 hardware-presents through VLC, mpv, and Firefox | `PICSIZE_A/B_Bossen_1` exceed the advertised 7680x4320 constraint and fail closed; full sweep was not repeated on ysp8 |
-| HEVC Main10 decode | Experimental | Installed ysp8 is P010 bit-exact at 320x240 and 416x240, preserves BT.2020/PQ input metadata, refuses 64-pixel input before RGA, runs 1080p at 110.40 fps, and presents through VLC, mpv, and Firefox/Panfrost; the production forward-port RGA3 path passes 90 repeated runs and 4,320 exact frames at each small geometry, including both cores | Widths below 68 remain unsupported; the [dropped write remains rewrite-driver-specific](../../findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md); no physical HDR or sandbox-enabled Firefox proof |
+| HEVC Main decode | **Default** | The exact Published package root previously produced **144 of 163** FATE candidates byte-exact, 17 classified skips, two size refusals, and zero backend/driver failures; installed ysp8 hardware-presents through VLC, mpv, and Firefox | `PICSIZE_A/B_Bossen_1` each carry an 8440 dimension, so both still exceed the advertised 8192x8192 constraint and fail closed; full sweep was not repeated on ysp8 |
+| HEVC Main10 decode | Experimental | Installed ysp8 is P010 bit-exact at 320x240 and 416x240, preserves BT.2020/PQ input metadata, refuses 64-pixel input before RGA, runs 1080p at 110.40 fps, and presents through VLC, mpv, and Firefox/Panfrost; the production forward-port RGA3 path passes 90 repeated runs and 4,320 exact frames at each small geometry, including both cores | Widths below 68 are [permanently unsupported](#declined-narrow-afbc-10-bit-below-68-pixels) as of 2026-08-04; the [dropped write remains rewrite-driver-specific](../../findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md); no physical HDR or sandbox-enabled Firefox proof |
 | VP9 Profile 2 decode | Experimental | Installed ysp8 is P010 bit-exact, runs 1080p at 187.30 fps, and presents through VLC, mpv, and Firefox/Panfrost | Same kernel/librga pairing; one risky pinned vector remains fingerprint-quarantined; Firefox sandbox and physical-output qualification remain |
-| H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, one-/two-object linear DMA-BUF import, equal-row multi-slice, same-process concurrency, sanitizer, RTP/WebRTC peers, and a 7,200-second soak pass | P010 input, B-frames, packed application headers, and tiled imports remain unsupported |
-| HEVC Main encode | Experimental | FFmpeg/GStreamer output is parser-clean and software-decodable with the RK3588 CTU64 contract; equal-row multi-slice, same-process concurrency, sanitizer, and the two-hour dual-codec soak pass | Main profile/NV12 only; P010 backend support, B-frames, packed headers, and tiled imports remain |
+| H.264 Main/High encode | Experimental | FFmpeg CQP/CBR/VBR, GStreamer, planar upload, one-/two-object linear DMA-BUF import, equal-row multi-slice, same-process concurrency, sanitizer, RTP/WebRTC peers, and a 7,200-second soak pass | P010 input and B-frames are permanent MPP/silicon walls, not open work; packed application headers and tiled imports are open driver-side gaps with no current consumer |
+| HEVC Main encode | Experimental | FFmpeg/GStreamer output is parser-clean and software-decodable with the RK3588 CTU64 contract; equal-row multi-slice, same-process concurrency, sanitizer, and the two-hour dual-codec soak pass | Main profile/NV12 only; P010 input and B-frames are permanent MPP/silicon walls, not open work; packed headers and tiled imports remain open driver-side gaps |
 | AV1 decode | Unadvertised design | The vendor AV1 endpoint is independently hardware-validated; source inspection now bounds a direct `/dev/mpp_service` backend that would translate parsed VA state into VDPU jobs and attach CDF/segmentation/MV state to explicit surfaces | No direct VA job or golden replay exists; hardware stream packing, state transitions, output layout, recovery, film grain, conformance, and app/sandbox gates remain |
 | AV1 encode | Out of scope | None | No implementation plan or validation |
+| Deinterlacing | **Not supported** | None — the driver advertises only `VAEntrypointVLD` and `VAEntrypointEncSlice`, so a client cannot request it. MPP's decoder-internal deinterlacer is deliberately disabled: it is 1:N with synthesized timestamps and is incompatible with VA-API decode's 1:1 surface contract | The RK3588 IEP2 block works and is [confirmed standalone on the production kernel](../../findings/2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md); the gap is the missing `VAEntrypointVideoProc`, planned as fork roadmap Phase 6. Interlaced content decodes correctly as coded frames; deinterlacing is the application's job in software |
 
 ## Decode architecture and boundaries
 
@@ -103,6 +104,41 @@ would replace the AV1 parser/HAL/allocator slice with a checked, version-pinned
 VDPU job compiler and a small ioctl transport. This is a proposed implementation
 boundary, not evidence that AV1 VA-API works.
 
+### Declined: narrow AFBC 10-bit below 68 pixels
+
+**Decided 2026-08-04: 10-bit decode at a visible width below 68 will not be
+supported.** The driver refuses these contexts up front
+(`RK_RGA3_MIN_ACTIVE_WIDTH 68`, `src/convert.h`), and that refusal is now the
+intended permanent behavior rather than a gap awaiting closure.
+
+The blocker is the *combination* of the frame's layout and each core's
+envelope, not a single missing capability:
+
+| Core | Reads AFBC? | 10-bit raster? | Width floor |
+|------|-------------|----------------|-------------|
+| RGA3 | yes (`RGA_FBC_MODE` in `rga3_win_data`) | yes | **68** — `input_range` minimum |
+| RGA2 | **no** (`.rd_mode = RGA_RASTER_MODE` only) | yes, in and out (`rga2e_input_raster_format[]` / `rga2e_output_raster_format[]` list `RGA_FORMAT_YCbCr_420_SP_10B`) | 2 |
+
+MPP hands 10-bit decode output as AFBC-compressed NV15, so the only core that
+can read the frame at all cannot accept its width, and the core that could
+accept the width cannot read the format. No core matches. Note the precise
+shape: RGA2 is not missing 10-bit support — it is missing AFBC support.
+
+Two paths could still have closed it, and both are declined rather than
+disproved. An RGA2 raster path would need MPP to emit *linear* NV15 at these
+widths, which was never probed. A CPU NV15-to-P010 repack needs no RGA at all
+and would always work. Both were specced in
+[`docs/narrow-10bit-closure-plan.md`](docs/narrow-10bit-closure-plan.md); the
+cost is not justified by the case, which is one FATE vector
+(`WPP_D_ericsson_MAIN10_2.bit` at 64x240) and no real content — no camera,
+stream, or container produces 10-bit video narrower than 68 pixels. Failing
+closed with a real `VAStatus` is the correct outcome, and applications software-
+decode it.
+
+That plan's workstream A — making librga's `imcheck()` honest per core — keeps
+its standalone value for every librga consumer and is unaffected by this
+decision.
+
 ## Encode surface contract
 
 The opt-in encoders deliberately accept a narrow, checked surface model:
@@ -122,6 +158,23 @@ is checked before CPU conversion or hardware submission. Tiled/modifier-bearing
 imports remain rejected rather than silently reinterpreted. P010 import and
 readback are valid surface contracts, but P010 encode remains unadvertised
 because the MPP `vepu5xx` backend rejects its compact input format.
+
+**P010 encode is a hardware wall, not pending work.** MPP's shared encoder
+format table maps every 10-bit input to the `VEPU5xx_FMT_BUTT` sentinel rather
+than a register code — `YUV420SP_10BIT`, `YUV422SP_10BIT`, and each 10-bit
+variant below them — and `vepu5xx_set_fmt()` turns that sentinel into
+`mpp_err_f("unsupport frame format")` plus `MPP_NOK`
+(`mpp/hal/rkenc/common/vepu5xx_common.c` `vepu5xx_yuv_cfg[]` ~:208-245,
+`vepu5xx_set_fmt()` ~:569). There is no 10-bit encoder input path to enable, on
+either codec: the table is shared by the H.264 and HEVC `vepu580` HALs RK3588
+selects. The only way to feed a P010 surface to this encoder is to down-convert
+to NV12 first, which discards the precision that motivated the request. Treat
+this as a capability statement rather than an open item; `make
+probe-mpp-main10-encode` re-demonstrates it. The same applies to **B-frames** —
+both MPP encoders assign `is_idr ? I : P` and nothing ever assigns a B slice
+type, so `VAConfigAttribEncMaxRefFrames = 1` is honest rather than conservative.
+Details and anchors in the
+[capability-gap triage](../../findings/2026-08-04-rockchip-vaapi-capability-gap-triage.md).
 
 The measured encode evidence is split by the boundary it closes:
 
@@ -210,7 +263,7 @@ maintained capability/boundary summary.
 | AV1 reconstruction boundary | [`2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md`](../../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) |
 | AV1 direct vendor-backend design | [`docs/av1-direct-mpp-service-backend.md`](docs/av1-direct-mpp-service-backend.md), with [dated design tombstone](../../findings/2026-07-29-rockchip-vaapi-direct-av1-mpp-service-design.md) |
 | HEVC/Main10/VP9 Profile 2 | [`2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md`](../../findings/2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md) |
-| Narrow AFBC 10-bit refusal and fallback | [`2026-07-29-rga-no-core-match-narrow-afbc-10bit.md`](../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md), with the remediation plan in [`docs/narrow-10bit-closure-plan.md`](docs/narrow-10bit-closure-plan.md) |
+| Narrow AFBC 10-bit refusal (**declined 2026-08-04**) | [`2026-07-29-rga-no-core-match-narrow-afbc-10bit.md`](../../findings/2026-07-29-rga-no-core-match-narrow-afbc-10bit.md), with the declined remediation plan in [`docs/narrow-10bit-closure-plan.md`](docs/narrow-10bit-closure-plan.md) |
 | HEVC TILES same-ID PPS regression | [`2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md`](../../findings/2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md) |
 | Intermediate HEVC boundary (superseded) | [`2026-07-26-rockchip-vaapi-hevc-rps-and-p010-boundary.md`](../../findings/2026-07-26-rockchip-vaapi-hevc-rps-and-p010-boundary.md) |
 | H.264 and HEVC encode | [H.264](../../findings/2026-07-26-rockchip-vaapi-h264-va-encode-validation.md), [HEVC](../../findings/2026-07-26-rockchip-vaapi-hevc-va-encode-validation.md) |

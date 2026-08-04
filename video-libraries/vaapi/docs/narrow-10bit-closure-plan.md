@@ -14,9 +14,21 @@
 > `drivers/video/rockchip/rga3/rga_hw_config.c` + `rga_policy.c` on the
 > forward-port tree ([source-trees §1](../../../docs/source-trees.md)).
 >
-> Date: 2026-07-29. Status: **PLANNED** — file:line cites below are
-> SOURCE-CONFIRMED from the pinned trees; items marked UNVERIFIED are
-> assumptions a phase-0 spike must retire before the dependent step.
+> Date: 2026-07-29. Status: **WORKSTREAM B DECLINED 2026-08-04; WORKSTREAM A
+> STILL VALID** — file:line cites below are SOURCE-CONFIRMED from the pinned
+> trees; items marked UNVERIFIED are assumptions a phase-0 spike must retire
+> before the dependent step.
+
+> **Workstream B declined 2026-08-04.** Narrow AFBC 10-bit below 68 pixels will
+> not be supported; the driver's up-front refusal is now the intended permanent
+> behavior. See the
+> [decision and its rationale](../README.md#declined-narrow-afbc-10-bit-below-68-pixels).
+> Neither B path was disproved — the RGA2 linear branch was never probed (spike
+> S1 did not run) and the CPU-repack branch needs no RGA at all. Both were
+> declined on cost against the case: one FATE vector at 64x240, and no real
+> content narrower than 68 pixels. **Workstream A is unaffected** and keeps its
+> standalone value for every librga consumer. The plan is kept as-written so the
+> analysis survives if that judgement is ever revisited.
 
 ## Non-goals
 
