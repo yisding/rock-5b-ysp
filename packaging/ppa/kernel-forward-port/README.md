@@ -3,7 +3,46 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
-**Uploaded 2026-08-02 (latest):** `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1`
+**Uploaded 2026-08-03 (latest):** `6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1`
+— the `0001`–`0089` forward-port tip `7615b69a744af`, adding the two RK3588
+IEP2 deinterlacing commits to the Published `0001`–`0087` source. The Armbian
+stable base moved from 6.18.41 to 6.18.42 during staging, so this cut carries
+that stable delta unexercised.
+
+**`CONFIG_ROCKCHIP_MPP_IEP2` was missing from the packaged config** and is added
+here. Without it the 20260802 config would have built this source with the IEP2
+driver compiled out — the package would have published cleanly and simply not
+had the feature.
+
+The worktree was staged with `build-kernel.sh forward-port --patch-only`. That
+run initially failed its own provenance gate: the guard treated
+`rockchip_iommu_sync_fault_handler` as proof of a rewrite composite, but commit
+`7615b69a744af` legitimately added that symbol to the forward-port line. The
+guard now judges the symbol against the flavor tree instead of asserting which
+line owns it, and passes. A concurrent `rewrite-debug` build then re-staged the
+shared worktree underneath, wiping the IEP2 staging and leaving root-owned
+`mpp-rewrite/` and `rga-rewrite/` directories; staging was re-run after those
+were removed. Cutting an orig during that window would have repeated the
+2026-07-25 contamination.
+
+Verified on the artifacts, not just the worktree: the orig carries
+`mpp_iep2.c`, `rockchip_iep2_regs.h`, the IEP2 Kconfig and `mpp_iep2.o` Makefile
+wiring, `rockchip,iep-v2` plus `iommu@fdbb0800` in `rk3588-base.dtsi`, and both
+`&iep`/`&iep_mmu` in `rk3588-rock-5b.dtsi`; it reports Linux 6.18.42 and
+contains **zero** `*-rewrite/` paths across 101043 entries. The packaged config
+has `CONFIG_ROCKCHIP_MPP_IEP2=y` with KASAN, lockdep, and `DMABUF_DEBUG` off.
+`dscverify` validated both tarballs, `debsign` signed the `.dsc`,
+`.buildinfo`, and source `.changes` with `0FDDE6BC…AA2228E6` (both
+`gpg --verify` good), and `dput` completed at 19:32 PDT writing
+`linux-rockchip64-ysp_6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1_source.ppa.upload`.
+
+**Launchpad processing pending** — confirm source acceptance and the arm64
+build. IEP2's runtime evidence was gathered on a KASAN/lockdep build over a
+6.18.41 base, so it describes the source, not this artifact: this production
+configuration on a 6.18.42 base has not been installed, booted, or
+hardware-validated. Every board gate remains pending.
+
+**Previous 2026-08-02 upload:** `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1`
 — the complete `0001`–`0087` forward-port tip `5b87d46eefdcb`. It adds the
 seven post-08-01 MPP/RKVENC2/RKVDEC2/RGA ioctl, lifetime, ownership, and review
 repair commits to the Published `0001`–`0080` source. The worktree was staged
