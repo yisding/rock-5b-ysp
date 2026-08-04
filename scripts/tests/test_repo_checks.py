@@ -816,6 +816,70 @@ class SubstantiveDriftTests(unittest.TestCase):
             DOC_CHECKER.check_findings_index(root, errors)
             self.assertEqual(errors, [])
 
+    def test_findings_topic_coverage_reports_gaps_and_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            findings = root / "findings"
+            findings.mkdir()
+            (findings / "2026-01-01-grouped.md").write_text("# Grouped\n", encoding="utf-8")
+            (findings / "2026-01-02-ungrouped.md").write_text("# Ungrouped\n", encoding="utf-8")
+            (findings / "2026-01-03-doubled.md").write_text("# Doubled\n", encoding="utf-8")
+            (findings / "2026-01-04-tomb.md").write_text(
+                "# Tomb\n\npromoted → somewhere (2026-01-04)\n", encoding="utf-8"
+            )
+            (findings / "README.md").write_text(
+                "<!-- findings-topics:start -->\n"
+                "### Alpha (3)\n\n"
+                "- [`2026-01-01`](2026-01-01-grouped.md) — Grouped\n"
+                "- [`2026-01-03`](2026-01-03-doubled.md) — Doubled\n"
+                "- [`2026-01-09`](2026-01-09-missing.md) — Missing\n\n"
+                "### Beta (2)\n\n"
+                "- [`2026-01-03`](2026-01-03-doubled.md) — Doubled\n"
+                "- [`2026-01-04`](2026-01-04-tomb.md) — Tomb\n"
+                "<!-- findings-topics:end -->\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_findings_topic_coverage(root, errors)
+
+            self.assertTrue(
+                any("2026-01-02-ungrouped.md is in no topic group" in e for e in errors)
+            )
+            self.assertTrue(
+                any("2026-01-03-doubled.md is in two topic groups" in e for e in errors)
+            )
+            self.assertTrue(
+                any("links 2026-01-09-missing.md" in e for e in errors)
+            )
+            self.assertTrue(
+                any("2026-01-04-tomb.md" in e and "tombstone" in e for e in errors)
+            )
+
+    def test_findings_topic_coverage_accepts_a_complete_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            findings = root / "findings"
+            findings.mkdir()
+            (findings / "2026-01-01-one.md").write_text("# One\n", encoding="utf-8")
+            (findings / "2026-01-02-two.md").write_text("# Two\n", encoding="utf-8")
+            (findings / "2026-01-03-tomb.md").write_text(
+                "# Tomb\n\npromoted → elsewhere (2026-01-03)\n", encoding="utf-8"
+            )
+            (findings / "README.md").write_text(
+                "<!-- findings-topics:start -->\n"
+                "### Only group (2)\n\n"
+                "- [`2026-01-02`](2026-01-02-two.md) — Two\n"
+                "- [`2026-01-01`](2026-01-01-one.md) — One\n"
+                "<!-- findings-topics:end -->\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_findings_topic_coverage(root, errors)
+
+            self.assertEqual(errors, [])
+
     def test_readme_ownership_reports_files_no_readme_names(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

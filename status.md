@@ -30,19 +30,19 @@ separate table below so both remain scannable.
 
 | # | Track | Public state | Verified | Detail |
 |---|-------|--------------|----------|--------|
-| 1 | Kernel forward-port | 🚧 **2026-08-02:** signed source `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1`, carrying the complete `0001`–`0087` series at `5b87d46eefdcb`, passed patch-only staging, direct signature verification, `.dsc` validation, fresh extraction, rewrite-contamination checks, 11-file tail comparison, and production-config checks. Launchpad source `18654047`, binary publications `247715541`–`247715543`, and arm64 build `33461848` are Published/successful. The prior `0001`–`0080` source is Published as `18652965` and build `33460058` succeeded; the older `20260729` package is installed but unbooted. None of the seven new commits has booted hardware evidence. GitHub source branch `rk3588-video-6.18` is current at `5b87d46eefdcb`. | 2026-08-02 | [kernel package](./packaging/ppa/kernel-forward-port/README.md), [series status](./kernel-drivers/docs/forward-port-status.md) |
+| 1 | Kernel forward-port | 🚧 **2026-08-02:** signed source `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1` carries the complete `0001`–`0087` series at `5b87d46eefdcb` and passed every client-side staging, signature, extraction, and provenance check. Launchpad source `18654047`, binaries `247715541`–`247715543`, and arm64 build `33461848` are Published/successful; the `0001`–`0080` predecessor is Published as `18652965`. **No commit past `0080` has booted hardware evidence**, so install, boot identity, conformance, and rollback are all open. | 2026-08-02 | [kernel package](./packaging/ppa/kernel-forward-port/README.md), [series status](./kernel-drivers/docs/forward-port-status.md) |
 | 2 | BSP-audit fixes | 🚧 All 11 remaining distinct HIGH audit bugs are ported as `0058`–`0068`; the combined tail passed KASAN, destructive-path, production conformance, and root gates. Several fixes still lack individual hostile-path tests, and the older 65-patch MEDIUM/LOW cleanup series remains unshippable. | 2026-07-24 | [audit ledger](./docs/status-ledger.md), [patch catalog](./kernel-drivers/docs/patch-catalog.md) |
 | 3 | DKMS channel | ⚠️ Compiles on 6.18; its DT overlay is dtc-validated but not boot-validated. | 2026-07-01 | [`packaging/dkms/`](packaging/dkms/README.md) |
-| 4 | Clean-room rewrite drivers | 🚧 **2026-08-03:** the 2026-08-02 adversarial review found fifteen implementation defects and repaired all fifteen — DMA ownership and double-copyback, a partially created mapping torn down after its power domain suspended, request-ID reuse redirecting cleanup, driver-owned RCB IOVAs failing their own provenance check, a powered-off HARD-CCU link register read, teardown after a reset that never proved DMA stopped, poll-batch restart and multi-poll overwrite, and a missing `CONFIG_SYNC_FILE` select. Porting that work to mainline then exposed a sixteenth defect: the commit's IOMMU-IRQ-mask recovery fallback is [unreachable by construction](./findings/2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md), since `rockchip_iommu_set_fault_handler()` fails only as `-ENODEV` when `rk_iommu_from_dev_checked()` is NULL and `rockchip_iommu_mask_irq()` returns immediately on that same NULL lookup. Removing it (`501a2b47f3503`) is a no-op on 6.18 and unblocked the port, since the helper is BSP-only. Tips are now 6.18 `501a2b47f3503` and mainline `694aac9b7c0ff`, with both rewrite directories byte-identical again and all four object builds passing across 6.18 and `v7.2-rc5` — the review fixes' first build on mainline. The cleanest booted result is `#29` (`g8042f13c5459`, 2026-08-02 14:46): exact 89/89 MPP plus 150/150 RGA KTAP, zero fatal signatures across the whole boot, live lockdep, kmemleak scanning, and every expected MPP/RGA core registered — but it predates the review fixes. KASAN package `#30` (`g2f05724a2003`) carrying them is **built and installed at `/boot` yet never booted**, and its gate is the larger 92 MPP + 152 RGA manifest; it also predates `501a2b47f3503`, so a successor package is now required. No AV1 hardware run, librga suite, or SWIOTLB/recovery fault injection exists on the corrected source, and VCD completion still lacks an independent architectural AFBC DMA-retirement proof. | 2026-08-03 | [adversarial review](./kernel-drivers/docs/rewrite-driver-adversarial-review-2026-08-02.md), [AV1/VSI lifecycle finding](./findings/2026-07-30-rewrite-av1-vsi-fault-afbc-lifecycle-races.md), [soft-CCU wedge root cause](./findings/2026-07-29-rewrite-soft-ccu-dual-core-wedge.md), [KUnit fixture and evidence contract](./kernel-drivers/docs/rewrite-kunit.md), [review round 2](./findings/2026-07-29-rewrite-driver-review-round-2.md) |
+| 4 | Clean-room rewrite drivers | 🚧 **2026-08-03:** the 2026-08-02 adversarial review found fifteen implementation defects and repaired all fifteen; porting that work to mainline exposed a sixteenth, an [IOMMU-IRQ-mask fallback unreachable by construction](./findings/2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md), whose removal (`501a2b47f3503`) is a no-op on 6.18. Tips are 6.18 `501a2b47f3503` and mainline `694aac9b7c0ff`, byte-identical, with all four object builds passing across 6.18 and `v7.2-rc5`. **Evidence lags the source in both directions**: cleanest boot `#29` (`g8042f13c5459`) posted exact 89/89 MPP plus 150/150 RGA KTAP with live lockdep and every core registered but predates the review fixes, while KASAN package `#30` carries them, has never booted, and itself predates `501a2b47f3503` — a successor package is required. No AV1 hardware run, librga suite, or SWIOTLB/recovery fault injection exists on the corrected source, and VCD completion still lacks an independent architectural AFBC DMA-retirement proof. | 2026-08-03 | [adversarial review](./kernel-drivers/docs/rewrite-driver-adversarial-review-2026-08-02.md), [AV1/VSI lifecycle finding](./findings/2026-07-30-rewrite-av1-vsi-fault-afbc-lifecycle-races.md), [soft-CCU wedge root cause](./findings/2026-07-29-rewrite-soft-ccu-dual-core-wedge.md), [KUnit fixture and evidence contract](./kernel-drivers/docs/rewrite-kunit.md), [review round 2](./findings/2026-07-29-rewrite-driver-review-round-2.md) |
 | 5 | ffmpeg tree | ⚠️ Package branch `fix/rkmpp-output-timeout@c9428bedaa` fixes the asynchronous `MppFrame` reset/close double release. The affected object, `fate-source`, source package, and focused RK3588 gates pass: 10/10 immediate-close plus 10/10 flush/reuse, without the old libmpp refcount/pool diagnostics. Published and installed packages remain at predecessor `33a651a55b`; candidate installation and the real GRD fallback/recreation gate are pending. Canonical-tip and AV1 MP4/MKV board validation remain open. | 2026-07-30 | [lifetime fix](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md), [FFmpeg status](./video-libraries/ffmpeg/README.md) |
-| 7 | GNOME Remote Desktop backend | 🚧 Public `release/50.2-rkmpp@c4ef3c9` rebases all 16 existing release changes patch-identically onto latest GNOME 50 stable and adds the narrowed reconnect-timeout repair. The June patch was re-audited: its unsafe global `client_taken` and broad greeter-preservation paths remain excluded, while a reassigned persistent user display now retains its `RemoteId` subscription after timeout so another authenticated reconnect can retry without restarting the daemon. The `~rk1` arm64 build `33452991` failed without retained diagnostics; a local package rebuild reproduced a successful RDP assertion followed by 21.64s total teardown against Meson's 20s limit. Replacement `~rk2` changes no production source, keeps the test fatal with a 3× timeout multiplier, and passes the full native build locally. Launchpad source `18654077`, binary `247717203`, and build `33461880` are Published/successful; the build log records RDP green, zero failures, and two expected skips. Installation and live idle-reconnect replay remain. | 2026-08-02 | [reconnect audit and fix](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md), [color fix](./findings/2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md), [testing](./apps/gnome-remote-desktop/docs/testing.md) |
+| 7 | GNOME Remote Desktop backend | 🚧 Public `release/50.2-rkmpp@c4ef3c9` rebases all 16 existing release changes patch-identically onto latest GNOME 50 stable and adds a narrowed reconnect-timeout repair: only a display explicitly reassigned into the persistent user handover survives timeout, keeping its `RemoteId` listener so the next authenticated attempt can retry without restarting the daemon. Packaging-only `~rk2` corrects the fatal RDP test's too-tight 20 s timeout and changes no production source; source `18654077`, binary `247717203`, and build `33461880` are Published/successful with RDP green, zero failures, two expected skips. Installation and live idle-reconnect replay remain. | 2026-08-02 | [reconnect audit and fix](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md), [color fix](./findings/2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md), [testing](./apps/gnome-remote-desktop/docs/testing.md) |
 | 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ⚠️ The latest forward-port kernel source `18654047` and its three binaries are Published, with arm64 build `33461848` successful. GRD replacement source `18654077` and binary `247717203` are Published, with build `33461880` successful after correcting the fatal integration test's too-tight timeout. The normal stack and comparison/rewrite archives otherwise retain their package-specific recorded states; exact installs, board validation, and rollback remain open. | 2026-08-02 | [`packaging/ppa/`](packaging/ppa/README.md) |
+| 9 | Launchpad PPA | ⚠️ The latest forward-port kernel source `18654047` (three binaries, build `33461848`) and GRD replacement source `18654077` (binary `247717203`, build `33461880`) are Published/successful. The normal stack and comparison/rewrite archives otherwise retain their package-specific recorded states; every board-side gate — exact install, validation, rollback — remains open. | 2026-08-02 | [`packaging/ppa/`](packaging/ppa/README.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
-| 13 | Maximum-mainline kernel | 🚧 **2026-08-02:** refreshed `public`/`wip` sources pin Linux `7.2-rc6`, Torvalds `master@075b74841bd0`; matching validation branches pin `next-20260731@415606a7be93`. Revised proposals and subsystem-next acceptances are reconciled. Linus/public passes the full native compile gate; linux-next/WIP focused and partial-build checks pass, but its full build was stopped by request. Refreshed packages, boot, and hardware validation remain open. | 2026-08-02 | [refresh audit](./findings/2026-08-02-rk3588-maxline-proposal-refresh.md), [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
-| 14 | Desktop-app HW video (browsers) | 🚧 Installed, payload-matched driver/config `1.0.11+ysp8-0ubuntu1~rk1` are green through the guarded safe decode matrix, zero-copy/concurrent/mixed gates, 10-bit P010 decode above 60 fps, H.264/HEVC encode, imports/multi-slice, GStreamer VA readback, and isolated-Mutter presentation in installed VLC, mpv, and Firefox for H.264, HEVC Main, VP9 Profile 0, HEVC Main10, and VP9 Profile 2. Firefox's 10-bit planes import correctly, superseding the former invalid-`GR16` failure, but the run disabled the RDD sandbox. The one `rk_vcodec cmd 100 ret -22` pair is root-caused to libmpp probing unavailable optional IEP2 deinterlacing; MPP disables it and the interlaced H.264 clip remains bit-exact. RK3588 has IEP2 hardware and no VDPP instance. The 6.18 source port now contains its driver/DT path and compile-tested lifetime, fault, teardown, clock, DMA-boundary, and IOVA hardening; KASAN package `Pcf86-Cc271` contains that work, but the installed kernel still omits client 28 and the package/output remain unbooted and unvalidated on-board. The production forward-port/vendor RGA3 path passes 90/90 runs and 4,320/4,320 exact frames at each formerly suspect small geometry, including both RGA3 cores; the silent dropped write remains rewrite-driver-specific. Exact Published MPP/FFmpeg sweep/sanitizer/soak history remains valid. Open: ysp8 was built from a dirty worktree over `main@aee5926`, the risky VP9 vector is fingerprint-quarantined, CMA is 256 rather than 512 MiB, and sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image install, and release remain. | 2026-08-02 | [installed ysp8 validation](./findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md), [forward-port RGA discriminator](./findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md), [IEP2 safety review](./kernel-drivers/iep2/docs/forward-port-safety-review.md), [`rockchip-vaapi` project](./video-libraries/vaapi/README.md) |
+| 13 | Maximum-mainline kernel | 🚧 **2026-08-02:** refreshed `public`/`wip` sources pin Linux `7.2-rc6` at Torvalds `master@075b74841bd0`, with validation branches on `next-20260731@415606a7be93`; revised proposals and subsystem-next acceptances are reconciled. Linus/public passes the full native compile gate; linux-next/WIP passes focused and partial builds, with its full build stopped by request. Refreshed packages, boot, and hardware validation remain open. | 2026-08-02 | [refresh audit](./findings/2026-08-02-rk3588-maxline-proposal-refresh.md), [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
+| 14 | Desktop-app HW video (browsers) | 🚧 Installed, payload-matched driver/config `1.0.11+ysp8-0ubuntu1~rk1` are green through the guarded safe decode matrix, zero-copy/concurrent/mixed gates, 10-bit P010 decode above 60 fps, H.264/HEVC encode, imports/multi-slice, GStreamer VA readback, and isolated-Mutter presentation in installed VLC, mpv, and Firefox for all five shipping profiles — though Firefox ran with its RDD sandbox disabled. The one `rk_vcodec cmd 100 ret -22` pair is harmless, root-caused to libmpp probing unavailable optional IEP2 deinterlacing, with the interlaced clip still bit-exact. The 6.18 source port carries the IEP2 driver/DT path with compile-tested hardening, but KASAN package `Pcf86-Cc271` is unbooted and the installed kernel still omits client 28. The silent small-geometry dropped write is **rewrite-driver-specific**: the production forward-port/vendor RGA3 path passes 90/90 runs and 4,320/4,320 exact frames on both cores. Open: ysp8 was built from a dirty worktree over `main@aee5926`, CMA is 256 rather than 512 MiB, and sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image install, and release remain. | 2026-08-02 | [installed ysp8 validation](./findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md), [forward-port RGA discriminator](./findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md), [IEP2 safety review](./kernel-drivers/iep2/docs/forward-port-safety-review.md), [`rockchip-vaapi` project](./video-libraries/vaapi/README.md) |
 | 15 | CPU voltage binning (PVTM/eFuse) | ❌ No patch, branch, or build exists. The board's BSP-selected L5/L7/L7 voltage columns are measured and materially lower than mainline's worst-die table below 2.4 GHz; the two-track port plan is gated by cold-boot, SRAM-margin, and shared-DSU-rail validation. | 2026-07-27 | [port plan](./kernel-versions/docs/pvtm-opp-binning-plan.md), [measured index](./findings/2026-07-27-rk3588-pvtm-volt-sel-measured.md) |
 
 ## Next gates
@@ -97,8 +97,8 @@ last-checked date.
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-16 | Fix carried forward; board re-test pending. |
 | W09 | [Kodi build and tty1 playback](#watch-w09) | 2026-07-11 | Prerequisites ready; build/playback/package pending. |
 | W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-08-02 | Latest GNOME 50 source remains `c4ef3c9`; packaging-only `~rk2` corrects the fatal RDP test's 20s timeout and is Published after successful build `33461880`. Exact idle reconnect replay, repeated focus/resume, compressed-audio interoperability, and upstream review remain. |
-| W11 | [Repository-wide license](#watch-w11) | 2026-07-11 | No repository-wide license granted. |
-| W12 | [Dev-box-only artifacts](#watch-w12) | 2026-07-11 | Identified code/package artifacts are captured. |
+| W11 | [Repository-wide license](#watch-w11) | 2026-08-03 | No repository-wide license granted. |
+| W12 | [Dev-box-only artifacts](#watch-w12) | 2026-08-03 | Identified code/package artifacts are captured. |
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-25 | `0074` is boot-verified on the `6.18.40` KASAN forward-port: raw RGA 10-bit stride/UV-offset gates pass and fresh-librga P010/NV15 probes pass. Production packaging still must ship the kernel and librga changes together; the source-built 10-bit `librga-smoke` wrapper remains red only at unrelated `imfill`. |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
 | W15 | [RGA session-close fix vs. the frozen import](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0039`; frozen base patch still has the old path. |
@@ -171,71 +171,6 @@ last-checked date.
   with RDP green, zero failures, and two expected skips. Kernel binary
   publications `247715541`–`247715543` are Published. The preceding kernel
   `0001`–`0080` source `18652965` is Published and build `33460058` succeeded.
-- **State 2026-07-29:** Launchpad accepted
-  `gnome-remote-desktop_50.2+rkmpp+git20260729.14.24f4392-0ubuntu1~rk1` as
-  source publication
-  [`18647901`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647901)
-  and dispatched arm64 build
-  [`33450532`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450532)
-  to `bos03-arm64-101`. The source is Published and the build succeeded in
-  18m56s. This is the clean 50.2 release branch plus the runtime-verified
-  full-range BT.709 color-signaling fix. Latest-GNOME-50 reconnect successor
-  `…15.c4ef3c9` passes local source/native/RDP/Lintian gates, is accepted as
-  Pending source
-  [`18649293`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18649293),
-  and has arm64 build
-  [`33452991`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33452991)
-  queued as Needs building.
-- **State 2026-07-25:** `librga_2.2.0+git20260725.26a50ef-0ubuntu1~rk1` uploaded
-  from fork tip `26a50ef`, superseding the `…20260724.b8def3e` upload below —
-  that one limited the 10-bit byte-stride conversion to RASTER, and `4c26ddf`
-  extends it to TILE. Client-side verified (lintian clean bar a
-  `newer-standards-version` warning, full local arm64 binary build, SONAME still
-  `librga.so.2`), `debsign`ed, `dput` succeeded, **Launchpad processing
-  pending** — verify it reaches Published with a successful arm64 build.
-- **State 2026-07-24:** Two `dput` uploads carrying the 10-bit byte-stride fix,
-  Launchpad processing pending — verify both reach Published with a successful
-  arm64 build: production forward-port kernel
-  `linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260724-0ubuntu1~rk1` (tail
-  `0001`–`0073`, local production build `P272c-Cb831`, adding `0072` RGA3
-  byte-stride fix and `0073` RGA2 >4G reject over the Published `…20260723`),
-  and `librga_2.2.0+git20260724.b8def3e-0ubuntu1~rk1` (im2d raster pixel→byte
-  conversion). Both are client-side verified (`dpkg-source -x`, content checks)
-  and `debsign`ed. The `…20260723` kernel below has since reached Published,
-  built on arm64, and passed full conformance plus root gates on-board
-  ([run](./findings/2026-07-24-production-ppa-kernel-full-conformance-run.md)).
-- **State 2026-07-23 (forward-port kernel):** The production (non-debug) source
-  package `linux-rockchip64-ysp_6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1`
-  — the complete current tip (single `rk3588-video-6.18` branch, contiguous
-  `0001`–`0071`), built locally as production kernel `P5618-Cb831`
-  (`CONFIG_KASAN` off, AV1 on) — was `debsign`-signed (`0FDDE6BC…AA2228E6`) and
-  `dput`-uploaded to `ppa:yi-ding/ubuntu-rock-5b`; all client-side checks
-  (GPG/checksums/required-fields) passed and **Launchpad accepted it** — source
-  publication
-  [`18639187`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18639187),
-  status **Pending**. Next check: confirm it reaches Published and its arm64
-  build succeeds, then board-install/boot/conformance/rollback this production
-  image. The previous local `…20260720` was never uploaded, and the Published
-  line had stopped at `…20260717` (patch `0041`-era).
-- **State then (2026-07-19):** Launchpad's API and exact-version binary queries showed the
-  current package lines Published. In the normal PPA, FFmpeg source
-  [`18628833`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18628833)
-  carries `da5befc806`; arm64 build
-  [`33417109`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33417109)
-  succeeded and the exact `ffmpeg` binary is Published. The two Armbian-based
-  rewrite replacements are also Published: 6.18.38 source/build
-  [`18623665`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+sourcepub/18623665) /
-  [`33406491`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel618-rewrite/+build/33406491)
-  and 7.2-rc3 source/build
-  [`18623666`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+sourcepub/18623666) /
-  [`33406492`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-kernel72rc2-rewrite/+build/33406492).
-  Experimental GRD `~exp3` source
-  [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586),
-  successful build
-  [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698),
-  and its exact arm64 binary are Published. The normal PPA has no dependency on
-  the experimental archive. The optional GDM ACL package was not uploaded, and
-  no PPA kernel had passed its board gate.
 
 <a id="watch-w06"></a>
 ### W06 — Mesa MR stack
@@ -312,70 +247,35 @@ last-checked date.
   are Published/successful. Its log records RDP green in 9.76s, zero failures,
   and two expected skips. Installation and the exact board reconnect replay
   remain.
-- **State 2026-07-29:** Public release source `c4ef3c9` rebases the 16 existing
-  downstream patches without semantic drift onto latest GNOME 50 stable and
-  adds narrowly scoped timeout survival for a reassigned persistent user
-  display. The old June `client_taken` and preserve-any-registered-display
-  mechanisms were re-reviewed and remain excluded. Source/native arm64, RDP
-  integration, signatures, and Lintian error gates pass. Launchpad accepted
-  Pending source `18649293` and queued arm64 build `33452991`; the exact idle
-  reconnect plus first-redirect race still need board replay.
-- **State 2026-07-21:** The reconstructed-ACK recovery is live-validated and the
-  idle-time false-starvation actuator is source-fixed; installed `exp9` audibly
-  validates PCM RDP output after the PipeWire migration. Repeated focus/resume
-  video validation, compressed-audio interoperability, publication/promotion,
-  and upstream review all remain owed.
-- **State 2026-07-20:** Diagnostic `~exp2` and recovery `~exp3` narrowed the original
-  graphics-thread stall; the latter is Published as source `18626586` and build
-  `33412698`. Subsequent local `exp5@b3f0e20` hardware testing proved exported
-  patch `0016` removes the uncached imported-buffer readback hang. The fluid
-  session then exposed a distinct intermittent encode fallback: MPP refused a
-  frame under transient input-pool pressure, while FFmpeg `540657970e` waited
-  for output from that never-submitted frame. Wrapper fix `da5befc806` is
-  Published in the normal PPA. The next macOS focus-return wedge was captured
-  independently: the resumed connection retained 908 reconstructed frame ACKs
-  and zero frame slots despite live input/transport and healthy hardware.
-  Cleaned patch `0017@7f6a45e74fd3` adds transition logs and a progress-gated
-  two-second recovery. Its functional `~exp6@7e958e6` predecessor passes tests
-  and a local arm64 package build and is installed. The watchdog fired once
-  with two stalled ACKs, forced refresh, and restored hardware submissions,
-  runtime-validating that recovery. The same live run caught a second failure:
-  GDB showed the first new work after focus return was about
-  1 ms old but inherited a 42.493-second pre-idle submit age and immediately
-  fired the software cooldown. Patch `0018@38e81610a400` gives newly outstanding
-  work a fresh watchdog window. The final source and native arm64 `exp7`
-  package builds pass. Installed `exp8` with diagnostic patch `0019` captured
-  the Microsoft macOS client's sole exact stereo PCM format. Installed `exp9`
-  adds patch `0020`'s channel/training/PipeWire PCM/`SNDC_WAVE2`/wave-confirm
-  markers and temporarily removes Opus from the server offer. Its live trace
-  reached nonzero capture, PCM sends, and confirmations; after the PipeWire
-  migration reboot, the client rendered audible audio. A Windows control
-  rejects playback DVC with the same status and appears to use ADPCM or A-law
-  over SVC, so the next codec step is to identify the exact returned tuple,
-  not to chase DVC. Repeated focus/resume video validation,
-  publication/promotion, compressed-audio implementation, and an upstream
-  GNOME review remain.
 
 <a id="watch-w11"></a>
 ### W11 — Repository-wide license
 
 - **Why recheck:** A public release needs a clear redistribution license.
-- **Last checked:** 2026-07-11
-- **State then:** No repository-wide license had been granted; the boundary
-  remained [`LICENSE.md`](LICENSE.md).
+- **Last checked:** 2026-08-03
+- **State 2026-08-03:** Unchanged and re-read at source: [`LICENSE.md`](LICENSE.md)
+  still opens "No repository-wide license has been granted for this repository
+  yet." That file is the decision boundary, so this item is verified in-repo
+  rather than against anything external. Track 10 (binary publishing) stays
+  gated on it.
 
 <a id="watch-w12"></a>
 ### W12 — Dev-box-only artifacts
 
 - **Why recheck:** Uncaptured code or packaging in a dirty worktree is a single
   point of failure.
-- **Last checked:** 2026-07-11
-- **State then:** No identified code/package artifact remained only in an
-  uncaptured dirty tree. GRD async-PBO and MemFd prototypes were exported under
-  [`patches/reference/`](./apps/gnome-remote-desktop/patches/reference/). The
-  throwaway headless harness was not preserved, but its reconstruction was
-  documented. Evidence: [`baseline.md`](./apps/gnome-remote-desktop/docs/baseline.md)
+- **Last checked:** 2026-08-03
+- **State 2026-08-03:** Re-verified in-repo and unchanged. Both GRD prototypes
+  are still exported under
+  [`patches/reference/`](./apps/gnome-remote-desktop/patches/reference/) as
+  `async-pbo-prototype.patch` and `memfd-prototype.patch`, and all three
+  evidence owners are present: [`baseline.md`](./apps/gnome-remote-desktop/docs/baseline.md)
   §7, [`profiling.md`](./apps/gnome-remote-desktop/docs/profiling.md) §4, and
+  [`external-workspaces.md`](packaging/external-workspaces.md). The throwaway
+  headless harness is still not preserved, but its reconstruction is documented.
+  Note the scope limit: this checks that everything *known* to be at risk is
+  captured. It cannot discover a new uncaptured artifact sitting in a dirty
+  external tree — that needs a sweep of the trees named in
   [`external-workspaces.md`](packaging/external-workspaces.md).
 
 <a id="watch-w13"></a>
@@ -391,33 +291,10 @@ last-checked date.
   pixel-depth scale, and `rga_convert_addr()` has no `rd_mode` distinction at
   all. librga `b8def3e` had gated the pixel→byte conversion on raster, and the
   rewrite's TILE branch pinned the wrong convention with a KUnit guard. Fixed in
-  librga `4c26ddf` (shipped as the `…20260725.26a50ef` upload, W05) and rewrite
+  librga `4c26ddf` (shipped as the `…20260725.26a50ef` PPA upload) and rewrite
   `40cf22629cf63`/`7481ab327d7ea`. **Kernel and librga must now ship together
   for TILE 10-bit**, the same coupling as the `0072`/`c80eea7` raster pair. See
   the [TILE byte-stride finding](./findings/2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md).
-- **State 2026-07-24:** `rga_convert_addr()` is wrong again, in the opposite
-  direction. `0049` scaled `vir_w` by pixel depth to fix the 1 byte/px UV
-  derivation below, but `0072` then made `vir_w` a **byte** stride, so that
-  scaling now double-applies the depth: measured on the booted `…20260724~rk1`
-  plus librga `b8def3e` pair, the UV plane is read from the `×10/8` (compact) or
-  `×2` (incompact) offset — tight buffers IOMMU-fault and over-sized buffers
-  silently get wrong chroma. Fixed by `0074` (`710e6ad12af6`,
-  `y_bytes = vir_w * vir_h`), boot-verified on the 2026-07-25 KASAN gate;
-  the 10-bit gates now also check chroma content so a recurrence cannot pass as
-  a green. See the
-  [UV-offset finding](./findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md).
-- **State 2026-07-21:** The series from `2cffdf6` through `main@a632217` was exported
-  under [`vendor-libraries/rga/patches/`](./vendor-libraries/rga/patches/README.md).
-  On `P63dd-C4ad2` (kernel `0047` stride fix) the direct im2d P010 probes
-  show luma bit-exact; the remaining chroma corruption is the kernel's
-  `rga_convert_addr()` deriving UV plane offsets at 1 byte/px, fixed by
-  kernel patch `0048@6c7eb3efa3f0` (booted chroma gate pending). The
-  FFmpeg Main10→P010 case shows the matching signature (y≈61 dB,
-  u/v≈4.6 dB). The smoke's 10-bit im2d cases (luma-asserting) pass with
-  `LIBRGA_SMOKE_10BIT=1` on the source-built fork. Linear NV15
-  input is separately not RGA-expressible at 1920 wide. See the
-  [root-cause finding](./findings/2026-07-21-rga-ffmpeg-librga-conformance-root-causes.md)
-  and [shipping guidance](./vendor-libraries/rga/docs/librga-p010-p210-rkrga.md).
 
 <a id="watch-w14"></a>
 ### W14 — YSP Armbian builder
@@ -481,67 +358,14 @@ last-checked date.
   Twelve are reachable by any process that can open `/dev/mpp_service` or
   `/dev/rga`; five of those are unprivileged kernel-heap corruption. **All four
   patches are compile-verified only — none has been booted and no reproducer
-  has been run**, so the `0001`–`0071` hardware evidence below does not extend
+  has been run**, so the earlier `0001`–`0071` hardware evidence does not extend
   to them, and a KASAN + `DEBUG_ATOMIC_SLEEP` + lockdep boot with full
   conformance is owed before they ship. The same sweep confirms the forward
   port never carried the sleeping fault-handler tail that panicked the board
   (its `rockchip_iommu_set_fault_handler()` is a plain pointer swap), which
-  corroborates the orig-provenance finding below. See
-  [the audit finding](./findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md).
-- **State 2026-07-29:** The shipped `…20260725` production package is **not** the exported series: its orig is a rewrite-composite snapshot of the shared Armbian worktree (byte-identical rewrite-branch `rockchip-iommu.c`, 10 inert `*-rewrite` files), and its hardened IOMMU fault-handler setter panicked the board from the vendor MPP job ISR on 2026-07-29 08:01. The series and the `20260723` orig are clean; the leak is unique to the 07-25 export. Source fix landed on both rewrite tips (`35eb735d21dd8`/`2cf0126529c1c`, pushed); the provenance-repaired `…20260729-0ubuntu1~rk1` re-cut (exporter now excludes rewrite paths) is signed and `dput`-uploaded client-side as of 09:04; Launchpad acceptance/build, install, and the re-armed RDP gate remain. See [the ISR-panic finding](./findings/2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md) and [the provenance finding](./findings/2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md).
-- **State 2026-07-25:** The exported tail is contiguous `0001`-`0075` and the `0074`/`0075` board gates are now closed on `6.18.40-video-port-kasan-rockchip-rk3588 #2`. Raw RGA 10-bit stride/UV-offset gate `20260725-195821-rga-10bit-gates`, fresh-librga P010/NV15 gate `20260725-200145-rga-im2d-10bit-current-gates`, forced `split_arg=4` MPP gate `20260725-195350-mpp-suite`, KASAN MPP `20260725-195451-kasan-mpp-suite`, ioctl fuzz `20260725-200344-ioctl-fuzz-smoke`, and root gates `20260725-200607-root-gates` are green, with `mpp-debug-capture` skipped as expected. The remaining open piece is production package/install/rollback, not the KASAN hardware proof.
-- **State 2026-07-24:** The exported tail was then contiguous `0001`–`0074`, and
-  the claimed production gate is real: Published `…20260723~rk1` (tail
-  `0001`–`0071`) was installed from the PPA, booted, and passed the full
-  conformance set plus root gates. `0072`–`0074` (10-bit RGA stride/UV offset)
-  are compile-clean with their board gate **owed** — the `0072` gate ran and
-  failed, which is what `0074` fixes. The alignment this row exists to watch
-  therefore holds for `0001`–`0071` and is open for the three-patch tail.
-- **State 2026-07-21:** The maintained series now exports all three fixes: `0040`
-  unlinks MPP sessions before private teardown; `0041@a68c39dbb834` clears
-  `session->dma` after RESET_SESSION destroys it; and
-  `0042@e2a89c172758` samples the RKVENC2 abort flag before the final task
-  reference can free the object. Run `20260718-093751-kasan-narrowed` verifies
-  `0041` with zero flagged lines. Run `20260718-103917-kasan-mpp-suite`
-  exercises `0041`/`0042` with empty KASAN/fatal scans and passing ordinary
-  encode cases. Corrected run `20260720-213128-kasan-mpp-suite` proves the
-  apparent multi-instance H.265 and slice failures were harness defects; all
-  three 120-frame cases pass, and full `20260720-213542-mpp-suite` passes the
-  selected 12-case matrix. An abusive split control separately found an open
-  RKVENC2 slice-FIFO overflow. Patches `0043@bb15076cd6fa` and
-  `0044@2d6367ad0b05` fix the two RGA ABI replay gaps: `rkvenc-fwport-6.18`
-  was fast-forwarded to `27452e3`, rebuilt as KASAN debug build `Pb999-C4ad2`,
-  installed, and booted, and run `20260721-034716-kasan-narrowed` passed the
-  full ABI replay (`abi_status=0`) with a clean memory scan. The same boot
-  re-ran the 12-case MPP matrix (`20260721-042445`) and full FFmpeg
-  codec/bit-exact PSNR suite (`20260721-042631`) green with clean scans. The
-  librga smoke's `no core match` flakiness was then root-caused and fixed in
-  the harness (13 cases green), and new RGA fixes `0045@7b48a8d5b30d`
-  (legacy-virtual `0044` regression), `0046@0feb65c7ee16` (under-4G
-  `EOPNOTSUPP` reporting), and `0047@4b2beb91521f` (byte-literal 10-bit
-  raster strides, the measured P010 corruption) passed their booted gates on
-  rebuilt debug build `P63dd-C4ad2`: legacy blits succeed, the exclusion
-  probe returns `EOPNOTSUPP` with the explanatory log, P010 luma is
-  bit-exact, the librga smoke is fully green for the first time (28 cases,
-  `LIBRGA_SMOKE_10BIT=1`), ABI replay `20260721-081456` and the 12-case MPP
-  matrix `20260721-081639` are clean, and FFmpeg `20260721-081448` passes
-  all 14 required cases plus bit-exact AV1 PSNR. The `0047` gate exposed a
-  final 10-bit defect — `rga_convert_addr()` places UV planes at 1 byte/px
-  offsets — fixed by `0048@6c7eb3efa3f0` (booted chroma gate pending its
-  debug build). DMA-debug also flagged the missing
-  `dma_set_max_seg_size()` on the rga2 device (96 KiB CMA segments vs the
-  64 KiB default). Patches `0049@c4bf430d907f` and `0050@afcd69845942` implement the renumbered DMA scope: the page tables become owned streaming DMA mappings of the RGA2 device (plus `dma_set_max_seg_size` and a page-preserving swiotlb min-align mask), and over-4G buffers are served on RGA2 through DMA-API mappings of the 32-bit device with `EOPNOTSUPP` fallback. On debug build `P9636-C4ad2` (`#5`, carrying `0048`–`0050`) the `0048` and `0049` gates pass: P010→P010 copies are bit-exact including chroma, P010→NV12 chroma is neutral, FFmpeg `hevc_main10_p010_rga` flips to PSNR `inf/inf/inf` (run `20260721-110029`), and smoke (28 ok)/MPP (12/12)/ABI (`20260721-110007`) are green with a completely clean DMA-debug/KASAN journal — both the July 20 page-table splat and the segment-size warning are gone. The `0050` gate ran the over-4G system-heap imcopy on RGA2 (no more `EOPNOTSUPP`) but read back stale destination data on two successive debug builds, exposing two copy-back defects: the post-clean was wrongly guarded with `!iommu_mapped` (excluding default-map-core origins; fixed on `P9636`, keyed on bounce direction), and — first-order, exposed by the `P9412` (`#6`) re-run — the transient dst bounce inherited the channel get-side `DMA_TO_DEVICE`, so swiotlb never copied the device output back at unmap. Fixed in the amended `0050@afcd69845942` (every transient bounce mapped `DMA_BIDIRECTIONAL`, matching the persistent mappings); the content-exact gate awaits the next debug build. A mixed-heap differential matrix on `P9412` isolates the defect to the dst leg alone: src-only bounces (system→CMA) and the userptr bounce branch (malloc→CMA) are content-exact, and the mapping-failure fallback gate passes — 128 MiB over-4G buffers fail cleanly with `EOPNOTSUPP` plus the explanatory log (swiotlb's 256 KiB per-mapping cap, not pool exhaustion, is the practical bound: over-4G buffers with ≥1 MiB exporter chunks always take the fallback). The same boot closed the last `0047` caveat — the compact-NV15 raster leg is hardware-validated by the new `rga-nv15-test` probe (semantic NV15→NV12 read, CPU-unpacked P010→NV15 write, bit-exact NV15 copy at 256/320/1920 widths). On debug build `P7589-C4ad2` (`#7`, the amended `0050`) the gate CLOSES: the full differential matrix is content-exact (both-legs, dst-only, and userptr bounces), the fallback stays clean `EOPNOTSUPP`, and the same-boot smoke (28 ok)/P010/NV15/ABI (`20260721-145234`)/MPP (`20260721-145243`)/FFmpeg (`20260721-145258`, 24/24, Main10 PSNR inf) sweep is green with a zero-flagged-line journal — `0043`–`0050` are BOOT-VERIFIED on one kernel. (Watchlist: `P7589`'s first boot attempt hung with no oops/pstore capture and needed a hard reset; the second boot was clean — watching for recurrence.)
-  Clean exact-6.18.38 production build `Pf558-Cb831` and the freshly extracted
-  unsigned 20260720 PPA source package carry both lifetime fixes with the
-  non-debug AV1/RGA config but predate `0043`/`0044`. The Published kernel then
-  stopped at `0040`, so RGA/GStreamer
-  completion, upload/Launchpad build, exact-image board conformance, and
-  rollback remain open. Evidence:
-  [procfs fix](findings/2026-07-17-mpp-procfs-session-teardown-oops.md),
-  [RESET_SESSION fix](findings/2026-07-18-mpp-reset-session-dma-double-free-kasan.md),
-  [RKVENC2 fix](findings/2026-07-18-rkvenc2-wait-result-task-uaf-kasan.md),
-  [RGA ABI fixes](findings/2026-07-21-rga-forward-port-abi-gaps.md), and
-  [slice-FIFO finding](findings/2026-07-20-rkvenc2-slice-fifo-terminal-drop.md).
+  corroborates the
+  [orig-provenance finding](./findings/2026-07-29-production-6-18-40-orig-is-rewrite-composite-snapshot.md).
+  See [the audit finding](./findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md).
 
 <a id="watch-w17"></a>
 ### W17 — Maximum-mainline proposal-set drift
@@ -586,8 +410,8 @@ last-checked date.
   [installed validation](./findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md)
   for exact hashes, package/runtime identities, all gate results, the harmless
   optional-IEP2 `cmd 100 ret -22` root cause, and the remaining boundaries.
-- **State 2026-08-02:** Fork tip is `main@aee5926`. `df14bb6` (2026-07-30)
-  **supersedes the 2026-07-29 Firefox Main10 diagnosis below**: the driver
+- **State 2026-08-02 (Firefox Main10 correction):** `df14bb6` (2026-07-30)
+  **supersedes the earlier "Panfrost cannot import P010 chroma" diagnosis**: the driver
   exported split P010 chroma as `0x36315247`, a VA-style `GR16` literal, where
   `DRM_FORMAT_GR1616` is `0x32335247`, so Mesa's `EGL_BAD_MATCH` was correct
   and the import never reached Panfrost. That commit replaces every DRM format
@@ -595,63 +419,6 @@ last-checked date.
   `panfrost-p010-chroma-retry` patches, and leaves the RDD sandbox pair as the
   only Firefox patches; `1.0.11+ysp7` imports Main10 zero-copy in both Firefox
   processes. Upstream `woodyst/main` is still `e8c64dd`.
-- **State 2026-07-29:** Roadmap development is committed and pushed as
-  `main@5d558fa`. The board now runs payload-matched
-  `rockchip-vaapi 1.0.11+ysp5`, not ysp1. Measured working-tree gates close
-  1080p 10-bit throughput, VLC Main10, linear two-object import, equal-row
-  multi-slice, native WebRTC peer transport, same-process
-  two-decode/two-encode normal/ASan/TSan, and the 7,200-second encode soak.
-  Firefox Main10 is isolated to Panfrost rejecting Firefox's GR1616 EGL import;
-  exact-source 152.0.6/153.0 consumer patches pass and the affected 152.0.6
-  release object compiles. Exact Published MPP `3381fd2c` and FFmpeg
-  `33a651a55b` binaries pass the isolated 163-vector sweep and full normal
-  plus ASan/UBSan matrices; their 7,200-second 4K decode soak completes
-  216,005 external frames with no RSS or fd growth. They are not installed.
-  Signed final source
-  `1.0.11+ysp6-0ubuntu1~rk1` and its exact binaries pass source/binary,
-  Lintian-error, and isolated lifecycle gates but are not uploaded or
-  installed. Upstream remains `woodyst/main@e8c64dd`.
-- **State 2026-07-28:** Fork advanced to `main@db5e0f0`, fully pushed (the
-  `fork` remote matches local HEAD exactly; note `origin` in that checkout is
-  *upstream* `woodyst`, so an "unpushed" count measured against `origin` is
-  meaningless). Seven commits past `03e6cb6`: `395c8f7` HEVC direct TILES
-  backend reducer, `afe8873` P010 import backend boundary, `f30490b` AV1 decode
-  plan, `4872b59` native WebRTC peer gate, `4d98eca` bounded AV1 platform
-  capability probe, `464753b` structured leveled logging, `db5e0f0` isolated
-  Debian package gate. Uncommitted in the working tree: a modified `Makefile`
-  and three untracked fuzz harnesses (`tests/{h264,hevc,vp9}_fuzz.c`).
-  **Upstream has not revived** — `origin/main` is still `e8c64dd`, unmoved since
-  2026-05-28, which answers this entry's standing recheck question.
-  **What is deployed lags badly:** the board carries `rockchip-vaapi 1.0.11+ysp1`
-  with `rockchip_drv_video.so` dated 2026-07-21, predating the entire Phase 0/1
-  renovation, both encode paths, and every commit above; and
-  `librockchip-mpp1 1.5.0+git20260529.1375813c`, predating the HEVC TILES fix.
-  `librga` is current at `2.2.0+git20260725.26a50ef`. The MPP fix
-  `1.5.0+git20260727.d8c6b88a+ds-0ubuntu1~rk1` reached **Published** on
-  2026-07-28, so that boundary is now an install rather than a build.
-  **Caveat now recorded on all July gates:** they ran on
-  `6.18.40-video-port-kasan-rockchip-rk3588`, which sets `DMABUF_DEBUG=n`. The
-  driver calls `DMA_BUF_IOCTL_SYNC` directly (`src/surface.c:26`,
-  `src/buffer.c:27`) — the ioctl that reaches the oopsing
-  `system_heap_dma_buf_end_cpu_access()` path — so those results carry an
-  implicit "on a `DMABUF_DEBUG=n` kernel" precondition that production only
-  satisfies from `~rk2` onward. See
-  [`the root cause`](./findings/2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md).
-- **State 2026-07-26:** Public development is on
-  `git@github.com:yisding/rockchip-vaapi.git` branch `main` at `03e6cb6`.
-  Phase 0/1 renovation, experimental Main10/Profile 2 decode, opt-in H.264/HEVC
-  encode, GStreamer/FFmpeg/VLC/RTP/soak gates, linear DRM PRIME encode import,
-  and the source-pinned Firefox RDD policy are committed there. The exact
-  Firefox source package is patched and partially compiled, but no browser
-  package or live sandbox gate exists yet. P010/Main10 encoder input also
-  remains unimplemented. The ysp source of truth for evidence is the dated
-  [`findings index`](./findings/README.md); the code remains only in the fork.
-  Re-check whether upstream has revived before release or offering the series
-  back.
-- **State 2026-07-21:** The phase-one correctness/packaging work was committed
-  to branch `ysp/cleanup` and built as
-  `rockchip-vaapi_1.0.11+ysp1_arm64.deb`. Upstream was
-  `woodyst/rockchip-vaapi@e8c64dd` (v1.0.11), quiet since 2026-05-28.
 
 <a id="watch-w19"></a>
 ### W19 — MPP `INIT_CLIENT_TYPE` double-call → use-after-free

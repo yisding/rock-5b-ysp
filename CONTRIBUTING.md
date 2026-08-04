@@ -109,6 +109,11 @@ build or test. Then run `python3 scripts/update-findings-index.py`; the compact
 index is generated from the filename and exact H1, so evidence detail and trust
 tags stay in the finding.
 
+Also add the finding to the [by-subsystem topic index](findings/README.md#browse-by-subsystem)
+under the layer that owns it. That index is hand-curated — a machine cannot tell
+that a dma-buf oops first seen through GRD is really a memory-plumbing finding —
+so only its coverage is mechanically enforced, not its judgement.
+
 Promote a mature finding into the owning project documentation. Replace the
 original finding with a short `promoted → ...` tombstone so links and history
 survive; do not leave two competing canonical explanations.
@@ -158,6 +163,10 @@ checks substantive drift and completeness only:
 - no `.patch` or `.diff` sits at the repository root without a project owner;
 - every finding is linked from the findings index, every index link resolves to
   a file, and the generated filename/H1 index is exact and newest-first;
+- every live finding sits in exactly one by-subsystem topic group, each group's
+  stated count matches its rows, and no group lists a tombstone or a file that
+  does not exist — the topic index is curated, so only its coverage is checked,
+  never which group a finding belongs to;
 - each `W##` watchlist entry has both halves, and they agree on item name and
   last-checked date;
 - every `status.md` dashboard track has a ledger row under the same number and

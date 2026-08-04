@@ -344,6 +344,58 @@ borrowed for it without TRM evidence. `CONFIG-INSPECTED` +
 `SOURCE-CONFIRMED`; full treatment in
 [`../mpp/docs/rcb-sram.md`](../mpp/docs/rcb-sram.md).
 
+## 8a. The two decoder cores have different maximum widths
+
+`MEASURED` + `SOURCE-CONFIRMED` (the DT asymmetry). The two rkvdec2 cores are
+**not interchangeable at extreme widths**, which matters for any code that
+advertises a capability or picks a core.
+
+- **`err 0x23` is a watchdog timeout, not a bitstream or bus error.** Bits set
+  are `RKVDEC_IRQ`, `RKVDEC_IRQ_RAW`, and `RKVDEC_TIMEOUT_STA`; `READY_STA` is
+  clear, so decode never completed. Only `TIMEOUT_STA` falls inside the `0xf0`
+  error mask of §4, so it alone drives the reset.
+- **A reset log always names both cores.** `rkvdec2_soft_ccu_reset()` walks every
+  enabled core in the CCU queue when any one errors. Two lines are one failure.
+- **Core 0 (`fdc38100`) gives out below 8200 luma samples wide; core 1
+  (`fdc40100`) survives past it.** At 8200x1056 core 0 returns `0x23` on every
+  frame the CCU hands it while core 1 returns `0x107` (clean) — 14 timeouts and
+  14 bad frames across two 30-frame runs, with core 1 never timing out once. The
+  "period-4 failure" this produces is **scheduling phase, not a frame property**.
+- **8192 = 2^13 is a real inflection at height 1056, not an absolute wall.**
+  8192x1056 is clean and 8200x1056 is not, but 8200x128 decodes clean, and above
+  the inflection failures are partial rather than wholesale. Height matters, so
+  a pure width field does not explain it.
+- **Bit depth does not scale the limit.** `mpp_rkvdec2.c` scales `task->width`
+  by bit depth, but that feeds only the timeout-bucket choice, not RCB geometry:
+  a 10-bit ladder is clean at every real width to 8192, including real-width
+  7680 whose *effective* width is 9600. The limit is on real luma width.
+- **The leading candidate is core 0's RCB fallback window ending exactly on the
+  4 GiB boundary.** The only two DT differences are SRAM pool size (core 0 has
+  4 KiB *more* and fails *earlier*, so size does not explain it) and the DDR
+  fallback address: core 0's 1 MiB window is `0xFFF00000 … 0x100000000`, with no
+  headroom above it, while core 1's sits an aperture below. RCB entries pack
+  upward as width grows, so wide pictures are exactly the case that reaches the
+  top of the window. Both values match the vendor BSP verbatim — the asymmetry
+  is Rockchip's, not the forward port's. The window is correctly reserved and
+  fully backed; this is not a mapping bug.
+
+**The watchdog constants are BSP, and two of their three names are wrong.**
+`RKVDEC2_CCU_TIMEOUT_20MS`/`_50MS`/`_100MS` are `0xefffff`/`0x2cfffff`/`0x4ffffff`
+— cycle counts round in binary, not in milliseconds: 15 Mi, 45 Mi, 80 Mi, a
+1 : 3 : 5.33 ratio against the labels' 1 : 2.5 : 5. No single clock maps one set
+onto the other. Against the DT's 800 MHz decoder aclk they are 19.7 ms, 59.0 ms
+(18 % high), and 104.9 ms (5 % high); measured inter-reset spacing of 67.3 ms
+and 114.8 ms leaves a consistent ~9 ms reset-and-requeue residual, whose
+consistency is itself evidence the register is an aclk cycle counter. **Only the
+`_20MS` name is honest.** Budgets are more generous than advertised, so the
+practical risk is mild — but any reasoning that trusts the names is off by up to
+a fifth.
+
+Full geometry ladders, the core-split reset table, the clock fit, and the
+reproduction commands are in the
+[dated finding](../../findings/2026-07-28-rkvdec2-err23-picsize-oversize-width.md),
+which also records the two over-claims this model replaced.
+
 ## 9. Recovery infrastructure: what actually saves the board
 
 - **Hardware watchdog: Synopsys DesignWare, ~89 s (1 min 29 s)**, opened by
@@ -411,6 +463,15 @@ Honest gaps, so nobody re-derives them as if they were settled:
   cross-track comparison is not a strict single-variable bisection.
 - **Whether AV1 has any idle proof at all**, or whether fail-closed recovery is
   permanent.
+- **Why core 0 tops out at a lower width than core 1 (§8a).** Two candidates
+  remain: RCB spill crossing the 4 GiB edge on core 0, or a silicon/clock
+  difference between the cores. One experiment separates them — swap the two
+  cores' `rcb-iova` values in DT. If the failure follows the address, it is the
+  window; if it stays on core 0, it is the silicon. `DEBUG_SRAM_INFO`
+  (`mpp_dev_debug` bit `0x200000`, root) shows the spill directly.
+- **Why height participates in the 8192 width inflection at all.** 8200 is fatal
+  at height 1056 and clean at height 128, which neither a 13-bit width field nor
+  a pure row-buffer story explains on its own.
 
 ## Sources
 
@@ -444,6 +505,7 @@ Findings are dated and evidence-bearing; each carries its own artifact paths.
 - [2026-07-31 RGA3 AFBC P010 dropped destination write](../../findings/2026-07-31-rga3-afbc-p010-dropped-destination-write.md)
 - [2026-07-24 10-bit tile byte stride](../../findings/2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md)
 - [2026-07-30 AV1/VSI fault and AFBC lifecycle races](../../findings/2026-07-30-rewrite-av1-vsi-fault-afbc-lifecycle-races.md)
+- [2026-07-28 rkvdec2 `err 0x23`, the 8192 width inflection, and the watchdog constants](../../findings/2026-07-28-rkvdec2-err23-picsize-oversize-width.md)
 - [RK3588 IOMMU hardware structure](../iommu/docs/02-rk3588-iommu-hardware.md)
 - [RCB and SRAM](../mpp/docs/rcb-sram.md)
 - [Multi-core decode scheduling, CCU hard/soft modes](../mpp/docs/multicore-scheduling.md)

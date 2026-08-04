@@ -343,6 +343,68 @@ counters exist for exactly this, but need a booted rewrite run
 to return to 0). The full hardware gate is in
 [`../patches/rga-userptr-iommu/runtime-validation.md`](../../patches/rga-userptr-iommu/runtime-validation.md).
 
+## 7. Multi-segment contracts, and why the BSP assumption expired
+
+SOURCE-INSPECTED / CODE-INSPECTED. Sections 1–5 describe what this driver does.
+This section states the general rule the whole design rests on, because it is
+the piece most often re-derived: **the BSP's RGA3 memory handling is not
+correct by the DMA API — it is correct by a private cross-layer contract that
+held on 5.10/6.1 and stopped holding afterwards.**
+
+RGA3 never consumes a scatterlist. Its command stream carries one base address
+per image plane, so the bytes behind that base must form one linear
+device-visible span. The BSP keeps only the first mapped SG address, sums all
+mapped lengths, and never proves the mapped entries are adjacent. Three
+independent properties made that safe on the studied stack:
+
+1. generic `iommu_dma_map_sg()` allocates **one** IOVA range for the entire SG
+   list and maps every physical run consecutively into it;
+2. Rockchip commit `3fc0486fdf76` sets each IOMMU client's maximum DMA segment
+   size to `DMA_BIT_MASK(32)`, specifically to obtain a single-chunk map; and
+3. the per-entry SWIOTLB path cannot intercept a platform RGA mapping in those
+   versions — 5.10 has no such SG branch, and 6.1 restricts it to untrusted PCI
+   devices.
+
+**Upstream `861370f49ce48`** (`iommu/dma: force bouncing if the size is not
+cacheline-aligned`, 2023-06-19) retired property 3 for non-coherent devices. When
+`dev_use_sg_swiotlb()` selects it, `iommu_dma_map_sg_swiotlb()` maps each entry
+through an independent IOVA allocation, so the result can carry real gaps or
+descending addresses — and the 4 GiB `max_seg_size` cannot coalesce that. This is
+precisely the hole the §4 driver-owned fallback closes, and the reason a newer
+kernel must validate rather than assume.
+
+### Do not conflate the two SG counts
+
+| Field | Meaning | RGA consequence |
+|---|---|---|
+| `orig_nents` | Physical runs in the original SG table. | May exceed one without being a problem. |
+| `nents` after `dma_map_sg*()` | DMA segments presented to this device. | For RGA3, one segment is the safe admission rule. |
+| Multiple **adjacent** DMA entries | `next_addr == prev_addr + prev_len`. | Byte-contiguous in principle; current checks still reject conservatively. |
+| Gapped or descending entries | The next address does not follow the previous. | Cannot be consumed by RGA3's base-address ABI at all. |
+
+`orig_nents > 1` does not imply the hardware sees scatter; `nents > 1` is not by
+itself proof of a gap. Proving adjacency requires walking the mapped entries.
+
+### Behaviour by driver
+
+| Memory and mapping result | BSP | Forward port | Rewrite |
+|---|---|---|---|
+| USERPTR: scatter, RGA3 DMA map is one span | Accepted via the pinned contract above. | Accepted as normal DMA route. | Accepted at import/per-job mapping. |
+| USERPTR: RGA3 DMA map has true gaps | **Unsafely treated as linear.** | Driver-owned fallback or clean failure. | Driver-owned fallback or clean failure. |
+| USERPTR: RGA2 physical scatter | Internal page table, below 4 GiB. | Internal page table; transient DMA/SWIOTLB service above 4 GiB. | No internal page table; needs one segment or fails. |
+| DMA-BUF: scatter, attachment is one IOVA | Accepted. | Accepted. | Accepted per required device mapping. |
+| DMA-BUF: several adjacent mapped entries | Used as if linear, without proof. | Rejected conservatively on RGA3. | Rejected conservatively. |
+| DMA-BUF: gapped/descending RGA3 attachment | **Unsafely treated as linear.** | Rejected; no userptr fallback. | Rejected; no userptr fallback. |
+
+The deliberate asymmetry in the last two rows is the §5 ownership rule: a
+discontinuous *exporter-owned* attachment is rejected rather than replaced,
+because remapping memory somebody else owns raises fence and cache-sync
+questions the studied BSP path never answers.
+
+Per-file line anchors, the SWIOTLB-branch inspection, and the full evidence
+ladder are in the
+[dated finding](../../../findings/2026-07-31-rga-userptr-dmabuf-multisegment-contracts.md).
+
 ## Status and open items
 
 BUILD-VERIFIED:

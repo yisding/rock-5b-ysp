@@ -36,6 +36,11 @@ FINDING_INDEX_ROW_RE = re.compile(
 )
 FINDINGS_INDEX_START = "<!-- findings-index:start -->"
 FINDINGS_INDEX_END = "<!-- findings-index:end -->"
+FINDINGS_TOPICS_START = "<!-- findings-topics:start -->"
+FINDINGS_TOPICS_END = "<!-- findings-topics:end -->"
+TOMBSTONE_RE = re.compile(r"^promoted → ", re.MULTILINE)
+TOPIC_HEADING_RE = re.compile(r"^### (.+?) \((\d+)\)\s*$")
+TOPIC_ROW_RE = re.compile(r"^- \[`\d{4}-\d{2}-\d{2}`\]\((20\d{2}-\d{2}-\d{2}-[^)]+\.md)\) — ")
 WATCH_ID_RE = re.compile(r"^W\d{2}$")
 WATCH_HEADING_RE = re.compile(r"^### (W\d{2}) — (.+?)\s*$")
 WATCH_INDEX_NAME_RE = re.compile(r"^\[(.+)\]\(#watch-w\d{2}\)$")
@@ -176,6 +181,86 @@ def check_findings_index(root: Path, errors: list[str]) -> None:
                 f"findings/README.md: title for {name} differs from its H1; "
                 "run scripts/update-findings-index.py"
             )
+
+
+def check_findings_topic_coverage(root: Path, errors: list[str]) -> None:
+    """Every live finding sits in exactly one by-subsystem group.
+
+    The chronological index is generated, so it cannot drift. The topic index is
+    curated -- which is the point, since a machine cannot tell that a dma-buf
+    oops filed under GRD is really a memory-plumbing finding -- but that makes it
+    the half that silently rots. Enforcing coverage keeps the curation honest
+    without dictating which group a finding lands in. Tombstones are excluded:
+    they are pointers to a promoted target, and the chronology still lists them.
+    """
+    findings = root / "findings"
+    readme = findings / "README.md"
+    if not readme.is_file():
+        return
+
+    lines = readme.read_text(encoding="utf-8", errors="replace").splitlines()
+    if lines.count(FINDINGS_TOPICS_START) != 1 or lines.count(FINDINGS_TOPICS_END) != 1:
+        errors.append(
+            "findings/README.md: topic index markers must each occur exactly once"
+        )
+        return
+    start = lines.index(FINDINGS_TOPICS_START)
+    end = lines.index(FINDINGS_TOPICS_END)
+    if end <= start:
+        errors.append("findings/README.md: topic index end marker precedes start")
+        return
+
+    live = set()
+    for path in findings.glob("20??-??-??-*.md"):
+        body = path.read_text(encoding="utf-8", errors="replace")
+        if not TOMBSTONE_RE.search(body):
+            live.add(path.name)
+
+    grouped: dict[str, list[str]] = {}
+    heading = None
+    counts: dict[str, int] = {}
+    for line in lines[start + 1 : end]:
+        head = TOPIC_HEADING_RE.match(line)
+        if head:
+            heading = head.group(1)
+            counts[heading] = int(head.group(2))
+            grouped.setdefault(heading, [])
+            continue
+        row = TOPIC_ROW_RE.match(line)
+        if row and heading is not None:
+            grouped[heading].append(row.group(1))
+
+    seen: dict[str, str] = {}
+    for group, names in grouped.items():
+        if len(names) != counts.get(group):
+            errors.append(
+                f"findings/README.md: topic group {group!r} says ({counts.get(group)}) "
+                f"but lists {len(names)} findings"
+            )
+        for name in names:
+            if not (findings / name).is_file():
+                errors.append(
+                    f"findings/README.md: topic group {group!r} links {name}, "
+                    "but no such finding exists"
+                )
+            elif name not in live:
+                errors.append(
+                    f"findings/README.md: topic group {group!r} lists {name}, "
+                    "which is a tombstone; topic groups carry live findings only"
+                )
+            elif name in seen:
+                errors.append(
+                    f"findings/README.md: {name} is in two topic groups "
+                    f"({seen[name]!r} and {group!r}); pick the owning layer"
+                )
+            else:
+                seen[name] = group
+
+    for name in sorted(live - set(seen)):
+        errors.append(
+            f"findings/README.md: {name} is in no topic group; add it to the "
+            "by-subsystem index so the finding is reachable by layer"
+        )
 
 
 def check_watchlist_pairing(root: Path, errors: list[str]) -> None:
@@ -682,6 +767,7 @@ def main() -> int:
     check_readme_ownership(root, errors)
     check_readme_navigation(root, errors)
     check_findings_index(root, errors)
+    check_findings_topic_coverage(root, errors)
     check_watchlist_pairing(root, errors)
     check_status_ledger_tracks(root, errors)
     check_status_table_layout(root, errors)

@@ -58,6 +58,10 @@ through its last-verified dates.
 
 Use the shortest path for the context you need to recover. This front door does
 not repeat dated status or operational commands because those copies drift.
+Each row names **one destination**; when a job needs several documents read in
+order, that sequence lives in
+[`docs/work-packages.md`](docs/work-packages.md#operating-and-re-entry-paths)
+rather than being duplicated here.
 
 ### Resume or operate the board
 
@@ -149,6 +153,12 @@ RGA/MPP driver code in the
 [IOMMU explainer series](kernel-drivers/iommu/docs/01-iommu-primer.md).
 
 ## Canonical owners
+
+This is the **read** view — where to look for a kind of information.
+[`CONTRIBUTING.md`](CONTRIBUTING.md#where-a-change-belongs) carries the matching
+**write** view, which is longer because it also covers patches, scripts, build
+artifacts, and the material that belongs in the private security repository
+instead. They describe one mapping; change both together or neither.
 
 | Information | Canonical owner |
 |-------------|-----------------|
