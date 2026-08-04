@@ -36,10 +36,10 @@ separate table below so both remain scannable.
 | 4 | Clean-room rewrite drivers | 🚧 **2026-08-03:** the 2026-08-02 adversarial review found fifteen implementation defects and repaired all fifteen; porting that work to mainline exposed a sixteenth, an [IOMMU-IRQ-mask fallback unreachable by construction](./findings/2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md), whose removal (`501a2b47f3503`) is a no-op on 6.18. Tips are 6.18 `501a2b47f3503` and mainline `694aac9b7c0ff`, byte-identical, with all four object builds passing across 6.18 and `v7.2-rc5`. **Evidence lags the source in both directions**: cleanest boot `#29` (`g8042f13c5459`) posted exact 89/89 MPP plus 150/150 RGA KTAP with live lockdep and every core registered but predates the review fixes, while KASAN package `#30` carries them, has never booted, and itself predates `501a2b47f3503` — a successor package is required. No AV1 hardware run, librga suite, or SWIOTLB/recovery fault injection exists on the corrected source, and VCD completion still lacks an independent architectural AFBC DMA-retirement proof. | 2026-08-03 | [adversarial review](./kernel-drivers/docs/rewrite-driver-adversarial-review-2026-08-02.md), [AV1/VSI lifecycle finding](./findings/2026-07-30-rewrite-av1-vsi-fault-afbc-lifecycle-races.md), [soft-CCU wedge root cause](./findings/2026-07-29-rewrite-soft-ccu-dual-core-wedge.md), [KUnit fixture and evidence contract](./kernel-drivers/docs/rewrite-kunit.md), [review round 2](./findings/2026-07-29-rewrite-driver-review-round-2.md) |
 | 5 | ffmpeg tree | ⚠️ Package branch `fix/rkmpp-output-timeout@c9428bedaa` fixes the asynchronous `MppFrame` reset/close double release. The affected object, `fate-source`, source package, and focused RK3588 gates pass: 10/10 immediate-close plus 10/10 flush/reuse, without the old libmpp refcount/pool diagnostics. Published and installed packages remain at predecessor `33a651a55b`; candidate installation and the real GRD fallback/recreation gate are pending. Canonical-tip and AV1 MP4/MKV board validation remain open. | 2026-07-30 | [lifetime fix](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md), [FFmpeg status](./video-libraries/ffmpeg/README.md) |
 | 7 | GNOME Remote Desktop backend | 🚧 Public `release/50.2-rkmpp@c4ef3c9` rebases all 16 existing release changes patch-identically onto latest GNOME 50 stable and adds a narrowed reconnect-timeout repair: only a display explicitly reassigned into the persistent user handover survives timeout, keeping its `RemoteId` listener so the next authenticated attempt can retry without restarting the daemon. Packaging-only `~rk2` corrects the fatal RDP test's too-tight 20 s timeout and changes no production source; source `18654077`, binary `247717203`, and build `33461880` are Published/successful with RDP green, zero failures, two expected skips. Installation and live idle-reconnect replay remain. | 2026-08-02 | [reconnect audit and fix](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md), [color fix](./findings/2026-07-29-grd-fullrange-bt709-fixes-muted-colors.md), [testing](./apps/gnome-remote-desktop/docs/testing.md) |
-| 8 | Mesa / Panfrost | 🔄 Four MRs remain open; selected G610 reruns pass and !42679 needs a rebase. | 2026-07-11 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
+| 8 | Mesa / Panfrost | 🔄 **2026-08-04:** all four MRs remain open and unmerged, but the rebase need moved: !42679 was updated 2026-07-23 and is conflict-free, while **!42614 now reports `need_rebase`**. !42613/!42614 still carry the exact heads whose selected G610 shards passed, so that evidence stands; !42679's green pipeline predates its new head and needs a rerun. | 2026-08-04 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
 | 9 | Launchpad PPA | ⚠️ The latest forward-port kernel source `18654047` (three binaries, build `33461848`) and GRD replacement source `18654077` (binary `247717203`, build `33461880`) are Published/successful. The normal stack and comparison/rewrite archives otherwise retain their package-specific recorded states; every board-side gate — exact install, validation, rollback — remains open. | 2026-08-02 | [`packaging/ppa/`](packaging/ppa/README.md) |
-| 10 | Binary publishing | ❌ No built binaries are committed and no GitHub Release exists. | 2026-07-01 | [`packaging/`](packaging/README.md) |
-| 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. | 2026-07-11 | [`apps/kodi/`](apps/kodi/README.md) |
+| 10 | Binary publishing | ❌ No built binaries are committed, and `gh release list` confirms **no GitHub Release exists** on the repo. Still gated on the repository-wide license decision, not on engineering work. | 2026-08-04 | [`packaging/`](packaging/README.md) |
+| 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. Re-checked 2026-08-04: the PPA still publishes no Kodi source and no build evidence has entered the repo, but the GBM/GLES build and tty1 playback are board state and stay unverified since 2026-07-11. | 2026-08-04 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
 | 13 | Maximum-mainline kernel | 🚧 **2026-08-02:** refreshed `public`/`wip` sources pin Linux `7.2-rc6` at Torvalds `master@075b74841bd0`, with validation branches on `next-20260731@415606a7be93`; revised proposals and subsystem-next acceptances are reconciled. Linus/public passes the full native compile gate; linux-next/WIP passes focused and partial builds, with its full build stopped by request. Refreshed packages, boot, and hardware validation remain open. | 2026-08-02 | [refresh audit](./findings/2026-08-02-rk3588-maxline-proposal-refresh.md), [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
 | 14 | Desktop-app HW video (browsers) | 🚧 Installed, payload-matched driver/config `1.0.11+ysp8-0ubuntu1~rk1` are green through the guarded safe decode matrix, zero-copy/concurrent/mixed gates, 10-bit P010 decode above 60 fps, H.264/HEVC encode, imports/multi-slice, GStreamer VA readback, and isolated-Mutter presentation in installed VLC, mpv, and Firefox for all five shipping profiles — though Firefox ran with its RDD sandbox disabled. The one `rk_vcodec cmd 100 ret -22` pair is harmless, root-caused to libmpp probing unavailable optional IEP2 deinterlacing, with the interlaced clip still bit-exact. The 6.18 source port carries the IEP2 driver/DT path with compile-tested hardening, but KASAN package `Pcf86-Cc271` is unbooted and the installed kernel still omits client 28. The silent small-geometry dropped write is **rewrite-driver-specific**: the production forward-port/vendor RGA3 path passes 90/90 runs and 4,320/4,320 exact frames on both cores. Open: ysp8 was built from a dirty worktree over `main@aee5926`, CMA is 256 rather than 512 MiB, and sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image install, and release remain. | 2026-08-02 | [installed ysp8 validation](./findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md), [forward-port RGA discriminator](./findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md), [IEP2 safety review](./kernel-drivers/iep2/docs/forward-port-safety-review.md), [`rockchip-vaapi` project](./video-libraries/vaapi/README.md) |
@@ -61,7 +61,7 @@ dashboard date and ledger row when public state changes.
 | 4 | Clean-room rewrite drivers | Rebuild a KASAN package from `501a2b47f3503` (the installed `#30` predates it) and boot it; require the exact ordered 92+152 manifest, a clean outer-KTAP interval with live lockdep, matching source/config/package identity, a clean aged kmemleak scan, every runtime/core, AV1 AFBC/fault/PM counter evidence, ABI replay, and full conformance. | [adversarial review next gate](./kernel-drivers/docs/rewrite-driver-adversarial-review-2026-08-02.md#7-validation-matrix), [AV1/VSI lifecycle finding](./findings/2026-07-30-rewrite-av1-vsi-fault-afbc-lifecycle-races.md), [qualification contract](./kernel-drivers/docs/rewrite-kunit.md#capture-a-reproducible-result) |
 | 5 | ffmpeg tree | Build/install `c9428bedaa`, then repeat GRD hardware timeout, software fallback, and encoder recreation while requiring a clean libmpp/kernel log; afterward re-test AV1 from MP4/MKV. | [lifetime integration gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md#verification-gate) |
 | 7 | GNOME Remote Desktop backend | Install Published `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` on a production kernel without `CONFIG_DMABUF_DEBUG`, then repeat the measured idle reconnect sequence. Require the second attempt to reach GDM→user handover without restarting the system daemon, while an initial greeter failure still cleans up normally. Then run the sustained focus/resume and audio gates. | [reconnect reproduction](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md#act-4-latest-gnome-50-rebase-and-narrowed-june-fix-salvage), [focus/resume gate](./apps/gnome-remote-desktop/docs/testing.md#10-exp6exp7-macos-focusresume-gate), [root cause + fix](./findings/2026-07-28-dmabuf-debug-mangle-sg-table-is-the-sg-writer.md#verification-gate) |
-| 8 | Mesa / Panfrost | Rebase !42679 and rerun its selected CI coverage. | [MR tips and selected CI](./video-libraries/mesa/README.md#mr-status) |
+| 8 | Mesa / Panfrost | Rebase !42614, then rerun selected G610 CI on it and on !42679's post-07-23 head. | [MR tips and selected CI](./video-libraries/mesa/README.md#mr-status) |
 | 9 | Launchpad PPA | Install the Published kernel and GRD packages, boot, validate, and revert the co-installable kernel, then replay the GRD reconnect gate on the ROCK 5B. | [kernel package checklist](./packaging/ppa/kernel-forward-port/README.md#remaining-checklist), [GRD reconnect reproduction](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md#act-4-latest-gnome-50-rebase-and-narrowed-june-fix-salvage) |
 | 10 | Binary publishing | Choose and record the repository-wide license required before a public release. | [license decision boundary](./LICENSE.md) |
 | 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. | [Kodi tty1 runbook](./apps/kodi/docs/build-hwaccel.md#5-test-on-tty1-gbm-needs-drm-master) |
@@ -87,21 +87,21 @@ last-checked date.
 
 | ID | Watch item | Last checked | Summary |
 |----|------------|--------------|---------|
-| W01 | [Armbian media-patch drift](#watch-w01) | 2026-07-11 | Patch blobs unchanged; DT anchors still hold. |
-| W02 | [Armbian patcher precedence](#watch-w02) | 2026-07-11 | Core-wins behavior unchanged; rename workaround still required. |
-| W03 | [Armbian codec-udev upstreaming](#watch-w03) | 2026-07-11 | PR merged; future images should carry the rule. |
-| W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-07-11 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
+| W01 | [Armbian media-patch drift](#watch-w01) | 2026-08-04 | Patch blobs unchanged; DT anchors still hold. |
+| W02 | [Armbian patcher precedence](#watch-w02) | 2026-08-04 | Core-wins behavior unchanged; rename workaround still required. |
+| W03 | [Armbian codec-udev upstreaming](#watch-w03) | 2026-08-04 | PR merged; future images should carry the rule. |
+| W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-08-04 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
 | W05 | [Launchpad PPA publication](#watch-w05) | 2026-08-02 | Forward-port kernel source/binaries/build and GRD replacement source/binary/build are Published/successful. Exact installation and board gates remain. |
-| W06 | [Mesa MR stack](#watch-w06) | 2026-07-11 | Four MRs open; !42679 needs a rebase. |
-| W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-07-19 | Canonical public tips unchanged; separate normal-PPA timeout branch remains at `da5befc806`. |
+| W06 | [Mesa MR stack](#watch-w06) | 2026-08-04 | Four MRs still open; the rebase need moved from !42679 to !42614. |
+| W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-08-04 | `main` unchanged, but `ffmpeg-80` and `ffmpeg-81` both moved; their replay evidence is stale. |
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-16 | Fix carried forward; board re-test pending. |
-| W09 | [Kodi build and tty1 playback](#watch-w09) | 2026-07-11 | Prerequisites ready; build/playback/package pending. |
+| W09 | [Kodi build and tty1 playback](#watch-w09) | 2026-08-04 | No Kodi source in the PPA; build/playback remain board-unverified. |
 | W10 | [GRD reconnect validation/submission](#watch-w10) | 2026-08-02 | Latest GNOME 50 source remains `c4ef3c9`; packaging-only `~rk2` corrects the fatal RDP test's 20s timeout and is Published after successful build `33461880`. Exact idle reconnect replay, repeated focus/resume, compressed-audio interoperability, and upstream review remain. |
 | W11 | [Repository-wide license](#watch-w11) | 2026-08-03 | No repository-wide license granted. |
 | W12 | [Dev-box-only artifacts](#watch-w12) | 2026-08-03 | Identified code/package artifacts are captured. |
 | W13 | [librga P010/P210 series](#watch-w13) | 2026-07-25 | `0074` is boot-verified on the `6.18.40` KASAN forward-port: raw RGA 10-bit stride/UV-offset gates pass and fresh-librga P010/NV15 probes pass. Production packaging still must ship the kernel and librga changes together; the source-built 10-bit `librga-smoke` wrapper remains red only at unrelated `imfill`. |
 | W14 | [YSP Armbian builder](#watch-w14) | 2026-07-20 | Exact-6.18.38 clean production build `Pf558-Cb831` completed BTF and Debian packaging; the wrapper now pins source and purges stale debug-build Kbuild metadata. |
-| W15 | [RGA session-close fix vs. the frozen import](#watch-w15) | 2026-07-17 | Force-free UAF fixed in fwport patch `0039`; frozen base patch still has the old path. |
+| W15 | [RGA session-close fix vs. the frozen import](#watch-w15) | 2026-08-04 | Frozen base patch still has the old force-free path; three fwport patches (`0039`/`0070`/`0079`) now owe regeneration. |
 | W16 | [Forward-port kernel-fix tail](#watch-w16) | 2026-08-02 | The exported tail is contiguous `0001`–`0087` at public GitHub tip `5b87d46eefdcb`. Signed `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1` passed patch-only/source-provenance checks; source `18654047`, binaries `247715541`–`247715543`, and build `33461848` are Published/successful, while all seven-tail runtime gates remain pending. |
 | W17 | [Maximum-mainline proposal-set drift](#watch-w17) | 2026-08-02 | Refreshed against current proposal mail, Torvalds master, linux-next, and subsystem-next refs; future “maximum current” claims still require another deliberate audit. |
 | W18 | [rockchip-vaapi fork state](#watch-w18) | 2026-08-02 | Fork and local HEAD are `main@aee5926`; upstream remains `e8c64dd`. Installed driver/config are payload-matched ysp8 and broadly green, including five-codec VLC/mpv/Firefox virtual-display coverage. The production forward-port RGA3 small-geometry discriminator is clean across 11,348 exact displayed frames; the prior silent-write failure is rewrite-specific. The package came from a dirty worktree over `aee5926`, so the external fork still lacks a clean source identity for the installed payload. Firefox sandbox, physical HDR, risky-vector fingerprint, 512 MiB CMA, Chromium, clean-image, and release gates remain. |
@@ -117,11 +117,14 @@ last-checked date.
 
 - **Why recheck:** DT patch 02 converts Armbian's nodes in place; changed node
   labels or patch anchors can break the build or decoder DT.
-- **Last checked:** 2026-07-11
-- **State then:** Live `armbian/build` main `815a50b664f9` still carried
-  byte-identical `rockchip64-6.18` `media-0001`/`media-0007` blobs
-  (`390c2e0b`/`a2a4143e`); `vdec0`, `vdec1`, and `av1d` hunk assumptions held.
-  Checklist: [resyncing guide §4](./kernel-drivers/docs/resyncing.md).
+- **Last checked:** 2026-08-04
+- **State 2026-08-04:** Live `armbian/build` main has moved to `9c26d236e194`,
+  but **both media blobs are byte-identical to the 2026-07-11 reading** —
+  `rockchip64-6.18` `media-0001` is still `390c2e0b` and `media-0007` still
+  `a2a4143e`, read with `git ls-tree` against the current tip. Armbian moving is
+  therefore not by itself a reason to re-audit the DT hunks; this row exists to
+  separate the two. Checklist:
+  [resyncing guide §4](./kernel-drivers/docs/resyncing.md).
 
 <a id="watch-w02"></a>
 ### W02 — Armbian patcher precedence
@@ -129,9 +132,18 @@ last-checked date.
 - **Why recheck:** The self-contained-DT/AV1 build must rename two core media
   patches. A restored userpatch override, `series.conf` migration, or supported
   disable mechanism would change that procedure.
-- **Last checked:** 2026-07-11
-- **State then:** Live-main `lib/tools/patching.py` blob `d14c53f6` still matched
-  the audited core-wins implementation. Mechanism and workaround:
+- **Last checked:** 2026-08-04
+- **State 2026-08-04:** `lib/tools/patching.py` **has changed** — blob `d14c53f6`
+  → `853cfd9c` — but the three load-bearing lines are untouched, so the
+  core-wins conclusion holds and the rename workaround is still required. Read
+  directly from the current blob: `CONST_PATCH_ROOT_DIRS` still appends the
+  userpatches root *before* the core root; the `ALL_DIR_PATCH_FILES_BY_NAME`
+  build is still a plain last-write-wins loop, so core still overwrites user;
+  and `NORMAL_PATCH_FILES` is still re-sorted alphabetically afterwards.
+  `CONST_ROOT_TYPES_CONFIG_ORDER` is also still `['core', 'user']`, preserving
+  the trap that *config* resolves user-over-core while *patches* resolve
+  core-over-user. **A blob change here is not a behavior change** — diff the
+  three anchors before concluding anything. Mechanism and workaround:
   [`armbian-patch-precedence.md`](./packaging/docs/armbian-patch-precedence.md).
 
 <a id="watch-w03"></a>
@@ -139,20 +151,24 @@ last-checked date.
 
 - **Why recheck:** The upstream rule determines whether `codec-udev` is required
   or only backfills older/custom images.
-- **Last checked:** 2026-07-11
-- **State then:** [armbian/build#10085](https://github.com/armbian/build/pull/10085)
-  remained merged as `a6163444eb6c305b635c82242fbeb636daf4b6f4` (2026-06-30).
-  Images built from that base should carry the MPP/dma-heap rule.
+- **Last checked:** 2026-08-04
+- **State 2026-08-04:** Unchanged.
+  [armbian/build#10085](https://github.com/armbian/build/pull/10085) is still
+  `MERGED` with the same merge commit `a6163444eb6c305b635c82242fbeb636daf4b6f4`
+  (merged 2026-06-30), confirmed through the GitHub API. Images built from that
+  base should carry the MPP/dma-heap rule.
 
 <a id="watch-w04"></a>
 ### W04 — Ubuntu FFmpeg version
 
 - **Why recheck:** A future Resolute `7:8.1.x` can silently supersede the
   `+rkmpp` packages.
-- **Last checked:** 2026-07-11
-- **State then:** The live Resolute arm64 universe index published
-  `ffmpeg 7:8.0.1-3ubuntu2`. Hold recipe:
-  [`packaging/README.md`](packaging/README.md).
+- **Last checked:** 2026-08-04
+- **State 2026-08-04:** Unchanged — Resolute still publishes exactly one
+  `Published` `ffmpeg` source, `7:8.0.1-3ubuntu2` in `Release` (published
+  2026-02-20), per the Launchpad `getPublishedSources` API. No `7:8.1.x` has
+  appeared, so the `+rkmpp` replacement is not at risk of being superseded yet.
+  Hold recipe: [`packaging/README.md`](packaging/README.md).
 
 <a id="watch-w05"></a>
 ### W05 — Launchpad PPA publication
@@ -177,34 +193,54 @@ last-checked date.
 
 - **Why recheck:** Review feedback, CI, merge state, and rebase requirements
   determine the next upstream action.
-- **Last checked:** 2026-07-11
-- **State then:** [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563),
-  [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679),
-  [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613), and
-  [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614)
-  remained open; !42679 reported `need_rebase`. Selected evidence remained:
-  !42563 pipeline 1697832 green for x86/arm64 build plus G610 GL/piglit;
-  !42679 pipeline 1700107 green for x86 build, clang, llvmpipe, and softpipe;
-  !42613 `8875a22856d` pipeline 1700162 and !42614 `4c23f1db1f9` pipeline
-  1700163 passed all four selected G610 shards. The web UI remained bot-blocked;
-  use the GitLab API. Superseded context: [!38433](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/38433).
+- **Last checked:** 2026-08-04
+- **State 2026-08-04:** All four remain `opened` and none has merged, but **the
+  rebase requirement has moved**, which changes the next action:
+
+  | MR | `detailed_merge_status` | head | last updated |
+  |----|------------------------|------|--------------|
+  | [!42563](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42563) | `unchecked` | `833101f35ed6` | 2026-07-03 |
+  | [!42679](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42679) | `unchecked` | `6509025064fe` | **2026-07-23** |
+  | [!42613](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42613) | `unchecked` | `8875a22856da` | 2026-07-06 |
+  | [!42614](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/42614) | **`need_rebase`** | `4c23f1db1f9c` | 2026-07-06 |
+
+  !42679 — the MR the previous next-gate was written against — was updated on
+  2026-07-23, reports no conflicts, and **no longer needs a rebase**; !42614 now
+  does. !42613 and !42614 still carry the exact heads whose four selected G610
+  shards passed (`8875a22856d`, `4c23f1db1f9`), so that evidence is not
+  invalidated. **`unchecked` is not a merge verdict** — it means GitLab has not
+  recomputed mergeability, so do not read it as "mergeable". Prior selected
+  evidence stands: !42563 pipeline 1697832 green for x86/arm64 build plus G610
+  GL/piglit; !42679 pipeline 1700107 green for x86 build, clang, llvmpipe, and
+  softpipe — but that pipeline predates the 07-23 head, so !42679 needs a fresh
+  run. The web UI remains bot-blocked; use the GitLab API. Superseded context:
+  [!38433](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/38433).
 
 <a id="watch-w07"></a>
 ### W07 — `ffmpeg-rockchip-81` tips
 
 - **Why recheck:** The canonical master, 8.0, and 8.1 lines follow moving
   upstream branches; later upstream movement requires a fresh replay and test.
-- **Last checked:** 2026-07-19
-- **State then:** `git ls-remote` confirmed published tips remain
-  `main@8b57e531d1fc` over
-  `FFmpeg/master@ceabc9b306f5`, `ffmpeg-80@be753f3bbb2c` over
-  `release/8.0@435ae0581deb`, and `ffmpeg-81@8d3ca020b6a2` over
-  `release/8.1@94138f6973dd`. The former PR #1/refactor lineage is integrated
-  into all three. Source builds and `fate-source` passed; no new hardware or
-  package validation was performed for those tips. The dedicated PPA remains
-  at `be367abfe6`; separate normal-PPA branch
-  `fix/rkmpp-output-timeout@da5befc806` is public, built, and Published, with
-  its combined GRD hardware gate still pending.
+- **Last checked:** 2026-08-04
+- **State 2026-08-04:** **Two of the three canonical tips have moved** — this is
+  exactly the drift the row exists to catch, and it invalidates the replay
+  evidence for those two lines:
+
+  | Branch | Recorded 2026-07-19 | Now | |
+  |--------|--------------------|-----|---|
+  | `main` | `8b57e531d1fc` | `8b57e531d1fc` | unchanged |
+  | `ffmpeg-80` | `be753f3bbb2c` | **`ab675f19cf17`** | moved |
+  | `ffmpeg-81` | `8d3ca020b6a2` | **`629f4968d226`** | moved |
+
+  Read with `git ls-remote` against `yisding/ffmpeg-rockchip-81`. The 2026-07-19
+  source-build and `fate-source` results belong to the old `ffmpeg-80`/`ffmpeg-81`
+  heads and **do not carry forward**; both lines need a fresh replay and test
+  before any claim about them is repeated. `main` is unaffected. Upstream
+  `nyanmisaka/ffmpeg-rockchip@388741a3544b` matches the tip named in
+  [ledger track 5](docs/status-ledger.md) as sharing the async-frame lifetime
+  defect. The dedicated PPA remains at `be367abfe6`; separate normal-PPA branch
+  `fix/rkmpp-output-timeout@da5befc806` is public, built, and Published, with its
+  combined GRD hardware gate still pending.
 
 <a id="watch-w08"></a>
 ### W08 — AV1 container-extradata validation
@@ -224,10 +260,16 @@ last-checked date.
 
 - **Why recheck:** Decoder selection is designed, but the application build and
   real playback have not been demonstrated.
-- **Last checked:** 2026-07-11
-- **State then:** Fork `libavcodec63` packages were built, MPP was fixed, and no
-  Kodi patch was needed. GBM/GLES build, `kodi-gbm` tty1 playback with Prime
-  settings, and the Kodi PPA package remained pending. See
+- **Last checked:** 2026-08-04
+- **State 2026-08-04:** The packaging half is re-verified and unchanged: the
+  `ubuntu-rock-5b` PPA publishes `ffmpeg`, `ffmpeg-rockchip`,
+  `gnome-remote-desktop`, `librga`, `linux-rockchip64-ysp`, `mpp`, `plymouth`,
+  `rk3588-codec-udev`, and `rockchip-vaapi` — **no Kodi source at all** — and no
+  Kodi build evidence has entered the repository. Fork `libavcodec63` packages
+  were built, MPP was fixed, and no Kodi patch is needed. **Scope limit:** this
+  recheck covers the package channel and the repository record only. The
+  GBM/GLES build and `kodi-gbm` tty1 playback are dev-box and board state that
+  cannot be verified from here, and remain unproven since 2026-07-11. See
   [`apps/kodi/`](apps/kodi/README.md).
 
 <a id="watch-w10"></a>
@@ -318,8 +360,17 @@ last-checked date.
   source — is a frozen vendor snapshot that carries the old
   `rga_mm_force_releaser_buffer()` path, so the two can silently diverge until
   the next regeneration.
-- **Last checked:** 2026-07-17
-- **State then:** Driver fix `linux-6.18-rkvenc-av1-fwport@bc086cbe03d7`
+- **Last checked:** 2026-08-04
+- **State 2026-08-04:** Re-verified in-repo and **still diverged — the debt has
+  grown**. The frozen base patch
+  [`rk3588-rkvenc2-01-vcodec-rga-drivers.patch`](./kernel-drivers/patches/rk3588-rkvenc2-01-vcodec-rga-drivers.patch)
+  still carries `rga_mm_force_releaser_buffer` (3 occurrences), while the
+  forward-port series now holds **three** patches over this area rather than the
+  one this row was opened for: `0039` (release session buffers by reference),
+  `0070` (don't drop `mm->lock` during session release), and `0079` (job/buffer
+  lifetime and locking). All three must fold in at the next base-patch
+  regeneration, and the DKMS channel keeps consuming the old path until then.
+- **State 2026-07-17:** Driver fix `linux-6.18-rkvenc-av1-fwport@bc086cbe03d7`
   ("release session buffers by reference on close") makes
   `rga_mm_session_release_buffer()` drop each buffer through
   `kref_put(..., rga_mm_kref_release_buffer)` instead of force-freeing;
