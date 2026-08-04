@@ -36,11 +36,20 @@ has `CONFIG_ROCKCHIP_MPP_IEP2=y` with KASAN, lockdep, and `DMABUF_DEBUG` off.
 `gpg --verify` good), and `dput` completed at 19:32 PDT writing
 `linux-rockchip64-ysp_6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1_source.ppa.upload`.
 
-**Launchpad processing pending** — confirm source acceptance and the arm64
-build. IEP2's runtime evidence was gathered on a KASAN/lockdep build over a
-6.18.41 base, so it describes the source, not this artifact: this production
-configuration on a 6.18.42 base has not been installed, booted, or
-hardware-validated. Every board gate remains pending.
+**Published (checked 2026-08-04).** The Launchpad API reports the source and
+all three arm64 binaries — `linux-image-ysp-rockchip64`,
+`linux-dtb-ysp-rockchip64`, `linux-headers-ysp-rockchip64` — Published at this
+exact version, so this is what `apt` now installs from
+`ppa:yi-ding/ubuntu-rock-5b`. The package was installed and booted on the board
+the same day as `6.18.42-ysp-rockchip64`, where IEP2 is confirmed working
+standalone for the first time on a production (non-KASAN) kernel. Enabling IEP2
+also un-masked a `rockchip-vaapi` defect that broke interlaced H.264 decode on
+the then-published `ysp10` driver; `rockchip-vaapi 1.0.11+ysp12` fixes it and
+restores 17/17 pinned vectors to bit-exact on this kernel
+([regression finding](../../../findings/2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md)).
+That is the tier-1 gate set only: full conformance, the HEVC sweep, ABI replay,
+GStreamer, RGA completion, the soaks, and **rollback** were not run on this
+artifact and remain pending.
 
 **Previous 2026-08-02 upload:** `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1`
 — the complete `0001`–`0087` forward-port tip `5b87d46eefdcb`. It adds the

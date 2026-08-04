@@ -29,6 +29,11 @@ in either case:
 > The **udev rule (§8) is needed on both paths** — no kernel path makes the
 > device nodes usable without root by itself.
 
+For what the published archive and its kernel do and do not support — including
+the board/OS/architecture boundary, the evidence behind each claim, and the
+comparison with a Rockchip BSP distribution — read
+[`docs/ppa-support.md`](docs/ppa-support.md) before path **(a2)**.
+
 Before choosing, read [`status.md`](status.md) tracks 1, 3, and 9. Path **(a2)**
 is the lowest-effort way to reproduce the older PPA validation, but it is not a
 blanket daily-driver recommendation after a later kernel/userspace pairing

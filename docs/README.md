@@ -11,6 +11,7 @@ of repo-wide references that are not owned by one project.
 | [`status-ledger.md`](status-ledger.md) | Audit companion to `../status.md`: longer dated cross-track notes without crowding the status dashboard. |
 | [`work-packages.md`](work-packages.md) | The project map, stack diagram, and operating/re-entry and developer reading paths. Start here when you are not sure which project owns a topic. |
 | [`support-coverage.md`](support-coverage.md) | Whole-board scope inventory: which ROCK 5B areas are tracked, narrowly evidenced, or entirely unassessed, plus the first useful evidence for each gap. |
+| [`ppa-support.md`](ppa-support.md) | Release-facing support statement for `ppa:yi-ding/ubuntu-rock-5b` and its forward-port kernel: what they support, what they do not, the evidence behind each claim, and an area-by-area comparison with a Rockchip BSP distribution. |
 | [`app-enablement.md`](app-enablement.md) | Planning map for untracked applications (browsers, VLC, HandBrake, mpv, OBS): which plumbing layer each binds to and the estimated enablement cost on this stack. |
 | [`ubuntu-rock5b-image-plan.md`](ubuntu-rock5b-image-plan.md) | Proposed ROCK 5B-only successor architecture: stock Ubuntu 26.04 userspace around a custom board kernel/firmware layer, with package boundaries, boot/update policy, proof ladder, and release gates. |
 | [`system-baseline.md`](system-baseline.md) | Canonical capture contract separating target board, boot path, runtime kernel/userspace, and build host; points to the existing collector and dated truth owners. |

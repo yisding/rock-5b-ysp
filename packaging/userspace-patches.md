@@ -24,7 +24,7 @@ for how the external source trees are reconstructed see
 | **FFmpeg 8.1** (baseline) | none — recovered `debian/` only | none (pristine upstream) | `8.1.2` | `7:8.1.2-1+rk2` | `rock5b-ffmpeg81-upstream` |
 | **codec-udev** | native, in-repo | n/a | — | `1.1` | `ubuntu-rock-5b` |
 | **gdm-hwenc** | native, in-repo | n/a | — | `1.0` | `ubuntu-rock-5b` |
-| **rockchip-vaapi** | `yisding/rockchip-vaapi` @ `main` | fork branch | `5d558fa` | `1.0.11+ysp6-0ubuntu1~rk1` (signed locally) | `ubuntu-rock-5b` upload pending |
+| **rockchip-vaapi** | `yisding/rockchip-vaapi` @ `main` | fork branch | `184d7d4` | `1.0.11+ysp12-0ubuntu1~rk1` | `ubuntu-rock-5b`, uploaded 2026-08-04 |
 
 Two gaps worth knowing rather than rediscovering:
 
@@ -33,10 +33,12 @@ Two gaps worth knowing rather than rediscovering:
   `packaging/ppa/*` tree reproduces it. Rebuilding that source package today
   would mean recovering the `debian/` tree from Launchpad, the way
   `ffmpeg-baseline` was recovered on 2026-07-07.
-- **rockchip-vaapi now has an exact-commit source package but is not yet
-  published.** `1.0.11+ysp6-0ubuntu1~rk1` is signed, source/binary
-  Lintian-error-clean, and isolated-lifecycle validated; upload and Launchpad
-  build/publication remain.
+- **rockchip-vaapi is published.** `1.0.11+ysp12-0ubuntu1~rk1` was built from
+  public release commit `184d7d4`, signed, and uploaded to `ubuntu-rock-5b` on
+  2026-08-04 as source publication `18656370`; arm64 build `33465947`
+  succeeded. A fresh `dpkg-source -x` reproduces all 661 tracked files of that
+  commit byte-for-byte, so the package's provenance is checkable against the
+  public fork rather than a local worktree.
 
 ## Two ways patches are carried
 
