@@ -162,10 +162,11 @@ RK3588 platform behaviour outside the media path.
 - [`2026-07-26`](2026-07-26-dwc-pcie-pmu-bus-notifier-lockdep-false-positive.md) — DWC PCIe PMU nests distinct same-class bus notifier locks and disables lockdep
 - [`2026-07-25`](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) — RK3588 per-die voltage binning: the BSP selects voltage from eFuse, mainline ships only the worst-die column
 
-### Kernel forward port: MPP and codec drivers (18)
+### Kernel forward port: MPP and codec drivers (19)
 
 Vendor MPP/rkvenc/rkvdec forward-ported to 6.18 — defects, audits, and whole-tip validation runs.
 
+- [`2026-08-04`](2026-08-04-rkvenc-encoder-rcb-sram-scope.md) — RK3588 encoder RCB is reachable only by >4096-wide H.264, so the absent encoder SRAM costs almost nothing
 - [`2026-08-01`](2026-08-01-forward-port-uaf-oops-audit-round-2.md) — Forward-port UAF/oops audit round 2: 18 defects, 7 of them unprivileged memory corruption
 - [`2026-07-29`](2026-07-29-mpp-isr-fault-handler-clear-sleeps-panics-idle-task.md) — MPP job-ISR IOMMU fault-handler clear takes sleeping locks and panicked the idle task
 - [`2026-07-29`](2026-07-29-forward-port-warn-oops-audit-and-fixes.md) — Forward-port MPP/RGA WARN/oops audit: 18 defects found and fixed
@@ -376,6 +377,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 <!-- findings-index:start -->
 - [`2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md`](2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md) — Enabling IEP2 broke interlaced VA-API decode by un-masking a driver defect: MPP's decoder deinterlacer is 1:N, VA-API decode is 1:1
 - [`2026-08-04-rockchip-vaapi-capability-gap-triage.md`](2026-08-04-rockchip-vaapi-capability-gap-triage.md) — rockchip-vaapi's remaining non-AV1 gaps split three ways: two are MPP walls, the size caps fail open below as well as closed above, and the sweep harness overwrites its own evidence
+- [`2026-08-04-rkvenc-encoder-rcb-sram-scope.md`](2026-08-04-rkvenc-encoder-rcb-sram-scope.md) — RK3588 encoder RCB is reachable only by >4096-wide H.264, so the absent encoder SRAM costs almost nothing
 - [`2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md`](2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md) — IEP2 field parity settled: the mode suffix selects the field and `dil_order` does nothing, so MPP's hardcoded I1O1T is wrong for BFF streams
 - [`2026-08-03-rk3588-iep2-nondeterministic-output.md`](2026-08-03-rk3588-iep2-nondeterministic-output.md) — RK3588 IEP2 runs clean under KASAN; its output non-determinism is a missing dma-buf cache sync in Rockchip's test harness, not the driver
 - [`2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md`](2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md) — The RGA rewrite's IOMMU-IRQ-mask fallback was unreachable, and it blocked the mainline mirror

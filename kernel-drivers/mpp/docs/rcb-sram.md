@@ -10,6 +10,9 @@ This note explains the memory model behind the `rockchip,rcb-*` properties and
 > `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` `a4b67868c0dd` plus the uncommitted
 > best-effort RCB probe fix, and
 > `../rock-5b/rockchip-conformance/sources/rockchip-mpp` `c2c1ee502b3a`.
+> The [encoder reachability section](#how-often-the-encoder-path-is-reached-at-all)
+> was added 2026-08-04 against the same MPP pin and forward-port tip
+> `7615b69a744af`.
 > Trust: CODE-INSPECTED for source-tree facts, MEASURED for the live Rock 5B
 > procfs/sysfs state below, ONLINE-SURVEY-NEGATIVE for public documentation
 > (no public TRM excerpt, binding, or vendor note assigns RK3588 encoder SRAM
@@ -164,9 +167,10 @@ On the studied RK3588 trees:
     `rockchip,rcb-iova = <0xFFE00000 0x100000>`.
 - RKVENC2 has optional RCB descriptor plumbing but no SRAM-backed DT properties
   in either the 6.1 BSP RK3588 DTS or the 7.2 rewrite RK3588 DTS. The plumbing is
-  real end to end: current H.264 VEPU580 userspace emits encoder RCB descriptors
-  by default (`hal_h264e_vepu580.c` sends two `MPP_DEV_RCB_INFO` commands unless
-  `disable_rcb_buf=1`), and both kernel implementations accept them. But with no
+  real end to end: H.264 VEPU580 userspace emits encoder RCB descriptors on
+  >4096-wide encodes (`hal_h264e_vepu580.c` sends two `MPP_DEV_RCB_INFO` commands
+  unless `disable_rcb_buf=1` — see [reachability](#how-often-the-encoder-path-is-reached-at-all)),
+  and both kernel implementations accept them. But with no
   encoder `rockchip,sram`/`rockchip,rcb-iova` in DT, the BSP `rkvenc2_set_rcbbuf()`
   has no `enc->sram_iova` and the rewrite `rk_mpp_job_apply_rcb_info()` has no
   `hw->rcb_iova`, so the descriptors are accepted and then patch no registers.
@@ -175,6 +179,37 @@ So for RK3588, "decoder RCB uses SRAM" is an observed DT/driver fact. "Encoder
 RCB uses SRAM" is not supported by the current evidence: this reads as optional
 generic RKVENC RCB support that Rockchip did not enable for RK3588 encoder nodes,
 not a forward-port omission.
+
+### How often the encoder path is reached at all
+
+Two gates keep the RK3588 encoder RCB path dark for ordinary work, so the missing
+encoder SRAM has almost no surface to cost anything on. Full evidence chain in
+[`findings/2026-08-04-rkvenc-encoder-rcb-sram-scope.md`](../../../findings/2026-08-04-rkvenc-encoder-rcb-sram-scope.md).
+
+- **H.265 never uses it.** `hal_h265e_vepu580.c` has no ext-line-buffer and no
+  `MPP_DEV_RCB_INFO` code at all. HEVC encode is unaffected at every resolution.
+- **H.264 uses it only above 4096 luma width.** `setup_vepu580_buffers()`
+  allocates `ctx->ext_line_buf` only under `if (aligned_w > SZ_4K)`, with
+  `aligned_w = MPP_ALIGN(prep->width, 64)`. Below that,
+  `setup_vepu580_ext_line_buf()` zeroes `ebuft_addr`/`ebufb_addr` and returns
+  before the two ioctls, so no descriptor is sent. 1080p, 1440p, 4K UHD (3840)
+  and DCI 4K (4096) send nothing and run on internal line storage.
+
+Both VEPU580 HALs register `soc_type = { ROCKCHIP_SOC_RK3588 }`; the other
+`MPP_DEV_RCB_INFO` senders in the MPP tree are decoder-side or belong to other
+SoCs (`vepu510`, `vepu511`, `vepu511a`).
+
+The descriptors name registers 183 and 182 — the two halves of the ext line
+buffer, which userspace has already pointed at an ION allocation. With encoder
+SRAM the kernel would overwrite them with `enc->sram_iova + rcb_offset`; without
+it the DDR IOVAs stand and the encode is correct either way. The buffer is
+`(aligned_w - 3 * SZ_1K) / 64 * 480` bytes — **~34 KB at 7680 wide**. That is the
+entire magnitude of what absent encoder SRAM gives up, and only on >4096-wide
+H.264.
+
+Note the formula's 3072 base disagrees with the gate's 4096; between those widths
+it yields a positive size but nothing is allocated. Treat 4096 as the empirical
+gate, not as a pinned hardware capacity.
 
 ### Forward-port must keep encoder RCB allocation best-effort
 
@@ -217,10 +252,18 @@ But a performance claim needs proof at the register/mapping level:
 - the codec workload must be large enough for the scratch path to matter;
 - correctness must be checked under concurrent codec use.
 
-For RK3588 RKVENC specifically, the next safe benchmark step is not to borrow
-decoder SRAM. It is to instrument whether `MPP_CMD_SET_RCB_INFO` is received and
-whether any register is patched. With the current unbacked encoder DT, the
-expected answer is "descriptors received, no SRAM-backed register patch."
+For RK3588 RKVENC specifically, there is no benchmark worth running. The
+[reachability gates](#how-often-the-encoder-path-is-reached-at-all) mean no
+encoder RCB descriptor is even sent for HEVC at any resolution, or for H.264 at
+or below 4096 wide — so for every codec and resolution in use on this board the
+answer is "no descriptors sent, nothing to accelerate," and the ceiling above
+4096 is ~34 KB of line traffic. Do not borrow decoder SRAM to chase it.
+
+Instrumenting the kernel side alone cannot tell the two cases apart: with
+`enc->sram_iova == 0` the descriptor loop in `rkvenc2_set_rcbbuf()` never runs,
+so `DEBUG_SRAM_INFO` prints `sram disabled` and no `rcb: reg` lines whether or
+not descriptors arrived. Distinguishing "sent but unused" from "never sent" needs
+userspace-side tracing.
 
 ## Safety rules
 
