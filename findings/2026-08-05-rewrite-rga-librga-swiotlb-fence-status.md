@@ -4,10 +4,12 @@
 > Source: `rk3588-rewrite-6.18@19634f4eebba`, suite run
 > `20260805-084559-librga-suite`, fixed source
 > `rk3588-rewrite-6.18@37ae7459656b` and
-> `rk3588-rewrite-mainline@02bf372dac70`
+> `rk3588-rewrite-mainline@02bf372dac70`, exact-tip KASAN package
+> `P27bb-Cad24`
 > Date: 2026-08-05
 > Trust: **MEASURED** / **SOURCE-INSPECTED** / **SOURCE-CONFIRMED** /
-> **ROOT-CAUSED** / **FIX-COMPILE-VERIFIED** / **PARTIAL**
+> **ROOT-CAUSED** / **FIX-COMPILE-VERIFIED** / **PACKAGE-BUILD-VERIFIED** /
+> **PARTIAL**
 
 ## Result
 
@@ -93,11 +95,46 @@ the ROCK 5B DTB. Strict checkpatch, shellcheck, the parser unit test, the
 305-signal source audit, the manifest check, and cross-tree byte identity also
 pass.
 
+## Exact-tip KASAN package build
+
+The 6.18 exact-tip KASAN package build passed with:
+
+```bash
+PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+  PREFER_DOCKER=yes BASE_TAG=v6.18.42 \
+  bash kernel-drivers/scripts/build-kernel.sh rewrite-debug
+```
+
+The source range was exactly 385 commits over `v6.18.42`, the source compile
+reported 1,465 ccache hits and 55 misses, and the Docker build completed in
+47:57. Armbian produced the image, DTB, headers, and libc-development packages
+as
+`6.18.42-S856a-D6d03-P27bb-Cad24-Hb22f-HK01ba-Vc222-B3ab8-R448a`.
+The image embeds release
+`6.18.42-video-rewrite-kasan-rockchip64` and source stamp
+`g37ae7459656b`. Its packaged config has SHA-256
+`8e8fa957ae7e4fa5776116ccf849c7c85486e7cc48ec1fc6ca8b7c8e49aa88b4`
+and enables `CONFIG_KASAN`, `CONFIG_KASAN_GENERIC`,
+`CONFIG_PROVE_LOCKING`, both rewrite drivers, and both rewrite KUnit suites.
+
+The four package SHA-256 values are:
+
+| Package | SHA-256 |
+|---------|---------|
+| image | `23a03f6511788e3a2eaff8065ababfa555cebfa5a6c0c64fdf0820b0b82d0e81` |
+| DTB | `0fcfde1b5507f2474497763e68fe490e3dfc2f93d76af006478fc2eb17bc258b` |
+| headers | `749d48fa429fa056971ecfe9f0819181d9540bc3c74c0a8b9596d156dbdf6c9a` |
+| libc development | `996d9371da676479cfebc27682bb91017ff93572ef68d4a0d16fa25815eeb476` |
+
+This is package-build and identity evidence only. The packages are not
+installed, the new kernel has not booted, and none of the runtime gates below
+has run on `37ae7459656b`.
+
 ## Boundary and verification gate
 
 The fixes are not runtime-verified. The board run used predecessor
-`19634f4eebba`, while the fixed 6.18 tip is `37ae7459656b`. Build and boot a
-KASAN package from that exact tip, then require:
+`19634f4eebba`, while the fixed 6.18 tip is `37ae7459656b`. Install and boot
+the built `P27bb-Cad24` KASAN package from that exact tip, then require:
 
 1. exact ordered 92+152 KUnit with clean outer interval and live lockdep;
 2. the full maintained `librga-smoke` including legacy RGB resize;
@@ -107,4 +144,5 @@ KASAN package from that exact tip, then require:
 5. clean debugfs leak/safety counters and the normal fatal dmesg gate.
 
 Until that run, the earlier handle-plane fix is runtime-verified only through
-the initial smoke path, while this new source repair remains compile-verified.
+the initial smoke path, while this new source repair has compile and package
+identity proof but no runtime proof.
