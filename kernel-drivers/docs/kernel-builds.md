@@ -90,7 +90,25 @@ build-kernel.sh <flavor> --install-deps  # debug flavors: apt-install missing ho
 IOMMU_DEBUG=yes build-kernel.sh forward-port          # DMA/IOMMU observability extension
 ARMBIAN_USE_CCACHE=no build-kernel.sh <flavor>        # clean retry
 ARMBIAN_CLEAN_LEVEL=make-kernel build-kernel.sh <flavor>  # drop all Kbuild metadata
+BASE_TAG=v6.18.42 build-kernel.sh rewrite-debug       # expert patch-base override
 ```
+
+By default, `build-kernel.sh` selects the newest final `v6.18.x` tag reachable
+from the chosen flavor tree, falling back to `v6.18` when the tree is based on
+the initial release. This keeps a rebased tree's upstream stable history out of
+the generated userpatch series: the current forward-port tree resolves to
+`v6.18`, while the current rewrite tree resolves to `v6.18.42`. An explicit
+`BASE_TAG=` is validated as an ancestor and prints a warning when it differs
+from the automatic boundary.
+
+This patch boundary does **not** choose the kernel Armbian compiles. The
+forward-port tree correctly exports its 92 commits from `v6.18`, and Armbian
+then applies those patches to its rolling `linux-6.18.y` checkout — 6.18.42 at
+the 2026-08-05 tips. The rewrite tree already contains the 6.18.42 stable
+history, so its
+automatic patch boundary is `v6.18.42`; Armbian still compiles it on the same
+rolling 6.18.42 base. `ARMBIAN_KERNELBRANCH=commit:<sha>` is the separate knob
+for pinning that compiled base.
 
 ### `--patch-only`: staging the shared worktree for a source-package cut
 
@@ -122,9 +140,10 @@ Two behaviours specific to this mode:
   directories from a previous flavor's build.
 
 Do **not** whole-file compare the worktree against a flavor tree. The worktree is
-an Armbian stable base plus Armbian's patches plus the series; the flavor trees
-sit on a plain `v6.18` base. They differ for legitimate reasons, and a byte
-compare fails closed on a correctly staged worktree.
+an Armbian stable base plus Armbian's patches plus the series; a flavor tree may
+sit on `v6.18` or a later stable tag selected by the automatic patch boundary.
+They differ for legitimate reasons, and a byte compare fails closed on a
+correctly staged worktree.
 
 Mechanics preserved from the validated engine: rolling `linux-6.18.y` by
 default with `ARMBIAN_KERNELBRANCH=commit:<sha>` for reproducible rebuilds,

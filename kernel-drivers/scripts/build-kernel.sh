@@ -40,12 +40,15 @@
 #   IOMMU_DEBUG=yes bash build-kernel.sh forward-port        # + DMA_API/KALLSYMS/IOMMU_DEBUGFS config
 #   ARMBIAN_USE_CCACHE=no bash build-kernel.sh forward-port  # clean retry after config-class changes
 #   ARMBIAN_CLEAN_LEVEL=make-kernel bash build-kernel.sh …   # discard all Kbuild metadata
+#   BASE_TAG=v6.18.42 bash build-kernel.sh rewrite-debug  # expert patch-base override
 #   KERNEL_TREE=/path PATCH_PREFIX=my-series bash build-kernel.sh forward-port  # expert override
 #
 # LOCAL-FLAVOR MECHANICS (validated against Armbian 6.18.37/26.08.0-trunk;
 # re-check the skip list and core patch names when the Armbian base moves):
-#   1. Regenerate the flavor's patch series from its git tree (format-patch
-#      BASE_TAG..HEAD, minus SKIP_COMMITS already carried by the Armbian base).
+#   1. Resolve the newest reachable stable tag for the selected source tree
+#      (v6.18.x, falling back to v6.18), then regenerate BASE_TAG..HEAD minus
+#      SKIP_COMMITS already carried by the Armbian base. BASE_TAG= overrides
+#      the automatic boundary for deliberate historical or bisect builds.
 #   2. Reset Armbian patch state; stage the generated series as userpatches.
 #   3. Debug flavors: stage the ramoops DT patch, the flavor's Armbian config
 #      (which sources the shared debug-instrumentation fragment), and seed the
@@ -82,7 +85,11 @@ CODE="$(cd "$ROOT/.." && pwd)"                          # ~/Code (ysp is <CODE>/
 ROCK5B_WORKSPACE="${ROCK5B_WORKSPACE:-$CODE/rock-5b}"
 WORKSPACE="${WORKSPACE:-$ROCK5B_WORKSPACE/build/kernel/rock5b-kernel-build}"  # build scratch (armbian-build + outputs)
 ARMBIAN_BUILD="${ARMBIAN_BUILD:-$WORKSPACE/armbian-build}"
-BASE_TAG="${BASE_TAG:-v6.18}"                 # local-flavor patches are BASE_TAG..HEAD
+KERNEL_SERIES="${KERNEL_SERIES:-6.18}"
+# Local-flavor patches are BASE_TAG..HEAD. "auto" is resolved only after the
+# flavor selects KERNEL_TREE: the forward-port tree is based directly on v6.18,
+# while the rebased rewrite tree is based on a later v6.18.x stable tag.
+BASE_TAG="${BASE_TAG:-auto}"
 # LINUXFAMILY: settable, but ONLY from a late_family_config extension hook.
 #
 # A compile.sh argument does NOT work and was measured failing:
@@ -243,6 +250,59 @@ LOCKNEST_PATCH_DEST="$UP_DIR/zz-rock5b-debug-locknest-prompt.patch"
 
 say() { printf '>>> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+newest_reachable_stable_tag() {
+	local series_tag tag suffix
+	series_tag="v$KERNEL_SERIES"
+
+	# Version-sort first, then accept only final stable tags. The broad Git glob
+	# is narrowed here so tags such as v6.18.42-rc1 or a local v6.18.42-test do
+	# not become an export boundary merely because they are reachable.
+	while IFS= read -r tag; do
+		suffix="${tag#"$series_tag".}"
+		if [[ "$suffix" =~ ^[0-9]+$ ]]; then
+			printf '%s\n' "$tag"
+			return 0
+		fi
+	done < <(git -C "$KERNEL_TREE" tag --merged HEAD \
+		--list "$series_tag.*" --sort=-v:refname)
+
+	# A flavor tree may intentionally sit directly on the initial release and
+	# have no v6.18.x tag in its ancestry (the forward-port tree does today).
+	if git -C "$KERNEL_TREE" rev-parse --verify "$series_tag^{commit}" >/dev/null 2>&1 &&
+	   git -C "$KERNEL_TREE" merge-base --is-ancestor "$series_tag" HEAD; then
+		printf '%s\n' "$series_tag"
+		return 0
+	fi
+
+	return 1
+}
+
+resolve_base_tag() {
+	local requested auto_tag base_commit
+	requested="$BASE_TAG"
+	auto_tag="$(newest_reachable_stable_tag || true)"
+	[ -n "$auto_tag" ] ||
+		die "could not find a reachable v$KERNEL_SERIES or v$KERNEL_SERIES.x stable tag in $KERNEL_TREE"
+
+	if [ -z "$requested" ] || [ "$requested" = auto ]; then
+		BASE_TAG="$auto_tag"
+		say "  source patch base: $BASE_TAG (automatic newest reachable v$KERNEL_SERIES stable tag)"
+	else
+		BASE_TAG="$requested"
+		if [ "$BASE_TAG" != "$auto_tag" ]; then
+			say "  WARNING: explicit BASE_TAG=$BASE_TAG overrides automatic $auto_tag"
+		else
+			say "  source patch base: $BASE_TAG (explicit; matches automatic selection)"
+		fi
+	fi
+
+	base_commit="$(git -C "$KERNEL_TREE" rev-parse --verify "$BASE_TAG^{commit}" 2>/dev/null || true)"
+	[ -n "$base_commit" ] || die "base tag/ref '$BASE_TAG' not found in $KERNEL_TREE"
+	git -C "$KERNEL_TREE" merge-base --is-ancestor "$base_commit" HEAD ||
+		die "base tag/ref '$BASE_TAG' ($base_commit) is not an ancestor of $KERNEL_TREE HEAD"
+	say "  source patch base commit: ${base_commit:0:12}"
+}
 
 usage() {
 	sed -n '2,/^# LOCAL-FLAVOR MECHANICS/p' "${BASH_SOURCE[0]}" |
@@ -539,7 +599,6 @@ fi
 
 # --- Sanity ----------------------------------------------------------------
 git -C "$KERNEL_TREE" rev-parse --git-dir >/dev/null 2>&1 || die "$KERNEL_TREE is not a git tree"
-git -C "$KERNEL_TREE" rev-parse "$BASE_TAG" >/dev/null 2>&1 || die "base tag '$BASE_TAG' not found in $KERNEL_TREE"
 [ -x "$ARMBIAN_BUILD/compile.sh" ] || die "Armbian build tree not found: $ARMBIAN_BUILD (set ARMBIAN_BUILD=)"
 [ -d "$CORE_DIR" ] || die "Armbian kernel patch archive not found: $CORE_DIR (wrong KBRANCH?)"
 
@@ -553,6 +612,8 @@ if [ -n "$FLAVOR_BRANCH_GUARD" ]; then
 	[ -z "$(git -C "$KERNEL_TREE" status --porcelain)" ] ||
 		die "$KERNEL_TREE has uncommitted changes; commit or stash before building"
 fi
+
+resolve_base_tag
 
 # Bind the built release string to the source the series is generated from:
 # the ysp-build-stamp extension appends -g<sha> to LOCALVERSION, so `uname -r`
@@ -695,6 +756,11 @@ fi
 
 # =============================================================================
 say "STEP 5: build $FLAVOR (ccache=$ARMBIAN_USE_CCACHE; tmpfs=$ARMBIAN_USE_TMPFS; clean=${ARMBIAN_CLEAN_LEVEL:-incremental})"
+if [ -n "$ARMBIAN_KERNELBRANCH" ]; then
+	say "  compiled kernel base: $ARMBIAN_KERNELBRANCH (explicit Armbian KERNELBRANCH)"
+else
+	say "  compiled kernel base: Armbian rolling linux-$KERNEL_SERIES.y (independent of patch BASE_TAG=$BASE_TAG)"
+fi
 # -L: the cache path is a symlink into the shared store, and du reports 0 for a
 # symlink unless told to follow it, which would silently flatten this diagnostic.
 say "  ccache dir before: $(du -shL "$ARMBIAN_BUILD/cache/ccache" 2>/dev/null | cut -f1 || echo n/a)"

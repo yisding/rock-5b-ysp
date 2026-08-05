@@ -40,12 +40,17 @@ for every flavor; it puts the real wall-clock build time into `uname -v`, which
 Armbian otherwise pins to the kernel revision date — leaving every rebuild of
 one base indistinguishable from the last.
 For either flavor, `build-kernel.sh` regenerates and stages the flavor's
-complete patch series, then installs the config, the shared fragment, and the
-debug-only ROCK 5B ramoops DT patch into
-`$WORKSPACE/armbian-build/userpatches/` before invoking `compile.sh`. The
-all four local flavors follow Armbian's rolling `linux-6.18.y` stable branch
-(no `KERNELBRANCH` pin). Pass `ARMBIAN_KERNELBRANCH=commit:<sha>` for a
-reproducible base. The external build tree is scratch, not the source of truth.
+complete patch series from its automatically selected newest reachable
+`v6.18.x` stable tag (or `v6.18` fallback), then installs the config, the
+shared fragment, and the debug-only ROCK 5B ramoops DT patch into
+`$WORKSPACE/armbian-build/userpatches/` before invoking `compile.sh`. All four
+local flavors follow Armbian's rolling `linux-6.18.y` stable branch (6.18.42 at
+the 2026-08-05 tips; no `KERNELBRANCH` pin). Thus the forward-port's `v6.18`
+patch-export boundary does not make it a 6.18.0 build: those patches are
+applied on Armbian's 6.18.42 source. Pass
+`ARMBIAN_KERNELBRANCH=commit:<sha>` for a reproducible build base;
+`BASE_TAG=` remains the separate expert override for the patch-export
+boundary. The external build tree is scratch, not the source of truth.
 
 > Perf numbers on these kernels are meaningless (KASAN instruments every access) —
 > use the production forward-port build for benchmarking.
