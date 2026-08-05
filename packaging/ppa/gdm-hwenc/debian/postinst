@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 set -e
 
 if [ "$1" = "configure" ] && [ -d /run/udev ]; then

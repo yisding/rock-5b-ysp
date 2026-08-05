@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Reproduce the focused clean-source build gate for the RK3588 rewrite drivers.
 #
 # The gate intentionally builds from git-archive copies, not the live kernel

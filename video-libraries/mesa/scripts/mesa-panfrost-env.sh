@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# SPDX-License-Identifier: MIT
 # Runtime env for an uninstalled *surfaceless* Panfrost Mesa build (Rock 5B / Mali-G610).
 #
 # Usage:

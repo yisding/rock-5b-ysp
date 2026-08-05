@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Minimal Mali blit-path benchmark: baseline vs zero polygon offset vs
 // gl_FragCoord. Build and run:
 //

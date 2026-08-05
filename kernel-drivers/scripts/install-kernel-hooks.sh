@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Install a pre-commit hook into the rewrite kernel repo that blocks a commit
 # touching the rewrite KUnit sources unless their registered case arrays still
 # match the tracked rewrite-kunit-manifest.tsv.

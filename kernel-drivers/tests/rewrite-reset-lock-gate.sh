@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Validate the rkvdec2 reset-domain lock (b37f6e9825b1) on a booted kernel.
 #
 # This runs the verification gate from the sibling reset-deassert race finding,

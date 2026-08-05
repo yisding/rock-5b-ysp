@@ -1,4 +1,6 @@
 # shellcheck shell=bash disable=SC2034
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Production clean-room REWRITE kernel for the ROCK 5B
 # (build-kernel.sh flavor: rewrite) — slot `video-rewrite-rockchip64`.
 #

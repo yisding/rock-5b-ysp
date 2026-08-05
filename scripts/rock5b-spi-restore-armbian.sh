@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Restore the ROCK 5B SPI NOR with the installed Armbian SPI loader image.
 #
 # By default the image comes from:

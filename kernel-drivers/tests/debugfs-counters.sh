@@ -1,4 +1,6 @@
 # shellcheck shell=bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Shared helpers for collecting simple numeric debugfs counters.
 
 # Load sentinel. The two callers that deliberately run without `set -e` used to

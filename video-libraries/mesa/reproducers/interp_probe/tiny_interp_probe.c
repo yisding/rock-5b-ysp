@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Minimal Mali/Panfrost varying-interpolation precision probe.
 //
 // Addresses the "u_blitter is misusing varyings" hypothesis by removing

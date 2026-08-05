@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Microbenchmark Panfrost texture-transfer readback paths.
 //
 // Creates an RG32UI texture, attaches it to an FBO, and repeatedly reads it as

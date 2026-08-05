@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Coordinate-interpolation precision probe for Panfrost/Mali.
 // Renders a W x 1 quad with a vertex attribute tc that runs 0..W across the
 // quad (exactly like u_blitter's TXF coordinate), and outputs the interpolated

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 #version 450
 layout(push_constant) uniform PC { float width; } pc;
 layout(location = 0) out float v;

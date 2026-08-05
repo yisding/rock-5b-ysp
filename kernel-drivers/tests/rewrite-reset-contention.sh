@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Provoke and measure the sibling-core reset deassert race on rkvdec soft CCU.
 #
 # WHAT THIS MEASURES

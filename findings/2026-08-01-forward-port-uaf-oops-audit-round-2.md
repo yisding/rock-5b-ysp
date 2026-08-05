@@ -271,7 +271,7 @@ the 500 ms timer is always still armed at 1080p60, so `__flush_work()` returns
 via `already_gone` for a sub-microsecond cost once per completed task.
 
 **Coverage gap worth fixing before the next round:** the RGA ABI probes
-auto-enable only for `PROFILE=*rewrite*` (`abi-replay.sh:12-19`), so they are
+auto-enable only for `PROFILE=*rewrite*` (`abi-replay.sh:14-21`), so they are
 silently skipped on a forward-port run — including the `-EOPNOTSUPP` assertions
 that would have caught R1/R2 regressions. And nothing in `tests/` covers the
 cross-session import path at all, which is exactly where the review found the

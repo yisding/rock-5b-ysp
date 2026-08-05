@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Constant-varying interpolation exactness probe for Panfrost/Mali.
 //
 // The fragcoord-blit u_blitter fix passes the blit affine (scale, offset) as a

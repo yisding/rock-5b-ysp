@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Yi Ding
+// SPDX-License-Identifier: GPL-2.0-or-later
 // readback_bench.c — measure the GPU→CPU readback cost that dominates GRD's
 // software-RFX path on RK3588 (Mali-G610 / panfrost).
 //

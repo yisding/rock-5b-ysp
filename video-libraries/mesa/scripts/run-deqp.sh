@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
 # Run a dEQP-GLES3 caselist against a surfaceless Panfrost build.
 #
 #   MESA_BUILD=/home/yi/Code/rock-5b/build/mesa/build-codex-main \

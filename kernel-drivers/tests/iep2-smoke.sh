@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Validate the RK3588 IEP2 forward port and exercise real deinterlacing output.
 set -euo pipefail
 

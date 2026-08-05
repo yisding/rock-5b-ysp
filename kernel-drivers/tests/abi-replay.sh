@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: MIT
 # Record and compare normalized MPP/RGA ABI probe logs across kernel profiles.
 set -euo pipefail
 

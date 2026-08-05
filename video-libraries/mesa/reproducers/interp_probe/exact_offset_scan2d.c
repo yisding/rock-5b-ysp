@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // 2D baseline-vs-zero-polygon-offset interpolation scanner.
 //
 // This is the 2D counterpart to exact_offset_scan.c.  It draws the same

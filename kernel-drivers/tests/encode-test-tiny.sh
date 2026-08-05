@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Encode smoke test for the forward-ported RK3588 rkvenc2 encoder.
 # Tiny-first (256x256), then auto-scales to 720p once the IOMMU path is proven.
 # Aborts only on a REAL IOMMU translation fault / oops / empty output — not on

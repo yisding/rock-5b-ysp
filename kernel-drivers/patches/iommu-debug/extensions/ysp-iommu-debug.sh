@@ -1,4 +1,6 @@
 # shellcheck shell=bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # ysp-iommu-debug (staged by the ysp kernel build tooling)
 #
 # Armbian EXTENSION that enables the IOMMU/DMA debug observability options for

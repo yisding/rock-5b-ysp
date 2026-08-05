@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # Build the staged JeffyCN GStreamer Rockchip MPP/RGA plugin.
 set -euo pipefail
 

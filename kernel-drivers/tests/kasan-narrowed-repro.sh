@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Narrowed KASAN reproduction of the 2026-07-17 forward-port preflight Oops:
 # ABI replay (MPP/RGA session churn, including MPP_CMD_RESET_SESSION) followed
 # by a one-shot recursive /proc/mpp_service snapshot. On the KASAN+ramoops debug

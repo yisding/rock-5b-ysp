@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: MIT
 # Build and run the bounded non-submit MPP/RGA ioctl fuzzer.
 set -euo pipefail
 

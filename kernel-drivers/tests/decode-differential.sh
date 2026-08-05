@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # =============================================================================
 # decode-differential.sh -- RK3588 (Rock 5B) HW DECODE *correctness* oracle.
 #

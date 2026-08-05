@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Yi Ding
+// SPDX-License-Identifier: Apache-2.0
 // Direct im2d P010 probes on CMA dmabufs:
 //   case 1: P010 src -> NV12 dst (tests incompact READ)
 //   case 2: P010 src -> P010 dst copy (tests incompact READ+WRITE)

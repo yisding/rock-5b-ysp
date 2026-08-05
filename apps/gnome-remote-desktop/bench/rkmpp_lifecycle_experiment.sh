@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Build and run the GRD-compatible RKMPP lifecycle A/B experiment while
 # sampling interrupts, wait channels, and kernel logs. Artifacts default under
 # ~/Code/rock-5b/build/mpp/rkmpp-lifecycle-runs, never /tmp.

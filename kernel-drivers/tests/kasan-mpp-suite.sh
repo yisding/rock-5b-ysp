@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Full MPP codec matrix under the KASAN/ramoops debug kernel, with a kernel-log
 # scan around it. This is the memory-safety gate that gets past the preflight
 # Oops which crashed forward-port run 20260717-230531: it exercises decode /

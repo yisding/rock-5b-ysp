@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
  * tiny_interp_probe_arm_blob_x11_explained.c
  *

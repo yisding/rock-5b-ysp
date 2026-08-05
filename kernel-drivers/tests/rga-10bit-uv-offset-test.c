@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Yi Ding
+// SPDX-License-Identifier: GPL-2.0-only
 /* Legacy RGA_BLIT 10-bit UV plane-offset gate probe (chroma CORRECTNESS).
  *
  * Sibling of rga-10bit-legacy-stride-test.c.  That probe asks "does the blit

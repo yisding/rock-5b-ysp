@@ -312,9 +312,17 @@ counter, correct output, sanitizer-clean interval, paired differential, and
 production soak are different evidence classes. Name the one actually observed;
 do not let one silently stand in for another.
 
-Repository-owned material does not yet have a repository-wide redistribution
-license. Read [`LICENSE.md`](LICENSE.md) before copying material out of the repo
-or accepting third-party content with unclear licensing.
+Contributors may license only their own original work. License new original
+documentation and non-code under `CC-BY-SA-4.0`; license original code for the
+upstream project it targets, using `GPL-2.0-or-later` for the contributor's own
+new kernel-source code and original kernel-code patch hunks. Standalone
+packaging, test, and build tools retain an existing accurate file/package notice
+or follow their direct upstream target; directory placement alone does not make
+them kernel code. Add an `SPDX-License-Identifier` to a standalone source file
+only when that identifier accurately describes the file, preserve all upstream
+notices and patch context, and read
+[`LICENSE.md`](LICENSE.md) before accepting third-party content or introducing
+a new code target whose upstream license is not already mapped there.
 
 ## Before handoff
 

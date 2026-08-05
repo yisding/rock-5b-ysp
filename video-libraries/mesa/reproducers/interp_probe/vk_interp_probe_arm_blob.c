@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // RK3588 / proprietary ARM Mali userspace variant of vk_interp_probe.c.
 //
 // The Rockchip libmali ICD for the RK3588/G610 stack advertises Vulkan 1.3,

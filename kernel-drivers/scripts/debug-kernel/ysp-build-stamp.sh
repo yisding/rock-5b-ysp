@@ -1,4 +1,6 @@
 # shellcheck shell=bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Armbian extension: put the REAL build time in `uname -v`.
 #
 # Why this exists. Armbian pins the kernel build stamp for reproducibility:

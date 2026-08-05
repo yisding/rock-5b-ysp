@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: MIT
 # Build and run a small librga/im2d smoke test against /dev/rga.
 set -euo pipefail
 

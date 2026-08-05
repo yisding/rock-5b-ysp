@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Array-target gating probe: format-changing readback from a 2D ARRAY layer.
 // The fragcoord u_blitter fix is gated to 1D/2D/RECT; array targets stay on
 // the interpolated-varying TXF path, which drifts for wide non-pow2 extents.

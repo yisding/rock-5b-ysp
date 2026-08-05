@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Scissored wide-blit probe for the fragcoord u_blitter fix.
 //
 // glScissor applies to glBlitFramebuffer. u_blitter forwards it as scissor

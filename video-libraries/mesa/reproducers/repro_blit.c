@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Minimal reproducer for the Panfrost format-changing integer readback blit bug.
 // Builds an R32G32_UINT texture with source[i] = {i, i}, attaches it to an FBO,
 // and does glReadPixels(GL_RGBA_INTEGER, GL_UNSIGNED_INT) which forces the

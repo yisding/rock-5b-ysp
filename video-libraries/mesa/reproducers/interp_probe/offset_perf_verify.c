@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Correctness companion for offset_perf_probe.c.
 //
 // On the affected Mali-G610, the default 12288x1 case passes only when:

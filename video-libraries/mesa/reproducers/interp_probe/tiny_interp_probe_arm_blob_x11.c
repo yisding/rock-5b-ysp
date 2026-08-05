@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // RK3588 / proprietary ARM Mali userspace variant of tiny_interp_probe.c, X11
 // client edition.
 //

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # =============================================================================
 # build-kernel.sh — unified entry point for every ROCK 5B ysp kernel build
 #

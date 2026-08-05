@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Discriminate the ROCK 5B 26.2.1 raw-SD U-Boot failure hypotheses.
 
 set -euo pipefail

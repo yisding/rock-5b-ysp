@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Vulkan (panvk) version of tiny_interp_probe: varying-interpolation
 // precision probe with NO gallium, NO u_blitter, NO GL state tracker.
 //

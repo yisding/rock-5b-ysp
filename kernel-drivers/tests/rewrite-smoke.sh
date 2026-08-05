@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Run the consumer-facing RK3588 codec/RGA smoke suite against the driver that
 # currently owns /dev/mpp_service and /dev/rga.
 #

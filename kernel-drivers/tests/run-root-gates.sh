@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # =============================================================================
 # run-root-gates.sh -- run the forward-port test gates that require root.
 #

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Apply a conservative, reversible passive-cooling profile to a Radxa ROCK 5B.
 
 set -euo pipefail

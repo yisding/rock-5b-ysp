@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 """Check substantive drift and completeness: version pins, portable defaults, index linkage.
 
 Deliberately excludes documentation-formatting pedantry (finding headers,

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Minimal Mali/Panfrost ordinary-TEX varying-interpolation probe.
 //
 // A normalized floating-point varying runs from 0 to 1 across a wide,

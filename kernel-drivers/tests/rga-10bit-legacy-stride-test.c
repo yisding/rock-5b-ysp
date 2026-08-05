@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Yi Ding
+// SPDX-License-Identifier: GPL-2.0-only
 /* Legacy RGA_BLIT 10-bit stride-convention gate probe.
  *
  * The legacy contract (JeffyCN GStreamer / librga c_RkRgaBlit) passes

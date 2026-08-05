@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
 # Compile (if needed) and run the Panfrost blit reproducers, summarizing
 # pass/fail. Point MESA_BUILD at a surfaceless build (see build-mesa-surfaceless.sh).
 #

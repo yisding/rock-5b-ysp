@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Capture one focused MPP rewrite reproduction without losing failure evidence.
 #
 # Exit 0  = capture-only or wrapped workload passed

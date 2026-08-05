@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // FLOAT variant of repro_blit — the counter-example that disqualifies the
 // integer-only state-tracker fallback (branch
 // panfrost-transfer-targeted-fallback): the 2^-10 coordinate drift affects

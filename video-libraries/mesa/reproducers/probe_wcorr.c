@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Probe: can the FS recover the exact interpolated coordinate from gl_FragCoord.w?
 // Outputs, per pixel, the perspective-interpolated tc AND gl_FragCoord.w, so we can
 // test offline whether interp/w or interp*w (etc.) cancels the ~2^-10 perspective error.

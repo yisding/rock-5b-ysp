@@ -181,8 +181,10 @@ comparison and its dated trade-offs live in
 
 ## Provenance and licensing
 
-- Current repo-wide license state is recorded in [`LICENSE.md`](LICENSE.md):
-  no repository-wide license has been granted yet.
+- The repository's multi-license policy is recorded in
+  [`LICENSE.md`](LICENSE.md): documentation and non-code are CC BY-SA 4.0;
+  code follows its upstream project, with Yi Ding's original kernel
+  contributions licensed GPL-2.0-or-later.
 - The driver code is forward-ported from Rockchip's GPL-2.0 BSP MPP framework
   (`rockchip-kernel` `drivers/video/rockchip/mpp/`) and `airockchip/librga`'s
   kernel driver. It is GPL-2.0 like the kernel.
@@ -197,9 +199,11 @@ comparison and its dated trade-offs live in
   [`RKNPU/RKNN guide`](kernel-drivers/rknpu/docs/how-rknpu-works.md#4-what-is-open-and-what-is-closed).
 - The mainline RGA-in-U-Boot / RGA-V4L2 context comes from Collabora's RK3588
   upstreaming work.
-- Repo-level licensing for this repo's own prose/scripts still needs an owner
-  decision before public redistribution. The kernel patches are GPL-2.0 as
-  derived works; test utilities with SPDX headers keep their stated licenses.
+- Imported kernel material retains its upstream notices, including
+  GPL-2.0-only where applicable. The broader GPL-2.0-or-later grant covers only
+  Yi Ding's own original copyrightable contributions; it does not apply to the
+  upstream kernel or anyone else's code. Standalone source files carry the
+  applicable SPDX identifier where one license governs the file.
 
 This repo is the integration and analysis record; the heavy lifting on the
 drivers is Rockchip's.

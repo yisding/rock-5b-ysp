@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Yi Ding
+// SPDX-License-Identifier: Apache-2.0
 // Minimal RGA core-match experiment: imcopy a WxH RGBA8888 buffer pair with
 // independently chosen backing, to isolate the RGA2 over-4G bounce legs.
 //

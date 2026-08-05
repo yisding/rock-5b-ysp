@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Run the Mesa blit-workaround benchmark in controlled ABBA/BAAB blocks."""
 
 from __future__ import annotations

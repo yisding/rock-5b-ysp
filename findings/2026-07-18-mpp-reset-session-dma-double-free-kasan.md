@@ -86,7 +86,7 @@ The reset path is the only one that does not. So after a session issues
 `mpp_dma_session_destroy()` a second time, and faults taking
 `mutex_lock(&dma->list_mutex)` on the freed object.
 
-The ABI probe reaches this deterministically: `abi-probe.c:460` issues
+The ABI probe reaches this deterministically: `abi-probe.c:461` issues
 `MPP_CMD_RESET_SESSION` on the live MPP session, then closes it, and the async
 rkvdec2 worker performs the second destroy.
 

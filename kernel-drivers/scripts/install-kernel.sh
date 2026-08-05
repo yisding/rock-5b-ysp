@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # =============================================================================
 # install-kernel.sh -- install a locally built RK3588 (Radxa ROCK 5B) kernel.
 #
@@ -41,11 +43,11 @@
 #        BOOT_CMD=, BOOT_SCR=, BACKUP_ROOT=, ENV=, ALLOW_OVERSIZE_IMAGE=1.
 # =============================================================================
 set -uo pipefail
-# Print to the header's closing rule rather than a hardcoded line number: a fixed
-# range silently truncates the moment anyone adds a paragraph, and it did --
-# dropping the Usage line out of --help entirely.
+# Print between the header's opening and closing rules rather than from a
+# hardcoded line number. SPDX metadata now precedes the opening rule, and a
+# fixed range silently truncates whenever the header gains a paragraph.
 [ "${1:-}" != "-h" ] && [ "${1:-}" != "--help" ] || {
-	sed -n '2,/^# =\{20,\}$/p' "$0"
+	sed -n '0,/^# =\{20,\}$/d; /^# =\{20,\}$/q; p' "$0"
 	exit 0
 }
 [ "$(id -u)" -eq 0 ] || {

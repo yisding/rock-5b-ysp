@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Flip-blit probe for the fragcoord u_blitter fix: exercises NEGATIVE scale.
 //
 // glBlitFramebuffer with flipped coordinates is an unscaled nearest blit, so

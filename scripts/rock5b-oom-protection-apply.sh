@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Install and configure earlyoom so memory exhaustion kills one process instead
 # of livelocking the board. Sized from the 2026-07-25 thrash-livelock wedge.
 

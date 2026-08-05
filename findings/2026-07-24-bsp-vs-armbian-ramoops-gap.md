@@ -749,7 +749,7 @@ MEDIUM-HIGH if flashed.
    adversarial passes to interpret and is still partly unresolved.
 
 4. **Reconcile the debug kernel's config with its own instrumentation fragment.**
-   `ysp-debug-instrumentation.conf.sh:14-21` asks for `PSTORE_RAM/CONSOLE/PMSG/
+   `ysp-debug-instrumentation.conf.sh:16-23` asks for `PSTORE_RAM/CONSOLE/PMSG/
    FTRACE=y` and `PSTORE_DEFAULT_KMSG_BYTES=262144`, but the installed
    `/boot/config-6.18.38-ysp-rockchip64` has `PSTORE_RAM=m`, CONSOLE/PMSG/FTRACE
    off and `KMSG_BYTES=10240`. Either make the fragment authoritative or delete the

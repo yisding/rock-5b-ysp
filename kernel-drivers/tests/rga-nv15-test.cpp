@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Yi Ding
+// SPDX-License-Identifier: Apache-2.0
 // Direct im2d compact-NV15 probes on CMA dmabufs (the `0048` compact
 // 10-bits/px raster-stride leg; RGA3-eligible sizes, below-4G so the RGA2
 // over-4G path never interferes):

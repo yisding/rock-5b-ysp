@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // RK3588 / proprietary ARM Mali userspace variant of tiny_interp_probe.c.
 //
 // This keeps the shader, draw, R32UI readback, and CPU checker identical to

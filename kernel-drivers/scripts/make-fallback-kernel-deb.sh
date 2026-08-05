@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # =============================================================================
 # make-fallback-kernel-deb.sh  —  repackage an Armbian kernel deb so it
 # CO-INSTALLS alongside the primary linux-image-current-rockchip64.

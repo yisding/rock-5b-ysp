@@ -359,11 +359,11 @@ variance. Release 0.1 should make a narrow server-preview claim, not "full ROCK
    keeping system FFmpeg/GRD replacements opt-in?
 5. Which non-media RK3588 patches are truly required beyond the current
    self-contained 6.18/YSP tree?
-6. What repository-wide license will cover original image definitions, gadget,
-   packaging, scripts, tests, and documentation?
 
-The final question is a release gate. [`LICENSE.md`](../LICENSE.md) currently
-grants no repository-wide license. Before copying YSP-owned material into a
-public successor, choose a license, audit file-level SPDX headers, preserve the
-Linux/kernel patch licenses, record every upstream component license, verify
+The repository-owned licensing decision is closed in
+[`LICENSE.md`](../LICENSE.md): documentation and non-code use CC BY-SA 4.0,
+while code follows its upstream target and Yi Ding's own original kernel
+contributions use GPL-2.0-or-later. That grant does not apply to upstream
+kernel code. A public image still needs an artifact-level audit: preserve
+all imported upstream notices, record every exact component license, verify
 rkbin/TF-A redistribution, and review Ubuntu naming/trademark requirements.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
 # Run a piglit subset against a Panfrost Mesa build, via the glvnd EGL-vendor
 # mechanism (NOT LD_LIBRARY_PATH override — see the big gotcha below).
 #

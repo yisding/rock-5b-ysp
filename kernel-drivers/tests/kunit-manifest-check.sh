@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Verify a kernel tree's registered KUnit case arrays against the tracked
 # rewrite-kunit-manifest.tsv, so KUnit case additions/removals cannot land in
 # the kernel without the paired YSP manifest+gate bump.

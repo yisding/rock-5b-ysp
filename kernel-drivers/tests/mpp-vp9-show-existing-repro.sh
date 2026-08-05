@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: Apache-2.0
 # Controlled crash-capture for the MPP VP9 show_existing_frame NULL-deref.
 #
 # Reproduces the leg-2/leg-3 crash (see

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Prepare a mounted Armbian ROCK 5B root filesystem for headless Wi-Fi + SSH.
 
 set -euo pipefail

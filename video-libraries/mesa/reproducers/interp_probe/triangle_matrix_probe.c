@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Mali/Panfrost oblong-triangle varying-interpolation matrix.
 //
 // Mesa MR !43161 works around a hardware precision issue for "very oblong"

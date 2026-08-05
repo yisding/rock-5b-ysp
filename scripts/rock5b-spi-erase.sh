@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Erase the ROCK 5B SPI NOR bootloader after taking a readback backup.
 #
 # Default behavior is intentionally conservative:

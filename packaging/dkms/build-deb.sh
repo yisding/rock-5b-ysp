@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Build the rk3588-vcodec-dkms .deb: stage the vendor driver source from the
 # forward-port kernel tree, drop in the DKMS config + out-of-tree Kbuilds,
 # compile the device-tree overlay, and assemble a DKMS .deb.

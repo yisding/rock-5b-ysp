@@ -1,4 +1,6 @@
 # shellcheck shell=bash disable=SC2034
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Shared heavy-debug instrumentation for the ROCK 5B *-debug kernel flavors
 # ("Kernel A" of kernel-drivers/docs/rewrite-validation-plan.md §1).
 #

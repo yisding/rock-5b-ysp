@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Run the expanded RK3588 rewrite/forward-port conformance bundle for one
 # profile, and optionally compare the latest forward-port/rewrite summaries.
 set -euo pipefail

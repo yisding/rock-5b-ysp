@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Regression stress for the rewrite encoder slice-output path.
 #
 # The official suite runs each slice case exactly once, which is not enough:

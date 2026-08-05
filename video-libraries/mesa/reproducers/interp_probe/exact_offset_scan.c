@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Scan which one-triangle widths produce bit-identical varying interpolation
 // with and without the zero-valued polygon-offset workaround.
 //

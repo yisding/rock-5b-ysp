@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Exercise rewrite reset/recovery boundaries around real userspace workloads.
 #
 # This harness is intentionally orchestration-only: it does not invent synthetic

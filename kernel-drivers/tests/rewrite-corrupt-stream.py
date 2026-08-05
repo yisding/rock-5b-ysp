@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 """Corrupt slice payloads in an Annex-B elementary stream, keeping it parsable.
 
 Some driver paths are only reachable when the *hardware* reports a decode

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
 # Focused reproducer for the Mesa MR !43161 size/aspect findings.
 #
 # It builds the existing EGL/GLES probes in this directory and runs only the

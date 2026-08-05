@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # DKMS: register, build and install the two modules against the running kernel
 # (and every future kernel). Then drop the device-tree overlay in place.
 set -e

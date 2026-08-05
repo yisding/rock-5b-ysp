@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 """Regenerate the compact findings index from filenames and H1 titles."""
 
 from __future__ import annotations

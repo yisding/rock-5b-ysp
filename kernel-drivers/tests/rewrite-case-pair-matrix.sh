@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # Run ordered MPP decode-case pairs to surface sequence-dependent wedges that a
 # single fixed case order hides.
 #

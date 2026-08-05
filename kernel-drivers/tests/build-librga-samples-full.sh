@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: Apache-2.0
 # Build the staged airockchip/librga sample set required by librga-suite.sh.
 set -euo pipefail
 

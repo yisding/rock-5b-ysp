@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # Build a local ffmpeg-rockchip-81 runtime .deb from a clean clone of the
 # forward-port tree. The package is intentionally installed under /opt so it
 # does not replace Ubuntu's ffmpeg/libav* packages.

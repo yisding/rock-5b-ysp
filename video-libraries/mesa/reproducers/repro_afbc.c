@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Pre-existing-path probe: wide AFBC texture CPU readback.
 //
 // Renders an x-index pattern into a wide RGBA8 texture (AFBC-eligible layout)

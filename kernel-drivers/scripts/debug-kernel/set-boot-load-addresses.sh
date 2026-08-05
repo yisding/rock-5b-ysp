@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # =============================================================================
 # set-boot-load-addresses.sh — raise the U-Boot DT/initrd/scratch load addresses
 #

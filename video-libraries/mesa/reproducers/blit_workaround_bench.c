@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // End-to-end Mesa internal-blit benchmark for the Mali depth-bias workaround.
 //
 // This intentionally calls glBlitFramebuffer for every measured operation.

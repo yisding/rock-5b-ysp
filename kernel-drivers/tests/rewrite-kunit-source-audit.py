@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 """Reject new fixture-debt signals in the rewrite drivers' KUnit regions."""
 
 from __future__ import annotations

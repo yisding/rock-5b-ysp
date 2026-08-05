@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-or-later
 """Discover maintained repository files without walking ignored build trees."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Yi Ding
+// SPDX-License-Identifier: GPL-2.0-only
 /* Minimal legacy RGA_BLIT_SYNC probe: virtual-address BITBLT copy.
  * Mirrors librga's legacy virtual convention: yrgb_addr = 0,
  * uv_addr = user virtual base, mmu_info enabled.

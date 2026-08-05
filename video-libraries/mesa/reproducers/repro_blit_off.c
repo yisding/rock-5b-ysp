@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Non-zero-offset variant of repro_blit: exercises the blit affine's OFFSET
 // term (offset_x = src_x1 - scale_x * dst_x1) in the fragcoord u_blitter fix.
 // Builds an R32G32_UINT texture with source[i] = {i, i}, attaches it to an

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # =============================================================================
 # transcode-test.sh -- end-to-end RK3588 HARDWARE transcode via ffmpeg-rockchip.
 #

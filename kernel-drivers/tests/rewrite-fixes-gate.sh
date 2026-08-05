@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # One gate for the 2026-07-31 rewrite driver fix series.
 #
 # Each fix in that series is a race or an error path, so the ordinary

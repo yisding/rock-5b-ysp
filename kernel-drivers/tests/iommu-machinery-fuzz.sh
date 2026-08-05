@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Yi Ding
+# SPDX-License-Identifier: GPL-2.0-only
 # =============================================================================
 # iommu-machinery-fuzz.sh -- exercise the WHOLE RK3588 IOMMU surface and check
 # it stays correct under stress. Not just the RGA userptr-IOMMU fallback: it

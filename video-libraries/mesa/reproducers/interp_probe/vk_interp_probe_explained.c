@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
  * vk_interp_probe_explained.c
  *
