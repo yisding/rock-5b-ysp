@@ -57,13 +57,13 @@ Its operational conclusion is:
 |---|---|---|---|
 | Bit-exact decode H264/H265/VP9/AV1 | `decode-differential.sh` | ✅ Exact `6.18.42` / `0092` package decodes all four codecs bit-exact at PSNR=inf; its independent VA-API campaign also includes pinned conformance and all 163 HEVC Main vectors | ❌ no media run |
 | Encode rkvenc2 H264/H265 + slice + RC | `kasan-mpp-suite.sh`, `encode-test-tiny.sh` | ✅ clean | ❌ |
-| RGA blit/scale/CSC/10-bit/AFBC | `librga-*`, `rga-mmu-debug.sh` | ✅ | ❌ |
-| Conformance suites (mpp/librga/gst/ffmpeg) | `*-suite.sh` | ✅ Exact `0092`: ABI PASS, MPP 12/12, FFmpeg 21/21 required + 3/3 diagnostic, GStreamer 100/102 with two classified userspace failures, and maintained direct librga smoke with 31 artifacts | ⚠️ device-free wiring only |
-| KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ Broad historical clean run; current IEP2 tail has its own KASAN/lockdep gates, but the current production package is non-KASAN | ⚠️ booted KUnit exposed fixture Oops/UAF; no real MPP/RGA workload completed |
+| RGA blit/scale/CSC/10-bit/AFBC | `librga-*`, `rga-mmu-debug.sh` | ✅ | ⚠️ Predecessor `g19634f4eebba` passes 12 maintained smoke operations and the imported-handle repair, then fails legacy RGB and official USERPTR paths; current fixes are compile-only. |
+| Conformance suites (mpp/librga/gst/ffmpeg) | `*-suite.sh` | ✅ Exact `0092`: ABI PASS, MPP 12/12, FFmpeg 21/21 required + 3/3 diagnostic, GStreamer 100/102 with two classified userspace failures, and maintained direct librga smoke with 31 artifacts | ⚠️ Predecessor `g19634f4eebba` passes official MPP 12/12 and partial direct librga smoke; the librga run exposed two RGA defects fixed only in the unbooted current tip. GStreamer/FFmpeg remain unrun. |
+| KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ Broad historical clean run; current IEP2 tail has its own KASAN/lockdep gates, but the current production package is non-KASAN | ⚠️ Exact 244-case KUnit interval is clean under KASAN/live lockdep and MPP 12/12 completes, but no full memory-safety workload matrix exists. |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | PoC ladder, now kept in the private `rock-5b-security` repository | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
-| ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
-| Booted KUnit (92 MPP + 152 RGA = 244 current gate) | `rewrite-kunit-log-check.sh` | — | ⚠️ Boot `#29` (`g8042f13c5459`) is the cleanest run: exact 89/89 MPP plus 150/150 RGA, fatal-free reference boot, live lockdep, kmemleak scanning, and expected services. It predates the adversarial-review and current tails. Installed package `#30` never booted and also predates current. The checker now gates the manifest-derived 92+152 plan, complete fatal-signature interval, live lockdep, and source/config/package attribution; a current-tip compound rerun remains required. |
-| Clean-source build gate (normal/test-disabled/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ On 2026-08-04, maintained 6.18 `19634f4eebba` on `v6.18.42` and mainline `b296374b7520` on `v7.2-rc6` pass the warning-fatal clean-archive `normal` profile, including Rockchip/VSI IOMMU, both KUnit-enabled rewrite objects, and the ROCK 5B DTB. The source audit reports 305 known signals, zero new, and zero absent on both; range comparison maps all retained patches exactly. Test-disabled, memory, race, and ABI-mutation results belong to older tips and were not silently carried forward. Current source remains unbooted. |
+| ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; rewrite is booted but current-tip ABI replay is not recorded |
+| Booted KUnit (92 MPP + 152 RGA = 244 current gate) | `rewrite-kunit-log-check.sh` | — | ⚠️ KASAN boot `#2` (`g19634f4eebba`, 2026-08-05) passes exact 92/92 MPP plus 152/152 RGA with zero failures/skips, a clean outer interval, and live lockdep. Current fix tip `37ae7459656b` keeps the manifest but extends an existing case and therefore still needs the compound rerun. |
+| Clean-source build gate (normal/test-disabled/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ On 2026-08-05, maintained 6.18 `37ae7459656b` on `v6.18.42` and mainline `02bf372dac70` on `v7.2-rc6` pass the warning-fatal clean-archive `normal` profile, including Rockchip/VSI IOMMU, both KUnit-enabled rewrite objects, and the ROCK 5B DTB. The source audit reports 305 known signals, zero new, and zero absent on both. Test-disabled, memory, race, and ABI-mutation results belong to older tips and were not silently carried forward. Current source remains unbooted. |
 | Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ exact `0092` passes VP9 hard-lock regression plus RGA cancellation/reset stress with clean kernel windows; historical root gates are green, but the systematic matrix remains unbuilt | ❌ not run |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`; the syzkaller description is kept in the private `rock-5b-security` repository | ⚠️ ran without KCOV | ❌ |
@@ -78,19 +78,19 @@ has broad green functional/recovery evidence and a flat two-hour encode soak;
 its two-hour decode workload and kernel scan pass while the strict userspace
 fd-span oracle remains red. Because the production config has no KASAN/lockdep,
 the three-patch tail is not exact-tip memory-safety qualified. The rewrite has
-compile evidence plus a partial
-booted KUnit/probe record, but no successful userspace media workload; the
+compile evidence plus exact predecessor KUnit, 12/12 official MPP, and partial
+librga hardware evidence, but no complete current-tip media workload; the
 systematic fault-injection matrix, fuzzing-under-coverage, and the soak are gaps
 for **both** tracks.
 
 ## Consolidated gap list
 
-**Rewrite — the big one: no successful media-hardware evidence exists.** Boot
-`#29` proves that an older 89+150 source can complete its KUnit plan with the
-expected services registered, but it predates the 2026-08-02 review tail and
-the current request/rotation repair and tag rebases. Maintained tips `19634f4eebba` and
-`b296374b7520` have source/build evidence only. They need a warning-clean boot,
-the exact 92+152 manifest, all intended bindings, isolated ABI replay, and the
+**Rewrite — the big one: current-tip media qualification remains open.** Boot
+`#2 g19634f4eebba` proves the exact 92+152 plan and official MPP 12/12; its
+librga run proves the earlier handle-plane repair but exposes the RGA defects
+fixed only at maintained tips `37ae7459656b` and `02bf372dac70`. Those tips have
+source/build evidence only. They need a warning-clean boot, exact KUnit,
+corrected full librga, all intended bindings, isolated ABI replay, and the
 paired media matrix. Gap-audit
 [§ six board runs](./rewrite-conformance-gap-audit.md) enumerates the minimum
 set. See [`rewrite-drivers.md`](./rewrite-drivers.md) for exact tips and proof
@@ -153,10 +153,10 @@ before media qualification can start. Sequenced:
    AVS2 elementary-stream asset (cannot be generated). `P91d6-Cad24` is
    disqualified by the case-83 lockdep report.
 1. **Current clean build gate:** the `normal` profile passes on 6.18
-   `19634f4eebba` and mainline `b296374b7520`; test-disabled, memory, race,
+   `37ae7459656b` and mainline `02bf372dac70`; test-disabled, memory, race,
    and ABI-mutation profiles retain older-tip evidence and must be rerun before
    a full handoff claim.
-2. **Build and boot a successor package from 6.18 `19634f4eebba`**; persist a **244-case green
+2. **Build and boot a successor package from 6.18 `37ae7459656b`**; persist a **244-case green
    KUnit report plus complete clean interval and live-lockdep report**
    (`rewrite-kunit-log-check.sh`) tied to the boot fingerprint.
 3. **P1 smoke** (`rewrite-smoke.sh`) then **P2 conformance**: all four suites

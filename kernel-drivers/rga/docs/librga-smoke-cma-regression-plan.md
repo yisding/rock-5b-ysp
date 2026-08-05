@@ -6,7 +6,7 @@
 > classification.
 >
 > Status: **ROOT-CAUSED** / **SOURCE-CONFIRMED** / **SOURCE-FIXED** /
-> **FIX-COMPILE-VERIFIED** / **FIX-RUNTIME-UNVERIFIED**.
+> **FIX-COMPILE-VERIFIED** / **FIX-RUNTIME-VERIFIED** / **PARTIAL**.
 >
 > Observed on: `6.18.41-video-rewrite-kasan-rockchip64 #29`, boot source
 > `rk3588-rewrite-6.18@8042f13c5459`, installed librga
@@ -19,6 +19,15 @@
 > tips `19634f4eebba` / `b296374b7520`, whose current normal focused build
 > passes. Boot `#29` is still the observed failing baseline and predates the
 > fix; no current-tip librga rerun exists.
+
+> **Runtime update (2026-08-05):** KASAN boot `#2 g19634f4eebba` passed the
+> exact 92+152 KUnit manifest, and `20260805-084559-librga-suite` passed the
+> initial imported-handle copy plus 11 following smoke operations. That closes
+> runtime proof for this handle-plane repair. The full smoke later failed on an
+> independent legacy fd-zero fence mismatch, and official userptr samples
+> exposed oversized SWIOTLB segments. Those defects are source-fixed and
+> compile-verified at 6.18 `37ae7459656b` / mainline `02bf372dac70`, but require
+> a new boot; see the [follow-up finding](../../../findings/2026-08-05-rewrite-rga-librga-swiotlb-fence-status.md).
 
 ## Result
 
@@ -99,12 +108,16 @@ Several official sample `main()` functions return a failed `IM_STATUS` value
 whose numeric value is zero, so the shell reports success even after the sample
 prints a fatal error. In `20260802-101933-librga-suite`, 33 official cases (32
 required and one diagnostic) were recorded as passes despite fatal log
-messages.
+messages. Conversely, successful official samples commonly return
+`IM_STATUS_SUCCESS`, numeric value one; the 2026-08-05 wrapper still recorded
+those as shell failures.
 
-`librga-suite.sh` now classifies a zero-status official sample as `log-fail`
-when its log contains the known fatal signatures. The in-repo smoke is excluded
-from this scan because its negative compatibility probes deliberately print
-rejected-operation diagnostics. A device-free parser selftest is available as:
+`librga-suite.sh` now gives fatal diagnostics precedence over any process
+status, and translates status one to success only when the same log contains
+the official sample's explicit terminal `running success!` message. The
+in-repo smoke is excluded from this scan because its negative compatibility
+probes deliberately print rejected-operation diagnostics. A device-free parser
+selftest is available as:
 
 ```sh
 LIBRGA_SUITE_VALIDATE_LOG_PARSER=1 \
@@ -122,9 +135,11 @@ matching BSP environment; they must not be attributed to the handle-plane fix.
 After booting a kernel containing the fix:
 
 1. run the rewrite KUnit manifest and confirm the RGA fixture remains green;
-2. run `kernel-drivers/tests/librga-smoke.sh` and require the initial imported
-   RGBA copy plus the full maintained smoke to pass;
+2. run `kernel-drivers/tests/librga-smoke.sh` and require the full maintained
+   smoke, including the legacy RGB resize, to pass;
 3. run `kernel-drivers/tests/librga-suite.sh` and inspect `summary.tsv` for real
    `log-fail` classifications rather than accepting shell-zero sample exits;
-4. preserve the kernel identity, suite directory, debugfs deltas, and clean
-   dmesg scan before marking the fix runtime-verified.
+4. require no SWIOTLB mapping failure and no successful RGA2 internal-MMU
+   fallback logged as a rejected dma-buf remap; and
+5. preserve the kernel identity, suite directory, debugfs deltas, and clean
+   dmesg scan before marking the follow-up fixes runtime-verified.

@@ -45,8 +45,34 @@ librga_sample_log_failed()
 		"${1:--}"
 }
 
+librga_sample_log_succeeded()
+{
+	# The official demos use IM_STATUS_SUCCESS (numeric value 1) as main()'s
+	# return value. Require their explicit terminal success message before
+	# translating that nonzero shell status into success.
+	grep -aiEq -- 'running success!' "${1:--}"
+}
+
+classify_librga_sample_status()
+{
+	local status=$1
+	local log=$2
+
+	# A fatal diagnostic wins even when the demo returned zero or printed an
+	# earlier success line. Conversely, normalize status 1 only when the demo
+	# explicitly reports that its operation completed successfully.
+	if librga_sample_log_failed "$log"; then
+		printf '%s\n' log-fail
+	elif [ "$status" = "1" ] && librga_sample_log_succeeded "$log"; then
+		printf '%s\n' 0
+	else
+		printf '%s\n' "$status"
+	fi
+}
+
 validate_librga_sample_log_parser()
 {
+	local classified
 	local line
 
 	while IFS= read -r line; do
@@ -71,6 +97,40 @@ rga_copy_demo running success!
 Could not open /usr/data/src/1280x720.rgb
 src image read err
 EOF
+
+	librga_parser_tmp_log=$(mktemp "${TMPDIR:-/tmp}/librga-status.XXXXXX")
+	trap 'rm -f "$librga_parser_tmp_log"' EXIT
+	printf '%s\n' 'rga_copy_demo running success!' \
+		> "$librga_parser_tmp_log"
+	classified=$(classify_librga_sample_status 1 \
+		"$librga_parser_tmp_log")
+	if [ "$classified" != "0" ]; then
+		printf 'FAIL: librga status classifier did not normalize explicit success: %s\n' \
+			"$classified" >&2
+		return 1
+	fi
+
+	printf '%s\n' \
+		'rga_copy_demo running success!' \
+		'rga_copy_demo running failed, Fatal error: submit failed' \
+		> "$librga_parser_tmp_log"
+	classified=$(classify_librga_sample_status 1 \
+		"$librga_parser_tmp_log")
+	if [ "$classified" != "log-fail" ]; then
+		printf 'FAIL: librga status classifier let success hide a fatal line: %s\n' \
+			"$classified" >&2
+		return 1
+	fi
+
+	printf '%s\n' 'Could not open /data/input.bin' \
+		> "$librga_parser_tmp_log"
+	classified=$(classify_librga_sample_status 1 \
+		"$librga_parser_tmp_log")
+	if [ "$classified" != "1" ]; then
+		printf 'FAIL: librga status classifier normalized status without explicit success: %s\n' \
+			"$classified" >&2
+		return 1
+	fi
 
 	echo "PASS: librga sample log parser"
 }
@@ -367,10 +427,8 @@ run_case()
 	end=$(suite_now_ns)
 	elapsed=$(suite_elapsed_s "$start" "$end")
 
-	if [ "$status" = "0" ] &&
-		[ "$case_name" != "ysp_librga_smoke" ] &&
-		librga_sample_log_failed "$log"; then
-		status="log-fail"
+	if [ "$case_name" != "ysp_librga_smoke" ]; then
+		status=$(classify_librga_sample_status "$status" "$log")
 	fi
 	printf "%s\n" "$status" > "$status_file"
 	if [ "$status" = "0" ]; then

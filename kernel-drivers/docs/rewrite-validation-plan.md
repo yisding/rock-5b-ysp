@@ -21,11 +21,13 @@ and definition of done.
 > counts into this plan; follow the status row into the dated finding and
 > correlated run artifacts.
 
-> **Current source boundary (2026-08-04):** maintained tips
-> `19634f4eebba` / `b296374b7520` pass the warning-fatal `normal` build and
-> 305-signal audit. The other focused build profiles retain older-tip evidence.
-> The source contains the separate VPU981 AV1 backend, but no current-tip
-> kernel, including AV1, has passed a hardware qualification rung.
+> **Current source boundary (2026-08-05):** maintained tips
+> `37ae7459656b` / `02bf372dac70` pass the warning-fatal `normal` build and
+> 305-signal audit. Predecessor 6.18 `19634f4eebba` passes exact 92+152 booted
+> KUnit and 12/12 official MPP, but its librga run exposed the RGA defects fixed
+> only at the new tips. The other focused build profiles retain older-tip
+> evidence. The source contains the separate VPU981 AV1 backend, but no rewrite
+> AV1 kernel has passed a hardware qualification rung.
 
 ## What already exists vs. what this plan adds
 

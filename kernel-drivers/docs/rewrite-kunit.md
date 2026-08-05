@@ -264,8 +264,8 @@ package_name=$(dpkg-query -S "/boot/vmlinuz-$(uname -r)" |
   awk -F ': ' 'NR == 1 { print $1 }')
 package_id=$(dpkg-query -W -f='${Package}=${Version}' "$package_name")
 sudo env \
-  KUNIT_SOURCE_COMMIT=19634f4eebba \
-  KUNIT_EXPECTED_SOURCE_COMMIT=19634f4eebba \
+  KUNIT_SOURCE_COMMIT=37ae7459656b \
+  KUNIT_EXPECTED_SOURCE_COMMIT=37ae7459656b \
   KUNIT_CONFIG_FILE="$PWD/$evidence/config" \
   KUNIT_PACKAGE_ID="$package_id" \
   KUNIT_REPORT="$PWD/$evidence/result.tsv" \
@@ -340,12 +340,13 @@ plus a real two-thread fence/abort race. Its named ordered 90/152 manifest and
 source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
-The maintained tips are now 6.18 `19634f4eebba` on `v6.18.42` and mainline
-`b296374b7520` on `v7.2-rc6`, with an exact 92/152 manifest. They retain the
-patch-equivalent request/rotation repair after the 2026-08-04 rebases. That
-repair fixes non-terminal request-configuration cleanup and distinguishes unsupported RGA3 pattern-blend
-rotation from the supported non-pattern rotation oracle. Both tips pass the
-warning-fatal clean-archive `normal` build and the 305-signal source audit, but
-neither has booted KUnit evidence. Do not promote KTAP, compile, or package
-results into a runtime pass until the entire compound evidence above is clean
-on a current-tip successor kernel.
+The maintained tips are now 6.18 `37ae7459656b` on `v6.18.42` and mainline
+`02bf372dac70` on `v7.2-rc6`, with an exact 92/152 manifest. Predecessor 6.18
+`19634f4eebba` passed that exact manifest on KASAN boot `#2` on 2026-08-05:
+244 results, zero failures/skips, a clean outer interval, and live lockdep. That
+runtime-verifies the patch-equivalent request/rotation repair after the
+2026-08-04 rebases. The current tips add RGA librga DMA/fence compatibility and
+extend an existing legacy BLIT case without changing the manifest. Both pass
+the warning-fatal clean-archive `normal` build and the 305-signal source audit,
+but neither current tip has booted KUnit evidence. Do not carry the predecessor
+KTAP across that source boundary; replay the entire compound evidence above.
