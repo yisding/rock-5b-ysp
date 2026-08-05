@@ -3,88 +3,23 @@
 <!-- ppa-live-ffmpeg: 7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1 -->
 
 This guide is for a new user who wants hardware video acceleration on a Radxa
-ROCK 5B without building the kernel or media libraries from source. It explains
-how to add `ppa:yi-ding/ubuntu-rock-5b`, install a small starting set, and prove
-that an application is actually using the RK3588 media hardware.
+ROCK 5B without building the kernel or media libraries from source. It starts
+with the normal installation path, then shows how to prove that MPV, FFmpeg,
+Chrome, or GNOME Remote Desktop is actually using the RK3588 media hardware.
 
-The shortest useful path is:
-
-1. prepare a way to recover the board if a kernel does not boot;
-2. install the PPA kernel, device-access rules, MPP, librga, and FFmpeg;
-3. reboot and check the device nodes; and
-4. choose MPV/FFmpeg, Chrome/VA-API, or GNOME Remote Desktop below.
+> [!WARNING]
+> **Installing this PPA's kernel can leave the board unbootable.** Before the
+> kernel install below, [confirm that the system is supported](#confirm-the-system-is-supported)
+> and prepare the tested [recovery and rollback](#recovery-and-rollback) path.
+> Keeping an old kernel package installed is not, by itself, a recovery method.
+> You accept the risk of an unbootable or bricked board and data loss; the
+> project author is not responsible if that happens.
 
 > This is a personal engineering project, not a Radxa, Rockchip, Armbian, or
 > Ubuntu product. There is no warranty, response-time promise, or guaranteed
-> security-update schedule. The repository does hold dated hardware results for
-> the paths described as working here.
+> security-update schedule.
 
-## 1. Check that this PPA fits your system
-
-Use this guide only for the following combination:
-
-| Requirement | Supported target |
-|-------------|------------------|
-| Board | Radxa **ROCK 5B** with an RK3588. ROCK 5B+ receives the same codec device-tree settings but has not been tested. |
-| Operating system | **Armbian's Ubuntu 26.04 Resolute** image. |
-| Architecture | **arm64**. |
-| Kernel | The PPA's `linux-image-ysp-rockchip64`; the normal Armbian kernel does not expose the codec devices used by this guide. |
-
-Check before installing anything:
-
-```bash
-dpkg --print-architecture
-. /etc/os-release
-printf '%s\n' "${UBUNTU_CODENAME:-$VERSION_CODENAME}"
-tr -d '\0' </proc/device-tree/model
-printf '\n'
-```
-
-The first two answers should be `arm64` and `resolute`, and the model should
-identify a Radxa ROCK 5B. Stop here if they do not. Packages in this PPA have
-not been qualified on another board, Ubuntu release, Debian image, or Radxa OS.
-
-The useful media scope is:
-
-- H.264, HEVC, VP9, and AV1 hardware decode through MPP/FFmpeg;
-- H.264 and HEVC hardware encode;
-- RGA hardware scaling and colour conversion;
-- H.264, HEVC, and VP9 decode through the optional VA-API bridge; and
-- H.264 hardware encode for a GNOME Remote Desktop user session.
-
-The [unsupported list](#9-what-is-not-supported) is just as important. In
-particular, this is not a full replacement for a Rockchip BSP when you need the
-camera stack, NPU, hardware JPEG, or broad vendor-peripheral support.
-
-## 2. Prepare recovery first
-
-Installing `linux-image-ysp-rockchip64` changes which kernel Armbian boots.
-ROCK 5B's normal Armbian boot flow does not provide a kernel-selection menu, so
-keeping the old kernel package installed is not enough if the new kernel fails
-before login.
-
-Before installing the kernel:
-
-```bash
-git clone https://github.com/yisding/rock-5b-ysp.git
-cd rock-5b-ysp
-
-PROFILE=pre-install \
-  bash kernel-drivers/tests/conformance/scripts/collect-system-info.sh
-sudo bash kernel-drivers/scripts/kernel-revert.sh list
-cp -a /boot/armbianEnv.txt ./armbianEnv.txt.pre-ysp
-```
-
-Also keep the existing Armbian kernel installed and prepare an SD rescue system
-that you have tested far enough to mount the installed root filesystem. The
-complete [recovery and rollback runbook](../install.md#3-prepare-recovery-and-capture-the-old-baseline)
-explains how to switch to a remaining kernel or reinstall saved image and DTB
-packages from that rescue boot.
-
-Do not proceed until that recovery path is real. A copied configuration file by
-itself is not a recovery method.
-
-## 3. Add the PPA and install the base stack
+## 1. Add the PPA and install the base stack
 
 Add the public archive:
 
@@ -154,7 +89,7 @@ Look for all of the following:
 
 If any of those checks fail, fix the base before debugging a player or browser.
 
-## 4. Choose a starting path
+## 2. Choose a starting path
 
 You do not need every package in the archive.
 
@@ -169,7 +104,7 @@ You do not need every package in the archive.
 The next three sections show how to verify the application path, not just that a
 package is installed.
 
-## 5. Path A: FFmpeg and MPV
+## 3. Path A: FFmpeg and MPV
 
 Install a player and the optional MPP diagnostic programs:
 
@@ -244,7 +179,7 @@ ffprobe -v error -select_streams v:0 \
 A successful, non-empty HEVC 1280×720 output proves substantially more than the
 capability list: one command used MPP decode, librga/RGA, and MPP encode.
 
-## 6. Path B: VA-API and Google Chrome
+## 4. Path B: VA-API and Google Chrome
 
 Install the VA-API bridge and make it the normal VA-API driver for future login
 sessions:
@@ -303,7 +238,7 @@ check. If `vainfo` works but Chrome does not, the Chrome build or its sandbox is
 the likely boundary; installing another random Chromium package will not fix a
 browser compiled without libva support.
 
-## 7. Path C: GNOME Remote Desktop
+## 5. Path C: GNOME Remote Desktop
 
 This path uses hardware **encoding on the ROCK 5B**. Video decoding happens on
 the remote RDP client, so a successful server check will refer to
@@ -355,7 +290,7 @@ is healthy.
 This package supports hardware encode for a logged-in user session. Hardware
 encode at the GDM login screen is not part of the published PPA setup.
 
-## 8. Packages most people can skip
+## 6. Packages most people can skip
 
 | Package | Install it only when... |
 |---------|-------------------------|
@@ -370,7 +305,7 @@ The repository also has full-stack install and migration helpers under
 and existing experimental installs; the manual package choices above are easier
 to understand on a new system.
 
-## 9. What is not supported
+## 7. What is not supported
 
 Treat the following as out of scope, absent, or not qualified:
 
@@ -400,18 +335,88 @@ The BSP is the better choice when camera/ISP, NPU, hardware JPEG, per-die CPU
 voltage tuning, or broad vendor peripheral coverage matters more than this
 newer-kernel media stack.
 
-## 10. Troubleshooting and asking for help
+## 8. Troubleshooting, recovery, and support
+
+### Confirm the system is supported
+
+Before diagnosing an application—or before installing if you followed the
+warning at the top—confirm that the board matches the only qualified target:
+
+| Requirement | Supported target |
+|-------------|------------------|
+| Board | Radxa **ROCK 5B** with an RK3588. ROCK 5B+ receives the same codec device-tree settings but has not been tested. |
+| Operating system | **Armbian's Ubuntu 26.04 Resolute** image. |
+| Architecture | **arm64**. |
+| Kernel | The PPA's `linux-image-ysp-rockchip64`; the normal Armbian kernel does not expose the codec devices used by this guide. |
+
+Check the running system:
+
+```bash
+dpkg --print-architecture
+. /etc/os-release
+printf '%s\n' "${UBUNTU_CODENAME:-$VERSION_CODENAME}"
+tr -d '\0' </proc/device-tree/model
+printf '\n'
+```
+
+The first two answers should be `arm64` and `resolute`, and the model should
+identify a Radxa ROCK 5B. Packages in this PPA have not been qualified on
+another board, Ubuntu release, Debian image, or Radxa OS.
+
+The intended media scope is:
+
+- H.264, HEVC, VP9, and AV1 hardware decode through MPP/FFmpeg;
+- H.264 and HEVC hardware encode;
+- RGA hardware scaling and colour conversion;
+- H.264, HEVC, and VP9 decode through the optional VA-API bridge; and
+- H.264 hardware encode for a GNOME Remote Desktop user session.
+
+If the system does not match the table, stop. A failure on another system is
+not evidence of a package defect in this supported configuration.
+
+### Recovery and rollback
+
+Installing `linux-image-ysp-rockchip64` changes which kernel Armbian boots.
+ROCK 5B's normal Armbian boot flow does not provide a kernel-selection menu, so
+keeping the old kernel package installed is not enough if the new kernel fails
+before login.
+
+Before installing the kernel, capture the working state from a repository
+checkout:
+
+```bash
+git clone https://github.com/yisding/rock-5b-ysp.git
+cd rock-5b-ysp
+
+PROFILE=pre-install \
+  bash kernel-drivers/tests/conformance/scripts/collect-system-info.sh
+sudo bash kernel-drivers/scripts/kernel-revert.sh list
+cp -a /boot/armbianEnv.txt ./armbianEnv.txt.pre-ysp
+```
+
+Also keep the existing Armbian kernel installed and prepare an SD rescue system
+that you have tested far enough to mount the installed root filesystem. The
+complete [recovery and rollback runbook](../install.md#3-prepare-recovery-and-capture-the-old-baseline)
+explains how to switch to a remaining kernel or reinstall saved image and DTB
+packages from that rescue boot.
+
+Do not install the PPA kernel until that recovery path is real. A copied
+configuration file by itself is not a recovery method.
+
+### Common problems
 
 Start with the earliest failed layer:
 
 | Symptom | First check |
 |---------|-------------|
-| `uname -r` does not contain `ysp-rockchip64` | The PPA kernel was not selected at boot. Use the recovery runbook rather than manually rewriting `/boot` links. |
+| `uname -r` does not contain `ysp-rockchip64` | The PPA kernel was not selected at boot. Use the [recovery runbook](#recovery-and-rollback) rather than manually rewriting `/boot` links. |
 | Device exists but a normal user cannot open it | Confirm `rk3588-codec-udev` is installed, `id -nG` contains `video`, and a completely new login session was started after `usermod`. |
 | FFmpeg does not list `*_rkmpp` | Check `command -v ffmpeg`, `ffmpeg -version`, and `apt-cache policy ffmpeg`; a private FFmpeg earlier in `PATH` may be taking precedence. |
 | MPV plays but you cannot tell which decoder it used | Force `--vd=h264_rkmpp` or `--vd=hevc_rkmpp`, then inspect the MPV process's open descriptors. |
 | `vainfo` works but Chrome stays on software | Check that the Chrome `.deb` is `arm64`, then inspect `chrome://gpu` and `chrome://media-internals`. Browser build and sandbox behavior are separate from driver health. |
 | GRD loads the backend but creates no hardware session | Use a client with AVC420 support and generate motion. An RFX-only connection takes the software path. |
+
+### Collect a useful report
 
 For a useful support report, collect:
 
@@ -424,6 +429,8 @@ apt-cache policy \
 ls -l /dev/mpp_service /dev/rga /dev/dma_heap/system
 journalctl -k -b -p warning..alert --no-pager
 ```
+
+### Ask for help
 
 Questions and support requests are welcome as
 [GitHub issues](https://github.com/yisding/rock-5b-ysp/issues/new). Include:
