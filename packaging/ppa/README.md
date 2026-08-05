@@ -41,10 +41,10 @@ PPA, installed, booted, or hardware-validated, so it is deliberately absent
 from the live-archive table below.
 
 The reader-facing counterpart to this page is
-[`../../docs/ppa-support.md`](../../docs/ppa-support.md): what the archive and
-its kernel support, what they do not, the evidence behind each claim, and the
-comparison with a Rockchip BSP distribution. Give that page to someone
-considering the PPA; this page is for building and publishing it.
+[`../../docs/ppa-support.md`](../../docs/ppa-support.md): recovery-first setup,
+package choices, application-level checks, troubleshooting, and the unsupported
+list. Give that page to someone trying the PPA; this page is for building and
+publishing it.
 
 ## PPA Layout
 

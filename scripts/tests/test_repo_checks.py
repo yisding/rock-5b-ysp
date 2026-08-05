@@ -567,7 +567,7 @@ class PpaVersionConsistencyTests(unittest.TestCase):
             support = root / "docs/ppa-support.md"
             support.parent.mkdir(parents=True)
             support.write_text(
-                "| `ffmpeg`<br>`7:8.0.3+published-0ubuntu1` | choices | why | boundary |\n",
+                "<!-- ppa-live-ffmpeg: 7:8.0.3+published-0ubuntu1 -->\n",
                 encoding="utf-8",
             )
             errors: list[str] = []

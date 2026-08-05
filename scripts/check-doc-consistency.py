@@ -520,7 +520,7 @@ def check_ppa_ffmpeg_install_pin(root: Path, errors: list[str]) -> None:
         support_match = None
         if support_path.is_file():
             support_match = re.search(
-                r"^\| `ffmpeg`<br>`([^`]+)` \|",
+                r"^<!-- ppa-live-ffmpeg: ([^ ]+) -->$",
                 support_path.read_text(encoding="utf-8", errors="replace"),
                 re.MULTILINE,
             )
@@ -529,7 +529,7 @@ def check_ppa_ffmpeg_install_pin(root: Path, errors: list[str]) -> None:
                 " and does not match the live version documented in "
                 "docs/ppa-support.md"
                 if support_match is not None
-                else "; docs/ppa-support.md has no parseable live FFmpeg row"
+                else "; docs/ppa-support.md has no parseable ppa-live-ffmpeg marker"
             )
             errors.append(
                 "packaging/ppa/clean-install-system-stack.sh: FFMPEG_VERSION "
