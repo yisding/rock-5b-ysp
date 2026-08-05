@@ -192,10 +192,13 @@ The PPA source packaging for `mpp`, `librga`, `ffmpeg`, GRD, the optional
 GDM greeter ACL package, and the co-installable forward-port kernel is now in this repo under
 [`ppa/`](ppa/README.md), along with the source-export helper and the 2026-07-06
 upload log. The main system stack and all four dedicated FFmpeg/kernel tracks
-have Published source and binary packages. The remaining gates are the exact
-clean-migration board transaction, board install/reboot/revert validation for
-[`ppa/kernel-forward-port/`](ppa/kernel-forward-port/README.md), alpha-kernel
-hardware validation, and the optional GDM ACL upload.
+have Published source and binary packages. The forward-port kernel's exact
+install/boot and SD-recovery gates are complete; its remaining delivery gate is
+the clean-migration/stale-package-cleanup board transaction, while exact-tail
+sanitizer/hostile-path work and the decode fd-span oracle remain qualification
+gates under [`ppa/kernel-forward-port/`](ppa/kernel-forward-port/README.md).
+Alpha-kernel hardware validation and the optional GDM ACL upload remain
+separate channel gates.
 Generated source packages, orig tarballs, signed `.changes`, `.deb`s, and
 Launchpad credentials stay out of git by policy.
 

@@ -160,8 +160,8 @@ lineage and artifact audit, not these passes.
 
 Start from a clean, pinned `linux-stable` 6.18.y tag and apply:
 
-1. the contiguous YSP forward-port series (currently `0001`–`0089` at
-   `7615b69a744af`);
+1. the contiguous YSP forward-port series (currently `0001`–`0092` at
+   `7d53bc7a3adc`);
 2. the self-contained ROCK 5B decoder DT described by the
    [vanilla-kernel guide](../kernel-versions/docs/vanilla-kernel.md), plus the
    existing inline encoder/RGA nodes;

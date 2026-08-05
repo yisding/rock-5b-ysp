@@ -59,9 +59,10 @@ patch `0040` booted but is not validated: its first conformance run Oopsed
 during preflight. A later KASAN build verifies the resulting `0041` and `0042`
 lifetime fixes with clean memory-safety scans. Exact-6.18.38 production build
 `Pf558-Cb831` and its fresh unsigned PPA source extraction now carry both fixes
-with the expected non-debug config, but the Published package still predates
-them. Corrected isolated and full official-MPP runs are now functionally green
-on the KASAN build; full conformance remains open because RGA2 DMA-debug found
+with the expected non-debug config, but the published package at that historical
+checkpoint still predated them. Corrected isolated and full official-MPP runs
+were functionally green on the KASAN build; full conformance remained open at
+that checkpoint because RGA2 DMA-debug found
 an invalid page-table sync and the host lacks the GStreamer development stack.
 Patches `0043`/`0044` fix the two persistent RGA ABI replay gaps; the rebuilt
 booted KASAN debug kernel `Pb999-C4ad2` passes the full ABI replay
@@ -69,7 +70,7 @@ booted KASAN debug kernel `Pb999-C4ad2` passes the full ABI replay
 12-case MPP matrix (`20260721-042445-kasan-mpp-suite`) and the full FFmpeg
 codec suite including the H.264/H.265/VP9 bit-exact PSNR gates
 (`20260721-042631-ffmpeg-codec-suite`) — all required cases pass with clean
-kernel scans, so the complete current patch tip `0001`–`0044` is
+kernel scans, so the complete then-current patch tip `0001`–`0044` was
 hardware-validated for those gates. The librga im2d smoke's chronic
 `no core match` failures were root-caused (RGA3's 68-pixel minimum width ×
 RGA2's below-4G limit on a kernel without dma32 heaps) and fixed in the
@@ -172,7 +173,7 @@ lines; and the regression + conformance gates all pass — MPP suite
 (`20260722-073958`, **24/24** including AV1 decode/transcode/PSNR, HEVC/VP9
 bit-exact PSNR inf, Main10→P010 RGA, and resolution-change). A whole-session
 root journal sweep found zero KASAN/BUG/Oops/iommu-fault signatures. So the
-complete patch tip `0001`–`0057` is hardware-validated for the memory-safety,
+complete then-current patch tip `0001`–`0057` was hardware-validated for the memory-safety,
 ABI, and codec-conformance gates on `Pd222`. Both former distribution blockers
 are cleared — see the
 [RGA job-vs-session UAF finding](../../findings/2026-07-21-rga-job-vs-session-close-uaf-kasan.md)
@@ -183,15 +184,16 @@ and the
 [WARN/oops audit sweep](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md)
 added 18 fixes — 12 unprivileged-reachable, five of them kernel-heap
 corruption — and the initial evidence was **compile-only**: `make W=1` clean
-and a byte-identical replay. They are now present in the booted `0089`
-production package and receive ordinary integrated exercise from its tier-1
-decode run, but none has its targeted hostile-path reproducer. Three change observable
+and a byte-identical replay. They are now present in the booted exact `0092`
+production package and receive broad integrated exercise from its passing ABI,
+MPP, FFmpeg, direct-RGA, decode-correctness, recovery, and VA-API campaign, but
+none has its targeted hostile-path reproducer. Three change observable
 behaviour (`mpp_check_req()` now rejects requests the old sloppy clamp let
 through; the RGA IOMMU fault handler holds `irq_lock` across a ~1 ms
 `soft_reset()` busy-wait; the RGA request debugfs dump holds `request->lock`
-across up to 256 `seq_printf()` groups), so the boot that gates them must run
-full conformance, not just a smoke test. Nothing in the "Done" table below
-covers this range.
+across up to 256 `seq_printf()` groups). The ordinary production campaign is
+therefore green for this range, while the exact-tail KASAN/lockdep and targeted
+hostile-path gates remain open.
 
 ## ✅ Done — validated on real hardware
 
@@ -314,8 +316,9 @@ covers this range.
   provider now exports the narrow media reset/fault helpers needed by MPP. AV1
   remains separate because its hardware maps through the VSI/AV1D provider; the
   AV1 worktree has a VSI refresh/fault hook and MPP tries Rockchip, then VSI,
-  then the generic cookie-less fallback. Runtime validation of the new reset and
-  fault paths is still pending.
+  then the generic cookie-less fallback. The exact `0092` production artifact
+  now exercises IOMMU machinery plus VP9/RGA recovery with clean kernel windows;
+  systematic fault injection and exact-tail KASAN/lockdep remain pending.
 - **Single static clock.** No thermal/DVFS management: the clock is pinned by the
   DT `assigned-clock-rates` (~800 MHz) and never moves, so sustained max-load
   workloads should be watched (fine in tests so far). Re-enabling DVFS takes *two*
@@ -411,8 +414,9 @@ covers this range.
   blocks replacement while a request runs, and frees the prior staged list.
   Rebuilt KASAN debug build `Pb999-C4ad2` booted and passed run
   `20260721-034716-kasan-narrowed` with `abi_status=0` and a clean memory scan —
-  the first fully green ABI replay on a forward-port kernel. The production
-  package still predates these patches. See the
+  the first fully green ABI replay on a forward-port kernel. That production
+  package still predated these patches; the current exact `0092` package
+  contains them and passes ABI replay. See the
   [RGA ABI finding](../../findings/2026-07-21-rga-forward-port-abi-gaps.md).
 - **Direct RGA3 im2d virtual-buffer samples exposed RGA/IOMMU forward-port
   gaps.** The upstream `airockchip/librga` copy/resize/rotate samples import
@@ -428,8 +432,10 @@ covers this range.
   aperture and wrap when the driver added plane offsets in 32-bit registers.
   The forward-kernel fixes are `13afe70c8271` (`iommu: rockchip: restore large
   DMA segment support`) and `6b9dba7abcd0` (`video: rockchip: rga: keep IOVAs
-  below 32-bit wrap guard`); targeted RGA runtime validation remains pending on
-  the current package. Separately, this kernel exposes no Rockchip DMA32 heaps; that
+  below 32-bit wrap guard`). Later debug builds closed the original gate, and
+  exact `0092` now passes the maintained direct RGA smoke plus IOMMU machinery
+  checks. The forced fragmented-DMA-BUF RGA2 discriminator remains open.
+  Separately, this kernel exposes no Rockchip DMA32 heaps; that
   is a BSP ABI/sample-compatibility gap for heap-name-specific userspace, not
   the RGA3 MMU interrupt cause.
   Evidence and rerun instructions:
@@ -465,11 +471,17 @@ The next gates close the remaining qualification boundaries:
 
 ## What "done" means here
 
-The forward port is usable for the exact production scope already measured:
-the Published package boots, IEP2 runs, and tier-1 VA-API decode is bit-exact.
-It is not yet justified to generalize that result to the full MPP/RGA ABI,
-encode, GStreamer, recovery/fault, or long-run surface. Those current-artifact
-gates—not publication, installation, or SD recovery—are the remaining release
-qualification boundary. The older full conformance and KASAN results remain
-valuable regression evidence, but do not silently transfer across the audit
-tail and stable-base update.
+The forward port is usable for the exact production scope already measured.
+The published package boots and passes the full MPP matrix, FFmpeg required and
+diagnostic cases, MPP/RGA ABI replay, direct RGA, bit-exact H.264/H.265/VP9/AV1
+decode, recovery, broad VA-API, bounded kernel-log scans, and a two-hour dual
+codec encode soak. GStreamer is 100/102 with two classified userspace failures;
+the 4K decode workload and kernel scan are green while its strict fd-span oracle
+is red.
+
+Wider testing is justified, but wider production distribution is still gated
+by exact-`0092` KASAN/lockdep coverage, the targeted hostile paths and root-only
+fault counters, resolution of the decode fd-span criterion, authenticated RDP
+and physical-display integration, and a clean upgrade/migration exercise. The
+older KASAN results remain valuable regression evidence, but do not silently
+transfer across the audit tail and stable-base update.

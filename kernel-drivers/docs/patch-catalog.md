@@ -277,23 +277,27 @@ changes ([W13](../../status.md#watch-w13)).
 `0076`–`0079` are the [2026-07-29 WARN/oops audit
 sweep](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md) —
 18 defects, of which 12 are unprivileged-reachable and five are kernel-heap
-corruption. They first landed compile-verified only. The current `0089`
-production package has now booted and completed a narrow tier-1 decode run, but
-the four patches still lack their targeted hostile-path gates.
+corruption. They first landed compile-verified only. The `0089` production
+predecessor later booted with a narrow tier-1 decode run; the exact
+`0092` production package has now completed broad ordinary conformance and
+recovery testing. The four patches still lack their targeted hostile-path
+gates, which the broad campaign does not substitute for.
 
 `0080` is the 2026-07-31 mapped-SG contract reconciliation. Its direct-span
 admission check repairs forward-port-only hardening, while its RGA2 page-table
 walker corrects vendor code that mixed original SG lengths/counts with mapped
-DMA addresses. Its two changed objects compile cleanly and it is included in
-the booted current package, but the forced fragmented-DMA-BUF RGA2 gate remains
+DMA addresses. Its two changed objects compile cleanly, it is included in the
+booted exact `0092` package, and that package passes direct RGA and IOMMU
+machinery gates. The forced fragmented-DMA-BUF RGA2 discriminator remains
 open.
 
 `0081`–`0087` are the 2026-08-01 ioctl/lifetime audit fixes and their
 adversarial-review repairs. The audit traces most defect sites to the BSP
 import, while the session-fd ordering bug and the original RGA ownership leak
 were forward-port regressions. These rows preserve that mixed provenance. The
-booted current package gives them narrow integrated evidence, not the still-owed
-forward-port ABI, cross-session RGA, MPP, encode, and decode regression gates.
+booted exact `0092` package gives them broad ordinary integrated evidence, not
+the still-owed targeted forward-port ABI, cross-session RGA, MPP lifetime,
+encode, and decode hostile-path regressions.
 
 `0088` imports the BSP's RK3588 IEP2 block and board DT enablement into 6.18.
 `0089` is its three-way safety-review tail. It contains both adaptations to the
@@ -306,9 +310,14 @@ standalone IEP2. See the
 
 `0090`–`0092` close the known-open RGA job-task, MPP provider-callback/task,
 and decoder recovery lifetime gaps from the 2026-08-01 audit. They pass an
-affected-object arm64 `W=1` build but have no package or board evidence. Their
-mixed backport boundary is recorded in the rows below and in the
-[fix finding](../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
+affected-object arm64 `W=1` build and ship in the Published, installed, booted
+exact `0092` package. Production-profile cancellation/recovery and the broad
+native/VA-API campaign are green, but that config has no KASAN/lockdep, so
+exact-tail memory-safety qualification remains open. Their mixed backport
+boundary is recorded in the rows below, the
+[fix finding](../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md),
+and the later
+[production finding](../../findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md).
 
 | # | What it does | Class | BSP evidence | Backport |
 |---|--------------|-------|--------------|----------|

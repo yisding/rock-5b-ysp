@@ -11,6 +11,14 @@
 
 ## Result
 
+> **Subsequent runtime update, 2026-08-04:** the source-only boundary recorded
+> below has been superseded for publication, install, boot, and
+> production-profile runtime. Exact `0092` and all three arm64 binaries are now
+> Published; the image, DTB, and headers are installed and booted, and the broad
+> functional/recovery campaign is green. Exact-tail KASAN/lockdep and the
+> remaining targeted hostile paths are still open. See the
+> [production validation finding](2026-08-04-forward-port-6-18-42-0092-production-validation.md).
+
 The maintained forward-port source and exported series now end at `0092`.
 Three commits close the remaining non-unbind lifetime/recovery items from the
 [2026-08-01 audit](2026-08-01-forward-port-uaf-oops-audit-round-2.md):
@@ -70,7 +78,7 @@ stores a single task by value and does not have that exact layout.
 - **Artifacts:** build objects remain in the external disposable build
   directory; no binary or raw runtime artifact is committed here.
 
-## Boundary
+## Boundary at the source-only checkpoint
 
 This is source inspection and affected-object compilation, not runtime proof.
 Exact source package `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` now exists
@@ -79,12 +87,12 @@ rewrite build directories; after exact cleanup, full-tree comparison against
 the Published orig differed only in the expected eight files, and a fresh
 `.dsc` extraction byte-matched all eight to tip `7d53bc7a3adc`. Launchpad
 Published source publication `18656958`; remote arm64 build `33467257`
-completed successfully in 41m44s and awaits binary ingestion. None of these
-patches has booted on the ROCK 5B, and no cancellation,
-IOMMU-fault, timeout, concurrent-reset, KASAN, or lockdep gate has exercised the
-new paths. The Published and booted binary remains the `0089` /
-`7615b69a744af` predecessor; its runtime evidence does not transfer to this
-source tail.
+completed successfully in 41m44s. At this checkpoint, before binary ingestion
+and the later production run, none of these patches had booted on the ROCK 5B
+and the Published/booted binary remained the `0089` / `7615b69a744af`
+predecessor. That was the correct boundary for this source-inspection result;
+the later production finding linked above now owns the booted
+functional/recovery verdict.
 
 The patch closes soft-CCU failed-task retirement. It does not claim a new
 hard-CCU task-retirement result, and it does not address the root-only MPP/RGA
@@ -92,10 +100,10 @@ unbind lifetime items deliberately left outside this change.
 
 ## Verification gate
 
-Confirm remote arm64 build `33467257` publishes all three binaries, install and
-boot the exact production `0092` package, and separately exercise that tip with
-KASAN/lockdep through the existing RGA cancellation/session-close coverage and
-decoder recovery/reset-contention
-gates with a fatal-journal scan. A production-profile build should then repeat
-the current-package MPP/FFmpeg, librga/RGA, GStreamer, ABI, RDP-encode, and soak
-campaign before this tail is described as wider-audience ready.
+The publication/install/boot and broad production-profile campaign are now
+complete in the later production finding. The remaining source-tail gate is to
+exercise exact `0092` with KASAN/lockdep through the existing RGA
+cancellation/session-close and decoder recovery/reset-contention coverage,
+retain a fatal-journal scan, and run the remaining targeted hostile/ownership
+paths. The strict decode fd-span oracle, root-only counters, and authenticated
+RDP/display integration remain separate qualification gaps.

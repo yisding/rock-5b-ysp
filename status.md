@@ -431,9 +431,9 @@ last-checked date.
   `6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1` passed staging, signature,
   extracted-source provenance/config, and IEP2 payload checks. The source and
   all three arm64 binaries are Published; the package is installed and booted
-  as `6.18.42-ysp-rockchip64`. Its narrow current-package evidence comprises
+  as `6.18.42-ysp-rockchip64`. That predecessor's narrow evidence comprises
   standalone IEP2 and 17/17 pinned tier-1 VA-API vectors. This is ordinary
-  integrated exercise of the current tail, not the still-owed targeted
+  integrated exercise of that tail, not the still-owed targeted
   `0076`–`0087` hostile/ABI/RGA regression gates or the full conformance set.
 - **State 2026-07-29 (audit sweep):** The exported tail is now contiguous
   `0001`–`0079`. A systematic WARN/oops audit of the driver source found **18
@@ -520,13 +520,15 @@ last-checked date.
   ysp10. Source package built from the release commit: a fresh `dpkg-source -x`
   matches all 661 tracked files byte-for-byte, `dscverify` passes against the
   personal key ring, and source Lintian is clean. Signed with
-  `0FDDE6BC…AA2228E6` and uploaded; source publication `18656370` was accepted
-  and arm64 build `33465947` succeeded in 4m20s, with binaries pending the
-  publisher at the last check. `ysp11` carried only the 8192x8192 picture-size
+  `0FDDE6BC…AA2228E6` and uploaded; source publication `18656370` was accepted,
+  arm64 build `33465947` succeeded in 4m20s, and the exact arm64 binary is
+  Published in the PPA index as verified 2026-08-05. `ysp11` carried only the 8192x8192 picture-size
   change and was superseded before publication. Chromium 151 later closed the
   GL startup boundary but exposed a V4L2-only arm64 package; Firefox sandbox,
   physical HDR, 512 MiB CMA, Chromium mixed-package/playback/sandbox, and
-  clean-image gates remain, and only the tier-1 gate set has run on `6.18.42`.
+  clean-image gates remain. The 17-vector rerun here is the focused interlaced
+  regression guard; the later exact-`0092` broad VA-API campaign and soaks are
+  recorded in the current state above.
 - **Superseded state 2026-08-04 (installed ysp10, ysp11 built):** Local and fork HEAD
   are `main@73dea57`; upstream remains `woodyst/main@e8c64dd`. Installed driver
   and config are `1.0.11+ysp10-0ubuntu1~rk1`, and its payload reproduces exactly

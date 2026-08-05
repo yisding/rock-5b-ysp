@@ -402,8 +402,8 @@ Passed:
 Notes:
 
 - The PPA packages deliberately use co-installable names and release strings:
-  `6.18.38-ysp-rockchip64` instead of Armbian's
-  `6.18.38-current-rockchip64`.
+  `6.18.42-ysp-rockchip64` instead of Armbian's
+  `6.18.42-current-rockchip64`.
 - Binary hashes differ from the Armbian debs because the local PPA build used
   the host resolute toolchain (`gcc 15`, binutils `2.46`, pahole `1.31`), while
   the comparison Armbian deb was built with Ubuntu 24.04-era `gcc 13`,

@@ -16,7 +16,7 @@ in either case:
 | Path | What you get | What it needs | Validation status ([`status.md`](status.md)) | Where |
 |------|--------------|---------------|-----------------------------------------------|-------|
 | **(a) Combined Armbian forward-port kernel** | MPP encode/decode (including AV1) and RGA **built in (`=y`)** — no modules, no overlay | The forward-port kernel tree + an Armbian build tree (§2) + a kernel install/reboot | Has extensive hardware evidence, but the latest installed result and any regression live in [`status.md` track 1](status.md#dashboard); build history lives in [kernel status](kernel-drivers/docs/forward-port-status.md). | [`kernel-drivers/scripts/`](kernel-drivers/scripts/README.md) + [`kernel-drivers/patches/forward-port-rk3588/`](kernel-drivers/patches/forward-port-rk3588/README.md) |
-| **(a2) Published PPA forward-port kernel** | A prebuilt combined kernel — MPP/AV1/RGA `=y`, no local build | The `ppa:yi-ding/ubuntu-rock-5b` archive + `apt install` + reboot | Historical scoped proof: `…20260723~rk1` (tail `0001`–`0071`) was installed, booted, and passed full conformance plus root gates on 2026-07-24. That pass is not evidence for a newer archive state or against the later track-1 incident. | [`packaging/ppa/kernel-forward-port/`](packaging/ppa/kernel-forward-port/README.md) |
+| **(a2) Published PPA forward-port kernel** | A prebuilt combined kernel — MPP/AV1/RGA `=y`, no local build | The `ppa:yi-ding/ubuntu-rock-5b` archive + `apt install` + reboot | The current `…20260804-0ubuntu1~rk1` package (tail `0001`–`0092`, source `7d53bc7a3adc`) is installed and booted on the board. ABI replay, MPP, FFmpeg, direct RGA, bit-exact decode, recovery, and broad VA-API gates pass; this section and [`docs/ppa-support.md`](docs/ppa-support.md) state the remaining qualification boundary. | [`packaging/ppa/kernel-forward-port/`](packaging/ppa/kernel-forward-port/README.md) |
 | **(b) DKMS on a stock kernel** | `rk_vcodec.ko` + `rga3.ko`, auto-rebuilt on every kernel update, + a boot-time DT overlay | A *stock* Armbian 6.18+ kernel, `dkms` + `dtc` installed | ⚠️ Compile-tested on **6.18 only**; overlay dtc-validated, **not boot-validated** | [`packaging/dkms/`](packaging/dkms/README.md) |
 | **(c) Userspace** (needed by **both** kernel paths) | `librockchip_mpp` + `librga` + an rkmpp-enabled FFmpeg | A working kernel path (a) or (b), + the udev rule (§8) | Source-built `ffmpeg-rockchip` is hardware-validated; the system PPA publishes codec access, MPP, librga, FFmpeg 8.0.3, GRD, and co-installable FFmpeg 6.1, while dedicated PPAs publish both FFmpeg 8.1 tracks | [`video-libraries/ffmpeg/`](video-libraries/ffmpeg/README.md), [`packaging/ppa/`](packaging/ppa/README.md) |
 
@@ -35,11 +35,14 @@ comparison with a Rockchip BSP distribution — read
 [`docs/ppa-support.md`](docs/ppa-support.md) before path **(a2)**.
 
 Before choosing, read [`status.md`](status.md) tracks 1, 3, and 9. Path **(a2)**
-is the lowest-effort way to reproduce the older PPA validation, but it is not a
-blanket daily-driver recommendation after a later kernel/userspace pairing
-exposed an unresolved oops. Take **(a)** for a specific newer tail or a
-debug/KASAN discriminator. Take **(b)** only if the stock kernel must remain in
-place, and accept that its overlay has not booted in this evidence record.
+is the lowest-effort way to reproduce the current production validation. It is
+ready for wider testing, but it is not yet a blanket daily-driver
+recommendation: the exact `0092` tail still lacks a KASAN/lockdep rerun and
+targeted hostile-path coverage, and the strict 4K decode fd-span oracle remains
+red even though the workload and kernel scan are clean. Take **(a)** for a
+specific source tail or a debug/KASAN discriminator. Take **(b)** only if the
+stock kernel must remain in place, and accept that its overlay has not booted in
+this evidence record.
 Whichever you pick, complete §3 first and use §9 to identify what the archive or
 local build actually carries.
 
@@ -280,15 +283,18 @@ binary**. Get userspace one of two ways:
   four dedicated PPAs publish the incompatible FFmpeg 8.1 and rewrite-kernel
   tracks. The published rewrite kernels are historical July composites, not
   packages of the maintained rewrite tips; use them only with their pinned
-  package docs and do not infer current AV1 or architecture coverage. A GRD 50.2 candidate and the optional GDM
-  package are uploaded but not yet Published; the exact clean-migration
-  transaction is still owed ([`status.md`](status.md) track 9). For whether the
+  package docs and do not infer current AV1 or architecture coverage. GRD 50.2
+  `~rk2` is Published and installed; the optional GDM package remains
+  unpublished. The exact clean-migration transaction is still owed
+  ([`status.md`](status.md) track 9). For whether the
   Published forward-port kernel is currently substitutable for path (a), read
   [`status.md`](status.md) track 1 and its
   [W05 watchlist entry](status.md#watch-w05) rather than this page — that state
   changes without an edit here, and a copy of it goes stale silently. The
-  documented SD rescue + `kernel-revert.sh` commands are operator-validated;
-  current-package conformance breadth and clean migration are the open gates.
+  documented SD rescue + `kernel-revert.sh` commands are operator-validated.
+  The exact `0092` package has broad functional/recovery evidence; exact-tail
+  KASAN/lockdep and hostile paths, the strict decode fd-span oracle, and clean
+  migration are the open gates.
   The established local-deb flow remains documented in
   [`packaging/README.md`](packaging/README.md) § Operations (including the
   `apt-mark hold` pinning guidance).

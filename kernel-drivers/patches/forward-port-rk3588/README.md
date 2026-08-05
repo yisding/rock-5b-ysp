@@ -44,12 +44,12 @@ worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch
 `rk3588-video-6.18`, tip `7d53bc7a3adc`). The checked-in source series is
 contiguous `0001`–`0092`. Accepted source package
 `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` carries that exact tip; its
-source is Published and remote arm64 build `33467257` completed successfully,
-with Launchpad binary ingestion still pending. The Published/booted binary
-remains the `0089` / `7615b69a744a` predecessor; `0090`–`0092` have packaging
-and affected-object `W=1` proof but no runtime result. Current-package proof is narrow
-(standalone IEP2 plus the 17-vector VA-API tier-1 set); the full and targeted
-regression gates remain open.
+source and all three arm64 binaries are Published. The exact image, DTB, and
+headers are installed and booted as `6.18.42-ysp-rockchip64`; ABI, native
+codec/RGA/IOMMU, recovery, broad VA-API, bounded-log, and two-hour encode gates
+are green. The two-hour 4K decode workload and kernel scan pass, but the strict
+userspace fd-span oracle remains red. Exact-tail KASAN/lockdep and the remaining
+targeted hostile paths remain open.
 Backup of the pre-cleanup tip: tag
 `backup/pre-reorg-20260723` (`4401383a6d9b5`). Generated fallback/official `.deb`
 files in the external build workspace are intentionally not tracked here — only
@@ -352,10 +352,13 @@ reset has stopped hardware access.
 All six affected objects pass the clean arm64 `W=1` build. Exact `0092` source
 package `20260804` passed pollution/provenance checks and Launchpad Published it
 as source publication `18656958`; remote arm64 build `33467257` completed
-successfully and awaits binary ingestion.
-It has not been booted, so the cancellation, IOMMU-fault, timeout, concurrent
-reset, KASAN, and lockdep gates remain open. See the
-[fix finding](../../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
+successfully, and all three binaries are Published. The exact artifact is
+installed and booted; its production-profile cancellation, recovery, native
+conformance, VA-API, bounded-log, and soak campaign is recorded in the
+[production finding](../../../findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md).
+That production config has no KASAN/lockdep, so exact-tail memory-safety and the
+remaining targeted hostile-path qualification stay open. See also the earlier
+[source/fix finding](../../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
 
 | # | Title | Commit | Was |
 |---|-------|--------|-----|

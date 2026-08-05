@@ -68,11 +68,16 @@ its `&vdec0`/`&vdec1` overrides reference labels vanilla 6.18 doesn't define
 > As of 2026-08-04 the maintained branch is at `7d53bc7a3adc`, 92 commits on
 > `v6.18`, with checked-in patches `0001`–`0092`. Published source package
 > `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` carries the exact tip; its
-> source is Published and remote arm64 build `33467257` completed successfully,
-> with Launchpad binary ingestion still pending. The Published/booted binary
-> remains at parent `7615b69a744af` / `0089`; the three new
-> RGA/IOMMU/RKVDEC2 safety commits are compile-verified only. See the
-> [dated fix finding](../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
+> source and all three arm64 binaries are Published, and the exact image, DTB,
+> and headers are installed and booted as `6.18.42-ysp-rockchip64`. The
+> production artifact passes the broad ABI, MPP, FFmpeg, direct RGA, IOMMU,
+> recovery, VA-API, bounded-log, and two-hour encode gates; its two-hour 4K
+> decode workload and kernel scan pass while the strict userspace fd-span
+> oracle remains red. Exact-tail KASAN/lockdep and the remaining targeted
+> hostile paths are still open. See the
+> [production finding](../findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md)
+> and the earlier
+> [source/fix finding](../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
 
 Provenance: the patches were generated from the dev worktree
 `/home/yi/Code/rock-5b/kernel/linux-6.18-rkvenc` (then on branch `rkvenc-fwport-6.18`;

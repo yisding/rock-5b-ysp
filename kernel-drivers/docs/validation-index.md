@@ -55,28 +55,30 @@ Its operational conclusion is:
 
 | Test category | Harness | Forward-port | Rewrite |
 |---|---|---|---|
-| Bit-exact decode H264/H265/VP9/AV1 | `decode-differential.sh` | ✅ Broad historical PSNR=inf runs; current `6.18.42` package has a narrower 17/17 tier-1 VA-API bit-exact pass | ❌ no media run |
+| Bit-exact decode H264/H265/VP9/AV1 | `decode-differential.sh` | ✅ Exact `6.18.42` / `0092` package decodes all four codecs bit-exact at PSNR=inf; its independent VA-API campaign also includes pinned conformance and all 163 HEVC Main vectors | ❌ no media run |
 | Encode rkvenc2 H264/H265 + slice + RC | `kasan-mpp-suite.sh`, `encode-test-tiny.sh` | ✅ clean | ❌ |
 | RGA blit/scale/CSC/10-bit/AFBC | `librga-*`, `rga-mmu-debug.sh` | ✅ | ❌ |
-| Conformance suites (mpp/librga/gst/ffmpeg) | `*-suite.sh` | ✅ Historical FFmpeg 14–24 req, GStreamer 98–129, MPP 12/12; full suite not repeated on current `6.18.42` | ⚠️ device-free wiring only |
+| Conformance suites (mpp/librga/gst/ffmpeg) | `*-suite.sh` | ✅ Exact `0092`: ABI PASS, MPP 12/12, FFmpeg 21/21 required + 3/3 diagnostic, GStreamer 100/102 with two classified userspace failures, and maintained direct librga smoke with 31 artifacts | ⚠️ device-free wiring only |
 | KASAN memory-safety matrix | `kasan-mpp-suite.sh` | ✅ Broad historical clean run; current IEP2 tail has its own KASAN/lockdep gates, but the current production package is non-KASAN | ⚠️ booted KUnit exposed fixture Oops/UAF; no real MPP/RGA workload completed |
 | Destructive ioctl PoC ladder (OOB/UAF/type-confusion) | PoC ladder, now kept in the private `rock-5b-security` repository | ✅ 0055/0060/0061/0063/0070 + cross-UAF | ❌ (surface differs; not run) |
 | ABI replay / cross-profile diff | `abi-probe.sh`, `abi-replay.sh` | ✅ `abi_status=0` | ⚠️ comparator wired; RW side not booted |
 | Booted KUnit (92 MPP + 152 RGA = 244 current gate) | `rewrite-kunit-log-check.sh` | — | ⚠️ Boot `#29` (`g8042f13c5459`) is the cleanest run: exact 89/89 MPP plus 150/150 RGA, fatal-free reference boot, live lockdep, kmemleak scanning, and expected services. It predates the adversarial-review and current tails. Installed package `#30` never booted and also predates current. The checker now gates the manifest-derived 92+152 plan, complete fatal-signature interval, live lockdep, and source/config/package attribution; a current-tip compound rerun remains required. |
 | Clean-source build gate (normal/test-disabled/memory/race) | `rewrite-build-gate.sh` | — | ⚠️ On 2026-08-04, maintained 6.18 `19634f4eebba` on `v6.18.42` and mainline `b296374b7520` on `v7.2-rc6` pass the warning-fatal clean-archive `normal` profile, including Rockchip/VSI IOMMU, both KUnit-enabled rewrite objects, and the ROCK 5B DTB. The source audit reports 305 known signals, zero new, and zero absent on both; range comparison maps all retained patches exactly. Test-disabled, memory, race, and ABI-mutation results belong to older tips and were not silently carried forward. Current source remains unbooted. |
-| Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ root gates green on `Pc1f8-C9fc5` 2026-07-23 and on the production kernel 2026-07-24; the systematic fault-injection matrix is still unbuilt | ❌ not run |
+| Fault-injection / recovery matrix | `rewrite-recovery-stress.sh`, root gates | ⚠️ exact `0092` passes VP9 hard-lock regression plus RGA cancellation/reset stress with clean kernel windows; historical root gates are green, but the systematic matrix remains unbuilt | ❌ not run |
 | Differential FP↔RW byte-exact oracle | `*-suite-compare.sh`, `rewrite-evidence-audit.sh` | — | ❌ (needs RW booted) |
 | Fuzzing under KCOV/KASAN (syzkaller/ioctl/iommu) | `ioctl-fuzz-smoke.sh`, `iommu-machinery-fuzz.sh`; the syzkaller description is kept in the private `rock-5b-security` repository | ⚠️ ran without KCOV | ❌ |
 | 72 h multi-instance soak | (none yet) | ❌ | ❌ |
 | Perf ratio on production (non-KASAN) kernel | root gates / conformance run | ✅ Published `…20260723~rk1` booted 2026-07-24: H.265 720p encode ~353 fps, transcode 20.8×/88× realtime | ❌ no Kernel C |
 
 Reading: the forward-port has broad historical hardware proof for correctness,
-memory-safety, and production performance. Its current `6.18.42` / `0089`
-artifact is Published, installed, booted, and narrow-tier green, but has not
-repeated that broad campaign. Maintained forward-port source has advanced to
-`0092` / `7d53bc7a3adc` with affected-object `W=1` proof only, so none of the
-`0089` runtime evidence transfers to its RGA/IOMMU/RKVDEC2 safety tail. The
-rewrite has compile evidence plus a partial
+memory-safety, and production performance. Source, export, Published binaries,
+and the installed/booted package now align at `0092` / `7d53bc7a3adc` /
+`6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`. That exact production artifact
+has broad green functional/recovery evidence and a flat two-hour encode soak;
+its two-hour decode workload and kernel scan pass while the strict userspace
+fd-span oracle remains red. Because the production config has no KASAN/lockdep,
+the three-patch tail is not exact-tip memory-safety qualified. The rewrite has
+compile evidence plus a partial
 booted KUnit/probe record, but no successful userspace media workload; the
 systematic fault-injection matrix, fuzzing-under-coverage, and the soak are gaps
 for **both** tracks.
@@ -112,24 +114,26 @@ for the forward port; the rewrite still owes the cross-profile ratio.
 **Forward-port — current qualification gaps.** The old fixed-count list had
 gone stale as gates closed and the series grew. The live boundary is:
 
-- Confirm accepted source package `0092` / `7d53bc7a3adc` finishes remote
-  arm64 build `33467257` publishes all three binaries, then install/boot it and
-  separately run
-  that tip under KASAN/lockdep through the RGA cancellation/session-close and
-  decoder recovery/reset-contention gates. The installed package ends at `0089`.
-- Repeat the full MPP/FFmpeg, librga/RGA, GStreamer, ABI, RDP-encode, and
-  fatal-journal campaign on the successor `0092` artifact. The installed
-  `6.18.42` / `0089` narrow pass and older `…20260723~rk1` full pass remain
-  historical evidence, not transferable `0092` verdicts.
+- Run exact `0092` under KASAN/lockdep through the RGA
+  cancellation/session-close and decoder recovery/reset-contention gates. The
+  production-profile functional result cannot establish memory-safety for the
+  same tail.
 - Run targeted hostile/ownership gates for the `0076`–`0087` audit tail,
   including RGA ABI/cross-session import, MPP lifetime, encoder, decoder, and
-  the forced fragmented-DMA-BUF RGA2 mapped-SG path. Ordinary tier-1 decoding
-  does not cover those paths.
+  the forced fragmented-DMA-BUF RGA2 mapped-SG path. Broad ordinary conformance
+  still does not cover those paths; capture the root-only counters with them.
+- Repeat the two-hour 4K decode soak without unrelated desktop activity and
+  require the committed 32-fd span oracle as well as the retained driver-log
+  lifecycle checks. The workload and kernel scan are green, but the oracle is
+  not.
+- Complete authenticated RDP encode/reconnect and physical-display VA-API
+  integration; headless codec and encoder results do not substitute for those
+  session environments.
 - For IEP2, runtime-verify the libmpp BFF bootstrap fix and retain the
   untriggered software-timeout path as an explicit fault-injection gap. The
   other dedicated KASAN/lockdep IEP2 gates are green.
 - Complete the systematic fault-injection matrix, KCOV/KASAN fuzzing, and the
-  production soak. These remain wider-audience qualification debt.
+  72-hour production soak. These remain wider-audience qualification debt.
 
 The documented SD rescue + `kernel-revert.sh` commands are operator-validated;
 rollback is no longer part of this open list. `status.md` tracks 1 and 2 are the

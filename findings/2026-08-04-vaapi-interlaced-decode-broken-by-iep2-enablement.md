@@ -26,6 +26,15 @@
 
 ## Result
 
+> **Subsequent qualification update, 2026-08-04:** the exact `0092` kernel and
+> installed ysp12 driver later completed the broad VA-API campaign, including
+> all 163 HEVC Main vectors, Main10/10-bit and encode gates, plus both 7,200 s
+> soaks. The encode soak is green; the decode workload and kernel scan are green
+> while its strict fd-span oracle remains red. That later result supersedes only
+> this finding's skipped-campaign boundary, not its one-vector interlaced
+> limitation. See the
+> [production finding](2026-08-04-forward-port-6-18-42-0092-production-validation.md).
+
 Kernel `6.18.42` enabled IEP2. The next conformance run failed one vector:
 `h264/CABREF3_Sand_D.264` (352x288, `field_order=tt`), the only **interlaced**
 stream in the pinned set, with
@@ -189,11 +198,12 @@ issue: the sanitizer run produced zero ASan/UBSan reports.
 
 ## Boundary
 
-- **Only the tier-1 gate set ran.** Build/lint/unit, sanitizer/TSan/Valgrind
+- **At this checkpoint only the tier-1 gate set had run.** Build/lint/unit, sanitizer/TSan/Valgrind
   unit, driver-objects, synthetic, zero-copy, concurrent-decode, HEVC, tiles
   backend, conformance, `check`, `check-sanitize`. The 163-vector HEVC Main
   sweep, the Main10 sweep, all encode and 10-bit experimental gates, the four
-  display-app gates, and both 7,200 s soaks were **not** run on this kernel.
+  display-app gates, and both 7,200 s soaks had **not** run on this predecessor;
+  the subsequent qualification update above owns their current result.
 - **One interlaced vector is thin coverage.** `CABREF3_Sand_D.264` is 352x288
   TFF. No BFF, PAFF/MBAFF variety, or 1080i content was exercised, and the
   pinned set contains no other interlaced stream.
@@ -212,13 +222,16 @@ issue: the sanitizer run produced zero ASan/UBSan reports.
 
 ## Verification gate
 
-1. Re-run the gate sets skipped above on `6.18.42`, starting with the 163-vector
-   HEVC Main sweep — it has not run since 2026-07-29, three driver revisions ago.
-2. Add BFF and 1080i interlaced vectors to the pinned set. One 352x288 TFF clip
+1. **Closed later 2026-08-04:** the broad exact-`0092` campaign ran the skipped
+   HEVC, Main10, encode/10-bit, and soak gates; read the production finding for
+   the per-gate verdict and decode-oracle boundary.
+2. Add broader BFF and 1080i interlaced vectors to the pinned set. One 352x288 TFF clip
    is the entire current guard against this class of defect.
-3. Settle `I1O1T` vs `I1O1B` field parity with `iep2_test -m 5` / `-m 6` on the
-   TFF and BFF inputs, against the TRM. This is step 6.0 of the new roadmap
-   phase and blocks the rest of it.
+3. **Hardware parity closed; integration follow-up remains:** the dedicated
+   TFF/BFF run settled `I1O1T` versus `I1O1B` and exposed a separate libmpp BFF
+   bootstrap defect. Runtime-verify that fix and keep the untriggered software
+   timeout as a fault-injection gap; see the
+   [field-parity finding](2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md).
 
 ## Why it matters / follow-up
 

@@ -27,13 +27,14 @@ it — the maintenance view is [`../status.md`](../status.md) and
 
 ## 2. What the archive publishes
 
-Verified live against the Launchpad API on **2026-08-04**; publication state can
-change without an edit here, so re-read
+Verified live against the Launchpad API on **2026-08-04**; the current kernel
+and `rockchip-vaapi` arm64 package index entries were rechecked on
+**2026-08-05**. Publication state can change without an edit here, so re-read
 [`status.md` W05](../status.md#watch-w05) before trusting a version string.
 
 | Source package | Version | What it is |
 |----------------|---------|------------|
-| `linux-rockchip64-ysp` | `6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1` | The forward-port kernel: image, DTB, and headers packages. Release string `6.18.42-ysp-rockchip64`. |
+| `linux-rockchip64-ysp` | `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` | The forward-port kernel: image, DTB, and headers packages. Release string `6.18.42-ysp-rockchip64`. |
 | `mpp` | `1.5.0+git20260730.ad325345+ds-0ubuntu1~rk1` | `librockchip_mpp` — the vendor codec library that talks to `/dev/mpp_service`. |
 | `librga` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | `librga2` — the 2D blit/scale/convert library for `/dev/rga`. |
 | `ffmpeg` | `7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1` | Ubuntu's FFmpeg 8.0 packaging plus the RKMPP/RKRGA forward port. Keeps Resolute's ABI family (`libavcodec62`, `libavutil60`, …), so it **replaces** the distro FFmpeg rather than colliding with it. |
@@ -83,7 +84,7 @@ flowchart TB
 | **HEVC encode** | Supported | Same cores. Main profile, NV12 input, RK3588's CTU64 contract. |
 | **RGA 2D** | Supported | Both RGA3 cores plus RGA2: scale, crop, rotate, colour convert, blit. |
 | **10-bit paths** | Supported, paired | P010/P210/NV15 raster **and** TILE strides plus plane offsets. The kernel and `librga` must be installed **as a pair** — a mismatched pair is silently wrong on the 10-bit TILE path. |
-| **IEP2 deinterlacing** | New, narrow evidence | The hardware deinterlacer, added in the `20260803` kernel and confirmed working standalone on that kernel on 2026-08-04. It is **not** reachable through VA-API (§5), and libmpp's decoder-internal use of it is deliberately disabled by the VA-API driver. |
+| **IEP2 deinterlacing** | New, narrow evidence | The hardware deinterlacer, introduced by the `20260803` predecessor and retained by the current `20260804` / `0092` kernel. It was confirmed working standalone on 2026-08-04. It is **not** reachable through VA-API (§5), and libmpp's decoder-internal use of it is deliberately disabled by the VA-API driver. |
 
 Encoder **B-frames and P010 encode input are permanent hardware/MPP walls**, not
 open work. They are not coming.
@@ -182,21 +183,22 @@ every "supported" above.
 
 | Claim | Strongest evidence | Date | What is still open |
 |-------|--------------------|------|--------------------|
-| The codec/RGA stack works end to end from a PPA install | Kernel `…20260723~rk1` (patch tail `0001`–`0071`) was installed from the PPA, booted, and passed the full conformance set plus root gates. | 2026-07-24 | That exact version is **superseded and no longer in the archive**. The pass does not transfer to a newer tail. |
-| The currently Published kernel boots and decodes | `6.18.42-ysp-rockchip64` was installed and booted; **17/17 pinned VA-API conformance vectors are bit-exact** on it with the installed `ysp12` driver, including the interlaced `CABREF3_Sand_D.264` through VA-API. | 2026-08-04 | Only the tier-1 gate set ran. The 163-vector HEVC sweep, encode/10-bit gates, GStreamer suite, ABI replay, display gates, and both soaks did **not**. One 352x288 TFF clip is the whole interlaced guard. |
+| The codec/RGA stack works end to end from the current PPA install | Exact `…20260804~rk1` / `0092` image, DTB, and headers were installed from the PPA and booted. ABI, 12/12 MPP, 21/21 required plus 3/3 diagnostic FFmpeg, direct librga/RGA, decoder liveness/quality, IOMMU machinery, VP9/RGA recovery, broad VA-API, and bounded kernel-log gates pass. GStreamer is 100/102 with two classified userspace semantics failures and no kernel fault. | 2026-08-04 | The production config has no KASAN/lockdep. Root-only debugfs counters, the remaining targeted hostile paths, and authenticated RDP/physical-display integration are open. |
+| The current kernel sustains production-profile media load | The two-hour dual H.264+HEVC encode soak passes with flat RSS/fds and an empty kernel delta. The two-hour 4K H.264 decode workload completes and its kernel window is clean. | 2026-08-04 | The committed decode resource oracle is still red: four loop-boundary transients produce a 36-fd span against the 32-fd limit even though head/tail medians fall 56→54. Repeat it without unrelated desktop activity; do not raise the threshold. |
 | AV1 decode is bit-exact | Hardware decode differential on the AV1 forward-port build. | 2026-07-04 | AV1 from MP4/MKV containers has not been re-tested since the extradata fix. |
 | Rollback works | The operator has repeatedly used the documented SD rescue path and the exact `kernel-revert.sh` commands successfully ([dated finding](../findings/2026-08-04-forward-port-sd-rescue-rollback-used.md)). | 2026-08-04 | This is user-reported operational evidence without a retained identity/log bundle or an independent second-reader replay. Automatic boot fallback, clean migration, and stale-package cleanup are separate open gates. |
 | Clean migration from an earlier test stack | The `clean-install-system-stack.sh` transaction is written and simulated. | — | The exact transaction has not passed a board gate. |
 
 Two consequences worth stating plainly:
 
-1. **The kernel that `apt` installs today has less validation behind it than the
-   superseded July kernel that passed full conformance.** That is the normal
-   state of a moving patch series, not an anomaly — but it means "the PPA kernel
-   passed conformance" is a claim about a version you can no longer install.
+1. **The kernel that `apt` installs today is broadly functionally and
+   recovery-validated, but it is not exact-tail memory-safety qualified.** The
+   production result closes the current-package runtime campaign; it does not
+   substitute for the still-open `0092` KASAN/lockdep and hostile-path gates,
+   and its strict decode resource oracle remains red.
 2. **Rollback has an operator-validated SD rescue path.** The remaining package
-   gates are the full current-kernel campaign and clean migration/cleanup, not
-   whether the documented recovery mechanism works.
+   gate is clean migration/stale-package cleanup, not whether the documented
+   recovery mechanism works.
 
 ## 7. Compared with a Rockchip BSP distribution
 
