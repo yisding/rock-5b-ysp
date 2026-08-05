@@ -9,6 +9,7 @@ of repo-wide references that are not owned by one project.
 | File | Purpose |
 |------|---------|
 | [`status-ledger.md`](status-ledger.md) | Audit companion to `../status.md`: longer dated cross-track notes without crowding the status dashboard. |
+| [`repository-organization-proposal.md`](repository-organization-proposal.md) | Draft repository-wide information-architecture proposal: canonical document roles, deliberate duplication, migration phases, enforcement, and completion criteria. |
 | [`work-packages.md`](work-packages.md) | The project map, stack diagram, and operating/re-entry and developer reading paths. Start here when you are not sure which project owns a topic. |
 | [`support-coverage.md`](support-coverage.md) | Whole-board scope inventory: which ROCK 5B areas are tracked, narrowly evidenced, or entirely unassessed, plus the first useful evidence for each gap. |
 | [`ppa-support.md`](ppa-support.md) | New-user guide for `ppa:yi-ding/ubuntu-rock-5b`: recovery-first setup, package choices, MPV/FFmpeg, Chrome/VA-API and GNOME Remote Desktop verification, troubleshooting, and unsupported features. |
