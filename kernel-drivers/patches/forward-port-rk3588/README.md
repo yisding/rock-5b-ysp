@@ -42,10 +42,12 @@ were written — resolve any older number through the **renumber map** at the en
 Exported with `git format-patch 7d0a66e4bb908..rk3588-video-6.18` from the kernel
 worktree at `../rock-5b/kernel/linux-6.18-rkvenc-av1-fwport` (branch
 `rk3588-video-6.18`, tip `7d53bc7a3adc`). The checked-in source series is
-contiguous `0001`–`0092`. The Published/booted
-`6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1` package remains at `0089` /
-`7615b69a744a`; `0090`–`0092` are affected-object `W=1` compile-verified only
-and have not been packaged or booted. Current-package proof is narrow
+contiguous `0001`–`0092`. Accepted source package
+`6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` carries that exact tip; its
+source is Published and remote arm64 build `33467257` completed successfully,
+with Launchpad binary ingestion still pending. The Published/booted binary
+remains the `0089` / `7615b69a744a` predecessor; `0090`–`0092` have packaging
+and affected-object `W=1` proof but no runtime result. Current-package proof is narrow
 (standalone IEP2 plus the 17-vector VA-API tier-1 set); the full and targeted
 regression gates remain open.
 Backup of the pre-cleanup tip: tag
@@ -347,8 +349,11 @@ publishing OSD results only into a pinned request. Provider handler removal is
 a non-sleeping quiescence barrier, and failed soft-CCU tasks remain live until
 reset has stopped hardware access.
 
-All six affected objects pass the clean arm64 `W=1` build. No `0092` package
-has been built or booted, so the cancellation, IOMMU-fault, timeout, concurrent
+All six affected objects pass the clean arm64 `W=1` build. Exact `0092` source
+package `20260804` passed pollution/provenance checks and Launchpad Published it
+as source publication `18656958`; remote arm64 build `33467257` completed
+successfully and awaits binary ingestion.
+It has not been booted, so the cancellation, IOMMU-fault, timeout, concurrent
 reset, KASAN, and lockdep gates remain open. See the
 [fix finding](../../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
 

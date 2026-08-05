@@ -1,3 +1,26 @@
+linux-rockchip64-ysp (6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1) resolute; urgency=high
+
+  * Keep the 6.18.42 Armbian stable base and extend the forward-port series
+    from 0001-0089 to 0001-0092 at tip 7d53bc7a3adc:
+    - video: rockchip: rga: snapshot job task lists
+    - iommu: rockchip: quiesce MPP fault callbacks on clear
+    - video: rockchip: rkvdec2: quiesce failed tasks before retire
+  * Close the RGA request-config use-after-free by giving queued jobs an owned
+    task-list snapshot and copying current OSD flags while the request remains
+    referenced and locked.
+  * Make Rockchip and VSI IOMMU fault-handler clearing a non-sleeping
+    quiescence barrier, and protect the MPP task pointers consumed by fault
+    callbacks so teardown cannot race a stale callback into freed task state.
+  * Keep failed soft-CCU decoder tasks attached until their hardware is reset,
+    preserve reset requests that arrive during reset, and clear stale IRQ state
+    before resuming dispatch.
+  * Source validation: strict checkpatch passes, the affected arm64 objects
+    pass W=1, patch-only staging reports Linux 6.18.42 and rejects foreign
+    rewrite-driver paths. This source package has not been built locally as a
+    kernel, installed, booted, or hardware-validated.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Tue, 04 Aug 2026 16:42:13 -0700
+
 linux-rockchip64-ysp (6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1) resolute; urgency=medium
 
   * Rebase onto the 6.18.42 Armbian stable base; the 20260802 cut was 6.18.41.

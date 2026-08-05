@@ -73,11 +73,18 @@ stores a single task by value and does not have that exact layout.
 ## Boundary
 
 This is source inspection and affected-object compilation, not runtime proof.
-No `0092` kernel package exists yet, none of these patches has booted on the
-ROCK 5B, and no cancellation, IOMMU-fault, timeout, concurrent-reset, KASAN, or
-lockdep gate has exercised the new paths. The Published and booted production
-package remains the `0089` / `7615b69a744af` build; its runtime evidence does
-not transfer to this source tail.
+Exact source package `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` now exists
+without a local kernel build. Patch-only staging first caught and refused stale
+rewrite build directories; after exact cleanup, full-tree comparison against
+the Published orig differed only in the expected eight files, and a fresh
+`.dsc` extraction byte-matched all eight to tip `7d53bc7a3adc`. Launchpad
+Published source publication `18656958`; remote arm64 build `33467257`
+completed successfully in 41m44s and awaits binary ingestion. None of these
+patches has booted on the ROCK 5B, and no cancellation,
+IOMMU-fault, timeout, concurrent-reset, KASAN, or lockdep gate has exercised the
+new paths. The Published and booted binary remains the `0089` /
+`7615b69a744af` predecessor; its runtime evidence does not transfer to this
+source tail.
 
 The patch closes soft-CCU failed-task retirement. It does not claim a new
 hard-CCU task-retirement result, and it does not address the root-only MPP/RGA
@@ -85,8 +92,10 @@ unbind lifetime items deliberately left outside this change.
 
 ## Verification gate
 
-Package and boot the exact `0092` tip with KASAN/lockdep, then run the existing
-RGA cancellation/session-close coverage and decoder recovery/reset-contention
+Confirm remote arm64 build `33467257` publishes all three binaries, install and
+boot the exact production `0092` package, and separately exercise that tip with
+KASAN/lockdep through the existing RGA cancellation/session-close coverage and
+decoder recovery/reset-contention
 gates with a fatal-journal scan. A production-profile build should then repeat
 the current-package MPP/FFmpeg, librga/RGA, GStreamer, ABI, RDP-encode, and soak
 campaign before this tail is described as wider-audience ready.

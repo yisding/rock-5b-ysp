@@ -112,9 +112,11 @@ for the forward port; the rewrite still owes the cross-profile ratio.
 **Forward-port — current qualification gaps.** The old fixed-count list had
 gone stale as gates closed and the series grew. The live boundary is:
 
-- Build/package and boot exact source `0092` / `7d53bc7a3adc` under
-  KASAN/lockdep, then run RGA cancellation/session-close and decoder
-  recovery/reset-contention gates. The current package ends at `0089`.
+- Confirm accepted source package `0092` / `7d53bc7a3adc` finishes remote
+  arm64 build `33467257` publishes all three binaries, then install/boot it and
+  separately run
+  that tip under KASAN/lockdep through the RGA cancellation/session-close and
+  decoder recovery/reset-contention gates. The installed package ends at `0089`.
 - Repeat the full MPP/FFmpeg, librga/RGA, GStreamer, ABI, RDP-encode, and
   fatal-journal campaign on the successor `0092` artifact. The installed
   `6.18.42` / `0089` narrow pass and older `…20260723~rk1` full pass remain

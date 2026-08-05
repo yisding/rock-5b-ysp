@@ -3,7 +3,37 @@
 This directory owns the source-package path for the co-installable ROCK 5B
 forward-port kernel.
 
-**Uploaded 2026-08-03 (latest):** `6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1`
+**Uploaded 2026-08-04 (latest):** `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`
+— the `0001`–`0092` forward-port tip `7d53bc7a3adc`, adding the RGA
+request-config lifetime fix, non-sleeping IOMMU fault-callback quiescence, and
+RKVDEC2 soft-CCU recovery ordering. Strict checkpatch and the affected-object
+arm64 `W=1` build pass; no full local kernel build was run for this upload.
+
+The first patch-only provenance pass caught root-owned `mpp-rewrite/` and
+`rga-rewrite/` build leftovers in the shared worktree and refused to stage the
+package. Those two exact directories were removed and patch-only staging was
+repeated; its IOMMU function comparison passes and it reports zero
+`*-rewrite` paths. An independent full-tree comparison against the Published
+`20260803` orig finds exactly the eight files changed by commits `0090`–`0092`,
+with no added, removed, or unrelated path, and all eight byte-match public
+branch tip `7d53bc7a3adc` in a fresh `.dsc` extraction. The extracted package
+reports Linux 6.18.42, carries the exact production config, and has zero
+rewrite-driver paths. `dscverify --nosigcheck` validates both tarballs and
+direct GPG checks validate the `.dsc`, `.buildinfo`, and source `.changes`
+signatures from `0FDDE6BC…AA2228E6`.
+
+`dput` completed at 17:05 PDT and wrote
+`linux-rockchip64-ysp_6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1_source.ppa.upload`.
+Launchpad Published source publication
+[`18656958`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18656958)
+and arm64 build
+[`33467257`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33467257)
+on `bos03-arm64-004` completed successfully in 41m44s. The build log ends with
+`Status: successful`; Launchpad still reported `Uploading build`, with no binary
+publications visible, at the final 2026-08-04 check. This exact package has not
+been installed, booted, or hardware-validated.
+
+**Previous 2026-08-03 upload:** `6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1`
 — the `0001`–`0089` forward-port tip `7615b69a744af`, adding the two RK3588
 IEP2 deinterlacing commits to the Published `0001`–`0087` source. The Armbian
 stable base moved from 6.18.41 to 6.18.42 during staging, so this cut carries
@@ -52,13 +82,6 @@ GStreamer, RGA completion, and the soaks were not run on this artifact and
 remain pending. The documented SD rescue + `kernel-revert.sh` commands have
 been used successfully by the operator; see the
 [recovery finding](../../../findings/2026-08-04-forward-port-sd-rescue-rollback-used.md).
-
-**Unpackaged successor source (2026-08-04):** maintained branch and checked-in
-patches have advanced to `0001`–`0092` at `7d53bc7a3adc`. The three-patch
-RGA/IOMMU/RKVDEC2 lifetime and recovery tail passes an affected-object arm64
-`W=1` build, but has not been staged into a source package, built by Launchpad,
-installed, or booted. The Published `0089` artifact remains the current package;
-see the [fix finding](../../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
 
 **Previous 2026-08-02 upload:** `6.18.41+rk3588av1fwport20260802-0ubuntu1~rk1`
 — the complete `0001`–`0087` forward-port tip `5b87d46eefdcb`. It adds the
@@ -178,10 +201,10 @@ that grouped root.
 
 | Input | Default |
 |-------|---------|
-| Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
+| Patched Armbian kernel worktree | `KERNEL_PPA_REPO=$WORKSPACE_ROOT/build/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Production kernel config | `KERNEL_PPA_CONFIG=$ROOT/packaging/ppa/kernel-forward-port/debian/config/arm64-rockchip64.config` |
 | Source package name | `KERNEL_PPA_SOURCE=linux-rockchip64-ysp` |
-| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.42+rk3588av1fwport20260803` |
+| Upstream version | `KERNEL_PPA_UPSTREAM_VERSION=6.18.42+rk3588av1fwport20260804` |
 
 The exporter copies the patched worktree contents, including Armbian patch
 changes and untracked patch-added files, while excluding `.git`, `.config`,
@@ -411,17 +434,18 @@ commands are operator-validated.
 > Checked 2026-08-03: the patch-only staging gate completed for the 89-commit
 > forward-port tip before the `20260803` orig was exported.
 
-**State as of 2026-08-04.** The latest Published source ships `0001`–`0089` at
-`7615b69a744af`; source and all three arm64 binaries are Published. The exact
-package is installed and booted as `6.18.42-ysp-rockchip64`. Maintained kernel
-source is three compile-verified patches ahead at `0092` / `7d53bc7a3adc`.
-Standalone
+**State as of 2026-08-04.** The `0001`–`0092` source at `7d53bc7a3adc` is
+Published as source publication `18656958`; remote arm64 build `33467257`
+completed successfully in 41m44s and is awaiting Launchpad binary ingestion.
+Its `0001`–`0089` predecessor remains the latest Published binary and is
+installed and booted as `6.18.42-ysp-rockchip64`. Standalone
 IEP2 and 17/17 pinned tier-1 VA-API vectors pass, but those are narrow evidence
 and do not replace the full or targeted gates below.
 
-1. Stage, build, install, and boot exact `0092` source under KASAN/lockdep;
-   pass the RGA cancellation/session-close and decoder recovery/reset-contention
-   gates.
+1. Confirm remote arm64 build `33467257` publishes all three binaries, then
+   install and boot exact `0092`; separately build it under
+   KASAN/lockdep and pass the RGA cancellation/session-close and decoder
+   recovery/reset-contention gates.
 2. Repeat MPP/FFmpeg, librga/RGA, GStreamer, ABI replay, RDP encode, and the
    bounded fatal-journal scan on the successor image.
 3. Run the `0076`–`0087` targeted hostile/ownership regression set plus the

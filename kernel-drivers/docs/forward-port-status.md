@@ -11,18 +11,23 @@ Target: Radxa ROCK 5B (RK3588), Armbian, current package kernel **6.18.42**
 
 ## Current release boundary, 2026-08-04
 
-The Published package remains `0001`–`0089` at `7615b69a744af` /
-`6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1`. That package is installed and
-booted. Standalone IEP2 works on the production kernel and installed
+Source package `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` carries
+`0001`–`0092` at `7d53bc7a3adc`; Launchpad Published source publication
+`18656958`, and remote arm64 build `33467257` completed successfully in 41m44s
+and awaits binary ingestion. No local kernel build ran for this upload and the
+exact package is unbooted. Its `0001`–`0089`
+predecessor remains the Published, installed, and booted binary. Standalone
+IEP2 works on that production kernel and installed
 `rockchip-vaapi ysp12` passes all 17 pinned tier-1 vectors bit-exact. The same
 IEP2 source also has a much broader KASAN/lockdep run recorded in its
 [safety review](../iep2/docs/forward-port-safety-review.md).
 
-Maintained source and the checked-in export have advanced to `0001`–`0092` at
-`7d53bc7a3adc`. The three new patches fix the remaining RGA job-task UAF,
+The three new patches fix the remaining RGA job-task UAF,
 IOMMU callback/current-task lifetime, soft-CCU retire-before-reset ordering,
 and lost concurrent reset requests. All affected objects pass an arm64 `W=1`
-build, but this tail has no package or runtime evidence; see the
+build. Patch-only staging caught and rejected stale rewrite build directories;
+after exact cleanup, the upload passed full-tree predecessor comparison, fresh
+extraction, and public-tip byte matching. It still has no runtime evidence; see the
 [fix finding](../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
 
 This does **not** transfer the older full-conformance verdict to `6.18.42`.
@@ -421,28 +426,30 @@ covers this range.
 
 ## Where the series stands, 2026-08-04
 
-Source has advanced beyond the current package again, and the distinction is
-intentional:
+Source/export and the Published source package are aligned; remote binaries and
+the installed package are not yet aligned:
 
 | | |
 |---|---|
 | Tree tip | `rk3588-video-6.18` @ `7d53bc7a3adc`, 92 commits on `v6.18`; affected objects compile clean with `W=1` |
-| Packaged / uploaded | series `0001`–`0089` @ `7615b69a744af`, in `6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1`; source and all three arm64 binaries are Published |
-| Installed on the board | that exact package, booted as `6.18.42-ysp-rockchip64` |
+| Packaged / uploaded | series `0001`–`0092` @ `7d53bc7a3adc`, in `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`; source publication `18656958` Published, arm64 build `33467257` successful and awaiting binary ingestion |
+| Installed on the board | predecessor `0001`–`0089` package, booted as `6.18.42-ysp-rockchip64` |
 
-The `0089` tree/package/installed gap is closed. Patch-only staging and the
-extracted-source checks cover the complete series, including the IEP2 config,
-driver, binding, and ROCK 5B DT nodes, with no rewrite-only paths. The booted
-package gives the whole tail narrow integrated evidence: standalone IEP2 works
+The `0092` tree/source-package gap is closed, but remote binary publication and
+board installation remain. Patch-only staging and extracted-source checks cover
+the complete series with no rewrite-only paths. The booted `0089` predecessor
+gives its own tail narrow integrated evidence: standalone IEP2 works
 and the 17-vector VA-API tier-1 set is bit-exact. It does not directly exercise
 the RGA import/release paths, encoder paths, all decoder recovery paths, or the
 targeted hostile cases repaired in `0076`–`0087`. It says nothing about the
-new `0090`–`0092` source tail.
+new `0090`–`0092` tail.
 
 The next gate restores artifact alignment, then broadens the evidence:
 
-1. Build/package and boot the exact `0092` tip under KASAN/lockdep; run the
-   RGA cancellation/session-close and decoder recovery/reset-contention gates.
+1. Confirm remote arm64 build `33467257` publishes all three binaries, install
+   and boot exact `0092`, and separately run that tip under
+   KASAN/lockdep through the RGA cancellation/session-close and decoder
+   recovery/reset-contention gates.
 2. Run MPP/FFmpeg, librga/RGA, GStreamer, ABI replay, RDP encode, and a bounded
    fatal-journal scan on the successor artifact.
 3. Run the targeted RGA mapped-SG/cross-session, MPP lifetime, encoder, decoder,
