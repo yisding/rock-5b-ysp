@@ -186,8 +186,8 @@ hostile-ioctl replay) than the BSP ever ran under.
 | 0045 | RGA: validate staged `REQUEST_CONFIG` descriptors; atomic staged-list replace (fixes a leak); reject reconfig while running. | `HARDEN` | Donor only copies the array. | **Yes (defensive)**, only together with 0046 |
 | 0046 | RGA: accept legacy virtual-address blits in the 0045 check (regression fix). | `PORT-FIX` | Regression of 0045, not of BSP code. | Only bundled with 0045 |
 | 0047 | RGA: report the RGA2 under-4G exclusion distinctly (`EOPNOTSUPP` + log). | `HARDEN` | Same silent policy failure exists in BSP. | Optional (diagnostics UX) |
-| 0048 | RGA: byte-literal strides for 10-bit rasters (P010/P210, NV15/NV20). | `BSP-BUG` | Conformance finding: "the reference BSP 6.1 tree is byte-identical in this logic — this is stock vendor behavior"; the Jellyfin-known P010 corruption. | **Yes** (pair with 0049) |
-| 0049 | RGA: byte-literal 10-bit UV plane offsets in `rga_convert_addr()`. | `BSP-BUG` | Same byte-identical donor function; measured chroma-never-written defect. | **Yes** (pair with 0048) |
+| 0048 | RGA: reinterpret 10-bit raster `vir_w` as pixels and scale it to a byte stride; later reverted by current `0072`. | `FWPORT-REGRESSION` | This scaling block was added by the forward port. The BSP kernel consumes byte-unit `vir_w` directly. | **No** — current `0072` restores the BSP ABI |
+| 0049 | RGA: reinterpret 10-bit `vir_w` as pixels when deriving the UV plane offset; later reverted by current `0074`. | `FWPORT-REGRESSION` | This depth scaling was added by the forward port. BSP `rga_convert_addr()` uses `vir_w * vir_h` directly. | **No** — current `0074` restores the BSP ABI |
 | 0050 | RGA2: own MMU page tables through the DMA API (kills the `virt_to_phys()` streaming-sync). | `BSP-BUG` (latent) | Donor has the same illegal DMA-API use; it *works by accident* on stock BSP (identity translation, no swiotlb). | Yes (defensive — latent until the platform diverges) |
 | 0051 | RGA2: serve over-4G memory via DMA-API mappings + swiotlb bounce. | `HARDEN` (new capability) | Donor has no equivalent path at all. | Optional — only if over-4G buffers matter to the BSP consumer |
 | 0052 | RGA: drop the request's initial reference exactly once (four racing retire paths; KASAN UAF + refcount underflow). | `BSP-BUG` | Lifetime audit: "the same competing retirement puts exist in BSP `rga_job.c`". | **Yes** |
@@ -268,11 +268,12 @@ against a silent-corruption case rather than fixing a specific commit's mistake.
 > below all landed after this page was compiled on 2026-07-22.
 
 `0072`–`0075` are the 10-bit RGA stride/UV-offset trio and the RKVENC2
-slice-FIFO fix. **They are not yet classified here**: their commit messages do
-not state BSP provenance either way, and guessing a backport verdict is worse
-than recording the gap. Classify them against `develop-6.1` when that
-provenance is checked — the stride work in particular pairs with librga fork
-changes ([W13](../../status.md#watch-w13)).
+slice-FIFO fix. Provenance was subsequently checked: `0072` and `0074` repair
+forward-port regressions and restore the BSP kernel's byte-unit `vir_w`
+contract, so neither is a BSP backport candidate. They pair with the librga
+fork's im2d pixel-to-byte request translation ([W13](../../status.md#watch-w13)).
+`0073` is fail-closed RGA2 hardening; classify the independent `0075` slice-FIFO
+fix on its own evidence.
 
 `0076`–`0079` are the [2026-07-29 WARN/oops audit
 sweep](../../findings/2026-07-29-forward-port-warn-oops-audit-and-fixes.md) —
@@ -375,10 +376,13 @@ a sleep-in-atomic (`0065`), and NULL-deref hard lockups (`0053`/`0054`).
 > finding disowns, with a **COMPILE-VERIFIED** fix. No KASAN report, no
 > reproducer run against it, no committed artifact.
 
-**Tier 2 — user-visible correctness.** `0048`+`0049` as a pair: the 10-bit
-P010 stride/offset corruption is stock BSP behavior (the corruption Jellyfin
-users report on vendor kernels). Also confirm vendor cherry-pick `0038`
-(multi-slice encoder hang) is present in `develop-6.1` and pull it if not.
+**Tier 2 — user-visible correctness.** Do **not** backport `0048`+`0049`; they
+introduced the pixel-versus-byte ABI drift that current `0072`+`0074` undo.
+The BSP kernel already has the restored arithmetic. A P010 failure on a BSP
+image must instead be reproduced against that image's exact librga/request
+translation before assigning the fault to the kernel. Also confirm vendor
+cherry-pick `0038` (multi-slice encoder hang) is present in `develop-6.1` and
+pull it if not.
 
 **Tier 3 — defensive hardening, at the BSP owner's option.** `0039`
 (physical-import validation), `0045`+`0046` (staged-task validation, taken

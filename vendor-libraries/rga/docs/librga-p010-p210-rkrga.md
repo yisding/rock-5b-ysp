@@ -286,7 +286,8 @@ Jellyfin also has a targeted workaround for a BSP RGA P010 corruption issue in
 one extreme scaling path. For two-pass downscales beyond RGA3's single-pass
 ratio, it uses `nv15` as the first-pass intermediate when OpenCL tonemapping is
 active, then continues through the normal pipeline. That workaround is not a
-global avoidance of P010.
+global avoidance of P010, and by itself does not prove that the BSP kernel's
+generic stride or plane-offset arithmetic is wrong.
 
 I did not find a Jellyfin server command-generation path that emits `format=p210`.
 P210 exists in the FFmpeg/RKRGA capability code and is relevant for 4:2:2 paths,
@@ -417,7 +418,7 @@ Still not proven or not fixed by this source patch:
 
 | Case | Reason |
 |------|--------|
-| BSP/kernel P010 corruption independent of userspace flags | Jellyfin carries an `nv15` first-pass workaround for one RGA P010 corruption case. This patch does not change kernel behavior. |
+| Exact BSP-image P010 behavior independent of userspace flags | Jellyfin carries an `nv15` first-pass workaround for one RGA P010 corruption case, but that does not isolate kernel arithmetic from the shipped librga/request translation. This patch does not change kernel behavior. |
 | im2d hardware behavior | The source now emits the BSP kernel request shape we traced, but real RK3588 hardware validation is still required. |
 | RGA2 compatibility request | The old `RGA_BLIT_SYNC` ABI has no RGA3 `rd_mode`/`compact_mode`/`is_10b_endian` fields. Compact 10-bit may work through the legacy implicit format behavior, but padded P010/P210 and non-raster modes are now rejected locally. |
 | Android-only `NormalRgaPaletteTable()` | It does not receive caller-level `rga_info_t` 10-bit layout fields, so there is no equivalent state to propagate. |

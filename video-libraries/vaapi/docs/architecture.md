@@ -24,13 +24,12 @@ support verdict and next gate. Dated experiments stay in
 
 The implementation descriptions below were source-inspected against
 `yisding/rockchip-vaapi` implementation commit
-`491533ec6bb375ef3ccba18ace26106417a76c3d` on 2026-07-29. The following
-packaging-only commit does not change the architecture described here. The
-pre-decode stable-export ownership update is separately inspected against the
-local UNRELEASED ysp13 worktree over `main@184d7d4` on 2026-08-04 and is not
-yet a public source pin. Its locally built package is installed and has passed
-Google Chrome H.264 presentation plus VP9 hardware selection, but remains
-uncommitted and unpublished.
+`491533ec6bb375ef3ccba18ace26106417a76c3d` on 2026-07-29. The pre-decode
+stable-export ownership update is separately inspected against public release
+`main@70f26d950bcb` (ysp13) on 2026-08-05. Its same-version local package is
+installed and passes Google Chrome H.264 presentation plus VP9 hardware
+selection; the matching source, successful arm64 build, and driver/config
+binaries are Published, while exact PPA-binary replay remains open.
 
 ## Fast re-entry
 

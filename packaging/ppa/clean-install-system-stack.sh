@@ -7,44 +7,34 @@ export LC_ALL=C
 PPA="ppa:yi-ding/ubuntu-rock-5b"
 EXPECTED_CODENAME="resolute"
 
-FFMPEG_VERSION="7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1"
-GRD_VERSION="50.2+rkmpp+git20260729.14.24f4392-0ubuntu1~rk1"
-MPP_VERSION="1.5.0+git20260729.3381fd2c+ds-0ubuntu1~rk1"
+FFMPEG_VERSION="7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1"
+GRD_VERSION="50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2"
+MPP_VERSION="1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1"
 CODEC_UDEV_VERSION="1.1"
 
 # ---------------------------------------------------------------------------
 # KERNEL + LIBRGA MUST BE BUMPED TOGETHER.
 #
-# Since forward-port patch 0072 the 10-bit RGA `vir_w` is a BYTE stride, and
-# librga was changed to match (c80eea7 -> b8def3e -> 4c26ddf). Mixing the two
-# conventions does not fail loudly -- it produces silent wrong chroma on the
-# 10-bit path. See vendor-libraries/rga/docs/librga-p010-p210-rkrga.md and
-# findings/2026-07-24-rga-10bit-uv-plane-offset-still-pixel-scaled.md.
-#
-# There is currently NO safe pairing above the pre-0072 pair below, because the
-# completing kernel fix `0074` is compile-verified but has never been published:
-#   * kernel 20260723 (tail 0001-0071) + librga a632217  -- pre-convention-change
-#     on both sides. This is the pair that passed the full conformance set plus
-#     root gates on 2026-07-24, so it is what this script installs.
-#   * kernel 20260724 (tail 0001-0073) carries 0072/0073 but NOT 0074, so it
-#     pairs safely with NOTHING: with a pre-byte-stride librga the strides
-#     disagree, and with b8def3e/26a50ef the UV plane offset is still
-#     pixel-scaled -- the silent-wrong-chroma case, measured on-board.
-# Do not advance KERNEL_VERSION past 20260723 until a kernel carrying 0074 is
-# published; then move LIBRGA_VERSION to 26a50ef or later in the same commit.
-# The assertion below exists so a half-done bump fails here instead of on a board.
+# Forward-port patch 0072 changed 10-bit RGA `vir_w` to a byte stride, patch
+# 0074 completed the matching UV-plane offset, and librga 26a50ef applies the
+# byte convention to both RASTER and TILE. Mixing either side with an older
+# convention does not fail loudly -- it produces wrong chroma. The current
+# pair passed the direct P010/P210 raster and compact NV15 raster/TILE hardware
+# gates plus the 2026-08-04 production campaign. See status.md W13 and the
+# production-validation finding.
+# Keep the versions and allowlist entry in one commit whenever either side moves.
 # ---------------------------------------------------------------------------
-LIBRGA_VERSION="2.2.0+git20260703.a632217-0ubuntu3~rk1"
-KERNEL_VERSION="6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1"
+LIBRGA_VERSION="2.2.0+git20260725.26a50ef-0ubuntu1~rk1"
+KERNEL_VERSION="6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1"
 
 # Fail closed on any kernel/librga pair that has not been validated together.
 # An allowlist, not version arithmetic: "both sides post-0072" is NOT sufficient,
-# because no published kernel carries 0074 and without it the UV plane offset stays
-# pixel-scaled even when the stride is byte-literal -- measured on-board as silent
-# wrong chroma. Add a row here only with the run that validated it.
+# because a forward-port kernel carrying 0072 without 0074 leaves the UV plane
+# offset pixel-scaled even when the stride is byte-literal -- measured on-board
+# as silent wrong chroma. Add a row here only with the run that validated it.
 SAFE_10BIT_PAIRS=(
     # KERNEL_VERSION|LIBRGA_VERSION|evidence
-    "6.18.38+rk3588av1fwport20260723-0ubuntu1~rk1|2.2.0+git20260703.a632217-0ubuntu3~rk1|full conformance set + root gates, on-board 2026-07-24"
+    "6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1|2.2.0+git20260725.26a50ef-0ubuntu1~rk1|P010/P210 raster + compact NV15 raster/TILE gates; production RGA campaign, on-board 2026-08-04"
 )
 
 assert_10bit_pair_is_safe() {
@@ -84,7 +74,6 @@ INCOMPATIBLE_PPAS=(
 # private FFmpeg/rewrite kernel or leave applications on standalone PulseAudio
 # while GRD captures native PipeWire sinks.
 CONFLICT_PACKAGES=(
-    ffmpeg-rockchip
     ffmpeg-rockchip81
     ffmpeg-rockchip-81
     gnome-remote-desktop-ffmpeg-rk

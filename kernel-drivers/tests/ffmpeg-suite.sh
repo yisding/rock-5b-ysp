@@ -994,10 +994,11 @@ run_hevc_main10_p010_rga()
 	# pads hor_stride to a byte count that is not a whole number of packed
 	# 10-bit pixels, so the RGA input must come from the AFBC decoder path.
 	# The same-size NV15->P010 conversion is a pure 10-bit repack and must
-	# be bit-exact against the software decode. RGA3 currently corrupts
-	# incompact P010 writes (stock BSP behavior, same defect Jellyfin works
-	# around with an NV15 first pass), so this diagnostic stays red until a
-	# kernel-side fix lands.
+	# be bit-exact against the software decode. This exact RGA3 incompact-P010
+	# diagnostic remains red, but its cause is not isolated: the checked BSP
+	# kernel already uses the correct byte-unit stride/offset contract, and
+	# Jellyfin's targeted NV15-first workaround does not prove the same root
+	# cause. Keep it diagnostic rather than assigning a kernel defect here.
 	run_ffmpeg -i "$input" -map 0:v:0 -an -pix_fmt p010le \
 		-fps_mode passthrough -f rawvideo "$sw_yuv"
 	run_ffmpeg \

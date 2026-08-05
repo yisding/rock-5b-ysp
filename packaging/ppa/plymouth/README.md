@@ -49,10 +49,8 @@ publication
 [`18636085`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18636085).
 Its arm64 build
 [`33428910`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33428910)
-completed successfully, and Launchpad accepted all nine binary publications.
-They remain `Pending` until the PPA publisher writes them to the public
-repository index; do not install the package until the version appears in
-`apt-cache policy`.
+completed successfully, and all nine binary publications are Published in the
+normal PPA as rechecked through Launchpad's API on 2026-08-05.
 
 Installing the rebuilt `plymouth` package queues Ubuntu's `update-initramfs`
 trigger. Confirm that the target initramfs contains the PPA's rebuilt

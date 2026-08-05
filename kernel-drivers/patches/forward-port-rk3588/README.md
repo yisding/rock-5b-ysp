@@ -121,7 +121,10 @@ Rockchip-authored RGA fixes cherry-picked from develop-5.10 (batching, request l
 
 ### 0037–0057 — Locally-found fixes on the validated tip
 
-Where the BSP-backport value concentrates: lifetime/refcount/OOB/10-bit-stride fixes found under KASAN/DMA-debug/hostile-ioctl replay on byte-identical BSP code.
+Where the BSP-backport value concentrates: lifetime/refcount/OOB fixes found
+under KASAN/DMA-debug/hostile-ioctl replay on byte-identical BSP code. The
+10-bit entries in this historical range were later proven forward-port
+regressions; current `0072`/`0074` restore the BSP byte-stride ABI.
 
 | # | Title | Commit | Was |
 |---|-------|--------|-----|

@@ -260,13 +260,14 @@ completed output into it. The exact 24-frame retained-export worker gate,
 NV12/P010 lifecycle tests, ASan/UBSan, 17 conformance cases and the 1,440-frame
 complementary zero-copy audit pass.
 
-The locally built ysp13 driver/config packages are now installed, the installed
-driver matches the deb payload, and the operator confirms H.264 presents
+Ysp13 is now public release `70f26d9` with Published source/build and
+driver/config binaries. Its same-version local driver/config packages remain
+installed, the installed driver matches that deb payload, and the operator confirms H.264 presents
 correctly instead of green. Media Internals selects `VaapiVideoDecoder` for a
 640x480 VP9 Profile 0 source. Its `VpxVideoDecoder` selection for a separate
 384x240 source matches Chromium's intentional below-360p software priority,
-not a VP9 driver failure. Automated browser output checking, stable-copy marker
-capture, HEVC playback and sandbox qualification remain; see the
+not a VP9 driver failure. Exact PPA-binary replay, automated browser output
+checking, stable-copy marker capture, HEVC playback and sandbox qualification remain; see the
 [stable-export finding](../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md).
 
 The functional result did not require custom Chrome options, which closes an

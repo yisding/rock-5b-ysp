@@ -16,6 +16,18 @@ it — the maintenance view is [`../status.md`](../status.md) and
 > stops. Nothing here carries a warranty, a response time, or a security-update
 > commitment.
 
+Use this PPA if you have a ROCK 5B running Armbian's Ubuntu 26.04 Resolute
+image, want the RK3588 H.264/HEVC/VP9/AV1 and RGA path on a Linux 6.18 base,
+and are willing to prepare the documented SD-card recovery path before changing
+the booted kernel. Do not use it if camera/ISP, NPU, hardware JPEG, vendor-wide
+peripheral coverage, or a supported production image matters more than the
+newer kernel and the media fixes summarized in §7.
+
+The archive is public at
+[`ppa:yi-ding/ubuntu-rock-5b`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b).
+You do not need every package in it: §2 maps each one to the reason a reader
+would actually choose it.
+
 ## 1. What it targets
 
 | Axis | Supported | Not supported |
@@ -27,23 +39,38 @@ it — the maintenance view is [`../status.md`](../status.md) and
 
 ## 2. What the archive publishes
 
-Verified live against the Launchpad API on **2026-08-04**; the current kernel,
-MPP, and `rockchip-vaapi` source/build or arm64 package-index entries were
-rechecked on **2026-08-05**. Publication state can change without an edit here,
-so re-read [`status.md` W05](../status.md#watch-w05) before trusting a version
-string.
+All nine source packages and their current binaries were rechecked against the
+live Launchpad API on **2026-08-05**. Publication state can change without an
+edit here, so re-read [`status.md` W05](../status.md#watch-w05) before trusting a
+version string.
 
-| Source package | Version | What it is |
-|----------------|---------|------------|
-| `linux-rockchip64-ysp` | `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` | The forward-port kernel: image, DTB, and headers packages. Release string `6.18.42-ysp-rockchip64`. |
-| `mpp` | `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` | `librockchip_mpp` — the vendor codec library that talks to `/dev/mpp_service`; this release fixes and runtime-validates VP9 repeated-reference presentation ownership. |
-| `librga` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | `librga2` — the 2D blit/scale/convert library for `/dev/rga`. |
-| `ffmpeg` | `7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1` | Ubuntu's FFmpeg 8.0 packaging plus the RKMPP/RKRGA forward port. Keeps Resolute's ABI family (`libavcodec62`, `libavutil60`, …), so it **replaces** the distro FFmpeg rather than colliding with it. |
-| `rockchip-vaapi` | `1.0.11+ysp12-0ubuntu1~rk1` | VA-API driver over MPP/RGA, for applications that cannot select the RKMPP codecs directly (browsers, VLC, GStreamer `va`). |
-| `gnome-remote-desktop` | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` | GNOME Remote Desktop with a hardware RKMPP encode backend. |
-| `rk3588-codec-udev` | `1.1` | The `video`-group udev rule for `/dev/mpp_service`, `/dev/rga`, and `/dev/dma_heap/*`. Required on every path. |
-| `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` | nyanmisaka's FFmpeg 6.1 Rockchip fork as co-installable `/opt` tools. Does not touch system FFmpeg. |
-| `plymouth` | `24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1` | Ubuntu's exact Resolute source plus one upstream commit that fixes an incomplete-CSI parser loop able to hang boot on a serial console. |
+| Source and current version | Binary package choices | Why you might install it | Choice boundary |
+|----------------------------|------------------------|--------------------------|-----------------|
+| `linux-rockchip64-ysp`<br>`6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` | `linux-image-ysp-rockchip64`, `linux-dtb-ysp-rockchip64`, `linux-headers-ysp-rockchip64` | Install the image/DTB pair when you want the actual MPP, AV1, IEP2, and RGA kernel drivers. Without a kernel that exposes `/dev/mpp_service` and `/dev/rga`, none of the acceleration packages below can work. Install headers only to build DKMS or another external module. | The image makes YSP the selected boot kernel even though its package name is co-installable. Prepare recovery first. Never install this archive's separate codec DKMS experiment on it. |
+| `mpp`<br>`1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` | `librockchip-mpp1`, `librockchip-vpu1`, `rockchip-mpp-demos`, `librockchip-mpp-dev` | Install the runtime for every RKMPP decoder/encoder, including FFmpeg, VA-API, and GRD. Add the demos to test hardware directly; add `-dev` only to compile MPP consumers. This release fixes the VP9 repeated-reference ownership defect and passed installed-package replay. | It is the userspace codec library, not a player and not a kernel driver. `librockchip-vpu1` is compatibility ABI; most users receive it as a dependency rather than selecting it. |
+| `librga`<br>`2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | `librga2`, `librga-dev` | Install `librga2` for hardware scale, crop, rotate, blit, and colour conversion, including zero-copy decode→RGA→encode pipelines. Add `-dev` only to compile RGA consumers. | Treat it as a versioned pair with the YSP kernel: mixing unvalidated forward-port versions across the 10-bit stride/offset transition can silently corrupt chroma. |
+| `ffmpeg`<br>`7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1` | `ffmpeg` plus the normal Resolute `libav*62/60/11/9/6` runtime and development split | Use this for the ordinary `ffmpeg`/`ffprobe` commands, RKMPP codecs, RKRGA filters, and applications built against Ubuntu 26.04's FFmpeg ABI. It is the most integrated CLI and library path. | It replaces Ubuntu's system FFmpeg in place. This remains the last confirmed live build. The validated `c9428bedaa` successor was signed and transferred to Launchpad on 2026-08-05, but acceptance, build, and publication were deliberately not awaited or rechecked. Install/package replay and the GRD fallback/recreation gate remain open. |
+| `rockchip-vaapi`<br>`1.0.11+ysp13-0ubuntu1~rk1` | `rockchip-vaapi`, optional `rockchip-vaapi-config` | Add the driver for software that speaks VA-API instead of selecting `h264_rkmpp` directly: mpv, VLC, GStreamer `va`, and VA-API-capable browser builds. Add the config package only when you want this driver selected system-wide. Ysp13 fixes Chrome's retained pre-decode export presenting green H.264 frames. | Optional for direct FFmpeg/RKMPP use. Application selection and sandboxes still matter: XtraDeb Chromium lacks libva, Chrome's GPU sandbox is unproven here, and VLC 3.x cannot select standalone RKMPP codecs without this bridge. |
+| `gnome-remote-desktop`<br>`50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` | `gnome-remote-desktop` | Choose it when this ROCK 5B is a GNOME RDP host and you want H.264 sessions encoded by RKMPP instead of the CPU. | Not needed for local playback or FFmpeg. Use the native PipeWire audio stack; hardware encoding at the GDM login screen needs a separate unpublished ACL package. |
+| `rk3588-codec-udev`<br>`1.1` | `rk3588-codec-udev` | Install this for any non-root media use. It grants the `video` group access to MPP, RGA, and DMA heaps and retriggers existing devices, then verifies their permissions. | The user must also belong to `video` and start a new login session. The package deliberately does not grant the GDM greeter access. |
+| `ffmpeg-rockchip`<br>`6.1+git20260423.40c412dacc-0ubuntu1~rk1` | `ffmpeg-rockchip` | Choose the private `/opt/ffmpeg-rockchip` tools to compare or retain nyanmisaka's established 6.1 Rockchip behavior without replacing the system FFmpeg. Commands are named `ffmpeg-rockchip`, `ffprobe-rockchip`, and `ffplay-rockchip`. | Optional compatibility/comparison tool, not the normal stack. Its older private ABI does not satisfy Resolute applications linked to FFmpeg 8. |
+| `plymouth`<br>`24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1` | Ubuntu's normal Plymouth binary split at the patched version | Install it only if the board can stall in `plymouthd` when serial input ends partway through a CSI escape sequence. It is the distro source plus the one upstream parser fix. | Unrelated to codecs. If the machine never shows this boot stall, leave Ubuntu's Plymouth alone. Installing it regenerates initramfs. |
+
+For a typical hardware-video CLI or service, the useful base is the kernel
+image/DTB, codec udev rule, MPP runtime, librga runtime, and system FFmpeg. Add
+VA-API for desktop applications, GRD plus `pipewire-audio` for RDP hosting, and
+the `-dev`, demo, and kernel-header packages only for development or direct
+diagnosis. The full installer in §9 intentionally installs that broader
+development/diagnostic set; the manual profiles there make the initial package
+choice narrower.
+
+Adding an APT archive is not a permanent per-package opt-in. While the PPA is
+enabled, any higher-version replacement it publishes becomes an upgrade
+candidate for an already-installed Ubuntu package. That especially matters for
+system `ffmpeg`, `gnome-remote-desktop`, and `plymouth`. Use APT preferences or
+disable the PPA after the chosen install if you need a durable exception; do not
+assume that omitting a package from one `apt install` command pins Ubuntu's
+version forever.
 
 Four sibling archives exist for incompatible lines — FFmpeg 8.1 (upstream and
 Rockchip), and the experimental clean-room rewrite kernels. **Do not add them
@@ -84,7 +111,7 @@ flowchart TB
 | **H.264 encode** | Supported | VEPU580, two cores with CCU/DCHS. PSNR-gated in the FFmpeg suite. |
 | **HEVC encode** | Supported | Same cores. Main profile, NV12 input, RK3588's CTU64 contract. |
 | **RGA 2D** | Supported | Both RGA3 cores plus RGA2: scale, crop, rotate, colour convert, blit. |
-| **10-bit paths** | Supported, paired | P010/P210/NV15 raster **and** TILE strides plus plane offsets. The kernel and `librga` must be installed **as a pair** — a mismatched pair is silently wrong on the 10-bit TILE path. |
+| **10-bit paths** | Supported, paired | P010/P210 raster plus compact NV15 raster/TILE paths are hardware-validated. Uncompressed 10-bit virtual widths and plane offsets use byte units. P010/P210 TILE is not claimed. The kernel and `librga` must be installed **as a pair**. |
 | **IEP2 deinterlacing** | New, narrow evidence | The hardware deinterlacer, introduced by the `20260803` predecessor and retained by the current `20260804` / `0092` kernel. It was confirmed working standalone on 2026-08-04. It is **not** reachable through VA-API (§5), and libmpp's decoder-internal use of it is deliberately disabled by the VA-API driver. |
 
 Encoder **B-frames and P010 encode input are permanent hardware/MPP walls**, not
@@ -156,7 +183,7 @@ access to the whole `gdm` group and is not published.
 |-----------|-----------|----------|
 | **FFmpeg 8.0.3 (`+rockchip`)** | `h264_rkmpp` / `hevc_rkmpp` decode and encode, `vp9_rkmpp` and `av1_rkmpp` decode, `scale_rkrga` and the zero-copy decode→RGA→encode transcode path. | Replaces Ubuntu's FFmpeg in place (same ABI family). Not co-installable with the FFmpeg 8.1 archives. |
 | **Player selection** | `mpv --hwdec=rkmpp` or `--vd=h264_rkmpp`; `ffmpeg -c:v h264_rkmpp`. | The RKMPP decoders are **standalone AVCodecs, not `AVHWAccel`** — a generic "enable hardware decoding" toggle will not find them, and **VLC 3.x cannot select them at all**. |
-| **`rockchip-vaapi`** | Default: H.264, HEVC Main, and VP9 Profile 0 decode. Opt-in (documented environment switch): HEVC Main10, VP9 Profile 2, and H.264/HEVC encode. | **No deinterlacing** — the driver advertises no `VAEntrypointVideoProc`. **No AV1** through VA-API. 10-bit below 68 pixels wide is [permanently declined](../video-libraries/vaapi/README.md#declined-narrow-afbc-10-bit-below-68-pixels). Picture size is capped at 8192×8192. Chromium and sandbox-enabled Firefox are unproven. |
+| **`rockchip-vaapi`** | Default: H.264, HEVC Main, and VP9 Profile 0 decode. Opt-in (documented environment switch): HEVC Main10, VP9 Profile 2, and H.264/HEVC encode. Ysp13 preserves surfaces exported before decode, fixing Chrome's green H.264 presentation. | **No deinterlacing** — the driver advertises no `VAEntrypointVideoProc`. **No AV1** through VA-API. 10-bit below 68 pixels wide is [permanently declined](../video-libraries/vaapi/README.md#declined-narrow-afbc-10-bit-below-68-pixels). Picture size is capped at 8192×8192. Automated Chrome output and its GPU sandbox, XtraDeb Chromium's missing libva, and sandbox-enabled Firefox remain open. |
 
 > **Interlaced H.264: fixed in `ysp12`, upgrade if you installed `ysp10`.** The
 > published kernel enables IEP2 for the first time, which un-masked a
@@ -187,6 +214,7 @@ every "supported" above.
 | The codec/RGA stack works end to end from the current PPA install | Exact `…20260804~rk1` / `0092` image, DTB, and headers were installed from the PPA and booted. ABI, 12/12 MPP, 21/21 required plus 3/3 diagnostic FFmpeg, direct librga/RGA, decoder liveness/quality, IOMMU machinery, VP9/RGA recovery, broad VA-API, and bounded kernel-log gates pass. GStreamer is 100/102 with two classified userspace semantics failures and no kernel fault. | 2026-08-04 | The production config has no KASAN/lockdep. Root-only debugfs counters, the remaining targeted hostile paths, and authenticated RDP/physical-display integration are open. |
 | The current kernel sustains production-profile media load | The two-hour dual H.264+HEVC encode soak passes with flat RSS/fds and an empty kernel delta. The two-hour 4K H.264 decode workload completes and its kernel window is clean. | 2026-08-04 | The committed decode resource oracle is still red: four loop-boundary transients produce a 36-fd span against the 32-fd limit even though head/tail medians fall 56→54. Repeat it without unrelated desktop activity; do not raise the threshold. |
 | AV1 decode is bit-exact | Hardware decode differential on the AV1 forward-port build. | 2026-07-04 | AV1 from MP4/MKV containers has not been re-tested since the extradata fix. |
+| The published ysp13 VA-API driver fixes Chrome's retained-export green frame | Release commit `70f26d9` passes the retained pre-decode NV12/P010 lifecycle, 24-frame hardware, 17-vector conformance, sanitizer/static-analysis, and 1,440-frame zero-copy gates. The locally built ysp13 package presents H.264 correctly in Google Chrome 151 and selects `VaapiVideoDecoder` for 640×480 VP9; the matching source, successful arm64 build, and both binary packages are Published. | 2026-08-05 | The Published binary has not been reinstalled over the same-version local ysp13 build. Chrome replay is manual, HEVC browser playback and checked-output automation remain open, and the live GPU process was unsandboxed. |
 | Rollback works | The operator has repeatedly used the documented SD rescue path and the exact `kernel-revert.sh` commands successfully ([dated finding](../findings/2026-08-04-forward-port-sd-rescue-rollback-used.md)). | 2026-08-04 | This is user-reported operational evidence without a retained identity/log bundle or an independent second-reader replay. Automatic boot fallback, clean migration, and stale-package cleanup are separate open gates. |
 | Clean migration from an earlier test stack | The `clean-install-system-stack.sh` transaction is written and simulated. | — | The exact transaction has not passed a board gate. |
 
@@ -240,7 +268,7 @@ ours). The 10% is where the advantage lives.
   request-lifetime and IOMMU-prefetch fixes, CSC/scale/rotate/tile corrections.
   None of it reached `develop-6.1` or `develop-6.6`. **Anyone running the 6.1
   BSP is missing these.**
-- **Twenty-five fixes for defects in Rockchip's own code** — 14 patches classed
+- **Twenty-three fixes for defects in Rockchip's own code** — 12 patches classed
   `BSP-BUG` plus an 11-patch audit port (`0058`–`0068`) — found under KASAN,
   lockdep, DMA-debug, and hostile-ioctl replay against code byte-identical to the
   BSP, so they are latent there too:
@@ -255,13 +283,20 @@ ours). The 10% is where the advantage lives.
     `show_existing_frame` board hard-lock.
   - *Bounds*: RCB register indexes, class request arrays, staged request tasks,
     physical import pages, multi-plane handles.
-- **10-bit is actually correct.** The stock BSP misprograms P010/P210/NV15
-  raster strides and plane offsets; this port computes them in bytes, in both
-  RASTER and TILE layouts, and pairs the kernel with a matching `librga`.
-- **AV1 on a mainline IOMMU.** The BSP has an AV1 MPP backend but **no VSI
-  IOMMU driver at all**. This port adds the upstream-style Verisilicon IOMMU
-  provider so AV1 decode works against the 6.18 IOMMU core rather than the
-  vendor's private one.
+- **A published, content-checked 10-bit delivery pair.** The PPA ships the
+  kernel and `librga` together and validates P010/P210 raster plus compact NV15
+  raster/TILE paths on hardware. This matches the BSP kernel's byte-stride and
+  byte-offset contract; it is **not** evidence that the BSP kernel misprograms
+  10-bit. The exact BSP distro userspace package has not been run through the
+  same gate. The source reconciliation is recorded in the
+  [TILE byte-stride finding](../findings/2026-07-24-rga-10bit-tile-byte-stride-and-fbc-exception.md).
+- **AV1 through the standard IOMMU framework.** The BSP has its own private
+  `rockchip-iommu-av1d` provider, integrated through Rockchip's
+  `third_iommu_ops` hook; it does not have the standard VSI provider. This port
+  keeps the BSP MPP AV1 frontend but uses the upstream-style standalone VSI
+  provider against the 6.18 IOMMU core, avoiding the private hook layer. The
+  two provider models are compared in the
+  [AV1 kernel note](../kernel-drivers/av1/docs/av1-rk3588.md#av1-iommu-comparison).
 - **Fail-closed hardening the BSP lacks**: RGA3 rejects a 16-misaligned IOMMU
   window base instead of silently returning zero pixels; the RGA2 page-table
   builder refuses above-4G entries with `EOPNOTSUPP` instead of programming a
@@ -303,7 +338,7 @@ one is a kernel and distro decision, not an application-rewrite decision.
 
 | Trap | What happens | Where it is owned |
 |------|--------------|-------------------|
-| Kernel and `librga` installed separately | 10-bit TILE output is wrong by ~20% with no error | [W13](../status.md#watch-w13) |
+| Unvalidated kernel/`librga` versions straddling the 10-bit transition | 10-bit output can be wrong with no error | [W13](../status.md#watch-w13) |
 | DKMS package on this kernel | Build fails `modpost … exported twice` | [`packaging/dkms/`](../packaging/dkms/README.md) |
 | Missing `video` group or udev rule | MPP init fails even for a group peer, because `dma_heap` is denied | [`packaging/codec-udev/`](../packaging/codec-udev/README.md) |
 | Intermittent Plymouth boot stall | Boot never reaches `sysinit.target`; needs a power cycle | [W20](../status.md#watch-w20) — mitigate with `plymouth.enable=0` |
@@ -313,21 +348,78 @@ one is a kernel and distro decision, not an application-rewrite decision.
 
 ## 9. Installing
 
-```bash
-# clean Resolute system, no earlier test packages:
-bash packaging/ppa/install-system-stack.sh
+Before any command that installs `linux-image-ysp-rockchip64`, complete the
+recovery preparation in [`install.md` §3](../install.md). Adding the archive is
+ordinary APT configuration; installing its kernel changes `/boot/Image` and
+`/boot/dtb` to select YSP on the next boot.
 
-# machine already carrying FFmpeg 8.1 / rewrite-kernel / private test packages:
+Add the archive once:
+
+```bash
+sudo apt update
+sudo apt install software-properties-common
+sudo add-apt-repository ppa:yi-ding/ubuntu-rock-5b
+sudo apt update
+```
+
+Then choose the smallest profile that matches the reason you came here:
+
+```bash
+# Direct FFmpeg/RKMPP media path. linux-image pulls in the matching DTB.
+sudo apt install \
+  linux-image-ysp-rockchip64 rk3588-codec-udev \
+  librockchip-mpp1 librga2 ffmpeg
+sudo usermod -aG video "$USER"
+
+# Desktop applications that use VA-API; config makes the driver system-wide.
+sudo apt install rockchip-vaapi rockchip-vaapi-config
+
+# GNOME RDP host with hardware encode and native PipeWire audio.
+sudo apt install gnome-remote-desktop pipewire-audio
+
+# Direct diagnostics and local consumer/module builds.
+sudo apt install \
+  rockchip-mpp-demos librockchip-mpp-dev librga-dev \
+  linux-headers-ysp-rockchip64
+
+# Optional co-installable FFmpeg 6.1 comparison tools.
+sudo apt install ffmpeg-rockchip
+
+# Optional serial-console Plymouth parser fix; unrelated to media.
+sudo apt install plymouth
+```
+
+Log out and back in after the `video`-group change. Do not reboot into YSP until
+the recovery path is ready and you have checked the selected boot links as
+described in the runbook.
+
+For a clean Resolute machine where you deliberately want the full integrated
+development/diagnostic stack—including GRD, PipeWire audio, demos, development
+headers, and kernel headers—the repository helper installs it in one
+transaction:
+
+```bash
+git clone https://github.com/yisding/rock-5b-ysp.git
+cd rock-5b-ysp
+bash packaging/ppa/install-system-stack.sh
+```
+
+Inspect the helper before running it. It does not install `rockchip-vaapi`,
+`ffmpeg-rockchip`, or the Plymouth fix because those remain use-case choices.
+
+If the machine already carries an earlier FFmpeg 8.1, rewrite-kernel, private
+GRD, or incompatible 10-bit kernel/librga test stack, use the migration helper
+from a current repository checkout instead:
+
+```bash
+# Simulates first, rejects unexpected removals, and asks before applying.
 bash packaging/ppa/clean-install-system-stack.sh
 ```
 
-Both scripts refuse a non-arm64 or non-Resolute host, keep the existing Armbian
-kernel installed as a recovery option, and add the user to `video`. Neither
-installs `rockchip-vaapi`; add it explicitly for browser and VLC decode.
-
-**Prepare recovery before rebooting into the new kernel** —
-[`install.md` §3](../install.md) is the runbook, and §6 above is why that
-matters more here than on a distro kernel.
+Both helpers refuse a non-arm64 or non-Resolute host, retain the existing
+Armbian kernel package as a recovery artifact, and add the invoking user to
+`video`. The clean-migration transaction is safety-checked but has not yet been
+completed on a board; §6 records that evidence boundary.
 
 ## 10. Boundary
 
@@ -336,7 +428,7 @@ matters more here than on a distro kernel.
   [W05](../status.md#watch-w05); package-by-package detail is
   [`packaging/ppa/`](../packaging/ppa/README.md).
 - Version strings and publication states in §2 were read from Launchpad on
-  2026-08-04 and go stale silently. Re-read rather than trust.
+  2026-08-05 and go stale silently. Re-read rather than trust.
 - The BSP comparison rests on `rockchip-linux/kernel develop-6.1@b4ef083dc0c3`
   measured 2026-07-24, and on the area inventory in
   [`kernel-versions/bsp/`](../kernel-versions/bsp/README.md). It compares

@@ -74,10 +74,12 @@ IOMMU on a machine that has none.
 
 ## Provenance — this is a fix we already carry downstream
 
-The driver is not Rockchip BSP code; the BSP has no VSI IOMMU at all. Mainline's
-copy and this project's forward-port copy both descend from Collabora's
-`rockchip-3588` tree, whose `vsi_iommu_probe()` is character-identical to
-mainline's pre-fix form. All three defects are in that shared ancestor.
+The driver is not Rockchip BSP code; the BSP has no standard VSI provider. It
+instead carries a private `rockchip-iommu-av1d.c` driver integrated through
+Rockchip's `third_iommu_ops` hook. Mainline's VSI copy and this project's
+forward-port copy both descend from Collabora's `rockchip-3588` tree, whose
+`vsi_iommu_probe()` is character-identical to mainline's pre-fix form. All
+three defects are in that shared ancestor.
 
 `rk3588-fwport-0005` already ships the corrected form — `PTR_ERR()`, the
 `goto err_unprepare_clocks`, and the checked DMA mask — folded in silently

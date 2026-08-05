@@ -48,7 +48,7 @@ Against the BSP we are **ahead** on correctness: the port carries 20 vendor RGA
 fixes from `develop-5.10` that the 6.1 BSP never received, plus defects we found
 ourselves under KASAN, DMA-debug, and hostile-ioctl replay on byte-identical BSP
 code — several of them unprivileged memory-corruption bugs. The
-[patch catalog](./patch-catalog.md) classes **14 patches as `BSP-BUG`**
+[patch catalog](./patch-catalog.md) classes **12 patches as `BSP-BUG`**
 (explicit backport candidates) and **4 as `HARDEN`**; the separate 11-patch
 BSP-audit HIGH port (`0058`–`0068`) is backport material by construction, since
 every one of those findings was still present in Rockchip's code.
@@ -213,7 +213,7 @@ BSP is missing these.**
 
 Found under KASAN, lockdep, DMA-debug, and hostile-ioctl replay against
 byte-identical BSP code, so they are latent in the BSP too. Two populations,
-counted separately because they were found by different means: **14 patches the
+counted separately because they were found by different means: **12 patches the
 [patch catalog](./patch-catalog.md) classes `BSP-BUG`** (found by us, verdict
 recorded per patch), and the **11-patch BSP-audit HIGH port** `0058`–`0068`
 (found by auditing, and by construction still present on the tip — see
@@ -229,8 +229,14 @@ the `video`-group device nodes:
   `show_existing_frame` board hard-lock.
 - **Bounds:** RCB register indexes, class request arrays, staged request tasks,
   physical import pages, multi-plane handles.
-- **10-bit correctness:** byte-literal raster strides and plane offsets for
-  P010/P210/NV15 — the stock BSP misprograms these.
+
+The 10-bit stride and plane-offset corrections are deliberately **not** in the
+`BSP-BUG` count. The BSP kernel already uses byte units for uncompressed
+10-bit virtual widths and offsets. These changes corrected integration drift
+introduced in the forward port and userspace fork, then locked the restored
+contract down as a paired kernel/`librga` delivery. Hardware evidence covers
+P010/P210 raster and compact NV15 raster/TILE; it does not claim P010/P210
+TILE or an exact BSP distro userspace comparison.
 
 ### 4d. Hardening beyond the BSP (`HARDEN`)
 

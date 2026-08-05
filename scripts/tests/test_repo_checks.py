@@ -549,6 +549,33 @@ class PpaVersionConsistencyTests(unittest.TestCase):
             self.assertEqual(len(errors), 1)
             self.assertIn("does not match latest changelog", errors[0])
 
+    def test_clean_installer_may_pin_documented_live_ffmpeg(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            changelog = root / "packaging/ppa/ffmpeg/debian/changelog"
+            changelog.parent.mkdir(parents=True)
+            changelog.write_text(
+                "ffmpeg (7:8.0.3+candidate-0ubuntu1) resolute; urgency=medium\n",
+                encoding="utf-8",
+            )
+            installer = root / "packaging/ppa/clean-install-system-stack.sh"
+            installer.parent.mkdir(parents=True, exist_ok=True)
+            installer.write_text(
+                '#!/usr/bin/env bash\nFFMPEG_VERSION="7:8.0.3+published-0ubuntu1"\n',
+                encoding="utf-8",
+            )
+            support = root / "docs/ppa-support.md"
+            support.parent.mkdir(parents=True)
+            support.write_text(
+                "| `ffmpeg`<br>`7:8.0.3+published-0ubuntu1` | choices | why | boundary |\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_ppa_ffmpeg_install_pin(root, errors)
+
+            self.assertEqual(errors, [])
+
     def test_grd_exporter_commit_drift_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -2446,3 +2446,26 @@ See ../../configure --help for available options.
   workload journal intervals contain zero fatal kernel line. Evidence remains
   under `../rock-5b/build/libmpp-installed-a8b19653/` and
   `../rock-5b/build/rockchip-conformance/logs/rewrite/20260805-installed-a8b19653-mpp-suite/`.
+
+## FFmpeg asynchronous-frame lifetime source upload — 2026-08-05
+
+- Signed source package
+  `7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1` with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. Direct GPG verification reports
+  good signatures from `Yi Ding <yi.s.ding@gmail.com>` for the `.dsc`, source
+  `.buildinfo`, and source `.changes`. The system-keyring-only `dscverify`
+  signature check cannot find this personal PPA key; the earlier
+  `dscverify --nosigcheck` gate validates the source checksums and extraction.
+- Final signed upload SHA-256 set:
+  - orig tarball: `a5a7dfc45e10163fd13c3b8cad529a5146fded28eed5cf43dea72da7f89f24bd`;
+  - Debian tarball: `a400995176dac0ba9e1fc1ea43efd6341f98fd7623ab9d4547cbae968abb9561`;
+  - `.dsc`: `9c1288fb04db8259cba22439ca51f7f58f659367b961156614ec5d81b621cb04`;
+  - source `.buildinfo`: `f4529e6c7f1e328a89be579247a41c5b8f2f00fd4d9e60f6e17eb0cfda366271`;
+  - source `.changes`: `c71ee11fcccb37a04c7a0d1c037b4ffa388db9be29fdc6bb45fbf8a43bb241ac`.
+- `dput` passed its distribution, required-field, checksum, suite, source-only,
+  and GPG gates and transferred all five artifacts to
+  `ppa:yi-ding/ubuntu-rock-5b` at approximately 13:35 PDT. The local
+  `_source.ppa.upload` marker exists.
+- Per the operator's explicit stop point, Launchpad acceptance, arm64 build,
+  and publication were not awaited or queried. The prior `33a651a55b` source,
+  build, and 29 binaries remain the last confirmed Published set.

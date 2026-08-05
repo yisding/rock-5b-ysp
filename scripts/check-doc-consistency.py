@@ -483,7 +483,7 @@ def check_kernel_package_helpers(
 
 
 def check_ppa_ffmpeg_install_pin(root: Path, errors: list[str]) -> None:
-    """Keep PPA export, documentation, and migration on one FFmpeg version."""
+    """Keep the FFmpeg candidate and documented live migration pin aligned."""
     changelog_path = root / "packaging/ppa/ffmpeg/debian/changelog"
     installer_path = root / "packaging/ppa/clean-install-system-stack.sh"
     for path in (changelog_path, installer_path):
@@ -513,14 +513,30 @@ def check_ppa_ffmpeg_install_pin(root: Path, errors: list[str]) -> None:
             "packaging/ppa/clean-install-system-stack.sh: no FFMPEG_VERSION pin"
         )
         return
-    if installer_match.group(1) != changelog_match.group(1):
-        errors.append(
-            "packaging/ppa/clean-install-system-stack.sh: FFMPEG_VERSION "
-            f"{installer_match.group(1)!r} does not match latest changelog "
-            f"{changelog_match.group(1)!r}"
-        )
-
+    installer_version = installer_match.group(1)
     latest_version = changelog_match.group(1)
+    if installer_version != latest_version:
+        support_path = root / "docs/ppa-support.md"
+        support_match = None
+        if support_path.is_file():
+            support_match = re.search(
+                r"^\| `ffmpeg`<br>`([^`]+)` \|",
+                support_path.read_text(encoding="utf-8", errors="replace"),
+                re.MULTILINE,
+            )
+        if support_match is None or installer_version != support_match.group(1):
+            live_detail = (
+                " and does not match the live version documented in "
+                "docs/ppa-support.md"
+                if support_match is not None
+                else "; docs/ppa-support.md has no parseable live FFmpeg row"
+            )
+            errors.append(
+                "packaging/ppa/clean-install-system-stack.sh: FFMPEG_VERSION "
+                f"{installer_version!r} does not match latest changelog "
+                f"{latest_version!r}{live_detail}"
+            )
+
     readme_path = root / "packaging/ppa/README.md"
     if readme_path.is_file() and latest_version not in readme_path.read_text(
         encoding="utf-8", errors="replace"

@@ -95,6 +95,18 @@ the reset/close double release proven here.
   double-release; the repository contract places such reproducers in
   `rock-5b-security`.
 
+## Source upload — 2026-08-05
+
+The source package was signed with
+`0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. Direct GPG verification reports a
+good signature from `Yi Ding <yi.s.ding@gmail.com>` for the `.dsc`, source
+`.buildinfo`, and source `.changes`. `dput` passed its distribution,
+required-field, checksum, suite, source-only, and GPG gates and transferred all
+five source artifacts to `ppa:yi-ding/ubuntu-rock-5b` at approximately 13:35
+PDT. Per the operator's requested stop point, Launchpad acceptance, build, and
+publication were not awaited or queried; predecessor `33a651a55b` remains the
+last confirmed live version.
+
 ## Boundary
 
 This closes the buffer/frame double-release in FFmpeg source and proves close

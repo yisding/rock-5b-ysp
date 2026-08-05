@@ -17,28 +17,37 @@ for how the external source trees are reconstructed see
 |---|---|---|---|---|---|
 | **MPP** | `rockchip-userspace/mpp-rockchip` @ `ysp/main` | **fork branch**, 11 commits | `a8b19653`, 11 past tag **`1.0.12`** (`1375813c`) | `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **librga** | `rockchip-userspace/librga-fork` | **fork branch**, 11 commits | `26a50ef`, 11 past vendor base `2cffdf6` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | `ubuntu-rock-5b` |
-| **FFmpeg 8.0** (system) | `ffmpeg/ffmpeg-rockchip-81` @ `rockchip-8.0` | **fork branch** | `da5befc806` | `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` | `ubuntu-rock-5b` |
+| **FFmpeg 8.0** (system) | `ffmpeg/ffmpeg-rockchip-81` @ `fix/rkmpp-output-timeout` | **fork branch** | `c9428bedaa` | `7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1` candidate uploaded client-side, Launchpad state unqueried; `…20260729.33a651a55b…~rk1` last confirmed Published | `ubuntu-rock-5b` |
 | **FFmpeg 6.1** (co-installable) | `ffmpeg/ffmpeg-rockchip` (nyanmisaka) | upstream snapshot, no delta | `40c412dacc` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **GNOME Remote Desktop** | `gnome/grd/gnome-remote-desktop` @ `release/50.2-rkmpp` | **fork branch**, 17 commits | `c4ef3c9` | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` | `ubuntu-rock-5b` |
-| **Plymouth** | (packaging-local) | **quilt**, 1 patch | — | see `ppa/plymouth/` | `ubuntu-rock-5b` |
+| **Plymouth** | (packaging-local) | **quilt**, 1 patch | upstream `45655f12` backport | `24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1` | `ubuntu-rock-5b` |
 | **FFmpeg 8.1** (baseline) | none — recovered `debian/` only | none (pristine upstream) | `8.1.2` | `7:8.1.2-1+rk2` | `rock5b-ffmpeg81-upstream` |
 | **codec-udev** | native, in-repo | n/a | — | `1.1` | `ubuntu-rock-5b` |
-| **gdm-hwenc** | native, in-repo | n/a | — | `1.0` | `ubuntu-rock-5b` |
-| **rockchip-vaapi** | `yisding/rockchip-vaapi` @ `main` | fork branch | `184d7d4` | `1.0.11+ysp12-0ubuntu1~rk1` | `ubuntu-rock-5b`, uploaded 2026-08-04 |
+| **gdm-hwenc** | native, in-repo | n/a | — | `1.0` | Not uploaded |
+| **rockchip-vaapi** | `yisding/rockchip-vaapi` @ `main` | fork branch | `70f26d9` | `1.0.11+ysp13-0ubuntu1~rk1` | `ubuntu-rock-5b`, Published 2026-08-05 |
 
-Two gaps worth knowing rather than rediscovering:
+Three gaps worth knowing rather than rediscovering:
 
 - **`ppa:yi-ding/rock5b-ffmpeg81-rockchip` has no tracked packaging directory.**
   The archive is Published and referenced from `ppa/README.md`, but no
   `packaging/ppa/*` tree reproduces it. Rebuilding that source package today
   would mean recovering the `debian/` tree from Launchpad, the way
   `ffmpeg-baseline` was recovered on 2026-07-07.
-- **rockchip-vaapi is published.** `1.0.11+ysp12-0ubuntu1~rk1` was built from
-  public release commit `184d7d4`, signed, and uploaded to `ubuntu-rock-5b` on
-  2026-08-04 as source publication `18656370`; arm64 build `33465947`
-  succeeded. A fresh `dpkg-source -x` reproduces all 661 tracked files of that
-  commit byte-for-byte, so the package's provenance is checkable against the
-  public fork rather than a local worktree.
+- **The last confirmed live FFmpeg is still the predecessor.** The packaging
+  workspace records the locally validated `c9428bedaa` reset/close lifetime
+  fix, and its signed source upload completed client-side on 2026-08-05.
+  Launchpad acceptance/build/publication were not awaited or rechecked, so the
+  clean-install helper remains on `33a651a55b`. After publication, install the
+  candidate and replay its GRD fallback/recreation gate before calling that fix
+  delivered.
+- **rockchip-vaapi ysp13 is published.** `1.0.11+ysp13-0ubuntu1~rk1` was built
+  from public release commit `70f26d9`, signed, and uploaded to
+  `ubuntu-rock-5b` on 2026-08-05 as source publication `18657954`; arm64 build
+  `33468630` succeeded and the driver/config binaries are live. A fresh
+  `dpkg-source -x` matches every tracked release file byte-for-byte with no
+  extra source file (apart from dpkg-source's generated `.pc` metadata), so the
+  package's provenance is checkable against the public fork. The PPA-built
+  binary still needs installed-package replay over the same-version local build.
 
 ## Two ways patches are carried
 

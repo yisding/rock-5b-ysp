@@ -77,8 +77,12 @@ RGA2's below-4G limit on a kernel without dma32 heaps) and fixed in the
 harness; 13 cases including every dmabuf path now pass. New source patches
 `0045`–`0047` fix the legacy-blit virtual-address `EFAULT` (a `0044`
 validation regression), report the under-4G exclusion as `EOPNOTSUPP` with a
-clear log, and program byte-literal 10-bit raster strides (the measured
-incompact-P010 corruption, stock BSP behavior). All three passed their
+clear log, and attempted to correct the measured incompact-P010 corruption by
+scaling 10-bit raster strides. That last change was initially attributed to
+stock BSP behavior, but the later
+[stride-convention finding](../../findings/2026-07-24-rga3-legacy-blit-10bit-stride-convention-fault.md)
+proved it was a forward-port regression against the BSP byte-stride ABI. All
+three passed their
 booted gates on rebuilt debug build `P63dd-C4ad2`: legacy blits succeed
 with content match, the exclusion probe returns `EOPNOTSUPP` with the
 explanatory log, P010 luma is bit-exact, the librga smoke is fully green
