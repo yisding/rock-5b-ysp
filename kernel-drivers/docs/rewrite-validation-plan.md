@@ -22,7 +22,7 @@ and definition of done.
 > correlated run artifacts.
 
 > **Current source boundary (2026-08-04):** maintained tips
-> `33c30ec6989e` / `9e503f6b16df` pass the warning-fatal `normal` build and
+> `19634f4eebba` / `b296374b7520` pass the warning-fatal `normal` build and
 > 305-signal audit. The other focused build profiles retain older-tip evidence.
 > The source contains the separate VPU981 AV1 backend, but no current-tip
 > kernel, including AV1, has passed a hardware qualification rung.

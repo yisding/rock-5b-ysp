@@ -14,8 +14,8 @@ the maintained 2026-08-04 tips:
 | Track | Pin |
 |-------|-----|
 | BSP-derived forward port | `rk3588-video-6.18@12a7da02bea83` |
-| 6.18 rewrite | `rk3588-rewrite-6.18@33c30ec6989e` |
-| Mainline rewrite cross-check | `rk3588-rewrite-mainline@9e503f6b16df` on `v7.2-rc5`; the tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical to the 6.18 versions |
+| 6.18 rewrite | `rk3588-rewrite-6.18@19634f4eebba` on `v6.18.42` |
+| Mainline rewrite cross-check | `rk3588-rewrite-mainline@b296374b7520` on `v7.2-rc6`; the tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical to the 6.18 versions |
 
 The [current implementation comparison](./rewrite-drivers.md#current-comparison-2026-08-04)
 owns moving status, scope, exact source counts, and the production decision.
@@ -547,8 +547,8 @@ BSP-derived RGA                   rewrite RGA
 
 | Source property | BSP-derived forward port | Rewrite |
 |-----------------|--------------------------|---------|
-| MPP code/build lines | 18,442 at the forward-port comparison pin, including AV1, compatibility headers, and legacy-SoC helpers | 18,163 C lines at `33c30ec6989e`, including the embedded KUnit block and VPU981 AV1 backend |
-| RGA code/build lines | 21,160 at the forward-port comparison pin | 26,060 C lines at `33c30ec6989e`, including the embedded KUnit block |
+| MPP code/build lines | 18,442 at the forward-port comparison pin, including AV1, compatibility headers, and legacy-SoC helpers | 18,163 C lines at `19634f4eebba`, including the embedded KUnit block and VPU981 AV1 backend |
+| RGA code/build lines | 21,160 at the forward-port comparison pin | 26,060 C lines at `19634f4eebba`, including the embedded KUnit block |
 | ABI ledger | External project documentation and vendor headers | 648-line MPP and 633-line RGA in-tree `ABI.rst` files |
 | In-driver KUnit | None comparable | 92 MPP + 152 RGA cases |
 | Primary verification style | Board conformance, sanitizer builds, hostile reproducers, production runs | KUnit/build profiles first, then the same board suites and differential artifacts |
@@ -661,8 +661,8 @@ evidence:
 
 | Input | Pin or evidence boundary |
 |-------|--------------------------|
-| Rewrite 6.18 | `rk3588-rewrite-6.18@33c30ec6989e`; 18,163-line MPP and 26,060-line RGA translation units |
-| Rewrite mainline replay | `rk3588-rewrite-mainline@9e503f6b16df`; tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical |
+| Rewrite 6.18 | `rk3588-rewrite-6.18@19634f4eebba` on `v6.18.42`; 18,163-line MPP and 26,060-line RGA translation units |
+| Rewrite mainline replay | `rk3588-rewrite-mainline@b296374b7520` on `v7.2-rc6`; tracked rewrite sources, Kconfig, ABI ledgers, and UAPI are byte-identical |
 | Rockchip BSP donor | `develop-6.1@b4ef083dc0c3` |
 | Upstream-style comparators | Linux `v7.2-rc5`-era `rockchip/rkvdec`, Verisilicon Hantro, Chips&Media Wave5, Qualcomm Venus, MediaTek vcodec, Allegro DVT, and Amphion sources in the mainline replay tree |
 | Runtime boundary | The current tips pass the warning-fatal clean-archive `normal` build and exact 305-signal source audit. Their 92 MPP + 152 RGA manifest, multicore fixes, and AV1/VSI path are not boot-verified. |

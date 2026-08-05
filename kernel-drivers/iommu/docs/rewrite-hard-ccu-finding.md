@@ -11,7 +11,7 @@ only enables HARD link-table scheduling when the DT explicitly selects
 hardware-validation gap, and how to earn confidence in HARD.
 
 > **Current-source update (2026-08-04):** maintained tips are 6.18
-> `33c30ec6989e` and mainline `9e503f6b16df`. The SOFT-default/HARD-opt-in
+> `19634f4eebba` and mainline `b296374b7520`. The SOFT-default/HARD-opt-in
 > model remains in source and the current normal focused build passes, but HARD
 > still has no current-tip hardware result. The older `file:line` anchors below
 > retain historical provenance; use the named symbols when reading the current

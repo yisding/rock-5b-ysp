@@ -10,8 +10,8 @@
 
 > **Current boundary (2026-08-04):** this remains a target architecture plan,
 > not the as-built interrupt model. Its inventory is pinned to the source above;
-> no phase is claimed complete at maintained tips `33c30ec6989e` /
-> `9e503f6b16df`. Read the
+> no phase is claimed complete at maintained tips `19634f4eebba` /
+> `b296374b7520`. Read the
 > [current architecture guide](rewrite-driver-architecture/README.md) before
 > using this plan to interpret present source.
 

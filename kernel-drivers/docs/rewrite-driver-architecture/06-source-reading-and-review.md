@@ -7,8 +7,8 @@
 
 The sources are large because implementation and KUnit tests share one
 translation unit. Read by concepts rather than top to bottom. The symbol order
-below describes the as-built 2026-08-04 tips (`33c30ec6989e` on 6.18 and
-`9e503f6b16df` on mainline), not the proposed object names in the ownership
+below describes the as-built 2026-08-04 tips (`19634f4eebba` on `v6.18.42` and
+`b296374b7520` on `v7.2-rc6`), not the proposed object names in the ownership
 refactor.
 
 ### 10.1 MPP

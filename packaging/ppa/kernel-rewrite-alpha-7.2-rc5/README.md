@@ -9,7 +9,7 @@ with Published binaries.
 
 > **Deferred package boundary (2026-08-04):** this definition is pinned to an
 > older rewrite snapshot and has not been uploaded. Maintained mainline tip
-> `9e503f6b16df` includes later AV1, ownership/recovery, and KUnit work. Rebase
+> `b296374b7520` on `v7.2-rc6` includes later AV1, ownership/recovery, and KUnit work. Rebase
 > and revalidate this package before treating it as the current package line;
 > its pins remain here only for reproducibility.
 

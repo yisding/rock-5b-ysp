@@ -6,7 +6,7 @@ adaptation is implemented and clean-build validated; booted RK3588 validation
 is still required.
 
 > **Current-source update (2026-08-04):** the adapted changes remain ancestors
-> of maintained tips `33c30ec6989e` / `9e503f6b16df`. The current normal
+> of maintained tips `19634f4eebba` / `b296374b7520`. The current normal
 > focused build passes, but this document's 2026-07-17 build result and source
 > pins remain historical; no current-tip RGA hardware result exists.
 

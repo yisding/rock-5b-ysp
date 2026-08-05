@@ -17,7 +17,7 @@
 
 > **Current boundary (2026-08-04):** this is the historical rationalization
 > plan and checkpoint record, not the live manifest. Maintained tips
-> `33c30ec6989e` / `9e503f6b16df` contain 92 MPP + 152 RGA cases. Their
+> `19634f4eebba` / `b296374b7520` contain 92 MPP + 152 RGA cases. Their
 > current evidence and compound boot contract live in
 > [`rewrite-kunit.md`](rewrite-kunit.md); do not carry the 84/148 checkpoint
 > counts into a current qualification claim.

@@ -16,8 +16,8 @@
 
 > **Implementation update — 2026-08-04:** the backend is no longer proposed or
 > confined to an experimental spur. It is present in both maintained rewrite
-> branches, `rk3588-rewrite-6.18@33c30ec6989e` and
-> `rk3588-rewrite-mainline@9e503f6b16df`. Their tracked rewrite/Kconfig/ABI/uAPI
+> branches, `rk3588-rewrite-6.18@19634f4eebba` and
+> `rk3588-rewrite-mainline@b296374b7520`. Their tracked rewrite/Kconfig/ABI/uAPI
 > files are byte-identical, the manifest contains 92 MPP cases including AV1
 > coverage, and the normal clean-source build passes on both bases. There is no
 > rewrite-kernel AV1 boot, decode, AFBC, fault, recovery, or conformance result.

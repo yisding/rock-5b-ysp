@@ -264,8 +264,8 @@ package_name=$(dpkg-query -S "/boot/vmlinuz-$(uname -r)" |
   awk -F ': ' 'NR == 1 { print $1 }')
 package_id=$(dpkg-query -W -f='${Package}=${Version}' "$package_name")
 sudo env \
-  KUNIT_SOURCE_COMMIT=33c30ec6989e \
-  KUNIT_EXPECTED_SOURCE_COMMIT=33c30ec6989e \
+  KUNIT_SOURCE_COMMIT=19634f4eebba \
+  KUNIT_EXPECTED_SOURCE_COMMIT=19634f4eebba \
   KUNIT_CONFIG_FILE="$PWD/$evidence/config" \
   KUNIT_PACKAGE_ID="$package_id" \
   KUNIT_REPORT="$PWD/$evidence/result.tsv" \
@@ -340,9 +340,10 @@ plus a real two-thread fence/abort race. Its named ordered 90/152 manifest and
 source/config/package-bound evidence gate owned result attribution. See the
 [successor attribution and audit](../../findings/2026-07-27-rewrite-reset-import-fixture-lockdep.md).
 
-The maintained tips are now 6.18 `33c30ec6989e` and mainline
-`9e503f6b16df`, with an exact 92/152 manifest. They repair non-terminal
-request-configuration cleanup and distinguish unsupported RGA3 pattern-blend
+The maintained tips are now 6.18 `19634f4eebba` on `v6.18.42` and mainline
+`b296374b7520` on `v7.2-rc6`, with an exact 92/152 manifest. They retain the
+patch-equivalent request/rotation repair after the 2026-08-04 rebases. That
+repair fixes non-terminal request-configuration cleanup and distinguishes unsupported RGA3 pattern-blend
 rotation from the supported non-pattern rotation oracle. Both tips pass the
 warning-fatal clean-archive `normal` build and the 305-signal source audit, but
 neither has booted KUnit evidence. Do not promote KTAP, compile, or package

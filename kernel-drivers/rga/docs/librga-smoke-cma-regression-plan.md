@@ -16,7 +16,7 @@
 > Date: 2026-08-02
 
 > **Current-source update (2026-08-04):** the repair remains in maintained
-> tips `33c30ec6989e` / `9e503f6b16df`, whose current normal focused build
+> tips `19634f4eebba` / `b296374b7520`, whose current normal focused build
 > passes. Boot `#29` is still the observed failing baseline and predates the
 > fix; no current-tip librga rerun exists.
 

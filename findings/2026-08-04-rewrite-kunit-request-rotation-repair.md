@@ -7,6 +7,10 @@
 > Date: 2026-08-04
 > Trust: **CODE-INSPECTED**, **COMPILE-VERIFIED**, **PARTIAL**
 
+> **Followed 2026-08-04 by** [the `v6.18.42` / `v7.2-rc6` rebase and build finding](2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md).
+> The repair remains patch-equivalent at the rebased tips; this finding keeps
+> the original commit identities and build evidence.
+
 ## Result
 
 The maintained 6.18 and mainline rewrite branches now carry the same final

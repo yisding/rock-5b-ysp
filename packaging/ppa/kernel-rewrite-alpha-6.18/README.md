@@ -5,7 +5,7 @@ The replacement package now uses the exact Armbian current/forward-port source
 line first, then applies the clean-room rewrite series.
 
 > **Historical package boundary (2026-08-04):** this fixed package pin predates
-> maintained rewrite tip `33c30ec6989e`, the source VPU981 AV1 backend, and the
+> maintained rewrite tip `19634f4eebba`, the source VPU981 AV1 backend, and the
 > current 92+152 KUnit manifest. Its publication/build result must not be cited
 > as current-source build, boot, or architecture evidence.
 

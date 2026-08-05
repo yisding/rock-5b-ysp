@@ -134,7 +134,7 @@ source edits. Use it only when checking the last pushed state while another
 worktree has unrelated local changes.
 
 Last recorded compile gates: on 2026-08-04 `normal` passed warning-free for
-maintained 6.18 `33c30ec6989e` and mainline `9e503f6b16df`. Each built
+maintained 6.18 `19634f4eebba` and mainline `b296374b7520`. Each built
 Rockchip and VSI IOMMU support, both KUnit-enabled rewrite objects, and the
 Rock 5B DTB from a clean archive. The source audit reported 305 known signals,
 zero new, and zero absent. The `test-disabled`, `memory`, `race`, and deliberate

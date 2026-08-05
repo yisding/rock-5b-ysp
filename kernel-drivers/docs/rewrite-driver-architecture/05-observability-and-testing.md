@@ -93,7 +93,7 @@ REWRITE_BUILD_PROFILES='normal memory race' \
 ```
 
 On 2026-08-04 the `normal` profile completed without warnings at 6.18
-`33c30ec6989e` and mainline `9e503f6b16df`, including both IOMMU providers,
+`19634f4eebba` on `v6.18.42` and mainline `b296374b7520` on `v7.2-rc6`, including both IOMMU providers,
 both KUnit-enabled rewrite objects, and the ROCK 5B DTB. The same run passed
 the 305-signal fixture audit, the 92+152 manifest check, and cross-tree source
 identity. Test-disabled, memory, race, and ABI-mutation results belong to older
@@ -117,7 +117,7 @@ silicon. On-board conformance must additionally exercise:
 
 The immediate status-changing milestone is therefore not “add another unit
 test.” It is: build a successor KASAN package from 6.18 tip
-`33c30ec6989e`, install and boot it on the ROCK 5B, record the exact 244-case
+`19634f4eebba`, install and boot it on the ROCK 5B, record the exact 244-case
 manifest with a clean outer interval and live lockdep, prove that each expected
 hardware family starts, and run paired rewrite-versus-forward-port conformance
 with clean kernel logs. AV1 VCD/AFBC/VSI counters, timeout, IOMMU-fault,
