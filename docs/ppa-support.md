@@ -27,15 +27,16 @@ it — the maintenance view is [`../status.md`](../status.md) and
 
 ## 2. What the archive publishes
 
-Verified live against the Launchpad API on **2026-08-04**; the current kernel
-and `rockchip-vaapi` arm64 package index entries were rechecked on
-**2026-08-05**. Publication state can change without an edit here, so re-read
-[`status.md` W05](../status.md#watch-w05) before trusting a version string.
+Verified live against the Launchpad API on **2026-08-04**; the current kernel,
+MPP, and `rockchip-vaapi` source/build or arm64 package-index entries were
+rechecked on **2026-08-05**. Publication state can change without an edit here,
+so re-read [`status.md` W05](../status.md#watch-w05) before trusting a version
+string.
 
 | Source package | Version | What it is |
 |----------------|---------|------------|
 | `linux-rockchip64-ysp` | `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` | The forward-port kernel: image, DTB, and headers packages. Release string `6.18.42-ysp-rockchip64`. |
-| `mpp` | `1.5.0+git20260730.ad325345+ds-0ubuntu1~rk1` | `librockchip_mpp` — the vendor codec library that talks to `/dev/mpp_service`. |
+| `mpp` | `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` | `librockchip_mpp` — the vendor codec library that talks to `/dev/mpp_service`; this release fixes and runtime-validates VP9 repeated-reference presentation ownership. |
 | `librga` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | `librga2` — the 2D blit/scale/convert library for `/dev/rga`. |
 | `ffmpeg` | `7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1` | Ubuntu's FFmpeg 8.0 packaging plus the RKMPP/RKRGA forward port. Keeps Resolute's ABI family (`libavcodec62`, `libavutil60`, …), so it **replaces** the distro FFmpeg rather than colliding with it. |
 | `rockchip-vaapi` | `1.0.11+ysp12-0ubuntu1~rk1` | VA-API driver over MPP/RGA, for applications that cannot select the RKMPP codecs directly (browsers, VLC, GStreamer `va`). |

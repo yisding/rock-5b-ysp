@@ -419,7 +419,9 @@ Current open gates:
 - Run the targeted hostile/ownership gates for the `0076`–`0087` audit tail and
   the forced fragmented-DMA-BUF RGA2 path.
 - Capture root-only debugfs counters plus authenticated RDP and physical-display
-  integration. Run the clean-migration/stale-package-cleanup path.
+  integration. The separate clean-install/stale-package transaction remains an
+  operational migration test for machines carrying incompatible archives; it
+  does not gate this kernel's closed publication/install/boot milestone.
 - Full `lintian` remains incomplete; earlier source and binary scans were
   stopped after several minutes with no output while traversing the kernel
   archive/payload.
@@ -456,5 +458,7 @@ integration boundaries below remain.
 2. Run the `0076`–`0087` targeted hostile/ownership regression set plus the
    forced fragmented-DMA-BUF RGA2 gate.
 3. Capture root-only debugfs counters and authenticated RDP/physical-display
-   integration, then complete the separate clean-migration/stale-package
-   cleanup transaction. The documented SD recovery procedure is already usable.
+   integration. Exercise the separate clean-install/stale-package transaction
+   when a machine actually migrates from an incompatible stack; do not treat
+   that operational scenario as missing publication evidence for this exact
+   kernel. The documented SD recovery procedure is already usable.

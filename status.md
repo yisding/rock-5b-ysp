@@ -37,7 +37,7 @@ separate table below so both remain scannable.
 | 5 | ffmpeg tree | ⚠️ Package branch `fix/rkmpp-output-timeout@c9428bedaa` fixes the asynchronous `MppFrame` reset/close double release. The affected object, `fate-source`, source package, and focused RK3588 gates pass: 10/10 immediate-close plus 10/10 flush/reuse, without the old libmpp refcount/pool diagnostics. Published and installed packages remain at predecessor `33a651a55b`; candidate installation and the real GRD fallback/recreation gate are pending. Canonical-tip and AV1 MP4/MKV board validation remain open. | 2026-07-30 | [lifetime fix](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md), [FFmpeg status](./video-libraries/ffmpeg/README.md) |
 | 7 | GNOME Remote Desktop backend | 🚧 Public `release/50.2-rkmpp@c4ef3c9` rebases all 16 existing release changes patch-identically onto latest GNOME 50 stable and adds a narrowed reconnect-timeout repair: only a display explicitly reassigned into the persistent user handover survives timeout, keeping its `RemoteId` listener so the next authenticated attempt can retry without restarting the daemon. **`50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` is installed** (2026-08-02 14:54), the system daemon is enabled and listening on 3389, and the booted `6.18.42-ysp-rockchip64` sets neither `CONFIG_DMABUF_DEBUG` nor `CONFIG_KASAN`, so both stated preconditions for the reconnect gate are now met. The gate itself has **not** run: it needs an authenticated RDP client, and the system credentials are root-only. Separately, the encoder watchdog/forced-IDR/VBR-ceiling work is built and verified present in `fix/forced-idr-recovery@100da72` (which sits directly on the released `c4ef3c9`) but is **absent from the installed binary** and has never been run. | 2026-08-04 | [reconnect audit and fix](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md), [encoder watchdog](./findings/2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md), [testing](./apps/gnome-remote-desktop/docs/testing.md) |
 | 8 | Mesa / Panfrost | 🔄 **2026-08-04:** all four MRs remain open and unmerged, but the rebase need moved: !42679 was updated 2026-07-23 and is conflict-free, while **!42614 now reports `need_rebase`**. !42613/!42614 still carry the exact heads whose selected G610 shards passed, so that evidence stands; !42679's green pipeline predates its new head and needs a rerun. | 2026-08-04 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ✅ Forward-port kernel `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` (`0092`) source and all three arm64 binaries are Published; the exact image, DTB, and headers are installed, booted, and broadly production-validated. GRD replacement source `18654077` (binary `247717203`, build `33461880`) is Published/successful and installed. The normal stack and comparison/rewrite archives otherwise retain their package-specific recorded states. Only the separate clean-migration/stale-package cleanup transaction remains open for this kernel publication; the documented SD rescue + `kernel-revert.sh` path is operator-validated. | 2026-08-04 | [`packaging/ppa/`](packaging/ppa/README.md), [production validation](./findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md), [recovery finding](./findings/2026-08-04-forward-port-sd-rescue-rollback-used.md) |
+| 9 | Launchpad PPA | ✅ **2026-08-05:** the forward-port kernel publication milestone is closed: `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` (`0092`) source and build are Published/successful, all three arm64 packages are in the live PPA index, and the exact image, DTB, and headers are installed and previously booted through broad production validation. MPP `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` is likewise Published, selected from the normal PPA, installed, and runtime-validated through its retained VP9 oracle, 120-process stress, four-codec differential, and 12/12 official suite. The documented SD rescue + `kernel-revert.sh` path is operator-validated. The clean-install transaction remains a separate migration test for machines carrying incompatible stacks, not an open kernel-publication condition. | 2026-08-05 | [`packaging/ppa/`](packaging/ppa/README.md), [MPP package closure](./findings/2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md#installed-ppa-package-closure), [kernel production validation](./findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md), [recovery finding](./findings/2026-08-04-forward-port-sd-rescue-rollback-used.md) |
 | 10 | Binary publishing | ❌ No built binaries are committed, and the last `gh release list` check (2026-08-04) found no GitHub Release. The repository-owned license gate closed on 2026-08-05: Yi Ding's non-code contributions are CC BY-SA 4.0 and code contributions follow their upstream target, with only Yi Ding's own original kernel contributions GPL-2.0-or-later. Upstream kernel code retains its existing license. No release artifact set or checksummed manifest has been selected yet. | 2026-08-05 | [`packaging/`](packaging/README.md), [`LICENSE.md`](LICENSE.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection, MPP, and FFmpeg prerequisites are ready; Kodi build, playback, and packaging are unproven. Re-checked 2026-08-04: the PPA still publishes no Kodi source and no build evidence has entered the repo, but the GBM/GLES build and tty1 playback are board state and stay unverified since 2026-07-11. | 2026-08-04 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
@@ -62,7 +62,7 @@ dashboard date and ledger row when public state changes.
 | 5 | ffmpeg tree | Build/install `c9428bedaa`, then repeat GRD hardware timeout, software fallback, and encoder recreation while requiring a clean libmpp/kernel log; afterward re-test AV1 from MP4/MKV. | [lifetime integration gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md#verification-gate) |
 | 7 | GNOME Remote Desktop backend | Installation and the kernel precondition are done; run the measured idle reconnect sequence (connect → idle-lock → drop client ≥ the 900 s `sleep-inactive-ac-timeout` → reconnect), requiring the second attempt to reach GDM→user handover without restarting the daemon while an initial greeter failure still cleans up normally. Blocked only on RDP credentials, which are root-only. Then focus/resume and audio, then install `fix/forced-idr-recovery` to make the watchdog/VBR gates measurable at all. | [reconnect reproduction](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md#act-4-latest-gnome-50-rebase-and-narrowed-june-fix-salvage), [watchdog gate](./findings/2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md#verification-gate) |
 | 8 | Mesa / Panfrost | Rebase !42614, then rerun selected G610 CI on it and on !42679's post-07-23 head. | [MR tips and selected CI](./video-libraries/mesa/README.md#mr-status) |
-| 9 | Launchpad PPA | Run the separate clean-migration/stale-package cleanup transaction, retaining exact `0092` boot and rollback proof, before replaying the authenticated GRD reconnect gate. | [kernel package checklist](./packaging/ppa/kernel-forward-port/README.md#remaining-checklist), [production validation](./findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md), [GRD reconnect reproduction](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md#act-4-latest-gnome-50-rebase-and-narrowed-june-fix-salvage) |
+| 9 | Launchpad PPA | Kernel and MPP publication/install closure need no further archive proof. Publish and install FFmpeg `c9428bedaa`, then replay its GRD fallback/recreation gate; refresh and exercise the clean-install transaction separately only when a machine actually migrates from an incompatible stack. | [PPA package matrix and migration path](./packaging/ppa/README.md#current-state), [FFmpeg integration gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md#verification-gate) |
 | 10 | Binary publishing | Select the first release's exact source/binary artifacts, verify each artifact's complete corresponding-source and third-party redistribution obligations, then publish a versioned checksummed manifest. | [license scope](./LICENSE.md), [artifact policy](./packaging/README.md) |
 | 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. | [Kodi tty1 runbook](./apps/kodi/docs/build-hwaccel.md#5-test-on-tty1-gbm-needs-drm-master) |
 | 12 | ROCK 5B SD/SPI boot chain | Substitute the 26.5.1 `current` FIT, loader, and then both on a captured 26.2.1 SD baseline; record where each boot stops or succeeds. | [raw-SD hypothesis test](./scripts/README.md#rock-5b-raw-sd-u-boot-hypothesis-test) |
@@ -91,7 +91,7 @@ last-checked date.
 | W02 | [Armbian patcher precedence](#watch-w02) | 2026-08-04 | Core-wins behavior unchanged; rename workaround still required. |
 | W03 | [Armbian codec-udev upstreaming](#watch-w03) | 2026-08-04 | PR merged; future images should carry the rule. |
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-08-04 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
-| W05 | [Launchpad PPA publication](#watch-w05) | 2026-08-04 | The `6.18.42` / `0092` source and all three arm64 binaries are Published; exact image/DTB/headers are installed, booted, and broadly production-validated. GRD `~rk2` is Published and installed. Clean migration remains. |
+| W05 | [Launchpad PPA publication](#watch-w05) | 2026-08-05 | Kernel `6.18.42` / `0092` and MPP `a8b19653` source publications are Published, their arm64 builds succeeded, and their binaries are selected from the live normal-PPA index and installed. Kernel publication/boot and MPP installed-runtime milestones are closed. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-08-04 | Four MRs still open; the rebase need moved from !42679 to !42614. |
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-08-04 | `main` unchanged, but `ffmpeg-80` and `ffmpeg-81` both moved; their replay evidence is stale. |
 | W08 | [AV1 container-extradata validation](#watch-w08) | 2026-07-16 | Fix carried forward; board re-test pending. |
@@ -111,7 +111,7 @@ last-checked date.
 | W22 | [RK3588 per-die voltage binning absent from mainline](#watch-w22) | 2026-07-27 | Rechecked three release candidates later at maxline `v7.2-rc5-252`: still absent, and `rk3588-opp.dtsi` is byte-identical between the 6.18 forward port and maxline, so one DT patch serves both. Mainline ships the BSP's unbinned worst-die column **exactly** (19/19 shared CPU OPPs) while the BSP's per-die columns reach 50–87 mV lower. This board is bin 0 and its BSP index is now **measured** — L5 little, L7 both big — so the entitlement is priced, not estimated. |
 | W23 | [Ramoops retention reversal & the 6.18.38 kernel A/B](#watch-w23) | 2026-07-28 | **Ramoops recovers records across warm reboots on every 6.18.40-era kernel** — ≥9 recoveries in the retained journal since 2026-07-26, same firmware stack — so the documented all-zero failure is scoped to the 6.18.38-era kernels and the firmware-phase hypothesis is retired. The four-reboot kernel A/B on the still-installed `6.18.38-current` is pending; the 2026-07-27 19:38 GRD-SG oops dump is archived in `/var/lib/systemd/pstore/`. |
 | W24 | [ROCK 5B stock-Ubuntu image inputs](#watch-w24) | 2026-08-01 | Ubuntu 26.04 arm64 images, Canonical's draft Image Cookbook/`ubuntu-image` 3.6.0 schema, Linux 6.18 LTS projection, and the inspected upstream U-Boot tip are recorded as design inputs. No successor image, clean kernel package, gadget, or upstream-U-Boot board boot exists yet. |
-| W25 | [libmpp VP9 repeated-reference output ownership](#watch-w25) | 2026-08-05 | Fixed, hardware-validated, and public at `yisding/ysp/main@a8b19653`: distinct presentation entries snapshot metadata and own one buffer ref each. Sync, no-thread, and multi-thread one-pass outputs are 16/16 and byte-identical to software; 120/120 stress decoders and the four-codec differential are clean. Signed PPA source `18657949` is accepted/Pending; arm64 build `33468629` has a successful build log and is in Launchpad's `Uploading build` ingestion state. Package install/revalidation remain. |
+| W25 | [libmpp VP9 repeated-reference output ownership](#watch-w25) | 2026-08-05 | Closed in source and the installed PPA package at `a8b19653`: source `18657949` is Published, arm64 build `33468629` succeeded, and the live archive version is installed. Installed sync/no-thread/multi-thread outputs are 16/16 and byte-identical, 120/120 stress decoders are teardown-clean, the four-codec differential is bit-exact, the official suite is 12/12, and bounded kernel-journal scans are clean. |
 
 <a id="watch-w01"></a>
 ### W01 — Armbian media-patch drift
@@ -176,7 +176,18 @@ last-checked date.
 
 - **Why recheck:** Acceptance, build state, and binary publication can change
   after upload without a local repository edit.
-- **Last checked:** 2026-08-04
+- **Last checked:** 2026-08-05
+- **State 2026-08-05:** Official Launchpad API rechecks report forward-port
+  source publication `18656958` `Published` and arm64 build `33467257`
+  `Successfully built`; the normal PPA index exposes the same `0092` image,
+  DTB, and headers installed on the board. MPP source publication `18657949`
+  is also `Published`, build `33468629` is `Successfully built`, and the live
+  index selects `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1`. All four
+  installed MPP runtime/development/demo packages report that exact version,
+  and the installed-runtime closure is recorded under W25. This closes the
+  forward-port publication/install/boot milestone. A clean-install run is
+  still useful when migrating a different machine from incompatible PPAs; it
+  is not missing evidence for this already-published kernel artifact.
 - **State 2026-08-04:** Launchpad Published `0001`–`0092` / `7d53bc7a3adc` as
   source publication `18656958` at
   `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`; remote arm64 build `33467257`
@@ -189,7 +200,7 @@ last-checked date.
   source `18654077`, binary publication
   `247717203`, and build `33461880` are Published/successful and the package is
   installed. The documented SD rescue + `kernel-revert.sh` commands are
-  operator-validated; clean migration remains open.
+  operator-validated.
 
 <a id="watch-w06"></a>
 ### W06 — Mesa MR stack
@@ -835,7 +846,8 @@ last-checked date.
   every process log. Rockchip's userspace MPP source and issue tracker can
   change independently of the kernel series.
 - **Last checked:** 2026-08-05
-- **State 2026-08-05:** Fixed in public `yisding/ysp/main@a8b19653`. Generic slot
+- **State 2026-08-05:** Fixed in public `yisding/ysp/main@a8b19653` and closed
+  in the installed normal-PPA package. Generic slot
   queues now store distinct occurrence nodes, and VP9 show-existing output
   snapshots its presentation frame with one owned buffer reference. The new
   base regression queues 40 events on one slot and recovers every distinct
@@ -844,11 +856,16 @@ last-checked date.
   software NV12 oracle. The original 30×4 stress has 120/120 successful
   decoders, no slot/refcount/leak diagnostic, and no deferred kernel fault.
   H.264/H.265/VP9/AV1 differential decode remains bit-exact for 30 frames each.
-  Signed source package
-  `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` is accepted as Launchpad
-  publication `18657949`; arm64 build `33468629` has a successful build log
-  and is in Launchpad's `Uploading build` ingestion state. Binary publication,
-  package installation, and installed-runtime replay remain.
+  Official Launchpad API and APT-index checks now report source publication
+  `18657949` Published and arm64 build `33468629` successful. The live normal
+  PPA selects `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1`, and that exact
+  runtime, development library, VPU library, and demo set is installed.
+  Installed-package replay on rewrite KASAN boot `g19634f4eebba` reproduces
+  the three 16-frame/2,433,024-byte outputs at the software oracle SHA-256,
+  passes 120/120 concurrent stress decoders with zero ownership/leak
+  diagnostic, keeps all four 30-frame codec differentials bit-exact, and
+  passes the official MPP suite 12/12. The exact VP9, stress, differential,
+  and official-suite journal intervals contain zero fatal kernel line.
   Detail:
   [`findings/2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md`](./findings/2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md).
 - **State 2026-08-04:** Root-caused against installed package

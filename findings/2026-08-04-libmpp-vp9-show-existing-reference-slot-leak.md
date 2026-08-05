@@ -17,11 +17,12 @@
 > duplicate queue-node collapse and missing per-output buffer ownership;
 > **INFERRED** only where noted.
 >
-> Resolution update, 2026-08-05: **FIXED, HARDWARE-VALIDATED, AND PUBLISHED IN
-> SOURCE** at `yisding/ysp/main@a8b19653`; not yet rebuilt as an installed
-> package. Signed PPA source publication `18657949` is accepted/Pending; arm64
-> build `33468629` has a successful build log and is in Launchpad's `Uploading
-> build` ingestion state.
+> Resolution update, 2026-08-05: **FIXED, PUBLISHED, INSTALLED, AND
+> HARDWARE-VALIDATED** at `yisding/ysp/main@a8b19653` and PPA package
+> `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1`. Source publication `18657949`
+> is Published, arm64 build `33468629` succeeded, the live normal-PPA packages
+> are installed, and installed-runtime correctness, stress, broad differential,
+> official-MPP, and bounded kernel-log gates pass.
 
 ## Result
 
@@ -107,11 +108,42 @@ output is 13,824,000 bytes and `average:inf` against software. A sudoers-backed
 `dmesg --since` read covering the runs returns no kernel messages; the stress
 gate's independent journal scan is also clean.
 
-The reconstructible logs, raw comparisons, and stress bundle remain disposable
-build state under `../rock-5b/build/libmpp-slot-fix/`; no binary or full log
-bundle is copied into this repository. This proves the source repair, not
-installed-package closure: the signed source package is accepted by Launchpad,
-but the installed MPP package still predates `a8b19653`.
+The reconstructible source-build logs, raw comparisons, and stress bundle
+remain disposable build state under `../rock-5b/build/libmpp-slot-fix/`; no
+binary or full log bundle is copied into this repository.
+
+<a id="installed-ppa-package-closure"></a>
+### Installed PPA package closure
+
+The normal PPA now publishes the exact fixed source and binaries. An official
+Launchpad API recheck reports source publication `18657949` Published at
+2026-08-05 15:43:46 UTC and arm64 build `33468629` Successfully built. The
+live Resolute arm64 index selects
+`1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1`; `librockchip-mpp1`,
+`librockchip-mpp-dev`, `librockchip-vpu1`, and `rockchip-mpp-demos` are all
+installed at that exact version. `debsums -s` reports no payload mismatch, the
+library's ELF package note names the same source/version, and each installed
+decoder test resolves `/usr/lib/aarch64-linux-gnu/librockchip_mpp.so.1`.
+
+Installed-runtime replay ran on rewrite KASAN kernel
+`6.18.42-video-rewrite-kasan-rockchip64 #2 g19634f4eebba`. This is a compatible
+MPP-service implementation and isolates the userspace-package result; it does
+not add runtime evidence to the separate `0092` forward-port kernel tail.
+
+| Installed-package gate | Result |
+|------------------------|--------|
+| Retained one-pass VP9 vector through `mpi_dec_test`, `mpi_dec_nt_test`, and `mpi_dec_mt_test` | Each path returns 16 frames / 2,433,024 bytes, reports `test success`, and is byte-identical to a fresh software NV12 oracle at SHA-256 `0056282676abd243c2f36ab3ca13262f57a278a5129d204c88227651ac950098`; zero slot/refcount/leak diagnostic. |
+| Original 30-loop × 4-concurrent teardown stress | 120/120 decoder processes succeed; zero slot/refcount/leak diagnostic and zero fatal line after the 60-second deferred-fault window. |
+| Four-codec differential | H.264, H.265, VP9, and AV1 each return 30 frames / 13,824,000 bytes with `average:inf`; bounded journal scan is clean. |
+| Official MPP suite | 12/12 required cases pass: info, H.264/H.265/VP9 decode, multi-thread/multi-instance decode, H.264/H.265 encode, both low-delay slice paths, multi-thread H.265 encode, and H.264 RC2. The harness cannot read unprivileged `dmesg`, so an exact 12:43:30–12:43:52 journal sidecar supplies the zero-fatal-line oracle. |
+
+Disposable installed-package evidence lives under
+`../rock-5b/build/libmpp-installed-a8b19653/` and
+`../rock-5b/build/rockchip-conformance/logs/rewrite/20260805-installed-a8b19653-mpp-suite/`.
+The source fix, PPA publication, package selection, package payload, focused
+correctness, lifetime stress, cross-codec regression, and official sample
+matrix are therefore closed. Broader application-specific behavior remains
+owned by the FFmpeg, VA-API, and GRD tracks rather than this MPP defect.
 
 ## Reproduction
 

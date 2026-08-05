@@ -2432,5 +2432,17 @@ See ../../configure --help for available options.
   [`33468629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33468629)
   ran on `bos03-arm64-025`. Its retained log ends `Status: successful`, reports
   1m27s package time, and lists the expected five binary packages. The API
-  remained in `Uploading build` while Launchpad ingested the result; binary
-  publication and installed-package replay remain open.
+  remained in `Uploading build` while Launchpad ingested the result.
+- Closure recheck later on 2026-08-05: the official API reports source
+  publication `18657949` Published at 15:43:46 UTC and build `33468629`
+  Successfully built in 4m07s. The live normal-PPA arm64 index exposes the
+  exact runtime/development/VPU/demo packages, and all four are installed at
+  `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` with clean `debsums`.
+- Installed-package replay on rewrite KASAN boot `g19634f4eebba` closes the
+  integration gate: sync/no-thread/multi-thread one-pass VP9 each return all
+  16 frames / 2,433,024 bytes at the software-oracle SHA-256; 120/120 stress
+  decoders succeed with no ownership/leak diagnostic; H.264/H.265/VP9/AV1 are
+  bit-exact for 30 frames each; and the official MPP suite passes 12/12. Exact
+  workload journal intervals contain zero fatal kernel line. Evidence remains
+  under `../rock-5b/build/libmpp-installed-a8b19653/` and
+  `../rock-5b/build/rockchip-conformance/logs/rewrite/20260805-installed-a8b19653-mpp-suite/`.
