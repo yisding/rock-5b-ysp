@@ -292,13 +292,12 @@ encode at the GDM login screen is not part of the published PPA setup.
 
 ## 6. Packages most people can skip
 
-| Package | Install it only when... |
-|---------|-------------------------|
-| `librockchip-mpp-dev`, `librga-dev` | You are compiling an application against MPP or RGA. Runtime use does not need them. |
-| `linux-headers-ysp-rockchip64` | You are building an external or DKMS module for this exact kernel. Do not install the separate codec DKMS experiment on the YSP kernel; its drivers are already built in. |
-| `rockchip-mpp-demos` | You want MPP's command-line diagnostic and test programs. It is useful but not required by players. |
-| `ffmpeg-rockchip` | You specifically want the older, co-installable FFmpeg 6.1 comparison commands under `/opt`. It does not replace the system FFmpeg 8 stack. |
-| PPA `plymouth` | Your board suffers the documented serial-console Plymouth boot stall. It is unrelated to media and regenerates initramfs when installed. |
+The package chooser in [section 2](#2-choose-a-starting-path) is the canonical
+map. Development headers, kernel headers, MPP demos, the co-installable FFmpeg
+6.1 comparison tools, and the unrelated Plymouth repair are optional; do not
+install them merely because they share the archive. In particular, do not
+install the separate codec DKMS experiment on the YSP kernel: its drivers are
+already built in.
 
 The repository also has full-stack install and migration helpers under
 [`packaging/ppa/`](../packaging/ppa/README.md). They are useful for maintainers
@@ -309,9 +308,8 @@ to understand on a new system.
 
 Treat the following as out of scope, absent, or not qualified:
 
-- boards other than the ROCK 5B; the ROCK 5B+ device-tree path is present but
-  untested;
-- any OS other than Armbian's Ubuntu 26.04 Resolute arm64 image;
+- systems outside the [qualified board, OS, architecture, and kernel
+  boundary](#confirm-the-system-is-supported);
 - MIPI camera, CIF, ISP, ISPP, AIISP, VPSS, and HDMI-input capture;
 - the RKNPU/RKNN/RKLLM NPU stack;
 - MPP hardware JPEG and VP8; AVS2 is present in driver code but unverified;
@@ -381,24 +379,12 @@ ROCK 5B's normal Armbian boot flow does not provide a kernel-selection menu, so
 keeping the old kernel package installed is not enough if the new kernel fails
 before login.
 
-Before installing the kernel, capture the working state from a repository
-checkout:
-
-```bash
-git clone https://github.com/yisding/rock-5b-ysp.git
-cd rock-5b-ysp
-
-PROFILE=pre-install \
-  bash kernel-drivers/tests/conformance/scripts/collect-system-info.sh
-sudo bash kernel-drivers/scripts/kernel-revert.sh list
-cp -a /boot/armbianEnv.txt ./armbianEnv.txt.pre-ysp
-```
-
-Also keep the existing Armbian kernel installed and prepare an SD rescue system
-that you have tested far enough to mount the installed root filesystem. The
-complete [recovery and rollback runbook](../install.md#3-prepare-recovery-and-capture-the-old-baseline)
-explains how to switch to a remaining kernel or reinstall saved image and DTB
-packages from that rescue boot.
+Before installing the kernel, complete the canonical
+[recovery and rollback runbook](../install.md#3-prepare-recovery-and-capture-the-old-baseline).
+It owns the baseline capture, retained-package, SD-rescue, switch, reinstall,
+and verification commands. Do not shorten that preparation to a copied command
+fragment here: the recovery path is only useful when it has been exercised far
+enough to mount and repair the installed system.
 
 Do not install the PPA kernel until that recovery path is real. A copied
 configuration file by itself is not a recovery method.
