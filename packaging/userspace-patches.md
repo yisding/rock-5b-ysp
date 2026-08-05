@@ -15,7 +15,7 @@ for how the external source trees are reconstructed see
 
 | Component | Source tree (under `~/Code/`) | Patches carried as | Pinned at | Package version | PPA |
 |---|---|---|---|---|---|
-| **MPP** | `rockchip-userspace/mpp-rockchip` @ `ysp/main` | **fork branch**, 6 commits | `ad325345`, 6 past tag **`1.0.12`** (`1375813c`) | `1.5.0+git20260730.ad325345+ds-0ubuntu1~rk1` | `ubuntu-rock-5b` |
+| **MPP** | `rockchip-userspace/mpp-rockchip` @ `ysp/main` | **fork branch**, 11 commits | `a8b19653`, 11 past tag **`1.0.12`** (`1375813c`) | `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **librga** | `rockchip-userspace/librga-fork` | **fork branch**, 11 commits | `26a50ef`, 11 past vendor base `2cffdf6` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **FFmpeg 8.0** (system) | `ffmpeg/ffmpeg-rockchip-81` @ `rockchip-8.0` | **fork branch** | `da5befc806` | `7:8.0.3+rockchip+git20260719.da5befc806-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **FFmpeg 6.1** (co-installable) | `ffmpeg/ffmpeg-rockchip` (nyanmisaka) | upstream snapshot, no delta | `40c412dacc` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` | `ubuntu-rock-5b` |
@@ -63,7 +63,7 @@ and no single answer to "what is patched".
 
 ## Per component
 
-### MPP — fork branch, 6 commits
+### MPP — fork branch, 11 commits
 
 - Packaging branch: **`ysp/main`** on `yisding/mpp`, based on upstream release
   tag `1.0.12` (`1375813c`). This is the branch the package builds from.
@@ -71,7 +71,7 @@ and no single answer to "what is patched".
   **`HermanChen/mpp` vendor mirror** with a `yisding` remote added, rather than
   a separate fork clone like `librga-fork`. Push ysp work to `yisding`; **never
   to `origin`**. Local `develop` stays at the packaging base.
-- The six commits on `ysp/main`:
+- The eleven commits on `ysp/main`:
   - `osal/test: fix the pthread start routine signature` — needed for newer
     GCC/glibc. **Upstream fixed this independently after `1.0.12`**, so it
     exists only because the base is `1.0.12` itself.
@@ -89,6 +89,16 @@ and no single answer to "what is patched".
     Without it every ordinary HEVC encode programs base + size, which the
     rewrite driver rejects per frame and the vendor driver turns into the page
     fault `264553f9` set out to remove.
+  - `fix[iep2_test]: sync dma-buf cache around the hardware run` and
+    `feat[iep2_test]: select the deinterlacing mode with -m` — make the IEP2
+    diagnostic coherent on cached dma-bufs and allow explicit mode coverage.
+  - `fix[vproc]: do not deref the buffer of a signal frame in the debug trace`
+    and `fix[vproc]: pick the I1O1 field from the stream, not always the top
+    one` — harden signal-frame logging and preserve the stream-selected field.
+  - `fix[vp9d]: preserve show-existing presentation events` — gives every
+    queued presentation occurrence its own node and makes each VP9
+    show-existing snapshot own one buffer reference, preserving repeated-slot
+    output order, metadata, and lifetime.
 - `ysp/main` is the only ysp branch on the fork. `develop` there tracks upstream
   and is 55 commits past the packaging base; it is not a build input.
 - The `1.5.0` in the package version is **not** the upstream tag. It comes from

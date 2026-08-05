@@ -6,6 +6,35 @@ commands; the fatal deref is synchronous in the ioctl thread, **not** the async
 worker `mpp_task_worker_default` as originally inferred. See the PROVEN block
 below. Title/filename kept for link stability.)*
 
+> ## 2026-08-05 USERSPACE LEG 2 FIXED IN SOURCE
+>
+> Public MPP `yisding/ysp/main@a8b19653` replaces the slot-keyed display node with
+> distinct occurrence entries and gives VP9 show-existing presentations
+> snapshotted metadata plus one owned buffer reference each. Sync, no-thread,
+> and multi-thread one-pass hardware decode now emit 16/16 image frames,
+> byte-identical to software. The original 120-process stress produces no
+> slot/refcount/leak diagnostic and no kernel fault. Signed PPA source
+> publication `18657949` is accepted/Pending; arm64 build `33468629` has a
+> successful build log and is in Launchpad's `Uploading build` ingestion
+> state. The installed package still predates the fix. See the
+> [dedicated finding and validation record](./2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md#2026-08-05-repair-and-validation).
+
+> ## 2026-08-04 USERSPACE LEG 2 ROOT-CAUSED
+>
+> The separate libmpp VP9 anomaly is no longer just an attributed open item.
+> Consecutive `show_existing_frame` packets re-enqueue the same decoded
+> reference through a display queue with one intrusive node per slot. Duplicate
+> enqueue removes the earlier occurrence but retains its +2 use accounting;
+> shallow repeated output also takes no per-presentation buffer reference. A
+> one-pass decode emits **13/16** required image frames, dropping the first
+> presentations of the three references repeated later, then leaves three
+> slots at `display=2`, reports two non-positive refs, asserts six times, and
+> cleans a leaked buffer. The old `-n 16` crash reproducer hid the output loss
+> by rewinding the under-producing input until it reached 16 outputs. Current
+> Rockchip `develop@df4864bd` remains affected and has no matching public
+> issue/PR. See the
+> [dedicated root-cause finding](./2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md).
+
 > ## 2026-07-23 GATE VERIFIED on `Pc1f8-C9fc5` (carries `0058`)
 >
 > The proven fix (`0058`) holds on hardware. The `mpp-clientless-release-fd-uaf.c`
@@ -264,7 +293,7 @@ symptom:
 | Leg | Where | Mechanism | Symptom | Status |
 |-----|-------|-----------|---------|--------|
 | **1. VA-API driver under-allocates vs MPP's stride** | `rockchip-vaapi` (userspace) | MPP reports a 768-byte stride for the shown frame (a previously-decoded reference is larger than the nominal 352×288 — the `show_existing_frame` tell); the driver allocated the nominal size and copied/exported the `768×288×1.5 = 331,776`-byte layout → **~27 KB CPU-copy overrun past the mmap**, caught by the MMU | **segfault** (PID 62468) | **fixed userspace-side** — conservative MPP-aligned alloc + checked NV12 copy in `rockchip-vaapi` `src/frame_layout.c`, unexpected layouts now return `VA_STATUS_ERROR_DECODING_ERROR` (`src/rockchip_drv_video.c`), regression test `tests/frame_layout_test.c`, recorded against track 14 in that repo's `docs/ROADMAP.md`. Also a **track-14 (`rockchip-vaapi`) bug** in its own right. |
-| **2. MPP-core VP9 buffer-slot / refcount mismanagement** | `librockchip_mpp` (userspace) | `show_existing_frame`/superframe reference-buffer ownership mishandled (the shared reference slot) | invalid ref-counts, buffer-slot assertions, **leaked buffers** (direct RKMPP, PID 63196 — no VA-API driver involved) | **open** — the decode-side root cause; not touched by the leg-1 fix |
+| **2. MPP-core VP9 buffer-slot / refcount mismanagement** | `librockchip_mpp` (userspace) | `show_existing_frame`/superframe reference-buffer ownership mishandled (the shared reference slot) | invalid ref-counts, buffer-slot assertions, **leaked buffers** (direct RKMPP, PID 63196 — no VA-API driver involved) | **fixed, hardware-validated, and public** — `yisding/ysp/main@a8b19653`; PPA source accepted, binary publication/install remain |
 | **3. Kernel worker NULL-derefs a device-less session's task** | `rk_vcodec` (`mpp_common.c`, this finding) | async worker dereferences `task->session->mpp == NULL` for a torn-down/never-bound session | **hard lockup** ~47 s later (deferred) | **fixed** — `0053` (worker + orphan pop/free/running) and `0054` (wait-result sibling) |
 
 **Why legs 1 and 3 are distinct (high confidence, not certain).** Leg 1 is a
@@ -336,11 +365,14 @@ Two layers; **layer 1 is implemented**, layer 2 is not.
    log instead of a hard lockup. This defends the crash (leg 3 above); it does
    **not** fix the upstream corruption.
 2. **Decode side — leg 2, the MPP-core VP9 `show_existing_frame`
-   reference-buffer refcount bug (not fixed).** The direct-RKMPP assertions
+   reference-buffer refcount bug (fixed in local source).** The pre-fix direct-RKMPP assertions
    (invalid ref counts, buffer-slot asserts, leaked buffers) point at MPP's VP9
    `show_existing_frame`/superframe buffer ownership mishandling the shared
    reference slot — the decode-side root cause. Likely in `librockchip_mpp`
-   VP9 (`vp9d`) buffer/slot management rather than the kernel. **Leg 1** (the
+   VP9 (`vp9d`) buffer/slot management rather than the kernel. Local
+   `yisding/ysp/main@a8b19653` now carries the distinct-event/snapshot fix and
+   passes the one-pass and stress hardware gates. Launchpad accepted its source
+   package; the installed package still predates it. **Leg 1** (the
    `rockchip-vaapi` stride under-allocation → segfault) is a *separate*
    userspace defect and is already fixed in that repo — see the three-leg
    table above; it is not this decode-side root cause.

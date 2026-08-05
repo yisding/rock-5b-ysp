@@ -1,0 +1,47 @@
+Google Chrome 151 live GPU-process sandbox probe
+Date recorded: 2026-08-05
+Host: ROCK 5B, Linux 6.18.42-ysp-rockchip64, GNOME Wayland
+Chrome: 151.0.7922.75, Google-provided deb
+
+The operator launched Google Chrome normally, without extra options. The
+chrome://gpu export records the browser command line as:
+
+/usr/bin/google-chrome-stable --ozone-platform=wayland --flag-switches-begin --flag-switches-end --render-node-override=/dev/dri/renderD128
+
+The same export reports:
+
+In-process GPU                  : false
+Sandboxed                       : false
+GPU process crash count         : 0
+
+It also contains this GPU-process warning:
+
+[316845:316845:0804/212207.864301:WARNING:sandbox/policy/linux/sandbox_linux.cc:405] : InitializeSandbox() called with multiple threads in process gpu-process.
+
+A read-only /proc probe of the currently running stock Chrome GPU process
+(PID 1232738 at measurement time) recorded this child command line:
+
+/opt/google/chrome/chrome --type=gpu-process --ozone-platform=wayland --render-node-override=/dev/dri/renderD128 --crashpad-handler-pid=1232699 --enable-crash-reporter=, --change-stack-guard-on-fork=enable --gpu-preferences=YAAAAAAAAAAgAQAEAAAAAAAAAAAAAGAASAAAAAAAAAABAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAMAAAAAQAAAAAAAAAAAAAACAAAAAAAAAAIAAAAAAAAAA== --shared-files --metrics-shmem-handle=4,i,1809445270054422813,18201300128745577991,262144 --field-trial-handle=3,i,14988531276141361484,15522849315860402342,262144 --disable-features=EyeDropper --variations-seed-version=20260804-170110.797000-production --pseudonymization-salt-handle=7,i,7090174343059968487,12124809849079451169,4 --trace-process-track-uuid=3190708988185955192
+
+Selected /proc/1232738/status and LSM fields:
+
+Uid:             1000    1000    1000    1000
+Gid:             1000    1000    1000    1000
+CapEff:          0000000000000000
+NoNewPrivs:      1
+Seccomp:         0
+Seccomp_filters: 0
+LSM:             unconfined
+
+Interpretation:
+
+- Neither the browser nor GPU child command line contains --no-sandbox or
+  --disable-gpu-sandbox. This is stock/default package behavior, not an
+  operator-added sandbox override.
+- NoNewPrivs=1 and an empty effective capability set are useful hardening, but
+  Seccomp=0, Seccomp_filters=0, LSM=unconfined, and Chrome's own
+  Sandboxed=false do not constitute an active Chrome GPU sandbox.
+- The multiple-thread InitializeSandbox warning is a discriminator for the
+  next investigation. It does not yet identify which Chrome, ANGLE/Mesa,
+  libva, MPP, or RGA initialization step created the extra thread or prove
+  that this warning alone caused the unsandboxed state.

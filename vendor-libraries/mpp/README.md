@@ -13,7 +13,7 @@ source lives in the sibling `mpp-rockchip` tree.
 | Owns | The MPP library docs under [`docs/`](docs/mpp-library-architecture.md), this front door, and [`keywords.md`](keywords.md). |
 | Depends on | The classic MPP userspace API/headers and a compatible [`../../kernel-drivers/mpp/`](../../kernel-drivers/mpp/README.md) service for runtime validation. |
 | Code lives in | `mpp-rockchip` (`mpp/`, HAL, `mpp_service` client). |
-| Current state | Source-built path hardware-validated via the tests; see [`../../status.md`](../../status.md). |
+| Current state | Source-built path hardware-validated via the tests. The VP9 repeated-reference presentation defect is [fixed, validated, and public](../../findings/2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md#2026-08-05-repair-and-validation) at `yisding/ysp/main@a8b19653`; PPA binary publication and installed-package integration remain. See [`../../status.md`](../../status.md#watch-w25). |
 
 ## Scoped docs
 

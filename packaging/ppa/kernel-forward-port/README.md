@@ -29,9 +29,15 @@ Launchpad Published source publication
 and arm64 build
 [`33467257`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33467257)
 on `bos03-arm64-004` completed successfully in 41m44s. The build log ends with
-`Status: successful`; Launchpad still reported `Uploading build`, with no binary
-publications visible, at the final 2026-08-04 check. This exact package has not
-been installed, booted, or hardware-validated.
+`Status: successful`; all three arm64 binaries are now Published, installed,
+and booted. The running `6.18.42-ysp-rockchip64` image, DTB, and headers report
+the exact `20260804` package version. A full production-profile campaign covers
+ABI, MPP, FFmpeg, GStreamer, librga/RGA, decoder liveness/quality, IOMMU and
+recovery stress, the independent VA-API matrix, bounded kernel-log scans, and
+two-hour decode and encode soaks. Encode passes flat; decode completes with an
+empty kernel delta but misses its strict userspace fd-span oracle at 36 versus
+32 despite falling head/tail medians. See the
+[production validation finding](../../../findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md).
 
 **Previous 2026-08-03 upload:** `6.18.42+rk3588av1fwport20260803-0ubuntu1~rk1`
 — the `0001`–`0089` forward-port tip `7615b69a744af`, adding the two RK3588
@@ -407,11 +413,13 @@ Notes:
 
 Current open gates:
 
-- Repeat the full MPP/FFmpeg, librga/RGA, GStreamer, ABI, RDP-encode, and
-  fatal-journal campaign on the exact `6.18.42` package.
+- Run exact `0092` under KASAN/lockdep through the RGA cancellation/session-close
+  and decoder recovery/reset-contention gates; the production config cannot
+  establish that memory-safety verdict.
 - Run the targeted hostile/ownership gates for the `0076`–`0087` audit tail and
   the forced fragmented-DMA-BUF RGA2 path.
-- Run the production soaks and clean-migration/stale-package-cleanup path.
+- Capture root-only debugfs counters plus authenticated RDP and physical-display
+  integration. Run the clean-migration/stale-package-cleanup path.
 - Full `lintian` remains incomplete; earlier source and binary scans were
   stopped after several minutes with no output while traversing the kernel
   archive/payload.
@@ -435,20 +443,18 @@ commands are operator-validated.
 > forward-port tip before the `20260803` orig was exported.
 
 **State as of 2026-08-04.** The `0001`–`0092` source at `7d53bc7a3adc` is
-Published as source publication `18656958`; remote arm64 build `33467257`
-completed successfully in 41m44s and is awaiting Launchpad binary ingestion.
-Its `0001`–`0089` predecessor remains the latest Published binary and is
-installed and booted as `6.18.42-ysp-rockchip64`. Standalone
-IEP2 and 17/17 pinned tier-1 VA-API vectors pass, but those are narrow evidence
-and do not replace the full or targeted gates below.
+Published as source publication `18656958`; remote arm64 build `33467257` and
+all three binaries are Published. The exact image, DTB, and headers are
+installed and booted as `6.18.42-ysp-rockchip64`. Broad native and independent
+VA-API campaigns plus bounded kernel-log scans and production soaks are recorded
+in the production validation finding. The kernel functional/recovery verdict
+is green, with the decode fd-span oracle explicitly non-green; the debug and
+integration boundaries below remain.
 
-1. Confirm remote arm64 build `33467257` publishes all three binaries, then
-   install and boot exact `0092`; separately build it under
-   KASAN/lockdep and pass the RGA cancellation/session-close and decoder
-   recovery/reset-contention gates.
-2. Repeat MPP/FFmpeg, librga/RGA, GStreamer, ABI replay, RDP encode, and the
-   bounded fatal-journal scan on the successor image.
-3. Run the `0076`–`0087` targeted hostile/ownership regression set plus the
+1. Build exact `0092` under KASAN/lockdep and pass the RGA
+   cancellation/session-close and decoder recovery/reset-contention gates.
+2. Run the `0076`–`0087` targeted hostile/ownership regression set plus the
    forced fragmented-DMA-BUF RGA2 gate.
-4. Complete production soaks and the separate clean-migration/stale-package
+3. Capture root-only debugfs counters and authenticated RDP/physical-display
+   integration, then complete the separate clean-migration/stale-package
    cleanup transaction. The documented SD recovery procedure is already usable.

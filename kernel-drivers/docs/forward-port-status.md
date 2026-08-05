@@ -13,13 +13,12 @@ Target: Radxa ROCK 5B (RK3588), Armbian, current package kernel **6.18.42**
 
 Source package `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` carries
 `0001`–`0092` at `7d53bc7a3adc`; Launchpad Published source publication
-`18656958`, and remote arm64 build `33467257` completed successfully in 41m44s
-and awaits binary ingestion. No local kernel build ran for this upload and the
-exact package is unbooted. Its `0001`–`0089`
-predecessor remains the Published, installed, and booted binary. Standalone
-IEP2 works on that production kernel and installed
-`rockchip-vaapi ysp12` passes all 17 pinned tier-1 vectors bit-exact. The same
-IEP2 source also has a much broader KASAN/lockdep run recorded in its
+`18656958`, and remote arm64 build `33467257` completed successfully in 41m44s.
+All three arm64 binaries are Published, installed, and booted; the running
+`6.18.42-ysp-rockchip64` image, DTB, and headers report the exact successor
+package version. The booted production config has taint `0` and no KASAN,
+lockdep, or `CONFIG_DMABUF_DEBUG`. The same IEP2 source also has a much broader
+KASAN/lockdep run recorded in its
 [safety review](../iep2/docs/forward-port-safety-review.md).
 
 The three new patches fix the remaining RGA job-task UAF,
@@ -27,13 +26,25 @@ IOMMU callback/current-task lifetime, soft-CCU retire-before-reset ordering,
 and lost concurrent reset requests. All affected objects pass an arm64 `W=1`
 build. Patch-only staging caught and rejected stale rewrite build directories;
 after exact cleanup, the upload passed full-tree predecessor comparison, fresh
-extraction, and public-tip byte matching. It still has no runtime evidence; see the
+extraction, and public-tip byte matching. It now also has broad production
+runtime evidence; see the
 [fix finding](../../findings/2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md).
 
-This does **not** transfer the older full-conformance verdict to `6.18.42`.
-Full MPP/FFmpeg, librga/RGA, GStreamer, ABI, RDP-encode, fatal-journal, and soak
-runs on this exact artifact remain open, as do targeted hostile gates for much
-of the `0076`–`0087` audit tail. The documented SD rescue +
+The exact `0092` artifact passes ABI replay, all 12 official MPP cases, all 21
+required plus three diagnostic FFmpeg cases, direct librga/RGA completion,
+decoder liveness and bit-exact checks, IOMMU machinery, VP9 and RGA recovery
+stress, and the broad independent VA-API matrix with clean bounded kernel-log
+scans. GStreamer passes 100/102 required cases; the two failures remain
+userspace caps/flush semantics rather than kernel faults. The two-hour
+dual-codec encode soak passes flat with a clean kernel window. The two-hour 4K
+decode workload and kernel scan pass, but the committed userspace resource
+oracle rejects four loop-boundary transients whose 36-fd span exceeds its
+32-fd limit despite head/tail medians falling from 56 to 54. Both are recorded
+separately in the
+[production validation finding](../../findings/2026-08-04-forward-port-6-18-42-0092-production-validation.md).
+KASAN/lockdep proof, root-only debugfs counters, authenticated RDP/display
+integration, and targeted hostile gates for much of the `0076`–`0087` audit
+tail remain open. The documented SD rescue +
 `kernel-revert.sh` commands are operator-validated; see the
 [recovery finding](../../findings/2026-08-04-forward-port-sd-rescue-rollback-used.md).
 
@@ -426,35 +437,30 @@ covers this range.
 
 ## Where the series stands, 2026-08-04
 
-Source/export and the Published source package are aligned; remote binaries and
-the installed package are not yet aligned:
+Source/export, Published binaries, and the installed package are aligned:
 
 | | |
 |---|---|
 | Tree tip | `rk3588-video-6.18` @ `7d53bc7a3adc`, 92 commits on `v6.18`; affected objects compile clean with `W=1` |
-| Packaged / uploaded | series `0001`–`0092` @ `7d53bc7a3adc`, in `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`; source publication `18656958` Published, arm64 build `33467257` successful and awaiting binary ingestion |
-| Installed on the board | predecessor `0001`–`0089` package, booted as `6.18.42-ysp-rockchip64` |
+| Packaged / uploaded | series `0001`–`0092` @ `7d53bc7a3adc`, in `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1`; source publication `18656958`, arm64 build `33467257`, and image/DTB/header binaries Published |
+| Installed on the board | exact `0001`–`0092` image, DTB, and headers, booted as `6.18.42-ysp-rockchip64` with taint `0` |
 
-The `0092` tree/source-package gap is closed, but remote binary publication and
-board installation remain. Patch-only staging and extracted-source checks cover
-the complete series with no rewrite-only paths. The booted `0089` predecessor
-gives its own tail narrow integrated evidence: standalone IEP2 works
-and the 17-vector VA-API tier-1 set is bit-exact. It does not directly exercise
-the RGA import/release paths, encoder paths, all decoder recovery paths, or the
-targeted hostile cases repaired in `0076`–`0087`. It says nothing about the
-new `0090`–`0092` tail.
+Patch-only staging and extracted-source checks cover the complete series with
+no rewrite-only paths. The exact installed successor now has broad codec, RGA,
+IOMMU, recovery, ABI, GStreamer, VA-API, kernel-log, and soak evidence. The
+kernel functional/recovery verdict is green, with the decode fd-span oracle
+explicitly non-green; this does not substitute for a debug kernel's
+KASAN/lockdep memory-safety verdict, root-only debugfs counters, or unexercised
+hostile paths.
 
-The next gate restores artifact alignment, then broadens the evidence:
+The next gates close the remaining qualification boundaries:
 
-1. Confirm remote arm64 build `33467257` publishes all three binaries, install
-   and boot exact `0092`, and separately run that tip under
-   KASAN/lockdep through the RGA cancellation/session-close and decoder
-   recovery/reset-contention gates.
-2. Run MPP/FFmpeg, librga/RGA, GStreamer, ABI replay, RDP encode, and a bounded
-   fatal-journal scan on the successor artifact.
-3. Run the targeted RGA mapped-SG/cross-session, MPP lifetime, encoder, decoder,
+1. Run exact `0092` under KASAN/lockdep through the RGA
+   cancellation/session-close and decoder recovery/reset-contention gates.
+2. Run the targeted RGA mapped-SG/cross-session, MPP lifetime, encoder, decoder,
    and audit-tail hostile gates that ordinary tier-1 decoding cannot cover.
-4. Run the production soaks. The documented SD rescue + `kernel-revert.sh`
+3. Capture root-only debugfs fault/recovery counters and authenticated RDP and
+   physical-display integration. The documented SD rescue + `kernel-revert.sh`
    recovery path is already operator-validated and is not an open release gate.
 
 ## What "done" means here

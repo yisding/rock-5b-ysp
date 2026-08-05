@@ -1,0 +1,28 @@
+Google Chrome 151 chrome://media-internals operator records
+Date recorded: 2026-08-05
+Host: ROCK 5B, Linux 6.18.42-ysp-rockchip64, GNOME Wayland
+Chrome: 151.0.7922.75
+
+These records were copied into the working session by the operator. They are
+not a complete chrome://media-internals export.
+
+Before the stable-export fix, Vimeo H.264 selected VA-API but was entirely
+green:
+
+Selected VaapiVideoDecoder for video decoding, config: codec: h264, profile: h264 high, level: 42, alpha_mode: is_opaque, coded size: [1920,1080], visible rect: [0,0,1920,1080], natural size: [1920,1080], has extra data: false, encryption scheme: Unencrypted, rotation: 0°, flipped: 0, color space: {primaries:BT709, transfer:BT709, matrix:BT709, range:LIMITED}, spatial format: [projection_type: none, stereo_mode: mono]
+
+After installing rockchip-vaapi and rockchip-vaapi-config
+1.0.11+ysp13-0ubuntu1~rk1, the operator reported: "H264 works in Chrome."
+
+A 384x240 VP9 Profile 0 source selected Chromium's software decoder:
+
+Selected VpxVideoDecoder for video decoding, config: codec: vp9, profile: vp9 profile0, level: not available, alpha_mode: is_opaque, coded size: [384,240], visible rect: [0,0,384,240], natural size: [384,240], has extra data: false, encryption scheme: Unencrypted, rotation: 0°, flipped: 0, color space: {primaries:INVALID, transfer:INVALID, matrix:INVALID, range:LIMITED}, spatial format: [projection_type: none, stereo_mode: mono]
+
+A different 640x480 VP9 Profile 0 source selected VA-API:
+
+Selected VaapiVideoDecoder for video decoding, config: codec: vp9, profile: vp9 profile0, level: not available, alpha_mode: is_opaque, coded size: [640,480], visible rect: [0,0,640,480], natural size: [640,480], has extra data: false, encryption scheme: Unencrypted, rotation: 0°, flipped: 0, color space: {primaries:INVALID, transfer:INVALID, matrix:INVALID, range:LIMITED}, spatial format: [projection_type: none, stereo_mode: mono]
+
+Chromium's decoder selector uses a 360-pixel visible-height cutoff when
+resolution-based prioritization applies: software decoders are preferred below
+the cutoff and platform decoders at or above it. The 240p/480p split therefore
+matches selection policy and is not evidence of a VP9 VA-API failure.

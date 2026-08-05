@@ -2,3 +2,7 @@
 # lines. Do not report those format-significant spaces as repository whitespace
 # errors; patch applicability is validated separately.
 *.patch -whitespace
+
+# Preserve user-exported chrome://gpu evidence byte-for-byte. Chromium emits
+# spaces after the delimiter for empty fields and feature-description rows.
+findings/evidence/2026-08-04-chromium-151-gpu/about-gpu-*.txt -whitespace

@@ -25,7 +25,12 @@ support verdict and next gate. Dated experiments stay in
 The implementation descriptions below were source-inspected against
 `yisding/rockchip-vaapi` implementation commit
 `491533ec6bb375ef3ccba18ace26106417a76c3d` on 2026-07-29. The following
-packaging-only commit does not change the architecture described here.
+packaging-only commit does not change the architecture described here. The
+pre-decode stable-export ownership update is separately inspected against the
+local UNRELEASED ysp13 worktree over `main@184d7d4` on 2026-08-04 and is not
+yet a public source pin. Its locally built package is installed and has passed
+Google Chrome H.264 presentation plus VP9 hardware selection, but remains
+uncommitted and unpublished.
 
 ## Fast re-entry
 
@@ -34,7 +39,7 @@ packaging-only commit does not change the architecture described here.
 | Why does this bridge exist? | [The impedance mismatch](#2-the-impedance-mismatch-stateless-va-stateful-mpp) | VA supplies parsed state; MPP wants a compressed stream it can parse itself. |
 | What runs where? | [System position](#1-system-position-and-layer-ownership) | The driver is an in-process libva plugin above MPP/RGA, not a kernel driver or application fork. |
 | What happens to one decoded picture? | [Decode lifecycle](#4-one-decode-picture-end-to-end) | `EndPicture` queues an owned job; a per-context worker submits to MPP and completes a generation fence on the target surface. |
-| Why is the path genuinely zero-copy? | [Surface ownership](#6-surface-memory-and-zero-copy-ownership) | MPP decodes into a driver-owned external pool and the VA surface retains that exact buffer until reuse. |
+| When is the path genuinely zero-copy? | [Surface ownership](#6-surface-memory-and-zero-copy-ownership) | Ordinary post-decode exports retain MPP's exact external-pool buffer. A consumer that already retained a pre-decode export requires a copy into that stable object. |
 | Why is 10-bit special? | [The 10-bit path](#7-the-10-bit-path-afbc-nv15-to-linear-p010) | RK3588 produces compact NV15; the compatible public surface is P010, so RGA performs a checked repack. |
 | How does encode differ? | [Encode lifecycle](#8-encode-path-and-input-normalization) | Encode is synchronous and accepts only a deliberately narrow, validated input-surface contract. |
 | Why did VLC and Firefox need different work? | [Application contracts](#9-application-and-sandbox-contracts) | VLC derives and exports an image buffer; Firefox exports a surface and runs the driver inside RDD. |
@@ -512,25 +517,37 @@ An 8-bit output surface retains:
 Surface reuse drops those references and returns the allocation to MPP when
 the codec no longer needs it either.
 
-### Placeholder surfaces
+### Pre-decode exports make placeholder storage permanent
 
 Firefox and other consumers can export a surface before the first decode while
 probing capability and allocating their display pipeline. Each VA surface
-therefore has a conservative driver-owned placeholder in its declared NV12 or
-P010 format.
+therefore starts with a conservative driver-owned placeholder in its declared
+NV12 or P010 format.
 
-The placeholder is not the final decoded allocation. The first completed
-picture replaces it with the retained MPP output or converted P010 backing
-without changing the public surface format.
+Google Chrome establishes a stronger lifetime: it imports that early DMA-BUF
+into a persistent NativePixmap and expects later decoded pictures to appear in
+the same object. The first pre-decode export therefore marks the placeholder as
+stable external storage. Completed output is copied into it under the surface
+generation fence rather than replacing the externally visible allocation.
+NV12 uses RGA; converted P010 uses synchronized CPU row copies because the
+qualified RGA stack reports P010-to-P010 success without writing. Driver-owned
+NV12 placeholders begin with a 64-byte-aligned pitch so retained exports are
+also Panfrost-importable.
+
+This fallback is conditional. A consumer that first exports after decode still
+receives the retained MPP output directly and remains zero-copy. Imported
+surfaces already have stable caller-owned storage, and encoder inputs use a
+separate ownership path.
 
 ### What “zero-copy” means here
 
 | Path | Pixel movement |
 |------|----------------|
-| 8-bit decode to PRIME export | VPU writes the external pool; the consumer receives a duplicated fd for the same allocation. No driver pixel copy. |
+| 8-bit decode, first export after completion | VPU writes the external pool; the consumer receives a duplicated fd for the same allocation. No driver pixel copy. |
+| 8-bit decode, surface exported before completion | VPU writes the external pool; RGA copies the completed NV12 picture into the permanently exported placeholder. |
 | 8-bit decode to `vaDeriveImage` | The image aliases the surface allocation. Mapping opens a CPU access window but does not create a second image. |
 | `vaGetImage` | CPU readback/copy into the application's image; this is deliberately not zero-copy. |
-| 10-bit decode | VPU writes AFBC NV15; RGA repacks it to a second linear P010 DMA-BUF. No CPU pixel copy, but not one-buffer end-to-end zero-copy. |
+| 10-bit decode | VPU writes AFBC NV15; RGA repacks it to linear P010. A retained pre-decode export adds a synchronized CPU copy into its permanent P010 object; ordinary post-decode export does not. |
 | Planar encode upload | CPU interleaves I420/YV12 into native NV12. |
 | Packed-RGB encode import | RGA converts the imported RGB object to driver-owned NV12. |
 
@@ -761,7 +778,7 @@ reaches a different part of libva:
 | GStreamer `va` | Vendor opt-in, image upload/readback, advertised formats | `GST_VA_ALL_DRIVERS=1` is required for the unfamiliar Rockchip vendor; system-memory gates pass |
 | VLC | `vaDeriveImage` plus `vaAcquireBufferHandle` for EGLImage import | Stock VLC decodes H.264/HEVC in a real display session; headless dummy output is not evidence |
 | Firefox | PRIME 2 surface attributes/export, pre-decode placeholder, RDD device and ioctl policy | Decode/export passes with RDD sandbox disabled; the narrow sandbox patch still needs a live packaged proof |
-| Chromium | VA-API plus a working GPU/GL process and its sandbox | Blocked on Chromium's Mali/Panfrost GL-context startup before VA-API is reached |
+| Chromium / Google Chrome | A binary compiled with VA-API, stable pre-decode surface export, GPU-media presentation and sandbox access | XtraDeb Chromium exposes only Hantro V4L2 VP8. Google Chrome 151 with installed ysp13 presents H.264 correctly and selects `VaapiVideoDecoder` for 640x480 VP9; 384x240 VP9 intentionally prefers software. Stock Chrome uses no disabling flags, but its GPU process reports unsandboxed and has no seccomp filter. Automated replay and sandbox remain |
 
 ### Firefox RDD has two independent gates
 
@@ -934,7 +951,7 @@ because package and upstream state can change without an architecture edit.
 | Encode qualification | H.264/HEVC one-slice CQP/CBR/VBR, GStreamer/FFmpeg interop, concurrency, RTP, RGB import, and short soak pass | Two-hour qualification, full hardware WebRTC peer gate, browser encode integration, multi-slice, B-frames, and broader rate-control behavior remain | Complete the paced long soak and native `vah264enc` peer run before considering default exposure |
 | Main10 encode | Linear P010 memory handling is checked | RK3588 MPP `vepu5xx` rejects the required 10-bit input format | Obtain backend/HAL support first, then add Main10 bitstream, quality, sanitizer, concurrency, and soak gates |
 | PRIME imports | One-object linear NV12 and packed RGB are validated | Multi-object, planar external, AFBC/tiled, and other modifiers are rejected | Add one descriptor shape at a time with fd-lifetime, capacity, conversion, and standard-decoder evidence |
-| Chromium | The driver path is reachable in principle and other desktop apps work in the same session | Chromium 150's GPU process cannot create a Mali/Panfrost GL context, so VA-API is never reached | Fix or bypass the Chromium GL startup failure, then measure the stock VA-API path before considering a custom bridge |
+| Chromium / Google Chrome | Wayland/ANGLE/Panfrost is healthy; XtraDeb Chromium exposes Hantro V4L2 VP8, while Google Chrome enumerates this driver's H.264/VP9/HEVC profiles. Installed ysp13 presents H.264 correctly and selects VA-API for 640x480 VP9; 384x240 selects software by the below-360p policy | Manual H.264 presentation and VP9 selection are proven. Stock Chrome uses no sandbox-disabling flags, but the GPU process has `Seccomp: 0`; browser stable-copy markers, automated visible-output checking, HEVC playback and sandbox attribution are not | Automate H.264/VP9 playback with checked output and stable-copy markers, add HEVC, identify what precedes the multiple-thread sandbox warning, then prove MPP/RGA/DMA-heap access in a sandboxed GPU process. A mixed Chromium build remains useful but is no longer prerequisite to the Google Chrome gate |
 | AV1 | Hardware and ordinary RKMPP packet decode exist; a source-inspected direct `/dev/mpp_service` backend has a bounded architecture | No normalized golden-job replay, direct compiler, surface-state conformance, output-layout proof, recovery, film-grain, or app gate exists; AV1 remains unadvertised | Capture and replay one known-good libmpp job through a standalone direct transport before integrating any VA capability |
 | Long-term maintenance | The fork has structured gates and source-pinned browser policy | MPP, librga, kernel, libva, Firefox, and Chromium can drift independently | Re-run the relevant conformance/app/sandbox gates on every component bump and update the source pins |
 
@@ -946,9 +963,10 @@ because package and upstream state can change without an architecture edit.
    VP9 Profile 2.
 3. Complete long encode and native WebRTC qualification before widening or
    default-enabling encode.
-4. Treat Chromium GL, the AV1 direct-backend proof, and new PRIME descriptor
-   shapes as independent work packages, not extensions implied by existing
-   green gates.
+4. Treat Google Chrome replay automation and sandbox qualification, the XtraDeb
+   Chromium mixed-backend package gate, the AV1
+   direct-backend proof, and new PRIME descriptor shapes as independent work
+   packages, not extensions implied by existing green gates.
 
 ## 13. Debugging by boundary
 
@@ -966,7 +984,8 @@ evidence:
 | Kernel logs `no core match` | Active width and AFBC core eligibility | RGA geometry policy |
 | VLC creates surfaces then falls back | `vaDeriveImage` and `vaAcquireBufferHandle` audit | VA image/export contract |
 | Firefox works only with RDD disabled | Broker path denial versus seccomp request denial | Firefox sandbox package |
-| Chromium never loads the driver | GPU-process/ANGLE logs before VA activity | Chromium GL stack |
+| Chromium GPU works but never loads the driver | `chrome://gpu` backend profiles plus binary libva symbols and VA logs | Package-specific backend selection: XtraDeb Chromium omits libva, while Google Chrome loads this driver |
+| Chrome selects `VaapiVideoDecoder` but shows green | Compare the pre-decode exported DMA-BUF with MPP's completed output allocation | Retained surface-storage identity; use the stable-export worker gate before visual replay |
 | CPU readback is intermittently stale | DMA-BUF sync markers and kernel configuration | CPU/device ownership transition |
 | Process hangs during sync or teardown | Worker progress, pending route count, watchdog/drain log | MPP backend or worker lifecycle |
 

@@ -26,6 +26,12 @@
 > **PARTIAL** (Firefox package/runtime, physical HDR output, Chromium, host
 > package installation, and release remain open).
 
+> Chromium follow-up, 2026-08-04: Chromium 151 supersedes only this finding's
+> Chromium boundary. Its GPU process and ANGLE/Panfrost path now work, but the
+> installed arm64 package exposes Hantro V4L2 VP8 and does not contain the
+> libva entry points needed to consume `rockchip-vaapi`. See
+> [the measured Chromium 151 finding](2026-08-04-chromium-151-gpu-working-v4l2-only.md).
+
 ## Result
 
 The roadmap no longer has open questions for 1080p 10-bit throughput,

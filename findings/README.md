@@ -102,7 +102,7 @@ For a returning thread:
 | GNOME Remote Desktop end to end | [Capture path](../apps/gnome-remote-desktop/docs/capture-path.md) and [test gates](../apps/gnome-remote-desktop/docs/testing.md) | [MPP input backpressure](2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md) → [RDPGFX ACK wedge](2026-07-20-grd-rdpgfx-focus-resume-ack-wedge.md) → [audio validation](2026-07-21-grd-rdp-audio-live-validation-and-codec-control.md) → [first-frame kernel oops](2026-07-27-grd-rkmpp-system-heap-sg-corruption-oops.md) | [`status.md` track 7](../status.md) |
 | SD/SPI/U-Boot diagnosis | [Boot-chain model](../boot-firmware/docs/u-boot-primer.md) and [artifact comparison](../boot-firmware/docs/version-comparison.md) | [SD boot investigation](2026-07-09-rock5b-armbian-sd-boot-investigation.md) → [FIT/DTB race](2026-07-13-rock5b-u-boot-fit-dtb-race.md) → [firmware-generation gap](2026-07-24-rock5b-spi-vs-radxa-bsp-firmware-generation-gap.md) | [`status.md` track 12](../status.md) |
 | Ramoops retention | [Maintained retention explanation](../boot-firmware/docs/ramoops-retention.md) | [measured loss](2026-07-21-ramoops-not-preserved-across-warm-reset-rk3588.md) → [BSP-premise correction](2026-07-24-bsp-vs-armbian-ramoops-gap.md) → [DDR/TPL audit](2026-07-26-rk3588-ddr-blob-ramoops-static-audit.md) → [SPL audit](2026-07-27-rk3588-spl-ramoops-binary-audit.md) → [next temporal experiment](2026-07-27-rk3588-ramoops-next-experiment-plan.md) | [Current evidence contract and next causal experiment](../boot-firmware/docs/ramoops-retention.md#current-evidence-contract) |
-| Desktop VA-API and browser path | [VA-API capability/boundary model](../video-libraries/vaapi/README.md) and [app map](../docs/app-enablement.md) | [fork review](2026-07-21-rockchip-vaapi-driver-review.md) → [bitstream-reconstruction spectrum](2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) → [Main10/AFBC/P010 validation](2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md) → [Firefox RDD policy](2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) → [roadmap qualification and Firefox/Panfrost boundary](2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md) → [installed ysp8 runtime and IEP2 warning](2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) → [forward-port RGA3 small-geometry discriminator](2026-08-02-rga3-forward-port-small-geometry-discriminator.md) → [RK3588 IEP2/VDPP source audit](2026-08-02-rk3588-iep2-vdpp-source-audit.md) | [`status.md` track 14](../status.md) |
+| Desktop VA-API and browser path | [VA-API capability/boundary model](../video-libraries/vaapi/README.md) and [app map](../docs/app-enablement.md) | [fork review](2026-07-21-rockchip-vaapi-driver-review.md) → [bitstream-reconstruction spectrum](2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) → [Main10/AFBC/P010 validation](2026-07-26-rockchip-vaapi-main10-afbc-p010-validation.md) → [Firefox RDD policy](2026-07-26-firefox-rdd-rockchip-vaapi-policy.md) → [roadmap qualification and Firefox/Panfrost boundary](2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md) → [installed ysp8 runtime and IEP2 warning](2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) → [forward-port RGA3 small-geometry discriminator](2026-08-02-rga3-forward-port-small-geometry-discriminator.md) → [RK3588 IEP2/VDPP source audit](2026-08-02-rk3588-iep2-vdpp-source-audit.md) → [consumer assessment after GRD](2026-08-04-rockchip-vaapi-consumer-assessment.md) → [Chromium 151 closes GL and exposes the V4L2-only package](2026-08-04-chromium-151-gpu-working-v4l2-only.md) → [Google Chrome reaches VA-API and exposes stable-export lifetime](2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) | [`status.md` track 14](../status.md) |
 | Mesa/Panfrost blit precision | [Mesa project brief](../video-libraries/mesa/README.md) and [precision model](../video-libraries/mesa/docs/blit-precision.md) | [uncached readback cliff](2026-07-18-mesa-panfrost-uncached-readpixels-convert-cliff.md) → [varying erratum workaround](2026-07-22-mali-varying-depth-bias-erratum-workaround.md) → [oblong-triangle matrix](2026-07-24-mali-oblong-triangle-matrix.md) → [benchmark plan](2026-07-27-mali-blit-workaround-performance-benchmark-plan.md) → [bounded correctness pass; cost still open](2026-07-27-mesa-all-blit-workaround-benchmark-results.md) | [`status.md` track 8](../status.md) |
 | CPU voltage binning | [Two-track PVTM/eFuse port model](../kernel-versions/docs/pvtm-opp-binning-plan.md) | [BSP/mainline comparison](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) → [this board's measured L5/L7/L7 selection](2026-07-27-rk3588-pvtm-volt-sel-measured.md) | [`status.md` track 15](../status.md) |
 
@@ -164,10 +164,11 @@ RK3588 platform behaviour outside the media path.
 - [`2026-07-26`](2026-07-26-dwc-pcie-pmu-bus-notifier-lockdep-false-positive.md) — DWC PCIe PMU nests distinct same-class bus notifier locks and disables lockdep
 - [`2026-07-25`](2026-07-25-rk3588-cpu-voltage-binning-bsp-vs-mainline.md) — RK3588 per-die voltage binning: the BSP selects voltage from eFuse, mainline ships only the worst-die column
 
-### Kernel forward port: MPP and codec drivers (20)
+### Kernel forward port: MPP and codec drivers (21)
 
 Vendor MPP/rkvenc/rkvdec forward-ported to 6.18 — defects, audits, and whole-tip validation runs.
 
+- [`2026-08-04`](2026-08-04-forward-port-6-18-42-0092-production-validation.md) — Forward-port 6.18.42 production validation boots 0092 and closes the functional recovery gates
 - [`2026-08-04`](2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md) — Forward-port 0090–0092 close the RGA job-task and decoder recovery lifetime gaps
 - [`2026-08-04`](2026-08-04-rkvenc-encoder-rcb-sram-scope.md) — RK3588 encoder RCB is reachable only by >4096-wide H.264, so the absent encoder SRAM costs almost nothing
 - [`2026-08-01`](2026-08-01-forward-port-uaf-oops-audit-round-2.md) — Forward-port UAF/oops audit round 2: 18 defects, 7 of them unprivileged memory corruption
@@ -301,10 +302,14 @@ Hardware H.264 RDP encode end to end: encoder wedges, focus/resume, reconnect, a
 - [`2026-07-19`](2026-07-19-grd-rkmpp-encoder-wedge-mpp-input-backpressure.md) — GRD encoder wedge, pinned: MPP input-task backpressure + get_packet timeout (userspace flow control)
 - [`2026-07-18`](2026-07-18-grd-starvation-detector-diagnostic-only-no-recovery.md) — GRD's frame-starvation detector only warns — it never actuates recovery
 
-### Desktop VA-API and browsers (21)
+### Desktop VA-API and browsers (24)
 
-`rockchip-vaapi`: the bridge that makes Firefox, VLC, and mpv decode in hardware.
+`rockchip-vaapi`: the bridge that serves Firefox, standard GStreamer and
+libavcodec VA-API consumers without per-application RKMPP codec patches.
 
+- [`2026-08-04`](2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) — Google Chrome reaches rockchip-vaapi; green H.264 was a retained pre-decode DMA-BUF, and the source fix preserves that storage
+- [`2026-08-04`](2026-08-04-rockchip-vaapi-consumer-assessment.md) — rockchip-vaapi's durable consumers are Firefox and the standard VA-API framework stacks; Sunshine and OBS are the best unmeasured encode targets
+- [`2026-08-04`](2026-08-04-chromium-151-gpu-working-v4l2-only.md) — Chromium 151 closes the ANGLE startup blocker but the installed arm64 package exposes only Hantro V4L2 VP8, not rockchip-vaapi
 - [`2026-08-04`](2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md) — Enabling IEP2 broke interlaced VA-API decode by un-masking a driver defect: MPP's decoder deinterlacer is 1:N, VA-API decode is 1:1
 - [`2026-08-04`](2026-08-04-rockchip-vaapi-capability-gap-triage.md) — rockchip-vaapi's remaining non-AV1 gaps split three ways: two are MPP walls, the size caps fail open below as well as closed above, and the sweep harness overwrites its own evidence
 - [`2026-08-02`](2026-08-02-rockchip-vaapi-ysp9-rc-validation.md) — rockchip-vaapi ysp9 RC retires the VP9 quarantine and passes full sanitizer, RGA repeat, and package gates
@@ -327,10 +332,11 @@ Hardware H.264 RDP encode end to end: encoder wedges, focus/resume, reconnect, a
 - [`2026-07-21`](2026-07-21-ubuntu-rockchip-piggyback-survey.md) — ubuntu-rockchip (Joshua Riek) survey: a working Chromium V4L2-stateful-over-MPP bridge exists, the project is archived, and per-app reuse is now mapped
 - [`2026-07-21`](2026-07-21-rockchip-vaapi-driver-review.md) — rockchip-vaapi review: a working PoC VA-API-over-MPP driver exists; strategic architecture is right, two load-bearing shortcuts must be replaced; recommend fork-and-renovate
 
-### FFmpeg, MPP userspace, and Kodi (5)
+### FFmpeg, MPP userspace, and Kodi (6)
 
 The userspace codec libraries and the media applications that consume them.
 
+- [`2026-08-04`](2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md) — libmpp VP9 `show_existing_frame` reuses a slot-keyed display node as an output event
 - [`2026-07-30`](2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md) — FFmpeg RKMPP async-frame lifetime fix clears reset/close double release
 - [`2026-07-29`](2026-07-29-hevc-nut-radl-and-unused-rps-reference-fixes.md) — HEVC NUT failures split into MPP RADL suppression and FFmpeg unused-RPS handling
 - [`2026-07-27`](2026-07-27-rockchip-mpp-hevc-tiles-same-id-pps-update.md) — Rockchip MPP HEVC TILES failure: same-ID PPS changes never reach the HAL
@@ -383,14 +389,19 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 
 <!-- findings-index:start -->
 - [`2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md`](2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md) — Enabling IEP2 broke interlaced VA-API decode by un-masking a driver defect: MPP's decoder deinterlacer is 1:N, VA-API decode is 1:1
+- [`2026-08-04-rockchip-vaapi-consumer-assessment.md`](2026-08-04-rockchip-vaapi-consumer-assessment.md) — rockchip-vaapi's durable consumers are Firefox and the standard VA-API framework stacks; Sunshine and OBS are the best unmeasured encode targets
 - [`2026-08-04-rockchip-vaapi-capability-gap-triage.md`](2026-08-04-rockchip-vaapi-capability-gap-triage.md) — rockchip-vaapi's remaining non-AV1 gaps split three ways: two are MPP walls, the size caps fail open below as well as closed above, and the sweep harness overwrites its own evidence
 - [`2026-08-04-rkvenc-encoder-rcb-sram-scope.md`](2026-08-04-rkvenc-encoder-rcb-sram-scope.md) — RK3588 encoder RCB is reachable only by >4096-wide H.264, so the absent encoder SRAM costs almost nothing
 - [`2026-08-04-rewrite-kunit-request-rotation-repair.md`](2026-08-04-rewrite-kunit-request-rotation-repair.md) — Current rewrite tips repair request cleanup and rotation KUnit contracts
 - [`2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md`](2026-08-04-rewrite-kernel-rebase-6-18-42-7-2-rc6.md) — Rewrite kernels rebased cleanly onto v6.18.42 and v7.2-rc6
+- [`2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md`](2026-08-04-libmpp-vp9-show-existing-reference-slot-leak.md) — libmpp VP9 `show_existing_frame` reuses a slot-keyed display node as an output event
 - [`2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md`](2026-08-04-iep2-field-parity-closed-and-i1o1-bff-bug.md) — IEP2 field parity settled: the mode suffix selects the field and `dil_order` does nothing, so MPP's hardcoded I1O1T is wrong for BFF streams
 - [`2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md`](2026-08-04-grd-vaapi-encode-blocked-by-packed-slice-headers.md) — GRD has a native VA-API encoder and does not need FFmpeg — but it demands packed slice headers, which MPP cannot serve
+- [`2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md`](2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) — Installed ysp13 fixes Google Chrome's green H.264; VP9 selects VA-API above Chromium's software cutoff
 - [`2026-08-04-forward-port-sd-rescue-rollback-used.md`](2026-08-04-forward-port-sd-rescue-rollback-used.md) — Forward-port kernel rollback has been performed through an SD rescue boot
 - [`2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md`](2026-08-04-forward-port-rga-uaf-recovery-safety-fixes.md) — Forward-port 0090–0092 close the RGA job-task and decoder recovery lifetime gaps
+- [`2026-08-04-forward-port-6-18-42-0092-production-validation.md`](2026-08-04-forward-port-6-18-42-0092-production-validation.md) — Forward-port 6.18.42 production validation boots 0092 and closes the functional recovery gates
+- [`2026-08-04-chromium-151-gpu-working-v4l2-only.md`](2026-08-04-chromium-151-gpu-working-v4l2-only.md) — Chromium 151 closes the ANGLE startup blocker but the installed arm64 package exposes only Hantro V4L2 VP8, not rockchip-vaapi
 - [`2026-08-03-rk3588-iep2-nondeterministic-output.md`](2026-08-03-rk3588-iep2-nondeterministic-output.md) — RK3588 IEP2 runs clean under KASAN; its output non-determinism is a missing dma-buf cache sync in Rockchip's test harness, not the driver
 - [`2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md`](2026-08-03-rewrite-rga-unreachable-iommu-irq-mask.md) — The RGA rewrite's IOMMU-IRQ-mask fallback was unreachable, and it blocked the mainline mirror
 - [`2026-08-03-mainline-missing-uncached-dma32-heaps.md`](2026-08-03-mainline-missing-uncached-dma32-heaps.md) — Mainline lacks the BSP uncached/dma32 dma-heaps; MPP absorbs it, librga samples do not

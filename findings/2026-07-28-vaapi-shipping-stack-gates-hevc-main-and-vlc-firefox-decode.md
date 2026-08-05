@@ -31,6 +31,12 @@
 > GR1616 EGL import. See the
 > [roadmap qualification finding](2026-07-29-rockchip-vaapi-roadmap-phase2-phase4-closure.md).
 
+> **Chromium follow-up, 2026-08-04:** Chromium 151 supersedes only this
+> finding's Chromium boundary. Its Wayland/ANGLE/Panfrost GPU process is healthy
+> with zero crashes, but the installed arm64 package enumerates only Hantro
+> V4L2 VP8 and does not carry the libva implementation. See the
+> [Chromium 151 finding](2026-08-04-chromium-151-gpu-working-v4l2-only.md).
+
 ## Result
 
 The measurement gap that dominated track 14 is closed. Every gate below ran on

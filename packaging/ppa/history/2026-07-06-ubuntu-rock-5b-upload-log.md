@@ -2405,3 +2405,32 @@ See ../../configure --help for available options.
   became Published at the same timestamp. Because the failed build's log is
   gone, the timeout remains the locally reproduced likely cause rather than a
   directly proven reading of build `33452991`.
+
+## MPP VP9 presentation-event repair upload — 2026-08-05
+
+- Advanced MPP to public fork tip `yisding/ysp/main@a8b19653` and source
+  package `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1`. The export contains
+  the VP9 presentation-event implementation and 40-occurrence slot-queue
+  regression, excludes the two repacked Windows binaries, and extracts cleanly
+  from its `.dsc`. Source Lintian passes its error gate with only the inherited
+  newer-Standards-Version warning.
+- Signed the `.dsc`, source `.buildinfo`, and source `.changes` with
+  `0FDDE6BC55FF095DF2A92BB78F3025C4AA2228E6`. Direct GPG verification and
+  `dscverify` report good signatures and valid checksums. Signed source
+  SHA-256 set:
+  - orig tarball: `67d1921fd31c607a44db0fcabfbd708bc33df55cff6e9dc017a8699f0a59356c`;
+  - Debian tarball: `82fa7843de6a26ce182c04dbb87bce1e19e5d94e6f5f51cbef943745ca94a6e8`;
+  - `.dsc`: `351eefa8606179bfccc3406e418251fc00c0ac5e95b24ce417ec0ef05caed98c`;
+  - source `.buildinfo`: `ef3cc707bd8d533476cd3d72f791ec802cdbedb2ea660cace7d81542aff1cf65`;
+  - source `.changes`: `a685c4b2ee110c799263d40d4014bc4ec990971adb12d56999dfc7428d2a160f`.
+- `dput` passed the distribution, required-field, checksum, suite, source-only,
+  and GPG checks and transferred all five files to
+  `ppa:yi-ding/ubuntu-rock-5b`. Launchpad accepted source publication
+  [`18657949`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18657949)
+  as Pending.
+- Arm64 build
+  [`33468629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33468629)
+  ran on `bos03-arm64-025`. Its retained log ends `Status: successful`, reports
+  1m27s package time, and lists the expected five binary packages. The API
+  remained in `Uploading build` while Launchpad ingested the result; binary
+  publication and installed-package replay remain open.

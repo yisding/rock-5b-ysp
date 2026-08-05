@@ -13,6 +13,11 @@ delta as reviewable commits:
 * hal/rkenc: harden the vepu5xx encoder slice poll loops against poll failure
 * hal/h264e: poll cfg allocation size, and drop the single-cfg reg_idx indexing
 * h265d: refresh hardware parameter sets after a same-ID PPS content change
+* h265d: keep decodable RADL pictures before the random-access POC
+* hal/h265e: program the vepu580 bitstream-top address as size minus one
+* iep2_test: synchronize dma-buf caches and expose deinterlacing mode selection
+* vproc: avoid signal-frame debug dereferences and select the stream field
+* vp9d: preserve repeated show-existing presentation events and buffer lifetime
 
 The `+ds` orig tarball is exported from that branch tip with the upstream
 `debian/` directory and unused Windows binaries removed:

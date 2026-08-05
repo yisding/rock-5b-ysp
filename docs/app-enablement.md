@@ -13,61 +13,70 @@ implemented bridge has its own canonical
 [`video-libraries/vaapi/`](../video-libraries/vaapi/README.md) owner. This page
 now stays a per-application planning assessment: an app absent from the
 dashboard remains **untracked** until a dated finding captures real runtime
-evidence and sustained work earns an `apps/` project/status track.
+evidence and sustained work earns an `apps/` project/status track. The
+[2026-08-04 consumer assessment](../findings/2026-08-04-rockchip-vaapi-consumer-assessment.md)
+revises the encode priorities after GRD's native VA-API path proved permanently
+incompatible with MPP packed-slice-header ownership. The
+[Chromium 151 measurement](../findings/2026-08-04-chromium-151-gpu-working-v4l2-only.md)
+then closes the old ANGLE startup blocker and moves Chromium to a bounded
+mixed-backend package gate. The
+[Google Chrome follow-up](../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md)
+shows that Google's build already reaches the driver and relocates its green
+Vimeo frame to a retained-export lifetime now fixed in installed ysp13. H.264
+presentation is correct after installation, and a 640x480 VP9 Profile 0 source
+selects VA-API.
 
 ## The structural fact that sorts every app
 
-Desktop apps do not talk to codec hardware directly — each binds to one of four
+Desktop apps do not talk to codec hardware directly — each binds to one of five
 plumbing layers. Which layer an app speaks decides its cost almost entirely:
 
 | Layer | State on this stack |
 |-------|---------------------|
 | **libavcodec named codecs** (`h264_rkmpp`, `hevc_rkmpp`, …) | ✅ Shipped: [`ffmpeg-rockchip`](../video-libraries/ffmpeg/README.md) fork, built and Published in the [normal PPA](../packaging/ppa/README.md) as the system FFmpeg replacement. |
-| **GStreamer elements** (`mppvideodec`, `mpph26xenc`) | ⚠️ Rockchip's external `gstreamer-rockchip` plugin exists upstream but is not packaged here; ubuntu-rockchip shipped a working (if crudely packaged) build of it — one clean repackage away. The kernel track's GStreamer suite is no longer blocked — it first ran 2026-07-22 at 98/102 required ([userspace-gaps finding](../findings/2026-07-22-gstreamer-suite-forward-port-userspace-gaps.md)) and reached 129/133 on the production PPA kernel. |
-| **VA-API** (the de-facto Linux desktop hwaccel API) | 🚧 Installed and hardware-measured in [`video-libraries/vaapi/`](../video-libraries/vaapi/README.md): ysp8 is green through the safe decode/encode matrix and virtual-display VLC, mpv, and Firefox, including both 10-bit profiles. The immediate application gate is Firefox with its RDD sandbox enabled plus physical HDR output; do not duplicate the driver capability ledger here. |
-| **V4L2** (stateful M2M or stateless request API) | ⚠️ The BSP kernel exposes the codecs only via the vendor `/dev/mpp_service` ioctl interface, not V4L2 — but a **userspace** V4L2-stateful-over-MPP bridge exists: JeffyCN's `libv4l-rkmpp` (a libv4l2 plugin emulating a stateful M2M decoder/encoder in-process, no kernel device), proven in Joshua Riek's archived ubuntu-rockchip images as the engine behind Chromium 4K playback. It is kernel-agnostic and only reachable through a patched libv4l2, which in practice makes it a Chromium-only bridge. See the [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md). A real kernel V4L2 stateless path still needs a mainline kernel ([`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md), mainline rkvdec2 work). |
+| **libavcodec generic VA-API codecs** (`h264_vaapi`, `hevc_vaapi`, VA hwaccel decoders) | ✅ Installed and measured through FFmpeg, VLC and mpv. This is also the standard application boundary used by Sunshine and current OBS, so those apps do not need to learn the named RKMPP codecs. |
+| **GStreamer elements** (`vah264dec`, `vah265dec`, `vavp9dec`, `vah264enc`, `vah265enc`) | ✅ The standard `va` plugin is measured through decode, encode and a complete H.264 WebRTC peer path. Rockchip's separate `mppvideodec`/`mpph26xenc` plugin remains an alternative direct-MPP route but is not the only GStreamer path. |
+| **Direct VA-API applications** | 🚧 Installed and hardware-measured in [`video-libraries/vaapi/`](../video-libraries/vaapi/README.md): Firefox is green with its RDD sandbox disabled; the enabled-sandbox gate remains. Direct clients still need contract inspection: GRD, for example, requires packed slice headers MPP cannot provide. |
+| **V4L2** (stateful M2M or stateless request API) | ⚠️ This kernel exposes a real Hantro stateless decoder at `/dev/video1`, with MPEG-2/VP8 input, plus a VEPU121 encoder at `/dev/video2`; Chromium 151 enumerates the Hantro VP8 profile. H.264/HEVC/VP9 decode still lives behind vendor `/dev/mpp_service`. JeffyCN's userspace `libv4l-rkmpp` V4L2-stateful-over-MPP bridge and a maximum-mainline rkvdec2 kernel remain broader Chromium alternatives; see the [survey](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md) and [`kernel-maxline`](../packaging/ppa/kernel-maxline/README.md). |
 
 ```mermaid
 flowchart TB
-  subgraph cheap["FFmpeg-family — cheap"]
-    mpv["mpv"]
-    kodi["Kodi (tracked: apps/kodi)"]
-    obs["OBS"]
-    hb["HandBrake"]
-  end
-  subgraph hard["VA-API / V4L2 — the wall"]
+  subgraph consumers["Application and framework consumers"]
     ff["Firefox"]
+    gstapps["GStreamer pipelines · WebRTC"]
+    vaapps["VLC · mpv · Sunshine · OBS"]
+    rkapps["Kodi · Jellyfin · RKMPP workflows"]
     cr["Chromium / Electron"]
-    vlc["VLC"]
   end
-  lavc["libavcodec named codecs<br/>h264_rkmpp · hevc_rkmpp"]
-  gst["gstreamer-rockchip<br/>mppvideodec · mpph26xenc"]
-  vaapi["VA-API<br/>rockchip-vaapi maintained fork"]
-  v4l2["V4L2 stateless<br/>(mainline kernel only)"]
+  gst["GStreamer va plugin"]
+  lavcva["libavcodec generic VA-API"]
+  lavcrk["libavcodec named RKMPP codecs"]
+  vaapi["rockchip-vaapi"]
+  v4l2["V4L2 stateless<br/>Hantro VP8 now · broader on maxline"]
   shim["libv4l-rkmpp<br/>userspace V4L2-stateful shim<br/>(needs patched libv4l2)"]
   mpplib["librockchip_mpp"]
   svc["/dev/mpp_service<br/>rkvdec2 · rkvenc2"]
 
-  mpv --> lavc
-  kodi --> lavc
-  obs --> lavc
-  hb --> lavc
-  vlc -.-> vaapi
-  ff -.-> vaapi
+  ff --> vaapi
+  gstapps --> gst
+  gst --> vaapi
+  vaapps --> lavcva
+  lavcva --> vaapi
+  rkapps --> lavcrk
+  lavcrk --> mpplib
   cr -.-> vaapi
   cr -.-> v4l2
   cr -.-> shim
-  lavc --> mpplib
-  gst --> mpplib
-  vaapi -.-> mpplib
+  vaapi --> mpplib
   shim --> mpplib
   mpplib --> svc
 ```
 
-Apps on the left column are nearly free because the fork already ships. The
-right column depends either on the VA-API→MPP bridge — which now exists and is
-maintained in `yisding/rockchip-vaapi@main` — or on a kernel path this repo's
-BSP forward-port deliberately does not take (V4L2).
+The standard GStreamer and libavcodec routes give one driver integration many
+consumers. Named RKMPP codecs remain the better route for applications already
+integrated with them. Direct VA-API clients still require contract inspection,
+while Chromium additionally has a limited Hantro V4L2 device today and broader
+V4L2 alternatives through the userspace shim or maximum-mainline kernel.
 
 ## Per-app assessment
 
@@ -76,11 +85,16 @@ BSP forward-port deliberately does not take (V4L2).
 | ffmpeg CLI | libavcodec | ✅ shipped (PPA `+rkmpp` packages) |
 | mpv | libavcodec + DRM PRIME hwdec | ✅ Stock mpv 0.41.0 presents H.264, HEVC Main, VP9 Profile 0, HEVC Main10, and VP9 Profile 2 through installed ysp8 in an isolated Mutter virtual monitor; Main10 performs the expected P010 conversions/exports and accepts BT.2020/PQ input. Physical HDR passthrough remains unproven. |
 | Kodi | libavcodec + DRM PRIME | Already tracked: [`apps/kodi`](../apps/kodi/README.md); build/tty1 gate remains |
-| OBS | libavcodec encoders | Hours–a day; cheapest encode win after the CLI |
+| GStreamer `va` | Standard VA-API plugin | ✅ Decode, encode and a WebRTC peer path are measured; treat this as a framework consumer rather than separate per-app integrations |
+| Sunshine | FFmpeg VA-API encoders + exported VA surfaces | Best unmeasured encode target: current source matches H.264 High/CBR/no-B-frame and separate-layer linear NV12 export; qualify SDR H.264 first |
+| OBS | Native FFmpeg VA-API encoders + exported VA surfaces | Strong unmeasured fit; current OBS already registers H.264/HEVC VA-API and texture encoders, so the old `h264_rkmpp` whitelist estimate is obsolete |
+| RustDesk | Bundled hwcodec/FFmpeg RAM encoder discovery | Plausible remote-desktop target; driver/package discovery and arm64 runtime selection remain unmeasured |
+| WayVNC / NeatVNC | FFmpeg `h264_vaapi` + VA filter graph | ❌ Blocked by both hard-coded H.264 Constrained Baseline and required `scale_vaapi`; the driver offers neither that profile nor `VAEntrypointVideoProc` |
+| GNOME Remote Desktop native VA-API | Direct VA-API encode | ❌ Declined on this backend: GRD requires packed slice headers and MPP cannot accept an application-authored slice header |
 | HandBrake | bundled FFmpeg + own encoder registry | Days; encode is the realistic value |
 | VLC | libavcodec VAAPI hwaccel | ✅ Stock VLC 3.0.23 hardware-decodes H.264, HEVC Main, VP9 Profile 0, HEVC Main10, and VP9 Profile 2 through installed ysp8 in the isolated Mutter display. Gated by `tests/check-vlc-display.sh`. |
 | Firefox | **VA-API only** on Rockchip | ✅ Installed Firefox 153.0.1 hardware-decodes H.264, HEVC Main, VP9 Profile 0, HEVC Main10, and VP9 Profile 2 through installed ysp8, with DMA-BUF export and successful 10-bit plane import in the isolated Mutter display. The run used the documented RDD sandbox disable, so the sandbox row remains open. Firefox cannot ride mainline V4L2 (only stateful M2M, no request-API), the libv4l-rkmpp shim, or the FFmpeg RKMPP wrapper decoders (not a hwaccel) — see the [installed ysp8 finding](../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) and [browser landscape](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md). |
-| Chromium / Electron | VA-API, stateless V4L2, or the libv4l-rkmpp shim | ⚠️ Blocked below the codec layer: Chromium 150 cannot initialize a GL context on Mali-G610/Panfrost under either X11 or Wayland (ANGLE "Could not create a backing OpenGL context"), so its GPU process never starts and no VA-API path is reachable. VLC and Firefox use accelerated GL in the same session. Fix the GL stack before any codec hardening. Alternatives are a multi-week libv4l-rkmpp re-target with permanent custom builds, or maxline stateless V4L2. |
+| Chromium / Google Chrome / Electron | Compiled VA-API and/or V4L2 backend | ✅/🚧 Wayland/ANGLE/Panfrost is healthy. XtraDeb Chromium 151 lacks libva and exposes Hantro VP8. Google Chrome 151 with installed ysp13 renders H.264 correctly and selects `VaapiVideoDecoder` for 640x480 VP9 Profile 0; 384x240 VP9 intentionally selects software below Chromium's 360p cutoff. The stock Google deb uses no sandbox-disabling flags, but its GPU process has no seccomp filter and reports unsandboxed. Automated replay and the GPU sandbox remain open. |
 
 ### mpv — virtual-display proof is complete; physical HDR remains
 
@@ -112,15 +126,53 @@ plane selection by format/modifier with zpos ordering, and AFBC crop-offset
 passthrough to the `SRC_X`/`SRC_Y` plane properties — check Kodi 22 for
 upstream absorption before porting.
 
-### OBS — cheapest encode win
+### Sunshine — first new VA-API encode gate
 
-OBS drives libavcodec encoders through its FFmpeg output; registering the
-rkmpp encoders is a small patch or even just a custom-output configuration
-against the already-installed fork. ubuntu-rockchip never solved this
-natively (its obs-studio upload claims rockchip patches but verifiably
-contains none; encode there meant hand-built `mpph264enc` GStreamer pipeline
-strings via obs-gstreamer), so an obs-ffmpeg whitelist patch would be new
-work, not a port.
+Current Sunshine already selects `h264_vaapi`/`hevc_vaapi`, accepts ordinary
+`VAEntrypointEncSlice`, queries rate-control and slice limits, and renders into
+VA-created surfaces exported as write-only separate layers. That shape matches
+the driver's H.264 High, CBR/VBR/CQP, no-B-frame, linear NV12 contract and its
+R8/GR88 separate-layer export. It also avoids the unresolved tiled-import gap:
+the application renders into a driver-owned surface instead of importing an
+unknown compositor modifier.
+
+Start with H.264 High SDR/NV12 CBR at 1080p60. Require hardware markers, client
+decode, initial/reconnect forced IDR, live bitrate changes, GPU-write-to-MPP-read
+synchronization and a soak. HEVC Main SDR can follow. Main10/HDR encode is out
+because MPP cannot accept P010. This is source-inspected compatibility, not a
+runtime result; see the
+[consumer assessment](../findings/2026-08-04-rockchip-vaapi-consumer-assessment.md).
+
+### OBS — native VA-API is now the likely cheap path
+
+The prior assessment on this page is obsolete. Current OBS already contains
+native FFmpeg VA-API H.264/HEVC encoders and GPU-texture variants; no
+`h264_rkmpp` whitelist patch is shown necessary. Its texture path exports a
+VA-created target with the same write-only, separate-layer call as Sunshine,
+while the H.264 defaults are High profile and zero B-frames. That is a strong
+match for the driver's existing contract.
+
+No OBS package or session was tested here. After Sunshine, qualify recording,
+streaming, CBR, force-keyframe/reconnect behavior, live bitrate changes and the
+GPU-texture path before promoting it from inferred to measured.
+
+### RustDesk — plausible remote desktop, packaging unproven
+
+RustDesk's hardware-codec layer discovers RAM encoders through its bundled
+hwcodec/FFmpeg integration and recognizes VA-API codec names. That is a
+plausible match for the driver's checked NV12/I420 software-frame upload path,
+without GRD's packed-header contract. The arm64 build, system libva driver
+discovery and actual codec selection are all unmeasured; probe those before
+planning integration work.
+
+### WayVNC / NeatVNC — not a current consumer
+
+NeatVNC finds `h264_vaapi`, but its FFmpeg backend hard-codes H.264 Constrained
+Baseline and builds a filter graph containing
+`hwmap=...derive_device=vaapi,scale_vaapi=format=nv12`. The driver advertises
+only H.264 Main/High encode and no `VAEntrypointVideoProc`, so the current path
+is blocked twice. Do not add a profile or VPP solely for WayVNC without a named
+deployment and a new runtime gate.
 
 ### HandBrake — the interesting encode case
 
@@ -183,43 +235,65 @@ Firefox, and its V4L2 support is stateful-M2M rather than the mainline stateless
 request API. Canonical driver state and the exact browser gate live in
 [`video-libraries/vaapi/`](../video-libraries/vaapi/README.md).
 
-### Chromium and Electron apps — same wall, different shape
+### Chromium and Electron apps — Google Chrome reaches VA-API
 
-Desktop Chromium's hardware decode is `VaapiVideoDecoder`; its V4L2 decoders
-are ChromeOS/ARM build-flag paths needing either real V4L2 nodes or a shim.
-Three roads now exist, ordered by proof level:
+Chromium 151 supersedes the earlier Chromium 150 ANGLE failure. Its
+out-of-process GPU is healthy on GNOME Wayland through ANGLE/Panfrost, with
+hardware compositing, rasterization, OpenGL, WebGL and WebGPU and zero GPU
+crashes. `chrome://gpu` says video decode is accelerated but enumerates only
+VP8, exactly matching the MPEG-2/VP8 Hantro stateless decoder at `/dev/video1`.
+No playback was run, so this is capability enumeration rather than decoded-frame
+proof.
 
-1. **Revive the ubuntu-rockchip approach on the BSP kernel** — the
-   [survey finding](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md)
-   established that their "4K Chromium" is `libv4l-rkmpp` (userspace
-   V4L2-stateful-over-MPP, kernel-agnostic, runs on this stack by
-   construction) plus ~20 Chromium patches and a patched libv4l2. The
-   Chromium patches target the legacy VDA path deleted upstream (~M121–126),
-   so this is a **re-target** onto the modern `V4L2StatefulVideoDecoder`
-   (which conveniently speaks exactly the stateful contract the shim
-   emulates): roughly 2–4 weeks Chromium-side plus 1–2 weeks shim-side (real
-   `V4L2_DEC_CMD_STOP`/`FLAG_LAST` flush semantics instead of the Chromium-114
-   magic-timestamp hack), plus a permanent per-milestone rebase tax on
-   hours-long arm64 builds.
-2. **The maxline road** — mainline kernel + Chromium with stateless V4L2
-   enabled, zero Chromium patches once mainline rkvdec2 covers the codecs.
-   Note this road is **Chromium-only**: mainline exposes decode via V4L2
-   stateless (request API), which Chromium's native decoder speaks but Firefox
-   cannot (Firefox's V4L2 support is stateful-M2M-only, no request-API). AV1 on
-   mainline has its own decoder (since 6.5) and — being stateless→stateless — a
-   VA-over-V4L2 AV1 shim remains the clean mainline route. On the present vendor
-   image, a separately bounded option is a direct `rockchip-vaapi` VDPU job
-   compiler over `/dev/mpp_service`; it bypasses libmpp's packet parser but has
-   not submitted a job yet. See the
-   [direct backend design](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md)
-   and the
-   [browser-decode-landscape finding](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md).
-3. **The VA-API road** — the renovated driver now exists and stock Chromium
-   supports VA-API behind runtime flags. The remaining work is a real
-   Chromium sandbox/display gate and any hardening that measurement demands;
-   no Chromium source patch is currently shown necessary. Snap confinement
-   adds a separate device-cgroup boundary, so test the deb build first. See
-   the [`rockchip-vaapi` project](../video-libraries/vaapi/README.md).
+The installed XtraDeb arm64 binary contains the V4L2 implementation but no
+`libva.so.2`, `vaInitialize`, `vaGetDisplayDRM` or `VaapiWrapper` strings. That
+binary cannot load `rockchip-vaapi`; flags alone cannot repair a backend omitted
+at build time.
+
+Google Chrome 151 is different. Its GPU report enumerates `rockchip-vaapi`'s
+H.264 Main/High, VP9 Profile 0 and HEVC Main/still-picture profiles, and Vimeo
+selected `VaapiVideoDecoder` for 1920x1080 H.264 High. Presentation was entirely
+green because Chrome exports each empty surface into a persistent NativePixmap
+before decode, while the driver replaced that placeholder with MPP's output
+allocation. Ysp13 keeps the exported NV12/P010 allocation stable and copies
+completed output into it. The exact 24-frame retained-export worker gate,
+NV12/P010 lifecycle tests, ASan/UBSan, 17 conformance cases and the 1,440-frame
+complementary zero-copy audit pass.
+
+The locally built ysp13 driver/config packages are now installed, the installed
+driver matches the deb payload, and the operator confirms H.264 presents
+correctly instead of green. Media Internals selects `VaapiVideoDecoder` for a
+640x480 VP9 Profile 0 source. Its `VpxVideoDecoder` selection for a separate
+384x240 source matches Chromium's intentional below-360p software priority,
+not a VP9 driver failure. Automated browser output checking, stable-copy marker
+capture, HEVC playback and sandbox qualification remain; see the
+[stable-export finding](../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md).
+
+The functional result did not require custom Chrome options, which closes an
+important configuration question but not the security gate. The stock browser
+and GPU-child command lines contain neither `--no-sandbox` nor
+`--disable-gpu-sandbox`; nevertheless, `chrome://gpu` says `Sandboxed: false`
+and the live GPU process reports `Seccomp: 0`, zero filters, and an unconfined
+LSM label. Chrome's warning that `InitializeSandbox()` ran with multiple
+threads is the next discriminator, but the thread owner is not yet attributed.
+
+Upstream Chromium 151 has removed the old mutual exclusion between VA-API and
+V4L2. For XtraDeb distribution parity, the next road remains a mixed package with
+`use_vaapi=true use_v4l2_codec=true`, keeping Hantro VP8 as an A/B control while
+making VA-API the default. Add `VaapiIgnoreDriverChecks` for the first Rockchip
+probe, require the driver's H.264/HEVC/VP9 profiles in `chrome://gpu`, then
+require `GpuVideoDecoder` plus driver/MPP markers during playback. The exported
+GPU process is not sandboxed; broker/seccomp qualification for MPP/RGA/DMA-heap
+access follows the unsandboxed functional gate. Exact evidence and source pins
+are in the
+[Chromium 151 finding](../findings/2026-08-04-chromium-151-gpu-working-v4l2-only.md).
+
+Two broader V4L2 alternatives remain if the working Google Chrome VA-API road
+exposes a hard
+application mismatch: retarget `libv4l-rkmpp` onto modern Chromium's stateful
+decoder, accepting permanent browser patches, or boot maximum-mainline rkvdec2
+and use Chromium's stateless request-API path. Neither is the next experiment
+now that one mixed package cleanly discriminates the standard VA-API route.
 
 ## Cross-cutting observations
 
@@ -231,13 +305,14 @@ packaging boundary, and browser sandbox contract now live in
 [`video-libraries/vaapi/`](../video-libraries/vaapi/README.md). Keep this page
 focused on which applications can consume that layer.
 
-The remaining architectural choice matters mainly for Chromium. The
-`libv4l-rkmpp` shim is thin and once worked with a large, now-obsolete Chromium
-patch stack plus a patched libv4l2; modernizing it keeps a per-browser rebase
-burden. The VA-API backend is thicker but uses libva's supported plugin model
-and can serve the whole desktop. A maximum-mainline kernel offers Chromium a
-third, stateless-V4L2 route but does not give Firefox the stateful API it
-expects. The source-level comparison remains in the
+Chromium's immediate choice is no longer architectural: automate the now-green
+installed Google Chrome H.264/VP9 replay, then sandbox it. A mixed
+VA-API/V4L2 XtraDeb build remains a separate distribution gate. The
+`libv4l-rkmpp` shim still carries
+a per-browser rebase burden, while a maximum-mainline kernel offers Chromium a
+stateless-V4L2 route but does not give Firefox the stateful API it expects.
+Those alternatives remain comparison branches rather than the next gate. The
+source-level comparison remains in the
 [ubuntu-rockchip survey](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md)
 and [browser landscape](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md).
 
@@ -258,14 +333,24 @@ De-risk in this order:
 1. **Finish the pinned Firefox live RDD gate** — the installed driver and all
    five decode/display cases are green; enable the sandbox and verify its
    broker/ioctl policy without a source-tree driver override.
-2. **mpv Main10/HDR on a physical output** — virtual Mutter/Panfrost
+2. **Qualify Sunshine H.264 SDR** — it is the strongest source-contract match
+   for the existing encoder and exported-surface path.
+3. **Qualify OBS H.264** — current OBS has native VA-API and should not need the
+   previously proposed RKMPP whitelist patch.
+4. **Probe RustDesk** if remote-desktop utility remains the goal; establish its
+   arm64 build, system-driver discovery and selected encoder before hardening.
+5. **mpv Main10/HDR on a physical output** — virtual Mutter/Panfrost
    presentation is green; now validate connector metadata and the HDR link.
-3. **Chromium deb/GL repair** — its GPU process currently dies before VA-API;
-   compare the
-   maintained-fork result with modernized `libv4l-rkmpp` or maxline V4L2 only
-   if a measured blocker justifies those permanent costs.
-4. **Finish the existing Kodi gate and app-specific OBS/HandBrake work** when
-   those applications, rather than the shared media layers, become the goal.
+6. **Google Chrome automation and sandbox** — installed ysp13 already presents
+   H.264 correctly and selects VA-API for 640x480 VP9; turn those manual results
+   into an output-checked gate with stable-export markers, add HEVC, identify
+   what precedes the stock launch's multiple-thread sandbox warning, then prove
+   a live sandboxed GPU process.
+7. **Chromium mixed-backend deb** — rebuild 151 with VA-API and V4L2, retain
+   Hantro VP8 as the control, then qualify Rockchip H.264/HEVC/VP9 playback and
+   the GPU sandbox.
+8. **Finish the existing Kodi gate or HandBrake work** only when those
+   applications, rather than the shared media layers, become the goal.
 
 ## Related pages
 
@@ -278,5 +363,8 @@ De-risk in this order:
 - [`../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md`](../findings/2026-07-21-ubuntu-rockchip-piggyback-survey.md) — source-level survey of the archived ubuntu-rockchip stack this page's first revision is based on
 - [`../findings/2026-07-21-rockchip-vaapi-driver-review.md`](../findings/2026-07-21-rockchip-vaapi-driver-review.md) — full review of the PoC VA-API-over-MPP driver: fork-and-renovate verdict, Chromium/app reach, sandbox gate analysis
 - [`../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md`](../findings/2026-07-21-vaapi-mpp-bitstream-reconstruction-av1.md) — the bitstream-reconstruction spectrum and why AV1 is scoped out of the driver's v1 (VP9 fallback)
+- [`../findings/2026-08-04-rockchip-vaapi-consumer-assessment.md`](../findings/2026-08-04-rockchip-vaapi-consumer-assessment.md) — framework consumer model and the source-inspected Sunshine/OBS/RustDesk/WayVNC assessment
+- [`../findings/2026-08-04-chromium-151-gpu-working-v4l2-only.md`](../findings/2026-08-04-chromium-151-gpu-working-v4l2-only.md) — measured Chromium 151 GPU recovery, Hantro VP8 enumeration, and missing-VAAPI package boundary
+- [`../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md`](../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) — Google Chrome VA-API enumeration, retained pre-decode export root cause, installed ysp13 H.264 visual pass, and VP9 decoder-selection discriminator
 - [`../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md`](../video-libraries/vaapi/docs/av1-direct-mpp-service-backend.md) — the direct vendor-kernel AV1 design, surface-keyed state model, transferred HAL responsibilities, and first replay proof
 - [`../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md`](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md) — mainline is V4L2-stateless not VA-API; why Firefox can use neither the mainline V4L2 route nor the ffmpeg rkmpp wrapper decoders, making VA-API its only path

@@ -14,7 +14,7 @@ that cannot select the Rockchip-specific libavcodec wrappers directly.
 | Developer focus | VA object lifetimes, reconstructed decode bitstreams, MPP external-buffer ownership, AFBC/NV15-to-P010 conversion, VA encode parameter translation, imported-surface validation, browser sandbox policy, and application interoperability. |
 | Owns | The durable capability/boundary summary and evidence map for `yisding/rockchip-vaapi`; dated measurements remain under [`../../findings/`](../../findings/README.md), app-specific integration stays in [`../../docs/app-enablement.md`](../../docs/app-enablement.md), and package publication stays under [`../../packaging/`](../../packaging/README.md). |
 | Depends on | The RK3588 MPP/RGA kernel path, current `librockchip_mpp`, the kernel-paired `librga` 10-bit contract, libva, and an application/display sandbox that can open the required device nodes and ioctls. |
-| Current state | As of 2026-08-04, installed and published driver/config are `1.0.11+ysp12-0ubuntu1~rk1`, built from a clean export of its release commit with the packaged payload matching the installed driver exactly. The source/package provenance gate that ysp8 left open is **closed**, by ysp10's three-independent-build-path reproduction; ysp12 itself was built once. **H.264, VP9 Profile 0 and HEVC Main decode remain the default capability set**; HEVC Main10, VP9 Profile 2, and encode remain opt-in. On kernel `6.18.42`, which newly enables IEP2, interlaced H.264 decode regressed to a hard error because MPP's decoder-internal deinterlacer is 1:N while VA-API decode is 1:1; the driver now disables that vproc path and all 17 pinned vectors are bit-exact again ([finding](../../findings/2026-08-04-vaapi-interlaced-decode-broken-by-iep2-enablement.md)). That fix ships as **`1.0.11+ysp12`, installed and published** (source `18656370`, arm64 build `33465947`), verified 17/17 bit-exact against the installed package on `6.18.42`. Picture-size limits moved from an unmeasured 7680x4320 to the vendor-documented 8192x8192; no conformance class changed. `ysp11` carried only the picture-size change and was superseded before publication. Only the tier-1 gate set has been run on `6.18.42` — the HEVC sweeps, encode/10-bit experimental gates, display gates, and both soaks have not. Sandbox-enabled Firefox, physical HDR, Chromium GL, clean-image install, 512 MiB CMA, and release all remain. |
+| Current state | As of 2026-08-05, the published baseline remains `1.0.11+ysp12-0ubuntu1~rk1`, built from clean release source and verified 17/17 bit-exact on kernel `6.18.42`; the host now has locally built **`1.0.11+ysp13-0ubuntu1~rk1` installed**. Its installed driver matches the deb payload at SHA-256 `ed578a241803f35f51ccc6afe38b1d132539ae48ca691b5a3180e37565fe56c0`, but its source is still dirty, uncommitted, changelog-`UNRELEASED`, and unpublished. **H.264, VP9 Profile 0 and HEVC Main decode remain the default capability set**; HEVC Main10, VP9 Profile 2, and encode remain opt-in. Ysp13 preserves pre-decode NV12/P010 export identity and passes the exact 24-frame retained-export gate, focused lifecycle/sanitizers, all 17 conformance cases, and the complementary 1,440-frame zero-copy audit. Google Chrome 151 now renders H.264 correctly instead of green through installed ysp13 and selects `VaapiVideoDecoder` for 640x480 VP9 Profile 0; its 384x240 `VpxVideoDecoder` choice matches Chromium's intentional below-360p software priority ([finding](../../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md)). The stock Google deb uses no sandbox-disabling flags, but `chrome://gpu` and a live `/proc` probe show an unsandboxed GPU process with `Seccomp: 0`; the multiple-thread sandbox-init warning is not yet attributed. XtraDeb Chromium 151 still omits libva and exposes Hantro V4L2 VP8. The broader installed-package campaign belongs to ysp12 and was not repeated wholesale on ysp13. Sandbox-enabled Firefox, physical HDR, automated Google Chrome replay/GPU sandbox, HEVC-in-Chrome, XtraDeb Chromium packaging, clean-image install, 512 MiB CMA, ysp13 commit/publication, and release remain. |
 
 For the end-to-end technical model, module map, decode/encode sequences,
 DMA-BUF ownership rules, bridge renovation record, and remaining design
@@ -40,6 +40,36 @@ That placement is why this project lives under `video-libraries/`. The
 can use the layer and what each integration still needs; this page owns what
 the layer itself can honestly claim.
 
+## Consumer strategy
+
+The durable consumer is often a standard media framework, not one named
+application. `rockchip-vaapi` currently serves three useful classes:
+
+1. **Firefox's direct VA-API decoder**, its only native Rockchip hardware path
+   on this BSP-style stack;
+2. **GStreamer's standard `va` plugin**, already measured through decode,
+   encode and a complete H.264 WebRTC peer path; and
+3. **libavcodec's generic VA-API codecs**, already measured through FFmpeg,
+   VLC and mpv and used by current Sunshine and OBS integrations.
+
+GNOME Remote Desktop is an incompatible direct client, not evidence that the
+encoder lacks consumers: its native backend requires application-authored
+packed slice headers that MPP cannot accept. The best next source-contract
+matches are Sunshine H.264 SDR and OBS H.264; neither is yet runtime-proven.
+RustDesk is a lower-confidence follow-up. XtraDeb Chromium 151's Panfrost/ANGLE
+GPU process works and Hantro V4L2 VP8 enumerates, but that binary omits libva.
+Google Chrome 151 does load this driver and selects `VaapiVideoDecoder`; its
+green-frame retained-export failure is fixed in installed ysp13, H.264 now
+presents correctly, and 640x480 VP9 selects VA-API. Automated replay and
+sandbox qualification remain open; the stock launch has no disabling flags but
+the live GPU process has no seccomp filter. WayVNC
+currently requires both H.264
+Constrained Baseline and `VAEntrypointVideoProc`, neither of which this driver
+advertises. Keep the detailed ranking, source pins and non-priorities in the
+[consumer assessment](../../findings/2026-08-04-rockchip-vaapi-consumer-assessment.md)
+and the live per-app state in the
+[application map](../../docs/app-enablement.md).
+
 ## Capability matrix
 
 Experimental means hidden unless its documented environment opt-in is set. It
@@ -60,10 +90,10 @@ does not mean the measured gates are hypothetical.
 > satisfied by the production kernel rather than assumed. Running this driver on
 > `~rk1` would still be expected to fault.
 
-| Path | Exposure | Evidence as of 2026-08-02 | Boundary |
+| Path | Exposure | Evidence as of 2026-08-05 | Boundary |
 |------|----------|---------------------------|----------|
-| H.264 decode | Default | Conformance and sanitizer history; installed ysp8 is bit-exact and hardware-presents through GStreamer `va`, VLC 3.0.23, mpv 0.41.0, and Firefox 153.0.1 | Chromium remains; Firefox ran with its RDD sandbox disabled |
-| VP9 Profile 0 decode | Default | Installed ysp8 is bit-exact through GStreamer and hardware-presents through VLC, mpv, and Firefox | Chromium remains; Firefox sandbox gate remains |
+| H.264 decode | Default | Conformance and sanitizer history; installed ysp8 is bit-exact and hardware-presents through GStreamer `va`, VLC 3.0.23, mpv 0.41.0, and Firefox 153.0.1; installed ysp13 fixes Google Chrome 151's green frame and the operator reports correct presentation | Google Chrome automation/GPU sandbox and Firefox's RDD sandbox remain; XtraDeb Chromium omits libva |
+| VP9 Profile 0 decode | Default | Installed ysp8 is bit-exact through GStreamer and hardware-presents through VLC, mpv, and Firefox; Google Chrome with installed ysp13 selects `VaapiVideoDecoder` at 640x480, while 384x240 intentionally selects software below Chromium's 360p cutoff | Pixel-checked VP9 browser automation/GPU sandbox, XtraDeb Chromium packaging, and Firefox sandbox remain |
 | HEVC Main decode | **Default** | The exact Published package root previously produced **144 of 163** FATE candidates byte-exact, 17 classified skips, two size refusals, and zero backend/driver failures; installed ysp8 hardware-presents through VLC, mpv, and Firefox | `PICSIZE_A/B_Bossen_1` each carry an 8440 dimension, so both still exceed the advertised 8192x8192 constraint and fail closed; full sweep was not repeated on ysp8 |
 | HEVC Main10 decode | Experimental | Installed ysp8 is P010 bit-exact at 320x240 and 416x240, preserves BT.2020/PQ input metadata, refuses 64-pixel input before RGA, runs 1080p at 110.40 fps, and presents through VLC, mpv, and Firefox/Panfrost; the production forward-port RGA3 path passes 90 repeated runs and 4,320 exact frames at each small geometry, including both cores | Widths below 68 are [permanently unsupported](#declined-narrow-afbc-10-bit-below-68-pixels) as of 2026-08-04; the [dropped write remains rewrite-driver-specific](../../findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md); no physical HDR or sandbox-enabled Firefox proof |
 | VP9 Profile 2 decode | Experimental | Installed ysp8 is P010 bit-exact, runs 1080p at 187.30 fps, and presents through VLC, mpv, and Firefox/Panfrost | Same kernel/librga pairing; one risky pinned vector remains fingerprint-quarantined; Firefox sandbox and physical-output qualification remain |
@@ -247,9 +277,9 @@ fallback is not hardware evidence.
 
 ## Next gate
 
-Rebuild and publish ysp8 from a clean pushed source identity, then repeat the
-installed safe matrix on the intended 512 MiB CMA configuration. Prove live
-H.264/HEVC Main/Main10/VP9 Profile 2 hardware decode with:
+The next shipping-decode application gate is Firefox with its RDD sandbox
+enabled against the installed package. Prove live H.264/HEVC
+Main/Main10/VP9 Profile 2 hardware decode with:
 
 - the RDD sandbox still enabled;
 - driver frame/audit markers showing `rockchip-vaapi` actually loaded;
@@ -261,8 +291,26 @@ H.264/HEVC Main/Main10/VP9 Profile 2 hardware decode with:
 Keep the risky VP9 vector behind its exact kernel fingerprint. The production
 forward-port small-geometry RGA boundary is closed by repeated evidence; boot
 validation of the corrected rewrite driver remains a separate rewrite-track
-gate. Keep experimental 10-bit and encode qualification separate from this
-shipping decode gate.
+gate.
+
+The next experimental-encode application gate is Sunshine H.264 High SDR/NV12
+CBR, followed by OBS H.264. For each, require hardware markers, the exported
+R8/GR88 GPU-texture path, force-IDR connection/reconnect behavior, live bitrate
+changes, client decode and a soak. Only then try HEVC Main SDR. Do not count
+Main10/HDR encode, packed slice headers, B-frames or VA video processing as open
+qualification items: they are outside the current backend contract.
+
+The Google Chrome gate no longer waits on a custom browser build or a first
+functional replay. Installed ysp13 already presents H.264 correctly and selects
+`VaapiVideoDecoder` for 640x480 VP9. Turn those manual observations into an
+automated H.264/VP9 gate requiring stable-export copy markers, checked visible
+output and no fallback/display errors; add HEVC, then qualify the currently-
+disabled GPU sandbox for the MPP, RGA and DMA-heap device/ioctl surface.
+First attribute the stock launch's multiple-thread `InitializeSandbox()`
+warning and require a live GPU process that reports sandboxed with an active
+seccomp filter. Rebuilding XtraDeb
+Chromium with both `use_vaapi=true` and `use_v4l2_codec=true` remains a separate
+distribution-parity gate, with Hantro VP8 retained as its A/B control.
 
 ## Evidence map
 
@@ -271,6 +319,9 @@ maintained capability/boundary summary.
 
 | Topic | Evidence |
 |-------|----------|
+| Google Chrome VA-API enumeration, retained-export green frame, installed H.264 fix, and VP9 selection | [`2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md`](../../findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md) |
+| Chromium 151 GPU recovery, V4L2-only package, and mixed-backend gate | [`2026-08-04-chromium-151-gpu-working-v4l2-only.md`](../../findings/2026-08-04-chromium-151-gpu-working-v4l2-only.md) |
+| Consumer model and next application encode targets | [`2026-08-04-rockchip-vaapi-consumer-assessment.md`](../../findings/2026-08-04-rockchip-vaapi-consumer-assessment.md) |
 | Installed ysp8 package/runtime and application matrix | [`2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md`](../../findings/2026-08-02-rockchip-vaapi-ysp8-installed-runtime-validation.md) |
 | Forward-port RGA3 repeated small-geometry discriminator | [`2026-08-02-rga3-forward-port-small-geometry-discriminator.md`](../../findings/2026-08-02-rga3-forward-port-small-geometry-discriminator.md) |
 | Original code review and renovation decision | [`2026-07-21-rockchip-vaapi-driver-review.md`](../../findings/2026-07-21-rockchip-vaapi-driver-review.md) |

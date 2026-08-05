@@ -1,3 +1,16 @@
+mpp (1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1) resolute; urgency=medium
+
+  * Preserve every VP9 show-existing presentation event instead of reusing
+    one intrusive queue node per reference slot. Snapshot each presentation
+    frame with its own buffer reference so repeated references retain their
+    metadata, output ordering, and lifetime through decoder teardown.
+  * Add a slot-queue regression that enqueues 40 occurrences of one slot and
+    verifies every PTS/DTS pair is returned in order.
+  * Include the intervening IEP2 cache-synchronization and mode-selection
+    fixes and the vproc signal-frame and field-selection fixes from ysp/main.
+
+ -- Yi Ding <yi.s.ding@gmail.com>  Wed, 05 Aug 2026 08:20:00 -0700
+
 mpp (1.5.0+git20260730.ad325345+ds-0ubuntu1~rk1) resolute; urgency=medium
 
   * Set the vepu580 H.265 bitstream top address (register 172) to buffer size
