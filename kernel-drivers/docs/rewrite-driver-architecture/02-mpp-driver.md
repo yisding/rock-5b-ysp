@@ -82,7 +82,7 @@ This is the as-built graph. The broad `rk_mpp_job` and `rk_mpp_hw` objects
 still carry state that belongs to one admitted hardware activation or to the
 whole decoder cluster. The proposed `rk_mpp_activation` and `rk_mpp_cluster`
 objects in the [ownership-refactor plan](../rewrite-ownership-refactor-plan.md)
-do not exist in the current source.
+do not exist in the as-built model documented here.
 
 ### 3.2 Session lifecycle
 

@@ -137,7 +137,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | CLOSED 2026-08-05 — all 14 sections preserve immutable pins/reconstruction and route mutable assertions to their owners; full handoff gate passes. |
 | ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | ACTIVE 2026-08-05 — FFmpeg/GRD and history mapped; remaining packages/front-door simplification pending. |
 | ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | ACTIVE 2026-08-05 — FFmpeg/GRD pin and publication copies removed; remaining packages pending. |
-| ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | ACTIVE 2026-08-05 — router, canonical plan/operation split, frozen gap audit, and scoped harness backlog mapped; architecture-guide state cleanup pending. |
+| ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | CLOSED 2026-08-05 — canonical plan/operation/evidence/verdict owners, router-only index, frozen audit, and state-free teaching guide handoff-gated. |
 | ORG-31 | Forward-port validation and state | Patch README owns order; patch catalog owns provenance/backport; project evidence owner owns capability; status owns public boundary; findings are intake. | `forward-port-status.md`, patch docs, status tracks 1/2, W16, runbooks/findings. Security review mandatory. | PLANNED. |
 | ORG-32 | VA-API validation and application route | VA-API README owns capability policy; architecture owns mechanism; app map owns consumer compatibility; status owns browser/package verdict. Promote fresh evidence, preserve superseded-plan anchors. | VA-API/app READMEs, status track 14/W18, findings, closure plans, package docs. Security: not expected; recheck if kernel safety enters. | PLANNED after ORG-01 negative control. |
 | ORG-33 | Mesa validation and MR state | Remote service is MR authority; W06 is dated cache; validation/review docs own conclusions; README routes. | Mesa README/docs, W06, status track 8, findings; preserve MR links. Security: upstream destination is public fact, but submission planning remains private. | PLANNED. |
@@ -481,6 +481,36 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   ShellCheck, documentation consistency, and whitespace. ORG-30 remains active
   for removal of dated state and duplicated qualification chronology from the
   teaching architecture guide.
+
+### ORG-30 — rewrite architecture teaching-boundary slice
+
+- **Classification:** the chaptered rewrite architecture guide owns stable
+  object, ABI, source-reading, observability, evidence-level, and target-design
+  explanation. It no longer owns source/package identity, KUnit counts, dated
+  build/boot results, the immediate next gate, or the production verdict.
+- **Owner routing:** status track 4 owns the public boundary and next proof;
+  `rewrite-drivers.md` §6 owns accumulated exact evidence; `source-trees.md`
+  §8 owns immutable citation snapshots; `rewrite-kunit-manifest.tsv` owns the
+  exact ordered case contract; the validation plan and conformance entry own
+  strategy and operations. The architecture front door names each route near
+  the top.
+- **Keep/link/promote/remove:** retained the practical driver scope, as-built
+  versus target object model, source paths/order, counter semantics, evidence
+  ladder, and the warning that KUnit cannot prove hardware behavior. Removed
+  moving branch tips, package/build history, copied case/signal counts,
+  predecessor runtime narrative, and the dated successor-package milestone.
+  Converted date-labeled implementation prose to stable ownership rules.
+- **Inbound compatibility:** the forwarding path, chapter directory, all H2/H3
+  headings, chapter sequence, glossary route, and source-reading anchors remain
+  intact. The front door and forwarding stub now describe maintained status
+  routes rather than promising an embedded current-status ledger.
+- **Public/private review:** architecture safety content remains invariant-level
+  and links public validation roles. No private trigger, hostile reproducer,
+  disclosure/CVE plan, submission destination/order, or send/withhold material
+  was added.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-05, covering Markdown links/anchors, all 62 regression tests,
+  ShellCheck, documentation consistency, and whitespace. ORG-30 is closed.
 
 ### ORG-21 — PPA history and recovery slice
 

@@ -46,7 +46,7 @@ clearer than the BSP's distributed global managers.
 The remaining problem is **ownership altitude**. Several resources are owned by
 an object broader than the lifetime they actually serve:
 
-| Boundary | As built on 2026-08-04 | Target architecture | Why it matters |
+| Boundary | As-built model | Target architecture | Why it matters |
 |----------|------------------------|---------------------|----------------|
 | MPP shared decoder hardware | `rk_mpp_hw`, `rk_mpp_job`, a reset-domain mutex, and a separate DMA-group object divide CCU admission, group power, reset, IOMMU refresh, and quarantine | `rk_mpp_cluster` composes the topology; reset domain and DMA group remain distinct authorities behind it | A new terminal path can otherwise repair reset but omit refresh, group-power release, or peer quarantine. |
 | One MPP run | The job and hardware active slot carry generation, watchdog, DCHS/CCU participation, power references, and retirement state | `rk_mpp_activation` owns exactly one admitted hardware lifetime | IRQ, timeout, fault, abort, and remove should all claim and retire the same object through one engine. |
@@ -73,14 +73,15 @@ flowchart LR
   rj -. refactor .-> rt
 ```
 
-None of `rk_mpp_cluster`, `rk_mpp_activation`, `rk_rga_task_exec`, or
-`rk_rga_acquire_set` exists in the current source. The
+The as-built model documented here has no `rk_mpp_cluster`,
+`rk_mpp_activation`, `rk_rga_task_exec`, or `rk_rga_acquire_set`. The
 [ownership-refactor plan](../rewrite-ownership-refactor-plan.md) defines the
 migration and its invariants; the
 [retrospective](../../../findings/2026-08-01-rewrite-driver-retrospective.md)
 records why object ownership should precede further feature breadth. Until that
-work lands, reviewers must audit the cross-path conventions described in the
-current-driver chapters rather than assuming the target types enforce them.
+target work is reflected in this guide, reviewers must audit the cross-path
+conventions described in the as-built chapters rather than assuming the target
+types enforce them.
 
 Several kernel mechanisms appear together because they solve different
 problems:

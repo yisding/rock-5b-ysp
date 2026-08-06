@@ -48,10 +48,9 @@ time to increase, while also requiring timeout/fault counters to stay flat.
 ## 9. Testing architecture
 
 The embedded KUnit suites test logic that does not require live RK3588 silicon.
-At the 2026-08-04 source revisions:
-
-- MPP registers 92 KUnit cases.
-- RGA registers 152 KUnit cases.
+The exact ordered case contract is the maintained
+[`rewrite-kunit-manifest.tsv`](../../tests/rewrite-kunit-manifest.tsv), not a
+number copied into this teaching chapter.
 
 The [rewrite KUnit guide](../rewrite-kunit.md) documents their source
 organization, fixture contract, debug-kernel autorun, exact-count KTAP parser,
@@ -79,28 +78,17 @@ The evidence levels must not be collapsed:
 |-------|---------|-----------------------|--------------------------|
 | Source inspection | Review ownership and lock order | Intended invariants and obvious missing paths | That every race or hardware behavior matches the design |
 | Compile/build gate | Build both drivers, provider, DTB, and KUnit objects | API compatibility and configuration coverage | That the tests ran or the board boots |
-| KUnit execution | Boot and record all 244 cases | Pure helper/state-machine behavior in the running kernel | Correct pixels, bitstreams, IRQ wiring, or real reset behavior |
+| KUnit execution | Boot and record the exact maintained manifest | Pure helper/state-machine behavior in the running kernel | Correct pixels, bitstreams, IRQ wiring, or real reset behavior |
 | Hardware smoke | Run one encode/decode/blit per backend and inspect counters | Basic probe, power, MMIO, DMA, and IRQ function | Broad ABI compatibility or stress safety |
 | Differential conformance | Compare outputs and behavior with the forward port | Compatibility across real applications and data paths | Exhaustive recovery/security behavior |
 | Fault/race/soak gates | KASAN, KCSAN, failure injection, close/unbind stress, long runs | Evidence for rare lifetime and recovery paths | A mathematical proof that no defect remains |
 
-The build gate builds both kernel lines under normal, memory-safety, and
-race/concurrency configurations:
-
-```bash
-REWRITE_BUILD_PROFILES='normal memory race' \
-  kernel-drivers/tests/rewrite-build-gate.sh all
-```
-
-On 2026-08-04 the `normal` profile completed without warnings at 6.18
-`19634f4eebba` on `v6.18.42` and mainline `b296374b7520` on `v7.2-rc6`, including both IOMMU providers,
-both KUnit-enabled rewrite objects, and the ROCK 5B DTB. The same run passed
-the 306-signal fixture audit, the 92+152 manifest check, and cross-tree source
-identity. Test-disabled, memory, race, and ABI-mutation results belong to older
-tips and must not be silently carried to these commits. All of that is compile
-evidence, not a boot or hardware result. For a release claim, also record the
-exact kernel configuration, boot identity, KUnit log, suite logs, debugfs
-counter deltas, artifacts, and before/after kernel-fatal scan.
+The [rewrite conformance entry](../../tests/rewrite-conformance.md) owns build
+profiles, commands, exact result fields, and interpretation. A release-quality
+record correlates source/configuration, package and boot identity, the exact
+manifest, full kernel-log interval, suite commands/environment, counters,
+artifacts, and before/after fatal scans. A successful compile is still only
+compile evidence.
 
 KUnit and compile-time tests cannot establish that register programming matches
 silicon. On-board conformance must additionally exercise:
@@ -115,14 +103,11 @@ silicon. On-board conformance must additionally exercise:
 - driver unbind/rebind where safe;
 - counters proving hardware execution.
 
-The immediate status-changing milestone is therefore not “add another unit
-test.” It is: build a successor KASAN package from 6.18 tip
-`19634f4eebba`, install and boot it on the ROCK 5B, record the exact 244-case
-manifest with a clean outer interval and live lockdep, prove that each expected
-hardware family starts, and run paired rewrite-versus-forward-port conformance
-with clean kernel logs. AV1 VCD/AFBC/VSI counters, timeout, IOMMU-fault,
-reset-failure, close, and removal stress remain required before a
-production-readiness claim.
+The [status next gate](../../../status.md#next-gates) owns the immediate
+status-changing milestone. The [validation plan](../rewrite-validation-plan.md)
+owns the complete production gate, including differential, fault, fuzz, soak,
+and performance requirements. This chapter owns only why those evidence
+classes are distinct.
 
 ---
 

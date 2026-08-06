@@ -7,9 +7,11 @@
 
 The sources are large because implementation and KUnit tests share one
 translation unit. Read by concepts rather than top to bottom. The symbol order
-below describes the as-built 2026-08-04 tips (`19634f4eebba` on `v6.18.42` and
-`b296374b7520` on `v7.2-rc6`), not the proposed object names in the ownership
-refactor.
+below describes the as-built model, not the proposed object names in the
+ownership refactor. Before a pin-specific review, select the exact tree through
+the [rewrite evidence owner](../rewrite-drivers.md#6-status--citable-location)
+or [source map](../../../docs/source-trees.md#8-rewrite-driver-tree) and verify
+that these symbols still delimit the same responsibilities.
 
 ### 10.1 MPP
 

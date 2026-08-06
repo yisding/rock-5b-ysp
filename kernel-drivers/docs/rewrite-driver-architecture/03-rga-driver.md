@@ -88,9 +88,8 @@ of the numeric request ID cannot mutate the in-flight job.
 A terminal configure-and-submit removes the exact request object from the IDR
 while `session->lock` still protects its identity, then frees that captured
 pointer after unlocking. A non-terminal configuration consumes no object and
-must skip that free. The 2026-08-04 tip repair made this distinction explicit;
-removing or freeing later by integer ID would let concurrent ID reuse redirect
-cleanup to a replacement request.
+must skip that free. Removing or freeing later by integer ID would let
+concurrent ID reuse redirect cleanup to a replacement request.
 
 ### 4.3 Import types and provenance
 
