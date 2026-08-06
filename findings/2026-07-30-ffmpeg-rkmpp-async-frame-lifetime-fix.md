@@ -103,9 +103,10 @@ good signature from `Yi Ding <yi.s.ding@gmail.com>` for the `.dsc`, source
 `.buildinfo`, and source `.changes`. `dput` passed its distribution,
 required-field, checksum, suite, source-only, and GPG gates and transferred all
 five source artifacts to `ppa:yi-ding/ubuntu-rock-5b` at approximately 13:35
-PDT. Per the operator's requested stop point, Launchpad acceptance, build, and
-publication were not awaited or queried; predecessor `33a651a55b` remains the
-last confirmed live version.
+PDT. At this finding's requested stop point, Launchpad acceptance, build, and
+publication had not been queried, so predecessor `33a651a55b` was the last
+confirmed live version. [W05](../status.md#watch-w05) owns every later service
+recheck; this dated upload record is not a publication ledger.
 
 ## Boundary
 

@@ -12,11 +12,8 @@ and the forward-port kernel. The exact `6.18.42` / `0092` kernel and current
 MPP packages are installed and hardware-validated. Rockchip-vaapi ysp13 source,
 arm64 build, and driver/config binaries are Published; its same-version local
 build is installed and validated, while exact PPA-binary replay is open. The
-system FFmpeg row remains at the last-confirmed Published predecessor
-`33a651a55b`; validated successor `c9428bedaa` fixes asynchronous input
-ownership across reset/close and its signed source upload completed client-side
-on 2026-08-05. Launchpad acceptance/build/publication were not awaited or
-rechecked, and installed GRD replay remains open.
+system FFmpeg successor `c9428bedaa` is Published as source and all 29 binaries,
+and the arm64 index selects it; installation and GRD replay remain open.
 
 The alpha clean-room rewrite kernels have separate co-installable source packages under
 [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md) and
@@ -110,7 +107,7 @@ step-by-step provenance is retained in the
 | `rk3588-codec-udev` | `1.1` under [`codec-udev/`](codec-udev/README.md) | Source publication [`18620729`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18620729) and arm64-hosted `Architecture: all` build [`33399688`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33399688) are Published/successful. Version 1.0 is superseded. | Installs the canonical non-root MPP/RGA/DMA-heap access rule; `1.1` retriggers real sysfs devices and verifies the resulting permissions. Local source/binary builds, lintian, package installation, and live-device permission checks pass. |
 | `mpp` | `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` | Source publication [`18657949`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18657949) and arm64 build [`33468629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33468629) identify the immutable source/build records; [W05](../../status.md#watch-w05) owns the dated observation of their external state. Standard Debian metadata is sufficient to reconstruct the artifact; see [below](#mpp-source-artifact-reconstruction). | The maintained [MPP presentation-event evidence basis](../../vendor-libraries/mpp/docs/mpp-library-architecture.md#vp9-presentation-event-ownership) owns the repair mechanism, focused and installed-package results, trust, and boundary. Broader application behavior remains with its consumer tracks. |
 | `librga` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | Source publication [`18641905`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18641905) is Published; arm64 build [`33440960`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33440960) succeeded in 6m02s, and binary publications [`247477790`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247477790) and [`247477791`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247477791) are Published. The exact packages are installed from the normal PPA. Client-side verification also passed the full local arm64 build and Lintian error gate, with SONAME unchanged at `librga.so.2`. | Extends the 10-bit `vir_w` byte-stride conversion to **TILE** (FBC stays on the pixel convention); also fixes the cmake `-DLINUX` hole and unchecked `fread()`s. **Must land with a kernel carrying the matching TILE plane-offset fix** — a mismatched pair is wrong by 20% on the 10-bit TILE path. Note the upstream date is `20260725` (commit is 2026-07-25 UTC): a same-date bump to a digit-leading hash sorts *below* `b8def3e` under dpkg comparison. |
-| `ffmpeg` | `7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1` | The successor source package builds and validates locally. Its `.dsc`, source `.buildinfo`, and `.changes` have good direct GPG signatures, and `dput` passed every client gate and transferred all five source artifacts to the normal PPA on 2026-08-05. Per the operator's stop point, Launchpad acceptance, arm64 build, and publication were not awaited or rechecked. Predecessor source [`18647960`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18647960), build [`33450629`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33450629), and all 29 binaries [`247606934`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606934)–[`247606962`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247606962) are the last confirmed Published set. | Retains bounded RKMPP backpressure and the HEVC unused-following-reference fix, then fixes asynchronous input-frame ownership across encoder reset/close. Focused hardware gates pass 10/10 immediate-close and 10/10 flush/reuse iterations without the old libmpp refcount/pool diagnostics. The predecessor remains installed; candidate installation and repeated GRD fallback/recreation are pending. |
+| `ffmpeg` | `7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1` | Source publication [`18658504`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18658504), successful arm64 build [`33469512`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33469512), and all 29 binaries [`247812235`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247812235)–[`247812263`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247812263) are Published. The live arm64 index selects the exact `ffmpeg` binary; [W05](../../status.md#watch-w05) owns freshness. Standard Debian metadata reconstructs the artifact [below](#ffmpeg-source-artifact-reconstruction). | Retains bounded RKMPP backpressure and the HEVC unused-following-reference fix, then fixes asynchronous input-frame ownership across encoder reset/close. Focused hardware gates pass 10/10 immediate-close and 10/10 flush/reuse iterations without the old libmpp refcount/pool diagnostics. It remains uninstalled; repeated GRD fallback/recreation is pending. |
 | `rockchip-vaapi` | `1.0.11+ysp13-0ubuntu1~rk1` | Public release commit `70f26d9`; source publication [`18657954`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18657954), successful arm64 build [`33468630`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33468630), driver binary [`247800963`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247800963), and the config binary are Published. Fresh `.dsc` extraction matches every tracked release file byte-for-byte with no extra source file apart from generated `.pc` metadata. The PPA-built binary has not replaced the same-version local build. | Retains ysp12's 17/17 bit-exact interlaced-decode fix, then preserves driver-owned NV12/P010 surfaces exported before first decode. The same-version local package passes the retained-export worker/lifecycle/sanitizer, conformance, static-analysis, and zero-copy gates; Google Chrome 151 presents H.264 correctly instead of green and selects VA-API for 640×480 VP9. Browser automation and GPU sandbox proof remain open. |
 | `ffmpeg` 8.1.2 baseline | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Dedicated-PPA source publication [`18619544`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-upstream/+sourcepub/18619544) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-upstream`. |
 | `ffmpeg` 8.1.2 Rockchip | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Dedicated-PPA source publication [`18619545`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-rockchip/+sourcepub/18619545) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-rockchip`; it builds against the fresh main PPA for MPP/librga. |
@@ -148,7 +145,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`clean-install-system-stack.sh`](clean-install-system-stack.sh) | Replaces earlier incompatible test packages with exact versions from the system PPA while retaining the distro kernel as a recovery path. |
 | [`mpp/debian/`](mpp/debian/changelog) | Debian packaging for Rockchip MPP from `ysp/main@a8b19653`. |
 | [`librga/debian/`](librga/debian/changelog) | Debian packaging for the local `librga-fork` commit `26a50ef`, including the P010/P210 work and the 10-bit RASTER+TILE byte-stride conversion. |
-| [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg 8.0.3 packaging for the RKMPP/RKRGA forward port, unused-following-reference fix, and asynchronous encoder-frame lifetime fix at `c9428bedaa`. |
+| [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg 8.0.3 packaging for the RKMPP/RKRGA forward port; [`build-source-packages.sh`](build-source-packages.sh) owns the intended source commit/version. |
 | [`ffmpeg-rockchip/debian/`](ffmpeg-rockchip/debian/changelog) | Co-installable `/opt/ffmpeg-rockchip` packaging for nyanmisaka's FFmpeg 6.1 Rockchip fork at `40c412daccf0`. |
 | [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging pinned to the clean release commit with `-Dffmpeg=enabled`. The normal export has no `GRD_DELTA`; that option is retained only for historical reconstruction. |
 | [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md) | Historical tracked-file GRD deltas retained to reconstruct older dirty source-package snapshots. |
@@ -181,8 +178,7 @@ or individual paths/pins with the matching environment variables.
 | MPP commit | `MPP_COMMIT` | `a8b19653` |
 | librga repo | `LIBRGA_REPO` | `$WORKSPACE_ROOT/rockchip-userspace/librga-fork` |
 | librga commit | `LIBRGA_COMMIT` | `26a50ef` (must match the shipped kernel's 10-bit stride convention) |
-| FFmpeg repo | `FFMPEG_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip-81` |
-| FFmpeg commit | `FFMPEG_COMMIT` | `c9428bedaa45448d79c629f6be83a41257ac6167` |
+| System FFmpeg source | `FFMPEG_REPO`, `FFMPEG_COMMIT`, `FFMPEG_UPSTREAM_VERSION` | Maintained defaults in [`build-source-packages.sh`](build-source-packages.sh); override the three together. |
 | nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
 | nyanmisaka FFmpeg Rockchip commit | `FFMPEG_ROCKCHIP_COMMIT` | `40c412daccf08164493da0de990eb99a8948116b` |
 | GRD repo | `GRD_REPO` | `$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop` |
@@ -458,9 +454,10 @@ The upstream project reports Meson version `2.1.0`, while the package version is
 The FFmpeg package uses the full Ubuntu/Debian packaging surface, not the smaller
 local `/opt` package under [`../ffmpeg-rockchip81/`](../ffmpeg-rockchip81/README.md).
 The system package is based on the official FFmpeg `n8.0.3` tag plus the
-RKMPP/RKRGA forward-port and hardening series. The current packaging pin is
-`fix/rkmpp-output-timeout@c9428bedaa`, based on the `rockchip-8.0` line. It
-enables:
+RKMPP/RKRGA forward-port and hardening series. The `FFMPEG_REPO`,
+`FFMPEG_COMMIT`, and `FFMPEG_UPSTREAM_VERSION` defaults in
+[`build-source-packages.sh`](build-source-packages.sh) are the sole intended
+source-input owner. The package enables:
 
 - `--enable-rkmpp`
 - `--enable-rkrga`
@@ -524,8 +521,31 @@ verification pass. Focused RK3588 hardware tests pass 10/10 immediate-close
 and 10/10 flush/reuse iterations with no refcount, frame-pool, or kernel-fault
 diagnostic. See the
 [`lifetime finding`](../../findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md).
-The candidate is not yet published or installed, and the real GRD
-fallback/recreation gate remains open.
+The exact source and binaries are Published but not installed, and the real
+GRD fallback/recreation gate remains open.
+
+<a id="ffmpeg-source-artifact-reconstruction"></a>
+#### FFmpeg source-artifact reconstruction
+
+The standard Launchpad/Debian records answer which source produced the current
+artifact; no custom manifest is required. Source publication
+[`18658504`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18658504)
+routes to a signed `.dsc` with SHA-256
+`9c1288fb04db8259cba22439ca51f7f58f659367b961156614ec5d81b621cb04`.
+That `.dsc` authenticates these source payloads:
+
+| Source payload | SHA-256 |
+|----------------|---------|
+| `ffmpeg_8.0.3+rockchip+git20260730.c9428bedaa.orig.tar.gz` | `a5a7dfc45e10163fd13c3b8cad529a5146fded28eed5cf43dea72da7f89f24bd` |
+| `ffmpeg_8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1.debian.tar.xz` | `a400995176dac0ba9e1fc1ea43efd6341f98fd7623ab9d4547cbae968abb9561` |
+
+Arm64 build [`33469512`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33469512)
+retains its `.buildinfo`, `.changes`, dependency/toolchain record, and output
+checksums. Its 29 binary publications are `247812235`–`247812263`; the live
+arm64 index records the `ffmpeg` deb SHA-256 as
+`5b576200e84351d604ed1a30a4b25199b43ec8be3ae360cf8db8618c27b72af3`.
+Together these records distinguish the actual Published artifact from the next
+default selected by the build script and from any installed predecessor.
 
 Private FFmpeg helper packages are a separate case: a package such as
 `gnome-remote-desktop-ffmpeg-rk` that installs FFmpeg 6 libraries under

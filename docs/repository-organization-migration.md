@@ -134,14 +134,14 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-02 | Adopt the pilot-tested contract and add small templates | `CONTRIBUTING.md` becomes normative owner; templates illustrate README, explanation, runbook, live-plan, and audit interfaces. Proposal/ledger do not remain contracts. | Root/docs routes, nearest-README rule, all pilot compatibility findings. Security fields stay mandatory in ledger workflow. | CLOSED 2026-08-05 — normative contract and five shared interfaces are linked, complete, and handoff-gated. |
 | ORG-10 | Dashboard and optional cross-project ledger | `status.md` owns compact verdict/next proof; only irreducible synthesis remains in `status-ledger.md`; project/finding owners receive exact identity and evidence. | Every numbered dashboard/next-gate/ledger row and inbound ledger link; replace mandatory-pair checker atomically. Security review per kernel/upstream row. | CLOSED 2026-08-05 — all rows route directly to existing owners; ledger retired, routes/checker valid, full gate green. |
 | ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | CLOSED 2026-08-05 — all IDs classified, successor routes/checker valid, full handoff gate green. |
-| ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | PLANNED; split by source family. |
-| ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | PLANNED; activate one source package at a time after pilot. |
+| ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | ACTIVE 2026-08-05 — FFmpeg family mapped; remaining source families pending. |
+| ORG-21 | PPA topology, package provenance, publication, and history | Package scripts own intended inputs; standard metadata owns artifacts; Launchpad/W05 own service state; runbooks own upload/sign/recovery; retain only incident/otherwise-unavailable history. | PPA/newcomer/package READMEs, installer, changelogs, W05, history links; FFmpeg/GRD pin tests and package helper checks. Security: public fix versus private submission/disclosure boundary. | ACTIVE 2026-08-05 — FFmpeg package mapped; remaining packages/history pending. |
 | ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | PLANNED; split by package. |
 | ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | PLANNED. |
 | ORG-31 | Forward-port validation and state | Patch README owns order; patch catalog owns provenance/backport; project evidence owner owns capability; status owns public boundary; findings are intake. | `forward-port-status.md`, patch docs, status tracks 1/2, W16, runbooks/findings. Security review mandatory. | PLANNED. |
 | ORG-32 | VA-API validation and application route | VA-API README owns capability policy; architecture owns mechanism; app map owns consumer compatibility; status owns browser/package verdict. Promote fresh evidence, preserve superseded-plan anchors. | VA-API/app READMEs, status track 14/W18, findings, closure plans, package docs. Security: not expected; recheck if kernel safety enters. | PLANNED after ORG-01 negative control. |
 | ORG-33 | Mesa validation and MR state | Remote service is MR authority; W06 is dated cache; validation/review docs own conclusions; README routes. | Mesa README/docs, W06, status track 8, findings; preserve MR links. Security: upstream destination is public fact, but submission planning remains private. | PLANNED. |
-| ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | PLANNED. |
+| ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | ACTIVE 2026-08-05 — source/package ownership migrated; validation consolidation pending. |
 | ORG-35 | GNOME Remote Desktop validation and branch state | Remote owns branch tip; build script owns package input; project docs own design/test conclusions; status/W05 own verdict/publication. | GRD README/docs/findings, status track 7, W05/W10, PPA and GRD pin checker. Security: review public fix inventory versus private submission plan. | PLANNED. |
 | ORG-40 | Project front doors, runbooks, plans, audits, and coverage | Each project README routes stable scope/boundary/model/operation; deep docs own mechanism; runbooks own commands; plans own future ladder; coverage owns scope/first missing evidence. | Activate one project/README at a time; preserve all headings/inbound links and nearest-README completeness. Security review when the project scope requires it. | PLANNED after owner consolidation. |
 | ORG-41 | Findings inbox promotion | Existing project/runbook/test/catalog/package owners absorb useful evidence; findings index retains deposit guidance and views of live intake only. No tombstones or permanent `findings/evidence/` archive. | Exact inbound links, generated chronology, curated topic row/count, status citations; update findings checks atomically. Security review for every kernel safety/upstream finding. | PLANNED; promote in small owner-based batches. |
@@ -299,3 +299,45 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   gate passed on 2026-08-05 across 435 Markdown files, 3,781 local links, 387
   anchors, all 60 regression tests, ShellCheck, documentation consistency, and
   whitespace.
+
+### ORG-20 / ORG-21 / ORG-34 — FFmpeg source and package slice
+
+- **Owner map:** `packaging/ppa/build-source-packages.sh` is the sole owner of
+  the intended `FFMPEG_REPO`/`FFMPEG_COMMIT`/`FFMPEG_UPSTREAM_VERSION` tuple;
+  the leading Debian changelog entry identifies the packaging revision; W05
+  owns the dated Launchpad result; `clean-install-system-stack.sh` consumes
+  W05's exact Published version; the FFmpeg project owns mechanism/results;
+  and status track 5 owns the next integration proof.
+- **Actual artifact reconstruction:** Launchpad source publication `18658504`
+  exposes signed `.dsc` SHA-256 `9c1288fb...cb04`, which authenticates orig
+  SHA-256 `a5a7dfc4...24bd` and Debian-tar SHA-256 `a4009951...9561`.
+  Successful arm64 build `33469512` retains `.buildinfo`, `.changes`,
+  toolchain/dependency identities, and output hashes; binary publications
+  `247812235`–`247812263` and the live index identify the Published result.
+  Standard metadata answers the demonstrated identity question, so no custom
+  manifest or committed payload was added.
+- **Publication recheck:** the authoritative API reports source `18658504`
+  Published, build `33469512` successful, and all 29 binaries Published. The
+  Resolute arm64 `Packages.gz` selects the exact FFmpeg version and records deb
+  SHA-256 `5b576200...72af3`. W05 and the installer were updated together;
+  the package remains uninstalled and the GRD integration gate remains open.
+- **Source-map and route disposition:** moving `main`, `ffmpeg-80`,
+  `ffmpeg-81`, and normal-package rows were removed from `source-trees.md`.
+  W07 owns remote heads, `rebase-notes.md` owns topology, the build script owns
+  intended package input, the package record owns artifact reconstruction, and
+  the dated lifetime finding owns focused evidence. Immutable NyanMisaka,
+  Jellyfin, FFmpeg-tag, and publication-base comparison snapshots remain.
+- **Checker migration:** the prior literal fan-out through the PPA README and
+  newcomer guide is removed. The checker now independently verifies build
+  commit↔upstream-version↔changelog identity and W05 published-version↔installer
+  identity. A regression case rejects a build commit not encoded by its source
+  version.
+- **Public/private review:** the public project continues to expose affected
+  behavior, patch identity, and bounded validation only. The provoking
+  double-release harness, submission destination/order, send/withhold choices,
+  and disclosure planning remain private; no private material was imported.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-05 across 435 Markdown files, 3,779 local links, 393 anchors, all 61
+  regression tests, ShellCheck, documentation consistency, and whitespace.
+  ORG-20/21/34 remain active only because their non-FFmpeg families and
+  validation/history consolidation are separate later slices.

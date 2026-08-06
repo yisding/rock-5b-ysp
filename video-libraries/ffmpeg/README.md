@@ -15,7 +15,7 @@ Project vocabulary (including the canonical `main`, `ffmpeg-80`, and
 | Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
 | Owns | The FFmpeg build recipe, companion docs in [`docs/`](docs/how-ffmpeg-works.md), pkg-config examples, and exported patch series in [`patches/`](patches/README.md). |
 | Depends on | Working kernel nodes from [`kernel-drivers/README.md`](../../kernel-drivers/README.md), staged or packaged libraries from [`vendor-libraries/README.md`](../../vendor-libraries/README.md), and the codec udev rule for non-root use. |
-| Current state | Three source branches are published at `main@8b57e531d1fc`, `ffmpeg-80@be753f3bbb2c`, and `ffmpeg-81@8d3ca020b6a2`. They track the latest fetched FFmpeg master, 8.0, and 8.1 upstream tips and carry the full canonical Rockchip/refactor/Jellyfin-correctness patchset. All three pass affected-object compilation and `fate-source`; this is not new hardware validation. The dedicated Rockchip-81 PPA remains at historical `be367abfe6`. The normal-PPA package branch is `fix/rkmpp-output-timeout@c9428bedaa`: its source package validates locally, focused hardware tests pass 10/10 immediate-close plus 10/10 flush/reuse iterations without the former asynchronous-frame double release, and its signed source upload completed client-side on 2026-08-05. Launchpad acceptance/build/publication were not awaited or rechecked. The last-confirmed Published and installed packages stop at predecessor `33a651a55b`; candidate installation and repeated GRD fallback/recreation remain open. Broader feature/encode/RGA smoke proof remains at `75638e7f0b17`. See [`lifetime finding`](../../findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md) and [`status.md`](../../status.md). |
+| Current state | The `main`, `ffmpeg-80`, and `ffmpeg-81` branches carry the canonical Rockchip/refactor/Jellyfin-correctness patchset; [W07](../../status.md#watch-w07) owns their dated remote heads. Their latest recorded tips pass affected-object compilation and `fate-source`, which is not new hardware validation. The normal-PPA `c9428bedaa` source and binaries are Published but uninstalled; its focused hardware tests pass 10/10 immediate-close plus 10/10 flush/reuse iterations without the former asynchronous-frame double release. [W05](../../status.md#watch-w05) owns publication freshness, while the [`lifetime finding`](../../findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md) and [`status.md`](../../status.md) own evidence and the next gate. |
 
 ## Files
 
@@ -41,27 +41,23 @@ See also [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../../vendor-li
 usage, BSP kernel layout flags, older librga breakage, and nyanmisaka's patched
 librga fix.
 
-**Which tree is current:** this README's original recipe builds nyanmisaka's
-fork at `40c412dacc` (2026-04-23), the source used for the kernel-port hardware
-validation. Fresh source work should use
+**Which tree to use:** this README's original recipe builds the immutable
+nyanmisaka snapshot `40c412dacc` used for kernel-port hardware validation.
+Fresh source work should use
 **`github.com/yisding/ffmpeg-rockchip-81`** (nyanmisaka upstream:
 `github.com/nyanmisaka/ffmpeg-rockchip`) and choose the ABI line explicitly:
 
-- `main@8b57e531d1fc` (`n8.2-dev-2444`) is the canonical rolling branch over
-  `FFmpeg/master@ceabc9b306f5`;
-- `ffmpeg-80@be753f3bbb2c` (`n8.0.3-100`) is the full patchset over
-  `release/8.0@435ae0581deb`;
-- `ffmpeg-81@8d3ca020b6a2` (`n8.1.2-93`) is the full patchset over
-  `release/8.1@94138f6973dd`.
+- `main` is the canonical rolling branch over FFmpeg master;
+- `ffmpeg-80` is the full patchset over release/8.0; and
+- `ffmpeg-81` is the full patchset over release/8.1.
 
-Packaging has one additional maintained pin: the normal system package exports
-`fix/rkmpp-output-timeout@c9428bedaa`. That branch diverges from the current
-`ffmpeg-80` replay and carries the bounded synchronous-output wait, transient
-MPP input-backpressure handling, HEVC unused-following-reference fix, and
-asynchronous frame-lifetime repair used by the GRD acceptance candidate.
-Focused close and flush/reuse hardware gates pass. The predecessor
-`33a651a55b` is still the Published and installed package, so the combined GRD
-workload remains the integration gate.
+Recheck their exact heads through W07 before making a fresh-current claim.
+The normal system package's intended source is separately owned by the
+`FFMPEG_*` defaults in
+[`build-source-packages.sh`](../../packaging/ppa/build-source-packages.sh).
+That line carries the bounded synchronous-output wait, transient MPP
+input-backpressure handling, HEVC unused-following-reference fix, and
+asynchronous frame-lifetime repair used by the GRD acceptance gate.
 
 The main and 8.1 core Rockchip files are byte-identical. The 8.0 branch differs
 only in `rkmppenc.c`, where the encoder-statistics API must match FFmpeg 8.0.
@@ -69,10 +65,9 @@ All three include the unique former `refactor/section-c` work, including the
 generic Jellyfin correctness import and final encoder static-format/concurrency
 fix. The earlier `75638e7f0b17` package-validation point, `be367abfe6`
 dedicated-PPA source, and `6cf02ab253` 28-patch export remain historical proof.
-The three canonical branch tips have not yet been packaged or exercised on
-RK3588 hardware; the separate `c9428bedaa` package branch has focused hardware
-proof and a validated source package but still awaits publication, installation,
-and its targeted GRD runtime test.
+The rolling branch tips have not been packaged or exercised on RK3588 hardware;
+the separate normal-PPA artifact has focused hardware proof and is Published,
+but still awaits installation and its targeted GRD runtime test.
 
 This needs **no system install and no sudo to build** — everything goes into an
 isolated staging prefix; only *running* it needs device access (root, or the udev

@@ -531,16 +531,21 @@ def check_kernel_package_helpers(
 
 
 def check_ppa_ffmpeg_install_pin(root: Path, errors: list[str]) -> None:
-    """Keep the FFmpeg candidate and documented live migration pin aligned."""
+    """Keep FFmpeg intended-source and published-install identities distinct."""
     changelog_path = root / "packaging/ppa/ffmpeg/debian/changelog"
     installer_path = root / "packaging/ppa/clean-install-system-stack.sh"
-    for path in (changelog_path, installer_path):
+    exporter_path = root / "packaging/ppa/build-source-packages.sh"
+    status_path = root / "status.md"
+    for path in (changelog_path, installer_path, exporter_path, status_path):
         if not path.is_file():
             errors.append(
                 f"{path.relative_to(root)}: missing, so the FFmpeg version-pin "
                 "check cannot run; update the path here if the file moved"
             )
-    if not changelog_path.is_file() or not installer_path.is_file():
+    if any(
+        not path.is_file()
+        for path in (changelog_path, installer_path, exporter_path, status_path)
+    ):
         return
 
     changelog_match = re.search(
@@ -553,6 +558,19 @@ def check_ppa_ffmpeg_install_pin(root: Path, errors: list[str]) -> None:
         installer_path.read_text(encoding="utf-8", errors="replace"),
         re.MULTILINE,
     )
+    exporter_text = exporter_path.read_text(encoding="utf-8", errors="replace")
+    commit_match = re.search(
+        r'FFMPEG_COMMIT="\$\{FFMPEG_COMMIT:-([^}]+)\}"', exporter_text
+    )
+    upstream_match = re.search(
+        r'FFMPEG_UPSTREAM_VERSION="\$\{FFMPEG_UPSTREAM_VERSION:-([^}]+)\}"',
+        exporter_text,
+    )
+    published_match = re.search(
+        r"^<!-- ppa-live-ffmpeg: ([^ ]+) -->$",
+        status_path.read_text(encoding="utf-8", errors="replace"),
+        re.MULTILINE,
+    )
     if changelog_match is None:
         errors.append("packaging/ppa/ffmpeg/debian/changelog: no leading ffmpeg version")
         return
@@ -560,57 +578,46 @@ def check_ppa_ffmpeg_install_pin(root: Path, errors: list[str]) -> None:
         errors.append(
             "packaging/ppa/clean-install-system-stack.sh: no FFMPEG_VERSION pin"
         )
+    if commit_match is None:
+        errors.append(
+            "packaging/ppa/build-source-packages.sh: no default FFMPEG_COMMIT"
+        )
+    if upstream_match is None:
+        errors.append(
+            "packaging/ppa/build-source-packages.sh: no default "
+            "FFMPEG_UPSTREAM_VERSION"
+        )
+    if published_match is None:
+        errors.append("status.md W05: no parseable ppa-live-ffmpeg marker")
+    if any(
+        match is None
+        for match in (installer_match, commit_match, upstream_match, published_match)
+    ):
         return
+
     installer_version = installer_match.group(1)
     latest_version = changelog_match.group(1)
-    if installer_version != latest_version:
-        support_path = root / "docs/ppa-support.md"
-        support_match = None
-        if support_path.is_file():
-            support_match = re.search(
-                r"^<!-- ppa-live-ffmpeg: ([^ ]+) -->$",
-                support_path.read_text(encoding="utf-8", errors="replace"),
-                re.MULTILINE,
-            )
-        if support_match is None or installer_version != support_match.group(1):
-            live_detail = (
-                " and does not match the live version documented in "
-                "docs/ppa-support.md"
-                if support_match is not None
-                else "; docs/ppa-support.md has no parseable ppa-live-ffmpeg marker"
-            )
-            errors.append(
-                "packaging/ppa/clean-install-system-stack.sh: FFMPEG_VERSION "
-                f"{installer_version!r} does not match latest changelog "
-                f"{latest_version!r}{live_detail}"
-            )
-
-    readme_path = root / "packaging/ppa/README.md"
-    if readme_path.is_file() and latest_version not in readme_path.read_text(
-        encoding="utf-8", errors="replace"
-    ):
+    published_version = published_match.group(1)
+    intended_commit = commit_match.group(1)
+    intended_upstream = upstream_match.group(1)
+    if installer_version != published_version:
         errors.append(
-            "packaging/ppa/README.md: latest FFmpeg changelog version "
-            f"{latest_version!r} is not documented"
+            "packaging/ppa/clean-install-system-stack.sh: FFMPEG_VERSION "
+            f"{installer_version!r} does not match W05's published version "
+            f"{published_version!r}"
         )
-
-    exporter_path = root / "packaging/ppa/build-source-packages.sh"
-    if exporter_path.is_file():
-        exporter_match = re.search(
-            r'FFMPEG_UPSTREAM_VERSION="\$\{FFMPEG_UPSTREAM_VERSION:-([^}]+)\}"',
-            exporter_path.read_text(encoding="utf-8", errors="replace"),
+    if intended_upstream not in latest_version:
+        errors.append(
+            "packaging/ppa/build-source-packages.sh: default FFmpeg upstream "
+            f"version {intended_upstream!r} does not match latest changelog "
+            f"{latest_version!r}"
         )
-        if exporter_match is None:
-            errors.append(
-                "packaging/ppa/build-source-packages.sh: no default "
-                "FFMPEG_UPSTREAM_VERSION"
-            )
-        elif exporter_match.group(1) not in latest_version:
-            errors.append(
-                "packaging/ppa/build-source-packages.sh: default FFmpeg upstream "
-                f"version {exporter_match.group(1)!r} does not match latest "
-                f"changelog {latest_version!r}"
-            )
+    if intended_commit[:10] not in intended_upstream:
+        errors.append(
+            "packaging/ppa/build-source-packages.sh: default FFMPEG_COMMIT "
+            f"{intended_commit!r} is not identified by FFMPEG_UPSTREAM_VERSION "
+            f"{intended_upstream!r}"
+        )
 
 
 def check_ppa_grd_source_pin(root: Path, errors: list[str]) -> None:

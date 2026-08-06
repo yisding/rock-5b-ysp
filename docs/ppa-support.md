@@ -1,7 +1,5 @@
 # Get started with the ROCK 5B hardware-video PPA
 
-<!-- ppa-live-ffmpeg: 7:8.0.3+rockchip+git20260729.33a651a55b-0ubuntu1~rk1 -->
-
 This guide is for a new user who wants hardware video acceleration on a Radxa
 ROCK 5B without building the kernel or media libraries from source. It starts
 with the normal installation path, then shows how to prove that MPV, FFmpeg,

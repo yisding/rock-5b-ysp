@@ -597,7 +597,7 @@ class PpaVersionConsistencyTests(unittest.TestCase):
             changelog = root / "packaging/ppa/ffmpeg/debian/changelog"
             changelog.parent.mkdir(parents=True)
             changelog.write_text(
-                "ffmpeg (7:8.0.3+new-0ubuntu1) resolute; urgency=medium\n",
+                "ffmpeg (7:8.0.3+new+git.1111111111-0ubuntu1) resolute; urgency=medium\n",
                 encoding="utf-8",
             )
             installer = root / "packaging/ppa/clean-install-system-stack.sh"
@@ -606,12 +606,24 @@ class PpaVersionConsistencyTests(unittest.TestCase):
                 '#!/usr/bin/env bash\nFFMPEG_VERSION="7:8.0.3+old-0ubuntu1"\n',
                 encoding="utf-8",
             )
+            exporter = root / "packaging/ppa/build-source-packages.sh"
+            exporter.write_text(
+                '#!/usr/bin/env bash\n'
+                'FFMPEG_COMMIT="${FFMPEG_COMMIT:-1111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"\n'
+                'FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.0.3+new+git.1111111111}"\n',
+                encoding="utf-8",
+            )
+            status = root / "status.md"
+            status.write_text(
+                "<!-- ppa-live-ffmpeg: 7:8.0.3+new+git.1111111111-0ubuntu1 -->\n",
+                encoding="utf-8",
+            )
             errors: list[str] = []
 
             DOC_CHECKER.check_ppa_ffmpeg_install_pin(root, errors)
 
             self.assertEqual(len(errors), 1)
-            self.assertIn("does not match latest changelog", errors[0])
+            self.assertIn("does not match W05's published version", errors[0])
 
     def test_clean_installer_may_pin_documented_live_ffmpeg(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -619,7 +631,7 @@ class PpaVersionConsistencyTests(unittest.TestCase):
             changelog = root / "packaging/ppa/ffmpeg/debian/changelog"
             changelog.parent.mkdir(parents=True)
             changelog.write_text(
-                "ffmpeg (7:8.0.3+candidate-0ubuntu1) resolute; urgency=medium\n",
+                "ffmpeg (7:8.0.3+candidate+git.2222222222-0ubuntu1) resolute; urgency=medium\n",
                 encoding="utf-8",
             )
             installer = root / "packaging/ppa/clean-install-system-stack.sh"
@@ -628,9 +640,15 @@ class PpaVersionConsistencyTests(unittest.TestCase):
                 '#!/usr/bin/env bash\nFFMPEG_VERSION="7:8.0.3+published-0ubuntu1"\n',
                 encoding="utf-8",
             )
-            support = root / "docs/ppa-support.md"
-            support.parent.mkdir(parents=True)
-            support.write_text(
+            exporter = root / "packaging/ppa/build-source-packages.sh"
+            exporter.write_text(
+                '#!/usr/bin/env bash\n'
+                'FFMPEG_COMMIT="${FFMPEG_COMMIT:-2222222222aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"\n'
+                'FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.0.3+candidate+git.2222222222}"\n',
+                encoding="utf-8",
+            )
+            status = root / "status.md"
+            status.write_text(
                 "<!-- ppa-live-ffmpeg: 7:8.0.3+published-0ubuntu1 -->\n",
                 encoding="utf-8",
             )
@@ -639,6 +657,36 @@ class PpaVersionConsistencyTests(unittest.TestCase):
             DOC_CHECKER.check_ppa_ffmpeg_install_pin(root, errors)
 
             self.assertEqual(errors, [])
+
+    def test_ffmpeg_build_owner_commit_must_match_its_source_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            changelog = root / "packaging/ppa/ffmpeg/debian/changelog"
+            changelog.parent.mkdir(parents=True)
+            changelog.write_text(
+                "ffmpeg (7:8.0.3+git.2222222222-0ubuntu1) resolute; urgency=medium\n",
+                encoding="utf-8",
+            )
+            packaging = root / "packaging/ppa"
+            (packaging / "clean-install-system-stack.sh").write_text(
+                '#!/usr/bin/env bash\nFFMPEG_VERSION="7:8.0.3+git.2222222222-0ubuntu1"\n',
+                encoding="utf-8",
+            )
+            (packaging / "build-source-packages.sh").write_text(
+                '#!/usr/bin/env bash\n'
+                'FFMPEG_COMMIT="${FFMPEG_COMMIT:-1111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"\n'
+                'FFMPEG_UPSTREAM_VERSION="${FFMPEG_UPSTREAM_VERSION:-8.0.3+git.2222222222}"\n',
+                encoding="utf-8",
+            )
+            (root / "status.md").write_text(
+                "<!-- ppa-live-ffmpeg: 7:8.0.3+git.2222222222-0ubuntu1 -->\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_ppa_ffmpeg_install_pin(root, errors)
+
+            self.assertTrue(any("is not identified" in error for error in errors))
 
     def test_grd_exporter_commit_drift_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

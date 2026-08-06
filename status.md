@@ -38,7 +38,7 @@ remain scannable.
 | 5 | ffmpeg tree | ⚠️ The asynchronous RKMPP frame-lifetime fix passes source and focused hardware gates. Its published/install state belongs to [W05](#watch-w05); installed-package GRD fallback/recreation and AV1 container validation remain open. | 2026-08-05 | [lifetime fix and gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md), [FFmpeg project](./video-libraries/ffmpeg/README.md) |
 | 7 | GNOME Remote Desktop backend | 🚧 The release branch is installed and the kernel preconditions for the reconnect gate are met, but the authenticated idle reconnect has not run. The separate watchdog/forced-IDR candidate is built but absent from the installed binary and has no runtime proof. | 2026-08-04 | [reconnect finding](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md), [watchdog finding](./findings/2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md) |
 | 8 | Mesa / Panfrost | 🔄 Selected G610 shards passed on the recorded MR heads, but all four MRs remain unmerged and one needs rebase; refreshed CI is also owed on the updated transfer MR. [W06](#watch-w06) owns the live MR state. | 2026-08-04 | [`video-libraries/mesa/`](video-libraries/mesa/README.md) |
-| 9 | Launchpad PPA | ✅ The normal PPA provides the complete nine-source system stack; the exact kernel and MPP packages are installed and hardware-validated. VA-API still needs exact PPA-binary replay, the newest FFmpeg upload still needs server-side confirmation and installed integration, and incompatible-stack migration remains a separate operational gate. [W05](#watch-w05) owns live publication identities. | 2026-08-05 | [PPA packaging](./packaging/ppa/README.md), [new-user guide](./docs/ppa-support.md) |
+| 9 | Launchpad PPA | ✅ The normal PPA provides the complete nine-source system stack; the exact kernel and MPP packages are installed and hardware-validated. The FFmpeg successor is Published but not installed or integration-tested, VA-API still needs exact PPA-binary replay, and incompatible-stack migration remains a separate operational gate. [W05](#watch-w05) owns live publication identities. | 2026-08-05 | [PPA packaging](./packaging/ppa/README.md), [new-user guide](./docs/ppa-support.md) |
 | 10 | Binary publishing | ❌ Repository licensing is defined, but no GitHub release, artifact set, or checksummed manifest exists. | 2026-08-05 | [`packaging/`](packaging/README.md), [`LICENSE.md`](LICENSE.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection and media prerequisites are ready; Kodi build, tty1 playback, and packaging remain unproven, and the PPA publishes no Kodi package. | 2026-08-04 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
@@ -60,7 +60,7 @@ dashboard date when public state changes.
 | 2 | BSP-audit fixes | Add targeted hostile-path gates for the acquire-fence, shutdown, missing-plane, and partial-handle fixes that broad conformance does not exercise. | [runtime gate inventory](./kernel-drivers/patches/cleanup-draft/verification.md#runtime-gate-result-record-here-when-run), [port record](./findings/2026-07-22-bsp-high-current-tip-port.md) |
 | 3 | DKMS channel | Install on a stock 6.18 ROCK 5B, boot the overlay, and run `validate-combined.sh`. | [DKMS build and install](./packaging/dkms/README.md#dkms-build-install) |
 | 4 | Clean-room rewrite drivers | Install and boot exact-tip 6.18 package `P49e6-Cad24`, then require exact KUnit/MPP plus the DMA-BUF reroute and USERPTR zero-failure counter contract in the corrected librga suite. | [RGA2 bounce verification gate](./findings/2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md#boundary-and-verification-gate), [rewrite validation plan](./kernel-drivers/docs/rewrite-validation-plan.md) |
-| 5 | ffmpeg tree | Once Launchpad publishes `c9428bedaa`, install it and repeat GRD hardware timeout, software fallback, and encoder recreation while requiring a clean libmpp/kernel log; afterward re-test AV1 from MP4/MKV. | [lifetime integration gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md#verification-gate) |
+| 5 | ffmpeg tree | Install exact Published `c9428bedaa`, then repeat GRD hardware timeout, software fallback, and encoder recreation while requiring a clean libmpp/kernel log; afterward re-test AV1 from MP4/MKV. | [lifetime integration gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md#verification-gate) |
 | 7 | GNOME Remote Desktop backend | Run the documented authenticated idle reconnect without restarting the daemon; then install the watchdog candidate before attempting its recovery/VBR gates. | [reconnect reproduction](./findings/2026-07-29-rdp-reconnect-handover-redirect-race-and-inhibitor-idletime-reset.md#act-4-latest-gnome-50-rebase-and-narrowed-june-fix-salvage), [watchdog gate](./findings/2026-08-01-grd-hw-encode-watchdog-forced-idr-bitrate-ceiling.md#verification-gate) |
 | 8 | Mesa / Panfrost | Rebase !42614, then rerun selected G610 CI on it and on !42679's post-07-23 head. | [MR tips and selected CI](./video-libraries/mesa/README.md#mr-status) |
 | 9 | Launchpad PPA | Confirm the uploaded FFmpeg source server-side, install the resulting package, and replay its GRD integration gate. | [W05 publication record](#watch-w05), [FFmpeg integration gate](./findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md#verification-gate) |
@@ -94,7 +94,7 @@ state observed on its last-checked date.
 | W01 | [Armbian media-patch drift](#watch-w01) | 2026-08-04 | Patch blobs unchanged; DT anchors still hold. |
 | W02 | [Armbian patcher precedence](#watch-w02) | 2026-08-04 | Core-wins behavior unchanged; rename workaround still required. |
 | W04 | [Ubuntu FFmpeg version](#watch-w04) | 2026-08-04 | Resolute still publishes `7:8.0.1-3ubuntu2`. |
-| W05 | [Launchpad PPA publication](#watch-w05) | 2026-08-05 | The last API recheck found all nine normal-PPA source names Published. Kernel `6.18.42` / `0092` and MPP `a8b19653` are installed and runtime-validated; VA-API ysp13 is live but not replayed from the PPA binary. The later FFmpeg `c9428bedaa` source upload completed client-side; its Launchpad state was not queried. |
+| W05 | [Launchpad PPA publication](#watch-w05) | 2026-08-05 | All nine normal-PPA source names are Published. FFmpeg `c9428bedaa` now has Published source and binaries and is selected by the arm64 index, but remains uninstalled; kernel/MPP are installed and validated, while VA-API still needs exact PPA-binary replay. |
 | W06 | [Mesa MR stack](#watch-w06) | 2026-08-04 | Four MRs still open; the rebase need moved from !42679 to !42614. |
 | W07 | [`ffmpeg-rockchip-81` tips](#watch-w07) | 2026-08-04 | `main` unchanged, but `ffmpeg-80` and `ffmpeg-81` both moved; their replay evidence is stale. |
 | W10 | [GRD release and recovery branches](#watch-w10) | 2026-08-04 | Release remains `c4ef3c9`; the unshipped forced-IDR recovery branch remains `100da72`. Package/board state routes to W05 and track 7. |
@@ -179,6 +179,8 @@ state observed on its last-checked date.
 <a id="watch-w05"></a>
 ### W05 — Launchpad PPA publication
 
+<!-- ppa-live-ffmpeg: 7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1 -->
+
 - **Authority:** service — Launchpad's `ubuntu-rock-5b` source, build, binary,
   and archive-index records.
 - **Recheck:** Query `getPublishedSources`, each relevant build and binary
@@ -203,10 +205,11 @@ state observed on its last-checked date.
   publication `18657954` is Published, arm64 build `33468630` succeeded, and
   live binary publications include the driver `247800963` and its
   architecture-independent config package; those PPA-built binaries have not
-  replaced the same-version local build. After this API recheck, `dput`
-  transferred the signed FFmpeg `c9428bedaa` source set and passed every
-  client-side gate. Per the operator's requested stop point, Launchpad
-  acceptance, build, and publication were not queried. A clean-install run is still useful
+  replaced the same-version local build. A later authoritative recheck found
+  FFmpeg `c9428bedaa` source publication `18658504` Published, arm64 build
+  `33469512` successful, all 29 binary publications `247812235`–`247812263`
+  Published, and the live arm64 index selecting the exact package. It remains
+  uninstalled and its GRD integration gate remains open. A clean-install run is still useful
   when migrating a different machine from incompatible PPAs; it is not missing
   evidence for the already-published kernel artifact.
 <a id="watch-w06"></a>
