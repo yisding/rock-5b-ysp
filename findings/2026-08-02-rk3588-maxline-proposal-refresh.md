@@ -3,7 +3,7 @@
 > Scope: maximum-mainline kernel source and packaging record
 > Source: Torvalds `master@075b74841bd0`, linux-next
 > `next-20260731@415606a7be93`, and the subsystem refs pinned in
-> `packaging/ppa/kernel-maxline/manifest.yaml`
+> `kernel-versions/maxline/manifest.yaml`
 > Date: 2026-08-02
 > Trust: SOURCE-INSPECTED / MEASURED
 
@@ -105,7 +105,7 @@ RKISP2 conflict resolutions pass, and the broader linux-next/WIP build passed
 the refreshed PHY, PCIe, Rockchip DRM/VOP2, DW-DP, and HDMI paths before it was
 stopped at the user's request; it has no successful full-build exit status.
 Exact results and object identities are recorded in
-`packaging/ppa/kernel-maxline/verification.md`.
+`kernel-versions/maxline/verification.md`.
 
 ## Boundary
 

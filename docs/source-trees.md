@@ -340,7 +340,7 @@ The dated refresh captured:
 | Public on linux-next | `0cae4ac6682384151b7c94c5db7f614775e0eee6` | validation replay |
 | WIP on linux-next | `15a5179dc3b2318e6c56d300e2f4c74ef0a3fb7b` | validation replay |
 
-The [public-series manifest](../packaging/ppa/kernel-maxline/public-series.tsv)
+The [public-series manifest](../kernel-versions/maxline/public-series.tsv)
 owns proposal identities and mailbox hashes. The refresh finding owns conflict
 and acceptance results.
 

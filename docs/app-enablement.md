@@ -200,7 +200,7 @@ Order new consumer work by contract fit and discriminating value:
 - [FFmpeg project](../video-libraries/ffmpeg/README.md)
 - [Kodi project](../apps/kodi/README.md)
 - [GNOME Remote Desktop project](../apps/gnome-remote-desktop/README.md)
-- [Maximum-mainline package](../packaging/ppa/kernel-maxline/README.md)
+- [Maximum-mainline project](../kernel-versions/maxline/README.md)
 - [Consumer source and evidence assessment](../video-libraries/vaapi/docs/validation.md#consumer-and-sandbox-conclusions)
 - [Browser backend landscape](../findings/2026-07-21-mainline-v4l2-vs-vaapi-browser-decode-landscape.md)
 - [Chromium V4L2-only measurement](../video-libraries/vaapi/docs/validation.md#consumer-and-sandbox-conclusions)

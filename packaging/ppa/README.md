@@ -70,7 +70,7 @@ different identities.
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | Package the optional GDM hardware-encode ACL rule. |
 | [`kernel-forward-port/`](kernel-forward-port/README.md) | Package the forward-port kernel line. |
 | [`kernel-rewrite-alpha-6.18/`](kernel-rewrite-alpha-6.18/README.md), [`kernel-rewrite-alpha-7.2-rc3/`](kernel-rewrite-alpha-7.2-rc3/README.md), and [`kernel-rewrite-alpha-7.2-rc5/`](kernel-rewrite-alpha-7.2-rc5/README.md) | Package co-installable rewrite experiments without redefining their technical validation. |
-| [`kernel-maxline/`](kernel-maxline/README.md) | Own the local maximum-mainline integration and build/package track. |
+| [`kernel-maxline/`](kernel-maxline/README.md) | Package the maximum-mainline profiles owned by [`kernel-versions/maxline/`](../../kernel-versions/maxline/README.md). |
 | [`kernel-sgguard/`](kernel-sgguard/README.md) | Preserve the focused sg-guard diagnostic package definition. |
 | [`history/`](history/README.md) | Retain exceptional archive incidents whose facts are unavailable elsewhere. |
 

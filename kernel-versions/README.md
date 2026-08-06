@@ -33,7 +33,7 @@ scope:
 | Vanilla 6.18 + forward port | Pristine upstream base at the port's original patch target | Same vendor MPP/RGA implementation | Driver patch carries over, but decoder/CCU/IOMMU nodes must be defined inline rather than inherited from Armbian | [`docs/vanilla-kernel.md`](docs/vanilla-kernel.md) |
 | Mainline V4L2 | Upstream codec API trajectory | Stateless V4L2 request decode, not Rockchip MPP | Different device ABI, userspace responsibility, and scheduler constraints; cannot be reasoned about as a drop-in MPP implementation | [`docs/mainline-rkvdec-v4l2.md`](docs/mainline-rkvdec-v4l2.md) |
 | Clean-room rewrite | Alternative implementation of the existing MPP/RGA public ABI | Repo-designed kernel internals behind compatible device contracts, including RKVENC2, RKVDEC2, RGA2/3, and VPU981 AV1 | The architecture distinguishes as-built code from its target ownership model; status owns moving source/build/hardware qualification. | [`../kernel-drivers/docs/rewrite-driver-architecture/`](../kernel-drivers/docs/rewrite-driver-architecture/README.md) |
-| Maximum-mainline profiles | Pinned integration of upstream plus selected public/WIP RK3588 proposals | Whatever the pinned mainline proposal set provides; not automatically the vendor media stack | Reproducible comparison packages; build success and board/runtime proof remain separate gates | [`../packaging/ppa/kernel-maxline/`](../packaging/ppa/kernel-maxline/README.md) |
+| Maximum-mainline profiles | Pinned integration of upstream plus selected public/WIP RK3588 proposals | Whatever the pinned mainline proposal set provides; not automatically the vendor media stack | Reproducible comparison packages; build success and board/runtime proof remain separate gates | [`maxline/`](maxline/README.md) |
 
 ### Five labels to attach to every kernel result
 
@@ -60,6 +60,6 @@ shape and [`../status.md`](../status.md) for the latest dated result.
 | [`docs/vanilla-kernel.md`](docs/vanilla-kernel.md) | Applying the port to a non-Armbian/mainline kernel; owner of the "why vendor MPP, not mainline V4L2" rationale. |
 | [`docs/mainline-rkvdec-v4l2.md`](docs/mainline-rkvdec-v4l2.md) | How the mainline V4L2 `rkvdec` decoder (the other stack) works, and the `rk3588-rewrite-mainline` branch. |
 | [`docs/pvtm-opp-binning-plan.md`](docs/pvtm-opp-binning-plan.md) | Two-track plan (vendor straight port + mainline-ready series) for the RK3588 per-die CPU voltage binning mainline lacks. Design only; nothing started. |
-| [`../packaging/ppa/kernel-maxline/`](../packaging/ppa/kernel-maxline/README.md) | Pinned upstream 7.2-rc3 `public`/`wip` maximum-mainline integrations, board-support comparison, reproducible packages, compile evidence, and the still-open boot/hardware boundary. |
+| [`maxline/`](maxline/README.md) | Pinned upstream 7.2-rc6 `public`/`wip` maximum-mainline integrations, board-support comparison, reproducible packages, compile evidence, and the still-open boot/hardware boundary. |
 
 Vocabulary specific to this project is in [`keywords.md`](keywords.md).

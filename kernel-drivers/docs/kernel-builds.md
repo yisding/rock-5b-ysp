@@ -14,7 +14,7 @@ material stays in the linked pages; this page only routes.
 flowchart LR
     BK[build-kernel.sh &lt;flavor&gt;] --> LOCAL[local flavors\nArmbian engine]
     BK --> PPA[ppa-* flavors\nbuild-source-packages.sh]
-    BK --> MAX[maxline-* flavors\nkernel-maxline/build-kernel.sh]
+    BK --> MAX[maxline-* flavors\nmaxline/build-kernel.sh]
     LOCAL --> DEBS[installable .debs\narmbian-build/output/debs]
     PPA --> SRC[unsigned source packages\npackaging/ppa/out/artifacts]
     MAX --> MDEB[pinned 2026-08-02 packages\npackaging/ppa/out/maxline]
@@ -70,7 +70,7 @@ flavors do seed per-slot configs, deliberately, and each under its own slot name
 | `ppa-forward-port` | Unsigned source package `linux-rockchip64-ysp` for the normal PPA | patched Armbian worktree (see [`kernel-forward-port/`](../../packaging/ppa/kernel-forward-port/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
 | `ppa-rewrite-6.18` | Unsigned source package `linux-rockchip64-ysp-alpha-6.18` (co-installable rewrite kernel) | pinned composite commit of `linux-6.18-rkvenc` (see [`kernel-rewrite-alpha-6.18/`](../../packaging/ppa/kernel-rewrite-alpha-6.18/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
 | `ppa-rewrite-7.2-rc3` | Unsigned source package `linux-rockchip64-ysp-alpha-7.2-rc3` | pinned composite commit of `linux` (see [`kernel-rewrite-alpha-7.2-rc3/`](../../packaging/ppa/kernel-rewrite-alpha-7.2-rc3/README.md)) | package `debian/config` | source artifacts under `packaging/ppa/out/artifacts` |
-| `maxline-public` / `maxline-wip` | Maximum-mainline packages pinned to Linux `7.2-rc6`, Torvalds `master@075b74841bd0` | `../rock-5b/kernel/linux` at pinned integration commits; separate `next-20260731` validation branches (see [`kernel-maxline/`](../../packaging/ppa/kernel-maxline/README.md)) | maxline `config/` | `packaging/ppa/out/maxline/package-<profile>` |
+| `maxline-public` / `maxline-wip` | Maximum-mainline packages pinned to Linux `7.2-rc6`, Torvalds `master@075b74841bd0` | `../rock-5b/kernel/linux` at pinned integration commits; separate `next-20260731` validation branches (see [`maxline/`](../../kernel-versions/maxline/README.md)) | maxline `config/` | `packaging/ppa/out/maxline/package-<profile>` |
 
 Not flavors of this entry point, but part of the same delivery picture:
 
@@ -186,4 +186,4 @@ but two builds of identical source no longer produce a byte-identical vmlinux.
   (244-case booted KUnit report, paired suites).
 - PPA packages: per-package READMEs above; publication state in
   [`packaging/ppa/`](../../packaging/ppa/README.md) and watchlist W05.
-- Maxline: [recovery-first install order](../../packaging/ppa/kernel-maxline/README.md#install-and-test-order).
+- Maxline: [recovery-first install order](../../kernel-versions/maxline/README.md#install-and-test-order).

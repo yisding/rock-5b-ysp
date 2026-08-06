@@ -25,6 +25,7 @@ esac
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
+packaging_dir="$repo_root/packaging/ppa/kernel-maxline"
 kernel_git="${MAXLINE_KERNEL_GIT:-$(dirname "$repo_root")/kernel/linux}"
 output_dir="${MAXLINE_OUTPUT_DIR:-$repo_root/packaging/ppa/out/maxline/package-$profile}"
 jobs="${MAXLINE_JOBS:-$(nproc)}"
@@ -83,7 +84,7 @@ if [[ "$profile" == "wip" ]]; then
 	git -C "$source_dir" apply "$script_dir/patches/maxline-wip.patch"
 fi
 
-cp -a "$script_dir/debian" "$source_dir/debian"
+cp -a "$packaging_dir/debian" "$source_dir/debian"
 mv "$source_dir/debian/rules.in" "$source_dir/debian/rules"
 mv "$source_dir/debian/control.in" "$source_dir/debian/control"
 mv "$source_dir/debian/changelog.in" "$source_dir/debian/changelog"

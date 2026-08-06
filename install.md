@@ -43,7 +43,7 @@ not booted in this evidence record.
 Whichever you pick, complete §3 first and use §9 to identify what the archive or
 local build actually carries.
 
-The [`maximum-mainline 7.2-rc3 profiles`](packaging/ppa/kernel-maxline/README.md)
+The [`maximum-mainline profiles`](kernel-versions/maxline/README.md)
 are research comparison builds, not a third validated codec delivery model.
 Both compile and package, but neither has been installed or booted; follow
 [`status.md` track 13](status.md#dashboard) and its recovery-first gate before

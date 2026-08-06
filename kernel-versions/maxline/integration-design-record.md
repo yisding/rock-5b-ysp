@@ -6,9 +6,9 @@
 > current. [`manifest.yaml`](manifest.yaml),
 > [`public-series.tsv`](public-series.tsv), and
 > [`wip-donors.tsv`](wip-donors.tsv) are the exact implemented inputs; the
-> dated drift boundary is tracked in [`status.md` W17](../../../status.md#watch-w17).
+> dated drift boundary is tracked in [`status.md` W17](../../status.md#watch-w17).
 > The 2026-08-02 revisions, acceptances, and rebase decisions are recorded in
-> the [`refresh finding`](../../../findings/2026-08-02-rk3588-maxline-proposal-refresh.md).
+> the [`refresh finding`](../../findings/2026-08-02-rk3588-maxline-proposal-refresh.md).
 
 > Scope: ROCK 5B; Ubuntu 26.04 / Armbian 26.5.1; upstream Linux and all
 > publicly available RK3588 proposal series known on 2026-07-17
@@ -46,7 +46,7 @@ be built at all. The distinction is recorded below instead of silently
 claiming coverage.
 
 The plan has now been implemented under
-this [`kernel-maxline/`](README.md) project.
+this [`maxline/`](README.md) project.
 Both profiles compile and produce co-installable arm64 image, DTB, and headers
 packages. This is still not evidence that either kernel boots: the proposed
 series combination needs boot, subsystem, suspend, and rollback testing on the
@@ -479,7 +479,7 @@ the upstream stack.
   remain open.
 - **Artifacts:** the reproducible builder, pinned patches, ledgers, config,
   packaging, hashes, and verification record are in
-  this [`kernel-maxline/`](README.md) project.
+  this [`maxline/`](README.md) project.
   The complete measured implementation/build record is
   [`verification.md`](verification.md).
   The supplied source snapshot remains at `~/Code/rock-5b/kernel/mainline-status.md`

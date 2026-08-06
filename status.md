@@ -43,7 +43,7 @@ remain scannable.
 | 10 | Binary publishing | ❌ Repository licensing is defined, but no GitHub release, artifact set, or checksummed manifest exists. | 2026-08-05 | [`packaging/`](packaging/README.md), [`LICENSE.md`](LICENSE.md) |
 | 11 | Kodi HW decode | 🚧 Decoder selection and media prerequisites are ready; Kodi build, tty1 playback, and packaging remain unproven, and the PPA publishes no Kodi package. | 2026-08-04 | [`apps/kodi/`](apps/kodi/README.md) |
 | 12 | ROCK 5B SD/SPI boot chain | ⚠️ SPI → NVMe works; failing vendor raw artifacts have zero-byte U-Boot control DTBs, while the untested 26.5.1 `current` candidate has a valid DTB. | 2026-07-11 | [U-Boot comparison](./boot-firmware/docs/version-comparison.md) |
-| 13 | Maximum-mainline kernel | 🚧 Refreshed public and WIP sources are reconciled with their upstream bases; the public profile passes a full native compile and WIP passes focused/partial builds. Refreshed packages, boot, and hardware validation remain open. | 2026-08-02 | [refresh audit](./findings/2026-08-02-rk3588-maxline-proposal-refresh.md), [`kernel-maxline/`](./packaging/ppa/kernel-maxline/README.md) |
+| 13 | Maximum-mainline kernel | 🚧 Refreshed public and WIP sources are reconciled with their upstream bases; the public profile passes a full native compile and WIP passes focused/partial builds. Refreshed packages, boot, and hardware validation remain open. | 2026-08-02 | [refresh audit](./findings/2026-08-02-rk3588-maxline-proposal-refresh.md), [`maxline/`](./kernel-versions/maxline/README.md) |
 | 14 | Desktop-app HW video (browsers) | 🚧 The current VA-API release passes its retained driver gates, and Google Chrome selects hardware decode for proven H.264 and VP9 cases. The exact PPA binary is not installed, browser replay remains manual, and the live Chrome GPU process was unsandboxed; automated pixel checks, sandbox proof, and the remaining app/display boundaries are open. | 2026-08-05 | [Chrome/driver finding](./findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md), [`rockchip-vaapi` project](./video-libraries/vaapi/README.md) |
 | 15 | CPU voltage binning (PVTM/eFuse) | ❌ No patch, branch, or build exists. The board's BSP-selected L5/L7/L7 voltage columns are measured and materially lower than mainline's worst-die table below 2.4 GHz; the two-track port plan is gated by cold-boot, SRAM-margin, and shared-DSU-rail validation. | 2026-07-27 | [port plan](./kernel-versions/docs/pvtm-opp-binning-plan.md), [measured index](./findings/2026-07-27-rk3588-pvtm-volt-sel-measured.md) |
 
@@ -68,7 +68,7 @@ dashboard date when public state changes.
 | 10 | Binary publishing | Select the first release's exact source/binary artifacts, verify each artifact's complete corresponding-source and third-party redistribution obligations, then publish a versioned checksummed manifest. | [license scope](./LICENSE.md), [artifact policy](./packaging/README.md) |
 | 11 | Kodi HW decode | Build Kodi GBM/GLES and validate RKMPP playback with `kodi-gbm` on tty1. | [Kodi tty1 runbook](./apps/kodi/docs/build-hwaccel.md#5-test-on-tty1-gbm-needs-drm-master) |
 | 12 | ROCK 5B SD/SPI boot chain | Substitute the 26.5.1 `current` FIT, loader, and then both on a captured 26.2.1 SD baseline; record where each boot stops or succeeds. | [raw-SD hypothesis test](./scripts/README.md#rock-5b-raw-sd-u-boot-hypothesis-test) |
-| 13 | Maximum-mainline kernel | Build and inspect refreshed `public` packages, then install with serial recovery and the known-good 6.18 packages retained; prove boot, storage, network, display, suspend, and rollback before `wip`. | [recovery-first test order](./packaging/ppa/kernel-maxline/README.md#install-and-test-order) |
+| 13 | Maximum-mainline kernel | Build and inspect refreshed `public` packages, then install with serial recovery and the known-good 6.18 packages retained; prove boot, storage, network, display, suspend, and rollback before `wip`. | [recovery-first test order](./kernel-versions/maxline/README.md#install-and-test-order) |
 | 14 | Desktop-app HW video (browsers) | Install and replay the exact PPA VA-API binary, then automate pixel-checked Chrome H.264/VP9/HEVC selection while proving the live GPU process is sandboxed. | [Chrome automation/sandbox gate](./findings/2026-08-04-google-chrome-rockchip-vaapi-green-stable-export.md#boundary-and-next-gate), [package replay gate](./video-libraries/vaapi/README.md) |
 | 15 | CPU voltage binning (PVTM/eFuse) | Boot a non-PPA static L5/L7 board override and prove each policy's selected rail voltage under verified compute load, including cold-boot and data-integrity checks. | [validation plan](./kernel-versions/docs/pvtm-opp-binning-plan.md#5-validation-plan-both-tracks), [measured baseline](./findings/2026-07-27-rk3588-pvtm-volt-sel-measured.md) |
 
@@ -404,9 +404,9 @@ state observed on its last-checked date.
   `next-20260731@415606a7be93`, public `e6951bc3f935`, WIP
   `73d29539f7bb`, public-next `0cae4ac66823`, WIP-next `15a5179dc3b2`,
   41 public dispositions, and 25 WIP donors are pinned in
-  [`manifest.yaml`](packaging/ppa/kernel-maxline/manifest.yaml),
-  [`public-series.tsv`](packaging/ppa/kernel-maxline/public-series.tsv), and
-  [`wip-donors.tsv`](packaging/ppa/kernel-maxline/wip-donors.tsv). The audit
+  [`manifest.yaml`](kernel-versions/maxline/manifest.yaml),
+  [`public-series.tsv`](kernel-versions/maxline/public-series.tsv), and
+  [`wip-donors.tsv`](kernel-versions/maxline/wip-donors.tsv). The audit
   found revised HDMI, DW-DP, SCDC, HDPTX, HDMI-RX, and CAN series; new public
   VP9, DCPHY, and N/CTS work; plus DRM, USB, media, and PHY acceptance changes.
   Linus/public passes its full compile gate; linux-next/WIP has focused and

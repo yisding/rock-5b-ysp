@@ -27,7 +27,7 @@
 #     ppa-rewrite-6.18     unsigned source package (… kernel-alpha-6.18)
 #     ppa-rewrite-7.2-rc3  unsigned source package (… kernel-alpha-7.2-rc3)
 #     ppa-rewrite-7.2-rc5  unsigned source package (… kernel-alpha-7.2-rc5)
-#     maxline-public       pinned 7.2-rc3 maxline package (packaging/ppa/kernel-maxline/build-kernel.sh public)
+#     maxline-public       pinned maxline package (kernel-versions/maxline/build-kernel.sh public)
 #     maxline-wip          pinned 7.2-rc3 maxline package (… wip)
 #
 # USAGE
@@ -344,8 +344,8 @@ case "$FLAVOR" in
 		;;
 	maxline-public|maxline-wip)
 		[ "$MODE" = "build" ] || die "$FLAVOR does not support --$MODE"
-		say "delegating to packaging/ppa/kernel-maxline/build-kernel.sh ${FLAVOR#maxline-}"
-		exec bash "$ROOT/packaging/ppa/kernel-maxline/build-kernel.sh" "${FLAVOR#maxline-}" \
+		say "delegating to kernel-versions/maxline/build-kernel.sh ${FLAVOR#maxline-}"
+		exec bash "$ROOT/kernel-versions/maxline/build-kernel.sh" "${FLAVOR#maxline-}" \
 			${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}
 		;;
 esac

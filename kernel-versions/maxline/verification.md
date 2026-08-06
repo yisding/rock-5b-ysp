@@ -19,7 +19,7 @@
 ## Repository handoff
 
 Everything required to reproduce and audit the two kernel trees is in
-this [`kernel-maxline/`](README.md) directory:
+this [`maxline/`](README.md) directory:
 
 - `manifest.yaml` pins the upstream and linux-next bases, four integration
   heads, patch/config hashes, intended package releases, and current
@@ -71,7 +71,7 @@ For public mail, an exact lore raw-mail URL can be reconstructed as
 `https://lore.kernel.org/all/<first_message_id>/raw`; the ledger hash verifies
 the downloaded mailbox. The 2026-08-02 refresh and its revised/new series are
 listed in the
-[`proposal finding`](../../../findings/2026-08-02-rk3588-maxline-proposal-refresh.md).
+[`proposal finding`](../../findings/2026-08-02-rk3588-maxline-proposal-refresh.md).
 
 ## Material integration work
 
@@ -198,8 +198,8 @@ artifact measurements.
 The standalone Debian package reproduction commands are:
 
 ```bash
-packaging/ppa/kernel-maxline/build-kernel.sh public
-packaging/ppa/kernel-maxline/build-kernel.sh wip
+kernel-versions/maxline/build-kernel.sh public
+kernel-versions/maxline/build-kernel.sh wip
 ```
 
 The superseded 2026-07-17 compile checkpoint was also exercised through the
@@ -209,12 +209,12 @@ package builder's guarded reuse path:
 MAXLINE_BUILD_DIR=packaging/ppa/out/maxline/build-public-check \
 MAXLINE_SOURCE_DIR=packaging/ppa/out/maxline/linux-public \
 MAXLINE_JOBS=8 \
-  packaging/ppa/kernel-maxline/build-kernel.sh public
+  kernel-versions/maxline/build-kernel.sh public
 
 MAXLINE_BUILD_DIR=packaging/ppa/out/maxline/build-public-check \
 MAXLINE_SOURCE_DIR=packaging/ppa/out/maxline/linux-wip \
 MAXLINE_JOBS=8 \
-  packaging/ppa/kernel-maxline/build-kernel.sh wip
+  kernel-versions/maxline/build-kernel.sh wip
 ```
 
 The helper rejects a checkpoint unless both paths are supplied, the source is
