@@ -113,10 +113,11 @@ that does not exist. When you add a finding, add its row here too.
 
 <!-- findings-topics:start -->
 
-### Boot chain, U-Boot, and firmware (7)
+### Boot chain, U-Boot, and firmware (8)
 
 Power-on to Linux handoff: SPI/SD boot, FIT/DTB artifacts, and the vendor-vs-Armbian firmware gap.
 
+- [`2026-08-06`](2026-08-06-armbian-rock5b-u-boot-console-options.md) — Armbian ROCK 5B vendor U-Boot disables its only interactive console
 - [`2026-07-24`](2026-07-24-rock5b-spi-vs-radxa-bsp-firmware-generation-gap.md) — The installed SPI is not U-Boot-incompatible with Radxa BSP images; the real gap is the firmware blob generation
 - [`2026-07-20`](2026-07-20-armbian-radxa-image-fit-audit.md) — Armbian Radxa catalog: 21 zero-DTB images, 207 clean, 95 not applicable
 - [`2026-07-20`](2026-07-20-armbian-non-radxa-radxa-uboot-audit.md) — Non-Radxa Radxa-U-Boot catalog: 17 zero-DTB images, 182 clean, 4 unavailable
@@ -325,6 +326,7 @@ the [renumber map](../kernel-drivers/patches/forward-port-rk3588/README.md#renum
 `status.md` always uses current numbers.
 
 <!-- findings-index:start -->
+- [`2026-08-06-armbian-rock5b-u-boot-console-options.md`](2026-08-06-armbian-rock5b-u-boot-console-options.md) — Armbian ROCK 5B vendor U-Boot disables its only interactive console
 - [`2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md`](2026-08-05-rewrite-rga2-dmabuf-userptr-bounce-followup.md) — RGA2 bounce follow-up: reroute incompatible DMA-BUFs and preserve USERPTR page offsets
 - [`2026-08-05-rewrite-rga-librga-swiotlb-fence-status.md`](2026-08-05-rewrite-rga-librga-swiotlb-fence-status.md) — Rewrite RGA librga failures: SWIOTLB segments, fd-zero fences, and sample status
 - [`2026-08-05-rewrite-kunit-fd-zero-boot-wedge.md`](2026-08-05-rewrite-kunit-fd-zero-boot-wedge.md) — A legacy fd-zero fence sentinel wedged the boot inside KUnit

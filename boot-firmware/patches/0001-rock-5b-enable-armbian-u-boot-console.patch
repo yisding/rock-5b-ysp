@@ -1,0 +1,77 @@
+From 34f16d1ddc96f8966866647d229d87e1fcab45a2 Mon Sep 17 00:00:00 2001
+From: Yi Ding <yi.s.ding@gmail.com>
+Date: Thu, 6 Aug 2026 15:30:00 -0700
+Subject: [PATCH] rock-5b: enable vendor U-Boot serial console
+
+The ROCK 5B current and vendor targets use Radxa U-Boot's
+rock-5b-rk3588_defconfig, which selects all three relevant options:
+
+    CONFIG_BOOTDELAY=0
+    CONFIG_DISABLE_CONSOLE=y
+    CONFIG_SYS_CONSOLE_INFO_QUIET=y
+
+DISABLE_CONSOLE disables console input and output completely.  The INFO_QUIET
+option is narrower: it suppresses the stdin/stdout/stderr device summary after
+relocation.  BOOTDELAY=0 is independent of both; it checks for input but
+provides no intentional countdown delay.
+
+In Radxa's Rockchip code, both SPL and U-Boot proper turn DISABLE_CONSOLE into
+GD_FLG_DISABLE_CONSOLE.  The console and NS16550 paths then reject input and
+drop output while that flag is set, so a longer delay alone cannot make the
+UART prompt usable.
+
+The vendor settings are not a general quiet-mode convention.  Radxa's
+next-dev-v2024.10 has 1,317 defconfigs: 101 select delay zero, 251 select
+SYS_CONSOLE_INFO_QUIET, but only one selects DISABLE_CONSOLE -- ROCK 5B.
+Radxa commit 0d3169e641d added that line with the subject
+"rock-5b-rk3588_defconfig: disable console" and no further rationale.  It is
+still the only disabled-console defconfig among the 1,326 configs in
+next-dev-v2026.01.
+
+BOOTDELAY is a separate Armbian policy question.  Across config/ at 61ba9d2a0
+there are 60 BOOTDELAY assignments: 57 select one second, two select two
+seconds, and the only zero is the shared rockchip64 common value.  That value
+now feeds five family configs containing 163 board descriptors.  Changing it
+belongs in a separately tested fleet-wide change, not this console fix.
+
+Upstream v2026.01 rock5b-rk3588_defconfig selects neither console-suppression
+option.  Armbian also has direct precedent for reversing Radxa's choice:
+9ff15f7896 ("hinlink-h88k: enable uboot serial log") removes the same two
+options from another Radxa-tree board.
+
+Remove both console-suppression options in a board-scoped Radxa U-Boot patch.
+Leave BOOTDELAY unchanged: it is separately imposed by Armbian's shared
+rockchip64 policy, while the edge target retains its existing one-second
+override and upstream U-Boot.
+
+The outer patch passes git apply --check against armbian/build main at
+61ba9d2a0.  The embedded patch passes against Radxa next-dev-v2024.10, whose
+defconfig preimage is 6832279aad6.  Not built or boot-tested.
+
+Signed-off-by: Yi Ding <yi.s.ding@gmail.com>
+---
+ .../board_rock-5b/enable-serial-console.patch | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+ create mode 100644 patch/u-boot/legacy/u-boot-radxa-rk35xx/board_rock-5b/enable-serial-console.patch
+
+diff --git a/patch/u-boot/legacy/u-boot-radxa-rk35xx/board_rock-5b/enable-serial-console.patch b/patch/u-boot/legacy/u-boot-radxa-rk35xx/board_rock-5b/enable-serial-console.patch
+new file mode 100644
+index 000000000..1e2ed6889
+--- /dev/null
++++ b/patch/u-boot/legacy/u-boot-radxa-rk35xx/board_rock-5b/enable-serial-console.patch
+@@ -0,0 +1,13 @@
++diff --git a/configs/rock-5b-rk3588_defconfig b/configs/rock-5b-rk3588_defconfig
++index 6832279aad6..f631f614b74 100644
++--- a/configs/rock-5b-rk3588_defconfig
+++++ b/configs/rock-5b-rk3588_defconfig
++@@ -33,8 +33,6 @@ CONFIG_SPL_FIT_IMAGE_POST_PROCESS=y
++ CONFIG_SPL_FIT_HW_CRYPTO=y
++ # CONFIG_SPL_SYS_DCACHE_OFF is not set
++ CONFIG_BOOTDELAY=0
++-CONFIG_DISABLE_CONSOLE=y
++-CONFIG_SYS_CONSOLE_INFO_QUIET=y
++ # CONFIG_DISPLAY_CPUINFO is not set
++ CONFIG_ANDROID_BOOTLOADER=y
++ CONFIG_ANDROID_AVB=y
+-- 
+2.51.0
