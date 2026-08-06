@@ -19,7 +19,7 @@ remain direct children of `/home/yi/Code`.
 | 2 | Audited tree (BSP audit) | [BSP audit](../kernel-drivers/docs/bsp-audit.md), `kernel-drivers/patches/cleanup-draft/` line numbers | parent of `56e403ede081` = `5614909e5803` |
 | 3 | `$OURS` / `$BSP` measurement pair + BSP 6.6 comparison | [vendor delta](../kernel-drivers/docs/vendor-delta.md) "Reproduce the count", [BSP 6.1/6.6 comparison](../kernel-drivers/docs/bsp-6.1-6.6-comparison.md), [RKNPU kernel architecture](../kernel-drivers/rknpu/docs/kernel-driver-architecture.md) | tree 1 vs `rockchip-linux/kernel` `develop-6.1@b4ef083dc0c3`; comparison `develop-6.6@1ba51b059f25` |
 | 4 | Userspace media trees | [userspace library guide](../vendor-libraries/docs/how-the-userspace-libs-work.md), FFmpeg docs, [`rockchip-vaapi`](../video-libraries/vaapi/README.md), Firefox RDD policy | table in §4 |
-| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | latest GNOME 50 stable = `18cc5f7bf6ea`; clean release tip = `c4ef3c961940`; historical 50.1 replay and experiment tips remain recorded in §5 |
+| 5 | GNOME Remote Desktop | `apps/gnome-remote-desktop/docs/capture-path.md`, GRD PPA packaging | immutable 50.1 replay and historical experiment pins remain in §5; W10 owns moving release/recovery heads |
 | 6 | Register recipes and RK3588 IEP2/VDPP identity | kernel/userspace driver docs, [IEP2 audit](../kernel-drivers/iep2/docs/rk3588-iep2-vdpp.md) | MPP HAL/vproc sources + RK3588 TRM Part 2 Rev 1.0 (§6) |
 | 7 | Canonical uAPI headers | kernel uAPI docs | inside patch 01 (§7) |
 | 8 | Clean-room rewrite drivers | [rewrite-driver track](../kernel-drivers/docs/rewrite-drivers.md) | maintained tips `rk3588-rewrite-6.18@571e261b26f79` on `v6.18.42` and `rk3588-rewrite-mainline@5db5ddf046825` on `v7.2-rc6`, at tracked-source parity as of 2026-08-05; current normal-profile build and 306-signal audit pass; 6.18 KASAN package `Pc86b-Cad24` (`gdf22eeef8757`) boots with exact 92+152 KUnit, 12/12 MPP, and partial 21/34 librga evidence, while the newer RGA2 DMA-BUF reroute/USERPTR alignment tips remain unbooted; package composites `rk3588-rewrite-armbian-6.18.38@8daf5e9513b8` and `rk3588-rewrite-armbian-7.2-rc3@24f7424fb958` are historical; see §8 |
@@ -214,23 +214,14 @@ handover ownership/coalescing series. See
 `apps/gnome-remote-desktop/patches/README.md` and
 [`apps/gnome-remote-desktop/docs/profiling.md`](../apps/gnome-remote-desktop/docs/profiling.md).
 
-The current release source is public branch `release/50.2-rkmpp` at
-`c4ef3c96194038e737be0857519ff77227279292`. It applies 17 release commits to
-latest GNOME 50 stable commit
-`18cc5f7bf6ead8fe1c8341897f8a46b853ede746` (upstream 50.2 plus one
-translation update); the reconnect revert that was a separate commit in the
-older 50.1 replay is part of that upstream base. Its last five commits retain
-the cached GPU-copy readback root fix, bounded hardware-encode recovery, and
-progress-gated ACK-resume recovery, align AVC range/matrix signaling with the
-Vulkan shader's full-range BT.709 output, and narrowly preserve a reassigned
-user display's `RemoteId` subscription after a failed reconnect handover. The
-16 root-level patches in
-[`apps/gnome-remote-desktop/patches/`](../apps/gnome-remote-desktop/patches/README.md)
-remain the historical reconstruction on `c14e09e`.
-The pipeline watchdog/diagnostic thread, idle-baseline workaround, routine ACK
-transition logging, and all audio probe/trace patches are excluded. Package
-export version `50.2+rkmpp+git20260729.15.c4ef3c9` archives this commit directly
-with an empty `GRD_DELTA`.
+The moving `release/50.2-rkmpp` and recovery heads are deliberately absent from
+this source map. [W10](../status.md#watch-w10) owns their dated remote state;
+[`build-source-packages.sh`](../packaging/ppa/build-source-packages.sh) owns the
+intended package source; the [GRD artifact record](../packaging/ppa/README.md#grd-source-artifact-reconstruction)
+owns Published-source reconstruction; and the
+[GRD project](../apps/gnome-remote-desktop/README.md) owns release behavior.
+The 16 root-level patches remain the immutable 50.1 reconstruction on
+`c14e09e`.
 
 The historical diagnostic candidate is the public
 [`debug/exp1-frame-starvation`](https://gitlab.gnome.org/yding/gnome-remote-desktop/-/commits/debug/exp1-frame-starvation)

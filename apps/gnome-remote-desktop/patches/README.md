@@ -2,8 +2,10 @@
 
 > **OUTDATED — this directory is not what the package builds, and it is a
 > release behind.** These patches target **50.1**; the shipped package is
-> **50.2**, built directly from branch `release/50.2-rkmpp` at
-> `c4ef3c96194038e737be0857519ff77227279292` with **no source delta applied**.
+> **50.2**, built directly from the clean source selected by
+> [`build-source-packages.sh`](../../../packaging/ppa/build-source-packages.sh)
+> with **no source delta applied**. [W10](../../../status.md#watch-w10) owns the
+> dated remote-branch head.
 > Parts of the replay are now actively wrong against the current base: upstream
 > 50.2 already contains the reconnect revert that patch `0009` exists to apply.
 >
@@ -18,10 +20,8 @@ This directory contains the portable **16-patch 50.1 replay** for the RK3588
 FFmpeg/rkmpp backend, RDP handover/reconnect fixes, and the two bounded runtime
 recoveries retained after hardware validation.
 
-The current package source is public branch `release/50.2-rkmpp` at
-`c4ef3c96194038e737be0857519ff77227279292`: 17 authored release commits on
-latest GNOME 50 stable commit
-`18cc5f7bf6ead8fe1c8341897f8a46b853ede746`. That base is upstream 50.2 plus
+The current package source is the public `release/50.2-rkmpp` line: 17
+authored release commits on GNOME 50 stable. That base is upstream 50.2 plus
 one Norwegian Bokmål translation update and already contains the reconnect
 revert represented by replay patch `0009`, so the package archives the branch
 directly and does not apply this directory. The two additional 50.2-only tips

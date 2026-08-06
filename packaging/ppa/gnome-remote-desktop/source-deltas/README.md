@@ -1,17 +1,13 @@
 # gnome-remote-desktop source deltas
 
 The normal package export no longer uses a source delta. It archives the clean
-release commit directly:
+source selected by the `GRD_REPO`, `GRD_COMMIT`, and `GRD_UPSTREAM_VERSION`
+defaults in [`../../build-source-packages.sh`](../../build-source-packages.sh),
+with `GRD_DELTA` empty. [W10](../../../../status.md#watch-w10) owns the dated
+remote-branch head; this directory owns only historical delta reconstruction.
 
-```text
-GRD_COMMIT=c4ef3c96194038e737be0857519ff77227279292
-GRD_UPSTREAM_VERSION=50.2+rkmpp+git20260729.15.c4ef3c9
-GRD_DELTA=
-```
-
-That commit is the public `release/50.2-rkmpp` branch: latest GNOME 50 stable
-commit `18cc5f7` plus 17 release commits, including the promoted full-range
-BT.709 AVC signaling fix and the narrowed reconnect-timeout subscription fix.
+The current release line includes the promoted full-range BT.709 AVC signaling
+fix and the narrowed reconnect-timeout subscription fix.
 The older 50.1 reconstruction remains
 available as the 16 root-level patches under
 [`../../../../apps/gnome-remote-desktop/patches/`](../../../../apps/gnome-remote-desktop/patches/README.md).

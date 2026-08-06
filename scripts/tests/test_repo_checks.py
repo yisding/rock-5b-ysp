@@ -708,6 +708,14 @@ class PpaVersionConsistencyTests(unittest.TestCase):
                 "(50.1+git.new2222-0ubuntu1) resolute; urgency=medium\n",
                 encoding="utf-8",
             )
+            (root / "packaging/ppa/clean-install-system-stack.sh").write_text(
+                '#!/usr/bin/env bash\nGRD_VERSION="50.1+git.new2222-0ubuntu1"\n',
+                encoding="utf-8",
+            )
+            (root / "status.md").write_text(
+                "<!-- ppa-live-grd: 50.1+git.new2222-0ubuntu1 -->\n",
+                encoding="utf-8",
+            )
             errors: list[str] = []
 
             DOC_CHECKER.check_ppa_grd_source_pin(root, errors)
@@ -715,6 +723,39 @@ class PpaVersionConsistencyTests(unittest.TestCase):
             self.assertEqual(len(errors), 1)
             self.assertIn("default GRD commit", errors[0])
             self.assertIn("does not match latest changelog", errors[0])
+
+    def test_grd_installer_must_match_w05_published_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            packaging = root / "packaging/ppa"
+            packaging.mkdir(parents=True)
+            (packaging / "build-source-packages.sh").write_text(
+                '#!/usr/bin/env bash\n'
+                'GRD_COMMIT="${GRD_COMMIT:-1111111aaaaaaaaaaaaaaaaaaaaaaaaa}"\n'
+                'GRD_UPSTREAM_VERSION="${GRD_UPSTREAM_VERSION:-50.1+git.1111111}"\n',
+                encoding="utf-8",
+            )
+            changelog = packaging / "gnome-remote-desktop/debian/changelog"
+            changelog.parent.mkdir(parents=True)
+            changelog.write_text(
+                "gnome-remote-desktop (50.1+git.1111111-0ubuntu1) "
+                "resolute; urgency=medium\n",
+                encoding="utf-8",
+            )
+            (packaging / "clean-install-system-stack.sh").write_text(
+                '#!/usr/bin/env bash\nGRD_VERSION="50.1+git.old0000-0ubuntu1"\n',
+                encoding="utf-8",
+            )
+            (root / "status.md").write_text(
+                "<!-- ppa-live-grd: 50.1+git.1111111-0ubuntu1 -->\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+
+            DOC_CHECKER.check_ppa_grd_source_pin(root, errors)
+
+            self.assertEqual(len(errors), 1)
+            self.assertIn("does not match W05's published version", errors[0])
 
 
 class PassiveCoolingScriptTests(unittest.TestCase):

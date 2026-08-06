@@ -180,6 +180,7 @@ state observed on its last-checked date.
 ### W05 — Launchpad PPA publication
 
 <!-- ppa-live-ffmpeg: 7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1 -->
+<!-- ppa-live-grd: 50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2 -->
 
 - **Authority:** service — Launchpad's `ubuntu-rock-5b` source, build, binary,
   and archive-index records.
@@ -209,7 +210,9 @@ state observed on its last-checked date.
   FFmpeg `c9428bedaa` source publication `18658504` Published, arm64 build
   `33469512` successful, all 29 binary publications `247812235`–`247812263`
   Published, and the live arm64 index selecting the exact package. It remains
-  uninstalled and its GRD integration gate remains open. A clean-install run is still useful
+  uninstalled and its GRD integration gate remains open. GRD source publication
+  `18654077`, arm64 build `33461880`, and binary publication `247717203` remain
+  Published; the live index selects the exact installed `~rk2` version. A clean-install run is still useful
   when migrating a different machine from incompatible PPAs; it is not missing
   evidence for the already-published kernel artifact.
 <a id="watch-w06"></a>

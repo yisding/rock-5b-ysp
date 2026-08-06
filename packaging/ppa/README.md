@@ -112,7 +112,7 @@ step-by-step provenance is retained in the
 | `ffmpeg` 8.1.2 baseline | `7:8.1.2-1+rk2` in [`ffmpeg-baseline/`](ffmpeg-baseline/README.md) | Dedicated-PPA source publication [`18619544`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-upstream/+sourcepub/18619544) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-upstream`. |
 | `ffmpeg` 8.1.2 Rockchip | `7:8.1.2+rockchip81+git20260711.be367abfe6-0ubuntu1~rk1` | Dedicated-PPA source publication [`18619545`](https://launchpad.net/~yi-ding/+archive/ubuntu/rock5b-ffmpeg81-rockchip/+sourcepub/18619545) and all 29 copied binary publications are Published. | Isolated in `ppa:yi-ding/rock5b-ffmpeg81-rockchip`; it builds against the fresh main PPA for MPP/librga. |
 | `ffmpeg-rockchip` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` under [`ffmpeg-rockchip/`](ffmpeg-rockchip/README.md) | Fresh-main source publication [`18619787`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18619787) and its arm64 tool binary are Published. | Co-installable `/opt/ffmpeg-rockchip` tools; does not replace system FFmpeg. |
-| `gnome-remote-desktop` (normal stack) | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` | Replacement source publication [`18654077`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18654077), arm64 binary [`247717203`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247717203), and build [`33461880`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33461880) are Published/successful; the build finished in 5m33s. Its hosted log records `--timeout-multiplier 3`, RDP pass in 9.76s, zero failures, and the two expected TPM/hardware-EGL skips. The superseded `~rk1` source [`18649293`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18649293) is Published but build [`33452991`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33452991) failed without retained diagnostics. | Seventeen clean commits on latest GNOME 50 stable: RKMPP backend, corrected reconnect ownership/coalescing, cached GPU-copy readback, bounded encode recovery, progress-gated ACK-resume recovery, full-range BT.709 signaling, and narrowly retained persistent-user-display state after a reconnect timeout. Production source is unchanged from `~rk1`; packaging raises only Meson's test-timeout multiplier because a successful local RDP run took 21.64s to finish Mutter/PipeWire teardown after the 20s upstream limit. The test remains enabled and fatal. |
+| `gnome-remote-desktop` (normal stack) | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` | Source publication [`18654077`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18654077), successful arm64 build [`33461880`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33461880), and binary [`247717203`](https://api.launchpad.net/devel/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+binarypub/247717203) are Published; the live index selects that installed version. [W05](../../status.md#watch-w05) owns freshness, and standard metadata reconstructs the artifact [below](#grd-source-artifact-reconstruction). | Seventeen clean commits on latest GNOME 50 stable: RKMPP backend, corrected reconnect ownership/coalescing, cached GPU-copy readback, bounded encode recovery, progress-gated ACK-resume recovery, full-range BT.709 signaling, and narrowly retained persistent-user-display state after a reconnect timeout. Packaging raises only Meson's test-timeout multiplier; the test remains enabled and fatal. |
 | `gnome-remote-desktop` (archived recovery build) | `50.1+rkmpp+git20260717.2571326-0ubuntu1~exp3` | Experimental source publication [`18626586`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+sourcepub/18626586), successful arm64 build [`33412698`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b-experimental/+build/33412698), and arm64 binary are Published. | Historical diagnostic build; superseded by the clean release candidate. |
 | `gnome-remote-desktop` (archived audio probe) | `50.1+rkmpp+git20260721.11.3e4480e+audioprobe1-0ubuntu1~exp10` | Source/native arm64 builds and live format probes passed; installed, not published. | Proved the macOS client accepts A-law plus PCM and rejects the tested ADPCM tuples. Its diagnostics and temporary Opus suppression are archived, not released. |
 | forward-port kernel | `6.18.42+rk3588av1fwport20260804-0ubuntu1~rk1` under [`kernel-forward-port/`](kernel-forward-port/README.md) | Source publication [`18656958`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18656958), remote arm64 build [`33467257`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33467257), and all three arm64 binaries are Published. The exact image, DTB, and headers are installed and booted as `6.18.42-ysp-rockchip64`. | Carries complete `0001`–`0092` source at `7d53bc7a3adc`. The first provenance pass caught and refused stale rewrite build directories; after exact cleanup, patch-only staging reports zero foreign paths. Full-tree comparison against the Published orig differs in only the expected eight files, which byte-match the public tip after fresh `.dsc` extraction; signatures and archive checksums pass. The exact artifact has broad production functional/recovery evidence; exact-tail KASAN/lockdep, targeted hostile paths, and the red decode fd-span oracle remain qualification boundaries. |
@@ -147,7 +147,7 @@ packages are built on arm64 and published as `Architecture: all`.
 | [`librga/debian/`](librga/debian/changelog) | Debian packaging for the local `librga-fork` commit `26a50ef`, including the P010/P210 work and the 10-bit RASTER+TILE byte-stride conversion. |
 | [`ffmpeg/debian/`](ffmpeg/debian/changelog) | Ubuntu/Debian FFmpeg 8.0.3 packaging for the RKMPP/RKRGA forward port; [`build-source-packages.sh`](build-source-packages.sh) owns the intended source commit/version. |
 | [`ffmpeg-rockchip/debian/`](ffmpeg-rockchip/debian/changelog) | Co-installable `/opt/ffmpeg-rockchip` packaging for nyanmisaka's FFmpeg 6.1 Rockchip fork at `40c412daccf0`. |
-| [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging pinned to the clean release commit with `-Dffmpeg=enabled`. The normal export has no `GRD_DELTA`; that option is retained only for historical reconstruction. |
+| [`gnome-remote-desktop/debian/`](gnome-remote-desktop/debian/changelog) | Ubuntu/Debian GRD packaging with `-Dffmpeg=enabled`; [`build-source-packages.sh`](build-source-packages.sh) owns the intended clean source commit/version. |
 | [`gnome-remote-desktop/source-deltas/`](gnome-remote-desktop/source-deltas/README.md) | Historical tracked-file GRD deltas retained to reconstruct older dirty source-package snapshots. |
 | [`codec-udev/`](codec-udev/README.md) | Native PPA source wrapper for the canonical unprivileged MPP/RGA/DMA-heap access rule. |
 | [`gdm-hwenc/`](gdm-hwenc/README.md) | Native source-package wrapper for the optional GDM greeter hardware-encode ACL rule. |
@@ -181,8 +181,7 @@ or individual paths/pins with the matching environment variables.
 | System FFmpeg source | `FFMPEG_REPO`, `FFMPEG_COMMIT`, `FFMPEG_UPSTREAM_VERSION` | Maintained defaults in [`build-source-packages.sh`](build-source-packages.sh); override the three together. |
 | nyanmisaka FFmpeg Rockchip repo | `FFMPEG_ROCKCHIP_REPO` | `$WORKSPACE_ROOT/ffmpeg/ffmpeg-rockchip` |
 | nyanmisaka FFmpeg Rockchip commit | `FFMPEG_ROCKCHIP_COMMIT` | `40c412daccf08164493da0de990eb99a8948116b` |
-| GRD repo | `GRD_REPO` | `$WORKSPACE_ROOT/gnome/grd/gnome-remote-desktop` |
-| GRD snapshot commit | `GRD_COMMIT` | `c4ef3c96194038e737be0857519ff77227279292` (`release/50.2-rkmpp`; 17 release commits on latest GNOME 50 stable commit `18cc5f7`) |
+| GRD source | `GRD_REPO`, `GRD_COMMIT`, `GRD_UPSTREAM_VERSION` | Maintained defaults in [`build-source-packages.sh`](build-source-packages.sh); override the three together. |
 | GRD source delta | `GRD_DELTA` | Empty for release. Override only to reconstruct a historical snapshot such as [`dirty20260706-worktree.patch`](gnome-remote-desktop/source-deltas/dirty20260706-worktree.patch). |
 | Forward-port kernel worktree | `KERNEL_PPA_REPO` | `$WORKSPACE_ROOT/build/kernel/rock5b-kernel-build/armbian-build/cache/sources/linux-kernel-worktree/6.18__rockchip64__arm64` |
 | Forward-port kernel config | `KERNEL_PPA_CONFIG` | [`kernel-forward-port/debian/config/arm64-rockchip64.config`](kernel-forward-port/debian/config/arm64-rockchip64.config) |
@@ -588,9 +587,9 @@ source publication `18619787` and the copied tool binary are Published.
 
 ### GNOME Remote Desktop
 
-The release candidate is the clean `release/50.2-rkmpp` branch at
-`c4ef3c961940`. It contains 17 reviewable commits on latest GNOME 50 stable
-`18cc5f7`: the RKMPP backend and hardware enablement, reconnect/handover fixes,
+The build helper's `GRD_*` defaults select the clean `release/50.2-rkmpp`
+source; W10 owns its dated remote head. The line contains 17 reviewable commits
+on GNOME 50 stable: the RKMPP backend and hardware enablement, reconnect/handover fixes,
 the hardware-verified cached GPU-copy readback fix, bounded encode
 failure/cooldown recovery, and the progress-gated RDPGFX acknowledgement-resume
 recovery. The penultimate commit signals the shader's existing full-range
@@ -640,6 +639,29 @@ and hardware-EGL skip as expected, and Lintian reports only long-filename
 warnings. Experimental `~exp3` remains historical evidence. The final
 reconnect, sustained focus/resume, and audio gates remain after installation
 of the promoted build.
+
+<a id="grd-source-artifact-reconstruction"></a>
+#### GRD source-artifact reconstruction
+
+Standard Launchpad/Debian records answer which source produced the installed
+artifact; no custom manifest is required. Source publication
+[`18654077`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+sourcepub/18654077)
+routes to signed `.dsc` SHA-256
+`30caa255d56c8c1fe91377cfbc4e019e4edfc0bea994dacccaa796ccea81ab25`.
+That `.dsc` authenticates these payloads:
+
+| Source payload | SHA-256 |
+|----------------|---------|
+| `gnome-remote-desktop_50.2+rkmpp+git20260729.15.c4ef3c9.orig.tar.gz` | `99b48a2fcc01dc40d7783780d6de2053236d9d8a18e0bb4b6e2f6c15d3accacc` |
+| `gnome-remote-desktop_50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2.debian.tar.xz` | `710a3a3ea68bf21203c0e210943c8842531ace31d9d796e24ef6021ad3380f9f` |
+
+Arm64 build [`33461880`](https://launchpad.net/~yi-ding/+archive/ubuntu/ubuntu-rock-5b/+build/33461880)
+retains its `.buildinfo`, `.changes`, dependency/toolchain record, and output
+hashes. Binary publication `247717203` and the live arm64 index identify the
+Published deb, whose index SHA-256 is
+`f94792f893898c298e8c3e6166414f819e293b1de87dd0538ee33d04a9569b60`.
+These records keep actual artifact identity separate from the build script's
+next intended source default and W10's moving branch head.
 
 ### GDM Greeter Hardware Encode ACL
 

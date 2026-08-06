@@ -339,13 +339,15 @@ ownership. The final three retain only the fixes justified by the live
 investigation: cached GPU-copy readback (`0014`), bounded hardware-encode
 recovery (`0015`), and progress-gated frame-acknowledgement recovery (`0016`).
 
-The current package instead archives public branch `release/50.2-rkmpp` at
-`c4ef3c9`: 17 authored release commits on latest GNOME 50 stable, whose base
-already includes the reconnect revert represented by replay patch `0009`. The
-final two commits signal the shader's full-range BT.709 output in the AVC VUI
-and retain a reassigned persistent user display after a reconnect timeout
-without restoring the June experiment's single-use-token or broad
-greeter-preservation behavior.
+The current package instead archives the clean `release/50.2-rkmpp` line: 17
+authored release commits on GNOME 50 stable, whose base already includes the
+reconnect revert represented by replay patch `0009`. The final two commits
+signal the shader's full-range BT.709 output in the AVC VUI and retain a
+reassigned persistent user display after a reconnect timeout without restoring
+the June experiment's single-use-token or broad greeter-preservation behavior.
+[`build-source-packages.sh`](../../packaging/ppa/build-source-packages.sh) owns
+the intended package commit; [W10](../../status.md#watch-w10) owns its remote
+branch head.
 The periodic pipeline diagnostics/watchdog, separate diagnostics thread,
 focus-idle workaround, routine ACK transition messages, audio traces, Opus
 suppression, and legacy codec probe are excluded from the release. They remain
@@ -365,7 +367,7 @@ and roles; it deliberately delegates live publication and runtime state.
 
 | Component | Durable boundary | Needed? |
 |-----------|------------------|:---:|
-| `gnome-remote-desktop` | Clean 50.2 candidate `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2`; current installed result and next gate: [`status.md` track 7](../../status.md#dashboard). | required |
+| `gnome-remote-desktop` | Clean 50.2 package; exact Published artifact reconstruction is in the [PPA owner](../../packaging/ppa/README.md#grd-source-artifact-reconstruction), and installed result/next gate are in [`status.md` track 7](../../status.md#dashboard). | required |
 | Rockchip FFmpeg 8.0.3 | Package branch `fix/rkmpp-output-timeout@da5befc806`; absorbs the transient MPP input-pool backpressure exposed by exp5. Publication: [W05](../../status.md#watch-w05). | required |
 | `gnome-remote-desktop-gdm-hwenc` `1.0` | Opt-in package granting the stable `gdm` group access to codec nodes. | optional (login-screen HW) |
 

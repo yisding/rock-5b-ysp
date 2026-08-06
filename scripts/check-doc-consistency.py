@@ -94,12 +94,6 @@ KERNEL_PACKAGE_HELPERS = (
 # a nine-argument call rather than silently ignoring args 7-9.
 KERNEL_PACKAGE_DIRS_ALL = KERNEL_PACKAGE_DIRS + ("packaging/ppa/kernel-maxline",)
 KERNEL_PACKAGE_HELPERS_ALL = ("debian/scripts/write-maintainer-scripts.sh",)
-PPA_GRD_PIN_DOCS = (
-    "packaging/ppa/README.md",
-    "packaging/ppa/gnome-remote-desktop/source-deltas/README.md",
-    "docs/source-trees.md",
-    "packaging/external-workspaces.md",
-)
 ROOT_PATCH_SUFFIXES = {".diff", ".patch"}
 
 
@@ -621,16 +615,21 @@ def check_ppa_ffmpeg_install_pin(root: Path, errors: list[str]) -> None:
 
 
 def check_ppa_grd_source_pin(root: Path, errors: list[str]) -> None:
-    """Keep the GRD exporter, changelog, and reconstruction docs aligned."""
+    """Keep GRD intended-source and published-install identities distinct."""
     exporter_path = root / "packaging/ppa/build-source-packages.sh"
     changelog_path = root / "packaging/ppa/gnome-remote-desktop/debian/changelog"
-    for path in (exporter_path, changelog_path):
+    installer_path = root / "packaging/ppa/clean-install-system-stack.sh"
+    status_path = root / "status.md"
+    for path in (exporter_path, changelog_path, installer_path, status_path):
         if not path.is_file():
             errors.append(
                 f"{path.relative_to(root)}: missing, so the GRD source-pin check "
                 "cannot run; update the path here if the file moved"
             )
-    if not exporter_path.is_file() or not changelog_path.is_file():
+    if any(
+        not path.is_file()
+        for path in (exporter_path, changelog_path, installer_path, status_path)
+    ):
         return
 
     exporter_text = exporter_path.read_text(encoding="utf-8", errors="replace")
@@ -671,6 +670,22 @@ def check_ppa_grd_source_pin(root: Path, errors: list[str]) -> None:
         return
 
     package_version = changelog_match.group(1)
+    installer_match = re.search(
+        r'^GRD_VERSION="([^"]+)"',
+        installer_path.read_text(encoding="utf-8", errors="replace"),
+        re.MULTILINE,
+    )
+    published_match = re.search(
+        r"^<!-- ppa-live-grd: ([^ ]+) -->$",
+        status_path.read_text(encoding="utf-8", errors="replace"),
+        re.MULTILINE,
+    )
+    if installer_match is None:
+        errors.append(
+            "packaging/ppa/clean-install-system-stack.sh: no GRD_VERSION pin"
+        )
+    if published_match is None:
+        errors.append("status.md W05: no parseable ppa-live-grd marker")
     if upstream_version not in package_version:
         errors.append(
             "packaging/ppa/build-source-packages.sh: default GRD upstream "
@@ -682,16 +697,16 @@ def check_ppa_grd_source_pin(root: Path, errors: list[str]) -> None:
             "packaging/ppa/build-source-packages.sh: default GRD commit "
             f"{commit!r} does not match latest changelog {package_version!r}"
         )
-
-    for relative in PPA_GRD_PIN_DOCS:
-        path = root / relative
-        if path.is_file() and commit not in path.read_text(
-            encoding="utf-8", errors="replace"
-        ):
-            errors.append(
-                f"{relative}: default GRD exporter commit {commit!r} is not "
-                "documented"
-            )
+    if (
+        installer_match is not None
+        and published_match is not None
+        and installer_match.group(1) != published_match.group(1)
+    ):
+        errors.append(
+            "packaging/ppa/clean-install-system-stack.sh: GRD_VERSION "
+            f"{installer_match.group(1)!r} does not match W05's published "
+            f"version {published_match.group(1)!r}"
+        )
 
 
 def check_readme_ownership(root: Path, errors: list[str]) -> None:

@@ -17,9 +17,9 @@ for how the external source trees are reconstructed see
 |---|---|---|---|---|---|
 | **MPP** | `rockchip-userspace/mpp-rockchip` @ `ysp/main` | **fork branch**, 11 commits | `a8b19653`, 11 past tag **`1.0.12`** (`1375813c`) | `1.5.0+git20260805.a8b19653+ds-0ubuntu1~rk1` | `ubuntu-rock-5b` |
 | **librga** | `rockchip-userspace/librga-fork` | **fork branch**, 11 commits | `26a50ef`, 11 past vendor base `2cffdf6` | `2.2.0+git20260725.26a50ef-0ubuntu1~rk1` | `ubuntu-rock-5b` |
-| **FFmpeg 8.0** (system) | `ffmpeg/ffmpeg-rockchip-81` @ `fix/rkmpp-output-timeout` | **fork branch** | `c9428bedaa` | `7:8.0.3+rockchip+git20260730.c9428bedaa-0ubuntu1~rk1` candidate uploaded client-side, Launchpad state unqueried; `…20260729.33a651a55b…~rk1` last confirmed Published | `ubuntu-rock-5b` |
+| **FFmpeg 8.0** (system) | Source selected by the `FFMPEG_*` defaults in [`ppa/build-source-packages.sh`](ppa/build-source-packages.sh) | **fork branch** | [W07](../status.md#watch-w07) for remote heads | [PPA artifact reconstruction](ppa/README.md#ffmpeg-source-artifact-reconstruction) | `ubuntu-rock-5b`; [W05](../status.md#watch-w05) owns publication |
 | **FFmpeg 6.1** (co-installable) | `ffmpeg/ffmpeg-rockchip` (nyanmisaka) | upstream snapshot, no delta | `40c412dacc` | `6.1+git20260423.40c412dacc-0ubuntu1~rk1` | `ubuntu-rock-5b` |
-| **GNOME Remote Desktop** | `gnome/grd/gnome-remote-desktop` @ `release/50.2-rkmpp` | **fork branch**, 17 commits | `c4ef3c9` | `50.2+rkmpp+git20260729.15.c4ef3c9-0ubuntu1~rk2` | `ubuntu-rock-5b` |
+| **GNOME Remote Desktop** | Source selected by the `GRD_*` defaults in [`ppa/build-source-packages.sh`](ppa/build-source-packages.sh) | **fork branch** | [W10](../status.md#watch-w10) for remote heads | [PPA artifact reconstruction](ppa/README.md#grd-source-artifact-reconstruction) | `ubuntu-rock-5b`; [W05](../status.md#watch-w05) owns publication |
 | **Plymouth** | (packaging-local) | **quilt**, 1 patch | upstream `45655f12` backport | `24.004.60+git20250831.4a3c171d-0ubuntu8.1~rk1` | `ubuntu-rock-5b` |
 | **FFmpeg 8.1** (baseline) | none — recovered `debian/` only | none (pristine upstream) | `8.1.2` | `7:8.1.2-1+rk2` | `rock5b-ffmpeg81-upstream` |
 | **codec-udev** | native, in-repo | n/a | — | `1.1` | `ubuntu-rock-5b` |
@@ -33,13 +33,10 @@ Three gaps worth knowing rather than rediscovering:
   `packaging/ppa/*` tree reproduces it. Rebuilding that source package today
   would mean recovering the `debian/` tree from Launchpad, the way
   `ffmpeg-baseline` was recovered on 2026-07-07.
-- **The last confirmed live FFmpeg is still the predecessor.** The packaging
-  workspace records the locally validated `c9428bedaa` reset/close lifetime
-  fix, and its signed source upload completed client-side on 2026-08-05.
-  Launchpad acceptance/build/publication were not awaited or rechecked, so the
-  clean-install helper remains on `33a651a55b`. After publication, install the
-  candidate and replay its GRD fallback/recreation gate before calling that fix
-  delivered.
+- **FFmpeg intended, Published, and installed identities are separate.** The
+  build helper owns the intended source, the PPA record reconstructs the exact
+  Published artifact, W05 owns service freshness, and status track 5 owns the
+  install/integration boundary. Do not infer one from another by version prose.
 - **rockchip-vaapi ysp13 is published.** `1.0.11+ysp13-0ubuntu1~rk1` was built
   from public release commit `70f26d9`, signed, and uploaded to
   `ubuntu-rock-5b` on 2026-08-05 as source publication `18657954`; arm64 build
@@ -143,9 +140,9 @@ checkouts, not packaging inputs.
 
 ### GNOME Remote Desktop — fork branch
 
-The package archives branch `release/50.2-rkmpp` at `c4ef3c9` directly — 17
-authored commits on latest GNOME 50 stable (`18cc5f7`) — and **applies no source
-delta**. The final two commits signal the shader's existing full-range BT.709
+The package archives the clean `release/50.2-rkmpp` source selected by the
+build helper and **applies no source delta**. W10 owns the branch's dated remote
+head. The final two release changes signal the shader's existing full-range BT.709
 conversion in the H.264 VUI and retain the persistent GDM user-display
 subscription after a reassigned reconnect handover times out.
 
