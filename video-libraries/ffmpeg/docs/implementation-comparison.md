@@ -1,9 +1,9 @@
 # FFmpeg implementation comparison
 
-> **Three canonical successors to the fork column are now published.** The
+> **Recorded successor lines.** The
 > `40c412d` ffmpeg-rockchip tree compared below was replayed, hardened with the
 > documented fix groups, and combined with all unique refactor/Jellyfin
-> correctness work. `yisding/ffmpeg-rockchip-81` now publishes
+> correctness work. The 2026-07-16 snapshot recorded
 > `main@8b57e531d1fc` over FFmpeg master, `ffmpeg-80@be753f3bbb2c` over
 > `release/8.0`, and `ffmpeg-81@8d3ca020b6a2` over `release/8.1`. See
 > [`fix-candidates.md`](fix-candidates.md) for the fixes and
@@ -11,8 +11,8 @@
 > same-base comparison against Jellyfin is
 > [`rockchip-812-jellyfin-comparison.md`](rockchip-812-jellyfin-comparison.md).
 > The architectural comparison below (hwframe model, option surface, RGA
-> filters) still holds for all three branches; only base-FFmpeg integration
-> differs.
+> filters) is pin-specific; [W07](../../../status.md#watch-w07) owns later
+> branch heads and [`validation.md`](validation.md) owns evidence freshness.
 
 This compares **upstream FFmpeg 8.1.2** with **ffmpeg-rockchip** for the parts
 that matter to this ROCK 5B codec stack. Read
@@ -37,9 +37,9 @@ This is a source-code comparison, not a new runtime benchmark.
 ### 2026-07-16 same-base and publication follow-up
 
 The original release replay and Jellyfin's fully applied patch queue provided a
-true 8.1.2-to-8.1.2 comparison. That replay is now superseded by published
-`ffmpeg-81@8d3ca020b6a2`, rebased onto the latest fetched 8.1 branch and carrying
-the full canonical patchset. Both compared implementations expose the same ten
+true 8.1.2-to-8.1.2 comparison. The recorded successor
+`ffmpeg-81@8d3ca020b6a2` was rebased onto the then-fetched 8.1 branch and
+carried the full patchset. Both compared implementations expose the same ten
 RKMPP decoders, three RKMPP encoders, and main RKRGA controls. The replay is the
 stronger base: it adds strict DRM/AFBC validation, safer asynchronous encoder
 and EOS ownership, newer decoder initialization/drain behavior, modern
@@ -50,9 +50,9 @@ Jellyfin uniquely carries HEVC Dolby Vision RPU side data, `vpp_rkrga`'s
 `reset_sar`, RKMPP OpenCL/Vulkan derivation, and packaging integration. Those
 are selective port candidates. Its private RFBC modifier, repurposing of
 `AV_PIX_FMT_NV20`, and legacy `c_RkRgaBlit()` path should not be copied as-is.
-The canonical main, 8.0, and 8.1 branches compile against the installed
-MPP/RGA/DRM libraries and pass `fate-source`; none was run on RK3588 hardware
-in the publication pass. Historical counts, source pins, build objects, and
+At the recorded pins, the main, 8.0, and 8.1 branches compiled against the
+selected MPP/RGA/DRM libraries and passed `fate-source`; none was run on RK3588
+hardware in that pass. Historical counts, source pins, build objects, and
 the full selective-feature recommendation are in
 [`rockchip-812-jellyfin-comparison.md`](rockchip-812-jellyfin-comparison.md).
 

@@ -1,9 +1,9 @@
 # Rebasing ffmpeg-rockchip onto current FFmpeg — trees, method, ledger
 
 How the 2026 rebase of nyanmisaka's ffmpeg-rockchip stack onto FFmpeg master
-was staged and then published as canonical master, 8.0, and 8.1 branches, and
-how to redo it for the next FFmpeg bump. Section 7 is the current topology;
-earlier sections preserve the replay chronology and historical pins. Companion
+was staged and then recorded on master, 8.0, and 8.1 branches, and how to redo
+it for the next FFmpeg bump. Section 7 is a frozen publication snapshot;
+[W07](../../../status.md#watch-w07) owns later heads. Companion
 to [`fix-candidates.md`](fix-candidates.md) (what the
 rebase review found) and [`video-libraries/ffmpeg/patches/README.md`](../patches/README.md) (the exported diffs).
 Sections 1–5 were verified 2026-07-01 against the working clones; sections 6–7
@@ -67,9 +67,8 @@ The staging branches live in the local `ffmpeg-rockchip` clone (remote
 `origin` = nyanmisaka, remote `fork` = `yisding/ffmpeg-rockchip-81`):
 `backup-pre-upgrade-master` = `40c412dacc` (the untouched fork tip),
 `upgrade-upstream-no-rkmpp` = `6fb4d1cd37` (the removal point), `master` =
-`def08a047f`. The canonical published result is
-**`github.com/yisding/ffmpeg-rockchip-81`** (`main` in sync with origin as of
-2026-07-01).
+`def08a047f`. The recorded public result is
+**`github.com/yisding/ffmpeg-rockchip-81`** at the immutable pins named here.
 
 ## 3. Which tree the owner actually runs
 
@@ -175,12 +174,15 @@ port are in
 
 ## 7. Canonical three-branch publication
 
+**Frozen 2026-07-16 snapshot.** W07 owns current heads and invalidates reused
+compile evidence when they move.
+
 On 2026-07-16 the old master tip, the local 8.1.2 comparison replay, and all
 unique `refactor/section-c` work were consolidated into one logical patchset
-and replayed onto the latest fetched upstream tips. Three branches were pushed
+and replayed onto the then-fetched upstream tips. Three branches were pushed
 to `github.com/yisding/ffmpeg-rockchip-81`:
 
-| Branch | Upstream base | Published tip | Patch commits |
+| Branch | Recorded upstream base | Recorded tip | Patch commits |
 |--------|---------------|---------------|--------------:|
 | `main` | `FFmpeg/master@ceabc9b306f5385d92efdd9cd18d210deb3055b3` (`n8.2-dev-2371-gceabc9b306`) | `8b57e531d1fc3b836dbf20a04e67ec9365cc4d1b` (`n8.2-dev-2444-g8b57e531d1`) | 73 |
 | `ffmpeg-80` | `FFmpeg/release/8.0@435ae0581deb56c34c12a23056dcb1e9350a5a2f` (`n8.0.3-27-g435ae0581d`) | `be753f3bbb2c178402ade0e21370eecd2f0cc29c` (`n8.0.3-100-gbe753f3bbb`) | 73 |
@@ -213,8 +215,8 @@ swscale, DCA, and avformat object that was enabled in the builds compiled, and
 host lacks `opus.h`; configure handled that optional dependency correctly.
 This is source/compile validation, not board runtime proof.
 
-Publication does not retarget any package record. The dedicated Rockchip-81
-PPA remains pinned to `be367abfe670`; the system PPA remains on its historical
-8.0 port; broader encode/RGA smoke evidence remains pinned to
-`refactor/section-c@75638e7f0b17`. A new versioned source-package and RK3588
-runtime-validation pass is required before any of those records can move.
+This replay did not itself retarget or validate a package. Package input is
+owned by [`build-source-packages.sh`](../../../packaging/ppa/build-source-packages.sh),
+publication by [W05](../../../status.md#watch-w05), accumulated evidence by
+[`validation.md`](validation.md), and the public runtime boundary by status
+track 5.

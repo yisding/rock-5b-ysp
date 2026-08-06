@@ -32,7 +32,7 @@ RKMPP-to-OpenCL/Vulkan derivation, and its packaging work.
 | Source | Exact point | Materialized form |
 |--------|-------------|-------------------|
 | Canonical FFmpeg 8.1.2 | annotated tag `n8.1.2`, commit `38b88335f99e76ed89ff3c93f877fdefce736c13` | Release base for both effective trees. |
-| Historical `ffmpeg-rockchip-81/main` snapshot | `be367abfe67045b9c68812ecee3b6162c92f9776`, described as `n8.2-dev-2123-gbe367abfe6` | The master-era Rockchip replay used during this comparison and still exported by the dedicated PPA. It is not the current branch tip. |
+| Historical `ffmpeg-rockchip-81/main` snapshot | `be367abfe67045b9c68812ecee3b6162c92f9776`, described as `n8.2-dev-2123-gbe367abfe6` | The master-era Rockchip replay used during this comparison and recorded by the dedicated-PPA evidence. It is not a moving-tip claim. |
 | Historical 8.0 port | branch `rockchip-8.0` at `463f542c325942f3e6b390cb940c32812570957d`, described as `n8.0.3-65-g463f542c32` | The earlier 8.0 source/package line, superseded for source work by published `ffmpeg-80@be753f3bbb2c`. |
 | Comparison release replay | branch `rockchip-8.1.2` at `53b3551b9176b8db0f75eb7b0addd7bc26d20d5e`, described as `n8.1.2-63-g53b3551b91` | Reproducible snapshot for the counts below, superseded for source work by published `ffmpeg-81@8d3ca020b6a2`. It is 63 commits over canonical 8.1.2; `n8.1.2..HEAD` changes 37 files, with 9,507 insertions and 991 deletions. |
 | Jellyfin FFmpeg | branch `jellyfin` at `455bfe53922014076d14c7f3f8c6631b4d3cd4c0`, described as `v8.1.2-1-13-g455bfe53` | Clean source/packaging checkout `/home/yi/Code/rock-5b/ffmpeg/jellyfin-ffmpeg`. |

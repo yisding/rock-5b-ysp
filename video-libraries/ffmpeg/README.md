@@ -15,7 +15,8 @@ Project vocabulary (including the canonical `main`, `ffmpeg-80`, and
 | Developer focus | Understand how FFmpeg packets, frames, DRM PRIME descriptors, rkmpp codecs, and rkrga filters map onto `librockchip_mpp`, `librga`, and the kernel devices. |
 | Owns | The FFmpeg build recipe, companion docs in [`docs/`](docs/how-ffmpeg-works.md), pkg-config examples, and exported patch series in [`patches/`](patches/README.md). |
 | Depends on | Working kernel nodes from [`kernel-drivers/README.md`](../../kernel-drivers/README.md), staged or packaged libraries from [`vendor-libraries/README.md`](../../vendor-libraries/README.md), and the codec udev rule for non-root use. |
-| Current state | The `main`, `ffmpeg-80`, and `ffmpeg-81` branches carry the canonical Rockchip/refactor/Jellyfin-correctness patchset; [W07](../../status.md#watch-w07) owns their dated remote heads. Their latest recorded tips pass affected-object compilation and `fate-source`, which is not new hardware validation. The normal-PPA `c9428bedaa` source and binaries are Published but uninstalled; its focused hardware tests pass 10/10 immediate-close plus 10/10 flush/reuse iterations without the former asynchronous-frame double release. [W05](../../status.md#watch-w05) owns publication freshness, while the [`lifetime finding`](../../findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md) and [`status.md`](../../status.md) own evidence and the next gate. |
+| Validation owner | [`docs/validation.md`](docs/validation.md) separates source, compile, hardware, package, installed-runtime, and application evidence. |
+| Mutable state | [W04](../../status.md#watch-w04) owns Ubuntu version drift, [W07](../../status.md#watch-w07) branch heads, [W05](../../status.md#watch-w05) publication, and [status track 5](../../status.md) the public verdict/next proof. |
 
 ## Files
 
@@ -25,6 +26,7 @@ Project vocabulary (including the canonical `main`, `ffmpeg-80`, and
 | [`docs/implementation-comparison.md`](docs/implementation-comparison.md) | Upstream FFmpeg 8.1.2 (ABI-friendly codec bridge used by the GRD package) vs ffmpeg-rockchip (full Rockchip CLI pipeline: RKMPP hwcontext + RGA filters + richer encoder controls); hwframe model, option surface, AV1 paths. |
 | [`docs/fix-candidates.md`](docs/fix-candidates.md) | The 14 rebase-cleanup fix groups found by auditing `ffmpeg-rockchip-81` against NyanMisaka's fork and FFmpeg upstream: what each defect is, its mechanism, and the commit that fixes it. |
 | [`docs/review-learnings.md`](docs/review-learnings.md) | Reusable review traps from hardening the `ffmpeg-rockchip-81` rebase: V4L2 fallback, RKMPP AFBC/DRM, and RKRGA capability. |
+| [`docs/validation.md`](docs/validation.md) | Accumulated validation scorecard, evidence ladder, durable failure classifications, operations, and freshness routes. |
 | [`docs/rebase-notes.md`](docs/rebase-notes.md) | Tree pins reconciled, how the fork was replayed, and the canonical three-branch publication ledger. |
 | [`docs/rockchip81-package-validation.md`](docs/rockchip81-package-validation.md) | Local package build and on-board RKMPP/RKRGA smoke validation, including the incomplete-MPP-runtime decode failure. |
 | [`docs/jellyfin-ffmpeg-patch-survey.md`](docs/jellyfin-ffmpeg-patch-survey.md) | 2026-07-11 Jellyfin packaging/patch-queue survey: Rockchip sync status, correctness patches to apply directly, and sidecar-only patches. |
@@ -41,7 +43,7 @@ See also [`vendor-libraries/rga/docs/librga-p010-p210-rkrga.md`](../../vendor-li
 usage, BSP kernel layout flags, older librga breakage, and nyanmisaka's patched
 librga fix.
 
-**Which tree to use:** this README's original recipe builds the immutable
+**Source roles:** this README's original recipe builds the immutable
 nyanmisaka snapshot `40c412dacc` used for kernel-port hardware validation.
 Fresh source work should use
 **`github.com/yisding/ffmpeg-rockchip-81`** (nyanmisaka upstream:
@@ -51,7 +53,7 @@ Fresh source work should use
 - `ffmpeg-80` is the full patchset over release/8.0; and
 - `ffmpeg-81` is the full patchset over release/8.1.
 
-Recheck their exact heads through W07 before making a fresh-current claim.
+Recheck exact heads through W07 before reusing a branch result.
 The normal system package's intended source is separately owned by the
 `FFMPEG_*` defaults in
 [`build-source-packages.sh`](../../packaging/ppa/build-source-packages.sh).
@@ -59,15 +61,12 @@ That line carries the bounded synchronous-output wait, transient MPP
 input-backpressure handling, HEVC unused-following-reference fix, and
 asynchronous frame-lifetime repair used by the GRD acceptance gate.
 
-The main and 8.1 core Rockchip files are byte-identical. The 8.0 branch differs
-only in `rkmppenc.c`, where the encoder-statistics API must match FFmpeg 8.0.
-All three include the unique former `refactor/section-c` work, including the
-generic Jellyfin correctness import and final encoder static-format/concurrency
-fix. The earlier `75638e7f0b17` package-validation point, `be367abfe6`
-dedicated-PPA source, and `6cf02ab253` 28-patch export remain historical proof.
-The rolling branch tips have not been packaged or exercised on RK3588 hardware;
-the separate normal-PPA artifact has focused hardware proof and is Published,
-but still awaits installation and its targeted GRD runtime test.
+The recorded main and 8.1 core Rockchip files were byte-identical; 8.0 differed
+only where encoder-statistics APIs required release adaptation. That is an
+immutable replay conclusion, not a claim about later branch heads. The
+[validation scorecard](docs/validation.md) distinguishes the historical
+package, patch-export, branch-compile, and focused-hardware evidence from live
+publication or application state.
 
 This needs **no system install and no sudo to build** — everything goes into an
 isolated staging prefix; only *running* it needs device access (root, or the udev

@@ -141,7 +141,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-31 | Forward-port validation and state | Patch README owns order; patch catalog owns provenance/backport; project evidence owner owns capability; status owns public boundary; findings are intake. | `forward-port-status.md`, patch docs, status tracks 1/2, W16, runbooks/findings. Security review mandatory. | CLOSED 2026-08-05 — compact capability scorecard, mechanical series index, provenance/backport catalog, and status/W16 live owners handoff-gated. |
 | ORG-32 | VA-API validation and application route | VA-API README owns capability policy; architecture owns mechanism; app map owns consumer compatibility; status owns browser/package verdict. Promote fresh evidence, preserve superseded-plan anchors. | VA-API/app READMEs, status track 14/W18, findings, closure plans, package docs. Security: not expected; recheck if kernel safety enters. | CLOSED 2026-08-05 — policy/mechanism/consumer/live-state owners separated, closure-plan anchors preserved, and full handoff gate passed. |
 | ORG-33 | Mesa validation and MR state | Remote service is MR authority; W06 is dated cache; validation/review docs own conclusions; README routes. | Mesa README/docs, W06, status track 8, findings; preserve MR links. Security: upstream destination is public fact, but submission planning remains private. | CLOSED 2026-08-05 — router, accumulated validation, tip-pinned review, W06/status ownership, and full handoff gate complete. |
-| ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | ACTIVE 2026-08-05 — source/package ownership migrated; validation consolidation pending. |
+| ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | CLOSED 2026-08-05 — evidence scorecard, frozen audits/replays, mutable-state routing, and full handoff gate complete. |
 | ORG-35 | GNOME Remote Desktop validation and branch state | Remote owns branch tip; build script owns package input; project docs own design/test conclusions; status/W05 own verdict/publication. | GRD README/docs/findings, status track 7, W05/W10, PPA and GRD pin checker. Security: review public fix inventory versus private submission plan. | ACTIVE 2026-08-05 — source/package ownership migrated; validation consolidation pending. |
 | ORG-40 | Project front doors, runbooks, plans, audits, and coverage | Each project README routes stable scope/boundary/model/operation; deep docs own mechanism; runbooks own commands; plans own future ladder; coverage owns scope/first missing evidence. | Activate one project/README at a time; preserve all headings/inbound links and nearest-README completeness. Security review when the project scope requires it. | PLANNED after owner consolidation. |
 | ORG-41 | Findings inbox promotion | Existing project/runbook/test/catalog/package owners absorb useful evidence; findings index retains deposit guidance and views of live intake only. No tombstones or permanent `findings/evidence/` archive. | Exact inbound links, generated chronology, curated topic row/count, status citations; update findings checks atomically. Security review for every kernel safety/upstream finding. | PLANNED; promote in small owner-based batches. |
@@ -651,3 +651,36 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   ledger closure on 2026-08-05 across 435 Markdown files, 3,737 local links,
   434 anchors, all 62 regression tests, ShellCheck, documentation consistency,
   and whitespace.
+
+### ORG-34 — FFmpeg accumulated validation and branch-state route
+
+- **Owner map:** `docs/validation.md` now owns the evidence ladder and
+  accumulated conclusions; W04 owns Ubuntu version drift, W07 moving branch
+  heads/evidence invalidation, W05 publication, the package build script
+  intended input, status track 5 the public verdict/next proof, and the
+  asynchronous-frame finding the current focused hardware/application gate.
+- **Scorecard:** distinguishes source replay, compile/source, registration,
+  focused hardware, package-artifact, installed-runtime, and application
+  evidence. It records immutable evidence points and durable failure classes
+  without repeating live branch/package state.
+- **Front-door disposition:** removed the literal current-state row and the
+  duplicate rolling-branch/PPA verdict. Retained source roles, historical build
+  recipe, file ownership, package-input route, and the warning that branch
+  results require W07 freshness.
+- **Audit disposition:** `rockchip81-package-validation.md` remains a frozen
+  2026-07-06 measured audit with all original H2 anchors. Its former next-step
+  section is now a successor route rather than a stale current blocker.
+- **Replay/comparison disposition:** immutable three-line pins and source
+  conclusions remain; “latest/current publication” wording and package
+  rollups were replaced by W07, W05, build-input, scorecard, and status routes.
+- **Evidence disposition:** dated FFmpeg findings remain intake for later
+  ORG-41 batches. The scorecard promotes their durable evidence classes and
+  conclusions without prematurely deleting exact run records.
+- **Public/private review:** the public fix series retains behavior, patch
+  identity, and validation. No submission destination/order, send/withhold
+  decision, disclosure/CVE coordination, or hostile reproducer moved from the
+  private repository.
+- **Validation:** after correcting one generated Markdown anchor, the full
+  `bash scripts/check-repo.sh` handoff gate passed on 2026-08-05 across 436
+  Markdown files, 3,771 local links, 449 anchors, all 62 regression tests,
+  ShellCheck, documentation consistency, and whitespace.

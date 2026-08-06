@@ -1,11 +1,17 @@
 # ffmpeg-rockchip-81 package build and on-board validation
 
-Record of building the `ffmpeg-rockchip-81` forward-port into a local runtime
-package and smoke-validating it on the ROCK 5B, plus the MPP root cause behind
-the one decode failure. Companion to [`rebase-notes.md`](rebase-notes.md) §3
-(which snapshot this validation pins to) and
-[`review-learnings.md`](review-learnings.md) (the code-review lessons from the
-same tree).
+> **Frozen dated audit — 2026-07-06.** This records one package and runtime
+> transaction at immutable source/runtime identities. It does not own current
+> branch, publication, installed, or next-gate state. Use the
+> [validation scorecard](validation.md), [W05](../../../status.md#watch-w05),
+> [W07](../../../status.md#watch-w07), and
+> [status track 5](../../../status.md) for successors.
+
+The audit built the `ffmpeg-rockchip-81` forward port into a local runtime
+package, smoke-tested it on the ROCK 5B, and isolated an MPP runtime mismatch
+behind one decode failure. Companion to
+[`rebase-notes.md`](rebase-notes.md) §3 and
+[`review-learnings.md`](review-learnings.md).
 
 > Scope: local package build from `ffmpeg-rockchip-81` branch
 > `refactor/section-c` at `75638e7f0b17` into `packaging/ffmpeg-rockchip81/`,
@@ -203,15 +209,14 @@ archive shows normal `0755` directories and executable modes.
 
 ## Next validation step
 
-For full forward-port validation, package or otherwise select the matching
-`mpp-rockchip` runtime, then rerun the FFmpeg suite with the packaged binary.
-The minimum required pass set is:
+This heading is retained for compatibility. The audit's immediate successor
+was to select a matching MPP runtime and replay H.264/HEVC decode plus both
+RGA-transcode directions. Later evidence must not be appended here:
 
-- `h264_rkmpp` decode to null,
-- `hevc_rkmpp` decode to null,
-- `h264_rkmpp -> scale_rkrga -> hevc_rkmpp`,
-- `hevc_rkmpp -> scale_rkrga -> h264_rkmpp`.
-
-Until that passes, the package is compile-, feature-, encode-, hwupload-,
-H.264-decode-with-source-MPP-, and RGA-smoke validated, but not full
-installed-runtime decode/transcode validated.
+- [`validation.md`](validation.md) owns accumulated conclusions and evidence
+  classes;
+- [status track 5](../../../status.md#next-gates) owns the current public proof;
+- [W05](../../../status.md#watch-w05) owns publication; and
+- the
+  [asynchronous-frame finding](../../../findings/2026-07-30-ffmpeg-rkmpp-async-frame-lifetime-fix.md)
+  owns the later focused hardware and GRD integration boundary.
