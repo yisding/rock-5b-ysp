@@ -123,6 +123,12 @@ the intake file without a tombstone. Git history retains the discarded intake;
 the ordinary reader should reach the durable owner rather than a second
 chronology.
 
+Small shared templates for a project front door, technical explanation,
+runbook, live plan, and dated audit live under
+[`docs/templates/`](docs/templates/README.md). They illustrate the common
+interface and evidence vocabulary; they are not required headings or a reason
+to make unlike projects mechanically identical.
+
 ## Updating project status
 
 The dashboard is a dated support contract, not a general task list.

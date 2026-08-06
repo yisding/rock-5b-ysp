@@ -19,6 +19,7 @@ of repo-wide references that are not owned by one project.
 | [`system-baseline.md`](system-baseline.md) | Canonical capture contract separating target board, boot path, runtime kernel/userspace, and build host; points to the existing collector and dated truth owners. |
 | [`source-trees.md`](source-trees.md) | Source pins and reconstruction recipes for the trees that `file:line` citations resolve against. Pins are corrected in place as provenance is re-measured; new trees are published to GitHub rather than added here. |
 | [`gotchas.md`](gotchas.md) | Whole-repo trap index: kernel and FFmpeg traps live here; GRD, Mesa, packaging, and debug-kernel traps point to their project-owned write-ups. |
+| [`templates/`](templates/README.md) | Small illustrative interfaces for project front doors, technical explanations, runbooks, live plans, and dated audits; use only the sections that fit the document's real role. |
 
 Repository-wide license status is not a cross-project doc; it lives at
 [`../LICENSE.md`](../LICENSE.md).

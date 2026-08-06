@@ -131,7 +131,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 |----|-----------------------|-----------------------------------------------|-------------------------------------|---------------------|
 | ORG-00 | Phase 0 ledger and informational baseline | This ledger temporarily owns migration state; `report-doc-duplication.py` owns the reproducible signal definitions. No repository assertion moves. | `docs/README.md`, `scripts/README.md`; nearest-README, script-mode, regression tests. Security: not applicable; inventory only. | CLOSED 2026-08-05 — focused tests and full handoff gate pass. |
 | ORG-01 | MPP vertical pilot across build input, artifact, publication, runtime, and status | Build script owns intended pin; standard metadata owns actual artifact; Launchpad/W05 own live/datestamped publication; existing MPP/package owner absorbs closure evidence; status track 9 owns public rollup. Promote the useful closure evidence and remove its intake finding only after all inbound links move. | Track 9, W05, W25, MPP package/source docs, PPA docs/history, `findings/README.md`, direct finding links, ledger row 9; status-ledger/findings checks. Security: required because MPP/kernel logs and private reproducer boundary are adjacent; no reproducer or disclosure plan may move. | CLOSED 2026-08-05 — owners, reconstruction, negative control, link migration, intake removal, checker changes, and full handoff gate pass. |
-| ORG-02 | Adopt the pilot-tested contract and add small templates | `CONTRIBUTING.md` becomes normative owner; templates illustrate README, explanation, runbook, live-plan, and audit interfaces. Proposal/ledger do not remain contracts. | Root/docs routes, nearest-README rule, all pilot compatibility findings. Security fields stay mandatory in ledger workflow. | ACTIVE — the promotion, optional-ledger, and retired-watchlist contract is implemented; templates remain. |
+| ORG-02 | Adopt the pilot-tested contract and add small templates | `CONTRIBUTING.md` becomes normative owner; templates illustrate README, explanation, runbook, live-plan, and audit interfaces. Proposal/ledger do not remain contracts. | Root/docs routes, nearest-README rule, all pilot compatibility findings. Security fields stay mandatory in ledger workflow. | CLOSED 2026-08-05 — normative contract and five shared interfaces are linked, complete, and handoff-gated. |
 | ORG-10 | Dashboard and optional cross-project ledger | `status.md` owns compact verdict/next proof; only irreducible synthesis remains in `status-ledger.md`; project/finding owners receive exact identity and evidence. | Every numbered dashboard/next-gate/ledger row and inbound ledger link; replace mandatory-pair checker atomically. Security review per kernel/upstream row. | PLANNED; split by track before activation. |
 | ORG-11 | Watchlist cache | Remote/service/host/board is authoritative; live W-item owns dated cache/recheck/freshness only. Promote stable knowledge/internal work and retain retired anchors. | Every W01–W25 index/detail anchor and inbound W-link; pairing checker plus authority/retired-anchor report. Security review required for W19 and any memory-safety item. | PLANNED; classify every W-ID before activation. |
 | ORG-20 | `source-trees.md` source map | Immutable documentation/comparison pins and reconstruction only; scripts/manifests own intended inputs, project docs own mechanism/results. | All source-tree section links and file/line citations; FFmpeg/GRD checks migrate only with owning package slices. Security review for kernel source/fix material. | PLANNED; split by source family. |
@@ -216,3 +216,22 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
   `bash scripts/check-repo.sh` handoff gate passed on 2026-08-05 with 430
   Markdown files, 3,839 local links, 398 anchors, ShellCheck, documentation
   consistency, and whitespace all green.
+
+### ORG-02 — tested contract and shared interfaces
+
+- **Normative owner:** `CONTRIBUTING.md` now owns the pilot-tested promotion,
+  optional-ledger, retired-watchlist, evidence, security, and handoff rules.
+  The proposal remains rationale during migration, not an operational contract.
+- **Templates:** `docs/templates/` provides one small illustrative interface
+  each for a project README, technical explanation, runbook, live plan, and
+  dated audit. The templates share ownership/evidence/boundary vocabulary but
+  explicitly permit project-specific omission and depth.
+- **Routes:** `CONTRIBUTING.md` links the template hub; `docs/README.md` links
+  the nested front door; the hub owns the exhaustive five-file index. Existing
+  `findings/TEMPLATE.md` remains the distinct fresh-intake template.
+- **Public/private review:** the plan and audit templates make the existing
+  private submission, disclosure/CVE, and memory-corruption-reproducer boundary
+  explicit without linking or importing private material.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-05 with all template routes, nearest-README ownership, 59 regression
+  tests, ShellCheck, documentation consistency, and whitespace green.
