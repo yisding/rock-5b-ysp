@@ -139,7 +139,7 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 | ORG-22 | Userspace patch and public technical-fix inventories | Project catalogs own behavior, public patch identity/provenance, dependencies, validation; scripts own pins. Promote useful public maintenance facts and remove publication/upstream-submission copies. | `packaging/userspace-patches.md`, package/source-delta catalogs, project READMEs. Security review mandatory; private destinations/order/send-withhold/disclosure remain private. | ACTIVE 2026-08-05 — FFmpeg/GRD pin and publication copies removed; remaining packages pending. |
 | ORG-30 | Rewrite validation workstream | `rewrite-validation-plan.md` owns the plan; `tests/rewrite-conformance.md` owns operations and delegates; existing project docs own accumulated result; validation index routes only. Freeze or remove audits after promotion. | Rewrite status/finding/plan/audit/index/runbook links and private-harness references; findings and nearest-README checks. Security review mandatory for fuzzing, destructive PoCs, and memory safety. | CLOSED 2026-08-05 — canonical plan/operation/evidence/verdict owners, router-only index, frozen audit, and state-free teaching guide handoff-gated. |
 | ORG-31 | Forward-port validation and state | Patch README owns order; patch catalog owns provenance/backport; project evidence owner owns capability; status owns public boundary; findings are intake. | `forward-port-status.md`, patch docs, status tracks 1/2, W16, runbooks/findings. Security review mandatory. | CLOSED 2026-08-05 — compact capability scorecard, mechanical series index, provenance/backport catalog, and status/W16 live owners handoff-gated. |
-| ORG-32 | VA-API validation and application route | VA-API README owns capability policy; architecture owns mechanism; app map owns consumer compatibility; status owns browser/package verdict. Promote fresh evidence, preserve superseded-plan anchors. | VA-API/app READMEs, status track 14/W18, findings, closure plans, package docs. Security: not expected; recheck if kernel safety enters. | PLANNED after ORG-01 negative control. |
+| ORG-32 | VA-API validation and application route | VA-API README owns capability policy; architecture owns mechanism; app map owns consumer compatibility; status owns browser/package verdict. Promote fresh evidence, preserve superseded-plan anchors. | VA-API/app READMEs, status track 14/W18, findings, closure plans, package docs. Security: not expected; recheck if kernel safety enters. | CLOSED 2026-08-05 — policy/mechanism/consumer/live-state owners separated, closure-plan anchors preserved, and full handoff gate passed. |
 | ORG-33 | Mesa validation and MR state | Remote service is MR authority; W06 is dated cache; validation/review docs own conclusions; README routes. | Mesa README/docs, W06, status track 8, findings; preserve MR links. Security: upstream destination is public fact, but submission planning remains private. | PLANNED. |
 | ORG-34 | FFmpeg validation and branch state | Remote owns moving tip; build script owns intended package input; immutable comparison pins stay in source map; project docs own measured conclusions; status/W05 own verdict/publication. | FFmpeg README/docs/findings, W04/W05/W07/W21, status track 5, PPA installer/build/checker. Security: review public fix inventory versus private submission plan. | ACTIVE 2026-08-05 — source/package ownership migrated; validation consolidation pending. |
 | ORG-35 | GNOME Remote Desktop validation and branch state | Remote owns branch tip; build script owns package input; project docs own design/test conclusions; status/W05 own verdict/publication. | GRD README/docs/findings, status track 7, W05/W10, PPA and GRD pin checker. Security: review public fix inventory versus private submission plan. | ACTIVE 2026-08-05 — source/package ownership migrated; validation consolidation pending. |
@@ -579,3 +579,41 @@ each row gains exact file and anchor references before it becomes `ACTIVE`.
 - **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
   2026-08-05 across 435 Markdown files, 3,788 local links, 390 anchors, all 62
   regression tests, ShellCheck, documentation consistency, and whitespace.
+
+### ORG-32 — VA-API policy, mechanism, and application route
+
+- **Owner map:** `video-libraries/vaapi/README.md` owns durable exposure and
+  capability walls; `docs/architecture.md` owns object, memory, decode/encode,
+  sandbox, failure, and validation mechanism; `docs/app-enablement.md` owns
+  consumer contract fit and ordering; status track 14 owns the dated
+  installed/browser verdict and next proof; W05/W18 own publication and
+  moving-fork observations.
+- **Front-door disposition:** removed release/package chronology, exact build
+  and payload identities, browser-version observations, duplicated application
+  results, and the competing next-gate list. Retained default/opt-in/
+  unadvertised policy, permanent backend walls, the narrow-width decision,
+  artifact-identity warning, sandbox boundary, and evidence routes.
+- **Architecture disposition:** retained immutable source pins and all
+  mechanism, ownership, failure-policy, and debugging content. Replaced the
+  dated application-result table and open-gate matrix with stable interface
+  contracts and canonical-owner routing.
+- **Application-map disposition:** converted versioned package/runtime results
+  into durable per-consumer compatibility and first-discriminator statements.
+  The map retains every H2/H3 anchor, source-contract rationale, and
+  consumer-specific sequencing while routing the moving browser/package
+  result to status.
+- **Superseded-plan compatibility:** the narrow 10-bit plan keeps every
+  original H2/H3 anchor. Its declined VA-API workstream is a frozen decision
+  stub; its independent librga workstream routes to the existing detailed
+  librga plan rather than remaining duplicate active work.
+- **Evidence disposition:** dated findings remain intake for the later ORG-41
+  promotion batches; this slice promoted their stable capability, ownership,
+  and consumer conclusions without deleting evidence prematurely.
+- **Public/private review:** no kernel safety, hostile reproducer, disclosure,
+  CVE, submission destination/order, or send/withhold material entered this
+  slice. The public DMA-BUF kernel precondition remains a compatibility route;
+  no memory-corruption trigger was copied.
+- **Validation:** the full `bash scripts/check-repo.sh` handoff gate passed on
+  2026-08-05 before ledger closure, covering 435 Markdown files, 3,749 local
+  links, 428 anchors, all 62 regression tests, ShellCheck, documentation
+  consistency, and whitespace.

@@ -17,19 +17,16 @@ parsed VA codec state + slice payloads
 ```
 
 This is the durable architecture guide. The
-[project front door](../README.md) owns the moving capability matrix and
-evidence map; [`status.md` track 14](../../../status.md) owns the public
-support verdict and next gate. Dated experiments stay in
-[`findings/`](../../../findings/README.md).
+[project front door](../README.md) owns capability policy, the
+[application map](../../../docs/app-enablement.md) owns consumer compatibility,
+and [`status.md` track 14](../../../status.md) owns the dated browser/package
+verdict. Dated experiments stay in [`findings/`](../../../findings/README.md).
 
-The implementation descriptions below were source-inspected against
-`yisding/rockchip-vaapi` implementation commit
-`491533ec6bb375ef3ccba18ace26106417a76c3d` on 2026-07-29. The pre-decode
-stable-export ownership update is separately inspected against public release
-`main@70f26d950bcb` (ysp13) on 2026-08-05. Its same-version local package is
-installed and passes Google Chrome H.264 presentation plus VP9 hardware
-selection; the matching source, successful arm64 build, and driver/config
-binaries are Published, while exact PPA-binary replay remains open.
+The implementation descriptions below were source-inspected against immutable
+fork commits `491533ec6bb375ef3ccba18ace26106417a76c3d` (the renovated
+bridge model) and `70f26d950bcb` (pre-decode stable-export ownership). Those
+pins explain the mechanism; [W18](../../../status.md#watch-w18) owns moving
+fork heads and [W05](../../../status.md#watch-w05) owns publication state.
 
 ## Fast re-entry
 
@@ -43,7 +40,7 @@ binaries are Published, while exact PPA-binary replay remains open.
 | How does encode differ? | [Encode lifecycle](#8-encode-path-and-input-normalization) | Encode is synchronous and accepts only a deliberately narrow, validated input-surface contract. |
 | Why did VLC and Firefox need different work? | [Application contracts](#9-application-and-sandbox-contracts) | VLC derives and exports an image buffer; Firefox exports a surface and runs the driver inside RDD. |
 | What did the renovation replace? | [Bridge construction record](#10-what-we-had-to-build-and-replace) | The strategic VA-to-MPP idea survived; fixed arrays, CPU frame copies, polling, incomplete reconstruction, and unsafe negotiation did not. |
-| What is still open? | [Remaining issues](#12-remaining-issues-and-next-proofs) | Deployment, sandbox, 10-bit presentation, encoder qualification, Chromium, and AV1 are separate gates. |
+| Where do open gates live? | [Remaining issues](#12-remaining-issues-and-next-proofs) | Policy, application compatibility, and the dated public verdict have separate owners. |
 
 ### Similar objects and green signals that must not be conflated
 
@@ -771,13 +768,17 @@ Main10 encode capability.
 Standardizing the codec call is necessary but not sufficient. Each application
 reaches a different part of libva:
 
-| Consumer | Critical contract | Proven boundary |
-|----------|-------------------|-----------------|
-| FFmpeg VAAPI | Config/context, surfaces, picture buffers, sync, hardware-frame download | Decode conformance reference path; experimental encode interop path |
-| GStreamer `va` | Vendor opt-in, image upload/readback, advertised formats | `GST_VA_ALL_DRIVERS=1` is required for the unfamiliar Rockchip vendor; system-memory gates pass |
-| VLC | `vaDeriveImage` plus `vaAcquireBufferHandle` for EGLImage import | Stock VLC decodes H.264/HEVC in a real display session; headless dummy output is not evidence |
-| Firefox | PRIME 2 surface attributes/export, pre-decode placeholder, RDD device and ioctl policy | Decode/export passes with RDD sandbox disabled; the narrow sandbox patch still needs a live packaged proof |
-| Chromium / Google Chrome | A binary compiled with VA-API, stable pre-decode surface export, GPU-media presentation and sandbox access | XtraDeb Chromium exposes only Hantro V4L2 VP8. Google Chrome 151 with installed ysp13 presents H.264 correctly and selects `VaapiVideoDecoder` for 640x480 VP9; 384x240 VP9 intentionally prefers software. Stock Chrome uses no disabling flags, but its GPU process reports unsandboxed and has no seccomp filter. Automated replay and sandbox remain |
+| Consumer class | Mechanism contract |
+|----------------|--------------------|
+| FFmpeg VAAPI | Config/context, surfaces, picture buffers, sync, and hardware-frame download or coded-buffer output |
+| GStreamer `va` | Vendor opt-in, advertised formats, and image upload/readback |
+| VLC | `vaDeriveImage` plus `vaAcquireBufferHandle` for EGLImage import; a headless dummy output provides no decoder device |
+| Firefox | PRIME 2 surface attributes/export, stable pre-decode storage, and independent RDD pathname/ioctl policy |
+| Chromium family | A binary compiled with VA-API, stable pre-decode export, GPU-media presentation, decoder-selection policy, and GPU-process device/ioctl sandbox access |
+
+The [application map](../../../docs/app-enablement.md) owns which consumers
+match these contracts. [Status track 14](../../../status.md) owns dated browser
+and installed-package results.
 
 ### Firefox RDD has two independent gates
 
@@ -933,39 +934,33 @@ not in this architectural model.
 
 ## 12. Remaining issues and next proofs
 
-This table records durable open boundaries as of 2026-07-29. Consult the
-[project summary](../README.md), [application map](../../../docs/app-enablement.md),
-and [`status.md` next gate](../../../status.md#next-gates) before acting,
-because package and upstream state can change without an architecture edit.
+This guide does not own a live backlog. Classify an open question before
+acting:
 
-| Area | What is already bounded | What remains | Next discriminating proof |
-|------|-------------------------|--------------|---------------------------|
-| Installed artifact | Source-path gates cover the maintained implementation; package build/lifecycle checks exist | A package being built or installed is not the same as running the full gates through the installed driver | Run safe decode, HEVC, narrow fallback, VLC, and Firefox with the installed driver and no `LIBVA_DRIVERS_PATH` override |
-| Firefox sandbox | Exact 153.0 source preimages and a narrow broker/seccomp patch are checked; unsandboxed hardware decode works | No patched Firefox binary has proved live RDD decode with the sandbox enabled | Build/install the pinned Firefox package, leave `MOZ_DISABLE_RDD_SANDBOX` unset, and audit driver frames plus allowed device/ioctl access |
-| HEVC Main10 | 10 of 11 real Main10 vectors are P010-exact; the unsupported 64-pixel case falls back before RGA | Profile is hidden; throughput, broader app use, and actual HDR presentation are unqualified | Measure sustained 10-bit throughput and HDR output in a real display path, then run the app matrix before advertising |
-| VP9 Profile 2 | Generated and official vectors are P010-exact through AFBC/RGA | Profile is hidden and lacks broad application/display qualification | Run browser/player PRIME presentation and sustained resource gates on the pinned stack |
-| Narrow 10-bit geometry | Driver refuses widths below 68 under the inherited vendor policy | It is unknown whether the limit is physical or can be avoided with padded AFBC, another MPP layout, or CPU unpack | Prototype only if narrow 10-bit hardware decode matters; keep the proven software fallback regardless |
-| MPP decode backend | HEVC Main has zero bridge failures in the broad sweep | Two conformance streams remain undecodable by MPP itself; oversize pictures exceed the public constraint | Fix or classify in MPP; do not weaken bridge validation to make them appear supported |
-| External pool ceiling | On-demand growth prevents the observed 24-buffer deadlock | A consumer holding more than 64 outputs receives an error rather than unlimited growth | Measure real high-DPB clients before changing the ceiling; preserve bounded resource use |
-| Encode qualification | H.264/HEVC one-slice CQP/CBR/VBR, GStreamer/FFmpeg interop, concurrency, RTP, RGB import, and short soak pass | Two-hour qualification, full hardware WebRTC peer gate, browser encode integration, multi-slice, B-frames, and broader rate-control behavior remain | Complete the paced long soak and native `vah264enc` peer run before considering default exposure |
-| Main10 encode | Linear P010 memory handling is checked | RK3588 MPP `vepu5xx` rejects the required 10-bit input format | Obtain backend/HAL support first, then add Main10 bitstream, quality, sanitizer, concurrency, and soak gates |
-| PRIME imports | One-object linear NV12 and packed RGB are validated | Multi-object, planar external, AFBC/tiled, and other modifiers are rejected | Add one descriptor shape at a time with fd-lifetime, capacity, conversion, and standard-decoder evidence |
-| Chromium / Google Chrome | Wayland/ANGLE/Panfrost is healthy; XtraDeb Chromium exposes Hantro V4L2 VP8, while Google Chrome enumerates this driver's H.264/VP9/HEVC profiles. Installed ysp13 presents H.264 correctly and selects VA-API for 640x480 VP9; 384x240 selects software by the below-360p policy | Manual H.264 presentation and VP9 selection are proven. Stock Chrome uses no sandbox-disabling flags, but the GPU process has `Seccomp: 0`; browser stable-copy markers, automated visible-output checking, HEVC playback and sandbox attribution are not | Automate H.264/VP9 playback with checked output and stable-copy markers, add HEVC, identify what precedes the multiple-thread sandbox warning, then prove MPP/RGA/DMA-heap access in a sandboxed GPU process. A mixed Chromium build remains useful but is no longer prerequisite to the Google Chrome gate |
-| AV1 | Hardware and ordinary RKMPP packet decode exist; a source-inspected direct `/dev/mpp_service` backend has a bounded architecture | No normalized golden-job replay, direct compiler, surface-state conformance, output-layout proof, recovery, film-grain, or app gate exists; AV1 remains unadvertised | Capture and replay one known-good libmpp job through a standalone direct transport before integrating any VA capability |
-| Long-term maintenance | The fork has structured gates and source-pinned browser policy | MPP, librga, kernel, libva, Firefox, and Chromium can drift independently | Re-run the relevant conformance/app/sandbox gates on every component bump and update the source pins |
+| Question | Canonical owner |
+|----------|-----------------|
+| Should the driver advertise a codec, profile, encode mode, or VPP feature? | [Capability policy](../README.md#capability-matrix) |
+| Does a client contract match the driver? | [Application map](../../../docs/app-enablement.md) |
+| What browser/package proof is next? | [Status track 14 and next gate](../../../status.md#next-gates) |
+| What did Launchpad publish? | Launchpad, cached by [W05](../../../status.md#watch-w05) |
+| Did the external fork move? | [W18](../../../status.md#watch-w18) |
+| How does a bridge boundary work or fail? | This guide; add durable mechanism here |
+| What did one experiment prove? | A dated [finding](../../../findings/README.md) until promoted |
+
+Independent architecture boundaries remain: MPP-native decode failures must
+not be disguised as bridge support; output pools remain bounded; new PRIME
+descriptor shapes need complete ownership/capacity/conversion evidence; AV1
+needs a golden direct-service replay before any VA integration; and component
+bumps invalidate only the evidence classes they affect.
 
 ### Recommended priority
 
-1. Close the installed-driver and Firefox sandbox proofs for the default decode
-   set.
-2. Qualify 10-bit throughput and HDR presentation before exposing Main10 or
-   VP9 Profile 2.
-3. Complete long encode and native WebRTC qualification before widening or
-   default-enabling encode.
-4. Treat Google Chrome replay automation and sandbox qualification, the XtraDeb
-   Chromium mixed-backend package gate, the AV1
-   direct-backend proof, and new PRIME descriptor shapes as independent work
-   packages, not extensions implied by existing green gates.
+Priority is intentionally routed rather than copied: use
+[status track 14](../../../status.md#next-gates) for the public browser/package
+proof and the
+[application map](../../../docs/app-enablement.md#suggested-sequencing) for
+consumer ordering. An architecture edit is required only when a mechanism or
+failure boundary changes.
 
 ## 13. Debugging by boundary
 
